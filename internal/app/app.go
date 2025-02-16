@@ -12,6 +12,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
 	"github.com/Asutorufa/yuhaiin/internal/version"
+	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -64,11 +65,8 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 )
 
-func AddComponent[T any](a *appapi.Start, name string, t T) T {
-	if z, ok := any(t).(io.Closer); ok {
-		a.AddCloser(name, z)
-	}
-
+func AddCloser[T io.Closer](a *appapi.Start, name string, t T) T {
+	a.AddCloser(name, t)
 	return t
 }
 
@@ -104,57 +102,62 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	}
 	so.AddCloser("http_listener", httpListener)
 
-	so.Setting.AddObserver(func(s *pc.Setting) {
+	chore := chore.NewChore(opt.ChoreConfig, func(s *pc.Setting) {
 		log.Set(s.GetLogcat(), PathGenerator.Log(so.ConfigPath))
+
+		sysproxy.Update(s)
+
+		{
+			// default interface
+
+			iface := atomicx.NewValue("")
+
+			dialer.DefaultInterfaceName = func() string {
+				if !s.GetUseDefaultInterface() {
+					return s.GetNetInterface()
+				}
+
+				x := iface.Load()
+				if x != "" {
+					if _, err := net.InterfaceByName(x); err == nil {
+						return x
+					}
+				}
+
+				ifacestr, err := interfaces.DefaultRouteInterface()
+				if err != nil {
+					log.Error("get default interface failed", "error", err)
+				} else {
+					log.Info("use default interface", "interface", ifacestr)
+					iface.Store(ifacestr)
+				}
+
+				return ifacestr
+			}
+		}
+
+		{
+			dialer.DefaultIPv6PreferUnicastLocalAddr = s.GetIpv6LocalAddrPreferUnicast()
+
+			configuration.IPv6.Store(s.GetIpv6())
+			configuration.FakeIPEnabled.Store(s.GetDns().GetFakedns() || s.GetServer().GetHijackDnsFakeip())
+			if advanced := s.GetAdvancedConfig(); advanced != nil {
+				if advanced.GetUdpBufferSize() > 2048 && advanced.GetUdpBufferSize() < 65535 {
+					configuration.UDPBufferSize.Store(int(advanced.GetUdpBufferSize()))
+				}
+
+				if advanced.GetRelayBufferSize() > 2048 && advanced.GetRelayBufferSize() < 65535 {
+					configuration.RelayBufferSize.Store(int(advanced.GetRelayBufferSize()))
+				}
+			}
+		}
 	})
 
 	fmt.Println(version.Art)
 	log.Info("config", "path", so.ConfigPath, "grpc&http host", so.Host)
 
-	so.Setting.AddObserver(sysproxy.Update())
-	so.Setting.AddObserver(func(s *pc.Setting) {
-		iface := atomicx.NewValue("")
-
-		dialer.DefaultInterfaceName = func() string {
-			if !s.GetUseDefaultInterface() {
-				return s.GetNetInterface()
-			}
-
-			x := iface.Load()
-			if x != "" {
-				if _, err := net.InterfaceByName(x); err == nil {
-					return x
-				}
-			}
-
-			ifacestr, err := interfaces.DefaultRouteInterface()
-			if err != nil {
-				log.Error("get default interface failed", "error", err)
-			} else {
-				log.Info("use default interface", "interface", ifacestr)
-				iface.Store(ifacestr)
-			}
-
-			return ifacestr
-		}
-	})
-	so.Setting.AddObserver(func(s *pc.Setting) { dialer.DefaultIPv6PreferUnicastLocalAddr = s.GetIpv6LocalAddrPreferUnicast() })
-	so.Setting.AddObserver(func(s *pc.Setting) {
-		configuration.IPv6.Store(s.GetIpv6())
-		configuration.FakeIPEnabled.Store(s.GetDns().GetFakedns() || s.GetServer().GetHijackDnsFakeip())
-		if advanced := s.GetAdvancedConfig(); advanced != nil {
-			if advanced.GetUdpBufferSize() > 2048 && advanced.GetUdpBufferSize() < 65535 {
-				configuration.UDPBufferSize.Store(int(advanced.GetUdpBufferSize()))
-			}
-
-			if advanced.GetRelayBufferSize() > 2048 && advanced.GetRelayBufferSize() < 65535 {
-				configuration.RelayBufferSize.Store(int(advanced.GetRelayBufferSize()))
-			}
-		}
-	})
-
 	// proxy access point/endpoint
-	nodeManager := AddComponent(so, "node_manager", node.NewManager(PathGenerator.Node(so.ConfigPath)))
+	nodeManager := AddCloser(so, "node_manager", node.NewManager(PathGenerator.Node(so.ConfigPath)))
 	register.RegisterPoint(func(x *protocol.Set, p netapi.Proxy) (netapi.Proxy, error) {
 		return node.NewSet(x, nodeManager)
 	})
@@ -162,34 +165,28 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	configuration.ProxyChain.Set(direct.Default)
 
 	// local,remote,bootstrap dns
-	dns := AddComponent(so, "resolver", resolver.NewResolver(configuration.ProxyChain))
+	dns := AddCloser(so, "resolver", resolver.NewResolver(configuration.ProxyChain))
 	// bypass dialer and dns request
-	st := AddComponent(so, "shunt", route.NewRoute(nodeManager.Outbound(), dns, opt.ProcessDumper))
+	st := AddCloser(so, "shunt", route.NewRoute(nodeManager.Outbound(), dns, opt.ProcessDumper))
 	rc := route.NewRuleController(opt.BypassConfig, st)
 	// connections' statistic & flow data
 
-	flowCache := AddComponent(so, "flow_cache", ybbolt.NewCache(db, "flow_data"))
-	stcs := AddComponent(so, "statistic", statistics.NewConnStore(flowCache, st))
+	flowCache := AddCloser(so, "flow_cache", ybbolt.NewCache(db, "flow_data"))
+	stcs := AddCloser(so, "statistic", statistics.NewConnStore(flowCache, st))
 	metrics.SetFlowCounter(stcs.Cache)
-	hosts := AddComponent(so, "hosts", resolver.NewHosts(stcs, st))
+	hosts := AddCloser(so, "hosts", resolver.NewHosts(stcs, st))
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := AddComponent(so, "fakedns", resolver.NewFakeDNS(hosts, hosts, db))
-	resolverControl := resolver.NewResolverControl(so.ResolverConfig, hosts, fakedns, dns)
+	fakedns := AddCloser(so, "fakedns", resolver.NewFakeDNS(hosts, hosts, db))
 	// dns server/tun dns hijacking handler
-	dnsServer := AddComponent(so, "dnsServer", resolver.NewDNSServer(fakedns))
-	opt.Setting.AddObserver(func(s *pc.Setting) {
-		dnsServer.SetServer(s.GetDns().GetServer())
-	})
+	dnsServer := AddCloser(so, "dnsServer", resolver.NewDNSServer(fakedns))
+	resolverCtr := resolver.NewResolverCtr(so.ResolverConfig, hosts, fakedns, dns, dnsServer)
+
 	// make dns flow across all proxy chain
 	configuration.ProxyChain.Set(fakedns)
 	// inbound server
-	inbounds := AddComponent(so, "inbound_listener", inbound.NewListener(dnsServer, fakedns))
-	opt.Setting.AddObserver(func(s *pc.Setting) {
-		inbounds.SetHijackDnsFakeip(s.GetServer().GetHijackDnsFakeip())
-		inbounds.SetSniff(s.GetServer().GetSniff().GetEnabled())
-	})
+	inbounds := AddCloser(so, "inbound_listener", inbound.NewListener(dnsServer, fakedns))
 	// tools
-	tools := tools.NewTools(opt.Setting)
+	tools := tools.NewTools(opt.ChoreConfig)
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /metrics", promhttp.InstrumentMetricHandler(
@@ -209,8 +206,9 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 		Connections:    stcs,
 		Tag:            nodeManager.Tag(st.Tags),
 		RuleController: rc,
-		Inbound:        inbound.NewInboundControl(opt.Setting, inbounds),
-		Resolver:       resolverControl,
+		Inbound:        inbound.NewInboundCtr(opt.InboundConfig, inbounds),
+		Resolver:       resolverCtr,
+		Setting:        chore,
 	}
 
 	// grpc and http server

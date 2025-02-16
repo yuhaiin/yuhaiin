@@ -13,46 +13,44 @@ import (
 var server *listener.InboundConfig
 var system *cb.SystemProxy
 
-func Update() func(s *cb.Setting) {
-	return func(s *cb.Setting) {
-		if proto.Equal(server, s.GetServer()) &&
-			proto.Equal(system, s.GetSystemProxy()) {
-			return
-		}
-
-		UnsetSysProxy()
-		var http, socks5 string
-
-		for _, v := range s.GetServer().GetInbounds() {
-			if s.GetSystemProxy().GetHttp() && http == "" {
-				if v.GetEnabled() && v.GetTcpudp() != nil {
-					if v.GetHttp() != nil || v.GetMix() != nil {
-						http = v.GetTcpudp().GetHost()
-					}
-				}
-			}
-
-			if s.GetSystemProxy().GetSocks5() && socks5 == "" {
-				if v.GetEnabled() && v.GetTcpudp() != nil {
-					if v.GetSocks5() != nil || v.GetMix() != nil {
-						http = v.GetTcpudp().GetHost()
-					}
-				}
-			}
-
-			if (!s.GetSystemProxy().GetSocks5() || (s.GetSystemProxy().GetSocks5() && socks5 != "")) &&
-				(!s.GetSystemProxy().GetHttp() || (s.GetSystemProxy().GetHttp() && http != "")) {
-				break
-			}
-		}
-
-		hh, hp := replaceUnspecified(http)
-		sh, sp := replaceUnspecified(socks5)
-
-		SetSysProxy(hh, hp, sh, sp)
-		server = s.GetServer()
-		system = s.GetSystemProxy()
+func Update(s *cb.Setting) {
+	if proto.Equal(server, s.GetServer()) &&
+		proto.Equal(system, s.GetSystemProxy()) {
+		return
 	}
+
+	UnsetSysProxy()
+	var http, socks5 string
+
+	for _, v := range s.GetServer().GetInbounds() {
+		if s.GetSystemProxy().GetHttp() && http == "" {
+			if v.GetEnabled() && v.GetTcpudp() != nil {
+				if v.GetHttp() != nil || v.GetMix() != nil {
+					http = v.GetTcpudp().GetHost()
+				}
+			}
+		}
+
+		if s.GetSystemProxy().GetSocks5() && socks5 == "" {
+			if v.GetEnabled() && v.GetTcpudp() != nil {
+				if v.GetSocks5() != nil || v.GetMix() != nil {
+					http = v.GetTcpudp().GetHost()
+				}
+			}
+		}
+
+		if (!s.GetSystemProxy().GetSocks5() || (s.GetSystemProxy().GetSocks5() && socks5 != "")) &&
+			(!s.GetSystemProxy().GetHttp() || (s.GetSystemProxy().GetHttp() && http != "")) {
+			break
+		}
+	}
+
+	hh, hp := replaceUnspecified(http)
+	sh, sp := replaceUnspecified(socks5)
+
+	SetSysProxy(hh, hp, sh, sp)
+	server = s.GetServer()
+	system = s.GetSystemProxy()
 }
 
 func replaceUnspecified(s string) (string, string) {

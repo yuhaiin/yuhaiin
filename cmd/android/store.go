@@ -9,7 +9,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Asutorufa/yuhaiin/pkg/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
@@ -191,7 +190,7 @@ func (b *configDB[T]) initSetting() {
 
 	s := GetStore("Default").GetBytes(b.dbName)
 
-	config := b.getDefault(config.DefaultSetting(b.Dir()))
+	config := b.getDefault(pc.DefaultSetting(b.Dir()))
 	if len(s) > 0 {
 		err := proto.Unmarshal(s, config)
 		if err != nil {

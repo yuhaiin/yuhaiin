@@ -18,15 +18,15 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-type InboundControl struct {
+type InboundCtr struct {
 	db      pc.DB
 	inbound *Inbound
 	gc.UnimplementedInboundServer
 }
 
-// NewInboundControl
+// NewInboundCtr
 // TODO hijackDNS,sniff switch
-func NewInboundControl(s pc.DB, i *Inbound) *InboundControl {
+func NewInboundCtr(s pc.DB, i *Inbound) *InboundCtr {
 	_ = s.View(func(s *pc.Setting) error {
 		for _, v := range s.GetServer().GetInbounds() {
 			if !v.GetEnabled() {
@@ -34,23 +34,30 @@ func NewInboundControl(s pc.DB, i *Inbound) *InboundControl {
 			}
 			i.Save(v)
 		}
+
+		i.SetHijackDnsFakeip(s.GetServer().GetHijackDnsFakeip())
+		i.SetSniff(s.GetServer().GetSniff().GetEnabled())
 		return nil
 	})
 
-	return &InboundControl{db: s, inbound: i}
+	return &InboundCtr{db: s, inbound: i}
 }
 
-func (i *InboundControl) List(ctx context.Context, req *emptypb.Empty) (*gc.InboundsResponse, error) {
-	names := []string{}
+func (i *InboundCtr) List(ctx context.Context, req *emptypb.Empty) (*gc.InboundsResponse, error) {
+	resp := &gc.InboundsResponse{}
+
 	err := i.db.View(func(s *pc.Setting) error {
-		names = slices.Collect(maps.Keys(s.GetServer().GetInbounds()))
+		resp.SetNames(slices.Collect(maps.Keys(s.GetServer().GetInbounds())))
+		resp.SetHijackDns(s.GetServer().GetHijackDns())
+		resp.SetHijackDnsFakeip(s.GetServer().GetHijackDnsFakeip())
+		resp.SetSniff(s.GetServer().GetSniff())
 		return nil
 	})
 
-	return gc.InboundsResponse_builder{Names: names}.Build(), err
+	return resp, err
 }
 
-func (i *InboundControl) Get(ctx context.Context, req *wrapperspb.StringValue) (*cf.Inbound, error) {
+func (i *InboundCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*cf.Inbound, error) {
 	resp := &cf.Inbound{}
 	err := i.db.View(func(s *pc.Setting) error {
 		var ok bool
@@ -122,7 +129,7 @@ func generateTlsAuthCa(v *cf.Transport) error {
 	return nil
 }
 
-func (i *InboundControl) Save(ctx context.Context, req *cf.Inbound) (*cf.Inbound, error) {
+func (i *InboundCtr) Save(ctx context.Context, req *cf.Inbound) (*cf.Inbound, error) {
 	if req.GetName() == "" {
 		return nil, fmt.Errorf("inbound name is empty")
 	}
@@ -142,7 +149,20 @@ func (i *InboundControl) Save(ctx context.Context, req *cf.Inbound) (*cf.Inbound
 	return req, err
 }
 
-func (i *InboundControl) Remove(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
+func (i *InboundCtr) Apply(ctx context.Context, req *gc.InboundsResponse) (*emptypb.Empty, error) {
+	err := i.db.Batch(func(s *pc.Setting) error {
+		s.GetServer().SetHijackDns(req.GetHijackDns())
+		s.GetServer().SetHijackDnsFakeip(req.GetHijackDnsFakeip())
+		s.GetServer().SetSniff(req.GetSniff())
+
+		i.inbound.SetHijackDnsFakeip(req.GetHijackDnsFakeip())
+		i.inbound.SetSniff(req.GetSniff().GetEnabled())
+		return nil
+	})
+	return &emptypb.Empty{}, err
+}
+
+func (i *InboundCtr) Remove(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
 	err := i.db.Batch(func(s *pc.Setting) error {
 		delete(s.GetServer().GetInbounds(), req.Value)
 		i.inbound.Remove(req.Value)

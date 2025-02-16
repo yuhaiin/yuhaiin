@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -12,7 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func DefaultSetting(path string) *config.Setting {
+func DefaultSetting(path string) *Setting {
 	tunname := "tun0"
 	if runtime.GOOS == "darwin" {
 		tunname = "utun0"
@@ -20,11 +19,11 @@ func DefaultSetting(path string) *config.Setting {
 		tunname = "wintun"
 	}
 
-	return (&config.Setting_builder{
+	return (&Setting_builder{
 		Ipv6:                proto.Bool(true),
 		UseDefaultInterface: proto.Bool(true),
 		NetInterface:        proto.String(""),
-		SystemProxy: config.SystemProxy_builder{
+		SystemProxy: SystemProxy_builder{
 			Http:   proto.Bool(true),
 			Socks5: proto.Bool(false),
 			// linux system set socks5 will make firfox websocket can't connect
@@ -167,6 +166,6 @@ func DefaultSetting(path string) *config.Setting {
 				}.Build(),
 			},
 		}.Build(),
-		Platform: &config.Platform{},
+		Platform: &Platform{},
 	}).Build()
 }

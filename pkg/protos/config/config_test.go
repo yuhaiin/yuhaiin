@@ -3,7 +3,6 @@ package config
 import (
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -13,7 +12,7 @@ import (
 )
 
 func TestMergeDefault(t *testing.T) {
-	src := config.Setting_builder{
+	src := Setting_builder{
 		Ipv6: proto.Bool(false),
 		Dns:  &dns.DnsConfig{},
 	}.Build()
@@ -27,7 +26,7 @@ func TestMergeDefault(t *testing.T) {
 }
 
 func TestXxx(t *testing.T) {
-	src := config.Setting_builder{
+	src := Setting_builder{
 		Ipv6: proto.Bool(false),
 		Dns: dns.DnsConfig_builder{
 			Resolver: map[string]*pd.Dns{
@@ -36,7 +35,7 @@ func TestXxx(t *testing.T) {
 		}.Build(),
 	}.Build()
 
-	cc := proto.Clone(src).(*config.Setting)
+	cc := proto.Clone(src).(*Setting)
 
 	cc.SetIpv6(true)
 	cc.GetDns().GetResolver()["test"] = &pd.Dns{}

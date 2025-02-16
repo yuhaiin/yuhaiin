@@ -15,12 +15,12 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
-	"github.com/Asutorufa/yuhaiin/pkg/config"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	ypprof "github.com/Asutorufa/yuhaiin/pkg/pprof"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -42,7 +42,7 @@ func run(args []string) error {
 		os.Setenv("EXTERNAL_WEB", *webdir)
 	}
 
-	setting := config.NewConfig(app.PathGenerator.Config(*path))
+	setting := config.NewJsonDB(app.PathGenerator.Config(*path))
 
 	var grpcOpts []grpc.ServerOption
 
@@ -60,7 +60,8 @@ func run(args []string) error {
 		Auth:           auth,
 		BypassConfig:   setting,
 		ResolverConfig: setting,
-		Setting:        setting,
+		InboundConfig:  setting,
+		ChoreConfig:    setting,
 		GRPCServer:     grpcserver,
 		ProcessDumper:  getPorcessDumper(),
 	})

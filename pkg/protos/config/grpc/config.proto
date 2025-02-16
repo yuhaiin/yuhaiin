@@ -47,13 +47,20 @@ service bypass {
   rpc block_history(google.protobuf.Empty) returns (block_history_list);
 }
 
-message inbounds_response { repeated string names = 1 [ json_name = "names" ]; }
+message inbounds_response {
+  repeated string names = 1 [ json_name = "names" ];
+
+  bool hijack_dns = 2 [ json_name = "hijack_dns" ];
+  bool hijack_dns_fakeip = 3 [ json_name = "hijack_dns_fakeip" ];
+  yuhaiin.listener.sniff sniff = 4 [ json_name = "sniff" ];
+}
 
 service inbound {
   rpc list(google.protobuf.Empty) returns (inbounds_response);
   rpc get(google.protobuf.StringValue) returns (yuhaiin.listener.inbound);
   rpc save(yuhaiin.listener.inbound) returns (yuhaiin.listener.inbound);
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
+  rpc apply(inbounds_response) returns (google.protobuf.Empty);
 }
 
 message resolve_list { repeated string names = 1 [ json_name = "names" ]; }
@@ -77,4 +84,7 @@ service resolver {
 
   rpc fakedns(google.protobuf.Empty) returns (yuhaiin.dns.fakedns_config);
   rpc save_fakedns(yuhaiin.dns.fakedns_config) returns (google.protobuf.Empty);
+
+  rpc server(google.protobuf.Empty) returns (google.protobuf.StringValue);
+  rpc save_server(google.protobuf.StringValue) returns (google.protobuf.Empty);
 }

@@ -5,22 +5,27 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/licenses"
-	"github.com/Asutorufa/yuhaiin/pkg/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Tools struct {
 	UnimplementedToolsServer
-	db config.Setting
+	db config.DB
 }
 
-func NewTools(db config.Setting) *Tools {
+func NewTools(db config.DB) *Tools {
 	return &Tools{db: db}
 }
 
 func (t *Tools) GetInterface(ctx context.Context, e *emptypb.Empty) (*Interfaces, error) {
-	if cf, err := t.db.Load(ctx, e); err == nil && cf.GetPlatform().GetAndroidApp() {
+	androidApp := false
+	_ = t.db.View(func(s *config.Setting) error {
+		androidApp = s.GetPlatform().GetAndroidApp()
+		return nil
+	})
+	if androidApp {
 		return &Interfaces{}, nil
 	}
 

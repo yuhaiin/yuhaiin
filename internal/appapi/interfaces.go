@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/Asutorufa/yuhaiin/pkg/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pt "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
@@ -41,18 +40,17 @@ type Components struct {
 	Resolver       gc.ResolverServer
 	RuleController gc.BypassServer
 	Tag            gn.TagServer
+	Setting        gc.ConfigServiceServer
 }
 
 func (app *Components) RegisterServer() {
-	so := app.Start
-
 	grpcServer := &grpcRegister{
 		s:    app.Start.GRPCServer,
 		mux:  app.Mux,
 		auth: app.Auth,
 	}
 
-	gc.RegisterConfigServiceServer(grpcServer, so.Setting)
+	gc.RegisterConfigServiceServer(grpcServer, app.Setting)
 	gc.RegisterBypassServer(grpcServer, app.RuleController)
 	gc.RegisterInboundServer(grpcServer, app.Inbound)
 	gc.RegisterResolverServer(grpcServer, app.Resolver)
@@ -113,7 +111,8 @@ type Start struct {
 	Auth           *Auth
 	BypassConfig   pc.DB
 	ResolverConfig pc.DB
-	Setting        config.Setting
+	InboundConfig  pc.DB
+	ChoreConfig    pc.DB
 
 	ProcessDumper netapi.ProcessDumper
 	GRPCServer    *grpc.Server

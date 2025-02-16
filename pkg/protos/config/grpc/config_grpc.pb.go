@@ -461,6 +461,7 @@ const (
 	Inbound_Get_FullMethodName    = "/yuhaiin.protos.config.service.inbound/get"
 	Inbound_Save_FullMethodName   = "/yuhaiin.protos.config.service.inbound/save"
 	Inbound_Remove_FullMethodName = "/yuhaiin.protos.config.service.inbound/remove"
+	Inbound_Apply_FullMethodName  = "/yuhaiin.protos.config.service.inbound/apply"
 )
 
 // InboundClient is the client API for Inbound service.
@@ -471,6 +472,7 @@ type InboundClient interface {
 	Get(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*listener.Inbound, error)
 	Save(ctx context.Context, in *listener.Inbound, opts ...grpc.CallOption) (*listener.Inbound, error)
 	Remove(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Apply(ctx context.Context, in *InboundsResponse, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type inboundClient struct {
@@ -521,6 +523,16 @@ func (c *inboundClient) Remove(ctx context.Context, in *wrapperspb.StringValue, 
 	return out, nil
 }
 
+func (c *inboundClient) Apply(ctx context.Context, in *InboundsResponse, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Inbound_Apply_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // InboundServer is the server API for Inbound service.
 // All implementations must embed UnimplementedInboundServer
 // for forward compatibility.
@@ -529,6 +541,7 @@ type InboundServer interface {
 	Get(context.Context, *wrapperspb.StringValue) (*listener.Inbound, error)
 	Save(context.Context, *listener.Inbound) (*listener.Inbound, error)
 	Remove(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error)
+	Apply(context.Context, *InboundsResponse) (*emptypb.Empty, error)
 	mustEmbedUnimplementedInboundServer()
 }
 
@@ -550,6 +563,9 @@ func (UnimplementedInboundServer) Save(context.Context, *listener.Inbound) (*lis
 }
 func (UnimplementedInboundServer) Remove(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Remove not implemented")
+}
+func (UnimplementedInboundServer) Apply(context.Context, *InboundsResponse) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Apply not implemented")
 }
 func (UnimplementedInboundServer) mustEmbedUnimplementedInboundServer() {}
 func (UnimplementedInboundServer) testEmbeddedByValue()                 {}
@@ -644,6 +660,24 @@ func _Inbound_Remove_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Inbound_Apply_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InboundsResponse)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InboundServer).Apply(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Inbound_Apply_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InboundServer).Apply(ctx, req.(*InboundsResponse))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Inbound_ServiceDesc is the grpc.ServiceDesc for Inbound service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -667,6 +701,10 @@ var Inbound_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "remove",
 			Handler:    _Inbound_Remove_Handler,
 		},
+		{
+			MethodName: "apply",
+			Handler:    _Inbound_Apply_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "config/grpc/config.proto",
@@ -681,6 +719,8 @@ const (
 	Resolver_SaveHosts_FullMethodName   = "/yuhaiin.protos.config.service.resolver/save_hosts"
 	Resolver_Fakedns_FullMethodName     = "/yuhaiin.protos.config.service.resolver/fakedns"
 	Resolver_SaveFakedns_FullMethodName = "/yuhaiin.protos.config.service.resolver/save_fakedns"
+	Resolver_Server_FullMethodName      = "/yuhaiin.protos.config.service.resolver/server"
+	Resolver_SaveServer_FullMethodName  = "/yuhaiin.protos.config.service.resolver/save_server"
 )
 
 // ResolverClient is the client API for Resolver service.
@@ -696,6 +736,8 @@ type ResolverClient interface {
 	SaveHosts(ctx context.Context, in *Hosts, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Fakedns(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*dns.FakednsConfig, error)
 	SaveFakedns(ctx context.Context, in *dns.FakednsConfig, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Server(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*wrapperspb.StringValue, error)
+	SaveServer(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type resolverClient struct {
@@ -786,6 +828,26 @@ func (c *resolverClient) SaveFakedns(ctx context.Context, in *dns.FakednsConfig,
 	return out, nil
 }
 
+func (c *resolverClient) Server(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*wrapperspb.StringValue, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(wrapperspb.StringValue)
+	err := c.cc.Invoke(ctx, Resolver_Server_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resolverClient) SaveServer(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Resolver_SaveServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ResolverServer is the server API for Resolver service.
 // All implementations must embed UnimplementedResolverServer
 // for forward compatibility.
@@ -799,6 +861,8 @@ type ResolverServer interface {
 	SaveHosts(context.Context, *Hosts) (*emptypb.Empty, error)
 	Fakedns(context.Context, *emptypb.Empty) (*dns.FakednsConfig, error)
 	SaveFakedns(context.Context, *dns.FakednsConfig) (*emptypb.Empty, error)
+	Server(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error)
+	SaveServer(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error)
 	mustEmbedUnimplementedResolverServer()
 }
 
@@ -832,6 +896,12 @@ func (UnimplementedResolverServer) Fakedns(context.Context, *emptypb.Empty) (*dn
 }
 func (UnimplementedResolverServer) SaveFakedns(context.Context, *dns.FakednsConfig) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SaveFakedns not implemented")
+}
+func (UnimplementedResolverServer) Server(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Server not implemented")
+}
+func (UnimplementedResolverServer) SaveServer(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveServer not implemented")
 }
 func (UnimplementedResolverServer) mustEmbedUnimplementedResolverServer() {}
 func (UnimplementedResolverServer) testEmbeddedByValue()                  {}
@@ -998,6 +1068,42 @@ func _Resolver_SaveFakedns_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Resolver_Server_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResolverServer).Server(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Resolver_Server_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResolverServer).Server(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Resolver_SaveServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(wrapperspb.StringValue)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResolverServer).SaveServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Resolver_SaveServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResolverServer).SaveServer(ctx, req.(*wrapperspb.StringValue))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Resolver_ServiceDesc is the grpc.ServiceDesc for Resolver service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1036,6 +1142,14 @@ var Resolver_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "save_fakedns",
 			Handler:    _Resolver_SaveFakedns_Handler,
+		},
+		{
+			MethodName: "server",
+			Handler:    _Resolver_Server_Handler,
+		},
+		{
+			MethodName: "save_server",
+			Handler:    _Resolver_SaveServer_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
