@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
@@ -202,7 +203,7 @@ func (c *Client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 		return nil, err
 	}
 
-	stream, err := session.OpenStream()
+	stream, err := session.OpenStreamSync(ctx)
 	if err != nil {
 		_ = session.CloseWithError(0, "")
 		return nil, err
@@ -224,13 +225,14 @@ func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 	ctx, cancel := context.WithCancel(context.TODO())
 
 	cp := &clientPacketConn{
-		c:        c,
-		ctx:      ctx,
-		cancel:   cancel,
-		session:  c.packetConn,
-		id:       c.idg.Generate(),
-		msg:      make(chan *pool.Buffer, 100),
-		deadline: deadline.NewPipe(),
+		c:             c,
+		ctx:           ctx,
+		cancel:        cancel,
+		session:       c.packetConn,
+		id:            c.idg.Generate(),
+		msg:           make(chan *pool.Buffer, 100),
+		writeDeadline: pipe.MakePipeDeadline(),
+		readDeadline:  pipe.MakePipeDeadline(),
 	}
 	c.natMap.Store(cp.id, cp)
 
@@ -269,8 +271,14 @@ func (c *interConn) Write(p []byte) (n int, err error) {
 }
 
 func (c *interConn) Close() error {
-	c.Stream.CancelRead(0)
-	return c.Stream.Close()
+	err := c.Stream.Close()
+	time.AfterFunc(time.Second*3, func() {
+		// because quic must close read from peer, the close will not work to local read
+		// so we assume the peer will close the stream first
+		// otherwise, we cancel read manually
+		c.Stream.CancelRead(quic.StreamErrorCode(quic.NoError))
+	})
+	return err
 }
 
 func (c *interConn) LocalAddr() net.Addr {
@@ -312,8 +320,9 @@ type clientPacketConn struct {
 
 	msg chan *pool.Buffer
 
-	deadline *deadline.PipeDeadline
-	id       uint64
+	writeDeadline pipe.PipeDeadline
+	readDeadline  pipe.PipeDeadline
+	id            uint64
 }
 
 func (x *clientPacketConn) ReadFrom(p []byte) (n int, _ net.Addr, err error) {
@@ -323,8 +332,8 @@ func (x *clientPacketConn) ReadFrom(p []byte) (n int, _ net.Addr, err error) {
 			x.Close()
 			return x.session.Context().Err()
 		})
-	case <-x.deadline.ReadContext().Done():
-		return x.read(p, x.deadline.ReadContext().Err)
+	case <-x.readDeadline.Wait():
+		return x.read(p, func() error { return os.ErrDeadlineExceeded })
 	case <-x.ctx.Done():
 		return x.read(p, x.ctx.Err)
 	case msg := <-x.msg:
@@ -354,11 +363,11 @@ func (x *clientPacketConn) read(p []byte, err func() error) (n int, _ net.Addr, 
 func (x *clientPacketConn) WriteTo(p []byte, _ net.Addr) (n int, err error) {
 	select {
 	case <-x.ctx.Done():
-		return 0, x.ctx.Err()
-	case <-x.deadline.WriteContext().Done():
-		return 0, x.deadline.WriteContext().Err()
+		return 0, io.ErrClosedPipe
+	case <-x.writeDeadline.Wait():
+		return 0, os.ErrDeadlineExceeded
 	case <-x.session.Context().Done():
-		return 0, x.session.Context().Err()
+		return 0, io.ErrClosedPipe
 	default:
 	}
 
@@ -371,7 +380,6 @@ func (x *clientPacketConn) WriteTo(p []byte, _ net.Addr) (n int, err error) {
 
 func (x *clientPacketConn) Close() error {
 	x.cancel()
-	x.deadline.Close()
 	x.c.natMap.Delete(x.id)
 	return nil
 }
@@ -390,16 +398,17 @@ func (x *clientPacketConn) SetDeadline(t time.Time) error {
 	default:
 	}
 
-	x.deadline.SetDeadline(t)
+	_ = x.SetWriteDeadline(t)
+	_ = x.SetReadDeadline(t)
 	return nil
 }
 
 func (x *clientPacketConn) SetReadDeadline(t time.Time) error {
-	x.deadline.SetReadDeadline(t)
+	x.readDeadline.Set(t)
 	return nil
 }
 
 func (x *clientPacketConn) SetWriteDeadline(t time.Time) error {
-	x.deadline.SetWriteDeadline(t)
+	x.writeDeadline.Set(t)
 	return nil
 }

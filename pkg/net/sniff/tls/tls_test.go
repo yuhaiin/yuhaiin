@@ -2,14 +2,14 @@ package tls
 
 import (
 	"crypto/tls"
-	"net"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestSniffy(t *testing.T) {
-	conn1, conn2 := net.Pipe()
+	conn1, conn2 := pipe.Pipe()
 	defer conn1.Close()
 	defer conn2.Close()
 

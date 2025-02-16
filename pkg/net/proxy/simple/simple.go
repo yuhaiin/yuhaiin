@@ -245,7 +245,11 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 }
 
 func (c *Simple) Close() error {
-	return c.p.Close()
+	if c.p != nil {
+		return c.p.Close()
+	}
+
+	return nil
 }
 
 type packetConn struct {

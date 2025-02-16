@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -115,6 +116,11 @@ func Select(level slog.Level) LoggerOutput {
 
 func IfErr(msg string, f func() error, ignoreErr ...error) {
 	if err := f(); err != nil {
+		for _, ignore := range ignoreErr {
+			if errors.Is(err, ignore) {
+				return
+			}
+		}
 		DefaultLogger.Error(msg+" failed", "err", err)
 	}
 }

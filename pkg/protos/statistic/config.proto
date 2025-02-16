@@ -43,6 +43,7 @@ message connection {
   string source = 5 [ json_name = "source" ];
   string inbound = 6 [ json_name = "inbound" ];
   string outbound = 24 [ json_name = "outbound" ];
+  string local_addr = 26 [ json_name = "LocalAddr" ];
   string destionation = 7 [ json_name = "destionation" ];
   string fake_ip = 8 [ json_name = "fake_ip" ];
   string hosts = 9 [ json_name = "hosts" ];

@@ -59,8 +59,8 @@ func NewServer(config *pl.Yuubinsya, ii netapi.Listener, handler netapi.Handler)
 		cancel:     cancel,
 	}
 
-	go log.IfErr("yuubinsya udp server", s.startUDP)
-	go log.IfErr("yuubinsya tcp server", s.startTCP)
+	go log.IfErr("yuubinsya udp server", s.startUDP, errors.ErrUnsupported)
+	go log.IfErr("yuubinsya tcp server", s.startTCP, net.ErrClosed)
 
 	return s, nil
 }

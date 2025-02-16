@@ -18,6 +18,7 @@ var ignoreError = []error{
 	io.EOF,
 	// os.ErrDeadlineExceeded,
 	net.ErrClosed,
+	io.ErrClosedPipe,
 }
 
 var ignoreSyscallErrno = map[syscall.Errno]bool{
