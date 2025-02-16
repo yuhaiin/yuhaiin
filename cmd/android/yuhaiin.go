@@ -103,12 +103,15 @@ func (a *App) Start(opt *Opts) error {
 
 		dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
 
+		fakedb := fakeDB(opt, app.PathGenerator.Config(opt.Savepath))
+
 		app, err := app.Start(
 			appapi.Start{
 				ConfigPath:     opt.Savepath,
 				BypassConfig:   newBypassDB(),
 				ResolverConfig: newResolverDB(),
-				Setting:        fakeSetting(opt, app.PathGenerator.Config(opt.Savepath)),
+				InboundConfig:  fakedb,
+				ChoreConfig:    fakedb,
 				Host: net.JoinHostPort(ifOr(GetStore("Default").GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"),
 					fmt.Sprint(GetStore("Default").GetInt(NewYuhaiinPortKey))),
 				ProcessDumper: NewUidDumper(opt.TUN.UidDumper),

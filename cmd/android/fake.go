@@ -7,7 +7,7 @@ import (
 	"net"
 	"path/filepath"
 
-	"github.com/Asutorufa/yuhaiin/pkg/config"
+	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
@@ -26,7 +26,7 @@ func ifOr[T any](a bool, b, c T) T {
 	return c
 }
 
-func fakeSetting(opt *Opts, path string) config.Setting {
+func fakeDB(opt *Opts, path string) pc.DB {
 	store := GetStore("Default").(*storeImpl)
 
 	var listenHost string = "127.0.0.1"
@@ -121,7 +121,7 @@ func (w *fakeSettings) Save(ctx context.Context, in *pc.Setting) (*emptypb.Empty
 }
 
 func (c *fakeSettings) Info(context.Context, *emptypb.Empty) (*pc.Info, error) {
-	return config.Info(), nil
+	return chore.Info(), nil
 }
 
 func (w *fakeSettings) AddObserver(o func(*pc.Setting)) {
