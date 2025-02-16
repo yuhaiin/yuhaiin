@@ -7,9 +7,7 @@ package websocket
 import (
 	"bufio"
 	"crypto/rand"
-	"encoding/base64"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -50,7 +48,7 @@ func (config *Config) hybiClientHandshake(SecWebSocketKey string, conn net.Conn,
 	if SecWebSocketKey != "" {
 		nonce = SecWebSocketKey
 	} else {
-		nonce = generateNonce()
+		nonce = rand.Text()
 	}
 
 	req, err := http.NewRequest(http.MethodGet, "http://"+config.Host+config.Path, http.NoBody)
@@ -129,14 +127,4 @@ func verifySubprotocol(subprotos []string, resp *http.Response) error {
 	}
 
 	return fmt.Errorf("WebSocket protocol violation: unexpected Sec-WebSocket-Protocol from server: %q", proto)
-}
-
-// generateNonce generates a nonce consisting of a randomly selected 16-byte
-// value that has been base64-encoded.
-func generateNonce() string {
-	key := make([]byte, 16)
-	if _, err := io.ReadFull(rand.Reader, key); err != nil {
-		panic(err)
-	}
-	return base64.StdEncoding.EncodeToString(key)
 }
