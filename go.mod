@@ -16,7 +16,7 @@ require (
 	// for fix https://github.com/etcd-io/bbolt/issues/840
 	go.etcd.io/bbolt v1.4.0
 	golang.org/x/crypto v0.33.0
-	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac
+	golang.org/x/exp v0.0.0-20250215185904-eff6e970281f
 	golang.org/x/mobile v0.0.0-20250210185054-b38b8813d607
 	golang.org/x/net v0.35.0
 	golang.org/x/sys v0.30.0
