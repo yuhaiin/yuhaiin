@@ -13,7 +13,7 @@ func init() {
 }
 
 func createCRC32Table() {
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		crc := uint32(i)
 		for j := 8; j > 0; j-- {
 			if crc&1 == 1 {
@@ -32,7 +32,7 @@ func CalcCRC32(input []byte, length int) uint32 {
 
 func doCalcCRC32(input []byte, length int, value uint32) uint32 {
 	buffer := input
-	for i := 0; i < length; i++ {
+	for i := range length {
 		value = (value >> 8) ^ crc32Table[byte(value&0xFF)^buffer[i]]
 	}
 	return value ^ 0xFFFFFFFF

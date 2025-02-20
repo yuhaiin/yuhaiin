@@ -10,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"google.golang.org/protobuf/encoding/protojson"
+	"slices"
 )
 
 func TestDelete(t *testing.T) {
@@ -21,7 +22,7 @@ func TestDelete(t *testing.T) {
 		}
 
 		t.Log(i, a[:i], a[i:])
-		a = append(a[:i], a[i+1:]...)
+		a = slices.Delete(a, i, i+1)
 		break
 	}
 

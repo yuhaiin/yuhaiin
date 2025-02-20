@@ -16,17 +16,8 @@ var (
 	AppendHttpProxyToVpnKey    = `Append HTTP Proxy to VPN`
 	DnsHijacking               = `dns_hijacking`
 	HttpServerPortKey          = `http_server_port`
-	Ipv6ProxyKey               = `ipv6`
-	LogLevel                   = `Log Level`
-	LogLevelDebug              = `debug`
-	LogLevelError              = `error`
-	LogLevelFatal              = `fatal`
-	LogLevelInfo               = `info`
-	LogLevelVerbose            = `verbose`
-	LogLevelWarning            = `warning`
 	NetworkSpeedKey            = `network_speed`
 	PortsKey                   = `ports_key`
-	SaveLogcat                 = `save_logcat`
 	SniffKey                   = `Sniff`
 	Socks5ServerPortKey        = `socks5_server_port`
 	TunDriverChannelValue      = `channel`
@@ -38,15 +29,6 @@ var (
 		AdvRouteAll,
 		AdvRouteNonLocal,
 		AdvRouteNonChn,
-	}
-
-	LogLevels = []string{
-		LogLevelVerbose,
-		LogLevelDebug,
-		LogLevelInfo,
-		LogLevelWarning,
-		LogLevelError,
-		LogLevelFatal,
 	}
 
 	TunDriversValue = []string{
@@ -61,6 +43,7 @@ var (
 <resources>
     <string name="yuhaiin.config.setting.ipv6">yuhaiin.config.setting.ipv6</string>
     <string name="yuhaiin.config.setting.ipv6_local_addr_prefer_unicast">yuhaiin.config.setting.ipv6_local_addr_prefer_unicast</string>
+    <string name="yuhaiin.config.setting.use_default_interface">yuhaiin.config.setting.use_default_interface</string>
     <string name="yuhaiin.config.setting.net_interface">yuhaiin.config.setting.net_interface</string>
     <string name="yuhaiin.config.system_proxy.http">yuhaiin.config.system_proxy.http</string>
     <string name="yuhaiin.config.system_proxy.socks5">yuhaiin.config.system_proxy.socks5</string>
@@ -137,11 +120,16 @@ var (
     <string name="yuhaiin.listener.reality.server_name">yuhaiin.listener.reality.server_name</string>
     <string name="yuhaiin.listener.reality.dest">yuhaiin.listener.reality.dest</string>
     <string name="yuhaiin.listener.reality.private_key">yuhaiin.listener.reality.private_key</string>
+    <string name="yuhaiin.listener.reality.public_key">yuhaiin.listener.reality.public_key</string>
     <string name="yuhaiin.listener.reality.debug">yuhaiin.listener.reality.debug</string>
     <string name="yuhaiin.listener.tls_auto.servernames">yuhaiin.listener.tls_auto.servernames</string>
     <string name="yuhaiin.listener.tls_auto.next_protos">yuhaiin.listener.tls_auto.next_protos</string>
     <string name="yuhaiin.listener.tls_auto.ca_cert">yuhaiin.listener.tls_auto.ca_cert</string>
     <string name="yuhaiin.listener.tls_auto.ca_key">yuhaiin.listener.tls_auto.ca_key</string>
+    <string name="yuhaiin.listener.ech_config.enable">yuhaiin.listener.ech_config.enable</string>
+    <string name="yuhaiin.listener.ech_config.config">yuhaiin.listener.ech_config.config</string>
+    <string name="yuhaiin.listener.ech_config.private_key">yuhaiin.listener.ech_config.private_key</string>
+    <string name="yuhaiin.listener.ech_config.OuterSNI">yuhaiin.listener.ech_config.OuterSNI</string>
     <string name="yuhaiin.listener.http.username">yuhaiin.listener.http.username</string>
     <string name="yuhaiin.listener.http.password">yuhaiin.listener.http.password</string>
     <string name="yuhaiin.listener.socks5.username">yuhaiin.listener.socks5.username</string>
@@ -173,9 +161,12 @@ var (
     <string name="yuhaiin.listener.sniff.enabled">yuhaiin.listener.sniff.enabled</string>
     <string name="yuhaiin.log.logcat.level">yuhaiin.log.logcat.level</string>
     <string name="yuhaiin.log.logcat.save">yuhaiin.log.logcat.save</string>
+    <string name="yuhaiin.log.logcat.ignore_timeout_error">yuhaiin.log.logcat.ignore_timeout_error</string>
+    <string name="yuhaiin.log.logcat.ignore_dns_error">yuhaiin.log.logcat.ignore_dns_error</string>
     <string name="yuhaiin.config.config_version.version">yuhaiin.config.config_version.version</string>
     <string name="yuhaiin.config.platform.android_app">yuhaiin.config.platform.android_app</string>
     <string name="yuhaiin.config.advanced_config.udp_buffer_size">yuhaiin.config.advanced_config.udp_buffer_size</string>
     <string name="yuhaiin.config.advanced_config.relay_buffer_size">yuhaiin.config.advanced_config.relay_buffer_size</string>
+    <string name="yuhaiin.config.advanced_config.udp_ringbuffer_size">yuhaiin.config.advanced_config.udp_ringbuffer_size</string>
 </resources>
 */

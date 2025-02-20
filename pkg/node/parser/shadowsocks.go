@@ -150,7 +150,7 @@ func parseObfs(args map[string]string) ([]*protocol.Protocol, error) {
 
 func parseOpts(options string) map[string]string {
 	store := make(map[string]string)
-	for _, x := range strings.Split(options, ";") {
+	for x := range strings.SplitSeq(options, ";") {
 		i := strings.IndexByte(x, '=')
 		if i == -1 {
 			store[x] = "true"

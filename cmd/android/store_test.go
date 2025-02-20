@@ -43,7 +43,7 @@ func TestXxx(t *testing.T) {
 	msg := ss.ProtoReflect().Descriptor()
 
 	str := &strings.Builder{}
-	for i := 0; i < msg.Fields().Len(); i++ {
+	for i := range msg.Fields().Len() {
 		fd := msg.Fields().Get(i)
 		printValuePath(str, fd)
 	}
@@ -53,7 +53,7 @@ func TestXxx(t *testing.T) {
 
 func printValuePath(s *strings.Builder, msg protoreflect.FieldDescriptor) {
 	if msg.Kind() == protoreflect.MessageKind {
-		for i := 0; i < msg.Message().Fields().Len(); i++ {
+		for i := range msg.Message().Fields().Len() {
 			fd := msg.Message().Fields().Get(i)
 			printValuePath(s, fd)
 		}
@@ -61,7 +61,7 @@ func printValuePath(s *strings.Builder, msg protoreflect.FieldDescriptor) {
 	}
 	if msg.Kind() == protoreflect.EnumKind {
 		vs := msg.Enum().Values()
-		for i := 0; i < vs.Len(); i++ {
+		for i := range vs.Len() {
 			v := vs.Get(i)
 			fmt.Println(v.Name(), v.FullName(), msg.Enum().FullName())
 		}

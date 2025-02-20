@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -15,30 +16,33 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/ringbuffer"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
 type dnsServer struct {
-	resolver    netapi.Resolver
-	listener    net.PacketConn
-	tcpListener net.Listener
-	server      string
+	resolver netapi.Resolver
+	udp      net.PacketConn
+	tcp      net.Listener
 
-	ctx     context.Context
-	cancel  context.CancelFunc
-	reqChan chan *netapi.DNSRawRequest
+	ctx        context.Context
+	cancel     context.CancelFunc
+	reqBuffer  ringbuffer.RingBuffer[*netapi.DNSRawRequest]
+	notifyChan chan struct{}
+	mu         sync.Mutex
 }
 
 func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
 	ctx, cancel := context.WithCancel(context.Background())
 	d := &dnsServer{
-		ctx:      ctx,
-		cancel:   cancel,
-		server:   server,
-		resolver: process,
-		reqChan:  make(chan *netapi.DNSRawRequest, 100),
+		ctx:        ctx,
+		cancel:     cancel,
+		resolver:   process,
+		notifyChan: make(chan struct{}, 1),
 	}
+
+	d.reqBuffer.Init(20)
 
 	for range configuration.DNSProcessThread.Load() {
 		go d.startHandleReqData()
@@ -49,15 +53,21 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
 		return d
 	}
 
-	if err := d.startUDP(); err != nil {
-		log.Error("start udp dns server failed", slog.Any("err", err))
+	udp, err := dialer.ListenPacket(context.TODO(), "udp", server, dialer.WithListener(), dialer.WithTryUpgradeToBatch())
+	if err != nil {
+		slog.Error("dns udp server listen failed", "err", err)
+	} else {
+		d.udp = udp
+		d.startUDP(udp)
 	}
 
-	go func() {
-		if err := d.startTCP(); err != nil {
-			log.Error("start tcp dns server failed", slog.Any("err", err))
-		}
-	}()
+	tcp, err := dialer.ListenContext(context.TODO(), "tcp", server)
+	if err != nil {
+		slog.Error("dns tcp server listen failed", "err", err)
+	} else {
+		d.tcp = tcp
+		d.startTCP(tcp)
+	}
 
 	return d
 }
@@ -65,33 +75,28 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
 func (d *dnsServer) Close() error {
 	d.cancel()
 
-	if d.listener != nil {
-		d.listener.Close()
+	if d.udp != nil {
+		d.udp.Close()
 	}
-	if d.tcpListener != nil {
-		d.tcpListener.Close()
+	if d.tcp != nil {
+		d.tcp.Close()
 	}
 
 	return nil
 }
 
-func (d *dnsServer) startUDP() (err error) {
-	d.listener, err = dialer.ListenPacket(context.TODO(), "udp", d.server, dialer.WithListener(), dialer.WithTryUpgradeToBatch())
-	if err != nil {
-		return fmt.Errorf("dns udp server listen failed: %w", err)
-	}
-
-	log.Info("new udp dns server", "host", d.server)
+func (d *dnsServer) startUDP(listener net.PacketConn) {
+	log.Info("new udp dns server", "host", listener.LocalAddr())
 
 	for range system.Procs {
 		go func() {
-			defer d.Close()
+			defer listener.Close()
 
 			buf := pool.GetBytes(nat.MaxSegmentSize)
 			defer pool.PutBytes(buf)
 
 			for {
-				n, addr, err := d.listener.ReadFrom(buf)
+				n, addr, err := listener.ReadFrom(buf)
 				if err != nil {
 					if e, ok := err.(net.Error); ok && e.Temporary() {
 						continue
@@ -109,7 +114,7 @@ func (d *dnsServer) startUDP() (err error) {
 					err := d.do(context.TODO(), &doData{
 						Question: b,
 						WriteBack: func(b []byte) error {
-							if _, err = d.listener.WriteTo(b, addr); err != nil {
+							if _, err = listener.WriteTo(b, addr); err != nil {
 								return fmt.Errorf("write dns response to client failed: %w", err)
 							}
 							return nil
@@ -122,37 +127,33 @@ func (d *dnsServer) startUDP() (err error) {
 			}
 		}()
 	}
-
-	return nil
 }
 
-func (d *dnsServer) startTCP() (err error) {
-	defer d.Close()
+func (d *dnsServer) startTCP(listener net.Listener) {
+	go func() {
+		defer listener.Close()
 
-	d.tcpListener, err = dialer.ListenContext(context.TODO(), "tcp", d.server)
-	if err != nil {
-		return fmt.Errorf("dns tcp server listen failed: %w", err)
-	}
+		log.Info("new tcp dns server", "host", listener.Addr())
 
-	log.Info("new tcp dns server", "host", d.server)
-
-	for {
-		conn, err := d.tcpListener.Accept()
-		if err != nil {
-			if e, ok := err.(net.Error); ok && e.Temporary() {
-				continue
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				if e, ok := err.(net.Error); ok && e.Temporary() {
+					continue
+				}
+				slog.Error("dns server accept failed", "err", err)
+				return
 			}
-			return fmt.Errorf("dns server accept failed: %w", err)
+
+			go func() {
+				defer conn.Close()
+
+				if err := d.handleTCP(context.TODO(), conn, false); err != nil {
+					log.Error("handle dns tcp failed", "err", err)
+				}
+			}()
 		}
-
-		go func() {
-			defer conn.Close()
-
-			if err := d.handleTCP(context.TODO(), conn, false); err != nil {
-				log.Error("handle dns tcp failed", "err", err)
-			}
-		}()
-	}
+	}()
 }
 
 func (d *dnsServer) DoStream(ctx context.Context, req *netapi.DNSStreamRequest) error {
@@ -295,33 +296,73 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 func (d *dnsServer) startHandleReqData() {
 	for {
 		select {
-		case req := <-d.reqChan:
-			err := d.do(d.ctx, &doData{
-				Question:    req.Question.Payload,
-				WriteBack:   req.WriteBack,
-				Stream:      req.Stream,
-				ForceFakeIP: req.ForceFakeIP,
-			})
-			req.Question.DecRef()
-			if err != nil {
-				log.Error("handle dns request failed", "err", err)
-			}
+		case <-d.notifyChan:
+			d.handle()
 		case <-d.ctx.Done():
 			return
 		}
 	}
 }
 
-func (d *dnsServer) Do(ctx context.Context, req *netapi.DNSRawRequest) error {
-	req.Question.IncRef()
-	select {
-	case d.reqChan <- req:
-		return nil
-	case <-ctx.Done():
+func (d *dnsServer) handle() {
+	d.mu.Lock()
+	nums := d.reqBuffer.Len()
+	if nums == 0 {
+		d.mu.Unlock()
+		return
+	}
+
+	var hasMorePackets bool
+
+	for i := range nums {
+		if i > 0 {
+			d.mu.Lock()
+		}
+
+		hasMorePackets = !d.reqBuffer.Empty()
+		if !hasMorePackets {
+			d.mu.Unlock()
+			return
+		}
+
+		req := d.reqBuffer.PopFront()
+		d.mu.Unlock()
+
+		err := d.do(d.ctx, &doData{
+			Question:    req.Question.GetPayload(),
+			WriteBack:   req.WriteBack,
+			Stream:      req.Stream,
+			ForceFakeIP: req.ForceFakeIP,
+		})
+		if err != nil {
+			log.Error("handle dns request failed", "err", err, "len", len(req.Question.GetPayload()))
+		}
 		req.Question.DecRef()
+	}
+}
+
+func (d *dnsServer) Do(ctx context.Context, req *netapi.DNSRawRequest) error {
+	select {
+	case <-ctx.Done():
 		return ctx.Err()
 	case <-d.ctx.Done():
-		req.Question.DecRef()
 		return d.ctx.Err()
+	default:
+		d.mu.Lock()
+		if d.reqBuffer.Len() >= configuration.MaxUDPUnprocessedPackets.Load() {
+			d.mu.Unlock()
+			return fmt.Errorf("dns request buffer is full")
+		}
+
+		req.Question.IncRef()
+		d.reqBuffer.PushBack(req)
+		d.mu.Unlock()
+
+		select {
+		case d.notifyChan <- struct{}{}:
+		default:
+		}
 	}
+
+	return nil
 }

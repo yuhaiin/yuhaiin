@@ -56,8 +56,8 @@ func BenchmarkBloomRing(b *testing.B) {
 	// Generate test samples with different length
 	samples := make([][]byte, internal.DefaultSFCapacity-internal.DefaultSFSlot)
 	var checkPoints [][]byte
-	for i := 0; i < len(samples); i++ {
-		samples[i] = []byte(fmt.Sprint(i))
+	for i := range samples {
+		samples[i] = fmt.Append(nil, i)
 		if i%1000 == 0 {
 			checkPoints = append(checkPoints, samples[i])
 		}
@@ -76,7 +76,7 @@ func benchmarkBloomRing(samples, checkPoints [][]byte, slot int) func(*testing.B
 	return func(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			for _, cp := range checkPoints {
 				filter.Test(cp)
 			}

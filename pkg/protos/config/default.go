@@ -166,6 +166,8 @@ func DefaultSetting(path string) *Setting {
 				}.Build(),
 			},
 		}.Build(),
-		Platform: &Platform{},
+		AdvancedConfig: &AdvancedConfig{},
+		ConfigVersion:  &ConfigVersion{},
+		Platform:       &Platform{},
 	}).Build()
 }

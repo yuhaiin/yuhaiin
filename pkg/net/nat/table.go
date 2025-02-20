@@ -29,7 +29,7 @@ type Table struct {
 
 func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 	metrics.Counter.AddSendUDPPacket()
-	metrics.Counter.AddSendUDPPacketSize(len(pkt.Payload))
+	metrics.Counter.AddSendUDPPacketSize(len(pkt.GetPayload()))
 
 	if u.closed.Load() {
 		return fmt.Errorf("udp nat table: %w", net.ErrClosed)

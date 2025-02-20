@@ -17,46 +17,86 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/google/uuid"
 )
 
 type Tls struct {
 	netapi.Proxy
-	tlsConfig    []*tls.Config
-	configLength int
+	tlsConfigPool clientConfigPools
 }
 
 func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(c *protocol.TlsConfig, p netapi.Proxy) (netapi.Proxy, error) {
-	var tlsConfigs []*tls.Config
-	tls := ParseTLSConfig(c)
-	if tls != nil {
-		// if !tls.InsecureSkipVerify && tls.ServerName == "" {
-		// 	tls.ServerName = c.Simple.GetHost()
-		// }
+type clientConfigPools []cliectConfigPool
 
-		tlsConfigs = append(tlsConfigs, tls)
+func (p clientConfigPools) getConfig() *tls.Config {
+	if len(p) == 0 {
+		return nil
+	}
+	return p[rand.IntN(len(p))].getConfig()
+}
 
-		if len(c.GetServerNames()) > 1 {
-			for _, v := range c.GetServerNames()[1:] {
-				tc := tls.Clone()
-				tc.ServerName = v
+type cliectConfigPool interface {
+	getConfig() *tls.Config
+}
 
-				tlsConfigs = append(tlsConfigs, tc)
-			}
+type fixedConfigPool struct {
+	*tls.Config
+}
+
+func (f *fixedConfigPool) getConfig() *tls.Config {
+	return f.Config
+}
+
+type patternServerNameConfigPool struct {
+	config           *tls.Config
+	serverNameSuffix string
+}
+
+func (p *patternServerNameConfigPool) getConfig() *tls.Config {
+	c := p.config.Clone()
+	c.ServerName = fmt.Sprintf("%s.%s", uuid.NewString(), p.serverNameSuffix)
+	return c
+}
+
+func newConfigPool(serverName string, config *tls.Config) cliectConfigPool {
+	if len(serverName) <= 2 {
+		return &fixedConfigPool{config}
+	}
+
+	if serverName[:2] == "*." {
+		return &patternServerNameConfigPool{
+			config:           config,
+			serverNameSuffix: serverName[2:],
 		}
 	}
 
-	if len(tlsConfigs) == 0 {
+	c := config.Clone()
+	c.ServerName = serverName
+
+	return &fixedConfigPool{c}
+}
+
+func NewClient(c *protocol.TlsConfig, p netapi.Proxy) (netapi.Proxy, error) {
+	tls := ParseTLSConfig(c)
+	if tls == nil {
 		return p, nil
 	}
 
+	var tlsConfigs []cliectConfigPool
+	for _, v := range c.GetServerNames() {
+		tlsConfigs = append(tlsConfigs, newConfigPool(v, tls))
+	}
+
+	if len(tlsConfigs) == 0 {
+		tlsConfigs = append(tlsConfigs, &fixedConfigPool{tls})
+	}
+
 	return &Tls{
-		tlsConfig:    tlsConfigs,
-		Proxy:        p,
-		configLength: len(tlsConfigs),
+		tlsConfigPool: tlsConfigs,
+		Proxy:         p,
 	}, nil
 }
 
@@ -66,7 +106,14 @@ func (t *Tls) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 		return nil, err
 	}
 
-	return tls.Client(c, t.tlsConfig[rand.IntN(t.configLength)]), nil
+	tlsConn := tls.Client(c, t.tlsConfigPool.getConfig())
+
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		_ = tlsConn.Close()
+		return nil, err
+	}
+
+	return tlsConn, nil
 }
 
 func (t *Tls) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
@@ -88,6 +135,7 @@ func NewServer(c *listener.Tls, ii netapi.Listener) (netapi.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return netapi.NewListener(tls.NewListener(lis, config), ii), nil
 }
 

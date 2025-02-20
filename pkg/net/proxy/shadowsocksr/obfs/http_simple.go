@@ -71,14 +71,14 @@ func newHttpSimple(conn net.Conn, info Obfs) net.Conn {
 
 func (t *httpSimplePost) boundary() (ret string) {
 	set := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-	for i := 0; i < 32; i++ {
+	for range 32 {
 		ret = fmt.Sprintf("%s%c", ret, set[rand.IntN(len(set))])
 	}
 	return
 }
 
 func (t *httpSimplePost) data2URLEncode(data []byte) (ret string) {
-	for i := 0; i < len(data); i++ {
+	for i := range data {
 		ret = fmt.Sprintf("%s%%%s", ret, hex.EncodeToString([]byte{data[i]}))
 	}
 	return

@@ -10,7 +10,7 @@ import (
 //
 // copy from [net/url.getScheme]
 func GetScheme(rawURL string) (scheme, path string, err error) {
-	for i := 0; i < len(rawURL); i++ {
+	for i := range len(rawURL) {
 		c := rawURL[i]
 		switch {
 		case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z':

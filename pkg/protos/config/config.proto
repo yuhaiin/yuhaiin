@@ -31,6 +31,7 @@ message setting {
 message advanced_config {
   int32 udp_buffer_size = 1 [ json_name = "udp_buffer_size" ];
   int32 relay_buffer_size = 2 [ json_name = "relay_buffer_size" ];
+  int32 udp_ringbuffer_size = 3 [ json_name = "udp_ringbuffer_size" ];
 }
 
 message system_proxy {

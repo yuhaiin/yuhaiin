@@ -38,14 +38,14 @@ func TestNewMatcher(t *testing.T) {
 }
 
 func BenchmarkMapper(b *testing.B) {
-	b.StopTimer()
+
 	matcher := NewTrie[string]()
 	matcher.Insert("*.baidu.com", "test_baidu")
 	matcher.Insert("10.2.2.1/18", "test_cidr")
 	a1, _ := netapi.ParseAddress("", "www.example.baidu.com:0")
 	a2, _ := netapi.ParseAddress("", "10.2.2.1:0")
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
+
+	for i := 0; b.Loop(); i++ {
 		if i%2 == 1 {
 			matcher.Search(context.TODO(), a1)
 		} else {

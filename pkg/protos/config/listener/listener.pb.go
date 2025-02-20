@@ -3240,6 +3240,7 @@ type Reality struct {
 	xxx_hidden_ServerName  []string               `protobuf:"bytes,2,rep,name=server_name"`
 	xxx_hidden_Dest        *string                `protobuf:"bytes,3,opt,name=dest"`
 	xxx_hidden_PrivateKey  *string                `protobuf:"bytes,4,opt,name=private_key"`
+	xxx_hidden_PublicKey   *string                `protobuf:"bytes,6,opt,name=public_key"`
 	xxx_hidden_Debug       bool                   `protobuf:"varint,5,opt,name=debug"`
 	XXX_raceDetectHookData protoimpl.RaceDetectHookData
 	XXX_presence           [1]uint32
@@ -3306,6 +3307,16 @@ func (x *Reality) GetPrivateKey() string {
 	return ""
 }
 
+func (x *Reality) GetPublicKey() string {
+	if x != nil {
+		if x.xxx_hidden_PublicKey != nil {
+			return *x.xxx_hidden_PublicKey
+		}
+		return ""
+	}
+	return ""
+}
+
 func (x *Reality) GetDebug() bool {
 	if x != nil {
 		return x.xxx_hidden_Debug
@@ -3323,17 +3334,22 @@ func (x *Reality) SetServerName(v []string) {
 
 func (x *Reality) SetDest(v string) {
 	x.xxx_hidden_Dest = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 6)
 }
 
 func (x *Reality) SetPrivateKey(v string) {
 	x.xxx_hidden_PrivateKey = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 6)
+}
+
+func (x *Reality) SetPublicKey(v string) {
+	x.xxx_hidden_PublicKey = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 6)
 }
 
 func (x *Reality) SetDebug(v bool) {
 	x.xxx_hidden_Debug = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 5, 6)
 }
 
 func (x *Reality) HasDest() bool {
@@ -3350,11 +3366,18 @@ func (x *Reality) HasPrivateKey() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 3)
 }
 
-func (x *Reality) HasDebug() bool {
+func (x *Reality) HasPublicKey() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 4)
+}
+
+func (x *Reality) HasDebug() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 5)
 }
 
 func (x *Reality) ClearDest() {
@@ -3367,8 +3390,13 @@ func (x *Reality) ClearPrivateKey() {
 	x.xxx_hidden_PrivateKey = nil
 }
 
-func (x *Reality) ClearDebug() {
+func (x *Reality) ClearPublicKey() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 4)
+	x.xxx_hidden_PublicKey = nil
+}
+
+func (x *Reality) ClearDebug() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 5)
 	x.xxx_hidden_Debug = false
 }
 
@@ -3379,6 +3407,7 @@ type Reality_builder struct {
 	ServerName []string
 	Dest       *string
 	PrivateKey *string
+	PublicKey  *string
 	Debug      *bool
 }
 
@@ -3389,15 +3418,19 @@ func (b0 Reality_builder) Build() *Reality {
 	x.xxx_hidden_ShortId = b.ShortId
 	x.xxx_hidden_ServerName = b.ServerName
 	if b.Dest != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 6)
 		x.xxx_hidden_Dest = b.Dest
 	}
 	if b.PrivateKey != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 6)
 		x.xxx_hidden_PrivateKey = b.PrivateKey
 	}
+	if b.PublicKey != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 6)
+		x.xxx_hidden_PublicKey = b.PublicKey
+	}
 	if b.Debug != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 5, 6)
 		x.xxx_hidden_Debug = *b.Debug
 	}
 	return m0
@@ -4443,7 +4476,7 @@ var file_config_listener_listener_proto_rawDesc = string([]byte{
 	0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x03, 0x74, 0x6c, 0x73, 0x22, 0x11, 0x0a, 0x04, 0x67, 0x72,
 	0x70, 0x63, 0x4a, 0x04, 0x08, 0x01, 0x10, 0x02, 0x52, 0x03, 0x74, 0x6c, 0x73, 0x22, 0x12, 0x0a,
 	0x05, 0x68, 0x74, 0x74, 0x70, 0x32, 0x4a, 0x04, 0x08, 0x01, 0x10, 0x02, 0x52, 0x03, 0x74, 0x6c,
-	0x73, 0x22, 0x93, 0x01, 0x0a, 0x07, 0x72, 0x65, 0x61, 0x6c, 0x69, 0x74, 0x79, 0x12, 0x1a, 0x0a,
+	0x73, 0x22, 0xb3, 0x01, 0x0a, 0x07, 0x72, 0x65, 0x61, 0x6c, 0x69, 0x74, 0x79, 0x12, 0x1a, 0x0a,
 	0x08, 0x73, 0x68, 0x6f, 0x72, 0x74, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x03, 0x28, 0x09, 0x52,
 	0x08, 0x73, 0x68, 0x6f, 0x72, 0x74, 0x5f, 0x69, 0x64, 0x12, 0x20, 0x0a, 0x0b, 0x73, 0x65, 0x72,
 	0x76, 0x65, 0x72, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0b,
@@ -4451,6 +4484,8 @@ var file_config_listener_listener_proto_rawDesc = string([]byte{
 	0x65, 0x73, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x64, 0x65, 0x73, 0x74, 0x12,
 	0x20, 0x0a, 0x0b, 0x70, 0x72, 0x69, 0x76, 0x61, 0x74, 0x65, 0x5f, 0x6b, 0x65, 0x79, 0x18, 0x04,
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x70, 0x72, 0x69, 0x76, 0x61, 0x74, 0x65, 0x5f, 0x6b, 0x65,
+	0x79, 0x12, 0x1e, 0x0a, 0x0a, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x5f, 0x6b, 0x65, 0x79, 0x18,
+	0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x5f, 0x6b, 0x65,
 	0x79, 0x12, 0x14, 0x0a, 0x05, 0x64, 0x65, 0x62, 0x75, 0x67, 0x18, 0x05, 0x20, 0x01, 0x28, 0x08,
 	0x52, 0x05, 0x64, 0x65, 0x62, 0x75, 0x67, 0x22, 0xcd, 0x02, 0x0a, 0x0a, 0x74, 0x6c, 0x73, 0x5f,
 	0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x12, 0x41, 0x0a, 0x0c, 0x63, 0x65, 0x72, 0x74, 0x69, 0x66,

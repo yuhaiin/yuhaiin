@@ -74,7 +74,7 @@ func TestHkdf(t *testing.T) {
 	// Generate three 128-bit derived keys.
 	hkdf := hkdf.New(hash, secret, salt, info)
 	var keys [][]byte
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		key := make([]byte, 16)
 		if _, err := io.ReadFull(hkdf, key); err != nil {
 			panic(err)

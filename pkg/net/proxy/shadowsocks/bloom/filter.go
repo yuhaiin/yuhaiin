@@ -34,7 +34,7 @@ func (f *classicFilter) getOffset(x, y uint64, i int) uint64 {
 
 func (f *classicFilter) Add(b []byte) {
 	x, y := f.h(b)
-	for i := 0; i < f.k; i++ {
+	for i := range f.k {
 		offset := f.getOffset(x, y, i)
 		f.b[offset/8] |= 1 << (offset % 8)
 	}
@@ -42,7 +42,7 @@ func (f *classicFilter) Add(b []byte) {
 
 func (f *classicFilter) Test(b []byte) bool {
 	x, y := f.h(b)
-	for i := 0; i < f.k; i++ {
+	for i := range f.k {
 		offset := f.getOffset(x, y, i)
 		if f.b[offset/8]&(1<<(offset%8)) == 0 {
 			return false

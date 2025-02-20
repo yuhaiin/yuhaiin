@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"sync"
@@ -126,23 +127,21 @@ func (u *SourceControl) run() {
 }
 
 func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) error {
-	pkt.IncRef()
 	select {
 	case <-u.ctx.Done():
-		pkt.DecRef()
 		return u.ctx.Err()
 	case <-ctx.Done():
-		pkt.DecRef()
 		return ctx.Err()
 
 	default:
 		u.sentPacketMx.Lock()
-		if u.sentPackets.Len() >= configuration.MaxUDPUnprocessedPackets {
+		if u.sentPackets.Len() >= configuration.MaxUDPUnprocessedPackets.Load() {
 			u.sentPacketMx.Unlock()
 			metrics.Counter.AddSendUDPDroppedPacket()
 			return fmt.Errorf("ringbuffer is full, drop packet")
 		}
 
+		pkt.IncRef()
 		u.sentPackets.PushBack(pkt)
 		u.sentPacketMx.Unlock()
 
@@ -164,7 +163,7 @@ func (u *SourceControl) handle() {
 
 	var hasMorePackets bool
 
-	for i := 0; i < numPackets; i++ {
+	for i := range numPackets {
 		if i > 0 {
 			u.sentPacketMx.Lock()
 		}
@@ -178,17 +177,32 @@ func (u *SourceControl) handle() {
 		pkt := u.sentPackets.PopFront()
 		u.sentPacketMx.Unlock()
 
-		if err := u.handleOne(pkt); err != nil {
+		err := u.handleOne(pkt)
+		pkt.DecRef()
+		if err != nil {
 			if netapi.IsBlockError(err) {
-				u.Close()
-				pkt.DecRef()
+				_ = u.Close()
 				return
 			}
-			log.Error("handle packet failed", "err", err)
-		}
 
-		pkt.DecRef()
+			log.Select(u.logLevel(err)).Print("handle packet failed", "err", err)
+		}
 	}
+}
+
+func (u *SourceControl) logLevel(err error) slog.Level {
+	if configuration.IgnoreTimeoutErrorLog.Load() {
+		var dnsError *net.DNSError
+		if errors.As(err, &dnsError) {
+			return slog.LevelDebug
+		}
+	}
+
+	if configuration.IgnoreTimeoutErrorLog.Load() && errors.Is(err, context.DeadlineExceeded) {
+		return slog.LevelDebug
+	}
+
+	return slog.LevelError
 }
 
 func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
@@ -204,7 +218,9 @@ func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
 		store.Source = pkt.Src
 		store.Destination = pkt.Dst
 
-		u.sniffer.Packet(store, pkt.Payload)
+		if u.sniffer != nil {
+			u.sniffer.Packet(store, pkt.GetPayload())
+		}
 
 		_, ok := pkt.Src.(*quic.QuicAddr)
 		if !ok {
@@ -263,7 +279,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 	udpAddr, ok := t.addrStore.LoadUdp(key)
 	if ok {
 		// load from cache, so we don't need to map addr, pkt is nil
-		return t.WriteTo(pkt.Payload, udpAddr, nil, conn)
+		return t.WriteTo(pkt.GetPayload(), udpAddr, nil, conn)
 	}
 
 	// cache fakeip/hosts/bypass address
@@ -286,7 +302,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 
 	// check is need resolve
 	if !dstAddr.IsFqdn() || t.context.skipResolve {
-		return t.WriteTo(pkt.Payload, dstAddr, pkt.Dst, conn)
+		return t.WriteTo(pkt.GetPayload(), dstAddr, pkt.Dst, conn)
 	}
 
 	store := netapi.GetContext(ctx)
@@ -301,7 +317,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 	}
 	t.addrStore.StoreUdp(key, udpAddr)
 
-	err = t.WriteTo(pkt.Payload, udpAddr, pkt.Dst, conn)
+	err = t.WriteTo(pkt.GetPayload(), udpAddr, pkt.Dst, conn)
 	if err != nil {
 		return fmt.Errorf("write to addr failed: %w", err)
 	}
@@ -368,7 +384,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 				writeBack := u.wirteBack.Load()
 
 				var hasMorePackets bool
-				for i := 0; i < numPackets; i++ {
+				for i := range numPackets {
 					if i > 0 {
 						u.receivedPacketMx.Lock()
 					}
@@ -416,7 +432,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 		metrics.Counter.AddReceiveUDPPacketSize(n)
 
 		u.receivedPacketMx.Lock()
-		if u.receivedPackets.Len() >= configuration.MaxUDPUnprocessedPackets {
+		if u.receivedPackets.Len() >= configuration.MaxUDPUnprocessedPackets.Load() {
 			u.receivedPacketMx.Unlock()
 			pool.PutBytes(data)
 			metrics.Counter.AddReceiveUDPDroppedPacket()

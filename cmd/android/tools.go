@@ -46,6 +46,19 @@ func FakeDnsCidr(f func(string)) {
 	}
 }
 
+func IsIPv6() bool {
+	var ipv6 bool
+	err := newChoreDB().View(func(s *pc.Setting) error {
+		ipv6 = s.GetIpv6()
+		return nil
+	})
+	if err != nil {
+		log.Error("view chore db failed", slog.Any("err", err))
+	}
+
+	return ipv6
+}
+
 func AddFakeDnsCidr(process AddRoute) {
 	FakeDnsCidr(func(s string) {
 		cidr, err := ParseCIDR(s)
