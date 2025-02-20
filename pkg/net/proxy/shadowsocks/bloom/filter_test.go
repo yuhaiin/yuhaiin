@@ -38,8 +38,8 @@ func TestFalsePositive(t *testing.T) {
 	samples := make([][]byte, n)
 	fp := 0 // false positive count
 
-	for i := 0; i < n; i++ {
-		x := []byte(fmt.Sprint(i))
+	for i := range int(n) {
+		x := fmt.Append(nil, i)
 		samples[i] = x
 		bf.Add(x)
 	}
@@ -54,24 +54,24 @@ func TestFalsePositive(t *testing.T) {
 }
 
 func BenchmarkAdd(b *testing.B) {
-	b.StopTimer()
+
 	b.ReportAllocs()
 	bf := New(1e6, 1e-4, doubleFNV)
 	buf := make([]byte, 20)
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
+
+	for i := 0; b.Loop(); i++ {
 		binary.PutUvarint(buf, uint64(i))
 		bf.Add(buf)
 	}
 }
 
 func BenchmarkTest(b *testing.B) {
-	b.StopTimer()
+
 	b.ReportAllocs()
 	bf := New(1e6, 1e-4, doubleFNV)
 	buf := make([]byte, 20)
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
+
+	for i := 0; b.Loop(); i++ {
 		binary.PutUvarint(buf, uint64(i))
 		bf.Test(buf)
 	}

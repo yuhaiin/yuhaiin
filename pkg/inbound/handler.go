@@ -2,9 +2,11 @@ package inbound
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -38,9 +40,44 @@ func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSServer) *handler {
 	return h
 }
 
+func (s *handler) logLevel(err error) slog.Level {
+	level := netapi.LogLevel(err)
+	if level == slog.LevelDebug {
+		return slog.LevelDebug
+	}
+
+	if configuration.IgnoreDnsErrorLog.Load() {
+		var derr *net.DNSError
+		if errors.As(err, &derr) {
+			return slog.LevelDebug
+		}
+	}
+
+	if configuration.IgnoreTimeoutErrorLog.Load() {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			return slog.LevelDebug
+		}
+
+		var netOpErr *net.OpError
+		if errors.As(err, &netOpErr) && netOpErr.Timeout() {
+			return slog.LevelDebug
+		}
+
+		var syscallErr syscall.Errno
+		if errors.As(err, &syscallErr) {
+			switch syscallErr {
+			case syscall.ECONNREFUSED, syscall.EHOSTUNREACH, syscall.ENETUNREACH:
+				return slog.LevelDebug
+			}
+		}
+	}
+
+	return slog.LevelError
+}
+
 func (s *handler) Stream(ctx *netapi.Context, meta *netapi.StreamMeta) {
 	if err := s.stream(ctx, meta); err != nil {
-		log.Select(netapi.LogLevel(err)).Print("inbound handler stream", "msg", err)
+		log.Select(s.logLevel(err)).Print("inbound handler stream", "msg", err)
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -54,7 +55,7 @@ func newServer(o *listener.Http, lis net.Listener, handler netapi.Handler) *Serv
 				source = netapi.ParseAddressPort(network, remoteAddr, 0)
 			}
 
-			local, remote := net.Pipe()
+			local, remote := pipe.Pipe()
 
 			sm := &netapi.StreamMeta{
 				Source:      source,

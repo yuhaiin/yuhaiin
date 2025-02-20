@@ -4,19 +4,22 @@ import (
 	context "context"
 	"crypto/tls"
 	"errors"
+	"io"
 	"net"
 	"sync"
-	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	grpc "google.golang.org/grpc"
-	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type client struct {
@@ -61,16 +64,16 @@ func (c *client) connect() (*grpc.ClientConn, error) {
 		tlsOption = grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig))
 	}
 
-	clientConn, err := grpc.NewClient("yuhaiin-server",
-		grpc.WithConnectParams(grpc.ConnectParams{
-			Backoff: backoff.Config{
-				BaseDelay:  500 * time.Millisecond,
-				Multiplier: 1.5,
-				Jitter:     0.2,
-				MaxDelay:   19 * time.Second,
-			},
-			MinConnectTimeout: 5 * time.Second,
-		}),
+	clientConn, err := grpc.NewClient("passthrough://yuhaiin-server",
+		// grpc.WithConnectParams(grpc.ConnectParams{
+		// Backoff: backoff.Config{
+		// 	BaseDelay:  500 * time.Millisecond,
+		// 	Multiplier: 1.5,
+		// 	Jitter:     0.2,
+		// 	MaxDelay:   19 * time.Second,
+		// },
+		// MinConnectTimeout: 5 * time.Second,
+		// }),
 		tlsOption,
 		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
 			return c.Proxy.Conn(ctx, netapi.EmptyAddr)
@@ -103,32 +106,62 @@ func (c *client) Close() error {
 	return err
 }
 
-func (c *client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	var retried bool
-
-_retry:
-	conn, err := c.connect()
+func (c *client) Conn(_ context.Context, addr netapi.Address) (net.Conn, error) {
+	stream, err := c.connect()
 	if err != nil {
 		return nil, err
 	}
 
-	cc := NewStreamClient(conn)
-	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	con, err := cc.Conn(ctx)
+	client := NewStreamClient(stream)
+	conn, err := client.Conn(context.TODO())
 	if err != nil {
-		cancel()
-		if !retried {
-			c.Close()
-			retried = true
-			goto _retry
+		return nil, err
+	}
+
+	c1, c2 := pipe.Pipe()
+
+	go func() {
+		defer c1.CloseWrite()
+		for {
+			data, err := conn.Recv()
+			if err != nil {
+				if err != io.EOF {
+					log.Error("grpc client conn recv failed", "err", err)
+				}
+				return
+			}
+
+			_, err = c1.Write(data.Value)
+			if err != nil {
+				return
+			}
 		}
-		return nil, err
-	}
+	}()
 
-	return newConn(con, caddr{}, addr, func() {
-		cancel()
-		_ = con.CloseSend()
-	}), nil
+	go func() {
+		defer c1.Close()
+		defer conn.CloseSend()
+		for {
+			buf := make([]byte, pool.DefaultSize)
+			n, err := c1.Read(buf)
+			if err != nil {
+				if err != io.EOF {
+					log.Error("grpc client conn read failed", "err", err)
+				}
+				return
+			}
+
+			err = conn.Send(&wrapperspb.BytesValue{Value: buf[:n]})
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	c2.SetLocalAddr(caddr{})
+	c2.SetRemoteAddr(addr)
+
+	return c2, nil
 }
 
 type caddr struct{}

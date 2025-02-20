@@ -38,7 +38,7 @@ func nextID(oldID uuid.UUID) (newID uuid.UUID) {
 func (u *User) GenAlterIDUsers(alterID int) []*User {
 	users := make([]*User, alterID)
 	preID := u.UUID
-	for i := 0; i < alterID; i++ {
+	for i := range alterID {
 		newID := nextID(preID)
 		// NOTE: alterID user is a user which have a different uuid but a same cmdkey with the primary user.
 		users[i] = &User{UUID: newID, CmdKey: u.CmdKey}

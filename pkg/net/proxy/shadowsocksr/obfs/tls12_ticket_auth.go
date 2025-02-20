@@ -86,10 +86,7 @@ func (t *tls12TicketAuth) Encode(data []byte) ([]byte, error) {
 			start := 0
 			var l int
 			for len(data)-start > 2048 {
-				l = rand.IntN(4096) + 100
-				if l > len(data)-start {
-					l = len(data) - start
-				}
+				l = min(rand.IntN(4096)+100, len(data)-start)
 				packData(&t.buffer, data[start:start+l])
 				start += l
 			}
@@ -107,10 +104,7 @@ func (t *tls12TicketAuth) Encode(data []byte) ([]byte, error) {
 				start := 0
 				var l int
 				for len(data)-start > 2048 {
-					l = rand.IntN(4096) + 100
-					if l > len(data)-start {
-						l = len(data) - start
-					}
+					l = min(rand.IntN(4096)+100, len(data)-start)
 					packData(&t.buffer, data[start:start+l])
 					start += l
 				}

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -31,7 +32,6 @@ var SetAndroidProtectFunc func(SocketProtect)
 //go:generate go run generate.go
 
 type App struct {
-	app *appapi.Components
 	lis *http.Server
 
 	mu      sync.Mutex
@@ -54,12 +54,24 @@ func newBypassDB() *configDB[*bypass.Config] {
 	)
 }
 
+func newChoreDB() *configDB[*pc.Setting] {
+	return newConfigDB(
+		"chore_db",
+		func(s *pc.Setting) *pc.Setting { return s },
+		func(s *pc.Setting) *pc.Setting { return s },
+	)
+}
+
 func (a *App) Start(opt *Opts) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.started.Load() {
 		return errors.New("yuhaiin is already running")
+	}
+
+	if a.lis != nil {
+		_ = a.lis.Close()
 	}
 
 	netmon.RegisterInterfaceGetter(func() ([]netmon.Interface, error) { return getInterfaces(opt.Interfaces) })
@@ -96,44 +108,49 @@ func (a *App) Start(opt *Opts) error {
 	// 	})
 	// }
 
-	errChan := make(chan error)
+	dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
+
+	app, err := app.Start(
+		appapi.Start{
+			ConfigPath:     opt.Savepath,
+			BypassConfig:   newBypassDB(),
+			ResolverConfig: newResolverDB(),
+			InboundConfig:  fakeDB(opt, app.PathGenerator.Config(opt.Savepath)),
+			ChoreConfig:    newChoreDB(),
+			Host:           net.JoinHostPort(ifOr(GetStore("Default").GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"), "0"),
+			ProcessDumper:  NewUidDumper(opt.TUN.UidDumper),
+		})
+	if err != nil {
+		return err
+	}
+
+	_, portstr, err := net.SplitHostPort(app.HttpListener.Addr().String())
+	if err != nil {
+		_ = app.Close()
+		return err
+	}
+
+	port, err := strconv.ParseUint(portstr, 10, 16)
+	if err != nil {
+		_ = app.Close()
+		return err
+	}
+
+	GetStore("Default").PutInt(NewYuhaiinPortKey, int32(port))
+
+	lis := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
+		app.Mux.ServeHTTP(w, r)
+	})}
+
+	a.lis = lis
+
+	a.started.Store(true)
 
 	go func() {
 		defer a.started.Store(false)
-
-		dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
-
-		fakedb := fakeDB(opt, app.PathGenerator.Config(opt.Savepath))
-
-		app, err := app.Start(
-			appapi.Start{
-				ConfigPath:     opt.Savepath,
-				BypassConfig:   newBypassDB(),
-				ResolverConfig: newResolverDB(),
-				InboundConfig:  fakedb,
-				ChoreConfig:    fakedb,
-				Host: net.JoinHostPort(ifOr(GetStore("Default").GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"),
-					fmt.Sprint(GetStore("Default").GetInt(NewYuhaiinPortKey))),
-				ProcessDumper: NewUidDumper(opt.TUN.UidDumper),
-			})
-		if err != nil {
-			errChan <- err
-			return
-		}
 		defer app.Close()
-
-		a.app = app
-
-		lis := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
-			app.Mux.ServeHTTP(w, r)
-		})}
 		defer lis.Close()
-
-		a.lis = lis
-		a.started.Store(true)
-
-		close(errChan)
 		defer opt.CloseFallback.Close()
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -145,7 +162,7 @@ func (a *App) Start(opt *Opts) error {
 		}
 	}()
 
-	return <-errChan
+	return nil
 }
 
 func (a *App) notifyFlow(ctx context.Context, app *appapi.Components, opt *Opts) {
@@ -212,23 +229,12 @@ func (a *App) Stop() error {
 		runtime.Gosched()
 	}
 
-	a.app = nil
 	a.lis = nil
 
 	return nil
 }
 
 func (a *App) Running() bool { return a.started.Load() }
-
-func (a *App) SaveNewBypass(link string) error {
-	if !a.Running() || a.app == nil || a.app.RuleController == nil {
-		return fmt.Errorf("proxy service is not start")
-	}
-
-	a.app.Setting.(*fakeSettings).updateRemoteUrl(link)
-	_, err := a.app.RuleController.Reload(context.TODO(), &emptypb.Empty{})
-	return err
-}
 
 var emptyRate = fmt.Sprintf("%.2f %v", 0.00, unit.B)
 

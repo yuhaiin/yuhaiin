@@ -140,6 +140,16 @@ func getRemote(con any) string {
 	return ""
 }
 
+func getLocal(con interface{ LocalAddr() net.Addr }) string {
+	// https://github.com/google/gvisor/blob/a9bdef23522b5a2ff2a7ec07c3e0573885b46ecb/pkg/tcpip/adapters/gonet/gonet.go#L457
+	// gvisor TCPConn will return nil remoteAddr
+	if addr := con.LocalAddr(); addr != nil {
+		return addr.String()
+	}
+
+	return ""
+}
+
 func getRealAddr(store *netapi.Context, addr netapi.Address) string {
 	if store.DomainString != "" {
 		return store.DomainString
@@ -165,6 +175,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		Source:       stringerOrNil(store.Source),
 		Inbound:      stringerOrNil(store.Inbound),
 		Outbound:     stringOrNil(getRemote(conn)),
+		LocalAddr:    stringOrNil(getLocal(conn)),
 		Destionation: stringerOrNil(store.Destination),
 		FakeIp:       stringerOrNil(store.FakeIP),
 		Hosts:        stringerOrNil(store.Hosts),

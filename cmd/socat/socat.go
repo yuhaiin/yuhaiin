@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
@@ -30,11 +31,36 @@ func main() {
 
 	conn, err := socks5.Dial(host, port, "", "").Conn(context.TODO(), addr)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Fprintf(os.Stderr, "socks5 dial failed: %v, try direct connect\n", err)
+
+		// dialer.DefaultInterfaceName = func() string {
+		// 	de, err := interfaces.DefaultRoute()
+		// 	if err != nil {
+		// 		fmt.Fprintf(os.Stderr, "get default route failed: %v\n", err)
+		// 		return ""
+		// 	} else {
+		// 		fmt.Fprintf(os.Stderr, "default route: %v\n", de.InterfaceName)
+		// 		return de.InterfaceName
+		// 	}
+		// }
+
+		// net.DefaultResolver = &net.Resolver{
+		// 	Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		// 		fmt.Fprintf(os.Stderr, "default resolver dial\n")
+		// 		return net.Dial("udp", "208.67.222.222:5353")
+		// 	},
+		// }
+
+		conn, err = dialer.DialContext(context.TODO(), "tcp", *target)
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			fmt.Fprintf(os.Stderr, "start relay %v <-> %v\n\n", addr, conn.RemoteAddr())
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "start relay %v <-> %v\n\n", addr, conn.RemoteAddr())
 	}
 	defer conn.Close()
-
-	fmt.Fprintf(os.Stderr, "start relay %v <-> %v\n\n", addr, conn.RemoteAddr())
 
 	relay.Relay(&stdInOutReadWriteCloser{}, conn)
 }

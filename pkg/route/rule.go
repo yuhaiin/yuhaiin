@@ -109,7 +109,7 @@ func SplitModeArgs(s string) (x unique.Handle[bypass.ModeEnum], ok bool) {
 type RawArgs []string
 
 func (a RawArgs) Range(f func(k, v string) bool) {
-	for i := 0; i < len(a); i++ {
+	for i := range a {
 		x := a[i]
 
 		var k, v string

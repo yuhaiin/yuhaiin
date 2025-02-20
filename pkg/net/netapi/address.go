@@ -1,7 +1,7 @@
 package netapi
 
 import (
-	"fmt"
+	"errors"
 	"hash/maphash"
 	"net"
 	"net/netip"
@@ -42,7 +42,6 @@ func ParseAddress(network string, addr string) (ad Address, _ error) {
 	var port uint64
 	hostname, portstr, err := net.SplitHostPort(addr)
 	if err != nil {
-		fmt.Println("split host port failed", "err", err, "addr", addr)
 		hostname = addr
 	} else {
 		port, err = strconv.ParseUint(portstr, 10, 16)
@@ -102,7 +101,7 @@ func toAddrPort(ad net.IP, zone string) netip.Addr {
 
 func ParseSysAddr(ad net.Addr) (Address, error) {
 	if ad == nil {
-		return nil, fmt.Errorf("invalid address")
+		return nil, errors.New("invalid address")
 	}
 
 	switch ad := ad.(type) {

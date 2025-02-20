@@ -248,11 +248,7 @@ func PartialDeadline(now, deadline time.Time, addrsRemaining int) (time.Time, er
 	// If the time per address is too short, steal from the end of the list.
 	const saneMinimum = 2 * time.Second
 	if timeout < saneMinimum {
-		if timeRemaining < saneMinimum {
-			timeout = timeRemaining
-		} else {
-			timeout = saneMinimum
-		}
+		timeout = min(timeRemaining, saneMinimum)
 	}
 	return now.Add(timeout), nil
 }

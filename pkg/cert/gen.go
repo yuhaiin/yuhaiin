@@ -11,11 +11,9 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 	mrand "math/rand/v2"
 	"net"
@@ -199,9 +197,7 @@ func (c *Ca) GenerateServerCert(hosts ...string) (*ServerCert, error) {
 	if len(hosts) > 0 {
 		commonName = hosts[0]
 	} else {
-		tmp := make([]byte, 32)
-		_, _ = io.ReadFull(rand.Reader, tmp)
-		commonName = hex.EncodeToString(tmp)
+		commonName = rand.Text()
 	}
 
 	leafTemplate := x509.Certificate{

@@ -34,6 +34,8 @@ type Inbound struct {
 	hijackDNS atomic.Bool
 	fakeip    atomic.Bool
 
+	// udpChannel cache channel for udp
+	// the nat table is already use ringbuffer. so here just use buffer channel
 	udpChannel chan *netapi.Packet
 }
 
@@ -54,13 +56,13 @@ func NewListener(dnsHandler netapi.DNSServer, dialer netapi.Proxy) *Inbound {
 	return l
 }
 
-func (l *Inbound) isHandleDNS(port uint16) bool {
+func (l *Inbound) isDNS(port uint16) bool {
 	return l.hijackDNS.Load() && port == 53
 }
 
 func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 	go func() {
-		if !l.isHandleDNS(meta.Address.Port()) {
+		if !l.isDNS(meta.Address.Port()) {
 			store := netapi.WithContext(l.ctx)
 			store.Source = meta.Source
 			store.Destination = meta.Destination
@@ -101,26 +103,27 @@ func (l *Inbound) loopudp() {
 }
 
 func (l *Inbound) handlePacket(packet *netapi.Packet) {
-	if !l.isHandleDNS(packet.Dst.Port()) {
+	defer packet.DecRef()
+
+	if !l.isDNS(packet.Dst.Port()) {
 		// we only use [netapi.Context] at new PacketConn instead of every packet
 		// so here just pass [l.ctx]
 		l.handler.Packet(l.ctx, packet)
-		packet.DecRef()
-	} else {
-		dnsReq := &netapi.DNSRawRequest{
-			Question: packet,
-			WriteBack: func(b []byte) error {
-				_, err := packet.WriteBack.WriteBack(b, packet.Dst)
-				return err
-			},
-			ForceFakeIP: l.fakeip.Load(),
-		}
+		return
+	}
 
-		err := l.handler.dnsHandler.Do(l.ctx, dnsReq)
-		packet.DecRef()
-		if err != nil {
-			log.Select(netapi.LogLevel(err)).Print("udp server handle DnsHijacking", "msg", err)
-		}
+	dnsReq := &netapi.DNSRawRequest{
+		Question: packet,
+		WriteBack: func(b []byte) error {
+			_, err := packet.WriteBack.WriteBack(b, packet.Dst)
+			return err
+		},
+		ForceFakeIP: l.fakeip.Load(),
+	}
+
+	err := l.handler.dnsHandler.Do(l.ctx, dnsReq)
+	if err != nil {
+		log.Select(netapi.LogLevel(err)).Print("udp server handle DnsHijacking", "msg", err)
 	}
 }
 

@@ -3,10 +3,11 @@ package pool
 import (
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 )
 
 func TestBytes(t *testing.T) {
@@ -41,7 +42,7 @@ func TestBytesReader(t *testing.T) {
 }
 
 func TestPrefixConn(t *testing.T) {
-	conn1, _ := net.Pipe()
+	conn1, _ := pipe.Pipe()
 	conn1.Close()
 
 	x := NewBytesConn(conn1, []byte("abc"))

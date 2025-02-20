@@ -215,10 +215,7 @@ func (a *authAES128) EncryptStream(wbuf *pool.Buffer, data []byte) (err error) {
 	}
 
 	if !a.hasSentHeader {
-		authLen := GetHeadSize(data, 30) + rand.IntN(32)
-		if authLen > dataLen {
-			authLen = dataLen
-		}
+		authLen := min(GetHeadSize(data, 30)+rand.IntN(32), dataLen)
 
 		a.packAuthData(wbuf, data[:authLen])
 		data = data[authLen:]

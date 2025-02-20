@@ -169,7 +169,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 				copy(a.userKey, a.Key())
 			}
 		}
-		for i := 0; i < 4; i++ {
+		for i := range 4 {
 			uid[i] = a.uid[i] ^ a.lastClientHash[8+i]
 		}
 		base64UserKey = base64.StdEncoding.EncodeToString(a.userKey)
@@ -221,10 +221,7 @@ func (a *authChainA) EncryptStream(wbuf *pool.Buffer, plainData []byte) (err err
 	dataLength := len(plainData)
 	offset := 0
 	if dataLength > 0 && !a.hasSentHeader {
-		headSize := 1200
-		if headSize > dataLength {
-			headSize = dataLength
-		}
+		headSize := min(1200, dataLength)
 		wbuf.Write(a.packAuthData(plainData[:headSize]))
 		offset += headSize
 		dataLength -= headSize

@@ -81,6 +81,8 @@ type Packet struct {
 	Src       net.Addr
 	Dst       Address
 	WriteBack WriteBack
+	// Payload will set to nil when ref count is negative, get it by [Packet.GetPayload]
+	// ! DON'T use Payload directly
 	Payload   []byte
 	MigrateID uint64
 
@@ -88,20 +90,38 @@ type Packet struct {
 	mu         sync.Mutex
 }
 
+func (p *Packet) GetPayload() []byte {
+	p.mu.Lock()
+	buf := p.Payload
+	p.mu.Unlock()
+	return buf
+}
+
 func (p *Packet) IncRef() {
 	p.mu.Lock()
-	p.payloadRef++
+
+	// the buf is already released when ref count is negative
+	if p.payloadRef >= 0 {
+		p.payloadRef++
+	}
+
 	p.mu.Unlock()
 }
 
 func (p *Packet) DecRef() {
 	p.mu.Lock()
-	p.payloadRef--
 
-	// because ref count default is 0, so here no equal
-	if p.payloadRef < 0 {
-		pool.PutBytes(p.Payload)
+	// the buf is already released when ref count is negative
+	if p.payloadRef >= 0 {
+		p.payloadRef--
+
+		// because ref count default is 0, so here no equal
+		if p.payloadRef < 0 {
+			pool.PutBytes(p.Payload)
+			p.Payload = nil
+		}
 	}
+
 	p.mu.Unlock()
 }
 
@@ -120,17 +140,6 @@ type DNSServer interface {
 	Server
 	DoStream(context.Context, *DNSStreamRequest) error
 	Do(context.Context, *DNSRawRequest) error
-}
-
-var EmptyDNSServer DNSServer = &emptyDNSServer{}
-
-type emptyDNSServer struct{}
-
-func (e *emptyDNSServer) Close() error                                          { return nil }
-func (e *emptyDNSServer) DoStream(_ context.Context, _ *DNSStreamRequest) error { return io.EOF }
-func (e *emptyDNSServer) Do(_ context.Context, b *DNSRawRequest) error {
-	b.Question.DecRef()
-	return io.EOF
 }
 
 type ChannelStreamListener struct {

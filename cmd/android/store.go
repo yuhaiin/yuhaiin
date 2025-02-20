@@ -113,7 +113,7 @@ func (s *storeImpl) GetBoolean(key string) bool {
 func (s *storeImpl) GetLong(key string) int64 {
 	bytes, _ := s.db.Get([]byte(key))
 	if len(bytes) < 8 || bytes == nil {
-		return defaultLangValue[key]
+		return defaultLongValue[key]
 	}
 
 	value := binary.NativeEndian.Uint64(bytes)
