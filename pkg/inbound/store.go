@@ -3,13 +3,13 @@ package inbound
 import (
 	"context"
 	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"maps"
 	"slices"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
@@ -72,6 +72,24 @@ func (i *InboundCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*cf.
 	return resp, err
 }
 
+func generateRealityKeys(v *cf.Transport) error {
+	if v.GetReality() == nil {
+		return nil
+	}
+
+	if len(v.GetReality().GetPrivateKey()) != 0 {
+		return nil
+	}
+
+	pri, pub, err := reality.GenerateKey()
+	if err != nil {
+		return err
+	}
+	v.GetReality().SetPrivateKey(pri)
+	v.GetReality().SetPublicKey(pub)
+	return nil
+}
+
 func generateTlsAuthCa(v *cf.Transport) error {
 	if v.GetTlsAuto() == nil {
 		return nil
@@ -82,9 +100,7 @@ func generateTlsAuthCa(v *cf.Transport) error {
 	ech := tlsAuth.GetEch()
 	if ech.GetEnable() {
 		if ech.GetOuterSNI() == "" {
-			var buf [16]byte
-			_, _ = rand.Read(buf[:])
-			ech.SetOuterSNI(hex.EncodeToString(buf[:]))
+			ech.SetOuterSNI(rand.Text())
 		}
 
 		var id [1]byte
@@ -135,7 +151,13 @@ func (i *InboundCtr) Save(ctx context.Context, req *cf.Inbound) (*cf.Inbound, er
 	}
 
 	for _, v := range req.GetTransport() {
-		err := generateTlsAuthCa(v)
+		var err error
+		switch v.WhichTransport() {
+		case cf.Transport_TlsAuto_case:
+			err = generateTlsAuthCa(v)
+		case cf.Transport_Reality_case:
+			err = generateRealityKeys(v)
+		}
 		if err != nil {
 			return nil, err
 		}

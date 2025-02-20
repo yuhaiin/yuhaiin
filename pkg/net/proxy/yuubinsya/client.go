@@ -57,7 +57,18 @@ func (c *client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 		return nil, err
 	}
 
-	return newConn(hconn, addr, c.handshaker), nil
+	buf := pool.NewBufferSize(1024)
+	defer buf.Reset()
+
+	c.handshaker.EncodeHeader(types.Header{Protocol: types.TCP, Addr: addr}, buf)
+
+	_, err = hconn.Write(buf.Bytes())
+	if err != nil {
+		hconn.Close()
+		return nil, err
+	}
+
+	return hconn, nil
 }
 
 func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {

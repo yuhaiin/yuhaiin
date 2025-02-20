@@ -204,7 +204,9 @@ func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
 		store.Source = pkt.Src
 		store.Destination = pkt.Dst
 
-		u.sniffer.Packet(store, pkt.Payload)
+		if u.sniffer != nil {
+			u.sniffer.Packet(store, pkt.Payload)
+		}
 
 		_, ok := pkt.Src.(*quic.QuicAddr)
 		if !ok {

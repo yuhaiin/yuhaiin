@@ -66,7 +66,14 @@ func (t *Tls) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 		return nil, err
 	}
 
-	return tls.Client(c, t.tlsConfig[rand.IntN(t.configLength)]), nil
+	tlsConn := tls.Client(c, t.tlsConfig[rand.IntN(t.configLength)])
+
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		tlsConn.Close()
+		return nil, err
+	}
+
+	return tlsConn, nil
 }
 
 func (t *Tls) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {

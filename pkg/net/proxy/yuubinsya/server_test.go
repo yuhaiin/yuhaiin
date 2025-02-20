@@ -1,7 +1,6 @@
 package yuubinsya
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -25,7 +24,16 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err)
 		defer lis.Close()
 
-		a, err := NewServer(&listener.Yuubinsya{}, &mockListener{lis}, &mockHandler{t, &bytes.Buffer{}})
+		a, err := NewServer(&listener.Yuubinsya{}, &mockListener{lis}, mockHandler(func(req *netapi.StreamMeta) {
+			defer req.Src.Close()
+
+			data := make([]byte, 4096)
+
+			n, err := req.Src.Read(data)
+			assert.NoError(t, err)
+
+			_, _ = req.Src.Write(data[:n])
+		}))
 		assert.NoError(t, err)
 		defer a.Close()
 
@@ -35,12 +43,11 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err)
 		defer resp.Body.Close()
 
-		t.Log(resp.Header)
 		data, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 
-		assert.Equal(t, true, assert.ObjectsAreEqual(data, nginx404))
-		assert.Equal(t, resp.StatusCode, http.StatusNotFound)
+		assert.MustEqual(t, true, assert.ObjectsAreEqual(data, nginx404))
+		assert.MustEqual(t, resp.StatusCode, http.StatusNotFound)
 	})
 
 	t.Run("client", func(t *testing.T) {
@@ -48,10 +55,18 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err)
 		defer lis.Close()
 
-		buf := bytes.NewBuffer(nil)
 		a, err := NewServer(listener.Yuubinsya_builder{
 			Password: proto.String("aaaa"),
-		}.Build(), &mockListener{lis}, &mockHandler{t, buf})
+		}.Build(), &mockListener{lis}, mockHandler(func(req *netapi.StreamMeta) {
+			defer req.Src.Close()
+
+			data := make([]byte, 4096)
+
+			n, err := req.Src.Read(data)
+			assert.NoError(t, err)
+
+			_, _ = req.Src.Write(data[:n])
+		}))
 		assert.NoError(t, err)
 		defer a.Close()
 
@@ -81,9 +96,65 @@ func TestServer(t *testing.T) {
 		_, err = cx.Write([]byte(data))
 		assert.NoError(t, err)
 
-		_, _ = cx.Read(make([]byte, len(data)))
+		srcdata := make([]byte, 4096)
+		n, err := cx.Read(srcdata)
+		assert.NoError(t, err)
 
-		assert.Equal(t, data, buf.String())
+		assert.MustEqual(t, data, string(srcdata[:n]))
+	})
+
+	t.Run("test conn", func(t *testing.T) {
+		nettest.TestConn(t, func() (c1, c2 net.Conn, stop func(), err error) {
+			lis, err := nettest.NewLocalListener("tcp")
+			assert.NoError(t, err)
+
+			ch := make(chan *netapi.StreamMeta, 1)
+			defer close(ch)
+
+			ctx, cancel := context.WithCancel(context.Background())
+
+			a, err := NewServer(listener.Yuubinsya_builder{
+				Password: proto.String("aaaa"),
+			}.Build(), &mockListener{lis}, mockHandler(func(req *netapi.StreamMeta) {
+				ch <- req
+
+				<-ctx.Done()
+			}))
+			assert.NoError(t, err)
+
+			host, portstr, err := net.SplitHostPort(lis.Addr().String())
+			assert.NoError(t, err)
+
+			port, err := strconv.ParseUint(portstr, 10, 16)
+			assert.NoError(t, err)
+
+			s, err := simple.NewClient(protocol.Simple_builder{
+				Host: proto.String(host),
+				Port: proto.Int32(int32(port)),
+			}.Build(), nil)
+			assert.NoError(t, err)
+
+			c, err := NewClient(protocol.Yuubinsya_builder{
+				Password: proto.String("aaaa"),
+			}.Build(), s)
+			assert.NoError(t, err)
+
+			cx, err := c.Conn(t.Context(), netapi.EmptyAddr)
+			if err != nil {
+				cancel()
+				return nil, nil, nil, err
+			}
+
+			src := <-ch
+
+			return cx, src.Src, func() {
+				cancel()
+				src.Src.Close()
+				cx.Close()
+				a.Close()
+				lis.Close()
+			}, nil
+		})
 	})
 }
 
@@ -101,26 +172,7 @@ func (l *mockListener) Close() error {
 	return l.l.Close()
 }
 
-type mockHandler struct {
-	t   *testing.T
-	buf *bytes.Buffer
-}
+type mockHandler func(req *netapi.StreamMeta)
 
-func (m *mockHandler) HandleStream(req *netapi.StreamMeta) {
-	defer req.Src.Close()
-
-	data := make([]byte, 4096)
-
-	n, err := req.Src.Read(data)
-	assert.NoError(m.t, err)
-
-	m.buf.Write(data[:n])
-
-	_, _ = req.Src.Write(m.buf.Bytes())
-
-	m.t.Log(req)
-}
-
-func (m *mockHandler) HandlePacket(req *netapi.Packet) {
-	m.t.Log(req)
-}
+func (m mockHandler) HandleStream(req *netapi.StreamMeta) { m(req) }
+func (m mockHandler) HandlePacket(req *netapi.Packet)     {}
