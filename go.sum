@@ -234,6 +234,8 @@ github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMk
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250220134151-2e57a1200017 h1:T8i53KamCKxzmC8fdsaG+2ojolOQVyx+eR29J3cHoxc=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250220134151-2e57a1200017/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250220134241-7de0dc934f27 h1:pbKwLNcSTU47ou5rhGANTplolLsKDFNpNIq1k6Ji7Gw=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250220134241-7de0dc934f27/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 go.etcd.io/bbolt v1.4.0 h1:TU77id3TnN/zKr7CO/uk+fBCwF2jGcMuw2B/FMAzYIk=
 go.etcd.io/bbolt v1.4.0/go.mod h1:AsD+OCi/qPN1giOX1aiLAha3o1U8rAz65bvN4j0sRuk=
 go.opentelemetry.io/auto/sdk v1.1.0 h1:cH53jehLUN6UFLY71z+NDOiNJqDdPRaXzTel0sJySYA=
