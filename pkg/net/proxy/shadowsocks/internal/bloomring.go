@@ -34,7 +34,7 @@ func NewBloomRing(slot, capacity int, falsePositiveRate float64) *BloomRing {
 		slotCount:    slot,
 		slots:        make([]bloom.Filter, slot),
 	}
-	for i := 0; i < slot; i++ {
+	for i := range slot {
 		r.slots[i] = bloom.New(r.slotCapacity, falsePositiveRate, doubleFNV)
 	}
 	return r

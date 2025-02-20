@@ -104,6 +104,17 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 
 	chore := chore.NewChore(opt.ChoreConfig, func(s *pc.Setting) {
 		log.Set(s.GetLogcat(), PathGenerator.Log(so.ConfigPath))
+		configuration.IgnoreDnsErrorLog.Store(s.GetLogcat().GetIgnoreDnsError())
+		configuration.IgnoreTimeoutErrorLog.Store(s.GetLogcat().GetIgnoreTimeoutError())
+
+		{
+			udpRingBufferSize := s.GetAdvancedConfig().GetUdpRingbufferSize()
+			if udpRingBufferSize < 100 {
+				udpRingBufferSize = 250
+			}
+
+			configuration.MaxUDPUnprocessedPackets.Store(int(udpRingBufferSize))
+		}
 
 		sysproxy.Update(s)
 

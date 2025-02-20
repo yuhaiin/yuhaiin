@@ -37,9 +37,6 @@ func fakeDB(opt *Opts, path string) pc.DB {
 	opts, _ := json.Marshal(opt)
 	log.Info("fake setting config", "data", string(opts))
 	settings := pc.Setting_builder{
-		Ipv6:        proto.Bool(store.GetBoolean(Ipv6ProxyKey)),
-		Dns:         &dns.DnsConfig{},
-		SystemProxy: &pc.SystemProxy{},
 		Server: listener.InboundConfig_builder{
 			HijackDns: proto.Bool(store.GetBoolean(DnsHijacking)),
 			// HijackDnsFakeip: opt.DNS.Fakedns,
@@ -73,12 +70,10 @@ func fakeDB(opt *Opts, path string) pc.DB {
 			},
 		}.Build(),
 
-		Bypass: &bypass.Config{},
-
-		Logcat: pl.Logcat_builder{
-			Level: pl.LogLevel(pl.LogLevel_value[store.GetString(LogLevel)]).Enum(),
-			Save:  proto.Bool(store.GetBoolean(SaveLogcat)),
-		}.Build(),
+		Dns:         &dns.DnsConfig{},
+		SystemProxy: &pc.SystemProxy{},
+		Bypass:      &bypass.Config{},
+		Logcat:      &pl.Logcat{},
 		Platform: pc.Platform_builder{
 			AndroidApp: proto.Bool(true),
 		}.Build(),
@@ -144,7 +139,3 @@ func (w *fakeSettings) Batch(f ...func(*pc.Setting) error) error {
 }
 
 func (w *fakeSettings) Dir() string { return w.dir }
-
-func (w *fakeSettings) updateRemoteUrl(url string) {
-	w.setting.GetBypass().GetRemoteRules()[0].GetHttp().SetUrl(url)
-}

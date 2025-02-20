@@ -106,7 +106,7 @@ func (f *Frag) Split(buf []byte, maxSize int) [][]byte {
 
 	id := f.SplitID.Add(1)
 
-	for i := 0; i < frames; i++ {
+	for i := range frames {
 		var frame []byte
 		if i == frames-1 {
 			frame = buf[i*maxSize:]

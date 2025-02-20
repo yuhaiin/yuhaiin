@@ -119,10 +119,7 @@ func (a *authSHA1v4) EncryptStream(buffer *pool.Buffer, plainData []byte) (err e
 	dataLength := len(plainData)
 	offset := 0
 	if !a.hasSentHeader && dataLength > 0 {
-		headSize := GetHeadSize(plainData, 30)
-		if headSize > dataLength {
-			headSize = dataLength
-		}
+		headSize := min(GetHeadSize(plainData, 30), dataLength)
 		buffer.Write(a.packAuthData(plainData[:headSize]))
 		offset += headSize
 		dataLength -= headSize

@@ -20,10 +20,9 @@ import (
 )
 
 type dnsServer struct {
-	resolver    netapi.Resolver
-	listener    net.PacketConn
-	tcpListener net.Listener
-	server      string
+	resolver netapi.Resolver
+	udp      net.PacketConn
+	tcp      net.Listener
 
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -35,7 +34,6 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
 	d := &dnsServer{
 		ctx:      ctx,
 		cancel:   cancel,
-		server:   server,
 		resolver: process,
 		reqChan:  make(chan *netapi.DNSRawRequest, 100),
 	}
@@ -49,15 +47,21 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
 		return d
 	}
 
-	if err := d.startUDP(); err != nil {
-		log.Error("start udp dns server failed", slog.Any("err", err))
+	udp, err := dialer.ListenPacket(context.TODO(), "udp", server, dialer.WithListener(), dialer.WithTryUpgradeToBatch())
+	if err != nil {
+		slog.Error("dns udp server listen failed", "err", err)
+	} else {
+		d.udp = udp
+		d.startUDP(udp)
 	}
 
-	go func() {
-		if err := d.startTCP(); err != nil {
-			log.Error("start tcp dns server failed", slog.Any("err", err))
-		}
-	}()
+	tcp, err := dialer.ListenContext(context.TODO(), "tcp", server)
+	if err != nil {
+		slog.Error("dns tcp server listen failed", "err", err)
+	} else {
+		d.tcp = tcp
+		d.startTCP(tcp)
+	}
 
 	return d
 }
@@ -65,33 +69,28 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
 func (d *dnsServer) Close() error {
 	d.cancel()
 
-	if d.listener != nil {
-		d.listener.Close()
+	if d.udp != nil {
+		d.udp.Close()
 	}
-	if d.tcpListener != nil {
-		d.tcpListener.Close()
+	if d.tcp != nil {
+		d.tcp.Close()
 	}
 
 	return nil
 }
 
-func (d *dnsServer) startUDP() (err error) {
-	d.listener, err = dialer.ListenPacket(context.TODO(), "udp", d.server, dialer.WithListener(), dialer.WithTryUpgradeToBatch())
-	if err != nil {
-		return fmt.Errorf("dns udp server listen failed: %w", err)
-	}
-
-	log.Info("new udp dns server", "host", d.server)
+func (d *dnsServer) startUDP(listener net.PacketConn) {
+	log.Info("new udp dns server", "host", listener.LocalAddr())
 
 	for range system.Procs {
 		go func() {
-			defer d.Close()
+			defer listener.Close()
 
 			buf := pool.GetBytes(nat.MaxSegmentSize)
 			defer pool.PutBytes(buf)
 
 			for {
-				n, addr, err := d.listener.ReadFrom(buf)
+				n, addr, err := listener.ReadFrom(buf)
 				if err != nil {
 					if e, ok := err.(net.Error); ok && e.Temporary() {
 						continue
@@ -109,7 +108,7 @@ func (d *dnsServer) startUDP() (err error) {
 					err := d.do(context.TODO(), &doData{
 						Question: b,
 						WriteBack: func(b []byte) error {
-							if _, err = d.listener.WriteTo(b, addr); err != nil {
+							if _, err = listener.WriteTo(b, addr); err != nil {
 								return fmt.Errorf("write dns response to client failed: %w", err)
 							}
 							return nil
@@ -122,37 +121,33 @@ func (d *dnsServer) startUDP() (err error) {
 			}
 		}()
 	}
-
-	return nil
 }
 
-func (d *dnsServer) startTCP() (err error) {
-	defer d.Close()
+func (d *dnsServer) startTCP(listener net.Listener) {
+	go func() {
+		defer listener.Close()
 
-	d.tcpListener, err = dialer.ListenContext(context.TODO(), "tcp", d.server)
-	if err != nil {
-		return fmt.Errorf("dns tcp server listen failed: %w", err)
-	}
+		log.Info("new tcp dns server", "host", listener.Addr())
 
-	log.Info("new tcp dns server", "host", d.server)
-
-	for {
-		conn, err := d.tcpListener.Accept()
-		if err != nil {
-			if e, ok := err.(net.Error); ok && e.Temporary() {
-				continue
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				if e, ok := err.(net.Error); ok && e.Temporary() {
+					continue
+				}
+				slog.Error("dns server accept failed", "err", err)
+				return
 			}
-			return fmt.Errorf("dns server accept failed: %w", err)
+
+			go func() {
+				defer conn.Close()
+
+				if err := d.handleTCP(context.TODO(), conn, false); err != nil {
+					log.Error("handle dns tcp failed", "err", err)
+				}
+			}()
 		}
-
-		go func() {
-			defer conn.Close()
-
-			if err := d.handleTCP(context.TODO(), conn, false); err != nil {
-				log.Error("handle dns tcp failed", "err", err)
-			}
-		}()
-	}
+	}()
 }
 
 func (d *dnsServer) DoStream(ctx context.Context, req *netapi.DNSStreamRequest) error {

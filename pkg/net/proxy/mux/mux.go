@@ -171,7 +171,7 @@ type rangeSelector struct {
 func NewRangeSelector(cap int) *rangeSelector {
 	content := make([]*connEntry, cap)
 
-	for i := 0; i < cap; i++ {
+	for i := range cap {
 		content[i] = &connEntry{}
 	}
 

@@ -5,13 +5,15 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -82,7 +84,7 @@ func newServer(packetConn net.PacketConn, tlsConfig *tls.Config) (*Server, error
 
 	go func() {
 		defer s.Close()
-		if err := s.server(); err != nil {
+		if err := s.server(); err != nil && !errors.Is(err, context.Canceled) {
 			log.Error("quic server failed:", "err", err)
 		}
 	}()
@@ -136,12 +138,12 @@ func (s *Server) server() error {
 			defer conn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "") // nolint:errcheck
 
 			go func() {
-				if err := s.listenDatagram(conn); err != nil {
+				if err := s.listenDatagram(conn); err != nil && !errors.Is(err, context.Canceled) {
 					log.Error("listen datagram failed:", "err", err)
 				}
 			}()
 
-			if err := s.listenStream(conn); err != nil {
+			if err := s.listenStream(conn); err != nil && !errors.Is(err, context.Canceled) {
 				log.Error("listen quic connection failed:", "err", err)
 			}
 		}()
@@ -198,16 +200,18 @@ type serverPacketConn struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	deadline *deadline.PipeDeadline
+	readDeadline  pipe.PipeDeadline
+	writeDeadline pipe.PipeDeadline
 }
 
 func newServerPacketConn(s *Server) *serverPacketConn {
 	ctx, cancel := context.WithCancel(s.ctx)
 	return &serverPacketConn{
-		Server:   s,
-		ctx:      ctx,
-		cancel:   cancel,
-		deadline: deadline.NewPipe(),
+		Server:        s,
+		ctx:           ctx,
+		cancel:        cancel,
+		readDeadline:  pipe.MakePipeDeadline(),
+		writeDeadline: pipe.MakePipeDeadline(),
 	}
 }
 
@@ -215,11 +219,11 @@ func (x *serverPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) 
 	select {
 	case <-x.Server.ctx.Done():
 		x.cancel()
-		return 0, nil, x.Server.ctx.Err()
+		return 0, nil, io.ErrClosedPipe
 	case <-x.ctx.Done():
-		return 0, nil, x.ctx.Err()
-	case <-x.deadline.ReadContext().Done():
-		return 0, nil, x.deadline.ReadContext().Err()
+		return 0, nil, io.ErrClosedPipe
+	case <-x.readDeadline.Wait():
+		return 0, nil, os.ErrDeadlineExceeded
 	case msg := <-x.packetChan:
 		defer msg.msg.Reset()
 
@@ -231,11 +235,11 @@ func (x *serverPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) 
 func (x *serverPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	select {
 	case <-x.Server.ctx.Done():
-		return 0, x.Server.ctx.Err()
+		return 0, io.ErrClosedPipe
 	case <-x.ctx.Done():
-		return 0, x.ctx.Err()
-	case <-x.deadline.WriteContext().Done():
-		return 0, x.deadline.WriteContext().Err()
+		return 0, io.ErrClosedPipe
+	case <-x.writeDeadline.Wait():
+		return 0, os.ErrDeadlineExceeded
 	default:
 	}
 
@@ -265,22 +269,22 @@ func (x *serverPacketConn) SetDeadline(t time.Time) error {
 	default:
 	}
 
-	x.deadline.SetDeadline(t)
+	_ = x.SetWriteDeadline(t)
+	_ = x.SetReadDeadline(t)
 	return nil
 }
 
 func (x *serverPacketConn) SetReadDeadline(t time.Time) error {
-	x.deadline.SetReadDeadline(t)
+	x.readDeadline.Set(t)
 	return nil
 }
 
 func (x *serverPacketConn) SetWriteDeadline(t time.Time) error {
-	x.deadline.SetWriteDeadline(t)
+	x.writeDeadline.Set(t)
 	return nil
 }
 
 func (x *serverPacketConn) Close() error {
 	x.cancel()
-	x.deadline.Close()
 	return x.Server.Close()
 }

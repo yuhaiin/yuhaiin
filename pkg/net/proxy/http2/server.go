@@ -2,21 +2,21 @@ package http2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/net/http2"
 )
@@ -44,6 +44,10 @@ func NewServer(c *listener.Http2, ii netapi.Listener) (netapi.Listener, error) {
 	return netapi.NewListener(newServer(lis), ii), nil
 }
 
+type warpConn struct {
+	net.Conn
+}
+
 func newServer(lis net.Listener) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -61,9 +65,16 @@ func newServer(lis net.Listener) *Server {
 		for {
 			conn, err := lis.Accept()
 			if err != nil {
-				log.Error("accept failed:", "err", err)
+				if !errors.Is(err, net.ErrClosed) {
+					log.Error("accept failed:", "err", err)
+				}
+
 				return
 			}
+
+			// see https://github.com/golang/net/blob/163d83654d4d78be90251b9bf05aa502b6f7e79d/http2/server.go#L500
+			// it will check is [*tls.Conn], if we don't tls handshake here, the http2 will return error
+			conn = warpConn{conn}
 
 			go func() {
 				key := conn.RemoteAddr().String() + conn.LocalAddr().String()
@@ -71,16 +82,14 @@ func newServer(lis net.Listener) *Server {
 
 				defer func() {
 					h.conns.Delete(key)
-					conn.Close()
+					_ = conn.Close()
 				}()
 
 				(&http2.Server{
-					MaxConcurrentStreams: math.MaxUint32,
+					MaxConcurrentStreams: 100,
 					IdleTimeout:          time.Minute,
 					MaxReadFrameSize:     pool.DefaultSize,
-					NewWriteScheduler: func() http2.WriteScheduler {
-						return http2.NewRandomWriteScheduler()
-					},
+					NewWriteScheduler:    http2.NewRandomWriteScheduler,
 				}).ServeConn(conn, &http2.ServeConnOpts{
 					Handler: h,
 					Context: h.closedCtx,
@@ -111,12 +120,14 @@ func (g *Server) Addr() net.Addr {
 }
 
 func (h *Server) Close() error {
-	var err error
-	h.close()
-	log.Info("start close http2 underlying listener")
-	err = h.listener.Close()
-	log.Info("closed http2 underlying listener")
+	select {
+	case <-h.closedCtx.Done():
+		return nil
+	default:
+		h.close()
+	}
 
+	err := h.listener.Close()
 	for _, v := range h.conns.Range {
 		_ = v.Close()
 	}
@@ -124,112 +135,92 @@ func (h *Server) Close() error {
 	return err
 }
 
+type flusher struct {
+	w http.ResponseWriter
+}
+
+func (f *flusher) Write(b []byte) (int, error) {
+	n, err := f.w.Write(b)
+	if f, ok := f.w.(http.Flusher); ok {
+		f.Flush()
+	}
+	return n, err
+}
+
 func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
-	fw := newFlushWriter(w)
 
-	conn := &http2Conn{
-		fw,
-		r.Body,
-		h.Addr(),
-		&addr{r.RemoteAddr, h.id.Generate()},
-		nil,
-		deadline.NewPipe(
-			// deadline.WithReadClose(func() {
-			// _ = r.Body.Close()
-			// }),
-			deadline.WithWriteClose(func() {
-				_ = fw.Close()
-			}),
-		),
-		true,
-	}
-	defer conn.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	select {
-	case <-r.Context().Done():
-		return
-	case <-h.closedCtx.Done():
-		return
-	case h.connChan <- conn:
-	}
+	c1, c2 := pipe.Pipe()
 
-	select {
-	case <-r.Context().Done():
-	case <-h.closedCtx.Done():
-	}
-}
+	go func() {
+		n, err := relay.Copy(c1, &bodyReader{r.Body})
+		if err != nil && err != io.EOF && err != io.ErrClosedPipe &&
+			// https://github.com/golang/net/blob/163d83654d4d78be90251b9bf05aa502b6f7e79d/http2/server.go#L69
+			err.Error() != "client disconnected" {
+			log.Error("relay failed", "err", err, "n", n)
+		}
+		c1.Close()
+	}()
 
-var _ net.Conn = (*http2Conn)(nil)
-
-type flushWriter struct {
-	w      io.Writer
-	flush  http.Flusher
-	mu     sync.RWMutex
-	closed bool
-}
-
-func newFlushWriter(w io.Writer) *flushWriter {
-	fw := &flushWriter{
+	flusher := &flusher{
 		w: w,
 	}
 
-	if f, ok := w.(http.Flusher); ok {
-		fw.flush = f
-	}
+	fushered := make(chan struct{})
+	defer func() { <-fushered }()
+	go func() {
+		defer close(fushered)
+		n, err := relay.Copy(flusher, c1)
+		if err != nil {
+			log.Error("flush data to client failed", "err", err, "n", n)
+		}
+	}()
 
-	return fw
-}
+	c2.SetLocalAddr(h.Addr())
+	c2.SetRemoteAddr(&addr{r.RemoteAddr, h.id.Generate()})
+	c2.SetOnClose(cancel)
 
-func (fw *flushWriter) Write(p []byte) (n int, err error) {
-	fw.mu.RLock()
-	if fw.closed {
-		return 0, io.EOF
-	}
-
-	n, err = fw.w.Write(p)
-	if err == nil && fw.flush != nil {
-		fw.flush.Flush()
-	}
-	fw.mu.RUnlock()
-
-	return
-}
-
-func (fw *flushWriter) Close() error {
-	fw.mu.Lock()
-	defer fw.mu.Unlock()
-
-	fw.closed = true
-	return nil
-}
-
-type http2Conn struct {
-	pipew io.WriteCloser
-	r     io.ReadCloser
-
-	localAddr  net.Addr
-	remoteAddr net.Addr
-
-	piper *io.PipeReader
-
-	deadline *deadline.PipeDeadline
-	server   bool
-}
-
-func (h *http2Conn) Read(b []byte) (int, error) {
 	select {
-	case <-h.deadline.ReadContext().Done():
-		return 0, h.deadline.ReadContext().Err()
-	default:
+	case <-r.Context().Done():
+		return
+	case <-h.closedCtx.Done():
+		return
+	case h.connChan <- c2:
 	}
 
-	n, err := h.r.Read(b)
+	select {
+	case <-r.Context().Done():
+	case <-h.closedCtx.Done():
+	case <-ctx.Done():
+	}
+}
+
+type addr struct {
+	addr string
+	id   uint64
+}
+
+func (addr) Network() string  { return "tcp" }
+func (a addr) String() string { return fmt.Sprintf("http2://%s-%d", a.addr, a.id) }
+
+type bodyReader struct {
+	io.ReadCloser
+}
+
+func NewBodyReader(r io.ReadCloser) io.ReadCloser {
+	return &bodyReader{r}
+}
+
+func (r *bodyReader) Read(b []byte) (int, error) {
+	n, err := r.ReadCloser.Read(b)
 	if err != nil {
-		if he, ok := err.(http2.StreamError); h.server && ok {
+		if he, ok := err.(http2.StreamError); ok {
 			// closed client, will send RSTStreamFrame
 			// see https://github.com/golang/net/blob/577e44a5cee023bd639dd2dcc4008644bcb71472/http2/server.go#L1615
 			if he.Code == http2.ErrCodeCancel || he.Code == http2.ErrCodeNo {
@@ -240,55 +231,3 @@ func (h *http2Conn) Read(b []byte) (int, error) {
 
 	return n, err
 }
-
-func (h *http2Conn) Write(b []byte) (int, error) {
-	select {
-	case <-h.deadline.WriteContext().Done():
-		return 0, h.deadline.WriteContext().Err()
-	default:
-	}
-
-	return h.pipew.Write(b)
-}
-
-func (h *http2Conn) Close() error {
-	if h.piper != nil {
-		h.piper.CloseWithError(io.EOF)
-	}
-
-	h.pipew.Close()
-
-	if !h.server {
-		return h.r.Close()
-	}
-
-	_ = h.deadline.Close()
-
-	return nil
-}
-
-func (h *http2Conn) LocalAddr() net.Addr  { return h.localAddr }
-func (h *http2Conn) RemoteAddr() net.Addr { return h.remoteAddr }
-
-func (c *http2Conn) SetDeadline(t time.Time) error {
-	c.deadline.SetDeadline(t)
-	return nil
-}
-
-func (c *http2Conn) SetReadDeadline(t time.Time) error {
-	c.deadline.SetReadDeadline(t)
-	return nil
-}
-
-func (c *http2Conn) SetWriteDeadline(t time.Time) error {
-	c.deadline.SetWriteDeadline(t)
-	return nil
-}
-
-type addr struct {
-	addr string
-	id   uint64
-}
-
-func (addr) Network() string  { return "tcp" }
-func (a addr) String() string { return fmt.Sprintf("http2://%s-%d", a.addr, a.id) }

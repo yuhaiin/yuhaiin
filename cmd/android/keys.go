@@ -12,14 +12,12 @@ var (
 	defaultBoolValue = map[string]byte{
 		AllowLanKey:             0,
 		AppendHttpProxyToVpnKey: 0,
-		Ipv6ProxyKey:            1,
 		NetworkSpeedKey:         0,
 		AdvAutoConnectKey:       0,
 		AdvPerAppKey:            0,
 		AdvAppBypassKey:         0,
 		SniffKey:                1,
 		DnsHijacking:            1,
-		SaveLogcat:              0,
 	}
 
 	disAllowAppList, _ = json.Marshal([]string{
@@ -54,7 +52,6 @@ var (
 		AdvRouteKey:     AdvRoutes[0],
 		AdvTunDriverKey: TunDriversValue[2],
 		AdvAppListKey:   string(disAllowAppList),
-		LogLevel:        LogLevels[2],
 	}
 
 	defaultIntValue = map[string]int32{

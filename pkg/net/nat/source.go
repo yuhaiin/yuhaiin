@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"sync"
@@ -137,7 +138,7 @@ func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) err
 
 	default:
 		u.sentPacketMx.Lock()
-		if u.sentPackets.Len() >= configuration.MaxUDPUnprocessedPackets {
+		if u.sentPackets.Len() >= configuration.MaxUDPUnprocessedPackets.Load() {
 			u.sentPacketMx.Unlock()
 			metrics.Counter.AddSendUDPDroppedPacket()
 			return fmt.Errorf("ringbuffer is full, drop packet")
@@ -164,7 +165,7 @@ func (u *SourceControl) handle() {
 
 	var hasMorePackets bool
 
-	for i := 0; i < numPackets; i++ {
+	for i := range numPackets {
 		if i > 0 {
 			u.sentPacketMx.Lock()
 		}
@@ -180,11 +181,23 @@ func (u *SourceControl) handle() {
 
 		if err := u.handleOne(pkt); err != nil {
 			if netapi.IsBlockError(err) {
-				u.Close()
+				_ = u.Close()
 				pkt.DecRef()
 				return
 			}
-			log.Error("handle packet failed", "err", err)
+			logLevel := slog.LevelError
+			if configuration.IgnoreTimeoutErrorLog.Load() {
+				var dnsError *net.DNSError
+				if errors.As(err, &dnsError) {
+					logLevel = slog.LevelDebug
+				}
+			}
+
+			if logLevel == slog.LevelError && configuration.IgnoreTimeoutErrorLog.Load() && errors.Is(err, context.DeadlineExceeded) {
+				logLevel = slog.LevelDebug
+			}
+
+			log.Select(logLevel).Print("handle packet failed", "err", err)
 		}
 
 		pkt.DecRef()
@@ -204,7 +217,9 @@ func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
 		store.Source = pkt.Src
 		store.Destination = pkt.Dst
 
-		u.sniffer.Packet(store, pkt.Payload)
+		if u.sniffer != nil {
+			u.sniffer.Packet(store, pkt.Payload)
+		}
 
 		_, ok := pkt.Src.(*quic.QuicAddr)
 		if !ok {
@@ -368,7 +383,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 				writeBack := u.wirteBack.Load()
 
 				var hasMorePackets bool
-				for i := 0; i < numPackets; i++ {
+				for i := range numPackets {
 					if i > 0 {
 						u.receivedPacketMx.Lock()
 					}
@@ -416,7 +431,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 		metrics.Counter.AddReceiveUDPPacketSize(n)
 
 		u.receivedPacketMx.Lock()
-		if u.receivedPackets.Len() >= configuration.MaxUDPUnprocessedPackets {
+		if u.receivedPackets.Len() >= configuration.MaxUDPUnprocessedPackets.Load() {
 			u.receivedPacketMx.Unlock()
 			pool.PutBytes(data)
 			metrics.Counter.AddReceiveUDPDroppedPacket()

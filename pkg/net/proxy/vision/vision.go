@@ -289,10 +289,7 @@ func (c *VisionConn) filterTLS(buffers [][]byte) {
 			}
 		}
 		if c.remainingServerHello > 0 {
-			end := int(c.remainingServerHello)
-			if end > len(buffer) {
-				end = len(buffer)
-			}
+			end := min(int(c.remainingServerHello), len(buffer))
 			c.remainingServerHello -= int32(end)
 			if bytes.Contains(buffer[:end], tls13SupportedVersions) {
 				cipher, ok := tls13CipherSuiteDic[c.cipher]
@@ -380,18 +377,12 @@ func (c *VisionConn) unPadding(buffer []byte) [][]byte {
 				log.Debug("Xtls Unpadding new block ", bufferIndex, " ", c.remainingContent, " padding ", c.remainingPadding, " ", c.currentCommand)
 			}
 		} else if c.remainingContent > 0 {
-			end := c.remainingContent
-			if end > len(buffer)-bufferIndex {
-				end = len(buffer) - bufferIndex
-			}
+			end := min(c.remainingContent, len(buffer)-bufferIndex)
 			buffers = append(buffers, buffer[bufferIndex:bufferIndex+end])
 			c.remainingContent -= end
 			bufferIndex += end
 		} else {
-			end := c.remainingPadding
-			if end > len(buffer)-bufferIndex {
-				end = len(buffer) - bufferIndex
-			}
+			end := min(c.remainingPadding, len(buffer)-bufferIndex)
 			c.remainingPadding -= end
 			bufferIndex += end
 		}

@@ -105,7 +105,7 @@ func mul(x, y uint16) uint16 {
 func expandKey(key []byte, EK []uint16) {
 	var i, j int
 
-	for j = 0; j < 8; j++ {
+	for j = range 8 {
 		EK[j] = (uint16(key[0]) << 8) + uint16(key[1])
 		key = key[2:]
 	}
@@ -141,7 +141,7 @@ func invertKey(EK []uint16, DK []uint16) {
 	pidx--
 	p[pidx] = t1
 
-	for i := 0; i < rounds-1; i++ {
+	for range rounds - 1 {
 		t1 = EK[ekidx]
 		ekidx++
 		pidx--

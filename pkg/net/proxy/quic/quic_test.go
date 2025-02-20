@@ -6,7 +6,9 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"io"
+	mrandv1 "math/rand"
 	mrand "math/rand/v2"
+	"net"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -20,6 +22,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
+	"golang.org/x/net/nettest"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -51,9 +54,201 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgfFPJ3xA3HtR6OR11
 -----END PRIVATE KEY-----
 `)
 
+func TestConn(t *testing.T) {
+	t.Run("test close", func(t *testing.T) {
+		s, err := NewServer(listener.Quic_builder{
+			Host: proto.String("127.0.0.1:0"),
+			Tls: listener.TlsConfig_builder{
+				Certificates: []*listener.Certificate{
+					listener.Certificate_builder{
+						Cert: cert,
+						Key:  key,
+					}.Build(),
+				},
+			}.Build(),
+		}.Build())
+		assert.NoError(t, err)
+		defer s.Close()
+
+		lis, err := s.Stream(context.TODO())
+		assert.NoError(t, err)
+
+		server := make(chan net.Conn)
+
+		go func() {
+			for {
+				conn, err := lis.Accept()
+				if err != nil {
+					break
+				}
+
+				server <- conn
+			}
+		}()
+
+		qc, err := NewClient(protocol.Quic_builder{
+			Host: proto.String(lis.Addr().String()),
+			Tls: protocol.TlsConfig_builder{
+				Enable:             proto.Bool(true),
+				InsecureSkipVerify: proto.Bool(true),
+			}.Build(),
+		}.Build(), nil)
+		assert.NoError(t, err)
+
+		conn, err := qc.Conn(context.TODO(), netapi.EmptyAddr)
+		assert.NoError(t, err)
+
+		// fmt.Println("conn", conn.RemoteAddr())
+
+		n, err := conn.Write([]byte("hello"))
+		assert.NoError(t, err)
+
+		src := <-server
+
+		// fmt.Println("src", src.RemoteAddr(), conn.RemoteAddr())
+
+		_, err = src.Read(make([]byte, n))
+		assert.NoError(t, err)
+
+		conn.Close()
+
+		_, err = conn.Read(make([]byte, 1024))
+		assert.Error(t, err)
+
+		defer src.Close()
+		defer conn.Close()
+		defer lis.Close()
+	})
+
+	t.Run("test io", func(t *testing.T) {
+		s, err := NewServer(listener.Quic_builder{
+			Host: proto.String("127.0.0.1:0"),
+			Tls: listener.TlsConfig_builder{
+				Certificates: []*listener.Certificate{
+					listener.Certificate_builder{
+						Cert: cert,
+						Key:  key,
+					}.Build(),
+				},
+			}.Build(),
+		}.Build())
+		assert.NoError(t, err)
+		defer s.Close()
+
+		lis, err := s.Stream(context.TODO())
+		assert.NoError(t, err)
+
+		server := make(chan net.Conn)
+
+		go func() {
+			for {
+				conn, err := lis.Accept()
+				if err != nil {
+					break
+				}
+
+				server <- conn
+			}
+		}()
+
+		qc, err := NewClient(protocol.Quic_builder{
+			Host: proto.String(lis.Addr().String()),
+			Tls: protocol.TlsConfig_builder{
+				Enable:             proto.Bool(true),
+				InsecureSkipVerify: proto.Bool(true),
+			}.Build(),
+		}.Build(), nil)
+		assert.NoError(t, err)
+
+		conn, err := qc.Conn(context.TODO(), netapi.EmptyAddr)
+		assert.NoError(t, err)
+
+		// fmt.Println("conn", conn.RemoteAddr())
+
+		n, err := conn.Write([]byte("hello"))
+		assert.NoError(t, err)
+
+		src := <-server
+
+		_, err = src.Read(make([]byte, n))
+		assert.NoError(t, err)
+
+		// fmt.Println("src", src.RemoteAddr(), conn.RemoteAddr())
+
+		defer src.Close()
+		defer conn.Close()
+		defer lis.Close()
+		testBasicIO(t, src, conn)
+	})
+
+	t.Run("conn -> server", func(t *testing.T) {
+		nettest.TestConn(t, func() (c1 net.Conn, c2 net.Conn, stop func(), err error) {
+			s, err := NewServer(listener.Quic_builder{
+				Host: proto.String("127.0.0.1:0"),
+				Tls: listener.TlsConfig_builder{
+					Certificates: []*listener.Certificate{
+						listener.Certificate_builder{
+							Cert: cert,
+							Key:  key,
+						}.Build(),
+					},
+				}.Build(),
+			}.Build())
+			assert.NoError(t, err)
+
+			lis, err := s.Stream(context.TODO())
+			assert.NoError(t, err)
+
+			server := make(chan net.Conn)
+
+			go func() {
+				for {
+					conn, err := lis.Accept()
+					if err != nil {
+						break
+					}
+
+					server <- conn
+				}
+			}()
+
+			qc, err := NewClient(protocol.Quic_builder{
+				Host: proto.String(lis.Addr().String()),
+				Tls: protocol.TlsConfig_builder{
+					Enable:             proto.Bool(true),
+					InsecureSkipVerify: proto.Bool(true),
+				}.Build(),
+			}.Build(), nil)
+			assert.NoError(t, err)
+
+			conn, err := qc.Conn(context.TODO(), netapi.EmptyAddr)
+			assert.NoError(t, err)
+
+			// fmt.Println("conn", conn.RemoteAddr())
+
+			n, err := conn.Write([]byte("hello"))
+			assert.NoError(t, err)
+
+			src := <-server
+
+			_, err = src.Read(make([]byte, n))
+			assert.NoError(t, err)
+
+			// fmt.Println("src", src.RemoteAddr(), conn.RemoteAddr())
+
+			return conn, src, func() {
+				conn.Close()
+				src.Close()
+				lis.Close()
+				s.Close()
+			}, nil
+		})
+	})
+}
+
 func TestQuic(t *testing.T) {
 	s, err := NewServer(listener.Quic_builder{
-		Host: proto.String("127.0.0.1:1090"),
+		Host: proto.String("127.0.0.1:1091"),
 		Tls: listener.TlsConfig_builder{
 			Certificates: []*listener.Certificate{
 				listener.Certificate_builder{
@@ -238,4 +433,46 @@ func TestSimple(t *testing.T) {
 	for k, v := range idBytesMap.Range {
 		t.Log(k, len(v))
 	}
+}
+
+// testBasicIO tests that the data sent on c1 is properly received on c2.
+func testBasicIO(t *testing.T, c1, c2 net.Conn) {
+	want := make([]byte, 1<<20)
+	mrandv1.New(mrandv1.NewSource(0)).Read(want)
+
+	dataCh := make(chan []byte)
+	go func() {
+		rd := bytes.NewReader(want)
+		if err := chunkedCopy(c1, rd); err != nil {
+			t.Errorf("unexpected c1.Write error: %v", err)
+		}
+		if err := c1.Close(); err != nil {
+			t.Errorf("unexpected c1.Close error: %v", err)
+		}
+	}()
+
+	go func() {
+		wr := new(bytes.Buffer)
+		if err := chunkedCopy(wr, c2); err != nil {
+			t.Errorf("unexpected c2.Read error: %v", err)
+		}
+		if err := c2.Close(); err != nil {
+			t.Errorf("unexpected c2.Close error: %v", err)
+		}
+		dataCh <- wr.Bytes()
+	}()
+
+	if got := <-dataCh; !bytes.Equal(got, want) {
+		t.Error("transmitted data differs", len(got), len(want))
+	}
+}
+
+// chunkedCopy copies from r to w in fixed-width chunks to avoid
+// causing a Write that exceeds the maximum packet size for packet-based
+// connections like "unixpacket".
+// We assume that the maximum packet size is at least 1024.
+func chunkedCopy(w io.Writer, r io.Reader) error {
+	b := make([]byte, 1024)
+	_, err := io.CopyBuffer(struct{ io.Writer }{w}, struct{ io.Reader }{r}, b)
+	return err
 }

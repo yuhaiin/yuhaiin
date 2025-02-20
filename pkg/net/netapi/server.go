@@ -122,17 +122,6 @@ type DNSServer interface {
 	Do(context.Context, *DNSRawRequest) error
 }
 
-var EmptyDNSServer DNSServer = &emptyDNSServer{}
-
-type emptyDNSServer struct{}
-
-func (e *emptyDNSServer) Close() error                                          { return nil }
-func (e *emptyDNSServer) DoStream(_ context.Context, _ *DNSStreamRequest) error { return io.EOF }
-func (e *emptyDNSServer) Do(_ context.Context, b *DNSRawRequest) error {
-	b.Question.DecRef()
-	return io.EOF
-}
-
 type ChannelStreamListener struct {
 	ctx     context.Context
 	cancel  context.CancelFunc

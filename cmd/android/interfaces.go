@@ -62,7 +62,7 @@ func getInterfaces(ifs Interfaces) ([]netmon.Interface, error) {
 		return ifaces, err
 	}
 
-	for _, iface := range strings.Split(ifaceString, "\n") {
+	for iface := range strings.SplitSeq(ifaceString, "\n") {
 		// Example of the strings we're processing:
 		// wlan0 30 1500 true true false false true | fe80::2f60:2c82:4163:8389%wlan0/64 10.1.10.131/24
 		// r_rmnet_data0 21 1500 true false false false false | fe80::9318:6093:d1ad:ba7f%r_rmnet_data0/64
@@ -113,7 +113,7 @@ func getInterfaces(ifs Interfaces) ([]netmon.Interface, error) {
 		}
 
 		addrs := strings.Trim(fields[1], " \n")
-		for _, addr := range strings.Split(addrs, " ") {
+		for addr := range strings.SplitSeq(addrs, " ") {
 			_, ip, err := net.ParseCIDR(addr)
 			if err == nil {
 				newIf.AltAddrs = append(newIf.AltAddrs, ip)

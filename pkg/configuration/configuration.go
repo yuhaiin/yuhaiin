@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -18,8 +19,10 @@ import (
 var Lite = os.Getenv("YUHAIIN_LITE") == "true"
 
 var (
-	LogNaxSize = or(1024*1024, 1024*256)
-	LogMaxFile = or(5, 0)
+	LogNaxSize            = or(1024*1024, 1024*256)
+	LogMaxFile            = or(5, 0)
+	IgnoreDnsErrorLog     atomic.Bool
+	IgnoreTimeoutErrorLog atomic.Bool
 
 	DNSCache = or[uint](1024, 256)
 
@@ -30,7 +33,7 @@ var (
 	SnifferBufferSize = pool.DefaultSize
 
 	UDPBatchSize             = 8
-	MaxUDPUnprocessedPackets = 250
+	MaxUDPUnprocessedPackets = atomicx.NewValue(250)
 	UDPBufferSize            = atomicx.NewValue(2048)
 	RelayBufferSize          = atomicx.NewValue(4096)
 	DNSProcessThread         = atomicx.NewValue(4)

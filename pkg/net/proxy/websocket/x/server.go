@@ -95,7 +95,7 @@ func (c *ServerHandshaker) ReadHandshake(req *http.Request) (code int, err error
 
 	protocol := strings.TrimSpace(req.Header.Get("Sec-Websocket-Protocol"))
 	if protocol != "" {
-		for _, v := range strings.Split(protocol, ",") {
+		for v := range strings.SplitSeq(protocol, ",") {
 			c.Protocol = append(c.Protocol, strings.TrimSpace(v))
 		}
 	}
