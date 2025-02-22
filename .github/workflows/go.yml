@@ -50,6 +50,15 @@ jobs:
           go install golang.org/x/mobile/cmd/gomobile@latest
           gomobile init
           make yuhaiin_android_aar
+          mkdir -p artifacts
+          cp yuhaiin.aar artifacts/
+
+      - name: cache release
+        id: cache-release
+        uses: actions/cache@v4
+        with:
+          path: artifacts
+          key: cache-release-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: upload_android_aar
         uses: actions/upload-artifact@v4
@@ -115,6 +124,15 @@ jobs:
         run: |
           go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
           make ${{ matrix.cmd }}
+          mkdir -p artifacts
+          cp ${{ matrix.cmd == 'yuhaiin_lite' && 'yuhaiin' || matrix.cmd }}${{ matrix.env[0] == 'windows' && '.exe' || '' }} artifacts/
+
+      - name: cache release
+        id: cache-release
+        uses: actions/cache@v4
+        with:
+          path: artifacts
+          key: cache-release-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: upload_${{ matrix.cmd }}_${{ matrix.env[0] }}_${{ matrix.env[1] }}
         uses: actions/upload-artifact@v4
@@ -122,3 +140,26 @@ jobs:
           name: ${{ matrix.cmd }}_${{ matrix.env[0] }}_${{ matrix.env[1] }}
           path: |
             ${{ matrix.cmd == 'yuhaiin_lite' && 'yuhaiin' || matrix.cmd }}${{ matrix.env[0] == 'windows' && '.exe' || '' }}
+  
+  release:
+    needs: 
+      - build
+      - android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: "0"
+          fetch-tags: "true"
+
+      - name: cache release
+        id: cache-release
+        uses: actions/cache@v4
+        with:
+          path: artifacts
+          key: cache-release-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Create Release
+        run: |
+          ls artifacts
+          export
