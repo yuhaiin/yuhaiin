@@ -16,6 +16,14 @@ import (
 
 var bootstrap = &bootstrapResolver{}
 
+func init() {
+	net.DefaultResolver = &net.Resolver{
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			return netapi.NewDnsConn(context.TODO(), Bootstrap()), nil
+		},
+	}
+}
+
 type bootstrapResolver struct {
 	r  netapi.Resolver
 	mu sync.RWMutex

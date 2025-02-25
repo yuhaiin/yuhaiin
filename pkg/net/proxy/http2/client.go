@@ -55,12 +55,13 @@ func NewClient(config *protocol.Http2, p netapi.Proxy) (netapi.Proxy, error) {
 	}, nil
 }
 
-func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error) {
+func (c *Client) Conn(pctx context.Context, add netapi.Address) (net.Conn, error) {
 	p1, p2 := pipe.Pipe()
 
 	var localAddr net.Addr = netapi.EmptyAddr
 	var remoteAddr net.Addr = netapi.EmptyAddr
 	var ConnID string
+	var conn *http2.ClientConn
 
 	tract := &httptrace.ClientTrace{
 		GotConn: func(gci httptrace.GotConnInfo) {
@@ -69,9 +70,24 @@ func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error)
 		},
 	}
 
-	hctx := httptrace.WithClientTrace(context.TODO(), tract)
-	hctx = WithGetClientConnInfo(hctx, func(connID uint64, streamID uint32) {
-		ConnID = fmt.Sprintf("%d-%d", connID, streamID)
+	connected := make(chan struct{})
+	defer close(connected)
+
+	// we can't use parent ctx, the parent ctx will make body close
+	// see: https://github.com/golang/net/blob/b4c86550a5be2d314b04727f13affd9bb07fcf46/http2/transport.go#L1569
+	ctx, cancel := context.WithCancel(context.WithoutCancel(pctx))
+
+	go func() {
+		select {
+		case <-pctx.Done():
+			cancel()
+		case <-connected:
+		}
+	}()
+
+	hctx := httptrace.WithClientTrace(ctx, tract)
+	hctx = WithGetClientConnInfo(hctx, func(connID uint64, streamID uint32, c *http2.ClientConn) {
+		ConnID, conn = fmt.Sprintf("%d-%d", connID, streamID), c
 	})
 
 	// because Body is a ReadCloser, it's just need CloseRead
@@ -85,10 +101,14 @@ func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error)
 	if err != nil {
 		_ = p1.Close()
 		_ = p2.Close()
+		if conn != nil {
+			conn.SetDoNotReuse()
+		}
 		return nil, fmt.Errorf("round trip failed: %w", err)
 	}
 
 	go func() {
+		defer cancel()
 		_, err := relay.Copy(p1, &bodyReader{resp.Body})
 
 		if err != nil && err != io.EOF && err != io.ErrClosedPipe &&
@@ -96,7 +116,7 @@ func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error)
 			err.Error() != "http2: client conn is closed" &&
 			// https://github.com/golang/net/blob/b4c86550a5be2d314b04727f13affd9bb07fcf46/http2/transport.go#L1267
 			err.Error() != "http2: client connection lost" {
-			log.Error("relay client response body to pipe failed", "err", err)
+			log.Error("relay client response body to pipe failed", "err", err, "addr", add)
 		}
 		_ = p1.Close()
 		err = resp.Body.Close()
@@ -150,7 +170,7 @@ func (c *clientConnectionPool) GetClientConn(req *http.Request, addr string) (*h
 		}
 
 		if state.StreamsActive+state.StreamsPending < c.concurrency {
-			ContextGetClientConnInfo(req.Context(), v.id, v.count.Add(1))
+			ContextGetClientConnInfo(req.Context(), v.id, v.count.Add(1), k)
 			return k, nil
 		}
 	}
@@ -174,7 +194,7 @@ func (c *clientConnectionPool) GetClientConn(req *http.Request, addr string) (*h
 
 	log.Info("new client connection", "id", entry.id)
 
-	ContextGetClientConnInfo(req.Context(), entry.id, entry.count.Add(1))
+	ContextGetClientConnInfo(req.Context(), entry.id, entry.count.Add(1), cc)
 
 	return cc, nil
 }
@@ -192,13 +212,13 @@ func (c *clientConnectionPool) MarkDead(hc *http2.ClientConn) {
 
 type clientConnInfoKey struct{}
 
-func ContextGetClientConnInfo(ctx context.Context, connID uint64, streamID uint32) {
-	z, ok := ctx.Value(clientConnInfoKey{}).(func(connID uint64, streamID uint32))
+func ContextGetClientConnInfo(ctx context.Context, connID uint64, streamID uint32, conn *http2.ClientConn) {
+	z, ok := ctx.Value(clientConnInfoKey{}).(func(connID uint64, streamID uint32, conn *http2.ClientConn))
 	if ok {
-		z(connID, streamID)
+		z(connID, streamID, conn)
 	}
 }
 
-func WithGetClientConnInfo(ctx context.Context, f func(connID uint64, streamID uint32)) context.Context {
+func WithGetClientConnInfo(ctx context.Context, f func(connID uint64, streamID uint32, conn *http2.ClientConn)) context.Context {
 	return context.WithValue(ctx, clientConnInfoKey{}, f)
 }

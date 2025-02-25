@@ -14,6 +14,7 @@ var myPid uint
 
 func init() {
 	myPath, _ = os.Executable()
+	myPath = convertVolumeName(myPath)
 	myPid = uint(os.Getpid())
 }
 

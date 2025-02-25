@@ -19,15 +19,14 @@ import (
 
 var refreshTimeout = int64(10 * time.Minute)
 
-type Simple struct {
-	p            netapi.Proxy
+type Client struct {
+	netapi.Proxy
 	addrs        []netapi.Address
 	refreshTime  atomic.Int64
 	index        atomic.Uint32
 	errCount     durationCounter
 	nonBootstrap bool
 	iface        string
-	netapi.EmptyDispatch
 }
 
 func init() {
@@ -41,9 +40,9 @@ func NewClient(c *protocol.Simple, p netapi.Proxy) (netapi.Proxy, error) {
 		addrs = append(addrs, netapi.ParseAddressPort("", v.GetHost(), uint16(v.GetPort())))
 	}
 
-	simple := &Simple{
+	simple := &Client{
 		addrs:        addrs,
-		p:            p,
+		Proxy:        p,
 		nonBootstrap: p != nil && !register.IsBootstrap(p),
 		iface:        c.GetNetworkInterface(),
 	}
@@ -51,13 +50,13 @@ func NewClient(c *protocol.Simple, p netapi.Proxy) (netapi.Proxy, error) {
 	return simple, nil
 }
 
-func (c *Simple) Conn(ctx context.Context, _ netapi.Address) (net.Conn, error) {
+func (c *Client) Conn(ctx context.Context, _ netapi.Address) (net.Conn, error) {
 	return c.dialHappyEyeballsv2(ctx)
 }
 
-func (c *Simple) dialSingle(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+func (c *Client) dialSingle(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	if c.nonBootstrap {
-		return c.p.Conn(ctx, addr)
+		return c.Proxy.Conn(ctx, addr)
 	} else {
 		if c.iface != "" {
 			ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, c.iface)
@@ -66,7 +65,7 @@ func (c *Simple) dialSingle(ctx context.Context, addr netapi.Address) (net.Conn,
 	}
 }
 
-func (c *Simple) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
+func (c *Client) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
 	if len(c.addrs) == 1 {
 		return c.dialSingle(ctx, c.addrs[0])
 	}
@@ -155,7 +154,7 @@ func (c *Simple) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
 	}
 }
 
-func (c *Simple) lastIndex() int {
+func (c *Client) lastIndex() int {
 	lastIndex := c.index.Load()
 	if lastIndex != 0 && system.CheapNowNano()-c.refreshTime.Load() > refreshTimeout {
 		lastIndex = 0
@@ -164,7 +163,7 @@ func (c *Simple) lastIndex() int {
 	return int(lastIndex)
 }
 
-func (c *Simple) successIndex(lastIndex, index int) {
+func (c *Client) successIndex(lastIndex, index int) {
 	if lastIndex == index {
 		return
 	}
@@ -186,7 +185,7 @@ func (c *Simple) successIndex(lastIndex, index int) {
 
 type PacketDirectKey struct{}
 
-func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
+func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	if ctx.Value(PacketDirectKey{}) == true {
 		if c.iface != "" {
 			ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, c.iface)
@@ -195,7 +194,7 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	}
 
 	if c.nonBootstrap {
-		conn, err := c.p.PacketConn(ctx, c.addrs[c.index.Load()])
+		conn, err := c.Proxy.PacketConn(ctx, c.addrs[c.index.Load()])
 		if err != nil {
 			return nil, err
 		}
@@ -244,9 +243,9 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	return &packetConn{conn, ur}, nil
 }
 
-func (c *Simple) Close() error {
-	if c.p != nil {
-		return c.p.Close()
+func (c *Client) Close() error {
+	if c.Proxy != nil {
+		return c.Proxy.Close()
 	}
 
 	return nil

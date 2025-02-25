@@ -40,7 +40,7 @@ import (
 //go:linkname aesgcmPreferred github.com/refraction-networking/utls.aesgcmPreferred
 func aesgcmPreferred(ciphers []uint16) bool
 
-type RealityClient struct {
+type Client struct {
 	netapi.EmptyDispatch
 	proxy     netapi.Proxy
 	utls      *utls.Config
@@ -52,10 +52,10 @@ type RealityClient struct {
 }
 
 func init() {
-	register.RegisterPoint(NewRealityClient)
+	register.RegisterPoint(NewClient)
 }
 
-func NewRealityClient(config *protocol.Reality, p netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(config *protocol.Reality, p netapi.Proxy) (netapi.Proxy, error) {
 	publicKey, err := base64.RawURLEncoding.DecodeString(config.GetPublicKey())
 	if err != nil {
 		return nil, fmt.Errorf("decode public_key failed: %w", err)
@@ -71,7 +71,7 @@ func NewRealityClient(config *protocol.Reality, p netapi.Proxy) (netapi.Proxy, e
 	if decodedLen > 8 {
 		return nil, fmt.Errorf("invalid short_id")
 	}
-	return &RealityClient{
+	return &Client{
 		proxy: p,
 		utls: &utls.Config{
 			ServerName: config.GetServerName(),
@@ -82,7 +82,7 @@ func NewRealityClient(config *protocol.Reality, p netapi.Proxy) (netapi.Proxy, e
 	}, nil
 }
 
-func (e *RealityClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+func (e *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	con, err := e.proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, err
@@ -97,13 +97,13 @@ func (e *RealityClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn
 	return conn, nil
 }
 
-func (e *RealityClient) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
+func (e *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	return e.proxy.PacketConn(ctx, addr)
 }
 
-func (e *RealityClient) Close() error { return e.proxy.Close() }
+func (e *Client) Close() error { return e.proxy.Close() }
 
-func (e *RealityClient) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, error) {
+func (e *Client) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, error) {
 	verifier := &realityVerifier{
 		serverName: e.utls.ServerName,
 	}

@@ -2,6 +2,7 @@ package http2
 
 import (
 	"context"
+	"crypto/rand"
 	"io"
 	"net"
 	"os"
@@ -18,6 +19,92 @@ import (
 )
 
 func TestConn(t *testing.T) {
+	t.Run("context cancel", func(t *testing.T) {
+		lis, err := nettest.NewLocalListener("tcp")
+		assert.NoError(t, err)
+
+		// t.Log("new server", lis.Addr().String())
+
+		lis = newServer(lis)
+
+		ch := make(chan net.Conn, 1)
+		go func() {
+			first := true
+			for {
+				conn, err := lis.Accept()
+				if err != nil {
+					break
+				}
+
+				if first {
+					conn.Close()
+					first = false
+					continue
+				}
+
+				ch <- conn
+			}
+		}()
+
+		host, portstr, err := net.SplitHostPort(lis.Addr().String())
+		assert.NoError(t, err)
+
+		port, err := strconv.ParseUint(portstr, 10, 16)
+		assert.NoError(t, err)
+
+		p, err := simple.NewClient(protocol.Simple_builder{
+			Host: proto.String(host),
+			Port: proto.Int32(int32(port)),
+		}.Build(), nil)
+		assert.NoError(t, err)
+
+		p, err = NewClient(protocol.Http2_builder{
+			Concurrency: proto.Int32(1),
+		}.Build(), p)
+		assert.NoError(t, err)
+
+		cch := make(chan net.Conn, 1)
+		go func() {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			conn, err := p.Conn(ctx, netapi.EmptyAddr)
+			assert.NoError(t, err)
+			conn.Close()
+			conn, err = p.Conn(ctx, netapi.EmptyAddr)
+			assert.NoError(t, err)
+			cch <- conn
+		}()
+
+		src := <-ch
+		dst := <-cch
+
+		defer src.Close()
+		defer dst.Close()
+
+		go func() {
+			defer src.Close()
+			buf := make([]byte, 2048)
+			_, _ = rand.Read(buf)
+			for range 1000 {
+				_, err = src.Write(buf)
+				assert.NoError(t, err)
+			}
+		}()
+
+		sum := 0
+
+		for {
+			buf := make([]byte, 5)
+			n, err := dst.Read(buf)
+			sum += n
+			if err != nil {
+				break
+			}
+		}
+
+		assert.Equal(t, sum, 2048*1000)
+	})
+
 	t.Run("conn -> server", func(t *testing.T) {
 		nettest.TestConn(t, func() (c1 net.Conn, c2 net.Conn, stop func(), err error) {
 			lis, err := nettest.NewLocalListener("tcp")

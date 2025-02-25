@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
@@ -31,7 +32,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -111,27 +111,46 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 
 		{
 			// default interface
+			iface := ""
+			errCount := 0
 
-			iface := atomicx.NewValue("")
+			var mu sync.RWMutex
 
 			dialer.DefaultInterfaceName = func() string {
 				if !s.GetUseDefaultInterface() {
 					return s.GetNetInterface()
 				}
 
-				x := iface.Load()
+				mu.RLock()
+				x := iface
+				ec := errCount
+				mu.RUnlock()
+
 				if x != "" {
 					if _, err := net.InterfaceByName(x); err == nil {
 						return x
+					} else {
+						mu.Lock()
+						iface = ""
+						mu.Unlock()
 					}
 				}
+
+				if ec > 10 {
+					return ""
+				}
+
+				mu.Lock()
+				defer mu.Unlock()
 
 				ifacestr, err := interfaces.DefaultRouteInterface()
 				if err != nil {
 					log.Error("get default interface failed", "error", err)
+					errCount += 1
 				} else {
+					errCount = 0
 					log.Info("use default interface", "interface", ifacestr)
-					iface.Store(ifacestr)
+					iface = ifacestr
 				}
 
 				return ifacestr
