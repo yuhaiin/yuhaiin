@@ -7,6 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 )
 
 func init() {
@@ -16,7 +17,7 @@ func init() {
 			return false
 		}
 
-		err := dialer.LinuxMarkSymbol(socket, 0x00000500)
+		err := dialer.LinuxMarkSymbol(socket, device.Mark)
 		if err != nil {
 			if errors.Is(err, syscall.EPERM) {
 				log.Info("check mark symbol no permission, disable it")

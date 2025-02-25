@@ -3,6 +3,8 @@ module github.com/Asutorufa/yuhaiin
 go 1.24.0
 
 require (
+	github.com/godbus/dbus/v5 v5.1.1-0.20230522191255-76236955d466
+	github.com/google/nftables v0.2.1-0.20240414091927-5e242ec57806
 	github.com/google/pprof v0.0.0-20250208200701-d0013a598941
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-yamux/v5 v5.0.0
@@ -60,11 +62,9 @@ require (
 	github.com/go-json-experiment/json v0.0.0-20250103232110-6a9a0fde9288 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
-	github.com/godbus/dbus/v5 v5.1.1-0.20230522191255-76236955d466 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/nftables v0.2.1-0.20240414091927-5e242ec57806 // indirect
 	github.com/gorilla/csrf v1.7.3-0.20250123201450-9dd6af1f6d30 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/hdevalence/ed25519consensus v0.2.0 // indirect

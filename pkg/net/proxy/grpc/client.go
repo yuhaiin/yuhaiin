@@ -4,6 +4,7 @@ import (
 	context "context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -14,22 +15,26 @@ import (
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 )
+
+//go:generate protoc --go-grpc_out=. --go-grpc_opt=paths=source_relative chunk.proto
 
 type client struct {
 	netapi.Proxy
 
 	clientConn *grpc.ClientConn
-
-	tlsConfig *tls.Config
-
-	mu sync.Mutex
+	tlsConfig  *tls.Config
+	id         id.IDGenerator
+	mu         sync.Mutex
 }
 
 func init() {
@@ -106,14 +111,30 @@ func (c *client) Close() error {
 	return err
 }
 
-func (c *client) Conn(_ context.Context, addr netapi.Address) (net.Conn, error) {
+func (c *client) Conn(pctx context.Context, address netapi.Address) (net.Conn, error) {
 	stream, err := c.connect()
 	if err != nil {
 		return nil, err
 	}
 
 	client := NewStreamClient(stream)
-	conn, err := client.Conn(context.TODO())
+
+	connected := make(chan struct{})
+	defer close(connected)
+
+	// we can't use parent ctx, the parent ctx will make grpc close
+	// see: https://github.com/grpc/grpc-go/blob/aa629e0ef3e78483883a55ea25c1da17236c97e6/stream.go#L148
+	ctx, cancel := context.WithCancel(context.WithoutCancel(pctx))
+
+	go func() {
+		select {
+		case <-pctx.Done():
+			cancel()
+		case <-connected:
+		}
+	}()
+
+	conn, err := client.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -121,12 +142,20 @@ func (c *client) Conn(_ context.Context, addr netapi.Address) (net.Conn, error) 
 	c1, c2 := pipe.Pipe()
 
 	go func() {
-		defer c1.CloseWrite()
+		defer cancel()
+		defer func() {
+			if err := c1.CloseWrite(); err != nil {
+				log.Error("grpc client conn close write failed", "err", err)
+			}
+		}()
 		for {
 			data, err := conn.Recv()
 			if err != nil {
 				if err != io.EOF {
-					log.Error("grpc client conn recv failed", "err", err)
+					s, ok := status.FromError(err)
+					if !ok || s.Code() != codes.Canceled {
+						log.Error("grpc client conn recv failed", "err", err)
+					}
 				}
 				return
 			}
@@ -140,7 +169,11 @@ func (c *client) Conn(_ context.Context, addr netapi.Address) (net.Conn, error) 
 
 	go func() {
 		defer c1.Close()
-		defer conn.CloseSend()
+		defer func() {
+			if err := conn.CloseSend(); err != nil {
+				log.Error("grpc client conn close send failed", "err", err)
+			}
+		}()
 		for {
 			buf := make([]byte, pool.DefaultSize)
 			n, err := c1.Read(buf)
@@ -158,13 +191,15 @@ func (c *client) Conn(_ context.Context, addr netapi.Address) (net.Conn, error) 
 		}
 	}()
 
-	c2.SetLocalAddr(caddr{})
-	c2.SetRemoteAddr(addr)
+	c2.SetLocalAddr(addr{id: c.id.Generate()})
+	c2.SetRemoteAddr(address)
 
 	return c2, nil
 }
 
-type caddr struct{}
+type addr struct {
+	id uint64
+}
 
-func (caddr) Network() string { return "tcp" }
-func (caddr) String() string  { return "GRPC" }
+func (addr) Network() string  { return "tcp" }
+func (a addr) String() string { return fmt.Sprintf("grpc://%d", a.id) }

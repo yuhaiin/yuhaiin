@@ -9,6 +9,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 )
 
+var Mark = 0x00000500
+
 type Opt struct {
 	*listener.Tun
 	*netlink.Options
@@ -17,10 +19,12 @@ type Opt struct {
 
 func (o *Opt) PostDown() {
 	execPost(o.Tun.GetPostDown())
+	o.UnSkipMark()
 }
 
 func (o *Opt) PostUp() {
 	execPost(o.Tun.GetPostUp())
+	o.SkipMark()
 }
 
 func execPost(cmd []string) {

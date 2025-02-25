@@ -17,7 +17,7 @@ func TestClient(t *testing.T) {
 		Port: proto.Int32(2096),
 	}.Build(), nil)
 	assert.NoError(t, err)
-	pp, err = NewRealityClient(protocol.Reality_builder{
+	pp, err = NewClient(protocol.Reality_builder{
 		ServerName: proto.String("www.baidu.com"),
 		ShortId:    proto.String("123456"),
 		PublicKey:  proto.String("SOW7P-17ibm_-kz-QUQwGGyitSbsa5wOmRGAigGvDH8"),

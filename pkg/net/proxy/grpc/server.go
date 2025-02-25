@@ -2,7 +2,6 @@ package grpc
 
 import (
 	context "context"
-	"fmt"
 	"io"
 	"net"
 
@@ -13,6 +12,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -89,12 +90,19 @@ func (s *Grpc) Conn(con grpc.BidiStreamingServer[wrapperspb.BytesValue, wrappers
 	c1, c2 := pipe.Pipe()
 
 	go func() {
-		defer c1.CloseWrite()
+		defer func() {
+			if err := c1.CloseWrite(); err != nil {
+				log.Error("grpc server conn close write failed", "err", err)
+			}
+		}()
 		for {
 			data, err := con.Recv()
 			if err != nil {
 				if err != io.EOF {
-					log.Error("grpc server conn recv failed", "err", err)
+					s, ok := status.FromError(err)
+					if !ok || s.Code() != codes.Canceled {
+						log.Error("grpc server conn recv failed", "err", err)
+					}
 				}
 				return
 			}
@@ -133,10 +141,3 @@ func (s *Grpc) Conn(con grpc.BidiStreamingServer[wrapperspb.BytesValue, wrappers
 	}
 	return nil
 }
-
-type addr struct {
-	id uint64
-}
-
-func (addr) Network() string  { return "tcp" }
-func (a addr) String() string { return fmt.Sprintf("grpc://%d", a.id) }

@@ -2,7 +2,7 @@ package grpc
 
 import (
 	"bytes"
-	context "context"
+	"context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -324,7 +323,6 @@ func testPresentTimeout(t *testing.T, c1, c2 net.Conn) {
 	deadlineSet := make(chan bool, 1)
 	go func() {
 		defer wg.Done()
-		defer log.Info("deadline end-------")
 		time.Sleep(100 * time.Millisecond)
 		deadlineSet <- true
 		c1.SetReadDeadline(aLongTimeAgo)
@@ -333,7 +331,6 @@ func testPresentTimeout(t *testing.T, c1, c2 net.Conn) {
 
 	go func() {
 		defer wg.Done()
-		defer log.Info("read end-------")
 		n, err := c1.Read(make([]byte, 1024))
 		if n != 0 {
 			t.Errorf("unexpected Read count: got %d, want 0", n)
@@ -345,7 +342,6 @@ func testPresentTimeout(t *testing.T, c1, c2 net.Conn) {
 	}()
 	go func() {
 		defer wg.Done()
-		defer log.Info("write end-------")
 		var err error
 		for err == nil {
 			_, err = c1.Write(make([]byte, 1024))
