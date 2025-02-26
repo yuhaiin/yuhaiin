@@ -1,18 +1,14 @@
 package app
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/internal/appapi"
-	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
@@ -65,7 +61,9 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 )
 
-func AddCloser[T io.Closer](a *appapi.Start, name string, t T) T {
+var operators = []func(*closers){}
+
+func AddCloser[T io.Closer](a *closers, name string, t T) T {
 	a.AddCloser(name, t)
 	return t
 }
@@ -77,32 +75,33 @@ func OpenBboltDB(path string) (*bbolt.DB, error) {
 		if err = os.Remove(path); err != nil {
 			return nil, fmt.Errorf("remove invalid cache file failed: %w", err)
 		}
-		log.Info("remove invalid cache file and create new one")
+		log.Warn("remove invalid cache file and create new one")
 		return bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second})
 	}
 
 	return db, err
 }
 
-func Start(opt appapi.Start) (_ *appapi.Components, err error) {
-	so := &opt
-
+func Start(so *StartOptions) (_ *AppInstance, err error) {
 	configuration.DataDir.Store(so.ConfigPath)
 
-	db, err := OpenBboltDB(PathGenerator.Cache(so.ConfigPath))
-	if err != nil {
-		return nil, fmt.Errorf("init bbolt cache failed: %w", err)
-	}
-	so.AddCloser("bbolt_db", db)
-	configuration.BBoltDB = db
+	closers := &closers{}
 
-	httpListener, err := net.Listen("tcp", so.Host)
-	if err != nil {
-		return nil, err
+	cache := so.Cache
+	if cache == nil {
+		db, err := OpenBboltDB(PathGenerator.Cache(so.ConfigPath))
+		if err != nil {
+			return nil, fmt.Errorf("init bbolt cache failed: %w", err)
+		}
+		closers.AddCloser("bbolt_db", db)
+		cache = ybbolt.NewCache(db)
 	}
-	so.AddCloser("http_listener", httpListener)
 
-	chore := chore.NewChore(opt.ChoreConfig, func(s *pc.Setting) {
+	for _, f := range operators {
+		f(closers)
+	}
+
+	chore := chore.NewChore(so.ChoreConfig, func(s *pc.Setting) {
 		log.Set(s.GetLogcat(), PathGenerator.Log(so.ConfigPath))
 		configuration.IgnoreDnsErrorLog.Store(s.GetLogcat().GetIgnoreDnsError())
 		configuration.IgnoreTimeoutErrorLog.Store(s.GetLogcat().GetIgnoreTimeoutError())
@@ -179,11 +178,10 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 		}
 	})
 
-	fmt.Println(version.Art)
-	log.Info("config", "path", so.ConfigPath, "grpc&http host", so.Host)
+	log.Info("config", "path", so.ConfigPath)
 
 	// proxy access point/endpoint
-	nodeManager := AddCloser(so, "node_manager", node.NewManager(PathGenerator.Node(so.ConfigPath)))
+	nodeManager := AddCloser(closers, "node_manager", node.NewManager(PathGenerator.Node(so.ConfigPath)))
 	register.RegisterPoint(func(x *protocol.Set, p netapi.Proxy) (netapi.Proxy, error) {
 		return node.NewSet(x, nodeManager)
 	})
@@ -191,28 +189,28 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	configuration.ProxyChain.Set(direct.Default)
 
 	// local,remote,bootstrap dns
-	dns := AddCloser(so, "resolver", resolver.NewResolver(configuration.ProxyChain))
+	dns := AddCloser(closers, "resolver", resolver.NewResolver(configuration.ProxyChain))
 	// bypass dialer and dns request
-	st := AddCloser(so, "shunt", route.NewRoute(nodeManager.Outbound(), dns, opt.ProcessDumper))
-	rc := route.NewRuleController(opt.BypassConfig, st)
+	st := AddCloser(closers, "shunt", route.NewRoute(nodeManager.Outbound(), dns, so.ProcessDumper))
+	rc := route.NewRuleController(so.BypassConfig, st)
 	// connections' statistic & flow data
 
-	flowCache := AddCloser(so, "flow_cache", ybbolt.NewCache(db, "flow_data"))
-	stcs := AddCloser(so, "statistic", statistics.NewConnStore(flowCache, st))
+	flowCache := AddCloser(closers, "flow_cache", cache.NewCache("flow_data"))
+	stcs := AddCloser(closers, "statistic", statistics.NewConnStore(flowCache, st))
 	metrics.SetFlowCounter(stcs.Cache)
-	hosts := AddCloser(so, "hosts", resolver.NewHosts(stcs, st))
+	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, st))
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := AddCloser(so, "fakedns", resolver.NewFakeDNS(hosts, hosts, db))
+	fakedns := AddCloser(closers, "fakedns", resolver.NewFakeDNS(hosts, hosts, cache))
 	// dns server/tun dns hijacking handler
-	dnsServer := AddCloser(so, "dnsServer", resolver.NewDNSServer(fakedns))
+	dnsServer := AddCloser(closers, "dnsServer", resolver.NewDNSServer(fakedns))
 	resolverCtr := resolver.NewResolverCtr(so.ResolverConfig, hosts, fakedns, dns, dnsServer)
 
 	// make dns flow across all proxy chain
 	configuration.ProxyChain.Set(fakedns)
 	// inbound server
-	inbounds := AddCloser(so, "inbound_listener", inbound.NewListener(dnsServer, fakedns))
+	inbounds := AddCloser(closers, "inbound_listener", inbound.NewListener(dnsServer, fakedns))
 	// tools
-	tools := tools.NewTools(opt.ChoreConfig)
+	tools := tools.NewTools(so.ChoreConfig)
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /metrics", promhttp.InstrumentMetricHandler(
@@ -221,20 +219,19 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 			EnableOpenMetrics:  true,
 		})))
 
-	app := &appapi.Components{
-		Start:          so,
+	app := &AppInstance{
+		StartOptions:   so,
 		Mux:            mux,
-		HttpListener:   httpListener,
 		Tools:          tools,
 		Node:           nodeManager.Node(),
-		DB:             db,
 		Subscribe:      nodeManager.Subscribe(),
 		Connections:    stcs,
 		Tag:            nodeManager.Tag(st.Tags),
 		RuleController: rc,
-		Inbound:        inbound.NewInboundCtr(opt.InboundConfig, inbounds),
+		Inbound:        inbound.NewInboundCtr(so.InboundConfig, inbounds),
 		Resolver:       resolverCtr,
 		Setting:        chore,
+		closers:        *closers,
 	}
 
 	// grpc and http server
@@ -244,22 +241,3 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 
 	return app, nil
 }
-
-var PathGenerator = pathGenerator{}
-
-type pathGenerator struct{}
-
-func (p pathGenerator) Lock(dir string) string   { return p.makeDir(filepath.Join(dir, "LOCK")) }
-func (p pathGenerator) Node(dir string) string   { return p.makeDir(filepath.Join(dir, "node.json")) }
-func (p pathGenerator) Config(dir string) string { return p.makeDir(filepath.Join(dir, "config.json")) }
-func (p pathGenerator) Log(dir string) string {
-	return p.makeDir(filepath.Join(dir, "log", "yuhaiin.log"))
-}
-func (pathGenerator) makeDir(s string) string {
-	if _, err := os.Stat(s); errors.Is(err, os.ErrNotExist) {
-		_ = os.MkdirAll(filepath.Dir(s), os.ModePerm)
-	}
-
-	return s
-}
-func (p pathGenerator) Cache(dir string) string { return p.makeDir(filepath.Join(dir, "cache")) }

@@ -16,10 +16,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	bolt "go.etcd.io/bbolt"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -31,7 +29,7 @@ type FakeDNS struct {
 	ipv6 *FakeIPPool
 }
 
-func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, ipv6Range netip.Prefix, db *bolt.DB) *FakeDNS {
+func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, ipv6Range netip.Prefix, db cache.RecursionCache) *FakeDNS {
 	return &FakeDNS{
 		upStreamDo,
 		NewFakeIPPool(ipRange, db),
@@ -254,7 +252,7 @@ type FakeIPPool struct {
 	mu sync.Mutex
 }
 
-func NewFakeIPPool(prefix netip.Prefix, db *bolt.DB) *FakeIPPool {
+func NewFakeIPPool(prefix netip.Prefix, db cache.RecursionCache) *FakeIPPool {
 	prefix = prefix.Masked()
 
 	lenSize := 32
@@ -342,13 +340,13 @@ type fakeLru struct {
 	Size uint
 }
 
-func newFakeLru(size uint, db *bolt.DB, iprange netip.Prefix) *fakeLru {
-	var bboltCache *bbolt.Nosync
+func newFakeLru(size uint, db cache.RecursionCache, iprange netip.Prefix) *fakeLru {
+	var bboltCache cache.RecursionCache
 	if iprange.Addr().Unmap().Is6() {
-		bboltCache = bbolt.NewNosyncCache(db, "fakedns_cachev6")
+		bboltCache = db.NewCache("fakedns_cachev6")
 	} else {
 
-		bboltCache = bbolt.NewNosyncCache(db, "fakedns_cache")
+		bboltCache = db.NewCache("fakedns_cache")
 	}
 
 	z := &fakeLru{Size: size, bbolt: bboltCache, iprange: iprange}

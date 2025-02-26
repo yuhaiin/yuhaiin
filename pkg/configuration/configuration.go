@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"go.etcd.io/bbolt"
 )
 
 var Lite = os.Getenv("YUHAIIN_LITE") == "true"
@@ -49,8 +48,6 @@ var (
 	HistorySize = or[uint](1000, 500)
 
 	DataDir = atomicx.NewValue(DefaultConfigDir())
-
-	BBoltDB *bbolt.DB
 
 	ProxyChain = netapi.NewDynamicProxy(netapi.NewErrProxy(errors.New("not initialized")))
 )

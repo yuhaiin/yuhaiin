@@ -15,15 +15,15 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	cd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"go.etcd.io/bbolt"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
 type Fakedns struct {
 	dialer   netapi.Proxy
 	upstream netapi.Resolver
-	db       *bbolt.DB
+	db       cache.RecursionCache
 	fake     *resolver.FakeDNS
 
 	whitelist *domain.Fqdn[struct{}]
@@ -32,7 +32,7 @@ type Fakedns struct {
 	enabled        atomic.Bool
 }
 
-func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db *bbolt.DB) *Fakedns {
+func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db cache.RecursionCache) *Fakedns {
 	ipv4Range, _ := netip.ParsePrefix("10.2.0.1/24")
 	ipv6Range, _ := netip.ParsePrefix("fc00::/64")
 

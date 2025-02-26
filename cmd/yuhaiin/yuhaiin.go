@@ -13,8 +13,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/Asutorufa/yuhaiin/internal/app"
-	"github.com/Asutorufa/yuhaiin/internal/appapi"
+	"github.com/Asutorufa/yuhaiin/internal/version"
+	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -42,21 +42,27 @@ func run(args []string) error {
 		os.Setenv("EXTERNAL_WEB", *webdir)
 	}
 
+	lis, err := net.Listen("tcp", *host)
+	if err != nil {
+		return err
+	}
+
 	setting := config.NewJsonDB(app.PathGenerator.Config(*path))
 
 	var grpcOpts []grpc.ServerOption
 
-	var auth *appapi.Auth
+	var auth *app.Auth
 	if *username != "" || *password != "" {
-		auth = appapi.NewAuth(*username, *password)
+		auth = app.NewAuth(*username, *password)
 		grpcOpts = append(grpcOpts, grpc.UnaryInterceptor(auth.GrpcAuth()))
 	}
 
 	grpcserver := grpc.NewServer(grpcOpts...)
 
-	app, err := app.Start(appapi.Start{
+	fmt.Println(version.Art)
+
+	app, err := app.Start(&app.StartOptions{
 		ConfigPath:     *path,
-		Host:           *host,
 		Auth:           auth,
 		BypassConfig:   setting,
 		ResolverConfig: setting,
@@ -68,7 +74,11 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer app.Close()
+	defer func() {
+		if err := app.Close(); err != nil {
+			log.Error("close app error", "err", err)
+		}
+	}()
 
 	if *pprof {
 		if close, err := StartCPUProfile(*path); err != nil {
@@ -82,7 +92,7 @@ func run(args []string) error {
 
 	go func() {
 		// h2c for grpc insecure mode
-		errChan <- http.Serve(app.HttpListener, h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		errChan <- http.Serve(lis, h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
 
 			if grpcserver != nil && r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
@@ -97,16 +107,16 @@ func run(args []string) error {
 	signChannel := make(chan os.Signal, 1)
 	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	return wait(app, errChan, signChannel)
+	return wait(lis, errChan, signChannel)
 }
 
-var wait = func(app *appapi.Components, errChan chan error, signChannel chan os.Signal) error {
+var wait = func(lis net.Listener, errChan chan error, signChannel chan os.Signal) error {
 	select {
 	case err := <-errChan:
 		return err
 	case <-signChannel:
-		if app.HttpListener != nil {
-			app.HttpListener.Close()
+		if lis != nil {
+			return lis.Close()
 		}
 		return nil
 	}

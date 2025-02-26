@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/internal/appapi"
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"golang.org/x/sys/windows"
@@ -24,9 +24,9 @@ func init() {
 	wait = runService
 }
 
-func runService(app *appapi.Components, errChan chan error, signChannel chan os.Signal) error {
+func runService(lis net.Listener, errChan chan error, signChannel chan os.Signal) error {
 	return svc.Run(version.AppName, &service{
-		app:         app,
+		lis:         lis,
 		errChan:     errChan,
 		signChannel: signChannel,
 	})
@@ -142,7 +142,7 @@ func isWindowsService() bool {
 }
 
 type service struct {
-	app         *appapi.Components
+	lis         net.Listener
 	errChan     chan error
 	signChannel chan os.Signal
 }
@@ -158,7 +158,7 @@ func (ss *service) Execute(args []string, r <-chan svc.ChangeRequest, s chan<- s
 			s <- svc.Status{State: svc.Stopped}
 			return false, windows.NO_ERROR
 		case <-ss.signChannel:
-			ss.app.HttpListener.Close()
+			ss.lis.Close()
 			s <- svc.Status{State: svc.Stopped}
 		case c := <-r:
 			log.Info("Got Windows Service event", "cmd", cmdName(c.Cmd))
@@ -166,7 +166,7 @@ func (ss *service) Execute(args []string, r <-chan svc.ChangeRequest, s chan<- s
 			case svc.Interrogate:
 				s <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
-				ss.app.HttpListener.Close()
+				ss.lis.Close()
 			}
 		}
 	}

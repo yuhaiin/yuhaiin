@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"go.etcd.io/bbolt"
 )
 
@@ -35,7 +36,7 @@ func TestNetip(t *testing.T) {
 	assert.NoError(t, err)
 	defer nd.Close()
 
-	ff := NewFakeIPPool(z, nd)
+	ff := NewFakeIPPool(z, ybbolt.NewCache(nd))
 	defer ff.Flush()
 
 	ch := make(chan struct {

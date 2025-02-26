@@ -9,8 +9,11 @@ import (
 )
 
 type DB interface {
+	// Batch modify setting and save
 	Batch(f ...func(*Setting) error) error
+	// View read only
 	View(f ...func(*Setting) error) error
+	// Dir dir of the all data files
 	Dir() string
 }
 
