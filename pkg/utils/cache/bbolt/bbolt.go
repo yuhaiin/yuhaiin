@@ -2,6 +2,7 @@ package bbolt
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"go.etcd.io/bbolt"
@@ -13,10 +14,11 @@ type Cache struct {
 	bucketName [][]byte
 }
 
-func NewCache(db *bbolt.DB, bucketName string) *Cache {
-	c := &Cache{
-		db:         db,
-		bucketName: [][]byte{[]byte(bucketName)},
+func NewCache(db *bbolt.DB, bucketName ...string) *Cache {
+	c := &Cache{db: db}
+
+	for _, name := range bucketName {
+		c.bucketName = append(c.bucketName, []byte(name))
 	}
 
 	return c
@@ -45,6 +47,10 @@ func (c *Cache) Get(k []byte) (v []byte, err error) {
 }
 
 func (c *Cache) existBucket(tx *bbolt.Tx) *bbolt.Bucket {
+	if len(c.bucketName) == 0 {
+		return nil
+	}
+
 	bk := tx.Bucket(c.bucketName[0])
 	if bk == nil {
 		return nil
@@ -61,6 +67,10 @@ func (c *Cache) existBucket(tx *bbolt.Tx) *bbolt.Bucket {
 }
 
 func (c *Cache) bucket(tx *bbolt.Tx, readOnly bool) (*bbolt.Bucket, error) {
+	if len(c.bucketName) == 0 {
+		return nil, fmt.Errorf("bucket name is empty")
+	}
+
 	bk := tx.Bucket(c.bucketName[0])
 	if bk == nil {
 		if readOnly {

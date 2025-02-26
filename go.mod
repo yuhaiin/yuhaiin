@@ -3,8 +3,8 @@ module github.com/Asutorufa/yuhaiin
 go 1.24.0
 
 require (
-	github.com/godbus/dbus/v5 v5.1.1-0.20230522191255-76236955d466
-	github.com/google/nftables v0.2.1-0.20240414091927-5e242ec57806
+	github.com/godbus/dbus/v5 v5.1.1-0.20241109141217-c266b19b28e9
+	github.com/google/nftables v0.3.0
 	github.com/google/pprof v0.0.0-20250208200701-d0013a598941
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-yamux/v5 v5.0.0
@@ -17,7 +17,7 @@ require (
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250222033228-76979f9831c2
 	// for fix https://github.com/etcd-io/bbolt/issues/840
 	go.etcd.io/bbolt v1.4.0
-	golang.org/x/crypto v0.34.0
+	golang.org/x/crypto v0.35.0
 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa
 	golang.org/x/mobile v0.0.0-20250218173827-cd096645fcd3
 	golang.org/x/net v0.35.0

@@ -39,12 +39,12 @@ func New() (*Nftables, error) {
 	}, nil
 }
 
-func (n *Nftables) IsSkipMarkExist(chain *nftables.Chain, mark uint32, dev string) (bool, error) {
+func (n *Nftables) IsSkipMarkExist(chain *nftables.Chain, mark uint32, dev string) (*nftables.Rule, bool, error) {
 	markBytes := binary.LittleEndian.AppendUint32(nil, mark)
 
 	rules, err := n.conn.GetRules(chain.Table, chain)
 	if err != nil {
-		return false, err
+		return nil, false, err
 	}
 
 	for _, r := range rules {
@@ -88,14 +88,31 @@ func (n *Nftables) IsSkipMarkExist(chain *nftables.Chain, mark uint32, dev strin
 			continue
 		}
 
-		return true, nil
+		return r, true, nil
 	}
 
-	return false, nil
+	return nil, false, nil
+}
+
+func (n *Nftables) DeleteSkipMark(chain *nftables.Chain, mark uint32, dev string) error {
+	rule, exist, err := n.IsSkipMarkExist(chain, mark, dev)
+	if err != nil {
+		return err
+	}
+
+	if !exist {
+		return nil
+	}
+
+	if err = n.conn.DelRule(rule); err != nil {
+		return err
+	}
+
+	return n.conn.Flush()
 }
 
 func (n *Nftables) AddSkipMark(chain *nftables.Chain, mark uint32, dev string) error {
-	exist, err := n.IsSkipMarkExist(chain, mark, dev)
+	_, exist, err := n.IsSkipMarkExist(chain, mark, dev)
 	if err != nil {
 		return err
 	}

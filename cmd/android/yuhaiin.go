@@ -14,14 +14,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/internal/app"
-	"github.com/Asutorufa/yuhaiin/internal/appapi"
+	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	bypass "github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	pb "github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	service "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
+	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"tailscale.com/net/netmon"
@@ -32,7 +31,7 @@ var SetAndroidProtectFunc func(SocketProtect)
 //go:generate go run generate.go
 
 type App struct {
-	lis *http.Server
+	server *http.Server
 
 	mu      sync.Mutex
 	started atomic.Bool
@@ -46,11 +45,11 @@ func newResolverDB() *configDB[*dns.DnsConfig] {
 	)
 }
 
-func newBypassDB() *configDB[*bypass.Config] {
+func newBypassDB() *configDB[*pb.Config] {
 	return newConfigDB(
 		"bypass_db",
-		func(s *pc.Setting) *bypass.Config { return s.GetBypass() },
-		func(s *bypass.Config) *pc.Setting { return pc.Setting_builder{Bypass: s}.Build() },
+		func(s *pc.Setting) *pb.Config { return s.GetBypass() },
+		func(s *pb.Config) *pc.Setting { return pc.Setting_builder{Bypass: s}.Build() },
 	)
 }
 
@@ -70,8 +69,8 @@ func (a *App) Start(opt *Opts) error {
 		return errors.New("yuhaiin is already running")
 	}
 
-	if a.lis != nil {
-		_ = a.lis.Close()
+	if a.server != nil {
+		_ = a.server.Close()
 	}
 
 	netmon.RegisterInterfaceGetter(func() ([]netmon.Interface, error) { return getInterfaces(opt.Interfaces) })
@@ -110,46 +109,56 @@ func (a *App) Start(opt *Opts) error {
 
 	dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
 
-	app, err := app.Start(
-		appapi.Start{
-			ConfigPath:     opt.Savepath,
-			BypassConfig:   newBypassDB(),
-			ResolverConfig: newResolverDB(),
-			InboundConfig:  fakeDB(opt, app.PathGenerator.Config(opt.Savepath)),
-			ChoreConfig:    newChoreDB(),
-			Host:           net.JoinHostPort(ifOr(GetStore("Default").GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"), "0"),
-			ProcessDumper:  NewUidDumper(opt.TUN.UidDumper),
-		})
+	lis, err := net.Listen("tcp", net.JoinHostPort(ifOr(GetStore("Default").GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"), "0"))
 	if err != nil {
 		return err
 	}
 
-	_, portstr, err := net.SplitHostPort(app.HttpListener.Addr().String())
+	app, err := app.Start(&app.StartOptions{
+		ConfigPath:     opt.Savepath,
+		BypassConfig:   newBypassDB(),
+		ResolverConfig: newResolverDB(),
+		InboundConfig:  fakeDB(opt, app.PathGenerator.Config(opt.Savepath)),
+		ChoreConfig:    newChoreDB(),
+		ProcessDumper:  NewUidDumper(opt.TUN.UidDumper),
+	})
+	if err != nil {
+		_ = lis.Close()
+		return err
+	}
+
+	_, portstr, err := net.SplitHostPort(lis.Addr().String())
 	if err != nil {
 		_ = app.Close()
+		_ = lis.Close()
 		return err
 	}
 
 	port, err := strconv.ParseUint(portstr, 10, 16)
 	if err != nil {
 		_ = app.Close()
+		_ = lis.Close()
 		return err
 	}
 
 	GetStore("Default").PutInt(NewYuhaiinPortKey, int32(port))
 
-	lis := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
 		app.Mux.ServeHTTP(w, r)
 	})}
 
-	a.lis = lis
+	a.server = server
 
 	a.started.Store(true)
 
 	go func() {
 		defer a.started.Store(false)
-		defer app.Close()
+		defer func() {
+			if err := app.Close(); err != nil {
+				log.Error("close app error", "err", err)
+			}
+		}()
 		defer lis.Close()
 		defer opt.CloseFallback.Close()
 
@@ -157,7 +166,7 @@ func (a *App) Start(opt *Opts) error {
 		defer cancel()
 		go a.notifyFlow(ctx, app, opt)
 
-		if err := a.lis.Serve(app.HttpListener); err != nil {
+		if err := a.server.Serve(lis); err != nil {
 			log.Error("yuhaiin serve failed", "err", err)
 		}
 	}()
@@ -165,7 +174,7 @@ func (a *App) Start(opt *Opts) error {
 	return nil
 }
 
-func (a *App) notifyFlow(ctx context.Context, app *appapi.Components, opt *Opts) {
+func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
 	if !GetStore("Default").GetBoolean(NetworkSpeedKey) ||
 		opt.NotifySpped == nil || !opt.NotifySpped.NotifyEnable() {
 		return
@@ -175,7 +184,7 @@ func (a *App) notifyFlow(ctx context.Context, app *appapi.Components, opt *Opts)
 	defer ticker.Stop()
 
 	alreadyEmpty := false
-	var last *service.TotalFlow
+	var last *gs.TotalFlow
 	for {
 		select {
 		case <-ctx.Done():
@@ -218,8 +227,8 @@ func (a *App) Stop() error {
 		return nil
 	}
 
-	if a.lis != nil {
-		err := a.lis.Close()
+	if a.server != nil {
+		err := a.server.Close()
 		if err != nil {
 			return err
 		}
@@ -229,7 +238,7 @@ func (a *App) Stop() error {
 		runtime.Gosched()
 	}
 
-	a.lis = nil
+	a.server = nil
 
 	return nil
 }

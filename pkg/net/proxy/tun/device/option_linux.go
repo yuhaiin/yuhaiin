@@ -47,7 +47,7 @@ func (o *Opt) UnSkipMark() {
 		return
 	}
 
-	if err := nft.DeleteTable(nftables.Table); err != nil {
+	if err := nft.DeleteSkipMark(nftables.Chain, uint32(Mark), o.Interface.Name); err != nil {
 		log.Warn("un skip mark failed", "err", err)
 	}
 }

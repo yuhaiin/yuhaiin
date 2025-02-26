@@ -69,7 +69,7 @@ func NewHTTPServer(o *listener.ReverseHttp, ii netapi.Listener, handler netapi.H
 			r = r.WithContext(context.WithValue(r.Context(), remoteKey{}, r.RemoteAddr))
 			rp.ServeHTTP(w, r)
 		})); err != nil {
-			log.Error("reverse http serve failed:", err)
+			log.Error("reverse http serve failed", "err", err)
 		}
 	}()
 
