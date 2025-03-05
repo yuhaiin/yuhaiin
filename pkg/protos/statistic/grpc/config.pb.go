@@ -24,7 +24,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type TotalFlow struct {
+type Counter struct {
 	state                  protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Download    uint64                 `protobuf:"varint,1,opt,name=download"`
 	xxx_hidden_Upload      uint64                 `protobuf:"varint,2,opt,name=upload"`
@@ -34,9 +34,115 @@ type TotalFlow struct {
 	sizeCache              protoimpl.SizeCache
 }
 
+func (x *Counter) Reset() {
+	*x = Counter{}
+	mi := &file_statistic_grpc_config_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Counter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Counter) ProtoMessage() {}
+
+func (x *Counter) ProtoReflect() protoreflect.Message {
+	mi := &file_statistic_grpc_config_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Counter) GetDownload() uint64 {
+	if x != nil {
+		return x.xxx_hidden_Download
+	}
+	return 0
+}
+
+func (x *Counter) GetUpload() uint64 {
+	if x != nil {
+		return x.xxx_hidden_Upload
+	}
+	return 0
+}
+
+func (x *Counter) SetDownload(v uint64) {
+	x.xxx_hidden_Download = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
+}
+
+func (x *Counter) SetUpload(v uint64) {
+	x.xxx_hidden_Upload = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
+}
+
+func (x *Counter) HasDownload() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *Counter) HasUpload() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *Counter) ClearDownload() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_Download = 0
+}
+
+func (x *Counter) ClearUpload() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_Upload = 0
+}
+
+type Counter_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Download *uint64
+	Upload   *uint64
+}
+
+func (b0 Counter_builder) Build() *Counter {
+	m0 := &Counter{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Download != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
+		x.xxx_hidden_Download = *b.Download
+	}
+	if b.Upload != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 2)
+		x.xxx_hidden_Upload = *b.Upload
+	}
+	return m0
+}
+
+type TotalFlow struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Download    uint64                 `protobuf:"varint,1,opt,name=download"`
+	xxx_hidden_Upload      uint64                 `protobuf:"varint,2,opt,name=upload"`
+	xxx_hidden_Counters    map[uint64]*Counter    `protobuf:"bytes,3,rep,name=counters" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
 func (x *TotalFlow) Reset() {
 	*x = TotalFlow{}
-	mi := &file_statistic_grpc_config_proto_msgTypes[0]
+	mi := &file_statistic_grpc_config_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -48,7 +154,7 @@ func (x *TotalFlow) String() string {
 func (*TotalFlow) ProtoMessage() {}
 
 func (x *TotalFlow) ProtoReflect() protoreflect.Message {
-	mi := &file_statistic_grpc_config_proto_msgTypes[0]
+	mi := &file_statistic_grpc_config_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -73,14 +179,25 @@ func (x *TotalFlow) GetUpload() uint64 {
 	return 0
 }
 
+func (x *TotalFlow) GetCounters() map[uint64]*Counter {
+	if x != nil {
+		return x.xxx_hidden_Counters
+	}
+	return nil
+}
+
 func (x *TotalFlow) SetDownload(v uint64) {
 	x.xxx_hidden_Download = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 3)
 }
 
 func (x *TotalFlow) SetUpload(v uint64) {
 	x.xxx_hidden_Upload = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 3)
+}
+
+func (x *TotalFlow) SetCounters(v map[uint64]*Counter) {
+	x.xxx_hidden_Counters = v
 }
 
 func (x *TotalFlow) HasDownload() bool {
@@ -112,6 +229,7 @@ type TotalFlow_builder struct {
 
 	Download *uint64
 	Upload   *uint64
+	Counters map[uint64]*Counter
 }
 
 func (b0 TotalFlow_builder) Build() *TotalFlow {
@@ -119,13 +237,14 @@ func (b0 TotalFlow_builder) Build() *TotalFlow {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Download != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 3)
 		x.xxx_hidden_Download = *b.Download
 	}
 	if b.Upload != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 2)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 3)
 		x.xxx_hidden_Upload = *b.Upload
 	}
+	x.xxx_hidden_Counters = b.Counters
 	return m0
 }
 
@@ -138,7 +257,7 @@ type NotifyData struct {
 
 func (x *NotifyData) Reset() {
 	*x = NotifyData{}
-	mi := &file_statistic_grpc_config_proto_msgTypes[1]
+	mi := &file_statistic_grpc_config_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -150,7 +269,7 @@ func (x *NotifyData) String() string {
 func (*NotifyData) ProtoMessage() {}
 
 func (x *NotifyData) ProtoReflect() protoreflect.Message {
-	mi := &file_statistic_grpc_config_proto_msgTypes[1]
+	mi := &file_statistic_grpc_config_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -315,7 +434,7 @@ func (b0 NotifyData_builder) Build() *NotifyData {
 type case_NotifyData_Data protoreflect.FieldNumber
 
 func (x case_NotifyData_Data) String() string {
-	md := file_statistic_grpc_config_proto_msgTypes[1].Descriptor()
+	md := file_statistic_grpc_config_proto_msgTypes[2].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -353,7 +472,7 @@ type NotifyNewConnections struct {
 
 func (x *NotifyNewConnections) Reset() {
 	*x = NotifyNewConnections{}
-	mi := &file_statistic_grpc_config_proto_msgTypes[2]
+	mi := &file_statistic_grpc_config_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -365,7 +484,7 @@ func (x *NotifyNewConnections) String() string {
 func (*NotifyNewConnections) ProtoMessage() {}
 
 func (x *NotifyNewConnections) ProtoReflect() protoreflect.Message {
-	mi := &file_statistic_grpc_config_proto_msgTypes[2]
+	mi := &file_statistic_grpc_config_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -412,7 +531,7 @@ type NotifyRemoveConnections struct {
 
 func (x *NotifyRemoveConnections) Reset() {
 	*x = NotifyRemoveConnections{}
-	mi := &file_statistic_grpc_config_proto_msgTypes[3]
+	mi := &file_statistic_grpc_config_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -424,7 +543,7 @@ func (x *NotifyRemoveConnections) String() string {
 func (*NotifyRemoveConnections) ProtoMessage() {}
 
 func (x *NotifyRemoveConnections) ProtoReflect() protoreflect.Message {
-	mi := &file_statistic_grpc_config_proto_msgTypes[3]
+	mi := &file_statistic_grpc_config_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -476,7 +595,7 @@ type FailedHistory struct {
 
 func (x *FailedHistory) Reset() {
 	*x = FailedHistory{}
-	mi := &file_statistic_grpc_config_proto_msgTypes[4]
+	mi := &file_statistic_grpc_config_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -488,7 +607,7 @@ func (x *FailedHistory) String() string {
 func (*FailedHistory) ProtoMessage() {}
 
 func (x *FailedHistory) ProtoReflect() protoreflect.Message {
-	mi := &file_statistic_grpc_config_proto_msgTypes[4]
+	mi := &file_statistic_grpc_config_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -704,7 +823,7 @@ type FailedHistoryList struct {
 
 func (x *FailedHistoryList) Reset() {
 	*x = FailedHistoryList{}
-	mi := &file_statistic_grpc_config_proto_msgTypes[5]
+	mi := &file_statistic_grpc_config_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -716,7 +835,7 @@ func (x *FailedHistoryList) String() string {
 func (*FailedHistoryList) ProtoMessage() {}
 
 func (x *FailedHistoryList) ProtoReflect() protoreflect.Message {
-	mi := &file_statistic_grpc_config_proto_msgTypes[5]
+	mi := &file_statistic_grpc_config_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -796,7 +915,7 @@ type AllHistory struct {
 
 func (x *AllHistory) Reset() {
 	*x = AllHistory{}
-	mi := &file_statistic_grpc_config_proto_msgTypes[6]
+	mi := &file_statistic_grpc_config_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -808,7 +927,7 @@ func (x *AllHistory) String() string {
 func (*AllHistory) ProtoMessage() {}
 
 func (x *AllHistory) ProtoReflect() protoreflect.Message {
-	mi := &file_statistic_grpc_config_proto_msgTypes[6]
+	mi := &file_statistic_grpc_config_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -920,7 +1039,7 @@ type AllHistoryList struct {
 
 func (x *AllHistoryList) Reset() {
 	*x = AllHistoryList{}
-	mi := &file_statistic_grpc_config_proto_msgTypes[7]
+	mi := &file_statistic_grpc_config_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -932,7 +1051,7 @@ func (x *AllHistoryList) String() string {
 func (*AllHistoryList) ProtoMessage() {}
 
 func (x *AllHistoryList) ProtoReflect() protoreflect.Message {
-	mi := &file_statistic_grpc_config_proto_msgTypes[7]
+	mi := &file_statistic_grpc_config_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1013,11 +1132,27 @@ var file_statistic_grpc_config_proto_rawDesc = string([]byte{
 	0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x2e,
 	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a, 0x21, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72,
 	0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x67, 0x6f, 0x5f, 0x66, 0x65, 0x61, 0x74, 0x75, 0x72,
-	0x65, 0x73, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x40, 0x0a, 0x0a, 0x74, 0x6f, 0x74, 0x61,
+	0x65, 0x73, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x3d, 0x0a, 0x07, 0x63, 0x6f, 0x75, 0x6e,
+	0x74, 0x65, 0x72, 0x12, 0x1a, 0x0a, 0x08, 0x64, 0x6f, 0x77, 0x6e, 0x6c, 0x6f, 0x61, 0x64, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x04, 0x52, 0x08, 0x64, 0x6f, 0x77, 0x6e, 0x6c, 0x6f, 0x61, 0x64, 0x12,
+	0x16, 0x0a, 0x06, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52,
+	0x06, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x22, 0x80, 0x02, 0x0a, 0x0a, 0x74, 0x6f, 0x74, 0x61,
 	0x6c, 0x5f, 0x66, 0x6c, 0x6f, 0x77, 0x12, 0x1a, 0x0a, 0x08, 0x64, 0x6f, 0x77, 0x6e, 0x6c, 0x6f,
 	0x61, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04, 0x52, 0x08, 0x64, 0x6f, 0x77, 0x6e, 0x6c, 0x6f,
 	0x61, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x04, 0x52, 0x06, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x22, 0xd1, 0x02, 0x0a, 0x0b, 0x6e,
+	0x28, 0x04, 0x52, 0x06, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x12, 0x56, 0x0a, 0x08, 0x63, 0x6f,
+	0x75, 0x6e, 0x74, 0x65, 0x72, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x3a, 0x2e, 0x79,
+	0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x2e, 0x73, 0x74,
+	0x61, 0x74, 0x69, 0x73, 0x74, 0x69, 0x63, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x2e,
+	0x74, 0x6f, 0x74, 0x61, 0x6c, 0x5f, 0x66, 0x6c, 0x6f, 0x77, 0x2e, 0x43, 0x6f, 0x75, 0x6e, 0x74,
+	0x65, 0x72, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x08, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x65,
+	0x72, 0x73, 0x1a, 0x66, 0x0a, 0x0d, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x73, 0x45, 0x6e,
+	0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04,
+	0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x3f, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x29, 0x2e, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x73, 0x2e, 0x73, 0x74, 0x61, 0x74, 0x69, 0x73, 0x74, 0x69, 0x63, 0x2e,
+	0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x2e, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x52,
+	0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0xd1, 0x02, 0x0a, 0x0b, 0x6e,
 	0x6f, 0x74, 0x69, 0x66, 0x79, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x12, 0x4d, 0x0a, 0x0a, 0x74, 0x6f,
 	0x74, 0x61, 0x6c, 0x5f, 0x66, 0x6c, 0x6f, 0x77, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2c,
 	0x2e, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x2e,
@@ -1130,47 +1265,51 @@ var file_statistic_grpc_config_proto_rawDesc = string([]byte{
 	0x08, 0x65, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x70, 0xe8, 0x07,
 })
 
-var file_statistic_grpc_config_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_statistic_grpc_config_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_statistic_grpc_config_proto_goTypes = []any{
-	(*TotalFlow)(nil),               // 0: yuhaiin.protos.statistic.service.total_flow
-	(*NotifyData)(nil),              // 1: yuhaiin.protos.statistic.service.notify_data
-	(*NotifyNewConnections)(nil),    // 2: yuhaiin.protos.statistic.service.notify_new_connections
-	(*NotifyRemoveConnections)(nil), // 3: yuhaiin.protos.statistic.service.notify_remove_connections
-	(*FailedHistory)(nil),           // 4: yuhaiin.protos.statistic.service.failed_history
-	(*FailedHistoryList)(nil),       // 5: yuhaiin.protos.statistic.service.failed_history_list
-	(*AllHistory)(nil),              // 6: yuhaiin.protos.statistic.service.all_history
-	(*AllHistoryList)(nil),          // 7: yuhaiin.protos.statistic.service.all_history_list
-	(*statistic.Connection)(nil),    // 8: yuhaiin.statistic.connection
-	(*timestamppb.Timestamp)(nil),   // 9: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),           // 10: google.protobuf.Empty
+	(*Counter)(nil),                 // 0: yuhaiin.protos.statistic.service.counter
+	(*TotalFlow)(nil),               // 1: yuhaiin.protos.statistic.service.total_flow
+	(*NotifyData)(nil),              // 2: yuhaiin.protos.statistic.service.notify_data
+	(*NotifyNewConnections)(nil),    // 3: yuhaiin.protos.statistic.service.notify_new_connections
+	(*NotifyRemoveConnections)(nil), // 4: yuhaiin.protos.statistic.service.notify_remove_connections
+	(*FailedHistory)(nil),           // 5: yuhaiin.protos.statistic.service.failed_history
+	(*FailedHistoryList)(nil),       // 6: yuhaiin.protos.statistic.service.failed_history_list
+	(*AllHistory)(nil),              // 7: yuhaiin.protos.statistic.service.all_history
+	(*AllHistoryList)(nil),          // 8: yuhaiin.protos.statistic.service.all_history_list
+	nil,                             // 9: yuhaiin.protos.statistic.service.total_flow.CountersEntry
+	(*statistic.Connection)(nil),    // 10: yuhaiin.statistic.connection
+	(*timestamppb.Timestamp)(nil),   // 11: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),           // 12: google.protobuf.Empty
 }
 var file_statistic_grpc_config_proto_depIdxs = []int32{
-	0,  // 0: yuhaiin.protos.statistic.service.notify_data.total_flow:type_name -> yuhaiin.protos.statistic.service.total_flow
-	2,  // 1: yuhaiin.protos.statistic.service.notify_data.notify_new_connections:type_name -> yuhaiin.protos.statistic.service.notify_new_connections
-	3,  // 2: yuhaiin.protos.statistic.service.notify_data.notify_remove_connections:type_name -> yuhaiin.protos.statistic.service.notify_remove_connections
-	8,  // 3: yuhaiin.protos.statistic.service.notify_new_connections.connections:type_name -> yuhaiin.statistic.connection
-	9,  // 4: yuhaiin.protos.statistic.service.failed_history.time:type_name -> google.protobuf.Timestamp
-	4,  // 5: yuhaiin.protos.statistic.service.failed_history_list.objects:type_name -> yuhaiin.protos.statistic.service.failed_history
-	8,  // 6: yuhaiin.protos.statistic.service.all_history.connection:type_name -> yuhaiin.statistic.connection
-	9,  // 7: yuhaiin.protos.statistic.service.all_history.time:type_name -> google.protobuf.Timestamp
-	6,  // 8: yuhaiin.protos.statistic.service.all_history_list.objects:type_name -> yuhaiin.protos.statistic.service.all_history
-	10, // 9: yuhaiin.protos.statistic.service.connections.conns:input_type -> google.protobuf.Empty
-	3,  // 10: yuhaiin.protos.statistic.service.connections.close_conn:input_type -> yuhaiin.protos.statistic.service.notify_remove_connections
-	10, // 11: yuhaiin.protos.statistic.service.connections.total:input_type -> google.protobuf.Empty
-	10, // 12: yuhaiin.protos.statistic.service.connections.notify:input_type -> google.protobuf.Empty
-	10, // 13: yuhaiin.protos.statistic.service.connections.failed_history:input_type -> google.protobuf.Empty
-	10, // 14: yuhaiin.protos.statistic.service.connections.all_history:input_type -> google.protobuf.Empty
-	2,  // 15: yuhaiin.protos.statistic.service.connections.conns:output_type -> yuhaiin.protos.statistic.service.notify_new_connections
-	10, // 16: yuhaiin.protos.statistic.service.connections.close_conn:output_type -> google.protobuf.Empty
-	0,  // 17: yuhaiin.protos.statistic.service.connections.total:output_type -> yuhaiin.protos.statistic.service.total_flow
-	1,  // 18: yuhaiin.protos.statistic.service.connections.notify:output_type -> yuhaiin.protos.statistic.service.notify_data
-	5,  // 19: yuhaiin.protos.statistic.service.connections.failed_history:output_type -> yuhaiin.protos.statistic.service.failed_history_list
-	7,  // 20: yuhaiin.protos.statistic.service.connections.all_history:output_type -> yuhaiin.protos.statistic.service.all_history_list
-	15, // [15:21] is the sub-list for method output_type
-	9,  // [9:15] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	9,  // 0: yuhaiin.protos.statistic.service.total_flow.counters:type_name -> yuhaiin.protos.statistic.service.total_flow.CountersEntry
+	1,  // 1: yuhaiin.protos.statistic.service.notify_data.total_flow:type_name -> yuhaiin.protos.statistic.service.total_flow
+	3,  // 2: yuhaiin.protos.statistic.service.notify_data.notify_new_connections:type_name -> yuhaiin.protos.statistic.service.notify_new_connections
+	4,  // 3: yuhaiin.protos.statistic.service.notify_data.notify_remove_connections:type_name -> yuhaiin.protos.statistic.service.notify_remove_connections
+	10, // 4: yuhaiin.protos.statistic.service.notify_new_connections.connections:type_name -> yuhaiin.statistic.connection
+	11, // 5: yuhaiin.protos.statistic.service.failed_history.time:type_name -> google.protobuf.Timestamp
+	5,  // 6: yuhaiin.protos.statistic.service.failed_history_list.objects:type_name -> yuhaiin.protos.statistic.service.failed_history
+	10, // 7: yuhaiin.protos.statistic.service.all_history.connection:type_name -> yuhaiin.statistic.connection
+	11, // 8: yuhaiin.protos.statistic.service.all_history.time:type_name -> google.protobuf.Timestamp
+	7,  // 9: yuhaiin.protos.statistic.service.all_history_list.objects:type_name -> yuhaiin.protos.statistic.service.all_history
+	0,  // 10: yuhaiin.protos.statistic.service.total_flow.CountersEntry.value:type_name -> yuhaiin.protos.statistic.service.counter
+	12, // 11: yuhaiin.protos.statistic.service.connections.conns:input_type -> google.protobuf.Empty
+	4,  // 12: yuhaiin.protos.statistic.service.connections.close_conn:input_type -> yuhaiin.protos.statistic.service.notify_remove_connections
+	12, // 13: yuhaiin.protos.statistic.service.connections.total:input_type -> google.protobuf.Empty
+	12, // 14: yuhaiin.protos.statistic.service.connections.notify:input_type -> google.protobuf.Empty
+	12, // 15: yuhaiin.protos.statistic.service.connections.failed_history:input_type -> google.protobuf.Empty
+	12, // 16: yuhaiin.protos.statistic.service.connections.all_history:input_type -> google.protobuf.Empty
+	3,  // 17: yuhaiin.protos.statistic.service.connections.conns:output_type -> yuhaiin.protos.statistic.service.notify_new_connections
+	12, // 18: yuhaiin.protos.statistic.service.connections.close_conn:output_type -> google.protobuf.Empty
+	1,  // 19: yuhaiin.protos.statistic.service.connections.total:output_type -> yuhaiin.protos.statistic.service.total_flow
+	2,  // 20: yuhaiin.protos.statistic.service.connections.notify:output_type -> yuhaiin.protos.statistic.service.notify_data
+	6,  // 21: yuhaiin.protos.statistic.service.connections.failed_history:output_type -> yuhaiin.protos.statistic.service.failed_history_list
+	8,  // 22: yuhaiin.protos.statistic.service.connections.all_history:output_type -> yuhaiin.protos.statistic.service.all_history_list
+	17, // [17:23] is the sub-list for method output_type
+	11, // [11:17] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_statistic_grpc_config_proto_init() }
@@ -1178,7 +1317,7 @@ func file_statistic_grpc_config_proto_init() {
 	if File_statistic_grpc_config_proto != nil {
 		return
 	}
-	file_statistic_grpc_config_proto_msgTypes[1].OneofWrappers = []any{
+	file_statistic_grpc_config_proto_msgTypes[2].OneofWrappers = []any{
 		(*notifyData_TotalFlow)(nil),
 		(*notifyData_NotifyNewConnections)(nil),
 		(*notifyData_NotifyRemoveConnections)(nil),
@@ -1189,7 +1328,7 @@ func file_statistic_grpc_config_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_statistic_grpc_config_proto_rawDesc), len(file_statistic_grpc_config_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

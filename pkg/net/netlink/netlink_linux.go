@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -82,13 +83,7 @@ func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPor
 }
 
 func resolveProcessNameByProcSearch(inode, uid uint32) (string, uint, error) {
-	procDir, err := os.Open("/proc")
-	if err != nil {
-		return "", 0, err
-	}
-	defer procDir.Close()
-
-	pids, err := procDir.Readdirnames(-1)
+	pids, err := readDirSortByModTime("/proc")
 	if err != nil {
 		return "", 0, err
 	}
@@ -125,13 +120,7 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, uint, error) {
 		_, _ = pathBuffer.WriteString("/fd/")
 		fdsPrefixLength := pathBuffer.Len()
 
-		fdDir, err := os.Open(pathBuffer.String())
-		if err != nil {
-			continue
-		}
-
-		fds, err := fdDir.Readdirnames(-1)
-		fdDir.Close()
+		fds, err := readDirSortByModTime(pathBuffer.String())
 		if err != nil {
 			continue
 		}
@@ -153,4 +142,37 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, uint, error) {
 	}
 
 	return "", 0, fmt.Errorf("inode %d of uid %d not found", inode, uid)
+}
+
+func readDirSortByModTime(dir string) ([]string, error) {
+	files, err := os.Open(dir)
+	if err != nil {
+		return nil, err
+	}
+	defer files.Close()
+
+	dirs, err := files.ReadDir(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	slices.SortFunc(dirs, func(a, b os.DirEntry) int {
+		ainfo, err := a.Info()
+		if err != nil {
+			return -1
+		}
+		binfo, err := b.Info()
+		if err != nil {
+			return -1
+		}
+
+		return binfo.ModTime().Compare(ainfo.ModTime())
+	})
+
+	dds := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		dds = append(dds, dir.Name())
+	}
+
+	return dds, nil
 }

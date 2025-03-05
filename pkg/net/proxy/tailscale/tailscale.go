@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"net/netip"
 	"path"
+	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -21,8 +24,20 @@ import (
 	"tailscale.com/envknob"
 	"tailscale.com/net/dnscache"
 	"tailscale.com/net/netns"
+	"tailscale.com/net/tsdial"
 	"tailscale.com/tsnet"
 )
+
+var (
+	dnsmapField, dnsmapFieldOk = reflect.TypeOf(&tsdial.Dialer{}).Elem().FieldByName("dns")
+	dnsmapOffset               = dnsmapField.Offset
+)
+
+func init() {
+	if !dnsmapFieldOk {
+		panic("dnsmapField not found")
+	}
+}
 
 var Mux atomic.Pointer[http.ServeMux]
 
@@ -187,6 +202,31 @@ func (t *Tailscale) waitAddr(ctx context.Context, tsnet *tsnet.Server) (netip.Ad
 	}
 }
 
+func (t *Tailscale) resolveAddr(dialer *tsnet.Server, addr netapi.Address) (netip.AddrPort, error) {
+	if !addr.IsFqdn() {
+		ad, _ := netip.AddrFromSlice(addr.(netapi.IPAddress).IP())
+		return netip.AddrPortFrom(ad, addr.Port()), nil
+	}
+
+	dd := dialer.Sys().Dialer.Get()
+	dnsmap := *(*map[string]netip.Addr)(unsafe.Pointer(uintptr(unsafe.Pointer(dd)) + dnsmapOffset))
+
+	if dnsmap == nil {
+		return netip.AddrPort{}, fmt.Errorf("tailscale dns map is nil")
+	}
+
+	ad, ok := dnsmap[strings.ToLower(addr.Hostname())]
+	if !ok {
+		return netip.AddrPort{}, fmt.Errorf("tailscale dns map missing %s", addr.Hostname())
+	}
+
+	naddr := netip.AddrPortFrom(ad, addr.Port())
+
+	log.Info("resolve dns", "addr", naddr, "domain", addr, "net", addr.Network())
+
+	return naddr, nil
+}
+
 func (t *Tailscale) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	dialer, err := t.init(ctx)
 	if err != nil {
@@ -204,7 +244,12 @@ func (t *Tailscale) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 		return nil, err
 	}
 
-	conn, err := dialer.Dial(ctx, "tcp", addr.String())
+	nip, err := t.resolveAddr(dialer, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := dialer.Sys().Dialer.Get().NetstackDialTCP(ctx, nip)
 	if err != nil {
 		return nil, err
 	}
@@ -259,8 +304,13 @@ func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 		return nil, err
 	}
 
+	nip, err := t.resolveAddr(dialer, addr)
+	if err != nil {
+		return nil, err
+	}
+
 	// tailscale tsnet only support dial udp, listenPacket will error with "endpoint is in invalid state"
-	conn, err := dialer.Dial(ctx, "udp", addr.String())
+	conn, err := dialer.Sys().Dialer.Get().NetstackDialUDP(ctx, nip)
 	if err != nil {
 		return nil, err
 	}

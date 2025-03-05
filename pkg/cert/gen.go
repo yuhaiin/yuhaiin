@@ -161,6 +161,14 @@ func (c *ServerCert) PrivateKeyBytes() ([]byte, error) {
 	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), nil
 }
 
+func (s *ServerCert) CertBytes() ([]byte, error) {
+	der, err := x509.CreateCertificate(rand.Reader, s.Cert, s.Ca.Cert, s.PrivateKey.Public(), s.Ca.PrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("create server cert failed: %w", err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), nil
+}
+
 func (s *ServerCert) TlsCert() (tls.Certificate, error) {
 	data, err := x509.CreateCertificate(rand.Reader, s.Cert, s.Ca.Cert, s.PrivateKey.Public(), s.Ca.PrivateKey)
 	if err != nil {
