@@ -17,6 +17,7 @@ import (
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"golang.org/x/net/dns/dnsmessage"
 	"google.golang.org/protobuf/proto"
 	"tailscale.com/version"
 )
@@ -77,10 +78,16 @@ func TestTailscale(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		ips, err := r.LookupIP(context.TODO(), "5600g.taild2025.ts.net")
-		assert.NoError(t, err)
+		for range 3 {
+			ips, err := r.Raw(context.TODO(), dnsmessage.Question{
+				Name:  dnsmessage.MustNewName("code-server.taild2025.ts.net."),
+				Type:  65,
+				Class: dnsmessage.ClassINET,
+			})
+			assert.NoError(t, err)
 
-		t.Log(ips)
+			t.Log(ips)
+		}
 	})
 }
 

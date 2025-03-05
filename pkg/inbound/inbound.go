@@ -39,7 +39,7 @@ type Inbound struct {
 	udpChannel chan *netapi.Packet
 }
 
-func NewListener(dnsHandler netapi.DNSServer, dialer netapi.Proxy) *Inbound {
+func NewInbound(dnsHandler netapi.DNSServer, dialer netapi.Proxy) *Inbound {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	l := &Inbound{
@@ -48,6 +48,7 @@ func NewListener(dnsHandler netapi.DNSServer, dialer netapi.Proxy) *Inbound {
 		close:      cancel,
 		udpChannel: make(chan *netapi.Packet, configuration.UDPChannelBufferSize),
 	}
+
 	l.hijackDNS.Store(true)
 	l.fakeip.Store(true)
 

@@ -2,8 +2,6 @@ package pool
 
 import (
 	"io"
-
-	"golang.org/x/exp/constraints"
 )
 
 // Buffer is a buffer like bytes.Buffer that:
@@ -55,7 +53,7 @@ func NewBUfferNoCopy(buf []byte) *Buffer {
 }
 
 // NewBufferSize constructs a new buffer of the given size.
-func NewBufferSize[T constraints.Integer](size T) *Buffer {
+func NewBufferSize[T Integer](size T) *Buffer {
 	b := new(Buffer)
 	if size > 0 {
 		b.buf = b.getBuf(int(size))[:0]

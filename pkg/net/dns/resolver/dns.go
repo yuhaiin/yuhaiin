@@ -356,7 +356,7 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 				defer c.refreshBackground.Delete(req)
 
 				ctx = context.WithoutCancel(ctx)
-				ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
+				ctx, cancel := context.WithTimeout(ctx, configuration.ResolverTimeout)
 				defer cancel()
 
 				_, err := c.raw(ctx, req)
