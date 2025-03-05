@@ -75,14 +75,20 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
 func (d *dnsServer) Close() error {
 	d.cancel()
 
+	var err error
 	if d.udp != nil {
-		d.udp.Close()
-	}
-	if d.tcp != nil {
-		d.tcp.Close()
+		if er := d.udp.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
 	}
 
-	return nil
+	if d.tcp != nil {
+		if er := d.tcp.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
+	}
+
+	return err
 }
 
 func (d *dnsServer) startUDP(listener net.PacketConn) {
@@ -215,7 +221,7 @@ type doData struct {
 }
 
 func (d *dnsServer) do(ctx context.Context, req *doData) error {
-	ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, configuration.ResolverTimeout)
 	defer cancel()
 
 	if req.ForceFakeIP {
@@ -252,7 +258,6 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 		return req.WriteBack(bytes)
 	}
 
-	// TODO
 	// https://www.rfc-editor.org/rfc/rfc1035
 	// rfc1035 4.2.1
 	//

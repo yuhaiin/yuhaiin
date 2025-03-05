@@ -92,9 +92,19 @@ func (c *Connections) Close() error {
 }
 
 func (c *Connections) Total(context.Context, *emptypb.Empty) (*gs.TotalFlow, error) {
+	counters := map[uint64]*gs.Counter{}
+
+	for _, v := range c.connStore.Range {
+		counters[v.Info().GetId()] = gs.Counter_builder{
+			Download: proto.Uint64(v.LoadDownload()),
+			Upload:   proto.Uint64(v.LoadUpload()),
+		}.Build()
+	}
+
 	return (&gs.TotalFlow_builder{
 		Download: proto.Uint64(c.Cache.LoadDownload()),
 		Upload:   proto.Uint64(c.Cache.LoadUpload()),
+		Counters: counters,
 	}).Build(), nil
 }
 
@@ -121,7 +131,11 @@ func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.
 		return nil, err
 	}
 
-	z := &packetConn{con, c.getConnection(ctx, con, addr), c}
+	z := &packetConn{
+		PacketConn: con,
+		info:       c.getConnection(ctx, con, addr),
+		manager:    c,
+	}
 
 	c.storeConnection(z)
 	return z, nil
@@ -229,7 +243,12 @@ func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, 
 		return nil, err
 	}
 
-	z := &conn{con, c.getConnection(ctx, con, addr), c}
+	z := &conn{
+		Conn:    con,
+		info:    c.getConnection(ctx, con, addr),
+		manager: c,
+	}
+
 	c.storeConnection(z)
 	return z, nil
 }

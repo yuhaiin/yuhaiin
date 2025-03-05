@@ -29,6 +29,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/goos"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.etcd.io/bbolt"
@@ -111,18 +112,16 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		{
 			// default interface
 			iface := ""
-			errCount := 0
 
 			var mu sync.RWMutex
 
 			dialer.DefaultInterfaceName = func() string {
-				if !s.GetUseDefaultInterface() {
+				if goos.IsAndroid == 1 || !s.GetUseDefaultInterface() {
 					return s.GetNetInterface()
 				}
 
 				mu.RLock()
 				x := iface
-				ec := errCount
 				mu.RUnlock()
 
 				if x != "" {
@@ -135,19 +134,13 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 					}
 				}
 
-				if ec > 10 {
-					return ""
-				}
-
 				mu.Lock()
 				defer mu.Unlock()
 
 				ifacestr, err := interfaces.DefaultRouteInterface()
 				if err != nil {
 					log.Error("get default interface failed", "error", err)
-					errCount += 1
 				} else {
-					errCount = 0
 					log.Info("use default interface", "interface", ifacestr)
 					iface = ifacestr
 				}
@@ -208,7 +201,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	// make dns flow across all proxy chain
 	configuration.ProxyChain.Set(fakedns)
 	// inbound server
-	inbounds := AddCloser(closers, "inbound_listener", inbound.NewListener(dnsServer, fakedns))
+	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(dnsServer, fakedns))
 	// tools
 	tools := tools.NewTools(so.ChoreConfig)
 	mux := http.NewServeMux()

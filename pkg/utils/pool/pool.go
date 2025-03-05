@@ -8,8 +8,6 @@ import (
 	"net"
 	"net/http/httputil"
 	"sync"
-
-	"golang.org/x/exp/constraints"
 )
 
 const MaxSegmentSize = math.MaxUint16
@@ -25,8 +23,8 @@ type Pool interface {
 
 var DefaultPool Pool = &pool{}
 
-func GetBytes[T constraints.Integer](size T) []byte { return DefaultPool.GetBytes(int(size)) }
-func PutBytes(b []byte)                             { DefaultPool.PutBytes(b) }
+func GetBytes[T Integer](size T) []byte { return DefaultPool.GetBytes(int(size)) }
+func PutBytes(b []byte)                 { DefaultPool.PutBytes(b) }
 
 func Clone(b []byte) []byte {
 	v := GetBytes(len(b))
@@ -211,4 +209,8 @@ func BinaryWriteUint64(w io.Writer, order binary.ByteOrder, v uint64) error {
 
 	_, err := w.Write(buf)
 	return err
+}
+
+type Integer interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
 }

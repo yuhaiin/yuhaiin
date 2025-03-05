@@ -7,9 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"runtime"
-	"runtime/pprof"
 	"strings"
 	"syscall"
 
@@ -19,7 +17,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
-	ypprof "github.com/Asutorufa/yuhaiin/pkg/pprof"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -33,7 +30,7 @@ func run(args []string) error {
 	password := flag.String("p", "", "password")
 	path := flag.String("path", configuration.DataDir.Load(), "save data path")
 	webdir := flag.String("eweb", "", "external web page")
-	pprof := flag.Bool("pgo", false, "enables CPU profiling")
+	// pprof := flag.Bool("pgo", false, "enables CPU profiling")
 	if err := flag.Parse(args); err != nil {
 		return err
 	}
@@ -80,13 +77,13 @@ func run(args []string) error {
 		}
 	}()
 
-	if *pprof {
-		if close, err := StartCPUProfile(*path); err != nil {
-			log.Error("start cpu profile error", "err", err)
-		} else {
-			defer close()
-		}
-	}
+	// if *pprof {
+	// 	if close, err := StartCPUProfile(*path); err != nil {
+	// 		log.Error("start cpu profile error", "err", err)
+	// 	} else {
+	// 		defer close()
+	// 	}
+	// }
 
 	errChan := make(chan error)
 
@@ -156,33 +153,33 @@ func (processDumperImpl) ProcessName(network string, src, dst netapi.Address) (n
 	return netlink.FindProcessName(network, ip, src.Port(), to, dst.Port())
 }
 
-func StartCPUProfile(path string) (func(), error) {
-	pgoFile := filepath.Join(path, "yuhaiin.pgo")
-	previousFile := filepath.Join(path, "previous.pgo")
-	err := ypprof.MergePgoTo([]string{pgoFile, previousFile}, previousFile)
-	if err != nil {
-		log.Error("merge pgo error", "err", err)
-	}
+// func StartCPUProfile(path string) (func(), error) {
+// 	pgoFile := filepath.Join(path, "yuhaiin.pgo")
+// 	previousFile := filepath.Join(path, "previous.pgo")
+// 	err := ypprof.MergePgoTo([]string{pgoFile, previousFile}, previousFile)
+// 	if err != nil {
+// 		log.Error("merge pgo error", "err", err)
+// 	}
 
-	f, err := os.Create(pgoFile)
-	if err != nil {
-		return nil, err
-	}
+// 	f, err := os.Create(pgoFile)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	// runtime.SetCPUProfileRate(100)
-	if err := pprof.StartCPUProfile(f); err != nil {
-		f.Close()
-		return nil, err
-	}
+// 	// runtime.SetCPUProfileRate(100)
+// 	if err := pprof.StartCPUProfile(f); err != nil {
+// 		f.Close()
+// 		return nil, err
+// 	}
 
-	log.Info("start cpu profiling")
+// 	log.Info("start cpu profiling")
 
-	return func() {
-		pprof.StopCPUProfile()
-		f.Close() // error handling omitted for example
-		err := ypprof.MergePgoTo([]string{pgoFile, previousFile}, previousFile)
-		if err != nil {
-			log.Error("merge pgo error", "err", err)
-		}
-	}, nil
-}
+// 	return func() {
+// 		pprof.StopCPUProfile()
+// 		f.Close() // error handling omitted for example
+// 		err := ypprof.MergePgoTo([]string{pgoFile, previousFile}, previousFile)
+// 		if err != nil {
+// 			log.Error("merge pgo error", "err", err)
+// 		}
+// 	}, nil
+// }

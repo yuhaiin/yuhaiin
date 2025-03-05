@@ -98,19 +98,6 @@ func (p *UDPPacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
 			return 0, err
 		}
 
-		// _, file, line, _ := runtime.Caller(2)
-		// _, file3, line3, _ := runtime.Caller(3)
-		// _, file2, line2, _ := runtime.Caller(4)
-		// log.Info("---------------------------------direct proxy dns",
-		// 	"fqdn", a.String(),
-		// 	"skip", netapi.GetContext(p.ctx).Resolver.SkipResolve,
-		// 	"mode", netapi.GetContext(p.ctx).Mode,
-		// 	"type", reflect.TypeOf(addr),
-		// 	"call from", fmt.Sprintf("%s:%d", file, line),
-		// 	"call 3", fmt.Sprintf("%s:%d", file3, line3),
-		// 	"call 2", fmt.Sprintf("%s:%d", file2, line2),
-		// )
-
 		ctx, cancel := context.WithTimeout(p.ctx, time.Second*5)
 		defer cancel()
 		udpAddr, err = dialer.ResolveUDPAddr(ctx, a)
