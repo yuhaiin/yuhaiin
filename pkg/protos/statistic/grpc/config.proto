@@ -19,9 +19,15 @@ service connections {
   rpc all_history(google.protobuf.Empty) returns (all_history_list);
 }
 
+message counter {
+  uint64 download = 1 [ json_name = "download" ];
+  uint64 upload = 2 [ json_name = "upload" ];
+}
+
 message total_flow {
   uint64 download = 1 [ json_name = "download" ];
   uint64 upload = 2 [ json_name = "upload" ];
+  map<uint64, counter> counters = 3 [ json_name = "counters" ];
 }
 
 message notify_data {

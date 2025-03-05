@@ -147,16 +147,24 @@ func (f *flusher) Write(b []byte) (int, error) {
 	return n, err
 }
 
-func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	c1, c2 := pipe.Pipe()
+
+	c2.SetLocalAddr(s.Addr())
+	c2.SetRemoteAddr(&addr{r.RemoteAddr, fmt.Sprint(s.id.Generate())})
+
+	select {
+	case <-r.Context().Done():
+		return
+	case <-s.closedCtx.Done():
+		return
+	case s.connChan <- c2:
+	}
 
 	go func() {
 		_, err := relay.Copy(c1, &bodyReader{r.Body})
@@ -172,32 +180,9 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w: w,
 	}
 
-	fushered := make(chan struct{})
-	defer func() { <-fushered }()
-	go func() {
-		defer close(fushered)
-		_, err := relay.Copy(flusher, c1)
-		if err != nil && err != io.EOF && err != io.ErrClosedPipe {
-			log.Error("flush data to client failed", "err", err)
-		}
-	}()
-
-	c2.SetLocalAddr(h.Addr())
-	c2.SetRemoteAddr(&addr{r.RemoteAddr, fmt.Sprint(h.id.Generate())})
-	c2.SetOnClose(cancel)
-
-	select {
-	case <-r.Context().Done():
-		return
-	case <-h.closedCtx.Done():
-		return
-	case h.connChan <- c2:
-	}
-
-	select {
-	case <-r.Context().Done():
-	case <-h.closedCtx.Done():
-	case <-ctx.Done():
+	_, err := relay.Copy(flusher, c1)
+	if err != nil && err != io.EOF && err != io.ErrClosedPipe {
+		log.Error("flush data to client failed", "err", err)
 	}
 }
 
