@@ -15,7 +15,6 @@ import (
 	"os"
 	"runtime"
 	"sync"
-	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -56,7 +55,7 @@ func NewClient(conf *protocol.Wireguard, p netapi.Proxy) (netapi.Proxy, error) {
 			}
 			return nt.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 		},
-		Cache: lru.NewSyncLru(lru.WithCapacity[unique.Handle[string], net.IP](512)),
+		Cache: lru.NewSyncLru(lru.WithCapacity[string, net.IP](512)),
 		Avg:   dialer.NewAvg(),
 	}
 

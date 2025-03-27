@@ -85,9 +85,9 @@ func (s *Route) apply(path string, c *bypass.Config, force bool) {
 
 type RuleController struct {
 	gc.UnimplementedBypassServer
-	mu    sync.RWMutex
-	route *Route
 	db    config.DB
+	route *Route
+	mu    sync.RWMutex
 }
 
 func NewRuleController(db config.DB, r *Route) *RuleController {

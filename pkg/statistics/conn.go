@@ -22,10 +22,10 @@ var _ connection = (*conn)(nil)
 type conn struct {
 	net.Conn
 
-	counter
-
 	info    *statistic.Connection
 	manager *Connections
+
+	counter
 }
 
 func (s *conn) Close() error {
@@ -54,10 +54,10 @@ var _ connection = (*packetConn)(nil)
 type packetConn struct {
 	net.PacketConn
 
-	counter
-
 	info    *statistic.Connection
 	manager *Connections
+
+	counter
 }
 
 func (s *packetConn) Info() *statistic.Connection { return s.info }

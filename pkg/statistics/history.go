@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net"
 	"sync"
-	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -17,9 +16,9 @@ import (
 )
 
 type failedHistoryKey struct {
-	protocol string
 	host     string
 	process  string
+	protocol statistic.Type
 }
 
 type failedHistoryEntry struct {
@@ -28,8 +27,7 @@ type failedHistoryEntry struct {
 }
 
 type FailedHistory struct {
-	store       *lru.SyncLru[failedHistoryKey, *failedHistoryEntry]
-	dumpProcess bool
+	store *lru.SyncLru[failedHistoryKey, *failedHistoryEntry]
 }
 
 func NewFailedHistory() *FailedHistory {
@@ -40,16 +38,12 @@ func NewFailedHistory() *FailedHistory {
 	}
 }
 
-func (h *FailedHistory) Push(ctx context.Context, err error, protocol string, host netapi.Address) {
+func (h *FailedHistory) Push(ctx context.Context, err error, protocol statistic.Type, host netapi.Address) {
 	if err == nil || netapi.IsBlockError(err) {
 		return
 	}
 
 	store := netapi.GetContext(ctx)
-
-	if !h.dumpProcess && store.Process != "" {
-		h.dumpProcess = true
-	}
 
 	de := &netapi.DialError{}
 	if errors.As(err, &de) && de.Err != nil {
@@ -61,15 +55,15 @@ func (h *FailedHistory) Push(ctx context.Context, err error, protocol string, ho
 		err = ne.Err
 	}
 
-	key := failedHistoryKey{protocol, getRealAddr(store, host), store.Process}
+	key := failedHistoryKey{getRealAddr(store, host), store.GetProcessName(), protocol}
 	x, ok := h.store.LoadOrAdd(key, func() *failedHistoryEntry {
 		return &failedHistoryEntry{
 			FailedHistory: (&gs.FailedHistory_builder{
-				Protocol:    proto.String(protocol),
+				Protocol:    &protocol,
 				Host:        proto.String(getRealAddr(store, host)),
 				Error:       proto.String(err.Error()),
 				Time:        timestamppb.Now(),
-				Process:     proto.String(store.Process),
+				Process:     proto.String(store.GetProcessName()),
 				FailedCount: proto.Uint64(1),
 			}).Build(),
 		}
@@ -88,18 +82,22 @@ func (h *FailedHistory) Push(ctx context.Context, err error, protocol string, ho
 
 func (h *FailedHistory) Get() *gs.FailedHistoryList {
 	var objects []*gs.FailedHistory
+	dumpProcess := false
 	for _, v := range h.store.Range {
 		objects = append(objects, v.FailedHistory)
+		if !dumpProcess && v.FailedHistory.GetProcess() != "" {
+			dumpProcess = true
+		}
 	}
+
 	return proto.Clone(gs.FailedHistoryList_builder{
 		Objects:            objects,
-		DumpProcessEnabled: proto.Bool(h.dumpProcess),
+		DumpProcessEnabled: proto.Bool(dumpProcess),
 	}.Build()).(*gs.FailedHistoryList)
 }
 
 type History struct {
-	store       *lru.SyncLru[failedHistoryKey, *historyEntry]
-	dumpProcess atomic.Bool
+	store *lru.SyncLru[failedHistoryKey, *historyEntry]
 }
 
 type historyEntry struct {
@@ -116,18 +114,13 @@ func NewHistory() *History {
 }
 
 func (h *History) Push(c *statistic.Connection) {
-	key := failedHistoryKey{c.GetType().GetConnType().String(), c.GetAddr(), c.GetProcess()}
+	key := failedHistoryKey{c.GetAddr(), c.GetProcess(), c.GetType().GetConnType()}
 
-	if !h.dumpProcess.Load() && key.process != "" {
-		h.dumpProcess.Store(true)
-	}
-
-	var count uint64 = 1
 	x, ok := h.store.LoadOrAdd(key, func() *historyEntry {
 		return &historyEntry{
 			AllHistory: (&gs.AllHistory_builder{
 				Connection: c,
-				Count:      &count,
+				Count:      proto.Uint64(1),
 				Time:       timestamppb.Now(),
 			}).Build(),
 		}
@@ -145,12 +138,17 @@ func (h *History) Push(c *statistic.Connection) {
 }
 
 func (h *History) Get() *gs.AllHistoryList {
+	dumpProcess := false
 	var objects []*gs.AllHistory
 	for _, v := range h.store.Range {
 		objects = append(objects, v.AllHistory)
+		if !dumpProcess && v.GetConnection().GetProcess() != "" {
+			dumpProcess = true
+		}
 	}
+
 	return proto.Clone(gs.AllHistoryList_builder{
 		Objects:            objects,
-		DumpProcessEnabled: proto.Bool(h.dumpProcess.Load()),
+		DumpProcessEnabled: proto.Bool(dumpProcess),
 	}.Build()).(*gs.AllHistoryList)
 }

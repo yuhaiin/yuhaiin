@@ -21,12 +21,12 @@ var refreshTimeout = int64(10 * time.Minute)
 
 type Client struct {
 	netapi.Proxy
+	iface        string
 	addrs        []netapi.Address
+	errCount     durationCounter
 	refreshTime  atomic.Int64
 	index        atomic.Uint32
-	errCount     durationCounter
 	nonBootstrap bool
-	iface        string
 }
 
 func init() {

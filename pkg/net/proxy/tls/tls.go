@@ -140,10 +140,10 @@ func NewServer(c *listener.Tls, ii netapi.Listener) (netapi.Listener, error) {
 }
 
 type ServerCert struct {
-	servername string
-	mu         sync.RWMutex
 	cert       *tls.Certificate
 	ca         *cert.Ca
+	servername string
+	mu         sync.RWMutex
 }
 
 func (s *ServerCert) Cert() (*tls.Certificate, error) {

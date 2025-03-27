@@ -36,13 +36,12 @@ func (n *notifierEntry) Context() context.Context {
 }
 
 type notify struct {
-	closed atomic.Bool
+	notifyTrigger chan struct{}
+	notifyStore   *notifyStore
+	notifier      syncmap.SyncMap[uint64, *notifierEntry]
 
-	notifier syncmap.SyncMap[uint64, *notifierEntry]
-
-	notifyTrigger  chan struct{}
-	notifyStore    *notifyStore
 	notifierIDSeed id.IDGenerator
+	closed         atomic.Bool
 }
 
 func newNotify() *notify {
@@ -153,10 +152,10 @@ func (n *notify) Close() error {
 }
 
 type notifyStore struct {
-	mu          sync.RWMutex
-	length      uint64
 	removeStore *list.Set[uint64]
 	store       map[uint64]connection
+	length      uint64
+	mu          sync.RWMutex
 }
 
 func newNotifyStore() *notifyStore {

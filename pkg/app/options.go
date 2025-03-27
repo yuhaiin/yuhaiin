@@ -37,10 +37,6 @@ import (
 )
 
 type AppInstance struct {
-	Mux *http.ServeMux
-	*StartOptions
-	closers closers
-
 	Node           gn.NodeServer
 	Tools          gt.ToolsServer
 	Subscribe      gn.SubscribeServer
@@ -51,6 +47,9 @@ type AppInstance struct {
 	Tag            gn.TagServer
 	// TODO deprecate configService, new service chore
 	Setting gc.ConfigServiceServer
+	Mux     *http.ServeMux
+	*StartOptions
+	closers closers
 }
 
 type closers struct {
@@ -141,17 +140,18 @@ func (a *AppInstance) Close() error {
 }
 
 type StartOptions struct {
-	ConfigPath     string
-	Auth           *Auth
 	BypassConfig   pc.DB
 	ResolverConfig pc.DB
 	InboundConfig  pc.DB
 	ChoreConfig    pc.DB
 
 	ProcessDumper netapi.ProcessDumper
-	GRPCServer    *grpc.Server
 
-	Cache cache.RecursionCache
+	Cache      cache.RecursionCache
+	Auth       *Auth
+	GRPCServer *grpc.Server
+
+	ConfigPath string
 }
 
 type Auth struct {

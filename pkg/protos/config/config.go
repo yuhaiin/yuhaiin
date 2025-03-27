@@ -20,8 +20,8 @@ type DB interface {
 var _ DB = (*JsonDB)(nil)
 
 type JsonDB struct {
-	mu sync.RWMutex
 	db *jsondb.DB[*Setting]
+	mu sync.RWMutex
 }
 
 func NewJsonDB(path string) *JsonDB {

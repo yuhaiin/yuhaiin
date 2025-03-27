@@ -19,9 +19,9 @@ import (
 )
 
 type InboundCtr struct {
+	gc.UnimplementedInboundServer
 	db      pc.DB
 	inbound *Inbound
-	gc.UnimplementedInboundServer
 }
 
 func NewInboundCtr(s pc.DB, i *Inbound) *InboundCtr {

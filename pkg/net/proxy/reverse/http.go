@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -29,6 +30,10 @@ func NewHTTPServer(o *listener.ReverseHttp, ii netapi.Listener, handler netapi.H
 	lis, err := ii.Stream(context.TODO())
 	if err != nil {
 		return nil, err
+	}
+
+	if o.GetTls() != nil {
+		o.GetTls().SetEnable(true)
 	}
 
 	type remoteKey struct{}
@@ -60,6 +65,8 @@ func NewHTTPServer(o *listener.ReverseHttp, ii netapi.Listener, handler netapi.H
 			handler.HandleStream(sm)
 			return remote, nil
 		},
+
+		TLSClientConfig: tls.ParseTLSConfig(o.GetTls()),
 	}
 
 	go func() {

@@ -3,7 +3,6 @@ package dialer
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"time"
 
@@ -29,12 +28,7 @@ func dialHappyEyeballs(ctx context.Context, addr netapi.Address) (net.Conn, erro
 		return nil, err
 	}
 
-	domainAddr, ok := addr.(netapi.DomainAddress)
-	if !ok {
-		return nil, fmt.Errorf("unexpected address type %T", addr)
-	}
-
-	lastIP, ok := happyEyeballsCache.Load(domainAddr.UniqueHostname())
+	lastIP, ok := happyEyeballsCache.Load(addr.Hostname())
 
 	tcpAddress := make([]*net.TCPAddr, 0, len(ips))
 	for _, i := range ips {
@@ -54,7 +48,7 @@ func dialHappyEyeballs(ctx context.Context, addr netapi.Address) (net.Conn, erro
 
 	connAddr, ok := conn.RemoteAddr().(*net.TCPAddr)
 	if ok {
-		happyEyeballsCache.Add(domainAddr.UniqueHostname(), connAddr.IP)
+		happyEyeballsCache.Add(addr.Hostname(), connAddr.IP)
 	}
 
 	return conn, nil
