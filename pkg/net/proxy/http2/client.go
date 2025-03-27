@@ -137,15 +137,15 @@ func (c *Client) Close() error {
 }
 
 type clientConnEntry struct {
-	id    uint64
 	count *atomic.Uint32
+	id    uint64
 }
 type clientConnectionPool struct {
-	mu          sync.Mutex
-	concurrency int
 	t           *http2.Transport
-	count       atomic.Uint64
 	store       map[*http2.ClientConn]clientConnEntry
+	concurrency int
+	count       atomic.Uint64
+	mu          sync.Mutex
 }
 
 func newClientConnectionPool(t *http2.Transport, concurrency int) *clientConnectionPool {

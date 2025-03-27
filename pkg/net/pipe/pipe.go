@@ -14,9 +14,9 @@ import (
 
 // PipeDeadline is an abstraction for handling timeouts.
 type PipeDeadline struct {
-	mu     sync.Mutex // Guards timer and cancel
 	timer  *time.Timer
 	cancel chan struct{} // Must be non-nil
+	mu     sync.Mutex    // Guards timer and cancel
 }
 
 func MakePipeDeadline() PipeDeadline {
@@ -86,7 +86,6 @@ func (pipeAddr) Network() string { return "pipe" }
 func (pipeAddr) String() string  { return "pipe" }
 
 type Conn struct {
-	wrMu sync.Mutex // Serialize Write operations
 
 	// Used by local Read to interact with remote Write.
 	// Successful receive on rdRx is always followed by send on rdTx.
@@ -98,20 +97,23 @@ type Conn struct {
 	wrTx chan<- []byte
 	wrRx <-chan int
 
-	once            sync.Once // Protects closing localDone
 	localDone       chan struct{}
 	remoteDone      <-chan struct{}
-	writeOnce       sync.Once
 	localWriteDone  chan struct{}
 	remoteWriteDone <-chan struct{}
-
-	readDeadline  PipeDeadline
-	writeDeadline PipeDeadline
 
 	localAddr  atomic.Pointer[net.Addr]
 	remoteAddr atomic.Pointer[net.Addr]
 
 	onClose atomic.Pointer[func()]
+
+	readDeadline  PipeDeadline
+	writeDeadline PipeDeadline
+
+	once      sync.Once // Protects closing localDone
+	writeOnce sync.Once
+	wrMu      sync.Mutex // Serialize Write operations
+
 }
 
 // Pipe creates a synchronous, in-memory, full duplex

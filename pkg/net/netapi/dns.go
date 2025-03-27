@@ -37,8 +37,8 @@ func (e ErrorResolver) Raw(_ context.Context, req dnsmessage.Question) (dnsmessa
 // net.Dialer.Dial to send DNS queries over Bootstrap.
 type dnsConn struct {
 	ctx      context.Context
-	rbuf     bytes.Buffer
 	resolver Resolver
+	rbuf     bytes.Buffer
 }
 
 func NewDnsConn(ctx context.Context, resolver Resolver) *dnsConn {

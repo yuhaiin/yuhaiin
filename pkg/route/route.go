@@ -89,7 +89,7 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 	var addr string
 	if store.SystemDialer {
 		if host.IsFqdn() {
-			store.DomainString = host.String()
+			store.SetDomainString(host.String())
 			taddr, err := dialer.ResolveTCPAddr(ctx, host)
 			if err != nil {
 				return nil, netapi.NewDialError("tcp", err, host)
@@ -120,7 +120,6 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 
 	return conn, nil
 }
-
 func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
 	store := netapi.GetContext(ctx)
 
@@ -218,20 +217,20 @@ func (s *Route) skipResolve(mode bypass.ModeEnum) bool {
 }
 
 type routeResult struct {
-	Mode   bypass.ModeEnum
 	Addr   netapi.Address
 	Reason string
+	Mode   bypass.ModeEnum
 }
 
 type Object struct {
+	Host        netapi.Address
 	Ctx         *netapi.Context
 	NetowrkMode bypass.Mode
-	Host        netapi.Address
 }
 
 type matcher struct {
-	Name string
 	Func func(*Object) bypass.ModeEnum
+	Name string
 }
 
 func (s *Route) AddMatcher(name string, f func(*Object) bypass.ModeEnum) {
@@ -254,7 +253,7 @@ func (s *Route) addMatchers() {
 		var mode bypass.ModeEnum
 		// get mode from bypass rule
 		o.Ctx.Resolver.Resolver = s.r.Get("", "")
-		if o.Ctx.Hosts == nil && !o.Host.IsFqdn() && o.Ctx.SniffHost() != "" {
+		if o.Ctx.GetHosts() == nil && !o.Host.IsFqdn() && o.Ctx.SniffHost() != "" {
 			// reason = "sniff host trie mode"
 			mode = s.Search(o.Ctx, netapi.ParseAddressPort(o.Host.Network(), o.Ctx.SniffHost(), o.Host.Port()))
 		} else {
@@ -313,15 +312,15 @@ func (s *Route) dispatch(store *netapi.Context, networkMode bypass.Mode, host ne
 		// resolve proxy domain if resolveRemoteDomain enabled
 		ip, err := dialer.ResolverIP(store, host)
 		if err == nil {
-			store.DomainString = host.String()
+			store.SetDomainString(host.String())
 			host = netapi.ParseIPAddr(host.Network(), ip, host.Port())
-			store.IPString = host.String()
+			store.SetIPString(host.String())
 		} else {
 			log.Warn("resolve remote domain failed", "err", err)
 		}
 	}
 
-	return routeResult{mode, host, reason}
+	return routeResult{host, reason, mode}
 }
 
 func (s *Route) getResolverFallback(mode bypass.ModeEnum) string {
@@ -364,8 +363,8 @@ func (c *Route) dumpProcess(ctx context.Context, networks ...string) (s netapi.P
 	store := netapi.GetContext(ctx)
 
 	var dst []net.Addr
-	if store.Inbound != nil {
-		dst = append(dst, store.Inbound)
+	if store.GetInbound() != nil {
+		dst = append(dst, store.GetInbound())
 	}
 
 	if store.Destination != nil {
@@ -394,9 +393,7 @@ func (c *Route) dumpProcess(ctx context.Context, networks ...string) (s netapi.P
 				continue
 			}
 
-			store.Process = process.Path
-			store.ProcessPid = process.Pid
-			store.ProcessUid = process.Uid
+			store.SetProcess(process.Path, process.Pid, process.Uid)
 			return process
 		}
 	}

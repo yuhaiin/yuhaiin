@@ -74,10 +74,10 @@ type BufioConn interface {
 }
 
 type bufioConn struct {
-	r      *bufio.Reader
-	closed bool
 	CloseWriteChecker
-	mu sync.Mutex
+	r      *bufio.Reader
+	mu     sync.Mutex
+	closed bool
 }
 
 func NewBufioConn(r *bufio.Reader, c net.Conn) BufioConn {
@@ -86,7 +86,7 @@ func NewBufioConn(r *bufio.Reader, c net.Conn) BufioConn {
 		return xx
 	}
 
-	return &bufioConn{r, false, CloseWriteChecker{c}, sync.Mutex{}}
+	return &bufioConn{CloseWriteChecker{c}, r, sync.Mutex{}, false}
 }
 
 func NewBufioConnSize(c net.Conn, size int) BufioConn {

@@ -27,19 +27,19 @@ func (m Mode) Unspecified() bool { return m == Mode_bypass }
 func (f *ModeConfig) ToModeEnum() unique.Handle[ModeEnum] {
 	return unique.Make(ModeEnum{
 		f.GetTag(),
+		f.GetResolver(),
 		f.GetMode(),
 		f.GetResolveStrategy(),
 		f.GetUdpProxyFqdnStrategy(),
-		f.GetResolver(),
 	})
 }
 
 type ModeEnum struct {
 	Tag             string
+	resolver        string
 	mode            Mode
 	ResolveStrategy ResolveStrategy
 	udpProxyFqdn    UdpProxyFqdnStrategy
-	resolver        string
 }
 
 func (m ModeEnum) Mode() Mode                          { return m.mode }

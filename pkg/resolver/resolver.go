@@ -32,11 +32,11 @@ type Entry struct {
 
 type Resolver struct {
 	dialer          netapi.Proxy
-	bootstrapMu     sync.Mutex
 	bootstrapConfig *pd.Dns
-	mu              sync.RWMutex
 	store           syncmap.SyncMap[string, *Entry]
 	resolvers       syncmap.SyncMap[string, *pd.Dns]
+	mu              sync.RWMutex
+	bootstrapMu     sync.Mutex
 }
 
 func NewResolver(dd netapi.Proxy) *Resolver {
@@ -118,9 +118,9 @@ func (r *Resolver) getResolver(str string) (netapi.Resolver, bool) {
 			Proxy: r.dialer,
 			addr: func(ctx context.Context, addr netapi.Address) {
 				store := netapi.GetContext(ctx)
-				store.Component = "Resolver " + str
+				store.SetComponent("Resolver " + str)
 				// force to use bootstrap dns, otherwise will dns query cycle
-				store.Resolver.ResolverSelf = dialer.Bootstrap()
+				store.Resolver.SetResolverResolver(dialer.Bootstrap())
 			},
 		}
 
@@ -185,8 +185,8 @@ func (r *Resolver) ApplyBootstrap(c *pd.Dns) {
 			addr: func(ctx context.Context, addr netapi.Address) {
 				store := netapi.GetContext(ctx)
 				store.ForceMode = bypass.Mode_direct
-				store.Component = "Resolver BOOTSTRAP"
-				store.Resolver.ResolverSelf = resolver.Internet
+				store.SetComponent("Resolver BOOTSTRAP")
+				store.Resolver.SetResolverResolver(resolver.Internet)
 			},
 		}
 		z, err := newDNS("BOOTSTRAP", c, dd, r)

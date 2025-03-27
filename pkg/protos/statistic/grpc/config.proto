@@ -48,7 +48,7 @@ message notify_remove_connections {
 }
 
 message failed_history {
-  string protocol = 1 [ json_name = "protocol" ];
+  yuhaiin.statistic.type protocol = 1 [ json_name = "protocol" ];
   string host = 2 [ json_name = "host" ];
   string error = 3 [ json_name = "error" ];
   string process = 4 [ json_name = "process" ];

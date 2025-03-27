@@ -27,9 +27,9 @@ const reconfigTimeout = time.Second
 
 // nmManager uses the NetworkManager DBus API.
 type nmManager struct {
-	interfaceName string
 	manager       dbus.BusObject
 	dnsManager    dbus.BusObject
+	interfaceName string
 }
 
 func newNMManager(interfaceName string) (*nmManager, error) {

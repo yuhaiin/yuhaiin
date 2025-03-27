@@ -24,8 +24,7 @@ type blockHistoryEntry struct {
 }
 
 type RejectHistory struct {
-	store       *lru.SyncLru[blockHistoryKey, *blockHistoryEntry]
-	dumpProcess bool
+	store *lru.SyncLru[blockHistoryKey, *blockHistoryEntry]
 }
 
 func NewRejectHistory() *RejectHistory {
@@ -37,18 +36,14 @@ func NewRejectHistory() *RejectHistory {
 func (h *RejectHistory) Push(ctx context.Context, protocol string, host string) {
 	store := netapi.GetContext(ctx)
 
-	if !h.dumpProcess && store.Process != "" {
-		h.dumpProcess = true
-	}
-
-	key := blockHistoryKey{protocol, host, store.Process}
+	key := blockHistoryKey{protocol, host, store.GetProcessName()}
 	x, ok := h.store.LoadOrAdd(key, func() *blockHistoryEntry {
 		return &blockHistoryEntry{
 			BlockHistory: (&gc.BlockHistory_builder{
 				Protocol:   proto.String(protocol),
 				Host:       proto.String(host),
 				Time:       timestamppb.Now(),
-				Process:    proto.String(store.Process),
+				Process:    proto.String(store.GetProcessName()),
 				BlockCount: proto.Uint64(1),
 			}).Build(),
 		}
@@ -65,11 +60,15 @@ func (h *RejectHistory) Push(ctx context.Context, protocol string, host string) 
 
 func (h *RejectHistory) Get() *gc.BlockHistoryList {
 	var objects []*gc.BlockHistory
+	dumpProcess := false
 	for _, v := range h.store.Range {
 		objects = append(objects, v.BlockHistory)
+		if !dumpProcess && v.GetProcess() != "" {
+			dumpProcess = true
+		}
 	}
 	return proto.Clone(gc.BlockHistoryList_builder{
 		Objects:            objects,
-		DumpProcessEnabled: proto.Bool(h.dumpProcess),
+		DumpProcessEnabled: proto.Bool(dumpProcess),
 	}.Build()).(*gc.BlockHistoryList)
 }

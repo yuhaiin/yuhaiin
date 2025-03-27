@@ -166,6 +166,7 @@ var (
 )
 
 type Options struct {
+	LocalAddr net.Addr
 
 	// RoutingMark is the mark for each packet sent through this
 	// socket. Changing the mark can be used for mark-based routing
@@ -181,8 +182,6 @@ type Options struct {
 	// It is almost the same as InterfaceName except it uses the
 	// index of the interface instead of the name.
 	InterfaceIndex int
-
-	LocalAddr net.Addr
 
 	listener          bool
 	tryUpgradeToBatch bool
