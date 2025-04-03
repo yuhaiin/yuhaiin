@@ -30,7 +30,7 @@ func (l *LoopbackDetector) IsLoopback(ctx *netapi.Context, path string, pid uint
 	var True bool
 
 	// skip for test ownself latency?
-	if ctx.FakeIP == nil && ctx.Hosts == nil {
+	if ctx.GetFakeIP() == nil && ctx.GetHosts() == nil {
 		ad, err := netapi.ParseSysAddr(ctx.Destination)
 		if err == nil && ad.IsFqdn() {
 			return false
@@ -49,11 +49,11 @@ func (l *LoopbackDetector) IsLoopback(ctx *netapi.Context, path string, pid uint
 }
 
 func (l *LoopbackDetector) Cycle(meta *netapi.Context, addr netapi.Address) bool {
-	if meta.Inbound == nil {
+	if meta.GetInbound() == nil {
 		return false
 	}
 
-	inbound, err := netapi.ParseSysAddr(meta.Inbound)
+	inbound, err := netapi.ParseSysAddr(meta.GetInbound())
 	if err != nil {
 		return false
 	}

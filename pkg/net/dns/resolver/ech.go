@@ -8,9 +8,9 @@ import (
 
 // An SVCBResource is an SVCB Resource record.
 type SVCBResource struct {
+	Params   []Param
 	Priority uint16
 	Target   dnsmessage.Name
-	Params   []Param
 }
 
 type ParamKey uint16
@@ -54,8 +54,8 @@ var paramGoNames = map[ParamKey]string{
 }
 
 type Param struct {
-	Key   ParamKey
 	Value []byte
+	Key   ParamKey
 }
 
 func (p Param) GoString() string {
@@ -106,11 +106,11 @@ const (
 )
 
 type nestedError struct {
-	// s is the current level's error message.
-	s string
 
 	// err is the nested error.
 	err error
+	// s is the current level's error message.
+	s string
 }
 
 // nestedError implements error.Error.
@@ -163,11 +163,11 @@ func unpackSVCBResource(msg []byte, off int, length uint16) (SVCBResource, error
 	endOff := off + int(length)
 	priority, off, err := unpackUint16(msg, off)
 	if err != nil {
-		return SVCBResource{}, &nestedError{"Priority", err}
+		return SVCBResource{}, &nestedError{err, "Priority"}
 	}
 	var target dnsmessage.Name
 	if off, err = skipName(msg, off); err != nil {
-		return SVCBResource{}, &nestedError{"Target", err}
+		return SVCBResource{}, &nestedError{err, "Target"}
 	}
 	var params []Param
 	for off < endOff {
@@ -177,27 +177,27 @@ func unpackSVCBResource(msg []byte, off int, length uint16) (SVCBResource, error
 		k, off, err = unpackUint16(msg, off)
 		p.Key = ParamKey(k)
 		if err != nil {
-			return SVCBResource{}, &nestedError{"Key", err}
+			return SVCBResource{}, &nestedError{err, "Key"}
 		}
 		var l uint16
 		l, off, err = unpackUint16(msg, off)
 		if err != nil {
-			return SVCBResource{}, &nestedError{"Value", err}
+			return SVCBResource{}, &nestedError{err, "Value"}
 		}
 		p.Value = make([]byte, l)
 		if copy(p.Value, msg[off:]) != int(l) {
-			return SVCBResource{}, &nestedError{"Value", errors.New("insufficient data for calculated length type")}
+			return SVCBResource{}, &nestedError{errors.New("insufficient data for calculated length type"), "Value"}
 		}
 		off += int(l)
 		params = append(params, p)
 	}
-	return SVCBResource{priority, target, params}, nil
+	return SVCBResource{params, priority, target}, nil
 }
 
 type HTTPSResource struct {
+	Params   []Param
 	Priority uint16
 	Target   dnsmessage.Name
-	Params   []Param
 }
 
 func (r *HTTPSResource) realType() dnsmessage.Type {

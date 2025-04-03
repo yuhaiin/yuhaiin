@@ -8,6 +8,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 )
 
+type SkipRouteKey struct{}
+type ForceFakeIPKey struct{}
+
+type PacketSniffer interface {
+	Packet(*Context, []byte)
+}
+
 type ResolverMode int
 
 const (
@@ -18,9 +25,20 @@ const (
 
 type ContextResolver struct {
 	Resolver     Resolver
-	ResolverSelf Resolver
+	resolverSelf *Resolver
 	Mode         ResolverMode
 	SkipResolve  bool `metrics:"-"`
+}
+
+func (r *ContextResolver) SetResolverResolver(resolver Resolver) {
+	r.resolverSelf = &resolver
+}
+
+func (r *ContextResolver) ResolverResolver() Resolver {
+	if r.resolverSelf != nil {
+		return *r.resolverSelf
+	}
+	return r.Resolver
 }
 
 func (r ContextResolver) Opts(reverse bool) []func(*LookupIPOption) {
@@ -38,67 +56,294 @@ func (r ContextResolver) Opts(reverse bool) []func(*LookupIPOption) {
 	return nil
 }
 
+type Sniff struct {
+	protocol      *string `metrics:"Protocol"`
+	process       *string `metrics:"Process"`
+	tlsServerName *string `metrics:"TLS Servername"`
+	httpHost      *string `metrics:"HTTP Host"`
+	processPid    uint    `metrics:"Pid"`
+	processUid    uint    `metrics:"Uid"`
+}
+
+type AddrInfo struct {
+	domainString *string `metrics:"DOMAIN"`
+	ipString     *string `metrics:"IP"`
+	tag          *string `metrics:"Tag"`
+	// dns resolver
+	component    *string `metrics:"Component"`
+	udpMigrateID uint64  `metrics:"UDP MigrateID"`
+}
+
 type Context struct {
 	Source      net.Addr `metrics:"Source"`
-	Inbound     net.Addr `metrics:"Inbound"`
 	Destination net.Addr `metrics:"Destination"`
-	FakeIP      net.Addr `metrics:"FakeIP"`
-	Hosts       net.Addr `metrics:"Hosts"`
 
 	context.Context
 
-	DomainString string `metrics:"DOMAIN"`
-	IPString     string `metrics:"IP"`
-	Tag          string `metrics:"Tag"`
-	Hash         string `metrics:"Hash"`
-	NodeName     string `metrics:"NodeName"`
+	inbound *net.Addr `metrics:"Inbound"`
+	fakeIP  *net.Addr `metrics:"FakeIP"`
+	hosts   *net.Addr `metrics:"Hosts"`
 
-	// sniffy
-	Protocol      string `metrics:"Protocol"`
-	Process       string `metrics:"Process"`
-	ProcessPid    uint   `metrics:"Pid"`
-	ProcessUid    uint   `metrics:"Uid"`
-	TLSServerName string `metrics:"TLS Servername"`
-	HTTPHost      string `metrics:"HTTP Host"`
+	addrInfo *AddrInfo
 
-	// dns resolver
-	Component string `metrics:"Component"`
+	sniff *Sniff `metrics:"Sniff"`
+
+	Hash     string `metrics:"Hash"`
+	NodeName string `metrics:"NodeName"`
+
+	ModeReason string `metrics:"MODE Reason"`
 
 	Resolver ContextResolver `metrics:"-"`
 
-	UDPMigrateID uint64 `metrics:"UDP MigrateID"`
+	ForceMode bypass.Mode `metrics:"-"`
+	SniffMode bypass.Mode `metrics:"-"`
+	Mode      bypass.Mode `metrics:"MODE"`
 
-	ForceMode    bypass.Mode `metrics:"-"`
-	SniffMode    bypass.Mode `metrics:"-"`
-	Mode         bypass.Mode `metrics:"MODE"`
-	ModeReason   string      `metrics:"MODE Reason"`
-	SystemDialer bool        `metrics:"-"`
+	SystemDialer bool `metrics:"-"`
 }
 
-type SkipRouteKey struct{}
-type ForceFakeIPKey struct{}
+func (c *Context) setAddrInfo(f func(*AddrInfo)) {
+	if c.addrInfo == nil {
+		c.addrInfo = &AddrInfo{}
+	}
 
-type PacketSniffer interface {
-	Packet(*Context, []byte)
+	f(c.addrInfo)
 }
 
-type packetSinfferKey struct{}
+func (s *Context) SetDomainString(str string) {
+	if str == "" {
+		return
+	}
 
-func WithPacketSniffer(ctx context.Context, sniffer PacketSniffer) context.Context {
-	return context.WithValue(ctx, packetSinfferKey{}, sniffer)
+	s.setAddrInfo(func(a *AddrInfo) {
+		a.domainString = &str
+	})
 }
 
-func GetPacketSniffer(ctx context.Context) (PacketSniffer, bool) {
-	p, ok := ctx.Value(packetSinfferKey{}).(PacketSniffer)
-	return p, ok
+func (s *Context) GetDomainString() string {
+	if s.addrInfo != nil && s.addrInfo.domainString != nil {
+		return *s.addrInfo.domainString
+	}
+	return ""
+}
+
+func (s *Context) SetIPString(str string) {
+	if str == "" {
+		return
+	}
+
+	s.setAddrInfo(func(a *AddrInfo) {
+		a.ipString = &str
+	})
+}
+
+func (s *Context) GetIPString() string {
+	if s.addrInfo != nil && s.addrInfo.ipString != nil {
+		return *s.addrInfo.ipString
+	}
+	return ""
+}
+
+func (s *Context) SetTag(str string) {
+	if str == "" {
+		return
+	}
+
+	s.setAddrInfo(func(a *AddrInfo) {
+		a.tag = &str
+	})
+}
+
+func (s *Context) GetTag() string {
+	if s.addrInfo != nil && s.addrInfo.tag != nil {
+		return *s.addrInfo.tag
+	}
+	return ""
+}
+
+func (s *Context) SetComponent(str string) {
+	if str == "" {
+		return
+	}
+
+	s.setAddrInfo(func(a *AddrInfo) {
+		a.component = &str
+	})
+}
+
+func (s *Context) GetComponent() string {
+	if s.addrInfo != nil && s.addrInfo.component != nil {
+		return *s.addrInfo.component
+	}
+	return ""
+}
+
+func (s *Context) SetUDPMigrateID(id uint64) {
+	if id == 0 {
+		return
+	}
+
+	s.setAddrInfo(func(a *AddrInfo) {
+		a.udpMigrateID = id
+	})
+}
+
+func (s *Context) GetUDPMigrateID() uint64 {
+	if s.addrInfo != nil {
+		return s.addrInfo.udpMigrateID
+	}
+	return 0
+}
+
+func (c *Context) SetInbound(addr net.Addr) {
+	if addr == nil {
+		return
+	}
+
+	c.inbound = &addr
+}
+
+func (c *Context) GetInbound() net.Addr {
+	if c.inbound != nil {
+		return *c.inbound
+	}
+	return nil
+}
+
+func (c *Context) SetFakeIP(addr net.Addr) {
+	if addr == nil {
+		return
+	}
+
+	c.fakeIP = &addr
+}
+
+func (c *Context) GetFakeIP() net.Addr {
+	if c.fakeIP != nil {
+		return *c.fakeIP
+	}
+	return nil
+}
+
+func (c *Context) SetHosts(addr net.Addr) {
+	if addr == nil {
+		return
+	}
+
+	c.hosts = &addr
+}
+
+func (c *Context) GetHosts() net.Addr {
+	if c.hosts != nil {
+		return *c.hosts
+	}
+	return nil
+}
+
+func (c *Context) setSniff(f func(*Sniff)) {
+	if c.sniff == nil {
+		c.sniff = &Sniff{}
+	}
+
+	f(c.sniff)
+}
+
+func (c *Context) SetProtocol(p string) {
+	if p == "" {
+		return
+	}
+	c.setSniff(func(s *Sniff) {
+		s.protocol = &p
+	})
+}
+
+func (c *Context) GetProtocol() string {
+	if c.sniff != nil && c.sniff.protocol != nil {
+		return *c.sniff.protocol
+	}
+	return ""
+}
+
+func (c *Context) SetProcess(p string, pid, uid uint) {
+	if p == "" && pid == 0 && uid == 0 {
+		return
+	}
+
+	c.setSniff(func(s *Sniff) {
+		s.process = &p
+		s.processPid = pid
+		s.processUid = uid
+	})
+}
+
+func (c *Context) GetProcess() (string, uint, uint) {
+	if c.sniff != nil && c.sniff.process != nil {
+		return *c.sniff.process, c.sniff.processPid, c.sniff.processUid
+	}
+	return "", 0, 0
+}
+
+func (c *Context) GetProcessName() string {
+	if c.sniff != nil && c.sniff.process != nil {
+		return *c.sniff.process
+	}
+	return ""
+}
+
+func (c *Context) GetProcessPid() uint {
+	if c.sniff != nil {
+		return c.sniff.processPid
+	}
+	return 0
+}
+
+func (c *Context) GetProcessUid() uint {
+	if c.sniff != nil {
+		return c.sniff.processUid
+	}
+	return 0
+}
+
+func (c *Context) SetTLSServerName(str string) {
+	if str == "" {
+		return
+	}
+
+	c.setSniff(func(s *Sniff) {
+		s.tlsServerName = &str
+	})
+}
+
+func (c *Context) GetTLSServerName() string {
+	if c.sniff != nil && c.sniff.tlsServerName != nil {
+		return *c.sniff.tlsServerName
+	}
+	return ""
+}
+
+func (c *Context) SetHTTPHost(str string) {
+	if str == "" {
+		return
+	}
+
+	c.setSniff(func(s *Sniff) {
+		s.httpHost = &str
+	})
+}
+
+func (c *Context) GetHTTPHost() string {
+	if c.sniff != nil && c.sniff.httpHost != nil {
+		return *c.sniff.httpHost
+	}
+	return ""
 }
 
 func (c *Context) SniffHost() string {
-	if c.TLSServerName != "" {
-		return c.TLSServerName
+	if c.GetTLSServerName() != "" {
+		return c.GetTLSServerName()
 	}
 
-	return c.HTTPHost
+	return c.GetHTTPHost()
 }
 
 func (c *Context) Value(key any) any {
@@ -156,15 +401,6 @@ func NewDialError(network string, err error, addr net.Addr) *DialError {
 // package. It describes the operation, network type, and address of
 // an error.
 type DialError struct {
-	// Op is the operation which caused the error, such as
-	// "read" or "write".
-	Op string
-
-	// Net is the network type on which this error occurred,
-	// such as "tcp" or "udp6".
-	Net string
-
-	Sniff string
 
 	// Addr is the network address for which this error occurred.
 	// For local operations, like Listen or SetDeadline, Addr is
@@ -177,6 +413,15 @@ type DialError struct {
 	// Err is the error that occurred during the operation.
 	// The Error method panics if the error is nil.
 	Err error
+	// Op is the operation which caused the error, such as
+	// "read" or "write".
+	Op string
+
+	// Net is the network type on which this error occurred,
+	// such as "tcp" or "udp6".
+	Net string
+
+	Sniff string
 }
 
 func (e *DialError) Unwrap() error { return e.Err }

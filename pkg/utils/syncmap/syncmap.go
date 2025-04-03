@@ -5,8 +5,8 @@ import (
 )
 
 type SyncMap[key comparable, value any] struct {
-	data   sync.Map
 	single single
+	data   sync.Map
 }
 
 func (a *SyncMap[T1, T2]) Load(key T1) (r T2, _ bool) {
@@ -145,8 +145,8 @@ func DiffMap[K comparable, V any](old, new map[K]V, isSame func(v1, v2 V) bool) 
 }
 
 type single struct {
-	mu    sync.Mutex
 	store map[any]*sync.Mutex
+	mu    sync.Mutex
 }
 
 func (s *single) Do(key any, f func()) {

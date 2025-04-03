@@ -28,8 +28,8 @@ type dnsServer struct {
 
 	ctx        context.Context
 	cancel     context.CancelFunc
-	reqBuffer  ringbuffer.RingBuffer[*netapi.DNSRawRequest]
 	notifyChan chan struct{}
+	reqBuffer  ringbuffer.RingBuffer[*netapi.DNSRawRequest]
 	mu         sync.Mutex
 }
 

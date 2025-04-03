@@ -126,8 +126,8 @@ func (pool) PutBytes(b []byte) {
 // }
 
 type BytesReader struct {
-	index int
 	b     []byte
+	index int
 	mu    sync.Mutex
 }
 

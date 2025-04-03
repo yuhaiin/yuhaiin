@@ -10,7 +10,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
@@ -20,17 +19,16 @@ import (
 )
 
 type HappyEyeballsv2Cache interface {
-	Load(key unique.Handle[string]) (net.IP, bool)
-	Add(key unique.Handle[string], value net.IP, opt ...lru.AddOption[unique.Handle[string], net.IP])
+	Load(key string) (net.IP, bool)
+	Add(key string, value net.IP, opt ...lru.AddOption[string, net.IP])
 }
 
-var happyEyeballsCache = lru.NewSyncLru(lru.WithCapacity[unique.Handle[string], net.IP](512))
+var happyEyeballsCache = lru.NewSyncLru(lru.WithCapacity[string, net.IP](512))
 
 type happyEyeball struct {
-	addr netapi.DomainAddress
+	addr netapi.Address
 
 	resolver                  netapi.Resolver
-	dnsErrorMu                sync.RWMutex
 	dnsError                  error
 	primaryDone, fallbackDone chan struct{}
 	remainWait                chan struct{}
@@ -38,17 +36,18 @@ type happyEyeball struct {
 
 	lastIp                    net.IP
 	primaryMode, fallbackMode netapi.ResolverMode
+	dnsErrorMu                sync.RWMutex
 	mu                        sync.RWMutex
 	allResponse               atomic.Int32
 
 	prefer bool
 }
 
-func newHappyEyeball(ctx context.Context, addr netapi.DomainAddress, cache HappyEyeballsv2Cache) *happyEyeball {
+func newHappyEyeball(ctx context.Context, addr netapi.Address, cache HappyEyeballsv2Cache) *happyEyeball {
 	netctx := netapi.GetContext(ctx)
 	resolver := Bootstrap()
-	if netctx.Resolver.ResolverSelf != nil {
-		resolver = netctx.Resolver.ResolverSelf
+	if netctx.Resolver.ResolverResolver() != nil {
+		resolver = netctx.Resolver.ResolverResolver()
 	} else if netctx.Resolver.Resolver != nil {
 		resolver = netctx.Resolver.Resolver
 	}
@@ -68,7 +67,7 @@ func newHappyEyeball(ctx context.Context, addr netapi.DomainAddress, cache Happy
 
 	var lastIP net.IP
 	if cache != nil {
-		lastIP, _ = cache.Load(addr.UniqueHostname())
+		lastIP, _ = cache.Load(addr.Hostname())
 	}
 	h := &happyEyeball{
 		addr:         addr,
@@ -274,12 +273,7 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(ctx context.Context, addr
 		return h.DialContext(ctx, addr.(netapi.IPAddress).IP(), addr.Port())
 	}
 
-	domainAddr, ok := addr.(netapi.DomainAddress)
-	if !ok {
-		return t, fmt.Errorf("unexpected address type %T", addr)
-	}
-
-	hb := newHappyEyeball(ctx, domainAddr, h.Cache)
+	hb := newHappyEyeball(ctx, addr, h.Cache)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -372,7 +366,7 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(ctx context.Context, addr
 					connAddr, ok := r.c.RemoteAddr().(*net.TCPAddr)
 					if ok {
 						if h.Cache != nil {
-							h.Cache.Add(domainAddr.UniqueHostname(), connAddr.IP)
+							h.Cache.Add(addr.Hostname(), connAddr.IP)
 						}
 					}
 				}

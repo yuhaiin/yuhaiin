@@ -8,24 +8,23 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-yamux/v5 v5.0.0
 	github.com/prometheus/client_golang v1.21.1
-	github.com/quic-go/quic-go v0.50.0
+	github.com/quic-go/quic-go v0.50.1
 	github.com/refraction-networking/utls v1.6.7
 	github.com/tailscale/wireguard-go v0.0.0-20250304000100-91a0587fb251
 	github.com/vishvananda/netlink v1.3.0
 	github.com/xtls/reality v0.0.0-20240909153216-e26ae2305463
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250308101321-1303041d2d73
-	// for fix https://github.com/etcd-io/bbolt/issues/840
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250403111109-8593c4c779a1
 	go.etcd.io/bbolt v1.4.0
 	golang.org/x/crypto v0.36.0
 	golang.org/x/mobile v0.0.0-20250305212854-3a7bc9f8a4de
-	golang.org/x/net v0.37.0
+	golang.org/x/net v0.38.0
 	golang.org/x/sys v0.31.0
 	golang.org/x/time v0.11.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
-	google.golang.org/grpc v1.71.0
-	google.golang.org/protobuf v1.36.5
+	google.golang.org/grpc v1.71.1
+	google.golang.org/protobuf v1.36.6
 	gvisor.dev/gvisor v0.0.0-20250212202256-d8010a143980
-	tailscale.com v1.80.3
+	tailscale.com v1.82.0
 )
 
 require (
@@ -114,4 +113,4 @@ require (
 
 replace golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
 
-replace tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20250305052811-8b7a8d94ca60
+replace tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20250327032155-a09f58f48d50

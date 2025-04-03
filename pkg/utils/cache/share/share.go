@@ -23,10 +23,10 @@ var _ cache.Cache = (*ShareCache)(nil)
 
 // ShareCache open local bbotdb or connect to unix socket grpc
 type ShareCache struct {
+	store  cache.RecursionCache
 	dbPath string
 	socket string
 	batch  []string
-	store  cache.RecursionCache
 	mu     sync.Mutex
 }
 

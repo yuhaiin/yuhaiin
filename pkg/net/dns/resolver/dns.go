@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/netip"
 	"time"
-	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -120,14 +119,18 @@ func Register(tYPE pd.Type, f func(Config) (Dialer, error)) {
 var _ netapi.Resolver = (*client)(nil)
 
 type CacheKey struct {
-	Name unique.Handle[string]
+	Name string
 	Type dnsmessage.Type
 }
 
-func (c CacheKey) FromQuestion(q dnsmessage.Question) CacheKey {
+func CacheKeyFromQuestion(q dnsmessage.Question) CacheKey {
+	name := q.Name.Data[:q.Name.Length]
+	if len(name) > 0 && name[len(name)-1] == '.' {
+		name = name[:len(name)-1]
+	}
+
 	return CacheKey{
-		// can save memory with netapi.Domain, so use rel domain
-		Name: unique.Make(system.RelDomain(q.Name.String())),
+		Name: string(name),
 		Type: q.Type,
 	}
 }
@@ -322,7 +325,7 @@ func (c *client) raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 
 	if ttl > 1 {
 		msg.Questions = nil
-		c.rawStore.Add(CacheKey{}.FromQuestion(req), msg,
+		c.rawStore.Add(CacheKeyFromQuestion(req), msg,
 			lru.WithTimeout[CacheKey, dnsmessage.Message](time.Duration(ttl)*time.Second))
 	}
 
@@ -338,7 +341,7 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 		req.Class = dnsmessage.ClassINET
 	}
 
-	msg, expired, ok := c.rawStore.LoadOptimistically(CacheKey{}.FromQuestion(req))
+	msg, expired, ok := c.rawStore.LoadOptimistically(CacheKeyFromQuestion(req))
 	if !ok {
 		var err error
 		msg, err, _ = c.rawSingleflight.Do(ctx, req, func(ctx context.Context) (dnsmessage.Message, error) { return c.raw(ctx, req) })

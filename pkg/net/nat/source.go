@@ -24,8 +24,8 @@ import (
 )
 
 type sentPacket struct {
-	buf []byte
 	src net.Addr
+	buf []byte
 }
 
 type Context struct {
@@ -37,33 +37,36 @@ type Context struct {
 func newContext(store *netapi.Context) Context {
 	return Context{
 		resolver:    store.Resolver,
-		migrateID:   store.UDPMigrateID,
+		migrateID:   store.GetUDPMigrateID(),
 		skipResolve: store.Resolver.SkipResolve,
 	}
 }
 
 type SourceControl struct {
-	ctx   context.Context
-	close context.CancelFunc
+	addrStore addrStore
+	ctx       context.Context
+	dialer    netapi.Proxy
 
-	sentPacketMx     sync.Mutex
-	sentPackets      ringbuffer.RingBuffer[*netapi.Packet]
+	sniffer netapi.PacketSniffer
+	close   context.CancelFunc
+
 	notifySentPacket chan struct{}
 
-	receivedPacketMx     sync.Mutex
-	receivedPackets      ringbuffer.RingBuffer[sentPacket]
 	notifyReceivedPacket chan struct{}
 
 	onRemove func(*SourceControl)
 
-	addrStore addrStore
-	dialer    netapi.Proxy
 	stopTimer *stopTimer
-	context   Context
 	conn      *wrapConn
 	wirteBack *atomicx.Value[netapi.WriteBack]
 
-	sniffer netapi.PacketSniffer
+	context         Context
+	sentPackets     ringbuffer.RingBuffer[*netapi.Packet]
+	receivedPackets ringbuffer.RingBuffer[sentPacket]
+
+	sentPacketMx sync.Mutex
+
+	receivedPacketMx sync.Mutex
 }
 
 func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy, onRemove func(*SourceControl)) *SourceControl {
@@ -249,9 +252,9 @@ func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
 }
 
 func (u *SourceControl) newPacketConn(store *netapi.Context, pkt *netapi.Packet) (*wrapConn, error) {
-	store.UDPMigrateID = u.context.migrateID
-	if store.UDPMigrateID != 0 {
-		log.Info("set migrate id", "id", store.UDPMigrateID)
+	store.SetUDPMigrateID(u.context.migrateID)
+	if store.GetUDPMigrateID() != 0 {
+		log.Info("set migrate id", "id", store.GetUDPMigrateID())
 	}
 
 	ctx, cancel := context.WithTimeout(store, configuration.Timeout)
@@ -439,7 +442,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 			continue
 		}
 
-		u.receivedPackets.PushBack(sentPacket{data[:n], from})
+		u.receivedPackets.PushBack(sentPacket{from, data[:n]})
 		u.receivedPacketMx.Unlock()
 
 		select {
@@ -483,9 +486,9 @@ func (w *wrapConn) Close() error {
 
 type stopTimer struct {
 	timer *time.Timer
-	mu    sync.Mutex
 	do    func()
 	d     time.Duration
+	mu    sync.Mutex
 }
 
 func NewStopTimer(duration time.Duration, do func()) *stopTimer {

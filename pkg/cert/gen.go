@@ -249,9 +249,9 @@ func (c *Ca) GenerateServerCert(hosts ...string) (*ServerCert, error) {
 }
 
 type Algorithm struct {
+	GenerateKey        func() (crypto.Signer, error)
 	SignatureAlgorithm x509.SignatureAlgorithm
 	PublicKeyAlgorithm x509.PublicKeyAlgorithm
-	GenerateKey        func() (crypto.Signer, error)
 }
 
 var algorithms = []Algorithm{

@@ -167,12 +167,12 @@ func CloseStore() {
 }
 
 type configDB[T proto.Message] struct {
-	mu         sync.RWMutex
 	setting    T
-	inited     atomic.Bool
 	getDefault func(*pc.Setting) T
 	toSetting  func(T) *pc.Setting
 	dbName     string
+	mu         sync.RWMutex
+	inited     atomic.Bool
 }
 
 func newConfigDB[T proto.Message](dbName string, getDefault func(*pc.Setting) T, toSetting func(T) *pc.Setting) *configDB[T] {

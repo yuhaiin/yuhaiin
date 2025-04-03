@@ -60,7 +60,7 @@ func (o *outbound) Get(ctx context.Context, network string, str string, tag stri
 	store := netapi.GetContext(ctx)
 
 	if tag != "" {
-		store.Tag = tag
+		store.SetTag(tag)
 		if hash := o.tagConn(tag); hash != "" {
 			p, err := o.GetDialerByID(ctx, hash)
 			if err == nil {

@@ -2,6 +2,7 @@ edition = "2023";
 
 package yuhaiin.listener;
 import "google/protobuf/go_features.proto";
+import "node/protocol/protocol.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener";
 option features.(pb.go).api_level = API_OPAQUE;
@@ -212,6 +213,9 @@ message certificate {
 
 message sniff { bool enabled = 1 [ json_name = "enabled" ]; }
 
-message reverse_http { string url = 1 [ json_name = "url" ]; }
+message reverse_http {
+  string url = 1 [ json_name = "url" ];
+  yuhaiin.protocol.tls_config tls = 2 [ json_name = "tls" ];
+}
 
 message reverse_tcp { string host = 1 [ json_name = "host" ]; }
