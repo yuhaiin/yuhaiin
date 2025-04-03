@@ -137,8 +137,8 @@ func LookupIP(ctx context.Context, addr netapi.Address) ([]net.IP, error) {
 	netctx := netapi.GetContext(ctx)
 
 	resolver := Bootstrap()
-	if netctx.Resolver.ResolverSelf != nil {
-		resolver = netctx.Resolver.ResolverSelf
+	if netctx.Resolver.ResolverResolver() != nil {
+		resolver = netctx.Resolver.ResolverResolver()
 	} else if netctx.Resolver.Resolver != nil {
 		resolver = netctx.Resolver.Resolver
 	}

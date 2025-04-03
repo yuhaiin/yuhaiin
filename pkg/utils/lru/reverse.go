@@ -7,8 +7,8 @@ import (
 type ReverseSyncLru[K, V comparable] struct {
 	lru            *lru[K, V]
 	reverseMap     map[V]*K
-	mu             sync.Mutex
 	onValueChanged func(old, new V)
+	mu             sync.Mutex
 }
 
 type ReverseOption[K, V comparable] func(*ReverseSyncLru[K, V])

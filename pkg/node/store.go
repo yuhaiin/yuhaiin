@@ -29,15 +29,15 @@ import (
 //
 //	double reference: node <-> [Set]
 type ProxyEntry struct {
-	mu     sync.RWMutex
-	Config *point.Point
 	Proxy  netapi.Proxy
+	Config *point.Point
+	mu     sync.RWMutex
 }
 
 type ProxyStore struct {
-	closed atomic.Bool
-	mu     sync.RWMutex
 	store  syncmap.SyncMap[string, *ProxyEntry]
+	mu     sync.RWMutex
+	closed atomic.Bool
 }
 
 func NewProxyStore() *ProxyStore {

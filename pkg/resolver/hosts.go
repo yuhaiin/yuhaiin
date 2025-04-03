@@ -94,7 +94,7 @@ func (h *Hosts) PacketConn(ctx context.Context, addr netapi.Address) (net.Packet
 }
 
 func (h *Hosts) setHosts(ctx context.Context, pre netapi.Address) {
-	netapi.GetContext(ctx).Hosts = pre
+	netapi.GetContext(ctx).SetHosts(pre)
 }
 
 func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Address {

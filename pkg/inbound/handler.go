@@ -107,7 +107,11 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 
 	metrics.Counter.AddStreamConnectDuration(float64(time.Duration(endNanoSeconds - startNanoSeconds).Milliseconds()))
 
-	relay.Relay(meta.Src, remote, slog.Any("dst", dst), slog.Any("src", store.Source), slog.Any("process", store.Process))
+	process, pid, uid := store.GetProcess()
+
+	relay.Relay(meta.Src, remote, slog.Any("dst", dst), slog.Any("src", store.Source),
+		slog.Any("process", process), slog.Any("pid", pid), slog.Any("uid", uid))
+
 	return nil
 }
 
@@ -127,8 +131,8 @@ func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 func (s *handler) Close() error { return s.table.Close() }
 
 type controlSniffer struct {
-	enabled atomic.Bool
 	sniffer *sniff.Sniffier[bypass.Mode]
+	enabled atomic.Bool
 }
 
 func newControlSniffer() *controlSniffer {

@@ -28,15 +28,16 @@ type Inbound struct {
 
 	close context.CancelFunc
 
-	mu    sync.RWMutex
-	store syncmap.SyncMap[string, entry]
-
-	hijackDNS atomic.Bool
-	fakeip    atomic.Bool
-
 	// udpChannel cache channel for udp
 	// the nat table is already use ringbuffer. so here just use buffer channel
 	udpChannel chan *netapi.Packet
+
+	store syncmap.SyncMap[string, entry]
+
+	mu sync.RWMutex
+
+	hijackDNS atomic.Bool
+	fakeip    atomic.Bool
 }
 
 func NewInbound(dnsHandler netapi.DNSServer, dialer netapi.Proxy) *Inbound {
@@ -68,7 +69,7 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 			store.Source = meta.Source
 			store.Destination = meta.Destination
 			if meta.Inbound != nil {
-				store.Inbound = meta.Inbound
+				store.SetInbound(meta.Inbound)
 			}
 			l.handler.Stream(store, meta)
 			return

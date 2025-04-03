@@ -32,9 +32,9 @@ func New() *Sniffier[bypass.Mode] {
 				enabled: true,
 				name:    "tls",
 				checker: func(ctx *netapi.Context, b []byte) bool {
-					ctx.TLSServerName = tls.Sniff(b)
-					if ctx.TLSServerName != "" {
-						ctx.Protocol = "tls"
+					ctx.SetTLSServerName(tls.Sniff(b))
+					if ctx.GetTLSServerName() != "" {
+						ctx.SetProtocol("tls")
 						return true
 					}
 					return false
@@ -44,9 +44,9 @@ func New() *Sniffier[bypass.Mode] {
 				enabled: true,
 				name:    "http",
 				checker: func(ctx *netapi.Context, b []byte) bool {
-					ctx.HTTPHost = http.Sniff(b)
-					if ctx.HTTPHost != "" {
-						ctx.Protocol = "http"
+					ctx.SetHTTPHost(http.Sniff(b))
+					if ctx.GetHTTPHost() != "" {
+						ctx.SetProtocol("http")
 						return true
 					}
 					return false
@@ -58,7 +58,7 @@ func New() *Sniffier[bypass.Mode] {
 				checker: func(ctx *netapi.Context, b []byte) bool {
 					_, err := bittorrent.SniffBittorrent(b)
 					if err == nil {
-						ctx.Protocol = "bittorrent"
+						ctx.SetProtocol("bittorrent")
 						ctx.SniffMode = bypass.Mode_direct
 						return true
 					}
@@ -75,7 +75,7 @@ func New() *Sniffier[bypass.Mode] {
 				checker: func(ctx *netapi.Context, b []byte) bool {
 					_, err := bittorrent.SniffUTP(b)
 					if err == nil {
-						ctx.Protocol = "bittorrent_utp"
+						ctx.SetProtocol("bittorrent_utp")
 						ctx.SniffMode = bypass.Mode_direct
 						return true
 					}

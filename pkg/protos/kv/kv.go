@@ -20,8 +20,8 @@ import (
 var _ KvstoreServer = (*KV)(nil)
 
 type KV struct {
-	db *bbolt.Cache
 	UnimplementedKvstoreServer
+	db *bbolt.Cache
 }
 
 func NewKV(db *bbolt.Cache) *KV {
@@ -92,9 +92,9 @@ func (k *KV) Ping(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 }
 
 type closer struct {
-	path string
 	s    *grpc.Server
 	lis  *net.UnixListener
+	path string
 }
 
 func (c *closer) Close() error {
@@ -119,13 +119,13 @@ func Start(unixPath string, db *bbolt.Cache) (io.Closer, error) {
 		}
 	}()
 
-	return &closer{unixPath, gs, lis}, nil
+	return &closer{gs, lis, unixPath}, nil
 }
 
 type KVStoreCli struct {
-	buckets []string
-	conn    *grpc.ClientConn
 	KvstoreClient
+	conn    *grpc.ClientConn
+	buckets []string
 }
 
 func (c *KVStoreCli) Close() error {

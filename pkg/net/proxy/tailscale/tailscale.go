@@ -54,7 +54,7 @@ var (
 func init() {
 	register.RegisterPoint(New)
 	netns.SetWrapDialer(func(d netns.Dialer) netns.Dialer { return &dial{} })
-	netns.SetWarpListener(func(li netns.ListenerInterface) netns.ListenerInterface { return &listener{} })
+	netns.SetWrapListener(func(li netns.ListenerInterface) netns.ListenerInterface { return &listener{} })
 	dnscache.Get().Forward = &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -73,12 +73,12 @@ func init() {
 type Tailscale struct {
 	netapi.EmptyDispatch
 	dialer     netapi.Proxy
+	tsnet      *tsnet.Server
 	authKey    string
 	hostname   string
 	controlUrl string
-	tsnet      *tsnet.Server
-	debug      atomic.Bool
 	mu         sync.RWMutex
+	debug      atomic.Bool
 }
 
 func New(c *protocol.Tailscale, dialer netapi.Proxy) (netapi.Proxy, error) {

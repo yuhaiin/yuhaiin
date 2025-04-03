@@ -141,13 +141,13 @@ func parseConfig(s *cryptobyte.String) (ConfigSpec, error) {
 // ConfigSpec represents an Encrypted Client Hello (ECH) Config. It is specified
 // in Section 4 of https://datatracker.ietf.org/doc/html/draft-ietf-tls-esni/
 type ConfigSpec struct {
-	Version           uint16
-	ID                uint8
-	KEM               uint16
 	PublicKey         []byte
 	CipherSuites      []CipherSuite
-	MaximumNameLength uint8
 	PublicName        []byte
+	Version           uint16
+	KEM               uint16
+	ID                uint8
+	MaximumNameLength uint8
 }
 
 type CipherSuite struct {

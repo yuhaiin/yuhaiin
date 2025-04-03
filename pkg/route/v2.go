@@ -22,10 +22,10 @@ import (
 )
 
 type routeParser struct {
-	rules       []*bypass.RemoteRule
 	proxy       netapi.Proxy
-	path        string
 	trie        *routeTries
+	path        string
+	rules       []*bypass.RemoteRule
 	forceUpdate bool
 }
 

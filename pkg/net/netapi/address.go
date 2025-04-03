@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
-	"unique"
 )
 
 var seed = maphash.MakeSeed()
@@ -33,10 +32,7 @@ type IPAddress interface {
 	IP() net.IP
 }
 
-type DomainAddress interface {
-	Address
-	UniqueHostname() unique.Handle[string]
-}
+type DomainAddress interface{ Address }
 
 func ParseAddress(network string, addr string) (ad Address, _ error) {
 	var port uint64
@@ -55,7 +51,7 @@ func ParseAddress(network string, addr string) (ad Address, _ error) {
 
 func ParseDomainPort(network string, addr string, port uint16) (ad Address) {
 	return DomainAddr{
-		hostname:       unique.Make(addr),
+		hostname:       addr,
 		port:           port,
 		AddressNetwork: ParseAddressNetwork(network),
 	}
@@ -127,7 +123,7 @@ func ParseSysAddr(ad net.Addr) (Address, error) {
 		}, nil
 	case *net.UnixAddr:
 		return DomainAddr{
-			hostname:       unique.Make(ad.Name),
+			hostname:       ad.Name,
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
 		}, nil
 	}
@@ -172,19 +168,18 @@ func (n AddressNetwork) Network() string {
 var _ Address = DomainAddr{}
 
 type DomainAddr struct {
-	hostname unique.Handle[string]
+	hostname string
 	AddressNetwork
 	port uint16
 }
 
 func (d DomainAddr) String() string {
-	return net.JoinHostPort(d.hostname.Value(), strconv.Itoa(int(d.port)))
+	return net.JoinHostPort(d.hostname, strconv.Itoa(int(d.port)))
 }
-func (d DomainAddr) Hostname() string                      { return d.hostname.Value() }
-func (d DomainAddr) Port() uint16                          { return d.port }
-func (d DomainAddr) IsFqdn() bool                          { return true }
-func (d DomainAddr) UniqueHostname() unique.Handle[string] { return d.hostname }
-func (d DomainAddr) Comparable() uint64                    { return ComputeAddressHash(d) }
+func (d DomainAddr) Hostname() string   { return d.hostname }
+func (d DomainAddr) Port() uint16       { return d.port }
+func (d DomainAddr) IsFqdn() bool       { return true }
+func (d DomainAddr) Comparable() uint64 { return ComputeAddressHash(d) }
 
 var _ IPAddress = IPAddr{}
 
@@ -201,4 +196,4 @@ func (d IPAddr) IsFqdn() bool       { return false }
 func (d IPAddr) IP() net.IP         { return d.Addr.AsSlice() }
 func (d IPAddr) Comparable() uint64 { return ComputeAddressHash(d) }
 
-var EmptyAddr Address = DomainAddr{hostname: unique.Make("")}
+var EmptyAddr Address = DomainAddr{}

@@ -29,12 +29,12 @@ type Connections struct {
 
 	notify *notify
 
+	faildHistory *FailedHistory
+	history      *History
+
 	connStore syncmap.SyncMap[uint64, connection]
 
 	idSeed id.IDGenerator
-
-	faildHistory *FailedHistory
-	history      *History
 }
 
 func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
@@ -127,7 +127,7 @@ func (c *Connections) storeConnection(o connection) {
 func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	con, err := c.Proxy.PacketConn(ctx, addr)
 	if err != nil {
-		c.faildHistory.Push(ctx, err, "udp", addr)
+		c.faildHistory.Push(ctx, err, statistic.Type_udp, addr)
 		return nil, err
 	}
 
@@ -165,8 +165,8 @@ func getLocal(con interface{ LocalAddr() net.Addr }) string {
 }
 
 func getRealAddr(store *netapi.Context, addr netapi.Address) string {
-	if store.DomainString != "" {
-		return store.DomainString
+	if store.GetDomainString() != "" {
+		return store.GetDomainString()
 	}
 
 	return addr.String()
@@ -187,29 +187,29 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 			UnderlyingType: statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]).Enum(),
 		}).Build(),
 		Source:       stringerOrNil(store.Source),
-		Inbound:      stringerOrNil(store.Inbound),
+		Inbound:      stringerOrNil(store.GetInbound()),
 		Outbound:     stringOrNil(getRemote(conn)),
 		LocalAddr:    stringOrNil(getLocal(conn)),
 		Destionation: stringerOrNil(store.Destination),
-		FakeIp:       stringerOrNil(store.FakeIP),
-		Hosts:        stringerOrNil(store.Hosts),
+		FakeIp:       stringerOrNil(store.GetFakeIP()),
+		Hosts:        stringerOrNil(store.GetHosts()),
 
-		Domain:   stringOrNil(store.DomainString),
-		Ip:       stringOrNil(store.IPString),
-		Tag:      stringOrNil(store.Tag),
+		Domain:   stringOrNil(store.GetDomainString()),
+		Ip:       stringOrNil(store.GetIPString()),
+		Tag:      stringOrNil(store.GetTag()),
 		Hash:     stringOrNil(store.Hash),
 		NodeName: stringOrNil(store.NodeName),
-		Protocol: stringOrNil(store.Protocol),
-		Process:  stringOrNil(store.Process),
+		Protocol: stringOrNil(store.GetProtocol()),
+		Process:  stringOrNil(store.GetProcessName()),
 
-		TlsServerName: stringOrNil(store.TLSServerName),
-		HttpHost:      stringOrNil(store.HTTPHost),
-		Component:     stringOrNil(store.Component),
+		TlsServerName: stringOrNil(store.GetTLSServerName()),
+		HttpHost:      stringOrNil(store.GetHTTPHost()),
+		Component:     stringOrNil(store.GetComponent()),
 		Mode:          store.Mode.Enum(),
 		ModeReason:    stringOrNil(store.ModeReason),
-		UdpMigrateId:  uint64OrNil(store.UDPMigrateID),
-		Pid:           uint64OrNil(uint64(store.ProcessPid)),
-		Uid:           uint64OrNil(uint64(store.ProcessUid)),
+		UdpMigrateId:  uint64OrNil(store.GetUDPMigrateID()),
+		Pid:           uint64OrNil(uint64(store.GetProcessPid())),
+		Uid:           uint64OrNil(uint64(store.GetProcessUid())),
 	}
 
 	return connection.Build()
@@ -239,7 +239,7 @@ func stringerOrNil(str fmt.Stringer) *string {
 func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	con, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
-		c.faildHistory.Push(ctx, err, "tcp", addr)
+		c.faildHistory.Push(ctx, err, statistic.Type_tcp, addr)
 		return nil, err
 	}
 

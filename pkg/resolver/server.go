@@ -13,9 +13,9 @@ var _ netapi.DNSServer = (*DnsServer)(nil)
 
 type DnsServer struct {
 	ds         netapi.DNSServer
-	mu         sync.RWMutex
 	resolver   netapi.Resolver
 	serverHost string
+	mu         sync.RWMutex
 }
 
 func NewDNSServer(resolver netapi.Resolver) *DnsServer {
