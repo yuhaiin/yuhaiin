@@ -30,7 +30,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Get access token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         id: generate-token
         with:
           app-id: ${{ vars.APP_ID }}
