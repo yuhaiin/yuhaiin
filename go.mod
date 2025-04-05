@@ -18,7 +18,7 @@ require (
 	golang.org/x/crypto v0.36.0
 	golang.org/x/mobile v0.0.0-20250305212854-3a7bc9f8a4de
 	golang.org/x/net v0.38.0
-	golang.org/x/sys v0.31.0
+	golang.org/x/sys v0.32.0
 	golang.org/x/time v0.11.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.71.1
