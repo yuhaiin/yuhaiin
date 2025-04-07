@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -85,11 +87,12 @@ func run(args []string) error {
 	// 	}
 	// }
 
-	errChan := make(chan error)
+	ctx, cancel := context.WithCancelCause(context.TODO())
+	defer cancel(nil)
 
 	go func() {
 		// h2c for grpc insecure mode
-		errChan <- http.Serve(lis, h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		err := http.Serve(lis, h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
 
 			if grpcserver != nil && r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
@@ -98,25 +101,25 @@ func run(args []string) error {
 				app.Mux.ServeHTTP(w, r)
 			}
 		}), &http2.Server{}))
+		if err != nil {
+			cancel(err)
+		}
 	}()
 
 	// listen system signal
-	signChannel := make(chan os.Signal, 1)
-	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	ctx, ncancel := signal.NotifyContext(ctx, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer ncancel()
 
-	return wait(lis, errChan, signChannel)
+	return wait(ctx, lis)
 }
 
-var wait = func(lis net.Listener, errChan chan error, signChannel chan os.Signal) error {
-	select {
-	case err := <-errChan:
-		return err
-	case <-signChannel:
-		if lis != nil {
-			return lis.Close()
-		}
-		return nil
+var wait = func(ctx context.Context, lis net.Listener) error {
+	<-ctx.Done()
+	var err error
+	if lis != nil {
+		err = lis.Close()
 	}
+	return errors.Join(err, ctx.Err())
 }
 
 func getPorcessDumper() netapi.ProcessDumper {

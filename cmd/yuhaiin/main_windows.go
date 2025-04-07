@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -21,15 +22,12 @@ func init() {
 	}
 
 	log.OutputStderr = false
-	wait = runService
-}
-
-func runService(lis net.Listener, errChan chan error, signChannel chan os.Signal) error {
-	return svc.Run(version.AppName, &service{
-		lis:         lis,
-		errChan:     errChan,
-		signChannel: signChannel,
-	})
+	wait = func(ctx context.Context, lis net.Listener) error {
+		return svc.Run(version.AppName, &service{
+			lis: lis,
+			ctx: ctx,
+		})
+	}
 }
 
 // copy from https://github.com/tailscale/tailscale/blob/main/cmd/tailscaled/install_windows.go
@@ -142,9 +140,8 @@ func isWindowsService() bool {
 }
 
 type service struct {
-	lis         net.Listener
-	errChan     chan error
-	signChannel chan os.Signal
+	lis net.Listener
+	ctx context.Context
 }
 
 func (ss *service) Execute(args []string, r <-chan svc.ChangeRequest, s chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
@@ -153,13 +150,11 @@ func (ss *service) Execute(args []string, r <-chan svc.ChangeRequest, s chan<- s
 
 	for {
 		select {
-		case err := <-ss.errChan:
-			log.Error("http server stop", "err", err)
+		case <-ss.ctx.Done():
+			ss.lis.Close()
+			log.Error("http server stop")
 			s <- svc.Status{State: svc.Stopped}
 			return false, windows.NO_ERROR
-		case <-ss.signChannel:
-			ss.lis.Close()
-			s <- svc.Status{State: svc.Stopped}
 		case c := <-r:
 			log.Info("Got Windows Service event", "cmd", cmdName(c.Cmd))
 			switch c.Cmd {

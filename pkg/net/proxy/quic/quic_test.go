@@ -58,9 +58,9 @@ func TestConn(t *testing.T) {
 	t.Run("test close", func(t *testing.T) {
 		s, err := NewServer(listener.Quic_builder{
 			Host: proto.String("127.0.0.1:0"),
-			Tls: listener.TlsConfig_builder{
-				Certificates: []*listener.Certificate{
-					listener.Certificate_builder{
+			Tls: protocol.TlsServerConfig_builder{
+				Certificates: []*protocol.Certificate{
+					protocol.Certificate_builder{
 						Cert: cert,
 						Key:  key,
 					}.Build(),
@@ -123,9 +123,9 @@ func TestConn(t *testing.T) {
 	t.Run("test io", func(t *testing.T) {
 		s, err := NewServer(listener.Quic_builder{
 			Host: proto.String("127.0.0.1:0"),
-			Tls: listener.TlsConfig_builder{
-				Certificates: []*listener.Certificate{
-					listener.Certificate_builder{
+			Tls: protocol.TlsServerConfig_builder{
+				Certificates: []*protocol.Certificate{
+					protocol.Certificate_builder{
 						Cert: cert,
 						Key:  key,
 					}.Build(),
@@ -185,9 +185,9 @@ func TestConn(t *testing.T) {
 		nettest.TestConn(t, func() (c1 net.Conn, c2 net.Conn, stop func(), err error) {
 			s, err := NewServer(listener.Quic_builder{
 				Host: proto.String("127.0.0.1:0"),
-				Tls: listener.TlsConfig_builder{
-					Certificates: []*listener.Certificate{
-						listener.Certificate_builder{
+				Tls: protocol.TlsServerConfig_builder{
+					Certificates: []*protocol.Certificate{
+						protocol.Certificate_builder{
 							Cert: cert,
 							Key:  key,
 						}.Build(),
@@ -249,9 +249,9 @@ func TestConn(t *testing.T) {
 func TestQuic(t *testing.T) {
 	s, err := NewServer(listener.Quic_builder{
 		Host: proto.String("127.0.0.1:1091"),
-		Tls: listener.TlsConfig_builder{
-			Certificates: []*listener.Certificate{
-				listener.Certificate_builder{
+		Tls: protocol.TlsServerConfig_builder{
+			Certificates: []*protocol.Certificate{
+				protocol.Certificate_builder{
 					Cert: cert,
 					Key:  key,
 				}.Build(),

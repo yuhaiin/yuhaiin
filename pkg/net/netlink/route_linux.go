@@ -139,3 +139,25 @@ func getTunnelName(fd int32) (string, error) {
 	}
 	return unix.ByteSliceToString(ifr[:]), nil
 }
+
+func SetNoqueue(iface string) error {
+	link, err := netlink.LinkByName(iface)
+	if err != nil {
+		return fmt.Errorf("failed to get link %s: %v", iface, err)
+	}
+
+	qdisc := &netlink.GenericQdisc{
+		QdiscAttrs: netlink.QdiscAttrs{
+			LinkIndex: link.Attrs().Index,
+			Handle:    netlink.MakeHandle(0, 0),
+			Parent:    netlink.HANDLE_ROOT,
+		},
+		QdiscType: "noqueue",
+	}
+
+	if err := netlink.QdiscAdd(qdisc); err != nil {
+		return fmt.Errorf("failed to add noqueue QDisc: %v", err)
+	}
+
+	return nil
+}

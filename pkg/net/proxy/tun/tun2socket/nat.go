@@ -74,10 +74,22 @@ func Start(opt *device.Opt) (*Nat, error) {
 		postDown: opt.PostDown,
 	}
 
-	subnet := tcpip.AddressWithPrefix{Address: nat.address, PrefixLen: opt.V4Address().Bits()}.Subnet()
-	broadcast := subnet.Broadcast()
-	if broadcast.Equal(nat.address) || broadcast.Equal(nat.portal) {
-		broadcast = tcpip.AddrFrom4([4]byte{255, 255, 255, 255})
+	var broadcast, v4network, v6network tcpip.Address
+
+	if opt.V4Address().Bits() < 32 {
+		subnet := tcpip.AddressWithPrefix{Address: nat.address, PrefixLen: opt.V4Address().Bits()}.Subnet()
+		// broadcast address, eg: 172.19.0.255, ipv6 don't have broadcast address
+		broadcast = subnet.Broadcast()
+		// network address, eg: 172.19.0.0
+		v4network = tcpip.AddrFromSlice(opt.V4Address().Masked().Addr().AsSlice())
+
+		if broadcast.Equal(nat.address) || broadcast.Equal(nat.portal) {
+			broadcast = tcpip.AddrFrom4([4]byte{255, 255, 255, 255})
+		}
+	}
+
+	if opt.V6Address().Bits() < 127 {
+		v6network = tcpip.AddrFromSlice(opt.V6Address().Masked().Addr().AsSlice())
 	}
 
 	go func() {
@@ -127,7 +139,15 @@ func Start(opt *device.Opt) (*Nat, error) {
 
 				dst, src := ip.DestinationAddress(), ip.SourceAddress()
 
-				if !net.IP(dst.AsSlice()).IsGlobalUnicast() || dst.Equal(broadcast) {
+				if !net.IP(dst.AsSlice()).IsGlobalUnicast() {
+					continue
+				}
+
+				if v4network.Len() != 0 && (dst.Equal(broadcast) || dst.Equal(v4network)) {
+					continue
+				}
+
+				if v6network.Len() != 0 && dst.Equal(v6network) {
 					continue
 				}
 
