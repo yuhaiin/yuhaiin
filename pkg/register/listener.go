@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"google.golang.org/protobuf/proto"
@@ -50,7 +51,7 @@ func GetTransportOneofValue(i *listener.Transport) proto.Message {
 	return ref.Get(f).Message().Interface()
 }
 
-func ParseCertificates(t *listener.TlsConfig) []tls.Certificate {
+func ParseCertificates(t *protocol.TlsServerConfig) []tls.Certificate {
 	r := make([]tls.Certificate, 0, len(t.GetCertificates()))
 
 	for _, c := range t.GetCertificates() {
@@ -70,7 +71,7 @@ func ParseCertificates(t *listener.TlsConfig) []tls.Certificate {
 	return r
 }
 
-func ParseServerNameCertificate(t *listener.TlsConfig) *trie.Trie[*tls.Certificate] {
+func ParseServerNameCertificate(t *protocol.TlsServerConfig) *trie.Trie[*tls.Certificate] {
 	var searcher *trie.Trie[*tls.Certificate]
 
 	for c, v := range t.GetServerNameCertificate() {
@@ -98,7 +99,7 @@ func ParseServerNameCertificate(t *listener.TlsConfig) *trie.Trie[*tls.Certifica
 	return searcher
 }
 
-func X509KeyPair(c *listener.Certificate) (tls.Certificate, error) {
+func X509KeyPair(c *protocol.Certificate) (tls.Certificate, error) {
 	if c.GetCertFilePath() != "" && c.GetKeyFilePath() != "" {
 		r, err := tls.LoadX509KeyPair(c.GetCertFilePath(), c.GetKeyFilePath())
 		if err != nil {
@@ -112,14 +113,14 @@ func X509KeyPair(c *listener.Certificate) (tls.Certificate, error) {
 }
 
 type TlsConfigManager struct {
-	t           *listener.TlsConfig
+	t           *protocol.TlsServerConfig
 	tlsConfig   *tls.Config
 	searcher    *trie.Trie[*tls.Certificate]
 	refreshTime int64
 	mu          sync.Mutex
 }
 
-func NewTlsConfigManager(t *listener.TlsConfig) *TlsConfigManager {
+func NewTlsConfigManager(t *protocol.TlsServerConfig) *TlsConfigManager {
 	tm := &TlsConfigManager{t: t}
 	tm.Refresh()
 	return tm
@@ -161,7 +162,7 @@ func (t *TlsConfigManager) Refresh() {
 	t.refreshTime = system.CheapNowNano()
 }
 
-func ParseTLS(t *listener.TlsConfig) (*tls.Config, error) {
+func ParseTLS(t *protocol.TlsServerConfig) (*tls.Config, error) {
 	if t == nil {
 		return nil, nil
 	}
