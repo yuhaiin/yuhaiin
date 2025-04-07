@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -60,7 +61,7 @@ func TestGetValue(t *testing.T) {
 
 	tt := listener.Transport_builder{
 		Tls: listener.Tls_builder{
-			Tls: listener.TlsConfig_builder{
+			Tls: protocol.TlsServerConfig_builder{
 				NextProtos: []string{"123"},
 			}.Build(),
 		}.Build(),

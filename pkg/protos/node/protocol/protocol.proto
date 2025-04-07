@@ -36,6 +36,8 @@ message protocol {
         [ json_name = "bootstrap_dns_warp" ];
     tailscale tailscale = 24 [ json_name = "tailscale" ];
     set set = 25 [ json_name = "set" ];
+    tls_termination tls_termination = 26 [ json_name = "tls_termination" ];
+    http_termination http_termination = 27 [ json_name = "http_termination" ];
   }
 }
 
@@ -141,6 +143,42 @@ message tls_config {
   // eg: h2, http/1.1
   repeated string next_protos = 5 [ json_name = "next_protos" ];
   bytes ech_config = 7 [ json_name = "ech_config" ];
+}
+
+message certificate {
+  bytes cert = 1 [ json_name = "cert" ];
+  bytes key = 2 [ json_name = "key" ];
+
+  string cert_file_path = 3 [ json_name = "cert_file_path" ];
+  string key_file_path = 4 [ json_name = "key_file_path" ];
+}
+
+message tls_server_config {
+  repeated certificate certificates = 1 [ json_name = "certificates" ];
+  repeated string next_protos = 3 [ json_name = "next_protos" ];
+  map<string, certificate> server_name_certificate = 4
+      [ json_name = "server_name_certificate" ];
+}
+
+// tls termination
+// tls offload
+message tls_termination { tls_server_config tls = 1 [ json_name = "tls" ]; }
+
+message http_termination {
+  message http_headers {
+    repeated http_header headers = 1 [ json_name = "headers" ];
+  }
+
+  // host header map
+  //
+  // eg: www.google.com - headers
+  //     *.google.com - headers
+  map<string, http_headers> headers = 1 [ json_name = "headers" ];
+}
+
+message http_header {
+  string key = 1 [ json_name = "key" ];
+  string value = 2 [ json_name = "value" ];
 }
 
 message direct {

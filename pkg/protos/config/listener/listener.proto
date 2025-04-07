@@ -74,7 +74,7 @@ message tcpudp {
 
 message quic {
   string host = 1 [ json_name = "host" ];
-  tls_config tls = 3 [ json_name = "tls" ];
+  yuhaiin.protocol.tls_server_config tls = 3 [ json_name = "tls" ];
 }
 
 message http {
@@ -156,7 +156,9 @@ message websocket {
   reserved tls;
 };
 
-message tls { tls_config tls = 1 [ json_name = "tls" ]; };
+message tls {
+  yuhaiin.protocol.tls_server_config tls = 1 [ json_name = "tls" ];
+};
 
 message grpc {
   reserved 1;
@@ -177,13 +179,6 @@ message reality {
   bool debug = 5 [ json_name = "debug" ];
 }
 
-message tls_config {
-  repeated certificate certificates = 1 [ json_name = "certificates" ];
-  repeated string next_protos = 3 [ json_name = "next_protos" ];
-  map<string, certificate> server_name_certificate = 4
-      [ json_name = "server_name_certificate" ];
-}
-
 message tls_auto {
   repeated string servernames = 1 [ json_name = "servernames" ];
   repeated string next_protos = 2 [ json_name = "next_protos" ];
@@ -201,14 +196,6 @@ message ech_config {
   bytes config = 2 [ json_name = "config" ];
   bytes private_key = 3 [ json_name = "private_key" ];
   string OuterSNI = 4 [ json_name = "OuterSNI" ];
-}
-
-message certificate {
-  bytes cert = 1 [ json_name = "cert" ];
-  bytes key = 2 [ json_name = "key" ];
-
-  string cert_file_path = 3 [ json_name = "cert_file_path" ];
-  string key_file_path = 4 [ json_name = "key_file_path" ];
 }
 
 message sniff { bool enabled = 1 [ json_name = "enabled" ]; }

@@ -2,6 +2,7 @@ package device
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	wun "github.com/tailscale/wireguard-go/tun"
@@ -20,6 +21,10 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Tun, error) {
 		wd, err := wun.CreateTUN(sc.Name, mtu)
 		if err != nil {
 			return nil, fmt.Errorf("create tun failed: %w", err)
+		}
+
+		if err := netlink.SetNoqueue(sc.Name); err != nil {
+			slog.Warn("set noqueue failed", slog.String("name", sc.Name), slog.Any("err", err))
 		}
 
 		if IsGSOEnabled(wd) {

@@ -35,6 +35,18 @@ func NewTun(o *listener.Tun, l netapi.Listener, handler netapi.Handler) (s netap
 		return nil, errors.Join(v4err, v6err)
 	}
 
+	// fisrt for network address
+	// last for broadcast address
+	// others for host address
+	// eg:
+	//   172.19.0.1/24
+	//   network address: 172.19.0.0
+	//   broadcast address: 172.19.0.255
+	//	 subnet: 172.19.0.1 - 172.19.0.254
+	if v4address.Bits() >= 31 || v6address.Bits() >= 127 {
+		return nil, fmt.Errorf("invalid address: ipv6: %v, ipv4: %v, the sub network must be smaller than ipv4(31) and ipv6(127)", o.GetPortal(), o.GetPortalV6())
+	}
+
 	sc, err := netlink.ParseTunScheme(o.GetName())
 	if err != nil {
 		return nil, err
@@ -104,7 +116,11 @@ func toPrefix(str string) (netip.Prefix, error) {
 
 	address, er := netip.ParseAddr(str)
 	if er == nil {
-		return netip.PrefixFrom(address, address.BitLen()), nil
+		if address.Is4() {
+			return netip.PrefixFrom(address, 24), nil
+		} else {
+			return netip.PrefixFrom(address, 64), nil
+		}
 	}
 
 	return netip.Prefix{}, fmt.Errorf("invalid IP address: %w", err)

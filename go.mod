@@ -7,24 +7,24 @@ require (
 	github.com/google/nftables v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-yamux/v5 v5.0.0
-	github.com/prometheus/client_golang v1.21.1
+	github.com/prometheus/client_golang v1.22.0
 	github.com/quic-go/quic-go v0.50.1
 	github.com/refraction-networking/utls v1.6.7
 	github.com/tailscale/wireguard-go v0.0.0-20250304000100-91a0587fb251
 	github.com/vishvananda/netlink v1.3.0
 	github.com/xtls/reality v0.0.0-20240909153216-e26ae2305463
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250403111109-8593c4c779a1
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250409083115-a7ccedf7b829
 	go.etcd.io/bbolt v1.4.0
-	golang.org/x/crypto v0.36.0
-	golang.org/x/mobile v0.0.0-20250305212854-3a7bc9f8a4de
-	golang.org/x/net v0.38.0
-	golang.org/x/sys v0.31.0
+	golang.org/x/crypto v0.37.0
+	golang.org/x/mobile v0.0.0-20250408133729-978277e7eaf7
+	golang.org/x/net v0.39.0
+	golang.org/x/sys v0.32.0
 	golang.org/x/time v0.11.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.71.1
 	google.golang.org/protobuf v1.36.6
-	gvisor.dev/gvisor v0.0.0-20250212202256-d8010a143980
-	tailscale.com v1.82.0
+	gvisor.dev/gvisor v0.0.0-20250416204613-04a61c0f3bd5
+	tailscale.com v1.82.5
 )
 
 require (
@@ -60,7 +60,7 @@ require (
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/btree v1.1.2 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20250208200701-d0013a598941 // indirect
 	github.com/gorilla/csrf v1.7.3-0.20250123201450-9dd6af1f6d30 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
@@ -69,7 +69,7 @@ require (
 	github.com/insomniacslk/dhcp v0.0.0-20231206064809-8c70d406f6d2 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jsimonetti/rtnetlink v1.4.0 // indirect
-	github.com/klauspost/compress v1.17.11 // indirect
+	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/kortschak/wol v0.0.0-20200729010619-da482cc4850a // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/mdlayher/genetlink v1.3.2 // indirect
@@ -103,14 +103,15 @@ require (
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	golang.org/x/exp v0.0.0-20250228200357-dead58393ab7 // indirect
 	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
-	golang.org/x/term v0.30.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
-	golang.org/x/tools v0.31.0 // indirect
+	golang.org/x/sync v0.13.0 // indirect
+	golang.org/x/term v0.31.0 // indirect
+	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/tools v0.32.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
 )
 
-replace golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
-
-replace tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20250327032155-a09f58f48d50
+replace (
+	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
+	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20250418090350-22678a948391
+)
