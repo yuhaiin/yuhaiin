@@ -1,17 +1,21 @@
 package reverse
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
+	ptls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
+	sniffhttp "github.com/Asutorufa/yuhaiin/pkg/net/sniff/http"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -35,6 +39,66 @@ func NewHTTPServer(o *listener.ReverseHttp, ii netapi.Listener, handler netapi.H
 	if o.GetTls() != nil {
 		o.GetTls().SetEnable(true)
 	}
+
+	tlsConfig := ptls.ParseTLSConfig(o.GetTls())
+
+	httpch := netapi.NewChannelStreamListener(lis.Addr())
+	go func() {
+		defer httpch.Close()
+
+		for {
+			conn, err := lis.Accept()
+			if err != nil {
+				log.Error("reverse http accept failed", "err", err)
+				break
+			}
+
+			go func() {
+				c := pool.NewBufioConnSize(conn, configuration.SnifferBufferSize)
+
+				var buf []byte
+				_ = c.BufioRead(func(br *bufio.Reader) error {
+					_ = c.SetReadDeadline(time.Now().Add(time.Millisecond * 55))
+					_, err := br.ReadByte()
+					_ = c.SetReadDeadline(time.Time{})
+					if err == nil {
+						_ = br.UnreadByte()
+					}
+
+					buf, _ = br.Peek(br.Buffered())
+					return nil
+				})
+
+				if len(buf) == 0 || sniffhttp.Sniff(buf) != "" {
+					httpch.NewConn(c)
+					return
+				}
+
+				defer c.Close()
+
+				host := uri.Host
+				_, _, err := net.SplitHostPort(uri.Host)
+				if err != nil {
+					host = net.JoinHostPort(uri.Host, "443")
+				}
+
+				address, err := netapi.ParseAddress("tcp", host)
+				if err != nil {
+					log.Error("parse address failed", "err", err)
+				}
+
+				sm := &netapi.StreamMeta{
+					Source:      c.RemoteAddr(),
+					Inbound:     lis.Addr(),
+					Destination: address,
+					Src:         c,
+					Address:     address,
+				}
+
+				handler.HandleStream(sm)
+			}()
+		}
+	}()
 
 	type remoteKey struct{}
 	rp := httputil.NewSingleHostReverseProxy(uri)
@@ -66,11 +130,11 @@ func NewHTTPServer(o *listener.ReverseHttp, ii netapi.Listener, handler netapi.H
 			return remote, nil
 		},
 
-		TLSClientConfig: tls.ParseTLSConfig(o.GetTls()),
+		TLSClientConfig: tlsConfig,
 	}
 
 	go func() {
-		if err := http.Serve(lis, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := http.Serve(httpch, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			log.Debug("reverse http serve", "host", r.Host, "method", r.Method, "path", r.URL.Path, "target", o.GetUrl())
 
 			r = r.WithContext(context.WithValue(r.Context(), remoteKey{}, r.RemoteAddr))

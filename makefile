@@ -24,7 +24,7 @@ GO_GCFLAGS=
 # GO_GCFLAGS= -m
 
 GO_BUILD_CMD=CGO_ENABLED=$(CGO_ENABLED) $(GO) build -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -trimpath
-TAILSCALE_BUILD_FLAGS="ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube,ts_omit_completion,ts_omit_ssh,ts_omit_wakeonlan,ts_omit_capture"
+TAILSCALE_BUILD_FLAGS=ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube,ts_omit_completion,ts_omit_ssh,ts_omit_wakeonlan,ts_omit_capture
 
 # AMD64v3 https://github.com/golang/go/wiki/MinimumRequirements#amd64
 LINUX_AMD64=GOOS=linux GOARCH=amd64
