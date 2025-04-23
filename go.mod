@@ -9,7 +9,7 @@ require (
 	github.com/libp2p/go-yamux/v5 v5.0.0
 	github.com/prometheus/client_golang v1.22.0
 	github.com/quic-go/quic-go v0.50.1
-	github.com/refraction-networking/utls v1.6.7
+	github.com/refraction-networking/utls v1.7.0
 	github.com/tailscale/wireguard-go v0.0.0-20250304000100-91a0587fb251
 	github.com/vishvananda/netlink v1.3.0
 	github.com/xtls/reality v0.0.0-20240909153216-e26ae2305463
@@ -48,7 +48,7 @@ require (
 	github.com/aws/smithy-go v1.22.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cloudflare/circl v1.3.7 // indirect
+	github.com/cloudflare/circl v1.5.0 // indirect
 	github.com/coder/websocket v1.8.12 // indirect
 	github.com/coreos/go-iptables v0.7.1-0.20240112124308-65c67c9f46e6 // indirect
 	github.com/dblohm7/wingoes v0.0.0-20240119213807-a09d6be7affa // indirect
