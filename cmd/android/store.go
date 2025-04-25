@@ -234,7 +234,7 @@ func (b *configDB[T]) View(f ...func(*pc.Setting) error) error {
 	setting := b.toSetting(b.setting)
 
 	for i := range f {
-		if err := f[i](proto.Clone(setting).(*pc.Setting)); err != nil {
+		if err := f[i](proto.CloneOf(setting)); err != nil {
 			return err
 		}
 	}

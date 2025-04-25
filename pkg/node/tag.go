@@ -8,7 +8,6 @@ import (
 
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -52,5 +51,5 @@ func (t *tag) List(ctx context.Context, _ *emptypb.Empty) (*gn.TagsResponse, err
 		}
 	}
 
-	return proto.Clone(resp.Build()).(*gn.TagsResponse), nil
+	return resp.Build(), nil
 }

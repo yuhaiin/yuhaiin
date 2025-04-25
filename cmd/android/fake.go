@@ -127,7 +127,7 @@ func (w *fakeSettings) AddObserver(o func(*pc.Setting)) {
 
 // android batch read only
 func (w *fakeSettings) Batch(f ...func(*pc.Setting) error) error {
-	config := proto.Clone(w.setting).(*pc.Setting)
+	config := proto.CloneOf(w.setting)
 
 	for i := range f {
 		if err := f[i](config); err != nil {

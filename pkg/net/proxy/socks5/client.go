@@ -169,7 +169,7 @@ func (s *Client) handshake2(conn net.Conn, cmd tools.CMD, address netapi.Address
 
 	addr := socksAddr.Address("tcp")
 
-	if !addr.IsFqdn() && addr.(netapi.IPAddress).IP().IsUnspecified() {
+	if !addr.IsFqdn() && addr.(netapi.IPAddress).AddrPort().Addr().IsUnspecified() {
 		addr = netapi.ParseAddressPort("tcp", s.hostname, uint16(addr.Port()))
 	}
 
@@ -201,7 +201,7 @@ func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 	ctx = context.WithValue(ctx, simple.PacketDirectKey{}, true)
 
 	if !addr.IsFqdn() {
-		ip := addr.(netapi.IPAddress).IP()
+		ip := addr.(netapi.IPAddress).AddrPort().Addr()
 		if ip.IsPrivate() || ip.IsLoopback() || ip.IsUnspecified() {
 			ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, "")
 		}

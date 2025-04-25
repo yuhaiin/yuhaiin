@@ -3,7 +3,7 @@ package netlink
 import (
 	"encoding/binary"
 	"fmt"
-	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"syscall"
@@ -35,7 +35,7 @@ var structSize = func() int {
 	}
 }()
 
-func FindProcessName(network string, ip net.IP, port uint16, _ net.IP, _ uint16) (netapi.Process, error) {
+func FindProcessName(network string, ip netip.AddrPort, _ netip.AddrPort) (netapi.Process, error) {
 	var spath string
 	switch network {
 	case "tcp":
@@ -46,7 +46,7 @@ func FindProcessName(network string, ip net.IP, port uint16, _ net.IP, _ uint16)
 		return netapi.Process{}, fmt.Errorf("ErrInvalidNetwork: %s", network)
 	}
 
-	isIPv4 := ip.To4() != nil
+	isIPv4 := ip.Addr().Is4()
 
 	value, err := syscall.Sysctl(spath)
 	if err != nil {
@@ -68,7 +68,7 @@ func FindProcessName(network string, ip net.IP, port uint16, _ net.IP, _ uint16)
 		inp, so := i, i+104
 
 		srcPort := binary.BigEndian.Uint16(buf[inp+18 : inp+20])
-		if port != srcPort {
+		if ip.Port() != srcPort {
 			continue
 		}
 
@@ -76,22 +76,22 @@ func FindProcessName(network string, ip net.IP, port uint16, _ net.IP, _ uint16)
 		flag := buf[inp+44]
 
 		var (
-			srcIP     net.IP
+			srcIP     netip.Addr
 			srcIsIPv4 bool
 		)
 		switch {
 		case flag&0x1 > 0 && isIPv4:
 			// ipv4
-			srcIP = net.IP(buf[inp+76 : inp+80])
+			srcIP, _ = netip.AddrFromSlice(buf[inp+76 : inp+80])
 			srcIsIPv4 = true
 		case flag&0x2 > 0 && !isIPv4:
 			// ipv6
-			srcIP = net.IP(buf[inp+64 : inp+80])
+			srcIP, _ = netip.AddrFromSlice(buf[inp+64 : inp+80])
 		default:
 			continue
 		}
 
-		if ip.Equal(srcIP) {
+		if ip.Addr().Compare(srcIP) == 0 {
 			// xsocket_n.so_last_pid
 			pid := readNativeUint32(buf[so+68 : so+72])
 			path, err := getExecPathFromPID(pid)

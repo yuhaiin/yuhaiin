@@ -3,7 +3,6 @@ package netlink
 import (
 	"errors"
 	"fmt"
-	"net"
 	"net/netip"
 	"unsafe"
 
@@ -19,9 +18,9 @@ var (
 	procGetExtendedUdpTable = modIphlpapi.NewProc("GetExtendedUdpTable")
 )
 
-func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPort uint16) (netapi.Process, error) {
+func FindProcessName(network string, ip netip.AddrPort, to netip.AddrPort) (netapi.Process, error) {
 	family := uint32(windows.AF_INET)
-	if ip.To4() == nil {
+	if ip.Addr().Is6() {
 		family = windows.AF_INET6
 	}
 
@@ -35,14 +34,7 @@ func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPor
 		return netapi.Process{}, errors.New("ErrInvalidNetwork")
 	}
 
-	saddr, _ := netip.AddrFromSlice(ip)
-	daddr, _ := netip.AddrFromSlice(to)
-
-	pid, err := findPidByConnectionEndpoint(family,
-		protocol,
-		netip.AddrPortFrom(saddr, srcPort),
-		netip.AddrPortFrom(daddr, toPort),
-	)
+	pid, err := findPidByConnectionEndpoint(family, protocol, ip, to)
 	if err != nil {
 		return netapi.Process{}, err
 	}

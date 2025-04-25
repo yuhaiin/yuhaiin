@@ -67,8 +67,8 @@ func (h *RejectHistory) Get() *gc.BlockHistoryList {
 			dumpProcess = true
 		}
 	}
-	return proto.Clone(gc.BlockHistoryList_builder{
+	return gc.BlockHistoryList_builder{
 		Objects:            objects,
 		DumpProcessEnabled: proto.Bool(dumpProcess),
-	}.Build()).(*gc.BlockHistoryList)
+	}.Build()
 }

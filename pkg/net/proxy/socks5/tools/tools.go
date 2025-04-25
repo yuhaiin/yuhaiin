@@ -50,12 +50,12 @@ func WriteAddr(addr netapi.Address, buf io.Writer) {
 		_, _ = buf.Write([]byte{0x03, byte(len(hostname))})
 		_, _ = buf.Write(unsafe.Slice(unsafe.StringData(hostname), len(hostname)))
 	} else {
-		if ip := addr.(netapi.IPAddress).IP(); ip.To4() != nil {
+		if ip := addr.(netapi.IPAddress).AddrPort().Addr(); ip.Is4() {
 			_, _ = buf.Write([]byte{0x01})
-			_, _ = buf.Write(ip.To4())
+			_, _ = buf.Write(ip.AsSlice())
 		} else {
 			_, _ = buf.Write([]byte{0x04})
-			_, _ = buf.Write(ip.To16())
+			_, _ = buf.Write(ip.AsSlice())
 		}
 	}
 
@@ -71,12 +71,12 @@ func EncodeAddr(addr netapi.Address, buf []byte) int {
 		buf[1] = byte(hlen)
 		offset = 2 + hlen
 	} else {
-		if ip := addr.(netapi.IPAddress).IP(); ip.To4() != nil {
+		if ip := addr.(netapi.IPAddress).AddrPort().Addr(); ip.Is4() {
 			buf[0] = 0x01
-			offset = 1 + copy(buf[1:], ip.To4())
+			offset = 1 + copy(buf[1:], ip.AsSlice())
 		} else {
 			buf[0] = 0x04
-			offset = 1 + copy(buf[1:], ip.To16())
+			offset = 1 + copy(buf[1:], ip.AsSlice())
 		}
 	}
 

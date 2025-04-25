@@ -100,7 +100,7 @@ func ResolverAddrPort(ctx context.Context, addr netapi.Address) (netip.AddrPort,
 	if !addr.IsFqdn() {
 		x, ok := addr.(netapi.IPAddr)
 		if ok {
-			return netip.AddrPortFrom(x.Addr, x.Port()), nil
+			return x.AddrPort(), nil
 		}
 	}
 
@@ -119,7 +119,7 @@ func ResolverAddrPort(ctx context.Context, addr netapi.Address) (netip.AddrPort,
 
 func ResolverIP(ctx context.Context, addr netapi.Address) (net.IP, error) {
 	if !addr.IsFqdn() {
-		return addr.(netapi.IPAddress).IP(), nil
+		return addr.(netapi.IPAddress).AddrPort().Addr().AsSlice(), nil
 	}
 
 	ips, err := LookupIP(ctx, addr)
@@ -131,7 +131,7 @@ func ResolverIP(ctx context.Context, addr netapi.Address) (net.IP, error) {
 
 func LookupIP(ctx context.Context, addr netapi.Address) ([]net.IP, error) {
 	if !addr.IsFqdn() {
-		return []net.IP{addr.(netapi.IPAddress).IP()}, nil
+		return []net.IP{addr.(netapi.IPAddress).AddrPort().Addr().AsSlice()}, nil
 	}
 
 	netctx := netapi.GetContext(ctx)
