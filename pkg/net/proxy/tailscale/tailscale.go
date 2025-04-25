@@ -204,8 +204,7 @@ func (t *Tailscale) waitAddr(ctx context.Context, tsnet *tsnet.Server) (netip.Ad
 
 func (t *Tailscale) resolveAddr(dialer *tsnet.Server, addr netapi.Address) (netip.AddrPort, error) {
 	if !addr.IsFqdn() {
-		ad, _ := netip.AddrFromSlice(addr.(netapi.IPAddress).IP())
-		return netip.AddrPortFrom(ad, addr.Port()), nil
+		return addr.(netapi.IPAddress).AddrPort(), nil
 	}
 
 	dd := dialer.Sys().Dialer.Get()
@@ -275,7 +274,7 @@ func (t *Tailscale) PacketConnPacket(ctx context.Context, addr netapi.Address) (
 	}
 
 	laddr := ipv6
-	if !addr.IsFqdn() && addr.(netapi.IPAddress).IP().To4() != nil {
+	if !addr.IsFqdn() && addr.(netapi.IPAddress).AddrPort().Addr().Is4() {
 		laddr = ipv4
 	}
 

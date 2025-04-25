@@ -45,7 +45,7 @@ var SkipResolver = netapi.ErrorResolver(func(domain string) error { return ErrSk
 
 func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok bool) {
 	if !addr.IsFqdn() {
-		return x.cidr.SearchIP(addr.(netapi.IPAddress).IP())
+		return x.cidr.SearchIP(addr.(netapi.IPAddress).AddrPort().Addr().AsSlice())
 	}
 
 	if mark, ok = x.domain.Search(addr); ok {

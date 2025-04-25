@@ -66,7 +66,6 @@ func TestRoute(t *testing.T) {
 */
 
 /*
-
 {Ifindex: 5 Dst: 0.0.0.0/0 Src: 192.168.2.245 Gw: 192.168.2.1 Flags: [] Table: 254 Realm: 0}
 {Ifindex: 14 Dst: 172.19.0.0/24 Src: 172.19.0.1 Gw: <nil> Flags: [] Table: 254 Realm: 0}
 {Ifindex: 5 Dst: 192.168.2.0/24 Src: 192.168.2.245 Gw: <nil> Flags: [] Table: 254 Realm: 0}

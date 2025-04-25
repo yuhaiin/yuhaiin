@@ -29,7 +29,7 @@ type Address interface {
 
 type IPAddress interface {
 	Address
-	IP() net.IP
+	AddrPort() netip.AddrPort
 }
 
 type DomainAddress interface{ Address }
@@ -61,8 +61,7 @@ func ParseAddressPort(network string, addr string, port uint16) (ad Address) {
 	if addr, err := netip.ParseAddr(addr); err == nil {
 		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(network),
-			Addr:           addr.Unmap(),
-			port:           port,
+			Addr:           netip.AddrPortFrom(addr.Unmap(), port),
 		}
 	}
 
@@ -72,27 +71,25 @@ func ParseAddressPort(network string, addr string, port uint16) (ad Address) {
 func ParseIPAddr(net string, ip net.IP, port uint16) Address {
 	return IPAddr{
 		AddressNetwork: ParseAddressNetwork(net),
-		Addr:           toAddrPort(ip, ""),
-		port:           port,
+		Addr:           toAddrPort(ip, port, ""),
 	}
 }
 
 func ParseNetipAddr(net string, ip netip.Addr, port uint16) Address {
 	return IPAddr{
 		AddressNetwork: ParseAddressNetwork(net),
-		Addr:           ip.Unmap(),
-		port:           port,
+		Addr:           netip.AddrPortFrom(ip, port),
 	}
 }
 
-func toAddrPort(ad net.IP, zone string) netip.Addr {
+func toAddrPort(ad net.IP, port uint16, zone string) netip.AddrPort {
 	addr, _ := netip.AddrFromSlice(ad)
 	addr = addr.Unmap()
 	if zone != "" {
 		addr = addr.WithZone(zone)
 	}
 
-	return addr
+	return netip.AddrPortFrom(addr, port)
 }
 
 func ParseSysAddr(ad net.Addr) (Address, error) {
@@ -106,20 +103,17 @@ func ParseSysAddr(ad net.Addr) (Address, error) {
 	case *net.TCPAddr:
 		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
-			Addr:           toAddrPort(ad.IP, ad.Zone),
-			port:           uint16(ad.Port),
+			Addr:           toAddrPort(ad.IP, uint16(ad.Port), ad.Zone),
 		}, nil
 	case *net.UDPAddr:
 		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
-			Addr:           toAddrPort(ad.IP, ad.Zone),
-			port:           uint16(ad.Port),
+			Addr:           toAddrPort(ad.IP, uint16(ad.Port), ad.Zone),
 		}, nil
 	case *net.IPAddr:
 		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
-			Addr:           toAddrPort(ad.IP, ad.Zone),
-			port:           0,
+			Addr:           toAddrPort(ad.IP, 0, ad.Zone),
 		}, nil
 	case *net.UnixAddr:
 		return DomainAddr{
@@ -184,16 +178,15 @@ func (d DomainAddr) Comparable() uint64 { return ComputeAddressHash(d) }
 var _ IPAddress = IPAddr{}
 
 type IPAddr struct {
-	Addr netip.Addr
+	Addr netip.AddrPort
 	AddressNetwork
-	port uint16
 }
 
-func (d IPAddr) String() string     { return net.JoinHostPort(d.Addr.String(), strconv.Itoa(int(d.port))) }
-func (d IPAddr) Hostname() string   { return d.Addr.String() }
-func (d IPAddr) Port() uint16       { return d.port }
-func (d IPAddr) IsFqdn() bool       { return false }
-func (d IPAddr) IP() net.IP         { return d.Addr.AsSlice() }
-func (d IPAddr) Comparable() uint64 { return ComputeAddressHash(d) }
+func (d IPAddr) String() string           { return d.Addr.String() }
+func (d IPAddr) Hostname() string         { return d.Addr.String() }
+func (d IPAddr) Port() uint16             { return d.Addr.Port() }
+func (d IPAddr) IsFqdn() bool             { return false }
+func (d IPAddr) AddrPort() netip.AddrPort { return d.Addr }
+func (d IPAddr) Comparable() uint64       { return ComputeAddressHash(d) }
 
 var EmptyAddr Address = DomainAddr{}

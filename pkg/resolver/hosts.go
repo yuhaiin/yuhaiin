@@ -129,7 +129,7 @@ func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Ad
 func (h *Hosts) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
 	addr := h.dispatchAddr(ctx, netapi.ParseAddressPort("", domain, 0))
 	if !addr.IsFqdn() {
-		return []net.IP{addr.(netapi.IPAddress).IP()}, nil
+		return []net.IP{addr.(netapi.IPAddress).AddrPort().Addr().AsSlice()}, nil
 	}
 
 	return h.resolver.LookupIP(ctx, addr.Hostname(), opts...)
@@ -221,7 +221,7 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 		return h.resolver.Raw(ctx, req)
 	}
 
-	ip := addr.(netapi.IPAddress).IP()
+	ip := addr.(netapi.IPAddress).AddrPort().Addr()
 
 	if req.Type == dnsmessage.TypeAAAA {
 		msg := h.newDnsMsg(req)
@@ -233,14 +233,13 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 					TTL:   600,
 					Type:  dnsmessage.TypeAAAA,
 				},
-				Body: &dnsmessage.AAAAResource{AAAA: [16]byte(ip.To16())},
+				Body: &dnsmessage.AAAAResource{AAAA: ip.As16()},
 			},
 		}
 		return msg, nil
 	}
 
-	ip4 := ip.To4()
-	if ip4 == nil {
+	if !ip.Is4() {
 		return h.resolver.Raw(ctx, req)
 	}
 
@@ -253,7 +252,7 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 				TTL:   600,
 				Type:  dnsmessage.TypeA,
 			},
-			Body: &dnsmessage.AResource{A: [4]byte(ip4)},
+			Body: &dnsmessage.AResource{A: ip.As4()},
 		},
 	}
 

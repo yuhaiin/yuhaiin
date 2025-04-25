@@ -5,11 +5,11 @@ package netlink
 
 import (
 	"errors"
-	"net"
+	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
-func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPort uint16) (netapi.Process, error) {
+func FindProcessName(network string, ip netip.AddrPort, to netip.AddrPort) (netapi.Process, error) {
 	return netapi.Process{}, errors.New("not implemented")
 }

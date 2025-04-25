@@ -270,7 +270,7 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(ctx context.Context, addr
 	}
 
 	if !addr.IsFqdn() {
-		return h.DialContext(ctx, addr.(netapi.IPAddress).IP(), addr.Port())
+		return h.DialContext(ctx, addr.(netapi.IPAddress).AddrPort().Addr().AsSlice(), addr.Port())
 	}
 
 	hb := newHappyEyeball(ctx, addr, h.Cache)

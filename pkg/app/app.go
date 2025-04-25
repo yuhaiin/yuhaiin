@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
@@ -28,8 +29,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/goos"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.etcd.io/bbolt"
@@ -115,6 +118,16 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 			var mu sync.RWMutex
 
+			checkInterface := func(x string) (string, error) {
+				if _, err := net.InterfaceByName(x); err != nil {
+					return "", err
+				}
+
+				return x, nil
+			}
+
+			resultCache := NewResultCache(checkInterface, int64(time.Minute), 5)
+
 			dialer.DefaultInterfaceName = func() string {
 				if goos.IsAndroid == 1 || !s.GetUseDefaultInterface() {
 					return s.GetNetInterface()
@@ -125,13 +138,13 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 				mu.RUnlock()
 
 				if x != "" {
-					if _, err := net.InterfaceByName(x); err == nil {
+					if _, err := resultCache.Get(x); err == nil {
 						return x
-					} else {
-						mu.Lock()
-						iface = ""
-						mu.Unlock()
 					}
+
+					mu.Lock()
+					iface = ""
+					mu.Unlock()
 				}
 
 				mu.Lock()
@@ -233,4 +246,44 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	tailscale.Mux.Store(app.Mux)
 
 	return app, nil
+}
+
+type resultCache[K any, T comparable] struct {
+	do               func(K) (T, error)
+	expireTime       int64
+	successThreshold int32
+	currentSuccess   atomic.Int32
+	lastTime         atomic.Int64
+	Data             atomicx.Value[T]
+}
+
+func NewResultCache[K any, T comparable](do func(K) (T, error), expireTime int64, successThreshold int32) *resultCache[K, T] {
+	return &resultCache[K, T]{
+		do:               do,
+		expireTime:       expireTime,
+		successThreshold: successThreshold,
+	}
+}
+
+func (c *resultCache[K, T]) Get(x K) (T, error) {
+
+	now := system.CheapNowNano()
+
+	if c.currentSuccess.Load() >= c.successThreshold && now-c.lastTime.Load() <= c.expireTime {
+		if data := c.Data.Load(); data != *new(T) {
+			return data, nil
+		}
+	}
+
+	data, err := c.do(x)
+	if err != nil {
+		c.currentSuccess.Store(0)
+		return *new(T), err
+	}
+
+	c.Data.Store(data)
+	c.lastTime.Store(now)
+	c.currentSuccess.Add(1)
+
+	return data, nil
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"runtime"
@@ -137,23 +138,28 @@ func getPorcessDumper() netapi.ProcessDumper {
 
 type processDumperImpl struct{}
 
+var (
+	addrV4Loopback = netip.AddrFrom4([4]byte{127, 0, 0, 1})
+	addrV6Loopback = netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
+)
+
 func (processDumperImpl) ProcessName(network string, src, dst netapi.Address) (netapi.Process, error) {
 	if src.IsFqdn() || dst.IsFqdn() {
 		return netapi.Process{}, fmt.Errorf("source or destination address is not ip")
 	}
 
-	ip := src.(netapi.IPAddress).IP()
-	to := dst.(netapi.IPAddress).IP()
+	ip := src.(netapi.IPAddress).AddrPort()
+	to := dst.(netapi.IPAddress).AddrPort()
 
-	if to.IsUnspecified() {
-		if ip.To4() != nil {
-			to = net.IPv4(127, 0, 0, 1)
+	if to.Addr().IsUnspecified() {
+		if ip.Addr().Is4() {
+			to = netip.AddrPortFrom(addrV4Loopback, uint16(dst.Port()))
 		} else {
-			to = net.IPv6loopback
+			to = netip.AddrPortFrom(addrV6Loopback, uint16(dst.Port()))
 		}
 	}
 
-	return netlink.FindProcessName(network, ip, src.Port(), to, dst.Port())
+	return netlink.FindProcessName(network, ip, to)
 }
 
 // func StartCPUProfile(path string) (func(), error) {
