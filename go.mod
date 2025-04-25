@@ -9,7 +9,7 @@ require (
 	github.com/libp2p/go-yamux/v5 v5.0.0
 	github.com/prometheus/client_golang v1.22.0
 	github.com/quic-go/quic-go v0.51.0
-	github.com/refraction-networking/utls v1.7.0
+	github.com/refraction-networking/utls v1.7.1
 	github.com/tailscale/wireguard-go v0.0.0-20250304000100-91a0587fb251
 	github.com/vishvananda/netlink v1.3.0
 	github.com/xtls/reality v0.0.0-20240909153216-e26ae2305463
