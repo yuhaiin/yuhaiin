@@ -29,7 +29,7 @@ type Address interface {
 
 type IPAddress interface {
 	Address
-	IP() net.IP
+	AddrPort() netip.AddrPort
 }
 
 type DomainAddress interface{ Address }
@@ -51,8 +51,8 @@ func ParseAddress(network string, addr string) (ad Address, _ error) {
 
 func ParseDomainPort(network string, addr string, port uint16) (ad Address) {
 	return DomainAddr{
-		hostname:       addr,
-		port:           port,
+		Hostname_:      addr,
+		Port_:          port,
 		AddressNetwork: ParseAddressNetwork(network),
 	}
 }
@@ -61,8 +61,7 @@ func ParseAddressPort(network string, addr string, port uint16) (ad Address) {
 	if addr, err := netip.ParseAddr(addr); err == nil {
 		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(network),
-			Addr:           addr.Unmap(),
-			port:           port,
+			AddrPort_:      netip.AddrPortFrom(addr.Unmap(), port),
 		}
 	}
 
@@ -72,27 +71,25 @@ func ParseAddressPort(network string, addr string, port uint16) (ad Address) {
 func ParseIPAddr(net string, ip net.IP, port uint16) Address {
 	return IPAddr{
 		AddressNetwork: ParseAddressNetwork(net),
-		Addr:           toAddrPort(ip, ""),
-		port:           port,
+		AddrPort_:      toAddrPort(ip, port, ""),
 	}
 }
 
 func ParseNetipAddr(net string, ip netip.Addr, port uint16) Address {
 	return IPAddr{
 		AddressNetwork: ParseAddressNetwork(net),
-		Addr:           ip.Unmap(),
-		port:           port,
+		AddrPort_:      netip.AddrPortFrom(ip, port),
 	}
 }
 
-func toAddrPort(ad net.IP, zone string) netip.Addr {
+func toAddrPort(ad net.IP, port uint16, zone string) netip.AddrPort {
 	addr, _ := netip.AddrFromSlice(ad)
 	addr = addr.Unmap()
 	if zone != "" {
 		addr = addr.WithZone(zone)
 	}
 
-	return addr
+	return netip.AddrPortFrom(addr, port)
 }
 
 func ParseSysAddr(ad net.Addr) (Address, error) {
@@ -106,24 +103,21 @@ func ParseSysAddr(ad net.Addr) (Address, error) {
 	case *net.TCPAddr:
 		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
-			Addr:           toAddrPort(ad.IP, ad.Zone),
-			port:           uint16(ad.Port),
+			AddrPort_:      toAddrPort(ad.IP, uint16(ad.Port), ad.Zone),
 		}, nil
 	case *net.UDPAddr:
 		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
-			Addr:           toAddrPort(ad.IP, ad.Zone),
-			port:           uint16(ad.Port),
+			AddrPort_:      toAddrPort(ad.IP, uint16(ad.Port), ad.Zone),
 		}, nil
 	case *net.IPAddr:
 		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
-			Addr:           toAddrPort(ad.IP, ad.Zone),
-			port:           0,
+			AddrPort_:      toAddrPort(ad.IP, 0, ad.Zone),
 		}, nil
 	case *net.UnixAddr:
 		return DomainAddr{
-			hostname:       ad.Name,
+			Hostname_:      ad.Name,
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
 		}, nil
 	}
@@ -168,32 +162,31 @@ func (n AddressNetwork) Network() string {
 var _ Address = DomainAddr{}
 
 type DomainAddr struct {
-	hostname string
-	AddressNetwork
-	port uint16
+	Hostname_      string `json:"hostname,omitempty"`
+	AddressNetwork `json:"network,omitempty"`
+	Port_          uint16 `json:"port,omitempty"`
 }
 
 func (d DomainAddr) String() string {
-	return net.JoinHostPort(d.hostname, strconv.Itoa(int(d.port)))
+	return net.JoinHostPort(d.Hostname_, strconv.Itoa(int(d.Port_)))
 }
-func (d DomainAddr) Hostname() string   { return d.hostname }
-func (d DomainAddr) Port() uint16       { return d.port }
+func (d DomainAddr) Hostname() string   { return d.Hostname_ }
+func (d DomainAddr) Port() uint16       { return d.Port_ }
 func (d DomainAddr) IsFqdn() bool       { return true }
 func (d DomainAddr) Comparable() uint64 { return ComputeAddressHash(d) }
 
 var _ IPAddress = IPAddr{}
 
 type IPAddr struct {
-	Addr netip.Addr
-	AddressNetwork
-	port uint16
+	AddrPort_      netip.AddrPort `json:"addr_port,omitempty"`
+	AddressNetwork `json:"network,omitempty"`
 }
 
-func (d IPAddr) String() string     { return net.JoinHostPort(d.Addr.String(), strconv.Itoa(int(d.port))) }
-func (d IPAddr) Hostname() string   { return d.Addr.String() }
-func (d IPAddr) Port() uint16       { return d.port }
-func (d IPAddr) IsFqdn() bool       { return false }
-func (d IPAddr) IP() net.IP         { return d.Addr.AsSlice() }
-func (d IPAddr) Comparable() uint64 { return ComputeAddressHash(d) }
+func (d IPAddr) String() string           { return d.AddrPort_.String() }
+func (d IPAddr) Hostname() string         { return d.AddrPort_.Addr().String() }
+func (d IPAddr) Port() uint16             { return d.AddrPort_.Port() }
+func (d IPAddr) IsFqdn() bool             { return false }
+func (d IPAddr) AddrPort() netip.AddrPort { return d.AddrPort_ }
+func (d IPAddr) Comparable() uint64       { return ComputeAddressHash(d) }
 
 var EmptyAddr Address = DomainAddr{}

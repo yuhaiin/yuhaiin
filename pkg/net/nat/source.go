@@ -67,6 +67,8 @@ type SourceControl struct {
 	sentPacketMx sync.Mutex
 
 	receivedPacketMx sync.Mutex
+
+	lastProcess *atomicx.Value[string]
 }
 
 func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy, onRemove func(*SourceControl)) *SourceControl {
@@ -82,6 +84,7 @@ func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy, onRemove f
 		wirteBack: atomicx.NewValue[netapi.WriteBack](netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 			return 0, errors.ErrUnsupported
 		})),
+		lastProcess: atomicx.NewValue(""),
 	}
 
 	s.sentPackets.Init(8)
@@ -188,7 +191,7 @@ func (u *SourceControl) handle() {
 				return
 			}
 
-			log.Select(u.logLevel(err)).Print("handle packet failed", "err", err)
+			log.Select(u.logLevel(err)).Print("handle packet failed", "err", err, "last_process", u.lastProcess.Load())
 		}
 	}
 }
@@ -246,9 +249,14 @@ func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
 
 		u.wirteBack.Store(pkt.WriteBack)
 		u.conn = conn
+		u.lastProcess.Store(store.GetProcessName())
 	}
 
-	return u.write(ctx, pkt, conn)
+	if err := u.write(ctx, pkt, conn); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (u *SourceControl) newPacketConn(store *netapi.Context, pkt *netapi.Packet) (*wrapConn, error) {

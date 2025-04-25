@@ -3,6 +3,7 @@
 package app
 
 import (
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nftables"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tproxy"
@@ -11,6 +12,7 @@ import (
 func init() {
 	operators = append(operators, func(c *closers) {
 		c.AddCloser("nftables", &nftablesClear{})
+		c.AddCloser("bpf_tcplife", netlink.BpfCloser())
 	})
 }
 

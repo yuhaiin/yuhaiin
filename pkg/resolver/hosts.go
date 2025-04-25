@@ -3,6 +3,8 @@ package resolver
 import (
 	"context"
 	"net"
+	"net/netip"
+	"sync"
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
@@ -12,72 +14,44 @@ import (
 )
 
 type Hosts struct {
-	hosts    map[string]*hostsEntry
-	ptrMap   map[string][]string
+	mu       sync.RWMutex
+	store    *hostsStore
 	dialer   netapi.Proxy
 	resolver netapi.Resolver
-}
-
-type hostsEntry struct {
-	Address netapi.Address
-	portMap map[uint16]netapi.Address
 }
 
 func NewHosts(dialer netapi.Proxy, resolver netapi.Resolver) *Hosts {
 	return &Hosts{
 		dialer:   dialer,
 		resolver: resolver,
-		hosts:    map[string]*hostsEntry{},
-		ptrMap:   map[string][]string{},
+		store:    newHostsStore(),
 	}
 }
 
 func (h *Hosts) Apply(hosts map[string]string) {
-	store := map[string]*hostsEntry{}
-	ptrStore := map[string][]string{}
-
-	getEntry := func(k string, initMap bool) *hostsEntry {
-		x, ok := store[k]
-		if !ok {
-			x = &hostsEntry{}
-			store[k] = x
-		}
-
-		if initMap && x.portMap == nil {
-			x.portMap = map[uint16]netapi.Address{}
-		}
-
-		return x
-	}
+	store := newHostsStore()
 
 	for k, v := range hosts {
 		if k == "" || v == "" {
 			continue
 		}
 
-		_, _, e1 := net.SplitHostPort(k)
-		_, _, e2 := net.SplitHostPort(v)
-
-		if e1 == nil && e2 == nil {
-			kaddr, err1 := netapi.ParseAddress("", k)
-			addr, err2 := netapi.ParseAddress("", v)
-			if err1 == nil && err2 == nil && kaddr.Port() != 0 && addr.Port() != 0 {
-				getEntry(kaddr.Hostname(), true).portMap[uint16(kaddr.Port())] = addr
-				continue
-			}
+		addr, err := netapi.ParseAddress("", k)
+		if err != nil {
+			continue
 		}
 
-		if e1 != nil && e2 != nil {
-			addr := netapi.ParseAddressPort("", v, 0)
-			getEntry(k, false).Address = addr
-			if !addr.IsFqdn() {
-				ptrStore[v] = append(ptrStore[v], k)
-			}
+		taddr, err := netapi.ParseAddress("", v)
+		if err != nil {
+			continue
 		}
+
+		store.add(addr, taddr)
 	}
 
-	h.hosts = store
-	h.ptrMap = ptrStore
+	h.mu.Lock()
+	h.store = store
+	h.mu.Unlock()
 }
 
 func (h *Hosts) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Address, error) {
@@ -98,20 +72,12 @@ func (h *Hosts) setHosts(ctx context.Context, pre netapi.Address) {
 }
 
 func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Address {
-	v, ok := h.hosts[addr.Hostname()]
+	h.mu.RLock()
+	x, ok := h.store.lookup(addr)
+	h.mu.RUnlock()
 	if ok {
-		if v.portMap != nil {
-			z, ok := v.portMap[uint16(addr.Port())]
-			if ok {
-				h.setHosts(ctx, addr)
-				return netapi.ParseAddressPort(addr.Network(), z.Hostname(), z.Port())
-			}
-		}
-
-		if v.Address != nil {
-			h.setHosts(ctx, addr)
-			return netapi.ParseAddressPort(addr.Network(), v.Address.Hostname(), addr.Port())
-		}
+		h.setHosts(ctx, addr)
+		return x
 	}
 
 	if addr.IsFqdn() {
@@ -129,7 +95,7 @@ func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Ad
 func (h *Hosts) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
 	addr := h.dispatchAddr(ctx, netapi.ParseAddressPort("", domain, 0))
 	if !addr.IsFqdn() {
-		return []net.IP{addr.(netapi.IPAddress).IP()}, nil
+		return []net.IP{addr.(netapi.IPAddress).AddrPort().Addr().AsSlice()}, nil
 	}
 
 	return h.resolver.LookupIP(ctx, addr.Hostname(), opts...)
@@ -162,9 +128,12 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 			return h.resolver.Raw(ctx, req)
 		}
 
-		ipstr := ip.String()
+		ipaddr, _ := netip.AddrFromSlice(ip)
 
-		domains := append(h.ptrMap[ipstr], system.LookupStaticAddr(ip)...)
+		h.mu.RLock()
+		ptrs := h.store.lookupPtr(ipaddr)
+		h.mu.RUnlock()
+		domains := append(ptrs, system.LookupStaticAddr(ip)...)
 		if len(domains) == 0 {
 			return h.resolver.Raw(ctx, req)
 		}
@@ -221,7 +190,7 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 		return h.resolver.Raw(ctx, req)
 	}
 
-	ip := addr.(netapi.IPAddress).IP()
+	ip := addr.(netapi.IPAddress).AddrPort().Addr()
 
 	if req.Type == dnsmessage.TypeAAAA {
 		msg := h.newDnsMsg(req)
@@ -233,14 +202,13 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 					TTL:   600,
 					Type:  dnsmessage.TypeAAAA,
 				},
-				Body: &dnsmessage.AAAAResource{AAAA: [16]byte(ip.To16())},
+				Body: &dnsmessage.AAAAResource{AAAA: ip.As16()},
 			},
 		}
 		return msg, nil
 	}
 
-	ip4 := ip.To4()
-	if ip4 == nil {
+	if !ip.Is4() {
 		return h.resolver.Raw(ctx, req)
 	}
 
@@ -253,7 +221,7 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 				TTL:   600,
 				Type:  dnsmessage.TypeA,
 			},
-			Body: &dnsmessage.AResource{A: [4]byte(ip4)},
+			Body: &dnsmessage.AResource{A: ip.As4()},
 		},
 	}
 
@@ -261,3 +229,93 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 }
 
 func (h *Hosts) Close() error { return nil }
+
+type hostsEntry struct {
+	Address netapi.Address
+	portMap map[uint16]netapi.Address
+}
+
+func (h *hostsEntry) Get(addr netapi.Address) (netapi.Address, bool) {
+	if h.portMap != nil && addr.Port() != 0 {
+		z, ok := h.portMap[uint16(addr.Port())]
+		if ok {
+			return z, true
+		}
+	}
+
+	return h.Address, h.Address != nil
+}
+
+type hostsStore struct {
+	Hosts   map[string]*hostsEntry
+	IPHosts map[netip.Addr]*hostsEntry
+	PtrMap  map[netip.Addr][]string
+}
+
+func newHostsStore() *hostsStore {
+	return &hostsStore{
+		Hosts:   make(map[string]*hostsEntry),
+		IPHosts: make(map[netip.Addr]*hostsEntry),
+		PtrMap:  make(map[netip.Addr][]string),
+	}
+}
+
+func (h *hostsStore) getEntry(addr netapi.Address, create bool) (*hostsEntry, bool) {
+	if addr.IsFqdn() {
+		x, ok := h.Hosts[addr.Hostname()]
+		if !ok && create {
+			x = &hostsEntry{}
+			ok = true
+			h.Hosts[addr.Hostname()] = x
+		}
+		return x, ok
+	}
+
+	x, ok := h.IPHosts[addr.(netapi.IPAddress).AddrPort().Addr()]
+	if !ok && create {
+		x = &hostsEntry{}
+		ok = true
+		h.IPHosts[addr.(netapi.IPAddress).AddrPort().Addr()] = x
+	}
+	return x, ok
+}
+
+func (h *hostsStore) lookup(addr netapi.Address) (netapi.Address, bool) {
+	v, ok := h.getEntry(addr, false)
+	if !ok {
+		return nil, false
+	}
+	t, ok := v.Get(addr)
+	if !ok {
+		return nil, false
+	}
+
+	if t.Port() != 0 {
+		return netapi.ParseAddressPort(addr.Network(), t.Hostname(), t.Port()), true
+	}
+
+	return netapi.ParseAddressPort(addr.Network(), t.Hostname(), addr.Port()), true
+}
+
+func (h *hostsStore) add(addr, taddr netapi.Address) {
+	entry, _ := h.getEntry(addr, true)
+
+	if addr.Port() != 0 && taddr.Port() != 0 {
+		if entry.portMap == nil {
+			entry.portMap = map[uint16]netapi.Address{}
+		}
+
+		entry.portMap[uint16(addr.Port())] = taddr
+		return
+	}
+
+	entry.Address = netapi.ParseAddressPort("", taddr.Hostname(), 0)
+	if !taddr.IsFqdn() && addr.IsFqdn() {
+		taddrtmp := taddr.(netapi.IPAddress).AddrPort().Addr()
+		h.PtrMap[taddrtmp] = append(h.PtrMap[taddrtmp], addr.Hostname())
+	}
+}
+
+func (h *hostsStore) lookupPtr(addr netip.Addr) []string {
+	return h.PtrMap[addr]
+}

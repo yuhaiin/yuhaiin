@@ -61,7 +61,6 @@ func Call(srv any, handler grpc.MethodHandler) func(w http.ResponseWriter, r *ht
 
 func marshalWithPool(m proto.Message) ([]byte, error) {
 	marshal := proto.MarshalOptions{
-		UseCachedSize: true,
 		Deterministic: true,
 	}
 

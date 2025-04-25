@@ -35,7 +35,7 @@ func TestXxx(t *testing.T) {
 		}.Build(),
 	}.Build()
 
-	cc := proto.Clone(src).(*Setting)
+	cc := proto.CloneOf(src)
 
 	cc.SetIpv6(true)
 	cc.GetDns().GetResolver()["test"] = &pd.Dns{}

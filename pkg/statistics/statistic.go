@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
@@ -33,6 +34,7 @@ type Connections struct {
 	history      *History
 
 	connStore syncmap.SyncMap[uint64, connection]
+	counters  *counters
 
 	idSeed id.IDGenerator
 }
@@ -48,6 +50,7 @@ func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
 		notify:       newNotify(),
 		faildHistory: NewFailedHistory(),
 		history:      NewHistory(),
+		counters:     newCounters(),
 	}
 }
 
@@ -77,6 +80,8 @@ func (c *Connections) CloseConn(_ context.Context, x *gs.NotifyRemoveConnections
 			z.Close()
 		}
 	}
+	// trigger to refresh web
+	c.notify.trigger()
 	return &emptypb.Empty{}, nil
 }
 
@@ -92,20 +97,11 @@ func (c *Connections) Close() error {
 }
 
 func (c *Connections) Total(context.Context, *emptypb.Empty) (*gs.TotalFlow, error) {
-	counters := map[uint64]*gs.Counter{}
-
-	for _, v := range c.connStore.Range {
-		counters[v.Info().GetId()] = gs.Counter_builder{
-			Download: proto.Uint64(v.LoadDownload()),
-			Upload:   proto.Uint64(v.LoadUpload()),
-		}.Build()
-	}
-
-	return (&gs.TotalFlow_builder{
+	return gs.TotalFlow_builder{
 		Download: proto.Uint64(c.Cache.LoadDownload()),
 		Upload:   proto.Uint64(c.Cache.LoadUpload()),
-		Counters: counters,
-	}).Build(), nil
+		Counters: c.counters.Load(),
+	}.Build(), nil
 }
 
 func (c *Connections) Remove(id uint64) {
@@ -113,6 +109,8 @@ func (c *Connections) Remove(id uint64) {
 		metrics.Counter.RemoveConnection(1)
 		log.Debug("close conn", "id", z.Info().GetId())
 	}
+
+	c.counters.Remove(id)
 
 	c.notify.pubRemoveConn(id)
 }
@@ -131,11 +129,19 @@ func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.
 		return nil, err
 	}
 
+	counter := gs.Counter_builder{
+		Download: proto.Uint64(0),
+		Upload:   proto.Uint64(0),
+	}.Build()
+
 	z := &packetConn{
 		PacketConn: con,
 		info:       c.getConnection(ctx, con, addr),
 		manager:    c,
+		counter:    counter,
 	}
+
+	c.counters.Store(z.Info().GetId(), counter)
 
 	c.storeConnection(z)
 	return z, nil
@@ -243,11 +249,18 @@ func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, 
 		return nil, err
 	}
 
+	counter := gs.Counter_builder{
+		Download: proto.Uint64(0),
+		Upload:   proto.Uint64(0),
+	}.Build()
+
 	z := &conn{
 		Conn:    con,
 		info:    c.getConnection(ctx, con, addr),
 		manager: c,
+		counter: counter,
 	}
+	c.counters.Store(z.Info().GetId(), counter)
 
 	c.storeConnection(z)
 	return z, nil
@@ -259,4 +272,33 @@ func (c *Connections) FailedHistory(context.Context, *emptypb.Empty) (*gs.Failed
 
 func (c *Connections) AllHistory(context.Context, *emptypb.Empty) (*gs.AllHistoryList, error) {
 	return c.history.Get(), nil
+}
+
+type counters struct {
+	mu    sync.Mutex
+	store map[uint64]*gs.Counter
+}
+
+func newCounters() *counters {
+	return &counters{
+		store: map[uint64]*gs.Counter{},
+	}
+}
+
+func (c *counters) Store(id uint64, counter *gs.Counter) {
+	c.mu.Lock()
+	c.store[id] = counter
+	c.mu.Unlock()
+}
+
+func (c *counters) Remove(id uint64) {
+	c.mu.Lock()
+	delete(c.store, id)
+	c.mu.Unlock()
+}
+
+func (c *counters) Load() map[uint64]*gs.Counter {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.store
 }

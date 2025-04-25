@@ -90,10 +90,10 @@ func (h *FailedHistory) Get() *gs.FailedHistoryList {
 		}
 	}
 
-	return proto.Clone(gs.FailedHistoryList_builder{
+	return gs.FailedHistoryList_builder{
 		Objects:            objects,
 		DumpProcessEnabled: proto.Bool(dumpProcess),
-	}.Build()).(*gs.FailedHistoryList)
+	}.Build()
 }
 
 type History struct {
@@ -147,8 +147,8 @@ func (h *History) Get() *gs.AllHistoryList {
 		}
 	}
 
-	return proto.Clone(gs.AllHistoryList_builder{
+	return gs.AllHistoryList_builder{
 		Objects:            objects,
 		DumpProcessEnabled: proto.Bool(dumpProcess),
-	}.Build()).(*gs.AllHistoryList)
+	}.Build()
 }

@@ -34,6 +34,9 @@
   - DNS over TLS
   - DNS over TCP
 - Full cone NAT.
+- Trace Process of Connections
+  - Linux: eBPF(bpftrace)
+  - Windows, Darwin: syscall
 - Support Proxy Chain Warp
 - auto set Linux(KDE/Plasma,Gnome),Windows,MacOS Proxy  
 - [Rules](https://github.com/yuhaiin/kitte)  

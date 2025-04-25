@@ -4,17 +4,18 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
 type connection interface {
 	io.Closer
-	LoadDownload() uint64
-	LoadUpload() uint64
-	LocalAddr() net.Addr
 	Info() *statistic.Connection
+}
+
+type counter interface {
+	AddDownload(uint64)
+	AddUpload(uint64)
 }
 
 var _ connection = (*conn)(nil)
@@ -24,8 +25,7 @@ type conn struct {
 
 	info    *statistic.Connection
 	manager *Connections
-
-	counter
+	counter counter
 }
 
 func (s *conn) Close() error {
@@ -57,7 +57,7 @@ type packetConn struct {
 	info    *statistic.Connection
 	manager *Connections
 
-	counter
+	counter counter
 }
 
 func (s *packetConn) Info() *statistic.Connection { return s.info }
@@ -110,14 +110,3 @@ func slogArgs(c connection) func() []any {
 		return attrs
 	}
 }
-
-type counter struct {
-	upload   atomic.Uint64
-	download atomic.Uint64
-}
-
-func (c *counter) AddUpload(n uint64)   { c.upload.Add(n) }
-func (c *counter) AddDownload(n uint64) { c.download.Add(n) }
-
-func (c *counter) LoadUpload() uint64   { return c.upload.Load() }
-func (c *counter) LoadDownload() uint64 { return c.download.Load() }

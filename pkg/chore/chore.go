@@ -89,7 +89,7 @@ func (c *Chore) Save(ctx context.Context, s *config.Setting) (*emptypb.Empty, er
 
 		ss.SetAdvancedConfig(s.GetAdvancedConfig())
 
-		c.onSave(proto.Clone(ss).(*config.Setting))
+		c.onSave(proto.CloneOf(ss))
 		return nil
 	})
 

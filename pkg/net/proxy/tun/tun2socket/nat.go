@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -262,15 +261,15 @@ func (n *Nat) processTCP(ip header.Network, src, dst tcpip.Address) (_ header.Tr
 			return nil, 0, false
 		}
 
-		ip.SetDestinationAddress(tup.SourceAddr.Value())
+		ip.SetDestinationAddress(tup.SourceAddr)
 		t.SetDestinationPort(tup.SourcePort)
-		ip.SetSourceAddress(tup.DestinationAddr.Value())
+		ip.SetSourceAddress(tup.DestinationAddr)
 		t.SetSourcePort(tup.DestinationPort)
 	} else {
 		tup := Tuple{
-			SourceAddr:      unique.Make(src),
+			SourceAddr:      src,
 			SourcePort:      sourcePort,
-			DestinationAddr: unique.Make(dst),
+			DestinationAddr: dst,
 			DestinationPort: destinationPort,
 		}
 

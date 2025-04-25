@@ -38,7 +38,7 @@ func (n *Nodes) Get(_ context.Context, s *wrapperspb.StringValue) (*point.Point,
 		return &point.Point{}, fmt.Errorf("node not found")
 	}
 
-	return proto.Clone(p).(*point.Point), nil
+	return p, nil
 }
 
 func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
@@ -51,9 +51,9 @@ func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
 }
 
 func (n *Nodes) List(ctx context.Context, _ *emptypb.Empty) (*gn.NodesResponse, error) {
-	return proto.Clone(gn.NodesResponse_builder{
+	return gn.NodesResponse_builder{
 		Groups: n.manager.GetGroups(),
-	}.Build()).(*gn.NodesResponse), nil
+	}.Build(), nil
 }
 
 func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {
@@ -141,7 +141,7 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 func (n *Nodes) Activates(context.Context, *emptypb.Empty) (*gn.ActivatesResponse, error) {
 	nodes := []*point.Point{}
 	for _, v := range n.manager.store.Range {
-		nodes = append(nodes, proto.Clone(v.Config).(*point.Point))
+		nodes = append(nodes, v.Config)
 	}
 
 	return gn.ActivatesResponse_builder{

@@ -50,7 +50,7 @@ func (c *JsonDB) Batch(f ...func(*Setting) error) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	cf := proto.Clone(c.db.Data).(*Setting)
+	cf := proto.CloneOf(c.db.Data)
 	for i := range f {
 		if err := f[i](cf); err != nil {
 			return err

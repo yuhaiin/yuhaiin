@@ -4,7 +4,6 @@ import (
 	"math"
 	"sync"
 	"time"
-	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
@@ -14,8 +13,8 @@ import (
 var zeroTuple = Tuple{}
 
 type Tuple struct {
-	SourceAddr      unique.Handle[tcpip.Address]
-	DestinationAddr unique.Handle[tcpip.Address]
+	SourceAddr      tcpip.Address
+	DestinationAddr tcpip.Address
 	SourcePort      uint16
 	DestinationPort uint16
 }
@@ -35,7 +34,7 @@ func (t *tableSplit) tupleOf(port uint16, ipv6 bool) Tuple {
 }
 
 func (t *tableSplit) portOf(tuple Tuple) uint16 {
-	if tuple.SourceAddr.Value().Len() == 16 {
+	if tuple.SourceAddr.Len() == 16 {
 		if port := t.v6.portOf(tuple); port != 0 {
 			return port
 		}
