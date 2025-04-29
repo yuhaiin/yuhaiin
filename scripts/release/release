@@ -4,10 +4,21 @@ set -x
 
 # gh run download 10269193323
 for file in ${PWD}/*;do
+    if [ ! -d "$file" ]; then
+        continue
+    fi
+
     suffix=""
     if [[ $file =~ "windows" ]]; then
         suffix=".exe"
+    elif [[ $file =~ "yuhaiin.aar" ]]; then
+        continue
     fi
+
+    if [ ! -f "${file}/yuhaiin${suffix}" ]; then
+        continue
+    fi
+
     mv $file ${file}_
     mv ${file}_/yuhaiin${suffix} ${file}${suffix}
     rm -rf ${file}_
