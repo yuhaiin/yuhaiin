@@ -13,7 +13,7 @@ import (
 
 type Options struct {
 	Endpoint     stack.LinkEndpoint
-	Writer       Tun
+	Device       Tun
 	Interface    TunScheme
 	Inet6Address []netip.Prefix
 	Inet4Address []netip.Prefix
