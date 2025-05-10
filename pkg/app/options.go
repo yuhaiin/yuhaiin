@@ -49,7 +49,7 @@ type AppInstance struct {
 	Setting gc.ConfigServiceServer
 	Mux     *http.ServeMux
 	*StartOptions
-	closers closers
+	closers *closers
 }
 
 type closers struct {

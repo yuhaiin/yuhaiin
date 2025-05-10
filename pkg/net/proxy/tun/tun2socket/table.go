@@ -100,7 +100,7 @@ func (t *table) newConn(tuple Tuple) uint16 {
 
 func (t *table) ClearExpired() { t.lru.ClearExpired() }
 
-var defaultExpire = 18 * time.Minute
+var defaultExpire = 5 * time.Minute
 
 func newTable() *tableSplit {
 	t := &tableSplit{

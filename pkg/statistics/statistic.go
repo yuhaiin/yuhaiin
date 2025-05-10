@@ -300,5 +300,15 @@ func (c *counters) Remove(id uint64) {
 func (c *counters) Load() map[uint64]*gs.Counter {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.store
+
+	tmp := make(map[uint64]*gs.Counter, len(c.store))
+
+	for k, v := range c.store {
+		tmp[k] = gs.Counter_builder{
+			Download: proto.Uint64(v.LoadDownload()),
+			Upload:   proto.Uint64(v.LoadUpload()),
+		}.Build()
+	}
+
+	return tmp
 }

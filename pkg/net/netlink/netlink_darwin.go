@@ -46,8 +46,6 @@ func FindProcessName(network string, ip netip.AddrPort, _ netip.AddrPort) (netap
 		return netapi.Process{}, fmt.Errorf("ErrInvalidNetwork: %s", network)
 	}
 
-	isIPv4 := ip.Addr().Is4()
-
 	value, err := syscall.Sysctl(spath)
 	if err != nil {
 		return netapi.Process{}, err
@@ -60,8 +58,6 @@ func FindProcessName(network string, ip netip.AddrPort, _ netip.AddrPort) (netap
 		itemSize += 208
 	}
 
-	var fallbackUDPProcess string
-	var fallbackUDPPid uint32
 	// skip the first xinpgen(24 bytes) block
 	for i := 24; i+itemSize <= len(buf); i += itemSize {
 		// offset of xinpcb_n and xsocket_n
@@ -79,6 +75,9 @@ func FindProcessName(network string, ip netip.AddrPort, _ netip.AddrPort) (netap
 			srcIP     netip.Addr
 			srcIsIPv4 bool
 		)
+
+		isIPv4 := ip.Addr().Is4()
+
 		switch {
 		case flag&0x1 > 0 && isIPv4:
 			// ipv4
@@ -103,18 +102,17 @@ func FindProcessName(network string, ip netip.AddrPort, _ netip.AddrPort) (netap
 
 		// udp packet connection may be not equal with srcIP
 		if network == "udp" && srcIP.IsUnspecified() && isIPv4 == srcIsIPv4 {
-			fallbackUDPPid = readNativeUint32(buf[so+68 : so+72])
-			fallbackUDPProcess, _ = getExecPathFromPID(fallbackUDPPid)
+			fallbackUDPPid := readNativeUint32(buf[so+68 : so+72])
+			fallbackUDPProcess, _ := getExecPathFromPID(fallbackUDPPid)
+
+			if fallbackUDPProcess != "" {
+				return netapi.Process{
+					Path: fallbackUDPProcess,
+					Pid:  uint(fallbackUDPPid),
+				}, nil
+			}
 		}
 	}
-
-	if network == "udp" && fallbackUDPProcess != "" {
-		return netapi.Process{
-			Path: fallbackUDPProcess,
-			Pid:  uint(fallbackUDPPid),
-		}, nil
-	}
-
 	return netapi.Process{}, fmt.Errorf("not found")
 }
 

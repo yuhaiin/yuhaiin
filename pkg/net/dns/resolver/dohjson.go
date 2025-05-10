@@ -2,11 +2,12 @@ package resolver
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+
+	"github.com/go-json-experiment/json"
 )
 
 /*
@@ -110,7 +111,7 @@ func DOHJsonAPI(DNSServer, domain string, proxy func(ctx context.Context, networ
 	}
 
 	doh := &DOHJson{}
-	err = json.NewDecoder(res.Body).Decode(doh)
+	err = json.UnmarshalRead(res.Body, doh)
 	if err != nil {
 		return nil, err
 	}

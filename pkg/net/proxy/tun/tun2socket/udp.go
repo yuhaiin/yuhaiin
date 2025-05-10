@@ -1,6 +1,7 @@
 package tun2socket
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"math"
@@ -9,6 +10,8 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -26,13 +29,13 @@ type UDPTuple struct {
 }
 
 type UDP struct {
-	device       netlink.Tun
-	HandlePacket func(tuple UDPTuple, payload []byte)
-	closed       atomic.Bool
+	device  netlink.Tun
+	handler netapi.Handler
+	closed  atomic.Bool
 }
 
-func NewUDP(device netlink.Tun) *UDP {
-	return &UDP{device: device, HandlePacket: func(tuple UDPTuple, payload []byte) {}}
+func NewUDP(device netlink.Tun, handler netapi.Handler) *UDP {
+	return &UDP{device: device, handler: handler}
 }
 
 func (u *UDP) Close() error {
@@ -44,7 +47,13 @@ func (u *UDP) handleUDPPacket(tuple UDPTuple, payload []byte) {
 	if u.closed.Load() {
 		return
 	}
-	u.HandlePacket(tuple, payload)
+
+	u.handler.HandlePacket(&netapi.Packet{
+		Src:       netapi.ParseIPAddr("udp", net.IP(tuple.SourceAddr.AsSlice()), tuple.SourcePort),
+		Dst:       netapi.ParseIPAddr("udp", net.IP(tuple.DestinationAddr.AsSlice()), tuple.DestinationPort),
+		Payload:   pool.Clone(payload),
+		WriteBack: &UDPWriteBack{u, tuple},
+	})
 }
 
 func (u *UDP) WriteTo(buf []byte, tuple UDPTuple) (int, error) {
@@ -170,3 +179,59 @@ func (u *UDP) processUDPPacket(buf []byte, tuple UDPTuple) ([]byte, error) {
 
 	return tunBuf[:totalLength+uint16(u.device.Offset())], nil
 }
+
+type UDPWriteBack struct {
+	udp   *UDP
+	tuple UDPTuple
+}
+
+func (h *UDPWriteBack) toTuple(addr net.Addr) (UDPTuple, error) {
+	address, err := netapi.ParseSysAddr(addr)
+	if err != nil {
+		return UDPTuple{}, err
+	}
+
+	daddr, err := dialer.ResolverIP(context.TODO(), address)
+	if err != nil {
+		return UDPTuple{}, err
+	}
+
+	if h.tuple.SourceAddr.Len() == 16 {
+		daddr = daddr.To16()
+	}
+
+	return UDPTuple{
+		DestinationAddr: tcpip.AddrFromSlice(daddr),
+		DestinationPort: uint16(address.Port()),
+		SourceAddr:      h.tuple.SourceAddr,
+		SourcePort:      h.tuple.SourcePort,
+	}, nil
+}
+
+func (h *UDPWriteBack) WriteBack(b []byte, addr net.Addr) (int, error) {
+	tuple, err := h.toTuple(addr)
+	if err != nil {
+		return 0, err
+	}
+
+	return h.udp.WriteTo(b, tuple)
+}
+
+// func (h *WriteBack) WriteBatch(bufs ...netapi.WriteBatchBuf) error {
+// 	batch := make([]Batch, 0, len(bufs))
+
+// 	for _, buf := range bufs {
+// 		tuple, err := h.toTuple(buf.Addr)
+// 		if err != nil {
+// 			log.Error("parse addr failed:", "err", err)
+// 			continue
+// 		}
+
+// 		batch = append(batch, Batch{
+// 			Payload: buf.Payload,
+// 			Tuple:   tuple,
+// 		})
+// 	}
+
+// 	return h.nat.UDP.WriteBatch(batch)
+// }

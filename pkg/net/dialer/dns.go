@@ -81,6 +81,10 @@ func Bootstrap() netapi.Resolver     { return bootstrap }
 func SetBootstrap(r netapi.Resolver) { bootstrap.SetBootstrap(r) }
 
 func ResolveUDPAddr(ctx context.Context, addr netapi.Address) (*net.UDPAddr, error) {
+	if !addr.IsFqdn() {
+		return net.UDPAddrFromAddrPort(addr.(netapi.IPAddress).AddrPort()), nil
+	}
+
 	ip, err := ResolverIP(ctx, addr)
 	if err != nil {
 		return nil, err
@@ -89,6 +93,10 @@ func ResolveUDPAddr(ctx context.Context, addr netapi.Address) (*net.UDPAddr, err
 }
 
 func ResolveTCPAddr(ctx context.Context, addr netapi.Address) (*net.TCPAddr, error) {
+	if !addr.IsFqdn() {
+		return net.TCPAddrFromAddrPort(addr.(netapi.IPAddress).AddrPort()), nil
+	}
+
 	ip, err := ResolverIP(ctx, addr)
 	if err != nil {
 		return nil, err
@@ -98,7 +106,7 @@ func ResolveTCPAddr(ctx context.Context, addr netapi.Address) (*net.TCPAddr, err
 
 func ResolverAddrPort(ctx context.Context, addr netapi.Address) (netip.AddrPort, error) {
 	if !addr.IsFqdn() {
-		x, ok := addr.(netapi.IPAddr)
+		x, ok := addr.(netapi.IPAddress)
 		if ok {
 			return x.AddrPort(), nil
 		}

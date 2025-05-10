@@ -40,7 +40,10 @@ func (m *Manager) GetStore() *ProxyStore {
 func (m *Manager) GetGroups() map[string]*node.Nodes {
 	var groups map[string]*node.Nodes
 	_ = m.db.View(func(n *Node) error {
-		groups = n.GetManager().GetGroupsV2()
+		groups = make(map[string]*node.Nodes, len(n.GetManager().GetGroupsV2()))
+		for k, v := range n.GetManager().GetGroupsV2() {
+			groups[k] = proto.CloneOf(v)
+		}
 		return nil
 	})
 	return groups

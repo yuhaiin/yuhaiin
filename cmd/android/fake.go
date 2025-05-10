@@ -2,7 +2,6 @@ package yuhaiin
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
+	"github.com/go-json-experiment/json"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )

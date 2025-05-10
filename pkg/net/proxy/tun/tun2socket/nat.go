@@ -69,7 +69,7 @@ func Start(opt *device.Opt) (*Nat, error) {
 			portalv6: opt.V6Address().Addr().Next().AsSlice(),
 			table:    tab,
 		},
-		UDP:      NewUDP(opt.Writer),
+		UDP:      NewUDP(opt.Device, opt.Handler),
 		postDown: opt.PostDown,
 	}
 
@@ -95,17 +95,17 @@ func Start(opt *device.Opt) (*Nat, error) {
 		defer tab.Close()
 		defer nat.Close()
 
-		offset := opt.Writer.Offset()
-		sizes := make([]int, opt.Writer.Tun().BatchSize())
-		bufs := make([][]byte, opt.Writer.Tun().BatchSize())
+		offset := opt.Device.Offset()
+		sizes := make([]int, opt.Device.Tun().BatchSize())
+		bufs := make([][]byte, opt.Device.Tun().BatchSize())
 		for i := range bufs {
 			bufs[i] = make([]byte, opt.MTU+offset)
 		}
 
-		wbufs := make([][]byte, opt.Writer.Tun().BatchSize())
+		wbufs := make([][]byte, opt.Device.Tun().BatchSize())
 
 		for {
-			n, err := opt.Writer.Read(bufs, sizes)
+			n, err := opt.Device.Read(bufs, sizes)
 			if err != nil {
 				log.Error("tun device read failed", "err", err)
 				return
@@ -196,7 +196,7 @@ func Start(opt *device.Opt) (*Nat, error) {
 				continue
 			}
 
-			if _, err = opt.Writer.Write(wbufs); err != nil {
+			if _, err = opt.Device.Write(wbufs); err != nil {
 				log.Error("write tcp raw to tun device failed", "err", err)
 			}
 

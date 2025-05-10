@@ -98,9 +98,13 @@ func (p *UDPPacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
 			return 0, err
 		}
 
-		ctx, cancel := context.WithTimeout(p.ctx, time.Second*5)
-		defer cancel()
-		udpAddr, err = dialer.ResolveUDPAddr(ctx, a)
+		if a.IsFqdn() {
+			ctx, cancel := context.WithTimeout(p.ctx, time.Second*5)
+			udpAddr, err = dialer.ResolveUDPAddr(ctx, a)
+			cancel()
+		} else {
+			udpAddr = net.UDPAddrFromAddrPort(a.(netapi.IPAddress).AddrPort())
+		}
 		if err != nil {
 			return 0, err
 		}

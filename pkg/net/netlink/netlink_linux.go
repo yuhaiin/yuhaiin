@@ -62,10 +62,10 @@ func findProcessName(network string, ip netip.AddrPort, to netip.AddrPort) (neta
 
 	switch network {
 	case "tcp":
-		addr = &net.TCPAddr{IP: ip.Addr().AsSlice(), Port: int(ip.Port())}
-		remote = []net.Addr{&net.TCPAddr{IP: to.Addr().AsSlice(), Port: int(to.Port())}}
+		addr = net.TCPAddrFromAddrPort(ip)
+		remote = []net.Addr{net.TCPAddrFromAddrPort(to)}
 	case "udp":
-		addr = &net.UDPAddr{IP: ip.Addr().AsSlice(), Port: int(ip.Port())}
+		addr = net.UDPAddrFromAddrPort(ip)
 		remote = []net.Addr{
 			// &net.UDPAddr{IP: to, Port: int(toPort)},
 			&net.UDPAddr{IP: net.IPv6zero, Port: 0},

@@ -94,7 +94,7 @@ func (d *dnsServer) Close() error {
 func (d *dnsServer) startUDP(listener net.PacketConn) {
 	log.Info("new udp dns server", "host", listener.LocalAddr())
 
-	for range system.Procs {
+	for range min(4, system.Procs) {
 		go func() {
 			defer listener.Close()
 
