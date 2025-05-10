@@ -23,7 +23,7 @@ type failedHistoryKey struct {
 
 type failedHistoryEntry struct {
 	*gs.FailedHistory
-	mu sync.Mutex
+	mu sync.RWMutex
 }
 
 type FailedHistory struct {
@@ -60,10 +60,10 @@ func (h *FailedHistory) Push(ctx context.Context, err error, protocol statistic.
 		return &failedHistoryEntry{
 			FailedHistory: (&gs.FailedHistory_builder{
 				Protocol:    &protocol,
-				Host:        proto.String(getRealAddr(store, host)),
-				Error:       proto.String(err.Error()),
+				Host:        stringOrNil(getRealAddr(store, host)),
+				Error:       stringOrNil(err.Error()),
 				Time:        timestamppb.Now(),
-				Process:     proto.String(store.GetProcessName()),
+				Process:     stringOrNil(store.GetProcessName()),
 				FailedCount: proto.Uint64(1),
 			}).Build(),
 		}
@@ -84,10 +84,12 @@ func (h *FailedHistory) Get() *gs.FailedHistoryList {
 	var objects []*gs.FailedHistory
 	dumpProcess := false
 	for _, v := range h.store.Range {
-		objects = append(objects, v.FailedHistory)
+		v.mu.RLock()
+		objects = append(objects, proto.CloneOf(v.FailedHistory))
 		if !dumpProcess && v.FailedHistory.GetProcess() != "" {
 			dumpProcess = true
 		}
+		v.mu.RUnlock()
 	}
 
 	return gs.FailedHistoryList_builder{
@@ -102,7 +104,7 @@ type History struct {
 
 type historyEntry struct {
 	*gs.AllHistory
-	mu sync.Mutex
+	mu sync.RWMutex
 }
 
 func NewHistory() *History {
@@ -141,10 +143,12 @@ func (h *History) Get() *gs.AllHistoryList {
 	dumpProcess := false
 	var objects []*gs.AllHistory
 	for _, v := range h.store.Range {
-		objects = append(objects, v.AllHistory)
+		v.mu.RLock()
+		objects = append(objects, proto.CloneOf(v.AllHistory))
 		if !dumpProcess && v.GetConnection().GetProcess() != "" {
 			dumpProcess = true
 		}
+		v.mu.RUnlock()
 	}
 
 	return gs.AllHistoryList_builder{

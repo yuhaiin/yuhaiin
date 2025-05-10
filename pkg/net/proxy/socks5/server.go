@@ -229,8 +229,8 @@ func (s *Server) handshake2(client net.Conn, buf []byte) error {
 		fallthrough
 
 	default:
-		err := writeHandshake2(client, tools.CommandNotSupport, netapi.EmptyAddr)
-		return fmt.Errorf("not Support Method %d, resp err: %w", buf[1], err)
+		_ = writeHandshake2(client, tools.CommandNotSupport, netapi.EmptyAddr)
+		return fmt.Errorf("not support method: %d", buf[1])
 	}
 
 	if err != nil {

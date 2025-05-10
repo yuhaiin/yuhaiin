@@ -49,7 +49,7 @@ type AppInstance struct {
 	Setting gc.ConfigServiceServer
 	Mux     *http.ServeMux
 	*StartOptions
-	closers closers
+	closers *closers
 }
 
 type closers struct {
@@ -208,7 +208,7 @@ func HandleFunc(mux *http.ServeMux, auth *Auth, path string, b func(http.Respons
 			}
 		}
 
-		cross(ow)
+		cross(r, ow)
 
 		w := &wrapResponseWriter{ow, false}
 		err := b(w, r)
@@ -228,8 +228,19 @@ func HandleFunc(mux *http.ServeMux, auth *Auth, path string, b func(http.Respons
 	}))
 }
 
-func cross(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+func cross(r *http.Request, w http.ResponseWriter) {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return
+	}
+
+	if origin != "https://yuhaiin.github.io" &&
+		!strings.HasPrefix(origin, "http://127.0.0.1") &&
+		!strings.HasPrefix(origin, "http://localhost") {
+		return
+	}
+
+	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, PATCH, OPTIONS, HEAD")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Token")
 	w.Header().Set("Access-Control-Expose-Headers", "Access-Control-Allow-Headers, Token")
