@@ -29,8 +29,8 @@ func init() {
 }
 
 func NewTun(o *listener.Tun, l netapi.Listener, handler netapi.Handler) (s netapi.Accepter, err error) {
-	v4address, v4err := toPrefix(o.GetPortal())
-	v6address, v6err := toPrefix(o.GetPortalV6())
+	v4address, v4err := toPrefix(o.GetPortal(), true)
+	v6address, v6err := toPrefix(o.GetPortalV6(), true)
 	if v4err != nil && v6err != nil {
 		return nil, errors.Join(v4err, v6err)
 	}
@@ -86,7 +86,7 @@ func toRoutes(r *listener.Route) []netip.Prefix {
 
 	var x []netip.Prefix
 	add := func(s string) {
-		prefix, err := toPrefix(s)
+		prefix, err := toPrefix(s, false)
 		if err == nil {
 			x = append(x, prefix)
 		}
@@ -108,7 +108,7 @@ func toRoutes(r *listener.Route) []netip.Prefix {
 	return x
 }
 
-func toPrefix(str string) (netip.Prefix, error) {
+func toPrefix(str string, gateway bool) (netip.Prefix, error) {
 	prefix, err := netip.ParsePrefix(str)
 	if err == nil {
 		return prefix, nil
@@ -116,6 +116,10 @@ func toPrefix(str string) (netip.Prefix, error) {
 
 	address, er := netip.ParseAddr(str)
 	if er == nil {
+		if !gateway {
+			return netip.PrefixFrom(address, address.BitLen()), nil
+		}
+
 		if address.Is4() {
 			return netip.PrefixFrom(address, 24), nil
 		} else {

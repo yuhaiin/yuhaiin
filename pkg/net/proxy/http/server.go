@@ -76,7 +76,7 @@ func newServer(o *listener.Http, lis net.Listener, handler netapi.Handler) *Serv
 		BufferPool: pool.ReverseProxyBuffer{},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			if err != nil && !errors.Is(err, context.Canceled) {
-				log.Error("http: proxy error: ", "err", err)
+				log.Error("http: proxy error: ", "err", err, "remote", r.RemoteAddr)
 			}
 			w.WriteHeader(http.StatusBadGateway)
 		},

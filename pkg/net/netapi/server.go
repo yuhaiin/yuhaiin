@@ -42,12 +42,16 @@ func (w *listener) Stream(ctx context.Context) (net.Listener, error)   { return 
 func (w *listener) Close() error {
 	var err error
 
-	if er := w.p.Close(); er != nil {
-		err = errors.Join(err, er)
+	if w.p != nil {
+		if er := w.p.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
 	}
 
-	if er := w.s.Close(); er != nil {
-		err = errors.Join(err, er)
+	if w.s != nil {
+		if er := w.s.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
 	}
 
 	return err
@@ -59,6 +63,36 @@ type Handler interface {
 	HandleStream(*StreamMeta)
 	HandlePacket(*Packet)
 }
+
+type ChannelHandler struct {
+	ctx    context.Context
+	stream chan *StreamMeta
+	packet chan *Packet
+}
+
+func NewChannelHandler(ctx context.Context) *ChannelHandler {
+	return &ChannelHandler{
+		ctx:    ctx,
+		stream: make(chan *StreamMeta, system.Procs),
+		packet: make(chan *Packet, system.Procs),
+	}
+}
+
+func (h *ChannelHandler) HandleStream(s *StreamMeta) {
+	select {
+	case <-h.ctx.Done():
+	case h.stream <- s:
+	}
+}
+func (h *ChannelHandler) HandlePacket(p *Packet) {
+	select {
+	case <-h.ctx.Done():
+	case h.packet <- p:
+	}
+}
+
+func (h *ChannelHandler) Stream() <-chan *StreamMeta { return h.stream }
+func (h *ChannelHandler) Packet() <-chan *Packet     { return h.packet }
 
 type StreamMeta struct {
 	Source      net.Addr

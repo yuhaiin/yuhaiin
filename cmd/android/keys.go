@@ -1,6 +1,6 @@
 package yuhaiin
 
-import "encoding/json"
+import "github.com/go-json-experiment/json"
 
 var (
 	NewHTTPPortKey    = "http_port"
