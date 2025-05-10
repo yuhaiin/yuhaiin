@@ -44,7 +44,7 @@ jobs:
       - name: Run go-licenses
         env:
           # include all build tags to include platform-specific dependencies
-          GOFLAGS: "-tags=android,cgo,darwin,freebsd,ios,js,linux,openbsd,wasm,windows"
+          GOFLAGS: "-tags=android,cgo,darwin,freebsd,ios,js,linux,openbsd,wasm,windows,ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube,ts_omit_completion,ts_omit_ssh,ts_omit_wakeonlan,ts_omit_capture,ts_omit_relayserver,ts_omit_taildrop,ts_omit_tpm"
         run: |
           [ -d licenses ] || mkdir licenses
           go-licenses report github.com/Asutorufa/yuhaiin/cmd/yuhaiin > licenses/yuhaiin.md --template .github/licenses.tmpl

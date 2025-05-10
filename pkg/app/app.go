@@ -237,7 +237,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		Inbound:        inbound.NewInboundCtr(so.InboundConfig, inbounds),
 		Resolver:       resolverCtr,
 		Setting:        chore,
-		closers:        *closers,
+		closers:        closers,
 	}
 
 	// grpc and http server

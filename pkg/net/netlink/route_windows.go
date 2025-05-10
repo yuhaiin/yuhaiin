@@ -14,14 +14,14 @@ import (
 func Route(opt *Options) error {
 	var device wun.Device
 
-	if opt.Writer == nil && opt.Endpoint != nil {
+	if opt.Device == nil && opt.Endpoint != nil {
 		if w, ok := opt.Endpoint.(interface{ Writer() Tun }); ok {
-			opt.Writer = w.Writer()
+			opt.Device = w.Writer()
 		}
 	}
 
-	if opt.Writer != nil {
-		device = opt.Writer.Tun()
+	if opt.Device != nil {
+		device = opt.Device.Tun()
 	}
 
 	tt, ok := device.(*wun.NativeTun)

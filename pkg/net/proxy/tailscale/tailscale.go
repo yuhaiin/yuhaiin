@@ -7,12 +7,10 @@ import (
 	"net/http"
 	"net/netip"
 	"path"
-	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -24,20 +22,8 @@ import (
 	"tailscale.com/envknob"
 	"tailscale.com/net/dnscache"
 	"tailscale.com/net/netns"
-	"tailscale.com/net/tsdial"
 	"tailscale.com/tsnet"
 )
-
-var (
-	dnsmapField, dnsmapFieldOk = reflect.TypeOf(&tsdial.Dialer{}).Elem().FieldByName("dns")
-	dnsmapOffset               = dnsmapField.Offset
-)
-
-func init() {
-	if !dnsmapFieldOk {
-		panic("dnsmapField not found")
-	}
-}
 
 var Mux atomic.Pointer[http.ServeMux]
 
@@ -207,9 +193,7 @@ func (t *Tailscale) resolveAddr(dialer *tsnet.Server, addr netapi.Address) (neti
 		return addr.(netapi.IPAddress).AddrPort(), nil
 	}
 
-	dd := dialer.Sys().Dialer.Get()
-	dnsmap := *(*map[string]netip.Addr)(unsafe.Pointer(uintptr(unsafe.Pointer(dd)) + dnsmapOffset))
-
+	dnsmap := dialer.Sys().Dialer.Get().GetDNSMap()
 	if dnsmap == nil {
 		return netip.AddrPort{}, fmt.Errorf("tailscale dns map is nil")
 	}

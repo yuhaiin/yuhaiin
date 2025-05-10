@@ -51,8 +51,8 @@ func ParseAddress(network string, addr string) (ad Address, _ error) {
 
 func ParseDomainPort(network string, addr string, port uint16) (ad Address) {
 	return DomainAddr{
-		Hostname_:      addr,
-		Port_:          port,
+		HostnameX:      addr,
+		PortX:          port,
 		AddressNetwork: ParseAddressNetwork(network),
 	}
 }
@@ -61,7 +61,7 @@ func ParseAddressPort(network string, addr string, port uint16) (ad Address) {
 	if addr, err := netip.ParseAddr(addr); err == nil {
 		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(network),
-			AddrPort_:      netip.AddrPortFrom(addr.Unmap(), port),
+			AddrPortX:      netip.AddrPortFrom(addr.Unmap(), port),
 		}
 	}
 
@@ -71,14 +71,14 @@ func ParseAddressPort(network string, addr string, port uint16) (ad Address) {
 func ParseIPAddr(net string, ip net.IP, port uint16) Address {
 	return IPAddr{
 		AddressNetwork: ParseAddressNetwork(net),
-		AddrPort_:      toAddrPort(ip, port, ""),
+		AddrPortX:      toAddrPort(ip, port, ""),
 	}
 }
 
 func ParseNetipAddr(net string, ip netip.Addr, port uint16) Address {
 	return IPAddr{
 		AddressNetwork: ParseAddressNetwork(net),
-		AddrPort_:      netip.AddrPortFrom(ip, port),
+		AddrPortX:      netip.AddrPortFrom(ip, port),
 	}
 }
 
@@ -103,21 +103,21 @@ func ParseSysAddr(ad net.Addr) (Address, error) {
 	case *net.TCPAddr:
 		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
-			AddrPort_:      toAddrPort(ad.IP, uint16(ad.Port), ad.Zone),
+			AddrPortX:      toAddrPort(ad.IP, uint16(ad.Port), ad.Zone),
 		}, nil
 	case *net.UDPAddr:
 		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
-			AddrPort_:      toAddrPort(ad.IP, uint16(ad.Port), ad.Zone),
+			AddrPortX:      toAddrPort(ad.IP, uint16(ad.Port), ad.Zone),
 		}, nil
 	case *net.IPAddr:
 		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
-			AddrPort_:      toAddrPort(ad.IP, 0, ad.Zone),
+			AddrPortX:      toAddrPort(ad.IP, 0, ad.Zone),
 		}, nil
 	case *net.UnixAddr:
 		return DomainAddr{
-			Hostname_:      ad.Name,
+			HostnameX:      ad.Name,
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
 		}, nil
 	}
@@ -162,31 +162,31 @@ func (n AddressNetwork) Network() string {
 var _ Address = DomainAddr{}
 
 type DomainAddr struct {
-	Hostname_      string `json:"hostname,omitempty"`
+	HostnameX      string `json:"hostname,omitempty"`
 	AddressNetwork `json:"network,omitempty"`
-	Port_          uint16 `json:"port,omitempty"`
+	PortX          uint16 `json:"port,omitempty"`
 }
 
 func (d DomainAddr) String() string {
-	return net.JoinHostPort(d.Hostname_, strconv.Itoa(int(d.Port_)))
+	return net.JoinHostPort(d.HostnameX, strconv.Itoa(int(d.PortX)))
 }
-func (d DomainAddr) Hostname() string   { return d.Hostname_ }
-func (d DomainAddr) Port() uint16       { return d.Port_ }
+func (d DomainAddr) Hostname() string   { return d.HostnameX }
+func (d DomainAddr) Port() uint16       { return d.PortX }
 func (d DomainAddr) IsFqdn() bool       { return true }
 func (d DomainAddr) Comparable() uint64 { return ComputeAddressHash(d) }
 
 var _ IPAddress = IPAddr{}
 
 type IPAddr struct {
-	AddrPort_      netip.AddrPort `json:"addr_port,omitempty"`
+	AddrPortX      netip.AddrPort `json:"addr_port,omitempty"`
 	AddressNetwork `json:"network,omitempty"`
 }
 
-func (d IPAddr) String() string           { return d.AddrPort_.String() }
-func (d IPAddr) Hostname() string         { return d.AddrPort_.Addr().String() }
-func (d IPAddr) Port() uint16             { return d.AddrPort_.Port() }
+func (d IPAddr) String() string           { return d.AddrPortX.String() }
+func (d IPAddr) Hostname() string         { return d.AddrPortX.Addr().String() }
+func (d IPAddr) Port() uint16             { return d.AddrPortX.Port() }
 func (d IPAddr) IsFqdn() bool             { return false }
-func (d IPAddr) AddrPort() netip.AddrPort { return d.AddrPort_ }
+func (d IPAddr) AddrPort() netip.AddrPort { return d.AddrPortX }
 func (d IPAddr) Comparable() uint64       { return ComputeAddressHash(d) }
 
 var EmptyAddr Address = DomainAddr{}
