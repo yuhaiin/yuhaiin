@@ -9,10 +9,10 @@ require (
 	github.com/libp2p/go-yamux/v5 v5.0.0
 	github.com/prometheus/client_golang v1.22.0
 	github.com/quic-go/quic-go v0.51.0
-	github.com/refraction-networking/utls v1.7.2
+	github.com/refraction-networking/utls v1.7.3
 	github.com/tailscale/wireguard-go v0.0.0-20250304000100-91a0587fb251
 	github.com/vishvananda/netlink v1.3.1
-	github.com/xtls/reality v0.0.0-20240909153216-e26ae2305463
+	github.com/xtls/reality v0.0.0-20250516070713-4df2ec9a5b47
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250421091251-02d3332ccf24
 	go.etcd.io/bbolt v1.4.0
 	golang.org/x/crypto v0.38.0
@@ -21,7 +21,7 @@ require (
 	golang.org/x/sys v0.33.0
 	golang.org/x/time v0.11.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
-	google.golang.org/grpc v1.72.0
+	google.golang.org/grpc v1.72.1
 	google.golang.org/protobuf v1.36.6
 	gvisor.dev/gvisor v0.0.0-20250416204613-04a61c0f3bd5
 	tailscale.com v1.82.5
@@ -81,7 +81,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/ginkgo/v2 v2.13.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
-	github.com/pires/go-proxyproto v0.7.0 // indirect
+	github.com/pires/go-proxyproto v0.8.1 // indirect
 	github.com/prometheus-community/pro-bing v0.4.0 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
