@@ -25,7 +25,7 @@ require (
 	google.golang.org/grpc v1.72.1
 	google.golang.org/protobuf v1.36.6
 	gvisor.dev/gvisor v0.0.0-20250416204613-04a61c0f3bd5
-	tailscale.com v1.82.5
+	tailscale.com v1.84.0
 )
 
 require (
