@@ -1,16 +1,23 @@
 package route
 
 import (
+	"context"
+	"fmt"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Args struct {
@@ -247,4 +254,130 @@ func (u *Uri) SetData(str string) {
 
 func (u *Uri) String() string {
 	return u.Scheme() + "://" + u.Data()
+}
+
+type Rules struct {
+	db    config.DB
+	route *Route
+	gc.UnimplementedRulesServer
+}
+
+func NewRules(db config.DB, route *Route) *Rules {
+	_ = db.View(func(s *pc.Setting) error {
+		route.ms.Update(s.GetBypass().GetRulesV2())
+		return nil
+	})
+
+	return &Rules{
+		db:    db,
+		route: route,
+	}
+}
+
+func (r *Rules) List(ctx context.Context, empty *emptypb.Empty) (*gc.RuleResponse, error) {
+	names := make([]string, 0)
+	err := r.db.View(func(ss *config.Setting) error {
+		for _, v := range ss.GetBypass().GetRulesV2() {
+			names = append(names, v.GetName())
+		}
+		return nil
+	})
+
+	return gc.RuleResponse_builder{
+		Names: names,
+	}.Build(), err
+}
+
+func (r *Rules) Get(ctx context.Context, index *gc.RuleIndex) (*bypass.Rulev2, error) {
+	var resp *bypass.Rulev2
+	err := r.db.View(func(ss *config.Setting) error {
+		if err := r.checkIndex(ss, index); err != nil {
+			return err
+		}
+
+		resp = ss.GetBypass().GetRulesV2()[index.GetIndex()]
+
+		return nil
+	})
+
+	return resp, err
+}
+
+func (r *Rules) Save(ctx context.Context, req *gc.RuleSaveRequest) (*emptypb.Empty, error) {
+	err := r.db.Batch(func(ss *config.Setting) error {
+		if req.GetIndex() == nil {
+			ss.GetBypass().SetRulesV2(append(ss.GetBypass().GetRulesV2(), req.GetRule()))
+			r.route.ms.Add(req.GetRule())
+			return nil
+		}
+
+		if req.GetIndex().GetIndex() >= uint32(len(ss.GetBypass().GetRulesV2())) {
+			return fmt.Errorf("can't find rule %d", req.GetIndex().GetIndex())
+		}
+
+		rule := ss.GetBypass().GetRulesV2()[req.GetIndex().GetIndex()]
+
+		if rule.GetName() != req.GetRule().GetName() {
+			return fmt.Errorf("rule name not match, get: %s, want: %s", rule.GetName(), req.GetRule().GetName())
+		}
+
+		ss.GetBypass().GetRulesV2()[req.GetIndex().GetIndex()] = req.GetRule()
+
+		r.route.ms.Update(ss.GetBypass().GetRulesV2())
+		return nil
+	})
+
+	return &emptypb.Empty{}, err
+}
+
+func (r *Rules) Remove(ctx context.Context, index *gc.RuleIndex) (*emptypb.Empty, error) {
+	err := r.db.Batch(func(s *config.Setting) error {
+		if err := r.checkIndex(s, index); err != nil {
+			return err
+		}
+
+		s.GetBypass().SetRulesV2(slices.Delete(s.GetBypass().GetRulesV2(), int(index.GetIndex()), int(index.GetIndex())+1))
+
+		r.route.ms.Update(s.GetBypass().GetRulesV2())
+		return nil
+	})
+
+	return &emptypb.Empty{}, err
+}
+
+func (r *Rules) ChangePriority(ctx context.Context, req *gc.ChangePriorityRequest) (*emptypb.Empty, error) {
+	err := r.db.Batch(func(s *config.Setting) error {
+		if err := r.checkIndex(s, req.GetSource()); err != nil {
+			return fmt.Errorf("source index error: %w", err)
+		}
+
+		if err := r.checkIndex(s, req.GetTarget()); err != nil {
+			return fmt.Errorf("target index error: %w", err)
+		}
+
+		src := s.GetBypass().GetRulesV2()[req.GetSource().GetIndex()]
+		tar := s.GetBypass().GetRulesV2()[req.GetTarget().GetIndex()]
+
+		s.GetBypass().GetRulesV2()[req.GetSource().GetIndex()] = tar
+		s.GetBypass().GetRulesV2()[req.GetTarget().GetIndex()] = src
+
+		r.route.ms.ChangePriority(int(req.GetSource().GetIndex()), int(req.GetTarget().GetIndex()))
+		return nil
+	})
+
+	return &emptypb.Empty{}, err
+}
+
+func (r *Rules) checkIndex(s *config.Setting, index *gc.RuleIndex) error {
+	if len(s.GetBypass().GetRulesV2())-1 < int(index.GetIndex()) {
+		return fmt.Errorf("can't find rule %d", index.GetIndex())
+	}
+
+	rule := s.GetBypass().GetRulesV2()[index.GetIndex()]
+
+	if rule.GetName() != index.GetName() {
+		return fmt.Errorf("rule name not match, get: %s, want: %s", rule.GetName(), index.GetName())
+	}
+
+	return nil
 }

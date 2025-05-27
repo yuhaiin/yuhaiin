@@ -44,6 +44,8 @@ type AppInstance struct {
 	Inbound        gc.InboundServer
 	Resolver       gc.ResolverServer
 	RuleController gc.BypassServer
+	Lists          gc.ListsServer
+	Rules          gc.RulesServer
 	Tag            gn.TagServer
 	// TODO deprecate configService, new service chore
 	Setting gc.ConfigServiceServer
@@ -82,6 +84,8 @@ func (app *AppInstance) RegisterServer() {
 	gc.RegisterBypassServer(grpcServer, app.RuleController)
 	gc.RegisterInboundServer(grpcServer, app.Inbound)
 	gc.RegisterResolverServer(grpcServer, app.Resolver)
+	gc.RegisterListsServer(grpcServer, app.Lists)
+	gc.RegisterRulesServer(grpcServer, app.Rules)
 
 	gn.RegisterNodeServer(grpcServer, app.Node)
 	gn.RegisterSubscribeServer(grpcServer, app.Subscribe)
@@ -229,16 +233,23 @@ func HandleFunc(mux *http.ServeMux, auth *Auth, path string, b func(http.Respons
 }
 
 func cross(r *http.Request, w http.ResponseWriter) {
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		return
-	}
+	// origin := r.Header.Get("Origin")
 
-	if origin != "https://yuhaiin.github.io" &&
-		!strings.HasPrefix(origin, "http://127.0.0.1") &&
-		!strings.HasPrefix(origin, "http://localhost") {
-		return
-	}
+	// if os.Getenv("DEBUG_YUHAIIN") != "true" {
+	// 	if origin == "" {
+	// 		return
+	// 	}
+
+	// 	if origin != "https://yuhaiin.github.io" &&
+	// 		!strings.HasPrefix(origin, "http://127.0.0.1") &&
+	// 		!strings.HasPrefix(origin, "http://localhost") {
+	// 		return
+	// 	}
+	// } else {
+	// 	origin = "*"
+	// }
+
+	origin := "*"
 
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, PATCH, OPTIONS, HEAD")

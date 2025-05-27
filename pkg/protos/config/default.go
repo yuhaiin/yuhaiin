@@ -34,6 +34,8 @@ func DefaultSetting(path string) *Setting {
 			Udp:            bypass.Mode_bypass.Enum(),
 			DirectResolver: proto.String("bootstrap"),
 			ProxyResolver:  proto.String("bootstrap"),
+			Lists:          map[string]*bypass.List{},
+			RulesV2:        []*bypass.Rulev2{},
 			CustomRuleV3: []*bypass.ModeConfig{
 				bypass.ModeConfig_builder{
 					Mode: bypass.Mode_direct.Enum(),

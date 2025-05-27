@@ -194,6 +194,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		}).Build(),
 		Source:       stringerOrNil(store.Source),
 		Inbound:      stringerOrNil(store.GetInbound()),
+		InboundName:  stringOrNil(store.GetInboundName()),
 		Outbound:     stringOrNil(getRemote(conn)),
 		LocalAddr:    stringOrNil(getLocal(conn)),
 		Destionation: stringerOrNil(store.Destination),

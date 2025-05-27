@@ -42,6 +42,7 @@ message connection {
   net_type type = 3 [ json_name = "type" ];
   string source = 5 [ json_name = "source" ];
   string inbound = 6 [ json_name = "inbound" ];
+  string inbound_name = 27 [ json_name = "inbound_name" ];
   string outbound = 24 [ json_name = "outbound" ];
   string local_addr = 26 [ json_name = "LocalAddr" ];
   string destionation = 7 [ json_name = "destionation" ];

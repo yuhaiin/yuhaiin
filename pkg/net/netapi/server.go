@@ -98,6 +98,7 @@ type StreamMeta struct {
 	Source      net.Addr
 	Destination net.Addr
 	Inbound     net.Addr
+	InboundName string
 
 	Src     net.Conn
 	Address Address
@@ -117,8 +118,9 @@ type Packet struct {
 	WriteBack WriteBack
 	// Payload will set to nil when ref count is negative, get it by [Packet.GetPayload]
 	// ! DON'T use Payload directly
-	Payload   []byte
-	MigrateID uint64
+	Payload     []byte
+	MigrateID   uint64
+	InboundName string
 
 	payloadRef int
 	mu         sync.Mutex
