@@ -1,0 +1,165 @@
+package route
+
+import (
+	"cmp"
+	"context"
+	"math"
+	"slices"
+	"sync"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
+)
+
+type Matcher interface {
+	Match(context.Context, netapi.Address) bool
+}
+
+type Inbound struct {
+	store *list.Set[string]
+}
+
+func NewInbound(inbounds ...string) *Inbound {
+	return &Inbound{
+		store: list.NewSet[string](),
+	}
+}
+
+func (s *Inbound) Match(ctx context.Context, addr netapi.Address) bool {
+	inbound := netapi.GetContext(ctx).GetInboundName()
+	if inbound != "" {
+		return s.store.Has(inbound)
+	}
+
+	return false
+}
+
+type And struct {
+	matchers []Matcher
+}
+
+func NewAnd(matchers ...Matcher) *And {
+	return &And{
+		matchers: matchers,
+	}
+}
+
+func (s *And) Match(ctx context.Context, addr netapi.Address) bool {
+	for _, m := range s.matchers {
+		if !m.Match(ctx, addr) {
+			return false
+		}
+	}
+
+	return true
+}
+
+type Or struct {
+	matchers []Matcher
+}
+
+func NewOr(matchers ...Matcher) *Or {
+	return &Or{
+		matchers: matchers,
+	}
+}
+
+func (s *Or) Match(ctx context.Context, addr netapi.Address) bool {
+	for _, m := range s.matchers {
+		if m.Match(ctx, addr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func ParseMatcher(lists *Lists, config *bypass.Rulev2) Matcher {
+	matchers := make([]Matcher, 0, len(config.GetRules()))
+	for _, v := range config.GetRules() {
+
+		andMatchers := make([]Matcher, 0, len(v.GetRules()))
+
+		for _, rule := range sortRule(v.GetRules()) {
+			switch rule.WhichObject() {
+			case bypass.Rule_Host_case:
+				andMatchers = append(andMatchers, NewListsMatcher(lists, rule.GetHost().GetList()))
+			case bypass.Rule_Process_case:
+				andMatchers = append(andMatchers, NewListsMatcher(lists, rule.GetProcess().GetList()))
+			case bypass.Rule_Inbound_case:
+				andMatchers = append(andMatchers, NewInbound(rule.GetInbound().GetName()))
+			}
+		}
+
+		matchers = append(matchers, NewAnd(andMatchers...))
+	}
+
+	return NewOr(matchers...)
+}
+
+func sortRule(rules []*bypass.Rule) []*bypass.Rule {
+	getNo := func(rule *bypass.Rule) int {
+		switch rule.WhichObject() {
+		case bypass.Rule_Process_case:
+			return 1
+		case bypass.Rule_Inbound_case:
+			return 2
+		case bypass.Rule_Host_case:
+			return 3
+		default:
+			return math.MaxInt
+		}
+	}
+
+	slices.SortFunc(rules,
+		func(a, b *bypass.Rule) int { return cmp.Compare(getNo(a), getNo(b)) })
+
+	return rules
+}
+
+type MatchEntry struct {
+	mode    bypass.ModeEnum
+	matcher Matcher
+}
+
+type Matchers struct {
+	mu       sync.RWMutex
+	list     *Lists
+	matchers []MatchEntry
+}
+
+func NewMatchers(list *Lists) *Matchers {
+	return &Matchers{
+		list: list,
+	}
+}
+
+func (s *Matchers) Update(rules []*bypass.Rulev2) {
+	ms := []MatchEntry{}
+	for _, v := range rules {
+		ms = append(ms, MatchEntry{
+			mode:    v.ToModeEnum(),
+			matcher: ParseMatcher(s.list, v),
+		})
+	}
+
+	slices.Reverse(ms)
+
+	s.mu.Lock()
+	s.matchers = ms
+	s.mu.Unlock()
+}
+
+func (s *Matchers) Match(ctx context.Context, addr netapi.Address) bypass.ModeEnum {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, v := range s.matchers {
+		if v.matcher.Match(ctx, addr) {
+			return v.mode
+		}
+	}
+
+	return bypass.Proxy
+}

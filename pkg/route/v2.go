@@ -38,19 +38,19 @@ func parseTrie(path string, proxy netapi.Proxy, rules []*bypass.RemoteRule, forc
 		forceUpdate: force,
 	}
 
-	r.Trie()
+	r.Trie(context.TODO())
 
 	return r.trie
 }
 
-func getRemote(path string, proxy netapi.Proxy, url string, force bool) (io.ReadCloser, error) {
+func getRemote(ctx context.Context, path string, proxy netapi.Proxy, url string, force bool) (io.ReadCloser, error) {
 	r := &routeParser{
 		proxy:       proxy,
 		path:        path,
 		forceUpdate: force,
 	}
 
-	re, err := r.getReader((&bypass.RemoteRule_builder{
+	re, err := r.getReader(ctx, (&bypass.RemoteRule_builder{
 		Enabled: proto.Bool(true),
 		Name:    proto.String(url),
 		Http: (&bypass.RemoteRuleHttp_builder{
@@ -61,13 +61,28 @@ func getRemote(path string, proxy netapi.Proxy, url string, force bool) (io.Read
 	return re, err
 }
 
-func (r *routeParser) Trie() {
+func getLocalCache(path string, url string) (io.ReadCloser, error) {
+	r := &routeParser{
+		path: path,
+	}
+
+	re, err := r.getRemoteLocalCacheReader((&bypass.RemoteRule_builder{
+		Enabled: proto.Bool(true),
+		Name:    proto.String(url),
+		Http: (&bypass.RemoteRuleHttp_builder{
+			Url: proto.String(url),
+		}).Build(),
+	}).Build())
+
+	return re, err
+}
+func (r *routeParser) Trie(ctx context.Context) {
 	for _, rule := range r.rules {
 		if !rule.GetEnabled() {
 			continue
 		}
 
-		rc, err := r.getReader(rule)
+		rc, err := r.getReader(ctx, rule)
 		if err != nil {
 			rule.SetErrorMsg(err.Error())
 			log.Error("get reader failed", slog.Any("err", err), slog.Any("rule", rule))
@@ -79,7 +94,37 @@ func (r *routeParser) Trie() {
 	}
 }
 
-func (r *routeParser) getReader(rule *bypass.RemoteRule) (io.ReadCloser, error) {
+func (r *routeParser) getRemoteLocalCacheReader(rule *bypass.RemoteRule) (io.ReadCloser, error) {
+	path := ""
+	switch rule.WhichObject() {
+	case bypass.RemoteRule_Http_case:
+		if rule.GetHttp().GetUrl() == "" {
+			return nil, fmt.Errorf("empty url")
+		}
+
+		path = filepath.Join(r.path, hexName(rule.GetName(), rule.GetHttp().GetUrl()))
+
+		if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
+			return nil, fmt.Errorf("file not exist: %s", path)
+		}
+
+	case bypass.RemoteRule_File_case:
+		if rule.GetFile().GetPath() == "" {
+			return nil, fmt.Errorf("empty path")
+		}
+
+		path = rule.GetFile().GetPath()
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
+func (r *routeParser) getReader(ctx context.Context, rule *bypass.RemoteRule) (io.ReadCloser, error) {
 	path := ""
 	switch rule.WhichObject() {
 	case bypass.RemoteRule_Http_case:
@@ -97,7 +142,7 @@ func (r *routeParser) getReader(rule *bypass.RemoteRule) (io.ReadCloser, error) 
 		}
 
 		if updated {
-			if err := r.saveRemote(path, rule.GetHttp().GetUrl()); err != nil {
+			if err := r.saveRemote(ctx, path, rule.GetHttp().GetUrl()); err != nil {
 				return nil, fmt.Errorf("save remote failed: %w", err)
 			}
 		}
@@ -118,7 +163,7 @@ func (r *routeParser) getReader(rule *bypass.RemoteRule) (io.ReadCloser, error) 
 	return f, nil
 }
 
-func (r *routeParser) saveRemote(path, url string) error {
+func (r *routeParser) saveRemote(ctx context.Context, path, url string) error {
 	err := os.MkdirAll(filepath.Dir(path), os.ModePerm)
 	if err != nil {
 		return err
@@ -138,7 +183,14 @@ func (r *routeParser) saveRemote(path, url string) error {
 		Timeout: 30 * time.Second,
 	}
 
-	resp, err := hc.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+
+	req = req.WithContext(ctx)
+
+	resp, err := hc.Do(req)
 	if err != nil {
 		return err
 	}

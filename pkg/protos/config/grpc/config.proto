@@ -47,6 +47,16 @@ service bypass {
   rpc block_history(google.protobuf.Empty) returns (block_history_list);
 }
 
+message list_response { repeated string names = 1 [ json_name = "names" ]; }
+
+service lists {
+  rpc list(google.protobuf.Empty) returns (list_response);
+  rpc get(google.protobuf.StringValue) returns (yuhaiin.bypass.list);
+  rpc save(yuhaiin.bypass.list) returns (google.protobuf.Empty);
+  rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
+  rpc refresh(google.protobuf.Empty) returns (google.protobuf.Empty);
+}
+
 message inbounds_response {
   repeated string names = 1 [ json_name = "names" ];
 

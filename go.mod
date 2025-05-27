@@ -13,7 +13,7 @@ require (
 	github.com/refraction-networking/utls v1.7.3
 	github.com/tailscale/wireguard-go v0.0.0-20250304000100-91a0587fb251
 	github.com/vishvananda/netlink v1.3.1
-	github.com/xtls/reality v0.0.0-20250516070713-4df2ec9a5b47
+	github.com/xtls/reality v0.0.0-20250527000105-e679ef7bb130
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250516164005-812f8458c4d9
 	go.etcd.io/bbolt v1.4.0
 	golang.org/x/crypto v0.38.0
@@ -22,7 +22,7 @@ require (
 	golang.org/x/sys v0.33.0
 	golang.org/x/time v0.11.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
-	google.golang.org/grpc v1.72.1
+	google.golang.org/grpc v1.72.2
 	google.golang.org/protobuf v1.36.6
 	gvisor.dev/gvisor v0.0.0-20250416204613-04a61c0f3bd5
 	tailscale.com v1.84.0

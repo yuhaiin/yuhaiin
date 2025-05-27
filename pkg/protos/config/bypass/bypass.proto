@@ -18,12 +18,18 @@ message config {
   mode udp = 4 [ json_name = "udp" ];
   string bypass_file = 2 [ json_name = "bypass_file", deprecated = true ];
   udp_proxy_fqdn_strategy udp_proxy_fqdn = 6 [ json_name = "udp_proxy_fqdn" ];
-  repeated mode_config custom_rule_v3 = 7 [ json_name = "custom_rule_v3" ];
-  repeated remote_rule remote_rules = 8 [ json_name = "remote_rules" ];
+  repeated mode_config custom_rule_v3 = 7
+      [ json_name = "custom_rule_v3", deprecated = true ];
+  repeated remote_rule remote_rules = 8
+      [ json_name = "remote_rules", deprecated = true ];
   // resolve domain locally
   bool resolve_locally = 9 [ json_name = "resolve_locally" ];
   string direct_resolver = 10 [ json_name = "direct_resolver" ];
   string proxy_resolver = 11 [ json_name = "proxy_resolver" ];
+
+  bool enabled_v2 = 14 [ json_name = "enabled_v2" ];
+  repeated rulev2 rules_v2 = 12 [ json_name = "rules_v2" ];
+  map<string, list> lists = 13 [ json_name = "lists" ];
 }
 
 enum resolve_strategy {
@@ -72,3 +78,46 @@ message remote_rule_http {
   // method of http request, default: GET
   string method = 2 [ json_name = "method" ];
 }
+
+message host { string list = 1 [ json_name = "list" ]; }
+message process { string list = 1 [ json_name = "list" ]; }
+message inbound { string name = 1 [ json_name = "name" ]; }
+
+message rule {
+  oneof object {
+    host host = 1 [ json_name = "host" ];
+    process process = 2 [ json_name = "process" ];
+    inbound inbound = 3 [ json_name = "inbound" ];
+  }
+}
+
+message or { repeated rule rules = 1 [ json_name = "rules" ]; }
+
+message rulev2 {
+  string name = 1 [ json_name = "name" ];
+  mode mode = 2 [ json_name = "mode" ];
+  string tag = 3 [ json_name = "tag" ];
+  resolve_strategy resolve_strategy = 4 [ json_name = "resolve_strategy" ];
+  udp_proxy_fqdn_strategy udp_proxy_fqdn_strategy = 5
+      [ json_name = "udp_proxy_fqdn_strategy" ];
+  string resolver = 6 [ json_name = "resolver" ];
+  repeated or rules = 7 [ json_name = "rules" ];
+}
+
+message list {
+  enum list_type_enum {
+    host = 0;
+    process = 1;
+  }
+
+  list_type_enum list_type = 1 [ json_name = "type" ];
+  string name = 2 [ json_name = "name" ];
+  oneof list {
+    list_local local = 3 [ json_name = "local" ];
+    list_remote remote = 4 [ json_name = "remote" ];
+  }
+  repeated string error_msgs = 5 [ json_name = "error_msgs" ];
+}
+
+message list_local { repeated string lists = 1 [ json_name = "lists" ]; }
+message list_remote { repeated string urls = 1 [ json_name = "urls" ]; }

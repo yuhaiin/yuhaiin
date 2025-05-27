@@ -63,6 +63,8 @@ func NewClient(config *protocol.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
 		}
 	}
 
+	config.GetTls().SetEnable(true)
+
 	tlsConfig := ytls.ParseTLSConfig(config.GetTls())
 	if tlsConfig == nil {
 		tlsConfig = &tls.Config{}

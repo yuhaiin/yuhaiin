@@ -196,15 +196,17 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	// local,remote,bootstrap dns
 	dns := AddCloser(closers, "resolver", resolver.NewResolver(configuration.ProxyChain))
+	list := route.NewLists(so.BypassConfig)
 	// bypass dialer and dns request
-	st := AddCloser(closers, "shunt", route.NewRoute(nodeManager.Outbound(), dns, so.ProcessDumper))
-	rc := route.NewRuleController(so.BypassConfig, st)
+	router := AddCloser(closers, "router", route.NewRoute(nodeManager.Outbound(), dns, list, so.ProcessDumper))
+	list.SetProxy(router)
+	rc := route.NewRuleController(so.BypassConfig, router)
 	// connections' statistic & flow data
 
 	flowCache := AddCloser(closers, "flow_cache", cache.NewCache("flow_data"))
-	stcs := AddCloser(closers, "statistic", statistics.NewConnStore(flowCache, st))
+	stcs := AddCloser(closers, "statistic", statistics.NewConnStore(flowCache, router))
 	metrics.SetFlowCounter(stcs.Cache)
-	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, st))
+	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, router))
 	// wrap dialer and dns resolver to fake ip, if use
 	fakedns := AddCloser(closers, "fakedns", resolver.NewFakeDNS(hosts, hosts, cache))
 	// dns server/tun dns hijacking handler
@@ -232,8 +234,9 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		Node:           nodeManager.Node(),
 		Subscribe:      nodeManager.Subscribe(),
 		Connections:    stcs,
-		Tag:            nodeManager.Tag(st.Tags),
+		Tag:            nodeManager.Tag(router.Tags),
 		RuleController: rc,
+		Lists:          list,
 		Inbound:        inbound.NewInboundCtr(so.InboundConfig, inbounds),
 		Resolver:       resolverCtr,
 		Setting:        chore,

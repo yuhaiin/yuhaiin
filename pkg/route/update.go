@@ -41,7 +41,7 @@ func (s *Route) updateCustomRule(path string, c *bypass.Config, force bool) {
 
 			switch scheme.Scheme() {
 			case "http", "https":
-				r, err := getRemote(filepath.Join(path, "rules"), s, hostname, force)
+				r, err := getRemote(context.TODO(), filepath.Join(path, "rules"), s, hostname, force)
 				if err != nil {
 					v.GetErrorMsgs()[hostname] = err.Error()
 					log.Error("get remote failed", "err", err, "url", hostname)
@@ -80,6 +80,8 @@ func (s *Route) apply(path string, c *bypass.Config, force bool) {
 
 	s.updateCustomRule(path, c, force)
 	s.updateRules(path, c, force)
+	s.ms.Update(c.GetRulesV2())
+
 	s.config = c
 }
 
@@ -119,7 +121,17 @@ func (s *RuleController) Save(ctx context.Context, config *bypass.Config) (*empt
 	s.route.apply(s.db.Dir(), config, false)
 
 	err := s.db.Batch(func(s *pc.Setting) error {
-		s.SetBypass(config)
+		s.GetBypass().SetEnabledV2(config.GetEnabledV2())
+		s.GetBypass().SetRulesV2(config.GetRulesV2())
+		s.GetBypass().SetCustomRuleV3(config.GetCustomRuleV3())
+		s.GetBypass().SetRemoteRules(config.GetRemoteRules())
+		s.GetBypass().SetBypassFile(config.GetBypassFile())
+		s.GetBypass().SetUdpProxyFqdn(config.GetUdpProxyFqdn())
+		s.GetBypass().SetResolveLocally(config.GetResolveLocally())
+		s.GetBypass().SetDirectResolver(config.GetDirectResolver())
+		s.GetBypass().SetProxyResolver(config.GetProxyResolver())
+		s.GetBypass().SetTcp(config.GetTcp())
+		s.GetBypass().SetUdp(config.GetUdp())
 		return nil
 	})
 

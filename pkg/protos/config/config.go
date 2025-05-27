@@ -57,9 +57,11 @@ func (c *JsonDB) Batch(f ...func(*Setting) error) error {
 		}
 	}
 
-	if proto.Equal(c.db.Data, cf) {
-		return nil
-	}
+	// The Equal current has some problem
+	// so we skip it
+	// if proto.Equal(c.db.Data, cf) {
+	// return nil
+	// }
 
 	c.db.Data = cf
 

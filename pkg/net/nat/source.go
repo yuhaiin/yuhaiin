@@ -223,6 +223,7 @@ func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
 		store := netapi.GetContext(ctx)
 		store.Source = pkt.Src
 		store.Destination = pkt.Dst
+		store.SetInboundName(pkt.InboundName)
 
 		if u.sniffer != nil {
 			u.sniffer.Packet(store, pkt.GetPayload())
