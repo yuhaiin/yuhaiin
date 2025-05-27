@@ -71,6 +71,7 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 			if meta.Inbound != nil {
 				store.SetInbound(meta.Inbound)
 			}
+			store.SetInboundName(meta.InboundName)
 			l.handler.Stream(store, meta)
 			return
 		}
@@ -150,7 +151,7 @@ func (l *Inbound) Save(req *pl.Inbound) {
 		return
 	}
 
-	server, err := register.Listen(req, l)
+	server, err := register.Listen(req, &handlerWrap{req.GetName(), l})
 	if err != nil {
 		log.Error("start server failed", "name", req.GetName(), "err", err)
 		return
@@ -192,4 +193,19 @@ func (l *Inbound) Close() error {
 		log.Info("closed server", "name", k)
 	}
 	return l.handler.Close()
+}
+
+type handlerWrap struct {
+	name    string
+	handler *Inbound
+}
+
+func (h *handlerWrap) HandleStream(meta *netapi.StreamMeta) {
+	meta.InboundName = h.name
+	h.handler.HandleStream(meta)
+}
+
+func (h *handlerWrap) HandlePacket(packet *netapi.Packet) {
+	packet.InboundName = h.name
+	h.handler.HandlePacket(packet)
 }

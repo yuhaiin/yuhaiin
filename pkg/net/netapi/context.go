@@ -80,9 +80,10 @@ type Context struct {
 
 	context.Context
 
-	inbound *net.Addr `metrics:"Inbound"`
-	fakeIP  *net.Addr `metrics:"FakeIP"`
-	hosts   *net.Addr `metrics:"Hosts"`
+	inbound     *net.Addr `metrics:"Inbound"`
+	inboundName *string   `metrics:"InboundName"`
+	fakeIP      *net.Addr `metrics:"FakeIP"`
+	hosts       *net.Addr `metrics:"Hosts"`
 
 	addrInfo *AddrInfo
 
@@ -208,6 +209,21 @@ func (c *Context) GetInbound() net.Addr {
 		return *c.inbound
 	}
 	return nil
+}
+
+func (c *Context) SetInboundName(name string) {
+	if name == "" {
+		return
+	}
+
+	c.inboundName = &name
+}
+
+func (c *Context) GetInboundName() string {
+	if c.inboundName != nil {
+		return *c.inboundName
+	}
+	return ""
 }
 
 func (c *Context) SetFakeIP(addr net.Addr) {

@@ -29,6 +29,8 @@ type Route struct {
 	customTrie *atomic.Pointer[routeTries]
 	trie       *atomic.Pointer[routeTries]
 
+	ms *Matchers
+
 	loopback LoopbackDetector
 	config   *bypass.Config
 
@@ -46,7 +48,7 @@ type Dialer interface {
 	Get(ctx context.Context, network string, str string, tag string) (netapi.Proxy, error)
 }
 
-func NewRoute(d Dialer, r Resolver, ProcessDumper netapi.ProcessDumper) *Route {
+func NewRoute(d Dialer, r Resolver, list *Lists, ProcessDumper netapi.ProcessDumper) *Route {
 	rr := &Route{
 		trie:       atomicx.NewPointer(newRouteTires()),
 		customTrie: atomicx.NewPointer(newRouteTires()),
@@ -58,6 +60,7 @@ func NewRoute(d Dialer, r Resolver, ProcessDumper netapi.ProcessDumper) *Route {
 		d:             d,
 		ProcessDumper: ProcessDumper,
 		RejectHistory: NewRejectHistory(),
+		ms:            NewMatchers(list),
 	}
 
 	rr.addMatchers()
@@ -76,6 +79,12 @@ func (s *Route) Tags() iter.Seq[string] {
 			}
 		}
 		for v := range cMaps {
+			if !yield(v) {
+				return
+			}
+		}
+
+		for v := range s.ms.Tags() {
 			if !yield(v) {
 				return
 			}
@@ -177,18 +186,9 @@ func (s *Route) SearchProcess(ctx *netapi.Context, process netapi.Process) (bypa
 		return bypass.Bypass, false
 	}
 
-	// make all go system dial direct, eg: tailscale
-	if process.Path == "io.github.asutorufa.yuhaiin" {
-		return bypass.Direct, true
-	}
-
 	matchProcess := filepath.Clean(strings.TrimSuffix(process.Path, " (deleted)"))
 
 	matchProcess = convertVolumeName(matchProcess)
-
-	if s.loopback.IsLoopback(ctx, matchProcess, process.Pid) {
-		return bypass.Block, true
-	}
 
 	x, ok := s.customTrie.Load().processTrie.SearchString(matchProcess)
 	if ok {
@@ -242,6 +242,24 @@ func (s *Route) addMatchers() {
 		if s.loopback.Cycle(o.Ctx, o.Host) {
 			return bypass.Block
 		}
+
+		processPath, pid, _ := o.Ctx.GetProcess()
+
+		if processPath != "" || pid != 0 {
+			// make all go system dial direct, eg: tailscale
+			if processPath == "io.github.asutorufa.yuhaiin" {
+				return bypass.Direct
+			}
+
+			matchProcess := filepath.Clean(strings.TrimSuffix(processPath, " (deleted)"))
+
+			matchProcess = convertVolumeName(matchProcess)
+
+			if s.loopback.IsLoopback(o.Ctx, matchProcess, pid) {
+				return bypass.Block
+			}
+		}
+
 		return bypass.Bypass
 	})
 
@@ -251,14 +269,19 @@ func (s *Route) addMatchers() {
 
 	s.AddMatcher("normal mode", func(o *Object) bypass.ModeEnum {
 		var mode bypass.ModeEnum
-		// get mode from bypass rule
+
 		o.Ctx.Resolver.Resolver = s.r.Get("", "")
+
+		host := o.Host
 		if o.Ctx.GetHosts() == nil && !o.Host.IsFqdn() && o.Ctx.SniffHost() != "" {
-			// reason = "sniff host trie mode"
-			mode = s.Search(o.Ctx, netapi.ParseAddressPort(o.Host.Network(), o.Ctx.SniffHost(), o.Host.Port()))
+			host = netapi.ParseAddressPort(o.Host.Network(), o.Ctx.SniffHost(), o.Host.Port())
+		}
+
+		if s.config.GetEnabledV2() && s.ms != nil {
+			mode = s.ms.Match(o.Ctx, host)
 		} else {
-			// reason = "normal host trie mode"
-			mode = s.Search(o.Ctx, o.Host)
+			// Deprecated: use [Matchers] instead
+			mode = s.Search(o.Ctx, host)
 		}
 
 		switch mode.GetResolveStrategy() {
@@ -295,7 +318,10 @@ func (s *Route) dispatch(store *netapi.Context, networkMode bypass.Mode, host ne
 		}
 	}
 
-	if mode.Mode() != bypass.Mode_block {
+	// ! if not v2
+	//
+	// Deprecated: use [Matchers] instead
+	if !s.config.GetEnabledV2() && s.ms == nil && mode.Mode() != bypass.Mode_block {
 		if m, ok := s.SearchProcess(store, process); ok {
 			mode, reason = m, "process trie mode"
 		} else if !store.SniffMode.Unspecified() {

@@ -71,3 +71,13 @@ var (
 		udpProxyFqdn:    UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default,
 	}
 )
+
+func (r *Rulev2) ToModeEnum() ModeEnum {
+	return ModeEnum{
+		Tag:             r.GetTag(),
+		resolver:        r.GetResolver(),
+		mode:            r.GetMode(),
+		ResolveStrategy: r.GetResolveStrategy(),
+		udpProxyFqdn:    r.GetUdpProxyFqdnStrategy(),
+	}
+}

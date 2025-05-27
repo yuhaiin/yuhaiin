@@ -47,6 +47,41 @@ service bypass {
   rpc block_history(google.protobuf.Empty) returns (block_history_list);
 }
 
+message list_response { repeated string names = 1 [ json_name = "names" ]; }
+
+service lists {
+  rpc list(google.protobuf.Empty) returns (list_response);
+  rpc get(google.protobuf.StringValue) returns (yuhaiin.bypass.list);
+  rpc save(yuhaiin.bypass.list) returns (google.protobuf.Empty);
+  rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
+  rpc refresh(google.protobuf.Empty) returns (google.protobuf.Empty);
+}
+
+message rule_response { repeated string names = 1 [ json_name = "names" ]; }
+
+message rule_index {
+  uint32 index = 1 [ json_name = "index" ];
+  string name = 2 [ json_name = "name" ];
+}
+
+message rule_save_request {
+  rule_index index = 1 [ json_name = "index" ];
+  yuhaiin.bypass.rulev2 rule = 2 [ json_name = "rule" ];
+}
+
+message change_priority_request {
+  rule_index source = 1 [ json_name = "source" ];
+  rule_index target = 2 [ json_name = "target" ];
+}
+
+service rules {
+  rpc list(google.protobuf.Empty) returns (rule_response);
+  rpc get(rule_index) returns (yuhaiin.bypass.rulev2);
+  rpc save(rule_save_request) returns (google.protobuf.Empty);
+  rpc remove(rule_index) returns (google.protobuf.Empty);
+  rpc change_priority(change_priority_request) returns (google.protobuf.Empty);
+}
+
 message inbounds_response {
   repeated string names = 1 [ json_name = "names" ];
 

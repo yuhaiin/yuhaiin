@@ -178,7 +178,7 @@ func (d DomainAddr) Comparable() uint64 { return ComputeAddressHash(d) }
 var _ IPAddress = IPAddr{}
 
 type IPAddr struct {
-	AddrPortX      netip.AddrPort `json:"addr_port,omitempty"`
+	AddrPortX      netip.AddrPort `json:"addr_port"`
 	AddressNetwork `json:"network,omitempty"`
 }
 
