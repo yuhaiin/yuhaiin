@@ -209,7 +209,7 @@ func wrap(name string, dns netapi.Resolver, v6 *Resolver) *dnsWrap {
 	return &dnsWrap{name: name, dns: dns, resolver: v6}
 }
 
-func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
+func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
 	opt := func(opt *netapi.LookupIPOption) {
 		if configuration.IPv6.Load() {
 			opt.Mode = netapi.ResolverModeNoSpecified

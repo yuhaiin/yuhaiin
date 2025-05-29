@@ -51,7 +51,7 @@ func (f *FakeDNS) Contains(addr netip.Addr) bool {
 	return f.ipv4.prefix.Contains(addr) || f.ipv6.prefix.Contains(addr)
 }
 
-func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
+func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
 	if !system.IsDomainName(domain) {
 		return nil, &net.DNSError{
 			Name:       domain,
@@ -67,12 +67,15 @@ func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netap
 
 	switch opt.Mode {
 	case netapi.ResolverModePreferIPv4:
-		return []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice()}, nil
+		return &netapi.IPs{A: []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice()}}, nil
 	case netapi.ResolverModePreferIPv6:
-		return []net.IP{f.ipv6.GetFakeIPForDomain(domain).AsSlice()}, nil
+		return &netapi.IPs{AAAA: []net.IP{f.ipv6.GetFakeIPForDomain(domain).AsSlice()}}, nil
 	}
 
-	return []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice(), f.ipv6.GetFakeIPForDomain(domain).AsSlice()}, nil
+	return &netapi.IPs{
+		A:    []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice()},
+		AAAA: []net.IP{f.ipv6.GetFakeIPForDomain(domain).AsSlice()},
+	}, nil
 }
 
 func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code dnsmessage.RCode, resource dnsmessage.ResourceBody) dnsmessage.Message {

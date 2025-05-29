@@ -99,18 +99,18 @@ _retry:
 		}
 	})
 	if err == nil {
-		moveToFront(h.lastIp, tmpIps)
+		moveToFront(h.lastIp, tmpIps.WhoNotEmpty())
 		h.mu.Lock()
-		h.allResponse.Add(int32(len(tmpIps)))
+		h.allResponse.Add(int32(tmpIps.Len()))
 		// Next, the client SHOULD modify the ordered list to interleave address
 		// families.  Whichever address family is first in the list should be
 		// followed by an address of the other address family; that is, if the
 		// first address in the sorted list is IPv6, then the first IPv4 address
 		// should be moved up in the list to be second in the list.
 		if primary {
-			h.ips = Interleave(tmpIps, h.ips)
+			h.ips = Interleave(tmpIps.WhoNotEmpty(), h.ips)
 		} else {
-			h.ips = Interleave(h.ips, tmpIps)
+			h.ips = Interleave(h.ips, tmpIps.WhoNotEmpty())
 		}
 		h.mu.Unlock()
 	} else {

@@ -162,11 +162,57 @@ func (x UdpProxyFqdnStrategy) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
+type NetworkNetworkType int32
+
+const (
+	Network_unknown NetworkNetworkType = 0
+	Network_tcp     NetworkNetworkType = 1
+	Network_udp     NetworkNetworkType = 2
+)
+
+// Enum value maps for NetworkNetworkType.
+var (
+	NetworkNetworkType_name = map[int32]string{
+		0: "unknown",
+		1: "tcp",
+		2: "udp",
+	}
+	NetworkNetworkType_value = map[string]int32{
+		"unknown": 0,
+		"tcp":     1,
+		"udp":     2,
+	}
+)
+
+func (x NetworkNetworkType) Enum() *NetworkNetworkType {
+	p := new(NetworkNetworkType)
+	*p = x
+	return p
+}
+
+func (x NetworkNetworkType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NetworkNetworkType) Descriptor() protoreflect.EnumDescriptor {
+	return file_config_bypass_bypass_proto_enumTypes[3].Descriptor()
+}
+
+func (NetworkNetworkType) Type() protoreflect.EnumType {
+	return &file_config_bypass_bypass_proto_enumTypes[3]
+}
+
+func (x NetworkNetworkType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
 type ListListTypeEnum int32
 
 const (
 	List_host    ListListTypeEnum = 0
 	List_process ListListTypeEnum = 1
+	// parse hosts file, and just use domain as host list
+	List_hosts_as_host ListListTypeEnum = 2
 )
 
 // Enum value maps for ListListTypeEnum.
@@ -174,10 +220,12 @@ var (
 	ListListTypeEnum_name = map[int32]string{
 		0: "host",
 		1: "process",
+		2: "hosts_as_host",
 	}
 	ListListTypeEnum_value = map[string]int32{
-		"host":    0,
-		"process": 1,
+		"host":          0,
+		"process":       1,
+		"hosts_as_host": 2,
 	}
 )
 
@@ -192,11 +240,11 @@ func (x ListListTypeEnum) String() string {
 }
 
 func (ListListTypeEnum) Descriptor() protoreflect.EnumDescriptor {
-	return file_config_bypass_bypass_proto_enumTypes[3].Descriptor()
+	return file_config_bypass_bypass_proto_enumTypes[4].Descriptor()
 }
 
 func (ListListTypeEnum) Type() protoreflect.EnumType {
-	return &file_config_bypass_bypass_proto_enumTypes[3]
+	return &file_config_bypass_bypass_proto_enumTypes[4]
 }
 
 func (x ListListTypeEnum) Number() protoreflect.EnumNumber {
@@ -248,6 +296,7 @@ func (x *Config) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Marked as deprecated in config/bypass/bypass.proto.
 func (x *Config) GetTcp() Mode {
 	if x != nil {
 		if protoimpl.X.Present(&(x.XXX_presence[0]), 0) {
@@ -257,6 +306,7 @@ func (x *Config) GetTcp() Mode {
 	return Mode_bypass
 }
 
+// Deprecated: Marked as deprecated in config/bypass/bypass.proto.
 func (x *Config) GetUdp() Mode {
 	if x != nil {
 		if protoimpl.X.Present(&(x.XXX_presence[0]), 1) {
@@ -357,11 +407,13 @@ func (x *Config) GetLists() map[string]*List {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in config/bypass/bypass.proto.
 func (x *Config) SetTcp(v Mode) {
 	x.xxx_hidden_Tcp = v
 	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 12)
 }
 
+// Deprecated: Marked as deprecated in config/bypass/bypass.proto.
 func (x *Config) SetUdp(v Mode) {
 	x.xxx_hidden_Udp = v
 	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 12)
@@ -417,6 +469,7 @@ func (x *Config) SetLists(v map[string]*List) {
 	x.xxx_hidden_Lists = v
 }
 
+// Deprecated: Marked as deprecated in config/bypass/bypass.proto.
 func (x *Config) HasTcp() bool {
 	if x == nil {
 		return false
@@ -424,6 +477,7 @@ func (x *Config) HasTcp() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
 }
 
+// Deprecated: Marked as deprecated in config/bypass/bypass.proto.
 func (x *Config) HasUdp() bool {
 	if x == nil {
 		return false
@@ -475,11 +529,13 @@ func (x *Config) HasEnabledV2() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 9)
 }
 
+// Deprecated: Marked as deprecated in config/bypass/bypass.proto.
 func (x *Config) ClearTcp() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
 	x.xxx_hidden_Tcp = Mode_bypass
 }
 
+// Deprecated: Marked as deprecated in config/bypass/bypass.proto.
 func (x *Config) ClearUdp() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
 	x.xxx_hidden_Udp = Mode_bypass
@@ -520,7 +576,9 @@ func (x *Config) ClearEnabledV2() {
 type Config_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
+	// Deprecated: Marked as deprecated in config/bypass/bypass.proto.
 	Tcp *Mode
+	// Deprecated: Marked as deprecated in config/bypass/bypass.proto.
 	Udp *Mode
 	// Deprecated: Marked as deprecated in config/bypass/bypass.proto.
 	BypassFile   *string
@@ -1461,6 +1519,7 @@ func (b0 Process_builder) Build() *Process {
 type Inbound struct {
 	state                  protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Name        *string                `protobuf:"bytes,1,opt,name=name"`
+	xxx_hidden_Names       []string               `protobuf:"bytes,2,rep,name=names"`
 	XXX_raceDetectHookData protoimpl.RaceDetectHookData
 	XXX_presence           [1]uint32
 	unknownFields          protoimpl.UnknownFields
@@ -1502,9 +1561,20 @@ func (x *Inbound) GetName() string {
 	return ""
 }
 
+func (x *Inbound) GetNames() []string {
+	if x != nil {
+		return x.xxx_hidden_Names
+	}
+	return nil
+}
+
 func (x *Inbound) SetName(v string) {
 	x.xxx_hidden_Name = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 1)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
+}
+
+func (x *Inbound) SetNames(v []string) {
+	x.xxx_hidden_Names = v
 }
 
 func (x *Inbound) HasName() bool {
@@ -1522,7 +1592,8 @@ func (x *Inbound) ClearName() {
 type Inbound_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	Name *string
+	Name  *string
+	Names []string
 }
 
 func (b0 Inbound_builder) Build() *Inbound {
@@ -1530,9 +1601,10 @@ func (b0 Inbound_builder) Build() *Inbound {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Name != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 1)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
 		x.xxx_hidden_Name = b.Name
 	}
+	x.xxx_hidden_Names = b.Names
 	return m0
 }
 
@@ -1595,6 +1667,15 @@ func (x *Rule) GetInbound() *Inbound {
 	return nil
 }
 
+func (x *Rule) GetNetwork() *Network {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Object.(*rule_Network); ok {
+			return x.Network
+		}
+	}
+	return nil
+}
+
 func (x *Rule) SetHost(v *Host) {
 	if v == nil {
 		x.xxx_hidden_Object = nil
@@ -1617,6 +1698,14 @@ func (x *Rule) SetInbound(v *Inbound) {
 		return
 	}
 	x.xxx_hidden_Object = &rule_Inbound{v}
+}
+
+func (x *Rule) SetNetwork(v *Network) {
+	if v == nil {
+		x.xxx_hidden_Object = nil
+		return
+	}
+	x.xxx_hidden_Object = &rule_Network{v}
 }
 
 func (x *Rule) HasObject() bool {
@@ -1650,6 +1739,14 @@ func (x *Rule) HasInbound() bool {
 	return ok
 }
 
+func (x *Rule) HasNetwork() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Object.(*rule_Network)
+	return ok
+}
+
 func (x *Rule) ClearObject() {
 	x.xxx_hidden_Object = nil
 }
@@ -1672,10 +1769,17 @@ func (x *Rule) ClearInbound() {
 	}
 }
 
+func (x *Rule) ClearNetwork() {
+	if _, ok := x.xxx_hidden_Object.(*rule_Network); ok {
+		x.xxx_hidden_Object = nil
+	}
+}
+
 const Rule_Object_not_set_case case_Rule_Object = 0
 const Rule_Host_case case_Rule_Object = 1
 const Rule_Process_case case_Rule_Object = 2
 const Rule_Inbound_case case_Rule_Object = 3
+const Rule_Network_case case_Rule_Object = 4
 
 func (x *Rule) WhichObject() case_Rule_Object {
 	if x == nil {
@@ -1688,6 +1792,8 @@ func (x *Rule) WhichObject() case_Rule_Object {
 		return Rule_Process_case
 	case *rule_Inbound:
 		return Rule_Inbound_case
+	case *rule_Network:
+		return Rule_Network_case
 	default:
 		return Rule_Object_not_set_case
 	}
@@ -1700,6 +1806,7 @@ type Rule_builder struct {
 	Host    *Host
 	Process *Process
 	Inbound *Inbound
+	Network *Network
 	// -- end of xxx_hidden_Object
 }
 
@@ -1715,6 +1822,9 @@ func (b0 Rule_builder) Build() *Rule {
 	}
 	if b.Inbound != nil {
 		x.xxx_hidden_Object = &rule_Inbound{b.Inbound}
+	}
+	if b.Network != nil {
+		x.xxx_hidden_Object = &rule_Network{b.Network}
 	}
 	return m0
 }
@@ -1745,11 +1855,94 @@ type rule_Inbound struct {
 	Inbound *Inbound `protobuf:"bytes,3,opt,name=inbound,oneof"`
 }
 
+type rule_Network struct {
+	Network *Network `protobuf:"bytes,4,opt,name=network,oneof"`
+}
+
 func (*rule_Host) isRule_Object() {}
 
 func (*rule_Process) isRule_Object() {}
 
 func (*rule_Inbound) isRule_Object() {}
+
+func (*rule_Network) isRule_Object() {}
+
+type Network struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Network     NetworkNetworkType     `protobuf:"varint,1,opt,name=network,enum=yuhaiin.bypass.NetworkNetworkType"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *Network) Reset() {
+	*x = Network{}
+	mi := &file_config_bypass_bypass_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Network) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Network) ProtoMessage() {}
+
+func (x *Network) ProtoReflect() protoreflect.Message {
+	mi := &file_config_bypass_bypass_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Network) GetNetwork() NetworkNetworkType {
+	if x != nil {
+		if protoimpl.X.Present(&(x.XXX_presence[0]), 0) {
+			return x.xxx_hidden_Network
+		}
+	}
+	return Network_unknown
+}
+
+func (x *Network) SetNetwork(v NetworkNetworkType) {
+	x.xxx_hidden_Network = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 1)
+}
+
+func (x *Network) HasNetwork() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *Network) ClearNetwork() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_Network = Network_unknown
+}
+
+type Network_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Network *NetworkNetworkType
+}
+
+func (b0 Network_builder) Build() *Network {
+	m0 := &Network{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Network != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 1)
+		x.xxx_hidden_Network = *b.Network
+	}
+	return m0
+}
 
 type Or struct {
 	state            protoimpl.MessageState `protogen:"opaque.v1"`
@@ -1760,7 +1953,7 @@ type Or struct {
 
 func (x *Or) Reset() {
 	*x = Or{}
-	mi := &file_config_bypass_bypass_proto_msgTypes[9]
+	mi := &file_config_bypass_bypass_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1772,7 +1965,7 @@ func (x *Or) String() string {
 func (*Or) ProtoMessage() {}
 
 func (x *Or) ProtoReflect() protoreflect.Message {
-	mi := &file_config_bypass_bypass_proto_msgTypes[9]
+	mi := &file_config_bypass_bypass_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1827,7 +2020,7 @@ type Rulev2 struct {
 
 func (x *Rulev2) Reset() {
 	*x = Rulev2{}
-	mi := &file_config_bypass_bypass_proto_msgTypes[10]
+	mi := &file_config_bypass_bypass_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1839,7 +2032,7 @@ func (x *Rulev2) String() string {
 func (*Rulev2) ProtoMessage() {}
 
 func (x *Rulev2) ProtoReflect() protoreflect.Message {
-	mi := &file_config_bypass_bypass_proto_msgTypes[10]
+	mi := &file_config_bypass_bypass_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2080,7 +2273,7 @@ type List struct {
 
 func (x *List) Reset() {
 	*x = List{}
-	mi := &file_config_bypass_bypass_proto_msgTypes[11]
+	mi := &file_config_bypass_bypass_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2092,7 +2285,7 @@ func (x *List) String() string {
 func (*List) ProtoMessage() {}
 
 func (x *List) ProtoReflect() protoreflect.Message {
-	mi := &file_config_bypass_bypass_proto_msgTypes[11]
+	mi := &file_config_bypass_bypass_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2295,7 +2488,7 @@ func (b0 List_builder) Build() *List {
 type case_List_List protoreflect.FieldNumber
 
 func (x case_List_List) String() string {
-	md := file_config_bypass_bypass_proto_msgTypes[11].Descriptor()
+	md := file_config_bypass_bypass_proto_msgTypes[12].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -2327,7 +2520,7 @@ type ListLocal struct {
 
 func (x *ListLocal) Reset() {
 	*x = ListLocal{}
-	mi := &file_config_bypass_bypass_proto_msgTypes[12]
+	mi := &file_config_bypass_bypass_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2339,7 +2532,7 @@ func (x *ListLocal) String() string {
 func (*ListLocal) ProtoMessage() {}
 
 func (x *ListLocal) ProtoReflect() protoreflect.Message {
-	mi := &file_config_bypass_bypass_proto_msgTypes[12]
+	mi := &file_config_bypass_bypass_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2384,7 +2577,7 @@ type ListRemote struct {
 
 func (x *ListRemote) Reset() {
 	*x = ListRemote{}
-	mi := &file_config_bypass_bypass_proto_msgTypes[13]
+	mi := &file_config_bypass_bypass_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2396,7 +2589,7 @@ func (x *ListRemote) String() string {
 func (*ListRemote) ProtoMessage() {}
 
 func (x *ListRemote) ProtoReflect() protoreflect.Message {
-	mi := &file_config_bypass_bypass_proto_msgTypes[13]
+	mi := &file_config_bypass_bypass_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2436,10 +2629,10 @@ var File_config_bypass_bypass_proto protoreflect.FileDescriptor
 
 const file_config_bypass_bypass_proto_rawDesc = "" +
 	"\n" +
-	"\x1aconfig/bypass/bypass.proto\x12\x0eyuhaiin.bypass\x1a!google/protobuf/go_features.proto\"\xba\x05\n" +
-	"\x06config\x12&\n" +
-	"\x03tcp\x18\x03 \x01(\x0e2\x14.yuhaiin.bypass.modeR\x03tcp\x12&\n" +
-	"\x03udp\x18\x04 \x01(\x0e2\x14.yuhaiin.bypass.modeR\x03udp\x12$\n" +
+	"\x1aconfig/bypass/bypass.proto\x12\x0eyuhaiin.bypass\x1a!google/protobuf/go_features.proto\"\xc2\x05\n" +
+	"\x06config\x12*\n" +
+	"\x03tcp\x18\x03 \x01(\x0e2\x14.yuhaiin.bypass.modeB\x02\x18\x01R\x03tcp\x12*\n" +
+	"\x03udp\x18\x04 \x01(\x0e2\x14.yuhaiin.bypass.modeB\x02\x18\x01R\x03udp\x12$\n" +
 	"\vbypass_file\x18\x02 \x01(\tB\x02\x18\x01R\vbypass_file\x12O\n" +
 	"\x0eudp_proxy_fqdn\x18\x06 \x01(\x0e2'.yuhaiin.bypass.udp_proxy_fqdn_strategyR\x0eudp_proxy_fqdn\x12G\n" +
 	"\x0ecustom_rule_v3\x18\a \x03(\v2\x1b.yuhaiin.bypass.mode_configB\x02\x18\x01R\x0ecustom_rule_v3\x12C\n" +
@@ -2485,14 +2678,22 @@ const file_config_bypass_bypass_proto_rawDesc = "" +
 	"\x04host\x12\x12\n" +
 	"\x04list\x18\x01 \x01(\tR\x04list\"\x1d\n" +
 	"\aprocess\x12\x12\n" +
-	"\x04list\x18\x01 \x01(\tR\x04list\"\x1d\n" +
+	"\x04list\x18\x01 \x01(\tR\x04list\"3\n" +
 	"\ainbound\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"\xa6\x01\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05names\x18\x02 \x03(\tR\x05names\"\xdb\x01\n" +
 	"\x04rule\x12*\n" +
 	"\x04host\x18\x01 \x01(\v2\x14.yuhaiin.bypass.hostH\x00R\x04host\x123\n" +
 	"\aprocess\x18\x02 \x01(\v2\x17.yuhaiin.bypass.processH\x00R\aprocess\x123\n" +
-	"\ainbound\x18\x03 \x01(\v2\x17.yuhaiin.bypass.inboundH\x00R\ainboundB\b\n" +
-	"\x06object\"0\n" +
+	"\ainbound\x18\x03 \x01(\v2\x17.yuhaiin.bypass.inboundH\x00R\ainbound\x123\n" +
+	"\anetwork\x18\x04 \x01(\v2\x17.yuhaiin.bypass.networkH\x00R\anetworkB\b\n" +
+	"\x06object\"x\n" +
+	"\anetwork\x12>\n" +
+	"\anetwork\x18\x01 \x01(\x0e2$.yuhaiin.bypass.network.network_typeR\anetwork\"-\n" +
+	"\fnetwork_type\x12\v\n" +
+	"\aunknown\x10\x00\x12\a\n" +
+	"\x03tcp\x10\x01\x12\a\n" +
+	"\x03udp\x10\x02\"0\n" +
 	"\x02or\x12*\n" +
 	"\x05rules\x18\x01 \x03(\v2\x14.yuhaiin.bypass.ruleR\x05rules\"\xcf\x02\n" +
 	"\x06rulev2\x12\x12\n" +
@@ -2502,7 +2703,7 @@ const file_config_bypass_bypass_proto_rawDesc = "" +
 	"\x10resolve_strategy\x18\x04 \x01(\x0e2 .yuhaiin.bypass.resolve_strategyR\x10resolve_strategy\x12a\n" +
 	"\x17udp_proxy_fqdn_strategy\x18\x05 \x01(\x0e2'.yuhaiin.bypass.udp_proxy_fqdn_strategyR\x17udp_proxy_fqdn_strategy\x12\x1a\n" +
 	"\bresolver\x18\x06 \x01(\tR\bresolver\x12(\n" +
-	"\x05rules\x18\a \x03(\v2\x12.yuhaiin.bypass.orR\x05rules\"\x94\x02\n" +
+	"\x05rules\x18\a \x03(\v2\x12.yuhaiin.bypass.orR\x05rules\"\xa7\x02\n" +
 	"\x04list\x12<\n" +
 	"\tlist_type\x18\x01 \x01(\x0e2#.yuhaiin.bypass.list.list_type_enumR\x04type\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x122\n" +
@@ -2510,10 +2711,11 @@ const file_config_bypass_bypass_proto_rawDesc = "" +
 	"\x06remote\x18\x04 \x01(\v2\x1b.yuhaiin.bypass.list_remoteH\x00R\x06remote\x12\x1e\n" +
 	"\n" +
 	"error_msgs\x18\x05 \x03(\tR\n" +
-	"error_msgs\"'\n" +
+	"error_msgs\":\n" +
 	"\x0elist_type_enum\x12\b\n" +
 	"\x04host\x10\x00\x12\v\n" +
-	"\aprocess\x10\x01B\x06\n" +
+	"\aprocess\x10\x01\x12\x11\n" +
+	"\rhosts_as_host\x10\x02B\x06\n" +
 	"\x04list\"\"\n" +
 	"\n" +
 	"list_local\x12\x14\n" +
@@ -2538,62 +2740,66 @@ const file_config_bypass_bypass_proto_rawDesc = "" +
 	"\aresolve\x10\x01\x12\x10\n" +
 	"\fskip_resolve\x10\x02B?Z5github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
-var file_config_bypass_bypass_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_config_bypass_bypass_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_config_bypass_bypass_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_config_bypass_bypass_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_config_bypass_bypass_proto_goTypes = []any{
 	(Mode)(0),                 // 0: yuhaiin.bypass.mode
 	(ResolveStrategy)(0),      // 1: yuhaiin.bypass.resolve_strategy
 	(UdpProxyFqdnStrategy)(0), // 2: yuhaiin.bypass.udp_proxy_fqdn_strategy
-	(ListListTypeEnum)(0),     // 3: yuhaiin.bypass.list.list_type_enum
-	(*Config)(nil),            // 4: yuhaiin.bypass.config
-	(*ModeConfig)(nil),        // 5: yuhaiin.bypass.mode_config
-	(*RemoteRule)(nil),        // 6: yuhaiin.bypass.remote_rule
-	(*RemoteRuleFile)(nil),    // 7: yuhaiin.bypass.remote_rule_file
-	(*RemoteRuleHttp)(nil),    // 8: yuhaiin.bypass.remote_rule_http
-	(*Host)(nil),              // 9: yuhaiin.bypass.host
-	(*Process)(nil),           // 10: yuhaiin.bypass.process
-	(*Inbound)(nil),           // 11: yuhaiin.bypass.inbound
-	(*Rule)(nil),              // 12: yuhaiin.bypass.rule
-	(*Or)(nil),                // 13: yuhaiin.bypass.or
-	(*Rulev2)(nil),            // 14: yuhaiin.bypass.rulev2
-	(*List)(nil),              // 15: yuhaiin.bypass.list
-	(*ListLocal)(nil),         // 16: yuhaiin.bypass.list_local
-	(*ListRemote)(nil),        // 17: yuhaiin.bypass.list_remote
-	nil,                       // 18: yuhaiin.bypass.config.ListsEntry
-	nil,                       // 19: yuhaiin.bypass.mode_config.ErrorMsgsEntry
+	(NetworkNetworkType)(0),   // 3: yuhaiin.bypass.network.network_type
+	(ListListTypeEnum)(0),     // 4: yuhaiin.bypass.list.list_type_enum
+	(*Config)(nil),            // 5: yuhaiin.bypass.config
+	(*ModeConfig)(nil),        // 6: yuhaiin.bypass.mode_config
+	(*RemoteRule)(nil),        // 7: yuhaiin.bypass.remote_rule
+	(*RemoteRuleFile)(nil),    // 8: yuhaiin.bypass.remote_rule_file
+	(*RemoteRuleHttp)(nil),    // 9: yuhaiin.bypass.remote_rule_http
+	(*Host)(nil),              // 10: yuhaiin.bypass.host
+	(*Process)(nil),           // 11: yuhaiin.bypass.process
+	(*Inbound)(nil),           // 12: yuhaiin.bypass.inbound
+	(*Rule)(nil),              // 13: yuhaiin.bypass.rule
+	(*Network)(nil),           // 14: yuhaiin.bypass.network
+	(*Or)(nil),                // 15: yuhaiin.bypass.or
+	(*Rulev2)(nil),            // 16: yuhaiin.bypass.rulev2
+	(*List)(nil),              // 17: yuhaiin.bypass.list
+	(*ListLocal)(nil),         // 18: yuhaiin.bypass.list_local
+	(*ListRemote)(nil),        // 19: yuhaiin.bypass.list_remote
+	nil,                       // 20: yuhaiin.bypass.config.ListsEntry
+	nil,                       // 21: yuhaiin.bypass.mode_config.ErrorMsgsEntry
 }
 var file_config_bypass_bypass_proto_depIdxs = []int32{
 	0,  // 0: yuhaiin.bypass.config.tcp:type_name -> yuhaiin.bypass.mode
 	0,  // 1: yuhaiin.bypass.config.udp:type_name -> yuhaiin.bypass.mode
 	2,  // 2: yuhaiin.bypass.config.udp_proxy_fqdn:type_name -> yuhaiin.bypass.udp_proxy_fqdn_strategy
-	5,  // 3: yuhaiin.bypass.config.custom_rule_v3:type_name -> yuhaiin.bypass.mode_config
-	6,  // 4: yuhaiin.bypass.config.remote_rules:type_name -> yuhaiin.bypass.remote_rule
-	14, // 5: yuhaiin.bypass.config.rules_v2:type_name -> yuhaiin.bypass.rulev2
-	18, // 6: yuhaiin.bypass.config.lists:type_name -> yuhaiin.bypass.config.ListsEntry
+	6,  // 3: yuhaiin.bypass.config.custom_rule_v3:type_name -> yuhaiin.bypass.mode_config
+	7,  // 4: yuhaiin.bypass.config.remote_rules:type_name -> yuhaiin.bypass.remote_rule
+	16, // 5: yuhaiin.bypass.config.rules_v2:type_name -> yuhaiin.bypass.rulev2
+	20, // 6: yuhaiin.bypass.config.lists:type_name -> yuhaiin.bypass.config.ListsEntry
 	0,  // 7: yuhaiin.bypass.mode_config.mode:type_name -> yuhaiin.bypass.mode
 	1,  // 8: yuhaiin.bypass.mode_config.resolve_strategy:type_name -> yuhaiin.bypass.resolve_strategy
 	2,  // 9: yuhaiin.bypass.mode_config.udp_proxy_fqdn_strategy:type_name -> yuhaiin.bypass.udp_proxy_fqdn_strategy
-	19, // 10: yuhaiin.bypass.mode_config.error_msgs:type_name -> yuhaiin.bypass.mode_config.ErrorMsgsEntry
-	7,  // 11: yuhaiin.bypass.remote_rule.file:type_name -> yuhaiin.bypass.remote_rule_file
-	8,  // 12: yuhaiin.bypass.remote_rule.http:type_name -> yuhaiin.bypass.remote_rule_http
-	5,  // 13: yuhaiin.bypass.remote_rule.default_mode:type_name -> yuhaiin.bypass.mode_config
-	9,  // 14: yuhaiin.bypass.rule.host:type_name -> yuhaiin.bypass.host
-	10, // 15: yuhaiin.bypass.rule.process:type_name -> yuhaiin.bypass.process
-	11, // 16: yuhaiin.bypass.rule.inbound:type_name -> yuhaiin.bypass.inbound
-	12, // 17: yuhaiin.bypass.or.rules:type_name -> yuhaiin.bypass.rule
-	0,  // 18: yuhaiin.bypass.rulev2.mode:type_name -> yuhaiin.bypass.mode
-	1,  // 19: yuhaiin.bypass.rulev2.resolve_strategy:type_name -> yuhaiin.bypass.resolve_strategy
-	2,  // 20: yuhaiin.bypass.rulev2.udp_proxy_fqdn_strategy:type_name -> yuhaiin.bypass.udp_proxy_fqdn_strategy
-	13, // 21: yuhaiin.bypass.rulev2.rules:type_name -> yuhaiin.bypass.or
-	3,  // 22: yuhaiin.bypass.list.list_type:type_name -> yuhaiin.bypass.list.list_type_enum
-	16, // 23: yuhaiin.bypass.list.local:type_name -> yuhaiin.bypass.list_local
-	17, // 24: yuhaiin.bypass.list.remote:type_name -> yuhaiin.bypass.list_remote
-	15, // 25: yuhaiin.bypass.config.ListsEntry.value:type_name -> yuhaiin.bypass.list
-	26, // [26:26] is the sub-list for method output_type
-	26, // [26:26] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	21, // 10: yuhaiin.bypass.mode_config.error_msgs:type_name -> yuhaiin.bypass.mode_config.ErrorMsgsEntry
+	8,  // 11: yuhaiin.bypass.remote_rule.file:type_name -> yuhaiin.bypass.remote_rule_file
+	9,  // 12: yuhaiin.bypass.remote_rule.http:type_name -> yuhaiin.bypass.remote_rule_http
+	6,  // 13: yuhaiin.bypass.remote_rule.default_mode:type_name -> yuhaiin.bypass.mode_config
+	10, // 14: yuhaiin.bypass.rule.host:type_name -> yuhaiin.bypass.host
+	11, // 15: yuhaiin.bypass.rule.process:type_name -> yuhaiin.bypass.process
+	12, // 16: yuhaiin.bypass.rule.inbound:type_name -> yuhaiin.bypass.inbound
+	14, // 17: yuhaiin.bypass.rule.network:type_name -> yuhaiin.bypass.network
+	3,  // 18: yuhaiin.bypass.network.network:type_name -> yuhaiin.bypass.network.network_type
+	13, // 19: yuhaiin.bypass.or.rules:type_name -> yuhaiin.bypass.rule
+	0,  // 20: yuhaiin.bypass.rulev2.mode:type_name -> yuhaiin.bypass.mode
+	1,  // 21: yuhaiin.bypass.rulev2.resolve_strategy:type_name -> yuhaiin.bypass.resolve_strategy
+	2,  // 22: yuhaiin.bypass.rulev2.udp_proxy_fqdn_strategy:type_name -> yuhaiin.bypass.udp_proxy_fqdn_strategy
+	15, // 23: yuhaiin.bypass.rulev2.rules:type_name -> yuhaiin.bypass.or
+	4,  // 24: yuhaiin.bypass.list.list_type:type_name -> yuhaiin.bypass.list.list_type_enum
+	18, // 25: yuhaiin.bypass.list.local:type_name -> yuhaiin.bypass.list_local
+	19, // 26: yuhaiin.bypass.list.remote:type_name -> yuhaiin.bypass.list_remote
+	17, // 27: yuhaiin.bypass.config.ListsEntry.value:type_name -> yuhaiin.bypass.list
+	28, // [28:28] is the sub-list for method output_type
+	28, // [28:28] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_config_bypass_bypass_proto_init() }
@@ -2609,8 +2815,9 @@ func file_config_bypass_bypass_proto_init() {
 		(*rule_Host)(nil),
 		(*rule_Process)(nil),
 		(*rule_Inbound)(nil),
+		(*rule_Network)(nil),
 	}
-	file_config_bypass_bypass_proto_msgTypes[11].OneofWrappers = []any{
+	file_config_bypass_bypass_proto_msgTypes[12].OneofWrappers = []any{
 		(*list_Local)(nil),
 		(*list_Remote)(nil),
 	}
@@ -2619,8 +2826,8 @@ func file_config_bypass_bypass_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_config_bypass_bypass_proto_rawDesc), len(file_config_bypass_bypass_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   16,
+			NumEnums:      5,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

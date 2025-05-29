@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"iter"
 	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -23,12 +25,14 @@ import (
 )
 
 type Address struct {
-	m *trie.Trie[struct{}]
+	name string
+	m    *trie.Trie[struct{}]
 }
 
-func NewAddress(hosts ...string) *Address {
+func NewAddress(name string, hosts ...string) *Address {
 	a := &Address{
-		m: trie.NewTrie[struct{}](),
+		name: name,
+		m:    trie.NewTrie[struct{}](),
 	}
 
 	for _, host := range hosts {
@@ -45,16 +49,24 @@ func (s *Address) Add(hosts ...string) {
 }
 
 func (s *Address) Match(ctx context.Context, addr netapi.Address) bool {
+	store := netapi.GetContext(ctx)
 	_, ok := s.m.Search(ctx, addr)
+	if ok {
+		store.AddMatchHistory(fmt.Sprintf("host/%s/yes", s.name))
+	} else {
+		store.AddMatchHistory(fmt.Sprintf("host/%s/no", s.name))
+	}
 	return ok
 }
 
 type Process struct {
+	name  string
 	store *list.Set[string]
 }
 
-func NewProcess(processes ...string) *Process {
+func NewProcess(name string, processes ...string) *Process {
 	p := &Process{
+		name:  name,
 		store: list.NewSet[string](),
 	}
 
@@ -72,9 +84,18 @@ func (s *Process) Add(processes ...string) {
 }
 
 func (s *Process) Match(ctx context.Context, addr netapi.Address) bool {
-	process := netapi.GetContext(ctx).GetProcessName()
+	store := netapi.GetContext(ctx)
+	process := store.GetProcessName()
 	if process != "" {
-		return s.store.Has(process)
+		ok := s.store.Has(process)
+		if ok {
+			store.AddMatchHistory(fmt.Sprintf("process/%s/yes", s.name))
+		} else {
+			store.AddMatchHistory(fmt.Sprintf("process/%s/no", s.name))
+		}
+		return ok
+	} else {
+		store.AddMatchHistory("process/empty")
 	}
 
 	return false
@@ -251,48 +272,58 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 		switch rules.WhichList() {
 		case bypass.List_Local_case:
 			switch rules.GetListType() {
+			case bypass.List_hosts_as_host:
+				mc := NewAddress(rules.GetName())
+				for v := range trimRuleIter(slices.Values(rules.GetLocal().GetLists())) {
+					fields := strings.Fields(v)
+					if len(fields) < 2 {
+						continue
+					}
+
+					mc.Add(fields[1:]...)
+				}
+				matcher = mc
 			case bypass.List_host:
-				matcher = NewAddress(rules.GetLocal().GetLists()...)
+				matcher = NewAddress(rules.GetName(), slices.Collect(trimRuleIter(slices.Values(rules.GetLocal().GetLists())))...)
 			case bypass.List_process:
-				matcher = NewProcess(rules.GetLocal().GetLists()...)
+				matcher = NewProcess(rules.GetName(), slices.Collect(trimRuleIter(slices.Values(rules.GetLocal().GetLists())))...)
 			default:
 				return nil, fmt.Errorf("list %s is unknown", name)
 			}
 
 		case bypass.List_Remote_case:
-
 			switch rules.GetListType() {
-			case bypass.List_host:
-				mc := NewAddress()
+			case bypass.List_hosts_as_host:
+				mc := NewAddress(rules.GetName())
 
-				for _, v := range rules.GetRemote().GetUrls() {
-					r, er := getLocalCache(filepath.Join(s.db.Dir(), "rules"), v)
-					if er != nil {
-						log.Error("get local cache failed", "err", er, "url", v)
+				for v := range getLocalCacheTrimRuleIter(s.db.Dir(), rules.GetRemote().GetUrls()) {
+					/*
+						example:
+							::1 localhost ip6-localhost ip6-loopback
+							127.0.0.1 localhost localhost.localdomain localhost4 localhost4.localdomain4
+					*/
+					fields := strings.Fields(v)
+					if len(fields) < 2 {
 						continue
 					}
 
-					scanner := bufio.NewScanner(r)
-					for scanner.Scan() {
-						mc.Add(scanner.Text())
-					}
+					mc.Add(fields[1:]...)
+				}
+				matcher = mc
+
+			case bypass.List_host:
+				mc := NewAddress(rules.GetName())
+
+				for v := range getLocalCacheTrimRuleIter(s.db.Dir(), rules.GetRemote().GetUrls()) {
+					mc.Add(v)
 				}
 
 				matcher = mc
 			case bypass.List_process:
-				mc := NewProcess()
+				mc := NewProcess(rules.GetName())
 
-				for _, v := range rules.GetRemote().GetUrls() {
-					r, er := getLocalCache(filepath.Join(s.db.Dir(), "rules"), v)
-					if er != nil {
-						log.Error("get local cache failed", "err", er, "url", v)
-						continue
-					}
-
-					scanner := bufio.NewScanner(r)
-					for scanner.Scan() {
-						mc.Add(scanner.Text())
-					}
+				for v := range getLocalCacheTrimRuleIter(s.db.Dir(), rules.GetRemote().GetUrls()) {
+					mc.Add(v)
 				}
 
 				matcher = mc
@@ -322,11 +353,11 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 }
 
 type ListsMatcher struct {
-	listName string
+	listName []string
 	lists    *Lists
 }
 
-func NewListsMatcher(lists *Lists, listName string) *ListsMatcher {
+func NewListsMatcher(lists *Lists, listName ...string) *ListsMatcher {
 	return &ListsMatcher{
 		listName: listName,
 		lists:    lists,
@@ -334,5 +365,62 @@ func NewListsMatcher(lists *Lists, listName string) *ListsMatcher {
 }
 
 func (s *ListsMatcher) Match(ctx context.Context, addr netapi.Address) bool {
-	return s.lists.Match(ctx, s.listName, addr)
+	for _, v := range s.listName {
+		if s.lists.Match(ctx, v, addr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func trimRule(str string) string {
+	if i := strings.IndexByte(str, '#'); i != -1 {
+		str = str[:i]
+	}
+
+	return strings.TrimSpace(str)
+}
+
+func trimRuleIter(strs iter.Seq[string]) iter.Seq[string] {
+	return func(yield func(string) bool) {
+
+		for v := range strs {
+			if v = trimRule(v); v == "" {
+				continue
+			}
+
+			if !yield(v) {
+				break
+			}
+		}
+	}
+}
+
+func ScannerIter(scanner *bufio.Scanner) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for scanner.Scan() {
+			if !yield(scanner.Text()) {
+				break
+			}
+		}
+	}
+}
+
+func getLocalCacheTrimRuleIter(dir string, rules []string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for _, v := range rules {
+			r, er := getLocalCache(filepath.Join(dir, "rules"), v)
+			if er != nil {
+				log.Error("get local cache failed", "err", er, "url", v)
+				continue
+			}
+
+			for str := range trimRuleIter(ScannerIter(bufio.NewScanner(r))) {
+				if !yield(str) {
+					return
+				}
+			}
+		}
+	}
 }

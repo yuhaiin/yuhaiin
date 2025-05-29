@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 )
@@ -92,7 +93,8 @@ type Context struct {
 	Hash     string `metrics:"Hash"`
 	NodeName string `metrics:"NodeName"`
 
-	ModeReason string `metrics:"MODE Reason"`
+	ModeReason string        `metrics:"MODE Reason"`
+	ruleChain  *MatchHistory `metrics:"Rule Chain"`
 
 	Resolver ContextResolver `metrics:"-"`
 
@@ -101,6 +103,29 @@ type Context struct {
 	Mode      bypass.Mode `metrics:"MODE"`
 
 	SystemDialer bool `metrics:"-"`
+}
+
+func (c *Context) NewMatch() {
+	if c.ruleChain == nil {
+		c.ruleChain = &MatchHistory{}
+	}
+
+	c.ruleChain.New()
+}
+
+func (c *Context) AddMatchHistory(s string) {
+	if c.ruleChain == nil {
+		c.ruleChain = &MatchHistory{}
+	}
+
+	c.ruleChain.Add(s)
+}
+
+func (c *Context) MatchHistory() string {
+	if c.ruleChain == nil {
+		return ""
+	}
+	return c.ruleChain.String()
 }
 
 func (c *Context) setAddrInfo(f func(*AddrInfo)) {
@@ -459,4 +484,31 @@ func (e *DialError) Error() string {
 	}
 	s += ": " + e.Err.Error()
 	return s
+}
+
+type MatchHistory struct {
+	chains [][]string
+}
+
+func (r *MatchHistory) New() {
+	r.chains = append(r.chains, []string{})
+}
+
+func (r *MatchHistory) Add(s string) {
+	if len(r.chains) == 0 {
+		r.New()
+	}
+
+	r.chains[len(r.chains)-1] = append(r.chains[len(r.chains)-1], s)
+}
+
+func (r *MatchHistory) String() string {
+	var sb strings.Builder
+	for i, chain := range r.chains {
+		sb.WriteString(strings.Join(chain, "->"))
+		if i != len(r.chains)-1 {
+			sb.WriteString(" <|> ")
+		}
+	}
+	return sb.String()
 }

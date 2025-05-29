@@ -8,9 +8,11 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -57,6 +59,30 @@ func (c *Chore) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
 	var setting *config.Setting
 
 	err := c.db.View(func(s *config.Setting) error {
+		if !s.HasAdvancedConfig() {
+			s.SetAdvancedConfig(config.AdvancedConfig_builder{
+				UdpBufferSize:     proto.Int32(int32(configuration.UDPBufferSize.Load())),
+				RelayBufferSize:   proto.Int32(int32(configuration.RelayBufferSize.Load())),
+				UdpRingbufferSize: proto.Int32(int32(configuration.MaxUDPUnprocessedPackets.Load())),
+			}.Build())
+		}
+
+		if !s.HasLogcat() {
+			s.SetLogcat(log.Logcat_builder{
+				Save:               proto.Bool(false),
+				Level:              log.LogLevel_info.Enum(),
+				IgnoreDnsError:     proto.Bool(configuration.IgnoreDnsErrorLog.Load()),
+				IgnoreTimeoutError: proto.Bool(configuration.IgnoreTimeoutErrorLog.Load()),
+			}.Build())
+		}
+
+		if !s.HasSystemProxy() {
+			s.SetSystemProxy(config.SystemProxy_builder{
+				Http:   proto.Bool(false),
+				Socks5: proto.Bool(false),
+			}.Build())
+		}
+
 		setting = config.Setting_builder{
 			AdvancedConfig:             s.GetAdvancedConfig(),
 			UseDefaultInterface:        proto.Bool(s.GetUseDefaultInterface()),

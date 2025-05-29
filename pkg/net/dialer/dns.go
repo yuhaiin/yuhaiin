@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand/v2"
 	"net"
 	"net/netip"
 	"sync"
@@ -29,7 +28,7 @@ type bootstrapResolver struct {
 	mu sync.RWMutex
 }
 
-func (b *bootstrapResolver) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
+func (b *bootstrapResolver) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
 	b.mu.RLock()
 	r := b.r
 	b.mu.RUnlock()
@@ -134,12 +133,17 @@ func ResolverIP(ctx context.Context, addr netapi.Address) (net.IP, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ips[rand.IntN(len(ips))], nil
+	return ips.Rand(), nil
 }
 
-func LookupIP(ctx context.Context, addr netapi.Address) ([]net.IP, error) {
+func LookupIP(ctx context.Context, addr netapi.Address) (*netapi.IPs, error) {
 	if !addr.IsFqdn() {
-		return []net.IP{addr.(netapi.IPAddress).AddrPort().Addr().AsSlice()}, nil
+		ip := addr.(netapi.IPAddress).AddrPort().Addr()
+		if ip.Is4() {
+			return &netapi.IPs{A: []net.IP{ip.AsSlice()}}, nil
+		}
+
+		return &netapi.IPs{AAAA: []net.IP{ip.AsSlice()}}, nil
 	}
 
 	netctx := netapi.GetContext(ctx)

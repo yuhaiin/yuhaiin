@@ -45,7 +45,7 @@ func TestGroup(t *testing.T) {
 
 	ips, err := c.LookupIP(context.TODO(), "wwwww.google.com")
 	assert.NoError(t, err)
-	assert.MustEqual(t, 2, len(ips))
+	assert.MustEqual(t, 2, len(ips.A)+len(ips.AAAA))
 }
 
 type mockDialer struct {

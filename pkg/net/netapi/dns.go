@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"iter"
+	"math/rand/v2"
 	"net"
 	"time"
 
@@ -15,8 +17,83 @@ type LookupIPOption struct {
 	Mode ResolverMode
 }
 
+type IPs struct {
+	AAAA []net.IP
+	A    []net.IP
+}
+
+func (i *IPs) WhoNotEmpty() []net.IP {
+	if len(i.AAAA) != 0 {
+		return i.AAAA
+	}
+	return i.A
+}
+
+func (i *IPs) PreferAAAA() net.IP {
+	if len(i.AAAA) != 0 {
+		return i.AAAA[0]
+	}
+
+	return i.A[0]
+}
+
+func (i *IPs) PreferA() net.IP {
+	if len(i.A) != 0 {
+		return i.A[0]
+	}
+
+	return i.AAAA[0]
+}
+
+func (i *IPs) Rand() net.IP {
+	if len(i.A) != 0 && len(i.AAAA) != 0 {
+		if rand.IntN(2) == 0 {
+			return i.A[rand.IntN(len(i.A))]
+		}
+		return i.AAAA[rand.IntN(len(i.AAAA))]
+	}
+
+	if len(i.A) != 0 {
+		return i.A[rand.IntN(len(i.A))]
+	}
+
+	if len(i.AAAA) != 0 {
+		return i.AAAA[rand.IntN(len(i.AAAA))]
+	}
+
+	return nil
+}
+
+func (i *IPs) Len() int {
+	return len(i.A) + len(i.AAAA)
+}
+
+func (i *IPs) Iter() iter.Seq[net.IP] {
+	return func(yield func(net.IP) bool) {
+		for _, v := range i.A {
+			if !yield(v) {
+				return
+			}
+		}
+
+		for _, v := range i.AAAA {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Resolver is a dns resolver
+//
+// TODO merge LookupIP and Raw, new interface for Resolver
 type Resolver interface {
-	LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error)
+	// LookupIP returns a list of ip addresses
+	LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) (*IPs, error)
+	// Raw returns a dns message
+	//
+	// ! The returned message may be cached, so it should not be modified
+	// ! Please clone the message if you need to modify it
 	Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error)
 	io.Closer
 }
@@ -25,8 +102,8 @@ var _ Resolver = (*ErrorResolver)(nil)
 
 type ErrorResolver func(domain string) error
 
-func (e ErrorResolver) LookupIP(_ context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error) {
-	return nil, e(domain)
+func (e ErrorResolver) LookupIP(_ context.Context, domain string, opts ...func(*LookupIPOption)) (*IPs, error) {
+	return &IPs{}, e(domain)
 }
 func (e ErrorResolver) Close() error { return nil }
 func (e ErrorResolver) Raw(_ context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {

@@ -1,15 +1,12 @@
 package yuubinsya
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -117,42 +114,18 @@ func (y *server) startTCP() (err error) {
 	}
 }
 
-var nginx404, _ = base64.StdEncoding.DecodeString("PGh0bWw+DQo8aGVhZD48dGl0bGU+NDA0IE5vdCBGb3VuZDwvdGl0bGU+PC9oZWFkPg0KPGJvZHk+DQo8Y2VudGVyPjxoMT40MDQgTm90IEZvdW5kPC9oMT48L2NlbnRlcj4NCjxocj48Y2VudGVyPm5naW54LzEuMjYuMzwvY2VudGVyPg0KPC9ib2R5Pg0KPC9odG1sPg0K")
-
-func write404(conn net.Conn) {
-	r := http.Response{
-		Status:        http.StatusText(http.StatusNotFound),
-		StatusCode:    http.StatusNotFound,
-		Proto:         "HTTP/1.1",
-		ProtoMajor:    1,
-		ProtoMinor:    1,
-		Body:          io.NopCloser(bytes.NewReader(nginx404)),
-		ContentLength: int64(len(nginx404)),
-		Close:         true,
-		Header:        make(http.Header),
-	}
-
-	r.Header.Set("Server", "nginx/1.26.3")
-	r.Header.Set("Date", time.Now().Format(time.RFC1123))
-	r.Header.Set("Content-Type", "text/html")
-
-	_ = r.Write(conn)
-}
-
 func (y *server) handle(conn net.Conn) error {
 	cc, err := y.handshaker.Handshake(conn)
 	if err != nil {
-		write404(conn)
 		return fmt.Errorf("handshake failed: %w", err)
 	}
 
 	c := pool.NewBufioConnSize(cc, configuration.UDPBufferSize.Load())
 
-	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 6))
+	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 15))
 	header, err := y.handshaker.DecodeHeader(c)
 	_ = conn.SetReadDeadline(time.Time{})
 	if err != nil {
-		write404(c)
 		return fmt.Errorf("parse header failed: %w", err)
 	}
 

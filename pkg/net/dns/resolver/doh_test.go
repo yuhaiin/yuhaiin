@@ -96,6 +96,7 @@ func TestDOH(t *testing.T) {
 
 	t.Log(d.LookupIP(context.TODO(), "plasma"))
 	t.Log(d.LookupIP(context.TODO(), "fonts.gstatic.com"))
+	t.Log(d.LookupIP(context.TODO(), "fonts.gstatic.com"))
 	// t.Log(d.LookupIP(context.TODO(), "dc.services.visualstudio.com")) // -> will error, but not found reason
 	t.Log(d.LookupIP(context.TODO(), "i2.hdslb.com"))
 	t.Log(d.LookupIP(context.TODO(), "www.baidu.com"))
