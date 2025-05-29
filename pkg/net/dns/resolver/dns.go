@@ -10,7 +10,10 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/netip"
+	"slices"
+	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -123,14 +126,20 @@ type CacheKey struct {
 	Type dnsmessage.Type
 }
 
-func CacheKeyFromQuestion(q dnsmessage.Question) CacheKey {
-	name := q.Name.Data[:q.Name.Length]
+func CacheKeyFromQuestion(q dnsmessage.Question, unsafeC bool) CacheKey {
+	var name string
+	if unsafeC {
+		name = unsafe.String(unsafe.SliceData(q.Name.Data[:q.Name.Length]), q.Name.Length)
+	} else {
+		name = q.Name.String()
+	}
+
 	if len(name) > 0 && name[len(name)-1] == '.' {
 		name = name[:len(name)-1]
 	}
 
 	return CacheKey{
-		Name: string(name),
+		Name: name,
 		Type: q.Type,
 	}
 }
@@ -138,8 +147,8 @@ func CacheKeyFromQuestion(q dnsmessage.Question) CacheKey {
 type client struct {
 	edns0             dnsmessage.Resource
 	dialer            Dialer
-	rawStore          *lru.SyncLru[CacheKey, dnsmessage.Message]
-	rawSingleflight   singleflight.GroupSync[dnsmessage.Question, dnsmessage.Message]
+	rawStore          *lru.SyncLru[CacheKey, *rawEntry]
+	rawSingleflight   singleflight.GroupSync[dnsmessage.Question, *rawEntry]
 	refreshBackground syncmap.SyncMap[dnsmessage.Question, struct{}]
 	config            Config
 }
@@ -181,8 +190,8 @@ func NewClient(config Config, dialer Dialer) *client {
 		dialer: dialer,
 		config: config,
 		rawStore: lru.NewSyncLru(
-			lru.WithCapacity[CacheKey, dnsmessage.Message](configuration.DNSCache),
-			lru.WithDefaultTimeout[CacheKey, dnsmessage.Message](time.Second*600),
+			lru.WithCapacity[CacheKey, *rawEntry](configuration.DNSCache),
+			lru.WithDefaultTimeout[CacheKey, *rawEntry](time.Second*600),
 		),
 		edns0: dnsmessage.Resource{
 			Header: rh,
@@ -193,7 +202,12 @@ func NewClient(config Config, dialer Dialer) *client {
 	return c
 }
 
-func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
+var waitGroupPool = sync.Pool{New: func() any { return &sync.WaitGroup{} }}
+
+func getWaitGroup() *sync.WaitGroup   { return waitGroupPool.Get().(*sync.WaitGroup) }
+func putWaitGroup(wg *sync.WaitGroup) { waitGroupPool.Put(wg) }
+
+func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
 	opt := &netapi.LookupIPOption{}
 
 	for _, optf := range opts {
@@ -204,30 +218,37 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 	switch opt.Mode {
 	case netapi.ResolverModePreferIPv4:
 		log.Debug("lookup ipv4 only", "domain", domain)
-		return c.lookupIP(ctx, domain, dnsmessage.TypeA)
+		ips, err := c.lookupIP(ctx, domain, dnsmessage.TypeA)
+		return &netapi.IPs{A: ips}, err
 	case netapi.ResolverModePreferIPv6:
 		log.Debug("lookup ipv6 only", "domain", domain)
-		return c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
+		ips, err := c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
+		return &netapi.IPs{AAAA: ips}, err
 	}
 
 	log.Debug("lookup ipv4 and ipv6", "domain", domain)
 
-	aerr := make(chan error, 1)
+	wg := getWaitGroup()
+	defer putWaitGroup(wg)
+
+	wg.Add(1)
 	var a []net.IP
+	var aerr error
 
 	go func() {
-		var err error
-		a, err = c.lookupIP(ctx, domain, dnsmessage.TypeA)
-		aerr <- err
+		defer wg.Done()
+		a, aerr = c.lookupIP(ctx, domain, dnsmessage.TypeA)
 	}()
 
 	resp, aaaaerr := c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
 
-	if err := <-aerr; err != nil && aaaaerr != nil {
-		return nil, mergerError(err, aaaaerr)
+	wg.Wait()
+
+	if aerr != nil && aaaaerr != nil {
+		return nil, mergerError(aerr, aaaaerr)
 	}
 
-	return append(resp, a...), nil
+	return &netapi.IPs{A: a, AAAA: resp}, nil
 }
 
 func mergerError(i4err, i6err error) error {
@@ -245,7 +266,7 @@ func mergerError(i4err, i6err error) error {
 	return fmt.Errorf("ipv6: %w, ipv4: %w", i6err, i4err)
 }
 
-func (c *client) raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+func (c *client) query(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
 	dialer := c.dialer
 
 	reqMsg := dnsmessage.Message{
@@ -325,32 +346,54 @@ func (c *client) raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 
 	if ttl > 1 {
 		msg.Questions = nil
-		c.rawStore.Add(CacheKeyFromQuestion(req), msg,
-			lru.WithTimeout[CacheKey, dnsmessage.Message](time.Duration(ttl)*time.Second))
+		c.rawStore.Add(CacheKeyFromQuestion(req, false), newRawEntry(msg),
+			lru.WithTimeout[CacheKey, *rawEntry](time.Duration(ttl)*time.Second))
 	}
 
 	return msg, nil
 }
 
 func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	if !system.IsDomainName(req.Name.String()) {
-		return dnsmessage.Message{}, fmt.Errorf("invalid domain: %s", req.Name.String())
+	rawmsg, err := c.raw(ctx, req)
+	if err != nil {
+		return dnsmessage.Message{}, err
+	}
+
+	msg := rawmsg.Message()
+
+	msg.Questions = []dnsmessage.Question{req}
+
+	// TODO deep copy resource.Body
+	msg.Answers = slices.Clone(msg.Answers)
+	msg.Authorities = slices.Clone(msg.Authorities)
+	msg.Additionals = slices.Clone(msg.Additionals)
+
+	return msg, nil
+}
+
+func (c *client) raw(ctx context.Context, req dnsmessage.Question) (*rawEntry, error) {
+	if !system.IsDomainName(unsafe.String(unsafe.SliceData(req.Name.Data[:req.Name.Length]), req.Name.Length)) {
+		return nil, fmt.Errorf("invalid domain: %s", req.Name.String())
 	}
 
 	if req.Class == 0 {
 		req.Class = dnsmessage.ClassINET
 	}
 
-	msg, expired, ok := c.rawStore.LoadOptimistically(CacheKeyFromQuestion(req))
+	rawmsg, expired, ok := c.rawStore.LoadOptimistically(CacheKeyFromQuestion(req, true))
 	if !ok {
 		var err error
-		msg, err, _ = c.rawSingleflight.Do(ctx, req, func(ctx context.Context) (dnsmessage.Message, error) { return c.raw(ctx, req) })
+		rawmsg, err, _ = c.rawSingleflight.Do(ctx, req, func(ctx context.Context) (*rawEntry, error) {
+			msg, err := c.query(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+			return newRawEntry(msg), nil
+		})
 		if err != nil {
-			return dnsmessage.Message{}, err
+			return nil, err
 		}
 	}
-
-	msg.Questions = []dnsmessage.Question{req}
 
 	if expired {
 		if _, ok = c.refreshBackground.LoadOrStore(req, struct{}{}); !ok {
@@ -362,7 +405,7 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 				ctx, cancel := context.WithTimeout(ctx, configuration.ResolverTimeout)
 				defer cancel()
 
-				_, err := c.raw(ctx, req)
+				_, err := c.query(ctx, req)
 				if err != nil {
 					log.Error("refresh domain background failed", "req", req, "err", err)
 				}
@@ -370,7 +413,7 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 		}
 	}
 
-	return cloneMessage(msg), nil
+	return rawmsg, nil
 }
 
 func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage.Type) ([]net.IP, error) {
@@ -385,7 +428,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 		return nil, fmt.Errorf("parse domain failed: %w", err)
 	}
 
-	msg, err := c.Raw(ctx, dnsmessage.Question{
+	rawmsg, err := c.raw(ctx, dnsmessage.Question{
 		Name:  name,
 		Type:  reqType,
 		Class: dnsmessage.ClassINET,
@@ -394,10 +437,10 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 		return nil, fmt.Errorf("send dns message failed: %w", err)
 	}
 
-	if msg.Header.RCode != dnsmessage.RCodeSuccess {
-		metrics.Counter.AddFailedDNS(domain, msg.Header.RCode, reqType)
+	if rawmsg.RCode() != dnsmessage.RCodeSuccess {
+		metrics.Counter.AddFailedDNS(domain, rawmsg.RCode(), reqType)
 		return nil, &net.DNSError{
-			Err:         msg.Header.RCode.String(),
+			Err:         rawmsg.RCode().String(),
 			Server:      c.config.Host,
 			Name:        domain,
 			IsNotFound:  true,
@@ -405,19 +448,13 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 		}
 	}
 
-	ips := make([]net.IP, 0, len(msg.Answers))
+	var ips []net.IP
 
-	for _, v := range msg.Answers {
-		if v.Header.Type != reqType {
-			continue
-		}
-
-		switch v.Header.Type {
-		case dnsmessage.TypeA:
-			ips = append(ips, net.IP(v.Body.(*dnsmessage.AResource).A[:]))
-		case dnsmessage.TypeAAAA:
-			ips = append(ips, net.IP(v.Body.(*dnsmessage.AAAAResource).AAAA[:]))
-		}
+	switch reqType {
+	case dnsmessage.TypeA:
+		ips = rawmsg.A()
+	case dnsmessage.TypeAAAA:
+		ips = rawmsg.AAAA()
 	}
 
 	if len(ips) == 0 {
@@ -436,31 +473,81 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 
 func (c *client) Close() error { return c.dialer.Close() }
 
-func cloneMessage(msg dnsmessage.Message) dnsmessage.Message {
-	n := dnsmessage.Message{
-		Header:      msg.Header,
-		Questions:   msg.Questions,
-		Answers:     make([]dnsmessage.Resource, 0, len(msg.Answers)),
-		Authorities: make([]dnsmessage.Resource, 0, len(msg.Authorities)),
-		Additionals: make([]dnsmessage.Resource, 0, len(msg.Additionals)),
+type rawEntry struct {
+	mu   sync.RWMutex
+	msg  dnsmessage.Message
+	ipv4 []net.IP
+	ipv6 []net.IP
+}
+
+func newRawEntry(msg dnsmessage.Message) *rawEntry {
+	return &rawEntry{
+		msg: msg,
 	}
-	for _, a := range msg.Answers {
-		n.Answers = append(n.Answers, dnsmessage.Resource{
-			Header: a.Header,
-			Body:   a.Body,
-		})
+}
+
+func (r *rawEntry) Message() dnsmessage.Message {
+	return r.msg
+}
+
+func (r *rawEntry) RCode() dnsmessage.RCode {
+	return r.msg.RCode
+}
+
+func (r *rawEntry) A() []net.IP {
+	r.mu.RLock()
+	ips := r.ipv4
+	r.mu.RUnlock()
+
+	if ips != nil {
+		return ips
 	}
-	for _, a := range msg.Authorities {
-		n.Authorities = append(n.Authorities, dnsmessage.Resource{
-			Header: a.Header,
-			Body:   a.Body,
-		})
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.ipv4 != nil {
+		return r.ipv4
 	}
-	for _, a := range msg.Additionals {
-		n.Additionals = append(n.Additionals, dnsmessage.Resource{
-			Header: a.Header,
-			Body:   a.Body,
-		})
+
+	r.ipv4 = make([]net.IP, 0, len(r.msg.Answers))
+
+	for _, v := range r.msg.Answers {
+		if v.Header.Type != dnsmessage.TypeA {
+			continue
+		}
+
+		r.ipv4 = append(r.ipv4, net.IP(v.Body.(*dnsmessage.AResource).A[:]))
 	}
-	return n
+
+	return r.ipv4
+}
+
+func (r *rawEntry) AAAA() []net.IP {
+	r.mu.RLock()
+	ips := r.ipv6
+	r.mu.RUnlock()
+
+	if ips != nil {
+		return ips
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.ipv6 != nil {
+		return r.ipv6
+	}
+
+	r.ipv6 = make([]net.IP, 0, len(r.msg.Answers))
+
+	for _, v := range r.msg.Answers {
+		if v.Header.Type != dnsmessage.TypeAAAA {
+			continue
+		}
+
+		r.ipv6 = append(r.ipv6, net.IP(v.Body.(*dnsmessage.AAAAResource).AAAA[:]))
+	}
+
+	return r.ipv6
 }

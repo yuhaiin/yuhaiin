@@ -28,5 +28,5 @@ func TestStun(t *testing.T) {
 	ip, err := resolver.LookupIP(store, "stun.nextcloud.com")
 	assert.NoError(t, err)
 
-	t.Log(Stun(store, direct.Default, ip[0].String()))
+	t.Log(Stun(store, direct.Default, ip.Rand().String()))
 }

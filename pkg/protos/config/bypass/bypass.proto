@@ -14,8 +14,8 @@ enum mode {
 }
 
 message config {
-  mode tcp = 3 [ json_name = "tcp" ];
-  mode udp = 4 [ json_name = "udp" ];
+  mode tcp = 3 [ json_name = "tcp", deprecated = true ];
+  mode udp = 4 [ json_name = "udp", deprecated = true ];
   string bypass_file = 2 [ json_name = "bypass_file", deprecated = true ];
   udp_proxy_fqdn_strategy udp_proxy_fqdn = 6 [ json_name = "udp_proxy_fqdn" ];
   repeated mode_config custom_rule_v3 = 7
@@ -81,14 +81,29 @@ message remote_rule_http {
 
 message host { string list = 1 [ json_name = "list" ]; }
 message process { string list = 1 [ json_name = "list" ]; }
-message inbound { string name = 1 [ json_name = "name" ]; }
+
+message inbound {
+  string name = 1 [ json_name = "name" ];
+  repeated string names = 2 [ json_name = "names" ];
+}
 
 message rule {
   oneof object {
     host host = 1 [ json_name = "host" ];
     process process = 2 [ json_name = "process" ];
     inbound inbound = 3 [ json_name = "inbound" ];
+    network network = 4 [ json_name = "network" ];
   }
+}
+
+message network {
+  enum network_type {
+    unknown = 0;
+    tcp = 1;
+    udp = 2;
+  }
+
+  network_type network = 1 [ json_name = "network" ];
 }
 
 message or { repeated rule rules = 1 [ json_name = "rules" ]; }
@@ -108,6 +123,8 @@ message list {
   enum list_type_enum {
     host = 0;
     process = 1;
+    // parse hosts file, and just use domain as host list
+    hosts_as_host = 2;
   }
 
   list_type_enum list_type = 1 [ json_name = "type" ];

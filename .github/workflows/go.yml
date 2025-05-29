@@ -46,10 +46,7 @@ jobs:
       - name: build yuhaiin aar
         run: |
           go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
-          # see https://github.com/googleapis/go-genproto/issues/1015
-          # wait gvisor update deps: https://github.com/google/gvisor/blob/49310d92b10340860361b4f047b1519081e9927e/go.mod#L72
-          # otherwise the build will failed
-          go get google.golang.org/genproto@latest
+          go env
           go install golang.org/x/mobile/cmd/gomobile@latest
           gomobile init
           make yuhaiin_android_aar

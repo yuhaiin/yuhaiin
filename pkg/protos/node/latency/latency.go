@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math/rand/v2"
 	"net"
 	"net/http"
 	"sync"
@@ -91,7 +90,7 @@ func (l *Ip) Latency(p netapi.Proxy) (*Reply, error) {
 							return nil, err
 						}
 
-						return p.Conn(ctx, netapi.ParseIPAddr("tcp", ip[rand.IntN(len(ip))], add.Port()))
+						return p.Conn(ctx, netapi.ParseIPAddr("tcp", ip.Rand(), add.Port()))
 					},
 				},
 			}

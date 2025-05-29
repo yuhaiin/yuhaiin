@@ -57,8 +57,8 @@ jobs:
           author: License Updater <noreply+licenses-updater@github.com>
           committer: License Updater <noreply+licenses-updater@github.com>
           branch: license-update
-          commit-message: "licenses: update yuhaiin licenses"
-          title: "licenses: update yuhaiin licenses"
+          commit-message: "licenses: update yuhaiin licenses [skip ci]"
+          title: "licenses: update yuhaiin licenses [skip ci]"
           body: Triggered by ${{ github.repository }}@${{ github.sha }}
           delete-branch: true
           signoff: true
