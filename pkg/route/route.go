@@ -263,20 +263,28 @@ func (s *Route) addMatchers() {
 		return bypass.Bypass
 	})
 
-	s.AddMatcher("force mode", func(o *Object) bypass.ModeEnum { return bypass.Mode(o.Ctx.ForceMode).ToModeEnum() })
+	s.AddMatcher("force mode", func(o *Object) bypass.ModeEnum {
+		return bypass.Mode(o.Ctx.ForceMode).ToModeEnum()
+	})
 
-	s.AddMatcher("network mode", func(o *Object) bypass.ModeEnum { return o.NetowrkMode.ToModeEnum() })
+	s.AddMatcher("network mode", func(o *Object) bypass.ModeEnum {
+		if s.config.GetEnabledV2() {
+			return bypass.Bypass
+		}
+
+		// Deprecated: use Network Rule of [Matchers] instead
+		return o.NetowrkMode.ToModeEnum()
+	})
 
 	s.AddMatcher("normal mode", func(o *Object) bypass.ModeEnum {
-		var mode bypass.ModeEnum
-
+		// TODO add bypass resolver
 		o.Ctx.Resolver.Resolver = s.r.Get("", "")
 
 		host := o.Host
 		if o.Ctx.GetHosts() == nil && !o.Host.IsFqdn() && o.Ctx.SniffHost() != "" {
 			host = netapi.ParseAddressPort(o.Host.Network(), o.Ctx.SniffHost(), o.Host.Port())
 		}
-
+		var mode bypass.ModeEnum
 		if s.config.GetEnabledV2() && s.ms != nil {
 			mode = s.ms.Match(o.Ctx, host)
 		} else {
@@ -327,6 +335,8 @@ func (s *Route) dispatch(store *netapi.Context, networkMode bypass.Mode, host ne
 		} else if !store.SniffMode.Unspecified() {
 			mode, reason = store.SniffMode.ToModeEnum(), "sniff mode"
 		}
+	} else {
+		reason = store.MatchHistory()
 	}
 
 	store.Resolver.SkipResolve = s.skipResolve(mode)
@@ -371,7 +381,7 @@ func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 	return s.r.Get(mode.Resolver(), s.getResolverFallback(mode))
 }
 
-func (f *Route) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
+func (f *Route) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
 	return f.Resolver(ctx, domain).LookupIP(ctx, domain, opts...)
 }
 

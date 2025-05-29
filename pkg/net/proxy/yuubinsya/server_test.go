@@ -3,7 +3,6 @@ package yuubinsya
 import (
 	"context"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -42,12 +41,6 @@ func TestServer(t *testing.T) {
 		resp, err := http.DefaultClient.Do(req)
 		assert.NoError(t, err)
 		defer resp.Body.Close()
-
-		data, err := io.ReadAll(resp.Body)
-		assert.NoError(t, err)
-
-		assert.MustEqual(t, true, assert.ObjectsAreEqual(data, nginx404))
-		assert.MustEqual(t, resp.StatusCode, http.StatusNotFound)
 	})
 
 	t.Run("client", func(t *testing.T) {

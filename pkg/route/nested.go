@@ -3,8 +3,10 @@ package route
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"math"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -21,18 +23,56 @@ type Inbound struct {
 }
 
 func NewInbound(inbounds ...string) *Inbound {
-	return &Inbound{
+	i := &Inbound{
 		store: list.NewSet[string](),
 	}
+
+	for _, v := range inbounds {
+		if v != "" {
+			i.store.Push(v)
+		}
+	}
+
+	return i
 }
 
 func (s *Inbound) Match(ctx context.Context, addr netapi.Address) bool {
-	inbound := netapi.GetContext(ctx).GetInboundName()
+	store := netapi.GetContext(ctx)
+	inbound := store.GetInboundName()
 	if inbound != "" {
-		return s.store.Has(inbound)
+		ok := s.store.Has(inbound)
+		if ok {
+			store.AddMatchHistory(fmt.Sprintf("inbound/%s/yes", inbound))
+		} else {
+			store.AddMatchHistory(fmt.Sprintf("inbound/%s/no", inbound))
+		}
+		return ok
+	} else {
+		store.AddMatchHistory("inbound/empty")
 	}
 
 	return false
+}
+
+type Network struct {
+	nt bypass.NetworkNetworkType
+}
+
+func NewNetwork(nt bypass.NetworkNetworkType) *Network {
+	return &Network{
+		nt: nt,
+	}
+}
+
+func (s *Network) Match(ctx context.Context, addr netapi.Address) bool {
+	switch s.nt {
+	case bypass.Network_tcp:
+		return strings.HasPrefix(addr.Network(), "tcp")
+	case bypass.Network_udp:
+		return strings.HasPrefix(addr.Network(), "udp")
+	default:
+		return false
+	}
 }
 
 type And struct {
@@ -56,29 +96,33 @@ func (s *And) Match(ctx context.Context, addr netapi.Address) bool {
 }
 
 type Or struct {
+	name     string
 	matchers []Matcher
 }
 
-func NewOr(matchers ...Matcher) *Or {
+func NewOr(name string, matchers ...Matcher) *Or {
 	return &Or{
+		name:     name,
 		matchers: matchers,
 	}
 }
 
 func (s *Or) Match(ctx context.Context, addr netapi.Address) bool {
+	store := netapi.GetContext(ctx)
 	for _, m := range s.matchers {
 		if m.Match(ctx, addr) {
+			store.AddMatchHistory(fmt.Sprintf("or/%s/yes", s.name))
 			return true
 		}
 	}
 
+	store.AddMatchHistory(fmt.Sprintf("or/%s/no", s.name))
 	return false
 }
 
 func ParseMatcher(lists *Lists, config *bypass.Rulev2) Matcher {
 	matchers := make([]Matcher, 0, len(config.GetRules()))
 	for _, v := range config.GetRules() {
-
 		andMatchers := make([]Matcher, 0, len(v.GetRules()))
 
 		for _, rule := range sortRule(v.GetRules()) {
@@ -88,14 +132,24 @@ func ParseMatcher(lists *Lists, config *bypass.Rulev2) Matcher {
 			case bypass.Rule_Process_case:
 				andMatchers = append(andMatchers, NewListsMatcher(lists, rule.GetProcess().GetList()))
 			case bypass.Rule_Inbound_case:
-				andMatchers = append(andMatchers, NewInbound(rule.GetInbound().GetName()))
+				andMatchers = append(andMatchers, NewInbound(rule.GetInbound().GetNames()...))
+			case bypass.Rule_Network_case:
+				andMatchers = append(andMatchers, NewNetwork(rule.GetNetwork().GetNetwork()))
 			}
 		}
 
-		matchers = append(matchers, NewAnd(andMatchers...))
+		if len(andMatchers) == 1 {
+			matchers = append(matchers, andMatchers[0])
+		} else {
+			matchers = append(matchers, NewAnd(andMatchers...))
+		}
 	}
 
-	return NewOr(matchers...)
+	if len(matchers) == 1 {
+		return matchers[0]
+	}
+
+	return NewOr(config.GetName(), matchers...)
 }
 
 func sortRule(rules []*bypass.Rule) []*bypass.Rule {
@@ -173,8 +227,6 @@ func (s *Matchers) Update(rules []*bypass.Rulev2) {
 		}
 	}
 
-	slices.Reverse(ms)
-
 	s.mu.Lock()
 	s.matchers = ms
 	s.tags = tags
@@ -185,7 +237,10 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) bypass.ModeEn
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	store := netapi.GetContext(ctx)
+
 	for _, v := range s.matchers {
+		store.NewMatch()
 		if v.matcher.Match(ctx, addr) {
 			return v.mode
 		}

@@ -30,14 +30,14 @@ func dialHappyEyeballs(ctx context.Context, addr netapi.Address) (net.Conn, erro
 
 	lastIP, ok := happyEyeballsCache.Load(addr.Hostname())
 
-	tcpAddress := make([]*net.TCPAddr, 0, len(ips))
-	for _, i := range ips {
-		if ok && lastIP.Equal(i) && len(tcpAddress) > 0 {
+	tcpAddress := make([]*net.TCPAddr, 0, ips.Len())
+	for ip := range ips.Iter() {
+		if ok && lastIP.Equal(ip) && len(tcpAddress) > 0 {
 			tmp := tcpAddress[0]
-			tcpAddress[0] = &net.TCPAddr{IP: i, Port: tmp.Port}
+			tcpAddress[0] = &net.TCPAddr{IP: ip, Port: tmp.Port}
 			tcpAddress = append(tcpAddress, tmp)
 		} else {
-			tcpAddress = append(tcpAddress, &net.TCPAddr{IP: i, Port: int(addr.Port())})
+			tcpAddress = append(tcpAddress, &net.TCPAddr{IP: ip, Port: int(addr.Port())})
 		}
 	}
 

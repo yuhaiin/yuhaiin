@@ -69,15 +69,15 @@ func install(args []string) (err error) {
 	// Exponential backoff is often too aggressive, so use (mostly)
 	// squares instead.
 	ra := []mgr.RecoveryAction{
-		{mgr.ServiceRestart, 1 * time.Second},
-		{mgr.ServiceRestart, 2 * time.Second},
-		{mgr.ServiceRestart, 4 * time.Second},
-		{mgr.ServiceRestart, 9 * time.Second},
-		{mgr.ServiceRestart, 16 * time.Second},
-		{mgr.ServiceRestart, 25 * time.Second},
-		{mgr.ServiceRestart, 36 * time.Second},
-		{mgr.ServiceRestart, 49 * time.Second},
-		{mgr.ServiceRestart, 64 * time.Second},
+		{Type: mgr.ServiceRestart, Delay: time.Second},
+		{Type: mgr.ServiceRestart, Delay: time.Second * 2},
+		{Type: mgr.ServiceRestart, Delay: time.Second * 4},
+		{Type: mgr.ServiceRestart, Delay: time.Second * 9},
+		{Type: mgr.ServiceRestart, Delay: time.Second * 16},
+		{Type: mgr.ServiceRestart, Delay: time.Second * 25},
+		{Type: mgr.ServiceRestart, Delay: time.Second * 36},
+		{Type: mgr.ServiceRestart, Delay: time.Second * 49},
+		{Type: mgr.ServiceRestart, Delay: time.Second * 64},
 	}
 	const resetPeriodSecs = 60
 	err = service.SetRecoveryActions(ra, resetPeriodSecs)

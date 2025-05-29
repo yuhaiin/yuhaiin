@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicfile"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -76,5 +77,5 @@ func (db *DB[T]) Save() error {
 		return err
 	}
 
-	return os.WriteFile(db.path, bs, 0600)
+	return atomicfile.WriteFile(db.path, bs, 0600)
 }

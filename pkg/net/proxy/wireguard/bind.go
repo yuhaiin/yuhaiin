@@ -64,7 +64,7 @@ func (n *netBindClient) ParseEndpoint(s string) (conn.Endpoint, error) {
 		return nil, err
 	}
 
-	ip, ok := netip.AddrFromSlice(ips[0])
+	ip, ok := netip.AddrFromSlice(ips.PreferAAAA())
 	if !ok {
 		return nil, errors.New("failed to parse ip: " + ipStr)
 	}
