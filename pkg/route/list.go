@@ -23,12 +23,14 @@ import (
 )
 
 type Address struct {
-	m *trie.Trie[struct{}]
+	name string
+	m    *trie.Trie[struct{}]
 }
 
-func NewAddress(hosts ...string) *Address {
+func NewAddress(name string, hosts ...string) *Address {
 	a := &Address{
-		m: trie.NewTrie[struct{}](),
+		name: name,
+		m:    trie.NewTrie[struct{}](),
 	}
 
 	for _, host := range hosts {
@@ -45,16 +47,24 @@ func (s *Address) Add(hosts ...string) {
 }
 
 func (s *Address) Match(ctx context.Context, addr netapi.Address) bool {
+	store := netapi.GetContext(ctx)
 	_, ok := s.m.Search(ctx, addr)
+	if ok {
+		store.AddMatchHistory(fmt.Sprintf("host/%s/yes", s.name))
+	} else {
+		store.AddMatchHistory(fmt.Sprintf("host/%s/no", s.name))
+	}
 	return ok
 }
 
 type Process struct {
+	name  string
 	store *list.Set[string]
 }
 
-func NewProcess(processes ...string) *Process {
+func NewProcess(name string, processes ...string) *Process {
 	p := &Process{
+		name:  name,
 		store: list.NewSet[string](),
 	}
 
@@ -72,9 +82,18 @@ func (s *Process) Add(processes ...string) {
 }
 
 func (s *Process) Match(ctx context.Context, addr netapi.Address) bool {
-	process := netapi.GetContext(ctx).GetProcessName()
+	store := netapi.GetContext(ctx)
+	process := store.GetProcessName()
 	if process != "" {
-		return s.store.Has(process)
+		ok := s.store.Has(process)
+		if ok {
+			store.AddMatchHistory(fmt.Sprintf("process/%s/yes", s.name))
+		} else {
+			store.AddMatchHistory(fmt.Sprintf("process/%s/no", s.name))
+		}
+		return ok
+	} else {
+		store.AddMatchHistory("process/empty")
 	}
 
 	return false
@@ -252,9 +271,9 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 		case bypass.List_Local_case:
 			switch rules.GetListType() {
 			case bypass.List_host:
-				matcher = NewAddress(rules.GetLocal().GetLists()...)
+				matcher = NewAddress(rules.GetName(), rules.GetLocal().GetLists()...)
 			case bypass.List_process:
-				matcher = NewProcess(rules.GetLocal().GetLists()...)
+				matcher = NewProcess(rules.GetName(), rules.GetLocal().GetLists()...)
 			default:
 				return nil, fmt.Errorf("list %s is unknown", name)
 			}
@@ -263,7 +282,7 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 
 			switch rules.GetListType() {
 			case bypass.List_host:
-				mc := NewAddress()
+				mc := NewAddress(rules.GetName())
 
 				for _, v := range rules.GetRemote().GetUrls() {
 					r, er := getLocalCache(filepath.Join(s.db.Dir(), "rules"), v)
@@ -280,7 +299,7 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 
 				matcher = mc
 			case bypass.List_process:
-				mc := NewProcess()
+				mc := NewProcess(rules.GetName())
 
 				for _, v := range rules.GetRemote().GetUrls() {
 					r, er := getLocalCache(filepath.Join(s.db.Dir(), "rules"), v)
@@ -322,11 +341,11 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 }
 
 type ListsMatcher struct {
-	listName string
+	listName []string
 	lists    *Lists
 }
 
-func NewListsMatcher(lists *Lists, listName string) *ListsMatcher {
+func NewListsMatcher(lists *Lists, listName ...string) *ListsMatcher {
 	return &ListsMatcher{
 		listName: listName,
 		lists:    lists,
@@ -334,5 +353,11 @@ func NewListsMatcher(lists *Lists, listName string) *ListsMatcher {
 }
 
 func (s *ListsMatcher) Match(ctx context.Context, addr netapi.Address) bool {
-	return s.lists.Match(ctx, s.listName, addr)
+	for _, v := range s.listName {
+		if s.lists.Match(ctx, v, addr) {
+			return true
+		}
+	}
+
+	return false
 }

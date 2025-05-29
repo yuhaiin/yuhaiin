@@ -327,6 +327,8 @@ func (s *Route) dispatch(store *netapi.Context, networkMode bypass.Mode, host ne
 		} else if !store.SniffMode.Unspecified() {
 			mode, reason = store.SniffMode.ToModeEnum(), "sniff mode"
 		}
+	} else {
+		reason = store.MatchHistory()
 	}
 
 	store.Resolver.SkipResolve = s.skipResolve(mode)

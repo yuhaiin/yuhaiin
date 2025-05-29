@@ -81,7 +81,11 @@ message remote_rule_http {
 
 message host { string list = 1 [ json_name = "list" ]; }
 message process { string list = 1 [ json_name = "list" ]; }
-message inbound { string name = 1 [ json_name = "name" ]; }
+
+message inbound {
+  string name = 1 [ json_name = "name" ];
+  repeated string names = 2 [ json_name = "names" ];
+}
 
 message rule {
   oneof object {

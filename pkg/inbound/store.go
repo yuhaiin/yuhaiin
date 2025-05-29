@@ -25,11 +25,16 @@ type InboundCtr struct {
 }
 
 func NewInboundCtr(s pc.DB, i *Inbound) *InboundCtr {
-	_ = s.View(func(s *pc.Setting) error {
-		for _, v := range s.GetServer().GetInbounds() {
+	_ = s.Batch(func(s *pc.Setting) error {
+		for name, v := range s.GetServer().GetInbounds() {
 			if !v.GetEnabled() {
 				continue
 			}
+
+			if v.GetName() != name {
+				v.SetName(name)
+			}
+
 			i.Save(v)
 		}
 

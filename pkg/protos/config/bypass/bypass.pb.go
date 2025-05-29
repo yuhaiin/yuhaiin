@@ -1461,6 +1461,7 @@ func (b0 Process_builder) Build() *Process {
 type Inbound struct {
 	state                  protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Name        *string                `protobuf:"bytes,1,opt,name=name"`
+	xxx_hidden_Names       []string               `protobuf:"bytes,2,rep,name=names"`
 	XXX_raceDetectHookData protoimpl.RaceDetectHookData
 	XXX_presence           [1]uint32
 	unknownFields          protoimpl.UnknownFields
@@ -1502,9 +1503,20 @@ func (x *Inbound) GetName() string {
 	return ""
 }
 
+func (x *Inbound) GetNames() []string {
+	if x != nil {
+		return x.xxx_hidden_Names
+	}
+	return nil
+}
+
 func (x *Inbound) SetName(v string) {
 	x.xxx_hidden_Name = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 1)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
+}
+
+func (x *Inbound) SetNames(v []string) {
+	x.xxx_hidden_Names = v
 }
 
 func (x *Inbound) HasName() bool {
@@ -1522,7 +1534,8 @@ func (x *Inbound) ClearName() {
 type Inbound_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	Name *string
+	Name  *string
+	Names []string
 }
 
 func (b0 Inbound_builder) Build() *Inbound {
@@ -1530,9 +1543,10 @@ func (b0 Inbound_builder) Build() *Inbound {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Name != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 1)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
 		x.xxx_hidden_Name = b.Name
 	}
+	x.xxx_hidden_Names = b.Names
 	return m0
 }
 
@@ -2485,9 +2499,10 @@ const file_config_bypass_bypass_proto_rawDesc = "" +
 	"\x04host\x12\x12\n" +
 	"\x04list\x18\x01 \x01(\tR\x04list\"\x1d\n" +
 	"\aprocess\x12\x12\n" +
-	"\x04list\x18\x01 \x01(\tR\x04list\"\x1d\n" +
+	"\x04list\x18\x01 \x01(\tR\x04list\"3\n" +
 	"\ainbound\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"\xa6\x01\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05names\x18\x02 \x03(\tR\x05names\"\xa6\x01\n" +
 	"\x04rule\x12*\n" +
 	"\x04host\x18\x01 \x01(\v2\x14.yuhaiin.bypass.hostH\x00R\x04host\x123\n" +
 	"\aprocess\x18\x02 \x01(\v2\x17.yuhaiin.bypass.processH\x00R\aprocess\x123\n" +

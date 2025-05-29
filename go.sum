@@ -238,8 +238,8 @@ github.com/xtls/reality v0.0.0-20250527000105-e679ef7bb130 h1:v/TVypWnLferyoaNHh
 github.com/xtls/reality v0.0.0-20250527000105-e679ef7bb130/go.mod h1:bJdU3ExzfUlY40Xxfibq3THW9IHiE8mHu/tEzud5JWM=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMkIYChggoBVQLcNC/At/rW+lhIluk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
-github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250528062230-2d76d9d92c1b h1:rbON1LEkU/NnlWGqKRkW/CisWrcyZf521EgnCliqHdc=
-github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250528062230-2d76d9d92c1b/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250529084838-7a8eb609eb15 h1:gD9D+r/LGXniGKtZxPkMyCNfVhB8hARlX8DArsxQni4=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250529084838-7a8eb609eb15/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 go.etcd.io/bbolt v1.4.0 h1:TU77id3TnN/zKr7CO/uk+fBCwF2jGcMuw2B/FMAzYIk=
 go.etcd.io/bbolt v1.4.0/go.mod h1:AsD+OCi/qPN1giOX1aiLAha3o1U8rAz65bvN4j0sRuk=
 go.opentelemetry.io/auto/sdk v1.1.0 h1:cH53jehLUN6UFLY71z+NDOiNJqDdPRaXzTel0sJySYA=

@@ -151,7 +151,7 @@ func (l *Inbound) Save(req *pl.Inbound) {
 		return
 	}
 
-	server, err := register.Listen(req, &handlerWrap{req.GetName(), l})
+	server, err := register.Listen(req, &handlerWrap{name: req.GetName(), handler: l})
 	if err != nil {
 		log.Error("start server failed", "name", req.GetName(), "err", err)
 		return
