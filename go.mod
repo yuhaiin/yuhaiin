@@ -11,10 +11,10 @@ require (
 	github.com/prometheus/client_golang v1.22.0
 	github.com/quic-go/quic-go v0.52.0
 	github.com/refraction-networking/utls v1.7.3
-	github.com/tailscale/wireguard-go v0.0.0-20250304000100-91a0587fb251
+	github.com/tailscale/wireguard-go v0.0.0-20250529174347-022546570f38
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20250527000105-e679ef7bb130
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250529084838-7a8eb609eb15
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250530092920-9339065d4731
 	go.etcd.io/bbolt v1.4.0
 	golang.org/x/crypto v0.38.0
 	golang.org/x/mobile v0.0.0-20250520180527-a1d90793fc63
@@ -25,7 +25,7 @@ require (
 	google.golang.org/grpc v1.72.2
 	google.golang.org/protobuf v1.36.6
 	gvisor.dev/gvisor v0.0.0-20250416204613-04a61c0f3bd5
-	tailscale.com v1.84.0
+	tailscale.com v1.84.1
 )
 
 require (
