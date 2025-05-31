@@ -11,7 +11,7 @@ require (
 	github.com/prometheus/client_golang v1.22.0
 	github.com/quic-go/quic-go v0.52.0
 	github.com/refraction-networking/utls v1.7.3
-	github.com/tailscale/wireguard-go v0.0.0-20250529174347-022546570f38
+	github.com/tailscale/wireguard-go v0.0.0-20250530210235-65cd6eed7d7f
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20250527000105-e679ef7bb130
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250531083102-541ae8d63acc
