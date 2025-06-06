@@ -38,7 +38,7 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 	key := pkt.MigrateID
 
 	if key == 0 {
-		srcAddr, err := netapi.ParseSysAddr(pkt.Src)
+		srcAddr, err := netapi.ParseSysAddr(pkt.Src())
 		if err != nil {
 			return fmt.Errorf("parse src addr failed: %w", err)
 		}

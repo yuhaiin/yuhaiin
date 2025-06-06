@@ -86,7 +86,7 @@ func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code dnsmessage.RCod
 			Authoritative:      false,
 			RecursionDesired:   false,
 			RCode:              code,
-			RecursionAvailable: false,
+			RecursionAvailable: true,
 		},
 		Questions: []dnsmessage.Question{
 			{

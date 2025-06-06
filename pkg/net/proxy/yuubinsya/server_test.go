@@ -3,10 +3,12 @@ package yuubinsya
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
-	"net/http"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
@@ -18,31 +20,6 @@ import (
 )
 
 func TestServer(t *testing.T) {
-	t.Run("http", func(t *testing.T) {
-		lis, err := nettest.NewLocalListener("tcp")
-		assert.NoError(t, err)
-		defer lis.Close()
-
-		a, err := NewServer(&listener.Yuubinsya{}, &mockListener{lis}, mockHandler(func(req *netapi.StreamMeta) {
-			defer req.Src.Close()
-
-			data := make([]byte, 4096)
-
-			n, err := req.Src.Read(data)
-			assert.NoError(t, err)
-
-			_, _ = req.Src.Write(data[:n])
-		}))
-		assert.NoError(t, err)
-		defer a.Close()
-
-		req, err := http.NewRequest("POST", "http://"+lis.Addr().String(), nil)
-		assert.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
-		assert.NoError(t, err)
-		defer resp.Body.Close()
-	})
-
 	t.Run("client", func(t *testing.T) {
 		lis, err := nettest.NewLocalListener("tcp")
 		assert.NoError(t, err)
@@ -149,6 +126,76 @@ func TestServer(t *testing.T) {
 			}, nil
 		})
 	})
+
+	t.Run("test udp over tcp", func(t *testing.T) {
+		lis, err := nettest.NewLocalListener("tcp")
+		assert.NoError(t, err)
+
+		ch := make(chan *netapi.StreamMeta, 1)
+		defer close(ch)
+
+		a, err := NewServer(listener.Yuubinsya_builder{
+			Password: proto.String("aaaa"),
+		}.Build(), &mockListener{lis}, mockHandlerPacket(func(req *netapi.Packet) {
+			_, err = req.WriteBack(req.GetPayload(), req.Dst())
+			assert.NoError(t, err)
+		}))
+		assert.NoError(t, err)
+		defer a.Close()
+
+		host, portstr, err := net.SplitHostPort(lis.Addr().String())
+		assert.NoError(t, err)
+
+		port, err := strconv.ParseUint(portstr, 10, 16)
+		assert.NoError(t, err)
+
+		s, err := simple.NewClient(protocol.Simple_builder{
+			Host: proto.String(host),
+			Port: proto.Int32(int32(port)),
+		}.Build(), nil)
+		assert.NoError(t, err)
+
+		c, err := NewClient(protocol.Yuubinsya_builder{
+			Password:      proto.String("aaaa"),
+			UdpOverStream: proto.Bool(true),
+		}.Build(), s)
+		assert.NoError(t, err)
+
+		_, err = c.PacketConn(context.Background(), netapi.EmptyAddr)
+		assert.NoError(t, err)
+
+		pc, err := c.PacketConn(context.Background(), netapi.EmptyAddr)
+		assert.NoError(t, err)
+		defer pc.Close()
+
+		bch := make(chan []byte, 10)
+		go func() {
+			for {
+				buf := make([]byte, 4096)
+				n, _, err := pc.ReadFrom(buf)
+				if err != nil {
+					return
+				}
+				bch <- buf[:n]
+			}
+		}()
+
+		go func() {
+			for i := range 10 {
+				_, err = pc.WriteTo(fmt.Appendf(nil, "test %d", i), netapi.EmptyAddr)
+				assert.NoError(t, err)
+			}
+		}()
+
+		for range 10 {
+			select {
+			case data := <-bch:
+				assert.Equal(t, true, strings.HasPrefix(string(data), "test "))
+			case <-time.After(time.Second * 5):
+				t.Fatal("timeout")
+			}
+		}
+	})
 }
 
 type mockListener struct{ l net.Listener }
@@ -169,3 +216,8 @@ type mockHandler func(req *netapi.StreamMeta)
 
 func (m mockHandler) HandleStream(req *netapi.StreamMeta) { m(req) }
 func (m mockHandler) HandlePacket(req *netapi.Packet)     {}
+
+type mockHandlerPacket func(req *netapi.Packet)
+
+func (m mockHandlerPacket) HandleStream(req *netapi.StreamMeta) {}
+func (m mockHandlerPacket) HandlePacket(req *netapi.Packet)     { m(req) }

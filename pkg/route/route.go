@@ -278,7 +278,7 @@ func (s *Route) addMatchers() {
 
 	s.AddMatcher("normal mode", func(o *Object) bypass.ModeEnum {
 		// TODO add bypass resolver
-		o.Ctx.Resolver.Resolver = s.r.Get("", "")
+		o.Ctx.Resolver.Resolver = s.r.Get(s.getResolverFallback(bypass.Proxy), "")
 
 		host := o.Host
 		if o.Ctx.GetHosts() == nil && !o.Host.IsFqdn() && o.Ctx.SniffHost() != "" {
@@ -378,6 +378,7 @@ func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 		s.dumpProcess(ctx, "udp", "tcp")
 		s.RejectHistory.Push(ctx, "dns", domain)
 	}
+
 	return s.r.Get(mode.Resolver(), s.getResolverFallback(mode))
 }
 

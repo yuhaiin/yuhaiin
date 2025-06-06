@@ -172,13 +172,15 @@ func (y *server) handle(conn net.Conn) error {
 				continue
 			}
 
-			y.handler.HandlePacket(&netapi.Packet{
-				Src:       c.RemoteAddr(),
-				Dst:       dst,
-				Payload:   pool.Clone(buf[:n]),
-				WriteBack: pc,
-				MigrateID: header.MigrateID,
-			})
+			y.handler.HandlePacket(netapi.NewPacket(
+				c.RemoteAddr(),
+				dst,
+				pool.Clone(buf[:n]),
+				netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
+					return pc.WriteTo(b, addr)
+				}),
+				netapi.WithMigrateID(header.MigrateID),
+			))
 		}
 	}
 
