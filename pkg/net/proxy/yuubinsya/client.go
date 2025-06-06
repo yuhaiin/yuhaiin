@@ -92,7 +92,8 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		return nil, err
 	}
 
-	pc := newPacketConn(pool.NewBufioConnSize(hconn, configuration.UDPBufferSize.Load()), c.handshaker)
+	pc := newPacketConn(pool.NewBufioConnSize(hconn, configuration.UDPBufferSize.Load()),
+		c.handshaker)
 
 	store := netapi.GetContext(ctx)
 

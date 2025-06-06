@@ -255,11 +255,8 @@ func (t *Tproxy) newUDP() error {
 
 			dstAddr, _ := netapi.ParseSysAddr(dst)
 
-			t.handler.HandlePacket(&netapi.Packet{
-				Src:     src,
-				Dst:     dstAddr,
-				Payload: pool.Clone(buf[:n]),
-				WriteBack: netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
+			t.handler.HandlePacket(netapi.NewPacket(src, dstAddr, pool.Clone(buf[:n]),
+				netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 					ad, err := netapi.ParseSysAddr(addr)
 					if err != nil {
 						return 0, err
@@ -282,8 +279,7 @@ func (t *Tproxy) newUDP() error {
 					}
 
 					return n, nil
-				}),
-			})
+				})))
 		}
 	}()
 

@@ -99,14 +99,14 @@ func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.Pac
 		return true
 	}
 
-	f.handler.HandlePacket(&netapi.Packet{
-		Src:     netapi.ParseIPAddr("udp", id.RemoteAddress.AsSlice(), srcPort),
-		Dst:     netapi.ParseIPAddr("udp", id.LocalAddress.AsSlice(), dstPort),
-		Payload: buf.Bytes(),
-		WriteBack: netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
+	f.handler.HandlePacket(netapi.NewPacket(
+		netapi.ParseIPAddr("udp", id.RemoteAddress.AsSlice(), srcPort),
+		netapi.ParseIPAddr("udp", id.LocalAddress.AsSlice(), dstPort),
+		buf.Bytes(),
+		netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 			return f.WriteUDPBack(b, id.RemoteAddress, srcPort, addr)
 		}),
-	})
+	))
 	return true
 }
 

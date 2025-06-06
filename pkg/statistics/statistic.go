@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
@@ -129,10 +130,7 @@ func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.
 		return nil, err
 	}
 
-	counter := gs.Counter_builder{
-		Download: proto.Uint64(0),
-		Upload:   proto.Uint64(0),
-	}.Build()
+	counter := newCounter()
 
 	z := &packetConn{
 		PacketConn: con,
@@ -250,10 +248,7 @@ func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, 
 		return nil, err
 	}
 
-	counter := gs.Counter_builder{
-		Download: proto.Uint64(0),
-		Upload:   proto.Uint64(0),
-	}.Build()
+	counter := newCounter()
 
 	z := &conn{
 		Conn:    con,
@@ -277,16 +272,16 @@ func (c *Connections) AllHistory(context.Context, *emptypb.Empty) (*gs.AllHistor
 
 type counters struct {
 	mu    sync.Mutex
-	store map[uint64]*gs.Counter
+	store map[uint64]*Counter
 }
 
 func newCounters() *counters {
 	return &counters{
-		store: map[uint64]*gs.Counter{},
+		store: map[uint64]*Counter{},
 	}
 }
 
-func (c *counters) Store(id uint64, counter *gs.Counter) {
+func (c *counters) Store(id uint64, counter *Counter) {
 	c.mu.Lock()
 	c.store[id] = counter
 	c.mu.Unlock()
@@ -313,3 +308,14 @@ func (c *counters) Load() map[uint64]*gs.Counter {
 
 	return tmp
 }
+
+type Counter struct {
+	download atomic.Uint64
+	upload   atomic.Uint64
+}
+
+func newCounter() *Counter              { return &Counter{} }
+func (c *Counter) AddDownload(n uint64) { c.download.Add(n) }
+func (c *Counter) AddUpload(n uint64)   { c.upload.Add(n) }
+func (c *Counter) LoadDownload() uint64 { return c.download.Load() }
+func (c *Counter) LoadUpload() uint64   { return c.upload.Load() }

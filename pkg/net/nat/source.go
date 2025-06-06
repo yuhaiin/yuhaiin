@@ -58,7 +58,7 @@ type SourceControl struct {
 
 	stopTimer *stopTimer
 	conn      *wrapConn
-	wirteBack *atomicx.Value[netapi.WriteBack]
+	wirteBack *atomicx.Value[netapi.WriteBackFunc]
 
 	context         Context
 	sentPackets     ringbuffer.RingBuffer[*netapi.Packet]
@@ -81,7 +81,7 @@ func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy, onRemove f
 		onRemove:             onRemove,
 		dialer:               dialer,
 		sniffer:              sniffer,
-		wirteBack: atomicx.NewValue[netapi.WriteBack](netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
+		wirteBack: atomicx.NewValue(netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 			return 0, errors.ErrUnsupported
 		})),
 		lastProcess: atomicx.NewValue(""),
@@ -221,17 +221,17 @@ func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
 		var err error
 
 		store := netapi.GetContext(ctx)
-		store.Source = pkt.Src
-		store.Destination = pkt.Dst
-		store.SetInboundName(pkt.InboundName)
+		store.Source = pkt.Src()
+		store.Destination = pkt.Dst()
+		store.SetInboundName(pkt.InboundName())
 
 		if u.sniffer != nil {
 			u.sniffer.Packet(store, pkt.GetPayload())
 		}
 
-		_, ok := pkt.Src.(*quic.QuicAddr)
+		_, ok := pkt.Src().(*quic.QuicAddr)
 		if !ok {
-			src, err := netapi.ParseSysAddr(pkt.Src)
+			src, err := netapi.ParseSysAddr(pkt.Src())
 			if err == nil && !src.IsFqdn() {
 				// here is only check none fqdn, so we don't need timeout
 				srcAddr, _ := dialer.ResolverAddrPort(store, src)
@@ -269,7 +269,7 @@ func (u *SourceControl) newPacketConn(store *netapi.Context, pkt *netapi.Packet)
 	ctx, cancel := context.WithTimeout(store, configuration.Timeout)
 	defer cancel()
 
-	dstpconn, err := u.dialer.PacketConn(ctx, pkt.Dst)
+	dstpconn, err := u.dialer.PacketConn(ctx, pkt.Dst())
 	if err != nil {
 		return nil, err
 	}
@@ -279,13 +279,13 @@ func (u *SourceControl) newPacketConn(store *netapi.Context, pkt *netapi.Packet)
 
 	conn := &wrapConn{PacketConn: dstpconn}
 
-	go u.loopWriteBack(conn, pkt.Dst)
+	go u.loopWriteBack(conn, pkt.Dst())
 
 	return conn, nil
 }
 
 func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.PacketConn) error {
-	key := pkt.Dst.Comparable()
+	key := pkt.Dst().Comparable()
 
 	// ! we need write to same ip when use fakeip/domain, eg: quic will need it to create stream
 	udpAddr, ok := t.addrStore.LoadUdp(key)
@@ -302,7 +302,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 		ctx = context.WithValue(ctx, netapi.SkipRouteKey{}, true)
 
 		var err error
-		dstAddr, err = t.dialer.Dispatch(ctx, pkt.Dst)
+		dstAddr, err = t.dialer.Dispatch(ctx, pkt.Dst())
 		if err != nil {
 			return fmt.Errorf("dispatch addr failed: %w", err)
 		}
@@ -314,7 +314,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 
 	// check is need resolve
 	if !dstAddr.IsFqdn() || t.context.skipResolve {
-		return t.WriteTo(pkt.GetPayload(), dstAddr, pkt.Dst, conn)
+		return t.WriteTo(pkt.GetPayload(), dstAddr, pkt.Dst(), conn)
 	}
 
 	store := netapi.GetContext(ctx)
@@ -329,7 +329,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 	}
 	t.addrStore.StoreUdp(key, udpAddr)
 
-	err = t.WriteTo(pkt.GetPayload(), udpAddr, pkt.Dst, conn)
+	err = t.WriteTo(pkt.GetPayload(), udpAddr, pkt.Dst(), conn)
 	if err != nil {
 		return fmt.Errorf("write to addr failed: %w", err)
 	}
@@ -410,7 +410,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 					pkt := u.receivedPackets.PopFront()
 					u.receivedPacketMx.Unlock()
 
-					_, err := writeBack.WriteBack(pkt.buf, u.parseAddr(pkt.src))
+					_, err := writeBack(pkt.buf, u.parseAddr(pkt.src))
 					pool.PutBytes(pkt.buf)
 
 					if err != nil {

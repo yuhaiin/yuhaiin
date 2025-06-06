@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
@@ -153,7 +154,12 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 	// Datagram
 	c.packetConn = pconn
 	go func() {
-		defer session.CloseWithError(0, "")
+		defer func() {
+			if err := session.CloseWithError(0, ""); err != nil {
+				log.Error("quic close error", "err", err)
+			}
+		}()
+
 		for {
 			id, data, err := pconn.Receive(context.TODO())
 			if err != nil {
@@ -244,7 +250,7 @@ func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 var _ net.Conn = (*interConn)(nil)
 
 type interConn struct {
-	quic.Stream
+	*quic.Stream
 	session quic.Connection
 	time    int64
 }
