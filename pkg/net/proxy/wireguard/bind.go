@@ -72,12 +72,26 @@ func (n *netBindClient) ParseEndpoint(s string) (conn.Endpoint, error) {
 	return Endpoint(netip.AddrPortFrom(ip.Unmap(), uint16(portNum))), nil
 }
 
-func (bind *netBindClient) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
-	if bind.BatchSize() > 1 {
-		return []conn.ReceiveFunc{bind.receiveBatch}, uport, nil
+// Open create a local udp listener
+//
+// because we don't read any wireguard config, so ignore the port here
+// and we create udp listener by ourselves
+func (bind *netBindClient) Open(uint16) ([]conn.ReceiveFunc, uint16, error) {
+	pc, err := bind.connect()
+	if err != nil {
+		return nil, 0, err
 	}
 
-	return []conn.ReceiveFunc{bind.receive}, uport, nil
+	addr, err := netapi.ParseSysAddr(pc.LocalAddr())
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if bind.BatchSize() > 1 {
+		return []conn.ReceiveFunc{bind.receiveBatch}, addr.Port(), nil
+	}
+
+	return []conn.ReceiveFunc{bind.receive}, addr.Port(), nil
 }
 
 func (bind *netBindClient) Close() error {
@@ -177,7 +191,7 @@ func (bind *netBindClient) receive(packets [][]byte, sizes []int, eps []conn.End
 	return 1, nil
 }
 
-func (bind *netBindClient) Send(buffs [][]byte, endpoint conn.Endpoint) error {
+func (bind *netBindClient) Send(buffs [][]byte, endpoint conn.Endpoint, offset int) error {
 	ep, ok := endpoint.(Endpoint)
 	if !ok {
 		return conn.ErrWrongEndpointType
@@ -197,6 +211,7 @@ func (bind *netBindClient) Send(buffs [][]byte, endpoint conn.Endpoint) error {
 	}
 
 	for _, buff := range buffs {
+		buff = buff[offset:]
 		if len(buff) > 3 && len(bind.reserved) == 3 {
 			// the reserved only for cloudflare-warp
 			copy(buff[1:], bind.reserved)
@@ -234,6 +249,7 @@ func (bind *netBindClient) SendBatch(buffs [][]byte, addr *net.UDPAddr) error {
 }
 
 func (bind *netBindClient) SetMark(mark uint32) error { return nil }
+
 func (bind *netBindClient) BatchSize() int {
 	// batch write seem have many problem
 	// so current disabled

@@ -235,6 +235,7 @@ func makeVirtualTun(h *protocol.Wireguard) (*device.Device, *netBindClient, *net
 			},
 		})
 
+	// set wireguard config
 	err = dev.IpcSetOperation(createIPCRequest(h))
 	if err != nil {
 		dev.Close()

@@ -122,8 +122,8 @@ func TestPacket(t *testing.T) {
 	go (&UDPServer{
 		PacketConn: lis,
 		Handler: func(p *netapi.Packet) {
-			_, err := p.WriteBack.WriteBack(p.GetPayload(), p.Src)
-			t.Log(len(p.GetPayload()), bytes.Equal(data, p.GetPayload()), p.Dst.String(), p.Src.String(), err)
+			_, err := p.WriteBack(p.GetPayload(), p.Src())
+			t.Log(len(p.GetPayload()), bytes.Equal(data, p.GetPayload()), p.Dst().String(), p.Src().String(), err)
 		},
 		Auth:   auth,
 		Prefix: true,
