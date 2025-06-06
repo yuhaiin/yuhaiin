@@ -108,7 +108,7 @@ func (l *Inbound) loopudp() {
 func (l *Inbound) handlePacket(packet *netapi.Packet) {
 	defer packet.DecRef()
 
-	if !l.isDNS(packet.Dst.Port()) {
+	if !l.isDNS(packet.Dst().Port()) {
 		// we only use [netapi.Context] at new PacketConn instead of every packet
 		// so here just pass [l.ctx]
 		l.handler.Packet(l.ctx, packet)
@@ -118,7 +118,7 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 	dnsReq := &netapi.DNSRawRequest{
 		Question: packet,
 		WriteBack: func(b []byte) error {
-			_, err := packet.WriteBack.WriteBack(b, packet.Dst)
+			_, err := packet.WriteBack(b, packet.Dst())
 			return err
 		},
 		ForceFakeIP: l.fakeip.Load(),
@@ -206,6 +206,6 @@ func (h *handlerWrap) HandleStream(meta *netapi.StreamMeta) {
 }
 
 func (h *handlerWrap) HandlePacket(packet *netapi.Packet) {
-	packet.InboundName = h.name
+	netapi.WithInboundName(h.name)(packet)
 	h.handler.HandlePacket(packet)
 }

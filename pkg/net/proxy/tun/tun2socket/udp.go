@@ -48,12 +48,12 @@ func (u *UDP) handleUDPPacket(tuple UDPTuple, payload []byte) {
 		return
 	}
 
-	u.handler.HandlePacket(&netapi.Packet{
-		Src:       netapi.ParseIPAddr("udp", net.IP(tuple.SourceAddr.AsSlice()), tuple.SourcePort),
-		Dst:       netapi.ParseIPAddr("udp", net.IP(tuple.DestinationAddr.AsSlice()), tuple.DestinationPort),
-		Payload:   pool.Clone(payload),
-		WriteBack: &UDPWriteBack{u, tuple},
-	})
+	u.handler.HandlePacket(netapi.NewPacket(
+		netapi.ParseIPAddr("udp", net.IP(tuple.SourceAddr.AsSlice()), tuple.SourcePort),
+		netapi.ParseIPAddr("udp", net.IP(tuple.DestinationAddr.AsSlice()), tuple.DestinationPort),
+		pool.Clone(payload),
+		&UDPWriteBack{u, tuple},
+	))
 }
 
 func (u *UDP) WriteTo(buf []byte, tuple UDPTuple) (int, error) {

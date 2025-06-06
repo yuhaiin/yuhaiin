@@ -113,22 +113,53 @@ type WriteBackFunc func(b []byte, addr net.Addr) (int, error)
 func (f WriteBackFunc) WriteBack(b []byte, addr net.Addr) (int, error) { return f(b, addr) }
 
 type Packet struct {
-	Src       net.Addr
-	Dst       Address
-	WriteBack WriteBack
+	src       net.Addr
+	dst       Address
+	writeBack WriteBack
 	// Payload will set to nil when ref count is negative, get it by [Packet.GetPayload]
 	// ! DON'T use Payload directly
-	Payload     []byte
+	payload     []byte
 	MigrateID   uint64
-	InboundName string
+	inboundName string
 
 	payloadRef int
 	mu         sync.Mutex
 }
 
+func WithMigrateID(id uint64) func(*Packet) {
+	return func(p *Packet) {
+		p.MigrateID = id
+	}
+}
+
+func WithInboundName(name string) func(*Packet) {
+	return func(p *Packet) {
+		p.inboundName = name
+	}
+}
+
+func NewPacket(src net.Addr, dst Address, payload []byte, writeBack WriteBack, opts ...func(*Packet)) *Packet {
+	pp := &Packet{
+		src:       src,
+		dst:       dst,
+		writeBack: writeBack,
+		payload:   payload,
+	}
+
+	for _, v := range opts {
+		v(pp)
+	}
+
+	return pp
+}
+
+func (p *Packet) Src() net.Addr       { return p.src }
+func (p *Packet) Dst() Address        { return p.dst }
+func (p *Packet) InboundName() string { return p.inboundName }
+
 func (p *Packet) GetPayload() []byte {
 	p.mu.Lock()
-	buf := p.Payload
+	buf := p.payload
 	p.mu.Unlock()
 	return buf
 }
@@ -153,12 +184,16 @@ func (p *Packet) DecRef() {
 
 		// because ref count default is 0, so here no equal
 		if p.payloadRef < 0 {
-			pool.PutBytes(p.Payload)
-			p.Payload = nil
+			pool.PutBytes(p.payload)
+			p.payload = nil
 		}
 	}
 
 	p.mu.Unlock()
+}
+
+func (p *Packet) WriteBack(b []byte, addr net.Addr) (int, error) {
+	return p.writeBack.WriteBack(b, addr)
 }
 
 type DNSRawRequest struct {

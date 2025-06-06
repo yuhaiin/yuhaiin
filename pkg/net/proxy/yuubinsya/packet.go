@@ -137,13 +137,9 @@ func (s *UDPServer) Serve() error {
 			continue
 		}
 
-		s.Handler(&netapi.Packet{
-			Src:     src,
-			Dst:     dst,
-			Payload: pool.Clone(buf[:n]),
-			WriteBack: netapi.WriteBackFunc(func(b []byte, source net.Addr) (int, error) {
+		s.Handler(netapi.NewPacket(src, dst, pool.Clone(buf[:n]),
+			netapi.WriteBackFunc(func(b []byte, source net.Addr) (int, error) {
 				return p.writeTo(b, source, src)
-			}),
-		})
+			})))
 	}
 }

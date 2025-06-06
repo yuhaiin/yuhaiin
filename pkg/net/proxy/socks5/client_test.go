@@ -63,7 +63,7 @@ func (h *handler) HandleStream(conn *netapi.StreamMeta) {
 func (h *handler) HandlePacket(conn *netapi.Packet) {
 	h.t.Log(conn, string(conn.GetPayload()))
 
-	conn.WriteBack.WriteBack(conn.GetPayload(), conn.Src)
+	conn.WriteBack(conn.GetPayload(), conn.Src())
 }
 
 func TestUsernamePassword(t *testing.T) {
