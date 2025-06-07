@@ -9,11 +9,11 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-yamux/v5 v5.0.0
 	github.com/prometheus/client_golang v1.22.0
-	github.com/quic-go/quic-go v0.52.1-0.20250602023805-08be0f73c0a9
+	github.com/quic-go/quic-go v0.52.1-0.20250607052153-9580396fa10c
 	github.com/refraction-networking/utls v1.7.3
 	github.com/tailscale/wireguard-go v0.0.0-20250530210235-65cd6eed7d7f
 	github.com/vishvananda/netlink v1.3.1
-	github.com/xtls/reality v0.0.0-20250606064602-21af07049240
+	github.com/xtls/reality v0.0.0-20250607105625-90e738a94c8c
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250601141149-c8ef8c98c5a1
 	go.etcd.io/bbolt v1.4.0
 	golang.org/x/crypto v0.39.0
