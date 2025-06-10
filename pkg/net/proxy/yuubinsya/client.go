@@ -18,7 +18,8 @@ type client struct {
 	handshaker types.Handshaker
 	packetAuth types.Auth
 
-	overTCP bool
+	overTCP  bool
+	coalesce bool
 }
 
 func init() {
@@ -40,6 +41,7 @@ func NewClient(config *protocol.Yuubinsya, dialer netapi.Proxy) (netapi.Proxy, e
 		),
 		auth,
 		config.GetUdpOverStream(),
+		config.GetUdpCoalesce(),
 	}
 
 	return c, nil
@@ -93,7 +95,7 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	}
 
 	pc := newPacketConn(pool.NewBufioConnSize(hconn, configuration.UDPBufferSize.Load()),
-		c.handshaker)
+		c.handshaker, c.coalesce)
 
 	store := netapi.GetContext(ctx)
 

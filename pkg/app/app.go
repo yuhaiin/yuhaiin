@@ -44,6 +44,7 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mixed"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mock"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mux"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"

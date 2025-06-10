@@ -25,6 +25,7 @@ type server struct {
 	listener   netapi.Listener
 	handshaker types.Handshaker
 
+	coalesce   bool
 	handler    netapi.Handler
 	packetAuth types.Auth
 	ctx        context.Context
@@ -50,6 +51,7 @@ func NewServer(config *pl.Yuubinsya, ii netapi.Listener, handler netapi.Handler)
 			[]byte(config.GetPassword()),
 		),
 
+		coalesce:   config.GetUdpCoalesce(),
 		handler:    handler,
 		packetAuth: auth,
 		ctx:        ctx,
@@ -153,7 +155,7 @@ func (y *server) handle(conn net.Conn) error {
 			}
 		}
 
-		pc := newPacketConn(c, y.handshaker)
+		pc := newPacketConn(c, y.handshaker, y.coalesce)
 		defer pc.Close()
 
 		log.Debug("new udp connect", "from", c.RemoteAddr(), "migrate id", header.MigrateID)

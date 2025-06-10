@@ -21,8 +21,8 @@ func init() {
 }
 
 func NewDoH3(config Config) (Dialer, error) {
-	tr := &http3.RoundTripper{
-		Dial: func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (quic.EarlyConnection, error) {
+	tr := &http3.Transport{
+		Dial: func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
 			ad, err := netapi.ParseAddress("udp", addr)
 			if err != nil {
 				return nil, err
