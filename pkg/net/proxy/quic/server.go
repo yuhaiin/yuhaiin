@@ -150,7 +150,7 @@ func (s *Server) server() error {
 	}
 }
 
-func (s *Server) listenDatagram(conn quic.Connection) error {
+func (s *Server) listenDatagram(conn *quic.Conn) error {
 	raddr := conn.RemoteAddr()
 
 	packetConn := NewConnectionPacketConn(conn)
@@ -171,7 +171,7 @@ func (s *Server) listenDatagram(conn quic.Connection) error {
 		}
 	}
 }
-func (s *Server) listenStream(conn quic.Connection) error {
+func (s *Server) listenStream(conn *quic.Conn) error {
 	for {
 		stream, err := conn.AcceptStream(s.ctx)
 		if err != nil {

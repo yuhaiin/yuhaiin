@@ -30,7 +30,7 @@ type Client struct {
 
 	dialer netapi.Proxy
 
-	session    quic.Connection
+	session    *quic.Conn
 	underlying net.PacketConn
 
 	tlsConfig *tls.Config
@@ -84,7 +84,7 @@ func NewClient(config *protocol.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
 	return c, nil
 }
 
-func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
+func (c *Client) initSession(ctx context.Context) (*quic.Conn, error) {
 	c.sessionMu.RLock()
 	session := c.session
 	c.sessionMu.RUnlock()
@@ -251,7 +251,7 @@ var _ net.Conn = (*interConn)(nil)
 
 type interConn struct {
 	*quic.Stream
-	session quic.Connection
+	session *quic.Conn
 	time    int64
 }
 

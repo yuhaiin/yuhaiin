@@ -122,11 +122,11 @@ func (f *Frag) Split(buf []byte, maxSize int) [][]byte {
 
 type ConnectionPacketConn struct {
 	MaxDatagramFrameSize *atomic.Int64
-	conn                 quic.Connection
+	conn                 *quic.Conn
 	frag                 *Frag
 }
 
-func NewConnectionPacketConn(conn quic.Connection) *ConnectionPacketConn {
+func NewConnectionPacketConn(conn *quic.Conn) *ConnectionPacketConn {
 	frag := &Frag{}
 
 	var timer *time.Timer

@@ -2,22 +2,10 @@ package quic
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 )
 
-func compareConstantTime(num int) int {
-	fmt.Println(num | -num)
-	fmt.Println((num | -num) >> 31)
-	return ((num | -num) >> 31) & 1
-}
-
 func TestFrag(t *testing.T) {
-	t.Log(compareConstantTime(100))
-	t.Log(compareConstantTime(102))
-	t.Log(compareConstantTime(1022))
-	t.Log(compareConstantTime(0))
-
 	f := Frag{}
 
 	x := []byte(`

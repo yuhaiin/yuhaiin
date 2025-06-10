@@ -26,7 +26,7 @@ func init() {
 
 type doq struct {
 	conn       net.PacketConn
-	connection quic.Connection
+	connection *quic.Conn
 	host       netapi.Address
 	dialer     netapi.PacketProxy
 
@@ -152,7 +152,7 @@ func (a *doqWrapLocalAddr) String() string {
 
 var doqIgGenerate = id.IDGenerator{}
 
-func (d *doq) initSession(ctx context.Context) (quic.Connection, error) {
+func (d *doq) initSession(ctx context.Context) (*quic.Conn, error) {
 	connection := d.connection
 
 	if connection != nil {

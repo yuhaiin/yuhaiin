@@ -20,12 +20,13 @@ import (
 type PacketConn struct {
 	handshaker types.Handshaker
 	pool.BufioConn
+	coalesce     bool
 	coalesceChan chan []byte
 	ctx          context.Context
 	cancel       context.CancelCauseFunc
 }
 
-func newPacketConn(conn pool.BufioConn, handshaker types.Handshaker) *PacketConn {
+func newPacketConn(conn pool.BufioConn, handshaker types.Handshaker, coalesce bool) *PacketConn {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	x := &PacketConn{
 		BufioConn:    conn,
@@ -33,9 +34,12 @@ func newPacketConn(conn pool.BufioConn, handshaker types.Handshaker) *PacketConn
 		coalesceChan: make(chan []byte, 100),
 		ctx:          ctx,
 		cancel:       cancel,
+		coalesce:     coalesce,
 	}
 
-	go x.loopflush()
+	if coalesce {
+		go x.loopflush()
+	}
 
 	return x
 }
@@ -72,6 +76,35 @@ func (c *PacketConn) Handshake(migrateID uint64) (uint64, error) {
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
+	if c.coalesce {
+		return c.WriteToCoalesce(payload, addr)
+	}
+
+	return c.WriteToOne(payload, addr)
+}
+
+func (c *PacketConn) WriteToOne(payload []byte, addr net.Addr) (int, error) {
+	bufLen := len(payload)
+	if bufLen > nat.MaxSegmentSize {
+		return 0, fmt.Errorf("payload too large: %d > %d", bufLen, nat.MaxSegmentSize)
+	}
+
+	taddr, err := netapi.ParseSysAddr(addr)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse addr: %w", err)
+	}
+
+	buf := pool.GetBytes(bufLen + tools.MaxAddrLength + 2)
+	defer pool.PutBytes(buf)
+
+	addrLen := tools.EncodeAddr(taddr, buf)
+	binary.BigEndian.PutUint16(buf[addrLen:], uint16(bufLen))
+	copy(buf[addrLen+2:], payload)
+
+	return c.BufioConn.Write(buf[:bufLen+addrLen+2])
+}
+
+func (c *PacketConn) WriteToCoalesce(payload []byte, addr net.Addr) (int, error) {
 	bufLen := len(payload)
 	if bufLen > nat.MaxSegmentSize {
 		return 0, fmt.Errorf("payload too large: %d > %d", bufLen, nat.MaxSegmentSize)
