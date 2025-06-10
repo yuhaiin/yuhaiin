@@ -38,6 +38,7 @@ message protocol {
     set set = 25 [ json_name = "set" ];
     tls_termination tls_termination = 26 [ json_name = "tls_termination" ];
     http_termination http_termination = 27 [ json_name = "http_termination" ];
+    http_mock http_mock = 28 [ json_name = "http_mock" ];
   }
 }
 
@@ -95,6 +96,7 @@ message yuubinsya {
   bool tcp_encrypt = 4 [ json_name = "tcp_encrypt" ];
   bool udp_encrypt = 5 [ json_name = "udp_encrypt" ];
   bool udp_over_stream = 3 [ json_name = "udp_over_stream" ];
+  bool udp_coalesce = 6 [ json_name = "udp_coalesce" ];
 }
 
 message websocket {
@@ -235,3 +237,5 @@ message set {
   };
   strategy_type strategy = 2 [ json_name = "strategy" ];
 }
+
+message http_mock { bytes data = 1; }

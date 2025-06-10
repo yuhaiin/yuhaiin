@@ -9,12 +9,12 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-yamux/v5 v5.0.0
 	github.com/prometheus/client_golang v1.22.0
-	github.com/quic-go/quic-go v0.52.1-0.20250602023805-08be0f73c0a9
+	github.com/quic-go/quic-go v0.52.1-0.20250609114836-01921ede97c3
 	github.com/refraction-networking/utls v1.7.3
 	github.com/tailscale/wireguard-go v0.0.0-20250530210235-65cd6eed7d7f
 	github.com/vishvananda/netlink v1.3.1
-	github.com/xtls/reality v0.0.0-20250607105625-90e738a94c8c
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250608104647-72092dde909a
+	github.com/xtls/reality v0.0.0-20250608132114-50752aec6bfb
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250610095046-1937a341c54f
 	go.etcd.io/bbolt v1.4.0
 	golang.org/x/crypto v0.39.0
 	golang.org/x/mobile v0.0.0-20250606033058-a2a15c67f36f
@@ -25,7 +25,7 @@ require (
 	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
 	gvisor.dev/gvisor v0.0.0-20250529183007-2a7b5c7dece9
-	tailscale.com v1.84.1
+	tailscale.com v1.84.2
 )
 
 require (
@@ -64,6 +64,7 @@ require (
 	github.com/illarion/gonotify/v3 v3.0.2 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jsimonetti/rtnetlink v1.4.0 // indirect
+	github.com/juju/ratelimit v1.0.2 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/mdlayher/genetlink v1.3.2 // indirect

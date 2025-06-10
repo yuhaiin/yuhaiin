@@ -54,6 +54,7 @@ message transport {
     grpc grpc = 11 [ json_name = "grpc" ];
     reality reality = 10 [ json_name = "reality" ];
     tls_auto tls_auto = 13 [ json_name = "tls_auto" ];
+    http_mock http_mock = 14 [ json_name = "http_mock" ];
   }
 }
 
@@ -147,6 +148,7 @@ message yuubinsya {
   string password = 2 [ json_name = "password" ];
   bool tcp_encrypt = 12 [ json_name = "tcp_encrypt" ];
   bool udp_encrypt = 13 [ json_name = "udp_encrypt" ];
+  bool udp_coalesce = 14 [ json_name = "udp_coalesce" ];
 }
 
 message normal {};
@@ -206,3 +208,4 @@ message reverse_http {
 }
 
 message reverse_tcp { string host = 1 [ json_name = "host" ]; }
+message http_mock { bytes data = 1; }
