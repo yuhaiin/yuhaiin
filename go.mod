@@ -9,13 +9,13 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-yamux/v5 v5.0.1
 	github.com/prometheus/client_golang v1.22.0
-	github.com/quic-go/quic-go v0.52.1-0.20250609114836-01921ede97c3
+	github.com/quic-go/quic-go v0.52.1-0.20250611073907-d33d293fd2ea
 	github.com/refraction-networking/utls v1.7.3
 	github.com/tailscale/wireguard-go v0.0.0-20250530210235-65cd6eed7d7f
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20250608132114-50752aec6bfb
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250610095046-1937a341c54f
-	go.etcd.io/bbolt v1.4.0-beta.0.0.20250613084717-fde6016c3c02
+	go.etcd.io/bbolt v1.4.1
 	golang.org/x/crypto v0.39.0
 	golang.org/x/mobile v0.0.0-20250606033058-a2a15c67f36f
 	golang.org/x/net v0.41.0

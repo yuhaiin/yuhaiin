@@ -176,6 +176,8 @@ github.com/quic-go/qpack v0.5.1 h1:giqksBPnT/HDtZ6VhtFKgoLOWmlyo9Ei6u9PqzIMbhI=
 github.com/quic-go/qpack v0.5.1/go.mod h1:+PC4XFrEskIVkcLzpEkbLqq1uCoxPhQuvK5rH1ZgaEg=
 github.com/quic-go/quic-go v0.52.1-0.20250609114836-01921ede97c3 h1:DBO+Xkez/Lbt/RmykqzrrCiT7v1aKEZri8gE+iVAj7Y=
 github.com/quic-go/quic-go v0.52.1-0.20250609114836-01921ede97c3/go.mod h1:e68ZEaCdyviluZmy44P6Iey98v/Wfz6HCjQEm+l8zTY=
+github.com/quic-go/quic-go v0.52.1-0.20250611073907-d33d293fd2ea h1:N/iKBb996nHXzpfltXTmLt0/RquVC23u2QtUWiyrFjM=
+github.com/quic-go/quic-go v0.52.1-0.20250611073907-d33d293fd2ea/go.mod h1:e68ZEaCdyviluZmy44P6Iey98v/Wfz6HCjQEm+l8zTY=
 github.com/refraction-networking/utls v1.7.3 h1:L0WRhHY7Oq1T0zkdzVZMR6zWZv+sXbHB9zcuvsAEqCo=
 github.com/refraction-networking/utls v1.7.3/go.mod h1:TUhh27RHMGtQvjQq+RyO11P6ZNQNBb3N0v7wsEjKAIQ=
 github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR38lUII=
@@ -228,6 +230,8 @@ github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250610095046-1937a341c54f h1:xqf8n
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250610095046-1937a341c54f/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 go.etcd.io/bbolt v1.4.0-beta.0.0.20250613084717-fde6016c3c02 h1:fyZNOQneLWVVWTeVTruO3zL02GmpO8188JB74Oy2l20=
 go.etcd.io/bbolt v1.4.0-beta.0.0.20250613084717-fde6016c3c02/go.mod h1:nXZdfwGRl+8hFb3aoD2M2pnYwqfpahyK11Vlr5IM5Eg=
+go.etcd.io/bbolt v1.4.1 h1:5mOV+HWjIPLEAlUGMsveaUvK2+byZMFOzojoi7bh7uI=
+go.etcd.io/bbolt v1.4.1/go.mod h1:c8zu2BnXWTu2XM4XcICtbGSl9cFwsXtcf9zLt2OncM8=
 go.opentelemetry.io/auto/sdk v1.1.0 h1:cH53jehLUN6UFLY71z+NDOiNJqDdPRaXzTel0sJySYA=
 go.opentelemetry.io/auto/sdk v1.1.0/go.mod h1:3wSPjt5PWp2RhlCcmmOial7AvC4DQqZb7a7wCow3W8A=
 go.opentelemetry.io/otel v1.35.0 h1:xKWKPxrxB6OtMCbmMY021CqC45J+3Onta9MqjhnusiQ=
