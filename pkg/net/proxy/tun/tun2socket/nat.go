@@ -43,7 +43,7 @@ func Start(opt *device.Opt) (*Nat, error) {
 		"gatewayv6", opt.V6Address(), "portalv6", opt.V6Address().Addr().Next(),
 	)
 
-	err = netlink.Route(opt.Options)
+	opt.UnsetRoute, err = netlink.Route(opt.Options)
 	if err != nil {
 		log.Warn("set route failed", "err", err)
 	}

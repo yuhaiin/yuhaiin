@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/networksetup"
 	"golang.org/x/net/route"
 	"golang.org/x/sys/unix"
 )
@@ -44,13 +45,13 @@ type addrLifetime6 struct {
 	Pltime    uint32
 }
 
-func Route(options *Options) error {
+func Route(options *Options) (close func(), err error) {
 	var iface string
 
 	if options.Interface.Scheme == "tun" {
 		iface = options.Interface.Name
 	} else {
-		return nil
+		return nil, nil
 		// name, err := unix.GetsockoptString(
 		// 	int(options.Interface.Fd),
 		// 	2, /* #define SYSPROTO_CONTROL 2 */
@@ -63,20 +64,41 @@ func Route(options *Options) error {
 	}
 
 	if iface == "" {
-		return fmt.Errorf("empty interface name")
+		return nil, fmt.Errorf("empty interface name")
 	}
 
 	if err := setMtu(iface, options.MTU); err != nil {
-		return err
+		return nil, err
 	}
 
+	var dns []string
+
 	for _, address := range append(options.Inet4Address, options.Inet6Address...) {
+		dns = append(dns, address.Addr().String())
 		if err := setAddress(iface, address); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	var err error
+	if options.Platform.Darwin.NetworkService != "" {
+		currentDNS, err := networksetup.ListAllDNSServers(options.Platform.Darwin.NetworkService)
+		if err == nil {
+			if len(currentDNS) == 0 {
+				currentDNS = nil
+			}
+
+			close = func() {
+				networksetup.SetDNSServers(options.Platform.Darwin.NetworkService, currentDNS)
+			}
+		} else {
+			log.Error("list all dns servers failed", "err", err, "service", options.Platform.Darwin.NetworkService)
+		}
+
+		if err := networksetup.SetDNSServers(options.Platform.Darwin.NetworkService, dns); err != nil {
+			log.Error("set dns failed", "err", err, "service", options.Platform.Darwin.NetworkService)
+		}
+	}
+
 	for _, v := range options.Routes {
 		if v.Addr().Is4() && options.V4Address().IsValid() {
 			err = addRoute(v, options.V4Address().Addr())
@@ -88,7 +110,7 @@ func Route(options *Options) error {
 		}
 	}
 
-	return nil
+	return close, nil
 }
 
 func useSocket(domain, typ, proto int, block func(socketFd int) error) error {

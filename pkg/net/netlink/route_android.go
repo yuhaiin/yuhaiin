@@ -1,7 +1,7 @@
 package netlink
 
-func Route(opt *Options) error {
-	return nil
+func Route(opt *Options) (func(), error) {
+	return nil, nil
 }
 
 func SetNoqueue(iface string) error {

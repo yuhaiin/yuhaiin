@@ -60,6 +60,11 @@ func NewTun(o *listener.Tun, l netapi.Listener, handler netapi.Handler) (s netap
 			Interface: sc,
 			MTU:       int(o.GetMtu()),
 			Routes:    toRoutes(o.GetRoute()),
+			Platform: netlink.Platform{
+				Darwin: netlink.Darwin{
+					NetworkService: o.GetPlatform().GetDarwin().GetNetworkService(),
+				},
+			},
 		},
 		Handler: handler,
 	}
@@ -141,9 +146,10 @@ func checkTunName(sc netlink.TunScheme) string {
 	}
 
 	tunPrefix := "tun"
-	if runtime.GOOS == "windows" {
+	switch runtime.GOOS {
+	case "windows":
 		tunPrefix = "wintun"
-	} else if runtime.GOOS == "darwin" {
+	case "darwin":
 		tunPrefix = "utun"
 
 		if !strings.HasPrefix(sc.Name, tunPrefix) {

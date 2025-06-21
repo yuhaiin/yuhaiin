@@ -11,7 +11,7 @@ import (
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
 
-func Route(opt *Options) error {
+func Route(opt *Options) (func(), error) {
 	var device wun.Device
 
 	if opt.Device == nil && opt.Endpoint != nil {
@@ -26,7 +26,7 @@ func Route(opt *Options) error {
 
 	tt, ok := device.(*wun.NativeTun)
 	if !ok {
-		return fmt.Errorf("not a native tun device")
+		return nil, fmt.Errorf("not a native tun device")
 	}
 
 	luid := winipcfg.LUID(tt.LUID())
@@ -57,7 +57,7 @@ func Route(opt *Options) error {
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 func setAddress(luid winipcfg.LUID, family winipcfg.AddressFamily, address netip.Prefix, mtu int) error {

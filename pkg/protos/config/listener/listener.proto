@@ -114,6 +114,14 @@ message tproxy {
   bool force_fakeip = 3 [ json_name = "force_fakeip" ];
 }
 
+message tun_platfrom {
+	message platform_darwin {
+		string network_service = 1 [ json_name = "network_service" ];
+	}
+
+	platform_darwin darwin = 1 [ json_name = "darwin" ];
+}
+
 message tun {
   reserved 3, 4;
   reserved gateway, dns_hijacking;
@@ -134,6 +142,7 @@ message tun {
   route route = 10 [ json_name = "route" ];
   repeated string post_up = 12 [ json_name = "post_up" ];
   repeated string post_down = 13 [ json_name = "post_down" ];
+  tun_platfrom platform = 14 [ json_name = "platform" ];
 }
 
 message route {

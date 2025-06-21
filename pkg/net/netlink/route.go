@@ -11,6 +11,16 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
+type Platform struct {
+	Darwin Darwin
+}
+
+type Darwin struct {
+	// network service name
+	// which can be found by `networksetup -listallnetworkservices`
+	NetworkService string
+}
+
 type Options struct {
 	Endpoint     stack.LinkEndpoint
 	Device       Tun
@@ -19,6 +29,7 @@ type Options struct {
 	Inet4Address []netip.Prefix
 	Routes       []netip.Prefix
 	MTU          int
+	Platform     Platform
 }
 
 type Tun interface {

@@ -90,12 +90,21 @@ message inbounds_response {
   yuhaiin.listener.sniff sniff = 4 [ json_name = "sniff" ];
 }
 
+message platform_info_response {
+	message platform_darwin {
+		repeated string network_services = 1 [ json_name = "network_services" ];
+	}
+
+	platform_darwin darwin = 1 [ json_name = "darwin" ];
+}
+
 service inbound {
   rpc list(google.protobuf.Empty) returns (inbounds_response);
   rpc get(google.protobuf.StringValue) returns (yuhaiin.listener.inbound);
   rpc save(yuhaiin.listener.inbound) returns (yuhaiin.listener.inbound);
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
   rpc apply(inbounds_response) returns (google.protobuf.Empty);
+  rpc platform_info(google.protobuf.Empty) returns (platform_info_response);
 }
 
 message resolve_list { repeated string names = 1 [ json_name = "names" ]; }
