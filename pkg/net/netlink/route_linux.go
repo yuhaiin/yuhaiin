@@ -14,19 +14,19 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func Route(opt *Options) error {
+func Route(opt *Options) (func(), error) {
 	if opt.Interface.Scheme != "tun" {
-		return nil
+		return nil, nil
 	}
 
 	link, err := netlink.LinkByName(opt.Interface.Name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = netlink.LinkSetMTU(link, opt.MTU)
 	if err != nil {
-		return fmt.Errorf("unable to set MTU: %w", err)
+		return nil, fmt.Errorf("unable to set MTU: %w", err)
 	}
 
 	for _, address := range append(opt.Inet4Address, opt.Inet6Address...) {
@@ -37,12 +37,12 @@ func Route(opt *Options) error {
 
 		err = netlink.AddrAdd(link, addr)
 		if err != nil {
-			return fmt.Errorf("unable to add address: %w", err)
+			return nil, fmt.Errorf("unable to add address: %w", err)
 		}
 	}
 
 	if err = netlink.LinkSetUp(link); err != nil {
-		return fmt.Errorf("unable to set link up: %w", err)
+		return nil, fmt.Errorf("unable to set link up: %w", err)
 	}
 
 	var tableIndex int = 63
@@ -120,7 +120,7 @@ func Route(opt *Options) error {
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 const ifReqSize = unix.IFNAMSIZ + 64

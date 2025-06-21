@@ -15,11 +15,16 @@ type Opt struct {
 	*listener.Tun
 	*netlink.Options
 	netapi.Handler
+
+	UnsetRoute func()
 }
 
 func (o *Opt) PostDown() {
 	execPost(o.Tun.GetPostDown())
 	o.UnSkipMark()
+	if o.UnsetRoute != nil {
+		o.UnsetRoute()
+	}
 }
 
 func (o *Opt) PostUp() {

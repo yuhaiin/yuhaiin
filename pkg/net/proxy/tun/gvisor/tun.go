@@ -91,7 +91,8 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 
 	log.Info("new tun stack", "name", opt.GetName(), "mtu", opt.GetMtu(), "portal", opt.GetPortal(), "nicID", nicID, "driver", opt.GetDriver())
 
-	if err = netlink.Route(o.Options); err != nil {
+	o.UnsetRoute, err = netlink.Route(o.Options)
+	if err != nil {
 		log.Warn("preload failed", "err", err)
 	}
 

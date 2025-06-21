@@ -195,3 +195,13 @@ func (i *InboundCtr) Remove(ctx context.Context, req *wrapperspb.StringValue) (*
 	})
 	return &emptypb.Empty{}, err
 }
+
+var platformInfo []func(*gc.PlatformInfoResponse)
+
+func (i *InboundCtr) PlatformInfo(ctx context.Context, req *emptypb.Empty) (*gc.PlatformInfoResponse, error) {
+	resp := &gc.PlatformInfoResponse{}
+	for _, v := range platformInfo {
+		v(resp)
+	}
+	return resp, nil
+}
