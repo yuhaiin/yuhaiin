@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>io.github.Asutorufa.yuhaiin</string>
+    <string>com.asutorufa.yuhaiin</string>
     
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/yuhaiin_darwin_amd64v3</string>
+        <string>/usr/local/bin/yuhaiin_darwin_amd64v3</string>
     </array>
     
     <key>WorkingDirectory</key>

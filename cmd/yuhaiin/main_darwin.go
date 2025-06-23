@@ -1,0 +1,213 @@
+// modified from https://github.com/tailscale/tailscale/blob/main/cmd/tailscaled/install_darwin.go
+package main
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"os/exec"
+	"path/filepath"
+)
+
+const darwinLaunchdPlist = `
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.asutorufa.yuhaiin</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/yuhaiin</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+</dict>
+</plist>
+`
+
+const sysPlist = "/Library/LaunchDaemons/com.asutorufa.yuhaiin.plist"
+const targetBin = "/usr/local/bin/yuhaiin"
+const service = "com.asutorufa.yuhaiin"
+
+func install(args []string) error {
+	return installSystemDaemonDarwin(args)
+}
+
+func uninstall(args []string) error {
+	return uninstallSystemDaemonDarwin(args)
+}
+
+func restart(args []string) error {
+	if err := stop(args); err != nil {
+		return err
+	}
+	return start(args)
+}
+
+func stop(args []string) error {
+	if out, err := exec.Command("launchctl", "stop", service).CombinedOutput(); err != nil {
+		return fmt.Errorf("error running launchctl stop %s: %v, %s", service, err, out)
+	}
+	return nil
+}
+
+func start(args []string) error {
+	if out, err := exec.Command("launchctl", "start", service).CombinedOutput(); err != nil {
+		return fmt.Errorf("error running launchctl start %s: %v, %s", service, err, out)
+	}
+	return nil
+}
+
+func uninstallSystemDaemonDarwin(args []string) (ret error) {
+	if len(args) > 0 {
+		return errors.New("uninstall subcommand takes no arguments")
+	}
+
+	plist, err := exec.Command("launchctl", "list", service).Output()
+	_ = plist // parse it? https://github.com/DHowett/go-plist if we need something.
+	running := err == nil
+
+	if running {
+		out, err := exec.Command("launchctl", "stop", service).CombinedOutput()
+		if err != nil {
+			fmt.Printf("launchctl stop %s: %v, %s\n", service, err, out)
+			ret = err
+		}
+		out, err = exec.Command("launchctl", "unload", sysPlist).CombinedOutput()
+		if err != nil {
+			fmt.Printf("launchctl unload %s: %v, %s\n", sysPlist, err, out)
+			if ret == nil {
+				ret = err
+			}
+		}
+	}
+
+	if err := os.Remove(sysPlist); err != nil {
+		if os.IsNotExist(err) {
+			err = nil
+		}
+		if ret == nil {
+			ret = err
+		}
+	}
+
+	// Do not delete targetBin if it's a symlink, which happens if it was installed via
+	// Homebrew.
+	if isSymlink(targetBin) {
+		return ret
+	}
+
+	if err := os.Remove(targetBin); err != nil {
+		if os.IsNotExist(err) {
+			err = nil
+		}
+		if ret == nil {
+			ret = err
+		}
+	}
+	return ret
+}
+
+func installSystemDaemonDarwin(args []string) (err error) {
+	if len(args) > 0 {
+		return errors.New("install subcommand takes no arguments")
+	}
+	defer func() {
+		if err != nil && os.Getuid() != 0 {
+			err = fmt.Errorf("%w; try running yuhaiin with sudo", err)
+		}
+	}()
+
+	// Best effort:
+	uninstallSystemDaemonDarwin(nil)
+
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to find our own executable path: %w", err)
+	}
+
+	same, err := sameFile(exe, targetBin)
+	if err != nil {
+		return err
+	}
+
+	// Do not overwrite targetBin with the binary file if it it's already
+	// pointing to it. This is primarily to handle Homebrew that writes
+	// /usr/local/bin/yuhaiin is a symlink to the actual binary.
+	if !same {
+		if err := copyBinary(exe, targetBin); err != nil {
+			return err
+		}
+	}
+	if err := os.WriteFile(sysPlist, []byte(darwinLaunchdPlist), 0700); err != nil {
+		return err
+	}
+
+	if out, err := exec.Command("launchctl", "load", sysPlist).CombinedOutput(); err != nil {
+		return fmt.Errorf("error running launchctl load %s: %v, %s", sysPlist, err, out)
+	}
+
+	if out, err := exec.Command("launchctl", "start", service).CombinedOutput(); err != nil {
+		return fmt.Errorf("error running launchctl start %s: %v, %s", service, err, out)
+	}
+
+	return nil
+}
+
+// copyBinary copies binary file `src` into `dst`.
+func copyBinary(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	tmpBin := dst + ".tmp"
+	f, err := os.Create(tmpBin)
+	if err != nil {
+		return err
+	}
+	srcf, err := os.Open(src)
+	if err != nil {
+		f.Close()
+		return err
+	}
+	_, err = io.Copy(f, srcf)
+	srcf.Close()
+	if err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpBin, 0755); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpBin, dst); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func isSymlink(path string) bool {
+	fi, err := os.Lstat(path)
+	return err == nil && (fi.Mode()&os.ModeSymlink == os.ModeSymlink)
+}
+
+// sameFile returns true if both file paths exist and resolve to the same file.
+func sameFile(path1, path2 string) (bool, error) {
+	dst1, err := filepath.EvalSymlinks(path1)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return false, fmt.Errorf("EvalSymlinks(%s): %w", path1, err)
+	}
+	dst2, err := filepath.EvalSymlinks(path2)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return false, fmt.Errorf("EvalSymlinks(%s): %w", path2, err)
+	}
+	return dst1 == dst2, nil
+}

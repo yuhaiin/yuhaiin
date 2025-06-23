@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -57,8 +58,11 @@ func DefaultConfigDir() (Path string) {
 	var err error
 	Path, err = os.UserConfigDir()
 	if err == nil {
-		Path = filepath.Join(Path, "yuhaiin")
-		return
+		return filepath.Join(Path, "yuhaiin")
+	}
+
+	if runtime.GOOS == "darwin" {
+		return "/Library/Application Support/yuhaiin"
 	}
 
 	file, err := exec.LookPath(os.Args[0])
