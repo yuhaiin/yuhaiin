@@ -19,3 +19,5 @@ cmd/android/yuhaiin.db
 /cmd/android/strings.xml
 *.patch
 /pkg/net/proxy/tailscale/.tsauthkey
+.DS_Store
+.DS_Store?

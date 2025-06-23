@@ -88,7 +88,9 @@ func Route(options *Options) (close func(), err error) {
 			}
 
 			close = func() {
-				networksetup.SetDNSServers(options.Platform.Darwin.NetworkService, currentDNS)
+				if err := networksetup.SetDNSServers(options.Platform.Darwin.NetworkService, currentDNS); err != nil {
+					log.Error("set dns failed", "err", err, "service", options.Platform.Darwin.NetworkService)
+				}
 			}
 		} else {
 			log.Error("list all dns servers failed", "err", err, "service", options.Platform.Darwin.NetworkService)
@@ -99,7 +101,11 @@ func Route(options *Options) (close func(), err error) {
 		}
 	}
 
-	for _, v := range options.Routes {
+	routes := options.Routes
+
+	routes = append(routes, netip.PrefixFrom(options.V4Address().Addr().Next(), options.V4Address().Bits()))
+
+	for _, v := range routes {
 		if v.Addr().Is4() && options.V4Address().IsValid() {
 			err = addRoute(v, options.V4Address().Addr())
 		} else if options.V6Address().IsValid() {
