@@ -106,6 +106,12 @@ func DefaultSetting(path string) *Setting {
 				"*.msftncsi.com",
 				"*.msftconnecttest.com",
 				"ping.archlinux.org",
+				// for macos, see:
+				//  https://github.com/immortalwrt/homeproxy/discussions/155
+				//  https://github.com/vernesong/OpenClash/issues/4370
+				"mask.icloud.com",
+				"mask-h2.icloud.com",
+				"mask.apple-dns.net",
 			},
 			Resolver: map[string]*pd.Dns{
 				"bootstrap": pd.Dns_builder{
