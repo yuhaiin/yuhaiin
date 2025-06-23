@@ -121,7 +121,7 @@ func TestDOH(t *testing.T) {
 		Type: dnsmessage.TypeA,
 	}))
 	resp, err := d.Raw(context.TODO(), dnsmessage.Question{
-		Name: dnsmessage.MustNewName("auth.openai.com."),
+		Name: dnsmessage.MustNewName("cdn.v2ex.com."),
 		Type: 65,
 	})
 	assert.NoError(t, err)
@@ -135,6 +135,7 @@ func TestDOH(t *testing.T) {
 		assert.NoError(t, err)
 		t.Log(https.GoString())
 	}
+	t.Log(resp.AppendPack(nil))
 	t.Log(d.LookupIP(t.Context(), "auth.openai.com"))
 }
 
