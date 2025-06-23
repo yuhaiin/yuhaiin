@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -606,6 +607,160 @@ func removeIPHint(name dnsmessage.Name, msg dnsmessage.Message) [][]dnsmessage.R
 	}
 
 	return ipHints
+}
+
+func appendIPHint(msg dnsmessage.Message, ipv4, ipv6 []netip.Addr) {
+	bytes := ipHintParams(ipv4, ipv6)
+
+	if len(bytes) == 0 {
+		return
+	}
+
+	for i, v := range msg.Answers {
+		if v.Header.Type != TypeHTTPS {
+			continue
+		}
+
+		unknownResource, ok := v.Body.(*dnsmessage.UnknownResource)
+		if !ok {
+			slog.Error("is not unknown resource skip", "type", v.Header.Type)
+			continue
+		}
+
+		if unknownResource.Type != TypeHTTPS {
+			continue
+		}
+
+		if len(unknownResource.Data) == 0 {
+			continue
+		}
+
+		params := ipHintParams(ipv4, ipv6)
+		if len(params) == 0 {
+			continue
+		}
+
+		msg.Answers[i] = dnsmessage.Resource{
+			Header: v.Header,
+			Body: &dnsmessage.UnknownResource{
+				Type: TypeHTTPS,
+				Data: appendIPHintIndex(unknownResource.Data, params),
+			},
+		}
+		break
+	}
+}
+
+func ipHintParams(ipv4, ipv6 []netip.Addr) []httpsParam {
+	if len(ipv4) == 0 && len(ipv6) == 0 {
+		return nil
+	}
+
+	resp := make([]httpsParam, 0, 2)
+
+	if len(ipv4) > 0 {
+		ipv4Len := len(ipv4) * 4
+		v4bytes := make([]byte, ipv4Len+4)
+		v4bytes[0] = 0x00
+		v4bytes[1] = 0x04
+		v4bytes[2] = byte(ipv4Len >> 8)
+		v4bytes[3] = byte(ipv4Len)
+
+		for i := range ipv4 {
+			bytes := ipv4[i].As4()
+			copy(v4bytes[4+i*4:], bytes[:])
+		}
+
+		resp = append(resp, httpsParam{
+			Key:  4,
+			data: v4bytes,
+		})
+	}
+
+	if len(ipv6) > 0 {
+		ipv6Len := len(ipv6) * 16
+		v6bytes := make([]byte, ipv6Len+4)
+		v6bytes[0] = 0x00
+		v6bytes[1] = 0x06
+		v6bytes[2] = byte(ipv6Len >> 8)
+		v6bytes[3] = byte(ipv6Len)
+
+		for i := range ipv6 {
+			bytes := ipv6[i].As16()
+			copy(v6bytes[4+i*16:], bytes[:])
+		}
+
+		resp = append(resp, httpsParam{
+			Key:  6,
+			data: v6bytes,
+		})
+	}
+
+	return resp
+}
+
+type httpsParam struct {
+	Key  uint16
+	data []byte
+}
+
+func appendIPHintIndex(msg []byte, data []httpsParam) []byte {
+	endOff := len(msg)
+	_, off, err := unpackUint16(msg, 0)
+	if err != nil {
+		return nil
+	}
+
+	if off, err = skipName(msg, off); err != nil {
+		return nil
+	}
+
+	starOffset := off
+
+	for off < endOff {
+		start := off
+		var err error
+		var k uint16
+		k, off, err = unpackUint16(msg, off)
+		if err != nil {
+			return nil
+		}
+		var l uint16
+		l, off, err = unpackUint16(msg, off)
+		if err != nil {
+			return nil
+		}
+		off += int(l)
+
+		data = append(data, httpsParam{
+			Key:  k,
+			data: msg[start:off],
+		})
+	}
+
+	// SvcParamKeys SHALL appear in increasing numeric order.
+	// Clients MUST consider an RR malformed if:
+	// 	the end of the RDATA occurs within a SvcParam.
+	// 	SvcParamKeys are not in strictly increasing numeric order.
+	// 	the SvcParamValue for a SvcParamKey does not have the expected format.
+	//
+	// see: https://datatracker.ietf.org/doc/html/rfc9460#name-overview-of-the-svcb-rr
+	slices.SortFunc(data, func(a, b httpsParam) int { return cmp.Compare(a.Key, b.Key) })
+
+	length := starOffset
+	for _, v := range data {
+		length += len(v.data)
+	}
+
+	resp := make([]byte, 0, length)
+
+	resp = append(resp, msg[:starOffset]...)
+
+	for _, v := range data {
+		resp = append(resp, v.data...)
+	}
+
+	return resp
 }
 
 func removeIPHintFromResource(name dnsmessage.Name, msg []byte, ttl uint32) (result []byte, ipHint [][]dnsmessage.Resource) {

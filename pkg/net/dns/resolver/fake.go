@@ -117,7 +117,9 @@ func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code dnsmessage.RCod
 }
 
 func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	if req.Type != dnsmessage.TypeA && req.Type != dnsmessage.TypeAAAA && req.Type != dnsmessage.TypePTR {
+	if req.Type != dnsmessage.TypeA &&
+		req.Type != dnsmessage.TypeAAAA &&
+		req.Type != dnsmessage.TypePTR && req.Type != TypeHTTPS {
 		return f.Resolver.Raw(ctx, req)
 	}
 
@@ -137,6 +139,20 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 	}
 
 	domain := unsafe.String(unsafe.SliceData(req.Name.Data[0:req.Name.Length-1]), req.Name.Length-1)
+
+	// wait https://github.com/golang/go/issues/43790 implement
+	if req.Type == TypeHTTPS {
+		msg, err := f.Resolver.Raw(ctx, req)
+		if err != nil {
+			return msg, err
+		}
+
+		ipv6 := f.ipv6.GetFakeIPForDomain(domain)
+		ipv4 := f.ipv4.GetFakeIPForDomain(domain)
+
+		appendIPHint(msg, []netip.Addr{ipv4}, []netip.Addr{ipv6})
+		return msg, nil
+	}
 
 	if net.ParseIP(domain) != nil {
 		return f.Resolver.Raw(ctx, req)
