@@ -333,6 +333,39 @@ func (c *client) query(ctx context.Context, req dnsmessage.Question) (dnsmessage
 		ttl = msg.Answers[0].Header.TTL
 	}
 
+	if req.Type == TypeHTTPS {
+		// remove ip hint, make safari use fakeip instead of ip hint
+		for _, v := range removeIPHint(req.Name, msg) {
+			if len(v) == 0 {
+				continue
+			}
+
+			req := dnsmessage.Question{
+				Name:  req.Name,
+				Type:  v[0].Header.Type,
+				Class: dnsmessage.ClassINET,
+			}
+
+			c.rawStore.Add(CacheKeyFromQuestion(req, false),
+				newRawEntry(dnsmessage.Message{
+					Header: dnsmessage.Header{
+						ID:                 0,
+						Response:           true,
+						OpCode:             0,
+						Authoritative:      false,
+						Truncated:          false,
+						RecursionDesired:   true,
+						RecursionAvailable: true,
+						RCode:              dnsmessage.RCodeSuccess,
+					},
+					Questions: []dnsmessage.Question{req},
+					Answers:   v,
+				}),
+				lru.WithTimeout[CacheKey, *rawEntry](time.Duration(ttl)*time.Second),
+			)
+		}
+	}
+
 	log.Select(slog.LevelDebug).PrintFunc("resolve domain", func() []any {
 		args := []any{
 			slog.String("resolver", c.config.Name),
@@ -550,4 +583,141 @@ func (r *rawEntry) AAAA() []net.IP {
 	}
 
 	return r.ipv6
+}
+
+func removeIPHint(name dnsmessage.Name, msg dnsmessage.Message) [][]dnsmessage.Resource {
+	var ipHints [][]dnsmessage.Resource
+	for _, v := range msg.Answers {
+		if v.Header.Type != TypeHTTPS {
+			continue
+		}
+
+		unknownResource, ok := v.Body.(*dnsmessage.UnknownResource)
+		if !ok {
+			slog.Error("is not unknown resource skip", "type", v.Header.Type)
+			continue
+		}
+
+		if unknownResource.Type != TypeHTTPS {
+			continue
+		}
+
+		unknownResource.Data, ipHints = removeIPHintFromResource(name, unknownResource.Data, v.Header.TTL)
+	}
+
+	return ipHints
+}
+
+func removeIPHintFromResource(name dnsmessage.Name, msg []byte, ttl uint32) (result []byte, ipHint [][]dnsmessage.Resource) {
+	endOff := len(msg)
+	_, off, err := unpackUint16(msg, 0)
+	if err != nil {
+		return msg, nil
+	}
+
+	if off, err = skipName(msg, off); err != nil {
+		return msg, nil
+	}
+
+	type remove struct {
+		start int
+		end   int
+	}
+
+	var removes []remove
+	var ipHints [][]dnsmessage.Resource
+
+	for off < endOff {
+		start := off
+
+		var err error
+		var k uint16
+		k, off, err = unpackUint16(msg, off)
+		if err != nil {
+			return msg, nil
+		}
+		var l uint16
+		l, off, err = unpackUint16(msg, off)
+		if err != nil {
+			return msg, nil
+		}
+		off += int(l)
+
+		end := off
+
+		if ParamKey(k) == ParamIPv4Hint || ParamKey(k) == ParamIPv6Hint {
+			ips := splitIpHint(msg[start+4:end], ParamKey(k) == ParamIPv6Hint)
+			slog.Info("remove ip hint",
+				"name", name.String(),
+				"key", ParamKey(k),
+				"value", ips,
+				"length", len(msg[start:end]),
+			)
+			hints := make([]dnsmessage.Resource, 0, len(ips))
+			for _, v := range ips {
+				resource := dnsmessage.Resource{
+					Header: dnsmessage.ResourceHeader{
+						Name:  name,
+						Class: dnsmessage.ClassINET,
+						TTL:   ttl,
+					},
+				}
+				if ParamKey(k) == ParamIPv6Hint {
+					resource.Body = &dnsmessage.AAAAResource{AAAA: [16]byte(v)}
+					resource.Header.Type = dnsmessage.TypeAAAA
+				} else {
+					resource.Body = &dnsmessage.AResource{A: [4]byte(v)}
+					resource.Header.Type = dnsmessage.TypeA
+				}
+
+				hints = append(hints, resource)
+			}
+
+			removes = append(removes, remove{start, end})
+			if len(hints) > 0 {
+				ipHints = append(ipHints, hints)
+			}
+		}
+	}
+
+	if len(removes) == 0 {
+		return msg, ipHints
+	}
+
+	lastEnd := -1
+	length := 0
+
+	for _, v := range removes {
+		if lastEnd == -1 {
+			lastEnd = v.end
+			length = v.start
+			continue
+		}
+
+		n := copy(msg[length:], msg[lastEnd:v.start])
+		length += n
+		lastEnd = v.end
+	}
+
+	length += copy(msg[length:], msg[lastEnd:])
+
+	return msg[:length], ipHints
+}
+
+func splitIpHint(msg []byte, v6 bool) []net.IP {
+	start := 0
+	end := len(msg)
+
+	size := 4
+	if v6 {
+		size = 16
+	}
+
+	resp := make([]net.IP, 0, len(msg)/size)
+	for start < end {
+		resp = append(resp, net.IP(msg[start:start+size]))
+		start += size
+	}
+
+	return resp
 }

@@ -6,6 +6,11 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 )
 
+const (
+	TypeSVCB  dnsmessage.Type = 64
+	TypeHTTPS dnsmessage.Type = 65
+)
+
 // An SVCBResource is an SVCB Resource record.
 type SVCBResource struct {
 	Params   []Param

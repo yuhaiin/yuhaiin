@@ -4,25 +4,20 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"math/bits"
 	"net"
 	"sync"
-
-	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 var ClosedBufioReader = bufio.NewReaderSize(emptyReader{}, 10)
 
-var bufioReaderPoolMap syncmap.SyncMap[int, *sync.Pool]
+var bufioBuffers [32]*sync.Pool
 
-func bufioReaderPool(size int) *sync.Pool {
-	if v, ok := bufioReaderPoolMap.Load(size); ok {
-		return v
+func init() {
+	for i := range bufioBuffers {
+		bufioBuffers[i] = &sync.Pool{
+			New: func() any { return bufio.NewReaderSize(nil, 1<<i) },
+		}
 	}
-
-	p := &sync.Pool{New: func() any { return bufio.NewReaderSize(nil, size) }}
-	bufioReaderPoolMap.Store(size, p)
-	return p
 }
 
 func GetBufioReader(r io.Reader, size int) *bufio.Reader {
@@ -35,20 +30,27 @@ func GetBufioReader(r io.Reader, size int) *bufio.Reader {
 		return nil
 	}
 
-	l := bits.Len(uint(size)) - 1
-	if size != 1<<l {
-		size = 1 << (l + 1)
+	// Calling this function with a negative length is invalid.
+	// make will panic if length is negative, so we don't have to.
+	if size > MaxLength || size < 0 {
+		return bufio.NewReaderSize(nil, size)
 	}
-	x := bufioReaderPool(size).Get().(*bufio.Reader)
 
-	x.Reset(r)
+	l := nextLogBase2(uint32(size))
+	b := bufioBuffers[l].Get().(*bufio.Reader)
 
-	return x
+	b.Reset(r)
+
+	return b
 }
 
 func PutBufioReader(b *bufio.Reader) {
-	l := bits.Len(uint(b.Size())) - 1
-	bufioReaderPool(1 << l).Put(b) //lint:ignore SA6002 ignore temporarily
+	if b.Size() > MaxLength || b.Size() <= 0 {
+		return
+	}
+
+	l := prevLogBase2(uint32(b.Size()))
+	bufioBuffers[l].Put(b) //lint:ignore SA6002 ignore temporarily
 }
 
 type CloseWrite interface {

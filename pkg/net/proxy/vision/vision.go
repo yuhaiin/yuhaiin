@@ -324,15 +324,15 @@ func (c *VisionConn) padding(buffer []byte, command byte) []byte {
 		l, _ := rand.Int(rand.Reader, big.NewInt(256))
 		paddingLen = int(l.Int64())
 	}
-	var bufferLen int
-	if c.writeUUID {
-		bufferLen += 16
-	}
-	bufferLen += 5
-	if buffer != nil {
-		bufferLen += len(buffer)
-	}
-	bufferLen += paddingLen
+	// var bufferLen int
+	// if c.writeUUID {
+	// 	bufferLen += 16
+	// }
+	// bufferLen += 5
+	// if buffer != nil {
+	// 	bufferLen += len(buffer)
+	// }
+	// bufferLen += paddingLen
 
 	newBuffer := bytes.NewBuffer(nil)
 	if c.writeUUID {

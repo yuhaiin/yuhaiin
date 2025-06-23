@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"context"
-	"encoding/base64"
 	"net/netip"
 	"testing"
 
@@ -122,19 +121,21 @@ func TestDOH(t *testing.T) {
 		Type: dnsmessage.TypeA,
 	}))
 	resp, err := d.Raw(context.TODO(), dnsmessage.Question{
-		Name: dnsmessage.MustNewName("defo.ie."),
+		Name: dnsmessage.MustNewName("auth.openai.com."),
 		Type: 65,
 	})
 	assert.NoError(t, err)
-	data := resp.Answers[0].Body.(*dnsmessage.UnknownResource).Data
-	https, err := unpackHTTPSResource(data, 0, uint16(len(data)))
-	assert.NoError(t, err)
-	t.Log(https.GoString())
-	for _, v := range https.Params {
-		if v.Key == ParamECHConfig {
-			t.Log(base64.StdEncoding.EncodeToString(v.Value))
+
+	for _, v := range resp.Answers {
+		if v.Header.Type != TypeHTTPS {
+			continue
 		}
+		data := v.Body.(*dnsmessage.UnknownResource).Data
+		https, err := unpackHTTPSResource(data, 0, uint16(len(data)))
+		assert.NoError(t, err)
+		t.Log(https.GoString())
 	}
+	t.Log(d.LookupIP(t.Context(), "auth.openai.com"))
 }
 
 func TestGetURL(t *testing.T) {
