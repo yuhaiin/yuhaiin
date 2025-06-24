@@ -21,6 +21,7 @@ import (
 	pb "github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"tailscale.com/net/netmon"
@@ -118,7 +119,7 @@ func (a *App) Start(opt *Opts) error {
 		ConfigPath:     opt.Savepath,
 		BypassConfig:   newBypassDB(),
 		ResolverConfig: newResolverDB(),
-		InboundConfig:  fakeDB(opt, app.PathGenerator.Config(opt.Savepath)),
+		InboundConfig:  fakeDB(opt, tools.PathGenerator.Config(opt.Savepath)),
 		ChoreConfig:    newChoreDB(),
 		ProcessDumper:  NewUidDumper(opt.TUN.UidDumper),
 	})

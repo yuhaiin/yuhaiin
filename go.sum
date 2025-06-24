@@ -174,8 +174,8 @@ github.com/prometheus/procfs v0.15.1 h1:YagwOFzUgYfKKHX6Dr+sHT7km/hxC76UB0leargg
 github.com/prometheus/procfs v0.15.1/go.mod h1:fB45yRUv8NstnjriLhBQLuOUt+WW4BsoGhij/e3PBqk=
 github.com/quic-go/qpack v0.5.1 h1:giqksBPnT/HDtZ6VhtFKgoLOWmlyo9Ei6u9PqzIMbhI=
 github.com/quic-go/qpack v0.5.1/go.mod h1:+PC4XFrEskIVkcLzpEkbLqq1uCoxPhQuvK5rH1ZgaEg=
-github.com/quic-go/quic-go v0.52.1-0.20250609114836-01921ede97c3 h1:DBO+Xkez/Lbt/RmykqzrrCiT7v1aKEZri8gE+iVAj7Y=
-github.com/quic-go/quic-go v0.52.1-0.20250609114836-01921ede97c3/go.mod h1:e68ZEaCdyviluZmy44P6Iey98v/Wfz6HCjQEm+l8zTY=
+github.com/quic-go/quic-go v0.53.0 h1:QHX46sISpG2S03dPeZBgVIZp8dGagIaiu2FiVYvpCZI=
+github.com/quic-go/quic-go v0.53.0/go.mod h1:e68ZEaCdyviluZmy44P6Iey98v/Wfz6HCjQEm+l8zTY=
 github.com/refraction-networking/utls v1.7.3 h1:L0WRhHY7Oq1T0zkdzVZMR6zWZv+sXbHB9zcuvsAEqCo=
 github.com/refraction-networking/utls v1.7.3/go.mod h1:TUhh27RHMGtQvjQq+RyO11P6ZNQNBb3N0v7wsEjKAIQ=
 github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR38lUII=
@@ -224,8 +224,8 @@ github.com/xtls/reality v0.0.0-20250608132114-50752aec6bfb h1:X6ziJCMsFF8Ac/0F3W
 github.com/xtls/reality v0.0.0-20250608132114-50752aec6bfb/go.mod h1:yD47RN65bDLZgyHWMfFDiqlzrq4usDMt/Xzsk6tMbhw=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMkIYChggoBVQLcNC/At/rW+lhIluk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
-github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250621083653-57d5c6e4e5c1 h1:uDS4/Gdsh/5+WD46dz9bUy815U3aMxBbDaFmIneghhM=
-github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250621083653-57d5c6e4e5c1/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250624152928-372153f15af0 h1:mrAm9SzW6P/ro+lOYAl0ZVS3huGFjmZ+2TiL0NrWxu0=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250624152928-372153f15af0/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 go.etcd.io/bbolt v1.4.0-beta.0.0.20250613084717-fde6016c3c02 h1:fyZNOQneLWVVWTeVTruO3zL02GmpO8188JB74Oy2l20=
 go.etcd.io/bbolt v1.4.0-beta.0.0.20250613084717-fde6016c3c02/go.mod h1:nXZdfwGRl+8hFb3aoD2M2pnYwqfpahyK11Vlr5IM5Eg=
 go.opentelemetry.io/auto/sdk v1.1.0 h1:cH53jehLUN6UFLY71z+NDOiNJqDdPRaXzTel0sJySYA=

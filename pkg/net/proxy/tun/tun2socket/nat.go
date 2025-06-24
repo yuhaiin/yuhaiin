@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -107,6 +108,11 @@ func Start(opt *device.Opt) (*Nat, error) {
 		for {
 			n, err := opt.Device.Read(bufs, sizes)
 			if err != nil {
+				if errors.Is(err, syscall.ENOBUFS) {
+					log.Warn("tun device read failed", "err", err)
+					continue
+				}
+
 				log.Error("tun device read failed", "err", err)
 				return
 			}

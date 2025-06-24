@@ -89,8 +89,8 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 			return
 		}
 
-		var msg dnsmessage.Message
-		if err := msg.Unpack(buf[:n]); err != nil {
+		msg, err := BytesResponse(buf[:n]).Msg()
+		if err != nil {
 			continue
 		}
 

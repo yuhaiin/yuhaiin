@@ -22,6 +22,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Tools_GetInterface_FullMethodName = "/yuhaiin.tools.tools/get_interface"
 	Tools_Licenses_FullMethodName     = "/yuhaiin.tools.tools/licenses"
+	Tools_Log_FullMethodName          = "/yuhaiin.tools.tools/log"
 )
 
 // ToolsClient is the client API for Tools service.
@@ -30,6 +31,7 @@ const (
 type ToolsClient interface {
 	GetInterface(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Interfaces, error)
 	Licenses(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Licenses, error)
+	Log(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Log], error)
 }
 
 type toolsClient struct {
@@ -60,12 +62,32 @@ func (c *toolsClient) Licenses(ctx context.Context, in *emptypb.Empty, opts ...g
 	return out, nil
 }
 
+func (c *toolsClient) Log(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Log], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Tools_ServiceDesc.Streams[0], Tools_Log_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[emptypb.Empty, Log]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Tools_LogClient = grpc.ServerStreamingClient[Log]
+
 // ToolsServer is the server API for Tools service.
 // All implementations must embed UnimplementedToolsServer
 // for forward compatibility.
 type ToolsServer interface {
 	GetInterface(context.Context, *emptypb.Empty) (*Interfaces, error)
 	Licenses(context.Context, *emptypb.Empty) (*Licenses, error)
+	Log(*emptypb.Empty, grpc.ServerStreamingServer[Log]) error
 	mustEmbedUnimplementedToolsServer()
 }
 
@@ -81,6 +103,9 @@ func (UnimplementedToolsServer) GetInterface(context.Context, *emptypb.Empty) (*
 }
 func (UnimplementedToolsServer) Licenses(context.Context, *emptypb.Empty) (*Licenses, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Licenses not implemented")
+}
+func (UnimplementedToolsServer) Log(*emptypb.Empty, grpc.ServerStreamingServer[Log]) error {
+	return status.Errorf(codes.Unimplemented, "method Log not implemented")
 }
 func (UnimplementedToolsServer) mustEmbedUnimplementedToolsServer() {}
 func (UnimplementedToolsServer) testEmbeddedByValue()               {}
@@ -139,6 +164,17 @@ func _Tools_Licenses_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Tools_Log_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(emptypb.Empty)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ToolsServer).Log(m, &grpc.GenericServerStream[emptypb.Empty, Log]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Tools_LogServer = grpc.ServerStreamingServer[Log]
+
 // Tools_ServiceDesc is the grpc.ServiceDesc for Tools service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -155,6 +191,12 @@ var Tools_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Tools_Licenses_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "log",
+			Handler:       _Tools_Log_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "tools/tools.proto",
 }

@@ -140,8 +140,13 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 			return f.Resolver.Raw(ctx, req)
 		}
 
-		msg := f.newAnswerMessage(req, dnsmessage.RCodeSuccess,
-			&dnsmessage.PTRResource{PTR: dnsmessage.MustNewName(system.AbsDomain(domain))})
+		msg := f.newAnswerMessage(
+			req,
+			dnsmessage.RCodeSuccess,
+			&dnsmessage.PTRResource{
+				PTR: dnsmessage.MustNewName(system.AbsDomain(domain)),
+			},
+		)
 		return msg, nil
 
 	case TypeHTTPS:

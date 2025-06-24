@@ -56,8 +56,95 @@ type Response interface {
 type BytesResponse []byte
 
 func (b BytesResponse) Msg() (msg dnsmessage.Message, err error) {
-	if err := msg.Unpack(b); err != nil {
+	var p dnsmessage.Parser
+	if msg.Header, err = p.Start(b); err != nil {
 		return msg, err
+	}
+	if msg.Questions, err = p.AllQuestions(); err != nil {
+		return msg, err
+	}
+
+	for {
+		header, err := p.AnswerHeader()
+		if err != nil {
+			if err == dnsmessage.ErrSectionDone {
+				break
+			}
+			return msg, err
+		}
+
+		var resource dnsmessage.ResourceBody
+		switch header.Type {
+		case dnsmessage.TypeA:
+			a, err := p.AResource()
+			if err != nil {
+				return msg, err
+			}
+
+			resource = &a
+
+		case dnsmessage.TypeAAAA:
+			aaaa, err := p.AAAAResource()
+			if err != nil {
+				return msg, err
+			}
+
+			resource = &aaaa
+
+		default:
+			unknown, err := p.UnknownResource()
+			if err != nil {
+				return msg, err
+			}
+
+			resource = &unknown
+		}
+
+		msg.Answers = append(msg.Answers, dnsmessage.Resource{
+			Header: header,
+			Body:   resource,
+		})
+	}
+
+	// see: https://github.com/golang/net/blob/6e41caea7e521db69a7de02895624c195575ed63/dns/dnsmessage/message.go#L2062
+	// current the dnsmessage parse some MBox record will error, so we skip it now
+	for {
+		authorityHeader, err := p.AuthorityHeader()
+		if err != nil {
+			if err == dnsmessage.ErrSectionDone {
+				break
+			}
+			return msg, err
+		}
+		body, err := p.UnknownResource()
+		if err != nil {
+			return msg, err
+		}
+
+		msg.Authorities = append(msg.Authorities, dnsmessage.Resource{
+			Header: authorityHeader,
+			Body:   &body,
+		})
+	}
+
+	for {
+		additionalHeader, err := p.AdditionalHeader()
+		if err != nil {
+			if err == dnsmessage.ErrSectionDone {
+				break
+			}
+			return msg, err
+		}
+
+		body, err := p.UnknownResource()
+		if err != nil {
+			return msg, err
+		}
+
+		msg.Additionals = append(msg.Additionals, dnsmessage.Resource{
+			Header: additionalHeader,
+			Body:   &body,
+		})
 	}
 
 	return msg, nil

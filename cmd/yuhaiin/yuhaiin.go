@@ -21,6 +21,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -47,7 +48,7 @@ func run(args []string) error {
 		return err
 	}
 
-	setting := config.NewJsonDB(app.PathGenerator.Config(*path))
+	setting := config.NewJsonDB(tools.PathGenerator.Config(*path))
 
 	var grpcOpts []grpc.ServerOption
 

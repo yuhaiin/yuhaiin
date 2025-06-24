@@ -11,6 +11,7 @@ import "google/protobuf/go_features.proto";
 service tools {
   rpc get_interface(google.protobuf.Empty) returns (Interfaces);
   rpc licenses(google.protobuf.Empty) returns (Licenses);
+  rpc log(google.protobuf.Empty) returns (stream Log);
 }
 
 message Interfaces {
@@ -32,4 +33,8 @@ message License {
   string url = 2 [ json_name = "url" ];
   string license = 3 [ json_name = "license" ];
   string license_url = 4 [ json_name = "license_url" ];
+}
+
+message Log {
+  string log = 1 [ json_name = "log" ];
 }
