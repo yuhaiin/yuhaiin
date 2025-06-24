@@ -13,13 +13,13 @@ import (
 
 var ErrDecodeError = errors.New("decode error")
 
-// Config is a serialized Encrypted Client Hello (ECH) Config.
-type Config []byte
+// ECHConfig is a serialized Encrypted Client Hello (ECH) ECHConfig.
+type ECHConfig []byte
 
 type Key = tls.EncryptedClientHelloKey
 
 // Config returns a serialized Encrypted Client Hello (ECH) Config List.
-func ConfigList(configs []Config) ([]byte, error) {
+func ECHConfigList(configs []ECHConfig) ([]byte, error) {
 	b := cryptobyte.NewBuilder(nil)
 	b.AddUint16LengthPrefixed(func(c *cryptobyte.Builder) {
 		for _, cfg := range configs {
@@ -29,16 +29,16 @@ func ConfigList(configs []Config) ([]byte, error) {
 	return b.Bytes()
 }
 
-// ParseConfigList parses a serialized Encrypted Client Hello (ECH) Config List.
-func ParseConfigList(configList []byte) ([]ConfigSpec, error) {
+// ParseECHConfigList parses a serialized Encrypted Client Hello (ECH) Config List.
+func ParseECHConfigList(configList []byte) ([]ECHConfigSpec, error) {
 	s := cryptobyte.String(configList)
 	var ss cryptobyte.String
 	if !s.ReadUint16LengthPrefixed(&ss) {
 		return nil, ErrDecodeError
 	}
-	var list []ConfigSpec
+	var list []ECHConfigSpec
 	for !ss.Empty() {
-		spec, err := parseConfig(&ss)
+		spec, err := parseECHConfig(&ss)
 		if err != nil {
 			return nil, err
 		}
@@ -47,12 +47,12 @@ func ParseConfigList(configList []byte) ([]ConfigSpec, error) {
 	return list, nil
 }
 
-// NewConfig generates an Encrypted Client Hello (ECH) Config and a private key.
+// NewECHConfig generates an Encrypted Client Hello (ECH) Config and a private key.
 // It currently supports:
 //   - DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, ChaCha20Poly1305.
 //   - DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-256-GCM.
 //   - DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM.
-func NewConfig(id uint8, publicName []byte) (*ecdh.PrivateKey, Config, error) {
+func NewECHConfig(id uint8, publicName []byte) (*ecdh.PrivateKey, ECHConfig, error) {
 	if l := len(publicName); l == 0 || l > 255 {
 		return nil, nil, errors.New("invalid public name length")
 	}
@@ -60,7 +60,7 @@ func NewConfig(id uint8, publicName []byte) (*ecdh.PrivateKey, Config, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	c := ConfigSpec{
+	c := ECHConfigSpec{
 		Version:   0xfe0d,
 		ID:        id,
 		KEM:       0x0020, // DHKEM(X25519, HKDF-SHA256)
@@ -90,12 +90,12 @@ func NewConfig(id uint8, publicName []byte) (*ecdh.PrivateKey, Config, error) {
 }
 
 // Spec returns the structured version of cfg.
-func (cfg Config) Spec() (ConfigSpec, error) {
-	return parseConfig((*cryptobyte.String)(&cfg))
+func (cfg ECHConfig) Spec() (ECHConfigSpec, error) {
+	return parseECHConfig((*cryptobyte.String)(&cfg))
 }
 
-func parseConfig(s *cryptobyte.String) (ConfigSpec, error) {
-	var out ConfigSpec
+func parseECHConfig(s *cryptobyte.String) (ECHConfigSpec, error) {
+	var out ECHConfigSpec
 	if !s.ReadUint16(&out.Version) {
 		return out, ErrDecodeError
 	}
@@ -138,9 +138,9 @@ func parseConfig(s *cryptobyte.String) (ConfigSpec, error) {
 	return out, nil
 }
 
-// ConfigSpec represents an Encrypted Client Hello (ECH) Config. It is specified
+// ECHConfigSpec represents an Encrypted Client Hello (ECH) Config. It is specified
 // in Section 4 of https://datatracker.ietf.org/doc/html/draft-ietf-tls-esni/
-type ConfigSpec struct {
+type ECHConfigSpec struct {
 	PublicKey         []byte
 	CipherSuites      []CipherSuite
 	PublicName        []byte
@@ -157,7 +157,7 @@ type CipherSuite struct {
 
 // Bytes returns the serialized version of the Encrypted Client Hello (ECH)
 // Config.
-func (c ConfigSpec) Bytes() (Config, error) {
+func (c ECHConfigSpec) Bytes() (ECHConfig, error) {
 	if l := len(c.PublicName); l == 0 || l > 255 {
 		return nil, errors.New("invalid public name length")
 	}

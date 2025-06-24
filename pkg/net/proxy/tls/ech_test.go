@@ -20,7 +20,7 @@ func TestEch(t *testing.T) {
 	cert, err := sc.TlsCert()
 	assert.NoError(t, err)
 
-	private, config, err := NewConfig(0, []byte("www.example.com"))
+	private, config, err := NewECHConfig(0, []byte("www.example.com"))
 	assert.NoError(t, err)
 
 	lis, err := nettest.NewLocalListener("tcp")
@@ -64,7 +64,7 @@ func TestEch(t *testing.T) {
 		}
 	}()
 
-	configList, err := ConfigList([]Config{config})
+	configList, err := ECHConfigList([]ECHConfig{config})
 	assert.NoError(t, err)
 
 	rootPool := x509.NewCertPool()
@@ -90,10 +90,10 @@ func TestEch(t *testing.T) {
 
 func TestParse(t *testing.T) {
 	t.Run("parse client", func(t *testing.T) {
-		_, config, err := NewConfig(0, []byte("www.example.com"))
+		_, config, err := NewECHConfig(0, []byte("www.example.com"))
 		assert.NoError(t, err)
 
-		configList, err := ConfigList([]Config{config})
+		configList, err := ECHConfigList([]ECHConfig{config})
 		assert.NoError(t, err)
 
 		resp, err := parseEchConfigListOrConfig(config)

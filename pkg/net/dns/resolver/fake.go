@@ -117,9 +117,9 @@ func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code dnsmessage.RCod
 }
 
 func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	if req.Type != dnsmessage.TypeA &&
-		req.Type != dnsmessage.TypeAAAA &&
-		req.Type != dnsmessage.TypePTR && req.Type != TypeHTTPS {
+	switch req.Type {
+	case dnsmessage.TypeA, dnsmessage.TypeAAAA, dnsmessage.TypePTR, TypeHTTPS:
+	default:
 		return f.Resolver.Raw(ctx, req)
 	}
 
@@ -127,21 +127,25 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 		return f.newAnswerMessage(req, dnsmessage.RCodeNameError, nil), nil
 	}
 
-	if req.Type == dnsmessage.TypePTR {
+	domain := unsafe.String(unsafe.SliceData(req.Name.Data[0:req.Name.Length-1]), req.Name.Length-1)
+
+	if net.ParseIP(domain) != nil {
+		return f.Resolver.Raw(ctx, req)
+	}
+
+	switch req.Type {
+	case dnsmessage.TypePTR:
 		domain, err := f.LookupPtr(req.Name.String())
 		if err != nil {
 			return f.Resolver.Raw(ctx, req)
 		}
 
-		msg := f.newAnswerMessage(req, dnsmessage.RCodeSuccess, &dnsmessage.PTRResource{PTR: dnsmessage.MustNewName(system.AbsDomain(domain))})
-
+		msg := f.newAnswerMessage(req, dnsmessage.RCodeSuccess,
+			&dnsmessage.PTRResource{PTR: dnsmessage.MustNewName(system.AbsDomain(domain))})
 		return msg, nil
-	}
 
-	domain := unsafe.String(unsafe.SliceData(req.Name.Data[0:req.Name.Length-1]), req.Name.Length-1)
-
-	// wait https://github.com/golang/go/issues/43790 implement
-	if req.Type == TypeHTTPS {
+	case TypeHTTPS:
+		// wait https://github.com/golang/go/issues/43790 implement
 		msg, err := f.Resolver.Raw(ctx, req)
 		if err != nil {
 			return msg, err
@@ -152,22 +156,16 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 
 		appendIPHint(msg, []netip.Addr{ipv4}, []netip.Addr{ipv6})
 		return msg, nil
-	}
 
-	if net.ParseIP(domain) != nil {
-		return f.Resolver.Raw(ctx, req)
-	}
-
-	if req.Type == dnsmessage.TypeAAAA {
+	case dnsmessage.TypeAAAA:
 		if !configuration.IPv6.Load() {
 			return f.newAnswerMessage(req, dnsmessage.RCodeSuccess, nil), nil
 		}
 
 		ip := f.ipv6.GetFakeIPForDomain(domain)
 		return f.newAnswerMessage(req, dnsmessage.RCodeSuccess, &dnsmessage.AAAAResource{AAAA: ip.As16()}), nil
-	}
 
-	if req.Type == dnsmessage.TypeA {
+	case dnsmessage.TypeA:
 		ip := f.ipv4.GetFakeIPForDomain(domain)
 		return f.newAnswerMessage(req, dnsmessage.RCodeSuccess, &dnsmessage.AResource{A: ip.As4()}), nil
 	}

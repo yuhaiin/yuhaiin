@@ -131,11 +131,14 @@ func TestDOH(t *testing.T) {
 			continue
 		}
 		data := v.Body.(*dnsmessage.UnknownResource).Data
-		https, err := unpackHTTPSResource(data, 0, uint16(len(data)))
+		err := unpackSVCBResource(data, func(k ParamKey, v []byte) error {
+			t.Log(k, v)
+			return nil
+		})
 		assert.NoError(t, err)
-		t.Log(https.GoString())
+
+		t.Log(GetECHConfig(data))
 	}
-	t.Log(resp.AppendPack(nil))
 	t.Log(d.LookupIP(t.Context(), "auth.openai.com"))
 }
 

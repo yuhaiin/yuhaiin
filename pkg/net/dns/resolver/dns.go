@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -586,33 +585,9 @@ func (r *rawEntry) AAAA() []net.IP {
 	return r.ipv6
 }
 
-func removeIPHint(name dnsmessage.Name, msg dnsmessage.Message) [][]dnsmessage.Resource {
-	var ipHints [][]dnsmessage.Resource
-	for _, v := range msg.Answers {
-		if v.Header.Type != TypeHTTPS {
-			continue
-		}
-
-		unknownResource, ok := v.Body.(*dnsmessage.UnknownResource)
-		if !ok {
-			slog.Error("is not unknown resource skip", "type", v.Header.Type)
-			continue
-		}
-
-		if unknownResource.Type != TypeHTTPS {
-			continue
-		}
-
-		unknownResource.Data, ipHints = removeIPHintFromResource(name, unknownResource.Data, v.Header.TTL)
-	}
-
-	return ipHints
-}
-
 func appendIPHint(msg dnsmessage.Message, ipv4, ipv6 []netip.Addr) {
-	bytes := ipHintParams(ipv4, ipv6)
-
-	if len(bytes) == 0 {
+	ipv4Hint, ipv6Hint := ipHintParams(ipv4, ipv6)
+	if len(ipv4Hint) == 0 && len(ipv6Hint) == 0 {
 		return
 	}
 
@@ -635,28 +610,21 @@ func appendIPHint(msg dnsmessage.Message, ipv4, ipv6 []netip.Addr) {
 			continue
 		}
 
-		params := ipHintParams(ipv4, ipv6)
-		if len(params) == 0 {
-			continue
-		}
-
 		msg.Answers[i] = dnsmessage.Resource{
 			Header: v.Header,
 			Body: &dnsmessage.UnknownResource{
 				Type: TypeHTTPS,
-				Data: appendIPHintIndex(unknownResource.Data, params),
+				Data: appendIPHintIndex(unknownResource.Data, ipv4Hint, ipv6Hint),
 			},
 		}
 		break
 	}
 }
 
-func ipHintParams(ipv4, ipv6 []netip.Addr) []httpsParam {
+func ipHintParams(ipv4, ipv6 []netip.Addr) (ipv4Hint, ipv6Hint []byte) {
 	if len(ipv4) == 0 && len(ipv6) == 0 {
-		return nil
+		return nil, nil
 	}
-
-	resp := make([]httpsParam, 0, 2)
 
 	if len(ipv4) > 0 {
 		ipv4Len := len(ipv4) * 4
@@ -671,10 +639,7 @@ func ipHintParams(ipv4, ipv6 []netip.Addr) []httpsParam {
 			copy(v4bytes[4+i*4:], bytes[:])
 		}
 
-		resp = append(resp, httpsParam{
-			Key:  4,
-			data: v4bytes,
-		})
+		ipv4Hint = v4bytes
 	}
 
 	if len(ipv6) > 0 {
@@ -690,21 +655,25 @@ func ipHintParams(ipv4, ipv6 []netip.Addr) []httpsParam {
 			copy(v6bytes[4+i*16:], bytes[:])
 		}
 
-		resp = append(resp, httpsParam{
-			Key:  6,
-			data: v6bytes,
-		})
+		ipv6Hint = v6bytes
 	}
 
-	return resp
+	return ipv4Hint, ipv6Hint
 }
 
-type httpsParam struct {
-	Key  uint16
-	data []byte
+var bytesArrayPool = sync.Pool{New: func() any { return [][]byte{} }}
+
+func getBytesArray() [][]byte {
+	return bytesArrayPool.Get().([][]byte)
 }
 
-func appendIPHintIndex(msg []byte, data []httpsParam) []byte {
+func putBytesArray(arr [][]byte) {
+	arr = arr[:0]
+	//nolint:staticcheck
+	bytesArrayPool.Put(arr)
+}
+
+func appendIPHintIndex(msg []byte, ipv4Hint, ipv6Hint []byte) []byte {
 	endOff := len(msg)
 	_, off, err := unpackUint16(msg, 0)
 	if err != nil {
@@ -716,6 +685,20 @@ func appendIPHintIndex(msg []byte, data []httpsParam) []byte {
 	}
 
 	starOffset := off
+
+	length := starOffset
+	v4len := len(ipv4Hint)
+	if v4len > 0 {
+		length += v4len
+	}
+	v6len := len(ipv6Hint)
+	if v6len > 0 {
+		length += v6len
+	}
+
+	beforeIpv4 := getBytesArray()
+	beforeIpv6 := getBytesArray()
+	afterIpv6 := getBytesArray()
 
 	for off < endOff {
 		start := off
@@ -732,10 +715,15 @@ func appendIPHintIndex(msg []byte, data []httpsParam) []byte {
 		}
 		off += int(l)
 
-		data = append(data, httpsParam{
-			Key:  k,
-			data: msg[start:off],
-		})
+		length += off - start
+
+		if k <= 4 {
+			beforeIpv4 = append(beforeIpv4, msg[start:off])
+		} else if k <= 6 {
+			beforeIpv6 = append(beforeIpv6, msg[start:off])
+		} else {
+			afterIpv6 = append(afterIpv6, msg[start:off])
+		}
 	}
 
 	// SvcParamKeys SHALL appear in increasing numeric order.
@@ -745,22 +733,58 @@ func appendIPHintIndex(msg []byte, data []httpsParam) []byte {
 	// 	the SvcParamValue for a SvcParamKey does not have the expected format.
 	//
 	// see: https://datatracker.ietf.org/doc/html/rfc9460#name-overview-of-the-svcb-rr
-	slices.SortFunc(data, func(a, b httpsParam) int { return cmp.Compare(a.Key, b.Key) })
-
-	length := starOffset
-	for _, v := range data {
-		length += len(v.data)
-	}
-
 	resp := make([]byte, 0, length)
 
 	resp = append(resp, msg[:starOffset]...)
 
-	for _, v := range data {
-		resp = append(resp, v.data...)
+	for _, v := range beforeIpv4 {
+		resp = append(resp, v...)
 	}
 
+	if v4len > 0 {
+		resp = append(resp, ipv4Hint...)
+	}
+
+	for _, v := range beforeIpv6 {
+		resp = append(resp, v...)
+	}
+
+	if v6len > 0 {
+		resp = append(resp, ipv6Hint...)
+	}
+
+	for _, v := range afterIpv6 {
+		resp = append(resp, v...)
+	}
+
+	putBytesArray(beforeIpv4)
+	putBytesArray(beforeIpv6)
+	putBytesArray(afterIpv6)
+
 	return resp
+}
+
+func removeIPHint(name dnsmessage.Name, msg dnsmessage.Message) [][]dnsmessage.Resource {
+	var ipHints [][]dnsmessage.Resource
+	for _, v := range msg.Answers {
+		if v.Header.Type != TypeHTTPS {
+			continue
+		}
+
+		unknownResource, ok := v.Body.(*dnsmessage.UnknownResource)
+		if !ok {
+			slog.Error("is not unknown resource skip", "type", v.Header.Type)
+			continue
+		}
+
+		if unknownResource.Type != TypeHTTPS {
+			continue
+		}
+
+		unknownResource.Data, ipHints = removeIPHintFromResource(name, unknownResource.Data, v.Header.TTL)
+	}
+
+	return ipHints
 }
 
 func removeIPHintFromResource(name dnsmessage.Name, msg []byte, ttl uint32) (result []byte, ipHint [][]dnsmessage.Resource) {

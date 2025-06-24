@@ -92,6 +92,7 @@ func (pool) PutBytes(b []byte) {
 	// debug.Put(b)
 
 	l := prevLogBase2(uint32(cap(b)))
+	//nolint:staticcheck
 	buffers[l].Put(b) //lint:ignore SA6002 ignore temporarily
 }
 
