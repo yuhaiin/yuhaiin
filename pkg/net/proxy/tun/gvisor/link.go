@@ -138,6 +138,7 @@ func (e *Endpoint) Forward() {
 
 		if err != nil {
 			if errors.Is(err, syscall.ENOBUFS) {
+				log.Warn("dev read failed", "err", err)
 				continue
 			}
 

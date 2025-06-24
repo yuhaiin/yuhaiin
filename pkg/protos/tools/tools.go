@@ -2,10 +2,15 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"net"
+	"os"
+	"path/filepath"
 
 	"github.com/Asutorufa/yuhaiin/licenses"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	grpc "google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -73,3 +78,32 @@ func (t *Tools) Licenses(context.Context, *emptypb.Empty) (*Licenses, error) {
 		Android: toLicenses(licenses.Android()),
 	}.Build(), nil
 }
+
+func (t *Tools) Log(_ *emptypb.Empty, stream grpc.ServerStreamingServer[Log]) error {
+	return log.Tail(stream.Context(), PathGenerator.Log(t.db.Dir()), func(line string) {
+		if err := stream.Send(Log_builder{
+			Log: proto.String(line),
+		}.Build()); err != nil {
+			return
+		}
+	})
+}
+
+var PathGenerator = pathGenerator{}
+
+type pathGenerator struct{}
+
+func (p pathGenerator) Lock(dir string) string   { return p.makeDir(filepath.Join(dir, "LOCK")) }
+func (p pathGenerator) Node(dir string) string   { return p.makeDir(filepath.Join(dir, "node.json")) }
+func (p pathGenerator) Config(dir string) string { return p.makeDir(filepath.Join(dir, "config.json")) }
+func (p pathGenerator) Log(dir string) string {
+	return p.makeDir(filepath.Join(dir, "log", "yuhaiin.log"))
+}
+func (pathGenerator) makeDir(s string) string {
+	if _, err := os.Stat(s); errors.Is(err, os.ErrNotExist) {
+		_ = os.MkdirAll(filepath.Dir(s), os.ModePerm)
+	}
+
+	return s
+}
+func (p pathGenerator) Cache(dir string) string { return p.makeDir(filepath.Join(dir, "cache")) }

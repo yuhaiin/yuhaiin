@@ -94,7 +94,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	cache := so.Cache
 	if cache == nil {
-		db, err := OpenBboltDB(PathGenerator.Cache(so.ConfigPath))
+		db, err := OpenBboltDB(tools.PathGenerator.Cache(so.ConfigPath))
 		if err != nil {
 			return nil, fmt.Errorf("init bbolt cache failed: %w", err)
 		}
@@ -107,7 +107,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	}
 
 	chore := chore.NewChore(so.ChoreConfig, func(s *pc.Setting) {
-		log.Set(s.GetLogcat(), PathGenerator.Log(so.ConfigPath))
+		log.Set(s.GetLogcat(), tools.PathGenerator.Log(so.ConfigPath))
 		configuration.IgnoreDnsErrorLog.Store(s.GetLogcat().GetIgnoreDnsError())
 		configuration.IgnoreTimeoutErrorLog.Store(s.GetLogcat().GetIgnoreTimeoutError())
 
@@ -188,7 +188,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	log.Info("config", "path", so.ConfigPath)
 
 	// proxy access point/endpoint
-	nodeManager := AddCloser(closers, "node_manager", node.NewManager(PathGenerator.Node(so.ConfigPath)))
+	nodeManager := AddCloser(closers, "node_manager", node.NewManager(tools.PathGenerator.Node(so.ConfigPath)))
 	register.RegisterPoint(func(x *protocol.Set, p netapi.Proxy) (netapi.Proxy, error) {
 		return node.NewSet(x, nodeManager)
 	})

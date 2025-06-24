@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/dns/dnsmessage"
@@ -120,6 +121,7 @@ func TestDOH(t *testing.T) {
 		Name: dnsmessage.MustNewName("www.google.com."),
 		Type: dnsmessage.TypeA,
 	}))
+
 	resp, err := d.Raw(context.TODO(), dnsmessage.Question{
 		Name: dnsmessage.MustNewName("cdn.v2ex.com."),
 		Type: 65,
@@ -149,4 +151,20 @@ func TestGetURL(t *testing.T) {
 
 	t.Log(getUrlAndHost("https://"))
 	t.Log(getUrlAndHost("/dns-query"))
+}
+
+func TestSkipFailed(t *testing.T) {
+	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
+	r, err := New(Config{
+		Type:   dns.Type_doh,
+		Host:   "cloudflare-dns.com",
+		Dialer: s5Dialer,
+	})
+	assert.NoError(t, err)
+	defer r.Close()
+
+	t.Log(r.Raw(context.TODO(), dnsmessage.Question{
+		Name: dnsmessage.MustNewName("upos-sz-mirror08h.bilivideo.com."),
+		Type: TypeHTTPS,
+	}))
 }
