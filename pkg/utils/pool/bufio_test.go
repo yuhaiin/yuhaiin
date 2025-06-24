@@ -12,7 +12,8 @@ import (
 func TestBufioReaderPool(t *testing.T) {
 	x := bytes.NewBuffer([]byte{})
 
-	io.CopyN(x, rand.Reader, int64(MaxSegmentSize)*5)
+	_, err := io.CopyN(x, rand.Reader, int64(MaxSegmentSize)*5)
+	assert.NoError(t, err)
 
 	cc := make([]byte, x.Len())
 
@@ -21,7 +22,8 @@ func TestBufioReaderPool(t *testing.T) {
 	r := GetBufioReader(x, MaxSegmentSize)
 
 	yy := bytes.NewBuffer([]byte{})
-	io.Copy(yy, r)
+	_, err = io.Copy(yy, r)
+	assert.NoError(t, err)
 
 	PutBufioReader(r)
 
@@ -30,7 +32,8 @@ func TestBufioReaderPool(t *testing.T) {
 	r = GetBufioReader(yy, MaxSegmentSize)
 
 	zz := bytes.NewBuffer([]byte{})
-	io.Copy(zz, r)
+	_, err = io.Copy(zz, r)
+	assert.NoError(t, err)
 
 	PutBufioReader(r)
 
@@ -47,7 +50,8 @@ func TestXxx(t *testing.T) {
 
 	t.Log(n, br.Buffered())
 
-	br.UnreadByte()
+	err = br.UnreadByte()
+	assert.NoError(t, err)
 
 	t.Log(n, br.Buffered())
 }

@@ -222,7 +222,7 @@ func NewTlsAutoServer(c *listener.TlsAuto, ii netapi.Listener) (netapi.Listener,
 	if c.GetEch().GetEnable() {
 		config.EncryptedClientHelloKeys = []tls.EncryptedClientHelloKey{
 			{
-				Config:     Config(c.GetEch().GetConfig()),
+				Config:     ECHConfig(c.GetEch().GetConfig()),
 				PrivateKey: []byte(c.GetEch().GetPrivateKey()),
 			},
 		}
@@ -287,11 +287,11 @@ func ParseTLSConfig(t *protocol.TlsConfig) *tls.Config {
 }
 
 func parseEchConfigListOrConfig(echConfig []byte) ([]byte, error) {
-	_, err := ParseConfigList(echConfig)
+	_, err := ParseECHConfigList(echConfig)
 	if err != nil {
-		_, err = Config(echConfig).Spec()
+		_, err = ECHConfig(echConfig).Spec()
 		if err == nil {
-			echConfig, err = ConfigList([]Config{Config(echConfig)})
+			echConfig, err = ECHConfigList([]ECHConfig{ECHConfig(echConfig)})
 		}
 	}
 	if err != nil {

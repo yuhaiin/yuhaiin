@@ -2,13 +2,19 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 )
 
 const darwinLaunchdPlist = `
@@ -47,6 +53,27 @@ func restart(args []string) error {
 	if err := stop(args); err != nil {
 		return err
 	}
+
+	startTime := time.Now()
+	for {
+		out, err := exec.Command("launchctl", "list", service).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("error running launchctl list %s: %v, %s", service, err, out)
+		}
+
+		pid := getPid(out)
+		if pid == -1 {
+			break
+		}
+
+		if time.Since(startTime) > time.Minute {
+			slog.Error("timeout waiting for service to stop, please check manually")
+		} else {
+			slog.Info("check service is running, wait for 1 second", "pid", pid)
+			time.Sleep(time.Second)
+		}
+	}
+
 	return start(args)
 }
 
@@ -210,4 +237,34 @@ func sameFile(path1, path2 string) (bool, error) {
 		return false, fmt.Errorf("EvalSymlinks(%s): %w", path2, err)
 	}
 	return dst1 == dst2, nil
+}
+
+func getPid(data []byte) int {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+
+	for scanner.Scan() {
+		text := scanner.Text()
+		text = strings.TrimSpace(text)
+		text = strings.TrimSuffix(text, ";")
+		fields := strings.Split(text, "=")
+		if len(fields) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(fields[0])
+		key = strings.TrimPrefix(key, "\"")
+		key = strings.TrimSuffix(key, "\"")
+		value := strings.TrimSpace(fields[1])
+		value = strings.TrimPrefix(value, "\"")
+		value = strings.TrimSuffix(value, "\"")
+
+		if strings.ToLower(key) == "pid" {
+			pid, err := strconv.Atoi(value)
+			if err != nil {
+				continue
+			}
+			return pid
+		}
+	}
+
+	return -1
 }

@@ -108,7 +108,7 @@ func generateTlsAuthCa(v *cf.Transport) error {
 
 		var id [1]byte
 		_, _ = rand.Read(id[:])
-		private, config, err := tls.NewConfig(id[0], []byte(ech.GetOuterSNI()))
+		private, config, err := tls.NewECHConfig(id[0], []byte(ech.GetOuterSNI()))
 		if err != nil {
 			return err
 		}
