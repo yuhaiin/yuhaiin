@@ -4,7 +4,6 @@ import (
 	context "context"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"os"
 	"time"
@@ -104,7 +103,7 @@ func (c *closer) Close() error {
 }
 
 func Start(unixPath string, db *bbolt.Cache) (io.Closer, error) {
-	slog.Info("start kv server", "path", unixPath)
+	log.Info("start kv server", "path", unixPath)
 	lis, err := net.ListenUnix("unix", &net.UnixAddr{Name: unixPath, Net: "unix"})
 	if err != nil {
 		return nil, err

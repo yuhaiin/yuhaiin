@@ -109,8 +109,8 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 
 	process, pid, uid := store.GetProcess()
 
-	relay.Relay(meta.Src, remote, slog.Any("dst", dst), slog.Any("src", store.Source),
-		slog.Any("process", process), slog.Any("pid", pid), slog.Any("uid", uid))
+	relay.Relay(meta.Src, remote, "dst", dst, "src", store.Source,
+		"process", process, "pid", pid, "uid", uid)
 
 	return nil
 }

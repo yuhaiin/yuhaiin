@@ -2,7 +2,6 @@ package yuhaiin
 
 import (
 	"encoding/binary"
-	"log/slog"
 	"math"
 	"path/filepath"
 	"sync"
@@ -137,7 +136,7 @@ func (s *storeImpl) GetStringMap(key string) map[string]string {
 
 	var resp map[string]string
 	if err := json.Unmarshal(bytes, &resp); err != nil {
-		log.Error("unmarshal string map failed", slog.String("key", key), slog.Any("err", err))
+		log.Error("unmarshal string map failed", "key", key, "err", err)
 		return nil
 	}
 
@@ -160,7 +159,7 @@ func CloseStore() {
 	stores.Range(func(k string, v Store) bool {
 		stores.Delete(k)
 		if err := v.Close(); err != nil {
-			log.Error("close store failed", slog.String("prefix", k), slog.Any("err", err))
+			log.Error("close store failed", "prefix", k, "err", err)
 		}
 		return true
 	})
@@ -194,7 +193,7 @@ func (b *configDB[T]) initSetting() {
 	if len(s) > 0 {
 		err := proto.Unmarshal(s, config)
 		if err != nil {
-			log.Error("unmarshal failed", slog.Any("err", err))
+			log.Error("unmarshal failed", "err", err)
 		}
 	}
 

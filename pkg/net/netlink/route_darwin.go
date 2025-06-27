@@ -2,7 +2,6 @@ package netlink
 
 import (
 	"fmt"
-	"log/slog"
 	"net"
 	"net/netip"
 	"os"
@@ -79,25 +78,36 @@ func Route(options *Options) (close func(), err error) {
 			return nil, err
 		}
 	}
+	networkService := options.Platform.Darwin.NetworkService
+	if networkService == "" {
+		hp, err := networksetup.GetDefaultHardwarePort()
+		if err != nil {
+			log.Error("get default hardware port failed", "err", err)
+		} else {
+			log.Info("get default hardware port", "device", hp)
+		}
 
-	if options.Platform.Darwin.NetworkService != "" {
-		currentDNS, err := networksetup.ListAllDNSServers(options.Platform.Darwin.NetworkService)
+		networkService = hp.Device
+	}
+
+	if networkService != "" {
+		currentDNS, err := networksetup.ListAllDNSServers(networkService)
 		if err == nil {
 			if len(currentDNS) == 0 {
 				currentDNS = nil
 			}
 
 			close = func() {
-				if err := networksetup.SetDNSServers(options.Platform.Darwin.NetworkService, currentDNS); err != nil {
-					log.Error("set dns failed", "err", err, "service", options.Platform.Darwin.NetworkService)
+				if err := networksetup.SetDNSServers(networkService, currentDNS); err != nil {
+					log.Error("set dns failed", "err", err, "service", networkService)
 				}
 			}
 		} else {
-			log.Error("list all dns servers failed", "err", err, "service", options.Platform.Darwin.NetworkService)
+			log.Error("list all dns servers failed", "err", err, "service", networkService)
 		}
 
-		if err := networksetup.SetDNSServers(options.Platform.Darwin.NetworkService, dns); err != nil {
-			log.Error("set dns failed", "err", err, "service", options.Platform.Darwin.NetworkService)
+		if err := networksetup.SetDNSServers(networkService, dns); err != nil {
+			log.Error("set dns failed", "err", err, "service", networkService)
 		}
 	}
 
@@ -112,7 +122,7 @@ func Route(options *Options) (close func(), err error) {
 			err = addRoute(v, options.V6Address().Addr())
 		}
 		if err != nil {
-			log.Error("add route failed", slog.Any("err", err))
+			log.Error("add route failed", "err", err)
 		}
 	}
 

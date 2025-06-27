@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"log/slog"
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -25,7 +24,7 @@ func init() {
 				return false
 			}
 
-			log.Error("check mark symbol failed", slog.Any("err", err))
+			log.Error("check mark symbol failed", "err", err)
 		}
 
 		return err == nil
