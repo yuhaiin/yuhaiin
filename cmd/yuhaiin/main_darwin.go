@@ -8,13 +8,14 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 const darwinLaunchdPlist = `
@@ -67,9 +68,9 @@ func restart(args []string) error {
 		}
 
 		if time.Since(startTime) > time.Minute {
-			slog.Error("timeout waiting for service to stop, please check manually")
+			log.Error("timeout waiting for service to stop, please check manually")
 		} else {
-			slog.Info("check service is running, wait for 1 second", "pid", pid)
+			log.Info("check service is running, wait for 1 second", "pid", pid)
 			time.Sleep(time.Second)
 		}
 	}

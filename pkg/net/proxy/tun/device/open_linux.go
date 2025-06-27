@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	wun "github.com/tailscale/wireguard-go/tun"
 )
@@ -24,7 +25,7 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Tun, error) {
 		}
 
 		if err := netlink.SetNoqueue(sc.Name); err != nil {
-			slog.Warn("set noqueue failed", slog.String("name", sc.Name), slog.Any("err", err))
+			log.Warn("set noqueue failed", slog.String("name", sc.Name), slog.Any("err", err))
 		}
 
 		if IsGSOEnabled(wd) {

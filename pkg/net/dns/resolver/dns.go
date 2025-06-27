@@ -685,7 +685,7 @@ func appendIPHint(msg dnsmessage.Message, ipv4, ipv6 []netip.Addr) {
 
 		unknownResource, ok := v.Body.(*dnsmessage.UnknownResource)
 		if !ok {
-			slog.Error("is not unknown resource skip", "type", v.Header.Type)
+			log.Error("is not unknown resource skip", "type", v.Header.Type)
 			continue
 		}
 
@@ -860,7 +860,7 @@ func removeIPHint(name dnsmessage.Name, msg dnsmessage.Message) [][]dnsmessage.R
 
 		unknownResource, ok := v.Body.(*dnsmessage.UnknownResource)
 		if !ok {
-			slog.Error("is not unknown resource skip", "type", v.Header.Type)
+			log.Error("is not unknown resource skip", "type", v.Header.Type)
 			continue
 		}
 
@@ -913,7 +913,7 @@ func removeIPHintFromResource(name dnsmessage.Name, msg []byte, ttl uint32) (res
 
 		if ParamKey(k) == ParamIPv4Hint || ParamKey(k) == ParamIPv6Hint {
 			ips := splitIpHint(msg[start+4:end], ParamKey(k) == ParamIPv6Hint)
-			slog.Info("remove ip hint",
+			log.Info("remove ip hint",
 				"name", name.String(),
 				"key", ParamKey(k),
 				"value", ips,

@@ -6,10 +6,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
@@ -162,7 +162,7 @@ func (c *PacketConn) flush(first []byte, buffer *pool.Buffer, buffSize int) {
 	_, err := c.BufioConn.Write(buf)
 	if err != nil {
 		c.cancel(err)
-		slog.Error("write to failed", "err", err)
+		log.Error("write to failed", "err", err)
 	}
 }
 

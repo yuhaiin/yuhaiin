@@ -1,7 +1,6 @@
 package yuhaiin
 
 import (
-	"log/slog"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -42,7 +41,7 @@ func FakeDnsCidr(f func(string)) {
 		return nil
 	})
 	if err != nil {
-		log.Error("view resolver db failed", slog.Any("err", err))
+		log.Error("view resolver db failed", "err", err)
 	}
 }
 
@@ -53,7 +52,7 @@ func IsIPv6() bool {
 		return nil
 	})
 	if err != nil {
-		log.Error("view chore db failed", slog.Any("err", err))
+		log.Error("view chore db failed", "err", err)
 	}
 
 	return ipv6

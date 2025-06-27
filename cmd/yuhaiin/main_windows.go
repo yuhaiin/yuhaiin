@@ -228,6 +228,7 @@ func stop(args []string) error {
 	tick := time.NewTicker(timeDuration)
 	defer tick.Stop()
 
+_out:
 	for status.State != svc.Stopped {
 		select {
 		case <-tick.C:
@@ -236,7 +237,7 @@ func stop(args []string) error {
 				return err
 			}
 		case <-timeout:
-			break
+			break _out
 		}
 	}
 

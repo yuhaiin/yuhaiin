@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/netip"
 	"os"
@@ -237,7 +236,7 @@ func NewBpfTcp() *BpfTcp {
 	b := &BpfTcp{}
 
 	if _, err := exec.LookPath("bpftrace"); err != nil {
-		slog.Warn("bpftrace not found", "err", err)
+		log.Warn("bpftrace not found", "err", err)
 		return b
 	}
 
