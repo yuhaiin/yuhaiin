@@ -15,7 +15,7 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20250608132114-50752aec6bfb
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250624152928-372153f15af0
-	go.etcd.io/bbolt v1.4.0-beta.0.0.20250613084717-fde6016c3c02
+	go.etcd.io/bbolt v1.4.2
 	golang.org/x/crypto v0.39.0
 	golang.org/x/mobile v0.0.0-20250606033058-a2a15c67f36f
 	golang.org/x/net v0.41.0

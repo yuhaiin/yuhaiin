@@ -167,6 +167,9 @@ func (s *Route) Dispatch(ctx context.Context, host netapi.Address) (netapi.Addre
 	return result.Addr, nil
 }
 
+// Search
+//
+// Deprecated: use [Matchers] instead
 func (s *Route) Search(ctx context.Context, addr netapi.Address) bypass.ModeEnum {
 	mode, ok := s.customTrie.Load().trie.Search(ctx, addr)
 	if ok {
@@ -365,6 +368,8 @@ func (s *Route) getResolverFallback(mode bypass.ModeEnum) string {
 		return s.config.GetProxyResolver()
 	case bypass.Mode_direct:
 		return s.config.GetDirectResolver()
+	case bypass.Mode_block:
+		return bypass.Mode_block.String()
 	}
 
 	return ""
@@ -373,7 +378,14 @@ func (s *Route) getResolverFallback(mode bypass.ModeEnum) string {
 func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 	host := netapi.ParseAddressPort("", domain, 0)
 	netapi.GetContext(ctx).Resolver.Resolver = trie.SkipResolver
-	mode := s.Search(ctx, host)
+
+	var mode bypass.ModeEnum
+	if s.config.GetEnabledV2() && s.ms != nil {
+		mode = s.ms.Match(ctx, host)
+	} else {
+		mode = s.Search(ctx, host)
+	}
+
 	if mode.Mode() == bypass.Mode_block {
 		s.dumpProcess(ctx, "udp", "tcp")
 		s.RejectHistory.Push(ctx, "dns", domain)

@@ -167,4 +167,8 @@ func TestSkipFailed(t *testing.T) {
 		Name: dnsmessage.MustNewName("upos-sz-mirror08h.bilivideo.com."),
 		Type: TypeHTTPS,
 	}))
+	t.Log(r.Raw(context.TODO(), dnsmessage.Question{
+		Name: dnsmessage.MustNewName("setup.fe2.apple-dns.net."),
+		Type: TypeHTTPS,
+	}))
 }

@@ -107,7 +107,18 @@ func (e ErrorResolver) LookupIP(_ context.Context, domain string, opts ...func(*
 }
 func (e ErrorResolver) Close() error { return nil }
 func (e ErrorResolver) Raw(_ context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	return dnsmessage.Message{}, e(req.Name.String())
+	return dnsmessage.Message{
+		Header: dnsmessage.Header{
+			Response:           true,
+			OpCode:             0,
+			Authoritative:      false,
+			Truncated:          false,
+			RecursionDesired:   true,
+			RecursionAvailable: true,
+			RCode:              dnsmessage.RCodeSuccess,
+		},
+		Questions: []dnsmessage.Question{req},
+	}, nil
 }
 
 // dnsConn is a net.PacketConn suitable for returning from

@@ -166,16 +166,42 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 		if !configuration.IPv6.Load() {
 			return f.newAnswerMessage(req, dnsmessage.RCodeSuccess, nil), nil
 		}
+		msg, err := f.Resolver.Raw(ctx, req)
+		if err != nil {
+			return dnsmessage.Message{}, err
+		}
+
+		if !f.existAnswer(msg, dnsmessage.TypeAAAA) {
+			return msg, nil
+		}
 
 		ip := f.ipv6.GetFakeIPForDomain(domain)
 		return f.newAnswerMessage(req, dnsmessage.RCodeSuccess, &dnsmessage.AAAAResource{AAAA: ip.As16()}), nil
 
 	case dnsmessage.TypeA:
+		msg, err := f.Resolver.Raw(ctx, req)
+		if err != nil {
+			return dnsmessage.Message{}, err
+		}
+
+		if !f.existAnswer(msg, dnsmessage.TypeA) {
+			return msg, nil
+		}
+
 		ip := f.ipv4.GetFakeIPForDomain(domain)
 		return f.newAnswerMessage(req, dnsmessage.RCodeSuccess, &dnsmessage.AResource{A: ip.As4()}), nil
 	}
 
 	return f.Resolver.Raw(ctx, req)
+}
+
+func (f *FakeDNS) existAnswer(msg dnsmessage.Message, t dnsmessage.Type) bool {
+	for _, answer := range msg.Answers {
+		if answer.Header.Type == t {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *FakeDNS) GetDomainFromIP(ip netip.Addr) (string, bool) {
