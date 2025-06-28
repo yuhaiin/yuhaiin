@@ -18,7 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/ringbuffer"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"golang.org/x/net/dns/dnsmessage"
+	dnsmessage "github.com/miekg/dns"
 )
 
 type dnsServer struct {
@@ -231,28 +231,28 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 		ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
 	}
 
-	var parse dnsmessage.Parser
-	header, err := parse.Start(req.Question)
-	if err != nil {
+	var qmsg dnsmessage.Msg
+	if err := qmsg.Unpack(req.Question); err != nil {
 		return fmt.Errorf("dns server parse failed: %w", err)
 	}
 
-	question, err := parse.Question()
-	if err != nil {
-		return fmt.Errorf("dns server parse failed: %w", err)
+	if len(qmsg.Question) == 0 {
+		return fmt.Errorf("question is empty")
 	}
+
+	question := qmsg.Question[0]
 
 	msg, err := d.resolver.Raw(ctx, question)
 	if err != nil {
-		return fmt.Errorf("do raw request (%v:%v) failed: %w", question.Name, question.Type, err)
+		return fmt.Errorf("do raw request (%v:%v) failed: %w", question.Name, dnsmessage.Type(question.Qtype), err)
 	}
 
-	msg.ID = header.ID
+	msg.Id = qmsg.Id
 
 	respBuf := pool.GetBytes(pool.DefaultSize)
 	defer pool.PutBytes(respBuf)
 
-	bytes, err := msg.AppendPack(respBuf[:0])
+	bytes, err := msg.PackBuffer(respBuf[:0])
 	if err != nil {
 		return err
 	}
@@ -268,31 +268,21 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 	// or UDP headers).  Longer messages are truncated and the TC bit is set in
 	// the header.
 	//
-
-	_ = parse.SkipAllQuestions()
-	_ = parse.SkipAllAnswers()
-	_ = parse.SkipAllAuthorities()
-
 	clientBufferSize := 512
-	for {
-		additional, err := parse.Additional()
-		if err != nil {
-			break
-		}
-
+	for _, additional := range msg.Extra {
 		// rfc 6891
 		// Values lower than 512 MUST be treated as equal to 512.
-		if additional.Header.Type == dnsmessage.TypeOPT && additional.Header.Class > 512 {
-			clientBufferSize = int(additional.Header.Class)
+		if additional.Header().Rrtype == dnsmessage.TypeOPT && additional.Header().Class > 512 {
+			clientBufferSize = int(additional.Header().Class)
 		}
 	}
 
 	if len(bytes) > clientBufferSize {
 		msg.Truncated = true
-		msg.Answers = nil
-		msg.Authorities = nil
-		msg.Additionals = nil
-		bytes, err = msg.AppendPack(respBuf[:0])
+		msg.Answer = nil
+		msg.Ns = nil
+		msg.Extra = nil
+		bytes, err = msg.PackBuffer(respBuf[:0])
 		if err != nil {
 			return err
 		}

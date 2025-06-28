@@ -17,7 +17,7 @@ import (
 	cd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"golang.org/x/net/dns/dnsmessage"
+	"github.com/miekg/dns"
 )
 
 type Fakedns struct {
@@ -97,8 +97,8 @@ func (f *Fakedns) LookupIP(ctx context.Context, domain string, opts ...func(*net
 	return f.resolver(ctx, domain).LookupIP(ctx, domain, opts...)
 }
 
-func (f *Fakedns) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	return f.resolver(ctx, req.Name.String()).Raw(ctx, req)
+func (f *Fakedns) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+	return f.resolver(ctx, req.Name).Raw(ctx, req)
 }
 
 func (f *Fakedns) Close() error {
