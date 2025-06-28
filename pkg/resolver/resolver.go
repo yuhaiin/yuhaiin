@@ -19,7 +19,7 @@ import (
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"golang.org/x/net/dns/dnsmessage"
+	"github.com/miekg/dns"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -230,10 +230,10 @@ func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netap
 	return ips, nil
 }
 
-func (d *dnsWrap) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+func (d *dnsWrap) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	msg, err := d.dns.Raw(ctx, req)
 	if err != nil {
-		return dnsmessage.Message{}, fmt.Errorf("%s do raw dns request failed: %w", d.name, err)
+		return dns.Msg{}, fmt.Errorf("%s do raw dns request failed: %w", d.name, err)
 	}
 
 	return msg, nil

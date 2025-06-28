@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 	"slices"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -27,7 +25,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"golang.org/x/net/dns/dnsmessage"
+	dnsmessage "github.com/miekg/dns"
 )
 
 var (
@@ -49,113 +47,24 @@ type Request struct {
 }
 
 type Response interface {
-	Msg() (dnsmessage.Message, error)
+	Msg() (dnsmessage.Msg, error)
 	Release()
 }
 
 type BytesResponse []byte
 
-func (b BytesResponse) Msg() (msg dnsmessage.Message, err error) {
-	var p dnsmessage.Parser
-	if msg.Header, err = p.Start(b); err != nil {
-		return msg, err
-	}
-	if msg.Questions, err = p.AllQuestions(); err != nil {
-		return msg, err
-	}
-
-	for {
-		header, err := p.AnswerHeader()
-		if err != nil {
-			if err == dnsmessage.ErrSectionDone {
-				break
-			}
-			return msg, err
-		}
-
-		var resource dnsmessage.ResourceBody
-		switch header.Type {
-		case dnsmessage.TypeA:
-			a, err := p.AResource()
-			if err != nil {
-				return msg, err
-			}
-
-			resource = &a
-
-		case dnsmessage.TypeAAAA:
-			aaaa, err := p.AAAAResource()
-			if err != nil {
-				return msg, err
-			}
-
-			resource = &aaaa
-
-		default:
-			unknown, err := p.UnknownResource()
-			if err != nil {
-				return msg, err
-			}
-
-			resource = &unknown
-		}
-
-		msg.Answers = append(msg.Answers, dnsmessage.Resource{
-			Header: header,
-			Body:   resource,
-		})
-	}
-
-	// see: https://github.com/golang/net/blob/6e41caea7e521db69a7de02895624c195575ed63/dns/dnsmessage/message.go#L2062
-	// current the dnsmessage parse some MBox record will error, so we skip it now
-	for {
-		authorityHeader, err := p.AuthorityHeader()
-		if err != nil {
-			if err == dnsmessage.ErrSectionDone {
-				break
-			}
-			return msg, err
-		}
-		body, err := p.UnknownResource()
-		if err != nil {
-			return msg, err
-		}
-
-		msg.Authorities = append(msg.Authorities, dnsmessage.Resource{
-			Header: authorityHeader,
-			Body:   &body,
-		})
-	}
-
-	for {
-		additionalHeader, err := p.AdditionalHeader()
-		if err != nil {
-			if err == dnsmessage.ErrSectionDone {
-				break
-			}
-			return msg, err
-		}
-
-		body, err := p.UnknownResource()
-		if err != nil {
-			return msg, err
-		}
-
-		msg.Additionals = append(msg.Additionals, dnsmessage.Resource{
-			Header: additionalHeader,
-			Body:   &body,
-		})
-	}
-
-	return msg, nil
+func (b BytesResponse) Msg() (msg dnsmessage.Msg, err error) {
+	var p dnsmessage.Msg
+	err = p.Unpack(b)
+	return p, err
 }
 
 func (b BytesResponse) Release() { pool.PutBytes(b) }
 
-type MsgResponse dnsmessage.Message
+type MsgResponse dnsmessage.Msg
 
-func (m MsgResponse) Msg() (msg dnsmessage.Message, err error) {
-	return dnsmessage.Message(m), nil
+func (m MsgResponse) Msg() (msg dnsmessage.Msg, err error) {
+	return dnsmessage.Msg(m), nil
 }
 func (m MsgResponse) Release() {}
 
@@ -214,12 +123,7 @@ type CacheKey struct {
 }
 
 func CacheKeyFromQuestion(q dnsmessage.Question, unsafeC bool) CacheKey {
-	var name string
-	if unsafeC {
-		name = unsafe.String(unsafe.SliceData(q.Name.Data[:q.Name.Length]), q.Name.Length)
-	} else {
-		name = q.Name.String()
-	}
+	var name string = q.Name
 
 	if len(name) > 0 && name[len(name)-1] == '.' {
 		name = name[:len(name)-1]
@@ -227,12 +131,12 @@ func CacheKeyFromQuestion(q dnsmessage.Question, unsafeC bool) CacheKey {
 
 	return CacheKey{
 		Name: name,
-		Type: q.Type,
+		Type: dnsmessage.Type(q.Qtype),
 	}
 }
 
 type client struct {
-	edns0             dnsmessage.Resource
+	edns0             dnsmessage.RR
 	dialer            Dialer
 	rawStore          *lru.SyncLru[CacheKey, *rawEntry]
 	rawSingleflight   singleflight.GroupSync[dnsmessage.Question, *rawEntry]
@@ -241,36 +145,33 @@ type client struct {
 }
 
 func NewClient(config Config, dialer Dialer) *client {
-	var rh dnsmessage.ResourceHeader
-	_ = rh.SetEDNS0(8192, dnsmessage.RCodeSuccess, false)
+	optrbody := &dnsmessage.OPT{
+		Hdr: dnsmessage.RR_Header{
+			Name:   ".",
+			Rrtype: dnsmessage.TypeOPT,
+			Class:  8192,
+		},
+	}
 
-	optrbody := &dnsmessage.OPTResource{}
+	optrbody.SetExtendedRcode(dnsmessage.RcodeSuccess)
+
 	if config.Subnet.IsValid() {
-		// EDNS Subnet
-		optionData := bytes.NewBuffer(nil)
+		subnet := &dnsmessage.EDNS0_SUBNET{
+			Code: dnsmessage.EDNS0SUBNET,
+		}
 
 		ip := config.Subnet.Masked().Addr()
 		if ip.Is6() { // family https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
-			optionData.Write([]byte{0b00000000, 0b00000010}) // family ipv6 2
+			subnet.Family = 2 // family ipv6 2
 		} else {
-			optionData.Write([]byte{0b00000000, 0b00000001}) // family ipv4 1
+			subnet.Family = 1 // family ipv4 1
 		}
 
 		mask := config.Subnet.Bits()
-		optionData.WriteByte(byte(mask)) // mask
-		optionData.WriteByte(0b00000000) // 0 In queries, it MUST be set to 0.
+		subnet.SourceNetmask = uint8(mask)
+		subnet.Address = ip.AsSlice()
 
-		var i int // cut the ip bytes
-		if i = mask / 8; mask%8 != 0 {
-			i++
-		}
-
-		optionData.Write(ip.AsSlice()[:i]) // subnet IP
-
-		optrbody.Options = append(optrbody.Options, dnsmessage.Option{
-			Code: 8,
-			Data: optionData.Bytes(),
-		})
+		optrbody.Option = append(optrbody.Option, subnet)
 	}
 
 	c := &client{
@@ -280,10 +181,7 @@ func NewClient(config Config, dialer Dialer) *client {
 			lru.WithCapacity[CacheKey, *rawEntry](configuration.DNSCache),
 			lru.WithDefaultTimeout[CacheKey, *rawEntry](time.Second*600),
 		),
-		edns0: dnsmessage.Resource{
-			Header: rh,
-			Body:   optrbody,
-		},
+		edns0: optrbody,
 	}
 
 	return c
@@ -305,11 +203,11 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 	switch opt.Mode {
 	case netapi.ResolverModePreferIPv4:
 		log.Debug("lookup ipv4 only", "domain", domain)
-		ips, err := c.lookupIP(ctx, domain, dnsmessage.TypeA)
+		ips, err := c.lookupIP(ctx, domain, dnsmessage.Type(dnsmessage.TypeA))
 		return &netapi.IPs{A: ips}, err
 	case netapi.ResolverModePreferIPv6:
 		log.Debug("lookup ipv6 only", "domain", domain)
-		ips, err := c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
+		ips, err := c.lookupIP(ctx, domain, dnsmessage.Type(dnsmessage.TypeAAAA))
 		return &netapi.IPs{AAAA: ips}, err
 	}
 
@@ -324,10 +222,10 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 
 	go func() {
 		defer wg.Done()
-		a, aerr = c.lookupIP(ctx, domain, dnsmessage.TypeA)
+		a, aerr = c.lookupIP(ctx, domain, dnsmessage.Type(dnsmessage.TypeA))
 	}()
 
-	resp, aaaaerr := c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
+	resp, aaaaerr := c.lookupIP(ctx, domain, dnsmessage.Type(dnsmessage.TypeAAAA))
 
 	wg.Wait()
 
@@ -353,55 +251,55 @@ func mergerError(i4err, i6err error) error {
 	return fmt.Errorf("ipv6: %w, ipv4: %w", i6err, i4err)
 }
 
-func (c *client) query(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+func (c *client) query(ctx context.Context, req dnsmessage.Question) (dnsmessage.Msg, error) {
 	dialer := c.dialer
 
-	reqMsg := dnsmessage.Message{
-		Header: dnsmessage.Header{
-			ID:                 uint16(rand.UintN(math.MaxUint16)),
+	reqMsg := dnsmessage.Msg{
+		MsgHdr: dnsmessage.MsgHdr{
+			Id:                 uint16(rand.UintN(math.MaxUint16)),
 			Response:           false,
-			OpCode:             0,
+			Opcode:             0,
 			Authoritative:      false,
 			Truncated:          false,
 			RecursionDesired:   true,
 			RecursionAvailable: false,
-			RCode:              0,
+			Rcode:              0,
 		},
-		Questions:   []dnsmessage.Question{req},
-		Additionals: []dnsmessage.Resource{c.edns0},
+		Question: []dnsmessage.Question{req},
+		Extra:    []dnsmessage.RR{c.edns0},
 	}
 
 	buf := pool.GetBytes(8192)
 	defer pool.PutBytes(buf)
 
-	bytes, err := reqMsg.AppendPack(buf[:0])
+	bytes, err := reqMsg.PackBuffer(buf[:0])
 	if err != nil {
-		return dnsmessage.Message{}, err
+		return dnsmessage.Msg{}, err
 	}
 
 	request := &Request{
 		QuestionBytes: bytes,
 		Question:      req,
-		ID:            reqMsg.ID,
+		ID:            reqMsg.Id,
 	}
 
-	var msg dnsmessage.Message
+	var msg dnsmessage.Msg
 
 	for _, v := range []bool{false, true} {
 		request.Truncated = v
 
 		resp, err := dialer.Do(ctx, request)
 		if err != nil {
-			return dnsmessage.Message{}, err
+			return dnsmessage.Msg{}, err
 		}
 		defer resp.Release()
 
 		if msg, err = resp.Msg(); err != nil {
-			return dnsmessage.Message{}, err
+			return dnsmessage.Msg{}, err
 		}
 
-		if msg.ID != reqMsg.ID {
-			return dnsmessage.Message{}, fmt.Errorf("id not match")
+		if msg.Id != reqMsg.Id {
+			return dnsmessage.Msg{}, fmt.Errorf("id not match")
 		}
 
 		if !msg.Truncated {
@@ -416,40 +314,29 @@ func (c *client) query(ctx context.Context, req dnsmessage.Question) (dnsmessage
 	}
 
 	ttl := uint32(600)
-	if len(msg.Answers) > 0 {
-		ttl = msg.Answers[0].Header.TTL
+	if len(msg.Answer) > 0 {
+		ttl = msg.Answer[0].Header().Ttl
 	}
 
-	if req.Type == TypeHTTPS {
+	if req.Qtype == dnsmessage.TypeHTTPS {
 		// remove ip hint, make safari use fakeip instead of ip hint
-		for _, v := range removeIPHint(req.Name, msg) {
-			if len(v) == 0 {
-				continue
-			}
+		for _, v := range msg.Answer {
+			if v.Header().Rrtype == dnsmessage.TypeHTTPS {
+				https, ok := v.(*dnsmessage.HTTPS)
+				if !ok {
+					continue
+				}
 
-			req := dnsmessage.Question{
-				Name:  req.Name,
-				Type:  v[0].Header.Type,
-				Class: dnsmessage.ClassINET,
-			}
+				news := make([]dnsmessage.SVCBKeyValue, 0, len(https.SVCB.Value))
+				for _, v := range https.SVCB.Value {
+					if v.Key() == dnsmessage.SVCB_IPV4HINT || v.Key() == dnsmessage.SVCB_IPV6HINT {
+						continue
+					}
+					news = append(news, v)
+				}
 
-			c.rawStore.Add(CacheKeyFromQuestion(req, false),
-				newRawEntry(dnsmessage.Message{
-					Header: dnsmessage.Header{
-						ID:                 0,
-						Response:           true,
-						OpCode:             0,
-						Authoritative:      false,
-						Truncated:          false,
-						RecursionDesired:   true,
-						RecursionAvailable: true,
-						RCode:              dnsmessage.RCodeSuccess,
-					},
-					Questions: []dnsmessage.Question{req},
-					Answers:   v,
-				}),
-				lru.WithTimeout[CacheKey, *rawEntry](time.Duration(ttl)*time.Second),
-			)
+				https.Value = news
+			}
 		}
 	}
 
@@ -457,15 +344,15 @@ func (c *client) query(ctx context.Context, req dnsmessage.Question) (dnsmessage
 		args := []any{
 			slog.String("resolver", c.config.Name),
 			slog.Any("host", req.Name),
-			slog.Any("type", req.Type),
-			slog.Any("code", msg.RCode),
+			slog.Any("type", dnsmessage.Type(req.Qtype)),
+			slog.Any("code", msg.Rcode),
 			slog.Any("ttl", ttl),
 		}
 		return args
 	})
 
 	if ttl > 1 {
-		msg.Questions = nil
+		msg.Question = nil
 		c.rawStore.Add(CacheKeyFromQuestion(req, false), newRawEntry(msg),
 			lru.WithTimeout[CacheKey, *rawEntry](time.Duration(ttl)*time.Second))
 	}
@@ -473,31 +360,31 @@ func (c *client) query(ctx context.Context, req dnsmessage.Question) (dnsmessage
 	return msg, nil
 }
 
-func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Msg, error) {
 	rawmsg, err := c.raw(ctx, req)
 	if err != nil {
-		return dnsmessage.Message{}, err
+		return dnsmessage.Msg{}, err
 	}
 
 	msg := rawmsg.Message()
 
-	msg.Questions = []dnsmessage.Question{req}
+	msg.Question = []dnsmessage.Question{req}
 
 	// TODO deep copy resource.Body
-	msg.Answers = slices.Clone(msg.Answers)
-	msg.Authorities = slices.Clone(msg.Authorities)
-	msg.Additionals = slices.Clone(msg.Additionals)
+	msg.Answer = slices.Clone(msg.Answer)
+	msg.Ns = slices.Clone(msg.Ns)
+	msg.Extra = slices.Clone(msg.Extra)
 
 	return msg, nil
 }
 
 func (c *client) raw(ctx context.Context, req dnsmessage.Question) (*rawEntry, error) {
-	if !system.IsDomainName(unsafe.String(unsafe.SliceData(req.Name.Data[:req.Name.Length]), req.Name.Length)) {
-		return nil, fmt.Errorf("invalid domain: %s", req.Name.String())
+	if !system.IsDomainName(req.Name) {
+		return nil, fmt.Errorf("invalid domain: %s", req.Name)
 	}
 
-	if req.Class == 0 {
-		req.Class = dnsmessage.ClassINET
+	if req.Qclass == 0 {
+		req.Qclass = dnsmessage.ClassINET
 	}
 
 	rawmsg, expired, ok := c.rawStore.LoadOptimistically(CacheKeyFromQuestion(req, true))
@@ -543,24 +430,19 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 
 	domain = system.AbsDomain(domain)
 
-	name, err := dnsmessage.NewName(domain)
-	if err != nil {
-		return nil, fmt.Errorf("parse domain failed: %w", err)
-	}
-
 	rawmsg, err := c.raw(ctx, dnsmessage.Question{
-		Name:  name,
-		Type:  reqType,
-		Class: dnsmessage.ClassINET,
+		Name:   domain,
+		Qtype:  uint16(reqType),
+		Qclass: dnsmessage.ClassINET,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("send dns message failed: %w", err)
 	}
 
-	if rawmsg.RCode() != dnsmessage.RCodeSuccess {
+	if rawmsg.RCode() != dnsmessage.RcodeSuccess {
 		metrics.Counter.AddFailedDNS(domain, rawmsg.RCode(), reqType)
 		return nil, &net.DNSError{
-			Err:         rawmsg.RCode().String(),
+			Err:         dnsmessage.RcodeToString[rawmsg.RCode()],
 			Server:      c.config.Host,
 			Name:        domain,
 			IsNotFound:  true,
@@ -570,7 +452,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 
 	var ips []net.IP
 
-	switch reqType {
+	switch uint16(reqType) {
 	case dnsmessage.TypeA:
 		ips = rawmsg.A()
 	case dnsmessage.TypeAAAA:
@@ -578,7 +460,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 	}
 
 	if len(ips) == 0 {
-		metrics.Counter.AddFailedDNS(domain, dnsmessage.RCodeSuccess, reqType)
+		metrics.Counter.AddFailedDNS(domain, dnsmessage.RcodeSuccess, reqType)
 		return nil, &net.DNSError{
 			Err:         "no such host",
 			Server:      c.config.Host,
@@ -595,23 +477,23 @@ func (c *client) Close() error { return c.dialer.Close() }
 
 type rawEntry struct {
 	mu   sync.RWMutex
-	msg  dnsmessage.Message
+	msg  dnsmessage.Msg
 	ipv4 []net.IP
 	ipv6 []net.IP
 }
 
-func newRawEntry(msg dnsmessage.Message) *rawEntry {
+func newRawEntry(msg dnsmessage.Msg) *rawEntry {
 	return &rawEntry{
 		msg: msg,
 	}
 }
 
-func (r *rawEntry) Message() dnsmessage.Message {
+func (r *rawEntry) Message() dnsmessage.Msg {
 	return r.msg
 }
 
-func (r *rawEntry) RCode() dnsmessage.RCode {
-	return r.msg.RCode
+func (r *rawEntry) RCode() int {
+	return r.msg.Rcode
 }
 
 func (r *rawEntry) A() []net.IP {
@@ -630,14 +512,14 @@ func (r *rawEntry) A() []net.IP {
 		return r.ipv4
 	}
 
-	r.ipv4 = make([]net.IP, 0, len(r.msg.Answers))
+	r.ipv4 = make([]net.IP, 0, len(r.msg.Answer))
 
-	for _, v := range r.msg.Answers {
-		if v.Header.Type != dnsmessage.TypeA {
+	for _, v := range r.msg.Answer {
+		if v.Header().Rrtype != dnsmessage.TypeA {
 			continue
 		}
 
-		r.ipv4 = append(r.ipv4, net.IP(v.Body.(*dnsmessage.AResource).A[:]))
+		r.ipv4 = append(r.ipv4, v.(*dnsmessage.A).A)
 	}
 
 	return r.ipv4
@@ -659,331 +541,53 @@ func (r *rawEntry) AAAA() []net.IP {
 		return r.ipv6
 	}
 
-	r.ipv6 = make([]net.IP, 0, len(r.msg.Answers))
+	r.ipv6 = make([]net.IP, 0, len(r.msg.Answer))
 
-	for _, v := range r.msg.Answers {
-		if v.Header.Type != dnsmessage.TypeAAAA {
+	for _, v := range r.msg.Answer {
+		if v.Header().Rrtype != dnsmessage.TypeAAAA {
 			continue
 		}
 
-		r.ipv6 = append(r.ipv6, net.IP(v.Body.(*dnsmessage.AAAAResource).AAAA[:]))
+		r.ipv6 = append(r.ipv6, v.(*dnsmessage.AAAA).AAAA)
 	}
 
 	return r.ipv6
 }
 
-func appendIPHint(msg dnsmessage.Message, ipv4, ipv6 []netip.Addr) {
-	ipv4Hint, ipv6Hint := ipHintParams(ipv4, ipv6)
-	if len(ipv4Hint) == 0 && len(ipv6Hint) == 0 {
+func appendIPHint(msg dnsmessage.Msg, ipv4, ipv6 []net.IP) {
+	if len(ipv4) == 0 && len(ipv6) == 0 {
 		return
 	}
 
-	for i, v := range msg.Answers {
-		if v.Header.Type != TypeHTTPS {
+	for i, v := range msg.Answer {
+		if v.Header().Rrtype != dnsmessage.TypeHTTPS {
 			continue
 		}
 
-		unknownResource, ok := v.Body.(*dnsmessage.UnknownResource)
+		https, ok := v.(*dnsmessage.HTTPS)
 		if !ok {
-			log.Error("is not unknown resource skip", "type", v.Header.Type)
 			continue
 		}
 
-		if unknownResource.Type != TypeHTTPS {
-			continue
+		newHttps := &dnsmessage.HTTPS{}
+
+		*newHttps = *https
+
+		if len(ipv4) > 0 {
+			newHttps.Value = append(newHttps.Value, &dnsmessage.SVCBIPv4Hint{
+				Hint: ipv4,
+			})
 		}
 
-		if len(unknownResource.Data) == 0 {
-			continue
+		if len(ipv6) > 0 {
+			newHttps.Value = append(newHttps.Value, &dnsmessage.SVCBIPv6Hint{
+				Hint: ipv6,
+			})
 		}
 
-		msg.Answers[i] = dnsmessage.Resource{
-			Header: v.Header,
-			Body: &dnsmessage.UnknownResource{
-				Type: TypeHTTPS,
-				Data: appendIPHintIndex(unknownResource.Data, ipv4Hint, ipv6Hint),
-			},
-		}
+		slog.Info("append ip hint to https", "value", newHttps.Value)
+
+		msg.Answer[i] = newHttps
 		break
 	}
-}
-
-func ipHintParams(ipv4, ipv6 []netip.Addr) (ipv4Hint, ipv6Hint []byte) {
-	if len(ipv4) == 0 && len(ipv6) == 0 {
-		return nil, nil
-	}
-
-	if len(ipv4) > 0 {
-		ipv4Len := len(ipv4) * 4
-		v4bytes := make([]byte, ipv4Len+4)
-		v4bytes[0] = 0x00
-		v4bytes[1] = 0x04
-		v4bytes[2] = byte(ipv4Len >> 8)
-		v4bytes[3] = byte(ipv4Len)
-
-		for i := range ipv4 {
-			bytes := ipv4[i].As4()
-			copy(v4bytes[4+i*4:], bytes[:])
-		}
-
-		ipv4Hint = v4bytes
-	}
-
-	if len(ipv6) > 0 {
-		ipv6Len := len(ipv6) * 16
-		v6bytes := make([]byte, ipv6Len+4)
-		v6bytes[0] = 0x00
-		v6bytes[1] = 0x06
-		v6bytes[2] = byte(ipv6Len >> 8)
-		v6bytes[3] = byte(ipv6Len)
-
-		for i := range ipv6 {
-			bytes := ipv6[i].As16()
-			copy(v6bytes[4+i*16:], bytes[:])
-		}
-
-		ipv6Hint = v6bytes
-	}
-
-	return ipv4Hint, ipv6Hint
-}
-
-var bytesArrayPool = sync.Pool{New: func() any { return [][]byte{} }}
-
-func getBytesArray() [][]byte {
-	return bytesArrayPool.Get().([][]byte)
-}
-
-func putBytesArray(arr [][]byte) {
-	arr = arr[:0]
-	//nolint:staticcheck
-	bytesArrayPool.Put(arr)
-}
-
-func appendIPHintIndex(msg []byte, ipv4Hint, ipv6Hint []byte) []byte {
-	endOff := len(msg)
-	_, off, err := unpackUint16(msg, 0)
-	if err != nil {
-		return nil
-	}
-
-	if off, err = skipName(msg, off); err != nil {
-		return nil
-	}
-
-	starOffset := off
-
-	length := starOffset
-	v4len := len(ipv4Hint)
-	if v4len > 0 {
-		length += v4len
-	}
-	v6len := len(ipv6Hint)
-	if v6len > 0 {
-		length += v6len
-	}
-
-	beforeIpv4 := getBytesArray()
-	beforeIpv6 := getBytesArray()
-	afterIpv6 := getBytesArray()
-
-	for off < endOff {
-		start := off
-		var err error
-		var k uint16
-		k, off, err = unpackUint16(msg, off)
-		if err != nil {
-			return nil
-		}
-		var l uint16
-		l, off, err = unpackUint16(msg, off)
-		if err != nil {
-			return nil
-		}
-		off += int(l)
-
-		length += off - start
-
-		if k <= 4 {
-			beforeIpv4 = append(beforeIpv4, msg[start:off])
-		} else if k <= 6 {
-			beforeIpv6 = append(beforeIpv6, msg[start:off])
-		} else {
-			afterIpv6 = append(afterIpv6, msg[start:off])
-		}
-	}
-
-	// SvcParamKeys SHALL appear in increasing numeric order.
-	// Clients MUST consider an RR malformed if:
-	// 	the end of the RDATA occurs within a SvcParam.
-	// 	SvcParamKeys are not in strictly increasing numeric order.
-	// 	the SvcParamValue for a SvcParamKey does not have the expected format.
-	//
-	// see: https://datatracker.ietf.org/doc/html/rfc9460#name-overview-of-the-svcb-rr
-	resp := make([]byte, 0, length)
-
-	resp = append(resp, msg[:starOffset]...)
-
-	for _, v := range beforeIpv4 {
-		resp = append(resp, v...)
-	}
-
-	if v4len > 0 {
-		resp = append(resp, ipv4Hint...)
-	}
-
-	for _, v := range beforeIpv6 {
-		resp = append(resp, v...)
-	}
-
-	if v6len > 0 {
-		resp = append(resp, ipv6Hint...)
-	}
-
-	for _, v := range afterIpv6 {
-		resp = append(resp, v...)
-	}
-
-	putBytesArray(beforeIpv4)
-	putBytesArray(beforeIpv6)
-	putBytesArray(afterIpv6)
-
-	return resp
-}
-
-func removeIPHint(name dnsmessage.Name, msg dnsmessage.Message) [][]dnsmessage.Resource {
-	var ipHints [][]dnsmessage.Resource
-	for _, v := range msg.Answers {
-		if v.Header.Type != TypeHTTPS {
-			continue
-		}
-
-		unknownResource, ok := v.Body.(*dnsmessage.UnknownResource)
-		if !ok {
-			log.Error("is not unknown resource skip", "type", v.Header.Type)
-			continue
-		}
-
-		if unknownResource.Type != TypeHTTPS {
-			continue
-		}
-
-		unknownResource.Data, ipHints = removeIPHintFromResource(name, unknownResource.Data, v.Header.TTL)
-	}
-
-	return ipHints
-}
-
-func removeIPHintFromResource(name dnsmessage.Name, msg []byte, ttl uint32) (result []byte, ipHint [][]dnsmessage.Resource) {
-	endOff := len(msg)
-	_, off, err := unpackUint16(msg, 0)
-	if err != nil {
-		return msg, nil
-	}
-
-	if off, err = skipName(msg, off); err != nil {
-		return msg, nil
-	}
-
-	type remove struct {
-		start int
-		end   int
-	}
-
-	var removes []remove
-	var ipHints [][]dnsmessage.Resource
-
-	for off < endOff {
-		start := off
-
-		var err error
-		var k uint16
-		k, off, err = unpackUint16(msg, off)
-		if err != nil {
-			return msg, nil
-		}
-		var l uint16
-		l, off, err = unpackUint16(msg, off)
-		if err != nil {
-			return msg, nil
-		}
-		off += int(l)
-
-		end := off
-
-		if ParamKey(k) == ParamIPv4Hint || ParamKey(k) == ParamIPv6Hint {
-			ips := splitIpHint(msg[start+4:end], ParamKey(k) == ParamIPv6Hint)
-			log.Info("remove ip hint",
-				"name", name.String(),
-				"key", ParamKey(k),
-				"value", ips,
-				"length", len(msg[start:end]),
-			)
-			hints := make([]dnsmessage.Resource, 0, len(ips))
-			for _, v := range ips {
-				resource := dnsmessage.Resource{
-					Header: dnsmessage.ResourceHeader{
-						Name:  name,
-						Class: dnsmessage.ClassINET,
-						TTL:   ttl,
-					},
-				}
-				if ParamKey(k) == ParamIPv6Hint {
-					resource.Body = &dnsmessage.AAAAResource{AAAA: [16]byte(v)}
-					resource.Header.Type = dnsmessage.TypeAAAA
-				} else {
-					resource.Body = &dnsmessage.AResource{A: [4]byte(v)}
-					resource.Header.Type = dnsmessage.TypeA
-				}
-
-				hints = append(hints, resource)
-			}
-
-			removes = append(removes, remove{start, end})
-			if len(hints) > 0 {
-				ipHints = append(ipHints, hints)
-			}
-		}
-	}
-
-	if len(removes) == 0 {
-		return msg, ipHints
-	}
-
-	lastEnd := -1
-	length := 0
-
-	for _, v := range removes {
-		if lastEnd == -1 {
-			lastEnd = v.end
-			length = v.start
-			continue
-		}
-
-		n := copy(msg[length:], msg[lastEnd:v.start])
-		length += n
-		lastEnd = v.end
-	}
-
-	length += copy(msg[length:], msg[lastEnd:])
-
-	return msg[:length], ipHints
-}
-
-func splitIpHint(msg []byte, v6 bool) []net.IP {
-	start := 0
-	end := len(msg)
-
-	size := 4
-	if v6 {
-		size = 16
-	}
-
-	resp := make([]net.IP, 0, len(msg)/size)
-	for start < end {
-		resp = append(resp, net.IP(msg[start:start+size]))
-		start += size
-	}
-
-	return resp
 }

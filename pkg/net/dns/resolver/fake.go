@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -18,7 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"golang.org/x/net/dns/dnsmessage"
+	dnsmessage "github.com/miekg/dns"
 )
 
 var _ netapi.Resolver = (*FakeDNS)(nil)
@@ -78,21 +77,21 @@ func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netap
 	}, nil
 }
 
-func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code dnsmessage.RCode, resource dnsmessage.ResourceBody) dnsmessage.Message {
-	msg := dnsmessage.Message{
-		Header: dnsmessage.Header{
-			ID:                 0,
+func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code int, resource func(hedaer dnsmessage.RR_Header) dnsmessage.RR) dnsmessage.Msg {
+	msg := dnsmessage.Msg{
+		MsgHdr: dnsmessage.MsgHdr{
+			Id:                 0,
 			Response:           true,
 			Authoritative:      false,
 			RecursionDesired:   false,
-			RCode:              code,
+			Rcode:              code,
 			RecursionAvailable: true,
 		},
-		Questions: []dnsmessage.Question{
+		Question: []dnsmessage.Question{
 			{
-				Name:  req.Name,
-				Type:  req.Type,
-				Class: dnsmessage.ClassINET,
+				Name:   req.Name,
+				Qtype:  req.Qtype,
+				Qclass: dnsmessage.ClassINET,
 			},
 		},
 	}
@@ -101,55 +100,53 @@ func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code dnsmessage.RCod
 		return msg
 	}
 
-	answer := dnsmessage.Resource{
-		Header: dnsmessage.ResourceHeader{
-			Name:  req.Name,
-			Class: dnsmessage.ClassINET,
-			TTL:   600,
-			Type:  req.Type,
-		},
-		Body: resource,
-	}
-
-	msg.Answers = append(msg.Answers, answer)
+	msg.Answer = append(msg.Answer, resource(dnsmessage.RR_Header{
+		Name:   req.Name,
+		Rrtype: req.Qtype,
+		Class:  dnsmessage.ClassINET,
+		Ttl:    600,
+	}))
 
 	return msg
 }
 
-func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	switch req.Type {
-	case dnsmessage.TypeA, dnsmessage.TypeAAAA, dnsmessage.TypePTR, TypeHTTPS:
+func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Msg, error) {
+	switch req.Qtype {
+	case dnsmessage.TypeA, dnsmessage.TypeAAAA, dnsmessage.TypePTR, dnsmessage.TypeHTTPS:
 	default:
 		return f.Resolver.Raw(ctx, req)
 	}
 
-	if !system.IsDomainName(req.Name.String()) {
-		return f.newAnswerMessage(req, dnsmessage.RCodeNameError, nil), nil
+	if !system.IsDomainName(req.Name) {
+		return f.newAnswerMessage(req, dnsmessage.RcodeNameError, nil), nil
 	}
 
-	domain := unsafe.String(unsafe.SliceData(req.Name.Data[0:req.Name.Length-1]), req.Name.Length-1)
+	domain := req.Name[:len(req.Name)-1]
 
 	if net.ParseIP(domain) != nil {
 		return f.Resolver.Raw(ctx, req)
 	}
 
-	switch req.Type {
+	switch req.Qtype {
 	case dnsmessage.TypePTR:
-		domain, err := f.LookupPtr(req.Name.String())
+		domain, err := f.LookupPtr(req.Name)
 		if err != nil {
 			return f.Resolver.Raw(ctx, req)
 		}
 
 		msg := f.newAnswerMessage(
 			req,
-			dnsmessage.RCodeSuccess,
-			&dnsmessage.PTRResource{
-				PTR: dnsmessage.MustNewName(system.AbsDomain(domain)),
+			dnsmessage.RcodeSuccess,
+			func(header dnsmessage.RR_Header) dnsmessage.RR {
+				return &dnsmessage.PTR{
+					Hdr: header,
+					Ptr: system.AbsDomain(domain),
+				}
 			},
 		)
 		return msg, nil
 
-	case TypeHTTPS:
+	case dnsmessage.TypeHTTPS:
 		// wait https://github.com/golang/go/issues/43790 implement
 		msg, err := f.Resolver.Raw(ctx, req)
 		if err != nil {
@@ -159,23 +156,62 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 		ipv6 := f.ipv6.GetFakeIPForDomain(domain)
 		ipv4 := f.ipv4.GetFakeIPForDomain(domain)
 
-		appendIPHint(msg, []netip.Addr{ipv4}, []netip.Addr{ipv6})
+		appendIPHint(msg, []net.IP{ipv4.AsSlice()}, []net.IP{ipv6.AsSlice()})
+
 		return msg, nil
 
 	case dnsmessage.TypeAAAA:
 		if !configuration.IPv6.Load() {
-			return f.newAnswerMessage(req, dnsmessage.RCodeSuccess, nil), nil
+			return f.newAnswerMessage(req, dnsmessage.RcodeSuccess, nil), nil
+		}
+		msg, err := f.Resolver.Raw(ctx, req)
+		if err != nil {
+			return dnsmessage.Msg{}, err
+		}
+
+		if !f.existAnswer(msg, dnsmessage.Type(dnsmessage.TypeAAAA)) {
+			return msg, nil
 		}
 
 		ip := f.ipv6.GetFakeIPForDomain(domain)
-		return f.newAnswerMessage(req, dnsmessage.RCodeSuccess, &dnsmessage.AAAAResource{AAAA: ip.As16()}), nil
+
+		return f.newAnswerMessage(req, dnsmessage.RcodeSuccess, func(header dnsmessage.RR_Header) dnsmessage.RR {
+			return &dnsmessage.AAAA{
+				Hdr:  header,
+				AAAA: ip.AsSlice(),
+			}
+		}), nil
 
 	case dnsmessage.TypeA:
+		msg, err := f.Resolver.Raw(ctx, req)
+		if err != nil {
+			return dnsmessage.Msg{}, err
+		}
+
+		if !f.existAnswer(msg, dnsmessage.Type(dnsmessage.TypeA)) {
+			return msg, nil
+		}
+
 		ip := f.ipv4.GetFakeIPForDomain(domain)
-		return f.newAnswerMessage(req, dnsmessage.RCodeSuccess, &dnsmessage.AResource{A: ip.As4()}), nil
+
+		return f.newAnswerMessage(req, dnsmessage.RcodeSuccess, func(header dnsmessage.RR_Header) dnsmessage.RR {
+			return &dnsmessage.A{
+				Hdr: header,
+				A:   ip.AsSlice(),
+			}
+		}), nil
 	}
 
 	return f.Resolver.Raw(ctx, req)
+}
+
+func (f *FakeDNS) existAnswer(msg dnsmessage.Msg, t dnsmessage.Type) bool {
+	for _, answer := range msg.Answer {
+		if answer.Header().Rrtype == uint16(t) {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *FakeDNS) GetDomainFromIP(ip netip.Addr) (string, bool) {

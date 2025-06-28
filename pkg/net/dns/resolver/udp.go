@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -15,7 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"golang.org/x/net/dns/dnsmessage"
+	dnsmessage "github.com/miekg/dns"
 )
 
 func init() {
@@ -29,11 +30,11 @@ type reqKey struct {
 
 type respBuf struct {
 	done chan struct{}
-	msg  dnsmessage.Message
+	msg  dnsmessage.Msg
 	once sync.Once
 }
 
-func (r *respBuf) setMsg(msg dnsmessage.Message) {
+func (r *respBuf) setMsg(msg dnsmessage.Msg) {
 	r.once.Do(func() {
 		r.msg = msg
 		close(r.done)
@@ -91,12 +92,18 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 
 		msg, err := BytesResponse(buf[:n]).Msg()
 		if err != nil {
+			log.Warn("parse dns message failed", "err", err)
+			continue
+		}
+
+		if len(msg.Question) == 0 {
+			log.Warn("no question", "msg", msg)
 			continue
 		}
 
 		send, ok := u.sender.Load(reqKey{
-			ID:       msg.ID,
-			Question: msg.Questions[0],
+			ID:       msg.Id,
+			Question: msg.Question[0],
 		})
 		if !ok || send == nil {
 			continue

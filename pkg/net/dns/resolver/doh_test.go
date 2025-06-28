@@ -8,13 +8,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"golang.org/x/net/dns/dnsmessage"
+	dnsmessage "github.com/miekg/dns"
 )
 
 func TestDOH(t *testing.T) {
 	s, err := netip.ParsePrefix("223.5.5.5/24")
 	assert.NoError(t, err)
-	// s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
+	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
 
 	configMap := map[string]Config{
 		"google": {
@@ -33,7 +33,7 @@ func TestDOH(t *testing.T) {
 			Type:   dns.Type_doh,
 			Host:   "cloudflare-dns.com",
 			Subnet: s,
-			// Dialer: s5Dialer,
+			Dialer: s5Dialer,
 		},
 		"quad9": {
 			Type:   dns.Type_doh,
@@ -114,33 +114,19 @@ func TestDOH(t *testing.T) {
 	// t.Log(d.LookupIP(context.TODO(), "115-235-111-150.dhost.00cdn.com"))
 
 	t.Log(d.Raw(context.TODO(), dnsmessage.Question{
-		Name: dnsmessage.MustNewName("www.google.com."),
-		Type: dnsmessage.TypeA,
+		Name:  "www.google.com.",
+		Qtype: dnsmessage.TypeA,
 	}))
 	t.Log(d.Raw(context.TODO(), dnsmessage.Question{
-		Name: dnsmessage.MustNewName("www.google.com."),
-		Type: dnsmessage.TypeA,
+		Name:  "www.google.com.",
+		Qtype: dnsmessage.TypeA,
 	}))
 
-	resp, err := d.Raw(context.TODO(), dnsmessage.Question{
-		Name: dnsmessage.MustNewName("cdn.v2ex.com."),
-		Type: 65,
-	})
-	assert.NoError(t, err)
+	t.Log(d.Raw(context.TODO(), dnsmessage.Question{
+		Name:  "cdn.v2ex.com.",
+		Qtype: dnsmessage.TypeHTTPS,
+	}))
 
-	for _, v := range resp.Answers {
-		if v.Header.Type != TypeHTTPS {
-			continue
-		}
-		data := v.Body.(*dnsmessage.UnknownResource).Data
-		err := unpackSVCBResource(data, func(k ParamKey, v []byte) error {
-			t.Log(k, v)
-			return nil
-		})
-		assert.NoError(t, err)
-
-		t.Log(GetECHConfig(data))
-	}
 	t.Log(d.LookupIP(t.Context(), "auth.openai.com"))
 }
 
@@ -151,20 +137,4 @@ func TestGetURL(t *testing.T) {
 
 	t.Log(getUrlAndHost("https://"))
 	t.Log(getUrlAndHost("/dns-query"))
-}
-
-func TestSkipFailed(t *testing.T) {
-	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
-	r, err := New(Config{
-		Type:   dns.Type_doh,
-		Host:   "cloudflare-dns.com",
-		Dialer: s5Dialer,
-	})
-	assert.NoError(t, err)
-	defer r.Close()
-
-	t.Log(r.Raw(context.TODO(), dnsmessage.Question{
-		Name: dnsmessage.MustNewName("upos-sz-mirror08h.bilivideo.com."),
-		Type: TypeHTTPS,
-	}))
 }

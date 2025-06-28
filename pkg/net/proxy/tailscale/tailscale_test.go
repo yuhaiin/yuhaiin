@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
@@ -17,7 +18,7 @@ import (
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"golang.org/x/net/dns/dnsmessage"
+	"github.com/miekg/dns"
 	"google.golang.org/protobuf/proto"
 	"tailscale.com/version"
 )
@@ -70,6 +71,27 @@ func TestTailscale(t *testing.T) {
 	// 	t.Log(n, err)
 	// })
 
+	t.Run("tcp dns", func(t *testing.T) {
+		r, err := resolver.New(resolver.Config{
+			Dialer: tc,
+			Host:   "100.100.100.100:53",
+			Type:   pd.Type_tcp,
+		})
+		assert.NoError(t, err)
+
+		for range 3 {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			ips, err := r.Raw(ctx, dns.Question{
+				Name:   "code-server.taild2025.ts.net.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			})
+			t.Log(ips, err)
+		}
+	})
+
 	t.Run("udp", func(t *testing.T) {
 		r, err := resolver.New(resolver.Config{
 			Dialer: tc,
@@ -79,14 +101,15 @@ func TestTailscale(t *testing.T) {
 		assert.NoError(t, err)
 
 		for range 3 {
-			ips, err := r.Raw(context.TODO(), dnsmessage.Question{
-				Name:  dnsmessage.MustNewName("code-server.taild2025.ts.net."),
-				Type:  65,
-				Class: dnsmessage.ClassINET,
-			})
-			assert.NoError(t, err)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
 
-			t.Log(ips)
+			ips, err := r.Raw(ctx, dns.Question{
+				Name:   "code-server.taild2025.ts.net.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			})
+			t.Log(ips, err)
 		}
 	})
 }

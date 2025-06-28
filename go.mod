@@ -1,21 +1,22 @@
 module github.com/Asutorufa/yuhaiin
 
-go 1.24.0
+go 1.24.4
 
 require (
-	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8
+	github.com/go-json-experiment/json v0.0.0-20250626171732-1a886bd29d1b
 	github.com/godbus/dbus/v5 v5.1.1-0.20241109141217-c266b19b28e9
 	github.com/google/nftables v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-yamux/v5 v5.0.1
+	github.com/miekg/dns v1.1.58
 	github.com/prometheus/client_golang v1.22.0
 	github.com/quic-go/quic-go v0.53.0
 	github.com/refraction-networking/utls v1.7.3
 	github.com/tailscale/wireguard-go v0.0.0-20250530210235-65cd6eed7d7f
 	github.com/vishvananda/netlink v1.3.1
-	github.com/xtls/reality v0.0.0-20250608132114-50752aec6bfb
+	github.com/xtls/reality v0.0.0-20250627141458-e62c4aed0d57
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250624152928-372153f15af0
-	go.etcd.io/bbolt v1.4.0-beta.0.0.20250613084717-fde6016c3c02
+	go.etcd.io/bbolt v1.4.2
 	golang.org/x/crypto v0.39.0
 	golang.org/x/mobile v0.0.0-20250606033058-a2a15c67f36f
 	golang.org/x/net v0.41.0
@@ -25,7 +26,7 @@ require (
 	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
 	gvisor.dev/gvisor v0.0.0-20250529183007-2a7b5c7dece9
-	tailscale.com v1.84.2
+	tailscale.com v1.84.3
 )
 
 require (
@@ -71,7 +72,6 @@ require (
 	github.com/mdlayher/netlink v1.7.3-0.20250113171957-fbb4dce95f42 // indirect
 	github.com/mdlayher/sdnotify v1.0.0 // indirect
 	github.com/mdlayher/socket v0.5.0 // indirect
-	github.com/miekg/dns v1.1.58 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pires/go-proxyproto v0.8.1 // indirect
@@ -105,5 +105,5 @@ require (
 
 replace (
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
-	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20250603052320-3577a57423d3
+	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20250629005949-364ba5f96109
 )

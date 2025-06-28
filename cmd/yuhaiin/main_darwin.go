@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -29,10 +30,22 @@ const darwinLaunchdPlist = `
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/yuhaiin</string>
+		<string>-host</string>
+		<string>%s</string>
+		<string>-path</string>
+		<string>%s</string>
     </array>
 
     <key>RunAtLoad</key>
     <true/>
+
+    <key>UserName</key>
+    <string>root</string>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/yuhaiin.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/yuhaiin.log</string>
 
 </dict>
 </plist>
@@ -143,9 +156,13 @@ func uninstallSystemDaemonDarwin(args []string) (ret error) {
 }
 
 func installSystemDaemonDarwin(args []string) (err error) {
-	if len(args) > 0 {
-		return errors.New("install subcommand takes no arguments")
+	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
+	host := flag.String("host", "0.0.0.0:50051", "gRPC and http listen host")
+	path := flag.String("path", "/Library/Application Support/yuhaiin", "save data path")
+	if err := flag.Parse(args); err != nil {
+		return err
 	}
+
 	defer func() {
 		if err != nil && os.Getuid() != 0 {
 			err = fmt.Errorf("%w; try running yuhaiin with sudo", err)
@@ -153,7 +170,9 @@ func installSystemDaemonDarwin(args []string) (err error) {
 	}()
 
 	// Best effort:
-	uninstallSystemDaemonDarwin(nil)
+	if err := uninstallSystemDaemonDarwin(nil); err != nil {
+		log.Warn("uninstall system daemon", "err", err)
+	}
 
 	exe, err := os.Executable()
 	if err != nil {
@@ -173,7 +192,7 @@ func installSystemDaemonDarwin(args []string) (err error) {
 			return err
 		}
 	}
-	if err := os.WriteFile(sysPlist, []byte(darwinLaunchdPlist), 0700); err != nil {
+	if err := os.WriteFile(sysPlist, fmt.Appendf(nil, darwinLaunchdPlist, *host, *path), 0700); err != nil {
 		return err
 	}
 
