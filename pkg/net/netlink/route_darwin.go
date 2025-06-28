@@ -73,11 +73,12 @@ func Route(options *Options) (close func(), err error) {
 	var dns []string
 
 	for _, address := range append(options.Inet4Address, options.Inet6Address...) {
-		dns = append(dns, address.Addr().String())
+		dns = append(dns, address.Addr().Next().String())
 		if err := setAddress(iface, address); err != nil {
 			return nil, err
 		}
 	}
+
 	networkService := options.Platform.Darwin.NetworkService
 	if networkService == "" {
 		hp, err := networksetup.GetDefaultHardwarePort()

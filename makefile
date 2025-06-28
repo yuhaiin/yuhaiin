@@ -78,6 +78,11 @@ yuhaiin-%:
 yuhaiin_android_aar:
 	gomobile bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags '$(TAILSCALE_BUILD_FLAGS),debug' -trimpath -target="android/arm64,android/amd64" -androidapi 21 -o yuhaiin.aar -v ./cmd/android/
 
+# sudo Xcode-select --switch /Applications/Xcode.app/Contents/Developer/
+.PHONY: yuhaiin_macos
+yuhaiin_macos:
+	gomobile bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags '$(TAILSCALE_BUILD_FLAGS),debug' -trimpath -target="macos" -o yuhaiin.xcframework -v ./cmd/macos/
+
 .PHONY: install
 install: build cli
 	install -s -b -v -m 644 yuhaiin ${HOME}/.local/bin/yuhaiin

@@ -10,7 +10,7 @@ import (
 	"net"
 	"time"
 
-	"golang.org/x/net/dns/dnsmessage"
+	"github.com/miekg/dns"
 )
 
 type LookupIPOption struct {
@@ -94,7 +94,7 @@ type Resolver interface {
 	//
 	// ! The returned message may be cached, so it should not be modified
 	// ! Please clone the message if you need to modify it
-	Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error)
+	Raw(ctx context.Context, req dns.Question) (dns.Msg, error)
 	io.Closer
 }
 
@@ -106,8 +106,19 @@ func (e ErrorResolver) LookupIP(_ context.Context, domain string, opts ...func(*
 	return &IPs{}, e(domain)
 }
 func (e ErrorResolver) Close() error { return nil }
-func (e ErrorResolver) Raw(_ context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	return dnsmessage.Message{}, e(req.Name.String())
+func (e ErrorResolver) Raw(_ context.Context, req dns.Question) (dns.Msg, error) {
+	return dns.Msg{
+		MsgHdr: dns.MsgHdr{
+			Response:           true,
+			Opcode:             dns.OpcodeQuery,
+			Authoritative:      false,
+			Truncated:          false,
+			RecursionDesired:   true,
+			RecursionAvailable: true,
+			Rcode:              dns.RcodeSuccess,
+		},
+		Question: []dns.Question{req},
+	}, nil
 }
 
 // dnsConn is a net.PacketConn suitable for returning from
@@ -148,19 +159,19 @@ func (c *dnsConn) Read(p []byte) (n int, err error) {
 }
 
 func (c *dnsConn) Write(packet []byte) (n int, err error) {
-	var rmsg dnsmessage.Message
+	var rmsg dns.Msg
 
 	if err = rmsg.Unpack(packet); err != nil {
 		return 0, err
 	}
 
-	if len(rmsg.Questions) == 0 {
+	if len(rmsg.Question) == 0 {
 		return 0, errors.New("no question")
 	}
 
 	// log.Info("tailscale dns query", "name", rmsg.Questions[0].Name, "type", rmsg.Questions[0].Type)
 
-	msg, err := c.resolver.Raw(c.ctx, rmsg.Questions[0])
+	msg, err := c.resolver.Raw(c.ctx, rmsg.Question[0])
 	if err != nil {
 		return 0, err
 	}

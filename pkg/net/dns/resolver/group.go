@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"golang.org/x/net/dns/dnsmessage"
+	dnsmessage "github.com/miekg/dns"
 )
 
 type Group struct {
@@ -34,7 +34,7 @@ func (g *Group) Do(ctx context.Context, req *Request) (Response, error) {
 	first := true
 
 	var err error
-	var fallbackMsg *dnsmessage.Message
+	var fallbackMsg *dnsmessage.Msg
 	ch := make(chan result)          // must be unbuffered
 	failBoost := make(chan struct{}) // best effort send on dial failure
 
@@ -92,7 +92,7 @@ func (g *Group) Do(ctx context.Context, req *Request) (Response, error) {
 				msg, er := r.resp.Msg()
 				r.resp.Release()
 				if er == nil {
-					if msg.RCode == dnsmessage.RCodeSuccess {
+					if msg.Rcode == dnsmessage.RcodeSuccess {
 						return r.resp, nil
 					}
 

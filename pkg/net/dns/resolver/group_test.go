@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"golang.org/x/net/dns/dnsmessage"
+	dnsmessage "github.com/miekg/dns"
 )
 
 func TestGroup(t *testing.T) {
@@ -26,7 +26,7 @@ func TestGroup(t *testing.T) {
 	})
 
 	t.Run("rcode error", func(t *testing.T) {
-		group, err := NewGroup(&mockDialer{rCode: dnsmessage.RCodeServerFailure}, &mockDialer{rCode: dnsmessage.RCodeNameError})
+		group, err := NewGroup(&mockDialer{rCode: dnsmessage.RcodeServerFailure}, &mockDialer{rCode: dnsmessage.RcodeNameError})
 		assert.NoError(t, err)
 
 		c := NewClient(Config{}, group)
@@ -35,7 +35,7 @@ func TestGroup(t *testing.T) {
 
 		var derr *net.DNSError
 		assert.MustEqual(t, true, errors.As(err, &derr))
-		assert.MustEqual(t, dnsmessage.RCodeServerFailure.String(), derr.Err)
+		assert.MustEqual(t, dnsmessage.RcodeToString[dnsmessage.RcodeServerFailure], derr.Err)
 	})
 
 	group, err := NewGroup(&mockDialer{err: errors.New("mock err")}, &mockDialer{})
@@ -50,7 +50,7 @@ func TestGroup(t *testing.T) {
 
 type mockDialer struct {
 	err   error
-	rCode dnsmessage.RCode
+	rCode int
 }
 
 func (m *mockDialer) Do(ctx context.Context, req *Request) (Response, error) {
@@ -58,25 +58,22 @@ func (m *mockDialer) Do(ctx context.Context, req *Request) (Response, error) {
 		time.Sleep(time.Millisecond * 200)
 		return nil, m.err
 	}
-	var body dnsmessage.ResourceBody
+	var body dnsmessage.RR
 
-	switch req.Question.Type {
+	switch req.Question.Qtype {
 	case dnsmessage.TypeA:
-		body = &dnsmessage.AResource{A: [4]byte{127, 0, 0, 1}}
+		body = &dnsmessage.A{A: net.IP{127, 0, 0, 1}}
 	case dnsmessage.TypeAAAA:
-		body = &dnsmessage.AAAAResource{AAAA: [16]byte{127, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}}
+		body = &dnsmessage.AAAA{AAAA: net.IP{127, 0, 0, 1}}
 	}
 
 	return MsgResponse{
-		Header: dnsmessage.Header{
-			ID:    req.ID,
-			RCode: m.rCode,
+		MsgHdr: dnsmessage.MsgHdr{
+			Id:    req.ID,
+			Rcode: m.rCode,
 		},
-		Questions: []dnsmessage.Question{req.Question},
-		Answers: []dnsmessage.Resource{{
-			Header: dnsmessage.ResourceHeader{Name: req.Question.Name, Class: dnsmessage.ClassINET, TTL: 600, Type: req.Question.Type},
-			Body:   body,
-		}},
+		Question: []dnsmessage.Question{req.Question},
+		Answer:   []dnsmessage.RR{body},
 	}, nil
 }
 func (m *mockDialer) Close() error { return nil }

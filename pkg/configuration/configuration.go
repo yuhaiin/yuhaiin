@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 var Lite = os.Getenv("YUHAIIN_LITE") == "true"
@@ -37,11 +38,11 @@ var (
 	MaxUDPUnprocessedPackets = atomicx.NewValue(250)
 	UDPBufferSize            = atomicx.NewValue(2048)
 	RelayBufferSize          = atomicx.NewValue(4096)
-	DNSProcessThread         = atomicx.NewValue(4)
+	DNSProcessThread         = atomicx.NewValue(min(system.Procs, 10))
 
 	MPTCP = true
 
-	UDPChannelBufferSize = 2500
+	UDPChannelBufferSize = 1000
 
 	IPv6 = atomicx.NewValue(true)
 	// resolver fake ip or inbound fake ip enable

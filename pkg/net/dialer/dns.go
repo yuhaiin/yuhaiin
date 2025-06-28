@@ -10,7 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"golang.org/x/net/dns/dnsmessage"
+	"github.com/miekg/dns"
 )
 
 var bootstrap = &bootstrapResolver{}
@@ -40,13 +40,13 @@ func (b *bootstrapResolver) LookupIP(ctx context.Context, domain string, opts ..
 	return r.LookupIP(ctx, domain, opts...)
 }
 
-func (b *bootstrapResolver) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+func (b *bootstrapResolver) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	b.mu.RLock()
 	r := b.r
 	b.mu.RUnlock()
 
 	if r == nil {
-		return dnsmessage.Message{}, errors.New("bootstrap resolver is nil")
+		return dns.Msg{}, errors.New("bootstrap resolver is nil")
 	}
 
 	return r.Raw(ctx, req)

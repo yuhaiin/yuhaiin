@@ -16,12 +16,16 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"tailscale.com/envknob"
+	"tailscale.com/net/dns"
 	"tailscale.com/net/dnscache"
 	"tailscale.com/net/netns"
+	"tailscale.com/net/tsaddr"
 	"tailscale.com/tsnet"
 )
 
@@ -170,24 +174,6 @@ func (t *Tailscale) Close() error {
 	return nil
 }
 
-func (t *Tailscale) waitAddr(ctx context.Context, tsnet *tsnet.Server) (netip.Addr, netip.Addr, error) {
-	for {
-		ipv4, ipv6 := tsnet.TailscaleIPs()
-
-		if ipv4.IsValid() || ipv6.IsValid() {
-			return ipv4, ipv6, nil
-		}
-
-		log.Info("tailscale wait addr")
-
-		select {
-		case <-ctx.Done():
-			return netip.Addr{}, netip.Addr{}, ctx.Err()
-		case <-time.After(time.Second):
-		}
-	}
-}
-
 func (t *Tailscale) resolveAddr(dialer *tsnet.Server, addr netapi.Address) (netip.AddrPort, error) {
 	if !addr.IsFqdn() {
 		return addr.(netapi.IPAddress).AddrPort(), nil
@@ -222,9 +208,21 @@ func (t *Tailscale) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 		}
 	}()
 
-	_, _, err = t.waitAddr(ctx, dialer)
+	_, err = dialer.Up(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	// see: https://github.com/tailscale/tailscale/issues/10860
+	//      https://github.com/tailscale/tailscale/issues/4677
+	//
+	// the magic dns is not working on tsnet, so we need hijack it
+	if addr.Port() == 53 {
+		if hostname := addr.Hostname(); hostname == tsaddr.TailscaleServiceIP().String() || hostname == tsaddr.TailscaleServiceIPv6().String() {
+			src, dst := pipe.Pipe()
+			go t.tsnet.Sys().DNSManager.Get().HandleTCPConn(src, netip.AddrPort{})
+			return dst, nil
+		}
 	}
 
 	nip, err := t.resolveAddr(dialer, addr)
@@ -252,14 +250,27 @@ func (t *Tailscale) PacketConnPacket(ctx context.Context, addr netapi.Address) (
 		}
 	}()
 
-	ipv4, ipv6, err := t.waitAddr(ctx, dialer)
+	states, err := dialer.Up(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	laddr := ipv6
-	if !addr.IsFqdn() && addr.(netapi.IPAddress).AddrPort().Addr().Is4() {
-		laddr = ipv4
+	var laddr netip.Addr
+
+	for _, ip := range states.TailscaleIPs {
+		if !addr.IsFqdn() && addr.(netapi.IPAddress).AddrPort().Addr().Is4() {
+			if ip.Is4() {
+				laddr = ip
+			}
+		} else {
+			if ip.Is6() {
+				laddr = ip
+			}
+		}
+	}
+
+	if !laddr.IsValid() {
+		return nil, fmt.Errorf("tailscale ip not found")
 	}
 
 	conn, err := dialer.ListenPacket("udp", net.JoinHostPort(laddr.String(), "0"))
@@ -267,7 +278,7 @@ func (t *Tailscale) PacketConnPacket(ctx context.Context, addr netapi.Address) (
 		return nil, err
 	}
 
-	return &warpPacketConn{ctx: context.WithoutCancel(ctx), ts: t, PacketConn: conn}, nil
+	return &warpPacketConn{ctx: context.WithoutCancel(ctx), PacketConn: conn}, nil
 }
 
 func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
@@ -282,9 +293,19 @@ func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 		}
 	}()
 
-	_, _, err = t.waitAddr(ctx, dialer)
+	_, err = dialer.Up(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	// see: https://github.com/tailscale/tailscale/issues/10860
+	//      https://github.com/tailscale/tailscale/issues/4677
+	//
+	// the magic dns is not working on tsnet, so we need hijack it
+	if addr.Port() == 53 {
+		if hostname := addr.Hostname(); hostname == tsaddr.TailscaleServiceIP().String() || hostname == tsaddr.TailscaleServiceIPv6().String() {
+			return NewDnsPacket(dialer.Sys().DNSManager.Get()), nil
+		}
 	}
 
 	nip, err := t.resolveAddr(dialer, addr)
@@ -303,7 +324,6 @@ func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 
 type warpPacketConn struct {
 	ctx context.Context
-	ts  *Tailscale
 	net.PacketConn
 }
 
@@ -323,6 +343,11 @@ func (w *warpPacketConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 	}
 
 	return w.PacketConn.WriteTo(buf, ur)
+}
+
+func (w *warpPacketConn) ReadFrom(buf []byte) (int, net.Addr, error) {
+	n, addr, err := w.PacketConn.ReadFrom(buf)
+	return n, addr, err
 }
 
 var _ net.PacketConn = (*warpUDPConn)(nil)
@@ -371,4 +396,72 @@ func (l *listener) ListenPacket(ctx context.Context, network, address string) (n
 	// _, file, line, _ := runtime.Caller(2)
 	// log.Info("tailscale listen packet", "network", network, "address", address, "file", file, "line", line)
 	return dialer.ListenPacket(ctx, network, address)
+}
+
+type dnsPacket struct {
+	cancel context.CancelFunc
+	ctx    context.Context
+	ch     chan []byte
+	mgr    *dns.Manager
+}
+
+func NewDnsPacket(mgr *dns.Manager) net.PacketConn {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &dnsPacket{
+		cancel: cancel,
+		ctx:    ctx,
+		ch:     make(chan []byte, 100),
+		mgr:    mgr,
+	}
+}
+
+func (d *dnsPacket) Close() error {
+	d.cancel()
+	return nil
+}
+
+func (d *dnsPacket) ReadFrom(buf []byte) (int, net.Addr, error) {
+	select {
+	case <-d.ctx.Done():
+		return 0, nil, d.ctx.Err()
+	case b := <-d.ch:
+		n := copy(buf, b)
+		pool.PutBytes(b)
+		return n, &net.UDPAddr{
+			IP:   net.IPv4(100, 100, 100, 100),
+			Port: 53,
+		}, nil
+	}
+}
+
+func (d *dnsPacket) WriteTo(buf []byte, addr net.Addr) (int, error) {
+	data, err := d.mgr.Query(d.ctx, buf, "udp", netip.AddrPort{})
+	if err != nil {
+		return 0, err
+	}
+
+	select {
+	case <-d.ctx.Done():
+		return 0, d.ctx.Err()
+	case d.ch <- data:
+		return len(buf), nil
+	}
+}
+
+func (d *dnsPacket) LocalAddr() net.Addr {
+	return &net.UDPAddr{
+		IP: net.IPv4zero,
+	}
+}
+
+func (d *dnsPacket) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (d *dnsPacket) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (d *dnsPacket) SetWriteDeadline(t time.Time) error {
+	return nil
 }

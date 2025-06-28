@@ -5,12 +5,11 @@ import (
 	"net"
 	"net/netip"
 	"sync"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"golang.org/x/net/dns/dnsmessage"
+	"github.com/miekg/dns"
 )
 
 type Hosts struct {
@@ -106,29 +105,29 @@ func (h *Hosts) LookupIP(ctx context.Context, domain string, opts ...func(*netap
 	return h.resolver.LookupIP(ctx, addr.Hostname(), opts...)
 }
 
-func (h *Hosts) newDnsMsg(req dnsmessage.Question) dnsmessage.Message {
-	return dnsmessage.Message{
-		Header: dnsmessage.Header{
-			ID:                 0,
+func (h *Hosts) newDnsMsg(req dns.Question) dns.Msg {
+	return dns.Msg{
+		MsgHdr: dns.MsgHdr{
+			Id:                 0,
 			Response:           true,
 			Authoritative:      false,
 			RecursionDesired:   false,
-			RCode:              dnsmessage.RCodeSuccess,
+			Rcode:              dns.RcodeSuccess,
 			RecursionAvailable: false,
 		},
-		Questions: []dnsmessage.Question{
+		Question: []dns.Question{
 			{
-				Name:  req.Name,
-				Type:  req.Type,
-				Class: dnsmessage.ClassINET,
+				Name:   req.Name,
+				Qtype:  req.Qtype,
+				Qclass: dns.ClassINET,
 			},
 		},
 	}
 }
 
-func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	if req.Type == dnsmessage.TypePTR {
-		ip, err := resolver.RetrieveIPFromPtr(req.Name.String())
+func (h *Hosts) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+	if req.Qtype == dns.TypePTR {
+		ip, err := resolver.RetrieveIPFromPtr(req.Name)
 		if err != nil {
 			return h.resolver.Raw(ctx, req)
 		}
@@ -152,32 +151,19 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 
 			v = system.AbsDomain(v)
 
-			name, err := dnsmessage.NewName(v)
-			if err != nil {
-				continue
-			}
-
-			msg.Answers = append(msg.Answers, dnsmessage.Resource{
-				Header: dnsmessage.ResourceHeader{
-					Name:  req.Name,
-					Class: dnsmessage.ClassINET,
-					TTL:   600,
-					Type:  req.Type,
-				},
-				Body: &dnsmessage.PTRResource{
-					PTR: name,
-				},
+			msg.Answer = append(msg.Answer, &dns.PTR{
+				Ptr: v,
 			})
 		}
 
 		return msg, nil
 	}
 
-	if req.Type != dnsmessage.TypeAAAA && req.Type != dnsmessage.TypeA {
+	if req.Qtype != dns.TypeAAAA && req.Qtype != dns.TypeA {
 		return h.resolver.Raw(ctx, req)
 	}
 
-	domain := unsafe.String(unsafe.SliceData(req.Name.Data[0:req.Name.Length-1]), req.Name.Length-1)
+	domain := req.Name[:len(req.Name)-1]
 
 	addr := netapi.ParseAddressPort("", domain, 0)
 	if !addr.IsFqdn() {
@@ -187,27 +173,23 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 	addr = h.dispatchAddr(ctx, addr)
 
 	if addr.IsFqdn() {
-		name, err := dnsmessage.NewName(system.AbsDomain(addr.Hostname()))
-		if err != nil {
-			return dnsmessage.Message{}, err
-		}
-		req.Name = name
+		req.Name = system.AbsDomain(addr.Hostname())
 		return h.resolver.Raw(ctx, req)
 	}
 
 	ip := addr.(netapi.IPAddress).AddrPort().Addr()
 
-	if req.Type == dnsmessage.TypeAAAA {
+	if req.Qtype == dns.TypeAAAA {
 		msg := h.newDnsMsg(req)
-		msg.Answers = []dnsmessage.Resource{
-			{
-				Header: dnsmessage.ResourceHeader{
-					Name:  req.Name,
-					Class: dnsmessage.ClassINET,
-					TTL:   600,
-					Type:  dnsmessage.TypeAAAA,
+		msg.Answer = []dns.RR{
+			&dns.AAAA{
+				Hdr: dns.RR_Header{
+					Name:   req.Name,
+					Rrtype: dns.TypeA,
+					Ttl:    600,
+					Class:  dns.ClassINET,
 				},
-				Body: &dnsmessage.AAAAResource{AAAA: ip.As16()},
+				AAAA: ip.AsSlice(),
 			},
 		}
 		return msg, nil
@@ -218,15 +200,15 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 	}
 
 	msg := h.newDnsMsg(req)
-	msg.Answers = []dnsmessage.Resource{
-		{
-			Header: dnsmessage.ResourceHeader{
-				Name:  req.Name,
-				Class: dnsmessage.ClassINET,
-				TTL:   600,
-				Type:  dnsmessage.TypeA,
+	msg.Answer = []dns.RR{
+		&dns.A{
+			Hdr: dns.RR_Header{
+				Name:   req.Name,
+				Rrtype: dns.TypeA,
+				Ttl:    600,
+				Class:  dns.ClassINET,
 			},
-			Body: &dnsmessage.AResource{A: ip.As4()},
+			A: ip.AsSlice(),
 		},
 	}
 
