@@ -8,7 +8,7 @@ require (
 	github.com/google/nftables v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-yamux/v5 v5.0.1
-	github.com/miekg/dns v1.1.58
+	github.com/miekg/dns v1.1.66
 	github.com/prometheus/client_golang v1.22.0
 	github.com/quic-go/quic-go v0.53.0
 	github.com/refraction-networking/utls v1.7.3
