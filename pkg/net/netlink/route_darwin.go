@@ -88,7 +88,7 @@ func Route(options *Options) (close func(), err error) {
 			log.Info("get default hardware port", "device", hp)
 		}
 
-		networkService = hp.Device
+		networkService = hp.Port
 	}
 
 	if networkService != "" {
