@@ -74,6 +74,10 @@ func (c *Chore) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
 				IgnoreDnsError:     proto.Bool(configuration.IgnoreDnsErrorLog.Load()),
 				IgnoreTimeoutError: proto.Bool(configuration.IgnoreTimeoutErrorLog.Load()),
 			}.Build())
+		} else if !s.GetLogcat().HasIgnoreDnsError() {
+			s.GetLogcat().SetIgnoreDnsError(false)
+		} else if !s.GetLogcat().HasIgnoreTimeoutError() {
+			s.GetLogcat().SetIgnoreTimeoutError(false)
 		}
 
 		if !s.HasSystemProxy() {
