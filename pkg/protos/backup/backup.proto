@@ -3,49 +3,76 @@ edition = "2023";
 package yuhaiin.backup;
 import "google/protobuf/go_features.proto";
 import "google/protobuf/empty.proto";
-import "config/config.proto";
-import "node/node.proto";
+import "node/point/point.proto";
+import "node/subscribe/subscribe.proto";
+import "config/dns/dns.proto";
+import "config/listener/listener.proto";
+import "config/bypass/bypass.proto";
+import "node/tag/tag.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/backup";
 option features.(pb.go).api_level = API_OPAQUE;
 
 message s3 {
-    bool enabled = 1 [json_name = "enabled"];
-    string access_key = 2 [json_name = "access_key"];
-    string secret_key = 3 [json_name = "secret_key"];
-    string bucket = 4 [json_name = "bucket"];
-    string region = 5 [json_name = "region"];
-    string endpoint_url = 6 [json_name = "endpoint_url"];
-    bool use_path_style = 7 [json_name = "use_path_style"];
+  bool enabled = 1 [ json_name = "enabled" ];
+  string access_key = 2 [ json_name = "access_key" ];
+  string secret_key = 3 [ json_name = "secret_key" ];
+  string bucket = 4 [ json_name = "bucket" ];
+  string region = 5 [ json_name = "region" ];
+  string endpoint_url = 6 [ json_name = "endpoint_url" ];
+  bool use_path_style = 7 [ json_name = "use_path_style" ];
 }
 
 message backup_option {
-    s3 s3 = 1 [json_name = "s3"];
+  string instance_name = 1 [ json_name = "instance_name" ];
+  s3 s3 = 2 [ json_name = "s3" ];
 }
 
+message nodes {
+  map<string, yuhaiin.point.point> nodes = 1 [ json_name = "nodes" ];
+}
+
+message subscribes {
+  map<string, yuhaiin.subscribe.link> links = 1 [ json_name = "links" ];
+}
+
+message rules {
+  yuhaiin.bypass.configv2 config = 1 [ json_name = "config" ];
+  repeated yuhaiin.bypass.rulev2 rules = 2 [ json_name = "rules" ];
+  map<string, yuhaiin.bypass.list> lists = 3 [ json_name = "lists" ];
+}
+
+message tags { map<string, yuhaiin.tag.tags> tags = 1 [ json_name = "tags" ]; }
+
 message backup_content {
-    yuhaiin.config.setting config = 1 [json_name = "config"];
-    yuhaiin.node.node node = 2 [json_name = "node"];
+  nodes nodes = 2 [ json_name = "nodes" ];
+  subscribes subscribes = 3 [ json_name = "subscribes" ];
+  yuhaiin.dns.dns_config_v2 dns = 4 [ json_name = "dns" ];
+  yuhaiin.listener.inbound_config inbounds = 5 [ json_name = "inbounds" ];
+  rules rules = 6 [ json_name = "rules" ];
+  tags tags = 7 [ json_name = "tag" ];
 }
 
 message restore_option {
-    bool all = 1 [json_name = "all"];
-    bool bypass_rule = 2 [json_name = "bypass_rule"];
-    bool bypass_list = 3 [json_name = "bypass_list"];
-    bool node = 4 [json_name = "node"];
-    bool tag = 5 [json_name = "tag"];
-    bool resolver = 6 [json_name = "resolver"];
-    bool inbound = 7 [json_name = "inbound"];
+  bool all = 1 [ json_name = "all" ];
+  bool rules = 2 [ json_name = "rules" ];
+  bool lists = 3 [ json_name = "lists" ];
+  bool nodes = 4 [ json_name = "nodes" ];
+  bool tags = 5 [ json_name = "tags" ];
+  bool dns = 6 [ json_name = "dns" ];
+  bool inbounds = 7 [ json_name = "inbounds" ];
+  bool subscribes = 8 [ json_name = "subscribes" ];
 
-    enum restore_source {
-        unknown = 0;
-        s3 = 1;
-    }
-    restore_source source = 8 [json_name = "source"];
+  enum restore_source {
+    unknown = 0;
+    s3 = 1;
+  }
+  restore_source source = 9 [ json_name = "source" ];
 }
 
 service backup {
-    rpc save(backup_option) returns (google.protobuf.Empty);
-    rpc backup(google.protobuf.Empty) returns (google.protobuf.Empty);
-    rpc restore(restore_option) returns (google.protobuf.Empty);
+  rpc save(backup_option) returns (google.protobuf.Empty);
+  rpc get(google.protobuf.Empty) returns (backup_option);
+  rpc backup(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc restore(restore_option) returns (google.protobuf.Empty);
 }
