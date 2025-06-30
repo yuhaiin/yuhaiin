@@ -100,7 +100,7 @@ func (c *Conn) Close() error {
 func (c *Conn) LocalAddr() net.Addr {
 	src := c.tuple.SourceAddr
 	return &net.TCPAddr{
-		IP:   net.IP(src.AsSlice()),
+		IP:   src.AsSlice(),
 		Port: int(c.tuple.SourcePort),
 	}
 }
@@ -108,7 +108,7 @@ func (c *Conn) LocalAddr() net.Addr {
 func (c *Conn) RemoteAddr() net.Addr {
 	dst := c.tuple.DestinationAddr
 	return &net.TCPAddr{
-		IP:   net.IP(dst.AsSlice()),
+		IP:   dst.AsSlice(),
 		Port: int(c.tuple.DestinationPort),
 	}
 }

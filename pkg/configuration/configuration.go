@@ -45,7 +45,7 @@ var (
 	UDPChannelBufferSize = 1000
 
 	IPv6 = atomicx.NewValue(true)
-	// resolver fake ip or inbound fake ip enable
+	// FakeIPEnabled resolver fake ip or inbound fake ip enable
 	FakeIPEnabled = atomicx.NewValue(false)
 
 	HistorySize = or[uint](1000, 500)

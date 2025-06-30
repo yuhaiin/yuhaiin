@@ -21,6 +21,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pt "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/backup"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
@@ -47,6 +48,7 @@ type AppInstance struct {
 	Lists          gc.ListsServer
 	Rules          gc.RulesServer
 	Tag            gn.TagServer
+	Backup         backup.BackupServer
 	// TODO deprecate configService, new service chore
 	Setting gc.ConfigServiceServer
 	Mux     *http.ServeMux
@@ -94,6 +96,8 @@ func (app *AppInstance) RegisterServer() {
 	gs.RegisterConnectionsServer(grpcServer, app.Connections)
 
 	gt.RegisterToolsServer(grpcServer, app.Tools)
+
+	backup.RegisterBackupServer(grpcServer, app.Backup)
 
 	RegisterHTTP(app.Mux)
 }
@@ -148,6 +152,7 @@ type StartOptions struct {
 	ResolverConfig pc.DB
 	InboundConfig  pc.DB
 	ChoreConfig    pc.DB
+	BackupConfig   pc.DB
 
 	ProcessDumper netapi.ProcessDumper
 

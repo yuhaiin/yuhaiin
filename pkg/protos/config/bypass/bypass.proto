@@ -13,6 +13,13 @@ enum mode {
   block = 3;
 }
 
+message configv2 {
+  udp_proxy_fqdn_strategy udp_proxy_fqdn = 1 [ json_name = "udp_proxy_fqdn" ];
+  bool resolve_locally = 2 [ json_name = "resolve_locally" ];
+  string direct_resolver = 3 [ json_name = "direct_resolver" ];
+  string proxy_resolver = 4 [ json_name = "proxy_resolver" ];
+}
+
 message config {
   mode tcp = 3 [ json_name = "tcp", deprecated = true ];
   mode udp = 4 [ json_name = "udp", deprecated = true ];
