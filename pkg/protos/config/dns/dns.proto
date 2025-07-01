@@ -31,6 +31,8 @@ message dns_config {
   string fakedns_ip_range = 6 [ json_name = "fakedns_ip_range" ];
   string fakedns_ipv6_range = 13 [ json_name = "fakedns_ipv6_range" ];
   repeated string fakedns_whitelist = 9 [ json_name = "fakedns_whitelist" ];
+  repeated string fakedns_skip_check_list = 14
+      [ json_name = "fakedns_skip_check_list" ];
   map<string, string> hosts = 8 [ json_name = "hosts" ];
   map<string, dns> resolver = 10 [ json_name = "resolver" ];
 }
@@ -40,6 +42,7 @@ message fakedns_config {
   string ipv4_range = 2 [ json_name = "ipv4_range" ];
   string ipv6_range = 3 [ json_name = "ipv6_range" ];
   repeated string whitelist = 4 [ json_name = "whitelist" ];
+  repeated string skip_check_list = 5 [ json_name = "skip_check_list" ];
 }
 
 message server { string host = 1 [ json_name = "host" ]; }

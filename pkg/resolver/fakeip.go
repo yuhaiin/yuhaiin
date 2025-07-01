@@ -27,8 +27,10 @@ type Fakedns struct {
 	fake     *resolver.FakeDNS
 
 	whitelist *domain.Fqdn[struct{}]
+	skipCheck *domain.Fqdn[struct{}]
 
 	whitelistSlice []string
+	skipCheckSlice []string
 	enabled        atomic.Bool
 }
 
@@ -42,11 +44,22 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db cache.Recursio
 		upstream:  upstream,
 		db:        db,
 		whitelist: domain.NewDomainMapper[struct{}](),
+		skipCheck: domain.NewDomainMapper[struct{}](),
 	}
 }
 
 func (f *Fakedns) Apply(c *cd.FakednsConfig) {
 	f.enabled.Store(c.GetEnabled())
+
+	if !slices.Equal(c.GetSkipCheckList(), f.skipCheckSlice) {
+		d := domain.NewDomainMapper[struct{}]()
+
+		for _, v := range c.GetSkipCheckList() {
+			d.Insert(v, struct{}{})
+		}
+		f.skipCheck = d
+		f.skipCheckSlice = c.GetSkipCheckList()
+	}
 
 	if !slices.Equal(c.GetWhitelist(), f.whitelistSlice) {
 		d := domain.NewDomainMapper[struct{}]()
@@ -94,10 +107,18 @@ func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
 }
 
 func (f *Fakedns) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
+	if _, ok := f.skipCheck.SearchString(system.RelDomain(domain)); ok {
+		ctx = context.WithValue(ctx, resolver.SkipCheckKey{}, true)
+	}
 	return f.resolver(ctx, domain).LookupIP(ctx, domain, opts...)
 }
 
 func (f *Fakedns) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+	if req.Qtype == dns.TypeAAAA || req.Qtype == dns.TypeA {
+		if _, ok := f.skipCheck.SearchString(system.RelDomain(req.Name)); ok {
+			ctx = context.WithValue(ctx, resolver.SkipCheckKey{}, true)
+		}
+	}
 	return f.resolver(ctx, req.Name).Raw(ctx, req)
 }
 
