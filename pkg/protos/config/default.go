@@ -13,9 +13,10 @@ import (
 
 func DefaultSetting(path string) *Setting {
 	tunname := "tun0"
-	if runtime.GOOS == "darwin" {
+	switch runtime.GOOS {
+	case "darwin":
 		tunname = "utun0"
-	} else if runtime.GOOS == "windows" {
+	case "windows":
 		tunname = "wintun"
 	}
 
