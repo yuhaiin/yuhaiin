@@ -91,11 +91,11 @@ message inbounds_response {
 }
 
 message platform_info_response {
-	message platform_darwin {
-		repeated string network_services = 1 [ json_name = "network_services" ];
-	}
+  message platform_darwin {
+    repeated string network_services = 1 [ json_name = "network_services" ];
+  }
 
-	platform_darwin darwin = 1 [ json_name = "darwin" ];
+  platform_darwin darwin = 1 [ json_name = "darwin" ];
 }
 
 service inbound {

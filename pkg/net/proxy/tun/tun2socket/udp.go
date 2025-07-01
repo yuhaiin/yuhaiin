@@ -3,13 +3,11 @@ package tun2socket
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math"
 	"math/rand/v2"
 	"net"
 	"sync/atomic"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
@@ -49,8 +47,8 @@ func (u *UDP) handleUDPPacket(tuple UDPTuple, payload []byte) {
 	}
 
 	u.handler.HandlePacket(netapi.NewPacket(
-		netapi.ParseIPAddr("udp", net.IP(tuple.SourceAddr.AsSlice()), tuple.SourcePort),
-		netapi.ParseIPAddr("udp", net.IP(tuple.DestinationAddr.AsSlice()), tuple.DestinationPort),
+		netapi.ParseIPAddr("udp", tuple.SourceAddr.AsSlice(), tuple.SourcePort),
+		netapi.ParseIPAddr("udp", tuple.DestinationAddr.AsSlice(), tuple.DestinationPort),
 		pool.Clone(payload),
 		&UDPWriteBack{u, tuple},
 	))
@@ -119,11 +117,6 @@ func (u *UDP) processUDPPacket(buf []byte, tuple UDPTuple) ([]byte, error) {
 	dst4Unspecified := tuple.DestinationAddr.To4().Unspecified()
 
 	if tuple.SourceAddr.Len() == 4 && !dst4Unspecified {
-		if dst4Unspecified {
-			// return 0, fmt.Errorf("send IPv6 packet to IPv4 connection: src: %v, dst: %v", tuple.SourceAddr, tuple.DestinationAddr)
-			log.Warn("send IPv6 packet to IPv4 connection", slog.String("src", tuple.SourceAddr.String()), slog.String("dst", tuple.DestinationAddr.String()))
-		}
-
 		// no ipv4 options set, so ipv4 header size is IPv4MinimumSize
 		totalLength = header.IPv4MinimumSize + uint16(udpTotalLength)
 

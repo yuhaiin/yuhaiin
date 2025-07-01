@@ -41,3 +41,12 @@ message fakedns_config {
   string ipv6_range = 3 [ json_name = "ipv6_range" ];
   repeated string whitelist = 4 [ json_name = "whitelist" ];
 }
+
+message server { string host = 1 [ json_name = "host" ]; }
+
+message dns_config_v2 {
+  server server = 1 [ json_name = "server" ];
+  fakedns_config fakedns = 2 [ json_name = "fakedns" ];
+  map<string, string> hosts = 3 [ json_name = "hosts" ];
+  map<string, dns> resolver = 4 [ json_name = "resolver" ];
+}
