@@ -414,10 +414,11 @@ func (r *ResolverCtr) SaveHosts(ctx context.Context, req *gc.Hosts) (*emptypb.Em
 
 func toFakednsConfig(s *config.Setting) *cd.FakednsConfig {
 	return (&cd.FakednsConfig_builder{
-		Enabled:   proto.Bool(s.GetDns().GetFakedns()),
-		Ipv4Range: proto.String(s.GetDns().GetFakednsIpRange()),
-		Ipv6Range: proto.String(s.GetDns().GetFakednsIpv6Range()),
-		Whitelist: s.GetDns().GetFakednsWhitelist(),
+		Enabled:       proto.Bool(s.GetDns().GetFakedns()),
+		Ipv4Range:     proto.String(s.GetDns().GetFakednsIpRange()),
+		Ipv6Range:     proto.String(s.GetDns().GetFakednsIpv6Range()),
+		Whitelist:     s.GetDns().GetFakednsWhitelist(),
+		SkipCheckList: s.GetDns().GetFakednsSkipCheckList(),
 	}).Build()
 }
 
@@ -436,6 +437,7 @@ func (r *ResolverCtr) SaveFakedns(ctx context.Context, req *cd.FakednsConfig) (*
 		s.GetDns().SetFakednsIpRange(req.GetIpv4Range())
 		s.GetDns().SetFakednsIpv6Range(req.GetIpv6Range())
 		s.GetDns().SetFakednsWhitelist(req.GetWhitelist())
+		s.GetDns().SetFakednsSkipCheckList(req.GetSkipCheckList())
 		return nil
 	})
 	if err != nil {

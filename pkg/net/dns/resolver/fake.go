@@ -20,6 +20,8 @@ import (
 	dnsmessage "github.com/miekg/dns"
 )
 
+type SkipCheckKey struct{}
+
 var _ netapi.Resolver = (*FakeDNS)(nil)
 
 type FakeDNS struct {
@@ -164,13 +166,16 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 		if !configuration.IPv6.Load() {
 			return f.newAnswerMessage(req, dnsmessage.RcodeSuccess, nil), nil
 		}
-		msg, err := f.Resolver.Raw(ctx, req)
-		if err != nil {
-			return dnsmessage.Msg{}, err
-		}
 
-		if !f.existAnswer(msg, dnsmessage.Type(dnsmessage.TypeAAAA)) {
-			return msg, nil
+		if ctx.Value(SkipCheckKey{}) != true {
+			msg, err := f.Resolver.Raw(ctx, req)
+			if err != nil {
+				return dnsmessage.Msg{}, err
+			}
+
+			if !f.existAnswer(msg, dnsmessage.Type(dnsmessage.TypeAAAA)) {
+				return msg, nil
+			}
 		}
 
 		ip := f.ipv6.GetFakeIPForDomain(domain)
@@ -183,13 +188,15 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 		}), nil
 
 	case dnsmessage.TypeA:
-		msg, err := f.Resolver.Raw(ctx, req)
-		if err != nil {
-			return dnsmessage.Msg{}, err
-		}
+		if ctx.Value(SkipCheckKey{}) != true {
+			msg, err := f.Resolver.Raw(ctx, req)
+			if err != nil {
+				return dnsmessage.Msg{}, err
+			}
 
-		if !f.existAnswer(msg, dnsmessage.Type(dnsmessage.TypeA)) {
-			return msg, nil
+			if !f.existAnswer(msg, dnsmessage.Type(dnsmessage.TypeA)) {
+				return msg, nil
+			}
 		}
 
 		ip := f.ipv4.GetFakeIPForDomain(domain)
