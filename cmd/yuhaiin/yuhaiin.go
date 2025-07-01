@@ -69,6 +69,7 @@ func run(args []string) error {
 		ResolverConfig: setting,
 		InboundConfig:  setting,
 		ChoreConfig:    setting,
+		BackupConfig:   setting,
 		GRPCServer:     grpcserver,
 		ProcessDumper:  getPorcessDumper(),
 	})

@@ -62,6 +62,14 @@ func newChoreDB() *configDB[*pc.Setting] {
 	)
 }
 
+func newBackupDB() *configDB[*pc.Setting] {
+	return newConfigDB(
+		"backup_db",
+		func(s *pc.Setting) *pc.Setting { return s },
+		func(s *pc.Setting) *pc.Setting { return s },
+	)
+}
+
 func (a *App) Start(opt *Opts) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -121,6 +129,7 @@ func (a *App) Start(opt *Opts) error {
 		ResolverConfig: newResolverDB(),
 		InboundConfig:  fakeDB(opt, tools.PathGenerator.Config(opt.Savepath)),
 		ChoreConfig:    newChoreDB(),
+		BackupConfig:   newBackupDB(),
 		ProcessDumper:  NewUidDumper(opt.TUN.UidDumper),
 	})
 	if err != nil {
