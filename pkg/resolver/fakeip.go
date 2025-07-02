@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
+	dnssystem "github.com/Asutorufa/yuhaiin/pkg/net/dns/system"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
@@ -49,6 +50,8 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db cache.Recursio
 }
 
 func (f *Fakedns) Apply(c *cd.FakednsConfig) {
+	defer dnssystem.RefreshCache()
+
 	f.enabled.Store(c.GetEnabled())
 
 	if !slices.Equal(c.GetSkipCheckList(), f.skipCheckSlice) {

@@ -3,12 +3,16 @@ package route
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/url"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"unique"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -18,6 +22,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type Args struct {
@@ -263,15 +268,26 @@ type Rules struct {
 }
 
 func NewRules(db config.DB, route *Route) *Rules {
+	migrateConfig(db)
+
 	_ = db.View(func(s *pc.Setting) error {
 		route.ms.Update(s.GetBypass().GetRulesV2())
 		return nil
 	})
 
-	return &Rules{
+	r := &Rules{
 		db:    db,
 		route: route,
 	}
+
+	cfg, err := r.Config(context.TODO(), &emptypb.Empty{})
+	if err != nil {
+		log.Warn("get rules config error", "err", err)
+	} else {
+		r.route.config.Store(cfg)
+	}
+
+	return r
 }
 
 func (r *Rules) List(ctx context.Context, empty *emptypb.Empty) (*gc.RuleResponse, error) {
@@ -380,4 +396,67 @@ func (r *Rules) checkIndex(s *config.Setting, index *gc.RuleIndex) error {
 	}
 
 	return nil
+}
+
+func (r *Rules) Config(context.Context, *emptypb.Empty) (*bypass.Configv2, error) {
+	var resp *bypass.Configv2
+	err := r.db.View(func(ss *config.Setting) error {
+		resp = bypass.Configv2_builder{
+			DirectResolver: proto.String(ss.GetBypass().GetDirectResolver()),
+			ProxyResolver:  proto.String(ss.GetBypass().GetProxyResolver()),
+			ResolveLocally: proto.Bool(ss.GetBypass().GetResolveLocally()),
+			UdpProxyFqdn:   ss.GetBypass().GetUdpProxyFqdn().Enum(),
+		}.Build()
+
+		return nil
+	})
+
+	return resp, err
+}
+
+func (r *Rules) SaveConfig(ctx context.Context, req *bypass.Configv2) (*emptypb.Empty, error) {
+	err := r.db.Batch(func(setting *pc.Setting) error {
+		if !setting.HasBypass() {
+			setting.SetBypass(&bypass.Config{})
+		}
+
+		setting.GetBypass().SetDirectResolver(req.GetDirectResolver())
+		setting.GetBypass().SetProxyResolver(req.GetProxyResolver())
+		setting.GetBypass().SetResolveLocally(req.GetResolveLocally())
+		setting.GetBypass().SetUdpProxyFqdn(req.GetUdpProxyFqdn())
+
+		r.route.config.Store(req)
+		return nil
+	})
+
+	return &emptypb.Empty{}, err
+}
+
+func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*gc.TestResponse, error) {
+	addr := netapi.ParseAddressPort("", req.GetValue(), 0)
+	host, portstr, err := net.SplitHostPort(req.GetValue())
+	if err == nil {
+		port, err := strconv.ParseUint(portstr, 10, 16)
+		if err == nil {
+			addr = netapi.ParseAddressPort(host, host, uint16(port))
+		}
+	}
+
+	store := netapi.GetContext(ctx)
+
+	result := r.route.dispatch(store, addr)
+
+	return gc.TestResponse_builder{
+		Mode: bypass.ModeConfig_builder{
+			Mode:            result.Mode.Mode().Enum(),
+			Tag:             proto.String(result.Mode.GetTag()),
+			ResolveStrategy: result.Mode.GetResolveStrategy().Enum(),
+		}.Build(),
+		AfterAddr: proto.String(result.Addr.String()),
+		Reason:    proto.String(result.Reason),
+	}.Build(), nil
+}
+
+func (r *Rules) BlockHistory(context.Context, *emptypb.Empty) (*gc.BlockHistoryList, error) {
+	return r.route.RejectHistory.Get(), nil
 }

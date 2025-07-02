@@ -27,8 +27,6 @@ func NewLoopback() *LoopbackDetector {
 }
 
 func (l *LoopbackDetector) IsLoopback(ctx *netapi.Context, path string, pid uint) bool {
-	var True bool
-
 	// skip for test ownself latency?
 	if ctx.GetFakeIP() == nil && ctx.GetHosts() == nil {
 		ad, err := netapi.ParseSysAddr(ctx.Destination)
@@ -37,15 +35,19 @@ func (l *LoopbackDetector) IsLoopback(ctx *netapi.Context, path string, pid uint
 		}
 	}
 
-	if myPath != "" {
-		True = True || path == myPath
+	if myPath == "" {
+		return false
 	}
 
-	if True && myPath != "" && pid != 0 && myPid != 0 {
-		True = True && pid == myPid
+	if path != myPath {
+		return false
 	}
 
-	return True
+	if pid == 0 || myPid == 0 {
+		return true
+	} else {
+		return pid == myPid
+	}
 }
 
 func (l *LoopbackDetector) Cycle(meta *netapi.Context, addr netapi.Address) bool {

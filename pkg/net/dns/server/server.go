@@ -18,7 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/ringbuffer"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	dnsmessage "github.com/miekg/dns"
+	"github.com/miekg/dns"
 )
 
 type dnsServer struct {
@@ -231,7 +231,7 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 		ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
 	}
 
-	var qmsg dnsmessage.Msg
+	var qmsg dns.Msg
 	if err := qmsg.Unpack(req.Question); err != nil {
 		return fmt.Errorf("dns server parse failed: %w", err)
 	}
@@ -244,7 +244,7 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 
 	msg, err := d.resolver.Raw(ctx, question)
 	if err != nil {
-		return fmt.Errorf("do raw request (%v:%v) failed: %w", question.Name, dnsmessage.Type(question.Qtype), err)
+		return fmt.Errorf("do raw request (%v:%v) failed: %w", question.Name, dns.Type(question.Qtype), err)
 	}
 
 	msg.Id = qmsg.Id
@@ -272,7 +272,7 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 	for _, additional := range msg.Extra {
 		// rfc 6891
 		// Values lower than 512 MUST be treated as equal to 512.
-		if additional.Header().Rrtype == dnsmessage.TypeOPT && additional.Header().Class > 512 {
+		if additional.Header().Rrtype == dns.TypeOPT && additional.Header().Class > 512 {
 			clientBufferSize = int(additional.Header().Class)
 		}
 	}

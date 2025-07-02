@@ -106,7 +106,7 @@ func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code int, resource f
 		Name:   req.Name,
 		Rrtype: req.Qtype,
 		Class:  dnsmessage.ClassINET,
-		Ttl:    600,
+		Ttl:    40,
 	}))
 
 	return msg

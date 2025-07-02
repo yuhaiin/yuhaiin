@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/go-json-experiment/json"
 )
 
 type SkipRouteKey struct{}
@@ -105,20 +106,20 @@ type Context struct {
 	SystemDialer bool `metrics:"-"`
 }
 
-func (c *Context) NewMatch() {
+func (c *Context) NewMatch(ruleName string) {
 	if c.ruleChain == nil {
 		c.ruleChain = &MatchHistory{}
 	}
 
-	c.ruleChain.New()
+	c.ruleChain.New(ruleName)
 }
 
-func (c *Context) AddMatchHistory(s string) {
+func (c *Context) AddMatchHistory(listName string, matched bool) {
 	if c.ruleChain == nil {
 		c.ruleChain = &MatchHistory{}
 	}
 
-	c.ruleChain.Add(s)
+	c.ruleChain.Add(listName, matched)
 }
 
 func (c *Context) MatchHistory() string {
@@ -486,29 +487,37 @@ func (e *DialError) Error() string {
 	return s
 }
 
+type MatchResult struct {
+	ListName string `json:"list_name"`
+	Matched  bool   `json:"matched"`
+}
+type MatchHistoryEntry struct {
+	RuleName string        `json:"rule_name"`
+	History  []MatchResult `json:"history"`
+}
 type MatchHistory struct {
-	chains [][]string
+	chains []*MatchHistoryEntry
 }
 
-func (r *MatchHistory) New() {
-	r.chains = append(r.chains, []string{})
+func (r *MatchHistory) New(name string) {
+	r.chains = append(r.chains, &MatchHistoryEntry{
+		RuleName: name,
+	})
 }
 
-func (r *MatchHistory) Add(s string) {
+func (r *MatchHistory) Add(listName string, matched bool) {
 	if len(r.chains) == 0 {
-		r.New()
+		return
 	}
 
-	r.chains[len(r.chains)-1] = append(r.chains[len(r.chains)-1], s)
+	r.chains[len(r.chains)-1].History = append(r.chains[len(r.chains)-1].History, MatchResult{
+		ListName: listName,
+		Matched:  matched,
+	})
 }
 
 func (r *MatchHistory) String() string {
-	var sb strings.Builder
-	for i, chain := range r.chains {
-		sb.WriteString(strings.Join(chain, "->"))
-		if i != len(r.chains)-1 {
-			sb.WriteString(" <|> ")
-		}
-	}
-	return sb.String()
+	result := &strings.Builder{}
+	_ = json.MarshalWrite(result, r.chains)
+	return result.String()
 }
