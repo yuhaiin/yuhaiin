@@ -3,7 +3,6 @@ package route
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -41,16 +40,11 @@ func (s *Inbound) Match(ctx context.Context, addr netapi.Address) bool {
 	inbound := store.GetInboundName()
 	if inbound != "" {
 		ok := s.store.Has(inbound)
-		if ok {
-			store.AddMatchHistory(fmt.Sprintf("inbound/%s/yes", inbound))
-		} else {
-			store.AddMatchHistory(fmt.Sprintf("inbound/%s/no", inbound))
-		}
+		store.AddMatchHistory(inbound, ok)
 		return ok
-	} else {
-		store.AddMatchHistory("inbound/empty")
 	}
 
+	store.AddMatchHistory(inbound, false)
 	return false
 }
 
@@ -65,11 +59,16 @@ func NewNetwork(nt bypass.NetworkNetworkType) *Network {
 }
 
 func (s *Network) Match(ctx context.Context, addr netapi.Address) bool {
+	store := netapi.GetContext(ctx)
 	switch s.nt {
 	case bypass.Network_tcp:
-		return strings.HasPrefix(addr.Network(), "tcp")
+		ok := strings.HasPrefix(addr.Network(), "tcp")
+		store.AddMatchHistory("Net TCP", ok)
+		return ok
 	case bypass.Network_udp:
-		return strings.HasPrefix(addr.Network(), "udp")
+		ok := strings.HasPrefix(addr.Network(), "udp")
+		store.AddMatchHistory("Net UDP", ok)
+		return ok
 	default:
 		return false
 	}
@@ -108,15 +107,12 @@ func NewOr(name string, matchers ...Matcher) *Or {
 }
 
 func (s *Or) Match(ctx context.Context, addr netapi.Address) bool {
-	store := netapi.GetContext(ctx)
 	for _, m := range s.matchers {
 		if m.Match(ctx, addr) {
-			store.AddMatchHistory(fmt.Sprintf("or/%s/yes", s.name))
 			return true
 		}
 	}
 
-	store.AddMatchHistory(fmt.Sprintf("or/%s/no", s.name))
 	return false
 }
 
@@ -175,6 +171,7 @@ func sortRule(rules []*bypass.Rule) []*bypass.Rule {
 type MatchEntry struct {
 	mode    bypass.ModeEnum
 	matcher Matcher
+	name    string
 }
 
 type Matchers struct {
@@ -197,6 +194,7 @@ func (s *Matchers) Add(rule *bypass.Rulev2) {
 	s.matchers = append(s.matchers, MatchEntry{
 		mode:    rule.ToModeEnum(),
 		matcher: matcher,
+		name:    rule.GetName(),
 	})
 	if rule.GetTag() != "" {
 		s.tags[rule.GetTag()] = struct{}{}
@@ -214,12 +212,13 @@ func (s *Matchers) ChangePriority(source int, target int) {
 }
 
 func (s *Matchers) Update(rules []*bypass.Rulev2) {
-	ms := []MatchEntry{}
+	var ms []MatchEntry
 	tags := map[string]struct{}{}
 	for _, v := range rules {
 		ms = append(ms, MatchEntry{
 			mode:    v.ToModeEnum(),
 			matcher: ParseMatcher(s.list, v),
+			name:    v.GetName(),
 		})
 
 		if v.GetTag() != "" {
@@ -240,7 +239,7 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) bypass.ModeEn
 	store := netapi.GetContext(ctx)
 
 	for _, v := range s.matchers {
-		store.NewMatch()
+		store.NewMatch(v.name)
 		if v.matcher.Match(ctx, addr) {
 			return v.mode
 		}

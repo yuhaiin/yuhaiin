@@ -164,7 +164,7 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 	}
 
 	// rules config
-	ruleConfig, err := b.instance.RuleController.Load(ctx, &emptypb.Empty{})
+	ruleConfig, err := b.instance.Rules.Config(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		return nil, err
 	}
 
-	rules := []*bypass.Rulev2{}
+	var rules []*bypass.Rulev2
 	for index, name := range ruleNames.GetNames() {
 		rule, err := b.instance.Rules.Get(ctx, gpc.RuleIndex_builder{
 			Index: proto.Uint32(uint32(index)),
@@ -230,14 +230,9 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 			Inbounds:        inboundsMap,
 		}.Build(),
 		Rules: backup.Rules_builder{
-			Config: bypass.Configv2_builder{
-				UdpProxyFqdn:   ruleConfig.GetUdpProxyFqdn().Enum(),
-				ResolveLocally: proto.Bool(ruleConfig.GetResolveLocally()),
-				DirectResolver: proto.String(ruleConfig.GetDirectResolver()),
-				ProxyResolver:  proto.String(ruleConfig.GetProxyResolver()),
-			}.Build(),
-			Rules: rules,
-			Lists: lists,
+			Config: ruleConfig,
+			Rules:  rules,
+			Lists:  lists,
 		}.Build(),
 		Tags: backup.Tags_builder{
 			Tags: tags.GetTags(),
@@ -492,14 +487,7 @@ func (b *Backup) restoreRules(ctx context.Context, content *backup.BackupContent
 	rules := content.GetRules()
 
 	if rules.HasConfig() {
-		config := rules.GetConfig()
-
-		_, err := b.instance.RuleController.Save(ctx, bypass.Config_builder{
-			UdpProxyFqdn:   config.GetUdpProxyFqdn().Enum(),
-			ResolveLocally: proto.Bool(config.GetResolveLocally()),
-			DirectResolver: proto.String(config.GetDirectResolver()),
-			ProxyResolver:  proto.String(config.GetProxyResolver()),
-		}.Build())
+		_, err := b.instance.Rules.SaveConfig(ctx, rules.GetConfig())
 		if err != nil {
 			return err
 		}

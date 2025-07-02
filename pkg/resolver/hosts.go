@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
+	dnssystem "github.com/Asutorufa/yuhaiin/pkg/net/dns/system"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/miekg/dns"
@@ -50,6 +51,7 @@ func (h *Hosts) Apply(hosts map[string]string) {
 
 	h.mu.Lock()
 	h.store = store
+	dnssystem.RefreshCache()
 	h.mu.Unlock()
 }
 

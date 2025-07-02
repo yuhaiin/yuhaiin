@@ -22,6 +22,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
@@ -201,7 +202,6 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	// bypass dialer and dns request
 	router := AddCloser(closers, "router", route.NewRoute(nodeManager.Outbound(), dns, list, so.ProcessDumper))
 	list.SetProxy(router)
-	rc := route.NewRuleController(so.BypassConfig, router)
 	rules := route.NewRules(so.BypassConfig, router)
 	// connections' statistic & flow data
 
@@ -237,7 +237,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		Subscribe:      nodeManager.Subscribe(),
 		Connections:    stcs,
 		Tag:            nodeManager.Tag(router.Tags),
-		RuleController: rc,
+		RuleController: gc.UnimplementedBypassServer{},
 		Lists:          list,
 		Rules:          rules,
 		Inbound:        inbound.NewInboundCtr(so.InboundConfig, inbounds),

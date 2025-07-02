@@ -39,6 +39,7 @@ message block_history_list {
   bool dump_process_enabled = 2 [ json_name = "dump_process_enabled" ];
 }
 
+// Deprecated: use rules and lists instead
 service bypass {
   rpc load(google.protobuf.Empty) returns (yuhaiin.bypass.config);
   rpc save(yuhaiin.bypass.config) returns (google.protobuf.Empty);
@@ -80,6 +81,10 @@ service rules {
   rpc save(rule_save_request) returns (google.protobuf.Empty);
   rpc remove(rule_index) returns (google.protobuf.Empty);
   rpc change_priority(change_priority_request) returns (google.protobuf.Empty);
+  rpc config(google.protobuf.Empty) returns (yuhaiin.bypass.configv2);
+  rpc save_config (yuhaiin.bypass.configv2) returns (google.protobuf.Empty);
+  rpc test(google.protobuf.StringValue) returns (test_response);
+  rpc block_history(google.protobuf.Empty) returns (block_history_list);
 }
 
 message inbounds_response {

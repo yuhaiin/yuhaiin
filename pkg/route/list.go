@@ -51,11 +51,7 @@ func (s *Address) Add(hosts ...string) {
 func (s *Address) Match(ctx context.Context, addr netapi.Address) bool {
 	store := netapi.GetContext(ctx)
 	_, ok := s.m.Search(ctx, addr)
-	if ok {
-		store.AddMatchHistory(fmt.Sprintf("host/%s/yes", s.name))
-	} else {
-		store.AddMatchHistory(fmt.Sprintf("host/%s/no", s.name))
-	}
+	store.AddMatchHistory(s.name, ok)
 	return ok
 }
 
@@ -88,16 +84,11 @@ func (s *Process) Match(ctx context.Context, addr netapi.Address) bool {
 	process := store.GetProcessName()
 	if process != "" {
 		ok := s.store.Has(process)
-		if ok {
-			store.AddMatchHistory(fmt.Sprintf("process/%s/yes", s.name))
-		} else {
-			store.AddMatchHistory(fmt.Sprintf("process/%s/no", s.name))
-		}
+		store.AddMatchHistory(s.name, ok)
 		return ok
-	} else {
-		store.AddMatchHistory("process/empty")
 	}
 
+	store.AddMatchHistory(s.name, false)
 	return false
 }
 

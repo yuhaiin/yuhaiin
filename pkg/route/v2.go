@@ -20,6 +20,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"google.golang.org/protobuf/proto"
 )
@@ -251,4 +252,124 @@ func parseLine(txt string) (*Uri, unique.Handle[bypass.ModeEnum], error) {
 	}
 
 	return uri, modeEnum, nil
+}
+
+func migrateConfig(db pc.DB) {
+	// migrate old config
+	{
+		lists := map[string]*bypass.List{}
+		var rules []*bypass.Rulev2
+
+		err := db.Batch(func(s *pc.Setting) error {
+			if len(s.GetBypass().GetRulesV2()) > 0 || len(s.GetBypass().GetLists()) > 0 || len(s.GetBypass().GetCustomRuleV3()) == 0 {
+				return nil
+			}
+
+			for index, rule := range s.GetBypass().GetCustomRuleV3() {
+				namePrefix := ""
+				if rule.GetTag() == "" {
+					namePrefix = fmt.Sprintf("%s_%d", rule.GetMode().String(), index)
+				} else {
+					namePrefix = fmt.Sprintf("%s_%d", rule.GetTag(), index)
+				}
+
+				listNames := map[string]bool{}
+
+				for _, hostname := range rule.GetHostname() {
+					data := getScheme(hostname)
+					switch data.Scheme() {
+					default:
+						name := fmt.Sprintf("%s_host", namePrefix)
+						listNames[name] = false
+
+						list := lists[name]
+						if list == nil || list.GetLocal() == nil {
+							list = bypass.List_builder{
+								ListType: bypass.List_host.Enum(),
+								Name:     proto.String(name),
+								Local:    &bypass.ListLocal{},
+							}.Build()
+							lists[name] = list
+						}
+
+						list.GetLocal().SetLists(append(list.GetLocal().GetLists(), data.Data()))
+
+					case "process":
+						name := fmt.Sprintf("%s_process", namePrefix)
+						listNames[name] = true
+
+						list := lists[name]
+						if list == nil || list.GetLocal() == nil {
+							list = bypass.List_builder{
+								ListType: bypass.List_process.Enum(),
+								Name:     proto.String(name),
+								Local:    &bypass.ListLocal{},
+							}.Build()
+							lists[name] = list
+						}
+
+						list.GetLocal().SetLists(append(list.GetLocal().GetLists(), data.Data()))
+					case "file", "http", "https":
+						name := fmt.Sprintf("%s_remote", namePrefix)
+						listNames[name] = false
+
+						list := lists[name]
+						if list == nil || list.GetRemote() == nil {
+							list = bypass.List_builder{
+								ListType: bypass.List_host.Enum(),
+								Name:     proto.String(name),
+								Remote:   &bypass.ListRemote{},
+							}.Build()
+							lists[name] = list
+						}
+
+						list.GetRemote().SetUrls(append(list.GetRemote().GetUrls(), data.Data()))
+					}
+				}
+
+				or := []*bypass.Or{}
+				for name, process := range listNames {
+					if process {
+						or = append(or, bypass.Or_builder{
+							Rules: []*bypass.Rule{
+								bypass.Rule_builder{
+									Process: bypass.Process_builder{
+										List: proto.String(name),
+									}.Build(),
+								}.Build(),
+							},
+						}.Build())
+					} else {
+						or = append(or, bypass.Or_builder{
+							Rules: []*bypass.Rule{
+								bypass.Rule_builder{
+									Host: bypass.Host_builder{
+										List: proto.String(name),
+									}.Build(),
+								}.Build(),
+							},
+						}.Build())
+					}
+				}
+
+				rules = append(rules, bypass.Rulev2_builder{
+					Name:                 proto.String(namePrefix),
+					Mode:                 rule.GetMode().Enum(),
+					Tag:                  proto.String(rule.GetTag()),
+					ResolveStrategy:      rule.GetResolveStrategy().Enum(),
+					UdpProxyFqdnStrategy: rule.GetUdpProxyFqdnStrategy().Enum(),
+					Resolver:             proto.String(rule.GetResolver()),
+					Rules:                or,
+				}.Build())
+			}
+
+			s.GetBypass().SetLists(lists)
+			s.GetBypass().SetRulesV2(rules)
+
+			return nil
+		})
+		if err != nil {
+			log.Error("migrate old config failed", "err", err)
+		}
+	}
 }

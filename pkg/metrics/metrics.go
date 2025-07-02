@@ -71,19 +71,19 @@ type Metrics interface {
 
 type EmptyMetrics struct{}
 
-func (m *EmptyMetrics) AddReceiveUDPPacket()                              {}
-func (m *EmptyMetrics) AddSendUDPPacket()                                 {}
-func (m *EmptyMetrics) AddReceiveUDPDroppedPacket()                       {}
-func (m *EmptyMetrics) AddSendUDPDroppedPacket()                          {}
-func (m *EmptyMetrics) AddReceiveUDPPacketSize(size int)                  {}
-func (m *EmptyMetrics) AddSendUDPPacketSize(size int)                     {}
-func (m *EmptyMetrics) AddConnection(addr string)                         {}
-func (m *EmptyMetrics) AddBlockConnection(addr string)                    {}
-func (m *EmptyMetrics) RemoveConnection(n int)                            {}
-func (m *EmptyMetrics) AddStreamConnectDuration(t float64)                {}
-func (m *EmptyMetrics) AddDNSProcess(domain string)                       {}
-func (m *EmptyMetrics) AddFailedDNS(domain string, rcode int, t dns.Type) {}
-func (m *EmptyMetrics) AddTCPDialFailed(addr string)                      {}
+func (m *EmptyMetrics) AddReceiveUDPPacket()               {}
+func (m *EmptyMetrics) AddSendUDPPacket()                  {}
+func (m *EmptyMetrics) AddReceiveUDPDroppedPacket()        {}
+func (m *EmptyMetrics) AddSendUDPDroppedPacket()           {}
+func (m *EmptyMetrics) AddReceiveUDPPacketSize(int)        {}
+func (m *EmptyMetrics) AddSendUDPPacketSize(int)           {}
+func (m *EmptyMetrics) AddConnection(string)               {}
+func (m *EmptyMetrics) AddBlockConnection(string)          {}
+func (m *EmptyMetrics) RemoveConnection(int)               {}
+func (m *EmptyMetrics) AddStreamConnectDuration(float64)   {}
+func (m *EmptyMetrics) AddDNSProcess(string)               {}
+func (m *EmptyMetrics) AddFailedDNS(string, int, dns.Type) {}
+func (m *EmptyMetrics) AddTCPDialFailed(string)            {}
 
 type Prometheus struct {
 	TotalReceiveUDPPacket        prometheus.Counter

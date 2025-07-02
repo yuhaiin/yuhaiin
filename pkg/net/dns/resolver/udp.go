@@ -149,7 +149,18 @@ func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
 
 	u.timer = time.AfterFunc(time.Minute*10, func() {
 		if time.Duration(system.CheapNowNano()-u.lastQueryTime.Load()) < time.Minute*10 {
-			u.timer.Reset(time.Minute * 10)
+			u.mu.Lock()
+			if u.closed.Load() {
+				u.mu.Unlock()
+				return
+			}
+
+			timer := u.timer
+			u.mu.Unlock()
+
+			if timer != nil {
+				timer.Reset(time.Minute * 10)
+			}
 		} else {
 			u.mu.Lock()
 			packet := u.packetConn
