@@ -37,6 +37,7 @@ func (t *tunServer) tcpForwarder() *tcp.Forwarder {
 			Destination: addr,
 			Src:         local,
 			Address:     addr,
+			DnsRequest:  t.IsDNSRequest(id.LocalPort, id.LocalAddress),
 		})
 	})
 }

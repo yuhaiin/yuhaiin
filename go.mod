@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.36.5
 	github.com/aws/aws-sdk-go-v2/config v1.29.17
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.70
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.82.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
 	github.com/go-json-experiment/json v0.0.0-20250626171732-1a886bd29d1b
 	github.com/godbus/dbus/v5 v5.1.1-0.20241109141217-c266b19b28e9
 	github.com/google/nftables v0.3.0
@@ -16,10 +16,10 @@ require (
 	github.com/prometheus/client_golang v1.22.0
 	github.com/quic-go/quic-go v0.53.0
 	github.com/refraction-networking/utls v1.7.3
-	github.com/tailscale/wireguard-go v0.0.0-20250530210235-65cd6eed7d7f
+	github.com/tailscale/wireguard-go v0.0.0-20250701223756-24483d7a0003
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20250627141458-e62c4aed0d57
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250702171150-71e071d4ce23
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250703132628-c0edc8e165ce
 	go.etcd.io/bbolt v1.4.2
 	golang.org/x/crypto v0.39.0
 	golang.org/x/mobile v0.0.0-20250606033058-a2a15c67f36f
@@ -110,5 +110,5 @@ require (
 
 replace (
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
-	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20250629005949-364ba5f96109
+	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20250703103613-d277484079ea
 )

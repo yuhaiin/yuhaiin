@@ -4,6 +4,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
@@ -13,12 +14,11 @@ var (
 )
 
 type TCP struct {
-	listener  *net.TCPListener
-	table     *tableSplit
-	portal    net.IP
-	portalv6  net.IP
-	address   tcpip.Address
-	addressV6 tcpip.Address
+	listener *net.TCPListener
+	table    *tableSplit
+	portal   net.IP
+	portalv6 net.IP
+	device.InterfaceAddress
 }
 
 type Conn struct {
@@ -26,7 +26,7 @@ type Conn struct {
 	tuple Tuple
 }
 
-func (t *TCP) Accept() (net.Conn, error) {
+func (t *TCP) Accept() (*Conn, error) {
 	c, err := t.listener.AcceptTCP()
 	if err != nil {
 		return nil, err
@@ -45,17 +45,19 @@ func (t *TCP) Accept() (net.Conn, error) {
 
 	tup := t.table.tupleOf(uint16(addr.Port), v6)
 
-	if !portal.Equal(addr.IP) || tup == zeroTuple {
+	if !(portal.Equal(addr.IP) && tup != zeroTuple) {
 		_ = c.Close()
-
 		return nil, net.InvalidAddrError("unknown remote addr")
 	}
 
-	if tup.DestinationAddr.Len() == 4 && tup.DestinationAddr.Equal(t.address) {
-		tup.DestinationAddr = loopback
-	} else if tup.DestinationAddr.Equal(t.addressV6) {
-		tup.DestinationAddr = loopbackv6
+	if tup.DestinationPort != 53 {
+		if tup.DestinationAddr.Len() == 4 && tup.DestinationAddr.Equal(t.InterfaceAddress.Address) {
+			tup.DestinationAddr = loopback
+		} else if tup.DestinationAddr.Equal(t.InterfaceAddress.AddressV6) {
+			tup.DestinationAddr = loopbackv6
+		}
 	}
+
 	/*
 			sys, err := c.SyscallConn()
 			if err == nil {

@@ -73,6 +73,14 @@ message rule_save_request {
 message change_priority_request {
   rule_index source = 1 [ json_name = "source" ];
   rule_index target = 2 [ json_name = "target" ];
+
+  enum change_priority_operate {
+    Exchange = 0;
+    InsertBefore = 1;
+    InsertAfter = 2;
+  }
+
+  change_priority_operate operate = 3 [ json_name = "operate" ];
 }
 
 service rules {
@@ -82,7 +90,7 @@ service rules {
   rpc remove(rule_index) returns (google.protobuf.Empty);
   rpc change_priority(change_priority_request) returns (google.protobuf.Empty);
   rpc config(google.protobuf.Empty) returns (yuhaiin.bypass.configv2);
-  rpc save_config (yuhaiin.bypass.configv2) returns (google.protobuf.Empty);
+  rpc save_config(yuhaiin.bypass.configv2) returns (google.protobuf.Empty);
   rpc test(google.protobuf.StringValue) returns (test_response);
   rpc block_history(google.protobuf.Empty) returns (block_history_list);
 }

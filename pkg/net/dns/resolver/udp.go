@@ -16,25 +16,24 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	dnsmessage "github.com/miekg/dns"
+	"github.com/miekg/dns"
 )
 
 func init() {
 	Register(pdns.Type_udp, NewDoU)
 }
 
-type reqKey struct {
-	ID       uint16
-	Question dnsmessage.Question
+func udpCacheKey(id uint16, question dns.Question) string {
+	return fmt.Sprintf("%d:%s|%d", id, question.Name, question.Qtype)
 }
 
-type respBuf struct {
+type udpresp struct {
 	done chan struct{}
-	msg  dnsmessage.Msg
+	msg  dns.Msg
 	once sync.Once
 }
 
-func (r *respBuf) setMsg(msg dnsmessage.Msg) {
+func (r *udpresp) setMsg(msg dns.Msg) {
 	r.once.Do(func() {
 		r.msg = msg
 		close(r.done)
@@ -45,7 +44,7 @@ type udp struct {
 	packetConn    net.PacketConn
 	addr          netapi.Address
 	timer         *time.Timer
-	sender        syncmap.SyncMap[reqKey, *respBuf]
+	sender        syncmap.SyncMap[string, *udpresp]
 	config        Config
 	lastQueryTime atomic.Int64
 	mu            sync.RWMutex
@@ -53,19 +52,18 @@ type udp struct {
 }
 
 func (u *udp) Close() error {
-	u.mu.RLock()
-	u.closed.Store(true)
-	pc := u.packetConn
-	timer := u.timer
-	u.mu.RUnlock()
+	u.mu.Lock()
+	defer u.mu.Unlock()
 
-	if pc != nil {
-		pc.Close()
+	u.closed.Store(true)
+
+	if u.packetConn != nil {
+		u.packetConn.Close()
 		u.packetConn = nil
 	}
 
-	if timer != nil {
-		timer.Stop()
+	if u.timer != nil {
+		u.timer.Stop()
 		u.timer = nil
 	}
 
@@ -73,14 +71,6 @@ func (u *udp) Close() error {
 }
 
 func (u *udp) handleResponse(packet net.PacketConn) {
-	defer func() {
-		u.mu.Lock()
-		u.packetConn = nil
-		u.mu.Unlock()
-
-		packet.Close()
-	}()
-
 	buf := pool.GetBytes(nat.MaxSegmentSize)
 	defer pool.PutBytes(buf)
 
@@ -101,10 +91,7 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 			continue
 		}
 
-		send, ok := u.sender.Load(reqKey{
-			ID:       msg.Id,
-			Question: msg.Question[0],
-		})
+		send, ok := u.sender.Load(udpCacheKey(msg.Id, msg.Question[0]))
 		if !ok || send == nil {
 			continue
 		}
@@ -114,12 +101,8 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 }
 
 func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
-	u.mu.RLock()
-	pc := u.packetConn
-	u.mu.RUnlock()
-	if pc != nil {
-		u.lastQueryTime.Store(system.CheapNowNano())
-		return pc, nil
+	if u.closed.Load() {
+		return nil, fmt.Errorf("udp resolver closed")
 	}
 
 	u.mu.Lock()
@@ -145,36 +128,62 @@ func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
 
 	u.packetConn = conn
 
-	go u.handleResponse(conn)
-
-	u.timer = time.AfterFunc(time.Minute*10, func() {
-		if time.Duration(system.CheapNowNano()-u.lastQueryTime.Load()) < time.Minute*10 {
+	go func() {
+		defer func() {
+			conn.Close()
 			u.mu.Lock()
-			if u.closed.Load() {
-				u.mu.Unlock()
-				return
-			}
-
-			timer := u.timer
-			u.mu.Unlock()
-
-			if timer != nil {
-				timer.Reset(time.Minute * 10)
-			}
-		} else {
-			u.mu.Lock()
-			packet := u.packetConn
 			u.packetConn = nil
 			u.mu.Unlock()
-			if packet != nil {
-				packet.Close()
-			}
+		}()
+
+		u.handleResponse(conn)
+	}()
+
+	u.timer = time.AfterFunc(time.Minute*10, u.checkIdleTimeout)
+
+	return conn, nil
+}
+
+func (u *udp) checkIdleTimeout() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	if time.Duration(system.CheapNowNano()-u.lastQueryTime.Load()) < time.Minute*10 {
+		if u.closed.Load() {
+			return
 		}
-	})
+
+		if u.timer != nil {
+			u.timer.Reset(time.Minute * 10)
+		}
+		return
+	}
+
+	if u.packetConn != nil {
+		u.packetConn.Close()
+		u.packetConn = nil
+	}
+}
+
+func (u *udp) Write(ctx context.Context, p []byte) (err error) {
+	packetConn, err := u.initPacketConn(ctx)
+	if err != nil {
+		return err
+	}
+
+	udpAddr, err := dialer.ResolveUDPAddr(ctx, u.addr)
+	if err != nil {
+		return err
+	}
+
+	_, err = packetConn.WriteTo(p, udpAddr)
+	if err != nil {
+		return err
+	}
 
 	u.lastQueryTime.Store(system.CheapNowNano())
 
-	return conn, nil
+	return nil
 }
 
 func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {
@@ -187,28 +196,13 @@ func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {
 		return tcpDo(ctx, u.addr, u.config, nil, req)
 	}
 
-	packetConn, err := u.initPacketConn(ctx)
-	if err != nil {
-		return nil, err
-	}
+	reqKey := udpCacheKey(req.ID, req.Question)
 
-	reqKey := reqKey{
-		ID:       req.ID,
-		Question: req.Question,
-	}
-
-	respBuf, ok, _ := u.sender.LoadOrCreate(reqKey, func() (*respBuf, error) { return &respBuf{done: make(chan struct{})}, nil })
+	resp, ok, _ := u.sender.LoadOrCreate(reqKey, func() (*udpresp, error) { return &udpresp{done: make(chan struct{})}, nil })
 	if !ok {
-		defer u.sender.CompareAndDelete(reqKey, respBuf)
+		defer u.sender.CompareAndDelete(reqKey, resp)
 
-		udpAddr, err := dialer.ResolveUDPAddr(ctx, u.addr)
-		if err != nil {
-			return nil, err
-		}
-
-		_, err = packetConn.WriteTo(req.QuestionBytes, udpAddr)
-		if err != nil {
-			_ = packetConn.Close()
+		if err := u.Write(ctx, req.QuestionBytes); err != nil {
 			return nil, err
 		}
 	}
@@ -216,8 +210,8 @@ func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-respBuf.done:
-		return MsgResponse(respBuf.msg), nil
+	case <-resp.done:
+		return MsgResponse(resp.msg), nil
 	}
 }
 

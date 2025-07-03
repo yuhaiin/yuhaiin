@@ -58,13 +58,13 @@ func NewInbound(dnsHandler netapi.DNSServer, dialer netapi.Proxy) *Inbound {
 	return l
 }
 
-func (l *Inbound) isDNS(port uint16) bool {
+func (l *Inbound) shouldHijackDNS(port uint16) bool {
 	return l.hijackDNS.Load() && port == 53
 }
 
 func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 	go func() {
-		if !l.isDNS(meta.Address.Port()) {
+		if !meta.DnsRequest && !l.shouldHijackDNS(meta.Address.Port()) {
 			store := netapi.WithContext(l.ctx)
 			store.Source = meta.Source
 			store.Destination = meta.Destination
@@ -108,7 +108,7 @@ func (l *Inbound) loopudp() {
 func (l *Inbound) handlePacket(packet *netapi.Packet) {
 	defer packet.DecRef()
 
-	if !l.isDNS(packet.Dst().Port()) {
+	if !packet.IsDNSRequest() && !l.shouldHijackDNS(packet.Dst().Port()) {
 		// we only use [netapi.Context] at new PacketConn instead of every packet
 		// so here just pass [l.ctx]
 		l.handler.Packet(l.ctx, packet)
@@ -180,8 +180,8 @@ func (l *Inbound) SetHijackDnsFakeip(fakeip bool) {
 	l.fakeip.Store(fakeip)
 }
 
-func (i *Inbound) SetSniff(sniff bool) {
-	i.handler.sniffer.SetEnabled(sniff)
+func (l *Inbound) SetSniff(sniff bool) {
+	l.handler.sniffer.SetEnabled(sniff)
 }
 
 func (l *Inbound) Close() error {

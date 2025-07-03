@@ -27,6 +27,8 @@ type tunServer struct {
 
 	handler netapi.Handler
 	nicID   tcpip.NICID
+
+	device.InterfaceAddress
 }
 
 func (t *tunServer) Close() error {
@@ -99,11 +101,12 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 	o.PostUp()
 
 	t := &tunServer{
-		nicID:    nicID,
-		stack:    s,
-		ep:       ep,
-		postDown: o.PostDown,
-		handler:  o.Handler,
+		nicID:            nicID,
+		stack:            s,
+		ep:               ep,
+		postDown:         o.PostDown,
+		handler:          o.Handler,
+		InterfaceAddress: o.InterfaceAddress(),
 	}
 
 	s.SetSpoofing(nicID, true)
