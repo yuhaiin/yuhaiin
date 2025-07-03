@@ -117,30 +117,16 @@ func Register(tYPE pd.Type, f func(Config) (Dialer, error)) {
 
 var _ netapi.Resolver = (*client)(nil)
 
-type CacheKey struct {
-	Name string
-	Type dns.Type
-}
-
-func CacheKeyFromQuestion(q dns.Question) CacheKey {
-	var name string = q.Name
-
-	if len(name) > 0 && name[len(name)-1] == '.' {
-		name = name[:len(name)-1]
-	}
-
-	return CacheKey{
-		Name: name,
-		Type: dns.Type(q.Qtype),
-	}
+func CacheKeyFromQuestion(q dns.Question) string {
+	return fmt.Sprintf("%s:%d", q.Name, q.Qtype)
 }
 
 type client struct {
 	edns0             dns.RR
 	dialer            Dialer
-	rawStore          *lru.SyncLru[CacheKey, *rawEntry]
-	rawSingleflight   singleflight.GroupSync[dns.Question, *rawEntry]
-	refreshBackground syncmap.SyncMap[dns.Question, struct{}]
+	rawStore          *lru.SyncLru[string, dns.Msg]
+	rawSingleflight   singleflight.GroupSync[string, dns.Msg]
+	refreshBackground syncmap.SyncMap[string, struct{}]
 	config            Config
 }
 
@@ -178,8 +164,8 @@ func NewClient(config Config, dialer Dialer) netapi.Resolver {
 		dialer: dialer,
 		config: config,
 		rawStore: lru.NewSyncLru(
-			lru.WithCapacity[CacheKey, *rawEntry](configuration.DNSCache),
-			lru.WithDefaultTimeout[CacheKey, *rawEntry](time.Second*600),
+			lru.WithCapacity[string, dns.Msg](configuration.DNSCache),
+			lru.WithDefaultTimeout[string, dns.Msg](time.Second*600),
 		),
 		edns0: optrbody,
 	}
@@ -337,8 +323,8 @@ func (c *client) query(ctx context.Context, req dns.Question) (dns.Msg, error) {
 
 	if ttl > 1 {
 		msg.Question = nil
-		c.rawStore.Add(CacheKeyFromQuestion(req), newRawEntry(msg),
-			lru.WithTimeout[CacheKey, *rawEntry](time.Duration(ttl)*time.Second))
+		c.rawStore.Add(CacheKeyFromQuestion(req), msg,
+			lru.WithTimeout[string, dns.Msg](time.Duration(ttl)*time.Second))
 	}
 
 	return msg, nil
@@ -413,7 +399,7 @@ func (c *client) iphintToCache(name string, ttl uint32, vv dns.SVCBKeyValue) {
 		Qclass: dns.ClassINET,
 	}
 	c.rawStore.Add(CacheKeyFromQuestion(req),
-		newRawEntry(dns.Msg{
+		dns.Msg{
 			MsgHdr: dns.MsgHdr{
 				Id:                 0,
 				Response:           true,
@@ -426,8 +412,8 @@ func (c *client) iphintToCache(name string, ttl uint32, vv dns.SVCBKeyValue) {
 			},
 			Question: []dns.Question{req},
 			Answer:   answers,
-		}),
-		lru.WithTimeout[CacheKey, *rawEntry](time.Duration(ttl)*time.Second),
+		},
+		lru.WithTimeout[string, dns.Msg](time.Duration(ttl)*time.Second),
 	)
 }
 
@@ -437,47 +423,47 @@ func (c *client) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 		return dns.Msg{}, err
 	}
 
-	msg := rawmsg.Message()
-
-	msg.Question = []dns.Question{req}
+	rawmsg.Question = []dns.Question{req}
 
 	// TODO deep copy resource.Body
-	msg.Answer = slices.Clone(msg.Answer)
-	msg.Ns = slices.Clone(msg.Ns)
-	msg.Extra = slices.Clone(msg.Extra)
+	rawmsg.Answer = slices.Clone(rawmsg.Answer)
+	rawmsg.Ns = slices.Clone(rawmsg.Ns)
+	rawmsg.Extra = slices.Clone(rawmsg.Extra)
 
-	return msg, nil
+	return rawmsg, nil
 }
 
-func (c *client) raw(ctx context.Context, req dns.Question) (*rawEntry, error) {
+func (c *client) raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	if !system.IsDomainName(req.Name) {
-		return nil, fmt.Errorf("invalid domain: %s", req.Name)
+		return dns.Msg{}, fmt.Errorf("invalid domain: %s", req.Name)
 	}
 
 	if req.Qclass == 0 {
 		req.Qclass = dns.ClassINET
 	}
 
-	rawmsg, expired, ok := c.rawStore.LoadOptimistically(CacheKeyFromQuestion(req))
+	cacheKey := CacheKeyFromQuestion(req)
+
+	rawmsg, expired, ok := c.rawStore.LoadOptimistically(cacheKey)
 	if !ok {
 		var err error
-		rawmsg, err, _ = c.rawSingleflight.Do(ctx, req, func(ctx context.Context) (*rawEntry, error) {
+		rawmsg, err, _ = c.rawSingleflight.Do(ctx, cacheKey, func(ctx context.Context) (dns.Msg, error) {
 			msg, err := c.query(ctx, req)
 			if err != nil {
-				return nil, err
+				return dns.Msg{}, err
 			}
-			return newRawEntry(msg), nil
+			return msg, nil
 		})
 		if err != nil {
-			return nil, err
+			return dns.Msg{}, err
 		}
 	}
 
 	if expired {
-		if _, ok = c.refreshBackground.LoadOrStore(req, struct{}{}); !ok {
+		if _, ok = c.refreshBackground.LoadOrStore(cacheKey, struct{}{}); !ok {
 			// refresh expired response background
 			go func() {
-				defer c.refreshBackground.Delete(req)
+				defer c.refreshBackground.Delete(cacheKey)
 
 				ctx = context.WithoutCancel(ctx)
 				ctx, cancel := context.WithTimeout(ctx, configuration.ResolverTimeout)
@@ -510,10 +496,10 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dns.Type) 
 		return nil, fmt.Errorf("send dns message failed: %w", err)
 	}
 
-	if rawmsg.RCode() != dns.RcodeSuccess {
-		metrics.Counter.AddFailedDNS(domain, rawmsg.RCode(), reqType)
+	if rawmsg.Rcode != dns.RcodeSuccess {
+		metrics.Counter.AddFailedDNS(domain, rawmsg.Rcode, reqType)
 		return nil, &net.DNSError{
-			Err:         dns.RcodeToString[rawmsg.RCode()],
+			Err:         dns.RcodeToString[rawmsg.Rcode],
 			Server:      c.config.Host,
 			Name:        domain,
 			IsNotFound:  true,
@@ -525,9 +511,25 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dns.Type) 
 
 	switch uint16(reqType) {
 	case dns.TypeA:
-		ips = rawmsg.A()
+		ips = make([]net.IP, 0, len(rawmsg.Answer))
+
+		for _, v := range rawmsg.Answer {
+			if v.Header().Rrtype != dns.TypeA {
+				continue
+			}
+
+			ips = append(ips, v.(*dns.A).A)
+		}
 	case dns.TypeAAAA:
-		ips = rawmsg.AAAA()
+		ips = make([]net.IP, 0, len(rawmsg.Answer))
+
+		for _, v := range rawmsg.Answer {
+			if v.Header().Rrtype != dns.TypeAAAA {
+				continue
+			}
+
+			ips = append(ips, v.(*dns.AAAA).AAAA)
+		}
 	}
 
 	if len(ips) == 0 {
@@ -545,85 +547,6 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dns.Type) 
 }
 
 func (c *client) Close() error { return c.dialer.Close() }
-
-type rawEntry struct {
-	mu   sync.RWMutex
-	msg  dns.Msg
-	ipv4 []net.IP
-	ipv6 []net.IP
-}
-
-func newRawEntry(msg dns.Msg) *rawEntry {
-	return &rawEntry{
-		msg: msg,
-	}
-}
-
-func (r *rawEntry) Message() dns.Msg {
-	return r.msg
-}
-
-func (r *rawEntry) RCode() int {
-	return r.msg.Rcode
-}
-
-func (r *rawEntry) A() []net.IP {
-	r.mu.RLock()
-	ips := r.ipv4
-	r.mu.RUnlock()
-
-	if ips != nil {
-		return ips
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.ipv4 != nil {
-		return r.ipv4
-	}
-
-	r.ipv4 = make([]net.IP, 0, len(r.msg.Answer))
-
-	for _, v := range r.msg.Answer {
-		if v.Header().Rrtype != dns.TypeA {
-			continue
-		}
-
-		r.ipv4 = append(r.ipv4, v.(*dns.A).A)
-	}
-
-	return r.ipv4
-}
-
-func (r *rawEntry) AAAA() []net.IP {
-	r.mu.RLock()
-	ips := r.ipv6
-	r.mu.RUnlock()
-
-	if ips != nil {
-		return ips
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.ipv6 != nil {
-		return r.ipv6
-	}
-
-	r.ipv6 = make([]net.IP, 0, len(r.msg.Answer))
-
-	for _, v := range r.msg.Answer {
-		if v.Header().Rrtype != dns.TypeAAAA {
-			continue
-		}
-
-		r.ipv6 = append(r.ipv6, v.(*dns.AAAA).AAAA)
-	}
-
-	return r.ipv6
-}
 
 func appendIPHint(msg dns.Msg, ipv4, ipv6 []net.IP) {
 	if len(ipv4) == 0 && len(ipv6) == 0 {

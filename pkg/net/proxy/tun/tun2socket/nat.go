@@ -24,11 +24,7 @@ type Nat struct {
 
 	postDown func()
 
-	address   tcpip.Address
-	portal    tcpip.Address
-	addressV6 tcpip.Address
-	portalV6  tcpip.Address
-
+	device.InterfaceAddress
 	gatewayPort uint16
 }
 
@@ -58,32 +54,30 @@ func Start(opt *device.Opt) (*Nat, error) {
 	tab := newTable()
 
 	nat := &Nat{
-		address:     tcpip.AddrFromSlice(opt.V4Address().Addr().AsSlice()),
-		portal:      tcpip.AddrFromSlice(opt.V4Address().Addr().Next().AsSlice()),
-		addressV6:   tcpip.AddrFromSlice(opt.V6Address().Addr().AsSlice()),
-		portalV6:    tcpip.AddrFromSlice(opt.V6Address().Addr().Next().AsSlice()),
-		gatewayPort: uint16(listener.Addr().(*net.TCPAddr).Port),
-		tab:         tab,
+		InterfaceAddress: opt.InterfaceAddress(),
+		gatewayPort:      uint16(listener.Addr().(*net.TCPAddr).Port),
+		tab:              tab,
 		TCP: &TCP{
-			listener: listener.(*net.TCPListener),
-			portal:   opt.V4Address().Addr().Next().AsSlice(),
-			portalv6: opt.V6Address().Addr().Next().AsSlice(),
-			table:    tab,
+			listener:         listener.(*net.TCPListener),
+			portal:           opt.V4Address().Addr().Next().AsSlice(),
+			portalv6:         opt.V6Address().Addr().Next().AsSlice(),
+			table:            tab,
+			InterfaceAddress: opt.InterfaceAddress(),
 		},
-		UDP:      NewUDP(opt.Device, opt.Handler),
+		UDP:      NewUDP(opt.Device, opt.Handler, opt.InterfaceAddress()),
 		postDown: opt.PostDown,
 	}
 
 	var broadcast, v4network, v6network tcpip.Address
 
 	if opt.V4Address().Bits() < 32 {
-		subnet := tcpip.AddressWithPrefix{Address: nat.address, PrefixLen: opt.V4Address().Bits()}.Subnet()
+		subnet := tcpip.AddressWithPrefix{Address: nat.InterfaceAddress.Address, PrefixLen: opt.V4Address().Bits()}.Subnet()
 		// broadcast address, eg: 172.19.0.255, ipv6 don't have broadcast address
 		broadcast = subnet.Broadcast()
 		// network address, eg: 172.19.0.0
 		v4network = tcpip.AddrFromSlice(opt.V4Address().Masked().Addr().AsSlice())
 
-		if broadcast.Equal(nat.address) || broadcast.Equal(nat.portal) {
+		if broadcast.Equal(nat.InterfaceAddress.Address) || broadcast.Equal(nat.InterfaceAddress.Portal) {
 			broadcast = tcpip.AddrFrom4([4]byte{255, 255, 255, 255})
 		}
 	}
@@ -252,9 +246,9 @@ func (n *Nat) processTCP(ip header.Network, src, dst tcpip.Address) (_ header.Tr
 
 	var address, portal tcpip.Address
 	if _, ok := ip.(header.IPv4); ok {
-		address, portal = n.address, n.portal
+		address, portal = n.Address, n.Portal
 	} else {
-		address, portal = n.addressV6, n.portalV6
+		address, portal = n.AddressV6, n.PortalV6
 	}
 
 	if address.Unspecified() || portal.Unspecified() {

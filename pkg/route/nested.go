@@ -10,6 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
 )
 
@@ -202,12 +203,19 @@ func (s *Matchers) Add(rule *bypass.Rulev2) {
 	s.mu.Unlock()
 }
 
-func (s *Matchers) ChangePriority(source int, target int) {
+func (s *Matchers) ChangePriority(source int, target int, operate gc.ChangePriorityRequestChangePriorityOperate) {
 	s.mu.Lock()
-	src := s.matchers[source]
-	dst := s.matchers[target]
-	s.matchers[source] = dst
-	s.matchers[target] = src
+	switch operate {
+	case gc.ChangePriorityRequest_Exchange:
+		src := s.matchers[source]
+		dst := s.matchers[target]
+		s.matchers[source] = dst
+		s.matchers[target] = src
+	case gc.ChangePriorityRequest_InsertBefore:
+		s.matchers = InsertBefore(s.matchers, source, target)
+	case gc.ChangePriorityRequest_InsertAfter:
+		s.matchers = InsertAfter(s.matchers, source, target)
+	}
 	s.mu.Unlock()
 }
 

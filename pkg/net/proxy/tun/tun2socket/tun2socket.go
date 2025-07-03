@@ -66,11 +66,12 @@ func (h *Tun2socket) tcpLoop() {
 	}
 }
 
-func (h *Tun2socket) handleTCP(conn net.Conn) {
+func (h *Tun2socket) handleTCP(conn *Conn) {
 	// lAddrPort := conn.LocalAddr().(*net.TCPAddr).AddrPort()  // source
 	rAddrPort := conn.RemoteAddr().(*net.TCPAddr) // dst
 
-	if rAddrPort.IP.IsLoopback() {
+	if rAddrPort.IP.IsLoopback() && rAddrPort.Port == int(h.nat.gatewayPort) {
+		conn.Close()
 		return
 	}
 
@@ -80,5 +81,6 @@ func (h *Tun2socket) handleTCP(conn net.Conn) {
 		Destination: conn.RemoteAddr(),
 		Src:         conn,
 		Address:     addr,
+		DnsRequest:  h.nat.IsDNSRequest(uint16(rAddrPort.Port), conn.tuple.DestinationAddr),
 	})
 }
