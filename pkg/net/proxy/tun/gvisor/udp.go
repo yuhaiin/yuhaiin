@@ -106,7 +106,9 @@ func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.Pac
 		netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 			return f.WriteUDPBack(b, id.RemoteAddress, srcPort, addr)
 		}),
+		netapi.WithDNSRequest(f.IsDNSRequest(dstPort, id.LocalAddress)),
 	))
+
 	return true
 }
 

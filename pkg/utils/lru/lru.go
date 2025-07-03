@@ -168,7 +168,7 @@ func (l *lru[K, V]) ClearExpired() {
 	}
 }
 
-// Delete delete a key from cache
+// Delete a key from cache
 func (l *lru[K, V]) Delete(key K) {
 	x, ok := l.mapping[key]
 	if !ok {

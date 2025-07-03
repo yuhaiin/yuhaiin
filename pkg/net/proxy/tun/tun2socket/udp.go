@@ -30,10 +30,11 @@ type UDP struct {
 	device  netlink.Tun
 	handler netapi.Handler
 	closed  atomic.Bool
+	device.InterfaceAddress
 }
 
-func NewUDP(device netlink.Tun, handler netapi.Handler) *UDP {
-	return &UDP{device: device, handler: handler}
+func NewUDP(device netlink.Tun, handler netapi.Handler, addr device.InterfaceAddress) *UDP {
+	return &UDP{device: device, handler: handler, InterfaceAddress: addr}
 }
 
 func (u *UDP) Close() error {
@@ -51,6 +52,7 @@ func (u *UDP) handleUDPPacket(tuple UDPTuple, payload []byte) {
 		netapi.ParseIPAddr("udp", tuple.DestinationAddr.AsSlice(), tuple.DestinationPort),
 		pool.Clone(payload),
 		&UDPWriteBack{u, tuple},
+		netapi.WithDNSRequest(u.IsDNSRequest(tuple.DestinationPort, tuple.DestinationAddr)),
 	))
 }
 
@@ -101,9 +103,9 @@ type Batch struct {
 // }
 
 func (u *UDP) processUDPPacket(buf []byte, tuple UDPTuple) ([]byte, error) {
-	udpTotalLength := int(header.UDPMinimumSize) + len(buf)
+	udpTotalLength := header.UDPMinimumSize + len(buf)
 
-	if udpTotalLength > math.MaxUint16 || udpTotalLength > int(u.device.MTU()) { // ip packet max length
+	if udpTotalLength > math.MaxUint16 || udpTotalLength > u.device.MTU() { // ip packet max length
 		return nil, fmt.Errorf("udp packet too large: %d", len(buf))
 	}
 
@@ -195,7 +197,7 @@ func (h *UDPWriteBack) toTuple(addr net.Addr) (UDPTuple, error) {
 
 	return UDPTuple{
 		DestinationAddr: tcpip.AddrFromSlice(daddr),
-		DestinationPort: uint16(address.Port()),
+		DestinationPort: address.Port(),
 		SourceAddr:      h.tuple.SourceAddr,
 		SourcePort:      h.tuple.SourcePort,
 	}, nil

@@ -371,17 +371,74 @@ func (r *Rules) ChangePriority(ctx context.Context, req *gc.ChangePriorityReques
 			return fmt.Errorf("target index error: %w", err)
 		}
 
-		src := s.GetBypass().GetRulesV2()[req.GetSource().GetIndex()]
-		tar := s.GetBypass().GetRulesV2()[req.GetTarget().GetIndex()]
+		switch req.GetOperate() {
+		case gc.ChangePriorityRequest_Exchange:
+			src := s.GetBypass().GetRulesV2()[req.GetSource().GetIndex()]
+			tar := s.GetBypass().GetRulesV2()[req.GetTarget().GetIndex()]
 
-		s.GetBypass().GetRulesV2()[req.GetSource().GetIndex()] = tar
-		s.GetBypass().GetRulesV2()[req.GetTarget().GetIndex()] = src
+			s.GetBypass().GetRulesV2()[req.GetSource().GetIndex()] = tar
+			s.GetBypass().GetRulesV2()[req.GetTarget().GetIndex()] = src
 
-		r.route.ms.ChangePriority(int(req.GetSource().GetIndex()), int(req.GetTarget().GetIndex()))
+		case gc.ChangePriorityRequest_InsertBefore:
+			result := InsertBefore(s.GetBypass().GetRulesV2(),
+				int(req.GetSource().GetIndex()), int(req.GetTarget().GetIndex()))
+
+			s.GetBypass().SetRulesV2(result)
+		case gc.ChangePriorityRequest_InsertAfter:
+			result := InsertAfter(s.GetBypass().GetRulesV2(),
+				int(req.GetSource().GetIndex()), int(req.GetTarget().GetIndex()))
+
+			s.GetBypass().SetRulesV2(result)
+		default:
+			return fmt.Errorf("unknown operate: %d", req.GetOperate())
+		}
+
+		r.route.ms.ChangePriority(int(req.GetSource().GetIndex()),
+			int(req.GetTarget().GetIndex()), req.GetOperate())
 		return nil
 	})
 
 	return &emptypb.Empty{}, err
+}
+
+func InsertBefore[T any](s []T, from, to int) []T {
+	result := make([]T, 0, len(s))
+
+	elem := s[from]
+
+	for index, v := range s {
+		if index == from {
+			continue
+		}
+
+		if index == to {
+			result = append(result, elem)
+		}
+
+		result = append(result, v)
+	}
+
+	return result
+}
+
+func InsertAfter[T any](s []T, from, to int) []T {
+	result := make([]T, 0, len(s))
+
+	elem := s[from]
+
+	for index, v := range s {
+		if index == from {
+			continue
+		}
+
+		result = append(result, v)
+
+		if index == to {
+			result = append(result, elem)
+		}
+	}
+
+	return result
 }
 
 func (r *Rules) checkIndex(s *config.Setting, index *gc.RuleIndex) error {

@@ -102,6 +102,8 @@ type StreamMeta struct {
 
 	Src     net.Conn
 	Address Address
+
+	DnsRequest bool
 }
 
 type WriteBack interface {
@@ -121,9 +123,16 @@ type Packet struct {
 	payload     []byte
 	MigrateID   uint64
 	inboundName string
+	dnsRequest  bool
 
 	payloadRef int
 	mu         sync.Mutex
+}
+
+func WithDNSRequest(b bool) func(*Packet) {
+	return func(packet *Packet) {
+		packet.dnsRequest = b
+	}
 }
 
 func WithMigrateID(id uint64) func(*Packet) {
@@ -156,6 +165,7 @@ func NewPacket(src net.Addr, dst Address, payload []byte, writeBack WriteBack, o
 func (p *Packet) Src() net.Addr       { return p.src }
 func (p *Packet) Dst() Address        { return p.dst }
 func (p *Packet) InboundName() string { return p.inboundName }
+func (p *Packet) IsDNSRequest() bool  { return p.dnsRequest }
 
 func (p *Packet) GetPayload() []byte {
 	p.mu.Lock()
