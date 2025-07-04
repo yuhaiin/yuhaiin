@@ -1,8 +1,8 @@
 package socks4a
 
 import (
-	"bytes"
 	"context"
+	"crypto/subtle"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -68,7 +68,8 @@ func (s *Server) Handshake(conn net.Conn) (netapi.Address, error) {
 		return nil, err
 	}
 
-	if s.usernameID != "" && !bytes.Equal(userId, unsafe.Slice(unsafe.StringData(s.usernameID), len(s.usernameID))) {
+	if s.usernameID != "" &&
+		subtle.ConstantTimeCompare(userId, unsafe.Slice(unsafe.StringData(s.usernameID), len(s.usernameID))) != 1 {
 		return nil, fmt.Errorf("username not match")
 	}
 
