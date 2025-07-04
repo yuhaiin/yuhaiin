@@ -1,7 +1,6 @@
 package config
 
 import (
-	"path/filepath"
 	"runtime"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
@@ -36,68 +35,56 @@ func DefaultSetting(path string) *Setting {
 			DirectResolver: proto.String("bootstrap"),
 			ProxyResolver:  proto.String("bootstrap"),
 			EnabledV2:      proto.Bool(true),
-			Lists:          map[string]*bypass.List{},
-			RulesV2:        []*bypass.Rulev2{},
-			CustomRuleV3: []*bypass.ModeConfig{
-				bypass.ModeConfig_builder{
-					Mode: bypass.Mode_direct.Enum(),
-					Tag:  proto.String("LAN"),
-					Hostname: []string{
-						"0.0.0.0/8",
-						"10.0.0.0/8",
-						"100.64.0.0/10",
-						"127.0.0.1/8",
-						"169.254.0.0/16",
-						"172.16.0.0/12",
-						"192.0.0.0/29",
-						"192.0.2.0/24",
-						"192.88.99.0/24",
-						"192.168.0.0/16",
-						"198.18.0.0/15",
-						"198.51.100.0/24",
-						"203.0.113.0/24",
-						"224.0.0.0/3",
-						"fc00::/7",
-						"fe80::/10",
-						"ff00::/8",
-						"localhost",
-					},
-				}.Build(),
-				bypass.ModeConfig_builder{
-					Hostname: []string{"dns.google"},
-					Mode:     bypass.Mode_proxy.Enum(),
-					Tag:      proto.String("remote_dns"),
-				}.Build(),
-				bypass.ModeConfig_builder{
-					Hostname: []string{
-						"223.5.5.5",
-						"file:" + filepath.Join(filepath.Dir(path), "CN.conf"),
-					},
-					Mode: bypass.Mode_direct.Enum(),
-				}.Build(),
-				bypass.ModeConfig_builder{
-					Hostname: []string{
-						"example.block.domain.com",
-					},
-					Mode: bypass.Mode_block.Enum(),
-				}.Build(),
-			},
-			RemoteRules: []*bypass.RemoteRule{
-				bypass.RemoteRule_builder{
-					Enabled: proto.Bool(false),
-					Name:    proto.String("default"),
-					File: bypass.RemoteRuleFile_builder{
-						Path: proto.String(filepath.Join(filepath.Dir(path), "yuhaiin.conf")),
-					}.Build(),
-				}.Build(),
-				bypass.RemoteRule_builder{
-					Enabled: proto.Bool(false),
-					Name:    proto.String("default_remote"),
-					Http: bypass.RemoteRuleHttp_builder{
-						Url: proto.String("https://raw.githubusercontent.com/yuhaiin/kitte/main/yuhaiin/remote.conf"),
+			Lists: map[string]*bypass.List{
+				"LAN": bypass.List_builder{
+					ListType: bypass.List_host.Enum(),
+					Name:     proto.String("LAN"),
+					Local: bypass.ListLocal_builder{
+						Lists: []string{
+							"0.0.0.0/8",
+							"10.0.0.0/8",
+							"100.64.0.0/10",
+							"127.0.0.1/8",
+							"169.254.0.0/16",
+							"172.16.0.0/12",
+							"192.0.0.0/29",
+							"192.0.2.0/24",
+							"192.88.99.0/24",
+							"192.168.0.0/16",
+							"198.18.0.0/15",
+							"198.51.100.0/24",
+							"203.0.113.0/24",
+							"224.0.0.0/3",
+							"fc00::/7",
+							"fe80::/10",
+							"ff00::/8",
+							"localhost",
+						},
 					}.Build(),
 				}.Build(),
 			},
+			RulesV2: []*bypass.Rulev2{
+				bypass.Rulev2_builder{
+					Name:                 proto.String("LAN"),
+					Mode:                 bypass.Mode_direct.Enum(),
+					Tag:                  proto.String("LAN"),
+					ResolveStrategy:      bypass.ResolveStrategy_default.Enum(),
+					UdpProxyFqdnStrategy: bypass.UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default.Enum(),
+					Rules: []*bypass.Or{
+						bypass.Or_builder{
+							Rules: []*bypass.Rule{
+								bypass.Rule_builder{
+									Host: bypass.Host_builder{
+										List: proto.String("LAN"),
+									}.Build(),
+								}.Build(),
+							},
+						}.Build(),
+					},
+				}.Build(),
+			},
+			CustomRuleV3: []*bypass.ModeConfig{},
+			RemoteRules:  []*bypass.RemoteRule{},
 		}).Build(),
 		Dns: pd.DnsConfig_builder{
 			Server:           proto.String("127.0.0.1:5353"),

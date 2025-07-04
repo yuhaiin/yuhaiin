@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"time"
+	"unsafe"
 	_ "unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -24,13 +26,13 @@ type Server struct {
 	reverseProxy *httputil.ReverseProxy
 
 	handler            netapi.Handler
-	username, password string
+	username, password []byte
 }
 
 func newServer(o *listener.Http, lis net.Listener, handler netapi.Handler) *Server {
 	h := &Server{
-		username: o.GetUsername(),
-		password: o.GetPassword(),
+		username: []byte(o.GetUsername()),
+		password: []byte(o.GetPassword()),
 		lis:      lis,
 		handler:  handler,
 	}
@@ -95,7 +97,7 @@ func ParseBasicAuth(auth string) (username, password string, ok bool)
 func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	if h.password != "" || h.username != "" {
+	if len(h.password) > 0 || len(h.username) > 0 {
 		username, password, isHas := ParseBasicAuth(r.Header.Get("Proxy-Authorization"))
 		if !isHas {
 			w.Header().Set("Proxy-Authenticate", "Basic")
@@ -103,7 +105,8 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if username != h.username || password != h.password {
+		if (len(h.username) > 0 && subtle.ConstantTimeCompare(unsafe.Slice(unsafe.StringData(username), len(username)), h.username) != 1) ||
+			(len(h.password) > 0 && subtle.ConstantTimeCompare(unsafe.Slice(unsafe.StringData(password), len(password)), h.password) != 1) {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
