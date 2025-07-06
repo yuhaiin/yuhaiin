@@ -2,11 +2,14 @@ package app
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
-	"log/slog"
 	"maps"
 	"slices"
+	"sync"
+	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -19,6 +22,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/blake2b"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -29,15 +33,21 @@ type Backup struct {
 	db       config.DB
 	proxy    netapi.Proxy
 	instance *AppInstance
+	mu       sync.Mutex
+	ticker   *time.Ticker
 	backup.UnimplementedBackupServer
 }
 
 func NewBackup(db config.DB, instance *AppInstance, proxy netapi.Proxy) *Backup {
-	return &Backup{
+	b := &Backup{
 		db:       db,
 		instance: instance,
 		proxy:    proxy,
 	}
+
+	b.resetTicker()
+
+	return b
 }
 
 func (b *Backup) Save(ctx context.Context, opt *backup.BackupOption) (*emptypb.Empty, error) {
@@ -49,7 +59,42 @@ func (b *Backup) Save(ctx context.Context, opt *backup.BackupOption) (*emptypb.E
 		return nil, err
 	}
 
+	b.resetTicker()
+
 	return &emptypb.Empty{}, nil
+}
+
+func (b *Backup) resetTicker() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	opt, err := b.getConfig()
+	if err != nil {
+		log.Error("get config failed", "err", err)
+		return
+	}
+
+	if b.ticker != nil {
+		b.ticker.Stop()
+		b.ticker = nil
+	}
+
+	if opt.GetInterval() == 0 {
+		return
+	}
+
+	b.ticker = time.NewTicker(time.Duration(opt.GetInterval()) * time.Minute)
+
+	log.Info("start new backup ticker", "interval", time.Duration(opt.GetInterval())*time.Minute)
+
+	go func() {
+		for range b.ticker.C {
+			_, err := b.Backup(context.Background(), &emptypb.Empty{})
+			if err != nil {
+				log.Error("backup failed", "err", err)
+			}
+		}
+	}()
 }
 
 func (b *Backup) Get(context.Context, *emptypb.Empty) (*backup.BackupOption, error) {
@@ -83,7 +128,34 @@ func (b *Backup) Get(context.Context, *emptypb.Empty) (*backup.BackupOption, err
 	return config, nil
 }
 
+func calculateHash(content *backup.BackupContent, options *backup.BackupOption) string {
+	contentBytes, err := protojson.Marshal(content)
+	if err != nil {
+		log.Warn("marshal content failed", "err", err)
+		return ""
+	}
+
+	s3bytes, err := protojson.Marshal(options.GetS3())
+	if err != nil {
+		log.Warn("marshal s3 failed", "err", err)
+		return ""
+	}
+
+	hash, err := blake2b.New(32, nil)
+	if err != nil {
+		log.Warn("new blake2b hash failed", "err", err)
+		return ""
+	}
+
+	hash.Write(contentBytes)
+	hash.Write(s3bytes)
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
 func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	backupConfig, err := b.getConfig()
 	if err != nil {
 		return nil, err
@@ -239,6 +311,11 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		}.Build(),
 	}.Build()
 
+	newHash := calculateHash(data, backupConfig)
+	if backupConfig.GetLastBackupHash() != "" && backupConfig.GetLastBackupHash() == newHash {
+		return &emptypb.Empty{}, nil
+	}
+
 	jsonbytes, err := protojson.MarshalOptions{
 		Indent: "\t",
 	}.Marshal(data)
@@ -250,10 +327,20 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		return nil, err
 	}
 
+	if err := b.db.Batch(func(s *pc.Setting) error {
+		s.GetBackup().SetLastBackupHash(newHash)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
 	return &emptypb.Empty{}, nil
 }
 
 func (b *Backup) Restore(ctx context.Context, opt *backup.RestoreOption) (*emptypb.Empty, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	backupConfig, err := b.getConfig()
 	if err != nil {
 		return nil, err
@@ -331,7 +418,7 @@ func (b *Backup) Restore(ctx context.Context, opt *backup.RestoreOption) (*empty
 
 func (b *Backup) restoreDns(ctx context.Context, content *backup.BackupContent) error {
 	if content.GetDns() == nil {
-		slog.Warn("dns config is empty")
+		log.Warn("dns config is empty")
 		return nil
 	}
 	dns := content.GetDns()
@@ -377,7 +464,7 @@ func (b *Backup) restoreDns(ctx context.Context, content *backup.BackupContent) 
 
 func (b *Backup) restoreInbounds(ctx context.Context, content *backup.BackupContent) error {
 	if content.GetInbounds() == nil {
-		slog.Warn("inbounds config is empty")
+		log.Warn("inbounds config is empty")
 		return nil
 	}
 	inbounds := content.GetInbounds()
@@ -408,7 +495,7 @@ func (b *Backup) restoreInbounds(ctx context.Context, content *backup.BackupCont
 
 func (b *Backup) restoreNodes(ctx context.Context, content *backup.BackupContent) error {
 	if content.GetNodes() == nil {
-		slog.Warn("nodes config is empty")
+		log.Warn("nodes config is empty")
 		return nil
 	}
 	nodes := content.GetNodes()
@@ -426,7 +513,7 @@ func (b *Backup) restoreNodes(ctx context.Context, content *backup.BackupContent
 
 func (b *Backup) restoreSubscribes(ctx context.Context, content *backup.BackupContent) error {
 	if content.GetSubscribes() == nil {
-		slog.Warn("subscribes config is empty")
+		log.Warn("subscribes config is empty")
 		return nil
 	}
 
@@ -442,7 +529,7 @@ func (b *Backup) restoreSubscribes(ctx context.Context, content *backup.BackupCo
 
 func (b *Backup) restoreTags(ctx context.Context, content *backup.BackupContent) error {
 	if content.GetTags() == nil {
-		slog.Warn("tags config is empty")
+		log.Warn("tags config is empty")
 		return nil
 	}
 	tags := content.GetTags()
@@ -463,7 +550,7 @@ func (b *Backup) restoreTags(ctx context.Context, content *backup.BackupContent)
 
 func (b *Backup) restoreLists(ctx context.Context, content *backup.BackupContent) error {
 	if content.GetRules().GetLists() == nil {
-		slog.Warn("lists config is empty")
+		log.Warn("lists config is empty")
 		return nil
 	}
 	lists := content.GetRules().GetLists()
@@ -481,7 +568,7 @@ func (b *Backup) restoreLists(ctx context.Context, content *backup.BackupContent
 
 func (b *Backup) restoreRules(ctx context.Context, content *backup.BackupContent) error {
 	if content.GetRules() == nil {
-		slog.Warn("rules config is empty")
+		log.Warn("rules config is empty")
 		return nil
 	}
 	rules := content.GetRules()
@@ -525,4 +612,16 @@ func (b *Backup) getConfig() (*backup.BackupOption, error) {
 	}
 
 	return config, nil
+}
+
+func (b *Backup) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.ticker != nil {
+		b.ticker.Stop()
+		b.ticker = nil
+	}
+
+	return nil
 }

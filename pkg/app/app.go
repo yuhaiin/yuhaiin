@@ -246,7 +246,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		closers:        closers,
 	}
 
-	app.Backup = NewBackup(so.BackupConfig, app, fakedns)
+	app.Backup = AddCloser(closers, "backup", NewBackup(so.BackupConfig, app, fakedns))
 
 	// grpc and http server
 	app.RegisterServer()

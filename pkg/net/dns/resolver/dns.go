@@ -579,7 +579,7 @@ func appendIPHint(msg dns.Msg, ipv4, ipv6 []net.IP) {
 			})
 		}
 
-		slog.Info("append ip hint to https", "value", newHttps.Value)
+		log.Info("append ip hint to https", "value", newHttps.Value)
 
 		msg.Answer[i] = newHttps
 		break

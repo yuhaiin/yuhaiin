@@ -26,6 +26,10 @@ message s3 {
 message backup_option {
   string instance_name = 1 [ json_name = "instance_name" ];
   s3 s3 = 2 [ json_name = "s3" ];
+  // interval in minutes
+  uint64 interval = 3 [ json_name = "interval" ];
+  // last backup hash, used to check if the config has changed
+  string last_backup_hash = 4 [ json_name = "last_backup_hash" ];
 }
 
 message nodes {
