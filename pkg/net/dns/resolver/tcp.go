@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -37,7 +38,8 @@ func ParseAddr(netType string, host, defaultPort string) (netapi.Address, error)
 
 	_, _, err := net.SplitHostPort(host)
 	if err != nil {
-		e, ok := err.(*net.AddrError)
+		var e *net.AddrError
+		ok := errors.As(err, &e)
 		if !ok || !strings.Contains(e.Err, "missing port in address") {
 			if ok && strings.Contains(e.Err, "too many colons in address") {
 				if _, er := netip.ParseAddr(host); er != nil {

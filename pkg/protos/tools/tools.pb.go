@@ -503,6 +503,63 @@ func (b0 Log_builder) Build() *Log {
 	return m0
 }
 
+type Logv2 struct {
+	state          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Log []string               `protobuf:"bytes,1,rep,name=log"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *Logv2) Reset() {
+	*x = Logv2{}
+	mi := &file_tools_tools_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Logv2) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Logv2) ProtoMessage() {}
+
+func (x *Logv2) ProtoReflect() protoreflect.Message {
+	mi := &file_tools_tools_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Logv2) GetLog() []string {
+	if x != nil {
+		return x.xxx_hidden_Log
+	}
+	return nil
+}
+
+func (x *Logv2) SetLog(v []string) {
+	x.xxx_hidden_Log = v
+}
+
+type Logv2_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Log []string
+}
+
+func (b0 Logv2_builder) Build() *Logv2 {
+	m0 := &Logv2{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Log = b.Log
+	return m0
+}
+
 var File_tools_tools_proto protoreflect.FileDescriptor
 
 const file_tools_tools_proto_rawDesc = "" +
@@ -525,33 +582,39 @@ const file_tools_tools_proto_rawDesc = "" +
 	"\alicense\x18\x03 \x01(\tR\alicense\x12 \n" +
 	"\vlicense_url\x18\x04 \x01(\tR\vlicense_url\"\x17\n" +
 	"\x03Log\x12\x10\n" +
-	"\x03log\x18\x01 \x01(\tR\x03log2\xbd\x01\n" +
+	"\x03log\x18\x01 \x01(\tR\x03log\"\x19\n" +
+	"\x05Logv2\x12\x10\n" +
+	"\x03log\x18\x01 \x03(\tR\x03log2\xf6\x01\n" +
 	"\x05tools\x12B\n" +
 	"\rget_interface\x12\x16.google.protobuf.Empty\x1a\x19.yuhaiin.tools.Interfaces\x12;\n" +
 	"\blicenses\x12\x16.google.protobuf.Empty\x1a\x17.yuhaiin.tools.Licenses\x123\n" +
-	"\x03log\x12\x16.google.protobuf.Empty\x1a\x12.yuhaiin.tools.Log0\x01B7Z-github.com/Asutorufa/yuhaiin/pkg/protos/tools\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
+	"\x03log\x12\x16.google.protobuf.Empty\x1a\x12.yuhaiin.tools.Log0\x01\x127\n" +
+	"\x05logv2\x12\x16.google.protobuf.Empty\x1a\x14.yuhaiin.tools.Logv20\x01B7Z-github.com/Asutorufa/yuhaiin/pkg/protos/tools\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
-var file_tools_tools_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_tools_tools_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_tools_tools_proto_goTypes = []any{
 	(*Interfaces)(nil),    // 0: yuhaiin.tools.Interfaces
 	(*Interface)(nil),     // 1: yuhaiin.tools.Interface
 	(*Licenses)(nil),      // 2: yuhaiin.tools.Licenses
 	(*License)(nil),       // 3: yuhaiin.tools.License
 	(*Log)(nil),           // 4: yuhaiin.tools.Log
-	(*emptypb.Empty)(nil), // 5: google.protobuf.Empty
+	(*Logv2)(nil),         // 5: yuhaiin.tools.Logv2
+	(*emptypb.Empty)(nil), // 6: google.protobuf.Empty
 }
 var file_tools_tools_proto_depIdxs = []int32{
 	1, // 0: yuhaiin.tools.Interfaces.interfaces:type_name -> yuhaiin.tools.Interface
 	3, // 1: yuhaiin.tools.Licenses.yuhaiin:type_name -> yuhaiin.tools.License
 	3, // 2: yuhaiin.tools.Licenses.android:type_name -> yuhaiin.tools.License
-	5, // 3: yuhaiin.tools.tools.get_interface:input_type -> google.protobuf.Empty
-	5, // 4: yuhaiin.tools.tools.licenses:input_type -> google.protobuf.Empty
-	5, // 5: yuhaiin.tools.tools.log:input_type -> google.protobuf.Empty
-	0, // 6: yuhaiin.tools.tools.get_interface:output_type -> yuhaiin.tools.Interfaces
-	2, // 7: yuhaiin.tools.tools.licenses:output_type -> yuhaiin.tools.Licenses
-	4, // 8: yuhaiin.tools.tools.log:output_type -> yuhaiin.tools.Log
-	6, // [6:9] is the sub-list for method output_type
-	3, // [3:6] is the sub-list for method input_type
+	6, // 3: yuhaiin.tools.tools.get_interface:input_type -> google.protobuf.Empty
+	6, // 4: yuhaiin.tools.tools.licenses:input_type -> google.protobuf.Empty
+	6, // 5: yuhaiin.tools.tools.log:input_type -> google.protobuf.Empty
+	6, // 6: yuhaiin.tools.tools.logv2:input_type -> google.protobuf.Empty
+	0, // 7: yuhaiin.tools.tools.get_interface:output_type -> yuhaiin.tools.Interfaces
+	2, // 8: yuhaiin.tools.tools.licenses:output_type -> yuhaiin.tools.Licenses
+	4, // 9: yuhaiin.tools.tools.log:output_type -> yuhaiin.tools.Log
+	5, // 10: yuhaiin.tools.tools.logv2:output_type -> yuhaiin.tools.Logv2
+	7, // [7:11] is the sub-list for method output_type
+	3, // [3:7] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name
 	3, // [3:3] is the sub-list for extension extendee
 	0, // [0:3] is the sub-list for field type_name
@@ -568,7 +631,7 @@ func file_tools_tools_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tools_tools_proto_rawDesc), len(file_tools_tools_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -1,24 +1,53 @@
 package tun2socket
 
 import (
+	"context"
+	"errors"
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 var (
-	loopback   = tcpip.AddrFrom4([4]byte{127, 0, 0, 1})
+	loopbackv4 = tcpip.AddrFrom4([4]byte{127, 0, 0, 1})
 	loopbackv6 = tcpip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
 )
 
 type TCP struct {
-	listener *net.TCPListener
-	table    *tableSplit
-	portal   net.IP
-	portalv6 net.IP
+	v4listener *net.TCPListener
+	v6listener *net.TCPListener
+	table      *tableSplit
+	portalv4   net.IP
+	portalv6   net.IP
 	device.InterfaceAddress
+
+	ctx      context.Context
+	cancel   context.CancelFunc
+	connChan chan *Conn
+}
+
+func NewTCP(opt *device.Opt, v4, v6 *net.TCPListener, table *tableSplit) *TCP {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	t := &TCP{
+		ctx:              ctx,
+		cancel:           cancel,
+		connChan:         make(chan *Conn, 100),
+		v4listener:       v4,
+		v6listener:       v6,
+		portalv4:         opt.V4Address().Addr().Next().AsSlice(),
+		portalv6:         opt.V6Address().Addr().Next().AsSlice(),
+		InterfaceAddress: opt.InterfaceAddress(),
+		table:            table,
+	}
+
+	go t.loopv4()
+	go t.loopv6()
+
+	return t
 }
 
 type Conn struct {
@@ -26,73 +55,108 @@ type Conn struct {
 	tuple Tuple
 }
 
-func (t *TCP) Accept() (*Conn, error) {
-	c, err := t.listener.AcceptTCP()
-	if err != nil {
-		return nil, err
-	}
+func (t *TCP) loopv4() {
+	for t.v4listener.SetDeadline(time.Time{}) == nil {
+		c, err := t.v4listener.AcceptTCP()
+		if err != nil {
+			log.Warn("tun2socket v4 tcp accept failed", "err", err)
+			continue
+		}
 
-	addr := c.RemoteAddr().(*net.TCPAddr)
+		addr := c.RemoteAddr().(*net.TCPAddr)
 
-	v6 := addr.IP.To4() == nil
+		tup := t.table.tupleOf(uint16(addr.Port), false)
 
-	var portal net.IP
-	if v6 {
-		portal = t.portalv6
-	} else {
-		portal = t.portal
-	}
+		if !(t.portalv4.Equal(addr.IP) && tup != zeroTuple) {
+			_ = c.Close()
+			log.Warn("tun2socket v4 unknown remote addr", "addr", addr, "tuple", tup)
+			continue
+		}
 
-	tup := t.table.tupleOf(uint16(addr.Port), v6)
+		if tup.DestinationPort != 53 && tup.DestinationAddr.Equal(t.InterfaceAddress.Addressv4) {
+			tup.DestinationAddr = loopbackv4
+		}
 
-	if !(portal.Equal(addr.IP) && tup != zeroTuple) {
-		_ = c.Close()
-		return nil, net.InvalidAddrError("unknown remote addr")
-	}
-
-	if tup.DestinationPort != 53 {
-		if tup.DestinationAddr.Len() == 4 && tup.DestinationAddr.Equal(t.InterfaceAddress.Address) {
-			tup.DestinationAddr = loopback
-		} else if tup.DestinationAddr.Equal(t.InterfaceAddress.AddressV6) {
-			tup.DestinationAddr = loopbackv6
+		select {
+		case <-t.ctx.Done():
+			return
+		case t.connChan <- &Conn{c, tup}:
 		}
 	}
+}
 
-	/*
-			sys, err := c.SyscallConn()
-			if err == nil {
-				_ = sys.Control(func(fd uintptr) {
-					setSocketOptions(fd)
-				})
-			}
+func (t *TCP) loopv6() {
+	for t.v6listener.SetDeadline(time.Time{}) == nil {
+		c, err := t.v6listener.AcceptTCP()
+		if err != nil {
+			log.Warn("tun2socket v6 tcp accept failed", "err", err)
+			continue
+		}
 
-			https://www.kernel.org/doc/Documentation/networking/udplite.txt
-		  	3) Disabling the Checksum Computation
-		  	On both sender and receiver, checksumming will always be performed
-		  	and cannot be disabled using SO_NO_CHECK. Thus
-		        setsockopt(sockfd, SOL_SOCKET, SO_NO_CHECK,  ... );
-		  	will always will be ignored, while the value of
-		        getsockopt(sockfd, SOL_SOCKET, SO_NO_CHECK, &value, ...);
-		  	is meaningless (as in TCP). Packets with a zero checksum field are
-		  	illegal (cf. RFC 3828, sec. 3.1) and will be silently discarded.
-	*/
+		addr := c.RemoteAddr().(*net.TCPAddr)
 
-	return &Conn{
-		TCPConn: c,
-		tuple:   tup,
-	}, nil
+		tup := t.table.tupleOf(uint16(addr.Port), true)
+
+		if !(t.portalv6.Equal(addr.IP) && tup != zeroTuple) {
+			_ = c.Close()
+			log.Warn("tun2socket v6 unknown remote addr", "addr", addr, "tuple", tup)
+			continue
+		}
+
+		if tup.DestinationPort != 53 && tup.DestinationAddr.Equal(t.InterfaceAddress.AddressV6) {
+			tup.DestinationAddr = loopbackv6
+		}
+
+		select {
+		case <-t.ctx.Done():
+			return
+		case t.connChan <- &Conn{c, tup}:
+		}
+	}
+}
+
+/*
+		sys, err := c.SyscallConn()
+		if err == nil {
+			_ = sys.Control(func(fd uintptr) {
+				setSocketOptions(fd)
+			})
+		}
+
+		https://www.kernel.org/doc/Documentation/networking/udplite.txt
+	  	3) Disabling the Checksum Computation
+	  	On both sender and receiver, checksumming will always be performed
+	  	and cannot be disabled using SO_NO_CHECK. Thus
+	        setsockopt(sockfd, SOL_SOCKET, SO_NO_CHECK,  ... );
+	  	will always will be ignored, while the value of
+	        getsockopt(sockfd, SOL_SOCKET, SO_NO_CHECK, &value, ...);
+	  	is meaningless (as in TCP). Packets with a zero checksum field are
+	  	illegal (cf. RFC 3828, sec. 3.1) and will be silently discarded.
+*/
+
+// Accept conn
+func (t *TCP) Accept() (*Conn, error) {
+	select {
+	case <-t.ctx.Done():
+		return nil, net.ErrClosed
+	case c := <-t.connChan:
+		return c, nil
+	}
 }
 
 func (t *TCP) Close() error {
-	return t.listener.Close()
-}
+	t.cancel()
 
-func (t *TCP) Addr() net.Addr {
-	return t.listener.Addr()
-}
+	var er error
+	if err := t.v6listener.Close(); err != nil {
+		er = errors.Join(er, err)
+	}
 
-func (t *TCP) SetDeadline(time time.Time) error {
-	return t.listener.SetDeadline(time)
+	if err := t.v4listener.Close(); err != nil {
+		er = errors.Join(er, err)
+	}
+
+	return er
 }
 
 func (c *Conn) Close() error {

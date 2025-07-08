@@ -80,9 +80,21 @@ func (t *Tools) Licenses(context.Context, *emptypb.Empty) (*Licenses, error) {
 }
 
 func (t *Tools) Log(_ *emptypb.Empty, stream grpc.ServerStreamingServer[Log]) error {
-	return log.Tail(stream.Context(), PathGenerator.Log(t.db.Dir()), func(line string) {
-		if err := stream.Send(Log_builder{
-			Log: proto.String(line),
+	return log.Tail(stream.Context(), PathGenerator.Log(t.db.Dir()), func(line []string) {
+		for _, l := range line {
+			if err := stream.Send(Log_builder{
+				Log: proto.String(l),
+			}.Build()); err != nil {
+				return
+			}
+		}
+	})
+}
+
+func (t *Tools) Logv2(empty *emptypb.Empty, v2 grpc.ServerStreamingServer[Logv2]) error {
+	return log.Tail(v2.Context(), PathGenerator.Log(t.db.Dir()), func(line []string) {
+		if err := v2.Send(Logv2_builder{
+			Log: line,
 		}.Build()); err != nil {
 			return
 		}

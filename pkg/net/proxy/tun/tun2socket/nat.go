@@ -3,6 +3,7 @@ package tun2socket
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"syscall"
 
@@ -28,22 +29,56 @@ type Nat struct {
 	gatewayPort uint16
 }
 
-func Start(opt *device.Opt) (*Nat, error) {
-	listener, err := dialer.ListenContextWithOptions(context.Background(),
-		"tcp", "", &dialer.Options{})
-	if err != nil {
-		return nil, err
+func dualStackListen(v4addr, v6addr string) (v4, v6 *net.TCPListener, port int, err error) {
+	var er error
+	for range 5 {
+		v4listener, err := dialer.ListenContextWithOptions(context.Background(),
+			"tcp", net.JoinHostPort(v4addr, "0"), &dialer.Options{})
+		if err != nil {
+			log.Warn("dual stack listen v4 failed", "err", err)
+			er = errors.Join(er, err)
+			continue
+		}
+
+		port := v4listener.Addr().(*net.TCPAddr).Port
+
+		v6listener, err := dialer.ListenContextWithOptions(context.Background(),
+			"tcp", net.JoinHostPort(v6addr, fmt.Sprint(port)), &dialer.Options{})
+		if err != nil {
+			v4listener.Close()
+			log.Warn("dual stack listen v6 failed", "err", err)
+			er = errors.Join(er, err)
+			continue
+		}
+
+		return v4listener.(*net.TCPListener), v6listener.(*net.TCPListener), port, nil
 	}
 
-	log.Info("new tun2socket tcp server", "host", listener.Addr(),
-		"gateway", opt.V4Address(), "portal", opt.V4Address().Addr().Next(),
-		"gatewayv6", opt.V6Address(), "portalv6", opt.V6Address().Addr().Next(),
-	)
+	return nil, nil, 0, err
+}
 
+func Start(opt *device.Opt) (*Nat, error) {
+	var err error
+	// set address and route to interface
+	// otherwize the listener will not work
 	opt.UnsetRoute, err = netlink.Route(opt.Options)
 	if err != nil {
 		log.Warn("set route failed", "err", err)
 	}
+
+	v4listener, v6listener, gatewayPort, err := dualStackListen(opt.V4Address().Addr().String(), opt.V6Address().Addr().String())
+	if err != nil {
+		if opt.UnsetRoute != nil {
+			opt.UnsetRoute()
+		}
+		return nil, err
+	}
+
+	log.Info("new tun2socket tcp server",
+		"v4 listener", v4listener.Addr(), "v6 listener", v6listener.Addr(),
+		"v4 gateway", opt.V4Address(), "v4 portal", opt.V4Address().Addr().Next(),
+		"v6 gateway", opt.V6Address(), "v6 portal", opt.V6Address().Addr().Next(),
+	)
 
 	opt.PostUp()
 
@@ -55,29 +90,23 @@ func Start(opt *device.Opt) (*Nat, error) {
 
 	nat := &Nat{
 		InterfaceAddress: opt.InterfaceAddress(),
-		gatewayPort:      uint16(listener.Addr().(*net.TCPAddr).Port),
+		gatewayPort:      uint16(gatewayPort),
 		tab:              tab,
-		TCP: &TCP{
-			listener:         listener.(*net.TCPListener),
-			portal:           opt.V4Address().Addr().Next().AsSlice(),
-			portalv6:         opt.V6Address().Addr().Next().AsSlice(),
-			table:            tab,
-			InterfaceAddress: opt.InterfaceAddress(),
-		},
-		UDP:      NewUDP(opt.Device, opt.Handler, opt.InterfaceAddress()),
-		postDown: opt.PostDown,
+		TCP:              NewTCP(opt, v4listener, v6listener, tab),
+		UDP:              NewUDP(opt),
+		postDown:         opt.PostDown,
 	}
 
 	var broadcast, v4network, v6network tcpip.Address
 
 	if opt.V4Address().Bits() < 32 {
-		subnet := tcpip.AddressWithPrefix{Address: nat.InterfaceAddress.Address, PrefixLen: opt.V4Address().Bits()}.Subnet()
+		subnet := tcpip.AddressWithPrefix{Address: nat.InterfaceAddress.Addressv4, PrefixLen: opt.V4Address().Bits()}.Subnet()
 		// broadcast address, eg: 172.19.0.255, ipv6 don't have broadcast address
 		broadcast = subnet.Broadcast()
 		// network address, eg: 172.19.0.0
 		v4network = tcpip.AddrFromSlice(opt.V4Address().Masked().Addr().AsSlice())
 
-		if broadcast.Equal(nat.InterfaceAddress.Address) || broadcast.Equal(nat.InterfaceAddress.Portal) {
+		if broadcast.Equal(nat.InterfaceAddress.Addressv4) || broadcast.Equal(nat.InterfaceAddress.Portalv4) {
 			broadcast = tcpip.AddrFrom4([4]byte{255, 255, 255, 255})
 		}
 	}
@@ -246,7 +275,7 @@ func (n *Nat) processTCP(ip header.Network, src, dst tcpip.Address) (_ header.Tr
 
 	var address, portal tcpip.Address
 	if _, ok := ip.(header.IPv4); ok {
-		address, portal = n.Address, n.Portal
+		address, portal = n.Addressv4, n.Portalv4
 	} else {
 		address, portal = n.AddressV6, n.PortalV6
 	}

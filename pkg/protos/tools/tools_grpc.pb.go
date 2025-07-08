@@ -23,6 +23,7 @@ const (
 	Tools_GetInterface_FullMethodName = "/yuhaiin.tools.tools/get_interface"
 	Tools_Licenses_FullMethodName     = "/yuhaiin.tools.tools/licenses"
 	Tools_Log_FullMethodName          = "/yuhaiin.tools.tools/log"
+	Tools_Logv2_FullMethodName        = "/yuhaiin.tools.tools/logv2"
 )
 
 // ToolsClient is the client API for Tools service.
@@ -32,6 +33,7 @@ type ToolsClient interface {
 	GetInterface(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Interfaces, error)
 	Licenses(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Licenses, error)
 	Log(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Log], error)
+	Logv2(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Logv2], error)
 }
 
 type toolsClient struct {
@@ -81,6 +83,25 @@ func (c *toolsClient) Log(ctx context.Context, in *emptypb.Empty, opts ...grpc.C
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Tools_LogClient = grpc.ServerStreamingClient[Log]
 
+func (c *toolsClient) Logv2(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Logv2], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Tools_ServiceDesc.Streams[1], Tools_Logv2_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[emptypb.Empty, Logv2]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Tools_Logv2Client = grpc.ServerStreamingClient[Logv2]
+
 // ToolsServer is the server API for Tools service.
 // All implementations must embed UnimplementedToolsServer
 // for forward compatibility.
@@ -88,6 +109,7 @@ type ToolsServer interface {
 	GetInterface(context.Context, *emptypb.Empty) (*Interfaces, error)
 	Licenses(context.Context, *emptypb.Empty) (*Licenses, error)
 	Log(*emptypb.Empty, grpc.ServerStreamingServer[Log]) error
+	Logv2(*emptypb.Empty, grpc.ServerStreamingServer[Logv2]) error
 	mustEmbedUnimplementedToolsServer()
 }
 
@@ -106,6 +128,9 @@ func (UnimplementedToolsServer) Licenses(context.Context, *emptypb.Empty) (*Lice
 }
 func (UnimplementedToolsServer) Log(*emptypb.Empty, grpc.ServerStreamingServer[Log]) error {
 	return status.Errorf(codes.Unimplemented, "method Log not implemented")
+}
+func (UnimplementedToolsServer) Logv2(*emptypb.Empty, grpc.ServerStreamingServer[Logv2]) error {
+	return status.Errorf(codes.Unimplemented, "method Logv2 not implemented")
 }
 func (UnimplementedToolsServer) mustEmbedUnimplementedToolsServer() {}
 func (UnimplementedToolsServer) testEmbeddedByValue()               {}
@@ -175,6 +200,17 @@ func _Tools_Log_Handler(srv interface{}, stream grpc.ServerStream) error {
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Tools_LogServer = grpc.ServerStreamingServer[Log]
 
+func _Tools_Logv2_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(emptypb.Empty)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ToolsServer).Logv2(m, &grpc.GenericServerStream[emptypb.Empty, Logv2]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Tools_Logv2Server = grpc.ServerStreamingServer[Logv2]
+
 // Tools_ServiceDesc is the grpc.ServiceDesc for Tools service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -195,6 +231,11 @@ var Tools_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "log",
 			Handler:       _Tools_Log_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "logv2",
+			Handler:       _Tools_Logv2_Handler,
 			ServerStreams: true,
 		},
 	},

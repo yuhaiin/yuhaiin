@@ -74,6 +74,14 @@ yuhaiin-%:
 	$(build)
 	GOOS=$(OS) GOARCH=$(ARCH) GOMIPS=$(MIPS) GOAMD64=$(AMD64V3) $(GO_BUILD_CMD) -pgo auto -tags '$(TAILSCALE_BUILD_FLAGS),debug,$(MODE)' -o yuhaiin_$(OS)_$(ARCH)$(AMD64V3)$(SUFFIX) $(YUHAIIN)
 
+	@if [ "$(OS)" = "darwin" ]; then \
+		if [ -n "$(shell command -v codesign)" ]; then \
+            echo "codesign found, signing..."; \
+            codesign -s - --force --preserve-metadata=entitlements,requirements,flags,runtime yuhaiin_$(OS)_$(ARCH)$(AMD64V3)$(SUFFIX); \
+            codesign -dv --verbose=4 yuhaiin_$(OS)_$(ARCH)$(AMD64V3)$(SUFFIX); \
+        fi \
+	fi
+
 .PHONY: yuhaiin_android_aar
 yuhaiin_android_aar:
 	gomobile bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags '$(TAILSCALE_BUILD_FLAGS),debug' -trimpath -target="android/arm64,android/amd64" -androidapi 21 -o yuhaiin.aar -v ./cmd/android/

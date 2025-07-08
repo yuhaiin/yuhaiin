@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 )
@@ -52,14 +50,12 @@ func (h *Tun2socket) Close() error {
 }
 
 func (h *Tun2socket) tcpLoop() {
-
 	defer h.nat.TCP.Close()
 
-	for h.nat.TCP.SetDeadline(time.Time{}) == nil {
+	for {
 		conn, err := h.nat.TCP.Accept()
 		if err != nil {
-			log.Error("tun2socket tcp accept failed", "err", err)
-			continue
+			break
 		}
 
 		go h.handleTCP(conn)
