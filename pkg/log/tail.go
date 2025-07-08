@@ -4,12 +4,11 @@ import (
 	"context"
 	"os"
 	"time"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
-func Tail(ctx context.Context, path string, fn func(line string)) error {
+func Tail(ctx context.Context, path string, fn func(line []string)) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -19,13 +18,32 @@ func Tail(ctx context.Context, path string, fn func(line string)) error {
 	scan := pool.GetBufioReader(f, 1024)
 	defer pool.PutBufioReader(scan)
 
-	for {
-		line, _, err := scan.ReadLine()
-		if err != nil {
-			break
+	dump := func() {
+		var ret []string
+		var failed bool
+		for !failed {
+			ret = ret[:0]
+
+			for {
+				line, _, err := scan.ReadLine()
+				if err != nil {
+					failed = true
+					break
+				}
+				ret = append(ret, string(line))
+
+				if len(ret) > 100 {
+					break
+				}
+			}
+
+			if len(ret) > 0 {
+				fn(ret)
+			}
 		}
-		fn(unsafe.String(unsafe.SliceData(line), len(line)))
 	}
+
+	dump()
 
 	ticker := time.NewTicker(time.Second)
 
@@ -34,13 +52,7 @@ func Tail(ctx context.Context, path string, fn func(line string)) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			for {
-				line, _, err := scan.ReadLine()
-				if err != nil {
-					break
-				}
-				fn(unsafe.String(unsafe.SliceData(line), len(line)))
-			}
+			dump()
 		}
 	}
 }

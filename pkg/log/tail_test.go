@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,8 +31,8 @@ func TestTail(t *testing.T) {
 		cancel()
 	}()
 
-	err = Tail(ctx, "test.log", func(line string) {
-		os.Stdout.Write([]byte(line))
+	err = Tail(ctx, "test.log", func(line []string) {
+		os.Stdout.Write([]byte(strings.Join(line, "\n")))
 	})
 	assert.NoError(t, err)
 }

@@ -16,10 +16,10 @@ require (
 	github.com/prometheus/client_golang v1.22.0
 	github.com/quic-go/quic-go v0.53.0
 	github.com/refraction-networking/utls v1.7.3
-	github.com/tailscale/wireguard-go v0.0.0-20250701223756-24483d7a0003
+	github.com/tailscale/wireguard-go v0.0.0-20250707220504-1f398ae148a8
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20250627141458-e62c4aed0d57
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250706174650-bf20c232ec0a
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250708090645-715599ba4ec5
 	go.etcd.io/bbolt v1.4.2
 	golang.org/x/crypto v0.39.0
 	golang.org/x/mobile v0.0.0-20250606033058-a2a15c67f36f

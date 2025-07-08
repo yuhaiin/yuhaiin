@@ -12,6 +12,7 @@ service tools {
   rpc get_interface(google.protobuf.Empty) returns (Interfaces);
   rpc licenses(google.protobuf.Empty) returns (Licenses);
   rpc log(google.protobuf.Empty) returns (stream Log);
+  rpc logv2(google.protobuf.Empty) returns (stream Logv2);
 }
 
 message Interfaces {
@@ -35,6 +36,6 @@ message License {
   string license_url = 4 [ json_name = "license_url" ];
 }
 
-message Log {
-  string log = 1 [ json_name = "log" ];
-}
+message Log { string log = 1 [ json_name = "log" ]; }
+
+message Logv2 { repeated string log = 1 [ json_name = "log" ]; }

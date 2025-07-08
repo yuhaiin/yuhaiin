@@ -33,8 +33,8 @@ type UDP struct {
 	device.InterfaceAddress
 }
 
-func NewUDP(device netlink.Tun, handler netapi.Handler, addr device.InterfaceAddress) *UDP {
-	return &UDP{device: device, handler: handler, InterfaceAddress: addr}
+func NewUDP(opt *device.Opt) *UDP {
+	return &UDP{device: opt.Device, handler: opt.Handler, InterfaceAddress: opt.InterfaceAddress()}
 }
 
 func (u *UDP) Close() error {
