@@ -9,7 +9,6 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/netip"
-	"slices"
 	"sync"
 	"time"
 
@@ -341,7 +340,8 @@ func (c *client) removeIpHint(req dns.Question, msg dns.Msg) {
 			continue
 		}
 
-		news := make([]dns.SVCBKeyValue, 0, len(https.SVCB.Value))
+		news := https.SVCB.Value[:0]
+
 		for _, v := range https.SVCB.Value {
 			if v.Key() == dns.SVCB_IPV4HINT || v.Key() == dns.SVCB_IPV6HINT {
 				c.iphintToCache(req.Name, r.Header().Ttl, v)
@@ -423,13 +423,8 @@ func (c *client) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 		return dns.Msg{}, err
 	}
 
+	rawmsg = *rawmsg.Copy()
 	rawmsg.Question = []dns.Question{req}
-
-	// TODO deep copy resource.Body
-	rawmsg.Answer = slices.Clone(rawmsg.Answer)
-	rawmsg.Ns = slices.Clone(rawmsg.Ns)
-	rawmsg.Extra = slices.Clone(rawmsg.Extra)
-
 	return rawmsg, nil
 }
 
@@ -553,7 +548,7 @@ func appendIPHint(msg dns.Msg, ipv4, ipv6 []net.IP) {
 		return
 	}
 
-	for i, v := range msg.Answer {
+	for _, v := range msg.Answer {
 		if v.Header().Rrtype != dns.TypeHTTPS {
 			continue
 		}
@@ -563,25 +558,19 @@ func appendIPHint(msg dns.Msg, ipv4, ipv6 []net.IP) {
 			continue
 		}
 
-		newHttps := &dns.HTTPS{}
-
-		*newHttps = *https
-
+		// the raw message already cloned, so we no need copy anymore here
 		if len(ipv4) > 0 {
-			newHttps.Value = append(newHttps.Value, &dns.SVCBIPv4Hint{
+			https.Value = append(https.Value, &dns.SVCBIPv4Hint{
 				Hint: ipv4,
 			})
 		}
 
 		if len(ipv6) > 0 {
-			newHttps.Value = append(newHttps.Value, &dns.SVCBIPv6Hint{
+			https.Value = append(https.Value, &dns.SVCBIPv6Hint{
 				Hint: ipv6,
 			})
 		}
 
-		log.Info("append ip hint to https", "value", newHttps.Value)
-
-		msg.Answer[i] = newHttps
 		break
 	}
 }

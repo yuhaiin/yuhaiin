@@ -410,7 +410,6 @@ func newFakeLru(size uint, db cache.RecursionCache, iprange netip.Prefix) *fakeL
 	if iprange.Addr().Unmap().Is6() {
 		bboltCache = db.NewCache("fakedns_cachev6")
 	} else {
-
 		bboltCache = db.NewCache("fakedns_cache")
 	}
 

@@ -91,9 +91,6 @@ type Resolver interface {
 	// LookupIP returns a list of ip addresses
 	LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) (*IPs, error)
 	// Raw returns a dns message
-	//
-	// ! The returned message may be cached, so it should not be modified
-	// ! Please clone the message if you need to modify it
 	Raw(ctx context.Context, req dns.Question) (dns.Msg, error)
 	io.Closer
 }
