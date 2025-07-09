@@ -5,7 +5,6 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	dnsmessage "github.com/miekg/dns"
@@ -14,7 +13,7 @@ import (
 func TestDOH(t *testing.T) {
 	s, err := netip.ParsePrefix("223.5.5.5/24")
 	assert.NoError(t, err)
-	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
+	// s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
 
 	configMap := map[string]Config{
 		"google": {
@@ -33,7 +32,7 @@ func TestDOH(t *testing.T) {
 			Type:   dns.Type_doh,
 			Host:   "cloudflare-dns.com",
 			Subnet: s,
-			Dialer: s5Dialer,
+			// Dialer: s5Dialer,
 		},
 		"quad9": {
 			Type:   dns.Type_doh,
@@ -126,8 +125,18 @@ func TestDOH(t *testing.T) {
 		Name:  "cdn.v2ex.com.",
 		Qtype: dnsmessage.TypeHTTPS,
 	}))
-
-	t.Log(d.LookupIP(t.Context(), "auth.openai.com"))
+	t.Log(d.Raw(context.TODO(), dnsmessage.Question{
+		Name:  "auth.openai.com.",
+		Qtype: dnsmessage.TypeHTTPS,
+	}))
+	t.Log(d.Raw(context.TODO(), dnsmessage.Question{
+		Name:  "auth.openai.com.",
+		Qtype: dnsmessage.TypeA,
+	}))
+	t.Log(d.Raw(context.TODO(), dnsmessage.Question{
+		Name:  "auth.openai.com.",
+		Qtype: dnsmessage.TypeAAAA,
+	}))
 }
 
 func TestGetURL(t *testing.T) {

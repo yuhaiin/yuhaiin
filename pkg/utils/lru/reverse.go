@@ -87,8 +87,9 @@ func (l *ReverseSyncLru[K, V]) Delete(key K) {
 
 func (l *ReverseSyncLru[K, V]) LoadRefreshExpire(key K) (v V, ok bool) {
 	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.lru.LoadRefreshExpire(key)
+	v, ok = l.lru.LoadRefreshExpire(key)
+	l.mu.Unlock()
+	return
 }
 
 func (l *ReverseSyncLru[K, V]) Load(key K) (v V, ok bool) {
@@ -100,8 +101,9 @@ func (l *ReverseSyncLru[K, V]) Load(key K) (v V, ok bool) {
 
 func (l *ReverseSyncLru[K, V]) LoadOptimistic(key K) (v V, expired, ok bool) {
 	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.lru.LoadOptimistic(key)
+	v, expired, ok = l.lru.LoadOptimistic(key)
+	l.mu.Unlock()
+	return
 }
 
 func (l *ReverseSyncLru[K, V]) Range(ranger func(K, V)) {

@@ -192,8 +192,6 @@ func (c *clientConnectionPool) GetClientConn(req *http.Request, addr string) (*h
 	}
 	c.store[cc] = entry
 
-	log.Info("new client connection", "id", entry.id)
-
 	ContextGetClientConnInfo(req.Context(), entry.id, entry.count.Add(1), cc)
 
 	return cc, nil
@@ -201,13 +199,11 @@ func (c *clientConnectionPool) GetClientConn(req *http.Request, addr string) (*h
 
 func (c *clientConnectionPool) MarkDead(hc *http2.ClientConn) {
 	c.mu.Lock()
-	id, ok := c.store[hc]
+	_, ok := c.store[hc]
 	if ok {
 		delete(c.store, hc)
 	}
 	c.mu.Unlock()
-
-	log.Info("mark dead", "last idle", hc.State().LastIdle, "id", id.id)
 }
 
 type clientConnInfoKey struct{}
