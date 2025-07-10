@@ -490,13 +490,19 @@ func (r *Rules) SaveConfig(ctx context.Context, req *bypass.Configv2) (*emptypb.
 }
 
 func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*gc.TestResponse, error) {
-	addr := netapi.ParseAddressPort("", req.GetValue(), 0)
+	var addr netapi.Address
 	host, portstr, err := net.SplitHostPort(req.GetValue())
 	if err == nil {
 		port, err := strconv.ParseUint(portstr, 10, 16)
-		if err == nil {
-			addr = netapi.ParseAddressPort(host, host, uint16(port))
+		if err != nil {
+			return nil, fmt.Errorf("parse port failed: %w", err)
 		}
+		addr, err = netapi.ParseAddressPort(host, host, uint16(port))
+	} else {
+		addr, err = netapi.ParseAddressPort("", req.GetValue(), 0)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
 	store := netapi.GetContext(ctx)

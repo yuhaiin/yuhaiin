@@ -141,12 +141,14 @@ func (t *TlsConfigManager) Refresh() {
 		t.mu.Unlock()
 
 		if t.searcher != nil {
-			addr := netapi.ParseAddressPort("tcp", chi.ServerName, 0)
-			ctx := netapi.WithContext(context.TODO())
-			ctx.Resolver.SetResolverResolver(trie.SkipResolver)
-			v, ok := t.searcher.Search(ctx, addr)
-			if ok {
-				return v, nil
+			addr, err := netapi.ParseAddressPort("tcp", chi.ServerName, 0)
+			if err == nil {
+				ctx := netapi.WithContext(context.TODO())
+				ctx.Resolver.SetResolverResolver(trie.SkipResolver)
+				v, ok := t.searcher.Search(ctx, addr)
+				if ok {
+					return v, nil
+				}
 			}
 		}
 

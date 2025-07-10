@@ -170,11 +170,17 @@ func (s *Client) handshake2(conn net.Conn, cmd tools.CMD, address netapi.Address
 	addr := socksAddr.Address("tcp")
 
 	if !addr.IsFqdn() && addr.(netapi.IPAddress).AddrPort().Addr().IsUnspecified() {
-		addr = netapi.ParseAddressPort("tcp", s.hostname, uint16(addr.Port()))
+		addr, err = netapi.ParseAddressPort("tcp", s.hostname, uint16(addr.Port()))
+		if err != nil {
+			return nil, fmt.Errorf("parse address failed: %w", err)
+		}
 	}
 
 	if s.overridePort != 0 {
-		addr = netapi.ParseAddressPort(addr.Network(), addr.Hostname(), s.overridePort)
+		addr, err = netapi.ParseAddressPort(addr.Network(), addr.Hostname(), s.overridePort)
+		if err != nil {
+			return nil, fmt.Errorf("parse override port address failed: %w", err)
+		}
 	}
 
 	return addr, nil

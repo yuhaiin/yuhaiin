@@ -232,7 +232,10 @@ func Stun(ctx context.Context, p netapi.Proxy, host string) (StunResponse, error
 		return StunResponse{}, err
 	}
 	if addr.Port() == 0 {
-		addr = netapi.ParseAddressPort("udp", addr.Hostname(), 3478)
+		addr, err = netapi.ParseAddressPort("udp", addr.Hostname(), 3478)
+		if err != nil {
+			return StunResponse{}, err
+		}
 	}
 
 	pconn, err := p.PacketConn(ctx, addr)
@@ -268,7 +271,10 @@ func StunTCP(ctx context.Context, p netapi.Proxy, host string) (string, error) {
 		return "", err
 	}
 	if addr.Port() == 0 {
-		addr = netapi.ParseAddressPort("udp", addr.Hostname(), 3478)
+		addr, err = netapi.ParseAddressPort("udp", addr.Hostname(), 3478)
+		if err != nil {
+			return "", err
+		}
 	}
 	c, err := p.Conn(ctx, addr)
 	if err != nil {

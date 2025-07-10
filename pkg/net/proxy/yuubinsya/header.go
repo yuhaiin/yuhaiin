@@ -1,4 +1,4 @@
-package plain
+package yuubinsya
 
 import (
 	"bufio"
@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
@@ -83,5 +82,3 @@ func (password Handshaker) DecodeHeader(c pool.BufioConn) (types.Header, error) 
 
 	return header, err
 }
-
-func (Handshaker) Handshake(conn net.Conn) (net.Conn, error) { return conn, nil }

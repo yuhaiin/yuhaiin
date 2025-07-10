@@ -244,10 +244,17 @@ func handleUDP(client net.Conn) error {
 	if err != nil {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
-	err = writeHandshake2(client, tools.Succeeded, netapi.ParseAddressPort("tcp", "0.0.0.0", uint16(laddr.Port())))
+
+	addr, err := netapi.ParseAddressPort("tcp", "0.0.0.0", uint16(laddr.Port()))
+	if err != nil {
+		return fmt.Errorf("parse laddr failed: %w", err)
+	}
+
+	err = writeHandshake2(client, tools.Succeeded, addr)
 	if err != nil {
 		return err
 	}
+
 	_, _ = relay.Copy(io.Discard, client)
 	return nil
 }

@@ -15,8 +15,7 @@ import (
 type client struct {
 	netapi.Proxy
 
-	handshaker types.Handshaker
-	packetAuth types.Auth
+	hash []byte
 
 	overTCP  bool
 	coalesce bool
@@ -27,19 +26,10 @@ func init() {
 }
 
 func NewClient(config *protocol.Yuubinsya, dialer netapi.Proxy) (netapi.Proxy, error) {
-	auth, err := NewAuth(config.GetUdpEncrypt(), []byte(config.GetPassword()))
-	if err != nil {
-		return nil, err
-	}
-
+	hash := Salt([]byte(config.GetPassword()))
 	c := &client{
 		dialer,
-		NewHandshaker(
-			false,
-			config.GetTcpEncrypt(),
-			[]byte(config.GetPassword()),
-		),
-		auth,
+		hash,
 		config.GetUdpOverStream(),
 		config.GetUdpCoalesce(),
 	}
@@ -53,24 +43,18 @@ func (c *client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 		return nil, err
 	}
 
-	hconn, err := c.handshaker.Handshake(conn)
+	buf := pool.NewBufferSize(1024)
+	defer buf.Reset()
+
+	Handshaker(c.hash).EncodeHeader(types.Header{Protocol: types.TCP, Addr: addr}, buf)
+
+	_, err = conn.Write(buf.Bytes())
 	if err != nil {
 		conn.Close()
 		return nil, err
 	}
 
-	buf := pool.NewBufferSize(1024)
-	defer buf.Reset()
-
-	c.handshaker.EncodeHeader(types.Header{Protocol: types.TCP, Addr: addr}, buf)
-
-	_, err = hconn.Write(buf.Bytes())
-	if err != nil {
-		hconn.Close()
-		return nil, err
-	}
-
-	return hconn, nil
+	return conn, nil
 }
 
 func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
@@ -80,7 +64,7 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 			return nil, err
 		}
 
-		return NewAuthPacketConn(packet).WithRealTarget(addr).WithAuth(c.packetAuth), nil
+		return NewAuthPacketConn(packet).WithRealTarget(addr), nil
 	}
 
 	conn, err := c.Proxy.Conn(ctx, addr)
@@ -88,14 +72,8 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		return nil, err
 	}
 
-	hconn, err := c.handshaker.Handshake(conn)
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
-
-	pc := newPacketConn(pool.NewBufioConnSize(hconn, configuration.UDPBufferSize.Load()),
-		c.handshaker, c.coalesce)
+	pc := newPacketConn(pool.NewBufioConnSize(conn, configuration.UDPBufferSize.Load()),
+		c.hash, c.coalesce)
 
 	store := netapi.GetContext(ctx)
 

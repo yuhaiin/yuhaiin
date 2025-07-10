@@ -2,7 +2,6 @@ package types
 
 import (
 	"crypto/cipher"
-	"crypto/sha256"
 	"hash"
 	"io"
 	"net"
@@ -108,11 +107,4 @@ func AuthHeaderSize(auth Auth, prefix bool) int {
 	}
 
 	return a
-}
-
-func Salt(password []byte) []byte {
-	h := sha256.New()
-	h.Write(password)
-	h.Write([]byte("+s@1t"))
-	return h.Sum(nil)
 }

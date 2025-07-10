@@ -54,7 +54,10 @@ func newServer(o *listener.Http, lis net.Listener, handler netapi.Handler) *Serv
 
 			source, err := netapi.ParseAddress(network, remoteAddr)
 			if err != nil {
-				source = netapi.ParseAddressPort(network, remoteAddr, 0)
+				source, err = netapi.ParseAddressPort(network, remoteAddr, 0)
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			local, remote := pipe.Pipe()
@@ -148,7 +151,10 @@ func (h *Server) connect(w http.ResponseWriter, req *http.Request) error {
 
 	source, err := netapi.ParseAddress("tcp", req.RemoteAddr)
 	if err != nil {
-		source = netapi.ParseAddressPort("tcp", req.RemoteAddr, 0)
+		source, err = netapi.ParseAddressPort("tcp", req.RemoteAddr, 0)
+		if err != nil {
+			return err
+		}
 	}
 
 	sm := &netapi.StreamMeta{

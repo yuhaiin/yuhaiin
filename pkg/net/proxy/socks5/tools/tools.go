@@ -8,6 +8,7 @@ import (
 	"net"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -99,7 +100,12 @@ func (a Addr) Address(network string) netapi.Address {
 		return netapi.ParseIPAddr(network, net.IP(a[1:len(a)-2]), port)
 	case Domain:
 		hostname := string(a[2 : len(a)-2])
-		return netapi.ParseDomainPort(network, hostname, port)
+		addr, err := netapi.ParseDomainPort(network, hostname, port)
+		if err == nil {
+			return addr
+		} else {
+			log.Warn("parse domain failed", "domain", hostname, "err", err)
+		}
 	}
 
 	return netapi.EmptyAddr
@@ -147,7 +153,13 @@ func DecodeAddr(network string, b []byte) (int, netapi.Address, error) {
 		if len(b) < 2+int(b[1])+2 {
 			return 0, nil, io.ErrUnexpectedEOF
 		}
-		return 1 + 1 + int(b[1]) + 2, netapi.ParseDomainPort(network, string(b[2:2+int(b[1])]), binary.BigEndian.Uint16(b[1+1+int(b[1]):])), nil
+
+		addr, err := netapi.ParseDomainPort(network, string(b[2:2+int(b[1])]), binary.BigEndian.Uint16(b[1+1+int(b[1]):]))
+		if err != nil {
+			return 0, nil, fmt.Errorf("parse addr failed: %w", err)
+		}
+
+		return 1 + 1 + int(b[1]) + 2, addr, nil
 	default:
 		return 0, nil, fmt.Errorf("unknown addr type: %d", b[0])
 	}
@@ -202,7 +214,12 @@ func ReadAddr(network string, br *bufio.Reader) (int, netapi.Address, error) {
 			return 0, nil, err
 		}
 
-		return 1 + 1 + int(domainLen) + 2, netapi.ParseDomainPort(network, domain, port), nil
+		addr, err := netapi.ParseDomainPort(network, domain, port)
+		if err != nil {
+			return 0, nil, fmt.Errorf("parse addr failed: %w", err)
+		}
+
+		return 1 + 1 + int(domainLen) + 2, addr, nil
 	}
 
 	return 0, nil, fmt.Errorf("unknown addr type: %d", atype)

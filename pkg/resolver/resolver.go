@@ -15,7 +15,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	cd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -47,9 +46,11 @@ func NewResolver(dd netapi.Proxy) *Resolver {
 
 var errorResolver = netapi.ErrorResolver(func(domain string) error {
 	return &net.OpError{
-		Op:   "block",
-		Addr: netapi.ParseDomainPort("", domain, 0),
-		Err:  errors.New("blocked"),
+		Op: "block",
+		Addr: netapi.DomainAddr{
+			HostnameX: domain,
+		},
+		Err: errors.New("blocked"),
 	}
 })
 
@@ -334,8 +335,8 @@ func (r *ResolverCtr) List(ctx context.Context, req *emptypb.Empty) (*gc.Resolve
 	return resp, err
 }
 
-func (r *ResolverCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*cd.Dns, error) {
-	var dns *cd.Dns
+func (r *ResolverCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*pd.Dns, error) {
+	var dns *pd.Dns
 	err := r.s.View(func(s *config.Setting) error {
 		dns = s.GetDns().GetResolver()[req.GetValue()]
 		return nil
@@ -351,7 +352,7 @@ func (r *ResolverCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*cd
 	return dns, nil
 }
 
-func (r *ResolverCtr) Save(ctx context.Context, req *gc.SaveResolver) (*cd.Dns, error) {
+func (r *ResolverCtr) Save(ctx context.Context, req *gc.SaveResolver) (*pd.Dns, error) {
 	if req.GetName() == "" {
 		return nil, fmt.Errorf("name is empty")
 	}
@@ -412,8 +413,8 @@ func (r *ResolverCtr) SaveHosts(ctx context.Context, req *gc.Hosts) (*emptypb.Em
 	return &emptypb.Empty{}, nil
 }
 
-func toFakednsConfig(s *config.Setting) *cd.FakednsConfig {
-	return (&cd.FakednsConfig_builder{
+func toFakednsConfig(s *config.Setting) *pd.FakednsConfig {
+	return (&pd.FakednsConfig_builder{
 		Enabled:       proto.Bool(s.GetDns().GetFakedns()),
 		Ipv4Range:     proto.String(s.GetDns().GetFakednsIpRange()),
 		Ipv6Range:     proto.String(s.GetDns().GetFakednsIpv6Range()),
@@ -422,8 +423,8 @@ func toFakednsConfig(s *config.Setting) *cd.FakednsConfig {
 	}).Build()
 }
 
-func (r *ResolverCtr) Fakedns(context.Context, *emptypb.Empty) (*cd.FakednsConfig, error) {
-	var c *cd.FakednsConfig
+func (r *ResolverCtr) Fakedns(context.Context, *emptypb.Empty) (*pd.FakednsConfig, error) {
+	var c *pd.FakednsConfig
 	err := r.s.View(func(s *config.Setting) error {
 		c = toFakednsConfig(s)
 		return nil
@@ -431,7 +432,7 @@ func (r *ResolverCtr) Fakedns(context.Context, *emptypb.Empty) (*cd.FakednsConfi
 	return c, err
 }
 
-func (r *ResolverCtr) SaveFakedns(ctx context.Context, req *cd.FakednsConfig) (*emptypb.Empty, error) {
+func (r *ResolverCtr) SaveFakedns(ctx context.Context, req *pd.FakednsConfig) (*emptypb.Empty, error) {
 	err := r.s.Batch(func(s *config.Setting) error {
 		s.GetDns().SetFakedns(req.GetEnabled())
 		s.GetDns().SetFakednsIpRange(req.GetIpv4Range())

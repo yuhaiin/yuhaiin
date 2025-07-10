@@ -115,7 +115,9 @@ func TestRouteTrie(t *testing.T) {
 		r.insert(u, mode)
 	}
 
-	m, ok := r.trie.Search(context.Background(), netapi.ParseAddressPort("", "100.112.64.102", 80))
+	addr, err := netapi.ParseAddressPort("", "100.112.64.102", 80)
+	assert.NoError(t, err)
+	m, ok := r.trie.Search(context.Background(), addr)
 	assert.MustEqual(t, true, ok)
 	assert.MustEqual(t, "tailscale", m.Value().GetTag())
 }

@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	dnssystem "github.com/Asutorufa/yuhaiin/pkg/net/dns/system"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -94,7 +95,12 @@ func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Ad
 }
 
 func (h *Hosts) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
-	addr := h.dispatchAddr(ctx, netapi.ParseAddressPort("", domain, 0))
+	addr, err := netapi.ParseAddressPort("", domain, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	addr = h.dispatchAddr(ctx, addr)
 	if !addr.IsFqdn() {
 		ip := addr.(netapi.IPAddress).AddrPort().Addr()
 		if ip.Is4() {
@@ -167,7 +173,11 @@ func (h *Hosts) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 
 	domain := req.Name[:len(req.Name)-1]
 
-	addr := netapi.ParseAddressPort("", domain, 0)
+	addr, err := netapi.ParseAddressPort("", domain, 0)
+	if err != nil {
+		return dns.Msg{}, err
+	}
+
 	if !addr.IsFqdn() {
 		return h.resolver.Raw(ctx, req)
 	}
@@ -279,11 +289,17 @@ func (h *hostsStore) lookup(addr netapi.Address) (netapi.Address, bool) {
 		return nil, false
 	}
 
+	port := addr.Port()
 	if t.Port() != 0 {
-		return netapi.ParseAddressPort(addr.Network(), t.Hostname(), t.Port()), true
+		port = t.Port()
 	}
 
-	return netapi.ParseAddressPort(addr.Network(), t.Hostname(), addr.Port()), true
+	addr, err := netapi.ParseAddressPort(addr.Network(), t.Hostname(), port)
+	if err != nil {
+		return nil, false
+	}
+
+	return addr, true
 }
 
 func (h *hostsStore) add(addr, taddr netapi.Address) {
@@ -298,7 +314,13 @@ func (h *hostsStore) add(addr, taddr netapi.Address) {
 		return
 	}
 
-	entry.Address = netapi.ParseAddressPort("", taddr.Hostname(), 0)
+	var err error
+	entry.Address, err = netapi.ParseAddressPort("", taddr.Hostname(), 0)
+	if err != nil {
+		log.Warn("parse host target failed", "err", err, "hostname", taddr.Hostname())
+		return
+	}
+
 	if !taddr.IsFqdn() && addr.IsFqdn() {
 		taddrtmp := taddr.(netapi.IPAddress).AddrPort().Addr()
 		h.PtrMap[taddrtmp] = append(h.PtrMap[taddrtmp], addr.Hostname())

@@ -35,9 +35,26 @@ func init() {
 
 func NewClient(c *protocol.Simple, p netapi.Proxy) (netapi.Proxy, error) {
 	var addrs []netapi.Address
-	addrs = append(addrs, netapi.ParseAddressPort("", c.GetHost(), uint16(c.GetPort())))
+
+	var er error
+	addr, err := netapi.ParseAddressPort("", c.GetHost(), uint16(c.GetPort()))
+	if err == nil {
+		addrs = append(addrs, addr)
+	} else {
+		er = errors.Join(er, err)
+	}
+
 	for _, v := range c.GetAlternateHost() {
-		addrs = append(addrs, netapi.ParseAddressPort("", v.GetHost(), uint16(v.GetPort())))
+		addr, err = netapi.ParseAddressPort("", v.GetHost(), uint16(v.GetPort()))
+		if err == nil {
+			addrs = append(addrs, addr)
+		} else {
+			er = errors.Join(er, err)
+		}
+	}
+
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("no valid addresses: %w", er)
 	}
 
 	simple := &Client{

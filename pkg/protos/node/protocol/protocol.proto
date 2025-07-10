@@ -93,8 +93,8 @@ message yuubinsya {
   reserved 2;
   reserved encrypted;
   string password = 1 [ json_name = "password" ];
-  bool tcp_encrypt = 4 [ json_name = "tcp_encrypt" ];
-  bool udp_encrypt = 5 [ json_name = "udp_encrypt" ];
+  bool tcp_encrypt = 4 [ json_name = "tcp_encrypt", deprecated = true ];
+  bool udp_encrypt = 5 [ json_name = "udp_encrypt", deprecated = true ];
   bool udp_over_stream = 3 [ json_name = "udp_over_stream" ];
   bool udp_coalesce = 6 [ json_name = "udp_coalesce" ];
 }

@@ -39,7 +39,10 @@ func TestSocks5(t *testing.T) {
 		)
 		assert.NoError(t, err)
 
-		dst, err := s5c.Conn(t.Context(), netapi.ParseAddressPort("tcp", "www.example.com", 443))
+		ea, err := netapi.ParseAddressPort("tcp", "www.example.com", 443)
+		assert.NoError(t, err)
+
+		dst, err := s5c.Conn(t.Context(), ea)
 		assert.NoError(t, err)
 
 		src := <-ch.Stream()

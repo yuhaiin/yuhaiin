@@ -34,9 +34,12 @@ func TestTable(t *testing.T) {
 		for range 10 {
 			ctx := context.Background()
 			ctx = netapi.WithContext(ctx)
-			err := table.Write(ctx, netapi.NewPacket(
-				netapi.ParseAddressPort("tcp", v, 80),
-				netapi.ParseAddressPort("tcp", v, 80),
+
+			dstAddr, err := netapi.ParseAddressPort("tcp", v, 80)
+			assert.NoError(t, err)
+			err = table.Write(ctx, netapi.NewPacket(
+				dstAddr,
+				dstAddr,
 				[]byte("test"),
 				netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 					assert.Equal(t, addr.String(), net.JoinHostPort(v, "80"))
@@ -96,12 +99,16 @@ func (t *testProxy) Dispatch(ctx context.Context, addr netapi.Address) (netapi.A
 
 	store := netapi.GetContext(ctx)
 
+	var err error
 	if x == "www.google.com" {
 		store.Resolver.SkipResolve = true
-		addr = netapi.ParseAddressPort(addr.Network(), x, addr.Port())
+		addr, err = netapi.ParseAddressPort(addr.Network(), x, addr.Port())
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return netapi.ParseAddressPort(addr.Network(), x, addr.Port()), nil
+	return netapi.ParseAddressPort(addr.Network(), x, addr.Port())
 }
 
 func (t *testProxy) Close() error { return nil }
