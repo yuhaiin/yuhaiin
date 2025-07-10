@@ -210,7 +210,12 @@ func (s *Route) addMatchers() {
 
 		host := o.Host
 		if o.Ctx.GetHosts() == nil && !o.Host.IsFqdn() && o.Ctx.SniffHost() != "" {
-			host = netapi.ParseAddressPort(o.Host.Network(), o.Ctx.SniffHost(), o.Host.Port())
+			addr, err := netapi.ParseAddressPort(o.Host.Network(), o.Ctx.SniffHost(), o.Host.Port())
+			if err == nil {
+				host = addr
+			} else {
+				log.Warn("parse sniff host failed", "err", err, "host", o.Ctx.SniffHost())
+			}
 		}
 
 		mode := s.ms.Match(o.Ctx, host)
@@ -280,7 +285,11 @@ func (s *Route) getResolverFallback(mode bypass.ModeEnum) string {
 }
 
 func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
-	host := netapi.ParseAddressPort("", domain, 0)
+	host, err := netapi.ParseAddressPort("", domain, 0)
+	if err != nil {
+		return netapi.ErrorResolver(func(domain string) error { return err })
+	}
+
 	netapi.GetContext(ctx).Resolver.Resolver = trie.SkipResolver
 
 	mode := s.ms.Match(ctx, host)

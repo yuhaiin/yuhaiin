@@ -12,19 +12,19 @@ require (
 	github.com/google/nftables v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-yamux/v5 v5.0.1
-	github.com/miekg/dns v1.1.66
+	github.com/miekg/dns v1.1.67
 	github.com/prometheus/client_golang v1.22.0
 	github.com/quic-go/quic-go v0.53.0
 	github.com/refraction-networking/utls v1.7.3
 	github.com/tailscale/wireguard-go v0.0.0-20250707220504-1f398ae148a8
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20250627141458-e62c4aed0d57
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250708090645-715599ba4ec5
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250710143921-cc7582de47c1
 	go.etcd.io/bbolt v1.4.2
 	golang.org/x/crypto v0.39.0
 	golang.org/x/mobile v0.0.0-20250606033058-a2a15c67f36f
 	golang.org/x/net v0.41.0
-	golang.org/x/sys v0.33.0
+	golang.org/x/sys v0.34.0
 	golang.org/x/time v0.12.0
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20250318115841-8e6558eba666
 	google.golang.org/grpc v1.73.0

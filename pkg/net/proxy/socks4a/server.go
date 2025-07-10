@@ -79,7 +79,10 @@ func (s *Server) Handshake(conn net.Conn) (netapi.Address, error) {
 		if err != nil {
 			return nil, err
 		}
-		target = netapi.ParseAddressPort("tcp", string(host), port)
+		target, err = netapi.ParseAddressPort("tcp", string(host), port)
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		target = netapi.ParseIPAddr("tcp", dstAddr, port)
 	}

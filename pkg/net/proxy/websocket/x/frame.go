@@ -7,7 +7,7 @@ import (
 	"math"
 	"math/bits"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 // opcode represents a WebSocket opcode.
@@ -111,7 +111,7 @@ const maxControlPayload = 125
 
 // writeFrameHeader writes the bytes of the header to w.
 // See https://tools.ietf.org/html/rfc6455#section-5.2
-func writeFrameHeader(h Header, w types.Buffer, buf []byte) (err error) {
+func writeFrameHeader(h Header, w *pool.Buffer, buf []byte) (err error) {
 	var b byte
 	if h.fin {
 		b |= 1 << 7

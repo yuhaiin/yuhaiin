@@ -346,6 +346,15 @@ func (x *Protocol) GetHttpMock() *HttpMock {
 	return nil
 }
 
+func (x *Protocol) GetAead() *Aead {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Protocol.(*protocol_Aead); ok {
+			return x.Aead
+		}
+	}
+	return nil
+}
+
 func (x *Protocol) SetShadowsocks(v *Shadowsocks) {
 	if v == nil {
 		x.xxx_hidden_Protocol = nil
@@ -568,6 +577,14 @@ func (x *Protocol) SetHttpMock(v *HttpMock) {
 		return
 	}
 	x.xxx_hidden_Protocol = &protocol_HttpMock{v}
+}
+
+func (x *Protocol) SetAead(v *Aead) {
+	if v == nil {
+		x.xxx_hidden_Protocol = nil
+		return
+	}
+	x.xxx_hidden_Protocol = &protocol_Aead{v}
 }
 
 func (x *Protocol) HasProtocol() bool {
@@ -801,6 +818,14 @@ func (x *Protocol) HasHttpMock() bool {
 	return ok
 }
 
+func (x *Protocol) HasAead() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Protocol.(*protocol_Aead)
+	return ok
+}
+
 func (x *Protocol) ClearProtocol() {
 	x.xxx_hidden_Protocol = nil
 }
@@ -973,6 +998,12 @@ func (x *Protocol) ClearHttpMock() {
 	}
 }
 
+func (x *Protocol) ClearAead() {
+	if _, ok := x.xxx_hidden_Protocol.(*protocol_Aead); ok {
+		x.xxx_hidden_Protocol = nil
+	}
+}
+
 const Protocol_Protocol_not_set_case case_Protocol_Protocol = 0
 const Protocol_Shadowsocks_case case_Protocol_Protocol = 1
 const Protocol_Shadowsocksr_case case_Protocol_Protocol = 2
@@ -1002,6 +1033,7 @@ const Protocol_Set_case case_Protocol_Protocol = 25
 const Protocol_TlsTermination_case case_Protocol_Protocol = 26
 const Protocol_HttpTermination_case case_Protocol_Protocol = 27
 const Protocol_HttpMock_case case_Protocol_Protocol = 28
+const Protocol_Aead_case case_Protocol_Protocol = 29
 
 func (x *Protocol) WhichProtocol() case_Protocol_Protocol {
 	if x == nil {
@@ -1064,6 +1096,8 @@ func (x *Protocol) WhichProtocol() case_Protocol_Protocol {
 		return Protocol_HttpTermination_case
 	case *protocol_HttpMock:
 		return Protocol_HttpMock_case
+	case *protocol_Aead:
+		return Protocol_Aead_case
 	default:
 		return Protocol_Protocol_not_set_case
 	}
@@ -1103,6 +1137,7 @@ type Protocol_builder struct {
 	TlsTermination   *TlsTermination
 	HttpTermination  *HttpTermination
 	HttpMock         *HttpMock
+	Aead             *Aead
 	// -- end of xxx_hidden_Protocol
 }
 
@@ -1193,6 +1228,9 @@ func (b0 Protocol_builder) Build() *Protocol {
 	}
 	if b.HttpMock != nil {
 		x.xxx_hidden_Protocol = &protocol_HttpMock{b.HttpMock}
+	}
+	if b.Aead != nil {
+		x.xxx_hidden_Protocol = &protocol_Aead{b.Aead}
 	}
 	return m0
 }
@@ -1325,6 +1363,10 @@ type protocol_HttpMock struct {
 	HttpMock *HttpMock `protobuf:"bytes,28,opt,name=http_mock,oneof"`
 }
 
+type protocol_Aead struct {
+	Aead *Aead `protobuf:"bytes,29,opt,name=aead,oneof"`
+}
+
 func (*protocol_Shadowsocks) isProtocol_Protocol() {}
 
 func (*protocol_Shadowsocksr) isProtocol_Protocol() {}
@@ -1380,6 +1422,8 @@ func (*protocol_TlsTermination) isProtocol_Protocol() {}
 func (*protocol_HttpTermination) isProtocol_Protocol() {}
 
 func (*protocol_HttpMock) isProtocol_Protocol() {}
+
+func (*protocol_Aead) isProtocol_Protocol() {}
 
 type Socks5 struct {
 	state                   protoimpl.MessageState `protogen:"opaque.v1"`
@@ -2501,8 +2545,6 @@ func (b0 Trojan_builder) Build() *Trojan {
 type Yuubinsya struct {
 	state                    protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Password      *string                `protobuf:"bytes,1,opt,name=password"`
-	xxx_hidden_TcpEncrypt    bool                   `protobuf:"varint,4,opt,name=tcp_encrypt"`
-	xxx_hidden_UdpEncrypt    bool                   `protobuf:"varint,5,opt,name=udp_encrypt"`
 	xxx_hidden_UdpOverStream bool                   `protobuf:"varint,3,opt,name=udp_over_stream"`
 	xxx_hidden_UdpCoalesce   bool                   `protobuf:"varint,6,opt,name=udp_coalesce"`
 	XXX_raceDetectHookData   protoimpl.RaceDetectHookData
@@ -2546,20 +2588,6 @@ func (x *Yuubinsya) GetPassword() string {
 	return ""
 }
 
-func (x *Yuubinsya) GetTcpEncrypt() bool {
-	if x != nil {
-		return x.xxx_hidden_TcpEncrypt
-	}
-	return false
-}
-
-func (x *Yuubinsya) GetUdpEncrypt() bool {
-	if x != nil {
-		return x.xxx_hidden_UdpEncrypt
-	}
-	return false
-}
-
 func (x *Yuubinsya) GetUdpOverStream() bool {
 	if x != nil {
 		return x.xxx_hidden_UdpOverStream
@@ -2576,27 +2604,17 @@ func (x *Yuubinsya) GetUdpCoalesce() bool {
 
 func (x *Yuubinsya) SetPassword(v string) {
 	x.xxx_hidden_Password = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 5)
-}
-
-func (x *Yuubinsya) SetTcpEncrypt(v bool) {
-	x.xxx_hidden_TcpEncrypt = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 5)
-}
-
-func (x *Yuubinsya) SetUdpEncrypt(v bool) {
-	x.xxx_hidden_UdpEncrypt = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 3)
 }
 
 func (x *Yuubinsya) SetUdpOverStream(v bool) {
 	x.xxx_hidden_UdpOverStream = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 3)
 }
 
 func (x *Yuubinsya) SetUdpCoalesce(v bool) {
 	x.xxx_hidden_UdpCoalesce = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 3)
 }
 
 func (x *Yuubinsya) HasPassword() bool {
@@ -2606,32 +2624,18 @@ func (x *Yuubinsya) HasPassword() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
 }
 
-func (x *Yuubinsya) HasTcpEncrypt() bool {
+func (x *Yuubinsya) HasUdpOverStream() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
 }
 
-func (x *Yuubinsya) HasUdpEncrypt() bool {
-	if x == nil {
-		return false
-	}
-	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
-}
-
-func (x *Yuubinsya) HasUdpOverStream() bool {
-	if x == nil {
-		return false
-	}
-	return protoimpl.X.Present(&(x.XXX_presence[0]), 3)
-}
-
 func (x *Yuubinsya) HasUdpCoalesce() bool {
 	if x == nil {
 		return false
 	}
-	return protoimpl.X.Present(&(x.XXX_presence[0]), 4)
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
 }
 
 func (x *Yuubinsya) ClearPassword() {
@@ -2639,23 +2643,13 @@ func (x *Yuubinsya) ClearPassword() {
 	x.xxx_hidden_Password = nil
 }
 
-func (x *Yuubinsya) ClearTcpEncrypt() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
-	x.xxx_hidden_TcpEncrypt = false
-}
-
-func (x *Yuubinsya) ClearUdpEncrypt() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
-	x.xxx_hidden_UdpEncrypt = false
-}
-
 func (x *Yuubinsya) ClearUdpOverStream() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
 	x.xxx_hidden_UdpOverStream = false
 }
 
 func (x *Yuubinsya) ClearUdpCoalesce() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 4)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
 	x.xxx_hidden_UdpCoalesce = false
 }
 
@@ -2663,8 +2657,6 @@ type Yuubinsya_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	Password      *string
-	TcpEncrypt    *bool
-	UdpEncrypt    *bool
 	UdpOverStream *bool
 	UdpCoalesce   *bool
 }
@@ -2674,23 +2666,15 @@ func (b0 Yuubinsya_builder) Build() *Yuubinsya {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Password != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 3)
 		x.xxx_hidden_Password = b.Password
 	}
-	if b.TcpEncrypt != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 5)
-		x.xxx_hidden_TcpEncrypt = *b.TcpEncrypt
-	}
-	if b.UdpEncrypt != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 5)
-		x.xxx_hidden_UdpEncrypt = *b.UdpEncrypt
-	}
 	if b.UdpOverStream != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 3)
 		x.xxx_hidden_UdpOverStream = *b.UdpOverStream
 	}
 	if b.UdpCoalesce != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 3)
 		x.xxx_hidden_UdpCoalesce = *b.UdpCoalesce
 	}
 	return m0
@@ -5244,6 +5228,84 @@ func (b0 HttpMock_builder) Build() *HttpMock {
 	return m0
 }
 
+type Aead struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Password    *string                `protobuf:"bytes,1,opt,name=password"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *Aead) Reset() {
+	*x = Aead{}
+	mi := &file_node_protocol_protocol_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Aead) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Aead) ProtoMessage() {}
+
+func (x *Aead) ProtoReflect() protoreflect.Message {
+	mi := &file_node_protocol_protocol_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Aead) GetPassword() string {
+	if x != nil {
+		if x.xxx_hidden_Password != nil {
+			return *x.xxx_hidden_Password
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *Aead) SetPassword(v string) {
+	x.xxx_hidden_Password = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 1)
+}
+
+func (x *Aead) HasPassword() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *Aead) ClearPassword() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_Password = nil
+}
+
+type Aead_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Password *string
+}
+
+func (b0 Aead_builder) Build() *Aead {
+	m0 := &Aead{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Password != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 1)
+		x.xxx_hidden_Password = b.Password
+	}
+	return m0
+}
+
 type HttpTerminationHttpHeaders struct {
 	state              protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Headers *[]*HttpHeader         `protobuf:"bytes,1,rep,name=headers"`
@@ -5253,7 +5315,7 @@ type HttpTerminationHttpHeaders struct {
 
 func (x *HttpTerminationHttpHeaders) Reset() {
 	*x = HttpTerminationHttpHeaders{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[35]
+	mi := &file_node_protocol_protocol_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5265,7 +5327,7 @@ func (x *HttpTerminationHttpHeaders) String() string {
 func (*HttpTerminationHttpHeaders) ProtoMessage() {}
 
 func (x *HttpTerminationHttpHeaders) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[35]
+	mi := &file_node_protocol_protocol_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5307,7 +5369,7 @@ var File_node_protocol_protocol_proto protoreflect.FileDescriptor
 
 const file_node_protocol_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x1cnode/protocol/protocol.proto\x12\x10yuhaiin.protocol\x1a!google/protobuf/go_features.proto\"\xc2\f\n" +
+	"\x1cnode/protocol/protocol.proto\x12\x10yuhaiin.protocol\x1a!google/protobuf/go_features.proto\"\xf0\f\n" +
 	"\bprotocol\x12A\n" +
 	"\vshadowsocks\x18\x01 \x01(\v2\x1d.yuhaiin.protocol.shadowsocksH\x00R\vshadowsocks\x12D\n" +
 	"\fshadowsocksr\x18\x02 \x01(\v2\x1e.yuhaiin.protocol.shadowsocksrH\x00R\fshadowsocksr\x12/\n" +
@@ -5337,7 +5399,8 @@ const file_node_protocol_protocol_proto_rawDesc = "" +
 	"\x03set\x18\x19 \x01(\v2\x15.yuhaiin.protocol.setH\x00R\x03set\x12M\n" +
 	"\x0ftls_termination\x18\x1a \x01(\v2!.yuhaiin.protocol.tls_terminationH\x00R\x0ftls_termination\x12P\n" +
 	"\x10http_termination\x18\x1b \x01(\v2\".yuhaiin.protocol.http_terminationH\x00R\x10http_termination\x12;\n" +
-	"\thttp_mock\x18\x1c \x01(\v2\x1b.yuhaiin.protocol.http_mockH\x00R\thttp_mockB\n" +
+	"\thttp_mock\x18\x1c \x01(\v2\x1b.yuhaiin.protocol.http_mockH\x00R\thttp_mock\x12,\n" +
+	"\x04aead\x18\x1d \x01(\v2\x16.yuhaiin.protocol.aeadH\x00R\x04aeadB\n" +
 	"\n" +
 	"\bprotocol\"z\n" +
 	"\x06socks5\x12\x1a\n" +
@@ -5372,13 +5435,11 @@ const file_node_protocol_protocol_proto_rawDesc = "" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\"8\n" +
 	"\x06trojan\x12\x1a\n" +
 	"\bpassword\x18\x01 \x01(\tR\bpassword\x12\x12\n" +
-	"\x04peer\x18\x02 \x01(\tR\x04peer\"\xca\x01\n" +
+	"\x04peer\x18\x02 \x01(\tR\x04peer\"\xac\x01\n" +
 	"\tyuubinsya\x12\x1a\n" +
-	"\bpassword\x18\x01 \x01(\tR\bpassword\x12 \n" +
-	"\vtcp_encrypt\x18\x04 \x01(\bR\vtcp_encrypt\x12 \n" +
-	"\vudp_encrypt\x18\x05 \x01(\bR\vudp_encrypt\x12(\n" +
+	"\bpassword\x18\x01 \x01(\tR\bpassword\x12(\n" +
 	"\x0fudp_over_stream\x18\x03 \x01(\bR\x0fudp_over_stream\x12\"\n" +
-	"\fudp_coalesce\x18\x06 \x01(\bR\fudp_coalesceJ\x04\b\x02\x10\x03R\tencrypted\"F\n" +
+	"\fudp_coalesce\x18\x06 \x01(\bR\fudp_coalesceJ\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\x05\x10\x06R\tencryptedR\vtcp_encryptR\vudp_encrypt\"F\n" +
 	"\twebsocket\x12\x12\n" +
 	"\x04host\x18\x01 \x01(\tR\x04host\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04pathJ\x04\b\x04\x10\x05R\vtls_enabled\"6\n" +
@@ -5476,10 +5537,12 @@ const file_node_protocol_protocol_proto_rawDesc = "" +
 	"\x06random\x10\x00\x12\x0f\n" +
 	"\vround_robin\x10\x01\"\x1f\n" +
 	"\thttp_mock\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04dataB?Z5github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
+	"\x04data\x18\x01 \x01(\fR\x04data\"\"\n" +
+	"\x04aead\x12\x1a\n" +
+	"\bpassword\x18\x01 \x01(\tR\bpasswordB?Z5github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
 var file_node_protocol_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_node_protocol_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
+var file_node_protocol_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
 var file_node_protocol_protocol_proto_goTypes = []any{
 	(SetStrategyType)(0),               // 0: yuhaiin.protocol.set.strategy_type
 	(*Protocol)(nil),                   // 1: yuhaiin.protocol.protocol
@@ -5516,9 +5579,10 @@ var file_node_protocol_protocol_proto_goTypes = []any{
 	(*Tailscale)(nil),                  // 32: yuhaiin.protocol.tailscale
 	(*Set)(nil),                        // 33: yuhaiin.protocol.set
 	(*HttpMock)(nil),                   // 34: yuhaiin.protocol.http_mock
-	nil,                                // 35: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
-	(*HttpTerminationHttpHeaders)(nil), // 36: yuhaiin.protocol.http_termination.http_headers
-	nil,                                // 37: yuhaiin.protocol.http_termination.HeadersEntry
+	(*Aead)(nil),                       // 35: yuhaiin.protocol.aead
+	nil,                                // 36: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
+	(*HttpTerminationHttpHeaders)(nil), // 37: yuhaiin.protocol.http_termination.http_headers
+	nil,                                // 38: yuhaiin.protocol.http_termination.HeadersEntry
 }
 var file_node_protocol_protocol_proto_depIdxs = []int32{
 	4,  // 0: yuhaiin.protocol.protocol.shadowsocks:type_name -> yuhaiin.protocol.shadowsocks
@@ -5549,23 +5613,24 @@ var file_node_protocol_protocol_proto_depIdxs = []int32{
 	21, // 25: yuhaiin.protocol.protocol.tls_termination:type_name -> yuhaiin.protocol.tls_termination
 	22, // 26: yuhaiin.protocol.protocol.http_termination:type_name -> yuhaiin.protocol.http_termination
 	34, // 27: yuhaiin.protocol.protocol.http_mock:type_name -> yuhaiin.protocol.http_mock
-	18, // 28: yuhaiin.protocol.grpc.tls:type_name -> yuhaiin.protocol.tls_config
-	18, // 29: yuhaiin.protocol.quic.tls:type_name -> yuhaiin.protocol.tls_config
-	27, // 30: yuhaiin.protocol.simple.alternate_host:type_name -> yuhaiin.protocol.host
-	19, // 31: yuhaiin.protocol.tls_server_config.certificates:type_name -> yuhaiin.protocol.certificate
-	35, // 32: yuhaiin.protocol.tls_server_config.server_name_certificate:type_name -> yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
-	20, // 33: yuhaiin.protocol.tls_termination.tls:type_name -> yuhaiin.protocol.tls_server_config
-	37, // 34: yuhaiin.protocol.http_termination.headers:type_name -> yuhaiin.protocol.http_termination.HeadersEntry
-	28, // 35: yuhaiin.protocol.wireguard.peers:type_name -> yuhaiin.protocol.wireguard_peer_config
-	0,  // 36: yuhaiin.protocol.set.strategy:type_name -> yuhaiin.protocol.set.strategy_type
-	19, // 37: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry.value:type_name -> yuhaiin.protocol.certificate
-	23, // 38: yuhaiin.protocol.http_termination.http_headers.headers:type_name -> yuhaiin.protocol.http_header
-	36, // 39: yuhaiin.protocol.http_termination.HeadersEntry.value:type_name -> yuhaiin.protocol.http_termination.http_headers
-	40, // [40:40] is the sub-list for method output_type
-	40, // [40:40] is the sub-list for method input_type
-	40, // [40:40] is the sub-list for extension type_name
-	40, // [40:40] is the sub-list for extension extendee
-	0,  // [0:40] is the sub-list for field type_name
+	35, // 28: yuhaiin.protocol.protocol.aead:type_name -> yuhaiin.protocol.aead
+	18, // 29: yuhaiin.protocol.grpc.tls:type_name -> yuhaiin.protocol.tls_config
+	18, // 30: yuhaiin.protocol.quic.tls:type_name -> yuhaiin.protocol.tls_config
+	27, // 31: yuhaiin.protocol.simple.alternate_host:type_name -> yuhaiin.protocol.host
+	19, // 32: yuhaiin.protocol.tls_server_config.certificates:type_name -> yuhaiin.protocol.certificate
+	36, // 33: yuhaiin.protocol.tls_server_config.server_name_certificate:type_name -> yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
+	20, // 34: yuhaiin.protocol.tls_termination.tls:type_name -> yuhaiin.protocol.tls_server_config
+	38, // 35: yuhaiin.protocol.http_termination.headers:type_name -> yuhaiin.protocol.http_termination.HeadersEntry
+	28, // 36: yuhaiin.protocol.wireguard.peers:type_name -> yuhaiin.protocol.wireguard_peer_config
+	0,  // 37: yuhaiin.protocol.set.strategy:type_name -> yuhaiin.protocol.set.strategy_type
+	19, // 38: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry.value:type_name -> yuhaiin.protocol.certificate
+	23, // 39: yuhaiin.protocol.http_termination.http_headers.headers:type_name -> yuhaiin.protocol.http_header
+	37, // 40: yuhaiin.protocol.http_termination.HeadersEntry.value:type_name -> yuhaiin.protocol.http_termination.http_headers
+	41, // [41:41] is the sub-list for method output_type
+	41, // [41:41] is the sub-list for method input_type
+	41, // [41:41] is the sub-list for extension type_name
+	41, // [41:41] is the sub-list for extension extendee
+	0,  // [0:41] is the sub-list for field type_name
 }
 
 func init() { file_node_protocol_protocol_proto_init() }
@@ -5602,6 +5667,7 @@ func file_node_protocol_protocol_proto_init() {
 		(*protocol_TlsTermination)(nil),
 		(*protocol_HttpTermination)(nil),
 		(*protocol_HttpMock)(nil),
+		(*protocol_Aead)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -5609,7 +5675,7 @@ func file_node_protocol_protocol_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_node_protocol_protocol_proto_rawDesc), len(file_node_protocol_protocol_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   37,
+			NumMessages:   38,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

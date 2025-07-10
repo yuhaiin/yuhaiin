@@ -20,7 +20,7 @@ const SocketBufferSize = 7 << 20
 var KeepAliveConfig = net.KeepAliveConfig{
 	Enable:   true,
 	Idle:     time.Second * 300,
-	Interval: time.Second * 20,
+	Interval: time.Second * 15,
 	Count:    9,
 }
 
@@ -44,7 +44,7 @@ func ListenContextWithOptions(ctx context.Context, network string, address strin
 	if configuration.MPTCP {
 		config.SetMultipathTCP(true)
 	}
-	
+
 	return config.Listen(ctx, network, address)
 }
 

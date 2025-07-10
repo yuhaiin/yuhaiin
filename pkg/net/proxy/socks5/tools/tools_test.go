@@ -11,7 +11,9 @@ import (
 )
 
 func TestResolveAddr(t *testing.T) {
-	z := ParseAddr(netapi.ParseAddressPort("", "a.com", 10051))
+	md, err := netapi.ParseAddressPort("", "a.com", 10051)
+	assert.NoError(t, err)
+	z := ParseAddr(md)
 	t.Log(z)
 
 	addr, err := ResolveAddr(bytes.NewReader(z))
@@ -21,7 +23,9 @@ func TestResolveAddr(t *testing.T) {
 }
 
 func TestReadAddr(t *testing.T) {
-	z := ParseAddr(netapi.ParseAddressPort("", "a.com", 10051))
+	md, err := netapi.ParseAddressPort("", "a.com", 10051)
+	assert.NoError(t, err)
+	z := ParseAddr(md)
 	t.Log(z)
 	z2 := ParseAddr(netapi.ParseIPAddr("", net.ParseIP("ff::ff"), 10051))
 
@@ -34,7 +38,9 @@ func TestReadAddr(t *testing.T) {
 }
 
 func TestDecodeAddr(t *testing.T) {
-	z := ParseAddr(netapi.ParseAddressPort("", "a.com", 10051))
+	md, err := netapi.ParseAddressPort("", "a.com", 10051)
+	assert.NoError(t, err)
+	z := ParseAddr(md)
 	t.Log(z)
 	z2 := ParseAddr(netapi.ParseIPAddr("", net.ParseIP("ff::ff"), 10051))
 

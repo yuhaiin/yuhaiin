@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
@@ -23,6 +24,7 @@ type TCP struct {
 	portalv4   net.IP
 	portalv6   net.IP
 	device.InterfaceAddress
+	mtu int
 
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -42,6 +44,7 @@ func NewTCP(opt *device.Opt, v4, v6 *net.TCPListener, table *tableSplit) *TCP {
 		portalv6:         opt.V6Address().Addr().Next().AsSlice(),
 		InterfaceAddress: opt.InterfaceAddress(),
 		table:            table,
+		mtu:              opt.MTU,
 	}
 
 	go t.loopv4()
@@ -140,6 +143,11 @@ func (t *TCP) Accept() (*Conn, error) {
 	case <-t.ctx.Done():
 		return nil, net.ErrClosed
 	case c := <-t.connChan:
+		if err := c.TCPConn.SetKeepAliveConfig(dialer.KeepAliveConfig); err != nil {
+			log.Warn("set keep alive failed", "err", err)
+		}
+		_ = c.TCPConn.SetWriteBuffer(t.mtu * 2)
+		_ = c.TCPConn.SetReadBuffer(t.mtu * 2)
 		return c, nil
 	}
 }
@@ -156,7 +164,18 @@ func (t *TCP) Close() error {
 		er = errors.Join(er, err)
 	}
 
-	return er
+	for {
+		select {
+		case c, ok := <-t.connChan:
+			if !ok {
+				return er
+			}
+
+			_ = c.Close()
+		default:
+			return er
+		}
+	}
 }
 
 func (c *Conn) Close() error {
