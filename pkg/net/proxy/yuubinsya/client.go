@@ -6,7 +6,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -46,7 +45,7 @@ func (c *client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 	buf := pool.NewBufferSize(1024)
 	defer buf.Reset()
 
-	Handshaker(c.hash).EncodeHeader(types.Header{Protocol: types.TCP, Addr: addr}, buf)
+	Handshaker(c.hash).EncodeHeader(Header{Protocol: TCP, Addr: addr}, buf)
 
 	_, err = conn.Write(buf.Bytes())
 	if err != nil {

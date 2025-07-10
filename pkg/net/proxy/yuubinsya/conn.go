@@ -14,7 +14,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -48,16 +47,16 @@ func newPacketConn(conn pool.BufioConn, hash []byte, coalesce bool) *PacketConn 
 // Handshake Handshake
 // only used for client
 func (c *PacketConn) Handshake(migrateID uint64) (uint64, error) {
-	protocol := types.UDPWithMigrateID
+	protocol := UDPWithMigrateID
 	w := pool.NewBufferSize(1024)
 	defer w.Reset()
-	Handshaker(c.hash).EncodeHeader(types.Header{Protocol: protocol, MigrateID: migrateID}, w)
+	Handshaker(c.hash).EncodeHeader(Header{Protocol: protocol, MigrateID: migrateID}, w)
 	_, err := c.BufioConn.Write(w.Bytes())
 	if err != nil {
 		return 0, err
 	}
 
-	if protocol == types.UDPWithMigrateID {
+	if protocol == UDPWithMigrateID {
 		var id uint64
 		err := c.BufioConn.BufioRead(func(r *bufio.Reader) error {
 			idbytes, err := r.Peek(8)

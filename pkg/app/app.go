@@ -39,6 +39,7 @@ import (
 	"go.etcd.io/bbolt"
 	bolterr "go.etcd.io/bbolt/errors"
 
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/aead"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/drop"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"

@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -114,7 +113,7 @@ func (y *server) handle(conn net.Conn) error {
 	}
 
 	switch header.Protocol.Network() {
-	case types.TCP:
+	case TCP:
 		y.handler.HandleStream(&netapi.StreamMeta{
 			Source:      c.RemoteAddr(),
 			Destination: header.Addr,
@@ -125,8 +124,8 @@ func (y *server) handle(conn net.Conn) error {
 
 		return nil
 
-	case types.UDP, types.UDPWithMigrateID:
-		if header.Protocol.Network() == types.UDPWithMigrateID {
+	case UDP, UDPWithMigrateID:
+		if header.Protocol.Network() == UDPWithMigrateID {
 			if header.MigrateID == 0 {
 				header.MigrateID = nat.GenerateID(c.RemoteAddr())
 			}

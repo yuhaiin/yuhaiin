@@ -1,7 +1,6 @@
-package crypto
+package aead
 
 import (
-	"bufio"
 	"crypto/cipher"
 	"crypto/ecdh"
 	"crypto/rand"
@@ -13,8 +12,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/crypto/chacha20"
@@ -22,63 +19,11 @@ import (
 )
 
 type encryptedHandshaker struct {
-	signer   types.Signer
-	hash     types.Hash
-	aead     types.Aead
+	signer   Signer
+	hash     Hash
+	aead     Aead
 	password []byte
 	server   bool
-}
-
-func (t *encryptedHandshaker) EncodeHeader(header types.Header, buf types.Buffer) {
-	_ = buf.WriteByte(byte(header.Protocol))
-
-	if header.Protocol.Network() == types.UDPWithMigrateID {
-		_ = pool.BinaryWriteUint64(buf, binary.BigEndian, header.MigrateID)
-	}
-
-	if header.Protocol.Network() == types.TCP {
-		tools.WriteAddr(header.Addr, buf)
-	}
-}
-
-func (t *encryptedHandshaker) DecodeHeader(c pool.BufioConn) (types.Header, error) {
-	header := types.Header{}
-
-	err := c.BufioRead(func(r *bufio.Reader) error {
-		netbyte, err := r.ReadByte()
-		if err != nil {
-			return fmt.Errorf("read net type failed: %w", err)
-		}
-
-		header.Protocol = types.Protocol(netbyte)
-
-		if header.Protocol.Unknown() {
-			return fmt.Errorf("unknown network: %d", netbyte)
-		}
-
-		if header.Protocol.Network() == types.UDPWithMigrateID {
-			mirgateBytes, err := r.Peek(8)
-			if err != nil {
-				return fmt.Errorf("read migrate id failed: %w", err)
-			}
-
-			_, _ = r.Discard(8)
-
-			header.MigrateID = binary.BigEndian.Uint64(mirgateBytes)
-		}
-
-		if header.Protocol.Network() == types.TCP {
-			_, addr, err := tools.ReadAddr("tcp", r)
-			if err != nil {
-				return fmt.Errorf("read addr failed: %w", err)
-			}
-			header.Addr = addr
-		}
-
-		return nil
-	})
-
-	return header, err
 }
 
 func (h *encryptedHandshaker) Handshake(conn net.Conn) (net.Conn, error) {
