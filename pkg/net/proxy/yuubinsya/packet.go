@@ -1,6 +1,7 @@
 package yuubinsya
 
 import (
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,15 +11,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type authPacketConn struct {
 	net.PacketConn
+	password   []byte
 	realTarget net.Addr
-
-	auth types.Auth
 
 	onClose func() error
 	prefix  bool
@@ -51,9 +51,8 @@ func (s *authPacketConn) WithRealTarget(target net.Addr) *authPacketConn {
 	return s
 }
 
-func (s *authPacketConn) WithAuth(auth types.Auth) *authPacketConn {
-	s.auth = auth
-
+func (s *authPacketConn) WithPassword(password []byte) *authPacketConn {
+	s.password = password
 	return s
 }
 
@@ -68,7 +67,7 @@ func (s *authPacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
 }
 
 func (s *authPacketConn) writeTo(p []byte, addr net.Addr, underlyingAddr net.Addr) (_ int, err error) {
-	if len(p) > nat.MaxSegmentSize-types.AuthHeaderSize(s.auth, s.prefix) {
+	if len(p) > nat.MaxSegmentSize-AuthHeaderSize(s.password, s.prefix) {
 		return 0, fmt.Errorf("packet too large: %d > %d", len(p), nat.MaxSegmentSize)
 	}
 
@@ -76,10 +75,10 @@ func (s *authPacketConn) writeTo(p []byte, addr net.Addr, underlyingAddr net.Add
 		underlyingAddr = addr
 	}
 
-	buf := pool.NewBufferSize(len(p) + types.AuthHeaderSize(s.auth, s.prefix))
+	buf := pool.NewBufferSize(len(p) + AuthHeaderSize(s.password, s.prefix))
 	defer buf.Reset()
 
-	err = types.EncodePacket(buf, addr, p, s.auth, s.prefix)
+	err = EncodePacket(buf, addr, p, s.password, s.prefix)
 	if err != nil {
 		return 0, fmt.Errorf("encode packet failed: %w", err)
 	}
@@ -105,7 +104,7 @@ func (s *authPacketConn) readFrom(p []byte) (int, netapi.Address, net.Addr, erro
 		return 0, nil, nil, fmt.Errorf("%w read from remote failed: %w", errNet, err)
 	}
 
-	buf, addr, err := types.DecodePacket(p[:n], s.auth, s.prefix)
+	buf, addr, err := DecodePacket(p[:n], s.password, s.prefix)
 	if err != nil {
 		return 0, nil, nil, fmt.Errorf("decode packet failed: %w", err)
 	}
@@ -116,14 +115,14 @@ func (s *authPacketConn) readFrom(p []byte) (int, netapi.Address, net.Addr, erro
 type UDPServer struct {
 	PacketConn net.PacketConn
 	Handler    func(*netapi.Packet)
-	Auth       types.Auth
 	Prefix     bool
+	Password   []byte
 }
 
 func (s *UDPServer) Serve() error {
-	p := NewAuthPacketConn(s.PacketConn).WithAuth(s.Auth).WithSocks5Prefix(s.Prefix)
+	p := NewAuthPacketConn(s.PacketConn).WithSocks5Prefix(s.Prefix).WithPassword(s.Password)
 
-	buf := pool.GetBytes(configuration.UDPBufferSize.Load() + types.MaxPacketHeaderSize(s.Auth, s.Prefix))
+	buf := pool.GetBytes(configuration.UDPBufferSize.Load() + MaxPacketHeaderSize(s.Password, s.Prefix))
 	defer pool.PutBytes(buf)
 
 	for {
@@ -142,4 +141,76 @@ func (s *UDPServer) Serve() error {
 				return p.writeTo(b, source, src)
 			})))
 	}
+}
+
+func EncodePacket(w *pool.Buffer, addr net.Addr, buf []byte, password []byte, prefix bool) error {
+	ad, err := netapi.ParseSysAddr(addr)
+	if err != nil {
+		return fmt.Errorf("parse addr failed: %w", err)
+	}
+
+	if len(password) > 0 {
+		_, _ = w.Write(password)
+	}
+
+	if prefix {
+		_, _ = w.Write([]byte{0, 0, 0})
+	}
+
+	tools.WriteAddr(ad, w)
+
+	_, err = w.Write(buf)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func MaxPacketHeaderSize(password []byte, prefix bool) int {
+	return tools.MaxAddrLength + AuthHeaderSize(password, prefix)
+}
+
+func DecodePacket(r []byte, password []byte, prefix bool) ([]byte, netapi.Address, error) {
+	if len(password) > 0 {
+		if len(r) < len(password) {
+			return nil, nil, fmt.Errorf("key is not enough")
+		}
+
+		rkey := r[:len(password)]
+		r = r[len(password):]
+
+		if subtle.ConstantTimeCompare(rkey, password) != 1 {
+			return nil, nil, fmt.Errorf("key is incorrect")
+		}
+	}
+
+	if prefix {
+		if len(r) < 3 {
+			return nil, nil, fmt.Errorf("packet is not enough")
+		}
+
+		r = r[3:]
+	}
+
+	an, addr, err := tools.DecodeAddr("udp", r)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return r[an:], addr, nil
+}
+
+func AuthHeaderSize(password []byte, prefix bool) int {
+	var a int
+
+	if len(password) > 0 {
+		a = len(password)
+	}
+
+	if prefix {
+		a += 3
+	}
+
+	return a
 }

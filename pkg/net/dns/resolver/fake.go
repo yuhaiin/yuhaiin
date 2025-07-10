@@ -7,7 +7,7 @@ import (
 	"math"
 	"net"
 	"net/netip"
-	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -273,14 +273,28 @@ func RetrieveIPFromPtr(name string) (net.IP, error) {
 		return nil, fmt.Errorf("retrieve ip from ptr failed: %s", name)
 	}
 
-	reverseIPv4, err := netip.ParseAddr(name[:len(name)-arpaV4SuffixLen])
-	if err != nil || !reverseIPv4.Is4() {
-		return nil, fmt.Errorf("retrieve ip from ptr failed: %s, %w", name, err)
+	v4name := name[:len(name)-arpaV4SuffixLen]
+
+	ipv4 := make([]byte, 0, 4)
+	for v := range strings.SplitSeq(v4name, ".") {
+		if len(ipv4) == 4 {
+			return nil, fmt.Errorf("invalid ipv4 ptr: %s", name)
+		}
+
+		z, err := strconv.ParseUint(v, 10, 8)
+		if err != nil {
+			return nil, fmt.Errorf("parse to ip failed: %w, name: %s", err, name)
+		}
+		ipv4 = append(ipv4, byte(z))
 	}
 
-	ipv4 := reverseIPv4.As4()
-	slices.Reverse(ipv4[:])
-	return ipv4[:], nil
+	if len(ipv4) != 4 {
+		return nil, fmt.Errorf("invalid ipv4 ptr: %s", name)
+	}
+
+	ipv4[0], ipv4[1], ipv4[2], ipv4[3] = ipv4[3], ipv4[2], ipv4[1], ipv4[0]
+
+	return ipv4, nil
 }
 
 func (f *FakeDNS) LookupPtr(name string) (string, error) {

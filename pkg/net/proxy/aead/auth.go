@@ -1,8 +1,10 @@
-package crypto
+package aead
 
 import (
 	"crypto/cipher"
 	"crypto/sha256"
+	"hash"
+	"io"
 
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -30,4 +32,22 @@ func GetAuth(password []byte) (*auth, error) {
 	return &auth{
 		AEAD: aead,
 	}, nil
+}
+
+type Hash interface {
+	New() hash.Hash
+	Size() int
+}
+
+type Signer interface {
+	Sign(rand io.Reader, digest []byte) (signature []byte, err error)
+	SignatureSize() int
+	Verify(message, sig []byte) bool
+}
+
+type Aead interface {
+	New([]byte) (cipher.AEAD, error)
+	KeySize() int
+	NonceSize() int
+	Name() []byte
 }

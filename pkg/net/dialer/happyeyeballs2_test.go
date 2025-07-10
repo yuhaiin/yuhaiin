@@ -9,7 +9,9 @@ import (
 )
 
 func TestDial(t *testing.T) {
-	conn, err := DialHappyEyeballsv2(context.TODO(), netapi.ParseDomainPort("tcp", "ip-3-86-108-113-ext.gold0028.gameloft.com", 46267))
+	addr, err := netapi.ParseDomainPort("tcp", "ip-3-86-108-113-ext.gold0028.gameloft.com", 46267)
+	assert.NoError(t, err)
+	conn, err := DialHappyEyeballsv2(context.TODO(), addr)
 	assert.NoError(t, err)
 	defer conn.Close()
 	t.Log(conn.LocalAddr(), conn.RemoteAddr())

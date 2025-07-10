@@ -136,9 +136,8 @@ func ConvertProtocol(x *listener.Inbound) (*protocol.Protocol, error) {
 		pro = protocol.Protocol_builder{
 			Yuubinsya: protocol.Yuubinsya_builder{
 				Password:      proto.String(x.GetYuubinsya().GetPassword()),
-				TcpEncrypt:    proto.Bool(x.GetYuubinsya().GetTcpEncrypt()),
-				UdpEncrypt:    proto.Bool(x.GetYuubinsya().GetUdpEncrypt()),
-				UdpOverStream: proto.Bool(!x.GetYuubinsya().GetUdpEncrypt() && x.GetYuubinsya().GetTcpEncrypt()),
+				UdpOverStream: proto.Bool(true),
+				UdpCoalesce:   proto.Bool(x.GetYuubinsya().GetUdpCoalesce()),
 			}.Build(),
 		}.Build()
 

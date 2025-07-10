@@ -220,7 +220,10 @@ func (t *Tailscale) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 	if addr.Port() == 53 {
 		if hostname := addr.Hostname(); hostname == tsaddr.TailscaleServiceIP().String() || hostname == tsaddr.TailscaleServiceIPv6().String() {
 			src, dst := pipe.Pipe()
-			go t.tsnet.Sys().DNSManager.Get().HandleTCPConn(src, netip.AddrPort{})
+			go func() {
+				defer src.Close()
+				t.tsnet.Sys().DNSManager.Get().HandleTCPConn(src, netip.AddrPort{})
+			}()
 			return dst, nil
 		}
 	}

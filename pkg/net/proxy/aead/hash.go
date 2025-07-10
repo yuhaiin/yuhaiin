@@ -1,4 +1,4 @@
-package crypto
+package aead
 
 import (
 	"crypto/sha256"

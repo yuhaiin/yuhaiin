@@ -1187,6 +1187,15 @@ func (x *Transport) GetHttpMock() *HttpMock {
 	return nil
 }
 
+func (x *Transport) GetAead() *Aead {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Transport.(*transport_Aead); ok {
+			return x.Aead
+		}
+	}
+	return nil
+}
+
 func (x *Transport) SetNormal(v *Normal) {
 	if v == nil {
 		x.xxx_hidden_Transport = nil
@@ -1257,6 +1266,14 @@ func (x *Transport) SetHttpMock(v *HttpMock) {
 		return
 	}
 	x.xxx_hidden_Transport = &transport_HttpMock{v}
+}
+
+func (x *Transport) SetAead(v *Aead) {
+	if v == nil {
+		x.xxx_hidden_Transport = nil
+		return
+	}
+	x.xxx_hidden_Transport = &transport_Aead{v}
 }
 
 func (x *Transport) HasTransport() bool {
@@ -1338,6 +1355,14 @@ func (x *Transport) HasHttpMock() bool {
 	return ok
 }
 
+func (x *Transport) HasAead() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Transport.(*transport_Aead)
+	return ok
+}
+
 func (x *Transport) ClearTransport() {
 	x.xxx_hidden_Transport = nil
 }
@@ -1396,6 +1421,12 @@ func (x *Transport) ClearHttpMock() {
 	}
 }
 
+func (x *Transport) ClearAead() {
+	if _, ok := x.xxx_hidden_Transport.(*transport_Aead); ok {
+		x.xxx_hidden_Transport = nil
+	}
+}
+
 const Transport_Transport_not_set_case case_Transport_Transport = 0
 const Transport_Normal_case case_Transport_Transport = 12
 const Transport_Tls_case case_Transport_Transport = 1
@@ -1406,6 +1437,7 @@ const Transport_Grpc_case case_Transport_Transport = 11
 const Transport_Reality_case case_Transport_Transport = 10
 const Transport_TlsAuto_case case_Transport_Transport = 13
 const Transport_HttpMock_case case_Transport_Transport = 14
+const Transport_Aead_case case_Transport_Transport = 15
 
 func (x *Transport) WhichTransport() case_Transport_Transport {
 	if x == nil {
@@ -1430,6 +1462,8 @@ func (x *Transport) WhichTransport() case_Transport_Transport {
 		return Transport_TlsAuto_case
 	case *transport_HttpMock:
 		return Transport_HttpMock_case
+	case *transport_Aead:
+		return Transport_Aead_case
 	default:
 		return Transport_Transport_not_set_case
 	}
@@ -1448,6 +1482,7 @@ type Transport_builder struct {
 	Reality   *Reality
 	TlsAuto   *TlsAuto
 	HttpMock  *HttpMock
+	Aead      *Aead
 	// -- end of xxx_hidden_Transport
 }
 
@@ -1481,6 +1516,9 @@ func (b0 Transport_builder) Build() *Transport {
 	}
 	if b.HttpMock != nil {
 		x.xxx_hidden_Transport = &transport_HttpMock{b.HttpMock}
+	}
+	if b.Aead != nil {
+		x.xxx_hidden_Transport = &transport_Aead{b.Aead}
 	}
 	return m0
 }
@@ -1535,6 +1573,10 @@ type transport_HttpMock struct {
 	HttpMock *HttpMock `protobuf:"bytes,14,opt,name=http_mock,oneof"`
 }
 
+type transport_Aead struct {
+	Aead *Aead `protobuf:"bytes,15,opt,name=aead,oneof"`
+}
+
 func (*transport_Normal) isTransport_Transport() {}
 
 func (*transport_Tls) isTransport_Transport() {}
@@ -1552,6 +1594,8 @@ func (*transport_Reality) isTransport_Transport() {}
 func (*transport_TlsAuto) isTransport_Transport() {}
 
 func (*transport_HttpMock) isTransport_Transport() {}
+
+func (*transport_Aead) isTransport_Transport() {}
 
 type Empty struct {
 	state         protoimpl.MessageState `protogen:"opaque.v1"`
@@ -2997,8 +3041,6 @@ func (b0 Route_builder) Build() *Route {
 type Yuubinsya struct {
 	state                  protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Password    *string                `protobuf:"bytes,2,opt,name=password"`
-	xxx_hidden_TcpEncrypt  bool                   `protobuf:"varint,12,opt,name=tcp_encrypt"`
-	xxx_hidden_UdpEncrypt  bool                   `protobuf:"varint,13,opt,name=udp_encrypt"`
 	xxx_hidden_UdpCoalesce bool                   `protobuf:"varint,14,opt,name=udp_coalesce"`
 	XXX_raceDetectHookData protoimpl.RaceDetectHookData
 	XXX_presence           [1]uint32
@@ -3041,20 +3083,6 @@ func (x *Yuubinsya) GetPassword() string {
 	return ""
 }
 
-func (x *Yuubinsya) GetTcpEncrypt() bool {
-	if x != nil {
-		return x.xxx_hidden_TcpEncrypt
-	}
-	return false
-}
-
-func (x *Yuubinsya) GetUdpEncrypt() bool {
-	if x != nil {
-		return x.xxx_hidden_UdpEncrypt
-	}
-	return false
-}
-
 func (x *Yuubinsya) GetUdpCoalesce() bool {
 	if x != nil {
 		return x.xxx_hidden_UdpCoalesce
@@ -3064,22 +3092,12 @@ func (x *Yuubinsya) GetUdpCoalesce() bool {
 
 func (x *Yuubinsya) SetPassword(v string) {
 	x.xxx_hidden_Password = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 4)
-}
-
-func (x *Yuubinsya) SetTcpEncrypt(v bool) {
-	x.xxx_hidden_TcpEncrypt = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 4)
-}
-
-func (x *Yuubinsya) SetUdpEncrypt(v bool) {
-	x.xxx_hidden_UdpEncrypt = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 4)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
 }
 
 func (x *Yuubinsya) SetUdpCoalesce(v bool) {
 	x.xxx_hidden_UdpCoalesce = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 4)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
 }
 
 func (x *Yuubinsya) HasPassword() bool {
@@ -3089,25 +3107,11 @@ func (x *Yuubinsya) HasPassword() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
 }
 
-func (x *Yuubinsya) HasTcpEncrypt() bool {
-	if x == nil {
-		return false
-	}
-	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
-}
-
-func (x *Yuubinsya) HasUdpEncrypt() bool {
-	if x == nil {
-		return false
-	}
-	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
-}
-
 func (x *Yuubinsya) HasUdpCoalesce() bool {
 	if x == nil {
 		return false
 	}
-	return protoimpl.X.Present(&(x.XXX_presence[0]), 3)
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
 }
 
 func (x *Yuubinsya) ClearPassword() {
@@ -3115,18 +3119,8 @@ func (x *Yuubinsya) ClearPassword() {
 	x.xxx_hidden_Password = nil
 }
 
-func (x *Yuubinsya) ClearTcpEncrypt() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
-	x.xxx_hidden_TcpEncrypt = false
-}
-
-func (x *Yuubinsya) ClearUdpEncrypt() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
-	x.xxx_hidden_UdpEncrypt = false
-}
-
 func (x *Yuubinsya) ClearUdpCoalesce() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
 	x.xxx_hidden_UdpCoalesce = false
 }
 
@@ -3134,8 +3128,6 @@ type Yuubinsya_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	Password    *string
-	TcpEncrypt  *bool
-	UdpEncrypt  *bool
 	UdpCoalesce *bool
 }
 
@@ -3144,19 +3136,11 @@ func (b0 Yuubinsya_builder) Build() *Yuubinsya {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Password != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 4)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
 		x.xxx_hidden_Password = b.Password
 	}
-	if b.TcpEncrypt != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 4)
-		x.xxx_hidden_TcpEncrypt = *b.TcpEncrypt
-	}
-	if b.UdpEncrypt != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 4)
-		x.xxx_hidden_UdpEncrypt = *b.UdpEncrypt
-	}
 	if b.UdpCoalesce != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 4)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 2)
 		x.xxx_hidden_UdpCoalesce = *b.UdpCoalesce
 	}
 	return m0
@@ -4278,6 +4262,84 @@ func (b0 HttpMock_builder) Build() *HttpMock {
 	return m0
 }
 
+type Aead struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Password    *string                `protobuf:"bytes,1,opt,name=password"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *Aead) Reset() {
+	*x = Aead{}
+	mi := &file_config_listener_listener_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Aead) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Aead) ProtoMessage() {}
+
+func (x *Aead) ProtoReflect() protoreflect.Message {
+	mi := &file_config_listener_listener_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Aead) GetPassword() string {
+	if x != nil {
+		if x.xxx_hidden_Password != nil {
+			return *x.xxx_hidden_Password
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *Aead) SetPassword(v string) {
+	x.xxx_hidden_Password = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 1)
+}
+
+func (x *Aead) HasPassword() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *Aead) ClearPassword() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_Password = nil
+}
+
+type Aead_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Password *string
+}
+
+func (b0 Aead_builder) Build() *Aead {
+	m0 := &Aead{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Password != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 1)
+		x.xxx_hidden_Password = b.Password
+	}
+	return m0
+}
+
 type TunPlatfromPlatformDarwin struct {
 	state                     protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_NetworkService *string                `protobuf:"bytes,1,opt,name=network_service"`
@@ -4289,7 +4351,7 @@ type TunPlatfromPlatformDarwin struct {
 
 func (x *TunPlatfromPlatformDarwin) Reset() {
 	*x = TunPlatfromPlatformDarwin{}
-	mi := &file_config_listener_listener_proto_msgTypes[30]
+	mi := &file_config_listener_listener_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4301,7 +4363,7 @@ func (x *TunPlatfromPlatformDarwin) String() string {
 func (*TunPlatfromPlatformDarwin) ProtoMessage() {}
 
 func (x *TunPlatfromPlatformDarwin) ProtoReflect() protoreflect.Message {
-	mi := &file_config_listener_listener_proto_msgTypes[30]
+	mi := &file_config_listener_listener_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4391,7 +4453,7 @@ const file_config_listener_listener_proto_rawDesc = "" +
 	"\x04none\x18\x18 \x01(\v2\x17.yuhaiin.listener.emptyH\x01R\x04noneB\t\n" +
 	"\anetworkB\n" +
 	"\n" +
-	"\bprotocolJ\x04\b\x11\x10\x12R\x04IPv6\"\xec\x03\n" +
+	"\bprotocolJ\x04\b\x11\x10\x12R\x04IPv6\"\x9a\x04\n" +
 	"\ttransport\x122\n" +
 	"\x06normal\x18\f \x01(\v2\x18.yuhaiin.listener.normalH\x00R\x06normal\x12)\n" +
 	"\x03tls\x18\x01 \x01(\v2\x15.yuhaiin.listener.tlsH\x00R\x03tls\x12)\n" +
@@ -4402,7 +4464,8 @@ const file_config_listener_listener_proto_rawDesc = "" +
 	"\areality\x18\n" +
 	" \x01(\v2\x19.yuhaiin.listener.realityH\x00R\areality\x128\n" +
 	"\btls_auto\x18\r \x01(\v2\x1a.yuhaiin.listener.tls_autoH\x00R\btls_auto\x12;\n" +
-	"\thttp_mock\x18\x0e \x01(\v2\x1b.yuhaiin.listener.http_mockH\x00R\thttp_mockB\v\n" +
+	"\thttp_mock\x18\x0e \x01(\v2\x1b.yuhaiin.listener.http_mockH\x00R\thttp_mock\x12,\n" +
+	"\x04aead\x18\x0f \x01(\v2\x16.yuhaiin.listener.aeadH\x00R\x04aeadB\v\n" +
 	"\ttransport\"\a\n" +
 	"\x05empty\"\x05\n" +
 	"\x03mux\"Y\n" +
@@ -4453,14 +4516,12 @@ const file_config_listener_listener_proto_rawDesc = "" +
 	"\rsystem_gvisor\x10\x02J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\agatewayR\rdns_hijacking\";\n" +
 	"\x05route\x12\x16\n" +
 	"\x06routes\x18\x01 \x03(\tR\x06routes\x12\x1a\n" +
-	"\bexcludes\x18\x02 \x03(\tR\bexcludes\"\xa1\x02\n" +
+	"\bexcludes\x18\x02 \x03(\tR\bexcludes\"\x83\x02\n" +
 	"\tyuubinsya\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\x12 \n" +
-	"\vtcp_encrypt\x18\f \x01(\bR\vtcp_encrypt\x12 \n" +
-	"\vudp_encrypt\x18\r \x01(\bR\vudp_encrypt\x12\"\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\"\n" +
 	"\fudp_coalesce\x18\x0e \x01(\bR\fudp_coalesceJ\x04\b\x01\x10\x02J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
-	"\x10\vJ\x04\b\v\x10\fR\x04hostR\x15force_disable_encryptR\x06normalR\x03tlsR\x04quicR\twebsocketR\x04grpcR\x05http2R\arealityR\x03mux\"\b\n" +
+	"\x10\vJ\x04\b\v\x10\fJ\x04\b\f\x10\rJ\x04\b\r\x10\x0eR\x04hostR\x15force_disable_encryptR\x06normalR\x03tlsR\x04quicR\twebsocketR\x04grpcR\x05http2R\arealityR\x03muxR\vtcp_encryptR\vudp_encrypt\"\b\n" +
 	"\x06normal\"\x16\n" +
 	"\twebsocketJ\x04\b\x01\x10\x02R\x03tls\"<\n" +
 	"\x03tls\x125\n" +
@@ -4496,14 +4557,16 @@ const file_config_listener_listener_proto_rawDesc = "" +
 	"\vreverse_tcp\x12\x12\n" +
 	"\x04host\x18\x01 \x01(\tR\x04host\"\x1f\n" +
 	"\thttp_mock\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data*L\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"\"\n" +
+	"\x04aead\x12\x1a\n" +
+	"\bpassword\x18\x01 \x01(\tR\bpassword*L\n" +
 	"\x0ftcp_udp_control\x12\x17\n" +
 	"\x13tcp_udp_control_all\x10\x00\x12\x0f\n" +
 	"\vdisable_tcp\x10\x01\x12\x0f\n" +
 	"\vdisable_udp\x10\x02BAZ7github.com/Asutorufa/yuhaiin/pkg/protos/config/listener\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
 var file_config_listener_listener_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_config_listener_listener_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_config_listener_listener_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
 var file_config_listener_listener_proto_goTypes = []any{
 	(TcpUdpControl)(0),                // 0: yuhaiin.listener.tcp_udp_control
 	(TunEndpointDriver)(0),            // 1: yuhaiin.listener.tun.endpoint_driver
@@ -4536,13 +4599,14 @@ var file_config_listener_listener_proto_goTypes = []any{
 	(*ReverseHttp)(nil),               // 28: yuhaiin.listener.reverse_http
 	(*ReverseTcp)(nil),                // 29: yuhaiin.listener.reverse_tcp
 	(*HttpMock)(nil),                  // 30: yuhaiin.listener.http_mock
-	nil,                               // 31: yuhaiin.listener.inbound_config.InboundsEntry
-	(*TunPlatfromPlatformDarwin)(nil), // 32: yuhaiin.listener.tun_platfrom.platform_darwin
-	(*protocol.TlsServerConfig)(nil),  // 33: yuhaiin.protocol.tls_server_config
-	(*protocol.TlsConfig)(nil),        // 34: yuhaiin.protocol.tls_config
+	(*Aead)(nil),                      // 31: yuhaiin.listener.aead
+	nil,                               // 32: yuhaiin.listener.inbound_config.InboundsEntry
+	(*TunPlatfromPlatformDarwin)(nil), // 33: yuhaiin.listener.tun_platfrom.platform_darwin
+	(*protocol.TlsServerConfig)(nil),  // 34: yuhaiin.protocol.tls_server_config
+	(*protocol.TlsConfig)(nil),        // 35: yuhaiin.protocol.tls_config
 }
 var file_config_listener_listener_proto_depIdxs = []int32{
-	31, // 0: yuhaiin.listener.inbound_config.inbounds:type_name -> yuhaiin.listener.inbound_config.InboundsEntry
+	32, // 0: yuhaiin.listener.inbound_config.inbounds:type_name -> yuhaiin.listener.inbound_config.InboundsEntry
 	27, // 1: yuhaiin.listener.inbound_config.sniff:type_name -> yuhaiin.listener.sniff
 	5,  // 2: yuhaiin.listener.inbound.empty:type_name -> yuhaiin.listener.empty
 	7,  // 3: yuhaiin.listener.inbound.tcpudp:type_name -> yuhaiin.listener.tcpudp
@@ -4568,21 +4632,22 @@ var file_config_listener_listener_proto_depIdxs = []int32{
 	24, // 23: yuhaiin.listener.transport.reality:type_name -> yuhaiin.listener.reality
 	25, // 24: yuhaiin.listener.transport.tls_auto:type_name -> yuhaiin.listener.tls_auto
 	30, // 25: yuhaiin.listener.transport.http_mock:type_name -> yuhaiin.listener.http_mock
-	0,  // 26: yuhaiin.listener.tcpudp.control:type_name -> yuhaiin.listener.tcp_udp_control
-	33, // 27: yuhaiin.listener.quic.tls:type_name -> yuhaiin.protocol.tls_server_config
-	32, // 28: yuhaiin.listener.tun_platfrom.darwin:type_name -> yuhaiin.listener.tun_platfrom.platform_darwin
-	1,  // 29: yuhaiin.listener.tun.driver:type_name -> yuhaiin.listener.tun.endpoint_driver
-	17, // 30: yuhaiin.listener.tun.route:type_name -> yuhaiin.listener.route
-	15, // 31: yuhaiin.listener.tun.platform:type_name -> yuhaiin.listener.tun_platfrom
-	33, // 32: yuhaiin.listener.tls.tls:type_name -> yuhaiin.protocol.tls_server_config
-	26, // 33: yuhaiin.listener.tls_auto.ech:type_name -> yuhaiin.listener.ech_config
-	34, // 34: yuhaiin.listener.reverse_http.tls:type_name -> yuhaiin.protocol.tls_config
-	3,  // 35: yuhaiin.listener.inbound_config.InboundsEntry.value:type_name -> yuhaiin.listener.inbound
-	36, // [36:36] is the sub-list for method output_type
-	36, // [36:36] is the sub-list for method input_type
-	36, // [36:36] is the sub-list for extension type_name
-	36, // [36:36] is the sub-list for extension extendee
-	0,  // [0:36] is the sub-list for field type_name
+	31, // 26: yuhaiin.listener.transport.aead:type_name -> yuhaiin.listener.aead
+	0,  // 27: yuhaiin.listener.tcpudp.control:type_name -> yuhaiin.listener.tcp_udp_control
+	34, // 28: yuhaiin.listener.quic.tls:type_name -> yuhaiin.protocol.tls_server_config
+	33, // 29: yuhaiin.listener.tun_platfrom.darwin:type_name -> yuhaiin.listener.tun_platfrom.platform_darwin
+	1,  // 30: yuhaiin.listener.tun.driver:type_name -> yuhaiin.listener.tun.endpoint_driver
+	17, // 31: yuhaiin.listener.tun.route:type_name -> yuhaiin.listener.route
+	15, // 32: yuhaiin.listener.tun.platform:type_name -> yuhaiin.listener.tun_platfrom
+	34, // 33: yuhaiin.listener.tls.tls:type_name -> yuhaiin.protocol.tls_server_config
+	26, // 34: yuhaiin.listener.tls_auto.ech:type_name -> yuhaiin.listener.ech_config
+	35, // 35: yuhaiin.listener.reverse_http.tls:type_name -> yuhaiin.protocol.tls_config
+	3,  // 36: yuhaiin.listener.inbound_config.InboundsEntry.value:type_name -> yuhaiin.listener.inbound
+	37, // [37:37] is the sub-list for method output_type
+	37, // [37:37] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_config_listener_listener_proto_init() }
@@ -4616,6 +4681,7 @@ func file_config_listener_listener_proto_init() {
 		(*transport_Reality)(nil),
 		(*transport_TlsAuto)(nil),
 		(*transport_HttpMock)(nil),
+		(*transport_Aead)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -4623,7 +4689,7 @@ func file_config_listener_listener_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_config_listener_listener_proto_rawDesc), len(file_config_listener_listener_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   31,
+			NumMessages:   32,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

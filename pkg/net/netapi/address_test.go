@@ -9,7 +9,8 @@ import (
 )
 
 func TestKey(t *testing.T) {
-	domain := ParseDomainPort("tcp", "www.google.com", 443)
+	domain, err := ParseDomainPort("tcp", "www.google.com", 443)
+	assert.NoError(t, err)
 	ip := ParseIPAddr("tcp", net.ParseIP("127.0.0.1"), 443)
 
 	var x syncmap.SyncMap[uint64, Address]
@@ -25,7 +26,8 @@ func TestKey(t *testing.T) {
 	assert.Equal(t, true, ip.Comparable() == ri.Comparable())
 
 	z1 := domain.Comparable()
-	newDomain := ParseDomainPort("tcp", "www.google.com", 443)
+	newDomain, err := ParseDomainPort("tcp", "www.google.com", 443)
+	assert.NoError(t, err)
 	z2 := newDomain.Comparable()
 	z3 := ip.Comparable()
 

@@ -55,13 +55,10 @@ func newHappyEyeball(ctx context.Context, addr netapi.Address, cache HappyEyebal
 	prefer := false
 	primaryMode := netapi.ResolverModePreferIPv6
 	fallbackMode := netapi.ResolverModePreferIPv4
-	if netctx.Resolver.Mode == netapi.ResolverModePreferIPv4 {
-		primaryMode = netapi.ResolverModePreferIPv4
-		fallbackMode = netapi.ResolverModePreferIPv6
-		prefer = true
-	} else if netctx.Resolver.Mode == netapi.ResolverModePreferIPv6 {
-		primaryMode = netapi.ResolverModePreferIPv6
-		fallbackMode = netapi.ResolverModePreferIPv4
+	switch netctx.Resolver.Mode {
+	case netapi.ResolverModePreferIPv4:
+		primaryMode, fallbackMode, prefer = fallbackMode, primaryMode, true
+	case netapi.ResolverModePreferIPv6:
 		prefer = true
 	}
 

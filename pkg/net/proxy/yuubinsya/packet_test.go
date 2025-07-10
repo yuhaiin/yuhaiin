@@ -11,9 +11,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/plain"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -44,14 +41,11 @@ func TestENDcode(t *testing.T) {
 			_, err = io.ReadFull(crand.Reader, dedata)
 			assert.NoError(t, err)
 
-			auth, err := crypto.GetAuth(password)
-			assert.NoError(t, err)
-
 			buf := pool.NewBufferSize(pool.MaxSegmentSize)
-			assert.NoError(t, types.EncodePacket(buf, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-				dedata, auth, true))
+			assert.NoError(t, EncodePacket(buf, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
+				dedata, password, true))
 
-			dedata, addr, err := types.DecodePacket(buf.Bytes(), auth, true)
+			dedata, addr, err := DecodePacket(buf.Bytes(), password, true)
 			assert.NoError(t, err)
 
 			if !bytes.Equal(dedata, dedata) {
@@ -65,32 +59,29 @@ func TestENDcode(t *testing.T) {
 }
 
 func TestEncode(t *testing.T) {
-	auth, err := crypto.GetAuth([]byte("testzxc"))
-	assert.NoError(t, err)
+	password := []byte("testzxc")
 
 	req := randSeq(rand.IntN(60000))
 	buf := pool.NewBufferSize(pool.MaxSegmentSize)
-	assert.NoError(t, types.EncodePacket(buf, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-		req, auth, true))
+	assert.NoError(t, EncodePacket(buf, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
+		req, password, true))
 
 	// t.Log(buf.Bytes())
 
-	data, addr, err := types.DecodePacket(buf.Bytes(), auth, true)
+	data, addr, err := DecodePacket(buf.Bytes(), password, true)
 	assert.NoError(t, err)
 
 	if bytes.Equal(req, data) {
 		t.Log("same", addr)
 	}
 
-	plainauth := plain.NewAuth([]byte{1, 2, 3, 4, 5})
-
 	req = randSeq(rand.IntN(60000))
 	buf = pool.NewBufferSize(pool.MaxSegmentSize)
-	assert.NoError(t, types.EncodePacket(buf,
+	assert.NoError(t, EncodePacket(buf,
 		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-		req, plainauth, true))
+		req, password, true))
 
-	data, addr, err = types.DecodePacket(buf.Bytes(), plainauth, true)
+	data, addr, err = DecodePacket(buf.Bytes(), password, true)
 	assert.NoError(t, err)
 
 	if bytes.Equal(req, data) {
@@ -99,10 +90,10 @@ func TestEncode(t *testing.T) {
 
 	req = randSeq(rand.IntN(60000))
 	buf = pool.NewBufferSize(pool.MaxSegmentSize)
-	assert.NoError(t, types.EncodePacket(buf,
-		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234}, req, nil, false))
+	assert.NoError(t, EncodePacket(buf,
+		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234}, req, password, false))
 
-	data, addr, err = types.DecodePacket(buf.Bytes(), nil, false)
+	data, addr, err = DecodePacket(buf.Bytes(), password, false)
 	assert.NoError(t, err)
 
 	if bytes.Equal(req, data) {
@@ -115,9 +106,7 @@ func TestPacket(t *testing.T) {
 	assert.NoError(t, err)
 	defer lis.Close()
 
-	auth := plain.NewAuth([]byte("telnoinnoijuhbbikjonkndnfioe439423fldfksdjf9034jpjffjst"))
-
-	data := randSeq(rand.IntN(60000))
+	data := randSeq(rand.IntN(2500))
 
 	go (&UDPServer{
 		PacketConn: lis,
@@ -125,7 +114,6 @@ func TestPacket(t *testing.T) {
 			_, err := p.WriteBack(p.GetPayload(), p.Src())
 			t.Log(len(p.GetPayload()), bytes.Equal(data, p.GetPayload()), p.Dst().String(), p.Src().String(), err)
 		},
-		Auth:   auth,
 		Prefix: true,
 	}).Serve()
 
@@ -133,7 +121,7 @@ func TestPacket(t *testing.T) {
 	assert.NoError(t, err)
 	defer client.Close()
 
-	cc := NewAuthPacketConn(client).WithRealTarget(lis.LocalAddr()).WithAuth(auth).WithSocks5Prefix(true)
+	cc := NewAuthPacketConn(client).WithRealTarget(lis.LocalAddr()).WithSocks5Prefix(true)
 
 	go func() {
 		for {

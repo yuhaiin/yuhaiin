@@ -14,7 +14,8 @@ func BenchmarkDomainMatcher_Search(b *testing.B) {
 	root.Insert("www.baidu.sub.com.cn", "test_baidu")
 	root.Insert("www.google.com", "test_google")
 
-	addr := netapi.ParseAddressPort("", "www.baidu.sub.com.cn.net", 0)
+	addr, err := netapi.ParseAddressPort("", "www.baidu.sub.com.cn.net", 0)
+	assert.NoError(b, err)
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
@@ -42,7 +43,9 @@ func TestDomainMatcherSearch(t *testing.T) {
 	root.Insert("www.x.*", "www_x")
 
 	search := func(s string) string {
-		res, _ := root.Search(netapi.ParseAddressPort("", s, 0))
+		addr, err := netapi.ParseAddressPort("", s, 0)
+		assert.NoError(t, err)
+		res, _ := root.Search(addr)
 		return res
 	}
 	assert.Equal(t, "test_baidu", search("www.baidu.com"))

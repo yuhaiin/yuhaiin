@@ -2,10 +2,13 @@ package netapi
 
 import (
 	"errors"
+	"fmt"
 	"hash/maphash"
 	"net"
 	"net/netip"
 	"strconv"
+
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 var seed = maphash.MakeSeed()
@@ -46,23 +49,27 @@ func ParseAddress(network string, addr string) (ad Address, _ error) {
 		}
 	}
 
-	return ParseAddressPort(network, hostname, uint16(port)), nil
+	return ParseAddressPort(network, hostname, uint16(port))
 }
 
-func ParseDomainPort(network string, addr string, port uint16) (ad Address) {
+func ParseDomainPort(network string, addr string, port uint16) (ad Address, err error) {
+	if !system.IsDomainName(addr) {
+		return nil, fmt.Errorf("invalid domain: %s", addr)
+	}
+
 	return DomainAddr{
 		HostnameX:      addr,
 		PortX:          port,
 		AddressNetwork: ParseAddressNetwork(network),
-	}
+	}, nil
 }
 
-func ParseAddressPort(network string, addr string, port uint16) (ad Address) {
+func ParseAddressPort(network string, addr string, port uint16) (ad Address, err error) {
 	if addr, err := netip.ParseAddr(addr); err == nil {
 		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(network),
 			AddrPortX:      netip.AddrPortFrom(addr.Unmap(), port),
-		}
+		}, nil
 	}
 
 	return ParseDomainPort(network, addr, port)
@@ -83,7 +90,12 @@ func ParseNetipAddr(net string, ip netip.Addr, port uint16) Address {
 }
 
 func toAddrPort(ad net.IP, port uint16, zone string) netip.AddrPort {
-	addr, _ := netip.AddrFromSlice(ad)
+	addr, ok := netip.AddrFromSlice(ad)
+	if !ok {
+		fmt.Println("parse ip from slice failed", "data", ad)
+		addr = netip.AddrFrom4([4]byte{})
+	}
+
 	addr = addr.Unmap()
 	if zone != "" {
 		addr = addr.WithZone(zone)

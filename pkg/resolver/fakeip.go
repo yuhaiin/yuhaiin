@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
@@ -160,7 +161,12 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 	t, ok := f.fake.GetDomainFromIP(addrPort.Addr())
 	if ok {
 		store.SetFakeIP(addr)
-		return netapi.ParseAddressPort(addr.Network(), t, addr.Port())
+		z, err := netapi.ParseAddressPort(addr.Network(), t, addr.Port())
+		if err == nil {
+			return z
+		} else {
+			log.Warn("parse fakeip reverse domain failed", "addr", t, "err", err)
+		}
 	}
 
 	if configuration.FakeIPEnabled.Load() {

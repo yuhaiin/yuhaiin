@@ -39,6 +39,7 @@ message protocol {
     tls_termination tls_termination = 26 [ json_name = "tls_termination" ];
     http_termination http_termination = 27 [ json_name = "http_termination" ];
     http_mock http_mock = 28 [ json_name = "http_mock" ];
+    aead aead = 29 [ json_name = "aead" ];
   }
 }
 
@@ -90,11 +91,9 @@ message trojan {
 }
 
 message yuubinsya {
-  reserved 2;
-  reserved encrypted;
+  reserved 2, 4, 5;
+  reserved encrypted, tcp_encrypt, udp_encrypt;
   string password = 1 [ json_name = "password" ];
-  bool tcp_encrypt = 4 [ json_name = "tcp_encrypt" ];
-  bool udp_encrypt = 5 [ json_name = "udp_encrypt" ];
   bool udp_over_stream = 3 [ json_name = "udp_over_stream" ];
   bool udp_coalesce = 6 [ json_name = "udp_coalesce" ];
 }
@@ -239,3 +238,5 @@ message set {
 }
 
 message http_mock { bytes data = 1; }
+
+message aead { string password = 1 [ json_name = "password" ]; }

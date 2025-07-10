@@ -5,8 +5,8 @@ import (
 	"io"
 	"net"
 
+	yaead "github.com/Asutorufa/yuhaiin/pkg/net/proxy/aead"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/internal"
-	ycrypto "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
 )
 
 // payloadSizeMax is the maximum size of payload in bytes.
@@ -33,7 +33,7 @@ func (c *streamConn) initReader() error {
 		return ErrRepeatedSalt
 	}
 
-	c.r = ycrypto.NewReader(c.Conn, make([]byte, aead.NonceSize()), aead, payloadSizeMax)
+	c.r = yaead.NewReader(c.Conn, make([]byte, aead.NonceSize()), aead, payloadSizeMax)
 	return nil
 }
 
@@ -60,7 +60,7 @@ func (c *streamConn) initWriter() error {
 		return err
 	}
 	internal.AddSalt(salt)
-	c.w = ycrypto.NewWriter(c.Conn, make([]byte, aead.NonceSize()), aead, payloadSizeMax)
+	c.w = yaead.NewWriter(c.Conn, make([]byte, aead.NonceSize()), aead, payloadSizeMax)
 	return nil
 }
 
