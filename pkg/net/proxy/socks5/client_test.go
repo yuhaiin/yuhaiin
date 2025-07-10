@@ -20,7 +20,9 @@ import (
 func TestUDP(t *testing.T) {
 	p := Dial("127.0.0.1", "1080", "", "")
 
-	packet, err := p.PacketConn(context.TODO(), netapi.ParseAddressPort("udp", "0.0.0.0", 0))
+	addr, err := netapi.ParseAddressPort("udp", "0.0.0.0", 0)
+	assert.NoError(t, err)
+	packet, err := p.PacketConn(context.TODO(), addr)
 	assert.NoError(t, err)
 	defer packet.Close()
 
@@ -84,14 +86,18 @@ func TestUsernamePassword(t *testing.T) {
 
 	p := Dial("127.0.0.1", "1083", "test", "test")
 
-	stream, err := p.Conn(context.TODO(), netapi.ParseAddressPort("tcp", "www.google.com", 443))
+	addr, err := netapi.ParseAddressPort("tcp", "www.google.com", 443)
+	assert.NoError(t, err)
+	stream, err := p.Conn(context.TODO(), addr)
 	assert.NoError(t, err)
 	defer stream.Close()
 
 	_, err = stream.Write([]byte("GET / HTTP/1.1\r\nHost: www.google.com\r\n\r\n"))
 	assert.NoError(t, err)
 
-	packet, err := p.PacketConn(context.TODO(), netapi.ParseAddressPort("udp", "0.0.0.0", 0))
+	addr, err = netapi.ParseAddressPort("udp", "0.0.0.0", 0)
+	assert.NoError(t, err)
+	packet, err := p.PacketConn(context.TODO(), addr)
 	assert.NoError(t, err)
 	defer packet.Close()
 

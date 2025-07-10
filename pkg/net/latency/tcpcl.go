@@ -19,7 +19,12 @@ func TCPConnectLatency(address, portstr string) (time.Duration, error) {
 	timeNow := time.Now()
 	ctx, cancel := context.WithTimeout(context.TODO(), 3*time.Second)
 	defer cancel()
-	conn, err := dialer.DialHappyEyeballsv2(ctx, netapi.ParseAddressPort("tcp", address, uint16(port)))
+
+	addr, err := netapi.ParseAddressPort("tcp", address, uint16(port))
+	if err != nil {
+		return 0, err
+	}
+	conn, err := dialer.DialHappyEyeballsv2(ctx, addr)
 	if err != nil {
 		return 0, err
 	}

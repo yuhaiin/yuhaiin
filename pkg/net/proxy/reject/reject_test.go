@@ -5,12 +5,14 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestReject(t *testing.T) {
 	r := NewReject(5, 15)
 
-	addr := netapi.ParseAddressPort("", "www.baidu.com", 0)
+	addr, err := netapi.ParseAddressPort("", "www.baidu.com", 0)
+	assert.NoError(t, err)
 	z := time.Millisecond * 300
 	for {
 		if z >= time.Second*10 {

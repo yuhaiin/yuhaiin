@@ -116,14 +116,13 @@ func (s *authPacketConn) readFrom(p []byte) (int, netapi.Address, net.Addr, erro
 type UDPServer struct {
 	PacketConn net.PacketConn
 	Handler    func(*netapi.Packet)
-	Auth       types.Auth
 	Prefix     bool
 }
 
 func (s *UDPServer) Serve() error {
-	p := NewAuthPacketConn(s.PacketConn).WithAuth(s.Auth).WithSocks5Prefix(s.Prefix)
+	p := NewAuthPacketConn(s.PacketConn).WithSocks5Prefix(s.Prefix)
 
-	buf := pool.GetBytes(configuration.UDPBufferSize.Load() + types.MaxPacketHeaderSize(s.Auth, s.Prefix))
+	buf := pool.GetBytes(configuration.UDPBufferSize.Load() + types.MaxPacketHeaderSize(nil, s.Prefix))
 	defer pool.PutBytes(buf)
 
 	for {

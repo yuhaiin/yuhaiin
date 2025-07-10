@@ -3,6 +3,7 @@ package yuubinsya
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -18,7 +19,7 @@ import (
 )
 
 type PacketConn struct {
-	handshaker types.Handshaker
+	hash []byte
 	pool.BufioConn
 	coalesce     bool
 	coalesceChan chan []byte
@@ -26,11 +27,11 @@ type PacketConn struct {
 	cancel       context.CancelCauseFunc
 }
 
-func newPacketConn(conn pool.BufioConn, handshaker types.Handshaker, coalesce bool) *PacketConn {
+func newPacketConn(conn pool.BufioConn, hash []byte, coalesce bool) *PacketConn {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	x := &PacketConn{
 		BufioConn:    conn,
-		handshaker:   handshaker,
+		hash:         hash,
 		coalesceChan: make(chan []byte, 100),
 		ctx:          ctx,
 		cancel:       cancel,
@@ -50,7 +51,7 @@ func (c *PacketConn) Handshake(migrateID uint64) (uint64, error) {
 	protocol := types.UDPWithMigrateID
 	w := pool.NewBufferSize(1024)
 	defer w.Reset()
-	c.handshaker.EncodeHeader(types.Header{Protocol: protocol, MigrateID: migrateID}, w)
+	Handshaker(c.hash).EncodeHeader(types.Header{Protocol: protocol, MigrateID: migrateID}, w)
 	_, err := c.BufioConn.Write(w.Bytes())
 	if err != nil {
 		return 0, err
@@ -224,4 +225,11 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	})
 
 	return n, addr, err
+}
+
+func Salt(password []byte) []byte {
+	h := sha256.New()
+	h.Write(password)
+	h.Write([]byte("+s@1t"))
+	return h.Sum(nil)
 }

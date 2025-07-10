@@ -12,7 +12,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/plain"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -82,15 +81,13 @@ func TestEncode(t *testing.T) {
 		t.Log("same", addr)
 	}
 
-	plainauth := plain.NewAuth([]byte{1, 2, 3, 4, 5})
-
 	req = randSeq(rand.IntN(60000))
 	buf = pool.NewBufferSize(pool.MaxSegmentSize)
 	assert.NoError(t, types.EncodePacket(buf,
 		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-		req, plainauth, true))
+		req, nil, true))
 
-	data, addr, err = types.DecodePacket(buf.Bytes(), plainauth, true)
+	data, addr, err = types.DecodePacket(buf.Bytes(), nil, true)
 	assert.NoError(t, err)
 
 	if bytes.Equal(req, data) {
@@ -115,8 +112,6 @@ func TestPacket(t *testing.T) {
 	assert.NoError(t, err)
 	defer lis.Close()
 
-	auth := plain.NewAuth([]byte("telnoinnoijuhbbikjonkndnfioe439423fldfksdjf9034jpjffjst"))
-
 	data := randSeq(rand.IntN(60000))
 
 	go (&UDPServer{
@@ -125,7 +120,6 @@ func TestPacket(t *testing.T) {
 			_, err := p.WriteBack(p.GetPayload(), p.Src())
 			t.Log(len(p.GetPayload()), bytes.Equal(data, p.GetPayload()), p.Dst().String(), p.Src().String(), err)
 		},
-		Auth:   auth,
 		Prefix: true,
 	}).Serve()
 
@@ -133,7 +127,7 @@ func TestPacket(t *testing.T) {
 	assert.NoError(t, err)
 	defer client.Close()
 
-	cc := NewAuthPacketConn(client).WithRealTarget(lis.LocalAddr()).WithAuth(auth).WithSocks5Prefix(true)
+	cc := NewAuthPacketConn(client).WithRealTarget(lis.LocalAddr()).WithSocks5Prefix(true)
 
 	go func() {
 		for {
