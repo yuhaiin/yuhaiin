@@ -81,6 +81,7 @@ func (y *server) startTCP() (err error) {
 		}
 
 		go func() {
+			defer conn.Close()
 			if err := y.handle(conn); err != nil && !errors.Is(err, io.EOF) {
 				// [syscall.ETIMEDOUT] connection timed out
 				// UNIX® Network Programming book by Richard Stevens says the following..
@@ -107,7 +108,7 @@ func (y *server) handle(conn net.Conn) error {
 	c := pool.NewBufioConnSize(conn, configuration.UDPBufferSize.Load())
 
 	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 30))
-	header, err := Handshaker(y.hash).DecodeHeader(c)
+	header, err := DecodeHeader(y.hash, c)
 	_ = conn.SetReadDeadline(time.Time{})
 	if err != nil {
 		return fmt.Errorf("parse header failed: %w", err)
@@ -166,9 +167,9 @@ func (y *server) handle(conn net.Conn) error {
 				netapi.WithMigrateID(header.MigrateID),
 			))
 		}
+	default:
+		return fmt.Errorf("unknown protocol: %d", header.Protocol)
 	}
-
-	return nil
 }
 
 func (y *server) Close() error {

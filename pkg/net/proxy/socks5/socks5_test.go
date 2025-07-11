@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -27,7 +27,7 @@ func TestSocks5(t *testing.T) {
 		)
 		assert.NoError(t, err)
 
-		sp, err := simple.NewClient(protocol.Simple_builder{
+		sp, err := fixed.NewClient(protocol.Fixed_builder{
 			Host: proto.String("127.0.0.1"),
 			Port: proto.Int32(int32(lis.Addr().(*net.TCPAddr).Port)),
 		}.Build(), nil)

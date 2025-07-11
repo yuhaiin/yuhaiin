@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -55,7 +55,7 @@ func TestMock(t *testing.T) {
 	port, err := strconv.Atoi(portstr)
 	assert.NoError(t, err)
 
-	s, err := simple.NewClient(protocol.Simple_builder{
+	s, err := fixed.NewClient(protocol.Fixed_builder{
 		Host: proto.String(host),
 		Port: proto.Int32(int32(port)),
 	}.Build(), nil)

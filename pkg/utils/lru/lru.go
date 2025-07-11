@@ -151,7 +151,7 @@ func (l *lru[K, V]) load(key K, refresh, optimistic bool) (v V, expired, ok bool
 }
 
 func (l *lru[K, V]) LoadRefreshExpire(key K) (v V, ok bool) {
-	v, _, ok = l.load(key, false, false)
+	v, _, ok = l.load(key, true, false)
 	return
 }
 

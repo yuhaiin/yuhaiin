@@ -11,6 +11,7 @@ import (
 	bypass "github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	dns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	listener "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	statistic "github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	_ "google.golang.org/protobuf/types/gofeaturespb"
@@ -73,10 +74,10 @@ func (x ChangePriorityRequestChangePriorityOperate) Number() protoreflect.EnumNu
 }
 
 type TestResponse struct {
-	state                  protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Mode        *bypass.ModeConfig     `protobuf:"bytes,1,opt,name=mode"`
-	xxx_hidden_Reason      *string                `protobuf:"bytes,2,opt,name=reason"`
-	xxx_hidden_AfterAddr   *string                `protobuf:"bytes,3,opt,name=after_addr"`
+	state                  protoimpl.MessageState          `protogen:"opaque.v1"`
+	xxx_hidden_Mode        *bypass.ModeConfig              `protobuf:"bytes,1,opt,name=mode"`
+	xxx_hidden_AfterAddr   *string                         `protobuf:"bytes,3,opt,name=after_addr"`
+	xxx_hidden_MatchResult *[]*statistic.MatchHistoryEntry `protobuf:"bytes,4,rep,name=match_result"`
 	XXX_raceDetectHookData protoimpl.RaceDetectHookData
 	XXX_presence           [1]uint32
 	unknownFields          protoimpl.UnknownFields
@@ -115,16 +116,6 @@ func (x *TestResponse) GetMode() *bypass.ModeConfig {
 	return nil
 }
 
-func (x *TestResponse) GetReason() string {
-	if x != nil {
-		if x.xxx_hidden_Reason != nil {
-			return *x.xxx_hidden_Reason
-		}
-		return ""
-	}
-	return ""
-}
-
 func (x *TestResponse) GetAfterAddr() string {
 	if x != nil {
 		if x.xxx_hidden_AfterAddr != nil {
@@ -135,18 +126,26 @@ func (x *TestResponse) GetAfterAddr() string {
 	return ""
 }
 
+func (x *TestResponse) GetMatchResult() []*statistic.MatchHistoryEntry {
+	if x != nil {
+		if x.xxx_hidden_MatchResult != nil {
+			return *x.xxx_hidden_MatchResult
+		}
+	}
+	return nil
+}
+
 func (x *TestResponse) SetMode(v *bypass.ModeConfig) {
 	x.xxx_hidden_Mode = v
 }
 
-func (x *TestResponse) SetReason(v string) {
-	x.xxx_hidden_Reason = &v
+func (x *TestResponse) SetAfterAddr(v string) {
+	x.xxx_hidden_AfterAddr = &v
 	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 3)
 }
 
-func (x *TestResponse) SetAfterAddr(v string) {
-	x.xxx_hidden_AfterAddr = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 3)
+func (x *TestResponse) SetMatchResult(v []*statistic.MatchHistoryEntry) {
+	x.xxx_hidden_MatchResult = &v
 }
 
 func (x *TestResponse) HasMode() bool {
@@ -156,40 +155,28 @@ func (x *TestResponse) HasMode() bool {
 	return x.xxx_hidden_Mode != nil
 }
 
-func (x *TestResponse) HasReason() bool {
+func (x *TestResponse) HasAfterAddr() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
 }
 
-func (x *TestResponse) HasAfterAddr() bool {
-	if x == nil {
-		return false
-	}
-	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
-}
-
 func (x *TestResponse) ClearMode() {
 	x.xxx_hidden_Mode = nil
 }
 
-func (x *TestResponse) ClearReason() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
-	x.xxx_hidden_Reason = nil
-}
-
 func (x *TestResponse) ClearAfterAddr() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
 	x.xxx_hidden_AfterAddr = nil
 }
 
 type TestResponse_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	Mode      *bypass.ModeConfig
-	Reason    *string
-	AfterAddr *string
+	Mode        *bypass.ModeConfig
+	AfterAddr   *string
+	MatchResult []*statistic.MatchHistoryEntry
 }
 
 func (b0 TestResponse_builder) Build() *TestResponse {
@@ -197,14 +184,11 @@ func (b0 TestResponse_builder) Build() *TestResponse {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_Mode = b.Mode
-	if b.Reason != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 3)
-		x.xxx_hidden_Reason = b.Reason
-	}
 	if b.AfterAddr != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 3)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 3)
 		x.xxx_hidden_AfterAddr = b.AfterAddr
 	}
+	x.xxx_hidden_MatchResult = &b.MatchResult
 	return m0
 }
 
@@ -1430,13 +1414,13 @@ var File_config_grpc_config_proto protoreflect.FileDescriptor
 
 const file_config_grpc_config_proto_rawDesc = "" +
 	"\n" +
-	"\x18config/grpc/config.proto\x12\x1dyuhaiin.protos.config.service\x1a\x13config/config.proto\x1a\x1aconfig/bypass/bypass.proto\x1a\x14config/dns/dns.proto\x1a\x1econfig/listener/listener.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1egoogle/protobuf/wrappers.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!google/protobuf/go_features.proto\"x\n" +
+	"\x18config/grpc/config.proto\x12\x1dyuhaiin.protos.config.service\x1a\x13config/config.proto\x1a\x1aconfig/bypass/bypass.proto\x1a\x14config/dns/dns.proto\x1a\x1econfig/listener/listener.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1egoogle/protobuf/wrappers.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!google/protobuf/go_features.proto\x1a\x16statistic/config.proto\"\xba\x01\n" +
 	"\rtest_response\x12/\n" +
-	"\x04mode\x18\x01 \x01(\v2\x1b.yuhaiin.bypass.mode_configR\x04mode\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x1e\n" +
+	"\x04mode\x18\x01 \x01(\v2\x1b.yuhaiin.bypass.mode_configR\x04mode\x12\x1e\n" +
 	"\n" +
 	"after_addr\x18\x03 \x01(\tR\n" +
-	"after_addr\"\xab\x01\n" +
+	"after_addr\x12J\n" +
+	"\fmatch_result\x18\x04 \x03(\v2&.yuhaiin.statistic.match_history_entryR\fmatch_resultJ\x04\b\x02\x10\x03R\x06reason\"\xab\x01\n" +
 	"\rblock_history\x12\x1a\n" +
 	"\bprotocol\x18\x01 \x01(\tR\bprotocol\x12\x12\n" +
 	"\x04host\x18\x02 \x01(\tR\x04host\x12.\n" +
@@ -1551,116 +1535,118 @@ var file_config_grpc_config_proto_goTypes = []any{
 	(*SaveResolver)(nil),                            // 12: yuhaiin.protos.config.service.save_resolver
 	(*Hosts)(nil),                                   // 13: yuhaiin.protos.config.service.Hosts
 	(*PlatformInfoResponsePlatformDarwin)(nil),      // 14: yuhaiin.protos.config.service.platform_info_response.platform_darwin
-	nil,                            // 15: yuhaiin.protos.config.service.Hosts.HostsEntry
-	(*bypass.ModeConfig)(nil),      // 16: yuhaiin.bypass.mode_config
-	(*timestamppb.Timestamp)(nil),  // 17: google.protobuf.Timestamp
-	(*bypass.Rulev2)(nil),          // 18: yuhaiin.bypass.rulev2
-	(*listener.Sniff)(nil),         // 19: yuhaiin.listener.sniff
-	(*dns.Dns)(nil),                // 20: yuhaiin.dns.dns
-	(*emptypb.Empty)(nil),          // 21: google.protobuf.Empty
-	(*config.Setting)(nil),         // 22: yuhaiin.config.setting
-	(*bypass.Config)(nil),          // 23: yuhaiin.bypass.config
-	(*wrapperspb.StringValue)(nil), // 24: google.protobuf.StringValue
-	(*bypass.List)(nil),            // 25: yuhaiin.bypass.list
-	(*bypass.Configv2)(nil),        // 26: yuhaiin.bypass.configv2
-	(*listener.Inbound)(nil),       // 27: yuhaiin.listener.inbound
-	(*dns.FakednsConfig)(nil),      // 28: yuhaiin.dns.fakedns_config
-	(*config.Info)(nil),            // 29: yuhaiin.config.info
+	nil,                                 // 15: yuhaiin.protos.config.service.Hosts.HostsEntry
+	(*bypass.ModeConfig)(nil),           // 16: yuhaiin.bypass.mode_config
+	(*statistic.MatchHistoryEntry)(nil), // 17: yuhaiin.statistic.match_history_entry
+	(*timestamppb.Timestamp)(nil),       // 18: google.protobuf.Timestamp
+	(*bypass.Rulev2)(nil),               // 19: yuhaiin.bypass.rulev2
+	(*listener.Sniff)(nil),              // 20: yuhaiin.listener.sniff
+	(*dns.Dns)(nil),                     // 21: yuhaiin.dns.dns
+	(*emptypb.Empty)(nil),               // 22: google.protobuf.Empty
+	(*config.Setting)(nil),              // 23: yuhaiin.config.setting
+	(*bypass.Config)(nil),               // 24: yuhaiin.bypass.config
+	(*wrapperspb.StringValue)(nil),      // 25: google.protobuf.StringValue
+	(*bypass.List)(nil),                 // 26: yuhaiin.bypass.list
+	(*bypass.Configv2)(nil),             // 27: yuhaiin.bypass.configv2
+	(*listener.Inbound)(nil),            // 28: yuhaiin.listener.inbound
+	(*dns.FakednsConfig)(nil),           // 29: yuhaiin.dns.fakedns_config
+	(*config.Info)(nil),                 // 30: yuhaiin.config.info
 }
 var file_config_grpc_config_proto_depIdxs = []int32{
 	16, // 0: yuhaiin.protos.config.service.test_response.mode:type_name -> yuhaiin.bypass.mode_config
-	17, // 1: yuhaiin.protos.config.service.block_history.time:type_name -> google.protobuf.Timestamp
-	2,  // 2: yuhaiin.protos.config.service.block_history_list.objects:type_name -> yuhaiin.protos.config.service.block_history
-	6,  // 3: yuhaiin.protos.config.service.rule_save_request.index:type_name -> yuhaiin.protos.config.service.rule_index
-	18, // 4: yuhaiin.protos.config.service.rule_save_request.rule:type_name -> yuhaiin.bypass.rulev2
-	6,  // 5: yuhaiin.protos.config.service.change_priority_request.source:type_name -> yuhaiin.protos.config.service.rule_index
-	6,  // 6: yuhaiin.protos.config.service.change_priority_request.target:type_name -> yuhaiin.protos.config.service.rule_index
-	0,  // 7: yuhaiin.protos.config.service.change_priority_request.operate:type_name -> yuhaiin.protos.config.service.change_priority_request.change_priority_operate
-	19, // 8: yuhaiin.protos.config.service.inbounds_response.sniff:type_name -> yuhaiin.listener.sniff
-	14, // 9: yuhaiin.protos.config.service.platform_info_response.darwin:type_name -> yuhaiin.protos.config.service.platform_info_response.platform_darwin
-	20, // 10: yuhaiin.protos.config.service.save_resolver.resolver:type_name -> yuhaiin.dns.dns
-	15, // 11: yuhaiin.protos.config.service.Hosts.hosts:type_name -> yuhaiin.protos.config.service.Hosts.HostsEntry
-	21, // 12: yuhaiin.protos.config.service.config_service.load:input_type -> google.protobuf.Empty
-	22, // 13: yuhaiin.protos.config.service.config_service.save:input_type -> yuhaiin.config.setting
-	21, // 14: yuhaiin.protos.config.service.config_service.info:input_type -> google.protobuf.Empty
-	21, // 15: yuhaiin.protos.config.service.bypass.load:input_type -> google.protobuf.Empty
-	23, // 16: yuhaiin.protos.config.service.bypass.save:input_type -> yuhaiin.bypass.config
-	21, // 17: yuhaiin.protos.config.service.bypass.reload:input_type -> google.protobuf.Empty
-	24, // 18: yuhaiin.protos.config.service.bypass.test:input_type -> google.protobuf.StringValue
-	21, // 19: yuhaiin.protos.config.service.bypass.block_history:input_type -> google.protobuf.Empty
-	21, // 20: yuhaiin.protos.config.service.lists.list:input_type -> google.protobuf.Empty
-	24, // 21: yuhaiin.protos.config.service.lists.get:input_type -> google.protobuf.StringValue
-	25, // 22: yuhaiin.protos.config.service.lists.save:input_type -> yuhaiin.bypass.list
-	24, // 23: yuhaiin.protos.config.service.lists.remove:input_type -> google.protobuf.StringValue
-	21, // 24: yuhaiin.protos.config.service.lists.refresh:input_type -> google.protobuf.Empty
-	21, // 25: yuhaiin.protos.config.service.rules.list:input_type -> google.protobuf.Empty
-	6,  // 26: yuhaiin.protos.config.service.rules.get:input_type -> yuhaiin.protos.config.service.rule_index
-	7,  // 27: yuhaiin.protos.config.service.rules.save:input_type -> yuhaiin.protos.config.service.rule_save_request
-	6,  // 28: yuhaiin.protos.config.service.rules.remove:input_type -> yuhaiin.protos.config.service.rule_index
-	8,  // 29: yuhaiin.protos.config.service.rules.change_priority:input_type -> yuhaiin.protos.config.service.change_priority_request
-	21, // 30: yuhaiin.protos.config.service.rules.config:input_type -> google.protobuf.Empty
-	26, // 31: yuhaiin.protos.config.service.rules.save_config:input_type -> yuhaiin.bypass.configv2
-	24, // 32: yuhaiin.protos.config.service.rules.test:input_type -> google.protobuf.StringValue
-	21, // 33: yuhaiin.protos.config.service.rules.block_history:input_type -> google.protobuf.Empty
-	21, // 34: yuhaiin.protos.config.service.inbound.list:input_type -> google.protobuf.Empty
-	24, // 35: yuhaiin.protos.config.service.inbound.get:input_type -> google.protobuf.StringValue
-	27, // 36: yuhaiin.protos.config.service.inbound.save:input_type -> yuhaiin.listener.inbound
-	24, // 37: yuhaiin.protos.config.service.inbound.remove:input_type -> google.protobuf.StringValue
-	9,  // 38: yuhaiin.protos.config.service.inbound.apply:input_type -> yuhaiin.protos.config.service.inbounds_response
-	21, // 39: yuhaiin.protos.config.service.inbound.platform_info:input_type -> google.protobuf.Empty
-	21, // 40: yuhaiin.protos.config.service.resolver.list:input_type -> google.protobuf.Empty
-	24, // 41: yuhaiin.protos.config.service.resolver.get:input_type -> google.protobuf.StringValue
-	12, // 42: yuhaiin.protos.config.service.resolver.save:input_type -> yuhaiin.protos.config.service.save_resolver
-	24, // 43: yuhaiin.protos.config.service.resolver.remove:input_type -> google.protobuf.StringValue
-	21, // 44: yuhaiin.protos.config.service.resolver.hosts:input_type -> google.protobuf.Empty
-	13, // 45: yuhaiin.protos.config.service.resolver.save_hosts:input_type -> yuhaiin.protos.config.service.Hosts
-	21, // 46: yuhaiin.protos.config.service.resolver.fakedns:input_type -> google.protobuf.Empty
-	28, // 47: yuhaiin.protos.config.service.resolver.save_fakedns:input_type -> yuhaiin.dns.fakedns_config
-	21, // 48: yuhaiin.protos.config.service.resolver.server:input_type -> google.protobuf.Empty
-	24, // 49: yuhaiin.protos.config.service.resolver.save_server:input_type -> google.protobuf.StringValue
-	22, // 50: yuhaiin.protos.config.service.config_service.load:output_type -> yuhaiin.config.setting
-	21, // 51: yuhaiin.protos.config.service.config_service.save:output_type -> google.protobuf.Empty
-	29, // 52: yuhaiin.protos.config.service.config_service.info:output_type -> yuhaiin.config.info
-	23, // 53: yuhaiin.protos.config.service.bypass.load:output_type -> yuhaiin.bypass.config
-	21, // 54: yuhaiin.protos.config.service.bypass.save:output_type -> google.protobuf.Empty
-	21, // 55: yuhaiin.protos.config.service.bypass.reload:output_type -> google.protobuf.Empty
-	1,  // 56: yuhaiin.protos.config.service.bypass.test:output_type -> yuhaiin.protos.config.service.test_response
-	3,  // 57: yuhaiin.protos.config.service.bypass.block_history:output_type -> yuhaiin.protos.config.service.block_history_list
-	4,  // 58: yuhaiin.protos.config.service.lists.list:output_type -> yuhaiin.protos.config.service.list_response
-	25, // 59: yuhaiin.protos.config.service.lists.get:output_type -> yuhaiin.bypass.list
-	21, // 60: yuhaiin.protos.config.service.lists.save:output_type -> google.protobuf.Empty
-	21, // 61: yuhaiin.protos.config.service.lists.remove:output_type -> google.protobuf.Empty
-	21, // 62: yuhaiin.protos.config.service.lists.refresh:output_type -> google.protobuf.Empty
-	5,  // 63: yuhaiin.protos.config.service.rules.list:output_type -> yuhaiin.protos.config.service.rule_response
-	18, // 64: yuhaiin.protos.config.service.rules.get:output_type -> yuhaiin.bypass.rulev2
-	21, // 65: yuhaiin.protos.config.service.rules.save:output_type -> google.protobuf.Empty
-	21, // 66: yuhaiin.protos.config.service.rules.remove:output_type -> google.protobuf.Empty
-	21, // 67: yuhaiin.protos.config.service.rules.change_priority:output_type -> google.protobuf.Empty
-	26, // 68: yuhaiin.protos.config.service.rules.config:output_type -> yuhaiin.bypass.configv2
-	21, // 69: yuhaiin.protos.config.service.rules.save_config:output_type -> google.protobuf.Empty
-	1,  // 70: yuhaiin.protos.config.service.rules.test:output_type -> yuhaiin.protos.config.service.test_response
-	3,  // 71: yuhaiin.protos.config.service.rules.block_history:output_type -> yuhaiin.protos.config.service.block_history_list
-	9,  // 72: yuhaiin.protos.config.service.inbound.list:output_type -> yuhaiin.protos.config.service.inbounds_response
-	27, // 73: yuhaiin.protos.config.service.inbound.get:output_type -> yuhaiin.listener.inbound
-	27, // 74: yuhaiin.protos.config.service.inbound.save:output_type -> yuhaiin.listener.inbound
-	21, // 75: yuhaiin.protos.config.service.inbound.remove:output_type -> google.protobuf.Empty
-	21, // 76: yuhaiin.protos.config.service.inbound.apply:output_type -> google.protobuf.Empty
-	10, // 77: yuhaiin.protos.config.service.inbound.platform_info:output_type -> yuhaiin.protos.config.service.platform_info_response
-	11, // 78: yuhaiin.protos.config.service.resolver.list:output_type -> yuhaiin.protos.config.service.resolve_list
-	20, // 79: yuhaiin.protos.config.service.resolver.get:output_type -> yuhaiin.dns.dns
-	20, // 80: yuhaiin.protos.config.service.resolver.save:output_type -> yuhaiin.dns.dns
-	21, // 81: yuhaiin.protos.config.service.resolver.remove:output_type -> google.protobuf.Empty
-	13, // 82: yuhaiin.protos.config.service.resolver.hosts:output_type -> yuhaiin.protos.config.service.Hosts
-	21, // 83: yuhaiin.protos.config.service.resolver.save_hosts:output_type -> google.protobuf.Empty
-	28, // 84: yuhaiin.protos.config.service.resolver.fakedns:output_type -> yuhaiin.dns.fakedns_config
-	21, // 85: yuhaiin.protos.config.service.resolver.save_fakedns:output_type -> google.protobuf.Empty
-	24, // 86: yuhaiin.protos.config.service.resolver.server:output_type -> google.protobuf.StringValue
-	21, // 87: yuhaiin.protos.config.service.resolver.save_server:output_type -> google.protobuf.Empty
-	50, // [50:88] is the sub-list for method output_type
-	12, // [12:50] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	17, // 1: yuhaiin.protos.config.service.test_response.match_result:type_name -> yuhaiin.statistic.match_history_entry
+	18, // 2: yuhaiin.protos.config.service.block_history.time:type_name -> google.protobuf.Timestamp
+	2,  // 3: yuhaiin.protos.config.service.block_history_list.objects:type_name -> yuhaiin.protos.config.service.block_history
+	6,  // 4: yuhaiin.protos.config.service.rule_save_request.index:type_name -> yuhaiin.protos.config.service.rule_index
+	19, // 5: yuhaiin.protos.config.service.rule_save_request.rule:type_name -> yuhaiin.bypass.rulev2
+	6,  // 6: yuhaiin.protos.config.service.change_priority_request.source:type_name -> yuhaiin.protos.config.service.rule_index
+	6,  // 7: yuhaiin.protos.config.service.change_priority_request.target:type_name -> yuhaiin.protos.config.service.rule_index
+	0,  // 8: yuhaiin.protos.config.service.change_priority_request.operate:type_name -> yuhaiin.protos.config.service.change_priority_request.change_priority_operate
+	20, // 9: yuhaiin.protos.config.service.inbounds_response.sniff:type_name -> yuhaiin.listener.sniff
+	14, // 10: yuhaiin.protos.config.service.platform_info_response.darwin:type_name -> yuhaiin.protos.config.service.platform_info_response.platform_darwin
+	21, // 11: yuhaiin.protos.config.service.save_resolver.resolver:type_name -> yuhaiin.dns.dns
+	15, // 12: yuhaiin.protos.config.service.Hosts.hosts:type_name -> yuhaiin.protos.config.service.Hosts.HostsEntry
+	22, // 13: yuhaiin.protos.config.service.config_service.load:input_type -> google.protobuf.Empty
+	23, // 14: yuhaiin.protos.config.service.config_service.save:input_type -> yuhaiin.config.setting
+	22, // 15: yuhaiin.protos.config.service.config_service.info:input_type -> google.protobuf.Empty
+	22, // 16: yuhaiin.protos.config.service.bypass.load:input_type -> google.protobuf.Empty
+	24, // 17: yuhaiin.protos.config.service.bypass.save:input_type -> yuhaiin.bypass.config
+	22, // 18: yuhaiin.protos.config.service.bypass.reload:input_type -> google.protobuf.Empty
+	25, // 19: yuhaiin.protos.config.service.bypass.test:input_type -> google.protobuf.StringValue
+	22, // 20: yuhaiin.protos.config.service.bypass.block_history:input_type -> google.protobuf.Empty
+	22, // 21: yuhaiin.protos.config.service.lists.list:input_type -> google.protobuf.Empty
+	25, // 22: yuhaiin.protos.config.service.lists.get:input_type -> google.protobuf.StringValue
+	26, // 23: yuhaiin.protos.config.service.lists.save:input_type -> yuhaiin.bypass.list
+	25, // 24: yuhaiin.protos.config.service.lists.remove:input_type -> google.protobuf.StringValue
+	22, // 25: yuhaiin.protos.config.service.lists.refresh:input_type -> google.protobuf.Empty
+	22, // 26: yuhaiin.protos.config.service.rules.list:input_type -> google.protobuf.Empty
+	6,  // 27: yuhaiin.protos.config.service.rules.get:input_type -> yuhaiin.protos.config.service.rule_index
+	7,  // 28: yuhaiin.protos.config.service.rules.save:input_type -> yuhaiin.protos.config.service.rule_save_request
+	6,  // 29: yuhaiin.protos.config.service.rules.remove:input_type -> yuhaiin.protos.config.service.rule_index
+	8,  // 30: yuhaiin.protos.config.service.rules.change_priority:input_type -> yuhaiin.protos.config.service.change_priority_request
+	22, // 31: yuhaiin.protos.config.service.rules.config:input_type -> google.protobuf.Empty
+	27, // 32: yuhaiin.protos.config.service.rules.save_config:input_type -> yuhaiin.bypass.configv2
+	25, // 33: yuhaiin.protos.config.service.rules.test:input_type -> google.protobuf.StringValue
+	22, // 34: yuhaiin.protos.config.service.rules.block_history:input_type -> google.protobuf.Empty
+	22, // 35: yuhaiin.protos.config.service.inbound.list:input_type -> google.protobuf.Empty
+	25, // 36: yuhaiin.protos.config.service.inbound.get:input_type -> google.protobuf.StringValue
+	28, // 37: yuhaiin.protos.config.service.inbound.save:input_type -> yuhaiin.listener.inbound
+	25, // 38: yuhaiin.protos.config.service.inbound.remove:input_type -> google.protobuf.StringValue
+	9,  // 39: yuhaiin.protos.config.service.inbound.apply:input_type -> yuhaiin.protos.config.service.inbounds_response
+	22, // 40: yuhaiin.protos.config.service.inbound.platform_info:input_type -> google.protobuf.Empty
+	22, // 41: yuhaiin.protos.config.service.resolver.list:input_type -> google.protobuf.Empty
+	25, // 42: yuhaiin.protos.config.service.resolver.get:input_type -> google.protobuf.StringValue
+	12, // 43: yuhaiin.protos.config.service.resolver.save:input_type -> yuhaiin.protos.config.service.save_resolver
+	25, // 44: yuhaiin.protos.config.service.resolver.remove:input_type -> google.protobuf.StringValue
+	22, // 45: yuhaiin.protos.config.service.resolver.hosts:input_type -> google.protobuf.Empty
+	13, // 46: yuhaiin.protos.config.service.resolver.save_hosts:input_type -> yuhaiin.protos.config.service.Hosts
+	22, // 47: yuhaiin.protos.config.service.resolver.fakedns:input_type -> google.protobuf.Empty
+	29, // 48: yuhaiin.protos.config.service.resolver.save_fakedns:input_type -> yuhaiin.dns.fakedns_config
+	22, // 49: yuhaiin.protos.config.service.resolver.server:input_type -> google.protobuf.Empty
+	25, // 50: yuhaiin.protos.config.service.resolver.save_server:input_type -> google.protobuf.StringValue
+	23, // 51: yuhaiin.protos.config.service.config_service.load:output_type -> yuhaiin.config.setting
+	22, // 52: yuhaiin.protos.config.service.config_service.save:output_type -> google.protobuf.Empty
+	30, // 53: yuhaiin.protos.config.service.config_service.info:output_type -> yuhaiin.config.info
+	24, // 54: yuhaiin.protos.config.service.bypass.load:output_type -> yuhaiin.bypass.config
+	22, // 55: yuhaiin.protos.config.service.bypass.save:output_type -> google.protobuf.Empty
+	22, // 56: yuhaiin.protos.config.service.bypass.reload:output_type -> google.protobuf.Empty
+	1,  // 57: yuhaiin.protos.config.service.bypass.test:output_type -> yuhaiin.protos.config.service.test_response
+	3,  // 58: yuhaiin.protos.config.service.bypass.block_history:output_type -> yuhaiin.protos.config.service.block_history_list
+	4,  // 59: yuhaiin.protos.config.service.lists.list:output_type -> yuhaiin.protos.config.service.list_response
+	26, // 60: yuhaiin.protos.config.service.lists.get:output_type -> yuhaiin.bypass.list
+	22, // 61: yuhaiin.protos.config.service.lists.save:output_type -> google.protobuf.Empty
+	22, // 62: yuhaiin.protos.config.service.lists.remove:output_type -> google.protobuf.Empty
+	22, // 63: yuhaiin.protos.config.service.lists.refresh:output_type -> google.protobuf.Empty
+	5,  // 64: yuhaiin.protos.config.service.rules.list:output_type -> yuhaiin.protos.config.service.rule_response
+	19, // 65: yuhaiin.protos.config.service.rules.get:output_type -> yuhaiin.bypass.rulev2
+	22, // 66: yuhaiin.protos.config.service.rules.save:output_type -> google.protobuf.Empty
+	22, // 67: yuhaiin.protos.config.service.rules.remove:output_type -> google.protobuf.Empty
+	22, // 68: yuhaiin.protos.config.service.rules.change_priority:output_type -> google.protobuf.Empty
+	27, // 69: yuhaiin.protos.config.service.rules.config:output_type -> yuhaiin.bypass.configv2
+	22, // 70: yuhaiin.protos.config.service.rules.save_config:output_type -> google.protobuf.Empty
+	1,  // 71: yuhaiin.protos.config.service.rules.test:output_type -> yuhaiin.protos.config.service.test_response
+	3,  // 72: yuhaiin.protos.config.service.rules.block_history:output_type -> yuhaiin.protos.config.service.block_history_list
+	9,  // 73: yuhaiin.protos.config.service.inbound.list:output_type -> yuhaiin.protos.config.service.inbounds_response
+	28, // 74: yuhaiin.protos.config.service.inbound.get:output_type -> yuhaiin.listener.inbound
+	28, // 75: yuhaiin.protos.config.service.inbound.save:output_type -> yuhaiin.listener.inbound
+	22, // 76: yuhaiin.protos.config.service.inbound.remove:output_type -> google.protobuf.Empty
+	22, // 77: yuhaiin.protos.config.service.inbound.apply:output_type -> google.protobuf.Empty
+	10, // 78: yuhaiin.protos.config.service.inbound.platform_info:output_type -> yuhaiin.protos.config.service.platform_info_response
+	11, // 79: yuhaiin.protos.config.service.resolver.list:output_type -> yuhaiin.protos.config.service.resolve_list
+	21, // 80: yuhaiin.protos.config.service.resolver.get:output_type -> yuhaiin.dns.dns
+	21, // 81: yuhaiin.protos.config.service.resolver.save:output_type -> yuhaiin.dns.dns
+	22, // 82: yuhaiin.protos.config.service.resolver.remove:output_type -> google.protobuf.Empty
+	13, // 83: yuhaiin.protos.config.service.resolver.hosts:output_type -> yuhaiin.protos.config.service.Hosts
+	22, // 84: yuhaiin.protos.config.service.resolver.save_hosts:output_type -> google.protobuf.Empty
+	29, // 85: yuhaiin.protos.config.service.resolver.fakedns:output_type -> yuhaiin.dns.fakedns_config
+	22, // 86: yuhaiin.protos.config.service.resolver.save_fakedns:output_type -> google.protobuf.Empty
+	25, // 87: yuhaiin.protos.config.service.resolver.server:output_type -> google.protobuf.StringValue
+	22, // 88: yuhaiin.protos.config.service.resolver.save_server:output_type -> google.protobuf.Empty
+	51, // [51:89] is the sub-list for method output_type
+	13, // [13:51] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_config_grpc_config_proto_init() }

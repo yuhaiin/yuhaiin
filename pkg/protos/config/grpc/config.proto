@@ -10,6 +10,7 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/go_features.proto";
+import "statistic/config.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/service";
 option features.(pb.go).api_level = API_OPAQUE;
@@ -21,9 +22,12 @@ service config_service {
 }
 
 message test_response {
+  reserved 2;
+  reserved reason;
   yuhaiin.bypass.mode_config mode = 1 [ json_name = "mode" ];
-  string reason = 2 [ json_name = "reason" ];
   string after_addr = 3 [ json_name = "after_addr" ];
+  repeated yuhaiin.statistic.match_history_entry match_result = 4
+      [ json_name = "match_result" ];
 }
 
 message block_history {

@@ -9,7 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -24,7 +24,7 @@ func Dial(host, port, user, password string) netapi.Proxy {
 	if err != nil {
 		return netapi.NewErrProxy(err)
 	}
-	simple, err := simple.NewClient(protocol.Simple_builder{
+	simple, err := fixed.NewClient(protocol.Fixed_builder{
 		Host: proto.String(addr.Hostname()),
 		Port: proto.Int32(int32(addr.Port())),
 	}.Build(), nil)
@@ -204,7 +204,7 @@ func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		return nil, fmt.Errorf("second hand failed: %w", err)
 	}
 
-	ctx = context.WithValue(ctx, simple.PacketDirectKey{}, true)
+	ctx = context.WithValue(ctx, fixed.PacketDirectKey{}, true)
 
 	if !addr.IsFqdn() {
 		ip := addr.(netapi.IPAddress).AddrPort().Addr()

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
@@ -143,11 +142,6 @@ func (t *TCP) Accept() (*Conn, error) {
 	case <-t.ctx.Done():
 		return nil, net.ErrClosed
 	case c := <-t.connChan:
-		if err := c.TCPConn.SetKeepAliveConfig(dialer.KeepAliveConfig); err != nil {
-			log.Warn("set keep alive failed", "err", err)
-		}
-		_ = c.TCPConn.SetWriteBuffer(t.mtu * 2)
-		_ = c.TCPConn.SetReadBuffer(t.mtu * 2)
 		return c, nil
 	}
 }

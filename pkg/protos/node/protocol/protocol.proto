@@ -15,7 +15,10 @@ message protocol {
     quic quic = 5 [ json_name = "quic" ];
     obfs_http obfs_http = 6 [ json_name = "obfs_http" ];
     trojan trojan = 7 [ json_name = "trojan" ];
-    simple simple = 8 [ json_name = "simple" ];
+    // Simple
+    //
+    // Deprecated: use [Fixed] instead
+    simple simple = 8 [ json_name = "simple",deprecated = true ];
     none none = 9 [ json_name = "none" ];
     socks5 socks5 = 10 [ json_name = "socks5" ];
     http http = 11 [ json_name = "http" ];
@@ -40,6 +43,7 @@ message protocol {
     http_termination http_termination = 27 [ json_name = "http_termination" ];
     http_mock http_mock = 28 [ json_name = "http_mock" ];
     aead aead = 29 [ json_name = "aead" ];
+    fixed fixed = 30 [ json_name = "fixed" ];
   }
 }
 
@@ -133,6 +137,13 @@ message simple {
   int32 port = 2 [ json_name = "port" ];
   repeated host alternate_host = 5 [ json_name = "alternate_host" ];
   string network_interface = 7 [ json_name = "network_interface" ];
+}
+
+message fixed {
+  string host = 1 [ json_name = "host" ];
+  int32 port = 2 [ json_name = "port" ];
+  repeated host alternate_host = 3 [ json_name = "alternate_host" ];
+  string network_interface = 4 [ json_name = "network_interface" ];
 }
 
 message tls_config {

@@ -27,7 +27,7 @@ func ifOr[T any](a bool, b, c T) T {
 }
 
 func fakeDB(opt *Opts, path string) pc.DB {
-	store := GetStore("Default").(*storeImpl)
+	store := GetStore()
 
 	var listenHost string = "127.0.0.1"
 	if store.GetBoolean(AllowLanKey) {

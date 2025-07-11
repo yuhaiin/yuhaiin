@@ -42,7 +42,7 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
 		notifyChan: make(chan struct{}, 1),
 	}
 
-	d.reqBuffer.Init(20)
+	d.reqBuffer.Init(200)
 
 	for range configuration.DNSProcessThread.Load() {
 		go d.startHandleReqData()

@@ -129,7 +129,7 @@ func NewHTTPServer(o *listener.ReverseHttp, ii netapi.Listener, handler netapi.H
 				Address:     address,
 			}
 
-			handler.HandleStream(sm)
+			go handler.HandleStream(sm)
 			return remote, nil
 		},
 

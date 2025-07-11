@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"net"
-	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	"github.com/go-json-experiment/json"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
 type SkipRouteKey struct{}
@@ -94,8 +93,7 @@ type Context struct {
 	Hash     string `metrics:"Hash"`
 	NodeName string `metrics:"NodeName"`
 
-	ModeReason string        `metrics:"MODE Reason"`
-	ruleChain  *MatchHistory `metrics:"Rule Chain"`
+	ruleChain *MatchHistory `metrics:"Rule Chain"`
 
 	Resolver ContextResolver `metrics:"-"`
 
@@ -122,11 +120,12 @@ func (c *Context) AddMatchHistory(listName string, matched bool) {
 	c.ruleChain.Add(listName, matched)
 }
 
-func (c *Context) MatchHistory() string {
+func (c *Context) MatchHistory() []*statistic.MatchHistoryEntry {
 	if c.ruleChain == nil {
-		return ""
+		return nil
 	}
-	return c.ruleChain.String()
+
+	return c.ruleChain.chains
 }
 
 func (c *Context) setAddrInfo(f func(*AddrInfo)) {
@@ -487,22 +486,14 @@ func (e *DialError) Error() string {
 	return s
 }
 
-type MatchResult struct {
-	ListName string `json:"list_name"`
-	Matched  bool   `json:"matched"`
-}
-type MatchHistoryEntry struct {
-	RuleName string        `json:"rule_name"`
-	History  []MatchResult `json:"history"`
-}
 type MatchHistory struct {
-	chains []*MatchHistoryEntry
+	chains []*statistic.MatchHistoryEntry
 }
 
 func (r *MatchHistory) New(name string) {
-	r.chains = append(r.chains, &MatchHistoryEntry{
-		RuleName: name,
-	})
+	r.chains = append(r.chains, statistic.MatchHistoryEntry_builder{
+		RuleName: &name,
+	}.Build())
 }
 
 func (r *MatchHistory) Add(listName string, matched bool) {
@@ -510,14 +501,9 @@ func (r *MatchHistory) Add(listName string, matched bool) {
 		return
 	}
 
-	r.chains[len(r.chains)-1].History = append(r.chains[len(r.chains)-1].History, MatchResult{
-		ListName: listName,
-		Matched:  matched,
-	})
-}
-
-func (r *MatchHistory) String() string {
-	result := &strings.Builder{}
-	_ = json.MarshalWrite(result, r.chains)
-	return result.String()
+	history := r.chains[len(r.chains)-1].GetHistory()
+	r.chains[len(r.chains)-1].SetHistory(append(history, statistic.MatchResult_builder{
+		ListName: &listName,
+		Matched:  &matched,
+	}.Build()))
 }

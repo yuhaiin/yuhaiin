@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -46,7 +46,7 @@ func TestServer(t *testing.T) {
 		port, err := strconv.ParseUint(portstr, 10, 16)
 		assert.NoError(t, err)
 
-		s, err := simple.NewClient(protocol.Simple_builder{
+		s, err := fixed.NewClient(protocol.Fixed_builder{
 			Host: proto.String(host),
 			Port: proto.Int32(int32(port)),
 		}.Build(), nil)
@@ -98,7 +98,7 @@ func TestServer(t *testing.T) {
 			port, err := strconv.ParseUint(portstr, 10, 16)
 			assert.NoError(t, err)
 
-			s, err := simple.NewClient(protocol.Simple_builder{
+			s, err := fixed.NewClient(protocol.Fixed_builder{
 				Host: proto.String(host),
 				Port: proto.Int32(int32(port)),
 			}.Build(), nil)
@@ -149,7 +149,7 @@ func TestServer(t *testing.T) {
 		port, err := strconv.ParseUint(portstr, 10, 16)
 		assert.NoError(t, err)
 
-		s, err := simple.NewClient(protocol.Simple_builder{
+		s, err := fixed.NewClient(protocol.Fixed_builder{
 			Host: proto.String(host),
 			Port: proto.Int32(int32(port)),
 		}.Build(), nil)

@@ -156,9 +156,8 @@ func (s *Route) skipResolve(mode bypass.ModeEnum) bool {
 }
 
 type routeResult struct {
-	Addr   netapi.Address
-	Reason string
-	Mode   bypass.ModeEnum
+	Addr netapi.Address
+	Mode bypass.ModeEnum
 }
 
 type Object struct {
@@ -254,7 +253,6 @@ func (s *Route) dispatch(store *netapi.Context, host netapi.Address) routeResult
 	store.Resolver.SkipResolve = s.skipResolve(mode)
 	store.Mode = mode.Mode()
 	store.Resolver.Resolver = s.r.Get(mode.Resolver(), s.getResolverFallback(mode))
-	store.ModeReason = store.MatchHistory()
 
 	if s.config.Load().GetResolveLocally() && host.IsFqdn() && mode.Mode() == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
@@ -268,7 +266,7 @@ func (s *Route) dispatch(store *netapi.Context, host netapi.Address) routeResult
 		}
 	}
 
-	return routeResult{host, store.ModeReason, mode}
+	return routeResult{host, mode}
 }
 
 func (s *Route) getResolverFallback(mode bypass.ModeEnum) string {

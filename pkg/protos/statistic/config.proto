@@ -35,8 +35,8 @@ message net_type {
 }
 
 message connection {
-  reserved 4;
-  reserved extra;
+  reserved 4, 23;
+  reserved extra, mode_reason;
   string addr = 1 [ json_name = "addr" ];
   uint64 id = 2 [ json_name = "id" ];
   net_type type = 3 [ json_name = "type" ];
@@ -62,5 +62,16 @@ message connection {
   string component = 20 [ json_name = "component" ];
   uint64 udp_migrate_id = 21 [ json_name = "udp_migrate_id" ];
   yuhaiin.bypass.mode mode = 22 [ json_name = "mode" ];
-  string mode_reason = 23 [ json_name = "mode_reason" ];
+  repeated match_history_entry match_history = 28
+      [ json_name = "match_history" ];
+}
+
+message match_result {
+  string list_name = 1 [ json_name = "list_name" ];
+  bool matched = 2 [ json_name = "matched" ];
+}
+
+message match_history_entry {
+  string rule_name = 1 [ json_name = "rule_name" ];
+  repeated match_result history = 2 [ json_name = "history" ];
 }

@@ -11,7 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
@@ -52,7 +52,7 @@ func TestConn(t *testing.T) {
 		port, err := strconv.ParseUint(portstr, 10, 16)
 		assert.NoError(t, err)
 
-		p, err := simple.NewClient(protocol.Simple_builder{
+		p, err := fixed.NewClient(protocol.Fixed_builder{
 			Host: proto.String(host),
 			Port: proto.Int32(int32(port)),
 		}.Build(), nil)
@@ -132,7 +132,7 @@ func TestConn(t *testing.T) {
 			port, err := strconv.ParseUint(portstr, 10, 16)
 			assert.NoError(t, err)
 
-			p, err := simple.NewClient(protocol.Simple_builder{
+			p, err := fixed.NewClient(protocol.Fixed_builder{
 				Host: proto.String(host),
 				Port: proto.Int32(int32(port)),
 			}.Build(), nil)
@@ -186,7 +186,7 @@ func TestConn(t *testing.T) {
 			port, err := strconv.ParseUint(portstr, 10, 16)
 			assert.NoError(t, err)
 
-			p, err := simple.NewClient(protocol.Simple_builder{
+			p, err := fixed.NewClient(protocol.Fixed_builder{
 				Host: proto.String(host),
 				Port: proto.Int32(int32(port)),
 			}.Build(), nil)
@@ -236,7 +236,7 @@ func TestClient(t *testing.T) {
 		}
 	}()
 
-	p, err := simple.NewClient(protocol.Simple_builder{
+	p, err := fixed.NewClient(protocol.Fixed_builder{
 		Host: proto.String("127.0.0.1"),
 		Port: proto.Int32(8082),
 	}.Build(), nil)

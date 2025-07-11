@@ -211,7 +211,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		HttpHost:      stringOrNil(store.GetHTTPHost()),
 		Component:     stringOrNil(store.GetComponent()),
 		Mode:          store.Mode.Enum(),
-		ModeReason:    stringOrNil(store.ModeReason),
+		MatchHistory:  store.MatchHistory(),
 		UdpMigrateId:  uint64OrNil(store.GetUDPMigrateID()),
 		Pid:           uint64OrNil(uint64(store.GetProcessPid())),
 		Uid:           uint64OrNil(uint64(store.GetProcessUid())),

@@ -44,8 +44,9 @@ func (l *SyncLru[K, V]) Delete(key K) {
 
 func (l *SyncLru[K, V]) LoadRefreshExpire(key K) (v V, ok bool) {
 	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.lru.LoadRefreshExpire(key)
+	v, ok = l.lru.LoadRefreshExpire(key)
+	l.mu.Unlock()
+	return
 }
 
 func (l *SyncLru[K, V]) Load(key K) (v V, ok bool) {

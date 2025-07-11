@@ -15,20 +15,20 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
-type authPacketConn struct {
+type AuthPacketConn struct {
 	net.PacketConn
-	password   []byte
-	realTarget net.Addr
 
-	onClose func() error
-	prefix  bool
+	password []byte
+	rawAddr  net.Addr
+	onClose  func() error
+	prefix   bool
 }
 
-func NewAuthPacketConn(local net.PacketConn) *authPacketConn {
-	return &authPacketConn{PacketConn: local}
+func NewAuthPacketConn(local net.PacketConn) *AuthPacketConn {
+	return &AuthPacketConn{PacketConn: local}
 }
 
-func (s *authPacketConn) Close() error {
+func (s *AuthPacketConn) Close() error {
 	var err error
 	if s.onClose != nil {
 		if er := s.onClose(); er != nil {
@@ -41,49 +41,54 @@ func (s *authPacketConn) Close() error {
 	return err
 }
 
-func (s *authPacketConn) WithOnClose(close func() error) *authPacketConn {
+func (s *AuthPacketConn) WithOnClose(close func() error) *AuthPacketConn {
 	s.onClose = close
 	return s
 }
 
-func (s *authPacketConn) WithRealTarget(target net.Addr) *authPacketConn {
-	s.realTarget = target
+func (s *AuthPacketConn) WithRealTarget(target net.Addr) *AuthPacketConn {
+	s.rawAddr = target
 	return s
 }
 
-func (s *authPacketConn) WithPassword(password []byte) *authPacketConn {
+func (s *AuthPacketConn) WithPassword(password []byte) *AuthPacketConn {
 	s.password = password
 	return s
 }
 
 // Socks5 Prefix , append 0x0, 0x0, 0x0 to packet
-func (s *authPacketConn) WithSocks5Prefix(b bool) *authPacketConn {
+func (s *AuthPacketConn) WithSocks5Prefix(b bool) *AuthPacketConn {
 	s.prefix = b
 	return s
 }
 
-func (s *authPacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
-	return s.writeTo(p, addr, s.realTarget)
+func (s *AuthPacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
+	return s.write(p, packetAddr{addr, s.rawAddr})
 }
 
-func (s *authPacketConn) writeTo(p []byte, addr net.Addr, underlyingAddr net.Addr) (_ int, err error) {
+type packetAddr struct {
+	ProxyAddr net.Addr
+	RawAddr   net.Addr
+}
+
+func (s *AuthPacketConn) write(p []byte, addr packetAddr) (_ int, err error) {
 	if len(p) > nat.MaxSegmentSize-AuthHeaderSize(s.password, s.prefix) {
 		return 0, fmt.Errorf("packet too large: %d > %d", len(p), nat.MaxSegmentSize)
 	}
 
-	if underlyingAddr == nil {
-		underlyingAddr = addr
+	if addr.RawAddr == nil {
+		addr.RawAddr = addr.ProxyAddr
 	}
 
 	buf := pool.NewBufferSize(len(p) + AuthHeaderSize(s.password, s.prefix))
 	defer buf.Reset()
 
-	err = EncodePacket(buf, addr, p, s.password, s.prefix)
+	err = EncodePacket(buf, addr.ProxyAddr, p, s.password, s.prefix)
 	if err != nil {
 		return 0, fmt.Errorf("encode packet failed: %w", err)
 	}
 
-	_, err = s.PacketConn.WriteTo(buf.Bytes(), underlyingAddr)
+	_, err = s.PacketConn.WriteTo(buf.Bytes(), addr.RawAddr)
 	if err != nil {
 		return 0, fmt.Errorf("write to remote failed: %w", err)
 	}
@@ -91,25 +96,25 @@ func (s *authPacketConn) writeTo(p []byte, addr net.Addr, underlyingAddr net.Add
 	return len(p), nil
 }
 
-func (s *authPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
-	n, addr, _, err := s.readFrom(p)
-	return n, addr, err
+func (s *AuthPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
+	n, addr, err := s.read(p)
+	return n, addr.ProxyAddr, err
 }
 
 var errNet = errors.New("network error")
 
-func (s *authPacketConn) readFrom(p []byte) (int, netapi.Address, net.Addr, error) {
+func (s *AuthPacketConn) read(p []byte) (int, packetAddr, error) {
 	n, rawAddr, err := s.PacketConn.ReadFrom(p)
 	if err != nil {
-		return 0, nil, nil, fmt.Errorf("%w read from remote failed: %w", errNet, err)
+		return 0, packetAddr{}, fmt.Errorf("%w read from remote failed: %w", errNet, err)
 	}
 
 	buf, addr, err := DecodePacket(p[:n], s.password, s.prefix)
 	if err != nil {
-		return 0, nil, nil, fmt.Errorf("decode packet failed: %w", err)
+		return 0, packetAddr{}, fmt.Errorf("decode packet failed: %w", err)
 	}
 
-	return copy(p[0:], buf), addr, rawAddr, nil
+	return copy(p[0:], buf), packetAddr{addr, rawAddr}, nil
 }
 
 type UDPServer struct {
@@ -126,7 +131,7 @@ func (s *UDPServer) Serve() error {
 	defer pool.PutBytes(buf)
 
 	for {
-		n, dst, src, err := p.readFrom(buf)
+		n, addr, err := p.read(buf)
 		if err != nil {
 			if errors.Is(err, errNet) {
 				return err
@@ -136,9 +141,15 @@ func (s *UDPServer) Serve() error {
 			continue
 		}
 
-		s.Handler(netapi.NewPacket(src, dst, pool.Clone(buf[:n]),
+		proxyAddr, err := netapi.ParseSysAddr(addr.ProxyAddr)
+		if err != nil {
+			log.Warn("parse proxy addr failed", "err", err)
+			continue
+		}
+
+		s.Handler(netapi.NewPacket(addr.RawAddr, proxyAddr, pool.Clone(buf[:n]),
 			netapi.WriteBackFunc(func(b []byte, source net.Addr) (int, error) {
-				return p.writeTo(b, source, src)
+				return p.write(b, packetAddr{source, addr.RawAddr})
 			})))
 	}
 }
@@ -202,15 +213,9 @@ func DecodePacket(r []byte, password []byte, prefix bool) ([]byte, netapi.Addres
 }
 
 func AuthHeaderSize(password []byte, prefix bool) int {
-	var a int
-
-	if len(password) > 0 {
-		a = len(password)
-	}
-
 	if prefix {
-		a += 3
+		return len(password) + 3
+	} else {
+		return len(password)
 	}
-
-	return a
 }

@@ -63,27 +63,25 @@ func (l *Inbound) shouldHijackDNS(port uint16) bool {
 }
 
 func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
-	go func() {
-		if !meta.DnsRequest && !l.shouldHijackDNS(meta.Address.Port()) {
-			store := netapi.WithContext(l.ctx)
-			store.Source = meta.Source
-			store.Destination = meta.Destination
-			if meta.Inbound != nil {
-				store.SetInbound(meta.Inbound)
-			}
-			store.SetInboundName(meta.InboundName)
-			l.handler.Stream(store, meta)
-			return
+	if !meta.DnsRequest && !l.shouldHijackDNS(meta.Address.Port()) {
+		store := netapi.WithContext(l.ctx)
+		store.Source = meta.Source
+		store.Destination = meta.Destination
+		if meta.Inbound != nil {
+			store.SetInbound(meta.Inbound)
 		}
+		store.SetInboundName(meta.InboundName)
+		l.handler.Stream(store, meta)
+		return
+	}
 
-		err := l.handler.dnsHandler.DoStream(l.ctx, &netapi.DNSStreamRequest{
-			Conn:        meta.Src,
-			ForceFakeIP: l.fakeip.Load(),
-		})
-		if err != nil {
-			log.Select(netapi.LogLevel(err)).Print("tcp server handle DnsHijacking", "msg", err)
-		}
-	}()
+	err := l.handler.dnsHandler.DoStream(l.ctx, &netapi.DNSStreamRequest{
+		Conn:        meta.Src,
+		ForceFakeIP: l.fakeip.Load(),
+	})
+	if err != nil {
+		log.Select(netapi.LogLevel(err)).Print("tcp server handle DnsHijacking", "msg", err)
+	}
 }
 
 func (l *Inbound) HandlePacket(packet *netapi.Packet) {

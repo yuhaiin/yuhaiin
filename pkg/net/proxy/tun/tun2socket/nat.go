@@ -274,7 +274,8 @@ func (n *Nat) processTCP(ip header.Network, src, dst tcpip.Address) (_ header.Tr
 	destinationPort := t.DestinationPort()
 
 	var address, portal tcpip.Address
-	if _, ok := ip.(header.IPv4); ok {
+	_, ipv4 := ip.(header.IPv4)
+	if ipv4 {
 		address, portal = n.Addressv4, n.Portalv4
 	} else {
 		address, portal = n.AddressV6, n.PortalV6
@@ -285,7 +286,7 @@ func (n *Nat) processTCP(ip header.Network, src, dst tcpip.Address) (_ header.Tr
 	}
 
 	if src == address && sourcePort == n.gatewayPort {
-		tup := n.tab.tupleOf(destinationPort, dst.Len() == 16)
+		tup := n.tab.tupleOf(destinationPort, !ipv4)
 		if tup == zeroTuple {
 			return nil, 0, false
 		}

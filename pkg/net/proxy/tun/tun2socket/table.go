@@ -27,10 +27,10 @@ type tableSplit struct {
 
 func (t *tableSplit) tupleOf(port uint16, ipv6 bool) Tuple {
 	if ipv6 {
-		return t.v6.tupleOf(port, true)
+		return t.v6.tupleOf(port)
 	}
 
-	return t.v4.tupleOf(port, false)
+	return t.v4.tupleOf(port)
 }
 
 func (t *tableSplit) portOf(tuple Tuple) uint16 {
@@ -65,14 +65,20 @@ func newTableBase(expire time.Duration) *table {
 				lru.WithDefaultTimeout[Tuple, uint16](expire),
 				lru.WithOnRemove(func(t Tuple, p uint16) { set.Push(p) }),
 			),
-			lru.WithOnValueChanged[Tuple](func(old, new uint16) { set.Push(old) }),
+			lru.WithOnValueChanged[Tuple](func(old, new uint16) {
+				if old != new {
+					set.Push(old)
+				}
+			}),
 		),
 		set: set,
 	}
 }
 
-func (t *table) tupleOf(port uint16, _ bool) Tuple {
-	p, _ := t.lru.ReverseLoad(port)
+func (t *table) tupleOf(port uint16) Tuple {
+	// TODO maybe we do not need refresh here
+	// because [table.portOf] also refresh
+	p, _ := t.lru.ReverseLoadRefreshExpire(port)
 	return p
 }
 
