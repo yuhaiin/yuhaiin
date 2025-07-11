@@ -50,7 +50,7 @@ func (c *PacketConn) Handshake(migrateID uint64) (uint64, error) {
 	protocol := UDPWithMigrateID
 	w := pool.NewBufferSize(1024)
 	defer w.Reset()
-	Handshaker(c.hash).EncodeHeader(Header{Protocol: protocol, MigrateID: migrateID}, w)
+	EncodeHeader(c.hash, Header{Protocol: protocol, MigrateID: migrateID}, w)
 	_, err := c.BufioConn.Write(w.Bytes())
 	if err != nil {
 		return 0, err
@@ -192,7 +192,7 @@ func (c *PacketConn) Close() error {
 
 func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	var addr netapi.Address
-	err = c.BufioRead(func(r *bufio.Reader) error {
+	err = c.BufioConn.BufioRead(func(r *bufio.Reader) error {
 		_, addr, err = tools.ReadAddr("udp", r)
 		if err != nil {
 			return fmt.Errorf("failed to resolve udp packet addr: %w", err)

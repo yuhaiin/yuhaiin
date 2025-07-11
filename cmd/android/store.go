@@ -11,7 +11,6 @@ import (
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/share"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/go-json-experiment/json"
 	"google.golang.org/protobuf/proto"
 )
@@ -143,26 +142,41 @@ func (s *storeImpl) GetStringMap(key string) map[string]string {
 	return resp
 }
 
-var stores syncmap.SyncMap[string, Store]
+var (
+	storeMu sync.RWMutex
+	store   Store
+)
 
-func GetStore(prefix string) Store {
-	if store, ok := stores.Load(prefix); ok {
+func GetStore() Store {
+	storeMu.RLock()
+	s := store
+	storeMu.RUnlock()
+
+	if s != nil {
+		return s
+	}
+
+	storeMu.Lock()
+	defer storeMu.Unlock()
+
+	if store != nil {
 		return store
 	}
 
-	s := newStore(prefix)
-	stores.Store(prefix, s)
-	return s
+	store = newStore("Default")
+	return store
 }
 
 func CloseStore() {
-	stores.Range(func(k string, v Store) bool {
-		stores.Delete(k)
-		if err := v.Close(); err != nil {
-			log.Error("close store failed", "prefix", k, "err", err)
-		}
-		return true
-	})
+	storeMu.Lock()
+	defer storeMu.Unlock()
+
+	if store == nil {
+		return
+	}
+
+	store.Close()
+	store = nil
 }
 
 type configDB[T proto.Message] struct {
@@ -187,7 +201,7 @@ func (b *configDB[T]) initSetting() {
 		return
 	}
 
-	s := GetStore("Default").GetBytes(b.dbName)
+	s := GetStore().GetBytes(b.dbName)
 
 	config := b.getDefault(pc.DefaultSetting(b.Dir()))
 	if len(s) > 0 {
@@ -220,7 +234,7 @@ func (b *configDB[T]) Batch(f ...func(*pc.Setting) error) error {
 	}
 
 	b.setting = b.getDefault(setting)
-	GetStore("Default").PutBytes(b.dbName, s)
+	GetStore().PutBytes(b.dbName, s)
 	return nil
 }
 

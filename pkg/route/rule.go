@@ -515,8 +515,8 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*gc.Test
 			Tag:             proto.String(result.Mode.GetTag()),
 			ResolveStrategy: result.Mode.GetResolveStrategy().Enum(),
 		}.Build(),
-		AfterAddr: proto.String(result.Addr.String()),
-		Reason:    proto.String(result.Reason),
+		AfterAddr:   proto.String(result.Addr.String()),
+		MatchResult: store.MatchHistory(),
 	}.Build(), nil
 }
 

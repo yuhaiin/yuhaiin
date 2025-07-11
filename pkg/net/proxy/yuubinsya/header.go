@@ -55,24 +55,21 @@ func (n Protocol) Network() Protocol {
 	return n & 0b00000111
 }
 
-// Handshaker bytes is password
-type Handshaker [sha256.Size]byte
-
-func (password Handshaker) EncodeHeader(header Header, buf *pool.Buffer) {
+func EncodeHeader(password []byte, header Header, buf *pool.Buffer) {
 	_ = buf.WriteByte(byte(header.Protocol))
 
 	if header.Protocol.Network() == UDPWithMigrateID {
 		_ = pool.BinaryWriteUint64(buf, binary.BigEndian, header.MigrateID)
 	}
 
-	_, _ = buf.Write(password[:])
+	_, _ = buf.Write(password)
 
 	if header.Protocol.Network() == TCP {
 		tools.WriteAddr(header.Addr, buf)
 	}
 }
 
-func (password Handshaker) DecodeHeader(c pool.BufioConn) (Header, error) {
+func DecodeHeader(password []byte, c pool.BufioConn) (Header, error) {
 	header := Header{}
 
 	err := c.BufioRead(func(r *bufio.Reader) error {

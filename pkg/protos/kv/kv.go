@@ -225,10 +225,14 @@ func NewClient(unixPath string) (*KVStoreCli, error) {
 
 	cli := NewKvstoreClient(conn)
 
-	_, err = cli.Ping(context.Background(), &emptypb.Empty{})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	_, err = cli.Ping(ctx, &emptypb.Empty{})
 	if err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("ping failed: %w", err)
 	}
+
 	return &KVStoreCli{conn: conn, KvstoreClient: cli}, nil
 }

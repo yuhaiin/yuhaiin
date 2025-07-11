@@ -11,7 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/proto"
@@ -53,13 +53,11 @@ type handler struct {
 func (h *handler) HandleStream(conn *netapi.StreamMeta) {
 	h.t.Log(conn)
 
-	go func() {
-		buf := make([]byte, 1024)
-		n, err := conn.Src.Read(buf)
-		assert.NoError(h.t, err)
-		h.t.Log(string(buf[:n]))
-		conn.Src.Close()
-	}()
+	buf := make([]byte, 1024)
+	n, err := conn.Src.Read(buf)
+	assert.NoError(h.t, err)
+	h.t.Log(string(buf[:n]))
+	conn.Src.Close()
 }
 
 func (h *handler) HandlePacket(conn *netapi.Packet) {
@@ -69,7 +67,7 @@ func (h *handler) HandlePacket(conn *netapi.Packet) {
 }
 
 func TestUsernamePassword(t *testing.T) {
-	ss, err := simple.NewServer(listener.Tcpudp_builder{
+	ss, err := fixed.NewServer(listener.Tcpudp_builder{
 		Host:    proto.String("0.0.0.0:1083"),
 		Control: listener.TcpUdpControl_tcp_udp_control_all.Enum(),
 	}.Build())

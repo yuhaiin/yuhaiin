@@ -70,7 +70,7 @@ func newServer(o *listener.Http, lis net.Listener, handler netapi.Handler) *Serv
 				Address:     address,
 			}
 
-			h.handler.HandleStream(sm)
+			go h.handler.HandleStream(sm)
 
 			return remote, nil
 		},

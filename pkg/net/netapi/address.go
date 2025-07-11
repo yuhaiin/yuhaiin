@@ -89,6 +89,13 @@ func ParseNetipAddr(net string, ip netip.Addr, port uint16) Address {
 	}
 }
 
+func ParseNetipAddrPort(net string, ip netip.AddrPort) Address {
+	return IPAddr{
+		AddressNetwork: ParseAddressNetwork(net),
+		AddrPortX:     ip,
+	}
+}
+
 func toAddrPort(ad net.IP, port uint16, zone string) netip.AddrPort {
 	addr, ok := netip.AddrFromSlice(ad)
 	if !ok {

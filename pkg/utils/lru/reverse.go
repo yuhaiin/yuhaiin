@@ -124,7 +124,21 @@ func (l *ReverseSyncLru[K, V]) ReverseLoad(v V) (k K, ok bool) {
 		return k, false
 	}
 
-	l.lru.Load(*node)
+	_, _ = l.lru.Load(*node)
+
+	return *node, true
+}
+
+func (l *ReverseSyncLru[K, V]) ReverseLoadRefreshExpire(v V) (k K, ok bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	node, ok := l.reverseMap[v]
+	if !ok {
+		return k, false
+	}
+
+	_, _ = l.lru.LoadRefreshExpire(*node)
 
 	return *node, true
 }

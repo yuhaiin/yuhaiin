@@ -67,16 +67,15 @@ func (h *Tun2socket) handleTCP(conn *Conn) {
 	rAddrPort := conn.RemoteAddr().(*net.TCPAddr) // dst
 
 	if rAddrPort.IP.IsLoopback() && rAddrPort.Port == int(h.nat.gatewayPort) {
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
-	addr, _ := netapi.ParseSysAddr(rAddrPort)
 	h.handler.HandleStream(&netapi.StreamMeta{
 		Source:      conn.LocalAddr(),
 		Destination: conn.RemoteAddr(),
 		Src:         conn,
-		Address:     addr,
+		Address:     netapi.ParseNetipAddrPort("tcp", rAddrPort.AddrPort()),
 		DnsRequest:  h.nat.IsDNSRequest(uint16(rAddrPort.Port), conn.tuple.DestinationAddr),
 	})
 }

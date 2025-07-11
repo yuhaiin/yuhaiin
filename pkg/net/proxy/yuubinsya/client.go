@@ -45,7 +45,7 @@ func (c *client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 	buf := pool.NewBufferSize(1024)
 	defer buf.Reset()
 
-	Handshaker(c.hash).EncodeHeader(Header{Protocol: TCP, Addr: addr}, buf)
+	EncodeHeader(c.hash, Header{Protocol: TCP, Addr: addr}, buf)
 
 	_, err = conn.Write(buf.Bytes())
 	if err != nil {

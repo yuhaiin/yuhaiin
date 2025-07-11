@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"

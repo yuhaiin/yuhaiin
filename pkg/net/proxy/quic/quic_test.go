@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -343,7 +343,7 @@ func TestQuic(t *testing.T) {
 }
 
 func TestSimple(t *testing.T) {
-	s, err := simple.NewServer(listener.Tcpudp_builder{
+	s, err := fixed.NewServer(listener.Tcpudp_builder{
 		Host:    proto.String("127.0.0.1:1090"),
 		Control: listener.TcpUdpControl_tcp_udp_control_all.Enum(),
 	}.Build())
@@ -373,7 +373,7 @@ func TestSimple(t *testing.T) {
 		}
 	}()
 
-	qc, err := simple.NewClient(protocol.Simple_builder{
+	qc, err := fixed.NewClient(protocol.Fixed_builder{
 		Host: proto.String("127.0.0.1"),
 		Port: proto.Int32(1090),
 	}.Build(), nil)

@@ -14,19 +14,17 @@ import (
 func TestStore(t *testing.T) {
 	InitDB("", "")
 	defer CloseStore()
-	GetStore("default").PutFloat("float", 3.1415926)
-	t.Log(GetStore("default").GetFloat("float"))
-	assert.Equal(t, float32(3.1415926), GetStore("default").GetFloat("float"))
+	GetStore().PutFloat("float", 3.1415926)
+	t.Log(GetStore().GetFloat("float"))
+	assert.Equal(t, float32(3.1415926), GetStore().GetFloat("float"))
 }
 
 func TestMultipleProcess(t *testing.T) {
-	t.Log(string(disAllowAppList))
-
 	InitDB("", "")
 	defer CloseStore()
 
-	GetStore("default").PutFloat("float", 3.1415926)
-	t.Log(GetStore("default").GetFloat("float"))
+	GetStore().PutFloat("float", 3.1415926)
+	t.Log(GetStore().GetFloat("float"))
 }
 
 func TestV(t *testing.T) {

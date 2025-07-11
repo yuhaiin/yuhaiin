@@ -11,7 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -19,11 +19,10 @@ import (
 )
 
 func TestConn(t *testing.T) {
-	p, err := simple.NewClient(
-		protocol.Simple_builder{
-			Host: proto.String("127.0.0.1"),
-			Port: proto.Int32(1080),
-		}.Build(), nil)
+	p, err := fixed.NewClient(protocol.Fixed_builder{
+		Host: proto.String("127.0.0.1"),
+		Port: proto.Int32(1080),
+	}.Build(), nil)
 	assert.NoError(t, err)
 	z, err := websocket.NewClient(protocol.Websocket_builder{Host: proto.String("localhost:1090")}.Build(), p)
 	assert.NoError(t, err)
@@ -66,7 +65,7 @@ func TestConn(t *testing.T) {
 }
 
 func TestUDPConn(t *testing.T) {
-	p, err := simple.NewClient(protocol.Simple_builder{
+	p, err := fixed.NewClient(protocol.Fixed_builder{
 		Host: proto.String("127.0.0.1"),
 		Port: proto.Int32(1090),
 	}.Build(), nil)

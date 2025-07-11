@@ -27,7 +27,7 @@ type encryptedHandshaker struct {
 }
 
 func (h *encryptedHandshaker) Handshake(conn net.Conn) (net.Conn, error) {
-	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 10))
+	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 30))
 	defer func() { _ = conn.SetReadDeadline(time.Time{}) }()
 
 	if h.server {

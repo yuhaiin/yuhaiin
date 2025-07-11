@@ -236,7 +236,7 @@ type Connection struct {
 	xxx_hidden_Component     *string                `protobuf:"bytes,20,opt,name=component"`
 	xxx_hidden_UdpMigrateId  uint64                 `protobuf:"varint,21,opt,name=udp_migrate_id"`
 	xxx_hidden_Mode          bypass.Mode            `protobuf:"varint,22,opt,name=mode,enum=yuhaiin.bypass.Mode"`
-	xxx_hidden_ModeReason    *string                `protobuf:"bytes,23,opt,name=mode_reason"`
+	xxx_hidden_MatchHistory  *[]*MatchHistoryEntry  `protobuf:"bytes,28,rep,name=match_history"`
 	XXX_raceDetectHookData   protoimpl.RaceDetectHookData
 	XXX_presence             [1]uint32
 	unknownFields            protoimpl.UnknownFields
@@ -502,14 +502,13 @@ func (x *Connection) GetMode() bypass.Mode {
 	return bypass.Mode(0)
 }
 
-func (x *Connection) GetModeReason() string {
+func (x *Connection) GetMatchHistory() []*MatchHistoryEntry {
 	if x != nil {
-		if x.xxx_hidden_ModeReason != nil {
-			return *x.xxx_hidden_ModeReason
+		if x.xxx_hidden_MatchHistory != nil {
+			return *x.xxx_hidden_MatchHistory
 		}
-		return ""
 	}
-	return ""
+	return nil
 }
 
 func (x *Connection) SetAddr(v string) {
@@ -636,9 +635,8 @@ func (x *Connection) SetMode(v bypass.Mode) {
 	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 24, 26)
 }
 
-func (x *Connection) SetModeReason(v string) {
-	x.xxx_hidden_ModeReason = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 25, 26)
+func (x *Connection) SetMatchHistory(v []*MatchHistoryEntry) {
+	x.xxx_hidden_MatchHistory = &v
 }
 
 func (x *Connection) HasAddr() bool {
@@ -816,13 +814,6 @@ func (x *Connection) HasMode() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 24)
 }
 
-func (x *Connection) HasModeReason() bool {
-	if x == nil {
-		return false
-	}
-	return protoimpl.X.Present(&(x.XXX_presence[0]), 25)
-}
-
 func (x *Connection) ClearAddr() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
 	x.xxx_hidden_Addr = nil
@@ -947,11 +938,6 @@ func (x *Connection) ClearMode() {
 	x.xxx_hidden_Mode = bypass.Mode_bypass
 }
 
-func (x *Connection) ClearModeReason() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 25)
-	x.xxx_hidden_ModeReason = nil
-}
-
 type Connection_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -980,7 +966,7 @@ type Connection_builder struct {
 	Component     *string
 	UdpMigrateId  *uint64
 	Mode          *bypass.Mode
-	ModeReason    *string
+	MatchHistory  []*MatchHistoryEntry
 }
 
 func (b0 Connection_builder) Build() *Connection {
@@ -1084,10 +1070,209 @@ func (b0 Connection_builder) Build() *Connection {
 		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 24, 26)
 		x.xxx_hidden_Mode = *b.Mode
 	}
-	if b.ModeReason != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 25, 26)
-		x.xxx_hidden_ModeReason = b.ModeReason
+	x.xxx_hidden_MatchHistory = &b.MatchHistory
+	return m0
+}
+
+type MatchResult struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ListName    *string                `protobuf:"bytes,1,opt,name=list_name"`
+	xxx_hidden_Matched     bool                   `protobuf:"varint,2,opt,name=matched"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *MatchResult) Reset() {
+	*x = MatchResult{}
+	mi := &file_statistic_config_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchResult) ProtoMessage() {}
+
+func (x *MatchResult) ProtoReflect() protoreflect.Message {
+	mi := &file_statistic_config_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
 	}
+	return mi.MessageOf(x)
+}
+
+func (x *MatchResult) GetListName() string {
+	if x != nil {
+		if x.xxx_hidden_ListName != nil {
+			return *x.xxx_hidden_ListName
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *MatchResult) GetMatched() bool {
+	if x != nil {
+		return x.xxx_hidden_Matched
+	}
+	return false
+}
+
+func (x *MatchResult) SetListName(v string) {
+	x.xxx_hidden_ListName = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
+}
+
+func (x *MatchResult) SetMatched(v bool) {
+	x.xxx_hidden_Matched = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
+}
+
+func (x *MatchResult) HasListName() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *MatchResult) HasMatched() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *MatchResult) ClearListName() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_ListName = nil
+}
+
+func (x *MatchResult) ClearMatched() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_Matched = false
+}
+
+type MatchResult_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	ListName *string
+	Matched  *bool
+}
+
+func (b0 MatchResult_builder) Build() *MatchResult {
+	m0 := &MatchResult{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.ListName != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
+		x.xxx_hidden_ListName = b.ListName
+	}
+	if b.Matched != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 2)
+		x.xxx_hidden_Matched = *b.Matched
+	}
+	return m0
+}
+
+type MatchHistoryEntry struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_RuleName    *string                `protobuf:"bytes,1,opt,name=rule_name"`
+	xxx_hidden_History     *[]*MatchResult        `protobuf:"bytes,2,rep,name=history"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *MatchHistoryEntry) Reset() {
+	*x = MatchHistoryEntry{}
+	mi := &file_statistic_config_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchHistoryEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchHistoryEntry) ProtoMessage() {}
+
+func (x *MatchHistoryEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_statistic_config_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *MatchHistoryEntry) GetRuleName() string {
+	if x != nil {
+		if x.xxx_hidden_RuleName != nil {
+			return *x.xxx_hidden_RuleName
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *MatchHistoryEntry) GetHistory() []*MatchResult {
+	if x != nil {
+		if x.xxx_hidden_History != nil {
+			return *x.xxx_hidden_History
+		}
+	}
+	return nil
+}
+
+func (x *MatchHistoryEntry) SetRuleName(v string) {
+	x.xxx_hidden_RuleName = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
+}
+
+func (x *MatchHistoryEntry) SetHistory(v []*MatchResult) {
+	x.xxx_hidden_History = &v
+}
+
+func (x *MatchHistoryEntry) HasRuleName() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *MatchHistoryEntry) ClearRuleName() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_RuleName = nil
+}
+
+type MatchHistoryEntry_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	RuleName *string
+	History  []*MatchResult
+}
+
+func (b0 MatchHistoryEntry_builder) Build() *MatchHistoryEntry {
+	m0 := &MatchHistoryEntry{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.RuleName != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
+		x.xxx_hidden_RuleName = b.RuleName
+	}
+	x.xxx_hidden_History = &b.History
 	return m0
 }
 
@@ -1098,7 +1283,7 @@ const file_statistic_config_proto_rawDesc = "" +
 	"\x16statistic/config.proto\x12\x11yuhaiin.statistic\x1a!google/protobuf/go_features.proto\x1a\x1aconfig/bypass/bypass.proto\"\x84\x01\n" +
 	"\bnet_type\x125\n" +
 	"\tconn_type\x18\x01 \x01(\x0e2\x17.yuhaiin.statistic.typeR\tconn_type\x12A\n" +
-	"\x0funderlying_type\x18\x02 \x01(\x0e2\x17.yuhaiin.statistic.typeR\x0funderlying_type\"\xf3\x05\n" +
+	"\x0funderlying_type\x18\x02 \x01(\x0e2\x17.yuhaiin.statistic.typeR\x0funderlying_type\"\xb2\x06\n" +
 	"\n" +
 	"connection\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x12\x0e\n" +
@@ -1127,8 +1312,14 @@ const file_statistic_config_proto_rawDesc = "" +
 	"\thttp_host\x18\x13 \x01(\tR\thttp_host\x12\x1c\n" +
 	"\tcomponent\x18\x14 \x01(\tR\tcomponent\x12&\n" +
 	"\x0eudp_migrate_id\x18\x15 \x01(\x04R\x0eudp_migrate_id\x12(\n" +
-	"\x04mode\x18\x16 \x01(\x0e2\x14.yuhaiin.bypass.modeR\x04mode\x12 \n" +
-	"\vmode_reason\x18\x17 \x01(\tR\vmode_reasonJ\x04\b\x04\x10\x05R\x05extra*\x8f\x01\n" +
+	"\x04mode\x18\x16 \x01(\x0e2\x14.yuhaiin.bypass.modeR\x04mode\x12L\n" +
+	"\rmatch_history\x18\x1c \x03(\v2&.yuhaiin.statistic.match_history_entryR\rmatch_historyJ\x04\b\x04\x10\x05J\x04\b\x17\x10\x18R\x05extraR\vmode_reason\"F\n" +
+	"\fmatch_result\x12\x1c\n" +
+	"\tlist_name\x18\x01 \x01(\tR\tlist_name\x12\x18\n" +
+	"\amatched\x18\x02 \x01(\bR\amatched\"n\n" +
+	"\x13match_history_entry\x12\x1c\n" +
+	"\trule_name\x18\x01 \x01(\tR\trule_name\x129\n" +
+	"\ahistory\x18\x02 \x03(\v2\x1f.yuhaiin.statistic.match_resultR\ahistory*\x8f\x01\n" +
 	"\x04type\x12\v\n" +
 	"\aunknown\x10\x00\x12\a\n" +
 	"\x03tcp\x10\x01\x12\b\n" +
@@ -1147,23 +1338,27 @@ const file_statistic_config_proto_rawDesc = "" +
 	"unixpacket\x10\fB;Z1github.com/Asutorufa/yuhaiin/pkg/protos/statistic\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
 var file_statistic_config_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_statistic_config_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_statistic_config_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_statistic_config_proto_goTypes = []any{
-	(Type)(0),          // 0: yuhaiin.statistic.type
-	(*NetType)(nil),    // 1: yuhaiin.statistic.net_type
-	(*Connection)(nil), // 2: yuhaiin.statistic.connection
-	(bypass.Mode)(0),   // 3: yuhaiin.bypass.mode
+	(Type)(0),                 // 0: yuhaiin.statistic.type
+	(*NetType)(nil),           // 1: yuhaiin.statistic.net_type
+	(*Connection)(nil),        // 2: yuhaiin.statistic.connection
+	(*MatchResult)(nil),       // 3: yuhaiin.statistic.match_result
+	(*MatchHistoryEntry)(nil), // 4: yuhaiin.statistic.match_history_entry
+	(bypass.Mode)(0),          // 5: yuhaiin.bypass.mode
 }
 var file_statistic_config_proto_depIdxs = []int32{
 	0, // 0: yuhaiin.statistic.net_type.conn_type:type_name -> yuhaiin.statistic.type
 	0, // 1: yuhaiin.statistic.net_type.underlying_type:type_name -> yuhaiin.statistic.type
 	1, // 2: yuhaiin.statistic.connection.type:type_name -> yuhaiin.statistic.net_type
-	3, // 3: yuhaiin.statistic.connection.mode:type_name -> yuhaiin.bypass.mode
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	5, // 3: yuhaiin.statistic.connection.mode:type_name -> yuhaiin.bypass.mode
+	4, // 4: yuhaiin.statistic.connection.match_history:type_name -> yuhaiin.statistic.match_history_entry
+	3, // 5: yuhaiin.statistic.match_history_entry.history:type_name -> yuhaiin.statistic.match_result
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_statistic_config_proto_init() }
@@ -1177,7 +1372,7 @@ func file_statistic_config_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_statistic_config_proto_rawDesc), len(file_statistic_config_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

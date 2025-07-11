@@ -118,7 +118,7 @@ func (a *App) Start(opt *Opts) error {
 
 	dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
 
-	lis, err := net.Listen("tcp", net.JoinHostPort(ifOr(GetStore("Default").GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"), "0"))
+	lis, err := net.Listen("tcp", net.JoinHostPort(ifOr(GetStore().GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"), "0"))
 	if err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func (a *App) Start(opt *Opts) error {
 		return err
 	}
 
-	GetStore("Default").PutInt(NewYuhaiinPortKey, int32(port))
+	GetStore().PutInt(NewYuhaiinPortKey, int32(port))
 
 	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
@@ -185,7 +185,7 @@ func (a *App) Start(opt *Opts) error {
 }
 
 func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
-	if !GetStore("Default").GetBoolean(NetworkSpeedKey) ||
+	if !GetStore().GetBoolean(NetworkSpeedKey) ||
 		opt.NotifySpped == nil || !opt.NotifySpped.NotifyEnable() {
 		return
 	}

@@ -41,7 +41,7 @@ func NewConn(c net.Conn, rnonce, wnonce []byte, rciph, wciph cipher.AEAD) net.Co
 
 type writer struct {
 	io.Writer
-	cipher.AEAD
+	aead           cipher.AEAD
 	nonce          []byte
 	maxPayloadSize int
 
@@ -53,7 +53,7 @@ type writer struct {
 func NewWriter(w io.Writer, nonce []byte, aead cipher.AEAD, maxPayloadSize int) *writer {
 	return &writer{
 		Writer:         w,
-		AEAD:           aead,
+		aead:           aead,
 		nonce:          nonce,
 		maxPayloadSize: maxPayloadSize,
 	}
@@ -64,7 +64,7 @@ func (w *writer) Write(p []byte) (n int, err error) {
 		return
 	}
 
-	buf := pool.GetBytes(2 + w.AEAD.Overhead() + w.maxPayloadSize + w.AEAD.Overhead())
+	buf := pool.GetBytes(2 + w.aead.Overhead() + w.maxPayloadSize + w.aead.Overhead())
 	defer pool.PutBytes(buf)
 
 	for pLen := len(p); pLen > 0; {
@@ -79,10 +79,10 @@ func (w *writer) Write(p []byte) (n int, err error) {
 		}
 		binary.BigEndian.PutUint16(buf[:2], uint16(len(data)))
 		w.mu.Lock()
-		w.Seal(buf[:0], w.nonce, buf[:2], nil)
+		w.aead.Seal(buf[:0], w.nonce, buf[:2], nil)
 		increment(w.nonce)
-		offset := w.Overhead() + 2
-		packet := w.Seal(buf[offset:offset], w.nonce, data, nil)
+		offset := w.aead.Overhead() + 2
+		packet := w.aead.Seal(buf[offset:offset], w.nonce, data, nil)
 		increment(w.nonce)
 		_, err = w.Writer.Write(buf[:offset+len(packet)])
 		w.mu.Unlock()
@@ -165,6 +165,7 @@ func (r *reader) Read(b []byte) (int, error) {
 	if m < n { // insufficient len(b), keep leftover for next read
 		r.leftover = r.buf[m:n]
 	}
+
 	return m, err
 }
 
@@ -173,6 +174,17 @@ func increment(b []byte) {
 	for i := range b {
 		b[i]++
 		if b[i] != 0 {
+			return
+		}
+	}
+}
+
+func decrement(b []byte) {
+	for i := range b {
+		if b[i] == 0 {
+			b[i]--
+		} else {
+			b[i]--
 			return
 		}
 	}

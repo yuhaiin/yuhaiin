@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/proto"
@@ -37,7 +37,7 @@ func TestMux(t *testing.T) {
 		t.Log(string(data))
 	}()
 
-	p, err := simple.NewClient(protocol.Simple_builder{
+	p, err := fixed.NewClient(protocol.Fixed_builder{
 		Host: proto.String("127.0.0.1"),
 		Port: proto.Int32(4431),
 	}.Build(), nil)

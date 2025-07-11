@@ -157,6 +157,7 @@ func (x *Protocol) GetTrojan() *Trojan {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in node/protocol/protocol.proto.
 func (x *Protocol) GetSimple() *Simple {
 	if x != nil {
 		if x, ok := x.xxx_hidden_Protocol.(*protocol_Simple); ok {
@@ -355,6 +356,15 @@ func (x *Protocol) GetAead() *Aead {
 	return nil
 }
 
+func (x *Protocol) GetFixed() *Fixed {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Protocol.(*protocol_Fixed); ok {
+			return x.Fixed
+		}
+	}
+	return nil
+}
+
 func (x *Protocol) SetShadowsocks(v *Shadowsocks) {
 	if v == nil {
 		x.xxx_hidden_Protocol = nil
@@ -411,6 +421,7 @@ func (x *Protocol) SetTrojan(v *Trojan) {
 	x.xxx_hidden_Protocol = &protocol_Trojan{v}
 }
 
+// Deprecated: Marked as deprecated in node/protocol/protocol.proto.
 func (x *Protocol) SetSimple(v *Simple) {
 	if v == nil {
 		x.xxx_hidden_Protocol = nil
@@ -587,6 +598,14 @@ func (x *Protocol) SetAead(v *Aead) {
 	x.xxx_hidden_Protocol = &protocol_Aead{v}
 }
 
+func (x *Protocol) SetFixed(v *Fixed) {
+	if v == nil {
+		x.xxx_hidden_Protocol = nil
+		return
+	}
+	x.xxx_hidden_Protocol = &protocol_Fixed{v}
+}
+
 func (x *Protocol) HasProtocol() bool {
 	if x == nil {
 		return false
@@ -650,6 +669,7 @@ func (x *Protocol) HasTrojan() bool {
 	return ok
 }
 
+// Deprecated: Marked as deprecated in node/protocol/protocol.proto.
 func (x *Protocol) HasSimple() bool {
 	if x == nil {
 		return false
@@ -826,6 +846,14 @@ func (x *Protocol) HasAead() bool {
 	return ok
 }
 
+func (x *Protocol) HasFixed() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Protocol.(*protocol_Fixed)
+	return ok
+}
+
 func (x *Protocol) ClearProtocol() {
 	x.xxx_hidden_Protocol = nil
 }
@@ -872,6 +900,7 @@ func (x *Protocol) ClearTrojan() {
 	}
 }
 
+// Deprecated: Marked as deprecated in node/protocol/protocol.proto.
 func (x *Protocol) ClearSimple() {
 	if _, ok := x.xxx_hidden_Protocol.(*protocol_Simple); ok {
 		x.xxx_hidden_Protocol = nil
@@ -1004,6 +1033,12 @@ func (x *Protocol) ClearAead() {
 	}
 }
 
+func (x *Protocol) ClearFixed() {
+	if _, ok := x.xxx_hidden_Protocol.(*protocol_Fixed); ok {
+		x.xxx_hidden_Protocol = nil
+	}
+}
+
 const Protocol_Protocol_not_set_case case_Protocol_Protocol = 0
 const Protocol_Shadowsocks_case case_Protocol_Protocol = 1
 const Protocol_Shadowsocksr_case case_Protocol_Protocol = 2
@@ -1034,6 +1069,7 @@ const Protocol_TlsTermination_case case_Protocol_Protocol = 26
 const Protocol_HttpTermination_case case_Protocol_Protocol = 27
 const Protocol_HttpMock_case case_Protocol_Protocol = 28
 const Protocol_Aead_case case_Protocol_Protocol = 29
+const Protocol_Fixed_case case_Protocol_Protocol = 30
 
 func (x *Protocol) WhichProtocol() case_Protocol_Protocol {
 	if x == nil {
@@ -1098,6 +1134,8 @@ func (x *Protocol) WhichProtocol() case_Protocol_Protocol {
 		return Protocol_HttpMock_case
 	case *protocol_Aead:
 		return Protocol_Aead_case
+	case *protocol_Fixed:
+		return Protocol_Fixed_case
 	default:
 		return Protocol_Protocol_not_set_case
 	}
@@ -1114,21 +1152,26 @@ type Protocol_builder struct {
 	Quic         *Quic
 	ObfsHttp     *ObfsHttp
 	Trojan       *Trojan
-	Simple       *Simple
-	None         *None
-	Socks5       *Socks5
-	Http         *Http
-	Direct       *Direct
-	Reject       *Reject
-	Yuubinsya    *Yuubinsya
-	Grpc         *Grpc
-	Http2        *Http2
-	Reality      *Reality
-	Tls          *TlsConfig
-	Wireguard    *Wireguard
-	Mux          *Mux
-	Drop         *Drop
-	Vless        *Vless
+	// Simple
+	//
+	// Deprecated: use [Fixed] instead
+	//
+	// Deprecated: Marked as deprecated in node/protocol/protocol.proto.
+	Simple    *Simple
+	None      *None
+	Socks5    *Socks5
+	Http      *Http
+	Direct    *Direct
+	Reject    *Reject
+	Yuubinsya *Yuubinsya
+	Grpc      *Grpc
+	Http2     *Http2
+	Reality   *Reality
+	Tls       *TlsConfig
+	Wireguard *Wireguard
+	Mux       *Mux
+	Drop      *Drop
+	Vless     *Vless
 	// bootstrap_dns make the dialer use bootstrap dns to resolve the outbound
 	// address instead of the route dns
 	BootstrapDnsWarp *BootstrapDnsWarp
@@ -1138,6 +1181,7 @@ type Protocol_builder struct {
 	HttpTermination  *HttpTermination
 	HttpMock         *HttpMock
 	Aead             *Aead
+	Fixed            *Fixed
 	// -- end of xxx_hidden_Protocol
 }
 
@@ -1232,6 +1276,9 @@ func (b0 Protocol_builder) Build() *Protocol {
 	if b.Aead != nil {
 		x.xxx_hidden_Protocol = &protocol_Aead{b.Aead}
 	}
+	if b.Fixed != nil {
+		x.xxx_hidden_Protocol = &protocol_Fixed{b.Fixed}
+	}
 	return m0
 }
 
@@ -1278,6 +1325,11 @@ type protocol_Trojan struct {
 }
 
 type protocol_Simple struct {
+	// Simple
+	//
+	// Deprecated: use [Fixed] instead
+	//
+	// Deprecated: Marked as deprecated in node/protocol/protocol.proto.
 	Simple *Simple `protobuf:"bytes,8,opt,name=simple,oneof"`
 }
 
@@ -1367,6 +1419,10 @@ type protocol_Aead struct {
 	Aead *Aead `protobuf:"bytes,29,opt,name=aead,oneof"`
 }
 
+type protocol_Fixed struct {
+	Fixed *Fixed `protobuf:"bytes,30,opt,name=fixed,oneof"`
+}
+
 func (*protocol_Shadowsocks) isProtocol_Protocol() {}
 
 func (*protocol_Shadowsocksr) isProtocol_Protocol() {}
@@ -1424,6 +1480,8 @@ func (*protocol_HttpTermination) isProtocol_Protocol() {}
 func (*protocol_HttpMock) isProtocol_Protocol() {}
 
 func (*protocol_Aead) isProtocol_Protocol() {}
+
+func (*protocol_Fixed) isProtocol_Protocol() {}
 
 type Socks5 struct {
 	state                   protoimpl.MessageState `protogen:"opaque.v1"`
@@ -3447,6 +3505,163 @@ func (b0 Simple_builder) Build() *Simple {
 	return m0
 }
 
+type Fixed struct {
+	state                       protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Host             *string                `protobuf:"bytes,1,opt,name=host"`
+	xxx_hidden_Port             int32                  `protobuf:"varint,2,opt,name=port"`
+	xxx_hidden_AlternateHost    *[]*Host               `protobuf:"bytes,3,rep,name=alternate_host"`
+	xxx_hidden_NetworkInterface *string                `protobuf:"bytes,4,opt,name=network_interface"`
+	XXX_raceDetectHookData      protoimpl.RaceDetectHookData
+	XXX_presence                [1]uint32
+	unknownFields               protoimpl.UnknownFields
+	sizeCache                   protoimpl.SizeCache
+}
+
+func (x *Fixed) Reset() {
+	*x = Fixed{}
+	mi := &file_node_protocol_protocol_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Fixed) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Fixed) ProtoMessage() {}
+
+func (x *Fixed) ProtoReflect() protoreflect.Message {
+	mi := &file_node_protocol_protocol_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Fixed) GetHost() string {
+	if x != nil {
+		if x.xxx_hidden_Host != nil {
+			return *x.xxx_hidden_Host
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *Fixed) GetPort() int32 {
+	if x != nil {
+		return x.xxx_hidden_Port
+	}
+	return 0
+}
+
+func (x *Fixed) GetAlternateHost() []*Host {
+	if x != nil {
+		if x.xxx_hidden_AlternateHost != nil {
+			return *x.xxx_hidden_AlternateHost
+		}
+	}
+	return nil
+}
+
+func (x *Fixed) GetNetworkInterface() string {
+	if x != nil {
+		if x.xxx_hidden_NetworkInterface != nil {
+			return *x.xxx_hidden_NetworkInterface
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *Fixed) SetHost(v string) {
+	x.xxx_hidden_Host = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 4)
+}
+
+func (x *Fixed) SetPort(v int32) {
+	x.xxx_hidden_Port = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 4)
+}
+
+func (x *Fixed) SetAlternateHost(v []*Host) {
+	x.xxx_hidden_AlternateHost = &v
+}
+
+func (x *Fixed) SetNetworkInterface(v string) {
+	x.xxx_hidden_NetworkInterface = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 4)
+}
+
+func (x *Fixed) HasHost() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *Fixed) HasPort() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *Fixed) HasNetworkInterface() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 3)
+}
+
+func (x *Fixed) ClearHost() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_Host = nil
+}
+
+func (x *Fixed) ClearPort() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_Port = 0
+}
+
+func (x *Fixed) ClearNetworkInterface() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
+	x.xxx_hidden_NetworkInterface = nil
+}
+
+type Fixed_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Host             *string
+	Port             *int32
+	AlternateHost    []*Host
+	NetworkInterface *string
+}
+
+func (b0 Fixed_builder) Build() *Fixed {
+	m0 := &Fixed{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Host != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 4)
+		x.xxx_hidden_Host = b.Host
+	}
+	if b.Port != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 4)
+		x.xxx_hidden_Port = *b.Port
+	}
+	x.xxx_hidden_AlternateHost = &b.AlternateHost
+	if b.NetworkInterface != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 4)
+		x.xxx_hidden_NetworkInterface = b.NetworkInterface
+	}
+	return m0
+}
+
 type TlsConfig struct {
 	state                         protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Enable             bool                   `protobuf:"varint,1,opt,name=enable"`
@@ -3463,7 +3678,7 @@ type TlsConfig struct {
 
 func (x *TlsConfig) Reset() {
 	*x = TlsConfig{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[17]
+	mi := &file_node_protocol_protocol_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3475,7 +3690,7 @@ func (x *TlsConfig) String() string {
 func (*TlsConfig) ProtoMessage() {}
 
 func (x *TlsConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[17]
+	mi := &file_node_protocol_protocol_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3643,7 +3858,7 @@ type Certificate struct {
 
 func (x *Certificate) Reset() {
 	*x = Certificate{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[18]
+	mi := &file_node_protocol_protocol_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3655,7 +3870,7 @@ func (x *Certificate) String() string {
 func (*Certificate) ProtoMessage() {}
 
 func (x *Certificate) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[18]
+	mi := &file_node_protocol_protocol_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3817,7 +4032,7 @@ type TlsServerConfig struct {
 
 func (x *TlsServerConfig) Reset() {
 	*x = TlsServerConfig{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[19]
+	mi := &file_node_protocol_protocol_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3829,7 +4044,7 @@ func (x *TlsServerConfig) String() string {
 func (*TlsServerConfig) ProtoMessage() {}
 
 func (x *TlsServerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[19]
+	mi := &file_node_protocol_protocol_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3904,7 +4119,7 @@ type TlsTermination struct {
 
 func (x *TlsTermination) Reset() {
 	*x = TlsTermination{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[20]
+	mi := &file_node_protocol_protocol_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3916,7 +4131,7 @@ func (x *TlsTermination) String() string {
 func (*TlsTermination) ProtoMessage() {}
 
 func (x *TlsTermination) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[20]
+	mi := &file_node_protocol_protocol_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3972,7 +4187,7 @@ type HttpTermination struct {
 
 func (x *HttpTermination) Reset() {
 	*x = HttpTermination{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[21]
+	mi := &file_node_protocol_protocol_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3984,7 +4199,7 @@ func (x *HttpTermination) String() string {
 func (*HttpTermination) ProtoMessage() {}
 
 func (x *HttpTermination) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[21]
+	mi := &file_node_protocol_protocol_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4037,7 +4252,7 @@ type HttpHeader struct {
 
 func (x *HttpHeader) Reset() {
 	*x = HttpHeader{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[22]
+	mi := &file_node_protocol_protocol_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4049,7 +4264,7 @@ func (x *HttpHeader) String() string {
 func (*HttpHeader) ProtoMessage() {}
 
 func (x *HttpHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[22]
+	mi := &file_node_protocol_protocol_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4147,7 +4362,7 @@ type Direct struct {
 
 func (x *Direct) Reset() {
 	*x = Direct{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[23]
+	mi := &file_node_protocol_protocol_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4159,7 +4374,7 @@ func (x *Direct) String() string {
 func (*Direct) ProtoMessage() {}
 
 func (x *Direct) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[23]
+	mi := &file_node_protocol_protocol_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4222,7 +4437,7 @@ type Reject struct {
 
 func (x *Reject) Reset() {
 	*x = Reject{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[24]
+	mi := &file_node_protocol_protocol_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4234,7 +4449,7 @@ func (x *Reject) String() string {
 func (*Reject) ProtoMessage() {}
 
 func (x *Reject) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[24]
+	mi := &file_node_protocol_protocol_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4265,7 +4480,7 @@ type Drop struct {
 
 func (x *Drop) Reset() {
 	*x = Drop{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[25]
+	mi := &file_node_protocol_protocol_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4277,7 +4492,7 @@ func (x *Drop) String() string {
 func (*Drop) ProtoMessage() {}
 
 func (x *Drop) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[25]
+	mi := &file_node_protocol_protocol_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4312,7 +4527,7 @@ type Host struct {
 
 func (x *Host) Reset() {
 	*x = Host{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[26]
+	mi := &file_node_protocol_protocol_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4324,7 +4539,7 @@ func (x *Host) String() string {
 func (*Host) ProtoMessage() {}
 
 func (x *Host) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[26]
+	mi := &file_node_protocol_protocol_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4423,7 +4638,7 @@ type WireguardPeerConfig struct {
 
 func (x *WireguardPeerConfig) Reset() {
 	*x = WireguardPeerConfig{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[27]
+	mi := &file_node_protocol_protocol_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4435,7 +4650,7 @@ func (x *WireguardPeerConfig) String() string {
 func (*WireguardPeerConfig) ProtoMessage() {}
 
 func (x *WireguardPeerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[27]
+	mi := &file_node_protocol_protocol_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4611,7 +4826,7 @@ type Wireguard struct {
 
 func (x *Wireguard) Reset() {
 	*x = Wireguard{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[28]
+	mi := &file_node_protocol_protocol_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4623,7 +4838,7 @@ func (x *Wireguard) String() string {
 func (*Wireguard) ProtoMessage() {}
 
 func (x *Wireguard) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[28]
+	mi := &file_node_protocol_protocol_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4778,7 +4993,7 @@ type Mux struct {
 
 func (x *Mux) Reset() {
 	*x = Mux{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[29]
+	mi := &file_node_protocol_protocol_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4790,7 +5005,7 @@ func (x *Mux) String() string {
 func (*Mux) ProtoMessage() {}
 
 func (x *Mux) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[29]
+	mi := &file_node_protocol_protocol_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4850,7 +5065,7 @@ type BootstrapDnsWarp struct {
 
 func (x *BootstrapDnsWarp) Reset() {
 	*x = BootstrapDnsWarp{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[30]
+	mi := &file_node_protocol_protocol_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4862,7 +5077,7 @@ func (x *BootstrapDnsWarp) String() string {
 func (*BootstrapDnsWarp) ProtoMessage() {}
 
 func (x *BootstrapDnsWarp) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[30]
+	mi := &file_node_protocol_protocol_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4899,7 +5114,7 @@ type Tailscale struct {
 
 func (x *Tailscale) Reset() {
 	*x = Tailscale{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[31]
+	mi := &file_node_protocol_protocol_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4911,7 +5126,7 @@ func (x *Tailscale) String() string {
 func (*Tailscale) ProtoMessage() {}
 
 func (x *Tailscale) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[31]
+	mi := &file_node_protocol_protocol_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5071,7 +5286,7 @@ type Set struct {
 
 func (x *Set) Reset() {
 	*x = Set{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[32]
+	mi := &file_node_protocol_protocol_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5083,7 +5298,7 @@ func (x *Set) String() string {
 func (*Set) ProtoMessage() {}
 
 func (x *Set) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[32]
+	mi := &file_node_protocol_protocol_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5161,7 +5376,7 @@ type HttpMock struct {
 
 func (x *HttpMock) Reset() {
 	*x = HttpMock{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[33]
+	mi := &file_node_protocol_protocol_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5173,7 +5388,7 @@ func (x *HttpMock) String() string {
 func (*HttpMock) ProtoMessage() {}
 
 func (x *HttpMock) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[33]
+	mi := &file_node_protocol_protocol_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5239,7 +5454,7 @@ type Aead struct {
 
 func (x *Aead) Reset() {
 	*x = Aead{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[34]
+	mi := &file_node_protocol_protocol_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5251,7 +5466,7 @@ func (x *Aead) String() string {
 func (*Aead) ProtoMessage() {}
 
 func (x *Aead) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[34]
+	mi := &file_node_protocol_protocol_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5315,7 +5530,7 @@ type HttpTerminationHttpHeaders struct {
 
 func (x *HttpTerminationHttpHeaders) Reset() {
 	*x = HttpTerminationHttpHeaders{}
-	mi := &file_node_protocol_protocol_proto_msgTypes[36]
+	mi := &file_node_protocol_protocol_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5327,7 +5542,7 @@ func (x *HttpTerminationHttpHeaders) String() string {
 func (*HttpTerminationHttpHeaders) ProtoMessage() {}
 
 func (x *HttpTerminationHttpHeaders) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_protocol_proto_msgTypes[36]
+	mi := &file_node_protocol_protocol_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5369,7 +5584,7 @@ var File_node_protocol_protocol_proto protoreflect.FileDescriptor
 
 const file_node_protocol_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x1cnode/protocol/protocol.proto\x12\x10yuhaiin.protocol\x1a!google/protobuf/go_features.proto\"\xf0\f\n" +
+	"\x1cnode/protocol/protocol.proto\x12\x10yuhaiin.protocol\x1a!google/protobuf/go_features.proto\"\xa5\r\n" +
 	"\bprotocol\x12A\n" +
 	"\vshadowsocks\x18\x01 \x01(\v2\x1d.yuhaiin.protocol.shadowsocksH\x00R\vshadowsocks\x12D\n" +
 	"\fshadowsocksr\x18\x02 \x01(\v2\x1e.yuhaiin.protocol.shadowsocksrH\x00R\fshadowsocksr\x12/\n" +
@@ -5377,8 +5592,8 @@ const file_node_protocol_protocol_proto_rawDesc = "" +
 	"\twebsocket\x18\x04 \x01(\v2\x1b.yuhaiin.protocol.websocketH\x00R\twebsocket\x12,\n" +
 	"\x04quic\x18\x05 \x01(\v2\x16.yuhaiin.protocol.quicH\x00R\x04quic\x12;\n" +
 	"\tobfs_http\x18\x06 \x01(\v2\x1b.yuhaiin.protocol.obfs_httpH\x00R\tobfs_http\x122\n" +
-	"\x06trojan\x18\a \x01(\v2\x18.yuhaiin.protocol.trojanH\x00R\x06trojan\x122\n" +
-	"\x06simple\x18\b \x01(\v2\x18.yuhaiin.protocol.simpleH\x00R\x06simple\x12,\n" +
+	"\x06trojan\x18\a \x01(\v2\x18.yuhaiin.protocol.trojanH\x00R\x06trojan\x126\n" +
+	"\x06simple\x18\b \x01(\v2\x18.yuhaiin.protocol.simpleB\x02\x18\x01H\x00R\x06simple\x12,\n" +
 	"\x04none\x18\t \x01(\v2\x16.yuhaiin.protocol.noneH\x00R\x04none\x122\n" +
 	"\x06socks5\x18\n" +
 	" \x01(\v2\x18.yuhaiin.protocol.socks5H\x00R\x06socks5\x12,\n" +
@@ -5400,7 +5615,8 @@ const file_node_protocol_protocol_proto_rawDesc = "" +
 	"\x0ftls_termination\x18\x1a \x01(\v2!.yuhaiin.protocol.tls_terminationH\x00R\x0ftls_termination\x12P\n" +
 	"\x10http_termination\x18\x1b \x01(\v2\".yuhaiin.protocol.http_terminationH\x00R\x10http_termination\x12;\n" +
 	"\thttp_mock\x18\x1c \x01(\v2\x1b.yuhaiin.protocol.http_mockH\x00R\thttp_mock\x12,\n" +
-	"\x04aead\x18\x1d \x01(\v2\x16.yuhaiin.protocol.aeadH\x00R\x04aeadB\n" +
+	"\x04aead\x18\x1d \x01(\v2\x16.yuhaiin.protocol.aeadH\x00R\x04aead\x12/\n" +
+	"\x05fixed\x18\x1e \x01(\v2\x17.yuhaiin.protocol.fixedH\x00R\x05fixedB\n" +
 	"\n" +
 	"\bprotocol\"z\n" +
 	"\x06socks5\x12\x1a\n" +
@@ -5463,7 +5679,12 @@ const file_node_protocol_protocol_proto_rawDesc = "" +
 	"\x04host\x18\x01 \x01(\tR\x04host\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\x05R\x04port\x12>\n" +
 	"\x0ealternate_host\x18\x05 \x03(\v2\x16.yuhaiin.protocol.hostR\x0ealternate_host\x12,\n" +
-	"\x11network_interface\x18\a \x01(\tR\x11network_interfaceJ\x04\b\x04\x10\x05J\x04\b\x06\x10\aJ\x04\b\x03\x10\x04R\x03tlsR\atimeoutR\x12packet_conn_direct\"\xd7\x01\n" +
+	"\x11network_interface\x18\a \x01(\tR\x11network_interfaceJ\x04\b\x04\x10\x05J\x04\b\x06\x10\aJ\x04\b\x03\x10\x04R\x03tlsR\atimeoutR\x12packet_conn_direct\"\x9d\x01\n" +
+	"\x05fixed\x12\x12\n" +
+	"\x04host\x18\x01 \x01(\tR\x04host\x12\x12\n" +
+	"\x04port\x18\x02 \x01(\x05R\x04port\x12>\n" +
+	"\x0ealternate_host\x18\x03 \x03(\v2\x16.yuhaiin.protocol.hostR\x0ealternate_host\x12,\n" +
+	"\x11network_interface\x18\x04 \x01(\tR\x11network_interface\"\xd7\x01\n" +
 	"\n" +
 	"tls_config\x12\x16\n" +
 	"\x06enable\x18\x01 \x01(\bR\x06enable\x12!\n" +
@@ -5542,7 +5763,7 @@ const file_node_protocol_protocol_proto_rawDesc = "" +
 	"\bpassword\x18\x01 \x01(\tR\bpasswordB?Z5github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
 var file_node_protocol_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_node_protocol_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
+var file_node_protocol_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_node_protocol_protocol_proto_goTypes = []any{
 	(SetStrategyType)(0),               // 0: yuhaiin.protocol.set.strategy_type
 	(*Protocol)(nil),                   // 1: yuhaiin.protocol.protocol
@@ -5562,27 +5783,28 @@ var file_node_protocol_protocol_proto_goTypes = []any{
 	(*ObfsHttp)(nil),                   // 15: yuhaiin.protocol.obfs_http
 	(*None)(nil),                       // 16: yuhaiin.protocol.none
 	(*Simple)(nil),                     // 17: yuhaiin.protocol.simple
-	(*TlsConfig)(nil),                  // 18: yuhaiin.protocol.tls_config
-	(*Certificate)(nil),                // 19: yuhaiin.protocol.certificate
-	(*TlsServerConfig)(nil),            // 20: yuhaiin.protocol.tls_server_config
-	(*TlsTermination)(nil),             // 21: yuhaiin.protocol.tls_termination
-	(*HttpTermination)(nil),            // 22: yuhaiin.protocol.http_termination
-	(*HttpHeader)(nil),                 // 23: yuhaiin.protocol.http_header
-	(*Direct)(nil),                     // 24: yuhaiin.protocol.direct
-	(*Reject)(nil),                     // 25: yuhaiin.protocol.reject
-	(*Drop)(nil),                       // 26: yuhaiin.protocol.drop
-	(*Host)(nil),                       // 27: yuhaiin.protocol.host
-	(*WireguardPeerConfig)(nil),        // 28: yuhaiin.protocol.wireguard_peer_config
-	(*Wireguard)(nil),                  // 29: yuhaiin.protocol.wireguard
-	(*Mux)(nil),                        // 30: yuhaiin.protocol.mux
-	(*BootstrapDnsWarp)(nil),           // 31: yuhaiin.protocol.bootstrap_dns_warp
-	(*Tailscale)(nil),                  // 32: yuhaiin.protocol.tailscale
-	(*Set)(nil),                        // 33: yuhaiin.protocol.set
-	(*HttpMock)(nil),                   // 34: yuhaiin.protocol.http_mock
-	(*Aead)(nil),                       // 35: yuhaiin.protocol.aead
-	nil,                                // 36: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
-	(*HttpTerminationHttpHeaders)(nil), // 37: yuhaiin.protocol.http_termination.http_headers
-	nil,                                // 38: yuhaiin.protocol.http_termination.HeadersEntry
+	(*Fixed)(nil),                      // 18: yuhaiin.protocol.fixed
+	(*TlsConfig)(nil),                  // 19: yuhaiin.protocol.tls_config
+	(*Certificate)(nil),                // 20: yuhaiin.protocol.certificate
+	(*TlsServerConfig)(nil),            // 21: yuhaiin.protocol.tls_server_config
+	(*TlsTermination)(nil),             // 22: yuhaiin.protocol.tls_termination
+	(*HttpTermination)(nil),            // 23: yuhaiin.protocol.http_termination
+	(*HttpHeader)(nil),                 // 24: yuhaiin.protocol.http_header
+	(*Direct)(nil),                     // 25: yuhaiin.protocol.direct
+	(*Reject)(nil),                     // 26: yuhaiin.protocol.reject
+	(*Drop)(nil),                       // 27: yuhaiin.protocol.drop
+	(*Host)(nil),                       // 28: yuhaiin.protocol.host
+	(*WireguardPeerConfig)(nil),        // 29: yuhaiin.protocol.wireguard_peer_config
+	(*Wireguard)(nil),                  // 30: yuhaiin.protocol.wireguard
+	(*Mux)(nil),                        // 31: yuhaiin.protocol.mux
+	(*BootstrapDnsWarp)(nil),           // 32: yuhaiin.protocol.bootstrap_dns_warp
+	(*Tailscale)(nil),                  // 33: yuhaiin.protocol.tailscale
+	(*Set)(nil),                        // 34: yuhaiin.protocol.set
+	(*HttpMock)(nil),                   // 35: yuhaiin.protocol.http_mock
+	(*Aead)(nil),                       // 36: yuhaiin.protocol.aead
+	nil,                                // 37: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
+	(*HttpTerminationHttpHeaders)(nil), // 38: yuhaiin.protocol.http_termination.http_headers
+	nil,                                // 39: yuhaiin.protocol.http_termination.HeadersEntry
 }
 var file_node_protocol_protocol_proto_depIdxs = []int32{
 	4,  // 0: yuhaiin.protocol.protocol.shadowsocks:type_name -> yuhaiin.protocol.shadowsocks
@@ -5596,41 +5818,43 @@ var file_node_protocol_protocol_proto_depIdxs = []int32{
 	16, // 8: yuhaiin.protocol.protocol.none:type_name -> yuhaiin.protocol.none
 	2,  // 9: yuhaiin.protocol.protocol.socks5:type_name -> yuhaiin.protocol.socks5
 	3,  // 10: yuhaiin.protocol.protocol.http:type_name -> yuhaiin.protocol.http
-	24, // 11: yuhaiin.protocol.protocol.direct:type_name -> yuhaiin.protocol.direct
-	25, // 12: yuhaiin.protocol.protocol.reject:type_name -> yuhaiin.protocol.reject
+	25, // 11: yuhaiin.protocol.protocol.direct:type_name -> yuhaiin.protocol.direct
+	26, // 12: yuhaiin.protocol.protocol.reject:type_name -> yuhaiin.protocol.reject
 	10, // 13: yuhaiin.protocol.protocol.yuubinsya:type_name -> yuhaiin.protocol.yuubinsya
 	12, // 14: yuhaiin.protocol.protocol.grpc:type_name -> yuhaiin.protocol.grpc
 	6,  // 15: yuhaiin.protocol.protocol.http2:type_name -> yuhaiin.protocol.http2
 	14, // 16: yuhaiin.protocol.protocol.reality:type_name -> yuhaiin.protocol.reality
-	18, // 17: yuhaiin.protocol.protocol.tls:type_name -> yuhaiin.protocol.tls_config
-	29, // 18: yuhaiin.protocol.protocol.wireguard:type_name -> yuhaiin.protocol.wireguard
-	30, // 19: yuhaiin.protocol.protocol.mux:type_name -> yuhaiin.protocol.mux
-	26, // 20: yuhaiin.protocol.protocol.drop:type_name -> yuhaiin.protocol.drop
+	19, // 17: yuhaiin.protocol.protocol.tls:type_name -> yuhaiin.protocol.tls_config
+	30, // 18: yuhaiin.protocol.protocol.wireguard:type_name -> yuhaiin.protocol.wireguard
+	31, // 19: yuhaiin.protocol.protocol.mux:type_name -> yuhaiin.protocol.mux
+	27, // 20: yuhaiin.protocol.protocol.drop:type_name -> yuhaiin.protocol.drop
 	8,  // 21: yuhaiin.protocol.protocol.vless:type_name -> yuhaiin.protocol.vless
-	31, // 22: yuhaiin.protocol.protocol.bootstrap_dns_warp:type_name -> yuhaiin.protocol.bootstrap_dns_warp
-	32, // 23: yuhaiin.protocol.protocol.tailscale:type_name -> yuhaiin.protocol.tailscale
-	33, // 24: yuhaiin.protocol.protocol.set:type_name -> yuhaiin.protocol.set
-	21, // 25: yuhaiin.protocol.protocol.tls_termination:type_name -> yuhaiin.protocol.tls_termination
-	22, // 26: yuhaiin.protocol.protocol.http_termination:type_name -> yuhaiin.protocol.http_termination
-	34, // 27: yuhaiin.protocol.protocol.http_mock:type_name -> yuhaiin.protocol.http_mock
-	35, // 28: yuhaiin.protocol.protocol.aead:type_name -> yuhaiin.protocol.aead
-	18, // 29: yuhaiin.protocol.grpc.tls:type_name -> yuhaiin.protocol.tls_config
-	18, // 30: yuhaiin.protocol.quic.tls:type_name -> yuhaiin.protocol.tls_config
-	27, // 31: yuhaiin.protocol.simple.alternate_host:type_name -> yuhaiin.protocol.host
-	19, // 32: yuhaiin.protocol.tls_server_config.certificates:type_name -> yuhaiin.protocol.certificate
-	36, // 33: yuhaiin.protocol.tls_server_config.server_name_certificate:type_name -> yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
-	20, // 34: yuhaiin.protocol.tls_termination.tls:type_name -> yuhaiin.protocol.tls_server_config
-	38, // 35: yuhaiin.protocol.http_termination.headers:type_name -> yuhaiin.protocol.http_termination.HeadersEntry
-	28, // 36: yuhaiin.protocol.wireguard.peers:type_name -> yuhaiin.protocol.wireguard_peer_config
-	0,  // 37: yuhaiin.protocol.set.strategy:type_name -> yuhaiin.protocol.set.strategy_type
-	19, // 38: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry.value:type_name -> yuhaiin.protocol.certificate
-	23, // 39: yuhaiin.protocol.http_termination.http_headers.headers:type_name -> yuhaiin.protocol.http_header
-	37, // 40: yuhaiin.protocol.http_termination.HeadersEntry.value:type_name -> yuhaiin.protocol.http_termination.http_headers
-	41, // [41:41] is the sub-list for method output_type
-	41, // [41:41] is the sub-list for method input_type
-	41, // [41:41] is the sub-list for extension type_name
-	41, // [41:41] is the sub-list for extension extendee
-	0,  // [0:41] is the sub-list for field type_name
+	32, // 22: yuhaiin.protocol.protocol.bootstrap_dns_warp:type_name -> yuhaiin.protocol.bootstrap_dns_warp
+	33, // 23: yuhaiin.protocol.protocol.tailscale:type_name -> yuhaiin.protocol.tailscale
+	34, // 24: yuhaiin.protocol.protocol.set:type_name -> yuhaiin.protocol.set
+	22, // 25: yuhaiin.protocol.protocol.tls_termination:type_name -> yuhaiin.protocol.tls_termination
+	23, // 26: yuhaiin.protocol.protocol.http_termination:type_name -> yuhaiin.protocol.http_termination
+	35, // 27: yuhaiin.protocol.protocol.http_mock:type_name -> yuhaiin.protocol.http_mock
+	36, // 28: yuhaiin.protocol.protocol.aead:type_name -> yuhaiin.protocol.aead
+	18, // 29: yuhaiin.protocol.protocol.fixed:type_name -> yuhaiin.protocol.fixed
+	19, // 30: yuhaiin.protocol.grpc.tls:type_name -> yuhaiin.protocol.tls_config
+	19, // 31: yuhaiin.protocol.quic.tls:type_name -> yuhaiin.protocol.tls_config
+	28, // 32: yuhaiin.protocol.simple.alternate_host:type_name -> yuhaiin.protocol.host
+	28, // 33: yuhaiin.protocol.fixed.alternate_host:type_name -> yuhaiin.protocol.host
+	20, // 34: yuhaiin.protocol.tls_server_config.certificates:type_name -> yuhaiin.protocol.certificate
+	37, // 35: yuhaiin.protocol.tls_server_config.server_name_certificate:type_name -> yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
+	21, // 36: yuhaiin.protocol.tls_termination.tls:type_name -> yuhaiin.protocol.tls_server_config
+	39, // 37: yuhaiin.protocol.http_termination.headers:type_name -> yuhaiin.protocol.http_termination.HeadersEntry
+	29, // 38: yuhaiin.protocol.wireguard.peers:type_name -> yuhaiin.protocol.wireguard_peer_config
+	0,  // 39: yuhaiin.protocol.set.strategy:type_name -> yuhaiin.protocol.set.strategy_type
+	20, // 40: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry.value:type_name -> yuhaiin.protocol.certificate
+	24, // 41: yuhaiin.protocol.http_termination.http_headers.headers:type_name -> yuhaiin.protocol.http_header
+	38, // 42: yuhaiin.protocol.http_termination.HeadersEntry.value:type_name -> yuhaiin.protocol.http_termination.http_headers
+	43, // [43:43] is the sub-list for method output_type
+	43, // [43:43] is the sub-list for method input_type
+	43, // [43:43] is the sub-list for extension type_name
+	43, // [43:43] is the sub-list for extension extendee
+	0,  // [0:43] is the sub-list for field type_name
 }
 
 func init() { file_node_protocol_protocol_proto_init() }
@@ -5668,6 +5892,7 @@ func file_node_protocol_protocol_proto_init() {
 		(*protocol_HttpTermination)(nil),
 		(*protocol_HttpMock)(nil),
 		(*protocol_Aead)(nil),
+		(*protocol_Fixed)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -5675,7 +5900,7 @@ func file_node_protocol_protocol_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_node_protocol_protocol_proto_rawDesc), len(file_node_protocol_protocol_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   38,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
