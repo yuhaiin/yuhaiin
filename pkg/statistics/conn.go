@@ -10,7 +10,7 @@ import (
 
 type connection interface {
 	io.Closer
-	Info() *statistic.Connection
+	ID() uint64
 }
 
 type counter interface {
@@ -23,70 +23,66 @@ var _ connection = (*conn)(nil)
 type conn struct {
 	net.Conn
 
-	info    *statistic.Connection
-	manager *Connections
+	id      uint64
+	onClose func()
 	counter counter
 }
 
 func (s *conn) Close() error {
-	s.manager.Remove(s.info.GetId())
+	if s.onClose != nil {
+		s.onClose()
+	}
 	return s.Conn.Close()
 }
 
 func (s *conn) Write(b []byte) (_ int, err error) {
 	n, err := s.Conn.Write(b)
-	s.manager.Cache.AddUpload(uint64(n))
 	s.counter.AddUpload(uint64(n))
 	return int(n), err
 }
 
 func (s *conn) Read(b []byte) (n int, err error) {
 	n, err = s.Conn.Read(b)
-	s.manager.Cache.AddDownload(uint64(n))
 	s.counter.AddDownload(uint64(n))
 	return
 }
 
-func (s *conn) Info() *statistic.Connection { return s.info }
+func (s *conn) ID() uint64 { return s.id }
 
 var _ connection = (*packetConn)(nil)
 
 type packetConn struct {
 	net.PacketConn
 
-	info    *statistic.Connection
-	manager *Connections
+	id      uint64
+	onClose func()
 
 	counter counter
 }
 
-func (s *packetConn) Info() *statistic.Connection { return s.info }
-
 func (s *packetConn) Close() error {
-	s.manager.Remove(s.info.GetId())
+	if s.onClose != nil {
+		s.onClose()
+	}
 	return s.PacketConn.Close()
 }
 
+func (s *packetConn) ID() uint64 { return s.id }
+
 func (s *packetConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	n, err = s.PacketConn.WriteTo(p, addr)
-	s.manager.Cache.AddUpload(uint64(n))
 	s.counter.AddUpload(uint64(n))
 	return
 }
 
 func (s *packetConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	n, addr, err = s.PacketConn.ReadFrom(p)
-	s.manager.Cache.AddDownload(uint64(n))
 	s.counter.AddDownload(uint64(n))
 	return
 }
 
-func connToStatistic(c connection) *statistic.Connection { return c.Info() }
-
-func slogArgs(c connection) func() []any {
+func slogArgs(info *statistic.Connection) func() []any {
 	return func() []any {
-		info := c.Info()
-
 		attrs := []any{
 			slog.Any("id", info.GetId()),
 			slog.Any("addr", info.GetAddr()),

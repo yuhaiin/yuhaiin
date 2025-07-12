@@ -76,7 +76,10 @@ func AddCloser[T io.Closer](a *closers, name string, t T) T {
 }
 
 func OpenBboltDB(path string) (*bbolt.DB, error) {
-	db, err := bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second * 2})
+	db, err := bbolt.Open(path, os.ModePerm, &bbolt.Options{
+		Timeout: time.Second * 2,
+		Logger:  ybbolt.BBoltDBLogger{},
+	})
 	switch err {
 	case bolterr.ErrInvalid, bolterr.ErrChecksum, bolterr.ErrVersionMismatch:
 		if err = os.Remove(path); err != nil {
@@ -85,6 +88,9 @@ func OpenBboltDB(path string) (*bbolt.DB, error) {
 		log.Warn("remove invalid cache file and create new one")
 		return bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second})
 	}
+
+	// set big batch delay to reduce sync for fake dns and connection cache
+	db.MaxBatchDelay = time.Millisecond * 300
 
 	return db, err
 }
@@ -108,84 +114,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		f(closers)
 	}
 
-	chore := chore.NewChore(so.ChoreConfig, func(s *pc.Setting) {
-		log.Set(s.GetLogcat(), tools.PathGenerator.Log(so.ConfigPath))
-		configuration.IgnoreDnsErrorLog.Store(s.GetLogcat().GetIgnoreDnsError())
-		configuration.IgnoreTimeoutErrorLog.Store(s.GetLogcat().GetIgnoreTimeoutError())
-
-		sysproxy.Update(s)
-
-		{
-			// default interface
-			iface := ""
-
-			var mu sync.RWMutex
-
-			checkInterface := func(x string) (string, error) {
-				if _, err := net.InterfaceByName(x); err != nil {
-					return "", err
-				}
-
-				return x, nil
-			}
-
-			resultCache := NewResultCache(checkInterface, int64(time.Minute), 5)
-
-			dialer.DefaultInterfaceName = func() string {
-				if goos.IsAndroid == 1 || !s.GetUseDefaultInterface() {
-					return s.GetNetInterface()
-				}
-
-				mu.RLock()
-				x := iface
-				mu.RUnlock()
-
-				if x != "" {
-					if _, err := resultCache.Get(x); err == nil {
-						return x
-					}
-
-					mu.Lock()
-					iface = ""
-					mu.Unlock()
-				}
-
-				mu.Lock()
-				defer mu.Unlock()
-
-				ifacestr, err := interfaces.DefaultRouteInterface()
-				if err != nil {
-					log.Error("get default interface failed", "error", err)
-				} else {
-					log.Info("use default interface", "interface", ifacestr)
-					iface = ifacestr
-				}
-
-				return ifacestr
-			}
-		}
-
-		{
-			dialer.DefaultIPv6PreferUnicastLocalAddr = s.GetIpv6LocalAddrPreferUnicast()
-
-			configuration.IPv6.Store(s.GetIpv6())
-			configuration.FakeIPEnabled.Store(s.GetDns().GetFakedns() || s.GetServer().GetHijackDnsFakeip())
-			if advanced := s.GetAdvancedConfig(); advanced != nil {
-				if advanced.GetUdpBufferSize() > 2048 && advanced.GetUdpBufferSize() < 65535 {
-					configuration.UDPBufferSize.Store(int(advanced.GetUdpBufferSize()))
-				}
-
-				if advanced.GetRelayBufferSize() > 2048 && advanced.GetRelayBufferSize() < 65535 {
-					configuration.RelayBufferSize.Store(int(advanced.GetRelayBufferSize()))
-				}
-
-				udpRingBufferSize := s.GetAdvancedConfig().GetUdpRingbufferSize()
-				if udpRingBufferSize >= 100 && udpRingBufferSize <= 5000 {
-					configuration.MaxUDPUnprocessedPackets.Store(int(udpRingBufferSize))
-				}
-			}
-		}
-	})
+	chore := chore.NewChore(so.ChoreConfig, updateConfiguration(so))
 
 	log.Info("config", "path", so.ConfigPath)
 
@@ -207,7 +136,10 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	// connections' statistic & flow data
 
 	flowCache := AddCloser(closers, "flow_cache", cache.NewCache("flow_data"))
-	stcs := AddCloser(closers, "statistic", statistics.NewConnStore(flowCache, router))
+	connectionCache := AddCloser(closers, "connection_cache", cache.NewCache("connection_data"))
+	historyCache := AddCloser(closers, "history_cache", cache.NewCache("history_data"))
+	stcs := AddCloser(closers, "statistic",
+		statistics.NewConnStore(flowCache, historyCache, connectionCache, router))
 	metrics.SetFlowCounter(stcs.Cache)
 	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, router))
 	// wrap dialer and dns resolver to fake ip, if use
@@ -295,4 +227,85 @@ func (c *resultCache[K, T]) Get(x K) (T, error) {
 	c.currentSuccess.Add(1)
 
 	return data, nil
+}
+
+func setDefaultInterfaceName(defaultInterface string, useDefaultInterface bool) {
+	// default interface
+	iface := ""
+
+	var mu sync.RWMutex
+
+	checkInterface := func(x string) (string, error) {
+		if _, err := net.InterfaceByName(x); err != nil {
+			return "", err
+		}
+
+		return x, nil
+	}
+
+	resultCache := NewResultCache(checkInterface, int64(time.Minute), 5)
+
+	dialer.DefaultInterfaceName = func() string {
+		if goos.IsAndroid == 1 || !useDefaultInterface {
+			return defaultInterface
+		}
+
+		mu.RLock()
+		x := iface
+		mu.RUnlock()
+
+		if x != "" {
+			if _, err := resultCache.Get(x); err == nil {
+				return x
+			}
+
+			mu.Lock()
+			iface = ""
+			mu.Unlock()
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		ifacestr, err := interfaces.DefaultRouteInterface()
+		if err != nil {
+			log.Error("get default interface failed", "error", err)
+		} else {
+			log.Info("use default interface", "interface", ifacestr)
+			iface = ifacestr
+		}
+
+		return ifacestr
+	}
+}
+
+func updateConfiguration(so *StartOptions) func(s *pc.Setting) {
+	return func(s *pc.Setting) {
+		log.Set(s.GetLogcat(), tools.PathGenerator.Log(so.ConfigPath))
+		configuration.IgnoreDnsErrorLog.Store(s.GetLogcat().GetIgnoreDnsError())
+		configuration.IgnoreTimeoutErrorLog.Store(s.GetLogcat().GetIgnoreTimeoutError())
+
+		sysproxy.Update(s)
+
+		setDefaultInterfaceName(s.GetNetInterface(), s.GetUseDefaultInterface())
+
+		dialer.DefaultIPv6PreferUnicastLocalAddr = s.GetIpv6LocalAddrPreferUnicast()
+
+		configuration.IPv6.Store(s.GetIpv6())
+		configuration.FakeIPEnabled.Store(s.GetDns().GetFakedns() || s.GetServer().GetHijackDnsFakeip())
+		if advanced := s.GetAdvancedConfig(); advanced != nil {
+			if advanced.GetUdpBufferSize() > 2048 && advanced.GetUdpBufferSize() < 65535 {
+				configuration.UDPBufferSize.Store(int(advanced.GetUdpBufferSize()))
+			}
+
+			if advanced.GetRelayBufferSize() > 2048 && advanced.GetRelayBufferSize() < 65535 {
+				configuration.RelayBufferSize.Store(int(advanced.GetRelayBufferSize()))
+			}
+
+			udpRingBufferSize := s.GetAdvancedConfig().GetUdpRingbufferSize()
+			if udpRingBufferSize >= 100 && udpRingBufferSize <= 5000 {
+				configuration.MaxUDPUnprocessedPackets.Store(int(udpRingBufferSize))
+			}
+		}
+	}
 }

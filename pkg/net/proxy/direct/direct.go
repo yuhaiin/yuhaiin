@@ -61,7 +61,7 @@ func (d *direct) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 		return p, nil
 	}
 
-	return &UDPPacketConn{context.WithoutCancel(ctx), NewBufferPacketConn(p)}, nil
+	return &UDPPacketConn{resolver: netapi.GetContext(ctx).Resolver, BufferPacketConn: NewBufferPacketConn(p)}, nil
 }
 
 func (d *direct) Close() error { return nil }
@@ -86,7 +86,7 @@ func (p *bufferPacketConn) SetReadBuffer(int) error  { return nil }
 func (p *bufferPacketConn) SetWriteBuffer(int) error { return nil }
 
 type UDPPacketConn struct {
-	ctx context.Context
+	resolver netapi.ContextResolver
 	BufferPacketConn
 }
 
@@ -99,7 +99,9 @@ func (p *UDPPacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
 		}
 
 		if a.IsFqdn() {
-			ctx, cancel := context.WithTimeout(p.ctx, time.Second*5)
+			store := netapi.WithContext(context.Background())
+			store.Resolver = p.resolver
+			ctx, cancel := context.WithTimeout(store, time.Second*5)
 			udpAddr, err = dialer.ResolveUDPAddr(ctx, a)
 			cancel()
 		} else {

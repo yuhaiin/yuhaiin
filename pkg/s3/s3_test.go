@@ -44,5 +44,9 @@ func TestS3(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.NoError(t, s3.Put(context.Background(), []byte("test"), "test.json"))
+
+		data, err = s3.Get(t.Context(), "test.json")
+		assert.NoError(t, err)
+		assert.Equal(t, "test", string(data))
 	})
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -99,32 +100,42 @@ func (h *FailedHistory) Get() *gs.FailedHistoryList {
 }
 
 type History struct {
-	store *lru.SyncLru[failedHistoryKey, *historyEntry]
+	infoStore InfoCache
+	store     *lru.SyncLru[failedHistoryKey, *historyEntry]
 }
 
 type historyEntry struct {
-	*gs.AllHistory
-	mu sync.RWMutex
+	id    uint64
+	count uint64
+	time  time.Time
+	mu    sync.RWMutex
 }
 
-func NewHistory() *History {
-	return &History{
-		store: lru.NewSyncLru(
-			lru.WithCapacity[failedHistoryKey, *historyEntry](configuration.HistorySize),
-		),
+func NewHistory(infoStore InfoCache) *History {
+	h := &History{
+		infoStore: infoStore,
 	}
+
+	h.store = lru.NewSyncLru(
+		lru.WithCapacity[failedHistoryKey, *historyEntry](configuration.HistorySize),
+		lru.WithOnRemove(func(key failedHistoryKey, value *historyEntry) {
+			h.infoStore.Delete(value.id)
+		}),
+	)
+
+	return h
 }
 
 func (h *History) Push(c *statistic.Connection) {
 	key := failedHistoryKey{c.GetAddr(), c.GetProcess(), c.GetType().GetConnType()}
 
+	h.infoStore.Store(c.GetId(), c)
+
 	x, ok := h.store.LoadOrAdd(key, func() *historyEntry {
 		return &historyEntry{
-			AllHistory: (&gs.AllHistory_builder{
-				Connection: c,
-				Count:      proto.Uint64(1),
-				Time:       timestamppb.Now(),
-			}).Build(),
+			id:    c.GetId(),
+			count: 1,
+			time:  time.Now(),
 		}
 	})
 
@@ -133,9 +144,8 @@ func (h *History) Push(c *statistic.Connection) {
 	}
 
 	x.mu.Lock()
-	x.SetCount(x.GetCount() + 1)
-	x.SetTime(timestamppb.Now())
-	x.SetConnection(c)
+	x.count++
+	x.time = time.Now()
 	x.mu.Unlock()
 }
 
@@ -144,8 +154,19 @@ func (h *History) Get() *gs.AllHistoryList {
 	var objects []*gs.AllHistory
 	for _, v := range h.store.Range {
 		v.mu.RLock()
-		objects = append(objects, proto.CloneOf(v.AllHistory))
-		if !dumpProcess && v.GetConnection().GetProcess() != "" {
+
+		info, ok := h.infoStore.Load(v.id)
+		if !ok {
+			continue
+		}
+
+		objects = append(objects, gs.AllHistory_builder{
+			Count:      proto.Uint64(v.count),
+			Time:       timestamppb.New(v.time),
+			Connection: info,
+		}.Build())
+
+		if !dumpProcess && info.GetProcess() != "" {
 			dumpProcess = true
 		}
 		v.mu.RUnlock()

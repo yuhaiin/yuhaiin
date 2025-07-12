@@ -6,51 +6,69 @@ import (
 	"strconv"
 
 	cb "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"google.golang.org/protobuf/proto"
 )
 
-var server *listener.InboundConfig
-var system *cb.SystemProxy
+type config struct {
+	http   host
+	socks5 host
+}
+
+type host struct {
+	enabled bool
+	host    string
+}
+
+func (h host) Ok() bool {
+	return !h.enabled || h.host != ""
+}
+
+func (h host) Empty() bool {
+	return h.enabled && h.host == ""
+}
+
+var cfg config
 
 func Update(s *cb.Setting) {
-	if proto.Equal(server, s.GetServer()) &&
-		proto.Equal(system, s.GetSystemProxy()) {
-		return
+	ncfg := config{
+		http: host{
+			enabled: s.GetSystemProxy().GetHttp(),
+			host:    "",
+		},
+		socks5: host{
+			enabled: s.GetSystemProxy().GetSocks5(),
+			host:    "",
+		},
 	}
 
-	UnsetSysProxy()
-	var http, socks5 string
-
 	for _, v := range s.GetServer().GetInbounds() {
-		if s.GetSystemProxy().GetHttp() && http == "" {
-			if v.GetEnabled() && v.GetTcpudp() != nil {
-				if v.GetHttp() != nil || v.GetMix() != nil {
-					http = v.GetTcpudp().GetHost()
-				}
-			}
+		if !v.GetEnabled() || v.GetTcpudp() == nil {
+			continue
 		}
 
-		if s.GetSystemProxy().GetSocks5() && socks5 == "" {
-			if v.GetEnabled() && v.GetTcpudp() != nil {
-				if v.GetSocks5() != nil || v.GetMix() != nil {
-					http = v.GetTcpudp().GetHost()
-				}
-			}
+		if ncfg.http.Empty() && (v.GetHttp() != nil || v.GetMix() != nil) {
+			ncfg.http.host = v.GetTcpudp().GetHost()
 		}
 
-		if (!s.GetSystemProxy().GetSocks5() || (s.GetSystemProxy().GetSocks5() && socks5 != "")) &&
-			(!s.GetSystemProxy().GetHttp() || (s.GetSystemProxy().GetHttp() && http != "")) {
+		if ncfg.socks5.Empty() && (v.GetSocks5() != nil || v.GetMix() != nil) {
+			ncfg.socks5.host = v.GetTcpudp().GetHost()
+		}
+
+		if ncfg.http.Ok() && ncfg.socks5.Ok() {
 			break
 		}
 	}
 
-	hh, hp := replaceUnspecified(http)
-	sh, sp := replaceUnspecified(socks5)
+	if cfg == ncfg {
+		return
+	}
+
+	UnsetSysProxy()
+
+	hh, hp := replaceUnspecified(ncfg.http.host)
+	sh, sp := replaceUnspecified(ncfg.socks5.host)
 
 	SetSysProxy(hh, hp, sh, sp)
-	server = s.GetServer()
-	system = s.GetSystemProxy()
+	cfg = ncfg
 }
 
 func replaceUnspecified(s string) (string, string) {

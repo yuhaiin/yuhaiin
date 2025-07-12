@@ -2,10 +2,10 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
-	"google.golang.org/protobuf/proto"
 )
 
 type DB interface {
@@ -20,12 +20,12 @@ type DB interface {
 var _ DB = (*JsonDB)(nil)
 
 type JsonDB struct {
-	db *jsondb.DB[*Setting]
-	mu sync.RWMutex
+	path string
+	mu   sync.RWMutex
 }
 
 func NewJsonDB(path string) *JsonDB {
-	s := &JsonDB{db: jsondb.Open(path, DefaultSetting(path))}
+	s := &JsonDB{path: path}
 	return s
 }
 
@@ -33,8 +33,11 @@ func (c *JsonDB) View(f ...func(*Setting) error) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	// ! for save memory on lowmemory device, we open db every time
+	db := jsondb.Open(c.path, DefaultSetting(c.path))
+
 	for _, v := range f {
-		if err := v(c.db.Data); err != nil {
+		if err := v(db.Data); err != nil {
 			return err
 		}
 	}
@@ -50,26 +53,19 @@ func (c *JsonDB) Batch(f ...func(*Setting) error) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	cf := proto.CloneOf(c.db.Data)
-	for i := range f {
-		if err := f[i](cf); err != nil {
+	// ! for save memory on lowmemory device, we open db every time
+	db := jsondb.Open(c.path, DefaultSetting(c.path))
+	for _, v := range f {
+		if err := v(db.Data); err != nil {
 			return err
 		}
 	}
 
-	// The Equal current has some problem
-	// so we skip it
-	// if proto.Equal(c.db.Data, cf) {
-	// return nil
-	// }
-
-	c.db.Data = cf
-
-	if err := c.db.Save(); err != nil {
+	if err := db.Save(); err != nil {
 		return fmt.Errorf("save settings failed: %w", err)
 	}
 
 	return nil
 }
 
-func (c *JsonDB) Dir() string { return c.db.Dir() }
+func (c *JsonDB) Dir() string { return filepath.Dir(c.path) }

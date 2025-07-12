@@ -3,17 +3,16 @@ package statistics
 import (
 	"context"
 	"fmt"
-	"iter"
 	"maps"
 	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -55,7 +54,7 @@ func newNotify() *notify {
 	return n
 }
 
-func (n *notify) register(s gs.Connections_NotifyServer, conns iter.Seq[connection]) (uint64, context.Context) {
+func (n *notify) register(s gs.Connections_NotifyServer, conns []*statistic.Connection) (uint64, context.Context) {
 	id := n.notifierIDSeed.Generate()
 	ctx, cancel := context.WithCancelCause(context.Background())
 
@@ -66,7 +65,7 @@ func (n *notify) register(s gs.Connections_NotifyServer, conns iter.Seq[connecti
 
 	err := ne.Send((&gs.NotifyData_builder{
 		NotifyNewConnections: (&gs.NotifyNewConnections_builder{
-			Connections: slice.CollectTo(conns, connToStatistic),
+			Connections: conns,
 		}).Build(),
 	}).Build())
 	if err == nil {
@@ -126,7 +125,7 @@ func (n *notify) trigger() {
 	}
 }
 
-func (n *notify) pubNewConn(conn connection) {
+func (n *notify) pubNewConn(conn *statistic.Connection) {
 	if n.closed.Load() {
 		return
 	}
@@ -153,21 +152,21 @@ func (n *notify) Close() error {
 
 type notifyStore struct {
 	removeStore *list.Set[uint64]
-	store       map[uint64]connection
+	store       map[uint64]*statistic.Connection
 	length      uint64
 	mu          sync.RWMutex
 }
 
 func newNotifyStore() *notifyStore {
 	return &notifyStore{
-		store:       make(map[uint64]connection),
+		store:       make(map[uint64]*statistic.Connection),
 		removeStore: list.NewSet[uint64](),
 	}
 }
 
-func (n *notifyStore) push(o connection) int {
+func (n *notifyStore) push(o *statistic.Connection) int {
 	n.mu.Lock()
-	n.store[o.Info().GetId()] = o
+	n.store[o.GetId()] = o
 	n.length++
 	len := n.length
 	n.mu.Unlock()
@@ -199,7 +198,7 @@ func (n *notifyStore) dump() (datas []*gs.NotifyData) {
 
 	removeIDs := slices.Collect(n.removeStore.Range)
 	n.removeStore.Clear()
-	newConns := slice.CollectTo(maps.Values(n.store), connToStatistic)
+	newConns := slices.Collect(maps.Values(n.store))
 	clear(n.store)
 	n.length = 0
 
