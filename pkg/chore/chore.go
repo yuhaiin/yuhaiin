@@ -10,7 +10,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"google.golang.org/protobuf/proto"
@@ -19,36 +18,20 @@ import (
 
 type Chore struct {
 	gc.UnimplementedConfigServiceServer
-
-	db config.DB
-
+	db     config.DB
 	onSave func(*config.Setting)
-
-	mu sync.RWMutex
+	mu     sync.RWMutex
 }
 
 func NewChore(db config.DB, onSave func(*config.Setting)) gc.ConfigServiceServer {
-	_ = db.Batch(func(s *config.Setting) error {
-		migrate(s)
-		onSave(s)
-		return nil
-	})
+	c := &Chore{db: db, onSave: onSave}
 
-	return &Chore{db: db, onSave: onSave}
-}
-
-func migrate(s *config.Setting) {
-	if s.GetBypass().GetBypassFile() != "" {
-		s.GetBypass().SetRemoteRules(append(s.GetBypass().GetRemoteRules(), bypass.RemoteRule_builder{
-			Enabled: proto.Bool(true),
-			Name:    proto.String("old_bypass_file"),
-			File: bypass.RemoteRuleFile_builder{
-				Path: proto.String(s.GetBypass().GetBypassFile()),
-			}.Build(),
-		}.Build()))
-
-		s.GetBypass().SetBypassFile("")
+	config, err := c.Load(context.Background(), &emptypb.Empty{})
+	if err == nil {
+		c.onSave(config)
 	}
+
+	return c
 }
 
 func (c *Chore) Info(context.Context, *emptypb.Empty) (*config.Info, error) { return Info(), nil }
@@ -119,7 +102,7 @@ func (c *Chore) Save(ctx context.Context, s *config.Setting) (*emptypb.Empty, er
 
 		ss.SetAdvancedConfig(s.GetAdvancedConfig())
 
-		c.onSave(proto.CloneOf(ss))
+		c.onSave(ss)
 		return nil
 	})
 

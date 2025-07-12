@@ -173,11 +173,17 @@ func (s *ShareCache) OpenStore() (cache.RecursionCache, error) {
 			return
 		}
 
-		odb, err := bbolt.Open(s.dbPath, os.ModePerm, &bbolt.Options{Timeout: time.Second * 2})
+		odb, err := bbolt.Open(s.dbPath, os.ModePerm, &bbolt.Options{
+			Timeout: time.Second * 2,
+			Logger:  cb.BBoltDBLogger{},
+		})
 		if err != nil {
 			sendData(nil, err)
 			return
 		}
+
+		// set big batch delay to reduce sync for fake dns and connection cache
+		odb.MaxBatchDelay = time.Millisecond * 300
 
 		cb := cb.NewCache(odb, "yuhaiin")
 

@@ -7,7 +7,6 @@ package jsondb
 
 import (
 	"os"
-	"path/filepath"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicfile"
@@ -67,8 +66,6 @@ func MergeDefault(src, def protoreflect.Message) {
 		}
 	}
 }
-
-func (db *DB[T]) Dir() string { return filepath.Dir(db.path) }
 
 // Save writes db.Data back to disk.
 func (db *DB[T]) Save() error {

@@ -47,13 +47,12 @@ func Set(config *protolog.Logcat, path string) {
 
 	al.SetLevel(config.GetLevel().SLogLevel())
 
-	if !config.GetSave() && writer != nil {
+	switch {
+	case !config.GetSave() && writer != nil:
 		al.SetOutput(os.Stdout)
 		writer.Close()
 		writer = nil
-	}
-
-	if config.GetSave() && writer == nil {
+	case config.GetSave() && writer == nil:
 		writer = NewLogWriter(path)
 		if OutputStderr {
 			al.SetOutput(io.MultiWriter(writer, os.Stderr))

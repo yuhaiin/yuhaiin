@@ -2,15 +2,13 @@ package ssr
 
 import (
 	"encoding/binary"
+	"sync"
 )
 
 var (
+	crc32Once  sync.Once
 	crc32Table = make([]uint32, 256)
 )
-
-func init() {
-	createCRC32Table()
-}
 
 func createCRC32Table() {
 	for i := range 256 {
@@ -31,6 +29,8 @@ func CalcCRC32(input []byte, length int) uint32 {
 }
 
 func doCalcCRC32(input []byte, length int, value uint32) uint32 {
+	crc32Once.Do(createCRC32Table)
+
 	buffer := input
 	for i := range length {
 		value = (value >> 8) ^ crc32Table[byte(value&0xFF)^buffer[i]]

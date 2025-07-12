@@ -2,7 +2,9 @@ package statistics
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"sync"
@@ -35,14 +37,29 @@ type Connections struct {
 	history      *History
 
 	connStore syncmap.SyncMap[uint64, connection]
+	infoStore InfoCache
 	counters  *counters
 
 	idSeed id.IDGenerator
 }
 
-func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
+func NewConnStore(cache, history, connection cache.Cache, dialer netapi.Proxy) *Connections {
 	if dialer == nil {
 		dialer = direct.Default
+	}
+
+	var infoStore InfoCache
+	if connection != nil {
+		infoStore = newInfoStore(connection)
+	} else {
+		infoStore = newInfoMemStore()
+	}
+
+	var historyStore InfoCache
+	if history != nil {
+		historyStore = newInfoStore(history)
+	} else {
+		historyStore = newInfoMemStore()
 	}
 
 	return &Connections{
@@ -50,13 +67,20 @@ func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
 		Cache:        NewTotalCache(cache),
 		notify:       newNotify(),
 		faildHistory: NewFailedHistory(),
-		history:      NewHistory(),
 		counters:     newCounters(),
+		infoStore:    infoStore,
+		history:      NewHistory(historyStore),
 	}
 }
 
+func (c *Connections) allInfos() []*statistic.Connection {
+	return slice.CollectTo(c.infoStore.RangeValues, func(x *statistic.Connection) *statistic.Connection {
+		return x
+	})
+}
+
 func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) error {
-	id, done := c.notify.register(s, c.connStore.RangeValues)
+	id, done := c.notify.register(s, c.allInfos())
 	defer c.notify.unregister(id)
 	log.Debug("new notify client", "id", id)
 	defer log.Debug("remove notify client", "id", id)
@@ -70,9 +94,7 @@ func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) er
 }
 
 func (c *Connections) Conns(context.Context, *emptypb.Empty) (*gs.NotifyNewConnections, error) {
-	return (&gs.NotifyNewConnections_builder{
-		Connections: slice.CollectTo(c.connStore.RangeValues, connToStatistic),
-	}).Build(), nil
+	return (&gs.NotifyNewConnections_builder{Connections: c.allInfos()}).Build(), nil
 }
 
 func (c *Connections) CloseConn(_ context.Context, x *gs.NotifyRemoveConnections) (*emptypb.Empty, error) {
@@ -108,19 +130,21 @@ func (c *Connections) Total(context.Context, *emptypb.Empty) (*gs.TotalFlow, err
 func (c *Connections) Remove(id uint64) {
 	if z, ok := c.connStore.LoadAndDelete(id); ok {
 		metrics.Counter.RemoveConnection(1)
-		log.Debug("close conn", "id", z.Info().GetId())
+		log.Debug("close conn", "id", z.ID())
 	}
 
+	c.infoStore.LoadAndDelete(id)
 	c.counters.Remove(id)
-
 	c.notify.pubRemoveConn(id)
 }
 
-func (c *Connections) storeConnection(o connection) {
-	c.connStore.Store(o.Info().GetId(), o)
-	c.notify.pubNewConn(o)
-	c.history.Push(o.Info())
-	log.Select(slog.LevelDebug).PrintFunc("new conn", slogArgs(o))
+func (c *Connections) storeConnection(o connection, info *statistic.Connection) {
+	id := info.GetId()
+	c.connStore.Store(id, o)
+	c.infoStore.Store(id, info)
+	c.notify.pubNewConn(info)
+	c.history.Push(info)
+	log.Select(slog.LevelDebug).PrintFunc("new conn", slogArgs(info))
 }
 
 func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
@@ -130,18 +154,21 @@ func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.
 		return nil, err
 	}
 
-	counter := newCounter()
+	counter := newCounter(c.Cache)
+
+	info := c.getConnection(ctx, con, addr)
+	id := info.GetId()
 
 	z := &packetConn{
 		PacketConn: con,
-		info:       c.getConnection(ctx, con, addr),
-		manager:    c,
+		id:         id,
+		onClose:    func() { c.Remove(id) },
 		counter:    counter,
 	}
 
-	c.counters.Store(z.Info().GetId(), counter)
+	c.counters.Store(z.id, counter)
 
-	c.storeConnection(z)
+	c.storeConnection(z, info)
 	return z, nil
 }
 
@@ -248,17 +275,21 @@ func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, 
 		return nil, err
 	}
 
-	counter := newCounter()
+	counter := newCounter(c.Cache)
+
+	info := c.getConnection(ctx, con, addr)
+
+	id := info.GetId()
 
 	z := &conn{
 		Conn:    con,
-		info:    c.getConnection(ctx, con, addr),
-		manager: c,
+		id:      id,
+		onClose: func() { c.Remove(id) },
 		counter: counter,
 	}
-	c.counters.Store(z.Info().GetId(), counter)
 
-	c.storeConnection(z)
+	c.counters.Store(z.id, counter)
+	c.storeConnection(z, info)
 	return z, nil
 }
 
@@ -310,12 +341,131 @@ func (c *counters) Load() map[uint64]*gs.Counter {
 }
 
 type Counter struct {
+	cache    *TotalCache
 	download atomic.Uint64
 	upload   atomic.Uint64
 }
 
-func newCounter() *Counter              { return &Counter{} }
-func (c *Counter) AddDownload(n uint64) { c.download.Add(n) }
-func (c *Counter) AddUpload(n uint64)   { c.upload.Add(n) }
+func newCounter(cache *TotalCache) *Counter { return &Counter{cache: cache} }
+func (c *Counter) AddDownload(n uint64) {
+	c.cache.AddDownload(n)
+	c.download.Add(n)
+}
+func (c *Counter) AddUpload(n uint64) {
+	c.cache.AddUpload(n)
+	c.upload.Add(n)
+}
 func (c *Counter) LoadDownload() uint64 { return c.download.Load() }
 func (c *Counter) LoadUpload() uint64   { return c.upload.Load() }
+
+type InfoCache interface {
+	Load(id uint64) (*statistic.Connection, bool)
+	LoadAndDelete(id uint64) (*statistic.Connection, bool)
+	Store(id uint64, info *statistic.Connection)
+	RangeValues(f func(value *statistic.Connection) bool)
+	Delete(id uint64)
+	io.Closer
+}
+
+var _ InfoCache = (*infoStore)(nil)
+
+type infoStore struct {
+	cache cache.Cache
+}
+
+func newInfoStore(cache cache.Cache) *infoStore { return &infoStore{cache: cache} }
+
+func (c *infoStore) Load(id uint64) (*statistic.Connection, bool) {
+	data, err := c.cache.Get(binary.BigEndian.AppendUint64([]byte{}, id))
+	if err != nil {
+		log.Warn("get info failed", "id", id, "err", err)
+		return nil, false
+	}
+	var info statistic.Connection
+	if err := proto.Unmarshal(data, &info); err != nil {
+		log.Warn("unmarshal info failed", "id", id, "err", err)
+		return nil, false
+	}
+
+	return &info, true
+}
+
+func (c *infoStore) LoadAndDelete(id uint64) (*statistic.Connection, bool) {
+	data, err := c.cache.Get(binary.BigEndian.AppendUint64([]byte{}, id))
+	if err != nil {
+		log.Warn("get info failed", "id", id, "err", err)
+		return nil, false
+	}
+
+	var info statistic.Connection
+	if err := proto.Unmarshal(data, &info); err != nil {
+		log.Warn("unmarshal info failed", "id", id, "err", err)
+		return nil, false
+	}
+
+	err = c.cache.Delete(binary.BigEndian.AppendUint64([]byte{}, id))
+	if err != nil {
+		log.Warn("delete info failed", "id", id, "err", err)
+	}
+
+	return &info, true
+}
+
+func (c *infoStore) Store(id uint64, info *statistic.Connection) {
+	data, err := proto.Marshal(info)
+	if err != nil {
+		log.Warn("marshal info failed", "id", id, "err", err)
+		return
+	}
+
+	key := binary.BigEndian.AppendUint64([]byte{}, id)
+
+	err = c.cache.Put(key, data)
+	if err != nil {
+		log.Warn("put info failed", "id", id, "err", err)
+	}
+}
+
+func (c *infoStore) Delete(id uint64) {
+	err := c.cache.Delete(binary.BigEndian.AppendUint64([]byte{}, id))
+	if err != nil {
+		log.Warn("delete info failed", "id", id, "err", err)
+	}
+}
+
+func (c *infoStore) Close() error {
+	return c.cache.Close()
+}
+
+func (c *infoStore) Range(f func(key uint64, value *statistic.Connection) bool) error {
+	return c.cache.Range(func(key []byte, value []byte) bool {
+		var info statistic.Connection
+		if err := proto.Unmarshal(value, &info); err != nil {
+			return false
+		}
+		return f(binary.BigEndian.Uint64(key), &info)
+	})
+}
+
+func (c *infoStore) RangeValues(f func(value *statistic.Connection) bool) {
+	err := c.cache.Range(func(key, value []byte) bool {
+		var info statistic.Connection
+		if err := proto.Unmarshal(value, &info); err != nil {
+			return false
+		}
+		return f(&info)
+	})
+	if err != nil {
+		log.Warn("range info failed", "err", err)
+	}
+}
+
+var _ InfoCache = (*infoMemStore)(nil)
+
+type infoMemStore struct {
+	syncmap.SyncMap[uint64, *statistic.Connection]
+}
+
+func newInfoMemStore() *infoMemStore { return &infoMemStore{} }
+
+func (c *infoMemStore) Close() error { return nil }

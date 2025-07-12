@@ -1,11 +1,15 @@
+//go:build !android
+
 package main
 
 import (
 	"errors"
 	"syscall"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 )
 
@@ -28,5 +32,10 @@ func init() {
 		}
 
 		return err == nil
+	}
+
+	if configuration.ProcessDumper {
+		// try start bpf
+		netlink.StartBpf()
 	}
 }

@@ -175,12 +175,16 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, uint, error) {
 }
 
 var (
-	bpf             = NewBpfTcp()
+	bpf             *BpfTcp
 	bpfSingleFlight = singleflight.Group[int, string]{}
 )
 
+func StartBpf() {
+	bpf = NewBpfTcp()
+}
+
 func FindProcessName(network string, ip netip.AddrPort, to netip.AddrPort) (netapi.Process, error) {
-	if bpf.active.Load() && network == "tcp" {
+	if bpf != nil && bpf.active.Load() && network == "tcp" {
 		pid, ok := bpf.findPid(ip, to)
 		if !ok {
 			return netapi.Process{}, fmt.Errorf("can't find process: %v %v", ip, to)
