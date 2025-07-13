@@ -6,10 +6,12 @@ import (
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	probing "github.com/prometheus-community/pro-bing"
 )
 
 type direct struct {
@@ -62,6 +64,54 @@ func (d *direct) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 	}
 
 	return &UDPPacketConn{resolver: netapi.GetContext(ctx).Resolver, BufferPacketConn: NewBufferPacketConn(p)}, nil
+}
+
+func (d *direct) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	var ip string
+	var v6 bool
+	var localhost bool
+	if addr.IsFqdn() {
+		z, err := dialer.ResolverIP(ctx, addr)
+		if err != nil {
+			return 0, err
+		}
+		v6 = z.To4() == nil
+		if !v6 {
+			z = z.To4()
+		}
+		ip = z.String()
+		localhost = z.IsLoopback()
+	} else {
+		z := addr.(netapi.IPAddress).AddrPort().Addr()
+		v6 = !z.Unmap().Is4()
+		ip = z.Unmap().String()
+		localhost = z.Unmap().IsLoopback()
+	}
+
+	pinger, err := probing.NewPinger(ip)
+	if err != nil {
+		return 0, fmt.Errorf("ping %v:%v failed: %w", addr, ip, err)
+	}
+
+	if !localhost {
+		saddr, err := dialer.GetDefaultInterfaceAddress(v6)
+		if err == nil {
+			pinger.Source = saddr.String()
+		} else {
+			log.Error("get default interface address failed", "err", err)
+		}
+	}
+
+	pinger.SetPrivileged(false)
+	defer pinger.Stop()
+
+	pinger.Count = 1
+	err = pinger.RunWithContext(ctx) // Blocks until finished.
+	if err != nil {
+		return 0, fmt.Errorf("ping %v:%v failed: %w", addr, ip, err)
+	}
+
+	return uint64(pinger.Statistics().MinRtt.Milliseconds()), nil
 }
 
 func (d *direct) Close() error { return nil }

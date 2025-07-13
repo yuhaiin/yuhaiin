@@ -69,6 +69,10 @@ func (h *Hosts) PacketConn(ctx context.Context, addr netapi.Address) (net.Packet
 	return h.dialer.PacketConn(ctx, h.dispatchAddr(ctx, addr))
 }
 
+func (h *Hosts) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	return h.dialer.Ping(ctx, h.dispatchAddr(ctx, addr))
+}
+
 func (h *Hosts) setHosts(ctx context.Context, pre netapi.Address) {
 	netapi.GetContext(ctx).SetHosts(pre)
 }

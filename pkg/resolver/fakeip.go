@@ -145,6 +145,10 @@ func (f *Fakedns) PacketConn(ctx context.Context, addr netapi.Address) (net.Pack
 	return f.dialer.PacketConn(ctx, f.dispatchAddr(ctx, addr))
 }
 
+func (f *Fakedns) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	return f.dialer.Ping(ctx, f.dispatchAddr(ctx, addr))
+}
+
 func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Address {
 	if addr.IsFqdn() {
 		return addr

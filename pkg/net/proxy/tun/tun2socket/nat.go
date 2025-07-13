@@ -21,6 +21,7 @@ import (
 type Nat struct {
 	*TCP
 	*UDP
+	*Ping
 
 	tab *tableSplit
 
@@ -113,6 +114,7 @@ func Start(opt *device.Opt) (*Nat, error) {
 		tab:              tab,
 		TCP:              NewTCP(opt, v4listener, v6listener, tab),
 		UDP:              NewUDP(opt),
+		Ping:             &Ping{opt},
 		postDown:         opt.PostDown,
 	}
 
@@ -198,19 +200,23 @@ func Start(opt *device.Opt) (*Nat, error) {
 					continue
 				}
 
-				var tp header.Transport
-				var pseudoHeaderSum uint16
-				var ok bool
-
 				switch ip.TransportProtocol() {
 				case header.TCPProtocolNumber:
-					tp, pseudoHeaderSum, ok = nat.processTCP(ip, src, dst)
+					tp, pseudoHeaderSum, ok := nat.processTCP(ip, src, dst)
+					if !ok {
+						continue
+					}
+
+					device.ResetChecksum(ip, tp, pseudoHeaderSum)
+					wbufs = append(wbufs, bufs[i][:sizes[i]+offset])
 
 				case header.ICMPv4ProtocolNumber:
-					tp, pseudoHeaderSum, ok = processICMP(ip)
+					nat.Ping.HandlePing4(bufs[i])
+					continue
 
 				case header.ICMPv6ProtocolNumber:
-					tp, pseudoHeaderSum, ok = processICMPv6(ip)
+					nat.Ping.HandlePing6(bufs[i])
+					continue
 
 				case header.UDPProtocolNumber:
 					u := header.UDP(ip.Payload())
@@ -230,14 +236,6 @@ func Start(opt *device.Opt) (*Nat, error) {
 				default:
 					continue
 				}
-
-				if !ok {
-					continue
-				}
-
-				device.ResetChecksum(ip, tp, pseudoHeaderSum)
-
-				wbufs = append(wbufs, bufs[i][:sizes[i]+offset])
 			}
 
 			if len(wbufs) == 0 {
