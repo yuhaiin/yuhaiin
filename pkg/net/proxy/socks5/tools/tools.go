@@ -36,6 +36,8 @@ const (
 	Connect CMD = 0x01
 	Bind    CMD = 0x02
 	Udp     CMD = 0x03
+	// Ping this is custom command
+	Ping CMD = 0x04
 
 	IPv4   byte = 0x01
 	Domain byte = 0x03
