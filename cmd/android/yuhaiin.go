@@ -24,8 +24,18 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"tailscale.com/net/netmon"
 )
+
+var savepath string
+var datadir string
+
+func SetSavePath(p string) {
+	savepath = p
+}
+
+func SetDataDir(p string) {
+	datadir = p
+}
 
 var SetAndroidProtectFunc func(SocketProtect)
 
@@ -82,13 +92,11 @@ func (a *App) Start(opt *Opts) error {
 		_ = a.server.Close()
 	}
 
-	netmon.RegisterInterfaceGetter(func() ([]netmon.Interface, error) { return getInterfaces(opt.Interfaces) })
-
 	if SetAndroidProtectFunc != nil {
 		SetAndroidProtectFunc(opt.TUN.SocketProtect)
 	}
 
-	tsLogDir := path.Join(opt.Savepath, "tailscale", "logs")
+	tsLogDir := path.Join(savepath, "tailscale", "logs")
 	err := os.MkdirAll(tsLogDir, 0755)
 	if err != nil {
 		log.Warn("create ts log dir failed:", "err", err)
@@ -124,13 +132,13 @@ func (a *App) Start(opt *Opts) error {
 	}
 
 	app, err := app.Start(&app.StartOptions{
-		ConfigPath:     opt.Savepath,
+		ConfigPath:     savepath,
 		BypassConfig:   newBypassDB(),
 		ResolverConfig: newResolverDB(),
-		InboundConfig:  fakeDB(opt, tools.PathGenerator.Config(opt.Savepath)),
+		InboundConfig:  fakeDB(opt, tools.PathGenerator.Config(savepath)),
 		ChoreConfig:    newChoreDB(),
 		BackupConfig:   newBackupDB(),
-		ProcessDumper:  NewUidDumper(opt.TUN.UidDumper),
+		ProcessDumper:  processDumper,
 	})
 	if err != nil {
 		_ = lis.Close()

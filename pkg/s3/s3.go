@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net"
+	"net/http"
 	"net/url"
 	"path/filepath"
 
@@ -28,6 +30,15 @@ func NewS3(opt *backup.S3, proxy netapi.Proxy) (*S3, error) {
 		Creds:  credentials.NewStaticV4(opt.GetAccessKey(), opt.GetSecretKey(), ""),
 		Secure: uri.Scheme == "https",
 		Region: opt.GetRegion(),
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				ad, err := netapi.ParseAddress(network, addr)
+				if err != nil {
+					return nil, err
+				}
+				return proxy.Conn(ctx, ad)
+			},
+		},
 	})
 	if err != nil {
 		return nil, err

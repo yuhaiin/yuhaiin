@@ -25,6 +25,7 @@ GO_GCFLAGS=
 
 GO_BUILD_CMD=CGO_ENABLED=$(CGO_ENABLED) $(GO) build -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -trimpath
 TAILSCALE_BUILD_FLAGS=ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube,ts_omit_completion,ts_omit_ssh,ts_omit_wakeonlan,ts_omit_capture,ts_omit_relayserver,ts_omit_taildrop,ts_omit_tpm
+GO_TAGS=$(TAILSCALE_BUILD_FLAGS),stdlibjson,debug
 
 # AMD64v3 https://github.com/golang/go/wiki/MinimumRequirements#amd64
 LINUX_AMD64=GOOS=linux GOARCH=amd64
@@ -52,7 +53,7 @@ vet:
 
 .PHONY: yuhaiin
 yuhaiin:
-	$(GO_BUILD_CMD) -pgo auto -tags "$(TAILSCALE_BUILD_FLAGS),debug" $(YUHAIIN)
+	$(GO_BUILD_CMD) -pgo auto -tags "$(GO_TAGS)" $(YUHAIIN)
 
 define build 
 	$(eval ARGS := $(subst -, ,$@))
@@ -72,7 +73,7 @@ endef
 .PHONY: yuhaiin-%
 yuhaiin-%:
 	$(build)
-	GOOS=$(OS) GOARCH=$(ARCH) GOMIPS=$(MIPS) GOAMD64=$(AMD64V3) $(GO_BUILD_CMD) -pgo auto -tags '$(TAILSCALE_BUILD_FLAGS),debug,$(MODE)' -o yuhaiin_$(OS)_$(ARCH)$(AMD64V3)$(SUFFIX) $(YUHAIIN)
+	GOOS=$(OS) GOARCH=$(ARCH) GOMIPS=$(MIPS) GOAMD64=$(AMD64V3) $(GO_BUILD_CMD) -pgo auto -tags '$(GO_TAGS)' -o yuhaiin_$(OS)_$(ARCH)$(AMD64V3)$(SUFFIX) $(YUHAIIN)
 
 	@if [ "$(OS)" = "darwin" ]; then \
 		if [ -n "$(shell command -v codesign)" ]; then \
@@ -84,12 +85,12 @@ yuhaiin-%:
 
 .PHONY: yuhaiin_android_aar
 yuhaiin_android_aar:
-	gomobile bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags '$(TAILSCALE_BUILD_FLAGS),debug' -trimpath -target="android/arm64,android/amd64" -androidapi 21 -o yuhaiin.aar -v ./cmd/android/
+	gomobile bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags '$(GO_TAGS)' -trimpath -target="android/arm64,android/amd64" -androidapi 21 -o yuhaiin.aar -v ./cmd/android/
 
 # sudo Xcode-select --switch /Applications/Xcode.app/Contents/Developer/
 .PHONY: yuhaiin_macos
 yuhaiin_macos:
-	gomobile bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags '$(TAILSCALE_BUILD_FLAGS),debug' -trimpath -target="macos" -o yuhaiin.xcframework -v ./cmd/macos/
+	gomobile bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags '$(GO_TAGS)' -trimpath -target="macos" -o yuhaiin.xcframework -v ./cmd/macos/
 
 .PHONY: install
 install: build cli

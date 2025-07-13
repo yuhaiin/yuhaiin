@@ -18,7 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -57,13 +57,13 @@ func (s *Address) Match(ctx context.Context, addr netapi.Address) bool {
 
 type Process struct {
 	name  string
-	store *list.Set[string]
+	store *set.Set[string]
 }
 
 func NewProcess(name string, processes ...string) *Process {
 	p := &Process{
 		name:  name,
-		store: list.NewSet[string](),
+		store: set.NewSet[string](),
 	}
 
 	for _, process := range processes {

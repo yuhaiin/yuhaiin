@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
@@ -49,7 +49,7 @@ func (t *tableSplit) portOf(tuple Tuple) uint16 {
 
 type table struct {
 	lru   *lru.ReverseSyncLru[Tuple, uint16]
-	set   *list.Set[uint16]
+	set   *set.Set[uint16]
 	mu    sync.Mutex
 	index uint16
 }
@@ -57,7 +57,7 @@ type table struct {
 var defaultTableSize = math.MaxUint16 - 10001
 
 func newTableBase(expire time.Duration) *table {
-	set := list.NewSet[uint16]()
+	set := set.NewSet[uint16]()
 	return &table{
 		lru: lru.NewSyncReverseLru(
 			lru.WithLruOptions(

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -29,11 +30,27 @@ type Nat struct {
 	gatewayPort uint16
 }
 
-func dualStackListen(v4addr, v6addr string) (v4, v6 *net.TCPListener, port int, err error) {
+func dualStackListen(v4addr, v6addr netip.Addr) (v4, v6 *net.TCPListener, port int, err error) {
+	v4iface, err := getTunInterfaceByAddress(v4addr)
+	if err != nil {
+		log.Warn("get v4 interface failed", "err", err)
+	} else {
+		log.Info("bind v4 listener to interface", "iface", v4iface)
+	}
+
+	v6iface, err := getTunInterfaceByAddress(v6addr)
+	if err != nil {
+		log.Warn("get v6 interface failed", "err", err)
+	} else {
+		log.Info("bind v6 listener to interface", "iface", v6iface)
+	}
+
 	var er error
 	for range 5 {
 		v4listener, err := dialer.ListenContextWithOptions(context.Background(),
-			"tcp", net.JoinHostPort(v4addr, "0"), &dialer.Options{})
+			"tcp", net.JoinHostPort(v4addr.String(), "0"), &dialer.Options{
+				InterfaceName: v4iface,
+			})
 		if err != nil {
 			log.Warn("dual stack listen v4 failed", "err", err)
 			er = errors.Join(er, err)
@@ -43,7 +60,9 @@ func dualStackListen(v4addr, v6addr string) (v4, v6 *net.TCPListener, port int, 
 		port := v4listener.Addr().(*net.TCPAddr).Port
 
 		v6listener, err := dialer.ListenContextWithOptions(context.Background(),
-			"tcp", net.JoinHostPort(v6addr, fmt.Sprint(port)), &dialer.Options{})
+			"tcp", net.JoinHostPort(v6addr.String(), fmt.Sprint(port)), &dialer.Options{
+				InterfaceName: v6iface,
+			})
 		if err != nil {
 			v4listener.Close()
 			log.Warn("dual stack listen v6 failed", "err", err)
@@ -66,7 +85,7 @@ func Start(opt *device.Opt) (*Nat, error) {
 		log.Warn("set route failed", "err", err)
 	}
 
-	v4listener, v6listener, gatewayPort, err := dualStackListen(opt.V4Address().Addr().String(), opt.V6Address().Addr().String())
+	v4listener, v6listener, gatewayPort, err := dualStackListen(opt.V4Address().Addr(), opt.V6Address().Addr())
 	if err != nil {
 		if opt.UnsetRoute != nil {
 			opt.UnsetRoute()
@@ -378,4 +397,34 @@ func processICMPv6(ip header.Network) (_ header.Transport, pseudoHeaderSum uint1
 	)
 
 	return i, pseudoHeaderSum, true
+}
+
+func getTunInterfaceByAddress(addr netip.Addr) (string, error) {
+	interfaces, err := GetInterfaceList()
+	if err != nil {
+		return "", err
+	}
+
+	ip := addr.AsSlice()
+
+	for _, i := range interfaces {
+		addrs, err := i.Addrs()
+		if err != nil {
+			log.Warn("get interface addr failed", "err", err)
+			continue
+		}
+
+		for _, a := range addrs {
+			v, ok := a.(*net.IPNet)
+			if !ok {
+				continue
+			}
+
+			if v.Contains(ip) {
+				return i.Name, nil
+			}
+		}
+	}
+
+	return "", errors.New("not found")
 }

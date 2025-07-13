@@ -12,7 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -151,7 +151,7 @@ func (n *notify) Close() error {
 }
 
 type notifyStore struct {
-	removeStore *list.Set[uint64]
+	removeStore *set.Set[uint64]
 	store       map[uint64]*statistic.Connection
 	length      uint64
 	mu          sync.RWMutex
@@ -160,7 +160,7 @@ type notifyStore struct {
 func newNotifyStore() *notifyStore {
 	return &notifyStore{
 		store:       make(map[uint64]*statistic.Connection),
-		removeStore: list.NewSet[uint64](),
+		removeStore: set.NewSet[uint64](),
 	}
 }
 

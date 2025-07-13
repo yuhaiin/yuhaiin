@@ -12,13 +12,10 @@ import (
 type Opts struct {
 	CloseFallback Closer
 	NotifySpped   NotifySpped
-	Interfaces    Interfaces
-	TUN           *TUN   `json:"tun"`
-	Savepath      string `json:"savepath"`
+	TUN           *TUN `json:"tun"`
 }
 
 type TUN struct {
-	UidDumper     UidDumper
 	SocketProtect SocketProtect
 	Portal        string `json:"portal"`
 	PortalV6      string `json:"portal_v6"`
@@ -47,6 +44,12 @@ type Closer interface {
 type uidDumper struct {
 	UidDumper
 	cache syncmap.SyncMap[int32, string]
+}
+
+var processDumper netapi.ProcessDumper
+
+func SetProcessDumper(dumper UidDumper) {
+	processDumper = NewUidDumper(dumper)
 }
 
 func NewUidDumper(ud UidDumper) netapi.ProcessDumper {
