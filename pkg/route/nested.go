@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 
 type Matcher interface {
@@ -19,12 +19,12 @@ type Matcher interface {
 }
 
 type Inbound struct {
-	store *list.Set[string]
+	store *set.Set[string]
 }
 
 func NewInbound(inbounds ...string) *Inbound {
 	i := &Inbound{
-		store: list.NewSet[string](),
+		store: set.NewSet[string](),
 	}
 
 	for _, v := range inbounds {

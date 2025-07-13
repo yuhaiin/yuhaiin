@@ -15,13 +15,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var dbPath string
-var socketPath string
-
-func InitDB(path string, sp string) {
-	dbPath = filepath.Join(path, "yuhaiin.db")
-	socketPath = filepath.Join(sp, "kv.sock")
-}
+func dbPath() string     { return filepath.Join(savepath, "yuhaiin.db") }
+func socketPath() string { return filepath.Join(datadir, "kv.sock") }
 
 type Store interface {
 	PutString(key string, value string)
@@ -44,7 +39,7 @@ type storeImpl struct {
 }
 
 func newStore(batch string) Store {
-	return &storeImpl{db: share.NewShareCache(dbPath, socketPath, batch)}
+	return &storeImpl{db: share.NewShareCache(dbPath(), socketPath(), batch)}
 }
 
 func (s *storeImpl) Close() error { return s.db.Close() }
@@ -255,4 +250,4 @@ func (b *configDB[T]) View(f ...func(*pc.Setting) error) error {
 	return nil
 }
 
-func (b *configDB[T]) Dir() string { return filepath.Dir(dbPath) }
+func (b *configDB[T]) Dir() string { return filepath.Dir(dbPath()) }

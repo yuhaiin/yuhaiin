@@ -2,12 +2,39 @@ package yuhaiin
 
 import (
 	"fmt"
-	"log"
 	"net"
+	"net/netip"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
+	"tailscale.com/net/netaddr"
 	"tailscale.com/net/netmon"
 )
+
+var interfaces Interfaces
+
+func SetInterfaces(i Interfaces) {
+	interfaces = i
+	netmon.RegisterInterfaceGetter(func() ([]netmon.Interface, error) { return getInterfaces(i) })
+	tun2socket.AltNetInterfaces = func() ([]tun2socket.Interface, error) {
+		addr, err := getInterfaces(i)
+		if err != nil {
+			return nil, err
+		}
+
+		var ifaces = make([]tun2socket.Interface, 0, len(addr))
+		for _, i := range addr {
+			ifaces = append(ifaces, tun2socket.Interface{
+				Interface: i.Interface,
+				AltAddrs:  i.AltAddrs,
+			})
+		}
+
+		return ifaces, nil
+	}
+}
 
 type Interfaces interface {
 	GetInterfacesAsString() (string, error)
@@ -74,7 +101,7 @@ func getInterfaces(ifs Interfaces) ([]netmon.Interface, error) {
 
 		fields := strings.Split(iface, "|")
 		if len(fields) != 2 {
-			log.Printf("getInterfaces: unable to split %q", iface)
+			log.Error("getInterfaces: unable to split", "iface", iface)
 			continue
 		}
 
@@ -84,7 +111,7 @@ func getInterfaces(ifs Interfaces) ([]netmon.Interface, error) {
 		_, err := fmt.Sscanf(fields[0], "%s %d %d %t %t %t %t %t",
 			&name, &index, &mtu, &up, &broadcast, &loopback, &pointToPoint, &multicast)
 		if err != nil {
-			log.Printf("getInterfaces: unable to parse %q: %v", iface, err)
+			log.Error("getInterfaces: unable to parse", "iface", iface, "err", err)
 			continue
 		}
 
@@ -124,4 +151,80 @@ func getInterfaces(ifs Interfaces) ([]netmon.Interface, error) {
 	}
 
 	return ifaces, nil
+}
+
+type TunAddress struct {
+	IPv4        string
+	IPv6        string
+	IPv4Address string
+	IPv4Portal  string
+	IPv6Address string
+	IPv6Portal  string
+}
+
+func GetTunAddress() (*TunAddress, error) {
+	addrs, err := getInterfaces(interfaces)
+	if err != nil {
+		return nil, err
+	}
+
+	existAddr := set.NewSet[netip.Prefix]()
+
+	for _, iface := range addrs {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			log.Error("get interfaces addrs failed", "err", err)
+			continue
+		}
+
+		for _, a := range addrs {
+			ipnet, ok := a.(*net.IPNet)
+			if !ok {
+				continue
+			}
+
+			if pfx, ok := netaddr.FromStdIPNet(ipnet); ok {
+				existAddr.Push(pfx)
+			}
+		}
+	}
+
+	var ipv4, ipv6 netip.Addr
+
+	for i := range 255 {
+		addr := netip.AddrFrom4([4]byte{172, 19, byte(i), 0})
+		if !existAddr.Has(netip.PrefixFrom(addr, 24)) {
+			ipv4 = addr
+			break
+		}
+	}
+
+	if !ipv4.IsValid() {
+		return nil, fmt.Errorf("get interfaces v4 addr, all addr used")
+	}
+
+	for i := range 255 {
+		addr := netip.AddrFrom16([16]byte{0xfd, 0xfe, 0xdc, 0xba, 0x98, byte(i), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+		if !existAddr.Has(netip.PrefixFrom(addr, 64)) {
+			ipv6 = addr
+			break
+		}
+	}
+
+	if !ipv6.IsValid() {
+		return nil, fmt.Errorf("get interfaces v6 addr, all addr used")
+	}
+
+	log.Info("get interfaces addrs", "ipv4", ipv4, "ipv6", ipv6, "addrs", existAddr)
+
+	return &TunAddress{
+		IPv4: ipv4.String(),
+		IPv6: ipv6.String(),
+
+		IPv4Address: ipv4.Next().String(),
+		IPv6Address: ipv6.Next().String(),
+
+		IPv4Portal: ipv4.Next().Next().String(),
+		IPv6Portal: ipv6.Next().Next().String(),
+	}, nil
 }

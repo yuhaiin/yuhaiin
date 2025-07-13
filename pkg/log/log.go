@@ -65,8 +65,16 @@ func Set(config *protolog.Logcat, path string) {
 func Close() error {
 	mu.Lock()
 	defer mu.Unlock()
+
+	al, ok := DefaultLogger.(LoggerAdvanced)
+	if ok {
+		al.SetOutput(os.Stderr)
+	}
+
 	if writer != nil {
-		return writer.Close()
+		err := writer.Close()
+		writer = nil
+		return err
 	}
 
 	return nil

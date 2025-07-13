@@ -42,7 +42,18 @@
 - [Rules](https://github.com/yuhaiin/kitte)  
 
 ```shell
+# make or download from releases
 make yuhaiin
+# or
+go install github.com/Asutorufa/yuhaiin@latest
+# for macos
+# remove quarantine
+xattr -rd com.apple.quarantine yuhaiin
+# optional, sign with ad-hoc
+codesign -s - yuhaiin
+# or
+brew tap yuhaiin/yuhaiin
+brew install yuhaiin
 # host: grpc and http listen address, default: 127.0.0.1:50051
 # path: Store application data path, default:
 #   linux ~/.config/yuhaiin/, windows %APPDATA%/yuhaiin/

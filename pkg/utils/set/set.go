@@ -1,4 +1,4 @@
-package list
+package set
 
 import "sync"
 

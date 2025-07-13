@@ -66,7 +66,6 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 				return
 			}
 		}
-
 	})
 
 	if innerErr != nil {

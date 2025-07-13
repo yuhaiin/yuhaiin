@@ -62,7 +62,10 @@ func (t *TCP) loopv4() {
 		c, err := t.v4listener.AcceptTCP()
 		if err != nil {
 			log.Warn("tun2socket v4 tcp accept failed", "err", err)
-			continue
+			if e, ok := err.(net.Error); ok && e.Temporary() {
+				continue
+			}
+			return
 		}
 
 		addr := c.RemoteAddr().(*net.TCPAddr)
@@ -92,7 +95,10 @@ func (t *TCP) loopv6() {
 		c, err := t.v6listener.AcceptTCP()
 		if err != nil {
 			log.Warn("tun2socket v6 tcp accept failed", "err", err)
-			continue
+			if e, ok := err.(net.Error); ok && e.Temporary() {
+				continue
+			}
+			return
 		}
 
 		addr := c.RemoteAddr().(*net.TCPAddr)

@@ -13,7 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
@@ -456,8 +456,8 @@ func (n *Node) GetNow(tcp bool) *point.Point {
 	return p
 }
 
-func (n *Node) GetUsingPoints() *list.Set[string] {
-	set := list.NewSet[string]()
+func (n *Node) GetUsingPoints() *set.Set[string] {
+	set := set.NewSet[string]()
 
 	tags := n.GetManager().GetTags()
 

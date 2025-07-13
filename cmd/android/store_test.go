@@ -12,7 +12,6 @@ import (
 )
 
 func TestStore(t *testing.T) {
-	InitDB("", "")
 	defer CloseStore()
 	GetStore().PutFloat("float", 3.1415926)
 	t.Log(GetStore().GetFloat("float"))
@@ -20,7 +19,6 @@ func TestStore(t *testing.T) {
 }
 
 func TestMultipleProcess(t *testing.T) {
-	InitDB("", "")
 	defer CloseStore()
 
 	GetStore().PutFloat("float", 3.1415926)

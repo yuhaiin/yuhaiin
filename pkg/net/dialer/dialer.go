@@ -29,12 +29,11 @@ func ListenContext(ctx context.Context, network string, address string) (net.Lis
 		InterfaceName:  DefaultInterfaceName(),
 		InterfaceIndex: DefaultInterfaceIndex(),
 		MarkSymbol:     DefaultMarkSymbol,
+		listener:       true,
 	})
 }
 
 func ListenContextWithOptions(ctx context.Context, network string, address string, opts *Options) (net.Listener, error) {
-	opts.listener = true
-
 	config := &net.ListenConfig{
 		KeepAliveConfig: KeepAliveConfig,
 		Control: func(network, address string, c syscall.RawConn) error {
