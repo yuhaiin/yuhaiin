@@ -218,6 +218,33 @@ func (s *Server) handshake2(client net.Conn, buf []byte) error {
 		})
 		return nil
 
+	case tools.Ping:
+		var adr tools.Addr
+		adr, err = tools.ResolveAddr(client)
+		if err != nil {
+			return fmt.Errorf("resolve addr failed: %w", err)
+		}
+		defer pool.PutBytes(adr)
+
+		addr := adr.Address("udp")
+
+		caddr, err := netapi.ParseSysAddr(client.LocalAddr())
+		if err != nil {
+			return fmt.Errorf("parse local addr failed: %w", err)
+		}
+
+		s.handler.HandlePing(&netapi.PingMeta{
+			Source:      client.RemoteAddr(),
+			Destination: addr,
+			WriteBack: func(u uint64, err error) error {
+				if err != nil {
+					return writeHandshake2(client, tools.HostUnreachable, caddr)
+				}
+				return writeHandshake2(client, tools.Succeeded, caddr)
+			},
+		})
+		return nil
+
 	case tools.Udp: // udp
 		if s.udp {
 			err = handleUDP(client)
