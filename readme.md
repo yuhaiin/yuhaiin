@@ -34,6 +34,7 @@
   - DNS over TLS
   - DNS over TCP
 - Full cone NAT.
+- Ping(yuubinsya, Tailscale, Wireguard(TODO))
 - Trace Process of Connections
   - Linux: eBPF(bpftrace)
   - Windows, Darwin: syscall

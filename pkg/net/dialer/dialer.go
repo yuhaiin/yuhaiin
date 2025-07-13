@@ -2,12 +2,15 @@ package dialer
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"syscall"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 // UDP socket read/write buffer size (7MB). The value of 7MB is chosen as it is
@@ -219,4 +222,61 @@ func isLocalhost(addr string) bool {
 
 	ip, _ := netip.ParseAddr(host)
 	return ip.IsLoopback()
+}
+
+func GetDefaultInterfaceAddress(v6 bool) (net.IP, error) {
+	var iface *net.Interface
+	name := DefaultInterfaceName()
+	if name != "" {
+		var err error
+		iface, err = net.InterfaceByName(name)
+		if err != nil {
+			log.Warn("get default interface failed", "err", err)
+		}
+	}
+
+	if iface == nil {
+		index := DefaultInterfaceIndex()
+		if index != 0 {
+			var err error
+			iface, err = net.InterfaceByIndex(index)
+			if err != nil {
+				log.Warn("get default interface failed", "err", err)
+			}
+		}
+	}
+
+	if iface == nil {
+		return nil, errors.New("default interface not found")
+	}
+
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil, fmt.Errorf("get default interface address failed: %w", err)
+	}
+
+	var remainv6 net.IP
+	for _, addr := range addrs {
+		ipnet, ok := addr.(*net.IPNet)
+		if !ok {
+			continue
+		}
+
+		iv4 := ipnet.IP.To4() != nil
+
+		if !iv4 && v6 {
+			if ipnet.IP.IsGlobalUnicast() {
+				return ipnet.IP, nil
+			}
+			remainv6 = ipnet.IP
+		} else if iv4 && !v6 {
+			return ipnet.IP.To4(), nil
+		}
+	}
+
+	if remainv6 != nil {
+		return remainv6, nil
+	}
+
+	return nil, errors.New("default interface not found")
 }

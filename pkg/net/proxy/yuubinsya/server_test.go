@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -196,6 +198,48 @@ func TestServer(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("test ping", func(t *testing.T) {
+		lis, err := nettest.NewLocalListener("tcp")
+		assert.NoError(t, err)
+		defer lis.Close()
+
+		a, err := NewServer(listener.Yuubinsya_builder{
+			Password: proto.String("aaaa"),
+		}.Build(), &mockListener{lis}, mockHandler(func(req *netapi.StreamMeta) {
+			defer req.Src.Close()
+
+			data := make([]byte, 4096)
+
+			n, err := req.Src.Read(data)
+			assert.NoError(t, err)
+
+			_, _ = req.Src.Write(data[:n])
+		}))
+		assert.NoError(t, err)
+		defer a.Close()
+
+		host, portstr, err := net.SplitHostPort(lis.Addr().String())
+		assert.NoError(t, err)
+
+		port, err := strconv.ParseUint(portstr, 10, 16)
+		assert.NoError(t, err)
+
+		s, err := fixed.NewClient(protocol.Fixed_builder{
+			Host: proto.String(host),
+			Port: proto.Int32(int32(port)),
+		}.Build(), nil)
+		assert.NoError(t, err)
+
+		c, err := NewClient(protocol.Yuubinsya_builder{
+			Password: proto.String("aaaa"),
+		}.Build(), s)
+		assert.NoError(t, err)
+
+		d, err := c.Ping(context.Background(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr(host), uint16(port)))
+		assert.NoError(t, err)
+		t.Log(d)
+	})
 }
 
 type mockListener struct{ l net.Listener }
@@ -216,8 +260,18 @@ type mockHandler func(req *netapi.StreamMeta)
 
 func (m mockHandler) HandleStream(req *netapi.StreamMeta) { m(req) }
 func (m mockHandler) HandlePacket(req *netapi.Packet)     {}
+func (m mockHandler) HandlePing(req *netapi.PingMeta) {
+	if err := req.WriteBack(uint64(time.Now().UnixNano()), nil); err != nil {
+		log.Error("write back failed", "err", err)
+	}
+}
 
 type mockHandlerPacket func(req *netapi.Packet)
 
 func (m mockHandlerPacket) HandleStream(req *netapi.StreamMeta) {}
 func (m mockHandlerPacket) HandlePacket(req *netapi.Packet)     { m(req) }
+func (m mockHandlerPacket) HandlePing(req *netapi.PingMeta) {
+	if err := req.WriteBack(uint64(time.Now().UnixNano()), nil); err != nil {
+		log.Error("write back failed", "err", err)
+	}
+}

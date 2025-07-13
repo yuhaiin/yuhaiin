@@ -65,3 +65,7 @@ func (v *Vmess) PacketConn(ctx context.Context, host netapi.Address) (conn net.P
 
 	return conn, nil
 }
+
+func (v *Vmess) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	return 0, nil
+}

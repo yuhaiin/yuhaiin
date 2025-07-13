@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -92,6 +93,16 @@ func (l *Inbound) HandlePacket(packet *netapi.Packet) {
 	}
 }
 
+func (l *Inbound) HandlePing(packet *netapi.PingMeta) {
+	ctx, cancel := context.WithTimeout(l.ctx, time.Second*3)
+	defer cancel()
+	store := netapi.WithContext(ctx)
+	store.Source = packet.Source
+	store.Destination = packet.Destination
+	store.SetInboundName(packet.InboundName)
+	l.handler.Ping(store, packet)
+}
+
 func (l *Inbound) loopudp() {
 	for {
 		select {
@@ -157,7 +168,6 @@ func (l *Inbound) Save(req *pl.Inbound) {
 
 	log.Info("start server", "name", req.GetName())
 	l.store.Store(req.GetName(), entry{req, server})
-
 }
 
 func (l *Inbound) Remove(name string) {
@@ -206,4 +216,9 @@ func (h *handlerWrap) HandleStream(meta *netapi.StreamMeta) {
 func (h *handlerWrap) HandlePacket(packet *netapi.Packet) {
 	netapi.WithInboundName(h.name)(packet)
 	h.handler.HandlePacket(packet)
+}
+
+func (h *handlerWrap) HandlePing(packet *netapi.PingMeta) {
+	packet.InboundName = h.name
+	h.handler.HandlePing(packet)
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
@@ -128,6 +129,27 @@ func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.Packet
 	}
 
 	return conn, nil
+}
+
+func (s *Route) Ping(ctx context.Context, host netapi.Address) (uint64, error) {
+	store := netapi.GetContext(ctx)
+
+	if store.SystemDialer {
+		return direct.Default.Ping(ctx, host)
+	}
+
+	result := s.dispatch(store, host)
+
+	if result.Mode.Mode() == bypass.Mode_block {
+		s.RejectHistory.Push(ctx, "ping", host.String())
+	}
+
+	p, err := s.d.Get(ctx, "udp", result.Mode.Mode().String(), result.Mode.GetTag())
+	if err != nil {
+		return 0, netapi.NewDialError("udp", err, host)
+	}
+
+	return p.Ping(ctx, host)
 }
 
 func (s *Route) Dispatch(ctx context.Context, host netapi.Address) (netapi.Address, error) {

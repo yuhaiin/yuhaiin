@@ -247,6 +247,10 @@ func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 	return cp, nil
 }
 
+func (c *Client) Ping(ctx context.Context, host netapi.Address) (uint64, error) {
+	return c.dialer.Ping(ctx, host)
+}
+
 var _ net.Conn = (*interConn)(nil)
 
 type interConn struct {

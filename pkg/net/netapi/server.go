@@ -62,12 +62,14 @@ type Accepter interface{ Server }
 type Handler interface {
 	HandleStream(*StreamMeta)
 	HandlePacket(*Packet)
+	HandlePing(*PingMeta)
 }
 
 type ChannelHandler struct {
 	ctx    context.Context
 	stream chan *StreamMeta
 	packet chan *Packet
+	ping   chan *PingMeta
 }
 
 func NewChannelHandler(ctx context.Context) *ChannelHandler {
@@ -75,6 +77,7 @@ func NewChannelHandler(ctx context.Context) *ChannelHandler {
 		ctx:    ctx,
 		stream: make(chan *StreamMeta, system.Procs),
 		packet: make(chan *Packet, system.Procs),
+		ping:   make(chan *PingMeta, system.Procs),
 	}
 }
 
@@ -91,8 +94,23 @@ func (h *ChannelHandler) HandlePacket(p *Packet) {
 	}
 }
 
+func (h *ChannelHandler) HandlePing(p *PingMeta) {
+	select {
+	case <-h.ctx.Done():
+	case h.ping <- p:
+	}
+}
+
 func (h *ChannelHandler) Stream() <-chan *StreamMeta { return h.stream }
 func (h *ChannelHandler) Packet() <-chan *Packet     { return h.packet }
+func (h *ChannelHandler) Ping() <-chan *PingMeta     { return h.ping }
+
+type PingMeta struct {
+	Source      net.Addr
+	Destination Address
+	InboundName string
+	WriteBack   func(uint64, error) error
+}
 
 type StreamMeta struct {
 	Source      net.Addr

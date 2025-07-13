@@ -229,6 +229,10 @@ func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 	return pc, nil
 }
 
+func (s *Client) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	return 0, nil
+}
+
 func (s *Client) Close() error {
 	return s.dialer.Close()
 }
