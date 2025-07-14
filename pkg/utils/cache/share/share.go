@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -93,8 +94,8 @@ func (a *ShareCache) do(f func(cache.Cache) error) error {
 	return nil
 }
 
-func (a *ShareCache) Put(k []byte, v []byte) error {
-	return a.do(func(s cache.Cache) error { return s.Put(k, v) })
+func (a *ShareCache) Put(k iter.Seq2[[]byte, []byte]) error {
+	return a.do(func(s cache.Cache) error { return s.Put(k) })
 }
 
 func (a *ShareCache) Get(k []byte) ([]byte, error) {

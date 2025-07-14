@@ -34,7 +34,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type KvstoreClient interface {
 	Get(ctx context.Context, in *Element, opts ...grpc.CallOption) (*Element, error)
-	Set(ctx context.Context, in *Element, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Set(ctx context.Context, in *Elements, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Delete(ctx context.Context, in *Keys, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Range(ctx context.Context, in *Element, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Element], error)
 	Ping(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -58,7 +58,7 @@ func (c *kvstoreClient) Get(ctx context.Context, in *Element, opts ...grpc.CallO
 	return out, nil
 }
 
-func (c *kvstoreClient) Set(ctx context.Context, in *Element, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *kvstoreClient) Set(ctx context.Context, in *Elements, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, Kvstore_Set_FullMethodName, in, out, cOpts...)
@@ -112,7 +112,7 @@ func (c *kvstoreClient) Ping(ctx context.Context, in *emptypb.Empty, opts ...grp
 // for forward compatibility.
 type KvstoreServer interface {
 	Get(context.Context, *Element) (*Element, error)
-	Set(context.Context, *Element) (*emptypb.Empty, error)
+	Set(context.Context, *Elements) (*emptypb.Empty, error)
 	Delete(context.Context, *Keys) (*emptypb.Empty, error)
 	Range(*Element, grpc.ServerStreamingServer[Element]) error
 	Ping(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
@@ -129,7 +129,7 @@ type UnimplementedKvstoreServer struct{}
 func (UnimplementedKvstoreServer) Get(context.Context, *Element) (*Element, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
 }
-func (UnimplementedKvstoreServer) Set(context.Context, *Element) (*emptypb.Empty, error) {
+func (UnimplementedKvstoreServer) Set(context.Context, *Elements) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Set not implemented")
 }
 func (UnimplementedKvstoreServer) Delete(context.Context, *Keys) (*emptypb.Empty, error) {
@@ -181,7 +181,7 @@ func _Kvstore_Get_Handler(srv interface{}, ctx context.Context, dec func(interfa
 }
 
 func _Kvstore_Set_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Element)
+	in := new(Elements)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func _Kvstore_Set_Handler(srv interface{}, ctx context.Context, dec func(interfa
 		FullMethod: Kvstore_Set_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(KvstoreServer).Set(ctx, req.(*Element))
+		return srv.(KvstoreServer).Set(ctx, req.(*Elements))
 	}
 	return interceptor(ctx, in, info, handler)
 }

@@ -149,6 +149,190 @@ func (b0 Element_builder) Build() *Element {
 	return m0
 }
 
+type Object struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Key         []byte                 `protobuf:"bytes,1,opt,name=key"`
+	xxx_hidden_Value       []byte                 `protobuf:"bytes,2,opt,name=value"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *Object) Reset() {
+	*x = Object{}
+	mi := &file_kv_kv_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Object) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Object) ProtoMessage() {}
+
+func (x *Object) ProtoReflect() protoreflect.Message {
+	mi := &file_kv_kv_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Object) GetKey() []byte {
+	if x != nil {
+		return x.xxx_hidden_Key
+	}
+	return nil
+}
+
+func (x *Object) GetValue() []byte {
+	if x != nil {
+		return x.xxx_hidden_Value
+	}
+	return nil
+}
+
+func (x *Object) SetKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_Key = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
+}
+
+func (x *Object) SetValue(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_Value = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
+}
+
+func (x *Object) HasKey() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *Object) HasValue() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *Object) ClearKey() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_Key = nil
+}
+
+func (x *Object) ClearValue() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_Value = nil
+}
+
+type Object_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Key   []byte
+	Value []byte
+}
+
+func (b0 Object_builder) Build() *Object {
+	m0 := &Object{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Key != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
+		x.xxx_hidden_Key = b.Key
+	}
+	if b.Value != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 2)
+		x.xxx_hidden_Value = b.Value
+	}
+	return m0
+}
+
+type Elements struct {
+	state              protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Buckets []string               `protobuf:"bytes,1,rep,name=buckets"`
+	xxx_hidden_Objects *[]*Object             `protobuf:"bytes,2,rep,name=objects"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *Elements) Reset() {
+	*x = Elements{}
+	mi := &file_kv_kv_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Elements) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Elements) ProtoMessage() {}
+
+func (x *Elements) ProtoReflect() protoreflect.Message {
+	mi := &file_kv_kv_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Elements) GetBuckets() []string {
+	if x != nil {
+		return x.xxx_hidden_Buckets
+	}
+	return nil
+}
+
+func (x *Elements) GetObjects() []*Object {
+	if x != nil {
+		if x.xxx_hidden_Objects != nil {
+			return *x.xxx_hidden_Objects
+		}
+	}
+	return nil
+}
+
+func (x *Elements) SetBuckets(v []string) {
+	x.xxx_hidden_Buckets = v
+}
+
+func (x *Elements) SetObjects(v []*Object) {
+	x.xxx_hidden_Objects = &v
+}
+
+type Elements_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Buckets []string
+	Objects []*Object
+}
+
+func (b0 Elements_builder) Build() *Elements {
+	m0 := &Elements{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Buckets = b.Buckets
+	x.xxx_hidden_Objects = &b.Objects
+	return m0
+}
+
 type Keys struct {
 	state              protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Buckets []string               `protobuf:"bytes,1,rep,name=buckets"`
@@ -159,7 +343,7 @@ type Keys struct {
 
 func (x *Keys) Reset() {
 	*x = Keys{}
-	mi := &file_kv_kv_proto_msgTypes[1]
+	mi := &file_kv_kv_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -171,7 +355,7 @@ func (x *Keys) String() string {
 func (*Keys) ProtoMessage() {}
 
 func (x *Keys) ProtoReflect() protoreflect.Message {
-	mi := &file_kv_kv_proto_msgTypes[1]
+	mi := &file_kv_kv_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -228,39 +412,48 @@ const file_kv_kv_proto_rawDesc = "" +
 	"\aelement\x12\x18\n" +
 	"\abuckets\x18\x01 \x03(\tR\abuckets\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\fR\x03key\x12\x14\n" +
-	"\x05value\x18\x03 \x01(\fR\x05value\"4\n" +
+	"\x05value\x18\x03 \x01(\fR\x05value\"0\n" +
+	"\x06Object\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\fR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\"W\n" +
+	"\belements\x12\x18\n" +
+	"\abuckets\x18\x01 \x03(\tR\abuckets\x121\n" +
+	"\aobjects\x18\x02 \x03(\v2\x17.yuhaiin.kvstore.ObjectR\aobjects\"4\n" +
 	"\x04Keys\x12\x18\n" +
 	"\abuckets\x18\x01 \x03(\tR\abuckets\x12\x12\n" +
-	"\x04keys\x18\x02 \x03(\fR\x04keys2\xad\x02\n" +
+	"\x04keys\x18\x02 \x03(\fR\x04keys2\xae\x02\n" +
 	"\akvstore\x129\n" +
-	"\x03Get\x12\x18.yuhaiin.kvstore.element\x1a\x18.yuhaiin.kvstore.element\x127\n" +
-	"\x03Set\x12\x18.yuhaiin.kvstore.element\x1a\x16.google.protobuf.Empty\x127\n" +
+	"\x03Get\x12\x18.yuhaiin.kvstore.element\x1a\x18.yuhaiin.kvstore.element\x128\n" +
+	"\x03Set\x12\x19.yuhaiin.kvstore.elements\x1a\x16.google.protobuf.Empty\x127\n" +
 	"\x06Delete\x12\x15.yuhaiin.kvstore.Keys\x1a\x16.google.protobuf.Empty\x12=\n" +
 	"\x05Range\x12\x18.yuhaiin.kvstore.element\x1a\x18.yuhaiin.kvstore.element0\x01\x126\n" +
 	"\x04Ping\x12\x16.google.protobuf.Empty\x1a\x16.google.protobuf.EmptyB4Z*github.com/Asutorufa/yuhaiin/pkg/protos/kv\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
-var file_kv_kv_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_kv_kv_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_kv_kv_proto_goTypes = []any{
 	(*Element)(nil),       // 0: yuhaiin.kvstore.element
-	(*Keys)(nil),          // 1: yuhaiin.kvstore.Keys
-	(*emptypb.Empty)(nil), // 2: google.protobuf.Empty
+	(*Object)(nil),        // 1: yuhaiin.kvstore.Object
+	(*Elements)(nil),      // 2: yuhaiin.kvstore.elements
+	(*Keys)(nil),          // 3: yuhaiin.kvstore.Keys
+	(*emptypb.Empty)(nil), // 4: google.protobuf.Empty
 }
 var file_kv_kv_proto_depIdxs = []int32{
-	0, // 0: yuhaiin.kvstore.kvstore.Get:input_type -> yuhaiin.kvstore.element
-	0, // 1: yuhaiin.kvstore.kvstore.Set:input_type -> yuhaiin.kvstore.element
-	1, // 2: yuhaiin.kvstore.kvstore.Delete:input_type -> yuhaiin.kvstore.Keys
-	0, // 3: yuhaiin.kvstore.kvstore.Range:input_type -> yuhaiin.kvstore.element
-	2, // 4: yuhaiin.kvstore.kvstore.Ping:input_type -> google.protobuf.Empty
-	0, // 5: yuhaiin.kvstore.kvstore.Get:output_type -> yuhaiin.kvstore.element
-	2, // 6: yuhaiin.kvstore.kvstore.Set:output_type -> google.protobuf.Empty
-	2, // 7: yuhaiin.kvstore.kvstore.Delete:output_type -> google.protobuf.Empty
-	0, // 8: yuhaiin.kvstore.kvstore.Range:output_type -> yuhaiin.kvstore.element
-	2, // 9: yuhaiin.kvstore.kvstore.Ping:output_type -> google.protobuf.Empty
-	5, // [5:10] is the sub-list for method output_type
-	0, // [0:5] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	1, // 0: yuhaiin.kvstore.elements.objects:type_name -> yuhaiin.kvstore.Object
+	0, // 1: yuhaiin.kvstore.kvstore.Get:input_type -> yuhaiin.kvstore.element
+	2, // 2: yuhaiin.kvstore.kvstore.Set:input_type -> yuhaiin.kvstore.elements
+	3, // 3: yuhaiin.kvstore.kvstore.Delete:input_type -> yuhaiin.kvstore.Keys
+	0, // 4: yuhaiin.kvstore.kvstore.Range:input_type -> yuhaiin.kvstore.element
+	4, // 5: yuhaiin.kvstore.kvstore.Ping:input_type -> google.protobuf.Empty
+	0, // 6: yuhaiin.kvstore.kvstore.Get:output_type -> yuhaiin.kvstore.element
+	4, // 7: yuhaiin.kvstore.kvstore.Set:output_type -> google.protobuf.Empty
+	4, // 8: yuhaiin.kvstore.kvstore.Delete:output_type -> google.protobuf.Empty
+	0, // 9: yuhaiin.kvstore.kvstore.Range:output_type -> yuhaiin.kvstore.element
+	4, // 10: yuhaiin.kvstore.kvstore.Ping:output_type -> google.protobuf.Empty
+	6, // [6:11] is the sub-list for method output_type
+	1, // [1:6] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_kv_kv_proto_init() }
@@ -274,7 +467,7 @@ func file_kv_kv_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kv_kv_proto_rawDesc), len(file_kv_kv_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
