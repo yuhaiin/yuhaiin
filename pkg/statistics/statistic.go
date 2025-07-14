@@ -173,7 +173,26 @@ func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.
 	return z, nil
 }
 
+func (c *Connections) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	resp, err := c.Proxy.Ping(ctx, addr)
+	if err != nil {
+		c.faildHistory.Push(ctx, err, statistic.Type_ip, addr)
+		return 0, err
+	}
+
+	conn := c.getConnection(ctx, nil, addr)
+	conn.GetType().SetConnType(statistic.Type_ip)
+	conn.GetType().SetUnderlyingType(statistic.Type_ip)
+
+	c.history.Push(conn)
+	return resp, nil
+}
+
 func getRemote(con any) string {
+	if con == nil {
+		return ""
+	}
+
 	r, ok := con.(interface{ RemoteAddr() net.Addr })
 	if ok {
 		// https://github.com/google/gvisor/blob/a9bdef23522b5a2ff2a7ec07c3e0573885b46ecb/pkg/tcpip/adapters/gonet/gonet.go#L457
@@ -187,6 +206,10 @@ func getRemote(con any) string {
 }
 
 func getLocal(con interface{ LocalAddr() net.Addr }) string {
+	if con == nil {
+		return ""
+	}
+
 	// https://github.com/google/gvisor/blob/a9bdef23522b5a2ff2a7ec07c3e0573885b46ecb/pkg/tcpip/adapters/gonet/gonet.go#L457
 	// gvisor TCPConn will return nil remoteAddr
 	if addr := con.LocalAddr(); addr != nil {
@@ -215,8 +238,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		Id:   proto.Uint64(c.idSeed.Generate()),
 		Addr: proto.String(realAddr),
 		Type: (&statistic.NetType_builder{
-			ConnType:       statistic.Type(statistic.Type_value[addr.Network()]).Enum(),
-			UnderlyingType: statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]).Enum(),
+			ConnType: statistic.Type(statistic.Type_value[addr.Network()]).Enum(),
 		}).Build(),
 		Source:       stringerOrNil(store.Source),
 		Inbound:      stringerOrNil(store.GetInbound()),
@@ -243,6 +265,10 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		UdpMigrateId:  uint64OrNil(store.GetUDPMigrateID()),
 		Pid:           uint64OrNil(uint64(store.GetProcessPid())),
 		Uid:           uint64OrNil(uint64(store.GetProcessUid())),
+	}
+
+	if conn != nil {
+		connection.Type.SetUnderlyingType(statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]))
 	}
 
 	return connection.Build()
