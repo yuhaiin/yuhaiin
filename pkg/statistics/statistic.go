@@ -75,8 +75,14 @@ func NewConnStore(cache, history, connection cache.Cache, dialer netapi.Proxy) *
 }
 
 func (c *Connections) allInfos() []*statistic.Connection {
-	return slice.CollectTo(c.infoStore.RangeValues, func(x *statistic.Connection) *statistic.Connection {
-		return x
+	return slice.CollectTo(c.connStore.RangeValues, func(x connection) *statistic.Connection {
+		info, ok := c.infoStore.Load(x.ID())
+		if !ok {
+			return statistic.Connection_builder{
+				Id: proto.Uint64(x.ID()),
+			}.Build()
+		}
+		return info
 	})
 }
 
@@ -388,7 +394,6 @@ func (c *Counter) LoadUpload() uint64   { return c.upload.Load() }
 type InfoCache interface {
 	Load(id uint64) (*statistic.Connection, bool)
 	Store(id uint64, info *statistic.Connection)
-	RangeValues(f func(value *statistic.Connection) bool)
 	Delete(id uint64)
 	io.Closer
 }
@@ -505,19 +510,6 @@ func (c *infoStore) Close() error {
 	c.cancel()
 	c.closed.Store(true)
 	return c.cache.Close()
-}
-
-func (c *infoStore) RangeValues(f func(value *statistic.Connection) bool) {
-	err := c.cache.Range(func(key, value []byte) bool {
-		var info statistic.Connection
-		if err := proto.Unmarshal(value, &info); err != nil {
-			return false
-		}
-		return f(&info)
-	})
-	if err != nil {
-		log.Warn("range info failed", "err", err)
-	}
 }
 
 var _ InfoCache = (*infoMemStore)(nil)
