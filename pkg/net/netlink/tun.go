@@ -48,11 +48,31 @@ func (o *Options) V4Address() netip.Prefix {
 	return netip.Prefix{}
 }
 
+func (o *Options) V4Contains(addr netip.Addr) bool {
+	for _, v := range o.Inet4Address {
+		if v.Contains(addr) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (o *Options) V6Address() netip.Prefix {
 	if len(o.Inet6Address) > 0 {
 		return o.Inet6Address[0]
 	}
 	return netip.Prefix{}
+}
+
+func (o *Options) V6Contains(addr netip.Addr) bool {
+	for _, v := range o.Inet6Address {
+		if v.Contains(addr) {
+			return true
+		}
+	}
+
+	return false
 }
 
 type TunScheme struct {

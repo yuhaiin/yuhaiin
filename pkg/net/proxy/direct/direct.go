@@ -6,7 +6,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -67,51 +66,52 @@ func (d *direct) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 }
 
 func (d *direct) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
-	var ip string
-	var v6 bool
-	var localhost bool
+	var ip net.IP
 	if addr.IsFqdn() {
 		z, err := dialer.ResolverIP(ctx, addr)
 		if err != nil {
 			return 0, err
 		}
-		v6 = z.To4() == nil
-		if !v6 {
-			z = z.To4()
-		}
-		ip = z.String()
-		localhost = z.IsLoopback()
+		ip = z
 	} else {
-		z := addr.(netapi.IPAddress).AddrPort().Addr()
-		v6 = !z.Unmap().Is4()
-		ip = z.Unmap().String()
-		localhost = z.Unmap().IsLoopback()
+		ip = addr.(netapi.IPAddress).AddrPort().Addr().Unmap().AsSlice()
 	}
 
-	pinger, err := probing.NewPinger(ip)
-	if err != nil {
-		return 0, fmt.Errorf("ping %v:%v failed: %w", addr, ip, err)
+	pinger := probing.New("")
+	defer pinger.Stop()
+
+	pinger.SetIPAddr(&net.IPAddr{IP: ip})
+	if ip.To4() == nil {
+		pinger.SetNetwork("ip6")
+	} else {
+		pinger.SetNetwork("ip4")
 	}
 
-	if !localhost {
-		saddr, err := dialer.GetDefaultInterfaceAddress(v6)
+	if !ip.IsLoopback() {
+		saddr, err := dialer.GetDefaultInterfaceAddress(ip.To4() == nil)
 		if err == nil {
 			pinger.Source = saddr.String()
-		} else {
-			log.Error("get default interface address failed", "err", err)
 		}
 	}
 
 	pinger.SetPrivileged(false)
-	defer pinger.Stop()
-
 	pinger.Count = 1
-	err = pinger.RunWithContext(ctx) // Blocks until finished.
+
+	var resp uint64
+	pinger.OnRecv = func(p *probing.Packet) {
+		resp = uint64(p.Rtt)
+	}
+
+	pinger.OnDuplicateRecv = func(p *probing.Packet) {
+		resp = uint64(p.Rtt)
+	}
+
+	err := pinger.RunWithContext(ctx) // Blocks until finished.
 	if err != nil {
 		return 0, fmt.Errorf("ping %v:%v failed: %w", addr, ip, err)
 	}
 
-	return uint64(pinger.Statistics().MinRtt.Milliseconds()), nil
+	return resp, nil
 }
 
 func (d *direct) Close() error { return nil }

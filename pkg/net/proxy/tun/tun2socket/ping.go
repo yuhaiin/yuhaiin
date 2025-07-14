@@ -1,6 +1,8 @@
 package tun2socket
 
 import (
+	"net/netip"
+
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -30,22 +32,34 @@ func (p *Ping) HandlePing4(bytes []byte) {
 		src := ip.SourceAddress()
 		dst := ip.DestinationAddress()
 
+		dstAddr, ok := netip.AddrFromSlice(dst.AsSlice())
+		if !ok {
+			return
+		}
+
+		destination := ip.DestinationAddress()
+		ip.SetDestinationAddress(ip.SourceAddress())
+		ip.SetSourceAddress(destination)
+
+		writeBack := func(id uint64, err error) error {
+			if err != nil {
+				i.SetType(header.ICMPv4DstUnreachable)
+			}
+
+			device.ResetChecksum(ip, i, 0)
+			_, err = p.opt.Device.Write([][]byte{data})
+			return err
+		}
+
+		if dstAddr.IsLoopback() && p.opt.V4Contains(dstAddr) {
+			_ = writeBack(0, nil)
+			return
+		}
+
 		p.opt.Handler.HandlePing(&netapi.PingMeta{
 			Source:      netapi.ParseIPAddr("udp", src.AsSlice(), 0),
-			Destination: netapi.ParseIPAddr("udp", dst.AsSlice(), 0),
-			WriteBack: func(id uint64, err error) error {
-				if err != nil {
-					i.SetType(header.ICMPv4DstUnreachable)
-				}
-
-				destination := ip.DestinationAddress()
-				ip.SetDestinationAddress(ip.SourceAddress())
-				ip.SetSourceAddress(destination)
-
-				device.ResetChecksum(ip, i, 0)
-				_, err = p.opt.Device.Write([][]byte{data})
-				return err
-			},
+			Destination: netapi.ParseNetipAddr("udp", dstAddr, 0),
+			WriteBack:   writeBack,
 		})
 	}()
 }
@@ -65,30 +79,43 @@ func (p *Ping) HandlePing6(bytes []byte) {
 
 		i.SetType(header.ICMPv6EchoReply)
 
+		src := ip.SourceAddress()
+		dst := ip.DestinationAddress()
+
+		dstAddr, ok := netip.AddrFromSlice(dst.AsSlice())
+		if !ok {
+			return
+		}
+
 		destination := ip.DestinationAddress()
 		ip.SetDestinationAddress(ip.SourceAddress())
 		ip.SetSourceAddress(destination)
 
-		src := ip.SourceAddress()
-		dst := ip.DestinationAddress()
+		writeBack := func(id uint64, err error) error {
+			if err != nil {
+				i.SetType(header.ICMPv6DstUnreachable)
+			}
+
+			pseudoHeaderSum := header.PseudoHeaderChecksum(header.ICMPv6ProtocolNumber,
+				ip.SourceAddress(), ip.DestinationAddress(),
+				uint16(len(i)),
+			)
+
+			device.ResetChecksum(ip, i, pseudoHeaderSum)
+
+			_, err = p.opt.Device.Write([][]byte{data})
+			return err
+		}
+
+		if dstAddr.IsLoopback() && p.opt.V6Contains(dstAddr) {
+			_ = writeBack(0, nil)
+			return
+		}
+
 		p.opt.Handler.HandlePing(&netapi.PingMeta{
 			Source:      netapi.ParseIPAddr("udp", src.AsSlice(), 0),
-			Destination: netapi.ParseIPAddr("udp", dst.AsSlice(), 0),
-			WriteBack: func(id uint64, err error) error {
-				if err != nil {
-					i.SetType(header.ICMPv6DstUnreachable)
-				}
-
-				pseudoHeaderSum := header.PseudoHeaderChecksum(header.ICMPv6ProtocolNumber,
-					ip.SourceAddress(), ip.DestinationAddress(),
-					uint16(len(i)),
-				)
-
-				device.ResetChecksum(ip, i, pseudoHeaderSum)
-
-				_, err = p.opt.Device.Write([][]byte{data})
-				return err
-			},
+			Destination: netapi.ParseNetipAddr("udp", dstAddr, 0),
+			WriteBack:   writeBack,
 		})
 	}()
 }
