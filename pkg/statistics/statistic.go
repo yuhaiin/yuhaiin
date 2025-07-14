@@ -399,6 +399,7 @@ type infoStore struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	memcache syncmap.SyncMap[uint64, *statistic.Connection]
+	closed   atomic.Bool
 	cache    cache.Cache
 }
 
@@ -447,32 +448,48 @@ func (c *infoStore) Load(id uint64) (*statistic.Connection, bool) {
 }
 
 func (c *infoStore) Store(id uint64, info *statistic.Connection) {
+	if c.closed.Load() {
+		return
+	}
+
 	c.memcache.Store(id, info)
 }
 
 func (c *infoStore) Flush() {
-	for id := range c.memcache.Range {
-		info, ok := c.memcache.LoadAndDelete(id)
-		if !ok {
-			continue
-		}
+	if c.closed.Load() {
+		return
+	}
 
-		data, err := proto.Marshal(info)
-		if err != nil {
-			log.Warn("marshal info failed", "id", id, "err", err)
-			return
-		}
+	err := c.cache.Put(func(yield func([]byte, []byte) bool) {
+		for id := range c.memcache.Range {
+			info, ok := c.memcache.LoadAndDelete(id)
+			if !ok {
+				continue
+			}
 
-		key := binary.BigEndian.AppendUint64([]byte{}, id)
+			data, err := proto.Marshal(info)
+			if err != nil {
+				log.Warn("marshal info failed", "id", id, "err", err)
+				continue
+			}
 
-		err = c.cache.Put(key, data)
-		if err != nil {
-			log.Warn("put info failed", "id", id, "err", err)
+			key := binary.BigEndian.AppendUint64([]byte{}, id)
+
+			if !yield(key, data) {
+				break
+			}
 		}
+	})
+	if err != nil {
+		log.Warn("put info failed", "err", err)
 	}
 }
 
 func (c *infoStore) Delete(id uint64) {
+	if c.closed.Load() {
+		return
+	}
+
 	_, ok := c.memcache.LoadAndDelete(id)
 	if ok {
 		return
@@ -486,17 +503,8 @@ func (c *infoStore) Delete(id uint64) {
 
 func (c *infoStore) Close() error {
 	c.cancel()
+	c.closed.Store(true)
 	return c.cache.Close()
-}
-
-func (c *infoStore) Range(f func(key uint64, value *statistic.Connection) bool) error {
-	return c.cache.Range(func(key []byte, value []byte) bool {
-		var info statistic.Connection
-		if err := proto.Unmarshal(value, &info); err != nil {
-			return false
-		}
-		return f(binary.BigEndian.Uint64(key), &info)
-	})
 }
 
 func (c *infoStore) RangeValues(f func(value *statistic.Connection) bool) {
