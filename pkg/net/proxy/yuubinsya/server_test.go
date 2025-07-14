@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -235,10 +236,24 @@ func TestServer(t *testing.T) {
 			Password: proto.String("aaaa"),
 		}.Build(), s)
 		assert.NoError(t, err)
+		defer c.Close()
 
 		d, err := c.Ping(context.Background(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr(host), uint16(port)))
 		assert.NoError(t, err)
-		t.Log(d)
+		t.Log(time.Duration(d))
+
+		wg := sync.WaitGroup{}
+		wg.Add(10)
+		for range 10 {
+			go func() {
+				defer wg.Done()
+
+				d, err = c.Ping(context.Background(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr(host), uint16(port)))
+				assert.NoError(t, err)
+				t.Log(time.Duration(d))
+			}()
+		}
+		wg.Wait()
 	})
 }
 

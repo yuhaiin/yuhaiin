@@ -10,7 +10,7 @@ require (
 	github.com/libp2p/go-yamux/v5 v5.0.1
 	github.com/miekg/dns v1.1.67
 	github.com/minio/minio-go/v7 v7.0.94
-	github.com/prometheus-community/pro-bing v0.4.0
+	github.com/prometheus-community/pro-bing v0.7.0
 	github.com/prometheus/client_golang v1.22.0
 	github.com/quic-go/quic-go v0.53.0
 	github.com/refraction-networking/utls v1.7.3

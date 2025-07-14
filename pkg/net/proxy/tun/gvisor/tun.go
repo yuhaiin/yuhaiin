@@ -169,7 +169,10 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 	s.SetTransportProtocolHandler(tcp.ProtocolNumber, t.tcpForwarder().HandlePacket)
 
 	// s.SetTransportProtocolHandler(udp.ProtocolNumber, t.udpForwarder().HandlePacket)
-	s.SetTransportProtocolHandler(udp.ProtocolNumber, t.HandleUDPPacket)
+	s.SetTransportProtocolHandler(udp.ProtocolNumber, t.HandleUDP)
+
+	// s.SetTransportProtocolHandler(icmp.ProtocolNumber4, t.HandleICMPv4)
+	// s.SetTransportProtocolHandler(icmp.ProtocolNumber6, t.HandleICMPv6)
 
 	addProtocolAddress := func(protocol tcpip.NetworkProtocolNumber, prefix netip.Prefix) {
 		s.AddProtocolAddress(nicID,
