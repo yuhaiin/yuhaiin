@@ -38,21 +38,21 @@ type TotalCache struct {
 	triggerdUpload   atomic.Bool
 }
 
-func NewTotalCache(cache cache.Cache) *TotalCache {
+func NewTotalCache(cc cache.Cache) *TotalCache {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &TotalCache{
-		cache:           cache,
+		cache:           cc,
 		ctx:             ctx,
 		cancel:          cancel,
 		triggerDownload: make(chan struct{}),
 		triggerUpload:   make(chan struct{}),
 	}
 
-	if download, _ := cache.Get(DownloadKey); len(download) >= 8 {
+	if download, _ := cc.Get(DownloadKey); len(download) >= 8 {
 		c.lastDownload.Store(binary.BigEndian.Uint64(download))
 	}
 
-	if upload, _ := cache.Get(UploadKey); len(upload) >= 8 {
+	if upload, _ := cc.Get(UploadKey); len(upload) >= 8 {
 		c.lastUpload.Store(binary.BigEndian.Uint64(upload))
 	}
 
@@ -67,13 +67,13 @@ func NewTotalCache(cache cache.Cache) *TotalCache {
 				return
 			case <-c.triggerDownload:
 				notSyncDownload := c.notSyncDownload.Load()
-				_ = c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.lastDownload.Load()+c.download.Add(uint64(c.notSyncDownload.Load()))))
+				_ = c.cache.Put(cache.Element(DownloadKey, binary.BigEndian.AppendUint64(nil, c.lastDownload.Load()+c.download.Add(uint64(c.notSyncDownload.Load())))))
 				c.notSyncDownload.Add(-notSyncDownload)
 				c.triggerdDownload.Store(false)
 
 			case <-c.triggerUpload:
 				notSyncUpload := c.notSyncUpload.Load()
-				_ = c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.lastUpload.Load()+c.upload.Add(uint64(c.notSyncUpload.Load()))))
+				_ = c.cache.Put(cache.Element(UploadKey, binary.BigEndian.AppendUint64(nil, c.lastUpload.Load()+c.upload.Add(uint64(c.notSyncUpload.Load())))))
 				c.notSyncUpload.Add(-notSyncUpload)
 				c.triggerdUpload.Store(false)
 			}
@@ -123,6 +123,11 @@ func (c *TotalCache) LoadRunningUpload() uint64 {
 func (c *TotalCache) Close() {
 	c.cancel()
 	c.wg.Wait()
-	_ = c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.lastDownload.Load()+c.download.Add(uint64(c.notSyncDownload.Load()))))
-	_ = c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.lastUpload.Load()+c.upload.Add(uint64(c.notSyncUpload.Load()))))
+	_ = c.cache.Put(func(yield func([]byte, []byte) bool) {
+		ok := yield(DownloadKey, binary.BigEndian.AppendUint64(nil, c.lastDownload.Load()+c.download.Add(uint64(c.notSyncDownload.Load()))))
+		if !ok {
+			return
+		}
+		_ = yield(UploadKey, binary.BigEndian.AppendUint64(nil, c.lastUpload.Load()+c.upload.Add(uint64(c.notSyncUpload.Load()))))
+	})
 }

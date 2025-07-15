@@ -15,6 +15,16 @@ message element {
   bytes value = 3 [ json_name = "value" ];
 }
 
+message Object {
+  bytes key = 1 [ json_name = "key" ];
+  bytes value = 2 [ json_name = "value" ];
+}
+
+message elements {
+  repeated string buckets = 1 [ json_name = "buckets" ];
+  repeated Object objects = 2 [ json_name = "objects" ];
+}
+
 message Keys {
   repeated string buckets = 1 [ json_name = "buckets" ];
   repeated bytes keys = 2 [ json_name = "keys" ];
@@ -22,7 +32,7 @@ message Keys {
 
 service kvstore {
   rpc Get(element) returns (element);
-  rpc Set(element) returns (google.protobuf.Empty);
+  rpc Set(elements) returns (google.protobuf.Empty);
   rpc Delete(Keys) returns (google.protobuf.Empty);
   rpc Range(element) returns (stream element);
   rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);

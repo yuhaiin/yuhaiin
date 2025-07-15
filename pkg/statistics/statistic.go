@@ -9,6 +9,7 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
@@ -74,8 +75,14 @@ func NewConnStore(cache, history, connection cache.Cache, dialer netapi.Proxy) *
 }
 
 func (c *Connections) allInfos() []*statistic.Connection {
-	return slice.CollectTo(c.infoStore.RangeValues, func(x *statistic.Connection) *statistic.Connection {
-		return x
+	return slice.CollectTo(c.connStore.RangeValues, func(x connection) *statistic.Connection {
+		info, ok := c.infoStore.Load(x.ID())
+		if !ok {
+			return statistic.Connection_builder{
+				Id: proto.Uint64(x.ID()),
+			}.Build()
+		}
+		return info
 	})
 }
 
@@ -133,7 +140,7 @@ func (c *Connections) Remove(id uint64) {
 		log.Debug("close conn", "id", z.ID())
 	}
 
-	c.infoStore.LoadAndDelete(id)
+	c.infoStore.Delete(id)
 	c.counters.Remove(id)
 	c.notify.pubRemoveConn(id)
 }
@@ -172,7 +179,26 @@ func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.
 	return z, nil
 }
 
+func (c *Connections) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	resp, err := c.Proxy.Ping(ctx, addr)
+	if err != nil {
+		c.faildHistory.Push(ctx, err, statistic.Type_ip, addr)
+		return 0, err
+	}
+
+	conn := c.getConnection(ctx, nil, addr)
+	conn.GetType().SetConnType(statistic.Type_ip)
+	conn.GetType().SetUnderlyingType(statistic.Type_ip)
+
+	c.history.Push(conn)
+	return resp, nil
+}
+
 func getRemote(con any) string {
+	if con == nil {
+		return ""
+	}
+
 	r, ok := con.(interface{ RemoteAddr() net.Addr })
 	if ok {
 		// https://github.com/google/gvisor/blob/a9bdef23522b5a2ff2a7ec07c3e0573885b46ecb/pkg/tcpip/adapters/gonet/gonet.go#L457
@@ -186,6 +212,10 @@ func getRemote(con any) string {
 }
 
 func getLocal(con interface{ LocalAddr() net.Addr }) string {
+	if con == nil {
+		return ""
+	}
+
 	// https://github.com/google/gvisor/blob/a9bdef23522b5a2ff2a7ec07c3e0573885b46ecb/pkg/tcpip/adapters/gonet/gonet.go#L457
 	// gvisor TCPConn will return nil remoteAddr
 	if addr := con.LocalAddr(); addr != nil {
@@ -214,8 +244,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		Id:   proto.Uint64(c.idSeed.Generate()),
 		Addr: proto.String(realAddr),
 		Type: (&statistic.NetType_builder{
-			ConnType:       statistic.Type(statistic.Type_value[addr.Network()]).Enum(),
-			UnderlyingType: statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]).Enum(),
+			ConnType: statistic.Type(statistic.Type_value[addr.Network()]).Enum(),
 		}).Build(),
 		Source:       stringerOrNil(store.Source),
 		Inbound:      stringerOrNil(store.GetInbound()),
@@ -242,6 +271,10 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		UdpMigrateId:  uint64OrNil(store.GetUDPMigrateID()),
 		Pid:           uint64OrNil(uint64(store.GetProcessPid())),
 		Uid:           uint64OrNil(uint64(store.GetProcessUid())),
+	}
+
+	if conn != nil {
+		connection.Type.SetUnderlyingType(statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]))
 	}
 
 	return connection.Build()
@@ -360,9 +393,7 @@ func (c *Counter) LoadUpload() uint64   { return c.upload.Load() }
 
 type InfoCache interface {
 	Load(id uint64) (*statistic.Connection, bool)
-	LoadAndDelete(id uint64) (*statistic.Connection, bool)
 	Store(id uint64, info *statistic.Connection)
-	RangeValues(f func(value *statistic.Connection) bool)
 	Delete(id uint64)
 	io.Closer
 }
@@ -370,12 +401,43 @@ type InfoCache interface {
 var _ InfoCache = (*infoStore)(nil)
 
 type infoStore struct {
-	cache cache.Cache
+	ctx      context.Context
+	cancel   context.CancelFunc
+	memcache syncmap.SyncMap[uint64, *statistic.Connection]
+	closed   atomic.Bool
+	cache    cache.Cache
 }
 
-func newInfoStore(cache cache.Cache) *infoStore { return &infoStore{cache: cache} }
+func newInfoStore(cache cache.Cache) *infoStore {
+	ctx, cancel := context.WithCancel(context.TODO())
+	c := &infoStore{
+		cache:  cache,
+		ctx:    ctx,
+		cancel: cancel,
+	}
+
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				c.Flush()
+			}
+		}
+	}()
+
+	return c
+}
 
 func (c *infoStore) Load(id uint64) (*statistic.Connection, bool) {
+	cc, ok := c.memcache.Load(id)
+	if ok {
+		return cc, true
+	}
+
 	data, err := c.cache.Get(binary.BigEndian.AppendUint64([]byte{}, id))
 	if err != nil {
 		log.Warn("get info failed", "id", id, "err", err)
@@ -385,48 +447,59 @@ func (c *infoStore) Load(id uint64) (*statistic.Connection, bool) {
 	if err := proto.Unmarshal(data, &info); err != nil {
 		log.Warn("unmarshal info failed", "id", id, "err", err)
 		return nil, false
-	}
-
-	return &info, true
-}
-
-func (c *infoStore) LoadAndDelete(id uint64) (*statistic.Connection, bool) {
-	data, err := c.cache.Get(binary.BigEndian.AppendUint64([]byte{}, id))
-	if err != nil {
-		log.Warn("get info failed", "id", id, "err", err)
-		return nil, false
-	}
-
-	var info statistic.Connection
-	if err := proto.Unmarshal(data, &info); err != nil {
-		log.Warn("unmarshal info failed", "id", id, "err", err)
-		return nil, false
-	}
-
-	err = c.cache.Delete(binary.BigEndian.AppendUint64([]byte{}, id))
-	if err != nil {
-		log.Warn("delete info failed", "id", id, "err", err)
 	}
 
 	return &info, true
 }
 
 func (c *infoStore) Store(id uint64, info *statistic.Connection) {
-	data, err := proto.Marshal(info)
-	if err != nil {
-		log.Warn("marshal info failed", "id", id, "err", err)
+	if c.closed.Load() {
 		return
 	}
 
-	key := binary.BigEndian.AppendUint64([]byte{}, id)
+	c.memcache.Store(id, info)
+}
 
-	err = c.cache.Put(key, data)
+func (c *infoStore) Flush() {
+	if c.closed.Load() {
+		return
+	}
+
+	err := c.cache.Put(func(yield func([]byte, []byte) bool) {
+		for id := range c.memcache.Range {
+			info, ok := c.memcache.LoadAndDelete(id)
+			if !ok {
+				continue
+			}
+
+			data, err := proto.Marshal(info)
+			if err != nil {
+				log.Warn("marshal info failed", "id", id, "err", err)
+				continue
+			}
+
+			key := binary.BigEndian.AppendUint64([]byte{}, id)
+
+			if !yield(key, data) {
+				break
+			}
+		}
+	})
 	if err != nil {
-		log.Warn("put info failed", "id", id, "err", err)
+		log.Warn("put info failed", "err", err)
 	}
 }
 
 func (c *infoStore) Delete(id uint64) {
+	if c.closed.Load() {
+		return
+	}
+
+	_, ok := c.memcache.LoadAndDelete(id)
+	if ok {
+		return
+	}
+
 	err := c.cache.Delete(binary.BigEndian.AppendUint64([]byte{}, id))
 	if err != nil {
 		log.Warn("delete info failed", "id", id, "err", err)
@@ -434,30 +507,9 @@ func (c *infoStore) Delete(id uint64) {
 }
 
 func (c *infoStore) Close() error {
+	c.cancel()
+	c.closed.Store(true)
 	return c.cache.Close()
-}
-
-func (c *infoStore) Range(f func(key uint64, value *statistic.Connection) bool) error {
-	return c.cache.Range(func(key []byte, value []byte) bool {
-		var info statistic.Connection
-		if err := proto.Unmarshal(value, &info); err != nil {
-			return false
-		}
-		return f(binary.BigEndian.Uint64(key), &info)
-	})
-}
-
-func (c *infoStore) RangeValues(f func(value *statistic.Connection) bool) {
-	err := c.cache.Range(func(key, value []byte) bool {
-		var info statistic.Connection
-		if err := proto.Unmarshal(value, &info); err != nil {
-			return false
-		}
-		return f(&info)
-	})
-	if err != nil {
-		log.Warn("range info failed", "err", err)
-	}
 }
 
 var _ InfoCache = (*infoMemStore)(nil)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -93,8 +94,8 @@ func (a *ShareCache) do(f func(cache.Cache) error) error {
 	return nil
 }
 
-func (a *ShareCache) Put(k []byte, v []byte) error {
-	return a.do(func(s cache.Cache) error { return s.Put(k, v) })
+func (a *ShareCache) Put(k iter.Seq2[[]byte, []byte]) error {
+	return a.do(func(s cache.Cache) error { return s.Put(k) })
 }
 
 func (a *ShareCache) Get(k []byte) ([]byte, error) {
@@ -151,25 +152,25 @@ func (s *ShareCache) OpenStore() (cache.RecursionCache, error) {
 	type chStore struct {
 		store cache.RecursionCache
 		err   error
+		path  string
 	}
-	ch := make(chan chStore)
+	ch := make(chan chStore, 2)
 
-	sendData := func(s cache.RecursionCache, err error) {
+	sendData := func(s cache.RecursionCache, err error, path string) {
 		select {
 		case <-ctx.Done():
 			return
 		case ch <- chStore{
 			store: s,
 			err:   err,
+			path:  path,
 		}:
 		}
 	}
 
-	remain := 2
-
 	go func() {
 		if err := os.MkdirAll(filepath.Dir(s.dbPath), os.ModePerm); err != nil {
-			sendData(nil, fmt.Errorf("mkdir failed: %w", err))
+			sendData(nil, fmt.Errorf("mkdir failed: %w", err), s.dbPath)
 			return
 		}
 
@@ -178,7 +179,7 @@ func (s *ShareCache) OpenStore() (cache.RecursionCache, error) {
 			Logger:  cb.BBoltDBLogger{},
 		})
 		if err != nil {
-			sendData(nil, err)
+			sendData(nil, err, s.dbPath)
 			return
 		}
 
@@ -189,32 +190,33 @@ func (s *ShareCache) OpenStore() (cache.RecursionCache, error) {
 
 		_ = os.Remove(s.socket)
 
-		s, err := kv.Start(s.socket, cb)
+		ss, err := kv.Start(s.socket, cb)
 		if err != nil {
 			log.Error("start kv server failed", slog.Any("err", err))
 		}
 
-		sendData(&closeCache{cb, s}, err)
+		sendData(&closeCache{cb, ss}, err, s.dbPath)
 	}()
 
-	go func() { sendData(kv.NewClient(s.socket)) }()
+	go func() {
+		kvc, err := kv.NewClient(s.socket)
+		sendData(kvc, err, s.socket)
+	}()
 
 	log.Info("start try to open share cache")
 
 	var er error
-	for {
+	for range 2 {
 		s := <-ch
-		remain--
 		if s.err != nil {
 			er = errors.Join(er, s.err)
-			if remain == 0 {
-				return nil, er
-			}
 			continue
 		}
 
-		log.Info("share bbolt db open success", "type", reflect.TypeOf(s.store))
+		log.Info("share bbolt db open success", "type", reflect.TypeOf(s.store), "path", s.path)
 
 		return s.store, nil
 	}
+
+	return nil, er
 }

@@ -2,13 +2,20 @@ package cache
 
 import (
 	"errors"
+	"iter"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
+func Element(key []byte, value []byte) iter.Seq2[[]byte, []byte] {
+	return func(yield func([]byte, []byte) bool) {
+		_ = yield(key, value)
+	}
+}
+
 type Cache interface {
 	Get(k []byte) (v []byte, err error)
-	Put(k, v []byte) error
+	Put(iter.Seq2[[]byte, []byte]) error
 	Delete(k ...[]byte) error
 	Close() error
 	Range(f func(key []byte, value []byte) bool) error
@@ -26,9 +33,11 @@ type MockCache struct {
 }
 
 func (m *MockCache) Get(k []byte) (v []byte, _ error) { return nil, nil }
-func (m *MockCache) Put(k, v []byte) error {
+func (m *MockCache) Put(es iter.Seq2[[]byte, []byte]) error {
 	if m.OnPut != nil {
-		m.OnPut(k, v)
+		for k, v := range es {
+			m.OnPut(k, v)
+		}
 	}
 	return nil
 }
@@ -56,8 +65,10 @@ func (m *MemoryCache) Get(k []byte) (v []byte, err error) {
 	return x, nil
 }
 
-func (m *MemoryCache) Put(k, v []byte) error {
-	m.cache.Store(string(k), v)
+func (m *MemoryCache) Put(es iter.Seq2[[]byte, []byte]) error {
+	for k, v := range es {
+		m.cache.Store(string(k), v)
+	}
 	return nil
 }
 

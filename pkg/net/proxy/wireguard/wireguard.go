@@ -181,6 +181,10 @@ func (w *Wireguard) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 	}, nil
 }
 
+func (w *Wireguard) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	return 0, nil
+}
+
 type wrapGoNetUdpConn struct {
 	wireguard *Wireguard
 	*gonet.UDPConn

@@ -128,6 +128,17 @@ func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 	}
 }
 
+func (s *handler) Ping(ctx context.Context, pack *netapi.PingMeta) {
+	resp, err := s.dialer.Ping(ctx, pack.Destination)
+	if err != nil {
+		log.Error("ping", "error", err)
+	}
+
+	if err := pack.WriteBack(resp, err); err != nil {
+		log.Error("write back", "error", err)
+	}
+}
+
 func (s *handler) Close() error { return s.table.Close() }
 
 type controlSniffer struct {

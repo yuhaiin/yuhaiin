@@ -4,6 +4,7 @@ import (
 	context "context"
 	"fmt"
 	"io"
+	"iter"
 	"net"
 	"os"
 	"time"
@@ -44,17 +45,23 @@ func (k *KV) Get(ctx context.Context, e *Element) (*Element, error) {
 	return e, err
 }
 
-func (k *KV) Set(ctx context.Context, e *Element) (*emptypb.Empty, error) {
+func (e *Elements) RangeObjects() iter.Seq2[[]byte, []byte] {
+	return func(yield func([]byte, []byte) bool) {
+		for _, v := range e.GetObjects() {
+			if !yield(v.GetKey(), v.GetValue()) {
+				break
+			}
+		}
+	}
+}
+
+func (k *KV) Set(ctx context.Context, e *Elements) (*emptypb.Empty, error) {
 	c := k.db
 	for _, v := range e.GetBuckets() {
 		c = c.NewCache(v).(*bbolt.Cache)
 	}
 
-	if len(e.GetKey()) == 0 {
-		return nil, fmt.Errorf("key is empty")
-	}
-
-	err := c.Put(e.GetKey(), e.GetValue())
+	err := c.Put(e.RangeObjects())
 	return &emptypb.Empty{}, err
 }
 
@@ -148,11 +155,17 @@ func (c *KVStoreCli) Get(k []byte) ([]byte, error) {
 	return resp.GetValue(), nil
 }
 
-func (c *KVStoreCli) Put(k []byte, v []byte) error {
-	_, err := c.KvstoreClient.Set(context.Background(), Element_builder{
+func (c *KVStoreCli) Put(es iter.Seq2[[]byte, []byte]) error {
+	var objects []*Object
+	for k, v := range es {
+		objects = append(objects, Object_builder{
+			Key:   k,
+			Value: v,
+		}.Build())
+	}
+	_, err := c.KvstoreClient.Set(context.Background(), Elements_builder{
 		Buckets: c.buckets,
-		Key:     k,
-		Value:   v,
+		Objects: objects,
 	}.Build())
 	if err != nil {
 		log.Error("failed to set", "err", err)

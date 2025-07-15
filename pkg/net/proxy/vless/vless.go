@@ -59,6 +59,10 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	return newConn(conn, c, true, addr)
 }
 
+func (c *Client) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	return 0, nil
+}
+
 func init() {
 	register.RegisterPoint(NewClient)
 }

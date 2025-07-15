@@ -487,8 +487,12 @@ func (f *fakeLru) Add(host string, ip netip.Addr) {
 
 	if f.bbolt != nil {
 		host, ip := []byte(host), ip.AsSlice()
-		_ = f.bbolt.Put(host, ip)
-		_ = f.bbolt.Put(ip, host)
+		_ = f.bbolt.Put(func(yield func([]byte, []byte) bool) {
+			if !yield(host, ip) {
+				return
+			}
+			_ = yield(ip, host)
+		})
 	}
 }
 

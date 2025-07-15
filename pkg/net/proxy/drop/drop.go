@@ -2,6 +2,7 @@ package drop
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"time"
@@ -60,6 +61,10 @@ func (d *drop) waitTime(addr netapi.Address) time.Duration {
 func (d *drop) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	time := d.waitTime(addr)
 	return NewDrop(ctx, time), nil
+}
+
+func (d *drop) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	return 0, errors.New("drop")
 }
 
 func (d *drop) Close() error { return nil }

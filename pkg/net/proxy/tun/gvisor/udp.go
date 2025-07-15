@@ -89,7 +89,7 @@ import (
 // 	})
 // }
 
-func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.PacketBuffer) bool {
+func (f *tunServer) HandleUDP(id stack.TransportEndpointID, pkt *stack.PacketBuffer) bool {
 	srcPort, dstPort := id.RemotePort, id.LocalPort
 
 	buf := pool.NewBufferSize(pkt.Data().Size())

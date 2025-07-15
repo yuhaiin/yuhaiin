@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -65,27 +66,6 @@ func NewClient(config *protocol.Socks5, dialer netapi.Proxy) (netapi.Proxy, erro
 		hostname:     config.GetHostname(),
 		overridePort: uint16(config.GetOverridePort()),
 	}, nil
-}
-
-func (s *Client) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
-	conn, err := s.dialer.Conn(ctx, host)
-	if err != nil {
-		return nil, fmt.Errorf("dial failed: %w", err)
-	}
-
-	err = s.handshake1(conn)
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("first hand failed: %w", err)
-	}
-
-	_, err = s.handshake2(conn, tools.Connect, host)
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("second hand failed: %w", err)
-	}
-
-	return conn, nil
 }
 
 func (s *Client) handshake1(conn net.Conn) error {
@@ -186,6 +166,27 @@ func (s *Client) handshake2(conn net.Conn, cmd tools.CMD, address netapi.Address
 	return addr, nil
 }
 
+func (s *Client) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
+	conn, err := s.dialer.Conn(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("dial failed: %w", err)
+	}
+
+	err = s.handshake1(conn)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("first hand failed: %w", err)
+	}
+
+	_, err = s.handshake2(conn, tools.Connect, host)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("second hand failed: %w", err)
+	}
+
+	return conn, nil
+}
+
 func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
 	conn, err := s.dialer.Conn(ctx, host)
 	if err != nil {
@@ -227,6 +228,28 @@ func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 	}()
 
 	return pc, nil
+}
+
+func (s *Client) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	start := time.Now()
+
+	conn, err := s.dialer.Conn(ctx, addr)
+	if err != nil {
+		return 0, netapi.NewDialError("udp", err, addr)
+	}
+	defer conn.Close()
+
+	err = s.handshake1(conn)
+	if err != nil {
+		return 0, fmt.Errorf("first hand failed: %w", err)
+	}
+
+	_, err = s.handshake2(conn, tools.Ping, addr)
+	if err != nil {
+		return 0, fmt.Errorf("second hand failed: %w", err)
+	}
+
+	return uint64(time.Since(start)), nil
 }
 
 func (s *Client) Close() error {
