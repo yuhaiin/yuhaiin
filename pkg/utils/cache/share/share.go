@@ -163,6 +163,7 @@ func (s *ShareCache) OpenStore() (cache.RecursionCache, error) {
 		case ch <- chStore{
 			store: s,
 			err:   err,
+			path:  path,
 		}:
 		}
 	}
