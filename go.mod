@@ -3,7 +3,7 @@ module github.com/Asutorufa/yuhaiin
 go 1.24.4
 
 require (
-	github.com/go-json-experiment/json v0.0.0-20250709061156-d2cd4771eb1b
+	github.com/go-json-experiment/json v0.0.0-20250714165856-be8212f5270d
 	github.com/godbus/dbus/v5 v5.1.1-0.20241109141217-c266b19b28e9
 	github.com/google/nftables v0.3.0
 	github.com/google/uuid v1.6.0
@@ -16,8 +16,8 @@ require (
 	github.com/refraction-networking/utls v1.7.3
 	github.com/tailscale/wireguard-go v0.0.0-20250711050509-4064566ecaf9
 	github.com/vishvananda/netlink v1.3.1
-	github.com/xtls/reality v0.0.0-20250627141458-e62c4aed0d57
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250711184713-79aaeb1715f6
+	github.com/xtls/reality v0.0.0-20250715055725-05a351a64521
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250715183845-b1e3197f117a
 	go.etcd.io/bbolt v1.4.2
 	golang.org/x/crypto v0.40.0
 	golang.org/x/mobile v0.0.0-20250711185624-d5bb5ecc55c0

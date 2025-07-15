@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"encoding/base64"
 	"net/http"
 	"testing"
 
@@ -38,4 +39,13 @@ func TestSniff(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.MustEqual(t, Sniff(buf.Bytes()), "ip.sb")
+}
+
+func TestSniffy(t *testing.T) {
+	data := "UE9TVCAvYXBpIEhUVFAvMS4xDQpIb3N0OiBbMjAwMTpiMjg6ZjIzZjpmMDA1OjphXTo4MA0KQ29udGVudC1UeXBlOiBhcHBsaWNhdGlvbi94LXd3dy1mb3JtLXVybGVuY29kZWQNCkNvbnRlbnQtTGVuZ3RoOiAxNzYNCkNvbm5lY3Rpb246IEtlZXAtQWxpdmUNCkFjY2VwdC1FbmNvZGluZzogZ3ppcCwgZGVmbGF0ZQ0KQWNjZXB0LUxhbmd1YWdlOiBlbi1KUCwqDQpVc2VyLUFnZW50OiBNb3ppbGxhLzUuMA0KDQo="
+
+	raw, err := base64.StdEncoding.DecodeString(data)
+	assert.NoError(t, err)
+
+	assert.MustEqual(t, Sniff(raw), "2001:b28:f23f:f005::a")
 }

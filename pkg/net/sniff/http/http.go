@@ -38,12 +38,12 @@ func Sniff(b []byte) string {
 		}
 
 		if bytes.Equal(header, []byte("Host:")) {
-			h, _, err := net.SplitHostPort(unsafe.String(unsafe.SliceData(host), len(host)))
+			h, _, err := net.SplitHostPort(string(host))
 			if err != nil {
 				return string(host)
 			}
 
-			return string(host[:len(h)])
+			return h
 		}
 	}
 }
