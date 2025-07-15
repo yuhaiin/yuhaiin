@@ -87,6 +87,10 @@ func (t *testProxy) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 	return &testPacketConn{saddr: netapi.EmptyAddr, t: t.t, ip: ip}, nil
 }
 
+func (t *testProxy) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	return 0, nil
+}
+
 func (t *testProxy) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Address, error) {
 	if t.addrMap == nil {
 		return addr, nil

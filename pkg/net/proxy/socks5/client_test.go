@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
@@ -63,7 +64,15 @@ func (h *handler) HandleStream(conn *netapi.StreamMeta) {
 func (h *handler) HandlePacket(conn *netapi.Packet) {
 	h.t.Log(conn, string(conn.GetPayload()))
 
-	conn.WriteBack(conn.GetPayload(), conn.Src())
+	if _, err := conn.WriteBack(conn.GetPayload(), conn.Src()); err != nil {
+		log.Error("write back failed", "err", err)
+	}
+}
+
+func (h *handler) HandlePing(conn *netapi.PingMeta) {
+	if err := conn.WriteBack(uint64(time.Now().UnixNano()), nil); err != nil {
+		log.Error("write back failed", "err", err)
+	}
 }
 
 func TestUsernamePassword(t *testing.T) {

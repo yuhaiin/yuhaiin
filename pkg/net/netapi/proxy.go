@@ -22,6 +22,7 @@ type ProcessDumper interface {
 type Proxy interface {
 	StreamProxy
 	PacketProxy
+	PingProxy
 	Dispatch(context.Context, Address) (Address, error)
 	io.Closer
 }
@@ -32,6 +33,10 @@ type StreamProxy interface {
 
 type PacketProxy interface {
 	PacketConn(context.Context, Address) (net.PacketConn, error)
+}
+
+type PingProxy interface {
+	Ping(context.Context, Address) (uint64, error)
 }
 
 func IsBlockError(err error) bool {
@@ -64,6 +69,7 @@ type errProxy struct {
 func NewErrProxy(err error) Proxy                                              { return &errProxy{error: err} }
 func (e errProxy) Conn(context.Context, Address) (net.Conn, error)             { return nil, e.error }
 func (e errProxy) PacketConn(context.Context, Address) (net.PacketConn, error) { return nil, e.error }
+func (e errProxy) Ping(context.Context, Address) (uint64, error)               { return 0, e.error }
 func (errProxy) Close() error                                                  { return nil }
 
 type DynamicProxy struct {
@@ -81,6 +87,12 @@ func (d *DynamicProxy) PacketConn(ctx context.Context, a Address) (net.PacketCon
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.p.PacketConn(ctx, a)
+}
+
+func (d *DynamicProxy) Ping(ctx context.Context, a Address) (uint64, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.p.Ping(ctx, a)
 }
 
 func (d *DynamicProxy) Dispatch(ctx context.Context, a Address) (Address, error) {

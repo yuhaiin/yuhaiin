@@ -39,8 +39,9 @@ type Header struct {
 type Protocol byte
 
 var (
-	TCP Protocol = 0b00000010 // 2
-	// Deprecated: use UDPWithMigrateID
+	TCP  Protocol = 0b00000010 // 2
+	Ping Protocol = 0b00000100 // 4
+	// Deprecated: use [UDPWithMigrateID]
 	UDP Protocol = 0b00000101 // 5
 	// UDPWithMigrateID udp with migrate support
 	UDPWithMigrateID Protocol = 0b00000110 // 6
@@ -48,7 +49,7 @@ var (
 
 func (n Protocol) Unknown() bool {
 	n = n.Network()
-	return n != TCP && n != UDP && n != UDPWithMigrateID
+	return n != TCP && n != UDP && n != UDPWithMigrateID && n != Ping
 }
 
 func (n Protocol) Network() Protocol {
@@ -64,7 +65,7 @@ func EncodeHeader(password []byte, header Header, buf *pool.Buffer) {
 
 	_, _ = buf.Write(password)
 
-	if header.Protocol.Network() == TCP {
+	if header.Protocol.Network() == TCP || header.Protocol == Ping {
 		tools.WriteAddr(header.Addr, buf)
 	}
 }
@@ -106,7 +107,7 @@ func DecodeHeader(password []byte, c pool.BufioConn) (Header, error) {
 			return errors.New("password is incorrect")
 		}
 
-		if header.Protocol.Network() == TCP {
+		if header.Protocol.Network() == TCP || header.Protocol == Ping {
 			_, target, err := tools.ReadAddr("tcp", r)
 			if err != nil {
 				return fmt.Errorf("read addr failed: %w", err)

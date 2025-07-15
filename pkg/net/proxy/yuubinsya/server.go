@@ -167,6 +167,48 @@ func (y *server) handle(conn net.Conn) error {
 				netapi.WithMigrateID(header.MigrateID),
 			))
 		}
+
+	case Ping:
+		y.handler.HandlePing(&netapi.PingMeta{
+			Source:      c.RemoteAddr(),
+			Destination: header.Addr,
+			WriteBack: func(id uint64, err error) error {
+				var b [8]byte
+				if err != nil {
+					b = [8]byte{255, 255, 255, 255, 255, 255, 255, 255}
+				} else {
+					binary.BigEndian.PutUint64(b[:], id)
+				}
+				_, err = c.Write(b[:])
+				return err
+			},
+		})
+
+		for conn.SetReadDeadline(time.Now().Add(time.Second*30)) == nil {
+			var b [8]byte
+			_, err := conn.Read(b[:])
+			if err != nil {
+				break
+			}
+
+			y.handler.HandlePing(&netapi.PingMeta{
+				Source:      c.RemoteAddr(),
+				Destination: header.Addr,
+				WriteBack: func(id uint64, err error) error {
+					var b [8]byte
+					if err != nil {
+						b = [8]byte{255, 255, 255, 255, 255, 255, 255, 255}
+					} else {
+						binary.BigEndian.PutUint64(b[:], id)
+					}
+					_, err = c.Write(b[:])
+					return err
+				},
+			})
+		}
+
+		return nil
+
 	default:
 		return fmt.Errorf("unknown protocol: %d", header.Protocol)
 	}

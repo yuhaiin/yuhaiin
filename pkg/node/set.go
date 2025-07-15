@@ -136,6 +136,30 @@ func (s *Set) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketCo
 	return nil, err
 }
 
+func (s *Set) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	ctx, err := s.nestedLoopCounter(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	for node := range s.loop {
+		dialer, er := s.outbound.GetDialerByID(ctx, node)
+		if er != nil {
+			err = errors.Join(err, er)
+			continue
+		}
+		resp, er := dialer.Ping(ctx, addr)
+		if er != nil {
+			err = errors.Join(err, er)
+			continue
+		}
+
+		return resp, nil
+	}
+
+	return 0, err
+}
+
 func (s *Set) Close() error {
 	// Close
 	//

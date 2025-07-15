@@ -22,10 +22,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"tailscale.com/envknob"
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
 	"tailscale.com/net/dnscache"
 	"tailscale.com/net/netns"
 	"tailscale.com/net/tsaddr"
+	"tailscale.com/tailcfg"
 	"tailscale.com/tsnet"
 )
 
@@ -237,7 +239,6 @@ func (t *Tailscale) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 	if err != nil {
 		return nil, err
 	}
-
 	return conn, nil
 }
 
@@ -323,6 +324,40 @@ func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 	}
 
 	return &warpUDPConn{ctx: context.WithoutCancel(ctx), ts: t, addr: addr, Conn: conn}, nil
+}
+
+func (t *Tailscale) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	dialer, err := t.init(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	defer func() {
+		if err := recover(); err != nil {
+			log.Error("tailscale packet conn panic", "err", err)
+		}
+	}()
+
+	_, err = dialer.Up(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	nip, err := t.resolveAddr(dialer, addr)
+	if err != nil {
+		return 0, err
+	}
+
+	var resp uint64
+	dialer.Sys().Engine.Get().Ping(nip.Addr(),
+		tailcfg.PingICMP, 8, func(pr *ipnstate.PingResult) {
+			if pr.Err != "" {
+				err = fmt.Errorf("tailscale ping failed: %s", pr.Err)
+			}
+			resp = uint64(pr.LatencySeconds)
+		})
+
+	return resp, err
 }
 
 type warpPacketConn struct {

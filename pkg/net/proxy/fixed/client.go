@@ -21,7 +21,7 @@ import (
 var refreshTimeout = int64(10 * time.Minute)
 
 type Client struct {
-	netapi.Proxy
+	p            netapi.Proxy
 	iface        string
 	addrs        []netapi.Address
 	errCount     durationCounter
@@ -68,7 +68,7 @@ func NewClient(c *protocol.Fixed, p netapi.Proxy) (netapi.Proxy, error) {
 
 	simple := &Client{
 		addrs:        addrs,
-		Proxy:        p,
+		p:            p,
 		nonBootstrap: p != nil && !register.IsBootstrap(p),
 		iface:        c.GetNetworkInterface(),
 	}
@@ -82,7 +82,7 @@ func (c *Client) Conn(ctx context.Context, _ netapi.Address) (net.Conn, error) {
 
 func (c *Client) dialSingle(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	if c.nonBootstrap {
-		return c.Proxy.Conn(ctx, addr)
+		return c.p.Conn(ctx, addr)
 	} else {
 		if c.iface != "" {
 			ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, c.iface)
@@ -220,7 +220,7 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	}
 
 	if c.nonBootstrap {
-		conn, err := c.Proxy.PacketConn(ctx, c.addrs[c.index.Load()])
+		conn, err := c.p.PacketConn(ctx, c.addrs[c.index.Load()])
 		if err != nil {
 			return nil, err
 		}
@@ -269,9 +269,25 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	return &packetConn{conn, ur}, nil
 }
 
+func (c *Client) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	if c.nonBootstrap {
+		return c.p.Ping(ctx, addr)
+	}
+
+	return direct.Default.Ping(ctx, addr)
+}
+
+func (c *Client) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Address, error) {
+	if c.nonBootstrap {
+		return c.p.Dispatch(ctx, addr)
+	}
+
+	return direct.Default.Dispatch(ctx, addr)
+}
+
 func (c *Client) Close() error {
-	if c.Proxy != nil {
-		return c.Proxy.Close()
+	if c.p != nil {
+		return c.p.Close()
 	}
 
 	return nil

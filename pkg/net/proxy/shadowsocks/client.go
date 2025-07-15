@@ -65,3 +65,7 @@ func (s *Shadowsocks) PacketConn(ctx context.Context, tar netapi.Address) (net.P
 
 	return yuubinsya.NewAuthPacketConn(s.cipher.PacketConn(pc)), nil
 }
+
+func (s *Shadowsocks) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	return 0, nil
+}

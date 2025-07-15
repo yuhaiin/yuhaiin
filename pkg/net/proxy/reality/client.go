@@ -96,6 +96,10 @@ func (e *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	return e.proxy.PacketConn(ctx, addr)
 }
 
+func (e *Client) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
+	return e.proxy.Ping(ctx, addr)
+}
+
 func (e *Client) Close() error { return e.proxy.Close() }
 
 func (e *Client) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, error) {

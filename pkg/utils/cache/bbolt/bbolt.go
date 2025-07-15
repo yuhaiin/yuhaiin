@@ -3,6 +3,7 @@ package bbolt
 import (
 	"errors"
 	"fmt"
+	"iter"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"go.etcd.io/bbolt"
@@ -104,7 +105,7 @@ func (c *Cache) bucket(tx *bbolt.Tx, readOnly bool) (*bbolt.Bucket, error) {
 	return bk, nil
 }
 
-func (c *Cache) Put(k, v []byte) error {
+func (c *Cache) Put(es iter.Seq2[[]byte, []byte]) error {
 	if c.db == nil {
 		return nil
 	}
@@ -114,7 +115,13 @@ func (c *Cache) Put(k, v []byte) error {
 		if err != nil {
 			return err
 		}
-		return bk.Put(k, v)
+
+		for k, v := range es {
+			if err := bk.Put(k, v); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
