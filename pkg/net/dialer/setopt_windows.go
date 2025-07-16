@@ -2,6 +2,7 @@ package dialer
 
 import (
 	"encoding/binary"
+	"errors"
 	"net"
 	"syscall"
 	"unsafe"
@@ -58,25 +59,8 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 			return
 		}
 
-		if opts.InterfaceIndex == 0 && opts.InterfaceName != "" {
-			if iface, err := net.InterfaceByName(opts.InterfaceName); err == nil {
-				opts.InterfaceIndex = iface.Index
-			}
-		}
+		innerErr = BindInterface(network, fd, opts.InterfaceName)
 
-		if opts.InterfaceIndex != 0 {
-			switch network {
-			case "tcp4", "udp4":
-				innerErr = bindSocketToInterface4(windows.Handle(fd), uint32(opts.InterfaceIndex))
-			case "tcp6", "udp6":
-				innerErr = bindSocketToInterface6(windows.Handle(fd), uint32(opts.InterfaceIndex))
-				if network == "udp6" && ip == nil {
-					// The underlying IP net maybe IPv4 even if the `network` param is `udp6`,
-					// so we should bind socket to interface4 at the same time.
-					innerErr = bindSocketToInterface4(windows.Handle(fd), uint32(opts.InterfaceIndex))
-				}
-			}
-		}
 	})
 
 	if innerErr != nil {
@@ -96,4 +80,35 @@ func bindSocketToInterface4(handle windows.Handle, index uint32) error {
 
 func bindSocketToInterface6(handle windows.Handle, index uint32) error {
 	return windows.SetsockoptInt(handle, windows.IPPROTO_IPV6, IPV6_UNICAST_IF, int(index))
+}
+
+func BindInterface(network string, fd uintptr, ifaceName string) error {
+	ifaceIndex := 0
+	if ifaceName != "" {
+		if iface, err := net.InterfaceByName(ifaceName); err == nil {
+			ifaceIndex = iface.Index
+		}
+	}
+
+	var err error
+
+	if ifaceIndex != 0 {
+		switch network {
+		case "ip4", "tcp4", "udp4":
+			err = bindSocketToInterface4(windows.Handle(fd), uint32(ifaceIndex))
+		case "ip6", "tcp6", "udp6":
+			err = bindSocketToInterface6(windows.Handle(fd), uint32(ifaceIndex))
+			// if network == "udp6" && ip == nil {
+			if network == "udp6" {
+				// The underlying IP net maybe IPv4 even if the `network` param is `udp6`,
+				// so we should bind socket to interface4 at the same time.
+				er := bindSocketToInterface4(windows.Handle(fd), uint32(ifaceIndex))
+				if er != nil {
+					err = errors.Join(err, er)
+				}
+			}
+		}
+	}
+
+	return err
 }

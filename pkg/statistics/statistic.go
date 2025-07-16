@@ -2,14 +2,10 @@ package statistics
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
-	"io"
-	"log/slog"
 	"net"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
@@ -118,6 +114,9 @@ func (c *Connections) CloseConn(_ context.Context, x *gs.NotifyRemoveConnections
 func (c *Connections) Close() error {
 	c.notify.Close()
 
+	c.history.Close()
+	c.infoStore.Close()
+
 	for _, v := range c.connStore.Range {
 		v.Close()
 	}
@@ -135,9 +134,8 @@ func (c *Connections) Total(context.Context, *emptypb.Empty) (*gs.TotalFlow, err
 }
 
 func (c *Connections) Remove(id uint64) {
-	if z, ok := c.connStore.LoadAndDelete(id); ok {
+	if _, ok := c.connStore.LoadAndDelete(id); ok {
 		metrics.Counter.RemoveConnection(1)
-		log.Debug("close conn", "id", z.ID())
 	}
 
 	c.infoStore.Delete(id)
@@ -151,7 +149,6 @@ func (c *Connections) storeConnection(o connection, info *statistic.Connection) 
 	c.infoStore.Store(id, info)
 	c.notify.pubNewConn(info)
 	c.history.Push(info)
-	log.Select(slog.LevelDebug).PrintFunc("new conn", slogArgs(info))
 }
 
 func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
@@ -390,134 +387,3 @@ func (c *Counter) AddUpload(n uint64) {
 }
 func (c *Counter) LoadDownload() uint64 { return c.download.Load() }
 func (c *Counter) LoadUpload() uint64   { return c.upload.Load() }
-
-type InfoCache interface {
-	Load(id uint64) (*statistic.Connection, bool)
-	Store(id uint64, info *statistic.Connection)
-	Delete(id uint64)
-	io.Closer
-}
-
-var _ InfoCache = (*infoStore)(nil)
-
-type infoStore struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	memcache syncmap.SyncMap[uint64, *statistic.Connection]
-	closed   atomic.Bool
-	cache    cache.Cache
-}
-
-func newInfoStore(cache cache.Cache) *infoStore {
-	ctx, cancel := context.WithCancel(context.TODO())
-	c := &infoStore{
-		cache:  cache,
-		ctx:    ctx,
-		cancel: cancel,
-	}
-
-	go func() {
-		ticker := time.NewTicker(time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				c.Flush()
-			}
-		}
-	}()
-
-	return c
-}
-
-func (c *infoStore) Load(id uint64) (*statistic.Connection, bool) {
-	cc, ok := c.memcache.Load(id)
-	if ok {
-		return cc, true
-	}
-
-	data, err := c.cache.Get(binary.BigEndian.AppendUint64([]byte{}, id))
-	if err != nil {
-		log.Warn("get info failed", "id", id, "err", err)
-		return nil, false
-	}
-	var info statistic.Connection
-	if err := proto.Unmarshal(data, &info); err != nil {
-		log.Warn("unmarshal info failed", "id", id, "err", err)
-		return nil, false
-	}
-
-	return &info, true
-}
-
-func (c *infoStore) Store(id uint64, info *statistic.Connection) {
-	if c.closed.Load() {
-		return
-	}
-
-	c.memcache.Store(id, info)
-}
-
-func (c *infoStore) Flush() {
-	if c.closed.Load() {
-		return
-	}
-
-	err := c.cache.Put(func(yield func([]byte, []byte) bool) {
-		for id := range c.memcache.Range {
-			info, ok := c.memcache.LoadAndDelete(id)
-			if !ok {
-				continue
-			}
-
-			data, err := proto.Marshal(info)
-			if err != nil {
-				log.Warn("marshal info failed", "id", id, "err", err)
-				continue
-			}
-
-			key := binary.BigEndian.AppendUint64([]byte{}, id)
-
-			if !yield(key, data) {
-				break
-			}
-		}
-	})
-	if err != nil {
-		log.Warn("put info failed", "err", err)
-	}
-}
-
-func (c *infoStore) Delete(id uint64) {
-	if c.closed.Load() {
-		return
-	}
-
-	_, ok := c.memcache.LoadAndDelete(id)
-	if ok {
-		return
-	}
-
-	err := c.cache.Delete(binary.BigEndian.AppendUint64([]byte{}, id))
-	if err != nil {
-		log.Warn("delete info failed", "id", id, "err", err)
-	}
-}
-
-func (c *infoStore) Close() error {
-	c.cancel()
-	c.closed.Store(true)
-	return c.cache.Close()
-}
-
-var _ InfoCache = (*infoMemStore)(nil)
-
-type infoMemStore struct {
-	syncmap.SyncMap[uint64, *statistic.Connection]
-}
-
-func newInfoMemStore() *infoMemStore { return &infoMemStore{} }
-
-func (c *infoMemStore) Close() error { return nil }

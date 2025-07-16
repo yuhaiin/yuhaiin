@@ -184,17 +184,18 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 
 	err := s.db.View(func(ss *config.Setting) error {
 		for _, v := range ss.GetBypass().GetLists() {
-			if v.WhichList() == bypass.List_Remote_case {
-				errors[v.GetName()] = []string{}
-				for _, url := range v.GetRemote().GetUrls() {
-					_, er := getRemote(ctx, filepath.Join(s.db.Dir(), "rules"),
-						s.proxy.Load(), url, true)
-					if er != nil {
-						errors[v.GetName()] = append(errors[v.GetName()], fmt.Sprintf("%s: %s", url, er.Error()))
-						log.Error("get remote failed", "err", er, "url", url)
-					}
-				}
+			if v.WhichList() != bypass.List_Remote_case {
+				continue
+			}
 
+			errors[v.GetName()] = []string{}
+			for _, url := range v.GetRemote().GetUrls() {
+				_, er := getRemote(ctx, filepath.Join(s.db.Dir(), "rules"),
+					s.proxy.Load(), url, true)
+				if er != nil {
+					errors[v.GetName()] = append(errors[v.GetName()], fmt.Sprintf("%s: %s", url, er.Error()))
+					log.Error("get remote failed", "err", er, "url", url)
+				}
 			}
 		}
 

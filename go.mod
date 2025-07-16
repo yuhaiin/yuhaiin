@@ -14,7 +14,7 @@ require (
 	github.com/prometheus/client_golang v1.22.0
 	github.com/quic-go/quic-go v0.53.0
 	github.com/refraction-networking/utls v1.7.3
-	github.com/tailscale/wireguard-go v0.0.0-20250711050509-4064566ecaf9
+	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20250715055725-05a351a64521
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250715183845-b1e3197f117a
@@ -25,7 +25,7 @@ require (
 	golang.org/x/sys v0.34.0
 	golang.org/x/time v0.12.0
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20250318115841-8e6558eba666
-	google.golang.org/grpc v1.73.0
+	google.golang.org/grpc v1.74.0
 	google.golang.org/protobuf v1.36.6
 	gvisor.dev/gvisor v0.0.0-20250529183007-2a7b5c7dece9
 	tailscale.com v1.84.3
@@ -110,10 +110,11 @@ require (
 	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/tools v0.35.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250324211829-b45e905df463 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a // indirect
 )
 
 replace (
+	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
 	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20250703103613-d277484079ea
 )

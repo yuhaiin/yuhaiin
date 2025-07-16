@@ -47,29 +47,27 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 		// _ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 0)
 		// }
 
-		if (opts.InterfaceName == "" && opts.InterfaceIndex != 0) || opts.InterfaceName != "" {
+		if opts.InterfaceName != "" {
 			host, _, _ := net.SplitHostPort(address)
 			if ip := net.ParseIP(host); ip != nil && !ip.IsGlobalUnicast() {
 				return
 			}
 		}
 
-		if opts.InterfaceName == "" && opts.InterfaceIndex != 0 {
-			if iface, err := net.InterfaceByIndex(opts.InterfaceIndex); err == nil {
-				opts.InterfaceName = iface.Name
-			}
-		}
-
-		if opts.InterfaceName != "" {
-			// log.Println("dialer: set socket option: SO_BINDTODEVICE", opts.InterfaceName)
-			if innerErr = unix.BindToDevice(int(fd), opts.InterfaceName); innerErr != nil {
-				return
-			}
-		}
+		innerErr = BindInterface(network, fd, opts.InterfaceName)
 	})
 
 	if innerErr != nil {
 		err = innerErr
 	}
 	return
+}
+
+func BindInterface(network string, fd uintptr, ifaceName string) error {
+	if ifaceName != "" {
+		// log.Println("dialer: set socket option: SO_BINDTODEVICE", opts.InterfaceName)
+		return unix.BindToDevice(int(fd), ifaceName)
+	}
+
+	return nil
 }
