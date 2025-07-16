@@ -42,5 +42,11 @@ func TestReverseLru(t *testing.T) {
 		if v.ok {
 			assert.Equal(t, v.want, vv)
 		}
+
+		kk, ok := lru.ReverseLoad(v.want)
+		assert.Equal(t, v.ok, ok)
+		if v.ok {
+			assert.Equal(t, v.key, kk)
+		}
 	}
 }

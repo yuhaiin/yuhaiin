@@ -2,10 +2,7 @@ package statistics
 
 import (
 	"io"
-	"log/slog"
 	"net"
-
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
 type connection interface {
@@ -79,30 +76,4 @@ func (s *packetConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	n, addr, err = s.PacketConn.ReadFrom(p)
 	s.counter.AddDownload(uint64(n))
 	return
-}
-
-func slogArgs(info *statistic.Connection) func() []any {
-	return func() []any {
-		attrs := []any{
-			slog.Any("id", info.GetId()),
-			slog.Any("addr", info.GetAddr()),
-			slog.Any("src", info.GetSource()),
-			slog.Any("network", info.GetType().GetConnType()),
-			slog.Any("outbound", info.GetOutbound()),
-		}
-
-		if info.HasProcess() {
-			attrs = append(attrs, slog.Any("process", info.GetProcess()))
-		}
-
-		if info.HasFakeIp() {
-			attrs = append(attrs, slog.Any("fakeip", info.GetFakeIp()))
-		}
-
-		if info.HasHosts() {
-			attrs = append(attrs, slog.Any("hosts", info.GetHosts()))
-		}
-
-		return attrs
-	}
 }

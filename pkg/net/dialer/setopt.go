@@ -8,3 +8,7 @@ import "syscall"
 func setSocketOptions(network, address string, c syscall.RawConn, opts *Options) error {
 	return nil
 }
+
+func BindInterface(network string, fd uintptr, ifaceName string) error {
+	return nil
+}

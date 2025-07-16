@@ -34,7 +34,7 @@ var DefaultLogger Logger = NewSLogger(1)
 var OutputStderr bool = true
 
 var writer *FileWriter
-var mu sync.Mutex
+var mu sync.RWMutex
 
 func Set(config *protolog.Logcat, path string) {
 	mu.Lock()

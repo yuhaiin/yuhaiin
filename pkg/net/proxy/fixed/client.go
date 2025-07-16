@@ -237,15 +237,11 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 
 	var localAddr string
 	if dialer.DefaultIPv6PreferUnicastLocalAddr {
-		var ifindex int
 		iface := dialer.DefaultInterfaceName()
-		if iface == "" {
-			ifindex = dialer.DefaultInterfaceIndex()
-		}
 
-		if iface != "" || ifindex != 0 {
+		if iface != "" {
 			if ur.IP.IsGlobalUnicast() && !ur.IP.IsPrivate() && ur.IP.To4() == nil && ur.IP.To16() != nil {
-				if addr := dialer.GetUnicastAddr(true, "udp", iface, ifindex); addr != nil {
+				if addr := dialer.GetUnicastAddr(true, "udp", iface, 0); addr != nil {
 					localAddr = addr.String()
 				}
 			}

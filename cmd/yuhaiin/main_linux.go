@@ -14,6 +14,8 @@ import (
 )
 
 func init() {
+	dialer.DefaultRoutingMark = device.Mark
+
 	var disabledMark bool
 	dialer.DefaultMarkSymbol = func(socket int32) bool {
 		if disabledMark {

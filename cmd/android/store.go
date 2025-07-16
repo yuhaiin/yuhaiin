@@ -251,3 +251,10 @@ func (b *configDB[T]) View(f ...func(*pc.Setting) error) error {
 }
 
 func (b *configDB[T]) Dir() string { return filepath.Dir(dbPath()) }
+
+func ifOr[T any](a bool, b, c T) T {
+	if a {
+		return b
+	}
+	return c
+}

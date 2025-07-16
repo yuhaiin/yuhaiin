@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
+	di "github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"tailscale.com/net/netaddr"
 	"tailscale.com/net/netmon"
@@ -18,15 +17,15 @@ var interfaces Interfaces
 func SetInterfaces(i Interfaces) {
 	interfaces = i
 	netmon.RegisterInterfaceGetter(func() ([]netmon.Interface, error) { return getInterfaces(i) })
-	tun2socket.AltNetInterfaces = func() ([]tun2socket.Interface, error) {
+	di.AltNetInterfaces = func() ([]di.Interface, error) {
 		addr, err := getInterfaces(i)
 		if err != nil {
 			return nil, err
 		}
 
-		var ifaces = make([]tun2socket.Interface, 0, len(addr))
+		var ifaces = make([]di.Interface, 0, len(addr))
 		for _, i := range addr {
-			ifaces = append(ifaces, tun2socket.Interface{
+			ifaces = append(ifaces, di.Interface{
 				Interface: i.Interface,
 				AltAddrs:  i.AltAddrs,
 			})
@@ -36,8 +35,41 @@ func SetInterfaces(i Interfaces) {
 	}
 }
 
+type Interface struct {
+	Name              string
+	DisplayName       string
+	Index             int32
+	Mtu               int32
+	IsUp              bool
+	IsLoopback        bool
+	IsPointToPoint    bool
+	Broadcast         bool
+	SupportsMulticast bool
+	IsVirtual         bool
+	HardwareAddr      []byte
+	Address           AddressIter
+}
+
+type InterfaceIter interface {
+	Next() *Interface
+	HasNext() bool
+	Reset()
+}
+
+type AddressPrefix struct {
+	Address   string
+	Broadcast string
+	Mask      int32
+}
+
+type AddressIter interface {
+	Next() *AddressPrefix
+	HasNext() bool
+	Reset()
+}
+
 type Interfaces interface {
-	GetInterfacesAsString() (string, error)
+	GetInterfaces() (InterfaceIter, error)
 }
 
 /*
@@ -84,68 +116,68 @@ func getInterfaces(ifs Interfaces) ([]netmon.Interface, error) {
 
 	var ifaces []netmon.Interface
 
-	ifaceString, err := ifs.GetInterfacesAsString()
+	is, err := ifs.GetInterfaces()
 	if err != nil {
 		return ifaces, err
 	}
 
-	for iface := range strings.SplitSeq(ifaceString, "\n") {
-		// Example of the strings we're processing:
-		// wlan0 30 1500 true true false false true | fe80::2f60:2c82:4163:8389%wlan0/64 10.1.10.131/24
-		// r_rmnet_data0 21 1500 true false false false false | fe80::9318:6093:d1ad:ba7f%r_rmnet_data0/64
-		// mnet_data2 12 1500 true false false false false | fe80::3c8c:44dc:46a9:9907%rmnet_data2/64
-
-		if strings.TrimSpace(iface) == "" {
-			continue
-		}
-
-		fields := strings.Split(iface, "|")
-		if len(fields) != 2 {
-			log.Error("getInterfaces: unable to split", "iface", iface)
-			continue
-		}
-
-		var name string
-		var index, mtu int
-		var up, broadcast, loopback, pointToPoint, multicast bool
-		_, err := fmt.Sscanf(fields[0], "%s %d %d %t %t %t %t %t",
-			&name, &index, &mtu, &up, &broadcast, &loopback, &pointToPoint, &multicast)
-		if err != nil {
-			log.Error("getInterfaces: unable to parse", "iface", iface, "err", err)
-			continue
+	for is.HasNext() {
+		iface := is.Next()
+		if iface == nil {
+			break
 		}
 
 		newIf := netmon.Interface{
 			Interface: &net.Interface{
-				Name:  name,
-				Index: index,
-				MTU:   mtu,
+				Name:         iface.Name,
+				Index:        int(iface.Index),
+				MTU:          int(iface.Mtu),
+				HardwareAddr: iface.HardwareAddr,
 			},
 			AltAddrs: []net.Addr{}, // non-nil to avoid Go using netlink
 		}
-		if up {
+		if iface.IsUp {
 			newIf.Flags |= net.FlagUp
 		}
-		if broadcast {
+		if iface.Broadcast {
 			newIf.Flags |= net.FlagBroadcast
 		}
-		if loopback {
+		if iface.IsLoopback {
 			newIf.Flags |= net.FlagLoopback
 		}
-		if pointToPoint {
+		if iface.IsPointToPoint {
 			newIf.Flags |= net.FlagPointToPoint
 		}
-		if multicast {
+		if iface.SupportsMulticast {
 			newIf.Flags |= net.FlagMulticast
 		}
 
-		addrs := strings.Trim(fields[1], " \n")
-		for addr := range strings.SplitSeq(addrs, " ") {
-			_, ip, err := net.ParseCIDR(addr)
-			if err == nil {
-				newIf.AltAddrs = append(newIf.AltAddrs, ip)
+		addr := iface.Address
+		for addr.HasNext() {
+			addr := iface.Address.Next()
+			if addr == nil {
+				break
 			}
+
+			ipAddr, err := netip.ParseAddr(addr.Address)
+			if err != nil {
+				log.Warn("parse addr failed", "err", err, "addr", addr.Address)
+				continue
+			}
+
+			m := net.CIDRMask(int(addr.Mask), ipAddr.BitLen())
+			addr16 := ipAddr.As16()
+
+			ipnet := &net.IPNet{IP: net.IP(addr16[:]).Mask(m), Mask: m}
+			newIf.AltAddrs = append(newIf.AltAddrs, ipnet)
+
+			log.Info("get new address", "iface", newIf.Name, "prefix", ipnet, "broadcast", addr.Broadcast)
 		}
+
+		log.Info("get new iface", "display name", iface.DisplayName,
+			"v", newIf.Interface, "addr", newIf.AltAddrs,
+			"iface", iface,
+		)
 
 		ifaces = append(ifaces, newIf)
 	}

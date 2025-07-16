@@ -5,12 +5,14 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -105,10 +107,9 @@ type History struct {
 }
 
 type historyEntry struct {
-	id    uint64
-	count uint64
-	time  time.Time
-	mu    sync.RWMutex
+	id    atomic.Uint64
+	count atomic.Uint64
+	time  *atomicx.Value[time.Time]
 }
 
 func NewHistory(infoStore InfoCache) *History {
@@ -119,7 +120,7 @@ func NewHistory(infoStore InfoCache) *History {
 	h.store = lru.NewSyncLru(
 		lru.WithCapacity[failedHistoryKey, *historyEntry](configuration.HistorySize),
 		lru.WithOnRemove(func(key failedHistoryKey, value *historyEntry) {
-			h.infoStore.Delete(value.id)
+			h.infoStore.Delete(value.id.Load())
 		}),
 	)
 
@@ -132,48 +133,50 @@ func (h *History) Push(c *statistic.Connection) {
 	h.infoStore.Store(c.GetId(), c)
 
 	x, ok := h.store.LoadOrAdd(key, func() *historyEntry {
-		return &historyEntry{
-			id:    c.GetId(),
-			count: 1,
-			time:  time.Now(),
-		}
+		h := &historyEntry{time: atomicx.NewValue(time.Now())}
+		h.id.Store(c.GetId())
+		h.count.Store(1)
+
+		return h
 	})
 
 	if !ok {
 		return
 	}
 
-	x.mu.Lock()
-	x.count++
-	x.time = time.Now()
-	x.mu.Unlock()
+	x.count.Add(1)
+	x.time.Store(time.Now())
+	if oldId := x.id.Load(); x.id.CompareAndSwap(oldId, c.GetId()) {
+		h.infoStore.Delete(oldId)
+	}
 }
 
 func (h *History) Get() *gs.AllHistoryList {
 	dumpProcess := false
 	var objects []*gs.AllHistory
 	for _, v := range h.store.Range {
-		v.mu.RLock()
-
-		info, ok := h.infoStore.Load(v.id)
+		info, ok := h.infoStore.Load(v.id.Load())
 		if !ok {
 			continue
 		}
 
 		objects = append(objects, gs.AllHistory_builder{
-			Count:      proto.Uint64(v.count),
-			Time:       timestamppb.New(v.time),
+			Count:      proto.Uint64(v.count.Load()),
+			Time:       timestamppb.New(v.time.Load()),
 			Connection: info,
 		}.Build())
 
 		if !dumpProcess && info.GetProcess() != "" {
 			dumpProcess = true
 		}
-		v.mu.RUnlock()
 	}
 
 	return gs.AllHistoryList_builder{
 		Objects:            objects,
 		DumpProcessEnabled: proto.Bool(dumpProcess),
 	}.Build()
+}
+
+func (h *History) Close() error {
+	return h.infoStore.Close()
 }

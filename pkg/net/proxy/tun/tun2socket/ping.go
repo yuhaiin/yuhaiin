@@ -37,11 +37,15 @@ func (p *Ping) HandlePing4(bytes []byte) {
 			return
 		}
 
-		destination := ip.DestinationAddress()
-		ip.SetDestinationAddress(ip.SourceAddress())
-		ip.SetSourceAddress(destination)
+		srcAddr, ok := netip.AddrFromSlice(src.AsSlice())
+		if !ok {
+			return
+		}
 
 		writeBack := func(id uint64, err error) error {
+			ip.SetDestinationAddress(src)
+			ip.SetSourceAddress(dst)
+
 			if err != nil {
 				i.SetType(header.ICMPv4DstUnreachable)
 			}
@@ -51,13 +55,13 @@ func (p *Ping) HandlePing4(bytes []byte) {
 			return err
 		}
 
-		if dstAddr.IsLoopback() && p.opt.V4Contains(dstAddr) {
+		if dstAddr.IsLoopback() || p.opt.V4Contains(dstAddr) || !p.opt.V4Contains(srcAddr) {
 			_ = writeBack(0, nil)
 			return
 		}
 
 		p.opt.Handler.HandlePing(&netapi.PingMeta{
-			Source:      netapi.ParseIPAddr("udp", src.AsSlice(), 0),
+			Source:      netapi.ParseNetipAddr("udp", srcAddr, 0),
 			Destination: netapi.ParseNetipAddr("udp", dstAddr, 0),
 			WriteBack:   writeBack,
 		})
@@ -87,11 +91,15 @@ func (p *Ping) HandlePing6(bytes []byte) {
 			return
 		}
 
-		destination := ip.DestinationAddress()
-		ip.SetDestinationAddress(ip.SourceAddress())
-		ip.SetSourceAddress(destination)
+		srcAddr, ok := netip.AddrFromSlice(src.AsSlice())
+		if !ok {
+			return
+		}
 
 		writeBack := func(id uint64, err error) error {
+			ip.SetDestinationAddress(src)
+			ip.SetSourceAddress(dst)
+
 			if err != nil {
 				i.SetType(header.ICMPv6DstUnreachable)
 			}
@@ -107,13 +115,13 @@ func (p *Ping) HandlePing6(bytes []byte) {
 			return err
 		}
 
-		if dstAddr.IsLoopback() && p.opt.V6Contains(dstAddr) {
+		if dstAddr.IsLoopback() || p.opt.V6Contains(dstAddr) || !p.opt.V6Contains(srcAddr) {
 			_ = writeBack(0, nil)
 			return
 		}
 
 		p.opt.Handler.HandlePing(&netapi.PingMeta{
-			Source:      netapi.ParseIPAddr("udp", src.AsSlice(), 0),
+			Source:      netapi.ParseNetipAddr("udp", srcAddr, 0),
 			Destination: netapi.ParseNetipAddr("udp", dstAddr, 0),
 			WriteBack:   writeBack,
 		})

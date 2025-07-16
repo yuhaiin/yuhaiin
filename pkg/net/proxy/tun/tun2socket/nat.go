@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
@@ -398,7 +399,7 @@ func processICMPv6(ip header.Network) (_ header.Transport, pseudoHeaderSum uint1
 }
 
 func getTunInterfaceByAddress(addr netip.Addr) (string, error) {
-	interfaces, err := GetInterfaceList()
+	interfaces, err := interfaces.GetInterfaceList()
 	if err != nil {
 		return "", err
 	}
