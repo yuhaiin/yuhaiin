@@ -37,6 +37,11 @@ func (p *Ping) HandlePing4(bytes []byte) {
 			return
 		}
 
+		srcAddr, ok := netip.AddrFromSlice(src.AsSlice())
+		if !ok {
+			return
+		}
+
 		destination := ip.DestinationAddress()
 		ip.SetDestinationAddress(ip.SourceAddress())
 		ip.SetSourceAddress(destination)
@@ -51,7 +56,7 @@ func (p *Ping) HandlePing4(bytes []byte) {
 			return err
 		}
 
-		if dstAddr.IsLoopback() && p.opt.V4Contains(dstAddr) {
+		if dstAddr.IsLoopback() || p.opt.V4Contains(dstAddr) || !p.opt.V4Contains(srcAddr) {
 			_ = writeBack(0, nil)
 			return
 		}
@@ -87,6 +92,11 @@ func (p *Ping) HandlePing6(bytes []byte) {
 			return
 		}
 
+		srcAddr, ok := netip.AddrFromSlice(src.AsSlice())
+		if !ok {
+			return
+		}
+
 		destination := ip.DestinationAddress()
 		ip.SetDestinationAddress(ip.SourceAddress())
 		ip.SetSourceAddress(destination)
@@ -107,7 +117,7 @@ func (p *Ping) HandlePing6(bytes []byte) {
 			return err
 		}
 
-		if dstAddr.IsLoopback() && p.opt.V6Contains(dstAddr) {
+		if dstAddr.IsLoopback() || p.opt.V6Contains(dstAddr) || !p.opt.V6Contains(srcAddr) {
 			_ = writeBack(0, nil)
 			return
 		}
