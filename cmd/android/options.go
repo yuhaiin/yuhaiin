@@ -23,11 +23,6 @@ type TUN struct {
 	MTU           int32  `json:"mtu"`
 }
 
-type UidDumper interface {
-	DumpUid(ipProto int32, srcIp string, srcPort int32, destIp string, destPort int32) (int32, error)
-	GetUidInfo(uid int32) (string, error)
-}
-
 type SocketProtect interface {
 	Protect(socket int32) bool
 }
@@ -39,6 +34,11 @@ type NotifySpped interface {
 
 type Closer interface {
 	Close() error
+}
+
+type UidDumper interface {
+	DumpUid(ipProto int32, srcIp string, srcPort int32, destIp string, destPort int32) (int32, error)
+	GetUidInfo(uid int32) (string, error)
 }
 
 type uidDumper struct {

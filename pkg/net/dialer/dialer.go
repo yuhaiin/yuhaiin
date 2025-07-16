@@ -29,10 +29,9 @@ var KeepAliveConfig = net.KeepAliveConfig{
 
 func ListenContext(ctx context.Context, network string, address string) (net.Listener, error) {
 	return ListenContextWithOptions(ctx, network, address, &Options{
-		InterfaceName:  DefaultInterfaceName(),
-		InterfaceIndex: DefaultInterfaceIndex(),
-		MarkSymbol:     DefaultMarkSymbol,
-		listener:       true,
+		InterfaceName: DefaultInterfaceName(),
+		MarkSymbol:    DefaultMarkSymbol,
+		listener:      true,
 	})
 }
 
@@ -52,9 +51,8 @@ func ListenContextWithOptions(ctx context.Context, network string, address strin
 
 func DialContext(ctx context.Context, network, address string, opts ...func(*Options)) (net.Conn, error) {
 	opt := &Options{
-		InterfaceName:  DefaultInterfaceName(),
-		InterfaceIndex: DefaultInterfaceIndex(),
-		MarkSymbol:     DefaultMarkSymbol,
+		InterfaceName: DefaultInterfaceName(),
+		MarkSymbol:    DefaultMarkSymbol,
 	}
 
 	for _, o := range opts {
@@ -68,7 +66,6 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 	iface, ok := ctx.Value(NetworkInterfaceKey{}).(string)
 	if ok {
 		opts.InterfaceName = iface
-		opts.InterfaceIndex = 0
 	}
 
 	d := &net.Dialer{
@@ -109,9 +106,8 @@ func WithTryUpgradeToBatch() func(*Options) {
 
 func ListenPacket(ctx context.Context, network, address string, opts ...func(*Options)) (net.PacketConn, error) {
 	opt := &Options{
-		InterfaceName:  DefaultInterfaceName(),
-		InterfaceIndex: DefaultInterfaceIndex(),
-		MarkSymbol:     DefaultMarkSymbol,
+		InterfaceName: DefaultInterfaceName(),
+		MarkSymbol:    DefaultMarkSymbol,
 	}
 
 	for _, o := range opts {
@@ -125,7 +121,6 @@ func ListenPacketWithOptions(ctx context.Context, network, address string, opts 
 	iface, ok := ctx.Value(NetworkInterfaceKey{}).(string)
 	if ok {
 		opts.InterfaceName = iface
-		opts.InterfaceIndex = 0
 	}
 
 	lc := &net.ListenConfig{
@@ -162,10 +157,9 @@ func ListenPacketWithOptions(ctx context.Context, network, address string, opts 
 type NetworkInterfaceKey struct{}
 
 var (
-	DefaultInterfaceName  = func() string { return "" }
-	DefaultInterfaceIndex = func() int { return 0 }
-	DefaultRoutingMark    = 0 // maybe need root permission
-	DefaultMarkSymbol     func(socket int32) bool
+	DefaultInterfaceName = func() string { return "" }
+	DefaultRoutingMark   = 0 // maybe need root permission
+	DefaultMarkSymbol    func(socket int32) bool
 )
 
 type Options struct {
@@ -180,11 +174,6 @@ type Options struct {
 	// If a socket is bound to an interface, only packets received
 	// from that particular interface are processed by the socket.
 	InterfaceName string
-
-	// InterfaceIndex is the index of interface/device to bind.
-	// It is almost the same as InterfaceName except it uses the
-	// index of the interface instead of the name.
-	InterfaceIndex int
 
 	listener          bool
 	tryUpgradeToBatch bool
@@ -232,17 +221,6 @@ func GetDefaultInterfaceAddress(v6 bool) (net.IP, error) {
 		iface, err = net.InterfaceByName(name)
 		if err != nil {
 			log.Warn("get default interface failed", "err", err)
-		}
-	}
-
-	if iface == nil {
-		index := DefaultInterfaceIndex()
-		if index != 0 {
-			var err error
-			iface, err = net.InterfaceByIndex(index)
-			if err != nil {
-				log.Warn("get default interface failed", "err", err)
-			}
 		}
 	}
 

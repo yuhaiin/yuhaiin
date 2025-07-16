@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -81,16 +82,26 @@ func (d *direct) Ping(ctx context.Context, addr netapi.Address) (uint64, error) 
 	defer pinger.Stop()
 
 	pinger.SetIPAddr(&net.IPAddr{IP: ip})
+	var network string
 	if ip.To4() == nil {
-		pinger.SetNetwork("ip6")
+		network = "ip6"
 	} else {
-		pinger.SetNetwork("ip4")
+		network = "ip4"
 	}
 
-	if !ip.IsLoopback() {
-		saddr, err := dialer.GetDefaultInterfaceAddress(ip.To4() == nil)
-		if err == nil {
-			pinger.Source = saddr.String()
+	pinger.SetNetwork(network)
+	pinger.Control = func(fd uintptr) {
+		if !ip.IsLoopback() {
+			// pinger.InterfaceName = dialer.DefaultInterfaceName()
+			if err := dialer.BindInterface(network, fd, dialer.DefaultInterfaceName()); err != nil {
+				log.Warn("bind interface failed", "err", err)
+			}
+		}
+
+		if dialer.DefaultMarkSymbol != nil {
+			if !dialer.DefaultMarkSymbol(int32(fd)) {
+				log.Warn("mark symbol failed", "addr", addr)
+			}
 		}
 	}
 

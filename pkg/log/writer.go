@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 var _ io.Writer = new(FileWriter)
@@ -25,6 +26,8 @@ type FileWriter struct {
 
 	savedSize atomic.Int64
 
+	cycleSign syncmap.SyncMap[chan struct{}, struct{}]
+
 	mu sync.RWMutex
 
 	removeOldFileMu sync.Mutex
@@ -36,6 +39,16 @@ func NewLogWriter(file string) *FileWriter {
 		log: slog.New(slog.NewTextHandler(os.Stderr,
 			&slog.HandlerOptions{AddSource: true, Level: slog.LevelDebug})),
 	}
+}
+
+func (f *FileWriter) NewCycleSign() chan struct{} {
+	c := make(chan struct{}, 1)
+	f.cycleSign.Store(c, struct{}{})
+	return c
+}
+
+func (f *FileWriter) RemoveCycleSign(c chan struct{}) {
+	f.cycleSign.Delete(c)
 }
 
 func (f *FileWriter) Close() error {
@@ -64,6 +77,13 @@ func (f *FileWriter) initWriter() (io.Writer, error) {
 	var err error
 	w, err = os.OpenFile(f.path.FullPath(""), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 	f.w = w
+	f.cycleSign.Range(func(key chan struct{}, value struct{}) bool {
+		select {
+		case key <- struct{}{}:
+		default:
+		}
+		return true
+	})
 	f.mu.Unlock()
 
 	if err != nil {

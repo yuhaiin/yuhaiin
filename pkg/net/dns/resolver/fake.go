@@ -407,7 +407,7 @@ func (n *FakeIPPool) GetDomainFromIP(ip netip.Addr) (string, bool) {
 		return "", false
 	}
 
-	return n.domainToIP.ReverseLoad(ip.Unmap())
+	return n.domainToIP.ReverseLoad(ip)
 }
 
 type fakeLru struct {

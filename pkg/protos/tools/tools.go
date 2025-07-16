@@ -9,6 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/licenses"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	grpc "google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
@@ -25,17 +26,8 @@ func NewTools(db config.DB) *Tools {
 }
 
 func (t *Tools) GetInterface(ctx context.Context, e *emptypb.Empty) (*Interfaces, error) {
-	androidApp := false
-	_ = t.db.View(func(s *config.Setting) error {
-		androidApp = s.GetPlatform().GetAndroidApp()
-		return nil
-	})
-	if androidApp {
-		return &Interfaces{}, nil
-	}
-
 	is := &Interfaces_builder{}
-	iis, err := net.Interfaces()
+	iis, err := interfaces.GetInterfaceList()
 	if err != nil {
 		return nil, err
 	}

@@ -20,24 +20,18 @@ import (
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pb "github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var savepath string
 var datadir string
 
-func SetSavePath(p string) {
-	savepath = p
-}
-
-func SetDataDir(p string) {
-	datadir = p
-}
-
-var SetAndroidProtectFunc func(SocketProtect)
+func SetSavePath(p string) { savepath = p }
+func SetDataDir(p string)  { datadir = p }
 
 //go:generate go run generate.go
 
@@ -46,38 +40,6 @@ type App struct {
 
 	mu      sync.Mutex
 	started atomic.Bool
-}
-
-func newResolverDB() *configDB[*dns.DnsConfig] {
-	return newConfigDB(
-		"resolver_db",
-		func(s *pc.Setting) *dns.DnsConfig { return s.GetDns() },
-		func(s *dns.DnsConfig) *pc.Setting { return pc.Setting_builder{Dns: s}.Build() },
-	)
-}
-
-func newBypassDB() *configDB[*pb.Config] {
-	return newConfigDB(
-		"bypass_db",
-		func(s *pc.Setting) *pb.Config { return s.GetBypass() },
-		func(s *pb.Config) *pc.Setting { return pc.Setting_builder{Bypass: s}.Build() },
-	)
-}
-
-func newChoreDB() *configDB[*pc.Setting] {
-	return newConfigDB(
-		"chore_db",
-		func(s *pc.Setting) *pc.Setting { return s },
-		func(s *pc.Setting) *pc.Setting { return s },
-	)
-}
-
-func newBackupDB() *configDB[*pc.Setting] {
-	return newConfigDB(
-		"backup_db",
-		func(s *pc.Setting) *pc.Setting { return s },
-		func(s *pc.Setting) *pc.Setting { return s },
-	)
 }
 
 func (a *App) Start(opt *Opts) error {
@@ -90,10 +52,6 @@ func (a *App) Start(opt *Opts) error {
 
 	if a.server != nil {
 		_ = a.server.Close()
-	}
-
-	if SetAndroidProtectFunc != nil {
-		SetAndroidProtectFunc(opt.TUN.SocketProtect)
 	}
 
 	tsLogDir := path.Join(savepath, "tailscale", "logs")
@@ -135,7 +93,7 @@ func (a *App) Start(opt *Opts) error {
 		ConfigPath:     savepath,
 		BypassConfig:   newBypassDB(),
 		ResolverConfig: newResolverDB(),
-		InboundConfig:  fakeDB(opt, tools.PathGenerator.Config(savepath)),
+		InboundConfig:  newInboundDB(opt),
 		ChoreConfig:    newChoreDB(),
 		BackupConfig:   newBackupDB(),
 		ProcessDumper:  processDumper,
@@ -277,5 +235,93 @@ func flowString(download, upload, ur, dr string) string {
 		dr,
 		upload,
 		ur,
+	)
+}
+
+func newInboundDB(opt *Opts) *configDB[*listener.InboundConfig] {
+	var listenHost string = "127.0.0.1"
+	if store.GetBoolean(AllowLanKey) {
+		listenHost = "0.0.0.0"
+	}
+
+	inbounds := map[string]*listener.Inbound{
+		"mix": listener.Inbound_builder{
+			Name:    proto.String("mix"),
+			Enabled: proto.Bool(store.GetInt(NewHTTPPortKey) != 0),
+			Tcpudp: listener.Tcpudp_builder{
+				Host:    proto.String(net.JoinHostPort(listenHost, fmt.Sprint(store.GetInt(NewHTTPPortKey)))),
+				Control: listener.TcpUdpControl_tcp_udp_control_all.Enum(),
+			}.Build(),
+			Mix: &listener.Mixed{},
+		}.Build(),
+		"tun": listener.Inbound_builder{
+			Name:    proto.String("tun"),
+			Enabled: proto.Bool(true),
+			Empty:   &listener.Empty{},
+			Tun: listener.Tun_builder{
+				Name:          proto.String(fmt.Sprintf("fd://%d", opt.TUN.FD)),
+				Mtu:           proto.Int32(opt.TUN.MTU),
+				Portal:        proto.String(opt.TUN.Portal),
+				PortalV6:      proto.String(opt.TUN.PortalV6),
+				SkipMulticast: proto.Bool(true),
+				Route:         &listener.Route{},
+				Driver:        listener.TunEndpointDriver(listener.TunEndpointDriver_value[store.GetString(AdvTunDriverKey)]).Enum(),
+			}.Build(),
+		}.Build(),
+	}
+
+	return newConfigDB(
+		"inbound_db",
+		func(s *pc.Setting) *listener.InboundConfig {
+			if s.GetServer() == nil {
+				s.SetServer(listener.InboundConfig_builder{
+					HijackDns:       proto.Bool(true),
+					HijackDnsFakeip: proto.Bool(true),
+					Sniff: listener.Sniff_builder{
+						Enabled: proto.Bool(true),
+					}.Build(),
+				}.Build())
+			}
+
+			s.GetServer().SetInbounds(inbounds)
+
+			return s.GetServer()
+		},
+		func(s *listener.InboundConfig) *pc.Setting {
+			s.SetInbounds(inbounds)
+			return pc.Setting_builder{Server: s}.Build()
+		},
+	)
+}
+
+func newResolverDB() *configDB[*dns.DnsConfig] {
+	return newConfigDB(
+		"resolver_db",
+		func(s *pc.Setting) *dns.DnsConfig { return s.GetDns() },
+		func(s *dns.DnsConfig) *pc.Setting { return pc.Setting_builder{Dns: s}.Build() },
+	)
+}
+
+func newBypassDB() *configDB[*pb.Config] {
+	return newConfigDB(
+		"bypass_db",
+		func(s *pc.Setting) *pb.Config { return s.GetBypass() },
+		func(s *pb.Config) *pc.Setting { return pc.Setting_builder{Bypass: s}.Build() },
+	)
+}
+
+func newChoreDB() *configDB[*pc.Setting] {
+	return newConfigDB(
+		"chore_db",
+		func(s *pc.Setting) *pc.Setting { return s },
+		func(s *pc.Setting) *pc.Setting { return s },
+	)
+}
+
+func newBackupDB() *configDB[*pc.Setting] {
+	return newConfigDB(
+		"backup_db",
+		func(s *pc.Setting) *pc.Setting { return s },
+		func(s *pc.Setting) *pc.Setting { return s },
 	)
 }

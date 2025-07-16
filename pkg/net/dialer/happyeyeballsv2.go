@@ -249,9 +249,9 @@ type HappyEyeballsv2Dialer[T net.Conn] struct {
 var DefaultHappyEyeballsv2Dialer = &HappyEyeballsv2Dialer[net.Conn]{
 	DialContext: func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 		return DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), strconv.Itoa(int(port))), func(opts *Options) {
-			if DefaultIPv6PreferUnicastLocalAddr && opts.InterfaceName != "" || opts.InterfaceIndex != 0 {
+			if DefaultIPv6PreferUnicastLocalAddr && opts.InterfaceName != "" /*|| opts.InterfaceIndex != 0 */ {
 				if ip.IsGlobalUnicast() && !ip.IsPrivate() && ip.To4() == nil && ip.To16() != nil {
-					opts.LocalAddr = GetUnicastAddr(true, "tcp", opts.InterfaceName, opts.InterfaceIndex)
+					opts.LocalAddr = GetUnicastAddr(true, "tcp", opts.InterfaceName, 0 /* opts.InterfaceIndex*/)
 					log.Info("happy eyeballs dialer prefer ipv6", slog.Any("localaddr", opts.LocalAddr))
 				}
 			}
