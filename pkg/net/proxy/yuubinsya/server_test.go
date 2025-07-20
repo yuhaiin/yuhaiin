@@ -30,7 +30,7 @@ func TestServer(t *testing.T) {
 
 		a, err := NewServer(listener.Yuubinsya_builder{
 			Password: proto.String("aaaa"),
-		}.Build(), &mockListener{lis}, mockHandler(func(req *netapi.StreamMeta) {
+		}.Build(), netapi.NewListener(lis, &mockPacket{}), mockHandler(func(req *netapi.StreamMeta) {
 			defer req.Src.Close()
 
 			data := make([]byte, 4096)
@@ -60,7 +60,7 @@ func TestServer(t *testing.T) {
 		}.Build(), s)
 		assert.NoError(t, err)
 
-		cx, err := c.Conn(t.Context(), netapi.EmptyAddr)
+		cx, err := c.Conn(t.Context(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 443))
 		if err == nil {
 			defer cx.Close()
 		}
@@ -88,7 +88,7 @@ func TestServer(t *testing.T) {
 
 			a, err := NewServer(listener.Yuubinsya_builder{
 				Password: proto.String("aaaa"),
-			}.Build(), &mockListener{lis}, mockHandler(func(req *netapi.StreamMeta) {
+			}.Build(), netapi.NewListener(lis, &mockPacket{}), mockHandler(func(req *netapi.StreamMeta) {
 				ch <- req
 
 				<-ctx.Done()
@@ -112,7 +112,7 @@ func TestServer(t *testing.T) {
 			}.Build(), s)
 			assert.NoError(t, err)
 
-			cx, err := c.Conn(t.Context(), netapi.EmptyAddr)
+			cx, err := c.Conn(t.Context(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 443))
 			if err != nil {
 				cancel()
 				return nil, nil, nil, err
@@ -139,7 +139,7 @@ func TestServer(t *testing.T) {
 
 		a, err := NewServer(listener.Yuubinsya_builder{
 			Password: proto.String("aaaa"),
-		}.Build(), &mockListener{lis}, mockHandlerPacket(func(req *netapi.Packet) {
+		}.Build(), netapi.NewListener(lis, &mockPacket{}), mockHandlerPacket(func(req *netapi.Packet) {
 			_, err = req.WriteBack(req.GetPayload(), req.Dst())
 			assert.NoError(t, err)
 		}))
@@ -164,7 +164,7 @@ func TestServer(t *testing.T) {
 		}.Build(), s)
 		assert.NoError(t, err)
 
-		_, err = c.PacketConn(context.Background(), netapi.EmptyAddr)
+		_, err = c.PacketConn(context.Background(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 443))
 		assert.NoError(t, err)
 
 		pc, err := c.PacketConn(context.Background(), netapi.EmptyAddr)
@@ -185,7 +185,7 @@ func TestServer(t *testing.T) {
 
 		go func() {
 			for i := range 10 {
-				_, err = pc.WriteTo(fmt.Appendf(nil, "test %d", i), netapi.EmptyAddr)
+				_, err = pc.WriteTo(fmt.Appendf(nil, "test %d", i), netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 443))
 				assert.NoError(t, err)
 			}
 		}()
@@ -207,7 +207,7 @@ func TestServer(t *testing.T) {
 
 		a, err := NewServer(listener.Yuubinsya_builder{
 			Password: proto.String("aaaa"),
-		}.Build(), &mockListener{lis}, mockHandler(func(req *netapi.StreamMeta) {
+		}.Build(), netapi.NewListener(lis, &mockPacket{}), mockHandler(func(req *netapi.StreamMeta) {
 			defer req.Src.Close()
 
 			data := make([]byte, 4096)
@@ -257,19 +257,13 @@ func TestServer(t *testing.T) {
 	})
 }
 
-type mockListener struct{ l net.Listener }
+type mockPacket struct{}
 
-func (l *mockListener) Packet(context.Context) (net.PacketConn, error) {
+func (l *mockPacket) Packet(context.Context) (net.PacketConn, error) {
 	return nil, errors.ErrUnsupported
 }
 
-func (l *mockListener) Stream(context.Context) (net.Listener, error) {
-	return l.l, nil
-}
-
-func (l *mockListener) Close() error {
-	return l.l.Close()
-}
+func (l *mockPacket) Close() error { return nil }
 
 type mockHandler func(req *netapi.StreamMeta)
 

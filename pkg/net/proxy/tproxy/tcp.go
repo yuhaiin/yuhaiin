@@ -57,36 +57,31 @@ func (t *Tproxy) handleTCP(c net.Conn) error {
 }
 
 func (t *Tproxy) newTCP() error {
-	lis, err := t.lis.Stream(t.ctx)
-	if err != nil {
-		return err
-	}
-
-	tcpLis, ok := lis.(*net.TCPListener)
+	tcpLis, ok := t.lis.(syscall.Conn)
 	if !ok {
-		lis.Close()
+		t.lis.Close()
 		return fmt.Errorf("listen is not tcp listener")
 	}
 
 	f, err := tcpLis.SyscallConn()
 	if err != nil {
-		lis.Close()
+		t.lis.Close()
 		return err
 	}
 
 	err = controlTCP(f)
 	if err != nil {
-		lis.Close()
+		t.lis.Close()
 		return err
 	}
 
-	log.Info("new tproxy tcp server", "host", lis.Addr())
+	log.Info("new tproxy tcp server", "host", t.lis.Addr())
 
-	t.lisAddr = lis.Addr().(*net.TCPAddr)
+	t.lisAddr = t.lis.Addr().(*net.TCPAddr)
 
 	go func() {
 		for {
-			conn, err := lis.Accept()
+			conn, err := t.lis.Accept()
 			if err != nil {
 				log.Error("tcp server accept failed", "err", err)
 				break

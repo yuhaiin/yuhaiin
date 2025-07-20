@@ -75,7 +75,6 @@ func (l *ReverseSyncLru[K, V]) Add(key K, value V, opts ...AddOption[K, V]) {
 	}
 	l.lru.Add(key, value, opts...)
 	l.reverseMap[value] = &key
-
 	l.mu.Unlock()
 }
 
@@ -124,9 +123,10 @@ func (l *ReverseSyncLru[K, V]) ReverseLoad(v V) (k K, ok bool) {
 		return k, false
 	}
 
-	_, _ = l.lru.Load(*node)
+	// the value maybe expired, so we check again by load key
+	_, ok = l.lru.Load(*node)
 
-	return *node, true
+	return *node, ok
 }
 
 func (l *ReverseSyncLru[K, V]) ReverseLoadRefreshExpire(v V) (k K, ok bool) {
@@ -145,7 +145,11 @@ func (l *ReverseSyncLru[K, V]) ReverseLoadRefreshExpire(v V) (k K, ok bool) {
 
 func (l *ReverseSyncLru[K, V]) ValueExist(key V) bool {
 	l.mu.Lock()
-	_, ok := l.reverseMap[key]
+	node, ok := l.reverseMap[key]
+	// the value maybe expired, so we check again by load key
+	if ok {
+		_, ok = l.lru.Load(*node)
+	}
 	l.mu.Unlock()
 	return ok
 }

@@ -1,8 +1,6 @@
 package reverse
 
 import (
-	"context"
-
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -19,14 +17,9 @@ func NewTCPServer(o *listener.ReverseTcp, ii netapi.Listener, handler netapi.Han
 		return nil, err
 	}
 
-	lis, err := ii.Stream(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-
 	go func() {
 		for {
-			conn, err := lis.Accept()
+			conn, err := ii.Accept()
 			if err != nil {
 				log.Error("reverse tcp accept failed", "err", err)
 				break
@@ -36,7 +29,7 @@ func NewTCPServer(o *listener.ReverseTcp, ii netapi.Listener, handler netapi.Han
 				handler.HandleStream(&netapi.StreamMeta{
 					Destination: target,
 					Src:         conn,
-					Inbound:     lis.Addr(),
+					Inbound:     ii.Addr(),
 					Address:     target,
 					Source:      conn.RemoteAddr(),
 				})
@@ -44,5 +37,5 @@ func NewTCPServer(o *listener.ReverseTcp, ii netapi.Listener, handler netapi.Han
 		}
 	}()
 
-	return lis, nil
+	return ii, nil
 }

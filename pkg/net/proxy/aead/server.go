@@ -40,15 +40,6 @@ func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
 	return NewAuthPacketConn(lis, auth.AEAD), nil
 }
 
-func (s *Server) Stream(ctx context.Context) (net.Listener, error) {
-	lis, err := s.Listener.Stream(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return newAeadListener(lis, s.crypto), nil
-}
-
 func Salt(password []byte) []byte {
 	h := sha256.New()
 	h.Write(password)
@@ -56,20 +47,11 @@ func Salt(password []byte) []byte {
 	return h.Sum(nil)
 }
 
-type aeadListener struct {
-	net.Listener
-	e *encryptedHandshaker
-}
-
-func newAeadListener(l net.Listener, e *encryptedHandshaker) *aeadListener {
-	return &aeadListener{Listener: l, e: e}
-}
-
-func (l *aeadListener) Accept() (net.Conn, error) {
+func (l *Server) Accept() (net.Conn, error) {
 	conn, err := l.Listener.Accept()
 	if err != nil {
 		return nil, err
 	}
 
-	return l.e.Handshake(conn)
+	return l.crypto.Handshake(conn)
 }

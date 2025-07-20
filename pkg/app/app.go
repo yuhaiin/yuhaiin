@@ -71,6 +71,7 @@ import (
 var operators = []func(*closers){}
 
 func AddCloser[T io.Closer](a *closers, name string, t T) T {
+	log.Info("add closer", "name", name)
 	a.AddCloser(name, t)
 	return t
 }

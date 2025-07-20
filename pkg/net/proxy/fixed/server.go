@@ -97,7 +97,7 @@ func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
 	return s.PacketConn, nil
 }
 
-func (s *Server) Stream(ctx context.Context) (net.Listener, error) {
+func (s *Server) Accept() (net.Conn, error) {
 	if s.control == listener.TcpUdpControl_disable_tcp {
 		return nil, errors.ErrUnsupported
 	}
@@ -106,7 +106,19 @@ func (s *Server) Stream(ctx context.Context) (net.Listener, error) {
 		return nil, err
 	}
 
-	return s.Listener, nil
+	return s.Listener.Accept()
+}
+
+func (s *Server) Addr() net.Addr {
+	if s.control == listener.TcpUdpControl_disable_tcp {
+		return netapi.EmptyAddr
+	}
+
+	if err := s.initStream(); err != nil {
+		return netapi.EmptyAddr
+	}
+
+	return s.Listener.Addr()
 }
 
 func NewServer(c *listener.Tcpudp) (netapi.Listener, error) {

@@ -28,11 +28,8 @@ func TestAead(t *testing.T) {
 
 	ch := make(chan net.Conn, 10)
 	go func() {
-		lis, err := s.Stream(t.Context())
-		assert.NoError(t, err)
-
 		for {
-			conn, err := lis.Accept()
+			conn, err := s.Accept()
 			if err != nil {
 				break
 			}

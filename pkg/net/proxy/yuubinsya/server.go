@@ -66,16 +66,10 @@ func (y *server) startUDP() error {
 }
 
 func (y *server) startTCP() (err error) {
-	lis, err := y.listener.Stream(y.ctx)
-	if err != nil {
-		return err
-	}
-	defer lis.Close()
-
-	log.Info("new yuubinsya server", "host", lis.Addr())
+	log.Info("new yuubinsya server", "host", y.listener.Addr())
 
 	for {
-		conn, err := lis.Accept()
+		conn, err := y.listener.Accept()
 		if err != nil {
 			return err
 		}

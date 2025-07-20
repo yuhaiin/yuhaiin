@@ -25,13 +25,9 @@ func TestMock(t *testing.T) {
 	assert.NoError(t, err)
 	defer l.Close()
 
-	lis, err = l.Stream(context.Background())
-	assert.NoError(t, err)
-	defer lis.Close()
-
 	go func() {
 		for {
-			conn, err := lis.Accept()
+			conn, err := l.Accept()
 			if err != nil {
 				return
 			}
@@ -49,7 +45,7 @@ func TestMock(t *testing.T) {
 		}
 	}()
 
-	host, portstr, err := net.SplitHostPort(lis.Addr().String())
+	host, portstr, err := net.SplitHostPort(l.Addr().String())
 	assert.NoError(t, err)
 
 	port, err := strconv.Atoi(portstr)

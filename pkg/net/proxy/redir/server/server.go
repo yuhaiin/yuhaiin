@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"io"
 	"net"
 
@@ -25,19 +24,14 @@ func (r *redir) AcceptPacket() (*netapi.Packet, error) {
 
 func NewServer(o *listener.Redir) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
 	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-		lis, err := ii.Stream(context.TODO())
-		if err != nil {
-			return nil, err
-		}
-
 		t := &redir{
-			lis:     lis,
+			lis:     ii,
 			handler: handler,
 		}
 
 		go func() {
 			for {
-				conn, err := lis.Accept()
+				conn, err := ii.Accept()
 				if err != nil {
 					log.Error("redir accept failed", "err", err)
 					break

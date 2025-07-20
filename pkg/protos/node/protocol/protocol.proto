@@ -18,7 +18,7 @@ message protocol {
     // Simple
     //
     // Deprecated: use [Fixed] instead
-    simple simple = 8 [ json_name = "simple",deprecated = true ];
+    simple simple = 8 [ json_name = "simple", deprecated = true ];
     none none = 9 [ json_name = "none" ];
     socks5 socks5 = 10 [ json_name = "socks5" ];
     http http = 11 [ json_name = "http" ];
@@ -119,6 +119,7 @@ message quic {
 message reality {
   string server_name = 1 [ json_name = "server_name" ];
   string public_key = 2 [ json_name = "public_key" ];
+  string mldsa65_verify = 5 [ json_name = "mldsa65_verify" ];
   string short_id = 3 [ json_name = "short_id" ];
   bool debug = 4 [ json_name = "debug" ];
 }
