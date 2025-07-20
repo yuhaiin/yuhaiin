@@ -3393,6 +3393,7 @@ type Reality struct {
 	xxx_hidden_Dest        *string                `protobuf:"bytes,3,opt,name=dest"`
 	xxx_hidden_PrivateKey  *string                `protobuf:"bytes,4,opt,name=private_key"`
 	xxx_hidden_PublicKey   *string                `protobuf:"bytes,6,opt,name=public_key"`
+	xxx_hidden_Mldsa65Seed *string                `protobuf:"bytes,7,opt,name=mldsa65_seed"`
 	xxx_hidden_Debug       bool                   `protobuf:"varint,5,opt,name=debug"`
 	XXX_raceDetectHookData protoimpl.RaceDetectHookData
 	XXX_presence           [1]uint32
@@ -3469,6 +3470,16 @@ func (x *Reality) GetPublicKey() string {
 	return ""
 }
 
+func (x *Reality) GetMldsa65Seed() string {
+	if x != nil {
+		if x.xxx_hidden_Mldsa65Seed != nil {
+			return *x.xxx_hidden_Mldsa65Seed
+		}
+		return ""
+	}
+	return ""
+}
+
 func (x *Reality) GetDebug() bool {
 	if x != nil {
 		return x.xxx_hidden_Debug
@@ -3486,22 +3497,27 @@ func (x *Reality) SetServerName(v []string) {
 
 func (x *Reality) SetDest(v string) {
 	x.xxx_hidden_Dest = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 6)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 7)
 }
 
 func (x *Reality) SetPrivateKey(v string) {
 	x.xxx_hidden_PrivateKey = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 6)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 7)
 }
 
 func (x *Reality) SetPublicKey(v string) {
 	x.xxx_hidden_PublicKey = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 6)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 7)
+}
+
+func (x *Reality) SetMldsa65Seed(v string) {
+	x.xxx_hidden_Mldsa65Seed = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 5, 7)
 }
 
 func (x *Reality) SetDebug(v bool) {
 	x.xxx_hidden_Debug = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 5, 6)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 6, 7)
 }
 
 func (x *Reality) HasDest() bool {
@@ -3525,11 +3541,18 @@ func (x *Reality) HasPublicKey() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 4)
 }
 
-func (x *Reality) HasDebug() bool {
+func (x *Reality) HasMldsa65Seed() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 5)
+}
+
+func (x *Reality) HasDebug() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 6)
 }
 
 func (x *Reality) ClearDest() {
@@ -3547,20 +3570,26 @@ func (x *Reality) ClearPublicKey() {
 	x.xxx_hidden_PublicKey = nil
 }
 
-func (x *Reality) ClearDebug() {
+func (x *Reality) ClearMldsa65Seed() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 5)
+	x.xxx_hidden_Mldsa65Seed = nil
+}
+
+func (x *Reality) ClearDebug() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 6)
 	x.xxx_hidden_Debug = false
 }
 
 type Reality_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	ShortId    []string
-	ServerName []string
-	Dest       *string
-	PrivateKey *string
-	PublicKey  *string
-	Debug      *bool
+	ShortId     []string
+	ServerName  []string
+	Dest        *string
+	PrivateKey  *string
+	PublicKey   *string
+	Mldsa65Seed *string
+	Debug       *bool
 }
 
 func (b0 Reality_builder) Build() *Reality {
@@ -3570,19 +3599,23 @@ func (b0 Reality_builder) Build() *Reality {
 	x.xxx_hidden_ShortId = b.ShortId
 	x.xxx_hidden_ServerName = b.ServerName
 	if b.Dest != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 6)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 7)
 		x.xxx_hidden_Dest = b.Dest
 	}
 	if b.PrivateKey != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 6)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 7)
 		x.xxx_hidden_PrivateKey = b.PrivateKey
 	}
 	if b.PublicKey != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 6)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 7)
 		x.xxx_hidden_PublicKey = b.PublicKey
 	}
+	if b.Mldsa65Seed != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 5, 7)
+		x.xxx_hidden_Mldsa65Seed = b.Mldsa65Seed
+	}
 	if b.Debug != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 5, 6)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 6, 7)
 		x.xxx_hidden_Debug = *b.Debug
 	}
 	return m0
@@ -4527,7 +4560,7 @@ const file_config_listener_listener_proto_rawDesc = "" +
 	"\x03tls\x125\n" +
 	"\x03tls\x18\x01 \x01(\v2#.yuhaiin.protocol.tls_server_configR\x03tls\"\x11\n" +
 	"\x04grpcJ\x04\b\x01\x10\x02R\x03tls\"\x12\n" +
-	"\x05http2J\x04\b\x01\x10\x02R\x03tls\"\xb3\x01\n" +
+	"\x05http2J\x04\b\x01\x10\x02R\x03tls\"\xd7\x01\n" +
 	"\areality\x12\x1a\n" +
 	"\bshort_id\x18\x01 \x03(\tR\bshort_id\x12 \n" +
 	"\vserver_name\x18\x02 \x03(\tR\vserver_name\x12\x12\n" +
@@ -4535,7 +4568,8 @@ const file_config_listener_listener_proto_rawDesc = "" +
 	"\vprivate_key\x18\x04 \x01(\tR\vprivate_key\x12\x1e\n" +
 	"\n" +
 	"public_key\x18\x06 \x01(\tR\n" +
-	"public_key\x12\x14\n" +
+	"public_key\x12\"\n" +
+	"\fmldsa65_seed\x18\a \x01(\tR\fmldsa65_seed\x12\x14\n" +
 	"\x05debug\x18\x05 \x01(\bR\x05debug\"\xb0\x01\n" +
 	"\btls_auto\x12 \n" +
 	"\vservernames\x18\x01 \x03(\tR\vservernames\x12 \n" +

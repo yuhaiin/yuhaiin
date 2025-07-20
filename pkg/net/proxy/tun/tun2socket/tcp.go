@@ -55,6 +55,8 @@ func NewTCP(opt *device.Opt, v4, v6 *net.TCPListener, table *tableSplit) *TCP {
 type Conn struct {
 	*net.TCPConn
 	tuple Tuple
+
+	tcp *TCP
 }
 
 func (t *TCP) loopv4() {
@@ -85,7 +87,7 @@ func (t *TCP) loopv4() {
 		select {
 		case <-t.ctx.Done():
 			return
-		case t.connChan <- &Conn{c, tup}:
+		case t.connChan <- &Conn{c, tup, t}:
 		}
 	}
 }
@@ -118,7 +120,7 @@ func (t *TCP) loopv6() {
 		select {
 		case <-t.ctx.Done():
 			return
-		case t.connChan <- &Conn{c, tup}:
+		case t.connChan <- &Conn{c, tup, t}:
 		}
 	}
 }
@@ -179,6 +181,7 @@ func (t *TCP) Close() error {
 }
 
 func (c *Conn) Close() error {
+	c.tcp.table.delete(c.tuple)
 	return c.TCPConn.Close()
 }
 
@@ -197,5 +200,3 @@ func (c *Conn) RemoteAddr() net.Addr {
 		Port: int(c.tuple.DestinationPort),
 	}
 }
-
-func (c *Conn) RawConn() (net.Conn, bool) { return c.TCPConn, true }

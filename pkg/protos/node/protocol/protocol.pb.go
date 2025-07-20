@@ -3021,15 +3021,16 @@ func (b0 Quic_builder) Build() *Quic {
 }
 
 type Reality struct {
-	state                  protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_ServerName  *string                `protobuf:"bytes,1,opt,name=server_name"`
-	xxx_hidden_PublicKey   *string                `protobuf:"bytes,2,opt,name=public_key"`
-	xxx_hidden_ShortId     *string                `protobuf:"bytes,3,opt,name=short_id"`
-	xxx_hidden_Debug       bool                   `protobuf:"varint,4,opt,name=debug"`
-	XXX_raceDetectHookData protoimpl.RaceDetectHookData
-	XXX_presence           [1]uint32
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ServerName    *string                `protobuf:"bytes,1,opt,name=server_name"`
+	xxx_hidden_PublicKey     *string                `protobuf:"bytes,2,opt,name=public_key"`
+	xxx_hidden_Mldsa65Verify *string                `protobuf:"bytes,5,opt,name=mldsa65_verify"`
+	xxx_hidden_ShortId       *string                `protobuf:"bytes,3,opt,name=short_id"`
+	xxx_hidden_Debug         bool                   `protobuf:"varint,4,opt,name=debug"`
+	XXX_raceDetectHookData   protoimpl.RaceDetectHookData
+	XXX_presence             [1]uint32
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *Reality) Reset() {
@@ -3077,6 +3078,16 @@ func (x *Reality) GetPublicKey() string {
 	return ""
 }
 
+func (x *Reality) GetMldsa65Verify() string {
+	if x != nil {
+		if x.xxx_hidden_Mldsa65Verify != nil {
+			return *x.xxx_hidden_Mldsa65Verify
+		}
+		return ""
+	}
+	return ""
+}
+
 func (x *Reality) GetShortId() string {
 	if x != nil {
 		if x.xxx_hidden_ShortId != nil {
@@ -3096,22 +3107,27 @@ func (x *Reality) GetDebug() bool {
 
 func (x *Reality) SetServerName(v string) {
 	x.xxx_hidden_ServerName = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 4)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 5)
 }
 
 func (x *Reality) SetPublicKey(v string) {
 	x.xxx_hidden_PublicKey = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 4)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 5)
+}
+
+func (x *Reality) SetMldsa65Verify(v string) {
+	x.xxx_hidden_Mldsa65Verify = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 5)
 }
 
 func (x *Reality) SetShortId(v string) {
 	x.xxx_hidden_ShortId = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 4)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 5)
 }
 
 func (x *Reality) SetDebug(v bool) {
 	x.xxx_hidden_Debug = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 4)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 5)
 }
 
 func (x *Reality) HasServerName() bool {
@@ -3128,18 +3144,25 @@ func (x *Reality) HasPublicKey() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
 }
 
-func (x *Reality) HasShortId() bool {
+func (x *Reality) HasMldsa65Verify() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
 }
 
-func (x *Reality) HasDebug() bool {
+func (x *Reality) HasShortId() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 3)
+}
+
+func (x *Reality) HasDebug() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 4)
 }
 
 func (x *Reality) ClearServerName() {
@@ -3152,23 +3175,29 @@ func (x *Reality) ClearPublicKey() {
 	x.xxx_hidden_PublicKey = nil
 }
 
-func (x *Reality) ClearShortId() {
+func (x *Reality) ClearMldsa65Verify() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
+	x.xxx_hidden_Mldsa65Verify = nil
+}
+
+func (x *Reality) ClearShortId() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
 	x.xxx_hidden_ShortId = nil
 }
 
 func (x *Reality) ClearDebug() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 4)
 	x.xxx_hidden_Debug = false
 }
 
 type Reality_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	ServerName *string
-	PublicKey  *string
-	ShortId    *string
-	Debug      *bool
+	ServerName    *string
+	PublicKey     *string
+	Mldsa65Verify *string
+	ShortId       *string
+	Debug         *bool
 }
 
 func (b0 Reality_builder) Build() *Reality {
@@ -3176,19 +3205,23 @@ func (b0 Reality_builder) Build() *Reality {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.ServerName != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 4)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 5)
 		x.xxx_hidden_ServerName = b.ServerName
 	}
 	if b.PublicKey != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 4)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 5)
 		x.xxx_hidden_PublicKey = b.PublicKey
 	}
+	if b.Mldsa65Verify != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 5)
+		x.xxx_hidden_Mldsa65Verify = b.Mldsa65Verify
+	}
 	if b.ShortId != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 4)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 5)
 		x.xxx_hidden_ShortId = b.ShortId
 	}
 	if b.Debug != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 4)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 5)
 		x.xxx_hidden_Debug = *b.Debug
 	}
 	return m0
@@ -5663,12 +5696,13 @@ const file_node_protocol_protocol_proto_rawDesc = "" +
 	"\x03tls\x18\x01 \x01(\v2\x1c.yuhaiin.protocol.tls_configR\x03tls\"J\n" +
 	"\x04quic\x12\x12\n" +
 	"\x04host\x18\x02 \x01(\tR\x04host\x12.\n" +
-	"\x03tls\x18\x01 \x01(\v2\x1c.yuhaiin.protocol.tls_configR\x03tls\"}\n" +
+	"\x03tls\x18\x01 \x01(\v2\x1c.yuhaiin.protocol.tls_configR\x03tls\"\xa5\x01\n" +
 	"\areality\x12 \n" +
 	"\vserver_name\x18\x01 \x01(\tR\vserver_name\x12\x1e\n" +
 	"\n" +
 	"public_key\x18\x02 \x01(\tR\n" +
-	"public_key\x12\x1a\n" +
+	"public_key\x12&\n" +
+	"\x0emldsa65_verify\x18\x05 \x01(\tR\x0emldsa65_verify\x12\x1a\n" +
 	"\bshort_id\x18\x03 \x01(\tR\bshort_id\x12\x14\n" +
 	"\x05debug\x18\x04 \x01(\bR\x05debug\"3\n" +
 	"\tobfs_http\x12\x12\n" +

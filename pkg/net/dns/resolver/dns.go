@@ -163,7 +163,7 @@ func NewClient(config Config, dialer Dialer) netapi.Resolver {
 		dialer: dialer,
 		config: config,
 		rawStore: lru.NewSyncLru(
-			lru.WithCapacity[string, dns.Msg](configuration.DNSCache),
+			lru.WithCapacity[string, dns.Msg](int(configuration.DNSCache)),
 			lru.WithDefaultTimeout[string, dns.Msg](time.Second*600),
 		),
 		edns0: optrbody,

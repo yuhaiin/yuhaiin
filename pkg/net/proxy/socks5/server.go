@@ -39,16 +39,11 @@ func (s *Server) startUDPServer() error {
 }
 
 func (s *Server) startTCPServer() error {
-	lis, err := s.lis.Stream(s.ctx)
-	if err != nil {
-		return err
-	}
 	go func() {
 		defer s.Close()
-		defer lis.Close()
 
 		for {
-			conn, err := lis.Accept()
+			conn, err := s.lis.Accept()
 			if err != nil {
 				log.Error("socks5 accept failed", "err", err)
 

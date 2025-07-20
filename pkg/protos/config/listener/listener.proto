@@ -186,6 +186,7 @@ message reality {
   string dest = 3 [ json_name = "dest" ];
   string private_key = 4 [ json_name = "private_key" ];
   string public_key = 6 [ json_name = "public_key" ];
+  string mldsa65_seed = 7 [ json_name = "mldsa65_seed" ];
   bool debug = 5 [ json_name = "debug" ];
 }
 

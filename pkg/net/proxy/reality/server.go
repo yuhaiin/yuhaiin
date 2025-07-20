@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	"github.com/xtls/reality"
 	"golang.org/x/crypto/curve25519"
 )
@@ -61,9 +62,15 @@ func NewServer(config *listener.Reality, ii netapi.Listener) (netapi.Listener, e
 		return nil, err
 	}
 
-	lis, err := ii.Stream(context.TODO())
-	if err != nil {
-		return nil, err
+	var mldsa65Key []byte
+	if config.GetMldsa65Seed() != "" {
+		mldsa65Seed, err := base64.RawURLEncoding.DecodeString(config.GetMldsa65Seed())
+		if err != nil || len(mldsa65Seed) != 32 {
+			return nil, fmt.Errorf("mldsa65 seed is invalid: %w, %s", err, config.GetMldsa65Seed())
+		}
+
+		_, key := mldsa65.NewKeyFromSeed((*[32]byte)(mldsa65Seed))
+		mldsa65Key = key.Bytes()
 	}
 
 	realityConfig := &reality.Config{
@@ -80,10 +87,11 @@ func NewServer(config *listener.Reality, ii netapi.Listener) (netapi.Listener, e
 		ServerNames:            ServerNameMap(config),
 		Dest:                   config.GetDest(),
 		PrivateKey:             privateKey,
+		Mldsa65Key:             mldsa65Key,
 		SessionTicketsDisabled: true,
 	}
 
-	lis = reality.NewListener(lis, realityConfig)
+	lis := reality.NewListener(ii, realityConfig)
 
 	return netapi.NewListener(lis, ii), nil
 }

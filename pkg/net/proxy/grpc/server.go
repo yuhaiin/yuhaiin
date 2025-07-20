@@ -31,12 +31,7 @@ func init() {
 }
 
 func NewServer(c *listener.Grpc, ii netapi.Listener) (netapi.Listener, error) {
-	lis, err := ii.Stream(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-
-	return netapi.NewListener(NewGrpcNoServer(lis), ii), nil
+	return netapi.NewListener(NewGrpcNoServer(ii), ii), nil
 }
 
 func NewGrpcNoServer(lis net.Listener) *Grpc {

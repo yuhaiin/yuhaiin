@@ -36,7 +36,7 @@ type FailedHistory struct {
 func NewFailedHistory() *FailedHistory {
 	return &FailedHistory{
 		store: lru.NewSyncLru(
-			lru.WithCapacity[failedHistoryKey, *failedHistoryEntry](configuration.HistorySize),
+			lru.WithCapacity[failedHistoryKey, *failedHistoryEntry](int(configuration.HistorySize)),
 		),
 	}
 }
@@ -118,7 +118,7 @@ func NewHistory(infoStore InfoCache) *History {
 	}
 
 	h.store = lru.NewSyncLru(
-		lru.WithCapacity[failedHistoryKey, *historyEntry](configuration.HistorySize),
+		lru.WithCapacity[failedHistoryKey, *historyEntry](int(configuration.HistorySize)),
 		lru.WithOnRemove(func(key failedHistoryKey, value *historyEntry) {
 			h.infoStore.Delete(value.id.Load())
 		}),

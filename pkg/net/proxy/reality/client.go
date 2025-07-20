@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
-	"time"
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -30,6 +29,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	utls "github.com/refraction-networking/utls"
 	"golang.org/x/crypto/hkdf"
 	"golang.org/x/net/http2"
@@ -37,10 +37,11 @@ import (
 
 type Client struct {
 	netapi.EmptyDispatch
-	proxy     netapi.Proxy
-	utls      *utls.Config
-	publicKey []byte
-	shortID   [8]byte
+	proxy         netapi.Proxy
+	utls          *utls.Config
+	publicKey     []byte
+	mldsa65verify []byte
+	shortID       [8]byte
 
 	// TODO: remove debug log
 	Deubg bool
@@ -58,6 +59,15 @@ func NewClient(config *protocol.Reality, p netapi.Proxy) (netapi.Proxy, error) {
 	if len(publicKey) != 32 {
 		return nil, fmt.Errorf("invalid public_key")
 	}
+
+	var mldsa65Verify []byte
+	if config.GetMldsa65Verify() != "" {
+		mldsa65Verify, err = base64.RawURLEncoding.DecodeString(config.GetMldsa65Verify())
+		if err != nil || len(mldsa65Verify) != 1952 {
+			return nil, fmt.Errorf(`invalid "mldsa65Verify": %s`, config.GetMldsa65Verify())
+		}
+	}
+
 	var shortID [8]byte
 	decodedLen, err := hex.Decode(shortID[:], []byte(config.GetShortId()))
 	if err != nil {
@@ -69,11 +79,14 @@ func NewClient(config *protocol.Reality, p netapi.Proxy) (netapi.Proxy, error) {
 	return &Client{
 		proxy: p,
 		utls: &utls.Config{
-			ServerName: config.GetServerName(),
+			ServerName:             config.GetServerName(),
+			InsecureSkipVerify:     true,
+			SessionTicketsDisabled: true,
 		},
-		publicKey: publicKey,
-		shortID:   shortID,
-		Deubg:     config.GetDebug(),
+		publicKey:     publicKey,
+		mldsa65verify: mldsa65Verify,
+		shortID:       shortID,
+		Deubg:         config.GetDebug(),
 	}, nil
 }
 
@@ -104,11 +117,11 @@ func (e *Client) Close() error { return e.proxy.Close() }
 
 func (e *Client) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, error) {
 	verifier := &realityVerifier{
-		serverName: e.utls.ServerName,
+		serverName:    e.utls.ServerName,
+		mldsa65verify: e.mldsa65verify,
 	}
+
 	uConfig := e.utls.Clone()
-	uConfig.InsecureSkipVerify = true
-	uConfig.SessionTicketsDisabled = true
 	uConfig.VerifyPeerCertificate = verifier.VerifyPeerCertificate
 	uConn := utls.UClient(conn, uConfig, utls.HelloChrome_Auto)
 	verifier.UConn = uConn
@@ -117,30 +130,13 @@ func (e *Client) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, 
 		return nil, err
 	}
 
-	if len(uConfig.NextProtos) > 0 {
-		for _, extension := range uConn.Extensions {
-			if alpnExtension, isALPN := extension.(*utls.ALPNExtension); isALPN {
-				alpnExtension.AlpnProtocols = uConfig.NextProtos
-				break
-			}
-		}
-	}
-
 	hello := uConn.HandshakeState.Hello
 	hello.SessionId = make([]byte, 32)
 	copy(hello.Raw[39:], hello.SessionId)
-
-	var nowTime time.Time
-	if uConfig.Time != nil {
-		nowTime = uConfig.Time()
-	} else {
-		nowTime = time.Now()
-	}
-	binary.BigEndian.PutUint64(hello.SessionId, uint64(nowTime.Unix()))
-
-	hello.SessionId[0] = 1
-	hello.SessionId[1] = 8
-	hello.SessionId[2] = 1
+	hello.SessionId[0] = 25
+	hello.SessionId[1] = 7
+	hello.SessionId[2] = 23
+	hello.SessionId[3] = 0
 	binary.BigEndian.PutUint32(hello.SessionId[4:], uint32(system.NowUnix()))
 	copy(hello.SessionId[8:], e.shortID[:])
 
@@ -148,11 +144,20 @@ func (e *Client) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, 
 		log.Debug("REALITY", "hello.sessionId[:16]", hello.SessionId[:16])
 	}
 
-	peerKey, err := uConn.HandshakeState.State13.KeyShareKeys.Ecdhe.Curve().NewPublicKey(e.publicKey)
+	ecdhe := uConn.HandshakeState.State13.KeyShareKeys.Ecdhe
+	if ecdhe == nil {
+		ecdhe = uConn.HandshakeState.State13.KeyShareKeys.MlkemEcdhe
+	}
+	if ecdhe == nil {
+		return nil, fmt.Errorf("Current fingerprint %s %s does not support TLS 1.3, REALITY handshake cannot establish.", uConn.ClientHelloID.Client, uConn.ClientHelloID.Version)
+	}
+
+	peerKey, err := ecdhe.Curve().NewPublicKey(e.publicKey)
 	if err != nil {
 		return nil, fmt.Errorf("new ecdhe public key failed: %w", err)
 	}
-	authKey, err := uConn.HandshakeState.State13.KeyShareKeys.Ecdhe.ECDH(peerKey)
+
+	authKey, err := ecdhe.ECDH(peerKey)
 	if err != nil {
 		return nil, fmt.Errorf("ecdh key failed: %w", err)
 	}
@@ -212,9 +217,10 @@ func realityClientFallback(uConn net.Conn, serverName string, fingerprint utls.C
 
 type realityVerifier struct {
 	*utls.UConn
-	serverName string
-	authKey    []byte
-	verified   bool
+	serverName    string
+	authKey       []byte
+	mldsa65verify []byte
+	verified      bool
 }
 
 func (c *realityVerifier) VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
@@ -224,8 +230,20 @@ func (c *realityVerifier) VerifyPeerCertificate(rawCerts [][]byte, verifiedChain
 		h := hmac.New(sha512.New, c.authKey)
 		h.Write(pub)
 		if bytes.Equal(h.Sum(nil), certs[0].Signature) {
-			c.verified = true
-			return nil
+			if len(c.mldsa65verify) > 0 {
+				if len(certs[0].Extensions) > 0 {
+					h.Write(c.HandshakeState.Hello.Raw)
+					h.Write(c.HandshakeState.ServerHello.Raw)
+					verify, _ := mldsa65.Scheme().UnmarshalBinaryPublicKey(c.mldsa65verify)
+					if mldsa65.Verify(verify.(*mldsa65.PublicKey), h.Sum(nil), nil, certs[0].Extensions[0].Value) {
+						c.verified = true
+						return nil
+					}
+				}
+			} else {
+				c.verified = true
+				return nil
+			}
 		}
 	}
 	opts := x509.VerifyOptions{

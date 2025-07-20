@@ -31,23 +31,18 @@ func NewHTTPServer(o *listener.ReverseHttp, ii netapi.Listener, handler netapi.H
 		return nil, err
 	}
 
-	lis, err := ii.Stream(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-
 	if o.GetTls() != nil {
 		o.GetTls().SetEnable(true)
 	}
 
 	tlsConfig := ptls.ParseTLSConfig(o.GetTls())
 
-	httpch := netapi.NewChannelStreamListener(lis.Addr())
+	httpch := netapi.NewChannelStreamListener(ii.Addr())
 	go func() {
 		defer httpch.Close()
 
 		for {
-			conn, err := lis.Accept()
+			conn, err := ii.Accept()
 			if err != nil {
 				log.Error("reverse http accept failed", "err", err)
 				break
@@ -89,7 +84,7 @@ func NewHTTPServer(o *listener.ReverseHttp, ii netapi.Listener, handler netapi.H
 
 				sm := &netapi.StreamMeta{
 					Source:      c.RemoteAddr(),
-					Inbound:     lis.Addr(),
+					Inbound:     ii.Addr(),
 					Destination: address,
 					Src:         c,
 					Address:     address,
@@ -123,7 +118,7 @@ func NewHTTPServer(o *listener.ReverseHttp, ii netapi.Listener, handler netapi.H
 
 			sm := &netapi.StreamMeta{
 				Source:      source,
-				Inbound:     lis.Addr(),
+				Inbound:     ii.Addr(),
 				Destination: address,
 				Src:         local,
 				Address:     address,
@@ -147,5 +142,5 @@ func NewHTTPServer(o *listener.ReverseHttp, ii netapi.Listener, handler netapi.H
 		}
 	}()
 
-	return lis, nil
+	return ii, nil
 }

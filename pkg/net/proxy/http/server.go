@@ -186,16 +186,11 @@ func init() {
 }
 
 func NewServer(o *listener.Http, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-	lis, err := ii.Stream(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-
-	s := newServer(o, lis, handler)
+	s := newServer(o, ii, handler)
 
 	go func() {
 		defer ii.Close()
-		if err := http.Serve(lis, s); err != nil {
+		if err := http.Serve(ii, s); err != nil {
 			log.Error("http serve failed:", err)
 		}
 	}()

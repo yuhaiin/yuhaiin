@@ -70,14 +70,11 @@ func TestConn(t *testing.T) {
 		assert.NoError(t, err)
 		defer s.Close()
 
-		lis, err := s.Stream(context.TODO())
-		assert.NoError(t, err)
-
 		server := make(chan net.Conn)
 
 		go func() {
 			for {
-				conn, err := lis.Accept()
+				conn, err := s.Accept()
 				if err != nil {
 					break
 				}
@@ -87,7 +84,7 @@ func TestConn(t *testing.T) {
 		}()
 
 		qc, err := NewClient(protocol.Quic_builder{
-			Host: proto.String(lis.Addr().String()),
+			Host: proto.String(s.Addr().String()),
 			Tls: protocol.TlsConfig_builder{
 				Enable:             proto.Bool(true),
 				InsecureSkipVerify: proto.Bool(true),
@@ -117,7 +114,7 @@ func TestConn(t *testing.T) {
 
 		defer src.Close()
 		defer conn.Close()
-		defer lis.Close()
+		defer s.Close()
 	})
 
 	t.Run("test io", func(t *testing.T) {
@@ -135,14 +132,11 @@ func TestConn(t *testing.T) {
 		assert.NoError(t, err)
 		defer s.Close()
 
-		lis, err := s.Stream(context.TODO())
-		assert.NoError(t, err)
-
 		server := make(chan net.Conn)
 
 		go func() {
 			for {
-				conn, err := lis.Accept()
+				conn, err := s.Accept()
 				if err != nil {
 					break
 				}
@@ -152,7 +146,7 @@ func TestConn(t *testing.T) {
 		}()
 
 		qc, err := NewClient(protocol.Quic_builder{
-			Host: proto.String(lis.Addr().String()),
+			Host: proto.String(s.Addr().String()),
 			Tls: protocol.TlsConfig_builder{
 				Enable:             proto.Bool(true),
 				InsecureSkipVerify: proto.Bool(true),
@@ -177,7 +171,7 @@ func TestConn(t *testing.T) {
 
 		defer src.Close()
 		defer conn.Close()
-		defer lis.Close()
+		defer s.Close()
 		testBasicIO(t, src, conn)
 	})
 
@@ -196,14 +190,11 @@ func TestConn(t *testing.T) {
 			}.Build())
 			assert.NoError(t, err)
 
-			lis, err := s.Stream(context.TODO())
-			assert.NoError(t, err)
-
 			server := make(chan net.Conn)
 
 			go func() {
 				for {
-					conn, err := lis.Accept()
+					conn, err := s.Accept()
 					if err != nil {
 						break
 					}
@@ -213,7 +204,7 @@ func TestConn(t *testing.T) {
 			}()
 
 			qc, err := NewClient(protocol.Quic_builder{
-				Host: proto.String(lis.Addr().String()),
+				Host: proto.String(s.Addr().String()),
 				Tls: protocol.TlsConfig_builder{
 					Enable:             proto.Bool(true),
 					InsecureSkipVerify: proto.Bool(true),
@@ -239,7 +230,6 @@ func TestConn(t *testing.T) {
 			return conn, src, func() {
 				conn.Close()
 				src.Close()
-				lis.Close()
 				s.Close()
 			}, nil
 		})
