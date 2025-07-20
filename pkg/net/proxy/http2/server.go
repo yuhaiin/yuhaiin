@@ -37,11 +37,7 @@ func init() {
 }
 
 func NewServer(c *listener.Http2, ii netapi.Listener) (netapi.Listener, error) {
-	lis, err := ii.Stream(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-	return netapi.NewListener(newServer(lis), ii), nil
+	return netapi.NewListener(newServer(ii), ii), nil
 }
 
 type warpConn struct {

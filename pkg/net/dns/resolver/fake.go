@@ -339,11 +339,16 @@ func NewFakeIPPool(prefix netip.Prefix, db cache.RecursionCache) *FakeIPPool {
 		lenSize = 128
 	}
 
-	var lruSize uint
+	var lruSize int
 	if prefix.Bits() == lenSize {
 		lruSize = 0
 	} else {
-		lruSize = uint(math.Pow(2, float64(lenSize-prefix.Bits())) - 1)
+		size := math.Pow(2, float64(lenSize-prefix.Bits())) - 1
+		if size > 65535 {
+			lruSize = 65535
+		} else {
+			lruSize = int(size)
+		}
 	}
 
 	return &FakeIPPool{
@@ -416,10 +421,10 @@ type fakeLru struct {
 	LRU     *lru.ReverseSyncLru[string, netip.Addr]
 	iprange netip.Prefix
 
-	Size uint
+	Size int
 }
 
-func newFakeLru(size uint, db cache.RecursionCache, iprange netip.Prefix) *fakeLru {
+func newFakeLru(size int, db cache.RecursionCache, iprange netip.Prefix) *fakeLru {
 	var bboltCache cache.RecursionCache
 	if iprange.Addr().Unmap().Is6() {
 		bboltCache = db.NewCache("fakedns_cachev6")
@@ -435,7 +440,7 @@ func newFakeLru(size uint, db cache.RecursionCache, iprange netip.Prefix) *fakeL
 
 	z.LRU = lru.NewSyncReverseLru(
 		lru.WithLruOptions(
-			lru.WithCapacity[string, netip.Addr](size),
+			lru.WithCapacity[string, netip.Addr](int(size)),
 			lru.WithOnRemove(func(s string, v netip.Addr) {
 				_ = bboltCache.Delete([]byte(s), v.AsSlice())
 			}),

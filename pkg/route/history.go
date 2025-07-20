@@ -29,7 +29,7 @@ type RejectHistory struct {
 
 func NewRejectHistory() *RejectHistory {
 	return &RejectHistory{
-		store: lru.NewSyncLru(lru.WithCapacity[blockHistoryKey, *blockHistoryEntry](configuration.HistorySize)),
+		store: lru.NewSyncLru(lru.WithCapacity[blockHistoryKey, *blockHistoryEntry](int(configuration.HistorySize))),
 	}
 }
 

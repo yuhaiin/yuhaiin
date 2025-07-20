@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
@@ -22,7 +23,7 @@ type PacketListener interface {
 
 type StreamListener interface {
 	Server
-	Stream(context.Context) (net.Listener, error)
+	net.Listener
 }
 
 type Listener interface {
@@ -33,12 +34,20 @@ type Listener interface {
 
 type listener struct {
 	p PacketListener
-	s net.Listener
+	net.Listener
 }
 
-func NewListener(s net.Listener, p PacketListener) Listener            { return &listener{p: p, s: s} }
+func NewListener[T net.Listener](s T, p PacketListener) Listener {
+	return &listener{p: p, Listener: s}
+}
+
+func (w *listener) SyscallConn() (syscall.RawConn, error) {
+	if s, ok := w.Listener.(syscall.Conn); ok {
+		return s.SyscallConn()
+	}
+	return nil, syscall.EOPNOTSUPP
+}
 func (w *listener) Packet(ctx context.Context) (net.PacketConn, error) { return w.p.Packet(ctx) }
-func (w *listener) Stream(ctx context.Context) (net.Listener, error)   { return w.s, nil }
 func (w *listener) Close() error {
 	var err error
 
@@ -48,8 +57,8 @@ func (w *listener) Close() error {
 		}
 	}
 
-	if w.s != nil {
-		if er := w.s.Close(); er != nil {
+	if w.Listener != nil {
+		if er := w.Listener.Close(); er != nil {
 			err = errors.Join(err, er)
 		}
 	}

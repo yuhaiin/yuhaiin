@@ -7,7 +7,9 @@ package websocket
 import (
 	"bufio"
 	"crypto/rand"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -42,13 +44,23 @@ func (config *Config) NewClient(SecWebSocketKey string, rwc net.Conn, request fu
 //go:linkname putBufioWriter net/http.putBufioWriter
 func putBufioWriter(br *bufio.Writer)
 
+// generateNonce generates a nonce consisting of a randomly selected 16-byte
+// value that has been base64-encoded.
+func generateNonce() string {
+	key := make([]byte, 16)
+	if _, err := io.ReadFull(rand.Reader, key); err != nil {
+		panic(err)
+	}
+	return base64.StdEncoding.EncodeToString(key)
+}
+
 // Client handshake described in draft-ietf-hybi-thewebsocket-protocol-17
 func (config *Config) hybiClientHandshake(SecWebSocketKey string, conn net.Conn, request func(*http.Request) error, handshake func(*http.Response) error) (net.Conn, error) {
 	var nonce string
 	if SecWebSocketKey != "" {
 		nonce = SecWebSocketKey
 	} else {
-		nonce = rand.Text()
+		nonce = string(generateNonce())
 	}
 
 	req, err := http.NewRequest(http.MethodGet, "http://"+config.Host+config.Path, http.NoBody)
@@ -83,7 +95,7 @@ func (config *Config) hybiClientHandshake(SecWebSocketKey string, conn net.Conn,
 		}
 
 		if resp.StatusCode != http.StatusSwitchingProtocols {
-			return ErrBadStatus
+			return ErrBadStatus.WrapMsg(fmt.Sprintf("get %v, want: %v", resp.StatusCode, http.StatusSwitchingProtocols))
 		}
 
 		if strings.ToLower(resp.Header.Get("Upgrade")) != "websocket" || strings.ToLower(resp.Header.Get("Connection")) != "upgrade" {

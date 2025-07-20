@@ -2,7 +2,6 @@ package mixed
 
 import (
 	"bufio"
-	"context"
 	"io"
 	"net"
 	"time"
@@ -36,14 +35,9 @@ func init() {
 }
 
 func NewServer(o *listener.Mixed, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-	lis, err := ii.Stream(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-
 	mix := &Mixed{
-		lis:      lis,
-		defaultC: netapi.NewChannelStreamListener(lis.Addr()),
+		lis:      ii,
+		defaultC: netapi.NewChannelStreamListener(ii.Addr()),
 	}
 
 	mix.socks5(o, ii, handler)

@@ -1,7 +1,6 @@
 package socks4a
 
 import (
-	"context"
 	"crypto/subtle"
 	"encoding/binary"
 	"fmt"
@@ -151,14 +150,9 @@ func init() {
 }
 
 func NewServer(o *listener.Socks4A, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-	lis, err := ii.Stream(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-
 	s := &Server{
 		usernameID: o.GetUsername(),
-		lis:        lis,
+		lis:        ii,
 		handler:    handler,
 	}
 

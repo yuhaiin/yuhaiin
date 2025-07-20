@@ -52,15 +52,6 @@ type server struct {
 	netapi.Listener
 }
 
-func (s *server) Stream(ctx context.Context) (net.Listener, error) {
-	lis, err := s.Listener.Stream(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &listenerWrap{Listener: lis}, nil
-}
-
 func NewServer(config *listener.HttpMock, lis netapi.Listener) (netapi.Listener, error) {
 	return &server{Listener: lis}, nil
 }

@@ -3,6 +3,7 @@ package yuubinsya
 import (
 	"bytes"
 	crand "crypto/rand"
+	"errors"
 	"io"
 	"math/rand/v2"
 	"net"
@@ -108,14 +109,16 @@ func TestPacket(t *testing.T) {
 
 	data := randSeq(rand.IntN(2500))
 
-	go (&UDPServer{
-		PacketConn: lis,
-		Handler: func(p *netapi.Packet) {
-			_, err := p.WriteBack(p.GetPayload(), p.Src())
-			t.Log(len(p.GetPayload()), bytes.Equal(data, p.GetPayload()), p.Dst().String(), p.Src().String(), err)
-		},
-		Prefix: true,
-	}).Serve()
+	go func() {
+		_ = (&UDPServer{
+			PacketConn: lis,
+			Handler: func(p *netapi.Packet) {
+				_, err := p.WriteBack(p.GetPayload(), p.Src())
+				t.Log(len(p.GetPayload()), bytes.Equal(data, p.GetPayload()), p.Dst().String(), p.Src().String(), err)
+			},
+			Prefix: true,
+		}).Serve()
+	}()
 
 	client, err := net.ListenPacket("udp", "127.0.0.1:0")
 	assert.NoError(t, err)
@@ -127,7 +130,12 @@ func TestPacket(t *testing.T) {
 		for {
 			rdata := make([]byte, 65536)
 			n, addr, err := cc.ReadFrom(rdata)
-			assert.NoError(t, err)
+			if err != nil {
+				if !errors.Is(err, net.ErrClosed) {
+					assert.NoError(t, err)
+				}
+				continue
+			}
 
 			t.Log(n, addr, bytes.Equal(rdata[:n], data))
 		}

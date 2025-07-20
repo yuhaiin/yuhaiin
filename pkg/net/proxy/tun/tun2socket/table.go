@@ -47,6 +47,15 @@ func (t *tableSplit) portOf(tuple Tuple) uint16 {
 	return t.v4.newConn(tuple)
 }
 
+func (t *tableSplit) delete(tuple Tuple) {
+	if tuple.SourceAddr.Len() == 16 {
+		t.v6.delete(tuple)
+		return
+	}
+
+	t.v4.delete(tuple)
+}
+
 type table struct {
 	lru   *lru.ReverseSyncLru[Tuple, uint16]
 	set   *set.Set[uint16]
@@ -61,7 +70,7 @@ func newTableBase(expire time.Duration) *table {
 	return &table{
 		lru: lru.NewSyncReverseLru(
 			lru.WithLruOptions(
-				lru.WithCapacity[Tuple, uint16](uint(defaultTableSize)),
+				lru.WithCapacity[Tuple, uint16](defaultTableSize),
 				lru.WithDefaultTimeout[Tuple, uint16](expire),
 				lru.WithOnRemove(func(t Tuple, p uint16) { set.Push(p) }),
 			),
@@ -87,18 +96,43 @@ func (t *table) portOf(tuple Tuple) uint16 {
 	return p
 }
 
+func (t *table) delete(tuple Tuple) {
+	t.lru.Delete(tuple)
+}
+
+func (t *table) nowIndex() uint16 {
+	if t.index < 10000 {
+		t.index = 10000
+	}
+
+	return t.index
+}
+
+func (t *table) nextIndex() {
+	t.index = t.nowIndex() + 1
+}
+
 func (t *table) newConn(tuple Tuple) uint16 {
 	t.mu.Lock()
 	newPort, ok := t.set.Pop()
 	if !ok {
-		if t.index == 0 {
-			newPort = 10000
-		} else {
-			newPort = t.index
+		start := t.nowIndex()
+		for t.nextIndex(); t.nowIndex() != start; t.nextIndex() {
+			if ok := t.lru.ValueExist(t.nowIndex()); ok {
+				continue
+			}
+
+			newPort = t.nowIndex()
+
+			if t.set.Has(newPort) {
+				t.set.Delete(newPort)
+			}
+			break
 		}
-		t.index = newPort + 1
 	}
-	t.lru.Add(tuple, newPort)
+	if newPort != 0 {
+		t.lru.Add(tuple, newPort)
+	}
 	t.mu.Unlock()
 
 	return newPort

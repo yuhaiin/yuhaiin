@@ -322,6 +322,10 @@ func (n *Nat) processTCP(ip header.Network, src, dst tcpip.Address) (_ header.Tr
 		}
 
 		port := n.tab.portOf(tup)
+		if port == 0 {
+			log.Warn("all port already used", "dst", dst, "dstPort", destinationPort)
+			return nil, 0, false
+		}
 		ip.SetDestinationAddress(address)
 		t.SetDestinationPort(n.gatewayPort)
 		ip.SetSourceAddress(portal)

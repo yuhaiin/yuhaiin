@@ -15,9 +15,15 @@ func (q *Set[T]) Push(x T) {
 
 func (s *Set[T]) Has(x T) bool {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
 	_, ok := s.data[x]
+	s.mu.RUnlock()
 	return ok
+}
+
+func (s *Set[T]) Delete(x T) {
+	s.mu.Lock()
+	delete(s.data, x)
+	s.mu.Unlock()
 }
 
 func (s *Set[T]) Pop() (T, bool) {
@@ -34,14 +40,16 @@ func (s *Set[T]) Pop() (T, bool) {
 
 func (s *Set[T]) Len() int {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.data)
+	l := len(s.data)
+	s.mu.RUnlock()
+
+	return l
 }
 
 func (q *Set[T]) Clear() {
 	q.mu.Lock()
-	defer q.mu.Unlock()
 	clear(q.data)
+	q.mu.Unlock()
 }
 
 func (s *Set[T]) Range(ranger func(T) bool) {
