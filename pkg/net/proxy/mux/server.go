@@ -25,12 +25,7 @@ func init() {
 }
 
 func NewServer(config *listener.Mux, ii netapi.Listener) (netapi.Listener, error) {
-	lis, err := ii.Stream(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-
-	return netapi.NewListener(newServer(lis), ii), nil
+	return netapi.NewListener(newServer(ii), ii), nil
 }
 
 func newServer(lis net.Listener) *MuxServer {

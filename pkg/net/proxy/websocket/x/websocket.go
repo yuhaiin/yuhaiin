@@ -14,6 +14,8 @@ package websocket // import "golang.org/x/net/websocket"
 import (
 	"crypto/sha1"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"unsafe"
 )
 
@@ -60,6 +62,20 @@ type ProtocolError struct {
 }
 
 func (err *ProtocolError) Error() string { return err.ErrorString }
+
+func (p *ProtocolError) Is(err error) bool {
+	check := &ProtocolError{}
+
+	if !errors.As(err, &check) {
+		return false
+	}
+
+	return check.ErrorString == p.ErrorString
+}
+
+func (p *ProtocolError) WrapMsg(str string) error {
+	return fmt.Errorf("%w: %s", p, str)
+}
 
 var (
 	ErrBadProtocolVersion   = &ProtocolError{"bad protocol version"}

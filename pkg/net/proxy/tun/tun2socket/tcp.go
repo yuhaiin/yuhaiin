@@ -197,5 +197,3 @@ func (c *Conn) RemoteAddr() net.Addr {
 		Port: int(c.tuple.DestinationPort),
 	}
 }
-
-func (c *Conn) RawConn() (net.Conn, bool) { return c.TCPConn, true }

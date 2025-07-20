@@ -91,14 +91,28 @@ func (t *table) newConn(tuple Tuple) uint16 {
 	t.mu.Lock()
 	newPort, ok := t.set.Pop()
 	if !ok {
-		if t.index == 0 {
-			newPort = 10000
-		} else {
-			newPort = t.index
+		if t.index < 10000 {
+			t.index = 10000
 		}
-		t.index = newPort + 1
+
+		start := t.index
+		t.index++
+		for ; t.index != start; t.index++ {
+			if t.index < 10000 {
+				t.index = 10000
+				continue
+			}
+
+			if ok := t.lru.ValueExist(t.index); !ok {
+				newPort = t.index
+				t.index++
+				break
+			}
+		}
 	}
-	t.lru.Add(tuple, newPort)
+	if newPort != 0 {
+		t.lru.Add(tuple, newPort)
+	}
 	t.mu.Unlock()
 
 	return newPort

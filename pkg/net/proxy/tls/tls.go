@@ -131,12 +131,7 @@ func NewServer(c *listener.Tls, ii netapi.Listener) (netapi.Listener, error) {
 		return nil, err
 	}
 
-	lis, err := ii.Stream(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-
-	return netapi.NewListener(tls.NewListener(lis, config), ii), nil
+	return netapi.NewListener(tls.NewListener(ii, config), ii), nil
 }
 
 type ServerCert struct {
@@ -228,12 +223,7 @@ func NewTlsAutoServer(c *listener.TlsAuto, ii netapi.Listener) (netapi.Listener,
 		}
 	}
 
-	lis, err := ii.Stream(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-
-	return netapi.NewListener(tls.NewListener(lis, config), ii), nil
+	return netapi.NewListener(tls.NewListener(ii, config), ii), nil
 }
 
 var tlsSessionCache = tls.NewLRUClientSessionCache(128)

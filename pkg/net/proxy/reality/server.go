@@ -61,11 +61,6 @@ func NewServer(config *listener.Reality, ii netapi.Listener) (netapi.Listener, e
 		return nil, err
 	}
 
-	lis, err := ii.Stream(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-
 	realityConfig := &reality.Config{
 		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 			addr, err := netapi.ParseAddress(network, address)
@@ -83,7 +78,7 @@ func NewServer(config *listener.Reality, ii netapi.Listener) (netapi.Listener, e
 		SessionTicketsDisabled: true,
 	}
 
-	lis = reality.NewListener(lis, realityConfig)
+	lis := reality.NewListener(ii, realityConfig)
 
 	return netapi.NewListener(lis, ii), nil
 }
