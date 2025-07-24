@@ -16,8 +16,9 @@ import (
 )
 
 type S3 struct {
-	Bucket string
-	s3c    *minio.Client
+	Bucket       string
+	StorageClass string
+	s3c          *minio.Client
 }
 
 func NewS3(opt *backup.S3, proxy netapi.Proxy) (*S3, error) {
@@ -45,8 +46,9 @@ func NewS3(opt *backup.S3, proxy netapi.Proxy) (*S3, error) {
 	}
 
 	return &S3{
-		Bucket: opt.GetBucket(),
-		s3c:    minioClient,
+		Bucket:       opt.GetBucket(),
+		s3c:          minioClient,
+		StorageClass: opt.GetStorageClass(),
 	}, nil
 }
 
@@ -59,7 +61,8 @@ func (s *S3) Put(ctx context.Context, data []byte, file string) error {
 
 	_, err := s.s3c.PutObject(ctx, s.Bucket,
 		file, bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{
-			ContentType: contentType,
+			ContentType:  contentType,
+			StorageClass: s.StorageClass,
 		})
 	return err
 }

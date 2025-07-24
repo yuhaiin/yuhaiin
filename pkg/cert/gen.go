@@ -191,7 +191,7 @@ func (c *Ca) GenerateServerCert(hosts ...string) (*ServerCert, error) {
 		return nil, fmt.Errorf("generate key failed: %w", err)
 	}
 
-	notBefore := time.Now()
+	notBefore := time.Now().Add(-time.Minute)
 	notAfter := notBefore.Add(10 * 365 * 24 * time.Hour)
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)

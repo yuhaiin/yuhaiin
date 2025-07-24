@@ -2,7 +2,6 @@ package trie
 
 import (
 	"context"
-	"errors"
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -39,9 +38,11 @@ func (x *Trie[T]) Insert(str string, mark T) {
 	x.domain.Insert(str, mark)
 }
 
-var ErrSkipResolver = errors.New("skip resolve domain")
+type OnlyFqdnKey struct{}
 
-var SkipResolver = netapi.ErrorResolver(func(domain string) error { return ErrSkipResolver })
+func OnlyMatchFqdn(ctx context.Context) context.Context {
+	return context.WithValue(ctx, OnlyFqdnKey{}, true)
+}
 
 func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok bool) {
 	if !addr.IsFqdn() {
@@ -52,8 +53,10 @@ func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok b
 		return
 	}
 
-	if ips, err := dialer.ResolverIP(ctx, addr); err == nil {
-		mark, ok = x.cidr.SearchIP(ips)
+	if ctx.Value(OnlyFqdnKey{}) != true {
+		if ips, err := dialer.ResolverIP(ctx, addr); err == nil {
+			mark, ok = x.cidr.SearchIP(ips)
+		}
 	}
 
 	return

@@ -12,6 +12,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -349,6 +350,7 @@ func (d *dnsServer) Do(ctx context.Context, req *netapi.DNSRawRequest) error {
 		d.mu.Lock()
 		if d.reqBuffer.Len() >= configuration.MaxUDPUnprocessedPackets.Load() {
 			d.mu.Unlock()
+			metrics.Counter.AddReceiveUDPDroppedPacket()
 			return fmt.Errorf("dns request buffer is full")
 		}
 

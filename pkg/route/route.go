@@ -310,9 +310,7 @@ func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 		return netapi.ErrorResolver(func(domain string) error { return err })
 	}
 
-	netapi.GetContext(ctx).Resolver.Resolver = trie.SkipResolver
-
-	mode := s.ms.Match(ctx, host)
+	mode := s.ms.Match(trie.OnlyMatchFqdn(ctx), host)
 
 	if mode.Mode() == bypass.Mode_block {
 		s.dumpProcess(ctx, "udp", "tcp")
