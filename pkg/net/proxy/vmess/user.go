@@ -4,30 +4,30 @@ import (
 	"crypto/md5"
 	"encoding/binary"
 
-	"github.com/google/uuid"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
 
 // User of vmess client
 type User struct {
-	UUID   uuid.UUID
+	UUID   id.UUID
 	CmdKey [16]byte
 }
 
 // NewUser .
-func NewUser(uuid uuid.UUID) *User {
+func NewUser(uuid id.UUID) *User {
 	u := &User{UUID: uuid}
 	copy(u.CmdKey[:], GetKey(uuid))
 	return u
 }
 
-func nextID(oldID uuid.UUID) (newID uuid.UUID) {
+func nextID(oldID id.UUID) (newID id.UUID) {
 	md5hash := md5.New()
 	md5hash.Write(oldID[:])
 	md5hash.Write([]byte("16167dc8-16b6-4e6d-b8bb-65dd68113a81"))
 	var buf [16]byte
 	for {
 		md5hash.Sum(buf[:0])
-		if newId, err := uuid.FromBytes(buf[:]); err == nil && newId != oldID {
+		if newId := id.UUID(buf); newId != oldID {
 			return newId
 		}
 		md5hash.Write([]byte("533eff8a-4113-4b10-b5ce-0f5d76b98cd2"))
@@ -50,7 +50,7 @@ func (u *User) GenAlterIDUsers(alterID int) []*User {
 
 // GetKey returns the key of AES-128-CFB encrypter
 // Key：MD5(UUID + []byte('c48619fe-8f02-49e0-b9e9-edf763e17e21'))
-func GetKey(uuid uuid.UUID) []byte {
+func GetKey(uuid id.UUID) []byte {
 	md5hash := md5.New()
 	md5hash.Write(uuid[:])
 	md5hash.Write([]byte("c48619fe-8f02-49e0-b9e9-edf763e17e21"))

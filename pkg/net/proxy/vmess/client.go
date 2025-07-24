@@ -20,10 +20,10 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"github.com/google/uuid"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -89,7 +89,7 @@ type Conn struct {
 
 // NewClient .
 func newClient(uuidStr, security string, alterID int) (*Client, error) {
-	uuid, err := uuid.Parse(uuidStr)
+	uuid, err := id.ParseUUID(uuidStr)
 	if err != nil {
 		return nil, err
 	}

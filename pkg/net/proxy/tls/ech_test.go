@@ -3,6 +3,10 @@ package tls
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
+	"math/rand/v2"
+	"net"
+	"strings"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
@@ -111,4 +115,33 @@ func TestParse(t *testing.T) {
 			assert.Error(t, err)
 		})
 	})
+}
+
+func TestXxx(t *testing.T) {
+	x := "<bilibili_mcdn>.a.c.v.d"
+
+	i := strings.IndexByte(x, '.')
+
+	t.Log(x[:i], x[i+1:])
+
+	prefix := fmt.Sprintf("xy%dx%dx%dx%dxy", rand.IntN(255), rand.IntN(255), rand.IntN(255), rand.IntN(255))
+
+	if rand.IntN(2) == 0 {
+		ipv6 := net.IP{
+			byte(rand.IntN(255)), byte(rand.IntN(255)),
+			byte(rand.IntN(255)), byte(rand.IntN(255)),
+			byte(rand.IntN(255)), byte(rand.IntN(255)),
+			byte(rand.IntN(255)), byte(rand.IntN(255)),
+			0, 0,
+			0, 0,
+			0, 0,
+			byte(rand.IntN(255)), byte(rand.IntN(255)),
+		}.String()
+
+		ipv6 = strings.ReplaceAll(ipv6, ":", "y")
+
+		prefix += ipv6 + "xy"
+	}
+
+	t.Log(prefix)
 }

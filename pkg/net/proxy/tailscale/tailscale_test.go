@@ -56,22 +56,7 @@ func TestTailscale(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	// t.Run("listen packet", func(t *testing.T) {
-	// 	ipv4, ipv6 := tc.(*Tailscale).tsnet.TailscaleIPs()
-	// 	t.Log(ipv4, ipv6)
-
-	// 	pc, err := tc.(*Tailscale).tsnet.ListenPacket("udp", net.JoinHostPort(ipv4.String(), "0"))
-	// 	assert.NoError(t, err)
-	// 	defer pc.Close()
-
-	// 	n, err := pc.WriteTo([]byte("test"), &net.UDPAddr{
-	// 		IP:   net.ParseIP("100.100.100.100"),
-	// 		Port: 53,
-	// 	})
-	// 	t.Log(n, err)
-	// })
-
-	t.Run("tcp dns", func(t *testing.T) {
+	t.Run("tcpdns", func(t *testing.T) {
 		r, err := resolver.New(resolver.Config{
 			Dialer: tc,
 			Host:   "100.100.100.100:53",

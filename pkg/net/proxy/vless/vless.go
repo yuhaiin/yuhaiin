@@ -8,7 +8,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/google/uuid"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
 
 // Version of vmess
@@ -38,7 +38,7 @@ type DstAddr struct {
 // Client is vless connection generator
 type Client struct {
 	netapi.Proxy
-	uuid uuid.UUID
+	uuid id.UUID
 }
 
 func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
@@ -68,7 +68,7 @@ func init() {
 }
 
 func NewClient(config *protocol.Vless, p netapi.Proxy) (netapi.Proxy, error) {
-	uid, err := uuid.Parse(config.GetUuid())
+	uid, err := id.ParseUUID(config.GetUuid())
 	if err != nil {
 		return nil, err
 	}

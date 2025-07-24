@@ -21,6 +21,7 @@ message s3 {
   string region = 5 [ json_name = "region" ];
   string endpoint_url = 6 [ json_name = "endpoint_url" ];
   bool use_path_style = 7 [ json_name = "use_path_style" ];
+  string storage_class = 8 [ json_name = "storage_class" ];
 }
 
 message backup_option {

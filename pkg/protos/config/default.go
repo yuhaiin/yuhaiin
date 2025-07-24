@@ -1,6 +1,8 @@
 package config
 
 import (
+	mrand "math/rand/v2"
+	"net/netip"
 	"runtime"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
@@ -10,6 +12,38 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+func FakeipV4UlaGenerate() netip.Prefix {
+	ip := [4]byte{10, byte(mrand.IntN(256)), 0, 0}
+
+	return netip.PrefixFrom(netip.AddrFrom4(ip), 16)
+}
+
+func FakeipV6UlaGenerate() netip.Prefix {
+	ip := [16]byte{
+		253,
+		byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)),
+		255, 255,
+	}
+
+	return netip.PrefixFrom(netip.AddrFrom16(ip), 64)
+}
+
+func TunV6UlaGenerate() netip.Prefix {
+	ip := [16]byte{
+		253, //fd
+		byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)),
+		255, 255,
+		0, 0, 0, 0, 0, 0, 0, 1,
+	}
+
+	return netip.PrefixFrom(netip.AddrFrom16(ip), 64)
+}
+
+func TunV4UlaGenerate() netip.Prefix {
+	ip := [4]byte{172, byte(mrand.IntN(16) + 16), byte(mrand.IntN(256)), 1}
+	return netip.PrefixFrom(netip.AddrFrom4(ip), 24)
+}
+
 func DefaultSetting(path string) *Setting {
 	tunname := "tun0"
 	switch runtime.GOOS {
@@ -18,6 +52,9 @@ func DefaultSetting(path string) *Setting {
 	case "windows":
 		tunname = "wintun"
 	}
+
+	fakev4 := FakeipV4UlaGenerate().String()
+	fakev6 := FakeipV6UlaGenerate().String()
 
 	return (&Setting_builder{
 		Ipv6:                proto.Bool(true),
@@ -89,8 +126,8 @@ func DefaultSetting(path string) *Setting {
 		Dns: pd.DnsConfig_builder{
 			Server:           proto.String("127.0.0.1:5353"),
 			Fakedns:          proto.Bool(false),
-			FakednsIpRange:   proto.String("10.0.2.1/16"),
-			FakednsIpv6Range: proto.String("fc00::/64"),
+			FakednsIpRange:   proto.String(fakev4),
+			FakednsIpv6Range: proto.String(fakev6),
 			FakednsWhitelist: []string{
 				"*.msftncsi.com",
 				"*.msftconnecttest.com",
@@ -138,14 +175,14 @@ func DefaultSetting(path string) *Setting {
 					Tun: listener.Tun_builder{
 						Name:          proto.String("tun://" + tunname),
 						Mtu:           proto.Int32(9000),
-						Portal:        proto.String("172.19.0.1/24"),
-						PortalV6:      proto.String("fdfe:dcba:9876::1/64"),
+						Portal:        proto.String(TunV4UlaGenerate().String()),
+						PortalV6:      proto.String(TunV6UlaGenerate().String()),
 						SkipMulticast: proto.Bool(true),
 						Driver:        listener.Tun_system_gvisor.Enum(),
 						Route: listener.Route_builder{
 							Routes: []string{
-								"10.0.2.1/16",
-								"fc00::/64",
+								fakev4,
+								fakev6,
 							},
 						}.Build(),
 					}.Build(),

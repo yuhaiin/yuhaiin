@@ -3,6 +3,7 @@ package cert
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -33,6 +34,9 @@ func TestGenerate(t *testing.T) {
 		err := http.Serve(tlss, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("hello"))
 		}))
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
 		assert.NoError(t, err)
 	}()
 

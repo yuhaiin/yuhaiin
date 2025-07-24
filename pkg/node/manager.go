@@ -12,9 +12,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
-	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -93,7 +93,7 @@ func (mm *Manager) refreshGroup() {
 					groups[group].GetNodesV2()[name] = v.GetHash()
 					break
 				}
-				name = name + "_" + uuid.NewString()
+				name = name + "_" + id.GenerateUUID().String()
 			}
 		}
 
@@ -140,7 +140,7 @@ func (mm *Manager) SaveNode(ps ...*point.Point) {
 				} else {
 					// generate hash
 					for {
-						uuid := uuid.NewString()
+						uuid := id.GenerateUUID().String()
 						if _, ok := n.GetManager().GetNodes()[uuid]; !ok {
 							p.SetHash(uuid)
 							break

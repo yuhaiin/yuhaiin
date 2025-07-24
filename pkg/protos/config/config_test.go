@@ -1,10 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -25,21 +25,17 @@ func TestMergeDefault(t *testing.T) {
 	t.Log(string(data))
 }
 
-func TestXxx(t *testing.T) {
-	src := Setting_builder{
-		Ipv6: proto.Bool(false),
-		Dns: dns.DnsConfig_builder{
-			Resolver: map[string]*pd.Dns{
-				"aaa": {},
-			},
-		}.Build(),
-	}.Build()
+func TestUla(t *testing.T) {
+	for range 10 {
+		fmt.Println("-------")
+		t.Log(FakeipV6UlaGenerate())
+		t.Log(TunV6UlaGenerate())
 
-	cc := proto.CloneOf(src)
-
-	cc.SetIpv6(true)
-	cc.GetDns().GetResolver()["test"] = &pd.Dns{}
-
-	t.Log(src.GetIpv6(), src.GetDns().GetResolver())
-	t.Log(cc.GetIpv6(), cc.GetDns().GetResolver())
+		t.Log(FakeipV4UlaGenerate())
+		t.Log(TunV4UlaGenerate())
+		addr := TunV4UlaGenerate().Masked()
+		t.Log(addr)
+		addr = TunV6UlaGenerate().Masked()
+		t.Log(addr)
+	}
 }

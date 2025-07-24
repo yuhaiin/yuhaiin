@@ -179,6 +179,16 @@ func installSystemDaemonDarwin(args []string) (err error) {
 		return fmt.Errorf("failed to find our own executable path: %w", err)
 	}
 
+	if out, err := exec.Command("xattr", "-rd", "com.apple.quarantine", exe).CombinedOutput(); err != nil {
+		log.Warn("remove com.apple.quarantine failed: %w, output: %s", err, out)
+	}
+
+	if out, _ := exec.Command("codesign", "-v", exe).CombinedOutput(); bytes.Contains(out, []byte("code object is not signed")) {
+		if out, err := exec.Command("codesign", "-s", "-", exe).CombinedOutput(); err != nil {
+			log.Warn("sign with ad-hoc failed: %w, output: %s", err, out)
+		}
+	}
+
 	same, err := sameFile(exe, targetBin)
 	if err != nil {
 		return err
