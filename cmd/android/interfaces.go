@@ -7,6 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	di "github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"tailscale.com/net/netaddr"
 	"tailscale.com/net/netmon"
@@ -221,30 +222,10 @@ func GetTunAddress() (*TunAddress, error) {
 		}
 	}
 
-	var ipv4, ipv6 netip.Addr
-
-	for i := range 255 {
-		addr := netip.AddrFrom4([4]byte{172, 19, byte(i), 0})
-		if !existAddr.Has(netip.PrefixFrom(addr, 24)) {
-			ipv4 = addr
-			break
-		}
-	}
-
-	if !ipv4.IsValid() {
-		return nil, fmt.Errorf("get interfaces v4 addr, all addr used")
-	}
-
-	for i := range 255 {
-		addr := netip.AddrFrom16([16]byte{0xfd, 0xfe, 0xdc, 0xba, 0x98, byte(i), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
-		if !existAddr.Has(netip.PrefixFrom(addr, 64)) {
-			ipv6 = addr
-			break
-		}
-	}
-
-	if !ipv6.IsValid() {
-		return nil, fmt.Errorf("get interfaces v6 addr, all addr used")
+	ipv4, v4ok := findAvailableAddr(false, existAddr, 65535)
+	ipv6, v6ok := findAvailableAddr(true, existAddr, 65535)
+	if !v4ok || !v6ok {
+		return nil, fmt.Errorf("no available address, v4: %v,%v, v6: %v,%v", ipv4, v4ok, ipv6, v6ok)
 	}
 
 	log.Info("get interfaces addrs", "ipv4", ipv4, "ipv6", ipv6, "addrs", existAddr)
@@ -259,4 +240,19 @@ func GetTunAddress() (*TunAddress, error) {
 		IPv4Portal: ipv4.Next().Next().String(),
 		IPv6Portal: ipv6.Next().Next().String(),
 	}, nil
+}
+
+func findAvailableAddr(v6 bool, existAddr *set.Set[netip.Prefix], maxTries int) (netip.Addr, bool) {
+	for range maxTries {
+		var addr netip.Prefix
+		if v6 {
+			addr = config.TunV6UlaGenerate().Masked()
+		} else {
+			addr = config.TunV4UlaGenerate().Masked()
+		}
+		if !existAddr.Has(addr) {
+			return addr.Addr(), true
+		}
+	}
+	return netip.Addr{}, false
 }

@@ -79,7 +79,7 @@ func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netap
 	}, nil
 }
 
-func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code int, resource func(hedaer dnsmessage.RR_Header) dnsmessage.RR) dnsmessage.Msg {
+func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code int, resource ...func(hedaer dnsmessage.RR_Header) dnsmessage.RR) dnsmessage.Msg {
 	msg := dnsmessage.Msg{
 		MsgHdr: dnsmessage.MsgHdr{
 			Id:                 0,
@@ -98,16 +98,18 @@ func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code int, resource f
 		},
 	}
 
-	if resource == nil {
+	if len(resource) == 0 {
 		return msg
 	}
 
-	msg.Answer = append(msg.Answer, resource(dnsmessage.RR_Header{
-		Name:   req.Name,
-		Rrtype: req.Qtype,
-		Class:  dnsmessage.ClassINET,
-		Ttl:    40,
-	}))
+	for _, resource := range resource {
+		msg.Answer = append(msg.Answer, resource(dnsmessage.RR_Header{
+			Name:   req.Name,
+			Rrtype: req.Qtype,
+			Class:  dnsmessage.ClassINET,
+			Ttl:    40,
+		}))
+	}
 
 	return msg
 }
@@ -120,7 +122,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 	}
 
 	if !system.IsDomainName(req.Name) {
-		return f.newAnswerMessage(req, dnsmessage.RcodeNameError, nil), nil
+		return f.newAnswerMessage(req, dnsmessage.RcodeNameError), nil
 	}
 
 	domain := req.Name[:len(req.Name)-1]
@@ -131,7 +133,12 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 
 	switch req.Qtype {
 	case dnsmessage.TypePTR:
-		domain, err := f.LookupPtr(req.Name)
+		ip, err := RetrieveIPFromPtr(req.Name)
+		if err != nil {
+			return f.newAnswerMessage(req, dnsmessage.RcodeNameError), nil
+		}
+
+		domain, err := f.LookupPtr(ip)
 		if err != nil {
 			return f.Resolver.Raw(ctx, req)
 		}
@@ -164,7 +171,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 
 	case dnsmessage.TypeAAAA:
 		if !configuration.IPv6.Load() {
-			return f.newAnswerMessage(req, dnsmessage.RcodeSuccess, nil), nil
+			return f.newAnswerMessage(req, dnsmessage.RcodeSuccess), nil
 		}
 
 		if ctx.Value(SkipCheckKey{}) != true {
@@ -297,12 +304,7 @@ func RetrieveIPFromPtr(name string) (net.IP, error) {
 	return ipv4, nil
 }
 
-func (f *FakeDNS) LookupPtr(name string) (string, error) {
-	ip, err := RetrieveIPFromPtr(name)
-	if err != nil {
-		return "", err
-	}
-
+func (f *FakeDNS) LookupPtr(ip net.IP) (string, error) {
 	ipAddr, _ := netip.AddrFromSlice(ip)
 	ipAddr = ipAddr.Unmap()
 

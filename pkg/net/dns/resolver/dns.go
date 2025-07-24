@@ -134,10 +134,10 @@ func NewClient(config Config, dialer Dialer) netapi.Resolver {
 		Hdr: dns.RR_Header{
 			Name:   ".",
 			Rrtype: dns.TypeOPT,
-			Class:  8192,
 		},
 	}
 
+	optrbody.SetUDPSize(8192)
 	optrbody.SetExtendedRcode(dns.RcodeSuccess)
 
 	if config.Subnet.IsValid() {
@@ -240,7 +240,7 @@ func mergerError(i4err, i6err error) error {
 func (c *client) query(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	dialer := c.dialer
 
-	reqMsg := dns.Msg{
+	reqMsg := &dns.Msg{
 		MsgHdr: dns.MsgHdr{
 			Id:                 uint16(rand.UintN(math.MaxUint16)),
 			Response:           false,
