@@ -21,7 +21,7 @@ import (
 	gpn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
-	"github.com/google/uuid"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"golang.org/x/crypto/blake2b"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -119,7 +119,7 @@ func (b *Backup) Get(context.Context, *emptypb.Empty) (*backup.BackupOption, err
 		}
 
 		if config.GetInstanceName() == "" {
-			config.SetInstanceName(uuid.NewString())
+			config.SetInstanceName(id.GenerateUUID().String())
 		}
 
 		return nil

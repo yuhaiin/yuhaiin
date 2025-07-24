@@ -10,14 +10,14 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/google/uuid"
 )
 
 type Conn struct {
 	net.Conn
 	dst      netapi.Address
-	id       uuid.UUID
+	id       id.UUID
 	received bool
 	udp      bool
 

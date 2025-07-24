@@ -74,11 +74,10 @@ func NewHttpTermination(c *protocol.HttpTermination, p netapi.Proxy) (netapi.Pro
 		},
 		Director: func(pr *http.Request) {
 			ctx := netapi.WithContext(context.TODO())
-			ctx.Resolver.SetResolverResolver(trie.SkipResolver)
 
 			addr, _ := netapi.ParseAddress("tcp", pr.Host)
 
-			if v, ok := headers.Search(ctx, addr); ok {
+			if v, ok := headers.Search(trie.OnlyMatchFqdn(ctx), addr); ok {
 				for _, v := range v.GetHeaders() {
 					pr.Header.Set(v.GetKey(), v.GetValue())
 				}

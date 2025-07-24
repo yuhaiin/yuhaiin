@@ -144,6 +144,8 @@ func (c *Connections) Remove(id uint64) {
 }
 
 func (c *Connections) storeConnection(o connection, info *statistic.Connection) {
+	metrics.Counter.AddConnection(info.GetAddr())
+
 	id := info.GetId()
 	c.connStore.Store(id, o)
 	c.infoStore.Store(id, info)
@@ -233,13 +235,9 @@ func getRealAddr(store *netapi.Context, addr netapi.Address) string {
 func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAddr() net.Addr }, addr netapi.Address) *statistic.Connection {
 	store := netapi.GetContext(ctx)
 
-	realAddr := getRealAddr(store, addr)
-
-	metrics.Counter.AddConnection(realAddr)
-
 	connection := &statistic.Connection_builder{
 		Id:   proto.Uint64(c.idSeed.Generate()),
-		Addr: proto.String(realAddr),
+		Addr: proto.String(getRealAddr(store, addr)),
 		Type: (&statistic.NetType_builder{
 			ConnType: statistic.Type(statistic.Type_value[addr.Network()]).Enum(),
 		}).Build(),

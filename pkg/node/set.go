@@ -14,7 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/google/uuid"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
 
 // Set
@@ -25,7 +25,7 @@ type Set struct {
 	manager   *Manager
 	outbound  *outbound
 	Nodes     []string
-	randomKey uuid.UUID
+	randomKey id.UUID
 	strategy  protocol.SetStrategyType
 }
 
@@ -39,7 +39,7 @@ func NewSet(nodes *protocol.Set, m *Manager) (netapi.Proxy, error) {
 		manager:   m,
 		outbound:  m.Outbound(),
 		Nodes:     ns,
-		randomKey: uuid.New(),
+		randomKey: id.GenerateUUID(),
 		strategy:  nodes.GetStrategy(),
 	}, nil
 }

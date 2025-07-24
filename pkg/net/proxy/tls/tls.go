@@ -17,7 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/google/uuid"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
 
 type Tls struct {
@@ -57,7 +57,38 @@ type patternServerNameConfigPool struct {
 
 func (p *patternServerNameConfigPool) getConfig() *tls.Config {
 	c := p.config.Clone()
-	c.ServerName = fmt.Sprintf("%s.%s", uuid.NewString(), p.serverNameSuffix)
+	c.ServerName = fmt.Sprintf("%s.%s", id.GenerateUUID().HexString(), p.serverNameSuffix)
+	return c
+}
+
+type bilibiliMcdnPatternServerNameConfigPool struct {
+	config           *tls.Config
+	serverNameSuffix string
+}
+
+func (p *bilibiliMcdnPatternServerNameConfigPool) getConfig() *tls.Config {
+	c := p.config.Clone()
+
+	prefix := fmt.Sprintf("xy%dx%dx%dx%dxy", rand.IntN(255), rand.IntN(255), rand.IntN(255), rand.IntN(255))
+
+	if rand.IntN(2) == 0 {
+		ipv6 := net.IP{
+			byte(rand.IntN(255)), byte(rand.IntN(255)),
+			byte(rand.IntN(255)), byte(rand.IntN(255)),
+			byte(rand.IntN(255)), byte(rand.IntN(255)),
+			byte(rand.IntN(255)), byte(rand.IntN(255)),
+			0, 0,
+			0, 0,
+			0, 0,
+			byte(rand.IntN(255)), byte(rand.IntN(255)),
+		}.String()
+
+		ipv6 = strings.ReplaceAll(ipv6, ":", "y")
+
+		prefix += ipv6 + "xy"
+	}
+
+	c.ServerName = fmt.Sprintf("%s.%s", prefix, p.serverNameSuffix)
 	return c
 }
 
@@ -66,10 +97,20 @@ func newConfigPool(serverName string, config *tls.Config) cliectConfigPool {
 		return &fixedConfigPool{config}
 	}
 
-	if serverName[:2] == "*." {
-		return &patternServerNameConfigPool{
-			config:           config,
-			serverNameSuffix: serverName[2:],
+	i := strings.IndexByte(serverName, '.')
+	if i > 0 {
+		switch serverName[:i] {
+		case "<bilibili_mcdn>":
+			return &bilibiliMcdnPatternServerNameConfigPool{
+				config:           config,
+				serverNameSuffix: serverName[i+1:],
+			}
+
+		case "*":
+			return &patternServerNameConfigPool{
+				config:           config,
+				serverNameSuffix: serverName[i+1:],
+			}
 		}
 	}
 
