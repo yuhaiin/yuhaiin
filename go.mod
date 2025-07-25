@@ -4,7 +4,7 @@ go 1.24.4
 
 require (
 	github.com/cloudflare/circl v1.6.1
-	github.com/go-json-experiment/json v0.0.0-20250714165856-be8212f5270d
+	github.com/go-json-experiment/json v0.0.0-20250725192818-e39067aee2d2
 	github.com/godbus/dbus/v5 v5.1.1-0.20241109141217-c266b19b28e9
 	github.com/google/nftables v0.3.0
 	github.com/google/uuid v1.6.0
@@ -17,7 +17,7 @@ require (
 	github.com/refraction-networking/utls v1.8.0
 	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da
 	github.com/vishvananda/netlink v1.3.1
-	github.com/xtls/reality v0.0.0-20250723121014-c6320729d93b
+	github.com/xtls/reality v0.0.0-20250725142056-5b52a03d4fb7
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250725105335-1f31b17f787c
 	go.etcd.io/bbolt v1.4.2
 	golang.org/x/crypto v0.40.0
