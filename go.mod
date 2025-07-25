@@ -18,7 +18,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20250723121014-c6320729d93b
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250719170523-24dab07292a1
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250725105335-1f31b17f787c
 	go.etcd.io/bbolt v1.4.2
 	golang.org/x/crypto v0.40.0
 	golang.org/x/mobile v0.0.0-20250711185624-d5bb5ecc55c0
@@ -29,7 +29,7 @@ require (
 	google.golang.org/grpc v1.74.2
 	google.golang.org/protobuf v1.36.6
 	gvisor.dev/gvisor v0.0.0-20250529183007-2a7b5c7dece9
-	tailscale.com v1.84.3
+	tailscale.com v1.86.0
 )
 
 require (
