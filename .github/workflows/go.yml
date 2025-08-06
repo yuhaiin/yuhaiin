@@ -115,13 +115,14 @@ jobs:
         run: |
           go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
           make ${{ matrix.cmd }}
+          mv yuhaiin${{ matrix.env[0] == 'windows' && '.exe' || '' }} yuhaiin-${{ matrix.env[0] }}-${{ matrix.env[1] }}${{ matrix.env[0] == 'windows' && '.exe' || '' }}
 
       - name: upload_${{ matrix.cmd }}_${{ matrix.env[0] }}_${{ matrix.env[1] }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.cmd }}_${{ matrix.env[0] }}_${{ matrix.env[1] }}
           path: |
-            ${{ matrix.cmd == 'yuhaiin_lite' && 'yuhaiin' || matrix.cmd }}${{ matrix.env[0] == 'windows' && '.exe' || '' }}
+            yuhaiin-${{ matrix.env[0] }}-${{ matrix.env[1] }}${{ matrix.env[0] == 'windows' && '.exe' || '' }}
 
   release:
     if: github.ref_type == 'tag' || (github.ref_type == 'branch' && github.ref_name == 'main')
@@ -141,16 +142,9 @@ jobs:
 
       - name: download_artifacts
         id: download-artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: artifacts
-
-      - name: rename-artifacts
-        run: |
-          cd artifacts
-          ls
-          bash ../scripts/release/release
-          ls
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -163,5 +157,4 @@ jobs:
           # see: https://github.com/softprops/action-gh-release/issues/79#issuecomment-930339070
           files: |
             release_notes.txt
-            artifacts/*
             artifacts/*/*
