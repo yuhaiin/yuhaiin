@@ -2,12 +2,11 @@ package resolver
 
 import (
 	"context"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-
-	"github.com/go-json-experiment/json"
 )
 
 /*

@@ -2,6 +2,7 @@ package yuhaiin
 
 import (
 	"encoding/binary"
+	"encoding/json/v2"
 	"math"
 	"path/filepath"
 	"sync"
@@ -11,7 +12,6 @@ import (
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/share"
-	"github.com/go-json-experiment/json"
 	"google.golang.org/protobuf/proto"
 )
 
