@@ -3,6 +3,7 @@ package parser
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json/v2"
 	"fmt"
 	"log/slog"
 	"net"
@@ -12,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
-	"github.com/go-json-experiment/json"
 	"google.golang.org/protobuf/proto"
 )
 

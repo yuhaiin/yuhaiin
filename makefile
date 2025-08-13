@@ -12,7 +12,10 @@ endif
 
 CGO_ENABLED := 0
 
-GO=$(shell command -v go | head -n1)
+GOENV=GOEXPERIMENT=jsonv2,greenteagc
+
+GO=$(GOENV) $(shell command -v go | head -n1)
+GO_MOBILE=$(GOENV) $(shell command -v gomobile | head -n1)
 
 GO_LDFLAGS= -s -w -buildid=
 GO_LDFLAGS += -X "$(MODULE)/internal/version.Version=$(BUILD_VERSION)"
@@ -85,12 +88,17 @@ yuhaiin-%:
 
 .PHONY: yuhaiin_android_aar
 yuhaiin_android_aar:
-	gomobile bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags '$(GO_TAGS)' -trimpath -target="android/arm64,android/amd64" -androidapi 21 -o yuhaiin.aar -v ./cmd/android/
+	$(GO_MOBILE) bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags '$(GO_TAGS)' -trimpath -target="android/arm64,android/amd64" -androidapi 21 -o yuhaiin.aar -v ./cmd/android/
 
 # sudo Xcode-select --switch /Applications/Xcode.app/Contents/Developer/
 .PHONY: yuhaiin_macos
 yuhaiin_macos:
-	gomobile bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags '$(GO_TAGS)' -trimpath -target="macos" -o yuhaiin.xcframework -v ./cmd/macos/
+	$(GO_MOBILE) bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags '$(GO_TAGS)' -trimpath -target="macos" -o yuhaiin.xcframework -v ./cmd/macos/
+
+.PHONY: license
+license:
+	$(GOENV) GOFLAGS="-tags=android,cgo,darwin,freebsd,ios,js,linux,openbsd,wasm,windows,$(GO_TAGS)" go-licenses report github.com/Asutorufa/yuhaiin/cmd/yuhaiin > licenses/yuhaiin.md --template .github/licenses.tmpl
+	$(GOENV) GOFLAGS="-tags=android,cgo,darwin,freebsd,ios,js,linux,openbsd,wasm,windows,$(GO_TAGS)" go-licenses report github.com/Asutorufa/yuhaiin/cmd/android > licenses/android.md --template .github/licenses.tmpl
 
 .PHONY: install
 install: build cli
