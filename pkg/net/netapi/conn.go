@@ -1,9 +1,11 @@
 package netapi
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"runtime"
+	"syscall"
 	"time"
 )
 
@@ -43,4 +45,14 @@ func (l *LogConn) SetWriteDeadline(t time.Time) error {
 	fmt.Println("set write deadline", "time", t, "line", line, "file", file, "time", t)
 
 	return l.Conn.SetWriteDeadline(t)
+}
+
+func IsConnectionTimedout(err error) bool {
+	var se syscall.Errno
+
+	if !errors.As(err, &se) {
+		return false
+	}
+
+	return se == syscall.ETIMEDOUT
 }
