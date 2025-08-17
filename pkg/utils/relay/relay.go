@@ -2,10 +2,10 @@ package relay
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
-	"os"
 	"reflect"
 	"syscall"
 
@@ -22,13 +22,14 @@ var ignoreError = []error{
 }
 
 var ignoreSyscallErrno = map[syscall.Errno]bool{
-	syscall.EPIPE:      true, // broken pipe
-	syscall.ECONNRESET: true, // connection reset by peer
-	syscall.ENOTCONN:   true, // transport endpoint is not connected
-	syscall.ETIMEDOUT:  true, // connection timed out
-	10053:              true, // wsasend: An established connection was aborted by the software in your host machine." osSyscallErrType=syscall.Errno errInt=10053
-	10054:              true, // wsarecv: An existing connection was forcibly closed by the remote host." osSyscallErrType=syscall.Errno errInt=10054
-	10060:              true, // "wsarecv: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond." osSyscallErrType=syscall.Errno errInt=10060
+	syscall.EPIPE:        true, // broken pipe
+	syscall.ECONNRESET:   true, // connection reset by peer
+	syscall.ENOTCONN:     true, // transport endpoint is not connected
+	syscall.ETIMEDOUT:    true, // connection timed out
+	syscall.EHOSTUNREACH: true, // no route to host
+	10053:                true, // wsasend: An established connection was aborted by the software in your host machine." osSyscallErrType=syscall.Errno errInt=10053
+	10054:                true, // wsarecv: An existing connection was forcibly closed by the remote host." osSyscallErrType=syscall.Errno errInt=10054
+	10060:                true, // wsarecv: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond." osSyscallErrType=syscall.Errno errInt=10060
 }
 
 var ignoreNetOpErrString = map[string]bool{
@@ -62,29 +63,19 @@ func isIgnoreError(err error) ([]any, bool) {
 		return nil, true
 	}
 
-	args := []any{
-		slog.Any("netOpErr", netOpErr),
-		slog.Any("netOpErrType", reflect.TypeOf(netOpErr.Err)),
-	}
+	args := []any{}
 
-	osSyscallErr := &os.SyscallError{}
-	if !errors.As(netOpErr.Err, &osSyscallErr) {
-		return args, false
-	}
-
+	var se syscall.Errno
 	// the Is [syscall.Errno.Is] function of syscall.Errno only check a little error code
 	// so we check it by ourselves
-	errInt, ok := osSyscallErr.Err.(syscall.Errno)
-	if ok {
-		if ignoreSyscallErrno[errInt] {
+	if errors.As(netOpErr.Err, &se) {
+		if ignoreSyscallErrno[se] {
 			return nil, true
 		}
-
-		args = append(args, slog.Any("osSyscallErrInt", errInt))
+		args = append(args, slog.Any("syscall.Errno", se))
+	} else {
+		args = append(args, slog.Any("net.OpError", fmt.Sprintf("%v, type: %v", netOpErr, reflect.TypeOf(netOpErr.Err))))
 	}
-
-	args = append(args, slog.Any("osSyscallErr", osSyscallErr))
-	args = append(args, slog.Any("osSyscallErrType", reflect.TypeOf(osSyscallErr.Err)))
 
 	return args, false
 }
