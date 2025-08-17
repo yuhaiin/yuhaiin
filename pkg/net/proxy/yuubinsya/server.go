@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -101,10 +102,13 @@ func (y *server) startTCP() (err error) {
 func (y *server) handle(conn net.Conn) error {
 	c := pool.NewBufioConnSize(conn, configuration.UDPBufferSize.Load())
 
-	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 30))
+	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 16))
 	header, err := DecodeHeader(y.hash, c)
 	_ = conn.SetReadDeadline(time.Time{})
 	if err != nil {
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			return nil
+		}
 		return fmt.Errorf("parse header failed: %w", err)
 	}
 
@@ -126,7 +130,9 @@ func (y *server) handle(conn net.Conn) error {
 				header.MigrateID = nat.GenerateID(c.RemoteAddr())
 			}
 
+			_ = c.SetWriteDeadline(time.Now().Add(time.Second * 16))
 			err = pool.BinaryWriteUint64(c, binary.BigEndian, header.MigrateID)
+			_ = c.SetWriteDeadline(time.Time{})
 			if err != nil {
 				return fmt.Errorf("write migrate id failed: %w", err)
 			}
@@ -143,6 +149,10 @@ func (y *server) handle(conn net.Conn) error {
 		for {
 			n, addr, err := pc.ReadFrom(buf)
 			if err != nil {
+				if errors.Is(err, os.ErrDeadlineExceeded) || netapi.IsConnectionTimedout(err) {
+					return nil
+				}
+
 				return fmt.Errorf("read udp request failed: %w", err)
 			}
 

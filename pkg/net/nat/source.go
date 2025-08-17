@@ -465,7 +465,8 @@ func ignoreError(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) ||
 		errors.Is(err, context.Canceled) ||
 		errors.Is(err, os.ErrDeadlineExceeded) ||
-		errors.Is(err, io.EOF)
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, net.ErrClosed)
 }
 
 func (s *SourceControl) parseAddr(from net.Addr) net.Addr {

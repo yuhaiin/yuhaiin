@@ -275,7 +275,7 @@ func NewBpfTcp() *BpfTcp {
 
 func (b *BpfTcp) Close() error {
 	var err error
-	if b.tcpconnect != nil && b.tcpconnect.Process != nil {
+	if b != nil && b.tcpconnect != nil && b.tcpconnect.Process != nil {
 		if er := b.tcpconnect.Process.Kill(); er != nil {
 			err = errors.Join(err, er)
 		}

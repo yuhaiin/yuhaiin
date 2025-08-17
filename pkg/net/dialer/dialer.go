@@ -117,6 +117,8 @@ func ListenPacket(ctx context.Context, network, address string, opts ...func(*Op
 	return ListenPacketWithOptions(ctx, network, address, opt)
 }
 
+const socketBufferSize = 7 << 20
+
 func ListenPacketWithOptions(ctx context.Context, network, address string, opts *Options) (net.PacketConn, error) {
 	iface, ok := ctx.Value(NetworkInterfaceKey{}).(string)
 	if ok {
@@ -139,9 +141,16 @@ func ListenPacketWithOptions(ctx context.Context, network, address string, opts 
 			return setSocketOptions(network, address, c, opts)
 		},
 	}
+
 	pc, err := lc.ListenPacket(ctx, network, address)
 	if err != nil {
 		return nil, err
+	}
+
+	// copy from https://github.com/tailscale/tailscale/blob/cf739256caa86d8ba48f107bb22c623de0d0822d/net/udprelay/server.go#L459C1-L459C33
+	if up, ok := pc.(*net.UDPConn); ok {
+		_ = up.SetWriteBuffer(socketBufferSize)
+		_ = up.SetReadBuffer(socketBufferSize)
 	}
 
 	// if opts.tryUpgradeToBatch && runtime.GOOS == "linux" {

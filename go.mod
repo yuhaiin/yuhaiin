@@ -16,16 +16,16 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20250727231020-de3bb4d08f5a
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250725105335-1f31b17f787c
-	go.etcd.io/bbolt v1.4.2
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250820140605-a369d25425b2
+	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.41.0
-	golang.org/x/mobile v0.0.0-20250808145247-395d808d53cd
+	golang.org/x/mobile v0.0.0-20250813145510-f12310a0cfd9
 	golang.org/x/net v0.43.0
 	golang.org/x/sys v0.35.0
 	golang.org/x/time v0.12.0
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20250318115841-8e6558eba666
-	google.golang.org/grpc v1.74.2
-	google.golang.org/protobuf v1.36.7
+	google.golang.org/grpc v1.75.0
+	google.golang.org/protobuf v1.36.8
 	gvisor.dev/gvisor v0.0.0-20250529183007-2a7b5c7dece9
 	tailscale.com v1.9999999999.99999999999
 )
@@ -110,7 +110,7 @@ require (
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/tools v0.36.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
 )
 
 replace (
