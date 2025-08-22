@@ -5,6 +5,7 @@ package interfaces
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/vishvananda/netlink"
 )
 
@@ -140,4 +142,75 @@ func defaultRouteInterfaceProcNet() (string, error) {
 		return defaultRouteInterfaceProcNetInternal(4096)
 	}
 	return rc, err
+}
+
+type monitor struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	onRouteUpdate func(netlink.Route)
+	onLinkUpdate  func(netlink.Link)
+}
+
+func NewMonitor(onRouteUpdate func(netlink.Route), onLinkUpdate func(netlink.Link)) NetworkMonitor {
+	ctx, cancel := context.WithCancel(context.Background())
+	m := &monitor{
+		ctx:           ctx,
+		cancel:        cancel,
+		onRouteUpdate: onRouteUpdate,
+		onLinkUpdate:  onLinkUpdate,
+	}
+
+	if err := m.Start(); err != nil {
+		log.Error("start monitor failed", "err", err)
+	}
+
+	return m
+}
+
+func (m *monitor) Start() error {
+	routeCh := make(chan netlink.RouteUpdate, 10)
+	if err := netlink.RouteSubscribe(routeCh, m.ctx.Done()); err != nil {
+		return err
+	}
+
+	routeLin := make(chan netlink.LinkUpdate, 10)
+	if err := netlink.LinkSubscribe(routeLin, m.ctx.Done()); err != nil {
+		return err
+	}
+
+	go func() {
+		for {
+			select {
+			case <-m.ctx.Done():
+				return
+			case msg := <-routeCh:
+				m.onRouteUpdate(msg.Route)
+			case msg := <-routeLin:
+				m.onLinkUpdate(msg.Link)
+			}
+		}
+	}()
+	return nil
+}
+
+func (m *monitor) Stop() error {
+	m.cancel()
+	return nil
+}
+
+func startMonitor(ctx context.Context, onChange func()) {
+	m := NewMonitor(
+		func(r netlink.Route) {
+			onChange()
+		},
+		func(l netlink.Link) {
+			onChange()
+		},
+	)
+
+	<-ctx.Done()
+	if err := m.Stop(); err != nil {
+		log.Error("stop monitor failed", "err", err)
+	}
 }

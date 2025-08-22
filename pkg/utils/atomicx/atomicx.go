@@ -35,3 +35,10 @@ func NewPointer[T any](x *T) *atomic.Pointer[T] {
 
 	return z
 }
+
+func PointerOrEmpty[T any](x *T) T {
+	if x != nil {
+		return *x
+	}
+	return *new(T)
+}
