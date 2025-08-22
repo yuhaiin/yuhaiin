@@ -3,11 +3,8 @@ package app
 import (
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
@@ -30,10 +27,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/goos"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.etcd.io/bbolt"
@@ -119,6 +114,8 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	log.Info("config", "path", so.ConfigPath)
 
+	AddCloser(closers, "network_monitor", interfaces.StartNetworkMonitor())
+
 	// proxy access point/endpoint
 	nodeManager := AddCloser(closers, "node_manager", node.NewManager(tools.PathGenerator.Node(so.ConfigPath)))
 	register.RegisterPoint(func(x *protocol.Set, p netapi.Proxy) (netapi.Proxy, error) {
@@ -190,96 +187,6 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	return app, nil
 }
 
-type resultCache[K any, T comparable] struct {
-	do               func(K) (T, error)
-	expireTime       int64
-	successThreshold int32
-	currentSuccess   atomic.Int32
-	lastTime         atomic.Int64
-	Data             atomicx.Value[T]
-}
-
-func NewResultCache[K any, T comparable](do func(K) (T, error), expireTime int64, successThreshold int32) *resultCache[K, T] {
-	return &resultCache[K, T]{
-		do:               do,
-		expireTime:       expireTime,
-		successThreshold: successThreshold,
-	}
-}
-
-func (c *resultCache[K, T]) Get(x K) (T, error) {
-
-	now := system.CheapNowNano()
-
-	if c.currentSuccess.Load() >= c.successThreshold && now-c.lastTime.Load() <= c.expireTime {
-		if data := c.Data.Load(); data != *new(T) {
-			return data, nil
-		}
-	}
-
-	data, err := c.do(x)
-	if err != nil {
-		c.currentSuccess.Store(0)
-		return *new(T), err
-	}
-
-	c.Data.Store(data)
-	c.lastTime.Store(now)
-	c.currentSuccess.Add(1)
-
-	return data, nil
-}
-
-func setDefaultInterfaceName(defaultInterface string, useDefaultInterface bool) {
-	// default interface
-	iface := ""
-
-	var mu sync.RWMutex
-
-	checkInterface := func(x string) (string, error) {
-		if _, err := net.InterfaceByName(x); err != nil {
-			return "", err
-		}
-
-		return x, nil
-	}
-
-	resultCache := NewResultCache(checkInterface, int64(time.Minute), 5)
-
-	dialer.DefaultInterfaceName = func() string {
-		if goos.IsAndroid == 1 || !useDefaultInterface {
-			return defaultInterface
-		}
-
-		mu.RLock()
-		x := iface
-		mu.RUnlock()
-
-		if x != "" {
-			if _, err := resultCache.Get(x); err == nil {
-				return x
-			}
-
-			mu.Lock()
-			iface = ""
-			mu.Unlock()
-		}
-
-		mu.Lock()
-		defer mu.Unlock()
-
-		ifacestr, err := interfaces.DefaultRouteInterface()
-		if err != nil {
-			log.Error("get default interface failed", "error", err)
-		} else {
-			log.Info("use default interface", "interface", ifacestr)
-			iface = ifacestr
-		}
-
-		return ifacestr
-	}
-}
-
 func updateConfiguration(so *StartOptions) func(s *pc.Setting) {
 	return func(s *pc.Setting) {
 		log.Set(s.GetLogcat(), tools.PathGenerator.Log(so.ConfigPath))
@@ -288,7 +195,13 @@ func updateConfiguration(so *StartOptions) func(s *pc.Setting) {
 
 		sysproxy.Update(s)
 
-		setDefaultInterfaceName(s.GetNetInterface(), s.GetUseDefaultInterface())
+		dialer.DefaultInterfaceName = func() string {
+			if goos.IsAndroid == 1 || !s.GetUseDefaultInterface() {
+				return s.GetNetInterface()
+			}
+
+			return interfaces.DefaultInterfaceName()
+		}
 
 		dialer.DefaultIPv6PreferUnicastLocalAddr = s.GetIpv6LocalAddrPreferUnicast()
 
