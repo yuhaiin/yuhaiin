@@ -316,9 +316,7 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		return &emptypb.Empty{}, nil
 	}
 
-	jsonbytes, err := protojson.MarshalOptions{
-		Indent: "\t",
-	}.Marshal(data)
+	jsonbytes, err := protojson.MarshalOptions{Indent: "\t"}.Marshal(data)
 	if err != nil {
 		return nil, err
 	}

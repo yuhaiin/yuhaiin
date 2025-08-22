@@ -16,9 +16,11 @@ type Tun2socket struct {
 
 	handler netapi.Handler
 	Mtu     int32
+
+	DeviceName string
 }
 
-func New(o *device.Opt) (netapi.Accepter, error) {
+func New(o *device.Opt) (*Tun2socket, error) {
 	device, err := device.OpenWriter(o.Interface, int(o.GetMtu()))
 	if err != nil {
 		return nil, fmt.Errorf("open tun device failed: %w", err)
@@ -33,15 +35,20 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 	}
 
 	handler := &Tun2socket{
-		nat:     nat,
-		device:  device,
-		Mtu:     o.GetMtu(),
-		handler: o.Handler,
+		nat:        nat,
+		device:     device,
+		Mtu:        o.GetMtu(),
+		handler:    o.Handler,
+		DeviceName: o.Interface.Name,
 	}
 
 	go handler.tcpLoop()
 
 	return handler, nil
+}
+
+func (h *Tun2socket) Interface() string {
+	return h.DeviceName
 }
 
 func (h *Tun2socket) Close() error {

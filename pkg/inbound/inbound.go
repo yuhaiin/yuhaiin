@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
 )
@@ -39,6 +40,9 @@ type Inbound struct {
 
 	hijackDNS atomic.Bool
 	fakeip    atomic.Bool
+
+	interfaces     *set.Set[string]
+	interfacesLock sync.RWMutex
 }
 
 func NewInbound(dnsHandler netapi.DNSServer, dialer netapi.Proxy) *Inbound {
@@ -48,6 +52,7 @@ func NewInbound(dnsHandler netapi.DNSServer, dialer netapi.Proxy) *Inbound {
 		handler:    NewHandler(dialer, dnsHandler),
 		ctx:        ctx,
 		close:      cancel,
+		interfaces: set.NewSet[string](),
 		udpChannel: make(chan *netapi.Packet, configuration.UDPChannelBufferSize),
 	}
 
@@ -168,6 +173,29 @@ func (l *Inbound) Save(req *pl.Inbound) {
 
 	log.Info("start server", "name", req.GetName())
 	l.store.Store(req.GetName(), entry{req, server})
+
+	l.refreshInterfaces()
+}
+
+func (l *Inbound) refreshInterfaces() {
+	l.interfacesLock.Lock()
+	defer l.interfacesLock.Unlock()
+
+	ifaces := set.NewSet[string]()
+	for _, v := range l.store.Range {
+		if v.server.Interface() != "" {
+			ifaces.Push(v.server.Interface())
+		}
+	}
+
+	l.interfaces = ifaces
+}
+
+func (l *Inbound) Interfaces() *set.Set[string] {
+	l.interfacesLock.RLock()
+	defer l.interfacesLock.RUnlock()
+
+	return l.interfaces
 }
 
 func (l *Inbound) Remove(name string) {

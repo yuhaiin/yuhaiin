@@ -95,11 +95,11 @@ func (x *Trie[T]) SearchWithDefault(ctx context.Context, addr netapi.Address, de
 }
 
 func (x *Trie[T]) Clear() error {
-	x.cidr = cidr.NewCidrMapper[T]()
+	x.cidr = cidr.NewCidrTrie[T]()
 	x.domain = domain.NewDomainMapper[T]()
 	return nil
 }
 
 func NewTrie[T any]() *Trie[T] {
-	return &Trie[T]{cidr: cidr.NewCidrMapper[T](), domain: domain.NewDomainMapper[T]()}
+	return &Trie[T]{cidr: cidr.NewCidrTrie[T](), domain: domain.NewDomainMapper[T]()}
 }

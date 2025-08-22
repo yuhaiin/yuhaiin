@@ -30,8 +30,6 @@ func init() {
 	register.SetBootstrap(Default)
 }
 
-type PacketConnNoWarpKey struct{}
-
 var Default netapi.Proxy = NewDirect()
 
 func NewDirect() netapi.Proxy {
@@ -45,22 +43,23 @@ func (d *direct) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 	return dialer.DialHappyEyeballsv2(ctx, s)
 }
 
-func (d *direct) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketConn, error) {
-	opts := []func(*dialer.Options){
-		dialer.WithTryUpgradeToBatch(),
+func (d *direct) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
+	ur, err := dialer.ResolveUDPAddr(ctx, addr)
+	if err != nil {
+		return nil, err
 	}
 
-	if d.iface != "" {
-		ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, d.iface)
-	}
+	log.Info("direct packet conn", "addr", addr, "udpaddr", ur)
 
-	p, err := dialer.ListenPacket(ctx, "udp", "", opts...)
+	p, err := dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
+		if d.iface != "" {
+			o.InterfaceName = d.iface
+		}
+
+		o.PacketConnHintAddress = ur
+	})
 	if err != nil {
 		return nil, fmt.Errorf("listen packet failed: %w", err)
-	}
-
-	if ctx.Value(PacketConnNoWarpKey{}) == true {
-		return p, nil
 	}
 
 	return &UDPPacketConn{resolver: netapi.GetContext(ctx).Resolver, BufferPacketConn: NewBufferPacketConn(p)}, nil
@@ -89,14 +88,23 @@ func (d *direct) Ping(ctx context.Context, addr netapi.Address) (uint64, error) 
 		network = "ip4"
 	}
 
-	pinger.SetNetwork(network)
-	pinger.Control = func(fd uintptr) {
-		if !ip.IsLoopback() {
-			// pinger.InterfaceName = dialer.DefaultInterfaceName()
-			if err := dialer.BindInterface(network, fd, dialer.DefaultInterfaceName()); err != nil {
+	bindFd := func(uintptr) {}
+	if !ip.IsLoopback() {
+		iface, err := dialer.GetInterfaceByIP(ip)
+		if err != nil {
+			iface = dialer.DefaultInterfaceName()
+		}
+
+		bindFd = func(fd uintptr) {
+			if err := dialer.BindInterface(network, fd, iface); err != nil {
 				log.Warn("bind interface failed", "err", err)
 			}
 		}
+	}
+
+	pinger.SetNetwork(network)
+	pinger.Control = func(fd uintptr) {
+		bindFd(fd)
 
 		if dialer.DefaultMarkSymbol != nil {
 			if !dialer.DefaultMarkSymbol(int32(fd)) {

@@ -55,7 +55,7 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
 	}
 
 	udp, err := dialer.ListenPacket(context.TODO(), "udp", server,
-		dialer.WithListener(), dialer.WithTryUpgradeToBatch())
+		dialer.WithListener())
 	if err != nil {
 		log.Error("dns udp server listen failed", "err", err)
 	} else {

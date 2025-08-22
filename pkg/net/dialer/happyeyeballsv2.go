@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
@@ -33,6 +31,7 @@ type happyEyeball struct {
 	primaryDone, fallbackDone chan struct{}
 	remainWait                chan struct{}
 	ips                       []net.IP
+	usedIP                    atomic.Int32
 
 	lastIp                    net.IP
 	primaryMode, fallbackMode netapi.ResolverMode
@@ -193,6 +192,11 @@ func (h *happyEyeball) waitFirstDNS(ctx context.Context) (err error) {
 }
 
 func (h *happyEyeball) next(ctx context.Context) net.IP {
+	// we only use first 4 ips to limit the number of requests
+	if h.usedIP.Load() >= 4 {
+		return nil
+	}
+
 	h.mu.RLock()
 	ipslen := len(h.ips)
 	h.mu.RUnlock()
@@ -220,6 +224,8 @@ func (h *happyEyeball) nextIP() net.IP {
 	ip := h.ips[0]
 	h.ips = h.ips[1:]
 	h.mu.Unlock()
+
+	h.usedIP.Add(1)
 	return ip
 }
 
@@ -238,8 +244,6 @@ func (h *happyEyeball) allFailed(ctx context.Context, fails int, firstErr error)
 	return nil
 }
 
-var DefaultIPv6PreferUnicastLocalAddr = false
-
 type HappyEyeballsv2Dialer[T net.Conn] struct {
 	DialContext func(ctx context.Context, ip net.IP, port uint16) (T, error)
 	Cache       HappyEyeballsv2Cache
@@ -248,14 +252,7 @@ type HappyEyeballsv2Dialer[T net.Conn] struct {
 
 var DefaultHappyEyeballsv2Dialer = &HappyEyeballsv2Dialer[net.Conn]{
 	DialContext: func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
-		return DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), strconv.Itoa(int(port))), func(opts *Options) {
-			if DefaultIPv6PreferUnicastLocalAddr && opts.InterfaceName != "" /*|| opts.InterfaceIndex != 0 */ {
-				if ip.IsGlobalUnicast() && !ip.IsPrivate() && ip.To4() == nil && ip.To16() != nil {
-					opts.LocalAddr = GetUnicastAddr(true, "tcp", opts.InterfaceName, 0 /* opts.InterfaceIndex*/)
-					log.Info("happy eyeballs dialer prefer ipv6", slog.Any("localaddr", opts.LocalAddr))
-				}
-			}
-		})
+		return DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), strconv.Itoa(int(port))))
 	},
 	Cache: happyEyeballsCache,
 	Avg:   NewAvg(),
@@ -330,6 +327,7 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(ctx context.Context, addr
 
 				c, err := h.DialContext(ctx, ip, addr.Port())
 				if err != nil {
+					hb.usedIP.Add(-1)
 					// Best effort wake-up a pending dial.
 					// e.g. IPv4 dials failing quickly on an IPv6-only system.
 					// In that case we don't want to wait 300ms per IPv4 before
@@ -346,7 +344,7 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(ctx context.Context, addr
 				case resc <- res{c, err}:
 				case <-ctx.Done():
 					if err == nil {
-						c.Close()
+						_ = c.Close()
 					}
 				}
 			}(ip)
@@ -426,58 +424,4 @@ func Interleave[S ~[]T, T any](a, b S) S {
 	ret = append(ret, a[i:]...)
 	ret = append(ret, b[i:]...)
 	return ret
-}
-
-func GetUnicastAddr(ipv6 bool, network string, name string, index int) net.Addr {
-	if len(network) < 3 {
-		return nil
-	}
-
-	var ifs *net.Interface
-	var err error
-
-	if name != "" {
-		ifs, err = net.InterfaceByName(name)
-	} else if index != 0 {
-		ifs, err = net.InterfaceByIndex(index)
-	} else {
-		return nil
-	}
-	if err != nil {
-		return nil
-	}
-
-	addrs, err := ifs.Addrs()
-	if err != nil {
-		return nil
-	}
-
-	for _, v := range addrs {
-		x, ok := v.(*net.IPNet)
-		if !ok || x.IP == nil {
-			continue
-		}
-
-		if ipv6 && x.IP.To4() != nil {
-			continue
-		} else if !ipv6 && x.IP.To4() == nil {
-			continue
-		}
-
-		if x.IP.IsGlobalUnicast() && !x.IP.IsPrivate() {
-
-			switch network[:3] {
-			case "tcp":
-				return &net.TCPAddr{
-					IP: x.IP,
-				}
-			case "udp":
-				return &net.UDPAddr{
-					IP: x.IP,
-				}
-			}
-		}
-	}
-
-	return nil
 }
