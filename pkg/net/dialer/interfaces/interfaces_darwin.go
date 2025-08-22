@@ -1,15 +1,22 @@
 package interfaces
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net"
+	"net/netip"
+	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"golang.org/x/net/route"
 	"golang.org/x/sys/unix"
 )
@@ -124,7 +131,7 @@ func DefaultRouteInterfaceIndex() (int, error) {
 			if delegatedIndex, err := getDelegatedInterface(rm.Index); err == nil && delegatedIndex != 0 {
 				return delegatedIndex, nil
 			} else if err != nil {
-				log.Printf("interfaces_bsd: could not get delegated interface: %v", err)
+				log.Error("interfaces_bsd: could not get delegated interface", "err", err)
 			}
 			return rm.Index, nil
 		}
@@ -262,4 +269,172 @@ func Set[K comparable, V any, T ~map[K]V](m *T, k K, v V) {
 		*m = make(map[K]V)
 	}
 	(*m)[k] = v
+}
+
+type monitor struct {
+	ctx             context.Context
+	cancel          context.CancelFunc
+	routeSocketFile int
+
+	onMsg func(msgs []route.Message)
+}
+
+func NewMonitor(onMsg func(msgs []route.Message)) NetworkMonitor {
+	ctx, cancel := context.WithCancel(context.Background())
+	m := &monitor{
+		ctx:    ctx,
+		cancel: cancel,
+		onMsg:  onMsg,
+	}
+
+	go m.Start()
+
+	return m
+}
+
+func (m *monitor) Start() {
+	for {
+		select {
+		case <-m.ctx.Done():
+			return
+		default:
+			if err := m.start(); err != nil {
+				log.Error("start monitor failed", "err", err)
+				time.Sleep(time.Second)
+			}
+		}
+	}
+}
+
+func (m *monitor) start() error {
+	routeSocket, err := unix.Socket(unix.AF_ROUTE, unix.SOCK_RAW, 0)
+	if err != nil {
+		return err
+	}
+
+	m.routeSocketFile = routeSocket
+	defer unix.Close(routeSocket)
+
+	buf := pool.GetBytes(2 << 10)
+	defer pool.PutBytes(buf)
+
+	for {
+		n, err := unix.Read(routeSocket, buf[:])
+		if err != nil {
+			return fmt.Errorf("read failed: %w", err)
+		}
+
+		msgs, err := route.ParseRIB(route.RIBTypeRoute, buf[:n])
+		if err != nil {
+			log.Warn("parse rib failed", "err", err, "plen", n, "msgs", len(msgs))
+			continue
+		}
+
+		m.onMsg(msgs)
+	}
+}
+
+func skipMessage(msg route.Message) bool {
+	switch msg := msg.(type) {
+	case *route.InterfaceMulticastAddrMessage:
+		return true
+	case *route.InterfaceAddrMessage:
+		return skipInterfaceAddrMessage(msg)
+	case *route.RouteMessage:
+		return skipRouteMessage(msg)
+	}
+	return false
+}
+
+func IsInterestingInterface(iface string) bool {
+	baseName := strings.TrimRight(iface, "0123456789")
+	switch baseName {
+	// TODO(maisem): figure out what this list should actually be.
+	case "llw", "awdl", "ipsec":
+		return false
+	}
+	return true
+}
+
+// addrType returns addrs[rtaxType], if that (the route address type) exists,
+// else it returns nil.
+//
+// The RTAX_* constants at https://github.com/apple/darwin-xnu/blob/main/bsd/net/route.h
+// for what each address index represents.
+func addrType(addrs []route.Addr, rtaxType int) route.Addr {
+	if len(addrs) > rtaxType {
+		return addrs[rtaxType]
+	}
+	return nil
+}
+
+func skipInterfaceAddrMessage(msg *route.InterfaceAddrMessage) bool {
+	if la, ok := addrType(msg.Addrs, unix.RTAX_IFP).(*route.LinkAddr); ok {
+		if !IsInterestingInterface(la.Name) {
+			return true
+		}
+	}
+	return false
+}
+
+// ipOfAddr returns the route.Addr (possibly nil) as a netip.Addr
+// (possibly zero).
+func ipOfAddr(a route.Addr) netip.Addr {
+	switch a := a.(type) {
+	case *route.Inet4Addr:
+		return netip.AddrFrom4(a.IP)
+	case *route.Inet6Addr:
+		ip := netip.AddrFrom16(a.IP)
+		if a.ZoneID != 0 {
+			ip = ip.WithZone(fmt.Sprint(a.ZoneID)) // TODO: look up net.InterfaceByIndex? but it might be changing?
+		}
+		return ip
+	}
+	return netip.Addr{}
+}
+
+func skipRouteMessage(msg *route.RouteMessage) bool {
+	if ip := ipOfAddr(addrType(msg.Addrs, unix.RTAX_DST)); ip.IsLinkLocalUnicast() {
+		// Skip those like:
+		// dst = fe80::b476:66ff:fe30:c8f6%15
+		return true
+	}
+
+	// currently we only care about default gateways
+	// so skip none-default gateways message
+	return !isDefaultGateway(msg)
+}
+
+func (m *monitor) Stop() error {
+	m.cancel()
+	rsf := m.routeSocketFile
+	if rsf != 0 {
+		unix.Close(rsf)
+	}
+	return nil
+}
+
+func startMonitor(ctx context.Context, onChange func(reason string)) {
+	messageTypes := set.NewSet[string]()
+	m := NewMonitor(func(msgs []route.Message) {
+		nSkip := 0
+		for _, msg := range msgs {
+			if skipMessage(msg) {
+				nSkip++
+			} else {
+				messageTypes.Push(fmt.Sprint(reflect.TypeOf(msg)))
+			}
+		}
+
+		if nSkip == len(msgs) {
+			return
+		}
+
+		onChange(strings.Join(slices.Collect(messageTypes.Range), ","))
+	})
+
+	<-ctx.Done()
+	if err := m.Stop(); err != nil {
+		log.Error("stop monitor failed", "err", err)
+	}
 }

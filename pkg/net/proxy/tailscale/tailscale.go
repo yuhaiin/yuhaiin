@@ -193,8 +193,6 @@ func (t *Tailscale) resolveAddr(dialer *tsnet.Server, addr netapi.Address) (neti
 
 	naddr := netip.AddrPortFrom(ad, addr.Port())
 
-	log.Info("resolve dns", "addr", naddr, "domain", addr, "net", addr.Network())
-
 	return naddr, nil
 }
 

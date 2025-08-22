@@ -1,12 +1,13 @@
 package interfaces
 
 import (
-	"log"
+	"context"
 	"net/url"
 	"strings"
 	"syscall"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 	"tailscale.com/tsconst"
@@ -150,7 +151,7 @@ func getPACWindows() string {
 	)
 	if r == 1 {
 		if res == nil {
-			log.Printf("getPACWindows: unexpected success with nil result")
+			log.Error("getPACWindows: unexpected success with nil result")
 			return ""
 		}
 		defer globalFree.Call(uintptr(unsafe.Pointer(res)))
@@ -160,7 +161,7 @@ func getPACWindows() string {
 			return "" // Issue 2357: invalid URL "\n" from winhttp; ignoring
 		}
 		if _, err := url.Parse(s); err != nil {
-			log.Printf("getPACWindows: invalid URL %q from winhttp; ignoring", s)
+			log.Error("getPACWindows: invalid URL %q from winhttp; ignoring", s)
 			return ""
 		}
 		return s
@@ -172,6 +173,75 @@ func getPACWindows() string {
 		// Common case on networks without advertised PAC.
 		return ""
 	}
-	log.Printf("getPACWindows: %T=%v", e, e) // syscall.Errno=0x....
+	log.Error("getPACWindows: %T=%v", e, e) // syscall.Errno=0x....
 	return ""
+}
+
+type monitor struct {
+	address *winipcfg.UnicastAddressChangeCallback
+	route   *winipcfg.RouteChangeCallback
+
+	onAddressChange func(*winipcfg.MibUnicastIPAddressRow)
+	onRouteChange   func(*winipcfg.MibIPforwardRow2)
+}
+
+func NewMonitor(onAddressChange func(*winipcfg.MibUnicastIPAddressRow), onRouteChange func(*winipcfg.MibIPforwardRow2)) NetworkMonitor {
+	m := &monitor{
+		onAddressChange: onAddressChange,
+		onRouteChange:   onRouteChange,
+	}
+
+	if err := m.Start(); err != nil {
+		log.Error("start monitor failed", "err", err)
+	}
+
+	return m
+}
+
+func (m *monitor) Start() error {
+	ac, err := winipcfg.RegisterUnicastAddressChangeCallback(func(notificationType winipcfg.MibNotificationType, unicastAddress *winipcfg.MibUnicastIPAddressRow) {
+		m.onAddressChange(unicastAddress)
+	})
+	if err != nil {
+		return err
+	}
+
+	rc, err := winipcfg.RegisterRouteChangeCallback(func(notificationType winipcfg.MibNotificationType, route *winipcfg.MibIPforwardRow2) {
+		m.onRouteChange(route)
+	})
+	if err != nil {
+		ac.Unregister()
+		return err
+	}
+
+	m.address = ac
+	m.route = rc
+	return nil
+}
+
+func (m *monitor) Stop() error {
+	if m.address != nil {
+		m.address.Unregister()
+	}
+
+	if m.route != nil {
+		m.route.Unregister()
+	}
+	return nil
+}
+
+func startMonitor(ctx context.Context, onChange func(string)) {
+	m := NewMonitor(
+		func(*winipcfg.MibUnicastIPAddressRow) {
+			onChange("winipcfg.MibUnicastIPAddressRow")
+		},
+		func(*winipcfg.MibIPforwardRow2) {
+			onChange("winipcfg.MibIPforwardRow2")
+		},
+	)
+
+	<-ctx.Done()
+	if err := m.Stop(); err != nil {
+		log.Error("stop monitor failed", "err", err)
+	}
 }
