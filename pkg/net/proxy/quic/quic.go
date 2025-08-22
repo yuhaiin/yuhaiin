@@ -52,7 +52,7 @@ func init() {
 }
 
 func NewClient(config *protocol.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
-	var host *net.UDPAddr = &net.UDPAddr{IP: net.IPv4zero}
+	var host = &net.UDPAddr{IP: net.IPv4zero}
 
 	if config.GetHost() != "" {
 		addr, err := netapi.ParseAddress("udp", config.GetHost())
@@ -120,7 +120,9 @@ func (c *Client) initSession(ctx context.Context) (*quic.Conn, error) {
 	var err error
 
 	if c.dialer == nil {
-		conn, err = dialer.ListenPacket(ctx, "udp", "")
+		conn, err = dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
+			o.PacketConnHintAddress = c.host
+		})
 	} else {
 		conn, err = c.dialer.PacketConn(ctx, netapi.EmptyAddr)
 	}

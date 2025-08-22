@@ -8,7 +8,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
@@ -207,12 +206,12 @@ func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 
 	ctx = context.WithValue(ctx, fixed.PacketDirectKey{}, true)
 
-	if !addr.IsFqdn() {
-		ip := addr.(netapi.IPAddress).AddrPort().Addr()
-		if ip.IsPrivate() || ip.IsLoopback() || ip.IsUnspecified() {
-			ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, "")
-		}
-	}
+	// if !addr.IsFqdn() {
+	// 	ip := addr.(netapi.IPAddress).AddrPort().Addr()
+	// 	if ip.IsPrivate() || ip.IsLoopback() || ip.IsUnspecified() {
+	// 		ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, "")
+	// 	}
+	// }
 
 	pc, err := s.dialer.PacketConn(ctx, addr)
 	if err != nil {

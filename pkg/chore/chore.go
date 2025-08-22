@@ -71,14 +71,13 @@ func (c *Chore) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
 		}
 
 		setting = config.Setting_builder{
-			AdvancedConfig:             s.GetAdvancedConfig(),
-			UseDefaultInterface:        proto.Bool(s.GetUseDefaultInterface()),
-			NetInterface:               proto.String(s.GetNetInterface()),
-			Ipv6:                       proto.Bool(s.GetIpv6()),
-			Ipv6LocalAddrPreferUnicast: proto.Bool(s.GetIpv6LocalAddrPreferUnicast()),
-			Logcat:                     s.GetLogcat(),
-			SystemProxy:                s.GetSystemProxy(),
-			Platform:                   s.GetPlatform(),
+			AdvancedConfig:      s.GetAdvancedConfig(),
+			UseDefaultInterface: proto.Bool(s.GetUseDefaultInterface()),
+			NetInterface:        proto.String(s.GetNetInterface()),
+			Ipv6:                proto.Bool(s.GetIpv6()),
+			Logcat:              s.GetLogcat(),
+			SystemProxy:         s.GetSystemProxy(),
+			Platform:            s.GetPlatform(),
 		}.Build()
 
 		return nil
@@ -94,7 +93,6 @@ func (c *Chore) Save(ctx context.Context, s *config.Setting) (*emptypb.Empty, er
 
 		ss.SetUseDefaultInterface(s.GetUseDefaultInterface())
 		ss.SetNetInterface(s.GetNetInterface())
-		ss.SetIpv6LocalAddrPreferUnicast(s.GetIpv6LocalAddrPreferUnicast())
 
 		ss.SetSystemProxy(s.GetSystemProxy())
 

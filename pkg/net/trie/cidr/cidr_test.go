@@ -9,7 +9,7 @@ import (
 )
 
 func TestCidrMatch(t *testing.T) {
-	cidrMatch := NewCidrMapper[string]()
+	cidrMatch := NewCidrTrie[string]()
 	assert.NoError(t, cidrMatch.Insert("10.2.2.1/18", "testIPv4"))
 	assert.NoError(t, cidrMatch.Insert("2001:0db8:0000:0000:1234:0000:0000:9abc/32", "testIPv6"))
 	assert.NoError(t, cidrMatch.Insert("127.0.0.1/8", "testlocal"))
@@ -36,7 +36,7 @@ func TestCidrMatch(t *testing.T) {
 
 // BenchmarkCidrMatch_Search-4 40390761	 25.77 ns/op  16 B/op  1 allocs/op
 func BenchmarkCidrMatch_Search(b *testing.B) {
-	cidrMatch := NewCidrMapper[string]()
+	cidrMatch := NewCidrTrie[string]()
 	assert.NoError(b, cidrMatch.Insert("10.2.2.1/18", "testIPv4"))
 	assert.NoError(b, cidrMatch.Insert("2001:0db8:0000:0000:1234:0000:0000:9abc/32", "testIPv6"))
 

@@ -11,6 +11,9 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 
 // UDP socket read/write buffer size (7MB). The value of 7MB is chosen as it is
@@ -62,6 +65,10 @@ func DialContext(ctx context.Context, network, address string, opts ...func(*Opt
 	return DialContextWithOptions(ctx, network, address, opt)
 }
 
+var SkipInterface = func() *set.Set[string] {
+	return set.NewSet[string]()
+}
+
 func DialContextWithOptions(ctx context.Context, network, address string, opts *Options) (net.Conn, error) {
 	iface, ok := ctx.Value(NetworkInterfaceKey{}).(string)
 	if ok {
@@ -89,7 +96,54 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 	if configuration.MPTCP {
 		d.SetMultipathTCP(true)
 	}
+
+	store := netapi.GetContext(ctx)
+
+	if opts.InterfaceName != "" {
+		if SkipInterface().Has(opts.InterfaceName) {
+			return nil, fmt.Errorf("block dial to skip infinite loop: iface: %s, addr: %s", iface, address)
+		}
+
+		store.SetInterface(opts.InterfaceName)
+	} else {
+		iface, err := getInterface(address)
+		if err != nil {
+			return nil, err
+		}
+
+		opts.InterfaceName = iface
+		store.SetInterface(iface)
+	}
+
 	return d.DialContext(ctx, network, address)
+}
+
+func getInterface(address string) (string, error) {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", nil
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return "", nil
+	}
+
+	return GetInterfaceByIP(ip)
+}
+
+func GetInterfaceByIP(ip net.IP) (string, error) {
+	iface, ok := interfaces.DefaultRouter().SearchIP(ip)
+	if ok && !SkipInterface().Has(iface) {
+		return iface, nil
+	}
+
+	iface = interfaces.DefaultInterfaceName()
+	if SkipInterface().Has(iface) {
+		return "", fmt.Errorf("block dial to skip infinite loop: iface: %s, addr: %v", iface, ip)
+	}
+
+	return iface, nil
 }
 
 func WithListener() func(*Options) {
@@ -98,7 +152,7 @@ func WithListener() func(*Options) {
 	}
 }
 
-func WithTryUpgradeToBatch() func(*Options) {
+func withTryUpgradeToBatch() func(*Options) {
 	return func(opts *Options) {
 		opts.tryUpgradeToBatch = true
 	}
@@ -140,6 +194,32 @@ func ListenPacketWithOptions(ctx context.Context, network, address string, opts 
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, opts)
 		},
+	}
+
+	store := netapi.GetContext(ctx)
+
+	if opts.InterfaceName != "" {
+		if SkipInterface().Has(opts.InterfaceName) {
+			return nil, fmt.Errorf("block dial to skip infinite loop: iface: %s, addr: %s", iface, opts.PacketConnHintAddress)
+		}
+
+		store.SetInterface(opts.InterfaceName)
+	} else if opts.PacketConnHintAddress != nil {
+		iface, err := GetInterfaceByIP(opts.PacketConnHintAddress.IP)
+		if err != nil {
+			return nil, err
+		}
+
+		opts.InterfaceName = iface
+		store.SetInterface(iface)
+	} else {
+		iface = interfaces.DefaultInterfaceName()
+		if SkipInterface().Has(iface) {
+			return nil, fmt.Errorf("block dial to skip infinite loop: iface: %s, addr: %v", iface, opts.PacketConnHintAddress)
+		}
+
+		opts.InterfaceName = iface
+		store.SetInterface(iface)
 	}
 
 	pc, err := lc.ListenPacket(ctx, network, address)
@@ -186,6 +266,9 @@ type Options struct {
 
 	listener          bool
 	tryUpgradeToBatch bool
+
+	// PacketConnHintAddress to detect default interface
+	PacketConnHintAddress *net.UDPAddr
 }
 
 func isTCPSocket(network string) bool {
