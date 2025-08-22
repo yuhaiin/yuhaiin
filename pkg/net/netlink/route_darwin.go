@@ -2,13 +2,16 @@ package netlink
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"os"
+	"sync"
 	"syscall"
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/networksetup"
 	"golang.org/x/net/route"
 	"golang.org/x/sys/unix"
@@ -79,38 +82,7 @@ func Route(options *Options) (close func(), err error) {
 		}
 	}
 
-	networkService := options.Platform.Darwin.NetworkService
-	if networkService == "" {
-		hp, err := networksetup.GetDefaultHardwarePort()
-		if err != nil {
-			log.Error("get default hardware port failed", "err", err)
-		} else {
-			log.Info("get default hardware port", "device", hp)
-		}
-
-		networkService = hp.Port
-	}
-
-	if networkService != "" {
-		currentDNS, err := networksetup.ListAllDNSServers(networkService)
-		if err == nil {
-			if len(currentDNS) == 0 {
-				currentDNS = nil
-			}
-
-			close = func() {
-				if err := networksetup.SetDNSServers(networkService, currentDNS); err != nil {
-					log.Error("set dns failed", "err", err, "service", networkService)
-				}
-			}
-		} else {
-			log.Error("list all dns servers failed", "err", err, "service", networkService)
-		}
-
-		if err := networksetup.SetDNSServers(networkService, dns); err != nil {
-			log.Error("set dns failed", "err", err, "service", networkService)
-		}
-	}
+	close = setDnsservers(options.Platform.Darwin.NetworkService, dns)
 
 	routes := options.Routes
 
@@ -253,4 +225,79 @@ func setMtu(ifaceName string, mtu int) error {
 	}
 
 	return nil
+}
+
+func setDnsserversToDefaultNetworkService(interfaceName string, dns []string) func() {
+	var hp networksetup.HardwarePort
+	var err error
+	if interfaceName != "" {
+		hp, err = networksetup.GetHardwarePortByDevice(interfaceName)
+	} else {
+		hp, err = networksetup.GetDefaultHardwarePort()
+	}
+	if err != nil {
+		log.Error("get default hardware port failed", "err", err)
+		return func() {}
+	} else {
+		log.Info("get default hardware port", "device", hp)
+	}
+
+	backupDns, err := networksetup.ListAllDNSServers(hp.Port)
+	if err != nil {
+		log.Error("list all dns servers failed", "err", err, "service", hp.Port)
+	}
+
+	if err := networksetup.SetDNSServers(hp.Port, dns); err != nil {
+		log.Error("set dns failed", "err", err)
+		return func() {}
+	}
+
+	return func() {
+		if err := networksetup.SetDNSServers(hp.Port, backupDns); err != nil {
+			log.Error("set dns failed", "err", err)
+		}
+	}
+}
+
+func setDnsservers(networkService string, dns []string) func() {
+	var monitor io.Closer
+	var close func()
+
+	if networkService == "" {
+		close = setDnsserversToDefaultNetworkService("", dns)
+
+		var mu sync.Mutex
+		monitor = interfaces.AddNetworkMonitor(func(interfaceName string) {
+			mu.Lock()
+			defer mu.Unlock()
+
+			close()
+			close = setDnsserversToDefaultNetworkService(interfaceName, dns)
+		})
+	} else {
+		backupDns, err := networksetup.ListAllDNSServers(networkService)
+		if err != nil {
+			log.Error("list all dns servers failed", "err", err, "service", networkService)
+		}
+
+		if err := networksetup.SetDNSServers(networkService, dns); err != nil {
+			log.Error("set dns failed", "err", err, "service", networkService)
+		} else {
+			close = func() {
+				if err := networksetup.SetDNSServers(networkService, backupDns); err != nil {
+					log.Error("set dns failed", "err", err, "service", networkService)
+				}
+			}
+		}
+	}
+
+	return func() {
+		if monitor != nil {
+			monitor.Close()
+		}
+
+		if close != nil {
+			close()
+		}
+	}
 }

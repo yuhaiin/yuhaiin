@@ -144,10 +144,5 @@ func GetHardwarePortByDevice(device string) (HardwarePort, error) {
 }
 
 func GetDefaultHardwarePort() (HardwarePort, error) {
-	dr, err := interfaces.DefaultRoute()
-	if err != nil {
-		return HardwarePort{}, err
-	}
-
-	return GetHardwarePortByDevice(dr.InterfaceName)
+	return GetHardwarePortByDevice(interfaces.DefaultInterfaceName())
 }
