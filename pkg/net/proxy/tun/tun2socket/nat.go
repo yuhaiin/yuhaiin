@@ -66,7 +66,7 @@ func dualStackListen(v4addr, v6addr netip.Addr) (v4, v6 *net.TCPListener, port i
 				InterfaceName: v6iface,
 			})
 		if err != nil {
-			v4listener.Close()
+			_ = v4listener.Close()
 			log.Warn("dual stack listen v6 failed", "err", err)
 			er = errors.Join(er, err)
 			continue
@@ -128,7 +128,7 @@ func Start(opt *device.Opt) (*Nat, error) {
 		// network address, eg: 172.19.0.0
 		v4network = tcpip.AddrFromSlice(opt.V4Address().Masked().Addr().AsSlice())
 
-		if broadcast.Equal(nat.InterfaceAddress.Addressv4) || broadcast.Equal(nat.InterfaceAddress.Portalv4) {
+		if broadcast.Equal(nat.Addressv4) || broadcast.Equal(nat.Portalv4) {
 			broadcast = tcpip.AddrFrom4([4]byte{255, 255, 255, 255})
 		}
 	}
@@ -212,11 +212,11 @@ func Start(opt *device.Opt) (*Nat, error) {
 					wbufs = append(wbufs, bufs[i][:sizes[i]+offset])
 
 				case header.ICMPv4ProtocolNumber:
-					nat.Ping.HandlePing4(bufs[i])
+					nat.HandlePing4(bufs[i])
 					continue
 
 				case header.ICMPv6ProtocolNumber:
-					nat.Ping.HandlePing6(bufs[i])
+					nat.HandlePing6(bufs[i])
 					continue
 
 				case header.UDPProtocolNumber:
@@ -225,7 +225,7 @@ func Start(opt *device.Opt) (*Nat, error) {
 						continue
 					}
 
-					nat.UDP.handleUDPPacket(UDPTuple{
+					nat.handleUDPPacket(UDPTuple{
 						SourceAddr:      src,
 						SourcePort:      u.SourcePort(),
 						DestinationAddr: dst,

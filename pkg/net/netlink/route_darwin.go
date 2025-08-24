@@ -107,7 +107,11 @@ func useSocket(domain, typ, proto int, block func(socketFd int) error) error {
 	if err != nil {
 		return err
 	}
-	defer unix.Close(socketFd)
+	defer func() {
+		if err := unix.Close(socketFd); err != nil {
+			log.Error("close socket failed", "err", err)
+		}
+	}()
 	return block(socketFd)
 }
 
@@ -293,7 +297,7 @@ func setDnsservers(networkService string, dns []string) func() {
 
 	return func() {
 		if monitor != nil {
-			monitor.Close()
+			_ = monitor.Close()
 		}
 
 		if close != nil {

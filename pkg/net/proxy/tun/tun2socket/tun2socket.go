@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 )
@@ -18,7 +19,7 @@ type Tun2socket struct {
 }
 
 func New(o *device.Opt) (netapi.Accepter, error) {
-	device, err := device.OpenWriter(o.Interface, int(o.Tun.GetMtu()))
+	device, err := device.OpenWriter(o.Interface, int(o.GetMtu()))
 	if err != nil {
 		return nil, fmt.Errorf("open tun device failed: %w", err)
 	}
@@ -27,14 +28,14 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 
 	nat, err := Start(o)
 	if err != nil {
-		device.Close()
+		_ = device.Close()
 		return nil, err
 	}
 
 	handler := &Tun2socket{
 		nat:     nat,
 		device:  device,
-		Mtu:     o.Tun.GetMtu(),
+		Mtu:     o.GetMtu(),
 		handler: o.Handler,
 	}
 
@@ -50,10 +51,14 @@ func (h *Tun2socket) Close() error {
 }
 
 func (h *Tun2socket) tcpLoop() {
-	defer h.nat.TCP.Close()
+	defer func() {
+		if err := h.nat.TCP.Close(); err != nil {
+			log.Warn("close tcp failed", "err", err)
+		}
+	}()
 
 	for {
-		conn, err := h.nat.TCP.Accept()
+		conn, err := h.nat.Accept()
 		if err != nil {
 			break
 		}

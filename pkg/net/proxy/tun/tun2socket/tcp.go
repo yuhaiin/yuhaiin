@@ -74,13 +74,13 @@ func (t *TCP) loopv4() {
 
 		tup := t.table.tupleOf(uint16(addr.Port), false)
 
-		if !(t.portalv4.Equal(addr.IP) && tup != zeroTuple) {
+		if !t.portalv4.Equal(addr.IP) || tup == zeroTuple {
 			_ = c.Close()
 			log.Warn("tun2socket v4 unknown remote addr", "addr", addr, "tuple", tup)
 			continue
 		}
 
-		if tup.DestinationPort != 53 && tup.DestinationAddr.Equal(t.InterfaceAddress.Addressv4) {
+		if tup.DestinationPort != 53 && tup.DestinationAddr.Equal(t.Addressv4) {
 			tup.DestinationAddr = loopbackv4
 		}
 
@@ -107,13 +107,13 @@ func (t *TCP) loopv6() {
 
 		tup := t.table.tupleOf(uint16(addr.Port), true)
 
-		if !(t.portalv6.Equal(addr.IP) && tup != zeroTuple) {
+		if !t.portalv6.Equal(addr.IP) || tup == zeroTuple {
 			_ = c.Close()
 			log.Warn("tun2socket v6 unknown remote addr", "addr", addr, "tuple", tup)
 			continue
 		}
 
-		if tup.DestinationPort != 53 && tup.DestinationAddr.Equal(t.InterfaceAddress.AddressV6) {
+		if tup.DestinationPort != 53 && tup.DestinationAddr.Equal(t.AddressV6) {
 			tup.DestinationAddr = loopbackv6
 		}
 
