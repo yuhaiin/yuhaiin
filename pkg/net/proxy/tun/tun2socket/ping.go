@@ -60,7 +60,7 @@ func (p *Ping) HandlePing4(bytes []byte) {
 			return
 		}
 
-		p.opt.Handler.HandlePing(&netapi.PingMeta{
+		p.opt.HandlePing(&netapi.PingMeta{
 			Source:      netapi.ParseNetipAddr("udp", srcAddr, 0),
 			Destination: netapi.ParseNetipAddr("udp", dstAddr, 0),
 			WriteBack:   writeBack,
@@ -120,7 +120,7 @@ func (p *Ping) HandlePing6(bytes []byte) {
 			return
 		}
 
-		p.opt.Handler.HandlePing(&netapi.PingMeta{
+		p.opt.HandlePing(&netapi.PingMeta{
 			Source:      netapi.ParseNetipAddr("udp", srcAddr, 0),
 			Destination: netapi.ParseNetipAddr("udp", dstAddr, 0),
 			WriteBack:   writeBack,

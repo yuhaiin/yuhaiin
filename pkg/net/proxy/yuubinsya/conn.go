@@ -51,14 +51,14 @@ func (c *PacketConn) Handshake(migrateID uint64) (uint64, error) {
 	w := pool.NewBufferSize(1024)
 	defer w.Reset()
 	EncodeHeader(c.hash, Header{Protocol: protocol, MigrateID: migrateID}, w)
-	_, err := c.BufioConn.Write(w.Bytes())
+	_, err := c.Write(w.Bytes())
 	if err != nil {
 		return 0, err
 	}
 
 	if protocol == UDPWithMigrateID {
 		var id uint64
-		err := c.BufioConn.BufioRead(func(r *bufio.Reader) error {
+		err := c.BufioRead(func(r *bufio.Reader) error {
 			idbytes, err := r.Peek(8)
 			if err != nil {
 				return fmt.Errorf("read net type failed: %w", err)
@@ -101,7 +101,7 @@ func (c *PacketConn) WriteToOne(payload []byte, addr net.Addr) (int, error) {
 	binary.BigEndian.PutUint16(buf[addrLen:], uint16(bufLen))
 	copy(buf[addrLen+2:], payload)
 
-	return c.BufioConn.Write(buf[:bufLen+addrLen+2])
+	return c.Write(buf[:bufLen+addrLen+2])
 }
 
 func (c *PacketConn) WriteToCoalesce(payload []byte, addr net.Addr) (int, error) {
@@ -159,7 +159,7 @@ func (c *PacketConn) flush(first []byte, buffer *pool.Buffer, buffSize int) {
 		buf = buffer.Bytes()
 	}
 
-	_, err := c.BufioConn.Write(buf)
+	_, err := c.Write(buf)
 	if err != nil {
 		c.cancel(err)
 		log.Error("write to failed", "err", err)
@@ -192,7 +192,7 @@ func (c *PacketConn) Close() error {
 
 func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	var addr netapi.Address
-	err = c.BufioConn.BufioRead(func(r *bufio.Reader) error {
+	err = c.BufioRead(func(r *bufio.Reader) error {
 		_, addr, err = tools.ReadAddr("udp", r)
 		if err != nil {
 			return fmt.Errorf("failed to resolve udp packet addr: %w", err)

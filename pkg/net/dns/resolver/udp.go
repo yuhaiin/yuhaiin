@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
@@ -15,7 +16,6 @@ import (
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/miekg/dns"
 )
 
@@ -28,45 +28,33 @@ func udpCacheKey(id uint16, question dns.Question) string {
 }
 
 type udpresp struct {
-	done chan struct{}
-	msg  dns.Msg
-	once sync.Once
+	ctx    context.Context
+	cancel context.CancelFunc
+	msg    atomic.Pointer[dns.Msg]
 }
 
 func (r *udpresp) setMsg(msg dns.Msg) {
-	r.once.Do(func() {
-		r.msg = msg
-		close(r.done)
-	})
+	r.cancel()
+	r.msg.Store(&msg)
+}
+
+type udpPacket struct {
+	question []byte
+	ctx      context.Context
 }
 
 type udp struct {
-	packetConn    net.PacketConn
-	addr          netapi.Address
-	timer         *time.Timer
-	sender        syncmap.SyncMap[string, *udpresp]
-	config        Config
-	lastQueryTime atomic.Int64
-	mu            sync.RWMutex
-	closed        atomic.Bool
+	addr   netapi.Address
+	sender syncmap.SyncMap[string, *udpresp]
+	config Config
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	wchan  chan *udpPacket
 }
 
 func (u *udp) Close() error {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	u.closed.Store(true)
-
-	if u.packetConn != nil {
-		u.packetConn.Close()
-		u.packetConn = nil
-	}
-
-	if u.timer != nil {
-		u.timer.Stop()
-		u.timer = nil
-	}
-
+	u.cancel()
 	return nil
 }
 
@@ -100,90 +88,87 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 	}
 }
 
-func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
-	if u.closed.Load() {
-		return nil, fmt.Errorf("udp resolver closed")
+func (u *udp) loopWrite() {
+	var mu sync.Mutex
+	var packetConn net.PacketConn
+
+	close := func() {
+		mu.Lock()
+		defer mu.Unlock()
+
+		if packetConn != nil {
+			packetConn.Close()
+			packetConn = nil
+		}
 	}
 
-	u.mu.Lock()
-	defer u.mu.Unlock()
+	dial := func() (net.PacketConn, error) {
+		mu.Lock()
+		defer mu.Unlock()
 
-	if u.closed.Load() {
-		return nil, fmt.Errorf("udp resolver closed")
-	}
+		if packetConn != nil {
+			return packetConn, nil
+		}
 
-	if u.packetConn != nil {
-		return u.packetConn, nil
-	}
+		addr, err := ParseAddr("udp", u.config.Host, "53")
+		if err != nil {
+			return nil, fmt.Errorf("parse addr failed: %w", err)
+		}
 
-	addr, err := ParseAddr("udp", u.config.Host, "53")
-	if err != nil {
-		return nil, fmt.Errorf("parse addr failed: %w", err)
-	}
+		ctx, cancel := context.WithTimeout(u.ctx, configuration.Timeout)
+		defer cancel()
 
-	conn, err := u.config.Dialer.PacketConn(ctx, addr)
-	if err != nil {
-		return nil, fmt.Errorf("get packetConn failed: %w", err)
-	}
+		packetConn, err = u.config.Dialer.PacketConn(ctx, addr)
+		if err != nil {
+			return nil, fmt.Errorf("get packetConn failed: %w", err)
+		}
 
-	u.packetConn = conn
-
-	go func() {
-		defer func() {
-			conn.Close()
-			u.mu.Lock()
-			u.packetConn = nil
-			u.mu.Unlock()
+		go func() {
+			defer close()
+			u.handleResponse(packetConn)
 		}()
 
-		u.handleResponse(conn)
-	}()
+		return packetConn, nil
+	}
 
-	u.timer = time.AfterFunc(time.Minute*10, u.checkIdleTimeout)
+	for {
+		select {
+		case <-time.After(time.Minute * 10):
+			close()
 
-	return conn, nil
-}
+		case p := <-u.wchan:
+			select {
+			case <-p.ctx.Done():
+				continue
+			default:
+			}
 
-func (u *udp) checkIdleTimeout() {
-	u.mu.Lock()
-	defer u.mu.Unlock()
+			pk, err := dial()
+			if err != nil {
+				log.Error("init packetConn failed", "err", err)
+				continue
+			}
 
-	if time.Duration(system.CheapNowNano()-u.lastQueryTime.Load()) < time.Minute*10 {
-		if u.closed.Load() {
+			ctx, cancel := context.WithTimeout(u.ctx, configuration.ResolverTimeout)
+			udpAddr, err := dialer.ResolveUDPAddr(ctx, u.addr)
+			cancel()
+			if err != nil {
+				log.Error("resolve udp addr failed", "err", err)
+				continue
+			}
+
+			pk.SetWriteDeadline(time.Now().Add(configuration.ResolverTimeout))
+			_, err = pk.WriteTo(p.question, udpAddr)
+			pk.SetWriteDeadline(time.Time{})
+			if err != nil {
+				log.Error("write to packetConn failed", "err", err)
+				continue
+			}
+
+		case <-u.ctx.Done():
 			return
 		}
-
-		if u.timer != nil {
-			u.timer.Reset(time.Minute * 10)
-		}
-		return
 	}
-
-	if u.packetConn != nil {
-		u.packetConn.Close()
-		u.packetConn = nil
-	}
-}
-
-func (u *udp) Write(ctx context.Context, p []byte) (err error) {
-	packetConn, err := u.initPacketConn(ctx)
-	if err != nil {
-		return err
-	}
-
-	udpAddr, err := dialer.ResolveUDPAddr(ctx, u.addr)
-	if err != nil {
-		return err
-	}
-
-	_, err = packetConn.WriteTo(p, udpAddr)
-	if err != nil {
-		return err
-	}
-
-	u.lastQueryTime.Store(system.CheapNowNano())
-
-	return nil
 }
 
 func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {
@@ -198,20 +183,37 @@ func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {
 
 	reqKey := udpCacheKey(req.ID, req.Question)
 
-	resp, ok, _ := u.sender.LoadOrCreate(reqKey, func() (*udpresp, error) { return &udpresp{done: make(chan struct{})}, nil })
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	resp, ok, _ := u.sender.LoadOrCreate(reqKey, func() (*udpresp, error) {
+		return &udpresp{ctx: ctx, cancel: cancel}, nil
+	})
 	if !ok {
 		defer u.sender.CompareAndDelete(reqKey, resp)
 
-		if err := u.Write(ctx, req.QuestionBytes); err != nil {
-			return nil, err
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-u.ctx.Done():
+			return nil, u.ctx.Err()
+		case u.wchan <- &udpPacket{req.QuestionBytes, ctx}:
 		}
 	}
 
 	select {
 	case <-ctx.Done():
+		if msg := resp.msg.Load(); msg != nil {
+			return MsgResponse(*msg), nil
+		}
 		return nil, ctx.Err()
-	case <-resp.done:
-		return MsgResponse(resp.msg), nil
+	case <-u.ctx.Done():
+		return nil, u.ctx.Err()
+	case <-resp.ctx.Done():
+		if msg := resp.msg.Load(); msg != nil {
+			return MsgResponse(*msg), nil
+		}
+		return nil, resp.ctx.Err()
 	}
 }
 
@@ -221,10 +223,16 @@ func NewDoU(config Config) (Dialer, error) {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	udp := &udp{
 		config: config,
 		addr:   addr,
+		ctx:    ctx,
+		cancel: cancel,
+		wchan:  make(chan *udpPacket, 200),
 	}
+
+	go udp.loopWrite()
 
 	return udp, nil
 }
