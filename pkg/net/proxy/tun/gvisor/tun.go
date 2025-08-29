@@ -29,6 +29,11 @@ type tunServer struct {
 	nicID   tcpip.NICID
 
 	device.InterfaceAddress
+	DeviceName string
+}
+
+func (t *tunServer) Interface() string {
+	return t.DeviceName
 }
 
 func (t *tunServer) Close() error {
@@ -56,7 +61,7 @@ func (t *tunServer) Close() error {
 	return nil
 }
 
-func New(o *device.Opt) (netapi.Accepter, error) {
+func New(o *device.Opt) (*tunServer, error) {
 	opt := o.Tun
 	if opt.GetMtu() <= 0 {
 		opt.SetMtu(1500)
@@ -107,6 +112,7 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 		postDown:         o.PostDown,
 		handler:          o.Handler,
 		InterfaceAddress: o.InterfaceAddress(),
+		DeviceName:       o.Interface.Name,
 	}
 
 	s.SetSpoofing(nicID, true)

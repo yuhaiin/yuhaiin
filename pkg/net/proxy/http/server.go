@@ -22,6 +22,7 @@ import (
 )
 
 type Server struct {
+	netapi.EmptyInterface
 	lis          net.Listener
 	reverseProxy *httputil.ReverseProxy
 

@@ -19,6 +19,7 @@ import (
 )
 
 type Mixed struct {
+	netapi.EmptyInterface
 	lis      net.Listener
 	defaultC *netapi.ChannelStreamListener
 	mchs     []*Matcher

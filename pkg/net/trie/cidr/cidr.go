@@ -62,7 +62,7 @@ func (c *Cidr[T]) SearchIP(ip net.IP) (mark T, ok bool) {
 	}
 }
 
-func NewCidrMapper[T any]() *Cidr[T] {
+func NewCidrTrie[T any]() *Cidr[T] {
 	cidrMapper := new(Cidr[T])
 	cidrMapper.v4CidrTrie = NewTrieTree[T]()
 	cidrMapper.v6CidrTrie = NewTrieTree[T]()

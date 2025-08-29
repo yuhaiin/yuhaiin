@@ -37,5 +37,5 @@ func NewTCPServer(o *listener.ReverseTcp, ii netapi.Listener, handler netapi.Han
 		}
 	}()
 
-	return ii, nil
+	return &accepter{Listener: ii}, nil
 }

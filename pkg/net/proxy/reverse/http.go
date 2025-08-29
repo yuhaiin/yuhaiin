@@ -142,5 +142,10 @@ func NewHTTPServer(o *listener.ReverseHttp, ii netapi.Listener, handler netapi.H
 		}
 	}()
 
-	return ii, nil
+	return &accepter{Listener: ii}, nil
+}
+
+type accepter struct {
+	netapi.EmptyInterface
+	net.Listener
 }

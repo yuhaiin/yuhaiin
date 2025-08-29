@@ -20,6 +20,7 @@ import (
 )
 
 type server struct {
+	netapi.EmptyInterface
 	listener netapi.Listener
 	hash     []byte
 
