@@ -66,7 +66,14 @@ func (w *listener) Close() error {
 	return err
 }
 
-type Accepter interface{ Server }
+type Accepter interface {
+	Server
+	Interface() string
+}
+
+type EmptyInterface struct{}
+
+func (EmptyInterface) Interface() string { return "" }
 
 type Handler interface {
 	HandleStream(*StreamMeta)

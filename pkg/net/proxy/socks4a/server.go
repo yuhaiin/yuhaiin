@@ -21,6 +21,7 @@ const (
 )
 
 type Server struct {
+	netapi.EmptyInterface
 	lis net.Listener
 
 	handler    netapi.Handler

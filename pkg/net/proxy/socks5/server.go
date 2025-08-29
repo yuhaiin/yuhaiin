@@ -294,6 +294,7 @@ func writeHandshake2(conn net.Conn, errREP byte, addr netapi.Address) error {
 }
 
 type Server struct {
+	netapi.EmptyInterface
 	lis netapi.Listener
 
 	handler netapi.Handler

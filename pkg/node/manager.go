@@ -19,7 +19,7 @@ import (
 )
 
 type Manager struct {
-	db    *DB
+	db    *syncDB
 	store *ProxyStore
 }
 
@@ -30,7 +30,7 @@ func NewManager(path string) *Manager {
 		db.Data.SetManager(&node.Manager{})
 	}
 
-	return &Manager{db: &DB{db: db}, store: NewProxyStore()}
+	return &Manager{db: &syncDB{db: db}, store: NewProxyStore()}
 }
 
 func (m *Manager) GetStore() *ProxyStore {
@@ -368,27 +368,31 @@ func (n *Manager) Outbound() *outbound                         { return NewOutbo
 func (n *Manager) Links() *link                                { return &link{n} }
 func (f *Manager) Tag(ff func() iter.Seq[string]) gn.TagServer { return &tag{n: f, ruleTags: ff} }
 
-type DB struct {
+type syncDB struct {
 	db *jsondb.DB[*node.Node]
 	mu sync.RWMutex
 }
 
-func (d *DB) Save() error {
+func (d *syncDB) Save() error {
 	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.db.Save()
+	err := d.db.Save()
+	d.mu.Unlock()
+
+	return err
 }
 
-func (d *DB) View(f func(*Node) error) error {
+func (d *syncDB) View(f func(*Node) error) error {
 	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return f(&Node{d.db.Data})
+	err := f(&Node{d.db.Data})
+	d.mu.RUnlock()
+	return err
 }
 
-func (d *DB) Batch(f func(*Node) error) error {
+func (d *syncDB) Batch(f func(*Node) error) error {
 	d.mu.Lock()
-	defer d.mu.Unlock()
-	return f(&Node{d.db.Data})
+	err := f(&Node{d.db.Data})
+	d.mu.Unlock()
+	return err
 }
 
 type Node struct {

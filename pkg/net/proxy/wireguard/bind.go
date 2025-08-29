@@ -33,6 +33,8 @@ type netBindClient struct {
 	batchConn *Batch
 	reserved  []byte
 	mu        sync.Mutex
+
+	openAddr *net.UDPAddr
 }
 
 func newNetBindClient(reserved []byte) *netBindClient {
@@ -67,6 +69,11 @@ func (n *netBindClient) ParseEndpoint(s string) (conn.Endpoint, error) {
 	ip, ok := netip.AddrFromSlice(ips.PreferAAAA())
 	if !ok {
 		return nil, errors.New("failed to parse ip: " + ipStr)
+	}
+
+	n.openAddr = &net.UDPAddr{
+		IP:   ip.AsSlice(),
+		Port: int(portNum),
 	}
 
 	return Endpoint(netip.AddrPortFrom(ip.Unmap(), uint16(portNum))), nil
@@ -131,7 +138,9 @@ func (bind *netBindClient) connect() (net.PacketConn, error) {
 		return bind.conn, nil
 	}
 
-	pc, err := dialer.ListenPacket(context.TODO(), "udp", "")
+	pc, err := dialer.ListenPacket(context.TODO(), "udp", "", func(o *dialer.Options) {
+		o.PacketConnHintAddress = bind.openAddr
+	})
 	if err != nil {
 		return nil, err
 	}

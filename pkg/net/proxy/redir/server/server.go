@@ -10,6 +10,7 @@ import (
 )
 
 type redir struct {
+	netapi.EmptyInterface
 	lis     net.Listener
 	handler netapi.Handler
 }

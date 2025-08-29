@@ -150,6 +150,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	configuration.ProxyChain.Set(fakedns)
 	// inbound server
 	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(dnsServer, fakedns))
+	dialer.SkipInterface = inbounds.Interfaces
 	// tools
 	tools := tools.NewTools(so.ChoreConfig)
 	mux := http.NewServeMux()
@@ -196,17 +197,16 @@ func updateConfiguration(so *StartOptions) func(s *pc.Setting) {
 		sysproxy.Update(s)
 
 		defaultInterfaceName := s.GetNetInterface()
-		useDefaultInterface := s.GetUseDefaultInterface()
 
-		dialer.DefaultInterfaceName = func() string {
-			if goos.IsAndroid == 1 || !useDefaultInterface {
-				return defaultInterfaceName
+		if s.GetUseDefaultInterface() && goos.IsAndroid != 1 {
+			dialer.DefaultInterfaceName = func() string { return "" }
+		} else {
+			if defaultInterfaceName == "default" {
+				dialer.DefaultInterfaceName = interfaces.DefaultInterfaceName
+			} else {
+				dialer.DefaultInterfaceName = func() string { return defaultInterfaceName }
 			}
-
-			return interfaces.DefaultInterfaceName()
 		}
-
-		dialer.DefaultIPv6PreferUnicastLocalAddr = s.GetIpv6LocalAddrPreferUnicast()
 
 		configuration.IPv6.Store(s.GetIpv6())
 		configuration.FakeIPEnabled.Store(s.GetDns().GetFakedns() || s.GetServer().GetHijackDnsFakeip())

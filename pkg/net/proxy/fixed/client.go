@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -235,31 +236,17 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		return nil, err
 	}
 
-	var localAddr string
-	if dialer.DefaultIPv6PreferUnicastLocalAddr {
-		iface := dialer.DefaultInterfaceName()
+	log.Info("fixed packet conn", "addr", addr)
 
-		if iface != "" {
-			if ur.IP.IsGlobalUnicast() && !ur.IP.IsPrivate() && ur.IP.To4() == nil && ur.IP.To16() != nil {
-				if addr := dialer.GetUnicastAddr(true, "udp", iface, 0); addr != nil {
-					localAddr = addr.String()
-				}
-			}
+	conn, err := dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
+		if c.iface != "" {
+			o.InterfaceName = c.iface
 		}
-	}
 
-	if c.iface != "" {
-		ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, c.iface)
-	}
-
-	conn, err := dialer.ListenPacket(ctx, "udp", localAddr, dialer.WithTryUpgradeToBatch())
+		o.PacketConnHintAddress = ur
+	})
 	if err != nil {
 		return nil, err
-	}
-
-	if uc, ok := conn.(*net.UDPConn); ok {
-		_ = uc.SetReadBuffer(64 * 1024)
-		_ = uc.SetWriteBuffer(64 * 1024)
 	}
 
 	return &packetConn{conn, ur}, nil

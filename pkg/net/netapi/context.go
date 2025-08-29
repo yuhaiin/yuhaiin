@@ -81,10 +81,11 @@ type Context struct {
 
 	context.Context
 
-	inbound     *net.Addr `metrics:"Inbound"`
-	inboundName *string   `metrics:"InboundName"`
-	fakeIP      *net.Addr `metrics:"FakeIP"`
-	hosts       *net.Addr `metrics:"Hosts"`
+	inbound       *net.Addr `metrics:"Inbound"`
+	inboundName   *string   `metrics:"InboundName"`
+	interfaceName *string   `metrics:"InterfaceName"`
+	fakeIP        *net.Addr `metrics:"FakeIP"`
+	hosts         *net.Addr `metrics:"Hosts"`
 
 	addrInfo *AddrInfo
 
@@ -242,6 +243,21 @@ func (c *Context) SetInboundName(name string) {
 	}
 
 	c.inboundName = &name
+}
+
+func (c *Context) SetInterface(name string) {
+	if name == "" {
+		return
+	}
+
+	c.interfaceName = &name
+}
+
+func (c *Context) GetInterface() string {
+	if c.interfaceName != nil {
+		return *c.interfaceName
+	}
+	return ""
 }
 
 func (c *Context) GetInboundName() string {

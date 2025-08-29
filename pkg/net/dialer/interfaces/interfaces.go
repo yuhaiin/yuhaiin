@@ -6,10 +6,12 @@ import (
 	"context"
 	"io"
 	"net"
+	"net/netip"
 	"sync"
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -87,6 +89,20 @@ func StartNetworkMonitor() networkMonitorCloser {
 		mu.Lock()
 		defer mu.Unlock()
 
+		router, err := routes()
+		if err == nil {
+			defaultrouter.Store(router.ToTrie())
+		} else {
+			log.Error("get routes failed", "err", err)
+		}
+
+		maps, err := getLocalAddresses()
+		if err == nil {
+			localAddresses.Store(&maps)
+		} else {
+			log.Error("get local addresses failed", "err", err)
+		}
+
 		r, err := defaultRouteInterface()
 		if err != nil {
 			log.Warn("get default route interface failed", "err", err, "reason", reason)
@@ -142,8 +158,8 @@ type Interface struct {
 	AltAddrs []net.Addr // if non-nil, returned by Addrs
 }
 
-func (i Interface) IsLoopback() bool { return i.Interface.Flags&net.FlagLoopback != 0 }
-func (i Interface) IsUp() bool       { return i.Interface.Flags&net.FlagUp != 0 }
+func (i Interface) IsLoopback() bool { return i.Flags&net.FlagLoopback != 0 }
+func (i Interface) IsUp() bool       { return i.Flags&net.FlagUp != 0 }
 func (i Interface) Addrs() ([]net.Addr, error) {
 	if i.AltAddrs != nil {
 		return i.AltAddrs, nil
@@ -183,4 +199,95 @@ func AddNetworkMonitor(m func(interfaceName string)) io.Closer {
 	return networkMonitorCloser(func() {
 		networkMonitors.Delete(uuid)
 	})
+}
+
+var (
+	localAddresses   atomic.Pointer[map[netip.Addr]string]
+	localAddressesMu sync.Mutex
+)
+
+func LocalAddresses() map[netip.Addr]string {
+	x := localAddresses.Load()
+	if x != nil {
+		return *x
+	}
+
+	localAddressesMu.Lock()
+	defer localAddressesMu.Unlock()
+
+	x = localAddresses.Load()
+	if x != nil {
+		return *x
+	}
+
+	xx, err := getLocalAddresses()
+	if err != nil {
+		log.Warn("get local addresses failed", "err", err)
+		return map[netip.Addr]string{}
+	}
+
+	localAddresses.Store(&xx)
+	return xx
+}
+
+func getLocalAddresses() (map[netip.Addr]string, error) {
+	ifs, err := GetInterfaceList()
+	if err != nil {
+		return nil, err
+	}
+
+	ret := map[netip.Addr]string{}
+
+	for _, v := range ifs {
+		address, err := v.Addrs()
+		if err != nil {
+			log.Warn("get interface address failed", "err", err)
+			continue
+		}
+
+		for _, a := range address {
+			ipNet, ok := a.(*net.IPNet)
+			if !ok {
+				continue
+			}
+
+			netip, ok := netip.AddrFromSlice(ipNet.IP)
+			if !ok {
+				continue
+			}
+
+			ret[netip.Unmap()] = v.Name
+		}
+	}
+
+	return ret, nil
+}
+
+var (
+	defaultrouter   atomic.Pointer[cidr.Cidr[string]]
+	defaultrouterMu sync.Mutex
+)
+
+func DefaultRouter() *cidr.Cidr[string] {
+	if x := defaultrouter.Load(); x != nil {
+		return x
+	}
+
+	defaultrouterMu.Lock()
+	defer defaultrouterMu.Unlock()
+
+	if x := defaultrouter.Load(); x != nil {
+		return x
+	}
+
+	rs, err := routes()
+	if err != nil {
+		log.Error("get default router failed", "err", err)
+		return cidr.NewCidrTrie[string]()
+	}
+
+	trie := rs.ToTrie()
+	defaultrouter.Store(trie)
+
+	return trie
 }

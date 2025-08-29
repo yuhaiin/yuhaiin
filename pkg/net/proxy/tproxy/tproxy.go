@@ -12,6 +12,7 @@ import (
 )
 
 type Tproxy struct {
+	netapi.EmptyInterface
 	lis netapi.Listener
 
 	lisAddr *net.TCPAddr
