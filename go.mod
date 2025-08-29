@@ -15,7 +15,7 @@ require (
 	github.com/refraction-networking/utls v1.8.0
 	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da
 	github.com/vishvananda/netlink v1.3.1
-	github.com/xtls/reality v0.0.0-20250727231020-de3bb4d08f5a
+	github.com/xtls/reality v0.0.0-20250828044527-046fad5ab64f
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250828135413-06a5ec5101bb
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.41.0
