@@ -210,6 +210,8 @@ func (l *Inbound) Remove(name string) {
 	if err := x.server.Close(); err != nil {
 		log.Error("close server failed", "name", name, "err", err)
 	}
+
+	l.refreshInterfaces()
 }
 
 func (l *Inbound) SetHijackDnsFakeip(fakeip bool) {

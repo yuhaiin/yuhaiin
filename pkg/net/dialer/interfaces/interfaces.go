@@ -226,9 +226,8 @@ func LocalAddresses() map[netip.Addr]string {
 		return map[netip.Addr]string{}
 	}
 
-	localAddresses.CompareAndSwap(x, &xx)
-
-	return *localAddresses.Load()
+	localAddresses.Store(&xx)
+	return xx
 }
 
 func getLocalAddresses() (map[netip.Addr]string, error) {

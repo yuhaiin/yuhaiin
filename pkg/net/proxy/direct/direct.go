@@ -88,13 +88,13 @@ func (d *direct) Ping(ctx context.Context, addr netapi.Address) (uint64, error) 
 		network = "ip4"
 	}
 
-	bindFd := func(uintptr) {}
-	if !ip.IsLoopback() {
-		iface, err := dialer.GetInterfaceByIP(ip)
-		if err != nil {
-			iface = dialer.DefaultInterfaceName()
-		}
+	iface, err := dialer.GetInterfaceByIP(ip)
+	if err != nil {
+		return 0, err
+	}
 
+	bindFd := func(uintptr) {}
+	if iface != "" {
 		bindFd = func(fd uintptr) {
 			if err := dialer.BindInterface(network, fd, iface); err != nil {
 				log.Warn("bind interface failed", "err", err)
@@ -125,7 +125,7 @@ func (d *direct) Ping(ctx context.Context, addr netapi.Address) (uint64, error) 
 		resp = uint64(p.Rtt)
 	}
 
-	err := pinger.RunWithContext(ctx) // Blocks until finished.
+	err = pinger.RunWithContext(ctx) // Blocks until finished.
 	if err != nil {
 		return 0, fmt.Errorf("ping %v:%v failed: %w", addr, ip, err)
 	}
