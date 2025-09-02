@@ -23,364 +23,12 @@ type HappyEyeballsv2Cache interface {
 
 var happyEyeballsCache = lru.NewSyncLru(lru.WithCapacity[string, net.IP](512))
 
-type happyEyeball struct {
-	addr netapi.Address
-
-	resolver                  netapi.Resolver
-	dnsError                  error
-	primaryDone, fallbackDone chan struct{}
-	remainWait                chan struct{}
-	ips                       []net.IP
-	usedIP                    atomic.Int32
-
-	lastIp                    net.IP
-	primaryMode, fallbackMode netapi.ResolverMode
-	dnsErrorMu                sync.RWMutex
-	mu                        sync.RWMutex
-	allResponse               atomic.Int32
-
-	prefer bool
-}
-
-func newHappyEyeball(ctx context.Context, addr netapi.Address, cache HappyEyeballsv2Cache) *happyEyeball {
-	netctx := netapi.GetContext(ctx)
-	resolver := Bootstrap()
-	if netctx.Resolver.ResolverResolver() != nil {
-		resolver = netctx.Resolver.ResolverResolver()
-	} else if netctx.Resolver.Resolver != nil {
-		resolver = netctx.Resolver.Resolver
-	}
-
-	prefer := false
-	primaryMode := netapi.ResolverModePreferIPv6
-	fallbackMode := netapi.ResolverModePreferIPv4
-	switch netctx.Resolver.Mode {
-	case netapi.ResolverModePreferIPv4:
-		primaryMode, fallbackMode, prefer = fallbackMode, primaryMode, true
-	case netapi.ResolverModePreferIPv6:
-		prefer = true
-	}
-
-	var lastIP net.IP
-	if cache != nil {
-		lastIP, _ = cache.Load(addr.Hostname())
-	}
-	h := &happyEyeball{
-		addr:         addr,
-		resolver:     resolver,
-		primaryDone:  make(chan struct{}),
-		fallbackDone: make(chan struct{}),
-		primaryMode:  primaryMode,
-		fallbackMode: fallbackMode,
-		prefer:       prefer,
-		lastIp:       lastIP,
-	}
-
-	h.remainWait = h.fallbackDone
-
-	return h
-}
-
-func (h *happyEyeball) lookupIP(ctx context.Context, primary bool) {
-	if h.prefer && !primary {
-		return
-	}
-
-_retry:
-	tmpIps, err := h.resolver.LookupIP(ctx, h.addr.Hostname(), func(li *netapi.LookupIPOption) {
-		if primary {
-			li.Mode = h.primaryMode
-		} else {
-			li.Mode = h.fallbackMode
-		}
-	})
-	if err == nil {
-		moveToFront(h.lastIp, tmpIps.WhoNotEmpty())
-		h.mu.Lock()
-		h.allResponse.Add(int32(tmpIps.Len()))
-		// Next, the client SHOULD modify the ordered list to interleave address
-		// families.  Whichever address family is first in the list should be
-		// followed by an address of the other address family; that is, if the
-		// first address in the sorted list is IPv6, then the first IPv4 address
-		// should be moved up in the list to be second in the list.
-		if primary {
-			h.ips = Interleave(tmpIps.WhoNotEmpty(), h.ips)
-		} else {
-			h.ips = Interleave(h.ips, tmpIps.WhoNotEmpty())
-		}
-		h.mu.Unlock()
-	} else {
-		h.dnsErrorMu.Lock()
-		h.dnsError = MergeDnsError(h.dnsError, err)
-		h.dnsErrorMu.Unlock()
-		if h.prefer && primary {
-			close(h.primaryDone)
-			primary = false
-			goto _retry
-		}
-	}
-
-	if primary {
-		close(h.primaryDone)
-		if h.prefer {
-			close(h.fallbackDone)
-		}
-	} else {
-		close(h.fallbackDone)
-	}
-}
-
-func MergeDnsError(err1, err2 error) error {
-	de1 := &net.DNSError{}
-
-	if !errors.As(err1, &de1) {
-		return errors.Join(err1, err2)
-	}
-
-	de2 := &net.DNSError{}
-	if !errors.As(err2, &de2) {
-		return errors.Join(err1, err2)
-	}
-
-	if de1.Err == de2.Err {
-		return err1
-	}
-
-	return errors.Join(err1, err2)
-}
-
-func (h *happyEyeball) waitFirstDNS(ctx context.Context) (err error) {
-	select {
-	case <-h.primaryDone:
-	case <-h.fallbackDone:
-		select {
-		// If a positive
-		// A response is received first due to reordering, the client SHOULD
-		// wait a short time for the AAAA response to ensure that preference is
-		// given to IPv6 (it is common for the AAAA response to follow the A
-		// response by a few milliseconds).  This delay will be referred to as
-		// the "Resolution Delay".  The recommended value for the Resolution
-		// Delay is 50 milliseconds.
-		case <-time.After(time.Millisecond * 50):
-			h.remainWait = h.primaryDone
-		case <-h.primaryDone:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-
-	if h.allResponse.Load() == 0 {
-		select {
-		case <-h.remainWait:
-			if h.allResponse.Load() == 0 {
-				h.dnsErrorMu.RLock()
-				dnsError := h.dnsError
-				h.dnsErrorMu.RUnlock()
-				return fmt.Errorf("no ip found: %w", dnsError)
-			}
-		case <-ctx.Done():
-			h.dnsErrorMu.RLock()
-			dnsError := h.dnsError
-			h.dnsErrorMu.RUnlock()
-			return fmt.Errorf("wait first dns timeout: %w", errors.Join(dnsError, ctx.Err()))
-		}
-	}
-
-	return nil
-}
-
-func (h *happyEyeball) next(ctx context.Context) net.IP {
-	// we only use first 4 ips to limit the number of requests
-	if h.usedIP.Load() >= 4 {
-		return nil
-	}
-
-	h.mu.RLock()
-	ipslen := len(h.ips)
-	h.mu.RUnlock()
-	if ipslen != 0 {
-		return h.nextIP()
-	}
-
-	select {
-	case <-ctx.Done():
-		return nil
-	case <-h.remainWait:
-	}
-	h.mu.RLock()
-	ipslen = len(h.ips)
-	h.mu.RUnlock()
-	if ipslen == 0 {
-		return nil
-	}
-
-	return h.nextIP()
-}
-
-func (h *happyEyeball) nextIP() net.IP {
-	h.mu.Lock()
-	ip := h.ips[0]
-	h.ips = h.ips[1:]
-	h.mu.Unlock()
-
-	h.usedIP.Add(1)
-	return ip
-}
-
-func (h *happyEyeball) allFailed(ctx context.Context, fails int, firstErr error) error {
-	if fails == int(h.allResponse.Load()) {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-h.remainWait:
-		}
-		if fails == int(h.allResponse.Load()) {
-			return firstErr
-		}
-	}
-
-	return nil
-}
-
-type HappyEyeballsv2Dialer[T net.Conn] struct {
-	DialContext func(ctx context.Context, ip net.IP, port uint16) (T, error)
-	Cache       HappyEyeballsv2Cache
-	Avg         *Avg
-}
-
 var DefaultHappyEyeballsv2Dialer = &HappyEyeballsv2Dialer[net.Conn]{
 	DialContext: func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 		return DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), strconv.Itoa(int(port))))
 	},
 	Cache: happyEyeballsCache,
 	Avg:   NewAvg(),
-}
-
-func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(ctx context.Context, addr netapi.Address) (t T, err error) {
-	if h.Avg == nil {
-		h.Avg = NewAvg()
-	}
-
-	if !addr.IsFqdn() {
-		return h.DialContext(ctx, addr.(netapi.IPAddress).AddrPort().Addr().AsSlice(), addr.Port())
-	}
-
-	hb := newHappyEyeball(ctx, addr, h.Cache)
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	go hb.lookupIP(ctx, true)
-	if !hb.prefer {
-		go hb.lookupIP(ctx, false)
-	}
-
-	if err := hb.waitFirstDNS(ctx); err != nil {
-		return t, fmt.Errorf("wait first dns failed: %w", err)
-	}
-
-	type res struct {
-		c   T
-		err error
-	}
-	resc := make(chan res)           // must be unbuffered
-	failBoost := make(chan struct{}) // best effort send on dial failure
-	go func() {
-		first := true
-		for {
-			if !first {
-				// A simple implementation can have a fixed delay for how long to wait
-				// before starting the next connection attempt.  This delay is referred
-				// to as the "Connection Attempt Delay".  One recommended value for a
-				// default delay is 250 milliseconds. A more nuanced implementation's
-				// delay should correspond to the time when the previous attempt is
-				// sending its second TCP SYN, based on the TCP's retransmission timer
-				// [RFC6298].  If the client has historical RTT data gathered from other
-				// connections to the same host or prefix, it can use this information
-				// to influence its delay.  Note that this algorithm should only try to
-				// approximate the time of the first SYN retransmission, and not any
-				// further retransmissions that may be influenced by exponential timer
-				// back off.
-				// log.Info("use timer for delay", "avg", h.Avg.Get())
-				timer := time.NewTimer(h.Avg.Get())
-				select {
-				case <-timer.C:
-				case <-failBoost:
-					timer.Stop()
-				case <-ctx.Done():
-					timer.Stop()
-					return
-				}
-			}
-
-			ip := hb.next(ctx)
-			if ip == nil {
-				break
-			}
-
-			first = false
-
-			go func(ip net.IP) {
-				start := system.CheapNowNano()
-
-				c, err := h.DialContext(ctx, ip, addr.Port())
-				if err != nil {
-					hb.usedIP.Add(-1)
-					// Best effort wake-up a pending dial.
-					// e.g. IPv4 dials failing quickly on an IPv6-only system.
-					// In that case we don't want to wait 300ms per IPv4 before
-					// we get to the IPv6 addresses.
-					select {
-					case failBoost <- struct{}{}:
-					default:
-					}
-				} else {
-					h.Avg.Push(time.Duration(system.CheapNowNano() - start))
-				}
-
-				select {
-				case resc <- res{c, err}:
-				case <-ctx.Done():
-					if err == nil {
-						_ = c.Close()
-					}
-				}
-			}(ip)
-		}
-	}()
-
-	var firstErr error
-	var fails int
-	for {
-		select {
-		case r := <-resc:
-			if r.err == nil {
-				if r.c.RemoteAddr() != nil {
-					connAddr, ok := r.c.RemoteAddr().(*net.TCPAddr)
-					if ok {
-						if h.Cache != nil {
-							h.Cache.Add(addr.Hostname(), connAddr.IP)
-						}
-					}
-				}
-				return r.c, nil
-			}
-			fails++
-			if firstErr == nil {
-				firstErr = r.err
-			}
-			if err := hb.allFailed(ctx, fails, firstErr); err != nil {
-				metrics.Counter.AddTCPDialFailed(addr.String())
-				return t, err
-			}
-
-		case <-ctx.Done():
-			metrics.Counter.AddTCPDialFailed(addr.String())
-			return t, fmt.Errorf("dial timeout: %w", errors.Join(firstErr, ctx.Err()))
-		}
-	}
 }
 
 // DialHappyEyeballsv2 impl rfc 8305
@@ -392,7 +40,7 @@ func DialHappyEyeballsv2(ctx context.Context, addr netapi.Address) (net.Conn, er
 }
 
 func moveToFront(ip net.IP, ips []net.IP) {
-	if ip == nil {
+	if ip == nil || len(ips) == 0 {
 		return
 	}
 	if (ip.To4() == nil && ips[0].To4() != nil) || (ip.To4() != nil && ips[0].To4() == nil) {
@@ -424,4 +72,321 @@ func Interleave[S ~[]T, T any](a, b S) S {
 	ret = append(ret, a[i:]...)
 	ret = append(ret, b[i:]...)
 	return ret
+}
+
+func MergeDnsError(err1, err2 error) error {
+	de1 := &net.DNSError{}
+
+	if !errors.As(err1, &de1) {
+		return errors.Join(err1, err2)
+	}
+
+	de2 := &net.DNSError{}
+	if !errors.As(err2, &de2) {
+		return errors.Join(err1, err2)
+	}
+
+	if de1.Err == de2.Err {
+		return err1
+	}
+
+	return errors.Join(err1, err2)
+}
+
+type happyEyeballv2Resolver struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	addr                      netapi.Address
+	resolver                  netapi.Resolver
+	primaryMode, fallbackMode netapi.ResolverMode
+
+	ips    []net.IP
+	lastIp net.IP
+	mu     sync.Mutex
+
+	notify chan struct{}
+	errors error
+}
+
+func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address, cache HappyEyeballsv2Cache) *happyEyeballv2Resolver {
+	ctx, cancel := context.WithCancel(ctx)
+
+	var lastIP net.IP
+	if cache != nil {
+		lastIP, _ = cache.Load(addr.Hostname())
+	}
+
+	netctx := netapi.GetContext(ctx)
+
+	r := &happyEyeballv2Resolver{
+		ctx:          ctx,
+		cancel:       cancel,
+		addr:         addr,
+		resolver:     netctx.Resolver.ResolverResolver(Bootstrap()),
+		primaryMode:  netapi.ResolverModePreferIPv6,
+		fallbackMode: netapi.ResolverModePreferIPv4,
+		lastIp:       lastIP,
+		notify:       make(chan struct{}, 2),
+	}
+
+	var prefer bool
+	switch netctx.Resolver.Mode {
+	case netapi.ResolverModePreferIPv4:
+		r.primaryMode, r.fallbackMode, prefer = netapi.ResolverModePreferIPv4, netapi.ResolverModePreferIPv6, true
+	case netapi.ResolverModePreferIPv6:
+		prefer = true
+	}
+
+	if prefer {
+		go func() {
+			defer cancel()
+
+			r.do(true)
+			if r.errors != nil {
+				r.do(false)
+			}
+		}()
+
+		return r
+	}
+
+	var remain atomic.Int32
+
+	done := func() {
+		if remain.Add(1) >= 2 {
+			cancel()
+		}
+
+		select {
+		case r.notify <- struct{}{}:
+		case <-ctx.Done():
+		}
+	}
+
+	go func() {
+		defer done()
+		r.do(true)
+
+		// If a positive
+		// A response is received first due to reordering, the client SHOULD
+		// wait a short time for the AAAA response to ensure that preference is
+		// given to IPv6 (it is common for the AAAA response to follow the A
+		// response by a few milliseconds).  This delay will be referred to as
+		// the "Resolution Delay".  The recommended value for the Resolution
+		// Delay is 50 milliseconds.
+		time.Sleep(time.Millisecond * 50)
+	}()
+	go func() {
+		defer done()
+		r.do(false)
+	}()
+
+	return r
+}
+
+func (h *happyEyeballv2Resolver) do(primary bool) {
+	tmpIps, err := h.resolver.LookupIP(h.ctx, h.addr.Hostname(), func(li *netapi.LookupIPOption) {
+		if primary {
+			li.Mode = h.primaryMode
+		} else {
+			li.Mode = h.fallbackMode
+		}
+	})
+
+	h.mu.Lock()
+	if err == nil {
+		moveToFront(h.lastIp, tmpIps.WhoNotEmpty())
+		// Next, the client SHOULD modify the ordered list to interleave address
+		// families.  Whichever address family is first in the list should be
+		// followed by an address of the other address family; that is, if the
+		// first address in the sorted list is IPv6, then the first IPv4 address
+		// should be moved up in the list to be second in the list.
+		if primary {
+			h.ips = Interleave(tmpIps.WhoNotEmpty(), h.ips)
+		} else {
+			h.ips = Interleave(h.ips, tmpIps.WhoNotEmpty())
+		}
+	} else {
+		h.errors = MergeDnsError(h.errors, err)
+	}
+	h.mu.Unlock()
+}
+
+func (h *happyEyeballv2Resolver) wait() (net.IP, error) {
+	for {
+		h.mu.Lock()
+		if len(h.ips) <= 0 {
+			h.mu.Unlock()
+
+			select {
+			case <-h.notify:
+				continue
+			case <-h.ctx.Done():
+				h.mu.Lock()
+				l := len(h.ips)
+				errors := h.errors
+				h.mu.Unlock()
+				if l == 0 {
+					if errors != nil {
+						return nil, errors
+					}
+
+					return nil, h.ctx.Err()
+				}
+
+				continue
+			}
+		}
+
+		ip := h.ips[0]
+		h.ips = h.ips[1:]
+		h.mu.Unlock()
+
+		return ip, nil
+	}
+}
+
+func (h *happyEyeballv2Resolver) lenOrWait() int {
+	h.mu.Lock()
+	l := len(h.ips)
+	h.mu.Unlock()
+
+	if l > 0 {
+		return l
+	}
+
+	// dial will call wait first, so if len(h.ips) == 0, it will wait for
+	// the other lookup finished(all query finished)
+	<-h.ctx.Done()
+
+	h.mu.Lock()
+	l = len(h.ips)
+	h.mu.Unlock()
+	return l
+}
+
+type HappyEyeballsv2Dialer[T net.Conn] struct {
+	DialContext func(ctx context.Context, ip net.IP, port uint16) (T, error)
+	Cache       HappyEyeballsv2Cache
+	Avg         *Avg
+}
+
+func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, addr netapi.Address) (t T, err error) {
+	if h.Avg == nil {
+		h.Avg = NewAvg()
+	}
+
+	if !addr.IsFqdn() {
+		return h.DialContext(octx, addr.(netapi.IPAddress).AddrPort().Addr().AsSlice(), addr.Port())
+	}
+
+	ctx, cancel := context.WithCancelCause(octx)
+	defer cancel(context.Canceled)
+
+	hb := newHappyEyeballv2Respover(ctx, addr, h.Cache)
+
+	type res struct {
+		c   T
+		err error
+	}
+	resc := make(chan res) // must be unbuffered
+	var dialSize atomic.Int32
+	go func() {
+		failBoost := make(chan struct{}) // best effort send on dial failure
+
+		first := true
+
+		for {
+			ip, err := hb.wait()
+			if err != nil {
+				if first {
+					cancel(err)
+				}
+				break
+			}
+
+			first = false
+
+			dialSize.Add(1)
+
+			go func(ip net.IP) {
+				start := system.CheapNowNano()
+
+				c, err := h.DialContext(ctx, ip, addr.Port())
+				if err != nil {
+					// Best effort wake-up a pending dial.
+					// e.g. IPv4 dials failing quickly on an IPv6-only system.
+					// In that case we don't want to wait 300ms per IPv4 before
+					// we get to the IPv6 addresses.
+					select {
+					case failBoost <- struct{}{}:
+					default:
+					}
+				} else {
+					h.Avg.Push(time.Duration(system.CheapNowNano() - start))
+				}
+
+				select {
+				case resc <- res{c, err}:
+				case <-ctx.Done():
+					if err == nil {
+						_ = c.Close()
+					}
+				}
+			}(ip)
+
+			// A simple implementation can have a fixed delay for how long to wait
+			// before starting the next connection attempt.  This delay is referred
+			// to as the "Connection Attempt Delay".  One recommended value for a
+			// default delay is 250 milliseconds. A more nuanced implementation's
+			// delay should correspond to the time when the previous attempt is
+			// sending its second TCP SYN, based on the TCP's retransmission timer
+			// [RFC6298].  If the client has historical RTT data gathered from other
+			// connections to the same host or prefix, it can use this information
+			// to influence its delay.  Note that this algorithm should only try to
+			// approximate the time of the first SYN retransmission, and not any
+			// further retransmissions that may be influenced by exponential timer
+			// back off.
+			// log.Info("use timer for delay", "avg", h.Avg.Get())
+			timer := time.NewTimer(h.Avg.Get())
+			select {
+			case <-timer.C:
+			case <-failBoost:
+				timer.Stop()
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			}
+		}
+	}()
+
+	var dialErrors error
+	for {
+		select {
+		case r := <-resc:
+			if r.err != nil {
+				dialErrors = errors.Join(dialErrors, r.err)
+
+				if dialSize.Add(-1) == 0 && hb.lenOrWait() == 0 {
+					metrics.Counter.AddTCPDialFailed(addr.String())
+					return t, dialErrors
+				}
+
+				continue
+			}
+
+			if r.c.RemoteAddr() != nil {
+				if connAddr, ok := r.c.RemoteAddr().(*net.TCPAddr); ok && h.Cache != nil {
+					h.Cache.Add(addr.Hostname(), connAddr.IP)
+				}
+			}
+
+			return r.c, nil
+
+		case <-ctx.Done():
+			metrics.Counter.AddTCPDialFailed(addr.String())
+			return t, fmt.Errorf("dial context done: %w", context.Cause(ctx))
+		}
+	}
 }
