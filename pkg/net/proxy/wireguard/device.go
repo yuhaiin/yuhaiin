@@ -47,7 +47,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*netTun, error) {
 
 	tcpipErr := dev.stack.CreateNIC(1, dev.ep)
 	if tcpipErr != nil {
-		dev.Close()
+		_ = dev.Close()
 		return nil, fmt.Errorf("CreateNIC: %v", tcpipErr)
 	}
 
@@ -75,7 +75,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*netTun, error) {
 
 		tcpipErr := dev.stack.AddProtocolAddress(1, protoAddr, stack.AddressProperties{})
 		if tcpipErr != nil {
-			dev.Close()
+			_ = dev.Close()
 			return nil, fmt.Errorf("AddProtocolAddress(%v): %v", ip, tcpipErr)
 		}
 		if ip.Addr().Is4() {
@@ -94,7 +94,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*netTun, error) {
 
 	opt := tcpip.CongestionControlOption("cubic")
 	if tcpipErr = dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); tcpipErr != nil {
-		dev.Close()
+		_ = dev.Close()
 		return nil, fmt.Errorf("SetTransportProtocolOption(%d, &%T(%s)): %s", tcp.ProtocolNumber, opt, opt, tcpipErr)
 	}
 
@@ -172,8 +172,7 @@ func (tun *netTun) Close() error {
 		close(tun.events)
 	}
 	tun.ep.Close()
-	tun.dev.Close()
-	return nil
+	return tun.dev.Close()
 }
 
 func (tun *netTun) MTU() (int, error) { return int(tun.ep.MTU()), nil }

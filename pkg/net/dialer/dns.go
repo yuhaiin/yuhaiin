@@ -148,12 +148,7 @@ func LookupIP(ctx context.Context, addr netapi.Address) (*netapi.IPs, error) {
 
 	netctx := netapi.GetContext(ctx)
 
-	resolver := Bootstrap()
-	if netctx.Resolver.ResolverResolver() != nil {
-		resolver = netctx.Resolver.ResolverResolver()
-	} else if netctx.Resolver.Resolver != nil {
-		resolver = netctx.Resolver.Resolver
-	}
+	resolver := netctx.Resolver.ResolverResolver(Bootstrap())
 
 	if netctx.Resolver.Mode != netapi.ResolverModeNoSpecified {
 		ips, err := resolver.LookupIP(ctx, addr.Hostname(), netctx.Resolver.Opts(false)...)

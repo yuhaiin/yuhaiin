@@ -96,7 +96,7 @@ func (w *Wireguard) Close() error {
 	}
 
 	if w.bind != nil {
-		w.bind.Close()
+		_ = w.bind.Close()
 		w.bind = nil
 	}
 
@@ -264,7 +264,7 @@ func base64ToHex(s string) string {
 func createIPCRequest(conf *protocol.Wireguard) *bytes.Buffer {
 	request := bytes.NewBuffer(nil)
 
-	request.WriteString(fmt.Sprintf("private_key=%s\n", base64ToHex(conf.GetSecretKey())))
+	fmt.Fprintf(request, "private_key=%s\n", base64ToHex(conf.GetSecretKey()))
 
 	for _, peer := range conf.GetPeers() {
 		fmt.Fprintf(request, "public_key=%s\nendpoint=%s\n", base64ToHex(peer.GetPublicKey()), peer.GetEndpoint())

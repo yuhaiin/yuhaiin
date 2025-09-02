@@ -133,6 +133,14 @@ func closeWrite(rw io.ReadWriteCloser) {
 }
 
 func Copy(dst io.Writer, src io.Reader) (n int64, err error) {
+	defer func() {
+		// see https://github.com/golang/go/issues/61060
+		//
+		// the Global Protect maybe make slice panic
+		if er := recover(); er != nil {
+			err = fmt.Errorf("panic: %v", er)
+		}
+	}()
 	buf := pool.GetBytes(configuration.RelayBufferSize.Load())
 	defer pool.PutBytes(buf)
 	// to avoid using (*net.TCPConn).ReadFrom that will make new none-zero buf
