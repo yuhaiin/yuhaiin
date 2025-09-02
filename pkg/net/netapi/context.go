@@ -35,11 +35,15 @@ func (r *ContextResolver) SetResolverResolver(resolver Resolver) {
 	r.resolverSelf = &resolver
 }
 
-func (r *ContextResolver) ResolverResolver() Resolver {
+func (r *ContextResolver) ResolverResolver(fallback Resolver) Resolver {
 	if r.resolverSelf != nil {
 		return *r.resolverSelf
 	}
-	return r.Resolver
+	if r.Resolver != nil {
+		return r.Resolver
+	}
+
+	return fallback
 }
 
 func (r ContextResolver) Opts(reverse bool) []func(*LookupIPOption) {
