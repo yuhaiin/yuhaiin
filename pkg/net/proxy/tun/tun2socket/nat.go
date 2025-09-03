@@ -326,13 +326,15 @@ func (n *Nat) processTCP(ip header.Network, src, dst tcpip.Address) (_ header.Tr
 			log.Warn("all port already used", "dst", dst, "dstPort", destinationPort)
 			return nil, 0, false
 		}
+
 		ip.SetDestinationAddress(address)
 		t.SetDestinationPort(n.gatewayPort)
 		ip.SetSourceAddress(portal)
 		t.SetSourcePort(port)
 	}
 
-	pseudoHeaderSum = header.PseudoHeaderChecksum(header.TCPProtocolNumber,
+	pseudoHeaderSum = header.PseudoHeaderChecksum(
+		header.TCPProtocolNumber,
 		ip.SourceAddress(),
 		ip.DestinationAddress(),
 		uint16(len(ip.Payload())),

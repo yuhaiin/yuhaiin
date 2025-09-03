@@ -7,7 +7,6 @@ import (
 	"net"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
@@ -151,35 +150,37 @@ func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address, cache H
 		return r
 	}
 
-	var remain atomic.Int32
-
-	done := func() {
-		if remain.Add(1) >= 2 {
-			cancel()
-		}
-
-		select {
-		case r.notify <- struct{}{}:
-		case <-ctx.Done():
-		}
-	}
-
 	go func() {
-		defer done()
-		r.do(true)
+		var wg sync.WaitGroup
 
-		// If a positive
-		// A response is received first due to reordering, the client SHOULD
-		// wait a short time for the AAAA response to ensure that preference is
-		// given to IPv6 (it is common for the AAAA response to follow the A
-		// response by a few milliseconds).  This delay will be referred to as
-		// the "Resolution Delay".  The recommended value for the Resolution
-		// Delay is 50 milliseconds.
-		time.Sleep(time.Millisecond * 50)
-	}()
-	go func() {
-		defer done()
-		r.do(false)
+		wg.Go(func() {
+			r.do(true)
+
+			select {
+			case r.notify <- struct{}{}:
+			case <-ctx.Done():
+			}
+		})
+
+		wg.Go(func() {
+			r.do(false)
+			// If a positive
+			// A response is received first due to reordering, the client SHOULD
+			// wait a short time for the AAAA response to ensure that preference is
+			// given to IPv6 (it is common for the AAAA response to follow the A
+			// response by a few milliseconds).  This delay will be referred to as
+			// the "Resolution Delay".  The recommended value for the Resolution
+			// Delay is 50 milliseconds.
+			time.Sleep(time.Millisecond * 50)
+
+			select {
+			case r.notify <- struct{}{}:
+			case <-ctx.Done():
+			}
+		})
+
+		wg.Wait()
+		cancel()
 	}()
 
 	return r
@@ -247,25 +248,6 @@ func (h *happyEyeballv2Resolver) wait() (net.IP, error) {
 	}
 }
 
-func (h *happyEyeballv2Resolver) lenOrWait() int {
-	h.mu.Lock()
-	l := len(h.ips)
-	h.mu.Unlock()
-
-	if l > 0 {
-		return l
-	}
-
-	// dial will call wait first, so if len(h.ips) == 0, it will wait for
-	// the other lookup finished(all query finished)
-	<-h.ctx.Done()
-
-	h.mu.Lock()
-	l = len(h.ips)
-	h.mu.Unlock()
-	return l
-}
-
 type HappyEyeballsv2Dialer[T net.Conn] struct {
 	DialContext func(ctx context.Context, ip net.IP, port uint16) (T, error)
 	Cache       HappyEyeballsv2Cache
@@ -291,26 +273,22 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 		err error
 	}
 	resc := make(chan res) // must be unbuffered
-	var dialSize atomic.Int32
 	go func() {
-		failBoost := make(chan struct{}) // best effort send on dial failure
+		var (
+			failBoost = make(chan struct{}) // best effort send on dial failure
+			wg        sync.WaitGroup
+			err       error
+		)
 
-		first := true
-
+	_loop:
 		for {
-			ip, err := hb.wait()
+			var ip net.IP
+			ip, err = hb.wait()
 			if err != nil {
-				if first {
-					cancel(err)
-				}
-				break
+				break _loop
 			}
 
-			first = false
-
-			dialSize.Add(1)
-
-			go func(ip net.IP) {
+			wg.Go(func() {
 				start := system.CheapNowNano()
 
 				c, err := h.DialContext(ctx, ip, addr.Port())
@@ -334,7 +312,7 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 						_ = c.Close()
 					}
 				}
-			}(ip)
+			})
 
 			// A simple implementation can have a fixed delay for how long to wait
 			// before starting the next connection attempt.  This delay is referred
@@ -359,6 +337,9 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 				return
 			}
 		}
+
+		wg.Wait()
+		cancel(err)
 	}()
 
 	var dialErrors error
@@ -367,12 +348,6 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 		case r := <-resc:
 			if r.err != nil {
 				dialErrors = errors.Join(dialErrors, r.err)
-
-				if dialSize.Add(-1) == 0 && hb.lenOrWait() == 0 {
-					metrics.Counter.AddTCPDialFailed(addr.String())
-					return t, dialErrors
-				}
-
 				continue
 			}
 
@@ -386,6 +361,10 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 
 		case <-ctx.Done():
 			metrics.Counter.AddTCPDialFailed(addr.String())
+			if dialErrors != nil {
+				return t, dialErrors
+			}
+
 			return t, fmt.Errorf("dial context done: %w", context.Cause(ctx))
 		}
 	}

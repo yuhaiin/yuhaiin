@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"net"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -27,6 +28,8 @@ type Set struct {
 	Nodes     []string
 	randomKey id.UUID
 	strategy  protocol.SetStrategyType
+
+	lastID atomic.Int32
 }
 
 func NewSet(nodes *protocol.Set, m *Manager) (netapi.Proxy, error) {
@@ -35,25 +38,44 @@ func NewSet(nodes *protocol.Set, m *Manager) (netapi.Proxy, error) {
 		return nil, fmt.Errorf("nodes is empty")
 	}
 
-	return &Set{
+	s := &Set{
 		manager:   m,
 		outbound:  m.Outbound(),
 		Nodes:     ns,
 		randomKey: id.GenerateUUID(),
 		strategy:  nodes.GetStrategy(),
-	}, nil
+	}
+
+	s.lastID.Store(-1)
+
+	return s, nil
 }
 
-func (s *Set) loop(f func(string) bool) {
+func (s *Set) loop(f func(int, string) bool) {
+	cacheIndex := s.lastID.Load()
+	if cacheIndex >= 0 {
+		if !f(int(cacheIndex), s.Nodes[cacheIndex]) {
+			return
+		}
+	}
+
 	if s.strategy == protocol.Set_round_robin {
-		for _, node := range s.Nodes {
-			if !f(node) {
+		for i, node := range s.Nodes {
+			if i == int(cacheIndex) {
+				continue
+			}
+
+			if !f(i, node) {
 				return
 			}
 		}
 	} else {
 		for _, i := range rand.Perm(len(s.Nodes)) {
-			if !f(s.Nodes[i]) {
+			if i == int(cacheIndex) {
+				continue
+			}
+
+			if !f(i, s.Nodes[i]) {
 				return
 			}
 		}
@@ -77,63 +99,98 @@ func (s *Set) nestedLoopCounter(ctx context.Context) (context.Context, error) {
 }
 
 func (s *Set) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+	return setDo(s, ctx, true, func(ctx context.Context, dialer netapi.Proxy) (net.Conn, error) {
+		return dialer.Conn(ctx, addr)
+	})
+}
+
+func (s *Set) storeIndex(i int) {
+	if s.lastID.Load() == int32(i) {
+		return
+	}
+
+	s.lastID.Store(int32(i))
+}
+
+func setDo[T io.Closer](s *Set, ctx context.Context, storeIndex bool, f func(context.Context, netapi.Proxy) (T, error)) (T, error) {
 	ctx, err := s.nestedLoopCounter(ctx)
 	if err != nil {
-		return nil, err
+		return *new(T), err
 	}
 
-	var timeout = configuration.Timeout
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(context.Canceled)
 
-	deadline, ok := ctx.Deadline()
-	if ok {
-		timeout = time.Until(deadline)
-	}
+	ch := make(chan T)
 
-	ctx = context.WithoutCancel(ctx)
+	go func() {
+		var (
+			wg        sync.WaitGroup
+			emu       sync.Mutex
+			failBoost = make(chan struct{}) // best effort send on dial failure
+		)
 
-	for node := range s.loop {
-		dialer, er := s.outbound.GetDialerByID(ctx, node)
-		if er != nil {
+		appendError := func(er error) {
+			emu.Lock()
 			err = errors.Join(err, er)
-			continue
+			emu.Unlock()
 		}
 
-		ctx, cancel := context.WithTimeout(ctx, timeout)
-		conn, er := dialer.Conn(ctx, addr)
-		cancel()
-		if er != nil {
-			err = errors.Join(err, er)
-			continue
+		for i, node := range s.loop {
+			dialer, er := s.outbound.GetDialerByID(ctx, node)
+			if er != nil {
+				appendError(er)
+				continue
+			}
+
+			wg.Go(func() {
+				conn, er := f(ctx, dialer)
+				if er != nil {
+					appendError(er)
+					select {
+					case failBoost <- struct{}{}:
+					default:
+					}
+					return
+				}
+
+				select {
+				case ch <- conn:
+					if storeIndex {
+						s.storeIndex(i)
+					}
+				case <-ctx.Done():
+					_ = conn.Close()
+				}
+			})
+
+			timer := time.NewTimer(time.Second)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-failBoost:
+				timer.Stop()
+			case <-timer.C:
+			}
 		}
 
+		wg.Wait()
+		cancel(err)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return *new(T), context.Cause(ctx)
+	case conn := <-ch:
 		return conn, nil
 	}
-
-	return nil, err
 }
 
 func (s *Set) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	ctx, err := s.nestedLoopCounter(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	for node := range s.loop {
-		dialer, er := s.outbound.GetDialerByID(ctx, node)
-		if er != nil {
-			err = errors.Join(err, er)
-			continue
-		}
-		conn, er := dialer.PacketConn(ctx, addr)
-		if er != nil {
-			err = errors.Join(err, er)
-			continue
-		}
-
-		return conn, nil
-	}
-
-	return nil, err
+	return setDo(s, ctx, false, func(ctx context.Context, dialer netapi.Proxy) (net.PacketConn, error) {
+		return dialer.PacketConn(ctx, addr)
+	})
 }
 
 func (s *Set) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
@@ -142,7 +199,7 @@ func (s *Set) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
 		return 0, err
 	}
 
-	for node := range s.loop {
+	for _, node := range s.loop {
 		dialer, er := s.outbound.GetDialerByID(ctx, node)
 		if er != nil {
 			err = errors.Join(err, er)

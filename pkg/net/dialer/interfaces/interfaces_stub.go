@@ -4,11 +4,11 @@ package interfaces
 
 import (
 	"context"
-	"fmt"
+	"errors"
 )
 
 func defaultRoute() (d DefaultRouteDetails, err error) {
-	return d, fmt.Errorf("not implemented")
+	return d, errors.ErrUnsupported
 }
 
 func startMonitor(ctx context.Context, onChange func(string)) {}
