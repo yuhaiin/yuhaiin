@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -12,11 +13,11 @@ import (
 )
 
 func TestDial(t *testing.T) {
-
 	t.Run("all resolve failed", func(t *testing.T) {
 		addr, err := netapi.ParseDomainPort("tcp", "ip-3-86-108-113-ext.gold0028.gameloft.com", 46267)
 		assert.NoError(t, err)
 		_, err = DialHappyEyeballsv2(context.TODO(), addr)
+		t.Log(err)
 		assert.Error(t, err)
 	})
 
@@ -41,6 +42,7 @@ func TestDial(t *testing.T) {
 		addr, err := netapi.ParseDomainPort("tcp", "ip-3-86-108-113-ext.gold0028.gameloft.com", 46267)
 		assert.NoError(t, err)
 		_, err = DialHappyEyeballsv2(ctx, addr)
+		t.Log(err)
 		assert.Error(t, err)
 	})
 
@@ -113,6 +115,7 @@ func (m *mockResolver) LookupIP(ctx context.Context, domain string, opts ...func
 	case netapi.ResolverModePreferIPv4:
 		return &netapi.IPs{A: []net.IP{{10, 0, 0, 1}, {10, 0, 0, 2}}}, nil
 	case netapi.ResolverModePreferIPv6:
+		time.Sleep(time.Second)
 		return &netapi.IPs{AAAA: []net.IP{net.ParseIP("::1"), net.ParseIP("::2")}}, nil
 	}
 

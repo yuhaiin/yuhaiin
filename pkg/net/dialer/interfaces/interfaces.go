@@ -4,6 +4,7 @@ package interfaces
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/netip"
@@ -65,6 +66,12 @@ func DefaultInterfaceName() string {
 
 	r, err := defaultRouteInterface()
 	if err != nil {
+		if err == errors.ErrUnsupported {
+			r = ""
+			defaultInterfaceName.Store(&r)
+			return r
+		}
+
 		log.Error("get default route interface failed", "err", err)
 		return ""
 	}
