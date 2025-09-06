@@ -28,7 +28,7 @@ func NewChore(db config.DB, onSave func(*config.Setting)) gc.ConfigServiceServer
 
 	config, err := c.Load(context.Background(), &emptypb.Empty{})
 	if err == nil {
-		c.onSave(config)
+		onSave(config)
 	}
 
 	return c

@@ -358,7 +358,6 @@ func (m *Manager) clearIdleProxy() {
 
 		return nil
 	})
-
 }
 
 func (m *Manager) Close() error                                { return m.store.Close() }

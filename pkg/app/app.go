@@ -110,7 +110,8 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		f(closers)
 	}
 
-	chore := chore.NewChore(so.ChoreConfig, updateConfiguration(so))
+	chore := chore.NewChore(so.ChoreConfig,
+		func(s *pc.Setting) { updateConfiguration(so, s) })
 
 	log.Info("config", "path", so.ConfigPath)
 
@@ -188,41 +189,40 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	return app, nil
 }
 
-func updateConfiguration(so *StartOptions) func(s *pc.Setting) {
-	return func(s *pc.Setting) {
-		log.Set(s.GetLogcat(), tools.PathGenerator.Log(so.ConfigPath))
-		configuration.IgnoreDnsErrorLog.Store(s.GetLogcat().GetIgnoreDnsError())
-		configuration.IgnoreTimeoutErrorLog.Store(s.GetLogcat().GetIgnoreTimeoutError())
+func updateConfiguration(so *StartOptions, s *pc.Setting) {
+	log.Set(s.GetLogcat(), tools.PathGenerator.Log(so.ConfigPath))
+	configuration.IgnoreDnsErrorLog.Store(s.GetLogcat().GetIgnoreDnsError())
+	configuration.IgnoreTimeoutErrorLog.Store(s.GetLogcat().GetIgnoreTimeoutError())
 
-		sysproxy.Update(s)
+	sysproxy.Update(s.GetSystemHttpHost(), s.GetSystemSocks5Host())
 
-		defaultInterfaceName := s.GetNetInterface()
+	defaultInterfaceName := s.GetNetInterface()
+	useDefaultInterface := s.GetUseDefaultInterface()
 
-		if s.GetUseDefaultInterface() && goos.IsAndroid != 1 {
-			dialer.DefaultInterfaceName = func() string { return "" }
+	if useDefaultInterface && goos.IsAndroid != 1 {
+		dialer.DefaultInterfaceName = func() string { return "" }
+	} else {
+		if defaultInterfaceName == "default" {
+			dialer.DefaultInterfaceName = interfaces.DefaultInterfaceName
 		} else {
-			if defaultInterfaceName == "default" {
-				dialer.DefaultInterfaceName = interfaces.DefaultInterfaceName
-			} else {
-				dialer.DefaultInterfaceName = func() string { return defaultInterfaceName }
-			}
+			dialer.DefaultInterfaceName = func() string { return defaultInterfaceName }
+		}
+	}
+
+	configuration.IPv6.Store(s.GetIpv6())
+	configuration.FakeIPEnabled.Store(s.GetDns().GetFakedns() || s.GetServer().GetHijackDnsFakeip())
+	if advanced := s.GetAdvancedConfig(); advanced != nil {
+		if advanced.GetUdpBufferSize() > 2048 && advanced.GetUdpBufferSize() < 65535 {
+			configuration.UDPBufferSize.Store(int(advanced.GetUdpBufferSize()))
 		}
 
-		configuration.IPv6.Store(s.GetIpv6())
-		configuration.FakeIPEnabled.Store(s.GetDns().GetFakedns() || s.GetServer().GetHijackDnsFakeip())
-		if advanced := s.GetAdvancedConfig(); advanced != nil {
-			if advanced.GetUdpBufferSize() > 2048 && advanced.GetUdpBufferSize() < 65535 {
-				configuration.UDPBufferSize.Store(int(advanced.GetUdpBufferSize()))
-			}
+		if advanced.GetRelayBufferSize() > 2048 && advanced.GetRelayBufferSize() < 65535 {
+			configuration.RelayBufferSize.Store(int(advanced.GetRelayBufferSize()))
+		}
 
-			if advanced.GetRelayBufferSize() > 2048 && advanced.GetRelayBufferSize() < 65535 {
-				configuration.RelayBufferSize.Store(int(advanced.GetRelayBufferSize()))
-			}
-
-			udpRingBufferSize := s.GetAdvancedConfig().GetUdpRingbufferSize()
-			if udpRingBufferSize >= 100 && udpRingBufferSize <= 5000 {
-				configuration.MaxUDPUnprocessedPackets.Store(int(udpRingBufferSize))
-			}
+		udpRingBufferSize := s.GetAdvancedConfig().GetUdpRingbufferSize()
+		if udpRingBufferSize >= 100 && udpRingBufferSize <= 5000 {
+			configuration.MaxUDPUnprocessedPackets.Store(int(udpRingBufferSize))
 		}
 	}
 }
