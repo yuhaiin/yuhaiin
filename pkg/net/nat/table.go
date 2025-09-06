@@ -13,7 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-var IdleTimeout = time.Minute * 3
+var IdleTimeout = (time.Minute * 3) / 2
 var MaxSegmentSize = pool.MaxSegmentSize
 
 func NewTable(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *Table {

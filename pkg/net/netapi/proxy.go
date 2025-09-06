@@ -23,8 +23,12 @@ type Proxy interface {
 	StreamProxy
 	PacketProxy
 	PingProxy
-	Dispatch(context.Context, Address) (Address, error)
+	AddressDispatcher
 	io.Closer
+}
+
+type AddressDispatcher interface {
+	Dispatch(context.Context, Address) (Address, error)
 }
 
 type StreamProxy interface {
@@ -56,6 +60,8 @@ func LogLevel(err error) slog.Level {
 
 	return slog.LevelError
 }
+
+var _ AddressDispatcher = EmptyDispatch{}
 
 type EmptyDispatch struct{}
 

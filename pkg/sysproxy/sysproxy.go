@@ -4,71 +4,34 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
-
-	cb "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
-type config struct {
-	http   host
-	socks5 host
+var cfg struct {
+	http   string
+	socks5 string
 }
 
-type host struct {
-	enabled bool
-	host    string
-}
-
-func (h host) Ok() bool {
-	return !h.enabled || h.host != ""
-}
-
-func (h host) Empty() bool {
-	return h.enabled && h.host == ""
-}
-
-var cfg config
-
-func Update(s *cb.Setting) {
-	ncfg := config{
-		http: host{
-			enabled: s.GetSystemProxy().GetHttp(),
-			host:    "",
-		},
-		socks5: host{
-			enabled: s.GetSystemProxy().GetSocks5(),
-			host:    "",
-		},
-	}
-
-	for _, v := range s.GetServer().GetInbounds() {
-		if !v.GetEnabled() || v.GetTcpudp() == nil {
-			continue
-		}
-
-		if ncfg.http.Empty() && (v.GetHttp() != nil || v.GetMix() != nil) {
-			ncfg.http.host = v.GetTcpudp().GetHost()
-		}
-
-		if ncfg.socks5.Empty() && (v.GetSocks5() != nil || v.GetMix() != nil) {
-			ncfg.socks5.host = v.GetTcpudp().GetHost()
-		}
-
-		if ncfg.http.Ok() && ncfg.socks5.Ok() {
-			break
-		}
+func Update(http, socks5 string) {
+	ncfg := struct {
+		http   string
+		socks5 string
+	}{
+		http:   http,
+		socks5: socks5,
 	}
 
 	if cfg == ncfg {
 		return
 	}
 
+	cfg = ncfg
+
 	UnsetSysProxy()
 
-	hh, hp := replaceUnspecified(ncfg.http.host)
-	sh, sp := replaceUnspecified(ncfg.socks5.host)
+	hh, hp := replaceUnspecified(cfg.http)
+	sh, sp := replaceUnspecified(cfg.socks5)
 
 	SetSysProxy(hh, hp, sh, sp)
-	cfg = ncfg
 }
 
 func replaceUnspecified(s string) (string, string) {

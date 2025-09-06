@@ -69,3 +69,39 @@ func (c *JsonDB) Batch(f ...func(*Setting) error) error {
 }
 
 func (c *JsonDB) Dir() string { return filepath.Dir(c.path) }
+
+func (s *Setting) GetSystemHttpHost() string {
+	if !s.GetSystemProxy().GetHttp() {
+		return ""
+	}
+
+	for _, v := range s.GetServer().GetInbounds() {
+		if !v.GetEnabled() || v.GetTcpudp() == nil {
+			continue
+		}
+
+		if v.GetHttp() != nil || v.GetMix() != nil {
+			return v.GetTcpudp().GetHost()
+		}
+	}
+
+	return ""
+}
+
+func (s *Setting) GetSystemSocks5Host() string {
+	if !s.GetSystemProxy().GetSocks5() {
+		return ""
+	}
+
+	for _, v := range s.GetServer().GetInbounds() {
+		if !v.GetEnabled() || v.GetTcpudp() == nil {
+			continue
+		}
+
+		if v.GetSocks5() != nil || v.GetMix() != nil {
+			return v.GetTcpudp().GetHost()
+		}
+	}
+
+	return ""
+}
