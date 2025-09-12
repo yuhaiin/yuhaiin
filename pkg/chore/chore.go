@@ -24,14 +24,7 @@ type Chore struct {
 }
 
 func NewChore(db config.DB, onSave func(*config.Setting)) gc.ConfigServiceServer {
-	c := &Chore{db: db, onSave: onSave}
-
-	config, err := c.Load(context.Background(), &emptypb.Empty{})
-	if err == nil {
-		onSave(config)
-	}
-
-	return c
+	return &Chore{db: db, onSave: onSave}
 }
 
 func (c *Chore) Info(context.Context, *emptypb.Empty) (*config.Info, error) { return Info(), nil }

@@ -49,8 +49,6 @@ func (d *direct) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		return nil, err
 	}
 
-	log.Info("direct packet conn", "addr", addr, "udpaddr", ur)
-
 	p, err := dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
 		if d.iface != "" {
 			o.InterfaceName = d.iface
