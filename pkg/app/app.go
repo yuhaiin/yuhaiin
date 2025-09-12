@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,6 +34,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.etcd.io/bbolt"
 	bolterr "go.etcd.io/bbolt/errors"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/aead"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -112,6 +114,11 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	chore := chore.NewChore(so.ChoreConfig,
 		func(s *pc.Setting) { updateConfiguration(so, s) })
+
+	config, err := chore.Load(context.Background(), &emptypb.Empty{})
+	if err == nil {
+		updateConfiguration(so, config)
+	}
 
 	log.Info("config", "path", so.ConfigPath)
 

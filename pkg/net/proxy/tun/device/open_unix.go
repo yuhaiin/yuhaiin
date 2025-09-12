@@ -1,4 +1,4 @@
-//go:build unix && !linux
+//go:build unix && !aix && !ppc64 && !linux
 
 package device
 
