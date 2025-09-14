@@ -21,7 +21,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/tailscale/wireguard-go/device"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 )
@@ -47,17 +47,14 @@ func NewClient(conf *protocol.Wireguard, p netapi.Proxy) (netapi.Proxy, error) {
 		conf: conf,
 	}
 
-	w.happyDialer = &dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]{
-		DialContext: func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
-			nt, err := w.initNet()
-			if err != nil {
-				return nil, err
-			}
-			return nt.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
-		},
-		Cache: lru.NewSyncLru(lru.WithCapacity[string, net.IP](512)),
-		Avg:   dialer.NewAvg(),
-	}
+	w.happyDialer = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
+		nt, err := w.initNet()
+		if err != nil {
+			return nil, err
+		}
+		return nt.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
+	},
+		dialer.WithHappyEyeballsSemaphore[*gonet.TCPConn](semaphore.NewEmptySemaphore()))
 
 	return w, nil
 }
