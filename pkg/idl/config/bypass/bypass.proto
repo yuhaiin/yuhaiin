@@ -37,6 +37,7 @@ message config {
   bool enabled_v2 = 14 [ json_name = "enabled_v2", deprecated = true ];
   repeated rulev2 rules_v2 = 12 [ json_name = "rules_v2" ];
   map<string, list> lists = 13 [ json_name = "lists" ];
+  uint64 refresh_interval = 15 [ json_name = "refresh_interval" ];
 }
 
 enum resolve_strategy {
