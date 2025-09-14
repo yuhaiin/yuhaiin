@@ -382,7 +382,6 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 			case <-ctx.Done():
 				return
 			case <-u.ctx.Done():
-				p.Close()
 				return
 			case <-u.notifyReceivedPacket:
 				u.receivedPacketMx.Lock()

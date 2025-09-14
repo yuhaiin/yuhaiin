@@ -9,6 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/miekg/dns"
 )
 
@@ -85,7 +86,7 @@ func TestResolver(t *testing.T) {
 
 	ctx.Resolver.Resolver = &mockResolver{}
 
-	r := newHappyEyeballv2Respover(ctx, ad, happyEyeballsCache)
+	r := newHappyEyeballv2Respover(ctx, ad, happyEyeballsCache, semaphore.NewEmptySemaphore())
 
 	for {
 		p, err := r.wait()
