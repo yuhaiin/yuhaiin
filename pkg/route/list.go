@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -102,6 +104,9 @@ type Lists struct {
 	entries syncmap.SyncMap[string, *listEntry]
 	proxy   *atomicx.Value[netapi.Proxy]
 	gc.UnimplementedListsServer
+
+	mu     sync.RWMutex
+	ticker *time.Timer
 }
 
 func NewLists(db config.DB) *Lists {
@@ -109,6 +114,13 @@ func NewLists(db config.DB) *Lists {
 		db:    db,
 		proxy: atomicx.NewValue(direct.Default),
 	}
+
+	interval, err := l.RefreshInterval(context.Background(), &emptypb.Empty{})
+	if err != nil {
+		log.Error("get refresh interval failed", "err", err)
+	}
+
+	l.resetRefreshInterval(interval.GetRefreshInterval())
 
 	return l
 }
@@ -175,6 +187,36 @@ func (s *Lists) Save(ctx context.Context, list *bypass.List) (*emptypb.Empty, er
 	return &emptypb.Empty{}, nil
 }
 
+func (s *Lists) resetRefreshInterval(minute uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.ticker != nil {
+		s.ticker.Stop()
+		s.ticker = nil
+		log.Info("stop lists refresh ticker")
+	}
+
+	if minute == 0 {
+		return
+	}
+
+	interval := time.Minute * time.Duration(minute)
+
+	log.Info("start lists refresh ticker", "interval", interval)
+
+	s.ticker = time.AfterFunc(interval, func() {
+		_, err := s.Refresh(context.Background(), &emptypb.Empty{})
+		if err != nil {
+			log.Error("refresh lists failed", "err", err)
+		}
+
+		s.mu.Lock()
+		s.ticker.Reset(interval)
+		s.mu.Unlock()
+	})
+}
+
 type listsRequestKey struct{}
 
 func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Empty, error) {
@@ -234,6 +276,32 @@ func (s *Lists) Remove(ctx context.Context, req *wrapperspb.StringValue) (*empty
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+func (s *Lists) RefreshInterval(ctx context.Context, empty *emptypb.Empty) (*gc.RefreshIntervalResponse, error) {
+	ret := &gc.RefreshIntervalResponse{}
+	err := s.db.View(func(ss *config.Setting) error {
+		ret.SetRefreshInterval(ss.GetBypass().GetRefreshInterval())
+		return nil
+	})
+	return ret, err
+}
+
+func (s *Lists) SaveRefreshInterval(ctx context.Context, req *gc.RefreshIntervalResponse) (*emptypb.Empty, error) {
+	err := s.db.Batch(func(ss *config.Setting) error {
+		if ss.GetBypass() == nil {
+			ss.SetBypass(&bypass.Config{})
+		}
+
+		ss.GetBypass().SetRefreshInterval(req.GetRefreshInterval())
+		return nil
+	})
+
+	if err == nil {
+		s.resetRefreshInterval(req.GetRefreshInterval())
+	}
+
+	return &emptypb.Empty{}, err
 }
 
 func (s *Lists) SetProxy(proxy netapi.Proxy) { s.proxy.Store(proxy) }

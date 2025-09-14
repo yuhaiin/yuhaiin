@@ -461,11 +461,13 @@ var Bypass_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	Lists_List_FullMethodName    = "/yuhaiin.protos.config.service.lists/list"
-	Lists_Get_FullMethodName     = "/yuhaiin.protos.config.service.lists/get"
-	Lists_Save_FullMethodName    = "/yuhaiin.protos.config.service.lists/save"
-	Lists_Remove_FullMethodName  = "/yuhaiin.protos.config.service.lists/remove"
-	Lists_Refresh_FullMethodName = "/yuhaiin.protos.config.service.lists/refresh"
+	Lists_List_FullMethodName                = "/yuhaiin.protos.config.service.lists/list"
+	Lists_Get_FullMethodName                 = "/yuhaiin.protos.config.service.lists/get"
+	Lists_Save_FullMethodName                = "/yuhaiin.protos.config.service.lists/save"
+	Lists_Remove_FullMethodName              = "/yuhaiin.protos.config.service.lists/remove"
+	Lists_Refresh_FullMethodName             = "/yuhaiin.protos.config.service.lists/refresh"
+	Lists_RefreshInterval_FullMethodName     = "/yuhaiin.protos.config.service.lists/refresh_interval"
+	Lists_SaveRefreshInterval_FullMethodName = "/yuhaiin.protos.config.service.lists/save_refresh_interval"
 )
 
 // ListsClient is the client API for Lists service.
@@ -477,6 +479,8 @@ type ListsClient interface {
 	Save(ctx context.Context, in *bypass.List, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Remove(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Refresh(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	RefreshInterval(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*RefreshIntervalResponse, error)
+	SaveRefreshInterval(ctx context.Context, in *RefreshIntervalResponse, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type listsClient struct {
@@ -537,6 +541,26 @@ func (c *listsClient) Refresh(ctx context.Context, in *emptypb.Empty, opts ...gr
 	return out, nil
 }
 
+func (c *listsClient) RefreshInterval(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*RefreshIntervalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RefreshIntervalResponse)
+	err := c.cc.Invoke(ctx, Lists_RefreshInterval_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *listsClient) SaveRefreshInterval(ctx context.Context, in *RefreshIntervalResponse, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Lists_SaveRefreshInterval_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ListsServer is the server API for Lists service.
 // All implementations must embed UnimplementedListsServer
 // for forward compatibility.
@@ -546,6 +570,8 @@ type ListsServer interface {
 	Save(context.Context, *bypass.List) (*emptypb.Empty, error)
 	Remove(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error)
 	Refresh(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	RefreshInterval(context.Context, *emptypb.Empty) (*RefreshIntervalResponse, error)
+	SaveRefreshInterval(context.Context, *RefreshIntervalResponse) (*emptypb.Empty, error)
 	mustEmbedUnimplementedListsServer()
 }
 
@@ -570,6 +596,12 @@ func (UnimplementedListsServer) Remove(context.Context, *wrapperspb.StringValue)
 }
 func (UnimplementedListsServer) Refresh(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Refresh not implemented")
+}
+func (UnimplementedListsServer) RefreshInterval(context.Context, *emptypb.Empty) (*RefreshIntervalResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RefreshInterval not implemented")
+}
+func (UnimplementedListsServer) SaveRefreshInterval(context.Context, *RefreshIntervalResponse) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveRefreshInterval not implemented")
 }
 func (UnimplementedListsServer) mustEmbedUnimplementedListsServer() {}
 func (UnimplementedListsServer) testEmbeddedByValue()               {}
@@ -682,6 +714,42 @@ func _Lists_Refresh_Handler(srv interface{}, ctx context.Context, dec func(inter
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Lists_RefreshInterval_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ListsServer).RefreshInterval(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Lists_RefreshInterval_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ListsServer).RefreshInterval(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Lists_SaveRefreshInterval_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshIntervalResponse)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ListsServer).SaveRefreshInterval(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Lists_SaveRefreshInterval_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ListsServer).SaveRefreshInterval(ctx, req.(*RefreshIntervalResponse))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Lists_ServiceDesc is the grpc.ServiceDesc for Lists service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -708,6 +776,14 @@ var Lists_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "refresh",
 			Handler:    _Lists_Refresh_Handler,
+		},
+		{
+			MethodName: "refresh_interval",
+			Handler:    _Lists_RefreshInterval_Handler,
+		},
+		{
+			MethodName: "save_refresh_interval",
+			Handler:    _Lists_SaveRefreshInterval_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

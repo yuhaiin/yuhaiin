@@ -54,12 +54,22 @@ service bypass {
 
 message list_response { repeated string names = 1 [ json_name = "names" ]; }
 
+message refresh_interval_response {
+  // unit: minute
+  // 0 means disable refresh
+  uint64 refresh_interval = 1 [ json_name = "refresh_interval" ];
+}
+
 service lists {
   rpc list(google.protobuf.Empty) returns (list_response);
   rpc get(google.protobuf.StringValue) returns (yuhaiin.bypass.list);
   rpc save(yuhaiin.bypass.list) returns (google.protobuf.Empty);
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
   rpc refresh(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc refresh_interval(google.protobuf.Empty)
+      returns (refresh_interval_response);
+  rpc save_refresh_interval(refresh_interval_response)
+      returns (google.protobuf.Empty);
 }
 
 message rule_response { repeated string names = 1 [ json_name = "names" ]; }
