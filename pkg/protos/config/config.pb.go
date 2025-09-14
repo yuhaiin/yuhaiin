@@ -391,14 +391,15 @@ func (b0 Setting_builder) Build() *Setting {
 }
 
 type AdvancedConfig struct {
-	state                        protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_UdpBufferSize     int32                  `protobuf:"varint,1,opt,name=udp_buffer_size"`
-	xxx_hidden_RelayBufferSize   int32                  `protobuf:"varint,2,opt,name=relay_buffer_size"`
-	xxx_hidden_UdpRingbufferSize int32                  `protobuf:"varint,3,opt,name=udp_ringbuffer_size"`
-	XXX_raceDetectHookData       protoimpl.RaceDetectHookData
-	XXX_presence                 [1]uint32
-	unknownFields                protoimpl.UnknownFields
-	sizeCache                    protoimpl.SizeCache
+	state                             protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_UdpBufferSize          int32                  `protobuf:"varint,1,opt,name=udp_buffer_size"`
+	xxx_hidden_RelayBufferSize        int32                  `protobuf:"varint,2,opt,name=relay_buffer_size"`
+	xxx_hidden_UdpRingbufferSize      int32                  `protobuf:"varint,3,opt,name=udp_ringbuffer_size"`
+	xxx_hidden_HappyeyeballsSemaphore int32                  `protobuf:"varint,4,opt,name=happyeyeballs_semaphore"`
+	XXX_raceDetectHookData            protoimpl.RaceDetectHookData
+	XXX_presence                      [1]uint32
+	unknownFields                     protoimpl.UnknownFields
+	sizeCache                         protoimpl.SizeCache
 }
 
 func (x *AdvancedConfig) Reset() {
@@ -447,19 +448,31 @@ func (x *AdvancedConfig) GetUdpRingbufferSize() int32 {
 	return 0
 }
 
+func (x *AdvancedConfig) GetHappyeyeballsSemaphore() int32 {
+	if x != nil {
+		return x.xxx_hidden_HappyeyeballsSemaphore
+	}
+	return 0
+}
+
 func (x *AdvancedConfig) SetUdpBufferSize(v int32) {
 	x.xxx_hidden_UdpBufferSize = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 3)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 4)
 }
 
 func (x *AdvancedConfig) SetRelayBufferSize(v int32) {
 	x.xxx_hidden_RelayBufferSize = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 3)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 4)
 }
 
 func (x *AdvancedConfig) SetUdpRingbufferSize(v int32) {
 	x.xxx_hidden_UdpRingbufferSize = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 3)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 4)
+}
+
+func (x *AdvancedConfig) SetHappyeyeballsSemaphore(v int32) {
+	x.xxx_hidden_HappyeyeballsSemaphore = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 4)
 }
 
 func (x *AdvancedConfig) HasUdpBufferSize() bool {
@@ -483,6 +496,13 @@ func (x *AdvancedConfig) HasUdpRingbufferSize() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
 }
 
+func (x *AdvancedConfig) HasHappyeyeballsSemaphore() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 3)
+}
+
 func (x *AdvancedConfig) ClearUdpBufferSize() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
 	x.xxx_hidden_UdpBufferSize = 0
@@ -498,12 +518,18 @@ func (x *AdvancedConfig) ClearUdpRingbufferSize() {
 	x.xxx_hidden_UdpRingbufferSize = 0
 }
 
+func (x *AdvancedConfig) ClearHappyeyeballsSemaphore() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
+	x.xxx_hidden_HappyeyeballsSemaphore = 0
+}
+
 type AdvancedConfig_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	UdpBufferSize     *int32
-	RelayBufferSize   *int32
-	UdpRingbufferSize *int32
+	UdpBufferSize          *int32
+	RelayBufferSize        *int32
+	UdpRingbufferSize      *int32
+	HappyeyeballsSemaphore *int32
 }
 
 func (b0 AdvancedConfig_builder) Build() *AdvancedConfig {
@@ -511,16 +537,20 @@ func (b0 AdvancedConfig_builder) Build() *AdvancedConfig {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.UdpBufferSize != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 3)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 4)
 		x.xxx_hidden_UdpBufferSize = *b.UdpBufferSize
 	}
 	if b.RelayBufferSize != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 3)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 4)
 		x.xxx_hidden_RelayBufferSize = *b.RelayBufferSize
 	}
 	if b.UdpRingbufferSize != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 3)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 4)
 		x.xxx_hidden_UdpRingbufferSize = *b.UdpRingbufferSize
+	}
+	if b.HappyeyeballsSemaphore != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 4)
+		x.xxx_hidden_HappyeyeballsSemaphore = *b.HappyeyeballsSemaphore
 	}
 	return m0
 }
@@ -1121,11 +1151,12 @@ const file_config_config_proto_rawDesc = "" +
 	"\bplatform\x18\v \x01(\v2\x18.yuhaiin.config.platformR\bplatform\x12I\n" +
 	"\x0fadvanced_config\x18\f \x01(\v2\x1f.yuhaiin.config.advanced_configR\x0fadvanced_config\x125\n" +
 	"\x06backup\x18\x0e \x01(\v2\x1d.yuhaiin.backup.backup_optionR\x06backupJ\x04\b\n" +
-	"\x10\vR\x1eipv6_local_addr_prefer_unicast\"\x9b\x01\n" +
+	"\x10\vR\x1eipv6_local_addr_prefer_unicast\"\xd5\x01\n" +
 	"\x0fadvanced_config\x12(\n" +
 	"\x0fudp_buffer_size\x18\x01 \x01(\x05R\x0fudp_buffer_size\x12,\n" +
 	"\x11relay_buffer_size\x18\x02 \x01(\x05R\x11relay_buffer_size\x120\n" +
-	"\x13udp_ringbuffer_size\x18\x03 \x01(\x05R\x13udp_ringbuffer_size\":\n" +
+	"\x13udp_ringbuffer_size\x18\x03 \x01(\x05R\x13udp_ringbuffer_size\x128\n" +
+	"\x17happyeyeballs_semaphore\x18\x04 \x01(\x05R\x17happyeyeballs_semaphore\":\n" +
 	"\fsystem_proxy\x12\x12\n" +
 	"\x04http\x18\x02 \x01(\bR\x04http\x12\x16\n" +
 	"\x06socks5\x18\x03 \x01(\bR\x06socks5\"\xea\x01\n" +

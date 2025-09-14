@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/goos"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.etcd.io/bbolt"
@@ -230,6 +232,20 @@ func updateConfiguration(so *StartOptions, s *pc.Setting) {
 		udpRingBufferSize := s.GetAdvancedConfig().GetUdpRingbufferSize()
 		if udpRingBufferSize >= 100 && udpRingBufferSize <= 5000 {
 			configuration.MaxUDPUnprocessedPackets.Store(int(udpRingBufferSize))
+		}
+
+		happyeyeballsSemaphore := s.GetAdvancedConfig().GetHappyeyeballsSemaphore()
+
+		if int64(happyeyeballsSemaphore) != dialer.DefaultHappyEyeballsv2Dialer.Load().SemaphoreWeight() {
+			if happyeyeballsSemaphore > 0 && happyeyeballsSemaphore < 10 {
+				log.Warn("happyeyeballsSemaphore is less than 10, set to 10")
+				happyeyeballsSemaphore = 10
+			}
+
+			log.Info("update happyeyeballs semaphore", "value", happyeyeballsSemaphore)
+
+			dialer.DefaultHappyEyeballsv2Dialer.Store(dialer.NewDefaultHappyEyeballsv2Dialer(
+				dialer.WithHappyEyeballsSemaphore[net.Conn](semaphore.NewSemaphore(int64(happyeyeballsSemaphore)))))
 		}
 	}
 }
