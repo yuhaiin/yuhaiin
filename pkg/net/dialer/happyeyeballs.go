@@ -8,7 +8,10 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
+
+var happyEyeballsCache = lru.NewSyncLru(lru.WithCapacity[string, net.IP](512))
 
 func DialHappyEyeballsv1(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	c, err := dialHappyEyeballs(ctx, addr)

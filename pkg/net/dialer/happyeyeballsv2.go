@@ -9,9 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
@@ -20,14 +23,46 @@ type HappyEyeballsv2Cache interface {
 	Add(key string, value net.IP, opt ...lru.AddOption[string, net.IP])
 }
 
-var happyEyeballsCache = lru.NewSyncLru(lru.WithCapacity[string, net.IP](512))
+func WithHappyEyeballsSemaphore[T net.Conn](semaphore semaphore.Semaphore) func(*HappyEyeballsv2Dialer[T]) {
+	return func(d *HappyEyeballsv2Dialer[T]) {
+		d.semaphore = semaphore
+	}
+}
 
-var DefaultHappyEyeballsv2Dialer = &HappyEyeballsv2Dialer[net.Conn]{
-	DialContext: func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
+func WithHappyEyeballsCache[T net.Conn](cache HappyEyeballsv2Cache) func(*HappyEyeballsv2Dialer[T]) {
+	return func(d *HappyEyeballsv2Dialer[T]) {
+		d.cache = cache
+	}
+}
+
+func WithHappyEyeballsAvg[T net.Conn](avg *Avg) func(*HappyEyeballsv2Dialer[T]) {
+	return func(d *HappyEyeballsv2Dialer[T]) {
+		d.avg = avg
+	}
+}
+
+var DefaultHappyEyeballsv2Dialer = atomicx.NewValue(NewDefaultHappyEyeballsv2Dialer())
+
+func NewDefaultHappyEyeballsv2Dialer(opts ...func(*HappyEyeballsv2Dialer[net.Conn])) *HappyEyeballsv2Dialer[net.Conn] {
+	return NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 		return DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), strconv.Itoa(int(port))))
-	},
-	Cache: happyEyeballsCache,
-	Avg:   NewAvg(),
+	}, opts...)
+}
+
+func NewHappyEyeballsv2Dialer[T net.Conn](dialer func(ctx context.Context, ip net.IP, port uint16) (T, error),
+	opts ...func(*HappyEyeballsv2Dialer[T])) *HappyEyeballsv2Dialer[T] {
+	ret := &HappyEyeballsv2Dialer[T]{
+		dialContext: dialer,
+		cache:       lru.NewSyncLru(lru.WithCapacity[string, net.IP](512)),
+		avg:         NewAvg(),
+		semaphore:   semaphore.NewEmptySemaphore(),
+	}
+
+	for _, opt := range opts {
+		opt(ret)
+	}
+
+	return ret
 }
 
 // DialHappyEyeballsv2 impl rfc 8305
@@ -35,7 +70,7 @@ var DefaultHappyEyeballsv2Dialer = &HappyEyeballsv2Dialer[net.Conn]{
 // https://datatracker.ietf.org/doc/html/rfc8305
 // modified from https://github.com/tailscale/tailscale/blob/ee976ad704980e20ec36c6aaaad0a2ce5b30b3d5/net/dnscache/dnscache.go#L577
 func DialHappyEyeballsv2(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	return DefaultHappyEyeballsv2Dialer.DialHappyEyeballsv2(ctx, addr)
+	return DefaultHappyEyeballsv2Dialer.Load().DialHappyEyeballsv2(ctx, addr)
 }
 
 func moveToFront(ip net.IP, ips []net.IP) {
@@ -108,7 +143,15 @@ type happyEyeballv2Resolver struct {
 	errors error
 }
 
-func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address, cache HappyEyeballsv2Cache) *happyEyeballv2Resolver {
+func ifElse[T any](cond bool, trueVal, falseVal T) T {
+	if cond {
+		return trueVal
+	}
+	return falseVal
+}
+
+func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address,
+	cache HappyEyeballsv2Cache, semaphore semaphore.Semaphore) *happyEyeballv2Resolver {
 	ctx, cancel := context.WithCancel(ctx)
 
 	var lastIP net.IP
@@ -137,8 +180,15 @@ func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address, cache H
 		prefer = true
 	}
 
+	if err := semaphore.Acquire(ctx, ifElse[int64](prefer, 1, 2)); err != nil {
+		cancel()
+		r.errors = fmt.Errorf("failed to acquire semaphore: %w", err)
+		return r
+	}
+
 	if prefer {
 		go func() {
+			defer semaphore.Release(1)
 			defer cancel()
 
 			r.do(true)
@@ -154,6 +204,7 @@ func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address, cache H
 		var wg sync.WaitGroup
 
 		wg.Go(func() {
+			defer semaphore.Release(1)
 			r.do(true)
 
 			select {
@@ -163,6 +214,7 @@ func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address, cache H
 		})
 
 		wg.Go(func() {
+			defer semaphore.Release(1)
 			r.do(false)
 			// If a positive
 			// A response is received first due to reordering, the client SHOULD
@@ -249,24 +301,29 @@ func (h *happyEyeballv2Resolver) wait() (net.IP, error) {
 }
 
 type HappyEyeballsv2Dialer[T net.Conn] struct {
-	DialContext func(ctx context.Context, ip net.IP, port uint16) (T, error)
-	Cache       HappyEyeballsv2Cache
-	Avg         *Avg
+	dialContext func(ctx context.Context, ip net.IP, port uint16) (T, error)
+	cache       HappyEyeballsv2Cache
+	avg         *Avg
+	semaphore   semaphore.Semaphore
+}
+
+func (h *HappyEyeballsv2Dialer[T]) SemaphoreWeight() int64 {
+	return h.semaphore.Weight()
 }
 
 func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, addr netapi.Address) (t T, err error) {
-	if h.Avg == nil {
-		h.Avg = NewAvg()
+	if h.avg == nil {
+		h.avg = NewAvg()
 	}
 
 	if !addr.IsFqdn() {
-		return h.DialContext(octx, addr.(netapi.IPAddress).AddrPort().Addr().AsSlice(), addr.Port())
+		return h.dialContext(octx, addr.(netapi.IPAddress).AddrPort().Addr().AsSlice(), addr.Port())
 	}
 
 	ctx, cancel := context.WithCancelCause(octx)
 	defer cancel(context.Canceled)
 
-	hb := newHappyEyeballv2Respover(ctx, addr, h.Cache)
+	hb := newHappyEyeballv2Respover(ctx, addr, h.cache, h.semaphore)
 
 	type res struct {
 		c   T
@@ -288,10 +345,17 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 				break _loop
 			}
 
+			if err := h.semaphore.Acquire(ctx, 1); err != nil {
+				log.Warn("acquire semaphore failed", "err", err)
+				break _loop
+			}
+
 			wg.Go(func() {
+				defer h.semaphore.Release(1)
+
 				start := system.CheapNowNano()
 
-				c, err := h.DialContext(ctx, ip, addr.Port())
+				c, err := h.dialContext(ctx, ip, addr.Port())
 				if err != nil {
 					// Best effort wake-up a pending dial.
 					// e.g. IPv4 dials failing quickly on an IPv6-only system.
@@ -302,7 +366,7 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 					default:
 					}
 				} else {
-					h.Avg.Push(time.Duration(system.CheapNowNano() - start))
+					h.avg.Push(time.Duration(system.CheapNowNano() - start))
 				}
 
 				select {
@@ -327,7 +391,7 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 			// further retransmissions that may be influenced by exponential timer
 			// back off.
 			// log.Info("use timer for delay", "avg", h.Avg.Get())
-			timer := time.NewTimer(h.Avg.Get())
+			timer := time.NewTimer(h.avg.Get())
 			select {
 			case <-timer.C:
 			case <-failBoost:
@@ -352,8 +416,8 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 			}
 
 			if r.c.RemoteAddr() != nil {
-				if connAddr, ok := r.c.RemoteAddr().(*net.TCPAddr); ok && h.Cache != nil {
-					h.Cache.Add(addr.Hostname(), connAddr.IP)
+				if connAddr, ok := r.c.RemoteAddr().(*net.TCPAddr); ok && h.cache != nil {
+					h.cache.Add(addr.Hostname(), connAddr.IP)
 				}
 			}
 
