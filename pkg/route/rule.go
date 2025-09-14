@@ -15,7 +15,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
@@ -262,12 +261,12 @@ func (u *Uri) String() string {
 }
 
 type Rules struct {
-	db    config.DB
+	db    pc.DB
 	route *Route
 	gc.UnimplementedRulesServer
 }
 
-func NewRules(db config.DB, route *Route) *Rules {
+func NewRules(db pc.DB, route *Route) *Rules {
 	migrateConfig(db)
 
 	_ = db.View(func(s *pc.Setting) error {
@@ -292,7 +291,7 @@ func NewRules(db config.DB, route *Route) *Rules {
 
 func (r *Rules) List(ctx context.Context, empty *emptypb.Empty) (*gc.RuleResponse, error) {
 	names := make([]string, 0)
-	err := r.db.View(func(ss *config.Setting) error {
+	err := r.db.View(func(ss *pc.Setting) error {
 		for _, v := range ss.GetBypass().GetRulesV2() {
 			names = append(names, v.GetName())
 		}
@@ -306,7 +305,7 @@ func (r *Rules) List(ctx context.Context, empty *emptypb.Empty) (*gc.RuleRespons
 
 func (r *Rules) Get(ctx context.Context, index *gc.RuleIndex) (*bypass.Rulev2, error) {
 	var resp *bypass.Rulev2
-	err := r.db.View(func(ss *config.Setting) error {
+	err := r.db.View(func(ss *pc.Setting) error {
 		if err := r.checkIndex(ss, index); err != nil {
 			return err
 		}
@@ -320,7 +319,7 @@ func (r *Rules) Get(ctx context.Context, index *gc.RuleIndex) (*bypass.Rulev2, e
 }
 
 func (r *Rules) Save(ctx context.Context, req *gc.RuleSaveRequest) (*emptypb.Empty, error) {
-	err := r.db.Batch(func(ss *config.Setting) error {
+	err := r.db.Batch(func(ss *pc.Setting) error {
 		if req.GetIndex() == nil {
 			ss.GetBypass().SetRulesV2(append(ss.GetBypass().GetRulesV2(), req.GetRule()))
 			r.route.ms.Add(req.GetRule())
@@ -347,7 +346,7 @@ func (r *Rules) Save(ctx context.Context, req *gc.RuleSaveRequest) (*emptypb.Emp
 }
 
 func (r *Rules) Remove(ctx context.Context, index *gc.RuleIndex) (*emptypb.Empty, error) {
-	err := r.db.Batch(func(s *config.Setting) error {
+	err := r.db.Batch(func(s *pc.Setting) error {
 		if err := r.checkIndex(s, index); err != nil {
 			return err
 		}
@@ -362,7 +361,7 @@ func (r *Rules) Remove(ctx context.Context, index *gc.RuleIndex) (*emptypb.Empty
 }
 
 func (r *Rules) ChangePriority(ctx context.Context, req *gc.ChangePriorityRequest) (*emptypb.Empty, error) {
-	err := r.db.Batch(func(s *config.Setting) error {
+	err := r.db.Batch(func(s *pc.Setting) error {
 		if err := r.checkIndex(s, req.GetSource()); err != nil {
 			return fmt.Errorf("source index error: %w", err)
 		}
@@ -441,7 +440,7 @@ func InsertAfter[T any](s []T, from, to int) []T {
 	return result
 }
 
-func (r *Rules) checkIndex(s *config.Setting, index *gc.RuleIndex) error {
+func (r *Rules) checkIndex(s *pc.Setting, index *gc.RuleIndex) error {
 	if len(s.GetBypass().GetRulesV2())-1 < int(index.GetIndex()) {
 		return fmt.Errorf("can't find rule %d", index.GetIndex())
 	}
@@ -457,7 +456,7 @@ func (r *Rules) checkIndex(s *config.Setting, index *gc.RuleIndex) error {
 
 func (r *Rules) Config(context.Context, *emptypb.Empty) (*bypass.Configv2, error) {
 	var resp *bypass.Configv2
-	err := r.db.View(func(ss *config.Setting) error {
+	err := r.db.View(func(ss *pc.Setting) error {
 		resp = bypass.Configv2_builder{
 			DirectResolver: proto.String(ss.GetBypass().GetDirectResolver()),
 			ProxyResolver:  proto.String(ss.GetBypass().GetProxyResolver()),
@@ -493,9 +492,9 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*gc.Test
 	var addr netapi.Address
 	host, portstr, err := net.SplitHostPort(req.GetValue())
 	if err == nil {
-		port, err := strconv.ParseUint(portstr, 10, 16)
-		if err != nil {
-			return nil, fmt.Errorf("parse port failed: %w", err)
+		port, er := strconv.ParseUint(portstr, 10, 16)
+		if er != nil {
+			return nil, fmt.Errorf("parse port failed: %w", er)
 		}
 		addr, err = netapi.ParseAddressPort(host, host, uint16(port))
 	} else {

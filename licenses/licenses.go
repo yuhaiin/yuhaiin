@@ -13,8 +13,6 @@ var yuhaiin []byte
 //go:embed android.md
 var android []byte
 
-var reg = regexp.MustCompile(`- \[(.*)\]\((.*)\) \(\[(.*)\]\((.*)\)\)`)
-
 type License struct {
 	Name       string
 	URL        string
@@ -23,6 +21,8 @@ type License struct {
 }
 
 func FindLicense(b string) (License, bool) {
+	var reg = regexp.MustCompile(`- \[(.*)\]\((.*)\) \(\[(.*)\]\((.*)\)\)`)
+
 	if !reg.MatchString(b) {
 		return License{}, false
 	}
