@@ -3,8 +3,10 @@ package route
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -75,6 +77,35 @@ func (s *Network) Match(ctx context.Context, addr netapi.Address) bool {
 	}
 }
 
+type Port struct {
+	set *set.Set[uint16]
+}
+
+func NewPort(ports string) *Port {
+	p := &Port{
+		set: set.NewSet[uint16](),
+	}
+
+	for v := range strings.SplitSeq(ports, ",") {
+		v = strings.TrimSpace(v)
+		port, err := strconv.ParseUint(v, 10, 16)
+		if err != nil {
+			continue
+		}
+		p.set.Push(uint16(port))
+	}
+
+	return p
+}
+
+func (s *Port) Match(ctx context.Context, addr netapi.Address) bool {
+	store := netapi.GetContext(ctx)
+	port := uint16(addr.Port())
+	ok := s.set.Has(port)
+	store.AddMatchHistory(fmt.Sprintf("Port %d", port), ok)
+	return ok
+}
+
 type And struct {
 	matchers []Matcher
 }
@@ -132,6 +163,8 @@ func ParseMatcher(lists *Lists, config *bypass.Rulev2) Matcher {
 				andMatchers = append(andMatchers, NewInbound(rule.GetInbound().GetNames()...))
 			case bypass.Rule_Network_case:
 				andMatchers = append(andMatchers, NewNetwork(rule.GetNetwork().GetNetwork()))
+			case bypass.Rule_Port_case:
+				andMatchers = append(andMatchers, NewPort(rule.GetPort().GetPorts()))
 			}
 		}
 
