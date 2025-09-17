@@ -95,12 +95,18 @@ message inbound {
   repeated string names = 2 [ json_name = "names" ];
 }
 
+message port {
+  // ports splite by ',', e.g. "80,443"
+  string ports = 1 [ json_name = "ports" ];
+}
+
 message rule {
   oneof object {
     host host = 1 [ json_name = "host" ];
     process process = 2 [ json_name = "process" ];
     inbound inbound = 3 [ json_name = "inbound" ];
     network network = 4 [ json_name = "network" ];
+    port port = 5 [ json_name = "port" ];
   }
 }
 
