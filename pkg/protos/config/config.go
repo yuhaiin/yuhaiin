@@ -24,10 +24,7 @@ type JsonDB struct {
 	mu   sync.RWMutex
 }
 
-func NewJsonDB(path string) *JsonDB {
-	s := &JsonDB{path: path}
-	return s
-}
+func NewJsonDB(path string) *JsonDB { return &JsonDB{path: path} }
 
 func (c *JsonDB) View(f ...func(*Setting) error) error {
 	c.mu.RLock()

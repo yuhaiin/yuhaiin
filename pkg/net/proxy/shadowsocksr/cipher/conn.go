@@ -28,7 +28,7 @@ func NewCipher(method, password string) (*Cipher, error) {
 	}
 
 	if method == "" {
-		method = "rc4-md5"
+		method = "chacha20-ietf"
 	}
 
 	ss, ok := StreamCipherMethod[method]

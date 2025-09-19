@@ -16,7 +16,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20250904214705-431b6ff8c67c
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250916053832-db1fb7c6a39b
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250919034337-861a525f3db1
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.42.0
 	golang.org/x/mobile v0.0.0-20250911085028-6912353760cf
@@ -107,6 +107,7 @@ require (
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
 	golang.org/x/mod v0.28.0 // indirect
+	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/term v0.35.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/tools v0.37.0 // indirect
@@ -117,5 +118,5 @@ require (
 replace (
 	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
-	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20250914014212-668a57163c88
+	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20250919182901-b929ff53da5e
 )

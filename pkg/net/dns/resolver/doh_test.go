@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	dnsmessage "github.com/miekg/dns"
@@ -13,7 +14,7 @@ import (
 func TestDOH(t *testing.T) {
 	s, err := netip.ParsePrefix("223.5.5.5/24")
 	assert.NoError(t, err)
-	// s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
+	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
 
 	configMap := map[string]Config{
 		"google": {
@@ -32,7 +33,7 @@ func TestDOH(t *testing.T) {
 			Type:   dns.Type_doh,
 			Host:   "cloudflare-dns.com",
 			Subnet: s,
-			// Dialer: s5Dialer,
+			Dialer: s5Dialer,
 		},
 		"quad9": {
 			Type:   dns.Type_doh,
@@ -141,8 +142,14 @@ func TestDOH(t *testing.T) {
 
 func TestGetURL(t *testing.T) {
 	dnsQStr := "https://8.8.8.8/dns-query"
-	assert.Equal(t, getUrlAndHost("https://8.8.8.8"), dnsQStr)
-	assert.Equal(t, getUrlAndHost("8.8.8.8"), dnsQStr)
+
+	u, err := getUrlAndHost("https://8.8.8.8")
+	assert.NoError(t, err)
+	assert.Equal(t, u.String(), dnsQStr)
+
+	u, err = getUrlAndHost("8.8.8.8")
+	assert.NoError(t, err)
+	assert.Equal(t, u.String(), dnsQStr)
 
 	t.Log(getUrlAndHost("https://"))
 	t.Log(getUrlAndHost("/dns-query"))

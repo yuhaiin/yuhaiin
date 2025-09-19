@@ -49,10 +49,11 @@ func (r *RingBuffer[T]) PushBack(t T) {
 // PopFront returns the next element.
 // It must not be called when the buffer is empty, that means that
 // callers might need to check if there are elements in the buffer first.
-func (r *RingBuffer[T]) PopFront() T {
+func (r *RingBuffer[T]) PopFront() (T, bool) {
 	if r.Empty() {
-		panic("github.com/quic-go/quic-go/internal/utils/ringbuffer: pop from an empty queue")
+		return *new(T), false
 	}
+
 	r.full = false
 	t := r.ring[r.headPos]
 	r.ring[r.headPos] = *new(T)
@@ -60,17 +61,17 @@ func (r *RingBuffer[T]) PopFront() T {
 	if r.headPos == len(r.ring) {
 		r.headPos = 0
 	}
-	return t
+	return t, true
 }
 
 // PeekFront returns the next element.
 // It must not be called when the buffer is empty, that means that
 // callers might need to check if there are elements in the buffer first.
-func (r *RingBuffer[T]) PeekFront() T {
+func (r *RingBuffer[T]) PeekFront() (T, bool) {
 	if r.Empty() {
-		panic("github.com/quic-go/quic-go/internal/utils/ringbuffer: peek from an empty queue")
+		return *new(T), false
 	}
-	return r.ring[r.headPos]
+	return r.ring[r.headPos], true
 }
 
 // Grow the maximum size of the queue.

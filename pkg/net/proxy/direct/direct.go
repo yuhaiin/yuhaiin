@@ -30,10 +30,20 @@ func init() {
 	register.SetBootstrap(Default)
 }
 
+func WithInterface(iface string) func(*direct) {
+	return func(d *direct) {
+		d.iface = iface
+	}
+}
+
 var Default netapi.Proxy = NewDirect()
 
-func NewDirect() netapi.Proxy {
-	return &direct{}
+func NewDirect(f ...func(*direct)) netapi.Proxy {
+	d := &direct{}
+	for _, v := range f {
+		v(d)
+	}
+	return d
 }
 
 func (d *direct) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {

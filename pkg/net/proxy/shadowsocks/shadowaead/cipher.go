@@ -3,13 +3,12 @@ package shadowaead
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hkdf"
 	"crypto/sha1"
 	"errors"
-	"io"
 	"strconv"
 
 	"golang.org/x/crypto/chacha20poly1305"
-	"golang.org/x/crypto/hkdf"
 )
 
 // ErrRepeatedSalt means detected a reused salt
@@ -28,11 +27,13 @@ func (e KeySizeError) Error() string {
 	return "key size error: need " + strconv.Itoa(int(e)) + " bytes"
 }
 
-func hkdfSHA1(secret, salt, info, outkey []byte) {
-	r := hkdf.New(sha1.New, secret, salt, info)
-	if _, err := io.ReadFull(r, outkey); err != nil {
-		panic(err) // should never happen
+func hkdfSHA1(secret, salt []byte, info string, keySize int) ([]byte, error) {
+	prt, err := hkdf.Extract(sha1.New, secret, salt)
+	if err != nil {
+		return nil, err
 	}
+
+	return hkdf.Expand(sha1.New, prt, info, keySize)
 }
 
 type metaCipher struct {
@@ -48,13 +49,17 @@ func (a *metaCipher) SaltSize() int {
 	return 16
 }
 func (a *metaCipher) Encrypter(salt []byte) (cipher.AEAD, error) {
-	subkey := make([]byte, a.KeySize())
-	hkdfSHA1(a.psk, salt, []byte("ss-subkey"), subkey)
+	subkey, err := hkdfSHA1(a.psk, salt, "ss-subkey", a.KeySize())
+	if err != nil {
+		return nil, err
+	}
 	return a.makeAEAD(subkey)
 }
 func (a *metaCipher) Decrypter(salt []byte) (cipher.AEAD, error) {
-	subkey := make([]byte, a.KeySize())
-	hkdfSHA1(a.psk, salt, []byte("ss-subkey"), subkey)
+	subkey, err := hkdfSHA1(a.psk, salt, "ss-subkey", a.KeySize())
+	if err != nil {
+		return nil, err
+	}
 	return a.makeAEAD(subkey)
 }
 

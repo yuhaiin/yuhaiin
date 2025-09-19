@@ -24,9 +24,7 @@ func TestMux(t *testing.T) {
 	defer ms.Close()
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		conn, err := ms.Accept()
 		assert.NoError(t, err)
@@ -35,7 +33,7 @@ func TestMux(t *testing.T) {
 		assert.NoError(t, err)
 
 		t.Log(string(data))
-	}()
+	})
 
 	p, err := fixed.NewClient(protocol.Fixed_builder{
 		Host: proto.String("127.0.0.1"),

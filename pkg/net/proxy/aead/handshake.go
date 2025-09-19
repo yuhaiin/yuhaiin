@@ -3,6 +3,7 @@ package aead
 import (
 	"crypto/cipher"
 	"crypto/ecdh"
+	"crypto/hkdf"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
@@ -15,7 +16,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/crypto/chacha20"
-	"golang.org/x/crypto/hkdf"
 )
 
 type encryptedHandshaker struct {
@@ -118,10 +118,18 @@ func (h *encryptedHandshaker) handshakeServer(conn net.Conn) (net.Conn, error) {
 }
 
 func (h *encryptedHandshaker) newAead(cryptKey, salt, time []byte) (cipher.AEAD, []byte, error) {
-	keyNonce := make([]byte, h.aead.KeySize()+h.aead.NonceSize())
-	if _, err := io.ReadFull(hkdf.New(h.hash.New, cryptKey, salt, append(h.aead.Name(), time...)), keyNonce); err != nil {
-		return nil, nil, err
+	prk, err := hkdf.Extract(h.hash.New, cryptKey, salt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("extract prk failed: %w", err)
 	}
+
+	keyNonce, err := hkdf.Expand(h.hash.New, prk,
+		string(append(h.aead.Name(), time...)),
+		h.aead.KeySize()+h.aead.NonceSize())
+	if err != nil {
+		return nil, nil, fmt.Errorf("expand keyNonce failed: %w", err)
+	}
+
 	aead, err := h.aead.New(keyNonce[:h.aead.KeySize()])
 	if err != nil {
 		return nil, nil, err
@@ -231,17 +239,19 @@ func (h *header) saltTimeSignature() []byte {
 func (h *header) Def() { defer pool.PutBytes(h.bytes) }
 
 func (h *encryptedHandshaker) encryptTime(password, salt, dst, src []byte) error {
-	nonce := make([]byte, chacha20.NonceSize)
-	key := make([]byte, chacha20.KeySize)
-
-	kdf := hkdf.New(h.hash.New, password, salt, []byte{'t', 'i', 'm', 'e'})
-
-	if _, err := io.ReadFull(kdf, key); err != nil {
-		return err
+	prk, err := hkdf.Extract(h.hash.New, password, salt)
+	if err != nil {
+		return fmt.Errorf("extract prk failed: %w", err)
 	}
-	if _, err := io.ReadFull(kdf, nonce); err != nil {
-		return err
+
+	keyNonce, err := hkdf.Expand(h.hash.New,
+		prk, "time", chacha20.NonceSize+chacha20.KeySize)
+	if err != nil {
+		return fmt.Errorf("expand keyNonce failed: %w", err)
 	}
+
+	key := keyNonce[:chacha20.KeySize]
+	nonce := keyNonce[chacha20.KeySize:]
 
 	cipher, err := chacha20.NewUnauthenticatedCipher(key, nonce)
 	if err != nil {

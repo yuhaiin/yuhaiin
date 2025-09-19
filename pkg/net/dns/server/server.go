@@ -304,28 +304,13 @@ func (d *dnsServer) startHandleReqData() {
 }
 
 func (d *dnsServer) handle() {
-	d.mu.Lock()
-	nums := d.reqBuffer.Len()
-	if nums == 0 {
+	for {
+		d.mu.Lock()
+		req, ok := d.reqBuffer.PopFront()
 		d.mu.Unlock()
-		return
-	}
-
-	var hasMorePackets bool
-
-	for i := range nums {
-		if i > 0 {
-			d.mu.Lock()
-		}
-
-		hasMorePackets = !d.reqBuffer.Empty()
-		if !hasMorePackets {
-			d.mu.Unlock()
+		if !ok {
 			return
 		}
-
-		req := d.reqBuffer.PopFront()
-		d.mu.Unlock()
 
 		err := d.do(d.ctx, &doData{
 			Question:    req.Question.GetPayload(),
