@@ -202,14 +202,10 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 	wg := getWaitGroup()
 	defer putWaitGroup(wg)
 
-	wg.Add(1)
 	var a []net.IP
 	var aerr error
 
-	go func() {
-		defer wg.Done()
-		a, aerr = c.lookupIP(ctx, domain, dns.Type(dns.TypeA))
-	}()
+	wg.Go(func() { a, aerr = c.lookupIP(ctx, domain, dns.Type(dns.TypeA)) })
 
 	resp, aaaaerr := c.lookupIP(ctx, domain, dns.Type(dns.TypeAAAA))
 

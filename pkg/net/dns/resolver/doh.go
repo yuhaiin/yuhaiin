@@ -6,11 +6,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -52,6 +54,13 @@ func NewDoH(config Config) (Dialer, error) {
 		TLSClientConfig:   tlsConfig,
 		ForceAttemptHTTP2: true,
 		DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
+			if _, ok := ctx.Deadline(); !ok {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, configuration.ResolverTimeout)
+				defer cancel()
+
+				slog.Warn("doh not has timeout", "addr", addr)
+			}
 			return config.Dialer.Conn(ctx, addr)
 		},
 		MaxIdleConns:          100,
