@@ -29,11 +29,7 @@ func randSeq(n int) []byte {
 func TestENDcode(t *testing.T) {
 	wg := sync.WaitGroup{}
 	for range 100 {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			password := make([]byte, rand.IntN(1024))
 			_, err := io.ReadFull(crand.Reader, password)
 			assert.NoError(t, err)
@@ -53,7 +49,7 @@ func TestENDcode(t *testing.T) {
 				t.Error("dedata not equal", addr)
 				t.Fail()
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

@@ -286,11 +286,8 @@ func TestQuic(t *testing.T) {
 	id := atomic.Uint64{}
 	var idBytesMap syncmap.SyncMap[uint64, []byte]
 	for range 10 {
-		wg.Add(1)
 
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			length := mrand.IntN(pool.MaxSegmentSize - 1024)
 			data := make([]byte, length)
 			recevie := make([]byte, pool.MaxSegmentSize)
@@ -326,7 +323,7 @@ func TestQuic(t *testing.T) {
 				t.Error("not equal", len(data), n, data[:8], recevie[:8], rid)
 				t.Fail()
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

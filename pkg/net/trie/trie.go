@@ -20,8 +20,7 @@ func (x *Trie[T]) Insert(str string, mark T) {
 		return
 	}
 
-	ipNet, err := netip.ParsePrefix(str)
-	if err == nil {
+	if ipNet, err := netip.ParsePrefix(str); err == nil {
 		x.cidr.InsertCIDR(ipNet, mark)
 		return
 	}
@@ -38,25 +37,21 @@ func (x *Trie[T]) Insert(str string, mark T) {
 	x.domain.Insert(str, mark)
 }
 
-type OnlyFqdnKey struct{}
-
-func OnlyMatchFqdn(ctx context.Context) context.Context {
-	return context.WithValue(ctx, OnlyFqdnKey{}, true)
-}
-
-func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok bool) {
+func (x *Trie[T]) SearchFqdn(addr netapi.Address) (mark T, ok bool) {
 	if !addr.IsFqdn() {
 		return x.cidr.SearchIP(addr.(netapi.IPAddress).AddrPort().Addr().AsSlice())
 	}
 
-	if mark, ok = x.domain.Search(addr); ok {
+	return x.domain.Search(addr)
+}
+
+func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok bool) {
+	if mark, ok = x.SearchFqdn(addr); ok {
 		return
 	}
 
-	if ctx.Value(OnlyFqdnKey{}) != true {
-		if ips, err := dialer.ResolverIP(ctx, addr); err == nil {
-			mark, ok = x.cidr.SearchIP(ips)
-		}
+	if ips, err := dialer.ResolverIP(ctx, addr); err == nil {
+		mark, ok = x.cidr.SearchIP(ips)
 	}
 
 	return
@@ -83,15 +78,6 @@ func (x *Trie[T]) Remove(str string) {
 	}
 
 	x.domain.Remove(str)
-}
-
-func (x *Trie[T]) SearchWithDefault(ctx context.Context, addr netapi.Address, defaultT T) T {
-	t, ok := x.Search(ctx, addr)
-	if ok {
-		return t
-	}
-
-	return defaultT
 }
 
 func (x *Trie[T]) Clear() error {

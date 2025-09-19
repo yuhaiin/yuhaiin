@@ -321,16 +321,14 @@ func testPresentTimeout(t *testing.T, c1, c2 net.Conn) {
 	wg.Add(3)
 
 	deadlineSet := make(chan bool, 1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		time.Sleep(100 * time.Millisecond)
 		deadlineSet <- true
 		c1.SetReadDeadline(aLongTimeAgo)
 		c1.SetWriteDeadline(aLongTimeAgo)
-	}()
+	})
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		n, err := c1.Read(make([]byte, 1024))
 		if n != 0 {
 			t.Errorf("unexpected Read count: got %d, want 0", n)
@@ -339,9 +337,9 @@ func testPresentTimeout(t *testing.T, c1, c2 net.Conn) {
 		if len(deadlineSet) == 0 {
 			t.Error("Read timed out before deadline is set")
 		}
-	}()
-	go func() {
-		defer wg.Done()
+	})
+
+	wg.Go(func() {
 		var err error
 		for err == nil {
 			_, err = c1.Write(make([]byte, 1024))
@@ -350,7 +348,7 @@ func testPresentTimeout(t *testing.T, c1, c2 net.Conn) {
 		if len(deadlineSet) == 0 {
 			t.Error("Write timed out before deadline is set")
 		}
-	}()
+	})
 }
 
 // checkForTimeoutError checks that the error satisfies the Error interface

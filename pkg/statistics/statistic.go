@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -103,7 +104,7 @@ func (c *Connections) Conns(context.Context, *emptypb.Empty) (*gs.NotifyNewConne
 func (c *Connections) CloseConn(_ context.Context, x *gs.NotifyRemoveConnections) (*emptypb.Empty, error) {
 	for _, x := range x.GetIds() {
 		if z, ok := c.connStore.Load(x); ok {
-			z.Close()
+			_ = z.Close()
 		}
 	}
 	// trigger to refresh web
@@ -112,17 +113,29 @@ func (c *Connections) CloseConn(_ context.Context, x *gs.NotifyRemoveConnections
 }
 
 func (c *Connections) Close() error {
-	c.notify.Close()
+	var err error
 
-	c.history.Close()
-	c.infoStore.Close()
+	if er := c.notify.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+
+	if er := c.history.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+
+	if er := c.infoStore.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
 
 	for _, v := range c.connStore.Range {
-		v.Close()
+		if er := v.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
 	}
 
 	c.Cache.Close()
-	return nil
+
+	return err
 }
 
 func (c *Connections) Total(context.Context, *emptypb.Empty) (*gs.TotalFlow, error) {

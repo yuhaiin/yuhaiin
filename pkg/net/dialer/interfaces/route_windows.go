@@ -18,18 +18,17 @@ func routes() (router, error) {
 
 	ret := router{}
 	for _, route := range routes {
+		iface, ok := ifaces[int(route.InterfaceIndex)]
+		if !ok {
+			continue
+		}
+
 		prefix := route.DestinationPrefix.Prefix()
 
 		if prefix.Addr().Is4() {
-			ret.v4 = append(ret.v4, rtInfo{
-				Dst:         prefix,
-				OutputIface: ifaces[int(route.InterfaceIndex)].Name,
-			})
+			ret.v4 = append(ret.v4, rtInfo{Dst: prefix, OutputIface: iface.Name})
 		} else {
-			ret.v6 = append(ret.v6, rtInfo{
-				Dst:         prefix,
-				OutputIface: ifaces[int(route.InterfaceIndex)].Name,
-			})
+			ret.v6 = append(ret.v6, rtInfo{Dst: prefix, OutputIface: iface.Name})
 		}
 	}
 

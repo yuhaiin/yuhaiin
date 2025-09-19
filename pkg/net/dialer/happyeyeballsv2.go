@@ -128,8 +128,7 @@ func MergeDnsError(err1, err2 error) error {
 }
 
 type happyEyeballv2Resolver struct {
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx context.Context
 
 	addr                      netapi.Address
 	resolver                  netapi.Resolver
@@ -163,7 +162,6 @@ func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address,
 
 	r := &happyEyeballv2Resolver{
 		ctx:          ctx,
-		cancel:       cancel,
 		addr:         addr,
 		resolver:     netctx.Resolver.ResolverResolver(Bootstrap()),
 		primaryMode:  netapi.ResolverModePreferIPv6,

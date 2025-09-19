@@ -56,34 +56,28 @@ func NewClient(config *protocol.Http2, p netapi.Proxy) (netapi.Proxy, error) {
 }
 
 func (c *Client) Conn(pctx context.Context, add netapi.Address) (net.Conn, error) {
-	p1, p2 := pipe.Pipe()
+	var (
+		localAddr  net.Addr = netapi.EmptyAddr
+		remoteAddr net.Addr = netapi.EmptyAddr
+		ConnID     string
+		conn       *http2.ClientConn
 
-	var localAddr net.Addr = netapi.EmptyAddr
-	var remoteAddr net.Addr = netapi.EmptyAddr
-	var ConnID string
-	var conn *http2.ClientConn
-
-	tract := &httptrace.ClientTrace{
-		GotConn: func(gci httptrace.GotConnInfo) {
-			localAddr = gci.Conn.LocalAddr()
-			remoteAddr = gci.Conn.RemoteAddr()
-		},
-	}
-
-	connected := make(chan struct{})
-	defer close(connected)
-
-	// we can't use parent ctx, the parent ctx will make body close
-	// see: https://github.com/golang/net/blob/b4c86550a5be2d314b04727f13affd9bb07fcf46/http2/transport.go#L1569
-	ctx, cancel := context.WithCancel(context.WithoutCancel(pctx))
-
-	go func() {
-		select {
-		case <-pctx.Done():
-			cancel()
-		case <-connected:
+		tract = &httptrace.ClientTrace{
+			GotConn: func(gci httptrace.GotConnInfo) {
+				localAddr = gci.Conn.LocalAddr()
+				remoteAddr = gci.Conn.RemoteAddr()
+			},
 		}
-	}()
+
+		p1, p2 = pipe.Pipe()
+
+		// we can't use parent ctx, the parent ctx will make body close
+		// see: https://github.com/golang/net/blob/b4c86550a5be2d314b04727f13affd9bb07fcf46/http2/transport.go#L1569
+		ctx, cancel = context.WithCancel(context.WithoutCancel(pctx))
+	)
+
+	stopCancel := context.AfterFunc(pctx, cancel)
+	defer stopCancel()
 
 	hctx := httptrace.WithClientTrace(ctx, tract)
 	hctx = WithGetClientConnInfo(hctx, func(connID uint64, streamID uint32, c *http2.ClientConn) {
@@ -91,8 +85,9 @@ func (c *Client) Conn(pctx context.Context, add netapi.Address) (net.Conn, error
 	})
 
 	// because Body is a ReadCloser, it's just need CloseRead
-	// we show don't allow it close write
-	req, err := http.NewRequestWithContext(hctx, http.MethodConnect, "https://localhost", io.NopCloser(p1))
+	// we should don't allow it close write
+	req, err := http.NewRequestWithContext(hctx,
+		http.MethodConnect, "https://localhost", io.NopCloser(p1))
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
@@ -110,12 +105,7 @@ func (c *Client) Conn(pctx context.Context, add netapi.Address) (net.Conn, error
 	go func() {
 		defer cancel()
 		_, err := relay.Copy(p1, &bodyReader{resp.Body})
-
-		if err != nil && err != io.EOF && err != io.ErrClosedPipe &&
-			// https://github.com/golang/net/blob/b4c86550a5be2d314b04727f13affd9bb07fcf46/http2/transport.go#L698
-			err.Error() != "http2: client conn is closed" &&
-			// https://github.com/golang/net/blob/b4c86550a5be2d314b04727f13affd9bb07fcf46/http2/transport.go#L1267
-			err.Error() != "http2: client connection lost" {
+		if err != nil && !c.ignoreError(err) {
 			log.Error("relay client response body to pipe failed", "err", err, "addr", add)
 		}
 		_ = p1.Close()
@@ -129,6 +119,18 @@ func (c *Client) Conn(pctx context.Context, add netapi.Address) (net.Conn, error
 	p2.SetRemoteAddr(remoteAddr)
 
 	return p2, nil
+}
+
+func (c *Client) ignoreError(err error) bool {
+	if err != io.EOF && err != io.ErrClosedPipe &&
+		// https://github.com/golang/net/blob/b4c86550a5be2d314b04727f13affd9bb07fcf46/http2/transport.go#L698
+		err.Error() != "http2: client conn is closed" &&
+		// https://github.com/golang/net/blob/b4c86550a5be2d314b04727f13affd9bb07fcf46/http2/transport.go#L1267
+		err.Error() != "http2: client connection lost" {
+		return false
+	}
+
+	return true
 }
 
 func (c *Client) Close() error {

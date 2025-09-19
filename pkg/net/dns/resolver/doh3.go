@@ -21,6 +21,15 @@ func init() {
 }
 
 func NewDoH3(config Config) (Dialer, error) {
+	u, err := getUrlAndHost(config.Host)
+	if err != nil {
+		return nil, fmt.Errorf("get request failed: %w", err)
+	}
+
+	tlsConfig := &tls.Config{
+		ServerName: config.serverName(u),
+	}
+
 	tr := &http3.Transport{
 		Dial: func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
 			ad, err := netapi.ParseAddress("udp", addr)
@@ -36,15 +45,18 @@ func NewDoH3(config Config) (Dialer, error) {
 			c := &DOQBufferWrapConn{direct.NewBufferPacketConn(conn), fmt.Sprint(doqIgGenerate.Generate())}
 			return quic.DialEarly(ctx, c, ad, tlsCfg, cfg)
 		},
+		TLSClientConfig: tlsConfig,
 	}
 
-	req, err := getRequest(config.Host)
-	if err != nil {
-		return nil, fmt.Errorf("get request failed: %w", err)
-	}
+	uri := u.String()
 
 	return DialerFunc(func(ctx context.Context, b *Request) (Response, error) {
-		resp, err := tr.RoundTrip(req.Clone(ctx, b.QuestionBytes))
+		req, err := newDohRequest(ctx, uri, b.QuestionBytes)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := tr.RoundTrip(req)
 		if err != nil {
 			return nil, fmt.Errorf("doh post failed: %w", err)
 		}
@@ -55,7 +67,7 @@ func NewDoH3(config Config) (Dialer, error) {
 			return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
 		}
 
-		if resp.ContentLength <= 0 || resp.ContentLength > pool.MaxLength {
+		if resp.ContentLength <= 0 || resp.ContentLength > pool.MaxSegmentSize {
 			return nil, fmt.Errorf("response content length is empty: %d", resp.ContentLength)
 		}
 

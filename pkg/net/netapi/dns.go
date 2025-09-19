@@ -168,7 +168,9 @@ func (c *dnsConn) Write(packet []byte) (n int, err error) {
 
 	// log.Info("tailscale dns query", "name", rmsg.Questions[0].Name, "type", rmsg.Questions[0].Type)
 
-	msg, err := c.resolver.Raw(c.ctx, rmsg.Question[0])
+	ctx, cancel := context.WithTimeout(c.ctx, time.Second*20)
+	defer cancel()
+	msg, err := c.resolver.Raw(ctx, rmsg.Question[0])
 	if err != nil {
 		return 0, err
 	}

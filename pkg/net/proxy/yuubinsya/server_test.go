@@ -243,15 +243,12 @@ func TestServer(t *testing.T) {
 		t.Log(time.Duration(d))
 
 		wg := sync.WaitGroup{}
-		wg.Add(10)
 		for range 10 {
-			go func() {
-				defer wg.Done()
-
+			wg.Go(func() {
 				d, err = c.Ping(context.Background(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr(host), uint16(port)))
 				assert.NoError(t, err)
 				t.Log(time.Duration(d))
-			}()
+			})
 		}
 		wg.Wait()
 	})

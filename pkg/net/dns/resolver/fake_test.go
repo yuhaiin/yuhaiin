@@ -114,19 +114,15 @@ func TestNetip(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		getAndRev(fmt.Sprint(1))
-	}()
+	})
 
 	now := time.Now()
 	for i := range 50 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			getAndRev(fmt.Sprint(i))
-		}()
+		})
 	}
 
 	wg.Wait()

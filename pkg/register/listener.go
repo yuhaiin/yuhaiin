@@ -1,7 +1,6 @@
 package register
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"log/slog"
@@ -143,8 +142,7 @@ func (t *TlsConfigManager) Refresh() {
 		if t.searcher != nil {
 			addr, err := netapi.ParseAddressPort("tcp", chi.ServerName, 0)
 			if err == nil {
-				ctx := netapi.WithContext(context.TODO())
-				v, ok := t.searcher.Search(trie.OnlyMatchFqdn(ctx), addr)
+				v, ok := t.searcher.SearchFqdn(addr)
 				if ok {
 					return v, nil
 				}

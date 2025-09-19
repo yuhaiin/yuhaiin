@@ -90,13 +90,10 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 	if dispatcher != nil && !e.IsAttached() {
 		e.attached = true
 		e.gro.Dispatcher = dispatcher
-		e.wg.Add(1)
-		go func() {
-			defer e.wg.Done()
+		e.wg.Go(func() {
 			defer e.gro.Flush()
-
 			e.Forward()
-		}()
+		})
 	}
 }
 
