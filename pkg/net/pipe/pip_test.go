@@ -30,13 +30,11 @@ func TestPipe(t *testing.T) {
 		buf := make([]byte, 1024)
 
 		wg := sync.WaitGroup{}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			n, err := c1.Read(buf)
 			assert.NoError(t, err)
 			buf = buf[:n]
-		}()
+		})
 
 		_, err = c2.Write([]byte("hello"))
 		assert.NoError(t, err)

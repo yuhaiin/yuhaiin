@@ -50,9 +50,25 @@ func (s *Address) Add(hosts ...string) {
 	}
 }
 
+type resolverMatchKey struct{}
+
+func setResolverMatch(ctx context.Context) context.Context {
+	return context.WithValue(ctx, resolverMatchKey{}, struct{}{})
+}
+
+func isResolverMatch(ctx context.Context) bool {
+	return ctx.Value(resolverMatchKey{}) != nil
+}
+
 func (s *Address) Match(ctx context.Context, addr netapi.Address) bool {
 	store := netapi.GetContext(ctx)
-	_, ok := s.m.Search(ctx, addr)
+	var ok bool
+	// skip resolve when match for resolver
+	if isResolverMatch(ctx) {
+		_, ok = s.m.SearchFqdn(addr)
+	} else {
+		_, ok = s.m.Search(ctx, addr)
+	}
 	store.AddMatchHistory(s.name, ok)
 	return ok
 }

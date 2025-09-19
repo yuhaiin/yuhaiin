@@ -3,9 +3,8 @@ package aead
 import (
 	"crypto"
 	"crypto/ed25519"
+	"crypto/hkdf"
 	"io"
-
-	"golang.org/x/crypto/hkdf"
 )
 
 type Ed25519 struct {
@@ -13,10 +12,8 @@ type Ed25519 struct {
 }
 
 func NewEd25519(hash Hash, key []byte) Signer {
-	r := hkdf.New(hash.New, key, make([]byte, hash.Size()), []byte("ed25519-signature"))
-	seed := make([]byte, ed25519.SeedSize)
-	_, _ = io.ReadFull(r, seed)
-
+	prt, _ := hkdf.Extract(hash.New, key, make([]byte, hash.Size()))
+	seed, _ := hkdf.Expand(hash.New, prt, "ed25519-signature", ed25519.SeedSize)
 	return &Ed25519{ed25519.NewKeyFromSeed(seed)}
 }
 

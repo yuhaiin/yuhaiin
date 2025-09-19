@@ -186,10 +186,11 @@ func GetInterfaceList() ([]Interface, error) {
 	if err != nil {
 		return nil, err
 	}
-	ret := make([]Interface, len(ifs))
+	ret := make([]Interface, 0, len(ifs))
 	for i := range ifs {
-		ret[i].Interface = &ifs[i]
+		ret = append(ret, Interface{Interface: &ifs[i]})
 	}
+
 	return ret, nil
 }
 

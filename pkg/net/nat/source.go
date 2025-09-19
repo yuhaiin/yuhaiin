@@ -21,6 +21,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/ringbuffer"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 type sentPacket struct {
@@ -43,9 +44,8 @@ func newContext(store *netapi.Context) Context {
 }
 
 type SourceControl struct {
-	addrStore addrStore
-	ctx       context.Context
-	dialer    netapi.Proxy
+	ctx    context.Context
+	dialer netapi.Proxy
 
 	sniffer netapi.PacketSniffer
 	close   context.CancelFunc
@@ -69,6 +69,10 @@ type SourceControl struct {
 	receivedPacketMx sync.Mutex
 
 	lastProcess *atomicx.Value[string]
+
+	udp      syncmap.SyncMap[uint64, *net.UDPAddr]
+	origin   syncmap.SyncMap[uint64, netapi.Address]
+	dispatch syncmap.SyncMap[uint64, netapi.Address]
 }
 
 func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy, onRemove func(*SourceControl)) *SourceControl {
@@ -105,16 +109,24 @@ func (u *SourceControl) Close() error {
 	u.sentPacketMx.Lock()
 	defer u.sentPacketMx.Unlock()
 
-	for !u.sentPackets.Empty() {
-		pkt := u.sentPackets.PopFront()
+	for {
+		pkt, ok := u.sentPackets.PopFront()
+		if !ok {
+			break
+		}
+
 		pkt.DecRef()
 	}
 
 	u.receivedPacketMx.Lock()
 	defer u.receivedPacketMx.Unlock()
 
-	for !u.receivedPackets.Empty() {
-		pkt := u.receivedPackets.PopFront()
+	for {
+		pkt, ok := u.receivedPackets.PopFront()
+		if !ok {
+			break
+		}
+
 		pool.PutBytes(pkt.buf)
 	}
 
@@ -160,28 +172,13 @@ func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) err
 }
 
 func (u *SourceControl) handle() {
-	u.sentPacketMx.Lock()
-	numPackets := u.sentPackets.Len()
-	if numPackets == 0 {
+	for {
+		u.sentPacketMx.Lock()
+		pkt, ok := u.sentPackets.PopFront()
 		u.sentPacketMx.Unlock()
-		return
-	}
-
-	var hasMorePackets bool
-
-	for i := range numPackets {
-		if i > 0 {
-			u.sentPacketMx.Lock()
+		if !ok {
+			break
 		}
-
-		hasMorePackets = !u.sentPackets.Empty()
-		if !hasMorePackets {
-			u.sentPacketMx.Unlock()
-			return
-		}
-
-		pkt := u.sentPackets.PopFront()
-		u.sentPacketMx.Unlock()
 
 		err := u.handleOne(pkt)
 		pkt.DecRef()
@@ -288,7 +285,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 	key := pkt.Dst().Comparable()
 
 	// ! we need write to same ip when use fakeip/domain, eg: quic will need it to create stream
-	udpAddr, ok := t.addrStore.LoadUdp(key)
+	udpAddr, ok := t.udp.Load(key)
 	if ok {
 		// load from cache, so we don't need to map addr, pkt is nil
 		return t.WriteTo(pkt.GetPayload(), udpAddr, nil, conn)
@@ -296,7 +293,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 
 	// cache fakeip/hosts/bypass address
 	// for fullcone nat, we as much as possible write to same address
-	dstAddr, ok := t.addrStore.LoadDispatch(key)
+	dstAddr, ok := t.dispatch.Load(key)
 	if !ok {
 		// we route at [SourceControl.newPacketConn], here is skip
 		ctx = context.WithValue(ctx, netapi.SkipRouteKey{}, true)
@@ -308,7 +305,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 		}
 
 		if key != dstAddr.Comparable() {
-			t.addrStore.StoreDispatch(key, dstAddr)
+			t.dispatch.Store(key, dstAddr)
 		}
 	}
 
@@ -327,7 +324,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 	if err != nil {
 		return fmt.Errorf("resolve addr failed: %w", err)
 	}
-	t.addrStore.StoreUdp(key, udpAddr)
+	t.udp.Store(key, udpAddr)
 
 	err = t.WriteTo(pkt.GetPayload(), udpAddr, pkt.Dst(), conn)
 	if err != nil {
@@ -363,7 +360,7 @@ func (t *SourceControl) mapAddr(src net.Addr, dst netapi.Address) {
 		return
 	}
 
-	t.addrStore.StoreOrigin(srcKey, dst)
+	t.origin.Store(srcKey, dst)
 }
 
 func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
@@ -372,7 +369,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 	defer func() {
 		cancel()
 		u.stopTimer.Start()
-		p.Close()
+		_ = p.Close()
 	}()
 
 	go func() {
@@ -384,37 +381,23 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 			case <-u.ctx.Done():
 				return
 			case <-u.notifyReceivedPacket:
-				u.receivedPacketMx.Lock()
-				numPackets := u.receivedPackets.Len()
-
-				if numPackets == 0 {
-					u.receivedPacketMx.Unlock()
-					continue
-				}
 
 				writeBack := u.wirteBack.Load()
 
-				var hasMorePackets bool
-				for i := range numPackets {
-					if i > 0 {
-						u.receivedPacketMx.Lock()
-					}
-
-					hasMorePackets = !u.receivedPackets.Empty()
-					if !hasMorePackets {
-						u.receivedPacketMx.Unlock()
+				for {
+					u.receivedPacketMx.Lock()
+					pkt, ok := u.receivedPackets.PopFront()
+					u.receivedPacketMx.Unlock()
+					if !ok {
 						continue _loop
 					}
-
-					pkt := u.receivedPackets.PopFront()
-					u.receivedPacketMx.Unlock()
 
 					_, err := writeBack(pkt.buf, u.parseAddr(pkt.src))
 					pool.PutBytes(pkt.buf)
 
 					if err != nil {
 						if errors.Is(err, net.ErrClosed) {
-							p.Close()
+							_ = p.Close()
 							return
 						}
 
@@ -475,7 +458,7 @@ func (s *SourceControl) parseAddr(from net.Addr) net.Addr {
 		return from
 	}
 
-	if addr, ok := s.addrStore.LoadOrigin(faddr.Comparable()); ok {
+	if addr, ok := s.origin.Load(faddr.Comparable()); ok {
 		// TODO: maybe two dst(fake ip) have same uaddr, need help
 		from = addr
 	}

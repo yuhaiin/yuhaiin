@@ -6,6 +6,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ed25519"
+	"crypto/hkdf"
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -31,7 +32,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	utls "github.com/refraction-networking/utls"
-	"golang.org/x/crypto/hkdf"
 	"golang.org/x/net/http2"
 )
 
@@ -149,7 +149,7 @@ func (e *Client) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, 
 		ecdhe = uConn.HandshakeState.State13.KeyShareKeys.MlkemEcdhe
 	}
 	if ecdhe == nil {
-		return nil, fmt.Errorf("Current fingerprint %s %s does not support TLS 1.3, REALITY handshake cannot establish.", uConn.ClientHelloID.Client, uConn.ClientHelloID.Version)
+		return nil, fmt.Errorf("current fingerprint %s %s does not support TLS 1.3, REALITY handshake cannot establish", uConn.ClientHelloID.Client, uConn.ClientHelloID.Version)
 	}
 
 	peerKey, err := ecdhe.Curve().NewPublicKey(e.publicKey)
@@ -161,11 +161,18 @@ func (e *Client) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, 
 	if err != nil {
 		return nil, fmt.Errorf("ecdh key failed: %w", err)
 	}
-	verifier.authKey = authKey
-	_, err = hkdf.New(sha256.New, authKey, hello.Random[:20], []byte("REALITY")).Read(authKey)
+
+	prt, err := hkdf.Extract(sha256.New, authKey, hello.Random[:20])
 	if err != nil {
 		return nil, err
 	}
+
+	authKey, err = hkdf.Expand(sha256.New, prt, "REALITY", len(authKey))
+	if err != nil {
+		return nil, err
+	}
+
+	verifier.authKey = authKey
 
 	block, _ := aes.NewCipher(authKey)
 	aead, _ := cipher.NewGCM(block)

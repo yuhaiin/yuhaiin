@@ -5,15 +5,14 @@ import (
 	"crypto"
 	"crypto/ecdh"
 	"crypto/ed25519"
+	"crypto/hkdf"
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
-	"io"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/crypto/chacha20poly1305"
-	"golang.org/x/crypto/hkdf"
 )
 
 func TestEcdh(t *testing.T) {
@@ -70,15 +69,15 @@ func TestHkdf(t *testing.T) {
 	// panic(err)
 	// }
 	// Non-secret context info, optional (can be nil).
-	info := []byte("hkdf example")
+	info := "hkdf example"
 	// Generate three 128-bit derived keys.
-	hkdf := hkdf.New(hash, secret, salt, info)
+	prt, err := hkdf.Extract(hash, secret, salt)
+	assert.NoError(t, err)
+
 	var keys [][]byte
 	for range 3 {
-		key := make([]byte, 16)
-		if _, err := io.ReadFull(hkdf, key); err != nil {
-			panic(err)
-		}
+		key, err := hkdf.Expand(hash, prt, info, 16)
+		assert.NoError(t, err)
 		keys = append(keys, key)
 	}
 	for i := range keys {

@@ -6,11 +6,14 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -24,34 +27,32 @@ func init() {
 }
 
 func NewDoH(config Config) (Dialer, error) {
-	req, err := getRequest(config.Host)
+	u, err := getUrlAndHost(config.Host)
 	if err != nil {
 		return nil, err
-	}
-
-	host := req.r.Host
-	_, port, err := net.SplitHostPort(req.r.Host)
-	if err != nil || port == "" {
-		host = net.JoinHostPort(host, "443")
-	}
-
-	addr, err := netapi.ParseAddress("tcp", host)
-	if err != nil {
-		return nil, err
-	}
-
-	if config.Servername == "" {
-		config.Servername = req.Clone(context.TODO(), nil).URL.Hostname()
 	}
 
 	tlsConfig := &tls.Config{
-		ServerName: config.Servername,
+		ServerName: config.serverName(u),
 	}
 
 	tr := &http.Transport{
 		TLSClientConfig:   tlsConfig,
 		ForceAttemptHTTP2: true,
 		DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
+			addr, err := netapi.ParseAddress(network, host)
+			if err != nil {
+				return nil, err
+			}
+
+			if _, ok := ctx.Deadline(); !ok {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, configuration.ResolverTimeout)
+				defer cancel()
+
+				slog.Warn("doh not has timeout", "addr", addr)
+			}
+
 			return config.Dialer.Conn(ctx, addr)
 		},
 		MaxIdleConns:          100,
@@ -68,8 +69,15 @@ func NewDoH(config Config) (Dialer, error) {
 	tr2.ReadIdleTimeout = time.Second * 30 // https://github.com/golang/go/issues/30702
 	tr2.IdleConnTimeout = time.Second * 90
 
+	uri := u.String()
+
 	return DialerFunc(func(ctx context.Context, b *Request) (Response, error) {
-		resp, err := tr.RoundTrip(req.Clone(ctx, b.QuestionBytes))
+		req, err := newDohRequest(ctx, uri, b.QuestionBytes)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := tr.RoundTrip(req)
 		if err != nil {
 			return nil, fmt.Errorf("doh post failed: %w", err)
 		}
@@ -80,7 +88,7 @@ func NewDoH(config Config) (Dialer, error) {
 			return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
 		}
 
-		if resp.ContentLength <= 0 || resp.ContentLength > pool.MaxLength {
+		if resp.ContentLength <= 0 || resp.ContentLength > pool.MaxSegmentSize {
 			return nil, fmt.Errorf("response content length is empty: %d", resp.ContentLength)
 		}
 
@@ -107,7 +115,7 @@ func NewDoH(config Config) (Dialer, error) {
 }
 
 // https://tools.ietf.org/html/rfc8484
-func getUrlAndHost(host string) string {
+func getUrlAndHost(host string) (*url.URL, error) {
 	scheme, rest, _ := system.GetScheme(host)
 	if scheme == "" {
 		host = "https://" + host
@@ -123,31 +131,16 @@ func getUrlAndHost(host string) string {
 		host = host + "/dns-query"
 	}
 
-	return host
+	return url.Parse(host)
 }
 
-type post struct {
-	r *http.Request
-}
-
-func getRequest(host string) (*post, error) {
-	uri := getUrlAndHost(host)
-	req, err := http.NewRequest(http.MethodPost, uri, nil)
+func newDohRequest(ctx context.Context, uri string, body []byte) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx,
+		http.MethodPost, uri, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/dns-message")
 	req.Header.Set("Accept", "application/dns-message")
-	return &post{req}, nil
-}
-
-func (p *post) Clone(ctx context.Context, body []byte) *http.Request {
-	req := p.r.Clone(ctx)
-	req.ContentLength = int64(len(body))
-	req.Body = io.NopCloser(bytes.NewReader(body))
-	req.GetBody = func() (io.ReadCloser, error) {
-		return io.NopCloser(bytes.NewReader(body)), nil
-	}
-
-	return req
+	return req, nil
 }

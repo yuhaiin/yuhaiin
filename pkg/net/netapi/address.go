@@ -92,7 +92,7 @@ func ParseNetipAddr(net string, ip netip.Addr, port uint16) Address {
 func ParseNetipAddrPort(net string, ip netip.AddrPort) Address {
 	return IPAddr{
 		AddressNetwork: ParseAddressNetwork(net),
-		AddrPortX:     ip,
+		AddrPortX:      ip,
 	}
 }
 

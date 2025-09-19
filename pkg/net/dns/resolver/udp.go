@@ -183,11 +183,13 @@ func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {
 
 	reqKey := udpCacheKey(req.ID, req.Question)
 
-	ctx, cancel := context.WithCancel(ctx)
+	var cancel context.CancelFunc = func() {}
 	defer cancel()
 
 	resp, ok, _ := u.sender.LoadOrCreate(reqKey, func() (*udpresp, error) {
-		return &udpresp{ctx: ctx, cancel: cancel}, nil
+		uctx, ucancel := context.WithCancel(ctx)
+		cancel = ucancel
+		return &udpresp{ctx: uctx, cancel: cancel}, nil
 	})
 	if !ok {
 		defer u.sender.CompareAndDelete(reqKey, resp)
