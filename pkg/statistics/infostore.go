@@ -123,7 +123,9 @@ func (c *infoStore) Flush() {
 	}
 
 	if len(deleteIds) > 0 {
-		c.cache.Delete(deleteIds...)
+		if err := c.cache.Delete(deleteIds...); err != nil {
+			log.Warn("delete info failed", "err", err)
+		}
 	}
 }
 

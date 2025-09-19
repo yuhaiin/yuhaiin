@@ -90,7 +90,7 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 	result := s.dispatch(store, host)
 
 	if result.Mode.Mode() == bypass.Mode_block {
-		s.RejectHistory.Push(ctx, "tcp", host.String())
+		s.Push(ctx, "tcp", host.String())
 	}
 
 	p, err := s.d.Get(ctx, "tcp", result.Mode.Mode().String(), result.Mode.GetTag())
@@ -115,7 +115,7 @@ func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.Packet
 	result := s.dispatch(store, host)
 
 	if result.Mode.Mode() == bypass.Mode_block {
-		s.RejectHistory.Push(ctx, "udp", host.String())
+		s.Push(ctx, "udp", host.String())
 	}
 
 	p, err := s.d.Get(ctx, "udp", result.Mode.Mode().String(), result.Mode.GetTag())
@@ -141,7 +141,7 @@ func (s *Route) Ping(ctx context.Context, host netapi.Address) (uint64, error) {
 	result := s.dispatch(store, host)
 
 	if result.Mode.Mode() == bypass.Mode_block {
-		s.RejectHistory.Push(ctx, "ping", host.String())
+		s.Push(ctx, "ping", host.String())
 	}
 
 	p, err := s.d.Get(ctx, "udp", result.Mode.Mode().String(), result.Mode.GetTag())
@@ -314,7 +314,7 @@ func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 
 	if mode.Mode() == bypass.Mode_block {
 		s.dumpProcess(ctx, "udp", "tcp")
-		s.RejectHistory.Push(ctx, "dns", domain)
+		s.Push(ctx, "dns", domain)
 	}
 
 	return s.r.Get(mode.Resolver(), s.getResolverFallback(mode))

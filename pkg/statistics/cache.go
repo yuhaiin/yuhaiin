@@ -58,9 +58,7 @@ func NewTotalCache(cc cache.Cache) *TotalCache {
 
 	log.Info("get total cache", slog.Any("download", c.lastDownload.Load()), slog.Any("upload", c.lastUpload.Load()))
 
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
+	c.wg.Go(func() {
 		for {
 			select {
 			case <-c.ctx.Done():
@@ -78,7 +76,7 @@ func NewTotalCache(cc cache.Cache) *TotalCache {
 				c.triggerdUpload.Store(false)
 			}
 		}
-	}()
+	})
 
 	return c
 }

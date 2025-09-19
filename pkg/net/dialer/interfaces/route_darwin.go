@@ -33,6 +33,11 @@ func routes() (router, error) {
 				continue
 			}
 
+			iface, ok := ifaces[msg.Index]
+			if !ok {
+				continue
+			}
+
 			dst := msg.Addrs[0]
 			mask := msg.Addrs[2]
 
@@ -66,15 +71,9 @@ func routes() (router, error) {
 			prefix := netip.PrefixFrom(ip, bits)
 
 			if ip.Is4() {
-				ret.v4 = append(ret.v4, rtInfo{
-					Dst:         prefix,
-					OutputIface: ifaces[msg.Index].Name,
-				})
+				ret.v4 = append(ret.v4, rtInfo{Dst: prefix, OutputIface: iface.Name})
 			} else {
-				ret.v6 = append(ret.v6, rtInfo{
-					Dst:         prefix,
-					OutputIface: ifaces[msg.Index].Name,
-				})
+				ret.v6 = append(ret.v6, rtInfo{Dst: prefix, OutputIface: iface.Name})
 			}
 		}
 	}

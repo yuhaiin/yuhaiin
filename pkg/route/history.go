@@ -53,8 +53,8 @@ func (h *RejectHistory) Push(ctx context.Context, protocol string, host string) 
 	}
 
 	x.mu.Lock()
-	x.BlockHistory.SetTime(timestamppb.Now())
-	x.BlockHistory.SetBlockCount(x.BlockHistory.GetBlockCount() + 1)
+	x.SetTime(timestamppb.Now())
+	x.SetBlockCount(x.GetBlockCount() + 1)
 	x.mu.Unlock()
 }
 
