@@ -82,4 +82,4 @@ Some packages may only be included on certain architectures or operating systems
 - [google.golang.org/protobuf](https://pkg.go.dev/google.golang.org/protobuf) ([BSD-3-Clause](https://github.com/protocolbuffers/protobuf-go/blob/v1.36.9/LICENSE))
 - [gvisor.dev/gvisor/pkg](https://pkg.go.dev/gvisor.dev/gvisor/pkg) ([Apache-2.0](https://github.com/google/gvisor/blob/2a7b5c7dece9/LICENSE))
 - [gvisor.dev/gvisor/pkg](https://pkg.go.dev/gvisor.dev/gvisor/pkg) ([MIT](https://github.com/google/gvisor/blob/2a7b5c7dece9/LICENSE))
-- [tailscale.com](https://pkg.go.dev/tailscale.com) ([BSD-3-Clause](https://github.com/Asutorufa/tailscale/blob/668a57163c88/LICENSE))
+- [tailscale.com](https://pkg.go.dev/tailscale.com) ([BSD-3-Clause](https://github.com/Asutorufa/tailscale/blob/b929ff53da5e/LICENSE))
