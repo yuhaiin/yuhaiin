@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
@@ -21,7 +22,6 @@ func Stream(srv any, function grpc.StreamHandler) func(http.ResponseWriter, *htt
 			defer c.Close()
 
 			ctx, cancel := context.WithCancelCause(ctx)
-			defer cancel(nil)
 
 			ws := newWebsocketServerServer(ctx)
 
@@ -48,28 +48,42 @@ func Stream(srv any, function grpc.StreamHandler) func(http.ResponseWriter, *htt
 				}
 			}()
 
-			go func() {
+			var wg sync.WaitGroup
+
+			wg.Go(func() {
 				for {
-					select {
-					case <-ctx.Done():
+					data, ok := ws.NextSendData()
+					if !ok {
 						return
-					case data := <-ws.SendData():
-						_ = c.SetWriteDeadline(time.Now().Add(time.Second * 5))
-						_, err := c.WriteMsg(data, websocket.OpBinary)
-						_ = c.SetWriteDeadline(time.Time{})
-						pool.PutBytes(data)
-						if err != nil {
-							cancel(err)
-							return
-						}
 					}
 
+					_ = c.SetWriteDeadline(time.Now().Add(time.Second * 5))
+					_, err := c.WriteMsg(data, websocket.OpBinary)
+					_ = c.SetWriteDeadline(time.Time{})
+					pool.PutBytes(data)
+					if err != nil {
+						cancel(err)
+						return
+					}
 				}
-			}()
+			})
 
 			err := function(srv, ws)
-			cancel(err)
-			return err
+			if err != nil {
+				cancel(err)
+			} else {
+				// make send goroutine exit, otherwise WaitGroup will wait forever
+				cancel(context.Canceled)
+			}
+
+			// wait all data send
+			wg.Wait()
+
+			if ctx.Err() == context.Canceled {
+				return nil
+			}
+
+			return ctx.Err()
 		})
 	}
 }
@@ -132,4 +146,17 @@ func (x *websocketServer) AddRecvData(data []byte) {
 	}
 }
 
-func (x *websocketServer) SendData() <-chan []byte { return x.send }
+func (x *websocketServer) NextSendData() ([]byte, bool) {
+	select {
+	case <-x.ctx.Done():
+		select {
+		case data := <-x.send:
+			return data, true
+		default:
+			return nil, false
+		}
+
+	case data := <-x.send:
+		return data, true
+	}
+}
