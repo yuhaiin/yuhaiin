@@ -5,12 +5,12 @@ import (
 	_ "net"
 	"net/netip"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 	_ "unsafe"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/goos"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 )
 
@@ -106,7 +106,7 @@ func readHosts() Hosts {
 func refresh() {
 	// android can't change hosts without root
 	// so we don't need to refresh generally
-	if goos.IsAndroid == 1 && expire != 0 {
+	if runtime.GOOS == "android" && expire != 0 {
 		return
 	}
 

@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
@@ -30,7 +31,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/goos"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -208,7 +208,7 @@ func updateConfiguration(so *StartOptions, s *pc.Setting) {
 	defaultInterfaceName := s.GetNetInterface()
 	useDefaultInterface := s.GetUseDefaultInterface()
 
-	if useDefaultInterface && goos.IsAndroid != 1 {
+	if useDefaultInterface && runtime.GOOS != "android" {
 		dialer.DefaultInterfaceName = func() string { return "" }
 	} else {
 		if defaultInterfaceName == "default" {
