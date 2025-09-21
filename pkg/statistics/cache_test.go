@@ -20,14 +20,11 @@ func TestCache(t *testing.T) {
 	start := time.Now()
 
 	for range 10 {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range 10000000 {
 				cc.AddDownload(uint64(i))
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
