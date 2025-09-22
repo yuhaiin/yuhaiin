@@ -238,13 +238,10 @@ func TestConn(t *testing.T) {
 
 func TestQuic(t *testing.T) {
 	s, err := NewServer(listener.Quic_builder{
-		Host: proto.String("127.0.0.1:1091"),
+		Host: proto.String("127.0.0.1:0"),
 		Tls: protocol.TlsServerConfig_builder{
 			Certificates: []*protocol.Certificate{
-				protocol.Certificate_builder{
-					Cert: cert,
-					Key:  key,
-				}.Build(),
+				protocol.Certificate_builder{Cert: cert, Key: key}.Build(),
 			},
 		}.Build(),
 	}.Build())
@@ -263,15 +260,18 @@ func TestQuic(t *testing.T) {
 				break
 			}
 
-			// go func() {
-			_, err = spc.WriteTo(buf[:n], addr)
+			id := binary.BigEndian.Uint64(buf[:8])
+			t.Log("packet read", n, id)
+
+			n, err = spc.WriteTo(buf[:n], addr)
 			assert.NoError(t, err)
-			// }()
+
+			t.Log("write back", n, id)
 		}
 	}()
 
 	qc, err := NewClient(protocol.Quic_builder{
-		Host: proto.String("127.0.0.1:1090"),
+		Host: proto.String(s.Addr().String()),
 		Tls: protocol.TlsConfig_builder{
 			Enable:             proto.Bool(true),
 			InsecureSkipVerify: proto.Bool(true),
@@ -282,48 +282,56 @@ func TestQuic(t *testing.T) {
 	pc, err := qc.PacketConn(context.TODO(), netapi.EmptyAddr)
 	assert.NoError(t, err)
 
-	var wg sync.WaitGroup
-	id := atomic.Uint64{}
 	var idBytesMap syncmap.SyncMap[uint64, []byte]
-	for range 10 {
 
-		wg.Go(func() {
-			length := mrand.IntN(pool.MaxSegmentSize - 1024)
-			data := make([]byte, length)
-			recevie := make([]byte, pool.MaxSegmentSize)
+	var wg sync.WaitGroup
 
-			_, err := io.ReadFull(rand.Reader, data)
-			assert.NoError(t, err)
+	go func() {
+		for {
+			buf := make([]byte, 65536)
+			n, addr, err := pc.ReadFrom(buf)
+			if err != nil {
+				t.Error(err)
+				break
+			}
 
-			id := id.Add(1)
+			rid := binary.BigEndian.Uint64(buf[:n])
 
-			// defer fmt.Println(id)
-
-			idb := binary.BigEndian.AppendUint64(nil, uint64(id))
-
-			data = append(idb, data...)
-
-			idBytesMap.Store(uint64(id), data)
-
-			_, err = pc.WriteTo(data, nil)
-			assert.NoError(t, err)
-
-			n, _, err := pc.ReadFrom(recevie)
-			assert.NoError(t, err)
-
-			rid := binary.BigEndian.Uint64(recevie[:n])
+			t.Log("packet read back", n, addr, rid)
 
 			data, ok := idBytesMap.Load(rid)
 			if !ok {
-				t.Error("not found")
+				t.Error("not found", rid, n)
 				t.Fail()
 			}
 
-			if !bytes.Equal(data, recevie[:n]) {
-				t.Error("not equal", len(data), n, data[:8], recevie[:8], rid)
+			if !bytes.Equal(data, buf[:n]) {
+				t.Error("not equal", len(data), n, data[:8], buf[:8], rid)
 				t.Fail()
 			}
-		})
+
+			wg.Done()
+		}
+	}()
+
+	for id := range 10 {
+		wg.Add(1)
+		length := mrand.IntN(pool.MaxSegmentSize - 10240)
+		data := make([]byte, length)
+
+		_, err := io.ReadFull(rand.Reader, data)
+		assert.NoError(t, err)
+
+		idb := binary.BigEndian.AppendUint64(nil, uint64(id))
+
+		data = append(idb, data...)
+
+		idBytesMap.Store(uint64(id), data)
+
+		time.Sleep(time.Millisecond * 50)
+
+		_, err = pc.WriteTo(data, nil)
+		assert.NoError(t, err)
 	}
 
 	wg.Wait()
@@ -351,10 +359,8 @@ func TestSimple(t *testing.T) {
 						break
 					}
 
-					// go func() {
 					_, err = spc.WriteTo(buf[:n], addr)
 					assert.NoError(t, err)
-					// }()
 				}
 			}()
 		}

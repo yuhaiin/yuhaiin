@@ -20,7 +20,7 @@ require (
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.42.0
 	golang.org/x/mobile v0.0.0-20250911085028-6912353760cf
-	golang.org/x/net v0.44.0
+	golang.org/x/net v0.44.1-0.20250919211339-10342476f5c8
 	golang.org/x/sync v0.17.0
 	golang.org/x/sys v0.36.0
 	golang.org/x/time v0.13.0

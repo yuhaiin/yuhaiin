@@ -283,8 +283,8 @@ golang.org/x/mobile v0.0.0-20250911085028-6912353760cf h1:2HVicFltkNthxuudLg8n5T
 golang.org/x/mobile v0.0.0-20250911085028-6912353760cf/go.mod h1:tfwPrSLpQwNZm2LZ6L4ol2VGzxz+xdyj0fN+n4A50OQ=
 golang.org/x/mod v0.28.0 h1:gQBtGhjxykdjY9YhZpSlZIsbnaE2+PgjfLWUQTnoZ1U=
 golang.org/x/mod v0.28.0/go.mod h1:yfB/L0NOf/kmEbXjzCPOx1iK1fRutOydrCMsqRhEBxI=
-golang.org/x/net v0.44.0 h1:evd8IRDyfNBMBTTY5XRF1vaZlD+EmWx6x8PkhR04H/I=
-golang.org/x/net v0.44.0/go.mod h1:ECOoLqd5U3Lhyeyo/QDCEVQ4sNgYsqvCZ722XogGieY=
+golang.org/x/net v0.44.1-0.20250919211339-10342476f5c8 h1:1zC9ITCQPE7WoPeFj/frKar4PQY2rPssUGyJ0UihkX4=
+golang.org/x/net v0.44.1-0.20250919211339-10342476f5c8/go.mod h1:ECOoLqd5U3Lhyeyo/QDCEVQ4sNgYsqvCZ722XogGieY=
 golang.org/x/oauth2 v0.30.0 h1:dnDm7JmhM45NNpd8FDDeLhK6FwqbOf4MLCM9zb1BOHI=
 golang.org/x/oauth2 v0.30.0/go.mod h1:B++QgG3ZKulg6sRPGD/mqlHQs5rB3Ml9erfeDY7xKlU=
 golang.org/x/sync v0.0.0-20210220032951-036812b2e83c/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
