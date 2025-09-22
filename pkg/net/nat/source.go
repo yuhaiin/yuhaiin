@@ -373,6 +373,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 	}()
 
 	go func() {
+		errCount := 0
 	_loop:
 		for {
 			select {
@@ -396,12 +397,22 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 					pool.PutBytes(pkt.buf)
 
 					if err != nil {
-						if errors.Is(err, net.ErrClosed) {
+						if errors.Is(err, net.ErrClosed) || errors.Is(err, io.ErrClosedPipe) {
+							_ = p.Close()
+							return
+						}
+
+						errCount++
+
+						if errCount > 13 {
+							log.Warn("write back failed too many times(over 13 times)", "err", err, "dst", dst)
 							_ = p.Close()
 							return
 						}
 
 						log.Error("write back failed", "err", err)
+					} else if errCount != 0 {
+						errCount = 0
 					}
 				}
 			}
