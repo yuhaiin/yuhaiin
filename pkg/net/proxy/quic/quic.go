@@ -25,25 +25,51 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
+type session struct {
+	underlying net.PacketConn
+	quicConn   *quic.Conn
+	time       int64
+	packets    *ConnectionPacketConn
+}
+
+func (s *session) Close() error {
+	var err error
+	if s.quicConn != nil {
+		if er := s.quicConn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), ""); er != nil {
+			err = errors.Join(err, er)
+		}
+	}
+	if s.underlying != nil {
+		if er := s.underlying.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
+	}
+
+	return err
+}
+
+func (s *session) done() bool {
+	select {
+	case <-s.quicConn.Context().Done():
+		return true
+	default:
+		return false
+	}
+}
+
 type Client struct {
 	netapi.EmptyDispatch
 
 	dialer netapi.Proxy
 
-	session    *quic.Conn
-	underlying net.PacketConn
-
 	tlsConfig *tls.Config
-
-	packetConn *ConnectionPacketConn
 
 	host   *net.UDPAddr
 	natMap syncmap.SyncMap[uint64, *clientPacketConn]
 
-	sessionUnix int64
-
 	idg id.IDGenerator
 
+	session   *session
 	sessionMu sync.RWMutex
 }
 
@@ -86,34 +112,24 @@ func NewClient(config *protocol.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
 
 func (c *Client) initSession(ctx context.Context) (*quic.Conn, error) {
 	c.sessionMu.RLock()
-	session := c.session
+	sion := c.session
 	c.sessionMu.RUnlock()
 
-	if session != nil {
-		select {
-		case <-session.Context().Done():
-		default:
-			return session, nil
-		}
+	if sion != nil && !sion.done() {
+		return sion.quicConn, nil
 	}
 
 	c.sessionMu.Lock()
 	defer c.sessionMu.Unlock()
 
+	if c.session != nil && !c.session.done() {
+		return c.session.quicConn, nil
+	}
+
 	if c.session != nil {
-		select {
-		case <-c.session.Context().Done():
-		default:
-			return c.session, nil
+		if err := c.session.Close(); err != nil {
+			log.Error("quic close error", "err", err)
 		}
-	}
-
-	if c.session != nil {
-		_ = c.session.CloseWithError(0, "")
-	}
-
-	if c.underlying != nil {
-		_ = c.underlying.Close()
 	}
 
 	var conn net.PacketConn
@@ -141,29 +157,31 @@ func (c *Client) initSession(ctx context.Context) (*quic.Conn, error) {
 		MaxIdleTimeout:  time.Second * 40,
 	}
 
-	session, err = tr.Dial(ctx, c.host, c.tlsConfig, config)
+	quicConn, err := tr.Dial(ctx, c.host, c.tlsConfig, config)
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
 	}
 
-	pconn := NewConnectionPacketConn(session)
+	sion = &session{
+		underlying: conn,
+		quicConn:   quicConn,
+		time:       system.NowUnix(),
+		// Datagram
+		packets: NewConnectionPacketConn(quicConn),
+	}
 
-	c.underlying = conn
-	c.session = session
-	c.sessionUnix = system.NowUnix()
+	c.session = sion
 
-	// Datagram
-	c.packetConn = pconn
 	go func() {
 		defer func() {
-			if err := session.CloseWithError(0, ""); err != nil {
+			if err := quicConn.CloseWithError(0, ""); err != nil {
 				log.Error("quic close error", "err", err)
 			}
 		}()
 
 		for {
-			id, data, err := pconn.Receive(context.TODO())
+			id, data, err := sion.packets.Receive(context.TODO())
 			if err != nil {
 				return
 			}
@@ -174,7 +192,7 @@ func (c *Client) initSession(ctx context.Context) (*quic.Conn, error) {
 			}
 
 			select {
-			case <-session.Context().Done():
+			case <-sion.quicConn.Context().Done():
 				return
 			case <-cchan.ctx.Done():
 			case cchan.msg <- data:
@@ -182,7 +200,7 @@ func (c *Client) initSession(ctx context.Context) (*quic.Conn, error) {
 		}
 	}()
 
-	return session, nil
+	return sion.quicConn, nil
 }
 
 func (c *Client) Close() error {
@@ -199,7 +217,7 @@ func (c *Client) Close() error {
 	}
 
 	if session != nil {
-		if er := session.CloseWithError(0, ""); er != nil {
+		if er := session.Close(); er != nil {
 			err = errors.Join(err, er)
 		}
 	}
@@ -222,7 +240,7 @@ func (c *Client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 	return &interConn{
 		Stream:  stream,
 		session: session,
-		time:    c.sessionUnix,
+		time:    c.session.time,
 	}, nil
 }
 
@@ -238,7 +256,7 @@ func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		c:             c,
 		ctx:           ctx,
 		cancel:        cancel,
-		session:       c.packetConn,
+		session:       c.session.packets,
 		id:            c.idg.Generate(),
 		msg:           make(chan *pool.Buffer, 100),
 		writeDeadline: pipe.MakePipeDeadline(),
@@ -290,7 +308,7 @@ func (c *interConn) Close() error {
 		// because quic must close read from peer, the close will not work to local read
 		// so we assume the peer will close the stream first
 		// otherwise, we cancel read manually
-		c.Stream.CancelRead(quic.StreamErrorCode(quic.NoError))
+		c.CancelRead(quic.StreamErrorCode(quic.NoError))
 	})
 	return err
 }
@@ -298,7 +316,7 @@ func (c *interConn) Close() error {
 func (c *interConn) LocalAddr() net.Addr {
 	return &QuicAddr{
 		Addr: c.session.LocalAddr(),
-		ID:   c.Stream.StreamID(),
+		ID:   c.StreamID(),
 		time: c.time,
 	}
 }
@@ -306,7 +324,7 @@ func (c *interConn) LocalAddr() net.Addr {
 func (c *interConn) RemoteAddr() net.Addr {
 	return &QuicAddr{
 		Addr: c.session.RemoteAddr(),
-		ID:   c.Stream.StreamID(),
+		ID:   c.StreamID(),
 		time: c.time,
 	}
 }
@@ -343,7 +361,7 @@ func (x *clientPacketConn) ReadFrom(p []byte) (n int, _ net.Addr, err error) {
 	select {
 	case <-x.session.Context().Done():
 		return x.read(p, func() error {
-			x.Close()
+			_ = x.Close()
 			return x.session.Context().Err()
 		})
 	case <-x.readDeadline.Wait():
@@ -389,6 +407,7 @@ func (x *clientPacketConn) WriteTo(p []byte, _ net.Addr) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
+
 	return len(p), nil
 }
 
