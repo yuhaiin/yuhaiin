@@ -23,6 +23,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/logging"
+	"github.com/quic-go/quic-go/qlog"
 )
 
 type session struct {
@@ -71,6 +73,8 @@ type Client struct {
 
 	session   *session
 	sessionMu sync.RWMutex
+
+	qlogWriter func() (io.WriteCloser, error)
 }
 
 func init() {
@@ -157,6 +161,17 @@ func (c *Client) initSession(ctx context.Context) (*quic.Conn, error) {
 		MaxIdleTimeout:  time.Second * 40,
 	}
 
+	if c.qlogWriter != nil {
+		config.Tracer = func(ctx context.Context, p logging.Perspective, ci quic.ConnectionID) *logging.ConnectionTracer {
+			w, err := c.qlogWriter()
+			if err != nil {
+				return nil
+			}
+
+			return qlog.NewConnectionTracer(w, p, ci)
+		}
+	}
+
 	quicConn, err := tr.Dial(ctx, c.host, c.tlsConfig, config)
 	if err != nil {
 		_ = conn.Close()
@@ -175,13 +190,13 @@ func (c *Client) initSession(ctx context.Context) (*quic.Conn, error) {
 
 	go func() {
 		defer func() {
-			if err := quicConn.CloseWithError(0, ""); err != nil {
+			if err := quicConn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), ""); err != nil {
 				log.Error("quic close error", "err", err)
 			}
 		}()
 
 		for {
-			id, data, err := sion.packets.Receive(context.TODO())
+			id, data, err := sion.packets.Receive(sion.quicConn.Context())
 			if err != nil {
 				return
 			}
@@ -337,9 +352,9 @@ type QuicAddr struct {
 
 func (q *QuicAddr) String() string {
 	if q.time == 0 {
-		return fmt.Sprintf("quic://%d@%v", q.ID, q.Addr)
+		return fmt.Sprintf("quic.%d-h3%v", q.ID, q.Addr)
 	}
-	return fmt.Sprintf("quic://%d-%d@%v", q.time, q.ID, q.Addr)
+	return fmt.Sprintf("quic.%d-%d-h3%v", q.time, q.ID, q.Addr)
 }
 
 func (q *QuicAddr) Network() string { return "udp" }

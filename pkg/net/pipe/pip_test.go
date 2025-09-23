@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
 )
@@ -46,4 +47,14 @@ func TestPipe(t *testing.T) {
 		_, err = c1.Write([]byte("world"))
 		assert.Error(t, err)
 	})
+}
+
+func TestAddr(t *testing.T) {
+	qaddr := &pipeAddr{}
+
+	addr, err := netapi.ParseAddress("udp", qaddr.String())
+	assert.NoError(t, err)
+
+	assert.Equal(t, addr.String(), qaddr.String())
+	t.Log(qaddr, addr)
 }

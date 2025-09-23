@@ -57,6 +57,7 @@ require (
 	github.com/dblohm7/wingoes v0.0.0-20240119213807-a09d6be7affa // indirect
 	github.com/digitalocean/go-smbios v0.0.0-20180907143718-390a4f403a8e // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/gaissmai/bart v0.18.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect

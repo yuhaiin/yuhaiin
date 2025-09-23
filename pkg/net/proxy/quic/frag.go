@@ -178,11 +178,15 @@ func (c *ConnectionPacketConn) Write(b []byte, id uint64) error {
 	binary.BigEndian.PutUint64(buf, id)
 	copy(buf[8:], b)
 
-	return c.write(buf, false)
+	return c.write(buf)
 }
 
-func (c *ConnectionPacketConn) write(buf []byte, retry bool) error {
-	buffers := c.frag.Split(buf, int(c.MaxDatagramFrameSize.Load()))
+func (c *ConnectionPacketConn) write(buf []byte) error {
+	maxSize := c.MaxDatagramFrameSize.Load()
+	retry := false
+
+_retry:
+	buffers := c.frag.Split(buf, int(maxSize))
 	defer func() {
 		for _, v := range buffers {
 			pool.PutBytes(v)
@@ -201,8 +205,9 @@ func (c *ConnectionPacketConn) write(buf []byte, retry bool) error {
 		}
 
 		c.MaxDatagramFrameSize.Store(te.MaxDatagramPayloadSize)
-
-		return c.write(buf, true)
+		maxSize = te.MaxDatagramPayloadSize
+		retry = true
+		goto _retry
 	}
 
 	return nil

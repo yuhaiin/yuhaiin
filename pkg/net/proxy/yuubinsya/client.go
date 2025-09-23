@@ -81,7 +81,7 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 			return nil, err
 		}
 
-		return NewAuthPacketConn(packet).WithRealTarget(addr), nil
+		return NewAuthPacketConn(packet).WithRealTarget(addr).WithPassword(c.hash), nil
 	}
 
 	conn, err := c.Proxy.Conn(ctx, addr)

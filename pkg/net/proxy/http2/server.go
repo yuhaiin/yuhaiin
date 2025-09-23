@@ -191,7 +191,7 @@ type addr struct {
 }
 
 func (addr) Network() string  { return "tcp" }
-func (a addr) String() string { return fmt.Sprintf("http2://%s-%s", a.addr, a.id) }
+func (a addr) String() string { return fmt.Sprintf("http2.h-%s-2%v", a.id, a.addr) }
 
 type bodyReader struct {
 	io.ReadCloser
