@@ -119,13 +119,8 @@ func (s *Server) Accept() (net.Conn, error) {
 	}
 }
 
-func (s *Server) Packet(context.Context) (net.PacketConn, error) {
-	return newServerPacketConn(s), nil
-}
-
-func (s *Server) Stream(ctx context.Context) (net.Listener, error) {
-	return s, nil
-}
+func (s *Server) Packet(context.Context) (net.PacketConn, error)   { return newServerPacketConn(s), nil }
+func (s *Server) Stream(ctx context.Context) (net.Listener, error) { return s, nil }
 
 func (s *Server) server() error {
 	for {

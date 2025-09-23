@@ -67,6 +67,13 @@ type Metrics interface {
 	AddDNSProcess(domain string)
 	AddFailedDNS(domain string, rcode int, t dns.Type)
 	AddTCPDialFailed(addr string)
+
+	AddStreamRequest()
+	AddPacketRequest()
+	AddPingRequest()
+	AddListenerNetworkRequest()
+	AddListenerTransportRequest()
+	AddHappyEyeballv2DialRequest()
 }
 
 type EmptyMetrics struct{}
@@ -84,6 +91,12 @@ func (m *EmptyMetrics) AddStreamConnectDuration(float64)   {}
 func (m *EmptyMetrics) AddDNSProcess(string)               {}
 func (m *EmptyMetrics) AddFailedDNS(string, int, dns.Type) {}
 func (m *EmptyMetrics) AddTCPDialFailed(string)            {}
+func (m *EmptyMetrics) AddStreamRequest()                  {}
+func (m *EmptyMetrics) AddPacketRequest()                  {}
+func (m *EmptyMetrics) AddPingRequest()                    {}
+func (m *EmptyMetrics) AddListenerNetworkRequest()         {}
+func (m *EmptyMetrics) AddListenerTransportRequest()       {}
+func (m *EmptyMetrics) AddHappyEyeballv2DialRequest()      {}
 
 type Prometheus struct {
 	TotalReceiveUDPPacket        prometheus.Counter
@@ -92,6 +105,13 @@ type Prometheus struct {
 	TotalSendUDPDroppedPacket    prometheus.Counter
 	UDPReceivePacketSize         prometheus.Histogram
 	UDPSendPacketSize            prometheus.Histogram
+
+	TotalStreamRequest             prometheus.Counter
+	TotalPacketRequest             prometheus.Counter
+	TotalPingRequest               prometheus.Counter
+	TotalListenerNetworkRequest    prometheus.Counter
+	TotalListenerTransportRequest  prometheus.Counter
+	TotalHappyEyeballv2DialRequest prometheus.Counter
 
 	TotalConnection      prometheus.Counter
 	CurrentConnection    prometheus.Gauge
@@ -145,6 +165,36 @@ func NewPrometheus() *Prometheus {
 			Name:        "yuhaiin_udp_send_packet_size_bytes",
 			Help:        "The size of udp send packet",
 			Buckets:     []float64{2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 1500, 2048, 4096, 8192, 16384, 32768, 65536},
+			ConstLabels: labels,
+		}),
+		TotalStreamRequest: promauto.NewCounter(prometheus.CounterOpts{
+			Name:        "yuhaiin_stream_request_total",
+			Help:        "The total number of stream request",
+			ConstLabels: labels,
+		}),
+		TotalPacketRequest: promauto.NewCounter(prometheus.CounterOpts{
+			Name:        "yuhaiin_packet_request_total",
+			Help:        "The total number of packet request",
+			ConstLabels: labels,
+		}),
+		TotalPingRequest: promauto.NewCounter(prometheus.CounterOpts{
+			Name:        "yuhaiin_ping_request_total",
+			Help:        "The total number of ping request",
+			ConstLabels: labels,
+		}),
+		TotalListenerNetworkRequest: promauto.NewCounter(prometheus.CounterOpts{
+			Name:        "yuhaiin_listener_network_request_total",
+			Help:        "The total number of listener network request",
+			ConstLabels: labels,
+		}),
+		TotalListenerTransportRequest: promauto.NewCounter(prometheus.CounterOpts{
+			Name:        "yuhaiin_listener_transport_request_total",
+			Help:        "The total number of listener transport request",
+			ConstLabels: labels,
+		}),
+		TotalHappyEyeballv2DialRequest: promauto.NewCounter(prometheus.CounterOpts{
+			Name:        "yuhaiin_happy_eyeballv2_dial_request_total",
+			Help:        "The total number of happy eyeballv2 dial request",
 			ConstLabels: labels,
 		}),
 		TotalConnection: promauto.NewCounter(prometheus.CounterOpts{
@@ -245,4 +295,28 @@ func (p *Prometheus) AddReceiveUDPPacketSize(size int) {
 
 func (p *Prometheus) AddSendUDPPacketSize(size int) {
 	p.UDPSendPacketSize.Observe(float64(size))
+}
+
+func (p *Prometheus) AddStreamRequest() {
+	p.TotalStreamRequest.Inc()
+}
+
+func (p *Prometheus) AddPacketRequest() {
+	p.TotalPacketRequest.Inc()
+}
+
+func (p *Prometheus) AddPingRequest() {
+	p.TotalPingRequest.Inc()
+}
+
+func (p *Prometheus) AddListenerNetworkRequest() {
+	p.TotalListenerNetworkRequest.Inc()
+}
+
+func (p *Prometheus) AddListenerTransportRequest() {
+	p.TotalListenerTransportRequest.Inc()
+}
+
+func (p *Prometheus) AddHappyEyeballv2DialRequest() {
+	p.TotalHappyEyeballv2DialRequest.Inc()
 }

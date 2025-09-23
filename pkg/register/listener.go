@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -272,10 +273,18 @@ func Listen(config *listener.Inbound, handler netapi.Handler) (netapi.Accepter, 
 		return nil, err
 	}
 
+	if lis != nil {
+		lis = &metricsNetworkWrapper{lis}
+	}
+
 	tl, err := Transports(lis, config.GetTransport())
 	if err != nil {
 		_ = lis.Close()
 		return nil, err
+	}
+
+	if tl != nil {
+		tl = &metricsTransportWrapper{tl}
 	}
 
 	pl, err := Protocols(tl, GetProtocolOneofValue(config), handler)
@@ -290,4 +299,42 @@ func Listen(config *listener.Inbound, handler netapi.Handler) (netapi.Accepter, 
 	}
 
 	return pl, nil
+}
+
+type metricsNetworkWrapper struct {
+	netapi.Listener
+}
+
+func (m *metricsNetworkWrapper) Accept() (net.Conn, error) {
+	l, err := m.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+
+	metrics.Counter.AddListenerNetworkRequest()
+
+	return l, nil
+}
+
+func (m *metricsNetworkWrapper) Close() error {
+	return m.Listener.Close()
+}
+
+type metricsTransportWrapper struct {
+	netapi.Listener
+}
+
+func (m *metricsTransportWrapper) Accept() (net.Conn, error) {
+	l, err := m.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+
+	metrics.Counter.AddListenerTransportRequest()
+
+	return l, nil
+}
+
+func (m *metricsTransportWrapper) Close() error {
+	return m.Listener.Close()
 }

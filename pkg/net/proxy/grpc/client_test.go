@@ -367,3 +367,14 @@ func checkForTimeoutError(t *testing.T, err error) {
 		t.Errorf("got %T: %v, want net.Error", err, err)
 	}
 }
+func TestAddr(t *testing.T) {
+	qaddr := &addr{
+		id: 1000,
+	}
+
+	addr, err := netapi.ParseAddress("tcp", qaddr.String())
+	assert.NoError(t, err)
+
+	assert.Equal(t, addr.String(), qaddr.String())
+	t.Log(qaddr, addr)
+}
