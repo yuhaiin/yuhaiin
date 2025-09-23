@@ -147,7 +147,7 @@ type doqWrapLocalAddr struct {
 }
 
 func (a *doqWrapLocalAddr) String() string {
-	return fmt.Sprintf("doq://%s-%s", a.Addr.String(), a.salt)
+	return fmt.Sprintf("doq.%s--%s", a.Addr.String(), a.salt)
 }
 
 var doqIgGenerate = id.IDGenerator{}

@@ -55,7 +55,11 @@ func newServer(lis net.Listener) *Server {
 	}
 
 	go func() {
-		defer h.Close()
+		defer func() {
+			if err := h.Close(); err != nil {
+				log.Error("close server failed", "err", err)
+			}
+		}()
 		defer cancel()
 
 		for {
@@ -85,7 +89,6 @@ func newServer(lis net.Listener) *Server {
 					MaxConcurrentStreams: 100,
 					IdleTimeout:          time.Minute,
 					MaxReadFrameSize:     pool.DefaultSize,
-					NewWriteScheduler:    http2.NewRandomWriteScheduler,
 				}).ServeConn(conn, &http2.ServeConnOpts{
 					Handler: h,
 					Context: h.closedCtx,
@@ -188,7 +191,7 @@ type addr struct {
 }
 
 func (addr) Network() string  { return "tcp" }
-func (a addr) String() string { return fmt.Sprintf("http2://%s-%s", a.addr, a.id) }
+func (a addr) String() string { return fmt.Sprintf("http2.h-%s-2%v", a.id, a.addr) }
 
 type bodyReader struct {
 	io.ReadCloser

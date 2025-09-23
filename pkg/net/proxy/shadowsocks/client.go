@@ -41,10 +41,6 @@ func (s *Shadowsocks) Conn(ctx context.Context, addr netapi.Address) (conn net.C
 		return nil, netapi.NewDialError("tcp", err, addr)
 	}
 
-	if x, ok := conn.(*net.TCPConn); ok {
-		_ = x.SetKeepAlive(true)
-	}
-
 	adr := tools.ParseAddr(addr)
 	defer pool.PutBytes(adr)
 

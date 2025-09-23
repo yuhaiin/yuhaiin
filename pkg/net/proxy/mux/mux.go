@@ -159,7 +159,7 @@ type MuxAddr struct {
 	ID   uint32
 }
 
-func (q *MuxAddr) String() string  { return fmt.Sprintf("yamux://%d@%v", q.ID, q.Addr) }
+func (q *MuxAddr) String() string  { return fmt.Sprintf("yamux.%d-mux%v", q.ID, q.Addr) }
 func (q *MuxAddr) Network() string { return "tcp" }
 
 type rangeSelector struct {

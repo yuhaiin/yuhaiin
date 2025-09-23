@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/ringbuffer"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/miekg/dns"
 )
@@ -32,20 +33,23 @@ type dnsServer struct {
 	notifyChan chan struct{}
 	reqBuffer  ringbuffer.RingBuffer[*netapi.DNSRawRequest]
 	mu         sync.Mutex
+
+	udpSemaphore semaphore.Semaphore
 }
 
 func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
 	ctx, cancel := context.WithCancel(context.Background())
 	d := &dnsServer{
-		ctx:        ctx,
-		cancel:     cancel,
-		resolver:   process,
-		notifyChan: make(chan struct{}, 1),
+		ctx:          ctx,
+		cancel:       cancel,
+		resolver:     process,
+		notifyChan:   make(chan struct{}, 1),
+		udpSemaphore: semaphore.NewSemaphore(configuration.DNSProcessThread.Load()),
 	}
 
 	d.reqBuffer.Init(200)
 
-	for range configuration.DNSProcessThread.Load() {
+	for range min(4, system.Procs) {
 		go d.startHandleReqData()
 	}
 
@@ -118,7 +122,14 @@ func (d *dnsServer) startUDP(listener net.PacketConn) {
 					return
 				}
 
+				if err := d.udpSemaphore.Acquire(context.TODO(), 1); err != nil {
+					log.Warn("dns udp server handle acquiring semaphore failed", "err", err)
+					continue
+				}
+
 				go func(b []byte) {
+					defer d.udpSemaphore.Release(1)
+
 					defer pool.PutBytes(b)
 
 					err := d.do(context.TODO(), &doData{
@@ -208,7 +219,7 @@ func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
 		return err
 	}
 
-	return d.do(context.TODO(), &doData{
+	return d.do(ctx, &doData{
 		Question: buf[:n],
 		WriteBack: func(b []byte) error {
 			_, err = l.WriteTo(b, addr)
@@ -225,12 +236,12 @@ type doData struct {
 }
 
 func (d *dnsServer) do(ctx context.Context, req *doData) error {
-	ctx, cancel := context.WithTimeout(ctx, configuration.ResolverTimeout)
-	defer cancel()
-
 	if req.ForceFakeIP {
 		ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, configuration.ResolverTimeout)
+	defer cancel()
 
 	var qmsg dns.Msg
 	if err := qmsg.Unpack(req.Question); err != nil {
@@ -312,16 +323,27 @@ func (d *dnsServer) handle() {
 			return
 		}
 
-		err := d.do(d.ctx, &doData{
-			Question:    req.Question.GetPayload(),
-			WriteBack:   req.WriteBack,
-			Stream:      req.Stream,
-			ForceFakeIP: req.ForceFakeIP,
-		})
-		if err != nil {
-			log.Error("handle dns request failed", "err", err, "len", len(req.Question.GetPayload()))
+		if err := d.udpSemaphore.Acquire(d.ctx, 1); err != nil {
+			log.Warn("handle dns request acquire semaphore failed", "err", err)
+			req.Question.DecRef()
+			continue
 		}
-		req.Question.DecRef()
+
+		go func() {
+			defer d.udpSemaphore.Release(1)
+
+			err := d.do(d.ctx, &doData{
+				Question:    req.Question.GetPayload(),
+				WriteBack:   req.WriteBack,
+				Stream:      req.Stream,
+				ForceFakeIP: req.ForceFakeIP,
+			})
+			if err != nil {
+				log.Error("handle dns request failed", "err", err, "len", len(req.Question.GetPayload()))
+			}
+
+			req.Question.DecRef()
+		}()
 	}
 }
 

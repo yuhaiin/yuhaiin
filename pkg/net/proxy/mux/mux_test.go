@@ -57,3 +57,16 @@ func TestMux(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestAddr(t *testing.T) {
+	qaddr := &MuxAddr{
+		Addr: netapi.EmptyAddr,
+		ID:   1,
+	}
+
+	addr, err := netapi.ParseAddress("udp", qaddr.String())
+	assert.NoError(t, err)
+
+	assert.Equal(t, addr.String(), qaddr.String())
+	t.Log(qaddr, addr)
+}

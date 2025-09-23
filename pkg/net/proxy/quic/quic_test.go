@@ -10,18 +10,15 @@ import (
 	mrand "math/rand/v2"
 	"net"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
+	"github.com/quic-go/quic-go"
 	"golang.org/x/net/nettest"
 	"google.golang.org/protobuf/proto"
 )
@@ -238,13 +235,10 @@ func TestConn(t *testing.T) {
 
 func TestQuic(t *testing.T) {
 	s, err := NewServer(listener.Quic_builder{
-		Host: proto.String("127.0.0.1:1091"),
+		Host: proto.String("127.0.0.1:0"),
 		Tls: protocol.TlsServerConfig_builder{
 			Certificates: []*protocol.Certificate{
-				protocol.Certificate_builder{
-					Cert: cert,
-					Key:  key,
-				}.Build(),
+				protocol.Certificate_builder{Cert: cert, Key: key}.Build(),
 			},
 		}.Build(),
 	}.Build())
@@ -252,26 +246,31 @@ func TestQuic(t *testing.T) {
 
 	defer s.Close()
 
-	go func() {
-		spc, err := s.Packet(context.TODO())
-		assert.NoError(t, err)
+	size := 20000
 
+	spc, err := s.Packet(context.TODO())
+	assert.NoError(t, err)
+
+	go func() {
 		for {
-			buf := make([]byte, 65536)
+			buf := make([]byte, size)
 			n, addr, err := spc.ReadFrom(buf)
 			if err != nil {
 				break
 			}
 
-			// go func() {
-			_, err = spc.WriteTo(buf[:n], addr)
+			id := binary.BigEndian.Uint64(buf[:8])
+			t.Log("packet read", n, id)
+
+			n, err = spc.WriteTo(buf[:n], addr)
 			assert.NoError(t, err)
-			// }()
+
+			t.Log("write back", n, id)
 		}
 	}()
 
 	qc, err := NewClient(protocol.Quic_builder{
-		Host: proto.String("127.0.0.1:1090"),
+		Host: proto.String(s.Addr().String()),
 		Tls: protocol.TlsConfig_builder{
 			Enable:             proto.Bool(true),
 			InsecureSkipVerify: proto.Bool(true),
@@ -279,147 +278,92 @@ func TestQuic(t *testing.T) {
 	}.Build(), nil)
 	assert.NoError(t, err)
 
+	// qc.(*Client).qlogWriter = func() (io.WriteCloser, error) {
+	// 	path, err := filepath.Abs(".")
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+
+	// 	f, err := os.CreateTemp(path, "*.qlog")
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+
+	// 	t.Log("new qlog", f.Name())
+
+	// 	return f, nil
+	// }
+
 	pc, err := qc.PacketConn(context.TODO(), netapi.EmptyAddr)
 	assert.NoError(t, err)
 
-	var wg sync.WaitGroup
-	id := atomic.Uint64{}
 	var idBytesMap syncmap.SyncMap[uint64, []byte]
-	for range 10 {
 
-		wg.Go(func() {
-			length := mrand.IntN(pool.MaxSegmentSize - 1024)
-			data := make([]byte, length)
-			recevie := make([]byte, pool.MaxSegmentSize)
+	var wg sync.WaitGroup
 
-			_, err := io.ReadFull(rand.Reader, data)
-			assert.NoError(t, err)
+	go func() {
+		for {
+			buf := make([]byte, size)
+			n, addr, err := pc.ReadFrom(buf)
+			if err != nil {
+				break
+			}
 
-			id := id.Add(1)
+			rid := binary.BigEndian.Uint64(buf[:n])
 
-			// defer fmt.Println(id)
-
-			idb := binary.BigEndian.AppendUint64(nil, uint64(id))
-
-			data = append(idb, data...)
-
-			idBytesMap.Store(uint64(id), data)
-
-			_, err = pc.WriteTo(data, nil)
-			assert.NoError(t, err)
-
-			n, _, err := pc.ReadFrom(recevie)
-			assert.NoError(t, err)
-
-			rid := binary.BigEndian.Uint64(recevie[:n])
+			t.Log("packet read back", n, addr, rid)
 
 			data, ok := idBytesMap.Load(rid)
 			if !ok {
-				t.Error("not found")
+				t.Error("not found", rid, n)
 				t.Fail()
 			}
 
-			if !bytes.Equal(data, recevie[:n]) {
-				t.Error("not equal", len(data), n, data[:8], recevie[:8], rid)
+			if !bytes.Equal(data, buf[:n]) {
+				t.Error("not equal", len(data), n, data[:8], buf[:8], rid)
 				t.Fail()
 			}
-		})
+
+			wg.Done()
+		}
+	}()
+
+	for id := range 10 {
+		wg.Add(1)
+		length := mrand.IntN(size)
+		data := make([]byte, length)
+
+		_, err := io.ReadFull(rand.Reader, data)
+		assert.NoError(t, err)
+
+		idb := binary.BigEndian.AppendUint64(nil, uint64(id))
+
+		data = append(idb, data...)
+
+		idBytesMap.Store(uint64(id), data)
+
+		// sleep to send slow, otherwise the udp packet will be dropped
+		time.Sleep(time.Millisecond * 30)
+
+		_, err = pc.WriteTo(data, nil)
+		assert.NoError(t, err)
+	}
+
+	time.Sleep(time.Second)
+
+	for _, v := range s.(*Server).natMap.Range {
+		for k, v := range v.frag.mergeMap.Range {
+			t.Log("server remain", k, "total", v.Total, "current", v.Count, "total len", v.TotalLen)
+		}
+	}
+
+	for _, v := range qc.(*Client).natMap.Range {
+		for k, v := range v.session.frag.mergeMap.Range {
+			t.Log("client remain", k, "total", v.Total, "current", v.Count, "total len", v.TotalLen)
+		}
 	}
 
 	wg.Wait()
-}
-
-func TestSimple(t *testing.T) {
-	s, err := fixed.NewServer(listener.Tcpudp_builder{
-		Host:    proto.String("127.0.0.1:1090"),
-		Control: listener.TcpUdpControl_tcp_udp_control_all.Enum(),
-	}.Build())
-	assert.NoError(t, err)
-
-	defer s.Close()
-
-	go func() {
-		spc, err := s.Packet(context.TODO())
-		assert.NoError(t, err)
-
-		for range system.Procs {
-			go func() {
-				for {
-					buf := make([]byte, 65536)
-					n, addr, err := spc.ReadFrom(buf)
-					if err != nil {
-						break
-					}
-
-					// go func() {
-					_, err = spc.WriteTo(buf[:n], addr)
-					assert.NoError(t, err)
-					// }()
-				}
-			}()
-		}
-	}()
-
-	qc, err := fixed.NewClient(protocol.Fixed_builder{
-		Host: proto.String("127.0.0.1"),
-		Port: proto.Int32(1090),
-	}.Build(), nil)
-	assert.NoError(t, err)
-
-	pc, err := qc.PacketConn(context.TODO(), netapi.EmptyAddr)
-	assert.NoError(t, err)
-
-	id := atomic.Uint64{}
-	var idBytesMap syncmap.SyncMap[uint64, []byte]
-
-	go func() {
-
-		for {
-			recevie := make([]byte, pool.MaxSegmentSize)
-			n, _, err := pc.ReadFrom(recevie)
-			assert.NoError(t, err)
-
-			rid := binary.BigEndian.Uint64(recevie[:n])
-
-			data, ok := idBytesMap.LoadAndDelete(rid)
-			if !ok {
-				t.Error("not found")
-				t.Fail()
-			}
-
-			if !bytes.Equal(data, recevie[:n]) {
-				t.Error("not equal", len(data), n, data[:8], recevie[:8], rid)
-				t.Fail()
-			}
-		}
-	}()
-	for range 10 {
-		go func() {
-			length := mrand.IntN(1024)
-			data := make([]byte, length)
-
-			_, err := io.ReadFull(rand.Reader, data)
-			assert.NoError(t, err)
-
-			id := id.Add(1)
-
-			idb := binary.BigEndian.AppendUint64(nil, uint64(id))
-
-			data = append(idb, data...)
-
-			idBytesMap.Store(uint64(id), data)
-
-			_, err = pc.WriteTo(data, nil)
-			assert.NoError(t, err)
-
-		}()
-	}
-
-	time.Sleep(time.Second * 10)
-
-	for k, v := range idBytesMap.Range {
-		t.Log(k, len(v))
-	}
 }
 
 // testBasicIO tests that the data sent on c1 is properly received on c2.
@@ -462,4 +406,18 @@ func chunkedCopy(w io.Writer, r io.Reader) error {
 	b := make([]byte, 1024)
 	_, err := io.CopyBuffer(struct{ io.Writer }{w}, struct{ io.Reader }{r}, b)
 	return err
+}
+
+func TestAddr(t *testing.T) {
+	qaddr := &QuicAddr{
+		ID:   quic.StreamID(1),
+		Addr: netapi.EmptyAddr,
+		time: 1000,
+	}
+
+	addr, err := netapi.ParseAddress("udp", qaddr.String())
+	assert.NoError(t, err)
+
+	assert.Equal(t, addr.String(), qaddr.String())
+	t.Log(qaddr, addr)
 }
