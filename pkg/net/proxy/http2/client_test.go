@@ -288,3 +288,16 @@ func TestClient(t *testing.T) {
 
 	t.Log(string(buf[:n]))
 }
+
+func TestAddr(t *testing.T) {
+	qaddr := &addr{
+		id:   "aaa",
+		addr: netapi.EmptyAddr.String(),
+	}
+
+	addr, err := netapi.ParseAddress("tcp", qaddr.String())
+	assert.NoError(t, err)
+
+	assert.Equal(t, addr.String(), qaddr.String())
+	t.Log(qaddr, addr)
+}

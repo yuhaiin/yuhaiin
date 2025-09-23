@@ -8,6 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
@@ -69,6 +70,8 @@ func (l *Inbound) shouldHijackDNS(port uint16) bool {
 }
 
 func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
+	metrics.Counter.AddStreamRequest()
+
 	if !meta.DnsRequest && !l.shouldHijackDNS(meta.Address.Port()) {
 		store := netapi.WithContext(l.ctx)
 		store.Source = meta.Source
@@ -91,6 +94,8 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 }
 
 func (l *Inbound) HandlePacket(packet *netapi.Packet) {
+	metrics.Counter.AddPacketRequest()
+
 	select {
 	case l.udpChannel <- packet:
 	case <-l.ctx.Done():
@@ -226,7 +231,9 @@ func (l *Inbound) Close() error {
 	l.close()
 	for k, v := range l.store.Range {
 		log.Info("start close server", "name", k)
-		v.server.Close()
+		if err := v.server.Close(); err != nil {
+			log.Error("close server failed", "name", k, "err", err)
+		}
 		l.store.Delete(k)
 		log.Info("closed server", "name", k)
 	}

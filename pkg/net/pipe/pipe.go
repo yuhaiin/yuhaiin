@@ -83,7 +83,7 @@ func isClosedChan(c <-chan struct{}) bool {
 type pipeAddr struct{}
 
 func (pipeAddr) Network() string { return "pipe" }
-func (pipeAddr) String() string  { return "pipe" }
+func (pipeAddr) String() string  { return "pipe:0" }
 
 type Conn struct {
 

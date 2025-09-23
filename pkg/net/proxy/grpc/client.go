@@ -202,4 +202,4 @@ type addr struct {
 }
 
 func (addr) Network() string  { return "tcp" }
-func (a addr) String() string { return fmt.Sprintf("grpc://%d", a.id) }
+func (a addr) String() string { return fmt.Sprintf("grpc.%d:0", a.id) }

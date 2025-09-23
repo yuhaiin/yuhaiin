@@ -351,6 +351,8 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 			wg.Go(func() {
 				defer h.semaphore.Release(1)
 
+				metrics.Counter.AddHappyEyeballv2DialRequest()
+
 				start := system.CheapNowNano()
 
 				c, err := h.dialContext(ctx, ip, addr.Port())
