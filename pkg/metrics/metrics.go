@@ -74,29 +74,35 @@ type Metrics interface {
 	AddListenerNetworkRequest()
 	AddListenerTransportRequest()
 	AddHappyEyeballv2DialRequest()
+	AddDnsQueryDuration(string, float64)
+	AddDnsQuery(string)
+	AddDnsQueryError(string)
 }
 
 type EmptyMetrics struct{}
 
-func (m *EmptyMetrics) AddReceiveUDPPacket()               {}
-func (m *EmptyMetrics) AddSendUDPPacket()                  {}
-func (m *EmptyMetrics) AddReceiveUDPDroppedPacket()        {}
-func (m *EmptyMetrics) AddSendUDPDroppedPacket()           {}
-func (m *EmptyMetrics) AddReceiveUDPPacketSize(int)        {}
-func (m *EmptyMetrics) AddSendUDPPacketSize(int)           {}
-func (m *EmptyMetrics) AddConnection(string)               {}
-func (m *EmptyMetrics) AddBlockConnection(string)          {}
-func (m *EmptyMetrics) RemoveConnection(int)               {}
-func (m *EmptyMetrics) AddStreamConnectDuration(float64)   {}
-func (m *EmptyMetrics) AddDNSProcess(string)               {}
-func (m *EmptyMetrics) AddFailedDNS(string, int, dns.Type) {}
-func (m *EmptyMetrics) AddTCPDialFailed(string)            {}
-func (m *EmptyMetrics) AddStreamRequest()                  {}
-func (m *EmptyMetrics) AddPacketRequest()                  {}
-func (m *EmptyMetrics) AddPingRequest()                    {}
-func (m *EmptyMetrics) AddListenerNetworkRequest()         {}
-func (m *EmptyMetrics) AddListenerTransportRequest()       {}
-func (m *EmptyMetrics) AddHappyEyeballv2DialRequest()      {}
+func (m *EmptyMetrics) AddReceiveUDPPacket()                {}
+func (m *EmptyMetrics) AddSendUDPPacket()                   {}
+func (m *EmptyMetrics) AddReceiveUDPDroppedPacket()         {}
+func (m *EmptyMetrics) AddSendUDPDroppedPacket()            {}
+func (m *EmptyMetrics) AddReceiveUDPPacketSize(int)         {}
+func (m *EmptyMetrics) AddSendUDPPacketSize(int)            {}
+func (m *EmptyMetrics) AddConnection(string)                {}
+func (m *EmptyMetrics) AddBlockConnection(string)           {}
+func (m *EmptyMetrics) RemoveConnection(int)                {}
+func (m *EmptyMetrics) AddStreamConnectDuration(float64)    {}
+func (m *EmptyMetrics) AddDNSProcess(string)                {}
+func (m *EmptyMetrics) AddFailedDNS(string, int, dns.Type)  {}
+func (m *EmptyMetrics) AddTCPDialFailed(string)             {}
+func (m *EmptyMetrics) AddStreamRequest()                   {}
+func (m *EmptyMetrics) AddPacketRequest()                   {}
+func (m *EmptyMetrics) AddPingRequest()                     {}
+func (m *EmptyMetrics) AddListenerNetworkRequest()          {}
+func (m *EmptyMetrics) AddListenerTransportRequest()        {}
+func (m *EmptyMetrics) AddHappyEyeballv2DialRequest()       {}
+func (m *EmptyMetrics) AddDnsQueryDuration(string, float64) {}
+func (m *EmptyMetrics) AddDnsQueryError(string)             {}
+func (m *EmptyMetrics) AddDnsQuery(string)                  {}
 
 type Prometheus struct {
 	TotalReceiveUDPPacket        prometheus.Counter
@@ -120,8 +126,11 @@ type Prometheus struct {
 	StreamConnectDurationSeconds prometheus.Histogram
 	StreamConnectSummarySeconds  prometheus.Summary
 
-	DNSProcessTotal prometheus.Counter
-	FiledDNSTotal   prometheus.Counter
+	DNSServerProcessTotal   prometheus.Counter
+	FiledDNSTotal           prometheus.Counter
+	DNSQueryDurationSeconds *prometheus.HistogramVec
+	DNSQueryErrorTotal      *prometheus.CounterVec
+	DNSQueryTotal           *prometheus.CounterVec
 
 	TCPDialFailedTotal prometheus.Counter
 }
@@ -223,8 +232,8 @@ func NewPrometheus() *Prometheus {
 			Help:        "The summary of tcp connect",
 			ConstLabels: labels,
 		}),
-		DNSProcessTotal: promauto.NewCounter(prometheus.CounterOpts{
-			Name:        "yuhaiin_dns_process_total",
+		DNSServerProcessTotal: promauto.NewCounter(prometheus.CounterOpts{
+			Name:        "yuhaiin_dns_server_process_total",
 			Help:        "The total number of dns process",
 			ConstLabels: labels,
 		}),
@@ -233,6 +242,22 @@ func NewPrometheus() *Prometheus {
 			Help:        "The total number of dns request failed",
 			ConstLabels: labels,
 		}),
+		DNSQueryDurationSeconds: promauto.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "yuhaiin_dns_query_duration_seconds",
+			Help:        "The duration of dns query",
+			Buckets:     []float64{50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 2500, 3000, 5000, 10000},
+			ConstLabels: labels,
+		}, []string{"name"}),
+		DNSQueryTotal: promauto.NewCounterVec(prometheus.CounterOpts{
+			Name:        "yuhaiin_dns_query_total",
+			Help:        "The total number of dns query",
+			ConstLabels: labels,
+		}, []string{"name"}),
+		DNSQueryErrorTotal: promauto.NewCounterVec(prometheus.CounterOpts{
+			Name:        "yuhaiin_dns_query_error_total",
+			Help:        "The total number of dns query error",
+			ConstLabels: labels,
+		}, []string{"name"}),
 		TCPDialFailedTotal: promauto.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_tcp_dial_failed_total",
 			Help:        "The total number of tcp dial failed",
@@ -262,7 +287,7 @@ func (p *Prometheus) AddStreamConnectDuration(t float64) {
 }
 
 func (p *Prometheus) AddDNSProcess(domain string) {
-	p.DNSProcessTotal.Inc()
+	p.DNSServerProcessTotal.Inc()
 }
 
 func (p *Prometheus) AddFailedDNS(domain string, rcode int, t dns.Type) {
@@ -319,4 +344,16 @@ func (p *Prometheus) AddListenerTransportRequest() {
 
 func (p *Prometheus) AddHappyEyeballv2DialRequest() {
 	p.TotalHappyEyeballv2DialRequest.Inc()
+}
+
+func (p *Prometheus) AddDnsQueryDuration(name string, t float64) {
+	p.DNSQueryDurationSeconds.WithLabelValues(name).Observe(t)
+}
+
+func (p *Prometheus) AddDnsQuery(name string) {
+	p.DNSQueryTotal.WithLabelValues(name).Inc()
+}
+
+func (p *Prometheus) AddDnsQueryError(name string) {
+	p.DNSQueryErrorTotal.WithLabelValues(name).Inc()
 }

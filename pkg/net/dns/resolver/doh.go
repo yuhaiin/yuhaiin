@@ -66,6 +66,7 @@ func NewDoH(config Config) (Dialer, error) {
 		return nil, err
 	}
 
+	tr2.PingTimeout = 5 * time.Second
 	tr2.ReadIdleTimeout = time.Second * 30 // https://github.com/golang/go/issues/30702
 	tr2.IdleConnTimeout = time.Second * 90
 

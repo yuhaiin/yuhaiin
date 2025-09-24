@@ -2,8 +2,10 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -63,8 +65,13 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 	defer pool.PutBytes(buf)
 
 	for {
+		_ = packet.SetReadDeadline(time.Now().Add(time.Minute))
 		n, _, err := packet.ReadFrom(buf)
+		_ = packet.SetReadDeadline(time.Time{})
 		if err != nil {
+			if !errors.Is(err, os.ErrDeadlineExceeded) {
+				log.Warn("dns udp read failed, try to re-dial", "err", err)
+			}
 			return
 		}
 
@@ -131,41 +138,44 @@ func (u *udp) loopWrite() {
 		return packetConn, nil
 	}
 
+	write := func(p *udpPacket) error {
+		pk, err := dial()
+		if err != nil {
+			return fmt.Errorf("init packetConn failed: %w", err)
+		}
+
+		ctx, cancel := context.WithTimeout(u.ctx, configuration.ResolverTimeout)
+		udpAddr, err := dialer.ResolveUDPAddr(ctx, u.addr)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("resolve udp addr failed: %w", err)
+		}
+
+		pk.SetWriteDeadline(time.Now().Add(configuration.ResolverTimeout))
+		_, err = pk.WriteTo(p.question, udpAddr)
+		pk.SetWriteDeadline(time.Time{})
+		if err != nil {
+			close()
+			return fmt.Errorf("write to packetConn failed: %w", err)
+		}
+
+		return nil
+	}
+
 	for {
 		select {
-		case <-time.After(time.Minute * 10):
-			close()
-
 		case p := <-u.wchan:
 			select {
 			case <-p.ctx.Done():
 				continue
 			default:
-			}
-
-			pk, err := dial()
-			if err != nil {
-				log.Error("init packetConn failed", "err", err)
-				continue
-			}
-
-			ctx, cancel := context.WithTimeout(u.ctx, configuration.ResolverTimeout)
-			udpAddr, err := dialer.ResolveUDPAddr(ctx, u.addr)
-			cancel()
-			if err != nil {
-				log.Error("resolve udp addr failed", "err", err)
-				continue
-			}
-
-			pk.SetWriteDeadline(time.Now().Add(configuration.ResolverTimeout))
-			_, err = pk.WriteTo(p.question, udpAddr)
-			pk.SetWriteDeadline(time.Time{})
-			if err != nil {
-				log.Error("write to packetConn failed", "err", err)
-				continue
+				if err := write(p); err != nil {
+					log.Warn("udp dns write failed", "err", err)
+				}
 			}
 
 		case <-u.ctx.Done():
+			close()
 			return
 		}
 	}
@@ -184,7 +194,7 @@ func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {
 	reqKey := udpCacheKey(req.ID, req.Question)
 
 	var cancel context.CancelFunc = func() {}
-	defer cancel()
+	defer func() { cancel() }()
 
 	resp, ok, _ := u.sender.LoadOrCreate(reqKey, func() (*udpresp, error) {
 		uctx, ucancel := context.WithCancel(ctx)
