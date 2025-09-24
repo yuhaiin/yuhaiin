@@ -73,7 +73,8 @@ type Metrics interface {
 	AddPingRequest()
 	AddListenerNetworkRequest()
 	AddListenerTransportRequest()
-	AddHappyEyeballv2DialRequest()
+	AddHappyEyeballsv2DialRequest()
+	AddHappyEyeballsIPsAttempted(int)
 	AddDnsQueryDuration(string, float64)
 	AddDnsQuery(string)
 	AddDnsQueryError(string)
@@ -99,10 +100,11 @@ func (m *EmptyMetrics) AddPacketRequest()                   {}
 func (m *EmptyMetrics) AddPingRequest()                     {}
 func (m *EmptyMetrics) AddListenerNetworkRequest()          {}
 func (m *EmptyMetrics) AddListenerTransportRequest()        {}
-func (m *EmptyMetrics) AddHappyEyeballv2DialRequest()       {}
+func (m *EmptyMetrics) AddHappyEyeballsv2DialRequest()      {}
 func (m *EmptyMetrics) AddDnsQueryDuration(string, float64) {}
 func (m *EmptyMetrics) AddDnsQueryError(string)             {}
 func (m *EmptyMetrics) AddDnsQuery(string)                  {}
+func (m *EmptyMetrics) AddHappyEyeballsIPsAttempted(int)    {}
 
 type Prometheus struct {
 	TotalReceiveUDPPacket        prometheus.Counter
@@ -112,12 +114,13 @@ type Prometheus struct {
 	UDPReceivePacketSize         prometheus.Histogram
 	UDPSendPacketSize            prometheus.Histogram
 
-	TotalStreamRequest             prometheus.Counter
-	TotalPacketRequest             prometheus.Counter
-	TotalPingRequest               prometheus.Counter
-	TotalListenerNetworkRequest    prometheus.Counter
-	TotalListenerTransportRequest  prometheus.Counter
-	TotalHappyEyeballv2DialRequest prometheus.Counter
+	TotalStreamRequest              prometheus.Counter
+	TotalPacketRequest              prometheus.Counter
+	TotalPingRequest                prometheus.Counter
+	TotalListenerNetworkRequest     prometheus.Counter
+	TotalListenerTransportRequest   prometheus.Counter
+	TotalHappyEyeballsv2DialRequest prometheus.Counter
+	HappyEyeballsv2IPsAttempted     prometheus.Histogram
 
 	TotalConnection      prometheus.Counter
 	CurrentConnection    prometheus.Gauge
@@ -201,11 +204,18 @@ func NewPrometheus() *Prometheus {
 			Help:        "The total number of listener transport request",
 			ConstLabels: labels,
 		}),
-		TotalHappyEyeballv2DialRequest: promauto.NewCounter(prometheus.CounterOpts{
-			Name:        "yuhaiin_happy_eyeballv2_dial_request_total",
+		TotalHappyEyeballsv2DialRequest: promauto.NewCounter(prometheus.CounterOpts{
+			Name:        "yuhaiin_happy_eyeballsv2_dial_request_total",
 			Help:        "The total number of happy eyeballv2 dial request",
 			ConstLabels: labels,
 		}),
+		HappyEyeballsv2IPsAttempted: promauto.NewHistogram(prometheus.HistogramOpts{
+			Name:        "yuhaiin_happy_eyeballsv2_ip_attempts",
+			Help:        "The number of happy eyeballv2 ip attempts for each dial request",
+			ConstLabels: labels,
+			Buckets:     []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 14, 18, 20},
+		}),
+
 		TotalConnection: promauto.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_connection_total",
 			Help:        "The total number of connections",
@@ -342,8 +352,8 @@ func (p *Prometheus) AddListenerTransportRequest() {
 	p.TotalListenerTransportRequest.Inc()
 }
 
-func (p *Prometheus) AddHappyEyeballv2DialRequest() {
-	p.TotalHappyEyeballv2DialRequest.Inc()
+func (p *Prometheus) AddHappyEyeballsv2DialRequest() {
+	p.TotalHappyEyeballsv2DialRequest.Inc()
 }
 
 func (p *Prometheus) AddDnsQueryDuration(name string, t float64) {
@@ -356,4 +366,8 @@ func (p *Prometheus) AddDnsQuery(name string) {
 
 func (p *Prometheus) AddDnsQueryError(name string) {
 	p.DNSQueryErrorTotal.WithLabelValues(name).Inc()
+}
+
+func (p *Prometheus) AddHappyEyeballsIPsAttempted(count int) {
+	p.HappyEyeballsv2IPsAttempted.Observe(float64(count))
 }

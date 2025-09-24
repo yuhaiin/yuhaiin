@@ -327,6 +327,10 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 		c   T
 		err error
 	}
+
+	var attemptsCount int
+	defer func() { metrics.Counter.AddHappyEyeballsIPsAttempted(attemptsCount) }()
+
 	resc := make(chan res) // must be unbuffered
 	go func() {
 		var (
@@ -348,10 +352,12 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 				break _loop
 			}
 
+			attemptsCount++
+
 			wg.Go(func() {
 				defer h.semaphore.Release(1)
 
-				metrics.Counter.AddHappyEyeballv2DialRequest()
+				metrics.Counter.AddHappyEyeballsv2DialRequest()
 
 				start := system.CheapNowNano()
 
