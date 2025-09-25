@@ -520,5 +520,5 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*gc.Test
 }
 
 func (r *Rules) BlockHistory(context.Context, *emptypb.Empty) (*gc.BlockHistoryList, error) {
-	return r.route.RejectHistory.Get(), nil
+	return r.route.Get(), nil
 }

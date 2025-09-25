@@ -78,6 +78,11 @@ type Metrics interface {
 	AddDnsQueryDuration(string, float64)
 	AddDnsQuery(string)
 	AddDnsQueryError(string)
+
+	AddFakeIPCacheHit()
+	AddFakeIPCacheMiss()
+
+	AddTrieMatchDuration(float64)
 }
 
 type EmptyMetrics struct{}
@@ -105,6 +110,9 @@ func (m *EmptyMetrics) AddDnsQueryDuration(string, float64) {}
 func (m *EmptyMetrics) AddDnsQueryError(string)             {}
 func (m *EmptyMetrics) AddDnsQuery(string)                  {}
 func (m *EmptyMetrics) AddHappyEyeballsIPsAttempted(int)    {}
+func (m *EmptyMetrics) AddFakeIPCacheHit()                  {}
+func (m *EmptyMetrics) AddFakeIPCacheMiss()                 {}
+func (m *EmptyMetrics) AddTrieMatchDuration(float64)        {}
 
 type Prometheus struct {
 	TotalReceiveUDPPacket        prometheus.Counter
@@ -136,6 +144,11 @@ type Prometheus struct {
 	DNSQueryTotal           *prometheus.CounterVec
 
 	TCPDialFailedTotal prometheus.Counter
+
+	FakeIPCacheHitTotal  prometheus.Counter
+	FakeIPCacheMissTotal prometheus.Counter
+
+	TrieMatchDurationSeconds prometheus.Histogram
 }
 
 func NewPrometheus() *Prometheus {
@@ -273,6 +286,24 @@ func NewPrometheus() *Prometheus {
 			Help:        "The total number of tcp dial failed",
 			ConstLabels: labels,
 		}),
+
+		FakeIPCacheHitTotal: promauto.NewCounter(prometheus.CounterOpts{
+			Name:        "yuhaiin_fake_ip_cache_hit_total",
+			Help:        "The total number of fake ip cache hit",
+			ConstLabels: labels,
+		}),
+		FakeIPCacheMissTotal: promauto.NewCounter(prometheus.CounterOpts{
+			Name:        "yuhaiin_fake_ip_cache_miss_total",
+			Help:        "The total number of fake ip cache miss",
+			ConstLabels: labels,
+		}),
+
+		TrieMatchDurationSeconds: promauto.NewHistogram(prometheus.HistogramOpts{
+			Name:        "yuhaiin_trie_match_duration_seconds",
+			Help:        "The duration of trie match",
+			Buckets:     []float64{5, 10, 20, 30, 40, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 1000},
+			ConstLabels: labels,
+		}),
 	}
 
 	return p
@@ -370,4 +401,16 @@ func (p *Prometheus) AddDnsQueryError(name string) {
 
 func (p *Prometheus) AddHappyEyeballsIPsAttempted(count int) {
 	p.HappyEyeballsv2IPsAttempted.Observe(float64(count))
+}
+
+func (p *Prometheus) AddFakeIPCacheHit() {
+	p.FakeIPCacheHitTotal.Inc()
+}
+
+func (p *Prometheus) AddFakeIPCacheMiss() {
+	p.FakeIPCacheMissTotal.Inc()
+}
+
+func (p *Prometheus) AddTrieMatchDuration(t float64) {
+	p.TrieMatchDurationSeconds.Observe(t)
 }

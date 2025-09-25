@@ -34,7 +34,7 @@ var (
 	SnifferBufferSize = pool.DefaultSize
 
 	UDPBatchSize             = 8
-	MaxUDPUnprocessedPackets = atomicx.NewValue(250)
+	MaxUDPUnprocessedPackets = atomicx.NewValue(200)
 	UDPBufferSize            = atomicx.NewValue(2048)
 	RelayBufferSize          = atomicx.NewValue(4096)
 	DNSProcessThread         = atomicx.NewValue[int64](150)

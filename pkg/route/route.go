@@ -6,9 +6,11 @@ import (
 	"net"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -264,12 +266,14 @@ func (s *Route) dispatch(store *netapi.Context, host netapi.Address) routeResult
 		Host: host,
 	}
 
+	start := system.CheapNowNano()
 	var mode bypass.ModeEnum
 	for _, m := range s.matchers {
 		if mode = m.Func(object); !mode.Mode().Unspecified() {
 			break
 		}
 	}
+	metrics.Counter.AddTrieMatchDuration(float64(time.Duration(system.CheapNowNano() - start).Milliseconds()))
 
 	store.Resolver.SkipResolve = s.skipResolve(mode)
 	store.Mode = mode.Mode()
