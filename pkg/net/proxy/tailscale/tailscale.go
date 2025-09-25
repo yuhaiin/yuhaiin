@@ -412,6 +412,9 @@ func (d *dial) Dial(network, address string) (net.Conn, error) {
 }
 
 func (d *dial) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
+	defer cancel()
+
 	ad, err := netapi.ParseAddress(network, address)
 	// log.Info("tailscale dial", "network", network, "address", address, "netapi Addr", ad, "err", err)
 	if err == nil {

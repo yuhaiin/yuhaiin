@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -45,12 +44,13 @@ func NewDoH(config Config) (Dialer, error) {
 				return nil, err
 			}
 
+			// the deadline of [http.Request] will be ignored when http2?
+			// so we check and set timeout here
+			// see: https://github.com/golang/go/blob/f15cd63ec4860c4f2c23cc992843546e0265c332/src/net/http/transport.go#L1510
 			if _, ok := ctx.Deadline(); !ok {
 				var cancel context.CancelFunc
 				ctx, cancel = context.WithTimeout(ctx, configuration.ResolverTimeout)
 				defer cancel()
-
-				log.Warn("doh not has timeout", "addr", addr)
 			}
 
 			return config.Dialer.Conn(ctx, addr)
