@@ -504,9 +504,7 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*gc.Test
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
-	store := netapi.GetContext(ctx)
-
-	result := r.route.dispatch(store, addr)
+	result := r.route.dispatch(ctx, addr)
 
 	return gc.TestResponse_builder{
 		Mode: bypass.ModeConfig_builder{
@@ -515,7 +513,7 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*gc.Test
 			ResolveStrategy: result.Mode.GetResolveStrategy().Enum(),
 		}.Build(),
 		AfterAddr:   proto.String(result.Addr.String()),
-		MatchResult: store.MatchHistory(),
+		MatchResult: netapi.GetContext(ctx).MatchHistory(),
 	}.Build(), nil
 }
 
