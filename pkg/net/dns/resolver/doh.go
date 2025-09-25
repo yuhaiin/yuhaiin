@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -45,12 +44,13 @@ func NewDoH(config Config) (Dialer, error) {
 				return nil, err
 			}
 
+			// the deadline of [http.Request] will be ignored when http2?
+			// so we check and set timeout here
+			// see: https://github.com/golang/go/blob/f15cd63ec4860c4f2c23cc992843546e0265c332/src/net/http/transport.go#L1510
 			if _, ok := ctx.Deadline(); !ok {
 				var cancel context.CancelFunc
 				ctx, cancel = context.WithTimeout(ctx, configuration.ResolverTimeout)
 				defer cancel()
-
-				slog.Warn("doh not has timeout", "addr", addr)
 			}
 
 			return config.Dialer.Conn(ctx, addr)
@@ -66,6 +66,7 @@ func NewDoH(config Config) (Dialer, error) {
 		return nil, err
 	}
 
+	tr2.PingTimeout = 5 * time.Second
 	tr2.ReadIdleTimeout = time.Second * 30 // https://github.com/golang/go/issues/30702
 	tr2.IdleConnTimeout = time.Second * 90
 

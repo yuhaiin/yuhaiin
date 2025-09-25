@@ -242,6 +242,18 @@ func mergerError(i4err, i6err error) error {
 	return fmt.Errorf("ipv6: %w, ipv4: %w", i6err, i4err)
 }
 
+func (c *client) queryWithMetrics(ctx context.Context, req dns.Question) (dns.Msg, error) {
+	metrics.Counter.AddDnsQuery(c.config.Name)
+	now := system.CheapNowNano()
+	msg, err := c.query(ctx, req)
+	if err == nil {
+		metrics.Counter.AddDnsQueryDuration(c.config.Name, float64(time.Duration(system.CheapNowNano()-now).Milliseconds()))
+	} else {
+		metrics.Counter.AddDnsQueryError(c.config.Name)
+	}
+	return msg, err
+}
+
 func (c *client) query(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	dialer := c.dialer
 
@@ -448,7 +460,7 @@ func (c *client) raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	if !ok {
 		var err error
 		rawmsg, err, _ = c.rawSingleflight.Do(ctx, cacheKey, func(ctx context.Context) (dns.Msg, error) {
-			msg, err := c.query(ctx, req)
+			msg, err := c.queryWithMetrics(ctx, req)
 			if err != nil {
 				return dns.Msg{}, err
 			}
@@ -469,7 +481,7 @@ func (c *client) raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 				ctx, cancel := context.WithTimeout(ctx, configuration.ResolverTimeout)
 				defer cancel()
 
-				_, err := c.query(ctx, req)
+				_, err := c.queryWithMetrics(ctx, req)
 				if err != nil {
 					log.Error("refresh domain background failed", "req", req, "err", err)
 				}
