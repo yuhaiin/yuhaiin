@@ -94,12 +94,12 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 
 	p, err := s.d.Get(ctx, "tcp", result.Mode.Mode().String(), result.Mode.GetTag())
 	if err != nil {
-		return nil, netapi.NewDialError("tcp", err, host)
+		return nil, netapi.NewDialError("tcp", err, result.Addr)
 	}
 
-	conn, err := p.Conn(ctx, host)
+	conn, err := p.Conn(ctx, result.Addr)
 	if err != nil {
-		return nil, netapi.NewDialError("tcp", err, host)
+		return nil, netapi.NewDialError("tcp", err, result.Addr)
 	}
 
 	return conn, nil
@@ -117,12 +117,12 @@ func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.Packet
 
 	p, err := s.d.Get(ctx, "udp", result.Mode.Mode().String(), result.Mode.GetTag())
 	if err != nil {
-		return nil, netapi.NewDialError("udp", err, host)
+		return nil, netapi.NewDialError("udp", err, result.Addr)
 	}
 
-	conn, err := p.PacketConn(ctx, host)
+	conn, err := p.PacketConn(ctx, result.Addr)
 	if err != nil {
-		return nil, netapi.NewDialError("udp", err, host)
+		return nil, netapi.NewDialError("udp", err, result.Addr)
 	}
 
 	return conn, nil
@@ -141,10 +141,10 @@ func (s *Route) Ping(ctx context.Context, host netapi.Address) (uint64, error) {
 
 	p, err := s.d.Get(ctx, "udp", result.Mode.Mode().String(), result.Mode.GetTag())
 	if err != nil {
-		return 0, netapi.NewDialError("udp", err, host)
+		return 0, netapi.NewDialError("udp", err, result.Addr)
 	}
 
-	return p.Ping(ctx, host)
+	return p.Ping(ctx, result.Addr)
 }
 
 func (s *Route) Dispatch(ctx context.Context, host netapi.Address) (netapi.Address, error) {
