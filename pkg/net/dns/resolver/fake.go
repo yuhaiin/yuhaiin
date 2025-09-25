@@ -13,6 +13,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
@@ -366,6 +367,7 @@ func (n *FakeIPPool) Flush() {
 
 func (n *FakeIPPool) GetFakeIPForDomain(s string) netip.Addr {
 	if z, ok := n.domainToIP.Load(s); ok {
+		metrics.Counter.AddFakeIPCacheHit()
 		return z
 	}
 
@@ -373,8 +375,11 @@ func (n *FakeIPPool) GetFakeIPForDomain(s string) netip.Addr {
 	defer n.mu.Unlock()
 
 	if z, ok := n.domainToIP.Load(s); ok {
+		metrics.Counter.AddFakeIPCacheHit()
 		return z
 	}
+
+	metrics.Counter.AddFakeIPCacheMiss()
 
 	if v, ok := n.domainToIP.LastPopValue(); ok {
 		n.domainToIP.Add(s, v)

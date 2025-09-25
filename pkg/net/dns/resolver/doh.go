@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -50,7 +50,7 @@ func NewDoH(config Config) (Dialer, error) {
 				ctx, cancel = context.WithTimeout(ctx, configuration.ResolverTimeout)
 				defer cancel()
 
-				slog.Warn("doh not has timeout", "addr", addr)
+				log.Warn("doh not has timeout", "addr", addr)
 			}
 
 			return config.Dialer.Conn(ctx, addr)
