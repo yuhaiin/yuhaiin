@@ -21,7 +21,7 @@ type Logger interface {
 	Info(string, ...any)
 	Warn(string, ...any)
 	Error(string, ...any)
-	Enabled(level slog.Level) bool
+	Enabled(ctx context.Context, level slog.Level) bool
 }
 
 type LoggerAdvanced interface {
@@ -103,7 +103,7 @@ func Warn(msg string, v ...any)          { DefaultLogger.Warn(msg, v...) }
 func Error(msg string, v ...any)         { DefaultLogger.Error(msg, v...) }
 func InfoFormat(format string, v ...any) { DefaultLogger.Info(fmt.Sprintf(format, v...)) }
 func Select(level slog.Level) LoggerOutput {
-	if !DefaultLogger.Enabled(level) {
+	if !DefaultLogger.Enabled(context.TODO(), level) {
 		return LoggerOutput{}
 	}
 
@@ -141,14 +141,12 @@ func NewSLoggerWithHandler(h slog.Handler, depth int) *slogger {
 	return &slogger{Handler: h, depth: 1 + depth}
 }
 
-func (l *slogger) Debug(msg string, v ...any)    { l.Output(1, slog.LevelDebug, msg, v...) }
-func (l *slogger) Info(msg string, v ...any)     { l.Output(1, slog.LevelInfo, msg, v...) }
-func (l *slogger) Warn(msg string, v ...any)     { l.Output(1, slog.LevelWarn, msg, v...) }
-func (l *slogger) Error(msg string, v ...any)    { l.Output(1, slog.LevelError, msg, v...) }
-func (l *slogger) Enabled(level slog.Level) bool { return l.Handler.Enabled(context.TODO(), level) }
-
+func (l *slogger) Debug(msg string, v ...any) { l.Output(1, slog.LevelDebug, msg, v...) }
+func (l *slogger) Info(msg string, v ...any)  { l.Output(1, slog.LevelInfo, msg, v...) }
+func (l *slogger) Warn(msg string, v ...any)  { l.Output(1, slog.LevelWarn, msg, v...) }
+func (l *slogger) Error(msg string, v ...any) { l.Output(1, slog.LevelError, msg, v...) }
 func (l *slogger) Output(depth int, level slog.Level, msg string, v ...any) {
-	if !l.Enabled(level) {
+	if !l.Enabled(context.TODO(), level) {
 		return
 	}
 

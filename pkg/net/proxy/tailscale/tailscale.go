@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
@@ -31,6 +32,7 @@ import (
 	"tailscale.com/net/tsaddr"
 	"tailscale.com/tailcfg"
 	"tailscale.com/tsnet"
+	"tailscale.com/types/nettype"
 )
 
 type hijackDialer struct{}
@@ -49,10 +51,7 @@ func (d hijackDialer) DialContext(ctx context.Context, network, address string) 
 	defer cancel()
 
 	store := netapi.WithContext(ctx)
-
 	store.SetComponent("tailscale")
-
-	log.Info("tailscale dial", "network", network, "address", address)
 
 	return configuration.ProxyChain.Conn(store, ad)
 }
@@ -60,25 +59,64 @@ func (d hijackDialer) DialContext(ctx context.Context, network, address string) 
 type hijackListener struct{}
 
 func (l hijackListener) Listen(ctx context.Context, network, address string) (net.Listener, error) {
-	log.Info("tailscale listen", "network", network, "address", address)
 	return dialer.ListenContext(ctx, network, address)
 }
 
 func (l hijackListener) ListenPacket(ctx context.Context, network, address string) (net.PacketConn, error) {
-	log.Info("tailscale listen packet", "network", network, "address", address)
-	return dialer.ListenPacket(ctx, network, address)
+	store := netapi.WithContext(ctx)
+	store.ForceMode = bypass.Mode_direct
+	store.SetBindAddress(address)
+	store.SetComponent("tailscale")
+	store.SetDomainString("tailscale-" + network + "-listener-" + address)
+	store.SetIPString(address)
+
+	pc, err := configuration.ProxyChain.PacketConn(store, netapi.DomainAddr{
+		AddressNetwork: netapi.ParseAddressNetwork(network),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &nettypePacketConn{pc}, nil
+}
+
+var _ nettype.PacketConn = (*nettypePacketConn)(nil)
+
+type nettypePacketConn struct {
+	net.PacketConn
+}
+
+func (p *nettypePacketConn) WriteToUDPAddrPort(b []byte, addr netip.AddrPort) (int, error) {
+	return p.PacketConn.WriteTo(b, net.UDPAddrFromAddrPort(addr))
+}
+
+func (p *nettypePacketConn) ReadFromUDPAddrPort(b []byte) (int, netip.AddrPort, error) {
+	n, addr, err := p.PacketConn.ReadFrom(b)
+	if err != nil {
+		return 0, netip.AddrPort{}, err
+	}
+
+	ad, err := netapi.ParseSysAddr(addr)
+	if err != nil {
+		return 0, netip.AddrPort{}, err
+	}
+
+	if ad.IsFqdn() {
+		return 0, netip.AddrPort{}, fmt.Errorf("address: %s is not ip address", ad.Hostname())
+	}
+
+	return n, ad.(netapi.IPAddress).AddrPort(), nil
+
 }
 
 type hijackResolver struct{}
 
 func (hijackResolver) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
-	log.Info("tailscale lookup ip", "domain", domain)
 	ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
 	return configuration.ResolverChain.LookupIP(ctx, domain, opts...)
 }
 
 func (hijackResolver) Raw(ctx context.Context, req mdns.Question) (mdns.Msg, error) {
-	log.Info("tailscale lookup dns", "domain", req.Name, "type", mdns.Type(req.Qtype).String())
 	ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
 	return configuration.ResolverChain.Raw(ctx, req)
 }

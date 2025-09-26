@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -203,6 +204,10 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 func updateConfiguration(so *StartOptions, s *pc.Setting) {
 	log.Set(s.GetLogcat(), tools.PathGenerator.Log(so.ConfigPath))
+	if handler, ok := log.DefaultLogger.(slog.Handler); ok {
+		slog.SetDefault(slog.New(handler))
+	}
+
 	configuration.IgnoreDnsErrorLog.Store(s.GetLogcat().GetIgnoreDnsError())
 	configuration.IgnoreTimeoutErrorLog.Store(s.GetLogcat().GetIgnoreTimeoutError())
 
