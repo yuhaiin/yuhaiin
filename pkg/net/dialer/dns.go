@@ -18,7 +18,6 @@ var bootstrap = &bootstrapResolver{}
 func init() {
 	net.DefaultResolver = &net.Resolver{
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			log.Info("net default resolver dial", "network", network, "address", address)
 			return netapi.NewDnsConn(context.TODO(), Bootstrap()), nil
 		},
 	}
