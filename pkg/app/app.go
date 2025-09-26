@@ -133,6 +133,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	})
 
 	configuration.ProxyChain.Set(direct.Default)
+	configuration.ResolverChain.Set(dialer.Bootstrap())
 
 	// local,remote,bootstrap dns
 	dns := AddCloser(closers, "resolver", resolver.NewResolver(configuration.ProxyChain))
@@ -158,6 +159,8 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	// make dns flow across all proxy chain
 	configuration.ProxyChain.Set(fakedns)
+	configuration.ResolverChain.Set(fakedns)
+
 	// inbound server
 	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(dnsServer, fakedns))
 	dialer.SkipInterface = inbounds.Interfaces

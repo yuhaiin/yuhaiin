@@ -73,6 +73,9 @@ func main() {
 				if err != nil {
 					return nil, fmt.Errorf("parse address failed: %w", err)
 				}
+
+				ctx = netapi.WithContext(ctx)
+
 				return configuration.ProxyChain.Conn(ctx, add)
 			}},
 	}
