@@ -18,6 +18,7 @@ var bootstrap = &bootstrapResolver{}
 func init() {
 	net.DefaultResolver = &net.Resolver{
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			log.Info("net default resolver dial", "network", network, "address", address)
 			return netapi.NewDnsConn(context.TODO(), Bootstrap()), nil
 		},
 	}
@@ -34,7 +35,7 @@ func (b *bootstrapResolver) LookupIP(ctx context.Context, domain string, opts ..
 	b.mu.RUnlock()
 
 	if r == nil {
-		return nil, errors.New("bootstrap resolver is nil")
+		return nil, errors.New("bootstrap resolver is not initialized")
 	}
 
 	return r.LookupIP(ctx, domain, opts...)
@@ -46,7 +47,7 @@ func (b *bootstrapResolver) Raw(ctx context.Context, req dns.Question) (dns.Msg,
 	b.mu.RUnlock()
 
 	if r == nil {
-		return dns.Msg{}, errors.New("bootstrap resolver is nil")
+		return dns.Msg{}, errors.New("bootstrap resolver is not initialized")
 	}
 
 	return r.Raw(ctx, req)
