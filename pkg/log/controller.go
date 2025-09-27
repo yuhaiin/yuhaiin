@@ -117,24 +117,28 @@ func (l *Controller) Tail(ctx context.Context, fn func(line []string)) error {
 	f := newCycleFileReader(l.path)
 	defer func() { _ = f.Close() }()
 
-	var sign chan struct{}
-
 	l.wmu.RLock()
 	w := l.writer
 	l.wmu.RUnlock()
-	if w != nil {
-		sign = w.NewCycleSign()
-		defer w.RemoveCycleSign(sign)
-	} else {
-		sign = make(chan struct{})
+
+	if w == nil {
+		return nil
 	}
+
+	fileCount := w.NewFileCount()
 
 	scan := pool.GetBufioReader(f, 1024)
 	defer pool.PutBufioReader(scan)
 
-	var ret []string
-
 	dump := func() {
+		if fileCount != w.NewFileCount() {
+			_ = f.Close()
+			fileCount = w.NewFileCount()
+			return
+		}
+
+		var ret []string
+
 		for {
 			ret = ret[:0]
 
@@ -158,13 +162,12 @@ func (l *Controller) Tail(ctx context.Context, fn func(line []string)) error {
 	dump()
 
 	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case sign <- struct{}{}:
-			_ = f.Close()
 		case <-ticker.C:
 			dump()
 		}

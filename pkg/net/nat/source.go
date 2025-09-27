@@ -30,16 +30,14 @@ type sentPacket struct {
 }
 
 type Context struct {
-	resolver    netapi.ContextResolver
-	migrateID   uint64
-	skipResolve bool
+	resolver  *netapi.ResolverOptions
+	migrateID uint64
 }
 
 func newContext(store *netapi.Context) Context {
 	return Context{
-		resolver:    store.Resolver,
-		migrateID:   store.GetUDPMigrateID(),
-		skipResolve: store.Resolver.SkipResolve,
+		resolver:  store.ConnOptions().Resolver(),
+		migrateID: store.GetUDPMigrateID(),
 	}
 }
 
@@ -233,7 +231,7 @@ func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
 				// here is only check none fqdn, so we don't need timeout
 				srcAddr, _ := dialer.ResolverAddrPort(store, src)
 				if srcAddr.Addr().Unmap().Is4() {
-					store.Resolver.Mode = netapi.ResolverModePreferIPv4
+					store.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv4)
 				}
 			}
 		}
@@ -291,12 +289,14 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 		return t.WriteTo(pkt.GetPayload(), udpAddr, nil, conn)
 	}
 
+	store := netapi.GetContext(ctx)
+
 	// cache fakeip/hosts/bypass address
 	// for fullcone nat, we as much as possible write to same address
 	dstAddr, ok := t.dispatch.Load(key)
 	if !ok {
 		// we route at [SourceControl.newPacketConn], here is skip
-		ctx = context.WithValue(ctx, netapi.SkipRouteKey{}, true)
+		store.ConnOptions().SetSkipRoute(true)
 
 		var err error
 		dstAddr, err = t.dialer.Dispatch(ctx, pkt.Dst())
@@ -310,12 +310,11 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 	}
 
 	// check is need resolve
-	if !dstAddr.IsFqdn() || t.context.skipResolve {
+	if !dstAddr.IsFqdn() || t.context.resolver.SkipResolve() {
 		return t.WriteTo(pkt.GetPayload(), dstAddr, pkt.Dst(), conn)
 	}
 
-	store := netapi.GetContext(ctx)
-	store.Resolver = t.context.resolver
+	store.ConnOptions().SetResolver(*t.context.resolver)
 
 	ctx, cancel := context.WithTimeout(store, time.Second*5)
 	defer cancel()

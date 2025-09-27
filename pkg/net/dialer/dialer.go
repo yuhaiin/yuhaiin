@@ -70,8 +70,8 @@ var SkipInterface = func() *set.Set[string] {
 }
 
 func DialContextWithOptions(ctx context.Context, network, address string, opts *Options) (net.Conn, error) {
-	iface, ok := ctx.Value(NetworkInterfaceKey{}).(string)
-	if ok {
+	iface := netapi.GetContext(ctx).ConnOptions().BindInterface()
+	if iface != "" {
 		opts.InterfaceName = iface
 	}
 
@@ -174,8 +174,8 @@ func ListenPacket(ctx context.Context, network, address string, opts ...func(*Op
 const socketBufferSize = 7 << 20
 
 func ListenPacketWithOptions(ctx context.Context, network, address string, opts *Options) (net.PacketConn, error) {
-	iface, ok := ctx.Value(NetworkInterfaceKey{}).(string)
-	if ok {
+	iface := netapi.GetContext(ctx).ConnOptions().BindInterface()
+	if iface != "" {
 		opts.InterfaceName = iface
 	}
 
@@ -242,8 +242,6 @@ func ListenPacketWithOptions(ctx context.Context, network, address string, opts 
 
 	return pc, nil
 }
-
-type NetworkInterfaceKey struct{}
 
 var (
 	DefaultInterfaceName = func() string { return "" }

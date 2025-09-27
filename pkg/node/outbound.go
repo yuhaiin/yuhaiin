@@ -52,10 +52,6 @@ func (o *outbound) getDialer(ctx context.Context, hash string, point func() (*po
 	})
 }
 
-type HashKey struct{}
-
-func (HashKey) String() string { return "Hash" }
-
 func (o *outbound) Get(ctx context.Context, network string, str string, tag string) (netapi.Proxy, error) {
 	store := netapi.GetContext(ctx)
 

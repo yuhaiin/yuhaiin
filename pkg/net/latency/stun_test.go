@@ -12,10 +12,11 @@ import (
 )
 
 func TestStun(t *testing.T) {
-	store := netapi.WithContext(context.WithValue(context.TODO(), netapi.SkipRouteKey{}, true))
+	store := netapi.WithContext(context.TODO())
+	store.ConnOptions().SetSkipRoute(true)
 	t.Log(0x04 | 0x02)
 
-	store.Resolver.Mode = netapi.ResolverModePreferIPv4
+	store.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv4)
 
 	t.Log(StunTCP(store, direct.Default, "stun.nextcloud.com:443"))
 

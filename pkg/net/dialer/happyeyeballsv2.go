@@ -163,7 +163,7 @@ func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address,
 	r := &happyEyeballv2Resolver{
 		ctx:          ctx,
 		addr:         addr,
-		resolver:     netctx.Resolver.ResolverResolver(Bootstrap()),
+		resolver:     netctx.ConnOptions().Resolver().Resolver(Bootstrap()),
 		primaryMode:  netapi.ResolverModePreferIPv6,
 		fallbackMode: netapi.ResolverModePreferIPv4,
 		lastIp:       lastIP,
@@ -171,7 +171,7 @@ func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address,
 	}
 
 	var prefer bool
-	switch netctx.Resolver.Mode {
+	switch netctx.ConnOptions().Resolver().Mode() {
 	case netapi.ResolverModePreferIPv4:
 		r.primaryMode, r.fallbackMode, prefer = netapi.ResolverModePreferIPv4, netapi.ResolverModePreferIPv6, true
 	case netapi.ResolverModePreferIPv6:
