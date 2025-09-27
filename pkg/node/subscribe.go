@@ -113,6 +113,8 @@ func (n *link) update(link *subscribe.Link) error {
 					return nil, fmt.Errorf("parse address failed: %w", err)
 				}
 
+				ctx = netapi.WithContext(ctx)
+
 				return configuration.ProxyChain.Conn(ctx, ad)
 			},
 		},

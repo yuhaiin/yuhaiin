@@ -64,6 +64,20 @@ func (a *closers) AddCloser(name string, z io.Closer) {
 	a.closers = append(a.closers, &moduleCloser{z, name})
 }
 
+func (a *closers) Close() error {
+	closers := slices.Clone(a.closers)
+	slices.Reverse(closers)
+
+	var err error
+	for _, v := range closers {
+		if er := v.Close(); er != nil {
+			err = errors.Join(err, fmt.Errorf("%s close error: %w", v.name, er))
+		}
+	}
+
+	return err
+}
+
 type moduleCloser struct {
 	io.Closer
 	name string
@@ -128,23 +142,8 @@ func (g *grpcRegister) RegisterService(desc *grpc.ServiceDesc, impl any) {
 }
 
 func (a *AppInstance) Close() error {
-	closers := slices.Clone(a.closers.closers)
-	slices.Reverse(closers)
-
-	var err error
-	for _, v := range closers {
-		if er := v.Close(); er != nil {
-			err = errors.Join(err, fmt.Errorf("%s close error: %w", v.name, er))
-		}
-	}
-
 	sysproxy.Unset()
-
-	if er := log.Close(); er != nil {
-		err = errors.Join(err, fmt.Errorf("log close error: %w", er))
-	}
-
-	return err
+	return a.closers.Close()
 }
 
 type StartOptions struct {

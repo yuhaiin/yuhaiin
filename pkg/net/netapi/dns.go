@@ -8,6 +8,7 @@ import (
 	"iter"
 	"math/rand/v2"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -166,8 +167,6 @@ func (c *dnsConn) Write(packet []byte) (n int, err error) {
 		return 0, errors.New("no question")
 	}
 
-	// log.Info("tailscale dns query", "name", rmsg.Questions[0].Name, "type", rmsg.Questions[0].Type)
-
 	ctx, cancel := context.WithTimeout(c.ctx, time.Second*20)
 	defer cancel()
 	msg, err := c.resolver.Raw(ctx, rmsg.Question[0])
@@ -190,3 +189,38 @@ type todoAddr struct{}
 
 func (todoAddr) Network() string { return "unused" }
 func (todoAddr) String() string  { return "unused-todoAddr" }
+
+type DynamicResolver struct {
+	r  Resolver
+	mu sync.RWMutex
+}
+
+func NewDynamicResolver(r Resolver) *DynamicResolver {
+	return &DynamicResolver{r: r}
+}
+
+func (r *DynamicResolver) getResolver() Resolver {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.r
+}
+
+func (r *DynamicResolver) LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) (*IPs, error) {
+	return r.getResolver().LookupIP(ctx, domain, opts...)
+}
+
+func (r *DynamicResolver) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.r.Close()
+}
+
+func (r *DynamicResolver) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+	return r.getResolver().Raw(ctx, req)
+}
+
+func (r *DynamicResolver) Set(r2 Resolver) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.r = r2
+}

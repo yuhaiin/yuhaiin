@@ -34,7 +34,7 @@ func (b *bootstrapResolver) LookupIP(ctx context.Context, domain string, opts ..
 	b.mu.RUnlock()
 
 	if r == nil {
-		return nil, errors.New("bootstrap resolver is nil")
+		return nil, errors.New("bootstrap resolver is not initialized")
 	}
 
 	return r.LookupIP(ctx, domain, opts...)
@@ -46,7 +46,7 @@ func (b *bootstrapResolver) Raw(ctx context.Context, req dns.Question) (dns.Msg,
 	b.mu.RUnlock()
 
 	if r == nil {
-		return dns.Msg{}, errors.New("bootstrap resolver is nil")
+		return dns.Msg{}, errors.New("bootstrap resolver is not initialized")
 	}
 
 	return r.Raw(ctx, req)

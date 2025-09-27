@@ -77,6 +77,8 @@ type AddrInfo struct {
 	// dns resolver
 	component    *string `metrics:"Component"`
 	udpMigrateID uint64  `metrics:"UDP MigrateID"`
+
+	bindAddress *string `metrics:"BindAddress"`
 }
 
 type Context struct {
@@ -171,6 +173,23 @@ func (s *Context) SetIPString(str string) {
 func (s *Context) GetIPString() string {
 	if s.addrInfo != nil && s.addrInfo.ipString != nil {
 		return *s.addrInfo.ipString
+	}
+	return ""
+}
+
+func (s *Context) SetBindAddress(str string) {
+	if str == "" {
+		return
+	}
+
+	s.setAddrInfo(func(a *AddrInfo) {
+		a.bindAddress = &str
+	})
+}
+
+func (s *Context) GetBindAddress() string {
+	if s.addrInfo != nil && s.addrInfo.bindAddress != nil {
+		return *s.addrInfo.bindAddress
 	}
 	return ""
 }

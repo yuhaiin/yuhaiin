@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -100,10 +101,23 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	closers := &closers{}
 
+	logController := log.NewController()
+
+	chore := chore.NewChore(so.ChoreConfig,
+		func(s *pc.Setting) { updateConfiguration(so, s, logController) })
+
+	config, err := chore.Load(context.Background(), &emptypb.Empty{})
+	if err == nil {
+		updateConfiguration(so, config, logController)
+	}
+
+	AddCloser(closers, "logger_controller", logController)
+
 	cache := so.Cache
 	if cache == nil {
 		db, err := OpenBboltDB(tools.PathGenerator.Cache(so.ConfigPath))
 		if err != nil {
+			_ = closers.Close()
 			return nil, fmt.Errorf("init bbolt cache failed: %w", err)
 		}
 		closers.AddCloser("bbolt_db", db)
@@ -112,14 +126,6 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	for _, f := range operators {
 		f(closers)
-	}
-
-	chore := chore.NewChore(so.ChoreConfig,
-		func(s *pc.Setting) { updateConfiguration(so, s) })
-
-	config, err := chore.Load(context.Background(), &emptypb.Empty{})
-	if err == nil {
-		updateConfiguration(so, config)
 	}
 
 	log.Info("config", "path", so.ConfigPath)
@@ -133,6 +139,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	})
 
 	configuration.ProxyChain.Set(direct.Default)
+	configuration.ResolverChain.Set(dialer.Bootstrap())
 
 	// local,remote,bootstrap dns
 	dns := AddCloser(closers, "resolver", resolver.NewResolver(configuration.ProxyChain))
@@ -158,11 +165,13 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	// make dns flow across all proxy chain
 	configuration.ProxyChain.Set(fakedns)
+	configuration.ResolverChain.Set(fakedns)
+
 	// inbound server
 	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(dnsServer, fakedns))
 	dialer.SkipInterface = inbounds.Interfaces
 	// tools
-	tools := tools.NewTools(so.ChoreConfig)
+	tools := tools.NewTools(so.ChoreConfig, logController)
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /metrics", promhttp.InstrumentMetricHandler(
@@ -198,8 +207,10 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	return app, nil
 }
 
-func updateConfiguration(so *StartOptions, s *pc.Setting) {
-	log.Set(s.GetLogcat(), tools.PathGenerator.Log(so.ConfigPath))
+func updateConfiguration(so *StartOptions, s *pc.Setting, logController *log.Controller) {
+	logController.Set(s.GetLogcat(), tools.PathGenerator.Log(so.ConfigPath))
+	slog.SetDefault(slog.New(log.Default()))
+
 	configuration.IgnoreDnsErrorLog.Store(s.GetLogcat().GetIgnoreDnsError())
 	configuration.IgnoreTimeoutErrorLog.Store(s.GetLogcat().GetIgnoreTimeoutError())
 
