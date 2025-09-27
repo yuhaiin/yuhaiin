@@ -10,74 +10,28 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 )
 
-type Logger interface {
-	Debug(string, ...any)
-	Info(string, ...any)
-	Warn(string, ...any)
-	Error(string, ...any)
-	Enabled(ctx context.Context, level slog.Level) bool
+var (
+	defaultLogger slog.Handler = NewSLogger(os.Stderr)
+	OutputStderr               = atomicx.NewValue(true)
+	leveler                    = atomicx.NewValue(slog.LevelInfo)
+	mu            sync.RWMutex
+)
+
+func Default() slog.Handler {
+	mu.RLock()
+	defer mu.RUnlock()
+	return defaultLogger
 }
 
-type LoggerAdvanced interface {
-	Logger
-	SetLevel(l slog.Level)
-	SetOutput(io.Writer)
-}
-
-var DefaultLogger Logger = NewSLogger(1)
-var OutputStderr bool = true
-
-var writer *FileWriter
-var mu sync.RWMutex
-
-func Set(config *protolog.Logcat, path string) {
+func SetDefault(logger slog.Handler) {
 	mu.Lock()
 	defer mu.Unlock()
-
-	al, ok := DefaultLogger.(LoggerAdvanced)
-	if !ok {
-		return
-	}
-
-	al.SetLevel(config.GetLevel().SLogLevel())
-
-	switch {
-	case !config.GetSave() && writer != nil:
-		al.SetOutput(os.Stdout)
-		writer.Close()
-		writer = nil
-	case config.GetSave() && writer == nil:
-		writer = NewLogWriter(path)
-		if OutputStderr {
-			al.SetOutput(io.MultiWriter(writer, os.Stderr))
-		} else {
-			al.SetOutput(writer)
-		}
-	}
-}
-
-func Close() error {
-	mu.Lock()
-	defer mu.Unlock()
-
-	al, ok := DefaultLogger.(LoggerAdvanced)
-	if ok {
-		al.SetOutput(os.Stderr)
-	}
-
-	if writer != nil {
-		err := writer.Close()
-		writer = nil
-		return err
-	}
-
-	return nil
+	defaultLogger = logger
 }
 
 type LoggerOutput struct {
@@ -90,6 +44,7 @@ func (f LoggerOutput) Print(msg string, v ...any) {
 	}
 	f.log(msg, v...)
 }
+
 func (f LoggerOutput) PrintFunc(msg string, ff func() []any) {
 	if f.log == nil {
 		return
@@ -97,27 +52,35 @@ func (f LoggerOutput) PrintFunc(msg string, ff func() []any) {
 	f.log(msg, ff()...)
 }
 
-func Debug(msg string, v ...any)         { DefaultLogger.Debug(msg, v...) }
-func Info(msg string, v ...any)          { DefaultLogger.Info(msg, v...) }
-func Warn(msg string, v ...any)          { DefaultLogger.Warn(msg, v...) }
-func Error(msg string, v ...any)         { DefaultLogger.Error(msg, v...) }
-func InfoFormat(format string, v ...any) { DefaultLogger.Info(fmt.Sprintf(format, v...)) }
+func Debug(msg string, v ...any) {
+	Output(Default(), 2, slog.LevelDebug, msg, v...)
+}
+
+func Info(msg string, v ...any) {
+	Output(Default(), 2, slog.LevelInfo, msg, v...)
+}
+
+func Warn(msg string, v ...any) {
+	Output(Default(), 2, slog.LevelWarn, msg, v...)
+}
+
+func Error(msg string, v ...any) {
+	Output(Default(), 2, slog.LevelError, msg, v...)
+}
+
+func InfoFormat(format string, v ...any) {
+	Output(Default(), 2, slog.LevelInfo, fmt.Sprintf(format, v...))
+}
+
 func Select(level slog.Level) LoggerOutput {
-	if !DefaultLogger.Enabled(context.TODO(), level) {
+	if !Default().Enabled(context.TODO(), level) {
 		return LoggerOutput{}
 	}
 
-	switch level {
-	case slog.LevelDebug:
-		return LoggerOutput{DefaultLogger.Debug}
-	case slog.LevelInfo:
-		return LoggerOutput{DefaultLogger.Info}
-	case slog.LevelWarn:
-		return LoggerOutput{DefaultLogger.Warn}
-	case slog.LevelError:
-		return LoggerOutput{DefaultLogger.Error}
-	default:
-		return LoggerOutput{DefaultLogger.Info}
+	return LoggerOutput{
+		log: func(msg string, v ...any) {
+			Output(Default(), 3, level, msg, v...)
+		},
 	}
 }
 
@@ -128,83 +91,56 @@ func IfErr(msg string, f func() error, ignoreErr ...error) {
 				return
 			}
 		}
-		DefaultLogger.Error(msg+" failed", "err", err)
+		Output(Default(), 2, slog.LevelError, msg+" failed", "err", err)
 	}
 }
 
-type slogger struct {
-	slog.Handler
-	depth int
-}
-
-func NewSLoggerWithHandler(h slog.Handler, depth int) *slogger {
-	return &slogger{Handler: h, depth: 1 + depth}
-}
-
-func (l *slogger) Debug(msg string, v ...any) { l.Output(1, slog.LevelDebug, msg, v...) }
-func (l *slogger) Info(msg string, v ...any)  { l.Output(1, slog.LevelInfo, msg, v...) }
-func (l *slogger) Warn(msg string, v ...any)  { l.Output(1, slog.LevelWarn, msg, v...) }
-func (l *slogger) Error(msg string, v ...any) { l.Output(1, slog.LevelError, msg, v...) }
-func (l *slogger) Output(depth int, level slog.Level, msg string, v ...any) {
-	if !l.Enabled(context.TODO(), level) {
+func Output(handler slog.Handler, depth int, level slog.Level, msg string, v ...any) {
+	if !handler.Enabled(context.TODO(), level) {
 		return
 	}
 
 	var pcs [1]uintptr
-	runtime.Callers(l.depth+depth+1, pcs[:]) // skip [Callers, Infof]
+	runtime.Callers(depth+1, pcs[:]) // skip [Callers, Infof]
 	r := slog.NewRecord(time.Now(), level, msg, pcs[0])
 	r.Add(v...)
 
-	_ = l.Handle(context.TODO(), r)
+	if err := handler.Handle(context.TODO(), r); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "log output failed:", err)
+	}
 }
 
-func NewSLogger(depth int) Logger {
-	s := &slogLeveler{}
+type slogLeveler struct{}
+
+func (slogLeveler) Level() slog.Level { return leveler.Load() }
+
+func NewSLogger(w io.Writer) slog.Handler {
 	h := &slog.HandlerOptions{
 		AddSource: true,
-		Level:     s,
-		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+		Level:     slogLeveler{},
+		ReplaceAttr: func(groups []string, attr slog.Attr) slog.Attr {
+			switch attr.Key {
 			// Remove time.
-			// if a.Key == slog.TimeKey && len(groups) == 0 {
-			// a.Key = ""
-			// }
+			// case slog.TimeKey:
+			// 	if len(groups) == 0 {
+			// 		a.Key = ""
+			// 	}
 
 			// Remove the directory from the source's filename.
-			if a.Key == slog.SourceKey {
-				source, ok := a.Value.Any().(*slog.Source)
+			case slog.SourceKey:
+				source, ok := attr.Value.Any().(*slog.Source)
 				if ok {
 					source.Function = ""
 					source.File = filepath.Base(source.File)
-					a.Value = slog.AnyValue(source)
+					attr.Value = slog.AnyValue(source)
 				}
-			}
+				return attr
 
-			return a
+			default:
+				return attr
+			}
 		},
 	}
 
-	dw := &dynamicWriter{os.Stdout}
-	logger := NewSLoggerWithHandler(slog.NewTextHandler(dw, h), depth)
-
-	return struct {
-		*slogger
-		*slogLeveler
-		*dynamicWriter
-	}{logger, s, dw}
+	return slog.NewTextHandler(w, h)
 }
-
-type dynamicWriter struct {
-	io.Writer
-}
-
-func (d *dynamicWriter) Write(p []byte) (n int, err error) {
-	return d.Writer.Write(p)
-}
-
-func (l *dynamicWriter) SetOutput(w io.Writer) { l.Writer = w }
-
-type slogLeveler struct{ atomic.Int32 }
-
-func (s *slogLeveler) Level() slog.Level { return slog.Level(s.Load()) }
-
-func (s *slogLeveler) SetLevel(l slog.Level) { s.Store(int32(l)) }

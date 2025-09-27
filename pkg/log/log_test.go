@@ -3,6 +3,7 @@ package log
 import (
 	"errors"
 	"log/slog"
+	"os"
 	"testing"
 )
 
@@ -14,9 +15,11 @@ func TestLog(t *testing.T) {
 }
 
 func TestLogger(t *testing.T) {
-	z := NewSLogger(0)
+	SetDefault(NewSLogger(os.Stderr))
 
-	z.Info("zzz")
-	z.(interface{ SetLevel(l slog.Level) }).SetLevel(slog.LevelDebug)
-	z.Debug("zzz")
+	Info("zzz")
+	leveler.Store(slog.LevelDebug)
+	Debug("zzz")
+
+	Select(slog.LevelInfo).Print("xxx")
 }
