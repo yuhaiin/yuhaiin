@@ -71,7 +71,7 @@ func (s *Route) Tags() iter.Seq[string] {
 
 func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
 	var addr string
-	if store := netapi.GetContext(ctx); store.SystemDialer {
+	if store := netapi.GetContext(ctx); store.ConnOptions().SystemDialer() {
 		if host.IsFqdn() {
 			store.SetDomainString(host.String())
 			taddr, err := dialer.ResolveTCPAddr(ctx, host)
@@ -105,7 +105,7 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 	return conn, nil
 }
 func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
-	if netapi.GetContext(ctx).SystemDialer {
+	if netapi.GetContext(ctx).ConnOptions().SystemDialer() {
 		return dialer.ListenPacket(ctx, "udp", "0.0.0.0:0")
 	}
 
@@ -129,7 +129,7 @@ func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.Packet
 }
 
 func (s *Route) Ping(ctx context.Context, host netapi.Address) (uint64, error) {
-	if netapi.GetContext(ctx).SystemDialer {
+	if netapi.GetContext(ctx).ConnOptions().SystemDialer() {
 		return direct.Default.Ping(ctx, host)
 	}
 
@@ -148,7 +148,7 @@ func (s *Route) Ping(ctx context.Context, host netapi.Address) (uint64, error) {
 }
 
 func (s *Route) Dispatch(ctx context.Context, host netapi.Address) (netapi.Address, error) {
-	if ctx.Value(netapi.SkipRouteKey{}) == true {
+	if netapi.GetContext(ctx).ConnOptions().SkipRoute() {
 		return host, nil
 	}
 	result := s.dispatch(ctx, host)
@@ -211,12 +211,12 @@ func (s *Route) addMatchers() {
 	})
 
 	s.AddMatcher("force mode", func(ctx context.Context, host netapi.Address) bypass.ModeEnum {
-		return bypass.Mode(netapi.GetContext(ctx).ForceMode).ToModeEnum()
+		return bypass.Mode(netapi.GetContext(ctx).ConnOptions().ForceMode()).ToModeEnum()
 	})
 
 	s.AddMatcher("normal mode", func(ctx context.Context, host netapi.Address) bypass.ModeEnum {
 		store := netapi.GetContext(ctx)
-		store.Resolver.Resolver = s.r.Get(s.getResolverFallback(bypass.Proxy), "")
+		store.ConnOptions().Resolver().SetResolver(s.r.Get(s.getResolverFallback(bypass.Proxy), ""))
 
 		if store.GetHosts() == nil && !host.IsFqdn() && store.SniffHost() != "" {
 			addr, err := netapi.ParseAddressPort(host.Network(), store.SniffHost(), host.Port())
@@ -231,12 +231,12 @@ func (s *Route) addMatchers() {
 
 		switch mode.GetResolveStrategy() {
 		case bypass.ResolveStrategy_only_ipv4, bypass.ResolveStrategy_prefer_ipv4:
-			store.Resolver.Mode = netapi.ResolverModePreferIPv4
+			store.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv4)
 		case bypass.ResolveStrategy_only_ipv6, bypass.ResolveStrategy_prefer_ipv6:
-			store.Resolver.Mode = netapi.ResolverModePreferIPv6
+			store.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv6)
 		default:
 			if !configuration.IPv6.Load() {
-				store.Resolver.Mode = netapi.ResolverModePreferIPv4
+				store.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv4)
 			}
 		}
 
@@ -257,9 +257,10 @@ func (s *Route) dispatch(ctx context.Context, host netapi.Address) routeResult {
 	metrics.Counter.AddTrieMatchDuration(float64(time.Duration(system.CheapNowNano() - start).Milliseconds()))
 
 	store := netapi.GetContext(ctx)
-	store.Resolver.SkipResolve = s.skipResolve(mode)
+	store.ConnOptions().Resolver().SetSkipResolve(s.skipResolve(mode))
+	store.ConnOptions().Resolver().SetResolver(s.r.Get(mode.Resolver(), s.getResolverFallback(mode)))
+
 	store.Mode = mode.Mode()
-	store.Resolver.Resolver = s.r.Get(mode.Resolver(), s.getResolverFallback(mode))
 
 	if s.config.Load().GetResolveLocally() && host.IsFqdn() && mode.Mode() == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled

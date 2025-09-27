@@ -48,7 +48,7 @@ func NewDirect(f ...func(*direct)) netapi.Proxy {
 
 func (d *direct) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 	if d.iface != "" {
-		ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, d.iface)
+		netapi.GetContext(ctx).ConnOptions().SetBindInterface(d.iface)
 	}
 	return dialer.DialHappyEyeballsv2(ctx, s)
 }
@@ -56,7 +56,7 @@ func (d *direct) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 func (d *direct) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	store := netapi.GetContext(ctx)
 
-	bindAddr := store.GetBindAddress()
+	bindAddr := store.ConnOptions().BindAddress()
 
 	network := addr.Network()
 	if network == "" {
@@ -84,7 +84,10 @@ func (d *direct) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		return nil, fmt.Errorf("listen packet failed: %w", err)
 	}
 
-	return &UDPPacketConn{resolver: store.Resolver, BufferPacketConn: NewBufferPacketConn(p)}, nil
+	return &UDPPacketConn{
+		resolver:         store.ConnOptions().Resolver(),
+		BufferPacketConn: NewBufferPacketConn(p),
+	}, nil
 }
 
 func (d *direct) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
@@ -177,7 +180,7 @@ func (p *bufferPacketConn) SetReadBuffer(int) error  { return nil }
 func (p *bufferPacketConn) SetWriteBuffer(int) error { return nil }
 
 type UDPPacketConn struct {
-	resolver netapi.ContextResolver
+	resolver *netapi.ResolverOptions
 	BufferPacketConn
 }
 
@@ -191,7 +194,7 @@ func (p *UDPPacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
 
 		if a.IsFqdn() {
 			store := netapi.WithContext(context.Background())
-			store.Resolver = p.resolver
+			store.ConnOptions().SetResolver(*p.resolver)
 			ctx, cancel := context.WithTimeout(store, time.Second*5)
 			udpAddr, err = dialer.ResolveUDPAddr(ctx, a)
 			cancel()

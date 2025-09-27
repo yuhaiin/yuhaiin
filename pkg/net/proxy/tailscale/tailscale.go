@@ -64,11 +64,12 @@ func (l hijackListener) Listen(ctx context.Context, network, address string) (ne
 
 func (l hijackListener) ListenPacket(ctx context.Context, network, address string) (net.PacketConn, error) {
 	store := netapi.WithContext(ctx)
-	store.ForceMode = bypass.Mode_direct
-	store.SetBindAddress(address)
-	store.SetComponent("tailscale")
-	store.SetDomainString("tailscale-" + network + "-listener-" + address)
-	store.SetIPString(address)
+	store.ConnOptions().
+		SetForceMode(bypass.Mode_direct).
+		SetBindAddress(address)
+	store.SetComponent("tailscale").
+		SetDomainString("tailscale-" + network + "-listener" + address).
+		SetIPString(address)
 
 	pc, err := configuration.ProxyChain.PacketConn(store, netapi.DomainAddr{
 		AddressNetwork: netapi.ParseAddressNetwork(network),
@@ -112,12 +113,10 @@ func (p *nettypePacketConn) ReadFromUDPAddrPort(b []byte) (int, netip.AddrPort, 
 type hijackResolver struct{}
 
 func (hijackResolver) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
-	ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
 	return configuration.ResolverChain.LookupIP(ctx, domain, opts...)
 }
 
 func (hijackResolver) Raw(ctx context.Context, req mdns.Question) (mdns.Msg, error) {
-	ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
 	return configuration.ResolverChain.Raw(ctx, req)
 }
 

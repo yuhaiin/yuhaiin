@@ -25,7 +25,7 @@ func TestDial(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ctx := netapi.WithContext(t.Context())
 
-		ctx.Resolver.Resolver = &mockResolver{}
+		ctx.ConnOptions().Resolver().SetResolver(&mockResolver{})
 
 		addr, err := netapi.ParseDomainPort("tcp", "ip-3-86-108-113-ext.gold0028.gameloft.com", 46267)
 		assert.NoError(t, err)
@@ -38,7 +38,7 @@ func TestDial(t *testing.T) {
 	t.Run("prefer all resolve failed", func(t *testing.T) {
 		ctx := netapi.WithContext(t.Context())
 
-		ctx.Resolver.Mode = netapi.ResolverModePreferIPv4
+		ctx.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv4)
 
 		addr, err := netapi.ParseDomainPort("tcp", "ip-3-86-108-113-ext.gold0028.gameloft.com", 46267)
 		assert.NoError(t, err)
@@ -50,9 +50,8 @@ func TestDial(t *testing.T) {
 	t.Run("prefer ipv4", func(t *testing.T) {
 		ctx := netapi.WithContext(t.Context())
 
-		ctx.Resolver.Mode = netapi.ResolverModePreferIPv4
-
-		ctx.Resolver.Resolver = &mockResolver{}
+		ctx.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv4)
+		ctx.ConnOptions().Resolver().SetResolver(&mockResolver{})
 
 		addr, err := netapi.ParseDomainPort("tcp", "ip-3-86-108-113-ext.gold0028.gameloft.com", 46267)
 		assert.NoError(t, err)
@@ -65,9 +64,8 @@ func TestDial(t *testing.T) {
 	t.Run("prefer ipv6", func(t *testing.T) {
 		ctx := netapi.WithContext(t.Context())
 
-		ctx.Resolver.Mode = netapi.ResolverModePreferIPv6
-
-		ctx.Resolver.Resolver = &mockResolver{}
+		ctx.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv6)
+		ctx.ConnOptions().Resolver().SetResolver(&mockResolver{})
 
 		addr, err := netapi.ParseDomainPort("tcp", "ip-3-86-108-113-ext.gold0028.gameloft.com", 46267)
 		assert.NoError(t, err)
@@ -84,7 +82,7 @@ func TestResolver(t *testing.T) {
 
 	ctx := netapi.WithContext(t.Context())
 
-	ctx.Resolver.Resolver = &mockResolver{}
+	ctx.ConnOptions().Resolver().SetResolver(&mockResolver{})
 
 	r := newHappyEyeballv2Respover(ctx, ad, happyEyeballsCache, semaphore.NewEmptySemaphore())
 

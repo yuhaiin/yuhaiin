@@ -83,9 +83,9 @@ type latencyDialer struct {
 func (w *latencyDialer) Conn(ctx context.Context, a netapi.Address) (net.Conn, error) {
 	netctx := netapi.GetContext(ctx)
 	if w.ipv6 {
-		netctx.Resolver.Mode = netapi.ResolverModePreferIPv6
+		netctx.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv6)
 	} else {
-		netctx.Resolver.Mode = netapi.ResolverModePreferIPv4
+		netctx.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv4)
 	}
 	return w.Proxy.Conn(netctx, a)
 }
@@ -93,9 +93,9 @@ func (w *latencyDialer) Conn(ctx context.Context, a netapi.Address) (net.Conn, e
 func (w *latencyDialer) PacketConn(ctx context.Context, a netapi.Address) (net.PacketConn, error) {
 	netctx := netapi.GetContext(ctx)
 	if w.ipv6 {
-		netctx.Resolver.Mode = netapi.ResolverModePreferIPv6
+		netctx.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv6)
 	} else {
-		netctx.Resolver.Mode = netapi.ResolverModePreferIPv4
+		netctx.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv4)
 	}
 	return w.Proxy.PacketConn(netctx, a)
 }

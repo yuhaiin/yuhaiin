@@ -9,9 +9,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
-type SkipRouteKey struct{}
-type ForceFakeIPKey struct{}
-
 type PacketSniffer interface {
 	Packet(*Context, []byte)
 }
@@ -24,33 +21,57 @@ const (
 	ResolverModePreferIPv4
 )
 
-type ContextResolver struct {
-	Resolver     Resolver
+type ResolverOptions struct {
+	resolver     Resolver
 	resolverSelf *Resolver
-	Mode         ResolverMode
-	SkipResolve  bool `metrics:"-"`
+	mode         ResolverMode
+	skipResolve  bool
 }
 
-func (r *ContextResolver) SetResolverResolver(resolver Resolver) {
+func (r *ResolverOptions) SetResolver(resolver Resolver) *ResolverOptions {
+	r.resolver = resolver
+	return r
+}
+
+func (r *ResolverOptions) SetResolverResolver(resolver Resolver) *ResolverOptions {
 	r.resolverSelf = &resolver
+	return r
 }
 
-func (r *ContextResolver) ResolverResolver(fallback Resolver) Resolver {
+func (r *ResolverOptions) Resolver(fallback Resolver) Resolver {
 	if r.resolverSelf != nil {
 		return *r.resolverSelf
 	}
-	if r.Resolver != nil {
-		return r.Resolver
+	if r.resolver != nil {
+		return r.resolver
 	}
 
 	return fallback
 }
 
-func (r ContextResolver) Opts(reverse bool) []func(*LookupIPOption) {
-	switch r.Mode {
+func (r *ResolverOptions) SetMode(mode ResolverMode) *ResolverOptions {
+	r.mode = mode
+	return r
+}
+
+func (r *ResolverOptions) Mode() ResolverMode {
+	return r.mode
+}
+
+func (r *ResolverOptions) SetSkipResolve(skip bool) *ResolverOptions {
+	r.skipResolve = skip
+	return r
+}
+
+func (r ResolverOptions) SkipResolve() bool {
+	return r.skipResolve
+}
+
+func (r ResolverOptions) Opts(reverse bool) []func(*LookupIPOption) {
+	switch r.mode {
 	case ResolverModePreferIPv6, ResolverModePreferIPv4:
 		return []func(*LookupIPOption){func(li *LookupIPOption) {
-			if r.Mode == ResolverModePreferIPv4 || reverse {
+			if r.mode == ResolverModePreferIPv4 || reverse {
 				li.Mode = ResolverModePreferIPv4
 			} else {
 				li.Mode = ResolverModePreferIPv6
@@ -59,6 +80,107 @@ func (r ContextResolver) Opts(reverse bool) []func(*LookupIPOption) {
 	}
 
 	return nil
+}
+
+type ConnOptions struct {
+	bindAddress   *string
+	bindInterface *string
+	resolver      *ResolverOptions
+	forceMode     bypass.Mode
+	sniffMode     bypass.Mode
+	systemDialer  bool
+	skipRoute     bool
+	forceFakeIP   bool
+}
+
+func (s *ConnOptions) SetBindAddress(str string) *ConnOptions {
+	if str == "" {
+		return s
+	}
+
+	s.bindAddress = &str
+	return s
+}
+
+func (s *ConnOptions) BindAddress() string {
+	if s.bindAddress != nil {
+		return *s.bindAddress
+	}
+	return ""
+}
+
+func (s *ConnOptions) SetBindInterface(str string) *ConnOptions {
+	if str == "" {
+		return s
+	}
+
+	s.bindInterface = &str
+	return s
+}
+
+func (s *ConnOptions) BindInterface() string {
+	if s.bindInterface != nil {
+		return *s.bindInterface
+	}
+	return ""
+}
+
+func (s *ConnOptions) Resolver() *ResolverOptions {
+	if s.resolver == nil {
+		s.resolver = &ResolverOptions{}
+	}
+
+	return s.resolver
+}
+
+func (s *ConnOptions) SetResolver(resolver ResolverOptions) *ConnOptions {
+	s.resolver = &resolver
+	return s
+}
+
+func (s *ConnOptions) SetForceMode(mode bypass.Mode) *ConnOptions {
+	s.forceMode = mode
+	return s
+}
+
+func (s *ConnOptions) ForceMode() bypass.Mode {
+	return s.forceMode
+}
+
+func (s *ConnOptions) SetSniffMode(mode bypass.Mode) *ConnOptions {
+	s.sniffMode = mode
+	return s
+}
+
+func (s *ConnOptions) SniffMode() bypass.Mode {
+	return s.sniffMode
+}
+
+func (s *ConnOptions) SetSystemDialer(systemDialer bool) *ConnOptions {
+	s.systemDialer = systemDialer
+	return s
+}
+
+func (s *ConnOptions) SystemDialer() bool {
+	return s.systemDialer
+}
+
+func (s *ConnOptions) SetSkipRoute(skip bool) *ConnOptions {
+	s.skipRoute = skip
+	return s
+}
+
+func (s *ConnOptions) SkipRoute() bool {
+	return s.skipRoute
+}
+
+func (s *ConnOptions) SetForceFakeIP(force bool) *ConnOptions {
+	s.forceFakeIP = force
+	return s
+}
+
+func (s *ConnOptions) ForceFakeIP() bool {
+	return s.forceFakeIP
 }
 
 type Sniff struct {
@@ -77,8 +199,6 @@ type AddrInfo struct {
 	// dns resolver
 	component    *string `metrics:"Component"`
 	udpMigrateID uint64  `metrics:"UDP MigrateID"`
-
-	bindAddress *string `metrics:"BindAddress"`
 }
 
 type Context struct {
@@ -102,13 +222,9 @@ type Context struct {
 
 	ruleChain *MatchHistory `metrics:"Rule Chain"`
 
-	Resolver ContextResolver `metrics:"-"`
+	Mode bypass.Mode `metrics:"MODE"`
 
-	ForceMode bypass.Mode `metrics:"-"`
-	SniffMode bypass.Mode `metrics:"-"`
-	Mode      bypass.Mode `metrics:"MODE"`
-
-	SystemDialer bool `metrics:"-"`
+	connOptions *ConnOptions
 }
 
 func (c *Context) NewMatch(ruleName string) {
@@ -143,14 +259,16 @@ func (c *Context) setAddrInfo(f func(*AddrInfo)) {
 	f(c.addrInfo)
 }
 
-func (s *Context) SetDomainString(str string) {
+func (s *Context) SetDomainString(str string) *Context {
 	if str == "" {
-		return
+		return s
 	}
 
 	s.setAddrInfo(func(a *AddrInfo) {
 		a.domainString = &str
 	})
+
+	return s
 }
 
 func (s *Context) GetDomainString() string {
@@ -160,14 +278,16 @@ func (s *Context) GetDomainString() string {
 	return ""
 }
 
-func (s *Context) SetIPString(str string) {
+func (s *Context) SetIPString(str string) *Context {
 	if str == "" {
-		return
+		return s
 	}
 
 	s.setAddrInfo(func(a *AddrInfo) {
 		a.ipString = &str
 	})
+
+	return s
 }
 
 func (s *Context) GetIPString() string {
@@ -177,31 +297,24 @@ func (s *Context) GetIPString() string {
 	return ""
 }
 
-func (s *Context) SetBindAddress(str string) {
-	if str == "" {
-		return
+func (s *Context) ConnOptions() *ConnOptions {
+	if s.connOptions == nil {
+		s.connOptions = &ConnOptions{}
 	}
 
-	s.setAddrInfo(func(a *AddrInfo) {
-		a.bindAddress = &str
-	})
+	return s.connOptions
 }
 
-func (s *Context) GetBindAddress() string {
-	if s.addrInfo != nil && s.addrInfo.bindAddress != nil {
-		return *s.addrInfo.bindAddress
-	}
-	return ""
-}
-
-func (s *Context) SetTag(str string) {
+func (s *Context) SetTag(str string) *Context {
 	if str == "" {
-		return
+		return s
 	}
 
 	s.setAddrInfo(func(a *AddrInfo) {
 		a.tag = &str
 	})
+
+	return s
 }
 
 func (s *Context) GetTag() string {
@@ -211,14 +324,16 @@ func (s *Context) GetTag() string {
 	return ""
 }
 
-func (s *Context) SetComponent(str string) {
+func (s *Context) SetComponent(str string) *Context {
 	if str == "" {
-		return
+		return s
 	}
 
 	s.setAddrInfo(func(a *AddrInfo) {
 		a.component = &str
 	})
+
+	return s
 }
 
 func (s *Context) GetComponent() string {
@@ -228,14 +343,16 @@ func (s *Context) GetComponent() string {
 	return ""
 }
 
-func (s *Context) SetUDPMigrateID(id uint64) {
+func (s *Context) SetUDPMigrateID(id uint64) *Context {
 	if id == 0 {
-		return
+		return s
 	}
 
 	s.setAddrInfo(func(a *AddrInfo) {
 		a.udpMigrateID = id
 	})
+
+	return s
 }
 
 func (s *Context) GetUDPMigrateID() uint64 {
@@ -245,12 +362,14 @@ func (s *Context) GetUDPMigrateID() uint64 {
 	return 0
 }
 
-func (c *Context) SetInbound(addr net.Addr) {
+func (c *Context) SetInbound(addr net.Addr) *Context {
 	if addr == nil {
-		return
+		return c
 	}
 
 	c.inbound = &addr
+
+	return c
 }
 
 func (c *Context) GetInbound() net.Addr {
@@ -260,20 +379,24 @@ func (c *Context) GetInbound() net.Addr {
 	return nil
 }
 
-func (c *Context) SetInboundName(name string) {
+func (c *Context) SetInboundName(name string) *Context {
 	if name == "" {
-		return
+		return c
 	}
 
 	c.inboundName = &name
+
+	return c
 }
 
-func (c *Context) SetInterface(name string) {
+func (c *Context) SetInterface(name string) *Context {
 	if name == "" {
-		return
+		return c
 	}
 
 	c.interfaceName = &name
+
+	return c
 }
 
 func (c *Context) GetInterface() string {
@@ -290,12 +413,14 @@ func (c *Context) GetInboundName() string {
 	return ""
 }
 
-func (c *Context) SetFakeIP(addr net.Addr) {
+func (c *Context) SetFakeIP(addr net.Addr) *Context {
 	if addr == nil {
-		return
+		return c
 	}
 
 	c.fakeIP = &addr
+
+	return c
 }
 
 func (c *Context) GetFakeIP() net.Addr {
@@ -305,12 +430,14 @@ func (c *Context) GetFakeIP() net.Addr {
 	return nil
 }
 
-func (c *Context) SetHosts(addr net.Addr) {
+func (c *Context) SetHosts(addr net.Addr) *Context {
 	if addr == nil {
-		return
+		return c
 	}
 
 	c.hosts = &addr
+
+	return c
 }
 
 func (c *Context) GetHosts() net.Addr {
@@ -328,13 +455,14 @@ func (c *Context) setSniff(f func(*Sniff)) {
 	f(c.sniff)
 }
 
-func (c *Context) SetProtocol(p string) {
+func (c *Context) SetProtocol(p string) *Context {
 	if p == "" {
-		return
+		return c
 	}
 	c.setSniff(func(s *Sniff) {
 		s.protocol = &p
 	})
+	return c
 }
 
 func (c *Context) GetProtocol() string {
@@ -344,9 +472,9 @@ func (c *Context) GetProtocol() string {
 	return ""
 }
 
-func (c *Context) SetProcess(p string, pid, uid uint) {
+func (c *Context) SetProcess(p string, pid, uid uint) *Context {
 	if p == "" && pid == 0 && uid == 0 {
-		return
+		return c
 	}
 
 	c.setSniff(func(s *Sniff) {
@@ -354,6 +482,7 @@ func (c *Context) SetProcess(p string, pid, uid uint) {
 		s.processPid = pid
 		s.processUid = uid
 	})
+	return c
 }
 
 func (c *Context) GetProcess() (string, uint, uint) {
@@ -384,14 +513,15 @@ func (c *Context) GetProcessUid() uint {
 	return 0
 }
 
-func (c *Context) SetTLSServerName(str string) {
+func (c *Context) SetTLSServerName(str string) *Context {
 	if str == "" {
-		return
+		return c
 	}
 
 	c.setSniff(func(s *Sniff) {
 		s.tlsServerName = &str
 	})
+	return c
 }
 
 func (c *Context) GetTLSServerName() string {
@@ -401,14 +531,15 @@ func (c *Context) GetTLSServerName() string {
 	return ""
 }
 
-func (c *Context) SetHTTPHost(str string) {
+func (c *Context) SetHTTPHost(str string) *Context {
 	if str == "" {
-		return
+		return c
 	}
 
 	c.setSniff(func(s *Sniff) {
 		s.httpHost = &str
 	})
+	return c
 }
 
 func (c *Context) GetHTTPHost() string {
@@ -452,6 +583,16 @@ func GetContext(ctx context.Context) *Context {
 	}
 
 	return v
+}
+
+func GetOrNewContext(ctx context.Context) (context.Context, *Context) {
+	v := GetContextOrNil(ctx)
+	if v != nil {
+		return ctx, v
+	}
+
+	c := WithContext(ctx)
+	return c, c
 }
 
 func GetContextOrNil(ctx context.Context) *Context {

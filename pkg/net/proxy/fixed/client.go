@@ -86,7 +86,7 @@ func (c *Client) dialSingle(ctx context.Context, addr netapi.Address) (net.Conn,
 		return c.p.Conn(ctx, addr)
 	} else {
 		if c.iface != "" {
-			ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, c.iface)
+			netapi.GetContext(ctx).ConnOptions().SetBindInterface(c.iface)
 		}
 		return dialer.DialHappyEyeballsv2(ctx, addr)
 	}
@@ -215,7 +215,7 @@ type PacketDirectKey struct{}
 func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	if ctx.Value(PacketDirectKey{}) == true {
 		if c.iface != "" {
-			ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, c.iface)
+			netapi.GetContext(ctx).ConnOptions().SetBindInterface(c.iface)
 		}
 		return direct.Default.PacketConn(ctx, addr)
 	}

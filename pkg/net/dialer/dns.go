@@ -148,16 +148,16 @@ func LookupIP(ctx context.Context, addr netapi.Address) (*netapi.IPs, error) {
 
 	netctx := netapi.GetContext(ctx)
 
-	resolver := netctx.Resolver.ResolverResolver(Bootstrap())
+	resolver := netctx.ConnOptions().Resolver().Resolver(Bootstrap())
 
-	if netctx.Resolver.Mode != netapi.ResolverModeNoSpecified {
-		ips, err := resolver.LookupIP(ctx, addr.Hostname(), netctx.Resolver.Opts(false)...)
+	if netctx.ConnOptions().Resolver().Mode() != netapi.ResolverModeNoSpecified {
+		ips, err := resolver.LookupIP(ctx, addr.Hostname(), netctx.ConnOptions().Resolver().Opts(false)...)
 		if err == nil {
 			return ips, nil
 		}
 	}
 
-	ips, err := resolver.LookupIP(ctx, addr.Hostname(), netctx.Resolver.Opts(true)...)
+	ips, err := resolver.LookupIP(ctx, addr.Hostname(), netctx.ConnOptions().Resolver().Opts(true)...)
 	if err != nil {
 		return nil, fmt.Errorf("resolve address(%v) failed: %w", addr, err)
 	}

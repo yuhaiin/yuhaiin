@@ -121,7 +121,7 @@ func (r *Resolver) getResolver(str string) (netapi.Resolver, bool) {
 				store := netapi.GetContext(ctx)
 				store.SetComponent("Resolver " + str)
 				// force to use bootstrap dns, otherwise will dns query cycle
-				store.Resolver.SetResolverResolver(dialer.Bootstrap())
+				store.ConnOptions().Resolver().SetResolverResolver(dialer.Bootstrap())
 			},
 		}
 
@@ -185,9 +185,9 @@ func (r *Resolver) ApplyBootstrap(c *pd.Dns) {
 			Proxy: r.dialer,
 			addr: func(ctx context.Context, addr netapi.Address) {
 				store := netapi.GetContext(ctx)
-				store.ForceMode = bypass.Mode_direct
+				store.ConnOptions().SetForceMode(bypass.Mode_direct)
 				store.SetComponent("Resolver BOOTSTRAP")
-				store.Resolver.SetResolverResolver(resolver.Internet)
+				store.ConnOptions().Resolver().SetResolverResolver(resolver.Internet)
 			},
 		}
 		z, err := newDNS("BOOTSTRAP", c, dd, r)
