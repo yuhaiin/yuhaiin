@@ -111,7 +111,7 @@ func (f *FileWriter) cycleNewFile() {
 
 	f.savedSize.Store(0)
 
-	f.w.Close()
+	_ = f.w.Close()
 	f.w = nil
 
 	err := os.Rename(f.path.FullPath(""), f.path.FullPath(time.Now().Format("2006-01-02T15.04.05Z0700")))
@@ -155,7 +155,7 @@ func (f *FileWriter) removeOldFile() {
 
 	count := 0
 	for _, file := range files {
-		if !(strings.HasPrefix(file.Name(), f.path.base+"_") && strings.HasSuffix(file.Name(), f.path.ext)) {
+		if !strings.HasPrefix(file.Name(), f.path.base+"_") || !strings.HasSuffix(file.Name(), f.path.ext) {
 			continue
 		}
 

@@ -2,37 +2,48 @@ package log
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
+	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestTail(t *testing.T) {
-	defer os.Remove("test.log")
+	ctr := NewController()
+	defer func() {
+		if err := ctr.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 
-	f, err := os.Create("test.log")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
+	OutputStderr.Store(false)
+	ctr.Set(protolog.Logcat_builder{
+		Save:  proto.Bool(true),
+		Level: protolog.LogLevel_debug.Enum(),
+	}.Build(), "test.log")
+
+	defer func() {
+		if err := os.Remove("test.log"); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go func() {
 		for i := range 10 {
-			fmt.Fprintf(f, "test %d\n", i)
+			Info("test", "i", i)
 			time.Sleep(time.Second)
 		}
 		cancel()
 	}()
 
-	err = NewController().Tail(ctx, func(line []string) {
-		os.Stdout.Write([]byte(strings.Join(line, "\n")))
+	err := ctr.Tail(ctx, func(line []string) {
+		t.Log(line)
 	})
 	assert.NoError(t, err)
 }
