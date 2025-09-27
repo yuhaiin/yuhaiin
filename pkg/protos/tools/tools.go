@@ -18,11 +18,12 @@ import (
 
 type Tools struct {
 	UnimplementedToolsServer
-	db config.DB
+	db            config.DB
+	logController *log.Controller
 }
 
-func NewTools(db config.DB) *Tools {
-	return &Tools{db: db}
+func NewTools(db config.DB, logController *log.Controller) *Tools {
+	return &Tools{db: db, logController: logController}
 }
 
 func (t *Tools) GetInterface(ctx context.Context, e *emptypb.Empty) (*Interfaces, error) {
@@ -72,7 +73,7 @@ func (t *Tools) Licenses(context.Context, *emptypb.Empty) (*Licenses, error) {
 }
 
 func (t *Tools) Log(_ *emptypb.Empty, stream grpc.ServerStreamingServer[Log]) error {
-	return log.Tail(stream.Context(), PathGenerator.Log(t.db.Dir()), func(line []string) {
+	return t.logController.Tail(stream.Context(), func(line []string) {
 		for _, l := range line {
 			if err := stream.Send(Log_builder{
 				Log: proto.String(l),
@@ -84,7 +85,7 @@ func (t *Tools) Log(_ *emptypb.Empty, stream grpc.ServerStreamingServer[Log]) er
 }
 
 func (t *Tools) Logv2(empty *emptypb.Empty, v2 grpc.ServerStreamingServer[Logv2]) error {
-	return log.Tail(v2.Context(), PathGenerator.Log(t.db.Dir()), func(line []string) {
+	return t.logController.Tail(v2.Context(), func(line []string) {
 		if err := v2.Send(Logv2_builder{
 			Log: line,
 		}.Build()); err != nil {

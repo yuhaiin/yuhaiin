@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
 	"path"
 	"strings"
 	"sync"
@@ -17,10 +18,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	mdns "github.com/miekg/dns"
 	"tailscale.com/envknob"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
@@ -29,7 +32,96 @@ import (
 	"tailscale.com/net/tsaddr"
 	"tailscale.com/tailcfg"
 	"tailscale.com/tsnet"
+	"tailscale.com/types/nettype"
 )
+
+type hijackDialer struct{}
+
+func (d hijackDialer) Dial(network, address string) (net.Conn, error) {
+	return d.DialContext(context.Background(), network, address)
+}
+
+func (d hijackDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	ad, err := netapi.ParseAddress(network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
+	defer cancel()
+
+	store := netapi.WithContext(ctx)
+	store.SetComponent("tailscale")
+
+	return configuration.ProxyChain.Conn(store, ad)
+}
+
+type hijackListener struct{}
+
+func (l hijackListener) Listen(ctx context.Context, network, address string) (net.Listener, error) {
+	return dialer.ListenContext(ctx, network, address)
+}
+
+func (l hijackListener) ListenPacket(ctx context.Context, network, address string) (net.PacketConn, error) {
+	store := netapi.WithContext(ctx)
+	store.ForceMode = bypass.Mode_direct
+	store.SetBindAddress(address)
+	store.SetComponent("tailscale")
+	store.SetDomainString("tailscale-" + network + "-listener-" + address)
+	store.SetIPString(address)
+
+	pc, err := configuration.ProxyChain.PacketConn(store, netapi.DomainAddr{
+		AddressNetwork: netapi.ParseAddressNetwork(network),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &nettypePacketConn{pc}, nil
+}
+
+var _ nettype.PacketConn = (*nettypePacketConn)(nil)
+
+type nettypePacketConn struct {
+	net.PacketConn
+}
+
+func (p *nettypePacketConn) WriteToUDPAddrPort(b []byte, addr netip.AddrPort) (int, error) {
+	return p.PacketConn.WriteTo(b, net.UDPAddrFromAddrPort(addr))
+}
+
+func (p *nettypePacketConn) ReadFromUDPAddrPort(b []byte) (int, netip.AddrPort, error) {
+	n, addr, err := p.PacketConn.ReadFrom(b)
+	if err != nil {
+		return 0, netip.AddrPort{}, err
+	}
+
+	ad, err := netapi.ParseSysAddr(addr)
+	if err != nil {
+		return 0, netip.AddrPort{}, err
+	}
+
+	if ad.IsFqdn() {
+		return 0, netip.AddrPort{}, fmt.Errorf("address: %s is not ip address", ad.Hostname())
+	}
+
+	return n, ad.(netapi.IPAddress).AddrPort(), nil
+
+}
+
+type hijackResolver struct{}
+
+func (hijackResolver) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
+	ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
+	return configuration.ResolverChain.LookupIP(ctx, domain, opts...)
+}
+
+func (hijackResolver) Raw(ctx context.Context, req mdns.Question) (mdns.Msg, error) {
+	ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
+	return configuration.ResolverChain.Raw(ctx, req)
+}
+
+func (hijackResolver) Close() error { return nil }
 
 var Mux atomic.Pointer[http.ServeMux]
 
@@ -45,12 +137,12 @@ var (
 
 func init() {
 	register.RegisterPoint(New)
-	netns.SetWrapDialer(func(d netns.Dialer) netns.Dialer { return &dial{} })
-	netns.SetWrapListener(func(li netns.ListenerInterface) netns.ListenerInterface { return &listener{} })
+	netns.SetWrapDialer(func(d netns.Dialer) netns.Dialer { return hijackDialer{} })
+	netns.SetWrapListener(func(li netns.ListenerInterface) netns.ListenerInterface { return hijackListener{} })
 	dnscache.Get().Forward = &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			return netapi.NewDnsConn(ctx, dialer.Bootstrap()), nil
+			return netapi.NewDnsConn(ctx, hijackResolver{}), nil
 		},
 	}
 	// disable portmapper for tailscale, this is a global setting
@@ -373,7 +465,10 @@ func (w *warpPacketConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 		return 0, err
 	}
 
-	ur, err := dialer.ResolveUDPAddr(w.ctx, a)
+	ctx, cancel := context.WithTimeout(w.ctx, configuration.ResolverTimeout)
+	defer cancel()
+
+	ur, err := dialer.ResolveUDPAddr(ctx, a)
 	if err != nil {
 		return 0, err
 	}
@@ -404,53 +499,24 @@ func (w *warpUDPConn) ReadFrom(buf []byte) (int, net.Addr, error) {
 	return n, w.addr, err
 }
 
-type dial struct{}
-
-func (d *dial) Dial(network, address string) (net.Conn, error) {
-	// log.Info("tailscale dial", "network", network, "address", address)
-	return d.DialContext(context.Background(), network, address)
-}
-
-func (d *dial) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
-	defer cancel()
-
-	ad, err := netapi.ParseAddress(network, address)
-	// log.Info("tailscale dial", "network", network, "address", address, "netapi Addr", ad, "err", err)
-	if err == nil {
-		return dialer.DialHappyEyeballsv2(ctx, ad)
-	}
-
-	return dialer.DialContext(ctx, network, address)
-}
-
-type listener struct{}
-
-func (l *listener) Listen(ctx context.Context, network, address string) (net.Listener, error) {
-	// log.Info("tailscale listen", "network", network, "address", address)
-	return dialer.ListenContext(ctx, network, address)
-}
-
-func (l *listener) ListenPacket(ctx context.Context, network, address string) (net.PacketConn, error) {
-	// _, file, line, _ := runtime.Caller(2)
-	// log.Info("tailscale listen packet", "network", network, "address", address, "file", file, "line", line)
-	return dialer.ListenPacket(ctx, network, address)
-}
-
 type dnsPacket struct {
-	cancel context.CancelFunc
-	ctx    context.Context
-	ch     chan []byte
-	mgr    *dns.Manager
+	cancel        context.CancelFunc
+	ctx           context.Context
+	ch            chan []byte
+	mgr           *dns.Manager
+	writeDeadline pipe.PipeDeadline
+	readDeadline  pipe.PipeDeadline
 }
 
 func NewDnsPacket(mgr *dns.Manager) net.PacketConn {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &dnsPacket{
-		cancel: cancel,
-		ctx:    ctx,
-		ch:     make(chan []byte, 100),
-		mgr:    mgr,
+		cancel:        cancel,
+		ctx:           ctx,
+		ch:            make(chan []byte, 100),
+		mgr:           mgr,
+		writeDeadline: pipe.MakePipeDeadline(),
+		readDeadline:  pipe.MakePipeDeadline(),
 	}
 }
 
@@ -461,6 +527,8 @@ func (d *dnsPacket) Close() error {
 
 func (d *dnsPacket) ReadFrom(buf []byte) (int, net.Addr, error) {
 	select {
+	case <-d.readDeadline.Wait():
+		return 0, nil, os.ErrDeadlineExceeded
 	case <-d.ctx.Done():
 		return 0, nil, d.ctx.Err()
 	case b := <-d.ch:
@@ -474,12 +542,17 @@ func (d *dnsPacket) ReadFrom(buf []byte) (int, net.Addr, error) {
 }
 
 func (d *dnsPacket) WriteTo(buf []byte, addr net.Addr) (int, error) {
-	data, err := d.mgr.Query(d.ctx, buf, "udp", netip.AddrPort{})
+	ctx, cancel := context.WithTimeout(d.ctx, configuration.ResolverTimeout)
+	defer cancel()
+
+	data, err := d.mgr.Query(ctx, buf, "udp", netip.AddrPort{})
 	if err != nil {
 		return 0, err
 	}
 
 	select {
+	case <-d.writeDeadline.Wait():
+		return 0, os.ErrDeadlineExceeded
 	case <-d.ctx.Done():
 		return 0, d.ctx.Err()
 	case d.ch <- data:
@@ -494,13 +567,17 @@ func (d *dnsPacket) LocalAddr() net.Addr {
 }
 
 func (d *dnsPacket) SetDeadline(t time.Time) error {
+	_ = d.SetReadDeadline(t)
+	_ = d.SetWriteDeadline(t)
 	return nil
 }
 
 func (d *dnsPacket) SetReadDeadline(t time.Time) error {
+	d.readDeadline.Set(t)
 	return nil
 }
 
 func (d *dnsPacket) SetWriteDeadline(t time.Time) error {
+	d.writeDeadline.Set(t)
 	return nil
 }

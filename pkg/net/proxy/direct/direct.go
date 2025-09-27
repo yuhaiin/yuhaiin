@@ -54,23 +54,37 @@ func (d *direct) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 }
 
 func (d *direct) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	ur, err := dialer.ResolveUDPAddr(ctx, addr)
-	if err != nil {
-		return nil, err
+	store := netapi.GetContext(ctx)
+
+	bindAddr := store.GetBindAddress()
+
+	network := addr.Network()
+	if network == "" {
+		network = "udp"
 	}
 
-	p, err := dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
-		if d.iface != "" {
-			o.InterfaceName = d.iface
-		}
+	p, err := dialer.ListenPacket(ctx, network, bindAddr,
+		func(o *dialer.Options) {
+			if d.iface != "" {
+				o.InterfaceName = d.iface
+			}
 
-		o.PacketConnHintAddress = ur
-	})
+			// if bind address is not empty, we will use it
+			// skip use hint address
+			if bindAddr != "" || (addr.Hostname() == "" && addr.Port() == 0) {
+				return
+			}
+
+			ur, err := dialer.ResolveUDPAddr(ctx, addr)
+			if err == nil {
+				o.PacketConnHintAddress = ur
+			}
+		})
 	if err != nil {
 		return nil, fmt.Errorf("listen packet failed: %w", err)
 	}
 
-	return &UDPPacketConn{resolver: netapi.GetContext(ctx).Resolver, BufferPacketConn: NewBufferPacketConn(p)}, nil
+	return &UDPPacketConn{resolver: store.Resolver, BufferPacketConn: NewBufferPacketConn(p)}, nil
 }
 
 func (d *direct) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {

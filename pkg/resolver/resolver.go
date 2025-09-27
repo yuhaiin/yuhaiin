@@ -234,7 +234,7 @@ func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netap
 func (d *dnsWrap) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	msg, err := d.dns.Raw(ctx, req)
 	if err != nil {
-		return dns.Msg{}, fmt.Errorf("%s do raw dns request failed: %w", d.name, err)
+		return dns.Msg{}, fmt.Errorf("[%s] do raw dns request failed: %w", d.name, err)
 	}
 
 	return msg, nil

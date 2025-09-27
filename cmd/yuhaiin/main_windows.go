@@ -21,7 +21,7 @@ func init() {
 		return
 	}
 
-	log.OutputStderr = false
+	log.OutputStderr.Store(false)
 	wait = func(ctx context.Context, lis net.Listener) error {
 		return svc.Run(version.AppName, &service{
 			lis: lis,
