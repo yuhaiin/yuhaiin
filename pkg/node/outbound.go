@@ -103,7 +103,7 @@ func (o *outbound) GetDialerByID(ctx context.Context, hash string) (netapi.Proxy
 
 func (o *outbound) tagConn(tag string) string {
 	for {
-		t, ok := o.manager.ExistTag(tag)
+		t, ok := o.manager.GetTag(tag)
 		if !ok || len(t.GetHash()) <= 0 {
 			return ""
 		}

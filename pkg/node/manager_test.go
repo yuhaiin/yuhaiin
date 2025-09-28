@@ -13,9 +13,9 @@ import (
 func newTestManager() *Manager {
 	return &Manager{
 		store: NewProxyStore(),
-		db: &syncDB{db: &jsondb.DB[*node.Node]{
+		db: &jsondb.DB[*node.Node]{
 			Data: node.Node_builder{Manager: &node.Manager{}}.Build(),
-		}},
+		},
 	}
 }
 
@@ -40,7 +40,7 @@ func TestAddNode(t *testing.T) {
 	}.Build()
 	mg.SaveNode(p1, p2, p3, p4)
 
-	t.Log(mg.db.db.Data)
+	t.Log(mg.db.Data)
 
 	mg.AddTag("test_tag", 1, p2.GetHash())
 	mg.AddTag("test_tag3", 0, p3.GetHash())
@@ -49,6 +49,6 @@ func TestAddNode(t *testing.T) {
 	mg.DeleteTag("test_tag2")
 	mg.DeleteNode(p3.GetHash())
 
-	data, _ := protojson.MarshalOptions{Indent: "  "}.Marshal(mg.db.db.Data)
+	data, _ := protojson.MarshalOptions{Indent: "  "}.Marshal(mg.db.Data)
 	t.Log(string(data))
 }

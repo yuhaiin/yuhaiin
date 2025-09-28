@@ -51,9 +51,17 @@ func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
 }
 
 func (n *Nodes) List(ctx context.Context, _ *emptypb.Empty) (*gn.NodesResponse, error) {
-	return gn.NodesResponse_builder{
-		Groups: n.manager.GetGroups(),
-	}.Build(), nil
+	resp := gn.NodesResponse_builder{
+		Groups: map[string]*gn.NodesResponseNodes{},
+	}
+
+	for g, v := range n.manager.GetGroups() {
+		resp.Groups[g] = gn.NodesResponseNodes_builder{
+			Nodes: v,
+		}.Build()
+	}
+
+	return resp.Build(), nil
 }
 
 func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {
