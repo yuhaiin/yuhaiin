@@ -280,6 +280,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		UdpMigrateId:  uint64OrNil(store.GetUDPMigrateID()),
 		Pid:           uint64OrNil(uint64(store.GetProcessPid())),
 		Uid:           uint64OrNil(uint64(store.GetProcessUid())),
+		Resolver:      resolverNameOrNil(store.ConnOptions().Resolver().Resolver()),
 	}
 
 	if conn != nil {
@@ -308,6 +309,13 @@ func stringerOrNil(str fmt.Stringer) *string {
 		return nil
 	}
 	return proto.String(str.String())
+}
+
+func resolverNameOrNil(resolver netapi.Resolver) *string {
+	if resolver == nil {
+		return nil
+	}
+	return proto.String(resolver.Name())
 }
 
 func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {

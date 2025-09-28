@@ -591,3 +591,5 @@ func appendIPHint(msg dns.Msg, ipv4, ipv6 []net.IP) {
 		break
 	}
 }
+
+func (c *client) Name() string { return c.config.Name }

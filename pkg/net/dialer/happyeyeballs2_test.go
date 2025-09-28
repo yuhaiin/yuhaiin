@@ -132,3 +132,7 @@ func (m *mockResolver) Raw(ctx context.Context, req dns.Question) (dns.Msg, erro
 func (m *mockResolver) Close() error {
 	return nil
 }
+
+func (m *mockResolver) Name() string {
+	return "mock"
+}

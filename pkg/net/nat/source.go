@@ -310,7 +310,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 	}
 
 	// check is need resolve
-	if !dstAddr.IsFqdn() || t.context.resolver.SkipResolve() {
+	if !dstAddr.IsFqdn() || t.context.resolver.UdpSkipResolveTarget() {
 		return t.WriteTo(pkt.GetPayload(), dstAddr, pkt.Dst(), conn)
 	}
 

@@ -26,7 +26,7 @@ func dialHappyEyeballs(ctx context.Context, addr netapi.Address) (net.Conn, erro
 		return DialContext(ctx, "tcp", addr.String())
 	}
 
-	ips, err := LookupIP(ctx, addr)
+	ips, err := lookupIP(ctx, addr)
 	if err != nil {
 		return nil, err
 	}

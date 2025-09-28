@@ -99,7 +99,7 @@ func (f *Fakedns) Apply(c *cd.FakednsConfig) {
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
 	metrics.Counter.AddDNSProcess(domain)
 
-	if f.enabled.Load() || netapi.GetContext(ctx).ConnOptions().ForceFakeIP() {
+	if f.enabled.Load() || netapi.GetContext(ctx).ConnOptions().Resolver().UseFakeIP() {
 		if _, ok := f.whitelist.SearchString(system.RelDomain(domain)); ok {
 			return f.upstream
 		}
@@ -132,6 +132,8 @@ func (f *Fakedns) Close() error {
 	}
 	return f.upstream.Close()
 }
+
+func (f *Fakedns) Name() string { return "fakedns" }
 
 func (f *Fakedns) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Address, error) {
 	return f.dialer.Dispatch(ctx, f.dispatchAddr(ctx, addr))
@@ -175,7 +177,7 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 
 	if configuration.FakeIPEnabled.Load() {
 		// block fakeip range to prevent infinite loop which taget ip is not found in fakeip cache
-		store.ConnOptions().SetForceMode(bypass.Mode_block)
+		store.ConnOptions().SetRouteMode(bypass.Mode_block)
 	}
 
 	return addr

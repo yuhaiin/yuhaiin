@@ -19,7 +19,7 @@ func TestAddr(t *testing.T) {
 	assert.MustEqual(t, addr.IsFqdn(), false)
 	t.Log(addr)
 
-	ip, err := LookupIP(context.TODO(), addr)
+	ip, err := lookupIP(context.TODO(), addr)
 	assert.NoError(t, err)
 	t.Log(addr.Hostname(), ip, addr.Port(), addr.IsFqdn())
 
