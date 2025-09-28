@@ -59,7 +59,7 @@ func New() *Sniffier[bypass.Mode] {
 					_, err := bittorrent.SniffBittorrent(b)
 					if err == nil {
 						ctx.SetProtocol("bittorrent")
-						ctx.ConnOptions().SetSniffMode(bypass.Mode_direct)
+						ctx.ConnOptions().SetRouteMode(bypass.Mode_direct)
 						return true
 					}
 
@@ -76,7 +76,7 @@ func New() *Sniffier[bypass.Mode] {
 					_, err := bittorrent.SniffUTP(b)
 					if err == nil {
 						ctx.SetProtocol("bittorrent_utp")
-						ctx.ConnOptions().SetSniffMode(bypass.Mode_direct)
+						ctx.ConnOptions().SetRouteMode(bypass.Mode_direct)
 						return true
 					}
 

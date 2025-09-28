@@ -7,7 +7,6 @@ option features.(pb.go).api_level = API_OPAQUE;
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
-import "node/node.proto";
 import "node/point/point.proto";
 import "node/subscribe/subscribe.proto";
 import "node/latency/latency.proto";
@@ -42,7 +41,14 @@ message use_req {
 }
 
 message nodes_response {
-  map<string, yuhaiin.node.nodes> groups = 1 [ json_name = "groups" ];
+  message node {
+    string hash = 1 [ json_name = "hash" ];
+    string name = 2 [ json_name = "name" ];
+  }
+
+  message nodes { repeated node nodes = 3 [ json_name = "nodes" ]; }
+
+  map<string, nodes> groups = 1 [ json_name = "groups" ];
 }
 
 message activates_response {

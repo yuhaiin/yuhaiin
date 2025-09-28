@@ -237,7 +237,7 @@ type doData struct {
 
 func (d *dnsServer) do(ctx context.Context, req *doData) error {
 	ctx, store := netapi.GetOrNewContext(ctx)
-	store.ConnOptions().SetForceFakeIP(req.ForceFakeIP)
+	store.ConnOptions().Resolver().SetUseFakeIP(req.ForceFakeIP)
 
 	ctx, cancel := context.WithTimeout(ctx, configuration.ResolverTimeout)
 	defer cancel()

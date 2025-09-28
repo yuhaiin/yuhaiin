@@ -165,9 +165,8 @@ func load(path string) *jsondb.DB[*node.Node] {
 		Udp:   &point.Point{},
 		Links: map[string]*subscribe.Link{},
 		Manager: (&node.Manager_builder{
-			GroupsV2: map[string]*node.Nodes{},
-			Nodes:    map[string]*point.Point{},
-			Tags:     map[string]*pt.Tags{},
+			Nodes: map[string]*point.Point{},
+			Tags:  map[string]*pt.Tags{},
 		}).Build(),
 	}
 

@@ -94,6 +94,7 @@ type Resolver interface {
 	// Raw returns a dns message
 	Raw(ctx context.Context, req dns.Question) (dns.Msg, error)
 	io.Closer
+	Name() string
 }
 
 var _ Resolver = (*ErrorResolver)(nil)
@@ -118,6 +119,7 @@ func (e ErrorResolver) Raw(_ context.Context, req dns.Question) (dns.Msg, error)
 		Question: []dns.Question{req},
 	}, nil
 }
+func (e ErrorResolver) Name() string { return "ErrorResolver" }
 
 // dnsConn is a net.PacketConn suitable for returning from
 // net.Dialer.Dial to send DNS queries over Bootstrap.

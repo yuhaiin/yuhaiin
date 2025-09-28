@@ -65,7 +65,7 @@ func (l hijackListener) Listen(ctx context.Context, network, address string) (ne
 func (l hijackListener) ListenPacket(ctx context.Context, network, address string) (net.PacketConn, error) {
 	store := netapi.WithContext(ctx)
 	store.ConnOptions().
-		SetForceMode(bypass.Mode_direct).
+		SetRouteMode(bypass.Mode_direct).
 		SetBindAddress(address)
 	store.SetComponent("tailscale").
 		SetDomainString("tailscale-" + network + "-listener" + address).
@@ -121,6 +121,8 @@ func (hijackResolver) Raw(ctx context.Context, req mdns.Question) (mdns.Msg, err
 }
 
 func (hijackResolver) Close() error { return nil }
+
+func (hijackResolver) Name() string { return "tailscale-hijack-resolver" }
 
 var Mux atomic.Pointer[http.ServeMux]
 

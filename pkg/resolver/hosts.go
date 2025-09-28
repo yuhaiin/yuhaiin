@@ -233,6 +233,8 @@ func (h *Hosts) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 
 func (h *Hosts) Close() error { return nil }
 
+func (h *Hosts) Name() string { return "hosts" }
+
 type hostsEntry struct {
 	Address netapi.Address
 	portMap map[uint16]netapi.Address

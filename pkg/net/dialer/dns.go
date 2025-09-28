@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strings"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -50,6 +51,22 @@ func (b *bootstrapResolver) Raw(ctx context.Context, req dns.Question) (dns.Msg,
 	}
 
 	return r.Raw(ctx, req)
+}
+
+func (b *bootstrapResolver) Name() string {
+	b.mu.RLock()
+	r := b.r
+	b.mu.RUnlock()
+	if r == nil {
+		return "bootstrap"
+	}
+
+	name := r.Name()
+	if strings.ToLower(name) == "bootstrap" {
+		return name
+	}
+
+	return fmt.Sprintf("bootstrap(%s)", name)
 }
 
 func (b *bootstrapResolver) Close() error {
@@ -129,14 +146,14 @@ func ResolverIP(ctx context.Context, addr netapi.Address) (net.IP, error) {
 		return addr.(netapi.IPAddress).AddrPort().Addr().AsSlice(), nil
 	}
 
-	ips, err := LookupIP(ctx, addr)
+	ips, err := lookupIP(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
 	return ips.Rand(), nil
 }
 
-func LookupIP(ctx context.Context, addr netapi.Address) (*netapi.IPs, error) {
+func lookupIP(ctx context.Context, addr netapi.Address) (*netapi.IPs, error) {
 	if !addr.IsFqdn() {
 		ip := addr.(netapi.IPAddress).AddrPort().Addr()
 		if ip.Is4() {
@@ -148,7 +165,10 @@ func LookupIP(ctx context.Context, addr netapi.Address) (*netapi.IPs, error) {
 
 	netctx := netapi.GetContext(ctx)
 
-	resolver := netctx.ConnOptions().Resolver().Resolver(Bootstrap())
+	resolver := netctx.ConnOptions().Resolver().Resolver()
+	if resolver == nil {
+		resolver = Bootstrap()
+	}
 
 	if netctx.ConnOptions().Resolver().Mode() != netapi.ResolverModeNoSpecified {
 		ips, err := resolver.LookupIP(ctx, addr.Hostname(), netctx.ConnOptions().Resolver().Opts(false)...)

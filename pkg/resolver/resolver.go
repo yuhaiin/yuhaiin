@@ -99,33 +99,29 @@ func (r *Resolver) Close() error {
 	return nil
 }
 
-func (r *Resolver) getResolver(str string) (netapi.Resolver, bool) {
-	if str == "bootstrap" {
+func (r *Resolver) getResolver(name string) (netapi.Resolver, bool) {
+	if name == "bootstrap" {
 		return dialer.Bootstrap(), true
 	}
 
-	e, ok := r.store.Load(str)
+	e, ok := r.store.Load(name)
 	if ok {
 		return e.Resolver, true
 	}
 
-	e, _, err := r.store.LoadOrCreate(str, func() (*Entry, error) {
-		config, ok := r.resolvers.Load(str)
+	e, _, err := r.store.LoadOrCreate(name, func() (*Entry, error) {
+		config, ok := r.resolvers.Load(name)
 		if !ok {
-			return nil, fmt.Errorf("resolver %s not found", str)
+			return nil, fmt.Errorf("resolver %s not found", name)
 		}
 
 		dialer := &dnsDialer{
-			Proxy: r.dialer,
-			addr: func(ctx context.Context, addr netapi.Address) {
-				store := netapi.GetContext(ctx)
-				store.SetComponent("Resolver " + str)
-				// force to use bootstrap dns, otherwise will dns query cycle
-				store.ConnOptions().Resolver().SetResolverResolver(dialer.Bootstrap())
-			},
+			Proxy:    r.dialer,
+			resolver: dialer.Bootstrap,
+			name:     name,
 		}
 
-		z, err := newDNS(str, config, dialer, r)
+		z, err := newResolver(name, config, dialer)
 		if err != nil {
 			return nil, err
 		}
@@ -182,17 +178,14 @@ func (r *Resolver) ApplyBootstrap(c *pd.Dns) {
 
 	if !proto.Equal(r.bootstrapConfig, c) {
 		dd := &dnsDialer{
-			Proxy: r.dialer,
-			addr: func(ctx context.Context, addr netapi.Address) {
-				store := netapi.GetContext(ctx)
-				store.ConnOptions().SetForceMode(bypass.Mode_direct)
-				store.SetComponent("Resolver BOOTSTRAP")
-				store.ConnOptions().Resolver().SetResolverResolver(resolver.Internet)
-			},
+			Proxy:     r.dialer,
+			resolver:  func() netapi.Resolver { return resolver.Internet },
+			name:      "bootstrap",
+			bootstrap: true,
 		}
-		z, err := newDNS("BOOTSTRAP", c, dd, r)
+		z, err := newResolver("bootstrap", c, dd)
 		if err != nil {
-			log.Error("get bootstrap dns failed", "err", err)
+			log.Error("new bootstrap dns failed", "err", err)
 		} else {
 			dialer.SetBootstrap(z)
 			r.bootstrapConfig = c
@@ -200,15 +193,7 @@ func (r *Resolver) ApplyBootstrap(c *pd.Dns) {
 	}
 }
 
-type dnsWrap struct {
-	dns      netapi.Resolver
-	resolver *Resolver
-	name     string
-}
-
-func wrap(name string, dns netapi.Resolver, v6 *Resolver) *dnsWrap {
-	return &dnsWrap{name: name, dns: dns, resolver: v6}
-}
+type dnsWrap struct{ netapi.Resolver }
 
 func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
 	opt := func(opt *netapi.LookupIPOption) {
@@ -223,32 +208,24 @@ func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netap
 		}
 	}
 
-	ips, err := d.dns.LookupIP(ctx, host, opt)
+	ips, err := d.Resolver.LookupIP(ctx, host, opt)
 	if err != nil {
-		return nil, fmt.Errorf("%s lookup failed: %w", d.name, err)
+		return nil, fmt.Errorf("[%s] lookup failed: %w", d.Name(), err)
 	}
 
 	return ips, nil
 }
 
 func (d *dnsWrap) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
-	msg, err := d.dns.Raw(ctx, req)
+	msg, err := d.Resolver.Raw(ctx, req)
 	if err != nil {
-		return dns.Msg{}, fmt.Errorf("[%s] do raw dns request failed: %w", d.name, err)
+		return dns.Msg{}, fmt.Errorf("[%s] do raw dns request failed: %w", d.Name(), err)
 	}
 
 	return msg, nil
 }
 
-func (d *dnsWrap) Close() error {
-	if d.dns != nil {
-		return d.dns.Close()
-	}
-
-	return nil
-}
-
-func newDNS(name string, dc *pd.Dns, dialer netapi.Proxy, resovler *Resolver) (netapi.Resolver, error) {
+func newResolver(name string, dc *pd.Dns, dialer netapi.Proxy) (netapi.Resolver, error) {
 	subnet, err := netip.ParsePrefix(dc.GetSubnet())
 	if err != nil {
 		p, err := netip.ParseAddr(dc.GetSubnet())
@@ -256,37 +233,47 @@ func newDNS(name string, dc *pd.Dns, dialer netapi.Proxy, resovler *Resolver) (n
 			subnet = netip.PrefixFrom(p, p.BitLen())
 		}
 	}
-	r, err := resolver.New(
-		resolver.Config{
-			Type:       dc.GetType(),
-			Name:       name,
-			Host:       dc.GetHost(),
-			Servername: dc.GetTlsServername(),
-			Subnet:     subnet,
-			Dialer:     dialer,
-		})
+
+	config := resolver.Config{
+		Type:       dc.GetType(),
+		Name:       name,
+		Host:       dc.GetHost(),
+		Servername: dc.GetTlsServername(),
+		Subnet:     subnet,
+		Dialer:     dialer,
+	}
+
+	r, err := resolver.New(config)
 	if err != nil {
 		return nil, err
 	}
 
-	return wrap(name, r, resovler), nil
+	return &dnsWrap{r}, nil
 }
 
 type dnsDialer struct {
 	netapi.Proxy
-	addr func(ctx context.Context, addr netapi.Address)
+	resolver  func() netapi.Resolver
+	name      string
+	bootstrap bool
 }
 
-func (d *dnsDialer) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	ctx = netapi.WithContext(ctx)
-	d.addr(ctx, addr)
-	return d.Proxy.Conn(ctx, addr)
+func (d *dnsDialer) newCtx(c context.Context) *netapi.Context {
+	ctx := netapi.WithContext(c)
+	if d.bootstrap {
+		ctx.ConnOptions().SetRouteMode(bypass.Mode_direct)
+	}
+	ctx.SetComponent(fmt.Sprintf("dns:%s", d.name)).
+		ConnOptions().Resolver().SetResolver(d.resolver()).SetIsResolver()
+	return ctx
 }
 
-func (d *dnsDialer) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	ctx = netapi.WithContext(ctx)
-	d.addr(ctx, addr)
-	return d.Proxy.PacketConn(ctx, addr)
+func (d *dnsDialer) Conn(c context.Context, addr netapi.Address) (net.Conn, error) {
+	return d.Proxy.Conn(d.newCtx(c), addr)
+}
+
+func (d *dnsDialer) PacketConn(c context.Context, addr netapi.Address) (net.PacketConn, error) {
+	return d.Proxy.PacketConn(d.newCtx(c), addr)
 }
 
 type ResolverCtr struct {

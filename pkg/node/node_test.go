@@ -3,6 +3,8 @@ package node
 import (
 	"testing"
 
+	"slices"
+
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
@@ -10,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"google.golang.org/protobuf/encoding/protojson"
-	"slices"
 )
 
 func TestDelete(t *testing.T) {
@@ -35,9 +36,8 @@ func TestMergeDefault(t *testing.T) {
 		Udp:   &point.Point{},
 		Links: map[string]*subscribe.Link{},
 		Manager: (&node.Manager_builder{
-			GroupsV2: map[string]*node.Nodes{},
-			Nodes:    map[string]*point.Point{},
-			Tags:     map[string]*pt.Tags{},
+			Nodes: map[string]*point.Point{},
+			Tags:  map[string]*pt.Tags{},
 		}).Build(),
 	}).Build()
 
@@ -45,7 +45,7 @@ func TestMergeDefault(t *testing.T) {
 
 	jsondb.MergeDefault(src.ProtoReflect(), defaultNode.ProtoReflect())
 
-	t.Log(src.GetLinks() == nil, src.GetManager().GetGroupsV2() == nil)
+	t.Log(src.GetLinks() == nil)
 
 	data, err := protojson.MarshalOptions{
 		Multiline:         true,

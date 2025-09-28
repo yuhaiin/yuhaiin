@@ -37,15 +37,32 @@ func (m *Manager) GetStore() *ProxyStore {
 	return m.store
 }
 
-func (m *Manager) GetGroups() map[string]*node.Nodes {
-	var groups map[string]*node.Nodes
+func (m *Manager) GetGroups() map[string]*gn.NodesResponseNodes {
+	var groups map[string]*gn.NodesResponseNodes
 	_ = m.db.View(func(n *Node) error {
-		groups = make(map[string]*node.Nodes, len(n.GetManager().GetGroupsV2()))
-		for k, v := range n.GetManager().GetGroupsV2() {
-			groups[k] = proto.CloneOf(v)
+		for _, v := range n.GetManager().GetNodes() {
+			group := v.GetGroup()
+			if group == "" {
+				group = "unknown"
+			}
+
+			if groups == nil {
+				groups = make(map[string]*gn.NodesResponseNodes)
+			}
+
+			if groups[group] == nil {
+				groups[group] = &gn.NodesResponseNodes{}
+			}
+
+			groups[group].SetNodes(append(groups[group].GetNodes(), gn.NodesResponseNode_builder{
+				Hash: proto.String(v.GetHash()),
+				Name: proto.String(v.GetName()),
+			}.Build()))
 		}
+
 		return nil
 	})
+
 	return groups
 }
 
@@ -69,41 +86,6 @@ func (o *Manager) GetNow(tcp bool) *point.Point {
 	return p
 }
 
-func (mm *Manager) refreshGroup() {
-	_ = mm.db.Batch(func(n *Node) error {
-		groups := map[string]*node.Nodes{}
-
-		for _, v := range n.GetManager().GetNodes() {
-			group := v.GetGroup()
-			if group == "" {
-				group = "unknown"
-			}
-
-			name := v.GetName()
-			if name == "" {
-				name = "unknown"
-			}
-
-			if _, ok := groups[group]; !ok {
-				groups[group] = node.Nodes_builder{NodesV2: make(map[string]string)}.Build()
-			}
-
-			for {
-				if _, ok := groups[group].GetNodesV2()[name]; !ok {
-					groups[group].GetNodesV2()[name] = v.GetHash()
-					break
-				}
-				name = name + "_" + id.GenerateUUID().String()
-			}
-		}
-
-		n.GetManager().SetGroupsV2(groups)
-
-		return nil
-	})
-
-}
-
 func (mm *Manager) SaveNode(ps ...*point.Point) {
 	if len(ps) == 0 {
 		return
@@ -114,12 +96,7 @@ func (mm *Manager) SaveNode(ps ...*point.Point) {
 			n.GetManager().SetNodes(make(map[string]*point.Point))
 		}
 
-		type key struct {
-			group string
-			name  string
-		}
-
-		exists := map[key]string{}
+		groups := n.GetGroups()
 
 		for _, p := range ps {
 			key := key{
@@ -127,14 +104,14 @@ func (mm *Manager) SaveNode(ps ...*point.Point) {
 				name:  p.GetName(),
 			}
 
-			if hash, ok := exists[key]; ok {
+			if hash, ok := groups[key]; ok {
 				log.Warn("node already exists", "group", p.GetGroup(), "name", p.GetName())
 				p.SetHash(hash)
 				continue
 			}
 
 			if p.GetHash() == "" {
-				hash, ok := n.isNodeNameExists(p.GetGroup(), p.GetName())
+				hash, ok := groups[key]
 				if ok {
 					p.SetHash(hash)
 				} else {
@@ -151,39 +128,33 @@ func (mm *Manager) SaveNode(ps ...*point.Point) {
 				mm.store.Refresh(p)
 			}
 
-			exists[key] = p.GetHash()
+			groups[key] = p.GetHash()
 			n.GetManager().GetNodes()[p.GetHash()] = p
 		}
 
 		return nil
 	})
-
-	mm.refreshGroup()
 }
 
 func (m *Manager) DeleteRemoteNodes(group string) {
 	_ = m.db.Batch(func(n *Node) error {
 		manager := n.GetManager()
 
-		x, ok := manager.GetGroupsV2()[group]
-		if !ok {
-			return nil
-		}
-
-		for _, v := range x.GetNodesV2() {
-			node, ok := manager.GetNodes()[v]
-			if ok && node.GetOrigin() != point.Origin_remote {
+		for k, v := range manager.GetNodes() {
+			if v.GetGroup() != group {
 				continue
 			}
 
-			delete(manager.GetNodes(), v)
-			m.store.Delete(v)
+			if v.GetOrigin() != point.Origin_remote {
+				continue
+			}
+
+			delete(manager.GetNodes(), k)
 		}
 
 		return nil
 	})
 
-	m.refreshGroup()
 }
 
 func (mm *Manager) DeleteNode(hash string) {
@@ -200,8 +171,6 @@ func (mm *Manager) DeleteNode(hash string) {
 
 		return nil
 	})
-
-	mm.refreshGroup()
 }
 
 func (m *Manager) AddTag(tag string, t pt.TagType, hash string) {
@@ -408,34 +377,18 @@ func (m *Node) GetNode(hash string) (*point.Point, bool) {
 }
 
 func (m *Node) GetNodeByName(group, name string) (*point.Point, bool) {
-	z := m.GetManager().GetGroupsV2()[group]
-	if z == nil {
-		return nil, false
+	for _, v := range m.GetManager().GetNodes() {
+		if v.GetGroup() != group {
+			continue
+		}
+		if v.GetName() != name {
+			continue
+		}
+
+		return v, true
 	}
 
-	hash := z.GetNodesV2()[name]
-	if hash == "" {
-		return nil, false
-	}
-
-	return m.GetNode(hash)
-}
-
-func (m *Node) isNodeNameExists(group, name string) (string, bool) {
-	groups := m.GetManager().GetGroupsV2()
-	if groups == nil {
-		return "", false
-	}
-	g := groups[group]
-	if g == nil {
-		return "", false
-	}
-	nodes := g.GetNodesV2()
-	if nodes == nil {
-		return "", false
-	}
-	hash, ok := nodes[name]
-	return hash, ok
+	return nil, false
 }
 
 func (n *Node) GetNow(tcp bool) *point.Point {
@@ -457,6 +410,28 @@ func (n *Node) GetNow(tcp bool) *point.Point {
 	}
 
 	return p
+}
+
+type key struct {
+	group string
+	name  string
+}
+
+func (n *Node) GetGroups() map[key]string {
+	groups := map[key]string{}
+	for _, v := range n.GetManager().GetNodes() {
+		group := v.GetGroup()
+		if group == "" {
+			group = "unknown"
+		}
+
+		groups[key{
+			group: group,
+			name:  v.GetName(),
+		}] = group
+	}
+
+	return groups
 }
 
 func (n *Node) GetUsingPoints() *set.Set[string] {

@@ -17,12 +17,9 @@ message node {
   manager manager = 3 [ json_name = "manager" ];
 }
 
-message nodes {
-  map<string, string> nodesV2 = 3 [ json_name = "node_hash_map" ];
-}
-
 message manager {
-  map<string, nodes> groupsV2 = 2 [ json_name = "group_nodes_map" ];
+  reserved 2;
+  reserved groupsV2;
   map<string, yuhaiin.point.point> nodes = 3 [ json_name = "nodes" ];
   map<string, yuhaiin.tag.tags> tags = 4 [ json_name = "tags" ];
 }
