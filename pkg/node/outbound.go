@@ -34,7 +34,7 @@ func (o *outbound) getDialer(ctx context.Context, hash string, point func() (*po
 		return nil, fmt.Errorf("hash is empty")
 	}
 
-	return o.manager.GetStore().LoadOrCreate(ctx, hash, func() (*ProxyEntry, error) {
+	return o.manager.Store().LoadOrCreate(ctx, hash, func() (*ProxyEntry, error) {
 		p, err := point()
 		if err != nil {
 			return nil, err

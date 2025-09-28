@@ -32,17 +32,17 @@ type Subscribe struct {
 }
 
 func (s *Subscribe) Save(_ context.Context, l *gn.SaveLinkReq) (*emptypb.Empty, error) {
-	s.n.Links().Save(l.GetLinks())
+	s.save(l.GetLinks())
 	return &emptypb.Empty{}, s.n.Save()
 }
 
 func (s *Subscribe) Remove(_ context.Context, l *gn.LinkReq) (*emptypb.Empty, error) {
-	s.n.Links().Delete(l.GetNames()...)
+	s.n.DeleteLink(l.GetNames()...)
 	return &emptypb.Empty{}, s.n.Save()
 }
 
 func (s *Subscribe) Update(_ context.Context, req *gn.LinkReq) (*emptypb.Empty, error) {
-	s.n.Links().Update(req.GetNames()...)
+	s.update(req.GetNames()...)
 	return &emptypb.Empty{}, s.n.Save()
 }
 
@@ -50,11 +50,7 @@ func (s *Subscribe) Get(context.Context, *emptypb.Empty) (*gn.GetLinksResp, erro
 	return gn.GetLinksResp_builder{Links: s.n.GetLinks()}.Build(), nil
 }
 
-type link struct {
-	manager *Manager
-}
-
-func (l *link) Save(ls []*subscribe.Link) {
+func (l *Subscribe) save(ls []*subscribe.Link) {
 	nodes := []*point.Point{}
 	links := []*subscribe.Link{}
 
@@ -68,42 +64,24 @@ func (l *link) Save(ls []*subscribe.Link) {
 		}
 	}
 
-	l.manager.SaveLinks(links...)
-	l.manager.SaveNode(nodes...)
+	l.n.SaveLinks(links...)
+	l.n.SaveNode(nodes...)
 }
 
-func (l *link) Delete(names ...string) { l.manager.DeleteLink(names...) }
-
-func (l *link) Update(names ...string) {
+func (l *Subscribe) update(names ...string) {
 	for _, str := range names {
-		link, ok := l.manager.GetLink(str)
+		link, ok := l.n.GetLink(str)
 		if !ok {
 			continue
 		}
 
-		if err := l.update(link); err != nil {
+		if err := l.fetch(link); err != nil {
 			log.Error("get one link failed", "err", err)
 		}
 	}
 }
 
-type trimBase64Reader struct {
-	r io.Reader
-}
-
-func (t *trimBase64Reader) Read(b []byte) (int, error) {
-	n, err := t.r.Read(b)
-
-	if n > 0 {
-		if i := bytes.IndexByte(b[:n], '='); i > 0 {
-			n = i
-		}
-	}
-
-	return n, err
-}
-
-func (n *link) update(link *subscribe.Link) error {
+func (n *Subscribe) fetch(link *subscribe.Link) error {
 	hc := &http.Client{
 		Timeout: time.Minute * 2,
 		Transport: &http.Transport{
@@ -150,9 +128,25 @@ func (n *link) update(link *subscribe.Link) error {
 		}
 	}
 
-	n.manager.DeleteRemoteNodes(link.GetName())
-	n.manager.SaveNode(nodes...)
+	n.n.DeleteRemoteNodes(link.GetName())
+	n.n.SaveNode(nodes...)
 	return scanner.Err()
+}
+
+type trimBase64Reader struct {
+	r io.Reader
+}
+
+func (t *trimBase64Reader) Read(b []byte) (int, error) {
+	n, err := t.r.Read(b)
+
+	if n > 0 {
+		if i := bytes.IndexByte(b[:n], '='); i > 0 {
+			n = i
+		}
+	}
+
+	return n, err
 }
 
 func parseUrl(str []byte, l *subscribe.Link) (no *point.Point, err error) {

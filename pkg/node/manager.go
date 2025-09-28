@@ -33,7 +33,13 @@ func NewManager(path string) *Manager {
 	return &Manager{db: db, store: NewProxyStore()}
 }
 
-func (m *Manager) GetStore() *ProxyStore { return m.store }
+func (m *Manager) Close() error                                { return m.store.Close() }
+func (m *Manager) Node() *Nodes                                { return &Nodes{manager: m} }
+func (m *Manager) Subscribe() *Subscribe                       { return &Subscribe{n: m} }
+func (m *Manager) Outbound() *outbound                         { return NewOutbound(m) }
+func (m *Manager) Tag(ff func() iter.Seq[string]) gn.TagServer { return &tag{n: m, ruleTags: ff} }
+
+func (m *Manager) Store() *ProxyStore { return m.store }
 
 func (m *Manager) SaveNode(ps ...*point.Point) {
 	if len(ps) == 0 {
@@ -221,13 +227,6 @@ func (m *Manager) GetUsingPoints() *set.Set[string] {
 
 	return m.getUsingPoints()
 }
-
-func (m *Manager) Close() error                                { return m.store.Close() }
-func (m *Manager) Node() *Nodes                                { return &Nodes{manager: m} }
-func (m *Manager) Subscribe() *Subscribe                       { return &Subscribe{n: m} }
-func (m *Manager) Outbound() *outbound                         { return NewOutbound(m) }
-func (m *Manager) Links() *link                                { return &link{m} }
-func (m *Manager) Tag(ff func() iter.Seq[string]) gn.TagServer { return &tag{n: m, ruleTags: ff} }
 
 func (d *Manager) GetGroups() map[string][]*gn.NodesResponseNode {
 	d.mu.RLock()

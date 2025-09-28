@@ -229,7 +229,7 @@ func (s *Set) Close() error {
 		for _, v := range s.Nodes {
 			// TODO skip myself
 			if !ps.Has(v) {
-				s.manager.GetStore().Delete(v)
+				s.manager.Store().Delete(v)
 			}
 		}
 	}()
