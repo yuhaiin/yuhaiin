@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
@@ -226,18 +225,15 @@ func (s *Set) Close() error {
 	// because here is called from manager, the mu is already locked, we can't get locker here
 	// so we need to do it in goroutine
 	go func() {
-		err := s.manager.db.View(func(n *Node) error {
-			ps := n.GetUsingPoints()
-			for _, v := range s.Nodes {
-				// TODO skip myself
-				if !ps.Has(v) {
-					s.manager.GetStore().Delete(v)
-				}
+		s.manager.mu.RLock()
+		defer s.manager.mu.RUnlock()
+
+		ps := s.manager.node().GetUsingPoints()
+		for _, v := range s.Nodes {
+			// TODO skip myself
+			if !ps.Has(v) {
+				s.manager.GetStore().Delete(v)
 			}
-			return nil
-		})
-		if err != nil {
-			log.Warn("close set failed", "err", err)
 		}
 	}()
 
