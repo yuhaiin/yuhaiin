@@ -225,10 +225,7 @@ func (s *Set) Close() error {
 	// because here is called from manager, the mu is already locked, we can't get locker here
 	// so we need to do it in goroutine
 	go func() {
-		s.manager.mu.RLock()
-		defer s.manager.mu.RUnlock()
-
-		ps := s.manager.node().GetUsingPoints()
+		ps := s.manager.GetUsingPoints()
 		for _, v := range s.Nodes {
 			// TODO skip myself
 			if !ps.Has(v) {
