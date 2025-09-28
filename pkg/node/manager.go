@@ -150,6 +150,7 @@ func (m *Manager) DeleteRemoteNodes(group string) {
 			}
 
 			delete(manager.GetNodes(), k)
+			m.store.Delete(k)
 		}
 
 		return nil
@@ -428,7 +429,7 @@ func (n *Node) GetGroups() map[key]string {
 		groups[key{
 			group: group,
 			name:  v.GetName(),
-		}] = group
+		}] = v.GetHash()
 	}
 
 	return groups
