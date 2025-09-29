@@ -280,14 +280,13 @@ type ResolverCtr struct {
 	s config.DB
 	gc.UnimplementedResolverServer
 
-	hosts     *Hosts
-	fakedns   *Fakedns
-	r         *Resolver
-	dnsServer *DnsServer
+	hosts   *Hosts
+	fakedns *Fakedns
+	r       *Resolver
 }
 
-func NewResolverCtr(s config.DB, hosts *Hosts, fakedns *Fakedns, r *Resolver, server *DnsServer) *ResolverCtr {
-	r2 := &ResolverCtr{s: s, hosts: hosts, fakedns: fakedns, r: r, dnsServer: server}
+func NewResolverCtr(s config.DB, hosts *Hosts, fakedns *Fakedns, r *Resolver) *ResolverCtr {
+	r2 := &ResolverCtr{s: s, hosts: hosts, fakedns: fakedns, r: r}
 
 	err := s.View(func(s *config.Setting) error {
 		for k, v := range s.GetDns().GetResolver() {
@@ -299,9 +298,8 @@ func NewResolverCtr(s config.DB, hosts *Hosts, fakedns *Fakedns, r *Resolver, se
 		}
 
 		r2.hosts.Apply(s.GetDns().GetHosts())
-
 		r2.fakedns.Apply(toFakednsConfig(s))
-		r2.dnsServer.SetServer(s.GetDns().GetServer())
+		r2.fakedns.SetServer(s.GetDns().GetServer())
 		return nil
 	})
 	if err != nil {
@@ -449,7 +447,7 @@ func (r *ResolverCtr) Server(context.Context, *emptypb.Empty) (*wrapperspb.Strin
 func (r *ResolverCtr) SaveServer(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
 	err := r.s.Batch(func(s *config.Setting) error {
 		s.GetDns().SetServer(req.Value)
-		r.dnsServer.SetServer(req.Value)
+		r.fakedns.SetServer(req.Value)
 		return nil
 	})
 	return &emptypb.Empty{}, err
