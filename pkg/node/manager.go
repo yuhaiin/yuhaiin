@@ -36,7 +36,7 @@ func NewManager(path string) *Manager {
 func (m *Manager) Close() error                                { return m.store.Close() }
 func (m *Manager) Node() *Nodes                                { return &Nodes{manager: m} }
 func (m *Manager) Subscribe() *Subscribe                       { return &Subscribe{n: m} }
-func (m *Manager) Outbound() *outbound                         { return NewOutbound(m) }
+func (m *Manager) Outbound() *Outbound                         { return &Outbound{manager: m} }
 func (m *Manager) Tag(ff func() iter.Seq[string]) gn.TagServer { return &tag{n: m, ruleTags: ff} }
 
 func (m *Manager) Store() *ProxyStore { return m.store }
@@ -50,10 +50,6 @@ func (m *Manager) SaveNode(ps ...*point.Point) {
 	defer m.mu.Unlock()
 
 	nodes := m.getNodes()
-	if nodes == nil {
-		nodes = make(map[string]*point.Point)
-		m.getManager().SetNodes(nodes)
-	}
 
 	generateUUID := func() string {
 		for {
@@ -69,12 +65,11 @@ func (m *Manager) SaveNode(ps ...*point.Point) {
 			p.SetHash(generateUUID())
 		}
 
-		_, ok := nodes[p.GetHash()]
-		if ok {
+		if _, ok := nodes[p.GetHash()]; ok {
 			m.store.Refresh(p)
 		}
 
-		nodes[p.GetHash()] = p
+		m.storeNode(p.GetHash(), p)
 	}
 }
 
@@ -91,7 +86,7 @@ func (m *Manager) DeleteRemoteNodes(group string) {
 			continue
 		}
 
-		delete(m.getNodes(), k)
+		m.deleteNode(k)
 		m.store.Delete(k)
 	}
 }
@@ -105,7 +100,7 @@ func (m *Manager) DeleteNode(hash string) {
 		return
 	}
 
-	delete(m.getNodes(), hash)
+	m.deleteNode(hash)
 	m.store.Delete(hash)
 }
 
@@ -148,8 +143,7 @@ func (m *Manager) DeleteTag(tag string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	delete(m.getTags(), tag)
-
+	m.deleteTag(tag)
 	m.clearIdleProxy()
 }
 
@@ -252,27 +246,6 @@ func (d *Manager) GetNode(hash string) (*point.Point, bool) {
 	return p, ok
 }
 
-func (d *Manager) getNodes() map[string]*point.Point {
-	if d.db.Data.GetManager().GetNodes() == nil {
-		d.db.Data.GetManager().SetNodes(make(map[string]*point.Point))
-	}
-	return d.db.Data.GetManager().GetNodes()
-}
-
-func (d *Manager) getTags() map[string]*pt.Tags {
-	if d.db.Data.GetManager().GetTags() == nil {
-		d.db.Data.GetManager().SetTags(make(map[string]*pt.Tags))
-	}
-	return d.db.Data.GetManager().GetTags()
-}
-
-func (d *Manager) getLinks() map[string]*subscribe.Link {
-	if d.db.Data.GetLinks() == nil {
-		d.db.Data.SetLinks(make(map[string]*subscribe.Link))
-	}
-	return d.db.Data.GetLinks()
-}
-
 func (d *Manager) GetNow(tcp bool) *point.Point {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -308,10 +281,6 @@ func (d *Manager) GetLink(name string) (*subscribe.Link, bool) {
 
 	l, ok := d.getLinks()[name]
 	return l, ok
-}
-
-func (m *Manager) getManager() *node.Manager {
-	return m.db.Data.GetManager()
 }
 
 func (m *Manager) getNode(hash string) (*point.Point, bool) {
@@ -350,4 +319,37 @@ func (d *Manager) Save() error {
 	d.mu.Unlock()
 
 	return err
+}
+
+func (d *Manager) getNodes() map[string]*point.Point {
+	if d.db.Data.GetManager().GetNodes() == nil {
+		d.db.Data.GetManager().SetNodes(make(map[string]*point.Point))
+	}
+	return d.db.Data.GetManager().GetNodes()
+}
+
+func (d *Manager) storeNode(hash string, node *point.Point) {
+	d.getNodes()[hash] = node
+}
+
+func (d *Manager) deleteNode(hash string) {
+	delete(d.getNodes(), hash)
+}
+
+func (d *Manager) getTags() map[string]*pt.Tags {
+	if d.db.Data.GetManager().GetTags() == nil {
+		d.db.Data.GetManager().SetTags(make(map[string]*pt.Tags))
+	}
+	return d.db.Data.GetManager().GetTags()
+}
+
+func (m *Manager) deleteTag(tag string) {
+	delete(m.getTags(), tag)
+}
+
+func (d *Manager) getLinks() map[string]*subscribe.Link {
+	if d.db.Data.GetLinks() == nil {
+		d.db.Data.SetLinks(make(map[string]*subscribe.Link))
+	}
+	return d.db.Data.GetLinks()
 }
