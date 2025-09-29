@@ -20,7 +20,6 @@ import (
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -55,7 +54,7 @@ func (l *Subscribe) save(ls []*subscribe.Link) {
 	links := []*subscribe.Link{}
 
 	for _, z := range ls {
-		node, err := parseUrl([]byte(z.GetUrl()), subscribe.Link_builder{Name: proto.String(z.GetName())}.Build())
+		node, err := parser.ParseUrl([]byte(z.GetUrl()), subscribe.Link_builder{Name: proto.String(z.GetName())}.Build())
 		if err == nil {
 			node.SetOrigin(point.Origin_manual)
 			nodes = append(nodes, node) // link is a node
@@ -119,7 +118,7 @@ func (n *Subscribe) fetch(link *subscribe.Link) error {
 			continue
 		}
 
-		node, err := parseUrl(scanner.Bytes(), link)
+		node, err := parser.ParseUrl(scanner.Bytes(), link)
 		if err != nil {
 			log.Error("parse url failed", slog.String("url", scanner.Text()), slog.Any("err", err))
 		} else {
@@ -147,27 +146,4 @@ func (t *trimBase64Reader) Read(b []byte) (int, error) {
 	}
 
 	return n, err
-}
-
-func parseUrl(str []byte, l *subscribe.Link) (no *point.Point, err error) {
-	var schemeTypeMap = map[string]subscribe.Type{
-		"ss":     subscribe.Type_shadowsocks,
-		"ssr":    subscribe.Type_shadowsocksr,
-		"vmess":  subscribe.Type_vmess,
-		"trojan": subscribe.Type_trojan,
-	}
-
-	t := l.GetType()
-
-	if t == subscribe.Type_reserve {
-		scheme, _, _ := system.GetScheme(string(str))
-		t = schemeTypeMap[scheme]
-	}
-
-	no, err = parser.Parse(t, str)
-	if err != nil {
-		return nil, fmt.Errorf("parse link data failed: %w", err)
-	}
-	no.SetGroup(l.GetName())
-	return no, nil
 }

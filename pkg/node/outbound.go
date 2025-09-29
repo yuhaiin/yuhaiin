@@ -15,21 +15,15 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
-type outbound struct {
+type Outbound struct {
 	manager *Manager
 }
 
-func NewOutbound(mamanager *Manager) *outbound {
-	return &outbound{
-		manager: mamanager,
-	}
-}
-
-func (o *outbound) GetDialer(ctx context.Context, p *point.Point) (netapi.Proxy, error) {
+func (o *Outbound) GetDialer(ctx context.Context, p *point.Point) (netapi.Proxy, error) {
 	return o.getDialer(ctx, p.GetHash(), func() (*point.Point, error) { return p, nil })
 }
 
-func (o *outbound) getDialer(ctx context.Context, hash string, point func() (*point.Point, error)) (netapi.Proxy, error) {
+func (o *Outbound) getDialer(ctx context.Context, hash string, point func() (*point.Point, error)) (netapi.Proxy, error) {
 	if hash == "" {
 		return nil, fmt.Errorf("hash is empty")
 	}
@@ -52,7 +46,7 @@ func (o *outbound) getDialer(ctx context.Context, hash string, point func() (*po
 	})
 }
 
-func (o *outbound) Get(ctx context.Context, network string, str string, tag string) (netapi.Proxy, error) {
+func (o *Outbound) Get(ctx context.Context, network string, str string, tag string) (netapi.Proxy, error) {
 	store := netapi.GetContext(ctx)
 
 	if tag != "" {
@@ -91,7 +85,7 @@ func (o *outbound) Get(ctx context.Context, network string, str string, tag stri
 }
 
 // GetDialerByID if id is not exists or point dial failed, it will return nil
-func (o *outbound) GetDialerByID(ctx context.Context, hash string) (netapi.Proxy, error) {
+func (o *Outbound) GetDialerByID(ctx context.Context, hash string) (netapi.Proxy, error) {
 	return o.getDialer(ctx, hash, func() (*point.Point, error) {
 		p, ok := o.manager.GetNode(hash)
 		if !ok {
@@ -101,7 +95,7 @@ func (o *outbound) GetDialerByID(ctx context.Context, hash string) (netapi.Proxy
 	})
 }
 
-func (o *outbound) tagConn(tag string) string {
+func (o *Outbound) tagConn(tag string) string {
 	for {
 		t, ok := o.manager.GetTag(tag)
 		if !ok || len(t.GetHash()) <= 0 {

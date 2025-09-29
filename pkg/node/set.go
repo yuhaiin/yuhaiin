@@ -17,13 +17,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
 
-// Set
-//
-// TODO: happyeyeballs?
 type Set struct {
 	netapi.EmptyDispatch
 	manager   *Manager
-	outbound  *outbound
+	outbound  *Outbound
 	Nodes     []string
 	randomKey id.UUID
 	strategy  protocol.SetStrategyType
