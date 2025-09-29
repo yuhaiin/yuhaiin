@@ -204,15 +204,6 @@ func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		return nil, fmt.Errorf("second hand failed: %w", err)
 	}
 
-	ctx = context.WithValue(ctx, fixed.PacketDirectKey{}, true)
-
-	// if !addr.IsFqdn() {
-	// 	ip := addr.(netapi.IPAddress).AddrPort().Addr()
-	// 	if ip.IsPrivate() || ip.IsLoopback() || ip.IsUnspecified() {
-	// 		ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, "")
-	// 	}
-	// }
-
 	pc, err := s.dialer.PacketConn(ctx, addr)
 	if err != nil {
 		conn.Close()

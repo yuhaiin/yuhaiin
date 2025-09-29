@@ -44,6 +44,7 @@ message protocol {
     http_mock http_mock = 28 [ json_name = "http_mock" ];
     aead aead = 29 [ json_name = "aead" ];
     fixed fixed = 30 [ json_name = "fixed" ];
+    network_split network_split = 31 [ json_name = "network_split" ];
   }
 }
 
@@ -252,3 +253,8 @@ message set {
 message http_mock { bytes data = 1; }
 
 message aead { string password = 1 [ json_name = "password" ]; }
+
+message network_split {
+  protocol tcp = 1 [ json_name = "tcp" ];
+  protocol udp = 2 [ json_name = "udp" ];
+}

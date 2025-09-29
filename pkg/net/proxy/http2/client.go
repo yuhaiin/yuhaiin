@@ -209,14 +209,15 @@ func (c *clientConnectionPool) MarkDead(hc *http2.ClientConn) {
 }
 
 type clientConnInfoKey struct{}
+type getClientConnInfo func(connID uint64, streamID uint32, conn *http2.ClientConn)
 
 func ContextGetClientConnInfo(ctx context.Context, connID uint64, streamID uint32, conn *http2.ClientConn) {
-	z, ok := ctx.Value(clientConnInfoKey{}).(func(connID uint64, streamID uint32, conn *http2.ClientConn))
+	z, ok := ctx.Value(clientConnInfoKey{}).(getClientConnInfo)
 	if ok {
 		z(connID, streamID, conn)
 	}
 }
 
-func WithGetClientConnInfo(ctx context.Context, f func(connID uint64, streamID uint32, conn *http2.ClientConn)) context.Context {
+func WithGetClientConnInfo(ctx context.Context, f getClientConnInfo) context.Context {
 	return context.WithValue(ctx, clientConnInfoKey{}, f)
 }

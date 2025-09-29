@@ -22,11 +22,12 @@ const (
 )
 
 type ResolverOptions struct {
-	isResolver           bool
-	resolver             Resolver
-	mode                 ResolverMode
-	udpSkipResolveTarget bool
-	useFakeIP            bool
+	isResolver              bool
+	resolver                Resolver
+	mode                    ResolverMode
+	udpSkipResolveTarget    bool
+	useFakeIP               bool
+	fakeIPSkipCheckUpstream bool
 }
 
 func (r *ResolverOptions) SetResolver(resolver Resolver) *ResolverOptions {
@@ -80,6 +81,15 @@ func (s *ResolverOptions) SetUseFakeIP(force bool) *ResolverOptions {
 
 func (s *ResolverOptions) UseFakeIP() bool {
 	return s.useFakeIP
+}
+
+func (s *ResolverOptions) SetFakeIPSkipCheckUpstream(skip bool) *ResolverOptions {
+	s.fakeIPSkipCheckUpstream = skip
+	return s
+}
+
+func (s *ResolverOptions) FakeIPSkipCheckUpstream() bool {
+	return s.fakeIPSkipCheckUpstream
 }
 
 func (r ResolverOptions) Opts(reverse bool) []func(*LookupIPOption) {

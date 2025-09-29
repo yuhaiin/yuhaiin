@@ -21,7 +21,7 @@ service node {
   rpc get(google.protobuf.StringValue) returns (yuhaiin.point.point);
   rpc save(yuhaiin.point.point) returns (yuhaiin.point.point);
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
-  rpc list(google.protobuf.Empty) returns (nodes_response);
+  rpc list(google.protobuf.Empty) returns (NodesResponse);
 
   rpc activates(google.protobuf.Empty) returns (activates_response);
   rpc close(google.protobuf.StringValue) returns (google.protobuf.Empty);
@@ -35,20 +35,23 @@ message now_resp {
 }
 
 message use_req {
-  bool tcp = 1 [ json_name = "tcp" ];
-  bool udp = 2 [ json_name = "udp" ];
+  reserved 1, 2;
+  reserved tcp, udp;
   string hash = 3 [ json_name = "hash" ];
 }
 
-message nodes_response {
-  message node {
+message NodesResponse {
+  message Node {
     string hash = 1 [ json_name = "hash" ];
     string name = 2 [ json_name = "name" ];
   }
 
-  message nodes { repeated node nodes = 3 [ json_name = "nodes" ]; }
+  message Group {
+    string name = 1 [ json_name = "name" ];
+    repeated Node nodes = 3 [ json_name = "nodes" ];
+  }
 
-  map<string, nodes> groups = 1 [ json_name = "groups" ];
+  repeated Group groups = 1 [ json_name = "groups" ];
 }
 
 message activates_response {

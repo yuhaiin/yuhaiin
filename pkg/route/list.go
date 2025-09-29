@@ -157,6 +157,7 @@ func (s *Lists) Get(ctx context.Context, req *wrapperspb.StringValue) (*bypass.L
 }
 
 func (s *Lists) Save(ctx context.Context, list *bypass.List) (*emptypb.Empty, error) {
+	// for prevent deadlock
 	ctx = context.WithValue(ctx, listsRequestKey{}, true)
 
 	list.SetErrorMsgs(list.GetErrorMsgs()[:0])

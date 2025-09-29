@@ -25,6 +25,7 @@ func ConvertTransport(x *listener.Transport) (*protocol.Protocol, error) {
 				EchConfig:   x.GetTlsAuto().GetEch().GetConfig(),
 			}.Build(),
 		}.Build()
+
 	case listener.Transport_Reality_case:
 		var servername string
 		if len(x.GetReality().GetServerName()) > 0 {
@@ -74,9 +75,11 @@ func ConvertTransport(x *listener.Transport) (*protocol.Protocol, error) {
 		pro = protocol.Protocol_builder{
 			None: &protocol.None{},
 		}.Build()
+
 	case listener.Transport_Tls_case, listener.Transport_Grpc_case:
 		// because we can't get the ca cert, so please use tls auto instead
 		fallthrough
+
 	default:
 		return nil, errors.New("unsupport transport")
 	}
@@ -112,6 +115,7 @@ func ConvertProtocol(x *listener.Inbound) (*protocol.Protocol, error) {
 				Password: proto.String(x.GetHttp().GetPassword()),
 			}.Build(),
 		}.Build()
+
 	case listener.Inbound_Socks5_case:
 		pro = protocol.Protocol_builder{
 			Socks5: protocol.Socks5_builder{
@@ -119,6 +123,7 @@ func ConvertProtocol(x *listener.Inbound) (*protocol.Protocol, error) {
 				Password: proto.String(x.GetSocks5().GetPassword()),
 			}.Build(),
 		}.Build()
+
 	case listener.Inbound_Mix_case:
 		pro = protocol.Protocol_builder{
 			Socks5: protocol.Socks5_builder{
@@ -144,12 +149,14 @@ func ConvertProtocol(x *listener.Inbound) (*protocol.Protocol, error) {
 	case listener.Inbound_Socks4A_case:
 		// don't support socks4a client
 		fallthrough
+
 	case listener.Inbound_Tun_case,
 		listener.Inbound_Redir_case,
 		listener.Inbound_Tproxy_case,
 		listener.Inbound_ReverseHttp_case,
 		listener.Inbound_ReverseTcp_case:
 		fallthrough
+
 	default:
 		return nil, errors.New("unsupport protocol")
 	}
@@ -177,6 +184,7 @@ func ConvertNetwork(x *listener.Inbound) (*protocol.Protocol, error) {
 				Port: proto.Int32(int32(port)),
 			}.Build(),
 		}.Build()
+
 	case listener.Inbound_Quic_case:
 		pro = protocol.Protocol_builder{
 			Quic: protocol.Quic_builder{
@@ -186,6 +194,7 @@ func ConvertNetwork(x *listener.Inbound) (*protocol.Protocol, error) {
 				Tls: &protocol.TlsConfig{},
 			}.Build(),
 		}.Build()
+
 	case listener.Inbound_Empty_case, listener.Inbound_Network_not_set_case:
 		pro = protocol.Protocol_builder{
 			None: &protocol.None{},
