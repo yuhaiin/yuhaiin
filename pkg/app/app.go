@@ -159,16 +159,14 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, router))
 	// wrap dialer and dns resolver to fake ip, if use
 	fakedns := AddCloser(closers, "fakedns", resolver.NewFakeDNS(hosts, hosts, cache))
-	// dns server/tun dns hijacking handler
-	dnsServer := AddCloser(closers, "dnsServer", resolver.NewDNSServer(fakedns))
-	resolverCtr := resolver.NewResolverCtr(so.ResolverConfig, hosts, fakedns, dns, dnsServer)
+	resolverCtr := resolver.NewResolverCtr(so.ResolverConfig, hosts, fakedns, dns)
 
 	// make dns flow across all proxy chain
 	configuration.ProxyChain.Set(fakedns)
 	configuration.ResolverChain.Set(fakedns)
 
 	// inbound server
-	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(dnsServer, fakedns))
+	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, fakedns))
 	dialer.SkipInterface = inbounds.Interfaces
 	// tools
 	tools := tools.NewTools(so.ChoreConfig, logController)
