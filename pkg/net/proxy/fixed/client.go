@@ -210,16 +210,7 @@ func (c *Client) successIndex(lastIndex, index int) {
 	}
 }
 
-type PacketDirectKey struct{}
-
 func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	if ctx.Value(PacketDirectKey{}) == true {
-		if c.iface != "" {
-			netapi.GetContext(ctx).ConnOptions().SetBindInterface(c.iface)
-		}
-		return direct.Default.PacketConn(ctx, addr)
-	}
-
 	if c.nonBootstrap {
 		conn, err := c.p.PacketConn(ctx, c.addrs[c.index.Load()])
 		if err != nil {

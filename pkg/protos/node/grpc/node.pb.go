@@ -7,7 +7,6 @@
 package service
 
 import (
-	_ "github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	latency "github.com/Asutorufa/yuhaiin/pkg/protos/node/latency"
 	point "github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	subscribe "github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
@@ -123,8 +122,6 @@ func (b0 NowResp_builder) Build() *NowResp {
 
 type UseReq struct {
 	state                  protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Tcp         bool                   `protobuf:"varint,1,opt,name=tcp"`
-	xxx_hidden_Udp         bool                   `protobuf:"varint,2,opt,name=udp"`
 	xxx_hidden_Hash        *string                `protobuf:"bytes,3,opt,name=hash"`
 	XXX_raceDetectHookData protoimpl.RaceDetectHookData
 	XXX_presence           [1]uint32
@@ -157,20 +154,6 @@ func (x *UseReq) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *UseReq) GetTcp() bool {
-	if x != nil {
-		return x.xxx_hidden_Tcp
-	}
-	return false
-}
-
-func (x *UseReq) GetUdp() bool {
-	if x != nil {
-		return x.xxx_hidden_Udp
-	}
-	return false
-}
-
 func (x *UseReq) GetHash() string {
 	if x != nil {
 		if x.xxx_hidden_Hash != nil {
@@ -181,62 +164,26 @@ func (x *UseReq) GetHash() string {
 	return ""
 }
 
-func (x *UseReq) SetTcp(v bool) {
-	x.xxx_hidden_Tcp = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 3)
-}
-
-func (x *UseReq) SetUdp(v bool) {
-	x.xxx_hidden_Udp = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 3)
-}
-
 func (x *UseReq) SetHash(v string) {
 	x.xxx_hidden_Hash = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 3)
-}
-
-func (x *UseReq) HasTcp() bool {
-	if x == nil {
-		return false
-	}
-	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
-}
-
-func (x *UseReq) HasUdp() bool {
-	if x == nil {
-		return false
-	}
-	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 1)
 }
 
 func (x *UseReq) HasHash() bool {
 	if x == nil {
 		return false
 	}
-	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
-}
-
-func (x *UseReq) ClearTcp() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
-	x.xxx_hidden_Tcp = false
-}
-
-func (x *UseReq) ClearUdp() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
-	x.xxx_hidden_Udp = false
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
 }
 
 func (x *UseReq) ClearHash() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
 	x.xxx_hidden_Hash = nil
 }
 
 type UseReq_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	Tcp  *bool
-	Udp  *bool
 	Hash *string
 }
 
@@ -244,24 +191,16 @@ func (b0 UseReq_builder) Build() *UseReq {
 	m0 := &UseReq{}
 	b, x := &b0, m0
 	_, _ = b, x
-	if b.Tcp != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 3)
-		x.xxx_hidden_Tcp = *b.Tcp
-	}
-	if b.Udp != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 3)
-		x.xxx_hidden_Udp = *b.Udp
-	}
 	if b.Hash != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 3)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 1)
 		x.xxx_hidden_Hash = b.Hash
 	}
 	return m0
 }
 
 type NodesResponse struct {
-	state             protoimpl.MessageState         `protogen:"opaque.v1"`
-	xxx_hidden_Groups map[string]*NodesResponseNodes `protobuf:"bytes,1,rep,name=groups" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	state             protoimpl.MessageState  `protogen:"opaque.v1"`
+	xxx_hidden_Groups *[]*NodesResponse_Group `protobuf:"bytes,1,rep,name=groups"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -291,28 +230,30 @@ func (x *NodesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *NodesResponse) GetGroups() map[string]*NodesResponseNodes {
+func (x *NodesResponse) GetGroups() []*NodesResponse_Group {
 	if x != nil {
-		return x.xxx_hidden_Groups
+		if x.xxx_hidden_Groups != nil {
+			return *x.xxx_hidden_Groups
+		}
 	}
 	return nil
 }
 
-func (x *NodesResponse) SetGroups(v map[string]*NodesResponseNodes) {
-	x.xxx_hidden_Groups = v
+func (x *NodesResponse) SetGroups(v []*NodesResponse_Group) {
+	x.xxx_hidden_Groups = &v
 }
 
 type NodesResponse_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	Groups map[string]*NodesResponseNodes
+	Groups []*NodesResponse_Group
 }
 
 func (b0 NodesResponse_builder) Build() *NodesResponse {
 	m0 := &NodesResponse{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.xxx_hidden_Groups = b.Groups
+	x.xxx_hidden_Groups = &b.Groups
 	return m0
 }
 
@@ -748,7 +689,7 @@ func (b0 TagsResponse_builder) Build() *TagsResponse {
 	return m0
 }
 
-type NodesResponseNode struct {
+type NodesResponse_Node struct {
 	state                  protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Hash        *string                `protobuf:"bytes,1,opt,name=hash"`
 	xxx_hidden_Name        *string                `protobuf:"bytes,2,opt,name=name"`
@@ -758,20 +699,20 @@ type NodesResponseNode struct {
 	sizeCache              protoimpl.SizeCache
 }
 
-func (x *NodesResponseNode) Reset() {
-	*x = NodesResponseNode{}
+func (x *NodesResponse_Node) Reset() {
+	*x = NodesResponse_Node{}
 	mi := &file_node_grpc_node_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *NodesResponseNode) String() string {
+func (x *NodesResponse_Node) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*NodesResponseNode) ProtoMessage() {}
+func (*NodesResponse_Node) ProtoMessage() {}
 
-func (x *NodesResponseNode) ProtoReflect() protoreflect.Message {
+func (x *NodesResponse_Node) ProtoReflect() protoreflect.Message {
 	mi := &file_node_grpc_node_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -783,7 +724,7 @@ func (x *NodesResponseNode) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *NodesResponseNode) GetHash() string {
+func (x *NodesResponse_Node) GetHash() string {
 	if x != nil {
 		if x.xxx_hidden_Hash != nil {
 			return *x.xxx_hidden_Hash
@@ -793,7 +734,7 @@ func (x *NodesResponseNode) GetHash() string {
 	return ""
 }
 
-func (x *NodesResponseNode) GetName() string {
+func (x *NodesResponse_Node) GetName() string {
 	if x != nil {
 		if x.xxx_hidden_Name != nil {
 			return *x.xxx_hidden_Name
@@ -803,49 +744,49 @@ func (x *NodesResponseNode) GetName() string {
 	return ""
 }
 
-func (x *NodesResponseNode) SetHash(v string) {
+func (x *NodesResponse_Node) SetHash(v string) {
 	x.xxx_hidden_Hash = &v
 	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
 }
 
-func (x *NodesResponseNode) SetName(v string) {
+func (x *NodesResponse_Node) SetName(v string) {
 	x.xxx_hidden_Name = &v
 	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
 }
 
-func (x *NodesResponseNode) HasHash() bool {
+func (x *NodesResponse_Node) HasHash() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
 }
 
-func (x *NodesResponseNode) HasName() bool {
+func (x *NodesResponse_Node) HasName() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
 }
 
-func (x *NodesResponseNode) ClearHash() {
+func (x *NodesResponse_Node) ClearHash() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
 	x.xxx_hidden_Hash = nil
 }
 
-func (x *NodesResponseNode) ClearName() {
+func (x *NodesResponse_Node) ClearName() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
 	x.xxx_hidden_Name = nil
 }
 
-type NodesResponseNode_builder struct {
+type NodesResponse_Node_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	Hash *string
 	Name *string
 }
 
-func (b0 NodesResponseNode_builder) Build() *NodesResponseNode {
-	m0 := &NodesResponseNode{}
+func (b0 NodesResponse_Node_builder) Build() *NodesResponse_Node {
+	m0 := &NodesResponse_Node{}
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Hash != nil {
@@ -859,27 +800,30 @@ func (b0 NodesResponseNode_builder) Build() *NodesResponseNode {
 	return m0
 }
 
-type NodesResponseNodes struct {
-	state            protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Nodes *[]*NodesResponseNode  `protobuf:"bytes,3,rep,name=nodes"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+type NodesResponse_Group struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name        *string                `protobuf:"bytes,1,opt,name=name"`
+	xxx_hidden_Nodes       *[]*NodesResponse_Node `protobuf:"bytes,3,rep,name=nodes"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
-func (x *NodesResponseNodes) Reset() {
-	*x = NodesResponseNodes{}
+func (x *NodesResponse_Group) Reset() {
+	*x = NodesResponse_Group{}
 	mi := &file_node_grpc_node_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *NodesResponseNodes) String() string {
+func (x *NodesResponse_Group) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*NodesResponseNodes) ProtoMessage() {}
+func (*NodesResponse_Group) ProtoMessage() {}
 
-func (x *NodesResponseNodes) ProtoReflect() protoreflect.Message {
+func (x *NodesResponse_Group) ProtoReflect() protoreflect.Message {
 	mi := &file_node_grpc_node_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -891,7 +835,17 @@ func (x *NodesResponseNodes) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *NodesResponseNodes) GetNodes() []*NodesResponseNode {
+func (x *NodesResponse_Group) GetName() string {
+	if x != nil {
+		if x.xxx_hidden_Name != nil {
+			return *x.xxx_hidden_Name
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *NodesResponse_Group) GetNodes() []*NodesResponse_Node {
 	if x != nil {
 		if x.xxx_hidden_Nodes != nil {
 			return *x.xxx_hidden_Nodes
@@ -900,20 +854,42 @@ func (x *NodesResponseNodes) GetNodes() []*NodesResponseNode {
 	return nil
 }
 
-func (x *NodesResponseNodes) SetNodes(v []*NodesResponseNode) {
+func (x *NodesResponse_Group) SetName(v string) {
+	x.xxx_hidden_Name = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
+}
+
+func (x *NodesResponse_Group) SetNodes(v []*NodesResponse_Node) {
 	x.xxx_hidden_Nodes = &v
 }
 
-type NodesResponseNodes_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Nodes []*NodesResponseNode
+func (x *NodesResponse_Group) HasName() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
 }
 
-func (b0 NodesResponseNodes_builder) Build() *NodesResponseNodes {
-	m0 := &NodesResponseNodes{}
+func (x *NodesResponse_Group) ClearName() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_Name = nil
+}
+
+type NodesResponse_Group_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Name  *string
+	Nodes []*NodesResponse_Node
+}
+
+func (b0 NodesResponse_Group_builder) Build() *NodesResponse_Group {
+	m0 := &NodesResponse_Group{}
 	b, x := &b0, m0
 	_, _ = b, x
+	if b.Name != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
+		x.xxx_hidden_Name = b.Name
+	}
 	x.xxx_hidden_Nodes = &b.Nodes
 	return m0
 }
@@ -922,24 +898,20 @@ var File_node_grpc_node_proto protoreflect.FileDescriptor
 
 const file_node_grpc_node_proto_rawDesc = "" +
 	"\n" +
-	"\x14node/grpc/node.proto\x12\x1byuhaiin.protos.node.service\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1egoogle/protobuf/wrappers.proto\x1a\x0fnode/node.proto\x1a\x16node/point/point.proto\x1a\x1enode/subscribe/subscribe.proto\x1a\x1anode/latency/latency.proto\x1a\x12node/tag/tag.proto\x1a!google/protobuf/go_features.proto\"Z\n" +
+	"\x14node/grpc/node.proto\x12\x1byuhaiin.protos.node.service\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1egoogle/protobuf/wrappers.proto\x1a\x16node/point/point.proto\x1a\x1enode/subscribe/subscribe.proto\x1a\x1anode/latency/latency.proto\x1a\x12node/tag/tag.proto\x1a!google/protobuf/go_features.proto\"Z\n" +
 	"\bnow_resp\x12&\n" +
 	"\x03tcp\x18\x01 \x01(\v2\x14.yuhaiin.point.pointR\x03tcp\x12&\n" +
-	"\x03udp\x18\x02 \x01(\v2\x14.yuhaiin.point.pointR\x03udp\"A\n" +
-	"\ause_req\x12\x10\n" +
-	"\x03tcp\x18\x01 \x01(\bR\x03tcp\x12\x10\n" +
-	"\x03udp\x18\x02 \x01(\bR\x03udp\x12\x12\n" +
-	"\x04hash\x18\x03 \x01(\tR\x04hash\"\xd0\x02\n" +
-	"\x0enodes_response\x12O\n" +
-	"\x06groups\x18\x01 \x03(\v27.yuhaiin.protos.node.service.nodes_response.GroupsEntryR\x06groups\x1a.\n" +
-	"\x04node\x12\x12\n" +
+	"\x03udp\x18\x02 \x01(\v2\x14.yuhaiin.point.pointR\x03udp\"3\n" +
+	"\ause_req\x12\x12\n" +
+	"\x04hash\x18\x03 \x01(\tR\x04hashJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03R\x03tcpR\x03udp\"\xed\x01\n" +
+	"\rNodesResponse\x12H\n" +
+	"\x06groups\x18\x01 \x03(\v20.yuhaiin.protos.node.service.NodesResponse.GroupR\x06groups\x1a.\n" +
+	"\x04Node\x12\x12\n" +
 	"\x04hash\x18\x01 \x01(\tR\x04hash\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x1aO\n" +
-	"\x05nodes\x12F\n" +
-	"\x05nodes\x18\x03 \x03(\v20.yuhaiin.protos.node.service.nodes_response.nodeR\x05nodes\x1al\n" +
-	"\vGroupsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12G\n" +
-	"\x05value\x18\x02 \x01(\v21.yuhaiin.protos.node.service.nodes_response.nodesR\x05value:\x028\x01\"@\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x1ab\n" +
+	"\x05Group\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12E\n" +
+	"\x05nodes\x18\x03 \x03(\v2/.yuhaiin.protos.node.service.NodesResponse.NodeR\x05nodes\"@\n" +
 	"\x12activates_response\x12*\n" +
 	"\x05nodes\x18\x01 \x03(\v2\x14.yuhaiin.point.pointR\x05nodes\">\n" +
 	"\rsave_link_req\x12-\n" +
@@ -960,14 +932,14 @@ const file_node_grpc_node_proto_rawDesc = "" +
 	"\x04tags\x18\x01 \x03(\v24.yuhaiin.protos.node.service.tags_response.TagsEntryR\x04tags\x1aJ\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12'\n" +
-	"\x05value\x18\x02 \x01(\v2\x11.yuhaiin.tag.tagsR\x05value:\x028\x012\xe1\x04\n" +
+	"\x05value\x18\x02 \x01(\v2\x11.yuhaiin.tag.tagsR\x05value:\x028\x012\xe0\x04\n" +
 	"\x04node\x12D\n" +
 	"\x03now\x12\x16.google.protobuf.Empty\x1a%.yuhaiin.protos.node.service.now_resp\x12A\n" +
 	"\x03use\x12$.yuhaiin.protos.node.service.use_req\x1a\x14.yuhaiin.point.point\x129\n" +
 	"\x03get\x12\x1c.google.protobuf.StringValue\x1a\x14.yuhaiin.point.point\x122\n" +
 	"\x04save\x12\x14.yuhaiin.point.point\x1a\x14.yuhaiin.point.point\x12>\n" +
-	"\x06remove\x12\x1c.google.protobuf.StringValue\x1a\x16.google.protobuf.Empty\x12K\n" +
-	"\x04list\x12\x16.google.protobuf.Empty\x1a+.yuhaiin.protos.node.service.nodes_response\x12T\n" +
+	"\x06remove\x12\x1c.google.protobuf.StringValue\x1a\x16.google.protobuf.Empty\x12J\n" +
+	"\x04list\x12\x16.google.protobuf.Empty\x1a*.yuhaiin.protos.node.service.NodesResponse\x12T\n" +
 	"\tactivates\x12\x16.google.protobuf.Empty\x1a/.yuhaiin.protos.node.service.activates_response\x12=\n" +
 	"\x05close\x12\x1c.google.protobuf.StringValue\x1a\x16.google.protobuf.Empty\x12?\n" +
 	"\alatency\x12\x19.yuhaiin.latency.requests\x1a\x19.yuhaiin.latency.response2\xb5\x02\n" +
@@ -981,81 +953,79 @@ const file_node_grpc_node_proto_rawDesc = "" +
 	"\x06remove\x12\x1c.google.protobuf.StringValue\x1a\x16.google.protobuf.Empty\x12J\n" +
 	"\x04list\x12\x16.google.protobuf.Empty\x1a*.yuhaiin.protos.node.service.tags_responseB>Z4github.com/Asutorufa/yuhaiin/pkg/protos/node/service\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
-var file_node_grpc_node_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_node_grpc_node_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_node_grpc_node_proto_goTypes = []any{
 	(*NowResp)(nil),                // 0: yuhaiin.protos.node.service.now_resp
 	(*UseReq)(nil),                 // 1: yuhaiin.protos.node.service.use_req
-	(*NodesResponse)(nil),          // 2: yuhaiin.protos.node.service.nodes_response
+	(*NodesResponse)(nil),          // 2: yuhaiin.protos.node.service.NodesResponse
 	(*ActivatesResponse)(nil),      // 3: yuhaiin.protos.node.service.activates_response
 	(*SaveLinkReq)(nil),            // 4: yuhaiin.protos.node.service.save_link_req
 	(*LinkReq)(nil),                // 5: yuhaiin.protos.node.service.link_req
 	(*GetLinksResp)(nil),           // 6: yuhaiin.protos.node.service.get_links_resp
 	(*SaveTagReq)(nil),             // 7: yuhaiin.protos.node.service.save_tag_req
 	(*TagsResponse)(nil),           // 8: yuhaiin.protos.node.service.tags_response
-	(*NodesResponseNode)(nil),      // 9: yuhaiin.protos.node.service.nodes_response.node
-	(*NodesResponseNodes)(nil),     // 10: yuhaiin.protos.node.service.nodes_response.nodes
-	nil,                            // 11: yuhaiin.protos.node.service.nodes_response.GroupsEntry
-	nil,                            // 12: yuhaiin.protos.node.service.get_links_resp.LinksEntry
-	nil,                            // 13: yuhaiin.protos.node.service.tags_response.TagsEntry
-	(*point.Point)(nil),            // 14: yuhaiin.point.point
-	(*subscribe.Link)(nil),         // 15: yuhaiin.subscribe.link
-	(tag.TagType)(0),               // 16: yuhaiin.tag.tag_type
-	(*tag.Tags)(nil),               // 17: yuhaiin.tag.tags
-	(*emptypb.Empty)(nil),          // 18: google.protobuf.Empty
-	(*wrapperspb.StringValue)(nil), // 19: google.protobuf.StringValue
-	(*latency.Requests)(nil),       // 20: yuhaiin.latency.requests
-	(*latency.Response)(nil),       // 21: yuhaiin.latency.response
+	(*NodesResponse_Node)(nil),     // 9: yuhaiin.protos.node.service.NodesResponse.Node
+	(*NodesResponse_Group)(nil),    // 10: yuhaiin.protos.node.service.NodesResponse.Group
+	nil,                            // 11: yuhaiin.protos.node.service.get_links_resp.LinksEntry
+	nil,                            // 12: yuhaiin.protos.node.service.tags_response.TagsEntry
+	(*point.Point)(nil),            // 13: yuhaiin.point.point
+	(*subscribe.Link)(nil),         // 14: yuhaiin.subscribe.link
+	(tag.TagType)(0),               // 15: yuhaiin.tag.tag_type
+	(*tag.Tags)(nil),               // 16: yuhaiin.tag.tags
+	(*emptypb.Empty)(nil),          // 17: google.protobuf.Empty
+	(*wrapperspb.StringValue)(nil), // 18: google.protobuf.StringValue
+	(*latency.Requests)(nil),       // 19: yuhaiin.latency.requests
+	(*latency.Response)(nil),       // 20: yuhaiin.latency.response
 }
 var file_node_grpc_node_proto_depIdxs = []int32{
-	14, // 0: yuhaiin.protos.node.service.now_resp.tcp:type_name -> yuhaiin.point.point
-	14, // 1: yuhaiin.protos.node.service.now_resp.udp:type_name -> yuhaiin.point.point
-	11, // 2: yuhaiin.protos.node.service.nodes_response.groups:type_name -> yuhaiin.protos.node.service.nodes_response.GroupsEntry
-	14, // 3: yuhaiin.protos.node.service.activates_response.nodes:type_name -> yuhaiin.point.point
-	15, // 4: yuhaiin.protos.node.service.save_link_req.links:type_name -> yuhaiin.subscribe.link
-	12, // 5: yuhaiin.protos.node.service.get_links_resp.links:type_name -> yuhaiin.protos.node.service.get_links_resp.LinksEntry
-	16, // 6: yuhaiin.protos.node.service.save_tag_req.type:type_name -> yuhaiin.tag.tag_type
-	13, // 7: yuhaiin.protos.node.service.tags_response.tags:type_name -> yuhaiin.protos.node.service.tags_response.TagsEntry
-	9,  // 8: yuhaiin.protos.node.service.nodes_response.nodes.nodes:type_name -> yuhaiin.protos.node.service.nodes_response.node
-	10, // 9: yuhaiin.protos.node.service.nodes_response.GroupsEntry.value:type_name -> yuhaiin.protos.node.service.nodes_response.nodes
-	15, // 10: yuhaiin.protos.node.service.get_links_resp.LinksEntry.value:type_name -> yuhaiin.subscribe.link
-	17, // 11: yuhaiin.protos.node.service.tags_response.TagsEntry.value:type_name -> yuhaiin.tag.tags
-	18, // 12: yuhaiin.protos.node.service.node.now:input_type -> google.protobuf.Empty
-	1,  // 13: yuhaiin.protos.node.service.node.use:input_type -> yuhaiin.protos.node.service.use_req
-	19, // 14: yuhaiin.protos.node.service.node.get:input_type -> google.protobuf.StringValue
-	14, // 15: yuhaiin.protos.node.service.node.save:input_type -> yuhaiin.point.point
-	19, // 16: yuhaiin.protos.node.service.node.remove:input_type -> google.protobuf.StringValue
-	18, // 17: yuhaiin.protos.node.service.node.list:input_type -> google.protobuf.Empty
-	18, // 18: yuhaiin.protos.node.service.node.activates:input_type -> google.protobuf.Empty
-	19, // 19: yuhaiin.protos.node.service.node.close:input_type -> google.protobuf.StringValue
-	20, // 20: yuhaiin.protos.node.service.node.latency:input_type -> yuhaiin.latency.requests
-	4,  // 21: yuhaiin.protos.node.service.subscribe.save:input_type -> yuhaiin.protos.node.service.save_link_req
-	5,  // 22: yuhaiin.protos.node.service.subscribe.remove:input_type -> yuhaiin.protos.node.service.link_req
-	5,  // 23: yuhaiin.protos.node.service.subscribe.update:input_type -> yuhaiin.protos.node.service.link_req
-	18, // 24: yuhaiin.protos.node.service.subscribe.get:input_type -> google.protobuf.Empty
-	7,  // 25: yuhaiin.protos.node.service.tag.save:input_type -> yuhaiin.protos.node.service.save_tag_req
-	19, // 26: yuhaiin.protos.node.service.tag.remove:input_type -> google.protobuf.StringValue
-	18, // 27: yuhaiin.protos.node.service.tag.list:input_type -> google.protobuf.Empty
-	0,  // 28: yuhaiin.protos.node.service.node.now:output_type -> yuhaiin.protos.node.service.now_resp
-	14, // 29: yuhaiin.protos.node.service.node.use:output_type -> yuhaiin.point.point
-	14, // 30: yuhaiin.protos.node.service.node.get:output_type -> yuhaiin.point.point
-	14, // 31: yuhaiin.protos.node.service.node.save:output_type -> yuhaiin.point.point
-	18, // 32: yuhaiin.protos.node.service.node.remove:output_type -> google.protobuf.Empty
-	2,  // 33: yuhaiin.protos.node.service.node.list:output_type -> yuhaiin.protos.node.service.nodes_response
-	3,  // 34: yuhaiin.protos.node.service.node.activates:output_type -> yuhaiin.protos.node.service.activates_response
-	18, // 35: yuhaiin.protos.node.service.node.close:output_type -> google.protobuf.Empty
-	21, // 36: yuhaiin.protos.node.service.node.latency:output_type -> yuhaiin.latency.response
-	18, // 37: yuhaiin.protos.node.service.subscribe.save:output_type -> google.protobuf.Empty
-	18, // 38: yuhaiin.protos.node.service.subscribe.remove:output_type -> google.protobuf.Empty
-	18, // 39: yuhaiin.protos.node.service.subscribe.update:output_type -> google.protobuf.Empty
-	6,  // 40: yuhaiin.protos.node.service.subscribe.get:output_type -> yuhaiin.protos.node.service.get_links_resp
-	18, // 41: yuhaiin.protos.node.service.tag.save:output_type -> google.protobuf.Empty
-	18, // 42: yuhaiin.protos.node.service.tag.remove:output_type -> google.protobuf.Empty
-	8,  // 43: yuhaiin.protos.node.service.tag.list:output_type -> yuhaiin.protos.node.service.tags_response
-	28, // [28:44] is the sub-list for method output_type
-	12, // [12:28] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	13, // 0: yuhaiin.protos.node.service.now_resp.tcp:type_name -> yuhaiin.point.point
+	13, // 1: yuhaiin.protos.node.service.now_resp.udp:type_name -> yuhaiin.point.point
+	10, // 2: yuhaiin.protos.node.service.NodesResponse.groups:type_name -> yuhaiin.protos.node.service.NodesResponse.Group
+	13, // 3: yuhaiin.protos.node.service.activates_response.nodes:type_name -> yuhaiin.point.point
+	14, // 4: yuhaiin.protos.node.service.save_link_req.links:type_name -> yuhaiin.subscribe.link
+	11, // 5: yuhaiin.protos.node.service.get_links_resp.links:type_name -> yuhaiin.protos.node.service.get_links_resp.LinksEntry
+	15, // 6: yuhaiin.protos.node.service.save_tag_req.type:type_name -> yuhaiin.tag.tag_type
+	12, // 7: yuhaiin.protos.node.service.tags_response.tags:type_name -> yuhaiin.protos.node.service.tags_response.TagsEntry
+	9,  // 8: yuhaiin.protos.node.service.NodesResponse.Group.nodes:type_name -> yuhaiin.protos.node.service.NodesResponse.Node
+	14, // 9: yuhaiin.protos.node.service.get_links_resp.LinksEntry.value:type_name -> yuhaiin.subscribe.link
+	16, // 10: yuhaiin.protos.node.service.tags_response.TagsEntry.value:type_name -> yuhaiin.tag.tags
+	17, // 11: yuhaiin.protos.node.service.node.now:input_type -> google.protobuf.Empty
+	1,  // 12: yuhaiin.protos.node.service.node.use:input_type -> yuhaiin.protos.node.service.use_req
+	18, // 13: yuhaiin.protos.node.service.node.get:input_type -> google.protobuf.StringValue
+	13, // 14: yuhaiin.protos.node.service.node.save:input_type -> yuhaiin.point.point
+	18, // 15: yuhaiin.protos.node.service.node.remove:input_type -> google.protobuf.StringValue
+	17, // 16: yuhaiin.protos.node.service.node.list:input_type -> google.protobuf.Empty
+	17, // 17: yuhaiin.protos.node.service.node.activates:input_type -> google.protobuf.Empty
+	18, // 18: yuhaiin.protos.node.service.node.close:input_type -> google.protobuf.StringValue
+	19, // 19: yuhaiin.protos.node.service.node.latency:input_type -> yuhaiin.latency.requests
+	4,  // 20: yuhaiin.protos.node.service.subscribe.save:input_type -> yuhaiin.protos.node.service.save_link_req
+	5,  // 21: yuhaiin.protos.node.service.subscribe.remove:input_type -> yuhaiin.protos.node.service.link_req
+	5,  // 22: yuhaiin.protos.node.service.subscribe.update:input_type -> yuhaiin.protos.node.service.link_req
+	17, // 23: yuhaiin.protos.node.service.subscribe.get:input_type -> google.protobuf.Empty
+	7,  // 24: yuhaiin.protos.node.service.tag.save:input_type -> yuhaiin.protos.node.service.save_tag_req
+	18, // 25: yuhaiin.protos.node.service.tag.remove:input_type -> google.protobuf.StringValue
+	17, // 26: yuhaiin.protos.node.service.tag.list:input_type -> google.protobuf.Empty
+	0,  // 27: yuhaiin.protos.node.service.node.now:output_type -> yuhaiin.protos.node.service.now_resp
+	13, // 28: yuhaiin.protos.node.service.node.use:output_type -> yuhaiin.point.point
+	13, // 29: yuhaiin.protos.node.service.node.get:output_type -> yuhaiin.point.point
+	13, // 30: yuhaiin.protos.node.service.node.save:output_type -> yuhaiin.point.point
+	17, // 31: yuhaiin.protos.node.service.node.remove:output_type -> google.protobuf.Empty
+	2,  // 32: yuhaiin.protos.node.service.node.list:output_type -> yuhaiin.protos.node.service.NodesResponse
+	3,  // 33: yuhaiin.protos.node.service.node.activates:output_type -> yuhaiin.protos.node.service.activates_response
+	17, // 34: yuhaiin.protos.node.service.node.close:output_type -> google.protobuf.Empty
+	20, // 35: yuhaiin.protos.node.service.node.latency:output_type -> yuhaiin.latency.response
+	17, // 36: yuhaiin.protos.node.service.subscribe.save:output_type -> google.protobuf.Empty
+	17, // 37: yuhaiin.protos.node.service.subscribe.remove:output_type -> google.protobuf.Empty
+	17, // 38: yuhaiin.protos.node.service.subscribe.update:output_type -> google.protobuf.Empty
+	6,  // 39: yuhaiin.protos.node.service.subscribe.get:output_type -> yuhaiin.protos.node.service.get_links_resp
+	17, // 40: yuhaiin.protos.node.service.tag.save:output_type -> google.protobuf.Empty
+	17, // 41: yuhaiin.protos.node.service.tag.remove:output_type -> google.protobuf.Empty
+	8,  // 42: yuhaiin.protos.node.service.tag.list:output_type -> yuhaiin.protos.node.service.tags_response
+	27, // [27:43] is the sub-list for method output_type
+	11, // [11:27] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_node_grpc_node_proto_init() }
@@ -1069,7 +1039,7 @@ func file_node_grpc_node_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_node_grpc_node_proto_rawDesc), len(file_node_grpc_node_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

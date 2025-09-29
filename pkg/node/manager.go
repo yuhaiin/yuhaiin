@@ -171,7 +171,7 @@ func (m *Manager) DeleteLink(name ...string) {
 	}
 }
 
-func (m *Manager) UsePoint(tcp, udp bool, hash string) error {
+func (m *Manager) UsePoint(hash string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -180,13 +180,8 @@ func (m *Manager) UsePoint(tcp, udp bool, hash string) error {
 		return errors.New("node not found")
 	}
 
-	if tcp {
-		m.db.Data.SetTcp(p)
-	}
-
-	if udp {
-		m.db.Data.SetUdp(p)
-	}
+	m.db.Data.SetTcp(p)
+	m.db.Data.SetUdp(p)
 
 	m.clearIdleProxy()
 	return nil
@@ -228,18 +223,19 @@ func (m *Manager) GetUsingPoints() *set.Set[string] {
 	return m.getUsingPoints()
 }
 
-func (d *Manager) GetGroups() map[string][]*gn.NodesResponseNode {
+func (d *Manager) GetGroups() map[string][]*gn.NodesResponse_Node {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	groups := map[string][]*gn.NodesResponseNode{}
+	groups := map[string][]*gn.NodesResponse_Node{}
+
 	for _, v := range d.getNodes() {
 		group := v.GetGroup()
 		if group == "" {
 			group = "unknown"
 		}
 
-		groups[group] = append(groups[group], gn.NodesResponseNode_builder{
+		groups[group] = append(groups[group], gn.NodesResponse_Node_builder{
 			Hash: proto.String(v.GetHash()),
 			Name: proto.String(v.GetName()),
 		}.Build())

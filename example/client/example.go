@@ -21,9 +21,16 @@ func main() {
 	node := point.Point_builder{
 		Protocols: []*protocol.Protocol{
 			protocol.Protocol_builder{
-				Simple: protocol.Simple_builder{
-					Host: proto.String("127.0.0.1"),
-					Port: proto.Int32(1080),
+				NetworkSplit: protocol.NetworkSplit_builder{
+					Tcp: protocol.Protocol_builder{
+						Simple: protocol.Simple_builder{
+							Host: proto.String("127.0.0.1"),
+							Port: proto.Int32(1080),
+						}.Build(),
+					}.Build(),
+					Udp: protocol.Protocol_builder{
+						Direct: &protocol.Direct{},
+					}.Build(),
 				}.Build(),
 			}.Build(),
 			protocol.Protocol_builder{
