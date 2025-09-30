@@ -24,7 +24,7 @@ func (t *tag) Save(_ context.Context, r *gn.SaveTagReq) (*emptypb.Empty, error) 
 		return &emptypb.Empty{}, errors.New("tag same as target mirror tag")
 	}
 
-	if _, ok := t.n.ExistTag(r.GetTag()); ok {
+	if _, ok := t.n.GetTag(r.GetTag()); ok {
 		t.n.DeleteTag(r.GetTag())
 	}
 

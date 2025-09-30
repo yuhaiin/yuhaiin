@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
@@ -50,8 +49,22 @@ func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok b
 		return
 	}
 
-	if ips, err := dialer.ResolverIP(ctx, addr); err == nil {
-		mark, ok = x.cidr.SearchIP(ips)
+	store := netapi.GetContext(ctx)
+
+	matchResolver := store.ConnOptions().Resolver().Resolver()
+	if matchResolver == nil {
+		return
+	}
+
+	ips, err := matchResolver.LookupIP(ctx, addr.Hostname())
+	if err != nil {
+		return
+	}
+
+	for ip := range ips.Iter() {
+		if mark, ok = x.cidr.SearchIP(ip); ok {
+			return
+		}
 	}
 
 	return

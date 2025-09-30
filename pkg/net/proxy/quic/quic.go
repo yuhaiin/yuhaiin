@@ -86,13 +86,24 @@ func NewClient(config *protocol.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
 
 	if config.GetHost() != "" {
 		addr, err := netapi.ParseAddress("udp", config.GetHost())
-		if err == nil {
-			host, err = dialer.ResolveUDPAddr(context.TODO(), addr)
-			if err != nil {
-				return nil, err
-			}
+		if err != nil {
+			goto next
 		}
+
+		if !addr.IsFqdn() {
+			host = net.UDPAddrFromAddrPort(addr.(netapi.IPAddress).AddrPort())
+			goto next
+		}
+
+		ips, err := netapi.ResolverIP(context.TODO(), addr.Hostname())
+		if err != nil {
+			return nil, err
+		}
+
+		host = ips.RandUDPAddr(addr.Port())
 	}
+
+next:
 
 	config.GetTls().SetEnable(true)
 
@@ -101,7 +112,11 @@ func NewClient(config *protocol.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
 		tlsConfig = &tls.Config{}
 	}
 
-	if register.IsBootstrap(dd) {
+	if register.IsZero(dd) {
+		if host.IP.IsUnspecified() && host.Port == 0 {
+			return nil, errors.New("no host specified")
+		}
+
 		dd = nil
 	}
 

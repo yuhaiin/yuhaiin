@@ -3,7 +3,6 @@
 package tproxy
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -13,7 +12,6 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -262,12 +260,13 @@ func (t *Tproxy) newUDP() error {
 						return 0, err
 					}
 
-					ur, err := dialer.ResolveUDPAddr(context.Background(), ad)
-					if err != nil {
-						return 0, err
+					if !ad.IsFqdn() {
+						return 0, fmt.Errorf("address: %s is not ip address", ad.Hostname())
 					}
 
-					back, err := DialUDP("udp", ur, src)
+					laddr := net.UDPAddrFromAddrPort(ad.(netapi.IPAddress).AddrPort())
+
+					back, err := DialUDP("udp", laddr, src)
 					if err != nil {
 						return 0, fmt.Errorf("udp server dial failed: %w", err)
 					}

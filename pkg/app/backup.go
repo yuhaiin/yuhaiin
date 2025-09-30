@@ -175,12 +175,12 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 	points := map[string]*point.Point{}
 
 	for _, group := range nodes.GetGroups() {
-		for _, node := range group.GetNodesV2() {
-			point, err := b.instance.Node.Get(ctx, &wrapperspb.StringValue{Value: node})
+		for _, node := range group.GetNodes() {
+			point, err := b.instance.Node.Get(ctx, &wrapperspb.StringValue{Value: node.GetHash()})
 			if err != nil {
 				return nil, err
 			}
-			points[node] = point
+			points[node.GetHash()] = point
 		}
 	}
 

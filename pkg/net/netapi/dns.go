@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"iter"
+	"log/slog"
 	"math/rand/v2"
 	"net"
+	"net/netip"
+	"strings"
 	"sync"
 	"time"
 
@@ -65,6 +69,15 @@ func (i *IPs) Rand() net.IP {
 	return nil
 }
 
+func (i *IPs) RandNetipAddr() netip.Addr {
+	addr, _ := netip.AddrFromSlice(i.Rand())
+	return addr
+}
+
+func (i *IPs) RandUDPAddr(port uint16) *net.UDPAddr {
+	return &net.UDPAddr{IP: i.Rand(), Port: int(port)}
+}
+
 func (i *IPs) Len() int {
 	return len(i.A) + len(i.AAAA)
 }
@@ -94,6 +107,7 @@ type Resolver interface {
 	// Raw returns a dns message
 	Raw(ctx context.Context, req dns.Question) (dns.Msg, error)
 	io.Closer
+	Name() string
 }
 
 var _ Resolver = (*ErrorResolver)(nil)
@@ -118,6 +132,7 @@ func (e ErrorResolver) Raw(_ context.Context, req dns.Question) (dns.Msg, error)
 		Question: []dns.Question{req},
 	}, nil
 }
+func (e ErrorResolver) Name() string { return "ErrorResolver" }
 
 // dnsConn is a net.PacketConn suitable for returning from
 // net.Dialer.Dial to send DNS queries over Bootstrap.
@@ -223,4 +238,109 @@ func (r *DynamicResolver) Set(r2 Resolver) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.r = r2
+}
+
+var bootstrap = &bootstrapResolver{}
+
+func init() {
+	net.DefaultResolver = &net.Resolver{
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			return NewDnsConn(context.TODO(), Bootstrap()), nil
+		},
+	}
+}
+
+type bootstrapResolver struct {
+	r  Resolver
+	mu sync.RWMutex
+}
+
+func (b *bootstrapResolver) LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) (*IPs, error) {
+	b.mu.RLock()
+	r := b.r
+	b.mu.RUnlock()
+
+	if r == nil {
+		return nil, errors.New("bootstrap resolver is not initialized")
+	}
+
+	return r.LookupIP(ctx, domain, opts...)
+}
+
+func (b *bootstrapResolver) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+	b.mu.RLock()
+	r := b.r
+	b.mu.RUnlock()
+
+	if r == nil {
+		return dns.Msg{}, errors.New("bootstrap resolver is not initialized")
+	}
+
+	return r.Raw(ctx, req)
+}
+
+func (b *bootstrapResolver) Name() string {
+	b.mu.RLock()
+	r := b.r
+	b.mu.RUnlock()
+	if r == nil {
+		return "bootstrap"
+	}
+
+	name := r.Name()
+	if strings.ToLower(name) == "bootstrap" {
+		return name
+	}
+
+	return fmt.Sprintf("bootstrap(%s)", name)
+}
+
+func (b *bootstrapResolver) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	var err error
+	if b.r != nil {
+		err = b.r.Close()
+		b.r = nil
+	}
+
+	return err
+}
+
+func (b *bootstrapResolver) SetBootstrap(r Resolver) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.r != nil {
+		if err := b.r.Close(); err != nil {
+			slog.Warn("close bootstrap resolver failed", "err", err)
+		}
+	}
+
+	b.r = r
+}
+
+func Bootstrap() Resolver     { return bootstrap }
+func SetBootstrap(r Resolver) { bootstrap.SetBootstrap(r) }
+
+func ResolverIP(ctx context.Context, addr string) (*IPs, error) {
+	netctx := GetContext(ctx).ConnOptions().Resolver()
+
+	resolver := netctx.Resolver()
+	if resolver == nil {
+		resolver = Bootstrap()
+	}
+
+	if netctx.Mode() != ResolverModeNoSpecified {
+		ips, err := resolver.LookupIP(ctx, addr, netctx.Opts(false)...)
+		if err == nil {
+			return ips, nil
+		}
+	}
+
+	ips, err := resolver.LookupIP(ctx, addr, netctx.Opts(true)...)
+	if err != nil {
+		return nil, fmt.Errorf("resolve address(%v) failed: %w", addr, err)
+	}
+
+	return ips, nil
 }

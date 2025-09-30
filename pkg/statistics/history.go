@@ -89,7 +89,7 @@ func (h *FailedHistory) Get() *gs.FailedHistoryList {
 	for _, v := range h.store.Range {
 		v.mu.RLock()
 		objects = append(objects, proto.CloneOf(v.FailedHistory))
-		if !dumpProcess && v.FailedHistory.GetProcess() != "" {
+		if !dumpProcess && v.GetProcess() != "" {
 			dumpProcess = true
 		}
 		v.mu.RUnlock()

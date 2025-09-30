@@ -65,7 +65,7 @@ func (l hijackListener) Listen(ctx context.Context, network, address string) (ne
 func (l hijackListener) ListenPacket(ctx context.Context, network, address string) (net.PacketConn, error) {
 	store := netapi.WithContext(ctx)
 	store.ConnOptions().
-		SetForceMode(bypass.Mode_direct).
+		SetRouteMode(bypass.Mode_direct).
 		SetBindAddress(address)
 	store.SetComponent("tailscale").
 		SetDomainString("tailscale-" + network + "-listener" + address).
@@ -122,6 +122,8 @@ func (hijackResolver) Raw(ctx context.Context, req mdns.Question) (mdns.Msg, err
 
 func (hijackResolver) Close() error { return nil }
 
+func (hijackResolver) Name() string { return "tailscale-hijack-resolver" }
+
 var Mux atomic.Pointer[http.ServeMux]
 
 type instance struct {
@@ -150,6 +152,7 @@ func init() {
 	// mybe some tailscale bug, we need more test
 	envknob.Setenv("TS_DISABLE_PORTMAPPER", "true")
 	envknob.Setenv("TS_DISABLE_UPNP", "true")
+	envknob.Setenv("TS_ENABLE_RAW_DISCO", "false")
 	// envknob.SetNoLogsNoSupport()
 }
 
@@ -464,15 +467,20 @@ func (w *warpPacketConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 		return 0, err
 	}
 
-	ctx, cancel := context.WithTimeout(w.ctx, configuration.ResolverTimeout)
-	defer cancel()
-
-	ur, err := dialer.ResolveUDPAddr(ctx, a)
-	if err != nil {
-		return 0, err
+	var udpAddr *net.UDPAddr
+	if !a.IsFqdn() {
+		udpAddr = net.UDPAddrFromAddrPort(a.(netapi.IPAddress).AddrPort())
+	} else {
+		ctx, cancel := context.WithTimeout(w.ctx, configuration.ResolverTimeout)
+		ips, err := netapi.ResolverIP(ctx, a.Hostname())
+		cancel()
+		if err != nil {
+			return 0, err
+		}
+		udpAddr = ips.RandUDPAddr(a.Port())
 	}
 
-	return w.PacketConn.WriteTo(buf, ur)
+	return w.PacketConn.WriteTo(buf, udpAddr)
 }
 
 func (w *warpPacketConn) ReadFrom(buf []byte) (int, net.Addr, error) {
