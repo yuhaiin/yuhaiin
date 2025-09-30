@@ -57,11 +57,17 @@ func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok b
 	}
 
 	ips, err := matchResolver.LookupIP(ctx, addr.Hostname())
-	if err != nil || ips.Len() == 0 {
+	if err != nil {
 		return
 	}
 
-	return x.cidr.SearchIP(ips.Rand())
+	for ip := range ips.Iter() {
+		if mark, ok = x.cidr.SearchIP(ip); ok {
+			return
+		}
+	}
+
+	return
 }
 
 func (x *Trie[T]) Remove(str string) {

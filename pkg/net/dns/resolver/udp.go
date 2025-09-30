@@ -144,15 +144,13 @@ func (u *udp) loopWrite() {
 			return fmt.Errorf("init packetConn failed: %w", err)
 		}
 
-		ctx, cancel := context.WithTimeout(u.ctx, configuration.ResolverTimeout)
-		udpAddr, err := dialer.ResolveUDPAddr(ctx, u.addr)
-		cancel()
+		uaddr, err := u.udpAddr()
 		if err != nil {
 			return fmt.Errorf("resolve udp addr failed: %w", err)
 		}
 
 		pk.SetWriteDeadline(time.Now().Add(configuration.ResolverTimeout))
-		_, err = pk.WriteTo(p.question, udpAddr)
+		_, err = pk.WriteTo(p.question, uaddr)
 		pk.SetWriteDeadline(time.Time{})
 		if err != nil {
 			close()
@@ -179,6 +177,21 @@ func (u *udp) loopWrite() {
 			return
 		}
 	}
+}
+
+func (u *udp) udpAddr() (*net.UDPAddr, error) {
+	if !u.addr.IsFqdn() {
+		return net.UDPAddrFromAddrPort(u.addr.(netapi.IPAddress).AddrPort()), nil
+	}
+
+	ctx, cancel := context.WithTimeout(u.ctx, configuration.ResolverTimeout)
+	ips, err := dialer.ResolverIP(ctx, u.addr.Hostname())
+	cancel()
+	if err != nil {
+		return nil, fmt.Errorf("resolve udp addr failed: %w", err)
+	}
+
+	return ips.RandUDPAddr(u.addr.Port()), nil
 }
 
 func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {

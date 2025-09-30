@@ -8,6 +8,7 @@ import (
 	"iter"
 	"math/rand/v2"
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -63,6 +64,15 @@ func (i *IPs) Rand() net.IP {
 	}
 
 	return nil
+}
+
+func (i *IPs) RandNetipAddr() netip.Addr {
+	addr, _ := netip.AddrFromSlice(i.Rand())
+	return addr
+}
+
+func (i *IPs) RandUDPAddr(port uint16) *net.UDPAddr {
+	return &net.UDPAddr{IP: i.Rand(), Port: int(port)}
 }
 
 func (i *IPs) Len() int {

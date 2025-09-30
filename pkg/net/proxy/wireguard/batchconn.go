@@ -90,20 +90,9 @@ func (b *Batch) ReadBatch(bufs [][]byte, sizes []int, eps []conn.Endpoint) (n in
 			continue
 		}
 
-		var addrPort netip.AddrPort
-		uaddr, ok := msg.Addr.(*net.UDPAddr)
-		if ok {
-			addrPort = uaddr.AddrPort()
-		} else {
-			naddr, err := netapi.ParseSysAddr(msg.Addr)
-			if err != nil {
-				return 0, err
-			}
-
-			addrPort, err = dialer.ResolverAddrPort(context.Background(), naddr)
-			if err != nil {
-				return 0, err
-			}
+		addrPort, err := parseAddrPort(msg.Addr)
+		if err != nil {
+			return 0, err
 		}
 
 		eps[i] = Endpoint(addrPort)
@@ -111,4 +100,26 @@ func (b *Batch) ReadBatch(bufs [][]byte, sizes []int, eps []conn.Endpoint) (n in
 	}
 
 	return n, nil
+}
+
+func parseAddrPort(addr net.Addr) (netip.AddrPort, error) {
+	if uaddr, ok := addr.(*net.UDPAddr); ok {
+		return uaddr.AddrPort(), nil
+	}
+
+	naddr, err := netapi.ParseSysAddr(addr)
+	if err != nil {
+		return netip.AddrPort{}, err
+	}
+
+	if !naddr.IsFqdn() {
+		return naddr.(netapi.IPAddress).AddrPort(), nil
+	}
+
+	ips, err := dialer.ResolverIP(context.Background(), naddr.Hostname())
+	if err != nil {
+		return netip.AddrPort{}, err
+	}
+
+	return netip.AddrPortFrom(ips.RandNetipAddr(), naddr.Port()), nil
 }

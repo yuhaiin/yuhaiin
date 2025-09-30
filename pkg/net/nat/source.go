@@ -229,7 +229,7 @@ func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
 			src, err := netapi.ParseSysAddr(pkt.Src())
 			if err == nil && !src.IsFqdn() {
 				// here is only check none fqdn, so we don't need timeout
-				srcAddr, _ := dialer.ResolverAddrPort(store, src)
+				srcAddr := src.(netapi.IPAddress).AddrPort()
 				if srcAddr.Addr().Unmap().Is4() {
 					store.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv4)
 				}
@@ -319,10 +319,12 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 	ctx, cancel := context.WithTimeout(store, time.Second*5)
 	defer cancel()
 
-	udpAddr, err := dialer.ResolveUDPAddr(ctx, dstAddr)
+	ips, err := dialer.ResolverIP(ctx, dstAddr.Hostname())
 	if err != nil {
 		return fmt.Errorf("resolve addr failed: %w", err)
 	}
+	udpAddr = ips.RandUDPAddr(dstAddr.Port())
+
 	t.udp.Store(key, udpAddr)
 
 	err = t.WriteTo(pkt.GetPayload(), udpAddr, pkt.Dst(), conn)

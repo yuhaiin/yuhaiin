@@ -1,14 +1,12 @@
 package vless
 
 import (
-	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -74,37 +72,37 @@ func (vc *Conn) sendRequest() error {
 	buf := pool.NewBufferSize(2048)
 	defer buf.Reset()
 
-	buf.WriteByte(Version)     // protocol version
+	_ = buf.WriteByte(Version) // protocol version
 	_, _ = buf.Write(vc.id[:]) // 16 bytes of uuid
-	buf.WriteByte(0)           // addon data length. 0 means no addon data
+	_ = buf.WriteByte(0)       // addon data length. 0 means no addon data
 
 	// Command
 	if vc.udp {
-		buf.WriteByte(CommandUDP)
+		_ = buf.WriteByte(CommandUDP)
 	} else {
-		buf.WriteByte(CommandTCP)
+		_ = buf.WriteByte(CommandTCP)
 	}
 
 	// Port AddrType Addr
 	_ = pool.BinaryWriteUint16(buf, binary.BigEndian, vc.dst.Port())
 
 	if vc.dst.IsFqdn() {
-		buf.WriteByte(AtypDomainName)
-		buf.WriteByte(byte(len(vc.dst.Hostname())))
-		buf.WriteString(vc.dst.Hostname())
+		_ = buf.WriteByte(AtypDomainName)
+		_ = buf.WriteByte(byte(len(vc.dst.Hostname())))
+		_, _ = buf.WriteString(vc.dst.Hostname())
 	} else {
-		addrPort, _ := dialer.ResolverAddrPort(context.TODO(), vc.dst)
+		addrPort := vc.dst.(netapi.IPAddress).AddrPort()
 
 		if addrPort.Addr().Is6() {
-			buf.WriteByte(AtypIPv6)
+			_ = buf.WriteByte(AtypIPv6)
 		} else {
-			buf.WriteByte(AtypIPv4)
+			_ = buf.WriteByte(AtypIPv4)
 		}
 
 		_, _ = buf.Write(addrPort.Addr().AsSlice())
 	}
 
-	_, err := vc.Conn.Write(buf.Bytes())
+	_, err := vc.Write(buf.Bytes())
 	return err
 }
 
