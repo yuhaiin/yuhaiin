@@ -13,7 +13,11 @@ func TestServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lis.Close()
+	defer func() {
+		if err := lis.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	ii := NewListener(lis.(*net.TCPListener), nil)
 

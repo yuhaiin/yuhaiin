@@ -286,7 +286,7 @@ func (c *ChannelStreamListener) Accept() (net.Conn, error) {
 func (c *ChannelStreamListener) NewConn(conn net.Conn) {
 	select {
 	case <-c.ctx.Done():
-		conn.Close()
+		_ = conn.Close()
 	case c.channel <- conn:
 	}
 }
