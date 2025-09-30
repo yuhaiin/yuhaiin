@@ -21,8 +21,6 @@ import (
 	dnsmessage "github.com/miekg/dns"
 )
 
-type SkipCheckKey struct{}
-
 var _ netapi.Resolver = (*FakeDNS)(nil)
 
 type FakeDNS struct {
@@ -175,7 +173,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 			return f.newAnswerMessage(req, dnsmessage.RcodeSuccess), nil
 		}
 
-		if ctx.Value(SkipCheckKey{}) != true {
+		if !netapi.GetContext(ctx).ConnOptions().Resolver().FakeIPSkipCheckUpstream() {
 			msg, err := f.Resolver.Raw(ctx, req)
 			if err != nil {
 				return dnsmessage.Msg{}, err
@@ -196,7 +194,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 		}), nil
 
 	case dnsmessage.TypeA:
-		if ctx.Value(SkipCheckKey{}) != true {
+		if !netapi.GetContext(ctx).ConnOptions().Resolver().FakeIPSkipCheckUpstream() {
 			msg, err := f.Resolver.Raw(ctx, req)
 			if err != nil {
 				return dnsmessage.Msg{}, err

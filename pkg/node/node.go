@@ -1,9 +1,11 @@
 package node
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -51,13 +53,27 @@ func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
 }
 
 func (n *Nodes) List(ctx context.Context, _ *emptypb.Empty) (*gn.NodesResponse, error) {
-	return gn.NodesResponse_builder{
-		Groups: n.manager.GetGroups(),
-	}.Build(), nil
+	resp := gn.NodesResponse_builder{}
+
+	for g, v := range n.manager.GetGroups() {
+		slices.SortFunc(v, func(a, b *gn.NodesResponse_Node) int { return cmp.Compare(a.GetName(), b.GetName()) })
+		g := gn.NodesResponse_Group_builder{
+			Name:  proto.String(g),
+			Nodes: v,
+		}.Build()
+
+		resp.Groups = append(resp.Groups, g)
+	}
+
+	slices.SortFunc(resp.Groups, func(a, b *gn.NodesResponse_Group) int {
+		return cmp.Compare(a.GetName(), b.GetName())
+	})
+
+	return resp.Build(), nil
 }
 
 func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {
-	err := n.manager.UsePoint(s.GetTcp(), s.GetUdp(), s.GetHash())
+	err := n.manager.UsePoint(s.GetHash())
 	if err != nil {
 		return nil, fmt.Errorf("use point failed: %w", err)
 	}
@@ -165,9 +181,8 @@ func load(path string) *jsondb.DB[*node.Node] {
 		Udp:   &point.Point{},
 		Links: map[string]*subscribe.Link{},
 		Manager: (&node.Manager_builder{
-			GroupsV2: map[string]*node.Nodes{},
-			Nodes:    map[string]*point.Point{},
-			Tags:     map[string]*pt.Tags{},
+			Nodes: map[string]*point.Point{},
+			Tags:  map[string]*pt.Tags{},
 		}).Build(),
 	}
 

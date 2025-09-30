@@ -3,13 +3,11 @@
 package tproxy
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
@@ -41,8 +39,11 @@ func (t *Tproxy) handleTCP(c net.Conn) error {
 		return fmt.Errorf("parse local addr failed: %w", err)
 	}
 
-	if ip, err := dialer.ResolverIP(context.TODO(), target); err == nil && ip.Equal(t.lisAddr.IP) && int(target.Port()) == t.lisAddr.Port {
-		return fmt.Errorf("local addr and remote addr are same")
+	if !target.IsFqdn() {
+		addrPort := target.(netapi.IPAddress).AddrPort()
+		if t.lisAddr.IP.Equal(addrPort.Addr().AsSlice()) && int(addrPort.Port()) == t.lisAddr.Port {
+			return fmt.Errorf("local addr and remote addr are same")
+		}
 	}
 
 	t.handler.HandleStream(&netapi.StreamMeta{

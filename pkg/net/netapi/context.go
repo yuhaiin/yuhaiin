@@ -22,31 +22,38 @@ const (
 )
 
 type ResolverOptions struct {
-	resolver     Resolver
-	resolverSelf *Resolver
-	mode         ResolverMode
-	skipResolve  bool
+	isResolver              bool
+	resolver                Resolver
+	mode                    ResolverMode
+	udpSkipResolveTarget    bool
+	useFakeIP               bool
+	fakeIPSkipCheckUpstream bool
 }
 
 func (r *ResolverOptions) SetResolver(resolver Resolver) *ResolverOptions {
+	if r.isResolver && r.resolver != nil {
+		return r
+	}
+
 	r.resolver = resolver
 	return r
 }
 
-func (r *ResolverOptions) SetResolverResolver(resolver Resolver) *ResolverOptions {
-	r.resolverSelf = &resolver
-	return r
-}
-
-func (r *ResolverOptions) Resolver(fallback Resolver) Resolver {
-	if r.resolverSelf != nil {
-		return *r.resolverSelf
-	}
+func (r *ResolverOptions) Resolver() Resolver {
 	if r.resolver != nil {
 		return r.resolver
 	}
 
-	return fallback
+	return nil
+}
+
+func (r *ResolverOptions) IsResolver() bool {
+	return r.isResolver
+}
+
+func (r *ResolverOptions) SetIsResolver() *ResolverOptions {
+	r.isResolver = true
+	return r
 }
 
 func (r *ResolverOptions) SetMode(mode ResolverMode) *ResolverOptions {
@@ -58,13 +65,31 @@ func (r *ResolverOptions) Mode() ResolverMode {
 	return r.mode
 }
 
-func (r *ResolverOptions) SetSkipResolve(skip bool) *ResolverOptions {
-	r.skipResolve = skip
+func (r *ResolverOptions) SetUdpSkipResolveTarget(skip bool) *ResolverOptions {
+	r.udpSkipResolveTarget = skip
 	return r
 }
 
-func (r ResolverOptions) SkipResolve() bool {
-	return r.skipResolve
+func (r ResolverOptions) UdpSkipResolveTarget() bool {
+	return r.udpSkipResolveTarget
+}
+
+func (s *ResolverOptions) SetUseFakeIP(force bool) *ResolverOptions {
+	s.useFakeIP = force
+	return s
+}
+
+func (s *ResolverOptions) UseFakeIP() bool {
+	return s.useFakeIP
+}
+
+func (s *ResolverOptions) SetFakeIPSkipCheckUpstream(skip bool) *ResolverOptions {
+	s.fakeIPSkipCheckUpstream = skip
+	return s
+}
+
+func (s *ResolverOptions) FakeIPSkipCheckUpstream() bool {
+	return s.fakeIPSkipCheckUpstream
 }
 
 func (r ResolverOptions) Opts(reverse bool) []func(*LookupIPOption) {
@@ -86,11 +111,9 @@ type ConnOptions struct {
 	bindAddress   *string
 	bindInterface *string
 	resolver      *ResolverOptions
-	forceMode     bypass.Mode
-	sniffMode     bypass.Mode
+	routeMode     bypass.Mode
 	systemDialer  bool
 	skipRoute     bool
-	forceFakeIP   bool
 }
 
 func (s *ConnOptions) SetBindAddress(str string) *ConnOptions {
@@ -138,22 +161,18 @@ func (s *ConnOptions) SetResolver(resolver ResolverOptions) *ConnOptions {
 	return s
 }
 
-func (s *ConnOptions) SetForceMode(mode bypass.Mode) *ConnOptions {
-	s.forceMode = mode
+func (s *ConnOptions) SetRouteMode(mode bypass.Mode) *ConnOptions {
+	// skip if already set
+	if s.routeMode != bypass.Mode_bypass {
+		return s
+	}
+
+	s.routeMode = mode
 	return s
 }
 
-func (s *ConnOptions) ForceMode() bypass.Mode {
-	return s.forceMode
-}
-
-func (s *ConnOptions) SetSniffMode(mode bypass.Mode) *ConnOptions {
-	s.sniffMode = mode
-	return s
-}
-
-func (s *ConnOptions) SniffMode() bypass.Mode {
-	return s.sniffMode
+func (s *ConnOptions) RouteMode() bypass.Mode {
+	return s.routeMode
 }
 
 func (s *ConnOptions) SetSystemDialer(systemDialer bool) *ConnOptions {
@@ -172,15 +191,6 @@ func (s *ConnOptions) SetSkipRoute(skip bool) *ConnOptions {
 
 func (s *ConnOptions) SkipRoute() bool {
 	return s.skipRoute
-}
-
-func (s *ConnOptions) SetForceFakeIP(force bool) *ConnOptions {
-	s.forceFakeIP = force
-	return s
-}
-
-func (s *ConnOptions) ForceFakeIP() bool {
-	return s.forceFakeIP
 }
 
 type Sniff struct {

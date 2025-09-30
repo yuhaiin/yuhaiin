@@ -160,10 +160,15 @@ func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address,
 
 	netctx := netapi.GetContext(ctx)
 
+	resolver := netctx.ConnOptions().Resolver().Resolver()
+	if resolver == nil {
+		resolver = netapi.Bootstrap()
+	}
+
 	r := &happyEyeballv2Resolver{
 		ctx:          ctx,
 		addr:         addr,
-		resolver:     netctx.ConnOptions().Resolver().Resolver(Bootstrap()),
+		resolver:     resolver,
 		primaryMode:  netapi.ResolverModePreferIPv6,
 		fallbackMode: netapi.ResolverModePreferIPv4,
 		lastIp:       lastIP,

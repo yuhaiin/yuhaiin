@@ -31,10 +31,63 @@ func init() {
 	RegisterPoint(func(_ *protocol.BootstrapDnsWarp, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewBootstrapDnsWarp(p), nil
 	})
+
+	RegisterPoint(func(ns *protocol.NetworkSplit, p netapi.Proxy) (netapi.Proxy, error) {
+		if ns.GetTcp().WhichProtocol() == protocol.Protocol_NetworkSplit_case {
+			return nil, fmt.Errorf("nested network split is not supported")
+		}
+
+		if ns.GetUdp().WhichProtocol() == protocol.Protocol_NetworkSplit_case {
+			return nil, fmt.Errorf("nested network split is not supported")
+		}
+
+		tcp, err := Wrap(GetPointValue(ns.GetTcp()), p)
+		if err != nil {
+			return nil, err
+		}
+
+		udp, err := Wrap(GetPointValue(ns.GetUdp()), p)
+		if err != nil {
+			_ = tcp.Close()
+			return nil, err
+		}
+
+		return &networkSplit{tcp: tcp, udp: udp, Proxy: p}, nil
+	})
+}
+
+var _ netapi.Proxy = (*networkSplit)(nil)
+
+type networkSplit struct {
+	tcp netapi.Proxy
+	udp netapi.Proxy
+	netapi.Proxy
+}
+
+func (n *networkSplit) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+	return n.tcp.Conn(ctx, addr)
+}
+
+func (n *networkSplit) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
+	return n.udp.PacketConn(ctx, addr)
+}
+
+func (n *networkSplit) Close() error {
+	var err error
+	if er := n.tcp.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+	if er := n.udp.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+	if er := n.Proxy.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+	return err
 }
 
 func Dialer(p *point.Point) (r netapi.Proxy, err error) {
-	r = bootstrapProxy
+	r = zeroproxy
 
 	for _, v := range p.GetProtocols() {
 		r, err = Wrap(GetPointValue(v), r)
@@ -74,16 +127,16 @@ func Wrap(p proto.Message, x netapi.Proxy) (netapi.Proxy, error) {
 	return conn(p, x)
 }
 
-var bootstrapProxy = netapi.NewErrProxy(errors.New("bootstrap proxy"))
+var zeroproxy = netapi.NewErrProxy(errors.New("bootstrap proxy"))
 
-func IsBootstrap(p netapi.Proxy) bool { return p == bootstrapProxy }
+func IsZero(p netapi.Proxy) bool { return p == zeroproxy }
 
 func SetBootstrap(p netapi.Proxy) {
 	if p == nil {
 		return
 	}
 
-	bootstrapProxy = p
+	zeroproxy = p
 }
 
 type bootstrapDnsWarp struct {

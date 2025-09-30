@@ -52,7 +52,7 @@ var (
 	DataDir = atomicx.NewValue(DefaultConfigDir())
 
 	ProxyChain    = netapi.NewDynamicProxy(netapi.NewErrProxy(errors.New("not initialized")))
-	ResolverChain = netapi.NewDynamicResolver(netapi.ErrorResolver(func(domain string) error { return errors.New("not initialized") }))
+	ResolverChain = netapi.NewDynamicResolver(netapi.Bootstrap())
 )
 
 func DefaultConfigDir() (Path string) {

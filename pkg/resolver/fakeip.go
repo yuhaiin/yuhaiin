@@ -2,16 +2,19 @@ package resolver
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"slices"
+	"sync"
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns/server"
 	dnssystem "github.com/Asutorufa/yuhaiin/pkg/net/dns/system"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
@@ -34,13 +37,17 @@ type Fakedns struct {
 	whitelistSlice []string
 	skipCheckSlice []string
 	enabled        atomic.Bool
+
+	smu        sync.RWMutex
+	dnsServer  netapi.DNSServer
+	serverHost string
 }
 
 func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db cache.RecursionCache) *Fakedns {
 	ipv4Range, _ := netip.ParsePrefix("10.2.0.1/24")
 	ipv6Range, _ := netip.ParsePrefix("fc00::/64")
 
-	return &Fakedns{
+	f := &Fakedns{
 		fake:      resolver.NewFakeDNS(upstream, ipv4Range, ipv6Range, db),
 		dialer:    dialer,
 		upstream:  upstream,
@@ -48,6 +55,9 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db cache.Recursio
 		whitelist: domain.NewDomainMapper[struct{}](),
 		skipCheck: domain.NewDomainMapper[struct{}](),
 	}
+	f.dnsServer = server.NewServer("", f)
+
+	return f
 }
 
 func (f *Fakedns) Apply(c *cd.FakednsConfig) {
@@ -99,7 +109,7 @@ func (f *Fakedns) Apply(c *cd.FakednsConfig) {
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
 	metrics.Counter.AddDNSProcess(domain)
 
-	if f.enabled.Load() || netapi.GetContext(ctx).ConnOptions().ForceFakeIP() {
+	if f.enabled.Load() || netapi.GetContext(ctx).ConnOptions().Resolver().UseFakeIP() {
 		if _, ok := f.whitelist.SearchString(system.RelDomain(domain)); ok {
 			return f.upstream
 		}
@@ -112,7 +122,7 @@ func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
 
 func (f *Fakedns) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
 	if _, ok := f.skipCheck.SearchString(system.RelDomain(domain)); ok {
-		ctx = context.WithValue(ctx, resolver.SkipCheckKey{}, true)
+		netapi.GetContext(ctx).ConnOptions().Resolver().SetFakeIPSkipCheckUpstream(ok)
 	}
 	return f.resolver(ctx, domain).LookupIP(ctx, domain, opts...)
 }
@@ -120,7 +130,7 @@ func (f *Fakedns) LookupIP(ctx context.Context, domain string, opts ...func(*net
 func (f *Fakedns) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	if req.Qtype == dns.TypeAAAA || req.Qtype == dns.TypeA {
 		if _, ok := f.skipCheck.SearchString(system.RelDomain(req.Name)); ok {
-			ctx = context.WithValue(ctx, resolver.SkipCheckKey{}, true)
+			netapi.GetContext(ctx).ConnOptions().Resolver().SetFakeIPSkipCheckUpstream(ok)
 		}
 	}
 	return f.resolver(ctx, req.Name).Raw(ctx, req)
@@ -130,8 +140,26 @@ func (f *Fakedns) Close() error {
 	if f.fake != nil {
 		f.fake.Flush()
 	}
-	return f.upstream.Close()
+
+	var err error
+	if er := f.upstream.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+
+	f.smu.Lock()
+	defer f.smu.Unlock()
+
+	if f.dnsServer != nil {
+		if er := f.dnsServer.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
+		f.dnsServer = nil
+	}
+
+	return err
 }
+
+func (f *Fakedns) Name() string { return "fakedns" }
 
 func (f *Fakedns) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Address, error) {
 	return f.dialer.Dispatch(ctx, f.dispatchAddr(ctx, addr))
@@ -154,7 +182,7 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 		return addr
 	}
 
-	addrPort, _ := dialer.ResolverAddrPort(ctx, addr)
+	addrPort := addr.(netapi.IPAddress).AddrPort()
 
 	if !f.fake.Contains(addrPort.Addr()) {
 		return addr
@@ -175,8 +203,49 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 
 	if configuration.FakeIPEnabled.Load() {
 		// block fakeip range to prevent infinite loop which taget ip is not found in fakeip cache
-		store.ConnOptions().SetForceMode(bypass.Mode_block)
+		store.ConnOptions().SetRouteMode(bypass.Mode_block)
 	}
 
 	return addr
+}
+
+func (a *Fakedns) SetServer(s string) {
+	a.smu.Lock()
+	defer a.smu.Unlock()
+
+	if a.serverHost == s {
+		return
+	}
+
+	if a.dnsServer != nil {
+		if err := a.dnsServer.Close(); err != nil {
+			log.Error("close dns server failed", "err", err)
+		}
+		a.dnsServer = nil
+	}
+
+	a.dnsServer = server.NewServer(s, a)
+	a.serverHost = s
+}
+
+func (a *Fakedns) server() netapi.DNSServer {
+	a.smu.RLock()
+	defer a.smu.RUnlock()
+	return a.dnsServer
+}
+
+func (a *Fakedns) DoStream(ctx context.Context, req *netapi.DNSStreamRequest) error {
+	s := a.server()
+	if s == nil {
+		return fmt.Errorf("dns server is not initialized")
+	}
+	return s.DoStream(ctx, req)
+}
+
+func (a *Fakedns) Do(ctx context.Context, req *netapi.DNSRawRequest) error {
+	s := a.server()
+	if s == nil {
+		return fmt.Errorf("dns server is not initialized")
+	}
+	return s.Do(ctx, req)
 }

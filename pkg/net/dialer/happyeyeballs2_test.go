@@ -3,6 +3,7 @@ package dialer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -131,4 +132,30 @@ func (m *mockResolver) Raw(ctx context.Context, req dns.Question) (dns.Msg, erro
 
 func (m *mockResolver) Close() error {
 	return nil
+}
+
+func (m *mockResolver) Name() string {
+	return "mock"
+}
+
+func TestError(t *testing.T) {
+	x := &net.OpError{
+		Op:   "block",
+		Net:  "tcp",
+		Addr: netapi.EmptyAddr,
+		Err:  net.UnknownNetworkError("unknown network"),
+	}
+
+	y := fmt.Errorf("x: %w", x)
+
+	assert.Equal(t, netapi.IsBlockError(y), true)
+}
+
+func TestDial8305(t *testing.T) {
+	add, err := netapi.ParseDomainPort("tcp", "www.google.com", 443)
+	assert.NoError(t, err)
+	conn, err := DialHappyEyeballsv2(context.TODO(), add)
+	assert.NoError(t, err)
+	defer conn.Close()
+	t.Log(conn.LocalAddr(), conn.RemoteAddr())
 }

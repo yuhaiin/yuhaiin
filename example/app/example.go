@@ -43,9 +43,16 @@ func main() {
 		Name:  proto.String("test"),
 		Protocols: []*protocol.Protocol{
 			protocol.Protocol_builder{
-				Simple: protocol.Simple_builder{
-					Host: proto.String("127.0.0.1"),
-					Port: proto.Int32(1080),
+				NetworkSplit: protocol.NetworkSplit_builder{
+					Tcp: protocol.Protocol_builder{
+						Simple: protocol.Simple_builder{
+							Host: proto.String("127.0.0.1"),
+							Port: proto.Int32(1080),
+						}.Build(),
+					}.Build(),
+					Udp: protocol.Protocol_builder{
+						Direct: &protocol.Direct{},
+					}.Build(),
 				}.Build(),
 			}.Build(),
 			protocol.Protocol_builder{
@@ -58,8 +65,6 @@ func main() {
 	}
 
 	_, err = instance.Node.Use(context.TODO(), gn.UseReq_builder{
-		Tcp:  proto.Bool(true),
-		Udp:  proto.Bool(true),
 		Hash: proto.String(point.GetHash()),
 	}.Build())
 	if err != nil {
