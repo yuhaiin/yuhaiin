@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
@@ -79,7 +78,7 @@ func (l *Ip) Latency(p netapi.Proxy) (*Reply, error) {
 							return nil, err
 						}
 
-						ip, err := dialer.Bootstrap().LookupIP(ctx, add.Hostname(), func(li *netapi.LookupIPOption) {
+						ip, err := netapi.Bootstrap().LookupIP(ctx, add.Hostname(), func(li *netapi.LookupIPOption) {
 							if isIPv6 {
 								li.Mode = netapi.ResolverModePreferIPv6
 							} else {

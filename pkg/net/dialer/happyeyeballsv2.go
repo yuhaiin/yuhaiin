@@ -162,7 +162,7 @@ func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address,
 
 	resolver := netctx.ConnOptions().Resolver().Resolver()
 	if resolver == nil {
-		resolver = Bootstrap()
+		resolver = netapi.Bootstrap()
 	}
 
 	r := &happyEyeballv2Resolver{

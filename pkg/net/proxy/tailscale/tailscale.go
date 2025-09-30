@@ -472,7 +472,7 @@ func (w *warpPacketConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 		udpAddr = net.UDPAddrFromAddrPort(a.(netapi.IPAddress).AddrPort())
 	} else {
 		ctx, cancel := context.WithTimeout(w.ctx, configuration.ResolverTimeout)
-		ips, err := dialer.ResolverIP(ctx, a.Hostname())
+		ips, err := netapi.ResolverIP(ctx, a.Hostname())
 		cancel()
 		if err != nil {
 			return 0, err

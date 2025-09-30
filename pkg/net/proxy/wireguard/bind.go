@@ -61,7 +61,7 @@ func (n *netBindClient) ParseEndpoint(s string) (conn.Endpoint, error) {
 		return nil, err
 	}
 
-	ips, err := dialer.Bootstrap().LookupIP(context.TODO(), ipStr)
+	ips, err := netapi.Bootstrap().LookupIP(context.TODO(), ipStr)
 	if err != nil {
 		return nil, err
 	}

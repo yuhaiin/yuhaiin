@@ -12,7 +12,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -185,7 +184,7 @@ func (u *udp) udpAddr() (*net.UDPAddr, error) {
 	}
 
 	ctx, cancel := context.WithTimeout(u.ctx, configuration.ResolverTimeout)
-	ips, err := dialer.ResolverIP(ctx, u.addr.Hostname())
+	ips, err := netapi.ResolverIP(ctx, u.addr.Hostname())
 	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("resolve udp addr failed: %w", err)

@@ -252,7 +252,7 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 
 	if s.config.Load().GetResolveLocally() && addr.IsFqdn() && mode.Mode() == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
-		ip, err := dialer.ResolverIP(ctx, addr.Hostname())
+		ip, err := netapi.ResolverIP(ctx, addr.Hostname())
 		if err == nil {
 			store.SetDomainString(addr.String())
 			addr = netapi.ParseIPAddr(addr.Network(), ip.Rand(), addr.Port())

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
@@ -50,7 +49,7 @@ func main() {
 		panic(err)
 	}
 
-	dialer.SetBootstrap(r)
+	netapi.SetBootstrap(r)
 
 	node := point.Point_builder{
 		Protocols: []*protocol.Protocol{

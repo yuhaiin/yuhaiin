@@ -139,7 +139,6 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	})
 
 	configuration.ProxyChain.Set(direct.Default)
-	configuration.ResolverChain.Set(dialer.Bootstrap())
 
 	// local,remote,bootstrap dns
 	dns := AddCloser(closers, "resolver", resolver.NewResolver(configuration.ProxyChain))

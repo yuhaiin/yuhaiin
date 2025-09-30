@@ -10,7 +10,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -86,7 +85,7 @@ func (r *Resolver) Get(str, fallback string) netapi.Resolver {
 		return z
 	}
 
-	return dialer.Bootstrap()
+	return netapi.Bootstrap()
 }
 
 func (r *Resolver) Close() error {
@@ -101,7 +100,7 @@ func (r *Resolver) Close() error {
 
 func (r *Resolver) getResolver(name string) (netapi.Resolver, bool) {
 	if name == "bootstrap" {
-		return dialer.Bootstrap(), true
+		return netapi.Bootstrap(), true
 	}
 
 	e, ok := r.store.Load(name)
@@ -117,7 +116,7 @@ func (r *Resolver) getResolver(name string) (netapi.Resolver, bool) {
 
 		dialer := &dnsDialer{
 			Proxy:    r.dialer,
-			resolver: dialer.Bootstrap,
+			resolver: netapi.Bootstrap,
 			name:     name,
 		}
 
@@ -187,7 +186,7 @@ func (r *Resolver) ApplyBootstrap(c *pd.Dns) {
 		if err != nil {
 			log.Error("new bootstrap dns failed", "err", err)
 		} else {
-			dialer.SetBootstrap(z)
+			netapi.SetBootstrap(z)
 			r.bootstrapConfig = c
 		}
 	}

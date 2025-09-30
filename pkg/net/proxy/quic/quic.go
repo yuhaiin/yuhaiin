@@ -95,7 +95,7 @@ func NewClient(config *protocol.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
 			goto next
 		}
 
-		ips, err := dialer.ResolverIP(context.TODO(), addr.Hostname())
+		ips, err := netapi.ResolverIP(context.TODO(), addr.Hostname())
 		if err != nil {
 			return nil, err
 		}

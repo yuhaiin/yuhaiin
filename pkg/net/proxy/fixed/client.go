@@ -229,7 +229,7 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 	if !addr.IsFqdn() {
 		uaddr = net.UDPAddrFromAddrPort(addr.(netapi.IPAddress).AddrPort())
 	} else {
-		ips, err := dialer.ResolverIP(ctx, addr.Hostname())
+		ips, err := netapi.ResolverIP(ctx, addr.Hostname())
 		if err != nil {
 			return nil, err
 		}
