@@ -6,7 +6,6 @@ import (
 	"net/netip"
 	"sync"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/tailscale/wireguard-go/conn"
 	"golang.org/x/net/ipv4"
@@ -116,7 +115,7 @@ func parseAddrPort(addr net.Addr) (netip.AddrPort, error) {
 		return naddr.(netapi.IPAddress).AddrPort(), nil
 	}
 
-	ips, err := dialer.ResolverIP(context.Background(), naddr.Hostname())
+	ips, err := netapi.ResolverIP(context.Background(), naddr.Hostname())
 	if err != nil {
 		return netip.AddrPort{}, err
 	}

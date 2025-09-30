@@ -15,7 +15,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
@@ -319,7 +318,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 	ctx, cancel := context.WithTimeout(store, time.Second*5)
 	defer cancel()
 
-	ips, err := dialer.ResolverIP(ctx, dstAddr.Hostname())
+	ips, err := netapi.ResolverIP(ctx, dstAddr.Hostname())
 	if err != nil {
 		return fmt.Errorf("resolve addr failed: %w", err)
 	}

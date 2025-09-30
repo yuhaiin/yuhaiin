@@ -80,7 +80,7 @@ func (d *direct) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 				return
 			}
 
-			ur, err := dialer.ResolverIP(ctx, addr.Hostname())
+			ur, err := netapi.ResolverIP(ctx, addr.Hostname())
 			if err == nil {
 				o.PacketConnHintAddress = ur.RandUDPAddr(addr.Port())
 			}
@@ -98,7 +98,7 @@ func (d *direct) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 func (d *direct) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
 	var ip net.IP
 	if addr.IsFqdn() {
-		z, err := dialer.ResolverIP(ctx, addr.Hostname())
+		z, err := netapi.ResolverIP(ctx, addr.Hostname())
 		if err != nil {
 			return 0, err
 		}
@@ -201,7 +201,7 @@ func (p *UDPPacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
 			store := netapi.WithContext(context.Background())
 			store.ConnOptions().SetResolver(*p.resolver)
 			ctx, cancel := context.WithTimeout(store, time.Second*5)
-			ips, err := dialer.ResolverIP(ctx, a.Hostname())
+			ips, err := netapi.ResolverIP(ctx, a.Hostname())
 			cancel()
 			if err != nil {
 				return 0, err

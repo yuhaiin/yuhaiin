@@ -199,7 +199,7 @@ func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 	if !a.IsFqdn() {
 		udpAddr = net.UDPAddrFromAddrPort(a.(netapi.IPAddress).AddrPort())
 	} else {
-		ur, err := dialer.ResolverIP(w.ctx, a.Hostname())
+		ur, err := netapi.ResolverIP(w.ctx, a.Hostname())
 		if err != nil {
 			return 0, err
 		}
