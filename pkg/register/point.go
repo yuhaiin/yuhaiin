@@ -87,7 +87,7 @@ func (n *networkSplit) Close() error {
 }
 
 func Dialer(p *point.Point) (r netapi.Proxy, err error) {
-	r = bootstrapProxy
+	r = zeroproxy
 
 	for _, v := range p.GetProtocols() {
 		r, err = Wrap(GetPointValue(v), r)
@@ -127,16 +127,16 @@ func Wrap(p proto.Message, x netapi.Proxy) (netapi.Proxy, error) {
 	return conn(p, x)
 }
 
-var bootstrapProxy = netapi.NewErrProxy(errors.New("bootstrap proxy"))
+var zeroproxy = netapi.NewErrProxy(errors.New("bootstrap proxy"))
 
-func IsBootstrap(p netapi.Proxy) bool { return p == bootstrapProxy }
+func IsZero(p netapi.Proxy) bool { return p == zeroproxy }
 
 func SetBootstrap(p netapi.Proxy) {
 	if p == nil {
 		return
 	}
 
-	bootstrapProxy = p
+	zeroproxy = p
 }
 
 type bootstrapDnsWarp struct {

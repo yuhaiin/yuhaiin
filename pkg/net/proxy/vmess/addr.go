@@ -1,9 +1,6 @@
 package vmess
 
 import (
-	"context"
-
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
@@ -25,7 +22,7 @@ func (a address) Type() Atyp {
 		return AtypDomain
 	}
 
-	addrPort, _ := dialer.ResolverAddrPort(context.Background(), a.Address)
+	addrPort := a.Address.(netapi.IPAddress).AddrPort()
 	if addrPort.Addr().Is6() {
 		return AtypIP6
 	}
@@ -38,7 +35,7 @@ func (a address) Bytes() []byte {
 		return append([]byte{byte(len(a.Hostname()))}, []byte(a.Hostname())...)
 	}
 
-	addrPort, _ := dialer.ResolverAddrPort(context.Background(), a.Address)
+	addrPort := a.Address.(netapi.IPAddress).AddrPort()
 
 	return addrPort.Addr().AsSlice()
 }

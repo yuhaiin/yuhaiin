@@ -1,14 +1,12 @@
 package tun2socket
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"math/rand/v2"
 	"net"
 	"sync/atomic"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
@@ -186,10 +184,11 @@ func (h *UDPWriteBack) toTuple(addr net.Addr) (UDPTuple, error) {
 		return UDPTuple{}, err
 	}
 
-	daddr, err := dialer.ResolverIP(context.TODO(), address)
-	if err != nil {
-		return UDPTuple{}, err
+	if address.IsFqdn() {
+		return UDPTuple{}, fmt.Errorf("address: %s is not ip address", address.Hostname())
 	}
+
+	var daddr net.IP = address.(netapi.IPAddress).AddrPort().Addr().AsSlice()
 
 	if h.tuple.SourceAddr.Len() == 16 {
 		daddr = daddr.To16()

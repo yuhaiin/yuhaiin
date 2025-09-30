@@ -70,7 +70,7 @@ func NewClient(c *protocol.Fixed, p netapi.Proxy) (netapi.Proxy, error) {
 	simple := &Client{
 		addrs:        addrs,
 		p:            p,
-		nonBootstrap: p != nil && !register.IsBootstrap(p),
+		nonBootstrap: p != nil && !register.IsZero(p),
 		iface:        c.GetNetworkInterface(),
 	}
 
@@ -210,21 +210,31 @@ func (c *Client) successIndex(lastIndex, index int) {
 	}
 }
 
-func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
+func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketConn, error) {
+	addr := c.addrs[c.index.Load()]
+
 	if c.nonBootstrap {
-		conn, err := c.p.PacketConn(ctx, c.addrs[c.index.Load()])
+		conn, err := c.p.PacketConn(ctx, addr)
 		if err != nil {
 			return nil, err
 		}
 
-		return &packetConn{conn, c.addrs[c.index.Load()]}, nil
+		return &packetConn{conn, addr}, nil
 	}
 
 	ctx = netapi.WithContext(ctx)
 
-	ur, err := dialer.ResolveUDPAddr(ctx, c.addrs[c.index.Load()])
-	if err != nil {
-		return nil, err
+	var uaddr *net.UDPAddr
+
+	if !addr.IsFqdn() {
+		uaddr = net.UDPAddrFromAddrPort(addr.(netapi.IPAddress).AddrPort())
+	} else {
+		ips, err := dialer.ResolverIP(ctx, addr.Hostname())
+		if err != nil {
+			return nil, err
+		}
+
+		uaddr = ips.RandUDPAddr(addr.Port())
 	}
 
 	log.Info("fixed packet conn", "addr", addr)
@@ -234,13 +244,13 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 			o.InterfaceName = c.iface
 		}
 
-		o.PacketConnHintAddress = ur
+		o.PacketConnHintAddress = uaddr
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &packetConn{conn, ur}, nil
+	return &packetConn{conn, uaddr}, nil
 }
 
 func (c *Client) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {

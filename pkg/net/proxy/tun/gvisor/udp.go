@@ -1,14 +1,12 @@
 package gvisor
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"math"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/buffer"
@@ -122,10 +120,7 @@ func (w *tunServer) WriteUDPBack(data []byte, sourceAddr tcpip.Address, sourcePo
 		return 0, fmt.Errorf("send FQDN packet")
 	}
 
-	dip, err := dialer.ResolverAddrPort(context.TODO(), daddr)
-	if err != nil {
-		return 0, err
-	}
+	dip := daddr.(netapi.IPAddress).AddrPort()
 
 	if sourceAddr.Len() == 4 && (dip.Addr().Is6() && !dip.Addr().Is4In6()) {
 		log.Warn("send IPv6 packet to IPv4 connection", slog.String("src", sourceAddr.String()), slog.String("dst", dip.String()))

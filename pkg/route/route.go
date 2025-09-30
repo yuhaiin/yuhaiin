@@ -70,20 +70,8 @@ func (s *Route) Tags() iter.Seq[string] {
 }
 
 func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
-	var addr string
 	if store := netapi.GetContext(ctx); store.ConnOptions().SystemDialer() {
-		if host.IsFqdn() {
-			store.SetDomainString(host.String())
-			taddr, err := dialer.ResolveTCPAddr(ctx, host)
-			if err != nil {
-				return nil, netapi.NewDialError("tcp", err, host)
-			}
-			addr = taddr.String()
-		} else {
-			addr = host.String()
-		}
-
-		return dialer.DialContext(ctx, "tcp", addr)
+		return dialer.DialHappyEyeballsv2(ctx, host)
 	}
 
 	result := s.dispatch(ctx, host)
@@ -244,13 +232,13 @@ func (s *Route) addMatchers() {
 	})
 }
 
-func (s *Route) dispatch(ctx context.Context, host netapi.Address) routeResult {
-	s.dumpProcess(ctx, host.Network())
+func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
+	s.dumpProcess(ctx, addr.Network())
 
 	start := system.CheapNowNano()
 	var mode bypass.ModeEnum
 	for _, m := range s.matchers {
-		if mode = m.Match(ctx, host); !mode.Mode().Unspecified() {
+		if mode = m.Match(ctx, addr); !mode.Mode().Unspecified() {
 			break
 		}
 	}
@@ -262,19 +250,19 @@ func (s *Route) dispatch(ctx context.Context, host netapi.Address) routeResult {
 
 	store.Mode = mode.Mode()
 
-	if s.config.Load().GetResolveLocally() && host.IsFqdn() && mode.Mode() == bypass.Mode_proxy {
+	if s.config.Load().GetResolveLocally() && addr.IsFqdn() && mode.Mode() == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
-		ip, err := dialer.ResolverIP(ctx, host)
+		ip, err := dialer.ResolverIP(ctx, addr.Hostname())
 		if err == nil {
-			store.SetDomainString(host.String())
-			host = netapi.ParseIPAddr(host.Network(), ip, host.Port())
-			store.SetIPString(host.String())
+			store.SetDomainString(addr.String())
+			addr = netapi.ParseIPAddr(addr.Network(), ip.Rand(), addr.Port())
+			store.SetIPString(addr.String())
 		} else {
 			log.Warn("resolve remote domain failed", "err", err)
 		}
 	}
 
-	return routeResult{host, mode}
+	return routeResult{addr, mode}
 }
 
 func (s *Route) getResolverFallback(mode bypass.ModeEnum) string {

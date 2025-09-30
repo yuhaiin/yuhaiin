@@ -174,20 +174,9 @@ func (bind *netBindClient) receive(packets [][]byte, sizes []int, eps []conn.End
 		return 0, err
 	}
 
-	var addrPort netip.AddrPort
-	uaddr, ok := addr.(*net.UDPAddr)
-	if ok {
-		addrPort = uaddr.AddrPort()
-	} else {
-		naddr, err := netapi.ParseSysAddr(addr)
-		if err != nil {
-			return 0, err
-		}
-
-		addrPort, err = dialer.ResolverAddrPort(context.Background(), naddr)
-		if err != nil {
-			return 0, err
-		}
+	addrPort, err := parseAddrPort(addr)
+	if err != nil {
+		return 0, err
 	}
 
 	if n > 3 {
@@ -196,7 +185,6 @@ func (bind *netBindClient) receive(packets [][]byte, sizes []int, eps []conn.End
 
 	sizes[0] = n
 	eps[0] = Endpoint(addrPort)
-
 	return 1, nil
 }
 

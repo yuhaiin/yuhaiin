@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/server"
 	dnssystem "github.com/Asutorufa/yuhaiin/pkg/net/dns/system"
@@ -183,7 +182,7 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 		return addr
 	}
 
-	addrPort, _ := dialer.ResolverAddrPort(ctx, addr)
+	addrPort := addr.(netapi.IPAddress).AddrPort()
 
 	if !f.fake.Contains(addrPort.Addr()) {
 		return addr

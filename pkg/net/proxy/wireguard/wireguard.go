@@ -195,12 +195,19 @@ func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 		return 0, err
 	}
 
-	ur, err := dialer.ResolveUDPAddr(w.ctx, a)
-	if err != nil {
-		return 0, err
+	var udpAddr *net.UDPAddr
+	if !a.IsFqdn() {
+		udpAddr = net.UDPAddrFromAddrPort(a.(netapi.IPAddress).AddrPort())
+	} else {
+		ur, err := dialer.ResolverIP(w.ctx, a.Hostname())
+		if err != nil {
+			return 0, err
+		}
+
+		udpAddr = ur.RandUDPAddr(a.Port())
 	}
 
-	return w.UDPConn.WriteTo(buf, ur)
+	return w.UDPConn.WriteTo(buf, udpAddr)
 }
 
 func (w *wrapGoNetUdpConn) ReadFrom(buf []byte) (int, net.Addr, error) {
