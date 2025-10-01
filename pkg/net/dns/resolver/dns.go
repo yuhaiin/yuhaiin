@@ -496,6 +496,8 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dns.Type) 
 		return nil, fmt.Errorf("empty domain")
 	}
 
+	metrics.Counter.AddLookupIP(reqType)
+
 	domain = system.AbsDomain(domain)
 
 	rawmsg, err := c.raw(ctx, dns.Question{
@@ -504,11 +506,12 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dns.Type) 
 		Qclass: dns.ClassINET,
 	})
 	if err != nil {
+		metrics.Counter.AddLookupIPFailed("RAWFAIL", reqType)
 		return nil, fmt.Errorf("send dns message failed: %w", err)
 	}
 
 	if rawmsg.Rcode != dns.RcodeSuccess {
-		metrics.Counter.AddFailedDNS(domain, rawmsg.Rcode, reqType)
+		metrics.Counter.AddLookupIPFailed(dns.RcodeToString[rawmsg.Rcode], reqType)
 		return nil, &net.DNSError{
 			Err:         dns.RcodeToString[rawmsg.Rcode],
 			Server:      c.config.Host,
@@ -544,7 +547,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dns.Type) 
 	}
 
 	if len(ips) == 0 {
-		metrics.Counter.AddFailedDNS(domain, dns.RcodeSuccess, reqType)
+		metrics.Counter.AddLookupIPFailed("ZEROIP", reqType)
 		return nil, &net.DNSError{
 			Err:         "no such host",
 			Server:      c.config.Host,

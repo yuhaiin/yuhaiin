@@ -45,7 +45,7 @@ func (x *Trie[T]) SearchFqdn(addr netapi.Address) (mark T, ok bool) {
 }
 
 func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok bool) {
-	if mark, ok = x.SearchFqdn(addr); ok {
+	if mark, ok = x.SearchFqdn(addr); ok || !addr.IsFqdn() {
 		return
 	}
 
