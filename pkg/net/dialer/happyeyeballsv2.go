@@ -206,8 +206,11 @@ func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address,
 	go func() {
 		var wg sync.WaitGroup
 
+		primaryDone := make(chan struct{})
+
 		wg.Go(func() {
 			defer semaphore.Release(1)
+			defer close(primaryDone)
 			r.do(true)
 
 			select {
@@ -219,14 +222,17 @@ func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address,
 		wg.Go(func() {
 			defer semaphore.Release(1)
 			r.do(false)
-			// If a positive
-			// A response is received first due to reordering, the client SHOULD
-			// wait a short time for the AAAA response to ensure that preference is
-			// given to IPv6 (it is common for the AAAA response to follow the A
-			// response by a few milliseconds).  This delay will be referred to as
-			// the "Resolution Delay".  The recommended value for the Resolution
-			// Delay is 50 milliseconds.
-			time.Sleep(time.Millisecond * 50)
+			select {
+			case <-primaryDone:
+			case <-time.After(time.Millisecond * 50):
+				// If a positive
+				// A response is received first due to reordering, the client SHOULD
+				// wait a short time for the AAAA response to ensure that preference is
+				// given to IPv6 (it is common for the AAAA response to follow the A
+				// response by a few milliseconds).  This delay will be referred to as
+				// the "Resolution Delay".  The recommended value for the Resolution
+				// Delay is 50 milliseconds.
+			}
 
 			select {
 			case r.notify <- struct{}{}:

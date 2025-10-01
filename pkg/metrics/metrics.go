@@ -65,7 +65,8 @@ type Metrics interface {
 	RemoveConnection(n int)
 	AddStreamConnectDuration(t float64)
 	AddDNSProcess(domain string)
-	AddFailedDNS(domain string, rcode int, t dns.Type)
+	AddLookupIP(t dns.Type)
+	AddLookupIPFailed(rcode string, t dns.Type)
 	AddTCPDialFailed(addr string)
 
 	AddStreamRequest()
@@ -98,7 +99,8 @@ func (m *EmptyMetrics) AddBlockConnection(string)           {}
 func (m *EmptyMetrics) RemoveConnection(int)                {}
 func (m *EmptyMetrics) AddStreamConnectDuration(float64)    {}
 func (m *EmptyMetrics) AddDNSProcess(string)                {}
-func (m *EmptyMetrics) AddFailedDNS(string, int, dns.Type)  {}
+func (m *EmptyMetrics) AddLookupIPFailed(string, dns.Type)  {}
+func (m *EmptyMetrics) AddLookupIP(dns.Type)                {}
 func (m *EmptyMetrics) AddTCPDialFailed(string)             {}
 func (m *EmptyMetrics) AddStreamRequest()                   {}
 func (m *EmptyMetrics) AddPacketRequest()                   {}
@@ -138,7 +140,8 @@ type Prometheus struct {
 	StreamConnectSummarySeconds  prometheus.Summary
 
 	DNSServerProcessTotal   prometheus.Counter
-	FiledDNSTotal           prometheus.Counter
+	LookupIPFailedTotal     *prometheus.CounterVec
+	LookupIPTotal           *prometheus.CounterVec
 	DNSQueryDurationSeconds *prometheus.HistogramVec
 	DNSQueryErrorTotal      *prometheus.CounterVec
 	DNSQueryTotal           *prometheus.CounterVec
@@ -260,11 +263,16 @@ func NewPrometheus() *Prometheus {
 			Help:        "The total number of dns process",
 			ConstLabels: labels,
 		}),
-		FiledDNSTotal: promauto.NewCounter(prometheus.CounterOpts{
-			Name:        "yuhaiin_dns_request_failed_total",
-			Help:        "The total number of dns request failed",
+		LookupIPFailedTotal: promauto.NewCounterVec(prometheus.CounterOpts{
+			Name:        "yuhaiin_dns_lookup_ip_failed_total",
+			Help:        "The total number of dns lookup ip failed",
 			ConstLabels: labels,
-		}),
+		}, []string{"rcode", "type"}),
+		LookupIPTotal: promauto.NewCounterVec(prometheus.CounterOpts{
+			Name:        "yuhaiin_dns_lookup_ip_total",
+			Help:        "The total number of dns lookup ip",
+			ConstLabels: labels,
+		}, []string{"type"}),
 		DNSQueryDurationSeconds: promauto.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "yuhaiin_dns_query_duration_seconds",
 			Help:        "The duration of dns query",
@@ -331,8 +339,12 @@ func (p *Prometheus) AddDNSProcess(domain string) {
 	p.DNSServerProcessTotal.Inc()
 }
 
-func (p *Prometheus) AddFailedDNS(domain string, rcode int, t dns.Type) {
-	p.FiledDNSTotal.Inc()
+func (p *Prometheus) AddLookupIPFailed(rcode string, t dns.Type) {
+	p.LookupIPFailedTotal.WithLabelValues(rcode, t.String()).Inc()
+}
+
+func (p *Prometheus) AddLookupIP(t dns.Type) {
+	p.LookupIPTotal.WithLabelValues(t.String()).Inc()
 }
 
 func (p *Prometheus) AddTCPDialFailed(addr string) {
