@@ -1,5 +1,7 @@
 package ac
 
+import "github.com/Asutorufa/yuhaiin/pkg/utils/list"
+
 type ac struct {
 	root *acNode
 }
@@ -10,52 +12,56 @@ type acNode struct {
 	mark string
 }
 
-func (a *ac) search(str string) []string {
+func (a *ac) search(str string, f func(string) bool) {
 	p := a.root
-	resp := []string{}
 
 	for _, c := range str {
-		_, ok := p.node[c]
-		for !ok && p != a.root {
+		for p != a.root {
+			if _, ok := p.node[c]; ok {
+				break
+			}
 			p = p.fail
-			_, ok = p.node[c]
 		}
 
-		if _, ok = p.node[c]; ok {
-			p = p.node[c]
-			if p.mark != "" {
-				resp = append(resp, p.mark)
+		z, ok := p.node[c]
+		if !ok {
+			continue
+		}
+
+		p = z
+
+		if p.mark != "" {
+			if !f(p.mark) {
+				return
 			}
-			if p.fail.mark != "" {
-				resp = append(resp, p.fail.mark)
+		}
+
+		if p.fail.mark != "" {
+			if !f(p.fail.mark) {
+				return
 			}
 		}
 	}
+}
+
+func (a *ac) Search(str string) []string {
+	resp := []string{}
+
+	a.search(str, func(s string) bool {
+		resp = append(resp, s)
+		return true
+	})
+
 	return resp
 }
 
-func (a *ac) searchLongest(str string) string {
-	p := a.root
-	resp := ""
+func (a *ac) Exist(str string) bool {
+	resp := false
 
-	for _, c := range str {
-		_, ok := p.node[c]
-		for !ok && p != a.root {
-			p = p.fail
-			_, ok = p.node[c]
-		}
-
-		if _, ok = p.node[c]; ok {
-
-			p = p.node[c]
-			if p.mark != "" {
-				resp = p.mark
-			}
-			// if p.fail.mark != "" {
-			// resp = p.fail.mark
-			// }
-		}
-	}
+	a.search(str, func(s string) bool {
+		resp = true
+		return false
+	})
 
 	return resp
 }
@@ -72,15 +78,24 @@ func (a *ac) Insert(str string) {
 }
 
 func (a *ac) BuildFail() {
-	que := newQueue()
-	que.push(&queueElem{p: a.root, n: a.root})
+	type queueElem struct {
+		p *acNode
+		n *acNode
+		b rune
+	}
 
-	for que.size() != 0 {
-		z := que.pop()
+	queue := list.NewList[*queueElem]()
+	queue.PushBack(&queueElem{p: a.root, n: a.root})
+
+	for queue.Len() != 0 {
+		zz := queue.Front()
+		queue.Remove(zz)
+
+		z := zz.Value()
 		z.n.fail = a.findFail(z.p, z.b)
 
 		for k, v := range z.n.node {
-			que.push(&queueElem{
+			queue.PushBack(&queueElem{
 				p: z.n,
 				n: v,
 				b: k,
@@ -99,37 +114,6 @@ func (a *ac) findFail(parent *acNode, b rune) *acNode {
 	return a.findFail(parent.fail, b)
 }
 
-type queueElem struct {
-	p *acNode
-	n *acNode
-	b rune
-}
-type queue struct {
-	qu []*queueElem
-}
-
-func newQueue() *queue {
-	return &queue{
-		qu: []*queueElem{},
-	}
-}
-
-func (q *queue) pop() *queueElem {
-	if len(q.qu) == 0 {
-		return &queueElem{}
-	}
-	x := q.qu[0]
-	q.qu = q.qu[1:]
-	return x
-}
-
-func (q *queue) push(x *queueElem) {
-	q.qu = append(q.qu, x)
-}
-
-func (q *queue) size() int {
-	return len(q.qu)
-}
 func NewAC() *ac {
 	r := &acNode{node: make(map[rune]*acNode)}
 	r.fail = r
