@@ -155,7 +155,6 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 		return msg, nil
 
 	case dnsmessage.TypeHTTPS:
-		// wait https://github.com/golang/go/issues/43790 implement
 		msg, err := f.Resolver.Raw(ctx, req)
 		if err != nil {
 			return msg, err

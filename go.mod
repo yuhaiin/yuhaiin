@@ -11,22 +11,22 @@ require (
 	github.com/minio/minio-go/v7 v7.0.95
 	github.com/prometheus-community/pro-bing v0.7.0
 	github.com/prometheus/client_golang v1.23.2
-	github.com/quic-go/quic-go v0.54.1
+	github.com/quic-go/quic-go v0.55.0
 	github.com/refraction-networking/utls v1.8.0
 	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da
 	github.com/vishvananda/netlink v1.3.1
-	github.com/xtls/reality v0.0.0-20250904214705-431b6ff8c67c
+	github.com/xtls/reality v0.0.0-20251005124704-8f4f0a188196
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250930185705-c84570f79456
 	go.etcd.io/bbolt v1.4.3
-	golang.org/x/crypto v0.42.0
+	golang.org/x/crypto v0.43.0
 	golang.org/x/mobile v0.0.0-20250911085028-6912353760cf
-	golang.org/x/net v0.44.1-0.20250919211339-10342476f5c8
+	golang.org/x/net v0.46.0
 	golang.org/x/sync v0.17.0
-	golang.org/x/sys v0.36.0
-	golang.org/x/time v0.13.0
+	golang.org/x/sys v0.37.0
+	golang.org/x/time v0.14.0
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20250318115841-8e6558eba666
-	google.golang.org/grpc v1.75.1
-	google.golang.org/protobuf v1.36.9
+	google.golang.org/grpc v1.76.0
+	google.golang.org/protobuf v1.36.10
 	gvisor.dev/gvisor v0.0.0-20250529183007-2a7b5c7dece9
 	tailscale.com v1.9999999999.99999999999
 )
@@ -109,8 +109,8 @@ require (
 	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
 	golang.org/x/mod v0.28.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/term v0.35.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
+	golang.org/x/term v0.36.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
 	golang.org/x/tools v0.37.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250908214217-97024824d090 // indirect

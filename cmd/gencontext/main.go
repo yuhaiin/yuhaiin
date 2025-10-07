@@ -111,7 +111,7 @@ func toString(k, str string, t reflect.Type) (string, bool) {
 	case reflect.String:
 		return fmt.Sprintf(String, str, k, str), true
 	default:
-		if t.Implements(reflect.TypeOf((*fmt.Stringer)(nil)).Elem()) {
+		if t.Implements(reflect.TypeFor[*fmt.Stringer]().Elem()) {
 			return Stringer(k, str, t), true
 		}
 
