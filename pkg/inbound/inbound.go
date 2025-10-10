@@ -110,6 +110,7 @@ func (l *Inbound) HandlePing(packet *netapi.PingMeta) {
 	store.Source = packet.Source
 	store.Destination = packet.Destination
 	store.SetInboundName(packet.InboundName)
+	store.ConnOptions().SetIsUdp(true)
 	l.handler.Ping(store, packet)
 }
 

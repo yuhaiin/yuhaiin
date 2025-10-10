@@ -114,6 +114,7 @@ type ConnOptions struct {
 	routeMode     bypass.Mode
 	systemDialer  bool
 	skipRoute     bool
+	isUdp         bool
 }
 
 func (s *ConnOptions) SetBindAddress(str string) *ConnOptions {
@@ -191,6 +192,15 @@ func (s *ConnOptions) SetSkipRoute(skip bool) *ConnOptions {
 
 func (s *ConnOptions) SkipRoute() bool {
 	return s.skipRoute
+}
+
+func (s *ConnOptions) SetIsUdp(isUdp bool) *ConnOptions {
+	s.isUdp = isUdp
+	return s
+}
+
+func (s *ConnOptions) IsUdp() bool {
+	return s.isUdp
 }
 
 type Sniff struct {

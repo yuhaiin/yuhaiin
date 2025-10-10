@@ -2,7 +2,6 @@ package system
 
 import (
 	"net"
-	_ "net"
 	"net/netip"
 	"os"
 	"runtime"
