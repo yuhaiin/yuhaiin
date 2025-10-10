@@ -145,6 +145,7 @@ type clientConnEntry struct {
 type clientConnectionPool struct {
 	t           *http2.Transport
 	store       map[*http2.ClientConn]clientConnEntry
+	udpStore    map[*http2.ClientConn]clientConnEntry
 	concurrency int
 	count       atomic.Uint64
 	mu          sync.Mutex
@@ -155,6 +156,7 @@ func newClientConnectionPool(t *http2.Transport, concurrency int) *clientConnect
 		t:           t,
 		concurrency: concurrency,
 		store:       make(map[*http2.ClientConn]clientConnEntry, 10),
+		udpStore:    make(map[*http2.ClientConn]clientConnEntry, 10),
 	}
 }
 
@@ -162,11 +164,16 @@ func (c *clientConnectionPool) GetClientConn(req *http.Request, addr string) (*h
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for k, v := range c.store {
+	store := c.store
+	if netapi.GetContext(req.Context()).ConnOptions().IsUdp() {
+		store = c.udpStore
+	}
+
+	for k, v := range store {
 		state := k.State()
 
 		if state.Closed || state.Closing {
-			delete(c.store, k)
+			delete(store, k)
 			k.SetDoNotReuse()
 			continue
 		}
@@ -192,8 +199,7 @@ func (c *clientConnectionPool) GetClientConn(req *http.Request, addr string) (*h
 		id:    c.count.Add(1),
 		count: new(atomic.Uint32),
 	}
-	c.store[cc] = entry
-
+	store[cc] = entry
 	ContextGetClientConnInfo(req.Context(), entry.id, entry.count.Add(1), cc)
 
 	return cc, nil
@@ -204,6 +210,10 @@ func (c *clientConnectionPool) MarkDead(hc *http2.ClientConn) {
 	_, ok := c.store[hc]
 	if ok {
 		delete(c.store, hc)
+	}
+	_, ok = c.udpStore[hc]
+	if ok {
+		delete(c.udpStore, hc)
 	}
 	c.mu.Unlock()
 }

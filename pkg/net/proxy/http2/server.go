@@ -86,16 +86,16 @@ func newServer(lis net.Listener) *Server {
 				}()
 
 				(&http2.Server{
-					MaxConcurrentStreams: 100,
+					MaxConcurrentStreams: 1000,
 					IdleTimeout:          time.Minute,
-					MaxReadFrameSize:     pool.DefaultSize,
+					MaxReadFrameSize:     pool.MaxSegmentSize,
+					NewWriteScheduler:    NewRandomWriteScheduler,
 				}).ServeConn(conn, &http2.ServeConnOpts{
 					Handler: h,
 					Context: h.closedCtx,
 				})
 			}()
 		}
-
 	}()
 
 	return h
