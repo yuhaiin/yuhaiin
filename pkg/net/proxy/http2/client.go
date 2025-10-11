@@ -56,12 +56,17 @@ func NewClient(config *protocol.Http2, p netapi.Proxy) (netapi.Proxy, error) {
 	}, nil
 }
 
+var idg atomic.Uint64
+
+func init() {
+	idg.Store(uint64(time.Now().Unix()))
+}
+
 func (c *Client) Conn(pctx context.Context, add netapi.Address) (net.Conn, error) {
 	var (
 		localAddr  net.Addr = netapi.EmptyAddr
 		remoteAddr net.Addr = netapi.EmptyAddr
-		ConnID     string
-		conn       *http2.ClientConn
+		gc                  = &getClientConnInfo{}
 
 		tract = &httptrace.ClientTrace{
 			GotConn: func(gci httptrace.GotConnInfo) {
@@ -80,14 +85,11 @@ func (c *Client) Conn(pctx context.Context, add netapi.Address) (net.Conn, error
 	stopCancel := context.AfterFunc(pctx, cancel)
 	defer stopCancel()
 
-	hctx := httptrace.WithClientTrace(ctx, tract)
-	hctx = WithGetClientConnInfo(hctx, func(connID uint64, streamID uint32, c *http2.ClientConn) {
-		ConnID, conn = fmt.Sprintf("%p-%d", c, streamID), c
-	})
+	ctx = WithGetClientConnInfo(httptrace.WithClientTrace(ctx, tract), gc)
 
 	// because Body is a ReadCloser, it's just need CloseRead
 	// we should don't allow it close write
-	req, err := http.NewRequestWithContext(hctx,
+	req, err := http.NewRequestWithContext(ctx,
 		http.MethodConnect, "https://localhost", io.NopCloser(p1))
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
@@ -97,8 +99,8 @@ func (c *Client) Conn(pctx context.Context, add netapi.Address) (net.Conn, error
 	if err != nil {
 		_ = p1.Close()
 		_ = p2.Close()
-		if conn != nil {
-			conn.SetDoNotReuse()
+		if gc.conn != nil {
+			gc.conn.SetDoNotReuse()
 		}
 		return nil, fmt.Errorf("round trip failed: %w", err)
 	}
@@ -116,7 +118,7 @@ func (c *Client) Conn(pctx context.Context, add netapi.Address) (net.Conn, error
 		}
 	}()
 
-	p2.SetLocalAddr(addr{addr: localAddr.String(), id: ConnID})
+	p2.SetLocalAddr(addr{addr: localAddr.String(), id: idg.Add(1)})
 	p2.SetRemoteAddr(remoteAddr)
 
 	return p2, nil
@@ -139,10 +141,6 @@ func (c *Client) Close() error {
 	return nil
 }
 
-type clientConnEntry struct {
-	conn  *http2.ClientConn
-	count *atomic.Uint32
-}
 type clientConnectionPool struct {
 	t *http2.Transport
 
@@ -188,12 +186,8 @@ func (c *clientConnectionPool) GetClientConn(req *http.Request, addr string) (*h
 		return nil, err
 	}
 
-	entry := &clientConnEntry{
-		conn:  cc,
-		count: new(atomic.Uint32),
-	}
-	store.Push(entry)
-	ContextGetClientConnInfo(req.Context(), entry)
+	store.Push(cc)
+	ContextGetClientConnInfo(req.Context(), cc)
 
 	return cc, nil
 }
@@ -209,35 +203,37 @@ func (c *clientConnectionPool) MarkDead(hc *http2.ClientConn) {
 }
 
 type clientConnInfoKey struct{}
-type getClientConnInfo func(connID uint64, streamID uint32, conn *http2.ClientConn)
+type getClientConnInfo struct {
+	conn *http2.ClientConn
+}
 
-func ContextGetClientConnInfo(ctx context.Context, entry *clientConnEntry) {
-	z, ok := ctx.Value(clientConnInfoKey{}).(getClientConnInfo)
+func ContextGetClientConnInfo(ctx context.Context, entry *http2.ClientConn) {
+	z, ok := ctx.Value(clientConnInfoKey{}).(*getClientConnInfo)
 	if ok {
-		z(0, entry.count.Add(1), entry.conn)
+		z.conn = entry
 	}
 }
 
-func WithGetClientConnInfo(ctx context.Context, f getClientConnInfo) context.Context {
+func WithGetClientConnInfo(ctx context.Context, f *getClientConnInfo) context.Context {
 	return context.WithValue(ctx, clientConnInfoKey{}, f)
 }
 
 type connList struct {
-	maps           map[*http2.ClientConn]*list.Element[*clientConnEntry]
-	list           *list.List[*clientConnEntry]
+	maps           map[*http2.ClientConn]*list.Element[*http2.ClientConn]
+	list           *list.List[*http2.ClientConn]
 	maxConcurrency int
 }
 
 func newConnList(maxConcurrency int) *connList {
 	return &connList{
 		maxConcurrency: maxConcurrency,
-		maps:           make(map[*http2.ClientConn]*list.Element[*clientConnEntry]),
-		list:           list.New[*clientConnEntry](),
+		maps:           make(map[*http2.ClientConn]*list.Element[*http2.ClientConn]),
+		list:           list.New[*http2.ClientConn](),
 	}
 }
 
-func (c *connList) Push(entry *clientConnEntry) {
-	c.maps[entry.conn] = c.list.PushFront(entry)
+func (c *connList) Push(entry *http2.ClientConn) {
+	c.maps[entry] = c.list.PushFront(entry)
 }
 
 func (c *connList) Remove(conn *http2.ClientConn) {
@@ -246,16 +242,16 @@ func (c *connList) Remove(conn *http2.ClientConn) {
 	}
 }
 
-func (c *connList) removeElem(entry *list.Element[*clientConnEntry]) {
+func (c *connList) removeElem(entry *list.Element[*http2.ClientConn]) {
 	c.list.Remove(entry)
-	delete(c.maps, entry.Value().conn)
+	delete(c.maps, entry.Value())
 }
 
 func (c *connList) Get(req *http.Request) *http2.ClientConn {
 	e := c.list.Front()
 
 	for e != nil {
-		conn := e.Value().conn
+		conn := e.Value()
 		state := conn.State()
 
 		if state.Closed || state.Closing {
@@ -279,7 +275,6 @@ func (c *connList) Get(req *http.Request) *http2.ClientConn {
 		if currentNum+1 < c.maxConcurrency {
 			c.list.MoveToFront(e)
 		} else {
-			log.Info("client connection pool full", "currentNum", currentNum, "maxConcurrency", c.maxConcurrency, "ptr", fmt.Sprintf("%p", e.Value()))
 			c.list.MoveToBack(e)
 		}
 

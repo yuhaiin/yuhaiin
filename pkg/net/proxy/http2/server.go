@@ -161,7 +161,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c1, c2 := pipe.Pipe()
 
 	c2.SetLocalAddr(s.Addr())
-	c2.SetRemoteAddr(&addr{r.RemoteAddr, fmt.Sprint(s.id.Generate())})
+	c2.SetRemoteAddr(&addr{r.RemoteAddr, s.id.Generate()})
 
 	select {
 	case <-r.Context().Done():
@@ -193,11 +193,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type addr struct {
 	addr string
-	id   string
+	id   uint64
 }
 
 func (addr) Network() string  { return "tcp" }
-func (a addr) String() string { return fmt.Sprintf("http2.h-%s-2%v", a.id, a.addr) }
+func (a addr) String() string { return fmt.Sprintf("http2.h-%d-2%v", a.id, a.addr) }
 
 type bodyReader struct {
 	io.ReadCloser
