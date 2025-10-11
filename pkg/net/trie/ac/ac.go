@@ -84,7 +84,7 @@ func (a *ac) BuildFail() {
 		b rune
 	}
 
-	queue := list.NewList[*queueElem]()
+	queue := list.New[*queueElem]()
 	queue.PushBack(&queueElem{p: a.root, n: a.root})
 
 	for queue.Len() != 0 {
