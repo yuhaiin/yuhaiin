@@ -3,11 +3,15 @@ package http2
 import (
 	"container/list"
 
-	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/net/http2"
 )
 
+// NewRandomWriteScheduler returns a new random write scheduler
+//
+// for proxy we don't care about the priority, but
+// we need care about the fairness among streams
 func NewRandomWriteScheduler() http2.WriteScheduler {
 	return &randomWriteScheduler{
 		zero: list.New(),
@@ -71,7 +75,7 @@ func (ws *randomWriteScheduler) Pop() (http2.FrameWriteRequest, bool) {
 			continue
 		}
 
-		consumed, rest, numresult := wr.Consume(int32(configuration.RelayBufferSize.Load()))
+		consumed, rest, numresult := wr.Consume(int32(pool.DefaultSize))
 		switch numresult {
 		case 0:
 			continue
