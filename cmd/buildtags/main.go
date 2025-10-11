@@ -11,7 +11,8 @@ func main() {
 	tags := make([]string, 0, len(featuretags.Features))
 
 	for k := range featuretags.Features {
-		if k == "serve" || k == "acme" {
+		switch k {
+		case "netstack", "serve", "acme":
 			continue
 		}
 

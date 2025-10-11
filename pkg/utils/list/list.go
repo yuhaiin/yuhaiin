@@ -41,10 +41,14 @@ type List[T any] struct {
 	l *list.List
 }
 
-func NewList[T any]() *List[T] { return &List[T]{l: list.New()} }
+func New[T any]() *List[T] { return &List[T]{l: list.New()} }
 
 func (s *List[T]) MoveToFront(e *Element[T]) {
 	s.l.MoveToFront(e.e)
+}
+
+func (s *List[T]) MoveToBack(e *Element[T]) {
+	s.l.MoveToBack(e.e)
 }
 
 func (s *List[T]) PushFront(v T) *Element[T] {

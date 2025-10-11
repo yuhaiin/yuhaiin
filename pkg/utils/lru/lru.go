@@ -53,7 +53,7 @@ func WithCapacity[K comparable, V any](capacity int) func(*lru[K, V]) {
 // New create new lru cache
 func newLru[K comparable, V any](options ...Option[K, V]) *lru[K, V] {
 	l := &lru[K, V]{
-		list:    list.NewList[*lruEntry[K, V]](),
+		list:    list.New[*lruEntry[K, V]](),
 		mapping: make(map[K]*list.Element[*lruEntry[K, V]]),
 	}
 
