@@ -26,7 +26,6 @@ import (
 	mdns "github.com/miekg/dns"
 	"tailscale.com/envknob"
 	"tailscale.com/ipn/ipnstate"
-	"tailscale.com/net/dns"
 	"tailscale.com/net/dnscache"
 	"tailscale.com/net/netns"
 	"tailscale.com/net/tsaddr"
@@ -378,6 +377,11 @@ func (t *Tailscale) PacketConnPacket(ctx context.Context, addr netapi.Address) (
 	return &warpPacketConn{ctx: context.WithoutCancel(ctx), PacketConn: conn}, nil
 }
 
+var (
+	tailscaleServiceIP   = tsaddr.TailscaleServiceIP()
+	tailscaleServiceIPv6 = tsaddr.TailscaleServiceIPv6()
+)
+
 func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	dialer, err := t.init(ctx)
 	if err != nil {
@@ -399,9 +403,10 @@ func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 	//      https://github.com/tailscale/tailscale/issues/4677
 	//
 	// the magic dns is not working on tsnet, so we need hijack it
-	if addr.Port() == 53 {
-		if hostname := addr.Hostname(); hostname == tsaddr.TailscaleServiceIP().String() || hostname == tsaddr.TailscaleServiceIPv6().String() {
-			return NewDnsPacket(dialer.Sys().DNSManager.Get(), dialer.Sys().Dialer.Get()), nil
+	if !addr.IsFqdn() && addr.Port() == 53 {
+		ipaddr := addr.(netapi.IPAddress).AddrPort().Addr().Unmap()
+		if ipaddr == tailscaleServiceIP || ipaddr == tailscaleServiceIPv6 {
+			return NewDnsPacket(dialer.Sys().Dialer.Get(), ipaddr), nil
 		}
 	}
 
@@ -511,22 +516,22 @@ type dnsPacket struct {
 	cancel        context.CancelFunc
 	ctx           context.Context
 	ch            chan []byte
-	mgr           *dns.Manager
 	writeDeadline pipe.PipeDeadline
 	readDeadline  pipe.PipeDeadline
 	dialer        *tsdial.Dialer
+	src           netip.Addr
 }
 
-func NewDnsPacket(mgr *dns.Manager, dialer *tsdial.Dialer) net.PacketConn {
+func NewDnsPacket(dialer *tsdial.Dialer, src netip.Addr) net.PacketConn {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &dnsPacket{
 		cancel:        cancel,
 		ctx:           ctx,
 		ch:            make(chan []byte, 100),
-		mgr:           mgr,
 		writeDeadline: pipe.MakePipeDeadline(),
 		readDeadline:  pipe.MakePipeDeadline(),
 		dialer:        dialer,
+		src:           src,
 	}
 }
 
@@ -545,32 +550,44 @@ func (d *dnsPacket) ReadFrom(buf []byte) (int, net.Addr, error) {
 		n := copy(buf, b)
 		pool.PutBytes(b)
 		return n, &net.UDPAddr{
-			IP:   net.IPv4(100, 100, 100, 100),
+			IP:   d.src.AsSlice(),
 			Port: 53,
 		}, nil
 	}
 }
 
 func (d *dnsPacket) WriteTo(buf []byte, addr net.Addr) (int, error) {
-	ctx, cancel := context.WithTimeout(d.ctx, configuration.ResolverTimeout)
-	defer cancel()
-
 	var msg mdns.Msg
-	if err := msg.Unpack(buf); err == nil {
-		log.Info("received mDNS packet",
-			"len", len(buf), "msg", msg.String(), "dnsMap", d.dialer.GetDNSMap())
-		if len(msg.Question) > 0 {
-			q := msg.Question[0]
-			if q.Qtype == mdns.TypeA || q.Qtype == mdns.TypeAAAA {
-				name := strings.TrimSuffix(q.Name, ".")
-				if ip, ok := d.dialer.GetDNSMap()[name]; ok {
-					log.Info("found mDNS ip", "qname", q.Name, "name", name, "ip", ip)
-				}
-			}
-		}
+	if err := msg.Unpack(buf); err != nil {
+		return 0, err
 	}
 
-	data, err := d.mgr.Query(ctx, buf, "udp", netip.AddrPort{})
+	if len(msg.Question) == 0 || msg.Question[0].Qtype != mdns.TypeA {
+		return len(buf), nil
+	}
+
+	q := msg.Question[0]
+	name := strings.TrimSuffix(q.Name, ".")
+
+	ip, ok := d.dialer.GetDNSMap()[name]
+	if !ok {
+		return len(buf), nil
+	}
+
+	msg.Response = true
+	msg.Answer = []mdns.RR{
+		&mdns.A{
+			Hdr: mdns.RR_Header{
+				Name:   q.Name,
+				Ttl:    600,
+				Class:  mdns.ClassINET,
+				Rrtype: mdns.TypeA,
+			},
+			A: ip.AsSlice(),
+		},
+	}
+
+	data, err := msg.Pack()
 	if err != nil {
 		return 0, err
 	}
