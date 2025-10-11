@@ -30,6 +30,7 @@ import (
 	"tailscale.com/net/dnscache"
 	"tailscale.com/net/netns"
 	"tailscale.com/net/tsaddr"
+	"tailscale.com/net/tsdial"
 	"tailscale.com/tailcfg"
 	"tailscale.com/tsnet"
 	"tailscale.com/types/nettype"
@@ -400,7 +401,7 @@ func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 	// the magic dns is not working on tsnet, so we need hijack it
 	if addr.Port() == 53 {
 		if hostname := addr.Hostname(); hostname == tsaddr.TailscaleServiceIP().String() || hostname == tsaddr.TailscaleServiceIPv6().String() {
-			return NewDnsPacket(dialer.Sys().DNSManager.Get()), nil
+			return NewDnsPacket(dialer.Sys().DNSManager.Get(), dialer.Sys().Dialer.Get()), nil
 		}
 	}
 
@@ -513,9 +514,10 @@ type dnsPacket struct {
 	mgr           *dns.Manager
 	writeDeadline pipe.PipeDeadline
 	readDeadline  pipe.PipeDeadline
+	dialer        *tsdial.Dialer
 }
 
-func NewDnsPacket(mgr *dns.Manager) net.PacketConn {
+func NewDnsPacket(mgr *dns.Manager, dialer *tsdial.Dialer) net.PacketConn {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &dnsPacket{
 		cancel:        cancel,
@@ -524,6 +526,7 @@ func NewDnsPacket(mgr *dns.Manager) net.PacketConn {
 		mgr:           mgr,
 		writeDeadline: pipe.MakePipeDeadline(),
 		readDeadline:  pipe.MakePipeDeadline(),
+		dialer:        dialer,
 	}
 }
 
@@ -551,6 +554,21 @@ func (d *dnsPacket) ReadFrom(buf []byte) (int, net.Addr, error) {
 func (d *dnsPacket) WriteTo(buf []byte, addr net.Addr) (int, error) {
 	ctx, cancel := context.WithTimeout(d.ctx, configuration.ResolverTimeout)
 	defer cancel()
+
+	var msg mdns.Msg
+	if err := msg.Unpack(buf); err == nil {
+		log.Info("received mDNS packet",
+			"len", len(buf), "msg", msg.String(), "dnsMap", d.dialer.GetDNSMap())
+		if len(msg.Question) > 0 {
+			q := msg.Question[0]
+			if q.Qtype == mdns.TypeA || q.Qtype == mdns.TypeAAAA {
+				name := strings.TrimSuffix(q.Name, ".")
+				if ip, ok := d.dialer.GetDNSMap()[name]; ok {
+					log.Info("found mDNS ip", "qname", q.Name, "name", name, "ip", ip)
+				}
+			}
+		}
+	}
 
 	data, err := d.mgr.Query(ctx, buf, "udp", netip.AddrPort{})
 	if err != nil {

@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"golang.org/x/net/http2"
@@ -81,7 +82,7 @@ func (c *Client) Conn(pctx context.Context, add netapi.Address) (net.Conn, error
 
 	hctx := httptrace.WithClientTrace(ctx, tract)
 	hctx = WithGetClientConnInfo(hctx, func(connID uint64, streamID uint32, c *http2.ClientConn) {
-		ConnID, conn = fmt.Sprintf("%d-%d", connID, streamID), c
+		ConnID, conn = fmt.Sprintf("%p-%d", c, streamID), c
 	})
 
 	// because Body is a ReadCloser, it's just need CloseRead
@@ -139,49 +140,41 @@ func (c *Client) Close() error {
 }
 
 type clientConnEntry struct {
+	conn  *http2.ClientConn
 	count *atomic.Uint32
-	id    uint64
 }
 type clientConnectionPool struct {
-	t           *http2.Transport
-	store       map[*http2.ClientConn]clientConnEntry
-	udpStore    map[*http2.ClientConn]clientConnEntry
-	concurrency int
-	count       atomic.Uint64
-	mu          sync.Mutex
+	t *http2.Transport
+
+	smu         sync.Mutex
+	streamStore *connList
+
+	dmu           sync.Mutex
+	datagramStore *connList
 }
 
 func newClientConnectionPool(t *http2.Transport, concurrency int) *clientConnectionPool {
 	return &clientConnectionPool{
-		t:           t,
-		concurrency: concurrency,
-		store:       make(map[*http2.ClientConn]clientConnEntry, 10),
-		udpStore:    make(map[*http2.ClientConn]clientConnEntry, 10),
+		t:             t,
+		streamStore:   newConnList(concurrency),
+		datagramStore: newConnList(concurrency),
 	}
 }
 
 func (c *clientConnectionPool) GetClientConn(req *http.Request, addr string) (*http2.ClientConn, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	store := c.store
+	var store *connList
 	if netapi.GetContext(req.Context()).ConnOptions().IsUdp() {
-		store = c.udpStore
+		c.dmu.Lock()
+		defer c.dmu.Unlock()
+		store = c.datagramStore
+	} else {
+		c.smu.Lock()
+		defer c.smu.Unlock()
+		store = c.streamStore
 	}
 
-	for k, v := range store {
-		state := k.State()
-
-		if state.Closed || state.Closing {
-			delete(store, k)
-			k.SetDoNotReuse()
-			continue
-		}
-
-		if state.StreamsActive+state.StreamsPending < c.concurrency {
-			ContextGetClientConnInfo(req.Context(), v.id, v.count.Add(1), k)
-			return k, nil
-		}
+	if conn := store.Get(req); conn != nil {
+		return conn, nil
 	}
 
 	conn, err := c.t.DialTLSContext(req.Context(), "tcp", addr, nil)
@@ -195,39 +188,102 @@ func (c *clientConnectionPool) GetClientConn(req *http.Request, addr string) (*h
 		return nil, err
 	}
 
-	entry := clientConnEntry{
-		id:    c.count.Add(1),
+	entry := &clientConnEntry{
+		conn:  cc,
 		count: new(atomic.Uint32),
 	}
-	store[cc] = entry
-	ContextGetClientConnInfo(req.Context(), entry.id, entry.count.Add(1), cc)
+	store.Push(entry)
+	ContextGetClientConnInfo(req.Context(), entry)
 
 	return cc, nil
 }
 
 func (c *clientConnectionPool) MarkDead(hc *http2.ClientConn) {
-	c.mu.Lock()
-	_, ok := c.store[hc]
-	if ok {
-		delete(c.store, hc)
-	}
-	_, ok = c.udpStore[hc]
-	if ok {
-		delete(c.udpStore, hc)
-	}
-	c.mu.Unlock()
+	c.smu.Lock()
+	c.streamStore.Remove(hc)
+	c.smu.Unlock()
+
+	c.dmu.Lock()
+	c.datagramStore.Remove(hc)
+	c.dmu.Unlock()
 }
 
 type clientConnInfoKey struct{}
 type getClientConnInfo func(connID uint64, streamID uint32, conn *http2.ClientConn)
 
-func ContextGetClientConnInfo(ctx context.Context, connID uint64, streamID uint32, conn *http2.ClientConn) {
+func ContextGetClientConnInfo(ctx context.Context, entry *clientConnEntry) {
 	z, ok := ctx.Value(clientConnInfoKey{}).(getClientConnInfo)
 	if ok {
-		z(connID, streamID, conn)
+		z(0, entry.count.Add(1), entry.conn)
 	}
 }
 
 func WithGetClientConnInfo(ctx context.Context, f getClientConnInfo) context.Context {
 	return context.WithValue(ctx, clientConnInfoKey{}, f)
+}
+
+type connList struct {
+	maps           map[*http2.ClientConn]*list.Element[*clientConnEntry]
+	list           *list.List[*clientConnEntry]
+	maxConcurrency int
+}
+
+func newConnList(maxConcurrency int) *connList {
+	return &connList{
+		maxConcurrency: maxConcurrency,
+		maps:           make(map[*http2.ClientConn]*list.Element[*clientConnEntry]),
+		list:           list.New[*clientConnEntry](),
+	}
+}
+
+func (c *connList) Push(entry *clientConnEntry) {
+	c.maps[entry.conn] = c.list.PushFront(entry)
+}
+
+func (c *connList) Remove(conn *http2.ClientConn) {
+	if elem, ok := c.maps[conn]; ok {
+		c.removeElem(elem)
+	}
+}
+
+func (c *connList) removeElem(entry *list.Element[*clientConnEntry]) {
+	c.list.Remove(entry)
+	delete(c.maps, entry.Value().conn)
+}
+
+func (c *connList) Get(req *http.Request) *http2.ClientConn {
+	e := c.list.Front()
+
+	for e != nil {
+		conn := e.Value().conn
+		state := conn.State()
+
+		if state.Closed || state.Closing {
+			conn.SetDoNotReuse()
+
+			remove := e
+			e = e.Next()
+
+			c.removeElem(remove)
+			continue
+		}
+
+		currentNum := state.StreamsActive + state.StreamsPending
+		if currentNum >= c.maxConcurrency {
+			e = e.Next()
+			continue
+		}
+
+		ContextGetClientConnInfo(req.Context(), e.Value())
+
+		if currentNum+1 < c.maxConcurrency {
+			c.list.MoveToFront(e)
+		} else {
+			log.Info("client connection pool full", "currentNum", currentNum, "maxConcurrency", c.maxConcurrency, "ptr", fmt.Sprintf("%p", e.Value()))
+			c.list.MoveToBack(e)
+		}
+
+		return conn
+	}
+	return nil
 }

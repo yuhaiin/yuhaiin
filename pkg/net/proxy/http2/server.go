@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"time"
@@ -54,6 +55,19 @@ func newServer(lis net.Listener) *Server {
 		close:     cancel,
 	}
 
+	h2s := &http2.Server{
+		MaxConcurrentStreams: math.MaxUint32,
+		IdleTimeout:          time.Minute,
+		MaxReadFrameSize:     pool.DefaultSize,
+		NewWriteScheduler:    http2.NewRandomWriteScheduler,
+	}
+
+	h2Opt := &http2.ServeConnOpts{
+		Handler:    h,
+		Context:    h.closedCtx,
+		BaseConfig: new(http.Server),
+	}
+
 	go func() {
 		defer func() {
 			if err := h.Close(); err != nil {
@@ -85,15 +99,7 @@ func newServer(lis net.Listener) *Server {
 					_ = conn.Close()
 				}()
 
-				(&http2.Server{
-					MaxConcurrentStreams: 1000,
-					IdleTimeout:          time.Minute,
-					MaxReadFrameSize:     pool.MaxSegmentSize,
-					NewWriteScheduler:    NewRandomWriteScheduler,
-				}).ServeConn(conn, &http2.ServeConnOpts{
-					Handler: h,
-					Context: h.closedCtx,
-				})
+				h2s.ServeConn(conn, h2Opt)
 			}()
 		}
 	}()
