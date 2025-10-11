@@ -291,7 +291,7 @@ func TestClient(t *testing.T) {
 
 func TestAddr(t *testing.T) {
 	qaddr := &addr{
-		id:   "aaa",
+		id:   9,
 		addr: netapi.EmptyAddr.String(),
 	}
 
