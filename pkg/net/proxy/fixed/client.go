@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -236,8 +235,6 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 
 		uaddr = ips.RandUDPAddr(addr.Port())
 	}
-
-	log.Info("fixed packet conn", "addr", addr)
 
 	conn, err := dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
 		if c.iface != "" {
