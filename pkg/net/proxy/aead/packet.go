@@ -8,22 +8,14 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
-func EncodePacket(w *pool.Buffer, addr net.Addr, buf []byte, auth cipher.AEAD) error {
-	ad, err := netapi.ParseSysAddr(addr)
-	if err != nil {
-		return fmt.Errorf("parse addr failed: %w", err)
-	}
-
+func EncodePacket(w *pool.Buffer, buf []byte, auth cipher.AEAD) error {
 	_, _ = w.ReadFrom(io.LimitReader(rand.Reader, int64(auth.NonceSize())))
 
-	tools.WriteAddr(ad, w)
-
-	_, err = w.Write(buf)
+	_, err := w.Write(buf)
 	if err != nil {
 		return err
 	}
@@ -61,7 +53,6 @@ func DecodePacket(r []byte, auth cipher.AEAD) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return r, nil
 }
 
@@ -83,7 +74,7 @@ func (s *authPacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
 	buf := pool.NewBufferSize(len(p) + MaxPacketHeaderSize(s.aead))
 	defer buf.Reset()
 
-	err = EncodePacket(buf, addr, p, s.aead)
+	err = EncodePacket(buf, p, s.aead)
 	if err != nil {
 		return 0, fmt.Errorf("encode packet failed: %w", err)
 	}
