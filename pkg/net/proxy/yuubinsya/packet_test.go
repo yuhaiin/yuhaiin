@@ -34,18 +34,20 @@ func TestENDcode(t *testing.T) {
 			_, err := io.ReadFull(crand.Reader, password)
 			assert.NoError(t, err)
 
-			dedata := make([]byte, rand.IntN(65535))
-			_, err = io.ReadFull(crand.Reader, dedata)
+			plaintext := make([]byte, rand.IntN(60000))
+			_, err = io.ReadFull(crand.Reader, plaintext)
 			assert.NoError(t, err)
 
-			buf := pool.NewBufferSize(pool.MaxSegmentSize)
-			assert.NoError(t, EncodePacket(buf, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-				dedata, password, true))
-
-			dedata, addr, err := DecodePacket(buf.Bytes(), password, true)
+			buf := pool.GetBytes(pool.MaxSegmentSize)
+			encoded, err := EncodePacket(buf,
+				&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
+				plaintext, password, true)
 			assert.NoError(t, err)
 
-			if !bytes.Equal(dedata, dedata) {
+			dedata, addr, err := DecodePacket(encoded, password, true)
+			assert.NoError(t, err)
+
+			if !bytes.Equal(plaintext, dedata) {
 				t.Error("dedata not equal", addr)
 				t.Fail()
 			}
@@ -59,13 +61,14 @@ func TestEncode(t *testing.T) {
 	password := []byte("testzxc")
 
 	req := randSeq(rand.IntN(60000))
-	buf := pool.NewBufferSize(pool.MaxSegmentSize)
-	assert.NoError(t, EncodePacket(buf, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-		req, password, true))
+	buf := pool.GetBytes(pool.MaxSegmentSize)
+	encoded, err := EncodePacket(buf, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
+		req, password, true)
+	assert.NoError(t, err)
 
 	// t.Log(buf.Bytes())
 
-	data, addr, err := DecodePacket(buf.Bytes(), password, true)
+	data, addr, err := DecodePacket(encoded, password, true)
 	assert.NoError(t, err)
 
 	if bytes.Equal(req, data) {
@@ -73,12 +76,13 @@ func TestEncode(t *testing.T) {
 	}
 
 	req = randSeq(rand.IntN(60000))
-	buf = pool.NewBufferSize(pool.MaxSegmentSize)
-	assert.NoError(t, EncodePacket(buf,
+	buf = pool.GetBytes(pool.MaxSegmentSize)
+	encoded, err = EncodePacket(buf,
 		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-		req, password, true))
+		req, password, true)
+	assert.NoError(t, err)
 
-	data, addr, err = DecodePacket(buf.Bytes(), password, true)
+	data, addr, err = DecodePacket(encoded, password, true)
 	assert.NoError(t, err)
 
 	if bytes.Equal(req, data) {
@@ -86,11 +90,12 @@ func TestEncode(t *testing.T) {
 	}
 
 	req = randSeq(rand.IntN(60000))
-	buf = pool.NewBufferSize(pool.MaxSegmentSize)
-	assert.NoError(t, EncodePacket(buf,
-		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234}, req, password, false))
+	buf = pool.GetBytes(pool.MaxSegmentSize)
+	encoded, err = EncodePacket(buf,
+		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234}, req, password, false)
+	assert.NoError(t, err)
 
-	data, addr, err = DecodePacket(buf.Bytes(), password, false)
+	data, addr, err = DecodePacket(encoded, password, false)
 	assert.NoError(t, err)
 
 	if bytes.Equal(req, data) {
