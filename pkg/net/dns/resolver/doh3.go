@@ -63,12 +63,16 @@ func NewDoH3(config Config) (Dialer, error) {
 
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			_, _ = relay.Copy(io.Discard, resp.Body) // from v2fly
+			_, _ = relay.Copy(io.Discard, resp.Body)
 			return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
 		}
 
-		if resp.ContentLength <= 0 || resp.ContentLength > pool.MaxSegmentSize {
+		if resp.ContentLength <= 0 {
 			return nil, fmt.Errorf("response content length is empty: %d", resp.ContentLength)
+		}
+
+		if resp.ContentLength > pool.MaxSegmentSize {
+			return nil, fmt.Errorf("response content length is too large: %d", resp.ContentLength)
 		}
 
 		buf := pool.GetBytes(resp.ContentLength)
