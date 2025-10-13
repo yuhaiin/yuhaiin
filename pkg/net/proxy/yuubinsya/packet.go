@@ -72,7 +72,7 @@ type packetAddr struct {
 }
 
 func (s *AuthPacketConn) write(p []byte, addr packetAddr) (_ int, err error) {
-	if len(p) > nat.MaxSegmentSize-AuthHeaderSize(s.password, s.prefix) {
+	if len(p) > nat.MaxSegmentSize-MaxPacketHeaderSize(s.password, s.prefix) {
 		return 0, fmt.Errorf("packet too large: %d > %d", len(p), nat.MaxSegmentSize)
 	}
 
@@ -80,15 +80,16 @@ func (s *AuthPacketConn) write(p []byte, addr packetAddr) (_ int, err error) {
 		addr.RawAddr = addr.ProxyAddr
 	}
 
-	buf := pool.NewBufferSize(len(p) + AuthHeaderSize(s.password, s.prefix))
-	defer buf.Reset()
+	buf := pool.GetBytes(len(p) + MaxPacketHeaderSize(s.password, s.prefix))
+	defer pool.PutBytes(buf)
 
-	err = EncodePacket(buf, addr.ProxyAddr, p, s.password, s.prefix)
+	data, err := EncodePacket(buf,
+		addr.ProxyAddr, p, s.password, s.prefix)
 	if err != nil {
 		return 0, fmt.Errorf("encode packet failed: %w", err)
 	}
 
-	_, err = s.PacketConn.WriteTo(buf.Bytes(), addr.RawAddr)
+	_, err = s.PacketConn.WriteTo(data, addr.RawAddr)
 	if err != nil {
 		return 0, fmt.Errorf("write to remote failed: %w", err)
 	}
@@ -154,53 +155,41 @@ func (s *UDPServer) Serve() error {
 	}
 }
 
-func EncodePacket(w *pool.Buffer, addr net.Addr, buf []byte, password []byte, prefix bool) error {
+func EncodePacket(dst []byte, addr net.Addr, data, password []byte, prefix bool) ([]byte, error) {
 	ad, err := netapi.ParseSysAddr(addr)
 	if err != nil {
-		return fmt.Errorf("parse addr failed: %w", err)
+		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
-	if len(password) > 0 {
-		_, _ = w.Write(password)
-	}
-
+	n := copy(dst, password)
 	if prefix {
-		_, _ = w.Write([]byte{0, 0, 0})
+		n += copy(dst[n:], []byte{0, 0, 0})
 	}
-
-	tools.WriteAddr(ad, w)
-
-	_, err = w.Write(buf)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	n += tools.EncodeAddr(ad, dst[n:])
+	n += copy(dst[n:], data)
+	return dst[:n], nil
 }
 
 func MaxPacketHeaderSize(password []byte, prefix bool) int {
-	return tools.MaxAddrLength + AuthHeaderSize(password, prefix)
+	if prefix {
+		return len(password) + 3 + tools.MaxAddrLength
+	} else {
+		return len(password) + tools.MaxAddrLength
+	}
 }
 
 func DecodePacket(r []byte, password []byte, prefix bool) ([]byte, netapi.Address, error) {
-	if len(password) > 0 {
-		if len(r) < len(password) {
-			return nil, nil, fmt.Errorf("key is not enough")
-		}
-
-		rkey := r[:len(password)]
-		r = r[len(password):]
-
-		if subtle.ConstantTimeCompare(rkey, password) != 1 {
-			return nil, nil, fmt.Errorf("key is incorrect")
-		}
+	if len(r) < MaxPacketHeaderSize(password, prefix)-tools.MaxAddrLength {
+		return nil, nil, fmt.Errorf("packet is not enough")
 	}
 
-	if prefix {
-		if len(r) < 3 {
-			return nil, nil, fmt.Errorf("packet is not enough")
-		}
+	if len(password) > 0 && subtle.ConstantTimeCompare(r[:len(password)], password) != 1 {
+		return nil, nil, fmt.Errorf("key is incorrect")
+	}
 
+	r = r[len(password):]
+
+	if prefix {
 		r = r[3:]
 	}
 
@@ -210,12 +199,4 @@ func DecodePacket(r []byte, password []byte, prefix bool) ([]byte, netapi.Addres
 	}
 
 	return r[an:], addr, nil
-}
-
-func AuthHeaderSize(password []byte, prefix bool) int {
-	if prefix {
-		return len(password) + 3
-	} else {
-		return len(password)
-	}
 }

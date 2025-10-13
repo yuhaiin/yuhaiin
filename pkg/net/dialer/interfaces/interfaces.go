@@ -51,6 +51,10 @@ var (
 	defaultInterfaceNameMu sync.Mutex
 )
 
+func SetDefaultInterfaceName(name string) {
+	defaultInterfaceName.Store(&name)
+}
+
 func DefaultInterfaceName() string {
 	d := defaultInterfaceName.Load()
 	if d != nil {
