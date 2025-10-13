@@ -16,8 +16,6 @@ func encodePacket(dst []byte, data []byte, auth cipher.AEAD) []byte {
 
 	_, _ = io.ReadFull(rand.Reader, nonce)
 
-	copy(dst[auth.NonceSize():], data)
-
 	cryptext := auth.Seal(dst[auth.NonceSize():auth.NonceSize()],
 		nonce, data, nil)
 
