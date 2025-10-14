@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"golang.org/x/crypto/chacha20poly1305"
 )
 
 func TestEcdh(t *testing.T) {
@@ -43,18 +42,6 @@ func TestEcdh(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Log(signature, len(signature))
-}
-
-func TestChacha20(t *testing.T) {
-	a, err := chacha20poly1305.New(make([]byte, chacha20poly1305.KeySize))
-	assert.NoError(t, err)
-
-	nouce := make([]byte, chacha20poly1305.NonceSize)
-	dst := make([]byte, 1024)
-	ret := a.Seal(dst[:0], nouce, []byte{1, 2}, nil)
-
-	t.Log(dst, ret)
-
 }
 
 func TestHkdf(t *testing.T) {

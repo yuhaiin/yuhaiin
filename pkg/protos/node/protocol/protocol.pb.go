@@ -21,6 +21,47 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type AeadCryptoMethod int32
+
+const (
+	AeadCryptoMethod_Chacha20Poly1305  AeadCryptoMethod = 0
+	AeadCryptoMethod_XChacha20Poly1305 AeadCryptoMethod = 1
+)
+
+// Enum value maps for AeadCryptoMethod.
+var (
+	AeadCryptoMethod_name = map[int32]string{
+		0: "Chacha20Poly1305",
+		1: "XChacha20Poly1305",
+	}
+	AeadCryptoMethod_value = map[string]int32{
+		"Chacha20Poly1305":  0,
+		"XChacha20Poly1305": 1,
+	}
+)
+
+func (x AeadCryptoMethod) Enum() *AeadCryptoMethod {
+	p := new(AeadCryptoMethod)
+	*p = x
+	return p
+}
+
+func (x AeadCryptoMethod) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AeadCryptoMethod) Descriptor() protoreflect.EnumDescriptor {
+	return file_node_protocol_protocol_proto_enumTypes[0].Descriptor()
+}
+
+func (AeadCryptoMethod) Type() protoreflect.EnumType {
+	return &file_node_protocol_protocol_proto_enumTypes[0]
+}
+
+func (x AeadCryptoMethod) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
 type SetStrategyType int32
 
 const (
@@ -51,11 +92,11 @@ func (x SetStrategyType) String() string {
 }
 
 func (SetStrategyType) Descriptor() protoreflect.EnumDescriptor {
-	return file_node_protocol_protocol_proto_enumTypes[0].Descriptor()
+	return file_node_protocol_protocol_proto_enumTypes[1].Descriptor()
 }
 
 func (SetStrategyType) Type() protoreflect.EnumType {
-	return &file_node_protocol_protocol_proto_enumTypes[0]
+	return &file_node_protocol_protocol_proto_enumTypes[1]
 }
 
 func (x SetStrategyType) Number() protoreflect.EnumNumber {
@@ -5521,12 +5562,13 @@ func (b0 HttpMock_builder) Build() *HttpMock {
 }
 
 type Aead struct {
-	state                  protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Password    *string                `protobuf:"bytes,1,opt,name=password"`
-	XXX_raceDetectHookData protoimpl.RaceDetectHookData
-	XXX_presence           [1]uint32
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	state                   protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Password     *string                `protobuf:"bytes,1,opt,name=password"`
+	xxx_hidden_CryptoMethod AeadCryptoMethod       `protobuf:"varint,2,opt,name=crypto_method,enum=yuhaiin.protocol.AeadCryptoMethod"`
+	XXX_raceDetectHookData  protoimpl.RaceDetectHookData
+	XXX_presence            [1]uint32
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *Aead) Reset() {
@@ -5564,9 +5606,23 @@ func (x *Aead) GetPassword() string {
 	return ""
 }
 
+func (x *Aead) GetCryptoMethod() AeadCryptoMethod {
+	if x != nil {
+		if protoimpl.X.Present(&(x.XXX_presence[0]), 1) {
+			return x.xxx_hidden_CryptoMethod
+		}
+	}
+	return AeadCryptoMethod_Chacha20Poly1305
+}
+
 func (x *Aead) SetPassword(v string) {
 	x.xxx_hidden_Password = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 1)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
+}
+
+func (x *Aead) SetCryptoMethod(v AeadCryptoMethod) {
+	x.xxx_hidden_CryptoMethod = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
 }
 
 func (x *Aead) HasPassword() bool {
@@ -5576,15 +5632,28 @@ func (x *Aead) HasPassword() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
 }
 
+func (x *Aead) HasCryptoMethod() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
 func (x *Aead) ClearPassword() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
 	x.xxx_hidden_Password = nil
 }
 
+func (x *Aead) ClearCryptoMethod() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_CryptoMethod = AeadCryptoMethod_Chacha20Poly1305
+}
+
 type Aead_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	Password *string
+	Password     *string
+	CryptoMethod *AeadCryptoMethod
 }
 
 func (b0 Aead_builder) Build() *Aead {
@@ -5592,8 +5661,12 @@ func (b0 Aead_builder) Build() *Aead {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Password != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 1)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
 		x.xxx_hidden_Password = b.Password
+	}
+	if b.CryptoMethod != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 2)
+		x.xxx_hidden_CryptoMethod = *b.CryptoMethod
 	}
 	return m0
 }
@@ -5930,110 +6003,116 @@ const file_node_protocol_protocol_proto_rawDesc = "" +
 	"\x06random\x10\x00\x12\x0f\n" +
 	"\vround_robin\x10\x01\"\x1f\n" +
 	"\thttp_mock\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\"\"\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"l\n" +
 	"\x04aead\x12\x1a\n" +
-	"\bpassword\x18\x01 \x01(\tR\bpassword\"k\n" +
+	"\bpassword\x18\x01 \x01(\tR\bpassword\x12H\n" +
+	"\rcrypto_method\x18\x02 \x01(\x0e2\".yuhaiin.protocol.AeadCryptoMethodR\rcrypto_method\"k\n" +
 	"\rnetwork_split\x12,\n" +
 	"\x03tcp\x18\x01 \x01(\v2\x1a.yuhaiin.protocol.protocolR\x03tcp\x12,\n" +
-	"\x03udp\x18\x02 \x01(\v2\x1a.yuhaiin.protocol.protocolR\x03udpB?Z5github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
+	"\x03udp\x18\x02 \x01(\v2\x1a.yuhaiin.protocol.protocolR\x03udp*?\n" +
+	"\x10AeadCryptoMethod\x12\x14\n" +
+	"\x10Chacha20Poly1305\x10\x00\x12\x15\n" +
+	"\x11XChacha20Poly1305\x10\x01B?Z5github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
-var file_node_protocol_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_node_protocol_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_node_protocol_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_node_protocol_protocol_proto_goTypes = []any{
-	(SetStrategyType)(0),               // 0: yuhaiin.protocol.set.strategy_type
-	(*Protocol)(nil),                   // 1: yuhaiin.protocol.protocol
-	(*Socks5)(nil),                     // 2: yuhaiin.protocol.socks5
-	(*Http)(nil),                       // 3: yuhaiin.protocol.http
-	(*Shadowsocks)(nil),                // 4: yuhaiin.protocol.shadowsocks
-	(*Shadowsocksr)(nil),               // 5: yuhaiin.protocol.shadowsocksr
-	(*Http2)(nil),                      // 6: yuhaiin.protocol.http2
-	(*Vmess)(nil),                      // 7: yuhaiin.protocol.vmess
-	(*Vless)(nil),                      // 8: yuhaiin.protocol.vless
-	(*Trojan)(nil),                     // 9: yuhaiin.protocol.trojan
-	(*Yuubinsya)(nil),                  // 10: yuhaiin.protocol.yuubinsya
-	(*Websocket)(nil),                  // 11: yuhaiin.protocol.websocket
-	(*Grpc)(nil),                       // 12: yuhaiin.protocol.grpc
-	(*Quic)(nil),                       // 13: yuhaiin.protocol.quic
-	(*Reality)(nil),                    // 14: yuhaiin.protocol.reality
-	(*ObfsHttp)(nil),                   // 15: yuhaiin.protocol.obfs_http
-	(*None)(nil),                       // 16: yuhaiin.protocol.none
-	(*Simple)(nil),                     // 17: yuhaiin.protocol.simple
-	(*Fixed)(nil),                      // 18: yuhaiin.protocol.fixed
-	(*TlsConfig)(nil),                  // 19: yuhaiin.protocol.tls_config
-	(*Certificate)(nil),                // 20: yuhaiin.protocol.certificate
-	(*TlsServerConfig)(nil),            // 21: yuhaiin.protocol.tls_server_config
-	(*TlsTermination)(nil),             // 22: yuhaiin.protocol.tls_termination
-	(*HttpTermination)(nil),            // 23: yuhaiin.protocol.http_termination
-	(*HttpHeader)(nil),                 // 24: yuhaiin.protocol.http_header
-	(*Direct)(nil),                     // 25: yuhaiin.protocol.direct
-	(*Reject)(nil),                     // 26: yuhaiin.protocol.reject
-	(*Drop)(nil),                       // 27: yuhaiin.protocol.drop
-	(*Host)(nil),                       // 28: yuhaiin.protocol.host
-	(*WireguardPeerConfig)(nil),        // 29: yuhaiin.protocol.wireguard_peer_config
-	(*Wireguard)(nil),                  // 30: yuhaiin.protocol.wireguard
-	(*Mux)(nil),                        // 31: yuhaiin.protocol.mux
-	(*BootstrapDnsWarp)(nil),           // 32: yuhaiin.protocol.bootstrap_dns_warp
-	(*Tailscale)(nil),                  // 33: yuhaiin.protocol.tailscale
-	(*Set)(nil),                        // 34: yuhaiin.protocol.set
-	(*HttpMock)(nil),                   // 35: yuhaiin.protocol.http_mock
-	(*Aead)(nil),                       // 36: yuhaiin.protocol.aead
-	(*NetworkSplit)(nil),               // 37: yuhaiin.protocol.network_split
-	nil,                                // 38: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
-	(*HttpTerminationHttpHeaders)(nil), // 39: yuhaiin.protocol.http_termination.http_headers
-	nil,                                // 40: yuhaiin.protocol.http_termination.HeadersEntry
+	(AeadCryptoMethod)(0),              // 0: yuhaiin.protocol.AeadCryptoMethod
+	(SetStrategyType)(0),               // 1: yuhaiin.protocol.set.strategy_type
+	(*Protocol)(nil),                   // 2: yuhaiin.protocol.protocol
+	(*Socks5)(nil),                     // 3: yuhaiin.protocol.socks5
+	(*Http)(nil),                       // 4: yuhaiin.protocol.http
+	(*Shadowsocks)(nil),                // 5: yuhaiin.protocol.shadowsocks
+	(*Shadowsocksr)(nil),               // 6: yuhaiin.protocol.shadowsocksr
+	(*Http2)(nil),                      // 7: yuhaiin.protocol.http2
+	(*Vmess)(nil),                      // 8: yuhaiin.protocol.vmess
+	(*Vless)(nil),                      // 9: yuhaiin.protocol.vless
+	(*Trojan)(nil),                     // 10: yuhaiin.protocol.trojan
+	(*Yuubinsya)(nil),                  // 11: yuhaiin.protocol.yuubinsya
+	(*Websocket)(nil),                  // 12: yuhaiin.protocol.websocket
+	(*Grpc)(nil),                       // 13: yuhaiin.protocol.grpc
+	(*Quic)(nil),                       // 14: yuhaiin.protocol.quic
+	(*Reality)(nil),                    // 15: yuhaiin.protocol.reality
+	(*ObfsHttp)(nil),                   // 16: yuhaiin.protocol.obfs_http
+	(*None)(nil),                       // 17: yuhaiin.protocol.none
+	(*Simple)(nil),                     // 18: yuhaiin.protocol.simple
+	(*Fixed)(nil),                      // 19: yuhaiin.protocol.fixed
+	(*TlsConfig)(nil),                  // 20: yuhaiin.protocol.tls_config
+	(*Certificate)(nil),                // 21: yuhaiin.protocol.certificate
+	(*TlsServerConfig)(nil),            // 22: yuhaiin.protocol.tls_server_config
+	(*TlsTermination)(nil),             // 23: yuhaiin.protocol.tls_termination
+	(*HttpTermination)(nil),            // 24: yuhaiin.protocol.http_termination
+	(*HttpHeader)(nil),                 // 25: yuhaiin.protocol.http_header
+	(*Direct)(nil),                     // 26: yuhaiin.protocol.direct
+	(*Reject)(nil),                     // 27: yuhaiin.protocol.reject
+	(*Drop)(nil),                       // 28: yuhaiin.protocol.drop
+	(*Host)(nil),                       // 29: yuhaiin.protocol.host
+	(*WireguardPeerConfig)(nil),        // 30: yuhaiin.protocol.wireguard_peer_config
+	(*Wireguard)(nil),                  // 31: yuhaiin.protocol.wireguard
+	(*Mux)(nil),                        // 32: yuhaiin.protocol.mux
+	(*BootstrapDnsWarp)(nil),           // 33: yuhaiin.protocol.bootstrap_dns_warp
+	(*Tailscale)(nil),                  // 34: yuhaiin.protocol.tailscale
+	(*Set)(nil),                        // 35: yuhaiin.protocol.set
+	(*HttpMock)(nil),                   // 36: yuhaiin.protocol.http_mock
+	(*Aead)(nil),                       // 37: yuhaiin.protocol.aead
+	(*NetworkSplit)(nil),               // 38: yuhaiin.protocol.network_split
+	nil,                                // 39: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
+	(*HttpTerminationHttpHeaders)(nil), // 40: yuhaiin.protocol.http_termination.http_headers
+	nil,                                // 41: yuhaiin.protocol.http_termination.HeadersEntry
 }
 var file_node_protocol_protocol_proto_depIdxs = []int32{
-	4,  // 0: yuhaiin.protocol.protocol.shadowsocks:type_name -> yuhaiin.protocol.shadowsocks
-	5,  // 1: yuhaiin.protocol.protocol.shadowsocksr:type_name -> yuhaiin.protocol.shadowsocksr
-	7,  // 2: yuhaiin.protocol.protocol.vmess:type_name -> yuhaiin.protocol.vmess
-	11, // 3: yuhaiin.protocol.protocol.websocket:type_name -> yuhaiin.protocol.websocket
-	13, // 4: yuhaiin.protocol.protocol.quic:type_name -> yuhaiin.protocol.quic
-	15, // 5: yuhaiin.protocol.protocol.obfs_http:type_name -> yuhaiin.protocol.obfs_http
-	9,  // 6: yuhaiin.protocol.protocol.trojan:type_name -> yuhaiin.protocol.trojan
-	17, // 7: yuhaiin.protocol.protocol.simple:type_name -> yuhaiin.protocol.simple
-	16, // 8: yuhaiin.protocol.protocol.none:type_name -> yuhaiin.protocol.none
-	2,  // 9: yuhaiin.protocol.protocol.socks5:type_name -> yuhaiin.protocol.socks5
-	3,  // 10: yuhaiin.protocol.protocol.http:type_name -> yuhaiin.protocol.http
-	25, // 11: yuhaiin.protocol.protocol.direct:type_name -> yuhaiin.protocol.direct
-	26, // 12: yuhaiin.protocol.protocol.reject:type_name -> yuhaiin.protocol.reject
-	10, // 13: yuhaiin.protocol.protocol.yuubinsya:type_name -> yuhaiin.protocol.yuubinsya
-	12, // 14: yuhaiin.protocol.protocol.grpc:type_name -> yuhaiin.protocol.grpc
-	6,  // 15: yuhaiin.protocol.protocol.http2:type_name -> yuhaiin.protocol.http2
-	14, // 16: yuhaiin.protocol.protocol.reality:type_name -> yuhaiin.protocol.reality
-	19, // 17: yuhaiin.protocol.protocol.tls:type_name -> yuhaiin.protocol.tls_config
-	30, // 18: yuhaiin.protocol.protocol.wireguard:type_name -> yuhaiin.protocol.wireguard
-	31, // 19: yuhaiin.protocol.protocol.mux:type_name -> yuhaiin.protocol.mux
-	27, // 20: yuhaiin.protocol.protocol.drop:type_name -> yuhaiin.protocol.drop
-	8,  // 21: yuhaiin.protocol.protocol.vless:type_name -> yuhaiin.protocol.vless
-	32, // 22: yuhaiin.protocol.protocol.bootstrap_dns_warp:type_name -> yuhaiin.protocol.bootstrap_dns_warp
-	33, // 23: yuhaiin.protocol.protocol.tailscale:type_name -> yuhaiin.protocol.tailscale
-	34, // 24: yuhaiin.protocol.protocol.set:type_name -> yuhaiin.protocol.set
-	22, // 25: yuhaiin.protocol.protocol.tls_termination:type_name -> yuhaiin.protocol.tls_termination
-	23, // 26: yuhaiin.protocol.protocol.http_termination:type_name -> yuhaiin.protocol.http_termination
-	35, // 27: yuhaiin.protocol.protocol.http_mock:type_name -> yuhaiin.protocol.http_mock
-	36, // 28: yuhaiin.protocol.protocol.aead:type_name -> yuhaiin.protocol.aead
-	18, // 29: yuhaiin.protocol.protocol.fixed:type_name -> yuhaiin.protocol.fixed
-	37, // 30: yuhaiin.protocol.protocol.network_split:type_name -> yuhaiin.protocol.network_split
-	19, // 31: yuhaiin.protocol.grpc.tls:type_name -> yuhaiin.protocol.tls_config
-	19, // 32: yuhaiin.protocol.quic.tls:type_name -> yuhaiin.protocol.tls_config
-	28, // 33: yuhaiin.protocol.simple.alternate_host:type_name -> yuhaiin.protocol.host
-	28, // 34: yuhaiin.protocol.fixed.alternate_host:type_name -> yuhaiin.protocol.host
-	20, // 35: yuhaiin.protocol.tls_server_config.certificates:type_name -> yuhaiin.protocol.certificate
-	38, // 36: yuhaiin.protocol.tls_server_config.server_name_certificate:type_name -> yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
-	21, // 37: yuhaiin.protocol.tls_termination.tls:type_name -> yuhaiin.protocol.tls_server_config
-	40, // 38: yuhaiin.protocol.http_termination.headers:type_name -> yuhaiin.protocol.http_termination.HeadersEntry
-	29, // 39: yuhaiin.protocol.wireguard.peers:type_name -> yuhaiin.protocol.wireguard_peer_config
-	0,  // 40: yuhaiin.protocol.set.strategy:type_name -> yuhaiin.protocol.set.strategy_type
-	1,  // 41: yuhaiin.protocol.network_split.tcp:type_name -> yuhaiin.protocol.protocol
-	1,  // 42: yuhaiin.protocol.network_split.udp:type_name -> yuhaiin.protocol.protocol
-	20, // 43: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry.value:type_name -> yuhaiin.protocol.certificate
-	24, // 44: yuhaiin.protocol.http_termination.http_headers.headers:type_name -> yuhaiin.protocol.http_header
-	39, // 45: yuhaiin.protocol.http_termination.HeadersEntry.value:type_name -> yuhaiin.protocol.http_termination.http_headers
-	46, // [46:46] is the sub-list for method output_type
-	46, // [46:46] is the sub-list for method input_type
-	46, // [46:46] is the sub-list for extension type_name
-	46, // [46:46] is the sub-list for extension extendee
-	0,  // [0:46] is the sub-list for field type_name
+	5,  // 0: yuhaiin.protocol.protocol.shadowsocks:type_name -> yuhaiin.protocol.shadowsocks
+	6,  // 1: yuhaiin.protocol.protocol.shadowsocksr:type_name -> yuhaiin.protocol.shadowsocksr
+	8,  // 2: yuhaiin.protocol.protocol.vmess:type_name -> yuhaiin.protocol.vmess
+	12, // 3: yuhaiin.protocol.protocol.websocket:type_name -> yuhaiin.protocol.websocket
+	14, // 4: yuhaiin.protocol.protocol.quic:type_name -> yuhaiin.protocol.quic
+	16, // 5: yuhaiin.protocol.protocol.obfs_http:type_name -> yuhaiin.protocol.obfs_http
+	10, // 6: yuhaiin.protocol.protocol.trojan:type_name -> yuhaiin.protocol.trojan
+	18, // 7: yuhaiin.protocol.protocol.simple:type_name -> yuhaiin.protocol.simple
+	17, // 8: yuhaiin.protocol.protocol.none:type_name -> yuhaiin.protocol.none
+	3,  // 9: yuhaiin.protocol.protocol.socks5:type_name -> yuhaiin.protocol.socks5
+	4,  // 10: yuhaiin.protocol.protocol.http:type_name -> yuhaiin.protocol.http
+	26, // 11: yuhaiin.protocol.protocol.direct:type_name -> yuhaiin.protocol.direct
+	27, // 12: yuhaiin.protocol.protocol.reject:type_name -> yuhaiin.protocol.reject
+	11, // 13: yuhaiin.protocol.protocol.yuubinsya:type_name -> yuhaiin.protocol.yuubinsya
+	13, // 14: yuhaiin.protocol.protocol.grpc:type_name -> yuhaiin.protocol.grpc
+	7,  // 15: yuhaiin.protocol.protocol.http2:type_name -> yuhaiin.protocol.http2
+	15, // 16: yuhaiin.protocol.protocol.reality:type_name -> yuhaiin.protocol.reality
+	20, // 17: yuhaiin.protocol.protocol.tls:type_name -> yuhaiin.protocol.tls_config
+	31, // 18: yuhaiin.protocol.protocol.wireguard:type_name -> yuhaiin.protocol.wireguard
+	32, // 19: yuhaiin.protocol.protocol.mux:type_name -> yuhaiin.protocol.mux
+	28, // 20: yuhaiin.protocol.protocol.drop:type_name -> yuhaiin.protocol.drop
+	9,  // 21: yuhaiin.protocol.protocol.vless:type_name -> yuhaiin.protocol.vless
+	33, // 22: yuhaiin.protocol.protocol.bootstrap_dns_warp:type_name -> yuhaiin.protocol.bootstrap_dns_warp
+	34, // 23: yuhaiin.protocol.protocol.tailscale:type_name -> yuhaiin.protocol.tailscale
+	35, // 24: yuhaiin.protocol.protocol.set:type_name -> yuhaiin.protocol.set
+	23, // 25: yuhaiin.protocol.protocol.tls_termination:type_name -> yuhaiin.protocol.tls_termination
+	24, // 26: yuhaiin.protocol.protocol.http_termination:type_name -> yuhaiin.protocol.http_termination
+	36, // 27: yuhaiin.protocol.protocol.http_mock:type_name -> yuhaiin.protocol.http_mock
+	37, // 28: yuhaiin.protocol.protocol.aead:type_name -> yuhaiin.protocol.aead
+	19, // 29: yuhaiin.protocol.protocol.fixed:type_name -> yuhaiin.protocol.fixed
+	38, // 30: yuhaiin.protocol.protocol.network_split:type_name -> yuhaiin.protocol.network_split
+	20, // 31: yuhaiin.protocol.grpc.tls:type_name -> yuhaiin.protocol.tls_config
+	20, // 32: yuhaiin.protocol.quic.tls:type_name -> yuhaiin.protocol.tls_config
+	29, // 33: yuhaiin.protocol.simple.alternate_host:type_name -> yuhaiin.protocol.host
+	29, // 34: yuhaiin.protocol.fixed.alternate_host:type_name -> yuhaiin.protocol.host
+	21, // 35: yuhaiin.protocol.tls_server_config.certificates:type_name -> yuhaiin.protocol.certificate
+	39, // 36: yuhaiin.protocol.tls_server_config.server_name_certificate:type_name -> yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
+	22, // 37: yuhaiin.protocol.tls_termination.tls:type_name -> yuhaiin.protocol.tls_server_config
+	41, // 38: yuhaiin.protocol.http_termination.headers:type_name -> yuhaiin.protocol.http_termination.HeadersEntry
+	30, // 39: yuhaiin.protocol.wireguard.peers:type_name -> yuhaiin.protocol.wireguard_peer_config
+	1,  // 40: yuhaiin.protocol.set.strategy:type_name -> yuhaiin.protocol.set.strategy_type
+	0,  // 41: yuhaiin.protocol.aead.crypto_method:type_name -> yuhaiin.protocol.AeadCryptoMethod
+	2,  // 42: yuhaiin.protocol.network_split.tcp:type_name -> yuhaiin.protocol.protocol
+	2,  // 43: yuhaiin.protocol.network_split.udp:type_name -> yuhaiin.protocol.protocol
+	21, // 44: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry.value:type_name -> yuhaiin.protocol.certificate
+	25, // 45: yuhaiin.protocol.http_termination.http_headers.headers:type_name -> yuhaiin.protocol.http_header
+	40, // 46: yuhaiin.protocol.http_termination.HeadersEntry.value:type_name -> yuhaiin.protocol.http_termination.http_headers
+	47, // [47:47] is the sub-list for method output_type
+	47, // [47:47] is the sub-list for method input_type
+	47, // [47:47] is the sub-list for extension type_name
+	47, // [47:47] is the sub-list for extension extendee
+	0,  // [0:47] is the sub-list for field type_name
 }
 
 func init() { file_node_protocol_protocol_proto_init() }
@@ -6079,7 +6158,7 @@ func file_node_protocol_protocol_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_node_protocol_protocol_proto_rawDesc), len(file_node_protocol_protocol_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   40,
 			NumExtensions: 0,
 			NumServices:   0,

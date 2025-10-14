@@ -220,4 +220,8 @@ message reverse_tcp { string host = 1 [ json_name = "host" ]; }
 
 message http_mock { bytes data = 1; }
 
-message aead { string password = 1 [ json_name = "password" ]; }
+message aead {
+  string password = 1 [ json_name = "password" ];
+  yuhaiin.protocol.AeadCryptoMethod crypto_method = 2
+      [ json_name = "crypto_method" ];
+}
