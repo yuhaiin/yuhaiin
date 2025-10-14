@@ -15,14 +15,12 @@ func init() {
 
 type Client struct {
 	netapi.Proxy
-	hash []byte
-	e    *encryptedHandshaker
+	e *encryptedHandshaker
 }
 
 func NewClient(cfg *protocol.Aead, p netapi.Proxy) (netapi.Proxy, error) {
-	hash := Salt([]byte(cfg.GetPassword()))
-	crypto := NewHandshaker(false, hash, []byte(cfg.GetPassword()))
-	return &Client{Proxy: p, hash: hash, e: crypto}, nil
+	crypto := NewHandshaker(false, []byte(cfg.GetPassword()), cfg.GetCryptoMethod())
+	return &Client{Proxy: p, e: crypto}, nil
 }
 
 func (c *Client) Conn(ctx context.Context, address netapi.Address) (net.Conn, error) {
@@ -40,10 +38,10 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		return nil, err
 	}
 
-	auth, err := GetAuth(c.hash)
+	aead, err := newAead(c.e.aead, c.e.passwordHash)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewAuthPacketConn(pc, auth.AEAD), nil
+	return NewAuthPacketConn(pc, aead), nil
 }

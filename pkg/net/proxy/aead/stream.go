@@ -9,17 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"golang.org/x/crypto/chacha20poly1305"
 )
-
-var Chacha20poly1305 = chacha20poly1305Aead{}
-
-type chacha20poly1305Aead struct{}
-
-func (chacha20poly1305Aead) New(key []byte) (cipher.AEAD, error) { return chacha20poly1305.New(key) }
-func (chacha20poly1305Aead) KeySize() int                        { return chacha20poly1305.KeySize }
-func (chacha20poly1305Aead) NonceSize() int                      { return chacha20poly1305.NonceSize }
-func (chacha20poly1305Aead) Name() []byte                        { return []byte("chacha20poly1305-key") }
 
 type streamConn struct {
 	net.Conn

@@ -67,20 +67,25 @@ jobs:
           [
             [linux, "amd64"],
             [linux, "amd64v3"],
+            [linux, "amd64v4"],
             [linux, "arm64"],
             [linux, "mipsle"],
             [android, "arm64"],
             [darwin, "amd64"],
             [darwin, "amd64v3"],
+            [darwin, "amd64v4"],
             [darwin, "arm64"],
             [freebsd, "amd64"],
             [freebsd, "amd64v3"],
+            [freebsd, "amd64v4"],
             [freebsd, "arm64"],
             [openbsd, "amd64"],
             [openbsd, "amd64v3"],
+            [openbsd, "amd64v4"],
             [openbsd, "arm64"],
             [windows, "amd64"],
             [windows, "amd64v3"],
+            [windows, "amd64v4"],
             [windows, "arm64"],
           ]
         cmd: [yuhaiin]
@@ -109,8 +114,8 @@ jobs:
       - name: Build
         env:
           GOOS: ${{ matrix.env[0] }}
-          GOARCH: ${{ matrix.env[1] == 'amd64v3' && 'amd64' || matrix.env[1] }}
-          GOAMD64: ${{ matrix.env[1] == 'amd64v3' && 'v3' || '' }}
+          GOARCH: ${{ fromJSON('{"amd64v3":"amd64","amd64v4":"amd64"}')[matrix.env[1]] || matrix.env[1] }}
+          GOAMD64: ${{ fromJSON('{"amd64v3":"v3","amd64v4":"v4"}')[matrix.env[1]] || '' }}
           GOMIPS: ${{ matrix.env[1] == 'mipsle' && 'softfloat' || '' }}
         run: |
           go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}

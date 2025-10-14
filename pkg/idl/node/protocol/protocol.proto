@@ -252,7 +252,15 @@ message set {
 
 message http_mock { bytes data = 1; }
 
-message aead { string password = 1 [ json_name = "password" ]; }
+enum AeadCryptoMethod {
+  Chacha20Poly1305 = 0;
+  XChacha20Poly1305 = 1;
+}
+
+message aead {
+  string password = 1 [ json_name = "password" ];
+  AeadCryptoMethod crypto_method = 2 [ json_name = "crypto_method" ];
+}
 
 message network_split {
   protocol tcp = 1 [ json_name = "tcp" ];

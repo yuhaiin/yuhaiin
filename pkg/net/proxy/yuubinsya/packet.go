@@ -102,12 +102,10 @@ func (s *AuthPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 	return n, addr.ProxyAddr, err
 }
 
-var errNet = errors.New("network error")
-
 func (s *AuthPacketConn) read(p []byte) (int, packetAddr, error) {
 	n, rawAddr, err := s.PacketConn.ReadFrom(p)
 	if err != nil {
-		return 0, packetAddr{}, fmt.Errorf("%w read from remote failed: %w", errNet, err)
+		return 0, packetAddr{}, err
 	}
 
 	buf, addr, err := DecodePacket(p[:n], s.password, s.prefix)
@@ -134,7 +132,7 @@ func (s *UDPServer) Serve() error {
 	for {
 		n, addr, err := p.read(buf)
 		if err != nil {
-			if errors.Is(err, errNet) {
+			if errors.Is(err, net.ErrClosed) {
 				return err
 			}
 

@@ -20,10 +20,11 @@ Actions:
   restart     restart yuhaiin
   version     show version
   run         run yuhaiin 		[default]
-	Options:
+	
+ 	Options:
   		-host, -h  gRPC and http listen host [default: 0.0.0.0:50051]
   		-path, -p  save data path [default: %s/.yuhaiin]
-  		-eweb, -e  external web page
+  		-eweb, -e  external web page static files dir
   help        show help
 `
 
