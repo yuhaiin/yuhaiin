@@ -28,7 +28,7 @@ func newAead(aead Aead, password []byte) (cipher.AEAD, error) {
 		key32 := sha256.Sum256(salted)
 		key = key32[:]
 	default:
-		prt, err := hkdf.Extract(sha256.New, key, nil)
+		prt, err := hkdf.Extract(sha256.New, password, nil)
 		if err != nil {
 			return nil, err
 		}
