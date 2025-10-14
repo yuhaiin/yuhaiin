@@ -21,7 +21,8 @@ func TestAead(t *testing.T) {
 	assert.NoError(t, err)
 
 	s, err := NewServer(listener.Aead_builder{
-		Password: proto.String("testsfsdfsf"),
+		Password:     proto.String("testsfsdfsf"),
+		CryptoMethod: protocol.AeadCryptoMethod_XChacha20Poly1305.Enum(),
 	}.Build(), netapi.NewListener(lis, nil))
 	assert.NoError(t, err)
 	defer s.Close()
@@ -49,7 +50,8 @@ func TestAead(t *testing.T) {
 	defer p.Close()
 
 	c, err := NewClient(protocol.Aead_builder{
-		Password: proto.String("testsfsdfsf"),
+		Password:     proto.String("testsfsdfsf"),
+		CryptoMethod: protocol.AeadCryptoMethod_XChacha20Poly1305.Enum(),
 	}.Build(), p)
 	assert.NoError(t, err)
 	defer c.Close()

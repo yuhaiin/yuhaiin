@@ -67,8 +67,10 @@ define build
 	$(eval ARCH := $(word 3, $(ARGS)))
 	$(eval MODE := $(word 4, $(ARGS)))
 
-	$(if $(filter amd64v3, $(ARCH)),$(eval AMD64V3 := v3),)
+	$(if $(filter amd64v3, $(ARCH)),$(eval AMD64V := v3),)
 	$(if $(filter amd64v3, $(ARCH)),$(eval ARCH := amd64),)
+	$(if $(filter amd64v4, $(ARCH)),$(eval AMD64V := v4),)
+	$(if $(filter amd64v4, $(ARCH)),$(eval ARCH := amd64),)
 	$(if $(filter mipsle, $(ARCH)),$(eval MIPS := softfloat),)
 	$(if $(filter lite, $(MODE)),$(eval SUFFIX := _lite),)
 	$(if $(filter windows, $(OS)),$(if $(SUFFIX), $(eval SUFFIX := $(addsuffix .exe, $(SUFFIX))), $(eval SUFFIX := .exe)),)
@@ -79,7 +81,7 @@ endef
 .PHONY: yuhaiin-%
 yuhaiin-%:
 	$(build)
-	GOOS=$(OS) GOARCH=$(ARCH) GOMIPS=$(MIPS) GOAMD64=$(AMD64V3) $(GO_BUILD_CMD) -o yuhaiin_$(OS)_$(ARCH)$(AMD64V3)$(SUFFIX) $(YUHAIIN)
+	GOOS=$(OS) GOARCH=$(ARCH) GOMIPS=$(MIPS) GOAMD64=$(AMD64V) $(GO_BUILD_CMD) -o yuhaiin_$(OS)_$(ARCH)$(AMD64V)$(SUFFIX) $(YUHAIIN)
 
 	@if [ "$(OS)" = "darwin" ]; then \
 		if [ -n "$(shell command -v codesign)" ]; then \
