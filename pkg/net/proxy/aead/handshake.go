@@ -13,17 +13,18 @@ import (
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/crypto/chacha20"
 )
 
 type encryptedHandshaker struct {
-	signer   Signer
-	hash     Hash
-	aead     Aead
-	password []byte
-	server   bool
+	signer                 Signer
+	hash                   Hash
+	aead                   Aead
+	password, passwordHash []byte
+	server                 bool
 }
 
 func (h *encryptedHandshaker) Handshake(conn net.Conn) (net.Conn, error) {
@@ -263,13 +264,24 @@ func (h *encryptedHandshaker) encryptTime(password, salt, dst, src []byte) error
 	return nil
 }
 
-func NewHandshaker(server bool, hash []byte, password []byte) *encryptedHandshaker {
+func NewHandshaker(server bool, password []byte, method protocol.AeadCryptoMethod) *encryptedHandshaker {
+	var aead Aead
+	switch method {
+	case protocol.AeadCryptoMethod_XChacha20Poly1305:
+		aead = XChacha20poly1305
+	default:
+		aead = Chacha20poly1305
+	}
+
+	passwordHash := Salt(password)
+
 	// sha256-hkdf-ecdh-ed25519-chacha20poly1305
 	return &encryptedHandshaker{
-		signer:   NewEd25519(Sha256, hash),
-		hash:     Sha256,
-		aead:     Chacha20poly1305,
-		password: password,
-		server:   server,
+		signer:       NewEd25519(Sha256, passwordHash),
+		hash:         Sha256,
+		aead:         aead,
+		password:     password,
+		passwordHash: passwordHash,
+		server:       server,
 	}
 }

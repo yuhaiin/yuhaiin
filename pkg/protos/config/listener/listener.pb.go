@@ -4296,12 +4296,13 @@ func (b0 HttpMock_builder) Build() *HttpMock {
 }
 
 type Aead struct {
-	state                  protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Password    *string                `protobuf:"bytes,1,opt,name=password"`
-	XXX_raceDetectHookData protoimpl.RaceDetectHookData
-	XXX_presence           [1]uint32
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	state                   protoimpl.MessageState    `protogen:"opaque.v1"`
+	xxx_hidden_Password     *string                   `protobuf:"bytes,1,opt,name=password"`
+	xxx_hidden_CryptoMethod protocol.AeadCryptoMethod `protobuf:"varint,2,opt,name=crypto_method,enum=yuhaiin.protocol.AeadCryptoMethod"`
+	XXX_raceDetectHookData  protoimpl.RaceDetectHookData
+	XXX_presence            [1]uint32
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *Aead) Reset() {
@@ -4339,9 +4340,23 @@ func (x *Aead) GetPassword() string {
 	return ""
 }
 
+func (x *Aead) GetCryptoMethod() protocol.AeadCryptoMethod {
+	if x != nil {
+		if protoimpl.X.Present(&(x.XXX_presence[0]), 1) {
+			return x.xxx_hidden_CryptoMethod
+		}
+	}
+	return protocol.AeadCryptoMethod(0)
+}
+
 func (x *Aead) SetPassword(v string) {
 	x.xxx_hidden_Password = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 1)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
+}
+
+func (x *Aead) SetCryptoMethod(v protocol.AeadCryptoMethod) {
+	x.xxx_hidden_CryptoMethod = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
 }
 
 func (x *Aead) HasPassword() bool {
@@ -4351,15 +4366,28 @@ func (x *Aead) HasPassword() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
 }
 
+func (x *Aead) HasCryptoMethod() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
 func (x *Aead) ClearPassword() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
 	x.xxx_hidden_Password = nil
 }
 
+func (x *Aead) ClearCryptoMethod() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_CryptoMethod = protocol.AeadCryptoMethod_Chacha20Poly1305
+}
+
 type Aead_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	Password *string
+	Password     *string
+	CryptoMethod *protocol.AeadCryptoMethod
 }
 
 func (b0 Aead_builder) Build() *Aead {
@@ -4367,8 +4395,12 @@ func (b0 Aead_builder) Build() *Aead {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Password != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 1)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
 		x.xxx_hidden_Password = b.Password
+	}
+	if b.CryptoMethod != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 2)
+		x.xxx_hidden_CryptoMethod = *b.CryptoMethod
 	}
 	return m0
 }
@@ -4591,9 +4623,10 @@ const file_config_listener_listener_proto_rawDesc = "" +
 	"\vreverse_tcp\x12\x12\n" +
 	"\x04host\x18\x01 \x01(\tR\x04host\"\x1f\n" +
 	"\thttp_mock\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\"\"\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"l\n" +
 	"\x04aead\x12\x1a\n" +
-	"\bpassword\x18\x01 \x01(\tR\bpassword*L\n" +
+	"\bpassword\x18\x01 \x01(\tR\bpassword\x12H\n" +
+	"\rcrypto_method\x18\x02 \x01(\x0e2\".yuhaiin.protocol.AeadCryptoMethodR\rcrypto_method*L\n" +
 	"\x0ftcp_udp_control\x12\x17\n" +
 	"\x13tcp_udp_control_all\x10\x00\x12\x0f\n" +
 	"\vdisable_tcp\x10\x01\x12\x0f\n" +
@@ -4638,6 +4671,7 @@ var file_config_listener_listener_proto_goTypes = []any{
 	(*TunPlatfromPlatformDarwin)(nil), // 33: yuhaiin.listener.tun_platfrom.platform_darwin
 	(*protocol.TlsServerConfig)(nil),  // 34: yuhaiin.protocol.tls_server_config
 	(*protocol.TlsConfig)(nil),        // 35: yuhaiin.protocol.tls_config
+	(protocol.AeadCryptoMethod)(0),    // 36: yuhaiin.protocol.AeadCryptoMethod
 }
 var file_config_listener_listener_proto_depIdxs = []int32{
 	32, // 0: yuhaiin.listener.inbound_config.inbounds:type_name -> yuhaiin.listener.inbound_config.InboundsEntry
@@ -4676,12 +4710,13 @@ var file_config_listener_listener_proto_depIdxs = []int32{
 	34, // 33: yuhaiin.listener.tls.tls:type_name -> yuhaiin.protocol.tls_server_config
 	26, // 34: yuhaiin.listener.tls_auto.ech:type_name -> yuhaiin.listener.ech_config
 	35, // 35: yuhaiin.listener.reverse_http.tls:type_name -> yuhaiin.protocol.tls_config
-	3,  // 36: yuhaiin.listener.inbound_config.InboundsEntry.value:type_name -> yuhaiin.listener.inbound
-	37, // [37:37] is the sub-list for method output_type
-	37, // [37:37] is the sub-list for method input_type
-	37, // [37:37] is the sub-list for extension type_name
-	37, // [37:37] is the sub-list for extension extendee
-	0,  // [0:37] is the sub-list for field type_name
+	36, // 36: yuhaiin.listener.aead.crypto_method:type_name -> yuhaiin.protocol.AeadCryptoMethod
+	3,  // 37: yuhaiin.listener.inbound_config.InboundsEntry.value:type_name -> yuhaiin.listener.inbound
+	38, // [38:38] is the sub-list for method output_type
+	38, // [38:38] is the sub-list for method input_type
+	38, // [38:38] is the sub-list for extension type_name
+	38, // [38:38] is the sub-list for extension extendee
+	0,  // [0:38] is the sub-list for field type_name
 }
 
 func init() { file_config_listener_listener_proto_init() }

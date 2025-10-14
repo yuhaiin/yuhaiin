@@ -62,7 +62,7 @@ func (s *authPacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
 }
 
 func (s *authPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
-	n, rawAddr, err := s.PacketConn.ReadFrom(p)
+	n, addr, err := s.PacketConn.ReadFrom(p)
 	if err != nil {
 		return 0, nil, fmt.Errorf("read from remote failed: %w", err)
 	}
@@ -76,5 +76,5 @@ func (s *authPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 		return 0, nil, fmt.Errorf("decode packet failed: %w", err)
 	}
 
-	return copy(p[0:], plaintext), rawAddr, nil
+	return copy(p[0:], plaintext), addr, nil
 }
