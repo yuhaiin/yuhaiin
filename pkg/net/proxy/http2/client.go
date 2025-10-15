@@ -101,6 +101,7 @@ func (c *Client) Conn(pctx context.Context, add netapi.Address) (net.Conn, error
 		_ = p2.Close()
 		if gc.conn != nil {
 			gc.conn.SetDoNotReuse()
+			c.transport.ConnPool.MarkDead(gc.conn)
 		}
 		return nil, fmt.Errorf("round trip failed: %w", err)
 	}
@@ -264,7 +265,7 @@ func (c *connList) Get(req *http.Request) *http2.ClientConn {
 			continue
 		}
 
-		currentNum := state.StreamsActive + state.StreamsPending
+		currentNum := state.StreamsActive + state.StreamsPending + state.StreamsReserved
 		if currentNum >= c.maxConcurrency {
 			e = e.Next()
 			continue
