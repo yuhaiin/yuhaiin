@@ -15,12 +15,12 @@ require (
 	github.com/refraction-networking/utls v1.8.1
 	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da
 	github.com/vishvananda/netlink v1.3.1
-	github.com/xtls/reality v0.0.0-20250904214705-431b6ff8c67c
+	github.com/xtls/reality v0.0.0-20251014195629-e4eec4520535
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251014063641-1e3ae67c72ef
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.43.0
 	golang.org/x/mobile v0.0.0-20251009145931-8baca8bf4eeb
-	golang.org/x/net v0.46.1-0.20251009175946-9f2f0b95b65d
+	golang.org/x/net v0.46.1-0.20251017200734-6e243da53155
 	golang.org/x/sync v0.17.0
 	golang.org/x/sys v0.37.0
 	golang.org/x/time v0.14.0
