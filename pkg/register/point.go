@@ -7,37 +7,36 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-func GetPointValue(i *protocol.Protocol) proto.Message {
+func GetPointValue(i *node.Protocol) proto.Message {
 	ref := i.ProtoReflect()
 	fields := ref.Descriptor().Oneofs().ByName("protocol")
 	f := ref.WhichOneof(fields)
 	if f == nil {
-		return &protocol.None{}
+		return &node.None{}
 	}
 	return ref.Get(f).Message().Interface()
 }
 
 func init() {
-	RegisterPoint(func(_ *protocol.None, p netapi.Proxy) (netapi.Proxy, error) {
+	RegisterPoint(func(_ *node.None, p netapi.Proxy) (netapi.Proxy, error) {
 		return p, nil
 	})
-	RegisterPoint(func(_ *protocol.BootstrapDnsWarp, p netapi.Proxy) (netapi.Proxy, error) {
+	RegisterPoint(func(_ *node.BootstrapDnsWarp, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewBootstrapDnsWarp(p), nil
 	})
 
-	RegisterPoint(func(ns *protocol.NetworkSplit, p netapi.Proxy) (netapi.Proxy, error) {
-		if ns.GetTcp().WhichProtocol() == protocol.Protocol_NetworkSplit_case {
+	RegisterPoint(func(ns *node.NetworkSplit, p netapi.Proxy) (netapi.Proxy, error) {
+		if ns.GetTcp().WhichProtocol() == node.Protocol_NetworkSplit_case {
 			return nil, fmt.Errorf("nested network split is not supported")
 		}
 
-		if ns.GetUdp().WhichProtocol() == protocol.Protocol_NetworkSplit_case {
+		if ns.GetUdp().WhichProtocol() == node.Protocol_NetworkSplit_case {
 			return nil, fmt.Errorf("nested network split is not supported")
 		}
 
@@ -86,7 +85,7 @@ func (n *networkSplit) Close() error {
 	return err
 }
 
-func Dialer(p *point.Point) (r netapi.Proxy, err error) {
+func Dialer(p *node.Point) (r netapi.Proxy, err error) {
 	r = zeroproxy
 
 	for _, v := range p.GetProtocols() {

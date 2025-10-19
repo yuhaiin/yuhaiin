@@ -10,8 +10,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/proto"
 )
@@ -71,15 +71,15 @@ func BenchmarkEncodePacket(b *testing.B) {
 }
 
 func TestPacket(t *testing.T) {
-	s, err := fixed.NewServer(listener.Tcpudp_builder{
+	s, err := fixed.NewServer(config.Tcpudp_builder{
 		Host:    proto.String(":12345"),
-		Control: listener.TcpUdpControl_disable_tcp.Enum(),
+		Control: config.TcpUdpControl_disable_tcp.Enum(),
 	}.Build())
 	assert.NoError(t, err)
 
-	as, err := NewServer(listener.Aead_builder{
+	as, err := NewServer(config.Aead_builder{
 		Password:     proto.String("123456"),
-		CryptoMethod: protocol.AeadCryptoMethod_XChacha20Poly1305.Enum(),
+		CryptoMethod: node.AeadCryptoMethod_XChacha20Poly1305.Enum(),
 	}.Build(), s)
 	assert.NoError(t, err)
 
@@ -99,16 +99,16 @@ func TestPacket(t *testing.T) {
 		}
 	}()
 
-	fp, err := fixed.NewClient(protocol.Fixed_builder{
+	fp, err := fixed.NewClient(node.Fixed_builder{
 		Host: proto.String("127.0.0.1"),
 		Port: proto.Int32(12345),
 	}.Build(), nil)
 	assert.NoError(t, err)
 	defer fp.Close()
 
-	ac, err := NewClient(protocol.Aead_builder{
+	ac, err := NewClient(node.Aead_builder{
 		Password:     proto.String("123456"),
-		CryptoMethod: protocol.AeadCryptoMethod_XChacha20Poly1305.Enum(),
+		CryptoMethod: node.AeadCryptoMethod_XChacha20Poly1305.Enum(),
 	}.Build(), fp)
 	assert.NoError(t, err)
 	defer ac.Close()

@@ -9,7 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	probing "github.com/prometheus-community/pro-bing"
 )
@@ -20,7 +20,7 @@ type direct struct {
 }
 
 func init() {
-	register.RegisterPoint(func(p *protocol.Direct, _ netapi.Proxy) (netapi.Proxy, error) {
+	register.RegisterPoint(func(p *node.Direct, _ netapi.Proxy) (netapi.Proxy, error) {
 		if p.GetNetworkInterface() != "" {
 			return &direct{iface: p.GetNetworkInterface()}, nil
 		}

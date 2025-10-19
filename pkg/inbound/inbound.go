@@ -10,7 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -18,7 +18,7 @@ import (
 )
 
 type entry struct {
-	config *pl.Inbound
+	config *config.Inbound
 	server netapi.Accepter
 }
 
@@ -150,7 +150,7 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 	}
 }
 
-func (l *Inbound) Save(req *pl.Inbound) {
+func (l *Inbound) Save(req *config.Inbound) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 

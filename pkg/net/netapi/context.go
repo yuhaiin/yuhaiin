@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
@@ -111,7 +111,7 @@ type ConnOptions struct {
 	bindAddress   *string
 	bindInterface *string
 	resolver      *ResolverOptions
-	routeMode     bypass.Mode
+	routeMode     config.Mode
 	systemDialer  bool
 	skipRoute     bool
 	isUdp         bool
@@ -162,9 +162,9 @@ func (s *ConnOptions) SetResolver(resolver ResolverOptions) *ConnOptions {
 	return s
 }
 
-func (s *ConnOptions) SetRouteMode(mode bypass.Mode) *ConnOptions {
+func (s *ConnOptions) SetRouteMode(mode config.Mode) *ConnOptions {
 	// skip if already set
-	if s.routeMode != bypass.Mode_bypass {
+	if s.routeMode != config.Mode_bypass {
 		return s
 	}
 
@@ -172,7 +172,7 @@ func (s *ConnOptions) SetRouteMode(mode bypass.Mode) *ConnOptions {
 	return s
 }
 
-func (s *ConnOptions) RouteMode() bypass.Mode {
+func (s *ConnOptions) RouteMode() config.Mode {
 	return s.routeMode
 }
 
@@ -242,7 +242,7 @@ type Context struct {
 
 	ruleChain *MatchHistory `metrics:"Rule Chain"`
 
-	Mode bypass.Mode `metrics:"MODE"`
+	Mode config.Mode `metrics:"MODE"`
 
 	connOptions *ConnOptions
 }

@@ -14,14 +14,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/miekg/dns"
 )
 
 func init() {
-	Register(pdns.Type_udp, NewDoU)
+	Register(config.Type_udp, NewDoU)
 }
 
 func udpCacheKey(id uint16, question dns.Question) string {

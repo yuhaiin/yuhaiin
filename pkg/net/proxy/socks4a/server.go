@@ -10,7 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -150,7 +150,7 @@ func init() {
 	register.RegisterProtocol(NewServer)
 }
 
-func NewServer(o *listener.Socks4A, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+func NewServer(o *config.Socks4A, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	s := &Server{
 		usernameID: o.GetUsername(),
 		lis:        ii,

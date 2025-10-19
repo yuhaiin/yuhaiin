@@ -9,19 +9,19 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 type notifierEntry struct {
-	s      gs.Connections_NotifyServer
+	s      api.Connections_NotifyServer
 	cancel context.CancelCauseFunc
 }
 
-func (n *notifierEntry) Send(data *gs.NotifyData) error {
+func (n *notifierEntry) Send(data *api.NotifyData) error {
 	err := n.s.Send(data)
 	if err != nil {
 		n.cancel(fmt.Errorf("send notify error: %w", err))
@@ -54,7 +54,7 @@ func newNotify() *notify {
 	return n
 }
 
-func (n *notify) register(s gs.Connections_NotifyServer, conns []*statistic.Connection) (uint64, context.Context) {
+func (n *notify) register(s api.Connections_NotifyServer, conns []*statistic.Connection) (uint64, context.Context) {
 	id := n.notifierIDSeed.Generate()
 	ctx, cancel := context.WithCancelCause(context.Background())
 
@@ -63,8 +63,8 @@ func (n *notify) register(s gs.Connections_NotifyServer, conns []*statistic.Conn
 		cancel: cancel,
 	}
 
-	err := ne.Send((&gs.NotifyData_builder{
-		NotifyNewConnections: (&gs.NotifyNewConnections_builder{
+	err := ne.Send((&api.NotifyData_builder{
+		NotifyNewConnections: (&api.NotifyNewConnections_builder{
 			Connections: conns,
 		}).Build(),
 	}).Build())
@@ -192,7 +192,7 @@ func (n *notifyStore) remove(id uint64) int {
 	return int(len)
 }
 
-func (n *notifyStore) dump() (datas []*gs.NotifyData) {
+func (n *notifyStore) dump() (datas []*api.NotifyData) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -203,16 +203,16 @@ func (n *notifyStore) dump() (datas []*gs.NotifyData) {
 	n.length = 0
 
 	if len(removeIDs) > 0 {
-		datas = append(datas, (&gs.NotifyData_builder{
-			NotifyRemoveConnections: (&gs.NotifyRemoveConnections_builder{
+		datas = append(datas, (&api.NotifyData_builder{
+			NotifyRemoveConnections: (&api.NotifyRemoveConnections_builder{
 				Ids: removeIDs,
 			}).Build(),
 		}).Build())
 	}
 
 	if len(newConns) > 0 {
-		datas = append(datas, (&gs.NotifyData_builder{
-			NotifyNewConnections: (&gs.NotifyNewConnections_builder{
+		datas = append(datas, (&api.NotifyData_builder{
+			NotifyNewConnections: (&api.NotifyNewConnections_builder{
 				Connections: newConns,
 			}).Build(),
 		}).Build())

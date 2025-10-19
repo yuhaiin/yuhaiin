@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/quic-go/quic-go"
@@ -53,11 +53,11 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgfFPJ3xA3HtR6OR11
 
 func TestConn(t *testing.T) {
 	t.Run("test close", func(t *testing.T) {
-		s, err := NewServer(listener.Quic_builder{
+		s, err := NewServer(config.Quic_builder{
 			Host: proto.String("127.0.0.1:0"),
-			Tls: protocol.TlsServerConfig_builder{
-				Certificates: []*protocol.Certificate{
-					protocol.Certificate_builder{
+			Tls: node.TlsServerConfig_builder{
+				Certificates: []*node.Certificate{
+					node.Certificate_builder{
 						Cert: cert,
 						Key:  key,
 					}.Build(),
@@ -80,9 +80,9 @@ func TestConn(t *testing.T) {
 			}
 		}()
 
-		qc, err := NewClient(protocol.Quic_builder{
+		qc, err := NewClient(node.Quic_builder{
 			Host: proto.String(s.Addr().String()),
-			Tls: protocol.TlsConfig_builder{
+			Tls: node.TlsConfig_builder{
 				Enable:             proto.Bool(true),
 				InsecureSkipVerify: proto.Bool(true),
 			}.Build(),
@@ -115,11 +115,11 @@ func TestConn(t *testing.T) {
 	})
 
 	t.Run("test io", func(t *testing.T) {
-		s, err := NewServer(listener.Quic_builder{
+		s, err := NewServer(config.Quic_builder{
 			Host: proto.String("127.0.0.1:0"),
-			Tls: protocol.TlsServerConfig_builder{
-				Certificates: []*protocol.Certificate{
-					protocol.Certificate_builder{
+			Tls: node.TlsServerConfig_builder{
+				Certificates: []*node.Certificate{
+					node.Certificate_builder{
 						Cert: cert,
 						Key:  key,
 					}.Build(),
@@ -142,9 +142,9 @@ func TestConn(t *testing.T) {
 			}
 		}()
 
-		qc, err := NewClient(protocol.Quic_builder{
+		qc, err := NewClient(node.Quic_builder{
 			Host: proto.String(s.Addr().String()),
-			Tls: protocol.TlsConfig_builder{
+			Tls: node.TlsConfig_builder{
 				Enable:             proto.Bool(true),
 				InsecureSkipVerify: proto.Bool(true),
 			}.Build(),
@@ -174,11 +174,11 @@ func TestConn(t *testing.T) {
 
 	t.Run("conn -> server", func(t *testing.T) {
 		nettest.TestConn(t, func() (c1 net.Conn, c2 net.Conn, stop func(), err error) {
-			s, err := NewServer(listener.Quic_builder{
+			s, err := NewServer(config.Quic_builder{
 				Host: proto.String("127.0.0.1:0"),
-				Tls: protocol.TlsServerConfig_builder{
-					Certificates: []*protocol.Certificate{
-						protocol.Certificate_builder{
+				Tls: node.TlsServerConfig_builder{
+					Certificates: []*node.Certificate{
+						node.Certificate_builder{
 							Cert: cert,
 							Key:  key,
 						}.Build(),
@@ -200,9 +200,9 @@ func TestConn(t *testing.T) {
 				}
 			}()
 
-			qc, err := NewClient(protocol.Quic_builder{
+			qc, err := NewClient(node.Quic_builder{
 				Host: proto.String(s.Addr().String()),
-				Tls: protocol.TlsConfig_builder{
+				Tls: node.TlsConfig_builder{
 					Enable:             proto.Bool(true),
 					InsecureSkipVerify: proto.Bool(true),
 				}.Build(),
@@ -234,11 +234,11 @@ func TestConn(t *testing.T) {
 }
 
 func TestQuic(t *testing.T) {
-	s, err := NewServer(listener.Quic_builder{
+	s, err := NewServer(config.Quic_builder{
 		Host: proto.String("127.0.0.1:0"),
-		Tls: protocol.TlsServerConfig_builder{
-			Certificates: []*protocol.Certificate{
-				protocol.Certificate_builder{Cert: cert, Key: key}.Build(),
+		Tls: node.TlsServerConfig_builder{
+			Certificates: []*node.Certificate{
+				node.Certificate_builder{Cert: cert, Key: key}.Build(),
 			},
 		}.Build(),
 	}.Build())
@@ -269,9 +269,9 @@ func TestQuic(t *testing.T) {
 		}
 	}()
 
-	qc, err := NewClient(protocol.Quic_builder{
+	qc, err := NewClient(node.Quic_builder{
 		Host: proto.String(s.Addr().String()),
-		Tls: protocol.TlsConfig_builder{
+		Tls: node.TlsConfig_builder{
 			Enable:             proto.Bool(true),
 			InsecureSkipVerify: proto.Bool(true),
 		}.Build(),

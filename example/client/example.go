@@ -11,30 +11,29 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"google.golang.org/protobuf/proto"
 )
 
 func main() {
-	node := point.Point_builder{
-		Protocols: []*protocol.Protocol{
-			protocol.Protocol_builder{
-				NetworkSplit: protocol.NetworkSplit_builder{
-					Tcp: protocol.Protocol_builder{
-						Simple: protocol.Simple_builder{
+	node := node.Point_builder{
+		Protocols: []*node.Protocol{
+			node.Protocol_builder{
+				NetworkSplit: node.NetworkSplit_builder{
+					Tcp: node.Protocol_builder{
+						Simple: node.Simple_builder{
 							Host: proto.String("127.0.0.1"),
 							Port: proto.Int32(1080),
 						}.Build(),
 					}.Build(),
-					Udp: protocol.Protocol_builder{
-						Direct: &protocol.Direct{},
+					Udp: node.Protocol_builder{
+						Direct: &node.Direct{},
 					}.Build(),
 				}.Build(),
 			}.Build(),
-			protocol.Protocol_builder{
-				Socks5: &protocol.Socks5{},
+			node.Protocol_builder{
+				Socks5: &node.Socks5{},
 			}.Build(),
 		},
 	}

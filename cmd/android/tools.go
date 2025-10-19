@@ -4,8 +4,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 type CIDR struct {
@@ -32,7 +31,7 @@ type AddRoute interface {
 }
 
 func FakeDnsCidr(f func(string)) {
-	err := newResolverDB().View(func(s *pc.Setting) error {
+	err := newResolverDB().View(func(s *config.Setting) error {
 		d := s.GetDns()
 
 		f(d.GetFakednsIpRange())
@@ -47,7 +46,7 @@ func FakeDnsCidr(f func(string)) {
 
 func IsIPv6() bool {
 	var ipv6 bool
-	err := newChoreDB().View(func(s *pc.Setting) error {
+	err := newChoreDB().View(func(s *config.Setting) error {
 		ipv6 = s.GetIpv6()
 		return nil
 	})
@@ -71,15 +70,15 @@ func AddFakeDnsCidr(process AddRoute) {
 }
 
 func AddRulesCidrv2(process AddRoute) {
-	bd := &bypass.Config{}
-	_ = newBypassDB().Batch(func(s *pc.Setting) error {
+	bd := &config.BypassConfig{}
+	_ = newBypassDB().Batch(func(s *config.Setting) error {
 		bd = s.GetBypass()
 		return nil
 	})
 
 	for _, v := range bd.GetCustomRuleV3() {
 
-		if v.GetMode() == bypass.Mode_direct && v.GetTag() == "" {
+		if v.GetMode() == config.Mode_direct && v.GetTag() == "" {
 			continue
 		}
 

@@ -13,7 +13,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/crypto/chacha20"
@@ -264,10 +264,10 @@ func (h *encryptedHandshaker) encryptTime(password, salt, dst, src []byte) error
 	return nil
 }
 
-func NewHandshaker(server bool, password []byte, method protocol.AeadCryptoMethod) *encryptedHandshaker {
+func NewHandshaker(server bool, password []byte, method node.AeadCryptoMethod) *encryptedHandshaker {
 	var aead Aead
 	switch method {
-	case protocol.AeadCryptoMethod_XChacha20Poly1305:
+	case node.AeadCryptoMethod_XChacha20Poly1305:
 		aead = XChacha20poly1305
 	default:
 		aead = Chacha20poly1305

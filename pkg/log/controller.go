@@ -3,11 +3,12 @@ package log
 import (
 	"context"
 	"io"
+	"log/slog"
 	"os"
 	"sync"
 	"time"
 
-	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -72,8 +73,23 @@ func NewController() *Controller {
 	return &Controller{}
 }
 
-func (l *Controller) Set(config *protolog.Logcat, path string) {
-	leveler.Store(config.GetLevel().SLogLevel())
+func SLogLevel(l config.LogLevel) slog.Level {
+	switch l {
+	case config.LogLevel_debug, config.LogLevel_verbose:
+		return slog.LevelDebug
+	case config.LogLevel_info:
+		return slog.LevelInfo
+	case config.LogLevel_warning:
+		return slog.LevelWarn
+	case config.LogLevel_error, config.LogLevel_fatal:
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
+func (l *Controller) Set(config *config.Logcat, path string) {
+	leveler.Store(SLogLevel(config.GetLevel()))
 
 	if !config.GetSave() {
 		_ = l.Close()

@@ -6,14 +6,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 var Mark = 0x00000500
 
 type Opt struct {
-	*listener.Tun
+	*config.Tun
 	*netlink.Options
 	netapi.Handler
 

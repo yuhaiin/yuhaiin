@@ -14,9 +14,8 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"google.golang.org/protobuf/proto"
 )
@@ -40,7 +39,7 @@ MC4CAQAwBQYDK2VwBCIEILArmTMFo0d2X9cTPVlgKGVO+wyqkQFjPlNnN5wmTq6G
 
 func main() {
 	r, err := resolver.New(resolver.Config{
-		Type: dns.Type_udp,
+		Type: config.Type_udp,
 		Host: "8.8.8.8",
 	})
 	if err != nil {
@@ -49,27 +48,27 @@ func main() {
 
 	netapi.SetBootstrap(r)
 
-	node := point.Point_builder{
-		Protocols: []*protocol.Protocol{
-			protocol.Protocol_builder{
-				Simple: protocol.Simple_builder{
+	node := node.Point_builder{
+		Protocols: []*node.Protocol{
+			node.Protocol_builder{
+				Simple: node.Simple_builder{
 					Host: proto.String("ip.sb"),
 					Port: proto.Int32(443),
 				}.Build(),
 			}.Build(),
-			protocol.Protocol_builder{
-				Tls: protocol.TlsConfig_builder{
+			node.Protocol_builder{
+				Tls: node.TlsConfig_builder{
 					Enable:             proto.Bool(true),
 					InsecureSkipVerify: proto.Bool(true),
 					ServerNames:        []string{"ip.sb"},
 				}.Build(),
 			}.Build(),
 
-			protocol.Protocol_builder{
-				TlsTermination: protocol.TlsTermination_builder{
-					Tls: protocol.TlsServerConfig_builder{
-						Certificates: []*protocol.Certificate{
-							protocol.Certificate_builder{
+			node.Protocol_builder{
+				TlsTermination: node.TlsTermination_builder{
+					Tls: node.TlsServerConfig_builder{
+						Certificates: []*node.Certificate{
+							node.Certificate_builder{
 								Cert: []byte(cert),
 								Key:  []byte(key),
 							}.Build(),

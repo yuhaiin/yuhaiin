@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -22,19 +21,19 @@ func newTestManager() *Manager {
 func TestAddNode(t *testing.T) {
 	mg := newTestManager()
 
-	p1 := point.Point_builder{
+	p1 := node.Point_builder{
 		Name:  proto.String("feefe"),
 		Group: proto.String("group"),
 	}.Build()
-	p2 := point.Point_builder{
+	p2 := node.Point_builder{
 		Name:  proto.String("fafaf"),
 		Group: proto.String("group"),
 	}.Build()
-	p3 := point.Point_builder{
+	p3 := node.Point_builder{
 		Name:  proto.String("fazczfzf"),
 		Group: proto.String("group"),
 	}.Build()
-	p4 := point.Point_builder{
+	p4 := node.Point_builder{
 		Name:  proto.String("fazczfzf"),
 		Group: proto.String("group"),
 	}.Build()

@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 )
 
 func init() {
-	register.RegisterPoint(func(*protocol.Drop, netapi.Proxy) (netapi.Proxy, error) {
+	register.RegisterPoint(func(*node.Drop, netapi.Proxy) (netapi.Proxy, error) {
 		return Drop, nil
 	})
 }

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/backup"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -21,7 +21,7 @@ type S3 struct {
 	s3c          *minio.Client
 }
 
-func NewS3(opt *backup.S3, proxy netapi.Proxy) (*S3, error) {
+func NewS3(opt *config.S3, proxy netapi.Proxy) (*S3, error) {
 	uri, err := url.Parse(opt.GetEndpointUrl())
 	if err != nil {
 		return nil, err

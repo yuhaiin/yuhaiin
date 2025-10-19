@@ -16,11 +16,11 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/app"
+	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -48,7 +48,7 @@ func run(args []string) error {
 		return err
 	}
 
-	setting := config.NewJsonDB(tools.PathGenerator.Config(*path))
+	setting := chore.NewJsonDB(tools.PathGenerator.Config(*path))
 
 	var grpcOpts []grpc.ServerOption
 

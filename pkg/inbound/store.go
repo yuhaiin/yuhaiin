@@ -8,24 +8,24 @@ import (
 	"slices"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
+	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
-	cf "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type InboundCtr struct {
-	gc.UnimplementedInboundServer
-	db      pc.DB
+	api.UnimplementedInboundServer
+	db      chore.DB
 	inbound *Inbound
 }
 
-func NewInboundCtr(s pc.DB, i *Inbound) *InboundCtr {
-	_ = s.Batch(func(s *pc.Setting) error {
+func NewInboundCtr(s chore.DB, i *Inbound) *InboundCtr {
+	_ = s.Batch(func(s *config.Setting) error {
 		for name, v := range s.GetServer().GetInbounds() {
 			if !v.GetEnabled() {
 				continue
@@ -46,10 +46,10 @@ func NewInboundCtr(s pc.DB, i *Inbound) *InboundCtr {
 	return &InboundCtr{db: s, inbound: i}
 }
 
-func (i *InboundCtr) List(ctx context.Context, req *emptypb.Empty) (*gc.InboundsResponse, error) {
-	resp := &gc.InboundsResponse{}
+func (i *InboundCtr) List(ctx context.Context, req *emptypb.Empty) (*api.InboundsResponse, error) {
+	resp := &api.InboundsResponse{}
 
-	err := i.db.View(func(s *pc.Setting) error {
+	err := i.db.View(func(s *config.Setting) error {
 		resp.SetNames(slices.Collect(maps.Keys(s.GetServer().GetInbounds())))
 		resp.SetHijackDns(s.GetServer().GetHijackDns())
 		resp.SetHijackDnsFakeip(s.GetServer().GetHijackDnsFakeip())
@@ -60,9 +60,9 @@ func (i *InboundCtr) List(ctx context.Context, req *emptypb.Empty) (*gc.Inbounds
 	return resp, err
 }
 
-func (i *InboundCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*cf.Inbound, error) {
-	resp := &cf.Inbound{}
-	err := i.db.View(func(s *pc.Setting) error {
+func (i *InboundCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*config.Inbound, error) {
+	resp := &config.Inbound{}
+	err := i.db.View(func(s *config.Setting) error {
 		var ok bool
 		resp, ok = s.GetServer().GetInbounds()[req.Value]
 		if !ok {
@@ -75,7 +75,7 @@ func (i *InboundCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*cf.
 	return resp, err
 }
 
-func generateRealityKeys(v *cf.Transport) error {
+func generateRealityKeys(v *config.Transport) error {
 	if v.GetReality() == nil {
 		return nil
 	}
@@ -93,7 +93,7 @@ func generateRealityKeys(v *cf.Transport) error {
 	return nil
 }
 
-func generateTlsAuthCa(v *cf.Transport) error {
+func generateTlsAuthCa(v *config.Transport) error {
 	if v.GetTlsAuto() == nil {
 		return nil
 	}
@@ -148,7 +148,7 @@ func generateTlsAuthCa(v *cf.Transport) error {
 	return nil
 }
 
-func (i *InboundCtr) Save(ctx context.Context, req *cf.Inbound) (*cf.Inbound, error) {
+func (i *InboundCtr) Save(ctx context.Context, req *config.Inbound) (*config.Inbound, error) {
 	if req.GetName() == "" {
 		return nil, fmt.Errorf("inbound name is empty")
 	}
@@ -156,9 +156,9 @@ func (i *InboundCtr) Save(ctx context.Context, req *cf.Inbound) (*cf.Inbound, er
 	for _, v := range req.GetTransport() {
 		var err error
 		switch v.WhichTransport() {
-		case cf.Transport_TlsAuto_case:
+		case config.Transport_TlsAuto_case:
 			err = generateTlsAuthCa(v)
-		case cf.Transport_Reality_case:
+		case config.Transport_Reality_case:
 			err = generateRealityKeys(v)
 		}
 		if err != nil {
@@ -166,7 +166,7 @@ func (i *InboundCtr) Save(ctx context.Context, req *cf.Inbound) (*cf.Inbound, er
 		}
 	}
 
-	err := i.db.Batch(func(s *pc.Setting) error {
+	err := i.db.Batch(func(s *config.Setting) error {
 		s.GetServer().GetInbounds()[req.GetName()] = req
 		i.inbound.Save(req)
 		return nil
@@ -174,8 +174,8 @@ func (i *InboundCtr) Save(ctx context.Context, req *cf.Inbound) (*cf.Inbound, er
 	return req, err
 }
 
-func (i *InboundCtr) Apply(ctx context.Context, req *gc.InboundsResponse) (*emptypb.Empty, error) {
-	err := i.db.Batch(func(s *pc.Setting) error {
+func (i *InboundCtr) Apply(ctx context.Context, req *api.InboundsResponse) (*emptypb.Empty, error) {
+	err := i.db.Batch(func(s *config.Setting) error {
 		s.GetServer().SetHijackDns(req.GetHijackDns())
 		s.GetServer().SetHijackDnsFakeip(req.GetHijackDnsFakeip())
 		s.GetServer().SetSniff(req.GetSniff())
@@ -188,7 +188,7 @@ func (i *InboundCtr) Apply(ctx context.Context, req *gc.InboundsResponse) (*empt
 }
 
 func (i *InboundCtr) Remove(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
-	err := i.db.Batch(func(s *pc.Setting) error {
+	err := i.db.Batch(func(s *config.Setting) error {
 		delete(s.GetServer().GetInbounds(), req.Value)
 		i.inbound.Remove(req.Value)
 		return nil
@@ -196,10 +196,10 @@ func (i *InboundCtr) Remove(ctx context.Context, req *wrapperspb.StringValue) (*
 	return &emptypb.Empty{}, err
 }
 
-var platformInfo []func(*gc.PlatformInfoResponse)
+var platformInfo []func(*api.PlatformInfoResponse)
 
-func (i *InboundCtr) PlatformInfo(ctx context.Context, req *emptypb.Empty) (*gc.PlatformInfoResponse, error) {
-	resp := &gc.PlatformInfoResponse{}
+func (i *InboundCtr) PlatformInfo(ctx context.Context, req *emptypb.Empty) (*api.PlatformInfoResponse, error) {
+	resp := &api.PlatformInfoResponse{}
 	for _, v := range platformInfo {
 		v(resp)
 	}

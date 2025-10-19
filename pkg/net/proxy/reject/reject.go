@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
@@ -51,7 +51,7 @@ type object struct {
 }
 
 func init() {
-	register.RegisterPoint(func(*protocol.Reject, netapi.Proxy) (netapi.Proxy, error) {
+	register.RegisterPoint(func(*node.Reject, netapi.Proxy) (netapi.Proxy, error) {
 		return Default, nil
 	})
 }

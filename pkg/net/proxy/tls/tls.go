@@ -14,8 +14,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
@@ -120,7 +120,7 @@ func newConfigPool(serverName string, config *tls.Config) cliectConfigPool {
 	return &fixedConfigPool{c}
 }
 
-func NewClient(c *protocol.TlsConfig, p netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(c *node.TlsConfig, p netapi.Proxy) (netapi.Proxy, error) {
 	tls := ParseTLSConfig(c)
 	if tls == nil {
 		return p, nil
@@ -166,7 +166,7 @@ func init() {
 	register.RegisterTransport(NewTlsAutoServer)
 }
 
-func NewServer(c *listener.Tls, ii netapi.Listener) (netapi.Listener, error) {
+func NewServer(c *config.Tls, ii netapi.Listener) (netapi.Listener, error) {
 	config, err := register.ParseTLS(c.GetTls())
 	if err != nil {
 		return nil, err
@@ -247,7 +247,7 @@ func TlsAutoConfig(ca *cert.Ca, nextProto []string, servername []string) *tls.Co
 	return config
 }
 
-func NewTlsAutoServer(c *listener.TlsAuto, ii netapi.Listener) (netapi.Listener, error) {
+func NewTlsAutoServer(c *config.TlsAuto, ii netapi.Listener) (netapi.Listener, error) {
 	ca, err := cert.ParseCa(c.GetCaCert(), c.GetCaKey())
 	if err != nil {
 		return nil, err
@@ -269,7 +269,7 @@ func NewTlsAutoServer(c *listener.TlsAuto, ii netapi.Listener) (netapi.Listener,
 
 var tlsSessionCache = tls.NewLRUClientSessionCache(128)
 
-func ParseTLSConfig(t *protocol.TlsConfig) *tls.Config {
+func ParseTLSConfig(t *node.TlsConfig) *tls.Config {
 	if t == nil || !t.GetEnable() {
 		return nil
 	}

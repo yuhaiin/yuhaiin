@@ -8,14 +8,13 @@ import (
 	"net/netip"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/miekg/dns"
 	"google.golang.org/protobuf/proto"
@@ -25,14 +24,14 @@ import (
 
 type Entry struct {
 	Resolver netapi.Resolver
-	Config   *pd.Dns
+	Config   *config.Dns
 }
 
 type Resolver struct {
 	dialer          netapi.Proxy
-	bootstrapConfig *pd.Dns
+	bootstrapConfig *config.Dns
 	store           syncmap.SyncMap[string, *Entry]
-	resolvers       syncmap.SyncMap[string, *pd.Dns]
+	resolvers       syncmap.SyncMap[string, *config.Dns]
 	mu              sync.RWMutex
 	bootstrapMu     sync.Mutex
 }
@@ -53,7 +52,7 @@ var errorResolver = netapi.ErrorResolver(func(domain string) error {
 	}
 })
 
-var block = bypass.Mode_block.String()
+var block = config.Mode_block.String()
 
 func (r *Resolver) getFallbackResolver(str, fallback string) netapi.Resolver {
 	if fallback == block {
@@ -134,7 +133,7 @@ func (r *Resolver) getResolver(name string) (netapi.Resolver, bool) {
 	return e.Resolver, err == nil
 }
 
-func (r *Resolver) Apply(name string, config *pd.Dns) {
+func (r *Resolver) Apply(name string, config *config.Dns) {
 	if name == "" {
 		log.Warn("resolver name is empty")
 		return
@@ -169,7 +168,7 @@ func (r *Resolver) Delete(name string) {
 	}
 }
 
-func (r *Resolver) ApplyBootstrap(c *pd.Dns) {
+func (r *Resolver) ApplyBootstrap(c *config.Dns) {
 	r.bootstrapMu.Lock()
 	defer r.bootstrapMu.Unlock()
 
@@ -224,7 +223,7 @@ func (d *dnsWrap) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	return msg, nil
 }
 
-func newResolver(name string, dc *pd.Dns, dialer netapi.Proxy) (netapi.Resolver, error) {
+func newResolver(name string, dc *config.Dns, dialer netapi.Proxy) (netapi.Resolver, error) {
 	subnet, err := netip.ParsePrefix(dc.GetSubnet())
 	if err != nil {
 		p, err := netip.ParseAddr(dc.GetSubnet())
@@ -260,7 +259,7 @@ type dnsDialer struct {
 func (d *dnsDialer) newCtx(c context.Context) *netapi.Context {
 	ctx := netapi.WithContext(c)
 	if d.bootstrap {
-		ctx.ConnOptions().SetRouteMode(bypass.Mode_direct)
+		ctx.ConnOptions().SetRouteMode(config.Mode_direct)
 	}
 	ctx.SetComponent(fmt.Sprintf("dns:%s", d.name)).
 		ConnOptions().Resolver().SetResolver(d.resolver()).SetIsResolver()
@@ -276,15 +275,15 @@ func (d *dnsDialer) PacketConn(c context.Context, addr netapi.Address) (net.Pack
 }
 
 type ResolverCtr struct {
-	s config.DB
-	gc.UnimplementedResolverServer
+	s chore.DB
+	api.UnimplementedResolverServer
 
 	hosts   *Hosts
 	fakedns *Fakedns
 	r       *Resolver
 }
 
-func NewResolverCtr(s config.DB, hosts *Hosts, fakedns *Fakedns, r *Resolver) *ResolverCtr {
+func NewResolverCtr(s chore.DB, hosts *Hosts, fakedns *Fakedns, r *Resolver) *ResolverCtr {
 	r2 := &ResolverCtr{s: s, hosts: hosts, fakedns: fakedns, r: r}
 
 	err := s.View(func(s *config.Setting) error {
@@ -308,8 +307,8 @@ func NewResolverCtr(s config.DB, hosts *Hosts, fakedns *Fakedns, r *Resolver) *R
 	return r2
 }
 
-func (r *ResolverCtr) List(ctx context.Context, req *emptypb.Empty) (*gc.ResolveList, error) {
-	resp := &gc.ResolveList{}
+func (r *ResolverCtr) List(ctx context.Context, req *emptypb.Empty) (*api.ResolveList, error) {
+	resp := &api.ResolveList{}
 	err := r.s.View(func(s *config.Setting) error {
 		for k := range s.GetDns().GetResolver() {
 			resp.SetNames(append(resp.GetNames(), k))
@@ -319,8 +318,8 @@ func (r *ResolverCtr) List(ctx context.Context, req *emptypb.Empty) (*gc.Resolve
 	return resp, err
 }
 
-func (r *ResolverCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*pd.Dns, error) {
-	var dns *pd.Dns
+func (r *ResolverCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*config.Dns, error) {
+	var dns *config.Dns
 	err := r.s.View(func(s *config.Setting) error {
 		dns = s.GetDns().GetResolver()[req.GetValue()]
 		return nil
@@ -336,7 +335,7 @@ func (r *ResolverCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*pd
 	return dns, nil
 }
 
-func (r *ResolverCtr) Save(ctx context.Context, req *gc.SaveResolver) (*pd.Dns, error) {
+func (r *ResolverCtr) Save(ctx context.Context, req *api.SaveResolver) (*config.Dns, error) {
 	if req.GetName() == "" {
 		return nil, fmt.Errorf("name is empty")
 	}
@@ -373,17 +372,17 @@ func (r *ResolverCtr) Remove(ctx context.Context, req *wrapperspb.StringValue) (
 	return &emptypb.Empty{}, err
 }
 
-func (r *ResolverCtr) Hosts(ctx context.Context, _ *emptypb.Empty) (*gc.Hosts, error) {
+func (r *ResolverCtr) Hosts(ctx context.Context, _ *emptypb.Empty) (*api.Hosts, error) {
 	hosts := map[string]string{}
 	err := r.s.View(func(s *config.Setting) error {
 		hosts = s.GetDns().GetHosts()
 		return nil
 	})
 
-	return (&gc.Hosts_builder{Hosts: hosts}).Build(), err
+	return (&api.Hosts_builder{Hosts: hosts}).Build(), err
 }
 
-func (r *ResolverCtr) SaveHosts(ctx context.Context, req *gc.Hosts) (*emptypb.Empty, error) {
+func (r *ResolverCtr) SaveHosts(ctx context.Context, req *api.Hosts) (*emptypb.Empty, error) {
 	err := r.s.Batch(func(s *config.Setting) error {
 		s.GetDns().SetHosts(req.GetHosts())
 		return nil
@@ -397,8 +396,8 @@ func (r *ResolverCtr) SaveHosts(ctx context.Context, req *gc.Hosts) (*emptypb.Em
 	return &emptypb.Empty{}, nil
 }
 
-func toFakednsConfig(s *config.Setting) *pd.FakednsConfig {
-	return (&pd.FakednsConfig_builder{
+func toFakednsConfig(s *config.Setting) *config.FakednsConfig {
+	return (&config.FakednsConfig_builder{
 		Enabled:       proto.Bool(s.GetDns().GetFakedns()),
 		Ipv4Range:     proto.String(s.GetDns().GetFakednsIpRange()),
 		Ipv6Range:     proto.String(s.GetDns().GetFakednsIpv6Range()),
@@ -407,8 +406,8 @@ func toFakednsConfig(s *config.Setting) *pd.FakednsConfig {
 	}).Build()
 }
 
-func (r *ResolverCtr) Fakedns(context.Context, *emptypb.Empty) (*pd.FakednsConfig, error) {
-	var c *pd.FakednsConfig
+func (r *ResolverCtr) Fakedns(context.Context, *emptypb.Empty) (*config.FakednsConfig, error) {
+	var c *config.FakednsConfig
 	err := r.s.View(func(s *config.Setting) error {
 		c = toFakednsConfig(s)
 		return nil
@@ -416,7 +415,7 @@ func (r *ResolverCtr) Fakedns(context.Context, *emptypb.Empty) (*pd.FakednsConfi
 	return c, err
 }
 
-func (r *ResolverCtr) SaveFakedns(ctx context.Context, req *pd.FakednsConfig) (*emptypb.Empty, error) {
+func (r *ResolverCtr) SaveFakedns(ctx context.Context, req *config.FakednsConfig) (*emptypb.Empty, error) {
 	err := r.s.Batch(func(s *config.Setting) error {
 		s.GetDns().SetFakedns(req.GetEnabled())
 		s.GetDns().SetFakednsIpRange(req.GetIpv4Range())

@@ -10,14 +10,12 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/proto"
 )
 
 func init() {
-	store.Store(subscribe.Type_shadowsocksr, func(data []byte) (*point.Point, error) {
+	store.Store(node.Type_shadowsocksr, func(data []byte) (*node.Point, error) {
 		data = bytes.TrimPrefix(data, []byte("ssr://"))
 		dst := make([]byte, base64.RawStdEncoding.DecodedLen(len(data)))
 		_, err := base64.RawURLEncoding.Decode(dst, data)
@@ -50,19 +48,19 @@ func init() {
 
 		obfsparam, _ := base64.RawURLEncoding.DecodeString(query.Get("obfsparam"))
 		protoparam, _ := base64.RawURLEncoding.DecodeString(query.Get("protoparam"))
-		return point.Point_builder{
-			Origin: point.Origin_remote.Enum(),
+		return node.Point_builder{
+			Origin: node.Origin_remote.Enum(),
 			Name:   proto.String("[ssr]" + string(name)),
-			Protocols: []*protocol.Protocol{
-				protocol.Protocol_builder{
-					Simple: protocol.Simple_builder{
+			Protocols: []*node.Protocol{
+				node.Protocol_builder{
+					Simple: node.Simple_builder{
 						Host: proto.String(x[0]),
 						Port: proto.Int32(int32(port)),
 					}.Build(),
 				}.Build(),
 
-				protocol.Protocol_builder{
-					Shadowsocksr: protocol.Shadowsocksr_builder{
+				node.Protocol_builder{
+					Shadowsocksr: node.Shadowsocksr_builder{
 						Server:     proto.String(x[0]),
 						Port:       proto.String(x[1]),
 						Protocol:   proto.String(x[2]),

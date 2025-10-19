@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/backup"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -14,7 +14,7 @@ import (
 
 func TestS3(t *testing.T) {
 	t.Run("marshal config", func(t *testing.T) {
-		config := backup.S3_builder{
+		config := config.S3_builder{
 			Enabled:      proto.Bool(true),
 			AccessKey:    proto.String("access"),
 			SecretKey:    proto.String("secret"),
@@ -37,7 +37,7 @@ func TestS3(t *testing.T) {
 		data, err := os.ReadFile(".config.json")
 		assert.NoError(t, err)
 
-		var config backup.S3
+		var config config.S3
 		assert.NoError(t, protojson.Unmarshal(data, &config))
 
 		s3, err := NewS3(&config, direct.Default)

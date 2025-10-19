@@ -17,11 +17,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	pb "github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -160,7 +157,7 @@ func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
 	defer ticker.Stop()
 
 	alreadyEmpty := false
-	var last *gs.TotalFlow
+	var last *api.TotalFlow
 	for {
 		select {
 		case <-ctx.Done():
@@ -238,46 +235,46 @@ func flowString(download, upload, ur, dr string) string {
 	)
 }
 
-func newInboundDB(opt *Opts) *configDB[*listener.InboundConfig] {
+func newInboundDB(opt *Opts) *configDB[*config.InboundConfig] {
 	var listenHost string = "127.0.0.1"
 	if store.GetBoolean(AllowLanKey) {
 		listenHost = "0.0.0.0"
 	}
 
-	inbounds := map[string]*listener.Inbound{
-		"mix": listener.Inbound_builder{
+	inbounds := map[string]*config.Inbound{
+		"mix": config.Inbound_builder{
 			Name:    proto.String("mix"),
 			Enabled: proto.Bool(store.GetInt(NewHTTPPortKey) != 0),
-			Tcpudp: listener.Tcpudp_builder{
+			Tcpudp: config.Tcpudp_builder{
 				Host:    proto.String(net.JoinHostPort(listenHost, fmt.Sprint(store.GetInt(NewHTTPPortKey)))),
-				Control: listener.TcpUdpControl_tcp_udp_control_all.Enum(),
+				Control: config.TcpUdpControl_tcp_udp_control_all.Enum(),
 			}.Build(),
-			Mix: &listener.Mixed{},
+			Mix: &config.Mixed{},
 		}.Build(),
-		"tun": listener.Inbound_builder{
+		"tun": config.Inbound_builder{
 			Name:    proto.String("tun"),
 			Enabled: proto.Bool(true),
-			Empty:   &listener.Empty{},
-			Tun: listener.Tun_builder{
+			Empty:   &config.Empty{},
+			Tun: config.Tun_builder{
 				Name:          proto.String(fmt.Sprintf("fd://%d", opt.TUN.FD)),
 				Mtu:           proto.Int32(opt.TUN.MTU),
 				Portal:        proto.String(opt.TUN.Portal),
 				PortalV6:      proto.String(opt.TUN.PortalV6),
 				SkipMulticast: proto.Bool(true),
-				Route:         &listener.Route{},
-				Driver:        listener.TunEndpointDriver(listener.TunEndpointDriver_value[store.GetString(AdvTunDriverKey)]).Enum(),
+				Route:         &config.Route{},
+				Driver:        config.TunEndpointDriver(config.TunEndpointDriver_value[store.GetString(AdvTunDriverKey)]).Enum(),
 			}.Build(),
 		}.Build(),
 	}
 
 	return newConfigDB(
 		"inbound_db",
-		func(s *pc.Setting) *listener.InboundConfig {
+		func(s *config.Setting) *config.InboundConfig {
 			if s.GetServer() == nil {
-				s.SetServer(listener.InboundConfig_builder{
+				s.SetServer(config.InboundConfig_builder{
 					HijackDns:       proto.Bool(true),
 					HijackDnsFakeip: proto.Bool(true),
-					Sniff: listener.Sniff_builder{
+					Sniff: config.Sniff_builder{
 						Enabled: proto.Bool(true),
 					}.Build(),
 				}.Build())
@@ -287,41 +284,41 @@ func newInboundDB(opt *Opts) *configDB[*listener.InboundConfig] {
 
 			return s.GetServer()
 		},
-		func(s *listener.InboundConfig) *pc.Setting {
+		func(s *config.InboundConfig) *config.Setting {
 			s.SetInbounds(inbounds)
-			return pc.Setting_builder{Server: s}.Build()
+			return config.Setting_builder{Server: s}.Build()
 		},
 	)
 }
 
-func newResolverDB() *configDB[*dns.DnsConfig] {
+func newResolverDB() *configDB[*config.DnsConfig] {
 	return newConfigDB(
 		"resolver_db",
-		func(s *pc.Setting) *dns.DnsConfig { return s.GetDns() },
-		func(s *dns.DnsConfig) *pc.Setting { return pc.Setting_builder{Dns: s}.Build() },
+		func(s *config.Setting) *config.DnsConfig { return s.GetDns() },
+		func(s *config.DnsConfig) *config.Setting { return config.Setting_builder{Dns: s}.Build() },
 	)
 }
 
-func newBypassDB() *configDB[*pb.Config] {
+func newBypassDB() *configDB[*config.BypassConfig] {
 	return newConfigDB(
 		"bypass_db",
-		func(s *pc.Setting) *pb.Config { return s.GetBypass() },
-		func(s *pb.Config) *pc.Setting { return pc.Setting_builder{Bypass: s}.Build() },
+		func(s *config.Setting) *config.BypassConfig { return s.GetBypass() },
+		func(s *config.BypassConfig) *config.Setting { return config.Setting_builder{Bypass: s}.Build() },
 	)
 }
 
-func newChoreDB() *configDB[*pc.Setting] {
+func newChoreDB() *configDB[*config.Setting] {
 	return newConfigDB(
 		"chore_db",
-		func(s *pc.Setting) *pc.Setting { return s },
-		func(s *pc.Setting) *pc.Setting { return s },
+		func(s *config.Setting) *config.Setting { return s },
+		func(s *config.Setting) *config.Setting { return s },
 	)
 }
 
-func newBackupDB() *configDB[*pc.Setting] {
+func newBackupDB() *configDB[*config.Setting] {
 	return newConfigDB(
 		"backup_db",
-		func(s *pc.Setting) *pc.Setting { return s },
-		func(s *pc.Setting) *pc.Setting { return s },
+		func(s *config.Setting) *config.Setting { return s },
+		func(s *config.Setting) *config.Setting { return s },
 	)
 }

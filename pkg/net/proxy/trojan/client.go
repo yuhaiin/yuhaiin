@@ -13,7 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
@@ -58,7 +58,7 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Trojan, dialer netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(config *node.Trojan, dialer netapi.Proxy) (netapi.Proxy, error) {
 	return &Client{
 		password: hexSha224([]byte(config.GetPassword())),
 		proxy:    dialer,

@@ -9,21 +9,20 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Chore struct {
-	gc.UnimplementedConfigServiceServer
-	db     config.DB
+	api.UnimplementedConfigServiceServer
+	db     DB
 	onSave func(*config.Setting)
 	mu     sync.RWMutex
 }
 
-func NewChore(db config.DB, onSave func(*config.Setting)) gc.ConfigServiceServer {
+func NewChore(db DB, onSave func(*config.Setting)) api.ConfigServiceServer {
 	return &Chore{db: db, onSave: onSave}
 }
 
@@ -44,9 +43,9 @@ func (c *Chore) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
 		}
 
 		if !s.HasLogcat() {
-			s.SetLogcat(log.Logcat_builder{
+			s.SetLogcat(config.Logcat_builder{
 				Save:               proto.Bool(false),
-				Level:              log.LogLevel_info.Enum(),
+				Level:              config.LogLevel_info.Enum(),
 				IgnoreDnsError:     proto.Bool(configuration.IgnoreDnsErrorLog.Load()),
 				IgnoreTimeoutError: proto.Bool(configuration.IgnoreTimeoutErrorLog.Load()),
 			}.Build())

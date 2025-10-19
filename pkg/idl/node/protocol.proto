@@ -1,0 +1,271 @@
+edition = "2023";
+
+package yuhaiin.protocol;
+import "google/protobuf/go_features.proto";
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node";
+option features.(pb.go).api_level = API_OPAQUE;
+
+message protocol {
+  oneof protocol {
+    shadowsocks shadowsocks = 1 [ json_name = "shadowsocks", lazy = true ];
+    shadowsocksr shadowsocksr = 2 [ json_name = "shadowsocksr", lazy = true ];
+    vmess vmess = 3 [ json_name = "vmess", lazy = true ];
+    websocket websocket = 4 [ json_name = "websocket", lazy = true ];
+    quic quic = 5 [ json_name = "quic", lazy = true ];
+    obfs_http obfs_http = 6 [ json_name = "obfs_http", lazy = true ];
+    trojan trojan = 7 [ json_name = "trojan", lazy = true ];
+    // Simple
+    //
+    // Deprecated: use [Fixed] instead
+    simple simple = 8 [ json_name = "simple", deprecated = true, lazy = true ];
+    none none = 9 [ json_name = "none", lazy = true ];
+    socks5 socks5 = 10 [ json_name = "socks5", lazy = true ];
+    http http = 11 [ json_name = "http", lazy = true ];
+    direct direct = 12 [ json_name = "direct", lazy = true ];
+    reject reject = 13 [ json_name = "reject", lazy = true ];
+    yuubinsya yuubinsya = 14 [ json_name = "yuubinsya", lazy = true ];
+    grpc grpc = 15 [ json_name = "grpc", lazy = true ];
+    http2 http2 = 16 [ json_name = "http2", lazy = true ];
+    reality reality = 17 [ json_name = "reality", lazy = true ];
+    tls_config tls = 18 [ json_name = "tls", lazy = true ];
+    wireguard wireguard = 19 [ json_name = "wireguard", lazy = true ];
+    mux mux = 20 [ json_name = "mux", lazy = true ];
+    drop drop = 21 [ json_name = "drop", lazy = true ];
+    vless vless = 22 [ json_name = "vless", lazy = true ];
+    // bootstrap_dns make the dialer use bootstrap dns to resolve the outbound
+    // address instead of the route dns
+    bootstrap_dns_warp bootstrap_dns_warp = 23
+        [ json_name = "bootstrap_dns_warp", lazy = true ];
+    tailscale tailscale = 24 [ json_name = "tailscale", lazy = true ];
+    set set = 25 [ json_name = "set", lazy = true ];
+    tls_termination tls_termination = 26
+        [ json_name = "tls_termination", lazy = true ];
+    http_termination http_termination = 27
+        [ json_name = "http_termination", lazy = true ];
+    http_mock http_mock = 28 [ json_name = "http_mock", lazy = true ];
+    aead aead = 29 [ json_name = "aead", lazy = true ];
+    fixed fixed = 30 [ json_name = "fixed", lazy = true ];
+    network_split network_split = 31
+        [ json_name = "network_split", lazy = true ];
+  }
+}
+
+message socks5 {
+  // eg: 127.0.0.1
+  string hostname = 3 [ json_name = "hostname" ];
+  string user = 1 [ json_name = "user" ];
+  string password = 2 [ json_name = "password" ];
+  // TODO: add override hostname options
+  uint32 override_port = 4 [ json_name = "override_port" ];
+}
+
+message http {
+  string user = 1 [ json_name = "user" ];
+  string password = 2 [ json_name = "password" ];
+}
+
+message shadowsocks {
+  string method = 1 [ json_name = "method" ];
+  string password = 2 [ json_name = "password" ];
+}
+
+message shadowsocksr {
+  string server = 1 [ json_name = "server" ];
+  string port = 2 [ json_name = "port" ];
+  string method = 3 [ json_name = "method" ];
+  string password = 4 [ json_name = "password" ];
+  string obfs = 5 [ json_name = "obfs" ];
+  string obfsparam = 6 [ json_name = "obfsparam" ];
+  string protocol = 7 [ json_name = "protocol" ];
+  string protoparam = 8 [ json_name = "protoparam" ];
+}
+
+message http2 { int32 concurrency = 1 [ json_name = "concurrency" ]; }
+
+message vmess {
+  // uuid
+  string uuid = 1 [ json_name = "id" ];
+  // alter id
+  string alter_id = 2 [ json_name = "aid" ];
+  string security = 3 [ json_name = "security" ];
+}
+
+message vless { string uuid = 1 [ json_name = "uuid" ]; }
+
+message trojan {
+  string password = 1 [ json_name = "password" ];
+  string peer = 2 [ json_name = "peer" ];
+}
+
+message yuubinsya {
+  reserved 2, 4, 5;
+  reserved encrypted, tcp_encrypt, udp_encrypt;
+  string password = 1 [ json_name = "password" ];
+  bool udp_over_stream = 3 [ json_name = "udp_over_stream" ];
+  bool udp_coalesce = 6 [ json_name = "udp_coalesce" ];
+}
+
+message websocket {
+  reserved 4;
+  reserved tls_enabled;
+  string host = 1 [ json_name = "host" ];
+  string path = 2 [ json_name = "path" ];
+}
+
+message grpc { tls_config tls = 1 [ json_name = "tls" ]; }
+
+message quic {
+  string host = 2 [ json_name = "host" ];
+  tls_config tls = 1 [ json_name = "tls" ];
+}
+
+message reality {
+  string server_name = 1 [ json_name = "server_name" ];
+  string public_key = 2 [ json_name = "public_key" ];
+  string mldsa65_verify = 5 [ json_name = "mldsa65_verify" ];
+  string short_id = 3 [ json_name = "short_id" ];
+  bool debug = 4 [ json_name = "debug" ];
+}
+
+message obfs_http {
+  string host = 1 [ json_name = "host" ];
+  string port = 2 [ json_name = "port" ];
+}
+
+message none {}
+
+message simple {
+  reserved 4, 6, 3;
+  reserved tls, timeout, packet_conn_direct;
+  string host = 1 [ json_name = "host" ];
+  int32 port = 2 [ json_name = "port" ];
+  repeated host alternate_host = 5 [ json_name = "alternate_host" ];
+  string network_interface = 7 [ json_name = "network_interface" ];
+}
+
+message fixed {
+  string host = 1 [ json_name = "host" ];
+  int32 port = 2 [ json_name = "port" ];
+  repeated host alternate_host = 3 [ json_name = "alternate_host" ];
+  string network_interface = 4 [ json_name = "network_interface" ];
+}
+
+message tls_config {
+  bool enable = 1 [ json_name = "enable" ];
+  repeated string server_names = 6 [ json_name = "servernames" ];
+  repeated bytes ca_cert = 3 [ json_name = "ca_cert" ];
+  bool insecure_skip_verify = 4 [ json_name = "insecure_skip_verify" ];
+  // next_protos ALPN Next Protocol
+  // eg: h2, http/1.1
+  repeated string next_protos = 5 [ json_name = "next_protos" ];
+  bytes ech_config = 7 [ json_name = "ech_config" ];
+}
+
+message certificate {
+  bytes cert = 1 [ json_name = "cert" ];
+  bytes key = 2 [ json_name = "key" ];
+
+  string cert_file_path = 3 [ json_name = "cert_file_path" ];
+  string key_file_path = 4 [ json_name = "key_file_path" ];
+}
+
+message tls_server_config {
+  repeated certificate certificates = 1 [ json_name = "certificates" ];
+  repeated string next_protos = 3 [ json_name = "next_protos" ];
+  map<string, certificate> server_name_certificate = 4
+      [ json_name = "server_name_certificate" ];
+}
+
+// tls termination
+// tls offload
+message tls_termination { tls_server_config tls = 1 [ json_name = "tls" ]; }
+
+message http_termination {
+  message http_headers {
+    repeated http_header headers = 1 [ json_name = "headers" ];
+  }
+
+  // host header map
+  //
+  // eg: www.google.com - headers
+  //     *.google.com - headers
+  map<string, http_headers> headers = 1 [ json_name = "headers" ];
+}
+
+message http_header {
+  string key = 1 [ json_name = "key" ];
+  string value = 2 [ json_name = "value" ];
+}
+
+message direct {
+  reserved 1;
+  reserved timeout;
+  string network_interface = 2 [ json_name = "network_interface" ];
+}
+
+message reject {}
+
+message drop {}
+
+message host {
+  string host = 1 [ json_name = "host" ];
+  int32 port = 2 [ json_name = "port" ];
+}
+
+message wireguard_peer_config {
+  string public_key = 1;
+  string pre_shared_key = 2;
+  string endpoint = 3;
+  int32 keep_alive = 4;
+  repeated string allowed_ips = 5;
+}
+
+message wireguard {
+  reserved 7;
+  reserved idle_timeout;
+  string secret_key = 1;
+  repeated string endpoint = 2;
+  repeated wireguard_peer_config peers = 3;
+  int32 mtu = 4;
+  bytes reserved = 6;
+}
+
+message mux { int32 concurrency = 1 [ json_name = "concurrency" ]; }
+
+message bootstrap_dns_warp {}
+
+message tailscale {
+  reserved 4;
+  reserved idle_timeout;
+  string auth_key = 1 [ json_name = "auth_key" ];
+  string hostname = 2 [ json_name = "hostname" ];
+  string control_url = 3 [ json_name = "control_url" ];
+  bool debug = 5 [ json_name = "debug" ];
+}
+
+message set {
+  repeated string nodes = 1 [ json_name = "nodes" ];
+  enum strategy_type {
+    random = 0;
+    round_robin = 1;
+  };
+  strategy_type strategy = 2 [ json_name = "strategy" ];
+}
+
+message http_mock { bytes data = 1; }
+
+enum AeadCryptoMethod {
+  Chacha20Poly1305 = 0;
+  XChacha20Poly1305 = 1;
+}
+
+message aead {
+  string password = 1 [ json_name = "password" ];
+  AeadCryptoMethod crypto_method = 2 [ json_name = "crypto_method" ];
+}
+
+message network_split {
+  protocol tcp = 1 [ json_name = "tcp" ];
+  protocol udp = 2 [ json_name = "udp" ];
+}

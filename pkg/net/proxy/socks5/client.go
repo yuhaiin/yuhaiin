@@ -12,7 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
@@ -24,7 +24,7 @@ func Dial(host, port, user, password string) netapi.Proxy {
 	if err != nil {
 		return netapi.NewErrProxy(err)
 	}
-	simple, err := fixed.NewClient(protocol.Fixed_builder{
+	simple, err := fixed.NewClient(node.Fixed_builder{
 		Host: proto.String(addr.Hostname()),
 		Port: proto.Int32(int32(addr.Port())),
 	}.Build(), nil)
@@ -32,7 +32,7 @@ func Dial(host, port, user, password string) netapi.Proxy {
 		return netapi.NewErrProxy(err)
 	}
 
-	p, _ := NewClient(protocol.Socks5_builder{
+	p, _ := NewClient(node.Socks5_builder{
 		Hostname: proto.String(host),
 		User:     proto.String(user),
 		Password: proto.String(password),
@@ -57,7 +57,7 @@ func init() {
 }
 
 // New returns a new Socks5 client
-func NewClient(config *protocol.Socks5, dialer netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(config *node.Socks5, dialer netapi.Proxy) (netapi.Proxy, error) {
 	return &Client{
 		dialer:       dialer,
 		username:     config.GetUser(),

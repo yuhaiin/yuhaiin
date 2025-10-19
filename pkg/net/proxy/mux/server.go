@@ -8,7 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/libp2p/go-yamux/v5"
 )
@@ -24,7 +24,7 @@ func init() {
 	register.RegisterTransport(NewServer)
 }
 
-func NewServer(config *listener.Mux, ii netapi.Listener) (netapi.Listener, error) {
+func NewServer(config *config.Mux, ii netapi.Listener) (netapi.Listener, error) {
 	return netapi.NewListener(newServer(ii), ii), nil
 }
 
@@ -61,7 +61,7 @@ func (m *MuxServer) Run() error {
 		go func() {
 			defer conn.Close()
 
-			session, err := yamux.Server(conn, config, nil)
+			session, err := yamux.Server(conn, defaultConfig, nil)
 			if err != nil {
 				log.Error("yamux server error", "err", err)
 				return

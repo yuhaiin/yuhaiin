@@ -1,0 +1,91 @@
+edition = "2023";
+
+package yuhaiin.latency;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node";
+option features.(pb.go).api_level = API_OPAQUE;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/go_features.proto";
+
+message http_test { string url = 1 [ json_name = "url" ]; }
+
+message dns_test {
+  string host = 1 [ json_name = "host" ];
+  string target_domain = 2 [ json_name = "target_name" ];
+}
+
+message dns_over_quic {
+  string host = 1 [ json_name = "host" ];
+  string target_domain = 2 [ json_name = "target_name" ];
+}
+
+message ip {
+  string url = 1 [ json_name = "url" ];
+  string user_agent = 2 [ json_name = "user_agent" ];
+}
+
+message ip_response {
+  string ipv4 = 1 [ json_name = "ipv4" ];
+  string ipv6 = 2 [ json_name = "ipv6" ];
+}
+
+message error { string msg = 1 [ json_name = "msg" ]; }
+
+message stun {
+  string host = 1 [ json_name = "host" ];
+  bool tcp = 2 [ json_name = "tcp" ];
+}
+
+enum nat_type {
+  NAT_UNKNOWN = 0;
+  NAT_NO_RESULT = 1;
+  NAT_EndpointIndependentNoNAT = 2;
+  NAT_EndpointIndependent = 3;
+  NAT_AddressDependent = 4;
+  NAT_AddressAndPortDependent = 5;
+  NAT_ServerNotSupportChangePort = 6;
+}
+
+message stun_response {
+  string xor_mapped_address = 1 [ json_name = "xor_mapped_address" ];
+  string mapped_address = 2 [ json_name = "mapped_address" ];
+  string other_address = 3 [ json_name = "other_address" ];
+  string response_origin_address = 4 [ json_name = "response_origin_address" ];
+  string Software = 5 [ json_name = "Software" ];
+  nat_type Mapping = 6 [ json_name = "mapping" ];
+  nat_type Filtering = 7 [ json_name = "filtering" ];
+}
+
+message request {
+  string id = 3 [ json_name = "id" ];
+  string hash = 1 [ json_name = "hash" ];
+  bool ipv6 = 4 [ json_name = "ipv6" ];
+
+  message protocol {
+    oneof protocol {
+      http_test http = 1 [ json_name = "http" ];
+      dns_test dns = 2 [ json_name = "dns" ];
+      dns_over_quic dns_over_quic = 3 [ json_name = "dns_over_quic" ];
+      ip ip = 4 [ json_name = "ip" ];
+      stun stun = 5 [ json_name = "stun" ];
+    }
+  }
+
+  protocol method = 2 [ json_name = "method" ];
+}
+
+message requests { repeated request requests = 1 [ json_name = "requests" ]; }
+
+message response {
+  map<string, reply> id_latency_map = 1 [ json_name = "id_latency_map" ];
+}
+
+message reply {
+  oneof reply {
+    google.protobuf.Duration latency = 1 [ json_name = "latency" ];
+    ip_response ip = 2 [ json_name = "ip" ];
+    stun_response stun = 3 [ json_name = "stun" ];
+    error error = 4 [ json_name = "error" ];
+  }
+}

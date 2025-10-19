@@ -2,7 +2,7 @@ edition = "2023";
 
 package yuhaiin.statistic;
 import "google/protobuf/go_features.proto";
-import "config/bypass/bypass.proto";
+import "config/bypass.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/statistic";
 option features.(pb.go).api_level = API_OPAQUE;

@@ -9,9 +9,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
@@ -19,11 +18,11 @@ type Outbound struct {
 	manager *Manager
 }
 
-func (o *Outbound) GetDialer(ctx context.Context, p *point.Point) (netapi.Proxy, error) {
-	return o.getDialer(ctx, p.GetHash(), func() (*point.Point, error) { return p, nil })
+func (o *Outbound) GetDialer(ctx context.Context, p *node.Point) (netapi.Proxy, error) {
+	return o.getDialer(ctx, p.GetHash(), func() (*node.Point, error) { return p, nil })
 }
 
-func (o *Outbound) getDialer(ctx context.Context, hash string, point func() (*point.Point, error)) (netapi.Proxy, error) {
+func (o *Outbound) getDialer(ctx context.Context, hash string, point func() (*node.Point, error)) (netapi.Proxy, error) {
 	if hash == "" {
 		return nil, fmt.Errorf("hash is empty")
 	}
@@ -60,9 +59,9 @@ func (o *Outbound) Get(ctx context.Context, network string, str string, tag stri
 	}
 
 	switch str {
-	case bypass.Mode_direct.String():
+	case config.Mode_direct.String():
 		return direct.Default, nil
-	case bypass.Mode_block.String():
+	case config.Mode_block.String():
 		metrics.Counter.AddBlockConnection(str)
 		return reject.Default, nil
 	}
@@ -71,7 +70,7 @@ func (o *Outbound) Get(ctx context.Context, network string, str string, tag stri
 		return nil, fmt.Errorf("invalid network: %s", network)
 	}
 
-	var point *point.Point
+	var point *node.Point
 	switch network[:3] {
 	case "tcp":
 		point = o.manager.GetNow(true)
@@ -86,7 +85,7 @@ func (o *Outbound) Get(ctx context.Context, network string, str string, tag stri
 
 // GetDialerByID if id is not exists or point dial failed, it will return nil
 func (o *Outbound) GetDialerByID(ctx context.Context, hash string) (netapi.Proxy, error) {
-	return o.getDialer(ctx, hash, func() (*point.Point, error) {
+	return o.getDialer(ctx, hash, func() (*node.Point, error) {
 		p, ok := o.manager.GetNode(hash)
 		if !ok {
 			return nil, fmt.Errorf("node not found")
@@ -102,7 +101,7 @@ func (o *Outbound) tagConn(tag string) string {
 			return ""
 		}
 
-		if t.GetType() == pt.TagType_mirror {
+		if t.GetType() == node.TagType_mirror {
 			if tag == t.GetHash()[0] {
 				return ""
 			}

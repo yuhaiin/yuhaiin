@@ -13,45 +13,45 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-func GetProtocolOneofValue(i *listener.Inbound) proto.Message {
+func GetProtocolOneofValue(i *config.Inbound) proto.Message {
 	ref := i.ProtoReflect()
 	fields := ref.Descriptor().Oneofs().ByName("protocol")
 	f := ref.WhichOneof(fields)
 	if f == nil {
-		return &listener.Empty{}
+		return &config.Empty{}
 	}
 	return ref.Get(f).Message().Interface()
 }
 
-func GetNetworkOneofValue(i *listener.Inbound) proto.Message {
+func GetNetworkOneofValue(i *config.Inbound) proto.Message {
 	ref := i.ProtoReflect()
 	fields := ref.Descriptor().Oneofs().ByName("network")
 	f := ref.WhichOneof(fields)
 	if f == nil {
-		return &listener.Empty{}
+		return &config.Empty{}
 	}
 	return ref.Get(f).Message().Interface()
 }
 
-func GetTransportOneofValue(i *listener.Transport) proto.Message {
+func GetTransportOneofValue(i *config.Transport) proto.Message {
 	ref := i.ProtoReflect()
 	fields := ref.Descriptor().Oneofs().ByName("transport")
 	f := ref.WhichOneof(fields)
 	if f == nil {
-		return &listener.Normal{}
+		return &config.Normal{}
 	}
 	return ref.Get(f).Message().Interface()
 }
 
-func ParseCertificates(t *protocol.TlsServerConfig) []tls.Certificate {
+func ParseCertificates(t *node.TlsServerConfig) []tls.Certificate {
 	r := make([]tls.Certificate, 0, len(t.GetCertificates()))
 
 	for _, c := range t.GetCertificates() {
@@ -71,7 +71,7 @@ func ParseCertificates(t *protocol.TlsServerConfig) []tls.Certificate {
 	return r
 }
 
-func ParseServerNameCertificate(t *protocol.TlsServerConfig) *trie.Trie[*tls.Certificate] {
+func ParseServerNameCertificate(t *node.TlsServerConfig) *trie.Trie[*tls.Certificate] {
 	var searcher *trie.Trie[*tls.Certificate]
 
 	for c, v := range t.GetServerNameCertificate() {
@@ -99,7 +99,7 @@ func ParseServerNameCertificate(t *protocol.TlsServerConfig) *trie.Trie[*tls.Cer
 	return searcher
 }
 
-func X509KeyPair(c *protocol.Certificate) (tls.Certificate, error) {
+func X509KeyPair(c *node.Certificate) (tls.Certificate, error) {
 	if c.GetCertFilePath() != "" && c.GetKeyFilePath() != "" {
 		r, err := tls.LoadX509KeyPair(c.GetCertFilePath(), c.GetKeyFilePath())
 		if err != nil {
@@ -113,14 +113,14 @@ func X509KeyPair(c *protocol.Certificate) (tls.Certificate, error) {
 }
 
 type TlsConfigManager struct {
-	t           *protocol.TlsServerConfig
+	t           *node.TlsServerConfig
 	tlsConfig   *tls.Config
 	searcher    *trie.Trie[*tls.Certificate]
 	refreshTime int64
 	mu          sync.Mutex
 }
 
-func NewTlsConfigManager(t *protocol.TlsServerConfig) *TlsConfigManager {
+func NewTlsConfigManager(t *node.TlsServerConfig) *TlsConfigManager {
 	tm := &TlsConfigManager{t: t}
 	tm.Refresh()
 	return tm
@@ -162,7 +162,7 @@ func (t *TlsConfigManager) Refresh() {
 	t.refreshTime = system.CheapNowNano()
 }
 
-func ParseTLS(t *protocol.TlsServerConfig) (*tls.Config, error) {
+func ParseTLS(t *node.TlsServerConfig) (*tls.Config, error) {
 	if t == nil {
 		return nil, nil
 	}
@@ -179,7 +179,7 @@ var (
 )
 
 func init() {
-	RegisterNetwork(func(o *listener.Empty) (netapi.Listener, error) { return nil, nil })
+	RegisterNetwork(func(o *config.Empty) (netapi.Listener, error) { return nil, nil })
 }
 
 func RegisterNetwork[T proto.Message](wrap func(T) (netapi.Listener, error)) {
@@ -239,7 +239,7 @@ func Network(config proto.Message) (netapi.Listener, error) {
 	return nc(config)
 }
 
-func Transports(lis netapi.Listener, protocols []*listener.Transport) (netapi.Listener, error) {
+func Transports(lis netapi.Listener, protocols []*config.Transport) (netapi.Listener, error) {
 	var err error
 	for _, protocol := range protocols {
 		v := GetTransportOneofValue(protocol)
@@ -267,7 +267,7 @@ func Protocols(lis netapi.Listener, config proto.Message, handler netapi.Handler
 	return nc(config, lis, handler)
 }
 
-func Listen(config *listener.Inbound, handler netapi.Handler) (netapi.Accepter, error) {
+func Listen(config *config.Inbound, handler netapi.Handler) (netapi.Accepter, error) {
 	lis, err := Network(GetNetworkOneofValue(config))
 	if err != nil {
 		return nil, err

@@ -10,8 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
 	"google.golang.org/protobuf/proto"
@@ -30,18 +29,18 @@ func TestSet(t *testing.T) {
 	fmt.Println(host, portInt)
 
 	mg := newTestManager()
-	p1 := point.Point_builder{
+	p1 := node.Point_builder{
 		Hash:  proto.String("a"),
 		Name:  proto.String("feefe"),
 		Group: proto.String("group"),
 	}.Build()
-	p2 := point.Point_builder{
+	p2 := node.Point_builder{
 		Hash:  proto.String("b"),
 		Name:  proto.String("fafaf"),
 		Group: proto.String("group"),
-		Protocols: []*protocol.Protocol{
-			protocol.Protocol_builder{
-				Simple: protocol.Simple_builder{
+		Protocols: []*node.Protocol{
+			node.Protocol_builder{
+				Simple: node.Simple_builder{
 					Host: proto.String(host),
 					Port: proto.Int32(int32(portInt)),
 				}.Build(),
@@ -50,8 +49,8 @@ func TestSet(t *testing.T) {
 	}.Build()
 	mg.SaveNode(p1, p2)
 
-	se, err := NewSet(protocol.Set_builder{
-		Strategy: protocol.Set_round_robin.Enum(),
+	se, err := NewSet(node.Set_builder{
+		Strategy: node.Set_round_robin.Enum(),
 		Nodes:    []string{"a", "b"},
 	}.Build(), mg)
 	assert.NoError(t, err)

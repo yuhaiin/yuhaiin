@@ -14,7 +14,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
@@ -22,7 +22,7 @@ import (
 )
 
 func init() {
-	Register(pd.Type_doh, NewDoH)
+	Register(config.Type_doh, NewDoH)
 }
 
 func NewDoH(config Config) (Dialer, error) {

@@ -9,7 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/quic-go/quic-go"
@@ -17,7 +17,7 @@ import (
 )
 
 func init() {
-	Register(dns.Type_doh3, NewDoH3)
+	Register(config.Type_doh3, NewDoH3)
 }
 
 func NewDoH3(config Config) (Dialer, error) {

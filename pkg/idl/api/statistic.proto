@@ -1,0 +1,73 @@
+edition = "2023";
+
+package yuhaiin.api.statistic;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/api";
+option features.(pb.go).api_level = API_OPAQUE;
+
+import "google/protobuf/empty.proto";
+import "statistic/config.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/go_features.proto";
+
+service connections {
+  rpc conns(google.protobuf.Empty) returns (notify_new_connections);
+  rpc close_conn(notify_remove_connections) returns (google.protobuf.Empty);
+  rpc total(google.protobuf.Empty) returns (total_flow);
+  rpc notify(google.protobuf.Empty) returns (stream notify_data);
+  rpc failed_history(google.protobuf.Empty) returns (failed_history_list);
+  rpc all_history(google.protobuf.Empty) returns (all_history_list);
+}
+
+message counter {
+  uint64 download = 1 [ json_name = "download" ];
+  uint64 upload = 2 [ json_name = "upload" ];
+}
+
+message total_flow {
+  uint64 download = 1 [ json_name = "download" ];
+  uint64 upload = 2 [ json_name = "upload" ];
+  map<uint64, counter> counters = 3 [ json_name = "counters" ];
+}
+
+message notify_data {
+  oneof data {
+    total_flow total_flow = 3;
+    notify_new_connections notify_new_connections = 1;
+    notify_remove_connections notify_remove_connections = 2;
+  }
+}
+
+message notify_new_connections {
+  repeated yuhaiin.statistic.connection connections = 1
+      [ json_name = "connections" ];
+}
+
+message notify_remove_connections {
+  repeated uint64 ids = 1 [ json_name = "ids" ];
+}
+
+message failed_history {
+  yuhaiin.statistic.type protocol = 1 [ json_name = "protocol" ];
+  string host = 2 [ json_name = "host" ];
+  string error = 3 [ json_name = "error" ];
+  string process = 4 [ json_name = "process" ];
+  google.protobuf.Timestamp time = 5 [ json_name = "time" ];
+  uint64 failed_count = 6 [ json_name = "failed_count" ];
+}
+
+message failed_history_list {
+  repeated failed_history objects = 1 [ json_name = "objects" ];
+  bool dump_process_enabled = 2 [ json_name = "dump_process_enabled" ];
+}
+
+message all_history {
+  yuhaiin.statistic.connection connection = 1 [ json_name = "connection" ];
+  uint64 count = 2 [ json_name = "count" ];
+  google.protobuf.Timestamp time = 3 [ json_name = "time" ];
+}
+
+message all_history_list {
+  repeated all_history objects = 1 [ json_name = "objects" ];
+  bool dump_process_enabled = 2 [ json_name = "dump_process_enabled" ];
+}

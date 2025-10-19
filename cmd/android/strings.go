@@ -88,11 +88,11 @@ var (
     <string name="yuhaiin.dns.dns.type">yuhaiin.dns.dns.type</string>
     <string name="yuhaiin.dns.dns.subnet">yuhaiin.dns.dns.subnet</string>
     <string name="yuhaiin.dns.dns.tls_servername">yuhaiin.dns.dns.tls_servername</string>
-    <string name="yuhaiin.listener.inbound_config.hijack_dns">yuhaiin.listener.inbound_config.hijack_dns</string>
-    <string name="yuhaiin.listener.inbound_config.hijack_dns_fakeip">yuhaiin.listener.inbound_config.hijack_dns_fakeip</string>
-    <string name="yuhaiin.listener.inbound_config.InboundsEntry.key">yuhaiin.listener.inbound_config.InboundsEntry.key</string>
-    <string name="yuhaiin.listener.inbound.name">yuhaiin.listener.inbound.name</string>
-    <string name="yuhaiin.listener.inbound.enabled">yuhaiin.listener.inbound.enabled</string>
+    <string name="yuhaiin.inbound.inbound_config.hijack_dns">yuhaiin.inbound.inbound_config.hijack_dns</string>
+    <string name="yuhaiin.inbound.inbound_config.hijack_dns_fakeip">yuhaiin.inbound.inbound_config.hijack_dns_fakeip</string>
+    <string name="yuhaiin.inbound.inbound_config.InboundsEntry.key">yuhaiin.inbound.inbound_config.InboundsEntry.key</string>
+    <string name="yuhaiin.inbound.inbound.name">yuhaiin.inbound.inbound.name</string>
+    <string name="yuhaiin.inbound.inbound.enabled">yuhaiin.inbound.inbound.enabled</string>
     <string name="yuhaiin.listener.tcpudp.host">yuhaiin.listener.tcpudp.host</string>
     <string name="yuhaiin.listener.tcpudp.control">yuhaiin.listener.tcpudp.control</string>
     <string name="yuhaiin.listener.quic.host">yuhaiin.listener.quic.host</string>
@@ -158,7 +158,7 @@ var (
     <string name="yuhaiin.listener.tun.post_down">yuhaiin.listener.tun.post_down</string>
     <string name="yuhaiin.listener.reverse_http.url">yuhaiin.listener.reverse_http.url</string>
     <string name="yuhaiin.listener.reverse_tcp.host">yuhaiin.listener.reverse_tcp.host</string>
-    <string name="yuhaiin.listener.sniff.enabled">yuhaiin.listener.sniff.enabled</string>
+    <string name="yuhaiin.inbound.sniff.enabled">yuhaiin.inbound.sniff.enabled</string>
     <string name="yuhaiin.log.logcat.level">yuhaiin.log.logcat.level</string>
     <string name="yuhaiin.log.logcat.save">yuhaiin.log.logcat.save</string>
     <string name="yuhaiin.log.logcat.ignore_timeout_error">yuhaiin.log.logcat.ignore_timeout_error</string>

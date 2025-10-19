@@ -15,7 +15,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
 	grpc "google.golang.org/grpc"
@@ -44,14 +44,14 @@ func TestConn(t *testing.T) {
 		port, err := strconv.ParseUint(portstr, 10, 16)
 		assert.NoError(t, err)
 
-		sp, err := fixed.NewClient(protocol.Fixed_builder{
+		sp, err := fixed.NewClient(node.Fixed_builder{
 			Host: proto.String(host),
 			Port: proto.Int32(int32(port)),
 		}.Build(), nil)
 		assert.NoError(t, err)
 
-		c, err := NewClient(protocol.Grpc_builder{
-			Tls: &protocol.TlsConfig{},
+		c, err := NewClient(node.Grpc_builder{
+			Tls: &node.TlsConfig{},
 		}.Build(), sp)
 		assert.NoError(t, err)
 
@@ -91,14 +91,14 @@ func TestConn(t *testing.T) {
 		port, err := strconv.ParseUint(portstr, 10, 16)
 		assert.NoError(t, err)
 
-		sp, err := fixed.NewClient(protocol.Fixed_builder{
+		sp, err := fixed.NewClient(node.Fixed_builder{
 			Host: proto.String(host),
 			Port: proto.Int32(int32(port)),
 		}.Build(), nil)
 		assert.NoError(t, err)
 
-		c, err := NewClient(protocol.Grpc_builder{
-			Tls: &protocol.TlsConfig{},
+		c, err := NewClient(node.Grpc_builder{
+			Tls: &node.TlsConfig{},
 		}.Build(), sp)
 		assert.NoError(t, err)
 
@@ -139,14 +139,14 @@ func TestConn(t *testing.T) {
 			port, err := strconv.ParseUint(portstr, 10, 16)
 			assert.NoError(t, err)
 
-			sp, err := fixed.NewClient(protocol.Fixed_builder{
+			sp, err := fixed.NewClient(node.Fixed_builder{
 				Host: proto.String(host),
 				Port: proto.Int32(int32(port)),
 			}.Build(), nil)
 			assert.NoError(t, err)
 
-			c, err := NewClient(protocol.Grpc_builder{
-				Tls: &protocol.TlsConfig{},
+			c, err := NewClient(node.Grpc_builder{
+				Tls: &node.TlsConfig{},
 			}.Build(), sp)
 			assert.NoError(t, err)
 
@@ -186,14 +186,14 @@ func TestConn(t *testing.T) {
 			port, err := strconv.ParseUint(portstr, 10, 16)
 			assert.NoError(t, err)
 
-			sp, err := fixed.NewClient(protocol.Fixed_builder{
+			sp, err := fixed.NewClient(node.Fixed_builder{
 				Host: proto.String(host),
 				Port: proto.Int32(int32(port)),
 			}.Build(), nil)
 			assert.NoError(t, err)
 
-			c, err := NewClient(protocol.Grpc_builder{
-				Tls: &protocol.TlsConfig{},
+			c, err := NewClient(node.Grpc_builder{
+				Tls: &node.TlsConfig{},
 			}.Build(), sp)
 			assert.NoError(t, err)
 

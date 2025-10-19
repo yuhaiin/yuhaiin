@@ -9,8 +9,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
 	"google.golang.org/protobuf/proto"
@@ -20,9 +20,9 @@ func TestAead(t *testing.T) {
 	lis, err := nettest.NewLocalListener("tcp")
 	assert.NoError(t, err)
 
-	s, err := NewServer(listener.Aead_builder{
+	s, err := NewServer(config.Aead_builder{
 		Password:     proto.String("testsfsdfsf"),
-		CryptoMethod: protocol.AeadCryptoMethod_XChacha20Poly1305.Enum(),
+		CryptoMethod: node.AeadCryptoMethod_XChacha20Poly1305.Enum(),
 	}.Build(), netapi.NewListener(lis, nil))
 	assert.NoError(t, err)
 	defer s.Close()
@@ -42,16 +42,16 @@ func TestAead(t *testing.T) {
 	addr, err := netapi.ParseAddress("tcp", lis.Addr().String())
 	assert.NoError(t, err)
 
-	p, err := fixed.NewClient(protocol.Fixed_builder{
+	p, err := fixed.NewClient(node.Fixed_builder{
 		Host: proto.String(addr.Hostname()),
 		Port: proto.Int32(int32(addr.Port())),
 	}.Build(), nil)
 	assert.NoError(t, err)
 	defer p.Close()
 
-	c, err := NewClient(protocol.Aead_builder{
+	c, err := NewClient(node.Aead_builder{
 		Password:     proto.String("testsfsdfsf"),
-		CryptoMethod: protocol.AeadCryptoMethod_XChacha20Poly1305.Enum(),
+		CryptoMethod: node.AeadCryptoMethod_XChacha20Poly1305.Enum(),
 	}.Build(), p)
 	assert.NoError(t, err)
 	defer c.Close()

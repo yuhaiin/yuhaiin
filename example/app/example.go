@@ -11,12 +11,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	pcl "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
-	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"google.golang.org/protobuf/proto"
 )
@@ -38,25 +35,25 @@ func main() {
 	}
 	defer instance.Close()
 
-	point, err := instance.Node.Save(context.TODO(), point.Point_builder{
+	pp, err := instance.Node.Save(context.TODO(), node.Point_builder{
 		Group: proto.String("test"),
 		Name:  proto.String("test"),
-		Protocols: []*protocol.Protocol{
-			protocol.Protocol_builder{
-				NetworkSplit: protocol.NetworkSplit_builder{
-					Tcp: protocol.Protocol_builder{
-						Simple: protocol.Simple_builder{
+		Protocols: []*node.Protocol{
+			node.Protocol_builder{
+				NetworkSplit: node.NetworkSplit_builder{
+					Tcp: node.Protocol_builder{
+						Simple: node.Simple_builder{
 							Host: proto.String("127.0.0.1"),
 							Port: proto.Int32(1080),
 						}.Build(),
 					}.Build(),
-					Udp: protocol.Protocol_builder{
-						Direct: &protocol.Direct{},
+					Udp: node.Protocol_builder{
+						Direct: &node.Direct{},
 					}.Build(),
 				}.Build(),
 			}.Build(),
-			protocol.Protocol_builder{
-				Socks5: &protocol.Socks5{},
+			node.Protocol_builder{
+				Socks5: &node.Socks5{},
 			}.Build(),
 		},
 	}.Build())
@@ -64,8 +61,8 @@ func main() {
 		panic(err)
 	}
 
-	_, err = instance.Node.Use(context.TODO(), gn.UseReq_builder{
-		Hash: proto.String(point.GetHash()),
+	_, err = instance.Node.Use(context.TODO(), api.UseReq_builder{
+		Hash: proto.String(pp.GetHash()),
 	}.Build())
 	if err != nil {
 		panic(err)
@@ -112,10 +109,10 @@ func (m *mockDB) Batch(f ...func(*pc.Setting) error) error {
 func (m *mockDB) View(f ...func(*pc.Setting) error) error {
 	config := pc.DefaultSetting("/tmp/test")
 
-	config.SetServer(&listener.InboundConfig{})
+	config.SetServer(&pc.InboundConfig{})
 	config.SetSystemProxy(&pc.SystemProxy{})
 	config.GetDns().SetServer("")
-	config.GetLogcat().SetLevel(pcl.LogLevel_error)
+	config.GetLogcat().SetLevel(pc.LogLevel_error)
 
 	for i := range f {
 		if err := f[i](config); err != nil {

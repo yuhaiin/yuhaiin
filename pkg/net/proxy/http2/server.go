@@ -13,7 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -37,7 +37,7 @@ func init() {
 	register.RegisterTransport(NewServer)
 }
 
-func NewServer(c *listener.Http2, ii netapi.Listener) (netapi.Listener, error) {
+func NewServer(c *config.Http2, ii netapi.Listener) (netapi.Listener, error) {
 	return netapi.NewListener(newServer(ii), ii), nil
 }
 
@@ -53,19 +53,6 @@ func newServer(lis net.Listener) *Server {
 		connChan:  make(chan net.Conn, 20),
 		closedCtx: ctx,
 		close:     cancel,
-	}
-
-	h2s := &http2.Server{
-		MaxConcurrentStreams: math.MaxUint32,
-		IdleTimeout:          time.Minute,
-		MaxReadFrameSize:     pool.DefaultSize,
-		NewWriteScheduler:    http2.NewRandomWriteScheduler,
-	}
-
-	h2Opt := &http2.ServeConnOpts{
-		Handler:    h,
-		Context:    h.closedCtx,
-		BaseConfig: new(http.Server),
 	}
 
 	go func() {
@@ -98,6 +85,19 @@ func newServer(lis net.Listener) *Server {
 					h.conns.Delete(key)
 					_ = conn.Close()
 				}()
+
+				h2s := &http2.Server{
+					MaxConcurrentStreams: math.MaxUint32,
+					IdleTimeout:          time.Minute,
+					MaxReadFrameSize:     pool.DefaultSize,
+					NewWriteScheduler:    http2.NewRandomWriteScheduler,
+				}
+
+				h2Opt := &http2.ServeConnOpts{
+					Handler:    h,
+					Context:    h.closedCtx,
+					BaseConfig: new(http.Server),
+				}
 
 				h2s.ServeConn(conn, h2Opt)
 			}()

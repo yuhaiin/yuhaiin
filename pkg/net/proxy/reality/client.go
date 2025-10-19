@@ -26,7 +26,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
@@ -51,7 +51,7 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Reality, p netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(config *node.Reality, p netapi.Proxy) (netapi.Proxy, error) {
 	publicKey, err := base64.RawURLEncoding.DecodeString(config.GetPublicKey())
 	if err != nil {
 		return nil, fmt.Errorf("decode public_key failed: %w", err)

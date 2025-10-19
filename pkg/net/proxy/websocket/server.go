@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -28,7 +28,7 @@ func init() {
 	register.RegisterTransport(NewServer)
 }
 
-func NewServer(c *listener.Websocket, ii netapi.Listener) (netapi.Listener, error) {
+func NewServer(c *config.Websocket, ii netapi.Listener) (netapi.Listener, error) {
 	return netapi.NewListener(newServer(ii), ii), nil
 }
 

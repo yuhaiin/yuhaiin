@@ -6,7 +6,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -19,7 +19,7 @@ type blockHistoryKey struct {
 }
 
 type blockHistoryEntry struct {
-	*gc.BlockHistory
+	*api.BlockHistory
 	mu sync.Mutex
 }
 
@@ -39,7 +39,7 @@ func (h *RejectHistory) Push(ctx context.Context, protocol string, host string) 
 	key := blockHistoryKey{protocol, host, store.GetProcessName()}
 	x, ok := h.store.LoadOrAdd(key, func() *blockHistoryEntry {
 		return &blockHistoryEntry{
-			BlockHistory: (&gc.BlockHistory_builder{
+			BlockHistory: (&api.BlockHistory_builder{
 				Protocol:   proto.String(protocol),
 				Host:       proto.String(host),
 				Time:       timestamppb.Now(),
@@ -58,8 +58,8 @@ func (h *RejectHistory) Push(ctx context.Context, protocol string, host string) 
 	x.mu.Unlock()
 }
 
-func (h *RejectHistory) Get() *gc.BlockHistoryList {
-	var objects []*gc.BlockHistory
+func (h *RejectHistory) Get() *api.BlockHistoryList {
+	var objects []*api.BlockHistory
 	dumpProcess := false
 	for _, v := range h.store.Range {
 		objects = append(objects, v.BlockHistory)
@@ -67,7 +67,7 @@ func (h *RejectHistory) Get() *gc.BlockHistoryList {
 			dumpProcess = true
 		}
 	}
-	return gc.BlockHistoryList_builder{
+	return api.BlockHistoryList_builder{
 		Objects:            objects,
 		DumpProcessEnabled: proto.Bool(dumpProcess),
 	}.Build()

@@ -1,0 +1,17 @@
+edition = "2023";
+
+package yuhaiin.api.backup;
+import "google/protobuf/go_features.proto";
+import "google/protobuf/empty.proto";
+import "config/config.proto";
+import "backup/backup.proto";
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/api";
+option features.(pb.go).api_level = API_OPAQUE;
+
+service backup {
+  rpc save(yuhaiin.config.backup_option) returns (google.protobuf.Empty);
+  rpc get(google.protobuf.Empty) returns (yuhaiin.config.backup_option);
+  rpc backup(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc restore(yuhaiin.backup.restore_option) returns (google.protobuf.Empty);
+}

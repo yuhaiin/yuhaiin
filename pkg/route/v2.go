@@ -18,10 +18,10 @@ import (
 	"time"
 	"unique"
 
+	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -29,11 +29,11 @@ type routeParser struct {
 	proxy       netapi.Proxy
 	trie        *routeTries
 	path        string
-	rules       []*bypass.RemoteRule
+	rules       []*config.RemoteRule
 	forceUpdate bool
 }
 
-func parseTrie(path string, proxy netapi.Proxy, rules []*bypass.RemoteRule, force bool) *routeTries {
+func parseTrie(path string, proxy netapi.Proxy, rules []*config.RemoteRule, force bool) *routeTries {
 	r := &routeParser{
 		proxy:       proxy,
 		path:        path,
@@ -47,16 +47,16 @@ func parseTrie(path string, proxy netapi.Proxy, rules []*bypass.RemoteRule, forc
 	return r.trie
 }
 
-func parseRemoteRuleUrl(urlstr string) (*bypass.RemoteRule, error) {
+func parseRemoteRuleUrl(urlstr string) (*config.RemoteRule, error) {
 	url, err := url.Parse(urlstr)
 	if err != nil {
 		return nil, err
 	}
 
-	rr := (&bypass.RemoteRule_builder{
+	rr := (&config.RemoteRule_builder{
 		Enabled: proto.Bool(true),
 		Name:    proto.String(urlstr),
-		Http: (&bypass.RemoteRuleHttp_builder{
+		Http: (&config.RemoteRuleHttp_builder{
 			Url: proto.String(urlstr),
 		}).Build(),
 	}).Build()
@@ -65,11 +65,11 @@ func parseRemoteRuleUrl(urlstr string) (*bypass.RemoteRule, error) {
 		if runtime.GOOS == "windows" {
 			url.Path = strings.TrimPrefix(url.Path, "/")
 		}
-		rr.SetFile(bypass.RemoteRuleFile_builder{
+		rr.SetFile(config.RemoteRuleFile_builder{
 			Path: proto.String(url.Path),
 		}.Build())
 	} else {
-		rr.SetHttp(bypass.RemoteRuleHttp_builder{
+		rr.SetHttp(config.RemoteRuleHttp_builder{
 			Url: proto.String(urlstr),
 		}.Build())
 	}
@@ -123,10 +123,10 @@ func (r *routeParser) Trie(ctx context.Context) {
 	}
 }
 
-func (r *routeParser) getReader(ctx context.Context, rule *bypass.RemoteRule, fetchRemote bool) (io.ReadCloser, error) {
+func (r *routeParser) getReader(ctx context.Context, rule *config.RemoteRule, fetchRemote bool) (io.ReadCloser, error) {
 	path := ""
 	switch rule.WhichObject() {
-	case bypass.RemoteRule_Http_case:
+	case config.RemoteRule_Http_case:
 		if rule.GetHttp().GetUrl() == "" {
 			return nil, fmt.Errorf("empty url")
 		}
@@ -150,7 +150,7 @@ func (r *routeParser) getReader(ctx context.Context, rule *bypass.RemoteRule, fe
 			}
 		}
 
-	case bypass.RemoteRule_File_case:
+	case config.RemoteRule_File_case:
 		if rule.GetFile().GetPath() == "" {
 			return nil, fmt.Errorf("empty path")
 		}
@@ -238,29 +238,29 @@ func (r *routeParser) insert(rc io.ReadCloser) {
 	}
 }
 
-func parseLine(txt string) (*Uri, unique.Handle[bypass.ModeEnum], error) {
+func parseLine(txt string) (*Uri, unique.Handle[config.ModeEnum], error) {
 	before := TrimComment(txt)
 
 	uri, args, ok := SplitHostArgs(before)
 	if !ok {
-		return nil, unique.Handle[bypass.ModeEnum]{}, fmt.Errorf("split host failed: %s", txt)
+		return nil, unique.Handle[config.ModeEnum]{}, fmt.Errorf("split host failed: %s", txt)
 	}
 
 	modeEnum, ok := SplitModeArgs(args)
 	if !ok {
-		return nil, unique.Handle[bypass.ModeEnum]{}, fmt.Errorf("split mode failed: %s", txt)
+		return nil, unique.Handle[config.ModeEnum]{}, fmt.Errorf("split mode failed: %s", txt)
 	}
 
 	return uri, modeEnum, nil
 }
 
-func migrateConfig(db pc.DB) {
+func migrateConfig(db chore.DB) {
 	// migrate old config
 	{
-		lists := map[string]*bypass.List{}
-		var rules []*bypass.Rulev2
+		lists := map[string]*config.List{}
+		var rules []*config.Rulev2
 
-		err := db.Batch(func(s *pc.Setting) error {
+		err := db.Batch(func(s *config.Setting) error {
 			if len(s.GetBypass().GetRulesV2()) > 0 || len(s.GetBypass().GetLists()) > 0 || len(s.GetBypass().GetCustomRuleV3()) == 0 {
 				return nil
 			}
@@ -284,10 +284,10 @@ func migrateConfig(db pc.DB) {
 
 						list := lists[name]
 						if list == nil || list.GetLocal() == nil {
-							list = bypass.List_builder{
-								ListType: bypass.List_host.Enum(),
+							list = config.List_builder{
+								ListType: config.List_host.Enum(),
 								Name:     proto.String(name),
-								Local:    &bypass.ListLocal{},
+								Local:    &config.ListLocal{},
 							}.Build()
 							lists[name] = list
 						}
@@ -300,10 +300,10 @@ func migrateConfig(db pc.DB) {
 
 						list := lists[name]
 						if list == nil || list.GetLocal() == nil {
-							list = bypass.List_builder{
-								ListType: bypass.List_process.Enum(),
+							list = config.List_builder{
+								ListType: config.List_process.Enum(),
 								Name:     proto.String(name),
-								Local:    &bypass.ListLocal{},
+								Local:    &config.ListLocal{},
 							}.Build()
 							lists[name] = list
 						}
@@ -315,10 +315,10 @@ func migrateConfig(db pc.DB) {
 
 						list := lists[name]
 						if list == nil || list.GetRemote() == nil {
-							list = bypass.List_builder{
-								ListType: bypass.List_host.Enum(),
+							list = config.List_builder{
+								ListType: config.List_host.Enum(),
 								Name:     proto.String(name),
-								Remote:   &bypass.ListRemote{},
+								Remote:   &config.ListRemote{},
 							}.Build()
 							lists[name] = list
 						}
@@ -327,23 +327,23 @@ func migrateConfig(db pc.DB) {
 					}
 				}
 
-				or := []*bypass.Or{}
+				or := []*config.Or{}
 				for name, process := range listNames {
 					if process {
-						or = append(or, bypass.Or_builder{
-							Rules: []*bypass.Rule{
-								bypass.Rule_builder{
-									Process: bypass.Process_builder{
+						or = append(or, config.Or_builder{
+							Rules: []*config.Rule{
+								config.Rule_builder{
+									Process: config.Process_builder{
 										List: proto.String(name),
 									}.Build(),
 								}.Build(),
 							},
 						}.Build())
 					} else {
-						or = append(or, bypass.Or_builder{
-							Rules: []*bypass.Rule{
-								bypass.Rule_builder{
-									Host: bypass.Host_builder{
+						or = append(or, config.Or_builder{
+							Rules: []*config.Rule{
+								config.Rule_builder{
+									Host: config.Host_builder{
 										List: proto.String(name),
 									}.Build(),
 								}.Build(),
@@ -352,7 +352,7 @@ func migrateConfig(db pc.DB) {
 					}
 				}
 
-				rules = append(rules, bypass.Rulev2_builder{
+				rules = append(rules, config.Rulev2_builder{
 					Name:                 proto.String(namePrefix),
 					Mode:                 rule.GetMode().Enum(),
 					Tag:                  proto.String(rule.GetTag()),

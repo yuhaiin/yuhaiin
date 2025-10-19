@@ -3,14 +3,14 @@ package register
 import (
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func TestRangeFields(t *testing.T) {
-	i := &listener.Inbound{}
+	i := &config.Inbound{}
 
 	fields := i.ProtoReflect().Descriptor().Fields()
 
@@ -41,17 +41,17 @@ func TestRangeFields(t *testing.T) {
 
 	t.Log(oneOfMap)
 
-	ta := *new(*listener.Socks4A)
+	ta := *new(*config.Socks4A)
 
 	t.Log(ta.ProtoReflect().Descriptor().FullName(), ta.ProtoReflect().Descriptor().Parent().Name())
 }
 
 func TestGetValue(t *testing.T) {
-	i := listener.Inbound_builder{
-		Socks5: listener.Socks5_builder{
+	i := config.Inbound_builder{
+		Socks5: config.Socks5_builder{
 			Username: proto.String("123"),
 		}.Build(),
-		Tcpudp: listener.Tcpudp_builder{
+		Tcpudp: config.Tcpudp_builder{
 			Host: proto.String("123"),
 		}.Build(),
 	}.Build()
@@ -59,9 +59,9 @@ func TestGetValue(t *testing.T) {
 	t.Log(GetProtocolOneofValue(i))
 	t.Log(GetNetworkOneofValue(i))
 
-	tt := listener.Transport_builder{
-		Tls: listener.Tls_builder{
-			Tls: protocol.TlsServerConfig_builder{
+	tt := config.Transport_builder{
+		Tls: config.Tls_builder{
+			Tls: node.TlsServerConfig_builder{
 				NextProtos: []string{"123"},
 			}.Build(),
 		}.Build(),

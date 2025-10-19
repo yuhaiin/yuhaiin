@@ -10,7 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniff/bittorrent"
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniff/http"
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniff/tls"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -25,9 +25,9 @@ type Sniffier[T any] struct {
 	packetChecker []entry[T]
 }
 
-func New() *Sniffier[bypass.Mode] {
-	return &Sniffier[bypass.Mode]{
-		streamChecker: []entry[bypass.Mode]{
+func New() *Sniffier[config.Mode] {
+	return &Sniffier[config.Mode]{
+		streamChecker: []entry[config.Mode]{
 			{
 				enabled: true,
 				name:    "tls",
@@ -59,7 +59,7 @@ func New() *Sniffier[bypass.Mode] {
 					_, err := bittorrent.SniffBittorrent(b)
 					if err == nil {
 						ctx.SetProtocol("bittorrent")
-						ctx.ConnOptions().SetRouteMode(bypass.Mode_direct)
+						ctx.ConnOptions().SetRouteMode(config.Mode_direct)
 						return true
 					}
 
@@ -68,7 +68,7 @@ func New() *Sniffier[bypass.Mode] {
 			},
 		},
 
-		packetChecker: []entry[bypass.Mode]{
+		packetChecker: []entry[config.Mode]{
 			{
 				enabled: true,
 				name:    "bittorrent_utp",
@@ -76,7 +76,7 @@ func New() *Sniffier[bypass.Mode] {
 					_, err := bittorrent.SniffUTP(b)
 					if err == nil {
 						ctx.SetProtocol("bittorrent_utp")
-						ctx.ConnOptions().SetRouteMode(bypass.Mode_direct)
+						ctx.ConnOptions().SetRouteMode(config.Mode_direct)
 						return true
 					}
 

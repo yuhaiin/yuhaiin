@@ -8,7 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
 )
@@ -30,7 +30,7 @@ import (
 //	double reference: node <-> [Set]
 type ProxyEntry struct {
 	Proxy  netapi.Proxy
-	Config *point.Point
+	Config *node.Point
 	mu     sync.RWMutex
 }
 
@@ -82,7 +82,7 @@ func (p *ProxyStore) Delete(hash string) {
 	r.mu.Unlock()
 }
 
-func (p *ProxyStore) Refresh(po *point.Point) {
+func (p *ProxyStore) Refresh(po *node.Point) {
 	r, ok := p.store.Load(po.GetHash())
 	if !ok {
 		return

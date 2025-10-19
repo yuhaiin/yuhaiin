@@ -15,8 +15,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/miekg/dns"
 	"google.golang.org/protobuf/proto"
@@ -29,7 +29,7 @@ func TestTailscale(t *testing.T) {
 	key, err := os.ReadFile(".tsauthkey")
 	assert.NoError(t, err)
 
-	tc, err := New(protocol.Tailscale_builder{
+	tc, err := New(node.Tailscale_builder{
 		Hostname: proto.String("test"),
 		AuthKey:  proto.String(strings.TrimSpace(string(key))),
 	}.Build(), nil)
@@ -60,7 +60,7 @@ func TestTailscale(t *testing.T) {
 		r, err := resolver.New(resolver.Config{
 			Dialer: tc,
 			Host:   "100.100.100.100:53",
-			Type:   pd.Type_tcp,
+			Type:   config.Type_tcp,
 		})
 		assert.NoError(t, err)
 
@@ -81,7 +81,7 @@ func TestTailscale(t *testing.T) {
 		r, err := resolver.New(resolver.Config{
 			Dialer: tc,
 			Host:   "100.100.100.100:53",
-			Type:   pd.Type_udp,
+			Type:   config.Type_udp,
 		})
 		assert.NoError(t, err)
 

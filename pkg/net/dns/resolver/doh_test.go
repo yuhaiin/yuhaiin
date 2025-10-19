@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	dnsmessage "github.com/miekg/dns"
+	"github.com/miekg/dns"
 )
 
 func TestDOH(t *testing.T) {
@@ -18,75 +18,75 @@ func TestDOH(t *testing.T) {
 
 	configMap := map[string]Config{
 		"google": {
-			Type:   dns.Type_doh,
+			Type:   config.Type_doh,
 			Host:   "dns.google",
 			Subnet: s,
 			// Dialer: s5Dialer,
 		},
 		"iijJP": {
-			Type:       dns.Type_doh,
+			Type:       config.Type_doh,
 			Host:       "103.2.57.5",
 			Servername: "public.dns.iij.jp",
 			Subnet:     s,
 		},
 		"cloudflare": {
-			Type:   dns.Type_doh,
+			Type:   config.Type_doh,
 			Host:   "cloudflare-dns.com",
 			Subnet: s,
 			Dialer: s5Dialer,
 		},
 		"quad9": {
-			Type:   dns.Type_doh,
+			Type:   config.Type_doh,
 			Host:   "9.9.9.9",
 			Subnet: s,
 		},
 		"a.passcloud": {
-			Type:   dns.Type_doh,
+			Type:   config.Type_doh,
 			Host:   "a.passcloud.xyz",
 			Subnet: s,
 		},
 		"adguard": {
-			Type: dns.Type_doh,
+			Type: config.Type_doh,
 			Host: "https://unfiltered.adguard-dns.com/dns-query",
 		},
 		"ali": {
-			Type:   dns.Type_doh,
+			Type:   config.Type_doh,
 			Host:   "223.5.5.5",
 			Subnet: s,
 		},
 		"dns.pub": {
-			Type:   dns.Type_doh,
+			Type:   config.Type_doh,
 			Host:   "dns.pub",
 			Subnet: s,
 		},
 		"sm2.dnspub": {
-			Type:   dns.Type_doh,
+			Type:   config.Type_doh,
 			Host:   "sm2.doh.pub",
 			Subnet: s,
 		},
 		"360": {
-			Type:   dns.Type_doh,
+			Type:   config.Type_doh,
 			Host:   "doh.360.cn",
 			Subnet: s,
 		},
 		"dnssb": {
-			Type:   dns.Type_doh,
+			Type:   config.Type_doh,
 			Host:   "doh.dns.sb",
 			Subnet: s,
 			// Dialer: s5Dialer,
 		},
 		"opendns": {
-			Type:   dns.Type_doh,
+			Type:   config.Type_doh,
 			Host:   "doh.opendns.com",
 			Subnet: s,
 			// Dialer: s5Dialer,
 		},
 		"tuna": {
-			Type: dns.Type_doh,
+			Type: config.Type_doh,
 			Host: "https://101.6.6.6:8443/dns-query",
 		},
 		"controld": {
-			Type: dns.Type_doh,
+			Type: config.Type_doh,
 			Host: "https://freedns.controld.com/p0",
 		},
 	}
@@ -113,30 +113,30 @@ func TestDOH(t *testing.T) {
 	// t.Log(d.LookupIP(context.TODO(), "yahoo.co.jp"))
 	// t.Log(d.LookupIP(context.TODO(), "115-235-111-150.dhost.00cdn.com"))
 
-	t.Log(d.Raw(context.TODO(), dnsmessage.Question{
+	t.Log(d.Raw(context.TODO(), dns.Question{
 		Name:  "www.google.com.",
-		Qtype: dnsmessage.TypeA,
+		Qtype: dns.TypeA,
 	}))
-	t.Log(d.Raw(context.TODO(), dnsmessage.Question{
+	t.Log(d.Raw(context.TODO(), dns.Question{
 		Name:  "www.google.com.",
-		Qtype: dnsmessage.TypeA,
+		Qtype: dns.TypeA,
 	}))
 
-	t.Log(d.Raw(context.TODO(), dnsmessage.Question{
+	t.Log(d.Raw(context.TODO(), dns.Question{
 		Name:  "cdn.v2ex.com.",
-		Qtype: dnsmessage.TypeHTTPS,
+		Qtype: dns.TypeHTTPS,
 	}))
-	t.Log(d.Raw(context.TODO(), dnsmessage.Question{
+	t.Log(d.Raw(context.TODO(), dns.Question{
 		Name:  "auth.openai.com.",
-		Qtype: dnsmessage.TypeHTTPS,
+		Qtype: dns.TypeHTTPS,
 	}))
-	t.Log(d.Raw(context.TODO(), dnsmessage.Question{
+	t.Log(d.Raw(context.TODO(), dns.Question{
 		Name:  "auth.openai.com.",
-		Qtype: dnsmessage.TypeA,
+		Qtype: dns.TypeA,
 	}))
-	t.Log(d.Raw(context.TODO(), dnsmessage.Question{
+	t.Log(d.Raw(context.TODO(), dns.Question{
 		Name:  "auth.openai.com.",
-		Qtype: dnsmessage.TypeAAAA,
+		Qtype: dns.TypeAAAA,
 	}))
 }
 

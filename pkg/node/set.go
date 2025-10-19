@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
 
@@ -23,12 +23,12 @@ type Set struct {
 	outbound  *Outbound
 	Nodes     []string
 	randomKey id.UUID
-	strategy  protocol.SetStrategyType
+	strategy  node.SetStrategyType
 
 	lastID atomic.Int32
 }
 
-func NewSet(nodes *protocol.Set, m *Manager) (netapi.Proxy, error) {
+func NewSet(nodes *node.Set, m *Manager) (netapi.Proxy, error) {
 	ns := slices.Compact(nodes.GetNodes())
 	if len(ns) == 0 {
 		return nil, fmt.Errorf("nodes is empty")
@@ -55,7 +55,7 @@ func (s *Set) loop(f func(int, string) bool) {
 		}
 	}
 
-	if s.strategy == protocol.Set_round_robin {
+	if s.strategy == node.Set_round_robin {
 		for i, node := range s.Nodes {
 			if i == int(cacheIndex) {
 				continue

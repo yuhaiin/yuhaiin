@@ -10,8 +10,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"google.golang.org/protobuf/proto"
@@ -25,7 +25,7 @@ type failedHistoryKey struct {
 }
 
 type failedHistoryEntry struct {
-	*gs.FailedHistory
+	*api.FailedHistory
 	mu sync.RWMutex
 }
 
@@ -61,7 +61,7 @@ func (h *FailedHistory) Push(ctx context.Context, err error, protocol statistic.
 	key := failedHistoryKey{getRealAddr(store, host), store.GetProcessName(), protocol}
 	x, ok := h.store.LoadOrAdd(key, func() *failedHistoryEntry {
 		return &failedHistoryEntry{
-			FailedHistory: (&gs.FailedHistory_builder{
+			FailedHistory: (&api.FailedHistory_builder{
 				Protocol:    &protocol,
 				Host:        stringOrNil(getRealAddr(store, host)),
 				Error:       stringOrNil(err.Error()),
@@ -83,8 +83,8 @@ func (h *FailedHistory) Push(ctx context.Context, err error, protocol statistic.
 	x.mu.Unlock()
 }
 
-func (h *FailedHistory) Get() *gs.FailedHistoryList {
-	var objects []*gs.FailedHistory
+func (h *FailedHistory) Get() *api.FailedHistoryList {
+	var objects []*api.FailedHistory
 	dumpProcess := false
 	for _, v := range h.store.Range {
 		v.mu.RLock()
@@ -95,7 +95,7 @@ func (h *FailedHistory) Get() *gs.FailedHistoryList {
 		v.mu.RUnlock()
 	}
 
-	return gs.FailedHistoryList_builder{
+	return api.FailedHistoryList_builder{
 		Objects:            objects,
 		DumpProcessEnabled: proto.Bool(dumpProcess),
 	}.Build()
@@ -151,16 +151,16 @@ func (h *History) Push(c *statistic.Connection) {
 	}
 }
 
-func (h *History) Get() *gs.AllHistoryList {
+func (h *History) Get() *api.AllHistoryList {
 	dumpProcess := false
-	var objects []*gs.AllHistory
+	var objects []*api.AllHistory
 	for _, v := range h.store.Range {
 		info, ok := h.infoStore.Load(v.id.Load())
 		if !ok {
 			continue
 		}
 
-		objects = append(objects, gs.AllHistory_builder{
+		objects = append(objects, api.AllHistory_builder{
 			Count:      proto.Uint64(v.count.Load()),
 			Time:       timestamppb.New(v.time.Load()),
 			Connection: info,
@@ -171,7 +171,7 @@ func (h *History) Get() *gs.AllHistoryList {
 		}
 	}
 
-	return gs.AllHistoryList_builder{
+	return api.AllHistoryList_builder{
 		Objects:            objects,
 		DumpProcessEnabled: proto.Bool(dumpProcess),
 	}.Build()

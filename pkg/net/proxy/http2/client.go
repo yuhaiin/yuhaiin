@@ -15,7 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -32,7 +32,7 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Http2, p netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(config *node.Http2, p netapi.Proxy) (netapi.Proxy, error) {
 	if config.GetConcurrency() < 7 {
 		config.SetConcurrency(10)
 	}
