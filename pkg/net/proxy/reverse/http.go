@@ -16,7 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	ptls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	sniffhttp "github.com/Asutorufa/yuhaiin/pkg/net/sniff/http"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -25,7 +25,7 @@ func init() {
 	register.RegisterProtocol(NewHTTPServer)
 }
 
-func NewHTTPServer(o *listener.ReverseHttp, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+func NewHTTPServer(o *config.ReverseHttp, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	uri, err := url.Parse(o.GetUrl())
 	if err != nil {
 		return nil, err

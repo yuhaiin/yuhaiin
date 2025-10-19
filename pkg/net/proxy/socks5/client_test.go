@@ -13,7 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/proto"
 )
@@ -76,14 +76,14 @@ func (h *handler) HandlePing(conn *netapi.PingMeta) {
 }
 
 func TestUsernamePassword(t *testing.T) {
-	ss, err := fixed.NewServer(listener.Tcpudp_builder{
+	ss, err := fixed.NewServer(config.Tcpudp_builder{
 		Host:    proto.String("0.0.0.0:1083"),
-		Control: listener.TcpUdpControl_tcp_udp_control_all.Enum(),
+		Control: config.TcpUdpControl_tcp_udp_control_all.Enum(),
 	}.Build())
 	assert.NoError(t, err)
 	defer ss.Close()
 
-	accept, err := NewServer(listener.Socks5_builder{
+	accept, err := NewServer(config.Socks5_builder{
 		Username: proto.String("test"),
 		Password: proto.String("test"),
 		Udp:      proto.Bool(true),

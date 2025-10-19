@@ -17,47 +17,46 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
-	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Subscribe struct {
-	gn.UnimplementedSubscribeServer
+	api.UnimplementedSubscribeServer
 
 	n *Manager
 }
 
-func (s *Subscribe) Save(_ context.Context, l *gn.SaveLinkReq) (*emptypb.Empty, error) {
+func (s *Subscribe) Save(_ context.Context, l *api.SaveLinkReq) (*emptypb.Empty, error) {
 	s.save(l.GetLinks())
 	return &emptypb.Empty{}, s.n.Save()
 }
 
-func (s *Subscribe) Remove(_ context.Context, l *gn.LinkReq) (*emptypb.Empty, error) {
+func (s *Subscribe) Remove(_ context.Context, l *api.LinkReq) (*emptypb.Empty, error) {
 	s.n.DeleteLink(l.GetNames()...)
 	return &emptypb.Empty{}, s.n.Save()
 }
 
-func (s *Subscribe) Update(_ context.Context, req *gn.LinkReq) (*emptypb.Empty, error) {
+func (s *Subscribe) Update(_ context.Context, req *api.LinkReq) (*emptypb.Empty, error) {
 	s.update(req.GetNames()...)
 	return &emptypb.Empty{}, s.n.Save()
 }
 
-func (s *Subscribe) Get(context.Context, *emptypb.Empty) (*gn.GetLinksResp, error) {
-	return gn.GetLinksResp_builder{Links: s.n.GetLinks()}.Build(), nil
+func (s *Subscribe) Get(context.Context, *emptypb.Empty) (*api.GetLinksResp, error) {
+	return api.GetLinksResp_builder{Links: s.n.GetLinks()}.Build(), nil
 }
 
-func (l *Subscribe) save(ls []*subscribe.Link) {
-	nodes := []*point.Point{}
-	links := []*subscribe.Link{}
+func (l *Subscribe) save(ls []*node.Link) {
+	nodes := []*node.Point{}
+	links := []*node.Link{}
 
 	for _, z := range ls {
-		node, err := parser.ParseUrl([]byte(z.GetUrl()), subscribe.Link_builder{Name: proto.String(z.GetName())}.Build())
+		pp, err := parser.ParseUrl([]byte(z.GetUrl()), node.Link_builder{Name: proto.String(z.GetName())}.Build())
 		if err == nil {
-			node.SetOrigin(point.Origin_manual)
-			nodes = append(nodes, node) // link is a node
+			pp.SetOrigin(node.Origin_manual)
+			nodes = append(nodes, pp) // link is a node
 		} else {
 			links = append(links, z) // link is a subscription
 		}
@@ -80,7 +79,7 @@ func (l *Subscribe) update(names ...string) {
 	}
 }
 
-func (n *Subscribe) fetch(link *subscribe.Link) error {
+func (n *Subscribe) fetch(link *node.Link) error {
 	hc := &http.Client{
 		Timeout: time.Minute * 2,
 		Transport: &http.Transport{
@@ -112,18 +111,18 @@ func (n *Subscribe) fetch(link *subscribe.Link) error {
 
 	base64r := base64.NewDecoder(base64.RawStdEncoding, &trimBase64Reader{res.Body})
 	scanner := bufio.NewScanner(base64r)
-	var nodes []*point.Point
+	var nodes []*node.Point
 	for scanner.Scan() {
 		if len(scanner.Bytes()) == 0 {
 			continue
 		}
 
-		node, err := parser.ParseUrl(scanner.Bytes(), link)
+		pp, err := parser.ParseUrl(scanner.Bytes(), link)
 		if err != nil {
 			log.Error("parse url failed", slog.String("url", scanner.Text()), slog.Any("err", err))
 		} else {
-			node.SetOrigin(point.Origin_remote)
-			nodes = append(nodes, node)
+			pp.SetOrigin(node.Origin(*node.Origin_remote.Enum()))
+			nodes = append(nodes, pp)
 		}
 	}
 

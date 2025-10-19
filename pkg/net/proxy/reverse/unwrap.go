@@ -14,7 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -28,10 +28,10 @@ type httpTermination struct {
 	ch *netapi.ChannelStreamListener
 }
 
-func NewHttpTermination(c *protocol.HttpTermination, p netapi.Proxy) (netapi.Proxy, error) {
+func NewHttpTermination(c *node.HttpTermination, p netapi.Proxy) (netapi.Proxy, error) {
 	ch := netapi.NewChannelStreamListener(netapi.EmptyAddr)
 
-	headers := trie.NewTrie[*protocol.HttpTerminationHttpHeaders]()
+	headers := trie.NewTrie[*node.HttpTerminationHttpHeaders]()
 
 	for k, v := range c.GetHeaders() {
 		headers.Insert(k, v)

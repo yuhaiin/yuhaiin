@@ -8,7 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
@@ -20,7 +20,7 @@ type Server struct {
 	pmu  sync.Mutex
 	smu  sync.Mutex
 
-	control listener.TcpUdpControl
+	control config.TcpUdpControl
 }
 
 func (s *Server) Close() error {
@@ -86,7 +86,7 @@ func (s *Server) initStream() error {
 }
 
 func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
-	if s.control == listener.TcpUdpControl_disable_udp {
+	if s.control == config.TcpUdpControl_disable_udp {
 		return nil, errors.ErrUnsupported
 	}
 
@@ -98,7 +98,7 @@ func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
 }
 
 func (s *Server) Accept() (net.Conn, error) {
-	if s.control == listener.TcpUdpControl_disable_tcp {
+	if s.control == config.TcpUdpControl_disable_tcp {
 		return nil, errors.ErrUnsupported
 	}
 
@@ -110,7 +110,7 @@ func (s *Server) Accept() (net.Conn, error) {
 }
 
 func (s *Server) Addr() net.Addr {
-	if s.control == listener.TcpUdpControl_disable_tcp {
+	if s.control == config.TcpUdpControl_disable_tcp {
 		return netapi.EmptyAddr
 	}
 
@@ -121,7 +121,7 @@ func (s *Server) Addr() net.Addr {
 	return s.Listener.Addr()
 }
 
-func NewServer(c *listener.Tcpudp) (netapi.Listener, error) {
+func NewServer(c *config.Tcpudp) (netapi.Listener, error) {
 	return &Server{
 		host:    c.GetHost(),
 		control: c.GetControl(),

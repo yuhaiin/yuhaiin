@@ -14,7 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/miekg/dns"
@@ -26,7 +26,7 @@ type Route struct {
 	r Resolver
 	d Dialer
 
-	config *atomicx.Value[*bypass.Configv2]
+	config *atomicx.Value[*config.Configv2]
 	ms     *Matchers
 
 	loopback LoopbackDetector
@@ -46,7 +46,7 @@ type Dialer interface {
 
 func NewRoute(d Dialer, r Resolver, list *Lists, ProcessDumper netapi.ProcessDumper) *Route {
 	rr := &Route{
-		config:        atomicx.NewValue(&bypass.Configv2{}),
+		config:        atomicx.NewValue(&config.Configv2{}),
 		r:             r,
 		d:             d,
 		ProcessDumper: ProcessDumper,
@@ -76,7 +76,7 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 
 	result := s.dispatch(ctx, host)
 
-	if result.Mode.Mode() == bypass.Mode_block {
+	if result.Mode.Mode() == config.Mode_block {
 		s.Push(ctx, "tcp", host.String())
 	}
 
@@ -99,7 +99,7 @@ func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.Packet
 
 	result := s.dispatch(ctx, host)
 
-	if result.Mode.Mode() == bypass.Mode_block {
+	if result.Mode.Mode() == config.Mode_block {
 		s.Push(ctx, "udp", host.String())
 	}
 
@@ -123,7 +123,7 @@ func (s *Route) Ping(ctx context.Context, host netapi.Address) (uint64, error) {
 
 	result := s.dispatch(ctx, host)
 
-	if result.Mode.Mode() == bypass.Mode_block {
+	if result.Mode.Mode() == config.Mode_block {
 		s.Push(ctx, "ping", host.String())
 	}
 
@@ -142,39 +142,39 @@ func (s *Route) Dispatch(ctx context.Context, host netapi.Address) (netapi.Addre
 	return s.dispatch(ctx, host).Addr, nil
 }
 
-func (s *Route) skipResolve(mode bypass.ModeEnum) bool {
-	if mode.Mode() != bypass.Mode_proxy {
+func (s *Route) skipResolve(mode config.ModeEnum) bool {
+	if mode.Mode() != config.Mode_proxy {
 		return false
 	}
 
 	switch s.config.Load().GetUdpProxyFqdn() {
-	case bypass.UdpProxyFqdnStrategy_skip_resolve:
-		return mode.UdpProxyFqdn() != bypass.UdpProxyFqdnStrategy_resolve
+	case config.UdpProxyFqdnStrategy_skip_resolve:
+		return mode.UdpProxyFqdn() != config.UdpProxyFqdnStrategy_resolve
 	default:
-		return mode.UdpProxyFqdn() == bypass.UdpProxyFqdnStrategy_skip_resolve
+		return mode.UdpProxyFqdn() == config.UdpProxyFqdnStrategy_skip_resolve
 	}
 }
 
 type routeResult struct {
 	Addr netapi.Address
-	Mode bypass.ModeEnum
+	Mode config.ModeEnum
 }
 
 type matcher struct {
-	Match func(context.Context, netapi.Address) bypass.ModeEnum
+	Match func(context.Context, netapi.Address) config.ModeEnum
 	Name  string
 }
 
-func (s *Route) AddMatcher(name string, f func(context.Context, netapi.Address) bypass.ModeEnum) {
+func (s *Route) AddMatcher(name string, f func(context.Context, netapi.Address) config.ModeEnum) {
 	s.matchers = append(s.matchers, &matcher{Name: name, Match: f})
 }
 
 func (s *Route) addMatchers() {
-	s.AddMatcher("loopback cycle check", func(ctx context.Context, host netapi.Address) bypass.ModeEnum {
+	s.AddMatcher("loopback cycle check", func(ctx context.Context, host netapi.Address) config.ModeEnum {
 		store := netapi.GetContext(ctx)
 
 		if s.loopback.Cycle(store, host) {
-			return bypass.Block
+			return config.Block
 		}
 
 		processPath, pid, _ := store.GetProcess()
@@ -182,7 +182,7 @@ func (s *Route) addMatchers() {
 		if processPath != "" || pid != 0 {
 			// make all go system dial direct, eg: tailscale
 			if processPath == "io.github.asutorufa.yuhaiin" {
-				return bypass.Direct
+				return config.Direct
 			}
 
 			matchProcess := filepath.Clean(strings.TrimSuffix(processPath, " (deleted)"))
@@ -190,21 +190,21 @@ func (s *Route) addMatchers() {
 			matchProcess = convertVolumeName(matchProcess)
 
 			if s.loopback.IsLoopback(store, matchProcess, pid) {
-				return bypass.Block
+				return config.Block
 			}
 		}
 
-		return bypass.Bypass
+		return config.Bypass
 	})
 
-	s.AddMatcher("context route mode", func(ctx context.Context, host netapi.Address) bypass.ModeEnum {
-		return bypass.Mode(netapi.GetContext(ctx).ConnOptions().RouteMode()).ToModeEnum()
+	s.AddMatcher("context route mode", func(ctx context.Context, host netapi.Address) config.ModeEnum {
+		return config.Mode(netapi.GetContext(ctx).ConnOptions().RouteMode()).ToModeEnum()
 	})
 
-	s.AddMatcher("normal mode", func(ctx context.Context, host netapi.Address) bypass.ModeEnum {
+	s.AddMatcher("normal mode", func(ctx context.Context, host netapi.Address) config.ModeEnum {
 		store := netapi.GetContext(ctx)
 
-		store.ConnOptions().Resolver().SetResolver(s.r.Get(s.getResolverFallback(bypass.Proxy), ""))
+		store.ConnOptions().Resolver().SetResolver(s.r.Get(s.getResolverFallback(config.Proxy), ""))
 
 		if store.GetHosts() == nil && !host.IsFqdn() && store.SniffHost() != "" {
 			addr, err := netapi.ParseAddressPort(host.Network(), store.SniffHost(), host.Port())
@@ -218,9 +218,9 @@ func (s *Route) addMatchers() {
 		mode := s.ms.Match(ctx, host)
 
 		switch mode.GetResolveStrategy() {
-		case bypass.ResolveStrategy_only_ipv4, bypass.ResolveStrategy_prefer_ipv4:
+		case config.ResolveStrategy_only_ipv4, config.ResolveStrategy_prefer_ipv4:
 			store.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv4)
-		case bypass.ResolveStrategy_only_ipv6, bypass.ResolveStrategy_prefer_ipv6:
+		case config.ResolveStrategy_only_ipv6, config.ResolveStrategy_prefer_ipv6:
 			store.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv6)
 		default:
 			if !configuration.IPv6.Load() {
@@ -236,7 +236,7 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 	s.dumpProcess(ctx, addr.Network())
 
 	start := system.CheapNowNano()
-	var mode bypass.ModeEnum
+	var mode config.ModeEnum
 	for _, m := range s.matchers {
 		if mode = m.Match(ctx, addr); !mode.Mode().Unspecified() {
 			break
@@ -250,7 +250,7 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 
 	store.Mode = mode.Mode()
 
-	if s.config.Load().GetResolveLocally() && addr.IsFqdn() && mode.Mode() == bypass.Mode_proxy {
+	if s.config.Load().GetResolveLocally() && addr.IsFqdn() && mode.Mode() == config.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
 		ip, err := netapi.ResolverIP(ctx, addr.Hostname())
 		if err == nil {
@@ -265,14 +265,14 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 	return routeResult{addr, mode}
 }
 
-func (s *Route) getResolverFallback(mode bypass.ModeEnum) string {
+func (s *Route) getResolverFallback(mode config.ModeEnum) string {
 	switch mode.Mode() {
-	case bypass.Mode_proxy:
+	case config.Mode_proxy:
 		return s.config.Load().GetProxyResolver()
-	case bypass.Mode_direct:
+	case config.Mode_direct:
 		return s.config.Load().GetDirectResolver()
-	case bypass.Mode_block:
-		return bypass.Mode_block.String()
+	case config.Mode_block:
+		return config.Mode_block.String()
 	}
 
 	return ""
@@ -286,7 +286,7 @@ func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 
 	mode := s.ms.Match(ctx, host)
 
-	if mode.Mode() == bypass.Mode_block {
+	if mode.Mode() == config.Mode_block {
 		s.dumpProcess(ctx, "udp", "tcp")
 		s.Push(ctx, "dns", domain)
 	}

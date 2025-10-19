@@ -16,7 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -30,7 +30,7 @@ type Server struct {
 	username, password []byte
 }
 
-func newServer(o *listener.Http, lis net.Listener, handler netapi.Handler) *Server {
+func newServer(o *config.Http, lis net.Listener, handler netapi.Handler) *Server {
 	h := &Server{
 		username: []byte(o.GetUsername()),
 		password: []byte(o.GetPassword()),
@@ -186,7 +186,7 @@ func init() {
 	register.RegisterProtocol(NewServer)
 }
 
-func NewServer(o *listener.Http, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+func NewServer(o *config.Http, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	s := newServer(o, ii, handler)
 
 	go func() {

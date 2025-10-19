@@ -18,8 +18,7 @@ import (
 	dnssystem "github.com/Asutorufa/yuhaiin/pkg/net/dns/system"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	cd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/miekg/dns"
@@ -60,7 +59,7 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db cache.Recursio
 	return f
 }
 
-func (f *Fakedns) Apply(c *cd.FakednsConfig) {
+func (f *Fakedns) Apply(c *config.FakednsConfig) {
 	defer dnssystem.RefreshCache()
 
 	f.enabled.Store(c.GetEnabled())
@@ -203,7 +202,7 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 
 	if configuration.FakeIPEnabled.Load() {
 		// block fakeip range to prevent infinite loop which taget ip is not found in fakeip cache
-		store.ConnOptions().SetRouteMode(bypass.Mode_block)
+		store.ConnOptions().SetRouteMode(config.Mode_block)
 	}
 
 	return addr

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -21,8 +21,8 @@ func TestConvert(t *testing.T) {
 			k, err := ca.PrivateKeyBytes()
 			assert.NoError(t, err)
 
-			pp, err := ConvertTransport(listener.Transport_builder{
-				TlsAuto: listener.TlsAuto_builder{
+			pp, err := ConvertTransport(config.Transport_builder{
+				TlsAuto: config.TlsAuto_builder{
 					NextProtos: []string{"123"},
 					Servernames: []string{
 						"*.google.com",

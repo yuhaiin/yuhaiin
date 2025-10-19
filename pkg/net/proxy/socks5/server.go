@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
@@ -315,7 +315,7 @@ func init() {
 	register.RegisterProtocol(NewServer)
 }
 
-func NewServer(o *listener.Socks5, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+func NewServer(o *config.Socks5, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		udp:      o.GetUdp(),

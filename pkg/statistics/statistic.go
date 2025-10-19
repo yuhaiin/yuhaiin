@@ -12,8 +12,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
@@ -23,7 +23,7 @@ import (
 )
 
 type Connections struct {
-	gs.UnimplementedConnectionsServer
+	api.UnimplementedConnectionsServer
 
 	netapi.Proxy
 
@@ -83,7 +83,7 @@ func (c *Connections) allInfos() []*statistic.Connection {
 	})
 }
 
-func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) error {
+func (c *Connections) Notify(_ *emptypb.Empty, s api.Connections_NotifyServer) error {
 	id, done := c.notify.register(s, c.allInfos())
 	defer c.notify.unregister(id)
 	log.Debug("new notify client", "id", id)
@@ -97,11 +97,11 @@ func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) er
 	}
 }
 
-func (c *Connections) Conns(context.Context, *emptypb.Empty) (*gs.NotifyNewConnections, error) {
-	return (&gs.NotifyNewConnections_builder{Connections: c.allInfos()}).Build(), nil
+func (c *Connections) Conns(context.Context, *emptypb.Empty) (*api.NotifyNewConnections, error) {
+	return (&api.NotifyNewConnections_builder{Connections: c.allInfos()}).Build(), nil
 }
 
-func (c *Connections) CloseConn(_ context.Context, x *gs.NotifyRemoveConnections) (*emptypb.Empty, error) {
+func (c *Connections) CloseConn(_ context.Context, x *api.NotifyRemoveConnections) (*emptypb.Empty, error) {
 	for _, x := range x.GetIds() {
 		if z, ok := c.connStore.Load(x); ok {
 			_ = z.Close()
@@ -138,8 +138,8 @@ func (c *Connections) Close() error {
 	return err
 }
 
-func (c *Connections) Total(context.Context, *emptypb.Empty) (*gs.TotalFlow, error) {
-	return gs.TotalFlow_builder{
+func (c *Connections) Total(context.Context, *emptypb.Empty) (*api.TotalFlow, error) {
+	return api.TotalFlow_builder{
 		Download: proto.Uint64(c.Cache.LoadDownload()),
 		Upload:   proto.Uint64(c.Cache.LoadUpload()),
 		Counters: c.counters.Load(),
@@ -343,11 +343,11 @@ func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, 
 	return z, nil
 }
 
-func (c *Connections) FailedHistory(context.Context, *emptypb.Empty) (*gs.FailedHistoryList, error) {
+func (c *Connections) FailedHistory(context.Context, *emptypb.Empty) (*api.FailedHistoryList, error) {
 	return c.faildHistory.Get(), nil
 }
 
-func (c *Connections) AllHistory(context.Context, *emptypb.Empty) (*gs.AllHistoryList, error) {
+func (c *Connections) AllHistory(context.Context, *emptypb.Empty) (*api.AllHistoryList, error) {
 	return c.history.Get(), nil
 }
 
@@ -374,14 +374,14 @@ func (c *counters) Remove(id uint64) {
 	c.mu.Unlock()
 }
 
-func (c *counters) Load() map[uint64]*gs.Counter {
+func (c *counters) Load() map[uint64]*api.Counter {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	tmp := make(map[uint64]*gs.Counter, len(c.store))
+	tmp := make(map[uint64]*api.Counter, len(c.store))
 
 	for k, v := range c.store {
-		tmp[k] = gs.Counter_builder{
+		tmp[k] = api.Counter_builder{
 			Download: proto.Uint64(v.LoadDownload()),
 			Upload:   proto.Uint64(v.LoadUpload()),
 		}.Build()

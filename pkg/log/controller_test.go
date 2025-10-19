@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/proto"
 )
@@ -20,9 +20,9 @@ func TestTail(t *testing.T) {
 	}()
 
 	OutputStderr.Store(false)
-	ctr.Set(protolog.Logcat_builder{
+	ctr.Set(config.Logcat_builder{
 		Save:  proto.Bool(true),
-		Level: protolog.LogLevel_debug.Enum(),
+		Level: config.LogLevel_debug.Enum(),
 	}.Build(), "test.log")
 
 	defer func() {

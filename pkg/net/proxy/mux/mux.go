@@ -11,35 +11,35 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/libp2p/go-yamux/v5"
 )
 
-var config *yamux.Config
+var defaultConfig *yamux.Config
 
 func init() {
-	config = yamux.DefaultConfig()
+	defaultConfig = yamux.DefaultConfig()
 	// We've bumped this to 16MiB as this critically limits throughput.
 	//
 	// 1MiB means a best case of 10MiB/s (83.89Mbps) on a connection with
 	// 100ms latency. The default gave us 2.4MiB *best case* which was
 	// totally unacceptable.
-	config.MaxStreamWindowSize = uint32(16 * 1024 * 1024)
+	defaultConfig.MaxStreamWindowSize = uint32(16 * 1024 * 1024)
 	// don't spam
-	config.LogOutput = io.Discard
+	defaultConfig.LogOutput = io.Discard
 	// We always run over a security transport that buffers internally
 	// (i.e., uses a block cipher).
-	config.ReadBufSize = 0
+	defaultConfig.ReadBufSize = 0
 	// Effectively disable the incoming streams limit.
 	// This is now dynamically limited by the resource manager.
-	config.MaxIncomingStreams = math.MaxUint32
+	defaultConfig.MaxIncomingStreams = math.MaxUint32
 	// Disable keepalive, we don't need it
 	// tcp keepalive will used in underlying conn
-	config.EnableKeepAlive = false
+	defaultConfig.EnableKeepAlive = false
 
-	config.ConnectionWriteTimeout = 4*time.Second + time.Second/2
+	defaultConfig.ConnectionWriteTimeout = 4*time.Second + time.Second/2
 
 	relay.AppendIgnoreError(yamux.ErrStreamReset)
 }
@@ -68,7 +68,7 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Mux, dialer netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(config *node.Mux, dialer netapi.Proxy) (netapi.Proxy, error) {
 	if config.GetConcurrency() <= 0 {
 		config.SetConcurrency(1)
 	}
@@ -116,7 +116,7 @@ func (m *MuxClient) nextSession(ctx context.Context) (*yamux.Session, error) {
 		return nil, err
 	}
 
-	yamuxSession, err := yamux.Client(dc, config, nil)
+	yamuxSession, err := yamux.Client(dc, defaultConfig, nil)
 	if err != nil {
 		dc.Close()
 		return nil, fmt.Errorf("yamux client error: %w", err)

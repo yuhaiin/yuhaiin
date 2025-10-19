@@ -16,9 +16,8 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reverse"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"google.golang.org/protobuf/proto"
 )
@@ -42,7 +41,7 @@ MC4CAQAwBQYDK2VwBCIEILArmTMFo0d2X9cTPVlgKGVO+wyqkQFjPlNnN5wmTq6G
 
 func main() {
 	r, err := resolver.New(resolver.Config{
-		Type: dns.Type_udp,
+		Type: config.Type_udp,
 		Host: "8.8.8.8",
 	})
 	if err != nil {
@@ -51,30 +50,30 @@ func main() {
 
 	netapi.SetBootstrap(r)
 
-	node := point.Point_builder{
-		Protocols: []*protocol.Protocol{
-			protocol.Protocol_builder{
-				Direct: protocol.Direct_builder{}.Build(),
+	node := node.Point_builder{
+		Protocols: []*node.Protocol{
+			node.Protocol_builder{
+				Direct: node.Direct_builder{}.Build(),
 			}.Build(),
 
-			protocol.Protocol_builder{
-				Tls: protocol.TlsConfig_builder{
+			node.Protocol_builder{
+				Tls: node.TlsConfig_builder{
 					Enable:             proto.Bool(true),
 					InsecureSkipVerify: proto.Bool(true),
 					ServerNames:        []string{"www.youtube.com"},
 				}.Build(),
 			}.Build(),
 
-			protocol.Protocol_builder{
-				HttpTermination: protocol.HttpTermination_builder{
-					Headers: map[string]*protocol.HttpTerminationHttpHeaders{
-						"*.youtube.com": protocol.HttpTerminationHttpHeaders_builder{
-							Headers: []*protocol.HttpHeader{
-								protocol.HttpHeader_builder{
+			node.Protocol_builder{
+				HttpTermination: node.HttpTermination_builder{
+					Headers: map[string]*node.HttpTerminationHttpHeaders{
+						"*.youtube.com": node.HttpTerminationHttpHeaders_builder{
+							Headers: []*node.HttpHeader{
+								node.HttpHeader_builder{
 									Key:   proto.String("User-Agent"),
 									Value: proto.String("curl/8.13.0"),
 								}.Build(),
-								protocol.HttpHeader_builder{
+								node.HttpHeader_builder{
 									Key:   proto.String("Accept"),
 									Value: proto.String("*/*"),
 								}.Build(),
@@ -84,11 +83,11 @@ func main() {
 				}.Build(),
 			}.Build(),
 
-			protocol.Protocol_builder{
-				TlsTermination: protocol.TlsTermination_builder{
-					Tls: protocol.TlsServerConfig_builder{
-						Certificates: []*protocol.Certificate{
-							protocol.Certificate_builder{
+			node.Protocol_builder{
+				TlsTermination: node.TlsTermination_builder{
+					Tls: node.TlsServerConfig_builder{
+						Certificates: []*node.Certificate{
+							node.Certificate_builder{
 								Cert: []byte(cert),
 								Key:  []byte(key),
 							}.Build(),

@@ -7,17 +7,17 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/proto"
 )
 
-func ConvertTransport(x *listener.Transport) (*protocol.Protocol, error) {
-	var pro *protocol.Protocol
+func ConvertTransport(x *config.Transport) (*node.Protocol, error) {
+	var pro *node.Protocol
 	switch x.WhichTransport() {
-	case listener.Transport_TlsAuto_case:
-		pro = protocol.Protocol_builder{
-			Tls: protocol.TlsConfig_builder{
+	case config.Transport_TlsAuto_case:
+		pro = node.Protocol_builder{
+			Tls: node.TlsConfig_builder{
 				Enable:      proto.Bool(true),
 				NextProtos:  x.GetTlsAuto().GetNextProtos(),
 				ServerNames: replacePatternServernames(x.GetTlsAuto().GetServernames()),
@@ -26,7 +26,7 @@ func ConvertTransport(x *listener.Transport) (*protocol.Protocol, error) {
 			}.Build(),
 		}.Build()
 
-	case listener.Transport_Reality_case:
+	case config.Transport_Reality_case:
 		var servername string
 		if len(x.GetReality().GetServerName()) > 0 {
 			servername = x.GetReality().GetServerName()[mrand.IntN(len(x.GetReality().GetServerName()))]
@@ -41,42 +41,42 @@ func ConvertTransport(x *listener.Transport) (*protocol.Protocol, error) {
 			shortid = rand.Text()
 		}
 
-		pro = protocol.Protocol_builder{
-			Reality: protocol.Reality_builder{
+		pro = node.Protocol_builder{
+			Reality: node.Reality_builder{
 				ServerName: &servername,
 				ShortId:    &shortid,
 				PublicKey:  proto.String(x.GetReality().GetPublicKey()),
 			}.Build(),
 		}.Build()
 
-	case listener.Transport_Http2_case:
-		pro = protocol.Protocol_builder{
-			Http2: protocol.Http2_builder{
+	case config.Transport_Http2_case:
+		pro = node.Protocol_builder{
+			Http2: node.Http2_builder{
 				Concurrency: proto.Int32(10),
 			}.Build(),
 		}.Build()
 
-	case listener.Transport_Mux_case:
-		pro = protocol.Protocol_builder{
-			Mux: protocol.Mux_builder{
+	case config.Transport_Mux_case:
+		pro = node.Protocol_builder{
+			Mux: node.Mux_builder{
 				Concurrency: proto.Int32(10),
 			}.Build(),
 		}.Build()
 
-	case listener.Transport_Websocket_case:
-		pro = protocol.Protocol_builder{
-			Websocket: protocol.Websocket_builder{
+	case config.Transport_Websocket_case:
+		pro = node.Protocol_builder{
+			Websocket: node.Websocket_builder{
 				Host: proto.String(rand.Text()),
 				Path: proto.String(rand.Text()),
 			}.Build(),
 		}.Build()
 
-	case listener.Transport_Normal_case:
-		pro = protocol.Protocol_builder{
-			None: &protocol.None{},
+	case config.Transport_Normal_case:
+		pro = node.Protocol_builder{
+			None: &node.None{},
 		}.Build()
 
-	case listener.Transport_Tls_case, listener.Transport_Grpc_case:
+	case config.Transport_Tls_case, config.Transport_Grpc_case:
 		// because we can't get the ca cert, so please use tls auto instead
 		fallthrough
 
@@ -105,56 +105,56 @@ func replacePatternServernames(servernames []string) []string {
 	return resp
 }
 
-func ConvertProtocol(x *listener.Inbound) (*protocol.Protocol, error) {
-	var pro *protocol.Protocol
+func ConvertProtocol(x *config.Inbound) (*node.Protocol, error) {
+	var pro *node.Protocol
 	switch x.WhichProtocol() {
-	case listener.Inbound_Http_case:
-		pro = protocol.Protocol_builder{
-			Http: protocol.Http_builder{
+	case config.Inbound_Http_case:
+		pro = node.Protocol_builder{
+			Http: node.Http_builder{
 				User:     proto.String(x.GetHttp().GetUsername()),
 				Password: proto.String(x.GetHttp().GetPassword()),
 			}.Build(),
 		}.Build()
 
-	case listener.Inbound_Socks5_case:
-		pro = protocol.Protocol_builder{
-			Socks5: protocol.Socks5_builder{
+	case config.Inbound_Socks5_case:
+		pro = node.Protocol_builder{
+			Socks5: node.Socks5_builder{
 				User:     proto.String(x.GetSocks5().GetUsername()),
 				Password: proto.String(x.GetSocks5().GetPassword()),
 			}.Build(),
 		}.Build()
 
-	case listener.Inbound_Mix_case:
-		pro = protocol.Protocol_builder{
-			Socks5: protocol.Socks5_builder{
+	case config.Inbound_Mix_case:
+		pro = node.Protocol_builder{
+			Socks5: node.Socks5_builder{
 				User:     proto.String(x.GetMix().GetUsername()),
 				Password: proto.String(x.GetMix().GetPassword()),
 			}.Build(),
 		}.Build()
 
-	case listener.Inbound_None_case:
-		pro = protocol.Protocol_builder{
-			None: &protocol.None{},
+	case config.Inbound_None_case:
+		pro = node.Protocol_builder{
+			None: &node.None{},
 		}.Build()
 
-	case listener.Inbound_Yuubinsya_case:
-		pro = protocol.Protocol_builder{
-			Yuubinsya: protocol.Yuubinsya_builder{
+	case config.Inbound_Yuubinsya_case:
+		pro = node.Protocol_builder{
+			Yuubinsya: node.Yuubinsya_builder{
 				Password:      proto.String(x.GetYuubinsya().GetPassword()),
 				UdpOverStream: proto.Bool(true),
 				UdpCoalesce:   proto.Bool(x.GetYuubinsya().GetUdpCoalesce()),
 			}.Build(),
 		}.Build()
 
-	case listener.Inbound_Socks4A_case:
+	case config.Inbound_Socks4A_case:
 		// don't support socks4a client
 		fallthrough
 
-	case listener.Inbound_Tun_case,
-		listener.Inbound_Redir_case,
-		listener.Inbound_Tproxy_case,
-		listener.Inbound_ReverseHttp_case,
-		listener.Inbound_ReverseTcp_case:
+	case config.Inbound_Tun_case,
+		config.Inbound_Redir_case,
+		config.Inbound_Tproxy_case,
+		config.Inbound_ReverseHttp_case,
+		config.Inbound_ReverseTcp_case:
 		fallthrough
 
 	default:
@@ -164,10 +164,10 @@ func ConvertProtocol(x *listener.Inbound) (*protocol.Protocol, error) {
 	return pro, nil
 }
 
-func ConvertNetwork(x *listener.Inbound) (*protocol.Protocol, error) {
-	var pro *protocol.Protocol
+func ConvertNetwork(x *config.Inbound) (*node.Protocol, error) {
+	var pro *node.Protocol
 	switch x.WhichNetwork() {
-	case listener.Inbound_Tcpudp_case:
+	case config.Inbound_Tcpudp_case:
 		host, portstr, err := net.SplitHostPort(x.GetTcpudp().GetHost())
 		if err != nil {
 			return nil, err
@@ -178,26 +178,26 @@ func ConvertNetwork(x *listener.Inbound) (*protocol.Protocol, error) {
 			return nil, err
 		}
 
-		pro = protocol.Protocol_builder{
-			Simple: protocol.Simple_builder{
+		pro = node.Protocol_builder{
+			Simple: node.Simple_builder{
 				Host: proto.String(host),
 				Port: proto.Int32(int32(port)),
 			}.Build(),
 		}.Build()
 
-	case listener.Inbound_Quic_case:
-		pro = protocol.Protocol_builder{
-			Quic: protocol.Quic_builder{
+	case config.Inbound_Quic_case:
+		pro = node.Protocol_builder{
+			Quic: node.Quic_builder{
 				Host: proto.String(x.GetQuic().GetHost()),
 				// same as tls, we can't get the ca cert so
 				// TODO tls auto for quic
-				Tls: &protocol.TlsConfig{},
+				Tls: &node.TlsConfig{},
 			}.Build(),
 		}.Build()
 
-	case listener.Inbound_Empty_case, listener.Inbound_Network_not_set_case:
-		pro = protocol.Protocol_builder{
-			None: &protocol.None{},
+	case config.Inbound_Empty_case, config.Inbound_Network_not_set_case:
+		pro = node.Protocol_builder{
+			None: &node.None{},
 		}.Build()
 
 	default:

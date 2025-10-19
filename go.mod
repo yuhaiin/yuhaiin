@@ -16,7 +16,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20251014195629-e4eec4520535
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251014063641-1e3ae67c72ef
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251019075932-a114f2de87f3
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.43.0
 	golang.org/x/mobile v0.0.0-20251009145931-8baca8bf4eeb
@@ -98,6 +98,7 @@ require (
 
 replace (
 	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
+	github.com/tailscale/wireguard-go => github.com/yuhaiin/wireguard-go v0.0.0-20251018092039-8a0cc74fca62
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
 	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20251011113821-c0d7a99a8899
 )

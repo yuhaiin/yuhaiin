@@ -22,9 +22,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pn "github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/resolver"
@@ -103,10 +102,10 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	logController := log.NewController()
 
-	chore := chore.NewChore(so.ChoreConfig,
-		func(s *pc.Setting) { updateConfiguration(so, s, logController) })
+	choreService := chore.NewChore(so.ChoreConfig,
+		func(s *config.Setting) { updateConfiguration(so, s, logController) })
 
-	config, err := chore.Load(context.Background(), &emptypb.Empty{})
+	config, err := choreService.Load(context.Background(), &emptypb.Empty{})
 	if err == nil {
 		updateConfiguration(so, config, logController)
 	}
@@ -134,7 +133,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	// proxy access point/endpoint
 	nodeManager := AddCloser(closers, "node_manager", node.NewManager(tools.PathGenerator.Node(so.ConfigPath)))
-	register.RegisterPoint(func(x *protocol.Set, p netapi.Proxy) (netapi.Proxy, error) {
+	register.RegisterPoint(func(x *pn.Set, p netapi.Proxy) (netapi.Proxy, error) {
 		return node.NewSet(x, nodeManager)
 	})
 
@@ -168,7 +167,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, fakedns))
 	dialer.SkipInterface = inbounds.Interfaces
 	// tools
-	tools := tools.NewTools(so.ChoreConfig, logController)
+	tools := chore.NewTools(so.ChoreConfig, logController)
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /metrics", promhttp.InstrumentMetricHandler(
@@ -178,20 +177,19 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		})))
 
 	app := &AppInstance{
-		StartOptions:   so,
-		Mux:            mux,
-		Tools:          tools,
-		Node:           nodeManager.Node(),
-		Subscribe:      nodeManager.Subscribe(),
-		Connections:    stcs,
-		Tag:            nodeManager.Tag(router.Tags),
-		RuleController: gc.UnimplementedBypassServer{},
-		Lists:          list,
-		Rules:          rules,
-		Inbound:        inbound.NewInboundCtr(so.InboundConfig, inbounds),
-		Resolver:       resolverCtr,
-		Setting:        chore,
-		closers:        closers,
+		StartOptions: so,
+		Mux:          mux,
+		Tools:        tools,
+		Node:         nodeManager.Node(),
+		Subscribe:    nodeManager.Subscribe(),
+		Connections:  stcs,
+		Tag:          nodeManager.Tag(router.Tags),
+		Lists:        list,
+		Rules:        rules,
+		Inbound:      inbound.NewInboundCtr(so.InboundConfig, inbounds),
+		Resolver:     resolverCtr,
+		Setting:      choreService,
+		closers:      closers,
 	}
 
 	app.Backup = AddCloser(closers, "backup", NewBackup(so.BackupConfig, app, fakedns))
@@ -204,14 +202,14 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	return app, nil
 }
 
-func updateConfiguration(so *StartOptions, s *pc.Setting, logController *log.Controller) {
+func updateConfiguration(so *StartOptions, s *config.Setting, logController *log.Controller) {
 	logController.Set(s.GetLogcat(), tools.PathGenerator.Log(so.ConfigPath))
 	slog.SetDefault(slog.New(log.Default()))
 
 	configuration.IgnoreDnsErrorLog.Store(s.GetLogcat().GetIgnoreDnsError())
 	configuration.IgnoreTimeoutErrorLog.Store(s.GetLogcat().GetIgnoreTimeoutError())
 
-	sysproxy.Update(s.GetSystemHttpHost(), s.GetSystemSocks5Host())
+	sysproxy.Update(chore.GetSystemHttpHost(s), chore.GetSystemSocks5Host(s))
 
 	defaultInterfaceName := s.GetNetInterface()
 	useDefaultInterface := s.GetUseDefaultInterface()

@@ -11,7 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -25,7 +25,7 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Http, p netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(config *node.Http, p netapi.Proxy) (netapi.Proxy, error) {
 	return &client{
 		Proxy:    p,
 		user:     config.GetUser(),

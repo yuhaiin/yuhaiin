@@ -5,7 +5,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
@@ -18,7 +18,7 @@ type Client struct {
 	e *encryptedHandshaker
 }
 
-func NewClient(cfg *protocol.Aead, p netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(cfg *node.Aead, p netapi.Proxy) (netapi.Proxy, error) {
 	crypto := NewHandshaker(false, []byte(cfg.GetPassword()), cfg.GetCryptoMethod())
 	return &Client{Proxy: p, e: crypto}, nil
 }

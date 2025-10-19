@@ -8,21 +8,21 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/proto"
 )
 
 func TestClient(t *testing.T) {
-	lis, err := fixed.NewServer(listener.Tcpudp_builder{
+	lis, err := fixed.NewServer(config.Tcpudp_builder{
 		Host:    proto.String("127.0.0.1:2096"),
-		Control: listener.TcpUdpControl_disable_udp.Enum(),
+		Control: config.TcpUdpControl_disable_udp.Enum(),
 	}.Build())
 	assert.NoError(t, err)
 	defer lis.Close()
 
-	rlis, err := NewServer(listener.Reality_builder{
+	rlis, err := NewServer(config.Reality_builder{
 		Dest: proto.String("223.5.5.5:443"),
 		ShortId: []string{
 			"123456",
@@ -62,13 +62,13 @@ func TestClient(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	pp, err := fixed.NewClient(protocol.Fixed_builder{
+	pp, err := fixed.NewClient(node.Fixed_builder{
 		Host: proto.String("127.0.0.1"),
 		Port: proto.Int32(2096),
 	}.Build(), nil)
 	assert.NoError(t, err)
 
-	pp, err = NewClient(protocol.Reality_builder{
+	pp, err = NewClient(node.Reality_builder{
 		ServerName: proto.String("www.xxxxxx.com"),
 		ShortId:    proto.String("123456"),
 		PublicKey:  proto.String("irzN8QFNFHUl4q_KXMTrk4yMLXKEPlM322C2QedY_yU"),

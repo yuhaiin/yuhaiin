@@ -3,18 +3,18 @@ package inbound
 import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/networksetup"
-	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 )
 
 func init() {
-	platformInfo = append(platformInfo, func(resp *gc.PlatformInfoResponse) {
+	platformInfo = append(platformInfo, func(resp *api.PlatformInfoResponse) {
 		ns, err := networksetup.ListAllNetworkServices()
 		if err != nil {
 			log.Error("list all network services failed", "err", err)
 			return
 		}
 
-		resp.SetDarwin(gc.PlatformInfoResponsePlatformDarwin_builder{
+		resp.SetDarwin(api.PlatformInfoResponsePlatformDarwin_builder{
 			NetworkServices: ns,
 		}.Build())
 	})

@@ -13,7 +13,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/quic-go/quic-go"
@@ -21,7 +21,7 @@ import (
 )
 
 func init() {
-	Register(pdns.Type_doq, NewDoQ)
+	Register(config.Type_doq, NewDoQ)
 }
 
 type doq struct {

@@ -5,9 +5,9 @@ package yuhaiin.node;
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node";
 option features.(pb.go).api_level = API_OPAQUE;
 
-import "node/point/point.proto";
-import "node/subscribe/subscribe.proto";
-import "node/tag/tag.proto";
+import "node/point.proto";
+import "node/subscribe.proto";
+import "node/tag.proto";
 import "google/protobuf/go_features.proto";
 
 message node {
@@ -20,6 +20,7 @@ message node {
 message manager {
   reserved 2;
   reserved groupsV2;
-  map<string, yuhaiin.point.point> nodes = 3 [ json_name = "nodes" ];
-  map<string, yuhaiin.tag.tags> tags = 4 [ json_name = "tags" ];
+  map<string, yuhaiin.point.point> nodes = 3
+      [ json_name = "nodes", lazy = true ];
+  map<string, yuhaiin.tag.tags> tags = 4 [ json_name = "tags", lazy = true ];
 }

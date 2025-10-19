@@ -14,7 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -34,7 +34,7 @@ func init() {
 	register.RegisterProtocol(NewServer)
 }
 
-func NewServer(config *pl.Yuubinsya, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+func NewServer(config *config.Yuubinsya, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	hash := Salt([]byte(config.GetPassword()))
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -18,15 +18,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pt "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/backup"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
-	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
-	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
-	gt "github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/grpc2http"
@@ -38,19 +34,18 @@ import (
 )
 
 type AppInstance struct {
-	Node           gn.NodeServer
-	Tools          gt.ToolsServer
-	Subscribe      gn.SubscribeServer
-	Connections    gs.ConnectionsServer
-	Inbound        gc.InboundServer
-	Resolver       gc.ResolverServer
-	RuleController gc.BypassServer
-	Lists          gc.ListsServer
-	Rules          gc.RulesServer
-	Tag            gn.TagServer
-	Backup         backup.BackupServer
+	Node        api.NodeServer
+	Tools       api.ToolsServer
+	Subscribe   api.SubscribeServer
+	Connections api.ConnectionsServer
+	Inbound     api.InboundServer
+	Resolver    api.ResolverServer
+	Lists       api.ListsServer
+	Rules       api.RulesServer
+	Tag         api.TagServer
+	Backup      api.BackupServer
 	// TODO deprecate configService, new service chore
-	Setting gc.ConfigServiceServer
+	Setting api.ConfigServiceServer
 	Mux     *http.ServeMux
 	*StartOptions
 	closers *closers
@@ -96,22 +91,21 @@ func (app *AppInstance) RegisterServer() {
 		auth: app.Auth,
 	}
 
-	gc.RegisterConfigServiceServer(grpcServer, app.Setting)
-	gc.RegisterBypassServer(grpcServer, app.RuleController)
-	gc.RegisterInboundServer(grpcServer, app.Inbound)
-	gc.RegisterResolverServer(grpcServer, app.Resolver)
-	gc.RegisterListsServer(grpcServer, app.Lists)
-	gc.RegisterRulesServer(grpcServer, app.Rules)
+	api.RegisterConfigServiceServer(grpcServer, app.Setting)
+	api.RegisterInboundServer(grpcServer, app.Inbound)
+	api.RegisterResolverServer(grpcServer, app.Resolver)
+	api.RegisterListsServer(grpcServer, app.Lists)
+	api.RegisterRulesServer(grpcServer, app.Rules)
 
-	gn.RegisterNodeServer(grpcServer, app.Node)
-	gn.RegisterSubscribeServer(grpcServer, app.Subscribe)
-	gn.RegisterTagServer(grpcServer, app.Tag)
+	api.RegisterNodeServer(grpcServer, app.Node)
+	api.RegisterSubscribeServer(grpcServer, app.Subscribe)
+	api.RegisterTagServer(grpcServer, app.Tag)
 
-	gs.RegisterConnectionsServer(grpcServer, app.Connections)
+	api.RegisterConnectionsServer(grpcServer, app.Connections)
 
-	gt.RegisterToolsServer(grpcServer, app.Tools)
+	api.RegisterToolsServer(grpcServer, app.Tools)
 
-	backup.RegisterBackupServer(grpcServer, app.Backup)
+	api.RegisterBackupServer(grpcServer, app.Backup)
 
 	RegisterHTTP(app.Mux)
 }
@@ -147,11 +141,11 @@ func (a *AppInstance) Close() error {
 }
 
 type StartOptions struct {
-	BypassConfig   pc.DB
-	ResolverConfig pc.DB
-	InboundConfig  pc.DB
-	ChoreConfig    pc.DB
-	BackupConfig   pc.DB
+	BypassConfig   chore.DB
+	ResolverConfig chore.DB
+	InboundConfig  chore.DB
+	ChoreConfig    chore.DB
+	BackupConfig   chore.DB
 
 	ProcessDumper netapi.ProcessDumper
 

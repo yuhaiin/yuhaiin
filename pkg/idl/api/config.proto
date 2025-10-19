@@ -1,0 +1,152 @@
+edition = "2023";
+
+package yuhaiin.api.config;
+
+import "config/config.proto";
+import "config/bypass.proto";
+import "config/dns.proto";
+import "config/inbound.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/go_features.proto";
+import "statistic/config.proto";
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/api";
+option features.(pb.go).api_level = API_OPAQUE;
+
+service config_service {
+  rpc load(google.protobuf.Empty) returns (yuhaiin.config.setting);
+  rpc save(yuhaiin.config.setting) returns (google.protobuf.Empty);
+  rpc info(google.protobuf.Empty) returns (yuhaiin.config.info);
+}
+
+message test_response {
+  reserved 2;
+  reserved reason;
+  yuhaiin.bypass.mode_config mode = 1 [ json_name = "mode" ];
+  string after_addr = 3 [ json_name = "after_addr" ];
+  repeated yuhaiin.statistic.match_history_entry match_result = 4
+      [ json_name = "match_result" ];
+}
+
+message block_history {
+  string protocol = 1 [ json_name = "protocol" ];
+  string host = 2 [ json_name = "host" ];
+  google.protobuf.Timestamp time = 3 [ json_name = "time" ];
+  string process = 4 [ json_name = "process" ];
+  uint64 block_count = 5 [ json_name = "block_count" ];
+}
+
+message block_history_list {
+  repeated block_history objects = 1 [ json_name = "objects" ];
+  bool dump_process_enabled = 2 [ json_name = "dump_process_enabled" ];
+}
+
+message list_response { repeated string names = 1 [ json_name = "names" ]; }
+
+message refresh_interval_response {
+  // unit: minute
+  // 0 means disable refresh
+  uint64 refresh_interval = 1 [ json_name = "refresh_interval" ];
+}
+
+service lists {
+  rpc list(google.protobuf.Empty) returns (list_response);
+  rpc get(google.protobuf.StringValue) returns (yuhaiin.bypass.list);
+  rpc save(yuhaiin.bypass.list) returns (google.protobuf.Empty);
+  rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
+  rpc refresh(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc refresh_interval(google.protobuf.Empty)
+      returns (refresh_interval_response);
+  rpc save_refresh_interval(refresh_interval_response)
+      returns (google.protobuf.Empty);
+}
+
+message rule_response { repeated string names = 1 [ json_name = "names" ]; }
+
+message rule_index {
+  uint32 index = 1 [ json_name = "index" ];
+  string name = 2 [ json_name = "name" ];
+}
+
+message rule_save_request {
+  rule_index index = 1 [ json_name = "index" ];
+  yuhaiin.bypass.rulev2 rule = 2 [ json_name = "rule" ];
+}
+
+message change_priority_request {
+  rule_index source = 1 [ json_name = "source" ];
+  rule_index target = 2 [ json_name = "target" ];
+
+  enum change_priority_operate {
+    Exchange = 0;
+    InsertBefore = 1;
+    InsertAfter = 2;
+  }
+
+  change_priority_operate operate = 3 [ json_name = "operate" ];
+}
+
+service rules {
+  rpc list(google.protobuf.Empty) returns (rule_response);
+  rpc get(rule_index) returns (yuhaiin.bypass.rulev2);
+  rpc save(rule_save_request) returns (google.protobuf.Empty);
+  rpc remove(rule_index) returns (google.protobuf.Empty);
+  rpc change_priority(change_priority_request) returns (google.protobuf.Empty);
+  rpc config(google.protobuf.Empty) returns (yuhaiin.bypass.configv2);
+  rpc save_config(yuhaiin.bypass.configv2) returns (google.protobuf.Empty);
+  rpc test(google.protobuf.StringValue) returns (test_response);
+  rpc block_history(google.protobuf.Empty) returns (block_history_list);
+}
+
+message inbounds_response {
+  repeated string names = 1 [ json_name = "names" ];
+
+  bool hijack_dns = 2 [ json_name = "hijack_dns" ];
+  bool hijack_dns_fakeip = 3 [ json_name = "hijack_dns_fakeip" ];
+  yuhaiin.inbound.sniff sniff = 4 [ json_name = "sniff" ];
+}
+
+message platform_info_response {
+  message platform_darwin {
+    repeated string network_services = 1 [ json_name = "network_services" ];
+  }
+
+  platform_darwin darwin = 1 [ json_name = "darwin" ];
+}
+
+service inbound {
+  rpc list(google.protobuf.Empty) returns (inbounds_response);
+  rpc get(google.protobuf.StringValue) returns (yuhaiin.inbound.inbound);
+  rpc save(yuhaiin.inbound.inbound) returns (yuhaiin.inbound.inbound);
+  rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
+  rpc apply(inbounds_response) returns (google.protobuf.Empty);
+  rpc platform_info(google.protobuf.Empty) returns (platform_info_response);
+}
+
+message resolve_list { repeated string names = 1 [ json_name = "names" ]; }
+
+message save_resolver {
+  string name = 1 [ json_name = "name" ];
+  yuhaiin.dns.dns resolver = 2 [ json_name = "resolver" ];
+}
+
+message Hosts { map<string, string> hosts = 1 [ json_name = "hosts" ]; }
+
+service resolver {
+  rpc list(google.protobuf.Empty) returns (resolve_list);
+  rpc get(google.protobuf.StringValue) returns (yuhaiin.dns.dns);
+  rpc save(save_resolver) returns (yuhaiin.dns.dns);
+  // the bootstrap can't be remove
+  rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
+
+  rpc hosts(google.protobuf.Empty) returns (Hosts);
+  rpc save_hosts(Hosts) returns (google.protobuf.Empty);
+
+  rpc fakedns(google.protobuf.Empty) returns (yuhaiin.dns.fakedns_config);
+  rpc save_fakedns(yuhaiin.dns.fakedns_config) returns (google.protobuf.Empty);
+
+  rpc server(google.protobuf.Empty) returns (google.protobuf.StringValue);
+  rpc save_server(google.protobuf.StringValue) returns (google.protobuf.Empty);
+}

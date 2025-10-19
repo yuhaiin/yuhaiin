@@ -5,7 +5,7 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -14,12 +14,12 @@ func TestTCP(t *testing.T) {
 
 	configMap := map[string]Config{
 		"114": {
-			Type:   dns.Type_tcp,
+			Type:   config.Type_tcp,
 			Host:   "114.114.114.114",
 			Subnet: subnet,
 		},
 		"ali": {
-			Type:   dns.Type_tcp,
+			Type:   config.Type_tcp,
 			Host:   "223.5.5.5",
 			Subnet: subnet,
 		},

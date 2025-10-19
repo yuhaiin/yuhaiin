@@ -8,21 +8,21 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/proto"
 )
 
 func TestWireguard(t *testing.T) {
-	r, err := NewClient(protocol.Wireguard_builder{
+	r, err := NewClient(node.Wireguard_builder{
 		SecretKey: proto.String("OD0YfReLPYBSL/vV+1JSBPpeBurGFLNA4wQCfD+yDFA="),
 		Endpoint: []string{
 			"10.0.0.2/32",
 		},
 		Mtu:      proto.Int32(1500),
 		Reserved: []byte{0, 0, 0},
-		Peers: []*protocol.WireguardPeerConfig{
-			protocol.WireguardPeerConfig_builder{
+		Peers: []*node.WireguardPeerConfig{
+			node.WireguardPeerConfig_builder{
 				PublicKey: proto.String("2HWI3cW1HlAyQk1xiu+4QBL1KISMxSo4VQgCz+wCjmo="),
 				Endpoint:  proto.String("192.168.122.20:51820"),
 				AllowedIps: []string{

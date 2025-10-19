@@ -16,7 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -81,7 +81,7 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(config *node.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
 	var host = &net.UDPAddr{IP: net.IPv4zero}
 
 	if config.GetHost() != "" {

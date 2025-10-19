@@ -10,7 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	"github.com/xtls/reality"
@@ -22,7 +22,7 @@ Private key: CKr8-tipwbEwwDa97S3Rwqzs9L8AlcLOCZJah1zjLlw
 Public key: SOW7P-17ibm_-kz-QUQwGGyitSbsa5wOmRGAigGvDH8
 */
 
-func ShortIDMap(s *listener.Reality) (map[[8]byte]bool, error) {
+func ShortIDMap(s *config.Reality) (map[[8]byte]bool, error) {
 	maps := make(map[[8]byte]bool, len(s.GetShortId()))
 
 	for _, v := range s.GetShortId() {
@@ -42,7 +42,7 @@ func ShortIDMap(s *listener.Reality) (map[[8]byte]bool, error) {
 	return maps, nil
 }
 
-func ServerNameMap(s *listener.Reality) map[string]bool {
+func ServerNameMap(s *config.Reality) map[string]bool {
 	maps := make(map[string]bool, len(s.GetServerName()))
 
 	for _, v := range s.GetServerName() {
@@ -52,7 +52,7 @@ func ServerNameMap(s *listener.Reality) map[string]bool {
 	return maps
 }
 
-func NewServer(config *listener.Reality, ii netapi.Listener) (netapi.Listener, error) {
+func NewServer(config *config.Reality, ii netapi.Listener) (netapi.Listener, error) {
 	var ids map[[8]byte]bool
 	privateKey, err := base64.RawURLEncoding.DecodeString(config.GetPrivateKey())
 	if err == nil {

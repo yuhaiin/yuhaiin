@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
-	protocols "github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -29,7 +29,7 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(c *protocols.Shadowsocksr, p netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(c *node.Shadowsocksr, p netapi.Proxy) (netapi.Proxy, error) {
 	cipher, err := cipher.NewCipher(c.GetMethod(), c.GetPassword())
 	if err != nil {
 		return nil, fmt.Errorf("new cipher failed: %w", err)

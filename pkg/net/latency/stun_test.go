@@ -7,7 +7,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -21,7 +21,7 @@ func TestStun(t *testing.T) {
 	t.Log(StunTCP(store, direct.Default, "stun.nextcloud.com:443"))
 
 	resolver, err := resolver.New(resolver.Config{
-		Type: pd.Type_doh,
+		Type: config.Type_doh,
 		Host: "1.1.1.1",
 	})
 	assert.NoError(t, err)

@@ -7,7 +7,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	cl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
@@ -25,7 +25,7 @@ func init() {
 	register.RegisterProtocol(NewTproxy)
 }
 
-func NewTproxy(opt *cl.Tproxy, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+func NewTproxy(opt *config.Tproxy, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	t := &Tproxy{

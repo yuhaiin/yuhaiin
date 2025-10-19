@@ -7,7 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
@@ -21,7 +21,7 @@ type unWrapTls struct {
 	config *tls.Config
 }
 
-func NewUnWrapTls(c *protocol.TlsTermination, p netapi.Proxy) (netapi.Proxy, error) {
+func NewUnWrapTls(c *node.TlsTermination, p netapi.Proxy) (netapi.Proxy, error) {
 	config, err := register.ParseTLS(c.GetTls())
 	if err != nil {
 		return nil, err

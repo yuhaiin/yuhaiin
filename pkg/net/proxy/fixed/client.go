@@ -12,7 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"google.golang.org/protobuf/proto"
@@ -32,8 +32,8 @@ type Client struct {
 
 func init() {
 	register.RegisterPoint(NewClient)
-	register.RegisterPoint(func(c *protocol.Simple, p netapi.Proxy) (netapi.Proxy, error) {
-		return NewClient(protocol.Fixed_builder{
+	register.RegisterPoint(func(c *node.Simple, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(node.Fixed_builder{
 			Host:             proto.String(c.GetHost()),
 			Port:             proto.Int32(c.GetPort()),
 			AlternateHost:    c.GetAlternateHost(),
@@ -42,7 +42,7 @@ func init() {
 	})
 }
 
-func NewClient(c *protocol.Fixed, p netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(c *node.Fixed, p netapi.Proxy) (netapi.Proxy, error) {
 	var addrs []netapi.Address
 
 	var er error

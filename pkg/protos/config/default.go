@@ -5,10 +5,6 @@ import (
 	"net/netip"
 	"runtime"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -66,17 +62,17 @@ func DefaultSetting(path string) *Setting {
 			// linux system set socks5 will make firfox websocket can't connect
 			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
 		}.Build(),
-		Bypass: (&bypass.Config_builder{
-			Tcp:            bypass.Mode_bypass.Enum(),
-			Udp:            bypass.Mode_bypass.Enum(),
+		Bypass: (&BypassConfig_builder{
+			Tcp:            Mode_bypass.Enum(),
+			Udp:            Mode_bypass.Enum(),
 			DirectResolver: proto.String("bootstrap"),
 			ProxyResolver:  proto.String("bootstrap"),
 			EnabledV2:      proto.Bool(true),
-			Lists: map[string]*bypass.List{
-				"LAN": bypass.List_builder{
-					ListType: bypass.List_host.Enum(),
+			Lists: map[string]*List{
+				"LAN": List_builder{
+					ListType: List_host.Enum(),
 					Name:     proto.String("LAN"),
-					Local: bypass.ListLocal_builder{
+					Local: ListLocal_builder{
 						Lists: []string{
 							"0.0.0.0/8",
 							"10.0.0.0/8",
@@ -100,18 +96,18 @@ func DefaultSetting(path string) *Setting {
 					}.Build(),
 				}.Build(),
 			},
-			RulesV2: []*bypass.Rulev2{
-				bypass.Rulev2_builder{
+			RulesV2: []*Rulev2{
+				Rulev2_builder{
 					Name:                 proto.String("LAN"),
-					Mode:                 bypass.Mode_direct.Enum(),
+					Mode:                 Mode_direct.Enum(),
 					Tag:                  proto.String("LAN"),
-					ResolveStrategy:      bypass.ResolveStrategy_default.Enum(),
-					UdpProxyFqdnStrategy: bypass.UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default.Enum(),
-					Rules: []*bypass.Or{
-						bypass.Or_builder{
-							Rules: []*bypass.Rule{
-								bypass.Rule_builder{
-									Host: bypass.Host_builder{
+					ResolveStrategy:      ResolveStrategy_default.Enum(),
+					UdpProxyFqdnStrategy: UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default.Enum(),
+					Rules: []*Or{
+						Or_builder{
+							Rules: []*Rule{
+								Rule_builder{
+									Host: Host_builder{
 										List: proto.String("LAN"),
 									}.Build(),
 								}.Build(),
@@ -120,10 +116,10 @@ func DefaultSetting(path string) *Setting {
 					},
 				}.Build(),
 			},
-			CustomRuleV3: []*bypass.ModeConfig{},
-			RemoteRules:  []*bypass.RemoteRule{},
+			CustomRuleV3: []*ModeConfig{},
+			RemoteRules:  []*RemoteRule{},
 		}).Build(),
-		Dns: pd.DnsConfig_builder{
+		Dns: DnsConfig_builder{
 			Server:           proto.String("127.0.0.1:5353"),
 			Fakedns:          proto.Bool(false),
 			FakednsIpRange:   proto.String(fakev4),
@@ -139,47 +135,47 @@ func DefaultSetting(path string) *Setting {
 				"mask-h2.icloud.com",
 				"mask.apple-dns.net",
 			},
-			Resolver: map[string]*pd.Dns{
-				"bootstrap": pd.Dns_builder{
+			Resolver: map[string]*Dns{
+				"bootstrap": Dns_builder{
 					Host: proto.String("8.8.8.8"),
-					Type: pd.Type_udp.Enum(),
+					Type: Type_udp.Enum(),
 				}.Build(),
 			},
 			Hosts: map[string]string{"example.com": "example.com"},
 		}.Build(),
-		Logcat: pl.Logcat_builder{
-			Level: pl.LogLevel_debug.Enum(),
+		Logcat: Logcat_builder{
+			Level: LogLevel_debug.Enum(),
 			Save:  proto.Bool(true),
 		}.Build(),
 
-		Server: listener.InboundConfig_builder{
+		Server: InboundConfig_builder{
 			HijackDns:       proto.Bool(true),
 			HijackDnsFakeip: proto.Bool(true),
-			Sniff: listener.Sniff_builder{
+			Sniff: Sniff_builder{
 				Enabled: proto.Bool(true),
 			}.Build(),
-			Inbounds: map[string]*listener.Inbound{
-				"mixed": listener.Inbound_builder{
+			Inbounds: map[string]*Inbound{
+				"mixed": Inbound_builder{
 					Name:    proto.String("mixed"),
 					Enabled: proto.Bool(true),
-					Tcpudp: listener.Tcpudp_builder{
+					Tcpudp: Tcpudp_builder{
 						Host:    proto.String("127.0.0.1:1080"),
-						Control: listener.TcpUdpControl_tcp_udp_control_all.Enum(),
+						Control: TcpUdpControl_tcp_udp_control_all.Enum(),
 					}.Build(),
-					Mix: &listener.Mixed{},
+					Mix: &Mixed{},
 				}.Build(),
-				"tun": listener.Inbound_builder{
+				"tun": Inbound_builder{
 					Name:    proto.String("tun"),
 					Enabled: proto.Bool(false),
-					Empty:   &listener.Empty{},
-					Tun: listener.Tun_builder{
+					Empty:   &Empty{},
+					Tun: Tun_builder{
 						Name:          proto.String("tun://" + tunname),
 						Mtu:           proto.Int32(9000),
 						Portal:        proto.String(TunV4UlaGenerate().String()),
 						PortalV6:      proto.String(TunV6UlaGenerate().String()),
 						SkipMulticast: proto.Bool(true),
-						Driver:        listener.Tun_system_gvisor.Enum(),
-						Route: listener.Route_builder{
+						Driver:        Tun_system_gvisor.Enum(),
+						Route: Route_builder{
 							Routes: []string{
 								fakev4,
 								fakev6,
@@ -187,14 +183,14 @@ func DefaultSetting(path string) *Setting {
 						}.Build(),
 					}.Build(),
 				}.Build(),
-				"yuubinsya": listener.Inbound_builder{
+				"yuubinsya": Inbound_builder{
 					Name:    proto.String("yuubinsya"),
 					Enabled: proto.Bool(false),
-					Tcpudp: listener.Tcpudp_builder{
+					Tcpudp: Tcpudp_builder{
 						Host:    proto.String("127.0.0.1:40501"),
-						Control: listener.TcpUdpControl_disable_udp.Enum(),
+						Control: TcpUdpControl_disable_udp.Enum(),
 					}.Build(),
-					Yuubinsya: listener.Yuubinsya_builder{
+					Yuubinsya: Yuubinsya_builder{
 						Password: proto.String("password"),
 					}.Build(),
 				}.Build(),

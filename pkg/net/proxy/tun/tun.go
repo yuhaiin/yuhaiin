@@ -15,7 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
@@ -28,7 +28,7 @@ func init() {
 	relay.RegisterIgnoreNetOpErrString((&tcpip.ErrAborted{}).String())
 }
 
-func NewTun(o *listener.Tun, l netapi.Listener, handler netapi.Handler) (s netapi.Accepter, err error) {
+func NewTun(o *config.Tun, l netapi.Listener, handler netapi.Handler) (s netapi.Accepter, err error) {
 	v4address, v4err := toPrefix(o.GetPortal(), true)
 	v6address, v6err := toPrefix(o.GetPortalV6(), true)
 	if v4err != nil && v6err != nil {
@@ -77,14 +77,14 @@ func NewTun(o *listener.Tun, l netapi.Listener, handler netapi.Handler) (s netap
 		opt.Inet6Address = []netip.Prefix{v6address}
 	}
 
-	if o.GetDriver() == listener.Tun_system_gvisor {
+	if o.GetDriver() == config.Tun_system_gvisor {
 		return tun2socket.New(opt)
 	} else {
 		return gvisor.New(opt)
 	}
 }
 
-func toRoutes(r *listener.Route) []netip.Prefix {
+func toRoutes(r *config.Route) []netip.Prefix {
 	if r == nil {
 		return nil
 	}

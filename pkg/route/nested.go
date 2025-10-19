@@ -11,8 +11,8 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 
@@ -52,10 +52,10 @@ func (s *Inbound) Match(ctx context.Context, addr netapi.Address) bool {
 }
 
 type Network struct {
-	nt bypass.NetworkNetworkType
+	nt config.NetworkNetworkType
 }
 
-func NewNetwork(nt bypass.NetworkNetworkType) *Network {
+func NewNetwork(nt config.NetworkNetworkType) *Network {
 	return &Network{
 		nt: nt,
 	}
@@ -64,11 +64,11 @@ func NewNetwork(nt bypass.NetworkNetworkType) *Network {
 func (s *Network) Match(ctx context.Context, addr netapi.Address) bool {
 	store := netapi.GetContext(ctx)
 	switch s.nt {
-	case bypass.Network_tcp:
+	case config.Network_tcp:
 		ok := strings.HasPrefix(addr.Network(), "tcp")
 		store.AddMatchHistory("Net TCP", ok)
 		return ok
-	case bypass.Network_udp:
+	case config.Network_udp:
 		ok := strings.HasPrefix(addr.Network(), "udp")
 		store.AddMatchHistory("Net UDP", ok)
 		return ok
@@ -148,22 +148,22 @@ func (s *Or) Match(ctx context.Context, addr netapi.Address) bool {
 	return false
 }
 
-func ParseMatcher(lists *Lists, config *bypass.Rulev2) Matcher {
-	matchers := make([]Matcher, 0, len(config.GetRules()))
-	for _, v := range config.GetRules() {
+func ParseMatcher(lists *Lists, cc *config.Rulev2) Matcher {
+	matchers := make([]Matcher, 0, len(cc.GetRules()))
+	for _, v := range cc.GetRules() {
 		andMatchers := make([]Matcher, 0, len(v.GetRules()))
 
 		for _, rule := range sortRule(v.GetRules()) {
 			switch rule.WhichObject() {
-			case bypass.Rule_Host_case:
+			case config.Rule_Host_case:
 				andMatchers = append(andMatchers, NewListsMatcher(lists, rule.GetHost().GetList()))
-			case bypass.Rule_Process_case:
+			case config.Rule_Process_case:
 				andMatchers = append(andMatchers, NewListsMatcher(lists, rule.GetProcess().GetList()))
-			case bypass.Rule_Inbound_case:
+			case config.Rule_Inbound_case:
 				andMatchers = append(andMatchers, NewInbound(rule.GetInbound().GetNames()...))
-			case bypass.Rule_Network_case:
+			case config.Rule_Network_case:
 				andMatchers = append(andMatchers, NewNetwork(rule.GetNetwork().GetNetwork()))
-			case bypass.Rule_Port_case:
+			case config.Rule_Port_case:
 				andMatchers = append(andMatchers, NewPort(rule.GetPort().GetPorts()))
 			}
 		}
@@ -179,17 +179,17 @@ func ParseMatcher(lists *Lists, config *bypass.Rulev2) Matcher {
 		return matchers[0]
 	}
 
-	return NewOr(config.GetName(), matchers...)
+	return NewOr(cc.GetName(), matchers...)
 }
 
-func sortRule(rules []*bypass.Rule) []*bypass.Rule {
-	getNo := func(rule *bypass.Rule) int {
+func sortRule(rules []*config.Rule) []*config.Rule {
+	getNo := func(rule *config.Rule) int {
 		switch rule.WhichObject() {
-		case bypass.Rule_Process_case:
+		case config.Rule_Process_case:
 			return 1
-		case bypass.Rule_Inbound_case:
+		case config.Rule_Inbound_case:
 			return 2
-		case bypass.Rule_Host_case:
+		case config.Rule_Host_case:
 			return 3
 		default:
 			return math.MaxInt
@@ -197,13 +197,13 @@ func sortRule(rules []*bypass.Rule) []*bypass.Rule {
 	}
 
 	slices.SortFunc(rules,
-		func(a, b *bypass.Rule) int { return cmp.Compare(getNo(a), getNo(b)) })
+		func(a, b *config.Rule) int { return cmp.Compare(getNo(a), getNo(b)) })
 
 	return rules
 }
 
 type MatchEntry struct {
-	mode    bypass.ModeEnum
+	mode    config.ModeEnum
 	matcher Matcher
 	name    string
 }
@@ -221,7 +221,7 @@ func NewMatchers(list *Lists) *Matchers {
 	}
 }
 
-func (s *Matchers) Add(rule *bypass.Rulev2) {
+func (s *Matchers) Add(rule *config.Rulev2) {
 	matcher := ParseMatcher(s.list, rule)
 
 	s.mu.Lock()
@@ -236,23 +236,23 @@ func (s *Matchers) Add(rule *bypass.Rulev2) {
 	s.mu.Unlock()
 }
 
-func (s *Matchers) ChangePriority(source int, target int, operate gc.ChangePriorityRequestChangePriorityOperate) {
+func (s *Matchers) ChangePriority(source int, target int, operate api.ChangePriorityRequestChangePriorityOperate) {
 	s.mu.Lock()
 	switch operate {
-	case gc.ChangePriorityRequest_Exchange:
+	case api.ChangePriorityRequest_Exchange:
 		src := s.matchers[source]
 		dst := s.matchers[target]
 		s.matchers[source] = dst
 		s.matchers[target] = src
-	case gc.ChangePriorityRequest_InsertBefore:
+	case api.ChangePriorityRequest_InsertBefore:
 		s.matchers = InsertBefore(s.matchers, source, target)
-	case gc.ChangePriorityRequest_InsertAfter:
+	case api.ChangePriorityRequest_InsertAfter:
 		s.matchers = InsertAfter(s.matchers, source, target)
 	}
 	s.mu.Unlock()
 }
 
-func (s *Matchers) Update(rules []*bypass.Rulev2) {
+func (s *Matchers) Update(rules []*config.Rulev2) {
 	var ms []MatchEntry
 	tags := map[string]struct{}{}
 	for _, v := range rules {
@@ -273,7 +273,7 @@ func (s *Matchers) Update(rules []*bypass.Rulev2) {
 	s.mu.Unlock()
 }
 
-func (s *Matchers) Match(ctx context.Context, addr netapi.Address) bypass.ModeEnum {
+func (s *Matchers) Match(ctx context.Context, addr netapi.Address) config.ModeEnum {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -286,7 +286,7 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) bypass.ModeEn
 		}
 	}
 
-	return bypass.Proxy
+	return config.Proxy
 }
 
 func (s *Matchers) Tags() map[string]struct{} {

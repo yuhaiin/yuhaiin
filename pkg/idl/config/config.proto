@@ -5,12 +5,31 @@ package yuhaiin.config;
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config";
 option features.(pb.go).api_level = API_OPAQUE;
 
-import "config/log/log.proto";
-import "config/bypass/bypass.proto";
-import "config/dns/dns.proto";
-import "config/listener/listener.proto";
-import "backup/backup.proto";
+import "config/log.proto";
+import "config/bypass.proto";
+import "config/dns.proto";
+import "config/inbound.proto";
 import "google/protobuf/go_features.proto";
+
+message s3 {
+  bool enabled = 1 [ json_name = "enabled" ];
+  string access_key = 2 [ json_name = "access_key" ];
+  string secret_key = 3 [ json_name = "secret_key" ];
+  string bucket = 4 [ json_name = "bucket" ];
+  string region = 5 [ json_name = "region" ];
+  string endpoint_url = 6 [ json_name = "endpoint_url" ];
+  bool use_path_style = 7 [ json_name = "use_path_style" ];
+  string storage_class = 8 [ json_name = "storage_class" ];
+}
+
+message backup_option {
+  string instance_name = 1 [ json_name = "instance_name" ];
+  s3 s3 = 2 [ json_name = "s3" ];
+  // interval in minutes
+  uint64 interval = 3 [ json_name = "interval" ];
+  // last backup hash, used to check if the config has changed
+  string last_backup_hash = 4 [ json_name = "last_backup_hash" ];
+}
 
 message setting {
   reserved 10;
@@ -20,14 +39,14 @@ message setting {
   // net_interface, eg: eth0
   string net_interface = 6 [ json_name = "net_interface" ];
   system_proxy system_proxy = 1 [ json_name = "system_proxy" ];
-  yuhaiin.bypass.config bypass = 2 [ json_name = "bypass" ];
+  yuhaiin.bypass.bypass_config bypass = 2 [ json_name = "bypass" ];
   yuhaiin.dns.dns_config dns = 4 [ json_name = "dns" ];
-  yuhaiin.listener.inbound_config server = 5 [ json_name = "server" ];
+  yuhaiin.inbound.inbound_config server = 5 [ json_name = "server" ];
   yuhaiin.log.logcat logcat = 8 [ json_name = "logcat" ];
   config_version config_version = 9 [ json_name = "config_version" ];
   platform platform = 11 [ json_name = "platform" ];
   advanced_config advanced_config = 12 [ json_name = "advanced_config" ];
-  yuhaiin.backup.backup_option backup = 14 [ json_name = "backup" ];
+  backup_option backup = 14 [ json_name = "backup" ];
 }
 
 message advanced_config {

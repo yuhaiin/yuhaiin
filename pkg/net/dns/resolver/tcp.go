@@ -13,12 +13,12 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 func init() {
-	Register(pdns.Type_tcp, NewTCP)
+	Register(config.Type_tcp, NewTCP)
 }
 
 func NewTCP(config Config) (Dialer, error) {

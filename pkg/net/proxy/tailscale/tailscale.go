@@ -18,8 +18,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -65,7 +65,7 @@ func (l hijackListener) Listen(ctx context.Context, network, address string) (ne
 func (l hijackListener) ListenPacket(ctx context.Context, network, address string) (net.PacketConn, error) {
 	store := netapi.WithContext(ctx)
 	store.ConnOptions().
-		SetRouteMode(bypass.Mode_direct).
+		SetRouteMode(config.Mode_direct).
 		SetBindAddress(address)
 	store.SetComponent("tailscale").
 		SetDomainString("tailscale-" + network + "-listener" + address).
@@ -167,7 +167,7 @@ type Tailscale struct {
 	debug      atomic.Bool
 }
 
-func New(c *protocol.Tailscale, dialer netapi.Proxy) (netapi.Proxy, error) {
+func New(c *node.Tailscale, dialer netapi.Proxy) (netapi.Proxy, error) {
 	if c.GetAuthKey() == "" {
 		return nil, fmt.Errorf("auth_key is required")
 	}

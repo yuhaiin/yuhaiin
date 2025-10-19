@@ -3,16 +3,16 @@ package route
 import (
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestNested(t *testing.T) {
-	data, err := protojson.Marshal(bypass.Config_builder{
-		Lists: map[string]*bypass.List{
-			"test": bypass.List_builder{
-				Local: bypass.ListLocal_builder{
+	data, err := protojson.Marshal(config.BypassConfig_builder{
+		Lists: map[string]*config.List{
+			"test": config.List_builder{
+				Local: config.ListLocal_builder{
 					Lists: []string{"test"},
 				}.Build(),
 				ErrorMsgs: []string{"test", "test2"},
@@ -23,18 +23,18 @@ func TestNested(t *testing.T) {
 	t.Log(string(data))
 
 	t.Run("sort", func(t *testing.T) {
-		rules := []*bypass.Rule{
-			bypass.Rule_builder{
-				Host: bypass.Host_builder{}.Build(),
+		rules := []*config.Rule{
+			config.Rule_builder{
+				Host: config.Host_builder{}.Build(),
 			}.Build(),
-			bypass.Rule_builder{
-				Process: bypass.Process_builder{}.Build(),
+			config.Rule_builder{
+				Process: config.Process_builder{}.Build(),
 			}.Build(),
-			bypass.Rule_builder{
-				Inbound: bypass.Inbound_builder{}.Build(),
+			config.Rule_builder{
+				Inbound: config.Source_builder{}.Build(),
 			}.Build(),
-			bypass.Rule_builder{
-				Process: bypass.Process_builder{}.Build(),
+			config.Rule_builder{
+				Process: config.Process_builder{}.Build(),
 			}.Build(),
 		}
 

@@ -6,7 +6,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 type redir struct {
@@ -23,7 +23,7 @@ func (r *redir) AcceptPacket() (*netapi.Packet, error) {
 	return nil, io.EOF
 }
 
-func NewServer(o *listener.Redir) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
+func NewServer(o *config.Redir) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
 	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 		t := &redir{
 			lis:     ii,

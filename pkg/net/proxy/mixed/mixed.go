@@ -12,7 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"google.golang.org/protobuf/proto"
@@ -35,7 +35,7 @@ func init() {
 	register.RegisterProtocol(NewServer)
 }
 
-func NewServer(o *listener.Mixed, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+func NewServer(o *config.Mixed, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	mix := &Mixed{
 		lis:      ii,
 		defaultC: netapi.NewChannelStreamListener(ii.Addr()),
@@ -77,10 +77,10 @@ func (m *Mixed) AddMatcher(match func(byte) bool) net.Listener {
 	return ch
 }
 
-func (m *Mixed) socks5(o *listener.Mixed, ii netapi.Listener, handler netapi.Handler) {
+func (m *Mixed) socks5(o *config.Mixed, ii netapi.Listener, handler netapi.Handler) {
 	lis := m.AddMatcher(func(b byte) bool { return b == 0x05 })
 
-	s5, err := socks5.NewServer(listener.Socks5_builder{
+	s5, err := socks5.NewServer(config.Socks5_builder{
 		Username: proto.String(o.GetUsername()),
 		Password: proto.String(o.GetPassword()),
 		Udp:      proto.Bool(true),
@@ -93,10 +93,10 @@ func (m *Mixed) socks5(o *listener.Mixed, ii netapi.Listener, handler netapi.Han
 	m.closers = append(m.closers, s5)
 }
 
-func (m *Mixed) socks4(o *listener.Mixed, ii netapi.Listener, handler netapi.Handler) {
+func (m *Mixed) socks4(o *config.Mixed, ii netapi.Listener, handler netapi.Handler) {
 	lis := m.AddMatcher(func(b byte) bool { return b == 0x04 })
 
-	s4, err := socks4a.NewServer(listener.Socks4A_builder{
+	s4, err := socks4a.NewServer(config.Socks4A_builder{
 		Username: proto.String(o.GetUsername()),
 	}.Build(), netapi.NewListener(lis, ii), handler)
 	if err != nil {
@@ -107,8 +107,8 @@ func (m *Mixed) socks4(o *listener.Mixed, ii netapi.Listener, handler netapi.Han
 	m.closers = append(m.closers, s4)
 }
 
-func (m *Mixed) http(o *listener.Mixed, ii netapi.Listener, handler netapi.Handler) {
-	http, err := http.NewServer(listener.Http_builder{
+func (m *Mixed) http(o *config.Mixed, ii netapi.Listener, handler netapi.Handler) {
+	http, err := http.NewServer(config.Http_builder{
 		Username: proto.String(o.GetUsername()),
 		Password: proto.String(o.GetPassword()),
 	}.Build(), netapi.NewListener(m.defaultC, ii), handler)

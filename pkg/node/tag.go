@@ -6,21 +6,21 @@ import (
 	"iter"
 	"maps"
 
-	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
-	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type tag struct {
-	gn.UnimplementedTagServer
+	api.UnimplementedTagServer
 
 	ruleTags func() iter.Seq[string]
 	n        *Manager
 }
 
-func (t *tag) Save(_ context.Context, r *gn.SaveTagReq) (*emptypb.Empty, error) {
-	if r.GetType() == pt.TagType_mirror && r.GetTag() == r.GetHash() {
+func (t *tag) Save(_ context.Context, r *api.SaveTagReq) (*emptypb.Empty, error) {
+	if r.GetType() == node.TagType_mirror && r.GetTag() == r.GetHash() {
 		return &emptypb.Empty{}, errors.New("tag same as target mirror tag")
 	}
 
@@ -38,15 +38,15 @@ func (t *tag) Remove(_ context.Context, r *wrapperspb.StringValue) (*emptypb.Emp
 	return &emptypb.Empty{}, t.n.Save()
 }
 
-func (t *tag) List(ctx context.Context, _ *emptypb.Empty) (*gn.TagsResponse, error) {
-	resp := gn.TagsResponse_builder{
+func (t *tag) List(ctx context.Context, _ *emptypb.Empty) (*api.TagsResponse, error) {
+	resp := api.TagsResponse_builder{
 		Tags: maps.Clone(t.n.GetTags()),
 	}
 
 	if t.ruleTags != nil {
 		for v := range t.ruleTags() {
 			if _, ok := resp.Tags[v]; !ok {
-				resp.Tags[v] = &pt.Tags{}
+				resp.Tags[v] = &node.Tags{}
 			}
 		}
 	}

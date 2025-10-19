@@ -12,7 +12,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
@@ -26,7 +26,7 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(cf *protocol.Websocket, dialer netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(cf *node.Websocket, dialer netapi.Proxy) (netapi.Proxy, error) {
 	return &client{
 		&websocket.Config{
 			Host: cf.GetHost(),

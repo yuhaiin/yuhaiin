@@ -4,7 +4,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 )
 
@@ -28,7 +28,7 @@ type TUN struct {
 var App atomic.Pointer[app.AppInstance]
 
 func Start(opt *Opts) error {
-	setting := config.NewJsonDB(tools.PathGenerator.Config(opt.Savepath))
+	setting := chore.NewJsonDB(tools.PathGenerator.Config(opt.Savepath))
 
 	app, err := app.Start(&app.StartOptions{
 		ConfigPath:     opt.Savepath,

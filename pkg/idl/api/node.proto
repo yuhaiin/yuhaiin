@@ -1,0 +1,90 @@
+edition = "2023";
+
+package yuhaiin.api.node;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/api";
+option features.(pb.go).api_level = API_OPAQUE;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+import "node/point.proto";
+import "node/subscribe.proto";
+import "node/latency.proto";
+import "node/tag.proto";
+import "google/protobuf/go_features.proto";
+
+service node {
+  rpc now(google.protobuf.Empty) returns (now_resp);
+  // use req is hash string of point
+  rpc use(use_req) returns (yuhaiin.point.point);
+
+  rpc get(google.protobuf.StringValue) returns (yuhaiin.point.point);
+  rpc save(yuhaiin.point.point) returns (yuhaiin.point.point);
+  rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
+  rpc list(google.protobuf.Empty) returns (NodesResponse);
+
+  rpc activates(google.protobuf.Empty) returns (activates_response);
+  rpc close(google.protobuf.StringValue) returns (google.protobuf.Empty);
+
+  rpc latency(yuhaiin.latency.requests) returns (yuhaiin.latency.response);
+}
+
+message now_resp {
+  yuhaiin.point.point tcp = 1 [ json_name = "tcp" ];
+  yuhaiin.point.point udp = 2 [ json_name = "udp" ];
+}
+
+message use_req {
+  reserved 1, 2;
+  reserved tcp, udp;
+  string hash = 3 [ json_name = "hash" ];
+}
+
+message NodesResponse {
+  message Node {
+    string hash = 1 [ json_name = "hash" ];
+    string name = 2 [ json_name = "name" ];
+  }
+
+  message Group {
+    string name = 1 [ json_name = "name" ];
+    repeated Node nodes = 3 [ json_name = "nodes" ];
+  }
+
+  repeated Group groups = 1 [ json_name = "groups" ];
+}
+
+message activates_response {
+  repeated yuhaiin.point.point nodes = 1 [ json_name = "nodes" ];
+}
+
+service subscribe {
+  rpc save(save_link_req) returns (google.protobuf.Empty);
+  rpc remove(link_req) returns (google.protobuf.Empty);
+  rpc update(link_req) returns (google.protobuf.Empty);
+  rpc get(google.protobuf.Empty) returns (get_links_resp);
+}
+
+message save_link_req {
+  repeated yuhaiin.subscribe.link links = 1 [ json_name = "links" ];
+}
+message link_req { repeated string names = 1 [ json_name = "names" ]; }
+message get_links_resp {
+  map<string, yuhaiin.subscribe.link> links = 1 [ json_name = "links" ];
+}
+
+service tag {
+  rpc save(save_tag_req) returns (google.protobuf.Empty);
+  rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
+  rpc list(google.protobuf.Empty) returns (tags_response);
+}
+
+message save_tag_req {
+  string tag = 1 [ json_name = "tag" ];
+  yuhaiin.tag.tag_type type = 3 [ json_name = "type" ];
+  string hash = 2 [ json_name = "hash" ];
+}
+
+message tags_response {
+  map<string, yuhaiin.tag.tags> tags = 1 [ json_name = "tags" ];
+}

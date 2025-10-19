@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
@@ -21,7 +21,7 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Vmess, p netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(config *node.Vmess, p netapi.Proxy) (netapi.Proxy, error) {
 	alterID, err := strconv.Atoi(config.GetAlterId())
 	if err != nil {
 		return nil, fmt.Errorf("convert AlterId to int failed: %w", err)

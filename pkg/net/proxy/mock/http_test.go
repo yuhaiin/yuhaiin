@@ -9,8 +9,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
 	"google.golang.org/protobuf/proto"
@@ -21,7 +21,7 @@ func TestMock(t *testing.T) {
 	assert.NoError(t, err)
 	defer lis.Close()
 
-	l, err := NewServer(&listener.HttpMock{}, netapi.NewListener(lis, nil))
+	l, err := NewServer(&config.HttpMock{}, netapi.NewListener(lis, nil))
 	assert.NoError(t, err)
 	defer l.Close()
 
@@ -51,14 +51,14 @@ func TestMock(t *testing.T) {
 	port, err := strconv.Atoi(portstr)
 	assert.NoError(t, err)
 
-	s, err := fixed.NewClient(protocol.Fixed_builder{
+	s, err := fixed.NewClient(node.Fixed_builder{
 		Host: proto.String(host),
 		Port: proto.Int32(int32(port)),
 	}.Build(), nil)
 	assert.NoError(t, err)
 	defer s.Close()
 
-	c, err := NewClient(&protocol.HttpMock{}, s)
+	c, err := NewClient(&node.HttpMock{}, s)
 	assert.NoError(t, err)
 	defer c.Close()
 

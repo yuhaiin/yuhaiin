@@ -11,13 +11,13 @@ import (
 	"strings"
 	"unique"
 
+	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -26,14 +26,14 @@ import (
 
 type Args struct {
 	Tag                  string
-	Mode                 bypass.Mode
-	ResolveStrategy      bypass.ResolveStrategy
-	UdpProxyFqdnStrategy bypass.UdpProxyFqdnStrategy
+	Mode                 config.Mode
+	ResolveStrategy      config.ResolveStrategy
+	UdpProxyFqdnStrategy config.UdpProxyFqdnStrategy
 }
 
 // ParseArgs parse args
 // args: tag=tag,udp_proxy_fqdn,resolve_strategy=prefer_ipv6
-func ParseArgs(mode bypass.Mode, fs RawArgs) Args {
+func ParseArgs(mode config.Mode, fs RawArgs) Args {
 	f := Args{Mode: mode}
 
 	for key, value := range fs.Range {
@@ -41,12 +41,12 @@ func ParseArgs(mode bypass.Mode, fs RawArgs) Args {
 		case "tag":
 			f.Tag = value
 		case "resolve_strategy":
-			f.ResolveStrategy = bypass.ResolveStrategy(bypass.ResolveStrategy_value[value])
+			f.ResolveStrategy = config.ResolveStrategy(config.ResolveStrategy_value[value])
 		case "udp_proxy_fqdn":
 			if value == "true" {
-				f.UdpProxyFqdnStrategy = bypass.UdpProxyFqdnStrategy_skip_resolve
+				f.UdpProxyFqdnStrategy = config.UdpProxyFqdnStrategy_skip_resolve
 			} else {
-				f.UdpProxyFqdnStrategy = bypass.UdpProxyFqdnStrategy_resolve
+				f.UdpProxyFqdnStrategy = config.UdpProxyFqdnStrategy_resolve
 			}
 		}
 	}
@@ -54,8 +54,8 @@ func ParseArgs(mode bypass.Mode, fs RawArgs) Args {
 	return f
 }
 
-func (a Args) ToModeConfig(hostname []string) *bypass.ModeConfig {
-	return (&bypass.ModeConfig_builder{
+func (a Args) ToModeConfig(hostname []string) *config.ModeConfig {
+	return (&config.ModeConfig_builder{
 		Mode:                 a.Mode.Enum(),
 		Tag:                  proto.String(a.Tag),
 		Hostname:             hostname,
@@ -100,7 +100,7 @@ func SplitHostArgs(s string) (uri *Uri, args string, ok bool) {
 	return
 }
 
-func SplitModeArgs(s string) (x unique.Handle[bypass.ModeEnum], ok bool) {
+func SplitModeArgs(s string) (x unique.Handle[config.ModeEnum], ok bool) {
 	fs := strings.FieldsFunc(s, func(r rune) bool { return r == ',' })
 	if len(fs) < 1 {
 		return
@@ -108,10 +108,10 @@ func SplitModeArgs(s string) (x unique.Handle[bypass.ModeEnum], ok bool) {
 
 	modestr := strings.ToLower(fs[0])
 
-	mode := bypass.Mode(bypass.Mode_value[modestr])
+	mode := config.Mode(config.Mode_value[modestr])
 
 	if mode.Unknown() {
-		mode = bypass.Mode_proxy
+		mode = config.Mode_proxy
 	}
 
 	return ParseArgs(mode, fs[1:]).ToModeConfig(nil).ToModeEnum(), true
@@ -162,15 +162,15 @@ func getScheme(h string) *Uri {
 }
 
 type routeTries struct {
-	trie        *trie.Trie[unique.Handle[bypass.ModeEnum]]
-	processTrie *domain.Fqdn[unique.Handle[bypass.ModeEnum]]
+	trie        *trie.Trie[unique.Handle[config.ModeEnum]]
+	processTrie *domain.Fqdn[unique.Handle[config.ModeEnum]]
 	tagsMap     map[string]struct{}
 }
 
 func newRouteTires() *routeTries {
 	r := &routeTries{
-		trie:        trie.NewTrie[unique.Handle[bypass.ModeEnum]](),
-		processTrie: domain.NewDomainMapper[unique.Handle[bypass.ModeEnum]](),
+		trie:        trie.NewTrie[unique.Handle[config.ModeEnum]](),
+		processTrie: domain.NewDomainMapper[unique.Handle[config.ModeEnum]](),
 		tagsMap:     make(map[string]struct{}),
 	}
 
@@ -179,7 +179,7 @@ func newRouteTires() *routeTries {
 	return r
 }
 
-func (s *routeTries) insert(uri *Uri, mode unique.Handle[bypass.ModeEnum]) {
+func (s *routeTries) insert(uri *Uri, mode unique.Handle[config.ModeEnum]) {
 	if tag := mode.Value().GetTag(); tag != "" {
 		s.tagsMap[strings.ToLower(tag)] = struct{}{}
 	}
@@ -261,15 +261,15 @@ func (u *Uri) String() string {
 }
 
 type Rules struct {
-	db    pc.DB
+	db    chore.DB
 	route *Route
-	gc.UnimplementedRulesServer
+	api.UnimplementedRulesServer
 }
 
-func NewRules(db pc.DB, route *Route) *Rules {
+func NewRules(db chore.DB, route *Route) *Rules {
 	migrateConfig(db)
 
-	_ = db.View(func(s *pc.Setting) error {
+	_ = db.View(func(s *config.Setting) error {
 		route.ms.Update(s.GetBypass().GetRulesV2())
 		return nil
 	})
@@ -289,23 +289,23 @@ func NewRules(db pc.DB, route *Route) *Rules {
 	return r
 }
 
-func (r *Rules) List(ctx context.Context, empty *emptypb.Empty) (*gc.RuleResponse, error) {
+func (r *Rules) List(ctx context.Context, empty *emptypb.Empty) (*api.RuleResponse, error) {
 	names := make([]string, 0)
-	err := r.db.View(func(ss *pc.Setting) error {
+	err := r.db.View(func(ss *config.Setting) error {
 		for _, v := range ss.GetBypass().GetRulesV2() {
 			names = append(names, v.GetName())
 		}
 		return nil
 	})
 
-	return gc.RuleResponse_builder{
+	return api.RuleResponse_builder{
 		Names: names,
 	}.Build(), err
 }
 
-func (r *Rules) Get(ctx context.Context, index *gc.RuleIndex) (*bypass.Rulev2, error) {
-	var resp *bypass.Rulev2
-	err := r.db.View(func(ss *pc.Setting) error {
+func (r *Rules) Get(ctx context.Context, index *api.RuleIndex) (*config.Rulev2, error) {
+	var resp *config.Rulev2
+	err := r.db.View(func(ss *config.Setting) error {
 		if err := r.checkIndex(ss, index); err != nil {
 			return err
 		}
@@ -318,8 +318,8 @@ func (r *Rules) Get(ctx context.Context, index *gc.RuleIndex) (*bypass.Rulev2, e
 	return resp, err
 }
 
-func (r *Rules) Save(ctx context.Context, req *gc.RuleSaveRequest) (*emptypb.Empty, error) {
-	err := r.db.Batch(func(ss *pc.Setting) error {
+func (r *Rules) Save(ctx context.Context, req *api.RuleSaveRequest) (*emptypb.Empty, error) {
+	err := r.db.Batch(func(ss *config.Setting) error {
 		if req.GetIndex() == nil {
 			ss.GetBypass().SetRulesV2(append(ss.GetBypass().GetRulesV2(), req.GetRule()))
 			r.route.ms.Add(req.GetRule())
@@ -345,8 +345,8 @@ func (r *Rules) Save(ctx context.Context, req *gc.RuleSaveRequest) (*emptypb.Emp
 	return &emptypb.Empty{}, err
 }
 
-func (r *Rules) Remove(ctx context.Context, index *gc.RuleIndex) (*emptypb.Empty, error) {
-	err := r.db.Batch(func(s *pc.Setting) error {
+func (r *Rules) Remove(ctx context.Context, index *api.RuleIndex) (*emptypb.Empty, error) {
+	err := r.db.Batch(func(s *config.Setting) error {
 		if err := r.checkIndex(s, index); err != nil {
 			return err
 		}
@@ -360,8 +360,8 @@ func (r *Rules) Remove(ctx context.Context, index *gc.RuleIndex) (*emptypb.Empty
 	return &emptypb.Empty{}, err
 }
 
-func (r *Rules) ChangePriority(ctx context.Context, req *gc.ChangePriorityRequest) (*emptypb.Empty, error) {
-	err := r.db.Batch(func(s *pc.Setting) error {
+func (r *Rules) ChangePriority(ctx context.Context, req *api.ChangePriorityRequest) (*emptypb.Empty, error) {
+	err := r.db.Batch(func(s *config.Setting) error {
 		if err := r.checkIndex(s, req.GetSource()); err != nil {
 			return fmt.Errorf("source index error: %w", err)
 		}
@@ -371,19 +371,19 @@ func (r *Rules) ChangePriority(ctx context.Context, req *gc.ChangePriorityReques
 		}
 
 		switch req.GetOperate() {
-		case gc.ChangePriorityRequest_Exchange:
+		case api.ChangePriorityRequest_Exchange:
 			src := s.GetBypass().GetRulesV2()[req.GetSource().GetIndex()]
 			tar := s.GetBypass().GetRulesV2()[req.GetTarget().GetIndex()]
 
 			s.GetBypass().GetRulesV2()[req.GetSource().GetIndex()] = tar
 			s.GetBypass().GetRulesV2()[req.GetTarget().GetIndex()] = src
 
-		case gc.ChangePriorityRequest_InsertBefore:
+		case api.ChangePriorityRequest_InsertBefore:
 			result := InsertBefore(s.GetBypass().GetRulesV2(),
 				int(req.GetSource().GetIndex()), int(req.GetTarget().GetIndex()))
 
 			s.GetBypass().SetRulesV2(result)
-		case gc.ChangePriorityRequest_InsertAfter:
+		case api.ChangePriorityRequest_InsertAfter:
 			result := InsertAfter(s.GetBypass().GetRulesV2(),
 				int(req.GetSource().GetIndex()), int(req.GetTarget().GetIndex()))
 
@@ -440,7 +440,7 @@ func InsertAfter[T any](s []T, from, to int) []T {
 	return result
 }
 
-func (r *Rules) checkIndex(s *pc.Setting, index *gc.RuleIndex) error {
+func (r *Rules) checkIndex(s *config.Setting, index *api.RuleIndex) error {
 	if len(s.GetBypass().GetRulesV2())-1 < int(index.GetIndex()) {
 		return fmt.Errorf("can't find rule %d", index.GetIndex())
 	}
@@ -454,10 +454,10 @@ func (r *Rules) checkIndex(s *pc.Setting, index *gc.RuleIndex) error {
 	return nil
 }
 
-func (r *Rules) Config(context.Context, *emptypb.Empty) (*bypass.Configv2, error) {
-	var resp *bypass.Configv2
-	err := r.db.View(func(ss *pc.Setting) error {
-		resp = bypass.Configv2_builder{
+func (r *Rules) Config(context.Context, *emptypb.Empty) (*config.Configv2, error) {
+	var resp *config.Configv2
+	err := r.db.View(func(ss *config.Setting) error {
+		resp = config.Configv2_builder{
 			DirectResolver: proto.String(ss.GetBypass().GetDirectResolver()),
 			ProxyResolver:  proto.String(ss.GetBypass().GetProxyResolver()),
 			ResolveLocally: proto.Bool(ss.GetBypass().GetResolveLocally()),
@@ -470,10 +470,10 @@ func (r *Rules) Config(context.Context, *emptypb.Empty) (*bypass.Configv2, error
 	return resp, err
 }
 
-func (r *Rules) SaveConfig(ctx context.Context, req *bypass.Configv2) (*emptypb.Empty, error) {
-	err := r.db.Batch(func(setting *pc.Setting) error {
+func (r *Rules) SaveConfig(ctx context.Context, req *config.Configv2) (*emptypb.Empty, error) {
+	err := r.db.Batch(func(setting *config.Setting) error {
 		if !setting.HasBypass() {
-			setting.SetBypass(&bypass.Config{})
+			setting.SetBypass(&config.BypassConfig{})
 		}
 
 		setting.GetBypass().SetDirectResolver(req.GetDirectResolver())
@@ -488,7 +488,7 @@ func (r *Rules) SaveConfig(ctx context.Context, req *bypass.Configv2) (*emptypb.
 	return &emptypb.Empty{}, err
 }
 
-func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*gc.TestResponse, error) {
+func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*api.TestResponse, error) {
 	var addr netapi.Address
 	host, portstr, err := net.SplitHostPort(req.GetValue())
 	if err == nil {
@@ -506,8 +506,8 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*gc.Test
 
 	result := r.route.dispatch(ctx, addr)
 
-	return gc.TestResponse_builder{
-		Mode: bypass.ModeConfig_builder{
+	return api.TestResponse_builder{
+		Mode: config.ModeConfig_builder{
 			Mode:            result.Mode.Mode().Enum(),
 			Tag:             proto.String(result.Mode.GetTag()),
 			ResolveStrategy: result.Mode.GetResolveStrategy().Enum(),
@@ -517,6 +517,6 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*gc.Test
 	}.Build(), nil
 }
 
-func (r *Rules) BlockHistory(context.Context, *emptypb.Empty) (*gc.BlockHistoryList, error) {
+func (r *Rules) BlockHistory(context.Context, *emptypb.Empty) (*api.BlockHistoryList, error) {
 	return r.route.Get(), nil
 }

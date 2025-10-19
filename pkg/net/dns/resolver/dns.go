@@ -18,7 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
@@ -86,7 +86,7 @@ type Config struct {
 	Name       string
 	Host       string
 	Servername string
-	Type       pd.Type
+	Type       config.Type
 }
 
 func (c *Config) serverName(u *url.URL) string {
@@ -97,7 +97,7 @@ func (c *Config) serverName(u *url.URL) string {
 	return c.Servername
 }
 
-var dnsMap syncmap.SyncMap[pd.Type, func(Config) (Dialer, error)]
+var dnsMap syncmap.SyncMap[config.Type, func(Config) (Dialer, error)]
 
 func New(config Config) (netapi.Resolver, error) {
 	f, ok := dnsMap.Load(config.Type)
@@ -116,7 +116,7 @@ func New(config Config) (netapi.Resolver, error) {
 	return NewClient(config, dialer), nil
 }
 
-func Register(tYPE pd.Type, f func(Config) (Dialer, error)) {
+func Register(tYPE config.Type, f func(Config) (Dialer, error)) {
 	if f != nil {
 		dnsMap.Store(tYPE, f)
 	}

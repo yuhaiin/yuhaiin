@@ -19,7 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/tailscale/wireguard-go/device"
@@ -30,7 +30,7 @@ type Wireguard struct {
 	netapi.EmptyDispatch
 	net    *netTun
 	bind   *netBindClient
-	conf   *protocol.Wireguard
+	conf   *node.Wireguard
 	device *device.Device
 
 	happyDialer *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
@@ -42,7 +42,7 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(conf *protocol.Wireguard, p netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(conf *node.Wireguard, p netapi.Proxy) (netapi.Proxy, error) {
 	w := &Wireguard{
 		conf: conf,
 	}
@@ -217,7 +217,7 @@ func (w *wrapGoNetUdpConn) ReadFrom(buf []byte) (int, net.Addr, error) {
 }
 
 // creates a tun interface on netstack given a configuration
-func makeVirtualTun(h *protocol.Wireguard) (*device.Device, *netBindClient, *netTun, error) {
+func makeVirtualTun(h *node.Wireguard) (*device.Device, *netBindClient, *netTun, error) {
 	endpoints, err := parseEndpoints(h)
 	if err != nil {
 		return nil, nil, nil, err
@@ -265,7 +265,7 @@ func base64ToHex(s string) string {
 }
 
 // serialize the config into an IPC request
-func createIPCRequest(conf *protocol.Wireguard) *bytes.Buffer {
+func createIPCRequest(conf *node.Wireguard) *bytes.Buffer {
 	request := bytes.NewBuffer(nil)
 
 	fmt.Fprintf(request, "private_key=%s\n", base64ToHex(conf.GetSecretKey()))

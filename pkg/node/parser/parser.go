@@ -4,15 +4,14 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
-var store syncmap.SyncMap[subscribe.Type, func(data []byte) (*point.Point, error)]
+var store syncmap.SyncMap[node.Type, func(data []byte) (*node.Point, error)]
 
-func Parse(t subscribe.Type, data []byte) (*point.Point, error) {
+func Parse(t node.Type, data []byte) (*node.Point, error) {
 	parser, ok := store.Load(t)
 	if !ok {
 		return nil, fmt.Errorf("no support %s", t)
@@ -21,17 +20,17 @@ func Parse(t subscribe.Type, data []byte) (*point.Point, error) {
 	return parser(data)
 }
 
-func ParseUrl(str []byte, l *subscribe.Link) (no *point.Point, err error) {
-	var schemeTypeMap = map[string]subscribe.Type{
-		"ss":     subscribe.Type_shadowsocks,
-		"ssr":    subscribe.Type_shadowsocksr,
-		"vmess":  subscribe.Type_vmess,
-		"trojan": subscribe.Type_trojan,
+func ParseUrl(str []byte, l *node.Link) (no *node.Point, err error) {
+	var schemeTypeMap = map[string]node.Type{
+		"ss":     node.Type_shadowsocks,
+		"ssr":    node.Type_shadowsocksr,
+		"vmess":  node.Type_vmess,
+		"trojan": node.Type_trojan,
 	}
 
 	t := l.GetType()
 
-	if t == subscribe.Type_reserve {
+	if t == node.Type_reserve {
 		scheme, _, _ := system.GetScheme(string(str))
 		t = schemeTypeMap[scheme]
 	}

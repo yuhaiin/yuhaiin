@@ -8,7 +8,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	grpc "google.golang.org/grpc"
@@ -30,7 +30,7 @@ func init() {
 	register.RegisterTransport(NewServer)
 }
 
-func NewServer(c *listener.Grpc, ii netapi.Listener) (netapi.Listener, error) {
+func NewServer(c *config.Grpc, ii netapi.Listener) (netapi.Listener, error) {
 	return netapi.NewListener(NewGrpcNoServer(ii), ii), nil
 }
 

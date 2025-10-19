@@ -5,8 +5,8 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
@@ -17,10 +17,10 @@ func init() {
 type Server struct {
 	netapi.Listener
 	crypto       *encryptedHandshaker
-	cryptoMethod protocol.AeadCryptoMethod
+	cryptoMethod node.AeadCryptoMethod
 }
 
-func NewServer(cfg *listener.Aead, ii netapi.Listener) (netapi.Listener, error) {
+func NewServer(cfg *config.Aead, ii netapi.Listener) (netapi.Listener, error) {
 	crypto := NewHandshaker(true, []byte(cfg.GetPassword()), cfg.GetCryptoMethod())
 	return &Server{
 		crypto:       crypto,

@@ -3,11 +3,11 @@ package resolver
 import (
 	"crypto/tls"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 func init() {
-	Register(dns.Type_dot, NewDoT)
+	Register(config.Type_dot, NewDoT)
 }
 
 func NewDoT(config Config) (Dialer, error) {

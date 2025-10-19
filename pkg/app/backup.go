@@ -9,17 +9,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	gpc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	gpn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"golang.org/x/crypto/blake2b"
@@ -30,15 +26,15 @@ import (
 )
 
 type Backup struct {
-	db       config.DB
+	db       chore.DB
 	proxy    netapi.Proxy
 	instance *AppInstance
 	mu       sync.Mutex
 	ticker   *time.Ticker
-	backup.UnimplementedBackupServer
+	api.UnimplementedBackupServer
 }
 
-func NewBackup(db config.DB, instance *AppInstance, proxy netapi.Proxy) *Backup {
+func NewBackup(db chore.DB, instance *AppInstance, proxy netapi.Proxy) *Backup {
 	b := &Backup{
 		db:       db,
 		instance: instance,
@@ -50,8 +46,8 @@ func NewBackup(db config.DB, instance *AppInstance, proxy netapi.Proxy) *Backup 
 	return b
 }
 
-func (b *Backup) Save(ctx context.Context, opt *backup.BackupOption) (*emptypb.Empty, error) {
-	err := b.db.Batch(func(s *pc.Setting) error {
+func (b *Backup) Save(ctx context.Context, opt *config.BackupOption) (*emptypb.Empty, error) {
+	err := b.db.Batch(func(s *config.Setting) error {
 		s.SetBackup(opt)
 		return nil
 	})
@@ -97,17 +93,17 @@ func (b *Backup) resetTicker() {
 	}()
 }
 
-func (b *Backup) Get(context.Context, *emptypb.Empty) (*backup.BackupOption, error) {
-	var config *backup.BackupOption
-	_ = b.db.Batch(func(s *pc.Setting) error {
-		config = s.GetBackup()
+func (b *Backup) Get(context.Context, *emptypb.Empty) (*config.BackupOption, error) {
+	var cc *config.BackupOption
+	_ = b.db.Batch(func(s *config.Setting) error {
+		cc = s.GetBackup()
 
-		if config == nil {
-			config = &backup.BackupOption{}
+		if cc == nil {
+			cc = &config.BackupOption{}
 		}
 
-		if config.GetS3() == nil {
-			config.SetS3(backup.S3_builder{
+		if cc.GetS3() == nil {
+			cc.SetS3(config.S3_builder{
 				Enabled:      proto.Bool(false),
 				AccessKey:    proto.String(""),
 				SecretKey:    proto.String(""),
@@ -118,17 +114,17 @@ func (b *Backup) Get(context.Context, *emptypb.Empty) (*backup.BackupOption, err
 			}.Build())
 		}
 
-		if config.GetInstanceName() == "" {
-			config.SetInstanceName(id.GenerateUUID().String())
+		if cc.GetInstanceName() == "" {
+			cc.SetInstanceName(id.GenerateUUID().String())
 		}
 
 		return nil
 	})
 
-	return config, nil
+	return cc, nil
 }
 
-func calculateHash(content *backup.BackupContent, options *backup.BackupOption) string {
+func calculateHash(content *backup.BackupContent, options *config.BackupOption) string {
 	contentBytes, err := protojson.Marshal(content)
 	if err != nil {
 		log.Warn("marshal content failed", "err", err)
@@ -172,7 +168,7 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		return nil, err
 	}
 
-	points := map[string]*point.Point{}
+	points := map[string]*node.Point{}
 
 	for _, group := range nodes.GetGroups() {
 		for _, node := range group.GetNodes() {
@@ -211,7 +207,7 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		return nil, err
 	}
 
-	dnss := map[string]*dns.Dns{}
+	dnss := map[string]*config.Dns{}
 	for _, dnsName := range dnsList.GetNames() {
 		dns, err := b.instance.Resolver.Get(ctx, &wrapperspb.StringValue{Value: dnsName})
 		if err != nil {
@@ -226,7 +222,7 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		return nil, err
 	}
 
-	inboundsMap := map[string]*listener.Inbound{}
+	inboundsMap := map[string]*config.Inbound{}
 	for _, name := range inbounds.GetNames() {
 		inbound, err := b.instance.Inbound.Get(ctx, &wrapperspb.StringValue{Value: name})
 		if err != nil {
@@ -246,9 +242,9 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		return nil, err
 	}
 
-	var rules []*bypass.Rulev2
+	var rules []*config.Rulev2
 	for index, name := range ruleNames.GetNames() {
-		rule, err := b.instance.Rules.Get(ctx, gpc.RuleIndex_builder{
+		rule, err := b.instance.Rules.Get(ctx, api.RuleIndex_builder{
 			Index: proto.Uint32(uint32(index)),
 			Name:  proto.String(name),
 		}.Build())
@@ -264,7 +260,7 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		return nil, err
 	}
 
-	lists := map[string]*bypass.List{}
+	lists := map[string]*config.List{}
 	for _, name := range listNames.GetNames() {
 		list, err := b.instance.Lists.Get(ctx, &wrapperspb.StringValue{Value: name})
 		if err != nil {
@@ -287,15 +283,15 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		Subscribes: backup.Subscribes_builder{
 			Links: subscribes.GetLinks(),
 		}.Build(),
-		Dns: dns.DnsConfigV2_builder{
-			Server: dns.Server_builder{
+		Dns: config.DnsConfigV2_builder{
+			Server: config.Server_builder{
 				Host: proto.String(dnsServer.GetValue()),
 			}.Build(),
 			Fakedns:  fakedns,
 			Hosts:    hosts.GetHosts(),
 			Resolver: dnss,
 		}.Build(),
-		Inbounds: listener.InboundConfig_builder{
+		Inbounds: config.InboundConfig_builder{
 			HijackDns:       proto.Bool(inbounds.GetHijackDns()),
 			HijackDnsFakeip: proto.Bool(inbounds.GetHijackDnsFakeip()),
 			Sniff:           inbounds.GetSniff(),
@@ -325,7 +321,7 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		return nil, err
 	}
 
-	if err := b.db.Batch(func(s *pc.Setting) error {
+	if err := b.db.Batch(func(s *config.Setting) error {
 		s.GetBackup().SetLastBackupHash(newHash)
 		return nil
 	}); err != nil {
@@ -437,7 +433,7 @@ func (b *Backup) restoreDns(ctx context.Context, content *backup.BackupContent) 
 	}
 
 	if dns.GetHosts() != nil {
-		_, err := b.instance.Resolver.SaveHosts(ctx, gpc.Hosts_builder{
+		_, err := b.instance.Resolver.SaveHosts(ctx, api.Hosts_builder{
 			Hosts: dns.GetHosts(),
 		}.Build())
 		if err != nil {
@@ -447,7 +443,7 @@ func (b *Backup) restoreDns(ctx context.Context, content *backup.BackupContent) 
 
 	if dns.GetResolver() != nil {
 		for name, resolver := range dns.GetResolver() {
-			_, err := b.instance.Resolver.Save(ctx, gpc.SaveResolver_builder{
+			_, err := b.instance.Resolver.Save(ctx, api.SaveResolver_builder{
 				Name:     proto.String(name),
 				Resolver: resolver,
 			}.Build())
@@ -468,7 +464,7 @@ func (b *Backup) restoreInbounds(ctx context.Context, content *backup.BackupCont
 	inbounds := content.GetInbounds()
 
 	if inbounds.HasHijackDns() || inbounds.HasHijackDnsFakeip() || inbounds.HasSniff() {
-		_, err := b.instance.Inbound.Apply(ctx, gpc.InboundsResponse_builder{
+		_, err := b.instance.Inbound.Apply(ctx, api.InboundsResponse_builder{
 			HijackDns:       proto.Bool(inbounds.GetHijackDns()),
 			HijackDnsFakeip: proto.Bool(inbounds.GetHijackDnsFakeip()),
 			Sniff:           inbounds.GetSniff(),
@@ -515,7 +511,7 @@ func (b *Backup) restoreSubscribes(ctx context.Context, content *backup.BackupCo
 		return nil
 	}
 
-	_, err := b.instance.Subscribe.Save(ctx, gpn.SaveLinkReq_builder{
+	_, err := b.instance.Subscribe.Save(ctx, api.SaveLinkReq_builder{
 		Links: slices.Collect(maps.Values(content.GetSubscribes().GetLinks())),
 	}.Build())
 	if err != nil {
@@ -533,7 +529,7 @@ func (b *Backup) restoreTags(ctx context.Context, content *backup.BackupContent)
 	tags := content.GetTags()
 
 	for name, tag := range tags.GetTags() {
-		_, err := b.instance.Tag.Save(ctx, gpn.SaveTagReq_builder{
+		_, err := b.instance.Tag.Save(ctx, api.SaveTagReq_builder{
 			Tag:  proto.String(name),
 			Type: tag.GetType().Enum(),
 			Hash: proto.String(tag.GetHash()[0]),
@@ -579,7 +575,7 @@ func (b *Backup) restoreRules(ctx context.Context, content *backup.BackupContent
 	}
 
 	for _, rule := range rules.GetRules() {
-		_, err := b.instance.Rules.Save(ctx, gpc.RuleSaveRequest_builder{
+		_, err := b.instance.Rules.Save(ctx, api.RuleSaveRequest_builder{
 			Rule: rule,
 		}.Build())
 		if err != nil {
@@ -590,26 +586,26 @@ func (b *Backup) restoreRules(ctx context.Context, content *backup.BackupContent
 	return nil
 }
 
-func (b *Backup) getConfig() (*backup.BackupOption, error) {
-	var config *backup.BackupOption
-	_ = b.db.Batch(func(s *pc.Setting) error {
-		config = s.GetBackup()
+func (b *Backup) getConfig() (*config.BackupOption, error) {
+	var cc *config.BackupOption
+	_ = b.db.Batch(func(s *config.Setting) error {
+		cc = s.GetBackup()
 		return nil
 	})
 
-	if config == nil {
+	if cc == nil {
 		return nil, errors.New("backup config is empty")
 	}
 
-	if config.GetInstanceName() == "" {
+	if cc.GetInstanceName() == "" {
 		return nil, errors.New("instance name is empty")
 	}
 
-	if config.GetS3() == nil {
+	if cc.GetS3() == nil {
 		return nil, errors.New("s3 config is empty")
 	}
 
-	return config, nil
+	return cc, nil
 }
 
 func (b *Backup) Close() error {

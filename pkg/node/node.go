@@ -9,13 +9,10 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/latency"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
-	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -23,41 +20,41 @@ import (
 )
 
 type Nodes struct {
-	gn.UnimplementedNodeServer
+	api.UnimplementedNodeServer
 	manager *Manager
 }
 
-func (n *Nodes) Now(context.Context, *emptypb.Empty) (*gn.NowResp, error) {
-	return gn.NowResp_builder{
+func (n *Nodes) Now(context.Context, *emptypb.Empty) (*api.NowResp, error) {
+	return api.NowResp_builder{
 		Tcp: n.manager.GetNow(true),
 		Udp: n.manager.GetNow(false),
 	}.Build(), nil
 }
 
-func (n *Nodes) Get(_ context.Context, s *wrapperspb.StringValue) (*point.Point, error) {
+func (n *Nodes) Get(_ context.Context, s *wrapperspb.StringValue) (*node.Point, error) {
 	p, ok := n.manager.GetNode(s.Value)
 	if !ok {
-		return &point.Point{}, fmt.Errorf("node not found")
+		return &node.Point{}, fmt.Errorf("node not found")
 	}
 
 	return p, nil
 }
 
-func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
+func (n *Nodes) Save(c context.Context, p *node.Point) (*node.Point, error) {
 	if p.GetName() == "" || p.GetGroup() == "" {
-		return &point.Point{}, fmt.Errorf("point name or group is empty")
+		return &node.Point{}, fmt.Errorf("point name or group is empty")
 	}
-	p.SetOrigin(point.Origin_manual)
+	p.SetOrigin(node.Origin_manual)
 	n.manager.SaveNode(p)
 	return p, n.manager.Save()
 }
 
-func (n *Nodes) List(ctx context.Context, _ *emptypb.Empty) (*gn.NodesResponse, error) {
-	resp := gn.NodesResponse_builder{}
+func (n *Nodes) List(ctx context.Context, _ *emptypb.Empty) (*api.NodesResponse, error) {
+	resp := api.NodesResponse_builder{}
 
 	for g, v := range n.manager.GetGroups() {
-		slices.SortFunc(v, func(a, b *gn.NodesResponse_Node) int { return cmp.Compare(a.GetName(), b.GetName()) })
-		g := gn.NodesResponse_Group_builder{
+		slices.SortFunc(v, func(a, b *api.NodesResponse_Node) int { return cmp.Compare(a.GetName(), b.GetName()) })
+		g := api.NodesResponse_Group_builder{
 			Name:  proto.String(g),
 			Nodes: v,
 		}.Build()
@@ -65,14 +62,14 @@ func (n *Nodes) List(ctx context.Context, _ *emptypb.Empty) (*gn.NodesResponse, 
 		resp.Groups = append(resp.Groups, g)
 	}
 
-	slices.SortFunc(resp.Groups, func(a, b *gn.NodesResponse_Group) int {
+	slices.SortFunc(resp.Groups, func(a, b *api.NodesResponse_Group) int {
 		return cmp.Compare(a.GetName(), b.GetName())
 	})
 
 	return resp.Build(), nil
 }
 
-func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {
+func (n *Nodes) Use(c context.Context, s *api.UseReq) (*node.Point, error) {
 	err := n.manager.UsePoint(s.GetHash())
 	if err != nil {
 		return nil, fmt.Errorf("use point failed: %w", err)
@@ -83,7 +80,7 @@ func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {
 		return nil, fmt.Errorf("save config failed: %w", err)
 	}
 
-	return &point.Point{}, nil
+	return &node.Point{}, nil
 }
 
 func (n *Nodes) Remove(_ context.Context, s *wrapperspb.StringValue) (*emptypb.Empty, error) {
@@ -116,16 +113,16 @@ func (w *latencyDialer) PacketConn(ctx context.Context, a netapi.Address) (net.P
 	return w.Proxy.PacketConn(netctx, a)
 }
 
-func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Response, error) {
-	resp := &latency.Response_builder{
-		IdLatencyMap: make(map[string]*latency.Reply),
+func (n *Nodes) Latency(c context.Context, req *node.Requests) (*node.Response, error) {
+	resp := &node.Response_builder{
+		IdLatencyMap: make(map[string]*node.Reply),
 	}
 	var mu sync.Mutex
 
 	var wg sync.WaitGroup
 	for _, s := range req.GetRequests() {
 		wg.Add(1)
-		go func(s *latency.Request) {
+		go func(s *node.Request) {
 			defer wg.Done()
 			px, err := n.manager.Outbound().GetDialerByID(c, s.GetHash())
 			if err != nil {
@@ -134,13 +131,13 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 
 			px = &latencyDialer{Proxy: px, ipv6: s.GetIpv6()}
 
-			t, err := s.GetProtocol().Latency(px)
+			t, err := latency.Latency(s.GetMethod(), px)
 
 			mu.Lock()
 			if err != nil {
 				log.Error("latency failed", "err", err)
-				resp.IdLatencyMap[s.GetId()] = (&latency.Reply_builder{
-					Error: (&latency.Error_builder{Msg: proto.String(err.Error())}).Build(),
+				resp.IdLatencyMap[s.GetId()] = (&node.Reply_builder{
+					Error: (&node.Error_builder{Msg: proto.String(err.Error())}).Build(),
 				}).Build()
 			} else {
 				resp.IdLatencyMap[s.GetId()] = t
@@ -154,13 +151,13 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 	return resp.Build(), nil
 }
 
-func (n *Nodes) Activates(context.Context, *emptypb.Empty) (*gn.ActivatesResponse, error) {
-	nodes := []*point.Point{}
+func (n *Nodes) Activates(context.Context, *emptypb.Empty) (*api.ActivatesResponse, error) {
+	nodes := []*node.Point{}
 	for _, v := range n.manager.store.Range {
 		nodes = append(nodes, v.Config)
 	}
 
-	return gn.ActivatesResponse_builder{
+	return api.ActivatesResponse_builder{
 		Nodes: nodes,
 	}.Build(), nil
 }
@@ -177,12 +174,12 @@ func (n *Nodes) Close(ctx context.Context, req *wrapperspb.StringValue) (*emptyp
 
 func load(path string) *jsondb.DB[*node.Node] {
 	defaultNode := &node.Node_builder{
-		Tcp:   &point.Point{},
-		Udp:   &point.Point{},
-		Links: map[string]*subscribe.Link{},
+		Tcp:   &node.Point{},
+		Udp:   &node.Point{},
+		Links: map[string]*node.Link{},
 		Manager: (&node.Manager_builder{
-			Nodes: map[string]*point.Point{},
-			Tags:  map[string]*pt.Tags{},
+			Nodes: map[string]*node.Point{},
+			Tags:  map[string]*node.Tags{},
 		}).Build(),
 	}
 

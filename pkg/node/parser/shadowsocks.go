@@ -11,14 +11,12 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/proto"
 )
 
 func init() {
-	store.Store(subscribe.Type_shadowsocks, func(data []byte) (*point.Point, error) {
+	store.Store(node.Type_shadowsocks, func(data []byte) (*node.Point, error) {
 		ssUrl, err := url.Parse(string(data))
 		if err != nil {
 			return nil, fmt.Errorf("parse url failed: %w", err)
@@ -40,12 +38,12 @@ func init() {
 			return nil, fmt.Errorf("parse port failed: %w", err)
 		}
 
-		simple := &protocol.Simple_builder{
+		simple := &node.Simple_builder{
 			Host: proto.String(server),
 			Port: proto.Int32(int32(port)),
 		}
 
-		var plugin []*protocol.Protocol
+		var plugin []*node.Protocol
 		pluginopts := parseOpts(ssUrl.Query().Get("plugin"))
 		switch {
 		case pluginopts["obfs-local"] == "true":
@@ -58,17 +56,17 @@ func init() {
 			return nil, fmt.Errorf("parse plugin failed: %w", err)
 		}
 
-		protocols := append([]*protocol.Protocol{
-			protocol.Protocol_builder{
+		protocols := append([]*node.Protocol{
+			node.Protocol_builder{
 				Simple: simple.Build(),
 			}.Build(),
 		}, plugin...)
 
-		return (&point.Point_builder{
-			Origin: point.Origin_remote.Enum(),
+		return (&node.Point_builder{
+			Origin: node.Origin_remote.Enum(),
 			Name:   proto.String("[ss]" + ssUrl.Fragment),
-			Protocols: append(protocols, protocol.Protocol_builder{
-				Shadowsocks: protocol.Shadowsocks_builder{
+			Protocols: append(protocols, node.Protocol_builder{
+				Shadowsocks: node.Shadowsocks_builder{
 					Method:   proto.String(method),
 					Password: proto.String(password),
 				}.Build(),
@@ -78,7 +76,7 @@ func init() {
 	})
 }
 
-func parseV2ray(store map[string]string) ([]*protocol.Protocol, error) {
+func parseV2ray(store map[string]string) ([]*node.Protocol, error) {
 	// fastOpen := false
 	// path := "/"
 	// host := "cloudfront.com"
@@ -104,24 +102,24 @@ func parseV2ray(store map[string]string) ([]*protocol.Protocol, error) {
 
 	switch store["mode"] {
 	case "websocket":
-		var protocols []*protocol.Protocol
-		protocols = append(protocols, protocol.Protocol_builder{
-			Tls: protocol.TlsConfig_builder{
+		var protocols []*node.Protocol
+		protocols = append(protocols, node.Protocol_builder{
+			Tls: node.TlsConfig_builder{
 				ServerNames: []string{ns},
 				Enable:      proto.Bool(store["tls"] == "true"),
 				CaCert:      [][]byte{cert},
 			}.Build(),
 		}.Build())
-		return append(protocols, protocol.Protocol_builder{
-			Websocket: protocol.Websocket_builder{
+		return append(protocols, node.Protocol_builder{
+			Websocket: node.Websocket_builder{
 				Host: proto.String(store["host"]),
 				Path: proto.String(store["path"]),
 			}.Build(),
 		}.Build()), nil
 	case "quic":
-		return []*protocol.Protocol{protocol.Protocol_builder{
-			Quic: protocol.Quic_builder{
-				Tls: protocol.TlsConfig_builder{
+		return []*node.Protocol{node.Protocol_builder{
+			Quic: node.Quic_builder{
+				Tls: node.TlsConfig_builder{
 					ServerNames: []string{ns},
 					CaCert:      [][]byte{cert},
 				}.Build(),
@@ -133,14 +131,14 @@ func parseV2ray(store map[string]string) ([]*protocol.Protocol, error) {
 	return nil, fmt.Errorf("unsupported mode: %v", store["mode"])
 }
 
-func parseObfs(args map[string]string) ([]*protocol.Protocol, error) {
+func parseObfs(args map[string]string) ([]*node.Protocol, error) {
 	hostname, port, err := net.SplitHostPort(args["obfs-host"])
 	if err != nil {
 		return nil, err
 	}
-	return []*protocol.Protocol{
-		protocol.Protocol_builder{
-			ObfsHttp: protocol.ObfsHttp_builder{
+	return []*node.Protocol{
+		node.Protocol_builder{
+			ObfsHttp: node.ObfsHttp_builder{
 				Host: proto.String(hostname),
 				Port: proto.String(port),
 			}.Build(),

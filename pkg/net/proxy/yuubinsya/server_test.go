@@ -15,8 +15,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
 	"google.golang.org/protobuf/proto"
@@ -28,7 +28,7 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err)
 		defer lis.Close()
 
-		a, err := NewServer(listener.Yuubinsya_builder{
+		a, err := NewServer(config.Yuubinsya_builder{
 			Password: proto.String("aaaa"),
 		}.Build(), netapi.NewListener(lis, &mockPacket{}), mockHandler(func(req *netapi.StreamMeta) {
 			defer req.Src.Close()
@@ -49,13 +49,13 @@ func TestServer(t *testing.T) {
 		port, err := strconv.ParseUint(portstr, 10, 16)
 		assert.NoError(t, err)
 
-		s, err := fixed.NewClient(protocol.Fixed_builder{
+		s, err := fixed.NewClient(node.Fixed_builder{
 			Host: proto.String(host),
 			Port: proto.Int32(int32(port)),
 		}.Build(), nil)
 		assert.NoError(t, err)
 
-		c, err := NewClient(protocol.Yuubinsya_builder{
+		c, err := NewClient(node.Yuubinsya_builder{
 			Password: proto.String("aaaa"),
 		}.Build(), s)
 		assert.NoError(t, err)
@@ -86,7 +86,7 @@ func TestServer(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 
-			a, err := NewServer(listener.Yuubinsya_builder{
+			a, err := NewServer(config.Yuubinsya_builder{
 				Password: proto.String("aaaa"),
 			}.Build(), netapi.NewListener(lis, &mockPacket{}), mockHandler(func(req *netapi.StreamMeta) {
 				ch <- req
@@ -101,13 +101,13 @@ func TestServer(t *testing.T) {
 			port, err := strconv.ParseUint(portstr, 10, 16)
 			assert.NoError(t, err)
 
-			s, err := fixed.NewClient(protocol.Fixed_builder{
+			s, err := fixed.NewClient(node.Fixed_builder{
 				Host: proto.String(host),
 				Port: proto.Int32(int32(port)),
 			}.Build(), nil)
 			assert.NoError(t, err)
 
-			c, err := NewClient(protocol.Yuubinsya_builder{
+			c, err := NewClient(node.Yuubinsya_builder{
 				Password: proto.String("aaaa"),
 			}.Build(), s)
 			assert.NoError(t, err)
@@ -137,7 +137,7 @@ func TestServer(t *testing.T) {
 		ch := make(chan *netapi.StreamMeta, 1)
 		defer close(ch)
 
-		a, err := NewServer(listener.Yuubinsya_builder{
+		a, err := NewServer(config.Yuubinsya_builder{
 			Password: proto.String("aaaa"),
 		}.Build(), netapi.NewListener(lis, &mockPacket{}), mockHandlerPacket(func(req *netapi.Packet) {
 			_, err = req.WriteBack(req.GetPayload(), req.Dst())
@@ -152,13 +152,13 @@ func TestServer(t *testing.T) {
 		port, err := strconv.ParseUint(portstr, 10, 16)
 		assert.NoError(t, err)
 
-		s, err := fixed.NewClient(protocol.Fixed_builder{
+		s, err := fixed.NewClient(node.Fixed_builder{
 			Host: proto.String(host),
 			Port: proto.Int32(int32(port)),
 		}.Build(), nil)
 		assert.NoError(t, err)
 
-		c, err := NewClient(protocol.Yuubinsya_builder{
+		c, err := NewClient(node.Yuubinsya_builder{
 			Password:      proto.String("aaaa"),
 			UdpOverStream: proto.Bool(true),
 		}.Build(), s)
@@ -205,7 +205,7 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err)
 		defer lis.Close()
 
-		a, err := NewServer(listener.Yuubinsya_builder{
+		a, err := NewServer(config.Yuubinsya_builder{
 			Password: proto.String("aaaa"),
 		}.Build(), netapi.NewListener(lis, &mockPacket{}), mockHandler(func(req *netapi.StreamMeta) {
 			defer req.Src.Close()
@@ -226,13 +226,13 @@ func TestServer(t *testing.T) {
 		port, err := strconv.ParseUint(portstr, 10, 16)
 		assert.NoError(t, err)
 
-		s, err := fixed.NewClient(protocol.Fixed_builder{
+		s, err := fixed.NewClient(node.Fixed_builder{
 			Host: proto.String(host),
 			Port: proto.Int32(int32(port)),
 		}.Build(), nil)
 		assert.NoError(t, err)
 
-		c, err := NewClient(protocol.Yuubinsya_builder{
+		c, err := NewClient(node.Yuubinsya_builder{
 			Password: proto.String("aaaa"),
 		}.Build(), s)
 		assert.NoError(t, err)

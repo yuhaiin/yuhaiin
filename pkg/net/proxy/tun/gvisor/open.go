@@ -5,14 +5,14 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
 var openFD func(sc netlink.TunScheme, mtu int) (stack.LinkEndpoint, error)
 
-func Open(sc netlink.TunScheme, driver listener.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
-	if driver == listener.Tun_fdbased && openFD != nil {
+func Open(sc netlink.TunScheme, driver config.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
+	if driver == config.Tun_fdbased && openFD != nil {
 		return openFD(sc, mtu)
 	}
 

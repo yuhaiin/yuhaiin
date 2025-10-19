@@ -15,7 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniff"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
@@ -137,7 +137,7 @@ func (s *handler) Ping(ctx context.Context, pack *netapi.PingMeta) {
 func (s *handler) Close() error { return s.table.Close() }
 
 type controlSniffer struct {
-	sniffer *sniff.Sniffier[bypass.Mode]
+	sniffer *sniff.Sniffier[config.Mode]
 	enabled atomic.Bool
 }
 

@@ -14,7 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -37,7 +37,7 @@ func init() {
 	register.RegisterNetwork(NewServer)
 }
 
-func NewServer(c *listener.Quic) (netapi.Listener, error) {
+func NewServer(c *config.Quic) (netapi.Listener, error) {
 	packetConn, err := dialer.ListenPacket(context.TODO(), "udp", c.GetHost(), dialer.WithListener())
 	if err != nil {
 		return nil, err

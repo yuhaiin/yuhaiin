@@ -10,10 +10,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -28,13 +26,13 @@ func TestSsrParse(t *testing.T) {
 	}
 
 	for x := range ssr {
-		t.Log(Parse(subscribe.Type_shadowsocksr, []byte(ssr[x])))
+		t.Log(Parse(node.Type_shadowsocksr, []byte(ssr[x])))
 	}
 }
 
 func TestConnectionSsr(t *testing.T) {
-	p := point.Point_builder{
-		Protocols: []*protocol.Protocol{},
+	p := node.Point_builder{
+		Protocols: []*node.Protocol{},
 	}
 
 	err := protojson.Unmarshal([]byte(``), p.Build())
@@ -53,7 +51,7 @@ func TestConnectionSsr(t *testing.T) {
 	}
 
 	dns, err := resolver.New(resolver.Config{
-		Type: pdns.Type_udp,
+		Type: config.Type_udp,
 		Host: "1.1.1.1:53", Dialer: z})
 	assert.NoError(t, err)
 

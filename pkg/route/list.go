@@ -12,13 +12,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -100,16 +100,16 @@ type listEntry struct {
 }
 
 type Lists struct {
-	db      config.DB
+	db      chore.DB
 	entries syncmap.SyncMap[string, *listEntry]
 	proxy   *atomicx.Value[netapi.Proxy]
-	gc.UnimplementedListsServer
+	api.UnimplementedListsServer
 
 	mu     sync.RWMutex
 	ticker *time.Timer
 }
 
-func NewLists(db config.DB) *Lists {
+func NewLists(db chore.DB) *Lists {
 	l := &Lists{
 		db:    db,
 		proxy: atomicx.NewValue(direct.Default),
@@ -125,20 +125,20 @@ func NewLists(db config.DB) *Lists {
 	return l
 }
 
-func (s *Lists) List(ctx context.Context, empty *emptypb.Empty) (*gc.ListResponse, error) {
+func (s *Lists) List(ctx context.Context, empty *emptypb.Empty) (*api.ListResponse, error) {
 	var names []string
 	err := s.db.View(func(ss *config.Setting) error {
 		names = slices.Collect(maps.Keys(ss.GetBypass().GetLists()))
 		return nil
 	})
 
-	return gc.ListResponse_builder{
+	return api.ListResponse_builder{
 		Names: names,
 	}.Build(), err
 }
 
-func (s *Lists) Get(ctx context.Context, req *wrapperspb.StringValue) (*bypass.List, error) {
-	var list *bypass.List
+func (s *Lists) Get(ctx context.Context, req *wrapperspb.StringValue) (*config.List, error) {
+	var list *config.List
 	err := s.db.View(func(ss *config.Setting) error {
 		if ss.GetBypass().GetLists() != nil {
 			list = ss.GetBypass().GetLists()[req.Value]
@@ -156,13 +156,13 @@ func (s *Lists) Get(ctx context.Context, req *wrapperspb.StringValue) (*bypass.L
 	return list, nil
 }
 
-func (s *Lists) Save(ctx context.Context, list *bypass.List) (*emptypb.Empty, error) {
+func (s *Lists) Save(ctx context.Context, list *config.List) (*emptypb.Empty, error) {
 	// for prevent deadlock
 	ctx = context.WithValue(ctx, listsRequestKey{}, true)
 
 	list.SetErrorMsgs(list.GetErrorMsgs()[:0])
 
-	if list.WhichList() == bypass.List_Remote_case {
+	if list.WhichList() == config.List_Remote_case {
 		for _, v := range list.GetRemote().GetUrls() {
 			_, er := getRemote(ctx, filepath.Join(s.db.Dir(), "rules"), s.proxy.Load(), v, false)
 			if er != nil {
@@ -174,7 +174,7 @@ func (s *Lists) Save(ctx context.Context, list *bypass.List) (*emptypb.Empty, er
 
 	er := s.db.Batch(func(ss *config.Setting) error {
 		if ss.GetBypass().GetLists() == nil {
-			ss.GetBypass().SetLists(map[string]*bypass.List{})
+			ss.GetBypass().SetLists(map[string]*config.List{})
 		}
 
 		s.entries.Delete(list.GetName())
@@ -227,7 +227,7 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 
 	err := s.db.View(func(ss *config.Setting) error {
 		for _, v := range ss.GetBypass().GetLists() {
-			if v.WhichList() != bypass.List_Remote_case {
+			if v.WhichList() != config.List_Remote_case {
 				continue
 			}
 
@@ -279,8 +279,8 @@ func (s *Lists) Remove(ctx context.Context, req *wrapperspb.StringValue) (*empty
 	return &emptypb.Empty{}, nil
 }
 
-func (s *Lists) RefreshInterval(ctx context.Context, empty *emptypb.Empty) (*gc.RefreshIntervalResponse, error) {
-	ret := &gc.RefreshIntervalResponse{}
+func (s *Lists) RefreshInterval(ctx context.Context, empty *emptypb.Empty) (*api.RefreshIntervalResponse, error) {
+	ret := &api.RefreshIntervalResponse{}
 	err := s.db.View(func(ss *config.Setting) error {
 		ret.SetRefreshInterval(ss.GetBypass().GetRefreshInterval())
 		return nil
@@ -288,10 +288,10 @@ func (s *Lists) RefreshInterval(ctx context.Context, empty *emptypb.Empty) (*gc.
 	return ret, err
 }
 
-func (s *Lists) SaveRefreshInterval(ctx context.Context, req *gc.RefreshIntervalResponse) (*emptypb.Empty, error) {
+func (s *Lists) SaveRefreshInterval(ctx context.Context, req *api.RefreshIntervalResponse) (*emptypb.Empty, error) {
 	err := s.db.Batch(func(ss *config.Setting) error {
 		if ss.GetBypass() == nil {
-			ss.SetBypass(&bypass.Config{})
+			ss.SetBypass(&config.BypassConfig{})
 		}
 
 		ss.GetBypass().SetRefreshInterval(req.GetRefreshInterval())
@@ -313,7 +313,7 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 			return nil, fmt.Errorf("lists is being updated")
 		}
 
-		var rules *bypass.List
+		var rules *config.List
 
 		err := s.db.View(func(ss *config.Setting) error {
 			if ss.GetBypass() != nil {
@@ -331,9 +331,9 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 
 		var matcher Matcher
 		switch rules.WhichList() {
-		case bypass.List_Local_case:
+		case config.List_Local_case:
 			switch rules.GetListType() {
-			case bypass.List_hosts_as_host:
+			case config.List_hosts_as_host:
 				mc := NewAddress(rules.GetName())
 				for v := range trimRuleIter(slices.Values(rules.GetLocal().GetLists())) {
 					fields := strings.Fields(v)
@@ -344,17 +344,17 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 					mc.Add(fields[1:]...)
 				}
 				matcher = mc
-			case bypass.List_host:
+			case config.List_host:
 				matcher = NewAddress(rules.GetName(), slices.Collect(trimRuleIter(slices.Values(rules.GetLocal().GetLists())))...)
-			case bypass.List_process:
+			case config.List_process:
 				matcher = NewProcess(rules.GetName(), slices.Collect(trimRuleIter(slices.Values(rules.GetLocal().GetLists())))...)
 			default:
 				return nil, fmt.Errorf("list %s is unknown", name)
 			}
 
-		case bypass.List_Remote_case:
+		case config.List_Remote_case:
 			switch rules.GetListType() {
-			case bypass.List_hosts_as_host:
+			case config.List_hosts_as_host:
 				mc := NewAddress(rules.GetName())
 
 				for v := range getLocalCacheTrimRuleIter(s.db.Dir(), rules.GetRemote().GetUrls()) {
@@ -372,7 +372,7 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 				}
 				matcher = mc
 
-			case bypass.List_host:
+			case config.List_host:
 				mc := NewAddress(rules.GetName())
 
 				for v := range getLocalCacheTrimRuleIter(s.db.Dir(), rules.GetRemote().GetUrls()) {
@@ -380,7 +380,7 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 				}
 
 				matcher = mc
-			case bypass.List_process:
+			case config.List_process:
 				mc := NewProcess(rules.GetName())
 
 				for v := range getLocalCacheTrimRuleIter(s.db.Dir(), rules.GetRemote().GetUrls()) {

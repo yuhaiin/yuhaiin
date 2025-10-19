@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -104,7 +104,7 @@ func init() {
 	register.RegisterPoint(NewHTTPOBFS)
 }
 
-func NewHTTPOBFS(config *protocol.ObfsHttp, p netapi.Proxy) (netapi.Proxy, error) {
+func NewHTTPOBFS(config *node.ObfsHttp, p netapi.Proxy) (netapi.Proxy, error) {
 	return &httpOBFS{
 		host:  config.GetHost(),
 		port:  config.GetPort(),

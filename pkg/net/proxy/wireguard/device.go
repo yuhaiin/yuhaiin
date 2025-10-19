@@ -10,7 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/tailscale/wireguard-go/tun"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -103,7 +103,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*netTun, error) {
 }
 
 // convert endpoint string to netip.Addr
-func parseEndpoints(conf *protocol.Wireguard) ([]netip.Prefix, error) {
+func parseEndpoints(conf *node.Wireguard) ([]netip.Prefix, error) {
 	endpoints := make([]netip.Prefix, 0, len(conf.GetEndpoint()))
 	for _, str := range conf.GetEndpoint() {
 		prefix, err := netip.ParsePrefix(str)
