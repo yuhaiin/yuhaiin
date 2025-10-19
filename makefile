@@ -61,6 +61,10 @@ vet:
 yuhaiin:
 	$(GO_BUILD_CMD) $(YUHAIIN)
 
+.PHONY: yuubinsya-http2
+yuubinsya-http2:
+	$(GO_BUILD_CMD) -v -o yuubinsya ./example/yuubinsya/...
+
 define build 
 	$(eval ARGS := $(subst -, ,$@))
 	$(eval OS := $(word 2, $(ARGS)))

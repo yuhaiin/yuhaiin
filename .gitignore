@@ -23,3 +23,5 @@ cmd/android/yuhaiin.db
 .DS_Store?
 /pkg/s3/.config.json
 /qodana.yaml
+/example/yuubinsya/yuubinsya
+/yuubinsya
