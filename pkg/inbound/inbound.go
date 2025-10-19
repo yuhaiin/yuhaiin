@@ -46,7 +46,7 @@ type Inbound struct {
 	interfacesLock sync.RWMutex
 }
 
-func NewInbound(dnsHandler netapi.DNSServer, dialer netapi.Proxy) *Inbound {
+func NewInbound(dialer netapi.Proxy, dnsHandler netapi.DNSServer) *Inbound {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	l := &Inbound{
@@ -72,7 +72,7 @@ func (l *Inbound) shouldHijackDNS(port uint16) bool {
 func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 	metrics.Counter.AddStreamRequest()
 
-	if !meta.DnsRequest && !l.shouldHijackDNS(meta.Address.Port()) {
+	if (!meta.DnsRequest && !l.shouldHijackDNS(meta.Address.Port())) || l.handler.dnsHandler == nil {
 		store := netapi.WithContext(l.ctx)
 		store.Source = meta.Source
 		store.Destination = meta.Destination
@@ -128,7 +128,7 @@ func (l *Inbound) loopudp() {
 func (l *Inbound) handlePacket(packet *netapi.Packet) {
 	defer packet.DecRef()
 
-	if !packet.IsDNSRequest() && !l.shouldHijackDNS(packet.Dst().Port()) {
+	if (!packet.IsDNSRequest() && !l.shouldHijackDNS(packet.Dst().Port())) || l.handler.dnsHandler == nil {
 		// we only use [netapi.Context] at new PacketConn instead of every packet
 		// so here just pass [l.ctx]
 		l.handler.Packet(l.ctx, packet)
