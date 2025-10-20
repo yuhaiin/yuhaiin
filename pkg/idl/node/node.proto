@@ -23,4 +23,6 @@ message manager {
   map<string, yuhaiin.point.point> nodes = 3
       [ json_name = "nodes", lazy = true ];
   map<string, yuhaiin.tag.tags> tags = 4 [ json_name = "tags", lazy = true ];
+  map<string, yuhaiin.subscribe.Publish> publishes = 5
+      [ json_name = "publishes" ];
 }

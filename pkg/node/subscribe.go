@@ -21,6 +21,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type Subscribe struct {
@@ -145,4 +146,24 @@ func (t *trimBase64Reader) Read(b []byte) (int, error) {
 	}
 
 	return n, err
+}
+
+func (n *Subscribe) RemovePublish(ctx context.Context, in *wrapperspb.StringValue) (*emptypb.Empty, error) {
+	n.n.DeletePublish(in.Value)
+	return &emptypb.Empty{}, n.n.Save()
+}
+
+func (n *Subscribe) ListPublish(ctx context.Context, in *emptypb.Empty) (*api.ListPublishResponse, error) {
+	return api.ListPublishResponse_builder{Publishes: n.n.GetPublishes()}.Build(), nil
+}
+
+func (n *Subscribe) SavePublish(ctx context.Context, in *api.SavePublishRequest) (*emptypb.Empty, error) {
+	n.n.SavePublish(in.GetName(), in.GetPublish())
+	return &emptypb.Empty{}, n.n.Save()
+}
+
+func (n *Subscribe) Publish(ctx context.Context, in *api.PublishRequest) (*api.PublishResponse, error) {
+	return api.PublishResponse_builder{
+		Points: n.n.Publish(in.GetName(), in.GetPath(), in.GetPassword()),
+	}.Build(), nil
 }
