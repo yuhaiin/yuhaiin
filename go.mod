@@ -1,6 +1,13 @@
 module github.com/Asutorufa/yuhaiin
 
-go 1.25.2
+go 1.25.3
+
+replace (
+	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
+	github.com/tailscale/wireguard-go => github.com/yuhaiin/wireguard-go v0.0.0-20251018092039-8a0cc74fca62
+	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
+	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20251020171225-a0c076bd101a
+)
 
 require (
 	github.com/cloudflare/circl v1.6.1
@@ -94,11 +101,4 @@ require (
 	golang.org/x/tools v0.38.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250908214217-97024824d090 // indirect
-)
-
-replace (
-	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
-	github.com/tailscale/wireguard-go => github.com/yuhaiin/wireguard-go v0.0.0-20251018092039-8a0cc74fca62
-	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
-	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20251011113821-c0d7a99a8899
 )

@@ -19,3 +19,10 @@ message link {
   type type = 2 [ json_name = "type" ];
   string url = 3 [ json_name = "url" ];
 }
+
+message Publish {
+  repeated string points = 1 [ json_name = "points" ];
+  string path = 2 [ json_name = "path" ];
+  string name = 3 [ json_name = "name" ];
+  string password = 4 [ json_name = "password" ];
+}
