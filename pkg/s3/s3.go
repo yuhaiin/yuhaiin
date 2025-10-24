@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net"
+	"net/http"
 	"path/filepath"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -23,6 +25,18 @@ func NewS3(opt *config.S3, proxy netapi.Proxy) (*S3, error) {
 	if opt.GetEndpointUrl() != "" {
 		s3.SetEndpoint(opt.GetEndpointUrl())
 	}
+
+	s3.SetClient(&http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				ad, err := netapi.ParseAddress(network, addr)
+				if err != nil {
+					return nil, err
+				}
+				return proxy.Conn(ctx, ad)
+			},
+		},
+	})
 
 	return &S3{
 		Bucket:       opt.GetBucket(),
