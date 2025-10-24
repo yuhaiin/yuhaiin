@@ -372,11 +372,409 @@ func (b0 Publish_builder) Build() *Publish {
 	return m0
 }
 
+type YuhaiinUrl struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Url         isYuhaiinUrl_Url       `protobuf_oneof:"url"`
+	xxx_hidden_Name        *string                `protobuf:"bytes,3,opt,name=name"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *YuhaiinUrl) Reset() {
+	*x = YuhaiinUrl{}
+	mi := &file_node_subscribe_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *YuhaiinUrl) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*YuhaiinUrl) ProtoMessage() {}
+
+func (x *YuhaiinUrl) ProtoReflect() protoreflect.Message {
+	mi := &file_node_subscribe_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *YuhaiinUrl) GetRemote() *YuhaiinUrl_Remote {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Url.(*yuhaiinUrl_Remote_); ok {
+			return x.Remote
+		}
+	}
+	return nil
+}
+
+func (x *YuhaiinUrl) GetPoints() *YuhaiinUrl_Points {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Url.(*yuhaiinUrl_Points_); ok {
+			return x.Points
+		}
+	}
+	return nil
+}
+
+func (x *YuhaiinUrl) GetName() string {
+	if x != nil {
+		if x.xxx_hidden_Name != nil {
+			return *x.xxx_hidden_Name
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *YuhaiinUrl) SetRemote(v *YuhaiinUrl_Remote) {
+	if v == nil {
+		x.xxx_hidden_Url = nil
+		return
+	}
+	x.xxx_hidden_Url = &yuhaiinUrl_Remote_{v}
+}
+
+func (x *YuhaiinUrl) SetPoints(v *YuhaiinUrl_Points) {
+	if v == nil {
+		x.xxx_hidden_Url = nil
+		return
+	}
+	x.xxx_hidden_Url = &yuhaiinUrl_Points_{v}
+}
+
+func (x *YuhaiinUrl) SetName(v string) {
+	x.xxx_hidden_Name = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
+}
+
+func (x *YuhaiinUrl) HasUrl() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Url != nil
+}
+
+func (x *YuhaiinUrl) HasRemote() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Url.(*yuhaiinUrl_Remote_)
+	return ok
+}
+
+func (x *YuhaiinUrl) HasPoints() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Url.(*yuhaiinUrl_Points_)
+	return ok
+}
+
+func (x *YuhaiinUrl) HasName() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *YuhaiinUrl) ClearUrl() {
+	x.xxx_hidden_Url = nil
+}
+
+func (x *YuhaiinUrl) ClearRemote() {
+	if _, ok := x.xxx_hidden_Url.(*yuhaiinUrl_Remote_); ok {
+		x.xxx_hidden_Url = nil
+	}
+}
+
+func (x *YuhaiinUrl) ClearPoints() {
+	if _, ok := x.xxx_hidden_Url.(*yuhaiinUrl_Points_); ok {
+		x.xxx_hidden_Url = nil
+	}
+}
+
+func (x *YuhaiinUrl) ClearName() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_Name = nil
+}
+
+const YuhaiinUrl_Url_not_set_case case_YuhaiinUrl_Url = 0
+const YuhaiinUrl_Remote_case case_YuhaiinUrl_Url = 1
+const YuhaiinUrl_Points_case case_YuhaiinUrl_Url = 2
+
+func (x *YuhaiinUrl) WhichUrl() case_YuhaiinUrl_Url {
+	if x == nil {
+		return YuhaiinUrl_Url_not_set_case
+	}
+	switch x.xxx_hidden_Url.(type) {
+	case *yuhaiinUrl_Remote_:
+		return YuhaiinUrl_Remote_case
+	case *yuhaiinUrl_Points_:
+		return YuhaiinUrl_Points_case
+	default:
+		return YuhaiinUrl_Url_not_set_case
+	}
+}
+
+type YuhaiinUrl_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof xxx_hidden_Url:
+	Remote *YuhaiinUrl_Remote
+	Points *YuhaiinUrl_Points
+	// -- end of xxx_hidden_Url
+	Name *string
+}
+
+func (b0 YuhaiinUrl_builder) Build() *YuhaiinUrl {
+	m0 := &YuhaiinUrl{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Remote != nil {
+		x.xxx_hidden_Url = &yuhaiinUrl_Remote_{b.Remote}
+	}
+	if b.Points != nil {
+		x.xxx_hidden_Url = &yuhaiinUrl_Points_{b.Points}
+	}
+	if b.Name != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 2)
+		x.xxx_hidden_Name = b.Name
+	}
+	return m0
+}
+
+type case_YuhaiinUrl_Url protoreflect.FieldNumber
+
+func (x case_YuhaiinUrl_Url) String() string {
+	md := file_node_subscribe_proto_msgTypes[2].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type isYuhaiinUrl_Url interface {
+	isYuhaiinUrl_Url()
+}
+
+type yuhaiinUrl_Remote_ struct {
+	Remote *YuhaiinUrl_Remote `protobuf:"bytes,1,opt,name=remote,oneof"`
+}
+
+type yuhaiinUrl_Points_ struct {
+	Points *YuhaiinUrl_Points `protobuf:"bytes,2,opt,name=points,oneof"`
+}
+
+func (*yuhaiinUrl_Remote_) isYuhaiinUrl_Url() {}
+
+func (*yuhaiinUrl_Points_) isYuhaiinUrl_Url() {}
+
+type YuhaiinUrl_Remote struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Url         *string                `protobuf:"bytes,1,opt,name=url"`
+	xxx_hidden_Insecure    bool                   `protobuf:"varint,2,opt,name=insecure"`
+	xxx_hidden_Publish     *Publish               `protobuf:"bytes,3,opt,name=publish"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *YuhaiinUrl_Remote) Reset() {
+	*x = YuhaiinUrl_Remote{}
+	mi := &file_node_subscribe_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *YuhaiinUrl_Remote) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*YuhaiinUrl_Remote) ProtoMessage() {}
+
+func (x *YuhaiinUrl_Remote) ProtoReflect() protoreflect.Message {
+	mi := &file_node_subscribe_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *YuhaiinUrl_Remote) GetUrl() string {
+	if x != nil {
+		if x.xxx_hidden_Url != nil {
+			return *x.xxx_hidden_Url
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *YuhaiinUrl_Remote) GetInsecure() bool {
+	if x != nil {
+		return x.xxx_hidden_Insecure
+	}
+	return false
+}
+
+func (x *YuhaiinUrl_Remote) GetPublish() *Publish {
+	if x != nil {
+		return x.xxx_hidden_Publish
+	}
+	return nil
+}
+
+func (x *YuhaiinUrl_Remote) SetUrl(v string) {
+	x.xxx_hidden_Url = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 3)
+}
+
+func (x *YuhaiinUrl_Remote) SetInsecure(v bool) {
+	x.xxx_hidden_Insecure = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 3)
+}
+
+func (x *YuhaiinUrl_Remote) SetPublish(v *Publish) {
+	x.xxx_hidden_Publish = v
+}
+
+func (x *YuhaiinUrl_Remote) HasUrl() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *YuhaiinUrl_Remote) HasInsecure() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *YuhaiinUrl_Remote) HasPublish() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Publish != nil
+}
+
+func (x *YuhaiinUrl_Remote) ClearUrl() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_Url = nil
+}
+
+func (x *YuhaiinUrl_Remote) ClearInsecure() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_Insecure = false
+}
+
+func (x *YuhaiinUrl_Remote) ClearPublish() {
+	x.xxx_hidden_Publish = nil
+}
+
+type YuhaiinUrl_Remote_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Url      *string
+	Insecure *bool
+	Publish  *Publish
+}
+
+func (b0 YuhaiinUrl_Remote_builder) Build() *YuhaiinUrl_Remote {
+	m0 := &YuhaiinUrl_Remote{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Url != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 3)
+		x.xxx_hidden_Url = b.Url
+	}
+	if b.Insecure != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 3)
+		x.xxx_hidden_Insecure = *b.Insecure
+	}
+	x.xxx_hidden_Publish = b.Publish
+	return m0
+}
+
+type YuhaiinUrl_Points struct {
+	state             protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Points *[]*Point              `protobuf:"bytes,1,rep,name=points"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *YuhaiinUrl_Points) Reset() {
+	*x = YuhaiinUrl_Points{}
+	mi := &file_node_subscribe_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *YuhaiinUrl_Points) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*YuhaiinUrl_Points) ProtoMessage() {}
+
+func (x *YuhaiinUrl_Points) ProtoReflect() protoreflect.Message {
+	mi := &file_node_subscribe_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *YuhaiinUrl_Points) GetPoints() []*Point {
+	if x != nil {
+		if x.xxx_hidden_Points != nil {
+			return *x.xxx_hidden_Points
+		}
+	}
+	return nil
+}
+
+func (x *YuhaiinUrl_Points) SetPoints(v []*Point) {
+	x.xxx_hidden_Points = &v
+}
+
+type YuhaiinUrl_Points_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Points []*Point
+}
+
+func (b0 YuhaiinUrl_Points_builder) Build() *YuhaiinUrl_Points {
+	m0 := &YuhaiinUrl_Points{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Points = &b.Points
+	return m0
+}
+
 var File_node_subscribe_proto protoreflect.FileDescriptor
 
 const file_node_subscribe_proto_rawDesc = "" +
 	"\n" +
-	"\x14node/subscribe.proto\x12\x11yuhaiin.subscribe\x1a!google/protobuf/go_features.proto\"Y\n" +
+	"\x14node/subscribe.proto\x12\x11yuhaiin.subscribe\x1a!google/protobuf/go_features.proto\x1a\x10node/point.proto\"Y\n" +
 	"\x04link\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12+\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x17.yuhaiin.subscribe.typeR\x04type\x12\x10\n" +
@@ -385,7 +783,19 @@ const file_node_subscribe_proto_rawDesc = "" +
 	"\x06points\x18\x01 \x03(\tR\x06points\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x1a\n" +
-	"\bpassword\x18\x04 \x01(\tR\bpassword*M\n" +
+	"\bpassword\x18\x04 \x01(\tR\bpassword\"\xcd\x02\n" +
+	"\n" +
+	"YuhaiinUrl\x12>\n" +
+	"\x06remote\x18\x01 \x01(\v2$.yuhaiin.subscribe.YuhaiinUrl.RemoteH\x00R\x06remote\x12>\n" +
+	"\x06points\x18\x02 \x01(\v2$.yuhaiin.subscribe.YuhaiinUrl.PointsH\x00R\x06points\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x1al\n" +
+	"\x06Remote\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\x12\x1a\n" +
+	"\binsecure\x18\x02 \x01(\bR\binsecure\x124\n" +
+	"\apublish\x18\x03 \x01(\v2\x1a.yuhaiin.subscribe.PublishR\apublish\x1a6\n" +
+	"\x06Points\x12,\n" +
+	"\x06points\x18\x01 \x03(\v2\x14.yuhaiin.point.pointR\x06pointsB\x05\n" +
+	"\x03url*M\n" +
 	"\x04type\x12\v\n" +
 	"\areserve\x10\x00\x12\n" +
 	"\n" +
@@ -395,19 +805,27 @@ const file_node_subscribe_proto_rawDesc = "" +
 	"\fshadowsocksr\x10\x04B6Z,github.com/Asutorufa/yuhaiin/pkg/protos/node\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
 var file_node_subscribe_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_node_subscribe_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_node_subscribe_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_node_subscribe_proto_goTypes = []any{
-	(Type)(0),       // 0: yuhaiin.subscribe.type
-	(*Link)(nil),    // 1: yuhaiin.subscribe.link
-	(*Publish)(nil), // 2: yuhaiin.subscribe.Publish
+	(Type)(0),                 // 0: yuhaiin.subscribe.type
+	(*Link)(nil),              // 1: yuhaiin.subscribe.link
+	(*Publish)(nil),           // 2: yuhaiin.subscribe.Publish
+	(*YuhaiinUrl)(nil),        // 3: yuhaiin.subscribe.YuhaiinUrl
+	(*YuhaiinUrl_Remote)(nil), // 4: yuhaiin.subscribe.YuhaiinUrl.Remote
+	(*YuhaiinUrl_Points)(nil), // 5: yuhaiin.subscribe.YuhaiinUrl.Points
+	(*Point)(nil),             // 6: yuhaiin.point.point
 }
 var file_node_subscribe_proto_depIdxs = []int32{
 	0, // 0: yuhaiin.subscribe.link.type:type_name -> yuhaiin.subscribe.type
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	4, // 1: yuhaiin.subscribe.YuhaiinUrl.remote:type_name -> yuhaiin.subscribe.YuhaiinUrl.Remote
+	5, // 2: yuhaiin.subscribe.YuhaiinUrl.points:type_name -> yuhaiin.subscribe.YuhaiinUrl.Points
+	2, // 3: yuhaiin.subscribe.YuhaiinUrl.Remote.publish:type_name -> yuhaiin.subscribe.Publish
+	6, // 4: yuhaiin.subscribe.YuhaiinUrl.Points.points:type_name -> yuhaiin.point.point
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_node_subscribe_proto_init() }
@@ -415,13 +833,18 @@ func file_node_subscribe_proto_init() {
 	if File_node_subscribe_proto != nil {
 		return
 	}
+	file_node_point_proto_init()
+	file_node_subscribe_proto_msgTypes[2].OneofWrappers = []any{
+		(*yuhaiinUrl_Remote_)(nil),
+		(*yuhaiinUrl_Points_)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_node_subscribe_proto_rawDesc), len(file_node_subscribe_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   2,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

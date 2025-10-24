@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 
@@ -132,7 +133,7 @@ func (s *UDPServer) Serve() error {
 	for {
 		n, addr, err := p.read(buf)
 		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
+			if errors.Is(err, net.ErrClosed) || errors.Is(err, io.ErrClosedPipe) {
 				return err
 			}
 

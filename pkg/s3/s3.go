@@ -4,50 +4,29 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"net"
-	"net/http"
-	"net/url"
 	"path/filepath"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/rhnvrm/simples3"
 )
 
 type S3 struct {
 	Bucket       string
 	StorageClass string
-	s3c          *minio.Client
+	s3c          *simples3.S3
 }
 
 func NewS3(opt *config.S3, proxy netapi.Proxy) (*S3, error) {
-	uri, err := url.Parse(opt.GetEndpointUrl())
-	if err != nil {
-		return nil, err
-	}
-
-	minioClient, err := minio.New(uri.Host, &minio.Options{
-		Creds:  credentials.NewStaticV4(opt.GetAccessKey(), opt.GetSecretKey(), ""),
-		Secure: uri.Scheme == "https",
-		Region: opt.GetRegion(),
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				ad, err := netapi.ParseAddress(network, addr)
-				if err != nil {
-					return nil, err
-				}
-				return proxy.Conn(ctx, ad)
-			},
-		},
-	})
-	if err != nil {
-		return nil, err
+	s3 := simples3.New(opt.GetRegion(), opt.GetAccessKey(), opt.GetSecretKey())
+	if opt.GetEndpointUrl() != "" {
+		s3.SetEndpoint(opt.GetEndpointUrl())
 	}
 
 	return &S3{
 		Bucket:       opt.GetBucket(),
-		s3c:          minioClient,
+		s3c:          s3,
 		StorageClass: opt.GetStorageClass(),
 	}, nil
 }
@@ -59,20 +38,27 @@ func (s *S3) Put(ctx context.Context, data []byte, file string) error {
 		contentType = "application/json"
 	}
 
-	_, err := s.s3c.PutObject(ctx, s.Bucket,
-		file, bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{
-			ContentType:  contentType,
-			StorageClass: s.StorageClass,
-		})
+	_, err := s.s3c.FilePut(simples3.UploadInput{
+		Bucket:      s.Bucket,
+		ObjectKey:   file,
+		ContentType: contentType,
+		Body:        bytes.NewReader(data),
+	})
 	return err
 }
 
 func (s *S3) Get(ctx context.Context, file string) ([]byte, error) {
-	resp, err := s.s3c.GetObject(ctx, s.Bucket,
-		file, minio.GetObjectOptions{})
+	resp, err := s.s3c.FileDownload(simples3.DownloadInput{
+		Bucket:    s.Bucket,
+		ObjectKey: file,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Close()
+	defer func() {
+		if err := resp.Close(); err != nil {
+			log.Error("close s3 response body failed", "err", err)
+		}
+	}()
 	return io.ReadAll(resp)
 }
