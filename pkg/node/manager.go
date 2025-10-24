@@ -28,6 +28,30 @@ func NewManager(path string) *Manager {
 		db.Data.SetManager(&node.Manager{})
 	}
 
+	if db.Data.GetManager().GetNodes() == nil {
+		db.Data.GetManager().SetNodes(make(map[string]*node.Point))
+	}
+
+	if db.Data.GetManager().GetTags() == nil {
+		db.Data.GetManager().SetTags(make(map[string]*node.Tags))
+	}
+
+	if db.Data.GetManager().GetPublishes() == nil {
+		db.Data.GetManager().SetPublishes(make(map[string]*node.Publish))
+	}
+
+	if db.Data.GetLinks() == nil {
+		db.Data.SetLinks(make(map[string]*node.Link))
+	}
+
+	if db.Data.GetTcp() == nil {
+		db.Data.SetTcp(&node.Point{})
+	}
+
+	if db.Data.GetUdp() == nil {
+		db.Data.SetUdp(&node.Point{})
+	}
+
 	return &Manager{db: db, store: NewProxyStore()}
 }
 
@@ -320,12 +344,7 @@ func (d *Manager) Save() error {
 }
 
 func (d *Manager) getNodes() map[string]*node.Point {
-	m := d.db.Data.GetManager().GetNodes()
-	if m == nil {
-		return make(map[string]*node.Point)
-	}
-
-	return m
+	return d.db.Data.GetManager().GetNodes()
 }
 
 func (d *Manager) storeNode(hash string, node *node.Point) {
@@ -337,11 +356,7 @@ func (d *Manager) deleteNode(hash string) {
 }
 
 func (d *Manager) getTags() map[string]*node.Tags {
-	t := d.db.Data.GetManager().GetTags()
-	if t == nil {
-		t = make(map[string]*node.Tags)
-	}
-	return t
+	return d.db.Data.GetManager().GetTags()
 }
 
 func (m *Manager) deleteTag(tag string) {
@@ -349,20 +364,12 @@ func (m *Manager) deleteTag(tag string) {
 }
 
 func (d *Manager) getLinks() map[string]*node.Link {
-	l := d.db.Data.GetLinks()
-	if l == nil {
-		l = make(map[string]*node.Link)
-	}
-	return l
+	return d.db.Data.GetLinks()
 }
 
 func (d *Manager) SavePublish(name string, publish *node.Publish) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-
-	if d.db.Data.GetManager().GetPublishes() == nil {
-		d.db.Data.GetManager().SetPublishes(make(map[string]*node.Publish))
-	}
 
 	d.db.Data.GetManager().GetPublishes()[name] = publish
 }
@@ -378,19 +385,14 @@ func (d *Manager) GetPublishes() map[string]*node.Publish {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	p := d.db.Data.GetManager().GetPublishes()
-	if p == nil {
-		p = make(map[string]*node.Publish)
-	}
-
-	return p
+	return d.db.Data.GetManager().GetPublishes()
 }
 
 func (d *Manager) Publish(name, path, password string) []*node.Point {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	pub, ok := d.GetPublishes()[name]
+	pub, ok := d.db.Data.GetManager().GetPublishes()[name]
 	if !ok {
 		return nil
 	}
