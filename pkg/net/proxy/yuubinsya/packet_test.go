@@ -151,3 +151,39 @@ func TestPacket(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 }
+
+func FuzzDecodePacket(t *testing.F) {
+	src, err := EncodePacket(make([]byte, 65535),
+		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234}, []byte("test"), []byte("test"), true)
+	assert.NoError(t, err)
+	src2, err := EncodePacket(make([]byte, 65535),
+		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 2), Port: 1234}, []byte("test2"), []byte("test2"), false)
+	assert.NoError(t, err)
+	src3, err := EncodePacket(make([]byte, 65535),
+		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 3), Port: 1234}, []byte("test3"), []byte("test3"), true)
+	assert.NoError(t, err)
+
+	random1, random2, random3 := make([]byte, rand.IntN(65535)), make([]byte, rand.IntN(65535)), make([]byte, rand.IntN(65535))
+	_, err = io.ReadFull(crand.Reader, random1)
+	assert.NoError(t, err)
+	_, err = io.ReadFull(crand.Reader, random2)
+	assert.NoError(t, err)
+	_, err = io.ReadFull(crand.Reader, random3)
+	assert.NoError(t, err)
+
+	t.Add(src, []byte("test"), true)
+	t.Add(src2, []byte("test2"), false)
+	t.Add([]byte{}, []byte("test"), true)
+	t.Add([]byte("garbage"), []byte("test"), false)
+	t.Add([]byte{0x00, 0x01, 0x02}, []byte("x"), true)
+	t.Add(src3, []byte("test3"), true)
+	t.Add(random1, []byte("test"), true)
+	t.Add(random2, []byte("test2"), false)
+	t.Add(random3, []byte("test3"), true)
+
+	t.Fuzz(func(t *testing.T, data, password []byte, prefix bool) {
+		t.Log(prefix)
+		data, addr, err := DecodePacket(data, password, prefix)
+		t.Log(string(data), addr, err)
+	})
+}

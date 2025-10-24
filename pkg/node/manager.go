@@ -1,6 +1,7 @@
 package node
 
 import (
+	"crypto/subtle"
 	"errors"
 	"iter"
 	"slices"
@@ -25,6 +26,30 @@ func NewManager(path string) *Manager {
 
 	if db.Data.GetManager() == nil {
 		db.Data.SetManager(&node.Manager{})
+	}
+
+	if db.Data.GetManager().GetNodes() == nil {
+		db.Data.GetManager().SetNodes(make(map[string]*node.Point))
+	}
+
+	if db.Data.GetManager().GetTags() == nil {
+		db.Data.GetManager().SetTags(make(map[string]*node.Tags))
+	}
+
+	if db.Data.GetManager().GetPublishes() == nil {
+		db.Data.GetManager().SetPublishes(make(map[string]*node.Publish))
+	}
+
+	if db.Data.GetLinks() == nil {
+		db.Data.SetLinks(make(map[string]*node.Link))
+	}
+
+	if db.Data.GetTcp() == nil {
+		db.Data.SetTcp(&node.Point{})
+	}
+
+	if db.Data.GetUdp() == nil {
+		db.Data.SetUdp(&node.Point{})
 	}
 
 	return &Manager{db: db, store: NewProxyStore()}
@@ -319,9 +344,6 @@ func (d *Manager) Save() error {
 }
 
 func (d *Manager) getNodes() map[string]*node.Point {
-	if d.db.Data.GetManager().GetNodes() == nil {
-		d.db.Data.GetManager().SetNodes(make(map[string]*node.Point))
-	}
 	return d.db.Data.GetManager().GetNodes()
 }
 
@@ -334,9 +356,6 @@ func (d *Manager) deleteNode(hash string) {
 }
 
 func (d *Manager) getTags() map[string]*node.Tags {
-	if d.db.Data.GetManager().GetTags() == nil {
-		d.db.Data.GetManager().SetTags(make(map[string]*node.Tags))
-	}
 	return d.db.Data.GetManager().GetTags()
 }
 
@@ -345,8 +364,57 @@ func (m *Manager) deleteTag(tag string) {
 }
 
 func (d *Manager) getLinks() map[string]*node.Link {
-	if d.db.Data.GetLinks() == nil {
-		d.db.Data.SetLinks(make(map[string]*node.Link))
-	}
 	return d.db.Data.GetLinks()
+}
+
+func (d *Manager) SavePublish(name string, publish *node.Publish) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.db.Data.GetManager().GetPublishes()[name] = publish
+}
+
+func (d *Manager) DeletePublish(name string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	delete(d.db.Data.GetManager().GetPublishes(), name)
+}
+
+func (d *Manager) GetPublishes() map[string]*node.Publish {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	return d.db.Data.GetManager().GetPublishes()
+}
+
+func (d *Manager) Publish(name, path, password string) []*node.Point {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	pub, ok := d.db.Data.GetManager().GetPublishes()[name]
+	if !ok {
+		return nil
+	}
+
+	if pub.GetPath() != path {
+		return nil
+	}
+
+	if subtle.ConstantTimeCompare([]byte(pub.GetPassword()), []byte(password)) != 1 {
+		return nil
+	}
+
+	ret := make([]*node.Point, 0, len(pub.GetPoints()))
+
+	for _, v := range pub.GetPoints() {
+		p, ok := d.getNode(v)
+		if !ok {
+			continue
+		}
+
+		ret = append(ret, p)
+	}
+
+	return ret
 }
