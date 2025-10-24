@@ -58,11 +58,36 @@ message activates_response {
   repeated yuhaiin.point.point nodes = 1 [ json_name = "nodes" ];
 }
 
+message SavePublishRequest {
+  string name = 1 [ json_name = "name" ];
+  yuhaiin.subscribe.Publish publish = 2 [ json_name = "publish" ];
+}
+
+message ListPublishResponse {
+  map<string, yuhaiin.subscribe.Publish> publishes = 1
+      [ json_name = "publishes" ];
+}
+
+message PublishRequest {
+  string name = 1 [ json_name = "name" ];
+  string password = 2 [ json_name = "password" ];
+  string path = 3 [ json_name = "path" ];
+}
+
+message PublishResponse {
+  repeated yuhaiin.point.point points = 1 [ json_name = "points" ];
+}
+
 service subscribe {
   rpc save(save_link_req) returns (google.protobuf.Empty);
   rpc remove(link_req) returns (google.protobuf.Empty);
   rpc update(link_req) returns (google.protobuf.Empty);
   rpc get(google.protobuf.Empty) returns (get_links_resp);
+  rpc remove_publish(google.protobuf.StringValue)
+      returns (google.protobuf.Empty);
+  rpc list_publish(google.protobuf.Empty) returns (ListPublishResponse);
+  rpc save_publish(SavePublishRequest) returns (google.protobuf.Empty);
+  rpc publish(PublishRequest) returns (PublishResponse);
 }
 
 message save_link_req {
