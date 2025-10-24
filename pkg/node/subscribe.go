@@ -44,8 +44,8 @@ func (s *Subscribe) Remove(_ context.Context, l *api.LinkReq) (*emptypb.Empty, e
 	return &emptypb.Empty{}, s.n.Save()
 }
 
-func (s *Subscribe) Update(_ context.Context, req *api.LinkReq) (*emptypb.Empty, error) {
-	s.update(req.GetNames()...)
+func (s *Subscribe) Update(ctx context.Context, req *api.LinkReq) (*emptypb.Empty, error) {
+	s.update(ctx, req.GetNames()...)
 	return &emptypb.Empty{}, s.n.Save()
 }
 
@@ -71,7 +71,7 @@ func (l *Subscribe) save(ls []*node.Link) {
 	l.n.SaveNode(nodes...)
 }
 
-func (l *Subscribe) update(names ...string) {
+func (l *Subscribe) update(ctx context.Context, names ...string) {
 	for _, str := range names {
 		link, ok := l.n.GetLink(str)
 		if !ok {
@@ -81,9 +81,9 @@ func (l *Subscribe) update(names ...string) {
 		scheme, _, _ := system.GetScheme(link.GetUrl())
 		var err error
 		if scheme == "yuhaiin" {
-			err = l.savePublish(context.TODO(), link.GetUrl())
+			err = l.savePublish(ctx, link.GetUrl())
 		} else {
-			err = l.fetch(link)
+			err = l.fetch(ctx, link)
 		}
 		if err != nil {
 			log.Error("get one link failed", "err", err)
@@ -91,7 +91,7 @@ func (l *Subscribe) update(names ...string) {
 	}
 }
 
-func (n *Subscribe) fetch(link *node.Link) error {
+func (n *Subscribe) fetch(ctx context.Context, link *node.Link) error {
 	hc := &http.Client{
 		Timeout: time.Minute * 2,
 		Transport: &http.Transport{
@@ -108,7 +108,7 @@ func (n *Subscribe) fetch(link *node.Link) error {
 		},
 	}
 
-	req, err := http.NewRequest("GET", link.GetUrl(), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", link.GetUrl(), nil)
 	if err != nil {
 		return fmt.Errorf("create request failed: %w", err)
 	}
