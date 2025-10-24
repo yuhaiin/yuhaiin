@@ -2,6 +2,7 @@ edition = "2023";
 
 package yuhaiin.subscribe;
 import "google/protobuf/go_features.proto";
+import "node/point.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node";
 option features.(pb.go).api_level = API_OPAQUE;
@@ -25,4 +26,20 @@ message Publish {
   string path = 2 [ json_name = "path" ];
   string name = 3 [ json_name = "name" ];
   string password = 4 [ json_name = "password" ];
+}
+
+message YuhaiinUrl {
+  message Remote {
+    string url = 1 [ json_name = "url" ];
+    bool insecure = 2 [ json_name = "insecure" ];
+    Publish publish = 3 [ json_name = "publish" ];
+  }
+  message Points {
+    repeated yuhaiin.point.point points = 1 [ json_name = "points" ];
+  }
+  oneof url {
+    Remote remote = 1 [ json_name = "remote" ];
+    Points points = 2 [ json_name = "points" ];
+  }
+  string name = 3 [ json_name = "name" ];
 }
