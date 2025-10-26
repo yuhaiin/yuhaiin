@@ -25,3 +25,4 @@ cmd/android/yuhaiin.db
 /qodana.yaml
 /example/yuubinsya/yuubinsya
 /yuubinsya
+/pkg/net/trie/maxminddb/*.mmdb

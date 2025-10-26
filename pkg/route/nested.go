@@ -88,6 +88,10 @@ func NewPort(ports string) *Port {
 
 	for v := range strings.SplitSeq(ports, ",") {
 		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+
 		port, err := strconv.ParseUint(v, 10, 16)
 		if err != nil {
 			continue
@@ -103,6 +107,35 @@ func (s *Port) Match(ctx context.Context, addr netapi.Address) bool {
 	port := uint16(addr.Port())
 	ok := s.set.Has(port)
 	store.AddMatchHistory(fmt.Sprintf("Port %d", port), ok)
+	return ok
+}
+
+type Geoip struct {
+	countries *set.Set[string]
+}
+
+func NewGeoip(countries string) *Geoip {
+	g := &Geoip{
+		countries: set.NewSet[string](),
+	}
+
+	for v := range strings.SplitSeq(countries, ",") {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+
+		g.countries.Push(v)
+	}
+
+	return g
+}
+
+func (s *Geoip) Match(ctx context.Context, addr netapi.Address) bool {
+	store := netapi.GetContext(ctx)
+	geo := store.GetGeo()
+	ok := s.countries.Has(geo)
+	store.AddMatchHistory(fmt.Sprintf("Geoip %s", geo), ok)
 	return ok
 }
 
@@ -165,6 +198,8 @@ func ParseMatcher(lists *Lists, cc *config.Rulev2) Matcher {
 				andMatchers = append(andMatchers, NewNetwork(rule.GetNetwork().GetNetwork()))
 			case config.Rule_Port_case:
 				andMatchers = append(andMatchers, NewPort(rule.GetPort().GetPorts()))
+			case config.Rule_Geoip_case:
+				andMatchers = append(andMatchers, NewGeoip(rule.GetGeoip().GetCountries()))
 			}
 		}
 

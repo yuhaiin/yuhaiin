@@ -235,6 +235,18 @@ func (s *Route) addMatchers() {
 func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 	s.dumpProcess(ctx, addr.Network())
 
+	store := netapi.GetContext(ctx)
+
+	geo := s.ms.list.LoadGeoip()
+	if geo != nil && !addr.IsFqdn() {
+		country, _ := geo.Lookup(addr.(netapi.IPAddress).AddrPort().Addr())
+		if country != "" {
+			store.SetGeo(country)
+		}
+	}
+
+	store.ConnOptions().SetMaxminddbGeoip(geo)
+
 	start := system.CheapNowNano()
 	var mode config.ModeEnum
 	for _, m := range s.matchers {
@@ -242,9 +254,9 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 			break
 		}
 	}
+
 	metrics.Counter.AddTrieMatchDuration(float64(time.Duration(system.CheapNowNano() - start).Milliseconds()))
 
-	store := netapi.GetContext(ctx)
 	store.ConnOptions().Resolver().SetUdpSkipResolveTarget(s.skipResolve(mode))
 	store.ConnOptions().Resolver().SetResolver(s.r.Get(mode.Resolver(), s.getResolverFallback(mode)))
 
