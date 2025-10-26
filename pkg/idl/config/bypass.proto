@@ -98,6 +98,11 @@ message port {
   string ports = 1 [ json_name = "ports" ];
 }
 
+message geoip {
+  // countries splite by ',', e.g. "US,CA"
+  string countries = 1 [ json_name = "countries" ];
+}
+
 message rule {
   oneof object {
     host host = 1 [ json_name = "host" ];
@@ -105,6 +110,7 @@ message rule {
     source inbound = 3 [ json_name = "inbound" ];
     network network = 4 [ json_name = "network" ];
     port port = 5 [ json_name = "port" ];
+    geoip geoip = 6 [ json_name = "geoip" ];
   }
 }
 
