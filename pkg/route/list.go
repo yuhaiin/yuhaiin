@@ -5,11 +5,13 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"log/slog"
 	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
@@ -17,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
@@ -99,20 +102,36 @@ type listEntry struct {
 	matcher Matcher
 }
 
+type geoip struct {
+	m *maxminddb.MaxMindDB
+}
+
 type Lists struct {
+	api.UnimplementedListsServer
+	proxy *atomicx.Value[netapi.Proxy]
+
 	db      chore.DB
 	entries syncmap.SyncMap[string, *listEntry]
-	proxy   *atomicx.Value[netapi.Proxy]
-	api.UnimplementedListsServer
 
-	mu     sync.RWMutex
-	ticker *time.Timer
+	geoip   *geoip
+	geoipmu sync.RWMutex
+
+	downloader *Downloader
+	refreshing atomic.Bool
+
+	tickermu sync.RWMutex
+	ticker   *time.Timer
 }
 
 func NewLists(db chore.DB) *Lists {
 	l := &Lists{
 		db:    db,
 		proxy: atomicx.NewValue(direct.Default),
+	}
+
+	l.downloader = &Downloader{
+		path: filepath.Join(db.Dir(), "rules"),
+		list: l,
 	}
 
 	interval, err := l.RefreshInterval(context.Background(), &emptypb.Empty{})
@@ -125,15 +144,69 @@ func NewLists(db chore.DB) *Lists {
 	return l
 }
 
+func (s *Lists) LoadGeoip() *maxminddb.MaxMindDB {
+	s.geoipmu.RLock()
+	g := s.geoip
+	s.geoipmu.RUnlock()
+
+	if g != nil {
+		return g.m
+	}
+
+	s.geoipmu.Lock()
+	defer s.geoipmu.Unlock()
+
+	if s.geoip != nil {
+		return s.geoip.m
+	}
+
+	s.geoip = &geoip{}
+
+	var downloadUrl string
+	err := s.db.View(func(ss *config.Setting) error {
+		downloadUrl = ss.GetBypass().GetMaxminddbGeoip().GetDownloadUrl()
+		return nil
+	})
+	if err != nil {
+		log.Error("get maxminddb geoip download url failed", "err", err)
+		return nil
+	}
+
+	path := s.downloader.GetPath(downloadUrl)
+	if path == "" {
+		return nil
+	}
+
+	now := time.Now()
+	ggeoip, err := maxminddb.NewMaxMindDB(path)
+	if err != nil {
+		log.Error("new maxminddb failed", "err", err)
+		return nil
+	}
+
+	slog.Info("new geoip", "path", path, "cost", time.Since(now))
+
+	s.geoip = &geoip{m: ggeoip}
+
+	return ggeoip
+}
+
 func (s *Lists) List(ctx context.Context, empty *emptypb.Empty) (*api.ListResponse, error) {
 	var names []string
+	var maxminddbGeoip *config.MaxminddbGeoip
 	err := s.db.View(func(ss *config.Setting) error {
 		names = slices.Collect(maps.Keys(ss.GetBypass().GetLists()))
+		maxminddbGeoip = ss.GetBypass().GetMaxminddbGeoip()
 		return nil
 	})
 
+	if maxminddbGeoip == nil {
+		maxminddbGeoip = config.DefaultSetting("").GetBypass().GetMaxminddbGeoip()
+	}
+
 	return api.ListResponse_builder{
-		Names: names,
+		Names:          names,
+		MaxminddbGeoip: maxminddbGeoip,
 	}.Build(), err
 }
 
@@ -164,8 +237,7 @@ func (s *Lists) Save(ctx context.Context, list *config.List) (*emptypb.Empty, er
 
 	if list.WhichList() == config.List_Remote_case {
 		for _, v := range list.GetRemote().GetUrls() {
-			_, er := getRemote(ctx, filepath.Join(s.db.Dir(), "rules"), s.proxy.Load(), v, false)
-			if er != nil {
+			if er := s.downloader.DownloadIfNotExists(ctx, v); er != nil {
 				list.SetErrorMsgs(append(list.GetErrorMsgs(), fmt.Sprintf("%s: %s", v, er.Error())))
 				log.Error("get remote failed", "err", er, "url", v)
 			}
@@ -189,8 +261,8 @@ func (s *Lists) Save(ctx context.Context, list *config.List) (*emptypb.Empty, er
 }
 
 func (s *Lists) resetRefreshInterval(minute uint64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.tickermu.Lock()
+	defer s.tickermu.Unlock()
 
 	if s.ticker != nil {
 		s.ticker.Stop()
@@ -212,18 +284,48 @@ func (s *Lists) resetRefreshInterval(minute uint64) {
 			log.Error("refresh lists failed", "err", err)
 		}
 
-		s.mu.Lock()
+		s.tickermu.Lock()
 		s.ticker.Reset(interval)
-		s.mu.Unlock()
+		s.tickermu.Unlock()
 	})
 }
 
 type listsRequestKey struct{}
 
+func (s *Lists) refreshGeoip(ctx context.Context, download string) string {
+	s.geoipmu.Lock()
+	geoip := s.geoip
+	if geoip != nil && geoip.m != nil {
+		if err := geoip.m.Close(); err != nil {
+			log.Error("failed to close geoip", "err", err)
+		}
+	}
+	s.geoipmu.Unlock()
+
+	er := s.downloader.Download(ctx, download)
+
+	s.geoipmu.Lock()
+	s.geoip = nil
+	s.geoipmu.Unlock()
+
+	if er != nil {
+		log.Error("get remote failed", "err", er, "url", download)
+		return er.Error()
+	}
+
+	return ""
+}
+
 func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Empty, error) {
+	if !s.refreshing.CompareAndSwap(false, true) {
+		return nil, fmt.Errorf("refreshing")
+	}
+	defer s.refreshing.Store(false)
+
 	ctx = context.WithValue(ctx, listsRequestKey{}, true)
 
 	errors := map[string][]string{}
+	var geoipErr string
 
 	err := s.db.View(func(ss *config.Setting) error {
 		for _, v := range ss.GetBypass().GetLists() {
@@ -233,15 +335,19 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 
 			errors[v.GetName()] = []string{}
 			for _, url := range v.GetRemote().GetUrls() {
-				_, er := getRemote(ctx, filepath.Join(s.db.Dir(), "rules"),
-					s.proxy.Load(), url, true)
+				er := s.downloader.Download(ctx, url)
 				if er != nil {
 					errors[v.GetName()] = append(errors[v.GetName()], fmt.Sprintf("%s: %s", url, er.Error()))
-					log.Error("get remote failed", "err", er, "url", url)
+					log.Error("download remote failed", "err", er, "url", url)
 				}
 			}
 		}
 
+		if ss.GetBypass().GetMaxminddbGeoip() == nil {
+			ss.GetBypass().SetMaxminddbGeoip(config.DefaultSetting("").GetBypass().GetMaxminddbGeoip())
+		}
+
+		geoipErr = s.refreshGeoip(ctx, ss.GetBypass().GetMaxminddbGeoip().GetDownloadUrl())
 		return nil
 	})
 	if err != nil {
@@ -254,6 +360,12 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 			if ss.GetBypass().GetLists() != nil && ss.GetBypass().GetLists()[k] != nil {
 				ss.GetBypass().GetLists()[k].SetErrorMsgs(v)
 			}
+
+			if ss.GetBypass().GetMaxminddbGeoip() == nil {
+				ss.GetBypass().SetMaxminddbGeoip(config.DefaultSetting("").GetBypass().GetMaxminddbGeoip())
+			}
+
+			ss.GetBypass().GetMaxminddbGeoip().SetError(geoipErr)
 		}
 		return nil
 	})
@@ -302,6 +414,21 @@ func (s *Lists) SaveRefreshInterval(ctx context.Context, req *api.RefreshInterva
 		s.resetRefreshInterval(req.GetRefreshInterval())
 	}
 
+	return &emptypb.Empty{}, err
+}
+
+func (s *Lists) SaveMaxminddbGeoip(ctx context.Context, req *config.MaxminddbGeoip) (*emptypb.Empty, error) {
+	err := s.db.Batch(func(ss *config.Setting) error {
+		if ss.GetBypass() == nil {
+			ss.SetBypass(&config.BypassConfig{})
+		}
+
+		ss.GetBypass().SetMaxminddbGeoip(req)
+
+		geoipErr := s.refreshGeoip(ctx, ss.GetBypass().GetMaxminddbGeoip().GetDownloadUrl())
+		ss.GetBypass().GetMaxminddbGeoip().SetError(geoipErr)
+		return nil
+	})
 	return &emptypb.Empty{}, err
 }
 
@@ -357,7 +484,7 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 			case config.List_hosts_as_host:
 				mc := NewAddress(rules.GetName())
 
-				for v := range getLocalCacheTrimRuleIter(s.db.Dir(), rules.GetRemote().GetUrls()) {
+				for v := range s.getLocalCacheTrimRuleIter(rules.GetRemote().GetUrls()) {
 					/*
 						example:
 							::1 localhost ip6-localhost ip6-loopback
@@ -375,7 +502,7 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 			case config.List_host:
 				mc := NewAddress(rules.GetName())
 
-				for v := range getLocalCacheTrimRuleIter(s.db.Dir(), rules.GetRemote().GetUrls()) {
+				for v := range s.getLocalCacheTrimRuleIter(rules.GetRemote().GetUrls()) {
 					mc.Add(v)
 				}
 
@@ -383,7 +510,7 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 			case config.List_process:
 				mc := NewProcess(rules.GetName())
 
-				for v := range getLocalCacheTrimRuleIter(s.db.Dir(), rules.GetRemote().GetUrls()) {
+				for v := range s.getLocalCacheTrimRuleIter(rules.GetRemote().GetUrls()) {
 					mc.Add(v)
 				}
 
@@ -468,14 +595,15 @@ func ScannerIter(scanner *bufio.Scanner) iter.Seq[string] {
 	}
 }
 
-func getLocalCacheTrimRuleIter(dir string, rules []string) iter.Seq[string] {
+func (l *Lists) getLocalCacheTrimRuleIter(rules []string) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		for _, v := range rules {
-			r, er := getLocalCache(filepath.Join(dir, "rules"), v)
+			r, er := l.downloader.GetReader(v)
 			if er != nil {
 				log.Error("get local cache failed", "err", er, "url", v)
 				continue
 			}
+			defer r.Close()
 
 			for str := range trimRuleIter(ScannerIter(bufio.NewScanner(r))) {
 				if !yield(str) {

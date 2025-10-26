@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
@@ -108,13 +109,14 @@ func (r ResolverOptions) Opts(reverse bool) []func(*LookupIPOption) {
 }
 
 type ConnOptions struct {
-	bindAddress   *string
-	bindInterface *string
-	resolver      *ResolverOptions
-	routeMode     config.Mode
-	systemDialer  bool
-	skipRoute     bool
-	isUdp         bool
+	bindAddress    *string
+	bindInterface  *string
+	resolver       *ResolverOptions
+	routeMode      config.Mode
+	maxminddbGeoip *maxminddb.MaxMindDB
+	systemDialer   bool
+	skipRoute      bool
+	isUdp          bool
 }
 
 func (s *ConnOptions) SetBindAddress(str string) *ConnOptions {
@@ -203,6 +205,15 @@ func (s *ConnOptions) IsUdp() bool {
 	return s.isUdp
 }
 
+func (s *ConnOptions) SetMaxminddbGeoip(maxminddbGeoip *maxminddb.MaxMindDB) *ConnOptions {
+	s.maxminddbGeoip = maxminddbGeoip
+	return s
+}
+
+func (s *ConnOptions) MaxminddbGeoip() *maxminddb.MaxMindDB {
+	return s.maxminddbGeoip
+}
+
 type Sniff struct {
 	protocol      *string `metrics:"Protocol"`
 	process       *string `metrics:"Process"`
@@ -215,6 +226,7 @@ type Sniff struct {
 type AddrInfo struct {
 	domainString *string `metrics:"DOMAIN"`
 	ipString     *string `metrics:"IP"`
+	geo          *string `metrics:"Geo"`
 	tag          *string `metrics:"Tag"`
 	// dns resolver
 	component    *string `metrics:"Component"`
@@ -380,6 +392,24 @@ func (s *Context) GetUDPMigrateID() uint64 {
 		return s.addrInfo.udpMigrateID
 	}
 	return 0
+}
+
+func (c *Context) GetGeo() string {
+	if c.addrInfo != nil && c.addrInfo.geo != nil {
+		return *c.addrInfo.geo
+	}
+	return ""
+}
+
+func (c *Context) SetGeo(str string) *Context {
+	if str == "" {
+		return c
+	}
+
+	c.setAddrInfo(func(a *AddrInfo) {
+		a.geo = &str
+	})
+	return c
 }
 
 func (c *Context) SetInbound(addr net.Addr) *Context {

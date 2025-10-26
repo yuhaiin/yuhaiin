@@ -20,24 +20,22 @@ message configv2 {
   string proxy_resolver = 4 [ json_name = "proxy_resolver" ];
 }
 
+message maxminddb_geoip {
+  string download_url = 1 [ json_name = "download_url" ];
+  string error = 2 [ json_name = "error" ];
+}
+
 message bypass_config {
-  mode tcp = 3 [ json_name = "tcp", deprecated = true ];
-  mode udp = 4 [ json_name = "udp", deprecated = true ];
-  string bypass_file = 2 [ json_name = "bypass_file", deprecated = true ];
   udp_proxy_fqdn_strategy udp_proxy_fqdn = 6 [ json_name = "udp_proxy_fqdn" ];
-  repeated mode_config custom_rule_v3 = 7
-      [ json_name = "custom_rule_v3", deprecated = true ];
-  repeated remote_rule remote_rules = 8
-      [ json_name = "remote_rules", deprecated = true ];
   // resolve domain locally
   bool resolve_locally = 9 [ json_name = "resolve_locally" ];
   string direct_resolver = 10 [ json_name = "direct_resolver" ];
   string proxy_resolver = 11 [ json_name = "proxy_resolver" ];
 
-  bool enabled_v2 = 14 [ json_name = "enabled_v2", deprecated = true ];
   repeated rulev2 rules_v2 = 12 [ json_name = "rules_v2" ];
   map<string, list> lists = 13 [ json_name = "lists" ];
   uint64 refresh_interval = 15 [ json_name = "refresh_interval" ];
+  maxminddb_geoip maxminddb_geoip = 16 [ json_name = "maxminddb_geoip" ];
 }
 
 enum resolve_strategy {

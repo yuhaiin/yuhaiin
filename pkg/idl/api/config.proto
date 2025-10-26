@@ -43,7 +43,11 @@ message block_history_list {
   bool dump_process_enabled = 2 [ json_name = "dump_process_enabled" ];
 }
 
-message list_response { repeated string names = 1 [ json_name = "names" ]; }
+message list_response {
+  repeated string names = 1 [ json_name = "names" ];
+  yuhaiin.bypass.maxminddb_geoip maxminddb_geoip = 2
+      [ json_name = "maxminddb_geoip" ];
+}
 
 message refresh_interval_response {
   // unit: minute
@@ -60,6 +64,8 @@ service lists {
   rpc refresh_interval(google.protobuf.Empty)
       returns (refresh_interval_response);
   rpc save_refresh_interval(refresh_interval_response)
+      returns (google.protobuf.Empty);
+  rpc save_maxminddb_geoip(yuhaiin.bypass.maxminddb_geoip)
       returns (google.protobuf.Empty);
 }
 

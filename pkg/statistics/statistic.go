@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
@@ -206,21 +207,38 @@ func (c *Connections) Ping(ctx context.Context, addr netapi.Address) (uint64, er
 	return resp, nil
 }
 
-func getRemote(con any) string {
+func getRemote(con any, gg *maxminddb.MaxMindDB) (addrStr string, geo string) {
 	if con == nil {
-		return ""
+		return
 	}
 
 	r, ok := con.(interface{ RemoteAddr() net.Addr })
-	if ok {
-		// https://github.com/google/gvisor/blob/a9bdef23522b5a2ff2a7ec07c3e0573885b46ecb/pkg/tcpip/adapters/gonet/gonet.go#L457
-		// gvisor TCPConn will return nil remoteAddr
-		if addr := r.RemoteAddr(); addr != nil {
-			return addr.String()
-		}
+	if !ok {
+		return
 	}
 
-	return ""
+	// https://github.com/google/gvisor/blob/a9bdef23522b5a2ff2a7ec07c3e0573885b46ecb/pkg/tcpip/adapters/gonet/gonet.go#L457
+	// gvisor TCPConn will return nil remoteAddr
+	addr := r.RemoteAddr()
+	if addr == nil {
+		return
+	}
+
+	addrStr = addr.String()
+
+	if gg == nil {
+		return
+	}
+
+	ad, err := netapi.ParseSysAddr(addr)
+	if err != nil || ad.IsFqdn() {
+		return
+	}
+
+	cun, _ := gg.Lookup(ad.(netapi.IPAddress).AddrPort().Addr())
+	geo = cun
+
+	return
 }
 
 func getLocal(con interface{ LocalAddr() net.Addr }) string {
@@ -246,41 +264,45 @@ func getRealAddr(store *netapi.Context, addr netapi.Address) string {
 }
 
 func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAddr() net.Addr }, addr netapi.Address) *statistic.Connection {
-	store := netapi.GetContext(ctx)
+	nc := netapi.GetContext(ctx)
+
+	outbound, outboundGeo := getRemote(conn, nc.ConnOptions().MaxminddbGeoip())
 
 	connection := &statistic.Connection_builder{
 		Id:   proto.Uint64(c.idSeed.Generate()),
-		Addr: proto.String(getRealAddr(store, addr)),
+		Addr: proto.String(getRealAddr(nc, addr)),
 		Type: (&statistic.NetType_builder{
 			ConnType: statistic.Type(statistic.Type_value[addr.Network()]).Enum(),
 		}).Build(),
-		Source:       stringerOrNil(store.Source),
-		Inbound:      stringerOrNil(store.GetInbound()),
-		InboundName:  stringOrNil(store.GetInboundName()),
-		Interface:    stringOrNil(store.GetInterface()),
-		Outbound:     stringOrNil(getRemote(conn)),
+		Geo:          stringOrNil(nc.GetGeo()),
+		Source:       stringerOrNil(nc.Source),
+		Inbound:      stringerOrNil(nc.GetInbound()),
+		InboundName:  stringOrNil(nc.GetInboundName()),
+		Interface:    stringOrNil(nc.GetInterface()),
+		Outbound:     stringOrNil(outbound),
+		OutboundGeo:  stringOrNil(outboundGeo),
 		LocalAddr:    stringOrNil(getLocal(conn)),
-		Destionation: stringerOrNil(store.Destination),
-		FakeIp:       stringerOrNil(store.GetFakeIP()),
-		Hosts:        stringerOrNil(store.GetHosts()),
+		Destionation: stringerOrNil(nc.Destination),
+		FakeIp:       stringerOrNil(nc.GetFakeIP()),
+		Hosts:        stringerOrNil(nc.GetHosts()),
 
-		Domain:   stringOrNil(store.GetDomainString()),
-		Ip:       stringOrNil(store.GetIPString()),
-		Tag:      stringOrNil(store.GetTag()),
-		Hash:     stringOrNil(store.Hash),
-		NodeName: stringOrNil(store.NodeName),
-		Protocol: stringOrNil(store.GetProtocol()),
-		Process:  stringOrNil(store.GetProcessName()),
+		Domain:   stringOrNil(nc.GetDomainString()),
+		Ip:       stringOrNil(nc.GetIPString()),
+		Tag:      stringOrNil(nc.GetTag()),
+		Hash:     stringOrNil(nc.Hash),
+		NodeName: stringOrNil(nc.NodeName),
+		Protocol: stringOrNil(nc.GetProtocol()),
+		Process:  stringOrNil(nc.GetProcessName()),
 
-		TlsServerName: stringOrNil(store.GetTLSServerName()),
-		HttpHost:      stringOrNil(store.GetHTTPHost()),
-		Component:     stringOrNil(store.GetComponent()),
-		Mode:          store.Mode.Enum(),
-		MatchHistory:  store.MatchHistory(),
-		UdpMigrateId:  uint64OrNil(store.GetUDPMigrateID()),
-		Pid:           uint64OrNil(uint64(store.GetProcessPid())),
-		Uid:           uint64OrNil(uint64(store.GetProcessUid())),
-		Resolver:      resolverNameOrNil(store.ConnOptions().Resolver().Resolver()),
+		TlsServerName: stringOrNil(nc.GetTLSServerName()),
+		HttpHost:      stringOrNil(nc.GetHTTPHost()),
+		Component:     stringOrNil(nc.GetComponent()),
+		Mode:          nc.Mode.Enum(),
+		MatchHistory:  nc.MatchHistory(),
+		UdpMigrateId:  uint64OrNil(nc.GetUDPMigrateID()),
+		Pid:           uint64OrNil(uint64(nc.GetProcessPid())),
+		Uid:           uint64OrNil(uint64(nc.GetProcessUid())),
+		Resolver:      resolverNameOrNil(nc.ConnOptions().Resolver().Resolver()),
 	}
 
 	if conn != nil {
