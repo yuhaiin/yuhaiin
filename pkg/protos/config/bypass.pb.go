@@ -1841,6 +1841,85 @@ func (b0 Port_builder) Build() *Port {
 	return m0
 }
 
+type Geoip struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Countries   *string                `protobuf:"bytes,1,opt,name=countries"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *Geoip) Reset() {
+	*x = Geoip{}
+	mi := &file_config_bypass_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Geoip) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Geoip) ProtoMessage() {}
+
+func (x *Geoip) ProtoReflect() protoreflect.Message {
+	mi := &file_config_bypass_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Geoip) GetCountries() string {
+	if x != nil {
+		if x.xxx_hidden_Countries != nil {
+			return *x.xxx_hidden_Countries
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *Geoip) SetCountries(v string) {
+	x.xxx_hidden_Countries = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 1)
+}
+
+func (x *Geoip) HasCountries() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *Geoip) ClearCountries() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_Countries = nil
+}
+
+type Geoip_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// countries splite by ',', e.g. "US,CA"
+	Countries *string
+}
+
+func (b0 Geoip_builder) Build() *Geoip {
+	m0 := &Geoip{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Countries != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 1)
+		x.xxx_hidden_Countries = b.Countries
+	}
+	return m0
+}
+
 type Rule struct {
 	state             protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Object isRule_Object          `protobuf_oneof:"object"`
@@ -1850,7 +1929,7 @@ type Rule struct {
 
 func (x *Rule) Reset() {
 	*x = Rule{}
-	mi := &file_config_bypass_proto_msgTypes[11]
+	mi := &file_config_bypass_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1862,7 +1941,7 @@ func (x *Rule) String() string {
 func (*Rule) ProtoMessage() {}
 
 func (x *Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_config_bypass_proto_msgTypes[11]
+	mi := &file_config_bypass_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1918,6 +1997,15 @@ func (x *Rule) GetPort() *Port {
 	return nil
 }
 
+func (x *Rule) GetGeoip() *Geoip {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Object.(*rule_Geoip); ok {
+			return x.Geoip
+		}
+	}
+	return nil
+}
+
 func (x *Rule) SetHost(v *Host) {
 	if v == nil {
 		x.xxx_hidden_Object = nil
@@ -1956,6 +2044,14 @@ func (x *Rule) SetPort(v *Port) {
 		return
 	}
 	x.xxx_hidden_Object = &rule_Port{v}
+}
+
+func (x *Rule) SetGeoip(v *Geoip) {
+	if v == nil {
+		x.xxx_hidden_Object = nil
+		return
+	}
+	x.xxx_hidden_Object = &rule_Geoip{v}
 }
 
 func (x *Rule) HasObject() bool {
@@ -2005,6 +2101,14 @@ func (x *Rule) HasPort() bool {
 	return ok
 }
 
+func (x *Rule) HasGeoip() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Object.(*rule_Geoip)
+	return ok
+}
+
 func (x *Rule) ClearObject() {
 	x.xxx_hidden_Object = nil
 }
@@ -2039,12 +2143,19 @@ func (x *Rule) ClearPort() {
 	}
 }
 
+func (x *Rule) ClearGeoip() {
+	if _, ok := x.xxx_hidden_Object.(*rule_Geoip); ok {
+		x.xxx_hidden_Object = nil
+	}
+}
+
 const Rule_Object_not_set_case case_Rule_Object = 0
 const Rule_Host_case case_Rule_Object = 1
 const Rule_Process_case case_Rule_Object = 2
 const Rule_Inbound_case case_Rule_Object = 3
 const Rule_Network_case case_Rule_Object = 4
 const Rule_Port_case case_Rule_Object = 5
+const Rule_Geoip_case case_Rule_Object = 6
 
 func (x *Rule) WhichObject() case_Rule_Object {
 	if x == nil {
@@ -2061,6 +2172,8 @@ func (x *Rule) WhichObject() case_Rule_Object {
 		return Rule_Network_case
 	case *rule_Port:
 		return Rule_Port_case
+	case *rule_Geoip:
+		return Rule_Geoip_case
 	default:
 		return Rule_Object_not_set_case
 	}
@@ -2075,6 +2188,7 @@ type Rule_builder struct {
 	Inbound *Source
 	Network *Network
 	Port    *Port
+	Geoip   *Geoip
 	// -- end of xxx_hidden_Object
 }
 
@@ -2097,13 +2211,16 @@ func (b0 Rule_builder) Build() *Rule {
 	if b.Port != nil {
 		x.xxx_hidden_Object = &rule_Port{b.Port}
 	}
+	if b.Geoip != nil {
+		x.xxx_hidden_Object = &rule_Geoip{b.Geoip}
+	}
 	return m0
 }
 
 type case_Rule_Object protoreflect.FieldNumber
 
 func (x case_Rule_Object) String() string {
-	md := file_config_bypass_proto_msgTypes[11].Descriptor()
+	md := file_config_bypass_proto_msgTypes[12].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -2134,6 +2251,10 @@ type rule_Port struct {
 	Port *Port `protobuf:"bytes,5,opt,name=port,oneof"`
 }
 
+type rule_Geoip struct {
+	Geoip *Geoip `protobuf:"bytes,6,opt,name=geoip,oneof"`
+}
+
 func (*rule_Host) isRule_Object() {}
 
 func (*rule_Process) isRule_Object() {}
@@ -2143,6 +2264,8 @@ func (*rule_Inbound) isRule_Object() {}
 func (*rule_Network) isRule_Object() {}
 
 func (*rule_Port) isRule_Object() {}
+
+func (*rule_Geoip) isRule_Object() {}
 
 type Network struct {
 	state                  protoimpl.MessageState `protogen:"opaque.v1"`
@@ -2155,7 +2278,7 @@ type Network struct {
 
 func (x *Network) Reset() {
 	*x = Network{}
-	mi := &file_config_bypass_proto_msgTypes[12]
+	mi := &file_config_bypass_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2167,7 +2290,7 @@ func (x *Network) String() string {
 func (*Network) ProtoMessage() {}
 
 func (x *Network) ProtoReflect() protoreflect.Message {
-	mi := &file_config_bypass_proto_msgTypes[12]
+	mi := &file_config_bypass_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2230,7 +2353,7 @@ type Or struct {
 
 func (x *Or) Reset() {
 	*x = Or{}
-	mi := &file_config_bypass_proto_msgTypes[13]
+	mi := &file_config_bypass_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2242,7 +2365,7 @@ func (x *Or) String() string {
 func (*Or) ProtoMessage() {}
 
 func (x *Or) ProtoReflect() protoreflect.Message {
-	mi := &file_config_bypass_proto_msgTypes[13]
+	mi := &file_config_bypass_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2297,7 +2420,7 @@ type Rulev2 struct {
 
 func (x *Rulev2) Reset() {
 	*x = Rulev2{}
-	mi := &file_config_bypass_proto_msgTypes[14]
+	mi := &file_config_bypass_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2309,7 +2432,7 @@ func (x *Rulev2) String() string {
 func (*Rulev2) ProtoMessage() {}
 
 func (x *Rulev2) ProtoReflect() protoreflect.Message {
-	mi := &file_config_bypass_proto_msgTypes[14]
+	mi := &file_config_bypass_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2550,7 +2673,7 @@ type List struct {
 
 func (x *List) Reset() {
 	*x = List{}
-	mi := &file_config_bypass_proto_msgTypes[15]
+	mi := &file_config_bypass_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2562,7 +2685,7 @@ func (x *List) String() string {
 func (*List) ProtoMessage() {}
 
 func (x *List) ProtoReflect() protoreflect.Message {
-	mi := &file_config_bypass_proto_msgTypes[15]
+	mi := &file_config_bypass_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2765,7 +2888,7 @@ func (b0 List_builder) Build() *List {
 type case_List_List protoreflect.FieldNumber
 
 func (x case_List_List) String() string {
-	md := file_config_bypass_proto_msgTypes[15].Descriptor()
+	md := file_config_bypass_proto_msgTypes[16].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -2797,7 +2920,7 @@ type ListLocal struct {
 
 func (x *ListLocal) Reset() {
 	*x = ListLocal{}
-	mi := &file_config_bypass_proto_msgTypes[16]
+	mi := &file_config_bypass_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2809,7 +2932,7 @@ func (x *ListLocal) String() string {
 func (*ListLocal) ProtoMessage() {}
 
 func (x *ListLocal) ProtoReflect() protoreflect.Message {
-	mi := &file_config_bypass_proto_msgTypes[16]
+	mi := &file_config_bypass_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2854,7 +2977,7 @@ type ListRemote struct {
 
 func (x *ListRemote) Reset() {
 	*x = ListRemote{}
-	mi := &file_config_bypass_proto_msgTypes[17]
+	mi := &file_config_bypass_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2866,7 +2989,7 @@ func (x *ListRemote) String() string {
 func (*ListRemote) ProtoMessage() {}
 
 func (x *ListRemote) ProtoReflect() protoreflect.Message {
-	mi := &file_config_bypass_proto_msgTypes[17]
+	mi := &file_config_bypass_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2962,13 +3085,16 @@ const file_config_bypass_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05names\x18\x02 \x03(\tR\x05names\"\x1c\n" +
 	"\x04port\x12\x14\n" +
-	"\x05ports\x18\x01 \x01(\tR\x05ports\"\x86\x02\n" +
+	"\x05ports\x18\x01 \x01(\tR\x05ports\"%\n" +
+	"\x05geoip\x12\x1c\n" +
+	"\tcountries\x18\x01 \x01(\tR\tcountries\"\xb5\x02\n" +
 	"\x04rule\x12*\n" +
 	"\x04host\x18\x01 \x01(\v2\x14.yuhaiin.bypass.hostH\x00R\x04host\x123\n" +
 	"\aprocess\x18\x02 \x01(\v2\x17.yuhaiin.bypass.processH\x00R\aprocess\x122\n" +
 	"\ainbound\x18\x03 \x01(\v2\x16.yuhaiin.bypass.sourceH\x00R\ainbound\x123\n" +
 	"\anetwork\x18\x04 \x01(\v2\x17.yuhaiin.bypass.networkH\x00R\anetwork\x12*\n" +
-	"\x04port\x18\x05 \x01(\v2\x14.yuhaiin.bypass.portH\x00R\x04portB\b\n" +
+	"\x04port\x18\x05 \x01(\v2\x14.yuhaiin.bypass.portH\x00R\x04port\x12-\n" +
+	"\x05geoip\x18\x06 \x01(\v2\x15.yuhaiin.bypass.geoipH\x00R\x05geoipB\b\n" +
 	"\x06object\"x\n" +
 	"\anetwork\x12>\n" +
 	"\anetwork\x18\x01 \x01(\x0e2$.yuhaiin.bypass.network.network_typeR\anetwork\"-\n" +
@@ -3023,7 +3149,7 @@ const file_config_bypass_proto_rawDesc = "" +
 	"\fskip_resolve\x10\x02B8Z.github.com/Asutorufa/yuhaiin/pkg/protos/config\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
 var file_config_bypass_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_config_bypass_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_config_bypass_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_config_bypass_proto_goTypes = []any{
 	(Mode)(0),                 // 0: yuhaiin.bypass.mode
 	(ResolveStrategy)(0),      // 1: yuhaiin.bypass.resolve_strategy
@@ -3041,49 +3167,51 @@ var file_config_bypass_proto_goTypes = []any{
 	(*Process)(nil),           // 13: yuhaiin.bypass.process
 	(*Source)(nil),            // 14: yuhaiin.bypass.source
 	(*Port)(nil),              // 15: yuhaiin.bypass.port
-	(*Rule)(nil),              // 16: yuhaiin.bypass.rule
-	(*Network)(nil),           // 17: yuhaiin.bypass.network
-	(*Or)(nil),                // 18: yuhaiin.bypass.or
-	(*Rulev2)(nil),            // 19: yuhaiin.bypass.rulev2
-	(*List)(nil),              // 20: yuhaiin.bypass.list
-	(*ListLocal)(nil),         // 21: yuhaiin.bypass.list_local
-	(*ListRemote)(nil),        // 22: yuhaiin.bypass.list_remote
-	nil,                       // 23: yuhaiin.bypass.bypass_config.ListsEntry
-	nil,                       // 24: yuhaiin.bypass.mode_config.ErrorMsgsEntry
+	(*Geoip)(nil),             // 16: yuhaiin.bypass.geoip
+	(*Rule)(nil),              // 17: yuhaiin.bypass.rule
+	(*Network)(nil),           // 18: yuhaiin.bypass.network
+	(*Or)(nil),                // 19: yuhaiin.bypass.or
+	(*Rulev2)(nil),            // 20: yuhaiin.bypass.rulev2
+	(*List)(nil),              // 21: yuhaiin.bypass.list
+	(*ListLocal)(nil),         // 22: yuhaiin.bypass.list_local
+	(*ListRemote)(nil),        // 23: yuhaiin.bypass.list_remote
+	nil,                       // 24: yuhaiin.bypass.bypass_config.ListsEntry
+	nil,                       // 25: yuhaiin.bypass.mode_config.ErrorMsgsEntry
 }
 var file_config_bypass_proto_depIdxs = []int32{
 	2,  // 0: yuhaiin.bypass.configv2.udp_proxy_fqdn:type_name -> yuhaiin.bypass.udp_proxy_fqdn_strategy
 	2,  // 1: yuhaiin.bypass.bypass_config.udp_proxy_fqdn:type_name -> yuhaiin.bypass.udp_proxy_fqdn_strategy
-	19, // 2: yuhaiin.bypass.bypass_config.rules_v2:type_name -> yuhaiin.bypass.rulev2
-	23, // 3: yuhaiin.bypass.bypass_config.lists:type_name -> yuhaiin.bypass.bypass_config.ListsEntry
+	20, // 2: yuhaiin.bypass.bypass_config.rules_v2:type_name -> yuhaiin.bypass.rulev2
+	24, // 3: yuhaiin.bypass.bypass_config.lists:type_name -> yuhaiin.bypass.bypass_config.ListsEntry
 	6,  // 4: yuhaiin.bypass.bypass_config.maxminddb_geoip:type_name -> yuhaiin.bypass.maxminddb_geoip
 	0,  // 5: yuhaiin.bypass.mode_config.mode:type_name -> yuhaiin.bypass.mode
 	1,  // 6: yuhaiin.bypass.mode_config.resolve_strategy:type_name -> yuhaiin.bypass.resolve_strategy
 	2,  // 7: yuhaiin.bypass.mode_config.udp_proxy_fqdn_strategy:type_name -> yuhaiin.bypass.udp_proxy_fqdn_strategy
-	24, // 8: yuhaiin.bypass.mode_config.error_msgs:type_name -> yuhaiin.bypass.mode_config.ErrorMsgsEntry
+	25, // 8: yuhaiin.bypass.mode_config.error_msgs:type_name -> yuhaiin.bypass.mode_config.ErrorMsgsEntry
 	10, // 9: yuhaiin.bypass.remote_rule.file:type_name -> yuhaiin.bypass.remote_rule_file
 	11, // 10: yuhaiin.bypass.remote_rule.http:type_name -> yuhaiin.bypass.remote_rule_http
 	8,  // 11: yuhaiin.bypass.remote_rule.default_mode:type_name -> yuhaiin.bypass.mode_config
 	12, // 12: yuhaiin.bypass.rule.host:type_name -> yuhaiin.bypass.host
 	13, // 13: yuhaiin.bypass.rule.process:type_name -> yuhaiin.bypass.process
 	14, // 14: yuhaiin.bypass.rule.inbound:type_name -> yuhaiin.bypass.source
-	17, // 15: yuhaiin.bypass.rule.network:type_name -> yuhaiin.bypass.network
+	18, // 15: yuhaiin.bypass.rule.network:type_name -> yuhaiin.bypass.network
 	15, // 16: yuhaiin.bypass.rule.port:type_name -> yuhaiin.bypass.port
-	3,  // 17: yuhaiin.bypass.network.network:type_name -> yuhaiin.bypass.network.network_type
-	16, // 18: yuhaiin.bypass.or.rules:type_name -> yuhaiin.bypass.rule
-	0,  // 19: yuhaiin.bypass.rulev2.mode:type_name -> yuhaiin.bypass.mode
-	1,  // 20: yuhaiin.bypass.rulev2.resolve_strategy:type_name -> yuhaiin.bypass.resolve_strategy
-	2,  // 21: yuhaiin.bypass.rulev2.udp_proxy_fqdn_strategy:type_name -> yuhaiin.bypass.udp_proxy_fqdn_strategy
-	18, // 22: yuhaiin.bypass.rulev2.rules:type_name -> yuhaiin.bypass.or
-	4,  // 23: yuhaiin.bypass.list.list_type:type_name -> yuhaiin.bypass.list.list_type_enum
-	21, // 24: yuhaiin.bypass.list.local:type_name -> yuhaiin.bypass.list_local
-	22, // 25: yuhaiin.bypass.list.remote:type_name -> yuhaiin.bypass.list_remote
-	20, // 26: yuhaiin.bypass.bypass_config.ListsEntry.value:type_name -> yuhaiin.bypass.list
-	27, // [27:27] is the sub-list for method output_type
-	27, // [27:27] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	16, // 17: yuhaiin.bypass.rule.geoip:type_name -> yuhaiin.bypass.geoip
+	3,  // 18: yuhaiin.bypass.network.network:type_name -> yuhaiin.bypass.network.network_type
+	17, // 19: yuhaiin.bypass.or.rules:type_name -> yuhaiin.bypass.rule
+	0,  // 20: yuhaiin.bypass.rulev2.mode:type_name -> yuhaiin.bypass.mode
+	1,  // 21: yuhaiin.bypass.rulev2.resolve_strategy:type_name -> yuhaiin.bypass.resolve_strategy
+	2,  // 22: yuhaiin.bypass.rulev2.udp_proxy_fqdn_strategy:type_name -> yuhaiin.bypass.udp_proxy_fqdn_strategy
+	19, // 23: yuhaiin.bypass.rulev2.rules:type_name -> yuhaiin.bypass.or
+	4,  // 24: yuhaiin.bypass.list.list_type:type_name -> yuhaiin.bypass.list.list_type_enum
+	22, // 25: yuhaiin.bypass.list.local:type_name -> yuhaiin.bypass.list_local
+	23, // 26: yuhaiin.bypass.list.remote:type_name -> yuhaiin.bypass.list_remote
+	21, // 27: yuhaiin.bypass.bypass_config.ListsEntry.value:type_name -> yuhaiin.bypass.list
+	28, // [28:28] is the sub-list for method output_type
+	28, // [28:28] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_config_bypass_proto_init() }
@@ -3095,14 +3223,15 @@ func file_config_bypass_proto_init() {
 		(*remoteRule_File)(nil),
 		(*remoteRule_Http)(nil),
 	}
-	file_config_bypass_proto_msgTypes[11].OneofWrappers = []any{
+	file_config_bypass_proto_msgTypes[12].OneofWrappers = []any{
 		(*rule_Host)(nil),
 		(*rule_Process)(nil),
 		(*rule_Inbound)(nil),
 		(*rule_Network)(nil),
 		(*rule_Port)(nil),
+		(*rule_Geoip)(nil),
 	}
-	file_config_bypass_proto_msgTypes[15].OneofWrappers = []any{
+	file_config_bypass_proto_msgTypes[16].OneofWrappers = []any{
 		(*list_Local)(nil),
 		(*list_Remote)(nil),
 	}
@@ -3112,7 +3241,7 @@ func file_config_bypass_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_config_bypass_proto_rawDesc), len(file_config_bypass_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

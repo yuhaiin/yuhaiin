@@ -318,8 +318,8 @@ github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMk
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/wireguard-go v0.0.0-20251018092039-8a0cc74fca62 h1:a03yrZKMJYYR7a0zPz7pqE5hqSgzLjEubIw6HTcArsg=
 github.com/yuhaiin/wireguard-go v0.0.0-20251018092039-8a0cc74fca62/go.mod h1:BOm5fXUBFM+m9woLNBoxI9TaBXXhGNP50LX/TGIvGb4=
-github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251026040108-4211c40e485f h1:0sWd6ge9qf9qIlQsxFdTskCU2jttpHfotofqGqun7l0=
-github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251026040108-4211c40e485f/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251026045136-a6c4c113489e h1:eSUSZq1vxpjWzCE/yvyI97C2V0n8zolDiZzDAre+4FE=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251026045136-a6c4c113489e/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 go.etcd.io/bbolt v1.4.3 h1:dEadXpI6G79deX5prL3QRNP6JB8UxVkqo4UPnHaNXJo=
 go.etcd.io/bbolt v1.4.3/go.mod h1:tKQlpPaYCVFctUIgFKFnAlvbmB3tpy1vkTnDWohtc0E=
 go.opencensus.io v0.18.0/go.mod h1:vKdFvxhtzZ9onBp9VKHK8z/sRpBMnKAsufL7wlDrCOA=
