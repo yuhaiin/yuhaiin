@@ -267,8 +267,6 @@ type Rules struct {
 }
 
 func NewRules(db chore.DB, route *Route) *Rules {
-	migrateConfig(db)
-
 	_ = db.View(func(s *config.Setting) error {
 		route.ms.Update(s.GetBypass().GetRulesV2())
 		return nil

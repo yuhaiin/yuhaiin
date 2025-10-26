@@ -66,6 +66,8 @@ message connection {
   repeated match_history_entry match_history = 28
       [ json_name = "match_history" ];
   string resolver = 30 [ json_name = "resolver" ];
+  string geo = 31 [ json_name = "geo" ];
+  string outbound_geo = 32 [ json_name = "outbound_geo" ];
 }
 
 message match_result {

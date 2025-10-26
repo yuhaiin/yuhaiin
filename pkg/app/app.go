@@ -141,10 +141,9 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	// local,remote,bootstrap dns
 	dns := AddCloser(closers, "resolver", resolver.NewResolver(configuration.ProxyChain))
-	list := route.NewLists(so.BypassConfig)
+	list := AddCloser(closers, "lists", route.NewLists(so.BypassConfig))
 	// bypass dialer and dns request
 	router := AddCloser(closers, "router", route.NewRoute(nodeManager.Outbound(), dns, list, so.ProcessDumper))
-	list.SetProxy(router)
 	rules := route.NewRules(so.BypassConfig, router)
 	// connections' statistic & flow data
 
@@ -162,6 +161,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	// make dns flow across all proxy chain
 	configuration.ProxyChain.Set(fakedns)
 	configuration.ResolverChain.Set(fakedns)
+	list.SetProxy(fakedns)
 
 	// inbound server
 	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, fakedns))
