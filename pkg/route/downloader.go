@@ -81,10 +81,10 @@ func (d *Downloader) DownloadIfNotExists(ctx context.Context, url string) error 
 		return err
 	}
 
-	return d.Download(ctx, url)
+	return d.Download(ctx, url, nil)
 }
 
-func (d *Downloader) Download(ctx context.Context, url string) error {
+func (d *Downloader) Download(ctx context.Context, url string, beforeWrite func()) error {
 	u, err := d.parseURI(url)
 	if err != nil {
 		return err
@@ -135,18 +135,33 @@ func (d *Downloader) Download(ctx context.Context, url string) error {
 		return fmt.Errorf("status code: %d, data: %s", resp.StatusCode, string(data))
 	}
 
-	f, err := os.Create(filepath.Join(d.path, hexName(url, url)))
+	// Download to a temporary file first to ensure atomicity of the file update.
+	tmpFile, err := os.CreateTemp(d.path, "download-*.tmp")
 	if err != nil {
-		return err
+		return fmt.Errorf("create temp file: %w", err)
 	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Warn("close file failed", "err", err)
-		}
-	}()
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
 
-	_, err = io.Copy(f, resp.Body)
-	return err
+	_, copyErr := io.Copy(tmpFile, resp.Body)
+	closeErr := tmpFile.Close()
+
+	if copyErr != nil {
+		return fmt.Errorf("copy to temp file: %w", copyErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close temp file: %w", closeErr)
+	}
+
+	if beforeWrite != nil {
+		beforeWrite()
+	}
+
+	finalPath := filepath.Join(d.path, hexName(url, url))
+	if err := os.Rename(tmpFile.Name(), finalPath); err != nil {
+		return fmt.Errorf("rename temp file to final path: %w", err)
+	}
+
+	return nil
 }
 
 func hexName(name, url string) string {

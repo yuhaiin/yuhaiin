@@ -293,21 +293,16 @@ func (s *Lists) resetRefreshInterval(minute uint64) {
 type listsRequestKey struct{}
 
 func (s *Lists) refreshGeoip(ctx context.Context, download string) string {
-	s.geoipmu.Lock()
-	geoip := s.geoip
-	if geoip != nil && geoip.m != nil {
-		if err := geoip.m.Close(); err != nil {
-			log.Error("failed to close geoip", "err", err)
+	er := s.downloader.Download(ctx, download, func() {
+		s.geoipmu.Lock()
+		geoip := s.geoip
+		if geoip != nil && geoip.m != nil {
+			if err := geoip.m.Close(); err != nil {
+				log.Error("failed to close geoip", "err", err)
+			}
 		}
-	}
-	s.geoipmu.Unlock()
-
-	er := s.downloader.Download(ctx, download)
-
-	s.geoipmu.Lock()
-	s.geoip = nil
-	s.geoipmu.Unlock()
-
+		s.geoipmu.Unlock()
+	})
 	if er != nil {
 		log.Error("get remote failed", "err", er, "url", download)
 		return er.Error()
@@ -335,7 +330,7 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 
 			errors[v.GetName()] = []string{}
 			for _, url := range v.GetRemote().GetUrls() {
-				er := s.downloader.Download(ctx, url)
+				er := s.downloader.Download(ctx, url, nil)
 				if er != nil {
 					errors[v.GetName()] = append(errors[v.GetName()], fmt.Sprintf("%s: %s", url, er.Error()))
 					log.Error("download remote failed", "err", er, "url", url)
