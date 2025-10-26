@@ -63,11 +63,8 @@ func DefaultSetting(path string) *Setting {
 			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
 		}.Build(),
 		Bypass: (&BypassConfig_builder{
-			Tcp:            Mode_bypass.Enum(),
-			Udp:            Mode_bypass.Enum(),
 			DirectResolver: proto.String("bootstrap"),
 			ProxyResolver:  proto.String("bootstrap"),
-			EnabledV2:      proto.Bool(true),
 			Lists: map[string]*List{
 				"LAN": List_builder{
 					ListType: List_host.Enum(),
@@ -116,8 +113,10 @@ func DefaultSetting(path string) *Setting {
 					},
 				}.Build(),
 			},
-			CustomRuleV3: []*ModeConfig{},
-			RemoteRules:  []*RemoteRule{},
+			MaxminddbGeoip: MaxminddbGeoip_builder{
+				DownloadUrl: proto.String("https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country-without-asn.mmdb"),
+				Error:       proto.String("NOT DOWNLOAD"),
+			}.Build(),
 		}).Build(),
 		Dns: DnsConfig_builder{
 			Server:           proto.String("127.0.0.1:5353"),
