@@ -27,7 +27,7 @@ import (
 type Fakedns struct {
 	dialer   netapi.Proxy
 	upstream netapi.Resolver
-	db       cache.RecursionCache
+	db       cache.Cache
 	fake     *resolver.FakeDNS
 
 	whitelist *domain.Fqdn[struct{}]
@@ -42,7 +42,7 @@ type Fakedns struct {
 	serverHost string
 }
 
-func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db cache.RecursionCache) *Fakedns {
+func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db cache.Cache) *Fakedns {
 	ipv4Range, _ := netip.ParsePrefix("10.2.0.1/24")
 	ipv6Range, _ := netip.ParsePrefix("fc00::/64")
 
@@ -98,10 +98,6 @@ func (f *Fakedns) Apply(c *config.FakednsConfig) {
 		return
 	}
 
-	if f.fake != nil {
-		f.fake.Flush()
-	}
-
 	f.fake = resolver.NewFakeDNS(f.upstream, ipRange, ipv6Range, f.db)
 }
 
@@ -136,10 +132,6 @@ func (f *Fakedns) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 }
 
 func (f *Fakedns) Close() error {
-	if f.fake != nil {
-		f.fake.Flush()
-	}
-
 	var err error
 	if er := f.upstream.Close(); er != nil {
 		err = errors.Join(err, er)

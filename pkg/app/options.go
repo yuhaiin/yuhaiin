@@ -149,7 +149,7 @@ type StartOptions struct {
 
 	ProcessDumper netapi.ProcessDumper
 
-	Cache      cache.RecursionCache
+	Cache      cache.Cache
 	Auth       *Auth
 	GRPCServer *grpc.Server
 

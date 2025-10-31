@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/kv"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -23,14 +22,6 @@ func TestMultipleProcess(t *testing.T) {
 
 	GetStore().PutFloat("float", 3.1415926)
 	t.Log(GetStore().GetFloat("float"))
-}
-
-func TestV(t *testing.T) {
-	cli, err := kv.NewClient("test/kv.sock")
-	if err != nil {
-		panic(fmt.Errorf("new kv client failed: %w", err))
-	}
-	defer cli.Close()
 }
 
 func TestXxx(t *testing.T) {
