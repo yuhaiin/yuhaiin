@@ -151,13 +151,14 @@ func (c *Cache) NewCache(str ...string) cache.Cache {
 		return c
 	}
 
-	bucket := c.bucketName
+	bucketName := make([][]byte, 0, len(str)+len(c.bucketName))
+	bucketName = append(bucketName, c.bucketName...)
 	for _, v := range str {
-		bucket = append(bucket, []byte(v))
+		bucketName = append(bucketName, []byte(v))
 	}
 
 	return &Cache{
 		db:         c.db,
-		bucketName: append(c.bucketName, bucket...),
+		bucketName: bucketName,
 	}
 }

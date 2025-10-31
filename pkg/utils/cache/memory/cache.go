@@ -2,7 +2,6 @@ package memory
 
 import (
 	"iter"
-	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -12,7 +11,7 @@ var _ cache.Cache = (*MemoryCache)(nil)
 
 type MemoryCache struct {
 	cache    syncmap.SyncMap[string, []byte]
-	subStore syncmap.SyncMap[string, cache.Cache]
+	subStore syncmap.SyncMap[string, *MemoryCache]
 }
 
 func NewMemoryCache() *MemoryCache {
@@ -49,9 +48,17 @@ func (m *MemoryCache) Close() error {
 	return nil
 }
 
-func (m *MemoryCache) NewCache(str ...string) cache.Cache {
-	s, _, _ := m.subStore.LoadOrCreate(strings.Join(str, "-"), func() (cache.Cache, error) {
+func (m *MemoryCache) loadOrCreateBucket(str string) *MemoryCache {
+	s, _, _ := m.subStore.LoadOrCreate(str, func() (*MemoryCache, error) {
 		return &MemoryCache{}, nil
 	})
 	return s
+}
+
+func (m *MemoryCache) NewCache(str ...string) cache.Cache {
+	z := m
+	for _, v := range str {
+		z = z.loadOrCreateBucket(v)
+	}
+	return z
 }
