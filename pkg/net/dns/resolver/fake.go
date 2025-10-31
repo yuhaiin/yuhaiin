@@ -29,17 +29,12 @@ type FakeDNS struct {
 	ipv6 *FakeIPPool
 }
 
-func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, ipv6Range netip.Prefix, db cache.RecursionCache) *FakeDNS {
+func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, ipv6Range netip.Prefix, db cache.Cache) *FakeDNS {
 	return &FakeDNS{
 		upStreamDo,
 		NewFakeIPPool(ipRange, db),
 		NewFakeIPPool(ipv6Range, db),
 	}
-}
-
-func (f *FakeDNS) Flush() {
-	f.ipv4.Flush()
-	f.ipv6.Flush()
 }
 
 func (f *FakeDNS) Equal(ipRange, ipv6Range netip.Prefix) bool {
@@ -331,7 +326,7 @@ type FakeIPPool struct {
 	mu sync.Mutex
 }
 
-func NewFakeIPPool(prefix netip.Prefix, db cache.RecursionCache) *FakeIPPool {
+func NewFakeIPPool(prefix netip.Prefix, db cache.Cache) *FakeIPPool {
 	prefix = prefix.Masked()
 
 	lenSize := 32
@@ -356,10 +351,6 @@ func NewFakeIPPool(prefix netip.Prefix, db cache.RecursionCache) *FakeIPPool {
 		current:    prefix.Addr().Prev(),
 		domainToIP: newFakeLru(lruSize, db, prefix),
 	}
-}
-
-func (n *FakeIPPool) Flush() {
-	n.domainToIP.Flush()
 }
 
 func (n *FakeIPPool) GetFakeIPForDomain(s string) netip.Addr {
@@ -428,8 +419,8 @@ type fakeLru struct {
 	Size int
 }
 
-func newFakeLru(size int, db cache.RecursionCache, iprange netip.Prefix) *fakeLru {
-	var bboltCache cache.RecursionCache
+func newFakeLru(size int, db cache.Cache, iprange netip.Prefix) *fakeLru {
+	var bboltCache cache.Cache
 	if iprange.Addr().Unmap().Is6() {
 		bboltCache = db.NewCache("fakedns_cachev6")
 	} else {
@@ -540,10 +531,4 @@ func (f *fakeLru) LastPopValue() (netip.Addr, bool) {
 		return netip.Addr{}, false
 	}
 	return f.LRU.LastPopValue()
-}
-
-func (f *fakeLru) Flush() {
-	// no sync cache
-	// flush data to disk before close
-	f.bbolt.Close()
 }

@@ -4,103 +4,249 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"iter"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/kv"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	cb "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"go.etcd.io/bbolt"
 )
 
-var _ cache.Cache = (*ShareCache)(nil)
+type Entry struct {
+	closer func() error
+	cache  cache.Cache
+	path   string
 
-// ShareCache open local bbotdb or connect to unix socket grpc
-type ShareCache struct {
-	store  cache.RecursionCache
+	buckets syncmap.SyncMap[string, cache.Cache]
+}
+
+func (e *Entry) Close() error {
+	if e == nil || e.closer == nil {
+		return nil
+	}
+
+	return e.closer()
+}
+
+func (e *Entry) GetBucketCache(bucket ...string) cache.Cache {
+	cache, _, _ := e.buckets.LoadOrCreate(strings.Join(bucket, "-"), func() (cache.Cache, error) {
+		return e.cache.NewCache(bucket...), nil
+	})
+
+	return cache
+}
+
+// ShareDB open local bbotdb or connect to unix socket grpc
+type ShareDB struct {
+	store  *Entry
 	dbPath string
 	socket string
-	batch  []string
 	mu     sync.Mutex
 }
 
-func NewShareCache(dbPath string, socket string, batch ...string) *ShareCache {
-	return &ShareCache{
+func NewShareCache(dbPath string, socket string) *ShareDB {
+	s := &ShareDB{
 		dbPath: dbPath,
 		socket: socket,
-		batch:  batch,
 	}
+
+	_, _, err := s.init()
+	if err != nil {
+		log.Warn("try init kv store failed", "err", err)
+	}
+
+	return s
 }
 
-func (a *ShareCache) initKVStore() (bool, error) {
+func (a *ShareDB) init() (*Entry, bool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.store != nil {
-		return false, nil
+		return a.store, false, nil
 	}
 
-	s, err := a.OpenStore()
+	e, err := a.openStore()
 	if err != nil {
-		return false, fmt.Errorf("open share store failed: %w", err)
+		return nil, false, fmt.Errorf("open share store failed: %w", err)
 	}
 
-	for _, v := range a.batch {
-		s = s.NewCache(v)
-	}
+	a.store = e
 
-	a.store = s
-
-	return true, nil
+	return a.store, true, nil
 }
 
-func (a *ShareCache) resetStore() error {
+func (a *ShareDB) reset() (*Entry, error) {
 	a.mu.Lock()
-	a.store.Close()
+	if a.store != nil {
+		_ = a.store.Close()
+	}
 	a.store = nil
 	a.mu.Unlock()
 
-	_, err := a.initKVStore()
-	return err
+	e, _, err := a.init()
+	return e, err
 }
 
-func (a *ShareCache) do(f func(cache.Cache) error) error {
-	inited, err := a.initKVStore()
+func (a *ShareDB) do(bucket []string, f func(cache.Cache) error) error {
+	store, inited, err := a.init()
 	if err != nil {
 		return err
 	}
 
-	err = f(a.store)
-	if err != nil {
-		if !inited {
-			err = a.resetStore()
-			if err != nil {
-				return err
-			}
+	err = f(store.GetBucketCache(bucket...))
+	if err == nil {
+		return nil
+	}
 
-			return f(a.store)
-		}
-
+	if inited {
 		return err
+	}
+
+	store, err = a.reset()
+	if err != nil {
+		return err
+	}
+
+	return f(store.GetBucketCache(bucket...))
+}
+
+func (a *ShareDB) Close() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.store != nil {
+		return a.store.Close()
 	}
 
 	return nil
 }
 
-func (a *ShareCache) Put(k iter.Seq2[[]byte, []byte]) error {
-	return a.do(func(s cache.Cache) error { return s.Put(k) })
+func (s *ShareDB) openBboltDB() (*Entry, error) {
+	if err := os.MkdirAll(filepath.Dir(s.dbPath), os.ModePerm); err != nil {
+		return nil, err
+	}
+
+	odb, err := bbolt.Open(s.dbPath, os.ModePerm, &bbolt.Options{
+		Timeout:        time.Second * 2,
+		Logger:         cb.BBoltDBLogger{},
+		NoFreelistSync: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// set big batch delay to reduce sync for fake dns and connection cache
+	odb.MaxBatchDelay = time.Millisecond * 300
+
+	cb := cb.NewCache(odb, "yuhaiin")
+
+	_ = os.Remove(s.socket)
+
+	ss, err := NewServer(s.socket, cb)
+	if err != nil {
+		_ = odb.Close()
+		return nil, err
+	}
+
+	return &Entry{
+		closer: func() error {
+			_ = ss.Close()
+			return odb.Close()
+		},
+		cache: cb,
+		path:  s.dbPath,
+	}, nil
 }
 
-func (a *ShareCache) Get(k []byte) ([]byte, error) {
+func (s *ShareDB) openHTTPDB() (*Entry, error) {
+	hkv := NewClient(s.socket)
+
+	if err := hkv.Ping(); err != nil {
+		return nil, err
+	}
+
+	return &Entry{
+		cache: hkv,
+		path:  s.socket,
+	}, nil
+}
+
+// openStore open local db or try to connect remote db
+func (s *ShareDB) openStore() (*Entry, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ch := make(chan *Entry)
+	errCh := make(chan error)
+
+	for _, open := range []func() (*Entry, error){
+		s.openBboltDB,
+		s.openHTTPDB,
+	} {
+		go func() {
+			e, err := open()
+			if err != nil {
+				select {
+				case <-ctx.Done():
+					return
+				case errCh <- err:
+				}
+			} else {
+				select {
+				case <-ctx.Done():
+					_ = e.Close()
+					return
+				case ch <- e:
+				}
+			}
+		}()
+	}
+
+	var er error
+	for range 2 {
+		select {
+		case <-ctx.Done():
+			return nil, errors.Join(er, ctx.Err())
+		case err := <-errCh:
+			er = errors.Join(er, err)
+		case s := <-ch:
+			log.Info("share bbolt db open success", "type", reflect.TypeOf(s.cache), "path", s.path)
+			return s, nil
+		}
+	}
+
+	return nil, er
+}
+
+var _ cache.Cache = (*Cache)(nil)
+
+type Cache struct {
+	batch []string
+	db    *ShareDB
+}
+
+func NewCache(db *ShareDB, batch ...string) *Cache {
+	return &Cache{
+		batch: batch,
+		db:    db,
+	}
+}
+
+func (a *Cache) Put(k iter.Seq2[[]byte, []byte]) error {
+	return a.db.do(a.batch, func(s cache.Cache) error { return s.Put(k) })
+}
+
+func (a *Cache) Get(k []byte) ([]byte, error) {
 	var b []byte
-	err := a.do(func(s cache.Cache) error {
+	err := a.db.do(a.batch, func(s cache.Cache) error {
 		var err error
 		b, err = s.Get(k)
 		return err
@@ -109,114 +255,14 @@ func (a *ShareCache) Get(k []byte) ([]byte, error) {
 	return b, err
 }
 
-func (a *ShareCache) Delete(k ...[]byte) error {
-	return a.do(func(s cache.Cache) error { return s.Delete(k...) })
+func (a *Cache) Delete(k ...[]byte) error {
+	return a.db.do(a.batch, func(s cache.Cache) error { return s.Delete(k...) })
 }
 
-func (a *ShareCache) Range(f func(key []byte, value []byte) bool) error {
-	return a.do(func(c cache.Cache) error { return c.Range(f) })
+func (a *Cache) Range(f func(key []byte, value []byte) bool) error {
+	return a.db.do(a.batch, func(c cache.Cache) error { return c.Range(f) })
 }
 
-func (a *ShareCache) Close() error {
-	if a.store != nil {
-		return a.store.Close()
-	}
-
-	return nil
-}
-
-type closeCache struct {
-	cache.RecursionCache
-	kvServer io.Closer
-}
-
-func (c *closeCache) Close() error {
-	if c.kvServer != nil {
-		_ = c.kvServer.Close()
-	}
-	return c.RecursionCache.Close()
-}
-
-func (c *closeCache) NewCache(b string) cache.RecursionCache {
-	return &closeCache{
-		RecursionCache: c.RecursionCache.NewCache(b),
-		kvServer:       c.kvServer,
-	}
-}
-
-// OpenStore open local db or try to connect remote db
-func (s *ShareCache) OpenStore() (cache.RecursionCache, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	type chStore struct {
-		store cache.RecursionCache
-		err   error
-		path  string
-	}
-	ch := make(chan chStore, 2)
-
-	sendData := func(s cache.RecursionCache, err error, path string) {
-		select {
-		case <-ctx.Done():
-			return
-		case ch <- chStore{
-			store: s,
-			err:   err,
-			path:  path,
-		}:
-		}
-	}
-
-	go func() {
-		if err := os.MkdirAll(filepath.Dir(s.dbPath), os.ModePerm); err != nil {
-			sendData(nil, fmt.Errorf("mkdir failed: %w", err), s.dbPath)
-			return
-		}
-
-		odb, err := bbolt.Open(s.dbPath, os.ModePerm, &bbolt.Options{
-			Timeout: time.Second * 2,
-			Logger:  cb.BBoltDBLogger{},
-		})
-		if err != nil {
-			sendData(nil, err, s.dbPath)
-			return
-		}
-
-		// set big batch delay to reduce sync for fake dns and connection cache
-		odb.MaxBatchDelay = time.Millisecond * 300
-
-		cb := cb.NewCache(odb, "yuhaiin")
-
-		_ = os.Remove(s.socket)
-
-		ss, err := kv.Start(s.socket, cb)
-		if err != nil {
-			log.Error("start kv server failed", slog.Any("err", err))
-		}
-
-		sendData(&closeCache{cb, ss}, err, s.dbPath)
-	}()
-
-	go func() {
-		kvc, err := kv.NewClient(s.socket)
-		sendData(kvc, err, s.socket)
-	}()
-
-	log.Info("start try to open share cache")
-
-	var er error
-	for range 2 {
-		s := <-ch
-		if s.err != nil {
-			er = errors.Join(er, s.err)
-			continue
-		}
-
-		log.Info("share bbolt db open success", "type", reflect.TypeOf(s.store), "path", s.path)
-
-		return s.store, nil
-	}
-
-	return nil, er
+func (a *Cache) NewCache(str ...string) cache.Cache {
+	return NewCache(a.db, append(a.batch, str...)...)
 }

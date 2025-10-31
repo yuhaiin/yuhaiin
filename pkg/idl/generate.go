@@ -22,9 +22,6 @@ package protos
 // tools
 //go:generate protoc --go_out=../protos --go_opt=paths=source_relative --go-grpc_out=../protos --go-grpc_opt=paths=source_relative tools/tools.proto
 
-// kv
-//go:generate protoc --go_out=../protos --go_opt=paths=source_relative --go-grpc_out=../protos --go-grpc_opt=paths=source_relative kv/kv.proto
-
 // backup
 //go:generate protoc --go_out=../protos --go_opt=paths=source_relative --go-grpc_out=../protos --go-grpc_opt=paths=source_relative backup/backup.proto
 

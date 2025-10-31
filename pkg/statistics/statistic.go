@@ -42,33 +42,19 @@ type Connections struct {
 	idSeed id.IDGenerator
 }
 
-func NewConnStore(cache, history, connection cache.Cache, dialer netapi.Proxy) *Connections {
+func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
 	if dialer == nil {
 		dialer = direct.Default
 	}
 
-	var infoStore InfoCache
-	if connection != nil {
-		infoStore = newInfoStore(connection)
-	} else {
-		infoStore = newInfoMemStore()
-	}
-
-	var historyStore InfoCache
-	if history != nil {
-		historyStore = newInfoStore(history)
-	} else {
-		historyStore = newInfoMemStore()
-	}
-
 	return &Connections{
 		Proxy:        dialer,
-		Cache:        NewTotalCache(cache),
+		Cache:        NewTotalCache(cache.NewCache("flow_data")),
 		notify:       newNotify(),
 		faildHistory: NewFailedHistory(),
 		counters:     newCounters(),
-		infoStore:    infoStore,
-		history:      NewHistory(historyStore),
+		infoStore:    newInfoStore(cache.NewCache("connection_data")),
+		history:      NewHistory(newInfoStore(cache.NewCache("history_data"))),
 	}
 }
 
