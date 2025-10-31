@@ -191,7 +191,7 @@ func (s *ShareDB) openStore() (*Entry, error) {
 		s.openBboltDB,
 		s.openHTTPDB,
 	} {
-		go func() {
+		go func(open func() (*Entry, error)) {
 			e, err := open()
 			if err != nil {
 				select {
@@ -207,7 +207,7 @@ func (s *ShareDB) openStore() (*Entry, error) {
 				case ch <- e:
 				}
 			}
-		}()
+		}(open)
 	}
 
 	var er error
