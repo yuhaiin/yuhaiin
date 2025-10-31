@@ -77,8 +77,9 @@ func AddCloser[T io.Closer](a *closers, name string, t T) T {
 
 func OpenBboltDB(path string) (*bbolt.DB, error) {
 	db, err := bbolt.Open(path, os.ModePerm, &bbolt.Options{
-		Timeout: time.Second * 2,
-		Logger:  ybbolt.BBoltDBLogger{},
+		Timeout:        time.Second * 2,
+		Logger:         ybbolt.BBoltDBLogger{},
+		NoFreelistSync: true,
 	})
 	switch err {
 	case bolterr.ErrInvalid, bolterr.ErrChecksum, bolterr.ErrVersionMismatch:
@@ -147,11 +148,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	rules := route.NewRules(so.BypassConfig, router)
 	// connections' statistic & flow data
 
-	flowCache := AddCloser(closers, "flow_cache", cache.NewCache("flow_data"))
-	connectionCache := AddCloser(closers, "connection_cache", cache.NewCache("connection_data"))
-	historyCache := AddCloser(closers, "history_cache", cache.NewCache("history_data"))
-	stcs := AddCloser(closers, "statistic",
-		statistics.NewConnStore(flowCache, historyCache, connectionCache, router))
+	stcs := AddCloser(closers, "statistic", statistics.NewConnStore(cache, router))
 	metrics.SetFlowCounter(stcs.Cache)
 	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, router))
 	// wrap dialer and dns resolver to fake ip, if use

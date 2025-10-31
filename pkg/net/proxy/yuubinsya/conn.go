@@ -44,9 +44,13 @@ func newPacketConn(conn pool.BufioConn, hash []byte, coalesce bool) *PacketConn 
 	return x
 }
 
-// Handshake Handshake
+func NewPacketConn(conn pool.BufioConn) *PacketConn {
+	return newPacketConn(conn, nil, false)
+}
+
+// handshake handshake
 // only used for client
-func (c *PacketConn) Handshake(migrateID uint64) (uint64, error) {
+func (c *PacketConn) handshake(migrateID uint64) (uint64, error) {
 	protocol := UDPWithMigrateID
 	w := pool.NewBufferSize(1024)
 	defer w.Reset()

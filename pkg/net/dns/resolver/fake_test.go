@@ -89,7 +89,6 @@ func TestNetip(t *testing.T) {
 	defer nd.Close()
 
 	ff := NewFakeIPPool(z, ybbolt.NewCache(nd))
-	defer ff.Flush()
 
 	ch := make(chan struct {
 		a  string

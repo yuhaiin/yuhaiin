@@ -308,6 +308,10 @@ func (s *Lists) refreshGeoip(ctx context.Context, download string) string {
 		return er.Error()
 	}
 
+	s.geoipmu.Lock()
+	s.geoip = nil
+	s.geoipmu.Unlock()
+
 	return ""
 }
 

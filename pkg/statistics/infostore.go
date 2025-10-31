@@ -145,15 +145,5 @@ func (c *infoStore) Delete(id uint64) {
 func (c *infoStore) Close() error {
 	c.cancel()
 	c.closed.Store(true)
-	return c.cache.Close()
+	return nil
 }
-
-var _ InfoCache = (*infoMemStore)(nil)
-
-type infoMemStore struct {
-	syncmap.SyncMap[uint64, *statistic.Connection]
-}
-
-func newInfoMemStore() *infoMemStore { return &infoMemStore{} }
-
-func (c *infoMemStore) Close() error { return nil }

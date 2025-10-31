@@ -94,7 +94,7 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 
 	store := netapi.GetContext(ctx)
 
-	migrate, err := pc.Handshake(store.GetUDPMigrateID())
+	migrate, err := pc.handshake(store.GetUDPMigrateID())
 	if err != nil {
 		_ = pc.Close()
 		return nil, err

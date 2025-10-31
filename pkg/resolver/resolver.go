@@ -92,8 +92,7 @@ func (r *Resolver) Close() error {
 		v.Resolver.Close()
 	}
 
-	r.store = syncmap.SyncMap[string, *Entry]{}
-
+	r.store.Clear()
 	return nil
 }
 

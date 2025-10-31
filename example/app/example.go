@@ -14,7 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/memory"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -28,7 +28,7 @@ func main() {
 		ResolverConfig: &mockDB{},
 		InboundConfig:  &mockDB{},
 		ChoreConfig:    &mockDB{},
-		Cache:          cache.NewMemoryCache(),
+		Cache:          memory.NewMemoryCache(),
 	})
 	if err != nil {
 		panic(err)
