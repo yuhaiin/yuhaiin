@@ -254,7 +254,7 @@ func NewBpfTcp() *BpfTcp {
 	// remove expired cache(after 1min)
 	b.timer = time.AfterFunc(time.Minute*10, func() {
 		if !b.active.Load() {
-			b.cache = syncmap.SyncMap[socket, pid]{}
+			b.cache.Clear()
 			return
 		}
 

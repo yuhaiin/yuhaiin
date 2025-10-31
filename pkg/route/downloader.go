@@ -14,11 +14,9 @@ import (
 	"runtime"
 	"strings"
 	"time"
-	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 type Downloader struct {
@@ -171,20 +169,4 @@ func hexName(name, url string) string {
 	_, _ = io.WriteString(h, url)
 
 	return hex.EncodeToString(h.Sum(nil))
-}
-
-func parseLine(txt string) (*Uri, unique.Handle[config.ModeEnum], error) {
-	before := TrimComment(txt)
-
-	uri, args, ok := SplitHostArgs(before)
-	if !ok {
-		return nil, unique.Handle[config.ModeEnum]{}, fmt.Errorf("split host failed: %s", txt)
-	}
-
-	modeEnum, ok := SplitModeArgs(args)
-	if !ok {
-		return nil, unique.Handle[config.ModeEnum]{}, fmt.Errorf("split mode failed: %s", txt)
-	}
-
-	return uri, modeEnum, nil
 }

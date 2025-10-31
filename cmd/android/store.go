@@ -18,6 +18,11 @@ import (
 func dbPath() string     { return filepath.Join(savepath, "yuhaiin.db") }
 func socketPath() string { return filepath.Join(datadir, "kv.sock") }
 
+var (
+	shareDB     *share.ShareDB
+	shareDBOnce sync.Once
+)
+
 type Store interface {
 	PutString(key string, value string)
 	PutInt(key string, value int32)
@@ -31,7 +36,6 @@ type Store interface {
 	GetFloat(key string) float32
 	GetBytes(key string) []byte
 	PutBytes(key string, value []byte)
-	Close() error
 }
 
 type storeImpl struct {
@@ -39,10 +43,12 @@ type storeImpl struct {
 }
 
 func newStore(batch string) Store {
-	return &storeImpl{db: share.NewShareCache(dbPath(), socketPath(), batch)}
-}
+	shareDBOnce.Do(func() {
+		shareDB = share.NewShareCache(dbPath(), socketPath())
+	})
 
-func (s *storeImpl) Close() error { return s.db.Close() }
+	return &storeImpl{db: share.NewCache(shareDB, batch)}
+}
 
 func (s *storeImpl) PutString(key string, value string) {
 	_ = s.db.Put(cache.Element([]byte(key), []byte(value)))
@@ -138,40 +144,21 @@ func (s *storeImpl) GetStringMap(key string) map[string]string {
 }
 
 var (
-	storeMu sync.RWMutex
-	store   Store
+	storeOnce = &sync.Once{}
+	store     Store
 )
 
 func GetStore() Store {
-	storeMu.RLock()
-	s := store
-	storeMu.RUnlock()
-
-	if s != nil {
-		return s
-	}
-
-	storeMu.Lock()
-	defer storeMu.Unlock()
-
-	if store != nil {
-		return store
-	}
-
-	store = newStore("Default")
+	storeOnce.Do(func() { store = newStore("Default") })
 	return store
 }
 
 func CloseStore() {
-	storeMu.Lock()
-	defer storeMu.Unlock()
-
-	if store == nil {
+	if shareDB == nil {
 		return
 	}
 
-	store.Close()
-	store = nil
+	shareDB.Close()
 }
 
 type configDB[T proto.Message] struct {

@@ -5,7 +5,7 @@ import (
 )
 
 type SyncMap[key comparable, value any] struct {
-	single single
+	single single[key]
 	data   sync.Map
 }
 
@@ -28,22 +28,28 @@ func (a *SyncMap[T1, T2]) LoadOrStore(key T1, value T2) (r T2, _ bool) {
 
 func (a *SyncMap[T1, T2]) LoadOrCreate(key T1, f func() (T2, error)) (r T2, _ bool, err error) {
 	v, ok := a.data.Load(key)
-	if !ok {
-		a.single.Do(key, func() {
-			v, ok = a.data.Load(key)
-			if ok {
-				return
-			}
-
-			v, err = f()
-			if err != nil {
-				return
-			}
-
-			v, ok = a.data.LoadOrStore(key, v)
-		})
+	if ok {
+		return v.(T2), true, nil
 	}
-	return v.(T2), ok, err
+
+	a.single.Do(key, func() {
+		v, ok = a.data.Load(key)
+		if ok {
+			return
+		}
+
+		v, err = f()
+		if err != nil {
+			return
+		}
+
+		v, ok = a.data.LoadOrStore(key, v)
+	})
+	if err != nil {
+		return
+	}
+
+	return v.(T2), ok, nil
 }
 
 func (a *SyncMap[T1, T2]) LoadAndDelete(key T1) (r T2, _ bool) {
@@ -89,83 +95,49 @@ func (a *SyncMap[T1, T2]) CompareAndDelete(key T1, old T2) (deleted bool) {
 
 func (a *SyncMap[T1, T2]) Clear() { a.data.Clear() }
 
-type Diff[K comparable, V any] struct {
-	Key      K
-	OldValue V
-	NewValue V
-	Rmoved   bool
-	Added    bool
-	Modif    bool
+type single[T comparable] struct {
+	store map[T]*sync.Mutex
+	mu    sync.RWMutex
 }
 
-func Differ[K comparable, V any](old, new *SyncMap[K, V], isSame func(v1, v2 V) bool) func(f func(Diff[K, V])) {
-	return func(f func(Diff[K, V])) {
-		for k, v1 := range old.Range {
-			v2, ok := new.Load(k)
-			if !ok {
-				f(Diff[K, V]{Rmoved: true, Key: k, OldValue: v1})
-				continue
-			}
+func (s *single[T]) getMu(key T) (*sync.Mutex, func()) {
+	var done = func() {}
 
-			if !isSame(v1, v2) {
-				f(Diff[K, V]{Modif: true, Key: k, OldValue: v1, NewValue: v2})
-			}
-		}
-
-		for k, v2 := range new.Range {
-			_, ok := old.Load(k)
-			if !ok {
-				f(Diff[K, V]{Added: true, Key: k, NewValue: v2})
-			}
+	s.mu.RLock()
+	if s.store != nil {
+		if mu, ok := s.store[key]; ok {
+			s.mu.RUnlock()
+			return mu, done
 		}
 	}
-}
+	s.mu.RUnlock()
 
-func DiffMap[K comparable, V any](old, new map[K]V, isSame func(v1, v2 V) bool) func(f func(Diff[K, V])) {
-	return func(f func(Diff[K, V])) {
-		for k, v1 := range old {
-			v2, ok := new[k]
-			if !ok {
-				f(Diff[K, V]{Rmoved: true, Key: k, OldValue: v1})
-				continue
-			}
-
-			if !isSame(v1, v2) {
-				f(Diff[K, V]{Modif: true, Key: k, OldValue: v1, NewValue: v2})
-			}
-		}
-
-		for k, v2 := range new {
-			_, ok := old[k]
-			if !ok {
-				f(Diff[K, V]{Added: true, Key: k, NewValue: v2})
-			}
-		}
-	}
-}
-
-type single struct {
-	store map[any]*sync.Mutex
-	mu    sync.Mutex
-}
-
-func (s *single) Do(key any, f func()) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.store == nil {
-		s.store = make(map[any]*sync.Mutex)
+		s.store = make(map[T]*sync.Mutex)
 	}
 
 	mu, ok := s.store[key]
-	if !ok {
-		mu = &sync.Mutex{}
-		s.store[key] = mu
-		defer func() {
-			s.mu.Lock()
-			delete(s.store, key)
-			s.mu.Unlock()
-		}()
+	if ok {
+		return mu, done
 	}
-	s.mu.Unlock()
+
+	mu = &sync.Mutex{}
+	s.store[key] = mu
+	done = func() {
+		s.mu.Lock()
+		delete(s.store, key)
+		s.mu.Unlock()
+	}
+
+	return mu, done
+}
+
+func (s *single[T]) Do(key T, f func()) {
+	mu, done := s.getMu(key)
+	defer done()
 
 	mu.Lock()
 	f()
