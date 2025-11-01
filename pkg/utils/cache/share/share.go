@@ -129,7 +129,7 @@ func (a *ShareDB) Close() error {
 	return nil
 }
 
-func (s *ShareDB) openBboltDB() (*Entry, error) {
+func (s *ShareDB) openLocal() (*Entry, error) {
 	if err := os.MkdirAll(filepath.Dir(s.dbPath), os.ModePerm); err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ func (s *ShareDB) openBboltDB() (*Entry, error) {
 	}, nil
 }
 
-func (s *ShareDB) openHTTPDB() (*Entry, error) {
+func (s *ShareDB) openRemote() (*Entry, error) {
 	hkv := NewClient(s.socket)
 
 	if err := hkv.Ping(); err != nil {
@@ -188,8 +188,8 @@ func (s *ShareDB) openStore() (*Entry, error) {
 	errCh := make(chan error)
 
 	for _, open := range []func() (*Entry, error){
-		s.openBboltDB,
-		s.openHTTPDB,
+		s.openLocal,
+		s.openRemote,
 	} {
 		go func(open func() (*Entry, error)) {
 			e, err := open()
@@ -264,5 +264,8 @@ func (a *Cache) Range(f func(key []byte, value []byte) bool) error {
 }
 
 func (a *Cache) NewCache(str ...string) cache.Cache {
-	return NewCache(a.db, append(a.batch, str...)...)
+	buckets := make([]string, 0, len(a.batch)+len(str))
+	buckets = append(buckets, a.batch...)
+	buckets = append(buckets, str...)
+	return NewCache(a.db, buckets...)
 }

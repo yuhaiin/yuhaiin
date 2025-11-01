@@ -97,7 +97,7 @@ yuhaiin-%:
 
 .PHONY: yuhaiin_android_aar
 yuhaiin_android_aar:
-	$(GO_MOBILE_BIND_CMD) -target="android/arm64,android/amd64" -androidapi 21 -o yuhaiin.aar -v ./cmd/android/
+	CGO_LDFLAGS="-Wl,-z,max-page-size=16384" $(GO_MOBILE_BIND_CMD) -target="android/arm64,android/amd64" -androidapi 24 -o yuhaiin.aar -v ./cmd/android/
 
 # sudo Xcode-select --switch /Applications/Xcode.app/Contents/Developer/
 .PHONY: yuhaiin_macos

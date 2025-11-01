@@ -10,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
 )
@@ -65,7 +66,10 @@ func (c *infoStore) Load(id uint64) (*statistic.Connection, bool) {
 		return cc, true
 	}
 
-	data, err := c.cache.Get(binary.BigEndian.AppendUint64([]byte{}, id))
+	buf := pool.GetBytes(8)
+	defer pool.PutBytes(buf)
+	binary.BigEndian.PutUint64(buf, id)
+	data, err := c.cache.Get(buf)
 	if err != nil {
 		log.Warn("get info failed", "id", id, "err", err)
 		return nil, false
@@ -92,6 +96,7 @@ func (c *infoStore) Flush() {
 		return
 	}
 
+	keysCache := make([][]byte, 0)
 	deleteIds := make([][]byte, 0)
 	err := c.cache.Put(func(yield func([]byte, []byte) bool) {
 		for id := range c.memcache.Range {
@@ -100,7 +105,9 @@ func (c *infoStore) Flush() {
 				continue
 			}
 
-			key := binary.BigEndian.AppendUint64([]byte{}, id)
+			key := pool.GetBytes(8)
+			binary.BigEndian.PutUint64(key, id)
+			keysCache = append(keysCache, key)
 
 			if info == nil {
 				deleteIds = append(deleteIds, key)
@@ -126,6 +133,10 @@ func (c *infoStore) Flush() {
 		if err := c.cache.Delete(deleteIds...); err != nil {
 			log.Warn("delete info failed", "err", err)
 		}
+	}
+
+	for _, v := range keysCache {
+		pool.PutBytes(v)
 	}
 }
 
