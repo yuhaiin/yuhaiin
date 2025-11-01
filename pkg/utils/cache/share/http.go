@@ -184,9 +184,8 @@ type Client struct {
 	buckets []string
 }
 
-func NewClient(unixPath string, buckets ...string) *Client {
+func NewClient(unixPath string) *Client {
 	return &Client{
-		buckets: buckets,
 		client: &http.Client{
 			Timeout: time.Second * 2,
 			Transport: &http.Transport{
@@ -292,8 +291,11 @@ func (c *Client) Ping() error {
 }
 
 func (c *Client) NewCache(str ...string) cache.Cache {
+	buckets := make([]string, 0, len(c.buckets)+len(str))
+	buckets = append(buckets, c.buckets...)
+	buckets = append(buckets, str...)
 	return &Client{
 		client:  c.client,
-		buckets: append(c.buckets, str...),
+		buckets: buckets,
 	}
 }
