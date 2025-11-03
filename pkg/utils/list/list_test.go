@@ -12,19 +12,13 @@ func TestSyncList(t *testing.T) {
 	b := l.Back()
 	p := l.Front()
 
-	for {
-		if b == nil {
-			break
-		}
-		t.Log(b.Value())
+	for b != nil {
+		t.Log(b.Value)
 		b = b.Prev()
 	}
 
-	for {
-		if p == nil {
-			break
-		}
-		t.Log(p.Value())
+	for p != nil {
+		t.Log(p.Value)
 		p = p.Next()
 	}
 }

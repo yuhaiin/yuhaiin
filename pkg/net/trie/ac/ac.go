@@ -91,7 +91,7 @@ func (a *ac) BuildFail() {
 		zz := queue.Front()
 		queue.Remove(zz)
 
-		z := zz.Value()
+		z := zz.Value
 		z.n.fail = a.findFail(z.p, z.b)
 
 		for k, v := range z.n.node {

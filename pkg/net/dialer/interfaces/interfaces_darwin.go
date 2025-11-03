@@ -414,7 +414,7 @@ func (m *monitor) Stop() error {
 	return nil
 }
 
-func startMonitor(ctx context.Context, onChange func(reason string)) {
+func startMonitor(onChange func(reason string)) NetworkMonitor {
 	messageTypes := set.NewSet[string]()
 	m := NewMonitor(func(msgs []route.Message) {
 		nSkip := 0
@@ -433,8 +433,5 @@ func startMonitor(ctx context.Context, onChange func(reason string)) {
 		onChange(strings.Join(slices.Collect(messageTypes.Range), ","))
 	})
 
-	<-ctx.Done()
-	if err := m.Stop(); err != nil {
-		log.Error("stop monitor failed", "err", err)
-	}
+	return m
 }
