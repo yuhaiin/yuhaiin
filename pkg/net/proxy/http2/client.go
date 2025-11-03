@@ -245,14 +245,14 @@ func (c *connList) Remove(conn *http2.ClientConn) {
 
 func (c *connList) removeElem(entry *list.Element[*http2.ClientConn]) {
 	c.list.Remove(entry)
-	delete(c.maps, entry.Value())
+	delete(c.maps, entry.Value)
 }
 
 func (c *connList) Get(req *http.Request) *http2.ClientConn {
 	e := c.list.Front()
 
 	for e != nil {
-		conn := e.Value()
+		conn := e.Value
 		state := conn.State()
 
 		if state.Closed || state.Closing {
@@ -271,7 +271,7 @@ func (c *connList) Get(req *http.Request) *http2.ClientConn {
 			continue
 		}
 
-		ContextGetClientConnInfo(req.Context(), e.Value())
+		ContextGetClientConnInfo(req.Context(), e.Value)
 
 		if currentNum+1 < c.maxConcurrency {
 			c.list.MoveToFront(e)

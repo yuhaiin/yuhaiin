@@ -3,7 +3,6 @@
 package interfaces
 
 import (
-	"context"
 	"errors"
 )
 
@@ -11,4 +10,8 @@ func defaultRoute() (d DefaultRouteDetails, err error) {
 	return d, errors.ErrUnsupported
 }
 
-func startMonitor(ctx context.Context, onChange func(string)) {}
+func startMonitor(onChange func(string)) NetworkMonitor { return stubNetworkMonitor{} }
+
+type stubNetworkMonitor struct{}
+
+func (stubNetworkMonitor) Stop() error { return nil }

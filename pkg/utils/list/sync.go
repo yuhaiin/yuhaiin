@@ -1,43 +1,40 @@
 package list
 
 import (
-	"container/list"
 	"sync"
 )
 
 type SyncList[T any] struct {
-	l  *list.List
+	l  *List[T]
 	mu sync.RWMutex
 }
 
-func NewSyncList[T any]() *SyncList[T] { return &SyncList[T]{l: list.New()} }
+func NewSyncList[T any]() *SyncList[T] { return &SyncList[T]{l: New[T]()} }
 
 func (s *SyncList[T]) MoveToFront(e *Element[T]) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	e.e.Value = e.Value
-	s.l.MoveToFront(e.e)
+	s.l.MoveToFront(e)
 }
 
 func (s *SyncList[T]) PushFront(v T) *Element[T] {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return &Element[T]{e: s.l.PushFront(v)}
+	return s.l.PushFront(v)
 }
 
 func (s *SyncList[T]) PushBack(v T) *Element[T] {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return &Element[T]{e: s.l.PushBack(v)}
+	return s.l.PushBack(v)
 }
 
 func (s *SyncList[T]) Remove(e *Element[T]) T {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.l.Remove(e.e)
+	s.l.Remove(e)
 
-	x, _ := e.e.Value.(T)
-	return x
+	return e.Value
 }
 
 func (s *SyncList[T]) Back() *Element[T] {
@@ -47,7 +44,7 @@ func (s *SyncList[T]) Back() *Element[T] {
 	if b == nil {
 		return nil
 	}
-	return &Element[T]{e: b}
+	return b
 }
 
 func (s *SyncList[T]) Front() *Element[T] {
@@ -57,7 +54,7 @@ func (s *SyncList[T]) Front() *Element[T] {
 	if b == nil {
 		return nil
 	}
-	return &Element[T]{e: b}
+	return b
 }
 
 func (s *SyncList[T]) Len() int {

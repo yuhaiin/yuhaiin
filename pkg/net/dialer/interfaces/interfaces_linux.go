@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/vishvananda/netlink"
@@ -169,25 +170,49 @@ func NewMonitor(onRouteUpdate func(netlink.Route), onLinkUpdate func(netlink.Lin
 }
 
 func (m *monitor) Start() error {
-	routeCh := make(chan netlink.RouteUpdate, 10)
-	if err := netlink.RouteSubscribe(routeCh, m.ctx.Done()); err != nil {
-		return err
-	}
-
-	routeLin := make(chan netlink.LinkUpdate, 10)
-	if err := netlink.LinkSubscribe(routeLin, m.ctx.Done()); err != nil {
-		return err
-	}
-
 	go func() {
+		var (
+			routeCh  chan netlink.RouteUpdate
+			routeLin chan netlink.LinkUpdate
+		)
+
+		routeSubscribe := func() {
+			routeCh = make(chan netlink.RouteUpdate, 10)
+			if err := netlink.RouteSubscribe(routeCh, m.ctx.Done()); err != nil {
+				log.Error("subscribe route failed", "err", err)
+				time.AfterFunc(time.Second*5, func() { close(routeCh) })
+			}
+		}
+
+		linkSubscribe := func() {
+			routeLin = make(chan netlink.LinkUpdate, 10)
+			if err := netlink.LinkSubscribe(routeLin, m.ctx.Done()); err != nil {
+				log.Error("subscribe link failed", "err", err)
+				time.AfterFunc(time.Second*5, func() { close(routeLin) })
+			}
+		}
+
+		routeSubscribe()
+		linkSubscribe()
+
 		for {
 			select {
 			case <-m.ctx.Done():
 				return
-			case msg := <-routeCh:
-				m.onRouteUpdate(msg.Route)
-			case msg := <-routeLin:
-				m.onLinkUpdate(msg.Link)
+			case msg, ok := <-routeCh:
+				if !ok {
+					log.Warn("check route listener is stopped, reconnect")
+					routeSubscribe()
+				} else {
+					m.onRouteUpdate(msg.Route)
+				}
+			case msg, ok := <-routeLin:
+				if !ok {
+					log.Warn("check link listener is stopped, reconnect")
+					linkSubscribe()
+				} else {
+					m.onLinkUpdate(msg.Link)
+				}
 			}
 		}
 	}()
@@ -199,7 +224,7 @@ func (m *monitor) Stop() error {
 	return nil
 }
 
-func startMonitor(ctx context.Context, onChange func(string)) {
+func startMonitor(onChange func(string)) NetworkMonitor {
 	m := NewMonitor(
 		func(r netlink.Route) {
 			onChange("route")
@@ -209,8 +234,5 @@ func startMonitor(ctx context.Context, onChange func(string)) {
 		},
 	)
 
-	<-ctx.Done()
-	if err := m.Stop(); err != nil {
-		log.Error("stop monitor failed", "err", err)
-	}
+	return m
 }

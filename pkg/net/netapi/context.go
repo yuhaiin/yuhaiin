@@ -205,12 +205,12 @@ func (s *ConnOptions) IsUdp() bool {
 	return s.isUdp
 }
 
-func (s *ConnOptions) SetMaxminddbGeoip(maxminddbGeoip *maxminddb.MaxMindDB) *ConnOptions {
+func (s *ConnOptions) SetMaxminddb(maxminddbGeoip *maxminddb.MaxMindDB) *ConnOptions {
 	s.maxminddbGeoip = maxminddbGeoip
 	return s
 }
 
-func (s *ConnOptions) MaxminddbGeoip() *maxminddb.MaxMindDB {
+func (s *ConnOptions) Maxminddb() *maxminddb.MaxMindDB {
 	return s.maxminddbGeoip
 }
 

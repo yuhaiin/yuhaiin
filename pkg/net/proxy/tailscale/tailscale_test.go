@@ -34,6 +34,7 @@ func TestTailscale(t *testing.T) {
 		AuthKey:  proto.String(strings.TrimSpace(string(key))),
 	}.Build(), nil)
 	assert.NoError(t, err)
+	defer tc.Close()
 
 	t.Run("tcp", func(t *testing.T) {
 		hc := http.Client{

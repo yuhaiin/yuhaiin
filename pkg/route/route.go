@@ -245,7 +245,7 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 		}
 	}
 
-	store.ConnOptions().SetMaxminddbGeoip(geo)
+	store.ConnOptions().SetMaxminddb(geo)
 
 	start := system.CheapNowNano()
 	var mode config.ModeEnum

@@ -66,7 +66,7 @@ func (l *SyncLru[K, V]) Range(ranger func(K, V) bool) {
 	defer l.mu.Unlock()
 
 	for k, v := range l.lru.mapping {
-		if !ranger(k, v.Value().data) {
+		if !ranger(k, v.Value.data) {
 			return
 		}
 	}
