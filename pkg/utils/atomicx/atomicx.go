@@ -1,32 +1,31 @@
 package atomicx
 
 import (
-	"sync"
 	"sync/atomic"
 )
 
 type Value[T any] struct {
-	x  T
-	mu sync.RWMutex
+	a atomic.Pointer[T]
 }
 
 func NewValue[T any](x T) *Value[T] {
-	return &Value[T]{x: x}
+	a := &Value[T]{}
+
+	a.Store(x)
+
+	return a
 }
 
 func (v *Value[T]) Load() T {
-	v.mu.RLock()
-	x := v.x
-	v.mu.RUnlock()
+	x := v.a.Load()
+	if x == nil {
+		return *new(T)
+	}
 
-	return x
+	return *x
 }
 
-func (v *Value[T]) Store(x T) {
-	v.mu.Lock()
-	v.x = x
-	v.mu.Unlock()
-}
+func (v *Value[T]) Store(x T) { v.a.Store(&x) }
 
 func NewPointer[T any](x *T) *atomic.Pointer[T] {
 	z := &atomic.Pointer[T]{}

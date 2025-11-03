@@ -34,8 +34,14 @@ message bypass_config {
 
   repeated rulev2 rules_v2 = 12 [ json_name = "rules_v2" ];
   map<string, list> lists = 13 [ json_name = "lists" ];
-  uint64 refresh_interval = 15 [ json_name = "refresh_interval" ];
   maxminddb_geoip maxminddb_geoip = 16 [ json_name = "maxminddb_geoip" ];
+  refresh_config refresh_config = 17 [ json_name = "refresh_config" ];
+}
+
+message refresh_config {
+  uint64 refresh_interval = 1 [ json_name = "refresh_interval" ];
+  uint64 last_refresh_time = 2 [ json_name = "last_refresh_time" ];
+  string error = 3 [ json_name = "error" ];
 }
 
 enum resolve_strategy {

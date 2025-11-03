@@ -5,11 +5,13 @@ package interfaces
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/netip"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/cidr"
@@ -95,59 +97,89 @@ func StartNetworkMonitor() networkMonitorCloser {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	var mu sync.Mutex
-	go startMonitor(ctx, func(reason string) {
-		mu.Lock()
-		defer mu.Unlock()
+	timer := time.NewTimer(time.Hour)
+	timer.Stop()
 
-		router, err := routes()
-		if err == nil {
-			defaultrouter.Store(router.ToTrie())
-		} else {
-			log.Error("get routes failed", "err", err)
-		}
-
-		maps, err := getLocalAddresses()
-		if err == nil {
-			localAddresses.Store(&maps)
-		} else {
-			log.Error("get local addresses failed", "err", err)
-		}
-
-		r, err := defaultRouteInterface()
-		if err != nil {
-			log.Warn("get default route interface failed", "err", err, "reason", reason)
-			return
-		}
-
-		old := defaultInterfaceName.Load()
-		if r == "" {
-			return
-		}
-
-		if old != nil && *old == r {
-			log.Info("default interface not changed",
-				"new", r, "old", *old, "reason", reason)
-			return
-		}
-
-		if !defaultInterfaceName.CompareAndSwap(old, &r) {
-			return
-		}
-
-		log.Info("update default interface",
-			"new", r, "old", atomicx.PointerOrEmpty(old), "reason", reason)
-
-		for _, v := range networkMonitors.Range {
-			if v == nil {
-				continue
-			}
-
-			v(r)
+	reason := atomicx.NewValue("")
+	nm := startMonitor(func(r string) {
+		select {
+		case <-ctx.Done():
+		default:
+			reason.Store(r)
+			timer.Reset(time.Second * 5)
 		}
 	})
 
+	go func() {
+		defer func() {
+			if err := nm.Stop(); err != nil {
+				log.Error("stop network monitor failed", "err", err)
+			}
+			timer.Stop()
+		}()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+				if err := reGetDefaultInterface(reason.Load()); err != nil {
+					log.Error("re get default interface failed", "err", err, "reason", reason)
+				}
+			}
+		}
+	}()
+
 	return networkMonitorCloser(cancel)
+}
+
+func reGetDefaultInterface(reason string) error {
+	router, err := routes()
+	if err == nil {
+		defaultrouter.Store(router.ToTrie())
+	} else {
+		log.Error("get routes failed", "err", err)
+	}
+
+	maps, err := getLocalAddresses()
+	if err != nil {
+		return fmt.Errorf("get local addresses failed: %w", err)
+	}
+
+	localAddresses.Store(&maps)
+
+	r, err := defaultRouteInterface()
+	if err != nil {
+		return fmt.Errorf("get default route interface failed: %w", err)
+	}
+
+	if r == "" {
+		return nil
+	}
+
+	old := defaultInterfaceName.Load()
+
+	if old != nil && *old == r {
+		log.Info("default interface not changed", "new", r, "old", *old, "reason", reason)
+		return nil
+	}
+
+	if !defaultInterfaceName.CompareAndSwap(old, &r) {
+		return nil
+	}
+
+	log.Info("update default interface",
+		"new", r, "old", atomicx.PointerOrEmpty(old), "reason", reason)
+
+	for _, v := range networkMonitors.Range {
+		if v == nil {
+			continue
+		}
+
+		v(r)
+	}
+
+	return nil
 }
 
 type networkMonitorCloser func()

@@ -20,13 +20,20 @@ import (
 )
 
 type Downloader struct {
-	path string
-	list *Lists
+	path   string
+	dialer func() netapi.Proxy
 }
 
 type uri struct {
 	scheme string
 	path   string
+}
+
+func NewDownloader(path string, dialer func() netapi.Proxy) *Downloader {
+	return &Downloader{
+		path:   path,
+		dialer: dialer,
+	}
 }
 
 func (d *Downloader) parseURI(urlstr string) (uri, error) {
@@ -105,7 +112,7 @@ func (d *Downloader) Download(ctx context.Context, url string, beforeWrite func(
 					return nil, err
 				}
 
-				return d.list.proxy.Load().Conn(ctx, ad)
+				return d.dialer().Conn(ctx, ad)
 			},
 		},
 		Timeout: 30 * time.Second,

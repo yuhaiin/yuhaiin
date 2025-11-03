@@ -47,12 +47,16 @@ message list_response {
   repeated string names = 1 [ json_name = "names" ];
   yuhaiin.bypass.maxminddb_geoip maxminddb_geoip = 2
       [ json_name = "maxminddb_geoip" ];
-}
-
-message refresh_interval_response {
   // unit: minute
   // 0 means disable refresh
-  uint64 refresh_interval = 1 [ json_name = "refresh_interval" ];
+  yuhaiin.bypass.refresh_config refresh_config = 3
+      [ json_name = "refresh_config" ];
+}
+
+message save_list_config_request {
+  yuhaiin.bypass.maxminddb_geoip maxminddb_geoip = 1
+      [ json_name = "maxminddb_geoip" ];
+  uint64 refresh_interval = 2 [ json_name = "refresh_interval" ];
 }
 
 service lists {
@@ -61,12 +65,7 @@ service lists {
   rpc save(yuhaiin.bypass.list) returns (google.protobuf.Empty);
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
   rpc refresh(google.protobuf.Empty) returns (google.protobuf.Empty);
-  rpc refresh_interval(google.protobuf.Empty)
-      returns (refresh_interval_response);
-  rpc save_refresh_interval(refresh_interval_response)
-      returns (google.protobuf.Empty);
-  rpc save_maxminddb_geoip(yuhaiin.bypass.maxminddb_geoip)
-      returns (google.protobuf.Empty);
+  rpc save_config(save_list_config_request) returns (google.protobuf.Empty);
 }
 
 message rule_response { repeated string names = 1 [ json_name = "names" ]; }
