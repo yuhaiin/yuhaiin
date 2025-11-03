@@ -110,7 +110,7 @@ func (l *ReverseSyncLru[K, V]) Range(ranger func(K, V)) {
 	defer l.mu.Unlock()
 
 	for k, v := range l.lru.mapping {
-		ranger(k, v.Value().data)
+		ranger(k, v.Value.data)
 	}
 }
 

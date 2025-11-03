@@ -82,19 +82,10 @@ func run(args []string) error {
 		}
 	}()
 
-	// if *pprof {
-	// 	if close, err := StartCPUProfile(*path); err != nil {
-	// 		log.Error("start cpu profile error", "err", err)
-	// 	} else {
-	// 		defer close()
-	// 	}
-	// }
-
 	ctx, cancel := context.WithCancelCause(context.TODO())
 	defer cancel(nil)
 
 	go func() {
-		// h2c for grpc insecure mode
 		err := http.Serve(lis, h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
 
@@ -163,34 +154,3 @@ func (processDumperImpl) ProcessName(network string, src, dst netapi.Address) (n
 
 	return netlink.FindProcessName(network, ip, to)
 }
-
-// func StartCPUProfile(path string) (func(), error) {
-// 	pgoFile := filepath.Join(path, "yuhaiin.pgo")
-// 	previousFile := filepath.Join(path, "previous.pgo")
-// 	err := ypprof.MergePgoTo([]string{pgoFile, previousFile}, previousFile)
-// 	if err != nil {
-// 		log.Error("merge pgo error", "err", err)
-// 	}
-
-// 	f, err := os.Create(pgoFile)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	// runtime.SetCPUProfileRate(100)
-// 	if err := pprof.StartCPUProfile(f); err != nil {
-// 		f.Close()
-// 		return nil, err
-// 	}
-
-// 	log.Info("start cpu profiling")
-
-// 	return func() {
-// 		pprof.StopCPUProfile()
-// 		f.Close() // error handling omitted for example
-// 		err := ypprof.MergePgoTo([]string{pgoFile, previousFile}, previousFile)
-// 		if err != nil {
-// 			log.Error("merge pgo error", "err", err)
-// 		}
-// 	}, nil
-// }

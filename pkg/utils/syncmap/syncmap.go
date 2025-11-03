@@ -140,6 +140,6 @@ func (s *single[T]) Do(key T, f func()) {
 	defer done()
 
 	mu.Lock()
+	defer mu.Unlock()
 	f()
-	mu.Unlock()
 }

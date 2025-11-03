@@ -22,9 +22,9 @@ type InfoCache interface {
 	io.Closer
 }
 
-var _ InfoCache = (*infoStore)(nil)
+var _ InfoCache = (*store)(nil)
 
-type infoStore struct {
+type store struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	memcache syncmap.SyncMap[uint64, *statistic.Connection]
@@ -32,9 +32,9 @@ type infoStore struct {
 	cache    cache.Cache
 }
 
-func newInfoStore(cache cache.Cache) *infoStore {
+func newInfoStore(cache cache.Cache) *store {
 	ctx, cancel := context.WithCancel(context.TODO())
-	c := &infoStore{
+	c := &store{
 		cache:  cache,
 		ctx:    ctx,
 		cancel: cancel,
@@ -56,7 +56,7 @@ func newInfoStore(cache cache.Cache) *infoStore {
 	return c
 }
 
-func (c *infoStore) Load(id uint64) (*statistic.Connection, bool) {
+func (c *store) Load(id uint64) (*statistic.Connection, bool) {
 	if c.closed.Load() {
 		return nil, false
 	}
@@ -83,7 +83,7 @@ func (c *infoStore) Load(id uint64) (*statistic.Connection, bool) {
 	return &info, true
 }
 
-func (c *infoStore) Store(id uint64, info *statistic.Connection) {
+func (c *store) Store(id uint64, info *statistic.Connection) {
 	if c.closed.Load() {
 		return
 	}
@@ -91,7 +91,7 @@ func (c *infoStore) Store(id uint64, info *statistic.Connection) {
 	c.memcache.Store(id, info)
 }
 
-func (c *infoStore) Flush() {
+func (c *store) Flush() {
 	if c.closed.Load() {
 		return
 	}
@@ -140,7 +140,7 @@ func (c *infoStore) Flush() {
 	}
 }
 
-func (c *infoStore) Delete(id uint64) {
+func (c *store) Delete(id uint64) {
 	if c.closed.Load() {
 		return
 	}
@@ -153,7 +153,7 @@ func (c *infoStore) Delete(id uint64) {
 	c.memcache.Store(id, nil)
 }
 
-func (c *infoStore) Close() error {
+func (c *store) Close() error {
 	c.cancel()
 	c.closed.Store(true)
 	return nil

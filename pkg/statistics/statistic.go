@@ -252,7 +252,7 @@ func getRealAddr(store *netapi.Context, addr netapi.Address) string {
 func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAddr() net.Addr }, addr netapi.Address) *statistic.Connection {
 	nc := netapi.GetContext(ctx)
 
-	outbound, outboundGeo := getRemote(conn, nc.ConnOptions().MaxminddbGeoip())
+	outbound, outboundGeo := getRemote(conn, nc.ConnOptions().Maxminddb())
 
 	connection := &statistic.Connection_builder{
 		Id:   proto.Uint64(c.idSeed.Generate()),

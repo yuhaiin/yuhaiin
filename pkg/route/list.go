@@ -25,6 +25,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -124,22 +125,21 @@ type Lists struct {
 }
 
 func NewLists(db chore.DB) *Lists {
+	proxy := atomicx.NewValue(direct.Default)
+
 	l := &Lists{
-		db:    db,
-		proxy: atomicx.NewValue(direct.Default),
+		db:         db,
+		proxy:      proxy,
+		downloader: NewDownloader(filepath.Join(db.Dir(), "rules"), proxy.Load),
 	}
 
-	l.downloader = &Downloader{
-		path: filepath.Join(db.Dir(), "rules"),
-		list: l,
-	}
+	var interval uint64
+	_ = db.View(func(s *config.Setting) error {
+		interval = s.GetBypass().GetRefreshConfig().GetRefreshInterval()
+		return nil
+	})
 
-	interval, err := l.RefreshInterval(context.Background(), &emptypb.Empty{})
-	if err != nil {
-		log.Error("get refresh interval failed", "err", err)
-	}
-
-	l.resetRefreshInterval(interval.GetRefreshInterval())
+	l.resetRefreshInterval(interval)
 
 	return l
 }
@@ -192,22 +192,24 @@ func (s *Lists) LoadGeoip() *maxminddb.MaxMindDB {
 }
 
 func (s *Lists) List(ctx context.Context, empty *emptypb.Empty) (*api.ListResponse, error) {
-	var names []string
-	var maxminddbGeoip *config.MaxminddbGeoip
+	ret := &api.ListResponse{}
+
 	err := s.db.View(func(ss *config.Setting) error {
-		names = slices.Collect(maps.Keys(ss.GetBypass().GetLists()))
-		maxminddbGeoip = ss.GetBypass().GetMaxminddbGeoip()
+		ret.SetNames(slices.Collect(maps.Keys(ss.GetBypass().GetLists())))
+		ret.SetMaxminddbGeoip(ss.GetBypass().GetMaxminddbGeoip())
+		ret.SetRefreshConfig(ss.GetBypass().GetRefreshConfig())
 		return nil
 	})
 
-	if maxminddbGeoip == nil {
-		maxminddbGeoip = config.DefaultSetting("").GetBypass().GetMaxminddbGeoip()
+	if ret.GetMaxminddbGeoip() == nil {
+		ret.SetMaxminddbGeoip(config.DefaultSetting("").GetBypass().GetMaxminddbGeoip())
 	}
 
-	return api.ListResponse_builder{
-		Names:          names,
-		MaxminddbGeoip: maxminddbGeoip,
-	}.Build(), err
+	if ret.GetRefreshConfig() == nil {
+		ret.SetRefreshConfig(config.RefreshConfig_builder{RefreshInterval: proto.Uint64(0)}.Build())
+	}
+
+	return ret, err
 }
 
 func (s *Lists) Get(ctx context.Context, req *wrapperspb.StringValue) (*config.List, error) {
@@ -237,7 +239,7 @@ func (s *Lists) Save(ctx context.Context, list *config.List) (*emptypb.Empty, er
 
 	if list.WhichList() == config.List_Remote_case {
 		for _, v := range list.GetRemote().GetUrls() {
-			if er := s.downloader.DownloadIfNotExists(ctx, v); er != nil {
+			if er := s.downloader.DownloadIfNotExists(ctx, v, nil); er != nil {
 				list.SetErrorMsgs(append(list.GetErrorMsgs(), fmt.Sprintf("%s: %s", v, er.Error())))
 				log.Error("get remote failed", "err", er, "url", v)
 			}
@@ -276,7 +278,12 @@ func (s *Lists) resetRefreshInterval(minute uint64) {
 
 	interval := time.Minute * time.Duration(minute)
 
-	log.Info("start lists refresh ticker", "interval", interval)
+	log.Info("start lists refresh ticker", "interval", interval, "min", minute)
+
+	// overflow
+	if interval <= 0 {
+		return
+	}
 
 	s.ticker = time.AfterFunc(interval, func() {
 		_, err := s.Refresh(context.Background(), &emptypb.Empty{})
@@ -292,8 +299,8 @@ func (s *Lists) resetRefreshInterval(minute uint64) {
 
 type listsRequestKey struct{}
 
-func (s *Lists) refreshGeoip(ctx context.Context, download string) string {
-	er := s.downloader.Download(ctx, download, func() {
+func (s *Lists) refreshGeoip(ctx context.Context, download string, force bool) string {
+	beforeWrite := func() {
 		s.geoipmu.Lock()
 		geoip := s.geoip
 		if geoip != nil && geoip.m != nil {
@@ -302,10 +309,17 @@ func (s *Lists) refreshGeoip(ctx context.Context, download string) string {
 			}
 		}
 		s.geoipmu.Unlock()
-	})
-	if er != nil {
-		log.Error("get remote failed", "err", er, "url", download)
-		return er.Error()
+	}
+
+	var err error
+	if force {
+		err = s.downloader.Download(ctx, download, beforeWrite)
+	} else {
+		err = s.downloader.DownloadIfNotExists(ctx, download, beforeWrite)
+	}
+	if err != nil {
+		log.Error("get remote failed", "err", err, "url", download)
+		return err.Error()
 	}
 
 	s.geoipmu.Lock()
@@ -343,35 +357,41 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 
 	ctx = context.WithValue(ctx, listsRequestKey{}, true)
 
-	errors := map[string][]string{}
-	var geoipErr string
+	var lists []*config.List
+	var geoipUrl string
 
 	err := s.db.View(func(ss *config.Setting) error {
-		for _, v := range ss.GetBypass().GetLists() {
-			if v.WhichList() != config.List_Remote_case {
-				continue
-			}
-
-			errors[v.GetName()] = []string{}
-			for _, url := range v.GetRemote().GetUrls() {
-				er := s.downloader.Download(ctx, url, nil)
-				if er != nil {
-					errors[v.GetName()] = append(errors[v.GetName()], fmt.Sprintf("%s: %s", url, er.Error()))
-					log.Error("download remote failed", "err", er, "url", url)
-				}
-			}
-		}
-
 		if ss.GetBypass().GetMaxminddbGeoip() == nil {
 			ss.GetBypass().SetMaxminddbGeoip(config.DefaultSetting("").GetBypass().GetMaxminddbGeoip())
 		}
 
-		geoipErr = s.refreshGeoip(ctx, ss.GetBypass().GetMaxminddbGeoip().GetDownloadUrl())
+		lists = slices.Collect(maps.Values(ss.GetBypass().GetLists()))
+		geoipUrl = ss.GetBypass().GetMaxminddbGeoip().GetDownloadUrl()
+
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
+
+	errors := map[string][]string{}
+
+	for _, v := range lists {
+		if v.WhichList() != config.List_Remote_case {
+			continue
+		}
+
+		errors[v.GetName()] = make([]string, 0, len(v.GetRemote().GetUrls()))
+
+		for _, url := range v.GetRemote().GetUrls() {
+			if er := s.downloader.Download(ctx, url, nil); er != nil {
+				errors[v.GetName()] = append(errors[v.GetName()], fmt.Sprintf("%s: %s", url, er.Error()))
+				log.Error("download remote failed", "err", er, "url", url)
+			}
+		}
+	}
+
+	geoipErr := s.refreshGeoip(ctx, geoipUrl, true)
 
 	err = s.db.Batch(func(ss *config.Setting) error {
 		for k, v := range errors {
@@ -379,12 +399,23 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 			if ss.GetBypass().GetLists() != nil && ss.GetBypass().GetLists()[k] != nil {
 				ss.GetBypass().GetLists()[k].SetErrorMsgs(v)
 			}
+		}
 
-			if ss.GetBypass().GetMaxminddbGeoip() == nil {
-				ss.GetBypass().SetMaxminddbGeoip(config.DefaultSetting("").GetBypass().GetMaxminddbGeoip())
-			}
+		if ss.GetBypass().GetMaxminddbGeoip() == nil {
+			ss.GetBypass().SetMaxminddbGeoip(config.DefaultSetting("").GetBypass().GetMaxminddbGeoip())
+		}
 
-			ss.GetBypass().GetMaxminddbGeoip().SetError(geoipErr)
+		ss.GetBypass().GetMaxminddbGeoip().SetError(geoipErr)
+
+		if ss.GetBypass().GetRefreshConfig() == nil {
+			ss.GetBypass().SetRefreshConfig(config.RefreshConfig_builder{RefreshInterval: proto.Uint64(0)}.Build())
+		}
+
+		ss.GetBypass().GetRefreshConfig().SetLastRefreshTime(uint64(time.Now().Unix()))
+		if err != nil {
+			ss.GetBypass().GetRefreshConfig().SetError(err.Error())
+		} else {
+			ss.GetBypass().GetRefreshConfig().SetError("")
 		}
 		return nil
 	})
@@ -410,44 +441,30 @@ func (s *Lists) Remove(ctx context.Context, req *wrapperspb.StringValue) (*empty
 	return &emptypb.Empty{}, nil
 }
 
-func (s *Lists) RefreshInterval(ctx context.Context, empty *emptypb.Empty) (*api.RefreshIntervalResponse, error) {
-	ret := &api.RefreshIntervalResponse{}
-	err := s.db.View(func(ss *config.Setting) error {
-		ret.SetRefreshInterval(ss.GetBypass().GetRefreshInterval())
-		return nil
-	})
-	return ret, err
-}
-
-func (s *Lists) SaveRefreshInterval(ctx context.Context, req *api.RefreshIntervalResponse) (*emptypb.Empty, error) {
+func (s *Lists) SaveConfig(ctx context.Context, req *api.SaveListConfigRequest) (*emptypb.Empty, error) {
 	err := s.db.Batch(func(ss *config.Setting) error {
 		if ss.GetBypass() == nil {
 			ss.SetBypass(&config.BypassConfig{})
 		}
 
-		ss.GetBypass().SetRefreshInterval(req.GetRefreshInterval())
-		return nil
-	})
+		ss.GetBypass().SetMaxminddbGeoip(req.GetMaxminddbGeoip())
 
-	if err == nil {
-		s.resetRefreshInterval(req.GetRefreshInterval())
-	}
-
-	return &emptypb.Empty{}, err
-}
-
-func (s *Lists) SaveMaxminddbGeoip(ctx context.Context, req *config.MaxminddbGeoip) (*emptypb.Empty, error) {
-	err := s.db.Batch(func(ss *config.Setting) error {
-		if ss.GetBypass() == nil {
-			ss.SetBypass(&config.BypassConfig{})
+		if ss.GetBypass().GetRefreshConfig() == nil {
+			ss.GetBypass().SetRefreshConfig(&config.RefreshConfig{})
 		}
 
-		ss.GetBypass().SetMaxminddbGeoip(req)
+		if req.GetRefreshInterval() != ss.GetBypass().GetRefreshConfig().GetRefreshInterval() {
+			// the refresh run in the [time.AfterFunc], so here will not deadlock
+			s.resetRefreshInterval(req.GetRefreshInterval())
+		}
 
-		geoipErr := s.refreshGeoip(ctx, ss.GetBypass().GetMaxminddbGeoip().GetDownloadUrl())
+		ss.GetBypass().GetRefreshConfig().SetRefreshInterval(req.GetRefreshInterval())
+
+		geoipErr := s.refreshGeoip(ctx, ss.GetBypass().GetMaxminddbGeoip().GetDownloadUrl(), false)
 		ss.GetBypass().GetMaxminddbGeoip().SetError(geoipErr)
 		return nil
 	})
+
 	return &emptypb.Empty{}, err
 }
 

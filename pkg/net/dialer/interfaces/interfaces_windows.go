@@ -1,7 +1,6 @@
 package interfaces
 
 import (
-	"context"
 	"net/url"
 	"strings"
 	"syscall"
@@ -230,7 +229,7 @@ func (m *monitor) Stop() error {
 	return nil
 }
 
-func startMonitor(ctx context.Context, onChange func(string)) {
+func startMonitor(onChange func(string)) NetworkMonitor {
 	m := NewMonitor(
 		func(*winipcfg.MibUnicastIPAddressRow) {
 			onChange("winipcfg.MibUnicastIPAddressRow")
@@ -240,8 +239,5 @@ func startMonitor(ctx context.Context, onChange func(string)) {
 		},
 	)
 
-	<-ctx.Done()
-	if err := m.Stop(); err != nil {
-		log.Error("stop monitor failed", "err", err)
-	}
+	return m
 }
