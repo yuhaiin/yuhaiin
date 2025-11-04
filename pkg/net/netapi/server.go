@@ -251,10 +251,11 @@ type DNSStreamRequest struct {
 	Conn        net.Conn
 	ForceFakeIP bool
 }
-type DNSServer interface {
+
+type DNSAgent interface {
 	Server
 	DoStream(context.Context, *DNSStreamRequest) error
-	Do(context.Context, *DNSRawRequest) error
+	DoDatagram(context.Context, *DNSRawRequest) error
 }
 
 type ChannelStreamListener struct {

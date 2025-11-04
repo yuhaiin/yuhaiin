@@ -23,9 +23,6 @@ func ParseCIDR(s string) (*CIDR, error) {
 	return &CIDR{IP: ip, Mask: int32(mask)}, nil
 }
 
-var v4DefaultMask = net.CIDRMask(32, 32)
-var v6DefaultMask = net.CIDRMask(128, 128)
-
 type AddRoute interface {
 	Add(*CIDR)
 }

@@ -21,22 +21,19 @@ import (
 )
 
 type handler struct {
-	dialer     netapi.Proxy
-	dnsHandler netapi.DNSServer
-	table      *nat.Table
+	dialer netapi.Proxy
+	table  *nat.Table
 
 	sniffer *controlSniffer
 }
 
-func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSServer) *handler {
+func NewHandler(dialer netapi.Proxy) *handler {
 	sniffer := newControlSniffer()
 	h := &handler{
-		dialer:     dialer,
-		table:      nat.NewTable(sniffer, dialer),
-		dnsHandler: dnsHandler,
-		sniffer:    sniffer,
+		dialer:  dialer,
+		table:   nat.NewTable(sniffer, dialer),
+		sniffer: sniffer,
 	}
-
 	return h
 }
 

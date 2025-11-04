@@ -27,7 +27,8 @@ var _ netapi.Handler = (*Inbound)(nil)
 type Inbound struct {
 	ctx context.Context
 
-	handler *handler
+	handler    *handler
+	dnsHandler netapi.DNSAgent
 
 	close context.CancelFunc
 
@@ -46,15 +47,27 @@ type Inbound struct {
 	interfacesLock sync.RWMutex
 }
 
-func NewInbound(dialer netapi.Proxy, dnsHandler netapi.DNSServer) *Inbound {
+type Option func(*Inbound)
+
+func WithDNSAgent(dnsHandler netapi.DNSAgent) Option {
+	return func(l *Inbound) {
+		l.dnsHandler = dnsHandler
+	}
+}
+
+func NewInbound(dialer netapi.Proxy, opts ...Option) *Inbound {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	l := &Inbound{
-		handler:    NewHandler(dialer, dnsHandler),
+		handler:    NewHandler(dialer),
 		ctx:        ctx,
 		close:      cancel,
 		interfaces: set.NewSet[string](),
 		udpChannel: make(chan *netapi.Packet, configuration.UDPChannelBufferSize),
+	}
+
+	for _, opt := range opts {
+		opt(l)
 	}
 
 	l.hijackDNS.Store(true)
@@ -72,7 +85,7 @@ func (l *Inbound) shouldHijackDNS(port uint16) bool {
 func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 	metrics.Counter.AddStreamRequest()
 
-	if (!meta.DnsRequest && !l.shouldHijackDNS(meta.Address.Port())) || l.handler.dnsHandler == nil {
+	if (!meta.DnsRequest && !l.shouldHijackDNS(meta.Address.Port())) || l.dnsHandler == nil {
 		store := netapi.WithContext(l.ctx)
 		store.Source = meta.Source
 		store.Destination = meta.Destination
@@ -84,7 +97,7 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 		return
 	}
 
-	err := l.handler.dnsHandler.DoStream(l.ctx, &netapi.DNSStreamRequest{
+	err := l.dnsHandler.DoStream(l.ctx, &netapi.DNSStreamRequest{
 		Conn:        meta.Src,
 		ForceFakeIP: l.fakeip.Load(),
 	})
@@ -128,7 +141,7 @@ func (l *Inbound) loopudp() {
 func (l *Inbound) handlePacket(packet *netapi.Packet) {
 	defer packet.DecRef()
 
-	if (!packet.IsDNSRequest() && !l.shouldHijackDNS(packet.Dst().Port())) || l.handler.dnsHandler == nil {
+	if (!packet.IsDNSRequest() && !l.shouldHijackDNS(packet.Dst().Port())) || l.dnsHandler == nil {
 		// we only use [netapi.Context] at new PacketConn instead of every packet
 		// so here just pass [l.ctx]
 		l.handler.Packet(l.ctx, packet)
@@ -144,8 +157,7 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 		ForceFakeIP: l.fakeip.Load(),
 	}
 
-	err := l.handler.dnsHandler.Do(l.ctx, dnsReq)
-	if err != nil {
+	if err := l.dnsHandler.DoDatagram(l.ctx, dnsReq); err != nil {
 		log.Select(netapi.LogLevel(err)).Print("udp server handle DnsHijacking", "msg", err)
 	}
 }
