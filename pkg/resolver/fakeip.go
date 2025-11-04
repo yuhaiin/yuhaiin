@@ -38,7 +38,7 @@ type Fakedns struct {
 	enabled        atomic.Bool
 
 	smu        sync.RWMutex
-	dnsServer  netapi.DNSServer
+	dnsServer  netapi.DNSAgent
 	serverHost string
 }
 
@@ -219,7 +219,7 @@ func (a *Fakedns) SetServer(s string) {
 	a.serverHost = s
 }
 
-func (a *Fakedns) server() netapi.DNSServer {
+func (a *Fakedns) server() netapi.DNSAgent {
 	a.smu.RLock()
 	defer a.smu.RUnlock()
 	return a.dnsServer
@@ -233,10 +233,10 @@ func (a *Fakedns) DoStream(ctx context.Context, req *netapi.DNSStreamRequest) er
 	return s.DoStream(ctx, req)
 }
 
-func (a *Fakedns) Do(ctx context.Context, req *netapi.DNSRawRequest) error {
+func (a *Fakedns) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) error {
 	s := a.server()
 	if s == nil {
 		return fmt.Errorf("dns server is not initialized")
 	}
-	return s.Do(ctx, req)
+	return s.DoDatagram(ctx, req)
 }

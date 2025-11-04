@@ -161,7 +161,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	list.SetProxy(fakedns)
 
 	// inbound server
-	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, fakedns))
+	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, inbound.WithDNSAgent(fakedns)))
 	dialer.SkipInterface = inbounds.Interfaces
 	// tools
 	tools := chore.NewTools(so.ChoreConfig, logController)

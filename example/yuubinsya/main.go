@@ -38,7 +38,7 @@ func main() {
 	interfaces.SetDefaultInterfaceName("")
 	configuration.IPv6.Store(false)
 
-	handler := inbound.NewInbound(direct.Default, nil)
+	handler := inbound.NewInbound(direct.Default)
 
 	password := os.Getenv("PASSWORD")
 	host := os.Getenv("HOST")

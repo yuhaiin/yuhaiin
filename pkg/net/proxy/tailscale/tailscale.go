@@ -562,29 +562,29 @@ func (d *dnsPacket) WriteTo(buf []byte, addr net.Addr) (int, error) {
 		return 0, err
 	}
 
-	if len(msg.Question) == 0 || msg.Question[0].Qtype != mdns.TypeA {
-		return len(buf), nil
-	}
-
-	q := msg.Question[0]
-	name := strings.TrimSuffix(q.Name, ".")
-
-	ip, ok := d.dialer.GetDNSMap()[name]
-	if !ok {
+	if len(msg.Question) == 0 {
 		return len(buf), nil
 	}
 
 	msg.Response = true
-	msg.Answer = []mdns.RR{
-		&mdns.A{
-			Hdr: mdns.RR_Header{
-				Name:   q.Name,
-				Ttl:    600,
-				Class:  mdns.ClassINET,
-				Rrtype: mdns.TypeA,
-			},
-			A: ip.AsSlice(),
-		},
+
+	if msg.Question[0].Qtype == mdns.TypeA {
+		q := msg.Question[0]
+		name := strings.TrimSuffix(q.Name, ".")
+
+		if ip, ok := d.dialer.GetDNSMap()[name]; ok {
+			msg.Answer = []mdns.RR{
+				&mdns.A{
+					Hdr: mdns.RR_Header{
+						Name:   q.Name,
+						Ttl:    20,
+						Class:  mdns.ClassINET,
+						Rrtype: mdns.TypeA,
+					},
+					A: ip.AsSlice(),
+				},
+			}
+		}
 	}
 
 	data, err := msg.Pack()

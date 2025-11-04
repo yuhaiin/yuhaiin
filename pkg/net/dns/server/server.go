@@ -37,7 +37,7 @@ type dnsServer struct {
 	udpSemaphore semaphore.Semaphore
 }
 
-func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
+func NewServer(server string, process netapi.Resolver) netapi.DNSAgent {
 	ctx, cancel := context.WithCancel(context.Background())
 	d := &dnsServer{
 		ctx:          ctx,
@@ -346,7 +346,7 @@ func (d *dnsServer) handle() {
 	}
 }
 
-func (d *dnsServer) Do(ctx context.Context, req *netapi.DNSRawRequest) error {
+func (d *dnsServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

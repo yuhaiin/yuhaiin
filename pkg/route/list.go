@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"log/slog"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -184,7 +183,7 @@ func (s *Lists) LoadGeoip() *maxminddb.MaxMindDB {
 		return nil
 	}
 
-	slog.Info("new geoip", "path", path, "cost", time.Since(now))
+	log.Info("new geoip", "path", path, "cost", time.Since(now))
 
 	s.geoip = &geoip{m: ggeoip}
 
@@ -299,32 +298,40 @@ func (s *Lists) resetRefreshInterval(minute uint64) {
 
 type listsRequestKey struct{}
 
-func (s *Lists) refreshGeoip(ctx context.Context, download string, force bool) string {
-	beforeWrite := func() {
-		s.geoipmu.Lock()
-		geoip := s.geoip
-		if geoip != nil && geoip.m != nil {
-			if err := geoip.m.Close(); err != nil {
-				log.Error("failed to close geoip", "err", err)
-			}
-		}
-		s.geoipmu.Unlock()
+func (s *Lists) closeCurrentGeoip() {
+	s.geoipmu.Lock()
+	defer s.geoipmu.Unlock()
+
+	geoip := s.geoip
+	if geoip == nil || geoip.m == nil {
+		return
 	}
 
+	if err := geoip.m.Close(); err != nil {
+		log.Error("failed to close geoip", "err", err)
+	}
+
+	geoip.m = nil
+}
+
+func (s *Lists) refreshGeoip(ctx context.Context, download string, force bool) string {
 	var err error
 	if force {
-		err = s.downloader.Download(ctx, download, beforeWrite)
+		err = s.downloader.Download(ctx, download, s.closeCurrentGeoip)
 	} else {
-		err = s.downloader.DownloadIfNotExists(ctx, download, beforeWrite)
+		err = s.downloader.DownloadIfNotExists(ctx, download, s.closeCurrentGeoip)
 	}
+
+	s.geoipmu.Lock()
+	if s.geoip.m == nil {
+		s.geoip = nil
+	}
+	s.geoipmu.Unlock()
+
 	if err != nil {
 		log.Error("get remote failed", "err", err, "url", download)
 		return err.Error()
 	}
-
-	s.geoipmu.Lock()
-	s.geoip = nil
-	s.geoipmu.Unlock()
 
 	return ""
 }
@@ -338,14 +345,7 @@ func (s *Lists) Close() error {
 	}
 	s.tickermu.Unlock()
 
-	s.geoipmu.Lock()
-	geoip := s.geoip
-	if geoip != nil && geoip.m != nil {
-		if err := geoip.m.Close(); err != nil {
-			log.Error("failed to close geoip", "err", err)
-		}
-	}
-	s.geoipmu.Unlock()
+	s.closeCurrentGeoip()
 	return nil
 }
 
