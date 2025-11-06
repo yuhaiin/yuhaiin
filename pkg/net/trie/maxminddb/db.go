@@ -1,14 +1,18 @@
 package maxminddb
 
 import (
+	"context"
 	"errors"
 	"net/netip"
 	"sync"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/oschwald/maxminddb-golang/v2"
 	"github.com/oschwald/maxminddb-golang/v2/mmdbdata"
 )
+
+var _ (netapi.MaxMindDB) = (*MaxMindDB)(nil)
 
 type MaxMindDB struct {
 	db     *maxminddb.Reader
@@ -35,6 +39,38 @@ func (m *MaxMindDB) Lookup(ip netip.Addr) (string, error) {
 	var country FastCountry
 	err := m.db.Lookup(ip).Decode(&country)
 	return country.CountryISO, err
+}
+
+func (m *MaxMindDB) LookupAddr(ctx context.Context, addr netapi.Address) (string, error) {
+	if !addr.IsFqdn() {
+		return m.Lookup(addr.(netapi.IPAddress).AddrPort().Addr())
+	}
+
+	store := netapi.GetContext(ctx)
+
+	matchResolver := store.ConnOptions().Resolver().Resolver()
+	if matchResolver == nil {
+		return "", errors.New("not found geoip")
+	}
+
+	ips, err := matchResolver.LookupIP(ctx, addr.Hostname())
+	if err != nil {
+		return "", errors.New("not found geoip")
+	}
+
+	for ip := range ips.Iter() {
+		add, ok := netip.AddrFromSlice(ip)
+		if !ok {
+			continue
+		}
+
+		mark, err := m.Lookup(add)
+		if err == nil {
+			return mark, nil
+		}
+	}
+
+	return "", errors.New("not found geoip")
 }
 
 type FastCountry struct {

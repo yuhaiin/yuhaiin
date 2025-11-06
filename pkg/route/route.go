@@ -204,8 +204,6 @@ func (s *Route) addMatchers() {
 	s.AddMatcher("normal mode", func(ctx context.Context, host netapi.Address) config.ModeEnum {
 		store := netapi.GetContext(ctx)
 
-		store.ConnOptions().Resolver().SetResolver(s.r.Get(s.getResolverFallback(config.Proxy), ""))
-
 		if store.GetHosts() == nil && !host.IsFqdn() && store.SniffHost() != "" {
 			addr, err := netapi.ParseAddressPort(host.Network(), store.SniffHost(), host.Port())
 			if err == nil {
@@ -237,15 +235,15 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 
 	store := netapi.GetContext(ctx)
 
-	geo := s.ms.list.LoadGeoip()
-	if geo != nil && !addr.IsFqdn() {
-		country, _ := geo.Lookup(addr.(netapi.IPAddress).AddrPort().Addr())
-		if country != "" {
+	store.ConnOptions().Resolver().SetResolver(s.r.Get(s.getResolverFallback(config.Proxy), ""))
+
+	if geo := s.ms.list.LoadGeoip(); geo != nil {
+		if country, err := geo.LookupAddr(ctx, addr); err == nil {
 			store.SetGeo(country)
 		}
-	}
 
-	store.ConnOptions().SetMaxminddb(geo)
+		store.ConnOptions().SetMaxminddb(geo)
+	}
 
 	start := system.CheapNowNano()
 	var mode config.ModeEnum

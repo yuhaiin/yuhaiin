@@ -12,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
@@ -193,7 +192,7 @@ func (c *Connections) Ping(ctx context.Context, addr netapi.Address) (uint64, er
 	return resp, nil
 }
 
-func getRemote(con any, gg *maxminddb.MaxMindDB) (addrStr string, geo string) {
+func getRemote(con any, gg netapi.MaxMindDB) (addrStr string, geo string) {
 	if con == nil {
 		return
 	}

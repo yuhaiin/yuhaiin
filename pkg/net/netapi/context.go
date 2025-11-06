@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
@@ -113,7 +113,7 @@ type ConnOptions struct {
 	bindInterface  *string
 	resolver       *ResolverOptions
 	routeMode      config.Mode
-	maxminddbGeoip *maxminddb.MaxMindDB
+	maxminddbGeoip MaxMindDB
 	systemDialer   bool
 	skipRoute      bool
 	isUdp          bool
@@ -205,12 +205,17 @@ func (s *ConnOptions) IsUdp() bool {
 	return s.isUdp
 }
 
-func (s *ConnOptions) SetMaxminddb(maxminddbGeoip *maxminddb.MaxMindDB) *ConnOptions {
+type MaxMindDB interface {
+	Lookup(ip netip.Addr) (string, error)
+	LookupAddr(ctx context.Context, addr Address) (string, error)
+}
+
+func (s *ConnOptions) SetMaxminddb(maxminddbGeoip MaxMindDB) *ConnOptions {
 	s.maxminddbGeoip = maxminddbGeoip
 	return s
 }
 
-func (s *ConnOptions) Maxminddb() *maxminddb.MaxMindDB {
+func (s *ConnOptions) Maxminddb() MaxMindDB {
 	return s.maxminddbGeoip
 }
 
