@@ -43,7 +43,7 @@ func NewDoH3(config Config) (Dialer, error) {
 			}
 
 			c := &DOQBufferWrapConn{direct.NewBufferPacketConn(conn), fmt.Sprint(doqIgGenerate.Generate())}
-			return quic.DialEarly(ctx, c, ad, tlsCfg, cfg)
+			return quic.Dial(ctx, c, ad, tlsCfg, cfg)
 		},
 		TLSClientConfig: tlsConfig,
 	}

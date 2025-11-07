@@ -10,6 +10,7 @@ replace (
 )
 
 require (
+	github.com/Diniboy1123/connect-ip-go v0.0.0-20251011145655-7be32d5976d9
 	github.com/cloudflare/circl v1.6.1
 	github.com/godbus/dbus/v5 v5.1.1-0.20241109141217-c266b19b28e9
 	github.com/google/nftables v0.3.0
@@ -18,19 +19,20 @@ require (
 	github.com/oschwald/maxminddb-golang/v2 v2.1.0
 	github.com/prometheus-community/pro-bing v0.7.0
 	github.com/prometheus/client_golang v1.23.2
-	github.com/quic-go/quic-go v0.55.0
+	github.com/quic-go/quic-go v0.56.0
 	github.com/refraction-networking/utls v1.8.1
 	github.com/rhnvrm/simples3 v0.10.0
 	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20251014195629-e4eec4520535
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251103115618-333feb690470
+	github.com/yosida95/uritemplate/v3 v3.0.2
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251107070230-ea043a5f678b
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.43.0
 	golang.org/x/mobile v0.0.0-20251021151156-188f512ec823
 	golang.org/x/net v0.46.1-0.20251024220441-fff0469cf57f
-	golang.org/x/sync v0.17.0
-	golang.org/x/sys v0.37.0
+	golang.org/x/sync v0.18.0
+	golang.org/x/sys v0.38.0
 	golang.org/x/time v0.14.0
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20250318115841-8e6558eba666
 	google.golang.org/grpc v1.76.0
@@ -51,7 +53,7 @@ require (
 	github.com/coder/websocket v1.8.12 // indirect
 	github.com/creachadair/msync v0.7.1 // indirect
 	github.com/dblohm7/wingoes v0.0.0-20240119213807-a09d6be7affa // indirect
-	github.com/francoispqt/gojay v1.2.13 // indirect
+	github.com/dunglas/httpsfv v1.0.2 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/gaissmai/bart v0.18.0 // indirect
 	github.com/go-json-experiment/json v0.0.0-20250813024750-ebf49471dced // indirect

@@ -10,7 +10,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/tailscale/wireguard-go/tun"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -22,7 +21,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 )
 
-type netTun struct {
+type NetTun struct {
 	ep           *gvisor.Endpoint
 	stack        *stack.Stack
 	events       chan tun.Event
@@ -30,7 +29,7 @@ type netTun struct {
 	hasV4, hasV6 bool
 }
 
-func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*netTun, error) {
+func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*NetTun, error) {
 	opts := stack.Options{
 		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol, ipv6.NewProtocol},
 		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
@@ -38,7 +37,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*netTun, error) {
 	}
 
 	rwc := NewChannelDevice(context.TODO(), mtu)
-	dev := &netTun{
+	dev := &NetTun{
 		ep:     gvisor.NewEndpoint(device.NewDevice(rwc, 0, mtu)),
 		dev:    rwc,
 		stack:  stack.New(opts),
@@ -78,6 +77,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*netTun, error) {
 			_ = dev.Close()
 			return nil, fmt.Errorf("AddProtocolAddress(%v): %v", ip, tcpipErr)
 		}
+
 		if ip.Addr().Is4() {
 			dev.hasV4 = true
 		} else if ip.Addr().Is6() {
@@ -92,7 +92,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*netTun, error) {
 		dev.stack.AddRoute(tcpip.Route{Destination: header.IPv6EmptySubnet, NIC: 1})
 	}
 
-	opt := tcpip.CongestionControlOption("cubic")
+	opt := tcpip.CongestionControlOption("reno")
 	if tcpipErr = dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); tcpipErr != nil {
 		_ = dev.Close()
 		return nil, fmt.Errorf("SetTransportProtocolOption(%d, &%T(%s)): %s", tcp.ProtocolNumber, opt, opt, tcpipErr)
@@ -103,9 +103,9 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*netTun, error) {
 }
 
 // convert endpoint string to netip.Addr
-func parseEndpoints(conf *node.Wireguard) ([]netip.Prefix, error) {
-	endpoints := make([]netip.Prefix, 0, len(conf.GetEndpoint()))
-	for _, str := range conf.GetEndpoint() {
+func ParseEndpoints(addresses []string) ([]netip.Prefix, error) {
+	endpoints := make([]netip.Prefix, 0, len(addresses))
+	for _, str := range addresses {
 		prefix, err := netip.ParsePrefix(str)
 		if err != nil {
 			addr, err := netip.ParseAddr(str)
@@ -126,12 +126,12 @@ func parseEndpoints(conf *node.Wireguard) ([]netip.Prefix, error) {
 	return endpoints, nil
 }
 
-func (tun *netTun) Name() (string, error)    { return "go", nil }
-func (tun *netTun) File() *os.File           { return nil }
-func (tun *netTun) Events() <-chan tun.Event { return tun.events }
-func (tun *netTun) BatchSize() int           { return 1 }
+func (tun *NetTun) Name() (string, error)    { return "go", nil }
+func (tun *NetTun) File() *os.File           { return nil }
+func (tun *NetTun) Events() <-chan tun.Event { return tun.events }
+func (tun *NetTun) BatchSize() int           { return 1 }
 
-func (tun *netTun) Read(buf [][]byte, size []int, offset int) (int, error) {
+func (tun *NetTun) Read(buf [][]byte, size []int, offset int) (int, error) {
 	var err error
 	size[0], err = tun.dev.Inbound(buf[0][offset:])
 	if err != nil {
@@ -141,7 +141,7 @@ func (tun *netTun) Read(buf [][]byte, size []int, offset int) (int, error) {
 	return 1, nil
 }
 
-func (tun *netTun) Write(buffers [][]byte, offset int) (int, error) {
+func (tun *NetTun) Write(buffers [][]byte, offset int) (int, error) {
 	n := 0
 	for _, buf := range buffers {
 		packet := buf[offset:]
@@ -163,9 +163,10 @@ func (tun *netTun) Write(buffers [][]byte, offset int) (int, error) {
 	return n, nil
 }
 
-func (tun *netTun) Flush() error { return nil }
+func (tun *NetTun) Flush() error { return nil }
 
-func (tun *netTun) Close() error {
+func (tun *NetTun) Close() error {
+	tun.stack.RemoveNIC(1)
 	tun.stack.Destroy()
 
 	if tun.events != nil {
@@ -175,9 +176,9 @@ func (tun *netTun) Close() error {
 	return tun.dev.Close()
 }
 
-func (tun *netTun) MTU() (int, error) { return int(tun.ep.MTU()), nil }
+func (tun *NetTun) MTU() (int, error) { return int(tun.ep.MTU()), nil }
 
-func (n *netTun) toFullAddr(ip net.IP, port int) (*tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
+func (n *NetTun) toFullAddr(ip net.IP, port int) (*tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
 	var protoNumber tcpip.NetworkProtocolNumber
 	if ip.To4() == nil {
 		protoNumber = ipv6.ProtocolNumber
@@ -193,7 +194,7 @@ func (n *netTun) toFullAddr(ip net.IP, port int) (*tcpip.FullAddress, tcpip.Netw
 	}, protoNumber
 }
 
-func (net *netTun) DialContextTCP(ctx context.Context, addr *net.TCPAddr) (*gonet.TCPConn, error) {
+func (net *NetTun) DialContextTCP(ctx context.Context, addr *net.TCPAddr) (*gonet.TCPConn, error) {
 	if addr == nil {
 		return nil, errors.New("addr is nil")
 	}
@@ -203,7 +204,7 @@ func (net *netTun) DialContextTCP(ctx context.Context, addr *net.TCPAddr) (*gone
 	return gonet.DialContextTCP(ctx, net.stack, *gonetAddr, protoNumber)
 }
 
-func (net *netTun) ListenTCP(addr *net.TCPAddr) (*gonet.TCPListener, error) {
+func (net *NetTun) ListenTCP(addr *net.TCPAddr) (*gonet.TCPListener, error) {
 	if addr == nil {
 		pn := ipv4.ProtocolNumber
 		if net.HasV6() {
@@ -216,7 +217,7 @@ func (net *netTun) ListenTCP(addr *net.TCPAddr) (*gonet.TCPListener, error) {
 	return gonet.ListenTCP(net.stack, *gonetAddr, protoNumber)
 }
 
-func (n *netTun) DialUDP(laddr, raddr *net.UDPAddr) (*gonet.UDPConn, error) {
+func (n *NetTun) DialUDP(laddr, raddr *net.UDPAddr) (*gonet.UDPConn, error) {
 	var pn tcpip.NetworkProtocolNumber
 	var la, ra *tcpip.FullAddress
 	if laddr != nil && laddr.Port > 0 {
@@ -238,5 +239,5 @@ func (n *netTun) DialUDP(laddr, raddr *net.UDPAddr) (*gonet.UDPConn, error) {
 	return gonet.DialUDP(n.stack, la, ra, pn)
 }
 
-func (n *netTun) HasV4() bool { return n.hasV4 }
-func (n *netTun) HasV6() bool { return n.hasV6 }
+func (n *NetTun) HasV4() bool { return n.hasV4 }
+func (n *NetTun) HasV6() bool { return n.hasV6 }

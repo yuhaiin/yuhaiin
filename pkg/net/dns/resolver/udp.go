@@ -95,7 +95,7 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 }
 
 func (u *udp) loopWrite() {
-	var mu sync.Mutex
+	var mu sync.RWMutex
 	var packetConn net.PacketConn
 
 	close := func() {
@@ -109,6 +109,14 @@ func (u *udp) loopWrite() {
 	}
 
 	dial := func() (net.PacketConn, error) {
+		mu.RLock()
+		pc := packetConn
+		mu.RUnlock()
+
+		if pc != nil {
+			return pc, nil
+		}
+
 		mu.Lock()
 		defer mu.Unlock()
 
@@ -129,10 +137,11 @@ func (u *udp) loopWrite() {
 			return nil, fmt.Errorf("get packetConn failed: %w", err)
 		}
 
-		go func() {
+		go func(packetConn net.PacketConn) {
 			defer close()
+			defer packetConn.Close()
 			u.handleResponse(packetConn)
-		}()
+		}(packetConn)
 
 		return packetConn, nil
 	}
