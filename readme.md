@@ -24,6 +24,7 @@
   - yamux  
   - reverse HTTP, reverse TCP
   - Tailscale(tsnet)
+  - Cloudflare Warp/zero trust (wireguard & Masque) [tools: [usque](https://github.com/Diniboy1123/usque)]
 - support DNS:
   - DNS, EDNS
   - FakeDNS
@@ -73,6 +74,7 @@ yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin
 - [プロ生ちゃん](https://kei.pronama.jp/)
 - [etcd-io/bbolt](https://github.com/etcd-io/bbolt)  
 - [tailscale](https://github.com/tailscale/tailscale)
+- [usque](https://github.com/Diniboy1123/usque)
 
 Reference:
 

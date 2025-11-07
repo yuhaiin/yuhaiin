@@ -23,8 +23,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/quic-go/quic-go"
-	"github.com/quic-go/quic-go/logging"
-	"github.com/quic-go/quic-go/qlog"
+	"github.com/quic-go/quic-go/qlogwriter"
 )
 
 type session struct {
@@ -177,13 +176,13 @@ func (c *Client) initSession(ctx context.Context) (*quic.Conn, error) {
 	}
 
 	if c.qlogWriter != nil {
-		config.Tracer = func(ctx context.Context, p logging.Perspective, ci quic.ConnectionID) *logging.ConnectionTracer {
+		config.Tracer = func(ctx context.Context, isClient bool, ci quic.ConnectionID) qlogwriter.Trace {
 			w, err := c.qlogWriter()
 			if err != nil {
 				return nil
 			}
 
-			return qlog.NewConnectionTracer(w, p, ci)
+			return qlogwriter.NewConnectionFileSeq(w, isClient, ci, nil)
 		}
 	}
 

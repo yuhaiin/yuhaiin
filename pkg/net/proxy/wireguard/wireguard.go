@@ -22,20 +22,20 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/tailscale/wireguard-go/device"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 )
 
 type Wireguard struct {
 	netapi.EmptyDispatch
-	net    *netTun
+	net    *NetTun
+	once   sync.Once
 	bind   *netBindClient
 	conf   *node.Wireguard
 	device *device.Device
 
 	happyDialer *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
-
-	mu sync.Mutex
 }
 
 func init() {
@@ -43,92 +43,73 @@ func init() {
 }
 
 func NewClient(conf *node.Wireguard, p netapi.Proxy) (netapi.Proxy, error) {
-	w := &Wireguard{
-		conf: conf,
-	}
-
-	w.happyDialer = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
-		nt, err := w.initNet()
-		if err != nil {
-			return nil, err
-		}
-		return nt.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
-	},
-		dialer.WithHappyEyeballsSemaphore[*gonet.TCPConn](semaphore.NewEmptySemaphore()))
-
-	return w, nil
-}
-
-func (w *Wireguard) initNet() (*netTun, error) {
-	net := w.net
-	if net != nil {
-		return net, nil
-	}
-
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	if w.net != nil {
-		return w.net, nil
-	}
-
-	dev, bind, net, err := makeVirtualTun(w.conf)
+	endpoints, err := ParseEndpoints(conf.GetEndpoint())
 	if err != nil {
 		return nil, err
 	}
 
-	w.device = dev
-	w.net = net
-	w.bind = bind
+	tun, err := CreateNetTUN(endpoints, int(conf.GetMtu()))
+	if err != nil {
+		return nil, err
+	}
 
-	return net, nil
+	w := &Wireguard{
+		conf: conf,
+		net:  tun,
+		bind: newNetBindClient(conf.GetReserved()),
+		happyDialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
+			return tun.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
+		}, dialer.WithHappyEyeballsSemaphore[*gonet.TCPConn](semaphore.NewEmptySemaphore())),
+	}
+
+	return w, nil
+}
+
+func (w *Wireguard) init() {
+	w.once.Do(func() {
+		dev, err := makeVirtualTun(w.conf, w.bind, w.net)
+		if err != nil {
+			log.Error("makeVirtualTun error", "error", err)
+			return
+		}
+
+		w.device = dev
+	})
 }
 
 func (w *Wireguard) Close() error {
-	w.mu.Lock()
 	log.Debug("wireguard closing")
-	if w.device != nil {
-		w.device.Close()
+	device := w.device
+	if device != nil {
+		device.Close()
 		w.device = nil
 	}
 
-	if w.bind != nil {
-		_ = w.bind.Close()
+	bind := w.bind
+	if bind != nil {
+		_ = bind.Close()
 		w.bind = nil
 	}
 
-	w.net = nil
+	net := w.net
+	if net != nil {
+		_ = net.Close()
+		w.net = nil
+	}
 
 	log.Debug("wireguard closed")
-	w.mu.Unlock()
 	return nil
 }
 
 func (w *Wireguard) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+	w.init()
+
 	conn, err := w.happyDialer.DialHappyEyeballsv2(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
 
-	// net, err := w.initNet()
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// addrPort, err := dialer.ResolveTCPAddr(ctx, addr)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// conn, err := net.DialContextTCP(ctx, addrPort)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// w.count.Add(1)
-	// w.timer.Reset(w.idleTimeout)
-
-	return &wrapGoNetTcpConn{wireguard: w, TCPConn: conn}, nil
+	return NewWrapGoNetTcpConn(conn), nil
 }
 
 func processErr(err error) {
@@ -144,8 +125,11 @@ func processErr(err error) {
 }
 
 type wrapGoNetTcpConn struct {
-	wireguard *Wireguard
 	*gonet.TCPConn
+}
+
+func NewWrapGoNetTcpConn(conn *gonet.TCPConn) *wrapGoNetTcpConn {
+	return &wrapGoNetTcpConn{TCPConn: conn}
 }
 
 func (w *wrapGoNetTcpConn) Read(b []byte) (int, error) {
@@ -161,21 +145,14 @@ func (w *wrapGoNetTcpConn) Write(b []byte) (int, error) {
 }
 
 func (w *Wireguard) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	wnet, err := w.initNet()
+	w.init()
+
+	goUC, err := w.net.DialUDP(nil, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	goUC, err := wnet.DialUDP(nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return &wrapGoNetUdpConn{
-		wireguard: w,
-		UDPConn:   goUC,
-		ctx:       context.WithoutCancel(ctx),
-	}, nil
+	return NewWrapGoNetUdpConn(context.WithoutCancel(ctx), goUC, w.net.dev.mtu), nil
 }
 
 func (w *Wireguard) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
@@ -183,9 +160,14 @@ func (w *Wireguard) Ping(ctx context.Context, addr netapi.Address) (uint64, erro
 }
 
 type wrapGoNetUdpConn struct {
-	wireguard *Wireguard
 	*gonet.UDPConn
-	ctx context.Context
+	ctx        context.Context
+	udpAddrMap syncmap.SyncMap[string, *net.UDPAddr]
+	mtu        int
+}
+
+func NewWrapGoNetUdpConn(ctx context.Context, conn *gonet.UDPConn, mtu int) *wrapGoNetUdpConn {
+	return &wrapGoNetUdpConn{UDPConn: conn, ctx: ctx, mtu: mtu}
 }
 
 func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
@@ -199,15 +181,25 @@ func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 	if !a.IsFqdn() {
 		udpAddr = net.UDPAddrFromAddrPort(a.(netapi.IPAddress).AddrPort())
 	} else {
-		ur, err := netapi.ResolverIP(w.ctx, a.Hostname())
+		udpAddr, _, err = w.udpAddrMap.LoadOrCreate(addr.String(), func() (*net.UDPAddr, error) {
+			ur, err := netapi.ResolverIP(w.ctx, a.Hostname())
+			if err != nil {
+				return nil, err
+			}
+
+			return ur.RandUDPAddr(a.Port()), nil
+		})
 		if err != nil {
 			return 0, err
 		}
-
-		udpAddr = ur.RandUDPAddr(a.Port())
 	}
 
-	return w.UDPConn.WriteTo(buf, udpAddr)
+	n, err := w.UDPConn.WriteTo(buf, udpAddr)
+	if err != nil {
+		return n, err
+	}
+
+	return n, nil
 }
 
 func (w *wrapGoNetUdpConn) ReadFrom(buf []byte) (int, net.Addr, error) {
@@ -217,17 +209,7 @@ func (w *wrapGoNetUdpConn) ReadFrom(buf []byte) (int, net.Addr, error) {
 }
 
 // creates a tun interface on netstack given a configuration
-func makeVirtualTun(h *node.Wireguard) (*device.Device, *netBindClient, *netTun, error) {
-	endpoints, err := parseEndpoints(h)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	tun, err := CreateNetTUN(endpoints, int(h.GetMtu()))
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	bind := newNetBindClient(h.GetReserved())
+func makeVirtualTun(h *node.Wireguard, bind *netBindClient, tun *NetTun) (*device.Device, error) {
 	// dev := device.NewDevice(tun, conn.NewDefaultBind(), nil /* device.NewLogger(device.LogLevelVerbose, "") */)
 	dev := device.NewDevice(
 		tun,
@@ -244,19 +226,19 @@ func makeVirtualTun(h *node.Wireguard) (*device.Device, *netBindClient, *netTun,
 		})
 
 	// set wireguard config
-	err = dev.IpcSetOperation(createIPCRequest(h))
+	err := dev.IpcSetOperation(createIPCRequest(h))
 	if err != nil {
 		dev.Close()
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	err = dev.Up()
 	if err != nil {
 		dev.Close()
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	return dev, bind, tun, nil
+	return dev, nil
 }
 
 func base64ToHex(s string) string {
