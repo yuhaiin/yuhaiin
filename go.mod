@@ -10,7 +10,6 @@ replace (
 )
 
 require (
-	github.com/Diniboy1123/connect-ip-go v0.0.0-20251011145655-7be32d5976d9
 	github.com/cloudflare/circl v1.6.1
 	github.com/godbus/dbus/v5 v5.1.1-0.20241109141217-c266b19b28e9
 	github.com/google/nftables v0.3.0
@@ -19,14 +18,14 @@ require (
 	github.com/oschwald/maxminddb-golang/v2 v2.1.0
 	github.com/prometheus-community/pro-bing v0.7.0
 	github.com/prometheus/client_golang v1.23.2
+	github.com/quic-go/connect-ip-go v0.1.0
 	github.com/quic-go/quic-go v0.56.0
 	github.com/refraction-networking/utls v1.8.1
 	github.com/rhnvrm/simples3 v0.10.0
 	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20251014195629-e4eec4520535
-	github.com/yosida95/uritemplate/v3 v3.0.2
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251107070230-ea043a5f678b
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251111035206-a1709f906178
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.43.0
 	golang.org/x/mobile v0.0.0-20251021151156-188f512ec823
@@ -84,6 +83,7 @@ require (
 	github.com/tailscale/web-client-prebuilt v0.0.0-20250124233751-d4cd19a26976 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.uber.org/mock v0.6.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect

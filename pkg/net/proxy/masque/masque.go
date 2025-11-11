@@ -17,19 +17,19 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
-	connectip "github.com/Diniboy1123/connect-ip-go"
+	connectip "github.com/quic-go/connect-ip-go"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
-	"github.com/yosida95/uritemplate/v3"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 )
 
 type Masque struct {
 	netapi.EmptyDispatch
-	p         netapi.Proxy
-	tlsConfig *tls.Config
-	addr      *net.UDPAddr
-	mtu       int
+	p              netapi.Proxy
+	TlsConfig      *tls.Config
+	addr           *net.UDPAddr
+	localAddresses []netip.Prefix
+	mtu            int
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -51,15 +51,16 @@ func NewMasque(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAd
 	ctx, cancel := context.WithCancel(context.Background())
 
 	z := &Masque{
-		ctx:       ctx,
-		cancel:    cancel,
-		p:         p,
-		tlsConfig: tlsConfig,
-		addr:      addr,
-		mtu:       mtu,
-		dev:       dev,
-		receive:   make(chan []byte, 100),
-		send:      make(chan []byte, 100),
+		ctx:            ctx,
+		cancel:         cancel,
+		p:              p,
+		TlsConfig:      tlsConfig,
+		addr:           addr,
+		localAddresses: localAddresses,
+		mtu:            mtu,
+		dev:            dev,
+		receive:        make(chan []byte, 100),
+		send:           make(chan []byte, 100),
 		happyDialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
 			return dev.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 		},
@@ -124,7 +125,7 @@ func (m *Masque) Connect(ctx context.Context) (*Conn, error) {
 
 	mConn.packetConn = conn
 
-	quicConn, err := quic.Dial(ctx, conn, m.addr, m.tlsConfig, &quic.Config{
+	quicConn, err := quic.Dial(ctx, conn, m.addr, m.TlsConfig, &quic.Config{
 		EnableDatagrams:   true,
 		InitialPacketSize: 1242,
 		KeepAlivePeriod:   time.Second * 30,
@@ -154,19 +155,35 @@ func (m *Masque) Connect(ctx context.Context) (*Conn, error) {
 
 	mConn.h3conn = hconn
 
-	additionalHeaders := http.Header{
-		"User-Agent": []string{""},
-	}
-
-	template := uritemplate.MustNew(ConnectURI)
-
-	ipConn, resp, err := connectip.Dial(ctx, hconn, template, "cf-connect-ip", additionalHeaders, true)
+	ipConn, resp, err := Dial(ctx, hconn, ConnectURI, "cf-connect-ip")
 	if err != nil {
 		_ = mConn.Close()
 		if err.Error() == "CRYPTO_ERROR 0x131 (remote): tls: access denied" {
 			return nil, errors.New("login failed! Please double-check if your tls key and cert is enrolled in the Cloudflare Access service")
 		}
 		return nil, fmt.Errorf("failed to dial connect-ip: %v", err)
+	}
+
+	err = ipConn.AdvertiseRoute(ctx, []connectip.IPRoute{
+		{
+			IPProtocol: 0,
+			StartIP:    netip.AddrFrom4([4]byte{}),
+			EndIP:      netip.AddrFrom4([4]byte{255, 255, 255, 255}),
+		},
+		{
+			IPProtocol: 0,
+			StartIP:    netip.AddrFrom16([16]byte{}),
+			EndIP: netip.AddrFrom16([16]byte{
+				255, 255, 255, 255,
+				255, 255, 255, 255,
+				255, 255, 255, 255,
+				255, 255, 255, 255,
+			}),
+		},
+	})
+	if err != nil {
+		_ = mConn.Close()
+		return nil, err
 	}
 
 	mConn.ipconn = ipConn
@@ -244,7 +261,7 @@ func (m *Masque) Start() error {
 
 		for {
 			buf := pool.GetBytes(m.mtu)
-			n, err := conn.ipconn.ReadPacket(buf, true)
+			n, err := conn.ipconn.ReadPacket(buf)
 			if err != nil {
 				pool.PutBytes(buf)
 				if errors.As(err, new(*connectip.CloseError)) {
@@ -332,7 +349,7 @@ func (m *Masque) PacketConn(ctx context.Context, a netapi.Address) (net.PacketCo
 		return nil, err
 	}
 
-	return wireguard.NewWrapGoNetUdpConn(context.WithoutCancel(context.Background()), pc, m.mtu), nil
+	return wireguard.NewWrapGoNetUdpConn(context.WithoutCancel(context.Background()), pc), nil
 }
 
 func (m *Masque) Close() error {

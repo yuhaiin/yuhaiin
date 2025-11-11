@@ -15,7 +15,7 @@ func TestCovertPath(t *testing.T) {
 }
 
 func TestMatch(t *testing.T) {
-	nc := domain.NewDomainMapper[string]()
+	nc := domain.NewTrie[string]()
 	nc.SetSeparate(filepath.Separator)
 
 	nc.Insert(convertVolumeName("/usr/bin/transmission-daemon"), "xxxx")

@@ -152,7 +152,7 @@ func (w *Wireguard) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 		return nil, err
 	}
 
-	return NewWrapGoNetUdpConn(context.WithoutCancel(ctx), goUC, w.net.dev.mtu), nil
+	return NewWrapGoNetUdpConn(context.WithoutCancel(ctx), goUC), nil
 }
 
 func (w *Wireguard) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
@@ -163,11 +163,10 @@ type wrapGoNetUdpConn struct {
 	*gonet.UDPConn
 	ctx        context.Context
 	udpAddrMap syncmap.SyncMap[string, *net.UDPAddr]
-	mtu        int
 }
 
-func NewWrapGoNetUdpConn(ctx context.Context, conn *gonet.UDPConn, mtu int) *wrapGoNetUdpConn {
-	return &wrapGoNetUdpConn{UDPConn: conn, ctx: ctx, mtu: mtu}
+func NewWrapGoNetUdpConn(ctx context.Context, conn *gonet.UDPConn) *wrapGoNetUdpConn {
+	return &wrapGoNetUdpConn{UDPConn: conn, ctx: ctx}
 }
 
 func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
