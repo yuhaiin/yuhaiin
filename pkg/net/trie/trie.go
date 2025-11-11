@@ -94,11 +94,11 @@ func (x *Trie[T]) Remove(str string) {
 }
 
 func (x *Trie[T]) Clear() error {
-	x.cidr = cidr.NewCidrTrie[T]()
-	x.domain = domain.NewDomainMapper[T]()
+	x.cidr = cidr.NewTrie[T]()
+	x.domain = domain.NewTrie[T]()
 	return nil
 }
 
 func NewTrie[T any]() *Trie[T] {
-	return &Trie[T]{cidr: cidr.NewCidrTrie[T](), domain: domain.NewDomainMapper[T]()}
+	return &Trie[T]{cidr: cidr.NewTrie[T](), domain: domain.NewTrie[T]()}
 }

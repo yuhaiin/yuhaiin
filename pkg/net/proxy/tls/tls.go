@@ -172,7 +172,35 @@ func NewServer(c *config.Tls, ii netapi.Listener) (netapi.Listener, error) {
 		return nil, err
 	}
 
-	return netapi.NewListener(tls.NewListener(ii, config), ii), nil
+	return netapi.NewListener(newServer(ii, config), ii), nil
+}
+
+type Server struct {
+	net.Listener
+	config *tls.Config
+}
+
+func newServer(listener net.Listener, config *tls.Config) *Server {
+	return &Server{
+		Listener: listener,
+		config:   config,
+	}
+}
+
+func (s *Server) Accept() (net.Conn, error) {
+	conn, err := s.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+
+	tlsConn := tls.Server(conn, s.config)
+
+	if err := tlsConn.Handshake(); err != nil {
+		_ = tlsConn.Close()
+		return nil, err
+	}
+
+	return tlsConn, nil
 }
 
 type ServerCert struct {
@@ -219,7 +247,7 @@ func (s *ServerCert) Cert() (*tls.Certificate, error) {
 }
 
 func TlsAutoConfig(ca *cert.Ca, nextProto []string, servername []string) *tls.Config {
-	store := domain.NewDomainMapper[*ServerCert]()
+	store := domain.NewTrie[*ServerCert]()
 
 	for _, v := range servername {
 		store.Insert(v, &ServerCert{
@@ -264,7 +292,7 @@ func NewTlsAutoServer(c *config.TlsAuto, ii netapi.Listener) (netapi.Listener, e
 		}
 	}
 
-	return netapi.NewListener(tls.NewListener(ii, config), ii), nil
+	return netapi.NewListener(newServer(ii, config), ii), nil
 }
 
 var tlsSessionCache = tls.NewLRUClientSessionCache(128)

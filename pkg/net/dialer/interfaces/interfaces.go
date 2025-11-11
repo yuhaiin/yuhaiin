@@ -327,7 +327,7 @@ func DefaultRouter() *cidr.Cidr[string] {
 	rs, err := routes()
 	if err != nil {
 		log.Error("get default router failed", "err", err)
-		return cidr.NewCidrTrie[string]()
+		return cidr.NewTrie[string]()
 	}
 
 	trie := rs.ToTrie()

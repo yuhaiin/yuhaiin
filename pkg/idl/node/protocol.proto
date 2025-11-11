@@ -48,6 +48,8 @@ message protocol {
     fixed fixed = 30 [ json_name = "fixed", lazy = true ];
     network_split network_split = 31
         [ json_name = "network_split", lazy = true ];
+    cloudflare_warp_masque cloudflare_warp_masque = 32
+        [ json_name = "cloudflare_warp_masque", lazy = true ];
   }
 }
 
@@ -268,4 +270,12 @@ message aead {
 message network_split {
   protocol tcp = 1 [ json_name = "tcp" ];
   protocol udp = 2 [ json_name = "udp" ];
+}
+
+message cloudflare_warp_masque {
+  string private_key = 1 [ json_name = "private_key" ];
+  string endpoint = 2 [ json_name = "endpoint" ];
+  string endpoint_public_key = 3 [ json_name = "endpoint_public_key" ];
+  repeated string local_addresses = 4 [ json_name = "local_addresses" ];
+  int32 mtu = 5 [ json_name = "mtu" ];
 }
