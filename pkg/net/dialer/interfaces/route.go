@@ -17,7 +17,7 @@ type router struct {
 }
 
 func (r router) ToTrie() *cidr.Cidr[string] {
-	c := cidr.NewCidrTrie[string]()
+	c := cidr.NewTrie[string]()
 	for _, v := range r.v4 {
 		c.InsertCIDR(v.Dst, v.OutputIface)
 	}
