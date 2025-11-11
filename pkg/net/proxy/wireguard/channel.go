@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	wun "github.com/tailscale/wireguard-go/tun"
 )
@@ -21,7 +20,7 @@ type ChannelDevice struct {
 
 func NewChannelDevice(ctx context.Context, mtu int) *ChannelDevice {
 	if mtu <= 0 {
-		mtu = nat.MaxSegmentSize
+		mtu = 1500
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	ct := &ChannelDevice{

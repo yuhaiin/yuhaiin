@@ -53,7 +53,7 @@ func (d *Fqdn[T]) SetSeparate(b byte) {
 	d.separate = b
 }
 
-func NewDomainMapper[T any]() *Fqdn[T] {
+func NewTrie[T any]() *Fqdn[T] {
 	return &Fqdn[T]{
 		Root:     &trie[T]{Child: map[string]*trie[T]{}},
 		separate: '.',

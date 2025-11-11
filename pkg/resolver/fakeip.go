@@ -51,8 +51,8 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db cache.Cache) *
 		dialer:    dialer,
 		upstream:  upstream,
 		db:        db,
-		whitelist: domain.NewDomainMapper[struct{}](),
-		skipCheck: domain.NewDomainMapper[struct{}](),
+		whitelist: domain.NewTrie[struct{}](),
+		skipCheck: domain.NewTrie[struct{}](),
 	}
 	f.dnsServer = server.NewServer("", f)
 
@@ -65,7 +65,7 @@ func (f *Fakedns) Apply(c *config.FakednsConfig) {
 	f.enabled.Store(c.GetEnabled())
 
 	if !slices.Equal(c.GetSkipCheckList(), f.skipCheckSlice) {
-		d := domain.NewDomainMapper[struct{}]()
+		d := domain.NewTrie[struct{}]()
 
 		for _, v := range c.GetSkipCheckList() {
 			d.Insert(v, struct{}{})
@@ -75,7 +75,7 @@ func (f *Fakedns) Apply(c *config.FakednsConfig) {
 	}
 
 	if !slices.Equal(c.GetWhitelist(), f.whitelistSlice) {
-		d := domain.NewDomainMapper[struct{}]()
+		d := domain.NewTrie[struct{}]()
 
 		for _, v := range c.GetWhitelist() {
 			d.Insert(v, struct{}{})
