@@ -2,7 +2,6 @@ package http2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -63,13 +62,11 @@ func newServer(lis net.Listener) *Server {
 		}()
 		defer cancel()
 
+		erl := netapi.NewErrCountListener(lis, 10)
 		for {
-			conn, err := lis.Accept()
+			conn, err := erl.Accept()
 			if err != nil {
-				if !errors.Is(err, net.ErrClosed) {
-					log.Error("accept failed:", "err", err)
-				}
-
+				log.Error("accept failed", "err", err)
 				return
 			}
 

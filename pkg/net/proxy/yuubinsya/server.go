@@ -70,8 +70,10 @@ func (y *server) startUDP() error {
 func (y *server) startTCP() (err error) {
 	log.Info("new yuubinsya server", "host", y.listener.Addr())
 
+	tl := netapi.NewErrCountListener(y.listener, 10)
+
 	for {
-		conn, err := y.listener.Accept()
+		conn, err := tl.Accept()
 		if err != nil {
 			return err
 		}
