@@ -42,8 +42,10 @@ func (s *Server) startTCPServer() error {
 	go func() {
 		defer s.Close()
 
+		sl := netapi.NewErrCountListener(s.lis, 10)
+
 		for {
-			conn, err := s.lis.Accept()
+			conn, err := sl.Accept()
 			if err != nil {
 				log.Error("socks5 accept failed", "err", err)
 

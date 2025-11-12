@@ -121,8 +121,10 @@ func (m *Mixed) http(o *config.Mixed, ii netapi.Listener, handler netapi.Handler
 }
 
 func (m *Mixed) handle() error {
+	ml := netapi.NewErrCountListener(m.lis, 10)
+
 	for {
-		conn, err := m.lis.Accept()
+		conn, err := ml.Accept()
 		if err != nil {
 			log.Error("mixed accept failed", "err", err)
 
