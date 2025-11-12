@@ -188,6 +188,7 @@ func newServer(listener net.Listener, config *tls.Config) *Server {
 }
 
 func (s *Server) Accept() (net.Conn, error) {
+_next:
 	conn, err := s.Listener.Accept()
 	if err != nil {
 		return nil, err
@@ -197,7 +198,8 @@ func (s *Server) Accept() (net.Conn, error) {
 
 	if err := tlsConn.Handshake(); err != nil {
 		_ = tlsConn.Close()
-		return nil, err
+		log.Warn("tls server handshake failed", "err", err)
+		goto _next
 	}
 
 	return tlsConn, nil

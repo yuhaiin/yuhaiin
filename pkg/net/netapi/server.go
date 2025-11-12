@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -298,3 +299,35 @@ func (c *ChannelStreamListener) Close() error {
 }
 
 func (c *ChannelStreamListener) Addr() net.Addr { return c.addr }
+
+type errCountListener struct {
+	net.Listener
+	errCount atomic.Int64
+	maxError int64
+}
+
+func NewErrCountListener(l net.Listener, maxError int64) *errCountListener {
+	return &errCountListener{
+		Listener: l,
+		maxError: maxError,
+	}
+}
+
+func (l *errCountListener) Accept() (net.Conn, error) {
+	for {
+		conn, err := l.Listener.Accept()
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return nil, err
+			}
+
+			if l.errCount.Add(1) > l.maxError {
+				return nil, err
+			}
+
+			continue
+		}
+
+		return conn, err
+	}
+}

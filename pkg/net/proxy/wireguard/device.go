@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
@@ -28,6 +29,8 @@ type NetTun struct {
 	events       chan tun.Event
 	dev          *ChannelDevice
 	hasV4, hasV6 bool
+
+	closeOnce sync.Once
 }
 
 func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*NetTun, error) {
@@ -171,9 +174,12 @@ func (tun *NetTun) Close() error {
 	tun.stack.RemoveNIC(1)
 	tun.stack.Destroy()
 
-	if tun.events != nil {
-		close(tun.events)
-	}
+	tun.closeOnce.Do(func() {
+		if tun.events != nil {
+			close(tun.events)
+		}
+	})
+
 	tun.ep.Close()
 	return tun.dev.Close()
 }

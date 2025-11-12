@@ -52,8 +52,9 @@ func (m *MuxServer) Accept() (net.Conn, error) {
 }
 
 func (m *MuxServer) Run() error {
+	ml := netapi.NewErrCountListener(m.Listener, 10)
 	for {
-		conn, err := m.Listener.Accept()
+		conn, err := ml.Accept()
 		if err != nil {
 			return err
 		}

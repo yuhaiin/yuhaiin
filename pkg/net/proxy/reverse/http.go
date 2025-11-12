@@ -41,6 +41,7 @@ func NewHTTPServer(o *config.ReverseHttp, ii netapi.Listener, handler netapi.Han
 	go func() {
 		defer httpch.Close()
 
+		ii := netapi.NewErrCountListener(ii, 10)
 		for {
 			conn, err := ii.Accept()
 			if err != nil {

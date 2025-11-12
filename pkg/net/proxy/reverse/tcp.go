@@ -18,6 +18,7 @@ func NewTCPServer(o *config.ReverseTcp, ii netapi.Listener, handler netapi.Handl
 	}
 
 	go func() {
+		ii := netapi.NewErrCountListener(ii, 10)
 		for {
 			conn, err := ii.Accept()
 			if err != nil {
