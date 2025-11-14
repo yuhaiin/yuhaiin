@@ -39,11 +39,15 @@ func Sniff(b []byte) string {
 
 		if bytes.Equal(header, []byte("Host:")) {
 			h, _, err := net.SplitHostPort(string(host))
-			if err != nil {
-				return string(host)
+			if err == nil {
+				return h
 			}
 
-			return h
+			if len(host) >= 2 && host[0] == '[' && host[len(host)-1] == ']' {
+				host = host[1 : len(host)-1]
+			}
+
+			return string(host)
 		}
 	}
 }
