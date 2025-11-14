@@ -11,7 +11,7 @@ replace (
 
 require (
 	github.com/cloudflare/circl v1.6.1
-	github.com/godbus/dbus/v5 v5.1.1-0.20241109141217-c266b19b28e9
+	github.com/godbus/dbus/v5 v5.2.0
 	github.com/google/nftables v0.3.0
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/miekg/dns v1.1.68
@@ -28,7 +28,7 @@ require (
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251111035206-a1709f906178
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.44.0
-	golang.org/x/mobile v0.0.0-20251021151156-188f512ec823
+	golang.org/x/mobile v0.0.0-20251113184115-a159579294ab
 	golang.org/x/net v0.47.0
 	golang.org/x/sync v0.18.0
 	golang.org/x/sys v0.38.0
@@ -89,11 +89,11 @@ require (
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
-	golang.org/x/mod v0.29.0 // indirect
+	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
-	golang.org/x/tools v0.38.0 // indirect
+	golang.org/x/tools v0.39.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250908214217-97024824d090 // indirect
 )

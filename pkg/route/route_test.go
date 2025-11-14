@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 )
 
@@ -21,4 +22,8 @@ func TestMatch(t *testing.T) {
 	nc.Insert(convertVolumeName("/usr/bin/transmission-daemon"), "xxxx")
 
 	t.Log(nc.SearchString(convertVolumeName("/usr/bin/transmission-daemon")))
+}
+
+func TestParse(t *testing.T) {
+	t.Log(netapi.ParseAddress("", "[ff::ff]"))
 }

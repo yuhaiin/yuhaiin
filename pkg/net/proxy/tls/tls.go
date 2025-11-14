@@ -9,6 +9,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -18,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 )
 
 type Tls struct {
@@ -177,32 +179,78 @@ func NewServer(c *config.Tls, ii netapi.Listener) (netapi.Listener, error) {
 
 type Server struct {
 	net.Listener
-	config *tls.Config
+	config    *tls.Config
+	ch        chan net.Conn
+	ctx       context.Context
+	cancel    context.CancelFunc
+	semaphore semaphore.Semaphore
 }
 
 func newServer(listener net.Listener, config *tls.Config) *Server {
-	return &Server{
-		Listener: listener,
-		config:   config,
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &Server{
+		Listener:  listener,
+		config:    config,
+		ch:        make(chan net.Conn),
+		ctx:       ctx,
+		cancel:    cancel,
+		semaphore: semaphore.NewSemaphore(100),
+	}
+
+	go s.run()
+
+	return s
+}
+
+func (s *Server) run() {
+	sl := netapi.NewErrCountListener(s.Listener, 10)
+	for {
+		conn, err := sl.Accept()
+		if err != nil {
+			log.Error("accept tls faild", "err", err)
+			return
+		}
+
+		if err = s.semaphore.Acquire(s.ctx, 1); err != nil {
+			_ = conn.Close()
+			log.Error("semaphore acquire 1 failed", "err", err)
+			continue
+		}
+
+		go func() {
+			defer s.semaphore.Release(1)
+
+			tlsConn := tls.Server(conn, s.config)
+
+			ctx, cancel := context.WithTimeout(s.ctx, time.Second*10)
+			defer cancel()
+			if err := tlsConn.HandshakeContext(ctx); err != nil {
+				_ = tlsConn.Close()
+				log.Warn("tls server handshake failed", "addr", conn.RemoteAddr(), "err", err)
+				return
+			}
+
+			select {
+			case s.ch <- tlsConn:
+			case <-s.ctx.Done():
+				_ = tlsConn.Close()
+			}
+		}()
 	}
 }
 
 func (s *Server) Accept() (net.Conn, error) {
-_next:
-	conn, err := s.Listener.Accept()
-	if err != nil {
-		return nil, err
+	select {
+	case conn := <-s.ch:
+		return conn, nil
+	case <-s.ctx.Done():
+		return nil, net.ErrClosed
 	}
+}
 
-	tlsConn := tls.Server(conn, s.config)
-
-	if err := tlsConn.Handshake(); err != nil {
-		_ = tlsConn.Close()
-		log.Warn("tls server handshake failed", "err", err)
-		goto _next
-	}
-
-	return tlsConn, nil
+func (s *Server) Close() error {
+	s.cancel()
+	return s.Listener.Close()
 }
 
 type ServerCert struct {
@@ -297,8 +345,6 @@ func NewTlsAutoServer(c *config.TlsAuto, ii netapi.Listener) (netapi.Listener, e
 	return netapi.NewListener(newServer(ii, config), ii), nil
 }
 
-var tlsSessionCache = tls.NewLRUClientSessionCache(128)
-
 func ParseTLSConfig(t *node.TlsConfig) *tls.Config {
 	if t == nil || !t.GetEnable() {
 		return nil
@@ -341,9 +387,8 @@ func ParseTLSConfig(t *node.TlsConfig) *tls.Config {
 		RootCAs:                        root,
 		NextProtos:                     t.GetNextProtos(),
 		InsecureSkipVerify:             t.GetInsecureSkipVerify(),
-		ClientSessionCache:             tlsSessionCache,
+		ClientSessionCache:             tls.NewLRUClientSessionCache(128),
 		EncryptedClientHelloConfigList: echConfig,
-		// SessionTicketsDisabled: true,
 	}
 }
 

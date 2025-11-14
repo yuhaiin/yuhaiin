@@ -172,10 +172,16 @@ func getInterfaces(ifs Interfaces) ([]netmon.Interface, error) {
 			ipnet := &net.IPNet{IP: net.IP(addr16[:]).Mask(m), Mask: m}
 			newIf.AltAddrs = append(newIf.AltAddrs, ipnet)
 
-			log.Info("get new address", "iface", newIf.Name, "prefix", ipnet, "broadcast", addr.Broadcast)
+			log.Info("get new address",
+				"iface", newIf.Name,
+				"addr", ipAddr,
+				"prefix", ipnet,
+				"broadcast", addr.Broadcast,
+			)
 		}
 
-		log.Info("get new iface", "display name", iface.DisplayName,
+		log.Info("get new iface",
+			"display name", iface.DisplayName,
 			"v", newIf.Interface, "addr", newIf.AltAddrs,
 			"iface", iface,
 		)

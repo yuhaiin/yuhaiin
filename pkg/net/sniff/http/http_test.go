@@ -30,15 +30,53 @@ func TestReader(t *testing.T) {
 }
 
 func TestSniff(t *testing.T) {
-	req, err := http.NewRequest(http.MethodGet, "http://ip.sb:1234", nil)
-	assert.NoError(t, err)
+	t.Run("domain", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "http://ip.sb:1234", nil)
+		assert.NoError(t, err)
 
-	buf := bytes.NewBuffer(nil)
+		buf := bytes.NewBuffer(nil)
 
-	err = req.Write(buf)
-	assert.NoError(t, err)
+		err = req.Write(buf)
+		assert.NoError(t, err)
 
-	assert.MustEqual(t, Sniff(buf.Bytes()), "ip.sb")
+		assert.MustEqual(t, Sniff(buf.Bytes()), "ip.sb")
+	})
+
+	t.Run("ipv4", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "http://1.2.4.5", nil)
+		assert.NoError(t, err)
+
+		buf := bytes.NewBuffer(nil)
+
+		err = req.Write(buf)
+		assert.NoError(t, err)
+
+		assert.MustEqual(t, "1.2.4.5", Sniff(buf.Bytes()))
+	})
+
+	t.Run("ipv6", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "http://[ff::ff]", nil)
+		assert.NoError(t, err)
+
+		buf := bytes.NewBuffer(nil)
+
+		err = req.Write(buf)
+		assert.NoError(t, err)
+
+		assert.MustEqual(t, "ff::ff", Sniff(buf.Bytes()))
+	})
+
+	t.Run("ipv6 with port", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "http://[ff::ff]:80", nil)
+		assert.NoError(t, err)
+
+		buf := bytes.NewBuffer(nil)
+
+		err = req.Write(buf)
+		assert.NoError(t, err)
+
+		assert.MustEqual(t, "ff::ff", Sniff(buf.Bytes()))
+	})
 }
 
 func TestSniffy(t *testing.T) {
