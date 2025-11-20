@@ -27,7 +27,7 @@ require (
 	github.com/xtls/reality v0.0.0-20251014195629-e4eec4520535
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251111035206-a1709f906178
 	go.etcd.io/bbolt v1.4.3
-	golang.org/x/crypto v0.44.0
+	golang.org/x/crypto v0.45.0
 	golang.org/x/mobile v0.0.0-20251113184115-a159579294ab
 	golang.org/x/net v0.47.0
 	golang.org/x/sync v0.18.0
