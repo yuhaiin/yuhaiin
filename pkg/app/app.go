@@ -81,9 +81,8 @@ func OpenBboltDB(path string) (*bbolt.DB, error) {
 	defer func() { log.Info("open bbolt db", "path", path, "cost", time.Since(start)) }()
 
 	db, err := bbolt.Open(path, os.ModePerm, &bbolt.Options{
-		Timeout:        time.Second * 2,
-		Logger:         ybbolt.BBoltDBLogger{},
-		NoFreelistSync: true,
+		Timeout: time.Second * 2,
+		Logger:  ybbolt.BBoltDBLogger{},
 	})
 	switch err {
 	case bolterr.ErrInvalid, bolterr.ErrChecksum, bolterr.ErrVersionMismatch:

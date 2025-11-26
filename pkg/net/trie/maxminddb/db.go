@@ -46,14 +46,7 @@ func (m *MaxMindDB) LookupAddr(ctx context.Context, addr netapi.Address) (string
 		return m.Lookup(addr.(netapi.IPAddress).AddrPort().Addr())
 	}
 
-	store := netapi.GetContext(ctx)
-
-	matchResolver := store.ConnOptions().Resolver().Resolver()
-	if matchResolver == nil {
-		return "", errors.New("not found geoip")
-	}
-
-	ips, err := matchResolver.LookupIP(ctx, addr.Hostname())
+	ips, err := netapi.GetContext(ctx).ConnOptions().RouteIPs(ctx, addr)
 	if err != nil {
 		return "", errors.New("not found geoip")
 	}

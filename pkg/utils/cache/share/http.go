@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -147,7 +149,15 @@ type DeleteRequest struct {
 }
 
 func (s *Server) Delete(req DeleteRequest) (struct{}, error) {
-	return struct{}{}, s.getCache(req.Buckets...).Delete(req.Keys...)
+	return struct{}{}, s.getCache(req.Buckets...).Delete(slices.Values(req.Keys))
+}
+
+type DeleteBucketRequest struct {
+	Buckets []string `json:"buckets,omitempty"`
+}
+
+func (s *Server) DeleteBucket(req DeleteBucketRequest) (struct{}, error) {
+	return struct{}{}, errors.ErrUnsupported
 }
 
 type RangeRequest struct {
@@ -250,9 +260,20 @@ func (c *Client) Put(r iter.Seq2[[]byte, []byte]) error {
 	var res struct{}
 	return c.SendRequest("/set", SetRequest{Buckets: c.buckets, Objects: objects}, &res)
 }
-func (c *Client) Delete(k ...[]byte) error {
+func (c *Client) Delete(k iter.Seq[[]byte]) error {
+	var keys [][]byte
+	for k := range k {
+		buf := make([]byte, len(k))
+		copy(buf, k)
+		keys = append(keys, buf)
+	}
+
 	var res struct{}
-	return c.SendRequest("/delete", DeleteRequest{Buckets: c.buckets, Keys: k}, &res)
+	return c.SendRequest("/delete", DeleteRequest{Buckets: c.buckets, Keys: keys}, &res)
+}
+func (c *Client) DeleteBucket(str ...string) error {
+	var res struct{}
+	return c.SendRequest("/delete_bucket", DeleteBucketRequest{Buckets: append(c.buckets, str...)}, &res)
 }
 func (c *Client) Range(f func(key []byte, value []byte) bool) error {
 	data, err := json.Marshal(RangeRequest{

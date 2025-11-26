@@ -7,6 +7,7 @@ import (
 	"math"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -437,11 +438,11 @@ func newFakeLru(size int, db cache.Cache, iprange netip.Prefix) *fakeLru {
 		lru.WithLruOptions(
 			lru.WithCapacity[string, netip.Addr](int(size)),
 			lru.WithOnRemove(func(s string, v netip.Addr) {
-				_ = bboltCache.Delete([]byte(s), v.AsSlice())
+				_ = bboltCache.Delete(slices.Values([][]byte{[]byte(s), v.AsSlice()}))
 			}),
 		),
 		lru.WithOnValueChanged[string](func(old, new netip.Addr) {
-			_ = bboltCache.Delete(old.AsSlice())
+			_ = bboltCache.Delete(slices.Values([][]byte{old.AsSlice()}))
 		}),
 	)
 

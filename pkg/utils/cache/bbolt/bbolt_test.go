@@ -3,11 +3,13 @@ package bbolt
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"iter"
 
 	"go.etcd.io/bbolt"
+	bbolterr "go.etcd.io/bbolt/errors"
 )
 
 // setupTestDB creates a temporary bbolt database for testing.
@@ -121,7 +123,7 @@ func TestCacheOperations(t *testing.T) {
 		}
 
 		// Test Delete
-		err = cache.Delete(key)
+		err = cache.Delete(slices.Values([][]byte{key}))
 		if err != nil {
 			t.Fatalf("Delete failed: %v", err)
 		}
@@ -133,6 +135,53 @@ func TestCacheOperations(t *testing.T) {
 		}
 		if retrievedValue != nil {
 			t.Errorf("Key found after deletion: %s", retrievedValue)
+		}
+	})
+
+	t.Run("TestCacheDeleteBucket", func(t *testing.T) {
+		db, cleanup := setupTestDB(t)
+		defer cleanup()
+
+		rootCache := NewCache(db, "root_bucket")
+		childCache := rootCache.NewCache("child_bucket").(*Cache)
+
+		// Put some data in child bucket
+		key := []byte("key")
+		value := []byte("value")
+		err := childCache.Put(func() iter.Seq2[[]byte, []byte] {
+			return func(yield func([]byte, []byte) bool) {
+				yield(key, value)
+			}
+		}())
+		if err != nil {
+			t.Fatalf("Put failed: %v", err)
+		}
+
+		// Verify data exists
+		v, err := childCache.Get(key)
+		if err != nil {
+			t.Fatalf("Get failed: %v", err)
+		}
+		if string(v) != string(value) {
+			t.Fatalf("Get returned wrong value: %s", v)
+		}
+
+		// Delete child bucket
+		err = rootCache.DeleteBucket("child_bucket")
+		if err != nil {
+			t.Fatalf("DeleteBucket failed: %v", err)
+		}
+
+		// Verify child bucket is gone (Get should return nil or error, depending on implementation,
+		v, _ = childCache.Get(key)
+		if v != nil {
+			t.Fatalf("Get after DeleteBucket returned value: %s", v)
+		}
+
+		// Test deleting non-existent bucket
+		err = rootCache.DeleteBucket("non_existent_bucket")
+		if err != bbolterr.ErrBucketNotFound {
+			t.Fatalf("DeleteBucket for non-existent bucket should return ErrBucketNotFound, got: %v", err)
 		}
 	})
 

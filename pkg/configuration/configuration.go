@@ -29,7 +29,7 @@ var (
 	ProcessDumper = or(true, false)
 
 	Timeout         = time.Second * 16
-	ResolverTimeout = time.Second * 5
+	ResolverTimeout = time.Second * 10
 
 	SnifferBufferSize = pool.DefaultSize
 

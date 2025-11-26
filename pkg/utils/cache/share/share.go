@@ -135,9 +135,8 @@ func (s *ShareDB) openLocal() (*Entry, error) {
 	}
 
 	odb, err := bbolt.Open(s.dbPath, os.ModePerm, &bbolt.Options{
-		Timeout:        time.Second * 2,
-		Logger:         cb.BBoltDBLogger{},
-		NoFreelistSync: true,
+		Timeout: time.Second * 2,
+		Logger:  cb.BBoltDBLogger{},
 	})
 	if err != nil {
 		return nil, err
@@ -255,12 +254,16 @@ func (a *Cache) Get(k []byte) ([]byte, error) {
 	return b, err
 }
 
-func (a *Cache) Delete(k ...[]byte) error {
-	return a.db.do(a.batch, func(s cache.Cache) error { return s.Delete(k...) })
+func (a *Cache) Delete(k iter.Seq[[]byte]) error {
+	return a.db.do(a.batch, func(s cache.Cache) error { return s.Delete(k) })
 }
 
 func (a *Cache) Range(f func(key []byte, value []byte) bool) error {
 	return a.db.do(a.batch, func(c cache.Cache) error { return c.Range(f) })
+}
+
+func (a *Cache) DeleteBucket(str ...string) error {
+	return a.db.do(a.batch, func(c cache.Cache) error { return c.DeleteBucket(str...) })
 }
 
 func (a *Cache) NewCache(str ...string) cache.Cache {

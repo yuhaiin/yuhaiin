@@ -238,7 +238,10 @@ func (s *Lists) Save(ctx context.Context, list *config.List) (*emptypb.Empty, er
 
 	if list.WhichList() == config.List_Remote_case {
 		for _, v := range list.GetRemote().GetUrls() {
-			if er := s.downloader.DownloadIfNotExists(ctx, v, nil); er != nil {
+			ctx, cancel := context.WithTimeout(ctx, time.Minute*3/2)
+			er := s.downloader.DownloadIfNotExists(ctx, v, nil)
+			cancel()
+			if er != nil {
 				list.SetErrorMsgs(append(list.GetErrorMsgs(), fmt.Sprintf("%s: %s", v, er.Error())))
 				log.Error("get remote failed", "err", er, "url", v)
 			}
@@ -384,7 +387,10 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 		errors[v.GetName()] = make([]string, 0, len(v.GetRemote().GetUrls()))
 
 		for _, url := range v.GetRemote().GetUrls() {
-			if er := s.downloader.Download(ctx, url, nil); er != nil {
+			ctx, cancel := context.WithTimeout(ctx, time.Minute*3/2)
+			er := s.downloader.Download(ctx, url, nil)
+			cancel()
+			if er != nil {
 				errors[v.GetName()] = append(errors[v.GetName()], fmt.Sprintf("%s: %s", url, er.Error()))
 				log.Error("download remote failed", "err", er, "url", url)
 			}

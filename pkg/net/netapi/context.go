@@ -117,6 +117,10 @@ type ConnOptions struct {
 	systemDialer   bool
 	skipRoute      bool
 	isUdp          bool
+	routeCache     *struct {
+		IPs *IPs
+		Err error
+	}
 }
 
 func (s *ConnOptions) SetBindAddress(str string) *ConnOptions {
@@ -203,6 +207,33 @@ func (s *ConnOptions) SetIsUdp(isUdp bool) *ConnOptions {
 
 func (s *ConnOptions) IsUdp() bool {
 	return s.isUdp
+}
+
+func (s *ConnOptions) setRouteCache(ips *IPs, err error) *ConnOptions {
+	s.routeCache = &struct {
+		IPs *IPs
+		Err error
+	}{ips, err}
+	return s
+}
+
+func (s *ConnOptions) RouteIPs(ctx context.Context, addr Address) (*IPs, error) {
+	if rc := s.routeCache; rc != nil {
+		return rc.IPs, rc.Err
+	}
+
+	matchResolver := s.Resolver().Resolver()
+	if matchResolver == nil {
+		return nil, errors.New("not found resolver")
+	}
+
+	ips, err := matchResolver.LookupIP(ctx, addr.Hostname())
+	s.setRouteCache(ips, err)
+	if err != nil {
+		return nil, errors.New("not found ips")
+	}
+
+	return ips, nil
 }
 
 type MaxMindDB interface {

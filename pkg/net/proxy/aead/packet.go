@@ -25,8 +25,7 @@ func encodePacket(dst []byte, data []byte, auth cipher.AEAD) []byte {
 func decodePacket(data []byte, auth cipher.AEAD) ([]byte, error) {
 	nonce := data[:auth.NonceSize()]
 	cryptext := data[auth.NonceSize():]
-	return auth.Open(data[auth.NonceSize():auth.NonceSize()],
-		nonce, cryptext, nil)
+	return auth.Open(cryptext[:0], nonce, cryptext, nil)
 }
 
 type authPacketConn struct {

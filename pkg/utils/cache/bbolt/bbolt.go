@@ -11,6 +11,7 @@ import (
 
 type bucketer interface {
 	Bucket(name []byte) *bbolt.Bucket
+	DeleteBucket(name []byte) error
 	CreateBucketIfNotExists(name []byte) (*bbolt.Bucket, error)
 }
 
@@ -101,7 +102,7 @@ func (c *Cache) Put(es iter.Seq2[[]byte, []byte]) error {
 	})
 }
 
-func (c *Cache) Delete(k ...[]byte) error {
+func (c *Cache) Delete(k iter.Seq[[]byte]) error {
 	if c.db == nil {
 		return nil
 	}
@@ -112,7 +113,7 @@ func (c *Cache) Delete(k ...[]byte) error {
 			return nil
 		}
 
-		for _, kk := range k {
+		for kk := range k {
 			if kk == nil {
 				continue
 			}
@@ -161,4 +162,31 @@ func (c *Cache) NewCache(str ...string) cache.Cache {
 		db:         c.db,
 		bucketName: bucketName,
 	}
+}
+
+func (c *Cache) DeleteBucket(str ...string) error {
+	if len(str) == 0 {
+		return nil
+	}
+
+	bucketName := make([][]byte, 0, len(str)+len(c.bucketName))
+	bucketName = append(bucketName, c.bucketName...)
+	for _, v := range str {
+		bucketName = append(bucketName, []byte(v))
+	}
+
+	return c.db.Update(func(tx *bbolt.Tx) error {
+		var next bucketer = tx
+
+		for _, v := range bucketName[:len(bucketName)-1] {
+			bt := next.Bucket(v)
+			if bt == nil {
+				return nil
+			}
+
+			next = bt
+		}
+
+		return next.DeleteBucket(bucketName[len(bucketName)-1])
+	})
 }

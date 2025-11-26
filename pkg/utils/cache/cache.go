@@ -14,9 +14,10 @@ func Element(key []byte, value []byte) iter.Seq2[[]byte, []byte] {
 type Cache interface {
 	Get(k []byte) (v []byte, err error)
 	Put(iter.Seq2[[]byte, []byte]) error
-	Delete(k ...[]byte) error
+	Delete(k iter.Seq[[]byte]) error
 	Range(f func(key []byte, value []byte) bool) error
 	NewCache(str ...string) Cache
+	DeleteBucket(str ...string) error
 }
 
 var _ Cache = (*MockCache)(nil)
@@ -34,10 +35,11 @@ func (m *MockCache) Put(es iter.Seq2[[]byte, []byte]) error {
 	}
 	return nil
 }
-func (m *MockCache) Delete(k ...[]byte) error                          { return nil }
+func (m *MockCache) Delete(k iter.Seq[[]byte]) error                   { return nil }
 func (m *MockCache) Range(f func(key []byte, value []byte) bool) error { return nil }
 func (m *MockCache) Close() error                                      { return nil }
 func (m *MockCache) NewCache(str ...string) Cache                      { return &MockCache{} }
+func (m *MockCache) DeleteBucket(str ...string) error                  { return nil }
 func NewMockCache() Cache                                              { return &MockCache{} }
 
 var ErrBucketNotExist = errors.New("bucket not exist")

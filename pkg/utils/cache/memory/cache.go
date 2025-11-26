@@ -30,8 +30,8 @@ func (m *MemoryCache) Put(es iter.Seq2[[]byte, []byte]) error {
 	return nil
 }
 
-func (m *MemoryCache) Delete(k ...[]byte) error {
-	for _, k := range k {
+func (m *MemoryCache) Delete(k iter.Seq[[]byte]) error {
+	for k := range k {
 		m.cache.Delete(string(k))
 	}
 	return nil
@@ -61,4 +61,16 @@ func (m *MemoryCache) NewCache(str ...string) cache.Cache {
 		z = z.loadOrCreateBucket(v)
 	}
 	return z
+}
+
+func (m *MemoryCache) DeleteBucket(str ...string) error {
+	if len(str) == 0 {
+		return nil
+	}
+	z := m
+	for _, v := range str[:len(str)-1] {
+		z = z.loadOrCreateBucket(v)
+	}
+	z.subStore.Delete(str[len(str)-1])
+	return nil
 }

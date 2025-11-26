@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
+	"iter"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
 )
@@ -30,14 +31,18 @@ type store struct {
 	memcache syncmap.SyncMap[uint64, *statistic.Connection]
 	closed   atomic.Bool
 	cache    cache.Cache
+
+	deleteIdsMu sync.Mutex
+	deleteIds   deleteIds
 }
 
 func newInfoStore(cache cache.Cache) *store {
 	ctx, cancel := context.WithCancel(context.TODO())
 	c := &store{
-		cache:  cache,
-		ctx:    ctx,
-		cancel: cancel,
+		cache:     cache,
+		ctx:       ctx,
+		cancel:    cancel,
+		deleteIds: make(map[uint64]struct{}),
 	}
 
 	go func() {
@@ -66,21 +71,19 @@ func (c *store) Load(id uint64) (*statistic.Connection, bool) {
 		return cc, true
 	}
 
-	buf := pool.GetBytes(8)
-	defer pool.PutBytes(buf)
-	binary.BigEndian.PutUint64(buf, id)
-	data, err := c.cache.Get(buf)
+	data, err := c.cache.Get(binary.BigEndian.AppendUint64(nil, id))
 	if err != nil {
 		log.Warn("get info failed", "id", id, "err", err)
 		return nil, false
 	}
-	var info statistic.Connection
-	if err := proto.Unmarshal(data, &info); err != nil {
+
+	info := &statistic.Connection{}
+	if err := proto.Unmarshal(data, info); err != nil {
 		log.Warn("unmarshal info failed", "id", id, "err", err)
 		return nil, false
 	}
 
-	return &info, true
+	return info, true
 }
 
 func (c *store) Store(id uint64, info *statistic.Connection) {
@@ -96,21 +99,10 @@ func (c *store) Flush() {
 		return
 	}
 
-	keysCache := make([][]byte, 0)
-	deleteIds := make([][]byte, 0)
 	err := c.cache.Put(func(yield func([]byte, []byte) bool) {
 		for id := range c.memcache.Range {
 			info, ok := c.memcache.LoadAndDelete(id)
 			if !ok {
-				continue
-			}
-
-			key := pool.GetBytes(8)
-			binary.BigEndian.PutUint64(key, id)
-			keysCache = append(keysCache, key)
-
-			if info == nil {
-				deleteIds = append(deleteIds, key)
 				continue
 			}
 
@@ -120,7 +112,7 @@ func (c *store) Flush() {
 				continue
 			}
 
-			if !yield(key, data) {
+			if !yield(binary.BigEndian.AppendUint64(nil, id), data) {
 				break
 			}
 		}
@@ -129,14 +121,15 @@ func (c *store) Flush() {
 		log.Warn("put info failed", "err", err)
 	}
 
+	c.deleteIdsMu.Lock()
+	deleteIds := c.deleteIds
+	c.deleteIds = make(map[uint64]struct{})
+	c.deleteIdsMu.Unlock()
+
 	if len(deleteIds) > 0 {
-		if err := c.cache.Delete(deleteIds...); err != nil {
+		if err := c.cache.Delete(deleteIds.Range()); err != nil {
 			log.Warn("delete info failed", "err", err)
 		}
-	}
-
-	for _, v := range keysCache {
-		pool.PutBytes(v)
 	}
 }
 
@@ -145,16 +138,27 @@ func (c *store) Delete(id uint64) {
 		return
 	}
 
-	_, ok := c.memcache.LoadAndDelete(id)
-	if ok {
-		return
-	}
+	c.deleteIdsMu.Lock()
+	c.deleteIds[id] = struct{}{}
+	c.deleteIdsMu.Unlock()
 
-	c.memcache.Store(id, nil)
+	c.memcache.Delete(id)
 }
 
 func (c *store) Close() error {
 	c.cancel()
 	c.closed.Store(true)
 	return nil
+}
+
+type deleteIds map[uint64]struct{}
+
+func (c deleteIds) Range() iter.Seq[[]byte] {
+	return func(yield func([]byte) bool) {
+		for id := range c {
+			if !yield(binary.BigEndian.AppendUint64(nil, id)) {
+				break
+			}
+		}
+	}
 }

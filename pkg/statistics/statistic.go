@@ -46,6 +46,13 @@ func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
 		dialer = direct.Default
 	}
 
+	if err := cache.DeleteBucket("connection_data"); err != nil {
+		log.Warn("delete connection data failed", "err", err)
+	}
+	if err := cache.DeleteBucket("history_data"); err != nil {
+		log.Warn("delete history data failed", "err", err)
+	}
+
 	return &Connections{
 		Proxy:        dialer,
 		Cache:        NewTotalCache(cache.NewCache("flow_data")),

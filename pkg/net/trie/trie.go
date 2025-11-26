@@ -49,14 +49,7 @@ func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok b
 		return
 	}
 
-	store := netapi.GetContext(ctx)
-
-	matchResolver := store.ConnOptions().Resolver().Resolver()
-	if matchResolver == nil {
-		return
-	}
-
-	ips, err := matchResolver.LookupIP(ctx, addr.Hostname())
+	ips, err := netapi.GetContext(ctx).ConnOptions().RouteIPs(ctx, addr)
 	if err != nil {
 		return
 	}

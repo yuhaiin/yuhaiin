@@ -118,12 +118,10 @@ func (d *Downloader) Download(ctx context.Context, url string, beforeWrite func(
 		Timeout: 30 * time.Second,
 	}
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return err
 	}
-
-	req = req.WithContext(ctx)
 
 	resp, err := hc.Do(req)
 	if err != nil {

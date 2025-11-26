@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: "0"
           fetch-tags: "true"
@@ -91,7 +91,7 @@ jobs:
         cmd: [yuhaiin]
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: "0"
           fetch-tags: "true"
@@ -136,7 +136,7 @@ jobs:
       - android
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: "0"
           fetch-tags: "true"
