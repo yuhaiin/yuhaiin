@@ -6,7 +6,7 @@ replace (
 	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
 	github.com/tailscale/wireguard-go => github.com/yuhaiin/wireguard-go v0.0.0-20251018092039-8a0cc74fca62
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
-	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20251103060125-5d4c33814c0d
+	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20251126063524-1bc792c2661b
 )
 
 require (
@@ -19,22 +19,22 @@ require (
 	github.com/prometheus-community/pro-bing v0.7.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/quic-go/connect-ip-go v0.1.0
-	github.com/quic-go/quic-go v0.56.0
+	github.com/quic-go/quic-go v0.57.1
 	github.com/refraction-networking/utls v1.8.1
 	github.com/rhnvrm/simples3 v0.10.0
 	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da
 	github.com/vishvananda/netlink v1.3.1
-	github.com/xtls/reality v0.0.0-20251014195629-e4eec4520535
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251111035206-a1709f906178
+	github.com/xtls/reality v0.0.0-20251116175510-cd53f7d50237
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251124120008-d829ccfebdcc
 	go.etcd.io/bbolt v1.4.3
-	golang.org/x/crypto v0.44.0
+	golang.org/x/crypto v0.45.0
 	golang.org/x/mobile v0.0.0-20251113184115-a159579294ab
 	golang.org/x/net v0.47.0
 	golang.org/x/sync v0.18.0
 	golang.org/x/sys v0.38.0
 	golang.org/x/time v0.14.0
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20250318115841-8e6558eba666
-	google.golang.org/grpc v1.76.0
+	google.golang.org/grpc v1.77.0
 	google.golang.org/protobuf v1.36.10
 	gvisor.dev/gvisor v0.0.0-20250529183007-2a7b5c7dece9
 	tailscale.com v1.9999999999.99999999999
@@ -73,7 +73,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
-	github.com/quic-go/qpack v0.5.1 // indirect
+	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/safchain/ethtool v0.3.0 // indirect
 	github.com/tailscale/certstore v0.1.1-0.20231202035212-d3fa0460f47e // indirect
 	github.com/tailscale/go-winio v0.0.0-20231025203758-c4f33415bf55 // indirect
@@ -88,12 +88,12 @@ require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
-	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
+	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/mod v0.30.0 // indirect
-	golang.org/x/oauth2 v0.30.0 // indirect
+	golang.org/x/oauth2 v0.32.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250908214217-97024824d090 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251022142026-3a174f9686a8 // indirect
 )
