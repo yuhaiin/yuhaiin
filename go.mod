@@ -22,7 +22,7 @@ require (
 	github.com/quic-go/quic-go v0.57.1
 	github.com/refraction-networking/utls v1.8.1
 	github.com/rhnvrm/simples3 v0.10.0
-	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da
+	github.com/tailscale/wireguard-go v0.0.0-20251121194102-c6fd943bb437
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20251116175510-cd53f7d50237
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251124120008-d829ccfebdcc
