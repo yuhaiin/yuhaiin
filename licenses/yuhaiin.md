@@ -28,7 +28,7 @@ Some packages may only be included on certain architectures or operating systems
 - [github.com/libp2p/go-yamux/v5](https://pkg.go.dev/github.com/libp2p/go-yamux/v5) ([MPL-2.0](https://github.com/libp2p/go-yamux/blob/v5.1.0/LICENSE))
 - [github.com/miekg/dns](https://pkg.go.dev/github.com/miekg/dns) ([BSD-3-Clause](https://github.com/miekg/dns/blob/v1.1.68/LICENSE))
 - [github.com/munnerz/goautoneg](https://pkg.go.dev/github.com/munnerz/goautoneg) ([BSD-3-Clause](https://github.com/munnerz/goautoneg/blob/a7dc8b61c822/LICENSE))
-- [github.com/oschwald/maxminddb-golang/v2](https://pkg.go.dev/github.com/oschwald/maxminddb-golang/v2) ([ISC](https://github.com/oschwald/maxminddb-golang/blob/v2.1.0/LICENSE))
+- [github.com/oschwald/maxminddb-golang/v2](https://pkg.go.dev/github.com/oschwald/maxminddb-golang/v2) ([ISC](https://github.com/oschwald/maxminddb-golang/blob/v2.1.1/LICENSE))
 - [github.com/pires/go-proxyproto](https://pkg.go.dev/github.com/pires/go-proxyproto) ([Apache-2.0](https://github.com/pires/go-proxyproto/blob/v0.8.1/LICENSE))
 - [github.com/prometheus-community/pro-bing](https://pkg.go.dev/github.com/prometheus-community/pro-bing) ([MIT](https://github.com/Asutorufa/pro-bing/blob/626d07c0d4ca/LICENSE))
 - [github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil](https://pkg.go.dev/github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil) ([BSD-3-Clause](https://github.com/prometheus/client_golang/blob/v1.23.2/internal/github.com/golang/gddo/LICENSE))
