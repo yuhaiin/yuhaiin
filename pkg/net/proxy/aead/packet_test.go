@@ -30,9 +30,10 @@ func TestEncodePacket(t *testing.T) {
 		_, _ = io.ReadFull(crand.Reader, data)
 
 		buf := make([]byte, auth.NonceSize()+auth.Overhead()+len(data))
-		encode := encodePacket(buf, data, auth)
+		encode, err := encryptPacket(buf, data, auth)
+		assert.NoError(t, err)
 
-		decoded, err := decodePacket(encode, auth)
+		decoded, err := decryptPacket(encode, auth)
 		assert.NoError(t, err)
 		assert.MustEqual(t, data, decoded)
 	}
@@ -50,9 +51,10 @@ func BenchmarkEncodePacket(b *testing.B) {
 		_, _ = io.ReadFull(crand.Reader, data)
 
 		buf := make([]byte, auth.NonceSize()+auth.Overhead()+len(data))
-		encode := encodePacket(buf, data, auth)
+		encode, err := encryptPacket(buf, data, auth)
+		assert.NoError(b, err)
 
-		decoded, err := decodePacket(encode, auth)
+		decoded, err := decryptPacket(encode, auth)
 		assert.NoError(b, err)
 		assert.MustEqual(b, data, decoded)
 	}

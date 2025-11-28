@@ -19,6 +19,17 @@ func (s *Set[T]) Has(x T) bool {
 	s.mu.RUnlock()
 	return ok
 }
+func (s *Set[T]) ContainsAll(x ...T) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, v := range x {
+		if _, ok := s.data[v]; !ok {
+			return false
+		}
+	}
+	return true
+}
 
 func (s *Set[T]) Delete(x T) {
 	s.mu.Lock()
