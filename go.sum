@@ -182,6 +182,8 @@ github.com/refraction-networking/utls v1.8.1 h1:yNY1kapmQU8JeM1sSw2H2asfTIwWxIkr
 github.com/refraction-networking/utls v1.8.1/go.mod h1:jkSOEkLqn+S/jtpEHPOsVv/4V4EVnelwbMQl4vCWXAM=
 github.com/rhnvrm/simples3 v0.10.2 h1:7I/M4vIpmAxghY6Nmz35GM9NIADT7WTKKecrwiZFHzI=
 github.com/rhnvrm/simples3 v0.10.2/go.mod h1:c2xW30bukipkBlWNnXG1wDjq3gykQ6ww2AB/9NHMLMY=
+github.com/rhnvrm/simples3 v0.11.0 h1:sC7DTKLahq2Zq/ksf00CRw67U8H5XLD26LoOOHyrkyY=
+github.com/rhnvrm/simples3 v0.11.0/go.mod h1:c2xW30bukipkBlWNnXG1wDjq3gykQ6ww2AB/9NHMLMY=
 github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR38lUII=
 github.com/rogpeppe/go-internal v1.13.1/go.mod h1:uMEvuHeurkdAXX61udpOXGD/AzZDWNMNyH2VO9fmH0o=
 github.com/safchain/ethtool v0.3.0 h1:gimQJpsI6sc1yIqP/y8GYgiXn/NjgvpM0RNoWLVVmP0=
@@ -232,6 +234,8 @@ github.com/yuhaiin/wireguard-go v0.0.0-20251018092039-8a0cc74fca62 h1:a03yrZKMJY
 github.com/yuhaiin/wireguard-go v0.0.0-20251018092039-8a0cc74fca62/go.mod h1:BOm5fXUBFM+m9woLNBoxI9TaBXXhGNP50LX/TGIvGb4=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251127134001-d476d9552cc1 h1:gfNAAyaRhZVDmd0UHGPhBA9CYrkonKt1uaRXRV0PJmQ=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251127134001-d476d9552cc1/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251128035842-becfd4d55c38 h1:V3z+/lRwMdKclqnjcejNnrDj/ROlu0U63WJZdIBReDQ=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251128035842-becfd4d55c38/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 go.etcd.io/bbolt v1.4.3 h1:dEadXpI6G79deX5prL3QRNP6JB8UxVkqo4UPnHaNXJo=
 go.etcd.io/bbolt v1.4.3/go.mod h1:tKQlpPaYCVFctUIgFKFnAlvbmB3tpy1vkTnDWohtc0E=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
