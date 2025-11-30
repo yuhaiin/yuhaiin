@@ -17,8 +17,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
@@ -29,91 +29,76 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-type Address struct {
-	name string
-	m    *trie.Trie[struct{}]
+type hostMatcher struct {
+	lists *set.Set[string]
+	trie  *trie.Trie[string]
 }
 
-func NewAddress(name string, hosts ...string) *Address {
-	a := &Address{
-		name: name,
-		m:    trie.NewTrie[struct{}](),
-	}
-
-	for _, host := range hosts {
-		a.m.Insert(host, struct{}{})
-	}
-
-	return a
-}
-
-func (s *Address) Add(hosts ...string) {
-	for _, host := range hosts {
-		s.m.Insert(host, struct{}{})
+func newHostTrie() *hostMatcher {
+	return &hostMatcher{
+		lists: set.NewSet[string](),
+		trie:  trie.NewTrie[string](),
 	}
 }
 
-func (s *Address) Match(ctx context.Context, addr netapi.Address) bool {
-	store := netapi.GetContext(ctx)
-	_, ok := s.m.Search(ctx, addr)
-	store.AddMatchHistory(s.name, ok)
-	return ok
+func (h *hostMatcher) Add(host string, list string) {
+	h.lists.Push(list)
+	h.trie.Insert(host, list)
 }
 
-type Process struct {
-	name  string
-	store *set.Set[string]
+func (h *hostMatcher) Search(ctx context.Context, addr netapi.Address) *set.Set[string] {
+	return h.trie.Search(ctx, addr)
 }
 
-func NewProcess(name string, processes ...string) *Process {
-	p := &Process{
-		name:  name,
-		store: set.NewSet[string](),
-	}
-
-	for _, process := range processes {
-		p.store.Push(process)
-	}
-
-	return p
+func (h *hostMatcher) Include(list string) bool {
+	return h.lists.Has(list)
 }
 
-func (s *Process) Add(processes ...string) {
-	for _, process := range processes {
-		s.store.Push(process)
+type processMatcher struct {
+	lists *set.Set[string]
+
+	trie syncmap.SyncMap[string, *set.Set[string]]
+}
+
+func newProcessTrie() *processMatcher {
+	return &processMatcher{
+		lists: set.NewSet[string](),
 	}
 }
 
-func (s *Process) Match(ctx context.Context, addr netapi.Address) bool {
+func (h *processMatcher) Add(process string, list string) {
+	h.lists.Push(list)
+
+	set, _, _ := h.trie.LoadOrCreate(process, func() (*set.Set[string], error) {
+		return set.NewSet[string](), nil
+	})
+
+	set.Push(list)
+}
+
+func (h *processMatcher) Include(list string) bool {
+	return h.lists.Has(list)
+}
+
+func (h *processMatcher) Search(ctx context.Context, addr netapi.Address) *set.Set[string] {
 	store := netapi.GetContext(ctx)
 	process := store.GetProcessName()
-	if process != "" {
-		ok := s.store.Has(process)
-		store.AddMatchHistory(s.name, ok)
-		return ok
+	s, ok := h.trie.Load(process)
+	if !ok {
+		return set.NewSet[string]()
 	}
-
-	store.AddMatchHistory(s.name, false)
-	return false
-}
-
-type listEntry struct {
-	name    string
-	matcher Matcher
-}
-
-type geoip struct {
-	m *maxminddb.MaxMindDB
+	return s
 }
 
 type Lists struct {
 	api.UnimplementedListsServer
 	proxy *atomicx.Value[netapi.Proxy]
 
-	db      chore.DB
-	entries syncmap.SyncMap[string, *listEntry]
+	db chore.DB
 
-	geoip   *geoip
+	geoip *struct {
+		m *maxminddb.MaxMindDB
+	}
 	geoipmu sync.RWMutex
 
 	downloader *Downloader
@@ -121,15 +106,23 @@ type Lists struct {
 
 	tickermu sync.RWMutex
 	ticker   *time.Timer
+
+	hostTrieMu sync.RWMutex
+	hostTrie   *hostMatcher
+
+	processTrieMu sync.RWMutex
+	processTrie   *processMatcher
 }
 
 func NewLists(db chore.DB) *Lists {
 	proxy := atomicx.NewValue(direct.Default)
 
 	l := &Lists{
-		db:         db,
-		proxy:      proxy,
-		downloader: NewDownloader(filepath.Join(db.Dir(), "rules"), proxy.Load),
+		db:          db,
+		proxy:       proxy,
+		downloader:  NewDownloader(filepath.Join(db.Dir(), "rules"), proxy.Load),
+		hostTrie:    newHostTrie(),
+		processTrie: newProcessTrie(),
 	}
 
 	var interval uint64
@@ -159,7 +152,7 @@ func (s *Lists) LoadGeoip() *maxminddb.MaxMindDB {
 		return s.geoip.m
 	}
 
-	s.geoip = &geoip{}
+	s.geoip = &struct{ m *maxminddb.MaxMindDB }{}
 
 	var downloadUrl string
 	err := s.db.View(func(ss *config.Setting) error {
@@ -185,7 +178,7 @@ func (s *Lists) LoadGeoip() *maxminddb.MaxMindDB {
 
 	log.Info("new geoip", "path", path, "cost", time.Since(now))
 
-	s.geoip = &geoip{m: ggeoip}
+	s.geoip = &struct{ m *maxminddb.MaxMindDB }{m: ggeoip}
 
 	return ggeoip
 }
@@ -253,12 +246,19 @@ func (s *Lists) Save(ctx context.Context, list *config.List) (*emptypb.Empty, er
 			ss.GetBypass().SetLists(map[string]*config.List{})
 		}
 
-		s.entries.Delete(list.GetName())
 		ss.GetBypass().GetLists()[list.GetName()] = list
 		return nil
 	})
 	if er != nil {
 		return nil, er
+	}
+
+	if s.HostTrie().Include(list.GetName()) {
+		s.refreshHostTrie()
+	}
+
+	if s.ProcessTrie().Include(list.GetName()) {
+		s.refreshProcessTrie()
 	}
 
 	return &emptypb.Empty{}, nil
@@ -401,7 +401,6 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 
 	err = s.db.Batch(func(ss *config.Setting) error {
 		for k, v := range errors {
-			s.entries.Delete(k)
 			if ss.GetBypass().GetLists() != nil && ss.GetBypass().GetLists()[k] != nil {
 				ss.GetBypass().GetLists()[k].SetErrorMsgs(v)
 			}
@@ -423,18 +422,21 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 		} else {
 			ss.GetBypass().GetRefreshConfig().SetError("")
 		}
+
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
+	s.refreshHostTrie()
+	s.refreshProcessTrie()
+
 	return &emptypb.Empty{}, nil
 }
 
 func (s *Lists) Remove(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
 	err := s.db.Batch(func(ss *config.Setting) error {
-		s.entries.Delete(req.Value)
 		if ss.GetBypass().GetLists() != nil {
 			delete(ss.GetBypass().GetLists(), req.Value)
 		}
@@ -442,6 +444,14 @@ func (s *Lists) Remove(ctx context.Context, req *wrapperspb.StringValue) (*empty
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	if s.HostTrie().Include(req.Value) {
+		s.refreshHostTrie()
+	}
+
+	if s.ProcessTrie().Include(req.Value) {
+		s.refreshProcessTrie()
 	}
 
 	return &emptypb.Empty{}, nil
@@ -476,57 +486,31 @@ func (s *Lists) SaveConfig(ctx context.Context, req *api.SaveListConfigRequest) 
 
 func (s *Lists) SetProxy(proxy netapi.Proxy) { s.proxy.Store(proxy) }
 
-func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) bool {
-	r, ok, err := s.entries.LoadOrCreate(name, func() (*listEntry, error) {
-		if ctx.Value(listsRequestKey{}) == true {
-			return nil, fmt.Errorf("lists is being updated")
+func (s *Lists) getIter(name string) (*config.List, iter.Seq[string], error) {
+	var rules *config.List
+
+	err := s.db.View(func(ss *config.Setting) error {
+		if ss.GetBypass() != nil {
+			rules = ss.GetBypass().GetLists()[name]
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
 
-		var rules *config.List
+	if rules == nil {
+		return nil, nil, fmt.Errorf("list %s not found", name)
+	}
 
-		err := s.db.View(func(ss *config.Setting) error {
-			if ss.GetBypass() != nil {
-				rules = ss.GetBypass().GetLists()[name]
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, err
-		}
+	var iter iter.Seq[string]
 
-		if rules == nil {
-			return nil, fmt.Errorf("list %s not found", name)
-		}
-
-		var matcher Matcher
-		switch rules.WhichList() {
-		case config.List_Local_case:
-			switch rules.GetListType() {
-			case config.List_hosts_as_host:
-				mc := NewAddress(rules.GetName())
+	switch rules.WhichList() {
+	case config.List_Local_case:
+		switch rules.GetListType() {
+		case config.List_hosts_as_host:
+			iter = func(yield func(string) bool) {
 				for v := range trimRuleIter(slices.Values(rules.GetLocal().GetLists())) {
-					fields := strings.Fields(v)
-					if len(fields) < 2 {
-						continue
-					}
-
-					mc.Add(fields[1:]...)
-				}
-				matcher = mc
-			case config.List_host:
-				matcher = NewAddress(rules.GetName(), slices.Collect(trimRuleIter(slices.Values(rules.GetLocal().GetLists())))...)
-			case config.List_process:
-				matcher = NewProcess(rules.GetName(), slices.Collect(trimRuleIter(slices.Values(rules.GetLocal().GetLists())))...)
-			default:
-				return nil, fmt.Errorf("list %s is unknown", name)
-			}
-
-		case config.List_Remote_case:
-			switch rules.GetListType() {
-			case config.List_hosts_as_host:
-				mc := NewAddress(rules.GetName())
-
-				for v := range s.getLocalCacheTrimRuleIter(rules.GetRemote().GetUrls()) {
 					/*
 						example:
 							::1 localhost ip6-localhost ip6-loopback
@@ -537,71 +521,167 @@ func (s *Lists) Match(ctx context.Context, name string, addr netapi.Address) boo
 						continue
 					}
 
-					mc.Add(fields[1:]...)
+					for _, v := range fields[1:] {
+						if !yield(v) {
+							return
+						}
+					}
 				}
-				matcher = mc
-
-			case config.List_host:
-				mc := NewAddress(rules.GetName())
-
-				for v := range s.getLocalCacheTrimRuleIter(rules.GetRemote().GetUrls()) {
-					mc.Add(v)
-				}
-
-				matcher = mc
-			case config.List_process:
-				mc := NewProcess(rules.GetName())
-
-				for v := range s.getLocalCacheTrimRuleIter(rules.GetRemote().GetUrls()) {
-					mc.Add(v)
-				}
-
-				matcher = mc
-
-			default:
-				return nil, fmt.Errorf("list %s is unknown", name)
 			}
+		case config.List_host:
+			iter = trimRuleIter(slices.Values(rules.GetLocal().GetLists()))
+		case config.List_process:
+			iter = trimRuleIter(slices.Values(rules.GetLocal().GetLists()))
 		default:
-			return nil, fmt.Errorf("list %s is unknown", name)
+			return nil, nil, fmt.Errorf("list %s is unknown", name)
 		}
 
-		return &listEntry{
-			name:    name,
-			matcher: matcher,
-		}, nil
-	})
+	case config.List_Remote_case:
+		switch rules.GetListType() {
+		case config.List_hosts_as_host:
+			iter = func(yield func(string) bool) {
+				for v := range s.getLocalCacheTrimRuleIter(rules.GetRemote().GetUrls()) {
+					/*
+						example:
+							::1 localhost ip6-localhost ip6-loopback
+						127.0.0.1 localhost localhost.localdomain localhost4 localhost4.localdomain4
+					*/
+					fields := strings.Fields(v)
+					if len(fields) < 2 {
+						continue
+					}
+
+					for _, v := range fields[1:] {
+						if !yield(v) {
+							return
+						}
+					}
+				}
+			}
+		case config.List_host:
+			iter = s.getLocalCacheTrimRuleIter(rules.GetRemote().GetUrls())
+		case config.List_process:
+			iter = s.getLocalCacheTrimRuleIter(rules.GetRemote().GetUrls())
+		default:
+			return nil, nil, fmt.Errorf("list %s is unknown", name)
+		}
+	default:
+		return nil, nil, fmt.Errorf("list %s is unknown", name)
+	}
+
+	return rules, iter, nil
+}
+
+func (s *Lists) refreshHostTrie() {
+	hostTrie := newHostTrie()
+	for name := range s.hostTrie.lists.Range {
+		_, iter, err := s.getIter(name)
+		if err != nil {
+			log.Error("get iter failed", "err", err)
+			continue
+		}
+
+		for v := range iter {
+			hostTrie.Add(v, name)
+		}
+	}
+
+	s.hostTrieMu.Lock()
+	s.hostTrie = hostTrie
+	s.hostTrieMu.Unlock()
+}
+
+func (s *Lists) HostTrie() *hostMatcher {
+	s.hostTrieMu.RLock()
+	defer s.hostTrieMu.RUnlock()
+	return s.hostTrie
+}
+
+func (s *Lists) SetHostTrie(hostTrie *hostMatcher) {
+	s.hostTrieMu.Lock()
+	s.hostTrie = hostTrie
+	s.hostTrieMu.Unlock()
+}
+
+func (s *Lists) ResetHostTrie() {
+	s.hostTrieMu.Lock()
+	s.hostTrie = newHostTrie()
+	s.hostTrieMu.Unlock()
+}
+
+func (s *Lists) AddNewHostList(name string) {
+	rules, iter, err := s.getIter(name)
 	if err != nil {
-		log.Error("load list failed", "err", err)
-		return false
+		log.Warn("get list failed", "list", name, "err", err)
+		return
 	}
 
-	if !ok {
-		return false
+	if rules.GetListType() == config.List_process {
+		return
 	}
 
-	return r.matcher.Match(ctx, addr)
-}
+	s.hostTrieMu.Lock()
+	defer s.hostTrieMu.Unlock()
 
-type ListsMatcher struct {
-	listName []string
-	lists    *Lists
-}
-
-func NewListsMatcher(lists *Lists, listName ...string) *ListsMatcher {
-	return &ListsMatcher{
-		listName: listName,
-		lists:    lists,
+	for v := range iter {
+		s.hostTrie.Add(v, name)
 	}
 }
 
-func (s *ListsMatcher) Match(ctx context.Context, addr netapi.Address) bool {
-	for _, v := range s.listName {
-		if s.lists.Match(ctx, v, addr) {
-			return true
+func (s *Lists) refreshProcessTrie() {
+	processTrie := newProcessTrie()
+	for name := range s.processTrie.lists.Range {
+		_, iter, err := s.getIter(name)
+		if err != nil {
+			log.Error("get iter failed", "err", err)
+			continue
+		}
+
+		for v := range iter {
+			processTrie.Add(v, name)
 		}
 	}
 
-	return false
+	s.processTrieMu.Lock()
+	s.processTrie = processTrie
+	s.processTrieMu.Unlock()
+}
+
+func (s *Lists) ProcessTrie() *processMatcher {
+	s.processTrieMu.RLock()
+	defer s.processTrieMu.RUnlock()
+	return s.processTrie
+}
+
+func (s *Lists) SetProcessTrie(processTrie *processMatcher) {
+	s.processTrieMu.Lock()
+	s.processTrie = processTrie
+	s.processTrieMu.Unlock()
+}
+
+func (s *Lists) ResetProcessTrie() {
+	s.processTrieMu.Lock()
+	s.processTrie = newProcessTrie()
+	s.processTrieMu.Unlock()
+}
+
+func (s *Lists) AddNewProcessList(name string) {
+	rules, iter, err := s.getIter(name)
+	if err != nil {
+		log.Warn("get list failed", "list", name, "err", err)
+		return
+	}
+
+	if rules.GetListType() != config.List_process {
+		return
+	}
+
+	s.processTrieMu.Lock()
+	defer s.processTrieMu.Unlock()
+
+	for v := range iter {
+		s.processTrie.Add(v, name)
+	}
 }
 
 func trimRule(str string) string {

@@ -245,6 +245,10 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 		store.ConnOptions().SetMaxminddb(geo)
 	}
 
+	lists := s.ms.list.HostTrie().Search(ctx, addr)
+	lists.Merge(s.ms.list.ProcessTrie().Search(ctx, addr))
+	store.ConnOptions().SetLists(lists)
+
 	start := system.CheapNowNano()
 	var mode config.ModeEnum
 	for _, m := range s.matchers {

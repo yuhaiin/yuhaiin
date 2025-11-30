@@ -68,6 +68,7 @@ message connection {
   string resolver = 30 [ json_name = "resolver" ];
   string geo = 31 [ json_name = "geo" ];
   string outbound_geo = 32 [ json_name = "outbound_geo" ];
+  repeated string lists = 33 [ json_name = "lists" ];
 }
 
 message match_result {

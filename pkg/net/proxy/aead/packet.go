@@ -11,18 +11,28 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
-func encodePacket(dst []byte, data []byte, auth cipher.AEAD) []byte {
+func encryptPacket(dst []byte, data []byte, auth cipher.AEAD) ([]byte, error) {
 	nonce := dst[:auth.NonceSize()]
+	encrypt := dst[auth.NonceSize():]
 
-	_, _ = io.ReadFull(rand.Reader, nonce)
+	if len(encrypt) < auth.Overhead()+len(data) {
+		return nil, io.ErrShortBuffer
+	}
 
-	cryptext := auth.Seal(dst[auth.NonceSize():auth.NonceSize()],
-		nonce, data, nil)
+	_, err := io.ReadFull(rand.Reader, nonce)
+	if err != nil {
+		return nil, fmt.Errorf("read nonce failed: %w", err)
+	}
 
-	return dst[:auth.NonceSize()+len(cryptext)]
+	encrypt = auth.Seal(encrypt[:0], nonce, data, nil)
+	return dst[:auth.NonceSize()+len(encrypt)], nil
 }
 
-func decodePacket(data []byte, auth cipher.AEAD) ([]byte, error) {
+func decryptPacket(data []byte, auth cipher.AEAD) ([]byte, error) {
+	if len(data) < auth.NonceSize()+auth.Overhead() {
+		return nil, io.ErrShortBuffer
+	}
+
 	nonce := data[:auth.NonceSize()]
 	cryptext := data[auth.NonceSize():]
 	return auth.Open(cryptext[:0], nonce, cryptext, nil)
@@ -50,7 +60,10 @@ func (s *authPacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
 	buf := pool.GetBytes(len(p) + s.headerSize())
 	defer pool.PutBytes(buf)
 
-	cryptext := encodePacket(buf, p, s.aead)
+	cryptext, err := encryptPacket(buf, p, s.aead)
+	if err != nil {
+		return 0, fmt.Errorf("encrypt packet failed: %w, len: %d", err, len(p))
+	}
 
 	_, err = s.PacketConn.WriteTo(cryptext, addr)
 	if err != nil {
@@ -70,9 +83,9 @@ func (s *authPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 		return 0, nil, fmt.Errorf("packet too small: %d < %d", n, s.headerSize())
 	}
 
-	plaintext, err := decodePacket(p[:n], s.aead)
+	plaintext, err := decryptPacket(p[:n], s.aead)
 	if err != nil {
-		return 0, nil, fmt.Errorf("decode packet failed: %w", err)
+		return 0, nil, fmt.Errorf("decrypt packet failed: %w, len: %d", err, n)
 	}
 
 	return copy(p[0:], plaintext), addr, nil

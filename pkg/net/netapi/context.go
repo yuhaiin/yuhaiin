@@ -8,6 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 
 type PacketSniffer interface {
@@ -121,6 +122,7 @@ type ConnOptions struct {
 		IPs *IPs
 		Err error
 	}
+	lists *set.Set[string]
 }
 
 func (s *ConnOptions) SetBindAddress(str string) *ConnOptions {
@@ -234,6 +236,18 @@ func (s *ConnOptions) RouteIPs(ctx context.Context, addr Address) (*IPs, error) 
 	}
 
 	return ips, nil
+}
+
+func (s *ConnOptions) SetLists(lists *set.Set[string]) *ConnOptions {
+	s.lists = lists
+	return s
+}
+
+func (s *ConnOptions) Lists() *set.Set[string] {
+	if s.lists == nil {
+		s.lists = set.NewSet[string]()
+	}
+	return s.lists
 }
 
 type MaxMindDB interface {

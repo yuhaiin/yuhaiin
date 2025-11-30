@@ -106,7 +106,7 @@ func (s *AuthPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 func (s *AuthPacketConn) read(p []byte) (int, packetAddr, error) {
 	n, rawAddr, err := s.PacketConn.ReadFrom(p)
 	if err != nil {
-		return 0, packetAddr{}, err
+		return 0, packetAddr{}, fmt.Errorf("read from packetConn failed: %w", err)
 	}
 
 	buf, addr, err := DecodePacket(p[:n], s.password, s.prefix)

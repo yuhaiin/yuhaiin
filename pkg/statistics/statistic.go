@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -295,6 +296,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		Pid:           uint64OrNil(uint64(nc.GetProcessPid())),
 		Uid:           uint64OrNil(uint64(nc.GetProcessUid())),
 		Resolver:      resolverNameOrNil(nc.ConnOptions().Resolver().Resolver()),
+		Lists:         slices.Collect(nc.ConnOptions().Lists().Range),
 	}
 
 	if conn != nil {
