@@ -24,10 +24,14 @@ type Rules struct {
 }
 
 func NewRules(db chore.DB, route *Route) *Rules {
+	var rules []*config.Rulev2
 	_ = db.View(func(s *config.Setting) error {
-		route.ms.Update(s.GetBypass().GetRulesV2())
+		rules = s.GetBypass().GetRulesV2()
 		return nil
 	})
+	if rules != nil {
+		route.ms.Update(rules)
+	}
 
 	r := &Rules{
 		db:    db,
@@ -74,6 +78,7 @@ func (r *Rules) Get(ctx context.Context, index *api.RuleIndex) (*config.Rulev2, 
 }
 
 func (r *Rules) Save(ctx context.Context, req *api.RuleSaveRequest) (*emptypb.Empty, error) {
+	var rules []*config.Rulev2
 	err := r.db.Batch(func(ss *config.Setting) error {
 		if req.GetIndex() == nil {
 			ss.GetBypass().SetRulesV2(append(ss.GetBypass().GetRulesV2(), req.GetRule()))
@@ -93,14 +98,20 @@ func (r *Rules) Save(ctx context.Context, req *api.RuleSaveRequest) (*emptypb.Em
 
 		ss.GetBypass().GetRulesV2()[req.GetIndex().GetIndex()] = req.GetRule()
 
-		r.route.ms.Update(ss.GetBypass().GetRulesV2())
+		rules = ss.GetBypass().GetRulesV2()
 		return nil
 	})
+	if err != nil {
+		return &emptypb.Empty{}, err
+	}
 
-	return &emptypb.Empty{}, err
+	r.route.ms.Update(rules)
+
+	return &emptypb.Empty{}, nil
 }
 
 func (r *Rules) Remove(ctx context.Context, index *api.RuleIndex) (*emptypb.Empty, error) {
+	var rules []*config.Rulev2
 	err := r.db.Batch(func(s *config.Setting) error {
 		if err := r.checkIndex(s, index); err != nil {
 			return err
@@ -108,11 +119,16 @@ func (r *Rules) Remove(ctx context.Context, index *api.RuleIndex) (*emptypb.Empt
 
 		s.GetBypass().SetRulesV2(slices.Delete(s.GetBypass().GetRulesV2(), int(index.GetIndex()), int(index.GetIndex())+1))
 
-		r.route.ms.Update(s.GetBypass().GetRulesV2())
+		rules = s.GetBypass().GetRulesV2()
 		return nil
 	})
+	if err != nil {
+		return &emptypb.Empty{}, err
+	}
 
-	return &emptypb.Empty{}, err
+	r.route.ms.Update(rules)
+
+	return &emptypb.Empty{}, nil
 }
 
 func (r *Rules) ChangePriority(ctx context.Context, req *api.ChangePriorityRequest) (*emptypb.Empty, error) {

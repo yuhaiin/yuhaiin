@@ -92,6 +92,9 @@ func OpenBboltDB(path string) (*bbolt.DB, error) {
 		log.Warn("remove invalid cache file and create new one")
 		return bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second})
 	}
+	if err != nil {
+		return nil, err
+	}
 
 	// set big batch delay to reduce sync for fake dns and connection cache
 	db.MaxBatchDelay = time.Millisecond * 300

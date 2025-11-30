@@ -1,0 +1,14 @@
+#!/bin/sh
+
+nerdctl run \
+    -it --rm \
+    --dns 1.1.1.1 --dns 8.8.8.8 \
+    --name yuhaiin-openvpn \
+    --cap-add=NET_ADMIN \
+    --device=/dev/net/tun \
+    -v "${PWD}/openvpn.ovpn":/config.ovpn \
+    -v "${PWD}/openvpn.yuhaiin":/root/.config/yuhaiin \
+    -v "${PWD}/infra/bin/yuhaiin":/yuhaiin/yuhaiin \
+    -p 50052:50051 \
+    -p 11080:1080 \
+    localhost/openvpn:latest
