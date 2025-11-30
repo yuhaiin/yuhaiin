@@ -40,24 +40,16 @@ func (t *Trie[T]) Insert(ip net.IP, maskSize int, mark T) {
 
 func (t *Trie[T]) Search(ip net.IP) *set.Set[T] {
 	r := t
-	var matched *set.Set[T]
+	matched := set.NewSet[T]()
 
 	for i := range ip {
 		for b := byte(128); b != 0; b >>= 1 {
 			if r == nil {
-				if matched == nil {
-					return set.NewSet[T]()
-				}
 				return matched
 			}
 
-			if len(r.marks) > 0 {
-				if matched == nil {
-					matched = set.NewSet[T]()
-				}
-				for k := range r.marks {
-					matched.Push(k)
-				}
+			for k := range r.marks {
+				matched.Push(k)
 			}
 
 			if ip[i]&b != 0 {
@@ -67,17 +59,10 @@ func (t *Trie[T]) Search(ip net.IP) *set.Set[T] {
 			}
 		}
 	}
-	if r != nil && len(r.marks) > 0 {
-		if matched == nil {
-			matched = set.NewSet[T]()
-		}
+	if r != nil {
 		for k := range r.marks {
 			matched.Push(k)
 		}
-	}
-
-	if matched == nil {
-		return set.NewSet[T]()
 	}
 
 	return matched

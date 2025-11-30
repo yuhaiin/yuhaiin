@@ -46,7 +46,7 @@ func TestTrie(t *testing.T) {
 	}
 
 	// Remove a rule
-	trie.Remove("1.1.1.0/24")
+	trie.Remove("1.1.1.0/24", "cloudflare")
 	resCidrAfterRemove := trie.SearchFqdn(addrCidr)
 	if resCidrAfterRemove.Len() != 0 {
 		t.Errorf("expected no match after remove, got %v", resCidrAfterRemove)

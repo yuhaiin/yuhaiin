@@ -33,7 +33,7 @@ func (d *Fqdn[T]) SearchString(domain string) *set.Set[T] {
 	return search(d.Root, newReader(domain, d.separate))
 }
 
-func (d *Fqdn[T]) Remove(domain string) {
+func (d *Fqdn[T]) Remove(domain string, mark T) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -42,7 +42,7 @@ func (d *Fqdn[T]) Remove(domain string) {
 	}
 
 	r := newReader(domain, d.separate)
-	remove(d.Root, r, *new(T))
+	remove(d.Root, r, mark)
 }
 
 func (d *Fqdn[T]) Clear() error {

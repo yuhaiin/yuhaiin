@@ -64,7 +64,7 @@ func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) *set.Set[T] {
 	return set.NewSet[T]()
 }
 
-func (x *Trie[T]) Remove(str string) {
+func (x *Trie[T]) Remove(str string, mark T) {
 	if str == "" {
 		return
 	}
@@ -84,7 +84,7 @@ func (x *Trie[T]) Remove(str string) {
 		return
 	}
 
-	x.domain.Remove(str)
+	x.domain.Remove(str, mark)
 }
 
 func (x *Trie[T]) Clear() error {

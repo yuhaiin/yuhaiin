@@ -18,13 +18,77 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
+
+type hostMatcher struct {
+	lists *set.Set[string]
+	trie  *trie.Trie[string]
+}
+
+func newHostTrie() *hostMatcher {
+	return &hostMatcher{
+		lists: set.NewSet[string](),
+		trie:  trie.NewTrie[string](),
+	}
+}
+
+func (h *hostMatcher) Add(host string, list string) {
+	h.lists.Push(list)
+	h.trie.Insert(host, list)
+}
+
+func (h *hostMatcher) Search(ctx context.Context, addr netapi.Address) *set.Set[string] {
+	return h.trie.Search(ctx, addr)
+}
+
+func (h *hostMatcher) Include(list string) bool {
+	return h.lists.Has(list)
+}
+
+type processMatcher struct {
+	lists *set.Set[string]
+
+	trie syncmap.SyncMap[string, *set.Set[string]]
+}
+
+func newProcessTrie() *processMatcher {
+	return &processMatcher{
+		lists: set.NewSet[string](),
+	}
+}
+
+func (h *processMatcher) Add(process string, list string) {
+	h.lists.Push(list)
+
+	set, _, _ := h.trie.LoadOrCreate(process, func() (*set.Set[string], error) {
+		return set.NewSet[string](), nil
+	})
+
+	set.Push(list)
+}
+
+func (h *processMatcher) Include(list string) bool {
+	return h.lists.Has(list)
+}
+
+func (h *processMatcher) Search(ctx context.Context, addr netapi.Address) *set.Set[string] {
+	store := netapi.GetContext(ctx)
+	process := store.GetProcessName()
+	s, ok := h.trie.Load(process)
+	if !ok {
+		return set.NewSet[string]()
+	}
+	return s
+}
 
 type Lists struct {
 	api.UnimplementedListsServer
@@ -44,10 +108,10 @@ type Lists struct {
 	ticker   *time.Timer
 
 	hostTrieMu sync.RWMutex
-	hostTrie   *hostTrie
+	hostTrie   *hostMatcher
 
 	processTrieMu sync.RWMutex
-	processTrie   *processTrie
+	processTrie   *processMatcher
 }
 
 func NewLists(db chore.DB) *Lists {
@@ -527,13 +591,13 @@ func (s *Lists) refreshHostTrie() {
 	s.hostTrieMu.Unlock()
 }
 
-func (s *Lists) HostTrie() *hostTrie {
+func (s *Lists) HostTrie() *hostMatcher {
 	s.hostTrieMu.RLock()
 	defer s.hostTrieMu.RUnlock()
 	return s.hostTrie
 }
 
-func (s *Lists) SetHostTrie(hostTrie *hostTrie) {
+func (s *Lists) SetHostTrie(hostTrie *hostMatcher) {
 	s.hostTrieMu.Lock()
 	s.hostTrie = hostTrie
 	s.hostTrieMu.Unlock()
@@ -583,13 +647,13 @@ func (s *Lists) refreshProcessTrie() {
 	s.processTrieMu.Unlock()
 }
 
-func (s *Lists) ProcessTrie() *processTrie {
+func (s *Lists) ProcessTrie() *processMatcher {
 	s.processTrieMu.RLock()
 	defer s.processTrieMu.RUnlock()
 	return s.processTrie
 }
 
-func (s *Lists) SetProcessTrie(processTrie *processTrie) {
+func (s *Lists) SetProcessTrie(processTrie *processMatcher) {
 	s.processTrieMu.Lock()
 	s.processTrie = processTrie
 	s.processTrieMu.Unlock()

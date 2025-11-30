@@ -24,9 +24,8 @@ func encryptPacket(dst []byte, data []byte, auth cipher.AEAD) ([]byte, error) {
 		return nil, fmt.Errorf("read nonce failed: %w", err)
 	}
 
-	auth.Seal(encrypt[:0], nonce, data, nil)
-
-	return dst[:auth.NonceSize()+auth.Overhead()+len(data)], nil
+	encrypt = auth.Seal(encrypt[:0], nonce, data, nil)
+	return dst[:auth.NonceSize()+len(encrypt)], nil
 }
 
 func decryptPacket(data []byte, auth cipher.AEAD) ([]byte, error) {
