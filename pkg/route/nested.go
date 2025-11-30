@@ -181,62 +181,6 @@ func (s *Or) Match(ctx context.Context, addr netapi.Address) bool {
 	return false
 }
 
-func ParseMatcher(lists *Lists, cc *config.Rulev2) Matcher {
-	matchers := make([]Matcher, 0, len(cc.GetRules()))
-	for _, v := range cc.GetRules() {
-		andMatchers := make([]Matcher, 0, len(v.GetRules()))
-
-		for _, rule := range sortRule(v.GetRules()) {
-			switch rule.WhichObject() {
-			case config.Rule_Host_case:
-				andMatchers = append(andMatchers, NewListsMatcher(lists, rule.GetHost().GetList()))
-			case config.Rule_Process_case:
-				andMatchers = append(andMatchers, NewListsMatcher(lists, rule.GetProcess().GetList()))
-			case config.Rule_Inbound_case:
-				andMatchers = append(andMatchers, NewInbound(rule.GetInbound().GetNames()...))
-			case config.Rule_Network_case:
-				andMatchers = append(andMatchers, NewNetwork(rule.GetNetwork().GetNetwork()))
-			case config.Rule_Port_case:
-				andMatchers = append(andMatchers, NewPort(rule.GetPort().GetPorts()))
-			case config.Rule_Geoip_case:
-				andMatchers = append(andMatchers, NewGeoip(rule.GetGeoip().GetCountries()))
-			}
-		}
-
-		if len(andMatchers) == 1 {
-			matchers = append(matchers, andMatchers[0])
-		} else {
-			matchers = append(matchers, NewAnd(andMatchers...))
-		}
-	}
-
-	if len(matchers) == 1 {
-		return matchers[0]
-	}
-
-	return NewOr(cc.GetName(), matchers...)
-}
-
-func sortRule(rules []*config.Rule) []*config.Rule {
-	getNo := func(rule *config.Rule) int {
-		switch rule.WhichObject() {
-		case config.Rule_Process_case:
-			return 1
-		case config.Rule_Inbound_case:
-			return 2
-		case config.Rule_Host_case:
-			return 3
-		default:
-			return math.MaxInt
-		}
-	}
-
-	slices.SortFunc(rules,
-		func(a, b *config.Rule) int { return cmp.Compare(getNo(a), getNo(b)) })
-
-	return rules
-}
-
 type MatchEntry struct {
 	mode    config.ModeEnum
 	matcher Matcher
@@ -290,6 +234,10 @@ func (s *Matchers) ChangePriority(source int, target int, operate api.ChangePrio
 func (s *Matchers) Update(rules []*config.Rulev2) {
 	var ms []MatchEntry
 	tags := map[string]struct{}{}
+
+	s.list.ResetHostTrie()
+	s.list.ResetProcessTrie()
+
 	for _, v := range rules {
 		ms = append(ms, MatchEntry{
 			mode:    v.ToModeEnum(),
@@ -329,4 +277,89 @@ func (s *Matchers) Tags() map[string]struct{} {
 	defer s.mu.RUnlock()
 
 	return s.tags
+}
+
+type List string
+
+func (s List) Match(ctx context.Context, addr netapi.Address) bool {
+	store := netapi.GetContext(ctx)
+
+	if store.ConnOptions().Lists().Has(string(s)) {
+		store.AddMatchHistory(fmt.Sprintf("List %s", string(s)), true)
+		return true
+	}
+
+	store.AddMatchHistory(fmt.Sprintf("List %s", string(s)), false)
+	return false
+}
+
+func (s List) String() string {
+	return string(s)
+}
+
+func ParseMatcher(lists *Lists, cc *config.Rulev2) Matcher {
+	matchers := make([]Matcher, 0, len(cc.GetRules()))
+	for _, v := range cc.GetRules() {
+		andMatchers := make([]Matcher, 0, len(v.GetRules()))
+
+		for _, rule := range sortRule(v.GetRules()) {
+			switch rule.WhichObject() {
+			case config.Rule_Host_case:
+				andMatchers = append(andMatchers, List(rule.GetHost().GetList()))
+				lists.AddNewHostList(rule.GetHost().GetList())
+
+			case config.Rule_Process_case:
+				andMatchers = append(andMatchers, List(rule.GetProcess().GetList()))
+				lists.AddNewProcessList(rule.GetProcess().GetList())
+			case config.Rule_Inbound_case:
+				andMatchers = append(andMatchers, NewInbound(rule.GetInbound().GetNames()...))
+			case config.Rule_Network_case:
+				andMatchers = append(andMatchers, NewNetwork(rule.GetNetwork().GetNetwork()))
+			case config.Rule_Port_case:
+				andMatchers = append(andMatchers, NewPort(rule.GetPort().GetPorts()))
+			case config.Rule_Geoip_case:
+				andMatchers = append(andMatchers, NewGeoip(rule.GetGeoip().GetCountries()))
+			}
+		}
+
+		if len(andMatchers) == 1 {
+			matchers = append(matchers, andMatchers[0])
+		} else {
+			matchers = append(matchers, NewAnd(andMatchers...))
+		}
+	}
+
+	if len(matchers) == 1 {
+		return matchers[0]
+	}
+
+	return NewOr(cc.GetName(), matchers...)
+}
+
+func sortRule(rules []*config.Rule) []*config.Rule {
+	if len(rules) <= 1 {
+		return rules
+	}
+
+	getNo := func(rule *config.Rule) int {
+		switch rule.WhichObject() {
+		case config.Rule_Port_case, config.Rule_Network_case:
+			return 1
+		case config.Rule_Process_case:
+			return 2
+		case config.Rule_Inbound_case:
+			return 3
+		case config.Rule_Geoip_case:
+			return 4
+		case config.Rule_Host_case:
+			return 5
+		default:
+			return math.MaxInt
+		}
+	}
+
+	slices.SortFunc(rules,
+		func(a, b *config.Rule) int { return cmp.Compare(getNo(a), getNo(b)) })
+
+	return rules
 }

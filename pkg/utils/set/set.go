@@ -73,6 +73,16 @@ func (s *Set[T]) Range(ranger func(T) bool) {
 	}
 }
 
+func (s *Set[T]) Merge(other *Set[T]) {
+	s.mu.Lock()
+	other.mu.RLock()
+	for k := range other.data {
+		s.data[k] = struct{}{}
+	}
+	other.mu.RUnlock()
+	s.mu.Unlock()
+}
+
 func NewSet[T comparable]() *Set[T] {
 	return &Set[T]{data: make(map[T]struct{})}
 }
