@@ -85,7 +85,7 @@ func (s *authPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 
 	plaintext, err := decryptPacket(p[:n], s.aead)
 	if err != nil {
-		return 0, nil, fmt.Errorf("decrypt packet failed: %w, len: %d", err, n)
+		return 0, nil, fmt.Errorf("decrypt packet failed: %w, len: %d, from: %v", err, n, addr)
 	}
 
 	return copy(p[0:], plaintext), addr, nil

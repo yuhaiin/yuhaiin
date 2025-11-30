@@ -298,6 +298,12 @@ func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 		return netapi.ErrorResolver(func(domain string) error { return err })
 	}
 
+	store := netapi.GetContext(ctx)
+
+	lists := s.ms.list.HostTrie().Search(ctx, host)
+	lists.Merge(s.ms.list.ProcessTrie().Search(ctx, host))
+	store.ConnOptions().SetLists(lists)
+
 	mode := s.ms.Match(ctx, host)
 
 	if mode.Mode() == config.Mode_block {
