@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"iter"
 	"math"
 	"slices"
 	"strconv"
@@ -191,27 +192,34 @@ type Matchers struct {
 	mu       sync.RWMutex
 	list     *Lists
 	matchers []MatchEntry
-	tags     map[string]struct{}
+	tags     *set.Set[string]
 }
 
 func NewMatchers(list *Lists) *Matchers {
 	return &Matchers{
 		list: list,
+		tags: set.NewSet[string](),
 	}
 }
 
-func (s *Matchers) Add(rule *config.Rulev2) {
-	matcher := ParseMatcher(s.list, rule)
+func (s *Matchers) Add(rule ...*config.Rulev2) {
+	matchers := make([]MatchEntry, 0, len(rule))
+
+	for _, r := range rule {
+		matcher := ParseMatcher(s.list, r)
+		matchers = append(matchers, MatchEntry{
+			mode:    r.ToModeEnum(),
+			matcher: matcher,
+			name:    r.GetName(),
+		})
+
+		if tag := r.GetTag(); tag != "" {
+			s.tags.Push(tag)
+		}
+	}
 
 	s.mu.Lock()
-	s.matchers = append(s.matchers, MatchEntry{
-		mode:    rule.ToModeEnum(),
-		matcher: matcher,
-		name:    rule.GetName(),
-	})
-	if rule.GetTag() != "" {
-		s.tags[rule.GetTag()] = struct{}{}
-	}
+	s.matchers = append(s.matchers, matchers...)
 	s.mu.Unlock()
 }
 
@@ -231,10 +239,10 @@ func (s *Matchers) ChangePriority(source int, target int, operate api.ChangePrio
 	s.mu.Unlock()
 }
 
-func (s *Matchers) Update(rules []*config.Rulev2) {
+func (s *Matchers) Update(rules ...*config.Rulev2) {
 	var ms []MatchEntry
-	tags := map[string]struct{}{}
 
+	s.tags.Clear()
 	s.list.ResetHostTrie()
 	s.list.ResetProcessTrie()
 
@@ -245,14 +253,13 @@ func (s *Matchers) Update(rules []*config.Rulev2) {
 			name:    v.GetName(),
 		})
 
-		if v.GetTag() != "" {
-			tags[v.GetTag()] = struct{}{}
+		if tag := v.GetTag(); tag != "" {
+			s.tags.Push(tag)
 		}
 	}
 
 	s.mu.Lock()
 	s.matchers = ms
-	s.tags = tags
 	s.mu.Unlock()
 }
 
@@ -272,11 +279,8 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) config.ModeEn
 	return config.Proxy
 }
 
-func (s *Matchers) Tags() map[string]struct{} {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.tags
+func (s *Matchers) Tags() iter.Seq[string] {
+	return s.tags.Range
 }
 
 type List string

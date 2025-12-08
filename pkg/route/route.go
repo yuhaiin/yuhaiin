@@ -59,15 +59,7 @@ func NewRoute(d Dialer, r Resolver, list *Lists, ProcessDumper netapi.ProcessDum
 	return rr
 }
 
-func (s *Route) Tags() iter.Seq[string] {
-	return func(yield func(string) bool) {
-		for v := range s.ms.Tags() {
-			if !yield(v) {
-				return
-			}
-		}
-	}
-}
+func (s *Route) Tags() iter.Seq[string] { return s.ms.Tags() }
 
 func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
 	if store := netapi.GetContext(ctx); store.ConnOptions().SystemDialer() {

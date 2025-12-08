@@ -366,45 +366,59 @@ func (b *Backup) Restore(ctx context.Context, opt *backup.RestoreOption) (*empty
 	}
 
 	if opt.GetDns() {
+		log.Info("start restore dns")
 		if err := b.restoreDns(ctx, &backupContent); err != nil {
 			return nil, err
 		}
+		log.Info("restore dns finshed")
 	}
 
 	if opt.GetInbounds() {
+		log.Info("start restore inbounds")
 		if err := b.restoreInbounds(ctx, &backupContent); err != nil {
 			return nil, err
 		}
+		log.Info("restore inbounds finshed")
 	}
 
 	if opt.GetNodes() {
+		log.Info("start restore nodes")
 		if err := b.restoreNodes(ctx, &backupContent); err != nil {
 			return nil, err
 		}
+		log.Info("restore nodes finshed")
 	}
 
 	if opt.GetRules() {
+		log.Info("start restore rules")
 		if err := b.restoreRules(ctx, &backupContent); err != nil {
 			return nil, err
 		}
+		log.Info("restore rules finshed")
 	}
 
 	if opt.GetTags() {
+		log.Info("start restore tags")
 		if err := b.restoreTags(ctx, &backupContent); err != nil {
 			return nil, err
 		}
+		log.Info("restore tags finshed")
 	}
 
 	if opt.GetLists() {
+		log.Info("start restore lists")
 		if err := b.restoreLists(ctx, &backupContent); err != nil {
 			return nil, err
 		}
+		log.Info("restore lists finshed")
 	}
 
 	if opt.GetSubscribes() {
+		log.Info("start restore subscribes")
 		if err := b.restoreSubscribes(ctx, &backupContent); err != nil {
 			return nil, err
 		}
+		log.Info("restore subscribes finshed")
 	}
 
 	return &emptypb.Empty{}, nil
@@ -494,8 +508,9 @@ func (b *Backup) restoreNodes(ctx context.Context, content *backup.BackupContent
 	}
 	nodes := content.GetNodes()
 
-	for name, node := range nodes.GetNodes() {
-		node.SetName(name)
+	for hash, node := range nodes.GetNodes() {
+		node.SetHash(hash)
+		node.SetName(node.GetName())
 		_, err := b.instance.Node.Save(ctx, node)
 		if err != nil {
 			return err
@@ -529,10 +544,14 @@ func (b *Backup) restoreTags(ctx context.Context, content *backup.BackupContent)
 	tags := content.GetTags()
 
 	for name, tag := range tags.GetTags() {
+		var hash string
+		if len(tag.GetHash()) > 0 {
+			hash = tag.GetHash()[0]
+		}
 		_, err := b.instance.Tag.Save(ctx, api.SaveTagReq_builder{
 			Tag:  proto.String(name),
 			Type: tag.GetType().Enum(),
-			Hash: proto.String(tag.GetHash()[0]),
+			Hash: proto.String(hash),
 		}.Build())
 		if err != nil {
 			return err
@@ -567,12 +586,14 @@ func (b *Backup) restoreRules(ctx context.Context, content *backup.BackupContent
 	}
 	rules := content.GetRules()
 
+	log.Info("start restore rules config")
 	if rules.HasConfig() {
 		_, err := b.instance.Rules.SaveConfig(ctx, rules.GetConfig())
 		if err != nil {
 			return err
 		}
 	}
+	log.Info("restore rules config finshed")
 
 	for _, rule := range rules.GetRules() {
 		_, err := b.instance.Rules.Save(ctx, api.RuleSaveRequest_builder{
