@@ -30,7 +30,7 @@ func NewRules(db chore.DB, route *Route) *Rules {
 		return nil
 	})
 	if rules != nil {
-		route.ms.Update(rules)
+		route.ms.Update(rules...)
 	}
 
 	r := &Rules{
@@ -79,10 +79,12 @@ func (r *Rules) Get(ctx context.Context, index *api.RuleIndex) (*config.Rulev2, 
 
 func (r *Rules) Save(ctx context.Context, req *api.RuleSaveRequest) (*emptypb.Empty, error) {
 	var rules []*config.Rulev2
+	var add bool
 	err := r.db.Batch(func(ss *config.Setting) error {
 		if req.GetIndex() == nil {
 			ss.GetBypass().SetRulesV2(append(ss.GetBypass().GetRulesV2(), req.GetRule()))
-			r.route.ms.Add(req.GetRule())
+			rules = []*config.Rulev2{req.GetRule()}
+			add = true
 			return nil
 		}
 
@@ -105,7 +107,11 @@ func (r *Rules) Save(ctx context.Context, req *api.RuleSaveRequest) (*emptypb.Em
 		return &emptypb.Empty{}, err
 	}
 
-	r.route.ms.Update(rules)
+	if add {
+		r.route.ms.Add(rules...)
+	} else {
+		r.route.ms.Update(rules...)
+	}
 
 	return &emptypb.Empty{}, nil
 }
@@ -126,7 +132,7 @@ func (r *Rules) Remove(ctx context.Context, index *api.RuleIndex) (*emptypb.Empt
 		return &emptypb.Empty{}, err
 	}
 
-	r.route.ms.Update(rules)
+	r.route.ms.Update(rules...)
 
 	return &emptypb.Empty{}, nil
 }

@@ -224,9 +224,6 @@ func (s *Lists) Get(ctx context.Context, req *wrapperspb.StringValue) (*config.L
 }
 
 func (s *Lists) Save(ctx context.Context, list *config.List) (*emptypb.Empty, error) {
-	// for prevent deadlock
-	ctx = context.WithValue(ctx, listsRequestKey{}, true)
-
 	list.SetErrorMsgs(list.GetErrorMsgs()[:0])
 
 	if list.WhichList() == config.List_Remote_case {
@@ -299,8 +296,6 @@ func (s *Lists) resetRefreshInterval(minute uint64) {
 	})
 }
 
-type listsRequestKey struct{}
-
 func (s *Lists) closeCurrentGeoip() {
 	s.geoipmu.Lock()
 	defer s.geoipmu.Unlock()
@@ -357,8 +352,6 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 		return nil, fmt.Errorf("refreshing")
 	}
 	defer s.refreshing.Store(false)
-
-	ctx = context.WithValue(ctx, listsRequestKey{}, true)
 
 	var lists []*config.List
 	var geoipUrl string
