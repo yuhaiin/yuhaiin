@@ -276,7 +276,7 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) config.ModeEn
 		}
 	}
 
-	return config.Proxy
+	return config.ProxyMode
 }
 
 func (s *Matchers) Tags() iter.Seq[string] {

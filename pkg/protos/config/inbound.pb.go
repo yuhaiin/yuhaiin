@@ -1215,6 +1215,15 @@ func (x *Transport) GetAead() *Aead {
 	return nil
 }
 
+func (x *Transport) GetProxy() *Proxy {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Transport.(*transport_Proxy); ok {
+			return x.Proxy
+		}
+	}
+	return nil
+}
+
 func (x *Transport) SetNormal(v *Normal) {
 	if v == nil {
 		x.xxx_hidden_Transport = nil
@@ -1293,6 +1302,14 @@ func (x *Transport) SetAead(v *Aead) {
 		return
 	}
 	x.xxx_hidden_Transport = &transport_Aead{v}
+}
+
+func (x *Transport) SetProxy(v *Proxy) {
+	if v == nil {
+		x.xxx_hidden_Transport = nil
+		return
+	}
+	x.xxx_hidden_Transport = &transport_Proxy{v}
 }
 
 func (x *Transport) HasTransport() bool {
@@ -1382,6 +1399,14 @@ func (x *Transport) HasAead() bool {
 	return ok
 }
 
+func (x *Transport) HasProxy() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Transport.(*transport_Proxy)
+	return ok
+}
+
 func (x *Transport) ClearTransport() {
 	x.xxx_hidden_Transport = nil
 }
@@ -1446,6 +1471,12 @@ func (x *Transport) ClearAead() {
 	}
 }
 
+func (x *Transport) ClearProxy() {
+	if _, ok := x.xxx_hidden_Transport.(*transport_Proxy); ok {
+		x.xxx_hidden_Transport = nil
+	}
+}
+
 const Transport_Transport_not_set_case case_Transport_Transport = 0
 const Transport_Normal_case case_Transport_Transport = 12
 const Transport_Tls_case case_Transport_Transport = 1
@@ -1457,6 +1488,7 @@ const Transport_Reality_case case_Transport_Transport = 10
 const Transport_TlsAuto_case case_Transport_Transport = 13
 const Transport_HttpMock_case case_Transport_Transport = 14
 const Transport_Aead_case case_Transport_Transport = 15
+const Transport_Proxy_case case_Transport_Transport = 16
 
 func (x *Transport) WhichTransport() case_Transport_Transport {
 	if x == nil {
@@ -1483,6 +1515,8 @@ func (x *Transport) WhichTransport() case_Transport_Transport {
 		return Transport_HttpMock_case
 	case *transport_Aead:
 		return Transport_Aead_case
+	case *transport_Proxy:
+		return Transport_Proxy_case
 	default:
 		return Transport_Transport_not_set_case
 	}
@@ -1502,6 +1536,7 @@ type Transport_builder struct {
 	TlsAuto   *TlsAuto
 	HttpMock  *HttpMock
 	Aead      *Aead
+	Proxy     *Proxy
 	// -- end of xxx_hidden_Transport
 }
 
@@ -1538,6 +1573,9 @@ func (b0 Transport_builder) Build() *Transport {
 	}
 	if b.Aead != nil {
 		x.xxx_hidden_Transport = &transport_Aead{b.Aead}
+	}
+	if b.Proxy != nil {
+		x.xxx_hidden_Transport = &transport_Proxy{b.Proxy}
 	}
 	return m0
 }
@@ -1596,6 +1634,10 @@ type transport_Aead struct {
 	Aead *Aead `protobuf:"bytes,15,opt,name=aead,oneof"`
 }
 
+type transport_Proxy struct {
+	Proxy *Proxy `protobuf:"bytes,16,opt,name=proxy,oneof"`
+}
+
 func (*transport_Normal) isTransport_Transport() {}
 
 func (*transport_Tls) isTransport_Transport() {}
@@ -1615,6 +1657,8 @@ func (*transport_TlsAuto) isTransport_Transport() {}
 func (*transport_HttpMock) isTransport_Transport() {}
 
 func (*transport_Aead) isTransport_Transport() {}
+
+func (*transport_Proxy) isTransport_Transport() {}
 
 type Empty struct {
 	state         protoimpl.MessageState `protogen:"opaque.v1"`
@@ -4424,6 +4468,49 @@ func (b0 Aead_builder) Build() *Aead {
 	return m0
 }
 
+type Proxy struct {
+	state         protoimpl.MessageState `protogen:"opaque.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Proxy) Reset() {
+	*x = Proxy{}
+	mi := &file_config_inbound_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Proxy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Proxy) ProtoMessage() {}
+
+func (x *Proxy) ProtoReflect() protoreflect.Message {
+	mi := &file_config_inbound_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type Proxy_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 Proxy_builder) Build() *Proxy {
+	m0 := &Proxy{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
 type TunPlatfromPlatformDarwin struct {
 	state                     protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_NetworkService *string                `protobuf:"bytes,1,opt,name=network_service"`
@@ -4435,7 +4522,7 @@ type TunPlatfromPlatformDarwin struct {
 
 func (x *TunPlatfromPlatformDarwin) Reset() {
 	*x = TunPlatfromPlatformDarwin{}
-	mi := &file_config_inbound_proto_msgTypes[31]
+	mi := &file_config_inbound_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4447,7 +4534,7 @@ func (x *TunPlatfromPlatformDarwin) String() string {
 func (*TunPlatfromPlatformDarwin) ProtoMessage() {}
 
 func (x *TunPlatfromPlatformDarwin) ProtoReflect() protoreflect.Message {
-	mi := &file_config_inbound_proto_msgTypes[31]
+	mi := &file_config_inbound_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4537,7 +4624,7 @@ const file_config_inbound_proto_rawDesc = "" +
 	"\x04none\x18\x18 \x01(\v2\x16.yuhaiin.inbound.emptyB\x02(\x01H\x01R\x04noneB\t\n" +
 	"\anetworkB\n" +
 	"\n" +
-	"\bprotocolJ\x04\b\x11\x10\x12R\x04IPv6\"\xb8\x04\n" +
+	"\bprotocolJ\x04\b\x11\x10\x12R\x04IPv6\"\xec\x04\n" +
 	"\ttransport\x125\n" +
 	"\x06normal\x18\f \x01(\v2\x17.yuhaiin.inbound.normalB\x02(\x01H\x00R\x06normal\x12,\n" +
 	"\x03tls\x18\x01 \x01(\v2\x14.yuhaiin.inbound.tlsB\x02(\x01H\x00R\x03tls\x12,\n" +
@@ -4549,7 +4636,8 @@ const file_config_inbound_proto_rawDesc = "" +
 	" \x01(\v2\x18.yuhaiin.inbound.realityB\x02(\x01H\x00R\areality\x12;\n" +
 	"\btls_auto\x18\r \x01(\v2\x19.yuhaiin.inbound.tls_autoB\x02(\x01H\x00R\btls_auto\x12>\n" +
 	"\thttp_mock\x18\x0e \x01(\v2\x1a.yuhaiin.inbound.http_mockB\x02(\x01H\x00R\thttp_mock\x12/\n" +
-	"\x04aead\x18\x0f \x01(\v2\x15.yuhaiin.inbound.aeadB\x02(\x01H\x00R\x04aeadB\v\n" +
+	"\x04aead\x18\x0f \x01(\v2\x15.yuhaiin.inbound.aeadB\x02(\x01H\x00R\x04aead\x122\n" +
+	"\x05proxy\x18\x10 \x01(\v2\x16.yuhaiin.inbound.proxyB\x02(\x01H\x00R\x05proxyB\v\n" +
 	"\ttransport\"\a\n" +
 	"\x05empty\"\x05\n" +
 	"\x03mux\"X\n" +
@@ -4645,14 +4733,15 @@ const file_config_inbound_proto_rawDesc = "" +
 	"\x04data\x18\x01 \x01(\fR\x04data\"l\n" +
 	"\x04aead\x12\x1a\n" +
 	"\bpassword\x18\x01 \x01(\tR\bpassword\x12H\n" +
-	"\rcrypto_method\x18\x02 \x01(\x0e2\".yuhaiin.protocol.AeadCryptoMethodR\rcrypto_method*L\n" +
+	"\rcrypto_method\x18\x02 \x01(\x0e2\".yuhaiin.protocol.AeadCryptoMethodR\rcrypto_method\"\a\n" +
+	"\x05proxy*L\n" +
 	"\x0ftcp_udp_control\x12\x17\n" +
 	"\x13tcp_udp_control_all\x10\x00\x12\x0f\n" +
 	"\vdisable_tcp\x10\x01\x12\x0f\n" +
 	"\vdisable_udp\x10\x02B8Z.github.com/Asutorufa/yuhaiin/pkg/protos/config\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
 var file_config_inbound_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_config_inbound_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
+var file_config_inbound_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
 var file_config_inbound_proto_goTypes = []any{
 	(TcpUdpControl)(0),                // 0: yuhaiin.inbound.tcp_udp_control
 	(TunEndpointDriver)(0),            // 1: yuhaiin.inbound.tun.endpoint_driver
@@ -4686,14 +4775,15 @@ var file_config_inbound_proto_goTypes = []any{
 	(*ReverseTcp)(nil),                // 29: yuhaiin.inbound.reverse_tcp
 	(*HttpMock)(nil),                  // 30: yuhaiin.inbound.http_mock
 	(*Aead)(nil),                      // 31: yuhaiin.inbound.aead
-	nil,                               // 32: yuhaiin.inbound.inbound_config.InboundsEntry
-	(*TunPlatfromPlatformDarwin)(nil), // 33: yuhaiin.inbound.tun_platfrom.platform_darwin
-	(*node.TlsServerConfig)(nil),      // 34: yuhaiin.protocol.tls_server_config
-	(*node.TlsConfig)(nil),            // 35: yuhaiin.protocol.tls_config
-	(node.AeadCryptoMethod)(0),        // 36: yuhaiin.protocol.AeadCryptoMethod
+	(*Proxy)(nil),                     // 32: yuhaiin.inbound.proxy
+	nil,                               // 33: yuhaiin.inbound.inbound_config.InboundsEntry
+	(*TunPlatfromPlatformDarwin)(nil), // 34: yuhaiin.inbound.tun_platfrom.platform_darwin
+	(*node.TlsServerConfig)(nil),      // 35: yuhaiin.protocol.tls_server_config
+	(*node.TlsConfig)(nil),            // 36: yuhaiin.protocol.tls_config
+	(node.AeadCryptoMethod)(0),        // 37: yuhaiin.protocol.AeadCryptoMethod
 }
 var file_config_inbound_proto_depIdxs = []int32{
-	32, // 0: yuhaiin.inbound.inbound_config.inbounds:type_name -> yuhaiin.inbound.inbound_config.InboundsEntry
+	33, // 0: yuhaiin.inbound.inbound_config.inbounds:type_name -> yuhaiin.inbound.inbound_config.InboundsEntry
 	27, // 1: yuhaiin.inbound.inbound_config.sniff:type_name -> yuhaiin.inbound.sniff
 	5,  // 2: yuhaiin.inbound.inbound.empty:type_name -> yuhaiin.inbound.empty
 	7,  // 3: yuhaiin.inbound.inbound.tcpudp:type_name -> yuhaiin.inbound.tcpudp
@@ -4720,22 +4810,23 @@ var file_config_inbound_proto_depIdxs = []int32{
 	25, // 24: yuhaiin.inbound.transport.tls_auto:type_name -> yuhaiin.inbound.tls_auto
 	30, // 25: yuhaiin.inbound.transport.http_mock:type_name -> yuhaiin.inbound.http_mock
 	31, // 26: yuhaiin.inbound.transport.aead:type_name -> yuhaiin.inbound.aead
-	0,  // 27: yuhaiin.inbound.tcpudp.control:type_name -> yuhaiin.inbound.tcp_udp_control
-	34, // 28: yuhaiin.inbound.quic.tls:type_name -> yuhaiin.protocol.tls_server_config
-	33, // 29: yuhaiin.inbound.tun_platfrom.darwin:type_name -> yuhaiin.inbound.tun_platfrom.platform_darwin
-	1,  // 30: yuhaiin.inbound.tun.driver:type_name -> yuhaiin.inbound.tun.endpoint_driver
-	17, // 31: yuhaiin.inbound.tun.route:type_name -> yuhaiin.inbound.route
-	15, // 32: yuhaiin.inbound.tun.platform:type_name -> yuhaiin.inbound.tun_platfrom
-	34, // 33: yuhaiin.inbound.tls.tls:type_name -> yuhaiin.protocol.tls_server_config
-	26, // 34: yuhaiin.inbound.tls_auto.ech:type_name -> yuhaiin.inbound.ech_config
-	35, // 35: yuhaiin.inbound.reverse_http.tls:type_name -> yuhaiin.protocol.tls_config
-	36, // 36: yuhaiin.inbound.aead.crypto_method:type_name -> yuhaiin.protocol.AeadCryptoMethod
-	3,  // 37: yuhaiin.inbound.inbound_config.InboundsEntry.value:type_name -> yuhaiin.inbound.inbound
-	38, // [38:38] is the sub-list for method output_type
-	38, // [38:38] is the sub-list for method input_type
-	38, // [38:38] is the sub-list for extension type_name
-	38, // [38:38] is the sub-list for extension extendee
-	0,  // [0:38] is the sub-list for field type_name
+	32, // 27: yuhaiin.inbound.transport.proxy:type_name -> yuhaiin.inbound.proxy
+	0,  // 28: yuhaiin.inbound.tcpudp.control:type_name -> yuhaiin.inbound.tcp_udp_control
+	35, // 29: yuhaiin.inbound.quic.tls:type_name -> yuhaiin.protocol.tls_server_config
+	34, // 30: yuhaiin.inbound.tun_platfrom.darwin:type_name -> yuhaiin.inbound.tun_platfrom.platform_darwin
+	1,  // 31: yuhaiin.inbound.tun.driver:type_name -> yuhaiin.inbound.tun.endpoint_driver
+	17, // 32: yuhaiin.inbound.tun.route:type_name -> yuhaiin.inbound.route
+	15, // 33: yuhaiin.inbound.tun.platform:type_name -> yuhaiin.inbound.tun_platfrom
+	35, // 34: yuhaiin.inbound.tls.tls:type_name -> yuhaiin.protocol.tls_server_config
+	26, // 35: yuhaiin.inbound.tls_auto.ech:type_name -> yuhaiin.inbound.ech_config
+	36, // 36: yuhaiin.inbound.reverse_http.tls:type_name -> yuhaiin.protocol.tls_config
+	37, // 37: yuhaiin.inbound.aead.crypto_method:type_name -> yuhaiin.protocol.AeadCryptoMethod
+	3,  // 38: yuhaiin.inbound.inbound_config.InboundsEntry.value:type_name -> yuhaiin.inbound.inbound
+	39, // [39:39] is the sub-list for method output_type
+	39, // [39:39] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_config_inbound_proto_init() }
@@ -4770,6 +4861,7 @@ func file_config_inbound_proto_init() {
 		(*transport_TlsAuto)(nil),
 		(*transport_HttpMock)(nil),
 		(*transport_Aead)(nil),
+		(*transport_Proxy)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -4777,7 +4869,7 @@ func file_config_inbound_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_config_inbound_proto_rawDesc), len(file_config_inbound_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   32,
+			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

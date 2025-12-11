@@ -56,6 +56,7 @@ message transport {
     tls_auto tls_auto = 13 [ json_name = "tls_auto", lazy = true ];
     http_mock http_mock = 14 [ json_name = "http_mock", lazy = true ];
     aead aead = 15 [ json_name = "aead", lazy = true ];
+    proxy proxy = 16 [ json_name = "proxy", lazy = true ];
   }
 }
 
@@ -225,3 +226,5 @@ message aead {
   yuhaiin.protocol.AeadCryptoMethod crypto_method = 2
       [ json_name = "crypto_method" ];
 }
+
+message proxy {}

@@ -50,6 +50,7 @@ message protocol {
         [ json_name = "network_split", lazy = true ];
     cloudflare_warp_masque cloudflare_warp_masque = 32
         [ json_name = "cloudflare_warp_masque", lazy = true ];
+    proxy proxy = 33 [ json_name = "proxy", lazy = true ];
   }
 }
 
@@ -279,3 +280,5 @@ message cloudflare_warp_masque {
   repeated string local_addresses = 4 [ json_name = "local_addresses" ];
   int32 mtu = 5 [ json_name = "mtu" ];
 }
+
+message proxy {}

@@ -227,7 +227,7 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 
 	store := netapi.GetContext(ctx)
 
-	store.ConnOptions().Resolver().SetResolver(s.r.Get(s.getResolverFallback(config.Proxy), ""))
+	store.ConnOptions().Resolver().SetResolver(s.r.Get(s.getResolverFallback(config.ProxyMode), ""))
 
 	if geo := s.ms.list.LoadGeoip(); geo != nil {
 		if country, err := geo.LookupAddr(ctx, addr); err == nil {

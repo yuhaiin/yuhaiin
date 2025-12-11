@@ -5,7 +5,7 @@ import "unique"
 func (m Mode) ToModeEnum() ModeEnum {
 	switch m {
 	case Mode_proxy:
-		return Proxy
+		return ProxyMode
 	case Mode_direct:
 		return Direct
 	case Mode_block:
@@ -50,7 +50,7 @@ func (m ModeEnum) UdpProxyFqdn() UdpProxyFqdnStrategy  { return m.udpProxyFqdn }
 func (m ModeEnum) Resolver() string                    { return m.resolver }
 
 var (
-	Proxy = ModeEnum{
+	ProxyMode = ModeEnum{
 		mode:            Mode_proxy,
 		ResolveStrategy: ResolveStrategy_default,
 		udpProxyFqdn:    UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default,

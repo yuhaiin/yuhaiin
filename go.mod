@@ -16,6 +16,7 @@ require (
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/miekg/dns v1.1.68
 	github.com/oschwald/maxminddb-golang/v2 v2.1.1
+	github.com/pires/go-proxyproto v0.8.1
 	github.com/prometheus-community/pro-bing v0.7.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/quic-go/connect-ip-go v0.1.0
@@ -25,7 +26,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20251121194102-c6fd943bb437
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20251116175510-cd53f7d50237
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251203053100-c22161a29828
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251211152305-d23fc170e4fc
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.46.0
 	golang.org/x/mobile v0.0.0-20251209145715-2553ed8ce294
@@ -69,7 +70,6 @@ require (
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/pires/go-proxyproto v0.8.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect

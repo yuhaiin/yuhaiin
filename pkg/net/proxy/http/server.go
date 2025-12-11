@@ -11,7 +11,6 @@ import (
 	"net/http/httputil"
 	"time"
 	"unsafe"
-	_ "unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"

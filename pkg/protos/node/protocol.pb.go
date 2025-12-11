@@ -424,6 +424,15 @@ func (x *Protocol) GetCloudflareWarpMasque() *CloudflareWarpMasque {
 	return nil
 }
 
+func (x *Protocol) GetProxy() *Proxy {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Protocol.(*protocol_Proxy); ok {
+			return x.Proxy
+		}
+	}
+	return nil
+}
+
 func (x *Protocol) SetShadowsocks(v *Shadowsocks) {
 	if v == nil {
 		x.xxx_hidden_Protocol = nil
@@ -679,6 +688,14 @@ func (x *Protocol) SetCloudflareWarpMasque(v *CloudflareWarpMasque) {
 		return
 	}
 	x.xxx_hidden_Protocol = &protocol_CloudflareWarpMasque{v}
+}
+
+func (x *Protocol) SetProxy(v *Proxy) {
+	if v == nil {
+		x.xxx_hidden_Protocol = nil
+		return
+	}
+	x.xxx_hidden_Protocol = &protocol_Proxy{v}
 }
 
 func (x *Protocol) HasProtocol() bool {
@@ -945,6 +962,14 @@ func (x *Protocol) HasCloudflareWarpMasque() bool {
 	return ok
 }
 
+func (x *Protocol) HasProxy() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Protocol.(*protocol_Proxy)
+	return ok
+}
+
 func (x *Protocol) ClearProtocol() {
 	x.xxx_hidden_Protocol = nil
 }
@@ -1142,6 +1167,12 @@ func (x *Protocol) ClearCloudflareWarpMasque() {
 	}
 }
 
+func (x *Protocol) ClearProxy() {
+	if _, ok := x.xxx_hidden_Protocol.(*protocol_Proxy); ok {
+		x.xxx_hidden_Protocol = nil
+	}
+}
+
 const Protocol_Protocol_not_set_case case_Protocol_Protocol = 0
 const Protocol_Shadowsocks_case case_Protocol_Protocol = 1
 const Protocol_Shadowsocksr_case case_Protocol_Protocol = 2
@@ -1175,6 +1206,7 @@ const Protocol_Aead_case case_Protocol_Protocol = 29
 const Protocol_Fixed_case case_Protocol_Protocol = 30
 const Protocol_NetworkSplit_case case_Protocol_Protocol = 31
 const Protocol_CloudflareWarpMasque_case case_Protocol_Protocol = 32
+const Protocol_Proxy_case case_Protocol_Protocol = 33
 
 func (x *Protocol) WhichProtocol() case_Protocol_Protocol {
 	if x == nil {
@@ -1245,6 +1277,8 @@ func (x *Protocol) WhichProtocol() case_Protocol_Protocol {
 		return Protocol_NetworkSplit_case
 	case *protocol_CloudflareWarpMasque:
 		return Protocol_CloudflareWarpMasque_case
+	case *protocol_Proxy:
+		return Protocol_Proxy_case
 	default:
 		return Protocol_Protocol_not_set_case
 	}
@@ -1293,6 +1327,7 @@ type Protocol_builder struct {
 	Fixed                *Fixed
 	NetworkSplit         *NetworkSplit
 	CloudflareWarpMasque *CloudflareWarpMasque
+	Proxy                *Proxy
 	// -- end of xxx_hidden_Protocol
 }
 
@@ -1395,6 +1430,9 @@ func (b0 Protocol_builder) Build() *Protocol {
 	}
 	if b.CloudflareWarpMasque != nil {
 		x.xxx_hidden_Protocol = &protocol_CloudflareWarpMasque{b.CloudflareWarpMasque}
+	}
+	if b.Proxy != nil {
+		x.xxx_hidden_Protocol = &protocol_Proxy{b.Proxy}
 	}
 	return m0
 }
@@ -1548,6 +1586,10 @@ type protocol_CloudflareWarpMasque struct {
 	CloudflareWarpMasque *CloudflareWarpMasque `protobuf:"bytes,32,opt,name=cloudflare_warp_masque,oneof"`
 }
 
+type protocol_Proxy struct {
+	Proxy *Proxy `protobuf:"bytes,33,opt,name=proxy,oneof"`
+}
+
 func (*protocol_Shadowsocks) isProtocol_Protocol() {}
 
 func (*protocol_Shadowsocksr) isProtocol_Protocol() {}
@@ -1611,6 +1653,8 @@ func (*protocol_Fixed) isProtocol_Protocol() {}
 func (*protocol_NetworkSplit) isProtocol_Protocol() {}
 
 func (*protocol_CloudflareWarpMasque) isProtocol_Protocol() {}
+
+func (*protocol_Proxy) isProtocol_Protocol() {}
 
 type Socks5 struct {
 	state                   protoimpl.MessageState `protogen:"opaque.v1"`
@@ -5996,6 +6040,49 @@ func (b0 CloudflareWarpMasque_builder) Build() *CloudflareWarpMasque {
 	return m0
 }
 
+type Proxy struct {
+	state         protoimpl.MessageState `protogen:"opaque.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Proxy) Reset() {
+	*x = Proxy{}
+	mi := &file_node_protocol_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Proxy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Proxy) ProtoMessage() {}
+
+func (x *Proxy) ProtoReflect() protoreflect.Message {
+	mi := &file_node_protocol_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type Proxy_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 Proxy_builder) Build() *Proxy {
+	m0 := &Proxy{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
 type HttpTerminationHttpHeaders struct {
 	state              protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Headers *[]*HttpHeader         `protobuf:"bytes,1,rep,name=headers"`
@@ -6005,7 +6092,7 @@ type HttpTerminationHttpHeaders struct {
 
 func (x *HttpTerminationHttpHeaders) Reset() {
 	*x = HttpTerminationHttpHeaders{}
-	mi := &file_node_protocol_proto_msgTypes[39]
+	mi := &file_node_protocol_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6017,7 +6104,7 @@ func (x *HttpTerminationHttpHeaders) String() string {
 func (*HttpTerminationHttpHeaders) ProtoMessage() {}
 
 func (x *HttpTerminationHttpHeaders) ProtoReflect() protoreflect.Message {
-	mi := &file_node_protocol_proto_msgTypes[39]
+	mi := &file_node_protocol_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6059,7 +6146,7 @@ var File_node_protocol_proto protoreflect.FileDescriptor
 
 const file_node_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x13node/protocol.proto\x12\x10yuhaiin.protocol\x1a!google/protobuf/go_features.proto\"\xd0\x0f\n" +
+	"\x13node/protocol.proto\x12\x10yuhaiin.protocol\x1a!google/protobuf/go_features.proto\"\x85\x10\n" +
 	"\bprotocol\x12E\n" +
 	"\vshadowsocks\x18\x01 \x01(\v2\x1d.yuhaiin.protocol.shadowsocksB\x02(\x01H\x00R\vshadowsocks\x12H\n" +
 	"\fshadowsocksr\x18\x02 \x01(\v2\x1e.yuhaiin.protocol.shadowsocksrB\x02(\x01H\x00R\fshadowsocksr\x123\n" +
@@ -6093,7 +6180,8 @@ const file_node_protocol_proto_rawDesc = "" +
 	"\x04aead\x18\x1d \x01(\v2\x16.yuhaiin.protocol.aeadB\x02(\x01H\x00R\x04aead\x123\n" +
 	"\x05fixed\x18\x1e \x01(\v2\x17.yuhaiin.protocol.fixedB\x02(\x01H\x00R\x05fixed\x12K\n" +
 	"\rnetwork_split\x18\x1f \x01(\v2\x1f.yuhaiin.protocol.network_splitB\x02(\x01H\x00R\rnetwork_split\x12f\n" +
-	"\x16cloudflare_warp_masque\x18  \x01(\v2(.yuhaiin.protocol.cloudflare_warp_masqueB\x02(\x01H\x00R\x16cloudflare_warp_masqueB\n" +
+	"\x16cloudflare_warp_masque\x18  \x01(\v2(.yuhaiin.protocol.cloudflare_warp_masqueB\x02(\x01H\x00R\x16cloudflare_warp_masque\x123\n" +
+	"\x05proxy\x18! \x01(\v2\x17.yuhaiin.protocol.proxyB\x02(\x01H\x00R\x05proxyB\n" +
 	"\n" +
 	"\bprotocol\"z\n" +
 	"\x06socks5\x12\x1a\n" +
@@ -6248,13 +6336,14 @@ const file_node_protocol_proto_rawDesc = "" +
 	"\bendpoint\x18\x02 \x01(\tR\bendpoint\x120\n" +
 	"\x13endpoint_public_key\x18\x03 \x01(\tR\x13endpoint_public_key\x12(\n" +
 	"\x0flocal_addresses\x18\x04 \x03(\tR\x0flocal_addresses\x12\x10\n" +
-	"\x03mtu\x18\x05 \x01(\x05R\x03mtu*?\n" +
+	"\x03mtu\x18\x05 \x01(\x05R\x03mtu\"\a\n" +
+	"\x05proxy*?\n" +
 	"\x10AeadCryptoMethod\x12\x14\n" +
 	"\x10Chacha20Poly1305\x10\x00\x12\x15\n" +
 	"\x11XChacha20Poly1305\x10\x01B6Z,github.com/Asutorufa/yuhaiin/pkg/protos/node\x92\x03\x05\xd2>\x02\x10\x03b\beditionsp\xe8\a"
 
 var file_node_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_node_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
+var file_node_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
 var file_node_protocol_proto_goTypes = []any{
 	(AeadCryptoMethod)(0),              // 0: yuhaiin.protocol.AeadCryptoMethod
 	(SetStrategyType)(0),               // 1: yuhaiin.protocol.set.strategy_type
@@ -6296,9 +6385,10 @@ var file_node_protocol_proto_goTypes = []any{
 	(*Aead)(nil),                       // 37: yuhaiin.protocol.aead
 	(*NetworkSplit)(nil),               // 38: yuhaiin.protocol.network_split
 	(*CloudflareWarpMasque)(nil),       // 39: yuhaiin.protocol.cloudflare_warp_masque
-	nil,                                // 40: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
-	(*HttpTerminationHttpHeaders)(nil), // 41: yuhaiin.protocol.http_termination.http_headers
-	nil,                                // 42: yuhaiin.protocol.http_termination.HeadersEntry
+	(*Proxy)(nil),                      // 40: yuhaiin.protocol.proxy
+	nil,                                // 41: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
+	(*HttpTerminationHttpHeaders)(nil), // 42: yuhaiin.protocol.http_termination.http_headers
+	nil,                                // 43: yuhaiin.protocol.http_termination.HeadersEntry
 }
 var file_node_protocol_proto_depIdxs = []int32{
 	5,  // 0: yuhaiin.protocol.protocol.shadowsocks:type_name -> yuhaiin.protocol.shadowsocks
@@ -6333,27 +6423,28 @@ var file_node_protocol_proto_depIdxs = []int32{
 	19, // 29: yuhaiin.protocol.protocol.fixed:type_name -> yuhaiin.protocol.fixed
 	38, // 30: yuhaiin.protocol.protocol.network_split:type_name -> yuhaiin.protocol.network_split
 	39, // 31: yuhaiin.protocol.protocol.cloudflare_warp_masque:type_name -> yuhaiin.protocol.cloudflare_warp_masque
-	20, // 32: yuhaiin.protocol.grpc.tls:type_name -> yuhaiin.protocol.tls_config
-	20, // 33: yuhaiin.protocol.quic.tls:type_name -> yuhaiin.protocol.tls_config
-	29, // 34: yuhaiin.protocol.simple.alternate_host:type_name -> yuhaiin.protocol.host
-	29, // 35: yuhaiin.protocol.fixed.alternate_host:type_name -> yuhaiin.protocol.host
-	21, // 36: yuhaiin.protocol.tls_server_config.certificates:type_name -> yuhaiin.protocol.certificate
-	40, // 37: yuhaiin.protocol.tls_server_config.server_name_certificate:type_name -> yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
-	22, // 38: yuhaiin.protocol.tls_termination.tls:type_name -> yuhaiin.protocol.tls_server_config
-	42, // 39: yuhaiin.protocol.http_termination.headers:type_name -> yuhaiin.protocol.http_termination.HeadersEntry
-	30, // 40: yuhaiin.protocol.wireguard.peers:type_name -> yuhaiin.protocol.wireguard_peer_config
-	1,  // 41: yuhaiin.protocol.set.strategy:type_name -> yuhaiin.protocol.set.strategy_type
-	0,  // 42: yuhaiin.protocol.aead.crypto_method:type_name -> yuhaiin.protocol.AeadCryptoMethod
-	2,  // 43: yuhaiin.protocol.network_split.tcp:type_name -> yuhaiin.protocol.protocol
-	2,  // 44: yuhaiin.protocol.network_split.udp:type_name -> yuhaiin.protocol.protocol
-	21, // 45: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry.value:type_name -> yuhaiin.protocol.certificate
-	25, // 46: yuhaiin.protocol.http_termination.http_headers.headers:type_name -> yuhaiin.protocol.http_header
-	41, // 47: yuhaiin.protocol.http_termination.HeadersEntry.value:type_name -> yuhaiin.protocol.http_termination.http_headers
-	48, // [48:48] is the sub-list for method output_type
-	48, // [48:48] is the sub-list for method input_type
-	48, // [48:48] is the sub-list for extension type_name
-	48, // [48:48] is the sub-list for extension extendee
-	0,  // [0:48] is the sub-list for field type_name
+	40, // 32: yuhaiin.protocol.protocol.proxy:type_name -> yuhaiin.protocol.proxy
+	20, // 33: yuhaiin.protocol.grpc.tls:type_name -> yuhaiin.protocol.tls_config
+	20, // 34: yuhaiin.protocol.quic.tls:type_name -> yuhaiin.protocol.tls_config
+	29, // 35: yuhaiin.protocol.simple.alternate_host:type_name -> yuhaiin.protocol.host
+	29, // 36: yuhaiin.protocol.fixed.alternate_host:type_name -> yuhaiin.protocol.host
+	21, // 37: yuhaiin.protocol.tls_server_config.certificates:type_name -> yuhaiin.protocol.certificate
+	41, // 38: yuhaiin.protocol.tls_server_config.server_name_certificate:type_name -> yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry
+	22, // 39: yuhaiin.protocol.tls_termination.tls:type_name -> yuhaiin.protocol.tls_server_config
+	43, // 40: yuhaiin.protocol.http_termination.headers:type_name -> yuhaiin.protocol.http_termination.HeadersEntry
+	30, // 41: yuhaiin.protocol.wireguard.peers:type_name -> yuhaiin.protocol.wireguard_peer_config
+	1,  // 42: yuhaiin.protocol.set.strategy:type_name -> yuhaiin.protocol.set.strategy_type
+	0,  // 43: yuhaiin.protocol.aead.crypto_method:type_name -> yuhaiin.protocol.AeadCryptoMethod
+	2,  // 44: yuhaiin.protocol.network_split.tcp:type_name -> yuhaiin.protocol.protocol
+	2,  // 45: yuhaiin.protocol.network_split.udp:type_name -> yuhaiin.protocol.protocol
+	21, // 46: yuhaiin.protocol.tls_server_config.ServerNameCertificateEntry.value:type_name -> yuhaiin.protocol.certificate
+	25, // 47: yuhaiin.protocol.http_termination.http_headers.headers:type_name -> yuhaiin.protocol.http_header
+	42, // 48: yuhaiin.protocol.http_termination.HeadersEntry.value:type_name -> yuhaiin.protocol.http_termination.http_headers
+	49, // [49:49] is the sub-list for method output_type
+	49, // [49:49] is the sub-list for method input_type
+	49, // [49:49] is the sub-list for extension type_name
+	49, // [49:49] is the sub-list for extension extendee
+	0,  // [0:49] is the sub-list for field type_name
 }
 
 func init() { file_node_protocol_proto_init() }
@@ -6394,6 +6485,7 @@ func file_node_protocol_proto_init() {
 		(*protocol_Fixed)(nil),
 		(*protocol_NetworkSplit)(nil),
 		(*protocol_CloudflareWarpMasque)(nil),
+		(*protocol_Proxy)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -6401,7 +6493,7 @@ func file_node_protocol_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_node_protocol_proto_rawDesc), len(file_node_protocol_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   41,
+			NumMessages:   42,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
