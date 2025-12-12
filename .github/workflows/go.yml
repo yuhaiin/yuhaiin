@@ -52,7 +52,7 @@ jobs:
           make yuhaiin_android_aar
 
       - name: upload_android_aar
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: yuhaiin.aar
           path: yuhaiin.aar
@@ -123,7 +123,7 @@ jobs:
           mv yuhaiin${{ matrix.env[0] == 'windows' && '.exe' || '' }} yuhaiin-${{ matrix.env[0] }}-${{ matrix.env[1] }}${{ matrix.env[0] == 'windows' && '.exe' || '' }}
 
       - name: upload_${{ matrix.cmd }}_${{ matrix.env[0] }}_${{ matrix.env[1] }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.cmd }}_${{ matrix.env[0] }}_${{ matrix.env[1] }}
           path: |
@@ -147,7 +147,7 @@ jobs:
 
       - name: download_artifacts
         id: download-artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: artifacts
 

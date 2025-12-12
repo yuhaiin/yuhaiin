@@ -172,7 +172,7 @@ func getInterfaces(ifs Interfaces) ([]netmon.Interface, error) {
 			ipnet := &net.IPNet{IP: net.IP(addr16[:]).Mask(m), Mask: m}
 			newIf.AltAddrs = append(newIf.AltAddrs, ipnet)
 
-			log.Info("get new address",
+			log.Debug("get new address",
 				"iface", newIf.Name,
 				"addr", ipAddr,
 				"prefix", ipnet,
@@ -180,7 +180,7 @@ func getInterfaces(ifs Interfaces) ([]netmon.Interface, error) {
 			)
 		}
 
-		log.Info("get new iface",
+		log.Debug("get new iface",
 			"display name", iface.DisplayName,
 			"v", newIf.Interface, "addr", newIf.AltAddrs,
 			"iface", iface,

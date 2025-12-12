@@ -39,11 +39,13 @@ func init() {
 }
 
 type Request struct {
-	QuestionBytes []byte
-	Question      dns.Question
-	ID            uint16
-	Truncated     bool
+	dnsRequestBytes []byte
+	Question        dns.Question
+	ID              uint16
+	Truncated       bool
 }
+
+func (r *Request) Bytes() []byte { return r.dnsRequestBytes }
 
 type Response interface {
 	Msg() (dns.Msg, error)
@@ -67,15 +69,15 @@ func (m MsgResponse) Msg() (msg dns.Msg, err error) {
 }
 func (m MsgResponse) Release() {}
 
-type DialerFunc func(context.Context, *Request) (Response, error)
+type TransportFunc func(context.Context, *Request) (Response, error)
 
-func (f DialerFunc) Do(ctx context.Context, req *Request) (Response, error) {
+func (f TransportFunc) Do(ctx context.Context, req *Request) (Response, error) {
 	return f(ctx, req)
 }
 
-func (f DialerFunc) Close() error { return nil }
+func (f TransportFunc) Close() error { return nil }
 
-type Dialer interface {
+type Transport interface {
 	Do(ctx context.Context, req *Request) (Response, error)
 	Close() error
 }
@@ -97,7 +99,7 @@ func (c *Config) serverName(u *url.URL) string {
 	return c.Servername
 }
 
-var dnsMap syncmap.SyncMap[config.Type, func(Config) (Dialer, error)]
+var dnsMap syncmap.SyncMap[config.Type, func(Config) (Transport, error)]
 
 func New(config Config) (netapi.Resolver, error) {
 	f, ok := dnsMap.Load(config.Type)
@@ -116,7 +118,7 @@ func New(config Config) (netapi.Resolver, error) {
 	return NewClient(config, dialer), nil
 }
 
-func Register(tYPE config.Type, f func(Config) (Dialer, error)) {
+func Register(tYPE config.Type, f func(Config) (Transport, error)) {
 	if f != nil {
 		dnsMap.Store(tYPE, f)
 	}
@@ -130,14 +132,14 @@ func CacheKeyFromQuestion(q dns.Question) string {
 
 type client struct {
 	edns0             dns.RR
-	dialer            Dialer
+	dialer            Transport
 	rawStore          *lru.SyncLru[string, dns.Msg]
 	rawSingleflight   singleflight.GroupSync[string, dns.Msg]
 	refreshBackground syncmap.SyncMap[string, struct{}]
 	config            Config
 }
 
-func NewClient(config Config, dialer Dialer) netapi.Resolver {
+func NewClient(config Config, dialer Transport) netapi.Resolver {
 	optrbody := &dns.OPT{
 		Hdr: dns.RR_Header{
 			Name:   ".",
@@ -280,9 +282,9 @@ func (c *client) query(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	}
 
 	request := &Request{
-		QuestionBytes: bytes,
-		Question:      req,
-		ID:            reqMsg.Id,
+		dnsRequestBytes: bytes,
+		Question:        req,
+		ID:              reqMsg.Id,
 	}
 
 	var msg dns.Msg

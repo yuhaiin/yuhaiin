@@ -143,14 +143,18 @@ func TestDOH(t *testing.T) {
 func TestGetURL(t *testing.T) {
 	dnsQStr := "https://8.8.8.8/dns-query"
 
-	u, err := getUrlAndHost("https://8.8.8.8")
+	u, err := parseDohUrl("https://8.8.8.8")
+	assert.NoError(t, err)
+	assert.Equal(t, dnsQStr, u.String())
+
+	u, err = parseDohUrl("8.8.8.8")
 	assert.NoError(t, err)
 	assert.Equal(t, u.String(), dnsQStr)
 
-	u, err = getUrlAndHost("8.8.8.8")
+	u, err = parseDohUrl("8.8.8.8/test-path")
 	assert.NoError(t, err)
-	assert.Equal(t, u.String(), dnsQStr)
+	assert.Equal(t, "https://8.8.8.8/test-path", u.String())
 
-	t.Log(getUrlAndHost("https://"))
-	t.Log(getUrlAndHost("/dns-query"))
+	t.Log(parseDohUrl("https://"))
+	t.Log(parseDohUrl("/dns-query"))
 }

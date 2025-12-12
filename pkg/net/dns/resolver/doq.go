@@ -35,7 +35,7 @@ type doq struct {
 	mu sync.RWMutex
 }
 
-func NewDoQ(config Config) (Dialer, error) {
+func NewDoQ(config Config) (Transport, error) {
 	addr, err := ParseAddr("udp", config.Host, "784")
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
@@ -77,11 +77,11 @@ func (d *doq) Do(ctx context.Context, b *Request) (Response, error) {
 		return nil, fmt.Errorf("set deadline failed: %w", err)
 	}
 
-	buf := pool.GetBytes(2 + len(b.QuestionBytes))
+	buf := pool.GetBytes(2 + len(b.Bytes()))
 	defer pool.PutBytes(buf)
 
-	binary.BigEndian.PutUint16(buf, uint16(len(b.QuestionBytes)))
-	copy(buf[2:], b.QuestionBytes)
+	binary.BigEndian.PutUint16(buf, uint16(len(b.Bytes())))
+	copy(buf[2:], b.Bytes())
 
 	if _, err = conn.Write(buf); err != nil {
 		conn.Close()

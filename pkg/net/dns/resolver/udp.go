@@ -230,7 +230,7 @@ func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {
 			return nil, ctx.Err()
 		case <-u.ctx.Done():
 			return nil, u.ctx.Err()
-		case u.wchan <- &udpPacket{req.QuestionBytes, ctx}:
+		case u.wchan <- &udpPacket{req.Bytes(), ctx}:
 		}
 	}
 
@@ -250,7 +250,7 @@ func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {
 	}
 }
 
-func NewDoU(config Config) (Dialer, error) {
+func NewDoU(config Config) (Transport, error) {
 	addr, err := ParseAddr("udp", config.Host, "53")
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)

@@ -9,10 +9,10 @@ import (
 )
 
 type Group struct {
-	dialers []Dialer
+	dialers []Transport
 }
 
-func NewGroup(dialers ...Dialer) (*Group, error) {
+func NewGroup(dialers ...Transport) (*Group, error) {
 	if len(dialers) == 0 {
 		return nil, errors.New("no dialer")
 	}
@@ -54,7 +54,7 @@ func (g *Group) Do(ctx context.Context, req *Request) (Response, error) {
 
 			first = false
 
-			go func(d Dialer) {
+			go func(d Transport) {
 				resp, er := d.Do(ctx, req)
 
 				if er != nil {

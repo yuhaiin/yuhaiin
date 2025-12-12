@@ -20,8 +20,8 @@ func init() {
 	Register(config.Type_doh3, NewDoH3)
 }
 
-func NewDoH3(config Config) (Dialer, error) {
-	u, err := getUrlAndHost(config.Host)
+func NewDoH3(config Config) (Transport, error) {
+	u, err := parseDohUrl(config.Host)
 	if err != nil {
 		return nil, fmt.Errorf("get request failed: %w", err)
 	}
@@ -50,8 +50,8 @@ func NewDoH3(config Config) (Dialer, error) {
 
 	uri := u.String()
 
-	return DialerFunc(func(ctx context.Context, b *Request) (Response, error) {
-		req, err := newDohRequest(ctx, uri, b.QuestionBytes)
+	return TransportFunc(func(ctx context.Context, b *Request) (Response, error) {
+		req, err := newDohRequest(ctx, http.MethodPost, uri, b.Bytes())
 		if err != nil {
 			return nil, err
 		}

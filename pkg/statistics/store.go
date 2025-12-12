@@ -46,7 +46,7 @@ func newInfoStore(cache cache.Cache) *store {
 	}
 
 	go func() {
-		ticker := time.NewTicker(time.Minute * 10)
+		ticker := time.NewTicker(time.Minute * 2)
 		defer ticker.Stop()
 		for {
 			select {
