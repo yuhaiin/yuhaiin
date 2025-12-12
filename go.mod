@@ -14,7 +14,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.0
 	github.com/google/nftables v0.3.0
 	github.com/libp2p/go-yamux/v5 v5.1.0
-	github.com/miekg/dns v1.1.68
+	github.com/miekg/dns v1.1.69
 	github.com/oschwald/maxminddb-golang/v2 v2.1.1
 	github.com/pires/go-proxyproto v0.8.1
 	github.com/prometheus-community/pro-bing v0.7.0
@@ -26,7 +26,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20251121194102-c6fd943bb437
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20251116175510-cd53f7d50237
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251211152305-d23fc170e4fc
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251212173354-6008dbe6c45a
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.46.0
 	golang.org/x/mobile v0.0.0-20251209145715-2553ed8ce294
@@ -36,7 +36,7 @@ require (
 	golang.org/x/time v0.14.0
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20250318115841-8e6558eba666
 	google.golang.org/grpc v1.77.0
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/protobuf v1.36.11
 	gvisor.dev/gvisor v0.0.0-20250529183007-2a7b5c7dece9
 	tailscale.com v1.9999999999.99999999999
 )

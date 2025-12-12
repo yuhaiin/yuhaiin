@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -20,10 +21,14 @@ import (
 
 var refreshTimeout = int64(10 * time.Minute)
 
+type Addr struct {
+	a         netapi.Address
+	Interface string
+}
+
 type Client struct {
 	p            netapi.Proxy
-	iface        string
-	addrs        []netapi.Address
+	addrs        []Addr
 	errCount     durationCounter
 	refreshTime  atomic.Int64
 	index        atomic.Uint32
@@ -32,6 +37,7 @@ type Client struct {
 
 func init() {
 	register.RegisterPoint(NewClient)
+	register.RegisterPoint(NewClientv2)
 	register.RegisterPoint(func(c *node.Simple, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewClient(node.Fixed_builder{
 			Host:             proto.String(c.GetHost()),
@@ -43,20 +49,32 @@ func init() {
 }
 
 func NewClient(c *node.Fixed, p netapi.Proxy) (netapi.Proxy, error) {
-	var addrs []netapi.Address
-
-	var er error
-	addr, err := netapi.ParseAddressPort("", c.GetHost(), uint16(c.GetPort()))
-	if err == nil {
-		addrs = append(addrs, addr)
-	} else {
-		er = errors.Join(er, err)
+	var addrs []*node.Fixedv2Address
+	addrs = append(addrs, node.Fixedv2Address_builder{
+		Host:             proto.String(net.JoinHostPort(c.GetHost(), fmt.Sprint(c.GetPort()))),
+		NetworkInterface: proto.String(c.GetNetworkInterface()),
+	}.Build())
+	for _, v := range c.GetAlternateHost() {
+		addrs = append(addrs, node.Fixedv2Address_builder{
+			Host:             proto.String(net.JoinHostPort(v.GetHost(), fmt.Sprint(v.GetPort()))),
+			NetworkInterface: proto.String(c.GetNetworkInterface()),
+		}.Build())
 	}
 
-	for _, v := range c.GetAlternateHost() {
-		addr, err = netapi.ParseAddressPort("", v.GetHost(), uint16(v.GetPort()))
+	return NewClientv2(node.Fixedv2_builder{Addresses: addrs}.Build(), p)
+}
+
+func NewClientv2(c *node.Fixedv2, p netapi.Proxy) (netapi.Proxy, error) {
+	var addrs []Addr
+
+	var er error
+	for _, v := range c.GetAddresses() {
+		addr, err := netapi.ParseAddress("", v.GetHost())
 		if err == nil {
-			addrs = append(addrs, addr)
+			addrs = append(addrs, Addr{
+				a:         addr,
+				Interface: v.GetNetworkInterface(),
+			})
 		} else {
 			er = errors.Join(er, err)
 		}
@@ -70,7 +88,6 @@ func NewClient(c *node.Fixed, p netapi.Proxy) (netapi.Proxy, error) {
 		addrs:        addrs,
 		p:            p,
 		nonBootstrap: p != nil && !register.IsZero(p),
-		iface:        c.GetNetworkInterface(),
 	}
 
 	return simple, nil
@@ -80,14 +97,14 @@ func (c *Client) Conn(ctx context.Context, _ netapi.Address) (net.Conn, error) {
 	return c.dialHappyEyeballsv2(ctx)
 }
 
-func (c *Client) dialSingle(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+func (c *Client) dialSingle(ctx context.Context, addr Addr) (net.Conn, error) {
 	if c.nonBootstrap {
-		return c.p.Conn(ctx, addr)
+		return c.p.Conn(ctx, addr.a)
 	} else {
-		if c.iface != "" {
-			netapi.GetContext(ctx).ConnOptions().SetBindInterface(c.iface)
+		if addr.Interface != "" {
+			netapi.GetContext(ctx).ConnOptions().SetBindInterface(addr.Interface)
 		}
-		return dialer.DialHappyEyeballsv2(ctx, addr)
+		return dialer.DialHappyEyeballsv2(ctx, addr.a)
 	}
 }
 
@@ -130,7 +147,9 @@ func (c *Client) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
 		case resc <- res{conn, err, index}:
 		case <-ctx.Done():
 			if err == nil {
-				conn.Close()
+				if er := conn.Close(); er != nil {
+					log.Warn("failed to close connection", "err", er)
+				}
 			}
 		}
 	}
@@ -213,32 +232,32 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 	addr := c.addrs[c.index.Load()]
 
 	if c.nonBootstrap {
-		conn, err := c.p.PacketConn(ctx, addr)
+		conn, err := c.p.PacketConn(ctx, addr.a)
 		if err != nil {
 			return nil, err
 		}
 
-		return &packetConn{conn, addr}, nil
+		return &packetConn{conn, addr.a}, nil
 	}
 
 	ctx = netapi.WithContext(ctx)
 
 	var uaddr *net.UDPAddr
 
-	if !addr.IsFqdn() {
-		uaddr = net.UDPAddrFromAddrPort(addr.(netapi.IPAddress).AddrPort())
+	if !addr.a.IsFqdn() {
+		uaddr = net.UDPAddrFromAddrPort(addr.a.(netapi.IPAddress).AddrPort())
 	} else {
-		ips, err := netapi.ResolverIP(ctx, addr.Hostname())
+		ips, err := netapi.ResolverIP(ctx, addr.a.Hostname())
 		if err != nil {
 			return nil, err
 		}
 
-		uaddr = ips.RandUDPAddr(addr.Port())
+		uaddr = ips.RandUDPAddr(addr.a.Port())
 	}
 
 	conn, err := dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
-		if c.iface != "" {
-			o.InterfaceName = c.iface
+		if addr.Interface != "" {
+			o.InterfaceName = addr.Interface
 		}
 
 		o.PacketConnHintAddress = uaddr

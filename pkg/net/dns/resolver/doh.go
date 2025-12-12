@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net"
@@ -17,7 +18,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/http2"
 )
 
@@ -25,8 +25,8 @@ func init() {
 	Register(config.Type_doh, NewDoH)
 }
 
-func NewDoH(config Config) (Dialer, error) {
-	u, err := getUrlAndHost(config.Host)
+func NewDoH(config Config) (Transport, error) {
+	u, err := parseDohUrl(config.Host)
 	if err != nil {
 		return nil, err
 	}
@@ -72,8 +72,8 @@ func NewDoH(config Config) (Dialer, error) {
 
 	uri := u.String()
 
-	return DialerFunc(func(ctx context.Context, b *Request) (Response, error) {
-		req, err := newDohRequest(ctx, uri, b.QuestionBytes)
+	return TransportFunc(func(ctx context.Context, b *Request) (Response, error) {
+		req, err := newDohRequest(ctx, http.MethodPost, uri, b.Bytes())
 		if err != nil {
 			return nil, err
 		}
@@ -116,28 +116,47 @@ func NewDoH(config Config) (Dialer, error) {
 }
 
 // https://tools.ietf.org/html/rfc8484
-func getUrlAndHost(host string) (*url.URL, error) {
-	scheme, rest, _ := system.GetScheme(host)
-	if scheme == "" {
+func parseDohUrl(host string) (*url.URL, error) {
+	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
 		host = "https://" + host
 	}
 
-	rest = strings.TrimPrefix(rest, "//")
+	pi := strings.Index(host, "://") + 3
 
-	if rest == "" {
-		host += "no-host-specified"
+	if len(host[pi:]) == 0 {
+		return nil, fmt.Errorf("invalid host: [%s](len: %d)", host[pi:], len(host[pi:]))
 	}
 
-	if !strings.Contains(rest, "/") {
-		host = host + "/dns-query"
+	i := strings.Index(host[pi:], "/")
+	if i == -1 {
+		host += "/dns-query"
+	} else {
+		domain := host[pi : pi+i]
+		if len(domain) == 0 {
+			return nil, fmt.Errorf("invalid host: [%s](len: %d)", domain, len(domain))
+		}
 	}
 
 	return url.Parse(host)
 }
 
-func newDohRequest(ctx context.Context, uri string, body []byte) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx,
-		http.MethodPost, uri, bytes.NewReader(body))
+func newDohRequest(ctx context.Context, method string, uri string, body []byte) (*http.Request, error) {
+	var req *http.Request
+	var err error
+	switch method {
+	case http.MethodGet:
+		b64str := base64.URLEncoding.EncodeToString(body)
+		if i := strings.Index("uri", "?"); i != -1 {
+			uri += "&dns=" + b64str
+		} else {
+			uri += "?dns=" + b64str
+		}
+		req, err = http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
+	case http.MethodPost:
+		req, err = http.NewRequestWithContext(ctx, http.MethodPost, uri, bytes.NewReader(body))
+	default:
+		return nil, fmt.Errorf("invalid method: %s", method)
+	}
 	if err != nil {
 		return nil, err
 	}

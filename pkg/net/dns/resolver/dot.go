@@ -10,7 +10,7 @@ func init() {
 	Register(config.Type_dot, NewDoT)
 }
 
-func NewDoT(config Config) (Dialer, error) {
+func NewDoT(config Config) (Transport, error) {
 	tlsConfig := &tls.Config{}
 	d, err := newTCP(config, "853", tlsConfig)
 	if err != nil {

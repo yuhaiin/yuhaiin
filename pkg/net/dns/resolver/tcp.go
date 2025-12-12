@@ -21,7 +21,7 @@ func init() {
 	Register(config.Type_tcp, NewTCP)
 }
 
-func NewTCP(config Config) (Dialer, error) {
+func NewTCP(config Config) (Transport, error) {
 	return newTCP(config, "53", nil)
 }
 
@@ -82,12 +82,12 @@ func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *t
 	}
 
 	// dns over tcp, prefix two bytes is request data's length
-	err = pool.BinaryWriteUint16(conn, binary.BigEndian, uint16(len(b.QuestionBytes)))
+	err = pool.BinaryWriteUint16(conn, binary.BigEndian, uint16(len(b.Bytes())))
 	if err != nil {
 		return nil, fmt.Errorf("write data length failed: %w", err)
 	}
 
-	_, err = conn.Write(b.QuestionBytes)
+	_, err = conn.Write(b.Bytes())
 	if err != nil {
 		return nil, fmt.Errorf("write data failed: %w", err)
 	}
@@ -106,13 +106,13 @@ func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *t
 	return BytesResponse(all), nil
 }
 
-func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (Dialer, error) {
+func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (Transport, error) {
 	addr, err := ParseAddr("tcp", config.Host, defaultPort)
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
-	return DialerFunc(func(ctx context.Context, b *Request) (Response, error) {
+	return TransportFunc(func(ctx context.Context, b *Request) (Response, error) {
 		return tcpDo(ctx, addr, config, tlsConfig, b)
 	}), nil
 }

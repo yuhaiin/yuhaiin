@@ -51,6 +51,7 @@ message protocol {
     cloudflare_warp_masque cloudflare_warp_masque = 32
         [ json_name = "cloudflare_warp_masque", lazy = true ];
     proxy proxy = 33 [ json_name = "proxy", lazy = true ];
+    fixedv2 fixedv2 = 34 [ json_name = "fixedv2", lazy = true ];
   }
 }
 
@@ -282,3 +283,11 @@ message cloudflare_warp_masque {
 }
 
 message proxy {}
+
+message fixedv2 {
+  message address {
+    string host = 1 [ json_name = "host" ];
+    string network_interface = 2 [ json_name = "network_interface" ];
+  }
+  repeated address addresses = 1 [ json_name = "addresses" ];
+}
