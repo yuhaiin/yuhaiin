@@ -16,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/miekg/dns"
 	"github.com/quic-go/quic-go"
 	"golang.org/x/net/http2"
 )
@@ -54,15 +55,15 @@ func NewDoQ(config Config) (Transport, error) {
 	return d, nil
 }
 
-func (d *doq) Do(ctx context.Context, b *Request) (Response, error) {
+func (d *doq) Do(ctx context.Context, b *Request) (p dns.Msg, err error) {
 	session, err := d.initSession(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("init session failed: %w", err)
+		return p, fmt.Errorf("init session failed: %w", err)
 	}
 
 	conn, err := session.OpenStreamSync(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("open stream failed: %w", err)
+		return p, fmt.Errorf("open stream failed: %w", err)
 	}
 	defer conn.Close()
 
@@ -74,7 +75,7 @@ func (d *doq) Do(ctx context.Context, b *Request) (Response, error) {
 	err = conn.SetWriteDeadline(deadline)
 	if err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("set deadline failed: %w", err)
+		return p, fmt.Errorf("set deadline failed: %w", err)
 	}
 
 	buf := pool.GetBytes(2 + len(b.Bytes()))
@@ -85,12 +86,12 @@ func (d *doq) Do(ctx context.Context, b *Request) (Response, error) {
 
 	if _, err = conn.Write(buf); err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("write dns req failed: %w", err)
+		return p, fmt.Errorf("write dns req failed: %w", err)
 	}
 
 	// close to make server io.EOF
 	if err = conn.Close(); err != nil {
-		return nil, fmt.Errorf("close stream failed: %w", err)
+		return p, fmt.Errorf("close stream failed: %w", err)
 	}
 
 	_ = conn.SetReadDeadline(deadline)
@@ -98,17 +99,18 @@ func (d *doq) Do(ctx context.Context, b *Request) (Response, error) {
 	var length uint16
 	err = binary.Read(conn, binary.BigEndian, &length)
 	if err != nil {
-		return nil, fmt.Errorf("read dns response length failed: %w", err)
+		return p, fmt.Errorf("read dns response length failed: %w", err)
 	}
 
 	data := pool.GetBytes(int(length))
 
 	_, err = io.ReadFull(conn, data)
 	if err != nil {
-		return nil, fmt.Errorf("read dns server response failed: %w", err)
+		return p, fmt.Errorf("read dns server response failed: %w", err)
 	}
 
-	return BytesResponse(data), nil
+	err = p.Unpack(data)
+	return p, err
 }
 
 func (d *doq) Close() error {

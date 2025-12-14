@@ -18,7 +18,7 @@ type Server struct {
 
 	host string
 	pmu  sync.Mutex
-	smu  sync.Mutex
+	smu  sync.RWMutex
 
 	control config.TcpUdpControl
 }
@@ -63,26 +63,29 @@ func (s *Server) initPacketConn() error {
 	return nil
 }
 
-func (s *Server) initStream() error {
-	if s.Listener != nil {
-		return nil
+func (s *Server) initStream() (net.Listener, error) {
+	s.smu.RLock()
+	lis := s.Listener
+	s.smu.RUnlock()
+	if lis != nil {
+		return lis, nil
 	}
 
 	s.smu.Lock()
 	defer s.smu.Unlock()
 
 	if s.Listener != nil {
-		return nil
+		return s.Listener, nil
 	}
 
 	lis, err := dialer.ListenContext(context.TODO(), "tcp", s.host)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	s.Listener = lis
 
-	return nil
+	return lis, nil
 }
 
 func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
@@ -102,11 +105,12 @@ func (s *Server) Accept() (net.Conn, error) {
 		return nil, errors.ErrUnsupported
 	}
 
-	if err := s.initStream(); err != nil {
+	lis, err := s.initStream()
+	if err != nil {
 		return nil, err
 	}
 
-	return s.Listener.Accept()
+	return lis.Accept()
 }
 
 func (s *Server) Addr() net.Addr {
@@ -114,11 +118,12 @@ func (s *Server) Addr() net.Addr {
 		return netapi.EmptyAddr
 	}
 
-	if err := s.initStream(); err != nil {
+	lis, err := s.initStream()
+	if err != nil {
 		return netapi.EmptyAddr
 	}
 
-	return s.Listener.Addr()
+	return lis.Addr()
 }
 
 func NewServer(c *config.Tcpudp) (netapi.Listener, error) {

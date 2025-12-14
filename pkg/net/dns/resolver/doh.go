@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/miekg/dns"
 	"golang.org/x/net/http2"
 )
 
@@ -72,36 +73,37 @@ func NewDoH(config Config) (Transport, error) {
 
 	uri := u.String()
 
-	return TransportFunc(func(ctx context.Context, b *Request) (Response, error) {
+	return TransportFunc(func(ctx context.Context, b *Request) (p dns.Msg, err error) {
 		req, err := newDohRequest(ctx, http.MethodPost, uri, b.Bytes())
 		if err != nil {
-			return nil, err
+			return p, err
 		}
 
 		resp, err := tr.RoundTrip(req)
 		if err != nil {
-			return nil, fmt.Errorf("doh post failed: %w", err)
+			return p, fmt.Errorf("doh post failed: %w", err)
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			_, _ = relay.Copy(io.Discard, resp.Body) // By consuming the whole body the TLS connection may be reused on the next request.
-			return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
+			return p, fmt.Errorf("doh post return code: %d", resp.StatusCode)
 		}
 
 		if resp.ContentLength <= 0 || resp.ContentLength > pool.MaxSegmentSize {
-			return nil, fmt.Errorf("response content length is empty: %d", resp.ContentLength)
+			return p, fmt.Errorf("response content length is empty: %d", resp.ContentLength)
 		}
 
 		buf := pool.GetBytes(resp.ContentLength)
+		defer pool.PutBytes(buf)
 
 		_, err = io.ReadFull(resp.Body, buf)
 		if err != nil {
-			pool.PutBytes(buf)
-			return nil, fmt.Errorf("read http body failed: %w", err)
+			return dns.Msg{}, fmt.Errorf("read http body failed: %w", err)
 		}
 
-		return BytesResponse(buf), nil
+		err = p.Unpack(buf)
+		return p, nil
 
 		/*
 			* Get

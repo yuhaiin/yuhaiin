@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	dnsmessage "github.com/miekg/dns"
+	"github.com/miekg/dns"
 )
 
 type Group struct {
@@ -20,21 +20,21 @@ func NewGroup(dialers ...Transport) (*Group, error) {
 	return &Group{dialers}, nil
 }
 
-func (g *Group) Do(ctx context.Context, req *Request) (Response, error) {
+func (g *Group) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 	count := len(g.dialers)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	type result struct {
-		resp Response
+		resp dns.Msg
 		err  error
 	}
 
 	first := true
 
 	var err error
-	var fallbackMsg *dnsmessage.Msg
+	var fallbackMsg *dns.Msg
 	ch := make(chan result)          // must be unbuffered
 	failBoost := make(chan struct{}) // best effort send on dial failure
 
@@ -67,9 +67,6 @@ func (g *Group) Do(ctx context.Context, req *Request) (Response, error) {
 				select {
 				case ch <- result{resp, er}:
 				case <-ctx.Done():
-					if er == nil {
-						resp.Release()
-					}
 				}
 			}(d)
 		}
@@ -79,28 +76,23 @@ func (g *Group) Do(ctx context.Context, req *Request) (Response, error) {
 		select {
 		case <-ctx.Done():
 			if fallbackMsg != nil {
-				return MsgResponse(*fallbackMsg), nil
+				return *fallbackMsg, nil
 			}
 			if err != nil {
-				return nil, err
+				return dns.Msg{}, err
 			}
-			return nil, ctx.Err()
+			return dns.Msg{}, ctx.Err()
 		case r := <-ch:
 			count--
 
 			if r.err == nil {
-				msg, er := r.resp.Msg()
-				r.resp.Release()
-				if er == nil {
-					if msg.Rcode == dnsmessage.RcodeSuccess {
-						return r.resp, nil
-					}
+				msg := r.resp
+				if msg.Rcode == dns.RcodeSuccess {
+					return msg, nil
+				}
 
-					if fallbackMsg == nil {
-						fallbackMsg = &msg
-					}
-				} else {
-					err = errors.Join(err, er)
+				if fallbackMsg == nil {
+					fallbackMsg = &msg
 				}
 			} else {
 				err = errors.Join(err, r.err)
@@ -108,10 +100,10 @@ func (g *Group) Do(ctx context.Context, req *Request) (Response, error) {
 
 			if count == 0 {
 				if fallbackMsg != nil {
-					return MsgResponse(*fallbackMsg), nil
+					return *fallbackMsg, nil
 				}
 				if err != nil {
-					return nil, err
+					return dns.Msg{}, err
 				}
 			}
 		}

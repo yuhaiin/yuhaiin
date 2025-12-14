@@ -6,7 +6,7 @@ import (
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	dnsmessage "github.com/miekg/dns"
+	"github.com/miekg/dns"
 )
 
 func ExampleNew() {
@@ -27,7 +27,7 @@ func ExampleNew() {
 	}
 	defer r.Close()
 
-	msg, err := r.Raw(context.Background(), dnsmessage.Question{})
+	msg, err := r.Raw(context.Background(), dns.Question{})
 	if err != nil {
 		panic(err)
 	}

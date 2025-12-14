@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -289,11 +290,11 @@ type Context struct {
 
 	context.Context
 
-	inbound       *net.Addr `metrics:"Inbound"`
-	inboundName   *string   `metrics:"InboundName"`
-	interfaceName *string   `metrics:"InterfaceName"`
-	fakeIP        *net.Addr `metrics:"FakeIP"`
-	hosts         *net.Addr `metrics:"Hosts"`
+	inbound       *net.Addr              `metrics:"Inbound"`
+	inboundName   *string                `metrics:"InboundName"`
+	interfaceName atomic.Pointer[string] `metrics:"InterfaceName"`
+	fakeIP        *net.Addr              `metrics:"FakeIP"`
+	hosts         *net.Addr              `metrics:"Hosts"`
 
 	addrInfo *AddrInfo
 
@@ -494,14 +495,16 @@ func (c *Context) SetInterface(name string) *Context {
 		return c
 	}
 
-	c.interfaceName = &name
+	c.interfaceName.Store(&name)
 
 	return c
 }
 
 func (c *Context) GetInterface() string {
-	if c.interfaceName != nil {
-		return *c.interfaceName
+	name := c.interfaceName.Load()
+
+	if name != nil {
+		return *name
 	}
 	return ""
 }

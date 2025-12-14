@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	dnsmessage "github.com/miekg/dns"
+	"github.com/miekg/dns"
 )
 
 func TestGroup(t *testing.T) {
@@ -26,7 +26,7 @@ func TestGroup(t *testing.T) {
 	})
 
 	t.Run("rcode error", func(t *testing.T) {
-		group, err := NewGroup(&mockDialer{rCode: dnsmessage.RcodeServerFailure}, &mockDialer{rCode: dnsmessage.RcodeNameError})
+		group, err := NewGroup(&mockDialer{rCode: dns.RcodeServerFailure}, &mockDialer{rCode: dns.RcodeNameError})
 		assert.NoError(t, err)
 
 		c := NewClient(Config{}, group)
@@ -35,7 +35,7 @@ func TestGroup(t *testing.T) {
 
 		var derr *net.DNSError
 		assert.MustEqual(t, true, errors.As(err, &derr))
-		assert.MustEqual(t, dnsmessage.RcodeToString[dnsmessage.RcodeServerFailure], derr.Err)
+		assert.MustEqual(t, dns.RcodeToString[dns.RcodeServerFailure], derr.Err)
 	})
 
 	group, err := NewGroup(&mockDialer{err: errors.New("mock err")}, &mockDialer{})
@@ -53,27 +53,27 @@ type mockDialer struct {
 	rCode int
 }
 
-func (m *mockDialer) Do(ctx context.Context, req *Request) (Response, error) {
+func (m *mockDialer) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 	if m.err != nil {
 		time.Sleep(time.Millisecond * 200)
-		return nil, m.err
+		return dns.Msg{}, m.err
 	}
-	var body dnsmessage.RR
+	var body dns.RR
 
 	switch req.Question.Qtype {
-	case dnsmessage.TypeA:
-		body = &dnsmessage.A{A: net.IP{127, 0, 0, 1}}
-	case dnsmessage.TypeAAAA:
-		body = &dnsmessage.AAAA{AAAA: net.IP{127, 0, 0, 1}}
+	case dns.TypeA:
+		body = &dns.A{A: net.IP{127, 0, 0, 1}}
+	case dns.TypeAAAA:
+		body = &dns.AAAA{AAAA: net.IP{127, 0, 0, 1}}
 	}
 
-	return MsgResponse{
-		MsgHdr: dnsmessage.MsgHdr{
+	return dns.Msg{
+		MsgHdr: dns.MsgHdr{
 			Id:    req.ID,
 			Rcode: m.rCode,
 		},
-		Question: []dnsmessage.Question{req.Question},
-		Answer:   []dnsmessage.RR{body},
+		Question: []dns.Question{req.Question},
+		Answer:   []dns.RR{body},
 	}, nil
 }
 func (m *mockDialer) Close() error { return nil }

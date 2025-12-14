@@ -67,9 +67,13 @@ func (c *Client) Conn(pctx context.Context, add netapi.Address) (net.Conn, error
 		localAddr  net.Addr = netapi.EmptyAddr
 		remoteAddr net.Addr = netapi.EmptyAddr
 		gc                  = &getClientConnInfo{}
+		mu         sync.Mutex
 
 		tract = &httptrace.ClientTrace{
 			GotConn: func(gci httptrace.GotConnInfo) {
+				mu.Lock()
+				defer mu.Unlock()
+
 				localAddr = gci.Conn.LocalAddr()
 				remoteAddr = gci.Conn.RemoteAddr()
 			},

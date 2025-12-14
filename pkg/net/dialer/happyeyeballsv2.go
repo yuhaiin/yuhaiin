@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -339,8 +340,8 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 		err error
 	}
 
-	var attemptsCount int
-	defer func() { metrics.Counter.AddHappyEyeballsIPsAttempted(attemptsCount) }()
+	var attemptsCount atomic.Int32
+	defer func() { metrics.Counter.AddHappyEyeballsIPsAttempted(int(attemptsCount.Load())) }()
 
 	resc := make(chan res) // must be unbuffered
 	go func() {
@@ -363,7 +364,7 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 				break _loop
 			}
 
-			attemptsCount++
+			attemptsCount.Add(1)
 
 			wg.Go(func() {
 				defer h.semaphore.Release(1)

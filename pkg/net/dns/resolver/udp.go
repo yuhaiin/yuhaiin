@@ -34,9 +34,9 @@ type udpresp struct {
 	msg    atomic.Pointer[dns.Msg]
 }
 
-func (r *udpresp) setMsg(msg dns.Msg) {
+func (r *udpresp) setMsg(msg *dns.Msg) {
 	r.cancel()
-	r.msg.Store(&msg)
+	r.msg.Store(msg)
 }
 
 type udpPacket struct {
@@ -74,8 +74,8 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 			return
 		}
 
-		msg, err := BytesResponse(buf[:n]).Msg()
-		if err != nil {
+		msg := &dns.Msg{}
+		if err := msg.Unpack(buf[:n]); err != nil {
 			log.Warn("parse dns message failed", "err", err)
 			continue
 		}
@@ -202,7 +202,7 @@ func (u *udp) udpAddr() (*net.UDPAddr, error) {
 	return ips.RandUDPAddr(u.addr.Port()), nil
 }
 
-func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {
+func (u *udp) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 	if req.Truncated {
 		// If TC is set, the choice of records in the answer (if any)
 		// do not really matter much as the client is supposed to
@@ -227,9 +227,9 @@ func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {
 
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return dns.Msg{}, ctx.Err()
 		case <-u.ctx.Done():
-			return nil, u.ctx.Err()
+			return dns.Msg{}, u.ctx.Err()
 		case u.wchan <- &udpPacket{req.Bytes(), ctx}:
 		}
 	}
@@ -237,16 +237,16 @@ func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {
 	select {
 	case <-ctx.Done():
 		if msg := resp.msg.Load(); msg != nil {
-			return MsgResponse(*msg), nil
+			return *msg, nil
 		}
-		return nil, ctx.Err()
+		return dns.Msg{}, ctx.Err()
 	case <-u.ctx.Done():
-		return nil, u.ctx.Err()
+		return dns.Msg{}, u.ctx.Err()
 	case <-resp.ctx.Done():
 		if msg := resp.msg.Load(); msg != nil {
-			return MsgResponse(*msg), nil
+			return *msg, nil
 		}
-		return nil, resp.ctx.Err()
+		return dns.Msg{}, resp.ctx.Err()
 	}
 }
 

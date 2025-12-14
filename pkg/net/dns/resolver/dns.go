@@ -47,38 +47,16 @@ type Request struct {
 
 func (r *Request) Bytes() []byte { return r.dnsRequestBytes }
 
-type Response interface {
-	Msg() (dns.Msg, error)
-	Release()
-}
+type TransportFunc func(context.Context, *Request) (dns.Msg, error)
 
-type BytesResponse []byte
-
-func (b BytesResponse) Msg() (msg dns.Msg, err error) {
-	var p dns.Msg
-	err = p.Unpack(b)
-	return p, err
-}
-
-func (b BytesResponse) Release() { pool.PutBytes(b) }
-
-type MsgResponse dns.Msg
-
-func (m MsgResponse) Msg() (msg dns.Msg, err error) {
-	return dns.Msg(m), nil
-}
-func (m MsgResponse) Release() {}
-
-type TransportFunc func(context.Context, *Request) (Response, error)
-
-func (f TransportFunc) Do(ctx context.Context, req *Request) (Response, error) {
+func (f TransportFunc) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 	return f(ctx, req)
 }
 
 func (f TransportFunc) Close() error { return nil }
 
 type Transport interface {
-	Do(ctx context.Context, req *Request) (Response, error)
+	Do(ctx context.Context, req *Request) (dns.Msg, error)
 	Close() error
 }
 
@@ -270,7 +248,9 @@ func (c *client) query(ctx context.Context, req dns.Question) (dns.Msg, error) {
 			Rcode:              0,
 		},
 		Question: []dns.Question{req},
-		Extra:    []dns.RR{c.edns0},
+		// ! github.com/miekg/dns@v1.1.69/msg.go:745 will change edns0 message
+		// ! which will make data race, so copy here
+		Extra: []dns.RR{dns.Copy(c.edns0)},
 	}
 
 	buf := pool.GetBytes(8192)
@@ -292,13 +272,8 @@ func (c *client) query(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	for _, v := range []bool{false, true} {
 		request.Truncated = v
 
-		resp, err := dialer.Do(ctx, request)
+		msg, err = dialer.Do(ctx, request)
 		if err != nil {
-			return dns.Msg{}, err
-		}
-		defer resp.Release()
-
-		if msg, err = resp.Msg(); err != nil {
 			return dns.Msg{}, err
 		}
 

@@ -19,7 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	dnsmessage "github.com/miekg/dns"
+	"github.com/miekg/dns"
 )
 
 var _ netapi.Resolver = (*FakeDNS)(nil)
@@ -74,9 +74,9 @@ func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netap
 	}, nil
 }
 
-func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code int, resource ...func(hedaer dnsmessage.RR_Header) dnsmessage.RR) dnsmessage.Msg {
-	msg := dnsmessage.Msg{
-		MsgHdr: dnsmessage.MsgHdr{
+func (f *FakeDNS) newAnswerMessage(req dns.Question, code int, resource ...func(hedaer dns.RR_Header) dns.RR) dns.Msg {
+	msg := dns.Msg{
+		MsgHdr: dns.MsgHdr{
 			Id:                 0,
 			Response:           true,
 			Authoritative:      false,
@@ -84,11 +84,11 @@ func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code int, resource .
 			Rcode:              code,
 			RecursionAvailable: true,
 		},
-		Question: []dnsmessage.Question{
+		Question: []dns.Question{
 			{
 				Name:   req.Name,
 				Qtype:  req.Qtype,
-				Qclass: dnsmessage.ClassINET,
+				Qclass: dns.ClassINET,
 			},
 		},
 	}
@@ -98,10 +98,10 @@ func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code int, resource .
 	}
 
 	for _, resource := range resource {
-		msg.Answer = append(msg.Answer, resource(dnsmessage.RR_Header{
+		msg.Answer = append(msg.Answer, resource(dns.RR_Header{
 			Name:   req.Name,
 			Rrtype: req.Qtype,
-			Class:  dnsmessage.ClassINET,
+			Class:  dns.ClassINET,
 			Ttl:    40,
 		}))
 	}
@@ -109,15 +109,15 @@ func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code int, resource .
 	return msg
 }
 
-func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Msg, error) {
+func (f *FakeDNS) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	switch req.Qtype {
-	case dnsmessage.TypeA, dnsmessage.TypeAAAA, dnsmessage.TypePTR, dnsmessage.TypeHTTPS:
+	case dns.TypeA, dns.TypeAAAA, dns.TypePTR, dns.TypeHTTPS:
 	default:
 		return f.Resolver.Raw(ctx, req)
 	}
 
 	if !system.IsDomainName(req.Name) {
-		return f.newAnswerMessage(req, dnsmessage.RcodeNameError), nil
+		return f.newAnswerMessage(req, dns.RcodeNameError), nil
 	}
 
 	domain := req.Name[:len(req.Name)-1]
@@ -127,10 +127,10 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 	}
 
 	switch req.Qtype {
-	case dnsmessage.TypePTR:
+	case dns.TypePTR:
 		ip, err := RetrieveIPFromPtr(req.Name)
 		if err != nil {
-			return f.newAnswerMessage(req, dnsmessage.RcodeNameError), nil
+			return f.newAnswerMessage(req, dns.RcodeNameError), nil
 		}
 
 		domain, err := f.LookupPtr(ip)
@@ -140,9 +140,9 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 
 		msg := f.newAnswerMessage(
 			req,
-			dnsmessage.RcodeSuccess,
-			func(header dnsmessage.RR_Header) dnsmessage.RR {
-				return &dnsmessage.PTR{
+			dns.RcodeSuccess,
+			func(header dns.RR_Header) dns.RR {
+				return &dns.PTR{
 					Hdr: header,
 					Ptr: system.AbsDomain(domain),
 				}
@@ -150,7 +150,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 		)
 		return msg, nil
 
-	case dnsmessage.TypeHTTPS:
+	case dns.TypeHTTPS:
 		msg, err := f.Resolver.Raw(ctx, req)
 		if err != nil {
 			return msg, err
@@ -163,47 +163,47 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 
 		return msg, nil
 
-	case dnsmessage.TypeAAAA:
+	case dns.TypeAAAA:
 		if !configuration.IPv6.Load() {
-			return f.newAnswerMessage(req, dnsmessage.RcodeSuccess), nil
+			return f.newAnswerMessage(req, dns.RcodeSuccess), nil
 		}
 
 		if !netapi.GetContext(ctx).ConnOptions().Resolver().FakeIPSkipCheckUpstream() {
 			msg, err := f.Resolver.Raw(ctx, req)
 			if err != nil {
-				return dnsmessage.Msg{}, err
+				return dns.Msg{}, err
 			}
 
-			if !f.existAnswer(msg, dnsmessage.Type(dnsmessage.TypeAAAA)) {
+			if !f.existAnswer(msg, dns.Type(dns.TypeAAAA)) {
 				return msg, nil
 			}
 		}
 
 		ip := f.ipv6.GetFakeIPForDomain(domain)
 
-		return f.newAnswerMessage(req, dnsmessage.RcodeSuccess, func(header dnsmessage.RR_Header) dnsmessage.RR {
-			return &dnsmessage.AAAA{
+		return f.newAnswerMessage(req, dns.RcodeSuccess, func(header dns.RR_Header) dns.RR {
+			return &dns.AAAA{
 				Hdr:  header,
 				AAAA: ip.AsSlice(),
 			}
 		}), nil
 
-	case dnsmessage.TypeA:
+	case dns.TypeA:
 		if !netapi.GetContext(ctx).ConnOptions().Resolver().FakeIPSkipCheckUpstream() {
 			msg, err := f.Resolver.Raw(ctx, req)
 			if err != nil {
-				return dnsmessage.Msg{}, err
+				return dns.Msg{}, err
 			}
 
-			if !f.existAnswer(msg, dnsmessage.Type(dnsmessage.TypeA)) {
+			if !f.existAnswer(msg, dns.Type(dns.TypeA)) {
 				return msg, nil
 			}
 		}
 
 		ip := f.ipv4.GetFakeIPForDomain(domain)
 
-		return f.newAnswerMessage(req, dnsmessage.RcodeSuccess, func(header dnsmessage.RR_Header) dnsmessage.RR {
-			return &dnsmessage.A{
+		return f.newAnswerMessage(req, dns.RcodeSuccess, func(header dns.RR_Header) dns.RR {
+			return &dns.A{
 				Hdr: header,
 				A:   ip.AsSlice(),
 			}
@@ -213,7 +213,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 	return f.Resolver.Raw(ctx, req)
 }
 
-func (f *FakeDNS) existAnswer(msg dnsmessage.Msg, t dnsmessage.Type) bool {
+func (f *FakeDNS) existAnswer(msg dns.Msg, t dns.Type) bool {
 	for _, answer := range msg.Answer {
 		if answer.Header().Rrtype == uint16(t) {
 			return true

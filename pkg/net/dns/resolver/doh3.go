@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/miekg/dns"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 )
@@ -50,29 +51,29 @@ func NewDoH3(config Config) (Transport, error) {
 
 	uri := u.String()
 
-	return TransportFunc(func(ctx context.Context, b *Request) (Response, error) {
+	return TransportFunc(func(ctx context.Context, b *Request) (p dns.Msg, err error) {
 		req, err := newDohRequest(ctx, http.MethodPost, uri, b.Bytes())
 		if err != nil {
-			return nil, err
+			return p, err
 		}
 
 		resp, err := tr.RoundTrip(req)
 		if err != nil {
-			return nil, fmt.Errorf("doh post failed: %w", err)
+			return p, fmt.Errorf("doh post failed: %w", err)
 		}
 
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			_, _ = relay.Copy(io.Discard, resp.Body)
-			return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
+			return p, fmt.Errorf("doh post return code: %d", resp.StatusCode)
 		}
 
 		if resp.ContentLength <= 0 {
-			return nil, fmt.Errorf("response content length is empty: %d", resp.ContentLength)
+			return p, fmt.Errorf("response content length is empty: %d", resp.ContentLength)
 		}
 
 		if resp.ContentLength > pool.MaxSegmentSize {
-			return nil, fmt.Errorf("response content length is too large: %d", resp.ContentLength)
+			return p, fmt.Errorf("response content length is too large: %d", resp.ContentLength)
 		}
 
 		buf := pool.GetBytes(resp.ContentLength)
@@ -80,9 +81,10 @@ func NewDoH3(config Config) (Transport, error) {
 		_, err = io.ReadFull(resp.Body, buf)
 		if err != nil {
 			pool.PutBytes(buf)
-			return nil, fmt.Errorf("doh3 post failed: %w", err)
+			return p, fmt.Errorf("doh3 post failed: %w", err)
 		}
 
-		return BytesResponse(buf), nil
+		err = p.Unpack(buf)
+		return p, err
 	}), nil
 }
