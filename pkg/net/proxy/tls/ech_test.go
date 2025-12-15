@@ -117,7 +117,7 @@ func TestParse(t *testing.T) {
 	})
 }
 
-func TestXxx(t *testing.T) {
+func TestGenerateMcdnDomain(t *testing.T) {
 	x := "<bilibili_mcdn>.a.c.v.d"
 
 	i := strings.IndexByte(x, '.')

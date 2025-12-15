@@ -4,9 +4,9 @@ import (
 	"context"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
@@ -15,22 +15,29 @@ func init() {
 }
 
 type Server struct {
-	netapi.Listener
-	crypto       *encryptedHandshaker
-	cryptoMethod node.AeadCryptoMethod
+	netapi.PacketListener
+	crypto *encryptedHandshaker
+	*netapi.HandshakeListener
 }
 
 func NewServer(cfg *config.Aead, ii netapi.Listener) (netapi.Listener, error) {
 	crypto := NewHandshaker(true, []byte(cfg.GetPassword()), cfg.GetCryptoMethod())
-	return &Server{
-		crypto:       crypto,
-		Listener:     ii,
-		cryptoMethod: cfg.GetCryptoMethod(),
-	}, nil
+	s := &Server{
+		PacketListener: ii,
+		crypto:         crypto,
+	}
+
+	s.HandshakeListener = netapi.NewHandshakeListener(ii,
+		func(ctx context.Context, c net.Conn) (net.Conn, error) {
+			return crypto.Handshake(c)
+		},
+		log.Error)
+
+	return s, nil
 }
 
 func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
-	lis, err := s.Listener.Packet(ctx)
+	lis, err := s.PacketListener.Packet(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -43,11 +50,6 @@ func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
 	return NewAuthPacketConn(lis, aead), nil
 }
 
-func (l *Server) Accept() (net.Conn, error) {
-	conn, err := l.Listener.Accept()
-	if err != nil {
-		return nil, err
-	}
-
-	return l.crypto.Handshake(conn)
+func (s *Server) Close() error {
+	return s.HandshakeListener.Close()
 }

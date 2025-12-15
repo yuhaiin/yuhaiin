@@ -19,7 +19,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 )
 
 type Tls struct {
@@ -177,80 +176,21 @@ func NewServer(c *config.Tls, ii netapi.Listener) (netapi.Listener, error) {
 	return netapi.NewListener(newServer(ii, config), ii), nil
 }
 
-type Server struct {
-	net.Listener
-	config    *tls.Config
-	ch        chan net.Conn
-	ctx       context.Context
-	cancel    context.CancelFunc
-	semaphore semaphore.Semaphore
-}
+func newServer(listener net.Listener, config *tls.Config) *netapi.HandshakeListener {
+	return netapi.NewHandshakeListener(
+		listener,
+		func(ctx context.Context, conn net.Conn) (net.Conn, error) {
+			tlsConn := tls.Server(conn, config)
 
-func newServer(listener net.Listener, config *tls.Config) *Server {
-	ctx, cancel := context.WithCancel(context.Background())
-	s := &Server{
-		Listener:  listener,
-		config:    config,
-		ch:        make(chan net.Conn),
-		ctx:       ctx,
-		cancel:    cancel,
-		semaphore: semaphore.NewSemaphore(100),
-	}
-
-	go s.run()
-
-	return s
-}
-
-func (s *Server) run() {
-	sl := netapi.NewErrCountListener(s.Listener, 10)
-	for {
-		conn, err := sl.Accept()
-		if err != nil {
-			log.Error("accept tls faild", "err", err)
-			return
-		}
-
-		if err = s.semaphore.Acquire(s.ctx, 1); err != nil {
-			_ = conn.Close()
-			log.Error("semaphore acquire 1 failed", "err", err)
-			continue
-		}
-
-		go func() {
-			defer s.semaphore.Release(1)
-
-			tlsConn := tls.Server(conn, s.config)
-
-			ctx, cancel := context.WithTimeout(s.ctx, time.Second*10)
+			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 			defer cancel()
 			if err := tlsConn.HandshakeContext(ctx); err != nil {
 				_ = tlsConn.Close()
-				log.Warn("tls server handshake failed", "addr", conn.RemoteAddr(), "err", err)
-				return
+				return nil, err
 			}
 
-			select {
-			case s.ch <- tlsConn:
-			case <-s.ctx.Done():
-				_ = tlsConn.Close()
-			}
-		}()
-	}
-}
-
-func (s *Server) Accept() (net.Conn, error) {
-	select {
-	case conn := <-s.ch:
-		return conn, nil
-	case <-s.ctx.Done():
-		return nil, net.ErrClosed
-	}
-}
-
-func (s *Server) Close() error {
-	s.cancel()
-	return s.Listener.Close()
+			return tlsConn, nil
+		}, log.Error)
 }
 
 type ServerCert struct {

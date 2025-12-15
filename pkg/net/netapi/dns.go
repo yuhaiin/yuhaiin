@@ -71,7 +71,7 @@ func (i *IPs) Rand() net.IP {
 
 func (i *IPs) RandNetipAddr() netip.Addr {
 	addr, _ := netip.AddrFromSlice(i.Rand())
-	return addr
+	return addr.Unmap()
 }
 
 func (i *IPs) RandUDPAddr(port uint16) *net.UDPAddr {
