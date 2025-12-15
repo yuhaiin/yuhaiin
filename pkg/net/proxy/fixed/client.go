@@ -271,9 +271,9 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 			o.InterfaceName = addr.Interface
 		}
 
-        if len(addrs) > 0 {
-            o.PacketConnHintAddress = net.UDPAddrFromAddrPort(addrs[0])
-        }
+		if len(addrs) > 0 {
+			o.PacketConnHintAddress = net.UDPAddrFromAddrPort(addrs[0])
+		}
 
 	})
 	if err != nil {

@@ -368,7 +368,7 @@ func (s *HandshakeListener) run() {
 	for {
 		conn, err := sl.Accept()
 		if err != nil {
-    s.errLog("handshake listener accept failed", "err", err)
+			s.errLog("handshake listener accept failed", "err", err)
 			return
 		}
 
