@@ -266,17 +266,6 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 		addrs[0], addrs[index] = addrs[index], addrs[0]
 	}
 
-	// if !addr.a.IsFqdn() {
-	// 	uaddr = net.UDPAddrFromAddrPort(addr.a.(netapi.IPAddress).AddrPort())
-	// } else {
-	// 	ips, err := netapi.ResolverIP(ctx, addr.a.Hostname())
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-
-	// 	uaddr = ips.RandUDPAddr(addr.a.Port())
-	// }
-
 	conn, err := dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
 		if addr.Interface != "" {
 			o.InterfaceName = addr.Interface
@@ -410,7 +399,6 @@ func (p *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 
 		for _, v := range addrs {
 			if addrPort.Compare(v) == 0 {
-				log.Info("--------set uaddr", "ua", ua)
 				p.storeUDPAddr(ua)
 				break
 			}
@@ -419,7 +407,6 @@ func (p *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 
 	if p.uaddr.Load() == nil && cc > 10 && len(addrs) > 0 {
 		ua = net.UDPAddrFromAddrPort(addrs[0])
-		log.Info("--------set uaddr, over 10", "ua", ua)
 		p.storeUDPAddr(ua)
 	}
 
