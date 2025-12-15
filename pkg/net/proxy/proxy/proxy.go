@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
@@ -63,22 +64,41 @@ func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 }
 
 type Server struct {
-	netapi.Listener
+	netapi.PacketListener
+	*netapi.HandshakeListener
 }
 
-func NewServer(config *config.Proxy, ii netapi.Listener) (netapi.Listener, error) {
-	return &Server{ii}, nil
+func (s *Server) Close() error {
+	return s.HandshakeListener.Close()
+}
+
+func NewServer(_ *config.Proxy, ii netapi.Listener) (netapi.Listener, error) {
+	return &Server{
+		PacketListener: ii,
+		HandshakeListener: netapi.NewHandshakeListener(ii, func(_ context.Context, conn net.Conn) (net.Conn, error) {
+			br := pool.GetBufioReader(conn, pool.DefaultSize)
+			_, err := proxyproto.ReadTimeout(br, time.Second*15)
+			if err != nil {
+				_ = conn.Close()
+				pool.PutBufioReader(br)
+				return nil, err
+			}
+
+			return &serverConn{Conn: conn, br: br}, nil
+		}, log.Error),
+	}, nil
 }
 
 type serverConn struct {
 	net.Conn
-	mu sync.RWMutex
+	mu sync.Mutex
 	br *bufio.Reader
 }
 
 func (s *serverConn) Read(p []byte) (int, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	// bufio.Reader is not thread safe
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.br == nil {
 		return 0, io.EOF
 	}
@@ -96,21 +116,4 @@ func (s *serverConn) Close() error {
 	}
 
 	return s.Conn.Close()
-}
-
-func (s *Server) Accept() (net.Conn, error) {
-	conn, err := s.Listener.Accept()
-	if err != nil {
-		return nil, err
-	}
-
-	br := pool.GetBufioReader(conn, pool.DefaultSize)
-	_, err = proxyproto.ReadTimeout(br, time.Second*15)
-	if err != nil {
-		_ = conn.Close()
-		pool.PutBufioReader(br)
-		return nil, err
-	}
-
-	return &serverConn{Conn: conn, br: br}, nil
 }
