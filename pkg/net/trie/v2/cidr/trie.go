@@ -45,7 +45,7 @@ func (t *Trie[T]) Search(ip net.IP) *set.ImmutableSet[T] {
 	for i := range ip {
 		for b := byte(128); b != 0; b >>= 1 {
 			if r == nil {
-				return matched.ImmutableSet
+				return matched.Immutable()
 			}
 
 			for k := range r.marks {
@@ -65,7 +65,7 @@ func (t *Trie[T]) Search(ip net.IP) *set.ImmutableSet[T] {
 		}
 	}
 
-	return matched.ImmutableSet
+	return matched.Immutable()
 }
 
 func (t *Trie[T]) Remove(ip net.IP, maskSize int, mark T) {

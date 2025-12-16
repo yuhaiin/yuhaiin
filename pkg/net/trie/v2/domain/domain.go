@@ -66,7 +66,7 @@ func search[T comparable](root *trie[T], domain *fqdnReader) *set.ImmutableSet[T
 				if res == nil {
 					return set.EmptyImmutableSet[T]()
 				}
-				return res.ImmutableSet
+				return res.Immutable()
 			}
 
 			if asterisk {
@@ -79,7 +79,7 @@ func search[T comparable](root *trie[T], domain *fqdnReader) *set.ImmutableSet[T
 				if res == nil {
 					return set.EmptyImmutableSet[T]()
 				}
-				return res.ImmutableSet
+				return res.Immutable()
 			}
 
 			asterisk = true
@@ -112,7 +112,7 @@ func search[T comparable](root *trie[T], domain *fqdnReader) *set.ImmutableSet[T
 	if res == nil {
 		return set.EmptyImmutableSet[T]()
 	}
-	return res.ImmutableSet
+	return res.Immutable()
 }
 
 func remove[T comparable](node *trie[T], domain *fqdnReader, mark T) {
