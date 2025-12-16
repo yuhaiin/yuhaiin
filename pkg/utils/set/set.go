@@ -1,6 +1,7 @@
 package set
 
 import (
+	"reflect"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -122,10 +123,10 @@ func (s *ImmutableSet[T]) Merge(other *Set[T]) {
 	s.mu.Unlock()
 }
 
-var emptyStore = syncmap.SyncMap[any, any]{}
+var emptyStore = syncmap.SyncMap[reflect.Type, any]{}
 
 func EmptyImmutableSet[T comparable]() *ImmutableSet[T] {
-	z, _, _ := emptyStore.LoadOrCreate(*new(T), func() (any, error) {
+	z, _, _ := emptyStore.LoadOrCreate(reflect.TypeFor[T](), func() (any, error) {
 		return NewImmutableSet[T](), nil
 	})
 
