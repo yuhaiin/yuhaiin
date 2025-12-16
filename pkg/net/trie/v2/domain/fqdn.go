@@ -25,11 +25,11 @@ func (d *Fqdn[T]) Insert(domain string, mark T) {
 	insert(d.Root, r, mark)
 }
 
-func (d *Fqdn[T]) Search(domain netapi.Address) *set.Set[T] {
+func (d *Fqdn[T]) Search(domain netapi.Address) *set.ImmutableSet[T] {
 	return search(d.Root, newReader(domain.Hostname(), d.separate))
 }
 
-func (d *Fqdn[T]) SearchString(domain string) *set.Set[T] {
+func (d *Fqdn[T]) SearchString(domain string) *set.ImmutableSet[T] {
 	return search(d.Root, newReader(domain, d.separate))
 }
 

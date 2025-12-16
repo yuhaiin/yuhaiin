@@ -123,7 +123,7 @@ type ConnOptions struct {
 		IPs *IPs
 		Err error
 	}
-	lists *set.Set[string]
+	lists *set.ImmutableSet[string]
 }
 
 func (s *ConnOptions) SetBindAddress(str string) *ConnOptions {
@@ -239,15 +239,16 @@ func (s *ConnOptions) RouteIPs(ctx context.Context, addr Address) (*IPs, error) 
 	return ips, nil
 }
 
-func (s *ConnOptions) SetLists(lists *set.Set[string]) *ConnOptions {
+func (s *ConnOptions) SetLists(lists *set.ImmutableSet[string]) *ConnOptions {
 	s.lists = lists
 	return s
 }
 
-func (s *ConnOptions) Lists() *set.Set[string] {
+func (s *ConnOptions) Lists() *set.ImmutableSet[string] {
 	if s.lists == nil {
-		s.lists = set.NewSet[string]()
+		return set.EmptyImmutableSet[string]()
 	}
+
 	return s.lists
 }
 

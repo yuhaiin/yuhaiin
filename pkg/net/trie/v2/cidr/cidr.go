@@ -78,15 +78,15 @@ func (c *Cidr[T]) InsertIP(ip netip.Addr, maskSize int, mark T) {
 }
 
 // MatchWithTrie match ip with trie
-func (c *Cidr[T]) Search(ip string) *set.Set[T] {
+func (c *Cidr[T]) Search(ip string) *set.ImmutableSet[T] {
 	iP := net.ParseIP(ip)
 	if iP == nil {
-		return set.NewSet[T]()
+		return set.EmptyImmutableSet[T]()
 	}
 	return c.SearchIP(iP)
 }
 
-func (c *Cidr[T]) SearchIP(ip net.IP) *set.Set[T] {
+func (c *Cidr[T]) SearchIP(ip net.IP) *set.ImmutableSet[T] {
 	if x := ip.To4(); x != nil {
 		return c.v4CidrTrie.Search(x)
 	} else {

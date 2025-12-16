@@ -54,7 +54,7 @@ func insert[T comparable](node *trie[T], z *fqdnReader, mark T) {
 	}
 }
 
-func search[T comparable](root *trie[T], domain *fqdnReader) *set.Set[T] {
+func search[T comparable](root *trie[T], domain *fqdnReader) *set.ImmutableSet[T] {
 	var res *set.Set[T]
 	first, asterisk := true, false
 
@@ -64,9 +64,9 @@ func search[T comparable](root *trie[T], domain *fqdnReader) *set.Set[T] {
 		case false:
 			if !first {
 				if res == nil {
-					return set.NewSet[T]()
+					return set.EmptyImmutableSet[T]()
 				}
-				return res
+				return res.ImmutableSet
 			}
 
 			if asterisk {
@@ -77,9 +77,9 @@ func search[T comparable](root *trie[T], domain *fqdnReader) *set.Set[T] {
 			root, cok = root.child("*", false)
 			if !cok {
 				if res == nil {
-					return set.NewSet[T]()
+					return set.EmptyImmutableSet[T]()
 				}
-				return res
+				return res.ImmutableSet
 			}
 
 			asterisk = true
@@ -110,9 +110,9 @@ func search[T comparable](root *trie[T], domain *fqdnReader) *set.Set[T] {
 	}
 
 	if res == nil {
-		return set.NewSet[T]()
+		return set.EmptyImmutableSet[T]()
 	}
-	return res
+	return res.ImmutableSet
 }
 
 func remove[T comparable](node *trie[T], domain *fqdnReader, mark T) {

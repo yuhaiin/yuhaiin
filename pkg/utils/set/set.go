@@ -1,10 +1,13 @@
 package set
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+)
 
 type Set[T comparable] struct {
-	data map[T]struct{}
-	mu   sync.RWMutex
+	*ImmutableSet[T]
 }
 
 func (q *Set[T]) Push(x T) {
@@ -13,31 +16,11 @@ func (q *Set[T]) Push(x T) {
 	q.mu.Unlock()
 }
 
-func (s *Set[T]) Has(x T) bool {
-	s.mu.RLock()
-	_, ok := s.data[x]
-	s.mu.RUnlock()
-	return ok
-}
-func (s *Set[T]) ContainsAll(x ...T) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	for _, v := range x {
-		if _, ok := s.data[v]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
-func (s *Set[T]) Delete(x T) {
-	s.mu.Lock()
-	delete(s.data, x)
-	s.mu.Unlock()
-}
-
 func (s *Set[T]) Pop() (T, bool) {
+	if s == nil {
+		return *new(T), false
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -49,7 +32,66 @@ func (s *Set[T]) Pop() (T, bool) {
 	return *new(T), false
 }
 
-func (s *Set[T]) Len() int {
+func (q *Set[T]) Clear() {
+	if q == nil {
+		return
+	}
+	q.mu.Lock()
+	clear(q.data)
+	q.mu.Unlock()
+}
+
+func (s *Set[T]) Delete(x T) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	delete(s.data, x)
+	s.mu.Unlock()
+}
+
+func NewSet[T comparable]() *Set[T] {
+	return &Set[T]{NewImmutableSet[T]()}
+}
+
+type ImmutableSet[T comparable] struct {
+	data map[T]struct{}
+	mu   sync.RWMutex
+}
+
+func NewImmutableSet[T comparable]() *ImmutableSet[T] {
+	return &ImmutableSet[T]{data: make(map[T]struct{})}
+}
+
+func (s *ImmutableSet[T]) Has(x T) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.RLock()
+	_, ok := s.data[x]
+	s.mu.RUnlock()
+	return ok
+}
+func (s *ImmutableSet[T]) ContainsAll(x ...T) bool {
+	if s == nil {
+		return false
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, v := range x {
+		if _, ok := s.data[v]; !ok {
+			return false
+		}
+	}
+	return true
+}
+func (s *ImmutableSet[T]) Len() int {
+	if s == nil {
+		return 0
+	}
 	s.mu.RLock()
 	l := len(s.data)
 	s.mu.RUnlock()
@@ -57,13 +99,10 @@ func (s *Set[T]) Len() int {
 	return l
 }
 
-func (q *Set[T]) Clear() {
-	q.mu.Lock()
-	clear(q.data)
-	q.mu.Unlock()
-}
-
-func (s *Set[T]) Range(ranger func(T) bool) {
+func (s *ImmutableSet[T]) Range(ranger func(T) bool) {
+	if s == nil {
+		return
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for k := range s.data {
@@ -73,7 +112,7 @@ func (s *Set[T]) Range(ranger func(T) bool) {
 	}
 }
 
-func (s *Set[T]) Merge(other *Set[T]) {
+func (s *ImmutableSet[T]) Merge(other *Set[T]) {
 	s.mu.Lock()
 	other.mu.RLock()
 	for k := range other.data {
@@ -83,6 +122,12 @@ func (s *Set[T]) Merge(other *Set[T]) {
 	s.mu.Unlock()
 }
 
-func NewSet[T comparable]() *Set[T] {
-	return &Set[T]{data: make(map[T]struct{})}
+var emptyStore = syncmap.SyncMap[any, any]{}
+
+func EmptyImmutableSet[T comparable]() *ImmutableSet[T] {
+	z, _, _ := emptyStore.LoadOrCreate(*new(T), func() (any, error) {
+		return NewImmutableSet[T](), nil
+	})
+
+	return z.(*ImmutableSet[T])
 }

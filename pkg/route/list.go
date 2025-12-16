@@ -46,7 +46,7 @@ func (h *hostMatcher) Add(host string, list string) {
 	h.trie.Insert(host, list)
 }
 
-func (h *hostMatcher) Search(ctx context.Context, addr netapi.Address) *set.Set[string] {
+func (h *hostMatcher) Search(ctx context.Context, addr netapi.Address) *set.ImmutableSet[string] {
 	return h.trie.Search(ctx, addr)
 }
 
