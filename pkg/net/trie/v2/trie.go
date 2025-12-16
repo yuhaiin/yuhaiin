@@ -37,7 +37,7 @@ func (x *Trie[T]) Insert(str string, mark T) {
 	x.domain.Insert(str, mark)
 }
 
-func (x *Trie[T]) SearchFqdn(addr netapi.Address) *set.Set[T] {
+func (x *Trie[T]) SearchFqdn(addr netapi.Address) *set.ImmutableSet[T] {
 	if !addr.IsFqdn() {
 		return x.cidr.SearchIP(addr.(netapi.IPAddress).AddrPort().Addr().AsSlice())
 	}
@@ -45,14 +45,14 @@ func (x *Trie[T]) SearchFqdn(addr netapi.Address) *set.Set[T] {
 	return x.domain.Search(addr)
 }
 
-func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) *set.Set[T] {
+func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) *set.ImmutableSet[T] {
 	if mark := x.SearchFqdn(addr); mark.Len() > 0 || !addr.IsFqdn() {
 		return mark
 	}
 
 	ips, err := netapi.GetContext(ctx).ConnOptions().RouteIPs(ctx, addr)
 	if err != nil {
-		return set.NewSet[T]()
+		return set.EmptyImmutableSet[T]()
 	}
 
 	for ip := range ips.Iter() {
@@ -61,7 +61,7 @@ func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) *set.Set[T] {
 		}
 	}
 
-	return set.NewSet[T]()
+	return set.EmptyImmutableSet[T]()
 }
 
 func (x *Trie[T]) Remove(str string, mark T) {

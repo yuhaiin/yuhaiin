@@ -38,14 +38,14 @@ func (t *Trie[T]) Insert(ip net.IP, maskSize int, mark T) {
 	r.marks[mark] = struct{}{}
 }
 
-func (t *Trie[T]) Search(ip net.IP) *set.Set[T] {
+func (t *Trie[T]) Search(ip net.IP) *set.ImmutableSet[T] {
 	r := t
 	matched := set.NewSet[T]()
 
 	for i := range ip {
 		for b := byte(128); b != 0; b >>= 1 {
 			if r == nil {
-				return matched
+				return matched.Immutable()
 			}
 
 			for k := range r.marks {
@@ -65,7 +65,7 @@ func (t *Trie[T]) Search(ip net.IP) *set.Set[T] {
 		}
 	}
 
-	return matched
+	return matched.Immutable()
 }
 
 func (t *Trie[T]) Remove(ip net.IP, maskSize int, mark T) {
