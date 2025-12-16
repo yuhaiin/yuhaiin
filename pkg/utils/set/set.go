@@ -43,7 +43,7 @@ func (q *Set[T]) Clear() {
 }
 
 func (s *Set[T]) Delete(x T) {
-	if s == nil {
+if s == nil || s.ImmutableSet == nil {
 		return
 	}
 
