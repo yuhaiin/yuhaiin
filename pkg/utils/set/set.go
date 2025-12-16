@@ -34,7 +34,7 @@ if s == nil || s.ImmutableSet == nil {
 }
 
 func (q *Set[T]) Clear() {
-	if q == nil {
+if q == nil || q.ImmutableSet == nil {
 		return
 	}
 	q.mu.Lock()
