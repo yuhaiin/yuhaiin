@@ -18,7 +18,7 @@ func (q *Set[T]) Push(x T) {
 }
 
 func (s *Set[T]) Pop() (T, bool) {
-	if s == nil {
+if s == nil || s.ImmutableSet == nil {
 		return *new(T), false
 	}
 
