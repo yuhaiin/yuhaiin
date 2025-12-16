@@ -253,9 +253,21 @@ func (s *ConnOptions) AddLists(lists ...*set.ImmutableSet[string]) *ConnOptions 
 	}
 	return s
 }
-
 func (s *ConnOptions) Lists() []string {
-	var lists []string
+	if len(s.lists) == 0 {
+		return nil
+	}
+
+	var totalSize int
+	for v := range s.lists {
+		totalSize += v.Len()
+	}
+
+	if totalSize == 0 {
+		return nil
+	}
+
+	lists := make([]string, 0, totalSize)
 	for v := range s.lists {
 		for list := range v.Range {
 			lists = append(lists, list)
