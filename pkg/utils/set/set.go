@@ -8,7 +8,7 @@ import (
 )
 
 type Set[T comparable] struct {
-	*immutableSet[T]
+	*baseSet[T]
 }
 
 func (q *Set[T]) Push(x T) {
@@ -18,7 +18,7 @@ func (q *Set[T]) Push(x T) {
 }
 
 func (s *Set[T]) Pop() (T, bool) {
-	if s == nil || s.immutableSet == nil {
+	if s == nil || s.baseSet == nil {
 		return *new(T), false
 	}
 
@@ -34,7 +34,7 @@ func (s *Set[T]) Pop() (T, bool) {
 }
 
 func (q *Set[T]) Clear() {
-	if q == nil || q.immutableSet == nil {
+	if q == nil || q.baseSet == nil {
 		return
 	}
 	q.mu.Lock()
@@ -43,7 +43,7 @@ func (q *Set[T]) Clear() {
 }
 
 func (s *Set[T]) Delete(x T) {
-	if s == nil || s.immutableSet == nil {
+	if s == nil || s.baseSet == nil {
 		return
 	}
 
@@ -53,27 +53,31 @@ func (s *Set[T]) Delete(x T) {
 }
 
 func (s *Set[T]) Immutable() *ImmutableSet[T] {
-	return &ImmutableSet[T]{s.immutableSet}
+	return &ImmutableSet[T]{s.baseSet}
+}
+
+func (s *Set[T]) Merge(other *Set[T]) {
+	s.merge(other.baseSet)
 }
 
 func NewSet[T comparable]() *Set[T] {
-	return &Set[T]{newImmutableSet[T]()}
+	return &Set[T]{newBaseSet[T]()}
 }
 
-type immutableSet[T comparable] struct {
+type baseSet[T comparable] struct {
 	data map[T]struct{}
 	mu   sync.RWMutex
 }
 
 type ImmutableSet[T comparable] struct {
-	*immutableSet[T]
+	*baseSet[T]
 }
 
-func newImmutableSet[T comparable]() *immutableSet[T] {
-	return &immutableSet[T]{data: make(map[T]struct{})}
+func newBaseSet[T comparable]() *baseSet[T] {
+	return &baseSet[T]{data: make(map[T]struct{})}
 }
 
-func (s *immutableSet[T]) Has(x T) bool {
+func (s *baseSet[T]) Has(x T) bool {
 	if s == nil {
 		return false
 	}
@@ -82,7 +86,7 @@ func (s *immutableSet[T]) Has(x T) bool {
 	s.mu.RUnlock()
 	return ok
 }
-func (s *immutableSet[T]) ContainsAll(x ...T) bool {
+func (s *baseSet[T]) ContainsAll(x ...T) bool {
 	if s == nil {
 		return false
 	}
@@ -97,7 +101,7 @@ func (s *immutableSet[T]) ContainsAll(x ...T) bool {
 	}
 	return true
 }
-func (s *immutableSet[T]) Len() int {
+func (s *baseSet[T]) Len() int {
 	if s == nil {
 		return 0
 	}
@@ -108,7 +112,7 @@ func (s *immutableSet[T]) Len() int {
 	return l
 }
 
-func (s *immutableSet[T]) Range(ranger func(T) bool) {
+func (s *baseSet[T]) Range(ranger func(T) bool) {
 	if s == nil {
 		return
 	}
@@ -121,18 +125,21 @@ func (s *immutableSet[T]) Range(ranger func(T) bool) {
 	}
 }
 
-func (s *immutableSet[T]) Merge(other *Set[T]) {
+func (s *baseSet[T]) merge(other *baseSet[T]) *baseSet[T] {
+	if s == other || other.Len() == 0 {
+		return s
+	}
+
 	s.mu.Lock()
-	other.mu.RLock()
-	for k := range other.data {
+	defer s.mu.Unlock()
+	for k := range other.Range {
 		s.data[k] = struct{}{}
 	}
-	other.mu.RUnlock()
-	s.mu.Unlock()
+	return s
 }
 
 func NewImmutableSet[T comparable]() *ImmutableSet[T] {
-	return &ImmutableSet[T]{newImmutableSet[T]()}
+	return &ImmutableSet[T]{newBaseSet[T]()}
 }
 
 var emptyStore = syncmap.SyncMap[reflect.Type, any]{}
@@ -143,4 +150,26 @@ func EmptyImmutableSet[T comparable]() *ImmutableSet[T] {
 	})
 
 	return z.(*ImmutableSet[T])
+}
+
+func MergeImmutableSet[T comparable](sets ...*ImmutableSet[T]) *ImmutableSet[T] {
+	if len(sets) == 0 {
+		return EmptyImmutableSet[T]()
+	}
+
+	var base *baseSet[T]
+
+	for _, v := range sets {
+		if base == nil {
+			base = newBaseSet[T]()
+		}
+
+		base.merge(v.baseSet)
+	}
+
+	if base == nil {
+		return EmptyImmutableSet[T]()
+	}
+
+	return &ImmutableSet[T]{base}
 }

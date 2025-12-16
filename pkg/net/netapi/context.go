@@ -123,7 +123,7 @@ type ConnOptions struct {
 		IPs *IPs
 		Err error
 	}
-	lists *set.ImmutableSet[string]
+	lists map[*set.ImmutableSet[string]]struct{}
 }
 
 func (s *ConnOptions) SetBindAddress(str string) *ConnOptions {
@@ -239,17 +239,38 @@ func (s *ConnOptions) RouteIPs(ctx context.Context, addr Address) (*IPs, error) 
 	return ips, nil
 }
 
-func (s *ConnOptions) SetLists(lists *set.ImmutableSet[string]) *ConnOptions {
-	s.lists = lists
+func (s *ConnOptions) AddLists(lists ...*set.ImmutableSet[string]) *ConnOptions {
+	for _, list := range lists {
+		if list.Len() == 0 {
+			continue
+		}
+
+		if s.lists == nil {
+			s.lists = make(map[*set.ImmutableSet[string]]struct{})
+		}
+
+		s.lists[list] = struct{}{}
+	}
 	return s
 }
 
-func (s *ConnOptions) Lists() *set.ImmutableSet[string] {
-	if s.lists == nil {
-		return set.EmptyImmutableSet[string]()
+func (s *ConnOptions) Lists() []string {
+	var lists []string
+	for v := range s.lists {
+		for list := range v.Range {
+			lists = append(lists, list)
+		}
 	}
+	return lists
+}
 
-	return s.lists
+func (s *ConnOptions) HasList(list string) bool {
+	for v := range s.lists {
+		if v.Has(list) {
+			return true
+		}
+	}
+	return false
 }
 
 type MaxMindDB interface {

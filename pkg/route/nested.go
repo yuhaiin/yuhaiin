@@ -288,7 +288,7 @@ type List string
 func (s List) Match(ctx context.Context, addr netapi.Address) bool {
 	store := netapi.GetContext(ctx)
 
-	if store.ConnOptions().Lists().Has(string(s)) {
+	if store.ConnOptions().HasList(string(s)) {
 		store.AddMatchHistory(fmt.Sprintf("List %s", string(s)), true)
 		return true
 	}

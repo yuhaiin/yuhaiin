@@ -55,20 +55,14 @@ func (h *hostMatcher) Include(list string) bool {
 }
 
 type processMatcher struct {
-	lists *set.Set[string]
-
 	trie syncmap.SyncMap[string, *set.Set[string]]
 }
 
 func newProcessTrie() *processMatcher {
-	return &processMatcher{
-		lists: set.NewSet[string](),
-	}
+	return &processMatcher{}
 }
 
 func (h *processMatcher) Add(process string, list string) {
-	h.lists.Push(list)
-
 	set, _, _ := h.trie.LoadOrCreate(process, func() (*set.Set[string], error) {
 		return set.NewSet[string](), nil
 	})
@@ -76,18 +70,33 @@ func (h *processMatcher) Add(process string, list string) {
 	set.Push(list)
 }
 
-func (h *processMatcher) Include(list string) bool {
-	return h.lists.Has(list)
+func (h *processMatcher) Range(yield func(string) bool) {
+	for _, v := range h.trie.Range {
+		for v := range v.Range {
+			if !yield(v) {
+				return
+			}
+		}
+	}
 }
 
-func (h *processMatcher) Search(ctx context.Context, addr netapi.Address) *set.Set[string] {
+func (h *processMatcher) Include(list string) bool {
+	for _, v := range h.trie.Range {
+		if v.Has(list) {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *processMatcher) Search(ctx context.Context, addr netapi.Address) *set.ImmutableSet[string] {
 	store := netapi.GetContext(ctx)
 	process := store.GetProcessName()
 	s, ok := h.trie.Load(process)
 	if !ok {
-		return set.NewSet[string]()
+		return set.EmptyImmutableSet[string]()
 	}
-	return s
+	return s.Immutable()
 }
 
 type Lists struct {
@@ -623,7 +632,7 @@ func (s *Lists) AddNewHostList(name string) {
 
 func (s *Lists) refreshProcessTrie() {
 	processTrie := newProcessTrie()
-	for name := range s.processTrie.lists.Range {
+	for name := range s.processTrie.Range {
 		_, iter, err := s.getIter(name)
 		if err != nil {
 			log.Error("get iter failed", "err", err)
