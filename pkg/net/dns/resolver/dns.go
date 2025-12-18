@@ -539,36 +539,4 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dns.Type) 
 
 func (c *client) Close() error { return c.dialer.Close() }
 
-func appendIPHint(msg dns.Msg, ipv4, ipv6 []net.IP) {
-	if len(ipv4) == 0 && len(ipv6) == 0 {
-		return
-	}
-
-	for _, v := range msg.Answer {
-		if v.Header().Rrtype != dns.TypeHTTPS {
-			continue
-		}
-
-		https, ok := v.(*dns.HTTPS)
-		if !ok {
-			continue
-		}
-
-		// the raw message already cloned, so we no need copy anymore here
-		if len(ipv4) > 0 {
-			https.Value = append(https.Value, &dns.SVCBIPv4Hint{
-				Hint: ipv4,
-			})
-		}
-
-		if len(ipv6) > 0 {
-			https.Value = append(https.Value, &dns.SVCBIPv6Hint{
-				Hint: ipv6,
-			})
-		}
-
-		break
-	}
-}
-
 func (c *client) Name() string { return c.config.Name }

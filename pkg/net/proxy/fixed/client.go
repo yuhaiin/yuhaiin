@@ -229,6 +229,57 @@ func (c *Client) successIndex(lastIndex, index int) {
 	}
 }
 
+/*
+	func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketConn, error) {
+		index := c.index.Load()
+		addr := c.addrs[index]
+
+		if c.nonBootstrap {
+			conn, err := c.p.PacketConn(ctx, addr.a)
+			if err != nil {
+				return nil, err
+			}
+
+			return &packetConnSingle{
+				PacketConn: conn,
+				addr:       addr.a,
+			}, nil
+		}
+
+		ctx = netapi.WithContext(ctx)
+
+		var uaddr *net.UDPAddr
+		if !addr.a.IsFqdn() {
+			uaddr = net.UDPAddrFromAddrPort(addr.a.(netapi.IPAddress).AddrPort())
+		} else {
+			ips, err := netapi.ResolverIP(ctx, addr.a.Hostname())
+			if err != nil {
+				return nil, err
+			}
+
+			uaddr = ips.RandUDPAddr(addr.a.Port())
+		}
+
+		conn, err := dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
+			if addr.Interface != "" {
+				o.InterfaceName = addr.Interface
+			}
+
+			if uaddr != nil {
+				o.PacketConnHintAddress = uaddr
+			}
+
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		return &packetConnSingle{
+			PacketConn: conn,
+			addr:       uaddr,
+		}, nil
+	}
+*/
 func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketConn, error) {
 	index := c.index.Load()
 	addr := c.addrs[index]
@@ -280,10 +331,7 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 		return nil, err
 	}
 
-	return &packetConn{
-		PacketConn: conn,
-		addrs:      addrs,
-	}, nil
+	return newPacketConn(conn, addrs), nil
 }
 
 func (c *Client) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
@@ -324,94 +372,159 @@ func (p *packetConnSingle) ReadFrom(b []byte) (int, net.Addr, error) {
 	return z, p.addr, err
 }
 
-type packetConn struct {
-	net.PacketConn
-	mu     sync.RWMutex
-	addrs  []netip.AddrPort
-	uaddr  atomic.Pointer[net.UDPAddr]
-	rc, wc atomic.Int64
+// pcState represents the connection state.
+type pcState struct {
+	ua      *net.UDPAddr                // The locked remote peer address once probing is complete.
+	addrs   []*net.UDPAddr              // Candidate addresses for fan-out during probing (pre-allocated).
+	addrMap map[netip.AddrPort]struct{} // Map for O(1) lookup during ReadFrom.
+	start   time.Time                   // When the probing phase started.
 }
 
-func (p *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	ua := p.uaddr.Load()
-	if ua != nil {
-		return p.PacketConn.WriteTo(b, ua)
+type packetConn struct {
+	net.PacketConn
+	state atomic.Pointer[pcState]
+	wc    atomic.Int64 // Write counter to track the number of probing attempts.
+}
+
+// newPacketConn creates a packetConn in probing mode.
+func newPacketConn(pc net.PacketConn, candidateAddrs []netip.AddrPort) *packetConn {
+	st := &pcState{
+		addrs:   make([]*net.UDPAddr, 0, len(candidateAddrs)),
+		addrMap: make(map[netip.AddrPort]struct{}, len(candidateAddrs)),
+		start:   time.Now(),
 	}
 
+	for _, ap := range candidateAddrs {
+		// Normalize addresses (e.g., handle IPv4-mapped IPv6) to ensure consistent comparison.
+		normalized := netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
+
+		st.addrs = append(st.addrs, net.UDPAddrFromAddrPort(normalized))
+		st.addrMap[normalized] = struct{}{}
+	}
+
+	p := &packetConn{PacketConn: pc}
+	p.state.Store(st)
+	return p
+}
+
+// WriteTo sends packets.
+// In probing mode, it fans out packets to all candidate addresses.
+// Once a peer is locked (or timeout occurs), it sends only to the selected peer.
+func (p *packetConn) WriteTo(b []byte, _ net.Addr) (int, error) {
+	st := p.state.Load()
+	if st == nil {
+		return 0, errors.New("connection closed")
+	}
+
+	// 1. Locked mode: Send directly to the selected peer.
+	if st.ua != nil {
+		return p.PacketConn.WriteTo(b, st.ua)
+	}
+
+	// 2. Check for fallback/timeout to force a lock.
 	cc := p.wc.Add(1)
-
-	p.mu.RLock()
-	addrs := p.addrs
-	p.mu.RUnlock()
-	if len(addrs) == 0 {
-		return 0, errors.New("no available addresses to write to")
+	if cc > 5 || time.Since(st.start) > 3*time.Second {
+		if len(st.addrs) > 0 {
+			// Lock to the first candidate address as a fallback.
+			return p.PacketConn.WriteTo(b, st.addrs[0])
+		}
+		return 0, errors.New("no available candidate addresses")
 	}
 
-	if cc > 10 {
-		// After 10 packets, we should have received a response and locked an address.
-		// If not, just use the first address as a fallback.
-		ua = net.UDPAddrFromAddrPort(addrs[0])
-		return p.PacketConn.WriteTo(b, ua)
-	}
-
-	// For the first 10 packets, send to all available addresses to find a working path.
+	// 3. Probing mode: Fan-out writes to all candidate addresses.
 	var lastErr error
-	sent := false
-	for _, v := range addrs {
-		ua = net.UDPAddrFromAddrPort(v)
+	sentCount := 0
+	for _, ua := range st.addrs {
 		if _, err := p.PacketConn.WriteTo(b, ua); err != nil {
 			lastErr = err
-		} else {
-			sent = true
+			continue
 		}
+		sentCount++
 	}
 
-	if !sent {
+	if sentCount == 0 {
 		return 0, fmt.Errorf("failed to write to any address: %w", lastErr)
 	}
 
+	// Logical write: return the length of the payload once.
 	return len(b), nil
 }
 
-func (p *packetConn) storeUDPAddr(ua *net.UDPAddr) {
-	p.uaddr.CompareAndSwap(nil, ua)
-	p.mu.Lock()
-	p.addrs = nil
-	p.mu.Unlock()
+// ReadFrom receives packets.
+// During probing, it filters for packets from candidate addresses and locks on the first responder.
+// After locking, it silently drops packets from other addresses.
+func (p *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
+	for {
+		n, addr, err := p.PacketConn.ReadFrom(b)
+		if err != nil {
+			return n, addr, err
+		}
+
+		ra, ok := addr.(*net.UDPAddr)
+		if !ok {
+			continue // Only handle UDP addresses.
+		}
+
+		st := p.state.Load()
+		if st == nil {
+			return 0, nil, errors.New("connection closed")
+		}
+
+		// 1. Locked mode: Accept packets only from the selected peer.
+		if st.ua != nil {
+			if sameUDPAddr(ra, st.ua) {
+				return n, addr, nil
+			}
+			continue // Drop packets from non-locked addresses.
+		}
+
+		// 2. Probing mode: Check if the sender is in the candidate list.
+		ap := ra.AddrPort()
+		normalized := netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
+
+		if _, exists := st.addrMap[normalized]; exists {
+			p.lockPeer(ra) // Lock the first valid responder as the peer.
+			return n, addr, nil
+		}
+
+		// 3. Timeout fallback for the receiver.
+		if time.Since(st.start) > 3*time.Second && len(st.addrs) > 0 {
+			p.lockPeer(st.addrs[0])
+			continue
+		}
+
+		// If the packet doesn't match any candidate and we aren't timed out,
+		// ignore it and wait for the next packet.
+	}
 }
 
-func (p *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
-	z, addr, err := p.PacketConn.ReadFrom(b)
-	if p.uaddr.Load() != nil {
-		return z, p.uaddr.Load(), err
-	}
+// lockPeer atomically transitions the state from probing to locked mode.
+func (p *packetConn) lockPeer(ua *net.UDPAddr) {
+	for {
+		old := p.state.Load()
+		if old == nil || old.ua != nil {
+			return // Already locked or closed.
+		}
 
-	cc := p.rc.Add(1)
+		// Create a new state representing the locked connection.
+		// Note: addrMap and addrs are cleared to free memory.
+		next := &pcState{
+			ua:    ua,
+			start: old.start,
+		}
 
-	p.mu.RLock()
-	addrs := p.addrs
-	p.mu.RUnlock()
-
-	ua, ok := addr.(*net.UDPAddr)
-	if ok {
-		addrPort := ua.AddrPort()
-		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
-
-		for _, v := range addrs {
-			if addrPort.Compare(v) == 0 {
-				p.storeUDPAddr(ua)
-				break
-			}
+		if p.state.CompareAndSwap(old, next) {
+			return
 		}
 	}
+}
 
-	if p.uaddr.Load() == nil && cc > 10 && len(addrs) > 0 {
-		ua = net.UDPAddrFromAddrPort(addrs[0])
-		p.storeUDPAddr(ua)
+// sameUDPAddr compares two UDP addresses by IP and Port.
+func sameUDPAddr(a, b *net.UDPAddr) bool {
+	if a.Port != b.Port {
+		return false
 	}
-
-	return z, addr, err
-
+	return a.IP.Equal(b.IP)
 }
 
 type durationCounter struct {

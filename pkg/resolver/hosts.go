@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns/fakeip"
 	dnssystem "github.com/Asutorufa/yuhaiin/pkg/net/dns/system"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
@@ -139,7 +139,7 @@ func (h *Hosts) newDnsMsg(req dns.Question) dns.Msg {
 
 func (h *Hosts) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	if req.Qtype == dns.TypePTR {
-		ip, err := resolver.RetrieveIPFromPtr(req.Name)
+		ip, err := fakeip.RetrieveIPFromPtr(req.Name)
 		if err != nil {
 			return h.resolver.Raw(ctx, req)
 		}
