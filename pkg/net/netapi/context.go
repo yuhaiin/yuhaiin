@@ -123,7 +123,7 @@ type ConnOptions struct {
 		IPs *IPs
 		Err error
 	}
-	lists *set.Set[string]
+	lists map[*set.ImmutableSet[string]]struct{}
 }
 
 func (s *ConnOptions) SetBindAddress(str string) *ConnOptions {
@@ -239,16 +239,50 @@ func (s *ConnOptions) RouteIPs(ctx context.Context, addr Address) (*IPs, error) 
 	return ips, nil
 }
 
-func (s *ConnOptions) SetLists(lists *set.Set[string]) *ConnOptions {
-	s.lists = lists
+func (s *ConnOptions) AddLists(lists ...*set.ImmutableSet[string]) *ConnOptions {
+	for _, list := range lists {
+		if list.Len() == 0 {
+			continue
+		}
+
+		if s.lists == nil {
+			s.lists = make(map[*set.ImmutableSet[string]]struct{})
+		}
+
+		s.lists[list] = struct{}{}
+	}
 	return s
 }
-
-func (s *ConnOptions) Lists() *set.Set[string] {
-	if s.lists == nil {
-		s.lists = set.NewSet[string]()
+func (s *ConnOptions) Lists() []string {
+	if len(s.lists) == 0 {
+		return nil
 	}
-	return s.lists
+
+	var totalSize int
+	for v := range s.lists {
+		totalSize += v.Len()
+	}
+
+	if totalSize == 0 {
+		return nil
+	}
+
+	lists := make([]string, 0, totalSize)
+	for v := range s.lists {
+		for list := range v.Range {
+			lists = append(lists, list)
+		}
+	}
+	return lists
+}
+
+func (s *ConnOptions) HasList(list string) bool {
+	for v := range s.lists {
+		if v.Has(list) {
+			return true
+		}
+	}
+	return false
 }
 
 type MaxMindDB interface {

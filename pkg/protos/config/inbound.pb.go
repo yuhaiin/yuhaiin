@@ -1747,13 +1747,14 @@ func (b0 Mux_builder) Build() *Mux {
 }
 
 type Tcpudp struct {
-	state                  protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Host        *string                `protobuf:"bytes,1,opt,name=host"`
-	xxx_hidden_Control     TcpUdpControl          `protobuf:"varint,2,opt,name=control,enum=yuhaiin.inbound.TcpUdpControl"`
-	XXX_raceDetectHookData protoimpl.RaceDetectHookData
-	XXX_presence           [1]uint32
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	state                       protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Host             *string                `protobuf:"bytes,1,opt,name=host"`
+	xxx_hidden_Control          TcpUdpControl          `protobuf:"varint,2,opt,name=control,enum=yuhaiin.inbound.TcpUdpControl"`
+	xxx_hidden_UdpHappyEyeballs bool                   `protobuf:"varint,3,opt,name=udp_happy_eyeballs"`
+	XXX_raceDetectHookData      protoimpl.RaceDetectHookData
+	XXX_presence                [1]uint32
+	unknownFields               protoimpl.UnknownFields
+	sizeCache                   protoimpl.SizeCache
 }
 
 func (x *Tcpudp) Reset() {
@@ -1800,14 +1801,26 @@ func (x *Tcpudp) GetControl() TcpUdpControl {
 	return TcpUdpControl_tcp_udp_control_all
 }
 
+func (x *Tcpudp) GetUdpHappyEyeballs() bool {
+	if x != nil {
+		return x.xxx_hidden_UdpHappyEyeballs
+	}
+	return false
+}
+
 func (x *Tcpudp) SetHost(v string) {
 	x.xxx_hidden_Host = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 3)
 }
 
 func (x *Tcpudp) SetControl(v TcpUdpControl) {
 	x.xxx_hidden_Control = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 3)
+}
+
+func (x *Tcpudp) SetUdpHappyEyeballs(v bool) {
+	x.xxx_hidden_UdpHappyEyeballs = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 3)
 }
 
 func (x *Tcpudp) HasHost() bool {
@@ -1824,6 +1837,13 @@ func (x *Tcpudp) HasControl() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
 }
 
+func (x *Tcpudp) HasUdpHappyEyeballs() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
+}
+
 func (x *Tcpudp) ClearHost() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
 	x.xxx_hidden_Host = nil
@@ -1834,11 +1854,17 @@ func (x *Tcpudp) ClearControl() {
 	x.xxx_hidden_Control = TcpUdpControl_tcp_udp_control_all
 }
 
+func (x *Tcpudp) ClearUdpHappyEyeballs() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
+	x.xxx_hidden_UdpHappyEyeballs = false
+}
+
 type Tcpudp_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	Host    *string
-	Control *TcpUdpControl
+	Host             *string
+	Control          *TcpUdpControl
+	UdpHappyEyeballs *bool
 }
 
 func (b0 Tcpudp_builder) Build() *Tcpudp {
@@ -1846,12 +1872,16 @@ func (b0 Tcpudp_builder) Build() *Tcpudp {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Host != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 3)
 		x.xxx_hidden_Host = b.Host
 	}
 	if b.Control != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 2)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 3)
 		x.xxx_hidden_Control = *b.Control
+	}
+	if b.UdpHappyEyeballs != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 3)
+		x.xxx_hidden_UdpHappyEyeballs = *b.UdpHappyEyeballs
 	}
 	return m0
 }
@@ -4640,10 +4670,11 @@ const file_config_inbound_proto_rawDesc = "" +
 	"\x05proxy\x18\x10 \x01(\v2\x16.yuhaiin.inbound.proxyB\x02(\x01H\x00R\x05proxyB\v\n" +
 	"\ttransport\"\a\n" +
 	"\x05empty\"\x05\n" +
-	"\x03mux\"X\n" +
+	"\x03mux\"\x88\x01\n" +
 	"\x06tcpudp\x12\x12\n" +
 	"\x04host\x18\x01 \x01(\tR\x04host\x12:\n" +
-	"\acontrol\x18\x02 \x01(\x0e2 .yuhaiin.inbound.tcp_udp_controlR\acontrol\"Q\n" +
+	"\acontrol\x18\x02 \x01(\x0e2 .yuhaiin.inbound.tcp_udp_controlR\acontrol\x12.\n" +
+	"\x12udp_happy_eyeballs\x18\x03 \x01(\bR\x12udp_happy_eyeballs\"Q\n" +
 	"\x04quic\x12\x12\n" +
 	"\x04host\x18\x01 \x01(\tR\x04host\x125\n" +
 	"\x03tls\x18\x03 \x01(\v2#.yuhaiin.protocol.tls_server_configR\x03tls\"J\n" +

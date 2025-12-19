@@ -73,6 +73,7 @@ enum tcp_udp_control {
 message tcpudp {
   string host = 1 [ json_name = "host" ];
   tcp_udp_control control = 2 [ json_name = "control" ];
+  bool udp_happy_eyeballs = 3 [ json_name = "udp_happy_eyeballs" ];
 }
 
 message quic {

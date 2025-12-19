@@ -237,9 +237,7 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 		store.ConnOptions().SetMaxminddb(geo)
 	}
 
-	lists := s.ms.list.HostTrie().Search(ctx, addr)
-	lists.Merge(s.ms.list.ProcessTrie().Search(ctx, addr))
-	store.ConnOptions().SetLists(lists)
+	store.ConnOptions().AddLists(s.ms.list.HostTrie().Search(ctx, addr), s.ms.list.ProcessTrie().Search(ctx, addr))
 
 	start := system.CheapNowNano()
 	var mode config.ModeEnum
@@ -290,11 +288,8 @@ func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 		return netapi.ErrorResolver(func(domain string) error { return err })
 	}
 
-	store := netapi.GetContext(ctx)
-
-	lists := s.ms.list.HostTrie().Search(ctx, host)
-	lists.Merge(s.ms.list.ProcessTrie().Search(ctx, host))
-	store.ConnOptions().SetLists(lists)
+	netapi.GetContext(ctx).ConnOptions().
+		AddLists(s.ms.list.HostTrie().Search(ctx, host), s.ms.list.ProcessTrie().Search(ctx, host))
 
 	mode := s.ms.Match(ctx, host)
 
