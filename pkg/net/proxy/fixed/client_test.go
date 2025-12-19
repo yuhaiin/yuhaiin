@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/proto"
@@ -18,13 +19,14 @@ func TestUdpDetect(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Start a mock UDP server
-	serverAddr := "127.0.0.1:0" // Listen on a random available port
-
-	pc, err := net.ListenPacket("udp", serverAddr)
+	s, err := NewServer(config.Tcpudp_builder{
+		Host:             proto.String("127.0.0.1:0"),
+		UdpHappyEyeballs: proto.Bool(true),
+	}.Build())
 	assert.NoError(t, err)
 
-	mockServer := newUDPDetectPacketConn(pc)
+	mockServer, err := s.Packet(ctx)
+	assert.NoError(t, err)
 	defer mockServer.Close()
 
 	// Get the actual address the mock server is listening on
@@ -39,6 +41,9 @@ func TestUdpDetect(t *testing.T) {
 	// Create a fixed.Client with udpDetect enabled
 	fixedNode := node.Fixedv2_builder{
 		Addresses: []*node.Fixedv2Address{
+			node.Fixedv2Address_builder{
+				Host: proto.String(actualServerAddrPort.String()),
+			}.Build(),
 			node.Fixedv2Address_builder{
 				Host: proto.String(actualServerAddrPort.String()),
 			}.Build(),

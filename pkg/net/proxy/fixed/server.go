@@ -193,7 +193,7 @@ func (u *udpDetectPacketConn) run() {
 		if err != nil {
 			log.Warn("udp read failed", "err", err)
 			pool.PutBytes(data)
-			continue
+			return
 		}
 
 		if n == 32 && [32]byte(data[:32]) == detectPacket1 {

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/netip"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -263,16 +262,12 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 		uaddr = net.UDPAddrFromAddrPort(addr.a.(netapi.IPAddress).AddrPort())
 	}
 
-	addrs := []net.UDPAddr{*uaddr}
-
 	conn, err := dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
 		if addr.Interface != "" {
 			o.InterfaceName = addr.Interface
 		}
 
-		if len(addrs) > 0 {
-			o.PacketConnHintAddress = uaddr
-		}
+		o.PacketConnHintAddress = uaddr
 	})
 	if err != nil {
 		return nil, err
@@ -285,6 +280,29 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 		}, nil
 	}
 
+	addrs := []*net.UDPAddr{uaddr}
+
+	for i, v := range c.addrs {
+		if i == int(index) {
+			continue
+		}
+
+		var uaddr *net.UDPAddr
+
+		if !v.a.IsFqdn() {
+			uaddr = net.UDPAddrFromAddrPort(v.a.(netapi.IPAddress).AddrPort())
+		} else {
+			ips, err := netapi.ResolverIP(ctx, v.a.Hostname())
+			if err != nil {
+				continue
+			}
+
+			uaddr = ips.RandUDPAddr(v.a.Port())
+		}
+
+		addrs = append(addrs, uaddr)
+	}
+
 	readAddr := make(chan *net.UDPAddr)
 	found := atomic.Bool{}
 	go func() {
@@ -294,6 +312,7 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 		for {
 			n, addr, err := conn.ReadFrom(data)
 			if err != nil {
+				log.Warn("udp read failed", "err", err)
 				return
 			}
 
@@ -306,27 +325,17 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 	}()
 
 	go func() {
-		for _, v := range c.addrs {
-			var uaddr *net.UDPAddr
-
-			if !v.a.IsFqdn() {
-				uaddr = net.UDPAddrFromAddrPort(v.a.(netapi.IPAddress).AddrPort())
-			} else {
-				ips, err := netapi.ResolverIP(ctx, v.a.Hostname())
-				if err != nil {
-					continue
-				}
-
-				uaddr = ips.RandUDPAddr(v.a.Port())
+		for i := range 4 {
+			if i != 0 {
+				time.Sleep(time.Millisecond * 200)
 			}
-
-			for range 3 {
+			for _, uaddr := range addrs {
 				if found.Load() {
 					break
 				}
 
-				if _, err := conn.WriteTo(detectPacket1[:], uaddr); err == nil {
-					break
+				if _, err := conn.WriteTo(detectPacket1[:], uaddr); err != nil {
+					log.Warn("udp write failed", "err", err, "addr", uaddr)
 				}
 			}
 		}
@@ -334,7 +343,8 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 
 	select {
 	case <-ctx.Done():
-		return nil, conn.Close()
+		_ = conn.Close()
+		return nil, ctx.Err()
 
 	case addr := <-readAddr:
 		return &packetConnSingle{
@@ -378,98 +388,12 @@ func (p *packetConnSingle) WriteTo(b []byte, addr net.Addr) (int, error) {
 }
 
 func (p *packetConnSingle) ReadFrom(b []byte) (int, net.Addr, error) {
+_retry:
 	z, _, err := p.PacketConn.ReadFrom(b)
+	if err == nil && z == 32 && [32]byte(b[:32]) == detectPacket2 {
+		goto _retry
+	}
 	return z, p.addr, err
-}
-
-type packetConn struct {
-	net.PacketConn
-	mu     sync.RWMutex
-	addrs  []netip.AddrPort
-	uaddr  atomic.Pointer[net.UDPAddr]
-	rc, wc atomic.Int64
-}
-
-func (p *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	ua := p.uaddr.Load()
-	if ua != nil {
-		return p.PacketConn.WriteTo(b, ua)
-	}
-
-	cc := p.wc.Add(1)
-
-	p.mu.RLock()
-	addrs := p.addrs
-	p.mu.RUnlock()
-	if len(addrs) == 0 {
-		return 0, errors.New("no available addresses to write to")
-	}
-
-	if cc > 10 {
-		// After 10 packets, we should have received a response and locked an address.
-		// If not, just use the first address as a fallback.
-		ua = net.UDPAddrFromAddrPort(addrs[0])
-		return p.PacketConn.WriteTo(b, ua)
-	}
-
-	// For the first 10 packets, send to all available addresses to find a working path.
-	var lastErr error
-	sent := false
-	for _, v := range addrs {
-		ua = net.UDPAddrFromAddrPort(v)
-		if _, err := p.PacketConn.WriteTo(b, ua); err != nil {
-			lastErr = err
-		} else {
-			sent = true
-		}
-	}
-
-	if !sent {
-		return 0, fmt.Errorf("failed to write to any address: %w", lastErr)
-	}
-
-	return len(b), nil
-}
-
-func (p *packetConn) storeUDPAddr(ua *net.UDPAddr) {
-	p.uaddr.CompareAndSwap(nil, ua)
-	p.mu.Lock()
-	p.addrs = nil
-	p.mu.Unlock()
-}
-
-func (p *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
-	z, addr, err := p.PacketConn.ReadFrom(b)
-	if p.uaddr.Load() != nil {
-		return z, p.uaddr.Load(), err
-	}
-
-	cc := p.rc.Add(1)
-
-	p.mu.RLock()
-	addrs := p.addrs
-	p.mu.RUnlock()
-
-	ua, ok := addr.(*net.UDPAddr)
-	if ok {
-		addrPort := ua.AddrPort()
-		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
-
-		for _, v := range addrs {
-			if addrPort.Compare(v) == 0 {
-				p.storeUDPAddr(ua)
-				break
-			}
-		}
-	}
-
-	if p.uaddr.Load() == nil && cc > 10 && len(addrs) > 0 {
-		ua = net.UDPAddrFromAddrPort(addrs[0])
-		p.storeUDPAddr(ua)
-	}
-
-	return z, addr, err
-
 }
 
 type durationCounter struct {
