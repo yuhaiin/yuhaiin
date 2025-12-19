@@ -84,9 +84,9 @@ func TestDiskFakeIPPool_Exhaustion(t *testing.T) {
 		t.Errorf("GetDomainFromIP(%v) = %q, %v; want overflow.com, true", expected, d, ok)
 	}
 
-	// Old domain d0.com (which was 10.0.0.0) still resolves to 10.0.0.0?
-	// The implementation doesn't delete the old forward mapping (d0.com -> 10.0.0.0).
-	// So asking for d0.com should still return 10.0.0.0.
+// When the pool is exhausted, the next allocation for a new domain reuses an IP from the beginning of the range.
+	// The old mapping for the reused IP is deleted. When we request an IP for the old domain (`d0.com`) again,
+	// it will be treated as a new allocation and will also be allocated an IP from the beginning of the range, which happens to be the same IP.
 	ipOld := pool.GetFakeIPForDomain("d0.com")
 	if ipOld != expected {
 		t.Errorf("GetFakeIPForDomain(\"d0.com\") = %v, want %v (collision accepted)", ipOld, expected)
