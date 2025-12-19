@@ -6128,10 +6128,13 @@ func (b0 Proxy_builder) Build() *Proxy {
 }
 
 type Fixedv2 struct {
-	state                protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Addresses *[]*Fixedv2Address     `protobuf:"bytes,1,rep,name=addresses"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state                       protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Addresses        *[]*Fixedv2Address     `protobuf:"bytes,1,rep,name=addresses"`
+	xxx_hidden_UdpHappyEyeballs bool                   `protobuf:"varint,2,opt,name=udp_happy_eyeballs"`
+	XXX_raceDetectHookData      protoimpl.RaceDetectHookData
+	XXX_presence                [1]uint32
+	unknownFields               protoimpl.UnknownFields
+	sizeCache                   protoimpl.SizeCache
 }
 
 func (x *Fixedv2) Reset() {
@@ -6168,14 +6171,39 @@ func (x *Fixedv2) GetAddresses() []*Fixedv2Address {
 	return nil
 }
 
+func (x *Fixedv2) GetUdpHappyEyeballs() bool {
+	if x != nil {
+		return x.xxx_hidden_UdpHappyEyeballs
+	}
+	return false
+}
+
 func (x *Fixedv2) SetAddresses(v []*Fixedv2Address) {
 	x.xxx_hidden_Addresses = &v
+}
+
+func (x *Fixedv2) SetUdpHappyEyeballs(v bool) {
+	x.xxx_hidden_UdpHappyEyeballs = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
+}
+
+func (x *Fixedv2) HasUdpHappyEyeballs() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *Fixedv2) ClearUdpHappyEyeballs() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_UdpHappyEyeballs = false
 }
 
 type Fixedv2_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	Addresses []*Fixedv2Address
+	Addresses        []*Fixedv2Address
+	UdpHappyEyeballs *bool
 }
 
 func (b0 Fixedv2_builder) Build() *Fixedv2 {
@@ -6183,6 +6211,10 @@ func (b0 Fixedv2_builder) Build() *Fixedv2 {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_Addresses = &b.Addresses
+	if b.UdpHappyEyeballs != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 2)
+		x.xxx_hidden_UdpHappyEyeballs = *b.UdpHappyEyeballs
+	}
 	return m0
 }
 
@@ -6552,9 +6584,10 @@ const file_node_protocol_proto_rawDesc = "" +
 	"\x13endpoint_public_key\x18\x03 \x01(\tR\x13endpoint_public_key\x12(\n" +
 	"\x0flocal_addresses\x18\x04 \x03(\tR\x0flocal_addresses\x12\x10\n" +
 	"\x03mtu\x18\x05 \x01(\x05R\x03mtu\"\a\n" +
-	"\x05proxy\"\x97\x01\n" +
+	"\x05proxy\"\xc7\x01\n" +
 	"\afixedv2\x12?\n" +
-	"\taddresses\x18\x01 \x03(\v2!.yuhaiin.protocol.fixedv2.addressR\taddresses\x1aK\n" +
+	"\taddresses\x18\x01 \x03(\v2!.yuhaiin.protocol.fixedv2.addressR\taddresses\x12.\n" +
+	"\x12udp_happy_eyeballs\x18\x02 \x01(\bR\x12udp_happy_eyeballs\x1aK\n" +
 	"\aaddress\x12\x12\n" +
 	"\x04host\x18\x01 \x01(\tR\x04host\x12,\n" +
 	"\x11network_interface\x18\x02 \x01(\tR\x11network_interface*?\n" +

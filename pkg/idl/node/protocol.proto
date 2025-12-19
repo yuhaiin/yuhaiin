@@ -290,4 +290,5 @@ message fixedv2 {
     string network_interface = 2 [ json_name = "network_interface" ];
   }
   repeated address addresses = 1 [ json_name = "addresses" ];
+  bool udp_happy_eyeballs = 2 [ json_name = "udp_happy_eyeballs" ];
 }
