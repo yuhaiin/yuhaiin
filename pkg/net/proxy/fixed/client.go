@@ -232,6 +232,19 @@ func (c *Client) successIndex(lastIndex, index int) {
 	}
 }
 
+func (c *Client) resolverUDPAddr(ctx context.Context, addr netapi.Address) (*net.UDPAddr, error) {
+	if addr.IsFqdn() {
+		ips, err := netapi.ResolverIP(ctx, addr.Hostname())
+		if err != nil {
+			return nil, err
+		}
+
+		return ips.RandUDPAddr(addr.Port()), nil
+	}
+
+	return net.UDPAddrFromAddrPort(addr.(netapi.IPAddress).AddrPort()), nil
+}
+
 func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketConn, error) {
 	index := c.index.Load()
 	addr := c.addrs[index]
@@ -250,16 +263,9 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 
 	ctx = netapi.WithContext(ctx)
 
-	var uaddr *net.UDPAddr
-	if addr.a.IsFqdn() {
-		ips, err := netapi.ResolverIP(ctx, addr.a.Hostname())
-		if err != nil {
-			return nil, err
-		}
-
-		uaddr = ips.RandUDPAddr(addr.a.Port())
-	} else {
-		uaddr = net.UDPAddrFromAddrPort(addr.a.(netapi.IPAddress).AddrPort())
+	uaddr, err := c.resolverUDPAddr(ctx, addr.a)
+	if err != nil {
+		return nil, err
 	}
 
 	conn, err := dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
@@ -287,17 +293,9 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 			continue
 		}
 
-		var uaddr *net.UDPAddr
-
-		if !v.a.IsFqdn() {
-			uaddr = net.UDPAddrFromAddrPort(v.a.(netapi.IPAddress).AddrPort())
-		} else {
-			ips, err := netapi.ResolverIP(ctx, v.a.Hostname())
-			if err != nil {
-				continue
-			}
-
-			uaddr = ips.RandUDPAddr(v.a.Port())
+		uaddr, err := c.resolverUDPAddr(ctx, v.a)
+		if err != nil {
+			continue
 		}
 
 		addrs = append(addrs, uaddr)
