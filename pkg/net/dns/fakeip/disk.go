@@ -4,7 +4,6 @@ import (
 	"net/netip"
 	"slices"
 	"sync"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
@@ -29,7 +28,7 @@ func NewDiskFakeIPPool(prefix netip.Prefix, db cache.Cache) *DiskFakeIPPool {
 }
 
 func (n *DiskFakeIPPool) getIP(s string) (netip.Addr, bool) {
- ikey := []byte(s)
+	key := []byte(s)
 	z, err := n.cache.Get(key)
 	if err == nil && z != nil {
 		if addr, ok := netip.AddrFromSlice(z); ok {
