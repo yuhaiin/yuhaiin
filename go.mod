@@ -11,7 +11,7 @@ replace (
 
 require (
 	github.com/cloudflare/circl v1.6.1
-	github.com/godbus/dbus/v5 v5.2.0
+	github.com/godbus/dbus/v5 v5.2.1
 	github.com/google/nftables v0.3.0
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/miekg/dns v1.1.69

@@ -1,23 +1,16 @@
-package resolver
+package fakeip
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"math"
 	"net"
 	"net/netip"
-	"slices"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
-	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/miekg/dns"
 )
@@ -318,218 +311,34 @@ func (f *FakeDNS) LookupPtr(ip net.IP) (string, error) {
 
 func (f *FakeDNS) Close() error { return nil }
 
-type FakeIPPool struct {
-	current    netip.Addr
-	domainToIP *fakeLru
-
-	prefix netip.Prefix
-
-	mu sync.Mutex
-}
-
-func NewFakeIPPool(prefix netip.Prefix, db cache.Cache) *FakeIPPool {
-	prefix = prefix.Masked()
-
-	lenSize := 32
-	if prefix.Addr().Is6() {
-		lenSize = 128
+func appendIPHint(msg dns.Msg, ipv4, ipv6 []net.IP) {
+	if len(ipv4) == 0 && len(ipv6) == 0 {
+		return
 	}
 
-	var lruSize int
-	if prefix.Bits() == lenSize {
-		lruSize = 0
-	} else {
-		size := math.Pow(2, float64(lenSize-prefix.Bits())) - 1
-		if size > 65535 {
-			lruSize = 65535
-		} else {
-			lruSize = int(size)
-		}
-	}
-
-	return &FakeIPPool{
-		prefix:     prefix,
-		current:    prefix.Addr().Prev(),
-		domainToIP: newFakeLru(lruSize, db, prefix),
-	}
-}
-
-func (n *FakeIPPool) GetFakeIPForDomain(s string) netip.Addr {
-	if z, ok := n.domainToIP.Load(s); ok {
-		metrics.Counter.AddFakeIPCacheHit()
-		return z
-	}
-
-	n.mu.Lock()
-	defer n.mu.Unlock()
-
-	if z, ok := n.domainToIP.Load(s); ok {
-		metrics.Counter.AddFakeIPCacheHit()
-		return z
-	}
-
-	metrics.Counter.AddFakeIPCacheMiss()
-
-	if v, ok := n.domainToIP.LastPopValue(); ok {
-		n.domainToIP.Add(s, v)
-		return v
-	}
-
-	looped := false
-
-	for {
-		addr := n.current.Next()
-
-		if !n.prefix.Contains(addr) {
-			n.current = n.prefix.Addr().Prev()
-
-			if looped {
-				addr := n.current.Next()
-				n.current = addr
-				n.domainToIP.Add(s, addr)
-				return addr
-			}
-
-			looped = true
+	for _, v := range msg.Answer {
+		if v.Header().Rrtype != dns.TypeHTTPS {
 			continue
 		}
 
-		n.current = addr
-
-		if !n.domainToIP.ValueExist(addr) {
-			n.domainToIP.Add(s, addr)
-			return addr
-		}
-	}
-}
-
-func (n *FakeIPPool) GetDomainFromIP(ip netip.Addr) (string, bool) {
-	if !n.prefix.Contains(ip) {
-		return "", false
-	}
-
-	return n.domainToIP.ReverseLoad(ip)
-}
-
-type fakeLru struct {
-	bbolt cache.Cache
-
-	LRU     *lru.ReverseSyncLru[string, netip.Addr]
-	iprange netip.Prefix
-
-	Size int
-}
-
-func newFakeLru(size int, db cache.Cache, iprange netip.Prefix) *fakeLru {
-	var bboltCache cache.Cache
-	if iprange.Addr().Unmap().Is6() {
-		bboltCache = db.NewCache("fakedns_cachev6")
-	} else {
-		bboltCache = db.NewCache("fakedns_cache")
-	}
-
-	z := &fakeLru{Size: size, bbolt: bboltCache, iprange: iprange}
-
-	if size <= 0 {
-		return z
-	}
-
-	z.LRU = lru.NewSyncReverseLru(
-		lru.WithLruOptions(
-			lru.WithCapacity[string, netip.Addr](int(size)),
-			lru.WithOnRemove(func(s string, v netip.Addr) {
-				_ = bboltCache.Delete(slices.Values([][]byte{[]byte(s), v.AsSlice()}))
-			}),
-		),
-		lru.WithOnValueChanged[string](func(old, new netip.Addr) {
-			_ = bboltCache.Delete(slices.Values([][]byte{old.AsSlice()}))
-		}),
-	)
-
-	err := bboltCache.Range(func(k, v []byte) bool {
-		ip, ok := netip.AddrFromSlice(k)
+		https, ok := v.(*dns.HTTPS)
 		if !ok {
-			return true
+			continue
 		}
 
-		if iprange.Contains(ip) {
-			z.LRU.Add(string(v), ip)
+		// the raw message already cloned, so we no need copy anymore here
+		if len(ipv4) > 0 {
+			https.Value = append(https.Value, &dns.SVCBIPv4Hint{
+				Hint: ipv4,
+			})
 		}
 
-		return true
-	})
-	if err != nil && !errors.Is(err, cache.ErrBucketNotExist) {
-		log.Error("fakeip range cache failed", "err", err)
+		if len(ipv6) > 0 {
+			https.Value = append(https.Value, &dns.SVCBIPv6Hint{
+				Hint: ipv6,
+			})
+		}
+
+		break
 	}
-
-	log.Info("fakeip lru init", "get cache", z.LRU.Len(), "isIpv6", iprange.Addr().Unmap().Is6(), "capacity", size)
-
-	return z
-}
-
-func (f *fakeLru) Load(host string) (netip.Addr, bool) {
-	if f.Size <= 0 {
-		return netip.Addr{}, false
-	}
-
-	z, ok := f.LRU.Load(host)
-	if ok {
-		return z, ok
-	}
-
-	return netip.Addr{}, false
-}
-
-func (f *fakeLru) Add(host string, ip netip.Addr) {
-	if f.Size <= 0 {
-		return
-	}
-	f.LRU.Add(host, ip)
-
-	if f.bbolt != nil {
-		host, ip := []byte(host), ip.AsSlice()
-		_ = f.bbolt.Put(func(yield func([]byte, []byte) bool) {
-			if !yield(host, ip) {
-				return
-			}
-			_ = yield(ip, host)
-		})
-	}
-}
-
-func (f *fakeLru) ValueExist(ip netip.Addr) bool {
-	if f.Size <= 0 {
-		return false
-	}
-
-	if f.LRU.ValueExist(ip) {
-		return true
-	}
-
-	return false
-}
-
-func (f *fakeLru) ReverseLoad(ip netip.Addr) (string, bool) {
-	if f.Size <= 0 {
-		return "", false
-	}
-
-	host, ok := f.LRU.ReverseLoad(ip)
-	if ok {
-		return host, ok
-	}
-
-	v, _ := f.bbolt.Get(ip.AsSlice())
-	if host = string(v); host != "" {
-		return host, true
-	}
-
-	return "", false
-}
-
-func (f *fakeLru) LastPopValue() (netip.Addr, bool) {
-	if f.Size <= 0 {
-		return netip.Addr{}, false
-	}
-	return f.LRU.LastPopValue()
 }

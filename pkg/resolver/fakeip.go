@@ -13,7 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns/fakeip"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/server"
 	dnssystem "github.com/Asutorufa/yuhaiin/pkg/net/dns/system"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -28,7 +28,7 @@ type Fakedns struct {
 	dialer   netapi.Proxy
 	upstream netapi.Resolver
 	db       cache.Cache
-	fake     *resolver.FakeDNS
+	fake     *fakeip.FakeDNS
 
 	whitelist *domain.Fqdn[struct{}]
 	skipCheck *domain.Fqdn[struct{}]
@@ -47,7 +47,7 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db cache.Cache) *
 	ipv6Range, _ := netip.ParsePrefix("fc00::/64")
 
 	f := &Fakedns{
-		fake:      resolver.NewFakeDNS(upstream, ipv4Range, ipv6Range, db),
+		fake:      fakeip.NewFakeDNS(upstream, ipv4Range, ipv6Range, db),
 		dialer:    dialer,
 		upstream:  upstream,
 		db:        db,
@@ -98,7 +98,7 @@ func (f *Fakedns) Apply(c *config.FakednsConfig) {
 		return
 	}
 
-	f.fake = resolver.NewFakeDNS(f.upstream, ipRange, ipv6Range, f.db)
+	f.fake = fakeip.NewFakeDNS(f.upstream, ipRange, ipv6Range, f.db)
 }
 
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
