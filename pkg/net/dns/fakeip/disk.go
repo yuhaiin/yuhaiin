@@ -29,7 +29,7 @@ func NewDiskFakeIPPool(prefix netip.Prefix, db cache.Cache) *DiskFakeIPPool {
 }
 
 func (n *DiskFakeIPPool) getIP(s string) (netip.Addr, bool) {
-	key := unsafe.Slice(unsafe.StringData(s), len(s))
+ ikey := []byte(s)
 	z, err := n.cache.Get(key)
 	if err == nil && z != nil {
 		if addr, ok := netip.AddrFromSlice(z); ok {
