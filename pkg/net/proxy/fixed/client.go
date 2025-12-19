@@ -10,12 +10,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"google.golang.org/protobuf/proto"
 )
@@ -34,6 +36,7 @@ type Client struct {
 	refreshTime  atomic.Int64
 	index        atomic.Uint32
 	nonBootstrap bool
+	udpDetect    bool
 }
 
 func init() {
@@ -89,6 +92,7 @@ func NewClientv2(c *node.Fixedv2, p netapi.Proxy) (netapi.Proxy, error) {
 		addrs:        addrs,
 		p:            p,
 		nonBootstrap: p != nil && !register.IsZero(p),
+		udpDetect:    c.GetUdpHappyEyeballs(),
 	}
 
 	return simple, nil
@@ -247,24 +251,19 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 
 	ctx = netapi.WithContext(ctx)
 
-	addrs := make([]netip.AddrPort, 0, len(c.addrs))
-
-	for _, v := range c.addrs {
-		if !v.a.IsFqdn() {
-			addrs = append(addrs, v.a.(netapi.IPAddress).AddrPort())
-		} else {
-			ips, err := netapi.ResolverIP(ctx, v.a.Hostname())
-			if err != nil {
-				return nil, err
-			}
-
-			addrs = append(addrs, netip.AddrPortFrom(ips.RandNetipAddr(), v.a.Port()))
+	var uaddr *net.UDPAddr
+	if addr.a.IsFqdn() {
+		ips, err := netapi.ResolverIP(ctx, addr.a.Hostname())
+		if err != nil {
+			return nil, err
 		}
+
+		uaddr = ips.RandUDPAddr(addr.a.Port())
+	} else {
+		uaddr = net.UDPAddrFromAddrPort(addr.a.(netapi.IPAddress).AddrPort())
 	}
 
-	if index != 0 {
-		addrs[0], addrs[index] = addrs[index], addrs[0]
-	}
+	addrs := []net.UDPAddr{*uaddr}
 
 	conn, err := dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
 		if addr.Interface != "" {
@@ -272,18 +271,77 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 		}
 
 		if len(addrs) > 0 {
-			o.PacketConnHintAddress = net.UDPAddrFromAddrPort(addrs[0])
+			o.PacketConnHintAddress = uaddr
 		}
-
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &packetConn{
-		PacketConn: conn,
-		addrs:      addrs,
-	}, nil
+	if !c.udpDetect || len(c.addrs) <= 1 {
+		return &packetConnSingle{
+			PacketConn: conn,
+			addr:       uaddr,
+		}, nil
+	}
+
+	readAddr := make(chan *net.UDPAddr)
+	found := atomic.Bool{}
+	go func() {
+		data := pool.GetBytes(configuration.UDPBufferSize.Load())
+		defer pool.PutBytes(data)
+
+		for {
+			n, addr, err := conn.ReadFrom(data)
+			if err != nil {
+				return
+			}
+
+			if n == 32 && [32]byte(data[:32]) == detectPacket2 {
+				readAddr <- addr.(*net.UDPAddr)
+				found.Store(true)
+				break
+			}
+		}
+	}()
+
+	go func() {
+		for _, v := range c.addrs {
+			var uaddr *net.UDPAddr
+
+			if !v.a.IsFqdn() {
+				uaddr = net.UDPAddrFromAddrPort(v.a.(netapi.IPAddress).AddrPort())
+			} else {
+				ips, err := netapi.ResolverIP(ctx, v.a.Hostname())
+				if err != nil {
+					continue
+				}
+
+				uaddr = ips.RandUDPAddr(v.a.Port())
+			}
+
+			for range 3 {
+				if found.Load() {
+					break
+				}
+
+				if _, err := conn.WriteTo(detectPacket1[:], uaddr); err == nil {
+					break
+				}
+			}
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, conn.Close()
+
+	case addr := <-readAddr:
+		return &packetConnSingle{
+			PacketConn: conn,
+			addr:       addr,
+		}, nil
+	}
 }
 
 func (c *Client) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {

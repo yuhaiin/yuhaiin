@@ -2,14 +2,18 @@ package fixed
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"net"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type Server struct {
@@ -20,7 +24,8 @@ type Server struct {
 	pmu  sync.Mutex
 	smu  sync.RWMutex
 
-	control config.TcpUdpControl
+	control   config.TcpUdpControl
+	udpDetect bool
 }
 
 func (s *Server) Close() error {
@@ -97,6 +102,10 @@ func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
 		return nil, err
 	}
 
+	if s.udpDetect {
+		return newUDPDetectPacketConn(s.PacketConn), nil
+	}
+
 	return s.PacketConn, nil
 }
 
@@ -128,11 +137,96 @@ func (s *Server) Addr() net.Addr {
 
 func NewServer(c *config.Tcpudp) (netapi.Listener, error) {
 	return &Server{
-		host:    c.GetHost(),
-		control: c.GetControl(),
+		host:      c.GetHost(),
+		control:   c.GetControl(),
+		udpDetect: c.GetUdpHappyEyeballs(),
 	}, nil
 }
 
 func init() {
 	register.RegisterNetwork(NewServer)
+}
+
+type packet struct {
+	data []byte
+	addr net.Addr
+}
+
+type udpDetectPacketConn struct {
+	net.PacketConn
+
+	ch     chan packet
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func newUDPDetectPacketConn(p net.PacketConn) *udpDetectPacketConn {
+	ctx, cancel := context.WithCancel(context.TODO())
+	u := &udpDetectPacketConn{
+		PacketConn: p,
+		ch:         make(chan packet, 100),
+		ctx:        ctx,
+		cancel:     cancel,
+	}
+
+	go u.run()
+
+	return u
+}
+
+var (
+	detectPacket1 = sha256.Sum256([]byte("IHf41q6V7I4fbyfFy%CR!EE0N7KoR*uXhNas0gmCuZsygRm@Aa4N2RE0aRjpO*nMjB2q^wdkfenxs!5mpOecnZ#y$pVEk1taoH*hazbzgJv4BZzaHFM46vHfZkcUw!8Q"))
+	detectPacket2 = sha256.Sum256([]byte("Z@SVy17*3q%2t23p#CfYLNHslW52bCIb9h&PLvCWTYHb5XZ46j@IQcTK!z3KapN5^Df8vuO9GY@BtzEx*rUa5ee!Q$2^gDi5Z92Vp2pVTsfHvx$jd2wEI#g0kHJnHNrK"))
+)
+
+func (u *udpDetectPacketConn) run() {
+	defer u.Close()
+	for {
+		select {
+		case <-u.ctx.Done():
+			return
+		default:
+		}
+
+		data := pool.GetBytes(configuration.UDPBufferSize.Load())
+		n, addr, err := u.PacketConn.ReadFrom(data)
+		if err != nil {
+			log.Warn("udp read failed", "err", err)
+			pool.PutBytes(data)
+			continue
+		}
+
+		if n == 32 && [32]byte(data[:32]) == detectPacket1 {
+			pool.PutBytes(data)
+			_, err = u.WriteTo(detectPacket2[:], addr)
+			if err != nil {
+				log.Warn("udp write failed", "err", err)
+			}
+			continue
+		}
+
+		select {
+		case <-u.ctx.Done():
+			return
+		case u.ch <- packet{
+			data: data[:n],
+			addr: addr,
+		}:
+		}
+	}
+}
+
+func (u *udpDetectPacketConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
+	select {
+	case <-u.ctx.Done():
+		return 0, nil, u.ctx.Err()
+	case p := <-u.ch:
+		defer pool.PutBytes(p.data)
+		return copy(b, p.data), p.addr, nil
+	}
+}
+
+func (u *udpDetectPacketConn) Close() error {
+	u.cancel()
+	return u.PacketConn.Close()
 }
