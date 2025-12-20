@@ -1,17 +1,12 @@
 package domain
 
-import "github.com/Asutorufa/yuhaiin/pkg/utils/set"
-
-var (
-	_        uint8 = 0
-	last     uint8 = 1
-	wildcard uint8 = 2
+import (
+	"slices"
 )
 
 type trie[T comparable] struct {
-	Value  map[T]struct{}      `json:"value"`
-	Child  map[string]*trie[T] `json:"child"`
-	Symbol uint8               `json:"symbol"`
+	Value []T                 `json:"value"`
+	Child map[string]*trie[T] `json:"child"`
 }
 
 func (d *trie[T]) child(s string, insert bool) (*trie[T], bool) {
@@ -20,7 +15,7 @@ func (d *trie[T]) child(s string, insert bool) (*trie[T], bool) {
 			d.Child = make(map[string]*trie[T])
 		}
 		if d.Child[s] == nil {
-			d.Child[s] = &trie[T]{Value: make(map[T]struct{})}
+			d.Child[s] = &trie[T]{}
 		}
 	} else {
 		if d.Child == nil {
@@ -33,86 +28,56 @@ func (d *trie[T]) child(s string, insert bool) (*trie[T], bool) {
 
 func insert[T comparable](node *trie[T], z *fqdnReader, mark T) {
 	for z.hasNext() {
-		if node.Value == nil {
-			node.Value = make(map[T]struct{})
-		}
-
-		if z.last() && z.str() == "*" {
-			node.Symbol = wildcard
-			node.Value[mark] = struct{}{}
-			break
-		}
-
 		node, _ = node.child(z.str(), true)
 
-		if z.last() {
-			node.Symbol = last
-			node.Value[mark] = struct{}{}
+		if !slices.Contains(node.Value, mark) {
+			node.Value = append(node.Value, mark)
 		}
 
 		z.next()
 	}
 }
 
-func search[T comparable](root *trie[T], domain *fqdnReader) *set.ImmutableSet[T] {
-	var res *set.Set[T]
-	first, asterisk := true, false
+func search[T comparable](root *trie[T], domain *fqdnReader) []T {
+	var res []T
 
-	for domain.hasNext() {
-		r, cok := root.child(domain.str(), false)
-		switch cok {
-		case false:
-			if !first {
-				if res == nil {
-					return set.EmptyImmutableSet[T]()
-				}
-				return res.Immutable()
-			}
+	r, ok := root.child(domain.str(), false)
+	if ok {
+		root = r
+		goto _second // match
+	}
 
-			if asterisk {
-				domain.next()
-				continue
-			}
+	// wildcard search
 
-			root, cok = root.child("*", false)
-			if !cok {
-				if res == nil {
-					return set.EmptyImmutableSet[T]()
-				}
-				return res.Immutable()
-			}
+	root, ok = root.child("*", false)
+	if !ok {
+		return res
+	}
 
-			asterisk = true
-
-		case true:
-			if len(r.Value) > 0 {
-				if res == nil {
-					res = set.NewSet[T]()
-				}
-				for k := range r.Value {
-					res.Push(k)
-				}
-			}
-
+	for ; domain.hasNext(); domain.next() {
+		if r, ok = root.child(domain.str(), false); ok {
 			root = r
-			domain.next()
-			first = false
+			goto _second // wildcard match
 		}
 	}
 
-	if len(root.Value) > 0 {
-		if res == nil {
-			res = set.NewSet[T]()
+	return res
+
+_second:
+
+	for domain.next() {
+		if r, ok := root.child("*", false); ok {
+			res = append(res, r.Value...)
 		}
-		for k := range root.Value {
-			res.Push(k)
+
+		root, ok = root.child(domain.str(), false)
+		if !ok {
+			return res
 		}
 	}
 
-	if res == nil {
-		return set.EmptyImmutableSet[T]()
-	}
-	return res.Immutable()
+	res = append(res, root.Value...)
+	return res
 }
 
 func remove[T comparable](node *trie[T], domain *fqdnReader, mark T) {
@@ -121,9 +86,6 @@ func remove[T comparable](node *trie[T], domain *fqdnReader, mark T) {
 	for domain.hasNext() {
 		z, ok := node.child(domain.str(), false)
 		if !ok {
-			if domain.str() == "*" && node.Symbol == wildcard {
-				break
-			}
 			return
 		}
 
@@ -132,11 +94,8 @@ func remove[T comparable](node *trie[T], domain *fqdnReader, mark T) {
 		domain.next()
 	}
 
-	if node.Value != nil {
-		delete(node.Value, mark)
-		if len(node.Value) == 0 {
-			node.Symbol = 0
-		}
+	if index := slices.Index(node.Value, mark); index != -1 {
+		node.Value = append(node.Value[:index], node.Value[index+1:]...)
 	}
 
 	for i := len(nodes) - 1; i >= 1; i-- {

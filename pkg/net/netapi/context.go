@@ -5,11 +5,11 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"slices"
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 
 type PacketSniffer interface {
@@ -123,7 +123,7 @@ type ConnOptions struct {
 		IPs *IPs
 		Err error
 	}
-	lists map[*set.ImmutableSet[string]]struct{}
+	lists []string
 }
 
 func (s *ConnOptions) SetBindAddress(str string) *ConnOptions {
@@ -239,50 +239,16 @@ func (s *ConnOptions) RouteIPs(ctx context.Context, addr Address) (*IPs, error) 
 	return ips, nil
 }
 
-func (s *ConnOptions) AddLists(lists ...*set.ImmutableSet[string]) *ConnOptions {
-	for _, list := range lists {
-		if list.Len() == 0 {
-			continue
-		}
-
-		if s.lists == nil {
-			s.lists = make(map[*set.ImmutableSet[string]]struct{})
-		}
-
-		s.lists[list] = struct{}{}
-	}
+func (s *ConnOptions) AddLists(lists ...string) *ConnOptions {
+	s.lists = append(s.lists, lists...)
 	return s
 }
 func (s *ConnOptions) Lists() []string {
-	if len(s.lists) == 0 {
-		return nil
-	}
-
-	var totalSize int
-	for v := range s.lists {
-		totalSize += v.Len()
-	}
-
-	if totalSize == 0 {
-		return nil
-	}
-
-	lists := make([]string, 0, totalSize)
-	for v := range s.lists {
-		for list := range v.Range {
-			lists = append(lists, list)
-		}
-	}
-	return lists
+	return s.lists
 }
 
 func (s *ConnOptions) HasList(list string) bool {
-	for v := range s.lists {
-		if v.Has(list) {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s.lists, list)
 }
 
 type MaxMindDB interface {

@@ -7,7 +7,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/domain"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 
 type Trie[T comparable] struct {
@@ -37,7 +36,7 @@ func (x *Trie[T]) Insert(str string, mark T) {
 	x.domain.Insert(str, mark)
 }
 
-func (x *Trie[T]) SearchFqdn(addr netapi.Address) *set.ImmutableSet[T] {
+func (x *Trie[T]) SearchFqdn(addr netapi.Address) []T {
 	if !addr.IsFqdn() {
 		return x.cidr.SearchIP(addr.(netapi.IPAddress).AddrPort().Addr().AsSlice())
 	}
@@ -45,23 +44,23 @@ func (x *Trie[T]) SearchFqdn(addr netapi.Address) *set.ImmutableSet[T] {
 	return x.domain.Search(addr)
 }
 
-func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) *set.ImmutableSet[T] {
-	if mark := x.SearchFqdn(addr); mark.Len() > 0 || !addr.IsFqdn() {
+func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) []T {
+	if mark := x.SearchFqdn(addr); len(mark) > 0 || !addr.IsFqdn() {
 		return mark
 	}
 
 	ips, err := netapi.GetContext(ctx).ConnOptions().RouteIPs(ctx, addr)
 	if err != nil {
-		return set.EmptyImmutableSet[T]()
+		return nil
 	}
 
 	for ip := range ips.Iter() {
-		if mark := x.cidr.SearchIP(ip); mark.Len() > 0 {
+		if mark := x.cidr.SearchIP(ip); len(mark) > 0 {
 			return mark
 		}
 	}
 
-	return set.EmptyImmutableSet[T]()
+	return nil
 }
 
 func (x *Trie[T]) Remove(str string, mark T) {

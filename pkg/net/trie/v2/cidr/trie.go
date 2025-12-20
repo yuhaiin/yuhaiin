@@ -2,18 +2,17 @@ package cidr
 
 import (
 	"net"
-
-	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
+	"slices"
 )
 
 type Trie[T comparable] struct {
-	marks map[T]struct{}
+	marks []T
 	left  *Trie[T] // bit=0
 	right *Trie[T] // bit=1
 }
 
 func NewTrie[T comparable]() *Trie[T] {
-	return &Trie[T]{marks: make(map[T]struct{})}
+	return &Trie[T]{}
 }
 
 func (t *Trie[T]) Insert(ip net.IP, maskSize int, mark T) {
@@ -35,22 +34,23 @@ func (t *Trie[T]) Insert(ip net.IP, maskSize int, mark T) {
 			bitCount++
 		}
 	}
-	r.marks[mark] = struct{}{}
+
+	if !slices.Contains(r.marks, mark) {
+		r.marks = append(r.marks, mark)
+	}
 }
 
-func (t *Trie[T]) Search(ip net.IP) *set.ImmutableSet[T] {
+func (t *Trie[T]) Search(ip net.IP) []T {
 	r := t
-	matched := set.NewSet[T]()
+	var matched []T
 
 	for i := range ip {
 		for b := byte(128); b != 0; b >>= 1 {
 			if r == nil {
-				return matched.Immutable()
+				return matched
 			}
 
-			for k := range r.marks {
-				matched.Push(k)
-			}
+			matched = append(matched, r.marks...)
 
 			if ip[i]&b != 0 {
 				r = r.right
@@ -60,12 +60,10 @@ func (t *Trie[T]) Search(ip net.IP) *set.ImmutableSet[T] {
 		}
 	}
 	if r != nil {
-		for k := range r.marks {
-			matched.Push(k)
-		}
+		matched = append(matched, r.marks...)
 	}
 
-	return matched.Immutable()
+	return matched
 }
 
 func (t *Trie[T]) Remove(ip net.IP, maskSize int, mark T) {
@@ -84,7 +82,10 @@ func (t *Trie[T]) Remove(ip net.IP, maskSize int, mark T) {
 			bitCount++
 		}
 	}
-	if r != nil && r.marks != nil {
-		delete(r.marks, mark)
+
+	if r != nil {
+		if index := slices.Index(r.marks, mark); index != -1 {
+			r.marks = append(r.marks[:index], r.marks[index+1:]...)
+		}
 	}
 }
