@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 
 type Fqdn[T comparable] struct {
@@ -25,11 +24,11 @@ func (d *Fqdn[T]) Insert(domain string, mark T) {
 	insert(d.Root, r, mark)
 }
 
-func (d *Fqdn[T]) Search(domain netapi.Address) *set.ImmutableSet[T] {
+func (d *Fqdn[T]) Search(domain netapi.Address) []T {
 	return search(d.Root, newReader(domain.Hostname(), d.separate))
 }
 
-func (d *Fqdn[T]) SearchString(domain string) *set.ImmutableSet[T] {
+func (d *Fqdn[T]) SearchString(domain string) []T {
 	return search(d.Root, newReader(domain, d.separate))
 }
 

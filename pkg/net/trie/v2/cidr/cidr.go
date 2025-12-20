@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-
-	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 
 // Cidr cidr matcher
@@ -57,7 +55,7 @@ func (c *Cidr[T]) remove(trie *Trie[T], ip []byte, maskSize int) {
 		}
 	}
 	if r != nil {
-		r.marks = make(map[T]struct{})
+		r.marks = nil
 	}
 }
 
@@ -78,15 +76,15 @@ func (c *Cidr[T]) InsertIP(ip netip.Addr, maskSize int, mark T) {
 }
 
 // MatchWithTrie match ip with trie
-func (c *Cidr[T]) Search(ip string) *set.ImmutableSet[T] {
+func (c *Cidr[T]) Search(ip string) []T {
 	iP := net.ParseIP(ip)
 	if iP == nil {
-		return set.EmptyImmutableSet[T]()
+		return nil
 	}
 	return c.SearchIP(iP)
 }
 
-func (c *Cidr[T]) SearchIP(ip net.IP) *set.ImmutableSet[T] {
+func (c *Cidr[T]) SearchIP(ip net.IP) []T {
 	if x := ip.To4(); x != nil {
 		return c.v4CidrTrie.Search(x)
 	} else {

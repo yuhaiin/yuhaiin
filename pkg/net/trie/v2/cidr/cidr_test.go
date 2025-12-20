@@ -4,6 +4,7 @@ import (
 	crand "crypto/rand"
 	"math/rand/v2"
 	"net/netip"
+	"slices"
 	"testing"
 )
 
@@ -15,7 +16,7 @@ func TestCidr(t *testing.T) {
 			t.Fatalf("insert failed: %v", err)
 		}
 		res := c.Search("192.168.1.100")
-		if !res.Has("lan") {
+		if !slices.Contains(res, "lan") {
 			t.Error("expected to find lan")
 		}
 	})
@@ -28,7 +29,7 @@ func TestCidr(t *testing.T) {
 
 		// Before removal
 		res := c.Search("192.168.1.1")
-		if !res.ContainsAll("lan", "private", "host") {
+		if !slices.Contains(res, "lan") || !slices.Contains(res, "private") || !slices.Contains(res, "host") || len(res) != 3 {
 			t.Errorf("expected lan, private, host, got %v", res)
 		}
 
@@ -38,12 +39,12 @@ func TestCidr(t *testing.T) {
 
 		// After removal
 		res = c.Search("192.168.1.2")
-		if res.Len() != 0 {
+		if len(res) != 0 {
 			t.Errorf("expected no marks for /24, got %v", res)
 		}
 
 		res = c.Search("192.168.1.1")
-		if !res.Has("host") || res.Len() != 1 {
+		if !slices.Contains(res, "host") || len(res) != 1 {
 			t.Errorf("expected only host mark, got %v", res)
 		}
 	})
@@ -134,7 +135,7 @@ func BenchmarkCidr(b *testing.B) {
 			cidrs6[i] = netip.PrefixFrom(addr, 128).String()
 			ips6[i] = addr.String()
 		}
-		
+
 		allIps := append(ips4, ips6...)
 
 		b.Run("Search", func(b *testing.B) {

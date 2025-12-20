@@ -4,6 +4,7 @@ import (
 	crand "crypto/rand"
 	"math/rand/v2"
 	"net"
+	"slices"
 	"testing"
 )
 
@@ -21,24 +22,24 @@ func TestTrie(t *testing.T) {
 
 		trie.Insert(ip1, 32, "GroupA")
 		got := trie.Search(ip1)
-		if !got.ContainsAll("GroupA") {
+		if !slices.Contains(got, "GroupA") {
 			t.Errorf("Expected GroupA, got %v", got)
 		}
 
 		trie.Insert(ip1, 32, "GroupB")
 		got = trie.Search(ip1)
-		if !got.ContainsAll("GroupA", "GroupB") || got.Len() != 2 {
+		if !slices.Contains(got, "GroupA") || !slices.Contains(got, "GroupB") || len(got) != 2 {
 			t.Errorf("Expected GroupA and GroupB, got %v", got)
 		}
 
 		trie.Insert(ip2, 32, "GroupC")
 		got = trie.Search(ip2)
-		if !got.ContainsAll("GroupC") || got.Len() != 1 {
+		if !slices.Contains(got, "GroupC") || len(got) != 1 {
 			t.Errorf("Expected GroupC, got %v", got)
 		}
 
 		got = trie.Search(ip3)
-		if got.Len() != 0 {
+		if len(got) != 0 {
 			t.Errorf("Expected no match for %v, got %v", ip3, got)
 		}
 	})
@@ -56,19 +57,19 @@ func TestTrie(t *testing.T) {
 
 		trie.Remove(ip, 32, "GroupA")
 		got := trie.Search(ip)
-		if !got.ContainsAll("GroupB") || got.Len() != 1 {
+		if !slices.Contains(got, "GroupB") || len(got) != 1 {
 			t.Errorf("Expected only GroupB, got %v", got)
 		}
 
 		trie.Remove(ip, 32, "GroupX")
 		got = trie.Search(ip)
-		if !got.ContainsAll("GroupB") || got.Len() != 1 {
+		if !slices.Contains(got, "GroupB") || len(got) != 1 {
 			t.Errorf("Expected only GroupB after removing non-existing, got %v", got)
 		}
 
 		trie.Remove(ip, 32, "GroupB")
 		got = trie.Search(ip)
-		if got.Len() != 0 {
+		if len(got) != 0 {
 			t.Errorf("Expected no match after removing all, got %v", got)
 		}
 	})
@@ -86,31 +87,34 @@ func TestTrie(t *testing.T) {
 
 		got := trie.Search(ip4("8.8.8.8"))
 		expected := []string{"GroupA", "GroupB", "GroupC"}
-		if !got.ContainsAll(expected...) {
-			t.Errorf("Expected %v, got %v", expected, got)
+		for _, e := range expected {
+			if !slices.Contains(got, e) {
+				t.Errorf("Expected %v, got %v", expected, got)
+			}
 		}
 
 		got = trie.Search(ip4("8.8.8.100"))
 		expected = []string{"GroupA", "GroupB"}
-		if !got.ContainsAll(expected...) {
-			t.Errorf("Expected %v, got %v", expected, got)
+		for _, e := range expected {
+			if !slices.Contains(got, e) {
+				t.Errorf("Expected %v, got %v", expected, got)
+			}
 		}
 
 		got = trie.Search(ip4("8.8.50.50"))
 		expected = []string{"GroupA"}
-		if !got.ContainsAll(expected...) {
-			t.Errorf("Expected %v, got %v", expected, got)
+		for _, e := range expected {
+			if !slices.Contains(got, e) {
+				t.Errorf("Expected %v, got %v", expected, got)
+			}
 		}
 
 		got = trie.Search(ip4("1.2.3.4"))
-		if got.Len() != 0 {
+		if len(got) != 0 {
 			t.Errorf("Expected no match, got %v", got)
 		}
 	})
 }
-
-
-
 
 func BenchmarkTrie(b *testing.B) {
 	b.Run("IPv4", func(b *testing.B) {

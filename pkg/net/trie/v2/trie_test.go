@@ -3,6 +3,7 @@ package trie
 import (
 	crand "crypto/rand"
 	"net"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -20,41 +21,41 @@ func TestTrie(t *testing.T) {
 	// Search for domain
 	addrDomain, _ := netapi.ParseAddressPort("tcp", "www.google.com", 80)
 	resDomain := trie.SearchFqdn(addrDomain)
-	if !resDomain.Has("google") || resDomain.Len() != 1 {
+	if !slices.Contains(resDomain, "google") || len(resDomain) != 1 {
 		t.Errorf("expected to find 'google', got %v", resDomain)
 	}
 
 	// Search for CIDR
 	addrCidr, _ := netapi.ParseAddressPort("tcp", "1.1.1.100", 80)
 	resCidr := trie.SearchFqdn(addrCidr)
-	if !resCidr.Has("cloudflare") || resCidr.Len() != 1 {
+	if !slices.Contains(resCidr, "cloudflare") || len(resCidr) != 1 {
 		t.Errorf("expected to find 'cloudflare', got %v", resCidr)
 	}
 
 	// Search for IP
 	addrIp, _ := netapi.ParseAddressPort("tcp", "8.8.8.8", 53)
 	resIp := trie.SearchFqdn(addrIp)
-	if !resIp.Has("google-dns") || resIp.Len() != 1 {
+	if !slices.Contains(resIp, "google-dns") || len(resIp) != 1 {
 		t.Errorf("expected to find 'google-dns', got %v", resIp)
 	}
 
 	// Test miss
 	addrMiss, _ := netapi.ParseAddressPort("tcp", "example.com", 80)
 	resMiss := trie.SearchFqdn(addrMiss)
-	if resMiss.Len() != 0 {
+	if len(resMiss) != 0 {
 		t.Errorf("expected no match, got %v", resMiss)
 	}
 
 	// Remove a rule
 	trie.Remove("1.1.1.0/24", "cloudflare")
 	resCidrAfterRemove := trie.SearchFqdn(addrCidr)
-	if resCidrAfterRemove.Len() != 0 {
+	if len(resCidrAfterRemove) != 0 {
 		t.Errorf("expected no match after remove, got %v", resCidrAfterRemove)
 	}
 
 	// Verify other rules still exist
 	resDomainAfterRemove := trie.SearchFqdn(addrDomain)
-	if !resDomainAfterRemove.Has("google") || resDomainAfterRemove.Len() != 1 {
+	if !slices.Contains(resDomainAfterRemove, "google") || len(resDomainAfterRemove) != 1 {
 		t.Errorf("domain rule should still exist, got %v", resDomainAfterRemove)
 	}
 }
