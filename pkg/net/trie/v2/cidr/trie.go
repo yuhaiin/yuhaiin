@@ -82,9 +82,9 @@ func (t *Trie[T]) Remove(ip net.IP, maskSize int, mark T) {
 			bitCount++
 		}
 	}
-	if r != nil && r.marks != nil {
-		index := slices.Index(r.marks, mark)
-		if index != -1 {
+
+	if r != nil {
+		if index := slices.Index(r.marks, mark); index != -1 {
 			r.marks = append(r.marks[:index], r.marks[index+1:]...)
 		}
 	}

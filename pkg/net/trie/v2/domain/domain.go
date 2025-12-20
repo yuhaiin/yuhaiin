@@ -94,11 +94,8 @@ func remove[T comparable](node *trie[T], domain *fqdnReader, mark T) {
 		domain.next()
 	}
 
-	for i := range node.Value {
-		if node.Value[i] == mark {
-			node.Value = append(node.Value[:i], node.Value[i+1:]...)
-			break
-		}
+	if index := slices.Index(node.Value, mark); index != -1 {
+		node.Value = append(node.Value[:index], node.Value[index+1:]...)
 	}
 
 	for i := len(nodes) - 1; i >= 1; i-- {
