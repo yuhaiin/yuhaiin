@@ -67,7 +67,7 @@ func (testProxy) Conn(context.Context, netapi.Address) (net.Conn, error) {
 }
 
 func (t *testProxy) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	var ip bool = true
+	ip := true
 	if addr.Hostname() == "www.google.com" || addr.Hostname() == "10.0.0.2" {
 		ip = false
 	}
@@ -173,6 +173,7 @@ func (t *testPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 func (t *testPacketConn) Close() error {
 	return nil
 }
+
 func (t *testPacketConn) LocalAddr() net.Addr {
 	return nil
 }
@@ -190,13 +191,13 @@ func (t *testPacketConn) SetWriteDeadline(time.Time) error {
 }
 
 func TestP(t *testing.T) {
-	var natTable = map[string]net.PacketConn{}
-	var getTargetAddress = func([]byte) (*net.UDPAddr, []byte) {
+	natTable := map[string]net.PacketConn{}
+	getTargetAddress := func([]byte) (*net.UDPAddr, []byte) {
 		// TODO implement proxy protocol
 		return nil, nil
 	}
 
-	var packetResponse = func(net.Addr, []byte) []byte {
+	packetResponse := func(net.Addr, []byte) []byte {
 		// TODO implement proxy protocol
 		return nil
 	}

@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -28,13 +27,13 @@ type sentPacket struct {
 	buf []byte
 }
 
-type Context struct {
+type ContextCache struct {
 	resolver  *netapi.ResolverOptions
 	migrateID uint64
 }
 
-func newContext(store *netapi.Context) Context {
-	return Context{
+func newContextCache(store *netapi.Context) ContextCache {
+	return ContextCache{
 		resolver:  store.ConnOptions().Resolver(),
 		migrateID: store.GetUDPMigrateID(),
 	}
@@ -44,70 +43,75 @@ type SourceControl struct {
 	ctx    context.Context
 	dialer netapi.Proxy
 
+	// sniffer is an optional packet sniffer for observability or traffic analysis.
 	sniffer netapi.PacketSniffer
-	close   context.CancelFunc
+	// close is the cancel function associated with ctx, used to terminate the SourceControl.
+	close context.CancelFunc
 
+	// notifySentPacket signals that there are packets ready to be processed and sent from sentPackets.
 	notifySentPacket chan struct{}
 
+	// notifyReceivedPacket signals that there are packets received from the remote ready to be written back.
 	notifyReceivedPacket chan struct{}
 
-	onRemove func(*SourceControl)
+	// loopStopped indicates atomically if the primary I/O loop (loopWriteBack) for this control is stopped.
+	loopStopped atomic.Bool
+	// loopStopTime stores the timestamp when the primary I/O loop stopped, used for idle timeout checks.
+	loopStopTime atomic.Pointer[time.Time]
 
-	stopTimer *stopTimer
-	conn      *wrapConn
+	// conn is the wrapped PacketConn to the remote destination.
+	conn *wrapConn
+	// wirteBack is a function to write received packets back to the original client.
 	wirteBack *atomicx.Value[netapi.WriteBackFunc]
 
-	context         Context
-	sentPackets     ringbuffer.RingBuffer[*netapi.Packet]
-	receivedPackets ringbuffer.RingBuffer[sentPacket]
+	// contextCache holds flow-specific options such as resolver and UDP migration ID.
+	contextCache ContextCache
+	// sentPackets is a ring buffer holding packets waiting to be sent to the remote destination.
+	sentPackets *ringbuffer.RingBuffer[*netapi.Packet]
+	// receivedPackets is a ring buffer holding packets received from the remote, waiting to be sent back to the client.
+	receivedPackets *ringbuffer.RingBuffer[sentPacket]
 
-	sentPacketMx sync.Mutex
+	// lastProcess stores the name of the last process associated with this flow, primarily for logging.
+	lastProcess atomic.Pointer[string]
 
-	receivedPacketMx sync.Mutex
-
-	lastProcess *atomicx.Value[string]
-
-	udp      syncmap.SyncMap[uint64, *net.UDPAddr]
-	origin   syncmap.SyncMap[uint64, netapi.Address]
-	dispatch syncmap.SyncMap[uint64, netapi.Address]
+	// resolvedIPCache caches the resolved IP address for a destination hostname.
+	resolvedIPCache syncmap.SyncMap[uint64, *net.UDPAddr]
+	// reverseNATMap maps the proxy's reply-from address back to the original client-requested destination for reverse NAT.
+	reverseNATMap syncmap.SyncMap[uint64, netapi.Address]
+	// dispatchCache caches the dispatch decision for a destination, indicating how to route it.
+	dispatchCache syncmap.SyncMap[uint64, netapi.Address]
 }
 
-func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy, onRemove func(*SourceControl)) *SourceControl {
+func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *SourceControl {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &SourceControl{
 		ctx:                  ctx,
 		close:                cancel,
 		notifySentPacket:     make(chan struct{}, 1),
 		notifyReceivedPacket: make(chan struct{}, 1),
-		onRemove:             onRemove,
 		dialer:               dialer,
 		sniffer:              sniffer,
 		wirteBack: atomicx.NewValue(netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 			return 0, errors.ErrUnsupported
 		})),
-		lastProcess: atomicx.NewValue(""),
+		sentPackets:     ringbuffer.NewRingBuffer[*netapi.Packet](8, configuration.MaxUDPUnprocessedPackets.Load),
+		receivedPackets: ringbuffer.NewRingBuffer[sentPacket](8, configuration.MaxUDPUnprocessedPackets.Load),
 	}
 
-	s.sentPackets.Init(8)
-	s.receivedPackets.Init(8)
+	now := time.Now()
+	s.loopStopTime.Store(&now)
+	process := ""
+	s.lastProcess.Store(&process)
 
-	s.stopTimer = NewStopTimer(IdleTimeout, func() { _ = s.Close() })
-	s.stopTimer.Start()
 	go s.run()
-
 	return s
 }
 
 func (u *SourceControl) Close() error {
-	u.stopTimer.Stop()
 	u.close()
-	u.onRemove(u)
-
-	u.sentPacketMx.Lock()
-	defer u.sentPacketMx.Unlock()
 
 	for {
-		pkt, ok := u.sentPackets.PopFront()
+		pkt, ok := u.sentPackets.Pop()
 		if !ok {
 			break
 		}
@@ -115,11 +119,8 @@ func (u *SourceControl) Close() error {
 		pkt.DecRef()
 	}
 
-	u.receivedPacketMx.Lock()
-	defer u.receivedPacketMx.Unlock()
-
 	for {
-		pkt, ok := u.receivedPackets.PopFront()
+		pkt, ok := u.receivedPackets.Pop()
 		if !ok {
 			break
 		}
@@ -128,6 +129,13 @@ func (u *SourceControl) Close() error {
 	}
 
 	return nil
+}
+
+func (u *SourceControl) IsIdle() (time.Time, bool) {
+	if u.loopStopped.Load() {
+		return *u.loopStopTime.Load(), true
+	}
+	return time.Time{}, false
 }
 
 func (u *SourceControl) run() {
@@ -149,16 +157,12 @@ func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) err
 		return ctx.Err()
 
 	default:
-		u.sentPacketMx.Lock()
-		if u.sentPackets.Len() >= configuration.MaxUDPUnprocessedPackets.Load() {
-			u.sentPacketMx.Unlock()
+		pkt.IncRef()
+		if !u.sentPackets.Push(pkt) {
+			pkt.DecRef()
 			metrics.Counter.AddSendUDPDroppedPacket()
 			return fmt.Errorf("ringbuffer is full, drop packet")
 		}
-
-		pkt.IncRef()
-		u.sentPackets.PushBack(pkt)
-		u.sentPacketMx.Unlock()
 
 		select {
 		case u.notifySentPacket <- struct{}{}:
@@ -170,9 +174,7 @@ func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) err
 
 func (u *SourceControl) handle() {
 	for {
-		u.sentPacketMx.Lock()
-		pkt, ok := u.sentPackets.PopFront()
-		u.sentPacketMx.Unlock()
+		pkt, ok := u.sentPackets.Pop()
 		if !ok {
 			break
 		}
@@ -185,7 +187,7 @@ func (u *SourceControl) handle() {
 				return
 			}
 
-			log.Select(u.logLevel(err)).Print("handle packet failed", "err", err, "last_process", u.lastProcess.Load())
+			log.Select(u.logLevel(err)).Print("handle packet failed", "err", err, "last_process", *u.lastProcess.Load())
 		}
 	}
 }
@@ -245,7 +247,8 @@ func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
 
 		u.wirteBack.Store(pkt.WriteBack)
 		u.conn = conn
-		u.lastProcess.Store(store.GetProcessName())
+		process := store.GetProcessName()
+		u.lastProcess.Store(&process)
 	}
 
 	if err := u.write(ctx, pkt, conn); err != nil {
@@ -256,7 +259,7 @@ func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
 }
 
 func (u *SourceControl) newPacketConn(store *netapi.Context, pkt *netapi.Packet) (*wrapConn, error) {
-	store.SetUDPMigrateID(u.context.migrateID)
+	store.SetUDPMigrateID(u.contextCache.migrateID)
 	if store.GetUDPMigrateID() != 0 {
 		log.Info("set migrate id", "id", store.GetUDPMigrateID())
 	}
@@ -269,8 +272,7 @@ func (u *SourceControl) newPacketConn(store *netapi.Context, pkt *netapi.Packet)
 		return nil, err
 	}
 
-	u.stopTimer.Stop()
-	u.context = newContext(store)
+	u.contextCache = newContextCache(store)
 
 	conn := &wrapConn{PacketConn: dstpconn}
 
@@ -283,7 +285,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 	key := pkt.Dst().Comparable()
 
 	// ! we need write to same ip when use fakeip/domain, eg: quic will need it to create stream
-	udpAddr, ok := t.udp.Load(key)
+	udpAddr, ok := t.resolvedIPCache.Load(key)
 	if ok {
 		// load from cache, so we don't need to map addr, pkt is nil
 		return t.WriteTo(pkt.GetPayload(), udpAddr, nil, conn)
@@ -293,7 +295,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 
 	// cache fakeip/hosts/bypass address
 	// for fullcone nat, we as much as possible write to same address
-	dstAddr, ok := t.dispatch.Load(key)
+	dstAddr, ok := t.dispatchCache.Load(key)
 	if !ok {
 		// we route at [SourceControl.newPacketConn], here is skip
 		store.ConnOptions().SetSkipRoute(true)
@@ -305,16 +307,16 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 		}
 
 		if key != dstAddr.Comparable() {
-			t.dispatch.Store(key, dstAddr)
+			t.dispatchCache.Store(key, dstAddr)
 		}
 	}
 
 	// check is need resolve
-	if !dstAddr.IsFqdn() || t.context.resolver.UdpSkipResolveTarget() {
+	if !dstAddr.IsFqdn() || t.contextCache.resolver.UdpSkipResolveTarget() {
 		return t.WriteTo(pkt.GetPayload(), dstAddr, pkt.Dst(), conn)
 	}
 
-	store.ConnOptions().SetResolver(*t.context.resolver)
+	store.ConnOptions().SetResolver(*t.contextCache.resolver)
 
 	ctx, cancel := context.WithTimeout(store, time.Second*5)
 	defer cancel()
@@ -325,7 +327,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 	}
 	udpAddr = ips.RandUDPAddr(dstAddr.Port())
 
-	t.udp.Store(key, udpAddr)
+	t.resolvedIPCache.Store(key, udpAddr)
 
 	err = t.WriteTo(pkt.GetPayload(), udpAddr, pkt.Dst(), conn)
 	if err != nil {
@@ -361,15 +363,18 @@ func (t *SourceControl) mapAddr(src net.Addr, dst netapi.Address) {
 		return
 	}
 
-	t.origin.Store(srcKey, dst)
+	t.reverseNATMap.Store(srcKey, dst)
 }
 
 func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 	ctx, cancel := context.WithCancel(u.ctx)
+	u.loopStopped.Store(false)
 
 	defer func() {
 		cancel()
-		u.stopTimer.Start()
+		now := time.Now()
+		u.loopStopped.Store(true)
+		u.loopStopTime.Store(&now)
 		_ = p.Close()
 	}()
 
@@ -387,9 +392,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 				writeBack := u.wirteBack.Load()
 
 				for {
-					u.receivedPacketMx.Lock()
-					pkt, ok := u.receivedPackets.PopFront()
-					u.receivedPacketMx.Unlock()
+					pkt, ok := u.receivedPackets.Pop()
 					if !ok {
 						continue _loop
 					}
@@ -437,16 +440,11 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 		metrics.Counter.AddReceiveUDPPacket()
 		metrics.Counter.AddReceiveUDPPacketSize(n)
 
-		u.receivedPacketMx.Lock()
-		if u.receivedPackets.Len() >= configuration.MaxUDPUnprocessedPackets.Load() {
-			u.receivedPacketMx.Unlock()
+		if !u.receivedPackets.Push(sentPacket{from, data[:n]}) {
 			pool.PutBytes(data)
 			metrics.Counter.AddReceiveUDPDroppedPacket()
 			continue
 		}
-
-		u.receivedPackets.PushBack(sentPacket{from, data[:n]})
-		u.receivedPacketMx.Unlock()
 
 		select {
 		case u.notifyReceivedPacket <- struct{}{}:
@@ -470,7 +468,7 @@ func (s *SourceControl) parseAddr(from net.Addr) net.Addr {
 		return from
 	}
 
-	if addr, ok := s.origin.Load(faddr.Comparable()); ok {
+	if addr, ok := s.reverseNATMap.Load(faddr.Comparable()); ok {
 		// TODO: maybe two dst(fake ip) have same uaddr, need help
 		from = addr
 	}
@@ -486,36 +484,4 @@ type wrapConn struct {
 func (w *wrapConn) Close() error {
 	w.closed.Store(true)
 	return w.PacketConn.Close()
-}
-
-type stopTimer struct {
-	timer *time.Timer
-	do    func()
-	d     time.Duration
-	mu    sync.Mutex
-}
-
-func NewStopTimer(duration time.Duration, do func()) *stopTimer {
-	return &stopTimer{do: do, d: duration}
-}
-
-func (s *stopTimer) Stop() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.timer != nil {
-		s.timer.Stop()
-		s.timer = nil
-	}
-}
-
-func (s *stopTimer) Start() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.timer == nil {
-		s.timer = time.AfterFunc(s.d, s.do)
-	} else {
-		s.timer.Reset(s.d)
-	}
 }

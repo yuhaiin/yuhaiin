@@ -1,21 +1,38 @@
 // copy from https://github.com/quic-go/quic-go
 package ringbuffer
 
+import "sync"
+
 // A RingBuffer is a ring buffer.
 // It acts as a heap that doesn't cause any allocations.
 type RingBuffer[T any] struct {
 	ring             []T
 	headPos, tailPos int
 	full             bool
+
+	// maxCap is the maximum capacity of the ring buffer.
+	maxCap func() int
+
+	mu sync.Mutex
 }
 
-// Init preallocates a buffer with a certain size.
-func (r *RingBuffer[T]) Init(size int) {
-	r.ring = make([]T, size)
+// NewRingBuffer returns a new ring buffer.
+func NewRingBuffer[T any](initCap int, maxCap func() int) *RingBuffer[T] {
+	if initCap <= 0 {
+		initCap = 8
+	}
+
+	return &RingBuffer[T]{
+		maxCap: maxCap,
+		ring:   make([]T, initCap),
+	}
 }
 
 // Len returns the number of elements in the ring buffer.
 func (r *RingBuffer[T]) Len() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if r.full {
 		return len(r.ring)
 	}
@@ -26,16 +43,23 @@ func (r *RingBuffer[T]) Len() int {
 }
 
 // Empty says if the ring buffer is empty.
-func (r *RingBuffer[T]) Empty() bool {
+func (r *RingBuffer[T]) empty() bool {
 	return !r.full && r.headPos == r.tailPos
 }
 
-// PushBack adds a new element.
+// Push adds a new element.
 // If the ring buffer is full, its capacity is increased first.
-func (r *RingBuffer[T]) PushBack(t T) {
-	if r.full || len(r.ring) == 0 {
+func (r *RingBuffer[T]) Push(t T) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.full {
+		if len(r.ring) >= r.maxCap() {
+			return false
+		}
 		r.grow()
 	}
+
 	r.ring[r.tailPos] = t
 	r.tailPos++
 	if r.tailPos == len(r.ring) {
@@ -44,13 +68,18 @@ func (r *RingBuffer[T]) PushBack(t T) {
 	if r.tailPos == r.headPos {
 		r.full = true
 	}
+
+	return true
 }
 
-// PopFront returns the next element.
+// Pop returns the next element.
 // It must not be called when the buffer is empty, that means that
 // callers might need to check if there are elements in the buffer first.
-func (r *RingBuffer[T]) PopFront() (T, bool) {
-	if r.Empty() {
+func (r *RingBuffer[T]) Pop() (T, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.empty() {
 		return *new(T), false
 	}
 
@@ -64,11 +93,14 @@ func (r *RingBuffer[T]) PopFront() (T, bool) {
 	return t, true
 }
 
-// PeekFront returns the next element.
+// Peek returns the next element.
 // It must not be called when the buffer is empty, that means that
 // callers might need to check if there are elements in the buffer first.
-func (r *RingBuffer[T]) PeekFront() (T, bool) {
-	if r.Empty() {
+func (r *RingBuffer[T]) Peek() (T, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.empty() {
 		return *new(T), false
 	}
 	return r.ring[r.headPos], true
@@ -90,6 +122,9 @@ func (r *RingBuffer[T]) grow() {
 
 // Clear removes all elements.
 func (r *RingBuffer[T]) Clear() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	var zeroValue T
 	for i := range r.ring {
 		r.ring[i] = zeroValue
