@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -31,8 +30,7 @@ type dnsServer struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	notifyChan chan struct{}
-	reqBuffer  ringbuffer.RingBuffer[*netapi.DNSRawRequest]
-	mu         sync.Mutex
+	reqBuffer  *ringbuffer.RingBuffer[*netapi.DNSRawRequest]
 
 	udpSemaphore semaphore.Semaphore
 }
@@ -45,9 +43,8 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSAgent {
 		resolver:     process,
 		notifyChan:   make(chan struct{}, 1),
 		udpSemaphore: semaphore.NewSemaphore(configuration.DNSProcessThread.Load()),
+		reqBuffer:    ringbuffer.NewRingBuffer[*netapi.DNSRawRequest](8, configuration.MaxUDPUnprocessedPackets.Load),
 	}
-
-	d.reqBuffer.Init(200)
 
 	for range min(4, system.Procs) {
 		go d.startHandleReqData()
@@ -315,9 +312,7 @@ func (d *dnsServer) startHandleReqData() {
 
 func (d *dnsServer) handle() {
 	for {
-		d.mu.Lock()
-		req, ok := d.reqBuffer.PopFront()
-		d.mu.Unlock()
+		req, ok := d.reqBuffer.Pop()
 		if !ok {
 			return
 		}
@@ -353,16 +348,12 @@ func (d *dnsServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) e
 	case <-d.ctx.Done():
 		return d.ctx.Err()
 	default:
-		d.mu.Lock()
-		if d.reqBuffer.Len() >= configuration.MaxUDPUnprocessedPackets.Load() {
-			d.mu.Unlock()
+		req.Question.IncRef()
+		if !d.reqBuffer.Push(req) {
+			req.Question.DecRef()
 			metrics.Counter.AddReceiveUDPDroppedPacket()
 			return fmt.Errorf("dns request buffer is full")
 		}
-
-		req.Question.IncRef()
-		d.reqBuffer.PushBack(req)
-		d.mu.Unlock()
 
 		select {
 		case d.notifyChan <- struct{}{}:
