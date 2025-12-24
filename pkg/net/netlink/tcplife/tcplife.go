@@ -19,7 +19,7 @@ type Event struct {
 	Action  uint8
 	State   uint8 // TCP state
 	Network uint8 // 0 = tcp, 1 = udp
-	_Pad    [2]byte
+	Pad     [2]byte
 
 	Saddr [16]byte
 	Daddr [16]byte
@@ -81,6 +81,12 @@ func MonitorEvents(f func(Event)) error {
 
 		var e Event
 		copy((*[unsafe.Sizeof(e)]byte)(unsafe.Pointer(&e))[:], record.RawSample)
+
+		// buf := bytes.NewReader(record.RawSample)
+		// if err := binary.Read(buf, binary.NativeEndian, &e); err != nil {
+		// 	log.Warn("read event failed", "err", err)
+		// 	continue
+		// }
 
 		f(e)
 	}
