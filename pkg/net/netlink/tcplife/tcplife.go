@@ -1,7 +1,6 @@
 package tcplife
 
 import (
-	"fmt"
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -73,8 +72,6 @@ func MonitorEvents(f func(Event)) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("start read")
 
 	for {
 		record, err := r.Read()
