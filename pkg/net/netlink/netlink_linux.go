@@ -312,7 +312,7 @@ func (b *BpfTcp) startBpfv2() error {
 					return pidEntry{
 						pid:  int(e.Pid),
 						uid:  int(e.Uid),
-						cmd:  string(e.Comm[:]),
+						cmd:  string(bytes.TrimRight(e.Comm[:], "\x00")),
 						time: system.CheapNowNano(),
 					}, nil
 				})
