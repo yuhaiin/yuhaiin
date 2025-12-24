@@ -10,6 +10,7 @@ replace (
 )
 
 require (
+	github.com/cilium/ebpf v0.20.0
 	github.com/cloudflare/circl v1.6.2
 	github.com/godbus/dbus/v5 v5.2.1
 	github.com/google/nftables v0.3.0
@@ -97,3 +98,5 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251022142026-3a174f9686a8 // indirect
 )
+
+tool github.com/cilium/ebpf/cmd/bpf2go
