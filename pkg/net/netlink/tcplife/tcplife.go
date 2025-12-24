@@ -27,7 +27,7 @@ type Event struct {
 	Comm  [16]byte
 }
 
-func TestTcplife(f func(Event)) error {
+func MonitorEvents(f func(Event)) error {
 	var obj tcplifeObjects
 	err := loadTcplifeObjects(&obj, nil)
 	if err != nil {
