@@ -290,7 +290,7 @@ func (b *BpfTcp) Close() error {
 }
 
 func (b *BpfTcp) startBpfv2() error {
-	return tcplife.TestTcplife(func(e tcplife.Event) {
+	return tcplife.MonitorEvents(func(e tcplife.Event) {
 		var saddr, daddr netip.Addr
 		switch e.Family {
 		case unix.AF_INET:
