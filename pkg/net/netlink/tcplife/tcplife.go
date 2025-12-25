@@ -10,15 +10,33 @@ import (
 
 //go:generate go tool bpf2go -tags linux tcplife tcplife.bpf.c
 
+type Network uint8
+
+const (
+	TCP Network = 0
+	UDP Network = 1
+)
+
+type Action uint8
+
+const (
+	Connect Action = 1
+	Close   Action = 2
+)
+
+func (a Action) Unknown() bool {
+	return a != Connect && a != Close
+}
+
 type Event struct {
 	Pid     uint32
 	Uid     uint32
 	Sport   uint16
 	Dport   uint16
 	Family  uint8
-	Action  uint8
-	State   uint8 // TCP state
-	Network uint8 // 0 = tcp, 1 = udp
+	Action  Action
+	State   uint8   // TCP state
+	Network Network // 0 = tcp, 1 = udp
 	Pad     [2]byte
 
 	Saddr [16]byte
@@ -80,7 +98,15 @@ func MonitorEvents(f func(Event)) error {
 		}
 
 		var e Event
+		if len(record.RawSample) < int(unsafe.Sizeof(e)) {
+			log.Warn("read event from ringbuf failed: invalid size", "size", len(record.RawSample), "want", unsafe.Sizeof(e))
+			continue
+		}
 		copy((*[unsafe.Sizeof(e)]byte)(unsafe.Pointer(&e))[:], record.RawSample)
+
+		if e.Action.Unknown() {
+			continue
+		}
 
 		// buf := bytes.NewReader(record.RawSample)
 		// if err := binary.Read(buf, binary.NativeEndian, &e); err != nil {

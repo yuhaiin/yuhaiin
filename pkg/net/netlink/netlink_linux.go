@@ -179,9 +179,12 @@ func StartBpf() {
 }
 
 func FindProcessName(network string, ip netip.AddrPort, to netip.AddrPort) (netapi.Process, error) {
-	if bpf != nil && bpf.active.Load() && network == "tcp" {
-		pid, ok := bpf.findPid(ip, to)
+	if bpf != nil && bpf.active.Load() /*&& network == "tcp" */ {
+		pid, ok := bpf.findPid(network, ip, to)
 		if !ok {
+			if network == "udp" {
+				return findProcessName(network, ip, to)
+			}
 			return netapi.Process{}, fmt.Errorf("can't find process: %v %v", ip, to)
 		}
 
@@ -220,13 +223,21 @@ type BpfTcp struct {
 	active       atomic.Bool
 	tcpconnect   *exec.Cmd
 	timer        *time.Timer
-	cache        syncmap.SyncMap[socket, pidEntry]
+	tcpCache     syncmap.SyncMap[socket, pidEntry]
+	udpCache     syncmap.SyncMap[netip.AddrPort, pidEntry]
 	singleflight singleflight.Group[socket, struct{}]
 }
 
-func (b *BpfTcp) findPid(srcaddr netip.AddrPort, dstaddr netip.AddrPort) (pidEntry, bool) {
+func (b *BpfTcp) findPid(network string, srcaddr netip.AddrPort, dstaddr netip.AddrPort) (pidEntry, bool) {
 	// ! delete cache after find, because the statistic only call once
-	return b.cache.LoadAndDelete(socket{srcaddr: srcaddr, dstaddr: dstaddr})
+	switch network {
+	case "tcp":
+		return b.tcpCache.LoadAndDelete(socket{srcaddr: srcaddr, dstaddr: dstaddr})
+	case "udp":
+		return b.udpCache.LoadAndDelete(srcaddr)
+	}
+	// return b.cache.LoadAndDelete(socket{srcaddr: srcaddr, dstaddr: dstaddr})
+	return pidEntry{}, false
 }
 
 func NewBpfTcp() *BpfTcp {
@@ -255,16 +266,23 @@ func NewBpfTcp() *BpfTcp {
 	// remove expired cache(after 1min)
 	b.timer = time.AfterFunc(time.Minute*10, func() {
 		if !b.active.Load() {
-			b.cache.Clear()
+			b.udpCache.Clear()
+			b.tcpCache.Clear()
 			return
 		}
 
 		now := system.CheapNowNano()
-		b.cache.Range(func(key socket, value pidEntry) bool {
+		b.tcpCache.Range(func(key socket, value pidEntry) bool {
 			if now-value.time > int64(time.Second*10) {
-				b.cache.Delete(key)
+				b.tcpCache.Delete(key)
 			}
+			return true
+		})
 
+		b.udpCache.Range(func(key netip.AddrPort, value pidEntry) bool {
+			if now-value.time > int64(time.Second*10) {
+				b.udpCache.Delete(key)
+			}
 			return true
 		})
 
@@ -302,13 +320,33 @@ func (b *BpfTcp) startBpfv2() error {
 		}
 		switch e.Action {
 		case 1:
-			key := socket{
-				srcaddr: netip.AddrPortFrom(saddr, e.Sport),
-				dstaddr: netip.AddrPortFrom(daddr, e.Dport),
+			var key socket
+			var cache func(socket, func() (pidEntry, error)) (pidEntry, bool, error)
+
+			switch e.Network {
+			case tcplife.TCP:
+				key = socket{
+					srcaddr: netip.AddrPortFrom(saddr, e.Sport),
+					dstaddr: netip.AddrPortFrom(daddr, e.Dport),
+				}
+				cache = b.tcpCache.LoadOrCreate
+
+			case tcplife.UDP:
+				key = socket{
+					srcaddr: netip.AddrPortFrom(saddr, e.Sport),
+				}
+				cache = func(s socket, f func() (pidEntry, error)) (pidEntry, bool, error) {
+					log.Info("store udp addr", "addr", s.srcaddr)
+					return b.udpCache.LoadOrCreate(s.srcaddr, f)
+				}
+			}
+
+			if cache == nil {
+				return
 			}
 
 			_, _, _ = b.singleflight.Do(key, func() (struct{}, error) {
-				_, _, _ = b.cache.LoadOrCreate(key, func() (pidEntry, error) {
+				_, _, _ = cache(key, func() (pidEntry, error) {
 					return pidEntry{
 						pid:  int(e.Pid),
 						uid:  int(e.Uid),
@@ -319,12 +357,19 @@ func (b *BpfTcp) startBpfv2() error {
 
 				return struct{}{}, nil
 			})
+
 		case 2:
 			src := netip.AddrPortFrom(saddr, e.Sport)
 			dst := netip.AddrPortFrom(daddr, e.Dport)
 
-			b.cache.Delete(socket{src, dst})
-			b.cache.Delete(socket{dst, src})
+			switch e.Network {
+			case tcplife.TCP:
+				b.tcpCache.Delete(socket{src, dst})
+				b.tcpCache.Delete(socket{dst, src})
+			case tcplife.UDP:
+				b.udpCache.Delete(src)
+				b.udpCache.Delete(dst)
+			}
 		}
 	})
 }
