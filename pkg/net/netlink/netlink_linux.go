@@ -5,7 +5,6 @@ package netlink
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -221,7 +220,6 @@ type pidEntry struct {
 type BpfTcp struct {
 	ctx          context.Context
 	cancel       context.CancelFunc
-	tcpconnect   *exec.Cmd
 	timer        *time.Timer
 	tcpCache     syncmap.SyncMap[socket, pidEntry]
 	udpCache     syncmap.SyncMap[netip.AddrPort, pidEntry]
@@ -308,17 +306,17 @@ func NewBpfTcp() *BpfTcp {
 }
 
 func (b *BpfTcp) Close() error {
-	var err error
-	if b != nil {
-		b.cancel()
-		if b.tcpconnect != nil && b.tcpconnect.Process != nil {
-			if er := b.tcpconnect.Process.Kill(); er != nil {
-				err = errors.Join(err, er)
-			}
-		}
+	if b == nil {
+		return nil
 	}
 
-	return err
+	b.cancel()
+
+	if b.timer != nil {
+		b.timer.Stop()
+	}
+
+	return nil
 }
 
 func (b *BpfTcp) startBpfv2(ctx context.Context) error {
