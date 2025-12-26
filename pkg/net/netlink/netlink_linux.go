@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"os/exec"
 	"strconv"
 	"time"
 
@@ -255,18 +254,6 @@ func NewBpfTcp() *BpfTcp {
 		cancel: cancel,
 	}
 
-	if _, err := exec.LookPath("bpftrace"); err != nil {
-		log.Warn("bpftrace not found", "err", err)
-		return b
-	}
-
-	// TODO: maybe we also need tcp drop
-	// if err := b.startBpfTcp(); err != nil {
-	// 	log.Warn("start bpf tcp failed, fallback to tranditional method", "err", err)
-	// 	b.active.Store(false)
-	// 	return b
-	// }
-
 	go func() {
 		defer b.cancel()
 		if err := b.startBpfv2(ctx); err != nil {
@@ -348,7 +335,6 @@ func (b *BpfTcp) startBpfv2(ctx context.Context) error {
 					srcaddr: netip.AddrPortFrom(saddr, e.Sport),
 				}
 				cache = func(s socket, f func() (pidEntry, error)) (pidEntry, bool, error) {
-					log.Info("store udp addr", "addr", s.srcaddr)
 					return b.udpCache.LoadOrCreate(s.srcaddr, f)
 				}
 			}
