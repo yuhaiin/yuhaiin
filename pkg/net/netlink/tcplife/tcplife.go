@@ -1,0 +1,127 @@
+package tcplife
+
+import (
+	"context"
+	"unsafe"
+
+	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/ringbuf"
+)
+
+//go:generate sh -c "bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h"
+//go:generate go tool bpf2go -tags linux tcplife tcplife.bpf.c
+
+type Network uint8
+
+const (
+	TCP Network = 0
+	UDP Network = 1
+)
+
+type Action uint8
+
+const (
+	Connect Action = 1
+	Close   Action = 2
+)
+
+func (a Action) Unknown() bool {
+	return a != Connect && a != Close
+}
+
+type Event struct {
+	Pid     uint32
+	Uid     uint32
+	Sport   uint16
+	Dport   uint16
+	Family  uint8
+	Action  Action
+	State   uint8   // TCP state
+	Network Network // 0 = tcp, 1 = udp
+	Pad     [2]byte
+
+	Saddr [16]byte
+	Daddr [16]byte
+	Comm  [16]byte
+}
+
+func MonitorEvents(ctx context.Context, f func(Event)) error {
+	var obj tcplifeObjects
+	err := loadTcplifeObjects(&obj, nil)
+	if err != nil {
+		return err
+	}
+	defer obj.Close()
+
+	kp1, err := link.AttachTracing(link.TracingOptions{
+		Program: obj.TcpConnect,
+	})
+	if err != nil {
+		log.Warn("attach tcpConnect failed", "err", err)
+	} else {
+		defer kp1.Close()
+	}
+
+	// kp4, err := link.Tracepoint("sock", "inet_sock_set_state", obj.TpInetSockSetState, nil)
+	// if err != nil {
+	// 	log.Warn("tracepoint sock/inet_sock_set_state failed", "err", err)
+	// } else {
+	// 	defer kp4.Close()
+	// }
+
+	kp2, err := link.AttachTracing(link.TracingOptions{
+		Program: obj.TcpClose,
+	})
+	if err != nil {
+		log.Warn("attach tcpClose failed", "err", err)
+	} else {
+		defer kp2.Close()
+	}
+
+	kp3, err := link.AttachTracing(link.TracingOptions{
+		Program: obj.InetBindExit,
+	})
+	if err != nil {
+		log.Warn("attach inetBindExit failed", "err", err)
+	} else {
+		defer kp3.Close()
+	}
+
+	r, err := ringbuf.NewReader(obj.Events)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	go func() {
+		<-ctx.Done()
+		r.Close()
+	}()
+
+	for {
+		record, err := r.Read()
+		if err != nil {
+			return err
+		}
+
+		var e Event
+		if len(record.RawSample) < int(unsafe.Sizeof(e)) {
+			log.Warn("read event from ringbuf failed: invalid size", "size", len(record.RawSample), "want", unsafe.Sizeof(e))
+			continue
+		}
+		copy((*[unsafe.Sizeof(e)]byte)(unsafe.Pointer(&e))[:], record.RawSample)
+
+		if e.Action.Unknown() {
+			continue
+		}
+
+		// buf := bytes.NewReader(record.RawSample)
+		// if err := binary.Read(buf, binary.NativeEndian, &e); err != nil {
+		// 	log.Warn("read event failed", "err", err)
+		// 	continue
+		// }
+
+		f(e)
+	}
+}

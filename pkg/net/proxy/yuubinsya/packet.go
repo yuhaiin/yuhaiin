@@ -1,6 +1,7 @@
 package yuubinsya
 
 import (
+	"context"
 	"crypto/subtle"
 	"errors"
 	"fmt"
@@ -133,7 +134,10 @@ func (s *UDPServer) Serve() error {
 	for {
 		n, addr, err := p.read(buf)
 		if err != nil {
-			if errors.Is(err, net.ErrClosed) || errors.Is(err, io.ErrClosedPipe) {
+			if errors.Is(err, net.ErrClosed) ||
+				errors.Is(err, io.ErrClosedPipe) ||
+				errors.Is(err, io.EOF) ||
+				errors.Is(err, context.Canceled) {
 				return err
 			}
 
