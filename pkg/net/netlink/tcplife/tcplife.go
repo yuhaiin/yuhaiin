@@ -1,6 +1,7 @@
 package tcplife
 
 import (
+	"context"
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -44,7 +45,7 @@ type Event struct {
 	Comm  [16]byte
 }
 
-func MonitorEvents(f func(Event)) error {
+func MonitorEvents(ctx context.Context, f func(Event)) error {
 	var obj tcplifeObjects
 	err := loadTcplifeObjects(&obj, nil)
 	if err != nil {
@@ -90,6 +91,12 @@ func MonitorEvents(f func(Event)) error {
 	if err != nil {
 		return err
 	}
+	defer r.Close()
+
+	go func() {
+		<-ctx.Done()
+		r.Close()
+	}()
 
 	for {
 		record, err := r.Read()

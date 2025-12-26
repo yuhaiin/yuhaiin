@@ -4,6 +4,7 @@ package netlink
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,9 +12,7 @@ import (
 	"net/netip"
 	"os"
 	"os/exec"
-	"runtime"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -145,7 +144,7 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, uint, error) {
 		}
 
 		fds, err := fdDir.Readdirnames(-1)
-		fdDir.Close()
+		_ = fdDir.Close()
 		if err != nil {
 			continue
 		}
@@ -179,7 +178,7 @@ func StartBpf() {
 }
 
 func FindProcessName(network string, ip netip.AddrPort, to netip.AddrPort) (netapi.Process, error) {
-	if bpf != nil && bpf.active.Load() /*&& network == "tcp" */ {
+	if bpf != nil && bpf.Active() /*&& network == "tcp" */ {
 		pid, ok := bpf.findPid(network, ip, to)
 		if !ok {
 			if network == "udp" {
@@ -220,7 +219,8 @@ type pidEntry struct {
 }
 
 type BpfTcp struct {
-	active       atomic.Bool
+	ctx          context.Context
+	cancel       context.CancelFunc
 	tcpconnect   *exec.Cmd
 	timer        *time.Timer
 	tcpCache     syncmap.SyncMap[socket, pidEntry]
@@ -240,8 +240,22 @@ func (b *BpfTcp) findPid(network string, srcaddr netip.AddrPort, dstaddr netip.A
 	return pidEntry{}, false
 }
 
+func (b *BpfTcp) Active() bool {
+	select {
+	case <-b.ctx.Done():
+		return false
+	default:
+		return true
+	}
+}
+
 func NewBpfTcp() *BpfTcp {
-	b := &BpfTcp{}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	b := &BpfTcp{
+		ctx:    ctx,
+		cancel: cancel,
+	}
 
 	if _, err := exec.LookPath("bpftrace"); err != nil {
 		log.Warn("bpftrace not found", "err", err)
@@ -256,19 +270,20 @@ func NewBpfTcp() *BpfTcp {
 	// }
 
 	go func() {
-		b.active.Store(true)
-		defer b.active.Store(false)
-		if err := b.startBpfv2(); err != nil {
+		defer b.cancel()
+		if err := b.startBpfv2(ctx); err != nil {
 			log.Warn("start bpf tcp failed, fallback to tranditional method", "err", err)
 		}
 	}()
 
 	// remove expired cache(after 1min)
 	b.timer = time.AfterFunc(time.Minute*10, func() {
-		if !b.active.Load() {
+		select {
+		case <-b.ctx.Done():
 			b.udpCache.Clear()
 			b.tcpCache.Clear()
 			return
+		default:
 		}
 
 		now := system.CheapNowNano()
@@ -294,21 +309,20 @@ func NewBpfTcp() *BpfTcp {
 
 func (b *BpfTcp) Close() error {
 	var err error
-	if b != nil && b.tcpconnect != nil && b.tcpconnect.Process != nil {
-		if er := b.tcpconnect.Process.Kill(); er != nil {
-			err = errors.Join(err, er)
-		}
-
-		for b.active.Load() {
-			runtime.Gosched()
+	if b != nil {
+		b.cancel()
+		if b.tcpconnect != nil && b.tcpconnect.Process != nil {
+			if er := b.tcpconnect.Process.Kill(); er != nil {
+				err = errors.Join(err, er)
+			}
 		}
 	}
 
 	return err
 }
 
-func (b *BpfTcp) startBpfv2() error {
-	return tcplife.MonitorEvents(func(e tcplife.Event) {
+func (b *BpfTcp) startBpfv2(ctx context.Context) error {
+	return tcplife.MonitorEvents(ctx, func(e tcplife.Event) {
 		var saddr, daddr netip.Addr
 		switch e.Family {
 		case unix.AF_INET:
