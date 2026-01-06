@@ -14,7 +14,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/memory"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -28,7 +27,6 @@ func main() {
 		ResolverConfig: &mockDB{},
 		InboundConfig:  &mockDB{},
 		ChoreConfig:    &mockDB{},
-		Cache:          memory.NewMemoryCache(),
 	})
 	if err != nil {
 		panic(err)
@@ -79,7 +77,8 @@ func main() {
 				ctx = netapi.WithContext(ctx)
 
 				return configuration.ProxyChain.Conn(ctx, add)
-			}},
+			},
+		},
 	}
 
 	req, err := http.NewRequest("GET", "http://ip.sb", nil)

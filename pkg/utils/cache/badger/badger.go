@@ -10,7 +10,10 @@ import (
 	"github.com/dgraph-io/badger/v4"
 )
 
-var _ cache.Cache = (*Cache)(nil)
+var (
+	MigateKey             = []byte("MIGRATE_VERSION")
+	_         cache.Cache = (*Cache)(nil)
+)
 
 type Cache struct {
 	db     *badger.DB

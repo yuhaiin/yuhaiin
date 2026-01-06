@@ -24,7 +24,6 @@ import (
 	pt "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/grpc2http"
 	yf "github.com/yuhaiin/yuhaiin.github.io"
 	"google.golang.org/grpc"
@@ -149,7 +148,6 @@ type StartOptions struct {
 
 	ProcessDumper netapi.ProcessDumper
 
-	Cache      cache.Cache
 	Auth       *Auth
 	GRPCServer *grpc.Server
 

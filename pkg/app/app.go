@@ -121,23 +121,14 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	AddCloser(closers, "logger_controller", logController)
 
-	cache := so.Cache
-	if cache == nil {
-		db, err := OpenBboltDB(tools.PathGenerator.Cache(so.ConfigPath))
-		if err != nil {
-			_ = closers.Close()
-			return nil, fmt.Errorf("init bbolt cache failed: %w", err)
-		}
-		closers.AddCloser("bbolt_db", db)
-		cache = ybbolt.NewCache(db)
-	}
-
 	badgerCache, err := badger.New(tools.PathGenerator.BadgerCache(so.ConfigPath))
 	if err != nil {
 		_ = closers.Close()
 		return nil, fmt.Errorf("init badger cache failed: %w", err)
 	}
 	closers.AddCloser("badger_cache", badgerCache)
+
+	migrateDB(badgerCache, so.ConfigPath)
 
 	for _, f := range operators {
 		f(closers)
@@ -266,4 +257,45 @@ func updateConfiguration(so *StartOptions, s *config.Setting, logController *log
 				dialer.WithHappyEyeballsSemaphore[net.Conn](semaphore.NewSemaphore(int64(happyeyeballsSemaphore)))))
 		}
 	}
+}
+
+func migrateDB(badgerCache *badger.Cache, path string) {
+	v, err := badgerCache.Get(badger.MigateKey)
+	if err != nil {
+		slog.Warn("get badger migrate key failed", "err", err)
+		return
+	}
+
+	if len(v) != 0 && v[0] == 1 {
+		slog.Info("check already migrated db, skip")
+		return
+	}
+
+	db, err := OpenBboltDB(tools.PathGenerator.Cache(path))
+	if err != nil {
+		slog.Warn("open old bbolt db failed, skip migrate db")
+		return
+	}
+	defer db.Close()
+
+	cache := ybbolt.NewCache(db)
+
+	migrate := func(bucketName string) {
+		err = badgerCache.NewCache(bucketName).Put(func(yield func([]byte, []byte) bool) {
+			cache.NewCache(bucketName).Range(func(key, value []byte) bool {
+				return yield(key, value)
+			})
+		})
+		if err != nil {
+			slog.Warn("migrate bucket failed", "bucket", bucketName, "err", err)
+		}
+	}
+
+	migrate("flow_data")
+	migrate("fakedns_cachev6")
+	migrate("fakedns_cache")
+
+	badgerCache.Put(func(yield func([]byte, []byte) bool) {
+		yield(badger.MigateKey, []byte{1})
+	})
 }
