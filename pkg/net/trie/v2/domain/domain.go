@@ -29,12 +29,11 @@ func (d *trie[T]) child(s string, insert bool) (*trie[T], bool) {
 func insert[T comparable](node *trie[T], z *fqdnReader, mark T) {
 	for z.hasNext() {
 		node, _ = node.child(z.str(), true)
-
-		if !slices.Contains(node.Value, mark) {
-			node.Value = append(node.Value, mark)
-		}
-
 		z.next()
+	}
+
+	if !slices.Contains(node.Value, mark) {
+		node.Value = append(node.Value, mark)
 	}
 }
 

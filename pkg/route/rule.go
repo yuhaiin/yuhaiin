@@ -281,7 +281,10 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*api.Tes
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
-	result := r.route.dispatch(ctx, addr)
+	s := netapi.GetContext(ctx)
+	result := r.route.dispatch(s, addr)
+
+	ips, _ := s.ConnOptions().RouteIPs(s, addr)
 
 	return api.TestResponse_builder{
 		Mode: config.ModeConfig_builder{
@@ -291,6 +294,14 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*api.Tes
 		}.Build(),
 		AfterAddr:   proto.String(result.Addr.String()),
 		MatchResult: netapi.GetContext(ctx).MatchHistory(),
+		Lists:       s.ConnOptions().Lists(),
+		Ips: func() []string {
+			var ret []string
+			for ip := range ips.Iter() {
+				ret = append(ret, ip.String())
+			}
+			return ret
+		}(),
 	}.Build(), nil
 }
 
