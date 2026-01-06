@@ -296,6 +296,9 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*api.Tes
 		MatchResult: netapi.GetContext(ctx).MatchHistory(),
 		Lists:       s.ConnOptions().Lists(),
 		Ips: func() []string {
+			if ips == nil {
+				return nil
+			}
 			var ret []string
 			for ip := range ips.Iter() {
 				ret = append(ret, ip.String())
