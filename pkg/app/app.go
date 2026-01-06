@@ -126,7 +126,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		_ = closers.Close()
 		return nil, fmt.Errorf("init badger cache failed: %w", err)
 	}
-	closers.AddCloser("badger_cache", badgerCache)
+	AddCloser(closers, "badger_cache", badgerCache)
 
 	migrateDB(badgerCache, so.ConfigPath)
 
