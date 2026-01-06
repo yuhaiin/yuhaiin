@@ -25,9 +25,9 @@ const (
 )
 
 type ResolverOptions struct {
-	isResolver              bool
 	resolver                Resolver
 	mode                    ResolverMode
+	isResolver              bool
 	udpSkipResolveTarget    bool
 	useFakeIP               bool
 	fakeIPSkipCheckUpstream bool
@@ -114,16 +114,16 @@ type ConnOptions struct {
 	bindAddress    *string
 	bindInterface  *string
 	resolver       *ResolverOptions
-	routeMode      config.Mode
 	maxminddbGeoip MaxMindDB
-	systemDialer   bool
-	skipRoute      bool
-	isUdp          bool
 	routeCache     *struct {
 		IPs *IPs
 		Err error
 	}
 	lists []string
+
+	routeMode config.Mode
+	skipRoute bool
+	isUdp     bool
 }
 
 func (s *ConnOptions) SetBindAddress(str string) *ConnOptions {
@@ -185,15 +185,6 @@ func (s *ConnOptions) RouteMode() config.Mode {
 	return s.routeMode
 }
 
-func (s *ConnOptions) SetSystemDialer(systemDialer bool) *ConnOptions {
-	s.systemDialer = systemDialer
-	return s
-}
-
-func (s *ConnOptions) SystemDialer() bool {
-	return s.systemDialer
-}
-
 func (s *ConnOptions) SetSkipRoute(skip bool) *ConnOptions {
 	s.skipRoute = skip
 	return s
@@ -243,6 +234,7 @@ func (s *ConnOptions) AddLists(lists ...string) *ConnOptions {
 	s.lists = append(s.lists, lists...)
 	return s
 }
+
 func (s *ConnOptions) Lists() []string {
 	return s.lists
 }
@@ -285,10 +277,10 @@ type AddrInfo struct {
 }
 
 type Context struct {
+	context.Context
+
 	Source      net.Addr `metrics:"Source"`
 	Destination net.Addr `metrics:"Destination"`
-
-	context.Context
 
 	inbound       *net.Addr              `metrics:"Inbound"`
 	inboundName   *string                `metrics:"InboundName"`
@@ -304,8 +296,6 @@ type Context struct {
 	NodeName string `metrics:"NodeName"`
 
 	ruleChain *MatchHistory `metrics:"Rule Chain"`
-
-	Mode config.Mode `metrics:"MODE"`
 
 	connOptions *ConnOptions
 }
@@ -725,7 +715,6 @@ func NewDialError(network string, err error, addr net.Addr) *DialError {
 // package. It describes the operation, network type, and address of
 // an error.
 type DialError struct {
-
 	// Addr is the network address for which this error occurred.
 	// For local operations, like Listen or SetDeadline, Addr is
 	// the address of the local endpoint being manipulated.

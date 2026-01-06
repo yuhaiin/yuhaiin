@@ -18,9 +18,9 @@ import (
 )
 
 type Rules struct {
+	api.UnimplementedRulesServer
 	db    chore.DB
 	route *Route
-	api.UnimplementedRulesServer
 }
 
 func NewRules(db chore.DB, route *Route) *Rules {

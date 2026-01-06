@@ -5,8 +5,8 @@ import (
 )
 
 type trie[T comparable] struct {
-	Value []T                 `json:"value"`
 	Child map[string]*trie[T] `json:"child"`
+	Value []T                 `json:"value"`
 }
 
 func (d *trie[T]) child(s string, insert bool) (*trie[T], bool) {

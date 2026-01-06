@@ -11,9 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
@@ -62,10 +60,6 @@ func NewRoute(d Dialer, r Resolver, list *Lists, ProcessDumper netapi.ProcessDum
 func (s *Route) Tags() iter.Seq[string] { return s.ms.Tags() }
 
 func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
-	if store := netapi.GetContext(ctx); store.ConnOptions().SystemDialer() {
-		return dialer.DialHappyEyeballsv2(ctx, host)
-	}
-
 	result := s.dispatch(ctx, host)
 
 	if result.Mode.Mode() == config.Mode_block {
@@ -84,11 +78,8 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 
 	return conn, nil
 }
-func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
-	if netapi.GetContext(ctx).ConnOptions().SystemDialer() {
-		return dialer.ListenPacket(ctx, "udp", "0.0.0.0:0")
-	}
 
+func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
 	result := s.dispatch(ctx, host)
 
 	if result.Mode.Mode() == config.Mode_block {
@@ -109,10 +100,6 @@ func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.Packet
 }
 
 func (s *Route) Ping(ctx context.Context, host netapi.Address) (uint64, error) {
-	if netapi.GetContext(ctx).ConnOptions().SystemDialer() {
-		return direct.Default.Ping(ctx, host)
-	}
-
 	result := s.dispatch(ctx, host)
 
 	if result.Mode.Mode() == config.Mode_block {
@@ -253,8 +240,7 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 
 	store.ConnOptions().Resolver().SetUdpSkipResolveTarget(s.skipResolve(mode))
 	store.ConnOptions().Resolver().SetResolver(s.r.Get(mode.Resolver(), s.getResolverFallback(mode)))
-
-	store.Mode = mode.Mode()
+	store.ConnOptions().SetRouteMode(mode.Mode())
 
 	if s.config.Load().GetResolveLocally() && addr.IsFqdn() && mode.Mode() == config.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled

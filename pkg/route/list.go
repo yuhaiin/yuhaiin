@@ -111,7 +111,6 @@ type Lists struct {
 	geoipmu sync.RWMutex
 
 	downloader *Downloader
-	refreshing atomic.Bool
 
 	tickermu sync.RWMutex
 	ticker   *time.Timer
@@ -121,6 +120,8 @@ type Lists struct {
 
 	processTrieMu sync.RWMutex
 	processTrie   *processMatcher
+
+	refreshing atomic.Bool
 }
 
 func NewLists(db chore.DB) *Lists {
@@ -696,7 +697,6 @@ func trimRule(str string) string {
 
 func trimRuleIter(strs iter.Seq[string]) iter.Seq[string] {
 	return func(yield func(string) bool) {
-
 		for v := range strs {
 			if v = trimRule(v); v == "" {
 				continue

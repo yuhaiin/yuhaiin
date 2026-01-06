@@ -30,6 +30,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/badger"
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/prometheus/client_golang/prometheus"
@@ -131,6 +132,13 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		cache = ybbolt.NewCache(db)
 	}
 
+	badgerCache, err := badger.New(tools.PathGenerator.BadgerCache(so.ConfigPath))
+	if err != nil {
+		_ = closers.Close()
+		return nil, fmt.Errorf("init badger cache failed: %w", err)
+	}
+	closers.AddCloser("badger_cache", badgerCache)
+
 	for _, f := range operators {
 		f(closers)
 	}
@@ -155,11 +163,11 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	rules := route.NewRules(so.BypassConfig, router)
 	// connections' statistic & flow data
 
-	stcs := AddCloser(closers, "statistic", statistics.NewConnStore(cache, router))
+	stcs := AddCloser(closers, "statistic", statistics.NewConnStore(badgerCache, router))
 	metrics.SetFlowCounter(stcs.Cache)
 	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, router))
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := AddCloser(closers, "fakedns", resolver.NewFakeDNS(hosts, hosts, cache))
+	fakedns := AddCloser(closers, "fakedns", resolver.NewFakeDNS(hosts, hosts, badgerCache))
 	resolverCtr := resolver.NewResolverCtr(so.ResolverConfig, hosts, fakedns, dns)
 
 	// make dns flow across all proxy chain
