@@ -13,7 +13,7 @@ require (
 	github.com/cilium/ebpf v0.20.0
 	github.com/cloudflare/circl v1.6.2
 	github.com/dgraph-io/badger/v4 v4.9.0
-	github.com/godbus/dbus/v5 v5.2.1
+	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/nftables v0.3.0
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/miekg/dns v1.1.69
@@ -28,7 +28,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20251121194102-c6fd943bb437
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20251116175510-cd53f7d50237
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20251220111431-43b69fa5d152
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260107112833-80105fc264fd
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.46.0
 	golang.org/x/mobile v0.0.0-20251209145715-2553ed8ce294
