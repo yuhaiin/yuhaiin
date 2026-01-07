@@ -180,7 +180,7 @@ func (c *dnsConn) Write(packet []byte) (n int, err error) {
 		return 0, errors.New("no question")
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*20)
+ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
 	defer cancel()
 	msg, err := c.resolver.Raw(ctx, rmsg.Question[0])
 	if err != nil {
