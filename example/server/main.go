@@ -124,7 +124,7 @@ func (h *handler) HandleStream(req *netapi.StreamMeta) {
 
 	log.Info("connect", "ip", ips[0].String(), "port", req.Address.Port())
 
-	dconn, err := dialer.DialContext(context.TODO(), "tcp", net.JoinHostPort(ips[0].String(), strconv.Itoa(int(req.Address.Port()))))
+dconn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(ips[0].String(), strconv.Itoa(int(req.Address.Port()))))
 	if err != nil {
 		log.Error("dial failed", "err", err)
 		return
