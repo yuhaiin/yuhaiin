@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	MigateKey             = []byte("MIGRATE_VERSION")
+MigrateKey             = []byte("MIGRATE_VERSION")
 	_         cache.Cache = (*Cache)(nil)
 )
 
