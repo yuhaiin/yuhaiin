@@ -11,8 +11,8 @@ import (
 )
 
 var (
-MigrateKey             = []byte("MIGRATE_VERSION")
-	_         cache.Cache = (*Cache)(nil)
+	MigrateKey             = []byte("MIGRATE_VERSION")
+	_          cache.Cache = (*Cache)(nil)
 )
 
 type Cache struct {

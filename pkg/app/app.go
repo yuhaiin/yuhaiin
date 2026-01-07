@@ -260,7 +260,7 @@ func updateConfiguration(so *StartOptions, s *config.Setting, logController *log
 }
 
 func migrateDB(badgerCache *badger.Cache, path string) {
-	v, err := badgerCache.Get(badger.MigateKey)
+	v, err := badgerCache.Get(badger.MigrateKey)
 	if err != nil {
 		log.Warn("get badger migrate key failed", "err", err)
 		return
@@ -296,6 +296,6 @@ func migrateDB(badgerCache *badger.Cache, path string) {
 	migrate("fakedns_cache")
 
 	badgerCache.Put(func(yield func([]byte, []byte) bool) {
-		yield(badger.MigateKey, []byte{1})
+		yield(badger.MigrateKey, []byte{1})
 	})
 }

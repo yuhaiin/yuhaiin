@@ -131,10 +131,8 @@ func (a *ShareDB) Close() error {
 	return nil
 }
 
-var MigrateKey = []byte("MIGRATE_VERSION")
-
 func (s *ShareDB) migrateDB(c *badger.Cache) error {
-	v, err := c.Get(MigrateKey)
+	v, err := c.Get(badger.MigrateKey)
 	if err != nil {
 		return err
 	}
@@ -169,7 +167,7 @@ func (s *ShareDB) migrateDB(c *badger.Cache) error {
 	}
 
 	err = c.Put(func(yield func([]byte, []byte) bool) {
-		yield(MigrateKey, []byte{byte(ver)})
+		yield(badger.MigrateKey, []byte{byte(ver)})
 	})
 	if err != nil {
 		return err
