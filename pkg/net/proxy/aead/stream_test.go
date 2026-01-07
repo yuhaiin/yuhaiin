@@ -3,7 +3,6 @@ package aead
 import (
 	"fmt"
 	"io"
-	"net"
 	"slices"
 	"testing"
 
@@ -27,7 +26,6 @@ func TestAead(t *testing.T) {
 	assert.NoError(t, err)
 	defer s.Close()
 
-	ch := make(chan net.Conn, 10)
 	go func() {
 		for {
 			conn, err := s.Accept()
@@ -35,7 +33,13 @@ func TestAead(t *testing.T) {
 				break
 			}
 
-			ch <- conn
+			go func() {
+				defer conn.Close()
+
+				for i := range 10 {
+					fmt.Fprint(conn, i)
+				}
+			}()
 		}
 	}()
 
@@ -73,16 +77,6 @@ func TestAead(t *testing.T) {
 
 	conn, err := c.Conn(t.Context(), netapi.EmptyAddr)
 	assert.NoError(t, err)
-
-	srv := <-ch
-
-	go func() {
-		defer srv.Close()
-
-		for i := range 10 {
-			fmt.Fprint(srv, i)
-		}
-	}()
 
 	buf := make([]byte, 10)
 

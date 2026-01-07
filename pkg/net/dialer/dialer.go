@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -45,9 +44,6 @@ func ListenContextWithOptions(ctx context.Context, network string, address strin
 			return setSocketOptions(network, address, c, opts)
 		},
 	}
-	if configuration.MPTCP {
-		config.SetMultipathTCP(true)
-	}
 
 	return config.Listen(ctx, network, address)
 }
@@ -79,8 +75,8 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 		// Setting a negative value here prevents the Go stdlib from overriding
 		// the values of TCP keepalive time and interval. It also prevents the
 		// Go stdlib from enabling TCP keepalives by default.
-		KeepAlive:       -1,
-		KeepAliveConfig: KeepAliveConfig,
+		// KeepAlive: -1,
+		// KeepAliveConfig: KeepAliveConfig,
 		// This method is called after the underlying network socket is created,
 		// but before dialing the socket (or calling its connect() method). The
 		// combination of unconditionally enabling TCP keepalives here, and
@@ -91,10 +87,6 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, opts)
 		},
-	}
-
-	if configuration.MPTCP {
-		d.SetMultipathTCP(true)
 	}
 
 	store := netapi.GetContext(ctx)

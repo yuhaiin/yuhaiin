@@ -39,7 +39,9 @@ var (
 	RelayBufferSize          = atomicx.NewValue(4096)
 	DNSProcessThread         = atomicx.NewValue[int64](150)
 
-	MPTCP = true
+	// MPTCP has bug in linux or some server is not support which will
+	//  make tcp connection reset,  we don't specific to set it, just default
+	// MPTCP = true
 
 	UDPChannelBufferSize = 1000
 

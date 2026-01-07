@@ -10,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
@@ -49,7 +48,15 @@ func (w *listener) SyscallConn() (syscall.RawConn, error) {
 	}
 	return nil, syscall.EOPNOTSUPP
 }
-func (w *listener) Packet(ctx context.Context) (net.PacketConn, error) { return w.p.Packet(ctx) }
+
+func (w *listener) Packet(ctx context.Context) (net.PacketConn, error) {
+	if w.p == nil {
+		return nil, errors.New("packet listener is nil")
+	}
+
+	return w.p.Packet(ctx)
+}
+
 func (w *listener) Close() error {
 	var err error
 
@@ -105,6 +112,7 @@ func (h *ChannelHandler) HandleStream(s *StreamMeta) {
 	case h.stream <- s:
 	}
 }
+
 func (h *ChannelHandler) HandlePacket(p *Packet) {
 	select {
 	case <-h.ctx.Done():
@@ -273,7 +281,8 @@ func NewChannelStreamListener(addr net.Addr) *ChannelStreamListener {
 		addr:    addr,
 		ctx:     ctx,
 		cancel:  cancel,
-		channel: make(chan net.Conn, system.Procs)}
+		channel: make(chan net.Conn, system.Procs),
+	}
 }
 
 func (c *ChannelStreamListener) Accept() (net.Conn, error) {
@@ -331,82 +340,4 @@ func (l *errCountListener) Accept() (net.Conn, error) {
 
 		return conn, err
 	}
-}
-
-type HandshakeListener struct {
-	net.Listener
-	ch        chan net.Conn
-	semaphore semaphore.Semaphore
-	ctx       context.Context
-	cancel    context.CancelFunc
-	handshake func(context.Context, net.Conn) (net.Conn, error)
-
-	errLog func(msg string, args ...any)
-}
-
-func NewHandshakeListener(l net.Listener, handshake func(context.Context, net.Conn) (net.Conn, error), errLog func(msg string, args ...any)) *HandshakeListener {
-	ctx, cancel := context.WithCancel(context.Background())
-	h := &HandshakeListener{
-		Listener:  l,
-		ch:        make(chan net.Conn, system.Procs),
-		semaphore: semaphore.NewSemaphore(100),
-		ctx:       ctx,
-		cancel:    cancel,
-		handshake: handshake,
-		errLog:    errLog,
-	}
-
-	go h.run()
-
-	return h
-}
-
-func (s *HandshakeListener) run() {
-	defer s.cancel()
-
-	sl := NewErrCountListener(s.Listener, 10)
-	for {
-		conn, err := sl.Accept()
-		if err != nil {
-			s.errLog("handshake listener accept failed", "err", err)
-			return
-		}
-
-		if err = s.semaphore.Acquire(s.ctx, 1); err != nil {
-			_ = conn.Close()
-			s.errLog("semaphore acquire 1 failed", "err", err)
-			continue
-		}
-
-		go func() {
-			defer s.semaphore.Release(1)
-
-			dc, err := s.handshake(s.ctx, conn)
-			if err != nil {
-				_ = conn.Close()
-				s.errLog("handshake failed", "err", err)
-				return
-			}
-
-			select {
-			case s.ch <- dc:
-			case <-s.ctx.Done():
-				_ = dc.Close()
-			}
-		}()
-	}
-}
-
-func (s *HandshakeListener) Accept() (net.Conn, error) {
-	select {
-	case conn := <-s.ch:
-		return conn, nil
-	case <-s.ctx.Done():
-		return nil, net.ErrClosed
-	}
-}
-
-func (s *HandshakeListener) Close() error {
-	s.cancel()
-	return s.Listener.Close()
 }

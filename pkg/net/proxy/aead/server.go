@@ -3,8 +3,9 @@ package aead
 import (
 	"context"
 	"net"
+	"sync"
+	"sync/atomic"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
@@ -15,29 +16,29 @@ func init() {
 }
 
 type Server struct {
-	netapi.PacketListener
+	netapi.Listener
 	crypto *encryptedHandshaker
-	*netapi.HandshakeListener
 }
 
 func NewServer(cfg *config.Aead, ii netapi.Listener) (netapi.Listener, error) {
 	crypto := NewHandshaker(true, []byte(cfg.GetPassword()), cfg.GetCryptoMethod())
-	s := &Server{
-		PacketListener: ii,
-		crypto:         crypto,
+
+	return &Server{
+		crypto:   crypto,
+		Listener: ii,
+	}, nil
+}
+
+func (s *Server) Accept() (net.Conn, error) {
+	conn, err := s.Listener.Accept()
+	if err != nil {
+		return nil, err
 	}
-
-	s.HandshakeListener = netapi.NewHandshakeListener(ii,
-		func(ctx context.Context, c net.Conn) (net.Conn, error) {
-			return crypto.Handshake(c)
-		},
-		log.Error)
-
-	return s, nil
+	return s.Handshake(conn), nil
 }
 
 func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
-	lis, err := s.PacketListener.Packet(ctx)
+	lis, err := s.Listener.Packet(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -50,6 +51,54 @@ func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
 	return NewAuthPacketConn(lis, aead), nil
 }
 
-func (s *Server) Close() error {
-	return s.HandshakeListener.Close()
+func (s *Server) Handshake(c net.Conn) net.Conn {
+	return &serverConn{
+		Conn:              c,
+		crypto:            s.crypto,
+		handshakeComplete: atomic.Bool{},
+	}
+}
+
+type serverConn struct {
+	net.Conn
+
+	crypto            *encryptedHandshaker
+	handshakeComplete atomic.Bool
+	mu                sync.Mutex
+}
+
+func (s *serverConn) handshake() error {
+	if s.handshakeComplete.Load() {
+		return nil
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.handshakeComplete.Load() {
+		return nil
+	}
+
+	s.handshakeComplete.Store(true)
+
+	conn, err := s.crypto.Handshake(s.Conn)
+	if err != nil {
+		return err
+	}
+	s.Conn = conn
+	return nil
+}
+
+func (s *serverConn) Read(b []byte) (int, error) {
+	if err := s.handshake(); err != nil {
+		return 0, err
+	}
+	return s.Conn.Read(b)
+}
+
+func (s *serverConn) Write(b []byte) (int, error) {
+	if err := s.handshake(); err != nil {
+		return 0, err
+	}
+	return s.Conn.Write(b)
 }

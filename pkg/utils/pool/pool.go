@@ -10,8 +10,10 @@ import (
 	"sync"
 )
 
-const MaxSegmentSize = math.MaxUint16
-const DefaultSize = 16 * 0x400
+const (
+	MaxSegmentSize = math.MaxUint16
+	DefaultSize    = 16 * 0x400
+)
 
 // MaxLength is the maximum length of an element that can be added to the Pool.
 const MaxLength = math.MaxInt32

@@ -137,13 +137,12 @@ func (e ErrorResolver) Name() string { return "ErrorResolver" }
 // dnsConn is a net.PacketConn suitable for returning from
 // net.Dialer.Dial to send DNS queries over Bootstrap.
 type dnsConn struct {
-	ctx      context.Context
 	resolver Resolver
 	rbuf     bytes.Buffer
 }
 
-func NewDnsConn(ctx context.Context, resolver Resolver) *dnsConn {
-	return &dnsConn{ctx: ctx, resolver: resolver}
+func NewDnsConn(resolver Resolver) *dnsConn {
+	return &dnsConn{resolver: resolver}
 }
 
 var (
@@ -173,7 +172,6 @@ func (c *dnsConn) Read(p []byte) (n int, err error) {
 
 func (c *dnsConn) Write(packet []byte) (n int, err error) {
 	var rmsg dns.Msg
-
 	if err = rmsg.Unpack(packet); err != nil {
 		return 0, err
 	}
@@ -182,12 +180,14 @@ func (c *dnsConn) Write(packet []byte) (n int, err error) {
 		return 0, errors.New("no question")
 	}
 
-	ctx, cancel := context.WithTimeout(c.ctx, time.Second*20)
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*20)
 	defer cancel()
 	msg, err := c.resolver.Raw(ctx, rmsg.Question[0])
 	if err != nil {
 		return 0, err
 	}
+
+	msg.Id = rmsg.Id
 
 	data, err := msg.Pack()
 	if err != nil {
@@ -245,7 +245,7 @@ var bootstrap = &bootstrapResolver{}
 func init() {
 	net.DefaultResolver = &net.Resolver{
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			return NewDnsConn(context.TODO(), Bootstrap()), nil
+			return NewDnsConn(Bootstrap()), nil
 		},
 	}
 }

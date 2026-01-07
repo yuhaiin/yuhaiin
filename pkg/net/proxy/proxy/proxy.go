@@ -5,15 +5,14 @@ import (
 	"context"
 	"math/rand/v2"
 	"net"
+	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/configuration"
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	proxyproto "github.com/pires/go-proxyproto"
 )
 
@@ -63,30 +62,81 @@ func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 }
 
 type Server struct {
-	netapi.PacketListener
-	*netapi.HandshakeListener
-}
-
-func (s *Server) Close() error {
-	return s.HandshakeListener.Close()
+	netapi.Listener
 }
 
 func NewServer(_ *config.Proxy, ii netapi.Listener) (netapi.Listener, error) {
-	return &Server{
-		PacketListener: ii,
-		HandshakeListener: netapi.NewHandshakeListener(ii, func(_ context.Context, conn net.Conn) (net.Conn, error) {
-			bufconn := pool.NewBufioConnSize(conn, configuration.SnifferBufferSize)
+	return &Server{Listener: ii}, nil
+}
 
-			err := bufconn.BufioRead(func(r *bufio.Reader) error {
-				_, err := proxyproto.ReadTimeout(r, time.Second*15)
-				return err
-			})
-			if err != nil {
-				_ = bufconn.Close()
-				return nil, err
-			}
+func (s *Server) Accept() (net.Conn, error) {
+	conn, err := s.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
 
-			return bufconn, nil
-		}, log.Error),
-	}, nil
+	return newConn(conn), nil
+}
+
+type conn struct {
+	net.Conn
+	br *bufio.Reader
+
+	handshake atomic.Bool
+	mu        sync.Mutex
+}
+
+func newConn(c net.Conn) net.Conn {
+	return &conn{Conn: c}
+}
+
+func (c *conn) Handshake() error {
+	if c.handshake.Load() {
+		return nil
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.handshake.Load() {
+		return nil
+	}
+
+	c.handshake.Store(true)
+
+	br := bufio.NewReader(c.Conn)
+
+	_, err := proxyproto.ReadTimeout(br, time.Second*15)
+	if err != nil {
+		return err
+	}
+	c.br = br
+	return nil
+}
+
+func (c *conn) Read(b []byte) (int, error) {
+	if !c.handshake.Load() {
+		if err := c.Handshake(); err != nil {
+			return 0, err
+		}
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.br != nil {
+		return c.br.Read(b)
+	}
+
+	return c.Conn.Read(b)
+}
+
+func (c *conn) Write(b []byte) (int, error) {
+	if !c.handshake.Load() {
+		if err := c.Handshake(); err != nil {
+			return 0, err
+		}
+	}
+
+	return c.Conn.Write(b)
 }
