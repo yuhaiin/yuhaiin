@@ -28,7 +28,8 @@ func New(path string) (*Cache, error) {
 		WithNumLevelZeroTables(2).
 		WithNumLevelZeroTablesStall(4).
 		WithMaxLevels(4).
-		WithMemTableSize(8 << 20)
+		WithMemTableSize(8 << 20).
+		WithSyncWrites(false)
 	if path == "" {
 		opts = opts.WithInMemory(true)
 	}

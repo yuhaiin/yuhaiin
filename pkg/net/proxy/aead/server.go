@@ -79,7 +79,7 @@ func (s *serverConn) handshake() error {
 		return nil
 	}
 
-	s.handshakeComplete.Store(true)
+	defer s.handshakeComplete.Store(true)
 
 	conn, err := s.crypto.Handshake(s.Conn)
 	if err != nil {
