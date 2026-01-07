@@ -6,9 +6,10 @@ import (
 )
 
 type Trie[T comparable] struct {
-	marks []T
 	left  *Trie[T] // bit=0
 	right *Trie[T] // bit=1
+
+	marks []T
 }
 
 func NewTrie[T comparable]() *Trie[T] {

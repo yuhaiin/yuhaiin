@@ -289,7 +289,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		TlsServerName: stringOrNil(nc.GetTLSServerName()),
 		HttpHost:      stringOrNil(nc.GetHTTPHost()),
 		Component:     stringOrNil(nc.GetComponent()),
-		Mode:          nc.Mode.Enum(),
+		Mode:          nc.ConnOptions().RouteMode().Enum(),
 		MatchHistory:  nc.MatchHistory(),
 		UdpMigrateId:  uint64OrNil(nc.GetUDPMigrateID()),
 		Pid:           uint64OrNil(uint64(nc.GetProcessPid())),
@@ -416,6 +416,7 @@ func (c *Counter) AddDownload(n uint64) {
 	c.cache.AddDownload(n)
 	c.download.Add(n)
 }
+
 func (c *Counter) AddUpload(n uint64) {
 	c.cache.AddUpload(n)
 	c.upload.Add(n)

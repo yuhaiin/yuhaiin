@@ -35,11 +35,12 @@ type Fakedns struct {
 
 	whitelistSlice []string
 	skipCheckSlice []string
-	enabled        atomic.Bool
 
-	smu        sync.RWMutex
 	dnsServer  netapi.DNSAgent
 	serverHost string
+
+	smu     sync.RWMutex
+	enabled atomic.Bool
 }
 
 func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db cache.Cache) *Fakedns {

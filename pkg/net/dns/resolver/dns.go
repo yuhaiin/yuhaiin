@@ -274,7 +274,7 @@ func (c *client) query(ctx context.Context, req dns.Question) (dns.Msg, error) {
 
 		msg, err = dialer.Do(ctx, request)
 		if err != nil {
-			return dns.Msg{}, err
+			return dns.Msg{}, fmt.Errorf("dns client do failed: %w", err)
 		}
 
 		if msg.Id != reqMsg.Id {
@@ -438,7 +438,7 @@ func (c *client) raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 		rawmsg, err, _ = c.rawSingleflight.Do(ctx, cacheKey, func(ctx context.Context) (dns.Msg, error) {
 			msg, err := c.queryWithMetrics(ctx, req)
 			if err != nil {
-				return dns.Msg{}, err
+				return dns.Msg{}, fmt.Errorf("query with metrics failed: %w", err)
 			}
 			return msg, nil
 		})

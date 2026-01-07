@@ -9,7 +9,6 @@ import (
 	"net"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -173,24 +172,7 @@ func NewServer(c *config.Tls, ii netapi.Listener) (netapi.Listener, error) {
 		return nil, err
 	}
 
-	return netapi.NewListener(newServer(ii, config), ii), nil
-}
-
-func newServer(listener net.Listener, config *tls.Config) *netapi.HandshakeListener {
-	return netapi.NewHandshakeListener(
-		listener,
-		func(ctx context.Context, conn net.Conn) (net.Conn, error) {
-			tlsConn := tls.Server(conn, config)
-
-			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-			defer cancel()
-			if err := tlsConn.HandshakeContext(ctx); err != nil {
-				_ = tlsConn.Close()
-				return nil, err
-			}
-
-			return tlsConn, nil
-		}, log.Error)
+	return netapi.NewListener(tls.NewListener(ii, config), ii), nil
 }
 
 type ServerCert struct {
@@ -282,7 +264,7 @@ func NewTlsAutoServer(c *config.TlsAuto, ii netapi.Listener) (netapi.Listener, e
 		}
 	}
 
-	return netapi.NewListener(newServer(ii, config), ii), nil
+	return netapi.NewListener(tls.NewListener(ii, config), ii), nil
 }
 
 func ParseTLSConfig(t *node.TlsConfig) *tls.Config {

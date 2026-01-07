@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -44,9 +43,6 @@ func ListenContextWithOptions(ctx context.Context, network string, address strin
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, opts)
 		},
-	}
-	if configuration.MPTCP {
-		config.SetMultipathTCP(true)
 	}
 
 	return config.Listen(ctx, network, address)
@@ -91,10 +87,6 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, opts)
 		},
-	}
-
-	if configuration.MPTCP {
-		d.SetMultipathTCP(true)
 	}
 
 	store := netapi.GetContext(ctx)

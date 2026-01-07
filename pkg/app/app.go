@@ -30,6 +30,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/badger"
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/prometheus/client_golang/prometheus"
@@ -120,16 +121,14 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	AddCloser(closers, "logger_controller", logController)
 
-	cache := so.Cache
-	if cache == nil {
-		db, err := OpenBboltDB(tools.PathGenerator.Cache(so.ConfigPath))
-		if err != nil {
-			_ = closers.Close()
-			return nil, fmt.Errorf("init bbolt cache failed: %w", err)
-		}
-		closers.AddCloser("bbolt_db", db)
-		cache = ybbolt.NewCache(db)
+	badgerCache, err := badger.New(tools.PathGenerator.BadgerCache(so.ConfigPath))
+	if err != nil {
+		_ = closers.Close()
+		return nil, fmt.Errorf("init badger cache failed: %w", err)
 	}
+	AddCloser(closers, "badger_cache", badgerCache)
+
+	migrateDB(badgerCache, so.ConfigPath)
 
 	for _, f := range operators {
 		f(closers)
@@ -155,11 +154,11 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	rules := route.NewRules(so.BypassConfig, router)
 	// connections' statistic & flow data
 
-	stcs := AddCloser(closers, "statistic", statistics.NewConnStore(cache, router))
+	stcs := AddCloser(closers, "statistic", statistics.NewConnStore(badgerCache, router))
 	metrics.SetFlowCounter(stcs.Cache)
 	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, router))
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := AddCloser(closers, "fakedns", resolver.NewFakeDNS(hosts, hosts, cache))
+	fakedns := AddCloser(closers, "fakedns", resolver.NewFakeDNS(hosts, hosts, badgerCache))
 	resolverCtr := resolver.NewResolverCtr(so.ResolverConfig, hosts, fakedns, dns)
 
 	// make dns flow across all proxy chain
@@ -258,4 +257,45 @@ func updateConfiguration(so *StartOptions, s *config.Setting, logController *log
 				dialer.WithHappyEyeballsSemaphore[net.Conn](semaphore.NewSemaphore(int64(happyeyeballsSemaphore)))))
 		}
 	}
+}
+
+func migrateDB(badgerCache *badger.Cache, path string) {
+	v, err := badgerCache.Get(badger.MigrateKey)
+	if err != nil {
+		log.Warn("get badger migrate key failed", "err", err)
+		return
+	}
+
+	if len(v) != 0 && v[0] == 1 {
+		log.Info("check already migrated db, skip")
+		return
+	}
+
+	db, err := OpenBboltDB(tools.PathGenerator.Cache(path))
+	if err != nil {
+		log.Warn("open old bbolt db failed, skip migrate db")
+		return
+	}
+	defer db.Close()
+
+	cache := ybbolt.NewCache(db)
+
+	migrate := func(bucketName string) {
+		err = badgerCache.NewCache(bucketName).Put(func(yield func([]byte, []byte) bool) {
+			cache.NewCache(bucketName).Range(func(key, value []byte) bool {
+				return yield(key, value)
+			})
+		})
+		if err != nil {
+			log.Warn("migrate bucket failed", "bucket", bucketName, "err", err)
+		}
+	}
+
+	migrate("flow_data")
+	migrate("fakedns_cachev6")
+	migrate("fakedns_cache")
+
+	badgerCache.Put(func(yield func([]byte, []byte) bool) {
+		yield(badger.MigrateKey, []byte{1})
+	})
 }

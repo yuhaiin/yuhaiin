@@ -23,9 +23,9 @@ type Set struct {
 	outbound  *Outbound
 	Nodes     []string
 	randomKey id.UUID
-	strategy  node.SetStrategyType
 
-	lastID atomic.Int32
+	lastID   atomic.Int32
+	strategy node.SetStrategyType
 }
 
 func NewSet(nodes *node.Set, m *Manager) (netapi.Proxy, error) {

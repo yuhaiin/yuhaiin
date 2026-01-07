@@ -15,8 +15,9 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func dbPath() string     { return filepath.Join(savepath, "yuhaiin.db") }
-func socketPath() string { return filepath.Join(datadir, "kv.sock") }
+func dbPath() string       { return filepath.Join(savepath, "yuhaiin.db") }
+func badgerDBPath() string { return filepath.Join(savepath, "yuhaiin.badger.db") }
+func socketPath() string   { return filepath.Join(datadir, "kv.sock") }
 
 var (
 	shareDB     *share.ShareDB
@@ -44,7 +45,7 @@ type storeImpl struct {
 
 func newStore(batch string) Store {
 	shareDBOnce.Do(func() {
-		shareDB = share.NewShareCache(dbPath(), socketPath())
+		shareDB = share.NewShareCache(dbPath(), badgerDBPath(), socketPath())
 	})
 
 	return &storeImpl{db: share.NewCache(shareDB, batch)}

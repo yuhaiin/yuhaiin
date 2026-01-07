@@ -7,6 +7,15 @@ import (
 )
 
 func TestDomainTrie(t *testing.T) {
+	t.Run("test not match", func(t *testing.T) {
+		trieRoot := &trie[string]{Value: make([]string, 0)}
+		insert(trieRoot, newFqdnReader("redirector.c.play.google.com"), "GroupA")
+		got := search(trieRoot, newFqdnReader("play.google.com"))
+		if len(got) != 0 {
+			t.Errorf("Expected no match, got %v", got)
+		}
+	})
+
 	t.Run("InsertAndSearch", func(t *testing.T) {
 		trieRoot := &trie[string]{Value: make([]string, 0)}
 

@@ -28,6 +28,8 @@ message test_response {
   string after_addr = 3 [ json_name = "after_addr" ];
   repeated yuhaiin.statistic.match_history_entry match_result = 4
       [ json_name = "match_result" ];
+  repeated string lists = 5 [ json_name = "lists" ];
+  repeated string ips = 6 [ json_name = "ips" ];
 }
 
 message block_history {

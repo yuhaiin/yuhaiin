@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -68,7 +67,7 @@ func DialHttp2(ctx context.Context, dial func(ctx context.Context) (net.Conn, er
 		return nil, rsp, fmt.Errorf("connect-ip: server responded with %d, body: %s", rsp.StatusCode, data)
 	}
 
-	slog.Info("resp", "r", rsp)
+	log.Info("resp", "r", rsp)
 
 	return newProxiedConn(&http2Stream{rsp.Body, w}), rsp, nil
 }

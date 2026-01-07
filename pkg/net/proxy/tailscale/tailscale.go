@@ -107,7 +107,6 @@ func (p *nettypePacketConn) ReadFromUDPAddrPort(b []byte) (int, netip.AddrPort, 
 	}
 
 	return n, ad.(netapi.IPAddress).AddrPort(), nil
-
 }
 
 type hijackResolver struct{}
@@ -132,9 +131,7 @@ type instance struct {
 	controlUrl string
 }
 
-var (
-	instanceStore = lru.NewSyncLru(lru.WithCapacity[instance, *Tailscale](100))
-)
+var instanceStore = lru.NewSyncLru(lru.WithCapacity[instance, *Tailscale](100))
 
 func init() {
 	register.RegisterPoint(New)
@@ -143,7 +140,7 @@ func init() {
 	dnscache.Get().Forward = &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			return netapi.NewDnsConn(ctx, hijackResolver{}), nil
+			return netapi.NewDnsConn(hijackResolver{}), nil
 		},
 	}
 	// disable portmapper for tailscale, this is a global setting
