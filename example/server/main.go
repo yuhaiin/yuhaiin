@@ -96,7 +96,7 @@ TGV6S/Av/lWZyEMrO6yxhoM=
 	must(err)
 	defer s.Close()
 
-	ctx, cancel := signal.NotifyContext(context.TODO(), unix.SIGINT)
+ctx, cancel := signal.NotifyContext(context.Background(), unix.SIGINT)
 	defer cancel()
 
 	<-ctx.Done()
