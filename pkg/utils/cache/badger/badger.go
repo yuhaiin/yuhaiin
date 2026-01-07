@@ -62,32 +62,25 @@ func (c *Cache) Get(k []byte) (v []byte, err error) {
 }
 
 func (c *Cache) Put(es iter.Seq2[[]byte, []byte]) error {
-	wb := c.db.NewWriteBatch()
-	defer wb.Cancel()
-
-	for k, v := range es {
-		if v == nil {
-			continue
+	return c.db.Update(func(txn *badger.Txn) error {
+		for k, v := range es {
+			if err := txn.Set(c.makeKey(k), v); err != nil {
+				return err
+			}
 		}
-		if err := wb.Set(c.makeKey(k), v); err != nil {
-			return err
-		}
-	}
-
-	return wb.Flush()
+		return nil
+	})
 }
 
 func (c *Cache) Delete(es iter.Seq[[]byte]) error {
-	wb := c.db.NewWriteBatch()
-	defer wb.Cancel()
-
-	for k := range es {
-		if err := wb.Delete(c.makeKey(k)); err != nil {
-			return err
+	return c.db.Update(func(txn *badger.Txn) error {
+		for k := range es {
+			if err := txn.Delete(c.makeKey(k)); err != nil {
+				return err
+			}
 		}
-	}
-
-	return wb.Flush()
+		return nil
+	})
 }
 
 var errBreak = errors.New("break")
@@ -156,5 +149,8 @@ func (c *Cache) DeleteBucket(str ...string) error {
 }
 
 func (c *Cache) makeKey(k []byte) []byte {
-	return append(c.prefix, k...)
+	key := make([]byte, 0, len(c.prefix)+len(k))
+	key = append(key, c.prefix...)
+	key = append(key, k...)
+	return key
 }

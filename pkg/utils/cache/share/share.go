@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"iter"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/badger"
 	cb "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"go.etcd.io/bbolt"
@@ -45,16 +45,18 @@ func (e *Entry) GetBucketCache(bucket ...string) cache.Cache {
 
 // ShareDB open local bbotdb or connect to unix socket grpc
 type ShareDB struct {
-	store  *Entry
-	dbPath string
-	socket string
-	mu     sync.Mutex
+	store        *Entry
+	oldDBPath    string
+	badgerDBPath string
+	socket       string
+	mu           sync.Mutex
 }
 
-func NewShareCache(dbPath string, socket string) *ShareDB {
+func NewShareCache(oldDBPath, badgerDBPath string, socket string) *ShareDB {
 	s := &ShareDB{
-		dbPath: dbPath,
-		socket: socket,
+		oldDBPath:    oldDBPath,
+		badgerDBPath: badgerDBPath,
+		socket:       socket,
 	}
 
 	_, _, err := s.init()
@@ -129,39 +131,82 @@ func (a *ShareDB) Close() error {
 	return nil
 }
 
-func (s *ShareDB) openLocal() (*Entry, error) {
-	if err := os.MkdirAll(filepath.Dir(s.dbPath), os.ModePerm); err != nil {
-		return nil, err
+var MigrateKey = []byte("MIGRATE_VERSION")
+
+func (s *ShareDB) migrateDB(c *badger.Cache) error {
+	v, err := c.Get(MigrateKey)
+	if err != nil {
+		return err
 	}
 
-	odb, err := bbolt.Open(s.dbPath, os.ModePerm, &bbolt.Options{
-		Timeout: time.Second * 2,
-		Logger:  cb.BBoltDBLogger{},
+	ver := 1
+
+	if len(v) != 0 && v[0] == byte(ver) {
+		return nil
+	}
+
+	_, err = os.Stat(s.oldDBPath)
+	if err == nil {
+		odb, err := bbolt.Open(s.oldDBPath, os.ModePerm, &bbolt.Options{
+			Timeout: time.Second * 2,
+			Logger:  cb.BBoltDBLogger{},
+		})
+		if err == nil {
+			// new user the old will not exist, so just skip here
+			defer odb.Close()
+
+			err = c.NewCache("yuhaiin", "Default").Put(func(yield func([]byte, []byte) bool) {
+				cb.NewCache(odb, "yuhaiin", "Default").Range(func(key, value []byte) bool {
+					log.Info("migrate key", "key", string(key))
+					return yield(append([]byte{}, key...), append([]byte{}, value...))
+				})
+			})
+			if err != nil {
+				_ = odb.Close()
+				return err
+			}
+		}
+	}
+
+	err = c.Put(func(yield func([]byte, []byte) bool) {
+		yield(MigrateKey, []byte{byte(ver)})
 	})
+	if err != nil {
+		return err
+	}
+
+	log.Info("migrate old db success")
+	return nil
+}
+
+func (s *ShareDB) openLocal() (*Entry, error) {
+	c, err := badger.New(s.badgerDBPath)
 	if err != nil {
 		return nil, err
 	}
 
-	// set big batch delay to reduce sync for fake dns and connection cache
-	odb.MaxBatchDelay = time.Millisecond * 300
+	if err := s.migrateDB(c); err != nil {
+		_ = c.Close()
+		return nil, err
+	}
 
-	cb := cb.NewCache(odb, "yuhaiin")
+	cb := c.NewCache("yuhaiin")
 
 	_ = os.Remove(s.socket)
 
 	ss, err := NewServer(s.socket, cb)
 	if err != nil {
-		_ = odb.Close()
+		_ = c.Close()
 		return nil, err
 	}
 
 	return &Entry{
 		closer: func() error {
 			_ = ss.Close()
-			return odb.Close()
+			return c.Close()
 		},
 		cache: cb,
-		path:  s.dbPath,
+		path:  s.badgerDBPath,
 	}, nil
 }
 

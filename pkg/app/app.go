@@ -262,18 +262,18 @@ func updateConfiguration(so *StartOptions, s *config.Setting, logController *log
 func migrateDB(badgerCache *badger.Cache, path string) {
 	v, err := badgerCache.Get(badger.MigateKey)
 	if err != nil {
-		slog.Warn("get badger migrate key failed", "err", err)
+		log.Warn("get badger migrate key failed", "err", err)
 		return
 	}
 
 	if len(v) != 0 && v[0] == 1 {
-		slog.Info("check already migrated db, skip")
+		log.Info("check already migrated db, skip")
 		return
 	}
 
 	db, err := OpenBboltDB(tools.PathGenerator.Cache(path))
 	if err != nil {
-		slog.Warn("open old bbolt db failed, skip migrate db")
+		log.Warn("open old bbolt db failed, skip migrate db")
 		return
 	}
 	defer db.Close()
@@ -287,7 +287,7 @@ func migrateDB(badgerCache *badger.Cache, path string) {
 			})
 		})
 		if err != nil {
-			slog.Warn("migrate bucket failed", "bucket", bucketName, "err", err)
+			log.Warn("migrate bucket failed", "bucket", bucketName, "err", err)
 		}
 	}
 

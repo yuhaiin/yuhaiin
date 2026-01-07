@@ -11,10 +11,11 @@ import (
 func TestCache(t *testing.T) {
 	defer func() {
 		_ = os.Remove("tmp.db")
+		_ = os.RemoveAll("tmp.2.db")
 		_ = os.Remove("tmp.socket")
 	}()
 
-	c1 := NewShareCache("tmp.db", "tmp.socket")
+	c1 := NewShareCache("tmp.db", "tmp.2.db", "tmp.socket")
 	defer c1.Close()
 
 	c1c := NewCache(c1, "a")
@@ -22,7 +23,7 @@ func TestCache(t *testing.T) {
 	err := c1c.Put(cache.Element([]byte("aa"), []byte("dd")))
 	assert.NoError(t, err)
 
-	c := NewShareCache("tmp.db", "tmp.socket")
+	c := NewShareCache("tmp.db", "tmp.2.db", "tmp.socket")
 	defer c.Close()
 
 	cc := NewCache(c, "a")
