@@ -9,7 +9,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 var (

@@ -1,6 +1,6 @@
 package protocol
 
-import "github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+import "github.com/Asutorufa/yuhaiin/pkg/pool"
 
 type origin struct{}
 

@@ -8,10 +8,10 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/cache/share"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/share"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -52,30 +52,30 @@ func newStore(batch string) Store {
 }
 
 func (s *storeImpl) PutString(key string, value string) {
-	_ = s.db.Put(cache.Element([]byte(key), []byte(value)))
+	_ = s.db.Put([]byte(key), []byte(value))
 }
 
 func (s *storeImpl) PutInt(key string, value int32) {
 	bytes := binary.NativeEndian.AppendUint32(nil, uint32(value))
-	_ = s.db.Put(cache.Element([]byte(key), bytes))
+	_ = s.db.Put([]byte(key), bytes)
 }
 
 func (s *storeImpl) PutBoolean(key string, value bool) {
-	_ = s.db.Put(cache.Element([]byte(key), ifOr(value, []byte{1}, []byte{0})))
+	_ = s.db.Put([]byte(key), ifOr(value, []byte{1}, []byte{0}))
 }
 
 func (s *storeImpl) PutLong(key string, value int64) {
 	bytes := binary.NativeEndian.AppendUint64(nil, uint64(value))
-	_ = s.db.Put(cache.Element([]byte(key), bytes))
+	_ = s.db.Put([]byte(key), bytes)
 }
 
 func (s *storeImpl) PutFloat(key string, value float32) {
 	bytes := binary.NativeEndian.AppendUint32(nil, math.Float32bits(value))
-	_ = s.db.Put(cache.Element([]byte(key), bytes))
+	_ = s.db.Put([]byte(key), bytes)
 }
 
 func (s *storeImpl) PutBytes(key string, value []byte) {
-	_ = s.db.Put(cache.Element([]byte(key), value))
+	_ = s.db.Put([]byte(key), value)
 }
 
 func (s *storeImpl) GetString(key string) string {

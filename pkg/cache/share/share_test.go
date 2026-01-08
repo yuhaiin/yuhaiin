@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 )
 
 func TestCache(t *testing.T) {
@@ -20,7 +19,7 @@ func TestCache(t *testing.T) {
 
 	c1c := NewCache(c1, "a")
 
-	err := c1c.Put(cache.Element([]byte("aa"), []byte("dd")))
+	err := c1c.Put([]byte("aa"), []byte("dd"))
 	assert.NoError(t, err)
 
 	c := NewShareCache("tmp.db", "tmp.2.db", "tmp.socket")
@@ -28,7 +27,7 @@ func TestCache(t *testing.T) {
 
 	cc := NewCache(c, "a")
 
-	err = cc.Put(cache.Element([]byte("cc"), []byte("bb")))
+	err = cc.Put([]byte("cc"), []byte("bb"))
 	assert.NoError(t, err)
 
 	for _, k := range []string{"aa", "cc"} {

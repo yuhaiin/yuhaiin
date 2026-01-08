@@ -5,8 +5,6 @@ import (
 	"maps"
 	"strconv"
 	"testing"
-
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 )
 
 func setupTestDB(t testing.TB) *Cache {
@@ -17,7 +15,7 @@ func setupTestDB(t testing.TB) *Cache {
 		t.Fatalf("Failed to create test database: %v", err)
 	}
 	t.Cleanup(func() {
-		c.Close()
+		c.Badger().Close()
 	})
 	return c
 }
@@ -32,7 +30,7 @@ func TestBadger(t *testing.T) {
 		}
 
 		for k, v := range testCases {
-			err := c.Put(cache.Element([]byte(k), v))
+			err := c.Put([]byte(k), v)
 			if err != nil {
 				t.Fatalf("Put failed: %v", err)
 			}
@@ -55,7 +53,7 @@ func TestBadger(t *testing.T) {
 			"key3": []byte("value3"),
 		}
 		for k, v := range testCases {
-			err := c.Put(cache.Element([]byte(k), v))
+			err := c.Put([]byte(k), v)
 			if err != nil {
 				t.Fatalf("Put failed: %v", err)
 			}
@@ -79,13 +77,11 @@ func TestBadger(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		c := setupTestDB(t)
-		err := c.Put(cache.Element([]byte("key1"), []byte("value1")))
+		err := c.Put([]byte("key1"), []byte("value1"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = c.Delete(func(yield func([]byte) bool) {
-			_ = yield([]byte("key1"))
-		})
+		err = c.Delete([]byte("key1"))
 		if err != nil {
 			t.Fatalf("Delete failed: %v", err)
 		}
@@ -103,7 +99,7 @@ func TestBadger(t *testing.T) {
 		c := setupTestDB(t)
 		bucket1 := c.NewCache("bucket1")
 
-		err := bucket1.Put(cache.Element([]byte("key1"), []byte("value1")))
+		err := bucket1.Put([]byte("key1"), []byte("value1"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -155,12 +151,12 @@ func TestBadger(t *testing.T) {
 		c := setupTestDB(t)
 		expect := map[string]string{}
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			key := "key" + strconv.Itoa(i)
 			value := "value" + strconv.Itoa(i)
 			expect[key] = value
 
-			err := c.Put(cache.Element([]byte(key), []byte(value)))
+			err := c.Put([]byte(key), []byte(value))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -192,7 +188,7 @@ func TestBadger(t *testing.T) {
 		b2 := b1.NewCache("b2")
 		b3 := b2.NewCache("b3")
 
-		err := b3.Put(cache.Element([]byte("key"), []byte("value")))
+		err := b3.Put([]byte("key"), []byte("value"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -251,7 +247,7 @@ func TestBadger(t *testing.T) {
 		b2 := b1.NewCache("b2")
 		b3 := b2.NewCache("b3")
 
-		err := b3.Put(cache.Element([]byte("key"), []byte("value")))
+		err := b3.Put([]byte("key"), []byte("value"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -279,7 +275,7 @@ func BenchmarkBadger(b *testing.B) {
 		for i := 0; b.Loop(); i++ {
 			key := []byte("key" + strconv.Itoa(i))
 			value := []byte("value" + strconv.Itoa(i))
-			err := c.Put(cache.Element(key, value))
+			err := c.Put(key, value)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -291,7 +287,7 @@ func BenchmarkBadger(b *testing.B) {
 		for i := 0; i < 10000; i++ {
 			key := []byte("key" + strconv.Itoa(i))
 			value := []byte("value" + strconv.Itoa(i))
-			err := c.Put(cache.Element(key, value))
+			err := c.Put(key, value)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -312,7 +308,7 @@ func BenchmarkBadger(b *testing.B) {
 		for i := 0; i < 10000; i++ {
 			key := []byte("key" + strconv.Itoa(i))
 			value := []byte("value" + strconv.Itoa(i))
-			err := c.Put(cache.Element(key, value))
+			err := c.Put(key, value)
 			if err != nil {
 				b.Fatal(err)
 			}

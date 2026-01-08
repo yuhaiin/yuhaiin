@@ -6,6 +6,7 @@ import (
 	"net"
 	"os/signal"
 	"strconv"
+	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -14,9 +15,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
+	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
-	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -96,7 +96,7 @@ TGV6S/Av/lWZyEMrO6yxhoM=
 	must(err)
 	defer s.Close()
 
-ctx, cancel := signal.NotifyContext(context.Background(), unix.SIGINT)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGHUP)
 	defer cancel()
 
 	<-ctx.Done()
@@ -124,7 +124,7 @@ func (h *handler) HandleStream(req *netapi.StreamMeta) {
 
 	log.Info("connect", "ip", ips[0].String(), "port", req.Address.Port())
 
-dconn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(ips[0].String(), strconv.Itoa(int(req.Address.Port()))))
+	dconn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(ips[0].String(), strconv.Itoa(int(req.Address.Port()))))
 	if err != nil {
 		log.Error("dial failed", "err", err)
 		return

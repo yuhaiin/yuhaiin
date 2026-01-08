@@ -3,10 +3,9 @@ package fakeip
 import (
 	"errors"
 	"net/netip"
-	"slices"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
@@ -37,11 +36,15 @@ func newFakeLru(size int, db cache.Cache, iprange netip.Prefix) *fakeLru {
 		lru.WithLruOptions(
 			lru.WithCapacity[string, netip.Addr](int(size)),
 			lru.WithOnRemove(func(s string, v netip.Addr) {
-				_ = bboltCache.Delete(slices.Values([][]byte{[]byte(s), v.AsSlice()}))
+				bboltCache.Batch(func(txn cache.Batch) error {
+					_ = txn.Delete([]byte(s))
+					_ = txn.Delete(v.AsSlice())
+					return nil
+				})
 			}),
 		),
 		lru.WithOnValueChanged[string](func(old, new netip.Addr) {
-			_ = bboltCache.Delete(slices.Values([][]byte{old.AsSlice()}))
+			_ = bboltCache.Delete(old.AsSlice())
 		}),
 	)
 
@@ -87,12 +90,13 @@ func (f *fakeLru) Add(host string, ip netip.Addr) {
 
 	if f.bbolt != nil {
 		host, ip := []byte(host), ip.AsSlice()
-		_ = f.bbolt.Put(func(yield func([]byte, []byte) bool) {
-			if !yield(host, ip) {
-				return
+		f.bbolt.Batch(func(txn cache.Batch) error {
+			if err := txn.Put(host, ip); err != nil {
+				return err
 			}
-			_ = yield(ip, host)
+			return txn.Put(ip, host)
 		})
+
 	}
 }
 

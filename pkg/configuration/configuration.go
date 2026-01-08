@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 var Lite = os.Getenv("YUHAIIN_LITE") == "true"

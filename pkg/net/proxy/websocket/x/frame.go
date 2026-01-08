@@ -7,7 +7,7 @@ import (
 	"math"
 	"math/bits"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 // opcode represents a WebSocket opcode.

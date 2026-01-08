@@ -18,9 +18,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
@@ -31,8 +31,14 @@ var (
 	bootstrap1, _ = NewDoH(Config{Host: "1.1.1.1", Dialer: direct.Default})
 	bootstrap2, _ = NewDoH(Config{Host: "223.5.5.5", Dialer: direct.Default})
 	group, _      = NewGroup(bootstrap1, bootstrap2)
-	Internet      = NewClient(Config{Name: "internet"}, group)
+	Internet      = nopCloser{NewClient(Config{Name: "internet"}, group)}
 )
+
+type nopCloser struct {
+	netapi.Resolver
+}
+
+func (n nopCloser) Close() error { return nil }
 
 func init() {
 	netapi.SetBootstrap(Internet)

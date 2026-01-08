@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
 )
 
 func TestCache(t *testing.T) {

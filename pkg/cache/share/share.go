@@ -4,17 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"iter"
 	"os"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
+	cb "github.com/Asutorufa/yuhaiin/pkg/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/badger"
-	cb "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"go.etcd.io/bbolt"
 )
@@ -153,11 +152,14 @@ func (s *ShareDB) migrateDB(c *badger.Cache) error {
 			// new user the old will not exist, so just skip here
 			defer odb.Close()
 
-			err = c.NewCache("yuhaiin", "Default").Put(func(yield func([]byte, []byte) bool) {
+			err = c.NewCache("yuhaiin", "Default").Batch(func(txn cache.Batch) error {
+				var err error
 				cb.NewCache(odb, "yuhaiin", "Default").Range(func(key, value []byte) bool {
 					log.Info("migrate key", "key", string(key))
-					return yield(append([]byte{}, key...), append([]byte{}, value...))
+					err = txn.Put(append([]byte{}, key...), append([]byte{}, value...))
+					return err == nil
 				})
+				return err
 			})
 			if err != nil {
 				_ = odb.Close()
@@ -166,9 +168,7 @@ func (s *ShareDB) migrateDB(c *badger.Cache) error {
 		}
 	}
 
-	err = c.Put(func(yield func([]byte, []byte) bool) {
-		yield(badger.MigrateKey, []byte{byte(ver)})
-	})
+	err = c.Put(badger.MigrateKey, []byte{byte(ver)})
 	if err != nil {
 		return err
 	}
@@ -184,7 +184,7 @@ func (s *ShareDB) openLocal() (*Entry, error) {
 	}
 
 	if err := s.migrateDB(c); err != nil {
-		_ = c.Close()
+		_ = c.Badger().Close()
 		return nil, err
 	}
 
@@ -194,14 +194,14 @@ func (s *ShareDB) openLocal() (*Entry, error) {
 
 	ss, err := NewServer(s.socket, cb)
 	if err != nil {
-		_ = c.Close()
+		_ = c.Badger().Close()
 		return nil, err
 	}
 
 	return &Entry{
 		closer: func() error {
 			_ = ss.Close()
-			return c.Close()
+			return c.Badger().Close()
 		},
 		cache: cb,
 		path:  s.badgerDBPath,
@@ -282,8 +282,8 @@ func NewCache(db *ShareDB, batch ...string) *Cache {
 	}
 }
 
-func (a *Cache) Put(k iter.Seq2[[]byte, []byte]) error {
-	return a.db.do(a.batch, func(s cache.Cache) error { return s.Put(k) })
+func (a *Cache) Put(k []byte, v []byte) error {
+	return a.db.do(a.batch, func(s cache.Cache) error { return s.Put(k, v) })
 }
 
 func (a *Cache) Get(k []byte) ([]byte, error) {
@@ -297,7 +297,7 @@ func (a *Cache) Get(k []byte) ([]byte, error) {
 	return b, err
 }
 
-func (a *Cache) Delete(k iter.Seq[[]byte]) error {
+func (a *Cache) Delete(k []byte) error {
 	return a.db.do(a.batch, func(s cache.Cache) error { return s.Delete(k) })
 }
 
@@ -314,4 +314,8 @@ func (a *Cache) NewCache(str ...string) cache.Cache {
 	buckets = append(buckets, a.batch...)
 	buckets = append(buckets, str...)
 	return NewCache(a.db, buckets...)
+}
+
+func (a *Cache) Batch(f func(txn cache.Batch) error) error {
+	return a.db.do(a.batch, func(c cache.Cache) error { return c.Batch(f) })
 }

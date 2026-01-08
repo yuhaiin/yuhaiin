@@ -8,13 +8,13 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -59,8 +59,8 @@ func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
 		notify:       newNotify(),
 		faildHistory: NewFailedHistory(),
 		counters:     newCounters(),
-		infoStore:    newInfoStore(cache.NewCache("connection_data")),
-		history:      NewHistory(newInfoStore(cache.NewCache("history_data"))),
+		infoStore:    newDiskInfoStore(cache.NewCache("connection_data")),
+		history:      NewHistory(newDiskInfoStore(cache.NewCache("history_data"))),
 	}
 }
 
