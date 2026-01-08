@@ -2,14 +2,7 @@ package cache
 
 import (
 	"errors"
-	"iter"
 )
-
-func Element(key []byte, value []byte) iter.Seq2[[]byte, []byte] {
-	return func(yield func([]byte, []byte) bool) {
-		_ = yield(key, value)
-	}
-}
 
 type Batch interface {
 	Put(k []byte, v []byte) error

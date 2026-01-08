@@ -176,5 +176,5 @@ func (b *Batch) Get(k []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return item.Key(), nil
+	return item.ValueCopy(nil)
 }
