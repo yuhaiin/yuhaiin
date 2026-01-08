@@ -7,7 +7,7 @@ import (
 	"math/rand/v2"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 

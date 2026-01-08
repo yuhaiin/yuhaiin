@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 type streamConn struct {

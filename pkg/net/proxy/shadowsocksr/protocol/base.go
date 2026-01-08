@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 type protocol interface {

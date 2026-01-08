@@ -3,10 +3,7 @@ package bbolt
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
-
-	"iter"
 
 	"go.etcd.io/bbolt"
 	bbolterr "go.etcd.io/bbolt/errors"
@@ -63,11 +60,7 @@ func TestCacheOperations(t *testing.T) {
 
 		// Test Put
 		var err error
-		err = cache.Put(func() iter.Seq2[[]byte, []byte] {
-			return func(yield func([]byte, []byte) bool) {
-				yield(key, value)
-			}
-		}())
+		err = cache.Put(key, value)
 		if err != nil {
 			t.Fatalf("Put failed: %v", err)
 		}
@@ -103,11 +96,7 @@ func TestCacheOperations(t *testing.T) {
 		value := []byte("test_value")
 
 		var err error
-		err = cache.Put(func() iter.Seq2[[]byte, []byte] {
-			return func(yield func([]byte, []byte) bool) {
-				yield(key, value)
-			}
-		}())
+		err = cache.Put(key, value)
 		if err != nil {
 			t.Fatalf("Put failed: %v", err)
 		}
@@ -123,7 +112,7 @@ func TestCacheOperations(t *testing.T) {
 		}
 
 		// Test Delete
-		err = cache.Delete(slices.Values([][]byte{key}))
+		err = cache.Delete(key)
 		if err != nil {
 			t.Fatalf("Delete failed: %v", err)
 		}
@@ -148,11 +137,7 @@ func TestCacheOperations(t *testing.T) {
 		// Put some data in child bucket
 		key := []byte("key")
 		value := []byte("value")
-		err := childCache.Put(func() iter.Seq2[[]byte, []byte] {
-			return func(yield func([]byte, []byte) bool) {
-				yield(key, value)
-			}
-		}())
+		err := childCache.Put(key, value)
 		if err != nil {
 			t.Fatalf("Put failed: %v", err)
 		}
@@ -199,11 +184,7 @@ func TestCacheOperations(t *testing.T) {
 
 		var err error
 		for k, v := range data {
-			err = cache.Put(func() iter.Seq2[[]byte, []byte] {
-				return func(yield func([]byte, []byte) bool) {
-					yield([]byte(k), []byte(v))
-				}
-			}())
+			err = cache.Put([]byte(k), []byte(v))
 			if err != nil {
 				t.Fatalf("Put failed for %s: %v", k, err)
 			}
@@ -268,11 +249,7 @@ func TestCacheOperations(t *testing.T) {
 		value := []byte("recursive_value")
 
 		var err error
-		err = childCache.Put(func() iter.Seq2[[]byte, []byte] {
-			return func(yield func([]byte, []byte) bool) {
-				yield(key, value)
-			}
-		}())
+		err = childCache.Put(key, value)
 		if err != nil {
 			t.Fatalf("Put to childCache failed: %v", err)
 		}
@@ -309,11 +286,7 @@ func BenchmarkCacheOperations(b *testing.B) {
 
 		b.ResetTimer()
 		for b.Loop() {
-			err := cache.Put(func() iter.Seq2[[]byte, []byte] {
-				return func(yield func([]byte, []byte) bool) {
-					yield(key, value)
-				}
-			}())
+			err := cache.Put(key, value)
 			if err != nil {
 				b.Fatalf("Put failed: %v", err)
 			}
@@ -329,11 +302,7 @@ func BenchmarkCacheOperations(b *testing.B) {
 		value := []byte("benchmark_value")
 
 		var err error
-		err = cache.Put(func() iter.Seq2[[]byte, []byte] {
-			return func(yield func([]byte, []byte) bool) {
-				yield(key, value)
-			}
-		}())
+		err = cache.Put(key, value)
 		if err != nil {
 			b.Fatalf("Put failed: %v", err)
 		}

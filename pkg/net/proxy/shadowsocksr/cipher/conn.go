@@ -9,7 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 type Cipher struct {

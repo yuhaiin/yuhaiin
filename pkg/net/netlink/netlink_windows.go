@@ -7,7 +7,7 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"golang.org/x/sys/windows"
 )
 

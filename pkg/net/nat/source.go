@@ -16,8 +16,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/ringbuffer"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )

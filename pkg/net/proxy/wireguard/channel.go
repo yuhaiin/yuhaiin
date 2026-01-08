@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	wun "github.com/tailscale/wireguard-go/tun"
 )
 

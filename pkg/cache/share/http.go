@@ -11,12 +11,11 @@ import (
 	"iter"
 	"net"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -140,7 +139,14 @@ func (s *SetRequest) Range() iter.Seq2[[]byte, []byte] {
 }
 
 func (s *Server) Set(req SetRequest) (struct{}, error) {
-	return struct{}{}, s.getCache(req.Buckets...).Put(req.Range())
+	return struct{}{}, s.getCache(req.Buckets...).Batch(func(txn cache.Batch) error {
+		for _, v := range req.Objects {
+			if err := txn.Put(v.Key, v.Value); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 type DeleteRequest struct {
@@ -149,7 +155,15 @@ type DeleteRequest struct {
 }
 
 func (s *Server) Delete(req DeleteRequest) (struct{}, error) {
-	return struct{}{}, s.getCache(req.Buckets...).Delete(slices.Values(req.Keys))
+	return struct{}{}, s.getCache(req.Buckets...).Batch(func(txn cache.Batch) error {
+		for _, k := range req.Keys {
+			err := txn.Delete(k)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 type DeleteBucketRequest struct {
@@ -249,32 +263,35 @@ func (c *Client) Get(k []byte) (v []byte, err error) {
 	return res.Value, err
 }
 
-func (c *Client) Put(r iter.Seq2[[]byte, []byte]) error {
+func (c *Client) Put(k []byte, v []byte) error {
 	var objects []Object
-	for k, v := range r {
-		objects = append(objects, Object{
-			Key:   k,
-			Value: v,
-		})
-	}
+	objects = append(objects, Object{
+		Key:   k,
+		Value: v,
+	})
 	var res struct{}
 	return c.SendRequest("/set", SetRequest{Buckets: c.buckets, Objects: objects}, &res)
 }
-func (c *Client) Delete(k iter.Seq[[]byte]) error {
+
+func (c *Client) Batch(f func(cache.Batch) error) error {
+	return f(&bucket{c: c})
+}
+
+func (c *Client) Delete(k []byte) error {
 	var keys [][]byte
-	for k := range k {
-		buf := make([]byte, len(k))
-		copy(buf, k)
-		keys = append(keys, buf)
-	}
+	buf := make([]byte, len(k))
+	copy(buf, k)
+	keys = append(keys, buf)
 
 	var res struct{}
 	return c.SendRequest("/delete", DeleteRequest{Buckets: c.buckets, Keys: keys}, &res)
 }
+
 func (c *Client) DeleteBucket(str ...string) error {
 	var res struct{}
 	return c.SendRequest("/delete_bucket", DeleteBucketRequest{Buckets: append(c.buckets, str...)}, &res)
 }
+
 func (c *Client) Range(f func(key []byte, value []byte) bool) error {
 	data, err := json.Marshal(RangeRequest{
 		Buckets: c.buckets,
@@ -319,4 +336,20 @@ func (c *Client) NewCache(str ...string) cache.Cache {
 		client:  c.client,
 		buckets: buckets,
 	}
+}
+
+type bucket struct {
+	c *Client
+}
+
+func (b *bucket) Get(k []byte) (v []byte, err error) {
+	return b.c.Get(k)
+}
+
+func (b *bucket) Put(k []byte, v []byte) error {
+	return b.c.Put(k, v)
+}
+
+func (b *bucket) Delete(k []byte) error {
+	return b.c.Delete(k)
 }

@@ -11,6 +11,9 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
+	ybbolt "github.com/Asutorufa/yuhaiin/pkg/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
@@ -30,8 +33,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/badger"
-	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -126,7 +127,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		_ = closers.Close()
 		return nil, fmt.Errorf("init badger cache failed: %w", err)
 	}
-	AddCloser(closers, "badger_cache", badgerCache)
+	AddCloser(closers, "badger_cache", badgerCache.Badger())
 
 	migrateDB(badgerCache, so.ConfigPath)
 
@@ -278,13 +279,16 @@ func migrateDB(badgerCache *badger.Cache, path string) {
 	}
 	defer db.Close()
 
-	cache := ybbolt.NewCache(db)
+	ybc := ybbolt.NewCache(db)
 
 	migrate := func(bucketName string) {
-		err = badgerCache.NewCache(bucketName).Put(func(yield func([]byte, []byte) bool) {
-			cache.NewCache(bucketName).Range(func(key, value []byte) bool {
-				return yield(key, value)
+		err = badgerCache.NewCache(bucketName).Batch(func(txn cache.Batch) error {
+			var err error
+			ybc.NewCache(bucketName).Range(func(key, value []byte) bool {
+				err = txn.Put(key, value)
+				return err == nil
 			})
+			return err
 		})
 		if err != nil {
 			log.Warn("migrate bucket failed", "bucket", bucketName, "err", err)
@@ -295,7 +299,5 @@ func migrateDB(badgerCache *badger.Cache, path string) {
 	migrate("fakedns_cachev6")
 	migrate("fakedns_cache")
 
-	badgerCache.Put(func(yield func([]byte, []byte) bool) {
-		yield(badger.MigrateKey, []byte{1})
-	})
+	badgerCache.Put(badger.MigrateKey, []byte{1})
 }

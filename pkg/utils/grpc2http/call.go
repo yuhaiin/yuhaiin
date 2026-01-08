@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 )

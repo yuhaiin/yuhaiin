@@ -5,8 +5,8 @@ import (
 	"net/netip"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 )
 
 type FakeIPPool struct {
@@ -100,4 +100,8 @@ func (n *FakeIPPool) GetDomainFromIP(ip netip.Addr) (string, bool) {
 	}
 
 	return n.domainToIP.ReverseLoad(ip)
+}
+
+func (n *FakeIPPool) Prefix() netip.Prefix {
+	return n.prefix
 }

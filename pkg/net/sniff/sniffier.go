@@ -10,8 +10,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniff/bittorrent"
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniff/http"
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniff/tls"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type entry[T any] struct {

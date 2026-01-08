@@ -15,11 +15,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
+	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"golang.org/x/net/http2"
 )
 

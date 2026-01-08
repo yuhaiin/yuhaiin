@@ -7,8 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 )
 
 var (
@@ -65,13 +65,13 @@ func NewTotalCache(cc cache.Cache) *TotalCache {
 				return
 			case <-c.triggerDownload:
 				notSyncDownload := c.notSyncDownload.Load()
-				_ = c.cache.Put(cache.Element(DownloadKey, binary.BigEndian.AppendUint64(nil, c.lastDownload.Load()+c.download.Add(uint64(c.notSyncDownload.Load())))))
+				_ = c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.lastDownload.Load()+c.download.Add(uint64(c.notSyncDownload.Load()))))
 				c.notSyncDownload.Add(-notSyncDownload)
 				c.triggerdDownload.Store(false)
 
 			case <-c.triggerUpload:
 				notSyncUpload := c.notSyncUpload.Load()
-				_ = c.cache.Put(cache.Element(UploadKey, binary.BigEndian.AppendUint64(nil, c.lastUpload.Load()+c.upload.Add(uint64(c.notSyncUpload.Load())))))
+				_ = c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.lastUpload.Load()+c.upload.Add(uint64(c.notSyncUpload.Load()))))
 				c.notSyncUpload.Add(-notSyncUpload)
 				c.triggerdUpload.Store(false)
 			}
@@ -121,11 +121,11 @@ func (c *TotalCache) LoadRunningUpload() uint64 {
 func (c *TotalCache) Close() {
 	c.cancel()
 	c.wg.Wait()
-	_ = c.cache.Put(func(yield func([]byte, []byte) bool) {
-		ok := yield(DownloadKey, binary.BigEndian.AppendUint64(nil, c.lastDownload.Load()+c.download.Add(uint64(c.notSyncDownload.Load()))))
-		if !ok {
-			return
+	c.cache.Batch(func(txn cache.Batch) error {
+		err := txn.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.lastDownload.Load()+c.download.Add(uint64(c.notSyncDownload.Load()))))
+		if err != nil {
+			return err
 		}
-		_ = yield(UploadKey, binary.BigEndian.AppendUint64(nil, c.lastUpload.Load()+c.upload.Add(uint64(c.notSyncUpload.Load()))))
+		return txn.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.lastUpload.Load()+c.upload.Add(uint64(c.notSyncUpload.Load()))))
 	})
 }

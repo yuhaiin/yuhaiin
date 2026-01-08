@@ -13,10 +13,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	shttp "github.com/Asutorufa/yuhaiin/pkg/net/sniff/http"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 func init() {

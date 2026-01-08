@@ -3,9 +3,8 @@ package bbolt
 import (
 	"errors"
 	"fmt"
-	"iter"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"go.etcd.io/bbolt"
 )
 
@@ -82,7 +81,7 @@ func (c *Cache) bucket(tx *bbolt.Tx, readOnly bool) (*bbolt.Bucket, error) {
 	return next.(*bbolt.Bucket), nil
 }
 
-func (c *Cache) Put(es iter.Seq2[[]byte, []byte]) error {
+func (c *Cache) Put(k []byte, v []byte) error {
 	if c.db == nil {
 		return nil
 	}
@@ -93,16 +92,14 @@ func (c *Cache) Put(es iter.Seq2[[]byte, []byte]) error {
 			return err
 		}
 
-		for k, v := range es {
-			if err := bk.Put(k, v); err != nil {
-				return err
-			}
+		if err := bk.Put(k, v); err != nil {
+			return err
 		}
 		return nil
 	})
 }
 
-func (c *Cache) Delete(k iter.Seq[[]byte]) error {
+func (c *Cache) Delete(k []byte) error {
 	if c.db == nil {
 		return nil
 	}
@@ -113,14 +110,12 @@ func (c *Cache) Delete(k iter.Seq[[]byte]) error {
 			return nil
 		}
 
-		for kk := range k {
-			if kk == nil {
-				continue
-			}
+		if k == nil {
+			return nil
+		}
 
-			if err := bk.Delete(kk); err != nil {
-				return err
-			}
+		if err := bk.Delete(k); err != nil {
+			return err
 		}
 
 		return nil
@@ -164,6 +159,16 @@ func (c *Cache) NewCache(str ...string) cache.Cache {
 	}
 }
 
+func (c *Cache) Batch(f func(txn cache.Batch) error) error {
+	return c.db.Batch(func(tx *bbolt.Tx) error {
+		txn, err := c.bucket(tx, false)
+		if err != nil {
+			return err
+		}
+		return f(&batch{txn: txn})
+	})
+}
+
 func (c *Cache) DeleteBucket(str ...string) error {
 	if len(str) == 0 {
 		return nil
@@ -189,4 +194,20 @@ func (c *Cache) DeleteBucket(str ...string) error {
 
 		return next.DeleteBucket(bucketName[len(bucketName)-1])
 	})
+}
+
+type batch struct {
+	txn *bbolt.Bucket
+}
+
+func (b *batch) Put(k []byte, v []byte) error {
+	return b.txn.Put(k, v)
+}
+
+func (b *batch) Delete(k []byte) error {
+	return b.txn.Delete(k)
+}
+
+func (b *batch) Get(k []byte) ([]byte, error) {
+	return b.txn.Get(k), nil
 }

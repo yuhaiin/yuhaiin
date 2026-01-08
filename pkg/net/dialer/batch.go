@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"golang.org/x/net/ipv6"
 )
 

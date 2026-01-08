@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	ybbolt "github.com/Asutorufa/yuhaiin/pkg/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"go.etcd.io/bbolt"
 )
 

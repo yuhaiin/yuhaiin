@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 // Conn represents a WebSocket connection.

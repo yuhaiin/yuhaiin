@@ -12,9 +12,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"google.golang.org/protobuf/proto"
 )
 

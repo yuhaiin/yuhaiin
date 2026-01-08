@@ -3,41 +3,58 @@ package fakeip
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 	"strconv"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/miekg/dns"
 )
+
+type pool interface {
+	Prefix() netip.Prefix
+	GetDomainFromIP(ip netip.Addr) (string, bool)
+	GetFakeIPForDomain(s string) netip.Addr
+}
 
 var _ netapi.Resolver = (*FakeDNS)(nil)
 
 type FakeDNS struct {
 	netapi.Resolver
-	ipv4 *FakeIPPool
-	ipv6 *FakeIPPool
+	ipv4 pool
+	ipv6 pool
 }
 
 func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, ipv6Range netip.Prefix, db cache.Cache) *FakeDNS {
-	return &FakeDNS{
-		upStreamDo,
-		NewFakeIPPool(ipRange, db),
-		NewFakeIPPool(ipv6Range, db),
+	f := &FakeDNS{
+		Resolver: upStreamDo,
 	}
+
+	if v, ok := db.(*badger.Cache); ok {
+		slog.Info("fakip use full disk cache")
+		f.ipv4 = NewDiskFakeIPPool(ipRange, v, 655535)
+		f.ipv6 = NewDiskFakeIPPool(ipv6Range, v, 655535)
+	} else {
+		f.ipv4 = NewFakeIPPool(ipRange, db)
+		f.ipv6 = NewFakeIPPool(ipv6Range, db)
+	}
+
+	return f
 }
 
 func (f *FakeDNS) Equal(ipRange, ipv6Range netip.Prefix) bool {
-	return ipRange.Masked() == f.ipv4.prefix.Masked() && ipv6Range.Masked() == f.ipv6.prefix.Masked()
+	return ipRange.Masked() == f.ipv4.Prefix().Masked() && ipv6Range.Masked() == f.ipv6.Prefix().Masked()
 }
 
 func (f *FakeDNS) Contains(addr netip.Addr) bool {
 	addr = addr.Unmap()
-	return f.ipv4.prefix.Contains(addr) || f.ipv6.prefix.Contains(addr)
+	return f.ipv4.Prefix().Contains(addr) || f.ipv6.Prefix().Contains(addr)
 }
 
 func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {

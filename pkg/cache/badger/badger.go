@@ -3,10 +3,9 @@ package badger
 
 import (
 	"bytes"
-	"errors"
-	"iter"
+	"io"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/dgraph-io/badger/v4"
 )
 
@@ -22,14 +21,20 @@ type Cache struct {
 
 func New(path string) (*Cache, error) {
 	opts := badger.DefaultOptions(path).
-		WithValueLogFileSize(8 << 20). // 8MB
+		WithValueLogFileSize(4 << 20). // 8MB
 		WithValueLogMaxEntries(10000).
 		WithNumCompactors(4).
 		WithNumLevelZeroTables(2).
 		WithNumLevelZeroTablesStall(4).
+		WithNumVersionsToKeep(1).
 		WithMaxLevels(4).
-		WithMemTableSize(8 << 20).
-		WithSyncWrites(false)
+		WithMemTableSize(2 << 20).     // 2mb
+		WithBaseTableSize(2 << 20).    // 2mb
+		WithValueThreshold(256 << 10). // 256KB
+		WithNumMemtables(1).
+		WithSyncWrites(false).
+		WithMetricsEnabled(true).
+		WithCompactL0OnClose(true)
 	if path == "" {
 		opts = opts.WithInMemory(true)
 	}
@@ -41,8 +46,8 @@ func New(path string) (*Cache, error) {
 	return &Cache{db: db}, nil
 }
 
-func (c *Cache) Close() error {
-	return c.db.Close()
+func (c *Cache) Badger() *badger.DB {
+	return c.db
 }
 
 func (c *Cache) Get(k []byte) (v []byte, err error) {
@@ -61,32 +66,26 @@ func (c *Cache) Get(k []byte) (v []byte, err error) {
 	return
 }
 
-func (c *Cache) Put(es iter.Seq2[[]byte, []byte]) error {
+func (c *Cache) Put(k []byte, v []byte) error {
 	return c.db.Update(func(txn *badger.Txn) error {
-		for k, v := range es {
-			if err := txn.Set(c.makeKey(k), v); err != nil {
-				return err
-			}
+		if err := txn.Set(c.makeKey(k), v); err != nil {
+			return err
 		}
 		return nil
 	})
 }
 
-func (c *Cache) Delete(es iter.Seq[[]byte]) error {
+func (c *Cache) Delete(es []byte) error {
 	return c.db.Update(func(txn *badger.Txn) error {
-		for k := range es {
-			if err := txn.Delete(c.makeKey(k)); err != nil {
-				return err
-			}
+		if err := txn.Delete(c.makeKey(es)); err != nil {
+			return err
 		}
 		return nil
 	})
 }
-
-var errBreak = errors.New("break")
 
 func (c *Cache) Range(f func(key []byte, value []byte) bool) error {
-	err := c.db.View(func(txn *badger.Txn) error {
+	return c.db.View(func(txn *badger.Txn) error {
 		it := txn.NewIterator(badger.DefaultIteratorOptions)
 		defer it.Close()
 
@@ -95,22 +94,19 @@ func (c *Cache) Range(f func(key []byte, value []byte) bool) error {
 			key := item.Key()
 			err := item.Value(func(val []byte) error {
 				if !f(bytes.TrimPrefix(key, c.prefix), val) {
-					return errBreak
+					return io.EOF
 				}
 				return nil
 			})
 			if err != nil {
+				if err == io.EOF {
+					return nil
+				}
 				return err
 			}
 		}
 		return nil
 	})
-
-	if errors.Is(err, errBreak) {
-		return nil
-	}
-
-	return err
 }
 
 func (c *Cache) NewCache(str ...string) cache.Cache {
@@ -148,9 +144,37 @@ func (c *Cache) DeleteBucket(str ...string) error {
 	return c.db.DropPrefix(prefixToDelete)
 }
 
+func (c *Cache) Batch(f func(txn cache.Batch) error) error {
+	return c.db.Update(func(txn *badger.Txn) error {
+		b := &Batch{txn: txn, c: c}
+		return f(b)
+	})
+}
+
 func (c *Cache) makeKey(k []byte) []byte {
-	key := make([]byte, 0, len(c.prefix)+len(k))
-	key = append(key, c.prefix...)
-	key = append(key, k...)
+	key := make([]byte, len(c.prefix)+len(k))
+	copy(key, c.prefix)
+	copy(key[len(c.prefix):], k)
 	return key
+}
+
+type Batch struct {
+	txn *badger.Txn
+	c   *Cache
+}
+
+func (b *Batch) Put(k []byte, v []byte) error {
+	return b.txn.Set(b.c.makeKey(k), v)
+}
+
+func (b *Batch) Delete(k []byte) error {
+	return b.txn.Delete(b.c.makeKey(k))
+}
+
+func (b *Batch) Get(k []byte) ([]byte, error) {
+	item, err := b.txn.Get(b.c.makeKey(k))
+	if err != nil {
+		return nil, err
+	}
+	return item.Key(), nil
 }

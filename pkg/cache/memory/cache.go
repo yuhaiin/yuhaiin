@@ -1,9 +1,7 @@
 package memory
 
 import (
-	"iter"
-
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -23,17 +21,13 @@ func (m *MemoryCache) Get(k []byte) (v []byte, err error) {
 	return x, nil
 }
 
-func (m *MemoryCache) Put(es iter.Seq2[[]byte, []byte]) error {
-	for k, v := range es {
-		m.cache.Store(string(k), v)
-	}
+func (m *MemoryCache) Put(k []byte, v []byte) error {
+	m.cache.Store(string(k), v)
 	return nil
 }
 
-func (m *MemoryCache) Delete(k iter.Seq[[]byte]) error {
-	for k := range k {
-		m.cache.Delete(string(k))
-	}
+func (m *MemoryCache) Delete(k []byte) error {
+	m.cache.Delete(string(k))
 	return nil
 }
 
@@ -63,6 +57,10 @@ func (m *MemoryCache) NewCache(str ...string) cache.Cache {
 	return z
 }
 
+func (m *MemoryCache) Batch(f func(txn cache.Batch) error) error {
+	return f(&batch{txn: m})
+}
+
 func (m *MemoryCache) DeleteBucket(str ...string) error {
 	if len(str) == 0 {
 		return nil
@@ -73,4 +71,23 @@ func (m *MemoryCache) DeleteBucket(str ...string) error {
 	}
 	z.subStore.Delete(str[len(str)-1])
 	return nil
+}
+
+type batch struct {
+	txn *MemoryCache
+}
+
+func (b *batch) Put(k []byte, v []byte) error {
+	b.txn.cache.Store(string(k), v)
+	return nil
+}
+
+func (b *batch) Delete(k []byte) error {
+	b.txn.cache.Delete(string(k))
+	return nil
+}
+
+func (b *batch) Get(k []byte) ([]byte, error) {
+	x, _ := b.txn.cache.Load(string(k))
+	return x, nil
 }

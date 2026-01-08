@@ -1,29 +1,102 @@
 package fakeip
 
 import (
+	"bytes"
+	"encoding/binary"
 	"net/netip"
-	"slices"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
+)
+
+const (
+	// cursorKey is a special key used to store the current cursor state (index and IP).
+	cursorKey = "reserved_cursor_state"
 )
 
 type DiskFakeIPPool struct {
-	current netip.Addr
-
-	prefix netip.Prefix
-
 	mu sync.Mutex
 
-	cache cache.Cache
+	prefix  netip.Prefix
+	current netip.Addr // The current IP pointer
+	index   uint64     // The current index relative to the start of the sequence
+	maxNum  uint64     // Maximum number of IPs to cache (limit for large subnets like IPv6)
+
+	cache *badger.Cache
 }
 
-func NewDiskFakeIPPool(prefix netip.Prefix, db cache.Cache) *DiskFakeIPPool {
-	return &DiskFakeIPPool{
-		prefix:  prefix,
+// NewDiskFakeIPPool creates a new pool.
+// maxNum limits the maximum number of cached IPs.
+// If maxNum <= 0, it defaults to 65536.
+// If the subnet size is smaller than maxNum, maxNum is automatically adjusted to the subnet size.
+func NewDiskFakeIPPool(prefix netip.Prefix, db *badger.Cache, maxNum int) *DiskFakeIPPool {
+	if maxNum <= 0 {
+		maxNum = 65536
+	}
+
+	// Calculate the total number of IPs in the prefix.
+	// We need to calculate how many bits are available for the host part.
+	hostBits := prefix.Addr().BitLen() - prefix.Bits()
+
+	// If hostBits >= 64, the size exceeds uint64 range (e.g., IPv6 /64).
+	// In that case, the subnet is definitely larger than any int maxNum, so we skip the check.
+	if hostBits < 64 {
+		totalIPs := uint64(1) << hostBits
+		if uint64(maxNum) > totalIPs {
+			maxNum = int(totalIPs)
+		}
+	}
+
+	pool := &DiskFakeIPPool{
+		prefix: prefix,
+		maxNum: uint64(maxNum),
+		cache:  db.NewCache(prefix.String()).(*badger.Cache),
+		// Initialize to the address before the first valid one,
+		// so the first Next() call lands on the first valid address.
 		current: prefix.Addr().Prev(),
-		cache:   db.NewCache(prefix.String()),
+		index:   0,
+	}
+
+	// Restore the previous cursor state to prevent overwriting recent IPs after restart.
+	pool.loadCursor()
+
+	return pool
+}
+
+// loadCursor attempts to restore the cursor state (IP and Index) from the cache.
+func (n *DiskFakeIPPool) loadCursor() {
+	val, err := n.cache.Get([]byte(cursorKey))
+	if err != nil || val == nil {
+		return
+	}
+
+	// Format: [8 bytes index][IP bytes...]
+	if len(val) <= 8 {
+		return
+	}
+
+	n.index = binary.BigEndian.Uint64(val[:8])
+
+	if addr, ok := netip.AddrFromSlice(val[8:]); ok {
+		if n.prefix.Contains(addr) {
+			n.current = addr
+		}
+	}
+}
+
+// saveCursor persists the current cursor state to the cache.
+func (n *DiskFakeIPPool) saveCursor() {
+	buf := make([]byte, 8+16) // 8 bytes for uint64, up to 16 bytes for IP
+	binary.BigEndian.PutUint64(buf[:8], n.index)
+
+	ipBytes := n.current.AsSlice()
+	data := append(buf[:8], ipBytes...)
+
+	err := n.cache.Put([]byte(cursorKey), data)
+	if err != nil {
+		log.Warn("save fake ip cursor failed", "err", err)
 	}
 }
 
@@ -34,30 +107,41 @@ func (n *DiskFakeIPPool) getIP(s string) (netip.Addr, bool) {
 		if addr, ok := netip.AddrFromSlice(z); ok {
 			return addr, true
 		}
-
-		err = n.cache.Delete(slices.Values([][]byte{key}))
-		if err != nil {
-			log.Warn("delete fake ip failed", "err", err)
-		}
+		// Data corruption or invalid format, clean it up.
+		_ = n.cache.Delete(key)
 	}
-
 	return netip.Addr{}, false
 }
 
-func (n *DiskFakeIPPool) store(s string, addr netip.Addr) {
-	od, _ := n.cache.Get(addr.AsSlice())
-	if od != nil {
-		err := n.cache.Delete(slices.Values([][]byte{od}))
-		if err != nil {
-			log.Warn("delete old fake ip failed", "err", err)
-		}
-	}
+// store saves the mapping. If the IP was previously assigned to another domain,
+// the old mapping is removed to prevent conflicts.
+func (n *DiskFakeIPPool) store(domain string, addr netip.Addr) {
+	addrBytes := addr.AsSlice()
+	domainBytes := []byte(domain)
 
-	err := n.cache.Put(func(yield func([]byte, []byte) bool) {
-		k, v := []byte(s), addr.AsSlice()
-		if yield(k, v) {
-			yield(v, k)
+	err := n.cache.Batch(func(txn cache.Batch) error {
+		// 1. Check if this IP is already owned by another domain (Collision/Eviction).
+
+		if oldDomainBytes, _ := txn.Get(addrBytes); oldDomainBytes != nil {
+			if !bytes.Equal(oldDomainBytes, domainBytes) {
+				// Delete the forward mapping: OldDomain -> IP.
+				// The backward mapping (IP -> OldDomain) will be overwritten below.
+				return txn.Delete(oldDomainBytes)
+			}
+			return nil
 		}
+
+		// 2. Save the bidirectional mapping.
+		// Forward: Domain -> IP
+		if err := txn.Put(domainBytes, addrBytes); err != nil {
+			return err
+		}
+		// Backward: IP -> Domain
+		if err := txn.Put(addrBytes, domainBytes); err != nil {
+			return err
+		}
+
+		return nil
 	})
 	if err != nil {
 		log.Warn("put fake ip to cache failed", "err", err)
@@ -65,6 +149,7 @@ func (n *DiskFakeIPPool) store(s string, addr netip.Addr) {
 }
 
 func (n *DiskFakeIPPool) GetFakeIPForDomain(s string) netip.Addr {
+	// 1. Fast path: check cache.
 	if z, ok := n.getIP(s); ok {
 		return z
 	}
@@ -72,36 +157,38 @@ func (n *DiskFakeIPPool) GetFakeIPForDomain(s string) netip.Addr {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
+	// Double check after lock.
 	if z, ok := n.getIP(s); ok {
 		return z
 	}
 
-	looped := false
+	// 2. Allocate new IP (Round-Robin).
+	// We no longer loop to find an empty slot. We force allocation based on the cursor.
+	n.rotateNext()
 
-	for {
-		addr := n.current.Next()
+	// 3. Store mapping and handle evictions.
+	n.store(s, n.current)
 
-		if !n.prefix.Contains(addr) {
-			n.current = n.prefix.Addr().Prev()
+	// 4. Persist cursor state.
+	n.saveCursor()
 
-			if looped {
-				addr := n.current.Next()
-				n.current = addr
-				n.store(s, addr)
+	return n.current
+}
 
-				return addr
-			}
+// rotateNext advances the cursor to the next position.
+// It wraps around if it exceeds the subnet range or the maxNum limit.
+func (n *DiskFakeIPPool) rotateNext() {
+	next := n.current.Next()
+	n.index++
 
-			looped = true
-			continue
-		}
-
-		n.current = addr
-
-		if v, _ := n.cache.Get(addr.AsSlice()); v == nil {
-			n.store(s, addr)
-			return addr
-		}
+	// Reset if:
+	// 1. We reached the end of the subnet.
+	// 2. We exceeded the user-defined maximum count (crucial for IPv6).
+	if !n.prefix.Contains(next) || n.index > n.maxNum {
+		n.current = n.prefix.Addr() // Reset to start of subnet
+		n.index = 1
+	} else {
+		n.current = next
 	}
 }
 
@@ -110,10 +197,16 @@ func (n *DiskFakeIPPool) GetDomainFromIP(ip netip.Addr) (string, bool) {
 		return "", false
 	}
 
+	// Note: We assume the collision probability between an IP byte slice
+	// and the 'cursorKey' string is negligible.
 	domain, err := n.cache.Get(ip.AsSlice())
 	if err != nil || domain == nil {
 		return "", false
 	}
 
 	return string(domain), true
+}
+
+func (n *DiskFakeIPPool) Prefix() netip.Prefix {
+	return n.prefix
 }

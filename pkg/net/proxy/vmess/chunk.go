@@ -6,8 +6,8 @@ import (
 	"io"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 type writer interface {

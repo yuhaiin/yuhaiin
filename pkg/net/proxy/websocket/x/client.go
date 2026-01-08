@@ -16,7 +16,7 @@ import (
 	_ "unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 // Config is a WebSocket configuration

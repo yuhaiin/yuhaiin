@@ -9,9 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
 )
@@ -99,7 +99,7 @@ func (c *store) Flush() {
 		return
 	}
 
-	err := c.cache.Put(func(yield func([]byte, []byte) bool) {
+	err := c.cache.Batch(func(txn cache.Batch) error {
 		for id := range c.memcache.Range {
 			info, ok := c.memcache.LoadAndDelete(id)
 			if !ok {
@@ -112,10 +112,12 @@ func (c *store) Flush() {
 				continue
 			}
 
-			if !yield(binary.BigEndian.AppendUint64(nil, id), data) {
-				break
+			if err := txn.Put(binary.BigEndian.AppendUint64(nil, id), data); err != nil {
+				return err
 			}
 		}
+
+		return nil
 	})
 	if err != nil {
 		log.Warn("put info failed", "err", err)
@@ -127,9 +129,15 @@ func (c *store) Flush() {
 	c.deleteIdsMu.Unlock()
 
 	if len(deleteIds) > 0 {
-		if err := c.cache.Delete(deleteIds.Range()); err != nil {
-			log.Warn("delete info failed", "err", err)
-		}
+		c.cache.Batch(func(txn cache.Batch) error {
+			for v := range deleteIds {
+				if err := txn.Delete(binary.BigEndian.AppendUint64(nil, v)); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		})
 	}
 }
 
@@ -161,4 +169,54 @@ func (c deleteIds) Range() iter.Seq[[]byte] {
 			}
 		}
 	}
+}
+
+type diskStore struct {
+	cache cache.Cache
+}
+
+func newDiskInfoStore(cache cache.Cache) *diskStore {
+	return &diskStore{
+		cache: cache,
+	}
+}
+
+func (d *diskStore) Load(id uint64) (*statistic.Connection, bool) {
+	data, err := d.cache.Get(binary.BigEndian.AppendUint64(nil, id))
+	if err != nil {
+		log.Warn("get info failed", "id", id, "err", err)
+		return nil, false
+	}
+
+	info := &statistic.Connection{}
+	if err := proto.Unmarshal(data, info); err != nil {
+		log.Warn("unmarshal info failed", "id", id, "err", err)
+		return nil, false
+	}
+
+	return info, true
+}
+
+func (d *diskStore) Store(id uint64, info *statistic.Connection) {
+	data, err := proto.Marshal(info)
+	if err != nil {
+		log.Warn("marshal info failed", "id", id, "err", err)
+		return
+	}
+
+	err = d.cache.Put(binary.BigEndian.AppendUint64(nil, id), data)
+	if err != nil {
+		log.Warn("put info failed", "err", err)
+	}
+}
+
+func (d *diskStore) Delete(id uint64) {
+	err := d.cache.Delete(binary.BigEndian.AppendUint64(nil, id))
+	if err != nil {
+		log.Warn("delete info failed", "err", err)
+	}
+}
+
+func (d *diskStore) Close() error {
+	return nil
 }
