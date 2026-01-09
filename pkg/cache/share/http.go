@@ -347,7 +347,7 @@ func (b *bucket) Get(k []byte) (v []byte, err error) {
 }
 
 func (b *bucket) Put(k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
-	return b.c.Put(k, v)
+    return b.c.Put(k, v, opts...)
 }
 
 func (b *bucket) Delete(k []byte) error {
