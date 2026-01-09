@@ -15,9 +15,9 @@ import (
 )
 
 type S3 struct {
+	s3c          *simples3.S3
 	Bucket       string
 	StorageClass string
-	s3c          *simples3.S3
 }
 
 func NewS3(opt *config.S3, proxy netapi.Proxy) (*S3, error) {

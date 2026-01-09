@@ -12,11 +12,11 @@ var maxDuration = time.Second * 2
 var defaultDuration = time.Millisecond * 300
 
 type Avg struct {
-	ring    [100]*atomic.Pointer[time.Duration]
+	ring [100]*atomic.Pointer[time.Duration]
+
+	avg     atomicx.Value[time.Duration]
 	current atomic.Int64
 	count   atomic.Int64
-
-	avg atomicx.Value[time.Duration]
 }
 
 func NewAvg() *Avg {

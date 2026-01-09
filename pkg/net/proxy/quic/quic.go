@@ -29,8 +29,8 @@ import (
 type session struct {
 	underlying net.PacketConn
 	quicConn   *quic.Conn
-	time       int64
 	packets    *ConnectionPacketConn
+	time       int64
 }
 
 func (s *session) Close() error {
@@ -65,15 +65,16 @@ type Client struct {
 
 	tlsConfig *tls.Config
 
-	host   *net.UDPAddr
-	natMap syncmap.SyncMap[uint64, *clientPacketConn]
+	host *net.UDPAddr
+
+	session *session
+
+	qlogWriter func() (io.WriteCloser, error)
+	natMap     syncmap.SyncMap[uint64, *clientPacketConn]
 
 	idg id.IDGenerator
 
-	session   *session
 	sessionMu sync.RWMutex
-
-	qlogWriter func() (io.WriteCloser, error)
 }
 
 func init() {

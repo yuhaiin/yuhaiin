@@ -35,7 +35,7 @@ Some packages may only be included on certain architectures or operating systems
 - [github.com/klauspost/compress/zstd/internal/xxhash](https://pkg.go.dev/github.com/klauspost/compress/zstd/internal/xxhash) ([MIT](https://github.com/klauspost/compress/blob/v1.18.0/zstd/internal/xxhash/LICENSE.txt))
 - [github.com/libp2p/go-buffer-pool](https://pkg.go.dev/github.com/libp2p/go-buffer-pool) ([MIT](https://github.com/libp2p/go-buffer-pool/blob/v0.1.0/LICENSE))
 - [github.com/libp2p/go-yamux/v5](https://pkg.go.dev/github.com/libp2p/go-yamux/v5) ([MPL-2.0](https://github.com/libp2p/go-yamux/blob/v5.1.0/LICENSE))
-- [github.com/miekg/dns](https://pkg.go.dev/github.com/miekg/dns) ([BSD-3-Clause](https://github.com/miekg/dns/blob/v1.1.69/LICENSE))
+- [github.com/miekg/dns](https://pkg.go.dev/github.com/miekg/dns) ([BSD-3-Clause](https://github.com/miekg/dns/blob/v1.1.70/LICENSE))
 - [github.com/munnerz/goautoneg](https://pkg.go.dev/github.com/munnerz/goautoneg) ([BSD-3-Clause](https://github.com/munnerz/goautoneg/blob/a7dc8b61c822/LICENSE))
 - [github.com/oschwald/maxminddb-golang/v2](https://pkg.go.dev/github.com/oschwald/maxminddb-golang/v2) ([ISC](https://github.com/oschwald/maxminddb-golang/blob/v2.1.1/LICENSE))
 - [github.com/pires/go-proxyproto](https://pkg.go.dev/github.com/pires/go-proxyproto) ([Apache-2.0](https://github.com/pires/go-proxyproto/blob/v0.8.1/LICENSE))

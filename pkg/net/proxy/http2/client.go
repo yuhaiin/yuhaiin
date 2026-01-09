@@ -149,11 +149,13 @@ func (c *Client) Close() error {
 type clientConnectionPool struct {
 	t *http2.Transport
 
-	smu         sync.Mutex
 	streamStore *connList
 
-	dmu           sync.Mutex
 	datagramStore *connList
+
+	smu sync.Mutex
+
+	dmu sync.Mutex
 }
 
 func newClientConnectionPool(t *http2.Transport, concurrency int) *clientConnectionPool {

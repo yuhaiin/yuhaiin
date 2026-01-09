@@ -16,7 +16,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/nftables v0.3.0
 	github.com/libp2p/go-yamux/v5 v5.1.0
-	github.com/miekg/dns v1.1.69
+	github.com/miekg/dns v1.1.70
 	github.com/oschwald/maxminddb-golang/v2 v2.1.1
 	github.com/pires/go-proxyproto v0.8.1
 	github.com/prometheus-community/pro-bing v0.7.0

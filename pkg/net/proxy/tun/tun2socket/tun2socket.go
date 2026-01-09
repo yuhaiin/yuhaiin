@@ -12,12 +12,12 @@ import (
 
 type Tun2socket struct {
 	device io.Closer
-	nat    *Nat
 
 	handler netapi.Handler
-	Mtu     int32
+	nat     *Nat
 
 	DeviceName string
+	Mtu        int32
 }
 
 func New(o *device.Opt) (*Tun2socket, error) {

@@ -30,12 +30,12 @@ import (
 type Wireguard struct {
 	netapi.EmptyDispatch
 	net    *NetTun
-	once   sync.Once
 	bind   *netBindClient
 	conf   *node.Wireguard
 	device *device.Device
 
 	happyDialer *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
+	once        sync.Once
 }
 
 func init() {

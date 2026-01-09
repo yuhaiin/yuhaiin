@@ -28,18 +28,18 @@ type socket struct {
 }
 
 type pidEntry struct {
+	cmd  string
 	pid  int
 	uid  int
-	cmd  string
 	time int64
 }
 
 type BpfTcp struct {
-	active       atomic.Bool
 	tcpconnect   *exec.Cmd
 	timer        *time.Timer
-	cache        syncmap.SyncMap[socket, pidEntry]
 	singleflight singleflight.Group[socket, struct{}]
+	cache        syncmap.SyncMap[socket, pidEntry]
+	active       atomic.Bool
 }
 
 func (b *BpfTcp) startBpfTcp() error {

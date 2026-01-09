@@ -21,15 +21,16 @@ import (
 )
 
 type tunServer struct {
-	ep       stack.LinkEndpoint
+	ep stack.LinkEndpoint
+
+	handler  netapi.Handler
 	stack    *stack.Stack
 	postDown func()
 
-	handler netapi.Handler
-	nicID   tcpip.NICID
+	DeviceName string
 
 	device.InterfaceAddress
-	DeviceName string
+	nicID tcpip.NICID
 }
 
 func (t *tunServer) Interface() string {

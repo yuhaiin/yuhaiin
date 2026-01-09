@@ -25,21 +25,22 @@ import (
 
 type Masque struct {
 	netapi.EmptyDispatch
-	p              netapi.Proxy
-	TlsConfig      *tls.Config
-	addr           *net.UDPAddr
-	localAddresses []netip.Prefix
-	mtu            int
+	p netapi.Proxy
 
-	ctx    context.Context
-	cancel context.CancelFunc
-	dev    *wireguard.NetTun
-	once   sync.Once
+	ctx       context.Context
+	TlsConfig *tls.Config
+	addr      *net.UDPAddr
+	cancel    context.CancelFunc
+	dev       *wireguard.NetTun
 
 	receive chan []byte
 	send    chan []byte
 
-	happyDialer *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
+	happyDialer    *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
+	localAddresses []netip.Prefix
+	mtu            int
+
+	once sync.Once
 }
 
 func NewMasque(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAddresses []netip.Prefix, mtu int) (*Masque, error) {

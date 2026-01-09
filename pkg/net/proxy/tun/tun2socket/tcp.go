@@ -17,17 +17,16 @@ var (
 )
 
 type TCP struct {
+	ctx        context.Context
 	v4listener *net.TCPListener
 	v6listener *net.TCPListener
 	table      *tableSplit
+	cancel     context.CancelFunc
+	connChan   chan *Conn
 	portalv4   net.IP
 	portalv6   net.IP
 	device.InterfaceAddress
 	mtu int
-
-	ctx      context.Context
-	cancel   context.CancelFunc
-	connChan chan *Conn
 }
 
 func NewTCP(opt *device.Opt, v4, v6 *net.TCPListener, table *tableSplit) *TCP {
@@ -54,9 +53,9 @@ func NewTCP(opt *device.Opt, v4, v6 *net.TCPListener, table *tableSplit) *TCP {
 
 type Conn struct {
 	*net.TCPConn
-	tuple Tuple
 
-	tcp *TCP
+	tcp   *TCP
+	tuple Tuple
 }
 
 func (t *TCP) loopv4() {
@@ -87,7 +86,7 @@ func (t *TCP) loopv4() {
 		select {
 		case <-t.ctx.Done():
 			return
-		case t.connChan <- &Conn{c, tup, t}:
+		case t.connChan <- &Conn{c, t, tup}:
 		}
 	}
 }
@@ -120,7 +119,7 @@ func (t *TCP) loopv6() {
 		select {
 		case <-t.ctx.Done():
 			return
-		case t.connChan <- &Conn{c, tup, t}:
+		case t.connChan <- &Conn{c, t, tup}:
 		}
 	}
 }

@@ -183,16 +183,16 @@ func (s *Or) Match(ctx context.Context, addr netapi.Address) bool {
 }
 
 type MatchEntry struct {
-	mode    config.ModeEnum
 	matcher Matcher
 	name    string
+	mode    config.ModeEnum
 }
 
 type Matchers struct {
-	mu       sync.RWMutex
 	list     *Lists
-	matchers []MatchEntry
 	tags     *set.Set[string]
+	matchers []MatchEntry
+	mu       sync.RWMutex
 }
 
 func NewMatchers(list *Lists) *Matchers {

@@ -210,9 +210,9 @@ type socket struct {
 }
 
 type pidEntry struct {
+	cmd  string
 	pid  int
 	uid  int
-	cmd  string
 	time int64
 }
 
@@ -220,9 +220,9 @@ type BpfTcp struct {
 	ctx          context.Context
 	cancel       context.CancelFunc
 	timer        *time.Timer
+	singleflight singleflight.Group[socket, struct{}]
 	tcpCache     syncmap.SyncMap[socket, pidEntry]
 	udpCache     syncmap.SyncMap[netip.AddrPort, pidEntry]
-	singleflight singleflight.Group[socket, struct{}]
 }
 
 func (b *BpfTcp) findPid(network string, srcaddr netip.AddrPort, dstaddr netip.AddrPort) (pidEntry, bool) {

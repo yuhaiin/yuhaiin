@@ -6,7 +6,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/Asutorufa/yuhaiin.svg)](https://pkg.go.dev/github.com/Asutorufa/yuhaiin)
 ![languages](https://img.shields.io/github/languages/top/asutorufa/yuhaiin.svg) [![Go](https://github.com/Asutorufa/yuhaiin/actions/workflows/go.yml/badge.svg)](https://github.com/Asutorufa/yuhaiin/actions/workflows/go.yml)  
   
-- download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://github.com/Asutorufa/yuhaiin/wiki/build).  
+- download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://yuhaiin.github.io/documents/guides/build/).  
 - Android [yuhaiin-android](https://github.com/Asutorufa/yuhaiin-android).  
 - Inbound
   - yuubinsya(experimental)
@@ -37,7 +37,7 @@
 - Full cone NAT.
 - Ping(yuubinsya, Tailscale, Socks5(custom cmd), Wireguard(TODO))
 - Trace Process of Connections
-  - Linux: eBPF(bpftrace)
+  - Linux: eBPF or /proc
   - Windows, Darwin: syscall
 - Support Proxy Chain Warp
 - auto set Linux(KDE/Plasma,Gnome),Windows,MacOS Proxy  

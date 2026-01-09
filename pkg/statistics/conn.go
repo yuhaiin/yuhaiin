@@ -20,9 +20,10 @@ var _ connection = (*conn)(nil)
 type conn struct {
 	net.Conn
 
-	id      uint64
-	onClose func()
 	counter counter
+	onClose func()
+
+	id uint64
 }
 
 func (s *conn) Close() error {
@@ -51,10 +52,10 @@ var _ connection = (*packetConn)(nil)
 type packetConn struct {
 	net.PacketConn
 
-	id      uint64
+	counter counter
 	onClose func()
 
-	counter counter
+	id uint64
 }
 
 func (s *packetConn) Close() error {

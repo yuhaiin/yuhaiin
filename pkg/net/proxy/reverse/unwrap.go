@@ -140,8 +140,8 @@ type wrapConn struct {
 func (w *wrapConn) SetTLSTermination(ok bool) { w.uw.SetTLSTermination(ok) }
 
 type unWrapHttpAddr struct {
-	tlsTermination bool
 	netapi.DomainAddr
+	tlsTermination bool
 }
 
 func (u *unWrapHttpAddr) SetTLSTermination(ok bool) { u.tlsTermination = ok }

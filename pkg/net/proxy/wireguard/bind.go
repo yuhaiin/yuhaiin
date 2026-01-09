@@ -31,10 +31,10 @@ func (e Endpoint) SrcIP() netip.Addr { return netip.Addr{} }
 type netBindClient struct {
 	conn      net.PacketConn
 	batchConn *Batch
-	reserved  []byte
-	mu        sync.Mutex
 
 	openAddr *net.UDPAddr
+	reserved []byte
+	mu       sync.Mutex
 }
 
 func newNetBindClient(reserved []byte) *netBindClient {

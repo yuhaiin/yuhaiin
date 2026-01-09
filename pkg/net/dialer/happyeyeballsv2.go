@@ -131,16 +131,17 @@ func MergeDnsError(err1, err2 error) error {
 type happyEyeballv2Resolver struct {
 	ctx context.Context
 
-	addr                      netapi.Address
-	resolver                  netapi.Resolver
-	primaryMode, fallbackMode netapi.ResolverMode
-
-	ips    []net.IP
-	lastIp net.IP
-	mu     sync.Mutex
+	addr     netapi.Address
+	resolver netapi.Resolver
+	errors   error
 
 	notify chan struct{}
-	errors error
+
+	ips                       []net.IP
+	lastIp                    net.IP
+	primaryMode, fallbackMode netapi.ResolverMode
+
+	mu sync.Mutex
 }
 
 func ifElse[T any](cond bool, trueVal, falseVal T) T {

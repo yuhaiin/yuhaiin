@@ -27,6 +27,8 @@ type Connections struct {
 
 	netapi.Proxy
 
+	infoStore InfoCache
+
 	Cache *TotalCache
 
 	notify *notify
@@ -34,9 +36,9 @@ type Connections struct {
 	faildHistory *FailedHistory
 	history      *History
 
+	counters *counters
+
 	connStore syncmap.SyncMap[uint64, connection]
-	infoStore InfoCache
-	counters  *counters
 
 	idSeed id.IDGenerator
 }
@@ -367,8 +369,8 @@ func (c *Connections) AllHistory(context.Context, *emptypb.Empty) (*api.AllHisto
 }
 
 type counters struct {
-	mu    sync.Mutex
 	store map[uint64]*Counter
+	mu    sync.Mutex
 }
 
 func newCounters() *counters {

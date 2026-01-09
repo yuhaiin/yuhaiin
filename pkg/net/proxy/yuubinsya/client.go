@@ -21,10 +21,10 @@ type client struct {
 
 	hash []byte
 
+	pingCache syncmap.SyncMap[string, *pingConn]
+
 	overTCP  bool
 	coalesce bool
-
-	pingCache syncmap.SyncMap[string, *pingConn]
 }
 
 func init() {
@@ -192,10 +192,10 @@ func ping(conn *pingConn, data []byte) (b [8]byte, err error) {
 }
 
 type pingConn struct {
-	c *client
 	net.Conn
-	key   string
+	c     *client
 	timer *time.Timer
+	key   string
 	mu    sync.Mutex
 }
 

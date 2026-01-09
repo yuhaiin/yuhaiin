@@ -148,8 +148,8 @@ func init() {
 }
 
 type packet struct {
-	data []byte
 	addr net.Addr
+	data []byte
 }
 
 type udpDetectPacketConn struct {

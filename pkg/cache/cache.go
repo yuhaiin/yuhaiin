@@ -2,10 +2,30 @@ package cache
 
 import (
 	"errors"
+	"time"
 )
 
+type PutOptions struct {
+	TTL time.Duration
+}
+
+// WithTTL only badger cache support TTL
+func WithTTL(ttl time.Duration) func(*PutOptions) {
+	return func(o *PutOptions) {
+		o.TTL = ttl
+	}
+}
+
+func GetPutOptions(opts ...func(*PutOptions)) *PutOptions {
+	o := &PutOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}
+
 type Batch interface {
-	Put(k []byte, v []byte) error
+	Put(k []byte, v []byte, opts ...func(*PutOptions)) error
 	Delete(k []byte) error
 	// response only valid when batch
 	Get(k []byte) ([]byte, error)
@@ -13,7 +33,7 @@ type Batch interface {
 
 type Cache interface {
 	Get(k []byte) (v []byte, err error)
-	Put([]byte, []byte) error
+	Put([]byte, []byte, ...func(*PutOptions)) error
 	Delete(k []byte) error
 	Range(f func(key []byte, value []byte) bool) error
 	NewCache(str ...string) Cache
@@ -29,7 +49,7 @@ type MockCache struct {
 }
 
 func (m *MockCache) Get(k []byte) (v []byte, _ error) { return nil, nil }
-func (m *MockCache) Put(k []byte, v []byte) error {
+func (m *MockCache) Put(k []byte, v []byte, opts ...func(*PutOptions)) error {
 	if m.OnPut != nil {
 		m.OnPut(k, v)
 	}
