@@ -26,12 +26,12 @@ import (
 )
 
 type Backup struct {
+	api.UnimplementedBackupServer
 	db       chore.DB
 	proxy    netapi.Proxy
 	instance *AppInstance
-	mu       sync.Mutex
 	ticker   *time.Ticker
-	api.UnimplementedBackupServer
+	mu       sync.Mutex
 }
 
 func NewBackup(db chore.DB, instance *AppInstance, proxy netapi.Proxy) *Backup {

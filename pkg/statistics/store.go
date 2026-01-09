@@ -26,14 +26,15 @@ type InfoCache interface {
 var _ InfoCache = (*store)(nil)
 
 type store struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	memcache syncmap.SyncMap[uint64, *statistic.Connection]
-	closed   atomic.Bool
-	cache    cache.Cache
+	ctx   context.Context
+	cache cache.Cache
+
+	cancel    context.CancelFunc
+	deleteIds deleteIds
+	memcache  syncmap.SyncMap[uint64, *statistic.Connection]
 
 	deleteIdsMu sync.Mutex
-	deleteIds   deleteIds
+	closed      atomic.Bool
 }
 
 func newInfoStore(cache cache.Cache) *store {

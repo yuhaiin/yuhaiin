@@ -6,14 +6,15 @@ import "sync"
 // A RingBuffer is a ring buffer.
 // It acts as a heap that doesn't cause any allocations.
 type RingBuffer[T any] struct {
-	ring             []T
-	headPos, tailPos int
-	full             bool
 
 	// maxCap is the maximum capacity of the ring buffer.
 	maxCap func() int
 
-	mu sync.Mutex
+	ring             []T
+	headPos, tailPos int
+
+	mu   sync.Mutex
+	full bool
 }
 
 // NewRingBuffer returns a new ring buffer.

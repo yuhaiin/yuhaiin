@@ -118,9 +118,9 @@ type client struct {
 	edns0             dns.RR
 	dialer            Transport
 	rawStore          *lru.SyncLru[string, dns.Msg]
+	config            Config
 	rawSingleflight   singleflight.GroupSync[string, dns.Msg]
 	refreshBackground syncmap.SyncMap[string, struct{}]
-	config            Config
 }
 
 func NewClient(config Config, dialer Transport) netapi.Resolver {

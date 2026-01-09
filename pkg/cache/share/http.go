@@ -21,8 +21,8 @@ import (
 
 type Server struct {
 	db      cache.Cache
-	dbCache syncmap.SyncMap[string, cache.Cache]
 	lis     *net.UnixListener
+	dbCache syncmap.SyncMap[string, cache.Cache]
 }
 
 func NewServer(unixPath string, db cache.Cache) (*Server, error) {
@@ -263,7 +263,7 @@ func (c *Client) Get(k []byte) (v []byte, err error) {
 	return res.Value, err
 }
 
-func (c *Client) Put(k []byte, v []byte) error {
+func (c *Client) Put(k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
 	var objects []Object
 	objects = append(objects, Object{
 		Key:   k,
@@ -346,7 +346,7 @@ func (b *bucket) Get(k []byte) (v []byte, err error) {
 	return b.c.Get(k)
 }
 
-func (b *bucket) Put(k []byte, v []byte) error {
+func (b *bucket) Put(k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
 	return b.c.Put(k, v)
 }
 

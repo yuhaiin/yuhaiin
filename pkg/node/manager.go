@@ -17,8 +17,8 @@ import (
 
 type Manager struct {
 	db    *jsondb.DB[*node.Node]
-	mu    sync.RWMutex
 	store *ProxyStore
+	mu    sync.RWMutex
 }
 
 func NewManager(path string) *Manager {

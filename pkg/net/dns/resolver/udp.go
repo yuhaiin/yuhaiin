@@ -40,18 +40,19 @@ func (r *udpresp) setMsg(msg *dns.Msg) {
 }
 
 type udpPacket struct {
-	question []byte
 	ctx      context.Context
+	question []byte
 }
 
 type udp struct {
-	addr   netapi.Address
-	sender syncmap.SyncMap[string, *udpresp]
-	config Config
+	addr netapi.Address
 
 	ctx    context.Context
 	cancel context.CancelFunc
 	wchan  chan *udpPacket
+	config Config
+
+	sender syncmap.SyncMap[string, *udpresp]
 }
 
 func (u *udp) Close() error {
@@ -229,7 +230,7 @@ func (u *udp) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 			return dns.Msg{}, ctx.Err()
 		case <-u.ctx.Done():
 			return dns.Msg{}, u.ctx.Err()
-		case u.wchan <- &udpPacket{req.Bytes(), ctx}:
+		case u.wchan <- &udpPacket{ctx, req.Bytes()}:
 		}
 	}
 

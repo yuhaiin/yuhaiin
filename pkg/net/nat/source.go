@@ -54,8 +54,6 @@ type SourceControl struct {
 	// notifyReceivedPacket signals that there are packets received from the remote ready to be written back.
 	notifyReceivedPacket chan struct{}
 
-	// loopStopped indicates atomically if the primary I/O loop (loopWriteBack) for this control is stopped.
-	loopStopped atomic.Bool
 	// loopStopTime stores the timestamp when the primary I/O loop stopped, used for idle timeout checks.
 	loopStopTime atomic.Pointer[time.Time]
 
@@ -64,8 +62,6 @@ type SourceControl struct {
 	// wirteBack is a function to write received packets back to the original client.
 	wirteBack *atomicx.Value[netapi.WriteBackFunc]
 
-	// contextCache holds flow-specific options such as resolver and UDP migration ID.
-	contextCache ContextCache
 	// sentPackets is a ring buffer holding packets waiting to be sent to the remote destination.
 	sentPackets *ringbuffer.RingBuffer[*netapi.Packet]
 	// receivedPackets is a ring buffer holding packets received from the remote, waiting to be sent back to the client.
@@ -74,12 +70,18 @@ type SourceControl struct {
 	// lastProcess stores the name of the last process associated with this flow, primarily for logging.
 	lastProcess atomic.Pointer[string]
 
+	// contextCache holds flow-specific options such as resolver and UDP migration ID.
+	contextCache ContextCache
+
 	// resolvedIPCache caches the resolved IP address for a destination hostname.
 	resolvedIPCache syncmap.SyncMap[uint64, *net.UDPAddr]
 	// reverseNATMap maps the proxy's reply-from address back to the original client-requested destination for reverse NAT.
 	reverseNATMap syncmap.SyncMap[uint64, netapi.Address]
 	// dispatchCache caches the dispatch decision for a destination, indicating how to route it.
 	dispatchCache syncmap.SyncMap[uint64, netapi.Address]
+
+	// loopStopped indicates atomically if the primary I/O loop (loopWriteBack) for this control is stopped.
+	loopStopped atomic.Bool
 }
 
 func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *SourceControl {

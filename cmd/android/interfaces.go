@@ -37,8 +37,10 @@ func SetInterfaces(i Interfaces) {
 }
 
 type Interface struct {
+	Address           AddressIter
 	Name              string
 	DisplayName       string
+	HardwareAddr      []byte
 	Index             int32
 	Mtu               int32
 	IsUp              bool
@@ -47,8 +49,6 @@ type Interface struct {
 	Broadcast         bool
 	SupportsMulticast bool
 	IsVirtual         bool
-	HardwareAddr      []byte
-	Address           AddressIter
 }
 
 type InterfaceIter interface {

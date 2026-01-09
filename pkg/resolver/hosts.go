@@ -15,10 +15,10 @@ import (
 )
 
 type Hosts struct {
-	mu       sync.RWMutex
-	store    *hostsStore
 	dialer   netapi.Proxy
 	resolver netapi.Resolver
+	store    *hostsStore
+	mu       sync.RWMutex
 }
 
 func NewHosts(dialer netapi.Proxy, resolver netapi.Resolver) *Hosts {

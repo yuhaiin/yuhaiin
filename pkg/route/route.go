@@ -27,11 +27,11 @@ type Route struct {
 	config *atomicx.Value[*config.Configv2]
 	ms     *Matchers
 
-	loopback LoopbackDetector
-
 	*RejectHistory
 
 	matchers []*matcher
+
+	loopback LoopbackDetector
 }
 
 type Resolver interface {

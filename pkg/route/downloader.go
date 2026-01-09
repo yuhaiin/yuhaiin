@@ -20,8 +20,8 @@ import (
 )
 
 type Downloader struct {
-	path   string
 	dialer func() netapi.Proxy
+	path   string
 }
 
 type uri struct {

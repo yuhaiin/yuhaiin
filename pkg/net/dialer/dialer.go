@@ -249,6 +249,9 @@ type Options struct {
 	// without netfilter or for packet filtering.
 	MarkSymbol func(socket int32) bool
 
+	// PacketConnHintAddress to detect default interface
+	PacketConnHintAddress *net.UDPAddr
+
 	// InterfaceName is the name of interface/device to bind.
 	// If a socket is bound to an interface, only packets received
 	// from that particular interface are processed by the socket.
@@ -256,9 +259,6 @@ type Options struct {
 
 	listener          bool
 	tryUpgradeToBatch bool
-
-	// PacketConnHintAddress to detect default interface
-	PacketConnHintAddress *net.UDPAddr
 }
 
 func isTCPSocket(network string) bool {

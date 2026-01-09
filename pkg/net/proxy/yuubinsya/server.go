@@ -22,12 +22,12 @@ import (
 type server struct {
 	netapi.EmptyInterface
 	listener netapi.Listener
-	hash     []byte
-
-	coalesce bool
 	handler  netapi.Handler
 	ctx      context.Context
 	cancel   context.CancelFunc
+	hash     []byte
+
+	coalesce bool
 }
 
 func init() {

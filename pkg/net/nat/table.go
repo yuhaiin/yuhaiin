@@ -20,12 +20,12 @@ var (
 )
 
 type Table struct {
-	dialer        netapi.Proxy
-	sinffer       netapi.PacketSniffer
+	dialer  netapi.Proxy
+	sinffer netapi.PacketSniffer
+
+	timer         *time.Ticker
 	sourceControl syncmap.SyncMap[uint64, *SourceControl]
 	closed        atomic.Bool
-
-	timer *time.Ticker
 }
 
 func NewTable(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *Table {
