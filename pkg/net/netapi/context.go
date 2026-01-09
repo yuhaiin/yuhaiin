@@ -292,12 +292,12 @@ type Context struct {
 
 	sniff *Sniff `metrics:"Sniff"`
 
-	Hash     string `metrics:"Hash"`
-	NodeName string `metrics:"NodeName"`
-
 	ruleChain *MatchHistory `metrics:"Rule Chain"`
 
 	connOptions *ConnOptions
+
+	Hash     string `metrics:"Hash"`
+	NodeName string `metrics:"NodeName"`
 }
 
 func (c *Context) NewMatch(ruleName string) {
@@ -763,9 +763,9 @@ type MatchHistory struct {
 }
 
 func (r *MatchHistory) New(name string) {
-	r.chains = append(r.chains, statistic.MatchHistoryEntry_builder{
-		RuleName: &name,
-	}.Build())
+	his := &statistic.MatchHistoryEntry{}
+	his.SetRuleName(name)
+	r.chains = append(r.chains, his)
 }
 
 func (r *MatchHistory) Add(listName string, matched bool) {
@@ -773,9 +773,10 @@ func (r *MatchHistory) Add(listName string, matched bool) {
 		return
 	}
 
-	history := r.chains[len(r.chains)-1].GetHistory()
-	r.chains[len(r.chains)-1].SetHistory(append(history, statistic.MatchResult_builder{
-		ListName: &listName,
-		Matched:  &matched,
-	}.Build()))
+	result := &statistic.MatchResult{}
+	result.SetListName(listName)
+	result.SetMatched(matched)
+
+	chain := r.chains[len(r.chains)-1]
+	chain.SetHistory(append(chain.GetHistory(), result))
 }

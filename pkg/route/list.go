@@ -101,25 +101,30 @@ func (h *processMatcher) Search(ctx context.Context, addr netapi.Address) []stri
 
 type Lists struct {
 	api.UnimplementedListsServer
-	proxy *atomicx.Value[netapi.Proxy]
 
 	db chore.DB
+
+	proxy *atomicx.Value[netapi.Proxy]
 
 	geoip *struct {
 		m *maxminddb.MaxMindDB
 	}
-	geoipmu sync.RWMutex
 
 	downloader *Downloader
 
+	ticker *time.Timer
+
+	hostTrie *hostMatcher
+
+	processTrie *processMatcher
+
+	geoipmu sync.RWMutex
+
 	tickermu sync.RWMutex
-	ticker   *time.Timer
 
 	hostTrieMu sync.RWMutex
-	hostTrie   *hostMatcher
 
 	processTrieMu sync.RWMutex
-	processTrie   *processMatcher
 
 	refreshing atomic.Bool
 }

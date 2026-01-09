@@ -134,18 +134,19 @@ func (h *ChannelHandler) Ping() <-chan *PingMeta     { return h.ping }
 type PingMeta struct {
 	Source      net.Addr
 	Destination Address
-	InboundName string
 	WriteBack   func(uint64, error) error
+	InboundName string
 }
 
 type StreamMeta struct {
 	Source      net.Addr
 	Destination net.Addr
 	Inbound     net.Addr
-	InboundName string
 
 	Src     net.Conn
 	Address Address
+
+	InboundName string
 
 	DnsRequest bool
 }
@@ -159,18 +160,18 @@ type WriteBackFunc func(b []byte, addr net.Addr) (int, error)
 func (f WriteBackFunc) WriteBack(b []byte, addr net.Addr) (int, error) { return f(b, addr) }
 
 type Packet struct {
-	src       net.Addr
-	dst       Address
-	writeBack WriteBack
+	src         net.Addr
+	dst         Address
+	writeBack   WriteBack
+	inboundName string
 	// Payload will set to nil when ref count is negative, get it by [Packet.GetPayload]
 	// ! DON'T use Payload directly
-	payload     []byte
-	MigrateID   uint64
-	inboundName string
-	dnsRequest  bool
+	payload   []byte
+	MigrateID uint64
 
 	payloadRef int
 	mu         sync.Mutex
+	dnsRequest bool
 }
 
 func WithDNSRequest(b bool) func(*Packet) {

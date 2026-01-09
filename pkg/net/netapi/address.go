@@ -182,8 +182,8 @@ var _ Address = DomainAddr{}
 
 type DomainAddr struct {
 	HostnameX      string `json:"hostname,omitempty"`
-	AddressNetwork `json:"network,omitempty"`
 	PortX          uint16 `json:"port,omitempty"`
+	AddressNetwork `json:"network,omitempty"`
 }
 
 func (d DomainAddr) String() string {

@@ -5,9 +5,9 @@ import (
 	"encoding/binary"
 	"net/netip"
 	"sync"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
@@ -17,21 +17,22 @@ const (
 )
 
 type DiskFakeIPPool struct {
-	mu sync.Mutex
-
-	prefix  netip.Prefix
 	current netip.Addr // The current IP pointer
-	index   uint64     // The current index relative to the start of the sequence
-	maxNum  uint64     // Maximum number of IPs to cache (limit for large subnets like IPv6)
 
-	cache *badger.Cache
+	cache cache.Cache
+
+	prefix netip.Prefix
+	index  uint64 // The current index relative to the start of the sequence
+	maxNum uint64 // Maximum number of IPs to cache (limit for large subnets like IPv6)
+
+	mu sync.Mutex
 }
 
 // NewDiskFakeIPPool creates a new pool.
 // maxNum limits the maximum number of cached IPs.
 // If maxNum <= 0, it defaults to 65536.
 // If the subnet size is smaller than maxNum, maxNum is automatically adjusted to the subnet size.
-func NewDiskFakeIPPool(prefix netip.Prefix, db *badger.Cache, maxNum int) *DiskFakeIPPool {
+func NewDiskFakeIPPool(prefix netip.Prefix, db cache.Cache, maxNum int) *DiskFakeIPPool {
 	if maxNum <= 0 {
 		maxNum = 65536
 	}
@@ -52,7 +53,7 @@ func NewDiskFakeIPPool(prefix netip.Prefix, db *badger.Cache, maxNum int) *DiskF
 	pool := &DiskFakeIPPool{
 		prefix: prefix,
 		maxNum: uint64(maxNum),
-		cache:  db.NewCache(prefix.String()).(*badger.Cache),
+		cache:  db.NewCache(prefix.String()),
 		// Initialize to the address before the first valid one,
 		// so the first Next() call lands on the first valid address.
 		current: prefix.Addr().Prev(),
@@ -133,11 +134,11 @@ func (n *DiskFakeIPPool) store(domain string, addr netip.Addr) {
 
 		// 2. Save the bidirectional mapping.
 		// Forward: Domain -> IP
-		if err := txn.Put(domainBytes, addrBytes); err != nil {
+		if err := txn.Put(domainBytes, addrBytes, cache.WithTTL(time.Minute*10)); err != nil {
 			return err
 		}
 		// Backward: IP -> Domain
-		if err := txn.Put(addrBytes, domainBytes); err != nil {
+		if err := txn.Put(addrBytes, domainBytes, cache.WithTTL(time.Minute*10)); err != nil {
 			return err
 		}
 

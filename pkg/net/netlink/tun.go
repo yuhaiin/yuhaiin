@@ -24,12 +24,12 @@ type Darwin struct {
 type Options struct {
 	Endpoint     stack.LinkEndpoint
 	Device       Tun
+	Platform     Platform
 	Interface    TunScheme
 	Inet6Address []netip.Prefix
 	Inet4Address []netip.Prefix
 	Routes       []netip.Prefix
 	MTU          int
-	Platform     Platform
 }
 
 type Tun interface {

@@ -28,16 +28,17 @@ type Fakedns struct {
 	dialer   netapi.Proxy
 	upstream netapi.Resolver
 	db       cache.Cache
-	fake     *fakeip.FakeDNS
+
+	dnsServer netapi.DNSAgent
+	fake      *fakeip.FakeDNS
 
 	whitelist *domain.Fqdn[struct{}]
 	skipCheck *domain.Fqdn[struct{}]
 
+	serverHost string
+
 	whitelistSlice []string
 	skipCheckSlice []string
-
-	dnsServer  netapi.DNSAgent
-	serverHost string
 
 	smu     sync.RWMutex
 	enabled atomic.Bool

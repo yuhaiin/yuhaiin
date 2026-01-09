@@ -27,8 +27,9 @@ var _ netapi.Handler = (*Inbound)(nil)
 type Inbound struct {
 	ctx context.Context
 
-	handler    *handler
 	dnsHandler netapi.DNSAgent
+
+	handler *handler
 
 	close context.CancelFunc
 
@@ -36,15 +37,16 @@ type Inbound struct {
 	// the nat table is already use ringbuffer. so here just use buffer channel
 	udpChannel chan *netapi.Packet
 
+	interfaces *set.Set[string]
+
 	store syncmap.SyncMap[string, entry]
 
 	mu sync.RWMutex
 
+	interfacesLock sync.RWMutex
+
 	hijackDNS atomic.Bool
 	fakeip    atomic.Bool
-
-	interfaces     *set.Set[string]
-	interfacesLock sync.RWMutex
 }
 
 type Option func(*Inbound)
@@ -254,8 +256,8 @@ func (l *Inbound) Close() error {
 }
 
 type handlerWrap struct {
-	name    string
 	handler *Inbound
+	name    string
 }
 
 func (h *handlerWrap) HandleStream(meta *netapi.StreamMeta) {

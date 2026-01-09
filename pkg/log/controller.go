@@ -13,8 +13,8 @@ import (
 )
 
 type cycleFileReader struct {
-	path string
 	f    *os.File
+	path string
 	mu   sync.Mutex
 }
 

@@ -81,7 +81,7 @@ func (c *Cache) bucket(tx *bbolt.Tx, readOnly bool) (*bbolt.Bucket, error) {
 	return next.(*bbolt.Bucket), nil
 }
 
-func (c *Cache) Put(k []byte, v []byte) error {
+func (c *Cache) Put(k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
 	if c.db == nil {
 		return nil
 	}
@@ -200,7 +200,7 @@ type batch struct {
 	txn *bbolt.Bucket
 }
 
-func (b *batch) Put(k []byte, v []byte) error {
+func (b *batch) Put(k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
 	return b.txn.Put(k, v)
 }
 

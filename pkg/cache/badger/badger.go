@@ -66,12 +66,14 @@ func (c *Cache) Get(k []byte) (v []byte, err error) {
 	return
 }
 
-func (c *Cache) Put(k []byte, v []byte) error {
+func (c *Cache) Put(k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
+	opt := cache.GetPutOptions(opts...)
 	return c.db.Update(func(txn *badger.Txn) error {
-		if err := txn.Set(c.makeKey(k), v); err != nil {
-			return err
+		entry := badger.NewEntry(c.makeKey(k), v)
+		if opt.TTL > 0 {
+			entry.WithTTL(opt.TTL)
 		}
-		return nil
+		return txn.SetEntry(entry)
 	})
 }
 
@@ -163,8 +165,14 @@ type Batch struct {
 	c   *Cache
 }
 
-func (b *Batch) Put(k []byte, v []byte) error {
-	return b.txn.Set(b.c.makeKey(k), v)
+func (b *Batch) Put(k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
+	opt := cache.GetPutOptions(opts...)
+	entry := badger.NewEntry(b.c.makeKey(k), v)
+	if opt.TTL > 0 {
+		entry.WithTTL(opt.TTL)
+	}
+
+	return b.txn.SetEntry(entry)
 }
 
 func (b *Batch) Delete(k []byte) error {

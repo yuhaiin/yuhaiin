@@ -21,7 +21,7 @@ func (m *MemoryCache) Get(k []byte) (v []byte, err error) {
 	return x, nil
 }
 
-func (m *MemoryCache) Put(k []byte, v []byte) error {
+func (m *MemoryCache) Put(k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
 	m.cache.Store(string(k), v)
 	return nil
 }
@@ -77,7 +77,7 @@ type batch struct {
 	txn *MemoryCache
 }
 
-func (b *batch) Put(k []byte, v []byte) error {
+func (b *batch) Put(k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
 	b.txn.cache.Store(string(k), v)
 	return nil
 }

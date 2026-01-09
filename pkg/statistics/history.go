@@ -107,9 +107,9 @@ type History struct {
 }
 
 type historyEntry struct {
+	time  *atomicx.Value[time.Time]
 	id    atomic.Uint64
 	count atomic.Uint64
-	time  *atomicx.Value[time.Time]
 }
 
 func NewHistory(infoStore InfoCache) *History {

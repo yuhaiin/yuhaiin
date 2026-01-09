@@ -5,8 +5,8 @@ import (
 )
 
 type SyncMap[key comparable, value any] struct {
-	single single[key]
 	data   sync.Map
+	single single[key]
 }
 
 func (a *SyncMap[T1, T2]) Load(key T1) (r T2, _ bool) {

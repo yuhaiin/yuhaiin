@@ -510,13 +510,13 @@ func (w *warpUDPConn) ReadFrom(buf []byte) (int, net.Addr, error) {
 }
 
 type dnsPacket struct {
-	cancel        context.CancelFunc
+	src           netip.Addr
 	ctx           context.Context
+	cancel        context.CancelFunc
 	ch            chan []byte
+	dialer        *tsdial.Dialer
 	writeDeadline pipe.PipeDeadline
 	readDeadline  pipe.PipeDeadline
-	dialer        *tsdial.Dialer
-	src           netip.Addr
 }
 
 func NewDnsPacket(dialer *tsdial.Dialer, src netip.Addr) net.PacketConn {

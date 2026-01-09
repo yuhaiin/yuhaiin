@@ -27,8 +27,8 @@ func (g *Group) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 	defer cancel()
 
 	type result struct {
-		resp dns.Msg
 		err  error
+		resp dns.Msg
 	}
 
 	first := true
@@ -65,7 +65,7 @@ func (g *Group) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 				}
 
 				select {
-				case ch <- result{resp, er}:
+				case ch <- result{er, resp}:
 				case <-ctx.Done():
 				}
 			}(d)

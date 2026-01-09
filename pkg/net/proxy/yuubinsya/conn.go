@@ -18,12 +18,12 @@ import (
 )
 
 type PacketConn struct {
-	hash []byte
 	pool.BufioConn
-	coalesce     bool
-	coalesceChan chan []byte
 	ctx          context.Context
+	coalesceChan chan []byte
 	cancel       context.CancelCauseFunc
+	hash         []byte
+	coalesce     bool
 }
 
 func newPacketConn(conn pool.BufioConn, hash []byte, coalesce bool) *PacketConn {

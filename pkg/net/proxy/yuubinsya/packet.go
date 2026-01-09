@@ -20,9 +20,10 @@ import (
 type AuthPacketConn struct {
 	net.PacketConn
 
+	rawAddr net.Addr
+	onClose func() error
+
 	password []byte
-	rawAddr  net.Addr
-	onClose  func() error
 	prefix   bool
 }
 
@@ -121,8 +122,8 @@ func (s *AuthPacketConn) read(p []byte) (int, packetAddr, error) {
 type UDPServer struct {
 	PacketConn net.PacketConn
 	Handler    func(*netapi.Packet)
-	Prefix     bool
 	Password   []byte
+	Prefix     bool
 }
 
 func (s *UDPServer) Serve() error {
