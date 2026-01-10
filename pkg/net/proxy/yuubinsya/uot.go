@@ -144,6 +144,8 @@ func (c *PacketConn) loopflush() {
 		case <-c.ctx.Done():
 			return
 		case first := <-c.coalesceChan:
+			buf.Truncate(0)
+
 			c.flush(first, buf, buffSize)
 		}
 	}
@@ -152,36 +154,35 @@ func (c *PacketConn) loopflush() {
 func (c *PacketConn) flush(first []byte, buffer *pool.Buffer, buffSize int) {
 	defer pool.PutBytes(first)
 
-	buffer.Truncate(0)
+	var buf []byte
 
-	l := len(c.coalesceChan)
-
-	buf := first
-	if l > 0 {
+	if len(c.coalesceChan) == 0 {
+		buf = first
+	} else {
 		_, _ = buffer.Write(first)
-		c.dump(l, buffer, buffSize)
+
+		drainLoop:
+			for {
+				select {
+				case <-c.ctx.Done():
+					return
+				case b := <-c.coalesceChan:
+					_, _ = buffer.Write(b)
+					pool.PutBytes(b)
+					if buffer.Len() > buffSize {
+						break drainLoop
+					}
+				default:
+					break drainLoop
+				}
+			}
+
 		buf = buffer.Bytes()
 	}
 
-	_, err := c.Write(buf)
-	if err != nil {
+	if _, err := c.Write(buf); err != nil {
 		c.cancel(err)
 		log.Error("write to failed", "err", err)
-	}
-}
-
-func (c *PacketConn) dump(chanSize int, buf *pool.Buffer, buffSize int) {
-	for range chanSize {
-		select {
-		case <-c.ctx.Done():
-			return
-		case b := <-c.coalesceChan:
-			_, _ = buf.Write(b)
-			pool.PutBytes(b)
-			if buf.Len() > buffSize {
-				return
-			}
-		}
 	}
 }
 

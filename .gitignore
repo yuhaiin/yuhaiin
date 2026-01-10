@@ -27,3 +27,4 @@ cmd/android/yuhaiin.db
 /yuubinsya
 /pkg/net/trie/maxminddb/*.mmdb
 /pkg/net/netlink/tcplife/vmlinux.h
+/pkg/net/trie/v2/domain/disk/test.db

@@ -97,5 +97,8 @@ func setSocketOptions(s *stack.Stack, ep tcpip.Endpoint) tcpip.Error {
 			ep.SocketOptions().SetReceiveBufferSize(int64(rs.Default), false)
 		}
 	}
+
+	ep.SocketOptions().SetReuseAddress(true)
+	// ep.SocketOptions().SetReusePort(true)
 	return nil
 }

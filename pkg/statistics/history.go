@@ -3,8 +3,8 @@ package statistics
 import (
 	"context"
 	"errors"
+	"hash/maphash"
 	"net"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -18,26 +18,27 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type failedHistoryKey struct {
-	host     string
-	process  string
-	protocol statistic.Type
-}
-
 type failedHistoryEntry struct {
-	*api.FailedHistory
-	mu sync.RWMutex
+	Protocol statistic.Type
+	Host     string
+
+	FailedCount atomic.Uint64
+	Time        *atomicx.Value[time.Time]
+	Error       *atomicx.Value[string]
+	Process     *atomicx.Value[string]
 }
 
 type FailedHistory struct {
-	store *lru.SyncLru[failedHistoryKey, *failedHistoryEntry]
+	store *lru.SyncLru[uint64, *failedHistoryEntry]
+	seed  maphash.Seed
 }
 
 func NewFailedHistory() *FailedHistory {
 	return &FailedHistory{
 		store: lru.NewSyncLru(
-			lru.WithCapacity[failedHistoryKey, *failedHistoryEntry](int(configuration.HistorySize)),
+			lru.WithCapacity[uint64, *failedHistoryEntry](int(configuration.HistorySize)),
 		),
+		seed: maphash.MakeSeed(),
 	}
 }
 
@@ -58,41 +59,55 @@ func (h *FailedHistory) Push(ctx context.Context, err error, protocol statistic.
 		err = ne.Err
 	}
 
-	key := failedHistoryKey{getRealAddr(store, host), store.GetProcessName(), protocol}
-	x, ok := h.store.LoadOrAdd(key, func() *failedHistoryEntry {
-		return &failedHistoryEntry{
-			FailedHistory: (&api.FailedHistory_builder{
-				Protocol:    &protocol,
-				Host:        stringOrNil(getRealAddr(store, host)),
-				Error:       stringOrNil(err.Error()),
-				Time:        timestamppb.Now(),
-				Process:     stringOrNil(store.GetProcessName()),
-				FailedCount: proto.Uint64(1),
-			}).Build(),
-		}
+	realAddr := getRealAddr(store, host)
+
+	key := maphash.Comparable(h.seed, struct {
+		host     string
+		process  string
+		protocol statistic.Type
+	}{
+		host:     realAddr,
+		process:  store.GetProcessName(),
+		protocol: protocol,
 	})
 
+	x, ok := h.store.LoadOrAdd(key, func() *failedHistoryEntry {
+		fe := &failedHistoryEntry{
+			Protocol:    protocol,
+			Host:        realAddr,
+			Error:       atomicx.NewValue(err.Error()),
+			Time:        atomicx.NewValue(time.Now()),
+			Process:     atomicx.NewValue(store.GetProcessName()),
+			FailedCount: atomic.Uint64{},
+		}
+		fe.FailedCount.Add(1)
+		return fe
+	})
 	if !ok {
 		return
 	}
 
-	x.mu.Lock()
-	x.SetTime(timestamppb.Now())
-	x.SetFailedCount(x.GetFailedCount() + 1)
-	x.SetError(err.Error())
-	x.mu.Unlock()
+	x.Time.Store(time.Now())
+	x.FailedCount.Add(1)
+	x.Error.Store(err.Error())
+	x.Process.Store(store.GetProcessName())
 }
 
 func (h *FailedHistory) Get() *api.FailedHistoryList {
 	var objects []*api.FailedHistory
 	dumpProcess := false
 	for _, v := range h.store.Range {
-		v.mu.RLock()
-		objects = append(objects, proto.CloneOf(v.FailedHistory))
-		if !dumpProcess && v.GetProcess() != "" {
+		afh := &api.FailedHistory{}
+		afh.SetHost(v.Host)
+		afh.SetProtocol(v.Protocol)
+		afh.SetError(v.Error.Load())
+		afh.SetTime(timestamppb.New(v.Time.Load()))
+		afh.SetFailedCount(v.FailedCount.Load())
+		afh.SetProcess(v.Process.Load())
+		objects = append(objects, afh)
+		if !dumpProcess && v.Process.Load() != "" {
 			dumpProcess = true
 		}
-		v.mu.RUnlock()
 	}
 
 	return api.FailedHistoryList_builder{
@@ -103,7 +118,8 @@ func (h *FailedHistory) Get() *api.FailedHistoryList {
 
 type History struct {
 	infoStore InfoCache
-	store     *lru.SyncLru[failedHistoryKey, *historyEntry]
+	store     *lru.SyncLru[uint64, *historyEntry]
+	seed      maphash.Seed
 }
 
 type historyEntry struct {
@@ -115,11 +131,12 @@ type historyEntry struct {
 func NewHistory(infoStore InfoCache) *History {
 	h := &History{
 		infoStore: infoStore,
+		seed:      maphash.MakeSeed(),
 	}
 
 	h.store = lru.NewSyncLru(
-		lru.WithCapacity[failedHistoryKey, *historyEntry](int(configuration.HistorySize)),
-		lru.WithOnRemove(func(key failedHistoryKey, value *historyEntry) {
+		lru.WithCapacity[uint64, *historyEntry](int(configuration.HistorySize)),
+		lru.WithOnRemove(func(key uint64, value *historyEntry) {
 			h.infoStore.Delete(value.id.Load())
 		}),
 	)
@@ -128,7 +145,15 @@ func NewHistory(infoStore InfoCache) *History {
 }
 
 func (h *History) Push(c *statistic.Connection) {
-	key := failedHistoryKey{c.GetAddr(), c.GetProcess(), c.GetType().GetConnType()}
+	key := maphash.Comparable(h.seed, struct {
+		addr     string
+		process  string
+		protocol statistic.Type
+	}{
+		addr:     c.GetAddr(),
+		process:  c.GetProcess(),
+		protocol: c.GetType().GetConnType(),
+	})
 
 	h.infoStore.Store(c.GetId(), c)
 

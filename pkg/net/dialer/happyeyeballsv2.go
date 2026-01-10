@@ -50,11 +50,13 @@ func NewDefaultHappyEyeballsv2Dialer(opts ...func(*HappyEyeballsv2Dialer[net.Con
 	}, opts...)
 }
 
-func NewHappyEyeballsv2Dialer[T net.Conn](dialer func(ctx context.Context, ip net.IP, port uint16) (T, error),
-	opts ...func(*HappyEyeballsv2Dialer[T])) *HappyEyeballsv2Dialer[T] {
+func NewHappyEyeballsv2Dialer[T net.Conn](
+	dialer func(ctx context.Context, ip net.IP, port uint16) (T, error),
+	opts ...func(*HappyEyeballsv2Dialer[T]),
+) *HappyEyeballsv2Dialer[T] {
 	ret := &HappyEyeballsv2Dialer[T]{
 		dialContext: dialer,
-		cache:       lru.NewSyncLru(lru.WithCapacity[string, net.IP](512)),
+		cache:       lru.NewSyncLru(lru.WithCapacity[string, net.IP](90)),
 		avg:         NewAvg(),
 		semaphore:   semaphore.NewEmptySemaphore(),
 	}
@@ -151,8 +153,10 @@ func ifElse[T any](cond bool, trueVal, falseVal T) T {
 	return falseVal
 }
 
-func newHappyEyeballv2Respover(ctx context.Context, addr netapi.Address,
-	cache HappyEyeballsv2Cache, semaphore semaphore.Semaphore) *happyEyeballv2Resolver {
+func newHappyEyeballv2Respover(
+	ctx context.Context, addr netapi.Address,
+	cache HappyEyeballsv2Cache, semaphore semaphore.Semaphore,
+) *happyEyeballv2Resolver {
 	ctx, cancel := context.WithCancel(ctx)
 
 	var lastIP net.IP

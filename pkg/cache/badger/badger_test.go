@@ -266,6 +266,42 @@ func TestBadger(t *testing.T) {
 			t.Fatal("delete bucket failed")
 		}
 	})
+
+	t.Run("CacheExists", func(t *testing.T) {
+		c := setupTestDB(t)
+		b1 := c.NewCache("b1")
+
+		if c.CacheExists("b1") {
+			t.Fatal("b1 should not exist yet")
+		}
+
+		err := b1.Put([]byte("key"), []byte("value"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !c.CacheExists("b1") {
+			t.Fatal("b1 should exist")
+		}
+
+		if c.CacheExists("b2") {
+			t.Fatal("b2 should not exist")
+		}
+
+		b2 := b1.NewCache("b2")
+		if c.CacheExists("b1", "b2") {
+			t.Fatal("b1/b2 should not exist yet")
+		}
+
+		err = b2.Put([]byte("key"), []byte("value"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !c.CacheExists("b1", "b2") {
+			t.Fatal("b1/b2 should exist")
+		}
+	})
 }
 
 func BenchmarkBadger(b *testing.B) {

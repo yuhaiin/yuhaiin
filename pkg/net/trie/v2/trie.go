@@ -2,16 +2,23 @@ package trie
 
 import (
 	"context"
+	"crypto/rand"
+	"errors"
+	"fmt"
 	"net/netip"
+	"os"
+	"path/filepath"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/cidr"
-	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/domain"
+	domain "github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/domain/disk"
 )
 
 type Trie[T comparable] struct {
 	cidr   *cidr.Cidr[T]
 	domain *domain.Fqdn[T]
+	path   string
 }
 
 func (x *Trie[T]) Insert(str string, mark T) {
@@ -88,10 +95,27 @@ func (x *Trie[T]) Remove(str string, mark T) {
 
 func (x *Trie[T]) Clear() error {
 	x.cidr = cidr.NewCidr[T]()
-	x.domain = domain.NewTrie[T]()
-	return nil
+	return x.domain.Clear()
+}
+
+func (x *Trie[T]) Close() error {
+	var err error
+	if er := x.domain.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+	if er := os.RemoveAll(x.path); er != nil {
+		err = errors.Join(err, er)
+	}
+	return err
 }
 
 func NewTrie[T comparable]() *Trie[T] {
-	return &Trie[T]{cidr: cidr.NewCidr[T](), domain: domain.NewTrie[T]()}
+	path := filepath.Join(configuration.DataDir.Load(),
+		fmt.Sprintf("trie.%s.db", rand.Text()),
+	)
+	return &Trie[T]{
+		cidr:   cidr.NewCidr[T](),
+		domain: domain.NewTrie[T](path),
+		path:   path,
+	}
 }

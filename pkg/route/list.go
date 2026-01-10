@@ -41,6 +41,15 @@ func newHostTrie() *hostMatcher {
 	}
 }
 
+func (h *hostMatcher) Clear() {
+	h.lists.Clear()
+	h.trie.Clear()
+}
+
+func (h *hostMatcher) Close() error {
+	return h.trie.Close()
+}
+
 func (h *hostMatcher) Add(host string, list string) {
 	h.lists.Push(list)
 	h.trie.Insert(host, list)
@@ -359,7 +368,7 @@ func (s *Lists) Close() error {
 	s.tickermu.Unlock()
 
 	s.closeCurrentGeoip()
-	return nil
+	return s.hostTrie.Close()
 }
 
 func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Empty, error) {
@@ -595,6 +604,9 @@ func (s *Lists) refreshHostTrie() {
 	}
 
 	s.hostTrieMu.Lock()
+	if err := s.hostTrie.Close(); err != nil {
+		log.Error("close host trie failed", "err", err)
+	}
 	s.hostTrie = hostTrie
 	s.hostTrieMu.Unlock()
 }
@@ -613,7 +625,7 @@ func (s *Lists) SetHostTrie(hostTrie *hostMatcher) {
 
 func (s *Lists) ResetHostTrie() {
 	s.hostTrieMu.Lock()
-	s.hostTrie = newHostTrie()
+	s.hostTrie.Clear()
 	s.hostTrieMu.Unlock()
 }
 
