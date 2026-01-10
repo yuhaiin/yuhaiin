@@ -10,7 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 )
 
-var valKey = []byte{0x0, 'V', 'A', 'L', 'U', 'E', 0x0}
+var valKey = []byte{0x0, 'V', 0x0, 0b10101010}
 
 type DiskTrie[T comparable] struct {
 	root   *badger.Cache
@@ -55,20 +55,17 @@ func (dt *DiskTrie[T]) Insert(z *fqdnReader, mark T) error {
 		return errors.New("trie is closed")
 	}
 
-	node := dt.root
+	key := []string{}
 
-	for z.hasNext() {
-		var ok bool
-		node, ok = dt.child(node, z.str(), true)
-		if !ok {
-			return nil
-		}
-		z.next()
+	for ; z.hasNext(); z.next() {
+		key = append(key, z.str())
 	}
+
+	node := dt.root.NewCache(key...).(*badger.Cache)
+
 	vals := dt.getValue(node)
 	if !slices.Contains(vals, mark) {
-		vals = append(vals, mark)
-		return dt.setValue(node, vals)
+		return dt.setValue(node, append(vals, mark))
 	}
 	return nil
 }

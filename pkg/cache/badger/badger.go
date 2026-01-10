@@ -151,6 +151,7 @@ func (c *Cache) CacheExists(str ...string) bool {
 	_ = c.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
+		opts.AllVersions = false
 		it := txn.NewIterator(opts)
 		defer it.Close()
 		it.Seek(prefixToCheck)
