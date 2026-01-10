@@ -161,22 +161,22 @@ func (c *PacketConn) flush(first []byte, buffer *pool.Buffer, buffSize int) {
 	} else {
 		_, _ = buffer.Write(first)
 
-		for {
-			select {
-			case <-c.ctx.Done():
-				return
-			case b := <-c.coalesceChan:
-				_, _ = buffer.Write(b)
-				pool.PutBytes(b)
-				if buffer.Len() > buffSize {
-					goto send
+		drainLoop:
+			for {
+				select {
+				case <-c.ctx.Done():
+					return
+				case b := <-c.coalesceChan:
+					_, _ = buffer.Write(b)
+					pool.PutBytes(b)
+					if buffer.Len() > buffSize {
+						break drainLoop
+					}
+				default:
+					break drainLoop
 				}
-			default:
-				goto send
 			}
-		}
 
-	send:
 		buf = buffer.Bytes()
 	}
 
