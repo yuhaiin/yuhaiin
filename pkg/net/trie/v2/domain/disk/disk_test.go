@@ -25,7 +25,7 @@ func setupTestDB(t testing.TB) (*DiskTrie[string], string) {
 // 清理 DB
 func cleanupTestDB(dt *DiskTrie[string], dir string) {
 	dt.root.Badger().Close()
-	// os.RemoveAll(dir)
+	os.RemoveAll(dir)
 }
 
 // --- 单元测试 ---
