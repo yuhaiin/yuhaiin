@@ -7,6 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/dgraph-io/badger/v4"
+	"github.com/dgraph-io/badger/v4/options"
 )
 
 var (
@@ -31,7 +32,10 @@ func New(path string) (*Cache, error) {
 		WithMemTableSize(2 << 20).     // 2mb
 		WithBaseTableSize(2 << 20).    // 2mb
 		WithValueThreshold(256 << 10). // 256KB
+		WithIndexCacheSize(1 << 20).
 		WithNumMemtables(1).
+		WithCompression(options.None).
+		WithBlockCacheSize(0). // we don't use compression, so we don't need block cache
 		WithSyncWrites(false).
 		WithMetricsEnabled(true).
 		WithCompactL0OnClose(true)
@@ -128,6 +132,33 @@ func (c *Cache) NewCache(str ...string) cache.Cache {
 		db:     c.db,
 		prefix: newPrefix,
 	}
+}
+
+func (c *Cache) CacheExists(str ...string) bool {
+	if len(str) == 0 {
+		return true
+	}
+
+	prefixToCheck := make([]byte, len(c.prefix), len(c.prefix)+len(str)*5)
+	copy(prefixToCheck, c.prefix)
+
+	for _, s := range str {
+		prefixToCheck = append(prefixToCheck, []byte(s)...)
+		prefixToCheck = append(prefixToCheck, '/') // separator
+	}
+
+	var exists bool
+	_ = c.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		it.Seek(prefixToCheck)
+		exists = it.ValidForPrefix(prefixToCheck)
+		return nil
+	})
+
+	return exists
 }
 
 func (c *Cache) DeleteBucket(str ...string) error {

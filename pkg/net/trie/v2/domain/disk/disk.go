@@ -1,0 +1,185 @@
+package domain
+
+import (
+	"bytes"
+	"encoding/gob"
+	"errors"
+	"slices"
+	"sync/atomic"
+
+	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
+)
+
+var valKey = []byte{0x0, 'V', 'A', 'L', 'U', 'E', 0x0}
+
+type DiskTrie[T comparable] struct {
+	root   *badger.Cache
+	closed atomic.Bool
+}
+
+func NewDiskTrie[T comparable](root *badger.Cache) *DiskTrie[T] {
+	return &DiskTrie[T]{root: root}
+}
+
+func (dt *DiskTrie[T]) child(node *badger.Cache, s string, insert bool) (*badger.Cache, bool) {
+	if insert {
+		return node.NewCache(s).(*badger.Cache), true
+	} else {
+		if !node.CacheExists(s) {
+			return nil, false
+		}
+		return node.NewCache(s).(*badger.Cache), true
+	}
+}
+
+func (dt *DiskTrie[T]) getValue(node *badger.Cache) []T {
+	data, err := node.Get(valKey)
+	if err != nil || len(data) == 0 {
+		return nil
+	}
+	var res []T
+	_ = gob.NewDecoder(bytes.NewReader(data)).Decode(&res)
+	return res
+}
+
+func (dt *DiskTrie[T]) setValue(node *badger.Cache, vals []T) error {
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(vals); err != nil {
+		return err
+	}
+	return node.Put(valKey, buf.Bytes())
+}
+
+func (dt *DiskTrie[T]) Insert(z *fqdnReader, mark T) error {
+	if dt.closed.Load() {
+		return errors.New("trie is closed")
+	}
+
+	node := dt.root
+
+	for z.hasNext() {
+		var ok bool
+		node, ok = dt.child(node, z.str(), true)
+		if !ok {
+			return nil
+		}
+		z.next()
+	}
+	vals := dt.getValue(node)
+	if !slices.Contains(vals, mark) {
+		vals = append(vals, mark)
+		return dt.setValue(node, vals)
+	}
+	return nil
+}
+
+func (dt *DiskTrie[T]) Search(domain *fqdnReader) []T {
+	if dt.closed.Load() {
+		return nil
+	}
+
+	var res []T
+	root := dt.root
+
+	r, ok := dt.child(root, domain.str(), false)
+	if ok {
+		root = r
+		goto _second
+	}
+
+	root, ok = dt.child(root, "*", false)
+	if !ok {
+		return res
+	}
+	for ; domain.hasNext(); domain.next() {
+		if r, ok = dt.child(root, domain.str(), false); ok {
+			root = r
+			goto _second
+		}
+	}
+
+	return res
+
+_second:
+
+	for domain.next() {
+		if r, ok := dt.child(root, "*", false); ok {
+			res = append(res, dt.getValue(r)...)
+		}
+		root, ok = dt.child(root, domain.str(), false)
+		if !ok {
+			return res
+		}
+	}
+
+	res = append(res, dt.getValue(root)...)
+
+	if r, ok := dt.child(root, "*", false); ok {
+		res = append(res, dt.getValue(r)...)
+	}
+
+	return res
+}
+
+func (dt *DiskTrie[T]) Clear() error {
+	if dt.closed.Load() {
+		return errors.New("trie is closed")
+	}
+
+	return dt.root.Badger().DropAll()
+}
+
+func (dt *DiskTrie[T]) Close() error {
+	if dt.closed.CompareAndSwap(false, true) {
+		return dt.root.Badger().Close()
+	}
+	return nil
+}
+
+func (dt *DiskTrie[T]) Remove(domain *fqdnReader, mark T) error {
+	if dt.closed.Load() {
+		return errors.New("trie is closed")
+	}
+
+	type step struct {
+		node *badger.Cache
+		part string
+	}
+
+	node := dt.root
+	nodes := []step{{node: node, part: ""}}
+
+	for domain.hasNext() {
+		part := domain.str()
+		z, ok := dt.child(node, part, false)
+		if !ok {
+			return nil
+		}
+
+		node = z
+		nodes = append(nodes, step{node: node, part: part})
+		domain.next()
+	}
+
+	vals := dt.getValue(node)
+	if index := slices.Index(vals, mark); index != -1 {
+		vals = append(vals[:index], vals[index+1:]...)
+		if err := dt.setValue(node, vals); err != nil {
+			return err
+		}
+	}
+
+	for i := len(nodes) - 1; i >= 1; i-- {
+		childStep := nodes[i]
+
+		childVals := dt.getValue(childStep.node)
+
+		if len(childVals) == 0 {
+			// childStep.node.Delete(valKey)
+		} else {
+			break
+		}
+	}
+
+	return nil
+}

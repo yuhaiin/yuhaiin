@@ -265,9 +265,9 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 	connection := &statistic.Connection_builder{
 		Id:   proto.Uint64(c.idSeed.Generate()),
 		Addr: proto.String(getRealAddr(nc, addr)),
-		Type: (&statistic.NetType_builder{
+		Type: statistic.NetType_builder{
 			ConnType: statistic.Type(statistic.Type_value[addr.Network()]).Enum(),
-		}).Build(),
+		}.Build(),
 		Geo:          stringOrNil(nc.GetGeo()),
 		Source:       stringerOrNil(nc.Source),
 		Inbound:      stringerOrNil(nc.GetInbound()),
@@ -292,7 +292,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		HttpHost:      stringOrNil(nc.GetHTTPHost()),
 		Component:     stringOrNil(nc.GetComponent()),
 		Mode:          nc.ConnOptions().RouteMode().Enum(),
-		MatchHistory:  nc.MatchHistory(),
+		MatchHistory:  ToProtoMatchHistoryEntry(nc.MatchHistory()),
 		UdpMigrateId:  uint64OrNil(nc.GetUDPMigrateID()),
 		Pid:           uint64OrNil(uint64(nc.GetProcessPid())),
 		Uid:           uint64OrNil(uint64(nc.GetProcessUid())),
@@ -305,6 +305,32 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 	}
 
 	return connection.Build()
+}
+
+func ToProtoMatchHistoryEntry(entry []*netapi.MatchHistoryEntry) []*statistic.MatchHistoryEntry {
+	mhis := make([]*statistic.MatchHistoryEntry, 0, len(entry))
+	for _, v := range entry {
+		his := make([]*statistic.MatchResult, 0, len(v.UnmatchedHistory))
+		for _, v := range v.UnmatchedHistory {
+			r := &statistic.MatchResult{}
+			r.SetListName(v.Value())
+			his = append(his, r)
+		}
+
+		if m := v.MatchedHistory.Value(); m != "" {
+			r := &statistic.MatchResult{}
+			r.SetListName(m)
+			r.SetMatched(true)
+			his = append(his, r)
+		}
+
+		h := &statistic.MatchHistoryEntry{}
+		h.SetRuleName(v.RuleName.Value())
+		h.SetHistory(his)
+		mhis = append(mhis, h)
+	}
+
+	return mhis
 }
 
 func uint64OrNil(i uint64) *uint64 {

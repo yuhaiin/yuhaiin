@@ -76,6 +76,10 @@ _second:
 	}
 
 	res = append(res, root.Value...)
+	if r, ok := root.child("*", false); ok {
+		res = append(res, r.Value...)
+	}
+
 	return res
 }
 
