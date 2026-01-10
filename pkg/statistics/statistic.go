@@ -309,11 +309,11 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 
 func ToProtoMatchHistoryEntry(entry []*netapi.MatchHistoryEntry) []*statistic.MatchHistoryEntry {
 	mhis := make([]*statistic.MatchHistoryEntry, 0, len(entry))
-	for _, v := range entry {
-		his := make([]*statistic.MatchResult, 0, len(v.UnmatchedHistory))
-		for _, v := range v.UnmatchedHistory {
+	for _, e := range entry {
+		his := make([]*statistic.MatchResult, 0, len(e.UnmatchedHistory))
+		for _, uh := range e.UnmatchedHistory {
 			r := &statistic.MatchResult{}
-			r.SetListName(v.Value())
+			r.SetListName(uh.Value())
 			his = append(his, r)
 		}
 
