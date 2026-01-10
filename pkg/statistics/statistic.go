@@ -317,7 +317,7 @@ func ToProtoMatchHistoryEntry(entry []*netapi.MatchHistoryEntry) []*statistic.Ma
 			his = append(his, r)
 		}
 
-		if m := v.MatchedHistory.Value(); m != "" {
+		if m := e.MatchedHistory.Value(); m != "" {
 			r := &statistic.MatchResult{}
 			r.SetListName(m)
 			r.SetMatched(true)
@@ -325,7 +325,7 @@ func ToProtoMatchHistoryEntry(entry []*netapi.MatchHistoryEntry) []*statistic.Ma
 		}
 
 		h := &statistic.MatchHistoryEntry{}
-		h.SetRuleName(v.RuleName.Value())
+		h.SetRuleName(e.RuleName.Value())
 		h.SetHistory(his)
 		mhis = append(mhis, h)
 	}
