@@ -241,7 +241,7 @@ func (b *Batch) Get(k []byte) ([]byte, error) {
 	return item.ValueCopy(nil)
 }
 
-func (b *Batch) GetFromCache(cache []string, k []byte) ([]byte, error) {
+func (b *Batch) GetFromCache(subCache []string, k []byte) ([]byte, error) {
 	key := b.c.cacheKey(k, cache...)
 
 	item, err := b.txn.Get(key)
