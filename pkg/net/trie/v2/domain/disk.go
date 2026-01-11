@@ -99,6 +99,7 @@ func (dt *DiskTrie[T]) Batch(items iter.Seq2[*fqdnReader, T]) error {
 	defer stop()
 
 	var (
+		keyBuf   []string
 		pendingK []string
 		pendingV []byte
 		done     bool
@@ -123,7 +124,7 @@ func (dt *DiskTrie[T]) Batch(items iter.Seq2[*fqdnReader, T]) error {
 					return nil
 				}
 
-				keyBuf := k.array(nil)
+				keyBuf = k.array(keyBuf[:0])
 
 				data, _ := bt.GetFromCache(keyBuf, valKey)
 				vals := dt.decodeValue(data)
