@@ -2,9 +2,11 @@ package domain
 
 import (
 	"errors"
+	"iter"
 	"slices"
 	"sync/atomic"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
@@ -33,12 +35,21 @@ func (dt *DiskTrie[T]) child(node *badger.Cache, s string, insert bool) (*badger
 	}
 }
 
-func (dt *DiskTrie[T]) getValue(node *badger.Cache) []T {
+func (dt *DiskTrie[T]) getValue(node cache.Geter) []T {
 	data, err := node.Get(valKey)
-	if err != nil || len(data) == 0 {
+	if err != nil {
+		return nil
+	}
+
+	return dt.decodeValue(data)
+}
+
+func (dt *DiskTrie[T]) decodeValue(data []byte) []T {
+	if len(data) == 0 {
 		return nil
 	}
 	var res []T
+	var err error
 	if res, err = dt.codec.Decode(data); err != nil {
 		log.Warn("disktrie decode failed", "err", err)
 	}
@@ -51,7 +62,7 @@ func (dt *DiskTrie[T]) setValue(node *badger.Cache, vals []T) error {
 		return node.Delete(valKey)
 	}
 
-	bytes, err := dt.codec.Encode(vals)
+	bytes, err := dt.encodeValue(vals)
 	if err != nil {
 		return err
 	}
@@ -59,16 +70,19 @@ func (dt *DiskTrie[T]) setValue(node *badger.Cache, vals []T) error {
 	return node.Put(valKey, bytes)
 }
 
+func (dt *DiskTrie[T]) encodeValue(vals []T) ([]byte, error) {
+	if len(vals) == 0 {
+		return nil, nil
+	}
+	return dt.codec.Encode(vals)
+}
+
 func (dt *DiskTrie[T]) Insert(z *fqdnReader, mark T) error {
 	if dt.closed.Load() {
 		return errors.New("trie is closed")
 	}
 
-	key := []string{}
-
-	for ; z.hasNext(); z.next() {
-		key = append(key, z.str())
-	}
+	key := z.array(nil)
 
 	node := dt.root.NewCache(key...).(*badger.Cache)
 
@@ -77,6 +91,31 @@ func (dt *DiskTrie[T]) Insert(z *fqdnReader, mark T) error {
 		return dt.setValue(node, append(vals, mark))
 	}
 	return nil
+}
+
+func (dt *DiskTrie[T]) Batch(iter iter.Seq2[*fqdnReader, T]) error {
+	return dt.root.Batch(func(txn cache.Batch) error {
+		bt := txn.(*badger.Batch)
+		key := []string{}
+
+		for k, v := range iter {
+			key = k.array(key[:0])
+
+			data, _ := bt.GetFromCache(key, valKey)
+			vals := dt.decodeValue(data)
+
+			if !slices.Contains(vals, v) {
+				ev, err := dt.encodeValue(append(vals, v))
+				if err == nil {
+					if err := bt.PutToCache(key, valKey, ev); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		return nil
+	})
 }
 
 func (dt *DiskTrie[T]) Search(domain *fqdnReader) []T {

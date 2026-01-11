@@ -3,6 +3,7 @@ package trie
 import (
 	"context"
 	"errors"
+	"iter"
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
@@ -37,6 +38,34 @@ func (x *Trie[T]) Insert(str string, mark T) {
 	}
 
 	x.domain.Insert(str, mark)
+}
+
+func (x *Trie[T]) Batch(iter iter.Seq2[string, T]) error {
+	return x.domain.Batch(func(yield func(string, T) bool) {
+		for str, mark := range iter {
+			if str == "" {
+				continue
+			}
+
+			if ipNet, err := netip.ParsePrefix(str); err == nil {
+				x.cidr.InsertCIDR(ipNet, mark)
+				continue
+			}
+
+			if ip, err := netip.ParseAddr(str); err == nil {
+				mask := 128
+				if ip.Is4() {
+					mask = 32
+				}
+				x.cidr.InsertIP(ip, mask, mark)
+				continue
+			}
+
+			if !yield(str, mark) {
+				return
+			}
+		}
+	})
 }
 
 func (x *Trie[T]) SearchFqdn(addr netapi.Address) []T {

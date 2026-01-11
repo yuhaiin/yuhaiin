@@ -116,7 +116,7 @@ func (c *Cache) Range(f func(key []byte, value []byte) bool) error {
 	})
 }
 
-func (c *Cache) cachePrefix(str ...string) []byte {
+func (c *Cache) CachePrefix(str ...string) []byte {
 	totalLen := len(c.prefix)
 	for _, s := range str {
 		totalLen += len(s) + 1 // +1 for '/'
@@ -135,6 +135,14 @@ func (c *Cache) cachePrefix(str ...string) []byte {
 	return newPrefix
 }
 
+func (c *Cache) cacheKey(valueKey []byte, str ...string) []byte {
+	prefix := c.CachePrefix(str...)
+	key := make([]byte, len(prefix)+len(valueKey))
+	copy(key, prefix)
+	copy(key[len(prefix):], valueKey)
+	return key
+}
+
 func (c *Cache) NewCache(str ...string) cache.Cache {
 	if len(str) == 0 {
 		return c
@@ -142,7 +150,7 @@ func (c *Cache) NewCache(str ...string) cache.Cache {
 
 	return &Cache{
 		db:     c.db,
-		prefix: c.cachePrefix(str...),
+		prefix: c.CachePrefix(str...),
 	}
 }
 
@@ -159,7 +167,7 @@ func (c *Cache) CacheExists(str ...string) bool {
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		prefixToCheck := c.cachePrefix(str...)
+		prefixToCheck := c.CachePrefix(str...)
 		it.Seek(prefixToCheck)
 		exists = it.ValidForPrefix(prefixToCheck)
 		return nil
@@ -176,14 +184,7 @@ func (c *Cache) DeleteBucket(str ...string) error {
 		return nil
 	}
 
-	prefixToDelete := make([]byte, len(c.prefix), len(c.prefix)+len(str)*5)
-	copy(prefixToDelete, c.prefix)
-
-	for _, s := range str {
-		prefixToDelete = append(prefixToDelete, []byte(s)...)
-		prefixToDelete = append(prefixToDelete, '/') // separator
-	}
-
+	prefixToDelete := c.CachePrefix(str...)
 	return c.db.DropPrefix(prefixToDelete)
 }
 
@@ -216,12 +217,34 @@ func (b *Batch) Put(k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
 	return b.txn.SetEntry(entry)
 }
 
+func (b *Batch) PutToCache(subCache []string, k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
+	key := b.c.cacheKey(k, subCache...)
+
+	opt := cache.GetPutOptions(opts...)
+	entry := badger.NewEntry(key, v)
+	if opt.TTL > 0 {
+		entry.WithTTL(opt.TTL)
+	}
+
+	return b.txn.SetEntry(entry)
+}
+
 func (b *Batch) Delete(k []byte) error {
 	return b.txn.Delete(b.c.makeKey(k))
 }
 
 func (b *Batch) Get(k []byte) ([]byte, error) {
 	item, err := b.txn.Get(b.c.makeKey(k))
+	if err != nil {
+		return nil, err
+	}
+	return item.ValueCopy(nil)
+}
+
+func (b *Batch) GetFromCache(cache []string, k []byte) ([]byte, error) {
+	key := b.c.cacheKey(k, cache...)
+
+	item, err := b.txn.Get(key)
 	if err != nil {
 		return nil, err
 	}
