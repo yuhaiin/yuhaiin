@@ -242,7 +242,7 @@ func (b *Batch) Get(k []byte) ([]byte, error) {
 }
 
 func (b *Batch) GetFromCache(subCache []string, k []byte) ([]byte, error) {
-	key := b.c.cacheKey(k, cache...)
+	key := b.c.cacheKey(k, subCache...)
 
 	item, err := b.txn.Get(key)
 	if err != nil {

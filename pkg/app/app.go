@@ -296,8 +296,6 @@ func migrateDB(badgerCache *badger.Cache, path string) {
 	}
 
 	migrate("flow_data")
-	migrate("fakedns_cachev6")
-	migrate("fakedns_cache")
 
 	badgerCache.Put(badger.MigrateKey, []byte{1})
 }
