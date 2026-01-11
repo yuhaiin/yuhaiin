@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"io"
 	"iter"
 	"slices"
 	"sync/atomic"
@@ -10,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
+	badgerv4 "github.com/dgraph-io/badger/v4"
 )
 
 var valKey = []byte{0x0, 'V', 0x0, 0b10101010}
@@ -93,31 +95,64 @@ func (dt *DiskTrie[T]) Insert(z *fqdnReader, mark T) error {
 	return nil
 }
 
-func (dt *DiskTrie[T]) Batch(iter iter.Seq2[*fqdnReader, T]) error {
-	return dt.root.Batch(func(txn cache.Batch) error {
-		bt := txn.(*badger.Batch)
-		key := []string{}
+func (dt *DiskTrie[T]) Batch(items iter.Seq2[*fqdnReader, T]) error {
+	next, stop := iter.Pull2(items)
+	defer stop()
 
-		for k, v := range iter {
-			key = k.array(key[:0])
+	var (
+		keyBuf   []string
+		pendingK []string
+		pendingV []byte
+	)
 
-			data, _ := bt.GetFromCache(key, valKey)
-			// just ignore error, because here may be not exist
-			vals := dt.decodeValue(data)
+	for {
+		err := dt.root.Batch(func(txn cache.Batch) error {
+			bt := txn.(*badger.Batch)
 
-			if !slices.Contains(vals, v) {
+			if pendingK != nil && pendingV != nil {
+				if err := bt.PutToCache(pendingK, valKey, pendingV); err != nil {
+					return err
+				}
+				pendingK = nil
+				pendingV = nil
+			}
+
+			for {
+				k, v, ok := next()
+				if !ok {
+					return io.EOF
+				}
+
+				keyBuf = k.array(keyBuf[:0])
+				data, _ := bt.GetFromCache(keyBuf, valKey)
+				vals := dt.decodeValue(data)
+
+				if slices.Contains(vals, v) {
+					continue
+				}
+
 				ev, err := dt.encodeValue(append(vals, v))
 				if err != nil {
 					return err
 				}
-				if err := bt.PutToCache(key, valKey, ev); err != nil {
+
+				if err := bt.PutToCache(keyBuf, valKey, ev); err != nil {
+					if errors.Is(err, badgerv4.ErrTxnTooBig) {
+						pendingK = slices.Clone(keyBuf)
+						pendingV = ev
+						return nil
+					}
 					return err
 				}
 			}
+		})
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
 		}
-
-		return nil
-	})
+	}
 }
 
 func (dt *DiskTrie[T]) Search(domain *fqdnReader) []T {
