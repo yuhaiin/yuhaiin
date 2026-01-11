@@ -5,6 +5,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
 )
 
 type Trie[T comparable] interface {
@@ -124,7 +125,7 @@ func (d *DiskFqdn[T]) Close() error {
 	return d.Root.Close()
 }
 
-func NewDiskFqdn[T comparable](cache *badger.Cache, codec Codec[T]) *DiskFqdn[T] {
+func NewDiskFqdn[T comparable](cache *badger.Cache, codec codec.Codec[T]) *DiskFqdn[T] {
 	return &DiskFqdn[T]{
 		Root:     NewDiskTrie(cache, codec),
 		separate: '.',

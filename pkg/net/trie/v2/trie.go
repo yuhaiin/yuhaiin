@@ -8,6 +8,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/cidr"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/domain"
 )
 
@@ -102,10 +103,10 @@ func (x *Trie[T]) Close() error {
 }
 
 type Options[T comparable] struct {
-	Codec domain.Codec[T]
+	Codec codec.Codec[T]
 }
 
-func WithCodec[T comparable](codec domain.Codec[T]) func(*Options[T]) {
+func WithCodec[T comparable](codec codec.Codec[T]) func(*Options[T]) {
 	return func(o *Options[T]) {
 		o.Codec = codec
 	}
@@ -114,7 +115,7 @@ func WithCodec[T comparable](codec domain.Codec[T]) func(*Options[T]) {
 // NewTrie create a new trie
 // if cache is nil, use memory trie
 func NewTrie[T comparable](cache *badger.Cache, opts ...func(*Options[T])) *Trie[T] {
-	opt := Options[T]{Codec: domain.GobCodec[T]{}}
+	opt := Options[T]{Codec: codec.GobCodec[T]{}}
 	for _, o := range opts {
 		o(&opt)
 	}

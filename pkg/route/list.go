@@ -22,7 +22,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2"
-	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/domain"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
@@ -54,7 +54,7 @@ func newHostTrie() *hostMatcher {
 
 	return &hostMatcher{
 		lists: set.NewSet[string](),
-		trie:  trie.NewTrie(cache, trie.WithCodec(domain.UnsafeStringCodec{})), // if cache is nil, just fallback to memory trie
+		trie:  trie.NewTrie(cache, trie.WithCodec(codec.UnsafeStringCodec{})), // if cache is nil, just fallback to memory trie
 		cache: cache,
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
 )
 
 func setupTestDB(t testing.TB) (*DiskTrie[string], string) {
@@ -18,7 +19,7 @@ func setupTestDB(t testing.TB) (*DiskTrie[string], string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewDiskTrie(dt, GobCodec[string]{}), "test.db"
+	return NewDiskTrie(dt, codec.GobCodec[string]{}), "test.db"
 }
 
 func cleanupTestDB(dt *DiskTrie[string], dir string) {
