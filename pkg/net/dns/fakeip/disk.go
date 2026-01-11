@@ -134,11 +134,11 @@ func (n *DiskFakeIPPool) store(domain string, addr netip.Addr) {
 
 		// 2. Save the bidirectional mapping.
 		// Forward: Domain -> IP
-		if err := txn.Put(domainBytes, addrBytes, cache.WithTTL(time.Minute*10)); err != nil {
+		if err := txn.Put(domainBytes, addrBytes, cache.WithTTL(time.Hour*24)); err != nil {
 			return err
 		}
 		// Backward: IP -> Domain
-		if err := txn.Put(addrBytes, domainBytes, cache.WithTTL(time.Minute*10)); err != nil {
+		if err := txn.Put(addrBytes, domainBytes, cache.WithTTL(time.Hour*24)); err != nil {
 			return err
 		}
 
