@@ -116,36 +116,39 @@ func (c *Cache) Range(f func(key []byte, value []byte) bool) error {
 	})
 }
 
+func (c *Cache) cachePrefix(str ...string) []byte {
+	totalLen := len(c.prefix)
+	for _, s := range str {
+		totalLen += len(s) + 1 // +1 for '/'
+	}
+
+	newPrefix := make([]byte, totalLen)
+	off := copy(newPrefix, c.prefix)
+
+	for _, s := range str {
+		copy(newPrefix[off:], s) // copy string bytes
+		off += len(s)
+		newPrefix[off] = '/' // separator
+		off++
+	}
+
+	return newPrefix
+}
+
 func (c *Cache) NewCache(str ...string) cache.Cache {
 	if len(str) == 0 {
 		return c
 	}
 
-	newPrefix := make([]byte, len(c.prefix), len(c.prefix)+len(str)*5)
-	copy(newPrefix, c.prefix)
-
-	for _, s := range str {
-		newPrefix = append(newPrefix, []byte(s)...)
-		newPrefix = append(newPrefix, '/') // separator
-	}
-
 	return &Cache{
 		db:     c.db,
-		prefix: newPrefix,
+		prefix: c.cachePrefix(str...),
 	}
 }
 
 func (c *Cache) CacheExists(str ...string) bool {
 	if len(str) == 0 {
 		return true
-	}
-
-	prefixToCheck := make([]byte, len(c.prefix), len(c.prefix)+len(str)*5)
-	copy(prefixToCheck, c.prefix)
-
-	for _, s := range str {
-		prefixToCheck = append(prefixToCheck, []byte(s)...)
-		prefixToCheck = append(prefixToCheck, '/') // separator
 	}
 
 	var exists bool
@@ -155,6 +158,8 @@ func (c *Cache) CacheExists(str ...string) bool {
 		opts.AllVersions = false
 		it := txn.NewIterator(opts)
 		defer it.Close()
+
+		prefixToCheck := c.cachePrefix(str...)
 		it.Seek(prefixToCheck)
 		exists = it.ValidForPrefix(prefixToCheck)
 		return nil

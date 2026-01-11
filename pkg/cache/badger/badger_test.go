@@ -320,7 +320,7 @@ func BenchmarkBadger(b *testing.B) {
 
 	b.Run("Get", func(b *testing.B) {
 		c := setupTestDB(b)
-		for i := 0; i < 10000; i++ {
+		for i := range 10000 {
 			key := []byte("key" + strconv.Itoa(i))
 			value := []byte("value" + strconv.Itoa(i))
 			err := c.Put(key, value)
@@ -341,7 +341,7 @@ func BenchmarkBadger(b *testing.B) {
 
 	b.Run("Range", func(b *testing.B) {
 		c := setupTestDB(b)
-		for i := 0; i < 10000; i++ {
+		for i := range 10000 {
 			key := []byte("key" + strconv.Itoa(i))
 			value := []byte("value" + strconv.Itoa(i))
 			err := c.Put(key, value)
