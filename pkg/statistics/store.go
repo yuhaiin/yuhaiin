@@ -11,6 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
@@ -77,6 +78,7 @@ func (c *store) Load(id uint64) (*statistic.Connection, bool) {
 		log.Warn("get info failed", "id", id, "err", err)
 		return nil, false
 	}
+	defer pool.PutBytes(data)
 
 	info := &statistic.Connection{}
 	if err := proto.Unmarshal(data, info); err != nil {
@@ -188,6 +190,7 @@ func (d *diskStore) Load(id uint64) (*statistic.Connection, bool) {
 		log.Warn("get info failed", "id", id, "err", err)
 		return nil, false
 	}
+	defer pool.PutBytes(data)
 
 	info := &statistic.Connection{}
 	if err := proto.Unmarshal(data, info); err != nil {

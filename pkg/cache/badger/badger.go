@@ -7,6 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/dgraph-io/badger/v4/options"
 )
@@ -62,7 +63,11 @@ func (c *Cache) Get(k []byte) (v []byte, err error) {
 		if err != nil {
 			return err
 		}
-		v, err = item.ValueCopy(nil)
+		buf := pool.GetBytes(item.ValueSize())
+		v, err = item.ValueCopy(buf)
+		if err != nil {
+			pool.PutBytes(buf)
+		}
 		return err
 	})
 	if err == badger.ErrKeyNotFound {
@@ -122,7 +127,7 @@ func (c *Cache) CachePrefix(str ...string) []byte {
 		totalLen += len(s) + 1 // +1 for '/'
 	}
 
-	newPrefix := make([]byte, totalLen)
+	newPrefix := pool.GetBytes(totalLen)
 	off := copy(newPrefix, c.prefix)
 
 	for _, s := range str {
@@ -137,7 +142,9 @@ func (c *Cache) CachePrefix(str ...string) []byte {
 
 func (c *Cache) cacheKey(valueKey []byte, str ...string) []byte {
 	prefix := c.CachePrefix(str...)
-	key := make([]byte, len(prefix)+len(valueKey))
+	defer pool.PutBytes(prefix)
+
+	key := pool.GetBytes(len(prefix) + len(valueKey))
 	copy(key, prefix)
 	copy(key[len(prefix):], valueKey)
 	return key
@@ -168,6 +175,8 @@ func (c *Cache) CacheExists(str ...string) bool {
 		defer it.Close()
 
 		prefixToCheck := c.CachePrefix(str...)
+		defer pool.PutBytes(prefixToCheck)
+
 		it.Seek(prefixToCheck)
 		exists = it.ValidForPrefix(prefixToCheck)
 		return nil
@@ -185,6 +194,8 @@ func (c *Cache) DeleteBucket(str ...string) error {
 	}
 
 	prefixToDelete := c.CachePrefix(str...)
+	defer pool.PutBytes(prefixToDelete)
+
 	return c.db.DropPrefix(prefixToDelete)
 }
 
@@ -223,6 +234,7 @@ func (b *Batch) Commit() error {
 
 func (b *Batch) PutToCache(subCache []string, k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
 	key := b.c.cacheKey(k, subCache...)
+	defer pool.PutBytes(key)
 
 	opt := cache.GetPutOptions(opts...)
 	entry := badger.NewEntry(key, v)
@@ -242,15 +254,30 @@ func (b *Batch) Get(k []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return item.ValueCopy(nil)
+	buf := pool.GetBytes(item.ValueSize())
+
+	ret, err := item.ValueCopy(buf)
+	if err != nil {
+		pool.PutBytes(buf)
+		return nil, err
+	}
+	return ret, nil
 }
 
 func (b *Batch) GetFromCache(subCache []string, k []byte) ([]byte, error) {
 	key := b.c.cacheKey(k, subCache...)
+	defer pool.PutBytes(key)
 
 	item, err := b.txn.Get(key)
 	if err != nil {
 		return nil, err
 	}
-	return item.ValueCopy(nil)
+
+	buf := pool.GetBytes(item.ValueSize())
+	ret, err := item.ValueCopy(buf)
+	if err != nil {
+		pool.PutBytes(buf)
+		return nil, err
+	}
+	return ret, nil
 }

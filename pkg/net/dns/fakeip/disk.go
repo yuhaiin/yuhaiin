@@ -9,6 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	ypool "github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 const (
@@ -72,6 +73,7 @@ func (n *DiskFakeIPPool) loadCursor() {
 	if err != nil || val == nil {
 		return
 	}
+	defer ypool.PutBytes(val)
 
 	// Format: [8 bytes index][IP bytes...]
 	if len(val) <= 8 {
@@ -105,6 +107,7 @@ func (n *DiskFakeIPPool) getIP(s string) (netip.Addr, bool) {
 	key := []byte(s)
 	z, err := n.cache.Get(key)
 	if err == nil && z != nil {
+		defer ypool.PutBytes(z)
 		if addr, ok := netip.AddrFromSlice(z); ok {
 			return addr, true
 		}
@@ -124,6 +127,7 @@ func (n *DiskFakeIPPool) store(domain string, addr netip.Addr) {
 		// 1. Check if this IP is already owned by another domain (Collision/Eviction).
 
 		if oldDomainBytes, _ := txn.Get(addrBytes); oldDomainBytes != nil {
+			defer ypool.PutBytes(oldDomainBytes)
 			if !bytes.Equal(oldDomainBytes, domainBytes) {
 				// Delete the forward mapping: OldDomain -> IP.
 				// The backward mapping (IP -> OldDomain) will be overwritten below.
@@ -204,6 +208,7 @@ func (n *DiskFakeIPPool) GetDomainFromIP(ip netip.Addr) (string, bool) {
 	if err != nil || domain == nil {
 		return "", false
 	}
+	defer ypool.PutBytes(domain)
 
 	return string(domain), true
 }
