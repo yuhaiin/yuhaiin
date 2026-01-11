@@ -8,17 +8,38 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
+
+type Codec[T comparable] interface {
+	Encode([]T) ([]byte, error)
+	Decode([]byte) ([]T, error)
+}
+
+type GobCodec[T comparable] struct{}
+
+func (GobCodec[T]) Encode(v []T) ([]byte, error) {
+	var buf bytes.Buffer
+	err := gob.NewEncoder(&buf).Encode(v)
+	return buf.Bytes(), err
+}
+
+func (GobCodec[T]) Decode(b []byte) ([]T, error) {
+	var v []T
+	err := gob.NewDecoder(bytes.NewReader(b)).Decode(&v)
+	return v, err
+}
 
 var valKey = []byte{0x0, 'V', 0x0, 0b10101010}
 
 type DiskTrie[T comparable] struct {
 	root   *badger.Cache
 	closed atomic.Bool
+	codec  Codec[T]
 }
 
 func NewDiskTrie[T comparable](root *badger.Cache) *DiskTrie[T] {
-	return &DiskTrie[T]{root: root}
+	return &DiskTrie[T]{root: root, codec: GobCodec[T]{}}
 }
 
 func (dt *DiskTrie[T]) child(node *badger.Cache, s string, insert bool) (*badger.Cache, bool) {
@@ -38,16 +59,24 @@ func (dt *DiskTrie[T]) getValue(node *badger.Cache) []T {
 		return nil
 	}
 	var res []T
-	_ = gob.NewDecoder(bytes.NewReader(data)).Decode(&res)
+	if res, err = dt.codec.Decode(data); err != nil {
+		log.Warn("disktrie decode failed", "err", err)
+	}
+
 	return res
 }
 
 func (dt *DiskTrie[T]) setValue(node *badger.Cache, vals []T) error {
-	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(vals); err != nil {
+	if len(vals) == 0 {
+		return nil
+	}
+
+	bytes, err := dt.codec.Encode(vals)
+	if err != nil {
 		return err
 	}
-	return node.Put(valKey, buf.Bytes())
+
+	return node.Put(valKey, bytes)
 }
 
 func (dt *DiskTrie[T]) Insert(z *fqdnReader, mark T) error {
@@ -127,9 +156,7 @@ func (dt *DiskTrie[T]) Clear() error {
 }
 
 func (dt *DiskTrie[T]) Close() error {
-	if dt.closed.CompareAndSwap(false, true) {
-		return dt.root.Badger().Close()
-	}
+	dt.closed.CompareAndSwap(false, true)
 	return nil
 }
 

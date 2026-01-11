@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -13,7 +14,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -32,12 +35,26 @@ import (
 type hostMatcher struct {
 	lists *set.Set[string]
 	trie  *trie.Trie[string]
+	cache *badger.Cache
 }
 
 func newHostTrie() *hostMatcher {
+	path, err := os.MkdirTemp(configuration.DataDir.Load(), "trie.*.db")
+	if err != nil {
+		// mkdirtemp will try over 10000 times
+		// if failed, it must be something wrong, so we just panic
+		panic(err)
+	}
+
+	cache, err := badger.New(path)
+	if err != nil {
+		log.Error("new badger failed", "err", err)
+	}
+
 	return &hostMatcher{
 		lists: set.NewSet[string](),
-		trie:  trie.NewTrie[string](),
+		trie:  trie.NewTrie[string](cache), // if cache is nil, just fallback to memory trie
+		cache: cache,
 	}
 }
 
@@ -47,7 +64,9 @@ func (h *hostMatcher) Clear() {
 }
 
 func (h *hostMatcher) Close() error {
-	return h.trie.Close()
+	_ = h.trie.Close()
+	defer os.RemoveAll(h.cache.Badger().Opts().Dir)
+	return h.cache.Badger().Close()
 }
 
 func (h *hostMatcher) Add(host string, list string) {

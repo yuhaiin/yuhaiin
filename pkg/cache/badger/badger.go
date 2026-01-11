@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/dgraph-io/badger/v4/options"
 )
@@ -148,7 +149,7 @@ func (c *Cache) CacheExists(str ...string) bool {
 	}
 
 	var exists bool
-	_ = c.db.View(func(txn *badger.Txn) error {
+	err := c.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		opts.AllVersions = false
@@ -158,6 +159,9 @@ func (c *Cache) CacheExists(str ...string) bool {
 		exists = it.ValidForPrefix(prefixToCheck)
 		return nil
 	})
+	if err != nil {
+		log.Info("CacheExists failed", "err", err)
+	}
 
 	return exists
 }

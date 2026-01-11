@@ -2,23 +2,18 @@ package trie
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
-	"fmt"
 	"net/netip"
-	"os"
-	"path/filepath"
 
-	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/cidr"
-	domain "github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/domain/disk"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/domain"
 )
 
 type Trie[T comparable] struct {
 	cidr   *cidr.Cidr[T]
-	domain *domain.Fqdn[T]
-	path   string
+	domain domain.Trie[T]
 }
 
 func (x *Trie[T]) Insert(str string, mark T) {
@@ -103,19 +98,20 @@ func (x *Trie[T]) Close() error {
 	if er := x.domain.Close(); er != nil {
 		err = errors.Join(err, er)
 	}
-	if er := os.RemoveAll(x.path); er != nil {
-		err = errors.Join(err, er)
-	}
 	return err
 }
 
-func NewTrie[T comparable]() *Trie[T] {
-	path := filepath.Join(configuration.DataDir.Load(),
-		fmt.Sprintf("trie.%s.db", rand.Text()),
-	)
+// NewTrie create a new trie
+// if cache is nil, use memory trie
+func NewTrie[T comparable](cache *badger.Cache) *Trie[T] {
+	var dt domain.Trie[T]
+	if cache != nil {
+		dt = domain.NewDiskFqdn[T](cache)
+	} else {
+		dt = domain.NewTrie[T]()
+	}
 	return &Trie[T]{
 		cidr:   cidr.NewCidr[T](),
-		domain: domain.NewTrie[T](path),
-		path:   path,
+		domain: dt,
 	}
 }
