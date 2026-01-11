@@ -42,3 +42,17 @@ func (d *fqdnReader) str() string {
 	}
 	return d.domain[d.pre:d.aft]
 }
+
+func (d *fqdnReader) reset() {
+	d.aft = len(d.domain)
+	d.pre = strings.LastIndexByte(d.domain, d.separate) + 1
+}
+
+func (d *fqdnReader) array(b []string) []string {
+	for ; d.hasNext(); d.next() {
+		b = append(b, d.str())
+	}
+
+	d.reset()
+	return b
+}

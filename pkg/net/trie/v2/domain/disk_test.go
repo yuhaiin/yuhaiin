@@ -14,6 +14,56 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
 )
 
+func TestDiskTrie_Batch(t *testing.T) {
+	dt, dir := setupTestDB(t)
+	defer cleanupTestDB(dt, dir)
+
+	// Existing data
+	dt.Insert(newFqdnReader("com.google.www"), "0.0.0.0")
+	dt.Insert(newFqdnReader("com.google.www"), "5.0.0.0")
+
+	data := []struct {
+		domain string
+		val    string
+	}{
+		{"com.google.www", "1.1.1.1"},
+		{"com.google.mail", "2.2.2.2"},
+		{"org.example", "3.3.3.3"},
+		{"org.example", "4.4.4.4"}, // duplicate domain with different value
+	}
+
+	seq := func(yield func(*fqdnReader, string) bool) {
+		for _, item := range data {
+			if !yield(newFqdnReader(item.domain), item.val) {
+				return
+			}
+		}
+	}
+
+	err := dt.Batch(seq)
+	if err != nil {
+		t.Fatalf("Batch failed: %v", err)
+	}
+
+	checkData := map[string][]string{
+		"com.google.www":  {"0.0.0.0", "5.0.0.0", "1.1.1.1"},
+		"com.google.mail": {"2.2.2.2"},
+		"org.example":     {"3.3.3.3", "4.4.4.4"},
+	}
+
+	for domain, expected := range checkData {
+		res := dt.Search(newFqdnReader(domain))
+		for _, e := range expected {
+			if !slices.Contains(res, e) {
+				t.Errorf("Domain %s should contain %s, but got %v", domain, e, res)
+			}
+		}
+		if len(res) != len(expected) {
+			t.Errorf("Domain %s expected %d values, got %d: %v", domain, len(expected), len(res), res)
+		}
+	}
+}
+
 func setupTestDB(t testing.TB) (*DiskTrie[string], string) {
 	dt, err := badger.New("test.db")
 	if err != nil {

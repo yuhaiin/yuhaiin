@@ -24,15 +24,19 @@ func GetPutOptions(opts ...func(*PutOptions)) *PutOptions {
 	return o
 }
 
+type Geter interface {
+	Get(k []byte) ([]byte, error)
+}
+
 type Batch interface {
 	Put(k []byte, v []byte, opts ...func(*PutOptions)) error
 	Delete(k []byte) error
 	// response only valid when batch
-	Get(k []byte) ([]byte, error)
+	Geter
 }
 
 type Cache interface {
-	Get(k []byte) (v []byte, err error)
+	Geter
 	Put([]byte, []byte, ...func(*PutOptions)) error
 	Delete(k []byte) error
 	Range(f func(key []byte, value []byte) bool) error
