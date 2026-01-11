@@ -4,7 +4,7 @@ go 1.25.3
 
 replace (
 	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
-	github.com/tailscale/wireguard-go => github.com/yuhaiin/wireguard-go v0.0.0-20251018092039-8a0cc74fca62
+	github.com/tailscale/wireguard-go => github.com/yuhaiin/wireguard-go v0.0.0-20260111161611-5f49a4d8f525
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
 	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20251128033516-8921b279fbf0
 )
@@ -22,7 +22,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.7.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/quic-go/connect-ip-go v0.1.0
-	github.com/quic-go/quic-go v0.58.0
+	github.com/quic-go/quic-go v0.59.0
 	github.com/refraction-networking/utls v1.8.1
 	github.com/rhnvrm/simples3 v0.11.0
 	github.com/tailscale/wireguard-go v0.0.0-20251121194102-c6fd943bb437

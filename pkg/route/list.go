@@ -39,8 +39,8 @@ type hostMatcher struct {
 	cache *badger.Cache
 }
 
-func newHostTrie() *hostMatcher {
-	path, err := os.MkdirTemp(configuration.DataDir.Load(), "trie.*.db")
+func newHostTrie(path string) *hostMatcher {
+	path, err := os.MkdirTemp(path, "trie.*.db")
 	if err != nil {
 		// mkdirtemp will try over 10000 times
 		// if failed, it must be something wrong, so we just panic
@@ -70,9 +70,18 @@ func (h *hostMatcher) Close() error {
 	return h.cache.Badger().Close()
 }
 
-func (h *hostMatcher) Add(host string, list string) {
+func (h *hostMatcher) Add(host iter.Seq[string], list string) {
 	h.lists.Push(list)
-	h.trie.Insert(host, list)
+	err := h.trie.Batch(func(yield func(string, string) bool) {
+		for str := range host {
+			if !yield(str, list) {
+				return
+			}
+		}
+	})
+	if err != nil {
+		log.Error("add host failed", "err", err)
+	}
 }
 
 func (h *hostMatcher) Search(ctx context.Context, addr netapi.Address) []string {
@@ -143,7 +152,9 @@ type Lists struct {
 
 	ticker *time.Timer
 
-	hostTrie *hostMatcher
+	hostTrie               *hostMatcher
+	hostTrieRefreshTimer   *time.Timer
+	hostTrieRefreshTimerMu sync.Mutex
 
 	processTrie *processMatcher
 
@@ -159,15 +170,27 @@ type Lists struct {
 }
 
 func NewLists(db chore.DB) *Lists {
+	// remove orphan trie db
+	files, err := filepath.Glob(filepath.Join(configuration.DataDir.Load(), "trie.*.db"))
+	if err == nil {
+		for _, f := range files {
+			if err := os.RemoveAll(f); err != nil {
+				log.Warn("remove old trie db failed", "path", f, "err", err)
+			}
+		}
+	}
+
 	proxy := atomicx.NewValue(direct.Default)
 
 	l := &Lists{
 		db:          db,
 		proxy:       proxy,
 		downloader:  NewDownloader(filepath.Join(db.Dir(), "rules"), proxy.Load),
-		hostTrie:    newHostTrie(),
+		hostTrie:    newHostTrie(configuration.DataDir.Load()),
 		processTrie: newProcessTrie(),
 	}
+
+	l.hostTrieRefreshTimer = time.AfterFunc(time.Second, l.refreshHostTrie)
 
 	var interval uint64
 	_ = db.View(func(s *config.Setting) error {
@@ -178,6 +201,12 @@ func NewLists(db chore.DB) *Lists {
 	l.resetRefreshInterval(interval)
 
 	return l
+}
+
+func (s *Lists) notifyRefreshHostTrie() {
+	s.hostTrieRefreshTimerMu.Lock()
+	s.hostTrieRefreshTimer.Reset(time.Minute)
+	s.hostTrieRefreshTimerMu.Unlock()
 }
 
 func (s *Lists) LoadGeoip() *maxminddb.MaxMindDB {
@@ -295,7 +324,8 @@ func (s *Lists) Save(ctx context.Context, list *config.List) (*emptypb.Empty, er
 	}
 
 	if s.HostTrie().Include(list.GetName()) {
-		s.refreshHostTrie()
+		s.notifyRefreshHostTrie()
+		// s.refreshHostTrie()
 	}
 
 	if s.ProcessTrie().Include(list.GetName()) {
@@ -466,7 +496,8 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 		return nil, err
 	}
 
-	s.refreshHostTrie()
+	// s.refreshHostTrie()
+	s.notifyRefreshHostTrie()
 	s.refreshProcessTrie()
 
 	return &emptypb.Empty{}, nil
@@ -484,7 +515,8 @@ func (s *Lists) Remove(ctx context.Context, req *wrapperspb.StringValue) (*empty
 	}
 
 	if s.HostTrie().Include(req.Value) {
-		s.refreshHostTrie()
+		s.notifyRefreshHostTrie()
+		// s.refreshHostTrie()
 	}
 
 	if s.ProcessTrie().Include(req.Value) {
@@ -610,7 +642,7 @@ func (s *Lists) getIter(name string) (*config.List, iter.Seq[string], error) {
 }
 
 func (s *Lists) refreshHostTrie() {
-	hostTrie := newHostTrie()
+	hostTrie := newHostTrie(configuration.DataDir.Load())
 	for name := range s.hostTrie.lists.Range {
 		_, iter, err := s.getIter(name)
 		if err != nil {
@@ -618,9 +650,7 @@ func (s *Lists) refreshHostTrie() {
 			continue
 		}
 
-		for v := range iter {
-			hostTrie.Add(v, name)
-		}
+		hostTrie.Add(iter, name)
 	}
 
 	s.hostTrieMu.Lock()
@@ -663,9 +693,7 @@ func (s *Lists) AddNewHostList(name string) {
 	s.hostTrieMu.Lock()
 	defer s.hostTrieMu.Unlock()
 
-	for v := range iter {
-		s.hostTrie.Add(v, name)
-	}
+	s.hostTrie.Add(iter, name)
 }
 
 func (s *Lists) refreshProcessTrie() {

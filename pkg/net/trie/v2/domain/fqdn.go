@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"iter"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
@@ -10,6 +11,7 @@ import (
 
 type Trie[T comparable] interface {
 	Insert(domain string, mark T)
+	Batch(iter iter.Seq2[string, T]) error
 	Search(domain netapi.Address) []T
 	SearchString(domain string) []T
 	Remove(domain string, mark T)
@@ -33,6 +35,13 @@ func (d *Fqdn[T]) Insert(domain string, mark T) {
 
 	r := newReader(domain, d.separate)
 	insert(d.Root, r, mark)
+}
+
+func (d *Fqdn[T]) Batch(iter iter.Seq2[string, T]) error {
+	for k, v := range iter {
+		d.Insert(k, v)
+	}
+	return nil
 }
 
 func (d *Fqdn[T]) Search(domain netapi.Address) []T {
@@ -91,6 +100,17 @@ func (d *DiskFqdn[T]) Insert(domain string, mark T) {
 
 	r := newReader(domain, d.separate)
 	d.Root.Insert(r, mark)
+}
+
+func (d *DiskFqdn[T]) Batch(iter iter.Seq2[string, T]) error {
+	return d.Root.Batch(func(yield func(*fqdnReader, T) bool) {
+		for k, v := range iter {
+			r := newReader(k, d.separate)
+			if !yield(r, v) {
+				return
+			}
+		}
+	})
 }
 
 func (d *DiskFqdn[T]) Search(domain netapi.Address) []T {
