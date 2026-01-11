@@ -90,7 +90,7 @@ func (c *Conn) Close() error {
 	}
 
 	if c.h3conn != nil {
-		if er := c.h3conn.CloseWithError(http3.ErrCodeNoError, ""); er != nil {
+		if er := c.h3conn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), ""); er != nil {
 			err = errors.Join(err, er)
 		}
 	}
