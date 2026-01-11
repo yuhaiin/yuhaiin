@@ -68,7 +68,7 @@ func (dt *DiskTrie[T]) getValue(node *badger.Cache) []T {
 
 func (dt *DiskTrie[T]) setValue(node *badger.Cache, vals []T) error {
 	if len(vals) == 0 {
-		return nil
+		return node.Delete(valKey)
 	}
 
 	bytes, err := dt.codec.Encode(vals)
