@@ -2,10 +2,13 @@ package domain
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"slices"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -30,6 +33,47 @@ func (GobCodec[T]) Decode(b []byte) ([]T, error) {
 	return v, err
 }
 
+type UnsafeStringCodec struct{}
+
+func (UnsafeStringCodec) Encode(vals []string) ([]byte, error) {
+	total := 4
+	for _, s := range vals {
+		total += 4 + len(s)
+	}
+
+	buf := make([]byte, total)
+	binary.LittleEndian.PutUint32(buf[:4], uint32(len(vals)))
+
+	off := 4
+	for _, s := range vals {
+		b := unsafe.Slice(unsafe.StringData(s), len(s))
+
+		binary.LittleEndian.PutUint32(buf[off:], uint32(len(b)))
+		off += 4
+		copy(buf[off:], b)
+		off += len(b)
+	}
+	return buf, nil
+}
+
+func (UnsafeStringCodec) Decode(data []byte) ([]string, error) {
+	if len(data) < 4 {
+		return nil, fmt.Errorf("data too short")
+	}
+	n := int(binary.LittleEndian.Uint32(data[:4]))
+	res := make([]string, n)
+
+	off := 4
+	for i := range n {
+		l := int(binary.LittleEndian.Uint32(data[off:]))
+		off += 4
+
+		res[i] = unsafe.String(&data[off], l)
+		off += l
+	}
+	return res, nil
+}
+
 var valKey = []byte{0x0, 'V', 0x0, 0b10101010}
 
 type DiskTrie[T comparable] struct {
@@ -38,8 +82,8 @@ type DiskTrie[T comparable] struct {
 	codec  Codec[T]
 }
 
-func NewDiskTrie[T comparable](root *badger.Cache) *DiskTrie[T] {
-	return &DiskTrie[T]{root: root, codec: GobCodec[T]{}}
+func NewDiskTrie[T comparable](root *badger.Cache, codec Codec[T]) *DiskTrie[T] {
+	return &DiskTrie[T]{root: root, codec: codec}
 }
 
 func (dt *DiskTrie[T]) child(node *badger.Cache, s string, insert bool) (*badger.Cache, bool) {

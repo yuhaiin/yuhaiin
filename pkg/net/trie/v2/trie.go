@@ -101,15 +101,30 @@ func (x *Trie[T]) Close() error {
 	return err
 }
 
+type Options[T comparable] struct {
+	Codec domain.Codec[T]
+}
+
+func WithCodec[T comparable](codec domain.Codec[T]) func(*Options[T]) {
+	return func(o *Options[T]) {
+		o.Codec = codec
+	}
+}
+
 // NewTrie create a new trie
 // if cache is nil, use memory trie
-func NewTrie[T comparable](cache *badger.Cache) *Trie[T] {
+func NewTrie[T comparable](cache *badger.Cache, opts ...func(*Options[T])) *Trie[T] {
+	opt := Options[T]{Codec: domain.GobCodec[T]{}}
+	for _, o := range opts {
+		o(&opt)
+	}
 	var dt domain.Trie[T]
 	if cache != nil {
-		dt = domain.NewDiskFqdn[T](cache)
+		dt = domain.NewDiskFqdn(cache, opt.Codec)
 	} else {
 		dt = domain.NewTrie[T]()
 	}
+
 	return &Trie[T]{
 		cidr:   cidr.NewCidr[T](),
 		domain: dt,

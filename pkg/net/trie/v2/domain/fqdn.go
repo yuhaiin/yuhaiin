@@ -124,9 +124,9 @@ func (d *DiskFqdn[T]) Close() error {
 	return d.Root.Close()
 }
 
-func NewDiskFqdn[T comparable](cache *badger.Cache) *DiskFqdn[T] {
+func NewDiskFqdn[T comparable](cache *badger.Cache, codec Codec[T]) *DiskFqdn[T] {
 	return &DiskFqdn[T]{
-		Root:     NewDiskTrie[T](cache),
+		Root:     NewDiskTrie(cache, codec),
 		separate: '.',
 	}
 }

@@ -18,7 +18,7 @@ func setupTestDB(t testing.TB) (*DiskTrie[string], string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewDiskTrie[string](dt), "test.db"
+	return NewDiskTrie(dt, GobCodec[string]{}), "test.db"
 }
 
 func cleanupTestDB(dt *DiskTrie[string], dir string) {
