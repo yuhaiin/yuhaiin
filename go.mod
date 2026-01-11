@@ -22,7 +22,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.7.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/quic-go/connect-ip-go v0.1.0
-	github.com/quic-go/quic-go v0.58.0
+	github.com/quic-go/quic-go v0.59.0
 	github.com/refraction-networking/utls v1.8.1
 	github.com/rhnvrm/simples3 v0.11.0
 	github.com/tailscale/wireguard-go v0.0.0-20251121194102-c6fd943bb437
