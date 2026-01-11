@@ -2,16 +2,19 @@ package trie
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/cidr"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/domain"
 )
 
 type Trie[T comparable] struct {
 	cidr   *cidr.Cidr[T]
-	domain *domain.Fqdn[T]
+	domain domain.Trie[T]
 }
 
 func (x *Trie[T]) Insert(str string, mark T) {
@@ -88,10 +91,43 @@ func (x *Trie[T]) Remove(str string, mark T) {
 
 func (x *Trie[T]) Clear() error {
 	x.cidr = cidr.NewCidr[T]()
-	x.domain = domain.NewTrie[T]()
-	return nil
+	return x.domain.Clear()
 }
 
-func NewTrie[T comparable]() *Trie[T] {
-	return &Trie[T]{cidr: cidr.NewCidr[T](), domain: domain.NewTrie[T]()}
+func (x *Trie[T]) Close() error {
+	var err error
+	if er := x.domain.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+	return err
+}
+
+type Options[T comparable] struct {
+	Codec codec.Codec[T]
+}
+
+func WithCodec[T comparable](codec codec.Codec[T]) func(*Options[T]) {
+	return func(o *Options[T]) {
+		o.Codec = codec
+	}
+}
+
+// NewTrie create a new trie
+// if cache is nil, use memory trie
+func NewTrie[T comparable](cache *badger.Cache, opts ...func(*Options[T])) *Trie[T] {
+	opt := Options[T]{Codec: codec.GobCodec[T]{}}
+	for _, o := range opts {
+		o(&opt)
+	}
+	var dt domain.Trie[T]
+	if cache != nil {
+		dt = domain.NewDiskFqdn(cache, opt.Codec)
+	} else {
+		dt = domain.NewTrie[T]()
+	}
+
+	return &Trie[T]{
+		cidr:   cidr.NewCidr[T](),
+		domain: dt,
+	}
 }

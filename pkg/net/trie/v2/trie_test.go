@@ -3,18 +3,23 @@ package trie
 import (
 	crand "crypto/rand"
 	"net"
+	"os"
 	"slices"
 	"strconv"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 func TestTrie(t *testing.T) {
-	trie := NewTrie[string]()
+	cache, _ := badger.New("test.db")
+	defer os.RemoveAll("test.db")
+	defer cache.Badger().Close()
+	trie := NewTrie[string](cache)
 
 	// Insert rules
-	trie.Insert("google.com", "google")
+	trie.Insert("*.google.com", "google")
 	trie.Insert("1.1.1.0/24", "cloudflare")
 	trie.Insert("8.8.8.8", "google-dns")
 
@@ -78,7 +83,7 @@ func BenchmarkTrie(b *testing.B) {
 	addrs = append(addrs, addr6)
 
 	// Add IPv6 addresses to the addrs slice for SearchFqdn
-	for i := 0; i < 6; i++ { // Adding 6 IPv6 addresses
+	for range 6 { // Adding 6 IPv6 addresses
 		var ipBytes [16]byte
 		_, err := crand.Read(ipBytes[:])
 		if err != nil {
@@ -91,8 +96,12 @@ func BenchmarkTrie(b *testing.B) {
 		rules = append(rules, addr.String()) // Add to rules to ensure they are inserted in pre-fill
 	}
 
+	cache, _ := badger.New("test.db")
+	defer os.RemoveAll("test.db")
+	defer cache.Badger().Close()
+
 	b.Run("Insert", func(b *testing.B) {
-		trie := NewTrie[string]()
+		trie := NewTrie[string](cache)
 		b.ResetTimer()
 		for i := 0; b.Loop(); i++ {
 			trie.Insert(rules[i%len(rules)], "benchmark")
@@ -100,7 +109,7 @@ func BenchmarkTrie(b *testing.B) {
 	})
 
 	b.Run("Search", func(b *testing.B) {
-		trie := NewTrie[string]()
+		trie := NewTrie[string](cache)
 		for _, r := range rules {
 			trie.Insert(r, "benchmark")
 		}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -13,12 +14,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
@@ -32,13 +36,38 @@ import (
 type hostMatcher struct {
 	lists *set.Set[string]
 	trie  *trie.Trie[string]
+	cache *badger.Cache
 }
 
 func newHostTrie() *hostMatcher {
+	path, err := os.MkdirTemp(configuration.DataDir.Load(), "trie.*.db")
+	if err != nil {
+		// mkdirtemp will try over 10000 times
+		// if failed, it must be something wrong, so we just panic
+		panic(err)
+	}
+
+	cache, err := badger.New(path)
+	if err != nil {
+		log.Error("new badger failed", "err", err)
+	}
+
 	return &hostMatcher{
 		lists: set.NewSet[string](),
-		trie:  trie.NewTrie[string](),
+		trie:  trie.NewTrie(cache, trie.WithCodec(codec.UnsafeStringCodec{})), // if cache is nil, just fallback to memory trie
+		cache: cache,
 	}
+}
+
+func (h *hostMatcher) Clear() {
+	h.lists.Clear()
+	h.trie.Clear()
+}
+
+func (h *hostMatcher) Close() error {
+	_ = h.trie.Close()
+	defer os.RemoveAll(h.cache.Badger().Opts().Dir)
+	return h.cache.Badger().Close()
 }
 
 func (h *hostMatcher) Add(host string, list string) {
@@ -359,7 +388,7 @@ func (s *Lists) Close() error {
 	s.tickermu.Unlock()
 
 	s.closeCurrentGeoip()
-	return nil
+	return s.hostTrie.Close()
 }
 
 func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Empty, error) {
@@ -595,6 +624,9 @@ func (s *Lists) refreshHostTrie() {
 	}
 
 	s.hostTrieMu.Lock()
+	if err := s.hostTrie.Close(); err != nil {
+		log.Error("close host trie failed", "err", err)
+	}
 	s.hostTrie = hostTrie
 	s.hostTrieMu.Unlock()
 }
@@ -613,7 +645,7 @@ func (s *Lists) SetHostTrie(hostTrie *hostMatcher) {
 
 func (s *Lists) ResetHostTrie() {
 	s.hostTrieMu.Lock()
-	s.hostTrie = newHostTrie()
+	s.hostTrie.Clear()
 	s.hostTrieMu.Unlock()
 }
 

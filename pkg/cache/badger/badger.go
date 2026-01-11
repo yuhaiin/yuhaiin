@@ -6,7 +6,9 @@ import (
 	"io"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/dgraph-io/badger/v4"
+	"github.com/dgraph-io/badger/v4/options"
 )
 
 var (
@@ -31,7 +33,10 @@ func New(path string) (*Cache, error) {
 		WithMemTableSize(2 << 20).     // 2mb
 		WithBaseTableSize(2 << 20).    // 2mb
 		WithValueThreshold(256 << 10). // 256KB
+		WithIndexCacheSize(1 << 20).
 		WithNumMemtables(1).
+		WithCompression(options.None).
+		WithBlockCacheSize(0). // we don't use compression, so we don't need block cache
 		WithSyncWrites(false).
 		WithMetricsEnabled(true).
 		WithCompactL0OnClose(true)
@@ -111,23 +116,59 @@ func (c *Cache) Range(f func(key []byte, value []byte) bool) error {
 	})
 }
 
+func (c *Cache) cachePrefix(str ...string) []byte {
+	totalLen := len(c.prefix)
+	for _, s := range str {
+		totalLen += len(s) + 1 // +1 for '/'
+	}
+
+	newPrefix := make([]byte, totalLen)
+	off := copy(newPrefix, c.prefix)
+
+	for _, s := range str {
+		copy(newPrefix[off:], s) // copy string bytes
+		off += len(s)
+		newPrefix[off] = '/' // separator
+		off++
+	}
+
+	return newPrefix
+}
+
 func (c *Cache) NewCache(str ...string) cache.Cache {
 	if len(str) == 0 {
 		return c
 	}
 
-	newPrefix := make([]byte, len(c.prefix), len(c.prefix)+len(str)*5)
-	copy(newPrefix, c.prefix)
-
-	for _, s := range str {
-		newPrefix = append(newPrefix, []byte(s)...)
-		newPrefix = append(newPrefix, '/') // separator
-	}
-
 	return &Cache{
 		db:     c.db,
-		prefix: newPrefix,
+		prefix: c.cachePrefix(str...),
 	}
+}
+
+func (c *Cache) CacheExists(str ...string) bool {
+	if len(str) == 0 {
+		return true
+	}
+
+	var exists bool
+	err := c.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		opts.AllVersions = false
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		prefixToCheck := c.cachePrefix(str...)
+		it.Seek(prefixToCheck)
+		exists = it.ValidForPrefix(prefixToCheck)
+		return nil
+	})
+	if err != nil {
+		log.Info("CacheExists failed", "err", err)
+	}
+
+	return exists
 }
 
 func (c *Cache) DeleteBucket(str ...string) error {
