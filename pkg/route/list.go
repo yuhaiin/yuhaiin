@@ -154,7 +154,7 @@ type Lists struct {
 
 	hostTrie               *hostMatcher
 	hostTrieRefreshTimer   *time.Timer
-	hostTrieRefreshTimerMu sync.RWMutex
+	hostTrieRefreshTimerMu sync.Mutex
 
 	processTrie *processMatcher
 
