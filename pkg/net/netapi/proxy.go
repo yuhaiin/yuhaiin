@@ -6,7 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"sync"
+	"sync/atomic"
 )
 
 type Process struct {
@@ -79,44 +79,33 @@ func (e errProxy) Ping(context.Context, Address) (uint64, error)               {
 func (errProxy) Close() error                                                  { return nil }
 
 type DynamicProxy struct {
-	p  Proxy
-	mu sync.RWMutex
+	p atomic.Pointer[Proxy]
 }
 
 func (d *DynamicProxy) Conn(ctx context.Context, a Address) (net.Conn, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.p.Conn(ctx, a)
+	return (*d.p.Load()).Conn(ctx, a)
 }
 
 func (d *DynamicProxy) PacketConn(ctx context.Context, a Address) (net.PacketConn, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.p.PacketConn(ctx, a)
+	return (*d.p.Load()).PacketConn(ctx, a)
 }
 
 func (d *DynamicProxy) Ping(ctx context.Context, a Address) (uint64, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.p.Ping(ctx, a)
+	return (*d.p.Load()).Ping(ctx, a)
 }
 
 func (d *DynamicProxy) Dispatch(ctx context.Context, a Address) (Address, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.p.Dispatch(ctx, a)
+	return (*d.p.Load()).Dispatch(ctx, a)
 }
 
 func (d *DynamicProxy) Close() error {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.p.Close()
+	return (*d.p.Load()).Close()
 }
 
-func (d *DynamicProxy) Set(p Proxy) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.p = p
-}
+func (d *DynamicProxy) Set(p Proxy) { d.p.Store(&p) }
 
-func NewDynamicProxy(p Proxy) *DynamicProxy { return &DynamicProxy{p: p} }
+func NewDynamicProxy(p Proxy) *DynamicProxy {
+	d := &DynamicProxy{}
+	d.Set(p)
+	return d
+}
