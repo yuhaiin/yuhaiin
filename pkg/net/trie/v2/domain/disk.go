@@ -117,7 +117,7 @@ func (dt *DiskTrie[T]) Batch(items iter.Seq2[*fqdnReader, T]) error {
 				pendingV = nil
 			}
 
-			for range 150 {
+			for range 90 {
 				k, v, ok := next()
 				if !ok {
 					done = true
