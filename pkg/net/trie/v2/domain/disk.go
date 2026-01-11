@@ -102,16 +102,17 @@ func (dt *DiskTrie[T]) Batch(iter iter.Seq2[*fqdnReader, T]) error {
 			key = k.array(key[:0])
 
 			data, _ := bt.GetFromCache(key, valKey)
+			// just ignore error, because here may be not exist
 			vals := dt.decodeValue(data)
 
 			if !slices.Contains(vals, v) {
-ev, err := dt.encodeValue(append(vals, v))
-if err != nil {
-    return err
-}
-if err := bt.PutToCache(key, valKey, ev); err != nil {
-    return err
-}
+				ev, err := dt.encodeValue(append(vals, v))
+				if err != nil {
+					return err
+				}
+				if err := bt.PutToCache(key, valKey, ev); err != nil {
+					return err
+				}
 			}
 		}
 
