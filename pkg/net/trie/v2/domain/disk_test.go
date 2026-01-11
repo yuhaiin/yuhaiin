@@ -20,6 +20,7 @@ func TestDiskTrie_Batch(t *testing.T) {
 
 	// Existing data
 	dt.Insert(newFqdnReader("com.google.www"), "0.0.0.0")
+	dt.Insert(newFqdnReader("com.google.www"), "5.0.0.0")
 
 	data := []struct {
 		domain string
@@ -45,7 +46,7 @@ func TestDiskTrie_Batch(t *testing.T) {
 	}
 
 	checkData := map[string][]string{
-		"com.google.www":  {"0.0.0.0", "1.1.1.1"},
+		"com.google.www":  {"0.0.0.0", "5.0.0.0", "1.1.1.1"},
 		"com.google.mail": {"2.2.2.2"},
 		"org.example":     {"3.3.3.3", "4.4.4.4"},
 	}

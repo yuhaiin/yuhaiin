@@ -2,7 +2,6 @@ package domain
 
 import (
 	"errors"
-	"io"
 	"iter"
 	"slices"
 	"sync/atomic"
@@ -100,12 +99,12 @@ func (dt *DiskTrie[T]) Batch(items iter.Seq2[*fqdnReader, T]) error {
 	defer stop()
 
 	var (
-		keyBuf   []string
 		pendingK []string
 		pendingV []byte
+		done     bool
 	)
 
-	for {
+	for !done {
 		err := dt.root.Batch(func(txn cache.Batch) error {
 			bt := txn.(*badger.Batch)
 
@@ -120,10 +119,12 @@ func (dt *DiskTrie[T]) Batch(items iter.Seq2[*fqdnReader, T]) error {
 			for {
 				k, v, ok := next()
 				if !ok {
-					return io.EOF
+					done = true
+					return nil
 				}
 
-				keyBuf = k.array(keyBuf[:0])
+				keyBuf := k.array(nil)
+
 				data, _ := bt.GetFromCache(keyBuf, valKey)
 				vals := dt.decodeValue(data)
 
@@ -147,12 +148,11 @@ func (dt *DiskTrie[T]) Batch(items iter.Seq2[*fqdnReader, T]) error {
 			}
 		})
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
 			return err
 		}
 	}
+
+	return nil
 }
 
 func (dt *DiskTrie[T]) Search(domain *fqdnReader) []T {

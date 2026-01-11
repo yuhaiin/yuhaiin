@@ -217,6 +217,10 @@ func (b *Batch) Put(k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
 	return b.txn.SetEntry(entry)
 }
 
+func (b *Batch) Commit() error {
+	return b.txn.Commit()
+}
+
 func (b *Batch) PutToCache(subCache []string, k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
 	key := b.c.cacheKey(k, subCache...)
 
