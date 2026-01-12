@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"sync"
@@ -24,11 +25,17 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-var savepath string
-var datadir string
+var (
+	savepath string
+	datadir  string
+)
 
-func SetSavePath(p string) { savepath = p }
-func SetDataDir(p string)  { datadir = p }
+func SetSavePath(p string) {
+	savepath = p
+
+	memoryDB = newMemoryStore(filepath.Join(savepath, "yuhaiin_memory_store.json"), false)
+}
+func SetDataDir(p string) { datadir = p }
 
 //go:generate go run generate.go
 

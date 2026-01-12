@@ -283,7 +283,7 @@ func NewCache(db *ShareDB, batch ...string) *Cache {
 }
 
 func (a *Cache) Put(k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
-    return a.db.do(a.batch, func(s cache.Cache) error { return s.Put(k, v, opts...) })
+	return a.db.do(a.batch, func(s cache.Cache) error { return s.Put(k, v, opts...) })
 }
 
 func (a *Cache) Get(k []byte) ([]byte, error) {

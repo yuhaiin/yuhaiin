@@ -7,36 +7,33 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
+	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
-	badgerv4 "github.com/dgraph-io/badger/v4"
 )
 
-var valKey = []byte{0x0, 'V', 0x0, 0b10101010}
-
-type DiskTrie[T comparable] struct {
-	root   *badger.Cache
+type DiskPebbleTrie[T comparable] struct {
+	root   *pebble.Cache
 	closed atomic.Bool
 	codec  codec.Codec[T]
 }
 
-func NewDiskTrie[T comparable](root *badger.Cache, codec codec.Codec[T]) *DiskTrie[T] {
-	return &DiskTrie[T]{root: root, codec: codec}
+func NewDiskPebbleTrie[T comparable](root *pebble.Cache, codec codec.Codec[T]) *DiskPebbleTrie[T] {
+	return &DiskPebbleTrie[T]{root: root, codec: codec}
 }
 
-func (dt *DiskTrie[T]) child(node *badger.Cache, s string, insert bool) (*badger.Cache, bool) {
+func (dt *DiskPebbleTrie[T]) child(node *pebble.Cache, s string, insert bool) (*pebble.Cache, bool) {
 	if insert {
-		return node.NewCache(s).(*badger.Cache), true
+		return node.NewCache(s).(*pebble.Cache), true
 	} else {
 		if !node.CacheExists(s) {
 			return nil, false
 		}
-		return node.NewCache(s).(*badger.Cache), true
+		return node.NewCache(s).(*pebble.Cache), true
 	}
 }
 
-func (dt *DiskTrie[T]) getValue(node cache.Geter) []T {
+func (dt *DiskPebbleTrie[T]) getValue(node cache.Geter) []T {
 	data, err := node.Get(valKey)
 	if err != nil {
 		return nil
@@ -45,7 +42,7 @@ func (dt *DiskTrie[T]) getValue(node cache.Geter) []T {
 	return dt.decodeValue(data)
 }
 
-func (dt *DiskTrie[T]) decodeValue(data []byte) []T {
+func (dt *DiskPebbleTrie[T]) decodeValue(data []byte) []T {
 	if len(data) == 0 {
 		return nil
 	}
@@ -58,7 +55,7 @@ func (dt *DiskTrie[T]) decodeValue(data []byte) []T {
 	return res
 }
 
-func (dt *DiskTrie[T]) setValue(node *badger.Cache, vals []T) error {
+func (dt *DiskPebbleTrie[T]) setValue(node *pebble.Cache, vals []T) error {
 	if len(vals) == 0 {
 		return node.Delete(valKey)
 	}
@@ -71,21 +68,21 @@ func (dt *DiskTrie[T]) setValue(node *badger.Cache, vals []T) error {
 	return node.Put(valKey, bytes)
 }
 
-func (dt *DiskTrie[T]) encodeValue(vals []T) ([]byte, error) {
+func (dt *DiskPebbleTrie[T]) encodeValue(vals []T) ([]byte, error) {
 	if len(vals) == 0 {
 		return nil, nil
 	}
 	return dt.codec.Encode(vals)
 }
 
-func (dt *DiskTrie[T]) Insert(z *fqdnReader, mark T) error {
+func (dt *DiskPebbleTrie[T]) Insert(z *fqdnReader, mark T) error {
 	if dt.closed.Load() {
 		return errors.New("trie is closed")
 	}
 
 	key := z.array(nil)
 
-	node := dt.root.NewCache(key...).(*badger.Cache)
+	node := dt.root.NewCache(key...).(*pebble.Cache)
 
 	vals := dt.getValue(node)
 	if !slices.Contains(vals, mark) {
@@ -94,7 +91,11 @@ func (dt *DiskTrie[T]) Insert(z *fqdnReader, mark T) error {
 	return nil
 }
 
-func (dt *DiskTrie[T]) Batch(items iter.Seq2[*fqdnReader, T]) error {
+func (dt *DiskPebbleTrie[T]) Batch(items iter.Seq2[*fqdnReader, T]) error {
+	if dt.closed.Load() {
+		return errors.New("trie is closed")
+	}
+
 	next, stop := iter.Pull2(items)
 	defer stop()
 
@@ -107,7 +108,7 @@ func (dt *DiskTrie[T]) Batch(items iter.Seq2[*fqdnReader, T]) error {
 
 	for !done {
 		err := dt.root.Batch(func(txn cache.Batch) error {
-			bt := txn.(*badger.Batch)
+			bt := txn.(*pebble.Batch)
 
 			if pendingK != nil && pendingV != nil {
 				if err := bt.PutToCache(pendingK, valKey, pendingV); err != nil {
@@ -139,11 +140,11 @@ func (dt *DiskTrie[T]) Batch(items iter.Seq2[*fqdnReader, T]) error {
 				}
 
 				if err := bt.PutToCache(keyBuf, valKey, ev); err != nil {
-					if errors.Is(err, badgerv4.ErrTxnTooBig) {
-						pendingK = slices.Clone(keyBuf)
-						pendingV = ev
-						return nil
-					}
+					// if errors.Is(err, badgerv4.ErrTxnTooBig) {
+					// 	pendingK = slices.Clone(keyBuf)
+					// 	pendingV = ev
+					// 	return nil
+					// }
 					return err
 				}
 			}
@@ -158,7 +159,7 @@ func (dt *DiskTrie[T]) Batch(items iter.Seq2[*fqdnReader, T]) error {
 	return nil
 }
 
-func (dt *DiskTrie[T]) Search(domain *fqdnReader) []T {
+func (dt *DiskPebbleTrie[T]) Search(domain *fqdnReader) []T {
 	if dt.closed.Load() {
 		return nil
 	}
@@ -206,26 +207,28 @@ _second:
 	return res
 }
 
-func (dt *DiskTrie[T]) Clear() error {
+func (dt *DiskPebbleTrie[T]) Clear() error {
 	if dt.closed.Load() {
 		return errors.New("trie is closed")
 	}
+	start := []byte{0x00}
+	end := []byte{0xff, 0xff, 0xff, 0xff}
 
-	return dt.root.Badger().DropAll()
+	return dt.root.Pebble().DeleteRange(start, end, nil)
 }
 
-func (dt *DiskTrie[T]) Close() error {
+func (dt *DiskPebbleTrie[T]) Close() error {
 	dt.closed.CompareAndSwap(false, true)
 	return nil
 }
 
-func (dt *DiskTrie[T]) Remove(domain *fqdnReader, mark T) error {
+func (dt *DiskPebbleTrie[T]) Remove(domain *fqdnReader, mark T) error {
 	if dt.closed.Load() {
 		return errors.New("trie is closed")
 	}
 
 	type step struct {
-		node *badger.Cache
+		node *pebble.Cache
 		part string
 	}
 
@@ -265,4 +268,8 @@ func (dt *DiskTrie[T]) Remove(domain *fqdnReader, mark T) error {
 	}
 
 	return nil
+}
+
+func (dt *DiskPebbleTrie[T]) Dir() string {
+	return dt.root.Dir()
 }

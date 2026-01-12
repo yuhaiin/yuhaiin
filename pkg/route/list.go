@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
+	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -33,10 +33,15 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
+type Cache interface {
+	Dir() string
+	Close() error
+}
 type hostMatcher struct {
 	lists *set.Set[string]
 	trie  *trie.Trie[string]
-	cache *badger.Cache
+	cache Cache
+	mu    sync.Mutex
 }
 
 func newHostTrie(path string) *hostMatcher {
@@ -47,15 +52,22 @@ func newHostTrie(path string) *hostMatcher {
 		panic(err)
 	}
 
-	cache, err := badger.New(path)
+	// cache, err := badger.New(path)
+	// if err != nil {
+	// log.Error("new badger failed", "err", err)
+	// }
+
+	pebble, err := pebble.New(path)
 	if err != nil {
-		log.Error("new badger failed", "err", err)
+		log.Error("new pebble failed", "err", err)
 	}
+
+	trie := trie.NewTrie(trie.WithPebble(pebble), trie.WithCodec(codec.UnsafeStringCodec{}))
 
 	return &hostMatcher{
 		lists: set.NewSet[string](),
-		trie:  trie.NewTrie(cache, trie.WithCodec(codec.UnsafeStringCodec{})), // if cache is nil, just fallback to memory trie
-		cache: cache,
+		trie:  trie,
+		cache: pebble,
 	}
 }
 
@@ -66,8 +78,17 @@ func (h *hostMatcher) Clear() {
 
 func (h *hostMatcher) Close() error {
 	_ = h.trie.Close()
-	defer os.RemoveAll(h.cache.Badger().Opts().Dir)
-	return h.cache.Badger().Close()
+	if h.cache == nil {
+		return nil
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	defer os.RemoveAll(h.cache.Dir())
+	err := h.cache.Close()
+	h.cache = nil
+	return err
 }
 
 func (h *hostMatcher) Add(host iter.Seq[string], list string) {

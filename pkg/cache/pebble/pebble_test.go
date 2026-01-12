@@ -1,26 +1,27 @@
-package badger
+package pebble
 
 import (
 	"bytes"
 	"maps"
+	"os"
 	"strconv"
 	"testing"
 )
 
 func setupTestDB(t testing.TB) *Cache {
 	t.Helper()
-	dbPath := t.TempDir()
-	c, err := New(dbPath)
+	c, err := New("test.db")
 	if err != nil {
 		t.Fatalf("Failed to create test database: %v", err)
 	}
 	t.Cleanup(func() {
-		c.Badger().Close()
+		c.Close()
+		os.RemoveAll("test.db")
 	})
 	return c
 }
 
-func TestBadger(t *testing.T) {
+func TestPebble(t *testing.T) {
 	t.Run("PutAndGet", func(t *testing.T) {
 		c := setupTestDB(t)
 		testCases := map[string][]byte{
@@ -306,17 +307,17 @@ func TestBadger(t *testing.T) {
 
 /*
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkBadger
-BenchmarkBadger/Put
-BenchmarkBadger/Put-12         	  191379	      6302 ns/op	    1915 B/op	      43 allocs/op
-BenchmarkBadger/Get
-BenchmarkBadger/Get-12         	 1347235	       859.0 ns/op	     461 B/op	      12 allocs/op
-BenchmarkBadger/Range
-BenchmarkBadger/Range-12       	     340	   3474507 ns/op	  183824 B/op	   10537 allocs/op
-BenchmarkBadger/CacheExists
-BenchmarkBadger/CacheExists-12 	 1326736	       900.4 ns/op	     664 B/op	      14 allocs/op
+BenchmarkPebble
+BenchmarkPebble/Put
+BenchmarkPebble/Put-12         	 1378983	       864.0 ns/op	      19 B/op	       2 allocs/op
+BenchmarkPebble/Get
+BenchmarkPebble/Get-12         	 9183296	       112.6 ns/op	      31 B/op	       2 allocs/op
+BenchmarkPebble/Range
+BenchmarkPebble/Range-12       	    1641	    701732 ns/op	  151577 B/op	   10001 allocs/op
+BenchmarkPebble/CacheExists
+BenchmarkPebble/CacheExists-12 	 2078414	       577.0 ns/op	      40 B/op	       3 allocs/op
 */
-func BenchmarkBadger(b *testing.B) {
+func BenchmarkPebble(b *testing.B) {
 	b.Run("Put", func(b *testing.B) {
 		c := setupTestDB(b)
 		b.ResetTimer()
@@ -343,8 +344,8 @@ func BenchmarkBadger(b *testing.B) {
 
 		b.ResetTimer()
 
-		b.RunParallel(func(p *testing.PB) {
-			for i := 0; p.Next(); i++ {
+		b.RunParallel(func(pb *testing.PB) {
+			for i := 0; pb.Next(); i++ {
 				key := []byte("key" + strconv.Itoa(i%10000))
 				_, err := c.Get(key)
 				if err != nil {
@@ -365,7 +366,7 @@ func BenchmarkBadger(b *testing.B) {
 			}
 		}
 		b.ResetTimer()
-		for b.Loop() {
+		for i := 0; i < b.N; i++ {
 			err := c.Range(func(key []byte, value []byte) bool {
 				return true
 			})

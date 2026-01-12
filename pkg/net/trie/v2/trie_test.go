@@ -16,7 +16,7 @@ func TestTrie(t *testing.T) {
 	cache, _ := badger.New("test.db")
 	defer os.RemoveAll("test.db")
 	defer cache.Badger().Close()
-	trie := NewTrie[string](cache)
+	trie := NewTrie[string](WithBadger(cache))
 
 	// Insert rules
 	trie.Insert("*.google.com", "google")
@@ -101,7 +101,7 @@ func BenchmarkTrie(b *testing.B) {
 	defer cache.Badger().Close()
 
 	b.Run("Insert", func(b *testing.B) {
-		trie := NewTrie[string](cache)
+		trie := NewTrie[string](WithBadger(cache))
 		b.ResetTimer()
 		for i := 0; b.Loop(); i++ {
 			trie.Insert(rules[i%len(rules)], "benchmark")
@@ -109,7 +109,7 @@ func BenchmarkTrie(b *testing.B) {
 	})
 
 	b.Run("Search", func(b *testing.B) {
-		trie := NewTrie[string](cache)
+		trie := NewTrie[string](WithBadger(cache))
 		for _, r := range rules {
 			trie.Insert(r, "benchmark")
 		}

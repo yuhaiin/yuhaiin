@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json/v2"
 	"math"
+	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -22,7 +23,146 @@ func socketPath() string   { return filepath.Join(datadir, "kv.sock") }
 var (
 	shareDB     *share.ShareDB
 	shareDBOnce sync.Once
+	memoryDB    = newMemoryStore(filepath.Join(savepath, "yuhaiin_memory_store.json"), true)
 )
+
+type singleStore[k comparable, v any] struct {
+	Values   map[k]v `json:"values"`
+	readonly bool
+	mu       sync.RWMutex
+}
+
+func newSingleStore[k comparable, v any](readonly bool) *singleStore[k, v] {
+	s := &singleStore[k, v]{readonly: readonly}
+	s.init()
+	return s
+}
+
+func (s *singleStore[k, v]) Put(key k, value v) {
+	if s.readonly {
+		return
+	}
+
+	s.mu.Lock()
+	s.Values[key] = value
+	s.mu.Unlock()
+}
+
+func (s *singleStore[K, V]) Get(key K) V {
+	s.mu.RLock()
+	v := s.Values[key]
+	s.mu.RUnlock()
+	return v
+}
+
+func (s *singleStore[k, v]) init() {
+	if s.Values == nil {
+		s.Values = make(map[k]v)
+	}
+}
+
+type memoryStore struct {
+	Strings   *singleStore[string, string]  `json:"strings"`
+	Ints      *singleStore[string, int32]   `json:"ints"`
+	Bools     *singleStore[string, bool]    `json:"bools"`
+	Longs     *singleStore[string, int64]   `json:"longs"`
+	Floats    *singleStore[string, float32] `json:"floats"`
+	Bytes     *singleStore[string, []byte]  `json:"bytes"`
+	readlonly bool
+	Path      string `json:"path"`
+}
+
+func newMemoryStore(path string, readOnly bool) *memoryStore {
+	m := &memoryStore{
+		Strings:   newSingleStore[string, string](readOnly),
+		Ints:      newSingleStore[string, int32](readOnly),
+		Bools:     newSingleStore[string, bool](readOnly),
+		Longs:     newSingleStore[string, int64](readOnly),
+		Floats:    newSingleStore[string, float32](readOnly),
+		Bytes:     newSingleStore[string, []byte](readOnly),
+		readlonly: readOnly,
+		Path:      path,
+	}
+
+	data, err := os.ReadFile(path)
+	if err == nil && len(data) > 0 {
+		err = json.Unmarshal(data, m)
+		if err != nil {
+			log.Error("unmarshal memory store failed", "err", err)
+		}
+	}
+
+	return m
+}
+
+func (m *memoryStore) Save() {
+	if m.readlonly {
+		return
+	}
+
+	data, err := json.Marshal(m)
+	if err != nil {
+		log.Error("marshal memory store failed", "err", err)
+		return
+	}
+	if err = os.WriteFile(m.Path, data, 0644); err != nil {
+		log.Error("write memory store to file failed", "err", err)
+	}
+}
+
+func (m *memoryStore) PutString(key string, value string) {
+	m.Strings.Put(key, value)
+	m.Save()
+}
+
+func (m *memoryStore) PutInt(key string, value int32) {
+	m.Ints.Put(key, value)
+	m.Save()
+}
+
+func (m *memoryStore) PutBoolean(key string, value bool) {
+	m.Bools.Put(key, value)
+	m.Save()
+}
+
+func (m *memoryStore) PutLong(key string, value int64) {
+	m.Longs.Put(key, value)
+	m.Save()
+}
+
+func (m *memoryStore) PutFloat(key string, value float32) {
+	m.Floats.Put(key, value)
+	m.Save()
+}
+
+func (m *memoryStore) GetString(key string) string {
+	return m.Strings.Get(key)
+}
+
+func (m *memoryStore) GetInt(key string) int32 {
+	return m.Ints.Get(key)
+}
+
+func (m *memoryStore) GetBoolean(key string) bool {
+	return m.Bools.Get(key)
+}
+
+func (m *memoryStore) GetLong(key string) int64 {
+	return m.Longs.Get(key)
+}
+
+func (m *memoryStore) GetFloat(key string) float32 {
+	return m.Floats.Get(key)
+}
+
+func (m *memoryStore) GetBytes(key string) []byte {
+	return m.Bytes.Get(key)
+}
+
+func (m *memoryStore) PutBytes(key string, value []byte) {
+	m.Bytes.Put(key, value)
+	m.Save()
+}
 
 type Store interface {
 	PutString(key string, value string)
@@ -53,29 +193,35 @@ func newStore(batch string) Store {
 
 func (s *storeImpl) PutString(key string, value string) {
 	_ = s.db.Put([]byte(key), []byte(value))
+	memoryDB.PutString(key, value)
 }
 
 func (s *storeImpl) PutInt(key string, value int32) {
 	bytes := binary.NativeEndian.AppendUint32(nil, uint32(value))
 	_ = s.db.Put([]byte(key), bytes)
+	memoryDB.PutInt(key, value)
 }
 
 func (s *storeImpl) PutBoolean(key string, value bool) {
 	_ = s.db.Put([]byte(key), ifOr(value, []byte{1}, []byte{0}))
+	memoryDB.PutBoolean(key, value)
 }
 
 func (s *storeImpl) PutLong(key string, value int64) {
 	bytes := binary.NativeEndian.AppendUint64(nil, uint64(value))
 	_ = s.db.Put([]byte(key), bytes)
+	memoryDB.PutLong(key, value)
 }
 
 func (s *storeImpl) PutFloat(key string, value float32) {
 	bytes := binary.NativeEndian.AppendUint32(nil, math.Float32bits(value))
 	_ = s.db.Put([]byte(key), bytes)
+	memoryDB.PutFloat(key, value)
 }
 
 func (s *storeImpl) PutBytes(key string, value []byte) {
 	_ = s.db.Put([]byte(key), value)
+	memoryDB.PutBytes(key, value)
 }
 
 func (s *storeImpl) GetString(key string) string {
@@ -83,11 +229,13 @@ func (s *storeImpl) GetString(key string) string {
 	if bytes == nil {
 		return defaultStringValue[key]
 	}
+	memoryDB.PutString(key, string(bytes))
 	return string(bytes)
 }
 
 func (s *storeImpl) GetBytes(key string) []byte {
 	bytes, _ := s.db.Get([]byte(key))
+	memoryDB.PutBytes(key, bytes)
 	return bytes
 }
 
@@ -98,6 +246,7 @@ func (s *storeImpl) GetInt(key string) int32 {
 	}
 
 	value := binary.NativeEndian.Uint32(bytes)
+	memoryDB.PutInt(key, int32(value))
 	return int32(value)
 }
 
@@ -107,6 +256,7 @@ func (s *storeImpl) GetBoolean(key string) bool {
 		return defaultBoolValue[key] == 1
 	}
 
+	memoryDB.PutBoolean(key, bytes[0] == 1)
 	return bytes[0] == 1
 }
 
@@ -117,7 +267,7 @@ func (s *storeImpl) GetLong(key string) int64 {
 	}
 
 	value := binary.NativeEndian.Uint64(bytes)
-
+	memoryDB.PutLong(key, int64(value))
 	return int64(value)
 }
 
@@ -126,6 +276,7 @@ func (s *storeImpl) GetFloat(key string) float32 {
 	if len(bytes) < 4 || bytes == nil {
 		return defaultFloatValue[key]
 	}
+	memoryDB.PutFloat(key, math.Float32frombits(binary.NativeEndian.Uint32(bytes)))
 	return math.Float32frombits(binary.NativeEndian.Uint32(bytes))
 }
 

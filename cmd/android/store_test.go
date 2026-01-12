@@ -55,3 +55,18 @@ func printValuePath(s *strings.Builder, msg protoreflect.FieldDescriptor) {
 	}
 	fmt.Fprintf(s, "// %s\n", msg.FullName())
 }
+
+func TestMemoryDB(t *testing.T) {
+	memoryDB.PutString("key1", "value1")
+	memoryDB.PutInt("key2", 42)
+	memoryDB.PutBoolean("key3", true)
+	memoryDB.PutLong("key4", 1234567890)
+	memoryDB.PutFloat("key5", 3.14)
+	memoryDB.PutBytes("key6", []byte{0x01, 0x02, 0x03})
+
+	assert.Equal(t, "value1", memoryDB.GetString("key1"))
+	assert.Equal(t, int32(42), memoryDB.GetInt("key2"))
+	assert.Equal(t, true, memoryDB.GetBoolean("key3"))
+	assert.Equal(t, int64(1234567890), memoryDB.GetLong("key4"))
+	assert.Equal(t, float32(3.14), memoryDB.GetFloat("key5"))
+}
