@@ -4,9 +4,7 @@ import (
 	"iter"
 	"sync"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
 )
 
 type Trie[T comparable] interface {
@@ -84,8 +82,18 @@ func NewTrie[T comparable]() *Fqdn[T] {
 	}
 }
 
+type DiskTrieI[T comparable] interface {
+	Insert(z *fqdnReader, mark T) error
+	Batch(items iter.Seq2[*fqdnReader, T]) error
+	Search(z *fqdnReader) []T
+	Remove(z *fqdnReader, mark T) error
+	Clear() error
+	Close() error
+	Dir() string
+}
+
 type DiskFqdn[T comparable] struct {
-	Root     *DiskTrie[T] `json:"root"`
+	Root     DiskTrieI[T] `json:"root"`
 	separate byte
 	mu       sync.Mutex
 }
@@ -145,9 +153,9 @@ func (d *DiskFqdn[T]) Close() error {
 	return d.Root.Close()
 }
 
-func NewDiskFqdn[T comparable](cache *badger.Cache, codec codec.Codec[T]) *DiskFqdn[T] {
+func NewDiskFqdn[T comparable](cache DiskTrieI[T]) *DiskFqdn[T] {
 	return &DiskFqdn[T]{
-		Root:     NewDiskTrie(cache, codec),
+		Root:     cache,
 		separate: '.',
 	}
 }

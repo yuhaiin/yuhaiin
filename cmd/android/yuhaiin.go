@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"sync"
@@ -25,10 +26,16 @@ import (
 )
 
 var savepath string
-var datadir string
 
-func SetSavePath(p string) { savepath = p }
-func SetDataDir(p string)  { datadir = p }
+func SetSavePath(p string) {
+	savepath = p
+
+	ms := filepath.Join(p, "yuhaiin_memory_store.json")
+	msc := filepath.Join(p, "yuhaiin_memory_config_store.json")
+	migrate(filepath.Join(p, "yuhaiin.badger.db"), ms, msc)
+	memoryDB = newMemoryStore(ms, false)
+	memoryConfigDB = newMemoryStore(msc, false)
+}
 
 //go:generate go run generate.go
 
@@ -86,13 +93,14 @@ func (a *App) Start(opt *Opts) error {
 		return err
 	}
 
+	ms := newMemoryStore(filepath.Join(savepath, "yuhaiin_memory_config_store.json"), false)
 	app, err := app.Start(&app.StartOptions{
 		ConfigPath:     savepath,
-		BypassConfig:   newBypassDB(),
-		ResolverConfig: newResolverDB(),
-		InboundConfig:  newInboundDB(opt),
-		ChoreConfig:    newChoreDB(),
-		BackupConfig:   newBackupDB(),
+		BypassConfig:   newBypassDB(ms),
+		ResolverConfig: newResolverDB(ms),
+		InboundConfig:  newInboundDB(ms, opt),
+		ChoreConfig:    newChoreDB(ms),
+		BackupConfig:   newBackupDB(ms),
 		ProcessDumper:  processDumper,
 	})
 	if err != nil {
@@ -114,7 +122,7 @@ func (a *App) Start(opt *Opts) error {
 		return err
 	}
 
-	GetStore().PutInt(NewYuhaiinPortKey, int32(port))
+	memoryConfigDB.PutInt(NewYuhaiinPortKey, int32(port))
 
 	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
@@ -235,7 +243,8 @@ func flowString(download, upload, ur, dr string) string {
 	)
 }
 
-func newInboundDB(opt *Opts) *configDB[*config.InboundConfig] {
+func newInboundDB(ms *memoryStore, opt *Opts) *configDB[*config.InboundConfig] {
+	store := GetStore()
 	var listenHost string = "127.0.0.1"
 	if store.GetBoolean(AllowLanKey) {
 		listenHost = "0.0.0.0"
@@ -268,6 +277,7 @@ func newInboundDB(opt *Opts) *configDB[*config.InboundConfig] {
 	}
 
 	return newConfigDB(
+		ms,
 		"inbound_db",
 		func(s *config.Setting) *config.InboundConfig {
 			if s.GetServer() == nil {
@@ -291,32 +301,36 @@ func newInboundDB(opt *Opts) *configDB[*config.InboundConfig] {
 	)
 }
 
-func newResolverDB() *configDB[*config.DnsConfig] {
+func newResolverDB(ms *memoryStore) *configDB[*config.DnsConfig] {
 	return newConfigDB(
+		ms,
 		"resolver_db",
 		func(s *config.Setting) *config.DnsConfig { return s.GetDns() },
 		func(s *config.DnsConfig) *config.Setting { return config.Setting_builder{Dns: s}.Build() },
 	)
 }
 
-func newBypassDB() *configDB[*config.BypassConfig] {
+func newBypassDB(ms *memoryStore) *configDB[*config.BypassConfig] {
 	return newConfigDB(
+		ms,
 		"bypass_db",
 		func(s *config.Setting) *config.BypassConfig { return s.GetBypass() },
 		func(s *config.BypassConfig) *config.Setting { return config.Setting_builder{Bypass: s}.Build() },
 	)
 }
 
-func newChoreDB() *configDB[*config.Setting] {
+func newChoreDB(ms *memoryStore) *configDB[*config.Setting] {
 	return newConfigDB(
+		ms,
 		"chore_db",
 		func(s *config.Setting) *config.Setting { return s },
 		func(s *config.Setting) *config.Setting { return s },
 	)
 }
 
-func newBackupDB() *configDB[*config.Setting] {
+func newBackupDB(ms *memoryStore) *configDB[*config.Setting] {
 	return newConfigDB(
+		ms,
 		"backup_db",
 		func(s *config.Setting) *config.Setting { return s },
 		func(s *config.Setting) *config.Setting { return s },

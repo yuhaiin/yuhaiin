@@ -28,3 +28,7 @@ func (p pathGenerator) Cache(dir string) string { return p.makeDir(filepath.Join
 func (p pathGenerator) BadgerCache(dir string) string {
 	return p.makeDir(filepath.Join(dir, "badger_cache"))
 }
+
+func (p pathGenerator) PebbleCache(dir string) string {
+	return p.makeDir(filepath.Join(dir, "pebble_cache"))
+}

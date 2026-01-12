@@ -8,15 +8,15 @@ var (
 )
 
 var (
-	defaultBoolValue = map[string]byte{
-		AllowLanKey:             0,
-		AppendHttpProxyToVpnKey: 0,
-		NetworkSpeedKey:         0,
-		AdvAutoConnectKey:       0,
-		AdvPerAppKey:            0,
-		AdvAppBypassKey:         0,
-		SniffKey:                1,
-		DnsHijacking:            1,
+	defaultBoolValue = map[string]bool{
+		AllowLanKey:             false,
+		AppendHttpProxyToVpnKey: false,
+		NetworkSpeedKey:         false,
+		AdvAutoConnectKey:       false,
+		AdvPerAppKey:            false,
+		AdvAppBypassKey:         false,
+		SniffKey:                true,
+		DnsHijacking:            true,
 	}
 
 	disAllowAppList, _ = json.Marshal([]string{

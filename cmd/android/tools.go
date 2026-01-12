@@ -28,7 +28,7 @@ type AddRoute interface {
 }
 
 func FakeDnsCidr(f func(string)) {
-	err := newResolverDB().View(func(s *config.Setting) error {
+	err := newResolverDB(memoryConfigDB).View(func(s *config.Setting) error {
 		d := s.GetDns()
 
 		f(d.GetFakednsIpRange())
@@ -43,7 +43,7 @@ func FakeDnsCidr(f func(string)) {
 
 func IsIPv6() bool {
 	var ipv6 bool
-	err := newChoreDB().View(func(s *config.Setting) error {
+	err := newChoreDB(memoryConfigDB).View(func(s *config.Setting) error {
 		ipv6 = s.GetIpv6()
 		return nil
 	})
