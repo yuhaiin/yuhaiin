@@ -321,7 +321,7 @@ func migrateDBv2(pebbleCache *pebble.Cache, path string) {
 
 	db, err := badger.New(tools.PathGenerator.BadgerCache(path))
 	if err != nil {
-		log.Warn("open old bbolt db failed, skip migrate db")
+		log.Warn("open old badger db failed, skip migrate db")
 		return
 	}
 	defer db.Close()

@@ -140,11 +140,6 @@ func (dt *DiskPebbleTrie[T]) Batch(items iter.Seq2[*fqdnReader, T]) error {
 				}
 
 				if err := bt.PutToCache(keyBuf, valKey, ev); err != nil {
-					// if errors.Is(err, badgerv4.ErrTxnTooBig) {
-					// 	pendingK = slices.Clone(keyBuf)
-					// 	pendingV = ev
-					// 	return nil
-					// }
 					return err
 				}
 			}

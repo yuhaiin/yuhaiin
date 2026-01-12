@@ -5,7 +5,7 @@ import (
 	"bytes"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 )
 
 var _ cache.Cache = (*Cache)(nil)
@@ -19,6 +19,7 @@ type Cache struct {
 func New(path string) (*Cache, error) {
 	opts := &pebble.Options{
 		MemTableSize: 2 << 20,
+		CacheSize:    2 << 20,
 		DisableWAL:   true,
 	}
 	db, err := pebble.Open(path, opts)
