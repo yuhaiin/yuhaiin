@@ -7,6 +7,7 @@ import (
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
+	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
@@ -132,7 +133,9 @@ func (x *Trie[T]) Close() error {
 }
 
 type Options[T comparable] struct {
-	Codec codec.Codec[T]
+	Codec  codec.Codec[T]
+	Badger *badger.Cache
+	Pebble *pebble.Cache
 }
 
 func WithCodec[T comparable](codec codec.Codec[T]) func(*Options[T]) {
@@ -141,16 +144,31 @@ func WithCodec[T comparable](codec codec.Codec[T]) func(*Options[T]) {
 	}
 }
 
+func WithBadger(cache *badger.Cache) func(*Options[string]) {
+	return func(o *Options[string]) {
+		o.Badger = cache
+	}
+}
+
+func WithPebble(cache *pebble.Cache) func(*Options[string]) {
+	return func(o *Options[string]) {
+		o.Pebble = cache
+	}
+}
+
 // NewTrie create a new trie
 // if cache is nil, use memory trie
-func NewTrie[T comparable](cache *badger.Cache, opts ...func(*Options[T])) *Trie[T] {
+func NewTrie[T comparable](opts ...func(*Options[T])) *Trie[T] {
 	opt := Options[T]{Codec: codec.GobCodec[T]{}}
 	for _, o := range opts {
 		o(&opt)
 	}
 	var dt domain.Trie[T]
-	if cache != nil {
-		dt = domain.NewDiskFqdn(cache, opt.Codec)
+
+	if opt.Badger != nil {
+		dt = domain.NewDiskFqdn(domain.NewDiskTrie(opt.Badger, opt.Codec))
+	} else if opt.Pebble != nil {
+		dt = domain.NewDiskFqdn(domain.NewDiskPebbleTrie(opt.Pebble, opt.Codec))
 	} else {
 		dt = domain.NewTrie[T]()
 	}

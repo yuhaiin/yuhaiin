@@ -3,24 +3,25 @@ package domain
 import (
 	"bufio"
 	"bytes"
-	"fmt"
-	"math/rand"
 	"os"
 	"slices"
 	"strings"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
+	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
-func TestDiskTrie_Batch(t *testing.T) {
-	dt, dir := setupTestDB(t)
-	defer cleanupTestDB(dt, dir)
+func TestDiskPebbleTrie_Batch(t *testing.T) {
+	dt, dir := setupPebbleTestDB(t)
+	defer cleanupPebbleTestDB(dt, dir)
 
 	// Existing data
-	dt.Insert(newFqdnReader("com.google.www"), "0.0.0.0")
-	dt.Insert(newFqdnReader("com.google.www"), "5.0.0.0")
+	err := dt.Insert(newFqdnReader("com.google.www"), "0.0.0.0")
+	assert.NoError(t, err)
+	err = dt.Insert(newFqdnReader("com.google.www"), "5.0.0.0")
+	assert.NoError(t, err)
 
 	data := []struct {
 		domain string
@@ -40,7 +41,7 @@ func TestDiskTrie_Batch(t *testing.T) {
 		}
 	}
 
-	err := dt.Batch(seq)
+	err = dt.Batch(seq)
 	if err != nil {
 		t.Fatalf("Batch failed: %v", err)
 	}
@@ -64,22 +65,22 @@ func TestDiskTrie_Batch(t *testing.T) {
 	}
 }
 
-func setupTestDB(t testing.TB) (*DiskTrie[string], string) {
-	dt, err := badger.New("test.db")
+func setupPebbleTestDB(t testing.TB) (*DiskPebbleTrie[string], string) {
+	dt, err := pebble.New("test.db")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewDiskTrie(dt, codec.GobCodec[string]{}), "test.db"
+	return NewDiskPebbleTrie(dt, codec.UnsafeStringCodec{}), "test.db"
 }
 
-func cleanupTestDB(dt *DiskTrie[string], dir string) {
-	dt.root.Badger().Close()
+func cleanupPebbleTestDB(dt *DiskPebbleTrie[string], dir string) {
+	dt.root.Pebble().Close()
 	os.RemoveAll(dir)
 }
 
-func TestDiskTrie_BasicInsertAndSearch(t *testing.T) {
-	dt, dir := setupTestDB(t)
-	defer cleanupTestDB(dt, dir)
+func TestDiskPebbleTrie_BasicInsertAndSearch(t *testing.T) {
+	dt, dir := setupPebbleTestDB(t)
+	defer cleanupPebbleTestDB(dt, dir)
 
 	domain := "com.google.www"
 	val := "1.1.1.1"
@@ -100,9 +101,9 @@ func TestDiskTrie_BasicInsertAndSearch(t *testing.T) {
 	}
 }
 
-func TestDiskTrie_WildcardLogic(t *testing.T) {
-	dt, dir := setupTestDB(t)
-	defer cleanupTestDB(dt, dir)
+func TestDiskPebbleTrie_WildcardLogic(t *testing.T) {
+	dt, dir := setupPebbleTestDB(t)
+	defer cleanupPebbleTestDB(dt, dir)
 
 	dt.Insert(newFqdnReader("com.google.*"), "WildcardValue")
 	dt.Insert(newFqdnReader("com.google.mail"), "MailValue")
@@ -137,9 +138,9 @@ func TestDiskTrie_WildcardLogic(t *testing.T) {
 	}
 }
 
-func TestDiskTrie_MultiValues(t *testing.T) {
-	dt, dir := setupTestDB(t)
-	defer cleanupTestDB(dt, dir)
+func TestDiskPebbleTrie_MultiValues(t *testing.T) {
+	dt, dir := setupPebbleTestDB(t)
+	defer cleanupPebbleTestDB(dt, dir)
 
 	domain := "com.server"
 	dt.Insert(newFqdnReader(domain), "IP1")
@@ -154,9 +155,9 @@ func TestDiskTrie_MultiValues(t *testing.T) {
 	}
 }
 
-func TestDiskTrie_Remove(t *testing.T) {
-	dt, dir := setupTestDB(t)
-	defer cleanupTestDB(dt, dir)
+func TestDiskPebbleTrie_Remove(t *testing.T) {
+	dt, dir := setupPebbleTestDB(t)
+	defer cleanupPebbleTestDB(dt, dir)
 
 	domain := "com.test.remove"
 	val := "DeleteMe"
@@ -185,54 +186,87 @@ func TestDiskTrie_Remove(t *testing.T) {
 	}
 }
 
-func randomDomainParts(depth int) string {
-	parts := make([]string, depth)
-	tlds := []string{"com", "net", "org", "cn", "io"}
-	parts[0] = tlds[rand.Intn(len(tlds))]
-	for i := 1; i < depth; i++ {
-		parts[i] = fmt.Sprintf("sub%d-%d", i, rand.Intn(1000))
-	}
-	return strings.Join(parts, ".")
+/*
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkDiskTrie
+BenchmarkDiskTrie/insert
+BenchmarkDiskTrie/insert-12         	  100437	     12089 ns/op	    4233 B/op	      73 allocs/op
+BenchmarkDiskTrie/search_hit
+BenchmarkDiskTrie/search_hit-12     	   26109	     45395 ns/op	   28204 B/op	     488 allocs/op
+BenchmarkDiskTrie/search_miss
+BenchmarkDiskTrie/search_miss-12    	  402478	      2814 ns/op	    1629 B/op	      39 allocs/op
+
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkDiskTrie
+BenchmarkDiskTrie/insert
+BenchmarkDiskTrie/insert-12         	  399330	     14565 ns/op	     402 B/op	      10 allocs/op
+BenchmarkDiskTrie/search_hit
+BenchmarkDiskTrie/search_hit-12     	   43410	     27252 ns/op	    1126 B/op	      39 allocs/op
+BenchmarkDiskTrie/search_miss
+BenchmarkDiskTrie/search_miss-12    	  490711	      2269 ns/op	     251 B/op	      14 allocs/op
+*/
+func BenchmarkDiskPebbleTrie(b *testing.B) {
+	b.Run("insert", func(b *testing.B) {
+		dt, dir := setupPebbleTestDB(b)
+		defer cleanupPebbleTestDB(dt, dir)
+
+		domains := make([]string, b.N)
+		for i := 0; i < b.N; i++ {
+			domains[i] = randomDomainParts(4)
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			dt.Insert(newFqdnReader(domains[i]), "BenchmarkValue")
+		}
+	})
+
+	b.Run("search hit", func(b *testing.B) {
+		dt, _ := setupPebbleTestDB(b)
+
+		count := 100000
+		domains := make([]string, count)
+		for i := range count {
+			domains[i] = randomDomainParts(4)
+			dt.Insert(newFqdnReader(domains[i]), "Val")
+		}
+
+		if err := dt.root.Pebble().Close(); err != nil {
+			b.Fatal(err)
+		}
+
+		dt, dir := setupPebbleTestDB(b)
+		defer cleanupPebbleTestDB(dt, dir)
+
+		b.ResetTimer()
+
+		for i := 0; b.Loop(); i++ {
+			target := domains[i%count]
+			dt.Search(newFqdnReader(target))
+		}
+	})
+
+	b.Run("search miss", func(b *testing.B) {
+		dt, dir := setupPebbleTestDB(b)
+		defer cleanupPebbleTestDB(dt, dir)
+
+		for i := 0; i < 5000; i++ {
+			dt.Insert(newFqdnReader(randomDomainParts(4)), "Val")
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			dt.Search(newFqdnReader(randomDomainParts(5)))
+		}
+	})
 }
 
-func BenchmarkInsert(b *testing.B) {
-	dt, dir := setupTestDB(b)
-	defer cleanupTestDB(dt, dir)
-
-	domains := make([]string, b.N)
-	for i := 0; i < b.N; i++ {
-		domains[i] = randomDomainParts(4)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		dt.Insert(newFqdnReader(domains[i]), "BenchmarkValue")
-	}
-}
-
-func BenchmarkSearch_Hit(b *testing.B) {
-	dt, dir := setupTestDB(b)
-	defer cleanupTestDB(dt, dir)
-
-	count := 100000
-	domains := make([]string, count)
-	for i := range count {
-		domains[i] = randomDomainParts(4)
-		dt.Insert(newFqdnReader(domains[i]), "Val")
-	}
-
-	for i := 0; b.Loop(); i++ {
-		target := domains[i%count]
-		dt.Search(newFqdnReader(target))
-	}
-}
-
-func TestWrite(t *testing.T) {
-	data, _ := os.ReadFile("68eddc3f9c83630ab4d2db603368b9c5352d98538771d7e99abc24a2d08c2c50")
+func TestPebbleWrite(t *testing.T) {
+	data, _ := os.ReadFile("/home/asutorufa/.config/yuhaiin/rule_cache/4923704fe4b6c6cc660358416ca3ec14a3f67dc5e4c18123662db631e89de685")
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	scanner.Split(bufio.ScanLines)
-	dt, dir := setupTestDB(t)
-	defer cleanupTestDB(dt, dir)
+	dt, dir := setupPebbleTestDB(t)
+	defer cleanupPebbleTestDB(dt, dir)
 
 	for scanner.Scan() {
 		txt := strings.TrimSpace(scanner.Text())
@@ -248,9 +282,9 @@ func TestWrite(t *testing.T) {
 	t.Log(res)
 }
 
-func TestInsert(t *testing.T) {
-	dt, dir := setupTestDB(t)
-	defer cleanupTestDB(dt, dir)
+func TestPebbleInsert(t *testing.T) {
+	dt, dir := setupPebbleTestDB(t)
+	defer cleanupPebbleTestDB(dt, dir)
 
 	if err := dt.Insert(newFqdnReader("*.gxlqkg.com"), "*.gxlqkg.com"); err != nil {
 		t.Error(err)
@@ -262,18 +296,4 @@ func TestInsert(t *testing.T) {
 
 	res := dt.Search(newFqdnReader("gxlqkg.com"))
 	t.Log(res)
-}
-
-func BenchmarkSearch_Miss(b *testing.B) {
-	dt, dir := setupTestDB(b)
-	defer cleanupTestDB(dt, dir)
-
-	for i := 0; i < 5000; i++ {
-		dt.Insert(newFqdnReader(randomDomainParts(4)), "Val")
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		dt.Search(newFqdnReader(randomDomainParts(5)))
-	}
 }

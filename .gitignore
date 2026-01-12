@@ -28,3 +28,4 @@ cmd/android/yuhaiin.db
 /pkg/net/trie/maxminddb/*.mmdb
 /pkg/net/netlink/tcplife/vmlinux.h
 /pkg/net/trie/v2/domain/disk/test.db
+/cmd/android/yuhaiin_memory_store.json

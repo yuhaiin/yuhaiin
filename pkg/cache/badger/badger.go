@@ -202,6 +202,18 @@ func (c *Cache) makeKey(k []byte) []byte {
 	return key
 }
 
+func (c *Cache) Clear() error {
+	return c.db.DropAll()
+}
+
+func (c *Cache) Close() error {
+	return c.db.Close()
+}
+
+func (c *Cache) Dir() string {
+	return c.db.Opts().Dir
+}
+
 type Batch struct {
 	txn *badger.Txn
 	c   *Cache
