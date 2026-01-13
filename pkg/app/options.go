@@ -14,6 +14,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -277,6 +278,9 @@ func (w *wrapResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 func RegisterHTTP(mux *http.ServeMux) {
 	if disabledPprof, _ := strconv.ParseBool("DISABLED_PPROF"); !disabledPprof {
+		runtime.SetCPUProfileRate(25)
+		runtime.SetBlockProfileRate(1000)
+		runtime.SetMutexProfileFraction(20)
 		mux.HandleFunc("GET /debug/pprof/", pprof.Index)
 		mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
 		mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
