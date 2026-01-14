@@ -142,13 +142,13 @@ func Start(opt *device.Opt) (*Nat, error) {
 		defer nat.Close()
 
 		offset := opt.Device.Offset()
-		sizes := make([]int, opt.Device.Tun().BatchSize())
-		bufs := make([][]byte, opt.Device.Tun().BatchSize())
+		sizes := make([]int, opt.Device.BatchSize())
+		bufs := make([][]byte, opt.Device.BatchSize())
 		for i := range bufs {
 			bufs[i] = make([]byte, opt.MTU+offset)
 		}
 
-		wbufs := make([][]byte, opt.Device.Tun().BatchSize())
+		wbufs := make([][]byte, opt.Device.BatchSize())
 
 		for {
 			n, err := opt.Device.Read(bufs, sizes)
