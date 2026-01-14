@@ -105,6 +105,7 @@ type Metrics interface {
 	AddReceiveUDPPacketSize(size int)
 	AddSendUDPPacketSize(size int)
 	AddConnection(addr string)
+	AddGeoCountry(country string)
 	AddBlockConnection(addr string)
 	RemoveConnection(n int)
 	AddStreamConnectDuration(t float64)
@@ -159,6 +160,7 @@ func (m *EmptyMetrics) AddHappyEyeballsIPsAttempted(int)    {}
 func (m *EmptyMetrics) AddFakeIPCacheHit()                  {}
 func (m *EmptyMetrics) AddFakeIPCacheMiss()                 {}
 func (m *EmptyMetrics) AddTrieMatchDuration(float64)        {}
+func (m *EmptyMetrics) AddGeoCountry(string)                {}
 
 type Prometheus struct {
 	TotalReceiveUDPPacket        prometheus.Counter
@@ -177,6 +179,7 @@ type Prometheus struct {
 	HappyEyeballsv2IPsAttempted     prometheus.Histogram
 
 	TotalConnection      prometheus.Counter
+	TotalGeoCountry      *prometheus.CounterVec
 	CurrentConnection    prometheus.Gauge
 	TotalBlockConnection prometheus.Counter
 
@@ -281,6 +284,11 @@ func NewPrometheus() *Prometheus {
 			Help:        "The total number of connections",
 			ConstLabels: labels,
 		}),
+		TotalGeoCountry: promauto.NewCounterVec(prometheus.CounterOpts{
+			Name:        "yuhaiin_request_geo_country_total",
+			Help:        "The total number of requests by country",
+			ConstLabels: labels,
+		}, []string{"country"}),
 		CurrentConnection: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:        "yuhaiin_connection_current",
 			Help:        "The current number of connections",
@@ -469,4 +477,8 @@ func (p *Prometheus) AddFakeIPCacheMiss() {
 
 func (p *Prometheus) AddTrieMatchDuration(t float64) {
 	p.TrieMatchDurationSeconds.Observe(t)
+}
+
+func (p *Prometheus) AddGeoCountry(country string) {
+	p.TotalGeoCountry.WithLabelValues(country).Inc()
 }

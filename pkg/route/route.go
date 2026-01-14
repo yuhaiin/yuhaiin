@@ -219,6 +219,7 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 	if geo := s.ms.list.LoadGeoip(); geo != nil {
 		if country, err := geo.LookupAddr(ctx, addr); err == nil {
 			store.SetGeo(country)
+			metrics.Counter.AddGeoCountry(country)
 		}
 
 		store.ConnOptions().SetMaxminddb(geo)
