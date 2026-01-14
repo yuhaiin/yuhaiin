@@ -102,3 +102,7 @@ func (d *Tun) MTU() int {
 func (d *Tun) BatchSize() int {
 	return MaxMsgsPerRecv
 }
+
+func (d *Tun) GSOEnabled() bool {
+	return false
+}

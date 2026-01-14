@@ -29,7 +29,7 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Tun, error) {
 		return nil, fmt.Errorf("create tun failed: %w", err)
 	}
 
-	return NewDevice(device, offset, mtu), nil
+	return NewDevice(device, offset, mtu, false), nil
 }
 
 func generateGUIDByDeviceName(name string) *windows.GUID {

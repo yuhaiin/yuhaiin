@@ -38,7 +38,8 @@ func (d *Fd) Write(bufs [][]byte) (int, error) {
 	return 1, nil
 }
 
-func (d *Fd) Close() error   { return d.fd.Close() }
-func (d *Fd) Offset() int    { return offset }
-func (d *Fd) MTU() int       { return d.mtu }
-func (d *Fd) BatchSize() int { return 1 }
+func (d *Fd) Close() error     { return d.fd.Close() }
+func (d *Fd) Offset() int      { return offset }
+func (d *Fd) MTU() int         { return d.mtu }
+func (d *Fd) BatchSize() int   { return 1 }
+func (d *Fd) GSOEnabled() bool { return false }

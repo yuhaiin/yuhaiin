@@ -3,41 +3,32 @@ package device
 import (
 	"math"
 
-	"github.com/tailscale/wireguard-go/conn"
 	wun "github.com/tailscale/wireguard-go/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 )
 
-func IsGSOEnabled(device interface {
-	BatchSize() int
-},
-) bool {
-	// we can't get the value from the device
-	// so check the batch size
-	//
-	// see: https://github.com/WireGuard/wireguard-go/blob/12269c2761734b15625017d8565745096325392f/tun/tun_linux.go#L528C2-L543C4
-	return device.BatchSize() == conn.IdealBatchSize
-}
-
 type wgDevice struct {
 	wun.Device
 	offset int
 	mtu    int
+	gso    bool
 }
 
-func NewDevice(device wun.Device, offset, mtu int) *wgDevice {
+func NewDevice(device wun.Device, offset, mtu int, gsoEnabled bool) *wgDevice {
 	wrwc := &wgDevice{
 		Device: device,
 		offset: offset,
 		mtu:    mtu,
+		gso:    gsoEnabled,
 	}
 
 	return wrwc
 }
 
-func (t *wgDevice) Offset() int { return t.offset }
-func (t *wgDevice) MTU() int    { return t.mtu }
+func (t *wgDevice) Offset() int      { return t.offset }
+func (t *wgDevice) MTU() int         { return t.mtu }
+func (t *wgDevice) GSOEnabled() bool { return t.gso }
 func (t *wgDevice) Read(bufs [][]byte, sizes []int) (n int, err error) {
 	return t.Device.Read(bufs, sizes, t.offset)
 }
