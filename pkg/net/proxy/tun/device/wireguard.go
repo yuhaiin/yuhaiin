@@ -4,13 +4,15 @@ import (
 	"math"
 
 	"github.com/tailscale/wireguard-go/conn"
-	"github.com/tailscale/wireguard-go/tun"
 	wun "github.com/tailscale/wireguard-go/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 )
 
-func IsGSOEnabled(device tun.Device) bool {
+func IsGSOEnabled(device interface {
+	BatchSize() int
+},
+) bool {
 	// we can't get the value from the device
 	// so check the batch size
 	//

@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	wun "github.com/tailscale/wireguard-go/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
@@ -33,7 +32,7 @@ type Options struct {
 }
 
 type Tun interface {
-	Tun() wun.Device
+	BatchSize() int
 	Write(bufs [][]byte) (int, error)
 	Read(bufs [][]byte, sizes []int) (n int, err error)
 	io.Closer
