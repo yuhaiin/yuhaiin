@@ -38,6 +38,7 @@ type Tun interface {
 	io.Closer
 	Offset() int
 	MTU() int
+	GSOEnabled() bool
 }
 
 type WindowsTun interface {

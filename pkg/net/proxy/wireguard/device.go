@@ -42,7 +42,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*NetTun, error) {
 
 	rwc := NewChannelDevice(context.TODO(), mtu)
 	dev := &NetTun{
-		ep:     gvisor.NewEndpoint(device.NewDevice(rwc, 0, mtu)),
+		ep:     gvisor.NewEndpoint(device.NewDevice(rwc, 0, mtu, false)),
 		dev:    rwc,
 		stack:  stack.New(opts),
 		events: make(chan tun.Event, 1),
