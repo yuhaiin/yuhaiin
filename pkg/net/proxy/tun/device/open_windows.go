@@ -40,3 +40,7 @@ func generateGUIDByDeviceName(name string) *windows.GUID {
 	sum := hash.Sum(nil)
 	return (*windows.GUID)(unsafe.Pointer(&sum[0]))
 }
+
+func (d *wgDevice) LUID() uint64 {
+	return d.Device.(*wun.NativeTun).LUID()
+}

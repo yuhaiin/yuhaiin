@@ -2,9 +2,7 @@ package batch
 
 import (
 	"errors"
-	"log/slog"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/rawfile"
@@ -44,14 +42,12 @@ func (d *Tun) Read(bufs [][]byte, sizes []int) (n int, err error) {
 		mmsgHdrs[k].Len = 0
 		mmsgHdrs[k].Msg.Iov = &unix.Iovec{
 			Base: &bufs[k][0],
-			Len:  uint64(len(bufs[k])),
 		}
+		mmsgHdrs[k].Msg.Iov.SetLen(len(bufs[k]))
 		mmsgHdrs[k].Msg.SetIovlen(1)
 	}
 
 	nMsgs, errno := rawfile.BlockingRecvMMsgUntilStopped(d.EFD, d.fd, mmsgHdrs)
-
-	log.Info("linux tun read batch", slog.Int("n", nMsgs), "err", errno)
 
 	if errno != 0 {
 		return 0, errno
@@ -74,8 +70,8 @@ func (d *Tun) Write(bufs [][]byte) (int, error) {
 		mmsgHdrs[k].Len = 0
 		mmsgHdrs[k].Msg.Iov = &unix.Iovec{
 			Base: &bufs[k][0],
-			Len:  uint64(len(bufs[k])),
 		}
+		mmsgHdrs[k].Msg.Iov.SetLen(len(bufs[k]))
 		mmsgHdrs[k].Msg.SetIovlen(1)
 	}
 

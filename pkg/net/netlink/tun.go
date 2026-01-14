@@ -40,6 +40,11 @@ type Tun interface {
 	MTU() int
 }
 
+type WindowsTun interface {
+	Tun
+	LUID() uint64
+}
+
 func (o *Options) V4Address() netip.Prefix {
 	if len(o.Inet4Address) > 0 {
 		return o.Inet4Address[0]
