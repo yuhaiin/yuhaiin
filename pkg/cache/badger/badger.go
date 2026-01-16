@@ -6,7 +6,9 @@ import (
 	"io"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/dgraph-io/badger/v4"
+	"github.com/dgraph-io/badger/v4/options"
 )
 
 var (
@@ -31,7 +33,10 @@ func New(path string) (*Cache, error) {
 		WithMemTableSize(2 << 20).     // 2mb
 		WithBaseTableSize(2 << 20).    // 2mb
 		WithValueThreshold(256 << 10). // 256KB
+		WithIndexCacheSize(1 << 20).
 		WithNumMemtables(1).
+		WithCompression(options.None).
+		WithBlockCacheSize(0). // we don't use compression, so we don't need block cache
 		WithSyncWrites(false).
 		WithMetricsEnabled(true).
 		WithCompactL0OnClose(true)
@@ -111,23 +116,67 @@ func (c *Cache) Range(f func(key []byte, value []byte) bool) error {
 	})
 }
 
+func (c *Cache) CachePrefix(str ...string) []byte {
+	totalLen := len(c.prefix)
+	for _, s := range str {
+		totalLen += len(s) + 1 // +1 for '/'
+	}
+
+	newPrefix := make([]byte, totalLen)
+	off := copy(newPrefix, c.prefix)
+
+	for _, s := range str {
+		copy(newPrefix[off:], s) // copy string bytes
+		off += len(s)
+		newPrefix[off] = '/' // separator
+		off++
+	}
+
+	return newPrefix
+}
+
+func (c *Cache) cacheKey(valueKey []byte, str ...string) []byte {
+	prefix := c.CachePrefix(str...)
+	key := make([]byte, len(prefix)+len(valueKey))
+	copy(key, prefix)
+	copy(key[len(prefix):], valueKey)
+	return key
+}
+
 func (c *Cache) NewCache(str ...string) cache.Cache {
 	if len(str) == 0 {
 		return c
 	}
 
-	newPrefix := make([]byte, len(c.prefix), len(c.prefix)+len(str)*5)
-	copy(newPrefix, c.prefix)
-
-	for _, s := range str {
-		newPrefix = append(newPrefix, []byte(s)...)
-		newPrefix = append(newPrefix, '/') // separator
-	}
-
 	return &Cache{
 		db:     c.db,
-		prefix: newPrefix,
+		prefix: c.CachePrefix(str...),
 	}
+}
+
+func (c *Cache) CacheExists(str ...string) bool {
+	if len(str) == 0 {
+		return true
+	}
+
+	var exists bool
+	err := c.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		opts.AllVersions = false
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		prefixToCheck := c.CachePrefix(str...)
+		it.Seek(prefixToCheck)
+		exists = it.ValidForPrefix(prefixToCheck)
+		return nil
+	})
+	if err != nil {
+		log.Info("CacheExists failed", "err", err)
+	}
+
+	return exists
 }
 
 func (c *Cache) DeleteBucket(str ...string) error {
@@ -135,14 +184,7 @@ func (c *Cache) DeleteBucket(str ...string) error {
 		return nil
 	}
 
-	prefixToDelete := make([]byte, len(c.prefix), len(c.prefix)+len(str)*5)
-	copy(prefixToDelete, c.prefix)
-
-	for _, s := range str {
-		prefixToDelete = append(prefixToDelete, []byte(s)...)
-		prefixToDelete = append(prefixToDelete, '/') // separator
-	}
-
+	prefixToDelete := c.CachePrefix(str...)
 	return c.db.DropPrefix(prefixToDelete)
 }
 
@@ -160,6 +202,18 @@ func (c *Cache) makeKey(k []byte) []byte {
 	return key
 }
 
+func (c *Cache) Clear() error {
+	return c.db.DropAll()
+}
+
+func (c *Cache) Close() error {
+	return c.db.Close()
+}
+
+func (c *Cache) Dir() string {
+	return c.db.Opts().Dir
+}
+
 type Batch struct {
 	txn *badger.Txn
 	c   *Cache
@@ -175,12 +229,38 @@ func (b *Batch) Put(k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
 	return b.txn.SetEntry(entry)
 }
 
+func (b *Batch) Commit() error {
+	return b.txn.Commit()
+}
+
+func (b *Batch) PutToCache(subCache []string, k []byte, v []byte, opts ...func(*cache.PutOptions)) error {
+	key := b.c.cacheKey(k, subCache...)
+
+	opt := cache.GetPutOptions(opts...)
+	entry := badger.NewEntry(key, v)
+	if opt.TTL > 0 {
+		entry.WithTTL(opt.TTL)
+	}
+
+	return b.txn.SetEntry(entry)
+}
+
 func (b *Batch) Delete(k []byte) error {
 	return b.txn.Delete(b.c.makeKey(k))
 }
 
 func (b *Batch) Get(k []byte) ([]byte, error) {
 	item, err := b.txn.Get(b.c.makeKey(k))
+	if err != nil {
+		return nil, err
+	}
+	return item.ValueCopy(nil)
+}
+
+func (b *Batch) GetFromCache(subCache []string, k []byte) ([]byte, error) {
+	key := b.c.cacheKey(k, subCache...)
+
+	item, err := b.txn.Get(key)
 	if err != nil {
 		return nil, err
 	}

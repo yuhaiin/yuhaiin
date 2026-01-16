@@ -219,16 +219,18 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 	if geo := s.ms.list.LoadGeoip(); geo != nil {
 		if country, err := geo.LookupAddr(ctx, addr); err == nil {
 			store.SetGeo(country)
+			metrics.Counter.AddGeoCountry(country)
 		}
 
 		store.ConnOptions().SetMaxminddb(geo)
 	}
 
+	start := system.CheapNowNano()
+
 	store.ConnOptions().
 		AddLists(s.ms.list.HostTrie().Search(ctx, addr)...).
 		AddLists(s.ms.list.ProcessTrie().Search(ctx, addr)...)
 
-	start := system.CheapNowNano()
 	var mode config.ModeEnum
 	for _, m := range s.matchers {
 		if mode = m.Match(ctx, addr); !mode.Mode().Unspecified() {

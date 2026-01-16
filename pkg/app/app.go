@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/cache/bbolt"
+	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
@@ -122,14 +123,14 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	AddCloser(closers, "logger_controller", logController)
 
-	badgerCache, err := badger.New(tools.PathGenerator.BadgerCache(so.ConfigPath))
+	pebbleCache, err := pebble.New(tools.PathGenerator.PebbleCache(so.ConfigPath))
 	if err != nil {
 		_ = closers.Close()
-		return nil, fmt.Errorf("init badger cache failed: %w", err)
+		return nil, fmt.Errorf("init pebble cache failed: %w", err)
 	}
-	AddCloser(closers, "badger_cache", badgerCache.Badger())
+	AddCloser(closers, "pebble_cache", pebbleCache.Pebble())
 
-	migrateDB(badgerCache, so.ConfigPath)
+	migrateDBv2(pebbleCache, so.ConfigPath)
 
 	for _, f := range operators {
 		f(closers)
@@ -155,11 +156,11 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	rules := route.NewRules(so.BypassConfig, router)
 	// connections' statistic & flow data
 
-	stcs := AddCloser(closers, "statistic", statistics.NewConnStore(badgerCache, router))
+	stcs := AddCloser(closers, "statistic", statistics.NewConnStore(pebbleCache, router))
 	metrics.SetFlowCounter(stcs.Cache)
 	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, router))
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := AddCloser(closers, "fakedns", resolver.NewFakeDNS(hosts, hosts, badgerCache))
+	fakedns := AddCloser(closers, "fakedns", resolver.NewFakeDNS(hosts, hosts, pebbleCache))
 	resolverCtr := resolver.NewResolverCtr(so.ResolverConfig, hosts, fakedns, dns)
 
 	// make dns flow across all proxy chain
@@ -296,8 +297,43 @@ func migrateDB(badgerCache *badger.Cache, path string) {
 	}
 
 	migrate("flow_data")
-	migrate("fakedns_cachev6")
-	migrate("fakedns_cache")
 
 	badgerCache.Put(badger.MigrateKey, []byte{1})
+}
+
+func migrateDBv2(pebbleCache *pebble.Cache, path string) {
+	badgerCache := tools.PathGenerator.BadgerCache(path)
+	_, err := os.Stat(badgerCache)
+	if err != nil {
+		return
+	}
+
+	v, err := pebbleCache.Get(badger.MigrateKey)
+	if err != nil {
+		log.Warn("get pebble migrate key failed", "err", err)
+		return
+	}
+
+	if len(v) != 0 && v[0] == 1 {
+		log.Info("check already migrated db, skip")
+		return
+	}
+
+	db, err := badger.New(tools.PathGenerator.BadgerCache(path))
+	if err != nil {
+		log.Warn("open old badger db failed, skip migrate db")
+		return
+	}
+	defer db.Close()
+
+	err = pebbleCache.Batch(func(txn cache.Batch) error {
+		return db.Range(func(key, value []byte) bool {
+			return txn.Put(key, value) == nil
+		})
+	})
+	if err != nil {
+		log.Warn("migrate bucket failed", "err", err)
+	}
+
+	pebbleCache.Put(badger.MigrateKey, []byte{1})
 }

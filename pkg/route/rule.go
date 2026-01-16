@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -293,7 +294,7 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*api.Tes
 			ResolveStrategy: result.Mode.GetResolveStrategy().Enum(),
 		}.Build(),
 		AfterAddr:   proto.String(result.Addr.String()),
-		MatchResult: netapi.GetContext(ctx).MatchHistory(),
+		MatchResult: statistics.ToProtoMatchHistoryEntry(netapi.GetContext(ctx).MatchHistory()),
 		Lists:       s.ConnOptions().Lists(),
 		Ips: func() []string {
 			if ips == nil {

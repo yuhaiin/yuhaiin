@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	wun "github.com/tailscale/wireguard-go/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
@@ -33,12 +32,18 @@ type Options struct {
 }
 
 type Tun interface {
-	Tun() wun.Device
+	BatchSize() int
 	Write(bufs [][]byte) (int, error)
 	Read(bufs [][]byte, sizes []int) (n int, err error)
 	io.Closer
 	Offset() int
 	MTU() int
+	GSOEnabled() bool
+}
+
+type WindowsTun interface {
+	Tun
+	LUID() uint64
 }
 
 func (o *Options) V4Address() netip.Prefix {

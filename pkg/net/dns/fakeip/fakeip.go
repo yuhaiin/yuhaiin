@@ -3,7 +3,6 @@ package fakeip
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/netip"
 	"strconv"
@@ -11,7 +10,9 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
+	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/miekg/dns"
@@ -37,7 +38,11 @@ func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, ipv6Range neti
 	}
 
 	if v, ok := db.(*badger.Cache); ok {
-		slog.Info("fakip use full disk cache")
+		log.Info("fakeip use full badger disk cache")
+		f.ipv4 = NewDiskFakeIPPool(ipRange, v, 655535)
+		f.ipv6 = NewDiskFakeIPPool(ipv6Range, v, 655535)
+	} else if v, ok := db.(*pebble.Cache); ok {
+		log.Info("fakeip use full pebble disk cache")
 		f.ipv4 = NewDiskFakeIPPool(ipRange, v, 655535)
 		f.ipv6 = NewDiskFakeIPPool(ipv6Range, v, 655535)
 	} else {

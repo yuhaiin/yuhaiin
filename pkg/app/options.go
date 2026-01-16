@@ -14,6 +14,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/grpc2http"
+	pyroscopepprof "github.com/grafana/pyroscope-go/godeltaprof/http/pprof"
 	yf "github.com/yuhaiin/yuhaiin.github.io"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -276,11 +278,19 @@ func (w *wrapResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 func RegisterHTTP(mux *http.ServeMux) {
 	if disabledPprof, _ := strconv.ParseBool("DISABLED_PPROF"); !disabledPprof {
+		runtime.SetCPUProfileRate(25)
+		runtime.SetBlockProfileRate(1000)
+		runtime.SetMutexProfileFraction(20)
 		mux.HandleFunc("GET /debug/pprof/", pprof.Index)
 		mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
 		mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
 		mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
 		mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
+
+		mux.HandleFunc("GET /debug/pprof/delta_heap", pyroscopepprof.Heap)
+		mux.HandleFunc("GET /debug/pprof/delta_block", pyroscopepprof.Block)
+		mux.HandleFunc("GET /debug/pprof/delta_mutex", pyroscopepprof.Mutex)
+
 	}
 
 	HandleFunc(mux, nil, "OPTIONS /", func(w http.ResponseWriter, r *http.Request) error { return nil })

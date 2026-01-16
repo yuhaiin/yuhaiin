@@ -29,7 +29,7 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Tun, error) {
 		return nil, fmt.Errorf("create tun failed: %w", err)
 	}
 
-	return NewDevice(device, offset, mtu), nil
+	return NewDevice(device, offset, mtu, false), nil
 }
 
 func generateGUIDByDeviceName(name string) *windows.GUID {
@@ -39,4 +39,8 @@ func generateGUIDByDeviceName(name string) *windows.GUID {
 	hash.Write([]byte(name))
 	sum := hash.Sum(nil)
 	return (*windows.GUID)(unsafe.Pointer(&sum[0]))
+}
+
+func (d *wgDevice) LUID() uint64 {
+	return d.Device.(*wun.NativeTun).LUID()
 }

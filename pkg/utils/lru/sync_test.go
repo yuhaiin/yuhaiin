@@ -2,38 +2,38 @@ package lru
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 )
 
 func TestSyncLru(t *testing.T) {
-	lru := NewSyncLru(func(l *lru[string, string]) {
-		l.capacity = 4
-	})
+	lru := NewSyncLru(WithCapacity[string, string](4))
 
 	lru.Add("a", "a")
 	lru.Add("b", "b")
 	lru.Add("c", "c")
 	lru.Add("d", "d")
 
-	for k, v := range lru.Range {
+	lru.Range(func(k, v string) bool {
 		t.Log(k, v)
-	}
+		return true
+	})
 
-	t.Log(lru.Load("a"))
+	val, ok := lru.Load("a")
+	t.Log(val, ok)
 
 	fmt.Println()
 	lru.Add("e", "e")
 	lru.Add("f", "f")
 
-	for k, v := range lru.Range {
+	lru.Range(func(k, v string) bool {
 		t.Log(k, v)
-	}
+		return true
+	})
 }
 
 func TestSyncReverseLru(t *testing.T) {
-	lru := NewSyncReverseLru(WithLruOptions(func(l *lru[string, string]) {
-		l.capacity = 4
-	}))
+	lru := NewSyncReverseLru(WithLruOptions(WithCapacity[string, string](4)))
 
 	lru.Add("a", "a")
 	lru.Add("b", "b")
@@ -44,7 +44,8 @@ func TestSyncReverseLru(t *testing.T) {
 		t.Log(s1, s2)
 	})
 
-	t.Log(lru.ReverseLoad("b"))
+	val, ok := lru.ReverseLoad("b")
+	t.Log(val, ok)
 
 	fmt.Println()
 	lru.Add("e", "e")
@@ -53,4 +54,12 @@ func TestSyncReverseLru(t *testing.T) {
 	lru.Range(func(s1, s2 string) {
 		t.Log(s1, s2)
 	})
+}
+
+func BenchmarkSyncLruAdd(b *testing.B) {
+	lru := NewSyncLru(WithCapacity[string, string](1000))
+
+	for i := 0; b.Loop(); i++ {
+		lru.Add(strconv.Itoa(i), "value")
+	}
 }

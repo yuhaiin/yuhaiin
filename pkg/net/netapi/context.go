@@ -7,9 +7,9 @@ import (
 	"net/netip"
 	"slices"
 	"sync/atomic"
+	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
 type PacketSniffer interface {
@@ -292,7 +292,7 @@ type Context struct {
 
 	sniff *Sniff `metrics:"Sniff"`
 
-	ruleChain *MatchHistory `metrics:"Rule Chain"`
+	ruleChain MatchHistory `metrics:"Rule Chain"`
 
 	connOptions *ConnOptions
 
@@ -302,7 +302,7 @@ type Context struct {
 
 func (c *Context) NewMatch(ruleName string) {
 	if c.ruleChain == nil {
-		c.ruleChain = &MatchHistory{}
+		c.ruleChain = MatchHistory{}
 	}
 
 	c.ruleChain.New(ruleName)
@@ -310,19 +310,13 @@ func (c *Context) NewMatch(ruleName string) {
 
 func (c *Context) AddMatchHistory(listName string, matched bool) {
 	if c.ruleChain == nil {
-		c.ruleChain = &MatchHistory{}
+		c.ruleChain = MatchHistory{}
 	}
 
 	c.ruleChain.Add(listName, matched)
 }
 
-func (c *Context) MatchHistory() []*statistic.MatchHistoryEntry {
-	if c.ruleChain == nil {
-		return nil
-	}
-
-	return c.ruleChain.chains
-}
+func (c *Context) MatchHistory() MatchHistory { return c.ruleChain }
 
 func (c *Context) setAddrInfo(f func(*AddrInfo)) {
 	if c.addrInfo == nil {
@@ -758,25 +752,32 @@ func (e *DialError) Error() string {
 	return s
 }
 
-type MatchHistory struct {
-	chains []*statistic.MatchHistoryEntry
+type MatchHistory []*MatchHistoryEntry
+
+type MatchHistoryEntry struct {
+	RuleName         unique.Handle[string]
+	MatchedHistory   unique.Handle[string] // matched history will always only one
+	UnmatchedHistory []unique.Handle[string]
 }
 
 func (r *MatchHistory) New(name string) {
-	his := &statistic.MatchHistoryEntry{}
-	his.SetRuleName(name)
-	r.chains = append(r.chains, his)
+	his := &MatchHistoryEntry{
+		RuleName:       unique.Make(name),
+		MatchedHistory: unique.Make(""),
+	}
+	*r = append(*r, his)
 }
 
 func (r *MatchHistory) Add(listName string, matched bool) {
-	if len(r.chains) == 0 {
+	if len(*r) == 0 {
 		return
 	}
 
-	result := &statistic.MatchResult{}
-	result.SetListName(listName)
-	result.SetMatched(matched)
+	chain := (*r)[len(*r)-1]
 
-	chain := r.chains[len(r.chains)-1]
-	chain.SetHistory(append(chain.GetHistory(), result))
+	if matched {
+		chain.MatchedHistory = unique.Make(listName)
+	} else {
+		chain.UnmatchedHistory = append(chain.UnmatchedHistory, unique.Make(listName))
+	}
 }

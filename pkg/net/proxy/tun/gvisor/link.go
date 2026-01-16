@@ -35,8 +35,10 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack/gro"
 )
 
-var _ stack.LinkEndpoint = (*Endpoint)(nil)
-var _ stack.GSOEndpoint = (*Endpoint)(nil)
+var (
+	_ stack.LinkEndpoint = (*Endpoint)(nil)
+	_ stack.GSOEndpoint  = (*Endpoint)(nil)
+)
 
 // Endpoint is link layer endpoint that stores outbound packets in a channel
 // and allows injection of inbound packets.
@@ -98,8 +100,8 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 }
 
 func (e *Endpoint) Forward() {
-	bufs := make([][]byte, e.dev.Tun().BatchSize())
-	size := make([]int, e.dev.Tun().BatchSize())
+	bufs := make([][]byte, e.dev.BatchSize())
+	size := make([]int, e.dev.BatchSize())
 
 	offset := e.dev.Offset()
 
@@ -230,7 +232,7 @@ func (e *Endpoint) SetOnCloseAction(func()) {}
 func (e *Endpoint) GSOMaxSize() uint32 {
 	// This an increase from 32k returned by channel.Endpoint.GSOMaxSize() to
 	// 64k, which improves throughput.
-	if device.IsGSOEnabled(e.dev.Tun()) {
+	if e.dev.GSOEnabled() {
 		return (1 << 16) - 1
 	}
 
@@ -239,7 +241,7 @@ func (e *Endpoint) GSOMaxSize() uint32 {
 
 // SupportedGSO returns the supported segmentation offloading.
 func (e *Endpoint) SupportedGSO() stack.SupportedGSO {
-	if device.IsGSOEnabled(e.dev.Tun()) {
+	if e.dev.GSOEnabled() {
 		return stack.HostGSOSupported
 	}
 	return stack.GSONotSupported

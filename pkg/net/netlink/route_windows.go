@@ -1,35 +1,22 @@
 package netlink
 
 import (
-	"fmt"
 	"log/slog"
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	wun "github.com/tailscale/wireguard-go/tun"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
 
 func Route(opt *Options) (func(), error) {
-	var device wun.Device
-
 	if opt.Device == nil && opt.Endpoint != nil {
 		if w, ok := opt.Endpoint.(interface{ Writer() Tun }); ok {
 			opt.Device = w.Writer()
 		}
 	}
 
-	if opt.Device != nil {
-		device = opt.Device.Tun()
-	}
-
-	tt, ok := device.(*wun.NativeTun)
-	if !ok {
-		return nil, fmt.Errorf("not a native tun device")
-	}
-
-	luid := winipcfg.LUID(tt.LUID())
+	luid := winipcfg.LUID(opt.Device.(WindowsTun).LUID())
 
 	V4Address := opt.V4Address()
 	if V4Address.IsValid() {

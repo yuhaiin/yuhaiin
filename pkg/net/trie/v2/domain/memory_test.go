@@ -37,6 +37,22 @@ func TestDomainTrie(t *testing.T) {
 		}
 	})
 
+	t.Run("wildcard2", func(t *testing.T) {
+		trieRoot := &trie[string]{Value: make([]string, 0)}
+
+		insert(trieRoot, newFqdnReader("*.example.com"), "GroupWildcard")
+
+		got := search(trieRoot, newFqdnReader("a.example.com"))
+		if !slices.Contains(got, "GroupWildcard") {
+			t.Errorf("Expected GroupWildcard match, got %v", got)
+		}
+
+		got = search(trieRoot, newFqdnReader("example.com"))
+		if !slices.Contains(got, "GroupWildcard") {
+			t.Errorf("Expected GroupWildcard match, got %v", got)
+		}
+	})
+
 	t.Run("Wildcard", func(t *testing.T) {
 		trieRoot := &trie[string]{Value: make([]string, 0)}
 
