@@ -7,13 +7,8 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"runtime"
-	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
-	ybbolt "github.com/Asutorufa/yuhaiin/pkg/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -37,8 +32,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.etcd.io/bbolt"
-	bolterr "go.etcd.io/bbolt/errors"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/aead"
@@ -80,32 +73,6 @@ func AddCloser[T io.Closer](a *closers, name string, t T) T {
 	return t
 }
 
-func OpenBboltDB(path string) (*bbolt.DB, error) {
-	start := time.Now()
-	defer func() { log.Info("open bbolt db", "path", path, "cost", time.Since(start)) }()
-
-	db, err := bbolt.Open(path, os.ModePerm, &bbolt.Options{
-		Timeout: time.Second * 2,
-		Logger:  ybbolt.BBoltDBLogger{},
-	})
-	switch err {
-	case bolterr.ErrInvalid, bolterr.ErrChecksum, bolterr.ErrVersionMismatch:
-		if err = os.Remove(path); err != nil {
-			return nil, fmt.Errorf("remove invalid cache file failed: %w", err)
-		}
-		log.Warn("remove invalid cache file and create new one")
-		return bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second})
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	// set big batch delay to reduce sync for fake dns and connection cache
-	db.MaxBatchDelay = time.Millisecond * 300
-
-	return db, err
-}
-
 func Start(so *StartOptions) (_ *AppInstance, err error) {
 	configuration.DataDir.Store(so.ConfigPath)
 
@@ -129,8 +96,6 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		return nil, fmt.Errorf("init pebble cache failed: %w", err)
 	}
 	AddCloser(closers, "pebble_cache", pebbleCache.Pebble())
-
-	migrateDBv2(pebbleCache, so.ConfigPath)
 
 	for _, f := range operators {
 		f(closers)
@@ -261,79 +226,79 @@ func updateConfiguration(so *StartOptions, s *config.Setting, logController *log
 	}
 }
 
-func migrateDB(badgerCache *badger.Cache, path string) {
-	v, err := badgerCache.Get(badger.MigrateKey)
-	if err != nil {
-		log.Warn("get badger migrate key failed", "err", err)
-		return
-	}
+// func migrateDB(badgerCache *badger.Cache, path string) {
+// 	v, err := badgerCache.Get(badger.MigrateKey)
+// 	if err != nil {
+// 		log.Warn("get badger migrate key failed", "err", err)
+// 		return
+// 	}
 
-	if len(v) != 0 && v[0] == 1 {
-		log.Info("check already migrated db, skip")
-		return
-	}
+// 	if len(v) != 0 && v[0] == 1 {
+// 		log.Info("check already migrated db, skip")
+// 		return
+// 	}
 
-	db, err := OpenBboltDB(tools.PathGenerator.Cache(path))
-	if err != nil {
-		log.Warn("open old bbolt db failed, skip migrate db")
-		return
-	}
-	defer db.Close()
+// 	db, err := OpenBboltDB(tools.PathGenerator.Cache(path))
+// 	if err != nil {
+// 		log.Warn("open old bbolt db failed, skip migrate db")
+// 		return
+// 	}
+// 	defer db.Close()
 
-	ybc := ybbolt.NewCache(db)
+// 	ybc := ybbolt.NewCache(db)
 
-	migrate := func(bucketName string) {
-		err = badgerCache.NewCache(bucketName).Batch(func(txn cache.Batch) error {
-			var err error
-			ybc.NewCache(bucketName).Range(func(key, value []byte) bool {
-				err = txn.Put(key, value)
-				return err == nil
-			})
-			return err
-		})
-		if err != nil {
-			log.Warn("migrate bucket failed", "bucket", bucketName, "err", err)
-		}
-	}
+// 	migrate := func(bucketName string) {
+// 		err = badgerCache.NewCache(bucketName).Batch(func(txn cache.Batch) error {
+// 			var err error
+// 			ybc.NewCache(bucketName).Range(func(key, value []byte) bool {
+// 				err = txn.Put(key, value)
+// 				return err == nil
+// 			})
+// 			return err
+// 		})
+// 		if err != nil {
+// 			log.Warn("migrate bucket failed", "bucket", bucketName, "err", err)
+// 		}
+// 	}
 
-	migrate("flow_data")
+// 	migrate("flow_data")
 
-	badgerCache.Put(badger.MigrateKey, []byte{1})
-}
+// 	badgerCache.Put(badger.MigrateKey, []byte{1})
+// }
 
-func migrateDBv2(pebbleCache *pebble.Cache, path string) {
-	badgerCache := tools.PathGenerator.BadgerCache(path)
-	_, err := os.Stat(badgerCache)
-	if err != nil {
-		return
-	}
+// func migrateDBv2(pebbleCache *pebble.Cache, path string) {
+// 	badgerCache := tools.PathGenerator.BadgerCache(path)
+// 	_, err := os.Stat(badgerCache)
+// 	if err != nil {
+// 		return
+// 	}
 
-	v, err := pebbleCache.Get(badger.MigrateKey)
-	if err != nil {
-		log.Warn("get pebble migrate key failed", "err", err)
-		return
-	}
+// 	v, err := pebbleCache.Get(badger.MigrateKey)
+// 	if err != nil {
+// 		log.Warn("get pebble migrate key failed", "err", err)
+// 		return
+// 	}
 
-	if len(v) != 0 && v[0] == 1 {
-		log.Info("check already migrated db, skip")
-		return
-	}
+// 	if len(v) != 0 && v[0] == 1 {
+// 		log.Info("check already migrated db, skip")
+// 		return
+// 	}
 
-	db, err := badger.New(tools.PathGenerator.BadgerCache(path))
-	if err != nil {
-		log.Warn("open old badger db failed, skip migrate db")
-		return
-	}
-	defer db.Close()
+// 	db, err := badger.New(tools.PathGenerator.BadgerCache(path))
+// 	if err != nil {
+// 		log.Warn("open old badger db failed, skip migrate db")
+// 		return
+// 	}
+// 	defer db.Close()
 
-	err = pebbleCache.Batch(func(txn cache.Batch) error {
-		return db.Range(func(key, value []byte) bool {
-			return txn.Put(key, value) == nil
-		})
-	})
-	if err != nil {
-		log.Warn("migrate bucket failed", "err", err)
-	}
+// 	err = pebbleCache.Batch(func(txn cache.Batch) error {
+// 		return db.Range(func(key, value []byte) bool {
+// 			return txn.Put(key, value) == nil
+// 		})
+// 	})
+// 	if err != nil {
+// 		log.Warn("migrate bucket failed", "err", err)
+// 	}
 
-	pebbleCache.Put(badger.MigrateKey, []byte{1})
-}
+// 	pebbleCache.Put(badger.MigrateKey, []byte{1})
+// }

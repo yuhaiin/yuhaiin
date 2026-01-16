@@ -32,7 +32,6 @@ func SetSavePath(p string) {
 
 	ms := filepath.Join(p, "yuhaiin_memory_store.json")
 	msc := filepath.Join(p, "yuhaiin_memory_config_store.json")
-	migrate(filepath.Join(p, "yuhaiin.badger.db"), ms, msc)
 	memoryDB = newMemoryStore(ms, false)
 	memoryConfigDB = newMemoryStore(msc, false)
 }

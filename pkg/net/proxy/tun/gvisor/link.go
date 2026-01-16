@@ -28,6 +28,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -43,7 +44,6 @@ var (
 // Endpoint is link layer endpoint that stores outbound packets in a channel
 // and allows injection of inbound packets.
 type Endpoint struct {
-	gro gro.GRO
 	dev netlink.Tun
 
 	linkAddr tcpip.LinkAddress
@@ -61,8 +61,10 @@ func NewEndpoint(w netlink.Tun) *Endpoint {
 		dev: w,
 	}
 
-	e.gso = e.SupportedGSO() == stack.HostGSOSupported
-	e.gro.Init(e.gso)
+	if w.GSOEnabled() {
+		e.gso = e.SupportedGSO() == stack.HostGSOSupported
+	}
+
 	return e
 }
 
@@ -91,15 +93,18 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 
 	if dispatcher != nil && !e.IsAttached() {
 		e.attached = true
-		e.gro.Dispatcher = dispatcher
+		gro := &gro.GRO{
+			Dispatcher: dispatcher,
+		}
+		gro.Init(e.dev.GSOEnabled())
 		e.wg.Go(func() {
-			defer e.gro.Flush()
-			e.Forward()
+			defer gro.Flush()
+			e.Forward(gro)
 		})
 	}
 }
 
-func (e *Endpoint) Forward() {
+func (e *Endpoint) Forward(dispatcher *gro.GRO) {
 	bufs := make([][]byte, e.dev.BatchSize())
 	size := make([]int, e.dev.BatchSize())
 
@@ -131,7 +136,8 @@ func (e *Endpoint) Forward() {
 				})
 			pkt.NetworkProtocolNumber = p
 			pkt.RXChecksumValidated = true
-			e.gro.Enqueue(pkt)
+			dispatcher.Enqueue(pkt)
+			// dispatcher.DeliverNetworkPacket(p, pkt)
 			pkt.DecRef()
 		}
 
@@ -175,16 +181,33 @@ func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 
 	offset := e.dev.Offset()
 
-	bufs := [][]byte{}
-	for _, pkt := range pkts.AsSlice() {
-		view := buffer.NewView(offset + pkt.Size())
-		_, _ = view.Write(make([]byte, offset))
-		_, _ = view.Write(pkt.NetworkHeader().Slice())
-		_, _ = view.Write(pkt.TransportHeader().Slice())
-		_, _ = pkt.Data().ReadTo(view, true)
-		defer view.Release()
+	bufs := make([][]byte, 0, pkts.Len())
 
-		data := view.AsSlice()
+	for _, pkt := range pkts.AsSlice() {
+		buf := pool.GetBytes(pkt.Size() + offset)
+		index := offset
+
+		views, voffset := pkt.AsViewList()
+		length := pkt.Size()
+
+		for v := views.Front(); length > 0 && v != nil; v = v.Next() {
+			size := v.Size()
+			if voffset >= size {
+				voffset -= size
+				continue
+			}
+
+			vb := v.AsSlice()
+
+			if voffset > 0 {
+				vb = vb[voffset:]
+				voffset = 0
+			}
+
+			n := copy(buf[index:], vb)
+			index += n
+			length -= n
+		}
 
 		if e.gso {
 			// TODO: should we split gso[tun.GSOSplit] by ourself? instead of reset checksum?
@@ -194,12 +217,17 @@ func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 			// reset checksum when tcp
 			// see: https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/transport/tcp/connect.go#L915
 			// and https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/transport/tcp/connect.go#L840
-			resetGSOChecksum(data[offset:], pkt)
+			// resetGSOChecksum(buf[offset:], pkt)
 		}
-		bufs = append(bufs, data)
+
+		bufs = append(bufs, buf)
 	}
 
 	n, er := e.dev.Write(bufs)
+	for _, b := range bufs {
+		pool.PutBytes(b)
+	}
+
 	if er != nil {
 		if !errors.Is(er, os.ErrClosed) {
 			log.Error("write packet failed", "err", er)
@@ -232,7 +260,7 @@ func (e *Endpoint) SetOnCloseAction(func()) {}
 func (e *Endpoint) GSOMaxSize() uint32 {
 	// This an increase from 32k returned by channel.Endpoint.GSOMaxSize() to
 	// 64k, which improves throughput.
-	if e.dev.GSOEnabled() {
+	if e.gso {
 		return (1 << 16) - 1
 	}
 
@@ -241,7 +269,7 @@ func (e *Endpoint) GSOMaxSize() uint32 {
 
 // SupportedGSO returns the supported segmentation offloading.
 func (e *Endpoint) SupportedGSO() stack.SupportedGSO {
-	if e.dev.GSOEnabled() {
+	if e.gso {
 		return stack.HostGSOSupported
 	}
 	return stack.GSONotSupported

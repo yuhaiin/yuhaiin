@@ -7,6 +7,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
+var valKey = []byte{0x0, 'V', 0x0, 0b10101010}
+
 type Trie[T comparable] interface {
 	Insert(domain string, mark T)
 	Batch(iter iter.Seq2[string, T]) error

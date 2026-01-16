@@ -1,10 +1,10 @@
+//go:build trie_badger
+
 package domain
 
 import (
 	"bufio"
 	"bytes"
-	"fmt"
-	"math/rand"
 	"os"
 	"slices"
 	"strings"
@@ -183,16 +183,6 @@ func TestDiskTrie_Remove(t *testing.T) {
 	if len(res) != 0 {
 		t.Error("Node should be empty")
 	}
-}
-
-func randomDomainParts(depth int) string {
-	parts := make([]string, depth)
-	tlds := []string{"com", "net", "org", "cn", "io"}
-	parts[0] = tlds[rand.Intn(len(tlds))]
-	for i := 1; i < depth; i++ {
-		parts[i] = fmt.Sprintf("sub%d-%d", i, rand.Intn(1000))
-	}
-	return strings.Join(parts, ".")
 }
 
 /*

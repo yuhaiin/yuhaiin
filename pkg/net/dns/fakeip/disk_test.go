@@ -6,11 +6,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
+	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 )
 
-func newTestCache() *badger.Cache {
-	nd, err := badger.New("test.db")
+func newTestCache() *pebble.Cache {
+	nd, err := pebble.New("test.db")
 	if err != nil {
 		panic(err)
 	}
@@ -96,7 +96,7 @@ func TestDiskFakeIPPool_Exhaustion(t *testing.T) {
 
 func BenchmarkDiskFakeIPPool(b *testing.B) {
 	nd := newTestCache()
-	defer nd.Badger().Close()
+	defer nd.Close()
 
 	pool := NewDiskFakeIPPool(netip.MustParsePrefix("10.0.0.0/8"), nd, 500)
 
@@ -105,7 +105,7 @@ func BenchmarkDiskFakeIPPool(b *testing.B) {
 	}
 }
 
-func NewMemCache() *badger.Cache {
+func NewMemCache() *pebble.Cache {
 	return newTestCache()
 }
 

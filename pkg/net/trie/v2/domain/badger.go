@@ -1,3 +1,5 @@
+//go:build trie_badger
+
 package domain
 
 import (
@@ -12,8 +14,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
 	badgerv4 "github.com/dgraph-io/badger/v4"
 )
-
-var valKey = []byte{0x0, 'V', 0x0, 0b10101010}
 
 type DiskTrie[T comparable] struct {
 	root   *badger.Cache

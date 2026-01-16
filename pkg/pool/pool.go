@@ -217,3 +217,26 @@ func BinaryWriteUint64(w io.Writer, order binary.ByteOrder, v uint64) error {
 type Integer interface {
 	~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
 }
+
+var _ io.Writer = (*Writer)(nil)
+
+type Writer struct {
+	Bytes []byte
+	index int
+}
+
+func NewWriter[T Integer](size T) *Writer {
+	return &Writer{
+		Bytes: GetBytes(size),
+	}
+}
+
+func (w *Writer) Write(b []byte) (int, error) {
+	if w.index > len(w.Bytes) {
+		return 0, io.EOF
+	}
+
+	n := copy(w.Bytes[w.index:], b)
+	w.index += n
+	return n, nil
+}

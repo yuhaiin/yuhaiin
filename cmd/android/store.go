@@ -6,9 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
-	"unicode/utf8"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
@@ -290,45 +288,45 @@ func ifOr[T any](a bool, b, c T) T {
 	return c
 }
 
-func migrate(badgerPath string, dst, configDst string) {
-	ms := newMemoryStore(dst, false)
-	ms2 := newMemoryStore(configDst, false)
+// func migrate(badgerPath string, dst, configDst string) {
+// 	ms := newMemoryStore(dst, false)
+// 	ms2 := newMemoryStore(configDst, false)
 
-	if ms.GetBoolean("MIGRATED_v6") {
-		return
-	}
+// 	if ms.GetBoolean("MIGRATED_v6") {
+// 		return
+// 	}
 
-	_, err := os.Stat(badgerPath)
-	if err != nil {
-		return
-	}
+// 	_, err := os.Stat(badgerPath)
+// 	if err != nil {
+// 		return
+// 	}
 
-	bc, err := badger.New(badgerPath)
-	if err != nil {
-		log.Warn("badger open failed", "err", err)
-		return
-	}
-	defer bc.Close()
+// 	bc, err := badger.New(badgerPath)
+// 	if err != nil {
+// 		log.Warn("badger open failed", "err", err)
+// 		return
+// 	}
+// 	defer bc.Close()
 
-	bc.NewCache("yuhaiin", "Default").Range(func(key, value []byte) bool {
-		switch string(key) {
-		case "bypass_db", "inbound_db", "backup_db", "resolver_db", "chore_db":
-			ms2.PutBytes(string(key), value)
-			return true
-		}
+// 	bc.NewCache("yuhaiin", "Default").Range(func(key, value []byte) bool {
+// 		switch string(key) {
+// 		case "bypass_db", "inbound_db", "backup_db", "resolver_db", "chore_db":
+// 			ms2.PutBytes(string(key), value)
+// 			return true
+// 		}
 
-		if len(value) == 1 && value[0] == 1 {
-			ms.PutBoolean(string(key), true)
-		} else {
-			if utf8.Valid(value) {
-				ms.PutString(string(key), string(value))
-			} else {
-				ms.PutBytes(string(key), value)
-			}
-		}
+// 		if len(value) == 1 && value[0] == 1 {
+// 			ms.PutBoolean(string(key), true)
+// 		} else {
+// 			if utf8.Valid(value) {
+// 				ms.PutString(string(key), string(value))
+// 			} else {
+// 				ms.PutBytes(string(key), value)
+// 			}
+// 		}
 
-		return true
-	})
+// 		return true
+// 	})
 
-	ms.PutBoolean("MIGRATED_v6", true)
-}
+// 	ms.PutBoolean("MIGRATED_v6", true)
+// }

@@ -47,8 +47,7 @@ func ResetChecksum(ip header.Network, tp header.Transport, pseudoHeaderSum uint1
 func ResetIPChecksum(ip header.Network) {
 	if ip, ok := ip.(header.IPv4); ok {
 		ip.SetChecksum(0)
-		sum := ip.CalculateChecksum()
-		ip.SetChecksum(^sum)
+		ip.SetChecksum(^ip.CalculateChecksum())
 	}
 }
 

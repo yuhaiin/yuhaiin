@@ -3,7 +3,6 @@ package tun2socket
 import (
 	"fmt"
 	"math"
-	"math/rand/v2"
 	"net"
 	"sync/atomic"
 
@@ -59,7 +58,7 @@ func (u *UDP) WriteTo(buf []byte, tuple UDPTuple) (int, error) {
 		return 0, net.ErrClosed
 	}
 
-	tunBuf, err := u.processUDPPacket(buf, tuple)
+	tunBuf, err := GenerateUDPPacket(u.device.MTU(), u.device.Offset(), buf, tuple)
 	if err != nil {
 		return 0, err
 	}
@@ -100,16 +99,16 @@ type Batch struct {
 // 	return err
 // }
 
-func (u *UDP) processUDPPacket(buf []byte, tuple UDPTuple) ([]byte, error) {
+func GenerateUDPPacket(mtu, offset int, buf []byte, tuple UDPTuple) ([]byte, error) {
 	udpTotalLength := header.UDPMinimumSize + len(buf)
 
-	if udpTotalLength > math.MaxUint16 || udpTotalLength > u.device.MTU() { // ip packet max length
+	if udpTotalLength > math.MaxUint16 || udpTotalLength > mtu { // ip packet max length
 		return nil, fmt.Errorf("udp packet too large: %d", len(buf))
 	}
 
-	tunBuf := pool.GetBytes(u.device.MTU() + u.device.Offset())
+	tunBuf := pool.GetBytes(mtu + offset)
 
-	ipBuf := tunBuf[u.device.Offset():]
+	ipBuf := tunBuf[offset:]
 
 	var ip header.Network
 	var totalLength uint16
@@ -122,8 +121,8 @@ func (u *UDP) processUDPPacket(buf []byte, tuple UDPTuple) ([]byte, error) {
 
 		ipv4 := header.IPv4(ipBuf)
 		ipv4.Encode(&header.IPv4Fields{
-			TOS:            0,
-			ID:             uint16(rand.Uint32()),
+			TOS: 0,
+			// ID:             uint16(rand.Uint32()),
 			TotalLength:    totalLength,
 			FragmentOffset: 0,
 			TTL:            i4.DefaultTTL,
@@ -170,7 +169,7 @@ func (u *UDP) processUDPPacket(buf []byte, tuple UDPTuple) ([]byte, error) {
 		device.ResetTransportChecksum(ip, udp, pseudoSum)
 	}
 
-	return tunBuf[:totalLength+uint16(u.device.Offset())], nil
+	return tunBuf[:totalLength+uint16(offset)], nil
 }
 
 type UDPWriteBack struct {
@@ -178,7 +177,7 @@ type UDPWriteBack struct {
 	tuple UDPTuple
 }
 
-func (h *UDPWriteBack) toTuple(addr net.Addr) (UDPTuple, error) {
+func ToTuple(srcaddr tcpip.Address, srcPort uint16, addr net.Addr) (UDPTuple, error) {
 	address, err := netapi.ParseSysAddr(addr)
 	if err != nil {
 		return UDPTuple{}, err
@@ -190,20 +189,20 @@ func (h *UDPWriteBack) toTuple(addr net.Addr) (UDPTuple, error) {
 
 	var daddr net.IP = address.(netapi.IPAddress).AddrPort().Addr().AsSlice()
 
-	if h.tuple.SourceAddr.Len() == 16 {
+	if srcaddr.Len() == 16 {
 		daddr = daddr.To16()
 	}
 
 	return UDPTuple{
 		DestinationAddr: tcpip.AddrFromSlice(daddr),
 		DestinationPort: address.Port(),
-		SourceAddr:      h.tuple.SourceAddr,
-		SourcePort:      h.tuple.SourcePort,
+		SourceAddr:      srcaddr,
+		SourcePort:      srcPort,
 	}, nil
 }
 
 func (h *UDPWriteBack) WriteBack(b []byte, addr net.Addr) (int, error) {
-	tuple, err := h.toTuple(addr)
+	tuple, err := ToTuple(h.tuple.SourceAddr, h.tuple.SourcePort, addr)
 	if err != nil {
 		return 0, err
 	}

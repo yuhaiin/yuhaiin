@@ -6,7 +6,6 @@ import (
 	"iter"
 	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache/badger"
 	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/cidr"
@@ -133,8 +132,8 @@ func (x *Trie[T]) Close() error {
 }
 
 type Options[T comparable] struct {
-	Codec  codec.Codec[T]
-	Badger *badger.Cache
+	Codec codec.Codec[T]
+	// Badger *badger.Cache
 	Pebble *pebble.Cache
 }
 
@@ -144,11 +143,11 @@ func WithCodec[T comparable](codec codec.Codec[T]) func(*Options[T]) {
 	}
 }
 
-func WithBadger(cache *badger.Cache) func(*Options[string]) {
-	return func(o *Options[string]) {
-		o.Badger = cache
-	}
-}
+// func WithBadger(cache *badger.Cache) func(*Options[string]) {
+// 	return func(o *Options[string]) {
+// 		o.Badger = cache
+// 	}
+// }
 
 func WithPebble(cache *pebble.Cache) func(*Options[string]) {
 	return func(o *Options[string]) {
@@ -165,9 +164,7 @@ func NewTrie[T comparable](opts ...func(*Options[T])) *Trie[T] {
 	}
 	var dt domain.Trie[T]
 
-	if opt.Badger != nil {
-		dt = domain.NewDiskFqdn(domain.NewDiskTrie(opt.Badger, opt.Codec))
-	} else if opt.Pebble != nil {
+	if opt.Pebble != nil {
 		dt = domain.NewDiskFqdn(domain.NewDiskPebbleTrie(opt.Pebble, opt.Codec))
 	} else {
 		dt = domain.NewTrie[T]()
