@@ -200,7 +200,7 @@ func (n *Subscribe) savePublish(ctx context.Context, url string) error {
 	case node.YuhaiinUrl_Points_case:
 		n.n.SaveNode(yu.GetPoints().GetPoints()...)
 	case node.YuhaiinUrl_Remote_case:
-		u := yu.GetRemote().GetUrl()
+		u := yu.GetRemote().GetPublish().GetAddress()
 		opts := []grpc.DialOption{
 			grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
 				ad, err := netapi.ParseAddress("tcp", s)
@@ -213,7 +213,7 @@ func (n *Subscribe) savePublish(ctx context.Context, url string) error {
 				return configuration.ProxyChain.Conn(ctx, ad)
 			}),
 		}
-		if yu.GetRemote().GetInsecure() {
+		if yu.GetRemote().GetPublish().GetInsecure() {
 			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		}
 
