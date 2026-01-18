@@ -198,6 +198,10 @@ func (n *Subscribe) savePublish(ctx context.Context, link *node.Link) error {
 
 	switch yu.WhichUrl() {
 	case node.YuhaiinUrl_Points_case:
+		for _, p := range yu.GetPoints().GetPoints() {
+			p.SetOrigin(node.Origin_remote)
+			p.SetGroup(link.GetName())
+		}
 		n.n.SaveNode(yu.GetPoints().GetPoints()...)
 	case node.YuhaiinUrl_Remote_case:
 		u := yu.GetRemote().GetPublish().GetAddress()
