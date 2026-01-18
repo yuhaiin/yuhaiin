@@ -81,7 +81,7 @@ func (l *Subscribe) update(ctx context.Context, names ...string) {
 		scheme, _, _ := system.GetScheme(link.GetUrl())
 		var err error
 		if scheme == "yuhaiin" {
-			err = l.savePublish(ctx, link.GetUrl())
+			err = l.savePublish(ctx, link)
 		} else {
 			err = l.fetch(ctx, link)
 		}
@@ -179,8 +179,8 @@ func (n *Subscribe) Publish(ctx context.Context, in *api.PublishRequest) (*api.P
 	}.Build(), nil
 }
 
-func (n *Subscribe) savePublish(ctx context.Context, url string) error {
-	u := strings.TrimPrefix(url, "yuhaiin://")
+func (n *Subscribe) savePublish(ctx context.Context, link *node.Link) error {
+	u := strings.TrimPrefix(link.GetUrl(), "yuhaiin://")
 
 	data, err := base64.RawURLEncoding.DecodeString(u)
 	if err != nil {
@@ -198,9 +198,20 @@ func (n *Subscribe) savePublish(ctx context.Context, url string) error {
 
 	switch yu.WhichUrl() {
 	case node.YuhaiinUrl_Points_case:
+		for _, p := range yu.GetPoints().GetPoints() {
+			p.SetOrigin(node.Origin_remote)
+			p.SetGroup(link.GetName())
+		}
 		n.n.SaveNode(yu.GetPoints().GetPoints()...)
 	case node.YuhaiinUrl_Remote_case:
-		u := yu.GetRemote().GetUrl()
+		u := yu.GetRemote().GetPublish().GetAddress()
+		if _, port, _ := net.SplitHostPort(u); port == "" {
+			if yu.GetRemote().GetPublish().GetInsecure() {
+				u = net.JoinHostPort(u, "80")
+			} else {
+				u = net.JoinHostPort(u, "443")
+			}
+		}
 		opts := []grpc.DialOption{
 			grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
 				ad, err := netapi.ParseAddress("tcp", s)
@@ -213,7 +224,7 @@ func (n *Subscribe) savePublish(ctx context.Context, url string) error {
 				return configuration.ProxyChain.Conn(ctx, ad)
 			}),
 		}
-		if yu.GetRemote().GetInsecure() {
+		if yu.GetRemote().GetPublish().GetInsecure() {
 			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		}
 
@@ -236,7 +247,7 @@ func (n *Subscribe) savePublish(ctx context.Context, url string) error {
 
 		for _, p := range resp.GetPoints() {
 			p.SetOrigin(node.Origin_remote)
-			p.SetGroup(yu.GetName())
+			p.SetGroup(link.GetName())
 		}
 
 		n.n.SaveNode(resp.GetPoints()...)

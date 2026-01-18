@@ -231,7 +231,17 @@ func (s *ConnOptions) RouteIPs(ctx context.Context, addr Address) (*IPs, error) 
 }
 
 func (s *ConnOptions) AddLists(lists ...string) *ConnOptions {
-	s.lists = append(s.lists, lists...)
+	for _, list := range lists {
+		if list == "" {
+			continue
+		}
+		if s.HasList(list) {
+			continue
+		}
+
+		s.lists = append(s.lists, list)
+	}
+
 	return s
 }
 
