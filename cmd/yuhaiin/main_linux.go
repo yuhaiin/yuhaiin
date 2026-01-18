@@ -16,7 +16,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 )
 
@@ -45,7 +44,7 @@ func init() {
 
 	if configuration.ProcessDumper {
 		// try start bpf
-		netlink.StartBpf()
+		// netlink.StartBpf()
 	}
 }
 

@@ -135,11 +135,8 @@ func (m *Manager) AddTag(tag string, t node.TagType, hash string) {
 	case node.TagType_node:
 		_, ok = m.getNodes()[hash]
 	case node.TagType_mirror:
-		if tag == hash {
-			ok = false
-		} else {
-			_, ok = m.getTags()[hash]
-		}
+		// skip check exist, because we can't get route tag here
+		ok = tag != hash
 	}
 	if !ok {
 		return

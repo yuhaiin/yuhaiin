@@ -26,14 +26,12 @@ message Publish {
   string path = 2 [ json_name = "path" ];
   string name = 3 [ json_name = "name" ];
   string password = 4 [ json_name = "password" ];
+  string address = 5 [ json_name = "address" ];
+  bool insecure = 6 [ json_name = "insecure" ];
 }
 
 message YuhaiinUrl {
-  message Remote {
-    string url = 1 [ json_name = "url" ];
-    bool insecure = 2 [ json_name = "insecure" ];
-    Publish publish = 3 [ json_name = "publish" ];
-  }
+  message Remote { Publish publish = 1 [ json_name = "publish" ]; }
   message Points {
     repeated yuhaiin.point.point points = 1 [ json_name = "points" ];
   }
