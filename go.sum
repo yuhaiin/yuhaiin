@@ -298,8 +298,8 @@ github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMk
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/wireguard-go v0.0.0-20260111161611-5f49a4d8f525 h1:Xk3BP9k/aldbV/NUZqqVZfYuaMHIqZyj9BoGo4GphEU=
 github.com/yuhaiin/wireguard-go v0.0.0-20260111161611-5f49a4d8f525/go.mod h1:zvaAPQrjUBWufXgqpSQ1/BYu9ZFOKnsNWLFQe+E78cM=
-github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260118110239-e8caf97b7d68 h1:G03uJcSx9Nw2/mBmGOYi1SvTz0zDRQRg9bZvEUijYng=
-github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260118110239-e8caf97b7d68/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260118123126-8f9722d3a258 h1:unR8BNzGnob6ahIzrWKI6aXFl3G8DdrQzRO8qxo2oHQ=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260118123126-8f9722d3a258/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 go.etcd.io/bbolt v1.4.3 h1:dEadXpI6G79deX5prL3QRNP6JB8UxVkqo4UPnHaNXJo=
