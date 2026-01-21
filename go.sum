@@ -224,6 +224,8 @@ github.com/pingcap/errors v0.11.4 h1:lFuQV/oaUMGcD2tqt+01ROSmJs75VG1ToEOkZIZ4nE4
 github.com/pingcap/errors v0.11.4/go.mod h1:Oi8TUi2kEtXXLMJk9l1cGmz20kV3TaQ0usTwv5KuLY8=
 github.com/pires/go-proxyproto v0.8.1 h1:9KEixbdJfhrbtjpz/ZwCdWDD2Xem0NZ38qMYaASJgp0=
 github.com/pires/go-proxyproto v0.8.1/go.mod h1:ZKAAyp3cgy5Y5Mo4n9AlScrkCZwUy0g3Jf+slqQVcuU=
+github.com/pires/go-proxyproto v0.9.0 h1:3Qg3CLxWx4wJOw5uxhTvc0VrgsJeerDbGTvexu4UK1E=
+github.com/pires/go-proxyproto v0.9.0/go.mod h1:ZKAAyp3cgy5Y5Mo4n9AlScrkCZwUy0g3Jf+slqQVcuU=
 github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e/go.mod h1:pJLUxLENpZxwdsKMEsNbx1VGcRFpLqf3715MtcvvzbA=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
@@ -300,6 +302,8 @@ github.com/yuhaiin/wireguard-go v0.0.0-20260111161611-5f49a4d8f525 h1:Xk3BP9k/al
 github.com/yuhaiin/wireguard-go v0.0.0-20260111161611-5f49a4d8f525/go.mod h1:zvaAPQrjUBWufXgqpSQ1/BYu9ZFOKnsNWLFQe+E78cM=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260120162300-9dab1e6f590a h1:Kl61RL+vzKxAv8WTVF9WOgYsBbgCEJfIy56I0taoR/k=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260120162300-9dab1e6f590a/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260120180026-94b5f6e8c7da h1:haim1QiKl7csJ/sjdLcP3CvawPY809SaYJaXeLsOCRE=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260120180026-94b5f6e8c7da/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 go.etcd.io/bbolt v1.4.3 h1:dEadXpI6G79deX5prL3QRNP6JB8UxVkqo4UPnHaNXJo=
@@ -339,6 +343,8 @@ golang.org/x/image v0.35.0 h1:LKjiHdgMtO8z7Fh18nGY6KDcoEtVfsgLDPeLyguqb7I=
 golang.org/x/image v0.35.0/go.mod h1:MwPLTVgvxSASsxdLzKrl8BRFuyqMyGhLwmC+TO1Sybk=
 golang.org/x/mobile v0.0.0-20260112195712-5b9ecdfb8721 h1:nzIKPiUdGHmOrf0Zj4ww4DB65fsHcSL4+oibimRnI5I=
 golang.org/x/mobile v0.0.0-20260112195712-5b9ecdfb8721/go.mod h1:yHJY0EGzMJ0i5ONrrhdpDSSnoyres5LO7D2hSIbJJ5I=
+golang.org/x/mobile v0.0.0-20260120165949-40bd9ace6ce4 h1:C3JuLOLhdaE75vk5m7u18NvZciRk+lnO34xcXl3NPTU=
+golang.org/x/mobile v0.0.0-20260120165949-40bd9ace6ce4/go.mod h1:yHJY0EGzMJ0i5ONrrhdpDSSnoyres5LO7D2hSIbJJ5I=
 golang.org/x/mod v0.2.0/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=
 golang.org/x/mod v0.3.0/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=
 golang.org/x/mod v0.32.0 h1:9F4d3PHLljb6x//jOyokMv3eX+YDeepZSEo3mFJy93c=
