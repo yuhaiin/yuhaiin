@@ -12,13 +12,13 @@ replace (
 require (
 	github.com/cilium/ebpf v0.20.0
 	github.com/cloudflare/circl v1.6.2
-	github.com/cockroachdb/pebble/v2 v2.1.3
+	github.com/cockroachdb/pebble/v2 v2.1.4
 	github.com/dgraph-io/badger/v4 v4.9.0
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/nftables v0.3.0
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.9
 	github.com/libp2p/go-yamux/v5 v5.1.0
-	github.com/miekg/dns v1.1.70
+	github.com/miekg/dns v1.1.72
 	github.com/oschwald/maxminddb-golang/v2 v2.1.1
 	github.com/pires/go-proxyproto v0.9.0
 	github.com/prometheus-community/pro-bing v0.7.0
@@ -48,7 +48,7 @@ require (
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
-	github.com/RaduBerinde/axisds v0.0.0-20250419182453-5135a0650657 // indirect
+	github.com/RaduBerinde/axisds v0.1.0 // indirect
 	github.com/RaduBerinde/btreemap v0.0.0-20250419174037-3d62b7205d54 // indirect
 	github.com/akutz/memconn v0.1.0 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa // indirect
