@@ -126,6 +126,10 @@ func (h *processMatcher) Add(process string, list string) {
 		return &[]string{}, nil
 	})
 
+	if slices.Contains(*set, list) {
+		return
+	}
+
 	*set = append(*set, list)
 }
 
@@ -720,6 +724,10 @@ func (s *Lists) AddNewHostList(name string) {
 func (s *Lists) refreshProcessTrie() {
 	processTrie := newProcessTrie()
 	for name := range s.processTrie.Range {
+		if processTrie.Include(name) {
+			continue
+		}
+
 		_, iter, err := s.getIter(name)
 		if err != nil {
 			log.Error("get iter failed", "err", err)
