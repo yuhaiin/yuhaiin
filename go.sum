@@ -300,6 +300,8 @@ github.com/yuhaiin/wireguard-go v0.0.0-20260111161611-5f49a4d8f525 h1:Xk3BP9k/al
 github.com/yuhaiin/wireguard-go v0.0.0-20260111161611-5f49a4d8f525/go.mod h1:zvaAPQrjUBWufXgqpSQ1/BYu9ZFOKnsNWLFQe+E78cM=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260129181509-c61c50cc166c h1:1U5xoQkvwIqMHneaJbkZdhUZa1lKLjKTQJygdDP4Ygc=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260129181509-c61c50cc166c/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260130055815-067705e724ac h1:TB86adteN7eh5nzNNS3VayDOhUL5YGFSUE23x3mocIM=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260130055815-067705e724ac/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 go.etcd.io/bbolt v1.4.3 h1:dEadXpI6G79deX5prL3QRNP6JB8UxVkqo4UPnHaNXJo=
