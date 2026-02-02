@@ -303,6 +303,7 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 
 	readAddr := make(chan *net.UDPAddr)
 	found := atomic.Bool{}
+	done := make(chan struct{})
 	go func() {
 		data := pool.GetBytes(configuration.UDPBufferSize.Load())
 		defer pool.PutBytes(data)
@@ -315,8 +316,9 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 			}
 
 			if n == 32 && [32]byte(data[:32]) == detectPacket2 {
-				readAddr <- addr.(*net.UDPAddr)
 				found.Store(true)
+				close(done)
+				readAddr <- addr.(*net.UDPAddr)
 				break
 			}
 		}
@@ -325,11 +327,20 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 	go func() {
 		for i := range 4 {
 			if i != 0 {
-				time.Sleep(time.Millisecond * 200)
+				timer := time.NewTimer(time.Millisecond * 200)
+				select {
+				case <-timer.C:
+				case <-done:
+					timer.Stop()
+					return
+				case <-ctx.Done():
+					timer.Stop()
+					return
+				}
 			}
 			for _, uaddr := range addrs {
 				if found.Load() {
-					break
+					return
 				}
 
 				if _, err := conn.WriteTo(detectPacket1[:], uaddr); err != nil {
