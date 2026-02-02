@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	_ "unsafe"
 
@@ -14,21 +15,26 @@ import (
 )
 
 var (
-	mu    sync.Mutex
-	hosts = Hosts{
+	refreshMu        sync.Mutex
+	hosts            atomic.Value
+	expire           atomic.Int64
+	hostsFilePath    = "/etc/hosts"
+	hostsFileModTime = time.Time{}
+)
+
+func init() {
+	hosts.Store(Hosts{
 		ByAddr: make(map[netip.Addr][]string),
 		ByName: make(map[string]byName),
-	}
-	expire           int64 = 0
-	hostsFilePath          = "/etc/hosts"
-	hostsFileModTime       = time.Time{}
-)
+	})
+}
 
 func LookupStaticHost(host string) ([]netip.Addr, string) {
 	host = strings.ToLower(host)
 
-	refresh()
-	x, ok := hosts.ByName[host]
+	maybeRefresh()
+	h := hosts.Load().(Hosts)
+	x, ok := h.ByName[host]
 	if !ok {
 		return nil, ""
 	}
@@ -36,13 +42,14 @@ func LookupStaticHost(host string) ([]netip.Addr, string) {
 }
 
 func LookupStaticAddr(ip net.IP) []string {
-	refresh()
+	maybeRefresh()
 	addr, ok := netip.AddrFromSlice(ip)
 	if !ok {
 		return nil
 	}
 
-	return hosts.ByAddr[addr.Unmap()]
+	h := hosts.Load().(Hosts)
+	return h.ByAddr[addr.Unmap()]
 }
 
 //go:linkname IsDomainName net.isDomainName
@@ -102,29 +109,47 @@ func readHosts() Hosts {
 	return hosts
 }
 
-func refresh() {
+func maybeRefresh() {
 	// android can't change hosts without root
 	// so we don't need to refresh generally
-	if runtime.GOOS == "android" && expire != 0 {
+	if runtime.GOOS == "android" && expire.Load() != 0 {
 		return
 	}
 
-	mu.Lock()
-	// the go library refrsh duration is 5 seconds
-	// it's too frenquently maybe
-	//
-	// TODO linux use inotify to refresh
-	if expire == 0 || CheapNowNano() > expire {
-		f, err := os.Stat(hostsFilePath)
-		if err == nil && f.ModTime().Equal(hostsFileModTime) {
-			mu.Unlock()
+	// Double-checked locking pattern
+	exp := expire.Load()
+	if CheapNowNano() <= exp {
+		return
+	}
+
+	if exp == 0 {
+		refreshMu.Lock()
+	} else {
+		if !refreshMu.TryLock() {
 			return
 		}
-
-		hs := readHosts()
-		hosts = hs
-		hostsFileModTime = f.ModTime()
-		expire = CheapNowNano() + (time.Minute * 3).Nanoseconds()
 	}
-	mu.Unlock()
+	defer refreshMu.Unlock()
+
+	now := CheapNowNano()
+	if now <= expire.Load() {
+		return
+	}
+
+	f, err := os.Stat(hostsFilePath)
+	if err == nil && f.ModTime().Equal(hostsFileModTime) {
+		// File unchanged, update expire to check again later (e.g. 5 seconds)
+		// to avoid stat storm.
+		expire.Store(now + (time.Second * 5).Nanoseconds())
+		return
+	}
+
+	hs := readHosts()
+	hosts.Store(hs)
+
+	if err == nil {
+		hostsFileModTime = f.ModTime()
+	}
+
+	expire.Store(now + (time.Minute * 3).Nanoseconds())
 }
