@@ -22,6 +22,11 @@ var (
 	hostsFileModTime = time.Time{}
 )
 
+const (
+	hostsFileUnchangedCacheDuration = 5 * time.Second
+	hostsFileCacheDuration          = 3 * time.Minute
+)
+
 func init() {
 	hosts.Store(Hosts{
 		ByAddr: make(map[netip.Addr][]string),
@@ -140,7 +145,7 @@ func maybeRefresh() {
 	if err == nil && f.ModTime().Equal(hostsFileModTime) {
 		// File unchanged, update expire to check again later (e.g. 5 seconds)
 		// to avoid stat storm.
-		expire.Store(now + (time.Second * 5).Nanoseconds())
+		expire.Store(now + hostsFileUnchangedCacheDuration.Nanoseconds())
 		return
 	}
 
@@ -151,5 +156,5 @@ func maybeRefresh() {
 		hostsFileModTime = f.ModTime()
 	}
 
-	expire.Store(now + (time.Minute * 3).Nanoseconds())
+	expire.Store(now + hostsFileCacheDuration.Nanoseconds())
 }
