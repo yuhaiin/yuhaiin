@@ -301,7 +301,7 @@ func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 		addrs = append(addrs, uaddr)
 	}
 
-	readAddr := make(chan *net.UDPAddr)
+	readAddr := make(chan *net.UDPAddr, 1)
 	found := atomic.Bool{}
 	done := make(chan struct{})
 	go func() {
