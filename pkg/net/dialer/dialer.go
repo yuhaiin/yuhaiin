@@ -89,6 +89,8 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 		},
 	}
 
+	d.SetMultipathTCP(false)
+
 	store := netapi.GetContext(ctx)
 
 	if opts.InterfaceName != "" {
@@ -187,6 +189,8 @@ func ListenPacketWithOptions(ctx context.Context, network, address string, opts 
 			return setSocketOptions(network, address, c, opts)
 		},
 	}
+
+	lc.SetMultipathTCP(false)
 
 	store := netapi.GetContext(ctx)
 

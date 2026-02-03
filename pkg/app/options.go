@@ -201,18 +201,24 @@ func (a *Auth) GrpcAuth() grpc.UnaryServerInterceptor {
 
 func HandleFunc(mux *http.ServeMux, auth *Auth, path string, b func(http.ResponseWriter, *http.Request) error) {
 	mux.Handle(path, http.HandlerFunc(func(ow http.ResponseWriter, r *http.Request) {
+		w := &wrapResponseWriter{ow, false}
+
+		cross(r, w)
+
 		if auth != nil {
+			token := r.URL.Query().Get("token")
+			if token != "" {
+				r.Header.Set("Authorization", "Basic "+token)
+			}
+
 			username, password, ok := r.BasicAuth()
 			if !ok || !auth.Auth(password, username) {
-				ow.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
-				http.Error(ow, "Unauthorized", http.StatusUnauthorized)
+				// ow.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
 		}
 
-		cross(r, ow)
-
-		w := &wrapResponseWriter{ow, false}
 		err := b(w, r)
 		if err != nil {
 			if !w.writed {
@@ -251,8 +257,8 @@ func cross(r *http.Request, w http.ResponseWriter) {
 
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, PATCH, OPTIONS, HEAD")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Token")
-	w.Header().Set("Access-Control-Expose-Headers", "Access-Control-Allow-Headers, Token")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Token, Authorization")
+	w.Header().Set("Access-Control-Expose-Headers", "Access-Control-Allow-Headers, Token, Authorization")
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 }
 

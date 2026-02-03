@@ -221,6 +221,7 @@ func (n *Subscribe) savePublish(ctx context.Context, link *node.Link) error {
 
 				ctx = netapi.WithContext(ctx)
 
+				log.Info("subscription grpc dial", "addr", ad)
 				return configuration.ProxyChain.Conn(ctx, ad)
 			}),
 		}
@@ -228,7 +229,7 @@ func (n *Subscribe) savePublish(ctx context.Context, link *node.Link) error {
 			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		}
 
-		c, err := grpc.NewClient(u, opts...)
+		c, err := grpc.NewClient("passthrough:///"+u, opts...)
 		if err != nil {
 			return fmt.Errorf("new client failed: %w", err)
 		}
