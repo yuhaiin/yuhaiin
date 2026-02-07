@@ -13,14 +13,14 @@ require (
 	github.com/cilium/ebpf v0.20.0
 	github.com/cloudflare/circl v1.6.3
 	github.com/cockroachdb/pebble/v2 v2.1.4
-	github.com/dgraph-io/badger/v4 v4.9.0
+	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/nftables v0.3.0
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.9
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/miekg/dns v1.1.72
 	github.com/oschwald/maxminddb-golang/v2 v2.1.1
-	github.com/pires/go-proxyproto v0.9.2
+	github.com/pires/go-proxyproto v0.10.0
 	github.com/prometheus-community/pro-bing v0.7.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/quic-go/connect-ip-go v0.1.0
@@ -33,7 +33,7 @@ require (
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260203075512-e901fa6d4191
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.47.0
-	golang.org/x/mobile v0.0.0-20260203041319-574ceaa2f723
+	golang.org/x/mobile v0.0.0-20260204172633-1dceadbbeea3
 	golang.org/x/net v0.49.0
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.40.0
