@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/netip"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
@@ -23,7 +24,7 @@ func DialHappyEyeballsv1(ctx context.Context, addr netapi.Address) (net.Conn, er
 
 func dialHappyEyeballs(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	if !addr.IsFqdn() {
-		return DialContext(ctx, "tcp", addr.String())
+		return DialContext(ctx, "tcp", addr.(netapi.IPAddress).AddrPort())
 	}
 
 	ips, err := netapi.ResolverIP(ctx, addr.Hostname())
@@ -33,14 +34,19 @@ func dialHappyEyeballs(ctx context.Context, addr netapi.Address) (net.Conn, erro
 
 	lastIP, ok := happyEyeballsCache.Load(addr.Hostname())
 
-	tcpAddress := make([]*net.TCPAddr, 0, ips.Len())
+	tcpAddress := make([]netip.AddrPort, 0, ips.Len())
 	for ip := range ips.Iter() {
+		zip, zok := netip.AddrFromSlice(ip)
+		if !zok {
+			continue
+		}
+
 		if ok && lastIP.Equal(ip) && len(tcpAddress) > 0 {
 			tmp := tcpAddress[0]
-			tcpAddress[0] = &net.TCPAddr{IP: ip, Port: tmp.Port}
+			tcpAddress[0] = netip.AddrPortFrom(zip, tmp.Port())
 			tcpAddress = append(tcpAddress, tmp)
 		} else {
-			tcpAddress = append(tcpAddress, &net.TCPAddr{IP: ip, Port: int(addr.Port())})
+			tcpAddress = append(tcpAddress, netip.AddrPortFrom(zip, uint16(addr.Port())))
 		}
 	}
 
@@ -63,13 +69,13 @@ func dialHappyEyeballs(ctx context.Context, addr netapi.Address) (net.Conn, erro
 // It takes a context and a slice of TCP addresses as input and returns a net.Conn and an error.
 //
 // https://www.rfc-editor.org/rfc/rfc8305
-func DialHappyEyeballs(ctx context.Context, ips []*net.TCPAddr) (net.Conn, error) {
+func DialHappyEyeballs(ctx context.Context, ips []netip.AddrPort) (net.Conn, error) {
 	// Divide TCP addresses into primaries and fallbacks based on their IP version.
-	primaries := []*net.TCPAddr{} // TCP addresses with IPv4 version
-	fallback := []*net.TCPAddr{}  // TCP addresses with IPv6 version
+	primaries := []netip.AddrPort{} // TCP addresses with IPv4 version
+	fallback := []netip.AddrPort{}  // TCP addresses with IPv6 version
 
 	for _, ip := range ips {
-		if ip.IP.To4() != nil {
+		if ip.Addr().Unmap().Is4() {
 			fallback = append(fallback, ip)
 		} else {
 			primaries = append(primaries, ip)
@@ -95,7 +101,7 @@ func DialHappyEyeballs(ctx context.Context, ips []*net.TCPAddr) (net.Conn, error
 // head start. It returns the first established connection and
 // closes the others. Otherwise it returns an error from the first
 // primary address.
-func DialParallel(ctx context.Context, primaries []*net.TCPAddr, fallbacks []*net.TCPAddr) (net.Conn, error) {
+func DialParallel(ctx context.Context, primaries, fallbacks []netip.AddrPort) (net.Conn, error) {
 	if len(fallbacks) == 0 {
 		return DialSerial(ctx, primaries)
 	}
@@ -174,7 +180,7 @@ func DialParallel(ctx context.Context, primaries []*net.TCPAddr, fallbacks []*ne
 
 // DialSerial connects to a list of addresses in sequence, returning
 // either the first successful connection, or the first error.
-func DialSerial(ctx context.Context, ras []*net.TCPAddr) (net.Conn, error) {
+func DialSerial(ctx context.Context, ras []netip.AddrPort) (net.Conn, error) {
 	var firstErr error // The error from the first address is most relevant.
 
 	for i, ra := range ras {
@@ -226,8 +232,8 @@ func PartialDeadlineCtx(ctx context.Context, addrsRemaining int) (context.Contex
 	return dialCtx, cancel, nil
 }
 
-func dialSingle(ctx context.Context, ips *net.TCPAddr) (net.Conn, error) {
-	return DialContext(ctx, "tcp", ips.String())
+func dialSingle(ctx context.Context, ips netip.AddrPort) (net.Conn, error) {
+	return DialContext(ctx, "tcp", ips)
 }
 
 // PartialDeadline returns the deadline to use for a single address,

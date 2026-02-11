@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -41,9 +42,14 @@ func TestConn(t *testing.T) {
 	cc := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				ap, err := netip.ParseAddrPort(addr)
+				if err != nil {
+					return nil, err
+				}
+
 				switch network {
 				default:
-					return dialer.DialContext(ctx, network, addr)
+					return dialer.DialContext(ctx, network, ap)
 				case "tcp":
 					ad, err := netapi.ParseAddress(network, addr)
 					if err != nil {
@@ -94,5 +100,4 @@ func TestUDPConn(t *testing.T) {
 	x, addr, err := c.ReadFrom(y)
 	assert.NoError(t, err)
 	t.Log(addr, y[:x])
-
 }

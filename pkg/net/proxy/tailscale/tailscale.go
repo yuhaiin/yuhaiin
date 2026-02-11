@@ -24,6 +24,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	mdns "github.com/miekg/dns"
+	"golang.org/x/sync/singleflight"
 	"tailscale.com/envknob"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dnscache"
@@ -52,6 +53,9 @@ func (d hijackDialer) DialContext(ctx context.Context, network, address string) 
 
 	store := netapi.WithContext(ctx)
 	store.SetComponent("tailscale")
+	store.ConnOptions().
+		SetRouteMode(config.Mode_direct).
+		SetResolver(*(&netapi.ResolverOptions{}).SetResolver(netapi.Bootstrap()).SetIsResolver())
 
 	return configuration.ProxyChain.Conn(store, ad)
 }
@@ -66,7 +70,8 @@ func (l hijackListener) ListenPacket(ctx context.Context, network, address strin
 	store := netapi.WithContext(ctx)
 	store.ConnOptions().
 		SetRouteMode(config.Mode_direct).
-		SetBindAddress(address)
+		SetBindAddress(address).
+		SetResolver(*(&netapi.ResolverOptions{}).SetResolver(netapi.Bootstrap()).SetIsResolver())
 	store.SetComponent("tailscale").
 		SetDomainString("tailscale-" + network + "-listener" + address).
 		SetIPString(address)
@@ -162,6 +167,7 @@ type Tailscale struct {
 	controlUrl string
 	mu         sync.RWMutex
 	debug      atomic.Bool
+	sf         singleflight.Group
 }
 
 func New(c *node.Tailscale, dialer netapi.Proxy) (netapi.Proxy, error) {
@@ -255,6 +261,34 @@ func (t *Tailscale) init(context.Context) (*tsnet.Server, error) {
 	return t.tsnet, nil
 }
 
+func (t *Tailscale) up(ctx context.Context, dialer *tsnet.Server) (*ipnstate.Status, error) {
+	ch := t.sf.DoChan("up", func() (interface{}, error) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Error("tailscale conn panic", "err", err)
+			}
+		}()
+
+upCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+defer cancel()
+
+return dialer.Up(upCtx)
+	})
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res := <-ch:
+		if res.Err != nil {
+			return nil, res.Err
+		}
+		if res.Val == nil {
+			return nil, fmt.Errorf("tailscale up failed")
+		}
+		return res.Val.(*ipnstate.Status), nil
+	}
+}
+
 func (t *Tailscale) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -293,13 +327,7 @@ func (t *Tailscale) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 		return nil, err
 	}
 
-	defer func() {
-		if err := recover(); err != nil {
-			log.Error("tailscale conn panic", "err", err)
-		}
-	}()
-
-	_, err = dialer.Up(ctx)
+	_, err = t.up(ctx, dialer)
 	if err != nil {
 		return nil, err
 	}
@@ -337,13 +365,7 @@ func (t *Tailscale) PacketConnPacket(ctx context.Context, addr netapi.Address) (
 		return nil, err
 	}
 
-	defer func() {
-		if err := recover(); err != nil {
-			log.Error("tailscale packet conn panic", "err", err)
-		}
-	}()
-
-	states, err := dialer.Up(ctx)
+	states, err := t.up(ctx, dialer)
 	if err != nil {
 		return nil, err
 	}
@@ -385,13 +407,7 @@ func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 		return nil, err
 	}
 
-	defer func() {
-		if err := recover(); err != nil {
-			log.Error("tailscale packet conn panic", "err", err)
-		}
-	}()
-
-	_, err = dialer.Up(ctx)
+	_, err = t.up(ctx, dialer)
 	if err != nil {
 		return nil, err
 	}
@@ -427,13 +443,7 @@ func (t *Tailscale) Ping(ctx context.Context, addr netapi.Address) (uint64, erro
 		return 0, err
 	}
 
-	defer func() {
-		if err := recover(); err != nil {
-			log.Error("tailscale packet conn panic", "err", err)
-		}
-	}()
-
-	_, err = dialer.Up(ctx)
+	_, err = t.up(ctx, dialer)
 	if err != nil {
 		return 0, err
 	}
