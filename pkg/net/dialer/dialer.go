@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -109,7 +110,117 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 		store.SetInterface(iface)
 	}
 
+	if isTCPSocket(network) {
+		raddr, err := resolveAddr(ctx, d.Resolver, network, address)
+		if err != nil {
+			return nil, err
+		}
+
+		var laddr netip.AddrPort
+		if opts.LocalAddr != nil {
+			if la, ok := opts.LocalAddr.(*net.TCPAddr); ok {
+				if ip, ok := netip.AddrFromSlice(la.IP); ok {
+					laddr = netip.AddrPortFrom(ip, uint16(la.Port))
+				}
+			}
+		}
+
+		var errs []error
+		for _, addr := range raddr {
+			conn, err := d.DialTCP(ctx, network, laddr, addr)
+			if err == nil {
+				return conn, nil
+			}
+			errs = append(errs, err)
+		}
+
+		if len(errs) == 0 {
+			return nil, fmt.Errorf("no address found for %s", address)
+		}
+
+		return nil, errors.Join(errs...)
+	}
+
+	if isUDPSocket(network) {
+		raddr, err := resolveAddr(ctx, d.Resolver, network, address)
+		if err != nil {
+			return nil, err
+		}
+
+		var laddr netip.AddrPort
+		if opts.LocalAddr != nil {
+			if la, ok := opts.LocalAddr.(*net.UDPAddr); ok {
+				if ip, ok := netip.AddrFromSlice(la.IP); ok {
+					laddr = netip.AddrPortFrom(ip, uint16(la.Port))
+				}
+			}
+		}
+
+		var errs []error
+		for _, addr := range raddr {
+			conn, err := d.DialUDP(ctx, network, laddr, addr)
+			if err == nil {
+				return conn, nil
+			}
+			errs = append(errs, err)
+		}
+
+		if len(errs) == 0 {
+			return nil, fmt.Errorf("no address found for %s", address)
+		}
+
+		return nil, errors.Join(errs...)
+	}
+
+	if network == "unix" {
+		raddr, err := net.ResolveUnixAddr("unix", address)
+		if err != nil {
+			return nil, err
+		}
+
+		var laddr *net.UnixAddr
+		if opts.LocalAddr != nil {
+			if la, ok := opts.LocalAddr.(*net.UnixAddr); ok {
+				laddr = la
+			}
+		}
+
+		return d.DialUnix(ctx, network, laddr, raddr)
+	}
+
 	return d.DialContext(ctx, network, address)
+}
+
+func resolveAddr(ctx context.Context, resolver *net.Resolver, network, address string) ([]netip.AddrPort, error) {
+	if addr, err := netip.ParseAddrPort(address); err == nil {
+		return []netip.AddrPort{addr}, nil
+	}
+
+	host, portStr, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, err
+	}
+
+	port, err := strconv.ParseUint(portStr, 10, 16)
+	if err != nil {
+		return nil, err
+	}
+
+	if resolver == nil {
+		resolver = net.DefaultResolver
+	}
+
+	ips, err := resolver.LookupNetIP(ctx, "ip", host)
+	if err != nil {
+		return nil, err
+	}
+
+	var ret []netip.AddrPort
+	for _, ip := range ips {
+		ret = append(ret, netip.AddrPortFrom(ip, uint16(port)))
+	}
+
+	return ret, nil
 }
 
 func getInterface(address string) (string, error) {
