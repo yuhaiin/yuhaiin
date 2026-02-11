@@ -269,10 +269,10 @@ func (t *Tailscale) up(ctx context.Context, dialer *tsnet.Server) (*ipnstate.Sta
 			}
 		}()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-		defer cancel()
+upCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+defer cancel()
 
-		return dialer.Up(ctx)
+return dialer.Up(upCtx)
 	})
 
 	select {
