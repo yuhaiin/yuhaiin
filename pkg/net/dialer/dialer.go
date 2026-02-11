@@ -117,17 +117,31 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 		}
 
 		var laddr netip.AddrPort
+		var useLocalAddr bool
+		var lport uint16
 		if opts.LocalAddr != nil {
 			if la, ok := opts.LocalAddr.(*net.TCPAddr); ok {
 				if ip, ok := netip.AddrFromSlice(la.IP); ok {
 					laddr = netip.AddrPortFrom(ip, uint16(la.Port))
+				} else {
+					useLocalAddr = true
+					lport = uint16(la.Port)
 				}
 			}
 		}
 
 		var errs []error
 		for _, addr := range raddr {
-			conn, err := d.DialTCP(ctx, network, laddr, addr)
+			dialLaddr := laddr
+			if useLocalAddr {
+				if addr.Addr().Is4() {
+					dialLaddr = netip.AddrPortFrom(netip.IPv4Unspecified(), lport)
+				} else {
+					dialLaddr = netip.AddrPortFrom(netip.IPv6Unspecified(), lport)
+				}
+			}
+
+			conn, err := d.DialTCP(ctx, network, dialLaddr, addr)
 			if err == nil {
 				return conn, nil
 			}
@@ -148,17 +162,31 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 		}
 
 		var laddr netip.AddrPort
+		var useLocalAddr bool
+		var lport uint16
 		if opts.LocalAddr != nil {
 			if la, ok := opts.LocalAddr.(*net.UDPAddr); ok {
 				if ip, ok := netip.AddrFromSlice(la.IP); ok {
 					laddr = netip.AddrPortFrom(ip, uint16(la.Port))
+				} else {
+					useLocalAddr = true
+					lport = uint16(la.Port)
 				}
 			}
 		}
 
 		var errs []error
 		for _, addr := range raddr {
-			conn, err := d.DialUDP(ctx, network, laddr, addr)
+			dialLaddr := laddr
+			if useLocalAddr {
+				if addr.Addr().Is4() {
+					dialLaddr = netip.AddrPortFrom(netip.IPv4Unspecified(), lport)
+				} else {
+					dialLaddr = netip.AddrPortFrom(netip.IPv6Unspecified(), lport)
+				}
+			}
+
+			conn, err := d.DialUDP(ctx, network, dialLaddr, addr)
 			if err == nil {
 				return conn, nil
 			}
