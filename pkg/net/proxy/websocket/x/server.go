@@ -21,7 +21,7 @@ type Request struct {
 }
 
 func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Request) error) (conn *Conn, err error) {
-	var hs = &ServerHandshaker{
+	hs := &ServerHandshaker{
 		Request: &Request{
 			Request: req,
 		},
@@ -60,8 +60,6 @@ func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Req
 	if err := buf.Writer.Flush(); err != nil {
 		return nil, err
 	}
-
-	putBufioWriter(buf.Writer)
 
 	return newConn(pool.NewBufioConn(buf.Reader, rwc), true), nil
 }

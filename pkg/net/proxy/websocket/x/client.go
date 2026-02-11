@@ -41,9 +41,6 @@ func (config *Config) NewClient(SecWebSocketKey string, rwc net.Conn, request fu
 	return
 }
 
-//go:linkname putBufioWriter net/http.putBufioWriter
-func putBufioWriter(br *bufio.Writer)
-
 // generateNonce generates a nonce consisting of a randomly selected 16-byte
 // value that has been base64-encoded.
 func generateNonce() string {

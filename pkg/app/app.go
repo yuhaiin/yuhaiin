@@ -107,6 +107,9 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	// proxy access point/endpoint
 	nodeManager := AddCloser(closers, "node_manager", node.NewManager(tools.PathGenerator.Node(so.ConfigPath)))
+	register.RegisterPoint(func(p *pn.PointAsEndpoint, _ netapi.Proxy) (netapi.Proxy, error) {
+		return nodeManager.Outbound().GetDialerByID(context.Background(), p.GetHash())
+	})
 	register.RegisterPoint(func(x *pn.Set, p netapi.Proxy) (netapi.Proxy, error) {
 		return node.NewSet(x, nodeManager)
 	})

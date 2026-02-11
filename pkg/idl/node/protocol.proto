@@ -52,6 +52,8 @@ message protocol {
         [ json_name = "cloudflare_warp_masque", lazy = true ];
     proxy proxy = 33 [ json_name = "proxy", lazy = true ];
     fixedv2 fixedv2 = 34 [ json_name = "fixedv2", lazy = true ];
+    point_as_endpoint point_as_endpoint = 35
+        [ json_name = "point_as_endpoint", lazy = true ];
   }
 }
 
@@ -292,3 +294,5 @@ message fixedv2 {
   repeated address addresses = 1 [ json_name = "addresses" ];
   bool udp_happy_eyeballs = 2 [ json_name = "udp_happy_eyeballs" ];
 }
+
+message point_as_endpoint { string hash = 1 [ json_name = "hash" ]; }
