@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/netip"
 	"os"
+	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -51,7 +53,17 @@ func main() {
 		// 	},
 		// }
 
-		conn, err = dialer.DialContext(context.TODO(), "tcp", *target)
+		host, portstr, err := net.SplitHostPort(*target)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		port, err := strconv.Atoi(portstr)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		conn, err = dialer.DialContext(context.TODO(), "tcp", netip.AddrPortFrom(netip.MustParseAddr(host), uint16(port)))
 		if err != nil {
 			log.Fatal(err)
 		} else {

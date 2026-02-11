@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strconv"
+	"net/netip"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -46,7 +46,11 @@ var DefaultHappyEyeballsv2Dialer = atomicx.NewValue(NewDefaultHappyEyeballsv2Dia
 
 func NewDefaultHappyEyeballsv2Dialer(opts ...func(*HappyEyeballsv2Dialer[net.Conn])) *HappyEyeballsv2Dialer[net.Conn] {
 	return NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
-		return DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), strconv.Itoa(int(port))))
+		addr, ok := netip.AddrFromSlice(ip)
+		if !ok {
+			return nil, errors.New("invalid ip")
+		}
+		return DialContext(ctx, "tcp", netip.AddrPortFrom(addr, port))
 	}, opts...)
 }
 

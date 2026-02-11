@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -124,7 +124,13 @@ func (h *handler) HandleStream(req *netapi.StreamMeta) {
 
 	log.Info("connect", "ip", ips[0].String(), "port", req.Address.Port())
 
-	dconn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(ips[0].String(), strconv.Itoa(int(req.Address.Port()))))
+	addr, ok := netip.AddrFromSlice(ips[0])
+	if !ok {
+		log.Error("invalid ip", "ip", ips[0].String())
+		return
+	}
+
+	dconn, err := dialer.DialContext(context.Background(), "tcp", netip.AddrPortFrom(addr, req.Address.Port()))
 	if err != nil {
 		log.Error("dial failed", "err", err)
 		return
