@@ -49,7 +49,7 @@ func TestConn(t *testing.T) {
 
 				switch network {
 				default:
-					return dialer.DialContext(ctx, network, ap)
+					return dialer.DialTCPContext(ctx, ap)
 				case "tcp":
 					ad, err := netapi.ParseAddress(network, addr)
 					if err != nil {

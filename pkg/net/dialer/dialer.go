@@ -48,7 +48,7 @@ func ListenContextWithOptions(ctx context.Context, network string, address strin
 	return config.Listen(ctx, network, address)
 }
 
-func DialContext(ctx context.Context, network string, address netip.AddrPort, opts ...func(*Options)) (net.Conn, error) {
+func DialTCPContext(ctx context.Context, address netip.AddrPort, opts ...func(*Options)) (*net.TCPConn, error) {
 	opt := &Options{
 		InterfaceName: DefaultInterfaceName(),
 		MarkSymbol:    DefaultMarkSymbol,
@@ -58,14 +58,14 @@ func DialContext(ctx context.Context, network string, address netip.AddrPort, op
 		o(opt)
 	}
 
-	return DialContextWithOptions(ctx, network, address, opt)
+	return DialTCPContextWithOptions(ctx, address, opt)
 }
 
 var SkipInterface = func() *set.Set[string] {
 	return set.NewSet[string]()
 }
 
-func DialContextWithOptions(ctx context.Context, network string, address netip.AddrPort, opts *Options) (net.Conn, error) {
+func DialTCPContextWithOptions(ctx context.Context, address netip.AddrPort, opts *Options) (*net.TCPConn, error) {
 	iface := netapi.GetContext(ctx).ConnOptions().BindInterface()
 	if iface != "" {
 		opts.InterfaceName = iface
@@ -109,7 +109,7 @@ func DialContextWithOptions(ctx context.Context, network string, address netip.A
 		store.SetInterface(iface)
 	}
 
-	return d.DialTCP(ctx, network, netip.AddrPort{}, address)
+	return d.DialTCP(ctx, "tcp", netip.AddrPort{}, address)
 }
 
 func getInterface(address netip.AddrPort) (string, error) {

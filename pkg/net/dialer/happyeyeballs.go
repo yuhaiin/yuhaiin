@@ -24,7 +24,7 @@ func DialHappyEyeballsv1(ctx context.Context, addr netapi.Address) (net.Conn, er
 
 func dialHappyEyeballs(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	if !addr.IsFqdn() {
-		return DialContext(ctx, "tcp", addr.(netapi.IPAddress).AddrPort())
+		return DialTCPContext(ctx, addr.(netapi.IPAddress).AddrPort())
 	}
 
 	ips, err := netapi.ResolverIP(ctx, addr.Hostname())
@@ -180,7 +180,7 @@ func DialParallel(ctx context.Context, primaries, fallbacks []netip.AddrPort) (n
 
 // DialSerial connects to a list of addresses in sequence, returning
 // either the first successful connection, or the first error.
-func DialSerial(ctx context.Context, ras []netip.AddrPort) (net.Conn, error) {
+func DialSerial(ctx context.Context, ras []netip.AddrPort) (*net.TCPConn, error) {
 	var firstErr error // The error from the first address is most relevant.
 
 	for i, ra := range ras {
@@ -232,8 +232,8 @@ func PartialDeadlineCtx(ctx context.Context, addrsRemaining int) (context.Contex
 	return dialCtx, cancel, nil
 }
 
-func dialSingle(ctx context.Context, ips netip.AddrPort) (net.Conn, error) {
-	return DialContext(ctx, "tcp", ips)
+func dialSingle(ctx context.Context, ips netip.AddrPort) (*net.TCPConn, error) {
+	return DialTCPContext(ctx, ips)
 }
 
 // PartialDeadline returns the deadline to use for a single address,

@@ -130,7 +130,7 @@ func (h *handler) HandleStream(req *netapi.StreamMeta) {
 		return
 	}
 
-	dconn, err := dialer.DialContext(context.Background(), "tcp", netip.AddrPortFrom(addr, req.Address.Port()))
+	dconn, err := dialer.DialTCPContext(context.Background(), netip.AddrPortFrom(addr, req.Address.Port()))
 	if err != nil {
 		log.Error("dial failed", "err", err)
 		return

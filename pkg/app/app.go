@@ -224,7 +224,7 @@ func updateConfiguration(so *StartOptions, s *config.Setting, logController *log
 			log.Info("update happyeyeballs semaphore", "value", happyeyeballsSemaphore)
 
 			dialer.DefaultHappyEyeballsv2Dialer.Store(dialer.NewDefaultHappyEyeballsv2Dialer(
-				dialer.WithHappyEyeballsSemaphore[net.Conn](semaphore.NewSemaphore(int64(happyeyeballsSemaphore)))))
+				dialer.WithHappyEyeballsSemaphore[*net.TCPConn](semaphore.NewSemaphore(int64(happyeyeballsSemaphore)))))
 		}
 	}
 }

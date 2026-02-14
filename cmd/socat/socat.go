@@ -63,7 +63,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		conn, err = dialer.DialContext(context.TODO(), "tcp", netip.AddrPortFrom(netip.MustParseAddr(host), uint16(port)))
+		conn, err = dialer.DialTCPContext(context.TODO(), netip.AddrPortFrom(netip.MustParseAddr(host), uint16(port)))
 		if err != nil {
 			log.Fatal(err)
 		} else {

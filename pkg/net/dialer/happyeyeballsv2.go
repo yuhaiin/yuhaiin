@@ -44,13 +44,13 @@ func WithHappyEyeballsAvg[T net.Conn](avg *Avg) func(*HappyEyeballsv2Dialer[T]) 
 
 var DefaultHappyEyeballsv2Dialer = atomicx.NewValue(NewDefaultHappyEyeballsv2Dialer())
 
-func NewDefaultHappyEyeballsv2Dialer(opts ...func(*HappyEyeballsv2Dialer[net.Conn])) *HappyEyeballsv2Dialer[net.Conn] {
-	return NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
+func NewDefaultHappyEyeballsv2Dialer(opts ...func(*HappyEyeballsv2Dialer[*net.TCPConn])) *HappyEyeballsv2Dialer[*net.TCPConn] {
+	return NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*net.TCPConn, error) {
 		addr, ok := netip.AddrFromSlice(ip)
 		if !ok {
 			return nil, errors.New("invalid ip")
 		}
-		return DialContext(ctx, "tcp", netip.AddrPortFrom(addr, port))
+		return DialTCPContext(ctx, netip.AddrPortFrom(addr, port))
 	}, opts...)
 }
 
