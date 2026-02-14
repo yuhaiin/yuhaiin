@@ -1,9 +1,10 @@
 package websocket
 
 import (
-	"encoding/json/v2"
 	"errors"
 	"fmt"
+
+	json "github.com/go-json-experiment/json"
 	"io"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -16,8 +17,9 @@ const (
 
 // Codec represents a symmetric pair of functions that implement a codec.
 type Codec struct {
-	Marshal   func(v any) (data []byte, payloadType opcode, err error)
-	Unmarshal func(data []byte, payloadType opcode, v any) (err error)
+	Marshal         func(v any) (data []byte, payloadType opcode, err error)
+	Unmarshal       func(data []byte, payloadType opcode, v any) (err error)
+	UnmarshalReader func(r io.Reader, payloadType opcode, v any) (err error)
 }
 
 // Send sends v marshaled by cd.Marshal as single frame to ws.
@@ -46,6 +48,10 @@ func (cd Codec) Receive(ws *Conn, v any) error {
 			// data before processing the next frame
 			ws.Frame = frame
 			return errors.New("websocket: frame payload size exceeds limit")
+		}
+
+		if cd.UnmarshalReader != nil {
+			return cd.UnmarshalReader(frame, header.opcode, v)
 		}
 
 		data, err := io.ReadAll(frame)
@@ -103,7 +109,7 @@ Trivial usage:
 	data = []byte{0, 1, 2}
 	websocket.Message.Send(ws, data)
 */
-var Message = Codec{marshal, unmarshal}
+var Message = Codec{Marshal: marshal, Unmarshal: unmarshal}
 
 func jsonMarshal(v any) (msg []byte, payloadType opcode, err error) {
 	msg, err = json.Marshal(v)
@@ -112,6 +118,10 @@ func jsonMarshal(v any) (msg []byte, payloadType opcode, err error) {
 
 func jsonUnmarshal(msg []byte, payloadType opcode, v any) (err error) {
 	return json.Unmarshal(msg, v)
+}
+
+func jsonUnmarshalReader(r io.Reader, payloadType opcode, v any) (err error) {
+	return json.UnmarshalRead(r, v)
 }
 
 /*
@@ -133,7 +143,7 @@ Trivial usage:
 	// send JSON type T
 	websocket.JSON.Send(ws, data)
 */
-var JSON = Codec{jsonMarshal, jsonUnmarshal}
+var JSON = Codec{Marshal: jsonMarshal, Unmarshal: jsonUnmarshal, UnmarshalReader: jsonUnmarshalReader}
 
 func protoMarshal(v any) (msg []byte, payloadType opcode, err error) {
 	m, ok := v.(proto.Message)
@@ -154,7 +164,7 @@ func protoUnmarshal(msg []byte, payloadType opcode, v any) (err error) {
 	return proto.Unmarshal(msg, m)
 }
 
-var PROTO = Codec{protoMarshal, protoUnmarshal}
+var PROTO = Codec{Marshal: protoMarshal, Unmarshal: protoUnmarshal}
 
 func protoJsonMarshal(v any) (msg []byte, payloadType opcode, err error) {
 	m, ok := v.(proto.Message)
@@ -175,4 +185,4 @@ func protoJsonUnmarshal(msg []byte, payloadType opcode, v any) (err error) {
 	return protojson.Unmarshal(msg, m)
 }
 
-var PROTOJSON = Codec{protoJsonMarshal, protoJsonUnmarshal}
+var PROTOJSON = Codec{Marshal: protoJsonMarshal, Unmarshal: protoJsonUnmarshal}
