@@ -72,27 +72,29 @@ func NewHttpTermination(c *node.HttpTermination, p netapi.Proxy) (netapi.Proxy, 
 			}
 			w.WriteHeader(http.StatusBadGateway)
 		},
-		Director: func(pr *http.Request) {
-			addr, _ := netapi.ParseAddress("tcp", pr.Host)
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.SetXForwarded()
+
+			addr, _ := netapi.ParseAddress("tcp", pr.Out.Host)
 
 			if v, ok := headers.SearchFqdn(addr); ok {
 				for _, v := range v.GetHeaders() {
-					pr.Header.Set(v.GetKey(), v.GetValue())
+					pr.Out.Header.Set(v.GetKey(), v.GetValue())
 				}
 			}
 
 			var defaultScheme string
-			if strings.HasSuffix(pr.RemoteAddr, "tlsTermination:true") {
+			if strings.HasSuffix(pr.Out.RemoteAddr, "tlsTermination:true") {
 				defaultScheme = "https"
-				pr.RemoteAddr = strings.TrimSuffix(pr.RemoteAddr, "tlsTermination:true")
-				*pr = *pr.WithContext(context.WithValue(pr.Context(), tlsTerminationKey{}, true))
+				pr.Out.RemoteAddr = strings.TrimSuffix(pr.Out.RemoteAddr, "tlsTermination:true")
+				pr.Out = pr.Out.WithContext(context.WithValue(pr.Out.Context(), tlsTerminationKey{}, true))
 			} else {
 				defaultScheme = "http"
 			}
 
-			pr.RequestURI = ""
-			pr.URL.Scheme = defaultScheme
-			pr.URL.Host = pr.Host
+			pr.Out.RequestURI = ""
+			pr.Out.URL.Scheme = defaultScheme
+			pr.Out.URL.Host = pr.Out.Host
 		},
 	}
 

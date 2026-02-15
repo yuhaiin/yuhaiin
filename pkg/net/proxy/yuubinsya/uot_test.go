@@ -64,7 +64,7 @@ func BenchmarkUoT_Throughput(b *testing.B) {
 				b.SetBytes(int64(size))
 				b.ResetTimer()
 
-				for i := 0; i < b.N; i++ {
+				for b.Loop() {
 					if _, err := pc.WriteTo(payload, addr); err != nil {
 						b.Fatal(err)
 					}
@@ -120,7 +120,7 @@ func BenchmarkUoT_Latency(b *testing.B) {
 
 			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				if _, err := pc.WriteTo(payload, addr); err != nil {
 					b.Fatal(err)
 				}
