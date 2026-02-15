@@ -1,11 +1,12 @@
 package websocket
 
 import (
-	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
+	json "github.com/go-json-experiment/json"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -16,12 +17,27 @@ const (
 
 // Codec represents a symmetric pair of functions that implement a codec.
 type Codec struct {
-	Marshal   func(v any) (data []byte, payloadType opcode, err error)
-	Unmarshal func(data []byte, payloadType opcode, v any) (err error)
+	Marshal         func(v any) (data []byte, payloadType opcode, err error)
+	MarshalWriter   func(w io.Writer, v any) (payloadType opcode, err error)
+	Unmarshal       func(data []byte, payloadType opcode, v any) (err error)
+	UnmarshalReader func(r io.Reader, payloadType opcode, v any) (err error)
 }
 
 // Send sends v marshaled by cd.Marshal as single frame to ws.
 func (cd Codec) Send(ws *Conn, v any) (err error) {
+	if cd.MarshalWriter != nil {
+		buf := pool.NewBufferSize(pool.DefaultSize)
+		defer buf.Reset()
+
+		payloadType, err := cd.MarshalWriter(buf, v)
+		if err != nil {
+			return err
+		}
+
+		_, err = ws.WriteMsg(buf.Bytes(), payloadType)
+		return err
+	}
+
 	data, payloadType, err := cd.Marshal(v)
 	if err != nil {
 		return err
@@ -48,6 +64,10 @@ func (cd Codec) Receive(ws *Conn, v any) error {
 			return errors.New("websocket: frame payload size exceeds limit")
 		}
 
+		if cd.UnmarshalReader != nil {
+			return cd.UnmarshalReader(frame, header.opcode, v)
+		}
+
 		data, err := io.ReadAll(frame)
 		if err != nil {
 			return err
@@ -64,6 +84,18 @@ func marshal(v any) (msg []byte, _ opcode, err error) {
 		return data, OpBinary, nil
 	}
 	return nil, 8, ErrNotSupported
+}
+
+func marshalWriter(w io.Writer, v any) (opcode, error) {
+	switch data := v.(type) {
+	case string:
+		_, err := io.WriteString(w, data)
+		return OpText, err
+	case []byte:
+		_, err := w.Write(data)
+		return OpBinary, err
+	}
+	return 8, ErrNotSupported
 }
 
 func unmarshal(msg []byte, _ opcode, v any) (err error) {
@@ -103,15 +135,23 @@ Trivial usage:
 	data = []byte{0, 1, 2}
 	websocket.Message.Send(ws, data)
 */
-var Message = Codec{marshal, unmarshal}
+var Message = Codec{Marshal: marshal, MarshalWriter: marshalWriter, Unmarshal: unmarshal}
 
 func jsonMarshal(v any) (msg []byte, payloadType opcode, err error) {
 	msg, err = json.Marshal(v)
 	return msg, OpText, err
 }
 
+func jsonMarshalWriter(w io.Writer, v any) (opcode, error) {
+	return OpText, json.MarshalWrite(w, v)
+}
+
 func jsonUnmarshal(msg []byte, payloadType opcode, v any) (err error) {
 	return json.Unmarshal(msg, v)
+}
+
+func jsonUnmarshalReader(r io.Reader, payloadType opcode, v any) (err error) {
+	return json.UnmarshalRead(r, v)
 }
 
 /*
@@ -133,7 +173,7 @@ Trivial usage:
 	// send JSON type T
 	websocket.JSON.Send(ws, data)
 */
-var JSON = Codec{jsonMarshal, jsonUnmarshal}
+var JSON = Codec{Marshal: jsonMarshal, MarshalWriter: jsonMarshalWriter, Unmarshal: jsonUnmarshal, UnmarshalReader: jsonUnmarshalReader}
 
 func protoMarshal(v any) (msg []byte, payloadType opcode, err error) {
 	m, ok := v.(proto.Message)
@@ -154,7 +194,7 @@ func protoUnmarshal(msg []byte, payloadType opcode, v any) (err error) {
 	return proto.Unmarshal(msg, m)
 }
 
-var PROTO = Codec{protoMarshal, protoUnmarshal}
+var PROTO = Codec{Marshal: protoMarshal, Unmarshal: protoUnmarshal}
 
 func protoJsonMarshal(v any) (msg []byte, payloadType opcode, err error) {
 	m, ok := v.(proto.Message)
@@ -175,4 +215,4 @@ func protoJsonUnmarshal(msg []byte, payloadType opcode, v any) (err error) {
 	return protojson.Unmarshal(msg, m)
 }
 
-var PROTOJSON = Codec{protoJsonMarshal, protoJsonUnmarshal}
+var PROTOJSON = Codec{Marshal: protoJsonMarshal, Unmarshal: protoJsonUnmarshal}
