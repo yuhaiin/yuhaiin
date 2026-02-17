@@ -33,7 +33,7 @@ require (
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260211124505-bf0e3a6fc213
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.48.0
-	golang.org/x/mobile v0.0.0-20260211191516-dcd2a3258864
+	golang.org/x/mobile v0.0.0-20260217195705-b56b3793a9c4
 	golang.org/x/net v0.50.0
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.41.0
