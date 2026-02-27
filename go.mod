@@ -6,7 +6,7 @@ replace (
 	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
 	github.com/tailscale/wireguard-go => github.com/yuhaiin/wireguard-go v0.0.0-20260111161611-5f49a4d8f525
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
-	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20260201093216-42fe38c4d351
+	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20260201093302-ce35024e2489
 )
 
 require (
@@ -33,8 +33,8 @@ require (
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260211124505-bf0e3a6fc213
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.48.0
-	golang.org/x/mobile v0.0.0-20260211191516-dcd2a3258864
-	golang.org/x/net v0.50.0
+	golang.org/x/mobile v0.0.0-20260217195705-b56b3793a9c4
+	golang.org/x/net v0.51.0
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.41.0
 	golang.org/x/time v0.14.0
