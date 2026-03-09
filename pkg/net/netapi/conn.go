@@ -6,11 +6,6 @@ import (
 )
 
 func IsConnectionTimedout(err error) bool {
-	if se, ok := errors.AsType[syscall.Errno](err); ok {
-		if se == syscall.ETIMEDOUT {
-			return true
-		}
-	}
-
-	return false
+	se, ok := errors.AsType[syscall.Errno](err)
+	return ok && se == syscall.ETIMEDOUT
 }
