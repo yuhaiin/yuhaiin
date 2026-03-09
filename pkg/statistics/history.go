@@ -49,13 +49,11 @@ func (h *FailedHistory) Push(ctx context.Context, err error, protocol statistic.
 
 	store := netapi.GetContext(ctx)
 
-	de := &netapi.DialError{}
-	if errors.As(err, &de) && de.Err != nil {
+	if de, ok := errors.AsType[*netapi.DialError](err); ok && de.Err != nil {
 		err = de.Err
 	}
 
-	ne := &net.OpError{}
-	if errors.As(err, &ne) {
+	if ne, ok := errors.AsType[*net.OpError](err); ok {
 		err = ne.Err
 	}
 

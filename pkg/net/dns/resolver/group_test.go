@@ -33,8 +33,8 @@ func TestGroup(t *testing.T) {
 
 		_, err = c.LookupIP(context.TODO(), "wwwww.google.com")
 
-		var derr *net.DNSError
-		assert.MustEqual(t, true, errors.As(err, &derr))
+		derr, ok := errors.AsType[*net.DNSError](err)
+		assert.MustEqual(t, true, ok)
 		assert.MustEqual(t, dns.RcodeToString[dns.RcodeServerFailure], derr.Err)
 	})
 

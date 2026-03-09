@@ -265,7 +265,7 @@ func (m *Masque) Start() error {
 			n, err := conn.ipconn.ReadPacket(buf)
 			if err != nil {
 				pool.PutBytes(buf)
-				if errors.As(err, new(*connectip.CloseError)) {
+				if _, ok := errors.AsType[*connectip.CloseError](err); ok {
 					log.Error("connection closed while reading from IP connection", "err", err)
 					return
 				}
@@ -291,7 +291,7 @@ func (m *Masque) Start() error {
 			icmp, err := conn.ipconn.WritePacket(buf)
 			pool.PutBytes(buf)
 			if err != nil {
-				if errors.As(err, new(*connectip.CloseError)) {
+				if _, ok := errors.AsType[*connectip.CloseError](err); ok {
 					log.Warn("connection closed while writing to IP connection", "err", err)
 					return err
 				}

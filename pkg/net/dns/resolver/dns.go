@@ -213,10 +213,10 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 }
 
 func mergerError(i4err, i6err error) error {
-	i4e := &net.DNSError{}
-	i6e := &net.DNSError{}
+	_, ok4 := errors.AsType[*net.DNSError](i4err)
+	_, ok6 := errors.AsType[*net.DNSError](i6err)
 
-	if !errors.As(i4err, &i4e) || !errors.As(i6err, &i6e) {
+	if !ok4 || !ok6 {
 		return fmt.Errorf("ipv6: %w, ipv4: %w", i6err, i4err)
 	}
 

@@ -44,8 +44,7 @@ func (s *handler) logLevel(err error) slog.Level {
 	}
 
 	if configuration.IgnoreDnsErrorLog.Load() {
-		var derr *net.DNSError
-		if errors.As(err, &derr) {
+		if _, ok := errors.AsType[*net.DNSError](err); ok {
 			return slog.LevelDebug
 		}
 	}
@@ -55,13 +54,11 @@ func (s *handler) logLevel(err error) slog.Level {
 			return slog.LevelDebug
 		}
 
-		var netOpErr *net.OpError
-		if errors.As(err, &netOpErr) && netOpErr.Timeout() {
+		if netOpErr, ok := errors.AsType[*net.OpError](err); ok && netOpErr.Timeout() {
 			return slog.LevelDebug
 		}
 
-		var syscallErr syscall.Errno
-		if errors.As(err, &syscallErr) {
+		if syscallErr, ok := errors.AsType[syscall.Errno](err); ok {
 			switch syscallErr {
 			case syscall.ECONNREFUSED, syscall.EHOSTUNREACH, syscall.ENETUNREACH:
 				return slog.LevelDebug

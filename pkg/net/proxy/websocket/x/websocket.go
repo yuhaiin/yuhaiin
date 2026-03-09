@@ -64,13 +64,11 @@ type ProtocolError struct {
 func (err *ProtocolError) Error() string { return err.ErrorString }
 
 func (p *ProtocolError) Is(err error) bool {
-	check := &ProtocolError{}
-
-	if !errors.As(err, &check) {
-		return false
+	if check, ok := errors.AsType[*ProtocolError](err); ok {
+		return check.ErrorString == p.ErrorString
 	}
 
-	return check.ErrorString == p.ErrorString
+	return false
 }
 
 func (p *ProtocolError) WrapMsg(str string) error {
