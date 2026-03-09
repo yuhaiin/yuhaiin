@@ -12,6 +12,8 @@
         "workarounds:all"
     ],
     "ignoreDeps": [
-        "gvisor.dev/gvisor"
+        "gvisor.dev/gvisor",
+        "github.com/Asutorufa/tailscale",
+        "github.com/tailscale/wireguard-go"
     ]
 }
