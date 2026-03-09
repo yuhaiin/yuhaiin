@@ -302,14 +302,15 @@ func (c *Conn) DecodeRespHeader() error {
 			data := cmdBuf
 			if len(data) > 0 {
 				lenHost := int(data[0])
-				if len(data) >= 1+lenHost+2 {
-					// We successfully parsed the command buffer without causing connection errors.
-					// A dynamic port state (e.g., host and port) is propagated to the Conn.
-					if lenHost > 0 {
-						c.DynamicHost = string(data[1 : 1+lenHost])
-					}
-					c.DynamicPort = binary.BigEndian.Uint16(data[1+lenHost : 1+lenHost+2])
+				if len(data) < 1+lenHost+2 {
+					return fmt.Errorf("invalid dynamic port command payload: data length %d is insufficient for host length %d", len(data), lenHost)
 				}
+				// We successfully parsed the command buffer without causing connection errors.
+				// A dynamic port state (e.g., host and port) is propagated to the Conn.
+				if lenHost > 0 {
+					c.DynamicHost = string(data[1 : 1+lenHost])
+				}
+				c.DynamicPort = binary.BigEndian.Uint16(data[1+lenHost : 1+lenHost+2])
 			}
 		}
 	}
