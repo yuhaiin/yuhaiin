@@ -44,9 +44,7 @@ type PingProxy interface {
 }
 
 func IsBlockError(err error) bool {
-	netErr := &net.OpError{}
-
-	if errors.As(err, &netErr) {
+	if netErr, ok := errors.AsType[*net.OpError](err); ok {
 		return netErr.Op == "block"
 	}
 

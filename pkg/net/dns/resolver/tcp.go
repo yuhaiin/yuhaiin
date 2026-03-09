@@ -39,8 +39,7 @@ func ParseAddr(netType string, host, defaultPort string) (netapi.Address, error)
 
 	_, _, err := net.SplitHostPort(host)
 	if err != nil {
-		var e *net.AddrError
-		ok := errors.As(err, &e)
+		e, ok := errors.AsType[*net.AddrError](err)
 		if !ok || !strings.Contains(e.Err, "missing port in address") {
 			if ok && strings.Contains(e.Err, "too many colons in address") {
 				if _, er := netip.ParseAddr(host); er != nil {

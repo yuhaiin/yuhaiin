@@ -702,8 +702,7 @@ func GetContextOrNil(ctx context.Context) *Context {
 }
 
 func NewDialError(network string, err error, addr net.Addr) *DialError {
-	ne := &DialError{}
-	if errors.As(err, &ne) {
+	if ne, ok := errors.AsType[*DialError](err); ok {
 		return ne
 	}
 

@@ -196,8 +196,7 @@ func (u *SourceControl) handle() {
 
 func (u *SourceControl) logLevel(err error) slog.Level {
 	if configuration.IgnoreTimeoutErrorLog.Load() {
-		var dnsError *net.DNSError
-		if errors.As(err, &dnsError) {
+		if _, ok := errors.AsType[*net.DNSError](err); ok {
 			return slog.LevelDebug
 		}
 	}

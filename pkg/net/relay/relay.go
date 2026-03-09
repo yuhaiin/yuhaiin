@@ -51,8 +51,8 @@ func isIgnoreError(err error) ([]any, bool) {
 		}
 	}
 
-	netOpErr := &net.OpError{}
-	if !errors.As(err, &netOpErr) {
+	netOpErr, ok := errors.AsType[*net.OpError](err)
+	if !ok {
 		return nil, false
 	}
 
@@ -65,10 +65,9 @@ func isIgnoreError(err error) ([]any, bool) {
 
 	args := []any{}
 
-	var se syscall.Errno
 	// the Is [syscall.Errno.Is] function of syscall.Errno only check a little error code
 	// so we check it by ourselves
-	if errors.As(netOpErr.Err, &se) {
+	if se, ok := errors.AsType[syscall.Errno](netOpErr.Err); ok {
 		if ignoreSyscallErrno[se] {
 			return nil, true
 		}
