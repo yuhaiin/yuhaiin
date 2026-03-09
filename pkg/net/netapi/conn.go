@@ -7,7 +7,7 @@ import (
 
 func IsConnectionTimedout(err error) bool {
 	if se, ok := errors.AsType[syscall.Errno](err); ok {
-		if se.Is(syscall.ETIMEDOUT) {
+		if se == syscall.ETIMEDOUT {
 			return true
 		}
 	}

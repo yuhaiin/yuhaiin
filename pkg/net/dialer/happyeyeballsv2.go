@@ -116,11 +116,13 @@ func Interleave[S ~[]T, T any](a, b S) S {
 }
 
 func MergeDnsError(err1, err2 error) error {
-	if _, ok := errors.AsType[*net.DNSError](err1); !ok {
+	de1, ok1 := errors.AsType[*net.DNSError](err1)
+	if !ok1 {
 		return errors.Join(err1, err2)
 	}
 
-	if _, ok := errors.AsType[*net.DNSError](err2); !ok {
+	de2, ok2 := errors.AsType[*net.DNSError](err2)
+	if !ok2 {
 		return errors.Join(err1, err2)
 	}
 
