@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  GOEXPERIMENT: jsonv2,greenteagc
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -17,6 +20,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
+      - name: go env
+        run: go env
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
@@ -30,6 +35,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
+      - name: go env
+        run: go env
       - name: go fix check
         run: |
           go fix ./...
