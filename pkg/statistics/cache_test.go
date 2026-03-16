@@ -40,7 +40,7 @@ func BenchmarkCache(b *testing.B) {
 	})
 	defer cc.Close()
 
-	for i := range b.N {
+	for i := 0; b.Loop(); i++ {
 		cc.AddDownload(uint64(i))
 	}
 }

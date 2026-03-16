@@ -215,8 +215,8 @@ func BenchmarkDiskTrie(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			dt.Insert(newFqdnReader(domains[i]), "BenchmarkValue")
+		for i := 0; b.Loop(); i++ {
+			dt.Insert(newFqdnReader(domains[i%len(domains)]), "BenchmarkValue")
 		}
 	})
 
@@ -254,7 +254,7 @@ func BenchmarkDiskTrie(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			dt.Search(newFqdnReader(randomDomainParts(5)))
 		}
 	})

@@ -366,7 +366,7 @@ func BenchmarkPebble(b *testing.B) {
 			}
 		}
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			err := c.Range(func(key []byte, value []byte) bool {
 				return true
 			})
