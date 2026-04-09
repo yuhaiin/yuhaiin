@@ -250,7 +250,7 @@ func BenchmarkDiskPebbleTrie(b *testing.B) {
 		dt, dir := setupPebbleTestDB(b)
 		defer cleanupPebbleTestDB(dt, dir)
 
-		for i := 0; i < 5000; i++ {
+		for range 5000 {
 			dt.Insert(newFqdnReader(randomDomainParts(4)), "Val")
 		}
 
