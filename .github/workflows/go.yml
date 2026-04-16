@@ -152,7 +152,7 @@ jobs:
           path: artifacts
 
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           body_path: release_notes.txt
           name: ${{ github.ref_type == 'tag' && github.ref_name || 'draft release' }}
