@@ -20,7 +20,7 @@ require (
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/miekg/dns v1.1.72
 	github.com/oschwald/maxminddb-golang/v2 v2.1.1
-	github.com/pires/go-proxyproto v0.11.0
+	github.com/pires/go-proxyproto v0.12.0
 	github.com/prometheus-community/pro-bing v0.8.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/quic-go/connect-ip-go v0.1.0
@@ -32,13 +32,13 @@ require (
 	github.com/xtls/reality v0.0.0-20260322125925-9234c772ba8f
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260309030918-274eade6a66d
 	go.etcd.io/bbolt v1.4.3
-	golang.org/x/crypto v0.49.0
-	golang.org/x/mobile v0.0.0-20260312152759-81488f6aeb60
-	golang.org/x/net v0.52.0
+	golang.org/x/crypto v0.50.0
+	golang.org/x/mobile v0.0.0-20260410095206-2cfb76559b7b
+	golang.org/x/net v0.53.0
 	golang.org/x/sync v0.20.0
-	golang.org/x/sys v0.42.0
+	golang.org/x/sys v0.43.0
 	golang.org/x/time v0.15.0
-	golang.zx2c4.com/wireguard/windows v0.5.4-0.20260330212746-7c4e10cd0167
+	golang.zx2c4.com/wireguard/windows v0.6.1
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
 	gvisor.dev/gvisor v0.0.0-20250529183007-2a7b5c7dece9
@@ -130,11 +130,11 @@ require (
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
-	golang.org/x/mod v0.34.0 // indirect
+	golang.org/x/mod v0.35.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
-	golang.org/x/term v0.41.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
-	golang.org/x/tools v0.43.0 // indirect
+	golang.org/x/term v0.42.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/tools v0.44.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect
 )
