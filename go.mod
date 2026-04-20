@@ -38,7 +38,7 @@ require (
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.43.0
 	golang.org/x/time v0.15.0
-	golang.zx2c4.com/wireguard/windows v0.6.1
+	golang.zx2c4.com/wireguard/windows v1.0.1
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
 	gvisor.dev/gvisor v0.0.0-20250529183007-2a7b5c7dece9
