@@ -19,7 +19,7 @@ require (
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.9
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/miekg/dns v1.1.72
-	github.com/oschwald/maxminddb-golang/v2 v2.1.1
+	github.com/oschwald/maxminddb-golang/v2 v2.2.0
 	github.com/pires/go-proxyproto v0.12.0
 	github.com/prometheus-community/pro-bing v0.8.0
 	github.com/prometheus/client_golang v1.23.2
