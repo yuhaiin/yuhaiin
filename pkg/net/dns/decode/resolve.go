@@ -270,6 +270,7 @@ _start:
 
 func (r *resolver) getName(i int) (name string, size int) {
 	s := strings.Builder{}
+	s.Grow(255)
 	for {
 		if r.aswer[i] == 0 {
 			i++ // lastOfDomain: one byte 0
