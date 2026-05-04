@@ -1,6 +1,6 @@
 module github.com/Asutorufa/yuhaiin
 
-go 1.26
+go 1.24
 
 replace (
 	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca

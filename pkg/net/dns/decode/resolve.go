@@ -144,7 +144,10 @@ func (r *resolver) header() (err error) {
 	r.i = 12
 
 	var size int
-	r.h.name, size = r.getName(r.i)
+	r.h.name, size, err = r.getName(r.i, 0)
+	if err != nil {
+		return err
+	}
 	r.i += size
 
 	// fmt.Println(r.h)
@@ -164,7 +167,10 @@ _start:
 		return
 	}
 
-	_, size := r.getName(r.i)
+	_, size, err := r.getName(r.i, 0)
+	if err != nil {
+		return nil, err
+	}
 	r.i += size
 
 	tYPE := reqType{r.aswer[r.i], r.aswer[r.i+1]}
@@ -196,7 +202,10 @@ _start:
 		r.i += 4
 		keyTag := r.aswer[r.i : r.i+2]
 		r.i += 2
-		signName, size := r.getName(r.i)
+		signName, size, err := r.getName(r.i, 0)
+		if err != nil {
+			return nil, err
+		}
 		r.i += size
 		signature := r.aswer[r.i : r.i+sum-size-18]
 		r.i += sum - size - 18
@@ -216,7 +225,7 @@ _start:
 	if i < 0 {
 		return
 	}
-	_, size := r.getName(r.i)
+	_, size, _ := r.getName(r.i, 0)
 	r.i += size
 	r.i += 2 // type
 	r.i += 2 // class
@@ -268,10 +277,18 @@ _start:
 	goto _start
 }
 
-func (r *resolver) getName(i int) (name string, size int) {
+func (r *resolver) getName(i int, depth int) (name string, size int, err error) {
+	if depth > 16 {
+		return "", 0, errors.New("too many recursion")
+	}
+
 	s := strings.Builder{}
 	s.Grow(255)
 	for {
+		if i >= len(r.aswer) {
+			return "", 0, errors.New("out of range")
+		}
+
 		if r.aswer[i] == 0 {
 			i++ // lastOfDomain: one byte 0
 			size++
@@ -279,22 +296,31 @@ func (r *resolver) getName(i int) (name string, size int) {
 		}
 
 		if r.aswer[i]&128 == 128 && r.aswer[i]&64 == 64 {
+			if i+1 >= len(r.aswer) {
+				return "", 0, errors.New("out of range")
+			}
 			l := r.aswer[i+1]
 			// fmt.Println(l)
 			i += 2
 			size += 2
-			tmp, _ := r.getName(int(l))
+			tmp, _, err := r.getName(int(l), depth+1)
+			if err != nil {
+				return "", 0, err
+			}
 			s.WriteString(tmp)
 			break
 		}
 
 		sectionLength := int(r.aswer[i]) + 1
+		if i+sectionLength > len(r.aswer) {
+			return "", 0, errors.New("out of range")
+		}
 		s.Write(r.aswer[i+1 : i+sectionLength])
 		s.WriteString(".")
 		size += sectionLength
 		i += sectionLength
 	}
-	return s.String(), size
+	return s.String(), size, nil
 }
 
 /*
@@ -335,7 +361,10 @@ func resolveHeader(req []byte, answer []byte) (header respHeader, answerSection 
 
 	c := answer[12:]
 
-	header.name, _, c = getName(c, answer)
+	header.name, _, c, err = getName(c, answer, 0)
+	if err != nil {
+		return header, nil, err
+	}
 
 	c = c[2:] // qType
 	c = c[2:] // qClass
@@ -349,7 +378,10 @@ type answer interface {
 
 func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, err error) {
 	for i := anCount; i > 0; i-- {
-		_, _, c = getName(c, b)
+		_, _, c, err = getName(c, b, 0)
+		if err != nil {
+			return nil, nil, err
+		}
 
 		tYPE := reqType{c[0], c[1]}
 		c = c[2:] // type
@@ -380,7 +412,10 @@ func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, 
 			c = c[4:]
 			keyTag := c[:2]
 			c = c[2:]
-			signName, size, others := getName(c, b)
+			signName, size, others, err := getName(c, b, 0)
+			if err != nil {
+				return nil, nil, err
+			}
 			c = others
 			signature := c[:sum-size-18]
 			c = c[sum-size-18:]
@@ -396,7 +431,7 @@ func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, 
 
 func resolveAuthoritative(c []byte, nsCount int, b []byte) (left []byte) {
 	for i := nsCount; i > 0; i-- {
-		_, _, c = getName(c, b)
+		_, _, c, _ = getName(c, b, 0)
 		c = c[2:] // type
 		c = c[2:] // class
 		c = c[4:] // ttl
@@ -407,29 +442,47 @@ func resolveAuthoritative(c []byte, nsCount int, b []byte) (left []byte) {
 	return c
 }
 
-func getName(c []byte, all []byte) (name string, size int, x []byte) {
+func getName(c []byte, all []byte, depth int) (name string, size int, x []byte, err error) {
+	if depth > 16 {
+		return "", 0, nil, errors.New("too many recursion")
+	}
 	s := strings.Builder{}
 	for {
+		if len(c) == 0 {
+			return "", 0, nil, errors.New("out of range")
+		}
 		if c[0] == 0 {
 			c = c[1:] // lastOfDomain: one byte 0
 			size++
 			break
 		}
 		if c[0]&128 == 128 && c[0]&64 == 64 {
+			if len(c) < 2 {
+				return "", 0, nil, errors.New("out of range")
+			}
 			l := c[1]
 			c = c[2:]
 			size += 2
-			tmp, _, _ := getName(all[l:], all)
+			if int(l) >= len(all) {
+				return "", 0, nil, errors.New("out of range")
+			}
+			tmp, _, _, err := getName(all[l:], all, depth+1)
+			if err != nil {
+				return "", 0, nil, err
+			}
 			s.WriteString(tmp)
 			break
 		}
 
+		if len(c) < int(c[0])+1 {
+			return "", 0, nil, errors.New("out of range")
+		}
 		s.Write(c[1 : int(c[0])+1])
 		s.WriteString(".")
 		size += int(c[0]) + 1
 		c = c[int(c[0])+1:]
 	}
-	return s.String(), size, c
+	return s.String(), size, c, nil
 }
 
 type reader struct {
