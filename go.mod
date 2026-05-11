@@ -16,7 +16,7 @@ require (
 	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/nftables v0.3.0
-	github.com/grafana/pyroscope-go/godeltaprof v0.1.9
+	github.com/grafana/pyroscope-go/godeltaprof v0.1.10
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/miekg/dns v1.1.72
 	github.com/oschwald/maxminddb-golang/v2 v2.2.0
@@ -24,7 +24,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.8.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/quic-go/connect-ip-go v0.1.0
-	github.com/quic-go/quic-go v0.59.0
+	github.com/quic-go/quic-go v0.59.1
 	github.com/refraction-networking/utls v1.8.2
 	github.com/rhnvrm/simples3 v0.11.1
 	github.com/tailscale/wireguard-go v0.0.0-20251121194102-c6fd943bb437
@@ -32,11 +32,11 @@ require (
 	github.com/xtls/reality v0.0.0-20260322125925-9234c772ba8f
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260309030918-274eade6a66d
 	go.etcd.io/bbolt v1.4.3
-	golang.org/x/crypto v0.50.0
-	golang.org/x/mobile v0.0.0-20260410095206-2cfb76559b7b
-	golang.org/x/net v0.53.0
+	golang.org/x/crypto v0.51.0
+	golang.org/x/mobile v0.0.0-20260508232728-bebd421c7fa8
+	golang.org/x/net v0.54.0
 	golang.org/x/sync v0.20.0
-	golang.org/x/sys v0.43.0
+	golang.org/x/sys v0.44.0
 	golang.org/x/time v0.15.0
 	golang.zx2c4.com/wireguard/windows v1.0.1
 	google.golang.org/grpc v1.81.0
@@ -130,11 +130,11 @@ require (
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
-	golang.org/x/mod v0.35.0 // indirect
+	golang.org/x/mod v0.36.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/term v0.42.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
-	golang.org/x/tools v0.44.0 // indirect
+	golang.org/x/term v0.43.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/tools v0.45.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 )
