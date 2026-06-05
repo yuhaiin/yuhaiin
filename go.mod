@@ -12,11 +12,11 @@ replace (
 require (
 	github.com/cilium/ebpf v0.21.0
 	github.com/cloudflare/circl v1.6.3
-	github.com/cockroachdb/pebble/v2 v2.1.5
+	github.com/cockroachdb/pebble/v2 v2.1.6
 	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/nftables v0.3.0
-	github.com/grafana/pyroscope-go/godeltaprof v0.1.10
+	github.com/grafana/pyroscope-go/godeltaprof v0.1.11
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/miekg/dns v1.1.72
 	github.com/oschwald/maxminddb-golang/v2 v2.3.0
@@ -33,7 +33,7 @@ require (
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260513165918-5d7b561d6409
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.52.0
-	golang.org/x/mobile v0.0.0-20260520154334-0e4426e1883d
+	golang.org/x/mobile v0.0.0-20260602190626-68735029466e
 	golang.org/x/net v0.55.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.45.0
@@ -97,7 +97,7 @@ require (
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/jsimonetti/rtnetlink v1.4.0 // indirect
 	github.com/juju/ratelimit v1.0.2 // indirect
-	github.com/klauspost/compress v1.18.2 // indirect
+	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
