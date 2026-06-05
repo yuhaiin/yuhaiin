@@ -23,7 +23,7 @@ func main() {
 				NetworkSplit: node.NetworkSplit_builder{
 					Tcp: node.Protocol_builder{
 						Simple: node.Simple_builder{
-							Host: proto.String("127.0.0.1"),
+							Host: new("127.0.0.1"),
 							Port: proto.Int32(1080),
 						}.Build(),
 					}.Build(),

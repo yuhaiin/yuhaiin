@@ -58,7 +58,7 @@ func (l *Subscribe) save(ls []*node.Link) {
 	links := []*node.Link{}
 
 	for _, z := range ls {
-		pp, err := parser.ParseUrl([]byte(z.GetUrl()), node.Link_builder{Name: proto.String(z.GetName())}.Build())
+		pp, err := parser.ParseUrl([]byte(z.GetUrl()), node.Link_builder{Name: new(z.GetName())}.Build())
 		if err == nil {
 			pp.SetOrigin(node.Origin_manual)
 			nodes = append(nodes, pp) // link is a node
@@ -238,9 +238,9 @@ func (n *Subscribe) savePublish(ctx context.Context, link *node.Link) error {
 		sbc := api.NewSubscribeClient(c)
 
 		resp, err := sbc.Publish(ctx, api.PublishRequest_builder{
-			Name:     proto.String(yu.GetRemote().GetPublish().GetName()),
-			Path:     proto.String(yu.GetRemote().GetPublish().GetPath()),
-			Password: proto.String(yu.GetRemote().GetPublish().GetPassword()),
+			Name:     new(yu.GetRemote().GetPublish().GetName()),
+			Path:     new(yu.GetRemote().GetPublish().GetPath()),
+			Password: new(yu.GetRemote().GetPublish().GetPassword()),
 		}.Build())
 		if err != nil {
 			return fmt.Errorf("publish failed: %w", err)

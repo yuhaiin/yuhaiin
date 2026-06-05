@@ -15,31 +15,31 @@ import (
 func fakeDB(opt *Opts, path string) chore.DB {
 	settings := config.Setting_builder{
 		Server: config.InboundConfig_builder{
-			HijackDns: proto.Bool(true),
+			HijackDns: new(true),
 			// HijackDnsFakeip: opt.DNS.Fakedns,
 			Sniff: config.Sniff_builder{
-				Enabled: proto.Bool(true),
+				Enabled: new(true),
 			}.Build(),
 			Inbounds: map[string]*config.Inbound{
 				"mix": config.Inbound_builder{
-					Name:    proto.String("mix"),
-					Enabled: proto.Bool(false),
+					Name:    new("mix"),
+					Enabled: new(false),
 					Tcpudp: config.Tcpudp_builder{
-						Host:    proto.String("127.0.0.1:0"),
+						Host:    new("127.0.0.1:0"),
 						Control: config.TcpUdpControl_tcp_udp_control_all.Enum(),
 					}.Build(),
 					Mix: &config.Mixed{},
 				}.Build(),
 				"tun": config.Inbound_builder{
-					Name:    proto.String("tun"),
-					Enabled: proto.Bool(true),
+					Name:    new("tun"),
+					Enabled: new(true),
 					Empty:   &config.Empty{},
 					Tun: config.Tun_builder{
-						Name:          proto.String(fmt.Sprintf("fd://%d", opt.TUN.FD)),
-						Mtu:           proto.Int32(opt.TUN.MTU),
-						Portal:        proto.String(opt.TUN.Portal),
-						PortalV6:      proto.String(opt.TUN.PortalV6),
-						SkipMulticast: proto.Bool(true),
+						Name:          new(fmt.Sprintf("fd://%d", opt.TUN.FD)),
+						Mtu:           new(opt.TUN.MTU),
+						Portal:        new(opt.TUN.Portal),
+						PortalV6:      new(opt.TUN.PortalV6),
+						SkipMulticast: new(true),
 						Route:         &config.Route{},
 						Driver:        config.Tun_system_gvisor.Enum(),
 					}.Build(),

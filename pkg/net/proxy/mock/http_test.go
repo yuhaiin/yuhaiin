@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestMock(t *testing.T) {
@@ -52,8 +51,8 @@ func TestMock(t *testing.T) {
 	assert.NoError(t, err)
 
 	s, err := fixed.NewClient(node.Fixed_builder{
-		Host: proto.String(host),
-		Port: proto.Int32(int32(port)),
+		Host: new(host),
+		Port: new(int32(port)),
 	}.Build(), nil)
 	assert.NoError(t, err)
 	defer s.Close()

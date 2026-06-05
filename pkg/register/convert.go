@@ -18,7 +18,7 @@ func ConvertTransport(x *config.Transport) (*node.Protocol, error) {
 	case config.Transport_TlsAuto_case:
 		pro = node.Protocol_builder{
 			Tls: node.TlsConfig_builder{
-				Enable:      proto.Bool(true),
+				Enable:      new(true),
 				NextProtos:  x.GetTlsAuto().GetNextProtos(),
 				ServerNames: replacePatternServernames(x.GetTlsAuto().GetServernames()),
 				CaCert:      [][]byte{x.GetTlsAuto().GetCaCert()},
@@ -45,7 +45,7 @@ func ConvertTransport(x *config.Transport) (*node.Protocol, error) {
 			Reality: node.Reality_builder{
 				ServerName: &servername,
 				ShortId:    &shortid,
-				PublicKey:  proto.String(x.GetReality().GetPublicKey()),
+				PublicKey:  new(x.GetReality().GetPublicKey()),
 			}.Build(),
 		}.Build()
 
@@ -66,8 +66,8 @@ func ConvertTransport(x *config.Transport) (*node.Protocol, error) {
 	case config.Transport_Websocket_case:
 		pro = node.Protocol_builder{
 			Websocket: node.Websocket_builder{
-				Host: proto.String(rand.Text()),
-				Path: proto.String(rand.Text()),
+				Host: new(rand.Text()),
+				Path: new(rand.Text()),
 			}.Build(),
 		}.Build()
 
@@ -111,24 +111,24 @@ func ConvertProtocol(x *config.Inbound) (*node.Protocol, error) {
 	case config.Inbound_Http_case:
 		pro = node.Protocol_builder{
 			Http: node.Http_builder{
-				User:     proto.String(x.GetHttp().GetUsername()),
-				Password: proto.String(x.GetHttp().GetPassword()),
+				User:     new(x.GetHttp().GetUsername()),
+				Password: new(x.GetHttp().GetPassword()),
 			}.Build(),
 		}.Build()
 
 	case config.Inbound_Socks5_case:
 		pro = node.Protocol_builder{
 			Socks5: node.Socks5_builder{
-				User:     proto.String(x.GetSocks5().GetUsername()),
-				Password: proto.String(x.GetSocks5().GetPassword()),
+				User:     new(x.GetSocks5().GetUsername()),
+				Password: new(x.GetSocks5().GetPassword()),
 			}.Build(),
 		}.Build()
 
 	case config.Inbound_Mix_case:
 		pro = node.Protocol_builder{
 			Socks5: node.Socks5_builder{
-				User:     proto.String(x.GetMix().GetUsername()),
-				Password: proto.String(x.GetMix().GetPassword()),
+				User:     new(x.GetMix().GetUsername()),
+				Password: new(x.GetMix().GetPassword()),
 			}.Build(),
 		}.Build()
 
@@ -140,9 +140,9 @@ func ConvertProtocol(x *config.Inbound) (*node.Protocol, error) {
 	case config.Inbound_Yuubinsya_case:
 		pro = node.Protocol_builder{
 			Yuubinsya: node.Yuubinsya_builder{
-				Password:      proto.String(x.GetYuubinsya().GetPassword()),
-				UdpOverStream: proto.Bool(true),
-				UdpCoalesce:   proto.Bool(x.GetYuubinsya().GetUdpCoalesce()),
+				Password:      new(x.GetYuubinsya().GetPassword()),
+				UdpOverStream: new(true),
+				UdpCoalesce:   new(x.GetYuubinsya().GetUdpCoalesce()),
 			}.Build(),
 		}.Build()
 
@@ -180,15 +180,15 @@ func ConvertNetwork(x *config.Inbound) (*node.Protocol, error) {
 
 		pro = node.Protocol_builder{
 			Simple: node.Simple_builder{
-				Host: proto.String(host),
-				Port: proto.Int32(int32(port)),
+				Host: new(host),
+				Port: new(int32(port)),
 			}.Build(),
 		}.Build()
 
 	case config.Inbound_Quic_case:
 		pro = node.Protocol_builder{
 			Quic: node.Quic_builder{
-				Host: proto.String(x.GetQuic().GetHost()),
+				Host: new(x.GetQuic().GetHost()),
 				// same as tls, we can't get the ca cert so
 				// TODO tls auto for quic
 				Tls: &node.TlsConfig{},

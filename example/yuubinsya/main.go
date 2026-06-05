@@ -15,7 +15,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"google.golang.org/protobuf/proto"
 
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
@@ -49,9 +48,9 @@ func main() {
 	fmt.Println("password:", password, "host:", host)
 
 	cfg := config.Inbound_builder{
-		Enabled: proto.Bool(true),
+		Enabled: new(true),
 		Tcpudp: config.Tcpudp_builder{
-			Host:    proto.String(host),
+			Host:    new(host),
 			Control: config.TcpUdpControl_tcp_udp_control_all.Enum(),
 		}.Build(),
 		Transport: []*config.Transport{
@@ -63,8 +62,8 @@ func main() {
 			}.Build(),
 		},
 		Yuubinsya: config.Yuubinsya_builder{
-			Password:    proto.String(password),
-			UdpCoalesce: proto.Bool(false),
+			Password:    new(password),
+			UdpCoalesce: new(false),
 		}.Build(),
 	}.Build()
 	lis, err := register.Listen(cfg, handler)

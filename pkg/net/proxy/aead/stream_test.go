@@ -12,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestAead(t *testing.T) {
@@ -20,7 +19,7 @@ func TestAead(t *testing.T) {
 	assert.NoError(t, err)
 
 	s, err := NewServer(config.Aead_builder{
-		Password:     proto.String("testsfsdfsf"),
+		Password:     new("testsfsdfsf"),
 		CryptoMethod: node.AeadCryptoMethod_XChacha20Poly1305.Enum(),
 	}.Build(), netapi.NewListener(lis, nil))
 	assert.NoError(t, err)
@@ -47,14 +46,14 @@ func TestAead(t *testing.T) {
 	assert.NoError(t, err)
 
 	p, err := fixed.NewClient(node.Fixed_builder{
-		Host: proto.String(addr.Hostname()),
-		Port: proto.Int32(int32(addr.Port())),
+		Host: new(addr.Hostname()),
+		Port: new(int32(addr.Port())),
 	}.Build(), nil)
 	assert.NoError(t, err)
 	defer p.Close()
 
 	c, err := NewClient(node.Aead_builder{
-		Password:     proto.String("testsfsdfsf"),
+		Password:     new("testsfsdfsf"),
 		CryptoMethod: node.AeadCryptoMethod_XChacha20Poly1305.Enum(),
 	}.Build(), p)
 	assert.NoError(t, err)

@@ -20,7 +20,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"golang.org/x/crypto/blake2b"
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -104,13 +103,13 @@ func (b *Backup) Get(context.Context, *emptypb.Empty) (*config.BackupOption, err
 
 		if cc.GetS3() == nil {
 			cc.SetS3(config.S3_builder{
-				Enabled:      proto.Bool(false),
-				AccessKey:    proto.String(""),
-				SecretKey:    proto.String(""),
-				Bucket:       proto.String(""),
-				EndpointUrl:  proto.String(""),
-				Region:       proto.String(""),
-				UsePathStyle: proto.Bool(false),
+				Enabled:      new(false),
+				AccessKey:    new(""),
+				SecretKey:    new(""),
+				Bucket:       new(""),
+				EndpointUrl:  new(""),
+				Region:       new(""),
+				UsePathStyle: new(false),
 			}.Build())
 		}
 
@@ -245,8 +244,8 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 	var rules []*config.Rulev2
 	for index, name := range ruleNames.GetNames() {
 		rule, err := b.instance.Rules.Get(ctx, api.RuleIndex_builder{
-			Index: proto.Uint32(uint32(index)),
-			Name:  proto.String(name),
+			Index: new(uint32(index)),
+			Name:  new(name),
 		}.Build())
 		if err != nil {
 			return nil, err
@@ -285,15 +284,15 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		}.Build(),
 		Dns: config.DnsConfigV2_builder{
 			Server: config.Server_builder{
-				Host: proto.String(dnsServer.GetValue()),
+				Host: new(dnsServer.GetValue()),
 			}.Build(),
 			Fakedns:  fakedns,
 			Hosts:    hosts.GetHosts(),
 			Resolver: dnss,
 		}.Build(),
 		Inbounds: config.InboundConfig_builder{
-			HijackDns:       proto.Bool(inbounds.GetHijackDns()),
-			HijackDnsFakeip: proto.Bool(inbounds.GetHijackDnsFakeip()),
+			HijackDns:       new(inbounds.GetHijackDns()),
+			HijackDnsFakeip: new(inbounds.GetHijackDnsFakeip()),
 			Sniff:           inbounds.GetSniff(),
 			Inbounds:        inboundsMap,
 		}.Build(),
@@ -458,7 +457,7 @@ func (b *Backup) restoreDns(ctx context.Context, content *backup.BackupContent) 
 	if dns.GetResolver() != nil {
 		for name, resolver := range dns.GetResolver() {
 			_, err := b.instance.Resolver.Save(ctx, api.SaveResolver_builder{
-				Name:     proto.String(name),
+				Name:     new(name),
 				Resolver: resolver,
 			}.Build())
 			if err != nil {
@@ -479,8 +478,8 @@ func (b *Backup) restoreInbounds(ctx context.Context, content *backup.BackupCont
 
 	if inbounds.HasHijackDns() || inbounds.HasHijackDnsFakeip() || inbounds.HasSniff() {
 		_, err := b.instance.Inbound.Apply(ctx, api.InboundsResponse_builder{
-			HijackDns:       proto.Bool(inbounds.GetHijackDns()),
-			HijackDnsFakeip: proto.Bool(inbounds.GetHijackDnsFakeip()),
+			HijackDns:       new(inbounds.GetHijackDns()),
+			HijackDnsFakeip: new(inbounds.GetHijackDnsFakeip()),
 			Sniff:           inbounds.GetSniff(),
 		}.Build())
 		if err != nil {
@@ -549,9 +548,9 @@ func (b *Backup) restoreTags(ctx context.Context, content *backup.BackupContent)
 			hash = tag.GetHash()[0]
 		}
 		_, err := b.instance.Tag.Save(ctx, api.SaveTagReq_builder{
-			Tag:  proto.String(name),
+			Tag:  new(name),
 			Type: tag.GetType().Enum(),
-			Hash: proto.String(hash),
+			Hash: new(hash),
 		}.Build())
 		if err != nil {
 			return err

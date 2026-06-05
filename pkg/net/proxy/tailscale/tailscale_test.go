@@ -19,7 +19,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/miekg/dns"
-	"google.golang.org/protobuf/proto"
 	"tailscale.com/version"
 )
 
@@ -30,8 +29,8 @@ func TestTailscale(t *testing.T) {
 	assert.NoError(t, err)
 
 	tc, err := New(node.Tailscale_builder{
-		Hostname: proto.String("test"),
-		AuthKey:  proto.String(strings.TrimSpace(string(key))),
+		Hostname: new("test"),
+		AuthKey:  new(strings.TrimSpace(string(key))),
 	}.Build(), nil)
 	assert.NoError(t, err)
 	defer tc.Close()

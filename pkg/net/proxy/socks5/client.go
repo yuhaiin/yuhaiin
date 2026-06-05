@@ -16,7 +16,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"google.golang.org/protobuf/proto"
 )
 
 func Dial(host, port, user, password string) netapi.Proxy {
@@ -25,17 +24,17 @@ func Dial(host, port, user, password string) netapi.Proxy {
 		return netapi.NewErrProxy(err)
 	}
 	simple, err := fixed.NewClient(node.Fixed_builder{
-		Host: proto.String(addr.Hostname()),
-		Port: proto.Int32(int32(addr.Port())),
+		Host: new(addr.Hostname()),
+		Port: new(int32(addr.Port())),
 	}.Build(), nil)
 	if err != nil {
 		return netapi.NewErrProxy(err)
 	}
 
 	p, _ := NewClient(node.Socks5_builder{
-		Hostname: proto.String(host),
-		User:     proto.String(user),
-		Password: proto.String(password),
+		Hostname: new(host),
+		User:     new(user),
+		Password: new(password),
 	}.Build(), simple)
 	return p
 }

@@ -19,7 +19,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"google.golang.org/protobuf/proto"
 )
 
 var cert = `-----BEGIN CERTIFICATE-----
@@ -58,8 +57,8 @@ func main() {
 
 			node.Protocol_builder{
 				Tls: node.TlsConfig_builder{
-					Enable:             proto.Bool(true),
-					InsecureSkipVerify: proto.Bool(true),
+					Enable:             new(true),
+					InsecureSkipVerify: new(true),
 					ServerNames:        []string{"www.youtube.com"},
 				}.Build(),
 			}.Build(),
@@ -70,12 +69,12 @@ func main() {
 						"*.youtube.com": node.HttpTerminationHttpHeaders_builder{
 							Headers: []*node.HttpHeader{
 								node.HttpHeader_builder{
-									Key:   proto.String("User-Agent"),
-									Value: proto.String("curl/8.13.0"),
+									Key:   new("User-Agent"),
+									Value: new("curl/8.13.0"),
 								}.Build(),
 								node.HttpHeader_builder{
-									Key:   proto.String("Accept"),
-									Value: proto.String("*/*"),
+									Key:   new("Accept"),
+									Value: new("*/*"),
 								}.Build(),
 							},
 						}.Build(),

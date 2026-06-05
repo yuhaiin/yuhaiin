@@ -5,12 +5,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 var zeroTuple = Tuple{}
+var mappingTimeout = func() time.Duration {
+	return configuration.UDPMappingTimeout.Load()
+}
 
 type Tuple struct {
 	SourceAddr      tcpip.Address
@@ -140,19 +144,18 @@ func (t *table) newConn(tuple Tuple) uint16 {
 
 func (t *table) ClearExpired() { t.lru.ClearExpired() }
 
-var defaultExpire = 5 * time.Minute
-
 func newTable() *tableSplit {
+	expire := mappingTimeout()
 	t := &tableSplit{
-		v6: newTableBase(defaultExpire),
-		v4: newTableBase(defaultExpire),
+		v6: newTableBase(expire),
+		v4: newTableBase(expire),
 	}
 
-	t.timer = time.AfterFunc(defaultExpire, func() {
+	t.timer = time.AfterFunc(expire, func() {
 		t.v6.ClearExpired()
 		t.v4.ClearExpired()
 
-		t.timer.Reset(defaultExpire)
+		t.timer.Reset(mappingTimeout())
 	})
 
 	return t

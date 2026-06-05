@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -236,9 +235,9 @@ func (r *Rules) Config(context.Context, *emptypb.Empty) (*config.Configv2, error
 	var resp *config.Configv2
 	err := r.db.View(func(ss *config.Setting) error {
 		resp = config.Configv2_builder{
-			DirectResolver: proto.String(ss.GetBypass().GetDirectResolver()),
-			ProxyResolver:  proto.String(ss.GetBypass().GetProxyResolver()),
-			ResolveLocally: proto.Bool(ss.GetBypass().GetResolveLocally()),
+			DirectResolver: new(ss.GetBypass().GetDirectResolver()),
+			ProxyResolver:  new(ss.GetBypass().GetProxyResolver()),
+			ResolveLocally: new(ss.GetBypass().GetResolveLocally()),
 			UdpProxyFqdn:   ss.GetBypass().GetUdpProxyFqdn().Enum(),
 		}.Build()
 
@@ -290,10 +289,10 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*api.Tes
 	return api.TestResponse_builder{
 		Mode: config.ModeConfig_builder{
 			Mode:            result.Mode.Mode().Enum(),
-			Tag:             proto.String(result.Mode.GetTag()),
+			Tag:             new(result.Mode.GetTag()),
 			ResolveStrategy: result.Mode.GetResolveStrategy().Enum(),
 		}.Build(),
-		AfterAddr:   proto.String(result.Addr.String()),
+		AfterAddr:   new(result.Addr.String()),
 		MatchResult: statistics.ToProtoMatchHistoryEntry(netapi.GetContext(ctx).MatchHistory()),
 		Lists:       s.ConnOptions().Lists(),
 		Ips: func() []string {

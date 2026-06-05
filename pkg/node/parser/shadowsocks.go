@@ -12,7 +12,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -29,8 +28,8 @@ func init() {
 		if err != nil {
 			log.Warn("parse shadowsocks user failed", "err", err)
 		}
-		if i := bytes.IndexByte(mps, ':'); i != -1 {
-			method, password = string(mps[:i]), string(mps[i+1:])
+		if before, after, ok := bytes.Cut(mps, []byte{':'}); ok {
+			method, password = string(before), string(after)
 		}
 
 		port, err := strconv.ParseUint(portstr, 10, 16)
@@ -39,8 +38,8 @@ func init() {
 		}
 
 		simple := &node.Simple_builder{
-			Host: proto.String(server),
-			Port: proto.Int32(int32(port)),
+			Host: new(server),
+			Port: new(int32(port)),
 		}
 
 		var plugin []*node.Protocol
@@ -64,11 +63,11 @@ func init() {
 
 		return (&node.Point_builder{
 			Origin: node.Origin_remote.Enum(),
-			Name:   proto.String("[ss]" + ssUrl.Fragment),
+			Name:   new("[ss]" + ssUrl.Fragment),
 			Protocols: append(protocols, node.Protocol_builder{
 				Shadowsocks: node.Shadowsocks_builder{
-					Method:   proto.String(method),
-					Password: proto.String(password),
+					Method:   new(method),
+					Password: new(password),
 				}.Build(),
 			}.Build(),
 			),
@@ -106,14 +105,14 @@ func parseV2ray(store map[string]string) ([]*node.Protocol, error) {
 		protocols = append(protocols, node.Protocol_builder{
 			Tls: node.TlsConfig_builder{
 				ServerNames: []string{ns},
-				Enable:      proto.Bool(store["tls"] == "true"),
+				Enable:      new(store["tls"] == "true"),
 				CaCert:      [][]byte{cert},
 			}.Build(),
 		}.Build())
 		return append(protocols, node.Protocol_builder{
 			Websocket: node.Websocket_builder{
-				Host: proto.String(store["host"]),
-				Path: proto.String(store["path"]),
+				Host: new(store["host"]),
+				Path: new(store["path"]),
 			}.Build(),
 		}.Build()), nil
 	case "quic":
@@ -139,8 +138,8 @@ func parseObfs(args map[string]string) ([]*node.Protocol, error) {
 	return []*node.Protocol{
 		node.Protocol_builder{
 			ObfsHttp: node.ObfsHttp_builder{
-				Host: proto.String(hostname),
-				Port: proto.String(port),
+				Host: new(hostname),
+				Port: new(port),
 			}.Build(),
 		}.Build(),
 	}, nil
@@ -149,11 +148,11 @@ func parseObfs(args map[string]string) ([]*node.Protocol, error) {
 func parseOpts(options string) map[string]string {
 	store := make(map[string]string)
 	for x := range strings.SplitSeq(options, ";") {
-		i := strings.IndexByte(x, '=')
-		if i == -1 {
+		before, after, ok := strings.Cut(x, "=")
+		if !ok {
 			store[x] = "true"
 		} else {
-			key, value := x[:i], x[i+1:]
+			key, value := before, after
 			store[key] = value
 		}
 	}

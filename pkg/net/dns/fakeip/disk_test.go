@@ -206,7 +206,7 @@ func TestDiskFakeIPPool2(t *testing.T) {
 		t.Cleanup(func() { os.RemoveAll("test.db") })
 		pool := NewDiskFakeIPPool(prefix, db, 5)
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			pool.GetFakeIPForDomain(fmt.Sprintf("%d.com", i))
 		}
 

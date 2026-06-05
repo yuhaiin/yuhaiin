@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestUdpDetect(t *testing.T) {
@@ -21,8 +20,8 @@ func TestUdpDetect(t *testing.T) {
 	defer cancel()
 
 	s, err := NewServer(config.Tcpudp_builder{
-		Host:             proto.String("127.0.0.1:0"),
-		UdpHappyEyeballs: proto.Bool(true),
+		Host:             new("127.0.0.1:0"),
+		UdpHappyEyeballs: new(true),
 	}.Build())
 	assert.NoError(t, err)
 
@@ -43,13 +42,13 @@ func TestUdpDetect(t *testing.T) {
 	fixedNode := node.Fixedv2_builder{
 		Addresses: []*node.Fixedv2Address{
 			node.Fixedv2Address_builder{
-				Host: proto.String(actualServerAddrPort.String()),
+				Host: new(actualServerAddrPort.String()),
 			}.Build(),
 			node.Fixedv2Address_builder{
-				Host: proto.String(actualServerAddrPort.String()),
+				Host: new(actualServerAddrPort.String()),
 			}.Build(),
 		},
-		UdpHappyEyeballs: proto.Bool(true),
+		UdpHappyEyeballs: new(true),
 	}.Build()
 
 	client, err := NewClientv2(fixedNode, nil) // passing nil for proxy since we're testing direct UDP
@@ -86,8 +85,8 @@ func TestOptimizationLeak(t *testing.T) {
 	defer cancel()
 
 	s, err := NewServer(config.Tcpudp_builder{
-		Host:             proto.String("127.0.0.1:0"),
-		UdpHappyEyeballs: proto.Bool(true),
+		Host:             new("127.0.0.1:0"),
+		UdpHappyEyeballs: new(true),
 	}.Build())
 	assert.NoError(t, err)
 
@@ -101,13 +100,13 @@ func TestOptimizationLeak(t *testing.T) {
 	fixedNode := node.Fixedv2_builder{
 		Addresses: []*node.Fixedv2Address{
 			node.Fixedv2Address_builder{
-				Host: proto.String(actualServerAddrPort.String()),
+				Host: new(actualServerAddrPort.String()),
 			}.Build(),
 			node.Fixedv2Address_builder{ // Add a second address so logic triggers
-				Host: proto.String(actualServerAddrPort.String()),
+				Host: new(actualServerAddrPort.String()),
 			}.Build(),
 		},
-		UdpHappyEyeballs: proto.Bool(true),
+		UdpHappyEyeballs: new(true),
 	}.Build()
 
 	client, err := NewClientv2(fixedNode, nil)

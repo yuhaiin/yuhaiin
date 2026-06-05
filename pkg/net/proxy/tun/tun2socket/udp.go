@@ -106,24 +106,30 @@ func GenerateUDPPacket(mtu, offset int, buf []byte, tuple UDPTuple) ([]byte, err
 		return nil, fmt.Errorf("udp packet too large: %d", len(buf))
 	}
 
-	tunBuf := pool.GetBytes(mtu + offset)
+	ipHeaderLength := header.IPv6FixedHeaderSize
+	if tuple.SourceAddr.Len() == 4 && !tuple.DestinationAddr.To4().Unspecified() {
+		ipHeaderLength = header.IPv4MinimumSize
+	}
+
+	totalLength := offset + ipHeaderLength + udpTotalLength
+	tunBuf := pool.GetBytes(totalLength)
 
 	ipBuf := tunBuf[offset:]
 
 	var ip header.Network
-	var totalLength uint16
+	var payloadLength uint16
 
 	dst4Unspecified := tuple.DestinationAddr.To4().Unspecified()
 
 	if tuple.SourceAddr.Len() == 4 && !dst4Unspecified {
 		// no ipv4 options set, so ipv4 header size is IPv4MinimumSize
-		totalLength = header.IPv4MinimumSize + uint16(udpTotalLength)
+		payloadLength = header.IPv4MinimumSize + uint16(udpTotalLength)
 
 		ipv4 := header.IPv4(ipBuf)
 		ipv4.Encode(&header.IPv4Fields{
 			TOS: 0,
 			// ID:             uint16(rand.Uint32()),
-			TotalLength:    totalLength,
+			TotalLength:    payloadLength,
 			FragmentOffset: 0,
 			TTL:            i4.DefaultTTL,
 			Protocol:       uint8(header.UDPProtocolNumber),
@@ -134,7 +140,7 @@ func GenerateUDPPacket(mtu, offset int, buf []byte, tuple UDPTuple) ([]byte, err
 		ip = ipv4
 	} else {
 		// ipv6 header size is fixed
-		totalLength = header.IPv6FixedHeaderSize + uint16(udpTotalLength)
+		payloadLength = header.IPv6FixedHeaderSize + uint16(udpTotalLength)
 
 		ipv6 := header.IPv6(ipBuf)
 		ipv6.Encode(&header.IPv6Fields{
@@ -169,7 +175,7 @@ func GenerateUDPPacket(mtu, offset int, buf []byte, tuple UDPTuple) ([]byte, err
 		device.ResetTransportChecksum(ip, udp, pseudoSum)
 	}
 
-	return tunBuf[:totalLength+uint16(offset)], nil
+	return tunBuf[:totalLength], nil
 }
 
 type UDPWriteBack struct {

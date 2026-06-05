@@ -36,7 +36,7 @@ func TestMux(t *testing.T) {
 	})
 
 	p, err := fixed.NewClient(node.Fixed_builder{
-		Host: proto.String("127.0.0.1"),
+		Host: new("127.0.0.1"),
 		Port: proto.Int32(4431),
 	}.Build(), nil)
 	assert.NoError(t, err)

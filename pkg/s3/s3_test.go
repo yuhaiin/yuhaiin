@@ -9,19 +9,18 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestS3(t *testing.T) {
 	t.Run("marshal config", func(t *testing.T) {
 		config := config.S3_builder{
-			Enabled:      proto.Bool(true),
-			AccessKey:    proto.String("access"),
-			SecretKey:    proto.String("secret"),
-			Bucket:       proto.String("bucket"),
-			Region:       proto.String("region"),
-			EndpointUrl:  proto.String("endpoint"),
-			UsePathStyle: proto.Bool(true),
+			Enabled:      new(true),
+			AccessKey:    new("access"),
+			SecretKey:    new("secret"),
+			Bucket:       new("bucket"),
+			Region:       new("region"),
+			EndpointUrl:  new("endpoint"),
+			UsePathStyle: new(true),
 		}.Build()
 
 		data, err := protojson.MarshalOptions{

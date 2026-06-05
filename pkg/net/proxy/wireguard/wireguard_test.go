@@ -15,7 +15,7 @@ import (
 
 func TestWireguard(t *testing.T) {
 	r, err := NewClient(node.Wireguard_builder{
-		SecretKey: proto.String("OD0YfReLPYBSL/vV+1JSBPpeBurGFLNA4wQCfD+yDFA="),
+		SecretKey: new("OD0YfReLPYBSL/vV+1JSBPpeBurGFLNA4wQCfD+yDFA="),
 		Endpoint: []string{
 			"10.0.0.2/32",
 		},
@@ -23,8 +23,8 @@ func TestWireguard(t *testing.T) {
 		Reserved: []byte{0, 0, 0},
 		Peers: []*node.WireguardPeerConfig{
 			node.WireguardPeerConfig_builder{
-				PublicKey: proto.String("2HWI3cW1HlAyQk1xiu+4QBL1KISMxSo4VQgCz+wCjmo="),
-				Endpoint:  proto.String("192.168.122.20:51820"),
+				PublicKey: new("2HWI3cW1HlAyQk1xiu+4QBL1KISMxSo4VQgCz+wCjmo="),
+				Endpoint:  new("192.168.122.20:51820"),
 				AllowedIps: []string{
 					"0.0.0.0/0",
 				},

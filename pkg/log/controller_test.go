@@ -8,7 +8,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestTail(t *testing.T) {
@@ -21,7 +20,7 @@ func TestTail(t *testing.T) {
 
 	OutputStderr.Store(false)
 	ctr.Set(config.Logcat_builder{
-		Save:  proto.Bool(true),
+		Save:  new(true),
 		Level: config.LogLevel_debug.Enum(),
 	}.Build(), "test.log")
 

@@ -20,7 +20,6 @@ import (
 	"golang.org/x/net/nettest"
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/proto"
 	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -45,8 +44,8 @@ func TestConn(t *testing.T) {
 		assert.NoError(t, err)
 
 		sp, err := fixed.NewClient(node.Fixed_builder{
-			Host: proto.String(host),
-			Port: proto.Int32(int32(port)),
+			Host: new(host),
+			Port: new(int32(port)),
 		}.Build(), nil)
 		assert.NoError(t, err)
 
@@ -92,8 +91,8 @@ func TestConn(t *testing.T) {
 		assert.NoError(t, err)
 
 		sp, err := fixed.NewClient(node.Fixed_builder{
-			Host: proto.String(host),
-			Port: proto.Int32(int32(port)),
+			Host: new(host),
+			Port: new(int32(port)),
 		}.Build(), nil)
 		assert.NoError(t, err)
 
@@ -140,8 +139,8 @@ func TestConn(t *testing.T) {
 			assert.NoError(t, err)
 
 			sp, err := fixed.NewClient(node.Fixed_builder{
-				Host: proto.String(host),
-				Port: proto.Int32(int32(port)),
+				Host: new(host),
+				Port: new(int32(port)),
 			}.Build(), nil)
 			assert.NoError(t, err)
 
@@ -187,8 +186,8 @@ func TestConn(t *testing.T) {
 			assert.NoError(t, err)
 
 			sp, err := fixed.NewClient(node.Fixed_builder{
-				Host: proto.String(host),
-				Port: proto.Int32(int32(port)),
+				Host: new(host),
+				Port: new(int32(port)),
 			}.Build(), nil)
 			assert.NoError(t, err)
 

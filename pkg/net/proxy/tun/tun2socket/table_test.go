@@ -11,7 +11,9 @@ import (
 func TestTable(t *testing.T) {
 	t.Run("expire", func(t *testing.T) {
 		defaultTableSize = 2
-		defaultExpire = time.Second * 2
+		oldTimeout := mappingTimeout
+		mappingTimeout = func() time.Duration { return time.Second * 2 }
+		t.Cleanup(func() { mappingTimeout = oldTimeout })
 
 		table := newTable()
 		port := table.portOf(Tuple{SourcePort: uint16(1)})
@@ -33,7 +35,9 @@ func TestTable(t *testing.T) {
 		defer cancel()
 
 		defaultTableSize = 2
-		defaultExpire = time.Second * 2
+		oldTimeout := mappingTimeout
+		mappingTimeout = func() time.Duration { return time.Second * 2 }
+		t.Cleanup(func() { mappingTimeout = oldTimeout })
 
 		table := newTable()
 		port := table.portOf(Tuple{SourcePort: uint16(1)})

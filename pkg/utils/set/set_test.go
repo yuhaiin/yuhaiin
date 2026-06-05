@@ -21,7 +21,7 @@ func TestEmptySet(t *testing.T) {
 	var wg sync.WaitGroup
 	const numGoroutines = 100
 	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer wg.Done()
 			_ = EmptyImmutableSet[int]()

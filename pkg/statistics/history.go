@@ -14,7 +14,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -110,7 +109,7 @@ func (h *FailedHistory) Get() *api.FailedHistoryList {
 
 	return api.FailedHistoryList_builder{
 		Objects:            objects,
-		DumpProcessEnabled: proto.Bool(dumpProcess),
+		DumpProcessEnabled: new(dumpProcess),
 	}.Build()
 }
 
@@ -184,7 +183,7 @@ func (h *History) Get() *api.AllHistoryList {
 		}
 
 		objects = append(objects, api.AllHistory_builder{
-			Count:      proto.Uint64(v.count.Load()),
+			Count:      new(v.count.Load()),
 			Time:       timestamppb.New(v.time.Load()),
 			Connection: info,
 		}.Build())
@@ -196,7 +195,7 @@ func (h *History) Get() *api.AllHistoryList {
 
 	return api.AllHistoryList_builder{
 		Objects:            objects,
-		DumpProcessEnabled: proto.Bool(dumpProcess),
+		DumpProcessEnabled: new(dumpProcess),
 	}.Build()
 }
 

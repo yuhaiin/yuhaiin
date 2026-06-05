@@ -11,11 +11,32 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
+
+func shouldRecordMatchHistory() bool {
+	return configuration.ExtendedStatsEnabled.Load()
+}
+
+func startMatch(store *netapi.Context, ruleName string) {
+	if !shouldRecordMatchHistory() {
+		return
+	}
+
+	store.NewMatch(ruleName)
+}
+
+func recordMatch(store *netapi.Context, listName string, matched bool) {
+	if !shouldRecordMatchHistory() {
+		return
+	}
+
+	store.AddMatchHistory(listName, matched)
+}
 
 type Matcher interface {
 	Match(context.Context, netapi.Address) bool
@@ -44,11 +65,11 @@ func (s *Inbound) Match(ctx context.Context, addr netapi.Address) bool {
 	inbound := store.GetInboundName()
 	if inbound != "" {
 		ok := s.store.Has(inbound)
-		store.AddMatchHistory(inbound, ok)
+		recordMatch(store, inbound, ok)
 		return ok
 	}
 
-	store.AddMatchHistory(inbound, false)
+	recordMatch(store, inbound, false)
 	return false
 }
 
@@ -67,11 +88,11 @@ func (s *Network) Match(ctx context.Context, addr netapi.Address) bool {
 	switch s.nt {
 	case config.Network_tcp:
 		ok := strings.HasPrefix(addr.Network(), "tcp")
-		store.AddMatchHistory("Net TCP", ok)
+		recordMatch(store, "Net TCP", ok)
 		return ok
 	case config.Network_udp:
 		ok := strings.HasPrefix(addr.Network(), "udp")
-		store.AddMatchHistory("Net UDP", ok)
+		recordMatch(store, "Net UDP", ok)
 		return ok
 	default:
 		return false
@@ -107,7 +128,7 @@ func (s *Port) Match(ctx context.Context, addr netapi.Address) bool {
 	store := netapi.GetContext(ctx)
 	port := uint16(addr.Port())
 	ok := s.set.Has(port)
-	store.AddMatchHistory(fmt.Sprintf("Port %d", port), ok)
+	recordMatch(store, fmt.Sprintf("Port %d", port), ok)
 	return ok
 }
 
@@ -136,7 +157,7 @@ func (s *Geoip) Match(ctx context.Context, addr netapi.Address) bool {
 	store := netapi.GetContext(ctx)
 	geo := store.GetGeo()
 	ok := s.countries.Has(geo)
-	store.AddMatchHistory(fmt.Sprintf("Geoip %s", geo), ok)
+	recordMatch(store, fmt.Sprintf("Geoip %s", geo), ok)
 	return ok
 }
 
@@ -270,7 +291,7 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) config.ModeEn
 	store := netapi.GetContext(ctx)
 
 	for _, v := range s.matchers {
-		store.NewMatch(v.name)
+		startMatch(store, v.name)
 		if v.matcher.Match(ctx, addr) {
 			return v.mode
 		}
@@ -289,11 +310,11 @@ func (s List) Match(ctx context.Context, addr netapi.Address) bool {
 	store := netapi.GetContext(ctx)
 
 	if store.ConnOptions().HasList(string(s)) {
-		store.AddMatchHistory(fmt.Sprintf("List %s", string(s)), true)
+		recordMatch(store, fmt.Sprintf("List %s", string(s)), true)
 		return true
 	}
 
-	store.AddMatchHistory(fmt.Sprintf("List %s", string(s)), false)
+	recordMatch(store, fmt.Sprintf("List %s", string(s)), false)
 	return false
 }
 

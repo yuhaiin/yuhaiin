@@ -9,14 +9,16 @@ var (
 
 var (
 	defaultBoolValue = map[string]bool{
-		AllowLanKey:             false,
-		AppendHttpProxyToVpnKey: false,
-		NetworkSpeedKey:         false,
-		AdvAutoConnectKey:       false,
-		AdvPerAppKey:            false,
-		AdvAppBypassKey:         false,
-		SniffKey:                true,
-		DnsHijacking:            true,
+		AllowLanKey:                             false,
+		AppendHttpProxyToVpnKey:                 false,
+		NetworkSpeedKey:                         false,
+		AdvAutoConnectKey:                       false,
+		AdvPerAppKey:                            false,
+		AdvAppBypassKey:                         false,
+		AdvExtendedStatsKey:                     false,
+		AdvRegisterUnderlyingNetworkCallbackKey: true,
+		SniffKey:                                true,
+		DnsHijacking:                            true,
 	}
 
 	disAllowAppList, _ = json.Marshal([]string{
@@ -48,9 +50,13 @@ var (
 	})
 
 	defaultStringValue = map[string]string{
-		AdvRouteKey:     AdvRoutes[0],
-		AdvTunDriverKey: TunDriversValue[2],
-		AdvAppListKey:   string(disAllowAppList),
+		AdvRouteKey:             AdvRoutes[0],
+		AdvTunDriverKey:         TunDriversValue[2],
+		AdvAppListKey:           string(disAllowAppList),
+		AdvBatteryProfileKey:    BatteryProfileBalanced,
+		AdvProcessLookupModeKey: ProcessLookupRulesOnlyValue,
+		AdvUDPIdleProfileKey:    BatteryProfileBalanced,
+		AdvVPNMTUProfileKey:     VPNMTUAutoValue,
 	}
 
 	defaultIntValue = map[string]int32{

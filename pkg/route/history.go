@@ -40,10 +40,10 @@ func (h *RejectHistory) Push(ctx context.Context, protocol string, host string) 
 	x, ok := h.store.LoadOrAdd(key, func() *blockHistoryEntry {
 		return &blockHistoryEntry{
 			BlockHistory: (&api.BlockHistory_builder{
-				Protocol:   proto.String(protocol),
-				Host:       proto.String(host),
+				Protocol:   new(protocol),
+				Host:       new(host),
 				Time:       timestamppb.Now(),
-				Process:    proto.String(store.GetProcessName()),
+				Process:    new(store.GetProcessName()),
 				BlockCount: proto.Uint64(1),
 			}).Build(),
 		}
@@ -69,6 +69,6 @@ func (h *RejectHistory) Get() *api.BlockHistoryList {
 	}
 	return api.BlockHistoryList_builder{
 		Objects:            objects,
-		DumpProcessEnabled: proto.Bool(dumpProcess),
+		DumpProcessEnabled: new(dumpProcess),
 	}.Build()
 }

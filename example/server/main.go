@@ -17,7 +17,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"google.golang.org/protobuf/proto"
 )
 
 func main() {
@@ -91,7 +90,7 @@ TGV6S/Av/lWZyEMrO6yxhoM=
 	defer func() { must(nlis.Close()) }()
 
 	s, err := yuubinsya.NewServer(config.Yuubinsya_builder{
-		Password: proto.String("123"),
+		Password: new("123"),
 	}.Build(), netapi.NewListener(nlis, nil), &handler{})
 	must(err)
 	defer s.Close()

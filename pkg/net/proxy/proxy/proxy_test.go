@@ -11,7 +11,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestProxy(t *testing.T) {
@@ -26,8 +25,8 @@ func TestProxy(t *testing.T) {
 	assert.NoError(t, err)
 
 	p, err := fixed.NewClient(node.Fixed_builder{
-		Host: proto.String("127.0.0.1"),
-		Port: proto.Int32(int32(port)),
+		Host: new("127.0.0.1"),
+		Port: new(int32(port)),
 	}.Build(), nil)
 	assert.NoError(t, err)
 

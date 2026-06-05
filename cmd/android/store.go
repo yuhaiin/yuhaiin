@@ -199,6 +199,7 @@ type configDB[T proto.Message] struct {
 	setting    T
 	getDefault func(*pc.Setting) T
 	toSetting  func(T) *pc.Setting
+	normalize  func(T)
 	dbName     string
 	mu         sync.RWMutex
 	inited     atomic.Bool
@@ -211,11 +212,13 @@ func newConfigDB[T proto.Message](
 	dbName string,
 	getDefault func(*pc.Setting) T,
 	toSetting func(T) *pc.Setting,
+	normalize func(T),
 ) *configDB[T] {
 	return &configDB[T]{
 		store:      store,
 		getDefault: getDefault,
 		toSetting:  toSetting,
+		normalize:  normalize,
 		dbName:     dbName,
 	}
 }
@@ -233,6 +236,10 @@ func (b *configDB[T]) initSetting() {
 		if err != nil {
 			log.Error("unmarshal failed", "err", err)
 		}
+	}
+
+	if b.normalize != nil {
+		b.normalize(config)
 	}
 
 	b.inited.Store(true)
@@ -258,6 +265,9 @@ func (b *configDB[T]) Batch(f ...func(*pc.Setting) error) error {
 	}
 
 	b.setting = b.getDefault(setting)
+	if b.normalize != nil {
+		b.normalize(b.setting)
+	}
 	b.store.PutBytes(b.dbName, s)
 	return nil
 }

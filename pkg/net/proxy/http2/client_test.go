@@ -53,8 +53,8 @@ func TestConn(t *testing.T) {
 		assert.NoError(t, err)
 
 		p, err := fixed.NewClient(node.Fixed_builder{
-			Host: proto.String(host),
-			Port: proto.Int32(int32(port)),
+			Host: new(host),
+			Port: new(int32(port)),
 		}.Build(), nil)
 		assert.NoError(t, err)
 
@@ -133,8 +133,8 @@ func TestConn(t *testing.T) {
 			assert.NoError(t, err)
 
 			p, err := fixed.NewClient(node.Fixed_builder{
-				Host: proto.String(host),
-				Port: proto.Int32(int32(port)),
+				Host: new(host),
+				Port: new(int32(port)),
 			}.Build(), nil)
 			assert.NoError(t, err)
 
@@ -187,8 +187,8 @@ func TestConn(t *testing.T) {
 			assert.NoError(t, err)
 
 			p, err := fixed.NewClient(node.Fixed_builder{
-				Host: proto.String(host),
-				Port: proto.Int32(int32(port)),
+				Host: new(host),
+				Port: new(int32(port)),
 			}.Build(), nil)
 			assert.NoError(t, err)
 
@@ -237,7 +237,7 @@ func TestClient(t *testing.T) {
 	}()
 
 	p, err := fixed.NewClient(node.Fixed_builder{
-		Host: proto.String("127.0.0.1"),
+		Host: new("127.0.0.1"),
 		Port: proto.Int32(8082),
 	}.Build(), nil)
 	if err != nil {

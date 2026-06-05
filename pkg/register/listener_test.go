@@ -5,7 +5,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -49,10 +48,10 @@ func TestRangeFields(t *testing.T) {
 func TestGetValue(t *testing.T) {
 	i := config.Inbound_builder{
 		Socks5: config.Socks5_builder{
-			Username: proto.String("123"),
+			Username: new("123"),
 		}.Build(),
 		Tcpudp: config.Tcpudp_builder{
-			Host: proto.String("123"),
+			Host: new("123"),
 		}.Build(),
 	}.Build()
 

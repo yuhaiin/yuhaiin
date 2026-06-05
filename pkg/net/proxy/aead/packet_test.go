@@ -74,13 +74,13 @@ func BenchmarkEncodePacket(b *testing.B) {
 
 func TestPacket(t *testing.T) {
 	s, err := fixed.NewServer(config.Tcpudp_builder{
-		Host:    proto.String(":12345"),
+		Host:    new(":12345"),
 		Control: config.TcpUdpControl_disable_tcp.Enum(),
 	}.Build())
 	assert.NoError(t, err)
 
 	as, err := NewServer(config.Aead_builder{
-		Password:     proto.String("123456"),
+		Password:     new("123456"),
 		CryptoMethod: node.AeadCryptoMethod_XChacha20Poly1305.Enum(),
 	}.Build(), s)
 	assert.NoError(t, err)
@@ -102,14 +102,14 @@ func TestPacket(t *testing.T) {
 	}()
 
 	fp, err := fixed.NewClient(node.Fixed_builder{
-		Host: proto.String("127.0.0.1"),
+		Host: new("127.0.0.1"),
 		Port: proto.Int32(12345),
 	}.Build(), nil)
 	assert.NoError(t, err)
 	defer fp.Close()
 
 	ac, err := NewClient(node.Aead_builder{
-		Password:     proto.String("123456"),
+		Password:     new("123456"),
 		CryptoMethod: node.AeadCryptoMethod_XChacha20Poly1305.Enum(),
 	}.Build(), fp)
 	assert.NoError(t, err)

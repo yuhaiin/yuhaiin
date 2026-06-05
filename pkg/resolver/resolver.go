@@ -397,9 +397,9 @@ func (r *ResolverCtr) SaveHosts(ctx context.Context, req *api.Hosts) (*emptypb.E
 
 func toFakednsConfig(s *config.Setting) *config.FakednsConfig {
 	return (&config.FakednsConfig_builder{
-		Enabled:       proto.Bool(s.GetDns().GetFakedns()),
-		Ipv4Range:     proto.String(s.GetDns().GetFakednsIpRange()),
-		Ipv6Range:     proto.String(s.GetDns().GetFakednsIpv6Range()),
+		Enabled:       new(s.GetDns().GetFakedns()),
+		Ipv4Range:     new(s.GetDns().GetFakednsIpRange()),
+		Ipv6Range:     new(s.GetDns().GetFakednsIpv6Range()),
 		Whitelist:     s.GetDns().GetFakednsWhitelist(),
 		SkipCheckList: s.GetDns().GetFakednsSkipCheckList(),
 	}).Build()

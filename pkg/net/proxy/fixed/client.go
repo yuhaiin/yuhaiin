@@ -18,7 +18,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"google.golang.org/protobuf/proto"
 )
 
 var refreshTimeout = int64(10 * time.Minute)
@@ -43,10 +42,10 @@ func init() {
 	register.RegisterPoint(NewClientv2)
 	register.RegisterPoint(func(c *node.Simple, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewClient(node.Fixed_builder{
-			Host:             proto.String(c.GetHost()),
-			Port:             proto.Int32(c.GetPort()),
+			Host:             new(c.GetHost()),
+			Port:             new(c.GetPort()),
 			AlternateHost:    c.GetAlternateHost(),
-			NetworkInterface: proto.String(c.GetNetworkInterface()),
+			NetworkInterface: new(c.GetNetworkInterface()),
 		}.Build(), p)
 	})
 }
@@ -54,13 +53,13 @@ func init() {
 func NewClient(c *node.Fixed, p netapi.Proxy) (netapi.Proxy, error) {
 	var addrs []*node.Fixedv2Address
 	addrs = append(addrs, node.Fixedv2Address_builder{
-		Host:             proto.String(net.JoinHostPort(c.GetHost(), fmt.Sprint(c.GetPort()))),
-		NetworkInterface: proto.String(c.GetNetworkInterface()),
+		Host:             new(net.JoinHostPort(c.GetHost(), fmt.Sprint(c.GetPort()))),
+		NetworkInterface: new(c.GetNetworkInterface()),
 	}.Build())
 	for _, v := range c.GetAlternateHost() {
 		addrs = append(addrs, node.Fixedv2Address_builder{
-			Host:             proto.String(net.JoinHostPort(v.GetHost(), fmt.Sprint(v.GetPort()))),
-			NetworkInterface: proto.String(c.GetNetworkInterface()),
+			Host:             new(net.JoinHostPort(v.GetHost(), fmt.Sprint(v.GetPort()))),
+			NetworkInterface: new(c.GetNetworkInterface()),
 		}.Build())
 	}
 

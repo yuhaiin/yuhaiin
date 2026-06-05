@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -31,25 +30,25 @@ func init() {
 		}
 
 		p := node.Point_builder{
-			Name:   proto.String("[trojan]" + u.Fragment),
+			Name:   new("[trojan]" + u.Fragment),
 			Origin: node.Origin_remote.Enum(),
 			Protocols: []*node.Protocol{
 				node.Protocol_builder{
 					Simple: node.Simple_builder{
-						Host: proto.String(u.Hostname()),
-						Port: proto.Int32(int32(port)),
+						Host: new(u.Hostname()),
+						Port: new(int32(port)),
 					}.Build(),
 				}.Build(),
 				node.Protocol_builder{
 					Tls: node.TlsConfig_builder{
-						Enable:      proto.Bool(true),
+						Enable:      new(true),
 						ServerNames: servername,
 					}.Build(),
 				}.Build(),
 				node.Protocol_builder{
 					Trojan: node.Trojan_builder{
-						Password: proto.String(u.User.String()),
-						Peer:     proto.String(u.Query().Get("peer")),
+						Password: new(u.User.String()),
+						Peer:     new(u.Query().Get("peer")),
 					}.Build(),
 				}.Build(),
 			},

@@ -16,12 +16,12 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app"
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -86,6 +86,7 @@ func (a *App) Start(opt *Opts) error {
 	// }
 
 	dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
+	applyRuntimeProfile()
 
 	lis, err := net.Listen("tcp", net.JoinHostPort(ifOr(GetStore().GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"), "0"))
 	if err != nil {
@@ -241,6 +242,60 @@ func flowString(download, upload, ur, dr string) string {
 	)
 }
 
+func applyRuntimeProfile() {
+	store := GetStore()
+
+	batteryProfile := store.GetString(AdvBatteryProfileKey)
+	if batteryProfile == "" {
+		batteryProfile = BatteryProfileBalanced
+	}
+	configuration.BatteryProfile.Store(batteryProfile)
+
+	processLookupMode := store.GetString(AdvProcessLookupModeKey)
+	if processLookupMode == "" {
+		processLookupMode = ProcessLookupRulesOnlyValue
+	}
+	configuration.ProcessLookupMode.Store(processLookupMode)
+
+	configuration.ExtendedStatsEnabled.Store(store.GetBoolean(AdvExtendedStatsKey))
+
+	udpIdleProfile := store.GetString(AdvUDPIdleProfileKey)
+	if udpIdleProfile == "" {
+		udpIdleProfile = batteryProfile
+	}
+
+	switch udpIdleProfile {
+	case BatteryProfileBatterySaver:
+		configuration.UDPIdleTimeout.Store(time.Minute * 5)
+		configuration.UDPMappingTimeout.Store(time.Minute * 10)
+	case BatteryProfilePerformance:
+		configuration.UDPIdleTimeout.Store((time.Minute * 3) / 2)
+		configuration.UDPMappingTimeout.Store(time.Minute * 5)
+	case BatteryProfileDiagnostic:
+		configuration.UDPIdleTimeout.Store((time.Minute * 3) / 2)
+		configuration.UDPMappingTimeout.Store(time.Minute * 5)
+	default:
+		configuration.UDPIdleTimeout.Store(time.Minute * 3)
+		configuration.UDPMappingTimeout.Store(time.Minute * 6)
+	}
+}
+
+func applyInboundRuntimeSettings(store Store, server *config.InboundConfig) {
+	if server == nil {
+		return
+	}
+
+	server.SetHijackDns(store.GetBoolean(DnsHijacking))
+	server.SetHijackDnsFakeip(store.GetBoolean(DnsHijacking))
+
+	sniff := server.GetSniff()
+	if sniff == nil {
+		sniff = &config.Sniff{}
+	}
+	sniff.SetEnabled(store.GetBoolean(SniffKey))
+	server.SetSniff(sniff)
+}
+
 func newInboundDB(ms *memoryStore, opt *Opts) *configDB[*config.InboundConfig] {
 	store := GetStore()
 	var listenHost string = "127.0.0.1"
@@ -250,24 +305,24 @@ func newInboundDB(ms *memoryStore, opt *Opts) *configDB[*config.InboundConfig] {
 
 	inbounds := map[string]*config.Inbound{
 		"mix": config.Inbound_builder{
-			Name:    proto.String("mix"),
-			Enabled: proto.Bool(store.GetInt(NewHTTPPortKey) != 0),
+			Name:    new("mix"),
+			Enabled: new(store.GetInt(NewHTTPPortKey) != 0),
 			Tcpudp: config.Tcpudp_builder{
-				Host:    proto.String(net.JoinHostPort(listenHost, fmt.Sprint(store.GetInt(NewHTTPPortKey)))),
+				Host:    new(net.JoinHostPort(listenHost, fmt.Sprint(store.GetInt(NewHTTPPortKey)))),
 				Control: config.TcpUdpControl_tcp_udp_control_all.Enum(),
 			}.Build(),
 			Mix: &config.Mixed{},
 		}.Build(),
 		"tun": config.Inbound_builder{
-			Name:    proto.String("tun"),
-			Enabled: proto.Bool(true),
+			Name:    new("tun"),
+			Enabled: new(true),
 			Empty:   &config.Empty{},
 			Tun: config.Tun_builder{
-				Name:          proto.String(fmt.Sprintf("fd://%d", opt.TUN.FD)),
-				Mtu:           proto.Int32(opt.TUN.MTU),
-				Portal:        proto.String(opt.TUN.Portal),
-				PortalV6:      proto.String(opt.TUN.PortalV6),
-				SkipMulticast: proto.Bool(true),
+				Name:          new(fmt.Sprintf("fd://%d", opt.TUN.FD)),
+				Mtu:           new(opt.TUN.MTU),
+				Portal:        new(opt.TUN.Portal),
+				PortalV6:      new(opt.TUN.PortalV6),
+				SkipMulticast: new(true),
 				Route:         &config.Route{},
 				Driver:        config.TunEndpointDriver(config.TunEndpointDriver_value[store.GetString(AdvTunDriverKey)]).Enum(),
 			}.Build(),
@@ -280,21 +335,25 @@ func newInboundDB(ms *memoryStore, opt *Opts) *configDB[*config.InboundConfig] {
 		func(s *config.Setting) *config.InboundConfig {
 			if s.GetServer() == nil {
 				s.SetServer(config.InboundConfig_builder{
-					HijackDns:       proto.Bool(true),
-					HijackDnsFakeip: proto.Bool(true),
+					HijackDns:       new(store.GetBoolean(DnsHijacking)),
+					HijackDnsFakeip: new(store.GetBoolean(DnsHijacking)),
 					Sniff: config.Sniff_builder{
-						Enabled: proto.Bool(true),
+						Enabled: new(store.GetBoolean(SniffKey)),
 					}.Build(),
 				}.Build())
 			}
 
 			s.GetServer().SetInbounds(inbounds)
+			applyInboundRuntimeSettings(store, s.GetServer())
 
 			return s.GetServer()
 		},
 		func(s *config.InboundConfig) *config.Setting {
 			s.SetInbounds(inbounds)
 			return config.Setting_builder{Server: s}.Build()
+		},
+		func(s *config.InboundConfig) {
+			applyInboundRuntimeSettings(store, s)
 		},
 	)
 }
@@ -305,6 +364,7 @@ func newResolverDB(ms *memoryStore) *configDB[*config.DnsConfig] {
 		"resolver_db",
 		func(s *config.Setting) *config.DnsConfig { return s.GetDns() },
 		func(s *config.DnsConfig) *config.Setting { return config.Setting_builder{Dns: s}.Build() },
+		nil,
 	)
 }
 
@@ -314,6 +374,7 @@ func newBypassDB(ms *memoryStore) *configDB[*config.BypassConfig] {
 		"bypass_db",
 		func(s *config.Setting) *config.BypassConfig { return s.GetBypass() },
 		func(s *config.BypassConfig) *config.Setting { return config.Setting_builder{Bypass: s}.Build() },
+		nil,
 	)
 }
 
@@ -323,6 +384,7 @@ func newChoreDB(ms *memoryStore) *configDB[*config.Setting] {
 		"chore_db",
 		func(s *config.Setting) *config.Setting { return s },
 		func(s *config.Setting) *config.Setting { return s },
+		nil,
 	)
 }
 
@@ -332,5 +394,6 @@ func newBackupDB(ms *memoryStore) *configDB[*config.Setting] {
 		"backup_db",
 		func(s *config.Setting) *config.Setting { return s },
 		func(s *config.Setting) *config.Setting { return s },
+		nil,
 	)
 }

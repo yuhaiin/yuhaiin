@@ -15,7 +15,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"google.golang.org/protobuf/proto"
 )
 
 type Mixed struct {
@@ -81,9 +80,9 @@ func (m *Mixed) socks5(o *config.Mixed, ii netapi.Listener, handler netapi.Handl
 	lis := m.AddMatcher(func(b byte) bool { return b == 0x05 })
 
 	s5, err := socks5.NewServer(config.Socks5_builder{
-		Username: proto.String(o.GetUsername()),
-		Password: proto.String(o.GetPassword()),
-		Udp:      proto.Bool(true),
+		Username: new(o.GetUsername()),
+		Password: new(o.GetPassword()),
+		Udp:      new(true),
 	}.Build(), netapi.NewListener(lis, ii), handler)
 	if err != nil {
 		log.Error("new socks5 server failed", "err", err)
@@ -97,7 +96,7 @@ func (m *Mixed) socks4(o *config.Mixed, ii netapi.Listener, handler netapi.Handl
 	lis := m.AddMatcher(func(b byte) bool { return b == 0x04 })
 
 	s4, err := socks4a.NewServer(config.Socks4A_builder{
-		Username: proto.String(o.GetUsername()),
+		Username: new(o.GetUsername()),
 	}.Build(), netapi.NewListener(lis, ii), handler)
 	if err != nil {
 		log.Error("new socks4 server failed", "err", err)
@@ -109,8 +108,8 @@ func (m *Mixed) socks4(o *config.Mixed, ii netapi.Listener, handler netapi.Handl
 
 func (m *Mixed) http(o *config.Mixed, ii netapi.Listener, handler netapi.Handler) {
 	http, err := http.NewServer(config.Http_builder{
-		Username: proto.String(o.GetUsername()),
-		Password: proto.String(o.GetPassword()),
+		Username: new(o.GetUsername()),
+		Password: new(o.GetPassword()),
 	}.Build(), netapi.NewListener(m.defaultC, ii), handler)
 	if err != nil {
 		log.Error("new http server failed", "err", err)

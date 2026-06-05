@@ -14,7 +14,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -55,7 +54,7 @@ func (n *Nodes) List(ctx context.Context, _ *emptypb.Empty) (*api.NodesResponse,
 	for g, v := range n.manager.GetGroups() {
 		slices.SortFunc(v, func(a, b *api.NodesResponse_Node) int { return cmp.Compare(a.GetName(), b.GetName()) })
 		g := api.NodesResponse_Group_builder{
-			Name:  proto.String(g),
+			Name:  new(g),
 			Nodes: v,
 		}.Build()
 
@@ -137,7 +136,7 @@ func (n *Nodes) Latency(c context.Context, req *node.Requests) (*node.Response, 
 			if err != nil {
 				log.Error("latency failed", "err", err)
 				resp.IdLatencyMap[s.GetId()] = (&node.Reply_builder{
-					Error: (&node.Error_builder{Msg: proto.String(err.Error())}).Build(),
+					Error: (&node.Error_builder{Msg: new(err.Error())}).Build(),
 				}).Build()
 			} else {
 				resp.IdLatencyMap[s.GetId()] = t

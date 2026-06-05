@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -18,7 +19,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -71,7 +71,7 @@ func (c *Connections) allInfos() []*statistic.Connection {
 		info, ok := c.infoStore.Load(x.ID())
 		if !ok {
 			return statistic.Connection_builder{
-				Id: proto.Uint64(x.ID()),
+				Id: new(x.ID()),
 			}.Build()
 		}
 		return info
@@ -135,8 +135,8 @@ func (c *Connections) Close() error {
 
 func (c *Connections) Total(context.Context, *emptypb.Empty) (*api.TotalFlow, error) {
 	return api.TotalFlow_builder{
-		Download: proto.Uint64(c.Cache.LoadDownload()),
-		Upload:   proto.Uint64(c.Cache.LoadUpload()),
+		Download: new(c.Cache.LoadDownload()),
+		Upload:   new(c.Cache.LoadUpload()),
 		Counters: c.counters.Load(),
 	}.Build(), nil
 }
@@ -260,44 +260,51 @@ func getRealAddr(store *netapi.Context, addr netapi.Address) string {
 func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAddr() net.Addr }, addr netapi.Address) *statistic.Connection {
 	nc := netapi.GetContext(ctx)
 
-	outbound, outboundGeo := getRemote(conn, nc.ConnOptions().Maxminddb())
+	maxminddb := nc.ConnOptions().Maxminddb()
+	if !configuration.ExtendedStatsEnabled.Load() {
+		maxminddb = nil
+	}
+
+	outbound, outboundGeo := getRemote(conn, maxminddb)
 
 	connection := &statistic.Connection_builder{
-		Id:   proto.Uint64(c.idSeed.Generate()),
-		Addr: proto.String(getRealAddr(nc, addr)),
+		Id:   new(c.idSeed.Generate()),
+		Addr: new(getRealAddr(nc, addr)),
 		Type: statistic.NetType_builder{
 			ConnType: statistic.Type(statistic.Type_value[addr.Network()]).Enum(),
 		}.Build(),
-		Geo:          stringOrNil(nc.GetGeo()),
 		Source:       stringerOrNil(nc.Source),
 		Inbound:      stringerOrNil(nc.GetInbound()),
 		InboundName:  stringOrNil(nc.GetInboundName()),
 		Interface:    stringOrNil(nc.GetInterface()),
 		Outbound:     stringOrNil(outbound),
-		OutboundGeo:  stringOrNil(outboundGeo),
 		LocalAddr:    stringOrNil(getLocal(conn)),
 		Destionation: stringerOrNil(nc.Destination),
 		FakeIp:       stringerOrNil(nc.GetFakeIP()),
 		Hosts:        stringerOrNil(nc.GetHosts()),
 
-		Domain:   stringOrNil(nc.GetDomainString()),
-		Ip:       stringOrNil(nc.GetIPString()),
-		Tag:      stringOrNil(nc.GetTag()),
-		Hash:     stringOrNil(nc.Hash),
-		NodeName: stringOrNil(nc.NodeName),
-		Protocol: stringOrNil(nc.GetProtocol()),
-		Process:  stringOrNil(nc.GetProcessName()),
+		Domain:       stringOrNil(nc.GetDomainString()),
+		Ip:           stringOrNil(nc.GetIPString()),
+		Tag:          stringOrNil(nc.GetTag()),
+		Hash:         stringOrNil(nc.Hash),
+		NodeName:     stringOrNil(nc.NodeName),
+		Protocol:     stringOrNil(nc.GetProtocol()),
+		Mode:         nc.ConnOptions().RouteMode().Enum(),
+		UdpMigrateId: uint64OrNil(nc.GetUDPMigrateID()),
+	}
 
-		TlsServerName: stringOrNil(nc.GetTLSServerName()),
-		HttpHost:      stringOrNil(nc.GetHTTPHost()),
-		Component:     stringOrNil(nc.GetComponent()),
-		Mode:          nc.ConnOptions().RouteMode().Enum(),
-		MatchHistory:  ToProtoMatchHistoryEntry(nc.MatchHistory()),
-		UdpMigrateId:  uint64OrNil(nc.GetUDPMigrateID()),
-		Pid:           uint64OrNil(uint64(nc.GetProcessPid())),
-		Uid:           uint64OrNil(uint64(nc.GetProcessUid())),
-		Resolver:      resolverNameOrNil(nc.ConnOptions().Resolver().Resolver()),
-		Lists:         nc.ConnOptions().Lists(),
+	if configuration.ExtendedStatsEnabled.Load() {
+		connection.Geo = stringOrNil(nc.GetGeo())
+		connection.OutboundGeo = stringOrNil(outboundGeo)
+		connection.Process = stringOrNil(nc.GetProcessName())
+		connection.TlsServerName = stringOrNil(nc.GetTLSServerName())
+		connection.HttpHost = stringOrNil(nc.GetHTTPHost())
+		connection.Component = stringOrNil(nc.GetComponent())
+		connection.MatchHistory = ToProtoMatchHistoryEntry(nc.MatchHistory())
+		connection.Pid = uint64OrNil(uint64(nc.GetProcessPid()))
+		connection.Uid = uint64OrNil(uint64(nc.GetProcessUid()))
+		connection.Resolver = resolverNameOrNil(nc.ConnOptions().Resolver().Resolver())
+		connection.Lists = nc.ConnOptions().Lists()
 	}
 
 	if conn != nil {
@@ -337,28 +344,28 @@ func uint64OrNil(i uint64) *uint64 {
 	if i == 0 {
 		return nil
 	}
-	return proto.Uint64(i)
+	return new(i)
 }
 
 func stringOrNil(str string) *string {
 	if str == "" {
 		return nil
 	}
-	return proto.String(str)
+	return new(str)
 }
 
 func stringerOrNil(str fmt.Stringer) *string {
 	if str == nil {
 		return nil
 	}
-	return proto.String(str.String())
+	return new(str.String())
 }
 
 func resolverNameOrNil(resolver netapi.Resolver) *string {
 	if resolver == nil {
 		return nil
 	}
-	return proto.String(resolver.Name())
+	return new(resolver.Name())
 }
 
 func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
@@ -425,8 +432,8 @@ func (c *counters) Load() map[uint64]*api.Counter {
 
 	for k, v := range c.store {
 		tmp[k] = api.Counter_builder{
-			Download: proto.Uint64(v.LoadDownload()),
-			Upload:   proto.Uint64(v.LoadUpload()),
+			Download: new(v.LoadDownload()),
+			Upload:   new(v.LoadUpload()),
 		}.Build()
 	}
 

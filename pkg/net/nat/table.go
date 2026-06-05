@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -15,9 +16,12 @@ import (
 )
 
 var (
-	IdleTimeout    = (time.Minute * 3) / 2
 	MaxSegmentSize = pool.MaxSegmentSize
 )
+
+func udpIdleTimeout() time.Duration {
+	return configuration.UDPIdleTimeout.Load()
+}
 
 type Table struct {
 	dialer  netapi.Proxy
@@ -32,18 +36,19 @@ func NewTable(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *Table {
 	t := &Table{
 		dialer:  dialer,
 		sinffer: sniffer,
-		timer:   time.NewTicker(IdleTimeout),
+		timer:   time.NewTicker(udpIdleTimeout()),
 	}
 
 	go func() {
 		for range t.timer.C {
+			idleTimeout := udpIdleTimeout()
 			for k, v := range t.sourceControl.Range {
 				idleTime, ok := v.IsIdle()
 				if !ok {
 					continue
 				}
 
-				if time.Since(idleTime) > IdleTimeout && t.sourceControl.CompareAndDelete(k, v) {
+				if time.Since(idleTime) > idleTimeout && t.sourceControl.CompareAndDelete(k, v) {
 					if err := v.Close(); err != nil {
 						log.Error("close source control failed", "err", err)
 					}

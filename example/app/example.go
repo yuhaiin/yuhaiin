@@ -34,14 +34,14 @@ func main() {
 	defer instance.Close()
 
 	pp, err := instance.Node.Save(context.TODO(), node.Point_builder{
-		Group: proto.String("test"),
-		Name:  proto.String("test"),
+		Group: new("test"),
+		Name:  new("test"),
 		Protocols: []*node.Protocol{
 			node.Protocol_builder{
 				NetworkSplit: node.NetworkSplit_builder{
 					Tcp: node.Protocol_builder{
 						Simple: node.Simple_builder{
-							Host: proto.String("127.0.0.1"),
+							Host: new("127.0.0.1"),
 							Port: proto.Int32(1080),
 						}.Build(),
 					}.Build(),
@@ -60,7 +60,7 @@ func main() {
 	}
 
 	_, err = instance.Node.Use(context.TODO(), api.UseReq_builder{
-		Hash: proto.String(pp.GetHash()),
+		Hash: new(pp.GetHash()),
 	}.Build())
 	if err != nil {
 		panic(err)

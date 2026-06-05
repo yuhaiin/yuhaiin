@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestSet(t *testing.T) {
@@ -30,19 +29,19 @@ func TestSet(t *testing.T) {
 
 	mg := newTestManager()
 	p1 := node.Point_builder{
-		Hash:  proto.String("a"),
-		Name:  proto.String("feefe"),
-		Group: proto.String("group"),
+		Hash:  new("a"),
+		Name:  new("feefe"),
+		Group: new("group"),
 	}.Build()
 	p2 := node.Point_builder{
-		Hash:  proto.String("b"),
-		Name:  proto.String("fafaf"),
-		Group: proto.String("group"),
+		Hash:  new("b"),
+		Name:  new("fafaf"),
+		Group: new("group"),
 		Protocols: []*node.Protocol{
 			node.Protocol_builder{
 				Simple: node.Simple_builder{
-					Host: proto.String(host),
-					Port: proto.Int32(int32(portInt)),
+					Host: new(host),
+					Port: new(int32(portInt)),
 				}.Build(),
 			}.Build(),
 		},

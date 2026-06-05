@@ -40,13 +40,11 @@ func BenchmarkMyChannel(b *testing.B) {
 	c := NewChannel[string](100)
 
 	for range 500 {
-		wwg.Add(1)
-		go func() {
-			defer wwg.Done()
+		wwg.Go(func() {
 			for range b.N / 100 {
 				c.Push("a")
 			}
-		}()
+		})
 	}
 
 	go func() {
@@ -57,9 +55,7 @@ func BenchmarkMyChannel(b *testing.B) {
 	wg := sync.WaitGroup{}
 
 	buf := make([]string, 0, 12)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			buf = buf[:0]
 			if !c.Pop(12, func(s []string) {
@@ -68,7 +64,7 @@ func BenchmarkMyChannel(b *testing.B) {
 				break
 			}
 		}
-	}()
+	})
 
 	wg.Wait()
 }
@@ -101,13 +97,11 @@ func BenchmarkGoChannel(b *testing.B) {
 	c := make(chan string, 100)
 
 	for range 500 {
-		wwg.Add(1)
-		go func() {
-			defer wwg.Done()
+		wwg.Go(func() {
 			for range b.N / 100 {
 				c <- "a"
 			}
-		}()
+		})
 	}
 
 	go func() {
@@ -119,9 +113,7 @@ func BenchmarkGoChannel(b *testing.B) {
 
 	bufs := make([]string, 0, 12)
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			x := bumpChannel(c, 12, func(s string) {
 				bufs = append(bufs, s)
@@ -131,7 +123,7 @@ func BenchmarkGoChannel(b *testing.B) {
 				break
 			}
 		}
-	}()
+	})
 
 	wg.Wait()
 }

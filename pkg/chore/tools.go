@@ -10,7 +10,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	tools "github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	grpc "google.golang.org/grpc"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -55,10 +54,10 @@ func (t *Tools) Licenses(context.Context, *emptypb.Empty) (*tools.Licenses, erro
 		var ret []*tools.License
 		for _, l := range ls {
 			ret = append(ret, tools.License_builder{
-				Name:       proto.String(l.Name),
-				Url:        proto.String(l.URL),
-				License:    proto.String(l.License),
-				LicenseUrl: proto.String(l.LicenseURL),
+				Name:       new(l.Name),
+				Url:        new(l.URL),
+				License:    new(l.License),
+				LicenseUrl: new(l.LicenseURL),
 			}.Build())
 		}
 		return ret
@@ -74,7 +73,7 @@ func (t *Tools) Log(_ *emptypb.Empty, stream grpc.ServerStreamingServer[tools.Lo
 	return t.logController.Tail(stream.Context(), func(line []string) {
 		for _, l := range line {
 			if err := stream.Send(tools.Log_builder{
-				Log: proto.String(l),
+				Log: new(l),
 			}.Build()); err != nil {
 				return
 			}

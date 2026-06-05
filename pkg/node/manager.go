@@ -12,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
-	"google.golang.org/protobuf/proto"
 )
 
 type Manager struct {
@@ -145,7 +144,7 @@ func (m *Manager) AddTag(tag string, t node.TagType, hash string) {
 	z, ok := m.getTags()[tag]
 	if !ok {
 		z = (&node.Tags_builder{
-			Tag:  proto.String(tag),
+			Tag:  new(tag),
 			Type: t.Enum(),
 		}).Build()
 		m.getTags()[tag] = z
@@ -249,8 +248,8 @@ func (d *Manager) GetGroups() map[string][]*api.NodesResponse_Node {
 		}
 
 		groups[group] = append(groups[group], api.NodesResponse_Node_builder{
-			Hash: proto.String(v.GetHash()),
-			Name: proto.String(v.GetName()),
+			Hash: new(v.GetHash()),
+			Name: new(v.GetName()),
 		}.Build())
 	}
 

@@ -53,22 +53,22 @@ func DefaultSetting(path string) *Setting {
 	fakev6 := FakeipV6UlaGenerate().String()
 
 	return (&Setting_builder{
-		Ipv6:                proto.Bool(true),
-		UseDefaultInterface: proto.Bool(true),
-		NetInterface:        proto.String(""),
+		Ipv6:                new(true),
+		UseDefaultInterface: new(true),
+		NetInterface:        new(""),
 		SystemProxy: SystemProxy_builder{
-			Http:   proto.Bool(true),
-			Socks5: proto.Bool(false),
+			Http:   new(true),
+			Socks5: new(false),
 			// linux system set socks5 will make firfox websocket can't connect
 			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
 		}.Build(),
 		Bypass: (&BypassConfig_builder{
-			DirectResolver: proto.String("bootstrap"),
-			ProxyResolver:  proto.String("bootstrap"),
+			DirectResolver: new("bootstrap"),
+			ProxyResolver:  new("bootstrap"),
 			Lists: map[string]*List{
 				"LAN": List_builder{
 					ListType: List_host.Enum(),
-					Name:     proto.String("LAN"),
+					Name:     new("LAN"),
 					Local: ListLocal_builder{
 						Lists: []string{
 							"0.0.0.0/8",
@@ -95,9 +95,9 @@ func DefaultSetting(path string) *Setting {
 			},
 			RulesV2: []*Rulev2{
 				Rulev2_builder{
-					Name:                 proto.String("LAN"),
+					Name:                 new("LAN"),
 					Mode:                 Mode_direct.Enum(),
-					Tag:                  proto.String("LAN"),
+					Tag:                  new("LAN"),
 					ResolveStrategy:      ResolveStrategy_default.Enum(),
 					UdpProxyFqdnStrategy: UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default.Enum(),
 					Rules: []*Or{
@@ -105,7 +105,7 @@ func DefaultSetting(path string) *Setting {
 							Rules: []*Rule{
 								Rule_builder{
 									Host: Host_builder{
-										List: proto.String("LAN"),
+										List: new("LAN"),
 									}.Build(),
 								}.Build(),
 							},
@@ -114,15 +114,15 @@ func DefaultSetting(path string) *Setting {
 				}.Build(),
 			},
 			MaxminddbGeoip: MaxminddbGeoip_builder{
-				DownloadUrl: proto.String("https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country-without-asn.mmdb"),
-				Error:       proto.String("NOT DOWNLOAD"),
+				DownloadUrl: new("https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country-without-asn.mmdb"),
+				Error:       new("NOT DOWNLOAD"),
 			}.Build(),
 		}).Build(),
 		Dns: DnsConfig_builder{
-			Server:           proto.String("127.0.0.1:5353"),
-			Fakedns:          proto.Bool(false),
-			FakednsIpRange:   proto.String(fakev4),
-			FakednsIpv6Range: proto.String(fakev6),
+			Server:           new("127.0.0.1:5353"),
+			Fakedns:          new(false),
+			FakednsIpRange:   new(fakev4),
+			FakednsIpv6Range: new(fakev6),
 			FakednsWhitelist: []string{
 				"*.msftncsi.com",
 				"*.msftconnecttest.com",
@@ -136,7 +136,7 @@ func DefaultSetting(path string) *Setting {
 			},
 			Resolver: map[string]*Dns{
 				"bootstrap": Dns_builder{
-					Host: proto.String("8.8.8.8"),
+					Host: new("8.8.8.8"),
 					Type: Type_udp.Enum(),
 				}.Build(),
 			},
@@ -144,35 +144,35 @@ func DefaultSetting(path string) *Setting {
 		}.Build(),
 		Logcat: Logcat_builder{
 			Level: LogLevel_debug.Enum(),
-			Save:  proto.Bool(true),
+			Save:  new(true),
 		}.Build(),
 
 		Server: InboundConfig_builder{
-			HijackDns:       proto.Bool(true),
-			HijackDnsFakeip: proto.Bool(true),
+			HijackDns:       new(true),
+			HijackDnsFakeip: new(true),
 			Sniff: Sniff_builder{
-				Enabled: proto.Bool(true),
+				Enabled: new(true),
 			}.Build(),
 			Inbounds: map[string]*Inbound{
 				"mixed": Inbound_builder{
-					Name:    proto.String("mixed"),
-					Enabled: proto.Bool(true),
+					Name:    new("mixed"),
+					Enabled: new(true),
 					Tcpudp: Tcpudp_builder{
-						Host:    proto.String("127.0.0.1:1080"),
+						Host:    new("127.0.0.1:1080"),
 						Control: TcpUdpControl_tcp_udp_control_all.Enum(),
 					}.Build(),
 					Mix: &Mixed{},
 				}.Build(),
 				"tun": Inbound_builder{
-					Name:    proto.String("tun"),
-					Enabled: proto.Bool(false),
+					Name:    new("tun"),
+					Enabled: new(false),
 					Empty:   &Empty{},
 					Tun: Tun_builder{
-						Name:          proto.String("tun://" + tunname),
+						Name:          new("tun://" + tunname),
 						Mtu:           proto.Int32(9000),
-						Portal:        proto.String(TunV4UlaGenerate().String()),
-						PortalV6:      proto.String(TunV6UlaGenerate().String()),
-						SkipMulticast: proto.Bool(true),
+						Portal:        new(TunV4UlaGenerate().String()),
+						PortalV6:      new(TunV6UlaGenerate().String()),
+						SkipMulticast: new(true),
 						Driver:        Tun_system_gvisor.Enum(),
 						Route: Route_builder{
 							Routes: []string{
@@ -183,14 +183,14 @@ func DefaultSetting(path string) *Setting {
 					}.Build(),
 				}.Build(),
 				"yuubinsya": Inbound_builder{
-					Name:    proto.String("yuubinsya"),
-					Enabled: proto.Bool(false),
+					Name:    new("yuubinsya"),
+					Enabled: new(false),
 					Tcpudp: Tcpudp_builder{
-						Host:    proto.String("127.0.0.1:40501"),
+						Host:    new("127.0.0.1:40501"),
 						Control: TcpUdpControl_disable_udp.Enum(),
 					}.Build(),
 					Yuubinsya: Yuubinsya_builder{
-						Password: proto.String("password"),
+						Password: new("password"),
 					}.Build(),
 				}.Build(),
 			},

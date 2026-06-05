@@ -11,7 +11,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -50,25 +49,25 @@ func init() {
 		protoparam, _ := base64.RawURLEncoding.DecodeString(query.Get("protoparam"))
 		return node.Point_builder{
 			Origin: node.Origin_remote.Enum(),
-			Name:   proto.String("[ssr]" + string(name)),
+			Name:   new("[ssr]" + string(name)),
 			Protocols: []*node.Protocol{
 				node.Protocol_builder{
 					Simple: node.Simple_builder{
-						Host: proto.String(x[0]),
-						Port: proto.Int32(int32(port)),
+						Host: new(x[0]),
+						Port: new(int32(port)),
 					}.Build(),
 				}.Build(),
 
 				node.Protocol_builder{
 					Shadowsocksr: node.Shadowsocksr_builder{
-						Server:     proto.String(x[0]),
-						Port:       proto.String(x[1]),
-						Protocol:   proto.String(x[2]),
-						Method:     proto.String(x[3]),
-						Obfs:       proto.String(x[4]),
-						Password:   proto.String(string(password)),
-						Obfsparam:  proto.String(string(obfsparam)),
-						Protoparam: proto.String(string(protoparam)),
+						Server:     new(x[0]),
+						Port:       new(x[1]),
+						Protocol:   new(x[2]),
+						Method:     new(x[3]),
+						Obfs:       new(x[4]),
+						Password:   new(string(password)),
+						Obfsparam:  new(string(obfsparam)),
+						Protoparam: new(string(protoparam)),
 					}.Build(),
 				}.Build(),
 			},

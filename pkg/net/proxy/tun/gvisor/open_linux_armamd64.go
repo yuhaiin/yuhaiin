@@ -1,5 +1,4 @@
 //go:build (linux && amd64) || (linux && arm64)
-// +build linux,amd64 linux,arm64
 
 // github.com/google/gvisor/pkg/tcpip/link/fdbased/mmap.go only support linux,amd64 linux,arm64
 // so add build tag for fdbased

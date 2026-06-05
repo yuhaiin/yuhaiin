@@ -10,7 +10,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestSocks5(t *testing.T) {
@@ -28,8 +27,8 @@ func TestSocks5(t *testing.T) {
 		assert.NoError(t, err)
 
 		sp, err := fixed.NewClient(node.Fixed_builder{
-			Host: proto.String("127.0.0.1"),
-			Port: proto.Int32(int32(lis.Addr().(*net.TCPAddr).Port)),
+			Host: new("127.0.0.1"),
+			Port: new(int32(lis.Addr().(*net.TCPAddr).Port)),
 		}.Build(), nil)
 		assert.NoError(t, err)
 
@@ -63,7 +62,7 @@ func TestSocks5(t *testing.T) {
 			nettest.TestConn(t, func() (c1 net.Conn, c2 net.Conn, stop func(), err error) {
 				return newTest(t,
 					config.Socks5_builder{
-						Udp: proto.Bool(false),
+						Udp: new(false),
 					},
 					node.Socks5_builder{},
 				)
@@ -77,13 +76,13 @@ func TestSocks5(t *testing.T) {
 			nettest.TestConn(t, func() (c1 net.Conn, c2 net.Conn, stop func(), err error) {
 				return newTest(t,
 					config.Socks5_builder{
-						Udp:      proto.Bool(false),
-						Username: proto.String("user"),
-						Password: proto.String("pass"),
+						Udp:      new(false),
+						Username: new("user"),
+						Password: new("pass"),
 					},
 					node.Socks5_builder{
-						User:     proto.String("user"),
-						Password: proto.String("pass"),
+						User:     new("user"),
+						Password: new("pass"),
 					},
 				)
 			})

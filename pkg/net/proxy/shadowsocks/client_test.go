@@ -21,15 +21,15 @@ import (
 
 func TestConn(t *testing.T) {
 	p, err := fixed.NewClient(node.Fixed_builder{
-		Host: proto.String("127.0.0.1"),
+		Host: new("127.0.0.1"),
 		Port: proto.Int32(1080),
 	}.Build(), nil)
 	assert.NoError(t, err)
-	z, err := websocket.NewClient(node.Websocket_builder{Host: proto.String("localhost:1090")}.Build(), p)
+	z, err := websocket.NewClient(node.Websocket_builder{Host: new("localhost:1090")}.Build(), p)
 	assert.NoError(t, err)
 	z, err = NewClient(node.Shadowsocks_builder{
-		Method:   proto.String("aes-128-gcm"),
-		Password: proto.String("test"),
+		Method:   new("aes-128-gcm"),
+		Password: new("test"),
 	}.Build(),
 		// "v2ray",
 		// "tls;cert=/mnt/data/program/go-shadowsocks/ca.crt;host=localhost:1090",
@@ -72,13 +72,13 @@ func TestConn(t *testing.T) {
 
 func TestUDPConn(t *testing.T) {
 	p, err := fixed.NewClient(node.Fixed_builder{
-		Host: proto.String("127.0.0.1"),
+		Host: new("127.0.0.1"),
 		Port: proto.Int32(1090),
 	}.Build(), nil)
 	assert.NoError(t, err)
 	s, err := NewClient(node.Shadowsocks_builder{
-		Method:   proto.String("aes-128-gcm"),
-		Password: proto.String("test"),
+		Method:   new("aes-128-gcm"),
+		Password: new("test"),
 	}.Build(), p)
 	assert.NoError(t, err)
 

@@ -162,6 +162,14 @@ func (h *processMatcher) Search(ctx context.Context, addr netapi.Address) []stri
 	return *s
 }
 
+func (h *processMatcher) Empty() bool {
+	for range h.trie.Range {
+		return false
+	}
+
+	return true
+}
+
 type Lists struct {
 	api.UnimplementedListsServer
 

@@ -36,18 +36,18 @@ func (c *Chore) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
 	err := c.db.View(func(s *config.Setting) error {
 		if !s.HasAdvancedConfig() {
 			s.SetAdvancedConfig(config.AdvancedConfig_builder{
-				UdpBufferSize:     proto.Int32(int32(configuration.UDPBufferSize.Load())),
-				RelayBufferSize:   proto.Int32(int32(configuration.RelayBufferSize.Load())),
-				UdpRingbufferSize: proto.Int32(int32(configuration.MaxUDPUnprocessedPackets.Load())),
+				UdpBufferSize:     new(int32(configuration.UDPBufferSize.Load())),
+				RelayBufferSize:   new(int32(configuration.RelayBufferSize.Load())),
+				UdpRingbufferSize: new(int32(configuration.MaxUDPUnprocessedPackets.Load())),
 			}.Build())
 		}
 
 		if !s.HasLogcat() {
 			s.SetLogcat(config.Logcat_builder{
-				Save:               proto.Bool(false),
+				Save:               new(false),
 				Level:              config.LogLevel_info.Enum(),
-				IgnoreDnsError:     proto.Bool(configuration.IgnoreDnsErrorLog.Load()),
-				IgnoreTimeoutError: proto.Bool(configuration.IgnoreTimeoutErrorLog.Load()),
+				IgnoreDnsError:     new(configuration.IgnoreDnsErrorLog.Load()),
+				IgnoreTimeoutError: new(configuration.IgnoreTimeoutErrorLog.Load()),
 			}.Build())
 		} else if !s.GetLogcat().HasIgnoreDnsError() {
 			s.GetLogcat().SetIgnoreDnsError(false)
@@ -57,16 +57,16 @@ func (c *Chore) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
 
 		if !s.HasSystemProxy() {
 			s.SetSystemProxy(config.SystemProxy_builder{
-				Http:   proto.Bool(false),
-				Socks5: proto.Bool(false),
+				Http:   new(false),
+				Socks5: new(false),
 			}.Build())
 		}
 
 		setting = config.Setting_builder{
 			AdvancedConfig:      s.GetAdvancedConfig(),
-			UseDefaultInterface: proto.Bool(s.GetUseDefaultInterface()),
-			NetInterface:        proto.String(s.GetNetInterface()),
-			Ipv6:                proto.Bool(s.GetIpv6()),
+			UseDefaultInterface: new(s.GetUseDefaultInterface()),
+			NetInterface:        new(s.GetNetInterface()),
+			Ipv6:                new(s.GetIpv6()),
 			Logcat:              s.GetLogcat(),
 			SystemProxy:         s.GetSystemProxy(),
 			Platform:            s.GetPlatform(),
@@ -109,10 +109,10 @@ func Info() *config.Info {
 	}
 
 	return (&config.Info_builder{
-		Version:   proto.String(version.Version),
-		Commit:    proto.String(version.GitCommit),
-		BuildTime: proto.String(version.BuildTime),
-		GoVersion: proto.String(runtime.Version()),
+		Version:   new(version.Version),
+		Commit:    new(version.GitCommit),
+		BuildTime: new(version.BuildTime),
+		GoVersion: new(runtime.Version()),
 		Platform:  proto.String(runtime.GOOS + "/" + runtime.GOARCH),
 		Compiler:  proto.String(runtime.Compiler),
 		Arch:      proto.String(runtime.GOARCH),

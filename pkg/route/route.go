@@ -305,7 +305,7 @@ func (f *Route) Close() error { return nil }
 func (f *Route) Name() string { return "route" }
 
 func (c *Route) dumpProcess(ctx context.Context, networks ...string) (s netapi.Process) {
-	if c.ProcessDumper == nil {
+	if c.ProcessDumper == nil || !c.shouldDumpProcess() {
 		return
 	}
 
@@ -348,6 +348,17 @@ func (c *Route) dumpProcess(ctx context.Context, networks ...string) (s netapi.P
 	}
 
 	return netapi.Process{}
+}
+
+func (c *Route) shouldDumpProcess() bool {
+	switch configuration.ProcessLookupMode.Load() {
+	case "off":
+		return false
+	case "rules_only":
+		return !c.ms.list.ProcessTrie().Empty()
+	default:
+		return true
+	}
 }
 
 func convertVolumeName(path string) string {

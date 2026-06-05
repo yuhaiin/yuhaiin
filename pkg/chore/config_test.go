@@ -8,12 +8,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestMergeDefault(t *testing.T) {
 	src := config.Setting_builder{
-		Ipv6: proto.Bool(false),
+		Ipv6: new(false),
 		Dns:  &config.DnsConfig{},
 	}.Build()
 

@@ -23,8 +23,10 @@ import (
 )
 
 type sentPacket struct {
-	src net.Addr
-	buf []byte
+	src     net.Addr
+	srcAddr netapi.Address
+	srcKey  uint64
+	buf     []byte
 }
 
 type ContextCache struct {
@@ -77,6 +79,8 @@ type SourceControl struct {
 	resolvedIPCache syncmap.SyncMap[uint64, *net.UDPAddr]
 	// reverseNATMap maps the proxy's reply-from address back to the original client-requested destination for reverse NAT.
 	reverseNATMap syncmap.SyncMap[uint64, netapi.Address]
+	// hasReverseNAT marks whether this flow has ever needed reverse NAT remapping.
+	hasReverseNAT atomic.Bool
 	// dispatchCache caches the dispatch decision for a destination, indicating how to route it.
 	dispatchCache syncmap.SyncMap[uint64, netapi.Address]
 
@@ -340,7 +344,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 
 func (t *SourceControl) WriteTo(b []byte, realDst net.Addr, originDst netapi.Address, conn net.PacketConn) error {
 	_, err := conn.WriteTo(b, realDst)
-	_ = conn.SetReadDeadline(time.Now().Add(IdleTimeout))
+	_ = conn.SetReadDeadline(time.Now().Add(udpIdleTimeout()))
 	if err == nil && originDst != nil {
 		t.mapAddr(realDst, originDst)
 	}
@@ -365,6 +369,7 @@ func (t *SourceControl) mapAddr(src net.Addr, dst netapi.Address) {
 	}
 
 	t.reverseNATMap.Store(srcKey, dst)
+	t.hasReverseNAT.Store(true)
 }
 
 func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
@@ -398,7 +403,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 						continue _loop
 					}
 
-					_, err := writeBack(pkt.buf, u.parseAddr(pkt.src))
+					_, err := writeBack(pkt.buf, u.parseAddr(pkt.src, pkt.srcAddr, pkt.srcKey))
 					pool.PutBytes(pkt.buf)
 
 					if err != nil {
@@ -426,7 +431,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 
 	for {
 		data := pool.GetBytes(configuration.UDPBufferSize.Load())
-		_ = p.SetReadDeadline(time.Now().Add(IdleTimeout))
+		_ = p.SetReadDeadline(time.Now().Add(udpIdleTimeout()))
 		n, from, err := p.ReadFrom(data)
 		if err != nil {
 			if ignoreError(err) {
@@ -441,7 +446,13 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 		metrics.Counter.AddReceiveUDPPacket()
 		metrics.Counter.AddReceiveUDPPacketSize(n)
 
-		if !u.receivedPackets.Push(sentPacket{from, data[:n]}) {
+		srcAddr, srcKey := parseComparableAddr(from, u.hasReverseNAT.Load())
+		if !u.receivedPackets.Push(sentPacket{
+			src:     from,
+			srcAddr: srcAddr,
+			srcKey:  srcKey,
+			buf:     data[:n],
+		}) {
 			pool.PutBytes(data)
 			metrics.Counter.AddReceiveUDPDroppedPacket()
 			continue
@@ -462,16 +473,30 @@ func ignoreError(err error) bool {
 		errors.Is(err, net.ErrClosed)
 }
 
-func (s *SourceControl) parseAddr(from net.Addr) net.Addr {
+func parseComparableAddr(from net.Addr, needComparable bool) (netapi.Address, uint64) {
+	if !needComparable {
+		return nil, 0
+	}
+
 	faddr, err := netapi.ParseSysAddr(from)
 	if err != nil {
 		log.Error("parse addr failed", "err", err)
-		return from
+		return nil, 0
 	}
 
-	if addr, ok := s.reverseNATMap.Load(faddr.Comparable()); ok {
-		// TODO: maybe two dst(fake ip) have same uaddr, need help
-		from = addr
+	return faddr, faddr.Comparable()
+}
+
+func (s *SourceControl) parseAddr(from net.Addr, srcAddr netapi.Address, srcKey uint64) net.Addr {
+	if srcKey != 0 {
+		if addr, ok := s.reverseNATMap.Load(srcKey); ok {
+			// TODO: maybe two dst(fake ip) have same uaddr, need help
+			return addr
+		}
+	}
+
+	if srcAddr != nil {
+		return srcAddr
 	}
 
 	return from

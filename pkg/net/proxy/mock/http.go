@@ -78,12 +78,12 @@ func (s *listenerWrap) Accept() (net.Conn, error) {
 
 		buf, _ := br.Peek(br.Buffered())
 
-		i := bytes.IndexByte(buf, ' ')
-		if i == -1 {
+		before, _, ok := bytes.Cut(buf, []byte{' '})
+		if !ok {
 			return nil
 		}
 
-		if !shttp.Methods[unsafe.String(unsafe.SliceData(buf[:i]), len(buf[:i]))] {
+		if !shttp.Methods[unsafe.String(unsafe.SliceData(before), len(before))] {
 			return nil
 		}
 

@@ -52,14 +52,14 @@ func main() {
 		Protocols: []*node.Protocol{
 			node.Protocol_builder{
 				Simple: node.Simple_builder{
-					Host: proto.String("ip.sb"),
+					Host: new("ip.sb"),
 					Port: proto.Int32(443),
 				}.Build(),
 			}.Build(),
 			node.Protocol_builder{
 				Tls: node.TlsConfig_builder{
-					Enable:             proto.Bool(true),
-					InsecureSkipVerify: proto.Bool(true),
+					Enable:             new(true),
+					InsecureSkipVerify: new(true),
 					ServerNames:        []string{"ip.sb"},
 				}.Build(),
 			}.Build(),

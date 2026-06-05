@@ -262,17 +262,17 @@ func (t *Tailscale) init(context.Context) (*tsnet.Server, error) {
 }
 
 func (t *Tailscale) up(ctx context.Context, dialer *tsnet.Server) (*ipnstate.Status, error) {
-	ch := t.sf.DoChan("up", func() (interface{}, error) {
+	ch := t.sf.DoChan("up", func() (any, error) {
 		defer func() {
 			if err := recover(); err != nil {
 				log.Error("tailscale conn panic", "err", err)
 			}
 		}()
 
-upCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-defer cancel()
+		upCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer cancel()
 
-return dialer.Up(upCtx)
+		return dialer.Up(upCtx)
 	})
 
 	select {

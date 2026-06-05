@@ -11,7 +11,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -91,8 +90,8 @@ func init() {
 
 		simple := node.Protocol_builder{
 			Simple: node.Simple_builder{
-				Host: proto.String(n.Address),
-				Port: proto.Int32(int32(port)),
+				Host: new(n.Address),
+				Port: new(int32(port)),
 			}.Build(),
 		}
 
@@ -110,8 +109,8 @@ func init() {
 			tlsProtocol = node.Protocol_builder{
 				Tls: node.TlsConfig_builder{
 					ServerNames:        []string{n.Sni},
-					InsecureSkipVerify: proto.Bool(!n.VerifyCert),
-					Enable:             proto.Bool(true),
+					InsecureSkipVerify: new(!n.VerifyCert),
+					Enable:             new(true),
 					CaCert:             nil,
 				}.Build(),
 			}.Build()
@@ -128,8 +127,8 @@ func init() {
 		case "ws":
 			netProtocol = node.Protocol_builder{
 				Websocket: node.Websocket_builder{
-					Host: proto.String(n.Host),
-					Path: proto.String(n.Path),
+					Host: new(n.Host),
+					Path: new(n.Path),
 				}.Build(),
 			}.Build()
 		case "tcp":
@@ -139,7 +138,7 @@ func init() {
 		}
 
 		return node.Point_builder{
-			Name:   proto.String("[vmess]" + n.Ps),
+			Name:   new("[vmess]" + n.Ps),
 			Origin: node.Origin_remote.Enum(),
 			Protocols: []*node.Protocol{
 				simple.Build(),
@@ -147,9 +146,9 @@ func init() {
 				netProtocol,
 				node.Protocol_builder{
 					Vmess: node.Vmess_builder{
-						Uuid:     proto.String(n.Uuid),
-						AlterId:  proto.String(fmt.Sprint(n.AlterId)),
-						Security: proto.String(n.Security),
+						Uuid:     new(n.Uuid),
+						AlterId:  new(fmt.Sprint(n.AlterId)),
+						Security: new(n.Security),
 					}.Build(),
 				}.Build(),
 			},
