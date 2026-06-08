@@ -19,12 +19,12 @@ require (
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.11
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/miekg/dns v1.1.72
-	github.com/oschwald/maxminddb-golang/v2 v2.3.0
+	github.com/oschwald/maxminddb-golang/v2 v2.4.0
 	github.com/pires/go-proxyproto v0.12.0
 	github.com/prometheus-community/pro-bing v0.8.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/quic-go/connect-ip-go v0.1.0
-	github.com/quic-go/quic-go v0.59.1
+	github.com/quic-go/quic-go v0.60.0
 	github.com/refraction-networking/utls v1.8.2
 	github.com/rhnvrm/simples3 v0.11.1
 	github.com/tailscale/wireguard-go v0.0.0-20251121194102-c6fd943bb437
