@@ -56,7 +56,7 @@ func (d *Tun) Read(bufs [][]byte, sizes []int) (n int, err error) {
 		return 0, errors.New("stopfd")
 	}
 
-	for i := 0; i < nMsgs; i++ {
+	for i := range nMsgs {
 		sizes[i] = int(mmsgHdrs[i].Len)
 	}
 

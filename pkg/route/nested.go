@@ -223,20 +223,29 @@ func NewMatchers(list *Lists) *Matchers {
 	}
 }
 
+func (s *Matchers) appendRule(matchers []MatchEntry, r *config.Rulev2) []MatchEntry {
+	if r.GetDisabled() {
+		return matchers
+	}
+
+	matchers = append(matchers, MatchEntry{
+		mode:    r.ToModeEnum(),
+		matcher: ParseMatcher(s.list, r),
+		name:    r.GetName(),
+	})
+
+	if tag := r.GetTag(); tag != "" {
+		s.tags.Push(tag)
+	}
+
+	return matchers
+}
+
 func (s *Matchers) Add(rule ...*config.Rulev2) {
 	matchers := make([]MatchEntry, 0, len(rule))
 
 	for _, r := range rule {
-		matcher := ParseMatcher(s.list, r)
-		matchers = append(matchers, MatchEntry{
-			mode:    r.ToModeEnum(),
-			matcher: matcher,
-			name:    r.GetName(),
-		})
-
-		if tag := r.GetTag(); tag != "" {
-			s.tags.Push(tag)
-		}
+		matchers = s.appendRule(matchers, r)
 	}
 
 	s.mu.Lock()
@@ -268,15 +277,7 @@ func (s *Matchers) Update(rules ...*config.Rulev2) {
 	s.list.ResetProcessTrie()
 
 	for _, v := range rules {
-		ms = append(ms, MatchEntry{
-			mode:    v.ToModeEnum(),
-			matcher: ParseMatcher(s.list, v),
-			name:    v.GetName(),
-		})
-
-		if tag := v.GetTag(); tag != "" {
-			s.tags.Push(tag)
-		}
+		ms = s.appendRule(ms, v)
 	}
 
 	s.mu.Lock()

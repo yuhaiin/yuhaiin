@@ -50,15 +50,21 @@ func NewRules(db chore.DB, route *Route) *Rules {
 
 func (r *Rules) List(ctx context.Context, empty *emptypb.Empty) (*api.RuleResponse, error) {
 	names := make([]string, 0)
+	items := make([]*api.RuleItem, 0)
 	err := r.db.View(func(ss *config.Setting) error {
 		for _, v := range ss.GetBypass().GetRulesV2() {
 			names = append(names, v.GetName())
+			items = append(items, api.RuleItem_builder{
+				Name:     new(v.GetName()),
+				Disabled: new(v.GetDisabled()),
+			}.Build())
 		}
 		return nil
 	})
 
 	return api.RuleResponse_builder{
 		Names: names,
+		Items: items,
 	}.Build(), err
 }
 
@@ -79,12 +85,10 @@ func (r *Rules) Get(ctx context.Context, index *api.RuleIndex) (*config.Rulev2, 
 
 func (r *Rules) Save(ctx context.Context, req *api.RuleSaveRequest) (*emptypb.Empty, error) {
 	var rules []*config.Rulev2
-	var add bool
 	err := r.db.Batch(func(ss *config.Setting) error {
 		if req.GetIndex() == nil {
 			ss.GetBypass().SetRulesV2(append(ss.GetBypass().GetRulesV2(), req.GetRule()))
-			rules = []*config.Rulev2{req.GetRule()}
-			add = true
+			rules = ss.GetBypass().GetRulesV2()
 			return nil
 		}
 
@@ -107,11 +111,7 @@ func (r *Rules) Save(ctx context.Context, req *api.RuleSaveRequest) (*emptypb.Em
 		return &emptypb.Empty{}, err
 	}
 
-	if add {
-		r.route.ms.Add(rules...)
-	} else {
-		r.route.ms.Update(rules...)
-	}
+	r.route.ms.Update(rules...)
 
 	return &emptypb.Empty{}, nil
 }
@@ -138,6 +138,7 @@ func (r *Rules) Remove(ctx context.Context, index *api.RuleIndex) (*emptypb.Empt
 }
 
 func (r *Rules) ChangePriority(ctx context.Context, req *api.ChangePriorityRequest) (*emptypb.Empty, error) {
+	var rules []*config.Rulev2
 	err := r.db.Batch(func(s *config.Setting) error {
 		if err := r.checkIndex(s, req.GetSource()); err != nil {
 			return fmt.Errorf("source index error: %w", err)
@@ -169,12 +170,16 @@ func (r *Rules) ChangePriority(ctx context.Context, req *api.ChangePriorityReque
 			return fmt.Errorf("unknown operate: %d", req.GetOperate())
 		}
 
-		r.route.ms.ChangePriority(int(req.GetSource().GetIndex()),
-			int(req.GetTarget().GetIndex()), req.GetOperate())
+		rules = s.GetBypass().GetRulesV2()
 		return nil
 	})
+	if err != nil {
+		return &emptypb.Empty{}, err
+	}
 
-	return &emptypb.Empty{}, err
+	r.route.ms.Update(rules...)
+
+	return &emptypb.Empty{}, nil
 }
 
 func InsertBefore[T any](s []T, from, to int) []T {

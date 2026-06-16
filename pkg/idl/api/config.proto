@@ -70,7 +70,15 @@ service lists {
   rpc save_config(save_list_config_request) returns (google.protobuf.Empty);
 }
 
-message rule_response { repeated string names = 1 [ json_name = "names" ]; }
+message rule_item {
+  string name = 1 [ json_name = "name" ];
+  bool disabled = 2 [ json_name = "disabled" ];
+}
+
+message rule_response {
+  repeated string names = 1 [ json_name = "names" ];
+  repeated rule_item items = 2 [ json_name = "items" ];
+}
 
 message rule_index {
   uint32 index = 1 [ json_name = "index" ];

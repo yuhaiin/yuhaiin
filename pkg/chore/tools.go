@@ -70,23 +70,27 @@ func (t *Tools) Licenses(context.Context, *emptypb.Empty) (*tools.Licenses, erro
 }
 
 func (t *Tools) Log(_ *emptypb.Empty, stream grpc.ServerStreamingServer[tools.Log]) error {
-	return t.logController.Tail(stream.Context(), func(line []string) {
+	return t.logController.Tail(stream.Context(), func(line []string) error {
 		for _, l := range line {
 			if err := stream.Send(tools.Log_builder{
 				Log: new(l),
 			}.Build()); err != nil {
-				return
+				return err
 			}
 		}
+
+		return nil
 	})
 }
 
 func (t *Tools) Logv2(empty *emptypb.Empty, v2 grpc.ServerStreamingServer[tools.Logv2]) error {
-	return t.logController.Tail(v2.Context(), func(line []string) {
+	return t.logController.Tail(v2.Context(), func(line []string) error {
 		if err := v2.Send(tools.Logv2_builder{
 			Log: line,
 		}.Build()); err != nil {
-			return
+			return err
 		}
+
+		return nil
 	})
 }
