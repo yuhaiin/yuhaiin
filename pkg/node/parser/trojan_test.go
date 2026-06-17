@@ -23,6 +23,8 @@ func TestParseTrojan(t *testing.T) {
 }
 
 func TestTrojan(t *testing.T) {
+	t.Skip("requires real proxy configuration plus external DNS and ip.sb access")
+
 	p := node.Point_builder{
 		Protocols: []*node.Protocol{},
 	}

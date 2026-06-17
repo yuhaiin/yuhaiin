@@ -10,6 +10,8 @@ import (
 )
 
 func TestTCP(t *testing.T) {
+	t.Skip("requires external DNS services")
+
 	subnet, _ := netip.ParsePrefix("1.1.1.1/32")
 
 	configMap := map[string]Config{

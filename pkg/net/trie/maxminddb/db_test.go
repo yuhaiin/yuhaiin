@@ -2,12 +2,17 @@ package maxminddb
 
 import (
 	"net/netip"
+	"os"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestLookup(t *testing.T) {
+	if _, err := os.Stat("Country-without-asn.mmdb"); err != nil {
+		t.Skip("requires Country-without-asn.mmdb test fixture")
+	}
+
 	db, err := NewMaxMindDB("Country-without-asn.mmdb")
 	assert.NoError(t, err)
 

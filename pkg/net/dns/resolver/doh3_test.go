@@ -9,6 +9,8 @@ import (
 )
 
 func TestDoh3(t *testing.T) {
+	t.Skip("requires external DoH3 services")
+
 	configMap := map[string]Config{
 		"cloudflare": {
 			Type: config.Type_doh3,

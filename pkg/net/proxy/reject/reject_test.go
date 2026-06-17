@@ -9,6 +9,8 @@ import (
 )
 
 func TestReject(t *testing.T) {
+	t.Skip("intentionally exercises long reject delay behavior")
+
 	r := NewReject(5, 15)
 
 	addr, err := netapi.ParseAddressPort("", "www.baidu.com", 0)

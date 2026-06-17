@@ -7,5 +7,7 @@ import (
 )
 
 func TestUDP(t *testing.T) {
+	t.Skip("requires external DNS services")
+
 	t.Log(DNS(direct.Default, "1.1.1.1:53", "www.google.com"))
 }

@@ -10,6 +10,8 @@ import (
 )
 
 func TestDoQ(t *testing.T) {
+	t.Skip("requires external DoQ services")
+
 	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
 
 	configMap := map[string]Config{

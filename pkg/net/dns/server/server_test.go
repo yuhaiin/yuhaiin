@@ -10,6 +10,8 @@ import (
 )
 
 func TestServer(t *testing.T) {
+	t.Skip("starts a long-running DNS server and depends on external DoH service")
+
 	z, err := resolver.New(resolver.Config{Type: config.Type_doh, Host: "223.5.5.5"})
 	assert.NoError(t, err)
 

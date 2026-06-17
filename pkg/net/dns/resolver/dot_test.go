@@ -11,6 +11,8 @@ import (
 )
 
 func TestDOT(t *testing.T) {
+	t.Skip("requires external DoT services")
+
 	s, _ := netip.ParsePrefix("223.5.5.5/22")
 	configMap := map[string]Config{
 		"google": {

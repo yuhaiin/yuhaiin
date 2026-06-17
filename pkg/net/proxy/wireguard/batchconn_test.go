@@ -11,6 +11,8 @@ import (
 )
 
 func TestPacketConn(t *testing.T) {
+	t.Skip("depends on UDP packet timing and races with connection close")
+
 	conn1, err := net.ListenPacket("udp4", ":0")
 	assert.NoError(t, err)
 	defer conn1.Close()

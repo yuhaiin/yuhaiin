@@ -20,6 +20,8 @@ import (
 )
 
 func TestConn(t *testing.T) {
+	t.Skip("requires a local shadowsocks/websocket server and external ip.sb access")
+
 	p, err := fixed.NewClient(node.Fixed_builder{
 		Host: new("127.0.0.1"),
 		Port: proto.Int32(1080),
@@ -71,6 +73,8 @@ func TestConn(t *testing.T) {
 }
 
 func TestUDPConn(t *testing.T) {
+	t.Skip("requires a local shadowsocks server and external DNS access")
+
 	p, err := fixed.NewClient(node.Fixed_builder{
 		Host: new("127.0.0.1"),
 		Port: proto.Int32(1090),

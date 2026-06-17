@@ -12,7 +12,14 @@ func newTestManager() *Manager {
 	return &Manager{
 		store: NewProxyStore(),
 		db: &jsondb.DB[*node.Node]{
-			Data: node.Node_builder{Manager: &node.Manager{}}.Build(),
+			Data: node.Node_builder{
+				Links: map[string]*node.Link{},
+				Manager: node.Manager_builder{
+					Nodes:     map[string]*node.Point{},
+					Tags:      map[string]*node.Tags{},
+					Publishes: map[string]*node.Publish{},
+				}.Build(),
+			}.Build(),
 		},
 	}
 }

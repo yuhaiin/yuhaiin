@@ -41,6 +41,8 @@ func TestGetVmess(t *testing.T) {
 }
 
 func TestVmess(t *testing.T) {
+	t.Skip("requires real proxy configuration and external ip.sb access")
+
 	z := &node.Point{}
 
 	err := protojson.Unmarshal([]byte(``), z)

@@ -58,13 +58,18 @@ func (m *mockDialer) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 		time.Sleep(time.Millisecond * 200)
 		return dns.Msg{}, m.err
 	}
+	hdr := dns.RR_Header{
+		Name:   req.Question.Name,
+		Rrtype: req.Question.Qtype,
+		Class:  dns.ClassINET,
+	}
 	var body dns.RR
 
 	switch req.Question.Qtype {
 	case dns.TypeA:
-		body = &dns.A{A: net.IP{127, 0, 0, 1}}
+		body = &dns.A{Hdr: hdr, A: net.IP{127, 0, 0, 1}}
 	case dns.TypeAAAA:
-		body = &dns.AAAA{AAAA: net.IP{127, 0, 0, 1}}
+		body = &dns.AAAA{Hdr: hdr, AAAA: net.ParseIP("::1")}
 	}
 
 	return dns.Msg{

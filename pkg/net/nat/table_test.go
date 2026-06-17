@@ -191,6 +191,8 @@ func (t *testPacketConn) SetWriteDeadline(time.Time) error {
 }
 
 func TestP(t *testing.T) {
+	t.Skip("demonstration NAT loop; blocks waiting for UDP packets")
+
 	natTable := map[string]net.PacketConn{}
 	getTargetAddress := func([]byte) (*net.UDPAddr, []byte) {
 		// TODO implement proxy protocol

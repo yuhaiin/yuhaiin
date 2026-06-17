@@ -31,6 +31,8 @@ func TestSsrParse(t *testing.T) {
 }
 
 func TestConnectionSsr(t *testing.T) {
+	t.Skip("requires real proxy configuration plus external DNS and ip.sb access")
+
 	p := node.Point_builder{
 		Protocols: []*node.Protocol{},
 	}

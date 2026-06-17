@@ -33,6 +33,8 @@ func TestS3(t *testing.T) {
 	})
 
 	t.Run("put", func(t *testing.T) {
+		t.Skip("requires real S3/R2 credentials and network access")
+
 		data, err := os.ReadFile(".config.json")
 		assert.NoError(t, err)
 

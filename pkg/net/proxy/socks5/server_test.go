@@ -2,6 +2,7 @@ package socks5
 
 import (
 	"bytes"
+	"net"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -23,7 +24,6 @@ func TestResolveAddr(t *testing.T) {
 	// t.Log(x[0], x[1], x[2], x[3], x[4], x[3:], x[:3], x[:])
 	t.Log(tools.ResolveAddr(bytes.NewBuffer(x)))
 
-	addr, err = netapi.ParseAddressPort("tcp", "[ff::ff]", port)
-	x = tools.ParseAddr(addr)
+	x = tools.ParseAddr(netapi.ParseIPAddr("tcp", net.ParseIP("ff::ff"), port))
 	t.Log(tools.ResolveAddr(bytes.NewBuffer(x)))
 }

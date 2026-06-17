@@ -23,6 +23,8 @@ import (
 )
 
 func TestTailscale(t *testing.T) {
+	t.Skip("requires a real Tailscale auth key and remote tailnet services")
+
 	configuration.ProxyChain.Set(direct.Default)
 
 	key, err := os.ReadFile(".tsauthkey")

@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -13,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"go.etcd.io/bbolt"
 )
 
 func TestRetrieveIPFromPtr(t *testing.T) {
@@ -83,11 +81,7 @@ func TestNetip(t *testing.T) {
 	z, err := netip.ParsePrefix("127.0.0.1/30")
 	assert.NoError(t, err)
 
-	nd, err := bbolt.Open("test.db", os.ModePerm, &bbolt.Options{})
-	assert.NoError(t, err)
-	defer nd.Close()
-
-	ff := NewFakeIPPool(z, NewMemCache())
+	ff := NewFakeIPPool(z, NewMemCache(t))
 
 	ch := make(chan struct {
 		a  string
