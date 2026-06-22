@@ -10,7 +10,7 @@ import (
 )
 
 type fakeLru struct {
-	bbolt cache.Cache
+	disk cache.Cache
 
 	LRU     *lru.ReverseSyncLru[string, netip.Addr]
 	iprange netip.Prefix
@@ -19,14 +19,14 @@ type fakeLru struct {
 }
 
 func newFakeLru(size int, db cache.Cache, iprange netip.Prefix) *fakeLru {
-	var bboltCache cache.Cache
+	var diskCache cache.Cache
 	if iprange.Addr().Unmap().Is6() {
-		bboltCache = db.NewCache("fakedns_cachev6")
+		diskCache = db.NewCache("fakedns_cachev6")
 	} else {
-		bboltCache = db.NewCache("fakedns_cache")
+		diskCache = db.NewCache("fakedns_cache")
 	}
 
-	z := &fakeLru{Size: size, bbolt: bboltCache, iprange: iprange}
+	z := &fakeLru{Size: size, disk: diskCache, iprange: iprange}
 
 	if size <= 0 {
 		return z
@@ -36,7 +36,7 @@ func newFakeLru(size int, db cache.Cache, iprange netip.Prefix) *fakeLru {
 		lru.WithLruOptions(
 			lru.WithCapacity[string, netip.Addr](int(size)),
 			lru.WithOnRemove(func(s string, v netip.Addr) {
-				bboltCache.Batch(func(txn cache.Batch) error {
+				diskCache.Batch(func(txn cache.Batch) error {
 					_ = txn.Delete([]byte(s))
 					_ = txn.Delete(v.AsSlice())
 					return nil
@@ -44,11 +44,11 @@ func newFakeLru(size int, db cache.Cache, iprange netip.Prefix) *fakeLru {
 			}),
 		),
 		lru.WithOnValueChanged[string](func(old, new netip.Addr) {
-			_ = bboltCache.Delete(old.AsSlice())
+			_ = diskCache.Delete(old.AsSlice())
 		}),
 	)
 
-	err := bboltCache.Range(func(k, v []byte) bool {
+	err := diskCache.Range(func(k, v []byte) bool {
 		ip, ok := netip.AddrFromSlice(k)
 		if !ok {
 			return true
@@ -88,9 +88,9 @@ func (f *fakeLru) Add(host string, ip netip.Addr) {
 	}
 	f.LRU.Add(host, ip)
 
-	if f.bbolt != nil {
+	if f.disk != nil {
 		host, ip := []byte(host), ip.AsSlice()
-		f.bbolt.Batch(func(txn cache.Batch) error {
+		f.disk.Batch(func(txn cache.Batch) error {
 			if err := txn.Put(host, ip); err != nil {
 				return err
 			}
@@ -122,7 +122,7 @@ func (f *fakeLru) ReverseLoad(ip netip.Addr) (string, bool) {
 		return host, ok
 	}
 
-	v, _ := f.bbolt.Get(ip.AsSlice())
+	v, _ := f.disk.Get(ip.AsSlice())
 	if host = string(v); host != "" {
 		return host, true
 	}

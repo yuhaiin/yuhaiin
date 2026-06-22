@@ -73,7 +73,6 @@ yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin
 - [gRPC](https://grpc.io/)  
 - [protobuf-go](https://github.com/protocolbuffers/protobuf-go)  
 - [プロ生ちゃん](https://kei.pronama.jp/)
-- [etcd-io/bbolt](https://github.com/etcd-io/bbolt)  
 - [tailscale](https://github.com/tailscale/tailscale)
 - [usque](https://github.com/Diniboy1123/usque)
 

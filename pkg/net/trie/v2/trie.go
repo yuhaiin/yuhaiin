@@ -132,8 +132,7 @@ func (x *Trie[T]) Close() error {
 }
 
 type Options[T comparable] struct {
-	Codec codec.Codec[T]
-	// Badger *badger.Cache
+	Codec  codec.Codec[T]
 	Pebble *pebble.Cache
 }
 
@@ -142,12 +141,6 @@ func WithCodec[T comparable](codec codec.Codec[T]) func(*Options[T]) {
 		o.Codec = codec
 	}
 }
-
-// func WithBadger(cache *badger.Cache) func(*Options[string]) {
-// 	return func(o *Options[string]) {
-// 		o.Badger = cache
-// 	}
-// }
 
 func WithPebble(cache *pebble.Cache) func(*Options[string]) {
 	return func(o *Options[string]) {

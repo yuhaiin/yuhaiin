@@ -2,7 +2,6 @@
 
 ```json
 {
-   // maybe deprecated in future, move to bbolt cache
    "tcp":{ // global tcp using node, copy from nodes while changing
       "hash":"606f65",
       "name":"default",
@@ -14,7 +13,6 @@
          }
       ]
    },
-   // maybe deprecated in future, move to bbolt cache
    "udp":{// global udp using node, copy from nodes while changing
       "hash":"606f65",
       "name":"default",

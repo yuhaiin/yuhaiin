@@ -119,9 +119,6 @@ func TestNetip(t *testing.T) {
 
 	wg.Wait()
 	t.Log(time.Since(now))
-
-	// bbolt 630ms 673ms 624ms
-	// badger 130ms 112ms 103ms
 }
 
 func BenchmarkParsePtr(b *testing.B) {

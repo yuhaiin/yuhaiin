@@ -52,11 +52,6 @@ func newHostTrie(path string) *hostMatcher {
 		panic(err)
 	}
 
-	// cache, err := badger.New(path)
-	// if err != nil {
-	// log.Error("new badger failed", "err", err)
-	// }
-
 	pebble, err := pebble.New(path)
 	if err != nil {
 		log.Error("new pebble failed", "err", err)

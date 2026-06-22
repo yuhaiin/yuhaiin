@@ -9,7 +9,7 @@ type PutOptions struct {
 	TTL time.Duration
 }
 
-// WithTTL only badger cache support TTL
+// WithTTL is ignored by cache implementations that do not support expiration.
 func WithTTL(ttl time.Duration) func(*PutOptions) {
 	return func(o *PutOptions) {
 		o.TTL = ttl
