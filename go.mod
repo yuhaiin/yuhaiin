@@ -11,7 +11,7 @@ replace (
 
 require (
 	github.com/cilium/ebpf v0.21.0
-	github.com/cloudflare/circl v1.6.3
+	github.com/cloudflare/circl v1.6.4
 	github.com/cockroachdb/pebble/v2 v2.1.6
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/nftables v0.3.0
