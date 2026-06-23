@@ -85,6 +85,9 @@ type Conn struct {
 
 	isAead bool
 	CMD    CMD
+
+	DynamicHost string
+	DynamicPort uint16
 }
 
 // NewClient .
@@ -244,6 +247,8 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 // DecodeRespHeader .
 func (c *Conn) DecodeRespHeader() error {
 	var buf []byte
+	var stream cipher.Stream
+
 	if !c.isAead {
 		// !none aead
 		block, err := aes.NewCipher(c.respBodyKey[:])
@@ -251,7 +256,7 @@ func (c *Conn) DecodeRespHeader() error {
 			return err
 		}
 
-		stream := cipher.NewCFBDecrypter(block, c.respBodyIV[:])
+		stream = cipher.NewCFBDecrypter(block, c.respBodyIV[:])
 
 		buf = make([]byte, 4)
 		_, err = io.ReadFull(c.Conn, buf)
@@ -275,10 +280,39 @@ func (c *Conn) DecodeRespHeader() error {
 		return errors.New("unexpected response header")
 	}
 
-	// TODO: Dynamic port support
 	if buf[2] != 0 {
-		// dataLen := int32(buf[3])
-		return errors.New("dynamic port is not supported now")
+		cmdID := buf[2]
+		dataLen := int32(buf[3])
+
+		var cmdBuf []byte
+		if !c.isAead {
+			cmdBuf = make([]byte, dataLen)
+			if _, err := io.ReadFull(c.Conn, cmdBuf); err != nil {
+				return fmt.Errorf("read dynamic port command failed: %w", err)
+			}
+			stream.XORKeyStream(cmdBuf, cmdBuf)
+		} else {
+			if len(buf) < int(4+dataLen) {
+				return errors.New("unexpected buffer length for dynamic port command")
+			}
+			cmdBuf = buf[4 : 4+dataLen]
+		}
+
+		if cmdID == 1 {
+			data := cmdBuf
+			if len(data) > 0 {
+				lenHost := int(data[0])
+				if len(data) < 1+lenHost+2 {
+					return fmt.Errorf("invalid dynamic port command payload: data length %d is insufficient for host length %d", len(data), lenHost)
+				}
+				// We successfully parsed the command buffer without causing connection errors.
+				// A dynamic port state (e.g., host and port) is propagated to the Conn.
+				if lenHost > 0 {
+					c.DynamicHost = string(data[1 : 1+lenHost])
+				}
+				c.DynamicPort = binary.BigEndian.Uint16(data[1+lenHost : 1+lenHost+2])
+			}
+		}
 	}
 
 	return nil
