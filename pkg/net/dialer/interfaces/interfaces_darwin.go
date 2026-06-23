@@ -196,26 +196,36 @@ var ifNames struct {
 	m map[int]string // ifindex => name
 }
 
+func getIfName(ifIndex int) (string, error) {
+	ifNames.Lock()
+	defer ifNames.Unlock()
+
+	if name, ok := ifNames.m[ifIndex]; ok {
+		return name, nil
+	}
+
+	iface, err := net.InterfaceByIndex(ifIndex)
+	if err != nil {
+		return "", err
+	}
+
+	Set(&ifNames.m, ifIndex, iface.Name)
+
+	return iface.Name, nil
+}
+
 // getDelegatedInterface returns the interface index of the underlying interface
 // for the given interface index. 0 is returned if the interface does not
 // delegate.
 func getDelegatedInterface(ifIndex int) (int, error) {
-	ifNames.Lock()
-	defer ifNames.Unlock()
-
 	// To get the delegated interface, we do what ifconfig does and use the
 	// SIOCGIFDELEGATE ioctl. It operates in term of a ifreq struct, which
 	// has to be populated with a interface name. To avoid having to do a
 	// interface index -> name lookup every time, we cache interface names
 	// (since indexes and names are stable after boot).
-	ifName, ok := ifNames.m[ifIndex]
-	if !ok {
-		iface, err := net.InterfaceByIndex(ifIndex)
-		if err != nil {
-			return 0, err
-		}
-		ifName = iface.Name
-		Set(&ifNames.m, ifIndex, ifName)
+	ifName, err := getIfName(ifIndex)
+	if err != nil {
+		return 0, err
 	}
 
 	// Only tunnels (like Tailscale itself) have a delegated interface, avoid
@@ -386,7 +396,11 @@ func ipOfAddr(a route.Addr) netip.Addr {
 	case *route.Inet6Addr:
 		ip := netip.AddrFrom16(a.IP)
 		if a.ZoneID != 0 {
-			ip = ip.WithZone(fmt.Sprint(a.ZoneID)) // TODO: look up net.InterfaceByIndex? but it might be changing?
+			if name, err := getIfName(a.ZoneID); err == nil {
+				ip = ip.WithZone(name)
+			} else {
+				ip = ip.WithZone(fmt.Sprint(a.ZoneID))
+			}
 		}
 		return ip
 	}
