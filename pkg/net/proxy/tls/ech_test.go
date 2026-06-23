@@ -120,9 +120,9 @@ func TestParse(t *testing.T) {
 func TestGenerateMcdnDomain(t *testing.T) {
 	x := "<bilibili_mcdn>.a.c.v.d"
 
-	i := strings.IndexByte(x, '.')
+	before, after, _ := strings.Cut(x, ".")
 
-	t.Log(x[:i], x[i+1:])
+	t.Log(before, after)
 
 	prefix := fmt.Sprintf("xy%dx%dx%dx%dxy", rand.IntN(255), rand.IntN(255), rand.IntN(255), rand.IntN(255))
 
