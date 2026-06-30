@@ -10,7 +10,7 @@ replace (
 )
 
 require (
-	github.com/cilium/ebpf v0.21.0
+	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.4
 	github.com/cockroachdb/pebble/v2 v2.1.6
 	github.com/godbus/dbus/v5 v5.2.2
@@ -18,9 +18,9 @@ require (
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.11
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/miekg/dns v1.1.72
-	github.com/oschwald/maxminddb-golang/v2 v2.4.0
-	github.com/pires/go-proxyproto v0.12.0
-	github.com/prometheus-community/pro-bing v0.9.0
+	github.com/oschwald/maxminddb-golang/v2 v2.4.1
+	github.com/pires/go-proxyproto v0.13.0
+	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/quic-go/connect-ip-go v0.1.0
 	github.com/quic-go/quic-go v0.60.0
@@ -37,7 +37,7 @@ require (
 	golang.org/x/sys v0.46.0
 	golang.org/x/time v0.15.0
 	golang.zx2c4.com/wireguard/windows v1.0.1
-	google.golang.org/grpc v1.81.1
+	google.golang.org/grpc v1.82.0
 	google.golang.org/protobuf v1.36.11
 	gvisor.dev/gvisor v0.0.0-20260224225140-573d5e7127a8
 	tailscale.com v1.9999999999.99999999999
