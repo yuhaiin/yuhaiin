@@ -229,6 +229,8 @@ github.com/pires/go-proxyproto v0.12.0 h1:TTCxD66dU898tahivkqc3hoceZp7P44FnorWyo
 github.com/pires/go-proxyproto v0.12.0/go.mod h1:qUvfqUMEoX7T8g0q7TQLDnhMjdTrxnG0hvpMn+7ePNI=
 github.com/pires/go-proxyproto v0.13.0 h1:kMrnyu6w92odDfOVzjYV6s5GqYGnIEKoxxsP38VrPSs=
 github.com/pires/go-proxyproto v0.13.0/go.mod h1:qUvfqUMEoX7T8g0q7TQLDnhMjdTrxnG0hvpMn+7ePNI=
+github.com/pires/go-proxyproto v0.14.0 h1:2vIGIfVG8eVRsKF0xukEoeT5RWhDXxBU0uv6smLOKdI=
+github.com/pires/go-proxyproto v0.14.0/go.mod h1:OXsCrKwrK2tXS9YrI5tkHx5xaQlO8FH3lFW76orFh24=
 github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e/go.mod h1:pJLUxLENpZxwdsKMEsNbx1VGcRFpLqf3715MtcvvzbA=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
@@ -307,6 +309,8 @@ github.com/yuhaiin/wireguard-go v0.0.0-20260617053048-09509f5a86ad h1:40cg5uMorF
 github.com/yuhaiin/wireguard-go v0.0.0-20260617053048-09509f5a86ad/go.mod h1:6SerzcvHWQchKO2BfNdmquA77CHSECZuFl+D9fp4RnI=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260617055754-7c2bf0b3c253 h1:wUGtXagpiPVMUoVE49eMxYjbW0YstIeKldltE4JIxO0=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260617055754-7c2bf0b3c253/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260701131757-427f733e8e6d h1:DMbtC/OzzUyBLEfptPScjbSIrFEnlqvQX7UhNTBKbKc=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260701131757-427f733e8e6d/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
