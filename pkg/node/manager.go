@@ -1,60 +1,32 @@
 package node
 
 import (
-	"crypto/subtle"
 	"errors"
 	"iter"
-	"slices"
-	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 
 type Manager struct {
-	db    *jsondb.DB[*node.Node]
-	store *ProxyStore
-	mu    sync.RWMutex
+	persist NodeStore
+	store   *ProxyStore
 }
 
 func NewManager(path string) *Manager {
-	db := load(path)
-
-	if db.Data.GetManager() == nil {
-		db.Data.SetManager(&node.Manager{})
-	}
-
-	if db.Data.GetManager().GetNodes() == nil {
-		db.Data.GetManager().SetNodes(make(map[string]*node.Point))
-	}
-
-	if db.Data.GetManager().GetTags() == nil {
-		db.Data.GetManager().SetTags(make(map[string]*node.Tags))
-	}
-
-	if db.Data.GetManager().GetPublishes() == nil {
-		db.Data.GetManager().SetPublishes(make(map[string]*node.Publish))
-	}
-
-	if db.Data.GetLinks() == nil {
-		db.Data.SetLinks(make(map[string]*node.Link))
-	}
-
-	if db.Data.GetTcp() == nil {
-		db.Data.SetTcp(&node.Point{})
-	}
-
-	if db.Data.GetUdp() == nil {
-		db.Data.SetUdp(&node.Point{})
-	}
-
-	return &Manager{db: db, store: NewProxyStore()}
+	store := NewSqliteNodeStore(path)
+	_, _ = store.Load()
+	return &Manager{persist: store, store: NewProxyStore()}
 }
 
-func (m *Manager) Close() error                                 { return m.store.Close() }
+func (m *Manager) Close() error {
+	var err error
+	if m.persist != nil {
+		err = errors.Join(err, m.persist.Close())
+	}
+	return errors.Join(err, m.store.Close())
+}
 func (m *Manager) Node() *Nodes                                 { return &Nodes{manager: m} }
 func (m *Manager) Subscribe() *Subscribe                        { return &Subscribe{n: m} }
 func (m *Manager) Outbound() *Outbound                          { return &Outbound{manager: m} }
@@ -62,355 +34,177 @@ func (m *Manager) Tag(ff func() iter.Seq[string]) api.TagServer { return &tag{n:
 
 func (m *Manager) Store() *ProxyStore { return m.store }
 
-func (m *Manager) SaveNode(ps ...*node.Point) {
-	if len(ps) == 0 {
-		return
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	nodes := m.getNodes()
-
-	generateUUID := func() string {
-		for {
-			uuid := id.GenerateUUID().String()
-			if _, ok := nodes[uuid]; !ok {
-				return uuid
-			}
-		}
-	}
-
+func (m *Manager) SaveNode(ps ...*node.Point) error {
 	for _, p := range ps {
-		if p.GetHash() == "" {
-			p.SetHash(generateUUID())
-		}
-
-		if _, ok := nodes[p.GetHash()]; ok {
+		if p.GetHash() != "" {
 			m.store.Refresh(p)
 		}
-
-		m.storeNode(p.GetHash(), p)
 	}
+	return m.persist.SaveNodes(ps...)
 }
 
-func (m *Manager) DeleteRemoteNodes(group string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	for k, v := range m.getNodes() {
-		if v.GetGroup() != group {
-			continue
-		}
-
-		if v.GetOrigin() != node.Origin_remote {
-			continue
-		}
-
-		m.deleteNode(k)
-		m.store.Delete(k)
+func (m *Manager) DeleteRemoteNodes(group string) error {
+	if err := m.persist.DeleteRemoteNodes(group); err != nil {
+		return err
 	}
+	return m.clearIdleProxy()
 }
 
-func (m *Manager) DeleteNode(hash string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	_, ok := m.getNodes()[hash]
-	if !ok {
-		return
+func (m *Manager) ReplaceRemoteNodes(group string, ps ...*node.Point) error {
+	for _, p := range ps {
+		if p.GetHash() != "" {
+			m.store.Refresh(p)
+		}
 	}
+	if err := m.persist.ReplaceRemoteNodes(group, ps...); err != nil {
+		return err
+	}
+	return m.clearIdleProxy()
+}
 
-	m.deleteNode(hash)
+func (m *Manager) DeleteNode(hash string) error {
 	m.store.Delete(hash)
+	if err := m.persist.DeleteNode(hash); err != nil {
+		return err
+	}
+	return m.clearIdleProxy()
 }
 
-func (m *Manager) AddTag(tag string, t node.TagType, hash string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	var ok bool
-	switch t {
-	case node.TagType_node:
-		_, ok = m.getNodes()[hash]
-	case node.TagType_mirror:
-		// skip check exist, because we can't get route tag here
-		ok = tag != hash
+func (m *Manager) AddTag(tag string, t node.TagType, hash string) error {
+	if err := m.persist.AddTag(tag, t, hash); err != nil {
+		return err
 	}
-	if !ok {
-		return
-	}
-
-	z, ok := m.getTags()[tag]
-	if !ok {
-		z = (&node.Tags_builder{
-			Tag:  new(tag),
-			Type: t.Enum(),
-		}).Build()
-		m.getTags()[tag] = z
-	}
-
-	if !slices.Contains(z.GetHash(), hash) {
-		z.SetHash(append(z.GetHash(), hash))
-	}
-
-	m.clearIdleProxy()
+	return m.clearIdleProxy()
 }
 
-func (m *Manager) DeleteTag(tag string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.deleteTag(tag)
-	m.clearIdleProxy()
+func (m *Manager) DeleteTag(tag string) error {
+	if err := m.persist.DeleteTag(tag); err != nil {
+		return err
+	}
+	return m.clearIdleProxy()
 }
 
-func (m *Manager) SaveLinks(links ...*node.Link) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	for _, link := range links {
-		m.getLinks()[link.GetName()] = link
-	}
+func (m *Manager) SaveLinks(links ...*node.Link) error {
+	return m.persist.SaveLinks(links...)
 }
 
-func (m *Manager) DeleteLink(name ...string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	for _, name := range name {
-		delete(m.getLinks(), name)
-	}
+func (m *Manager) DeleteLink(name ...string) error {
+	return m.persist.DeleteLinks(name...)
 }
 
 func (m *Manager) UsePoint(hash string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	p, ok := m.getNode(hash)
-	if !ok {
-		return errors.New("node not found")
+	if err := m.persist.UsePoint(hash); err != nil {
+		return err
 	}
-
-	m.db.Data.SetTcp(p)
-	m.db.Data.SetUdp(p)
-
-	m.clearIdleProxy()
-	return nil
+	return m.clearIdleProxy()
 }
 
-func (m *Manager) clearIdleProxy() {
-	usedHash := m.getUsingPoints()
+func (m *Manager) clearIdleProxy() error {
+	usedHash, err := m.persist.UsingPoints()
+	if err != nil {
+		return err
+	}
 
 	for k := range m.store.Range {
 		if !usedHash.Has(k) {
 			m.store.Delete(k)
 		}
 	}
+	return nil
 }
 
 func (m *Manager) getUsingPoints() *set.Set[string] {
-	set := set.NewSet[string]()
-
-	tags := m.getTags()
-
-	for _, v := range tags {
-		if v.GetType() == node.TagType_node {
-			for _, hash := range v.GetHash() {
-				set.Push(hash)
-			}
-		}
+	used, err := m.persist.UsingPoints()
+	if err != nil {
+		return set.NewSet[string]()
 	}
-
-	set.Push(m.getNow(true).GetHash())
-	set.Push(m.getNow(false).GetHash())
-
-	return set
+	return used
 }
 
 func (m *Manager) GetUsingPoints() *set.Set[string] {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	return m.getUsingPoints()
 }
 
 func (d *Manager) GetGroups() map[string][]*api.NodesResponse_Node {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	groups := map[string][]*api.NodesResponse_Node{}
-
-	for _, v := range d.getNodes() {
-		group := v.GetGroup()
-		if group == "" {
-			group = "unknown"
-		}
-
-		groups[group] = append(groups[group], api.NodesResponse_Node_builder{
-			Hash: new(v.GetHash()),
-			Name: new(v.GetName()),
-		}.Build())
+	groups, err := d.persist.GetGroups()
+	if err != nil {
+		return map[string][]*api.NodesResponse_Node{}
 	}
-
 	return groups
 }
 
 func (d *Manager) GetNode(hash string) (*node.Point, bool) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	p, ok := d.getNodes()[hash]
+	p, ok, err := d.persist.GetNode(hash)
+	if err != nil {
+		return nil, false
+	}
 	return p, ok
 }
 
 func (d *Manager) GetNow(tcp bool) *node.Point {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	return d.getNow(tcp)
+	point, err := d.persist.GetNow(tcp)
+	if err != nil {
+		return &node.Point{}
+	}
+	return point
 }
 
 func (d *Manager) GetTag(tag string) (*node.Tags, bool) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	t, ok := d.getTags()[tag]
+	t, ok, err := d.persist.GetTag(tag)
+	if err != nil {
+		return nil, false
+	}
 	return t, ok
 }
 
 func (d *Manager) GetTags() map[string]*node.Tags {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	return d.getTags()
+	tags, err := d.persist.GetTags()
+	if err != nil {
+		return map[string]*node.Tags{}
+	}
+	return tags
 }
 
 func (d *Manager) GetLinks() map[string]*node.Link {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	return d.getLinks()
+	links, err := d.persist.GetLinks()
+	if err != nil {
+		return map[string]*node.Link{}
+	}
+	return links
 }
 
 func (d *Manager) GetLink(name string) (*node.Link, bool) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	l, ok := d.getLinks()[name]
+	l, ok, err := d.persist.GetLink(name)
+	if err != nil {
+		return nil, false
+	}
 	return l, ok
 }
 
-func (m *Manager) getNode(hash string) (*node.Point, bool) {
-	point, ok := m.getNodes()[hash]
-	return point, ok
-}
-
-func (m *Manager) getNow(tcp bool) *node.Point {
-	var p *node.Point
-	if tcp {
-		p = m.db.Data.GetTcp()
-	} else {
-		p = m.db.Data.GetUdp()
-	}
-
-	pp, ok := m.getNode(p.GetHash())
-	if ok {
-		return pp
-	}
-
-	// get first node by group and name
-	for _, v := range m.getNodes() {
-		if v.GetGroup() != p.GetGroup() || v.GetName() != p.GetName() {
-			continue
-		}
-
-		return v
-	}
-
-	return p
-}
-
 func (d *Manager) Save() error {
-	d.mu.Lock()
-	err := d.db.Save()
-	d.mu.Unlock()
-
-	return err
+	return nil
 }
 
-func (d *Manager) getNodes() map[string]*node.Point {
-	return d.db.Data.GetManager().GetNodes()
+func (d *Manager) SavePublish(name string, publish *node.Publish) error {
+	return d.persist.SavePublish(name, publish)
 }
 
-func (d *Manager) storeNode(hash string, node *node.Point) {
-	d.getNodes()[hash] = node
-}
-
-func (d *Manager) deleteNode(hash string) {
-	delete(d.getNodes(), hash)
-}
-
-func (d *Manager) getTags() map[string]*node.Tags {
-	return d.db.Data.GetManager().GetTags()
-}
-
-func (m *Manager) deleteTag(tag string) {
-	delete(m.getTags(), tag)
-}
-
-func (d *Manager) getLinks() map[string]*node.Link {
-	return d.db.Data.GetLinks()
-}
-
-func (d *Manager) SavePublish(name string, publish *node.Publish) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	d.db.Data.GetManager().GetPublishes()[name] = publish
-}
-
-func (d *Manager) DeletePublish(name string) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	delete(d.db.Data.GetManager().GetPublishes(), name)
+func (d *Manager) DeletePublish(name string) error {
+	return d.persist.DeletePublish(name)
 }
 
 func (d *Manager) GetPublishes() map[string]*node.Publish {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	return d.db.Data.GetManager().GetPublishes()
+	publishes, err := d.persist.GetPublishes()
+	if err != nil {
+		return map[string]*node.Publish{}
+	}
+	return publishes
 }
 
 func (d *Manager) Publish(name, path, password string) []*node.Point {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	pub, ok := d.db.Data.GetManager().GetPublishes()[name]
-	if !ok {
+	points, err := d.persist.Publish(name, path, password)
+	if err != nil {
 		return nil
 	}
-
-	if pub.GetPath() != path {
-		return nil
-	}
-
-	if subtle.ConstantTimeCompare([]byte(pub.GetPassword()), []byte(password)) != 1 {
-		return nil
-	}
-
-	ret := make([]*node.Point, 0, len(pub.GetPoints()))
-
-	for _, v := range pub.GetPoints() {
-		p, ok := d.getNode(v)
-		if !ok {
-			continue
-		}
-
-		ret = append(ret, p)
-	}
-
-	return ret
+	return points
 }

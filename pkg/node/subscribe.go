@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -35,25 +36,22 @@ type Subscribe struct {
 }
 
 func (s *Subscribe) Save(_ context.Context, l *api.SaveLinkReq) (*emptypb.Empty, error) {
-	s.save(l.GetLinks())
-	return &emptypb.Empty{}, s.n.Save()
+	return &emptypb.Empty{}, s.save(l.GetLinks())
 }
 
 func (s *Subscribe) Remove(_ context.Context, l *api.LinkReq) (*emptypb.Empty, error) {
-	s.n.DeleteLink(l.GetNames()...)
-	return &emptypb.Empty{}, s.n.Save()
+	return &emptypb.Empty{}, s.n.DeleteLink(l.GetNames()...)
 }
 
 func (s *Subscribe) Update(ctx context.Context, req *api.LinkReq) (*emptypb.Empty, error) {
-	s.update(ctx, req.GetNames()...)
-	return &emptypb.Empty{}, s.n.Save()
+	return &emptypb.Empty{}, s.update(ctx, req.GetNames()...)
 }
 
 func (s *Subscribe) Get(context.Context, *emptypb.Empty) (*api.GetLinksResp, error) {
 	return api.GetLinksResp_builder{Links: s.n.GetLinks()}.Build(), nil
 }
 
-func (l *Subscribe) save(ls []*node.Link) {
+func (l *Subscribe) save(ls []*node.Link) error {
 	nodes := []*node.Point{}
 	links := []*node.Link{}
 
@@ -67,11 +65,11 @@ func (l *Subscribe) save(ls []*node.Link) {
 		}
 	}
 
-	l.n.SaveLinks(links...)
-	l.n.SaveNode(nodes...)
+	return errors.Join(l.n.SaveLinks(links...), l.n.SaveNode(nodes...))
 }
 
-func (l *Subscribe) update(ctx context.Context, names ...string) {
+func (l *Subscribe) update(ctx context.Context, names ...string) error {
+	var errs error
 	for _, str := range names {
 		link, ok := l.n.GetLink(str)
 		if !ok {
@@ -87,8 +85,10 @@ func (l *Subscribe) update(ctx context.Context, names ...string) {
 		}
 		if err != nil {
 			log.Error("get one link failed", "err", err)
+			errs = errors.Join(errs, err)
 		}
 	}
+	return errs
 }
 
 func (n *Subscribe) fetch(ctx context.Context, link *node.Link) error {
@@ -138,9 +138,11 @@ func (n *Subscribe) fetch(ctx context.Context, link *node.Link) error {
 		}
 	}
 
-	n.n.DeleteRemoteNodes(link.GetName())
-	n.n.SaveNode(nodes...)
-	return scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	return n.n.ReplaceRemoteNodes(link.GetName(), nodes...)
 }
 
 type trimBase64Reader struct {
@@ -160,8 +162,7 @@ func (t *trimBase64Reader) Read(b []byte) (int, error) {
 }
 
 func (n *Subscribe) RemovePublish(ctx context.Context, in *wrapperspb.StringValue) (*emptypb.Empty, error) {
-	n.n.DeletePublish(in.Value)
-	return &emptypb.Empty{}, n.n.Save()
+	return &emptypb.Empty{}, n.n.DeletePublish(in.Value)
 }
 
 func (n *Subscribe) ListPublish(ctx context.Context, in *emptypb.Empty) (*api.ListPublishResponse, error) {
@@ -169,8 +170,7 @@ func (n *Subscribe) ListPublish(ctx context.Context, in *emptypb.Empty) (*api.Li
 }
 
 func (n *Subscribe) SavePublish(ctx context.Context, in *api.SavePublishRequest) (*emptypb.Empty, error) {
-	n.n.SavePublish(in.GetName(), in.GetPublish())
-	return &emptypb.Empty{}, n.n.Save()
+	return &emptypb.Empty{}, n.n.SavePublish(in.GetName(), in.GetPublish())
 }
 
 func (n *Subscribe) Publish(ctx context.Context, in *api.PublishRequest) (*api.PublishResponse, error) {
@@ -198,11 +198,7 @@ func (n *Subscribe) savePublish(ctx context.Context, link *node.Link) error {
 
 	switch yu.WhichUrl() {
 	case node.YuhaiinUrl_Points_case:
-		for _, p := range yu.GetPoints().GetPoints() {
-			p.SetOrigin(node.Origin_remote)
-			p.SetGroup(link.GetName())
-		}
-		n.n.SaveNode(yu.GetPoints().GetPoints()...)
+		return n.n.ReplaceRemoteNodes(link.GetName(), yu.GetPoints().GetPoints()...)
 	case node.YuhaiinUrl_Remote_case:
 		u := yu.GetRemote().GetPublish().GetAddress()
 		if _, port, _ := net.SplitHostPort(u); port == "" {
@@ -246,16 +242,9 @@ func (n *Subscribe) savePublish(ctx context.Context, link *node.Link) error {
 			return fmt.Errorf("publish failed: %w", err)
 		}
 
-		for _, p := range resp.GetPoints() {
-			p.SetOrigin(node.Origin_remote)
-			p.SetGroup(link.GetName())
-		}
-
-		n.n.SaveNode(resp.GetPoints()...)
+		return n.n.ReplaceRemoteNodes(link.GetName(), resp.GetPoints()...)
 
 	default:
 		return fmt.Errorf("unknown url type")
 	}
-
-	return n.n.Save()
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/paging"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
@@ -288,7 +289,13 @@ func (s *Lists) List(ctx context.Context, empty *emptypb.Empty) (*api.ListRespon
 	ret := &api.ListResponse{}
 
 	err := s.db.View(func(ss *config.Setting) error {
-		ret.SetNames(slices.Collect(maps.Keys(ss.GetBypass().GetLists())))
+		lists := ss.GetBypass().GetLists()
+		ret.SetNames(slices.Collect(maps.Keys(lists)))
+		items := make([]*api.ListItem, 0, len(lists))
+		for name, list := range lists {
+			items = append(items, listItem(name, list))
+		}
+		ret.SetItems(items)
 		ret.SetMaxminddbGeoip(ss.GetBypass().GetMaxminddbGeoip())
 		ret.SetRefreshConfig(ss.GetBypass().GetRefreshConfig())
 		return nil
@@ -303,6 +310,69 @@ func (s *Lists) List(ctx context.Context, empty *emptypb.Empty) (*api.ListRespon
 	}
 
 	return ret, err
+}
+
+func listItem(name string, list *config.List) *api.ListItem {
+	if list.GetName() != "" {
+		name = list.GetName()
+	}
+
+	source := list.WhichList().String()
+	itemCount := uint32(0)
+	preview := ""
+
+	switch list.WhichList() {
+	case config.List_Local_case:
+		values := list.GetLocal().GetLists()
+		itemCount = uint32(len(values))
+		if len(values) > 0 {
+			preview = values[0]
+		}
+	case config.List_Remote_case:
+		values := list.GetRemote().GetUrls()
+		itemCount = uint32(len(values))
+		if len(values) > 0 {
+			preview = values[0]
+		}
+	}
+
+	return api.ListItem_builder{
+		Name:       new(name),
+		Type:       stringPtr(list.GetListType().String()),
+		Source:     new(source),
+		ItemCount:  uint32Ptr(itemCount),
+		ErrorCount: uint32Ptr(uint32(len(list.GetErrorMsgs()))),
+		Preview:    new(preview),
+	}.Build()
+}
+
+func (s *Lists) ListPage(ctx context.Context, req *api.PageRequest) (*api.ListResponse, error) {
+	ret, err := s.List(ctx, &emptypb.Empty{})
+	if err != nil {
+		return ret, err
+	}
+
+	items := ret.GetItems()
+	slices.SortFunc(items, func(a, b *api.ListItem) int { return strings.Compare(a.GetName(), b.GetName()) })
+	items = paging.Filter(items, req.GetQuery(), func(item *api.ListItem, query string) bool {
+		return paging.MatchString(item.GetName(), query) ||
+			paging.MatchString(item.GetType(), query) ||
+			paging.MatchString(item.GetSource(), query) ||
+			paging.MatchString(item.GetPreview(), query)
+	})
+	pageItems, page, pageSize, total := paging.Slice(items, req.GetPage(), req.GetPageSize())
+	pageNames := make([]string, 0, len(pageItems))
+	for _, item := range pageItems {
+		pageNames = append(pageNames, item.GetName())
+	}
+	ret.SetNames(pageNames)
+	ret.SetItems(pageItems)
+	ret.SetPage(api.PageResponse_builder{
+		Page:     new(page),
+		PageSize: new(pageSize),
+		Total:    new(total),
+	}.Build())
+	return ret, nil
 }
 
 func (s *Lists) Get(ctx context.Context, req *wrapperspb.StringValue) (*config.List, error) {

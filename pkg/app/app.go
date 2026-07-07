@@ -78,6 +78,10 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	closers := &closers{}
 
+	if closer, ok := so.ChoreConfig.(io.Closer); ok {
+		AddCloser(closers, "chore_config", closer)
+	}
+
 	logController := log.NewController()
 
 	choreService := chore.NewChore(so.ChoreConfig,
@@ -106,7 +110,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	AddCloser(closers, "network_monitor", interfaces.StartNetworkMonitor())
 
 	// proxy access point/endpoint
-	nodeManager := AddCloser(closers, "node_manager", node.NewManager(tools.PathGenerator.Node(so.ConfigPath)))
+	nodeManager := AddCloser(closers, "node_manager", node.NewManager(tools.PathGenerator.State(so.ConfigPath)))
 	register.RegisterPoint(func(p *pn.PointAsEndpoint, _ netapi.Proxy) (netapi.Proxy, error) {
 		return nodeManager.Outbound().GetDialerByID(context.Background(), p.GetHash())
 	})
@@ -124,7 +128,11 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	rules := route.NewRules(so.BypassConfig, router)
 	// connections' statistic & flow data
 
-	stcs := AddCloser(closers, "statistic", statistics.NewConnStore(pebbleCache, router))
+	stcs := AddCloser(closers, "statistic", statistics.NewSQLiteConnStore(
+		tools.PathGenerator.State(so.ConfigPath),
+		router,
+		pebbleCache.NewCache("flow_data"),
+	))
 	metrics.SetFlowCounter(stcs.Cache)
 	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, router))
 	// wrap dialer and dns resolver to fake ip, if use

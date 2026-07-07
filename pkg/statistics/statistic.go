@@ -2,8 +2,10 @@ package statistics
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -16,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -28,13 +31,15 @@ type Connections struct {
 	netapi.Proxy
 
 	infoStore InfoCache
+	sqliteDB  *sql.DB
+	sqlite    *storagesqlite.Store
 
 	Cache *TotalCache
 
 	notify *notify
 
-	faildHistory *FailedHistory
-	history      *History
+	faildHistory FailedHistoryStore
+	history      HistoryStore
 
 	counters *counters
 
@@ -43,26 +48,52 @@ type Connections struct {
 	idSeed id.IDGenerator
 }
 
-func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
+type InfoCache interface {
+	Load(id uint64) (*statistic.Connection, bool)
+	Store(id uint64, info *statistic.Connection)
+	Delete(id uint64)
+	io.Closer
+}
+
+type FailedHistoryStore interface {
+	Push(context.Context, error, statistic.Type, netapi.Address)
+	Get() *api.FailedHistoryList
+	Close() error
+}
+
+type HistoryStore interface {
+	Push(*statistic.Connection)
+	Get() *api.AllHistoryList
+	Close() error
+}
+
+func NewSQLiteConnStore(path string, dialer netapi.Proxy, legacyFlow ...cache.Geter) *Connections {
 	if dialer == nil {
 		dialer = direct.Default
 	}
 
-	if err := cache.DeleteBucket("connection_data"); err != nil {
-		log.Warn("delete connection data failed", "err", err)
+	store, err := storagesqlite.Open(context.Background(), path)
+	if err != nil {
+		log.Warn("open sqlite connection store failed", "err", err)
 	}
-	if err := cache.DeleteBucket("history_data"); err != nil {
-		log.Warn("delete history data failed", "err", err)
+
+	var db *sql.DB
+	if store != nil {
+		db = store.DB()
 	}
+
+	markInterruptedSessions(db)
 
 	return &Connections{
 		Proxy:        dialer,
-		Cache:        NewTotalCache(cache.NewCache("flow_data")),
+		sqliteDB:     db,
+		sqlite:       store,
+		Cache:        newSQLiteTotalCache(db, nil, legacyFlow...),
 		notify:       newNotify(),
-		faildHistory: NewFailedHistory(),
+		faildHistory: newSQLiteFailedHistory(db),
 		counters:     newCounters(),
-		infoStore:    newDiskInfoStore(cache.NewCache("connection_data")),
-		history:      NewHistory(newDiskInfoStore(cache.NewCache("history_data"))),
+		infoStore:    newSQLiteInfoStore(db),
+		history:      newSQLiteHistory(db),
 	}
 }
 
@@ -118,6 +149,10 @@ func (c *Connections) Close() error {
 		err = errors.Join(err, er)
 	}
 
+	if er := c.faildHistory.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+
 	if er := c.infoStore.Close(); er != nil {
 		err = errors.Join(err, er)
 	}
@@ -129,6 +164,12 @@ func (c *Connections) Close() error {
 	}
 
 	c.Cache.Close()
+
+	if c.sqlite != nil {
+		if er := c.sqlite.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
+	}
 
 	return err
 }

@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"maps"
-	"slices"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,13 +17,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
+	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"golang.org/x/crypto/blake2b"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type Backup struct {
@@ -123,30 +125,6 @@ func (b *Backup) Get(context.Context, *emptypb.Empty) (*config.BackupOption, err
 	return cc, nil
 }
 
-func calculateHash(content *backup.BackupContent, options *config.BackupOption) string {
-	contentBytes, err := protojson.Marshal(content)
-	if err != nil {
-		log.Warn("marshal content failed", "err", err)
-		return ""
-	}
-
-	s3bytes, err := protojson.Marshal(options.GetS3())
-	if err != nil {
-		log.Warn("marshal s3 failed", "err", err)
-		return ""
-	}
-
-	hash, err := blake2b.New(32, nil)
-	if err != nil {
-		log.Warn("new blake2b hash failed", "err", err)
-		return ""
-	}
-
-	hash.Write(contentBytes)
-	hash.Write(s3bytes)
-	return hex.EncodeToString(hash.Sum(nil))
-}
-
 func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -161,162 +139,17 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		return nil, err
 	}
 
-	// node config
-	nodes, err := b.instance.Node.List(ctx, &emptypb.Empty{})
+	stateBytes, err := b.snapshotStateDB(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	points := map[string]*node.Point{}
-
-	for _, group := range nodes.GetGroups() {
-		for _, node := range group.GetNodes() {
-			point, err := b.instance.Node.Get(ctx, &wrapperspb.StringValue{Value: node.GetHash()})
-			if err != nil {
-				return nil, err
-			}
-			points[node.GetHash()] = point
-		}
-	}
-
-	subscribes, err := b.instance.Subscribe.Get(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, err
-	}
-
-	// resolver config
-
-	dnsServer, err := b.instance.Resolver.Server(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, err
-	}
-
-	fakedns, err := b.instance.Resolver.Fakedns(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, err
-	}
-
-	hosts, err := b.instance.Resolver.Hosts(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, err
-	}
-
-	dnsList, err := b.instance.Resolver.List(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, err
-	}
-
-	dnss := map[string]*config.Dns{}
-	for _, dnsName := range dnsList.GetNames() {
-		dns, err := b.instance.Resolver.Get(ctx, &wrapperspb.StringValue{Value: dnsName})
-		if err != nil {
-			return nil, err
-		}
-		dnss[dnsName] = dns
-	}
-
-	// listener config
-	inbounds, err := b.instance.Inbound.List(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, err
-	}
-
-	inboundsMap := map[string]*config.Inbound{}
-	for _, name := range inbounds.GetNames() {
-		inbound, err := b.instance.Inbound.Get(ctx, &wrapperspb.StringValue{Value: name})
-		if err != nil {
-			return nil, err
-		}
-		inboundsMap[name] = inbound
-	}
-
-	// rules config
-	ruleConfig, err := b.instance.Rules.Config(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, err
-	}
-
-	ruleNames, err := b.instance.Rules.List(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, err
-	}
-
-	var rules []*config.Rulev2
-	for index, name := range ruleNames.GetNames() {
-		rule, err := b.instance.Rules.Get(ctx, api.RuleIndex_builder{
-			Index: new(uint32(index)),
-			Name:  new(name),
-		}.Build())
-		if err != nil {
-			return nil, err
-		}
-
-		rules = append(rules, rule)
-	}
-
-	listNames, err := b.instance.Lists.List(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, err
-	}
-
-	lists := map[string]*config.List{}
-	for _, name := range listNames.GetNames() {
-		list, err := b.instance.Lists.Get(ctx, &wrapperspb.StringValue{Value: name})
-		if err != nil {
-			return nil, err
-		}
-
-		lists[name] = list
-	}
-
-	// tags config
-	tags, err := b.instance.Tag.List(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, err
-	}
-
-	data := backup.BackupContent_builder{
-		Nodes: backup.Nodes_builder{
-			Nodes: points,
-		}.Build(),
-		Subscribes: backup.Subscribes_builder{
-			Links: subscribes.GetLinks(),
-		}.Build(),
-		Dns: config.DnsConfigV2_builder{
-			Server: config.Server_builder{
-				Host: new(dnsServer.GetValue()),
-			}.Build(),
-			Fakedns:  fakedns,
-			Hosts:    hosts.GetHosts(),
-			Resolver: dnss,
-		}.Build(),
-		Inbounds: config.InboundConfig_builder{
-			HijackDns:       new(inbounds.GetHijackDns()),
-			HijackDnsFakeip: new(inbounds.GetHijackDnsFakeip()),
-			Sniff:           inbounds.GetSniff(),
-			Inbounds:        inboundsMap,
-		}.Build(),
-		Rules: backup.Rules_builder{
-			Config: ruleConfig,
-			Rules:  rules,
-			Lists:  lists,
-		}.Build(),
-		Tags: backup.Tags_builder{
-			Tags: tags.GetTags(),
-		}.Build(),
-	}.Build()
-
-	newHash := calculateHash(data, backupConfig)
+	newHash := calculateBytesHash(stateBytes, backupConfig.GetS3())
 	if backupConfig.GetLastBackupHash() != "" && backupConfig.GetLastBackupHash() == newHash {
 		return &emptypb.Empty{}, nil
 	}
 
-	jsonbytes, err := protojson.MarshalOptions{Indent: "\t"}.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s3.Put(ctx, jsonbytes, backupConfig.GetInstanceName()+"-backup.json"); err != nil {
+	if err := s3.Put(ctx, stateBytes, backupConfig.GetInstanceName()+"-state.db"); err != nil {
 		return nil, err
 	}
 
@@ -330,7 +163,7 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 	return &emptypb.Empty{}, nil
 }
 
-func (b *Backup) Restore(ctx context.Context, opt *backup.RestoreOption) (*emptypb.Empty, error) {
+func (b *Backup) Restore(ctx context.Context, _ *backup.RestoreOption) (*emptypb.Empty, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -344,266 +177,87 @@ func (b *Backup) Restore(ctx context.Context, opt *backup.RestoreOption) (*empty
 		return nil, err
 	}
 
-	data, err := s3.Get(ctx, backupConfig.GetInstanceName()+"-backup.json")
+	stateData, err := s3.Get(ctx, backupConfig.GetInstanceName()+"-state.db")
 	if err != nil {
 		return nil, err
 	}
 
-	var backupContent backup.BackupContent
-	if err := protojson.Unmarshal(data, &backupContent); err != nil {
+	if err := b.restoreStateDB(stateData); err != nil {
 		return nil, err
 	}
-
-	if opt.GetAll() {
-		opt.SetDns(true)
-		opt.SetInbounds(true)
-		opt.SetNodes(true)
-		opt.SetRules(true)
-		opt.SetTags(true)
-		opt.SetLists(true)
-		opt.SetSubscribes(true)
-	}
-
-	if opt.GetDns() {
-		log.Info("start restore dns")
-		if err := b.restoreDns(ctx, &backupContent); err != nil {
-			return nil, err
-		}
-		log.Info("restore dns finshed")
-	}
-
-	if opt.GetInbounds() {
-		log.Info("start restore inbounds")
-		if err := b.restoreInbounds(ctx, &backupContent); err != nil {
-			return nil, err
-		}
-		log.Info("restore inbounds finshed")
-	}
-
-	if opt.GetNodes() {
-		log.Info("start restore nodes")
-		if err := b.restoreNodes(ctx, &backupContent); err != nil {
-			return nil, err
-		}
-		log.Info("restore nodes finshed")
-	}
-
-	if opt.GetRules() {
-		log.Info("start restore rules")
-		if err := b.restoreRules(ctx, &backupContent); err != nil {
-			return nil, err
-		}
-		log.Info("restore rules finshed")
-	}
-
-	if opt.GetTags() {
-		log.Info("start restore tags")
-		if err := b.restoreTags(ctx, &backupContent); err != nil {
-			return nil, err
-		}
-		log.Info("restore tags finshed")
-	}
-
-	if opt.GetLists() {
-		log.Info("start restore lists")
-		if err := b.restoreLists(ctx, &backupContent); err != nil {
-			return nil, err
-		}
-		log.Info("restore lists finshed")
-	}
-
-	if opt.GetSubscribes() {
-		log.Info("start restore subscribes")
-		if err := b.restoreSubscribes(ctx, &backupContent); err != nil {
-			return nil, err
-		}
-		log.Info("restore subscribes finshed")
-	}
-
 	return &emptypb.Empty{}, nil
 }
 
-func (b *Backup) restoreDns(ctx context.Context, content *backup.BackupContent) error {
-	if content.GetDns() == nil {
-		log.Warn("dns config is empty")
-		return nil
-	}
-	dns := content.GetDns()
+func (b *Backup) snapshotStateDB(ctx context.Context) ([]byte, error) {
+	statePath := tools.PathGenerator.State(b.db.Dir())
+	tmpPath := filepath.Join(filepath.Dir(statePath), fmt.Sprintf(".state-backup-%d.db", time.Now().UnixNano()))
+	defer func() { _ = os.Remove(tmpPath) }()
 
-	if dns.GetServer().GetHost() != "" {
-		_, err := b.instance.Resolver.SaveServer(ctx,
-			&wrapperspb.StringValue{Value: dns.GetServer().GetHost()})
-		if err != nil {
-			return err
-		}
-	}
-
-	if dns.GetFakedns() != nil {
-		_, err := b.instance.Resolver.SaveFakedns(ctx, dns.GetFakedns())
-		if err != nil {
-			return err
-		}
-	}
-
-	if dns.GetHosts() != nil {
-		_, err := b.instance.Resolver.SaveHosts(ctx, api.Hosts_builder{
-			Hosts: dns.GetHosts(),
-		}.Build())
-		if err != nil {
-			return err
-		}
-	}
-
-	if dns.GetResolver() != nil {
-		for name, resolver := range dns.GetResolver() {
-			_, err := b.instance.Resolver.Save(ctx, api.SaveResolver_builder{
-				Name:     new(name),
-				Resolver: resolver,
-			}.Build())
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func (b *Backup) restoreInbounds(ctx context.Context, content *backup.BackupContent) error {
-	if content.GetInbounds() == nil {
-		log.Warn("inbounds config is empty")
-		return nil
-	}
-	inbounds := content.GetInbounds()
-
-	if inbounds.HasHijackDns() || inbounds.HasHijackDnsFakeip() || inbounds.HasSniff() {
-		_, err := b.instance.Inbound.Apply(ctx, api.InboundsResponse_builder{
-			HijackDns:       new(inbounds.GetHijackDns()),
-			HijackDnsFakeip: new(inbounds.GetHijackDnsFakeip()),
-			Sniff:           inbounds.GetSniff(),
-		}.Build())
-		if err != nil {
-			return err
-		}
-	}
-
-	if inbounds.GetInbounds() != nil {
-		for name, inbound := range inbounds.GetInbounds() {
-			inbound.SetName(name)
-			_, err := b.instance.Inbound.Save(ctx, inbound)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func (b *Backup) restoreNodes(ctx context.Context, content *backup.BackupContent) error {
-	if content.GetNodes() == nil {
-		log.Warn("nodes config is empty")
-		return nil
-	}
-	nodes := content.GetNodes()
-
-	for hash, node := range nodes.GetNodes() {
-		node.SetHash(hash)
-		node.SetName(node.GetName())
-		_, err := b.instance.Node.Save(ctx, node)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (b *Backup) restoreSubscribes(ctx context.Context, content *backup.BackupContent) error {
-	if content.GetSubscribes() == nil {
-		log.Warn("subscribes config is empty")
-		return nil
-	}
-
-	_, err := b.instance.Subscribe.Save(ctx, api.SaveLinkReq_builder{
-		Links: slices.Collect(maps.Values(content.GetSubscribes().GetLinks())),
-	}.Build())
+	store, err := storagesqlite.Open(ctx, statePath)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("open sqlite for backup failed: %w", err)
+	}
+	defer store.Close()
+
+	if _, err := store.DB().ExecContext(ctx, "VACUUM INTO '"+sqliteStringLiteral(tmpPath)+"'"); err != nil {
+		return nil, fmt.Errorf("snapshot sqlite backup failed: %w", err)
 	}
 
+	data, err := os.ReadFile(tmpPath)
+	if err != nil {
+		return nil, fmt.Errorf("read sqlite backup snapshot failed: %w", err)
+	}
+
+	return data, nil
+}
+
+func (b *Backup) restoreStateDB(data []byte) error {
+	statePath := tools.PathGenerator.State(b.db.Dir())
+	dir := filepath.Dir(statePath)
+	tmpPath := filepath.Join(dir, fmt.Sprintf(".state-restore-%d.db", time.Now().UnixNano()))
+
+	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
+		return fmt.Errorf("write sqlite restore temp file failed: %w", err)
+	}
+	defer func() { _ = os.Remove(tmpPath) }()
+
+	if closer, ok := b.db.(interface{ Close() error }); ok {
+		if err := closer.Close(); err != nil {
+			return fmt.Errorf("close sqlite state before restore failed: %w", err)
+		}
+	}
+
+	if err := os.Rename(tmpPath, statePath); err != nil {
+		return fmt.Errorf("replace sqlite state db failed: %w", err)
+	}
+
+	_ = os.Remove(statePath + "-wal")
+	_ = os.Remove(statePath + "-shm")
+
+	log.Warn("sqlite state restored; restart is required for all in-memory services to reload restored data")
 	return nil
 }
 
-func (b *Backup) restoreTags(ctx context.Context, content *backup.BackupContent) error {
-	if content.GetTags() == nil {
-		log.Warn("tags config is empty")
-		return nil
-	}
-	tags := content.GetTags()
-
-	for name, tag := range tags.GetTags() {
-		var hash string
-		if len(tag.GetHash()) > 0 {
-			hash = tag.GetHash()[0]
-		}
-		_, err := b.instance.Tag.Save(ctx, api.SaveTagReq_builder{
-			Tag:  new(name),
-			Type: tag.GetType().Enum(),
-			Hash: new(hash),
-		}.Build())
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+func sqliteStringLiteral(path string) string {
+	return strings.ReplaceAll(path, "'", "''")
 }
 
-func (b *Backup) restoreLists(ctx context.Context, content *backup.BackupContent) error {
-	if content.GetRules().GetLists() == nil {
-		log.Warn("lists config is empty")
-		return nil
-	}
-	lists := content.GetRules().GetLists()
-
-	for name, list := range lists {
-		list.SetName(name)
-		_, err := b.instance.Lists.Save(ctx, list)
-		if err != nil {
-			return err
-		}
+func calculateBytesHash(content []byte, options *config.S3) string {
+	s3bytes, err := protojson.Marshal(options)
+	if err != nil {
+		log.Warn("marshal s3 failed", "err", err)
+		return ""
 	}
 
-	return nil
-}
-
-func (b *Backup) restoreRules(ctx context.Context, content *backup.BackupContent) error {
-	if content.GetRules() == nil {
-		log.Warn("rules config is empty")
-		return nil
-	}
-	rules := content.GetRules()
-
-	log.Info("start restore rules config")
-	if rules.HasConfig() {
-		_, err := b.instance.Rules.SaveConfig(ctx, rules.GetConfig())
-		if err != nil {
-			return err
-		}
-	}
-	log.Info("restore rules config finshed")
-
-	for _, rule := range rules.GetRules() {
-		_, err := b.instance.Rules.Save(ctx, api.RuleSaveRequest_builder{
-			Rule: rule,
-		}.Build())
-		if err != nil {
-			return err
-		}
+	hash, err := blake2b.New(32, nil)
+	if err != nil {
+		log.Warn("new blake2b hash failed", "err", err)
+		return ""
 	}
 
-	return nil
+	hash.Write(content)
+	hash.Write(s3bytes)
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 func (b *Backup) getConfig() (*config.BackupOption, error) {

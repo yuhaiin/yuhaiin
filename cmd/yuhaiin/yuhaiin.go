@@ -48,7 +48,7 @@ func run(args []string) error {
 		return err
 	}
 
-	setting := chore.NewJsonDB(tools.PathGenerator.Config(*path))
+	setting := chore.NewSqliteDB(tools.PathGenerator.State(*path))
 
 	var grpcOpts []grpc.ServerOption
 

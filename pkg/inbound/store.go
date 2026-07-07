@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
@@ -14,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/paging"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -50,7 +52,13 @@ func (i *InboundCtr) List(ctx context.Context, req *emptypb.Empty) (*api.Inbound
 	resp := &api.InboundsResponse{}
 
 	err := i.db.View(func(s *config.Setting) error {
-		resp.SetNames(slices.Collect(maps.Keys(s.GetServer().GetInbounds())))
+		inbounds := s.GetServer().GetInbounds()
+		resp.SetNames(slices.Collect(maps.Keys(inbounds)))
+		items := make([]*api.InboundItem, 0, len(inbounds))
+		for name, inbound := range inbounds {
+			items = append(items, inboundItem(name, inbound))
+		}
+		resp.SetItems(items)
 		resp.SetHijackDns(s.GetServer().GetHijackDns())
 		resp.SetHijackDnsFakeip(s.GetServer().GetHijackDnsFakeip())
 		resp.SetSniff(s.GetServer().GetSniff())
@@ -58,6 +66,80 @@ func (i *InboundCtr) List(ctx context.Context, req *emptypb.Empty) (*api.Inbound
 	})
 
 	return resp, err
+}
+
+func inboundItem(name string, inbound *config.Inbound) *api.InboundItem {
+	if inbound.GetName() != "" {
+		name = inbound.GetName()
+	}
+
+	network := inbound.WhichNetwork().String()
+	protocol := inbound.WhichProtocol().String()
+	listen := ""
+
+	switch inbound.WhichNetwork() {
+	case config.Inbound_Tcpudp_case:
+		listen = inbound.GetTcpudp().GetHost()
+	case config.Inbound_Quic_case:
+		listen = inbound.GetQuic().GetHost()
+	}
+
+	if listen == "" {
+		switch inbound.WhichProtocol() {
+		case config.Inbound_Redir_case:
+			listen = inbound.GetRedir().GetHost()
+		case config.Inbound_Tproxy_case:
+			listen = inbound.GetTproxy().GetHost()
+		case config.Inbound_Tun_case:
+			listen = inbound.GetTun().GetPortal()
+		}
+	}
+
+	transports := make([]string, 0, len(inbound.GetTransport()))
+	for _, transport := range inbound.GetTransport() {
+		if transport.WhichTransport() == config.Transport_Transport_not_set_case {
+			continue
+		}
+		transports = append(transports, transport.WhichTransport().String())
+	}
+
+	return api.InboundItem_builder{
+		Name:       new(name),
+		Enabled:    new(inbound.GetEnabled()),
+		Network:    new(network),
+		Listen:     new(listen),
+		Protocol:   new(protocol),
+		Transports: transports,
+	}.Build()
+}
+
+func (i *InboundCtr) ListPage(ctx context.Context, req *api.PageRequest) (*api.InboundsResponse, error) {
+	resp, err := i.List(ctx, &emptypb.Empty{})
+	if err != nil {
+		return resp, err
+	}
+
+	items := resp.GetItems()
+	slices.SortFunc(items, func(a, b *api.InboundItem) int { return strings.Compare(a.GetName(), b.GetName()) })
+	items = paging.Filter(items, req.GetQuery(), func(item *api.InboundItem, query string) bool {
+		return paging.MatchString(item.GetName(), query) ||
+			paging.MatchString(item.GetNetwork(), query) ||
+			paging.MatchString(item.GetProtocol(), query) ||
+			paging.MatchString(item.GetListen(), query)
+	})
+	pageItems, page, pageSize, total := paging.Slice(items, req.GetPage(), req.GetPageSize())
+	pageNames := make([]string, 0, len(pageItems))
+	for _, item := range pageItems {
+		pageNames = append(pageNames, item.GetName())
+	}
+	resp.SetNames(pageNames)
+	resp.SetItems(pageItems)
+	resp.SetPage(api.PageResponse_builder{
+		Page:     new(page),
+		PageSize: new(pageSize),
+		Total:    new(total),
+	}.Build())
+	return resp, nil
 }
 
 func (i *InboundCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*config.Inbound, error) {

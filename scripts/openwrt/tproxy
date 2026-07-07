@@ -8,9 +8,7 @@ PROG=${HOME}/yuhaiin_mipsle
 
 HOST=${HOST:-0.0.0.0:50051}
 CONFIG_PATH=${YUHAIIN_CONFIG_PATH:-${HOME}/yuhaiin}
-CONFIG_FILE=${CONFIG_PATH}/config.json
 
-TPROXY_PORT=$(jq -r '(.server.servers.tproxy.tproxy.host) | split(":")[1]' ${CONFIG_FILE})
 TPROXY_PORT=${TPROXY_PORT:-8083}
 
 TABLE=${TABLE:-233}

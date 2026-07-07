@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -44,8 +43,7 @@ func (n *Nodes) Save(c context.Context, p *node.Point) (*node.Point, error) {
 		return &node.Point{}, fmt.Errorf("point name or group is empty")
 	}
 	p.SetOrigin(node.Origin_manual)
-	n.manager.SaveNode(p)
-	return p, n.manager.Save()
+	return p, n.manager.SaveNode(p)
 }
 
 func (n *Nodes) List(ctx context.Context, _ *emptypb.Empty) (*api.NodesResponse, error) {
@@ -74,17 +72,11 @@ func (n *Nodes) Use(c context.Context, s *api.UseReq) (*node.Point, error) {
 		return nil, fmt.Errorf("use point failed: %w", err)
 	}
 
-	err = n.manager.Save()
-	if err != nil {
-		return nil, fmt.Errorf("save config failed: %w", err)
-	}
-
 	return &node.Point{}, nil
 }
 
 func (n *Nodes) Remove(_ context.Context, s *wrapperspb.StringValue) (*emptypb.Empty, error) {
-	n.manager.DeleteNode(s.Value)
-	return &emptypb.Empty{}, n.manager.Save()
+	return &emptypb.Empty{}, n.manager.DeleteNode(s.Value)
 }
 
 type latencyDialer struct {
@@ -169,21 +161,4 @@ func (n *Nodes) Close(ctx context.Context, req *wrapperspb.StringValue) (*emptyp
 	n.manager.store.Delete(req.GetValue())
 
 	return &emptypb.Empty{}, nil
-}
-
-func load(path string) *jsondb.DB[*node.Node] {
-	defaultNode := &node.Node_builder{
-		Tcp:   &node.Point{},
-		Udp:   &node.Point{},
-		Links: map[string]*node.Link{},
-		Manager: (&node.Manager_builder{
-			Nodes: map[string]*node.Point{},
-			Tags:  map[string]*node.Tags{},
-		}).Build(),
-	}
-
-	defaultNode.Tcp.SetHash("inittcp")
-	defaultNode.Udp.SetHash("initudp")
-
-	return jsondb.Open(path, defaultNode.Build())
 }

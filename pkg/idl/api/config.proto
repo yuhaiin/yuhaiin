@@ -45,6 +45,18 @@ message block_history_list {
   bool dump_process_enabled = 2 [ json_name = "dump_process_enabled" ];
 }
 
+message page_request {
+  uint32 page = 1 [ json_name = "page" ];
+  uint32 page_size = 2 [ json_name = "page_size" ];
+  string query = 3 [ json_name = "query" ];
+}
+
+message page_response {
+  uint32 page = 1 [ json_name = "page" ];
+  uint32 page_size = 2 [ json_name = "page_size" ];
+  uint32 total = 3 [ json_name = "total" ];
+}
+
 message list_response {
   repeated string names = 1 [ json_name = "names" ];
   yuhaiin.bypass.maxminddb_geoip maxminddb_geoip = 2
@@ -53,6 +65,17 @@ message list_response {
   // 0 means disable refresh
   yuhaiin.bypass.refresh_config refresh_config = 3
       [ json_name = "refresh_config" ];
+  page_response page = 4 [ json_name = "page" ];
+  repeated list_item items = 5 [ json_name = "items" ];
+}
+
+message list_item {
+  string name = 1 [ json_name = "name" ];
+  string type = 2 [ json_name = "type" ];
+  string source = 3 [ json_name = "source" ];
+  uint32 item_count = 4 [ json_name = "item_count" ];
+  uint32 error_count = 5 [ json_name = "error_count" ];
+  string preview = 6 [ json_name = "preview" ];
 }
 
 message save_list_config_request {
@@ -63,6 +86,7 @@ message save_list_config_request {
 
 service lists {
   rpc list(google.protobuf.Empty) returns (list_response);
+  rpc list_page(page_request) returns (list_response);
   rpc get(google.protobuf.StringValue) returns (yuhaiin.bypass.list);
   rpc save(yuhaiin.bypass.list) returns (google.protobuf.Empty);
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
@@ -73,11 +97,17 @@ service lists {
 message rule_item {
   string name = 1 [ json_name = "name" ];
   bool disabled = 2 [ json_name = "disabled" ];
+  uint32 index = 3 [ json_name = "index" ];
+  string mode = 4 [ json_name = "mode" ];
+  string tag = 5 [ json_name = "tag" ];
+  string resolver = 6 [ json_name = "resolver" ];
+  uint32 rule_count = 7 [ json_name = "rule_count" ];
 }
 
 message rule_response {
   repeated string names = 1 [ json_name = "names" ];
   repeated rule_item items = 2 [ json_name = "items" ];
+  page_response page = 3 [ json_name = "page" ];
 }
 
 message rule_index {
@@ -105,6 +135,7 @@ message change_priority_request {
 
 service rules {
   rpc list(google.protobuf.Empty) returns (rule_response);
+  rpc list_page(page_request) returns (rule_response);
   rpc get(rule_index) returns (yuhaiin.bypass.rulev2);
   rpc save(rule_save_request) returns (google.protobuf.Empty);
   rpc remove(rule_index) returns (google.protobuf.Empty);
@@ -121,6 +152,17 @@ message inbounds_response {
   bool hijack_dns = 2 [ json_name = "hijack_dns" ];
   bool hijack_dns_fakeip = 3 [ json_name = "hijack_dns_fakeip" ];
   yuhaiin.inbound.sniff sniff = 4 [ json_name = "sniff" ];
+  page_response page = 5 [ json_name = "page" ];
+  repeated inbound_item items = 6 [ json_name = "items" ];
+}
+
+message inbound_item {
+  string name = 1 [ json_name = "name" ];
+  bool enabled = 2 [ json_name = "enabled" ];
+  string network = 3 [ json_name = "network" ];
+  string listen = 4 [ json_name = "listen" ];
+  string protocol = 5 [ json_name = "protocol" ];
+  repeated string transports = 6 [ json_name = "transports" ];
 }
 
 message platform_info_response {
@@ -133,6 +175,7 @@ message platform_info_response {
 
 service inbound {
   rpc list(google.protobuf.Empty) returns (inbounds_response);
+  rpc list_page(page_request) returns (inbounds_response);
   rpc get(google.protobuf.StringValue) returns (yuhaiin.inbound.inbound);
   rpc save(yuhaiin.inbound.inbound) returns (yuhaiin.inbound.inbound);
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
@@ -140,7 +183,20 @@ service inbound {
   rpc platform_info(google.protobuf.Empty) returns (platform_info_response);
 }
 
-message resolve_list { repeated string names = 1 [ json_name = "names" ]; }
+message resolve_list {
+  repeated string names = 1 [ json_name = "names" ];
+  page_response page = 2 [ json_name = "page" ];
+  repeated resolver_item items = 3 [ json_name = "items" ];
+}
+
+message resolver_item {
+  string name = 1 [ json_name = "name" ];
+  string type = 2 [ json_name = "type" ];
+  string host = 3 [ json_name = "host" ];
+  string subnet = 4 [ json_name = "subnet" ];
+  string tls_servername = 5 [ json_name = "tls_servername" ];
+  bool system = 6 [ json_name = "system" ];
+}
 
 message save_resolver {
   string name = 1 [ json_name = "name" ];
@@ -151,6 +207,7 @@ message Hosts { map<string, string> hosts = 1 [ json_name = "hosts" ]; }
 
 service resolver {
   rpc list(google.protobuf.Empty) returns (resolve_list);
+  rpc list_page(page_request) returns (resolve_list);
   rpc get(google.protobuf.StringValue) returns (yuhaiin.dns.dns);
   rpc save(save_resolver) returns (yuhaiin.dns.dns);
   // the bootstrap can't be remove

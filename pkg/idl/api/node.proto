@@ -102,6 +102,7 @@ service tag {
   rpc save(save_tag_req) returns (google.protobuf.Empty);
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
   rpc list(google.protobuf.Empty) returns (tags_response);
+  rpc list_page(tag_page_request) returns (tags_response);
 }
 
 message save_tag_req {
@@ -112,4 +113,23 @@ message save_tag_req {
 
 message tags_response {
   map<string, yuhaiin.tag.tags> tags = 1 [ json_name = "tags" ];
+  repeated tag_item items = 2 [ json_name = "items" ];
+  tag_page page = 3 [ json_name = "page" ];
+}
+
+message tag_item {
+  string name = 1 [ json_name = "name" ];
+  yuhaiin.tag.tags tag = 2 [ json_name = "tag" ];
+}
+
+message tag_page_request {
+  uint32 page = 1 [ json_name = "page" ];
+  uint32 page_size = 2 [ json_name = "page_size" ];
+  string query = 3 [ json_name = "query" ];
+}
+
+message tag_page {
+  uint32 page = 1 [ json_name = "page" ];
+  uint32 page_size = 2 [ json_name = "page_size" ];
+  uint32 total = 3 [ json_name = "total" ];
 }

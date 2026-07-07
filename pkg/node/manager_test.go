@@ -4,28 +4,19 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-func newTestManager() *Manager {
-	return &Manager{
-		store: NewProxyStore(),
-		db: &jsondb.DB[*node.Node]{
-			Data: node.Node_builder{
-				Links: map[string]*node.Link{},
-				Manager: node.Manager_builder{
-					Nodes:     map[string]*node.Point{},
-					Tags:      map[string]*node.Tags{},
-					Publishes: map[string]*node.Publish{},
-				}.Build(),
-			}.Build(),
-		},
-	}
+func newTestManager(t *testing.T) *Manager {
+	t.Helper()
+	mg := NewManager(tools.PathGenerator.State(t.TempDir()))
+	t.Cleanup(func() { _ = mg.Close() })
+	return mg
 }
 
 func TestAddNode(t *testing.T) {
-	mg := newTestManager()
+	mg := newTestManager(t)
 
 	p1 := node.Point_builder{
 		Name:  new("feefe"),
@@ -43,17 +34,33 @@ func TestAddNode(t *testing.T) {
 		Name:  new("fazczfzf"),
 		Group: new("group"),
 	}.Build()
-	mg.SaveNode(p1, p2, p3, p4)
+	if err := mg.SaveNode(p1, p2, p3, p4); err != nil {
+		t.Fatal(err)
+	}
 
-	t.Log(mg.db.Data)
+	if err := mg.AddTag("test_tag", 1, p2.GetHash()); err != nil {
+		t.Fatal(err)
+	}
+	if err := mg.AddTag("test_tag3", 0, p3.GetHash()); err != nil {
+		t.Fatal(err)
+	}
+	if err := mg.AddTag("test_tag2", 0, p2.GetHash()); err != nil {
+		t.Fatal(err)
+	}
+	if err := mg.AddTag("test_tag2", 0, p3.GetHash()); err != nil {
+		t.Fatal(err)
+	}
+	if err := mg.DeleteTag("test_tag2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := mg.DeleteNode(p3.GetHash()); err != nil {
+		t.Fatal(err)
+	}
 
-	mg.AddTag("test_tag", 1, p2.GetHash())
-	mg.AddTag("test_tag3", 0, p3.GetHash())
-	mg.AddTag("test_tag2", 0, p2.GetHash())
-	mg.AddTag("test_tag2", 0, p3.GetHash())
-	mg.DeleteTag("test_tag2")
-	mg.DeleteNode(p3.GetHash())
-
-	data, _ := protojson.MarshalOptions{Indent: "  "}.Marshal(mg.db.Data)
+	loaded, err := mg.persist.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := protojson.MarshalOptions{Indent: "  "}.Marshal(loaded)
 	t.Log(string(data))
 }

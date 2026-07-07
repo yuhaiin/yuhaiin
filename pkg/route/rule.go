@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/paging"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -52,11 +53,22 @@ func (r *Rules) List(ctx context.Context, empty *emptypb.Empty) (*api.RuleRespon
 	names := make([]string, 0)
 	items := make([]*api.RuleItem, 0)
 	err := r.db.View(func(ss *config.Setting) error {
-		for _, v := range ss.GetBypass().GetRulesV2() {
+		for index, v := range ss.GetBypass().GetRulesV2() {
 			names = append(names, v.GetName())
 			items = append(items, api.RuleItem_builder{
 				Name:     new(v.GetName()),
 				Disabled: new(v.GetDisabled()),
+				Index:    uint32Ptr(uint32(index)),
+				Mode:     stringPtr(v.GetMode().String()),
+				Tag:      new(v.GetTag()),
+				Resolver: new(v.GetResolver()),
+				RuleCount: uint32Ptr(func() uint32 {
+					var count uint32
+					for _, group := range v.GetRules() {
+						count += uint32(len(group.GetRules()))
+					}
+					return count
+				}()),
 			}.Build())
 		}
 		return nil
@@ -66,6 +78,35 @@ func (r *Rules) List(ctx context.Context, empty *emptypb.Empty) (*api.RuleRespon
 		Names: names,
 		Items: items,
 	}.Build(), err
+}
+
+func uint32Ptr(v uint32) *uint32 { return &v }
+
+func stringPtr(v string) *string { return &v }
+
+func (r *Rules) ListPage(ctx context.Context, req *api.PageRequest) (*api.RuleResponse, error) {
+	resp, err := r.List(ctx, &emptypb.Empty{})
+	if err != nil {
+		return resp, err
+	}
+
+	items := paging.Filter(resp.GetItems(), req.GetQuery(), func(item *api.RuleItem, query string) bool {
+		return paging.MatchString(item.GetName(), query)
+	})
+	pageItems, page, pageSize, total := paging.Slice(items, req.GetPage(), req.GetPageSize())
+	names := make([]string, 0, len(pageItems))
+	for _, item := range pageItems {
+		names = append(names, item.GetName())
+	}
+
+	resp.SetNames(names)
+	resp.SetItems(pageItems)
+	resp.SetPage(api.PageResponse_builder{
+		Page:     new(page),
+		PageSize: new(pageSize),
+		Total:    new(total),
+	}.Build())
+	return resp, nil
 }
 
 func (r *Rules) Get(ctx context.Context, index *api.RuleIndex) (*config.Rulev2, error) {

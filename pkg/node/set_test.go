@@ -27,7 +27,7 @@ func TestSet(t *testing.T) {
 
 	fmt.Println(host, portInt)
 
-	mg := newTestManager()
+	mg := newTestManager(t)
 	p1 := node.Point_builder{
 		Hash:  new("a"),
 		Name:  new("feefe"),
@@ -46,7 +46,7 @@ func TestSet(t *testing.T) {
 			}.Build(),
 		},
 	}.Build()
-	mg.SaveNode(p1, p2)
+	assert.NoError(t, mg.SaveNode(p1, p2))
 
 	se, err := NewSet(node.Set_builder{
 		Strategy: node.Set_round_robin.Enum(),

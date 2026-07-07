@@ -1,19 +1,14 @@
 package statistics
 
 import (
+	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/Asutorufa/yuhaiin/pkg/cache"
 )
 
-func TestCache(t *testing.T) {
-	count := atomic.Uint64{}
-	cc := NewTotalCache(&cache.MockCache{
-		OnPut: func(k, v []byte) { count.Add(1) },
-	})
+func TestSQLiteTotalCache(t *testing.T) {
+	cc := NewSQLiteTotalCache(filepath.Join(t.TempDir(), "state.db"))
 	defer cc.Close()
 	wg := sync.WaitGroup{}
 
@@ -30,14 +25,11 @@ func TestCache(t *testing.T) {
 	wg.Wait()
 
 	t.Log(time.Since(start))
-	t.Log(cc.LoadDownload(), count.Load(), cc.LoadDownload()/uint64(SyncThreshold))
+	t.Log(cc.LoadDownload(), cc.LoadDownload()/uint64(SyncThreshold))
 }
 
-func BenchmarkCache(b *testing.B) {
-	count := atomic.Uint64{}
-	cc := NewTotalCache(&cache.MockCache{
-		OnPut: func(k, v []byte) { count.Add(1) },
-	})
+func BenchmarkSQLiteTotalCache(b *testing.B) {
+	cc := NewSQLiteTotalCache(filepath.Join(b.TempDir(), "state.db"))
 	defer cc.Close()
 
 	for i := range b.N {

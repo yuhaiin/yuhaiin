@@ -28,13 +28,13 @@ type TUN struct {
 var App atomic.Pointer[app.AppInstance]
 
 func Start(opt *Opts) error {
-	setting := chore.NewJsonDB(tools.PathGenerator.Config(opt.Savepath))
+	setting := chore.NewSqliteDB(tools.PathGenerator.State(opt.Savepath))
 
 	app, err := app.Start(&app.StartOptions{
 		ConfigPath:     opt.Savepath,
 		BypassConfig:   setting,
 		ResolverConfig: setting,
-		InboundConfig:  fakeDB(opt, tools.PathGenerator.Config(opt.Savepath)),
+		InboundConfig:  fakeDB(opt, tools.PathGenerator.State(opt.Savepath)),
 		ChoreConfig:    setting,
 	})
 	if err != nil {

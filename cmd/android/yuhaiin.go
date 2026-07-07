@@ -16,12 +16,15 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app"
+	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -31,9 +34,8 @@ func SetSavePath(p string) {
 	savepath = p
 
 	ms := filepath.Join(p, "yuhaiin_memory_store.json")
-	msc := filepath.Join(p, "yuhaiin_memory_config_store.json")
-	memoryDB = newMemoryStore(ms, false)
-	memoryConfigDB = newMemoryStore(msc, false)
+	legacyPreferenceStore = newMemoryStore(ms, true)
+	appStore = newSQLitePreferenceStore(tools.PathGenerator.State(p), legacyPreferenceStore)
 }
 
 //go:generate go run generate.go
@@ -93,13 +95,15 @@ func (a *App) Start(opt *Opts) error {
 		return err
 	}
 
+	setting := newChoreDB()
+
 	app, err := app.Start(&app.StartOptions{
 		ConfigPath:     savepath,
-		BypassConfig:   newBypassDB(memoryConfigDB),
-		ResolverConfig: newResolverDB(memoryConfigDB),
-		InboundConfig:  newInboundDB(memoryConfigDB, opt),
-		ChoreConfig:    newChoreDB(memoryConfigDB),
-		BackupConfig:   newBackupDB(memoryConfigDB),
+		BypassConfig:   setting,
+		ResolverConfig: setting,
+		InboundConfig:  newInboundDB(setting, opt),
+		ChoreConfig:    setting,
+		BackupConfig:   setting,
 		ProcessDumper:  processDumper,
 	})
 	if err != nil {
@@ -121,7 +125,7 @@ func (a *App) Start(opt *Opts) error {
 		return err
 	}
 
-	memoryConfigDB.PutInt(NewYuhaiinPortKey, int32(port))
+	GetStore().PutInt(NewYuhaiinPortKey, int32(port))
 
 	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
@@ -296,8 +300,61 @@ func applyInboundRuntimeSettings(store Store, server *config.InboundConfig) {
 	server.SetSniff(sniff)
 }
 
-func newInboundDB(ms *memoryStore, opt *Opts) *configDB[*config.InboundConfig] {
-	store := GetStore()
+type androidInboundDB struct {
+	base  chore.DB
+	store Store
+	opt   *Opts
+}
+
+func newInboundDB(base chore.DB, opt *Opts) chore.DB {
+	return &androidInboundDB{
+		base:  base,
+		store: GetStore(),
+		opt:   opt,
+	}
+}
+
+func (a *androidInboundDB) View(f ...func(*config.Setting) error) error {
+	return a.base.View(func(s *config.Setting) error {
+		working := proto.CloneOf(s)
+		a.applyRuntimeOverlay(working.GetServer())
+
+		for _, fn := range f {
+			if err := fn(working); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+func (a *androidInboundDB) Batch(f ...func(*config.Setting) error) error {
+	return a.base.Batch(func(s *config.Setting) error {
+		working := proto.CloneOf(s)
+		a.applyRuntimeOverlay(working.GetServer())
+
+		for _, fn := range f {
+			if err := fn(working); err != nil {
+				return err
+			}
+		}
+
+		s.GetServer().SetHijackDns(working.GetServer().GetHijackDns())
+		s.GetServer().SetHijackDnsFakeip(working.GetServer().GetHijackDnsFakeip())
+		s.GetServer().SetSniff(working.GetServer().GetSniff())
+		return nil
+	})
+}
+
+func (a *androidInboundDB) Dir() string { return a.base.Dir() }
+
+func (a *androidInboundDB) applyRuntimeOverlay(server *config.InboundConfig) {
+	if server == nil {
+		return
+	}
+
+	store := a.store
 	var listenHost string = "127.0.0.1"
 	if store.GetBoolean(AllowLanKey) {
 		listenHost = "0.0.0.0"
@@ -318,10 +375,10 @@ func newInboundDB(ms *memoryStore, opt *Opts) *configDB[*config.InboundConfig] {
 			Enabled: new(true),
 			Empty:   &config.Empty{},
 			Tun: config.Tun_builder{
-				Name:          new(fmt.Sprintf("fd://%d", opt.TUN.FD)),
-				Mtu:           new(opt.TUN.MTU),
-				Portal:        new(opt.TUN.Portal),
-				PortalV6:      new(opt.TUN.PortalV6),
+				Name:          new(fmt.Sprintf("fd://%d", a.opt.TUN.FD)),
+				Mtu:           new(a.opt.TUN.MTU),
+				Portal:        new(a.opt.TUN.Portal),
+				PortalV6:      new(a.opt.TUN.PortalV6),
 				SkipMulticast: new(true),
 				Route:         &config.Route{},
 				Driver:        config.TunEndpointDriver(config.TunEndpointDriver_value[store.GetString(AdvTunDriverKey)]).Enum(),
@@ -329,71 +386,22 @@ func newInboundDB(ms *memoryStore, opt *Opts) *configDB[*config.InboundConfig] {
 		}.Build(),
 	}
 
-	return newConfigDB(
-		ms,
-		"inbound_db",
-		func(s *config.Setting) *config.InboundConfig {
-			if s.GetServer() == nil {
-				s.SetServer(config.InboundConfig_builder{
-					HijackDns:       new(store.GetBoolean(DnsHijacking)),
-					HijackDnsFakeip: new(store.GetBoolean(DnsHijacking)),
-					Sniff: config.Sniff_builder{
-						Enabled: new(store.GetBoolean(SniffKey)),
-					}.Build(),
-				}.Build())
-			}
-
-			s.GetServer().SetInbounds(inbounds)
-			applyInboundRuntimeSettings(store, s.GetServer())
-
-			return s.GetServer()
-		},
-		func(s *config.InboundConfig) *config.Setting {
-			s.SetInbounds(inbounds)
-			return config.Setting_builder{Server: s}.Build()
-		},
-		func(s *config.InboundConfig) {
-			applyInboundRuntimeSettings(store, s)
-		},
-	)
+	server.SetInbounds(inbounds)
+	applyInboundRuntimeSettings(store, server)
 }
 
-func newResolverDB(ms *memoryStore) *configDB[*config.DnsConfig] {
-	return newConfigDB(
-		ms,
-		"resolver_db",
-		func(s *config.Setting) *config.DnsConfig { return s.GetDns() },
-		func(s *config.DnsConfig) *config.Setting { return config.Setting_builder{Dns: s}.Build() },
-		nil,
-	)
+func newResolverDB() chore.DB {
+	return chore.NewSqliteDB(tools.PathGenerator.State(savepath))
 }
 
-func newBypassDB(ms *memoryStore) *configDB[*config.BypassConfig] {
-	return newConfigDB(
-		ms,
-		"bypass_db",
-		func(s *config.Setting) *config.BypassConfig { return s.GetBypass() },
-		func(s *config.BypassConfig) *config.Setting { return config.Setting_builder{Bypass: s}.Build() },
-		nil,
-	)
+func newBypassDB() chore.DB {
+	return chore.NewSqliteDB(tools.PathGenerator.State(savepath))
 }
 
-func newChoreDB(ms *memoryStore) *configDB[*config.Setting] {
-	return newConfigDB(
-		ms,
-		"chore_db",
-		func(s *config.Setting) *config.Setting { return s },
-		func(s *config.Setting) *config.Setting { return s },
-		nil,
-	)
+func newChoreDB() chore.DB {
+	return chore.NewSqliteDB(tools.PathGenerator.State(savepath))
 }
 
-func newBackupDB(ms *memoryStore) *configDB[*config.Setting] {
-	return newConfigDB(
-		ms,
-		"backup_db",
-		func(s *config.Setting) *config.Setting { return s },
-		func(s *config.Setting) *config.Setting { return s },
-		nil,
-	)
+func newBackupDB() chore.DB {
+	return chore.NewSqliteDB(tools.PathGenerator.State(savepath))
 }

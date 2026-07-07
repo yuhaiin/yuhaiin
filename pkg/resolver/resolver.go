@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strings"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
@@ -15,11 +16,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/paging"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/miekg/dns"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	"slices"
 )
 
 type Entry struct {
@@ -309,12 +312,60 @@ func NewResolverCtr(s chore.DB, hosts *Hosts, fakedns *Fakedns, r *Resolver) *Re
 func (r *ResolverCtr) List(ctx context.Context, req *emptypb.Empty) (*api.ResolveList, error) {
 	resp := &api.ResolveList{}
 	err := r.s.View(func(s *config.Setting) error {
-		for k := range s.GetDns().GetResolver() {
+		items := make([]*api.ResolverItem, 0, len(s.GetDns().GetResolver()))
+		for k, resolver := range s.GetDns().GetResolver() {
 			resp.SetNames(append(resp.GetNames(), k))
+			items = append(items, resolverItem(k, resolver))
 		}
+		resp.SetItems(items)
 		return nil
 	})
 	return resp, err
+}
+
+func resolverItem(name string, resolver *config.Dns) *api.ResolverItem {
+	system := name == "bootstrap"
+	host := resolver.GetHost()
+	if system && host == "" {
+		host = "system default"
+	}
+
+	return api.ResolverItem_builder{
+		Name:          new(name),
+		Type:          new(resolver.GetType().String()),
+		Host:          new(host),
+		Subnet:        new(resolver.GetSubnet()),
+		TlsServername: new(resolver.GetTlsServername()),
+		System:        new(system),
+	}.Build()
+}
+
+func (r *ResolverCtr) ListPage(ctx context.Context, req *api.PageRequest) (*api.ResolveList, error) {
+	resp, err := r.List(ctx, &emptypb.Empty{})
+	if err != nil {
+		return resp, err
+	}
+
+	items := resp.GetItems()
+	slices.SortFunc(items, func(a, b *api.ResolverItem) int { return strings.Compare(a.GetName(), b.GetName()) })
+	items = paging.Filter(items, req.GetQuery(), func(item *api.ResolverItem, query string) bool {
+		return paging.MatchString(item.GetName(), query) ||
+			paging.MatchString(item.GetType(), query) ||
+			paging.MatchString(item.GetHost(), query)
+	})
+	pageItems, page, pageSize, total := paging.Slice(items, req.GetPage(), req.GetPageSize())
+	pageNames := make([]string, 0, len(pageItems))
+	for _, item := range pageItems {
+		pageNames = append(pageNames, item.GetName())
+	}
+	resp.SetNames(pageNames)
+	resp.SetItems(pageItems)
+	resp.SetPage(api.PageResponse_builder{
+		Page:     new(page),
+		PageSize: new(pageSize),
+		Total:    new(total),
+	}.Build())
+	return resp, nil
 }
 
 func (r *ResolverCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*config.Dns, error) {

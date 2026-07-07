@@ -1,22 +1,27 @@
 package yuhaiin
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func TestStore(t *testing.T) {
+	SetSavePath(t.TempDir())
 	GetStore().PutFloat("float", 3.1415926)
 	t.Log(GetStore().GetFloat("float"))
 	assert.Equal(t, float32(3.1415926), GetStore().GetFloat("float"))
 }
 
 func TestMultipleProcess(t *testing.T) {
+	SetSavePath(t.TempDir())
 	GetStore().PutFloat("float", 3.1415926)
 	t.Log(GetStore().GetFloat("float"))
 }
@@ -53,17 +58,28 @@ func printValuePath(s *strings.Builder, msg protoreflect.FieldDescriptor) {
 	fmt.Fprintf(s, "// %s\n", msg.FullName())
 }
 
-func TestMemoryDB(t *testing.T) {
-	memoryDB.PutString("key1", "value1")
-	memoryDB.PutInt("key2", 42)
-	memoryDB.PutBoolean("key3", true)
-	memoryDB.PutLong("key4", 1234567890)
-	memoryDB.PutFloat("key5", 3.14)
-	memoryDB.PutBytes("key6", []byte{0x01, 0x02, 0x03})
+func TestSQLitePreferenceStore(t *testing.T) {
+	dir := t.TempDir()
+	SetSavePath(dir)
 
-	assert.Equal(t, "value1", memoryDB.GetString("key1"))
-	assert.Equal(t, int32(42), memoryDB.GetInt("key2"))
-	assert.Equal(t, true, memoryDB.GetBoolean("key3"))
-	assert.Equal(t, int64(1234567890), memoryDB.GetLong("key4"))
-	assert.Equal(t, float32(3.14), memoryDB.GetFloat("key5"))
+	GetStore().PutString("profile", "balanced")
+	GetStore().PutBoolean("allow_lan_test", true)
+	GetStore().PutInt("port_test", 1234)
+
+	assert.Equal(t, "balanced", GetStore().GetString("profile"))
+	assert.Equal(t, true, GetStore().GetBoolean("allow_lan_test"))
+	assert.Equal(t, int32(1234), GetStore().GetInt("port_test"))
+
+	store, err := storagesqlite.Open(context.Background(), tools.PathGenerator.State(dir))
+	assert.NoError(t, err)
+	defer store.Close()
+
+	var valueJSON string
+	err = store.DB().QueryRowContext(context.Background(), `
+		SELECT value_json
+		FROM android_extra_preferences
+		WHERE key = 'profile'
+	`).Scan(&valueJSON)
+	assert.NoError(t, err)
+	assert.Equal(t, `"balanced"`, valueJSON)
 }
