@@ -202,4 +202,32 @@ var migrations = []Migration{
 			ON failed_connection_history(last_seen_at DESC)`,
 		},
 	},
+	{
+		Version: 2,
+		Name:    "fakeip_cache",
+		Statements: []string{
+			`CREATE TABLE fakeip_entries (
+				family        INTEGER NOT NULL,
+				prefix        TEXT NOT NULL,
+				domain        TEXT NOT NULL,
+				ip            BLOB NOT NULL,
+				created_at    INTEGER NOT NULL,
+				last_used_at  INTEGER NOT NULL,
+				PRIMARY KEY (family, prefix, domain),
+				UNIQUE (family, prefix, ip)
+			)`,
+			`CREATE INDEX fakeip_entries_ip_idx
+			ON fakeip_entries(family, prefix, ip)`,
+			`CREATE INDEX fakeip_entries_lru_idx
+			ON fakeip_entries(family, prefix, last_used_at)`,
+			`CREATE TABLE fakeip_cursors (
+				family        INTEGER NOT NULL,
+				prefix        TEXT NOT NULL,
+				cursor_ip     BLOB NOT NULL,
+				cursor_idx    INTEGER NOT NULL,
+				updated_at    INTEGER NOT NULL,
+				PRIMARY KEY (family, prefix)
+			)`,
+		},
+	},
 }

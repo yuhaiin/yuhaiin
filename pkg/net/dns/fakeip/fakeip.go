@@ -2,6 +2,7 @@ package fakeip
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -9,9 +10,7 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/miekg/dns"
@@ -23,6 +22,10 @@ type pool interface {
 	GetFakeIPForDomain(s string) netip.Addr
 }
 
+type closePool interface {
+	Close() error
+}
+
 var _ netapi.Resolver = (*FakeDNS)(nil)
 
 type FakeDNS struct {
@@ -31,21 +34,34 @@ type FakeDNS struct {
 	ipv6 pool
 }
 
-func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, ipv6Range netip.Prefix, db cache.Cache) *FakeDNS {
-	f := &FakeDNS{
+func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, ipv6Range netip.Prefix, dbPath string, legacy cache.Cache) (*FakeDNS, error) {
+	ipv4, err := NewSQLiteFakeIPPool(dbPath, ipRange, 655535, legacy)
+	if err != nil {
+		return nil, fmt.Errorf("open sqlite fakeip ipv4 pool failed: %w", err)
+	}
+
+	ipv6, err := NewSQLiteFakeIPPool(dbPath, ipv6Range, 655535, legacy)
+	if err != nil {
+		_ = ipv4.Close()
+		return nil, fmt.Errorf("open sqlite fakeip ipv6 pool failed: %w", err)
+	}
+
+	return &FakeDNS{
 		Resolver: upStreamDo,
-	}
+		ipv4:     ipv4,
+		ipv6:     ipv6,
+	}, nil
+}
 
-	if v, ok := db.(*pebble.Cache); ok {
-		log.Info("fakeip use full pebble disk cache")
-		f.ipv4 = NewDiskFakeIPPool(ipRange, v, 655535)
-		f.ipv6 = NewDiskFakeIPPool(ipv6Range, v, 655535)
-	} else {
-		f.ipv4 = NewFakeIPPool(ipRange, db)
-		f.ipv6 = NewFakeIPPool(ipv6Range, db)
+func (f *FakeDNS) Close() error {
+	var err error
+	if closer, ok := f.ipv4.(closePool); ok {
+		err = errors.Join(err, closer.Close())
 	}
-
-	return f
+	if closer, ok := f.ipv6.(closePool); ok {
+		err = errors.Join(err, closer.Close())
+	}
+	return err
 }
 
 func (f *FakeDNS) Equal(ipRange, ipv6Range netip.Prefix) bool {
@@ -325,8 +341,6 @@ func (f *FakeDNS) LookupPtr(ip net.IP) (string, error) {
 
 	return r, fmt.Errorf("ptr not found")
 }
-
-func (f *FakeDNS) Close() error { return nil }
 
 func appendIPHint(msg dns.Msg, ipv4, ipv6 []net.IP) {
 	if len(ipv4) == 0 && len(ipv6) == 0 {

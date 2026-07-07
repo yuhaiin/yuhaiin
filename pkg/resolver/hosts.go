@@ -52,8 +52,8 @@ func (h *Hosts) Apply(hosts map[string]string) {
 
 	h.mu.Lock()
 	h.store = store
-	dnssystem.RefreshCache()
 	h.mu.Unlock()
+	dnssystem.RefreshCache()
 }
 
 func (h *Hosts) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Address, error) {

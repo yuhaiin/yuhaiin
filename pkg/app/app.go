@@ -87,9 +87,9 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	choreService := chore.NewChore(so.ChoreConfig,
 		func(s *config.Setting) { updateConfiguration(so, s, logController) })
 
-	config, err := choreService.Load(context.Background(), &emptypb.Empty{})
+	setting, err := choreService.Load(context.Background(), &emptypb.Empty{})
 	if err == nil {
-		updateConfiguration(so, config, logController)
+		updateConfiguration(so, setting, logController)
 	}
 
 	AddCloser(closers, "logger_controller", logController)
@@ -136,8 +136,30 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	metrics.SetFlowCounter(stcs.Cache)
 	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, router))
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := AddCloser(closers, "fakedns", resolver.NewFakeDNS(hosts, hosts, pebbleCache))
+	initialFakeDNS := resolver.FakednsConfigFromSetting(setting)
+	if initialFakeDNS == nil && so.ResolverConfig != nil {
+		if err := so.ResolverConfig.View(func(s *config.Setting) error {
+			initialFakeDNS = resolver.FakednsConfigFromSetting(s)
+			return nil
+		}); err != nil {
+			log.Warn("load initial fakedns config failed", "err", err)
+		}
+	}
+	fakedns, err := resolver.NewFakeDNS(
+		hosts,
+		hosts,
+		tools.PathGenerator.State(so.ConfigPath),
+		pebbleCache,
+		initialFakeDNS,
+	)
+	if err != nil {
+		_ = closers.Close()
+		return nil, fmt.Errorf("init fake dns failed: %w", err)
+	}
+	AddCloser(closers, "fakedns", fakedns)
+	log.Info("init resolver controller")
 	resolverCtr := resolver.NewResolverCtr(so.ResolverConfig, hosts, fakedns, dns)
+	log.Info("init resolver controller finished")
 
 	// make dns flow across all proxy chain
 	configuration.ProxyChain.Set(fakedns)

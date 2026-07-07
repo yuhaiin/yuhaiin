@@ -141,56 +141,73 @@ func (r *Resolver) Apply(name string, config *config.Dns) {
 		return
 	}
 
+	var old netapi.Resolver
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	ndns, ok := r.store.Load(name)
 	if ok && !proto.Equal(ndns.Config, config) {
 		r.store.Delete(name)
-		if err := ndns.Resolver.Close(); err != nil {
-			log.Error("close dns resolver failed", "key", name, "err", err)
-		}
+		old = ndns.Resolver
 	}
 
 	r.resolvers.Store(name, config)
+	r.mu.Unlock()
+
+	if old != nil {
+		if err := old.Close(); err != nil {
+			log.Error("close dns resolver failed", "key", name, "err", err)
+		}
+	}
 }
 
 func (r *Resolver) Delete(name string) {
+	var old netapi.Resolver
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	r.resolvers.Delete(name)
 	ndns, ok := r.store.Load(name)
-	if !ok {
-		return
+	if ok {
+		r.store.Delete(name)
+		old = ndns.Resolver
 	}
+	r.mu.Unlock()
 
-	if err := ndns.Resolver.Close(); err != nil {
-		log.Error("close dns resolver failed", "key", name, "err", err)
+	if old != nil {
+		if err := old.Close(); err != nil {
+			log.Error("close dns resolver failed", "key", name, "err", err)
+		}
 	}
 }
 
 func (r *Resolver) ApplyBootstrap(c *config.Dns) {
+	if c == nil {
+		return
+	}
+
 	r.bootstrapMu.Lock()
-	defer r.bootstrapMu.Unlock()
+	if proto.Equal(r.bootstrapConfig, c) {
+		r.bootstrapMu.Unlock()
+		return
+	}
+	nextConfig := proto.Clone(c).(*config.Dns)
+	r.bootstrapMu.Unlock()
 
 	log.Debug("apply bootstrap dns", "config", c)
 
-	if !proto.Equal(r.bootstrapConfig, c) {
-		dd := &dnsDialer{
-			Proxy:     r.dialer,
-			resolver:  func() netapi.Resolver { return resolver.Internet },
-			name:      "bootstrap",
-			bootstrap: true,
-		}
-		z, err := newResolver("bootstrap", c, dd)
-		if err != nil {
-			log.Error("new bootstrap dns failed", "err", err)
-		} else {
-			netapi.SetBootstrap(z)
-			r.bootstrapConfig = c
-		}
+	dd := &dnsDialer{
+		Proxy:     r.dialer,
+		resolver:  func() netapi.Resolver { return resolver.Internet },
+		name:      "bootstrap",
+		bootstrap: true,
 	}
+	z, err := newResolver("bootstrap", nextConfig, dd)
+	if err != nil {
+		log.Error("new bootstrap dns failed", "err", err)
+		return
+	}
+	netapi.SetBootstrap(z)
+
+	r.bootstrapMu.Lock()
+	r.bootstrapConfig = nextConfig
+	r.bootstrapMu.Unlock()
 }
 
 type dnsWrap struct{ netapi.Resolver }
@@ -288,25 +305,42 @@ type ResolverCtr struct {
 func NewResolverCtr(s chore.DB, hosts *Hosts, fakedns *Fakedns, r *Resolver) *ResolverCtr {
 	r2 := &ResolverCtr{s: s, hosts: hosts, fakedns: fakedns, r: r}
 
+	var setting *config.Setting
 	err := s.View(func(s *config.Setting) error {
-		for k, v := range s.GetDns().GetResolver() {
-			if k == "bootstrap" {
-				r2.r.ApplyBootstrap(v)
-			}
-
-			r2.r.Apply(k, v)
-		}
-
-		r2.hosts.Apply(s.GetDns().GetHosts())
-		r2.fakedns.Apply(toFakednsConfig(s))
-		r2.fakedns.SetServer(s.GetDns().GetServer())
+		setting = proto.Clone(s).(*config.Setting)
 		return nil
 	})
 	if err != nil {
 		log.Error("init resolver failed", "err", err)
+		return r2
 	}
 
+	r2.ApplySetting(setting)
 	return r2
+}
+
+func (r *ResolverCtr) ApplySetting(s *config.Setting) {
+	if s == nil {
+		return
+	}
+
+	log.Info("apply resolver setting")
+	for k, v := range s.GetDns().GetResolver() {
+		if k == "bootstrap" {
+			log.Info("apply bootstrap resolver")
+			r.r.ApplyBootstrap(v)
+		}
+
+		r.r.Apply(k, v)
+	}
+
+	log.Info("apply hosts setting")
+	r.hosts.Apply(s.GetDns().GetHosts())
+	log.Info("apply fakedns setting")
+	r.fakedns.Apply(toFakednsConfig(s))
+	log.Info("apply fakedns server")
+	r.fakedns.SetServer(s.GetDns().GetServer())
+	log.Info("apply resolver setting finished")
 }
 
 func (r *ResolverCtr) List(ctx context.Context, req *emptypb.Empty) (*api.ResolveList, error) {
@@ -454,6 +488,13 @@ func toFakednsConfig(s *config.Setting) *config.FakednsConfig {
 		Whitelist:     s.GetDns().GetFakednsWhitelist(),
 		SkipCheckList: s.GetDns().GetFakednsSkipCheckList(),
 	}).Build()
+}
+
+func FakednsConfigFromSetting(s *config.Setting) *config.FakednsConfig {
+	if s == nil {
+		return nil
+	}
+	return toFakednsConfig(s)
 }
 
 func (r *ResolverCtr) Fakedns(context.Context, *emptypb.Empty) (*config.FakednsConfig, error) {

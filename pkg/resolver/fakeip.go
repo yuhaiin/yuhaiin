@@ -27,7 +27,8 @@ import (
 type Fakedns struct {
 	dialer   netapi.Proxy
 	upstream netapi.Resolver
-	db       cache.Cache
+	dbPath   string
+	legacy   cache.Cache
 
 	dnsServer netapi.DNSAgent
 	fake      *fakeip.FakeDNS
@@ -44,21 +45,31 @@ type Fakedns struct {
 	enabled atomic.Bool
 }
 
-func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db cache.Cache) *Fakedns {
+func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, dbPath string, legacy cache.Cache, initial ...*config.FakednsConfig) (*Fakedns, error) {
 	ipv4Range, _ := netip.ParsePrefix("10.2.0.1/24")
 	ipv6Range, _ := netip.ParsePrefix("fc00::/64")
+	if len(initial) > 0 && initial[0] != nil {
+		ipv4Range = configuration.GetFakeIPRange(initial[0].GetIpv4Range(), false)
+		ipv6Range = configuration.GetFakeIPRange(initial[0].GetIpv6Range(), true)
+	}
+
+	fake, err := fakeip.NewFakeDNS(upstream, ipv4Range, ipv6Range, dbPath, legacy)
+	if err != nil {
+		return nil, err
+	}
 
 	f := &Fakedns{
-		fake:      fakeip.NewFakeDNS(upstream, ipv4Range, ipv6Range, db),
+		fake:      fake,
 		dialer:    dialer,
 		upstream:  upstream,
-		db:        db,
+		dbPath:    dbPath,
+		legacy:    legacy,
 		whitelist: domain.NewTrie[struct{}](),
 		skipCheck: domain.NewTrie[struct{}](),
 	}
 	f.dnsServer = server.NewServer("", f)
 
-	return f
+	return f, nil
 }
 
 func (f *Fakedns) Apply(c *config.FakednsConfig) {
@@ -100,7 +111,17 @@ func (f *Fakedns) Apply(c *config.FakednsConfig) {
 		return
 	}
 
-	f.fake = fakeip.NewFakeDNS(f.upstream, ipRange, ipv6Range, f.db)
+	next, err := fakeip.NewFakeDNS(f.upstream, ipRange, ipv6Range, f.dbPath, f.legacy)
+	if err != nil {
+		log.Error("reload sqlite fakeip pool failed", "err", err)
+		return
+	}
+
+	old := f.fake
+	f.fake = next
+	if old != nil {
+		_ = old.Close()
+	}
 }
 
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
@@ -147,6 +168,12 @@ func (f *Fakedns) Close() error {
 			err = errors.Join(err, er)
 		}
 		f.dnsServer = nil
+	}
+	if f.fake != nil {
+		if er := f.fake.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
+		f.fake = nil
 	}
 
 	return err
@@ -203,22 +230,31 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 }
 
 func (a *Fakedns) SetServer(s string) {
-	a.smu.Lock()
-	defer a.smu.Unlock()
+	var old netapi.DNSAgent
 
+	a.smu.Lock()
 	if a.serverHost == s {
+		a.smu.Unlock()
 		return
 	}
-
 	if a.dnsServer != nil {
-		if err := a.dnsServer.Close(); err != nil {
+		old = a.dnsServer
+	}
+	a.dnsServer = nil
+	a.serverHost = s
+	a.smu.Unlock()
+
+	if old != nil {
+		if err := old.Close(); err != nil {
 			log.Error("close dns server failed", "err", err)
 		}
-		a.dnsServer = nil
 	}
 
-	a.dnsServer = server.NewServer(s, a)
-	a.serverHost = s
+	next := server.NewServer(s, a)
+
+	a.smu.Lock()
+	a.dnsServer = next
+	a.smu.Unlock()
 }
 
 func (a *Fakedns) server() netapi.DNSAgent {
