@@ -11,10 +11,16 @@ import (
 	"sync"
 	"time"
 
-	_ "modernc.org/sqlite"
+	sqlite3 "github.com/ncruces/go-sqlite3"
+	_ "github.com/ncruces/go-sqlite3/driver"
+	"github.com/ncruces/go-sqlite3/ext/fts5"
 )
 
-const driverName = "sqlite"
+const driverName = "sqlite3"
+
+func init() {
+	sqlite3.AutoExtension(fts5.Register)
+}
 
 type Store struct {
 	shared *sharedStore
