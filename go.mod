@@ -20,7 +20,7 @@ require (
 	github.com/miekg/dns v1.1.72
 	github.com/ncruces/go-sqlite3 v0.35.2
 	github.com/oschwald/maxminddb-golang/v2 v2.4.1
-	github.com/pires/go-proxyproto v0.13.0
+	github.com/pires/go-proxyproto v0.14.0
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/quic-go/connect-ip-go v0.1.0
