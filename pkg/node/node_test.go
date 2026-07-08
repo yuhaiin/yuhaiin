@@ -1,14 +1,14 @@
 package node
 
 import (
+	"encoding/json/v2"
 	"testing"
 
 	"slices"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestDelete(t *testing.T) {
@@ -40,14 +40,11 @@ func TestMergeDefault(t *testing.T) {
 
 	src := &node.Node{}
 
-	jsondb.MergeDefault(src.ProtoReflect(), defaultNode.ProtoReflect())
+	jsondb.MergeDefault(src, defaultNode)
 
 	t.Log(src.GetLinks() == nil)
 
-	data, err := protojson.MarshalOptions{
-		Multiline:         true,
-		EmitDefaultValues: true,
-	}.Marshal(defaultNode)
+	data, err := json.Marshal(defaultNode)
 	assert.NoError(t, err)
 
 	t.Log(string(data))

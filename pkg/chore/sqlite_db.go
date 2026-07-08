@@ -15,12 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 )
 
 var _ DB = (*SqliteDB)(nil)
@@ -452,13 +450,13 @@ func loadSettingsKVTx(ctx context.Context, tx *sql.Tx, setting *config.Setting) 
 			switch key {
 			case "platform":
 				platform := &config.Platform{}
-				if err := decodeProtoJSON(valueJSON, platform); err != nil {
+				if err := decodeJSONText(valueJSON, platform); err != nil {
 					return fmt.Errorf("decode setting.platform failed: %w", err)
 				}
 				setting.SetPlatform(platform)
 			case "config_version":
 				version := &config.ConfigVersion{}
-				if err := decodeProtoJSON(valueJSON, version); err != nil {
+				if err := decodeJSONText(valueJSON, version); err != nil {
 					return fmt.Errorf("decode setting.config_version failed: %w", err)
 				}
 				setting.SetConfigVersion(version)
@@ -467,13 +465,13 @@ func loadSettingsKVTx(ctx context.Context, tx *sql.Tx, setting *config.Setting) 
 			switch key {
 			case "maxminddb_geoip":
 				geoip := &config.MaxminddbGeoip{}
-				if err := decodeProtoJSON(valueJSON, geoip); err != nil {
+				if err := decodeJSONText(valueJSON, geoip); err != nil {
 					return fmt.Errorf("decode route_extra.maxminddb_geoip failed: %w", err)
 				}
 				setting.GetBypass().SetMaxminddbGeoip(geoip)
 			case "refresh_config":
 				refresh := &config.RefreshConfig{}
-				if err := decodeProtoJSON(valueJSON, refresh); err != nil {
+				if err := decodeJSONText(valueJSON, refresh); err != nil {
 					return fmt.Errorf("decode route_extra.refresh_config failed: %w", err)
 				}
 				setting.GetBypass().SetRefreshConfig(refresh)
@@ -542,7 +540,7 @@ func loadDNSTx(ctx context.Context, tx *sql.Tx, setting *config.Setting) error {
 		}
 
 		d := &config.Dns{}
-		if err := decodeProtoJSON(dataJSON, d); err != nil {
+		if err := decodeJSONText(dataJSON, d); err != nil {
 			return fmt.Errorf("decode dns resolver %q failed: %w", name, err)
 		}
 
@@ -641,7 +639,7 @@ func loadInboundTx(ctx context.Context, tx *sql.Tx, setting *config.Setting) err
 	server.SetInbounds(map[string]*config.Inbound{})
 
 	rows, err := tx.QueryContext(ctx, `
-		SELECT name, data_json
+		SELECT name, inbound_type, data_json
 		FROM inbounds
 		ORDER BY name
 	`)
@@ -651,14 +649,18 @@ func loadInboundTx(ctx context.Context, tx *sql.Tx, setting *config.Setting) err
 	defer rows.Close()
 
 	for rows.Next() {
-		var name, dataJSON string
-		if err := rows.Scan(&name, &dataJSON); err != nil {
+		var name, inboundTypeValue, dataJSON string
+		if err := rows.Scan(&name, &inboundTypeValue, &dataJSON); err != nil {
 			return fmt.Errorf("scan inbounds failed: %w", err)
 		}
 
 		inbound := &config.Inbound{}
-		if err := decodeProtoJSON(dataJSON, inbound); err != nil {
+		if err := decodeJSONText(dataJSON, inbound); err != nil {
 			return fmt.Errorf("decode inbound %q failed: %w", name, err)
+		}
+		applyInboundTypeFallback(inbound, inboundTypeValue)
+		if inbound.GetName() == "" {
+			inbound.SetName(name)
 		}
 
 		server.GetInbounds()[name] = inbound
@@ -722,7 +724,7 @@ func loadRouteTx(ctx context.Context, tx *sql.Tx, setting *config.Setting) error
 		}
 
 		rule := &config.Rulev2{}
-		if err := decodeProtoJSON(dataJSON, rule); err != nil {
+		if err := decodeJSONText(dataJSON, rule); err != nil {
 			return fmt.Errorf("decode route rule failed: %w", err)
 		}
 
@@ -749,7 +751,7 @@ func loadRouteTx(ctx context.Context, tx *sql.Tx, setting *config.Setting) error
 		}
 
 		list := &config.List{}
-		if err := decodeProtoJSON(dataJSON, list); err != nil {
+		if err := decodeJSONText(dataJSON, list); err != nil {
 			return fmt.Errorf("decode route list %q failed: %w", name, err)
 		}
 
@@ -777,7 +779,7 @@ func loadBackupTx(ctx context.Context, tx *sql.Tx, setting *config.Setting) erro
 	}
 
 	backup := &config.BackupOption{}
-	if err := decodeProtoJSON(dataJSON, backup); err != nil {
+	if err := decodeJSONText(dataJSON, backup); err != nil {
 		return fmt.Errorf("decode backup_settings failed: %w", err)
 	}
 
@@ -829,16 +831,16 @@ func saveSettingsKVTx(ctx context.Context, tx *sql.Tx, setting *config.Setting, 
 		return err
 	}
 
-	if err := saveProtoJSONKV(ctx, tx, "setting", "platform", nonNilPlatform(setting.GetPlatform()), now); err != nil {
+	if err := saveJSONKV(ctx, tx, "setting", "platform", nonNilPlatform(setting.GetPlatform()), now); err != nil {
 		return err
 	}
-	if err := saveProtoJSONKV(ctx, tx, "setting", "config_version", nonNilConfigVersion(setting.GetConfigVersion()), now); err != nil {
+	if err := saveJSONKV(ctx, tx, "setting", "config_version", nonNilConfigVersion(setting.GetConfigVersion()), now); err != nil {
 		return err
 	}
-	if err := saveProtoJSONKV(ctx, tx, "route_extra", "maxminddb_geoip", nonNilMaxminddbGeoip(setting.GetBypass().GetMaxminddbGeoip()), now); err != nil {
+	if err := saveJSONKV(ctx, tx, "route_extra", "maxminddb_geoip", nonNilMaxminddbGeoip(setting.GetBypass().GetMaxminddbGeoip()), now); err != nil {
 		return err
 	}
-	if err := saveProtoJSONKV(ctx, tx, "route_extra", "refresh_config", nonNilRefreshConfig(setting.GetBypass().GetRefreshConfig()), now); err != nil {
+	if err := saveJSONKV(ctx, tx, "route_extra", "refresh_config", nonNilRefreshConfig(setting.GetBypass().GetRefreshConfig()), now); err != nil {
 		return err
 	}
 
@@ -861,7 +863,7 @@ func saveDNSTx(ctx context.Context, tx *sql.Tx, dnsSetting *config.DnsConfig, no
 	slices.Sort(resolverKeys)
 	for _, name := range resolverKeys {
 		resolver := dnsSetting.GetResolver()[name]
-		dataJSON, err := encodeProtoJSON(resolver)
+		dataJSON, err := encodeJSONText(resolver)
 		if err != nil {
 			return fmt.Errorf("encode dns resolver %q failed: %w", name, err)
 		}
@@ -922,7 +924,7 @@ func saveInboundTx(ctx context.Context, tx *sql.Tx, inboundSetting *config.Inbou
 	slices.Sort(inboundNames)
 	for _, name := range inboundNames {
 		inbound := inboundSetting.GetInbounds()[name]
-		dataJSON, err := encodeProtoJSON(inbound)
+		dataJSON, err := encodeJSONText(inbound)
 		if err != nil {
 			return fmt.Errorf("encode inbound %q failed: %w", name, err)
 		}
@@ -960,7 +962,7 @@ func saveRouteTx(ctx context.Context, tx *sql.Tx, bypass *config.BypassConfig, n
 	}
 
 	for priority, rule := range bypass.GetRulesV2() {
-		dataJSON, err := encodeProtoJSON(rule)
+		dataJSON, err := encodeJSONText(rule)
 		if err != nil {
 			return fmt.Errorf("encode route rule %q failed: %w", rule.GetName(), err)
 		}
@@ -977,7 +979,7 @@ func saveRouteTx(ctx context.Context, tx *sql.Tx, bypass *config.BypassConfig, n
 	slices.Sort(listKeys)
 	for _, name := range listKeys {
 		list := bypass.GetLists()[name]
-		dataJSON, err := encodeProtoJSON(list)
+		dataJSON, err := encodeJSONText(list)
 		if err != nil {
 			return fmt.Errorf("encode route list %q failed: %w", name, err)
 		}
@@ -998,7 +1000,7 @@ func saveBackupTx(ctx context.Context, tx *sql.Tx, backup *config.BackupOption, 
 		return nil
 	}
 
-	dataJSON, err := encodeProtoJSON(backup)
+	dataJSON, err := encodeJSONText(backup)
 	if err != nil {
 		return fmt.Errorf("encode backup_settings failed: %w", err)
 	}
@@ -1032,22 +1034,6 @@ func saveJSONKV(ctx context.Context, tx *sql.Tx, section, key string, value any,
 		INSERT INTO settings_kv(section, key, value_json, updated_at)
 		VALUES (?, ?, ?, ?)
 	`, section, key, string(data), now); err != nil {
-		return fmt.Errorf("insert settings_kv %s.%s failed: %w", section, key, err)
-	}
-
-	return nil
-}
-
-func saveProtoJSONKV(ctx context.Context, tx *sql.Tx, section, key string, value proto.Message, now int64) error {
-	data, err := encodeProtoJSON(value)
-	if err != nil {
-		return fmt.Errorf("marshal settings_kv %s.%s failed: %w", section, key, err)
-	}
-
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO settings_kv(section, key, value_json, updated_at)
-		VALUES (?, ?, ?, ?)
-	`, section, key, data, now); err != nil {
 		return fmt.Errorf("insert settings_kv %s.%s failed: %w", section, key, err)
 	}
 
@@ -1137,46 +1123,46 @@ func applyLegacyAndroidConfigStore(path string, setting *config.Setting, dir str
 
 	if data := store.Bytes.Values["chore_db"]; len(data) > 0 {
 		legacySetting := config.DefaultSetting(dir)
-		if err := proto.Unmarshal(data, legacySetting); err != nil {
-			return false, fmt.Errorf("unmarshal android chore_db failed: %w", err)
+		if err := json.Unmarshal(data, legacySetting); err != nil {
+			return false, fmt.Errorf("unmarshal android chore_db json failed: %w", err)
 		}
 
 		setting.SetIpv6(legacySetting.GetIpv6())
 		setting.SetUseDefaultInterface(legacySetting.GetUseDefaultInterface())
 		setting.SetNetInterface(legacySetting.GetNetInterface())
-		setting.SetSystemProxy(proto.CloneOf(legacySetting.GetSystemProxy()))
-		setting.SetLogcat(proto.CloneOf(legacySetting.GetLogcat()))
-		setting.SetAdvancedConfig(proto.CloneOf(legacySetting.GetAdvancedConfig()))
-		setting.SetPlatform(proto.CloneOf(legacySetting.GetPlatform()))
-		setting.SetConfigVersion(proto.CloneOf(legacySetting.GetConfigVersion()))
+		setting.SetSystemProxy(legacySetting.GetSystemProxy())
+		setting.SetLogcat(legacySetting.GetLogcat())
+		setting.SetAdvancedConfig(legacySetting.GetAdvancedConfig())
+		setting.SetPlatform(legacySetting.GetPlatform())
+		setting.SetConfigVersion(legacySetting.GetConfigVersion())
 		if legacySetting.GetBackup() != nil {
-			setting.SetBackup(proto.CloneOf(legacySetting.GetBackup()))
+			setting.SetBackup(legacySetting.GetBackup())
 		}
 		imported = true
 	}
 
 	if data := store.Bytes.Values["resolver_db"]; len(data) > 0 {
-		dnsSetting := proto.CloneOf(defaultSetting.GetDns())
-		if err := proto.Unmarshal(data, dnsSetting); err != nil {
-			return false, fmt.Errorf("unmarshal android resolver_db failed: %w", err)
+		dnsSetting := defaultSetting.GetDns()
+		if err := json.Unmarshal(data, dnsSetting); err != nil {
+			return false, fmt.Errorf("unmarshal android resolver_db json failed: %w", err)
 		}
 		setting.SetDns(dnsSetting)
 		imported = true
 	}
 
 	if data := store.Bytes.Values["bypass_db"]; len(data) > 0 {
-		bypass := proto.CloneOf(defaultSetting.GetBypass())
-		if err := proto.Unmarshal(data, bypass); err != nil {
-			return false, fmt.Errorf("unmarshal android bypass_db failed: %w", err)
+		bypass := defaultSetting.GetBypass()
+		if err := json.Unmarshal(data, bypass); err != nil {
+			return false, fmt.Errorf("unmarshal android bypass_db json failed: %w", err)
 		}
 		setting.SetBypass(bypass)
 		imported = true
 	}
 
 	if data := store.Bytes.Values["inbound_db"]; len(data) > 0 {
-		inbound := proto.CloneOf(defaultSetting.GetServer())
-		if err := proto.Unmarshal(data, inbound); err != nil {
-			return false, fmt.Errorf("unmarshal android inbound_db failed: %w", err)
+		inbound := defaultSetting.GetServer()
+		if err := json.Unmarshal(data, inbound); err != nil {
+			return false, fmt.Errorf("unmarshal android inbound_db json failed: %w", err)
 		}
 		setting.SetServer(inbound)
 		imported = true
@@ -1184,11 +1170,11 @@ func applyLegacyAndroidConfigStore(path string, setting *config.Setting, dir str
 
 	if data := store.Bytes.Values["backup_db"]; len(data) > 0 {
 		legacySetting := config.DefaultSetting(dir)
-		if err := proto.Unmarshal(data, legacySetting); err != nil {
-			return false, fmt.Errorf("unmarshal android backup_db failed: %w", err)
+		if err := json.Unmarshal(data, legacySetting); err != nil {
+			return false, fmt.Errorf("unmarshal android backup_db json failed: %w", err)
 		}
 		if legacySetting.GetBackup() != nil {
-			setting.SetBackup(proto.CloneOf(legacySetting.GetBackup()))
+			setting.SetBackup(legacySetting.GetBackup())
 		}
 		imported = true
 	}
@@ -1318,16 +1304,16 @@ func saveJSONPreference(ctx context.Context, tx *sql.Tx, key string, value any, 
 	return nil
 }
 
-func encodeProtoJSON(msg proto.Message) (string, error) {
-	data, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(msg)
+func encodeJSONText(msg any) (string, error) {
+	data, err := json.Marshal(msg)
 	if err != nil {
 		return "", err
 	}
 	return string(data), nil
 }
 
-func decodeProtoJSON(data string, msg proto.Message) error {
-	return protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal([]byte(data), msg)
+func decodeJSONText(data string, msg any) error {
+	return json.Unmarshal([]byte(data), msg)
 }
 
 func decodeJSONValue[T any](data string) (T, error) {
@@ -1337,7 +1323,7 @@ func decodeJSONValue[T any](data string) (T, error) {
 }
 
 func normalizeSetting(setting *config.Setting, dir string) {
-	jsondb.MergeDefault(setting.ProtoReflect(), config.DefaultSetting(dir).ProtoReflect())
+	jsondb.MergeDefault(setting, config.DefaultSetting(dir))
 }
 
 func nonNilPlatform(platform *config.Platform) *config.Platform {
@@ -1414,6 +1400,71 @@ func inboundType(inbound *config.Inbound) string {
 		return "empty"
 	default:
 		return "unknown"
+	}
+}
+
+func applyInboundTypeFallback(inbound *config.Inbound, inboundTypeValue string) {
+	if inbound == nil {
+		return
+	}
+
+	switch inboundTypeValue {
+	case "http":
+		if inbound.WhichProtocol() == config.Inbound_Protocol_not_set_case {
+			inbound.SetHttp(&config.Http{})
+		}
+	case "socks5":
+		if inbound.WhichProtocol() == config.Inbound_Protocol_not_set_case {
+			inbound.SetSocks5(&config.Socks5{})
+		}
+	case "yuubinsya":
+		if inbound.WhichProtocol() == config.Inbound_Protocol_not_set_case {
+			inbound.SetYuubinsya(&config.Yuubinsya{})
+		}
+	case "mixed":
+		if inbound.WhichProtocol() == config.Inbound_Protocol_not_set_case {
+			inbound.SetMix(&config.Mixed{})
+		}
+	case "socks4a":
+		if inbound.WhichProtocol() == config.Inbound_Protocol_not_set_case {
+			inbound.SetSocks4A(&config.Socks4A{})
+		}
+	case "tproxy":
+		if inbound.WhichProtocol() == config.Inbound_Protocol_not_set_case {
+			inbound.SetTproxy(&config.Tproxy{})
+		}
+	case "redir":
+		if inbound.WhichProtocol() == config.Inbound_Protocol_not_set_case {
+			inbound.SetRedir(&config.Redir{})
+		}
+	case "tun":
+		if inbound.WhichProtocol() == config.Inbound_Protocol_not_set_case {
+			inbound.SetTun(&config.Tun{})
+		}
+	case "reverse_http":
+		if inbound.WhichProtocol() == config.Inbound_Protocol_not_set_case {
+			inbound.SetReverseHttp(&config.ReverseHttp{})
+		}
+	case "reverse_tcp":
+		if inbound.WhichProtocol() == config.Inbound_Protocol_not_set_case {
+			inbound.SetReverseTcp(&config.ReverseTcp{})
+		}
+	case "none":
+		if inbound.WhichProtocol() == config.Inbound_Protocol_not_set_case {
+			inbound.SetNone(&config.Empty{})
+		}
+	case "tcpudp":
+		if inbound.WhichNetwork() == config.Inbound_Network_not_set_case {
+			inbound.SetTcpudp(&config.Tcpudp{})
+		}
+	case "quic":
+		if inbound.WhichNetwork() == config.Inbound_Network_not_set_case {
+			inbound.SetQuic(&config.Quic{})
+		}
+	case "empty":
+		if inbound.WhichNetwork() == config.Inbound_Network_not_set_case {
+			inbound.SetEmpty(&config.Empty{})
+		}
 	}
 }
 

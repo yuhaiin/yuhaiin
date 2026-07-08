@@ -13,15 +13,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/paging"
-	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type InboundCtr struct {
-	api.UnimplementedInboundServer
 	db      chore.DB
 	inbound *Inbound
 }
@@ -48,7 +45,7 @@ func NewInboundCtr(s chore.DB, i *Inbound) *InboundCtr {
 	return &InboundCtr{db: s, inbound: i}
 }
 
-func (i *InboundCtr) List(ctx context.Context, req *emptypb.Empty) (*api.InboundsResponse, error) {
+func (i *InboundCtr) List(ctx context.Context, req *api.Empty) (*api.InboundsResponse, error) {
 	resp := &api.InboundsResponse{}
 
 	err := i.db.View(func(s *config.Setting) error {
@@ -114,7 +111,7 @@ func inboundItem(name string, inbound *config.Inbound) *api.InboundItem {
 }
 
 func (i *InboundCtr) ListPage(ctx context.Context, req *api.PageRequest) (*api.InboundsResponse, error) {
-	resp, err := i.List(ctx, &emptypb.Empty{})
+	resp, err := i.List(ctx, &api.Empty{})
 	if err != nil {
 		return resp, err
 	}
@@ -142,7 +139,7 @@ func (i *InboundCtr) ListPage(ctx context.Context, req *api.PageRequest) (*api.I
 	return resp, nil
 }
 
-func (i *InboundCtr) Get(ctx context.Context, req *wrapperspb.StringValue) (*config.Inbound, error) {
+func (i *InboundCtr) Get(ctx context.Context, req *api.StringValue) (*config.Inbound, error) {
 	resp := &config.Inbound{}
 	err := i.db.View(func(s *config.Setting) error {
 		var ok bool
@@ -256,7 +253,7 @@ func (i *InboundCtr) Save(ctx context.Context, req *config.Inbound) (*config.Inb
 	return req, err
 }
 
-func (i *InboundCtr) Apply(ctx context.Context, req *api.InboundsResponse) (*emptypb.Empty, error) {
+func (i *InboundCtr) Apply(ctx context.Context, req *api.InboundsResponse) (*api.Empty, error) {
 	err := i.db.Batch(func(s *config.Setting) error {
 		s.GetServer().SetHijackDns(req.GetHijackDns())
 		s.GetServer().SetHijackDnsFakeip(req.GetHijackDnsFakeip())
@@ -266,21 +263,21 @@ func (i *InboundCtr) Apply(ctx context.Context, req *api.InboundsResponse) (*emp
 		i.inbound.SetSniff(req.GetSniff().GetEnabled())
 		return nil
 	})
-	return &emptypb.Empty{}, err
+	return &api.Empty{}, err
 }
 
-func (i *InboundCtr) Remove(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
+func (i *InboundCtr) Remove(ctx context.Context, req *api.StringValue) (*api.Empty, error) {
 	err := i.db.Batch(func(s *config.Setting) error {
 		delete(s.GetServer().GetInbounds(), req.Value)
 		i.inbound.Remove(req.Value)
 		return nil
 	})
-	return &emptypb.Empty{}, err
+	return &api.Empty{}, err
 }
 
 var platformInfo []func(*api.PlatformInfoResponse)
 
-func (i *InboundCtr) PlatformInfo(ctx context.Context, req *emptypb.Empty) (*api.PlatformInfoResponse, error) {
+func (i *InboundCtr) PlatformInfo(ctx context.Context, req *api.Empty) (*api.PlatformInfoResponse, error) {
 	resp := &api.PlatformInfoResponse{}
 	for _, v := range platformInfo {
 		v(resp)

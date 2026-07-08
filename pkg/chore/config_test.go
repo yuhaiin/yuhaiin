@@ -1,13 +1,13 @@
 package chore
 
 import (
+	"encoding/json/v2"
 	"fmt"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestMergeDefault(t *testing.T) {
@@ -16,9 +16,9 @@ func TestMergeDefault(t *testing.T) {
 		Dns:  &config.DnsConfig{},
 	}.Build()
 
-	jsondb.MergeDefault(src.ProtoReflect(), config.DefaultSetting("").ProtoReflect())
+	jsondb.MergeDefault(src, config.DefaultSetting(""))
 
-	data, err := protojson.MarshalOptions{Indent: "\t"}.Marshal(src)
+	data, err := json.Marshal(src)
 	assert.NoError(t, err)
 
 	t.Log(string(data))

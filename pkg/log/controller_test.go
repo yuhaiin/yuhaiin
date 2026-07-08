@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
 func TestTailSnapshotAndBroadcast(t *testing.T) {

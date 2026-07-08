@@ -2,6 +2,7 @@ package inbound
 
 import (
 	"context"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,11 +11,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"google.golang.org/protobuf/proto"
 )
 
 type entry struct {
@@ -170,7 +170,7 @@ func (l *Inbound) Save(req *config.Inbound) {
 
 	x, ok := l.store.Load(req.GetName())
 	if ok {
-		if proto.Equal(x.config, req) {
+		if reflect.DeepEqual(x.config, req) {
 			return
 		}
 

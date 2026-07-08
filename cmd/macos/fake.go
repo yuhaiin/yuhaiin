@@ -2,14 +2,13 @@ package macos
 
 import (
 	"context"
+	"encoding/json/v2"
 	"fmt"
 	"path/filepath"
 
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/emptypb"
+	schemaapi "github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
 func fakeDB(opt *Opts, path string) chore.DB {
@@ -58,7 +57,6 @@ func fakeDB(opt *Opts, path string) chore.DB {
 }
 
 type fakeSettings struct {
-	api.UnimplementedConfigServiceServer
 	setting *config.Setting
 	dir     string
 }
@@ -82,15 +80,15 @@ func (w *fakeSettings) Update(f func(*config.Setting) error) error {
 	return fmt.Errorf("android not support update settings in web ui")
 }
 
-func (w *fakeSettings) Load(ctx context.Context, in *emptypb.Empty) (*config.Setting, error) {
+func (w *fakeSettings) Load(ctx context.Context, in *schemaapi.Empty) (*config.Setting, error) {
 	return w.setting, nil
 }
 
-func (w *fakeSettings) Save(ctx context.Context, in *config.Setting) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, fmt.Errorf("android not support update settings in web ui")
+func (w *fakeSettings) Save(ctx context.Context, in *config.Setting) (*schemaapi.Empty, error) {
+	return &schemaapi.Empty{}, fmt.Errorf("android not support update settings in web ui")
 }
 
-func (c *fakeSettings) Info(context.Context, *emptypb.Empty) (*config.Info, error) {
+func (c *fakeSettings) Info(context.Context, *schemaapi.Empty) (*config.Info, error) {
 	return chore.Info(), nil
 }
 
@@ -102,7 +100,7 @@ func (w *fakeSettings) AddObserver(o func(*config.Setting)) {
 
 // android batch read only
 func (w *fakeSettings) Batch(f ...func(*config.Setting) error) error {
-	config := proto.CloneOf(w.setting)
+	config := cloneSetting(w.setting)
 
 	for i := range f {
 		if err := f[i](config); err != nil {
@@ -111,6 +109,19 @@ func (w *fakeSettings) Batch(f ...func(*config.Setting) error) error {
 	}
 
 	return nil
+}
+
+func cloneSetting(src *config.Setting) *config.Setting {
+	if src == nil {
+		return nil
+	}
+	dst := &config.Setting{}
+	if data, err := json.Marshal(src); err == nil {
+		if err := json.Unmarshal(data, dst); err == nil {
+			return dst
+		}
+	}
+	return src
 }
 
 func (w *fakeSettings) Dir() string { return w.dir }

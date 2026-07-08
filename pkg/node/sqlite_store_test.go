@@ -2,13 +2,13 @@ package node
 
 import (
 	"context"
+	"encoding/json/v2"
 	"os"
 	"testing"
 
-	pn "github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	pn "github.com/Asutorufa/yuhaiin/pkg/schema/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestSqliteNodeStoreImportsAndPersists(t *testing.T) {
@@ -42,7 +42,7 @@ func TestSqliteNodeStoreImportsAndPersists(t *testing.T) {
 		Points:   []string{point.GetHash()},
 	}.Build()
 
-	data, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(legacy)
+	data, err := json.Marshal(legacy)
 	if err != nil {
 		t.Fatalf("marshal legacy node failed: %v", err)
 	}

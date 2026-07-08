@@ -9,19 +9,20 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	"github.com/Asutorufa/yuhaiin/pkg/control"
+	schemaapi "github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 type notifierEntry struct {
-	s      api.Connections_NotifyServer
+	s      control.ServerStream[schemaapi.NotifyData]
 	cancel context.CancelCauseFunc
 }
 
-func (n *notifierEntry) Send(data *api.NotifyData) error {
+func (n *notifierEntry) Send(data *schemaapi.NotifyData) error {
 	err := n.s.Send(data)
 	if err != nil {
 		n.cancel(fmt.Errorf("send notify error: %w", err))
@@ -54,7 +55,7 @@ func newNotify() *notify {
 	return n
 }
 
-func (n *notify) register(s api.Connections_NotifyServer, conns []*statistic.Connection) (uint64, context.Context) {
+func (n *notify) register(s control.ServerStream[schemaapi.NotifyData], conns []*statistic.Connection) (uint64, context.Context) {
 	id := n.notifierIDSeed.Generate()
 	ctx, cancel := context.WithCancelCause(context.Background())
 
@@ -63,11 +64,9 @@ func (n *notify) register(s api.Connections_NotifyServer, conns []*statistic.Con
 		cancel: cancel,
 	}
 
-	err := ne.Send((&api.NotifyData_builder{
-		NotifyNewConnections: (&api.NotifyNewConnections_builder{
-			Connections: conns,
-		}).Build(),
-	}).Build())
+	err := ne.Send(&schemaapi.NotifyData{
+		NotifyNewConnections: &schemaapi.NotifyNewConnections{Connections: conns},
+	})
 	if err == nil {
 		n.notifier.Store(id, ne)
 	}
@@ -192,7 +191,7 @@ func (n *notifyStore) remove(id uint64) int {
 	return int(len)
 }
 
-func (n *notifyStore) dump() (datas []*api.NotifyData) {
+func (n *notifyStore) dump() (datas []*schemaapi.NotifyData) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -203,19 +202,15 @@ func (n *notifyStore) dump() (datas []*api.NotifyData) {
 	n.length = 0
 
 	if len(removeIDs) > 0 {
-		datas = append(datas, (&api.NotifyData_builder{
-			NotifyRemoveConnections: (&api.NotifyRemoveConnections_builder{
-				Ids: removeIDs,
-			}).Build(),
-		}).Build())
+		datas = append(datas, &schemaapi.NotifyData{
+			NotifyRemoveConnections: &schemaapi.NotifyRemoveConnections{Ids: removeIDs},
+		})
 	}
 
 	if len(newConns) > 0 {
-		datas = append(datas, (&api.NotifyData_builder{
-			NotifyNewConnections: (&api.NotifyNewConnections_builder{
-				Connections: newConns,
-			}).Build(),
-		}).Build())
+		datas = append(datas, &schemaapi.NotifyData{
+			NotifyNewConnections: &schemaapi.NotifyNewConnections{Connections: newConns},
+		})
 	}
 
 	return

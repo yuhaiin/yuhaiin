@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 

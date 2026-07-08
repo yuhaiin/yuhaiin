@@ -1,0 +1,6 @@
+#!/bin/bash
+
+podman run -it --rm -v ${PWD}/yuhaiin_linux_amd64:/yuhaiin/yuhaiin \
+  -v ${PWD}/tmp/yuhaiin:/root/.config/yuhaiin \
+  -p 50054:50051 \
+  yuhaiin-test:latest

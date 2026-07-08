@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"
@@ -14,20 +15,17 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/backup"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
+	schemaapi "github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/backup"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"golang.org/x/crypto/blake2b"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Backup struct {
-	api.UnimplementedBackupServer
 	db       chore.DB
 	proxy    netapi.Proxy
 	instance *AppInstance
@@ -47,7 +45,7 @@ func NewBackup(db chore.DB, instance *AppInstance, proxy netapi.Proxy) *Backup {
 	return b
 }
 
-func (b *Backup) Save(ctx context.Context, opt *config.BackupOption) (*emptypb.Empty, error) {
+func (b *Backup) Save(ctx context.Context, opt *config.BackupOption) (*schemaapi.Empty, error) {
 	err := b.db.Batch(func(s *config.Setting) error {
 		s.SetBackup(opt)
 		return nil
@@ -58,7 +56,7 @@ func (b *Backup) Save(ctx context.Context, opt *config.BackupOption) (*emptypb.E
 
 	b.resetTicker()
 
-	return &emptypb.Empty{}, nil
+	return &schemaapi.Empty{}, nil
 }
 
 func (b *Backup) resetTicker() {
@@ -86,7 +84,7 @@ func (b *Backup) resetTicker() {
 
 	go func() {
 		for range b.ticker.C {
-			_, err := b.Backup(context.Background(), &emptypb.Empty{})
+			_, err := b.Backup(context.Background(), &schemaapi.Empty{})
 			if err != nil {
 				log.Error("backup failed", "err", err)
 			}
@@ -94,7 +92,7 @@ func (b *Backup) resetTicker() {
 	}()
 }
 
-func (b *Backup) Get(context.Context, *emptypb.Empty) (*config.BackupOption, error) {
+func (b *Backup) Get(context.Context, *schemaapi.Empty) (*config.BackupOption, error) {
 	var cc *config.BackupOption
 	_ = b.db.Batch(func(s *config.Setting) error {
 		cc = s.GetBackup()
@@ -125,7 +123,7 @@ func (b *Backup) Get(context.Context, *emptypb.Empty) (*config.BackupOption, err
 	return cc, nil
 }
 
-func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty, error) {
+func (b *Backup) Backup(ctx context.Context, opt *schemaapi.Empty) (*schemaapi.Empty, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -146,7 +144,7 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 
 	newHash := calculateBytesHash(stateBytes, backupConfig.GetS3())
 	if backupConfig.GetLastBackupHash() != "" && backupConfig.GetLastBackupHash() == newHash {
-		return &emptypb.Empty{}, nil
+		return &schemaapi.Empty{}, nil
 	}
 
 	if err := s3.Put(ctx, stateBytes, backupConfig.GetInstanceName()+"-state.db"); err != nil {
@@ -160,10 +158,10 @@ func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty
 		return nil, err
 	}
 
-	return &emptypb.Empty{}, nil
+	return &schemaapi.Empty{}, nil
 }
 
-func (b *Backup) Restore(ctx context.Context, _ *backup.RestoreOption) (*emptypb.Empty, error) {
+func (b *Backup) Restore(ctx context.Context, _ *backup.RestoreOption) (*schemaapi.Empty, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -185,7 +183,7 @@ func (b *Backup) Restore(ctx context.Context, _ *backup.RestoreOption) (*emptypb
 	if err := b.restoreStateDB(stateData); err != nil {
 		return nil, err
 	}
-	return &emptypb.Empty{}, nil
+	return &schemaapi.Empty{}, nil
 }
 
 func (b *Backup) snapshotStateDB(ctx context.Context) ([]byte, error) {
@@ -243,7 +241,7 @@ func sqliteStringLiteral(path string) string {
 }
 
 func calculateBytesHash(content []byte, options *config.S3) string {
-	s3bytes, err := protojson.Marshal(options)
+	s3bytes, err := json.Marshal(options)
 	if err != nil {
 		log.Warn("marshal s3 failed", "err", err)
 		return ""
@@ -268,7 +266,7 @@ func (b *Backup) getConfig() (*config.BackupOption, error) {
 	})
 
 	if cc == nil {
-		return nil, errors.New("backup config is empty")
+		return &config.BackupOption{}, nil
 	}
 
 	if cc.GetInstanceName() == "" {

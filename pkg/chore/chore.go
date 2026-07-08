@@ -9,26 +9,23 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/emptypb"
+	schemaapi "github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
 type Chore struct {
-	api.UnimplementedConfigServiceServer
 	db     DB
 	onSave func(*config.Setting)
 	mu     sync.RWMutex
 }
 
-func NewChore(db DB, onSave func(*config.Setting)) api.ConfigServiceServer {
+func NewChore(db DB, onSave func(*config.Setting)) *Chore {
 	return &Chore{db: db, onSave: onSave}
 }
 
-func (c *Chore) Info(context.Context, *emptypb.Empty) (*config.Info, error) { return Info(), nil }
+func (c *Chore) Info(context.Context, *schemaapi.Empty) (*config.Info, error) { return Info(), nil }
 
-func (c *Chore) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
+func (c *Chore) Load(context.Context, *schemaapi.Empty) (*config.Setting, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	var setting *config.Setting
@@ -79,7 +76,7 @@ func (c *Chore) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
 
 }
 
-func (c *Chore) Save(ctx context.Context, s *config.Setting) (*emptypb.Empty, error) {
+func (c *Chore) Save(ctx context.Context, s *config.Setting) (*schemaapi.Empty, error) {
 	err := c.db.Batch(func(ss *config.Setting) error {
 		ss.SetIpv6(s.GetIpv6())
 
@@ -96,7 +93,7 @@ func (c *Chore) Save(ctx context.Context, s *config.Setting) (*emptypb.Empty, er
 		return nil
 	})
 
-	return &emptypb.Empty{}, err
+	return &schemaapi.Empty{}, err
 }
 
 func Info() *config.Info {
@@ -113,10 +110,12 @@ func Info() *config.Info {
 		Commit:    new(version.GitCommit),
 		BuildTime: new(version.BuildTime),
 		GoVersion: new(runtime.Version()),
-		Platform:  proto.String(runtime.GOOS + "/" + runtime.GOARCH),
-		Compiler:  proto.String(runtime.Compiler),
-		Arch:      proto.String(runtime.GOARCH),
-		Os:        proto.String(runtime.GOOS),
+		Platform:  ptr(runtime.GOOS + "/" + runtime.GOARCH),
+		Compiler:  ptr(runtime.Compiler),
+		Arch:      ptr(runtime.GOARCH),
+		Os:        ptr(runtime.GOOS),
 		Build_:    build,
 	}).Build()
 }
+
+func ptr[T any](v T) *T { return &v }

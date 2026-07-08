@@ -12,8 +12,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"google.golang.org/protobuf/types/known/durationpb"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 func Latency(l *node.RequestProtocol, p netapi.Proxy) (*node.Reply, error) {
@@ -35,17 +34,17 @@ func Latency(l *node.RequestProtocol, p netapi.Proxy) (*node.Reply, error) {
 
 func LatencyHttp(l *node.HttpTest, p netapi.Proxy) (*node.Reply, error) {
 	t, err := HTTP(p, l.GetUrl())
-	return (&node.Reply_builder{Latency: durationpb.New(t)}).Build(), err
+	return (&node.Reply_builder{Latency: node.NewDuration(t)}).Build(), err
 }
 
 func LatencyDns(l *node.DnsTest, p netapi.Proxy) (*node.Reply, error) {
 	t, err := DNS(p, l.GetHost(), l.GetTargetDomain())
-	return (&node.Reply_builder{Latency: durationpb.New(t)}).Build(), err
+	return (&node.Reply_builder{Latency: node.NewDuration(t)}).Build(), err
 }
 
 func LatencyDnsOverQuic(l *node.DnsOverQuic, p netapi.Proxy) (*node.Reply, error) {
 	t, err := DNSOverQuic(p, l.GetHost(), l.GetTargetDomain())
-	return (&node.Reply_builder{Latency: durationpb.New(t)}).Build(), err
+	return (&node.Reply_builder{Latency: node.NewDuration(t)}).Build(), err
 }
 
 func LatencyIp(l *node.Ip, p netapi.Proxy) (*node.Reply, error) {

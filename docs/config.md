@@ -135,7 +135,7 @@
           "host": "127.0.0.1:40501",
           "password": "123",
           "force_disable_encrypt": false,
-          "normal": {} // support: normal,websocket,grpc,quic, see protobuf IDL
+          "normal": {} // support: normal,websocket,http2,quic, see protobuf IDL
         }
       }
     }

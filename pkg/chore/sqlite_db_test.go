@@ -7,11 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestSqliteDBImportsLegacyConfigAndAndroidPreferences(t *testing.T) {
@@ -27,7 +25,7 @@ func TestSqliteDBImportsLegacyConfigAndAndroidPreferences(t *testing.T) {
 		Interval: new(uint64(12)),
 	}.Build())
 
-	configBytes, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(legacy)
+	configBytes, err := json.Marshal(legacy)
 	if err != nil {
 		t.Fatalf("marshal legacy config failed: %v", err)
 	}
@@ -42,14 +40,14 @@ func TestSqliteDBImportsLegacyConfigAndAndroidPreferences(t *testing.T) {
 		Bytes: legacySingleStore[[]byte]{Values: map[string][]byte{}},
 	}
 
-	androidResolver := proto.CloneOf(config.DefaultSetting(dir).GetDns())
+	androidResolver := config.DefaultSetting(dir).GetDns()
 	androidResolver.SetServer("9.9.9.9:53")
 	androidResolver.GetResolver()["android-bootstrap"] = config.Dns_builder{
 		Host: new("9.9.9.9"),
 		Type: config.Type_udp.Enum(),
 	}.Build()
 
-	resolverBytes, err := proto.Marshal(androidResolver)
+	resolverBytes, err := json.Marshal(androidResolver)
 	if err != nil {
 		t.Fatalf("marshal android resolver db failed: %v", err)
 	}
@@ -259,5 +257,25 @@ func TestSqliteDBBatchPersistsAcrossReopen(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatalf("view reopened sqlite config failed: %v", err)
+	}
+}
+
+func TestApplyInboundTypeFallback(t *testing.T) {
+	inbound := &config.Inbound{}
+	applyInboundTypeFallback(inbound, "reverse_tcp")
+	if inbound.WhichProtocol() != config.Inbound_ReverseTcp_case {
+		t.Fatalf("WhichProtocol = %v, want %v", inbound.WhichProtocol(), config.Inbound_ReverseTcp_case)
+	}
+
+	inbound = &config.Inbound{}
+	applyInboundTypeFallback(inbound, "mixed")
+	if inbound.WhichProtocol() != config.Inbound_Mix_case {
+		t.Fatalf("WhichProtocol = %v, want %v", inbound.WhichProtocol(), config.Inbound_Mix_case)
+	}
+
+	inbound = &config.Inbound{}
+	applyInboundTypeFallback(inbound, "tcpudp")
+	if inbound.WhichNetwork() != config.Inbound_Tcpudp_case {
+		t.Fatalf("WhichNetwork = %v, want %v", inbound.WhichNetwork(), config.Inbound_Tcpudp_case)
 	}
 }

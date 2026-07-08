@@ -2,13 +2,13 @@ package s3
 
 import (
 	"context"
+	"encoding/json/v2"
 	"os"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestS3(t *testing.T) {
@@ -23,9 +23,7 @@ func TestS3(t *testing.T) {
 			UsePathStyle: new(true),
 		}.Build()
 
-		data, err := protojson.MarshalOptions{
-			Indent: "\t",
-		}.Marshal(config)
+		data, err := json.Marshal(config)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -39,7 +37,7 @@ func TestS3(t *testing.T) {
 		assert.NoError(t, err)
 
 		var config config.S3
-		assert.NoError(t, protojson.Unmarshal(data, &config))
+		assert.NoError(t, json.Unmarshal(data, &config))
 
 		s3, err := NewS3(&config, direct.Default)
 		assert.NoError(t, err)

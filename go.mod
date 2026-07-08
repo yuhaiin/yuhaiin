@@ -38,8 +38,6 @@ require (
 	golang.org/x/sys v0.46.0
 	golang.org/x/time v0.15.0
 	golang.zx2c4.com/wireguard/windows v1.0.1
-	google.golang.org/grpc v1.82.0
-	google.golang.org/protobuf v1.36.11
 	gvisor.dev/gvisor v0.0.0-20260224225140-573d5e7127a8
 	tailscale.com v1.9999999999.99999999999
 )
@@ -107,7 +105,6 @@ require (
 	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	go.opentelemetry.io/otel v1.44.0 // indirect
 	go.uber.org/mock v0.6.0 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
@@ -118,7 +115,7 @@ require (
 	golang.org/x/text v0.39.0 // indirect
 	golang.org/x/tools v0.47.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260615183401-62b3387ff324 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 )
 
 tool github.com/cilium/ebpf/cmd/bpf2go

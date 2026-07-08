@@ -12,22 +12,20 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/control"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	schemaapi "github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/statistic"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Connections struct {
-	api.UnimplementedConnectionsServer
-
 	netapi.Proxy
 
 	infoStore InfoCache
@@ -57,13 +55,13 @@ type InfoCache interface {
 
 type FailedHistoryStore interface {
 	Push(context.Context, error, statistic.Type, netapi.Address)
-	Get() *api.FailedHistoryList
+	Get() *schemaapi.FailedHistoryList
 	Close() error
 }
 
 type HistoryStore interface {
 	Push(*statistic.Connection)
-	Get() *api.AllHistoryList
+	Get() *schemaapi.AllHistoryList
 	Close() error
 }
 
@@ -109,7 +107,7 @@ func (c *Connections) allInfos() []*statistic.Connection {
 	})
 }
 
-func (c *Connections) Notify(_ *emptypb.Empty, s api.Connections_NotifyServer) error {
+func (c *Connections) Notify(_ *schemaapi.Empty, s control.ServerStream[schemaapi.NotifyData]) error {
 	id, done := c.notify.register(s, c.allInfos())
 	defer c.notify.unregister(id)
 	log.Debug("new notify client", "id", id)
@@ -123,11 +121,11 @@ func (c *Connections) Notify(_ *emptypb.Empty, s api.Connections_NotifyServer) e
 	}
 }
 
-func (c *Connections) Conns(context.Context, *emptypb.Empty) (*api.NotifyNewConnections, error) {
-	return (&api.NotifyNewConnections_builder{Connections: c.allInfos()}).Build(), nil
+func (c *Connections) Conns(context.Context, *schemaapi.Empty) (*schemaapi.NotifyNewConnections, error) {
+	return &schemaapi.NotifyNewConnections{Connections: c.allInfos()}, nil
 }
 
-func (c *Connections) CloseConn(_ context.Context, x *api.NotifyRemoveConnections) (*emptypb.Empty, error) {
+func (c *Connections) CloseConn(_ context.Context, x *schemaapi.NotifyRemoveConnections) (*schemaapi.Empty, error) {
 	for _, x := range x.GetIds() {
 		if z, ok := c.connStore.Load(x); ok {
 			_ = z.Close()
@@ -135,7 +133,7 @@ func (c *Connections) CloseConn(_ context.Context, x *api.NotifyRemoveConnection
 	}
 	// trigger to refresh web
 	c.notify.trigger()
-	return &emptypb.Empty{}, nil
+	return &schemaapi.Empty{}, nil
 }
 
 func (c *Connections) Close() error {
@@ -174,12 +172,12 @@ func (c *Connections) Close() error {
 	return err
 }
 
-func (c *Connections) Total(context.Context, *emptypb.Empty) (*api.TotalFlow, error) {
-	return api.TotalFlow_builder{
-		Download: new(c.Cache.LoadDownload()),
-		Upload:   new(c.Cache.LoadUpload()),
+func (c *Connections) Total(context.Context, *schemaapi.Empty) (*schemaapi.TotalFlow, error) {
+	return &schemaapi.TotalFlow{
+		Download: c.Cache.LoadDownload(),
+		Upload:   c.Cache.LoadUpload(),
 		Counters: c.counters.Load(),
-	}.Build(), nil
+	}, nil
 }
 
 func (c *Connections) Remove(id uint64) {
@@ -341,7 +339,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		connection.TlsServerName = stringOrNil(nc.GetTLSServerName())
 		connection.HttpHost = stringOrNil(nc.GetHTTPHost())
 		connection.Component = stringOrNil(nc.GetComponent())
-		connection.MatchHistory = ToProtoMatchHistoryEntry(nc.MatchHistory())
+		connection.MatchHistory = ToMatchHistoryEntry(nc.MatchHistory())
 		connection.Pid = uint64OrNil(uint64(nc.GetProcessPid()))
 		connection.Uid = uint64OrNil(uint64(nc.GetProcessUid()))
 		connection.Resolver = resolverNameOrNil(nc.ConnOptions().Resolver().Resolver())
@@ -355,7 +353,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 	return connection.Build()
 }
 
-func ToProtoMatchHistoryEntry(entry []*netapi.MatchHistoryEntry) []*statistic.MatchHistoryEntry {
+func ToMatchHistoryEntry(entry []*netapi.MatchHistoryEntry) []*statistic.MatchHistoryEntry {
 	mhis := make([]*statistic.MatchHistoryEntry, 0, len(entry))
 	for _, e := range entry {
 		his := make([]*statistic.MatchResult, 0, len(e.UnmatchedHistory))
@@ -434,11 +432,11 @@ func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, 
 	return z, nil
 }
 
-func (c *Connections) FailedHistory(context.Context, *emptypb.Empty) (*api.FailedHistoryList, error) {
+func (c *Connections) FailedHistory(context.Context, *schemaapi.Empty) (*schemaapi.FailedHistoryList, error) {
 	return c.faildHistory.Get(), nil
 }
 
-func (c *Connections) AllHistory(context.Context, *emptypb.Empty) (*api.AllHistoryList, error) {
+func (c *Connections) AllHistory(context.Context, *schemaapi.Empty) (*schemaapi.AllHistoryList, error) {
 	return c.history.Get(), nil
 }
 
@@ -465,17 +463,17 @@ func (c *counters) Remove(id uint64) {
 	c.mu.Unlock()
 }
 
-func (c *counters) Load() map[uint64]*api.Counter {
+func (c *counters) Load() map[uint64]schemaapi.Counter {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	tmp := make(map[uint64]*api.Counter, len(c.store))
+	tmp := make(map[uint64]schemaapi.Counter, len(c.store))
 
 	for k, v := range c.store {
-		tmp[k] = api.Counter_builder{
-			Download: new(v.LoadDownload()),
-			Upload:   new(v.LoadUpload()),
-		}.Build()
+		tmp[k] = schemaapi.Counter{
+			Download: v.LoadDownload(),
+			Upload:   v.LoadUpload(),
+		}
 	}
 
 	return tmp

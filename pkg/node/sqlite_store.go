@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"database/sql"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"maps"
@@ -14,15 +15,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	pn "github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	pn "github.com/Asutorufa/yuhaiin/pkg/schema/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 )
 
 type SqliteNodeStore struct {
@@ -249,7 +248,7 @@ func (s *SqliteNodeStore) GetNow(tcp bool) (*pn.Point, error) {
 	}
 
 	point := &pn.Point{}
-	if err := decodeNodeProtoJSON(dataJSON, point); err != nil {
+	if err := decodeNodeJSON(dataJSON, point); err != nil {
 		return nil, fmt.Errorf("decode selected node failed: %w", err)
 	}
 	return point, nil
@@ -417,7 +416,7 @@ func (s *SqliteNodeStore) SaveLinks(links ...*pn.Link) error {
 	return s.withTx(context.Background(), func(ctx context.Context, tx *sql.Tx) error {
 		now := time.Now().Unix()
 		for _, link := range links {
-			dataJSON, err := encodeNodeProtoJSON(link)
+			dataJSON, err := encodeNodeJSON(link)
 			if err != nil {
 				return fmt.Errorf("encode subscription %q failed: %w", link.GetName(), err)
 			}
@@ -479,7 +478,7 @@ func (s *SqliteNodeStore) GetLink(name string) (*pn.Link, bool, error) {
 	}
 
 	link := &pn.Link{}
-	if err := decodeNodeProtoJSON(dataJSON, link); err != nil {
+	if err := decodeNodeJSON(dataJSON, link); err != nil {
 		return nil, false, fmt.Errorf("decode subscription %q failed: %w", name, err)
 	}
 	return link, true, nil
@@ -487,7 +486,7 @@ func (s *SqliteNodeStore) GetLink(name string) (*pn.Link, bool, error) {
 
 func (s *SqliteNodeStore) SavePublish(name string, publish *pn.Publish) error {
 	return s.withTx(context.Background(), func(ctx context.Context, tx *sql.Tx) error {
-		dataJSON, err := encodeNodeProtoJSON(publish)
+		dataJSON, err := encodeNodeJSON(publish)
 		if err != nil {
 			return fmt.Errorf("encode publish %q failed: %w", name, err)
 		}
@@ -543,7 +542,7 @@ func (s *SqliteNodeStore) Publish(name, path, password string) ([]*pn.Point, err
 	}
 
 	publish := &pn.Publish{}
-	if err := decodeNodeProtoJSON(dataJSON, publish); err != nil {
+	if err := decodeNodeJSON(dataJSON, publish); err != nil {
 		return nil, fmt.Errorf("decode publish %q failed: %w", name, err)
 	}
 	if publish.GetPath() != path {
@@ -646,7 +645,7 @@ func loadNodeDataTx(ctx context.Context, tx *sql.Tx) (*pn.Node, error) {
 		}
 
 		point := &pn.Point{}
-		if err := decodeNodeProtoJSON(dataJSON, point); err != nil {
+		if err := decodeNodeJSON(dataJSON, point); err != nil {
 			return nil, fmt.Errorf("decode node %q failed: %w", hash, err)
 		}
 		point.SetHash(hash)
@@ -713,7 +712,7 @@ func loadNodeDataTx(ctx context.Context, tx *sql.Tx) (*pn.Node, error) {
 			return nil, fmt.Errorf("scan subscription failed: %w", err)
 		}
 		link := &pn.Link{}
-		if err := decodeNodeProtoJSON(dataJSON, link); err != nil {
+		if err := decodeNodeJSON(dataJSON, link); err != nil {
 			return nil, fmt.Errorf("decode subscription %q failed: %w", name, err)
 		}
 		data.GetLinks()[name] = link
@@ -738,7 +737,7 @@ func loadNodeDataTx(ctx context.Context, tx *sql.Tx) (*pn.Node, error) {
 			return nil, fmt.Errorf("scan publish failed: %w", err)
 		}
 		publish := &pn.Publish{}
-		if err := decodeNodeProtoJSON(dataJSON, publish); err != nil {
+		if err := decodeNodeJSON(dataJSON, publish); err != nil {
 			return nil, fmt.Errorf("decode publish %q failed: %w", name, err)
 		}
 		data.GetManager().GetPublishes()[name] = publish
@@ -769,7 +768,7 @@ func saveNodeDataTx(ctx context.Context, tx *sql.Tx, data *pn.Node) error {
 			point.SetHash(hash)
 		}
 
-		dataJSON, err := encodeNodeProtoJSON(point)
+		dataJSON, err := encodeNodeJSON(point)
 		if err != nil {
 			return fmt.Errorf("encode node %q failed: %w", hash, err)
 		}
@@ -805,7 +804,7 @@ func saveNodeDataTx(ctx context.Context, tx *sql.Tx, data *pn.Node) error {
 	slices.Sort(linkKeys)
 	for _, name := range linkKeys {
 		link := data.GetLinks()[name]
-		dataJSON, err := encodeNodeProtoJSON(link)
+		dataJSON, err := encodeNodeJSON(link)
 		if err != nil {
 			return fmt.Errorf("encode subscription %q failed: %w", name, err)
 		}
@@ -821,7 +820,7 @@ func saveNodeDataTx(ctx context.Context, tx *sql.Tx, data *pn.Node) error {
 	slices.Sort(publishKeys)
 	for _, name := range publishKeys {
 		publish := data.GetManager().GetPublishes()[name]
-		dataJSON, err := encodeNodeProtoJSON(publish)
+		dataJSON, err := encodeNodeJSON(publish)
 		if err != nil {
 			return fmt.Errorf("encode publish %q failed: %w", name, err)
 		}
@@ -854,7 +853,7 @@ func generateNodeHash(ctx context.Context, tx *sql.Tx) (string, error) {
 }
 
 func upsertNodeTx(ctx context.Context, tx *sql.Tx, point *pn.Point, now int64) error {
-	dataJSON, err := encodeNodeProtoJSON(point)
+	dataJSON, err := encodeNodeJSON(point)
 	if err != nil {
 		return fmt.Errorf("encode node %q failed: %w", point.GetHash(), err)
 	}
@@ -956,7 +955,7 @@ func getNodeTx(ctx context.Context, q interface {
 	}
 
 	point := &pn.Point{}
-	if err := decodeNodeProtoJSON(dataJSON, point); err != nil {
+	if err := decodeNodeJSON(dataJSON, point); err != nil {
 		return nil, false, fmt.Errorf("decode node %q failed: %w", hash, err)
 	}
 	point.SetHash(hash)
@@ -1045,7 +1044,7 @@ func loadLinks(ctx context.Context, q interface {
 			return nil, fmt.Errorf("scan subscription failed: %w", err)
 		}
 		link := &pn.Link{}
-		if err := decodeNodeProtoJSON(dataJSON, link); err != nil {
+		if err := decodeNodeJSON(dataJSON, link); err != nil {
 			return nil, fmt.Errorf("decode subscription %q failed: %w", name, err)
 		}
 		links[name] = link
@@ -1076,7 +1075,7 @@ func loadPublishes(ctx context.Context, q interface {
 			return nil, fmt.Errorf("scan publish failed: %w", err)
 		}
 		publish := &pn.Publish{}
-		if err := decodeNodeProtoJSON(dataJSON, publish); err != nil {
+		if err := decodeNodeJSON(dataJSON, publish); err != nil {
 			return nil, fmt.Errorf("decode publish %q failed: %w", name, err)
 		}
 		publishes[name] = publish
@@ -1103,16 +1102,16 @@ func nodeSearchText(point *pn.Point, dataJSON string) string {
 	}, "\n")
 }
 
-func encodeNodeProtoJSON(msg proto.Message) (string, error) {
-	data, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(msg)
+func encodeNodeJSON(msg any) (string, error) {
+	data, err := json.Marshal(msg)
 	if err != nil {
 		return "", err
 	}
 	return string(data), nil
 }
 
-func decodeNodeProtoJSON(data string, msg proto.Message) error {
-	return protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal([]byte(data), msg)
+func decodeNodeJSON(data string, msg any) error {
+	return json.Unmarshal([]byte(data), msg)
 }
 
 func loadNodeMetadata(ctx context.Context, queryer interface {

@@ -2,6 +2,7 @@ package parser
 
 import (
 	"context"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net"
@@ -10,10 +11,9 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 //{
@@ -45,7 +45,7 @@ func TestVmess(t *testing.T) {
 
 	z := &node.Point{}
 
-	err := protojson.Unmarshal([]byte(``), z)
+	err := json.Unmarshal([]byte(`{}`), z)
 	assert.NoError(t, err)
 
 	x, err := register.Dialer(z)

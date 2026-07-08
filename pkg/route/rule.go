@@ -10,16 +10,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/paging"
-	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type Rules struct {
-	api.UnimplementedRulesServer
 	db    chore.DB
 	route *Route
 }
@@ -39,7 +36,7 @@ func NewRules(db chore.DB, route *Route) *Rules {
 		route: route,
 	}
 
-	cfg, err := r.Config(context.TODO(), &emptypb.Empty{})
+	cfg, err := r.Config(context.TODO(), &api.Empty{})
 	if err != nil {
 		log.Warn("get rules config error", "err", err)
 	} else {
@@ -49,7 +46,7 @@ func NewRules(db chore.DB, route *Route) *Rules {
 	return r
 }
 
-func (r *Rules) List(ctx context.Context, empty *emptypb.Empty) (*api.RuleResponse, error) {
+func (r *Rules) List(ctx context.Context, empty *api.Empty) (*api.RuleResponse, error) {
 	names := make([]string, 0)
 	items := make([]*api.RuleItem, 0)
 	err := r.db.View(func(ss *config.Setting) error {
@@ -85,7 +82,7 @@ func uint32Ptr(v uint32) *uint32 { return &v }
 func stringPtr(v string) *string { return &v }
 
 func (r *Rules) ListPage(ctx context.Context, req *api.PageRequest) (*api.RuleResponse, error) {
-	resp, err := r.List(ctx, &emptypb.Empty{})
+	resp, err := r.List(ctx, &api.Empty{})
 	if err != nil {
 		return resp, err
 	}
@@ -124,7 +121,7 @@ func (r *Rules) Get(ctx context.Context, index *api.RuleIndex) (*config.Rulev2, 
 	return resp, err
 }
 
-func (r *Rules) Save(ctx context.Context, req *api.RuleSaveRequest) (*emptypb.Empty, error) {
+func (r *Rules) Save(ctx context.Context, req *api.RuleSaveRequest) (*api.Empty, error) {
 	var rules []*config.Rulev2
 	err := r.db.Batch(func(ss *config.Setting) error {
 		if req.GetIndex() == nil {
@@ -149,15 +146,15 @@ func (r *Rules) Save(ctx context.Context, req *api.RuleSaveRequest) (*emptypb.Em
 		return nil
 	})
 	if err != nil {
-		return &emptypb.Empty{}, err
+		return &api.Empty{}, err
 	}
 
 	r.route.ms.Update(rules...)
 
-	return &emptypb.Empty{}, nil
+	return &api.Empty{}, nil
 }
 
-func (r *Rules) Remove(ctx context.Context, index *api.RuleIndex) (*emptypb.Empty, error) {
+func (r *Rules) Remove(ctx context.Context, index *api.RuleIndex) (*api.Empty, error) {
 	var rules []*config.Rulev2
 	err := r.db.Batch(func(s *config.Setting) error {
 		if err := r.checkIndex(s, index); err != nil {
@@ -170,15 +167,15 @@ func (r *Rules) Remove(ctx context.Context, index *api.RuleIndex) (*emptypb.Empt
 		return nil
 	})
 	if err != nil {
-		return &emptypb.Empty{}, err
+		return &api.Empty{}, err
 	}
 
 	r.route.ms.Update(rules...)
 
-	return &emptypb.Empty{}, nil
+	return &api.Empty{}, nil
 }
 
-func (r *Rules) ChangePriority(ctx context.Context, req *api.ChangePriorityRequest) (*emptypb.Empty, error) {
+func (r *Rules) ChangePriority(ctx context.Context, req *api.ChangePriorityRequest) (*api.Empty, error) {
 	var rules []*config.Rulev2
 	err := r.db.Batch(func(s *config.Setting) error {
 		if err := r.checkIndex(s, req.GetSource()); err != nil {
@@ -215,12 +212,12 @@ func (r *Rules) ChangePriority(ctx context.Context, req *api.ChangePriorityReque
 		return nil
 	})
 	if err != nil {
-		return &emptypb.Empty{}, err
+		return &api.Empty{}, err
 	}
 
 	r.route.ms.Update(rules...)
 
-	return &emptypb.Empty{}, nil
+	return &api.Empty{}, nil
 }
 
 func InsertBefore[T any](s []T, from, to int) []T {
@@ -277,7 +274,7 @@ func (r *Rules) checkIndex(s *config.Setting, index *api.RuleIndex) error {
 	return nil
 }
 
-func (r *Rules) Config(context.Context, *emptypb.Empty) (*config.Configv2, error) {
+func (r *Rules) Config(context.Context, *api.Empty) (*config.Configv2, error) {
 	var resp *config.Configv2
 	err := r.db.View(func(ss *config.Setting) error {
 		resp = config.Configv2_builder{
@@ -293,7 +290,7 @@ func (r *Rules) Config(context.Context, *emptypb.Empty) (*config.Configv2, error
 	return resp, err
 }
 
-func (r *Rules) SaveConfig(ctx context.Context, req *config.Configv2) (*emptypb.Empty, error) {
+func (r *Rules) SaveConfig(ctx context.Context, req *config.Configv2) (*api.Empty, error) {
 	err := r.db.Batch(func(setting *config.Setting) error {
 		if !setting.HasBypass() {
 			setting.SetBypass(&config.BypassConfig{})
@@ -308,10 +305,10 @@ func (r *Rules) SaveConfig(ctx context.Context, req *config.Configv2) (*emptypb.
 		return nil
 	})
 
-	return &emptypb.Empty{}, err
+	return &api.Empty{}, err
 }
 
-func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*api.TestResponse, error) {
+func (r *Rules) Test(ctx context.Context, req *api.StringValue) (*api.TestResponse, error) {
 	var addr netapi.Address
 	host, portstr, err := net.SplitHostPort(req.GetValue())
 	if err == nil {
@@ -339,7 +336,7 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*api.Tes
 			ResolveStrategy: result.Mode.GetResolveStrategy().Enum(),
 		}.Build(),
 		AfterAddr:   new(result.Addr.String()),
-		MatchResult: statistics.ToProtoMatchHistoryEntry(netapi.GetContext(ctx).MatchHistory()),
+		MatchResult: statistics.ToMatchHistoryEntry(netapi.GetContext(ctx).MatchHistory()),
 		Lists:       s.ConnOptions().Lists(),
 		Ips: func() []string {
 			if ips == nil {
@@ -354,6 +351,6 @@ func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*api.Tes
 	}.Build(), nil
 }
 
-func (r *Rules) BlockHistory(context.Context, *emptypb.Empty) (*api.BlockHistoryList, error) {
+func (r *Rules) BlockHistory(context.Context, *api.Empty) (*api.BlockHistoryList, error) {
 	return r.route.Get(), nil
 }

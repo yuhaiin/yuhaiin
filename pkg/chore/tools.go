@@ -5,16 +5,14 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/licenses"
+	"github.com/Asutorufa/yuhaiin/pkg/control"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	tools "github.com/Asutorufa/yuhaiin/pkg/protos/tools"
-	grpc "google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/emptypb"
+	schemaapi "github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	tools "github.com/Asutorufa/yuhaiin/pkg/schema/tools"
 )
 
 type Tools struct {
-	api.UnimplementedToolsServer
 	db            DB
 	logController *log.Controller
 }
@@ -23,7 +21,7 @@ func NewTools(db DB, logController *log.Controller) *Tools {
 	return &Tools{db: db, logController: logController}
 }
 
-func (t *Tools) GetInterface(ctx context.Context, e *emptypb.Empty) (*tools.Interfaces, error) {
+func (t *Tools) GetInterface(ctx context.Context, e *schemaapi.Empty) (*tools.Interfaces, error) {
 	is := &tools.Interfaces_builder{}
 	iis, err := interfaces.GetInterfaceList()
 	if err != nil {
@@ -49,7 +47,7 @@ func (t *Tools) GetInterface(ctx context.Context, e *emptypb.Empty) (*tools.Inte
 	return is.Build(), nil
 }
 
-func (t *Tools) Licenses(context.Context, *emptypb.Empty) (*tools.Licenses, error) {
+func (t *Tools) Licenses(context.Context, *schemaapi.Empty) (*tools.Licenses, error) {
 	toLicenses := func(ls []licenses.License) []*tools.License {
 		var ret []*tools.License
 		for _, l := range ls {
@@ -69,7 +67,7 @@ func (t *Tools) Licenses(context.Context, *emptypb.Empty) (*tools.Licenses, erro
 	}.Build(), nil
 }
 
-func (t *Tools) Log(_ *emptypb.Empty, stream grpc.ServerStreamingServer[tools.Log]) error {
+func (t *Tools) Log(_ *schemaapi.Empty, stream control.ServerStream[tools.Log]) error {
 	return t.logController.Tail(stream.Context(), func(line []string) error {
 		for _, l := range line {
 			if err := stream.Send(tools.Log_builder{
@@ -83,7 +81,7 @@ func (t *Tools) Log(_ *emptypb.Empty, stream grpc.ServerStreamingServer[tools.Lo
 	})
 }
 
-func (t *Tools) Logv2(empty *emptypb.Empty, v2 grpc.ServerStreamingServer[tools.Logv2]) error {
+func (t *Tools) Logv2(empty *schemaapi.Empty, v2 control.ServerStream[tools.Logv2]) error {
 	return t.logController.Tail(v2.Context(), func(line []string) error {
 		if err := v2.Send(tools.Logv2_builder{
 			Log: line,

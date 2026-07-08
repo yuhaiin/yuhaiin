@@ -23,15 +23,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/paging"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type Cache interface {
@@ -167,8 +164,6 @@ func (h *processMatcher) Empty() bool {
 }
 
 type Lists struct {
-	api.UnimplementedListsServer
-
 	db chore.DB
 
 	proxy *atomicx.Value[netapi.Proxy]
@@ -285,7 +280,7 @@ func (s *Lists) LoadGeoip() *maxminddb.MaxMindDB {
 	return ggeoip
 }
 
-func (s *Lists) List(ctx context.Context, empty *emptypb.Empty) (*api.ListResponse, error) {
+func (s *Lists) List(ctx context.Context, empty *api.Empty) (*api.ListResponse, error) {
 	ret := &api.ListResponse{}
 
 	err := s.db.View(func(ss *config.Setting) error {
@@ -306,7 +301,7 @@ func (s *Lists) List(ctx context.Context, empty *emptypb.Empty) (*api.ListRespon
 	}
 
 	if ret.GetRefreshConfig() == nil {
-		ret.SetRefreshConfig(config.RefreshConfig_builder{RefreshInterval: proto.Uint64(0)}.Build())
+		ret.SetRefreshConfig(config.RefreshConfig_builder{RefreshInterval: ptr(uint64(0))}.Build())
 	}
 
 	return ret, err
@@ -347,7 +342,7 @@ func listItem(name string, list *config.List) *api.ListItem {
 }
 
 func (s *Lists) ListPage(ctx context.Context, req *api.PageRequest) (*api.ListResponse, error) {
-	ret, err := s.List(ctx, &emptypb.Empty{})
+	ret, err := s.List(ctx, &api.Empty{})
 	if err != nil {
 		return ret, err
 	}
@@ -375,7 +370,7 @@ func (s *Lists) ListPage(ctx context.Context, req *api.PageRequest) (*api.ListRe
 	return ret, nil
 }
 
-func (s *Lists) Get(ctx context.Context, req *wrapperspb.StringValue) (*config.List, error) {
+func (s *Lists) Get(ctx context.Context, req *api.StringValue) (*config.List, error) {
 	var list *config.List
 	err := s.db.View(func(ss *config.Setting) error {
 		if ss.GetBypass().GetLists() != nil {
@@ -394,7 +389,7 @@ func (s *Lists) Get(ctx context.Context, req *wrapperspb.StringValue) (*config.L
 	return list, nil
 }
 
-func (s *Lists) Save(ctx context.Context, list *config.List) (*emptypb.Empty, error) {
+func (s *Lists) Save(ctx context.Context, list *config.List) (*api.Empty, error) {
 	list.SetErrorMsgs(list.GetErrorMsgs()[:0])
 
 	if list.WhichList() == config.List_Remote_case {
@@ -430,7 +425,7 @@ func (s *Lists) Save(ctx context.Context, list *config.List) (*emptypb.Empty, er
 		s.refreshProcessTrie()
 	}
 
-	return &emptypb.Empty{}, nil
+	return &api.Empty{}, nil
 }
 
 func (s *Lists) resetRefreshInterval(minute uint64) {
@@ -457,7 +452,7 @@ func (s *Lists) resetRefreshInterval(minute uint64) {
 	}
 
 	s.ticker = time.AfterFunc(interval, func() {
-		_, err := s.Refresh(context.Background(), &emptypb.Empty{})
+		_, err := s.Refresh(context.Background(), &api.Empty{})
 		if err != nil {
 			log.Error("refresh lists failed", "err", err)
 		}
@@ -519,7 +514,7 @@ func (s *Lists) Close() error {
 	return s.hostTrie.Close()
 }
 
-func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Empty, error) {
+func (s *Lists) Refresh(ctx context.Context, empty *api.Empty) (*api.Empty, error) {
 	if !s.refreshing.CompareAndSwap(false, true) {
 		return nil, fmt.Errorf("refreshing")
 	}
@@ -578,7 +573,7 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 		ss.GetBypass().GetMaxminddbGeoip().SetError(geoipErr)
 
 		if ss.GetBypass().GetRefreshConfig() == nil {
-			ss.GetBypass().SetRefreshConfig(config.RefreshConfig_builder{RefreshInterval: proto.Uint64(0)}.Build())
+			ss.GetBypass().SetRefreshConfig(config.RefreshConfig_builder{RefreshInterval: ptr(uint64(0))}.Build())
 		}
 
 		ss.GetBypass().GetRefreshConfig().SetLastRefreshTime(uint64(time.Now().Unix()))
@@ -598,10 +593,10 @@ func (s *Lists) Refresh(ctx context.Context, empty *emptypb.Empty) (*emptypb.Emp
 	s.notifyRefreshHostTrie()
 	s.refreshProcessTrie()
 
-	return &emptypb.Empty{}, nil
+	return &api.Empty{}, nil
 }
 
-func (s *Lists) Remove(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
+func (s *Lists) Remove(ctx context.Context, req *api.StringValue) (*api.Empty, error) {
 	err := s.db.Batch(func(ss *config.Setting) error {
 		if ss.GetBypass().GetLists() != nil {
 			delete(ss.GetBypass().GetLists(), req.Value)
@@ -621,10 +616,10 @@ func (s *Lists) Remove(ctx context.Context, req *wrapperspb.StringValue) (*empty
 		s.refreshProcessTrie()
 	}
 
-	return &emptypb.Empty{}, nil
+	return &api.Empty{}, nil
 }
 
-func (s *Lists) SaveConfig(ctx context.Context, req *api.SaveListConfigRequest) (*emptypb.Empty, error) {
+func (s *Lists) SaveConfig(ctx context.Context, req *api.SaveListConfigRequest) (*api.Empty, error) {
 	err := s.db.Batch(func(ss *config.Setting) error {
 		if ss.GetBypass() == nil {
 			ss.SetBypass(&config.BypassConfig{})
@@ -648,7 +643,7 @@ func (s *Lists) SaveConfig(ctx context.Context, req *api.SaveListConfigRequest) 
 		return nil
 	})
 
-	return &emptypb.Empty{}, err
+	return &api.Empty{}, err
 }
 
 func (s *Lists) SetProxy(proxy netapi.Proxy) { s.proxy.Store(proxy) }
@@ -891,7 +886,7 @@ func (l *Lists) getLocalCacheTrimRuleIter(rules []string) iter.Seq[string] {
 		for _, v := range rules {
 			r, er := l.downloader.GetReader(v)
 			if er != nil {
-				log.Error("get local cache failed", "err", er, "url", v)
+				log.Warn("get local cache failed", "err", er, "url", v)
 				continue
 			}
 			defer r.Close()
@@ -904,3 +899,5 @@ func (l *Lists) getLocalCacheTrimRuleIter(rules []string) iter.Seq[string] {
 		}
 	}
 }
+
+func ptr[T any](v T) *T { return &v }

@@ -11,17 +11,15 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"google.golang.org/protobuf/proto"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	pc "github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 func main() {
 	instance, err := app.Start(&app.StartOptions{
 		ConfigPath:     "/tmp/test",
 		Auth:           nil,
-		GRPCServer:     nil,
 		ProcessDumper:  nil,
 		BypassConfig:   &mockDB{},
 		ResolverConfig: &mockDB{},
@@ -42,7 +40,7 @@ func main() {
 					Tcp: node.Protocol_builder{
 						Simple: node.Simple_builder{
 							Host: new("127.0.0.1"),
-							Port: proto.Int32(1080),
+							Port: ptr(int32(1080)),
 						}.Build(),
 					}.Build(),
 					Udp: node.Protocol_builder{

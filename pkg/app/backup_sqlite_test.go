@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/chore"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
 )
 
 func TestBackupSQLiteSnapshotRestore(t *testing.T) {

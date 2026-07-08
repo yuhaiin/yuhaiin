@@ -11,9 +11,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"google.golang.org/protobuf/proto"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 func main() {
@@ -24,7 +23,7 @@ func main() {
 					Tcp: node.Protocol_builder{
 						Simple: node.Simple_builder{
 							Host: new("127.0.0.1"),
-							Port: proto.Int32(1080),
+							Port: ptr(int32(1080)),
 						}.Build(),
 					}.Build(),
 					Udp: node.Protocol_builder{

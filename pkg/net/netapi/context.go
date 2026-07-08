@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"unique"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
 type PacketSniffer interface {

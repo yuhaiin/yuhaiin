@@ -3,13 +3,12 @@ package route
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/api"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type blockHistoryKey struct {
@@ -42,9 +41,9 @@ func (h *RejectHistory) Push(ctx context.Context, protocol string, host string) 
 			BlockHistory: (&api.BlockHistory_builder{
 				Protocol:   new(protocol),
 				Host:       new(host),
-				Time:       timestamppb.Now(),
+				Time:       time.Now(),
 				Process:    new(store.GetProcessName()),
-				BlockCount: proto.Uint64(1),
+				BlockCount: uint64Ptr(1),
 			}).Build(),
 		}
 	})
@@ -53,10 +52,12 @@ func (h *RejectHistory) Push(ctx context.Context, protocol string, host string) 
 	}
 
 	x.mu.Lock()
-	x.SetTime(timestamppb.Now())
+	x.SetTime(time.Now())
 	x.SetBlockCount(x.GetBlockCount() + 1)
 	x.mu.Unlock()
 }
+
+func uint64Ptr(v uint64) *uint64 { return &v }
 
 func (h *RejectHistory) Get() *api.BlockHistoryList {
 	var objects []*api.BlockHistory

@@ -2,6 +2,7 @@ package parser
 
 import (
 	"context"
+	"encoding/json/v2"
 	"io"
 	"net"
 	"net/http"
@@ -10,11 +11,10 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestSsrParse(t *testing.T) {
@@ -37,7 +37,7 @@ func TestConnectionSsr(t *testing.T) {
 		Protocols: []*node.Protocol{},
 	}
 
-	err := protojson.Unmarshal([]byte(``), p.Build())
+	err := json.Unmarshal([]byte(`{}`), p.Build())
 	assert.NoError(t, err)
 	z, err := register.Dialer(p.Build())
 	assert.NoError(t, err)

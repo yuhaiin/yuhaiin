@@ -12,10 +12,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestConn(t *testing.T) {
@@ -59,7 +58,7 @@ func TestConn(t *testing.T) {
 		assert.NoError(t, err)
 
 		p, err = NewClient(node.Http2_builder{
-			Concurrency: proto.Int32(1),
+			Concurrency: ptr(int32(1)),
 		}.Build(), p)
 		assert.NoError(t, err)
 
@@ -139,7 +138,7 @@ func TestConn(t *testing.T) {
 			assert.NoError(t, err)
 
 			p, err = NewClient(node.Http2_builder{
-				Concurrency: proto.Int32(1),
+				Concurrency: ptr(int32(1)),
 			}.Build(), p)
 			assert.NoError(t, err)
 
@@ -193,7 +192,7 @@ func TestConn(t *testing.T) {
 			assert.NoError(t, err)
 
 			p, err = NewClient(node.Http2_builder{
-				Concurrency: proto.Int32(1),
+				Concurrency: ptr(int32(1)),
 			}.Build(), p)
 			assert.NoError(t, err)
 
@@ -238,7 +237,7 @@ func TestClient(t *testing.T) {
 
 	p, err := fixed.NewClient(node.Fixed_builder{
 		Host: new("127.0.0.1"),
-		Port: proto.Int32(8082),
+		Port: ptr(int32(8082)),
 	}.Build(), nil)
 	if err != nil {
 		t.Error(err)
@@ -246,7 +245,7 @@ func TestClient(t *testing.T) {
 	}
 
 	p, err = NewClient(node.Http2_builder{
-		Concurrency: proto.Int32(1),
+		Concurrency: ptr(int32(1)),
 	}.Build(), p)
 	if err != nil {
 		t.Error(err)

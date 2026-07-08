@@ -8,9 +8,8 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestWireguard(t *testing.T) {
@@ -21,7 +20,7 @@ func TestWireguard(t *testing.T) {
 		Endpoint: []string{
 			"10.0.0.2/32",
 		},
-		Mtu:      proto.Int32(1500),
+		Mtu:      ptr(int32(1500)),
 		Reserved: []byte{0, 0, 0},
 		Peers: []*node.WireguardPeerConfig{
 			node.WireguardPeerConfig_builder{

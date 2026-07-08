@@ -1,11 +1,11 @@
 package node
 
 import (
+	"encoding/json/v2"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
-	"google.golang.org/protobuf/encoding/protojson"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
 )
 
 func newTestManager(t *testing.T) *Manager {
@@ -61,6 +61,6 @@ func TestAddNode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, _ := protojson.MarshalOptions{Indent: "  "}.Marshal(loaded)
+	data, _ := json.Marshal(loaded)
 	t.Log(string(data))
 }

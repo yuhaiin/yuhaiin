@@ -2,6 +2,7 @@ package yuhaiin
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net"
@@ -20,12 +21,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	schemaapi "github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var savepath string
@@ -37,8 +36,6 @@ func SetSavePath(p string) {
 	legacyPreferenceStore = newMemoryStore(ms, true)
 	appStore = newSQLitePreferenceStore(tools.PathGenerator.State(p), legacyPreferenceStore)
 }
-
-//go:generate go run generate.go
 
 type App struct {
 	server *http.Server
@@ -168,13 +165,13 @@ func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
 	defer ticker.Stop()
 
 	alreadyEmpty := false
-	var last *api.TotalFlow
+	var last *schemaapi.TotalFlow
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			flow, err := app.Connections.Total(ctx, &emptypb.Empty{})
+			flow, err := app.Connections.Total(ctx, &schemaapi.Empty{})
 			if err != nil {
 				log.Error("get connections failed", "err", err)
 				continue
@@ -316,7 +313,7 @@ func newInboundDB(base chore.DB, opt *Opts) chore.DB {
 
 func (a *androidInboundDB) View(f ...func(*config.Setting) error) error {
 	return a.base.View(func(s *config.Setting) error {
-		working := proto.CloneOf(s)
+		working := cloneSetting(s)
 		a.applyRuntimeOverlay(working.GetServer())
 
 		for _, fn := range f {
@@ -331,7 +328,7 @@ func (a *androidInboundDB) View(f ...func(*config.Setting) error) error {
 
 func (a *androidInboundDB) Batch(f ...func(*config.Setting) error) error {
 	return a.base.Batch(func(s *config.Setting) error {
-		working := proto.CloneOf(s)
+		working := cloneSetting(s)
 		a.applyRuntimeOverlay(working.GetServer())
 
 		for _, fn := range f {
@@ -345,6 +342,19 @@ func (a *androidInboundDB) Batch(f ...func(*config.Setting) error) error {
 		s.GetServer().SetSniff(working.GetServer().GetSniff())
 		return nil
 	})
+}
+
+func cloneSetting(src *config.Setting) *config.Setting {
+	if src == nil {
+		return nil
+	}
+	dst := &config.Setting{}
+	if data, err := json.Marshal(src); err == nil {
+		if err := json.Unmarshal(data, dst); err == nil {
+			return dst
+		}
+	}
+	return src
 }
 
 func (a *androidInboundDB) Dir() string { return a.base.Dir() }

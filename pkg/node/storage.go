@@ -1,8 +1,8 @@
 package node
 
 import (
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	pn "github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	pn "github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 

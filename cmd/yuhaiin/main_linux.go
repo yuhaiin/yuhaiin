@@ -82,7 +82,7 @@ func execSystemdCommand(args ...string) ([]byte, error) {
 // install implements the service installation for Linux using systemd
 func install(args []string) error {
 	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
-	host := flag.String("host", "0.0.0.0:50051", "gRPC and http listen host")
+	host := flag.String("host", "0.0.0.0:50051", "HTTP listen host")
 	path := flag.String("path", "/var/lib/yuhaiin", "save data path")
 	if err := flag.Parse(args); err != nil {
 		return err

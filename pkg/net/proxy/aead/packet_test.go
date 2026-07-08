@@ -10,10 +10,9 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestEncodePacket(t *testing.T) {
@@ -103,7 +102,7 @@ func TestPacket(t *testing.T) {
 
 	fp, err := fixed.NewClient(node.Fixed_builder{
 		Host: new("127.0.0.1"),
-		Port: proto.Int32(12345),
+		Port: ptr(int32(12345)),
 	}.Build(), nil)
 	assert.NoError(t, err)
 	defer fp.Close()

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"iter"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 
@@ -27,10 +27,10 @@ func (m *Manager) Close() error {
 	}
 	return errors.Join(err, m.store.Close())
 }
-func (m *Manager) Node() *Nodes                                 { return &Nodes{manager: m} }
-func (m *Manager) Subscribe() *Subscribe                        { return &Subscribe{n: m} }
-func (m *Manager) Outbound() *Outbound                          { return &Outbound{manager: m} }
-func (m *Manager) Tag(ff func() iter.Seq[string]) api.TagServer { return &tag{n: m, ruleTags: ff} }
+func (m *Manager) Node() *Nodes                        { return &Nodes{manager: m} }
+func (m *Manager) Subscribe() *Subscribe               { return &Subscribe{n: m} }
+func (m *Manager) Outbound() *Outbound                 { return &Outbound{manager: m} }
+func (m *Manager) Tag(ff func() iter.Seq[string]) *tag { return &tag{n: m, ruleTags: ff} }
 
 func (m *Manager) Store() *ProxyStore { return m.store }
 

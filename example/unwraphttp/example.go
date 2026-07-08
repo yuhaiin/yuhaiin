@@ -16,9 +16,9 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reverse"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 var cert = `-----BEGIN CERTIFICATE-----

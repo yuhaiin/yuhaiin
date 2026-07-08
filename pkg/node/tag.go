@@ -7,39 +7,35 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/paging"
-	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type tag struct {
-	api.UnimplementedTagServer
-
 	ruleTags func() iter.Seq[string]
 	n        *Manager
 }
 
-func (t *tag) Save(_ context.Context, r *api.SaveTagReq) (*emptypb.Empty, error) {
+func (t *tag) Save(_ context.Context, r *api.SaveTagReq) (*api.Empty, error) {
 	if r.GetType() == node.TagType_mirror && r.GetTag() == r.GetHash() {
-		return &emptypb.Empty{}, errors.New("tag same as target mirror tag")
+		return &api.Empty{}, errors.New("tag same as target mirror tag")
 	}
 
 	if _, ok := t.n.GetTag(r.GetTag()); ok {
 		if err := t.n.DeleteTag(r.GetTag()); err != nil {
-			return &emptypb.Empty{}, err
+			return &api.Empty{}, err
 		}
 	}
 
-	return &emptypb.Empty{}, t.n.AddTag(r.GetTag(), r.GetType(), r.GetHash())
+	return &api.Empty{}, t.n.AddTag(r.GetTag(), r.GetType(), r.GetHash())
 }
 
-func (t *tag) Remove(_ context.Context, r *wrapperspb.StringValue) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, t.n.DeleteTag(r.Value)
+func (t *tag) Remove(_ context.Context, r *api.StringValue) (*api.Empty, error) {
+	return &api.Empty{}, t.n.DeleteTag(r.Value)
 }
 
-func (t *tag) List(ctx context.Context, _ *emptypb.Empty) (*api.TagsResponse, error) {
+func (t *tag) List(ctx context.Context, _ *api.Empty) (*api.TagsResponse, error) {
 	resp := api.TagsResponse_builder{
 		Tags: maps.Clone(t.n.GetTags()),
 	}
@@ -56,7 +52,7 @@ func (t *tag) List(ctx context.Context, _ *emptypb.Empty) (*api.TagsResponse, er
 }
 
 func (t *tag) ListPage(ctx context.Context, req *api.TagPageRequest) (*api.TagsResponse, error) {
-	resp, err := t.List(ctx, &emptypb.Empty{})
+	resp, err := t.List(ctx, &api.Empty{})
 	if err != nil {
 		return resp, err
 	}

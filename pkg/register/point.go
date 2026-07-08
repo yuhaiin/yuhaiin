@@ -5,22 +5,87 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"reflect"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-func GetPointValue(i *node.Protocol) proto.Message {
-	ref := i.ProtoReflect()
-	fields := ref.Descriptor().Oneofs().ByName("protocol")
-	f := ref.WhichOneof(fields)
-	if f == nil {
+func GetPointValue(i *node.Protocol) any {
+	if i == nil {
 		return &node.None{}
 	}
-	return ref.Get(f).Message().Interface()
+	switch i.WhichProtocol() {
+	case node.Protocol_Shadowsocks_case:
+		return i.GetShadowsocks()
+	case node.Protocol_Shadowsocksr_case:
+		return i.GetShadowsocksr()
+	case node.Protocol_Vmess_case:
+		return i.GetVmess()
+	case node.Protocol_Websocket_case:
+		return i.GetWebsocket()
+	case node.Protocol_Quic_case:
+		return i.GetQuic()
+	case node.Protocol_ObfsHttp_case:
+		return i.GetObfsHttp()
+	case node.Protocol_Trojan_case:
+		return i.GetTrojan()
+	case node.Protocol_Simple_case:
+		return i.GetSimple()
+	case node.Protocol_Socks5_case:
+		return i.GetSocks5()
+	case node.Protocol_Http_case:
+		return i.GetHttp()
+	case node.Protocol_Direct_case:
+		return i.GetDirect()
+	case node.Protocol_Reject_case:
+		return i.GetReject()
+	case node.Protocol_Yuubinsya_case:
+		return i.GetYuubinsya()
+	case node.Protocol_Http2_case:
+		return i.GetHttp2()
+	case node.Protocol_Reality_case:
+		return i.GetReality()
+	case node.Protocol_Tls_case:
+		return i.GetTls()
+	case node.Protocol_Wireguard_case:
+		return i.GetWireguard()
+	case node.Protocol_Mux_case:
+		return i.GetMux()
+	case node.Protocol_Drop_case:
+		return i.GetDrop()
+	case node.Protocol_Vless_case:
+		return i.GetVless()
+	case node.Protocol_BootstrapDnsWarp_case:
+		return i.GetBootstrapDnsWarp()
+	case node.Protocol_Tailscale_case:
+		return i.GetTailscale()
+	case node.Protocol_Set_case:
+		return i.GetSet()
+	case node.Protocol_TlsTermination_case:
+		return i.GetTlsTermination()
+	case node.Protocol_HttpTermination_case:
+		return i.GetHttpTermination()
+	case node.Protocol_HttpMock_case:
+		return i.GetHttpMock()
+	case node.Protocol_Aead_case:
+		return i.GetAead()
+	case node.Protocol_Fixed_case:
+		return i.GetFixed()
+	case node.Protocol_NetworkSplit_case:
+		return i.GetNetworkSplit()
+	case node.Protocol_CloudflareWarpMasque_case:
+		return i.GetCloudflareWarpMasque()
+	case node.Protocol_Proxy_case:
+		return i.GetProxy()
+	case node.Protocol_Fixedv2_case:
+		return i.GetFixedv2()
+	case node.Protocol_PointAsEndpoint_case:
+		return i.GetPointAsEndpoint()
+	default:
+		return &node.None{}
+	}
 }
 
 func init() {
@@ -98,27 +163,27 @@ func Dialer(p *node.Point) (r netapi.Proxy, err error) {
 	return
 }
 
-type WrapProxy[T proto.Message] func(t T, p netapi.Proxy) (netapi.Proxy, error)
+type WrapProxy[T any] func(t T, p netapi.Proxy) (netapi.Proxy, error)
 
-var execProtocol syncmap.SyncMap[protoreflect.FullName, WrapProxy[proto.Message]]
+var execProtocol syncmap.SyncMap[reflect.Type, func(any, netapi.Proxy) (netapi.Proxy, error)]
 
-func RegisterPoint[T proto.Message](wrap func(T, netapi.Proxy) (netapi.Proxy, error)) {
+func RegisterPoint[T any](wrap func(T, netapi.Proxy) (netapi.Proxy, error)) {
 	if wrap == nil {
 		return
 	}
 
 	execProtocol.Store(
-		(*new(T)).ProtoReflect().Descriptor().FullName(),
-		func(t proto.Message, p netapi.Proxy) (netapi.Proxy, error) { return wrap(t.(T), p) },
+		reflect.TypeOf((*T)(nil)).Elem(),
+		func(t any, p netapi.Proxy) (netapi.Proxy, error) { return wrap(t.(T), p) },
 	)
 }
 
-func Wrap(p proto.Message, x netapi.Proxy) (netapi.Proxy, error) {
+func Wrap(p any, x netapi.Proxy) (netapi.Proxy, error) {
 	if p == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
 
-	conn, ok := execProtocol.Load(p.ProtoReflect().Descriptor().FullName())
+	conn, ok := execProtocol.Load(reflect.TypeOf(p))
 	if !ok {
 		return nil, fmt.Errorf("protocol %v is not support", p)
 	}

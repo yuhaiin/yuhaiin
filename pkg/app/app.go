@@ -21,24 +21,23 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	pn "github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/route"
+	schemaapi "github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	pn "github.com/Asutorufa/yuhaiin/pkg/schema/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/aead"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/drop"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque"
@@ -87,7 +86,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	choreService := chore.NewChore(so.ChoreConfig,
 		func(s *config.Setting) { updateConfiguration(so, s, logController) })
 
-	setting, err := choreService.Load(context.Background(), &emptypb.Empty{})
+	setting, err := choreService.Load(context.Background(), &schemaapi.Empty{})
 	if err == nil {
 		updateConfiguration(so, setting, logController)
 	}
@@ -197,7 +196,6 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	app.Backup = AddCloser(closers, "backup", NewBackup(so.BackupConfig, app, fakedns))
 
-	// grpc and http server
 	app.RegisterServer()
 
 	tailscale.Mux.Store(app.Mux)

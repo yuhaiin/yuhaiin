@@ -7,9 +7,8 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"google.golang.org/protobuf/proto"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 func ConvertTransport(x *config.Transport) (*node.Protocol, error) {
@@ -52,14 +51,14 @@ func ConvertTransport(x *config.Transport) (*node.Protocol, error) {
 	case config.Transport_Http2_case:
 		pro = node.Protocol_builder{
 			Http2: node.Http2_builder{
-				Concurrency: proto.Int32(10),
+				Concurrency: ptr(int32(10)),
 			}.Build(),
 		}.Build()
 
 	case config.Transport_Mux_case:
 		pro = node.Protocol_builder{
 			Mux: node.Mux_builder{
-				Concurrency: proto.Int32(10),
+				Concurrency: ptr(int32(10)),
 			}.Build(),
 		}.Build()
 
@@ -76,7 +75,7 @@ func ConvertTransport(x *config.Transport) (*node.Protocol, error) {
 			None: &node.None{},
 		}.Build()
 
-	case config.Transport_Tls_case, config.Transport_Grpc_case:
+	case config.Transport_Tls_case:
 		// because we can't get the ca cert, so please use tls auto instead
 		fallthrough
 
@@ -86,6 +85,8 @@ func ConvertTransport(x *config.Transport) (*node.Protocol, error) {
 
 	return pro, nil
 }
+
+func ptr[T any](v T) *T { return &v }
 
 func replacePatternServernames(servernames []string) []string {
 	var resp []string

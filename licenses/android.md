@@ -85,8 +85,6 @@ Some packages may only be included on certain architectures or operating systems
 - [golang.zx2c4.com/wintun](https://pkg.go.dev/golang.zx2c4.com/wintun) ([Unknown](Unknown))
 - [golang.zx2c4.com/wintun/memmod](https://pkg.go.dev/golang.zx2c4.com/wintun/memmod) ([Unknown](Unknown))
 - [golang.zx2c4.com/wireguard/windows/tunnel/winipcfg](https://pkg.go.dev/golang.zx2c4.com/wireguard/windows/tunnel/winipcfg) ([MIT](https://git.zx2c4.com/wireguard-windows/tree/COPYING?h=v1.0.1))
-- [google.golang.org/genproto/googleapis/rpc/status](https://pkg.go.dev/google.golang.org/genproto/googleapis/rpc/status) ([Apache-2.0](https://github.com/googleapis/go-genproto/blob/62b3387ff324/googleapis/rpc/LICENSE))
-- [google.golang.org/grpc](https://pkg.go.dev/google.golang.org/grpc) ([Apache-2.0](https://github.com/grpc/grpc-go/blob/v1.82.0/LICENSE))
 - [google.golang.org/protobuf](https://pkg.go.dev/google.golang.org/protobuf) ([BSD-3-Clause](https://github.com/protocolbuffers/protobuf-go/blob/v1.36.11/LICENSE))
 - [gvisor.dev/gvisor/pkg](https://pkg.go.dev/gvisor.dev/gvisor/pkg) ([Apache-2.0](https://github.com/google/gvisor/blob/573d5e7127a8/LICENSE))
 - [gvisor.dev/gvisor/pkg](https://pkg.go.dev/gvisor.dev/gvisor/pkg) ([MIT](https://github.com/google/gvisor/blob/573d5e7127a8/LICENSE))

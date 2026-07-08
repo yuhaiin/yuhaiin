@@ -3,14 +3,14 @@ package node
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"google.golang.org/protobuf/proto"
 )
 
 // ProxyEntry
@@ -90,7 +90,7 @@ func (p *ProxyStore) Refresh(po *node.Point) {
 
 	r.mu.Lock()
 
-	changed := !proto.Equal(r.Config, po)
+	changed := !reflect.DeepEqual(r.Config, po)
 
 	if !changed {
 		r.mu.Unlock()

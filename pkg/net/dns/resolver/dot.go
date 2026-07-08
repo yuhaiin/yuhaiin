@@ -3,7 +3,7 @@ package resolver
 import (
 	"crypto/tls"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
 func init() {

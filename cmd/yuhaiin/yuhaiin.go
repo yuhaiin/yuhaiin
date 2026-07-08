@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strings"
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
@@ -21,15 +20,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-	"google.golang.org/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
 )
 
 func run(args []string) error {
 	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
-	host := flag.String("host", "0.0.0.0:50051", "gRPC and http listen host")
+	host := flag.String("host", "0.0.0.0:50051", "http listen host")
 	username := flag.String("u", "", "username")
 	password := flag.String("p", "", "password")
 	path := flag.String("path", configuration.DataDir.Load(), "save data path")
@@ -50,15 +46,10 @@ func run(args []string) error {
 
 	setting := chore.NewSqliteDB(tools.PathGenerator.State(*path))
 
-	var grpcOpts []grpc.ServerOption
-
 	var auth *app.Auth
 	if *username != "" || *password != "" {
 		auth = app.NewAuth(*username, *password)
-		grpcOpts = append(grpcOpts, grpc.UnaryInterceptor(auth.GrpcAuth()))
 	}
-
-	grpcserver := grpc.NewServer(grpcOpts...)
 
 	fmt.Println(version.Art)
 
@@ -70,7 +61,6 @@ func run(args []string) error {
 		InboundConfig:  setting,
 		ChoreConfig:    setting,
 		BackupConfig:   setting,
-		GRPCServer:     grpcserver,
 		ProcessDumper:  getPorcessDumper(),
 	})
 	if err != nil {
@@ -86,15 +76,10 @@ func run(args []string) error {
 	defer cancel(nil)
 
 	go func() {
-		err := http.Serve(lis, h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		err := http.Serve(lis, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
-
-			if grpcserver != nil && r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
-				grpcserver.ServeHTTP(w, r)
-			} else {
-				app.Mux.ServeHTTP(w, r)
-			}
-		}), &http2.Server{}))
+			app.Mux.ServeHTTP(w, r)
+		}))
 		if err != nil {
 			cancel(err)
 		}

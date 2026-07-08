@@ -14,10 +14,9 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"google.golang.org/protobuf/proto"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 var cert = `-----BEGIN CERTIFICATE-----
@@ -53,7 +52,7 @@ func main() {
 			node.Protocol_builder{
 				Simple: node.Simple_builder{
 					Host: new("ip.sb"),
-					Port: proto.Int32(443),
+					Port: ptr(int32(443)),
 				}.Build(),
 			}.Build(),
 			node.Protocol_builder{

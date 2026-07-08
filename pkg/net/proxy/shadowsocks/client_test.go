@@ -14,9 +14,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestConn(t *testing.T) {
@@ -24,7 +23,7 @@ func TestConn(t *testing.T) {
 
 	p, err := fixed.NewClient(node.Fixed_builder{
 		Host: new("127.0.0.1"),
-		Port: proto.Int32(1080),
+		Port: ptr(int32(1080)),
 	}.Build(), nil)
 	assert.NoError(t, err)
 	z, err := websocket.NewClient(node.Websocket_builder{Host: new("localhost:1090")}.Build(), p)
@@ -77,7 +76,7 @@ func TestUDPConn(t *testing.T) {
 
 	p, err := fixed.NewClient(node.Fixed_builder{
 		Host: new("127.0.0.1"),
-		Port: proto.Int32(1090),
+		Port: ptr(int32(1090)),
 	}.Build(), nil)
 	assert.NoError(t, err)
 	s, err := NewClient(node.Shadowsocks_builder{

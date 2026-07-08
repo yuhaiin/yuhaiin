@@ -17,8 +17,8 @@ import (
 	ptls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	sniffhttp "github.com/Asutorufa/yuhaiin/pkg/net/sniff/http"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
 func init() {

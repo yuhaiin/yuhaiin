@@ -1,15 +1,15 @@
 package route
 
 import (
+	"encoding/json/v2"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestNested(t *testing.T) {
-	data, err := protojson.Marshal(config.BypassConfig_builder{
+	data, err := json.Marshal(config.BypassConfig_builder{
 		Lists: map[string]*config.List{
 			"test": config.List_builder{
 				Local: config.ListLocal_builder{

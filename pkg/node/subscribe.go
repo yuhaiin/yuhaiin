@@ -5,12 +5,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -19,35 +21,28 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type Subscribe struct {
-	api.UnimplementedSubscribeServer
-
 	n *Manager
 }
 
-func (s *Subscribe) Save(_ context.Context, l *api.SaveLinkReq) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, s.save(l.GetLinks())
+func (s *Subscribe) Save(_ context.Context, l *api.SaveLinkReq) (*api.Empty, error) {
+	return &api.Empty{}, s.save(l.GetLinks())
 }
 
-func (s *Subscribe) Remove(_ context.Context, l *api.LinkReq) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, s.n.DeleteLink(l.GetNames()...)
+func (s *Subscribe) Remove(_ context.Context, l *api.LinkReq) (*api.Empty, error) {
+	return &api.Empty{}, s.n.DeleteLink(l.GetNames()...)
 }
 
-func (s *Subscribe) Update(ctx context.Context, req *api.LinkReq) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, s.update(ctx, req.GetNames()...)
+func (s *Subscribe) Update(ctx context.Context, req *api.LinkReq) (*api.Empty, error) {
+	return &api.Empty{}, s.update(ctx, req.GetNames()...)
 }
 
-func (s *Subscribe) Get(context.Context, *emptypb.Empty) (*api.GetLinksResp, error) {
+func (s *Subscribe) Get(context.Context, *api.Empty) (*api.GetLinksResp, error) {
 	return api.GetLinksResp_builder{Links: s.n.GetLinks()}.Build(), nil
 }
 
@@ -161,16 +156,16 @@ func (t *trimBase64Reader) Read(b []byte) (int, error) {
 	return n, err
 }
 
-func (n *Subscribe) RemovePublish(ctx context.Context, in *wrapperspb.StringValue) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, n.n.DeletePublish(in.Value)
+func (n *Subscribe) RemovePublish(ctx context.Context, in *api.StringValue) (*api.Empty, error) {
+	return &api.Empty{}, n.n.DeletePublish(in.Value)
 }
 
-func (n *Subscribe) ListPublish(ctx context.Context, in *emptypb.Empty) (*api.ListPublishResponse, error) {
+func (n *Subscribe) ListPublish(ctx context.Context, in *api.Empty) (*api.ListPublishResponse, error) {
 	return api.ListPublishResponse_builder{Publishes: n.n.GetPublishes()}.Build(), nil
 }
 
-func (n *Subscribe) SavePublish(ctx context.Context, in *api.SavePublishRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, n.n.SavePublish(in.GetName(), in.GetPublish())
+func (n *Subscribe) SavePublish(ctx context.Context, in *api.SavePublishRequest) (*api.Empty, error) {
+	return &api.Empty{}, n.n.SavePublish(in.GetName(), in.GetPublish())
 }
 
 func (n *Subscribe) Publish(ctx context.Context, in *api.PublishRequest) (*api.PublishResponse, error) {
@@ -188,7 +183,7 @@ func (n *Subscribe) savePublish(ctx context.Context, link *node.Link) error {
 	}
 
 	yu := &node.YuhaiinUrl{}
-	if err = proto.Unmarshal(data, yu); err != nil {
+	if err = json.Unmarshal(data, yu); err != nil {
 		return err
 	}
 
@@ -200,7 +195,8 @@ func (n *Subscribe) savePublish(ctx context.Context, link *node.Link) error {
 	case node.YuhaiinUrl_Points_case:
 		return n.n.ReplaceRemoteNodes(link.GetName(), yu.GetPoints().GetPoints()...)
 	case node.YuhaiinUrl_Remote_case:
-		u := yu.GetRemote().GetPublish().GetAddress()
+		publish := yu.GetRemote().GetPublish()
+		u := publish.GetAddress()
 		if _, port, _ := net.SplitHostPort(u); port == "" {
 			if yu.GetRemote().GetPublish().GetInsecure() {
 				u = net.JoinHostPort(u, "80")
@@ -208,38 +204,69 @@ func (n *Subscribe) savePublish(ctx context.Context, link *node.Link) error {
 				u = net.JoinHostPort(u, "443")
 			}
 		}
-		opts := []grpc.DialOption{
-			grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
-				ad, err := netapi.ParseAddress("tcp", s)
-				if err != nil {
-					return nil, fmt.Errorf("parse address failed: %w", err)
-				}
 
-				ctx = netapi.WithContext(ctx)
-
-				log.Info("subscription grpc dial", "addr", ad)
-				return configuration.ProxyChain.Conn(ctx, ad)
-			}),
+		scheme := "https"
+		if publish.GetInsecure() {
+			scheme = "http"
 		}
-		if yu.GetRemote().GetPublish().GetInsecure() {
-			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		endpoint := url.URL{
+			Scheme: scheme,
+			Host:   u,
+			Path:   "/api/v1/publishes/" + url.PathEscape(publish.GetName()) + ":resolve",
 		}
 
-		c, err := grpc.NewClient("passthrough:///"+u, opts...)
+		hc := &http.Client{
+			Timeout: time.Minute * 2,
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					ad, err := netapi.ParseAddress(network, addr)
+					if err != nil {
+						return nil, fmt.Errorf("parse address failed: %w", err)
+					}
+
+					ctx = netapi.WithContext(ctx)
+
+					log.Info("subscription http dial", "addr", ad)
+					return configuration.ProxyChain.Conn(ctx, ad)
+				},
+			},
+		}
+
+		body := map[string]string{
+			"path":     publish.GetPath(),
+			"password": publish.GetPassword(),
+		}
+		bodyBytes, err := json.Marshal(body)
 		if err != nil {
-			return fmt.Errorf("new client failed: %w", err)
+			return fmt.Errorf("marshal publish request failed: %w", err)
 		}
-		defer c.Close()
 
-		sbc := api.NewSubscribeClient(c)
-
-		resp, err := sbc.Publish(ctx, api.PublishRequest_builder{
-			Name:     new(yu.GetRemote().GetPublish().GetName()),
-			Path:     new(yu.GetRemote().GetPublish().GetPath()),
-			Password: new(yu.GetRemote().GetPublish().GetPassword()),
-		}.Build())
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(bodyBytes))
 		if err != nil {
-			return fmt.Errorf("publish failed: %w", err)
+			return fmt.Errorf("create publish request failed: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+
+		res, err := hc.Do(req)
+		if err != nil {
+			return fmt.Errorf("publish request failed: %w", err)
+		}
+		defer res.Body.Close()
+
+		if res.StatusCode < 200 || res.StatusCode >= 300 {
+			msg, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+			return fmt.Errorf("publish request failed: status=%d body=%s", res.StatusCode, strings.TrimSpace(string(msg)))
+		}
+
+		data, err := io.ReadAll(res.Body)
+		if err != nil {
+			return fmt.Errorf("read publish response failed: %w", err)
+		}
+
+		resp := &api.PublishResponse{}
+		if err := json.Unmarshal(data, resp); err != nil {
+			return fmt.Errorf("decode publish response failed: %w", err)
 		}
 
 		return n.n.ReplaceRemoteNodes(link.GetName(), resp.GetPoints()...)

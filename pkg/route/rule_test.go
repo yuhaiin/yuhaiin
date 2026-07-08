@@ -4,10 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/proto"
 )
 
 type memoryRuleDB struct {
@@ -183,11 +182,11 @@ func TestChangePriorityRebuildsMatchersWithDisabledRules(t *testing.T) {
 	_, err := rs.ChangePriority(context.Background(), api.ChangePriorityRequest_builder{
 		Operate: api.ChangePriorityRequest_Exchange.Enum(),
 		Source: api.RuleIndex_builder{
-			Index: proto.Uint32(0),
+			Index: ptr(uint32(0)),
 			Name:  new("enabled-a"),
 		}.Build(),
 		Target: api.RuleIndex_builder{
-			Index: proto.Uint32(1),
+			Index: ptr(uint32(1)),
 			Name:  new("disabled-b"),
 		}.Build(),
 	}.Build())

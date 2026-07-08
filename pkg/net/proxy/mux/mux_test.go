@@ -10,9 +10,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestMux(t *testing.T) {
@@ -37,12 +36,12 @@ func TestMux(t *testing.T) {
 
 	p, err := fixed.NewClient(node.Fixed_builder{
 		Host: new("127.0.0.1"),
-		Port: proto.Int32(4431),
+		Port: ptr(int32(4431)),
 	}.Build(), nil)
 	assert.NoError(t, err)
 
 	p, err = NewClient(node.Mux_builder{
-		Concurrency: proto.Int32(1),
+		Concurrency: ptr(int32(1)),
 	}.Build(), p)
 	assert.NoError(t, err)
 

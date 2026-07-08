@@ -3,6 +3,7 @@ package statistics
 import (
 	"context"
 	"database/sql"
+	"encoding/json/v2"
 	"errors"
 	"net"
 	"sort"
@@ -11,12 +12,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	schemaapi "github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/statistic"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type TrafficBucket struct {
@@ -180,9 +178,9 @@ func (h *SQLiteHistory) Push(c *statistic.Connection) {
 	}
 }
 
-func (h *SQLiteHistory) Get() *api.AllHistoryList {
+func (h *SQLiteHistory) Get() *schemaapi.AllHistoryList {
 	if h.db == nil {
-		return &api.AllHistoryList{}
+		return &schemaapi.AllHistoryList{}
 	}
 
 	ctx := context.Background()
@@ -194,11 +192,11 @@ func (h *SQLiteHistory) Get() *api.AllHistoryList {
 	`, configuration.HistorySize)
 	if err != nil {
 		log.Warn("query sqlite history failed", "err", err)
-		return &api.AllHistoryList{}
+		return &schemaapi.AllHistoryList{}
 	}
 	defer rows.Close()
 
-	var objects []*api.AllHistory
+	var objects []*schemaapi.AllHistory
 	dumpProcess := false
 	for rows.Next() {
 		var count uint64
@@ -217,17 +215,17 @@ func (h *SQLiteHistory) Get() *api.AllHistoryList {
 		if !dumpProcess && info.GetProcess() != "" {
 			dumpProcess = true
 		}
-		objects = append(objects, api.AllHistory_builder{
-			Count:      new(count),
-			Time:       timestamppb.New(time.Unix(lastSeen, 0)),
+		objects = append(objects, &schemaapi.AllHistory{
+			Count:      count,
+			Time:       time.Unix(lastSeen, 0),
 			Connection: info,
-		}.Build())
+		})
 	}
 
-	return api.AllHistoryList_builder{
+	return &schemaapi.AllHistoryList{
 		Objects:            objects,
-		DumpProcessEnabled: new(dumpProcess),
-	}.Build()
+		DumpProcessEnabled: dumpProcess,
+	}
 }
 
 func (h *SQLiteHistory) Close() error {
@@ -288,9 +286,9 @@ func (h *SQLiteFailedHistory) Push(ctx context.Context, err error, protocol stat
 	}
 }
 
-func (h *SQLiteFailedHistory) Get() *api.FailedHistoryList {
+func (h *SQLiteFailedHistory) Get() *schemaapi.FailedHistoryList {
 	if h.db == nil {
-		return &api.FailedHistoryList{}
+		return &schemaapi.FailedHistoryList{}
 	}
 
 	ctx := context.Background()
@@ -302,11 +300,11 @@ func (h *SQLiteFailedHistory) Get() *api.FailedHistoryList {
 	`, configuration.HistorySize)
 	if err != nil {
 		log.Warn("query sqlite failed history failed", "err", err)
-		return &api.FailedHistoryList{}
+		return &schemaapi.FailedHistoryList{}
 	}
 	defer rows.Close()
 
-	var objects []*api.FailedHistory
+	var objects []*schemaapi.FailedHistory
 	dumpProcess := false
 	for rows.Next() {
 		var protocol int
@@ -321,20 +319,20 @@ func (h *SQLiteFailedHistory) Get() *api.FailedHistoryList {
 		if !dumpProcess && process != "" {
 			dumpProcess = true
 		}
-		objects = append(objects, api.FailedHistory_builder{
-			Protocol:    statistic.Type(protocol).Enum(),
-			Host:        new(host),
-			Error:       new(lastError),
-			Process:     new(process),
-			Time:        timestamppb.New(time.Unix(lastSeen, 0)),
-			FailedCount: new(failedCount),
-		}.Build())
+		objects = append(objects, &schemaapi.FailedHistory{
+			Protocol:    statistic.Type(protocol),
+			Host:        host,
+			Error:       lastError,
+			Process:     process,
+			Time:        time.Unix(lastSeen, 0),
+			FailedCount: failedCount,
+		})
 	}
 
-	return api.FailedHistoryList_builder{
+	return &schemaapi.FailedHistoryList{
 		Objects:            objects,
-		DumpProcessEnabled: new(dumpProcess),
-	}.Build()
+		DumpProcessEnabled: dumpProcess,
+	}
 }
 
 func (h *SQLiteFailedHistory) Close() error {
@@ -344,16 +342,16 @@ func (h *SQLiteFailedHistory) Close() error {
 	return h.closeDB()
 }
 
-func encodeStatisticJSON(msg proto.Message) (string, error) {
-	data, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(msg)
+func encodeStatisticJSON(msg any) (string, error) {
+	data, err := json.Marshal(msg)
 	if err != nil {
 		return "", err
 	}
 	return string(data), nil
 }
 
-func decodeStatisticJSON(data string, msg proto.Message) error {
-	return protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal([]byte(data), msg)
+func decodeStatisticJSON(data string, msg any) error {
+	return json.Unmarshal([]byte(data), msg)
 }
 
 func (c *Connections) TrafficHourly(ctx context.Context, from, to time.Time) ([]TrafficBucket, error) {

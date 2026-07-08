@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
 func TestCalculateBytesHash(t *testing.T) {

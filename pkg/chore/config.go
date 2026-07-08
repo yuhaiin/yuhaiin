@@ -1,7 +1,7 @@
 package chore
 
 import (
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
 type DB interface {

@@ -157,7 +157,7 @@ func uninstallSystemDaemonDarwin(args []string) (ret error) {
 
 func installSystemDaemonDarwin(args []string) (err error) {
 	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
-	host := flag.String("host", "0.0.0.0:50051", "gRPC and http listen host")
+	host := flag.String("host", "0.0.0.0:50051", "HTTP listen host")
 	path := flag.String("path", "/Library/Application Support/yuhaiin", "save data path")
 	if err := flag.Parse(args); err != nil {
 		return err

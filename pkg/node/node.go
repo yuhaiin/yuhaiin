@@ -11,27 +11,29 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/api"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 type Nodes struct {
-	api.UnimplementedNodeServer
 	manager *Manager
 }
 
-func (n *Nodes) Now(context.Context, *emptypb.Empty) (*api.NowResp, error) {
+func (n *Nodes) Now(context.Context, *api.Empty) (*api.NowResp, error) {
 	return api.NowResp_builder{
 		Tcp: n.manager.GetNow(true),
 		Udp: n.manager.GetNow(false),
 	}.Build(), nil
 }
 
-func (n *Nodes) Get(_ context.Context, s *wrapperspb.StringValue) (*node.Point, error) {
-	p, ok := n.manager.GetNode(s.Value)
+func (n *Nodes) Get(_ context.Context, s *api.StringValue) (*node.Point, error) {
+	p, ok, err := n.manager.persist.GetNode(s.Value)
+	if err != nil {
+		log.Error("get node failed", "hash", s.GetValue(), "err", err)
+		return &node.Point{}, err
+	}
 	if !ok {
+		log.Warn("node not found", "hash", s.GetValue())
 		return &node.Point{}, fmt.Errorf("node not found")
 	}
 
@@ -46,7 +48,7 @@ func (n *Nodes) Save(c context.Context, p *node.Point) (*node.Point, error) {
 	return p, n.manager.SaveNode(p)
 }
 
-func (n *Nodes) List(ctx context.Context, _ *emptypb.Empty) (*api.NodesResponse, error) {
+func (n *Nodes) List(ctx context.Context, _ *api.Empty) (*api.NodesResponse, error) {
 	resp := api.NodesResponse_builder{}
 
 	for g, v := range n.manager.GetGroups() {
@@ -75,8 +77,8 @@ func (n *Nodes) Use(c context.Context, s *api.UseReq) (*node.Point, error) {
 	return &node.Point{}, nil
 }
 
-func (n *Nodes) Remove(_ context.Context, s *wrapperspb.StringValue) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, n.manager.DeleteNode(s.Value)
+func (n *Nodes) Remove(_ context.Context, s *api.StringValue) (*api.Empty, error) {
+	return &api.Empty{}, n.manager.DeleteNode(s.Value)
 }
 
 type latencyDialer struct {
@@ -142,7 +144,7 @@ func (n *Nodes) Latency(c context.Context, req *node.Requests) (*node.Response, 
 	return resp.Build(), nil
 }
 
-func (n *Nodes) Activates(context.Context, *emptypb.Empty) (*api.ActivatesResponse, error) {
+func (n *Nodes) Activates(context.Context, *api.Empty) (*api.ActivatesResponse, error) {
 	nodes := []*node.Point{}
 	for _, v := range n.manager.store.Range {
 		nodes = append(nodes, v.Config)
@@ -153,12 +155,12 @@ func (n *Nodes) Activates(context.Context, *emptypb.Empty) (*api.ActivatesRespon
 	}.Build(), nil
 }
 
-func (n *Nodes) Close(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
+func (n *Nodes) Close(ctx context.Context, req *api.StringValue) (*api.Empty, error) {
 	if req.GetValue() == "" {
-		return &emptypb.Empty{}, nil
+		return &api.Empty{}, nil
 	}
 
 	n.manager.store.Delete(req.GetValue())
 
-	return &emptypb.Empty{}, nil
+	return &api.Empty{}, nil
 }

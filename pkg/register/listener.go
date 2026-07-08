@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"net"
+	"reflect"
 	"sync"
 	"time"
 
@@ -13,42 +14,88 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-func GetProtocolOneofValue(i *config.Inbound) proto.Message {
-	ref := i.ProtoReflect()
-	fields := ref.Descriptor().Oneofs().ByName("protocol")
-	f := ref.WhichOneof(fields)
-	if f == nil {
+func GetProtocolOneofValue(i *config.Inbound) any {
+	if i == nil {
 		return &config.Empty{}
 	}
-	return ref.Get(f).Message().Interface()
-}
-
-func GetNetworkOneofValue(i *config.Inbound) proto.Message {
-	ref := i.ProtoReflect()
-	fields := ref.Descriptor().Oneofs().ByName("network")
-	f := ref.WhichOneof(fields)
-	if f == nil {
+	switch i.WhichProtocol() {
+	case config.Inbound_Http_case:
+		return i.GetHttp()
+	case config.Inbound_Socks5_case:
+		return i.GetSocks5()
+	case config.Inbound_Yuubinsya_case:
+		return i.GetYuubinsya()
+	case config.Inbound_Mix_case:
+		return i.GetMix()
+	case config.Inbound_Socks4A_case:
+		return i.GetSocks4A()
+	case config.Inbound_Tproxy_case:
+		return i.GetTproxy()
+	case config.Inbound_Redir_case:
+		return i.GetRedir()
+	case config.Inbound_Tun_case:
+		return i.GetTun()
+	case config.Inbound_ReverseHttp_case:
+		return i.GetReverseHttp()
+	case config.Inbound_ReverseTcp_case:
+		return i.GetReverseTcp()
+	case config.Inbound_None_case:
+		return i.GetNone()
+	default:
 		return &config.Empty{}
 	}
-	return ref.Get(f).Message().Interface()
 }
 
-func GetTransportOneofValue(i *config.Transport) proto.Message {
-	ref := i.ProtoReflect()
-	fields := ref.Descriptor().Oneofs().ByName("transport")
-	f := ref.WhichOneof(fields)
-	if f == nil {
+func GetNetworkOneofValue(i *config.Inbound) any {
+	if i == nil {
+		return &config.Empty{}
+	}
+	switch i.WhichNetwork() {
+	case config.Inbound_Empty_case:
+		return i.GetEmpty()
+	case config.Inbound_Tcpudp_case:
+		return i.GetTcpudp()
+	case config.Inbound_Quic_case:
+		return i.GetQuic()
+	default:
+		return &config.Empty{}
+	}
+}
+
+func GetTransportOneofValue(i *config.Transport) any {
+	if i == nil {
 		return &config.Normal{}
 	}
-	return ref.Get(f).Message().Interface()
+	switch i.WhichTransport() {
+	case config.Transport_Normal_case:
+		return i.GetNormal()
+	case config.Transport_Tls_case:
+		return i.GetTls()
+	case config.Transport_Mux_case:
+		return i.GetMux()
+	case config.Transport_Http2_case:
+		return i.GetHttp2()
+	case config.Transport_Websocket_case:
+		return i.GetWebsocket()
+	case config.Transport_Reality_case:
+		return i.GetReality()
+	case config.Transport_TlsAuto_case:
+		return i.GetTlsAuto()
+	case config.Transport_HttpMock_case:
+		return i.GetHttpMock()
+	case config.Transport_Aead_case:
+		return i.GetAead()
+	case config.Transport_Proxy_case:
+		return i.GetProxy()
+	default:
+		return &config.Normal{}
+	}
 }
 
 func ParseCertificates(t *node.TlsServerConfig) []tls.Certificate {
@@ -173,65 +220,56 @@ func ParseTLS(t *node.TlsServerConfig) (*tls.Config, error) {
 }
 
 var (
-	networkStore   syncmap.SyncMap[protoreflect.FullName, func(proto.Message) (netapi.Listener, error)]
-	transportStore syncmap.SyncMap[protoreflect.FullName, func(proto.Message, netapi.Listener) (netapi.Listener, error)]
-	protocolStore  syncmap.SyncMap[protoreflect.FullName, func(proto.Message, netapi.Listener, netapi.Handler) (netapi.Accepter, error)]
+	networkStore   syncmap.SyncMap[reflect.Type, func(any) (netapi.Listener, error)]
+	transportStore syncmap.SyncMap[reflect.Type, func(any, netapi.Listener) (netapi.Listener, error)]
+	protocolStore  syncmap.SyncMap[reflect.Type, func(any, netapi.Listener, netapi.Handler) (netapi.Accepter, error)]
 )
 
 func init() {
 	RegisterNetwork(func(o *config.Empty) (netapi.Listener, error) { return nil, nil })
 }
 
-func RegisterNetwork[T proto.Message](wrap func(T) (netapi.Listener, error)) {
+func RegisterNetwork[T any](wrap func(T) (netapi.Listener, error)) {
 	if wrap == nil {
 		return
 	}
 
-	ttt := *new(T)
-	tt := ttt.ProtoReflect().Descriptor()
-
 	networkStore.Store(
-		tt.FullName(),
-		func(p proto.Message) (netapi.Listener, error) {
+		reflect.TypeOf((*T)(nil)).Elem(),
+		func(p any) (netapi.Listener, error) {
 			return wrap(p.(T))
 		},
 	)
 }
 
-func RegisterTransport[T proto.Message](wrap func(T, netapi.Listener) (netapi.Listener, error)) {
+func RegisterTransport[T any](wrap func(T, netapi.Listener) (netapi.Listener, error)) {
 	if wrap == nil {
 		return
 	}
 
-	ttt := *new(T)
-	tt := ttt.ProtoReflect().Descriptor()
-
 	transportStore.Store(
-		tt.FullName(),
-		func(p proto.Message, lis netapi.Listener) (netapi.Listener, error) {
+		reflect.TypeOf((*T)(nil)).Elem(),
+		func(p any, lis netapi.Listener) (netapi.Listener, error) {
 			return wrap(p.(T), lis)
 		},
 	)
 }
 
-func RegisterProtocol[T proto.Message](wrap func(T, netapi.Listener, netapi.Handler) (netapi.Accepter, error)) {
+func RegisterProtocol[T any](wrap func(T, netapi.Listener, netapi.Handler) (netapi.Accepter, error)) {
 	if wrap == nil {
 		return
 	}
 
-	ttt := *new(T)
-	tt := ttt.ProtoReflect().Descriptor()
-
 	protocolStore.Store(
-		tt.FullName(),
-		func(p proto.Message, lis netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+		reflect.TypeOf((*T)(nil)).Elem(),
+		func(p any, lis netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 			return wrap(p.(T), lis, handler)
 		},
 	)
 }
 
-func Network(config proto.Message) (netapi.Listener, error) {
-	nc, ok := networkStore.Load(config.ProtoReflect().Descriptor().FullName())
+func Network(config any) (netapi.Listener, error) {
+	nc, ok := networkStore.Load(reflect.TypeOf(config))
 	if !ok {
 		return nil, fmt.Errorf("network %v is not support", config)
 	}
@@ -244,7 +282,7 @@ func Transports(lis netapi.Listener, protocols []*config.Transport) (netapi.List
 	for _, protocol := range protocols {
 		v := GetTransportOneofValue(protocol)
 
-		fn, ok := transportStore.Load(v.ProtoReflect().Descriptor().FullName())
+		fn, ok := transportStore.Load(reflect.TypeOf(v))
 		if !ok {
 			return nil, fmt.Errorf("transport %v is not support", v)
 		}
@@ -258,8 +296,8 @@ func Transports(lis netapi.Listener, protocols []*config.Transport) (netapi.List
 	return lis, nil
 }
 
-func Protocols(lis netapi.Listener, config proto.Message, handler netapi.Handler) (netapi.Accepter, error) {
-	nc, ok := protocolStore.Load(config.ProtoReflect().Descriptor().FullName())
+func Protocols(lis netapi.Listener, config any, handler netapi.Handler) (netapi.Accepter, error) {
+	nc, ok := protocolStore.Load(reflect.TypeOf(config))
 	if !ok {
 		return nil, fmt.Errorf("protocol %v is not support", config)
 	}
