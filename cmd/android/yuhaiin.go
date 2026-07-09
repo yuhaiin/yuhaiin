@@ -2,7 +2,6 @@ package yuhaiin
 
 import (
 	"context"
-	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net"
@@ -17,13 +16,12 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app"
-	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	schemaapi "github.com/Asutorufa/yuhaiin/pkg/schema/api"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
 )
 
@@ -34,7 +32,7 @@ func SetSavePath(p string) {
 
 	ms := filepath.Join(p, "yuhaiin_memory_store.json")
 	legacyPreferenceStore = newMemoryStore(ms, true)
-	appStore = newSQLitePreferenceStore(tools.PathGenerator.State(p), legacyPreferenceStore)
+	appStore = newSQLitePreferenceStore(paths.PathGenerator.State(p), legacyPreferenceStore)
 }
 
 type App struct {
@@ -92,13 +90,12 @@ func (a *App) Start(opt *Opts) error {
 		return err
 	}
 
-	setting := newChoreDB()
+	setting := migrate.NewStateDB(paths.PathGenerator.State(savepath))
 
 	app, err := app.Start(&app.StartOptions{
 		ConfigPath:     savepath,
 		BypassConfig:   setting,
 		ResolverConfig: setting,
-		InboundConfig:  newInboundDB(setting, opt),
 		ChoreConfig:    setting,
 		BackupConfig:   setting,
 		ProcessDumper:  processDumper,
@@ -165,25 +162,30 @@ func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
 	defer ticker.Stop()
 
 	alreadyEmpty := false
-	var last *schemaapi.TotalFlow
+	var last *contractconnection.TotalFlow
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			flow, err := app.Connections.Total(ctx, &schemaapi.Empty{})
+			flow, err := app.Connections.Total(ctx)
 			if err != nil {
 				log.Error("get connections failed", "err", err)
 				continue
 			}
 
 			if last == nil {
-				last = flow
+				last = &flow
 				continue
 			}
 
-			dr := reduceUnit((flow.GetDownload() - last.GetDownload()) / 2)
-			ur := reduceUnit((flow.GetUpload() - last.GetUpload()) / 2)
+			downloadBytes := connectionFlowValue(flow.Download)
+			uploadBytes := connectionFlowValue(flow.Upload)
+			lastDownloadBytes := connectionFlowValue(last.Download)
+			lastUploadBytes := connectionFlowValue(last.Upload)
+
+			dr := reduceUnit((downloadBytes - lastDownloadBytes) / 2)
+			ur := reduceUnit((uploadBytes - lastUploadBytes) / 2)
 			if dr == emptyRate && ur == emptyRate {
 				if alreadyEmpty {
 					continue
@@ -193,11 +195,16 @@ func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
 				alreadyEmpty = false
 			}
 
-			download, upload := reduceUnit(flow.GetDownload()), reduceUnit(flow.GetUpload())
-			last = flow
+			download, upload := reduceUnit(downloadBytes), reduceUnit(uploadBytes)
+			last = &flow
 			opt.NotifySpped.Notify(flowString(download, upload, ur, dr))
 		}
 	}
+}
+
+func connectionFlowValue(v string) uint64 {
+	n, _ := strconv.ParseUint(v, 10, 64)
+	return n
 }
 
 func (a *App) Stop() error {
@@ -281,137 +288,18 @@ func applyRuntimeProfile() {
 	}
 }
 
-func applyInboundRuntimeSettings(store Store, server *config.InboundConfig) {
-	if server == nil {
-		return
-	}
-
-	server.SetHijackDns(store.GetBoolean(DnsHijacking))
-	server.SetHijackDnsFakeip(store.GetBoolean(DnsHijacking))
-
-	sniff := server.GetSniff()
-	if sniff == nil {
-		sniff = &config.Sniff{}
-	}
-	sniff.SetEnabled(store.GetBoolean(SniffKey))
-	server.SetSniff(sniff)
+func newResolverDB() app.SQLStore {
+	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
 }
 
-type androidInboundDB struct {
-	base  chore.DB
-	store Store
-	opt   *Opts
+func newBypassDB() app.SQLStore {
+	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
 }
 
-func newInboundDB(base chore.DB, opt *Opts) chore.DB {
-	return &androidInboundDB{
-		base:  base,
-		store: GetStore(),
-		opt:   opt,
-	}
+func newChoreDB() app.SQLStore {
+	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
 }
 
-func (a *androidInboundDB) View(f ...func(*config.Setting) error) error {
-	return a.base.View(func(s *config.Setting) error {
-		working := cloneSetting(s)
-		a.applyRuntimeOverlay(working.GetServer())
-
-		for _, fn := range f {
-			if err := fn(working); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-}
-
-func (a *androidInboundDB) Batch(f ...func(*config.Setting) error) error {
-	return a.base.Batch(func(s *config.Setting) error {
-		working := cloneSetting(s)
-		a.applyRuntimeOverlay(working.GetServer())
-
-		for _, fn := range f {
-			if err := fn(working); err != nil {
-				return err
-			}
-		}
-
-		s.GetServer().SetHijackDns(working.GetServer().GetHijackDns())
-		s.GetServer().SetHijackDnsFakeip(working.GetServer().GetHijackDnsFakeip())
-		s.GetServer().SetSniff(working.GetServer().GetSniff())
-		return nil
-	})
-}
-
-func cloneSetting(src *config.Setting) *config.Setting {
-	if src == nil {
-		return nil
-	}
-	dst := &config.Setting{}
-	if data, err := json.Marshal(src); err == nil {
-		if err := json.Unmarshal(data, dst); err == nil {
-			return dst
-		}
-	}
-	return src
-}
-
-func (a *androidInboundDB) Dir() string { return a.base.Dir() }
-
-func (a *androidInboundDB) applyRuntimeOverlay(server *config.InboundConfig) {
-	if server == nil {
-		return
-	}
-
-	store := a.store
-	var listenHost string = "127.0.0.1"
-	if store.GetBoolean(AllowLanKey) {
-		listenHost = "0.0.0.0"
-	}
-
-	inbounds := map[string]*config.Inbound{
-		"mix": config.Inbound_builder{
-			Name:    new("mix"),
-			Enabled: new(store.GetInt(NewHTTPPortKey) != 0),
-			Tcpudp: config.Tcpudp_builder{
-				Host:    new(net.JoinHostPort(listenHost, fmt.Sprint(store.GetInt(NewHTTPPortKey)))),
-				Control: config.TcpUdpControl_tcp_udp_control_all.Enum(),
-			}.Build(),
-			Mix: &config.Mixed{},
-		}.Build(),
-		"tun": config.Inbound_builder{
-			Name:    new("tun"),
-			Enabled: new(true),
-			Empty:   &config.Empty{},
-			Tun: config.Tun_builder{
-				Name:          new(fmt.Sprintf("fd://%d", a.opt.TUN.FD)),
-				Mtu:           new(a.opt.TUN.MTU),
-				Portal:        new(a.opt.TUN.Portal),
-				PortalV6:      new(a.opt.TUN.PortalV6),
-				SkipMulticast: new(true),
-				Route:         &config.Route{},
-				Driver:        config.TunEndpointDriver(config.TunEndpointDriver_value[store.GetString(AdvTunDriverKey)]).Enum(),
-			}.Build(),
-		}.Build(),
-	}
-
-	server.SetInbounds(inbounds)
-	applyInboundRuntimeSettings(store, server)
-}
-
-func newResolverDB() chore.DB {
-	return chore.NewSqliteDB(tools.PathGenerator.State(savepath))
-}
-
-func newBypassDB() chore.DB {
-	return chore.NewSqliteDB(tools.PathGenerator.State(savepath))
-}
-
-func newChoreDB() chore.DB {
-	return chore.NewSqliteDB(tools.PathGenerator.State(savepath))
-}
-
-func newBackupDB() chore.DB {
-	return chore.NewSqliteDB(tools.PathGenerator.State(savepath))
+func newBackupDB() app.SQLStore {
+	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
 }

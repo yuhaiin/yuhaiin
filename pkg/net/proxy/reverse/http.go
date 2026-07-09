@@ -17,25 +17,20 @@ import (
 	ptls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	sniffhttp "github.com/Asutorufa/yuhaiin/pkg/net/sniff/http"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
-func init() {
-	register.RegisterProtocol(NewHTTPServer)
+type HTTPServerConfig struct {
+	URL string         `json:"url"`
+	TLS ptls.TLSConfig `json:"tls,omitzero"`
 }
 
-func NewHTTPServer(o *config.ReverseHttp, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-	uri, err := url.Parse(o.GetUrl())
+func NewHTTPServer(o HTTPServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+	uri, err := url.Parse(o.URL)
 	if err != nil {
 		return nil, err
 	}
 
-	if o.GetTls() != nil {
-		o.GetTls().SetEnable(true)
-	}
-
-	tlsConfig := ptls.ParseTLSConfig(o.GetTls())
+	tlsConfig := ptls.ParseTLSConfig(o.TLS)
 
 	httpch := netapi.NewChannelStreamListener(ii.Addr())
 	go func() {
@@ -134,7 +129,7 @@ func NewHTTPServer(o *config.ReverseHttp, ii netapi.Listener, handler netapi.Han
 
 	go func() {
 		if err := http.Serve(httpch, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Debug("reverse http serve", "host", r.Host, "method", r.Method, "path", r.URL.Path, "target", o.GetUrl())
+			log.Debug("reverse http serve", "host", r.Host, "method", r.Method, "path", r.URL.Path, "target", o.URL)
 
 			r = r.WithContext(context.WithValue(r.Context(), remoteKey{}, r.RemoteAddr))
 			rp.ServeHTTP(w, r)

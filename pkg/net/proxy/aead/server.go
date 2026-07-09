@@ -7,21 +7,15 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
-
-func init() {
-	register.RegisterTransport(NewServer)
-}
 
 type Server struct {
 	netapi.Listener
 	crypto *encryptedHandshaker
 }
 
-func NewServer(cfg *config.Aead, ii netapi.Listener) (netapi.Listener, error) {
-	crypto := NewHandshaker(true, []byte(cfg.GetPassword()), cfg.GetCryptoMethod())
+func NewServer(cfg Config, ii netapi.Listener) (netapi.Listener, error) {
+	crypto := NewHandshaker(true, []byte(cfg.Password), cfg.CryptoMethod)
 
 	return &Server{
 		crypto:   crypto,

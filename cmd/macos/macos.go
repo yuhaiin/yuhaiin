@@ -4,8 +4,8 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app"
-	"github.com/Asutorufa/yuhaiin/pkg/chore"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/migrate"
+	"github.com/Asutorufa/yuhaiin/pkg/paths"
 )
 
 type Closer interface {
@@ -28,13 +28,12 @@ type TUN struct {
 var App atomic.Pointer[app.AppInstance]
 
 func Start(opt *Opts) error {
-	setting := chore.NewSqliteDB(tools.PathGenerator.State(opt.Savepath))
+	setting := migrate.NewStateDB(paths.PathGenerator.State(opt.Savepath))
 
 	app, err := app.Start(&app.StartOptions{
 		ConfigPath:     opt.Savepath,
 		BypassConfig:   setting,
 		ResolverConfig: setting,
-		InboundConfig:  fakeDB(opt, tools.PathGenerator.State(opt.Savepath)),
 		ChoreConfig:    setting,
 	})
 	if err != nil {

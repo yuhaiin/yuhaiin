@@ -6,13 +6,13 @@ import (
 	"net"
 	"strings"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 // Shadowsocks shadowsocks
@@ -22,11 +22,21 @@ type Shadowsocks struct {
 }
 
 func init() {
-	register.RegisterPoint(NewClient)
+	register.RegisterContractPoint("shadowsocks", func(config contractnode.Shadowsocks, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{
+			Method:   config.Method,
+			Password: config.Password,
+		}, p)
+	})
 }
 
-func NewClient(c *node.Shadowsocks, p netapi.Proxy) (netapi.Proxy, error) {
-	cipher, err := core.PickCipher(strings.ToUpper(c.GetMethod()), nil, c.GetPassword())
+type Config struct {
+	Method   string `json:"method"`
+	Password string `json:"password"`
+}
+
+func NewClient(c Config, p netapi.Proxy) (netapi.Proxy, error) {
+	cipher, err := core.PickCipher(strings.ToUpper(c.Method), nil, c.Password)
 	if err != nil {
 		return nil, err
 	}

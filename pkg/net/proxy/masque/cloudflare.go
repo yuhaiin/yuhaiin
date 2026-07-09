@@ -14,10 +14,10 @@ import (
 	"net/netip"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/quic-go/quic-go/http3"
 )
 
@@ -116,18 +116,34 @@ func GenerateCert(privKey *ecdsa.PrivateKey, pubKey *ecdsa.PublicKey) ([][]byte,
 }
 
 func init() {
-	register.RegisterPoint(NewCloudflareWarpMasque)
+	register.RegisterContractPoint("cloudflare_warp_masque", func(config contractnode.CloudflareWarpMasque, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewCloudflareWarpMasque(Config{
+			PrivateKey:        config.PrivateKey,
+			Endpoint:          config.Endpoint,
+			EndpointPublicKey: config.EndpointPublicKey,
+			LocalAddresses:    config.LocalAddresses,
+			MTU:               config.MTU,
+		}, p)
+	})
 }
 
-func NewCloudflareWarpMasque(o *node.CloudflareWarpMasque, p netapi.Proxy) (netapi.Proxy, error) {
-	localAddresses, err := wireguard.ParseEndpoints(o.GetLocalAddresses())
+type Config struct {
+	PrivateKey        string   `json:"private_key"`
+	Endpoint          string   `json:"endpoint"`
+	EndpointPublicKey string   `json:"endpoint_public_key"`
+	LocalAddresses    []string `json:"local_addresses,omitzero"`
+	MTU               int32    `json:"mtu,omitzero"`
+}
+
+func NewCloudflareWarpMasque(o Config, p netapi.Proxy) (netapi.Proxy, error) {
+	localAddresses, err := wireguard.ParseEndpoints(o.LocalAddresses)
 	if err != nil {
 		return nil, err
 	}
 
-	udpAddr, err := netip.ParseAddrPort(o.GetEndpoint())
+	udpAddr, err := netip.ParseAddrPort(o.Endpoint)
 	if err != nil {
-		addr, er := netip.ParseAddr(o.GetEndpoint())
+		addr, er := netip.ParseAddr(o.Endpoint)
 		if er != nil {
 			return nil, fmt.Errorf("failed to parse endpoint: %v", err)
 		}
@@ -135,7 +151,7 @@ func NewCloudflareWarpMasque(o *node.CloudflareWarpMasque, p netapi.Proxy) (neta
 		udpAddr = netip.AddrPortFrom(addr, 443)
 	}
 
-	privKeyB64, err := base64.StdEncoding.DecodeString(o.GetPrivateKey())
+	privKeyB64, err := base64.StdEncoding.DecodeString(o.PrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode private key: %v", err)
 	}
@@ -145,7 +161,7 @@ func NewCloudflareWarpMasque(o *node.CloudflareWarpMasque, p netapi.Proxy) (neta
 		return nil, fmt.Errorf("failed to parse private key: %v", err)
 	}
 
-	endpointPubKeyB64, _ := pem.Decode([]byte(o.GetEndpointPublicKey()))
+	endpointPubKeyB64, _ := pem.Decode([]byte(o.EndpointPublicKey))
 	if endpointPubKeyB64 == nil {
 		return nil, fmt.Errorf("failed to decode endpoint public key")
 	}
@@ -170,9 +186,9 @@ func NewCloudflareWarpMasque(o *node.CloudflareWarpMasque, p netapi.Proxy) (neta
 		return nil, fmt.Errorf("failed to prepare tls config: %v", err)
 	}
 
-	if o.GetMtu() == 0 {
-		o.SetMtu(1280)
+	if o.MTU == 0 {
+		o.MTU = 1280
 	}
 
-	return NewMasque(p, tlsConfig, net.UDPAddrFromAddrPort(udpAddr), localAddresses, int(o.GetMtu()))
+	return NewMasque(p, tlsConfig, net.UDPAddrFromAddrPort(udpAddr), localAddresses, int(o.MTU))
 }

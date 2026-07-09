@@ -10,10 +10,9 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	schemaapi "github.com/Asutorufa/yuhaiin/pkg/schema/api"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/statistic"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
@@ -47,9 +46,9 @@ func newSQLiteInfoStore(db *sql.DB) *sqliteInfoStore {
 	return &sqliteInfoStore{db: db}
 }
 
-func (s *sqliteInfoStore) Load(id uint64) (*statistic.Connection, bool) {
+func (s *sqliteInfoStore) Load(id uint64) (contractconnection.Connection, bool) {
 	if s.db == nil {
-		return nil, false
+		return contractconnection.Connection{}, false
 	}
 
 	ctx := context.Background()
@@ -63,18 +62,18 @@ func (s *sqliteInfoStore) Load(id uint64) (*statistic.Connection, bool) {
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Warn("load sqlite connection session failed", "id", id, "err", err)
 		}
-		return nil, false
+		return contractconnection.Connection{}, false
 	}
 
-	info := &statistic.Connection{}
-	if err := decodeStatisticJSON(data, info); err != nil {
+	var info contractconnection.Connection
+	if err := decodeStatisticJSON(data, &info); err != nil {
 		log.Warn("decode sqlite connection session failed", "id", id, "err", err)
-		return nil, false
+		return contractconnection.Connection{}, false
 	}
 	return info, true
 }
 
-func (s *sqliteInfoStore) Store(id uint64, info *statistic.Connection) {
+func (s *sqliteInfoStore) Store(id uint64, info contractconnection.Connection) {
 	if s.db == nil {
 		return
 	}
@@ -105,9 +104,9 @@ func (s *sqliteInfoStore) Store(id uint64, info *statistic.Connection) {
 			destination = excluded.destination,
 			host = excluded.host,
 			summary_json = excluded.summary_json
-	`, id, now, now, int(info.GetType().GetConnType()), info.GetProcess(), info.GetInbound(),
-		info.GetInboundName(), info.GetOutbound(), info.GetType().GetConnType().String(),
-		info.GetDestionation(), info.GetAddr(), data); err != nil {
+	`, id, now, now, info.Network.ConnType, info.Process, info.Inbound,
+		info.InboundName, info.Outbound, info.Network.ConnType,
+		info.Destination, info.Addr, data); err != nil {
 		log.Warn("store sqlite connection session failed", "id", id, "err", err)
 	}
 }
@@ -153,7 +152,7 @@ func newSQLiteHistoryWithClose(db *sql.DB, closeDB func() error) *SQLiteHistory 
 	return &SQLiteHistory{db: db, closeDB: closeDB}
 }
 
-func (h *SQLiteHistory) Push(c *statistic.Connection) {
+func (h *SQLiteHistory) Push(c contractconnection.Connection) {
 	if h.db == nil {
 		return
 	}
@@ -173,14 +172,14 @@ func (h *SQLiteHistory) Push(c *statistic.Connection) {
 			hit_count = hit_count + 1,
 			last_seen_at = excluded.last_seen_at,
 			last_connection_json = excluded.last_connection_json
-	`, int(c.GetType().GetConnType()), c.GetAddr(), c.GetProcess(), now, data); err != nil {
+	`, c.Network.ConnType, c.Addr, c.Process, now, data); err != nil {
 		log.Warn("store sqlite history failed", "err", err)
 	}
 }
 
-func (h *SQLiteHistory) Get() *schemaapi.AllHistoryList {
+func (h *SQLiteHistory) Get() contractconnection.AllHistoryList {
 	if h.db == nil {
-		return &schemaapi.AllHistoryList{}
+		return contractconnection.AllHistoryList{}
 	}
 
 	ctx := context.Background()
@@ -192,11 +191,11 @@ func (h *SQLiteHistory) Get() *schemaapi.AllHistoryList {
 	`, configuration.HistorySize)
 	if err != nil {
 		log.Warn("query sqlite history failed", "err", err)
-		return &schemaapi.AllHistoryList{}
+		return contractconnection.AllHistoryList{}
 	}
 	defer rows.Close()
 
-	var objects []*schemaapi.AllHistory
+	var objects []contractconnection.AllHistory
 	dumpProcess := false
 	for rows.Next() {
 		var count uint64
@@ -207,23 +206,23 @@ func (h *SQLiteHistory) Get() *schemaapi.AllHistoryList {
 			continue
 		}
 
-		info := &statistic.Connection{}
-		if err := decodeStatisticJSON(data, info); err != nil {
+		var info contractconnection.Connection
+		if err := decodeStatisticJSON(data, &info); err != nil {
 			log.Warn("decode sqlite history failed", "err", err)
 			continue
 		}
-		if !dumpProcess && info.GetProcess() != "" {
+		if !dumpProcess && info.Process != "" {
 			dumpProcess = true
 		}
-		objects = append(objects, &schemaapi.AllHistory{
-			Count:      count,
+		objects = append(objects, contractconnection.AllHistory{
+			Count:      formatUint64(count),
 			Time:       time.Unix(lastSeen, 0),
 			Connection: info,
 		})
 	}
 
-	return &schemaapi.AllHistoryList{
-		Objects:            objects,
+	return contractconnection.AllHistoryList{
+		Items:              objects,
 		DumpProcessEnabled: dumpProcess,
 	}
 }
@@ -254,7 +253,7 @@ func newSQLiteFailedHistory(db *sql.DB) *SQLiteFailedHistory {
 	return &SQLiteFailedHistory{db: db}
 }
 
-func (h *SQLiteFailedHistory) Push(ctx context.Context, err error, protocol statistic.Type, host netapi.Address) {
+func (h *SQLiteFailedHistory) Push(ctx context.Context, err error, protocol string, host netapi.Address) {
 	if err == nil || netapi.IsBlockError(err) {
 		return
 	}
@@ -281,14 +280,14 @@ func (h *SQLiteFailedHistory) Push(ctx context.Context, err error, protocol stat
 			failed_count = failed_count + 1,
 			last_seen_at = excluded.last_seen_at,
 			last_error = excluded.last_error
-	`, int(protocol), getRealAddr(storeContext, host), storeContext.GetProcessName(), now, err.Error()); execErr != nil {
+	`, protocol, getRealAddr(storeContext, host), storeContext.GetProcessName(), now, err.Error()); execErr != nil {
 		log.Warn("store sqlite failed history failed", "err", execErr)
 	}
 }
 
-func (h *SQLiteFailedHistory) Get() *schemaapi.FailedHistoryList {
+func (h *SQLiteFailedHistory) Get() contractconnection.FailedHistoryList {
 	if h.db == nil {
-		return &schemaapi.FailedHistoryList{}
+		return contractconnection.FailedHistoryList{}
 	}
 
 	ctx := context.Background()
@@ -300,14 +299,14 @@ func (h *SQLiteFailedHistory) Get() *schemaapi.FailedHistoryList {
 	`, configuration.HistorySize)
 	if err != nil {
 		log.Warn("query sqlite failed history failed", "err", err)
-		return &schemaapi.FailedHistoryList{}
+		return contractconnection.FailedHistoryList{}
 	}
 	defer rows.Close()
 
-	var objects []*schemaapi.FailedHistory
+	var objects []contractconnection.FailedHistory
 	dumpProcess := false
 	for rows.Next() {
-		var protocol int
+		var protocol string
 		var host, process, lastError string
 		var failedCount uint64
 		var lastSeen int64
@@ -319,18 +318,18 @@ func (h *SQLiteFailedHistory) Get() *schemaapi.FailedHistoryList {
 		if !dumpProcess && process != "" {
 			dumpProcess = true
 		}
-		objects = append(objects, &schemaapi.FailedHistory{
-			Protocol:    statistic.Type(protocol),
+		objects = append(objects, contractconnection.FailedHistory{
+			Protocol:    protocol,
 			Host:        host,
 			Error:       lastError,
 			Process:     process,
 			Time:        time.Unix(lastSeen, 0),
-			FailedCount: failedCount,
+			FailedCount: formatUint64(failedCount),
 		})
 	}
 
-	return &schemaapi.FailedHistoryList{
-		Objects:            objects,
+	return contractconnection.FailedHistoryList{
+		Items:              objects,
 		DumpProcessEnabled: dumpProcess,
 	}
 }

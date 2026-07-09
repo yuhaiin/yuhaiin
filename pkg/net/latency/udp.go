@@ -6,14 +6,13 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
 var timeout = 10 * time.Second
 
 func DNS(p netapi.Proxy, host, target string) (time.Duration, error) {
 	d, err := resolver.New(resolver.Config{
-		Type:   config.Type_udp,
+		Type:   "udp",
 		Host:   host,
 		Dialer: p,
 	})
@@ -38,7 +37,7 @@ func DNS(p netapi.Proxy, host, target string) (time.Duration, error) {
 func DNSOverQuic(p netapi.Proxy, host, target string) (time.Duration, error) {
 	d, err := resolver.New(
 		resolver.Config{
-			Type:   config.Type_doq,
+			Type:   "doq",
 			Host:   host,
 			Dialer: p,
 		},

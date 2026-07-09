@@ -16,21 +16,18 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 func init() {
-	register.RegisterProtocol(NewTun)
 	relay.RegisterIgnoreNetOpErrString((&tcpip.ErrConnectionAborted{}).String())
 	relay.RegisterIgnoreNetOpErrString((&tcpip.ErrAborted{}).String())
 }
 
-func NewTun(o *config.Tun, l netapi.Listener, handler netapi.Handler) (s netapi.Accepter, err error) {
-	v4address, v4err := toPrefix(o.GetPortal(), true)
-	v6address, v6err := toPrefix(o.GetPortalV6(), true)
+func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s netapi.Accepter, err error) {
+	v4address, v4err := toPrefix(o.Portal, true)
+	v6address, v6err := toPrefix(o.PortalV6, true)
 	if v4err != nil && v6err != nil {
 		return nil, errors.Join(v4err, v6err)
 	}
@@ -44,10 +41,10 @@ func NewTun(o *config.Tun, l netapi.Listener, handler netapi.Handler) (s netapi.
 	//   broadcast address: 172.19.0.255
 	//	 subnet: 172.19.0.1 - 172.19.0.254
 	if v4address.Bits() >= 31 || v6address.Bits() >= 127 {
-		return nil, fmt.Errorf("invalid address: ipv6: %v, ipv4: %v, the sub network must be smaller than ipv4(31) and ipv6(127)", o.GetPortal(), o.GetPortalV6())
+		return nil, fmt.Errorf("invalid address: ipv6: %v, ipv4: %v, the sub network must be smaller than ipv4(31) and ipv6(127)", o.Portal, o.PortalV6)
 	}
 
-	sc, err := netlink.ParseTunScheme(o.GetName())
+	sc, err := netlink.ParseTunScheme(o.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -58,11 +55,11 @@ func NewTun(o *config.Tun, l netapi.Listener, handler netapi.Handler) (s netapi.
 		Tun: o,
 		Options: &netlink.Options{
 			Interface: sc,
-			MTU:       int(o.GetMtu()),
-			Routes:    toRoutes(o.GetRoute()),
+			MTU:       int(o.MTU),
+			Routes:    toRoutes(o.Routes),
 			Platform: netlink.Platform{
 				Darwin: netlink.Darwin{
-					NetworkService: o.GetPlatform().GetDarwin().GetNetworkService(),
+					NetworkService: o.Platform.Darwin.NetworkService,
 				},
 			},
 		},
@@ -77,15 +74,15 @@ func NewTun(o *config.Tun, l netapi.Listener, handler netapi.Handler) (s netapi.
 		opt.Inet6Address = []netip.Prefix{v6address}
 	}
 
-	if o.GetDriver() == config.Tun_system_gvisor {
+	if o.Driver == device.DriverSystemGvisor {
 		return tun2socket.New(opt)
 	} else {
 		return gvisor.New(opt)
 	}
 }
 
-func toRoutes(r *config.Route) []netip.Prefix {
-	if r == nil {
+func toRoutes(routes []string) []netip.Prefix {
+	if routes == nil {
 		return nil
 	}
 
@@ -97,7 +94,7 @@ func toRoutes(r *config.Route) []netip.Prefix {
 		}
 	}
 
-	for _, v := range r.GetRoutes() {
+	for _, v := range routes {
 		switch {
 		case strings.HasPrefix(v, "file:"):
 			if remain := strings.TrimPrefix(v, "file:"); remain != "" {

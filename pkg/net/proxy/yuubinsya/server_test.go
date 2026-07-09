@@ -15,8 +15,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
 )
@@ -27,9 +25,9 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err)
 		defer lis.Close()
 
-		a, err := NewServer(config.Yuubinsya_builder{
-			Password: new("aaaa"),
-		}.Build(), netapi.NewListener(lis, &mockPacket{}), mockHandler(func(req *netapi.StreamMeta) {
+		a, err := NewServer(ServerConfig{
+			Password: "aaaa",
+		}, netapi.NewListener(lis, &mockPacket{}), mockHandler(func(req *netapi.StreamMeta) {
 			defer req.Src.Close()
 
 			data := make([]byte, 4096)
@@ -48,15 +46,10 @@ func TestServer(t *testing.T) {
 		port, err := strconv.ParseUint(portstr, 10, 16)
 		assert.NoError(t, err)
 
-		s, err := fixed.NewClient(node.Fixed_builder{
-			Host: new(host),
-			Port: new(int32(port)),
-		}.Build(), nil)
+		s, err := fixed.NewClient(fixed.Config{Host: host, Port: int32(port)}, nil)
 		assert.NoError(t, err)
 
-		c, err := NewClient(node.Yuubinsya_builder{
-			Password: new("aaaa"),
-		}.Build(), s)
+		c, err := NewClient(Config{Password: "aaaa"}, s)
 		assert.NoError(t, err)
 
 		cx, err := c.Conn(t.Context(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 443))
@@ -85,9 +78,9 @@ func TestServer(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 
-			a, err := NewServer(config.Yuubinsya_builder{
-				Password: new("aaaa"),
-			}.Build(), netapi.NewListener(lis, &mockPacket{}), mockHandler(func(req *netapi.StreamMeta) {
+			a, err := NewServer(ServerConfig{
+				Password: "aaaa",
+			}, netapi.NewListener(lis, &mockPacket{}), mockHandler(func(req *netapi.StreamMeta) {
 				ch <- req
 
 				<-ctx.Done()
@@ -100,15 +93,10 @@ func TestServer(t *testing.T) {
 			port, err := strconv.ParseUint(portstr, 10, 16)
 			assert.NoError(t, err)
 
-			s, err := fixed.NewClient(node.Fixed_builder{
-				Host: new(host),
-				Port: new(int32(port)),
-			}.Build(), nil)
+			s, err := fixed.NewClient(fixed.Config{Host: host, Port: int32(port)}, nil)
 			assert.NoError(t, err)
 
-			c, err := NewClient(node.Yuubinsya_builder{
-				Password: new("aaaa"),
-			}.Build(), s)
+			c, err := NewClient(Config{Password: "aaaa"}, s)
 			assert.NoError(t, err)
 
 			cx, err := c.Conn(t.Context(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 443))
@@ -136,9 +124,9 @@ func TestServer(t *testing.T) {
 		ch := make(chan *netapi.StreamMeta, 1)
 		defer close(ch)
 
-		a, err := NewServer(config.Yuubinsya_builder{
-			Password: new("aaaa"),
-		}.Build(), netapi.NewListener(lis, &mockPacket{}), mockHandlerPacket(func(req *netapi.Packet) {
+		a, err := NewServer(ServerConfig{
+			Password: "aaaa",
+		}, netapi.NewListener(lis, &mockPacket{}), mockHandlerPacket(func(req *netapi.Packet) {
 			_, err = req.WriteBack(req.GetPayload(), req.Dst())
 			assert.NoError(t, err)
 		}))
@@ -151,16 +139,10 @@ func TestServer(t *testing.T) {
 		port, err := strconv.ParseUint(portstr, 10, 16)
 		assert.NoError(t, err)
 
-		s, err := fixed.NewClient(node.Fixed_builder{
-			Host: new(host),
-			Port: new(int32(port)),
-		}.Build(), nil)
+		s, err := fixed.NewClient(fixed.Config{Host: host, Port: int32(port)}, nil)
 		assert.NoError(t, err)
 
-		c, err := NewClient(node.Yuubinsya_builder{
-			Password:      new("aaaa"),
-			UdpOverStream: new(true),
-		}.Build(), s)
+		c, err := NewClient(Config{Password: "aaaa", UDPOverStream: true}, s)
 		assert.NoError(t, err)
 
 		_, err = c.PacketConn(context.Background(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 443))
@@ -204,9 +186,9 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err)
 		defer lis.Close()
 
-		a, err := NewServer(config.Yuubinsya_builder{
-			Password: new("aaaa"),
-		}.Build(), netapi.NewListener(lis, &mockPacket{}), mockHandler(func(req *netapi.StreamMeta) {
+		a, err := NewServer(ServerConfig{
+			Password: "aaaa",
+		}, netapi.NewListener(lis, &mockPacket{}), mockHandler(func(req *netapi.StreamMeta) {
 			defer req.Src.Close()
 
 			data := make([]byte, 4096)
@@ -225,15 +207,10 @@ func TestServer(t *testing.T) {
 		port, err := strconv.ParseUint(portstr, 10, 16)
 		assert.NoError(t, err)
 
-		s, err := fixed.NewClient(node.Fixed_builder{
-			Host: new(host),
-			Port: new(int32(port)),
-		}.Build(), nil)
+		s, err := fixed.NewClient(fixed.Config{Host: host, Port: int32(port)}, nil)
 		assert.NoError(t, err)
 
-		c, err := NewClient(node.Yuubinsya_builder{
-			Password: new("aaaa"),
-		}.Build(), s)
+		c, err := NewClient(Config{Password: "aaaa"}, s)
 		assert.NoError(t, err)
 		defer c.Close()
 

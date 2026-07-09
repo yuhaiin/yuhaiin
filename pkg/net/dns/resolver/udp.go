@@ -15,13 +15,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/miekg/dns"
 )
 
 func init() {
-	Register(config.Type_udp, NewDoU)
+	Register("udp", NewDoU)
 }
 
 func udpCacheKey(id uint16, question dns.Question) string {

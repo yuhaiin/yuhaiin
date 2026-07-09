@@ -15,12 +15,12 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/app"
-	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/paths"
 )
 
 func run(args []string) error {
@@ -44,7 +44,7 @@ func run(args []string) error {
 		return err
 	}
 
-	setting := chore.NewSqliteDB(tools.PathGenerator.State(*path))
+	setting := migrate.NewStateDB(paths.PathGenerator.State(*path))
 
 	var auth *app.Auth
 	if *username != "" || *password != "" {

@@ -3,9 +3,9 @@ package app
 import (
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 )
 
 func TestCalculateBytesHash(t *testing.T) {
-	t.Log(calculateBytesHash([]byte("state"), &config.S3{}))
+	t.Log(calculateBytesHash([]byte("state"), contractbackup.S3{}))
 }

@@ -7,8 +7,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
 )
@@ -24,17 +22,14 @@ func TestProxy(t *testing.T) {
 	port, err := strconv.ParseUint(portstr, 10, 16)
 	assert.NoError(t, err)
 
-	p, err := fixed.NewClient(node.Fixed_builder{
-		Host: new("127.0.0.1"),
-		Port: new(int32(port)),
-	}.Build(), nil)
+	p, err := fixed.NewClient(fixed.Config{Host: "127.0.0.1", Port: int32(port)}, nil)
 	assert.NoError(t, err)
 
-	p, err = NewClient(&node.Proxy{}, p)
+	p, err = NewClient(Config{}, p)
 	assert.NoError(t, err)
 	defer p.Close()
 
-	s, err := NewServer(&config.Proxy{}, netapi.NewListener(lis, nil))
+	s, err := NewServer(ServerConfig{}, netapi.NewListener(lis, nil))
 	assert.NoError(t, err)
 
 	ch := make(chan net.Conn, 1)

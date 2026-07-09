@@ -12,6 +12,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/fakeip"
@@ -19,7 +20,6 @@ import (
 	dnssystem "github.com/Asutorufa/yuhaiin/pkg/net/dns/system"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/miekg/dns"
 )
@@ -45,12 +45,12 @@ type Fakedns struct {
 	enabled atomic.Bool
 }
 
-func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, dbPath string, legacy cache.Cache, initial ...*config.FakednsConfig) (*Fakedns, error) {
+func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, dbPath string, legacy cache.Cache, initial ...contractresolver.FakeDNS) (*Fakedns, error) {
 	ipv4Range, _ := netip.ParsePrefix("10.2.0.1/24")
 	ipv6Range, _ := netip.ParsePrefix("fc00::/64")
-	if len(initial) > 0 && initial[0] != nil {
-		ipv4Range = configuration.GetFakeIPRange(initial[0].GetIpv4Range(), false)
-		ipv6Range = configuration.GetFakeIPRange(initial[0].GetIpv6Range(), true)
+	if len(initial) > 0 {
+		ipv4Range = configuration.GetFakeIPRange(initial[0].IPv4Range, false)
+		ipv6Range = configuration.GetFakeIPRange(initial[0].IPv6Range, true)
 	}
 
 	fake, err := fakeip.NewFakeDNS(upstream, ipv4Range, ipv6Range, dbPath, legacy)
@@ -72,25 +72,25 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, dbPath string, le
 	return f, nil
 }
 
-func (f *Fakedns) Apply(c *config.FakednsConfig) {
+func (f *Fakedns) Apply(c contractresolver.FakeDNS) {
 	defer dnssystem.RefreshCache()
 
-	f.enabled.Store(c.GetEnabled())
+	f.enabled.Store(c.Enabled)
 
-	if !slices.Equal(c.GetSkipCheckList(), f.skipCheckSlice) {
+	if !slices.Equal(c.SkipCheckList, f.skipCheckSlice) {
 		d := domain.NewTrie[struct{}]()
 
-		for _, v := range c.GetSkipCheckList() {
+		for _, v := range c.SkipCheckList {
 			d.Insert(v, struct{}{})
 		}
 		f.skipCheck = d
-		f.skipCheckSlice = c.GetSkipCheckList()
+		f.skipCheckSlice = c.SkipCheckList
 	}
 
-	if !slices.Equal(c.GetWhitelist(), f.whitelistSlice) {
+	if !slices.Equal(c.Whitelist, f.whitelistSlice) {
 		d := domain.NewTrie[struct{}]()
 
-		for _, v := range c.GetWhitelist() {
+		for _, v := range c.Whitelist {
 			d.Insert(v, struct{}{})
 		}
 
@@ -101,11 +101,11 @@ func (f *Fakedns) Apply(c *config.FakednsConfig) {
 		// d.Insert("login.tailscale.com", struct{}{})
 
 		f.whitelist = d
-		f.whitelistSlice = c.GetWhitelist()
+		f.whitelistSlice = c.Whitelist
 	}
 
-	ipRange := configuration.GetFakeIPRange(c.GetIpv4Range(), false)
-	ipv6Range := configuration.GetFakeIPRange(c.GetIpv6Range(), true)
+	ipRange := configuration.GetFakeIPRange(c.IPv4Range, false)
+	ipv6Range := configuration.GetFakeIPRange(c.IPv6Range, true)
 
 	if f.fake.Equal(ipRange, ipv6Range) {
 		return
@@ -223,7 +223,7 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 
 	if configuration.FakeIPEnabled.Load() {
 		// block fakeip range to prevent infinite loop which taget ip is not found in fakeip cache
-		store.ConnOptions().SetRouteMode(config.Mode_block)
+		store.ConnOptions().SetRouteMode("block")
 	}
 
 	return addr

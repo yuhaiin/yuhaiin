@@ -63,12 +63,11 @@ func (t *tunServer) Close() error {
 }
 
 func New(o *device.Opt) (*tunServer, error) {
-	opt := o.Tun
-	if opt.GetMtu() <= 0 {
-		opt.SetMtu(1500)
+	if o.Tun.MTU <= 0 {
+		o.Tun.MTU = 1500
 	}
 
-	ep, err := Open(o.Interface, opt.GetDriver(), int(opt.GetMtu()))
+	ep, err := Open(o.Interface, o.Tun.Driver, int(o.Tun.MTU))
 	if err != nil {
 		return nil, fmt.Errorf("open tun failed: %w", err)
 	}
@@ -97,7 +96,7 @@ func New(o *device.Opt) (*tunServer, error) {
 		return nil, fmt.Errorf("create nic failed: %v", er)
 	}
 
-	log.Info("new tun stack", "name", opt.GetName(), "mtu", opt.GetMtu(), "portal", opt.GetPortal(), "nicID", nicID, "driver", opt.GetDriver())
+	log.Info("new tun stack", "name", o.Tun.Name, "mtu", o.Tun.MTU, "portal", o.Tun.Portal, "nicID", nicID, "driver", o.Tun.Driver)
 
 	o.UnsetRoute, err = netlink.Route(o.Options)
 	if err != nil {

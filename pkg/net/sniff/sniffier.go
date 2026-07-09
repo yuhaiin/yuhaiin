@@ -11,23 +11,22 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniff/http"
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniff/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
-type entry[T any] struct {
+type entry struct {
 	checker func(*netapi.Context, []byte) bool
 	name    string
 	enabled bool
 }
 
-type Sniffier[T any] struct {
-	streamChecker []entry[T]
-	packetChecker []entry[T]
+type Sniffier struct {
+	streamChecker []entry
+	packetChecker []entry
 }
 
-func New() *Sniffier[config.Mode] {
-	return &Sniffier[config.Mode]{
-		streamChecker: []entry[config.Mode]{
+func New() *Sniffier {
+	return &Sniffier{
+		streamChecker: []entry{
 			{
 				enabled: true,
 				name:    "tls",
@@ -59,7 +58,7 @@ func New() *Sniffier[config.Mode] {
 					_, err := bittorrent.SniffBittorrent(b)
 					if err == nil {
 						ctx.SetProtocol("bittorrent")
-						ctx.ConnOptions().SetRouteMode(config.Mode_direct)
+						ctx.ConnOptions().SetRouteMode("direct")
 						return true
 					}
 
@@ -68,7 +67,7 @@ func New() *Sniffier[config.Mode] {
 			},
 		},
 
-		packetChecker: []entry[config.Mode]{
+		packetChecker: []entry{
 			{
 				enabled: true,
 				name:    "bittorrent_utp",
@@ -76,7 +75,7 @@ func New() *Sniffier[config.Mode] {
 					_, err := bittorrent.SniffUTP(b)
 					if err == nil {
 						ctx.SetProtocol("bittorrent_utp")
-						ctx.ConnOptions().SetRouteMode(config.Mode_direct)
+						ctx.ConnOptions().SetRouteMode("direct")
 						return true
 					}
 
@@ -87,7 +86,7 @@ func New() *Sniffier[config.Mode] {
 	}
 }
 
-func (s *Sniffier[T]) Packet(ctx *netapi.Context, b []byte) {
+func (s *Sniffier) Packet(ctx *netapi.Context, b []byte) {
 	for _, c := range s.packetChecker {
 		if !c.enabled {
 			continue
@@ -98,7 +97,7 @@ func (s *Sniffier[T]) Packet(ctx *netapi.Context, b []byte) {
 	}
 }
 
-func (s *Sniffier[T]) Stream(ctx *netapi.Context, cc net.Conn) net.Conn {
+func (s *Sniffier) Stream(ctx *netapi.Context, cc net.Conn) net.Conn {
 	c := pool.NewBufioConnSize(cc, configuration.SnifferBufferSize)
 
 	var buf []byte

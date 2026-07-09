@@ -17,13 +17,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/miekg/dns"
 	"golang.org/x/net/http2"
 )
 
 func init() {
-	Register(config.Type_doh, NewDoH)
+	Register("doh", NewDoH)
 }
 
 func NewDoH(config Config) (Transport, error) {

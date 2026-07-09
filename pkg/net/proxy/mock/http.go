@@ -11,17 +11,17 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	shttp "github.com/Asutorufa/yuhaiin/pkg/net/sniff/http"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 func init() {
-	register.RegisterPoint(NewClient)
-	register.RegisterTransport(NewServer)
+	register.RegisterContractPoint("http_mock", func(_ contractnode.HTTPMock, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{}, p)
+	})
 }
 
 var mockData = "GET / HTTP/1.1\r\nHost: www.speedtest.cn\r\nUser-Agent: Mozilla/5.0\r\nAccept: */*\r\nConnection: keep-alive\r\n\r\n"
@@ -30,7 +30,9 @@ type client struct {
 	netapi.Proxy
 }
 
-func NewClient(config *node.HttpMock, p netapi.Proxy) (netapi.Proxy, error) {
+type Config struct{}
+
+func NewClient(_ Config, p netapi.Proxy) (netapi.Proxy, error) {
 	return &client{Proxy: p}, nil
 }
 
@@ -52,7 +54,9 @@ type server struct {
 	netapi.Listener
 }
 
-func NewServer(config *config.HttpMock, lis netapi.Listener) (netapi.Listener, error) {
+type ServerConfig struct{}
+
+func NewServer(_ ServerConfig, lis netapi.Listener) (netapi.Listener, error) {
 	return &server{Listener: lis}, nil
 }
 

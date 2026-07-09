@@ -7,7 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	di "github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	"github.com/Asutorufa/yuhaiin/pkg/network/defaults"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"tailscale.com/net/netaddr"
 	"tailscale.com/net/netmon"
@@ -252,9 +252,9 @@ func findAvailableAddr(v6 bool, existAddr *set.Set[netip.Prefix], maxTries int) 
 	for range maxTries {
 		var addr netip.Prefix
 		if v6 {
-			addr = config.TunV6UlaGenerate().Masked()
+			addr = defaults.TunV6UlaGenerate().Masked()
 		} else {
-			addr = config.TunV4UlaGenerate().Masked()
+			addr = defaults.TunV4UlaGenerate().Masked()
 		}
 		if !existAddr.Has(addr) {
 			return addr.Addr(), true

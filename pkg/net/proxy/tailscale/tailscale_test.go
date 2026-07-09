@@ -15,8 +15,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/miekg/dns"
 	"tailscale.com/version"
@@ -30,10 +28,10 @@ func TestTailscale(t *testing.T) {
 	key, err := os.ReadFile(".tsauthkey")
 	assert.NoError(t, err)
 
-	tc, err := New(node.Tailscale_builder{
-		Hostname: new("test"),
-		AuthKey:  new(strings.TrimSpace(string(key))),
-	}.Build(), nil)
+	tc, err := New(Config{
+		Hostname: "test",
+		AuthKey:  strings.TrimSpace(string(key)),
+	}, nil)
 	assert.NoError(t, err)
 	defer tc.Close()
 
@@ -62,7 +60,7 @@ func TestTailscale(t *testing.T) {
 		r, err := resolver.New(resolver.Config{
 			Dialer: tc,
 			Host:   "100.100.100.100:53",
-			Type:   config.Type_tcp,
+			Type:   "tcp",
 		})
 		assert.NoError(t, err)
 
@@ -83,7 +81,7 @@ func TestTailscale(t *testing.T) {
 		r, err := resolver.New(resolver.Config{
 			Dialer: tc,
 			Host:   "100.100.100.100:53",
-			Type:   config.Type_udp,
+			Type:   "udp",
 		})
 		assert.NoError(t, err)
 

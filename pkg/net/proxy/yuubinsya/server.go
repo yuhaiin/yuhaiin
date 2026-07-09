@@ -15,8 +15,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
 type server struct {
@@ -30,18 +28,19 @@ type server struct {
 	coalesce bool
 }
 
-func init() {
-	register.RegisterProtocol(NewServer)
+type ServerConfig struct {
+	Password    string `json:"password,omitzero"`
+	UDPCoalesce bool   `json:"udp_coalesce,omitzero"`
 }
 
-func NewServer(config *config.Yuubinsya, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-	hash := Salt([]byte(config.GetPassword()))
+func NewServer(config ServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+	hash := Salt([]byte(config.Password))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &server{
 		listener: ii,
 		hash:     hash,
-		coalesce: config.GetUdpCoalesce(),
+		coalesce: config.UDPCoalesce,
 		handler:  handler,
 		ctx:      ctx,
 		cancel:   cancel,

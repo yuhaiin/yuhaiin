@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
 )
@@ -28,30 +28,26 @@ func TestSet(t *testing.T) {
 	fmt.Println(host, portInt)
 
 	mg := newTestManager(t)
-	p1 := node.Point_builder{
-		Hash:  new("a"),
-		Name:  new("feefe"),
-		Group: new("group"),
-	}.Build()
-	p2 := node.Point_builder{
-		Hash:  new("b"),
-		Name:  new("fafaf"),
-		Group: new("group"),
-		Protocols: []*node.Protocol{
-			node.Protocol_builder{
-				Simple: node.Simple_builder{
-					Host: new(host),
-					Port: new(int32(portInt)),
-				}.Build(),
-			}.Build(),
-		},
-	}.Build()
-	assert.NoError(t, mg.SaveNode(p1, p2))
+	p1 := testNode(t, "a", "feefe")
+	fixed, err := contractnode.NewProtocol("fixed", contractnode.Fixed{
+		Host: host,
+		Port: int32(portInt),
+	})
+	assert.NoError(t, err)
+	p2 := contractnode.Node{
+		ID:      "b",
+		Name:    "fafaf",
+		Group:   "group",
+		Origin:  "manual",
+		Enabled: true,
+		Chain:   []contractnode.Protocol{fixed},
+	}
+	_, err = mg.SaveContract(context.Background(), p1)
+	assert.NoError(t, err)
+	_, err = mg.SaveContract(context.Background(), p2)
+	assert.NoError(t, err)
 
-	se, err := NewSet(node.Set_builder{
-		Strategy: node.Set_round_robin.Enum(),
-		Nodes:    []string{"a", "b"},
-	}.Build(), mg)
+	se, err := NewContractSet([]string{"a", "b"}, "round_robin", mg)
 	assert.NoError(t, err)
 
 	c, err := netapi.ParseAddress("tcp", "www.example.com")

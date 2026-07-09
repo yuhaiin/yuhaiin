@@ -19,7 +19,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -72,7 +71,7 @@ type Config struct {
 	Name       string
 	Host       string
 	Servername string
-	Type       config.Type
+	Type       string
 }
 
 func (c *Config) serverName(u *url.URL) string {
@@ -83,9 +82,12 @@ func (c *Config) serverName(u *url.URL) string {
 	return c.Servername
 }
 
-var dnsMap syncmap.SyncMap[config.Type, func(Config) (Transport, error)]
+var dnsMap syncmap.SyncMap[string, func(Config) (Transport, error)]
 
 func New(config Config) (netapi.Resolver, error) {
+	if config.Type == "" {
+		config.Type = "udp"
+	}
 	f, ok := dnsMap.Load(config.Type)
 	if !ok {
 		return nil, fmt.Errorf("no dns type %v process found", config.Type)
@@ -102,7 +104,7 @@ func New(config Config) (netapi.Resolver, error) {
 	return NewClient(config, dialer), nil
 }
 
-func Register(tYPE config.Type, f func(Config) (Transport, error)) {
+func Register(tYPE string, f func(Config) (Transport, error)) {
 	if f != nil {
 		dnsMap.Store(tYPE, f)
 	}

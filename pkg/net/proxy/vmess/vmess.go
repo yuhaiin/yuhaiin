@@ -6,9 +6,9 @@ import (
 	"net"
 	"strconv"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 // Vmess  client
@@ -18,16 +18,28 @@ type Vmess struct {
 }
 
 func init() {
-	register.RegisterPoint(NewClient)
+	register.RegisterContractPoint("vmess", func(config contractnode.Vmess, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{
+			UUID:     config.UUID,
+			AlterID:  config.AlterID,
+			Security: config.Security,
+		}, p)
+	})
 }
 
-func NewClient(config *node.Vmess, p netapi.Proxy) (netapi.Proxy, error) {
-	alterID, err := strconv.Atoi(config.GetAlterId())
+type Config struct {
+	UUID     string `json:"id"`
+	AlterID  string `json:"aid"`
+	Security string `json:"security"`
+}
+
+func NewClient(config Config, p netapi.Proxy) (netapi.Proxy, error) {
+	alterID, err := strconv.Atoi(config.AlterID)
 	if err != nil {
 		return nil, fmt.Errorf("convert AlterId to int failed: %w", err)
 	}
 
-	client, err := newClient(config.GetUuid(), config.GetSecurity(), alterID)
+	client, err := newClient(config.UUID, config.Security, alterID)
 	if err != nil {
 		return nil, fmt.Errorf("new vmess client failed: %w", err)
 	}

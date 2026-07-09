@@ -8,30 +8,29 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestWireguard(t *testing.T) {
 	t.Skip("requires a real WireGuard peer and external httpbin access")
 
-	r, err := NewClient(node.Wireguard_builder{
-		SecretKey: new("OD0YfReLPYBSL/vV+1JSBPpeBurGFLNA4wQCfD+yDFA="),
+	r, err := NewClient(Config{
+		SecretKey: "OD0YfReLPYBSL/vV+1JSBPpeBurGFLNA4wQCfD+yDFA=",
 		Endpoint: []string{
 			"10.0.0.2/32",
 		},
-		Mtu:      ptr(int32(1500)),
+		MTU:      1500,
 		Reserved: []byte{0, 0, 0},
-		Peers: []*node.WireguardPeerConfig{
-			node.WireguardPeerConfig_builder{
-				PublicKey: new("2HWI3cW1HlAyQk1xiu+4QBL1KISMxSo4VQgCz+wCjmo="),
-				Endpoint:  new("192.168.122.20:51820"),
-				AllowedIps: []string{
+		Peers: []PeerConfig{
+			{
+				PublicKey: "2HWI3cW1HlAyQk1xiu+4QBL1KISMxSo4VQgCz+wCjmo=",
+				Endpoint:  "192.168.122.20:51820",
+				AllowedIPs: []string{
 					"0.0.0.0/0",
 				},
-			}.Build(),
+			},
 		},
-	}.Build(), nil)
+	}, nil)
 
 	assert.NoError(t, err)
 

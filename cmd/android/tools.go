@@ -1,10 +1,11 @@
 package yuhaiin
 
 import (
+	"context"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
 type CIDR struct {
@@ -28,30 +29,33 @@ type AddRoute interface {
 }
 
 func FakeDnsCidr(f func(string)) {
-	err := newResolverDB().View(func(s *config.Setting) error {
-		d := s.GetDns()
-
-		f(d.GetFakednsIpRange())
-		f(d.GetFakednsIpv6Range())
-
-		return nil
-	})
+	db, err := newResolverDB().SQLDB(context.Background())
 	if err != nil {
 		log.Error("view resolver db failed", "err", err)
+		return
 	}
+	config, err := plainstore.NewResolverConfigStore(db).FakeDNS(context.Background())
+	if err != nil {
+		log.Error("get fakedns config failed", "err", err)
+		return
+	}
+	f(config.IPv4Range)
+	f(config.IPv6Range)
 }
 
 func IsIPv6() bool {
-	var ipv6 bool
-	err := newChoreDB().View(func(s *config.Setting) error {
-		ipv6 = s.GetIpv6()
-		return nil
-	})
+	db, err := newChoreDB().SQLDB(context.Background())
+	if err != nil {
+		log.Error("open settings db failed", "err", err)
+		return false
+	}
+	settings, err := plainstore.NewSettingsStore(db).Load(context.Background())
 	if err != nil {
 		log.Error("view chore db failed", "err", err)
+		return false
 	}
 
-	return ipv6
+	return settings.IPv6
 }
 
 func AddFakeDnsCidr(process AddRoute) {

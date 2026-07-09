@@ -5,42 +5,36 @@ import (
 	"fmt"
 	"math/rand/v2"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 type Outbound struct {
 	manager *Manager
 }
 
-func (o *Outbound) GetDialer(ctx context.Context, p *node.Point) (netapi.Proxy, error) {
-	return o.getDialer(ctx, p.GetHash(), func() (*node.Point, error) { return p, nil })
-}
-
-func (o *Outbound) getDialer(ctx context.Context, hash string, point func() (*node.Point, error)) (netapi.Proxy, error) {
+func (o *Outbound) getContractDialer(ctx context.Context, hash string, load func() (contractnode.Node, error)) (netapi.Proxy, error) {
 	if hash == "" {
 		return nil, fmt.Errorf("hash is empty")
 	}
 
 	return o.manager.Store().LoadOrCreate(ctx, hash, func() (*ProxyEntry, error) {
-		p, err := point()
+		node, err := load()
 		if err != nil {
 			return nil, err
 		}
-
-		r, err := register.Dialer(p)
+		r, err := register.ContractDialer(node)
 		if err != nil {
 			return nil, err
 		}
-
 		return &ProxyEntry{
-			Proxy:  r,
-			Config: p,
+			Proxy:          r,
+			ContractConfig: &node,
+			Name:           node.Name,
 		}, nil
 	})
 }
@@ -59,9 +53,9 @@ func (o *Outbound) Get(ctx context.Context, network string, str string, tag stri
 	}
 
 	switch str {
-	case config.Mode_direct.String():
+	case "direct":
 		return direct.Default, nil
-	case config.Mode_block.String():
+	case "block":
 		metrics.Counter.AddBlockConnection(str)
 		return reject.Default, nil
 	}
@@ -70,45 +64,48 @@ func (o *Outbound) Get(ctx context.Context, network string, str string, tag stri
 		return nil, fmt.Errorf("invalid network: %s", network)
 	}
 
-	var point *node.Point
 	switch network[:3] {
 	case "tcp":
-		point = o.manager.GetNow(true)
+		if contractNode, ok, err := o.manager.persist.GetContractNow(true); err == nil && ok {
+			return o.getContractDialer(ctx, contractNode.ID, func() (contractnode.Node, error) { return contractNode, nil })
+		}
+		return nil, fmt.Errorf("selected tcp node not found")
 	case "udp":
-		point = o.manager.GetNow(false)
+		if contractNode, ok, err := o.manager.persist.GetContractNow(false); err == nil && ok {
+			return o.getContractDialer(ctx, contractNode.ID, func() (contractnode.Node, error) { return contractNode, nil })
+		}
+		return nil, fmt.Errorf("selected udp node not found")
 	default:
 		return nil, fmt.Errorf("invalid network: %s", network)
 	}
-
-	return o.GetDialer(ctx, point)
 }
 
 // GetDialerByID if id is not exists or point dial failed, it will return nil
 func (o *Outbound) GetDialerByID(ctx context.Context, hash string) (netapi.Proxy, error) {
-	return o.getDialer(ctx, hash, func() (*node.Point, error) {
-		p, ok := o.manager.GetNode(hash)
-		if !ok {
-			return nil, fmt.Errorf("node not found")
-		}
-		return p, nil
-	})
+	if contractNode, ok, err := o.manager.persist.GetContractNode(hash); err != nil {
+		return nil, err
+	} else if ok {
+		return o.getContractDialer(ctx, hash, func() (contractnode.Node, error) { return contractNode, nil })
+	}
+
+	return nil, fmt.Errorf("node not found")
 }
 
 func (o *Outbound) tagConn(tag string) string {
 	for {
-		t, ok := o.manager.GetTag(tag)
-		if !ok || len(t.GetHash()) <= 0 {
+		kind, targets, ok := o.manager.GetContractTag(tag)
+		if !ok || len(targets) <= 0 {
 			return ""
 		}
 
-		if t.GetType() == node.TagType_mirror {
-			if tag == t.GetHash()[0] {
+		if kind == "mirror" {
+			if tag == targets[0] {
 				return ""
 			}
-			tag = t.GetHash()[0]
+			tag = targets[0]
 			continue
 		}
 
-		return t.GetHash()[rand.IntN(len(t.GetHash()))]
+		return targets[rand.IntN(len(targets))]
 	}
 }

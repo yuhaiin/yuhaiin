@@ -1,43 +1,21 @@
 package route
 
 import (
-	"encoding/json/v2"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 )
 
-func TestNested(t *testing.T) {
-	data, err := json.Marshal(config.BypassConfig_builder{
-		Lists: map[string]*config.List{
-			"test": config.List_builder{
-				Local: config.ListLocal_builder{
-					Lists: []string{"test"},
-				}.Build(),
-				ErrorMsgs: []string{"test", "test2"},
-			}.Build(),
-		},
-	}.Build())
-	assert.NoError(t, err)
-	t.Log(string(data))
+func TestNestedSort(t *testing.T) {
+	rules := []contractroute.RuleExpr{
+		{Type: "host", Host: &contractroute.ListRef{List: "host"}},
+		{Type: "process", Process: &contractroute.ListRef{List: "process"}},
+		{Type: "inbound", Inbound: &contractroute.SourceRef{Name: "mixed"}},
+		{Type: "network", Network: &contractroute.NetworkExpr{Network: "tcp"}},
+	}
 
-	t.Run("sort", func(t *testing.T) {
-		rules := []*config.Rule{
-			config.Rule_builder{
-				Host: config.Host_builder{}.Build(),
-			}.Build(),
-			config.Rule_builder{
-				Process: config.Process_builder{}.Build(),
-			}.Build(),
-			config.Rule_builder{
-				Inbound: config.Source_builder{}.Build(),
-			}.Build(),
-			config.Rule_builder{
-				Process: config.Process_builder{}.Build(),
-			}.Build(),
-		}
-
-		t.Log(sortRule(rules))
-	})
+	got := sortRule(rules)
+	if got[0].Type != "network" || got[len(got)-1].Type != "host" {
+		t.Fatalf("unexpected sort order: %#v", got)
+	}
 }

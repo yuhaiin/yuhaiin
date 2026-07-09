@@ -24,11 +24,11 @@ import (
 	"strings"
 	"unsafe"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	utls "github.com/refraction-networking/utls"
@@ -48,11 +48,27 @@ type Client struct {
 }
 
 func init() {
-	register.RegisterPoint(NewClient)
+	register.RegisterContractPoint("reality", func(config contractnode.Reality, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{
+			ServerName:    config.ServerName,
+			PublicKey:     config.PublicKey,
+			MLDSA65Verify: config.MLDSA65Verify,
+			ShortID:       config.ShortID,
+			Debug:         config.Debug,
+		}, p)
+	})
 }
 
-func NewClient(config *node.Reality, p netapi.Proxy) (netapi.Proxy, error) {
-	publicKey, err := base64.RawURLEncoding.DecodeString(config.GetPublicKey())
+type Config struct {
+	ServerName    string `json:"server_name"`
+	PublicKey     string `json:"public_key"`
+	MLDSA65Verify string `json:"mldsa65_verify"`
+	ShortID       string `json:"short_id"`
+	Debug         bool   `json:"debug"`
+}
+
+func NewClient(config Config, p netapi.Proxy) (netapi.Proxy, error) {
+	publicKey, err := base64.RawURLEncoding.DecodeString(config.PublicKey)
 	if err != nil {
 		return nil, fmt.Errorf("decode public_key failed: %w", err)
 	}
@@ -61,15 +77,15 @@ func NewClient(config *node.Reality, p netapi.Proxy) (netapi.Proxy, error) {
 	}
 
 	var mldsa65Verify []byte
-	if config.GetMldsa65Verify() != "" {
-		mldsa65Verify, err = base64.RawURLEncoding.DecodeString(config.GetMldsa65Verify())
+	if config.MLDSA65Verify != "" {
+		mldsa65Verify, err = base64.RawURLEncoding.DecodeString(config.MLDSA65Verify)
 		if err != nil || len(mldsa65Verify) != 1952 {
-			return nil, fmt.Errorf(`invalid "mldsa65Verify": %s`, config.GetMldsa65Verify())
+			return nil, fmt.Errorf(`invalid "mldsa65Verify": %s`, config.MLDSA65Verify)
 		}
 	}
 
 	var shortID [8]byte
-	decodedLen, err := hex.Decode(shortID[:], []byte(config.GetShortId()))
+	decodedLen, err := hex.Decode(shortID[:], []byte(config.ShortID))
 	if err != nil {
 		return nil, fmt.Errorf("decode short_id failed: %w", err)
 	}
@@ -79,14 +95,14 @@ func NewClient(config *node.Reality, p netapi.Proxy) (netapi.Proxy, error) {
 	return &Client{
 		proxy: p,
 		utls: &utls.Config{
-			ServerName:             config.GetServerName(),
+			ServerName:             config.ServerName,
 			InsecureSkipVerify:     true,
 			SessionTicketsDisabled: true,
 		},
 		publicKey:     publicKey,
 		mldsa65verify: mldsa65Verify,
 		shortID:       shortID,
-		Deubg:         config.GetDebug(),
+		Deubg:         config.Debug,
 	}, nil
 }
 

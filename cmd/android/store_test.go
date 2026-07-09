@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
@@ -34,7 +34,7 @@ func TestSQLitePreferenceStore(t *testing.T) {
 	assert.Equal(t, true, GetStore().GetBoolean("allow_lan_test"))
 	assert.Equal(t, int32(1234), GetStore().GetInt("port_test"))
 
-	store, err := storagesqlite.Open(context.Background(), tools.PathGenerator.State(dir))
+	store, err := storagesqlite.Open(context.Background(), paths.PathGenerator.State(dir))
 	assert.NoError(t, err)
 	defer store.Close()
 

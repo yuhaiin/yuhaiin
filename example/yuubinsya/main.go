@@ -13,13 +13,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
-
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 )
 
 type r struct {
@@ -47,30 +44,28 @@ func main() {
 
 	fmt.Println("password:", password, "host:", host)
 
-	cfg := config.Inbound_builder{
-		Enabled: new(true),
-		Tcpudp: config.Tcpudp_builder{
-			Host:    new(host),
-			Control: config.TcpUdpControl_tcp_udp_control_all.Enum(),
-		}.Build(),
-		Transport: []*config.Transport{
-			config.Transport_builder{
-				Websocket: config.Websocket_builder{}.Build(),
-			}.Build(),
-			config.Transport_builder{
-				Http2: config.Http2_builder{}.Build(),
-			}.Build(),
-		},
-		Yuubinsya: config.Yuubinsya_builder{
-			Password:    new(password),
-			UdpCoalesce: new(false),
-		}.Build(),
-	}.Build()
-	lis, err := register.Listen(cfg, handler)
+	lis, err := fixed.NewServer(fixed.ServerConfig{
+		Host:    host,
+		Control: fixed.ControlAll,
+	})
 	if err != nil {
 		panic(err)
 	}
-	defer lis.Close()
+	lis, err = websocket.NewServer(websocket.ServerConfig{}, lis)
+	if err != nil {
+		panic(err)
+	}
+	lis, err = http2.NewServer(http2.ServerConfig{}, lis)
+	if err != nil {
+		panic(err)
+	}
+	server, err := yuubinsya.NewServer(yuubinsya.ServerConfig{
+		Password: password,
+	}, lis, handler)
+	if err != nil {
+		panic(err)
+	}
+	defer server.Close()
 
 	ctx, ncancel := signal.NotifyContext(context.TODO(), syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer ncancel()

@@ -8,36 +8,29 @@ import (
 	"net"
 	"net/http"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 func main() {
-	node := node.Point_builder{
-		Protocols: []*node.Protocol{
-			node.Protocol_builder{
-				NetworkSplit: node.NetworkSplit_builder{
-					Tcp: node.Protocol_builder{
-						Simple: node.Simple_builder{
-							Host: new("127.0.0.1"),
-							Port: ptr(int32(1080)),
-						}.Build(),
-					}.Build(),
-					Udp: node.Protocol_builder{
-						Direct: &node.Direct{},
-					}.Build(),
-				}.Build(),
-			}.Build(),
-			node.Protocol_builder{
-				Socks5: &node.Socks5{},
-			}.Build(),
-		},
-	}
+	_ = fixed.Config{}
+	_ = socks5.Config{}
 
-	pro, err := register.Dialer(node.Build())
+	pro, err := register.ContractDialer(contractnode.Node{
+		ID:     "example",
+		Name:   "example",
+		Origin: "example",
+		Chain: []contractnode.Protocol{
+			protocol("simple", contractnode.Object{
+				"host": "127.0.0.1",
+				"port": int32(1080),
+			}),
+			protocol("socks5", nil),
+		},
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -61,4 +54,12 @@ func main() {
 	_, _ = buf.ReadFrom(resp.Body)
 	defer resp.Body.Close()
 	log.Println(buf.String())
+}
+
+func protocol(typ string, value contractnode.Object) contractnode.Protocol {
+	protocol, err := contractnode.NewProtocol(typ, value)
+	if err != nil {
+		panic(err)
+	}
+	return protocol
 }

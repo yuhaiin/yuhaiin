@@ -10,10 +10,10 @@ import (
 	"net/url"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 type client struct {
@@ -21,15 +21,25 @@ type client struct {
 	user, password string
 }
 
-func init() {
-	register.RegisterPoint(NewClient)
+type Config struct {
+	User     string `json:"user"`
+	Password string `json:"password"`
 }
 
-func NewClient(config *node.Http, p netapi.Proxy) (netapi.Proxy, error) {
+func init() {
+	register.RegisterContractPoint("http", func(config contractnode.HTTP, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{
+			User:     config.User,
+			Password: config.Password,
+		}, p)
+	})
+}
+
+func NewClient(config Config, p netapi.Proxy) (netapi.Proxy, error) {
 	return &client{
 		Proxy:    p,
-		user:     config.GetUser(),
-		password: config.GetPassword(),
+		user:     config.User,
+		password: config.Password,
 	}, nil
 }
 

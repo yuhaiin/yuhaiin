@@ -13,8 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
 type Mixed struct {
@@ -30,11 +28,12 @@ type Matcher struct {
 	ch    *netapi.ChannelStreamListener
 }
 
-func init() {
-	register.RegisterProtocol(NewServer)
+type ServerConfig struct {
+	Username string `json:"username,omitzero"`
+	Password string `json:"password,omitzero"`
 }
 
-func NewServer(o *config.Mixed, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+func NewServer(o ServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	mix := &Mixed{
 		lis:      ii,
 		defaultC: netapi.NewChannelStreamListener(ii.Addr()),
@@ -76,14 +75,14 @@ func (m *Mixed) AddMatcher(match func(byte) bool) net.Listener {
 	return ch
 }
 
-func (m *Mixed) socks5(o *config.Mixed, ii netapi.Listener, handler netapi.Handler) {
+func (m *Mixed) socks5(o ServerConfig, ii netapi.Listener, handler netapi.Handler) {
 	lis := m.AddMatcher(func(b byte) bool { return b == 0x05 })
 
-	s5, err := socks5.NewServer(config.Socks5_builder{
-		Username: new(o.GetUsername()),
-		Password: new(o.GetPassword()),
-		Udp:      new(true),
-	}.Build(), netapi.NewListener(lis, ii), handler)
+	s5, err := socks5.NewServer(socks5.ServerConfig{
+		Username: o.Username,
+		Password: o.Password,
+		UDP:      true,
+	}, netapi.NewListener(lis, ii), handler)
 	if err != nil {
 		log.Error("new socks5 server failed", "err", err)
 		return
@@ -92,12 +91,12 @@ func (m *Mixed) socks5(o *config.Mixed, ii netapi.Listener, handler netapi.Handl
 	m.closers = append(m.closers, s5)
 }
 
-func (m *Mixed) socks4(o *config.Mixed, ii netapi.Listener, handler netapi.Handler) {
+func (m *Mixed) socks4(o ServerConfig, ii netapi.Listener, handler netapi.Handler) {
 	lis := m.AddMatcher(func(b byte) bool { return b == 0x04 })
 
-	s4, err := socks4a.NewServer(config.Socks4A_builder{
-		Username: new(o.GetUsername()),
-	}.Build(), netapi.NewListener(lis, ii), handler)
+	s4, err := socks4a.NewServer(socks4a.ServerConfig{
+		Username: o.Username,
+	}, netapi.NewListener(lis, ii), handler)
 	if err != nil {
 		log.Error("new socks4 server failed", "err", err)
 		return
@@ -106,11 +105,11 @@ func (m *Mixed) socks4(o *config.Mixed, ii netapi.Listener, handler netapi.Handl
 	m.closers = append(m.closers, s4)
 }
 
-func (m *Mixed) http(o *config.Mixed, ii netapi.Listener, handler netapi.Handler) {
-	http, err := http.NewServer(config.Http_builder{
-		Username: new(o.GetUsername()),
-		Password: new(o.GetPassword()),
-	}.Build(), netapi.NewListener(m.defaultC, ii), handler)
+func (m *Mixed) http(o ServerConfig, ii netapi.Listener, handler netapi.Handler) {
+	http, err := http.NewServer(http.ServerConfig{
+		Username: o.Username,
+		Password: o.Password,
+	}, netapi.NewListener(m.defaultC, ii), handler)
 	if err != nil {
 		log.Error("new http server failed", "err", err)
 		return

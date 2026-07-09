@@ -2,12 +2,10 @@ package resolver
 
 import (
 	"crypto/tls"
-
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 )
 
 func init() {
-	Register(config.Type_dot, NewDoT)
+	Register("dot", NewDoT)
 }
 
 func NewDoT(config Config) (Transport, error) {

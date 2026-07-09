@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -79,18 +78,18 @@ func (h *handler) HandlePing(conn *netapi.PingMeta) {
 func TestUsernamePassword(t *testing.T) {
 	t.Skip("depends on local SOCKS5 listener timing and external DNS-style UDP payloads")
 
-	ss, err := fixed.NewServer(config.Tcpudp_builder{
-		Host:    new("0.0.0.0:1083"),
-		Control: config.TcpUdpControl_tcp_udp_control_all.Enum(),
-	}.Build())
+	ss, err := fixed.NewServer(fixed.ServerConfig{
+		Host:    "0.0.0.0:1083",
+		Control: fixed.ControlAll,
+	})
 	assert.NoError(t, err)
 	defer ss.Close()
 
-	accept, err := NewServer(config.Socks5_builder{
-		Username: new("test"),
-		Password: new("test"),
-		Udp:      new(true),
-	}.Build(), ss, &handler{t})
+	accept, err := NewServer(ServerConfig{
+		Username: "test",
+		Password: "test",
+		UDP:      true,
+	}, ss, &handler{t})
 	assert.NoError(t, err)
 	defer accept.Close()
 

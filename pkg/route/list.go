@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,18 +14,16 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
-	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/api"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/paging"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -164,7 +161,8 @@ func (h *processMatcher) Empty() bool {
 }
 
 type Lists struct {
-	db chore.DB
+	lists    RouteListBook
+	settings RouteListSettingsBook
 
 	proxy *atomicx.Value[netapi.Proxy]
 
@@ -193,7 +191,20 @@ type Lists struct {
 	refreshing atomic.Bool
 }
 
-func NewLists(db chore.DB) *Lists {
+type RouteListBook interface {
+	ListRouteListDetails(context.Context) ([]contractroute.RouteListDetail, error)
+	GetRouteList(context.Context, string) (contractroute.RouteListDetail, error)
+	SaveRouteList(context.Context, contractroute.RouteListDetail, int64) error
+}
+
+type RouteListSettingsBook interface {
+	ListSettings(context.Context) (RouteListSettings, error)
+	SaveListSettings(context.Context, RouteListSettings) error
+}
+
+type RouteListSettings = plainstore.RouteListSettings
+
+func NewLists(lists RouteListBook, settings RouteListSettingsBook, configPath string) *Lists {
 	// remove orphan trie db
 	files, err := filepath.Glob(filepath.Join(configuration.DataDir.Load(), "trie.*.db"))
 	if err == nil {
@@ -207,9 +218,10 @@ func NewLists(db chore.DB) *Lists {
 	proxy := atomicx.NewValue(direct.Default)
 
 	l := &Lists{
-		db:          db,
+		lists:       lists,
+		settings:    settings,
 		proxy:       proxy,
-		downloader:  NewDownloader(filepath.Join(db.Dir(), "rules"), proxy.Load),
+		downloader:  NewDownloader(filepath.Join(configPath, "rules"), proxy.Load),
 		hostTrie:    newHostTrie(configuration.DataDir.Load()),
 		processTrie: newProcessTrie(),
 	}
@@ -217,10 +229,11 @@ func NewLists(db chore.DB) *Lists {
 	l.hostTrieRefreshTimer = time.AfterFunc(time.Second, l.refreshHostTrie)
 
 	var interval uint64
-	_ = db.View(func(s *config.Setting) error {
-		interval = s.GetBypass().GetRefreshConfig().GetRefreshInterval()
-		return nil
-	})
+	if settings != nil {
+		if config, err := settings.ListSettings(context.Background()); err == nil {
+			interval = config.RefreshInterval
+		}
+	}
 
 	l.resetRefreshInterval(interval)
 
@@ -252,14 +265,15 @@ func (s *Lists) LoadGeoip() *maxminddb.MaxMindDB {
 	s.geoip = &struct{ m *maxminddb.MaxMindDB }{}
 
 	var downloadUrl string
-	err := s.db.View(func(ss *config.Setting) error {
-		downloadUrl = ss.GetBypass().GetMaxminddbGeoip().GetDownloadUrl()
+	if s.settings == nil {
 		return nil
-	})
+	}
+	settings, err := s.settings.ListSettings(context.Background())
 	if err != nil {
 		log.Error("get maxminddb geoip download url failed", "err", err)
 		return nil
 	}
+	downloadUrl = settings.MaxMindDBDownloadURL
 
 	path := s.downloader.GetPath(downloadUrl)
 	if path == "" {
@@ -278,154 +292,6 @@ func (s *Lists) LoadGeoip() *maxminddb.MaxMindDB {
 	s.geoip = &struct{ m *maxminddb.MaxMindDB }{m: ggeoip}
 
 	return ggeoip
-}
-
-func (s *Lists) List(ctx context.Context, empty *api.Empty) (*api.ListResponse, error) {
-	ret := &api.ListResponse{}
-
-	err := s.db.View(func(ss *config.Setting) error {
-		lists := ss.GetBypass().GetLists()
-		ret.SetNames(slices.Collect(maps.Keys(lists)))
-		items := make([]*api.ListItem, 0, len(lists))
-		for name, list := range lists {
-			items = append(items, listItem(name, list))
-		}
-		ret.SetItems(items)
-		ret.SetMaxminddbGeoip(ss.GetBypass().GetMaxminddbGeoip())
-		ret.SetRefreshConfig(ss.GetBypass().GetRefreshConfig())
-		return nil
-	})
-
-	if ret.GetMaxminddbGeoip() == nil {
-		ret.SetMaxminddbGeoip(config.DefaultSetting("").GetBypass().GetMaxminddbGeoip())
-	}
-
-	if ret.GetRefreshConfig() == nil {
-		ret.SetRefreshConfig(config.RefreshConfig_builder{RefreshInterval: ptr(uint64(0))}.Build())
-	}
-
-	return ret, err
-}
-
-func listItem(name string, list *config.List) *api.ListItem {
-	if list.GetName() != "" {
-		name = list.GetName()
-	}
-
-	source := list.WhichList().String()
-	itemCount := uint32(0)
-	preview := ""
-
-	switch list.WhichList() {
-	case config.List_Local_case:
-		values := list.GetLocal().GetLists()
-		itemCount = uint32(len(values))
-		if len(values) > 0 {
-			preview = values[0]
-		}
-	case config.List_Remote_case:
-		values := list.GetRemote().GetUrls()
-		itemCount = uint32(len(values))
-		if len(values) > 0 {
-			preview = values[0]
-		}
-	}
-
-	return api.ListItem_builder{
-		Name:       new(name),
-		Type:       stringPtr(list.GetListType().String()),
-		Source:     new(source),
-		ItemCount:  uint32Ptr(itemCount),
-		ErrorCount: uint32Ptr(uint32(len(list.GetErrorMsgs()))),
-		Preview:    new(preview),
-	}.Build()
-}
-
-func (s *Lists) ListPage(ctx context.Context, req *api.PageRequest) (*api.ListResponse, error) {
-	ret, err := s.List(ctx, &api.Empty{})
-	if err != nil {
-		return ret, err
-	}
-
-	items := ret.GetItems()
-	slices.SortFunc(items, func(a, b *api.ListItem) int { return strings.Compare(a.GetName(), b.GetName()) })
-	items = paging.Filter(items, req.GetQuery(), func(item *api.ListItem, query string) bool {
-		return paging.MatchString(item.GetName(), query) ||
-			paging.MatchString(item.GetType(), query) ||
-			paging.MatchString(item.GetSource(), query) ||
-			paging.MatchString(item.GetPreview(), query)
-	})
-	pageItems, page, pageSize, total := paging.Slice(items, req.GetPage(), req.GetPageSize())
-	pageNames := make([]string, 0, len(pageItems))
-	for _, item := range pageItems {
-		pageNames = append(pageNames, item.GetName())
-	}
-	ret.SetNames(pageNames)
-	ret.SetItems(pageItems)
-	ret.SetPage(api.PageResponse_builder{
-		Page:     new(page),
-		PageSize: new(pageSize),
-		Total:    new(total),
-	}.Build())
-	return ret, nil
-}
-
-func (s *Lists) Get(ctx context.Context, req *api.StringValue) (*config.List, error) {
-	var list *config.List
-	err := s.db.View(func(ss *config.Setting) error {
-		if ss.GetBypass().GetLists() != nil {
-			list = ss.GetBypass().GetLists()[req.Value]
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if list == nil {
-		return nil, fmt.Errorf("list %s not found", req.Value)
-	}
-
-	return list, nil
-}
-
-func (s *Lists) Save(ctx context.Context, list *config.List) (*api.Empty, error) {
-	list.SetErrorMsgs(list.GetErrorMsgs()[:0])
-
-	if list.WhichList() == config.List_Remote_case {
-		for _, v := range list.GetRemote().GetUrls() {
-			ctx, cancel := context.WithTimeout(ctx, time.Minute*3/2)
-			er := s.downloader.DownloadIfNotExists(ctx, v, nil)
-			cancel()
-			if er != nil {
-				list.SetErrorMsgs(append(list.GetErrorMsgs(), fmt.Sprintf("%s: %s", v, er.Error())))
-				log.Error("get remote failed", "err", er, "url", v)
-			}
-		}
-	}
-
-	er := s.db.Batch(func(ss *config.Setting) error {
-		if ss.GetBypass().GetLists() == nil {
-			ss.GetBypass().SetLists(map[string]*config.List{})
-		}
-
-		ss.GetBypass().GetLists()[list.GetName()] = list
-		return nil
-	})
-	if er != nil {
-		return nil, er
-	}
-
-	if s.HostTrie().Include(list.GetName()) {
-		s.notifyRefreshHostTrie()
-		// s.refreshHostTrie()
-	}
-
-	if s.ProcessTrie().Include(list.GetName()) {
-		s.refreshProcessTrie()
-	}
-
-	return &api.Empty{}, nil
 }
 
 func (s *Lists) resetRefreshInterval(minute uint64) {
@@ -452,8 +318,7 @@ func (s *Lists) resetRefreshInterval(minute uint64) {
 	}
 
 	s.ticker = time.AfterFunc(interval, func() {
-		_, err := s.Refresh(context.Background(), &api.Empty{})
-		if err != nil {
+		if err := s.RefreshContract(context.Background()); err != nil {
 			log.Error("refresh lists failed", "err", err)
 		}
 
@@ -514,165 +379,105 @@ func (s *Lists) Close() error {
 	return s.hostTrie.Close()
 }
 
-func (s *Lists) Refresh(ctx context.Context, empty *api.Empty) (*api.Empty, error) {
+func (s *Lists) RefreshContract(ctx context.Context) error {
 	if !s.refreshing.CompareAndSwap(false, true) {
-		return nil, fmt.Errorf("refreshing")
+		return fmt.Errorf("refreshing")
 	}
 	defer s.refreshing.Store(false)
 
-	var lists []*config.List
-	var geoipUrl string
-
-	err := s.db.View(func(ss *config.Setting) error {
-		if ss.GetBypass().GetMaxminddbGeoip() == nil {
-			ss.GetBypass().SetMaxminddbGeoip(config.DefaultSetting("").GetBypass().GetMaxminddbGeoip())
-		}
-
-		lists = slices.Collect(maps.Values(ss.GetBypass().GetLists()))
-		geoipUrl = ss.GetBypass().GetMaxminddbGeoip().GetDownloadUrl()
-
+	if s.lists == nil || s.settings == nil {
 		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 
-	errors := map[string][]string{}
+	lists, err := s.lists.ListRouteListDetails(ctx)
+	if err != nil {
+		return err
+	}
+	settings, err := s.settings.ListSettings(ctx)
+	if err != nil {
+		return err
+	}
 
-	for _, v := range lists {
-		if v.WhichList() != config.List_Remote_case {
+	errorMsgs := map[string][]string{}
+	for _, list := range lists {
+		if list.Source.Type != "remote" || list.Source.Remote == nil {
 			continue
 		}
-
-		errors[v.GetName()] = make([]string, 0, len(v.GetRemote().GetUrls()))
-
-		for _, url := range v.GetRemote().GetUrls() {
+		errorMsgs[list.Name] = make([]string, 0, len(list.Source.Remote.URLs))
+		for _, url := range list.Source.Remote.URLs {
 			ctx, cancel := context.WithTimeout(ctx, time.Minute*3/2)
 			er := s.downloader.Download(ctx, url, nil)
 			cancel()
 			if er != nil {
-				errors[v.GetName()] = append(errors[v.GetName()], fmt.Sprintf("%s: %s", url, er.Error()))
+				errorMsgs[list.Name] = append(errorMsgs[list.Name], fmt.Sprintf("%s: %s", url, er.Error()))
 				log.Error("download remote failed", "err", er, "url", url)
 			}
 		}
 	}
 
-	geoipErr := s.refreshGeoip(ctx, geoipUrl, true)
-
-	err = s.db.Batch(func(ss *config.Setting) error {
-		for k, v := range errors {
-			if ss.GetBypass().GetLists() != nil && ss.GetBypass().GetLists()[k] != nil {
-				ss.GetBypass().GetLists()[k].SetErrorMsgs(v)
+	for _, list := range lists {
+		if nextErrors, ok := errorMsgs[list.Name]; ok {
+			list.ErrorMsgs = nextErrors
+			if err := s.lists.SaveRouteList(ctx, list, 0); err != nil {
+				return err
 			}
 		}
-
-		if ss.GetBypass().GetMaxminddbGeoip() == nil {
-			ss.GetBypass().SetMaxminddbGeoip(config.DefaultSetting("").GetBypass().GetMaxminddbGeoip())
-		}
-
-		ss.GetBypass().GetMaxminddbGeoip().SetError(geoipErr)
-
-		if ss.GetBypass().GetRefreshConfig() == nil {
-			ss.GetBypass().SetRefreshConfig(config.RefreshConfig_builder{RefreshInterval: ptr(uint64(0))}.Build())
-		}
-
-		ss.GetBypass().GetRefreshConfig().SetLastRefreshTime(uint64(time.Now().Unix()))
-		if err != nil {
-			ss.GetBypass().GetRefreshConfig().SetError(err.Error())
-		} else {
-			ss.GetBypass().GetRefreshConfig().SetError("")
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 
-	// s.refreshHostTrie()
+	settings.MaxMindDBError = s.refreshGeoip(ctx, settings.MaxMindDBDownloadURL, true)
+	settings.LastRefreshTime = uint64(time.Now().Unix())
+	settings.Error = ""
+	if err := s.settings.SaveListSettings(ctx, settings); err != nil {
+		return err
+	}
+
 	s.notifyRefreshHostTrie()
 	s.refreshProcessTrie()
-
-	return &api.Empty{}, nil
+	return nil
 }
 
-func (s *Lists) Remove(ctx context.Context, req *api.StringValue) (*api.Empty, error) {
-	err := s.db.Batch(func(ss *config.Setting) error {
-		if ss.GetBypass().GetLists() != nil {
-			delete(ss.GetBypass().GetLists(), req.Value)
-		}
+func (s *Lists) SaveContractConfig(ctx context.Context, req contractroute.ListConfig, refreshInterval uint64) error {
+	if s.settings == nil {
 		return nil
-	})
+	}
+	settings, err := s.settings.ListSettings(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	if s.HostTrie().Include(req.Value) {
-		s.notifyRefreshHostTrie()
-		// s.refreshHostTrie()
+	if refreshInterval != settings.RefreshInterval {
+		s.resetRefreshInterval(refreshInterval)
 	}
-
-	if s.ProcessTrie().Include(req.Value) {
-		s.refreshProcessTrie()
-	}
-
-	return &api.Empty{}, nil
-}
-
-func (s *Lists) SaveConfig(ctx context.Context, req *api.SaveListConfigRequest) (*api.Empty, error) {
-	err := s.db.Batch(func(ss *config.Setting) error {
-		if ss.GetBypass() == nil {
-			ss.SetBypass(&config.BypassConfig{})
-		}
-
-		ss.GetBypass().SetMaxminddbGeoip(req.GetMaxminddbGeoip())
-
-		if ss.GetBypass().GetRefreshConfig() == nil {
-			ss.GetBypass().SetRefreshConfig(&config.RefreshConfig{})
-		}
-
-		if req.GetRefreshInterval() != ss.GetBypass().GetRefreshConfig().GetRefreshInterval() {
-			// the refresh run in the [time.AfterFunc], so here will not deadlock
-			s.resetRefreshInterval(req.GetRefreshInterval())
-		}
-
-		ss.GetBypass().GetRefreshConfig().SetRefreshInterval(req.GetRefreshInterval())
-
-		geoipErr := s.refreshGeoip(ctx, ss.GetBypass().GetMaxminddbGeoip().GetDownloadUrl(), false)
-		ss.GetBypass().GetMaxminddbGeoip().SetError(geoipErr)
-		return nil
-	})
-
-	return &api.Empty{}, err
+	settings.RefreshInterval = refreshInterval
+	settings.MaxMindDBDownloadURL = req.MaxMindDBGeoIP.DownloadURL
+	settings.MaxMindDBError = s.refreshGeoip(ctx, settings.MaxMindDBDownloadURL, false)
+	settings.Error = ""
+	err = s.settings.SaveListSettings(ctx, settings)
+	return err
 }
 
 func (s *Lists) SetProxy(proxy netapi.Proxy) { s.proxy.Store(proxy) }
 
-func (s *Lists) getIter(name string) (*config.List, iter.Seq[string], error) {
-	var rules *config.List
-
-	err := s.db.View(func(ss *config.Setting) error {
-		if ss.GetBypass() != nil {
-			rules = ss.GetBypass().GetLists()[name]
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, nil, err
+func (s *Lists) getIter(name string) (contractroute.RouteListDetail, iter.Seq[string], error) {
+	if s.lists == nil {
+		return contractroute.RouteListDetail{}, nil, fmt.Errorf("route list store is unavailable")
 	}
-
-	if rules == nil {
-		return nil, nil, fmt.Errorf("list %s not found", name)
+	rules, err := s.lists.GetRouteList(context.Background(), name)
+	if err != nil {
+		return contractroute.RouteListDetail{}, nil, err
 	}
 
 	var iter iter.Seq[string]
 
-	switch rules.WhichList() {
-	case config.List_Local_case:
-		switch rules.GetListType() {
-		case config.List_hosts_as_host:
+	switch rules.Source.Type {
+	case "local", "":
+		values := []string(nil)
+		if rules.Source.Local != nil {
+			values = rules.Source.Local.Lists
+		}
+		switch rules.Type {
+		case "hosts_as_host":
 			iter = func(yield func(string) bool) {
-				for v := range trimRuleIter(slices.Values(rules.GetLocal().GetLists())) {
+				for v := range trimRuleIter(slices.Values(values)) {
 					/*
 						example:
 							::1 localhost ip6-localhost ip6-loopback
@@ -690,19 +495,21 @@ func (s *Lists) getIter(name string) (*config.List, iter.Seq[string], error) {
 					}
 				}
 			}
-		case config.List_host:
-			iter = trimRuleIter(slices.Values(rules.GetLocal().GetLists()))
-		case config.List_process:
-			iter = trimRuleIter(slices.Values(rules.GetLocal().GetLists()))
+		case "host", "process":
+			iter = trimRuleIter(slices.Values(values))
 		default:
-			return nil, nil, fmt.Errorf("list %s is unknown", name)
+			return contractroute.RouteListDetail{}, nil, fmt.Errorf("list %s is unknown", name)
 		}
 
-	case config.List_Remote_case:
-		switch rules.GetListType() {
-		case config.List_hosts_as_host:
+	case "remote":
+		urls := []string(nil)
+		if rules.Source.Remote != nil {
+			urls = rules.Source.Remote.URLs
+		}
+		switch rules.Type {
+		case "hosts_as_host":
 			iter = func(yield func(string) bool) {
-				for v := range s.getLocalCacheTrimRuleIter(rules.GetRemote().GetUrls()) {
+				for v := range s.getLocalCacheTrimRuleIter(urls) {
 					/*
 						example:
 							::1 localhost ip6-localhost ip6-loopback
@@ -720,15 +527,13 @@ func (s *Lists) getIter(name string) (*config.List, iter.Seq[string], error) {
 					}
 				}
 			}
-		case config.List_host:
-			iter = s.getLocalCacheTrimRuleIter(rules.GetRemote().GetUrls())
-		case config.List_process:
-			iter = s.getLocalCacheTrimRuleIter(rules.GetRemote().GetUrls())
+		case "host", "process":
+			iter = s.getLocalCacheTrimRuleIter(urls)
 		default:
-			return nil, nil, fmt.Errorf("list %s is unknown", name)
+			return contractroute.RouteListDetail{}, nil, fmt.Errorf("list %s is unknown", name)
 		}
 	default:
-		return nil, nil, fmt.Errorf("list %s is unknown", name)
+		return contractroute.RouteListDetail{}, nil, fmt.Errorf("list %s is unknown", name)
 	}
 
 	return rules, iter, nil
@@ -779,7 +584,7 @@ func (s *Lists) AddNewHostList(name string) {
 		return
 	}
 
-	if rules.GetListType() == config.List_process {
+	if rules.Type == "process" {
 		return
 	}
 
@@ -837,7 +642,7 @@ func (s *Lists) AddNewProcessList(name string) {
 		return
 	}
 
-	if rules.GetListType() != config.List_process {
+	if rules.Type != "process" {
 		return
 	}
 
@@ -899,5 +704,3 @@ func (l *Lists) getLocalCacheTrimRuleIter(rules []string) iter.Seq[string] {
 		}
 	}
 }
-
-func ptr[T any](v T) *T { return &v }

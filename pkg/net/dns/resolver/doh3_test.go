@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -13,15 +12,15 @@ func TestDoh3(t *testing.T) {
 
 	configMap := map[string]Config{
 		"cloudflare": {
-			Type: config.Type_doh3,
+			Type: "doh3",
 			Host: "cloudflare-dns.com",
 		},
 		"ali": {
-			Type: config.Type_doh3,
+			Type: "doh3",
 			Host: "223.5.5.5",
 		},
 		"1.12.12.12": {
-			Type: config.Type_doh3,
+			Type: "doh3",
 			Host: "1.12.12.12",
 		},
 	}

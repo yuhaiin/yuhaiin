@@ -14,8 +14,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
+	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/quic-go/quic-go"
@@ -50,19 +49,21 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgfFPJ3xA3HtR6OR11
 -----END PRIVATE KEY-----
 `)
 
+func testServerConfig() ServerConfig {
+	return ServerConfig{
+		Host: "127.0.0.1:0",
+		TLS: ytls.ServerConfig{
+			Certificates: []ytls.CertificateConfig{{
+				Cert: cert,
+				Key:  key,
+			}},
+		},
+	}
+}
+
 func TestConn(t *testing.T) {
 	t.Run("test close", func(t *testing.T) {
-		s, err := NewServer(config.Quic_builder{
-			Host: new("127.0.0.1:0"),
-			Tls: node.TlsServerConfig_builder{
-				Certificates: []*node.Certificate{
-					node.Certificate_builder{
-						Cert: cert,
-						Key:  key,
-					}.Build(),
-				},
-			}.Build(),
-		}.Build())
+		s, err := NewServer(testServerConfig())
 		assert.NoError(t, err)
 		defer s.Close()
 
@@ -79,13 +80,13 @@ func TestConn(t *testing.T) {
 			}
 		}()
 
-		qc, err := NewClient(node.Quic_builder{
-			Host: new(s.Addr().String()),
-			Tls: node.TlsConfig_builder{
-				Enable:             new(true),
-				InsecureSkipVerify: new(true),
-			}.Build(),
-		}.Build(), nil)
+		qc, err := NewClient(Config{
+			Host: s.Addr().String(),
+			TLS: ytls.TLSConfig{
+				Enable:             true,
+				InsecureSkipVerify: true,
+			},
+		}, nil)
 		assert.NoError(t, err)
 
 		conn, err := qc.Conn(context.TODO(), netapi.EmptyAddr)
@@ -114,17 +115,7 @@ func TestConn(t *testing.T) {
 	})
 
 	t.Run("test io", func(t *testing.T) {
-		s, err := NewServer(config.Quic_builder{
-			Host: new("127.0.0.1:0"),
-			Tls: node.TlsServerConfig_builder{
-				Certificates: []*node.Certificate{
-					node.Certificate_builder{
-						Cert: cert,
-						Key:  key,
-					}.Build(),
-				},
-			}.Build(),
-		}.Build())
+		s, err := NewServer(testServerConfig())
 		assert.NoError(t, err)
 		defer s.Close()
 
@@ -141,13 +132,13 @@ func TestConn(t *testing.T) {
 			}
 		}()
 
-		qc, err := NewClient(node.Quic_builder{
-			Host: new(s.Addr().String()),
-			Tls: node.TlsConfig_builder{
-				Enable:             new(true),
-				InsecureSkipVerify: new(true),
-			}.Build(),
-		}.Build(), nil)
+		qc, err := NewClient(Config{
+			Host: s.Addr().String(),
+			TLS: ytls.TLSConfig{
+				Enable:             true,
+				InsecureSkipVerify: true,
+			},
+		}, nil)
 		assert.NoError(t, err)
 
 		conn, err := qc.Conn(context.TODO(), netapi.EmptyAddr)
@@ -173,17 +164,7 @@ func TestConn(t *testing.T) {
 
 	t.Run("conn -> server", func(t *testing.T) {
 		nettest.TestConn(t, func() (c1 net.Conn, c2 net.Conn, stop func(), err error) {
-			s, err := NewServer(config.Quic_builder{
-				Host: new("127.0.0.1:0"),
-				Tls: node.TlsServerConfig_builder{
-					Certificates: []*node.Certificate{
-						node.Certificate_builder{
-							Cert: cert,
-							Key:  key,
-						}.Build(),
-					},
-				}.Build(),
-			}.Build())
+			s, err := NewServer(testServerConfig())
 			assert.NoError(t, err)
 
 			server := make(chan net.Conn)
@@ -199,13 +180,13 @@ func TestConn(t *testing.T) {
 				}
 			}()
 
-			qc, err := NewClient(node.Quic_builder{
-				Host: new(s.Addr().String()),
-				Tls: node.TlsConfig_builder{
-					Enable:             new(true),
-					InsecureSkipVerify: new(true),
-				}.Build(),
-			}.Build(), nil)
+			qc, err := NewClient(Config{
+				Host: s.Addr().String(),
+				TLS: ytls.TLSConfig{
+					Enable:             true,
+					InsecureSkipVerify: true,
+				},
+			}, nil)
 			assert.NoError(t, err)
 
 			conn, err := qc.Conn(context.TODO(), netapi.EmptyAddr)
@@ -233,14 +214,7 @@ func TestConn(t *testing.T) {
 }
 
 func TestQuic(t *testing.T) {
-	s, err := NewServer(config.Quic_builder{
-		Host: new("127.0.0.1:0"),
-		Tls: node.TlsServerConfig_builder{
-			Certificates: []*node.Certificate{
-				node.Certificate_builder{Cert: cert, Key: key}.Build(),
-			},
-		}.Build(),
-	}.Build())
+	s, err := NewServer(testServerConfig())
 	assert.NoError(t, err)
 
 	defer s.Close()
@@ -268,13 +242,13 @@ func TestQuic(t *testing.T) {
 		}
 	}()
 
-	qc, err := NewClient(node.Quic_builder{
-		Host: new(s.Addr().String()),
-		Tls: node.TlsConfig_builder{
-			Enable:             new(true),
-			InsecureSkipVerify: new(true),
-		}.Build(),
-	}.Build(), nil)
+	qc, err := NewClient(Config{
+		Host: s.Addr().String(),
+		TLS: ytls.TLSConfig{
+			Enable:             true,
+			InsecureSkipVerify: true,
+		},
+	}, nil)
 	assert.NoError(t, err)
 
 	// qc.(*Client).qlogWriter = func() (io.WriteCloser, error) {

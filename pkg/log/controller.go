@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
+	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
 )
 
 const (
@@ -31,25 +31,25 @@ func NewController() *Controller {
 	return &Controller{hub: newLogHub()}
 }
 
-func SLogLevel(l config.LogLevel) slog.Level {
-	switch l {
-	case config.LogLevel_debug, config.LogLevel_verbose:
+func SLogLevel(level string) slog.Level {
+	switch strings.ToLower(level) {
+	case "debug", "verbose", "loglevel_debug", "loglevel_verbose":
 		return slog.LevelDebug
-	case config.LogLevel_info:
+	case "info", "loglevel_info":
 		return slog.LevelInfo
-	case config.LogLevel_warning:
+	case "warning", "warn", "loglevel_warning":
 		return slog.LevelWarn
-	case config.LogLevel_error, config.LogLevel_fatal:
+	case "error", "fatal", "loglevel_error", "loglevel_fatal":
 		return slog.LevelError
 	default:
 		return slog.LevelInfo
 	}
 }
 
-func (l *Controller) Set(config *config.Logcat, path string) {
-	leveler.Store(SLogLevel(config.GetLevel()))
+func (l *Controller) Set(config contractsettings.Logcat, path string) {
+	leveler.Store(SLogLevel(config.Level))
 
-	if !config.GetSave() {
+	if !config.Save {
 		_ = l.Close()
 		return
 	}

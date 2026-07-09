@@ -7,9 +7,9 @@ import (
 	"net"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
@@ -51,7 +51,7 @@ type object struct {
 }
 
 func init() {
-	register.RegisterPoint(func(*node.Reject, netapi.Proxy) (netapi.Proxy, error) {
+	register.RegisterContractPoint("reject", func(contractnode.Reject, netapi.Proxy) (netapi.Proxy, error) {
 		return Default, nil
 	})
 }

@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
@@ -23,14 +23,24 @@ type client struct {
 }
 
 func init() {
-	register.RegisterPoint(NewClient)
+	register.RegisterContractPoint("websocket", func(config contractnode.Websocket, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{
+			Host: config.Host,
+			Path: config.Path,
+		}, p)
+	})
 }
 
-func NewClient(cf *node.Websocket, dialer netapi.Proxy) (netapi.Proxy, error) {
+type Config struct {
+	Host string `json:"host"`
+	Path string `json:"path"`
+}
+
+func NewClient(cf Config, dialer netapi.Proxy) (netapi.Proxy, error) {
 	return &client{
 		&websocket.Config{
-			Host: cf.GetHost(),
-			Path: getNormalizedPath(cf.GetPath()),
+			Host: cf.Host,
+			Path: getNormalizedPath(cf.Path),
 		},
 		dialer,
 	}, nil

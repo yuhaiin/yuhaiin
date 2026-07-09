@@ -14,14 +14,13 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	mdns "github.com/miekg/dns"
 	"golang.org/x/sync/singleflight"
@@ -54,7 +53,7 @@ func (d hijackDialer) DialContext(ctx context.Context, network, address string) 
 	store := netapi.WithContext(ctx)
 	store.SetComponent("tailscale")
 	store.ConnOptions().
-		SetRouteMode(config.Mode_direct).
+		SetRouteMode("direct").
 		SetResolver(*(&netapi.ResolverOptions{}).SetResolver(netapi.Bootstrap()).SetIsResolver())
 
 	return configuration.ProxyChain.Conn(store, ad)
@@ -69,7 +68,7 @@ func (l hijackListener) Listen(ctx context.Context, network, address string) (ne
 func (l hijackListener) ListenPacket(ctx context.Context, network, address string) (net.PacketConn, error) {
 	store := netapi.WithContext(ctx)
 	store.ConnOptions().
-		SetRouteMode(config.Mode_direct).
+		SetRouteMode("direct").
 		SetBindAddress(address).
 		SetResolver(*(&netapi.ResolverOptions{}).SetResolver(netapi.Bootstrap()).SetIsResolver())
 	store.SetComponent("tailscale").
@@ -139,7 +138,14 @@ type instance struct {
 var instanceStore = lru.NewSyncLru(lru.WithCapacity[instance, *Tailscale](100))
 
 func init() {
-	register.RegisterPoint(New)
+	register.RegisterContractPoint("tailscale", func(config contractnode.Tailscale, p netapi.Proxy) (netapi.Proxy, error) {
+		return New(Config{
+			AuthKey:    config.AuthKey,
+			Hostname:   config.Hostname,
+			ControlURL: config.ControlURL,
+			Debug:      config.Debug,
+		}, p)
+	})
 	netns.SetWrapDialer(func(d netns.Dialer) netns.Dialer { return hijackDialer{} })
 	netns.SetWrapListener(func(li netns.ListenerInterface) netns.ListenerInterface { return hijackListener{} })
 	dnscache.Get().Forward = &net.Resolver{
@@ -170,27 +176,34 @@ type Tailscale struct {
 	sf         singleflight.Group
 }
 
-func New(c *node.Tailscale, dialer netapi.Proxy) (netapi.Proxy, error) {
-	if c.GetAuthKey() == "" {
+type Config struct {
+	AuthKey    string `json:"auth_key"`
+	Hostname   string `json:"hostname"`
+	ControlURL string `json:"control_url"`
+	Debug      bool   `json:"debug"`
+}
+
+func New(c Config, dialer netapi.Proxy) (netapi.Proxy, error) {
+	if c.AuthKey == "" {
 		return nil, fmt.Errorf("auth_key is required")
 	}
 
 	tt, _ := instanceStore.LoadOrAdd(instance{
-		authKey:    c.GetAuthKey(),
-		hostname:   c.GetHostname(),
-		controlUrl: c.GetControlUrl(),
+		authKey:    c.AuthKey,
+		hostname:   c.Hostname,
+		controlUrl: c.ControlURL,
 	}, func() *Tailscale {
 		return &Tailscale{
 			dialer:     dialer,
-			authKey:    c.GetAuthKey(),
-			hostname:   c.GetHostname(),
-			controlUrl: c.GetControlUrl(),
+			authKey:    c.AuthKey,
+			hostname:   c.Hostname,
+			controlUrl: c.ControlURL,
 		}
 	})
 
-	tt.debug.Store(c.GetDebug())
+	tt.debug.Store(c.Debug)
 	if tsnet := tt.tsnet; tsnet != nil {
-		if c.GetDebug() {
+		if c.Debug {
 			tsnet.Logf = log.InfoFormat
 		} else {
 			tsnet.Logf = nil

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -19,30 +20,31 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/chore"
-	"github.com/Asutorufa/yuhaiin/pkg/control"
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
+	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/node"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	pyroscopepprof "github.com/grafana/pyroscope-go/godeltaprof/http/pprof"
 	yf "github.com/yuhaiin/yuhaiin.github.io"
 )
 
 type AppInstance struct {
-	Node        control.NodePort
-	Tools       control.ToolsPort
-	Subscribe   control.SubscribePort
-	Connections control.ConnectionsPort
-	Inbound     control.InboundPort
-	Resolver    control.ResolverPort
-	Lists       control.ListsPort
-	Rules       control.RulesPort
-	Tag         control.TagPort
-	Backup      control.BackupPort
-	// TODO deprecate configService, new service chore
-	Setting control.ConfigPort
-	Mux     *http.ServeMux
+	Node        httpapi.NodeController
+	NodeManager *node.Manager
+	Tools       httpapi.ToolsController
+	Subscribe   httpapi.SubscriptionController
+	Connections httpapi.ConnectionMonitor
+	Resolver    httpapi.ResolverController
+	ResolverCfg httpapi.ResolverConfigController
+	Lists       httpapi.ListRuntimeController
+	Rules       httpapi.RouteRuntimeController
+	Backup      httpapi.BackupController
+	Setting     httpapi.SettingsController
+	Inbound     *inbound.Inbound
+	Mux         *http.ServeMux
 	*StartOptions
 	closers *closers
 }
@@ -81,25 +83,67 @@ func (m *moduleCloser) Close() error {
 }
 
 func (app *AppInstance) RegisterServer() {
-	registerV1HTTP(app)
+	registerV2HTTP(app)
 	RegisterHTTP(app.Mux)
 }
 
-func registerV1HTTP(app *AppInstance) {
-	httpapi.RegisterV1(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
+func registerV2HTTP(app *AppInstance) {
+	var inboundStore httpapi.InboundStore
+	var nodeStore *plainstore.NodeStore
+	var subscriptionStore *plainstore.SubscriptionStore
+	var resolverStore *plainstore.ResolverStore
+	resolverConfig := app.ResolverCfg
+	var routeSettingsStore *plainstore.RouteSettingsStore
+	var routeListStore *plainstore.RouteListStore
+	var routeRuleStore *plainstore.RouteRuleStore
+	var routeTagStore *plainstore.RouteTagStore
+	subscribeController := app.Subscribe
+	if sqlStore := app.ChoreConfig; sqlStore != nil {
+		db, err := sqlStore.SQLDB(context.Background())
+		if err != nil {
+			log.Error("init v2 sqlite store failed", "err", err)
+		} else {
+			plainInboundStore := plainstore.NewInboundStore(db)
+			inboundRuntimeStore := inbound.NewContractStore(plainInboundStore, app.Inbound)
+			if err := inboundRuntimeStore.Sync(context.Background()); err != nil {
+				log.Error("sync v2 inbound runtime failed", "err", err)
+			}
+			inboundStore = inboundRuntimeStore
+			nodeStore = plainstore.NewNodeStore(db)
+			subscriptionStore = plainstore.NewSubscriptionStore(db)
+			resolverStore = plainstore.NewResolverStore(db)
+			resolverConfig = plainstore.NewResolverConfigRuntimeStore(plainstore.NewResolverConfigStore(db), app.ResolverCfg)
+			routeSettingsStore = plainstore.NewRouteSettingsStore(db)
+			routeListStore = plainstore.NewRouteListStore(db)
+			routeRuleStore = plainstore.NewRouteRuleStore(db)
+			routeTagStore = plainstore.NewRouteTagStore(db)
+			if app.NodeManager != nil {
+				subscribeController = node.NewContractSubscriptionController(app.NodeManager, nodeStore, subscriptionStore)
+			}
+		}
+	}
+
+	httpapi.RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
 		HandleFunc(app.Mux, app.Auth, pattern, handler)
-	}, httpapi.Services{
-		Config:      app.Setting,
-		Lists:       app.Lists,
-		Rules:       app.Rules,
-		Inbound:     app.Inbound,
-		Resolver:    app.Resolver,
-		Node:        app.Node,
-		Subscribe:   app.Subscribe,
-		Tag:         app.Tag,
-		Connections: app.Connections,
-		Tools:       app.Tools,
-		Backup:      app.Backup,
+	}, httpapi.V2Services{
+		Settings:       app.Setting,
+		Inbounds:       inboundStore,
+		Nodes:          nodeStore,
+		Node:           app.Node,
+		Subscriptions:  subscriptionStore,
+		Resolvers:      resolverStore,
+		Resolver:       app.Resolver,
+		ResolverConfig: resolverConfig,
+		Connections:    app.Connections,
+		Tools:          app.Tools,
+		Backup:         app.Backup,
+		Lists:          app.Lists,
+		RouteSettings:  routeSettingsStore,
+		RouteLists:     routeListStore,
+		Rules:          app.Rules,
+		RouteRules:     routeRuleStore,
+		RouteTags:      routeTagStore,
+		Subscribe:      subscribeController,
 	})
 }
 
@@ -109,17 +153,25 @@ func (a *AppInstance) Close() error {
 }
 
 type StartOptions struct {
-	BypassConfig   chore.DB
-	ResolverConfig chore.DB
-	InboundConfig  chore.DB
-	ChoreConfig    chore.DB
-	BackupConfig   chore.DB
+	BypassConfig   any
+	ResolverConfig any
+	InboundConfig  any
+	ChoreConfig    SQLStore
+	BackupConfig   any
 
 	ProcessDumper netapi.ProcessDumper
 
 	Auth *Auth
 
 	ConfigPath string
+}
+
+type SQLStore interface {
+	SQLDB(context.Context) (*sql.DB, error)
+}
+
+type MigrationStore interface {
+	Migrate(context.Context) error
 }
 
 type Auth struct {

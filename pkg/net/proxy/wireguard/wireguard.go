@@ -16,11 +16,11 @@ import (
 	"runtime"
 	"sync"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/tailscale/wireguard-go/device"
@@ -31,7 +31,7 @@ type Wireguard struct {
 	netapi.EmptyDispatch
 	net    *NetTun
 	bind   *netBindClient
-	conf   *node.Wireguard
+	conf   Config
 	device *device.Device
 
 	happyDialer *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
@@ -39,16 +39,58 @@ type Wireguard struct {
 }
 
 func init() {
-	register.RegisterPoint(NewClient)
+	register.RegisterContractPoint("wireguard", func(config contractnode.Wireguard, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(wireguardConfigFromContract(config), p)
+	})
 }
 
-func NewClient(conf *node.Wireguard, p netapi.Proxy) (netapi.Proxy, error) {
-	endpoints, err := ParseEndpoints(conf.GetEndpoint())
+func wireguardConfigFromContract(config contractnode.Wireguard) Config {
+	return Config{
+		SecretKey: config.SecretKey,
+		Endpoint:  config.Endpoint,
+		Peers:     wireguardPeersFromContract(config.Peers),
+		MTU:       config.MTU,
+		Reserved:  config.Reserved,
+	}
+}
+
+func wireguardPeersFromContract(in []contractnode.WireguardPeer) []PeerConfig {
+	out := make([]PeerConfig, 0, len(in))
+	for _, peer := range in {
+		out = append(out, PeerConfig{
+			PublicKey:    peer.PublicKey,
+			PreSharedKey: peer.PreSharedKey,
+			Endpoint:     peer.Endpoint,
+			KeepAlive:    peer.KeepAlive,
+			AllowedIPs:   peer.AllowedIPs,
+		})
+	}
+	return out
+}
+
+type Config struct {
+	SecretKey string       `json:"secretKey"`
+	Endpoint  []string     `json:"endpoint,omitzero"`
+	Peers     []PeerConfig `json:"peers,omitzero"`
+	MTU       int32        `json:"mtu,omitzero"`
+	Reserved  []byte       `json:"reserved,omitzero"`
+}
+
+type PeerConfig struct {
+	PublicKey    string   `json:"publicKey"`
+	PreSharedKey string   `json:"preSharedKey,omitzero"`
+	Endpoint     string   `json:"endpoint"`
+	KeepAlive    int32    `json:"keepAlive,omitzero"`
+	AllowedIPs   []string `json:"allowedIps,omitzero"`
+}
+
+func NewClient(conf Config, p netapi.Proxy) (netapi.Proxy, error) {
+	endpoints, err := ParseEndpoints(conf.Endpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	tun, err := CreateNetTUN(endpoints, int(conf.GetMtu()))
+	tun, err := CreateNetTUN(endpoints, int(conf.MTU))
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +98,7 @@ func NewClient(conf *node.Wireguard, p netapi.Proxy) (netapi.Proxy, error) {
 	w := &Wireguard{
 		conf: conf,
 		net:  tun,
-		bind: newNetBindClient(conf.GetReserved()),
+		bind: newNetBindClient(conf.Reserved),
 		happyDialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
 			return tun.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 		}, dialer.WithHappyEyeballsSemaphore[*gonet.TCPConn](semaphore.NewEmptySemaphore())),
@@ -208,7 +250,7 @@ func (w *wrapGoNetUdpConn) ReadFrom(buf []byte) (int, net.Addr, error) {
 }
 
 // creates a tun interface on netstack given a configuration
-func makeVirtualTun(h *node.Wireguard, bind *netBindClient, tun *NetTun) (*device.Device, error) {
+func makeVirtualTun(h Config, bind *netBindClient, tun *NetTun) (*device.Device, error) {
 	// dev := device.NewDevice(tun, conn.NewDefaultBind(), nil /* device.NewLogger(device.LogLevelVerbose, "") */)
 	dev := device.NewDevice(
 		tun,
@@ -246,21 +288,21 @@ func base64ToHex(s string) string {
 }
 
 // serialize the config into an IPC request
-func createIPCRequest(conf *node.Wireguard) *bytes.Buffer {
+func createIPCRequest(conf Config) *bytes.Buffer {
 	request := bytes.NewBuffer(nil)
 
-	fmt.Fprintf(request, "private_key=%s\n", base64ToHex(conf.GetSecretKey()))
+	fmt.Fprintf(request, "private_key=%s\n", base64ToHex(conf.SecretKey))
 
-	for _, peer := range conf.GetPeers() {
-		fmt.Fprintf(request, "public_key=%s\nendpoint=%s\n", base64ToHex(peer.GetPublicKey()), peer.GetEndpoint())
-		if peer.GetKeepAlive() != 0 {
-			fmt.Fprintf(request, "persistent_keepalive_interval=%d\n", peer.GetKeepAlive())
+	for _, peer := range conf.Peers {
+		fmt.Fprintf(request, "public_key=%s\nendpoint=%s\n", base64ToHex(peer.PublicKey), peer.Endpoint)
+		if peer.KeepAlive != 0 {
+			fmt.Fprintf(request, "persistent_keepalive_interval=%d\n", peer.KeepAlive)
 		}
-		if peer.GetPreSharedKey() != "" {
-			fmt.Fprintf(request, "preshared_key=%s\n", base64ToHex(peer.GetPreSharedKey()))
+		if peer.PreSharedKey != "" {
+			fmt.Fprintf(request, "preshared_key=%s\n", base64ToHex(peer.PreSharedKey))
 		}
 
-		for _, ip := range peer.GetAllowedIps() {
+		for _, ip := range peer.AllowedIPs {
 			fmt.Fprintf(request, "allowed_ip=%s\n", ip)
 		}
 	}

@@ -12,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
 )
@@ -51,15 +50,10 @@ func TestConn(t *testing.T) {
 		port, err := strconv.ParseUint(portstr, 10, 16)
 		assert.NoError(t, err)
 
-		p, err := fixed.NewClient(node.Fixed_builder{
-			Host: new(host),
-			Port: new(int32(port)),
-		}.Build(), nil)
+		p, err := fixed.NewClient(fixed.Config{Host: host, Port: int32(port)}, nil)
 		assert.NoError(t, err)
 
-		p, err = NewClient(node.Http2_builder{
-			Concurrency: ptr(int32(1)),
-		}.Build(), p)
+		p, err = NewClient(Config{Concurrency: int32(1)}, p)
 		assert.NoError(t, err)
 
 		cch := make(chan net.Conn, 1)
@@ -131,15 +125,10 @@ func TestConn(t *testing.T) {
 			port, err := strconv.ParseUint(portstr, 10, 16)
 			assert.NoError(t, err)
 
-			p, err := fixed.NewClient(node.Fixed_builder{
-				Host: new(host),
-				Port: new(int32(port)),
-			}.Build(), nil)
+			p, err := fixed.NewClient(fixed.Config{Host: host, Port: int32(port)}, nil)
 			assert.NoError(t, err)
 
-			p, err = NewClient(node.Http2_builder{
-				Concurrency: ptr(int32(1)),
-			}.Build(), p)
+			p, err = NewClient(Config{Concurrency: int32(1)}, p)
 			assert.NoError(t, err)
 
 			conn, err := p.Conn(context.TODO(), netapi.EmptyAddr)
@@ -185,15 +174,10 @@ func TestConn(t *testing.T) {
 			port, err := strconv.ParseUint(portstr, 10, 16)
 			assert.NoError(t, err)
 
-			p, err := fixed.NewClient(node.Fixed_builder{
-				Host: new(host),
-				Port: new(int32(port)),
-			}.Build(), nil)
+			p, err := fixed.NewClient(fixed.Config{Host: host, Port: int32(port)}, nil)
 			assert.NoError(t, err)
 
-			p, err = NewClient(node.Http2_builder{
-				Concurrency: ptr(int32(1)),
-			}.Build(), p)
+			p, err = NewClient(Config{Concurrency: int32(1)}, p)
 			assert.NoError(t, err)
 
 			conn, err := p.Conn(context.TODO(), netapi.EmptyAddr)
@@ -235,18 +219,13 @@ func TestClient(t *testing.T) {
 		}
 	}()
 
-	p, err := fixed.NewClient(node.Fixed_builder{
-		Host: new("127.0.0.1"),
-		Port: ptr(int32(8082)),
-	}.Build(), nil)
+	p, err := fixed.NewClient(fixed.Config{Host: "127.0.0.1", Port: int32(8082)}, nil)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
 	}
 
-	p, err = NewClient(node.Http2_builder{
-		Concurrency: ptr(int32(1)),
-	}.Build(), p)
+	p, err = NewClient(Config{Concurrency: int32(1)}, p)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

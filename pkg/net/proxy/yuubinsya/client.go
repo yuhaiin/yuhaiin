@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -28,16 +28,28 @@ type client struct {
 }
 
 func init() {
-	register.RegisterPoint(NewClient)
+	register.RegisterContractPoint("yuubinsya", func(config contractnode.Yuubinsya, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{
+			Password:      config.Password,
+			UDPOverStream: config.UDPOverStream,
+			UDPCoalesce:   config.UDPCoalesce,
+		}, p)
+	})
 }
 
-func NewClient(config *node.Yuubinsya, dialer netapi.Proxy) (netapi.Proxy, error) {
-	hash := Salt([]byte(config.GetPassword()))
+type Config struct {
+	Password      string `json:"password"`
+	UDPOverStream bool   `json:"udp_over_stream"`
+	UDPCoalesce   bool   `json:"udp_coalesce"`
+}
+
+func NewClient(config Config, dialer netapi.Proxy) (netapi.Proxy, error) {
+	hash := Salt([]byte(config.Password))
 	c := &client{
 		Proxy:    dialer,
 		hash:     hash,
-		overTCP:  config.GetUdpOverStream(),
-		coalesce: config.GetUdpCoalesce(),
+		overTCP:  config.UDPOverStream,
+		coalesce: config.UDPCoalesce,
 	}
 
 	return c, nil

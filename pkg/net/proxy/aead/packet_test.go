@@ -10,8 +10,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -72,16 +70,16 @@ func BenchmarkEncodePacket(b *testing.B) {
 }
 
 func TestPacket(t *testing.T) {
-	s, err := fixed.NewServer(config.Tcpudp_builder{
-		Host:    new(":12345"),
-		Control: config.TcpUdpControl_disable_tcp.Enum(),
-	}.Build())
+	s, err := fixed.NewServer(fixed.ServerConfig{
+		Host:    ":12345",
+		Control: fixed.ControlDisableTCP,
+	})
 	assert.NoError(t, err)
 
-	as, err := NewServer(config.Aead_builder{
-		Password:     new("123456"),
-		CryptoMethod: node.AeadCryptoMethod_XChacha20Poly1305.Enum(),
-	}.Build(), s)
+	as, err := NewServer(Config{
+		Password:     "123456",
+		CryptoMethod: CryptoMethodXChacha20Poly1305,
+	}, s)
 	assert.NoError(t, err)
 
 	pc, err := as.Packet(context.Background())
@@ -100,17 +98,14 @@ func TestPacket(t *testing.T) {
 		}
 	}()
 
-	fp, err := fixed.NewClient(node.Fixed_builder{
-		Host: new("127.0.0.1"),
-		Port: ptr(int32(12345)),
-	}.Build(), nil)
+	fp, err := fixed.NewClient(fixed.Config{Host: "127.0.0.1", Port: int32(12345)}, nil)
 	assert.NoError(t, err)
 	defer fp.Close()
 
-	ac, err := NewClient(node.Aead_builder{
-		Password:     new("123456"),
-		CryptoMethod: node.AeadCryptoMethod_XChacha20Poly1305.Enum(),
-	}.Build(), fp)
+	ac, err := NewClient(Config{
+		Password:     "123456",
+		CryptoMethod: CryptoMethodXChacha20Poly1305,
+	}, fp)
 	assert.NoError(t, err)
 	defer ac.Close()
 

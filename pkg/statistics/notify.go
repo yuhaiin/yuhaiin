@@ -5,25 +5,25 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	"github.com/Asutorufa/yuhaiin/pkg/control"
-	schemaapi "github.com/Asutorufa/yuhaiin/pkg/schema/api"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 type notifierEntry struct {
-	s      control.ServerStream[schemaapi.NotifyData]
+	s      control.ServerStream[contractconnection.Event]
 	cancel context.CancelCauseFunc
 }
 
-func (n *notifierEntry) Send(data *schemaapi.NotifyData) error {
-	err := n.s.Send(data)
+func (n *notifierEntry) Send(data contractconnection.Event) error {
+	err := n.s.Send(&data)
 	if err != nil {
 		n.cancel(fmt.Errorf("send notify error: %w", err))
 	}
@@ -55,7 +55,7 @@ func newNotify() *notify {
 	return n
 }
 
-func (n *notify) register(s control.ServerStream[schemaapi.NotifyData], conns []*statistic.Connection) (uint64, context.Context) {
+func (n *notify) register(s control.ServerStream[contractconnection.Event], conns []contractconnection.Connection) (uint64, context.Context) {
 	id := n.notifierIDSeed.Generate()
 	ctx, cancel := context.WithCancelCause(context.Background())
 
@@ -64,8 +64,9 @@ func (n *notify) register(s control.ServerStream[schemaapi.NotifyData], conns []
 		cancel: cancel,
 	}
 
-	err := ne.Send(&schemaapi.NotifyData{
-		NotifyNewConnections: &schemaapi.NotifyNewConnections{Connections: conns},
+	err := ne.Send(contractconnection.Event{
+		Type:    "connections_added",
+		Payload: contractconnection.Connections{Connections: conns},
 	})
 	if err == nil {
 		n.notifier.Store(id, ne)
@@ -124,7 +125,7 @@ func (n *notify) trigger() {
 	}
 }
 
-func (n *notify) pubNewConn(conn *statistic.Connection) {
+func (n *notify) pubNewConn(conn contractconnection.Connection) {
 	if n.closed.Load() {
 		return
 	}
@@ -151,21 +152,22 @@ func (n *notify) Close() error {
 
 type notifyStore struct {
 	removeStore *set.Set[uint64]
-	store       map[uint64]*statistic.Connection
+	store       map[uint64]contractconnection.Connection
 	length      uint64
 	mu          sync.RWMutex
 }
 
 func newNotifyStore() *notifyStore {
 	return &notifyStore{
-		store:       make(map[uint64]*statistic.Connection),
+		store:       make(map[uint64]contractconnection.Connection),
 		removeStore: set.NewSet[uint64](),
 	}
 }
 
-func (n *notifyStore) push(o *statistic.Connection) int {
+func (n *notifyStore) push(o contractconnection.Connection) int {
 	n.mu.Lock()
-	n.store[o.GetId()] = o
+	id, _ := strconv.ParseUint(o.ID, 10, 64)
+	n.store[id] = o
 	n.length++
 	len := n.length
 	n.mu.Unlock()
@@ -191,7 +193,7 @@ func (n *notifyStore) remove(id uint64) int {
 	return int(len)
 }
 
-func (n *notifyStore) dump() (datas []*schemaapi.NotifyData) {
+func (n *notifyStore) dump() (datas []contractconnection.Event) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -202,14 +204,20 @@ func (n *notifyStore) dump() (datas []*schemaapi.NotifyData) {
 	n.length = 0
 
 	if len(removeIDs) > 0 {
-		datas = append(datas, &schemaapi.NotifyData{
-			NotifyRemoveConnections: &schemaapi.NotifyRemoveConnections{Ids: removeIDs},
+		ids := make([]string, 0, len(removeIDs))
+		for _, id := range removeIDs {
+			ids = append(ids, formatUint64(id))
+		}
+		datas = append(datas, contractconnection.Event{
+			Type:    "connections_removed",
+			Payload: contractconnection.CloseRequest{IDs: ids},
 		})
 	}
 
 	if len(newConns) > 0 {
-		datas = append(datas, &schemaapi.NotifyData{
-			NotifyNewConnections: &schemaapi.NotifyNewConnections{Connections: newConns},
+		datas = append(datas, contractconnection.Event{
+			Type:    "connections_added",
+			Payload: contractconnection.Connections{Connections: newConns},
 		})
 	}
 

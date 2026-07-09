@@ -45,8 +45,9 @@ Implementation note:
 - `google.golang.org/grpc` is no longer a module dependency.
 - The web UI now calls `/api/v1` through fetch/SSE, and no longer exposes the
   old `grpc` protocol/transport options.
-- Protobuf-generated structs are still the domain model and persistence model;
-  the next cleanup stage is replacing those with `pkg/schema` structs.
+- Protobuf-shaped structs are now isolated under `pkg/legacy/schema`; the next
+  cleanup stage is replacing remaining runtime imports with `pkg/contract`
+  structs and deleting the legacy folder.
 
 ## 2. Current surface area
 
@@ -133,7 +134,7 @@ generated code is deleted.
 Add three explicit layers:
 
 ```text
-pkg/schema/
+pkg/legacy/schema/
   api/          // HTTP request/response DTOs
   config/       // runtime config structs
   node/         // node/protocol/subscribe/tag structs
@@ -170,10 +171,10 @@ pkg/httpapi/
 The intended dependency direction is:
 
 ```text
-cmd/* -> pkg/app -> pkg/httpapi -> pkg/control -> pkg/schema + domain packages
+cmd/* -> pkg/app -> pkg/httpapi -> pkg/control -> pkg/legacy/schema + domain packages
 ```
 
-Domain packages may depend on `pkg/schema/*`, but must not depend on
+Domain packages may temporarily depend on `pkg/legacy/schema/*`, but must not depend on
 `pkg/httpapi`. `pkg/httpapi` should only translate HTTP details into control
 calls.
 
@@ -739,7 +740,8 @@ import `legacy.ts` directly; domain API modules own the fallback decision.
 
 ### 8.3 TypeScript types
 
-TypeScript types should mirror `pkg/schema` JSON, not protobuf names. There are
+TypeScript types should mirror `pkg/contract` JSON, not legacy protobuf-shaped
+names. There are
 two acceptable options:
 
 - maintain hand-written TypeScript interfaces beside the API client while the
@@ -897,7 +899,7 @@ Exit criteria:
 
 ### Phase 3: introduce plain schema structs
 
-- Add `pkg/schema` packages.
+- Add `pkg/contract` packages and isolate old structs in `pkg/legacy/schema`.
 - Convert API DTOs first, then config/node/statistic/backup domain models.
 - Add generated-proto-to-schema and schema-to-generated-proto conversion only in
   migration/compat packages.
@@ -906,7 +908,7 @@ Exit criteria:
 
 Exit criteria:
 
-- new business logic depends on `pkg/schema`, not `pkg/protos`
+- new business logic depends on `pkg/contract`, not `pkg/protos` or `pkg/legacy/schema`
 - all oneof runtime dispatch uses explicit type strings
 - HTTP JSON handlers no longer construct protobuf messages for normal paths
 

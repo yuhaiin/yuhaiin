@@ -7,15 +7,15 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/memory"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/statistic"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/tools"
+	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
+	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
 func TestSQLiteTelemetryPersistsTotalsAndHistory(t *testing.T) {
 	t.Parallel()
 
-	path := tools.PathGenerator.State(t.TempDir())
+	path := paths.PathGenerator.State(t.TempDir())
 
 	cache := NewSQLiteTotalCache(path)
 	cache.AddDownload(123)
@@ -23,14 +23,14 @@ func TestSQLiteTelemetryPersistsTotalsAndHistory(t *testing.T) {
 	cache.Close()
 
 	history := NewSQLiteHistory(path)
-	history.Push(statistic.Connection_builder{
-		Id:      new(uint64(1)),
-		Addr:    new("example.com:443"),
-		Process: new("curl"),
-		Type: statistic.NetType_builder{
-			ConnType: statistic.Type_tcp.Enum(),
-		}.Build(),
-	}.Build())
+	history.Push(contractconnection.Connection{
+		ID:      "1",
+		Addr:    "example.com:443",
+		Process: "curl",
+		Network: contractconnection.NetworkType{
+			ConnType: "tcp",
+		},
+	})
 
 	store, err := storagesqlite.Open(context.Background(), path)
 	if err != nil {
@@ -64,10 +64,10 @@ func TestSQLiteTelemetryPersistsTotalsAndHistory(t *testing.T) {
 	}
 
 	resp := history.Get()
-	if len(resp.GetObjects()) != 1 {
-		t.Fatalf("expected 1 history object, got %d", len(resp.GetObjects()))
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 history object, got %d", len(resp.Items))
 	}
-	if got := resp.GetObjects()[0].GetConnection().GetAddr(); got != "example.com:443" {
+	if got := resp.Items[0].Connection.Addr; got != "example.com:443" {
 		t.Fatalf("expected history addr example.com:443, got %q", got)
 	}
 
@@ -89,7 +89,7 @@ func TestSQLiteTelemetryPersistsTotalsAndHistory(t *testing.T) {
 func TestSQLiteTotalCacheImportsLegacyFlowData(t *testing.T) {
 	t.Parallel()
 
-	path := tools.PathGenerator.State(t.TempDir())
+	path := paths.PathGenerator.State(t.TempDir())
 	legacy := memory.NewMemoryCache().NewCache("flow_data")
 	if err := legacy.Put(legacyDownloadKey, binary.BigEndian.AppendUint64(nil, 987)); err != nil {
 		t.Fatalf("seed legacy download failed: %v", err)

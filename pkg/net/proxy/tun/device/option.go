@@ -6,14 +6,43 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 var Mark = 0x00000500
 
+type Driver string
+
+const (
+	DriverFDBased      Driver = "fdbased"
+	DriverChannel      Driver = "channel"
+	DriverSystemGvisor Driver = "system_gvisor"
+)
+
+type TunConfig struct {
+	Name          string         `json:"name,omitzero"`
+	MTU           int32          `json:"mtu,omitzero"`
+	ForceFakeIP   bool           `json:"force_fakeip,omitzero"`
+	SkipMulticast bool           `json:"skip_multicast,omitzero"`
+	Driver        Driver         `json:"driver,omitzero"`
+	Portal        string         `json:"portal,omitzero"`
+	PortalV6      string         `json:"portal_v6,omitzero"`
+	Routes        []string       `json:"routes,omitzero"`
+	PostUp        []string       `json:"post_up,omitzero"`
+	PostDown      []string       `json:"post_down,omitzero"`
+	Platform      PlatformConfig `json:"platform,omitzero"`
+}
+
+type PlatformConfig struct {
+	Darwin DarwinConfig `json:"darwin,omitzero"`
+}
+
+type DarwinConfig struct {
+	NetworkService string `json:"network_service,omitzero"`
+}
+
 type Opt struct {
-	*config.Tun
+	Tun TunConfig
 	*netlink.Options
 	netapi.Handler
 
@@ -21,7 +50,7 @@ type Opt struct {
 }
 
 func (o *Opt) PostDown() {
-	execPost(o.Tun.GetPostDown())
+	execPost(o.Tun.PostDown)
 	o.UnSkipMark()
 	if o.UnsetRoute != nil {
 		o.UnsetRoute()
@@ -29,7 +58,7 @@ func (o *Opt) PostDown() {
 }
 
 func (o *Opt) PostUp() {
-	execPost(o.Tun.GetPostUp())
+	execPost(o.Tun.PostUp)
 	o.SkipMark()
 }
 

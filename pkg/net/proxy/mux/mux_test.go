@@ -10,7 +10,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -34,15 +33,10 @@ func TestMux(t *testing.T) {
 		t.Log(string(data))
 	})
 
-	p, err := fixed.NewClient(node.Fixed_builder{
-		Host: new("127.0.0.1"),
-		Port: ptr(int32(4431)),
-	}.Build(), nil)
+	p, err := fixed.NewClient(fixed.Config{Host: "127.0.0.1", Port: int32(4431)}, nil)
 	assert.NoError(t, err)
 
-	p, err = NewClient(node.Mux_builder{
-		Concurrency: ptr(int32(1)),
-	}.Build(), p)
+	p, err = NewClient(Config{Concurrency: int32(1)}, p)
 	assert.NoError(t, err)
 
 	conn, err := p.Conn(context.TODO(), netapi.EmptyAddr)

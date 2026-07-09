@@ -14,12 +14,11 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
 	"github.com/miekg/dns"
 )
 
 func init() {
-	Register(config.Type_tcp, NewTCP)
+	Register("tcp", NewTCP)
 }
 
 func NewTCP(config Config) (Transport, error) {

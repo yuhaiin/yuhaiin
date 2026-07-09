@@ -7,115 +7,38 @@ import (
 	"net"
 	"reflect"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-func GetPointValue(i *node.Protocol) any {
-	if i == nil {
-		return &node.None{}
-	}
-	switch i.WhichProtocol() {
-	case node.Protocol_Shadowsocks_case:
-		return i.GetShadowsocks()
-	case node.Protocol_Shadowsocksr_case:
-		return i.GetShadowsocksr()
-	case node.Protocol_Vmess_case:
-		return i.GetVmess()
-	case node.Protocol_Websocket_case:
-		return i.GetWebsocket()
-	case node.Protocol_Quic_case:
-		return i.GetQuic()
-	case node.Protocol_ObfsHttp_case:
-		return i.GetObfsHttp()
-	case node.Protocol_Trojan_case:
-		return i.GetTrojan()
-	case node.Protocol_Simple_case:
-		return i.GetSimple()
-	case node.Protocol_Socks5_case:
-		return i.GetSocks5()
-	case node.Protocol_Http_case:
-		return i.GetHttp()
-	case node.Protocol_Direct_case:
-		return i.GetDirect()
-	case node.Protocol_Reject_case:
-		return i.GetReject()
-	case node.Protocol_Yuubinsya_case:
-		return i.GetYuubinsya()
-	case node.Protocol_Http2_case:
-		return i.GetHttp2()
-	case node.Protocol_Reality_case:
-		return i.GetReality()
-	case node.Protocol_Tls_case:
-		return i.GetTls()
-	case node.Protocol_Wireguard_case:
-		return i.GetWireguard()
-	case node.Protocol_Mux_case:
-		return i.GetMux()
-	case node.Protocol_Drop_case:
-		return i.GetDrop()
-	case node.Protocol_Vless_case:
-		return i.GetVless()
-	case node.Protocol_BootstrapDnsWarp_case:
-		return i.GetBootstrapDnsWarp()
-	case node.Protocol_Tailscale_case:
-		return i.GetTailscale()
-	case node.Protocol_Set_case:
-		return i.GetSet()
-	case node.Protocol_TlsTermination_case:
-		return i.GetTlsTermination()
-	case node.Protocol_HttpTermination_case:
-		return i.GetHttpTermination()
-	case node.Protocol_HttpMock_case:
-		return i.GetHttpMock()
-	case node.Protocol_Aead_case:
-		return i.GetAead()
-	case node.Protocol_Fixed_case:
-		return i.GetFixed()
-	case node.Protocol_NetworkSplit_case:
-		return i.GetNetworkSplit()
-	case node.Protocol_CloudflareWarpMasque_case:
-		return i.GetCloudflareWarpMasque()
-	case node.Protocol_Proxy_case:
-		return i.GetProxy()
-	case node.Protocol_Fixedv2_case:
-		return i.GetFixedv2()
-	case node.Protocol_PointAsEndpoint_case:
-		return i.GetPointAsEndpoint()
-	default:
-		return &node.None{}
-	}
-}
-
 func init() {
-	RegisterPoint(func(_ *node.None, p netapi.Proxy) (netapi.Proxy, error) {
+	RegisterContractPoint("none", func(_ contractnode.None, p netapi.Proxy) (netapi.Proxy, error) {
 		return p, nil
 	})
-	RegisterPoint(func(_ *node.BootstrapDnsWarp, p netapi.Proxy) (netapi.Proxy, error) {
+	RegisterContractPoint("bootstrap_dns_warp", func(_ contractnode.BootstrapDNSWarp, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewBootstrapDnsWarp(p), nil
 	})
-
-	RegisterPoint(func(ns *node.NetworkSplit, p netapi.Proxy) (netapi.Proxy, error) {
-		if ns.GetTcp().WhichProtocol() == node.Protocol_NetworkSplit_case {
-			return nil, fmt.Errorf("nested network split is not supported")
+	RegisterContractPoint("network_split", func(config contractnode.NetworkSplit, p netapi.Proxy) (netapi.Proxy, error) {
+		if config.TCP == nil {
+			return nil, errors.New("network split tcp protocol is empty")
+		}
+		if config.UDP == nil {
+			return nil, errors.New("network split udp protocol is empty")
+		}
+		if config.TCP.Type == "network_split" || config.UDP.Type == "network_split" {
+			return nil, errors.New("nested network split is not supported")
 		}
 
-		if ns.GetUdp().WhichProtocol() == node.Protocol_NetworkSplit_case {
-			return nil, fmt.Errorf("nested network split is not supported")
-		}
-
-		tcp, err := Wrap(GetPointValue(ns.GetTcp()), p)
+		tcp, err := ContractWrap(*config.TCP, p)
 		if err != nil {
 			return nil, err
 		}
-
-		udp, err := Wrap(GetPointValue(ns.GetUdp()), p)
+		udp, err := ContractWrap(*config.UDP, p)
 		if err != nil {
 			_ = tcp.Close()
 			return nil, err
 		}
-
 		return &networkSplit{tcp: tcp, udp: udp, Proxy: p}, nil
 	})
 }
@@ -150,22 +73,116 @@ func (n *networkSplit) Close() error {
 	return err
 }
 
-func Dialer(p *node.Point) (r netapi.Proxy, err error) {
+func ContractDialer(p contractnode.Node) (r netapi.Proxy, err error) {
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
 	r = zeroproxy
-
-	for _, v := range p.GetProtocols() {
-		r, err = Wrap(GetPointValue(v), r)
+	for i, protocol := range p.Chain {
+		r, err = ContractWrap(protocol, r)
 		if err != nil {
-			return
+			return nil, fmt.Errorf("contract node %q chain[%d]: %w", p.ID, i, err)
 		}
 	}
+	return r, nil
+}
 
-	return
+func ContractWrap(protocol contractnode.Protocol, p netapi.Proxy) (netapi.Proxy, error) {
+	if err := protocol.Validate(); err != nil {
+		return nil, err
+	}
+	if fn, ok := execContractProtocol.Load(protocol.Type); ok {
+		obj, err := ContractProtocolConfig(protocol)
+		if err != nil {
+			return nil, err
+		}
+		return fn(obj, p)
+	}
+	return nil, fmt.Errorf("node protocol %q is not registered", protocol.Type)
+}
+
+func ContractProtocolConfig(protocol contractnode.Protocol) (any, error) {
+	if err := protocol.Validate(); err != nil {
+		return nil, err
+	}
+	switch protocol.Type {
+	case "shadowsocks":
+		return *protocol.Shadowsocks, nil
+	case "shadowsocksr":
+		return *protocol.Shadowsocksr, nil
+	case "vmess":
+		return *protocol.Vmess, nil
+	case "websocket":
+		return *protocol.Websocket, nil
+	case "quic":
+		return *protocol.Quic, nil
+	case "obfs_http":
+		return *protocol.ObfsHTTP, nil
+	case "trojan":
+		return *protocol.Trojan, nil
+	case "simple":
+		return *protocol.Simple, nil
+	case "none":
+		return *protocol.None, nil
+	case "socks5":
+		return *protocol.Socks5, nil
+	case "http":
+		return *protocol.HTTP, nil
+	case "direct":
+		return *protocol.Direct, nil
+	case "reject":
+		return *protocol.Reject, nil
+	case "yuubinsya":
+		return *protocol.Yuubinsya, nil
+	case "http2":
+		return *protocol.HTTP2, nil
+	case "reality":
+		return *protocol.Reality, nil
+	case "tls":
+		return *protocol.TLS, nil
+	case "wireguard":
+		return *protocol.Wireguard, nil
+	case "mux":
+		return *protocol.Mux, nil
+	case "drop":
+		return *protocol.Drop, nil
+	case "vless":
+		return *protocol.Vless, nil
+	case "bootstrap_dns_warp":
+		return *protocol.BootstrapDNSWarp, nil
+	case "tailscale":
+		return *protocol.Tailscale, nil
+	case "set":
+		return *protocol.Set, nil
+	case "tls_termination":
+		return *protocol.TLSTermination, nil
+	case "http_termination":
+		return *protocol.HTTPTermination, nil
+	case "http_mock":
+		return *protocol.HTTPMock, nil
+	case "aead":
+		return *protocol.AEAD, nil
+	case "fixed":
+		return *protocol.Fixed, nil
+	case "network_split":
+		return *protocol.NetworkSplit, nil
+	case "cloudflare_warp_masque":
+		return *protocol.CloudflareWarpMasque, nil
+	case "proxy":
+		return *protocol.Proxy, nil
+	case "fixedv2":
+		return *protocol.FixedV2, nil
+	case "point_as_endpoint":
+		return *protocol.PointAsEndpoint, nil
+	default:
+		return nil, fmt.Errorf("unknown node protocol type %q", protocol.Type)
+	}
 }
 
 type WrapProxy[T any] func(t T, p netapi.Proxy) (netapi.Proxy, error)
 
 var execProtocol syncmap.SyncMap[reflect.Type, func(any, netapi.Proxy) (netapi.Proxy, error)]
+var execContractProtocol syncmap.SyncMap[string, func(any, netapi.Proxy) (netapi.Proxy, error)]
 
 func RegisterPoint[T any](wrap func(T, netapi.Proxy) (netapi.Proxy, error)) {
 	if wrap == nil {
@@ -176,6 +193,19 @@ func RegisterPoint[T any](wrap func(T, netapi.Proxy) (netapi.Proxy, error)) {
 		reflect.TypeOf((*T)(nil)).Elem(),
 		func(t any, p netapi.Proxy) (netapi.Proxy, error) { return wrap(t.(T), p) },
 	)
+}
+
+func RegisterContractPoint[T any](typ string, wrap func(T, netapi.Proxy) (netapi.Proxy, error)) {
+	if typ == "" || wrap == nil {
+		return
+	}
+	execContractProtocol.Store(typ, func(config any, p netapi.Proxy) (netapi.Proxy, error) {
+		typed, ok := config.(T)
+		if !ok {
+			return nil, fmt.Errorf("node protocol %q config type %T does not match registered type %s", typ, config, reflect.TypeOf((*T)(nil)).Elem())
+		}
+		return wrap(typed, p)
+	})
 }
 
 func Wrap(p any, x netapi.Proxy) (netapi.Proxy, error) {

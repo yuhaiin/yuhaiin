@@ -11,10 +11,10 @@ import (
 	"net/http"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 )
 
 /*
@@ -101,13 +101,23 @@ type httpOBFS struct {
 }
 
 func init() {
-	register.RegisterPoint(NewHTTPOBFS)
+	register.RegisterContractPoint("obfs_http", func(config contractnode.ObfsHTTP, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewHTTPOBFS(HTTPObfsConfig{
+			Host: config.Host,
+			Port: config.Port,
+		}, p)
+	})
 }
 
-func NewHTTPOBFS(config *node.ObfsHttp, p netapi.Proxy) (netapi.Proxy, error) {
+type HTTPObfsConfig struct {
+	Host string `json:"host"`
+	Port string `json:"port"`
+}
+
+func NewHTTPOBFS(config HTTPObfsConfig, p netapi.Proxy) (netapi.Proxy, error) {
 	return &httpOBFS{
-		host:  config.GetHost(),
-		port:  config.GetPort(),
+		host:  config.Host,
+		port:  config.Port,
 		Proxy: p,
 	}, nil
 }

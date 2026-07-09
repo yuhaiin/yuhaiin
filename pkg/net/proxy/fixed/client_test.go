@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/config"
-	"github.com/Asutorufa/yuhaiin/pkg/schema/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -19,10 +17,10 @@ func TestUdpDetect(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	s, err := NewServer(config.Tcpudp_builder{
-		Host:             new("127.0.0.1:0"),
-		UdpHappyEyeballs: new(true),
-	}.Build())
+	s, err := NewServer(ServerConfig{
+		Host:             "127.0.0.1:0",
+		UDPHappyEyeballs: true,
+	})
 	assert.NoError(t, err)
 
 	mockServer, err := s.Packet(ctx)
@@ -39,17 +37,17 @@ func TestUdpDetect(t *testing.T) {
 	t.Logf("Mock UDP server listening on %s", actualServerAddrPort.String())
 
 	// Create a fixed.Client with udpDetect enabled
-	fixedNode := node.Fixedv2_builder{
-		Addresses: []*node.Fixedv2Address{
-			node.Fixedv2Address_builder{
-				Host: new(actualServerAddrPort.String()),
-			}.Build(),
-			node.Fixedv2Address_builder{
-				Host: new(actualServerAddrPort.String()),
-			}.Build(),
+	fixedNode := ConfigV2{
+		Addresses: []ConfigAddress{
+			{
+				Host: actualServerAddrPort.String(),
+			},
+			{
+				Host: actualServerAddrPort.String(),
+			},
 		},
-		UdpHappyEyeballs: new(true),
-	}.Build()
+		UDPHappyEyeballs: true,
+	}
 
 	client, err := NewClientv2(fixedNode, nil) // passing nil for proxy since we're testing direct UDP
 	assert.NoError(t, err)
@@ -84,10 +82,10 @@ func TestOptimizationLeak(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	s, err := NewServer(config.Tcpudp_builder{
-		Host:             new("127.0.0.1:0"),
-		UdpHappyEyeballs: new(true),
-	}.Build())
+	s, err := NewServer(ServerConfig{
+		Host:             "127.0.0.1:0",
+		UDPHappyEyeballs: true,
+	})
 	assert.NoError(t, err)
 
 	mockServer, err := s.Packet(ctx)
@@ -97,17 +95,17 @@ func TestOptimizationLeak(t *testing.T) {
 	actualServerUDPAddr := mockServer.LocalAddr().(*net.UDPAddr)
 	actualServerAddrPort := netip.MustParseAddrPort(actualServerUDPAddr.String())
 
-	fixedNode := node.Fixedv2_builder{
-		Addresses: []*node.Fixedv2Address{
-			node.Fixedv2Address_builder{
-				Host: new(actualServerAddrPort.String()),
-			}.Build(),
-			node.Fixedv2Address_builder{ // Add a second address so logic triggers
-				Host: new(actualServerAddrPort.String()),
-			}.Build(),
+	fixedNode := ConfigV2{
+		Addresses: []ConfigAddress{
+			{
+				Host: actualServerAddrPort.String(),
+			},
+			{ // Add a second address so logic triggers
+				Host: actualServerAddrPort.String(),
+			},
 		},
-		UdpHappyEyeballs: new(true),
-	}.Build()
+		UDPHappyEyeballs: true,
+	}
 
 	client, err := NewClientv2(fixedNode, nil)
 	assert.NoError(t, err)
