@@ -24,7 +24,7 @@ type InboundCtr struct {
 }
 
 func NewInboundCtr(s chore.DB, i *Inbound) *InboundCtr {
-	_ = s.Batch(func(s *config.Setting) error {
+	if err := s.Batch(func(s *config.Setting) error {
 		for name, v := range s.GetServer().GetInbounds() {
 			if !v.GetEnabled() {
 				continue
@@ -40,7 +40,9 @@ func NewInboundCtr(s chore.DB, i *Inbound) *InboundCtr {
 		i.SetHijackDnsFakeip(s.GetServer().GetHijackDnsFakeip())
 		i.SetSniff(s.GetServer().GetSniff().GetEnabled())
 		return nil
-	})
+	}); err != nil {
+		log.Error("sync inbound server config failed", "err", err)
+	}
 
 	return &InboundCtr{db: s, inbound: i}
 }
@@ -66,10 +68,6 @@ func (i *InboundCtr) List(ctx context.Context, req *api.Empty) (*api.InboundsRes
 }
 
 func inboundItem(name string, inbound *config.Inbound) *api.InboundItem {
-	if inbound.GetName() != "" {
-		name = inbound.GetName()
-	}
-
 	network := inbound.WhichNetwork().String()
 	protocol := inbound.WhichProtocol().String()
 	listen := ""

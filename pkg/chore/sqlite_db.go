@@ -659,9 +659,7 @@ func loadInboundTx(ctx context.Context, tx *sql.Tx, setting *config.Setting) err
 			return fmt.Errorf("decode inbound %q failed: %w", name, err)
 		}
 		applyInboundTypeFallback(inbound, inboundTypeValue)
-		if inbound.GetName() == "" {
-			inbound.SetName(name)
-		}
+		inbound.SetName(name)
 
 		server.GetInbounds()[name] = inbound
 	}

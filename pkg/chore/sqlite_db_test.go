@@ -187,7 +187,7 @@ func TestSqliteDBBatchPersistsAcrossReopen(t *testing.T) {
 		s.GetServer().SetSniff(config.Sniff_builder{Enabled: new(false)}.Build())
 		s.GetServer().SetInbounds(map[string]*config.Inbound{
 			"mixed": config.Inbound_builder{
-				Name:    new("mixed"),
+				Name:    new("stale-name"),
 				Enabled: new(true),
 				Tcpudp: config.Tcpudp_builder{
 					Host:    new("127.0.0.1:1081"),
@@ -250,6 +250,9 @@ func TestSqliteDBBatchPersistsAcrossReopen(t *testing.T) {
 		}
 		if got := len(s.GetServer().GetInbounds()); got != 1 {
 			t.Fatalf("expected 1 inbound after reopen, got %d", got)
+		}
+		if got := s.GetServer().GetInbounds()["mixed"].GetName(); got != "mixed" {
+			t.Fatalf("expected inbound name normalized to row key mixed, got %q", got)
 		}
 		if got := s.GetBackup().GetInterval(); got != 30 {
 			t.Fatalf("expected backup interval 30, got %d", got)
