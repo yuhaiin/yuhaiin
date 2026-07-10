@@ -170,6 +170,8 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, addr net.Addr, err error) 
 }
 
 func hexSha224(data []byte) []byte {
+	// Trojan's wire protocol requires lowercase hexadecimal SHA-224(password).
+	// This derives a protocol authentication token; it is not password storage.
 	buf := make([]byte, 56)
 	hash := sha256.New224()
 	hash.Write(data)

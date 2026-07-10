@@ -232,6 +232,8 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 }
 
 func Salt(password []byte) []byte {
+	// This fixed SHA-256 derivation is part of the Yuubinsya UOT wire protocol,
+	// shared by both peers as an authentication token rather than password storage.
 	h := sha256.New()
 	h.Write(password)
 	h.Write([]byte("+s@1t"))

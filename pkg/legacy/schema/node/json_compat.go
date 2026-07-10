@@ -4,6 +4,7 @@ import (
 	"encoding/json/jsontext"
 	json "encoding/json/v2"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -410,6 +411,12 @@ func legacyInt64(raw map[string]jsontext.Value, names ...string) (int64, error) 
 
 func legacyInt32(raw map[string]jsontext.Value, names ...string) (int32, error) {
 	v, err := legacyInt64(raw, names...)
+	if err != nil {
+		return 0, err
+	}
+	if v < math.MinInt32 || v > math.MaxInt32 {
+		return 0, fmt.Errorf("integer %d is outside int32 range", v)
+	}
 	return int32(v), err
 }
 

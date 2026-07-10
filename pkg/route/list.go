@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -308,14 +309,14 @@ func (s *Lists) resetRefreshInterval(minute uint64) {
 		return
 	}
 
+	if minute > uint64(math.MaxInt64/int64(time.Minute)) {
+		log.Warn("route list refresh interval exceeds time.Duration range", "min", minute)
+		return
+	}
+
 	interval := time.Minute * time.Duration(minute)
 
 	log.Info("start lists refresh ticker", "interval", interval, "min", minute)
-
-	// overflow
-	if interval <= 0 {
-		return
-	}
 
 	s.ticker = time.AfterFunc(interval, func() {
 		if err := s.RefreshContract(context.Background()); err != nil {

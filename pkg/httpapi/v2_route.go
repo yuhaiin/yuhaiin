@@ -219,6 +219,9 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
 		req.Name = index.Name
+		if uint64(index.Index) > uint64(^uint(0)>>1) {
+			return writeError(w, http.StatusBadRequest, "bad_request", "rule index exceeds the supported priority range")
+		}
 		priority := int(index.Index)
 		if entry, err := services.RouteRules.GetRule(r.Context(), index.Name); err == nil {
 			priority = entry.Priority

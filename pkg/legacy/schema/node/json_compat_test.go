@@ -41,6 +41,14 @@ func TestDurationUnmarshalLegacyStringInt64(t *testing.T) {
 	}
 }
 
+func TestDurationUnmarshalLegacyNanosRejectsInt32Overflow(t *testing.T) {
+	var got Duration
+	err := json.Unmarshal([]byte(`{"seconds":"12","nanos":"2147483648"}`), &got)
+	if err == nil {
+		t.Fatal("unmarshal succeeded for an int32-overflowing nanos value")
+	}
+}
+
 func TestDurationUnmarshalProtobufDurationString(t *testing.T) {
 	var got Duration
 	if err := json.Unmarshal([]byte(`"1.5s"`), &got); err != nil {
