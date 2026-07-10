@@ -4,13 +4,18 @@ import (
 	"context"
 	"net"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
 func init() {
-	register.RegisterPoint(NewClient)
+	register.RegisterContractPoint("aead", func(config contractnode.AEAD, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{
+			Password:     config.Password,
+			CryptoMethod: contractCryptoMethod(config.CryptoMethod),
+		}, p)
+	})
 }
 
 type Client struct {
@@ -18,8 +23,13 @@ type Client struct {
 	e *encryptedHandshaker
 }
 
-func NewClient(cfg *node.Aead, p netapi.Proxy) (netapi.Proxy, error) {
-	crypto := NewHandshaker(false, []byte(cfg.GetPassword()), cfg.GetCryptoMethod())
+type Config struct {
+	Password     string       `json:"password"`
+	CryptoMethod CryptoMethod `json:"crypto_method"`
+}
+
+func NewClient(cfg Config, p netapi.Proxy) (netapi.Proxy, error) {
+	crypto := NewHandshaker(false, []byte(cfg.Password), cfg.CryptoMethod)
 	return &Client{Proxy: p, e: crypto}, nil
 }
 
@@ -44,4 +54,13 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	}
 
 	return NewAuthPacketConn(pc, aead), nil
+}
+
+func contractCryptoMethod(value string) CryptoMethod {
+	switch value {
+	case "AeadCryptoMethod_XChacha20Poly1305", string(CryptoMethodXChacha20Poly1305):
+		return CryptoMethodXChacha20Poly1305
+	default:
+		return CryptoMethodChacha20Poly1305
+	}
 }

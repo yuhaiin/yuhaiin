@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"sync"
@@ -16,29 +15,23 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app"
-	"github.com/Asutorufa/yuhaiin/pkg/chore"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
+	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/paths"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var savepath string
 
 func SetSavePath(p string) {
 	savepath = p
-
-	ms := filepath.Join(p, "yuhaiin_memory_store.json")
-	legacyPreferenceStore = newMemoryStore(ms, true)
-	appStore = newSQLitePreferenceStore(tools.PathGenerator.State(p), legacyPreferenceStore)
+	appStore = newSQLitePreferenceStore(paths.PathGenerator.State(p))
 }
-
-//go:generate go run generate.go
 
 type App struct {
 	server *http.Server
@@ -90,21 +83,26 @@ func (a *App) Start(opt *Opts) error {
 	dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
 	applyRuntimeProfile()
 
+	// All legacy Android JSON is imported before any preference is read.
+	setting := migrate.NewStateDB(paths.PathGenerator.State(savepath))
+	if err := setting.Migrate(context.Background()); err != nil {
+		return fmt.Errorf("migrate Android state before startup: %w", err)
+	}
+	if err := configureAndroidTUN(context.Background(), setting, opt.TUN, GetStore().GetString(AdvTunDriverKey)); err != nil {
+		_ = setting.Close()
+		return fmt.Errorf("configure Android TUN before startup: %w", err)
+	}
+
 	lis, err := net.Listen("tcp", net.JoinHostPort(ifOr(GetStore().GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"), "0"))
 	if err != nil {
+		_ = setting.Close()
 		return err
 	}
 
-	setting := newChoreDB()
-
 	app, err := app.Start(&app.StartOptions{
-		ConfigPath:     savepath,
-		BypassConfig:   setting,
-		ResolverConfig: setting,
-		InboundConfig:  newInboundDB(setting, opt),
-		ChoreConfig:    setting,
-		BackupConfig:   setting,
-		ProcessDumper:  processDumper,
+		ConfigPath:    savepath,
+		StateStore:    setting,
+		ProcessDumper: processDumper,
 	})
 	if err != nil {
 		_ = lis.Close()
@@ -158,6 +156,51 @@ func (a *App) Start(opt *Opts) error {
 	return nil
 }
 
+// configureAndroidTUN binds the persisted TUN inbound to the file descriptor
+// supplied by Android's VpnService. The plain model has a disabled desktop TUN
+// by default, while Android starts this process only after VpnService created
+// a TUN device.
+func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, driver string) error {
+	if tun == nil {
+		return errors.New("Android TUN options are nil")
+	}
+	db, err := state.SQLDB(ctx)
+	if err != nil {
+		return err
+	}
+
+	store := plainstore.NewInboundStore(db)
+	inbounds, err := store.List(ctx)
+	if err != nil {
+		return err
+	}
+
+	tunProtocol := contractinbound.NewTypedProtocol(contractinbound.TunProtocol{
+		Name:          fmt.Sprintf("fd://%d", tun.FD),
+		MTU:           tun.MTU,
+		SkipMulticast: true,
+		Driver:        driver,
+		Portal:        tun.Portal,
+		PortalV6:      tun.PortalV6,
+	})
+	for _, inbound := range inbounds {
+		if inbound.Protocol.Type != contractinbound.ProtocolTun {
+			continue
+		}
+		inbound.Enabled = true
+		inbound.Protocol = tunProtocol
+		return store.Save(ctx, inbound, 0)
+	}
+
+	return store.Save(ctx, contractinbound.Inbound{
+		ID:       "tun",
+		Name:     "tun",
+		Enabled:  true,
+		Network:  contractinbound.NewTypedNetwork(contractinbound.EmptyNetwork{}),
+		Protocol: tunProtocol,
+	}, 0)
+}
+
 func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
 	if !GetStore().GetBoolean(NetworkSpeedKey) ||
 		opt.NotifySpped == nil || !opt.NotifySpped.NotifyEnable() {
@@ -168,25 +211,30 @@ func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
 	defer ticker.Stop()
 
 	alreadyEmpty := false
-	var last *api.TotalFlow
+	var last *contractconnection.TotalFlow
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			flow, err := app.Connections.Total(ctx, &emptypb.Empty{})
+			flow, err := app.Connections.Total(ctx)
 			if err != nil {
 				log.Error("get connections failed", "err", err)
 				continue
 			}
 
 			if last == nil {
-				last = flow
+				last = &flow
 				continue
 			}
 
-			dr := reduceUnit((flow.GetDownload() - last.GetDownload()) / 2)
-			ur := reduceUnit((flow.GetUpload() - last.GetUpload()) / 2)
+			downloadBytes := connectionFlowValue(flow.Download)
+			uploadBytes := connectionFlowValue(flow.Upload)
+			lastDownloadBytes := connectionFlowValue(last.Download)
+			lastUploadBytes := connectionFlowValue(last.Upload)
+
+			dr := reduceUnit((downloadBytes - lastDownloadBytes) / 2)
+			ur := reduceUnit((uploadBytes - lastUploadBytes) / 2)
 			if dr == emptyRate && ur == emptyRate {
 				if alreadyEmpty {
 					continue
@@ -196,11 +244,16 @@ func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
 				alreadyEmpty = false
 			}
 
-			download, upload := reduceUnit(flow.GetDownload()), reduceUnit(flow.GetUpload())
-			last = flow
+			download, upload := reduceUnit(downloadBytes), reduceUnit(uploadBytes)
+			last = &flow
 			opt.NotifySpped.Notify(flowString(download, upload, ur, dr))
 		}
 	}
+}
+
+func connectionFlowValue(v string) uint64 {
+	n, _ := strconv.ParseUint(v, 10, 64)
+	return n
 }
 
 func (a *App) Stop() error {
@@ -284,124 +337,18 @@ func applyRuntimeProfile() {
 	}
 }
 
-func applyInboundRuntimeSettings(store Store, server *config.InboundConfig) {
-	if server == nil {
-		return
-	}
-
-	server.SetHijackDns(store.GetBoolean(DnsHijacking))
-	server.SetHijackDnsFakeip(store.GetBoolean(DnsHijacking))
-
-	sniff := server.GetSniff()
-	if sniff == nil {
-		sniff = &config.Sniff{}
-	}
-	sniff.SetEnabled(store.GetBoolean(SniffKey))
-	server.SetSniff(sniff)
+func newResolverDB() app.SQLStore {
+	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
 }
 
-type androidInboundDB struct {
-	base  chore.DB
-	store Store
-	opt   *Opts
+func newBypassDB() app.SQLStore {
+	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
 }
 
-func newInboundDB(base chore.DB, opt *Opts) chore.DB {
-	return &androidInboundDB{
-		base:  base,
-		store: GetStore(),
-		opt:   opt,
-	}
+func newChoreDB() app.SQLStore {
+	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
 }
 
-func (a *androidInboundDB) View(f ...func(*config.Setting) error) error {
-	return a.base.View(func(s *config.Setting) error {
-		working := proto.CloneOf(s)
-		a.applyRuntimeOverlay(working.GetServer())
-
-		for _, fn := range f {
-			if err := fn(working); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-}
-
-func (a *androidInboundDB) Batch(f ...func(*config.Setting) error) error {
-	return a.base.Batch(func(s *config.Setting) error {
-		working := proto.CloneOf(s)
-		a.applyRuntimeOverlay(working.GetServer())
-
-		for _, fn := range f {
-			if err := fn(working); err != nil {
-				return err
-			}
-		}
-
-		s.GetServer().SetHijackDns(working.GetServer().GetHijackDns())
-		s.GetServer().SetHijackDnsFakeip(working.GetServer().GetHijackDnsFakeip())
-		s.GetServer().SetSniff(working.GetServer().GetSniff())
-		return nil
-	})
-}
-
-func (a *androidInboundDB) Dir() string { return a.base.Dir() }
-
-func (a *androidInboundDB) applyRuntimeOverlay(server *config.InboundConfig) {
-	if server == nil {
-		return
-	}
-
-	store := a.store
-	var listenHost string = "127.0.0.1"
-	if store.GetBoolean(AllowLanKey) {
-		listenHost = "0.0.0.0"
-	}
-
-	inbounds := map[string]*config.Inbound{
-		"mix": config.Inbound_builder{
-			Name:    new("mix"),
-			Enabled: new(store.GetInt(NewHTTPPortKey) != 0),
-			Tcpudp: config.Tcpudp_builder{
-				Host:    new(net.JoinHostPort(listenHost, fmt.Sprint(store.GetInt(NewHTTPPortKey)))),
-				Control: config.TcpUdpControl_tcp_udp_control_all.Enum(),
-			}.Build(),
-			Mix: &config.Mixed{},
-		}.Build(),
-		"tun": config.Inbound_builder{
-			Name:    new("tun"),
-			Enabled: new(true),
-			Empty:   &config.Empty{},
-			Tun: config.Tun_builder{
-				Name:          new(fmt.Sprintf("fd://%d", a.opt.TUN.FD)),
-				Mtu:           new(a.opt.TUN.MTU),
-				Portal:        new(a.opt.TUN.Portal),
-				PortalV6:      new(a.opt.TUN.PortalV6),
-				SkipMulticast: new(true),
-				Route:         &config.Route{},
-				Driver:        config.TunEndpointDriver(config.TunEndpointDriver_value[store.GetString(AdvTunDriverKey)]).Enum(),
-			}.Build(),
-		}.Build(),
-	}
-
-	server.SetInbounds(inbounds)
-	applyInboundRuntimeSettings(store, server)
-}
-
-func newResolverDB() chore.DB {
-	return chore.NewSqliteDB(tools.PathGenerator.State(savepath))
-}
-
-func newBypassDB() chore.DB {
-	return chore.NewSqliteDB(tools.PathGenerator.State(savepath))
-}
-
-func newChoreDB() chore.DB {
-	return chore.NewSqliteDB(tools.PathGenerator.State(savepath))
-}
-
-func newBackupDB() chore.DB {
-	return chore.NewSqliteDB(tools.PathGenerator.State(savepath))
+func newBackupDB() app.SQLStore {
+	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
 }

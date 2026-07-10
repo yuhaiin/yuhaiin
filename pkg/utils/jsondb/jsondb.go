@@ -6,17 +6,16 @@
 package jsondb
 
 import (
+	"encoding/json/v2"
 	"os"
+	"reflect"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicfile"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // DB is a database backed by a JSON file.
-type DB[T proto.Message] struct {
+type DB[T any] struct {
 	// Data is the contents of the database.
 	Data T
 
@@ -25,23 +24,19 @@ type DB[T proto.Message] struct {
 
 // Open opens the database at path, creating it with a zero value if
 // necessary.
-func Open[T interface {
-	proto.Message
-	*A
-}, A any](path string, defaultValue T) *DB[T] {
-	val := T(new(A))
+func Open[T any](path string, defaultValue T) *DB[T] {
+	val := clone(defaultValue)
 
 	bs, err := os.ReadFile(path)
 	if err == nil {
-		err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(bs, val)
-		if err != nil {
-			log.Warn("proto json unmarshal failed", "err", err)
+		if err = json.Unmarshal(bs, val); err != nil {
+			log.Warn("json unmarshal failed", "err", err)
 		}
 	} else {
 		log.Warn("open jsonDB file failed", "path", path, "err", err)
 	}
 
-	MergeDefault(val.ProtoReflect(), defaultValue.ProtoReflect())
+	MergeDefault(val, defaultValue)
 
 	return &DB[T]{
 		Data: val,
@@ -49,27 +44,112 @@ func Open[T interface {
 	}
 }
 
-func MergeDefault(src, def protoreflect.Message) {
-	for fd, v := range def.Range {
-		vi, vok := v.Interface().(protoreflect.Message)
+func MergeDefault(src, def any) {
+	mergeDefaultValue(reflect.ValueOf(src), reflect.ValueOf(def))
+}
 
-		if src.IsValid() && !src.Has(fd) && vok {
-			src.Set(fd, v)
+func mergeDefaultValue(src, def reflect.Value) {
+	if !src.IsValid() || !def.IsValid() {
+		return
+	}
+
+	if src.Kind() == reflect.Interface {
+		src = src.Elem()
+	}
+	if def.Kind() == reflect.Interface {
+		def = def.Elem()
+	}
+
+	if src.Kind() == reflect.Pointer {
+		if def.Kind() == reflect.Pointer {
+			if src.IsNil() {
+				if !def.IsNil() && src.CanSet() {
+					src.Set(cloneValue(def))
+				}
+				return
+			}
+			if def.IsNil() {
+				return
+			}
+			mergeDefaultValue(src.Elem(), def.Elem())
+			return
+		}
+		if src.IsNil() {
+			return
+		}
+		mergeDefaultValue(src.Elem(), def)
+		return
+	}
+
+	if def.Kind() == reflect.Pointer {
+		if def.IsNil() {
+			return
+		}
+		mergeDefaultValue(src, def.Elem())
+		return
+	}
+
+	if src.Kind() != reflect.Struct || def.Kind() != reflect.Struct {
+		return
+	}
+
+	for i := range src.NumField() {
+		sf := src.Field(i)
+		df := def.Field(i)
+		if !sf.CanSet() && sf.Kind() != reflect.Pointer {
+			continue
 		}
 
-		sv := src.Get(fd)
-
-		svi, sok := sv.Interface().(protoreflect.Message)
-
-		if sok && vok {
-			MergeDefault(svi, vi)
+		switch sf.Kind() {
+		case reflect.Pointer:
+			if sf.IsNil() {
+				if !df.IsNil() && sf.CanSet() {
+					sf.Set(cloneValue(df))
+				}
+				continue
+			}
+			mergeDefaultValue(sf, df)
+		case reflect.Map, reflect.Slice:
+			if sf.IsNil() && !df.IsNil() && sf.CanSet() {
+				sf.Set(cloneValue(df))
+			}
+		case reflect.Struct:
+			mergeDefaultValue(sf, df)
 		}
 	}
 }
 
+func clone[T any](v T) T {
+	var out T
+	data, err := json.Marshal(v)
+	if err != nil {
+		return v
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return v
+	}
+	return out
+}
+
+func cloneValue(v reflect.Value) reflect.Value {
+	if !v.IsValid() {
+		return v
+	}
+
+	out := reflect.New(v.Type())
+	data, err := json.Marshal(v.Interface())
+	if err != nil {
+		return v
+	}
+	if err := json.Unmarshal(data, out.Interface()); err != nil {
+		return v
+	}
+	return out.Elem()
+}
+
 // Save writes db.Data back to disk.
 func (db *DB[T]) Save() error {
-	bs, err := protojson.MarshalOptions{Multiline: true, Indent: "\t", EmitUnpopulated: true}.Marshal(db.Data)
+	bs, err := json.Marshal(db.Data)
 	if err != nil {
 		return err
 	}

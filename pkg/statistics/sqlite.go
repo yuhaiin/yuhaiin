@@ -3,20 +3,18 @@ package statistics
 import (
 	"context"
 	"database/sql"
+	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"net"
 	"sort"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type TrafficBucket struct {
@@ -29,19 +27,15 @@ type sqliteInfoStore struct {
 	db *sql.DB
 }
 
-func markInterruptedSessions(db *sql.DB) {
+// clearPreviousSessions removes metadata for connections owned by an earlier
+// process. Connection history is persisted separately in connection_history.
+func clearPreviousSessions(db *sql.DB) {
 	if db == nil {
 		return
 	}
 
-	ctx := context.Background()
-	now := time.Now().Unix()
-	if _, err := db.ExecContext(ctx, `
-		UPDATE connection_sessions
-		SET state = 'interrupted', closed_at = ?, last_seen_at = ?
-		WHERE state = 'open'
-	`, now, now); err != nil {
-		log.Warn("mark interrupted sessions failed", "err", err)
+	if _, err := db.ExecContext(context.Background(), `DELETE FROM connection_sessions`); err != nil {
+		log.Warn("clear previous connection sessions failed", "err", err)
 	}
 }
 
@@ -49,9 +43,9 @@ func newSQLiteInfoStore(db *sql.DB) *sqliteInfoStore {
 	return &sqliteInfoStore{db: db}
 }
 
-func (s *sqliteInfoStore) Load(id uint64) (*statistic.Connection, bool) {
+func (s *sqliteInfoStore) Load(id uint64) (contractconnection.Connection, bool) {
 	if s.db == nil {
-		return nil, false
+		return contractconnection.Connection{}, false
 	}
 
 	ctx := context.Background()
@@ -65,18 +59,18 @@ func (s *sqliteInfoStore) Load(id uint64) (*statistic.Connection, bool) {
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Warn("load sqlite connection session failed", "id", id, "err", err)
 		}
-		return nil, false
+		return contractconnection.Connection{}, false
 	}
 
-	info := &statistic.Connection{}
-	if err := decodeStatisticJSON(data, info); err != nil {
+	var info contractconnection.Connection
+	if err := decodeStatisticJSON(data, &info); err != nil {
 		log.Warn("decode sqlite connection session failed", "id", id, "err", err)
-		return nil, false
+		return contractconnection.Connection{}, false
 	}
 	return info, true
 }
 
-func (s *sqliteInfoStore) Store(id uint64, info *statistic.Connection) {
+func (s *sqliteInfoStore) Store(id uint64, info contractconnection.Connection) {
 	if s.db == nil {
 		return
 	}
@@ -107,9 +101,9 @@ func (s *sqliteInfoStore) Store(id uint64, info *statistic.Connection) {
 			destination = excluded.destination,
 			host = excluded.host,
 			summary_json = excluded.summary_json
-	`, id, now, now, int(info.GetType().GetConnType()), info.GetProcess(), info.GetInbound(),
-		info.GetInboundName(), info.GetOutbound(), info.GetType().GetConnType().String(),
-		info.GetDestionation(), info.GetAddr(), data); err != nil {
+	`, id, now, now, info.Network.ConnType, info.Process, info.Inbound,
+		info.InboundName, info.Outbound, info.Network.ConnType,
+		info.Destination, info.Addr, data); err != nil {
 		log.Warn("store sqlite connection session failed", "id", id, "err", err)
 	}
 }
@@ -119,14 +113,8 @@ func (s *sqliteInfoStore) Delete(id uint64) {
 		return
 	}
 
-	ctx := context.Background()
-	now := time.Now().Unix()
-	if _, err := s.db.ExecContext(ctx, `
-		UPDATE connection_sessions
-		SET state = 'closed', closed_at = ?, last_seen_at = ?
-		WHERE id = ?
-	`, now, now, id); err != nil {
-		log.Warn("close sqlite connection session failed", "id", id, "err", err)
+	if _, err := s.db.ExecContext(context.Background(), `DELETE FROM connection_sessions WHERE id = ?`, id); err != nil {
+		log.Warn("delete sqlite connection session failed", "id", id, "err", err)
 	}
 }
 
@@ -155,7 +143,7 @@ func newSQLiteHistoryWithClose(db *sql.DB, closeDB func() error) *SQLiteHistory 
 	return &SQLiteHistory{db: db, closeDB: closeDB}
 }
 
-func (h *SQLiteHistory) Push(c *statistic.Connection) {
+func (h *SQLiteHistory) Push(c contractconnection.Connection) {
 	if h.db == nil {
 		return
 	}
@@ -175,14 +163,14 @@ func (h *SQLiteHistory) Push(c *statistic.Connection) {
 			hit_count = hit_count + 1,
 			last_seen_at = excluded.last_seen_at,
 			last_connection_json = excluded.last_connection_json
-	`, int(c.GetType().GetConnType()), c.GetAddr(), c.GetProcess(), now, data); err != nil {
+	`, c.Network.ConnType, c.Addr, c.Process, now, data); err != nil {
 		log.Warn("store sqlite history failed", "err", err)
 	}
 }
 
-func (h *SQLiteHistory) Get() *api.AllHistoryList {
+func (h *SQLiteHistory) Get() contractconnection.AllHistoryList {
 	if h.db == nil {
-		return &api.AllHistoryList{}
+		return contractconnection.AllHistoryList{}
 	}
 
 	ctx := context.Background()
@@ -194,11 +182,11 @@ func (h *SQLiteHistory) Get() *api.AllHistoryList {
 	`, configuration.HistorySize)
 	if err != nil {
 		log.Warn("query sqlite history failed", "err", err)
-		return &api.AllHistoryList{}
+		return contractconnection.AllHistoryList{}
 	}
 	defer rows.Close()
 
-	var objects []*api.AllHistory
+	var objects []contractconnection.AllHistory
 	dumpProcess := false
 	for rows.Next() {
 		var count uint64
@@ -209,25 +197,25 @@ func (h *SQLiteHistory) Get() *api.AllHistoryList {
 			continue
 		}
 
-		info := &statistic.Connection{}
-		if err := decodeStatisticJSON(data, info); err != nil {
+		var info contractconnection.Connection
+		if err := decodeStatisticJSON(data, &info); err != nil {
 			log.Warn("decode sqlite history failed", "err", err)
 			continue
 		}
-		if !dumpProcess && info.GetProcess() != "" {
+		if !dumpProcess && info.Process != "" {
 			dumpProcess = true
 		}
-		objects = append(objects, api.AllHistory_builder{
-			Count:      new(count),
-			Time:       timestamppb.New(time.Unix(lastSeen, 0)),
+		objects = append(objects, contractconnection.AllHistory{
+			Count:      formatUint64(count),
+			Time:       time.Unix(lastSeen, 0),
 			Connection: info,
-		}.Build())
+		})
 	}
 
-	return api.AllHistoryList_builder{
-		Objects:            objects,
-		DumpProcessEnabled: new(dumpProcess),
-	}.Build()
+	return contractconnection.AllHistoryList{
+		Items:              objects,
+		DumpProcessEnabled: dumpProcess,
+	}
 }
 
 func (h *SQLiteHistory) Close() error {
@@ -256,7 +244,7 @@ func newSQLiteFailedHistory(db *sql.DB) *SQLiteFailedHistory {
 	return &SQLiteFailedHistory{db: db}
 }
 
-func (h *SQLiteFailedHistory) Push(ctx context.Context, err error, protocol statistic.Type, host netapi.Address) {
+func (h *SQLiteFailedHistory) Push(ctx context.Context, err error, protocol string, host netapi.Address) {
 	if err == nil || netapi.IsBlockError(err) {
 		return
 	}
@@ -283,14 +271,14 @@ func (h *SQLiteFailedHistory) Push(ctx context.Context, err error, protocol stat
 			failed_count = failed_count + 1,
 			last_seen_at = excluded.last_seen_at,
 			last_error = excluded.last_error
-	`, int(protocol), getRealAddr(storeContext, host), storeContext.GetProcessName(), now, err.Error()); execErr != nil {
+	`, protocol, getRealAddr(storeContext, host), storeContext.GetProcessName(), now, err.Error()); execErr != nil {
 		log.Warn("store sqlite failed history failed", "err", execErr)
 	}
 }
 
-func (h *SQLiteFailedHistory) Get() *api.FailedHistoryList {
+func (h *SQLiteFailedHistory) Get() contractconnection.FailedHistoryList {
 	if h.db == nil {
-		return &api.FailedHistoryList{}
+		return contractconnection.FailedHistoryList{}
 	}
 
 	ctx := context.Background()
@@ -302,14 +290,14 @@ func (h *SQLiteFailedHistory) Get() *api.FailedHistoryList {
 	`, configuration.HistorySize)
 	if err != nil {
 		log.Warn("query sqlite failed history failed", "err", err)
-		return &api.FailedHistoryList{}
+		return contractconnection.FailedHistoryList{}
 	}
 	defer rows.Close()
 
-	var objects []*api.FailedHistory
+	var objects []contractconnection.FailedHistory
 	dumpProcess := false
 	for rows.Next() {
-		var protocol int
+		var protocol string
 		var host, process, lastError string
 		var failedCount uint64
 		var lastSeen int64
@@ -321,20 +309,20 @@ func (h *SQLiteFailedHistory) Get() *api.FailedHistoryList {
 		if !dumpProcess && process != "" {
 			dumpProcess = true
 		}
-		objects = append(objects, api.FailedHistory_builder{
-			Protocol:    statistic.Type(protocol).Enum(),
-			Host:        new(host),
-			Error:       new(lastError),
-			Process:     new(process),
-			Time:        timestamppb.New(time.Unix(lastSeen, 0)),
-			FailedCount: new(failedCount),
-		}.Build())
+		objects = append(objects, contractconnection.FailedHistory{
+			Protocol:    protocol,
+			Host:        host,
+			Error:       lastError,
+			Process:     process,
+			Time:        time.Unix(lastSeen, 0),
+			FailedCount: formatUint64(failedCount),
+		})
 	}
 
-	return api.FailedHistoryList_builder{
-		Objects:            objects,
-		DumpProcessEnabled: new(dumpProcess),
-	}.Build()
+	return contractconnection.FailedHistoryList{
+		Items:              objects,
+		DumpProcessEnabled: dumpProcess,
+	}
 }
 
 func (h *SQLiteFailedHistory) Close() error {
@@ -344,16 +332,16 @@ func (h *SQLiteFailedHistory) Close() error {
 	return h.closeDB()
 }
 
-func encodeStatisticJSON(msg proto.Message) (string, error) {
-	data, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(msg)
+func encodeStatisticJSON(msg any) (string, error) {
+	data, err := json.Marshal(msg)
 	if err != nil {
 		return "", err
 	}
 	return string(data), nil
 }
 
-func decodeStatisticJSON(data string, msg proto.Message) error {
-	return protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal([]byte(data), msg)
+func decodeStatisticJSON(data string, msg any) error {
+	return json.Unmarshal([]byte(data), msg)
 }
 
 func (c *Connections) TrafficHourly(ctx context.Context, from, to time.Time) ([]TrafficBucket, error) {
@@ -381,6 +369,123 @@ func (c *Connections) TrafficYearly(ctx context.Context, from, to time.Time) ([]
 		y, _, _ := t.UTC().Date()
 		return time.Date(y, 1, 1, 0, 0, 0, 0, time.UTC)
 	})
+}
+
+func (c *Connections) Traffic(ctx context.Context, interval string, from, to time.Time) (contractconnection.TrafficSeries, error) {
+	var (
+		buckets []TrafficBucket
+		err     error
+	)
+	switch interval {
+	case "hour":
+		buckets, err = c.TrafficHourly(ctx, from, to)
+	case "day":
+		buckets, err = c.TrafficDaily(ctx, from, to)
+	case "month":
+		buckets, err = c.TrafficMonthly(ctx, from, to)
+	default:
+		return contractconnection.TrafficSeries{}, fmt.Errorf("unsupported traffic interval %q", interval)
+	}
+	if err != nil {
+		return contractconnection.TrafficSeries{}, err
+	}
+
+	items := make([]contractconnection.TrafficPoint, 0, len(buckets))
+	for _, bucket := range buckets {
+		items = append(items, contractconnection.TrafficPoint{
+			Start:    bucket.StartUTC,
+			Download: formatUint64(bucket.DownloadBytes),
+			Upload:   formatUint64(bucket.UploadBytes),
+		})
+	}
+	return contractconnection.TrafficSeries{Interval: interval, Items: items}, nil
+}
+
+func (c *Connections) Telemetry(ctx context.Context, from, to time.Time, limit int) (contractconnection.TelemetrySummary, error) {
+	if c.sqliteDB == nil {
+		return contractconnection.TelemetrySummary{}, errors.New("telemetry aggregation requires sqlite telemetry")
+	}
+	if limit <= 0 {
+		limit = 8
+	}
+
+	dimensions := []string{"protocol", "inbound", "source", "addr", "outbound", "process", "rule", "tag", "destination"}
+	groups := make([]contractconnection.TelemetryGroup, 0, len(dimensions))
+	for _, dimension := range dimensions {
+		items, err := c.telemetryDimension(ctx, dimension, from, to, limit)
+		if err != nil {
+			return contractconnection.TelemetrySummary{}, err
+		}
+		groups = append(groups, contractconnection.TelemetryGroup{Dimension: dimension, Items: items})
+	}
+	return contractconnection.TelemetrySummary{Groups: groups}, nil
+}
+
+func (c *Connections) telemetryDimension(ctx context.Context, dimension string, from, to time.Time, limit int) ([]contractconnection.TelemetryItem, error) {
+	type totals struct{ download, upload, failures uint64 }
+	values := map[string]totals{}
+	rows, err := c.sqliteDB.QueryContext(ctx, `
+		SELECT value, SUM(download_bytes), SUM(upload_bytes)
+		FROM traffic_dimension_hourly
+		WHERE dimension = ? AND bucket_start_utc >= ? AND bucket_start_utc < ?
+		GROUP BY value
+	`, dimension, from.UTC().Unix(), to.UTC().Unix())
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var value string
+		var download, upload uint64
+		if err := rows.Scan(&value, &download, &upload); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		values[value] = totals{download: download, upload: upload}
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+
+	failures, err := c.sqliteDB.QueryContext(ctx, `
+		SELECT value, SUM(failed_count)
+		FROM failure_dimension_hourly
+		WHERE dimension = ? AND bucket_start_utc >= ? AND bucket_start_utc < ?
+		GROUP BY value
+	`, dimension, from.UTC().Unix(), to.UTC().Unix())
+	if err != nil {
+		return nil, err
+	}
+	for failures.Next() {
+		var value string
+		var failed uint64
+		if err := failures.Scan(&value, &failed); err != nil {
+			failures.Close()
+			return nil, err
+		}
+		current := values[value]
+		current.failures = failed
+		values[value] = current
+	}
+	if err := failures.Close(); err != nil {
+		return nil, err
+	}
+
+	items := make([]contractconnection.TelemetryItem, 0, len(values))
+	for value, total := range values {
+		items = append(items, contractconnection.TelemetryItem{Value: value, Download: formatUint64(total.download), Upload: formatUint64(total.upload), Failures: formatUint64(total.failures)})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		left := parseUint64(items[i].Download) + parseUint64(items[i].Upload)
+		right := parseUint64(items[j].Download) + parseUint64(items[j].Upload)
+		if left == right {
+			return parseUint64(items[i].Failures) > parseUint64(items[j].Failures)
+		}
+		return left > right
+	})
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	return items, nil
 }
 
 func (c *Connections) trafficAggregate(ctx context.Context, from, to time.Time, truncate func(time.Time) time.Time) ([]TrafficBucket, error) {

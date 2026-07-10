@@ -10,14 +10,13 @@ import (
 	"net/http"
 	"os"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reverse"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
@@ -40,7 +39,7 @@ MC4CAQAwBQYDK2VwBCIEILArmTMFo0d2X9cTPVlgKGVO+wyqkQFjPlNnN5wmTq6G
 
 func main() {
 	r, err := resolver.New(resolver.Config{
-		Type: config.Type_udp,
+		Type: "udp",
 		Host: "8.8.8.8",
 	})
 	if err != nil {
@@ -49,55 +48,37 @@ func main() {
 
 	netapi.SetBootstrap(r)
 
-	node := node.Point_builder{
-		Protocols: []*node.Protocol{
-			node.Protocol_builder{
-				Direct: node.Direct_builder{}.Build(),
-			}.Build(),
-
-			node.Protocol_builder{
-				Tls: node.TlsConfig_builder{
-					Enable:             new(true),
-					InsecureSkipVerify: new(true),
-					ServerNames:        []string{"www.youtube.com"},
-				}.Build(),
-			}.Build(),
-
-			node.Protocol_builder{
-				HttpTermination: node.HttpTermination_builder{
-					Headers: map[string]*node.HttpTerminationHttpHeaders{
-						"*.youtube.com": node.HttpTerminationHttpHeaders_builder{
-							Headers: []*node.HttpHeader{
-								node.HttpHeader_builder{
-									Key:   new("User-Agent"),
-									Value: new("curl/8.13.0"),
-								}.Build(),
-								node.HttpHeader_builder{
-									Key:   new("Accept"),
-									Value: new("*/*"),
-								}.Build(),
-							},
-						}.Build(),
-					},
-				}.Build(),
-			}.Build(),
-
-			node.Protocol_builder{
-				TlsTermination: node.TlsTermination_builder{
-					Tls: node.TlsServerConfig_builder{
-						Certificates: []*node.Certificate{
-							node.Certificate_builder{
-								Cert: []byte(cert),
-								Key:  []byte(key),
-							}.Build(),
+	pro, err := register.ContractDialer(contractnode.Node{
+		ID:     "unwrap-http-example",
+		Name:   "unwrap-http-example",
+		Origin: "example",
+		Chain: []contractnode.Protocol{
+			protocol(contractnode.Direct{}),
+			protocol(contractnode.TLS{
+				Enable:             true,
+				InsecureSkipVerify: true,
+				ServerNames:        []string{"www.youtube.com"},
+			}),
+			protocol(contractnode.HTTPTermination{
+				Headers: map[string]contractnode.HTTPHeaders{
+					"*.youtube.com": {
+						Headers: []contractnode.HTTPHeader{
+							{Key: "User-Agent", Value: "curl/8.13.0"},
+							{Key: "Accept", Value: "*/*"},
 						},
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			}),
+			protocol(contractnode.TLSTermination{
+				TLS: contractnode.ServerTLS{
+					Certificates: []contractnode.Certificate{{
+						Cert: []byte(cert),
+						Key:  []byte(key),
+					}},
+				},
+			}),
 		},
-	}
-
-	pro, err := register.Dialer(node.Build())
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -119,7 +100,8 @@ func main() {
 				}
 
 				return conn, nil
-			}},
+			},
+		},
 	}
 
 	resp, err := c.Get("https://www.youtube.com")
@@ -130,4 +112,12 @@ func main() {
 	defer resp.Body.Close()
 
 	io.CopyN(os.Stdout, resp.Body, 1024)
+}
+
+func protocol[T contractnode.ProtocolPayload](value T) contractnode.Protocol {
+	protocol, err := contractnode.NewTypedProtocol(value)
+	if err != nil {
+		panic(err)
+	}
+	return protocol
 }

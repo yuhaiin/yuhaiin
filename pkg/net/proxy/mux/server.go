@@ -8,8 +8,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/libp2p/go-yamux/v5"
 )
 
@@ -20,11 +18,9 @@ type MuxServer struct {
 	connChan chan net.Conn
 }
 
-func init() {
-	register.RegisterTransport(NewServer)
-}
+type ServerConfig struct{}
 
-func NewServer(config *config.Mux, ii netapi.Listener) (netapi.Listener, error) {
+func NewServer(_ ServerConfig, ii netapi.Listener) (netapi.Listener, error) {
 	return netapi.NewListener(newServer(ii), ii), nil
 }
 

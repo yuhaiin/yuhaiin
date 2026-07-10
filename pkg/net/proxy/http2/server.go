@@ -14,8 +14,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/net/http2"
@@ -32,11 +30,9 @@ type Server struct {
 	id    id.IDGenerator
 }
 
-func init() {
-	register.RegisterTransport(NewServer)
-}
+type ServerConfig struct{}
 
-func NewServer(c *config.Http2, ii netapi.Listener) (netapi.Listener, error) {
+func NewServer(_ ServerConfig, ii netapi.Listener) (netapi.Listener, error) {
 	return netapi.NewListener(newServer(ii), ii), nil
 }
 

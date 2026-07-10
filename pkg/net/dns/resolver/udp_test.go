@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -17,30 +16,30 @@ func TestUDP(t *testing.T) {
 	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
 	configMap := map[string]Config{
 		"cloudflare": {
-			Type:   config.Type_udp,
+			Type:   "udp",
 			Host:   "one.one.one.one",
 			Subnet: subnet,
 			Dialer: s5Dialer,
 		},
 		"google": {
-			Type:   config.Type_udp,
+			Type:   "udp",
 			Host:   "8.8.8.8",
 			Subnet: subnet,
 			Dialer: s5Dialer,
 		},
 		"114": {
-			Type:   config.Type_udp,
+			Type:   "udp",
 			Host:   "114.114.114.114",
 			Subnet: subnet,
 		},
 		"nextdns": {
-			Type:   config.Type_udp,
+			Type:   "udp",
 			Host:   "45.90.28.30",
 			Subnet: subnet,
 			Dialer: s5Dialer,
 		},
 		"opendns": {
-			Type:   config.Type_udp,
+			Type:   "udp",
 			Host:   "208.67.222.222:5353",
 			Subnet: subnet,
 			Dialer: s5Dialer,

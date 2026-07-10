@@ -10,17 +10,41 @@ import (
 	"net/http/httputil"
 	"strings"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
 func init() {
-	register.RegisterPoint(NewHttpTermination)
+	register.RegisterContractPoint("http_termination", func(config contractnode.HTTPTermination, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewHttpTermination(httpTerminationConfigFromContract(config), p)
+	})
+}
+
+func httpTerminationConfigFromContract(config contractnode.HTTPTermination) Config {
+	out := Config{Headers: make(map[string]HTTPHeaders, len(config.Headers))}
+	for name, headers := range config.Headers {
+		out.Headers[name] = httpHeadersFromContract(headers)
+	}
+	if len(out.Headers) == 0 {
+		out.Headers = nil
+	}
+	return out
+}
+
+func httpHeadersFromContract(headers contractnode.HTTPHeaders) HTTPHeaders {
+	out := HTTPHeaders{Headers: make([]HTTPHeader, 0, len(headers.Headers))}
+	for _, header := range headers.Headers {
+		out.Headers = append(out.Headers, HTTPHeader{
+			Key:   header.Key,
+			Value: header.Value,
+		})
+	}
+	return out
 }
 
 type httpTermination struct {
@@ -28,13 +52,27 @@ type httpTermination struct {
 	ch *netapi.ChannelStreamListener
 }
 
-func NewHttpTermination(c *node.HttpTermination, p netapi.Proxy) (netapi.Proxy, error) {
+type Config struct {
+	Headers map[string]HTTPHeaders `json:"headers,omitzero"`
+}
+
+type HTTPHeaders struct {
+	Headers []HTTPHeader `json:"headers,omitzero"`
+}
+
+type HTTPHeader struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+func NewHttpTermination(c Config, p netapi.Proxy) (netapi.Proxy, error) {
 	ch := netapi.NewChannelStreamListener(netapi.EmptyAddr)
 
-	headers := trie.NewTrie[*node.HttpTerminationHttpHeaders]()
+	headers := trie.NewTrie[*HTTPHeaders]()
 
-	for k, v := range c.GetHeaders() {
-		headers.Insert(k, v)
+	for k := range c.Headers {
+		v := c.Headers[k]
+		headers.Insert(k, &v)
 	}
 
 	tr := &http.Transport{
@@ -76,8 +114,8 @@ func NewHttpTermination(c *node.HttpTermination, p netapi.Proxy) (netapi.Proxy, 
 			addr, _ := netapi.ParseAddress("tcp", pr.Host)
 
 			if v, ok := headers.SearchFqdn(addr); ok {
-				for _, v := range v.GetHeaders() {
-					pr.Header.Set(v.GetKey(), v.GetValue())
+				for _, v := range v.Headers {
+					pr.Header.Set(v.Key, v.Value)
 				}
 			}
 

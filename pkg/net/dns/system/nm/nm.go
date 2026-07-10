@@ -139,7 +139,7 @@ func (m *nmManager) trySet(ctx context.Context, config OSConfig) error {
 	// NetworkManager wipes out IPv6 address configuration unless we
 	// tell it explicitly to keep it. Read out the current interface
 	// settings and mirror them out to NetworkManager.
-	var addrs6 []map[string]any
+	var addrs6 []map[string]dbus.Variant
 	if tsIf, err := net.InterfaceByName(m.interfaceName); err == nil {
 		addrs, _ := tsIf.Addrs()
 		for _, a := range addrs {
@@ -147,9 +147,9 @@ func (m *nmManager) trySet(ctx context.Context, config OSConfig) error {
 				nip, ok := netip.AddrFromSlice(ipnet.IP)
 				nip = nip.Unmap()
 				if ok && IsTailscaleIP(nip) && nip.Is6() {
-					addrs6 = append(addrs6, map[string]any{
-						"address": nip.String(),
-						"prefix":  uint32(128),
+					addrs6 = append(addrs6, map[string]dbus.Variant{
+						"address": dbus.MakeVariant(nip.String()),
+						"prefix":  dbus.MakeVariant(uint32(128)),
 					})
 				}
 			}

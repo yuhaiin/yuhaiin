@@ -10,8 +10,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	"github.com/xtls/reality"
 	"golang.org/x/crypto/curve25519"
@@ -22,10 +20,19 @@ Private key: CKr8-tipwbEwwDa97S3Rwqzs9L8AlcLOCZJah1zjLlw
 Public key: SOW7P-17ibm_-kz-QUQwGGyitSbsa5wOmRGAigGvDH8
 */
 
-func ShortIDMap(s *config.Reality) (map[[8]byte]bool, error) {
-	maps := make(map[[8]byte]bool, len(s.GetShortId()))
+type ServerConfig struct {
+	Dest        string   `json:"dest"`
+	ShortID     []string `json:"short_id,omitzero"`
+	ServerName  []string `json:"server_name,omitzero"`
+	PrivateKey  string   `json:"private_key"`
+	MLDSA65Seed string   `json:"mldsa65_seed,omitzero"`
+	Debug       bool     `json:"debug,omitzero"`
+}
 
-	for _, v := range s.GetShortId() {
+func ShortIDMap(s []string) (map[[8]byte]bool, error) {
+	maps := make(map[[8]byte]bool, len(s))
+
+	for _, v := range s {
 		var id [8]byte
 		length, err := hex.Decode(id[:], []byte(v))
 		if err != nil {
@@ -42,31 +49,31 @@ func ShortIDMap(s *config.Reality) (map[[8]byte]bool, error) {
 	return maps, nil
 }
 
-func ServerNameMap(s *config.Reality) map[string]bool {
-	maps := make(map[string]bool, len(s.GetServerName()))
+func ServerNameMap(s []string) map[string]bool {
+	maps := make(map[string]bool, len(s))
 
-	for _, v := range s.GetServerName() {
+	for _, v := range s {
 		maps[v] = true
 	}
 
 	return maps
 }
 
-func NewServer(config *config.Reality, ii netapi.Listener) (netapi.Listener, error) {
+func NewServer(config ServerConfig, ii netapi.Listener) (netapi.Listener, error) {
 	var ids map[[8]byte]bool
-	privateKey, err := base64.RawURLEncoding.DecodeString(config.GetPrivateKey())
+	privateKey, err := base64.RawURLEncoding.DecodeString(config.PrivateKey)
 	if err == nil {
-		ids, err = ShortIDMap(config)
+		ids, err = ShortIDMap(config.ShortID)
 	}
 	if err != nil {
 		return nil, err
 	}
 
 	var mldsa65Key []byte
-	if config.GetMldsa65Seed() != "" {
-		mldsa65Seed, err := base64.RawURLEncoding.DecodeString(config.GetMldsa65Seed())
+	if config.MLDSA65Seed != "" {
+		mldsa65Seed, err := base64.RawURLEncoding.DecodeString(config.MLDSA65Seed)
 		if err != nil || len(mldsa65Seed) != 32 {
-			return nil, fmt.Errorf("mldsa65 seed is invalid: %w, %s", err, config.GetMldsa65Seed())
+			return nil, fmt.Errorf("mldsa65 seed is invalid: %w, %s", err, config.MLDSA65Seed)
 		}
 
 		_, key := mldsa65.NewKeyFromSeed((*[32]byte)(mldsa65Seed))
@@ -81,11 +88,11 @@ func NewServer(config *config.Reality, ii netapi.Listener) (netapi.Listener, err
 			}
 			return dialer.DialHappyEyeballsv2(ctx, addr)
 		},
-		Show:                   config.GetDebug(),
+		Show:                   config.Debug,
 		Type:                   "tcp",
 		ShortIds:               ids,
-		ServerNames:            ServerNameMap(config),
-		Dest:                   config.GetDest(),
+		ServerNames:            ServerNameMap(config.ServerName),
+		Dest:                   config.Dest,
 		PrivateKey:             privateKey,
 		Mldsa65Key:             mldsa65Key,
 		SessionTicketsDisabled: true,
@@ -94,10 +101,6 @@ func NewServer(config *config.Reality, ii netapi.Listener) (netapi.Listener, err
 	lis := reality.NewListener(ii, realityConfig)
 
 	return netapi.NewListener(lis, ii), nil
-}
-
-func init() {
-	register.RegisterTransport(NewServer)
 }
 
 func GenerateKey() (string, string, error) {

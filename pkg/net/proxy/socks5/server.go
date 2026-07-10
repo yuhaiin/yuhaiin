@@ -13,8 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
 func (s *Server) startUDPServer() error {
@@ -308,21 +306,23 @@ type Server struct {
 	udp      bool
 }
 
+type ServerConfig struct {
+	Username string `json:"username,omitzero"`
+	Password string `json:"password,omitzero"`
+	UDP      bool   `json:"udp,omitzero"`
+}
+
 func (s *Server) Close() error {
 	s.cancel()
 	return s.lis.Close()
 }
 
-func init() {
-	register.RegisterProtocol(NewServer)
-}
-
-func NewServer(o *config.Socks5, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+func NewServer(o ServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
-		udp:      o.GetUdp(),
-		username: o.GetUsername(),
-		password: o.GetPassword(),
+		udp:      o.UDP,
+		username: o.Username,
+		password: o.Password,
 		lis:      ii,
 		handler:  handler,
 		ctx:      ctx,

@@ -11,11 +11,11 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
@@ -55,12 +55,22 @@ type Client struct {
 }
 
 func init() {
-	register.RegisterPoint(NewClient)
+	register.RegisterContractPoint("trojan", func(config contractnode.Trojan, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{
+			Password: config.Password,
+			Peer:     config.Peer,
+		}, p)
+	})
 }
 
-func NewClient(config *node.Trojan, dialer netapi.Proxy) (netapi.Proxy, error) {
+type Config struct {
+	Password string `json:"password"`
+	Peer     string `json:"peer"`
+}
+
+func NewClient(config Config, dialer netapi.Proxy) (netapi.Proxy, error) {
 	return &Client{
-		password: hexSha224([]byte(config.GetPassword())),
+		password: hexSha224([]byte(config.Password)),
 		proxy:    dialer,
 	}, nil
 }
@@ -160,6 +170,8 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, addr net.Addr, err error) 
 }
 
 func hexSha224(data []byte) []byte {
+	// Trojan's wire protocol requires lowercase hexadecimal SHA-224(password).
+	// This derives a protocol authentication token; it is not password storage.
 	buf := make([]byte, 56)
 	hash := sha256.New224()
 	hash.Write(data)

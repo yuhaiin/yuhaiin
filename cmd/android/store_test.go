@@ -2,15 +2,14 @@ package yuhaiin
 
 import (
 	"context"
-	"fmt"
-	"strings"
+	"os"
+	"path/filepath"
 	"testing"
 
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/migrate"
+	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func TestStore(t *testing.T) {
@@ -26,38 +25,6 @@ func TestMultipleProcess(t *testing.T) {
 	t.Log(GetStore().GetFloat("float"))
 }
 
-func TestXxx(t *testing.T) {
-	ss := &pc.Setting{}
-
-	msg := ss.ProtoReflect().Descriptor()
-
-	str := &strings.Builder{}
-	for i := range msg.Fields().Len() {
-		fd := msg.Fields().Get(i)
-		printValuePath(str, fd)
-	}
-
-	t.Log(str.String())
-}
-
-func printValuePath(s *strings.Builder, msg protoreflect.FieldDescriptor) {
-	if msg.Kind() == protoreflect.MessageKind {
-		for i := range msg.Message().Fields().Len() {
-			fd := msg.Message().Fields().Get(i)
-			printValuePath(s, fd)
-		}
-		return
-	}
-	if msg.Kind() == protoreflect.EnumKind {
-		vs := msg.Enum().Values()
-		for i := range vs.Len() {
-			v := vs.Get(i)
-			fmt.Println(v.Name(), v.FullName(), msg.Enum().FullName())
-		}
-	}
-	fmt.Fprintf(s, "// %s\n", msg.FullName())
-}
-
 func TestSQLitePreferenceStore(t *testing.T) {
 	dir := t.TempDir()
 	SetSavePath(dir)
@@ -69,8 +36,9 @@ func TestSQLitePreferenceStore(t *testing.T) {
 	assert.Equal(t, "balanced", GetStore().GetString("profile"))
 	assert.Equal(t, true, GetStore().GetBoolean("allow_lan_test"))
 	assert.Equal(t, int32(1234), GetStore().GetInt("port_test"))
+	assert.Equal(t, "true", GetStore().GetString("allow_lan_test"))
 
-	store, err := storagesqlite.Open(context.Background(), tools.PathGenerator.State(dir))
+	store, err := storagesqlite.Open(context.Background(), paths.PathGenerator.State(dir))
 	assert.NoError(t, err)
 	defer store.Close()
 
@@ -82,4 +50,27 @@ func TestSQLitePreferenceStore(t *testing.T) {
 	`).Scan(&valueJSON)
 	assert.NoError(t, err)
 	assert.Equal(t, `"balanced"`, valueJSON)
+}
+
+func TestSQLitePreferenceStoreReadsStartupMigratedLegacyData(t *testing.T) {
+	dir := t.TempDir()
+	legacy := `{
+  "strings": {"values": {"profile": "balanced"}},
+  "ints": {"values": {"yuhaiin_port": 5000}},
+  "bools": {"values": {"allow_lan": true}}
+}`
+	if err := os.WriteFile(filepath.Join(dir, "yuhaiin_memory_store.json"), []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	state := migrate.NewStateDB(paths.PathGenerator.State(dir))
+	defer func() { _ = state.Close() }()
+	if err := state.Migrate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	SetSavePath(dir)
+	assert.Equal(t, "balanced", GetStore().GetString("profile"))
+	assert.Equal(t, int32(5000), GetStore().GetInt("yuhaiin_port"))
+	assert.Equal(t, true, GetStore().GetBoolean("allow_lan"))
 }

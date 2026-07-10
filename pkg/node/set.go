@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
 
@@ -25,11 +24,11 @@ type Set struct {
 	randomKey id.UUID
 
 	lastID   atomic.Int32
-	strategy node.SetStrategyType
+	strategy string
 }
 
-func NewSet(nodes *node.Set, m *Manager) (netapi.Proxy, error) {
-	ns := slices.Compact(nodes.GetNodes())
+func NewContractSet(nodes []string, strategy string, m *Manager) (netapi.Proxy, error) {
+	ns := slices.Compact(nodes)
 	if len(ns) == 0 {
 		return nil, fmt.Errorf("nodes is empty")
 	}
@@ -39,7 +38,7 @@ func NewSet(nodes *node.Set, m *Manager) (netapi.Proxy, error) {
 		outbound:  m.Outbound(),
 		Nodes:     ns,
 		randomKey: id.GenerateUUID(),
-		strategy:  nodes.GetStrategy(),
+		strategy:  strategy,
 	}
 
 	s.lastID.Store(-1)
@@ -55,7 +54,7 @@ func (s *Set) loop(f func(int, string) bool) {
 		}
 	}
 
-	if s.strategy == node.Set_round_robin {
+	if isSetRoundRobin(s.strategy) {
 		for i, node := range s.Nodes {
 			if i == int(cacheIndex) {
 				continue
@@ -75,6 +74,15 @@ func (s *Set) loop(f func(int, string) bool) {
 				return
 			}
 		}
+	}
+}
+
+func isSetRoundRobin(strategy string) bool {
+	switch strategy {
+	case "round_robin", "Set_round_robin", "set_round_robin", "1":
+		return true
+	default:
+		return false
 	}
 }
 

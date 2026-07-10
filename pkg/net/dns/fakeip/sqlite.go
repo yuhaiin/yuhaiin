@@ -3,22 +3,18 @@ package fakeip
 import (
 	"context"
 	"database/sql"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/netip"
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
 const (
 	sqliteFakeIPTouchInterval      = 5 * time.Minute
 	sqliteFakeIPTouchFlushInterval = time.Second
-	cursorKey                      = "reserved_cursor_state"
 )
 
 type SQLiteFakeIPPool struct {
@@ -41,18 +37,13 @@ type SQLiteFakeIPPool struct {
 	closeOnce        sync.Once
 }
 
-type legacyFakeIPEntry struct {
-	domain string
-	addr   netip.Addr
-}
-
-func NewSQLiteFakeIPPool(path string, prefix netip.Prefix, maxNum int, legacy ...cache.Cache) (*SQLiteFakeIPPool, error) {
+func NewSQLiteFakeIPPool(path string, prefix netip.Prefix, maxNum int) (*SQLiteFakeIPPool, error) {
 	store, err := storagesqlite.Open(context.Background(), path)
 	if err != nil {
 		return nil, err
 	}
 
-	pool, err := newSQLiteFakeIPPool(store.DB(), prefix, maxNum, legacy...)
+	pool, err := newSQLiteFakeIPPool(store.DB(), prefix, maxNum)
 	if err != nil {
 		_ = store.Close()
 		return nil, err
@@ -61,7 +52,22 @@ func NewSQLiteFakeIPPool(path string, prefix netip.Prefix, maxNum int, legacy ..
 	return pool, nil
 }
 
-func newSQLiteFakeIPPool(db *sql.DB, prefix netip.Prefix, maxNum int, legacy ...cache.Cache) (*SQLiteFakeIPPool, error) {
+func newSQLiteFakeIPPool(db *sql.DB, prefix netip.Prefix, maxNum int) (*SQLiteFakeIPPool, error) {
+	pool, err := newFakeIPPool(db, prefix, maxNum)
+	if err != nil {
+		return nil, err
+	}
+	if err := pool.loadCursor(context.Background()); err != nil {
+		return nil, err
+	}
+	if err := pool.prepare(context.Background()); err != nil {
+		return nil, err
+	}
+	pool.startTouchWorker()
+	return pool, nil
+}
+
+func newFakeIPPool(db *sql.DB, prefix netip.Prefix, maxNum int) (*SQLiteFakeIPPool, error) {
 	if db == nil {
 		return nil, errors.New("sqlite fakeip db is nil")
 	}
@@ -86,18 +92,6 @@ func newSQLiteFakeIPPool(db *sql.DB, prefix netip.Prefix, maxNum int, legacy ...
 		maxNum:  uint64(maxNum),
 		current: prefix.Addr().Prev(),
 	}
-	if len(legacy) > 0 && legacy[0] != nil {
-		if err := pool.importLegacy(context.Background(), legacy[0]); err != nil {
-			return nil, err
-		}
-	}
-	if err := pool.loadCursor(context.Background()); err != nil {
-		return nil, err
-	}
-	if err := pool.prepare(context.Background()); err != nil {
-		return nil, err
-	}
-	pool.startTouchWorker()
 	return pool, nil
 }
 
@@ -155,154 +149,6 @@ func fakeIPFamily(prefix netip.Prefix) int {
 		return 6
 	}
 	return 4
-}
-
-func (p *SQLiteFakeIPPool) importLegacy(ctx context.Context, legacy cache.Cache) error {
-	done, err := p.legacyImportDone(ctx)
-	if err != nil {
-		return err
-	}
-	if done {
-		return nil
-	}
-
-	start := time.Now()
-	log.Info("scan legacy fakeip cache", "prefix", p.key, "family", p.family)
-	entries, cursorIndex, cursorAddr, hasCursor, err := p.collectLegacyEntries(legacy)
-	if err != nil {
-		return err
-	}
-
-	tx, err := p.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	now := time.Now()
-	for _, entry := range entries {
-		if err := p.storeEntry(ctx, tx, entry.domain, entry.addr, now); err != nil {
-			return err
-		}
-	}
-
-	if hasCursor {
-		p.index = cursorIndex
-		p.current = cursorAddr
-		if err := p.saveCursor(ctx, tx, now); err != nil {
-			return err
-		}
-	}
-
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO metadata(key, value)
-		VALUES (?, '1')
-		ON CONFLICT(key) DO UPDATE SET value = excluded.value
-	`, p.legacyImportKey()); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
-	log.Info(
-		"import legacy fakeip cache finished",
-		"prefix", p.key,
-		"family", p.family,
-		"entries", len(entries),
-		"cursor", hasCursor,
-		"elapsed", time.Since(start),
-	)
-	return nil
-}
-
-func (p *SQLiteFakeIPPool) legacyImportDone(ctx context.Context) (bool, error) {
-	var value string
-	err := p.db.QueryRowContext(ctx, `
-		SELECT value
-		FROM metadata
-		WHERE key = ?
-	`, p.legacyImportKey()).Scan(&value)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return value == "1", nil
-}
-
-func (p *SQLiteFakeIPPool) legacyImportKey() string {
-	return fmt.Sprintf("fakeip_legacy_imported:%d:%s", p.family, p.key)
-}
-
-func (p *SQLiteFakeIPPool) collectLegacyEntries(legacy cache.Cache) ([]legacyFakeIPEntry, uint64, netip.Addr, bool, error) {
-	byDomain := map[string]netip.Addr{}
-	var cursorIndex uint64
-	var cursorAddr netip.Addr
-	var hasCursor bool
-
-	for _, bucketName := range p.legacyBucketNames() {
-		bucket := legacy.NewCache(bucketName)
-		if bucketName == p.key {
-			if idx, addr, ok := p.loadLegacyCursor(bucket); ok {
-				cursorIndex = idx
-				cursorAddr = addr
-				hasCursor = true
-			}
-		}
-
-		err := bucket.Range(func(key []byte, value []byte) bool {
-			if string(key) == cursorKey {
-				return true
-			}
-			domain, addr, ok := p.parseLegacyEntry(key, value)
-			if ok {
-				byDomain[domain] = addr
-			}
-			return true
-		})
-		if err != nil && !errors.Is(err, cache.ErrBucketNotExist) {
-			return nil, 0, netip.Addr{}, false, err
-		}
-	}
-
-	entries := make([]legacyFakeIPEntry, 0, len(byDomain))
-	for domain, addr := range byDomain {
-		entries = append(entries, legacyFakeIPEntry{domain: domain, addr: addr})
-	}
-	return entries, cursorIndex, cursorAddr, hasCursor, nil
-}
-
-func (p *SQLiteFakeIPPool) legacyBucketNames() []string {
-	if p.family == 6 {
-		return []string{p.key, "fakedns_cachev6"}
-	}
-	return []string{p.key, "fakedns_cache"}
-}
-
-func (p *SQLiteFakeIPPool) loadLegacyCursor(bucket cache.Cache) (uint64, netip.Addr, bool) {
-	value, err := bucket.Get([]byte(cursorKey))
-	if err != nil || len(value) <= 8 {
-		return 0, netip.Addr{}, false
-	}
-
-	addr, ok := netip.AddrFromSlice(value[8:])
-	if !ok || !p.prefix.Contains(addr) {
-		return 0, netip.Addr{}, false
-	}
-
-	return binary.BigEndian.Uint64(value[:8]), addr, true
-}
-
-func (p *SQLiteFakeIPPool) parseLegacyEntry(key []byte, value []byte) (string, netip.Addr, bool) {
-	addr, ok := netip.AddrFromSlice(value)
-	if !ok || !p.prefix.Contains(addr) {
-		return "", netip.Addr{}, false
-	}
-
-	return string(key), addr, true
 }
 
 func (p *SQLiteFakeIPPool) Close() error {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/miekg/dns"
 )
 
@@ -16,7 +15,7 @@ func ExampleNew() {
 	}
 
 	r, err := New(Config{
-		Type:       config.Type_doh,
+		Type:       "doh",
 		Name:       "cloudflare",
 		Host:       "cloudflare-dns.com",
 		Servername: "cloudflare-dns.com",

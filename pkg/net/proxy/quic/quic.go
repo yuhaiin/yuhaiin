@@ -11,13 +11,13 @@ import (
 	"sync"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -78,14 +78,31 @@ type Client struct {
 }
 
 func init() {
-	register.RegisterPoint(NewClient)
+	register.RegisterContractPoint("quic", func(config contractnode.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{
+			Host: config.Host,
+			TLS: ytls.TLSConfig{
+				Enable:             config.TLS.Enable,
+				ServerNames:        config.TLS.ServerNames,
+				CACert:             config.TLS.CACert,
+				InsecureSkipVerify: config.TLS.InsecureSkipVerify,
+				NextProtos:         config.TLS.NextProtos,
+				ECHConfig:          config.TLS.ECHConfig,
+			},
+		}, dd)
+	})
 }
 
-func NewClient(config *node.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
+type Config struct {
+	Host string         `json:"host"`
+	TLS  ytls.TLSConfig `json:"tls,omitzero"`
+}
+
+func NewClient(config Config, dd netapi.Proxy) (netapi.Proxy, error) {
 	var host = &net.UDPAddr{IP: net.IPv4zero}
 
-	if config.GetHost() != "" {
-		addr, err := netapi.ParseAddress("udp", config.GetHost())
+	if config.Host != "" {
+		addr, err := netapi.ParseAddress("udp", config.Host)
 		if err != nil {
 			goto next
 		}
@@ -105,9 +122,9 @@ func NewClient(config *node.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
 
 next:
 
-	config.GetTls().SetEnable(true)
+	config.TLS.Enable = true
 
-	tlsConfig := ytls.ParseTLSConfig(config.GetTls())
+	tlsConfig := ytls.ParseTLSConfig(config.TLS)
 	if tlsConfig == nil {
 		tlsConfig = &tls.Config{}
 	}

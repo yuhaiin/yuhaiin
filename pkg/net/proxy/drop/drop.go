@@ -7,15 +7,15 @@ import (
 	"net"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 )
 
 func init() {
-	register.RegisterPoint(func(*node.Drop, netapi.Proxy) (netapi.Proxy, error) {
+	register.RegisterContractPoint("drop", func(contractnode.Drop, netapi.Proxy) (netapi.Proxy, error) {
 		return Drop, nil
 	})
 }

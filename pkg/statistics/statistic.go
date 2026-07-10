@@ -7,34 +7,32 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
+	"github.com/Asutorufa/yuhaiin/pkg/control"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Connections struct {
-	api.UnimplementedConnectionsServer
-
 	netapi.Proxy
 
 	infoStore InfoCache
 	sqliteDB  *sql.DB
 	sqlite    *storagesqlite.Store
 
-	Cache *TotalCache
+	Cache     *TotalCache
+	telemetry *telemetryRecorder
 
 	notify *notify
 
@@ -49,25 +47,25 @@ type Connections struct {
 }
 
 type InfoCache interface {
-	Load(id uint64) (*statistic.Connection, bool)
-	Store(id uint64, info *statistic.Connection)
+	Load(id uint64) (contractconnection.Connection, bool)
+	Store(id uint64, info contractconnection.Connection)
 	Delete(id uint64)
 	io.Closer
 }
 
 type FailedHistoryStore interface {
-	Push(context.Context, error, statistic.Type, netapi.Address)
-	Get() *api.FailedHistoryList
+	Push(context.Context, error, string, netapi.Address)
+	Get() contractconnection.FailedHistoryList
 	Close() error
 }
 
 type HistoryStore interface {
-	Push(*statistic.Connection)
-	Get() *api.AllHistoryList
+	Push(contractconnection.Connection)
+	Get() contractconnection.AllHistoryList
 	Close() error
 }
 
-func NewSQLiteConnStore(path string, dialer netapi.Proxy, legacyFlow ...cache.Geter) *Connections {
+func NewSQLiteConnStore(path string, dialer netapi.Proxy) *Connections {
 	if dialer == nil {
 		dialer = direct.Default
 	}
@@ -82,13 +80,14 @@ func NewSQLiteConnStore(path string, dialer netapi.Proxy, legacyFlow ...cache.Ge
 		db = store.DB()
 	}
 
-	markInterruptedSessions(db)
+	clearPreviousSessions(db)
 
 	return &Connections{
 		Proxy:        dialer,
 		sqliteDB:     db,
 		sqlite:       store,
-		Cache:        newSQLiteTotalCache(db, nil, legacyFlow...),
+		Cache:        newSQLiteTotalCache(db, nil),
+		telemetry:    newTelemetryRecorder(db),
 		notify:       newNotify(),
 		faildHistory: newSQLiteFailedHistory(db),
 		counters:     newCounters(),
@@ -97,19 +96,17 @@ func NewSQLiteConnStore(path string, dialer netapi.Proxy, legacyFlow ...cache.Ge
 	}
 }
 
-func (c *Connections) allInfos() []*statistic.Connection {
-	return slice.CollectTo(c.connStore.RangeValues, func(x connection) *statistic.Connection {
+func (c *Connections) allInfos() []contractconnection.Connection {
+	return slice.CollectTo(c.connStore.RangeValues, func(x connection) contractconnection.Connection {
 		info, ok := c.infoStore.Load(x.ID())
 		if !ok {
-			return statistic.Connection_builder{
-				Id: new(x.ID()),
-			}.Build()
+			return contractconnection.Connection{ID: formatUint64(x.ID())}
 		}
 		return info
 	})
 }
 
-func (c *Connections) Notify(_ *emptypb.Empty, s api.Connections_NotifyServer) error {
+func (c *Connections) Notify(s control.ServerStream[contractconnection.Event]) error {
 	id, done := c.notify.register(s, c.allInfos())
 	defer c.notify.unregister(id)
 	log.Debug("new notify client", "id", id)
@@ -123,19 +120,19 @@ func (c *Connections) Notify(_ *emptypb.Empty, s api.Connections_NotifyServer) e
 	}
 }
 
-func (c *Connections) Conns(context.Context, *emptypb.Empty) (*api.NotifyNewConnections, error) {
-	return (&api.NotifyNewConnections_builder{Connections: c.allInfos()}).Build(), nil
+func (c *Connections) Conns(context.Context) (contractconnection.Connections, error) {
+	return contractconnection.Connections{Connections: c.allInfos()}, nil
 }
 
-func (c *Connections) CloseConn(_ context.Context, x *api.NotifyRemoveConnections) (*emptypb.Empty, error) {
-	for _, x := range x.GetIds() {
-		if z, ok := c.connStore.Load(x); ok {
+func (c *Connections) CloseConn(_ context.Context, ids []uint64) error {
+	for _, id := range ids {
+		if z, ok := c.connStore.Load(id); ok {
 			_ = z.Close()
 		}
 	}
 	// trigger to refresh web
 	c.notify.trigger()
-	return &emptypb.Empty{}, nil
+	return nil
 }
 
 func (c *Connections) Close() error {
@@ -156,12 +153,12 @@ func (c *Connections) Close() error {
 	if er := c.infoStore.Close(); er != nil {
 		err = errors.Join(err, er)
 	}
-
 	for _, v := range c.connStore.Range {
 		if er := v.Close(); er != nil {
 			err = errors.Join(err, er)
 		}
 	}
+	c.telemetry.Close()
 
 	c.Cache.Close()
 
@@ -174,12 +171,12 @@ func (c *Connections) Close() error {
 	return err
 }
 
-func (c *Connections) Total(context.Context, *emptypb.Empty) (*api.TotalFlow, error) {
-	return api.TotalFlow_builder{
-		Download: new(c.Cache.LoadDownload()),
-		Upload:   new(c.Cache.LoadUpload()),
+func (c *Connections) Total(context.Context) (contractconnection.TotalFlow, error) {
+	return contractconnection.TotalFlow{
+		Download: formatUint64(c.Cache.LoadDownload()),
+		Upload:   formatUint64(c.Cache.LoadUpload()),
 		Counters: c.counters.Load(),
-	}.Build(), nil
+	}, nil
 }
 
 func (c *Connections) Remove(id uint64) {
@@ -188,14 +185,16 @@ func (c *Connections) Remove(id uint64) {
 	}
 
 	c.infoStore.Delete(id)
-	c.counters.Remove(id)
+	if counter := c.counters.Remove(id); counter != nil {
+		c.telemetry.Remove(counter.telemetry)
+	}
 	c.notify.pubRemoveConn(id)
 }
 
-func (c *Connections) storeConnection(o connection, info *statistic.Connection) {
-	metrics.Counter.AddConnection(info.GetAddr())
+func (c *Connections) storeConnection(o connection, info contractconnection.Connection) {
+	metrics.Counter.AddConnection(info.Addr)
 
-	id := info.GetId()
+	id, _ := strconv.ParseUint(info.ID, 10, 64)
 	c.connStore.Store(id, o)
 	c.infoStore.Store(id, info)
 	c.notify.pubNewConn(info)
@@ -205,14 +204,14 @@ func (c *Connections) storeConnection(o connection, info *statistic.Connection) 
 func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	con, err := c.Proxy.PacketConn(ctx, addr)
 	if err != nil {
-		c.faildHistory.Push(ctx, err, statistic.Type_udp, addr)
+		c.faildHistory.Push(ctx, err, "udp", addr)
+		c.recordFailure(ctx, "udp", addr)
 		return nil, err
 	}
 
-	counter := newCounter(c.Cache)
-
-	info := c.getConnection(ctx, con, addr)
-	id := info.GetId()
+	id := c.idSeed.Generate()
+	info := c.getConnection(ctx, con, addr, id)
+	counter := newCounter(c.Cache, c.telemetry.Register(c.telemetryConnection(ctx, info)))
 
 	z := &packetConn{
 		PacketConn: con,
@@ -230,16 +229,30 @@ func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.
 func (c *Connections) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
 	resp, err := c.Proxy.Ping(ctx, addr)
 	if err != nil {
-		c.faildHistory.Push(ctx, err, statistic.Type_ip, addr)
+		c.faildHistory.Push(ctx, err, "ip", addr)
+		c.recordFailure(ctx, "ip", addr)
 		return 0, err
 	}
 
-	conn := c.getConnection(ctx, nil, addr)
-	conn.GetType().SetConnType(statistic.Type_ip)
-	conn.GetType().SetUnderlyingType(statistic.Type_ip)
+	conn := c.getConnection(ctx, nil, addr, c.idSeed.Generate())
+	conn.Network.ConnType = "ip"
+	conn.Network.UnderlyingType = "ip"
 
 	c.history.Push(conn)
 	return resp, nil
+}
+
+func (c *Connections) recordFailure(ctx context.Context, protocol string, addr netapi.Address) {
+	info := c.getConnection(ctx, nil, addr, 0)
+	info.Network.ConnType = protocol
+	c.telemetry.RecordFailure(c.telemetryConnection(ctx, info))
+}
+
+func (c *Connections) telemetryConnection(ctx context.Context, info contractconnection.Connection) contractconnection.Connection {
+	nc := netapi.GetContext(ctx)
+	info.Process = nc.GetProcessName()
+	info.MatchHistory = ToMatchHistoryEntry(nc.MatchHistory())
+	return info
 }
 
 func getRemote(con any, gg netapi.MaxMindDB) (addrStr string, geo string) {
@@ -298,7 +311,7 @@ func getRealAddr(store *netapi.Context, addr netapi.Address) string {
 	return addr.String()
 }
 
-func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAddr() net.Addr }, addr netapi.Address) *statistic.Connection {
+func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAddr() net.Addr }, addr netapi.Address, id uint64) contractconnection.Connection {
 	nc := netapi.GetContext(ctx)
 
 	maxminddb := nc.ConnOptions().Maxminddb()
@@ -308,119 +321,110 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 
 	outbound, outboundGeo := getRemote(conn, maxminddb)
 
-	connection := &statistic.Connection_builder{
-		Id:   new(c.idSeed.Generate()),
-		Addr: new(getRealAddr(nc, addr)),
-		Type: statistic.NetType_builder{
-			ConnType: statistic.Type(statistic.Type_value[addr.Network()]).Enum(),
-		}.Build(),
-		Source:       stringerOrNil(nc.Source),
-		Inbound:      stringerOrNil(nc.GetInbound()),
-		InboundName:  stringOrNil(nc.GetInboundName()),
-		Interface:    stringOrNil(nc.GetInterface()),
-		Outbound:     stringOrNil(outbound),
-		LocalAddr:    stringOrNil(getLocal(conn)),
-		Destionation: stringerOrNil(nc.Destination),
-		FakeIp:       stringerOrNil(nc.GetFakeIP()),
-		Hosts:        stringerOrNil(nc.GetHosts()),
+	connection := contractconnection.Connection{
+		ID:          formatUint64(id),
+		Addr:        getRealAddr(nc, addr),
+		Network:     contractconnection.NetworkType{ConnType: addr.Network()},
+		Source:      stringerValue(nc.Source),
+		Inbound:     stringerValue(nc.GetInbound()),
+		InboundName: nc.GetInboundName(),
+		Interface:   nc.GetInterface(),
+		Outbound:    outbound,
+		LocalAddr:   getLocal(conn),
+		Destination: stringerValue(nc.Destination),
+		FakeIP:      stringerValue(nc.GetFakeIP()),
+		Hosts:       stringerValue(nc.GetHosts()),
 
-		Domain:       stringOrNil(nc.GetDomainString()),
-		Ip:           stringOrNil(nc.GetIPString()),
-		Tag:          stringOrNil(nc.GetTag()),
-		Hash:         stringOrNil(nc.Hash),
-		NodeName:     stringOrNil(nc.NodeName),
-		Protocol:     stringOrNil(nc.GetProtocol()),
-		Mode:         nc.ConnOptions().RouteMode().Enum(),
-		UdpMigrateId: uint64OrNil(nc.GetUDPMigrateID()),
+		Domain:       nc.GetDomainString(),
+		IP:           nc.GetIPString(),
+		Tag:          nc.GetTag(),
+		NodeID:       nc.Hash,
+		NodeName:     nc.NodeName,
+		Protocol:     nc.GetProtocol(),
+		Mode:         nc.ConnOptions().RouteMode(),
+		UDPMigrateID: formatUint64ZeroEmpty(nc.GetUDPMigrateID()),
 	}
 
 	if configuration.ExtendedStatsEnabled.Load() {
-		connection.Geo = stringOrNil(nc.GetGeo())
-		connection.OutboundGeo = stringOrNil(outboundGeo)
-		connection.Process = stringOrNil(nc.GetProcessName())
-		connection.TlsServerName = stringOrNil(nc.GetTLSServerName())
-		connection.HttpHost = stringOrNil(nc.GetHTTPHost())
-		connection.Component = stringOrNil(nc.GetComponent())
-		connection.MatchHistory = ToProtoMatchHistoryEntry(nc.MatchHistory())
-		connection.Pid = uint64OrNil(uint64(nc.GetProcessPid()))
-		connection.Uid = uint64OrNil(uint64(nc.GetProcessUid()))
-		connection.Resolver = resolverNameOrNil(nc.ConnOptions().Resolver().Resolver())
+		connection.Geo = nc.GetGeo()
+		connection.OutboundGeo = outboundGeo
+		connection.Process = nc.GetProcessName()
+		connection.TLSServerName = nc.GetTLSServerName()
+		connection.HTTPHost = nc.GetHTTPHost()
+		connection.Component = nc.GetComponent()
+		connection.MatchHistory = ToMatchHistoryEntry(nc.MatchHistory())
+		connection.PID = formatUint64ZeroEmpty(uint64(nc.GetProcessPid()))
+		connection.UID = formatUint64ZeroEmpty(uint64(nc.GetProcessUid()))
+		connection.Resolver = resolverName(nc.ConnOptions().Resolver().Resolver())
 		connection.Lists = nc.ConnOptions().Lists()
 	}
 
 	if conn != nil {
-		connection.Type.SetUnderlyingType(statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]))
+		if local := conn.LocalAddr(); local != nil {
+			connection.Network.UnderlyingType = local.Network()
+		}
 	}
 
-	return connection.Build()
+	return connection
 }
 
-func ToProtoMatchHistoryEntry(entry []*netapi.MatchHistoryEntry) []*statistic.MatchHistoryEntry {
-	mhis := make([]*statistic.MatchHistoryEntry, 0, len(entry))
+func ToMatchHistoryEntry(entry []*netapi.MatchHistoryEntry) []contractconnection.MatchHistoryEntry {
+	mhis := make([]contractconnection.MatchHistoryEntry, 0, len(entry))
 	for _, e := range entry {
-		his := make([]*statistic.MatchResult, 0, len(e.UnmatchedHistory))
+		his := make([]contractconnection.MatchResult, 0, len(e.UnmatchedHistory))
 		for _, uh := range e.UnmatchedHistory {
-			r := &statistic.MatchResult{}
-			r.SetListName(uh.Value())
-			his = append(his, r)
+			his = append(his, contractconnection.MatchResult{ListName: uh.Value()})
 		}
 
 		if m := e.MatchedHistory.Value(); m != "" {
-			r := &statistic.MatchResult{}
-			r.SetListName(m)
-			r.SetMatched(true)
-			his = append(his, r)
+			his = append(his, contractconnection.MatchResult{ListName: m, Matched: true})
 		}
 
-		h := &statistic.MatchHistoryEntry{}
-		h.SetRuleName(e.RuleName.Value())
-		h.SetHistory(his)
-		mhis = append(mhis, h)
+		mhis = append(mhis, contractconnection.MatchHistoryEntry{
+			RuleName: e.RuleName.Value(),
+			History:  his,
+		})
 	}
 
 	return mhis
 }
 
-func uint64OrNil(i uint64) *uint64 {
+func formatUint64(v uint64) string {
+	return strconv.FormatUint(v, 10)
+}
+
+func formatUint64ZeroEmpty(i uint64) string {
 	if i == 0 {
-		return nil
+		return ""
 	}
-	return new(i)
+	return formatUint64(i)
 }
 
-func stringOrNil(str string) *string {
-	if str == "" {
-		return nil
-	}
-	return new(str)
-}
-
-func stringerOrNil(str fmt.Stringer) *string {
+func stringerValue(str fmt.Stringer) string {
 	if str == nil {
-		return nil
+		return ""
 	}
-	return new(str.String())
+	return str.String()
 }
 
-func resolverNameOrNil(resolver netapi.Resolver) *string {
+func resolverName(resolver netapi.Resolver) string {
 	if resolver == nil {
-		return nil
+		return ""
 	}
-	return new(resolver.Name())
+	return resolver.Name()
 }
 
 func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	con, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
-		c.faildHistory.Push(ctx, err, statistic.Type_tcp, addr)
+		c.faildHistory.Push(ctx, err, "tcp", addr)
+		c.recordFailure(ctx, "tcp", addr)
 		return nil, err
 	}
 
-	counter := newCounter(c.Cache)
-
-	info := c.getConnection(ctx, con, addr)
-
-	id := info.GetId()
+	id := c.idSeed.Generate()
+	info := c.getConnection(ctx, con, addr, id)
+	counter := newCounter(c.Cache, c.telemetry.Register(c.telemetryConnection(ctx, info)))
 
 	z := &conn{
 		Conn:    con,
@@ -434,11 +438,11 @@ func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, 
 	return z, nil
 }
 
-func (c *Connections) FailedHistory(context.Context, *emptypb.Empty) (*api.FailedHistoryList, error) {
+func (c *Connections) FailedHistory(context.Context) (contractconnection.FailedHistoryList, error) {
 	return c.faildHistory.Get(), nil
 }
 
-func (c *Connections) AllHistory(context.Context, *emptypb.Empty) (*api.AllHistoryList, error) {
+func (c *Connections) AllHistory(context.Context) (contractconnection.AllHistoryList, error) {
 	return c.history.Get(), nil
 }
 
@@ -459,43 +463,54 @@ func (c *counters) Store(id uint64, counter *Counter) {
 	c.mu.Unlock()
 }
 
-func (c *counters) Remove(id uint64) {
+func (c *counters) Remove(id uint64) *Counter {
 	c.mu.Lock()
+	counter := c.store[id]
 	delete(c.store, id)
 	c.mu.Unlock()
+	return counter
 }
 
-func (c *counters) Load() map[uint64]*api.Counter {
+func (c *counters) Load() map[string]contractconnection.Counter {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	tmp := make(map[uint64]*api.Counter, len(c.store))
+	tmp := make(map[string]contractconnection.Counter, len(c.store))
 
 	for k, v := range c.store {
-		tmp[k] = api.Counter_builder{
-			Download: new(v.LoadDownload()),
-			Upload:   new(v.LoadUpload()),
-		}.Build()
+		tmp[formatUint64(k)] = contractconnection.Counter{
+			Download: formatUint64(v.LoadDownload()),
+			Upload:   formatUint64(v.LoadUpload()),
+		}
 	}
 
 	return tmp
 }
 
 type Counter struct {
-	cache    *TotalCache
-	download atomic.Uint64
-	upload   atomic.Uint64
+	cache     *TotalCache
+	telemetry *dimensionCounter
+	download  atomic.Uint64
+	upload    atomic.Uint64
 }
 
-func newCounter(cache *TotalCache) *Counter { return &Counter{cache: cache} }
+func newCounter(cache *TotalCache, telemetry *dimensionCounter) *Counter {
+	return &Counter{cache: cache, telemetry: telemetry}
+}
 func (c *Counter) AddDownload(n uint64) {
 	c.cache.AddDownload(n)
 	c.download.Add(n)
+	if c.telemetry != nil {
+		c.telemetry.download.Add(n)
+	}
 }
 
 func (c *Counter) AddUpload(n uint64) {
 	c.cache.AddUpload(n)
 	c.upload.Add(n)
+	if c.telemetry != nil {
+		c.telemetry.upload.Add(n)
+	}
 }
 func (c *Counter) LoadDownload() uint64 { return c.download.Load() }
 func (c *Counter) LoadUpload() uint64   { return c.upload.Load() }

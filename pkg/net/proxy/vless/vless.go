@@ -5,8 +5,8 @@ import (
 	"context"
 	"net"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
@@ -64,11 +64,19 @@ func (c *Client) Ping(ctx context.Context, addr netapi.Address) (uint64, error) 
 }
 
 func init() {
-	register.RegisterPoint(NewClient)
+	register.RegisterContractPoint("vless", func(config contractnode.Vless, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{
+			UUID: config.UUID,
+		}, p)
+	})
 }
 
-func NewClient(config *node.Vless, p netapi.Proxy) (netapi.Proxy, error) {
-	uid, err := id.ParseUUID(config.GetUuid())
+type Config struct {
+	UUID string `json:"uuid"`
+}
+
+func NewClient(config Config, p netapi.Proxy) (netapi.Proxy, error) {
+	uid, err := id.ParseUUID(config.UUID)
 	if err != nil {
 		return nil, err
 	}

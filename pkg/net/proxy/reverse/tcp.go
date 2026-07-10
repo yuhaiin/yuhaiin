@@ -3,16 +3,14 @@ package reverse
 import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
-func init() {
-	register.RegisterProtocol(NewTCPServer)
+type TCPServerConfig struct {
+	Host string `json:"host"`
 }
 
-func NewTCPServer(o *config.ReverseTcp, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-	target, err := netapi.ParseAddress("tcp", o.GetHost())
+func NewTCPServer(o TCPServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+	target, err := netapi.ParseAddress("tcp", o.Host)
 	if err != nil {
 		return nil, err
 	}

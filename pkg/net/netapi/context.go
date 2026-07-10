@@ -8,8 +8,6 @@ import (
 	"slices"
 	"sync/atomic"
 	"unique"
-
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 type PacketSniffer interface {
@@ -121,7 +119,7 @@ type ConnOptions struct {
 	}
 	lists []string
 
-	routeMode config.Mode
+	routeMode string
 	skipRoute bool
 	isUdp     bool
 }
@@ -171,9 +169,9 @@ func (s *ConnOptions) SetResolver(resolver ResolverOptions) *ConnOptions {
 	return s
 }
 
-func (s *ConnOptions) SetRouteMode(mode config.Mode) *ConnOptions {
+func (s *ConnOptions) SetRouteMode(mode string) *ConnOptions {
 	// skip if already set
-	if s.routeMode != config.Mode_bypass {
+	if s.routeMode != "" && s.routeMode != "bypass" {
 		return s
 	}
 
@@ -181,7 +179,10 @@ func (s *ConnOptions) SetRouteMode(mode config.Mode) *ConnOptions {
 	return s
 }
 
-func (s *ConnOptions) RouteMode() config.Mode {
+func (s *ConnOptions) RouteMode() string {
+	if s.routeMode == "" {
+		return "bypass"
+	}
 	return s.routeMode
 }
 

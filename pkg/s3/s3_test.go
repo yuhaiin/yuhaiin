@@ -2,30 +2,28 @@ package s3
 
 import (
 	"context"
+	"encoding/json/v2"
 	"os"
 	"testing"
 
+	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestS3(t *testing.T) {
 	t.Run("marshal config", func(t *testing.T) {
-		config := config.S3_builder{
-			Enabled:      new(true),
-			AccessKey:    new("access"),
-			SecretKey:    new("secret"),
-			Bucket:       new("bucket"),
-			Region:       new("region"),
-			EndpointUrl:  new("endpoint"),
-			UsePathStyle: new(true),
-		}.Build()
+		config := contractbackup.S3{
+			Enabled:      true,
+			AccessKey:    "access",
+			SecretKey:    "secret",
+			Bucket:       "bucket",
+			Region:       "region",
+			EndpointURL:  "endpoint",
+			UsePathStyle: true,
+		}
 
-		data, err := protojson.MarshalOptions{
-			Indent: "\t",
-		}.Marshal(config)
+		data, err := json.Marshal(config)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -38,10 +36,10 @@ func TestS3(t *testing.T) {
 		data, err := os.ReadFile(".config.json")
 		assert.NoError(t, err)
 
-		var config config.S3
-		assert.NoError(t, protojson.Unmarshal(data, &config))
+		var config contractbackup.S3
+		assert.NoError(t, json.Unmarshal(data, &config))
 
-		s3, err := NewS3(&config, direct.Default)
+		s3, err := NewS3(config, direct.Default)
 		assert.NoError(t, err)
 
 		assert.NoError(t, s3.Put(context.Background(), []byte("test"), "test.json"))

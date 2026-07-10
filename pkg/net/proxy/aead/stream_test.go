@@ -8,8 +8,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
 )
@@ -18,10 +16,10 @@ func TestAead(t *testing.T) {
 	lis, err := nettest.NewLocalListener("tcp")
 	assert.NoError(t, err)
 
-	s, err := NewServer(config.Aead_builder{
-		Password:     new("testsfsdfsf"),
-		CryptoMethod: node.AeadCryptoMethod_XChacha20Poly1305.Enum(),
-	}.Build(), netapi.NewListener(lis, nil))
+	s, err := NewServer(Config{
+		Password:     "testsfsdfsf",
+		CryptoMethod: CryptoMethodXChacha20Poly1305,
+	}, netapi.NewListener(lis, nil))
 	assert.NoError(t, err)
 	defer s.Close()
 
@@ -45,17 +43,14 @@ func TestAead(t *testing.T) {
 	addr, err := netapi.ParseAddress("tcp", lis.Addr().String())
 	assert.NoError(t, err)
 
-	p, err := fixed.NewClient(node.Fixed_builder{
-		Host: new(addr.Hostname()),
-		Port: new(int32(addr.Port())),
-	}.Build(), nil)
+	p, err := fixed.NewClient(fixed.Config{Host: addr.Hostname(), Port: int32(addr.Port())}, nil)
 	assert.NoError(t, err)
 	defer p.Close()
 
-	c, err := NewClient(node.Aead_builder{
-		Password:     new("testsfsdfsf"),
-		CryptoMethod: node.AeadCryptoMethod_XChacha20Poly1305.Enum(),
-	}.Build(), p)
+	c, err := NewClient(Config{
+		Password:     "testsfsdfsf",
+		CryptoMethod: CryptoMethodXChacha20Poly1305,
+	}, p)
 	assert.NoError(t, err)
 	defer c.Close()
 

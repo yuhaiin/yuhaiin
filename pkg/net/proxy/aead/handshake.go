@@ -14,9 +14,15 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/crypto/chacha20"
+)
+
+type CryptoMethod string
+
+const (
+	CryptoMethodChacha20Poly1305  CryptoMethod = "Chacha20Poly1305"
+	CryptoMethodXChacha20Poly1305 CryptoMethod = "XChacha20Poly1305"
 )
 
 type encryptedHandshaker struct {
@@ -264,10 +270,10 @@ func (h *encryptedHandshaker) encryptTime(password, salt, dst, src []byte) error
 	return nil
 }
 
-func NewHandshaker(server bool, password []byte, method node.AeadCryptoMethod) *encryptedHandshaker {
+func NewHandshaker(server bool, password []byte, method CryptoMethod) *encryptedHandshaker {
 	var aead Aead
 	switch method {
-	case node.AeadCryptoMethod_XChacha20Poly1305:
+	case CryptoMethodXChacha20Poly1305:
 		aead = XChacha20poly1305
 	default:
 		aead = Chacha20poly1305

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -19,35 +20,31 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/chore"
+	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
+	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	pt "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
+	"github.com/Asutorufa/yuhaiin/pkg/node"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/grpc2http"
 	pyroscopepprof "github.com/grafana/pyroscope-go/godeltaprof/http/pprof"
 	yf "github.com/yuhaiin/yuhaiin.github.io"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 )
 
 type AppInstance struct {
-	Node        api.NodeServer
-	Tools       api.ToolsServer
-	Subscribe   api.SubscribeServer
-	Connections api.ConnectionsServer
-	Inbound     api.InboundServer
-	Resolver    api.ResolverServer
-	Lists       api.ListsServer
-	Rules       api.RulesServer
-	Tag         api.TagServer
-	Backup      api.BackupServer
-	// TODO deprecate configService, new service chore
-	Setting api.ConfigServiceServer
-	Mux     *http.ServeMux
+	Node        httpapi.NodeController
+	NodeManager *node.Manager
+	Tools       httpapi.ToolsController
+	Subscribe   httpapi.SubscriptionController
+	Connections httpapi.ConnectionMonitor
+	Resolver    httpapi.ResolverController
+	ResolverCfg httpapi.ResolverConfigController
+	Lists       httpapi.ListRuntimeController
+	Rules       httpapi.RouteRuntimeController
+	Backup      httpapi.BackupController
+	Setting     httpapi.SettingsController
+	Inbound     *inbound.Inbound
+	Mux         *http.ServeMux
 	*StartOptions
 	closers *closers
 }
@@ -61,11 +58,35 @@ func (a *closers) AddCloser(name string, z io.Closer) {
 }
 
 func (a *closers) Close() error {
+	return a.closeExcept("")
+}
+
+func (a *closers) CloseExcept(name string) error {
+	return a.closeExcept(name)
+}
+
+func (a *closers) CloseNamed(name string) error {
+	var err error
+	for _, closer := range a.closers {
+		if closer.name != name {
+			continue
+		}
+		if er := closer.Close(); er != nil {
+			err = errors.Join(err, fmt.Errorf("%s close error: %w", closer.name, er))
+		}
+	}
+	return err
+}
+
+func (a *closers) closeExcept(name string) error {
 	closers := slices.Clone(a.closers)
 	slices.Reverse(closers)
 
 	var err error
 	for _, v := range closers {
+		if v.name == name {
+			continue
+		}
 		if er := v.Close(); er != nil {
 			err = errors.Join(err, fmt.Errorf("%s close error: %w", v.name, er))
 		}
@@ -86,74 +107,122 @@ func (m *moduleCloser) Close() error {
 }
 
 func (app *AppInstance) RegisterServer() {
-	grpcServer := &grpcRegister{
-		s:    app.GRPCServer,
-		mux:  app.Mux,
-		auth: app.Auth,
-	}
-
-	api.RegisterConfigServiceServer(grpcServer, app.Setting)
-	api.RegisterInboundServer(grpcServer, app.Inbound)
-	api.RegisterResolverServer(grpcServer, app.Resolver)
-	api.RegisterListsServer(grpcServer, app.Lists)
-	api.RegisterRulesServer(grpcServer, app.Rules)
-
-	api.RegisterNodeServer(grpcServer, app.Node)
-	api.RegisterSubscribeServer(grpcServer, app.Subscribe)
-	api.RegisterTagServer(grpcServer, app.Tag)
-
-	api.RegisterConnectionsServer(grpcServer, app.Connections)
-
-	api.RegisterToolsServer(grpcServer, app.Tools)
-
-	api.RegisterBackupServer(grpcServer, app.Backup)
-
+	registerV2HTTP(app)
 	RegisterHTTP(app.Mux)
 }
 
-type grpcRegister struct {
-	mux  *http.ServeMux
-	s    *grpc.Server
-	auth *Auth
-}
-
-func (g *grpcRegister) RegisterService(desc *grpc.ServiceDesc, impl any) {
-	if g.s != nil { // when android, g.s is nil
-		log.Info("register grpc service", "name", desc.ServiceName)
-		g.s.RegisterService(desc, impl)
+func registerV2HTTP(app *AppInstance) {
+	var inboundStore httpapi.InboundStore
+	var nodeStore *plainstore.NodeStore
+	var subscriptionStore *plainstore.SubscriptionStore
+	var resolverStore *plainstore.ResolverStore
+	resolverConfig := app.ResolverCfg
+	var routeSettingsStore *plainstore.RouteSettingsStore
+	var routeListStore *plainstore.RouteListStore
+	var routeRuleStore *plainstore.RouteRuleStore
+	var routeTagStore *plainstore.RouteTagStore
+	subscribeController := app.Subscribe
+	if sqlStore := app.StateStore; sqlStore != nil {
+		db, err := sqlStore.SQLDB(context.Background())
+		if err != nil {
+			log.Error("init v2 sqlite store failed", "err", err)
+		} else {
+			plainInboundStore := plainstore.NewInboundStore(db)
+			inboundRuntimeStore := inbound.NewContractStore(plainInboundStore, app.Inbound)
+			if err := inboundRuntimeStore.Sync(context.Background()); err != nil {
+				log.Error("sync v2 inbound runtime failed", "err", err)
+			}
+			inboundStore = inboundRuntimeStore
+			nodeStore = plainstore.NewNodeStore(db)
+			subscriptionStore = plainstore.NewSubscriptionStore(db)
+			resolverStore = plainstore.NewResolverStore(db)
+			resolverConfig = plainstore.NewResolverConfigRuntimeStore(plainstore.NewResolverConfigStore(db), app.ResolverCfg)
+			routeSettingsStore = plainstore.NewRouteSettingsStore(db)
+			routeListStore = plainstore.NewRouteListStore(db)
+			routeRuleStore = plainstore.NewRouteRuleStore(db)
+			routeTagStore = plainstore.NewRouteTagStore(db)
+			if app.NodeManager != nil {
+				subscribeController = node.NewContractSubscriptionController(app.NodeManager, nodeStore, subscriptionStore)
+			}
+		}
 	}
 
-	for _, method := range desc.Methods {
-		path := fmt.Sprintf("POST /%s/%s", desc.ServiceName, method.MethodName)
-		log.Info("register http handler", "path", path)
-		HandleFunc(g.mux, g.auth, path, grpc2http.Call(impl, method.Handler))
-	}
-
-	for _, method := range desc.Streams {
-		path := fmt.Sprintf("GET /%s/%s", desc.ServiceName, method.StreamName)
-		log.Info("register websocket handler", "path", path)
-		HandleFunc(g.mux, g.auth, path, grpc2http.Stream(impl, method.Handler))
-	}
+	httpapi.RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
+		HandleFunc(app.Mux, app.Auth, pattern, handler)
+	}, httpapi.V2Services{
+		Settings:       app.Setting,
+		Inbounds:       inboundStore,
+		Nodes:          nodeStore,
+		Node:           app.Node,
+		Subscriptions:  subscriptionStore,
+		Resolvers:      resolverStore,
+		Resolver:       app.Resolver,
+		ResolverConfig: resolverConfig,
+		Connections:    app.Connections,
+		Tools:          app.Tools,
+		Backup:         app.Backup,
+		Lists:          app.Lists,
+		RouteSettings:  routeSettingsStore,
+		RouteLists:     routeListStore,
+		Rules:          app.Rules,
+		RouteRules:     routeRuleStore,
+		RouteTags:      routeTagStore,
+		Subscribe:      subscribeController,
+	})
 }
 
 func (a *AppInstance) Close() error {
 	sysproxy.Unset()
-	return a.closers.Close()
+
+	err := a.closers.CloseExcept("state_store")
+	if er := compactStateStore(context.Background(), a.StateStore); er != nil {
+		err = errors.Join(err, fmt.Errorf("compact state store failed: %w", er))
+	}
+	if er := a.closers.CloseNamed("state_store"); er != nil {
+		err = errors.Join(err, er)
+	}
+	return err
+}
+
+func compactStateStore(ctx context.Context, store SQLStore) error {
+	if store == nil {
+		return nil
+	}
+	db, err := store.SQLDB(ctx)
+	if err != nil {
+		return err
+	}
+
+	log.Info("checkpoint state database before vacuum")
+	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		return err
+	}
+	log.Info("vacuum state database")
+	if _, err := db.ExecContext(ctx, "VACUUM"); err != nil {
+		return err
+	}
+	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		return err
+	}
+	return nil
 }
 
 type StartOptions struct {
-	BypassConfig   chore.DB
-	ResolverConfig chore.DB
-	InboundConfig  chore.DB
-	ChoreConfig    chore.DB
-	BackupConfig   chore.DB
+	StateStore SQLStore
 
 	ProcessDumper netapi.ProcessDumper
 
-	Auth       *Auth
-	GRPCServer *grpc.Server
+	Auth *Auth
 
 	ConfigPath string
+}
+
+type SQLStore interface {
+	SQLDB(context.Context) (*sql.DB, error)
+}
+
+type MigrationStore interface {
+	Migrate(context.Context) error
 }
 
 type Auth struct {
@@ -172,31 +241,6 @@ func (a *Auth) Auth(password, username string) bool {
 	rSumUser := sha256.Sum256([]byte(username))
 	rSumPass := sha256.Sum256([]byte(password))
 	return subtle.ConstantTimeCompare(rSumUser[:], a.Username[:]) == 1 && subtle.ConstantTimeCompare(rSumPass[:], a.Password[:]) == 1
-}
-
-func (a *Auth) GrpcAuth() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
-		md, ok := metadata.FromIncomingContext(ctx)
-		if !ok {
-			return nil, status.Error(codes.Unauthenticated, "metadata not found")
-		}
-
-		as := md.Get("Authorization")
-		if len(as) == 0 {
-			return nil, status.Error(codes.Unauthenticated, "authorization header not found")
-		}
-
-		ru, rp, ok := pt.ParseBasicAuth(as[0])
-		if !ok {
-			return nil, status.Error(codes.Unauthenticated, "authorization failed")
-		}
-
-		if !a.Auth(ru, rp) {
-			return nil, status.Error(codes.Unauthenticated, "authorization failed")
-		}
-
-		return handler(ctx, req)
-	}
 }
 
 func HandleFunc(mux *http.ServeMux, auth *Auth, path string, b func(http.ResponseWriter, *http.Request) error) {
@@ -275,6 +319,11 @@ func (w *wrapResponseWriter) Write(b []byte) (int, error) {
 func (w *wrapResponseWriter) WriteHeader(s int) {
 	w.writed = true
 	w.ResponseWriter.WriteHeader(s)
+}
+
+func (w *wrapResponseWriter) Flush() {
+	w.writed = true
+	_ = http.NewResponseController(w.ResponseWriter).Flush()
 }
 
 func (w *wrapResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {

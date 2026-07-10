@@ -7,8 +7,6 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
 type Tproxy struct {
@@ -21,11 +19,10 @@ type Tproxy struct {
 	cancel  context.CancelFunc
 }
 
-func init() {
-	register.RegisterProtocol(NewTproxy)
+type ServerConfig struct {
 }
 
-func NewTproxy(opt *config.Tproxy, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+func NewTproxy(_ ServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	t := &Tproxy{

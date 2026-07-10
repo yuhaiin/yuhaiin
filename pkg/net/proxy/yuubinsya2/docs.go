@@ -13,7 +13,7 @@ import (
 )
 
 /*
-plain for over tls/quic/grpc/.... that is already encrypted
+plain for over tls/quic/http2/... that is already encrypted
 all unit is byte
 
 +---------+----------+~~~~~~+--------------+~~~~~~~~~~+----------+

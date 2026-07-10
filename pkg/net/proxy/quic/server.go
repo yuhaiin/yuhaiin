@@ -14,9 +14,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
+	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/quic-go/quic-go"
 )
@@ -33,17 +32,18 @@ type Server struct {
 	natMap     syncmap.SyncMap[string, *ConnectionPacketConn]
 }
 
-func init() {
-	register.RegisterNetwork(NewServer)
+type ServerConfig struct {
+	Host string            `json:"host"`
+	TLS  ytls.ServerConfig `json:"tls"`
 }
 
-func NewServer(c *config.Quic) (netapi.Listener, error) {
-	packetConn, err := dialer.ListenPacket(context.TODO(), "udp", c.GetHost(), dialer.WithListener())
+func NewServer(c ServerConfig) (netapi.Listener, error) {
+	packetConn, err := dialer.ListenPacket(context.TODO(), "udp", c.Host, dialer.WithListener())
 	if err != nil {
 		return nil, err
 	}
 
-	tlsConfig, err := register.ParseTLS(c.GetTls())
+	tlsConfig, err := ytls.ParseServerTLSConfig(c.TLS)
 	if err != nil {
 		return nil, err
 	}

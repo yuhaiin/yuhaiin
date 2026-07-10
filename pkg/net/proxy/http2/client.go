@@ -12,12 +12,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
 	"golang.org/x/net/http2"
@@ -28,13 +28,19 @@ type Client struct {
 	transport *http2.Transport
 }
 
-func init() {
-	register.RegisterPoint(NewClient)
+type Config struct {
+	Concurrency int32 `json:"concurrency"`
 }
 
-func NewClient(config *node.Http2, p netapi.Proxy) (netapi.Proxy, error) {
-	if config.GetConcurrency() < 7 {
-		config.SetConcurrency(10)
+func init() {
+	register.RegisterContractPoint("http2", func(config contractnode.Concurrency, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{Concurrency: config.Concurrency}, p)
+	})
+}
+
+func NewClient(config Config, p netapi.Proxy) (netapi.Proxy, error) {
+	if config.Concurrency < 7 {
+		config.Concurrency = 10
 	}
 
 	transport := &http2.Transport{
@@ -48,7 +54,7 @@ func NewClient(config *node.Http2, p netapi.Proxy) (netapi.Proxy, error) {
 		},
 	}
 
-	transport.ConnPool = newClientConnectionPool(transport, int(config.GetConcurrency()))
+	transport.ConnPool = newClientConnectionPool(transport, int(config.Concurrency))
 
 	return &Client{
 		Proxy:     p,

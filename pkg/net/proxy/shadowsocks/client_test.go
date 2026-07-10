@@ -14,25 +14,20 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestConn(t *testing.T) {
 	t.Skip("requires a local shadowsocks/websocket server and external ip.sb access")
 
-	p, err := fixed.NewClient(node.Fixed_builder{
-		Host: new("127.0.0.1"),
-		Port: proto.Int32(1080),
-	}.Build(), nil)
+	p, err := fixed.NewClient(fixed.Config{Host: "127.0.0.1", Port: int32(1080)}, nil)
 	assert.NoError(t, err)
-	z, err := websocket.NewClient(node.Websocket_builder{Host: new("localhost:1090")}.Build(), p)
+	z, err := websocket.NewClient(websocket.Config{Host: "localhost:1090"}, p)
 	assert.NoError(t, err)
-	z, err = NewClient(node.Shadowsocks_builder{
-		Method:   new("aes-128-gcm"),
-		Password: new("test"),
-	}.Build(),
+	z, err = NewClient(Config{
+		Method:   "aes-128-gcm",
+		Password: "test",
+	},
 		// "v2ray",
 		// "tls;cert=/mnt/data/program/go-shadowsocks/ca.crt;host=localhost:1090",
 		z)
@@ -75,15 +70,12 @@ func TestConn(t *testing.T) {
 func TestUDPConn(t *testing.T) {
 	t.Skip("requires a local shadowsocks server and external DNS access")
 
-	p, err := fixed.NewClient(node.Fixed_builder{
-		Host: new("127.0.0.1"),
-		Port: proto.Int32(1090),
-	}.Build(), nil)
+	p, err := fixed.NewClient(fixed.Config{Host: "127.0.0.1", Port: int32(1090)}, nil)
 	assert.NoError(t, err)
-	s, err := NewClient(node.Shadowsocks_builder{
-		Method:   new("aes-128-gcm"),
-		Password: new("test"),
-	}.Build(), p)
+	s, err := NewClient(Config{
+		Method:   "aes-128-gcm",
+		Password: "test",
+	}, p)
 	assert.NoError(t, err)
 
 	ad, _ := netapi.ParseAddress("udp", "223.5.5.5:53")

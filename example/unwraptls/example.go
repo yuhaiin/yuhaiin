@@ -9,15 +9,13 @@ import (
 	"net"
 	"net/http"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"google.golang.org/protobuf/proto"
 )
 
 var cert = `-----BEGIN CERTIFICATE-----
@@ -39,7 +37,7 @@ MC4CAQAwBQYDK2VwBCIEILArmTMFo0d2X9cTPVlgKGVO+wyqkQFjPlNnN5wmTq6G
 
 func main() {
 	r, err := resolver.New(resolver.Config{
-		Type: config.Type_udp,
+		Type: "udp",
 		Host: "8.8.8.8",
 	})
 	if err != nil {
@@ -48,38 +46,30 @@ func main() {
 
 	netapi.SetBootstrap(r)
 
-	node := node.Point_builder{
-		Protocols: []*node.Protocol{
-			node.Protocol_builder{
-				Simple: node.Simple_builder{
-					Host: new("ip.sb"),
-					Port: proto.Int32(443),
-				}.Build(),
-			}.Build(),
-			node.Protocol_builder{
-				Tls: node.TlsConfig_builder{
-					Enable:             new(true),
-					InsecureSkipVerify: new(true),
-					ServerNames:        []string{"ip.sb"},
-				}.Build(),
-			}.Build(),
-
-			node.Protocol_builder{
-				TlsTermination: node.TlsTermination_builder{
-					Tls: node.TlsServerConfig_builder{
-						Certificates: []*node.Certificate{
-							node.Certificate_builder{
-								Cert: []byte(cert),
-								Key:  []byte(key),
-							}.Build(),
-						},
-					}.Build(),
-				}.Build(),
-			}.Build(),
+	pro, err := register.ContractDialer(contractnode.Node{
+		ID:     "unwrap-tls-example",
+		Name:   "unwrap-tls-example",
+		Origin: "example",
+		Chain: []contractnode.Protocol{
+			protocol(contractnode.Simple{
+				Host: "ip.sb",
+				Port: 443,
+			}),
+			protocol(contractnode.TLS{
+				Enable:             true,
+				InsecureSkipVerify: true,
+				ServerNames:        []string{"ip.sb"},
+			}),
+			protocol(contractnode.TLSTermination{
+				TLS: contractnode.ServerTLS{
+					Certificates: []contractnode.Certificate{{
+						Cert: []byte(cert),
+						Key:  []byte(key),
+					}},
+				},
+			}),
 		},
-	}
-
-	pro, err := register.Dialer(node.Build())
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -112,4 +102,12 @@ func main() {
 	_, _ = buf.ReadFrom(resp.Body)
 	defer resp.Body.Close()
 	log.Println(buf.String())
+}
+
+func protocol[T contractnode.ProtocolPayload](value T) contractnode.Protocol {
+	protocol, err := contractnode.NewTypedProtocol(value)
+	if err != nil {
+		panic(err)
+	}
+	return protocol
 }

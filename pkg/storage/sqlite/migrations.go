@@ -230,4 +230,120 @@ var migrations = []Migration{
 			)`,
 		},
 	},
+	{
+		Version: 3,
+		Name:    "plain_contract_model",
+		Statements: []string{
+			`CREATE TABLE settings_json (
+				id          INTEGER PRIMARY KEY CHECK (id = 1),
+				version     INTEGER NOT NULL,
+				data_json   TEXT NOT NULL CHECK (json_valid(data_json)),
+				updated_at  INTEGER NOT NULL
+			)`,
+			`CREATE TABLE inbounds_v2 (
+				id                    TEXT PRIMARY KEY,
+				name                  TEXT NOT NULL DEFAULT '',
+				enabled               INTEGER NOT NULL,
+				network_type          TEXT NOT NULL,
+				protocol_type         TEXT NOT NULL,
+				transport_types_json  TEXT NOT NULL CHECK (json_valid(transport_types_json)),
+				updated_at            INTEGER NOT NULL,
+				data_json             TEXT NOT NULL CHECK (json_valid(data_json))
+			)`,
+			`CREATE INDEX inbounds_v2_enabled_idx
+			ON inbounds_v2(enabled)`,
+			`CREATE INDEX inbounds_v2_protocol_idx
+			ON inbounds_v2(protocol_type)`,
+			`CREATE INDEX inbounds_v2_network_idx
+			ON inbounds_v2(network_type)`,
+			`CREATE TABLE nodes_v2 (
+				id                TEXT PRIMARY KEY,
+				name              TEXT NOT NULL,
+				group_name        TEXT NOT NULL,
+				origin            TEXT NOT NULL,
+				enabled           INTEGER NOT NULL,
+				chain_types_json  TEXT NOT NULL CHECK (json_valid(chain_types_json)),
+				updated_at        INTEGER NOT NULL,
+				data_json         TEXT NOT NULL CHECK (json_valid(data_json))
+			)`,
+			`CREATE INDEX nodes_v2_group_name_idx
+			ON nodes_v2(group_name, name)`,
+			`CREATE INDEX nodes_v2_origin_idx
+			ON nodes_v2(origin)`,
+			`CREATE TABLE node_tags_v2 (
+				id            TEXT PRIMARY KEY,
+				name          TEXT NOT NULL,
+				members_json  TEXT NOT NULL CHECK (json_valid(members_json)),
+				updated_at    INTEGER NOT NULL
+			)`,
+			`CREATE UNIQUE INDEX node_tags_v2_name_idx
+			ON node_tags_v2(name)`,
+			`CREATE TABLE resolvers_v2 (
+				id             TEXT PRIMARY KEY,
+				resolver_type  TEXT NOT NULL,
+				host           TEXT NOT NULL,
+				updated_at     INTEGER NOT NULL,
+				data_json      TEXT NOT NULL CHECK (json_valid(data_json))
+			)`,
+			`CREATE INDEX resolvers_v2_type_idx
+			ON resolvers_v2(resolver_type)`,
+			`CREATE TABLE route_rules_v2 (
+				id           TEXT PRIMARY KEY,
+				name         TEXT NOT NULL,
+				priority     INTEGER NOT NULL,
+				disabled     INTEGER NOT NULL,
+				action_mode  TEXT NOT NULL,
+				match_type   TEXT NOT NULL,
+				tag          TEXT NOT NULL DEFAULT '',
+				updated_at   INTEGER NOT NULL,
+				data_json    TEXT NOT NULL CHECK (json_valid(data_json))
+			)`,
+			`CREATE UNIQUE INDEX route_rules_v2_name_idx
+			ON route_rules_v2(name)`,
+			`CREATE UNIQUE INDEX route_rules_v2_priority_idx
+			ON route_rules_v2(priority)`,
+		},
+	},
+	{
+		Version: 4,
+		Name:    "plain_route_lists",
+		Statements: []string{
+			`CREATE TABLE route_lists_v2 (
+				name         TEXT PRIMARY KEY,
+				list_type    TEXT NOT NULL DEFAULT '',
+				source_type  TEXT NOT NULL DEFAULT '',
+				updated_at   INTEGER NOT NULL,
+				data_json    TEXT NOT NULL CHECK (json_valid(data_json))
+			)`,
+			`CREATE INDEX route_lists_v2_type_idx
+			ON route_lists_v2(list_type, source_type)`,
+		},
+	},
+	{
+		Version: 5,
+		Name:    "telemetry_dimensions",
+		Statements: []string{
+			`CREATE TABLE traffic_dimension_hourly (
+				bucket_start_utc  INTEGER NOT NULL,
+				dimension         TEXT NOT NULL,
+				value             TEXT NOT NULL,
+				upload_bytes      INTEGER NOT NULL DEFAULT 0,
+				download_bytes    INTEGER NOT NULL DEFAULT 0,
+				updated_at        INTEGER NOT NULL,
+				PRIMARY KEY (bucket_start_utc, dimension, value)
+			)`,
+			`CREATE INDEX traffic_dimension_hourly_lookup_idx
+			ON traffic_dimension_hourly(dimension, bucket_start_utc DESC)`,
+			`CREATE TABLE failure_dimension_hourly (
+				bucket_start_utc  INTEGER NOT NULL,
+				dimension         TEXT NOT NULL,
+				value             TEXT NOT NULL,
+				failed_count      INTEGER NOT NULL DEFAULT 0,
+				updated_at        INTEGER NOT NULL,
+				PRIMARY KEY (bucket_start_utc, dimension, value)
+			)`,
+			`CREATE INDEX failure_dimension_hourly_lookup_idx
+			ON failure_dimension_hourly(dimension, bucket_start_utc DESC)`,
+		},
+	},
 }

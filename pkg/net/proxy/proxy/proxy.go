@@ -9,23 +9,25 @@ import (
 	"sync/atomic"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	proxyproto "github.com/pires/go-proxyproto"
 )
 
 func init() {
-	register.RegisterPoint(NewClient)
-	register.RegisterTransport(NewServer)
+	register.RegisterContractPoint("proxy", func(_ contractnode.Proxy, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{}, p)
+	})
 }
 
 type Client struct {
 	netapi.Proxy
 }
 
-func NewClient(_ *node.Proxy, proxy netapi.Proxy) (netapi.Proxy, error) {
+type Config struct{}
+
+func NewClient(_ Config, proxy netapi.Proxy) (netapi.Proxy, error) {
 	return &Client{Proxy: proxy}, nil
 }
 
@@ -65,7 +67,9 @@ type Server struct {
 	netapi.Listener
 }
 
-func NewServer(_ *config.Proxy, ii netapi.Listener) (netapi.Listener, error) {
+type ServerConfig struct{}
+
+func NewServer(_ ServerConfig, ii netapi.Listener) (netapi.Listener, error) {
 	return &Server{Listener: ii}, nil
 }
 

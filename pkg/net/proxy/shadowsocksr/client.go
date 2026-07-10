@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/obfs"
@@ -12,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
@@ -26,27 +26,49 @@ type Shadowsocksr struct {
 }
 
 func init() {
-	register.RegisterPoint(NewClient)
+	register.RegisterContractPoint("shadowsocksr", func(config contractnode.Shadowsocksr, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{
+			Server:     config.Server,
+			Port:       config.Port,
+			Method:     config.Method,
+			Password:   config.Password,
+			Obfs:       config.Obfs,
+			ObfsParam:  config.ObfsParam,
+			Protocol:   config.Protocol,
+			ProtoParam: config.ProtoParam,
+		}, p)
+	})
 }
 
-func NewClient(c *node.Shadowsocksr, p netapi.Proxy) (netapi.Proxy, error) {
-	cipher, err := cipher.NewCipher(c.GetMethod(), c.GetPassword())
+type Config struct {
+	Server     string `json:"server"`
+	Port       string `json:"port"`
+	Method     string `json:"method"`
+	Password   string `json:"password"`
+	Obfs       string `json:"obfs"`
+	ObfsParam  string `json:"obfsparam"`
+	Protocol   string `json:"protocol"`
+	ProtoParam string `json:"protoparam"`
+}
+
+func NewClient(c Config, p netapi.Proxy) (netapi.Proxy, error) {
+	cipher, err := cipher.NewCipher(c.Method, c.Password)
 	if err != nil {
 		return nil, fmt.Errorf("new cipher failed: %w", err)
 	}
 
 	obfs := &obfs.Obfs{
-		Name:   c.GetObfs(),
-		Host:   c.GetServer(),
-		Port:   c.GetPort(),
-		Param:  c.GetObfsparam(),
+		Name:   c.Obfs,
+		Host:   c.Server,
+		Port:   c.Port,
+		Param:  c.ObfsParam,
 		Cipher: cipher,
 	}
 
 	protocol := &protocol.Protocol{
-		Name:         c.GetProtocol(),
+		Name:         c.Protocol,
 		Auth:         protocol.NewAuth(),
-		Param:        c.GetProtoparam(),
+		Param:        c.ProtoParam,
 		TcpMss:       1460,
 		Cipher:       cipher,
 		ObfsOverhead: obfs.Overhead(),

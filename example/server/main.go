@@ -16,7 +16,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 func main() {
@@ -81,17 +80,17 @@ TGV6S/Av/lWZyEMrO6yxhoM=
 `)
 	fmt.Println(string(pkb))
 
-	nlis, err := tls.NewTlsAutoServer(config.TlsAuto_builder{
-		CaCert:      cab,
-		CaKey:       pkb,
-		Servernames: []string{"www.example.t.com"},
-	}.Build(), netapi.NewListener(lis, nil))
+	nlis, err := tls.NewTlsAutoServer(tls.TlsAutoServerConfig{
+		CACert:      cab,
+		CAKey:       pkb,
+		ServerNames: []string{"www.example.t.com"},
+	}, netapi.NewListener(lis, nil))
 	must(err)
 	defer func() { must(nlis.Close()) }()
 
-	s, err := yuubinsya.NewServer(config.Yuubinsya_builder{
-		Password: new("123"),
-	}.Build(), netapi.NewListener(nlis, nil), &handler{})
+	s, err := yuubinsya.NewServer(yuubinsya.ServerConfig{
+		Password: "123",
+	}, netapi.NewListener(nlis, nil), &handler{})
 	must(err)
 	defer s.Close()
 

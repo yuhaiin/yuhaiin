@@ -2,51 +2,14 @@ package route
 
 import (
 	"context"
+	"net"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"google.golang.org/protobuf/proto"
+	"github.com/miekg/dns"
 )
-
-type memoryRuleDB struct {
-	setting *config.Setting
-}
-
-func newMemoryRuleDB(rules ...*config.Rulev2) *memoryRuleDB {
-	return &memoryRuleDB{
-		setting: config.Setting_builder{
-			Bypass: config.BypassConfig_builder{
-				RulesV2: rules,
-			}.Build(),
-		}.Build(),
-	}
-}
-
-func (d *memoryRuleDB) Batch(f ...func(*config.Setting) error) error {
-	for _, fn := range f {
-		if err := fn(d.setting); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (d *memoryRuleDB) View(f ...func(*config.Setting) error) error {
-	for _, fn := range f {
-		if err := fn(d.setting); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (d *memoryRuleDB) Dir() string { return tTempDir }
-
-const tTempDir = "/tmp"
 
 func newTestMatchers(t *testing.T) *Matchers {
 	t.Helper()
@@ -67,144 +30,115 @@ func newTestMatchers(t *testing.T) *Matchers {
 
 func TestChangePriority(t *testing.T) {
 	t.Run("insertBefore", func(t *testing.T) {
-		src := []string{
-			"a",
-			"b",
-			"c",
-			"d",
-			"e",
-		}
-
+		src := []string{"a", "b", "c", "d", "e"}
 		t.Log(assert.ObjectsAreEqual([]string{"a", "d", "b", "c", "e"}, InsertBefore(src, 3, 1)))
 		t.Log(assert.ObjectsAreEqual([]string{"d", "a", "b", "c", "e"}, InsertBefore(src, 3, 0)))
 		t.Log(assert.ObjectsAreEqual([]string{"a", "b", "c", "d", "e"}, InsertBefore(src, 3, 4)))
 	})
 
 	t.Run("insertAfter", func(t *testing.T) {
-		src := []string{
-			"a",
-			"b",
-			"c",
-			"d",
-			"e",
-		}
-
-		t.Log(assert.ObjectsAreEqual([]string{"a", "b", "d", "c", "e"},
-			InsertAfter(src, 3, 1)))
-		t.Log(assert.ObjectsAreEqual([]string{"a", "d", "b", "c", "e"},
-			InsertAfter(src, 3, 0)))
-		t.Log(assert.ObjectsAreEqual([]string{"a", "b", "c", "e", "d"},
-			InsertAfter(src, 3, 4)))
+		src := []string{"a", "b", "c", "d", "e"}
+		t.Log(assert.ObjectsAreEqual([]string{"a", "b", "d", "c", "e"}, InsertAfter(src, 3, 1)))
+		t.Log(assert.ObjectsAreEqual([]string{"a", "d", "b", "c", "e"}, InsertAfter(src, 3, 0)))
+		t.Log(assert.ObjectsAreEqual([]string{"a", "b", "c", "e", "d"}, InsertAfter(src, 3, 4)))
 	})
 }
 
 func TestDisabledRuleSkippedBeforeParsing(t *testing.T) {
 	matchers := newTestMatchers(t)
 
-	matchers.Update(config.Rulev2_builder{
-		Name:     new("disabled-host-list"),
-		Disabled: new(true),
-		Rules: []*config.Or{
-			config.Or_builder{
-				Rules: []*config.Rule{
-					config.Rule_builder{
-						Host: config.Host_builder{
-							List: new("disabled-list"),
-						}.Build(),
-					}.Build(),
-				},
-			}.Build(),
+	matchers.Update(contractroute.RouteRule{
+		Name:     "disabled-host-list",
+		Disabled: true,
+		Rules: []contractroute.RuleExpr{
+			{Type: "host", Host: &contractroute.ListRef{List: "disabled-list"}},
 		},
-	}.Build())
+	})
 
 	if len(matchers.matchers) != 0 {
 		t.Fatalf("disabled rule should not be added to runtime matchers, got %d", len(matchers.matchers))
 	}
 }
 
-func TestRuleListIncludesDisabledState(t *testing.T) {
-	db := newMemoryRuleDB(
-		config.Rulev2_builder{
-			Name: new("enabled"),
-		}.Build(),
-		config.Rulev2_builder{
-			Name:     new("disabled"),
-			Disabled: new(true),
-		}.Build(),
-	)
+func TestMatcherRebuildSkipsDisabledRules(t *testing.T) {
+	matchers := newTestMatchers(t)
 
-	rs := &Rules{db: db, route: &Route{ms: newTestMatchers(t)}}
-	resp, err := rs.List(context.Background(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(resp.GetNames()) != 2 || len(resp.GetItems()) != 2 {
-		t.Fatalf("expected 2 names and 2 items, got names=%d items=%d", len(resp.GetNames()), len(resp.GetItems()))
-	}
-
-	if resp.GetItems()[0].GetName() != "enabled" || resp.GetItems()[0].GetDisabled() {
-		t.Fatalf("unexpected first rule item: %v", resp.GetItems()[0])
-	}
-
-	if resp.GetItems()[1].GetName() != "disabled" || !resp.GetItems()[1].GetDisabled() {
-		t.Fatalf("unexpected second rule item: %v", resp.GetItems()[1])
-	}
-}
-
-func TestChangePriorityRebuildsMatchersWithDisabledRules(t *testing.T) {
-	db := newMemoryRuleDB(
-		config.Rulev2_builder{
-			Name: new("enabled-a"),
-		}.Build(),
-		config.Rulev2_builder{
-			Name:     new("disabled-b"),
-			Disabled: new(true),
-			Rules: []*config.Or{
-				config.Or_builder{
-					Rules: []*config.Rule{
-						config.Rule_builder{
-							Host: config.Host_builder{
-								List: new("disabled-list"),
-							}.Build(),
-						}.Build(),
-					},
-				}.Build(),
+	matchers.Update(
+		contractroute.RouteRule{Name: "enabled-a"},
+		contractroute.RouteRule{
+			Name:     "disabled-b",
+			Disabled: true,
+			Rules: []contractroute.RuleExpr{
+				{Type: "host", Host: &contractroute.ListRef{List: "disabled-list"}},
 			},
-		}.Build(),
-		config.Rulev2_builder{
-			Name: new("enabled-c"),
-		}.Build(),
+		},
+		contractroute.RouteRule{Name: "enabled-c"},
 	)
 
-	rs := &Rules{db: db, route: &Route{ms: newTestMatchers(t)}}
-	rs.route.ms.Update(db.setting.GetBypass().GetRulesV2()...)
-
-	_, err := rs.ChangePriority(context.Background(), api.ChangePriorityRequest_builder{
-		Operate: api.ChangePriorityRequest_Exchange.Enum(),
-		Source: api.RuleIndex_builder{
-			Index: proto.Uint32(0),
-			Name:  new("enabled-a"),
-		}.Build(),
-		Target: api.RuleIndex_builder{
-			Index: proto.Uint32(1),
-			Name:  new("disabled-b"),
-		}.Build(),
-	}.Build())
-	if err != nil {
-		t.Fatal(err)
+	if len(matchers.matchers) != 2 {
+		t.Fatalf("disabled rule should be skipped during rebuild, got %d matchers", len(matchers.matchers))
 	}
-
-	rules := db.setting.GetBypass().GetRulesV2()
-	if rules[0].GetName() != "disabled-b" || rules[1].GetName() != "enabled-a" {
-		t.Fatalf("rules were not exchanged: got %q, %q", rules[0].GetName(), rules[1].GetName())
-	}
-
-	if len(rs.route.ms.matchers) != 2 {
-		t.Fatalf("disabled rule should be skipped during rebuild, got %d matchers", len(rs.route.ms.matchers))
-	}
-
-	if rs.route.ms.matchers[0].name != "enabled-a" || rs.route.ms.matchers[1].name != "enabled-c" {
-		t.Fatalf("unexpected runtime matcher order: %#v", rs.route.ms.matchers)
+	if matchers.matchers[0].name != "enabled-a" || matchers.matchers[1].name != "enabled-c" {
+		t.Fatalf("unexpected runtime matcher order: %#v", matchers.matchers)
 	}
 }
+
+func TestRuleTestContractSharesNetapiContext(t *testing.T) {
+	lists := &Lists{
+		hostTrie:    newHostTrie(t.TempDir()),
+		processTrie: newProcessTrie(),
+	}
+	t.Cleanup(func() {
+		if err := lists.Close(); err != nil {
+			t.Logf("close lists failed: %v", err)
+		}
+	})
+	route := NewRoute(nil, staticResolverBook{resolver: staticResolver{}}, lists, nil)
+	route.ms.Update(contractroute.RouteRule{
+		Name: "cn-direct",
+		Mode: "direct",
+		Rules: []contractroute.RuleExpr{
+			{Type: "host", Host: &contractroute.ListRef{List: "CN"}},
+		},
+	})
+	lists.hostTrie.Add(func(yield func(string) bool) {
+		yield("1.2.3.0/24")
+	}, "CN")
+
+	rules := &Rules{route: route}
+	resp, err := rules.TestContract(context.Background(), "www.baidu.com")
+	if err != nil {
+		t.Fatalf("test route failed: %v", err)
+	}
+	if resp.Mode != "direct" {
+		t.Fatalf("expected direct mode, got %#v", resp)
+	}
+	if !assert.ObjectsAreEqual([]string{"CN"}, resp.Lists) {
+		t.Fatalf("expected CN list match, got %#v", resp.Lists)
+	}
+	if !assert.ObjectsAreEqual([]string{"1.2.3.4"}, resp.IPs) {
+		t.Fatalf("expected resolved IPs, got %#v", resp.IPs)
+	}
+}
+
+type staticResolverBook struct {
+	resolver netapi.Resolver
+}
+
+func (s staticResolverBook) Get(_, _ string) netapi.Resolver {
+	return s.resolver
+}
+
+type staticResolver struct{}
+
+func (staticResolver) LookupIP(context.Context, string, ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
+	return &netapi.IPs{A: []net.IP{net.ParseIP("1.2.3.4")}}, nil
+}
+
+func (staticResolver) Raw(context.Context, dns.Question) (dns.Msg, error) {
+	return dns.Msg{}, nil
+}
+
+func (staticResolver) Close() error { return nil }
+
+func (staticResolver) Name() string { return "static" }

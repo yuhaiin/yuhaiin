@@ -2,24 +2,23 @@ package inbound
 
 import (
 	"context"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"google.golang.org/protobuf/proto"
 )
 
 type entry struct {
-	config *config.Inbound
-	server netapi.Accepter
+	contractConfig *contract.Inbound
+	server         netapi.Accepter
 }
 
 var _ netapi.Handler = (*Inbound)(nil)
@@ -164,35 +163,40 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 	}
 }
 
-func (l *Inbound) Save(req *config.Inbound) {
+func (l *Inbound) SaveContract(req contract.Inbound) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	x, ok := l.store.Load(req.GetName())
+	key := req.ID
+	if key == "" {
+		key = req.Name
+	}
+
+	x, ok := l.store.Load(key)
 	if ok {
-		if proto.Equal(x.config, req) {
+		if x.contractConfig != nil && reflect.DeepEqual(*x.contractConfig, req) {
 			return
 		}
 
-		l.store.Delete(req.GetName())
+		l.store.Delete(key)
 
 		if err := x.server.Close(); err != nil {
-			log.Error("close server failed", "name", req.GetName(), "err", err)
+			log.Error("close server failed", "name", req.Name, "id", req.ID, "err", err)
 		}
 	}
 
-	if !req.GetEnabled() {
+	if !req.Enabled {
 		return
 	}
 
-	server, err := register.Listen(req, &handlerWrap{name: req.GetName(), handler: l})
+	server, err := listenContract(req, &handlerWrap{name: req.Name, handler: l})
 	if err != nil {
-		log.Error("start server failed", "name", req.GetName(), "err", err)
+		log.Error("start contract server failed", "name", req.Name, "id", req.ID, "err", err)
 		return
 	}
 
-	log.Info("start server", "name", req.GetName())
-	l.store.Store(req.GetName(), entry{req, server})
+	log.Info("start contract server", "name", req.Name, "id", req.ID)
+	l.store.Store(key, entry{contractConfig: &req, server: server})
 
 	l.refreshInterfaces()
 }
@@ -236,6 +240,10 @@ func (l *Inbound) Remove(name string) {
 
 func (l *Inbound) SetHijackDnsFakeip(fakeip bool) {
 	l.fakeip.Store(fakeip)
+}
+
+func (l *Inbound) SetHijackDns(enabled bool) {
+	l.hijackDNS.Store(enabled)
 }
 
 func (l *Inbound) SetSniff(sniff bool) {

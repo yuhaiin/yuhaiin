@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
@@ -37,45 +37,94 @@ type Client struct {
 	udpDetect    bool
 }
 
+type Config struct {
+	Host             string          `json:"host"`
+	Port             int32           `json:"port"`
+	AlternateHost    []ConfigAddress `json:"alternate_host,omitzero"`
+	NetworkInterface string          `json:"network_interface,omitzero"`
+}
+
+type ConfigV2 struct {
+	Addresses        []ConfigAddress `json:"addresses,omitzero"`
+	UDPHappyEyeballs bool            `json:"udp_happy_eyeballs,omitzero"`
+}
+
+type ConfigAddress struct {
+	Host             string `json:"host"`
+	Port             int32  `json:"port,omitzero"`
+	NetworkInterface string `json:"network_interface,omitzero"`
+}
+
 func init() {
-	register.RegisterPoint(NewClient)
-	register.RegisterPoint(NewClientv2)
-	register.RegisterPoint(func(c *node.Simple, p netapi.Proxy) (netapi.Proxy, error) {
-		return NewClient(node.Fixed_builder{
-			Host:             new(c.GetHost()),
-			Port:             new(c.GetPort()),
-			AlternateHost:    c.GetAlternateHost(),
-			NetworkInterface: new(c.GetNetworkInterface()),
-		}.Build(), p)
+	register.RegisterContractPoint("fixed", func(config contractnode.Fixed, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(configFromContract(config), p)
+	})
+	register.RegisterContractPoint("fixedv2", func(config contractnode.FixedV2, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClientv2(configV2FromContract(config), p)
+	})
+	register.RegisterContractPoint("simple", func(config contractnode.Fixed, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(configFromContract(config), p)
 	})
 }
 
-func NewClient(c *node.Fixed, p netapi.Proxy) (netapi.Proxy, error) {
-	var addrs []*node.Fixedv2Address
-	addrs = append(addrs, node.Fixedv2Address_builder{
-		Host:             new(net.JoinHostPort(c.GetHost(), fmt.Sprint(c.GetPort()))),
-		NetworkInterface: new(c.GetNetworkInterface()),
-	}.Build())
-	for _, v := range c.GetAlternateHost() {
-		addrs = append(addrs, node.Fixedv2Address_builder{
-			Host:             new(net.JoinHostPort(v.GetHost(), fmt.Sprint(v.GetPort()))),
-			NetworkInterface: new(c.GetNetworkInterface()),
-		}.Build())
+func configFromContract(config contractnode.Fixed) Config {
+	return Config{
+		Host:             config.Host,
+		Port:             config.Port,
+		AlternateHost:    addressesFromContract(config.AlternateHost),
+		NetworkInterface: config.NetworkInterface,
 	}
-
-	return NewClientv2(node.Fixedv2_builder{Addresses: addrs}.Build(), p)
 }
 
-func NewClientv2(c *node.Fixedv2, p netapi.Proxy) (netapi.Proxy, error) {
+func configV2FromContract(config contractnode.FixedV2) ConfigV2 {
+	return ConfigV2{
+		Addresses:        addressesFromContract(config.Addresses),
+		UDPHappyEyeballs: config.UDPHappyEyeballs,
+	}
+}
+
+func addressesFromContract(in []contractnode.FixedAddress) []ConfigAddress {
+	out := make([]ConfigAddress, 0, len(in))
+	for _, addr := range in {
+		out = append(out, ConfigAddress{
+			Host:             addr.Host,
+			Port:             addr.Port,
+			NetworkInterface: addr.NetworkInterface,
+		})
+	}
+	return out
+}
+
+func NewClient(c Config, p netapi.Proxy) (netapi.Proxy, error) {
+	var addrs []ConfigAddress
+	addrs = append(addrs, ConfigAddress{
+		Host:             net.JoinHostPort(c.Host, fmt.Sprint(c.Port)),
+		NetworkInterface: c.NetworkInterface,
+	})
+	for _, v := range c.AlternateHost {
+		addrs = append(addrs, ConfigAddress{
+			Host:             net.JoinHostPort(v.Host, fmt.Sprint(v.Port)),
+			NetworkInterface: c.NetworkInterface,
+		})
+	}
+
+	return NewClientv2(ConfigV2{Addresses: addrs}, p)
+}
+
+func NewClientv2(c ConfigV2, p netapi.Proxy) (netapi.Proxy, error) {
 	var addrs []Addr
 
 	var er error
-	for _, v := range c.GetAddresses() {
-		addr, err := netapi.ParseAddress("", v.GetHost())
+	for _, v := range c.Addresses {
+		host := v.Host
+		if v.Port != 0 {
+			host = net.JoinHostPort(v.Host, fmt.Sprint(v.Port))
+		}
+		addr, err := netapi.ParseAddress("", host)
 		if err == nil {
 			addrs = append(addrs, Addr{
 				a:         addr,
-				Interface: v.GetNetworkInterface(),
+				Interface: v.NetworkInterface,
 			})
 		} else {
 			er = errors.Join(er, err)
@@ -90,7 +139,7 @@ func NewClientv2(c *node.Fixedv2, p netapi.Proxy) (netapi.Proxy, error) {
 		addrs:        addrs,
 		p:            p,
 		nonBootstrap: p != nil && !register.IsZero(p),
-		udpDetect:    c.GetUdpHappyEyeballs(),
+		udpDetect:    c.UDPHappyEyeballs,
 	}
 
 	return simple, nil

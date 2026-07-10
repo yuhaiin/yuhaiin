@@ -10,52 +10,84 @@ import (
 	"sync"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"google.golang.org/protobuf/types/known/durationpb"
 )
 
-func Latency(l *node.RequestProtocol, p netapi.Proxy) (*node.Reply, error) {
-	switch l.WhichProtocol() {
-	case node.RequestProtocol_Http_case:
-		return LatencyHttp(l.GetHttp(), p)
-	case node.RequestProtocol_Dns_case:
-		return LatencyDns(l.GetDns(), p)
-	case node.RequestProtocol_DnsOverQuic_case:
-		return LatencyDnsOverQuic(l.GetDnsOverQuic(), p)
-	case node.RequestProtocol_Ip_case:
-		return LatencyIp(l.GetIp(), p)
-	case node.RequestProtocol_Stun_case:
-		return LatencyStun(l.GetStun(), p)
+const (
+	defaultHTTPURL         = "https://www.gstatic.com/generate_204"
+	defaultIPURL           = "http://ip.sb"
+	defaultUDPResolverHost = "223.5.5.5:53"
+	defaultDoQResolverHost = "dns.nextdns.io:853"
+	defaultUDPTargetDomain = "www.google.com"
+	defaultSTUNUDPHost     = "stun.nextcloud.com:3478"
+	defaultSTUNTCPHost     = "stun.nextcloud.com:443"
+)
+
+func Latency(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.LatencyResponse, error) {
+	if l.Type == "" {
+		l.Type = "http"
+	}
+	if (l.Type == "http" || l.Type == "tcp") && l.URL == "" {
+		l.URL = defaultHTTPURL
+	}
+	if l.Type == "ip" && l.URL == "" {
+		l.URL = defaultIPURL
+	}
+	if (l.Type == "dns" || l.Type == "udp") && l.Host == "" {
+		l.Host = defaultUDPResolverHost
+	}
+	if l.Type == "doq" && l.Host == "" {
+		l.Host = defaultDoQResolverHost
+	}
+	if (l.Type == "dns" || l.Type == "udp" || l.Type == "doq") && l.TargetDomain == "" {
+		l.TargetDomain = defaultUDPTargetDomain
+	}
+	if (l.Type == "stun" || l.Type == "stun_tcp") && l.Host == "" {
+		if l.Type == "stun_tcp" || l.TCP {
+			l.Host = defaultSTUNTCPHost
+		} else {
+			l.Host = defaultSTUNUDPHost
+		}
+	}
+	switch l.Type {
+	case "", "http", "tcp":
+		return LatencyHttp(l, p)
+	case "dns", "udp":
+		return LatencyDns(l, p)
+	case "doq":
+		return LatencyDnsOverQuic(l, p)
+	case "ip":
+		return LatencyIp(l, p)
+	case "stun", "stun_tcp":
+		return LatencyStun(l, p)
 	default:
-		return nil, errors.ErrUnsupported
+		return contractnode.LatencyResponse{}, errors.ErrUnsupported
 	}
 }
 
-func LatencyHttp(l *node.HttpTest, p netapi.Proxy) (*node.Reply, error) {
-	t, err := HTTP(p, l.GetUrl())
-	return (&node.Reply_builder{Latency: durationpb.New(t)}).Build(), err
+func LatencyHttp(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.LatencyResponse, error) {
+	t, err := HTTP(p, l.URL)
+	return contractnode.LatencyResponse{OK: err == nil, LatencyMS: t.Milliseconds()}, err
 }
 
-func LatencyDns(l *node.DnsTest, p netapi.Proxy) (*node.Reply, error) {
-	t, err := DNS(p, l.GetHost(), l.GetTargetDomain())
-	return (&node.Reply_builder{Latency: durationpb.New(t)}).Build(), err
+func LatencyDns(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.LatencyResponse, error) {
+	t, err := DNS(p, l.Host, l.TargetDomain)
+	return contractnode.LatencyResponse{OK: err == nil, LatencyMS: t.Milliseconds()}, err
 }
 
-func LatencyDnsOverQuic(l *node.DnsOverQuic, p netapi.Proxy) (*node.Reply, error) {
-	t, err := DNSOverQuic(p, l.GetHost(), l.GetTargetDomain())
-	return (&node.Reply_builder{Latency: durationpb.New(t)}).Build(), err
+func LatencyDnsOverQuic(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.LatencyResponse, error) {
+	t, err := DNSOverQuic(p, l.Host, l.TargetDomain)
+	return contractnode.LatencyResponse{OK: err == nil, LatencyMS: t.Milliseconds()}, err
 }
 
-func LatencyIp(l *node.Ip, p netapi.Proxy) (*node.Reply, error) {
-	if l.GetUserAgent() == "" {
-		l.SetUserAgent("curl/7.54.1")
+func LatencyIp(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.LatencyResponse, error) {
+	if l.UserAgent == "" {
+		l.UserAgent = "curl/7.54.1"
 	}
 
-	reply := &node.Reply_builder{
-		Ip: &node.IpResponse{},
-	}
+	reply := contractnode.LatencyResponse{OK: true, IP: &contractnode.IPLatency{}}
 
 	wg := sync.WaitGroup{}
 
@@ -90,17 +122,17 @@ func LatencyIp(l *node.Ip, p netapi.Proxy) (*node.Reply, error) {
 				},
 			}
 
-			req, err := http.NewRequest("GET", l.GetUrl(), nil)
+			req, err := http.NewRequest("GET", l.URL, nil)
 			if err != nil {
-				log.Error("new request error", slog.String("url", l.GetUrl()), slog.Any("err", err))
+				log.Error("new request error", slog.String("url", l.URL), slog.Any("err", err))
 				return
 			}
 
-			req.Header.Set("User-Agent", l.GetUserAgent())
+			req.Header.Set("User-Agent", l.UserAgent)
 
 			resp, err := hc.Do(req)
 			if err != nil {
-				log.Error("get url error", slog.String("url", l.GetUrl()), slog.Any("err", err))
+				log.Error("get url error", slog.String("url", l.URL), slog.Any("err", err))
 				return
 			}
 
@@ -112,47 +144,45 @@ func LatencyIp(l *node.Ip, p netapi.Proxy) (*node.Reply, error) {
 			}
 
 			if !isIPv6 {
-				reply.Ip.SetIpv4(string(data))
+				reply.IP.IPv4 = string(data)
 			} else {
-				reply.Ip.SetIpv6(string(data))
+				reply.IP.IPv6 = string(data)
 			}
 		}(isIPv6)
 	}
 
 	wg.Wait()
 
-	if reply.Ip.GetIpv4() == "" && reply.Ip.GetIpv6() == "" {
-		return nil, io.EOF
+	if reply.IP.IPv4 == "" && reply.IP.IPv6 == "" {
+		return contractnode.LatencyResponse{}, io.EOF
 	}
 
-	return reply.Build(), nil
+	return reply, nil
 }
 
-func LatencyStun(l *node.Stun, p netapi.Proxy) (*node.Reply, error) {
+func LatencyStun(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.LatencyResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	replay := (&node.Reply_builder{
-		Stun: &node.StunResponse{},
-	}).Build()
+	reply := contractnode.LatencyResponse{OK: true, STUN: &contractnode.STUNLatency{}}
 
-	if l.GetTcp() {
-		mappedAddr, err := StunTCP(ctx, p, l.GetHost())
+	if l.Type == "stun_tcp" || l.TCP {
+		mappedAddr, err := StunTCP(ctx, p, l.Host)
 		if err != nil {
-			return nil, err
+			return contractnode.LatencyResponse{}, err
 		}
-		replay.GetStun().SetMappedAddress(mappedAddr)
-		return replay, nil
+		reply.STUN.MappedAddress = mappedAddr
+		return reply, nil
 	}
 
-	t, err := Stun(ctx, p, l.GetHost())
+	t, err := Stun(ctx, p, l.Host)
 	if err != nil {
-		return nil, err
+		return contractnode.LatencyResponse{}, err
 	}
 
-	replay.GetStun().SetMapping(node.NatType(t.MappingType))
-	replay.GetStun().SetFiltering(node.NatType(t.FilteringType))
-	replay.GetStun().SetMappedAddress(t.MappedAddr)
+	reply.STUN.Mapping = t.MappingType.String()
+	reply.STUN.Filtering = t.FilteringType.String()
+	reply.STUN.MappedAddress = t.MappedAddr
 
-	return replay, nil
+	return reply, nil
 }

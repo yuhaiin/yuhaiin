@@ -695,11 +695,11 @@ Design notes:
 - daily / monthly / yearly traffic should be derived from `traffic_hourly` with SQL aggregation instead of maintaining four separate write paths
 - the row count is naturally small enough for this approach: one year of hourly buckets is only about `24 * 365 = 8760` rows
 - bucket boundaries should be stored in UTC; when the UI wants calendar-day or calendar-month results, the query should apply an explicit timezone offset before grouping
-- `connection_sessions` persists connection metadata and final per-connection byte totals, but not the live `net.Conn` / `net.PacketConn` objects themselves
+- `connection_sessions` holds metadata only for connections owned by the current process; final history is persisted in `connection_history` and `failed_connection_history`
 - `summary_json` and `last_connection_json` store `statistic.Connection` encoded with `protojson`
 - `connection_history` mirrors the current dedupe shape in `pkg/statistics/history.go`: `(protocol, addr, process_name)` with a hit count and latest connection snapshot
 - `failed_connection_history` mirrors the current failed-history dedupe shape in `pkg/statistics/history.go`: `(protocol, host, process_name)` with last error and failed count
-- on startup, any `connection_sessions.state='open'` rows left from the previous process should be marked `interrupted`
+- on startup, clear all `connection_sessions` rows left by the previous process
 - high-frequency byte increments should stay in memory briefly and flush to SQLite in batches; do not issue one SQL write per read/write syscall
 - history retention should still respect `configuration.HistorySize` or an equivalent cap by pruning oldest rows after inserts
 - route reject history can move later using the same pattern, but it does not need to block the first SQLite statistics migration
@@ -947,9 +947,9 @@ New behavior:
 
 1. create/open connection rows in `connection_sessions` when connections are observed
 2. keep the actual closable connection handles and per-connection hot counters in memory
-3. flush aggregated byte deltas to `statistics_kv`, `traffic_hourly`, and `connection_sessions` on a timer, threshold, or close
+3. flush aggregated byte deltas to `statistics_kv` and `traffic_hourly` on a timer, threshold, or close; remove the session row when its connection closes
 4. upsert deduplicated rows into `connection_history` and `failed_connection_history`
-5. on restart, mark leftover open rows as `interrupted` before accepting new connections
+5. on restart, clear leftover session rows before accepting new connections
 
 This means SQLite becomes the persisted source of truth for telemetry, while memory still owns the live objects and the sub-second write buffer.
 
@@ -977,8 +977,13 @@ Recommended runtime model:
 - `statistics.Connections`
   - live `net.Conn` / `net.PacketConn` handles and notify subscribers remain in memory
   - persisted totals/history/session metadata move to SQLite with buffered flushes
-- fakeip/trie temp state
-  - remain on Pebble
+- fakeip state
+  - persisted in SQLite (`fakeip_entries` and cursor metadata)
+  - legacy Pebble buckets are imported once during application startup before
+    the FakeDNS runtime pool opens; both the prefix-named buckets and the old
+    `fakedns_cache` / `fakedns_cachev6` layouts are supported
+- trie temp state
+  - remains on Pebble
 
 This gives a clean split:
 
@@ -1133,12 +1138,21 @@ Refactor these areas to stop depending on generic `Batch/View`:
 
 ### Phase 6: migrate statistics persistence to SQLite
 
-- replace Pebble-backed `flow_data`, `connection_data`, and `history_data` paths in `pkg/statistics`
+- [x] replace Pebble-backed `flow_data`, `connection_data`, and `history_data` paths in `pkg/statistics`
 - keep live connection handles and notify machinery in memory
 - flush total counters and per-connection byte deltas to SQLite in batches
 - add hourly traffic buckets and expose daily/monthly/yearly aggregation queries on top
 - move all-history and failed-history queries to `TelemetryStore`
-- mark unclosed sessions as `interrupted` during startup bootstrap
+- clear session rows during startup bootstrap; history remains in the dedicated history tables
+
+Compatibility import:
+
+- during application startup, before the statistics and FakeDNS runtime objects
+  are created, import the legacy Pebble `flow_data` totals and FakeIP buckets
+  into SQLite
+- imports use persistent metadata markers and fail startup on an import error;
+  runtime constructors do not accept a legacy cache and cannot run a hidden
+  migration
 
 ## Implementation Order Checklist
 
@@ -1333,7 +1347,7 @@ Adopt a single SQLite `state.db` as the source of truth for persisted applicatio
 - relational tables for identity, scheduling, grouping, and lookup
 - protobuf JSON text payloads for forward-compatible domain payloads
 - memory only for runtime objects and derived caches
-- Pebble retained only for fakeip and trie-like cache state that does not benefit from relational persistence
+- Pebble retained only for trie-like cache state that does not benefit from relational persistence; legacy flow and FakeIP data are startup-import sources only
 
 This is the best balance between:
 

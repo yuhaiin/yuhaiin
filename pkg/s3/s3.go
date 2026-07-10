@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"path/filepath"
 
+	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/rhnvrm/simples3"
 )
 
@@ -20,10 +20,10 @@ type S3 struct {
 	StorageClass string
 }
 
-func NewS3(opt *config.S3, proxy netapi.Proxy) (*S3, error) {
-	s3 := simples3.New(opt.GetRegion(), opt.GetAccessKey(), opt.GetSecretKey())
-	if opt.GetEndpointUrl() != "" {
-		s3.SetEndpoint(opt.GetEndpointUrl())
+func NewS3(opt contractbackup.S3, proxy netapi.Proxy) (*S3, error) {
+	s3 := simples3.New(opt.Region, opt.AccessKey, opt.SecretKey)
+	if opt.EndpointURL != "" {
+		s3.SetEndpoint(opt.EndpointURL)
 	}
 
 	s3.SetClient(&http.Client{
@@ -39,9 +39,9 @@ func NewS3(opt *config.S3, proxy netapi.Proxy) (*S3, error) {
 	})
 
 	return &S3{
-		Bucket:       opt.GetBucket(),
+		Bucket:       opt.Bucket,
 		s3c:          s3,
-		StorageClass: opt.GetStorageClass(),
+		StorageClass: opt.StorageClass,
 	}, nil
 }
 

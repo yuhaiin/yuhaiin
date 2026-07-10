@@ -6,11 +6,10 @@ import (
 	"sync"
 	"sync/atomic"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"google.golang.org/protobuf/proto"
 )
 
 // ProxyEntry
@@ -29,9 +28,10 @@ import (
 //
 //	double reference: node <-> [Set]
 type ProxyEntry struct {
-	Proxy  netapi.Proxy
-	Config *node.Point
-	mu     sync.RWMutex
+	Proxy          netapi.Proxy
+	ContractConfig *contractnode.Node
+	Name           string
+	mu             sync.RWMutex
 }
 
 type ProxyStore struct {
@@ -62,7 +62,10 @@ func (p *ProxyStore) LoadOrCreate(ctx context.Context, hash string, f func() (*P
 
 	if store := netapi.GetContextOrNil(ctx); store != nil {
 		store.Hash = hash
-		store.NodeName = pp.Config.GetName()
+		store.NodeName = pp.Name
+		if store.NodeName == "" && pp.ContractConfig != nil {
+			store.NodeName = pp.ContractConfig.Name
+		}
 	}
 
 	return pp.Proxy, err
@@ -80,30 +83,6 @@ func (p *ProxyStore) Delete(hash string) {
 	}
 	r.Proxy = netapi.NewErrProxy(errors.New("proxy closed"))
 	r.mu.Unlock()
-}
-
-func (p *ProxyStore) Refresh(po *node.Point) {
-	r, ok := p.store.Load(po.GetHash())
-	if !ok {
-		return
-	}
-
-	r.mu.Lock()
-
-	changed := !proto.Equal(r.Config, po)
-
-	if !changed {
-		r.mu.Unlock()
-		return
-	}
-
-	if err := r.Proxy.Close(); err != nil {
-		log.Error("close proxy failed", "key", po.GetHash(), "err", err)
-	}
-	r.Proxy = netapi.NewErrProxy(errors.New("proxy closed"))
-	r.mu.Unlock()
-
-	p.Delete(po.GetHash())
 }
 
 func (p *ProxyStore) Range(f func(key string, value *ProxyEntry) bool) {

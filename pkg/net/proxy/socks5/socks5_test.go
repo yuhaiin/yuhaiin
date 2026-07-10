@@ -6,34 +6,29 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
 )
 
 func TestSocks5(t *testing.T) {
-	newTest := func(t *testing.T, server config.Socks5_builder, client node.Socks5_builder) (c1 net.Conn, c2 net.Conn, stop func(), err error) {
+	newTest := func(t *testing.T, server ServerConfig, client Config) (c1 net.Conn, c2 net.Conn, stop func(), err error) {
 		lis, err := nettest.NewLocalListener("tcp")
 		assert.NoError(t, err)
 
 		ch := netapi.NewChannelHandler(t.Context())
 
 		acc, err := NewServer(
-			server.Build(),
+			server,
 			netapi.NewListener(lis, nil),
 			ch,
 		)
 		assert.NoError(t, err)
 
-		sp, err := fixed.NewClient(node.Fixed_builder{
-			Host: new("127.0.0.1"),
-			Port: new(int32(lis.Addr().(*net.TCPAddr).Port)),
-		}.Build(), nil)
+		sp, err := fixed.NewClient(fixed.Config{Host: "127.0.0.1", Port: int32(lis.Addr().(*net.TCPAddr).Port)}, nil)
 		assert.NoError(t, err)
 
 		s5c, err := NewClient(
-			client.Build(),
+			client,
 			sp,
 		)
 		assert.NoError(t, err)
@@ -61,10 +56,8 @@ func TestSocks5(t *testing.T) {
 
 			nettest.TestConn(t, func() (c1 net.Conn, c2 net.Conn, stop func(), err error) {
 				return newTest(t,
-					config.Socks5_builder{
-						Udp: new(false),
-					},
-					node.Socks5_builder{},
+					ServerConfig{},
+					Config{},
 				)
 			})
 		})
@@ -75,14 +68,13 @@ func TestSocks5(t *testing.T) {
 
 			nettest.TestConn(t, func() (c1 net.Conn, c2 net.Conn, stop func(), err error) {
 				return newTest(t,
-					config.Socks5_builder{
-						Udp:      new(false),
-						Username: new("user"),
-						Password: new("pass"),
+					ServerConfig{
+						Username: "user",
+						Password: "pass",
 					},
-					node.Socks5_builder{
-						User:     new("user"),
-						Password: new("pass"),
+					Config{
+						User:     "user",
+						Password: "pass",
 					},
 				)
 			})

@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 	"encoding/hex"
-	"errors"
+	"encoding/json/v2"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,33 +11,29 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/chore"
+	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/backup"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"golang.org/x/crypto/blake2b"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Backup struct {
-	api.UnimplementedBackupServer
-	db       chore.DB
+	store    *plainstore.BackupStore
+	dir      string
 	proxy    netapi.Proxy
 	instance *AppInstance
 	ticker   *time.Ticker
 	mu       sync.Mutex
 }
 
-func NewBackup(db chore.DB, instance *AppInstance, proxy netapi.Proxy) *Backup {
+func NewBackup(store *plainstore.BackupStore, dir string, instance *AppInstance, proxy netapi.Proxy) *Backup {
 	b := &Backup{
-		db:       db,
+		store:    store,
+		dir:      dir,
 		instance: instance,
 		proxy:    proxy,
 	}
@@ -47,18 +43,17 @@ func NewBackup(db chore.DB, instance *AppInstance, proxy netapi.Proxy) *Backup {
 	return b
 }
 
-func (b *Backup) Save(ctx context.Context, opt *config.BackupOption) (*emptypb.Empty, error) {
-	err := b.db.Batch(func(s *config.Setting) error {
-		s.SetBackup(opt)
-		return nil
-	})
-	if err != nil {
-		return nil, err
+func (b *Backup) Save(ctx context.Context, opt contractbackup.Option) (contractbackup.Option, error) {
+	if b.store == nil {
+		return contractbackup.Option{}, fmt.Errorf("backup store is unavailable")
+	}
+	if err := b.store.Save(ctx, opt); err != nil {
+		return contractbackup.Option{}, err
 	}
 
 	b.resetTicker()
 
-	return &emptypb.Empty{}, nil
+	return b.store.Get(ctx)
 }
 
 func (b *Backup) resetTicker() {
@@ -76,120 +71,92 @@ func (b *Backup) resetTicker() {
 		b.ticker = nil
 	}
 
-	if opt.GetInterval() == 0 {
+	if opt.Interval == 0 {
 		return
 	}
 
-	b.ticker = time.NewTicker(time.Duration(opt.GetInterval()) * time.Minute)
+	b.ticker = time.NewTicker(time.Duration(opt.Interval) * time.Minute)
 
-	log.Info("start new backup ticker", "interval", time.Duration(opt.GetInterval())*time.Minute)
+	log.Info("start new backup ticker", "interval", time.Duration(opt.Interval)*time.Minute)
 
 	go func() {
 		for range b.ticker.C {
-			_, err := b.Backup(context.Background(), &emptypb.Empty{})
-			if err != nil {
+			if err := b.Run(context.Background()); err != nil {
 				log.Error("backup failed", "err", err)
 			}
 		}
 	}()
 }
 
-func (b *Backup) Get(context.Context, *emptypb.Empty) (*config.BackupOption, error) {
-	var cc *config.BackupOption
-	_ = b.db.Batch(func(s *config.Setting) error {
-		cc = s.GetBackup()
-
-		if cc == nil {
-			cc = &config.BackupOption{}
-		}
-
-		if cc.GetS3() == nil {
-			cc.SetS3(config.S3_builder{
-				Enabled:      new(false),
-				AccessKey:    new(""),
-				SecretKey:    new(""),
-				Bucket:       new(""),
-				EndpointUrl:  new(""),
-				Region:       new(""),
-				UsePathStyle: new(false),
-			}.Build())
-		}
-
-		if cc.GetInstanceName() == "" {
-			cc.SetInstanceName(id.GenerateUUID().String())
-		}
-
-		return nil
-	})
-
-	return cc, nil
+func (b *Backup) Get(context.Context) (contractbackup.Option, error) {
+	if b.store == nil {
+		return contractbackup.Option{}, fmt.Errorf("backup store is unavailable")
+	}
+	return b.store.Get(context.Background())
 }
 
-func (b *Backup) Backup(ctx context.Context, opt *emptypb.Empty) (*emptypb.Empty, error) {
+func (b *Backup) Run(ctx context.Context) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	backupConfig, err := b.getConfig()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	s3, err := s3.NewS3(backupConfig.GetS3(), b.proxy)
+	s3, err := s3.NewS3(backupConfig.S3, b.proxy)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	stateBytes, err := b.snapshotStateDB(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	newHash := calculateBytesHash(stateBytes, backupConfig.GetS3())
-	if backupConfig.GetLastBackupHash() != "" && backupConfig.GetLastBackupHash() == newHash {
-		return &emptypb.Empty{}, nil
-	}
-
-	if err := s3.Put(ctx, stateBytes, backupConfig.GetInstanceName()+"-state.db"); err != nil {
-		return nil, err
-	}
-
-	if err := b.db.Batch(func(s *config.Setting) error {
-		s.GetBackup().SetLastBackupHash(newHash)
+	newHash := calculateBytesHash(stateBytes, backupConfig.S3)
+	if backupConfig.LastBackupHash != "" && backupConfig.LastBackupHash == newHash {
 		return nil
-	}); err != nil {
-		return nil, err
 	}
 
-	return &emptypb.Empty{}, nil
+	if err := s3.Put(ctx, stateBytes, backupConfig.InstanceName+"-state.db"); err != nil {
+		return err
+	}
+
+	if err := b.store.SaveHash(ctx, newHash); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (b *Backup) Restore(ctx context.Context, _ *backup.RestoreOption) (*emptypb.Empty, error) {
+func (b *Backup) Restore(ctx context.Context, _ contractbackup.RestoreOption) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	backupConfig, err := b.getConfig()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	s3, err := s3.NewS3(backupConfig.GetS3(), b.proxy)
+	s3, err := s3.NewS3(backupConfig.S3, b.proxy)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	stateData, err := s3.Get(ctx, backupConfig.GetInstanceName()+"-state.db")
+	stateData, err := s3.Get(ctx, backupConfig.InstanceName+"-state.db")
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := b.restoreStateDB(stateData); err != nil {
-		return nil, err
+		return err
 	}
-	return &emptypb.Empty{}, nil
+	return nil
 }
 
 func (b *Backup) snapshotStateDB(ctx context.Context) ([]byte, error) {
-	statePath := tools.PathGenerator.State(b.db.Dir())
+	statePath := paths.PathGenerator.State(b.dir)
 	tmpPath := filepath.Join(filepath.Dir(statePath), fmt.Sprintf(".state-backup-%d.db", time.Now().UnixNano()))
 	defer func() { _ = os.Remove(tmpPath) }()
 
@@ -212,7 +179,7 @@ func (b *Backup) snapshotStateDB(ctx context.Context) ([]byte, error) {
 }
 
 func (b *Backup) restoreStateDB(data []byte) error {
-	statePath := tools.PathGenerator.State(b.db.Dir())
+	statePath := paths.PathGenerator.State(b.dir)
 	dir := filepath.Dir(statePath)
 	tmpPath := filepath.Join(dir, fmt.Sprintf(".state-restore-%d.db", time.Now().UnixNano()))
 
@@ -220,12 +187,6 @@ func (b *Backup) restoreStateDB(data []byte) error {
 		return fmt.Errorf("write sqlite restore temp file failed: %w", err)
 	}
 	defer func() { _ = os.Remove(tmpPath) }()
-
-	if closer, ok := b.db.(interface{ Close() error }); ok {
-		if err := closer.Close(); err != nil {
-			return fmt.Errorf("close sqlite state before restore failed: %w", err)
-		}
-	}
 
 	if err := os.Rename(tmpPath, statePath); err != nil {
 		return fmt.Errorf("replace sqlite state db failed: %w", err)
@@ -242,8 +203,8 @@ func sqliteStringLiteral(path string) string {
 	return strings.ReplaceAll(path, "'", "''")
 }
 
-func calculateBytesHash(content []byte, options *config.S3) string {
-	s3bytes, err := protojson.Marshal(options)
+func calculateBytesHash(content []byte, options contractbackup.S3) string {
+	s3bytes, err := json.Marshal(options)
 	if err != nil {
 		log.Warn("marshal s3 failed", "err", err)
 		return ""
@@ -260,26 +221,11 @@ func calculateBytesHash(content []byte, options *config.S3) string {
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
-func (b *Backup) getConfig() (*config.BackupOption, error) {
-	var cc *config.BackupOption
-	_ = b.db.Batch(func(s *config.Setting) error {
-		cc = s.GetBackup()
-		return nil
-	})
-
-	if cc == nil {
-		return nil, errors.New("backup config is empty")
+func (b *Backup) getConfig() (contractbackup.Option, error) {
+	if b.store == nil {
+		return contractbackup.Option{}, fmt.Errorf("backup store is unavailable")
 	}
-
-	if cc.GetInstanceName() == "" {
-		return nil, errors.New("instance name is empty")
-	}
-
-	if cc.GetS3() == nil {
-		return nil, errors.New("s3 config is empty")
-	}
-
-	return cc, nil
+	return b.store.Runtime(context.Background())
 }
 
 func (b *Backup) Close() error {

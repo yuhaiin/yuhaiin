@@ -12,9 +12,8 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 
@@ -74,23 +73,23 @@ func (s *Inbound) Match(ctx context.Context, addr netapi.Address) bool {
 }
 
 type Network struct {
-	nt config.NetworkNetworkType
+	network string
 }
 
-func NewNetwork(nt config.NetworkNetworkType) *Network {
+func NewNetwork(network string) *Network {
 	return &Network{
-		nt: nt,
+		network: network,
 	}
 }
 
 func (s *Network) Match(ctx context.Context, addr netapi.Address) bool {
 	store := netapi.GetContext(ctx)
-	switch s.nt {
-	case config.Network_tcp:
+	switch s.network {
+	case "tcp", "network_tcp":
 		ok := strings.HasPrefix(addr.Network(), "tcp")
 		recordMatch(store, "Net TCP", ok)
 		return ok
-	case config.Network_udp:
+	case "udp", "network_udp":
 		ok := strings.HasPrefix(addr.Network(), "udp")
 		recordMatch(store, "Net UDP", ok)
 		return ok
@@ -206,7 +205,7 @@ func (s *Or) Match(ctx context.Context, addr netapi.Address) bool {
 type MatchEntry struct {
 	matcher Matcher
 	name    string
-	mode    config.ModeEnum
+	mode    ModeEnum
 }
 
 type Matchers struct {
@@ -223,25 +222,25 @@ func NewMatchers(list *Lists) *Matchers {
 	}
 }
 
-func (s *Matchers) appendRule(matchers []MatchEntry, r *config.Rulev2) []MatchEntry {
-	if r.GetDisabled() {
+func (s *Matchers) appendRule(matchers []MatchEntry, r contractroute.RouteRule) []MatchEntry {
+	if r.Disabled {
 		return matchers
 	}
 
 	matchers = append(matchers, MatchEntry{
-		mode:    r.ToModeEnum(),
+		mode:    modeEnumFromRule(r),
 		matcher: ParseMatcher(s.list, r),
-		name:    r.GetName(),
+		name:    r.Name,
 	})
 
-	if tag := r.GetTag(); tag != "" {
+	if tag := r.Tag; tag != "" {
 		s.tags.Push(tag)
 	}
 
 	return matchers
 }
 
-func (s *Matchers) Add(rule ...*config.Rulev2) {
+func (s *Matchers) Add(rule ...contractroute.RouteRule) {
 	matchers := make([]MatchEntry, 0, len(rule))
 
 	for _, r := range rule {
@@ -253,23 +252,23 @@ func (s *Matchers) Add(rule ...*config.Rulev2) {
 	s.mu.Unlock()
 }
 
-func (s *Matchers) ChangePriority(source int, target int, operate api.ChangePriorityRequestChangePriorityOperate) {
+func (s *Matchers) ChangePriority(source int, target int, operate string) {
 	s.mu.Lock()
 	switch operate {
-	case api.ChangePriorityRequest_Exchange:
+	case "", "exchange":
 		src := s.matchers[source]
 		dst := s.matchers[target]
 		s.matchers[source] = dst
 		s.matchers[target] = src
-	case api.ChangePriorityRequest_InsertBefore:
+	case "insert_before":
 		s.matchers = InsertBefore(s.matchers, source, target)
-	case api.ChangePriorityRequest_InsertAfter:
+	case "insert_after":
 		s.matchers = InsertAfter(s.matchers, source, target)
 	}
 	s.mu.Unlock()
 }
 
-func (s *Matchers) Update(rules ...*config.Rulev2) {
+func (s *Matchers) Update(rules ...contractroute.RouteRule) {
 	var ms []MatchEntry
 
 	s.tags.Clear()
@@ -285,7 +284,7 @@ func (s *Matchers) Update(rules ...*config.Rulev2) {
 	s.mu.Unlock()
 }
 
-func (s *Matchers) Match(ctx context.Context, addr netapi.Address) config.ModeEnum {
+func (s *Matchers) Match(ctx context.Context, addr netapi.Address) ModeEnum {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -298,7 +297,7 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) config.ModeEn
 		}
 	}
 
-	return config.ProxyMode
+	return ProxyMode
 }
 
 func (s *Matchers) Tags() iter.Seq[string] {
@@ -323,28 +322,42 @@ func (s List) String() string {
 	return string(s)
 }
 
-func ParseMatcher(lists *Lists, cc *config.Rulev2) Matcher {
-	matchers := make([]Matcher, 0, len(cc.GetRules()))
-	for _, v := range cc.GetRules() {
-		andMatchers := make([]Matcher, 0, len(v.GetRules()))
-
-		for _, rule := range sortRule(v.GetRules()) {
-			switch rule.WhichObject() {
-			case config.Rule_Host_case:
-				andMatchers = append(andMatchers, List(rule.GetHost().GetList()))
-				lists.AddNewHostList(rule.GetHost().GetList())
-
-			case config.Rule_Process_case:
-				andMatchers = append(andMatchers, List(rule.GetProcess().GetList()))
-				lists.AddNewProcessList(rule.GetProcess().GetList())
-			case config.Rule_Inbound_case:
-				andMatchers = append(andMatchers, NewInbound(rule.GetInbound().GetNames()...))
-			case config.Rule_Network_case:
-				andMatchers = append(andMatchers, NewNetwork(rule.GetNetwork().GetNetwork()))
-			case config.Rule_Port_case:
-				andMatchers = append(andMatchers, NewPort(rule.GetPort().GetPorts()))
-			case config.Rule_Geoip_case:
-				andMatchers = append(andMatchers, NewGeoip(rule.GetGeoip().GetCountries()))
+func ParseMatcher(lists *Lists, cc contractroute.RouteRule) Matcher {
+	matchers := make([]Matcher, 0, len(cc.Rules))
+	for _, expr := range cc.Rules {
+		andMatchers := make([]Matcher, 0)
+		for _, rule := range sortRule(flattenRuleExpr(expr)) {
+			switch rule.Type {
+			case "host":
+				if rule.Host != nil {
+					andMatchers = append(andMatchers, List(rule.Host.List))
+					lists.AddNewHostList(rule.Host.List)
+				}
+			case "process":
+				if rule.Process != nil {
+					andMatchers = append(andMatchers, List(rule.Process.List))
+					lists.AddNewProcessList(rule.Process.List)
+				}
+			case "inbound":
+				if rule.Inbound != nil {
+					names := append([]string(nil), rule.Inbound.Names...)
+					if rule.Inbound.Name != "" {
+						names = append(names, rule.Inbound.Name)
+					}
+					andMatchers = append(andMatchers, NewInbound(names...))
+				}
+			case "network":
+				if rule.Network != nil {
+					andMatchers = append(andMatchers, NewNetwork(rule.Network.Network))
+				}
+			case "port":
+				if rule.Port != nil {
+					andMatchers = append(andMatchers, NewPort(rule.Port.Ports))
+				}
+			case "geoip":
+				if rule.GeoIP != nil {
+					andMatchers = append(andMatchers, NewGeoip(rule.GeoIP.Countries))
+				}
 			}
 		}
 
@@ -359,25 +372,32 @@ func ParseMatcher(lists *Lists, cc *config.Rulev2) Matcher {
 		return matchers[0]
 	}
 
-	return NewOr(cc.GetName(), matchers...)
+	return NewOr(cc.Name, matchers...)
 }
 
-func sortRule(rules []*config.Rule) []*config.Rule {
+func flattenRuleExpr(expr contractroute.RuleExpr) []contractroute.RuleExpr {
+	if expr.Type == "all" {
+		return expr.All
+	}
+	return []contractroute.RuleExpr{expr}
+}
+
+func sortRule(rules []contractroute.RuleExpr) []contractroute.RuleExpr {
 	if len(rules) <= 1 {
 		return rules
 	}
 
-	getNo := func(rule *config.Rule) int {
-		switch rule.WhichObject() {
-		case config.Rule_Port_case, config.Rule_Network_case:
+	getNo := func(rule contractroute.RuleExpr) int {
+		switch rule.Type {
+		case "port", "network":
 			return 1
-		case config.Rule_Process_case:
+		case "process":
 			return 2
-		case config.Rule_Inbound_case:
+		case "inbound":
 			return 3
-		case config.Rule_Geoip_case:
+		case "geoip":
 			return 4
-		case config.Rule_Host_case:
+		case "host":
 			return 5
 		default:
 			return math.MaxInt
@@ -385,7 +405,7 @@ func sortRule(rules []*config.Rule) []*config.Rule {
 	}
 
 	slices.SortFunc(rules,
-		func(a, b *config.Rule) int { return cmp.Compare(getNo(a), getNo(b)) })
+		func(a, b contractroute.RuleExpr) int { return cmp.Compare(getNo(a), getNo(b)) })
 
 	return rules
 }

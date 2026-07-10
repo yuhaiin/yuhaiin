@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
 )
 
 func TestTailSnapshotAndBroadcast(t *testing.T) {
@@ -22,10 +22,7 @@ func TestTailSnapshotAndBroadcast(t *testing.T) {
 	OutputStderr.Store(false)
 	defer OutputStderr.Store(true)
 
-	ctr.Set(config.Logcat_builder{
-		Save:  new(true),
-		Level: config.LogLevel_debug.Enum(),
-	}.Build(), filepath.Join(t.TempDir(), "test.log"))
+	ctr.Set(contractsettings.Logcat{Save: true, Level: "debug"}, filepath.Join(t.TempDir(), "test.log"))
 
 	Info("before tail", "i", 1)
 
@@ -68,10 +65,7 @@ func TestTailReturnsCallbackError(t *testing.T) {
 	OutputStderr.Store(false)
 	defer OutputStderr.Store(true)
 
-	ctr.Set(config.Logcat_builder{
-		Save:  new(true),
-		Level: config.LogLevel_debug.Enum(),
-	}.Build(), filepath.Join(t.TempDir(), "test.log"))
+	ctr.Set(contractsettings.Logcat{Save: true, Level: "debug"}, filepath.Join(t.TempDir(), "test.log"))
 
 	Info("callback error")
 
@@ -95,10 +89,7 @@ func TestTailReadsLongLine(t *testing.T) {
 	OutputStderr.Store(false)
 	defer OutputStderr.Store(true)
 
-	ctr.Set(config.Logcat_builder{
-		Save:  new(true),
-		Level: config.LogLevel_debug.Enum(),
-	}.Build(), filepath.Join(t.TempDir(), "test.log"))
+	ctr.Set(contractsettings.Logcat{Save: true, Level: "debug"}, filepath.Join(t.TempDir(), "test.log"))
 
 	msg := strings.Repeat("x", 2048)
 	Info(msg)

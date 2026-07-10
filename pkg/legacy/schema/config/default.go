@@ -1,0 +1,202 @@
+package config
+
+import (
+	mrand "math/rand/v2"
+	"net/netip"
+	"runtime"
+)
+
+func FakeipV4UlaGenerate() netip.Prefix {
+	ip := [4]byte{10, byte(mrand.IntN(256)), 0, 0}
+
+	return netip.PrefixFrom(netip.AddrFrom4(ip), 16)
+}
+
+func FakeipV6UlaGenerate() netip.Prefix {
+	ip := [16]byte{
+		253,
+		byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)),
+		255, 255,
+	}
+
+	return netip.PrefixFrom(netip.AddrFrom16(ip), 64)
+}
+
+func TunV6UlaGenerate() netip.Prefix {
+	ip := [16]byte{
+		253, //fd
+		byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)),
+		255, 255,
+		0, 0, 0, 0, 0, 0, 0, 1,
+	}
+
+	return netip.PrefixFrom(netip.AddrFrom16(ip), 64)
+}
+
+func TunV4UlaGenerate() netip.Prefix {
+	ip := [4]byte{172, byte(mrand.IntN(16) + 16), byte(mrand.IntN(256)), 1}
+	return netip.PrefixFrom(netip.AddrFrom4(ip), 24)
+}
+
+func DefaultSetting(path string) *Setting {
+	tunname := "tun0"
+	switch runtime.GOOS {
+	case "darwin":
+		tunname = "utun0"
+	case "windows":
+		tunname = "wintun"
+	}
+
+	fakev4 := FakeipV4UlaGenerate().String()
+	fakev6 := FakeipV6UlaGenerate().String()
+
+	return (&Setting_builder{
+		Ipv6:                new(true),
+		UseDefaultInterface: new(true),
+		NetInterface:        new(""),
+		SystemProxy: SystemProxy_builder{
+			Http:   new(true),
+			Socks5: new(false),
+			// linux system set socks5 will make firfox websocket can't connect
+			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
+		}.Build(),
+		Bypass: (&BypassConfig_builder{
+			DirectResolver: new("bootstrap"),
+			ProxyResolver:  new("bootstrap"),
+			Lists: map[string]*List{
+				"LAN": List_builder{
+					ListType: List_host.Enum(),
+					Name:     new("LAN"),
+					Local: ListLocal_builder{
+						Lists: []string{
+							"0.0.0.0/8",
+							"10.0.0.0/8",
+							"100.64.0.0/10",
+							"127.0.0.1/8",
+							"169.254.0.0/16",
+							"172.16.0.0/12",
+							"192.0.0.0/29",
+							"192.0.2.0/24",
+							"192.88.99.0/24",
+							"192.168.0.0/16",
+							"198.18.0.0/15",
+							"198.51.100.0/24",
+							"203.0.113.0/24",
+							"224.0.0.0/3",
+							"fc00::/7",
+							"fe80::/10",
+							"ff00::/8",
+							"localhost",
+						},
+					}.Build(),
+				}.Build(),
+			},
+			RulesV2: []*Rulev2{
+				Rulev2_builder{
+					Name:                 new("LAN"),
+					Mode:                 Mode_direct.Enum(),
+					Tag:                  new("LAN"),
+					ResolveStrategy:      ResolveStrategy_default.Enum(),
+					UdpProxyFqdnStrategy: UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default.Enum(),
+					Rules: []*Or{
+						Or_builder{
+							Rules: []*Rule{
+								Rule_builder{
+									Host: Host_builder{
+										List: new("LAN"),
+									}.Build(),
+								}.Build(),
+							},
+						}.Build(),
+					},
+				}.Build(),
+			},
+			MaxminddbGeoip: MaxminddbGeoip_builder{
+				DownloadUrl: new("https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country-without-asn.mmdb"),
+				Error:       new("NOT DOWNLOAD"),
+			}.Build(),
+		}).Build(),
+		Dns: DnsConfig_builder{
+			Server:           new("127.0.0.1:5353"),
+			Fakedns:          new(false),
+			FakednsIpRange:   new(fakev4),
+			FakednsIpv6Range: new(fakev6),
+			FakednsWhitelist: []string{
+				"*.msftncsi.com",
+				"*.msftconnecttest.com",
+				"ping.archlinux.org",
+				// for macos, see:
+				//  https://github.com/immortalwrt/homeproxy/discussions/155
+				//  https://github.com/vernesong/OpenClash/issues/4370
+				"mask.icloud.com",
+				"mask-h2.icloud.com",
+				"mask.apple-dns.net",
+			},
+			Resolver: map[string]*Dns{
+				"bootstrap": Dns_builder{
+					Host: new("8.8.8.8"),
+					Type: Type_udp.Enum(),
+				}.Build(),
+			},
+			Hosts: map[string]string{"example.com": "example.com"},
+		}.Build(),
+		Logcat: Logcat_builder{
+			Level: LogLevel_debug.Enum(),
+			Save:  new(true),
+		}.Build(),
+
+		Server: InboundConfig_builder{
+			HijackDns:       new(true),
+			HijackDnsFakeip: new(true),
+			Sniff: Sniff_builder{
+				Enabled: new(true),
+			}.Build(),
+			Inbounds: map[string]*Inbound{
+				"mixed": Inbound_builder{
+					Name:    new("mixed"),
+					Enabled: new(true),
+					Tcpudp: Tcpudp_builder{
+						Host:    new("127.0.0.1:1080"),
+						Control: TcpUdpControl_tcp_udp_control_all.Enum(),
+					}.Build(),
+					Mix: &Mixed{},
+				}.Build(),
+				"tun": Inbound_builder{
+					Name:    new("tun"),
+					Enabled: new(false),
+					Empty:   &Empty{},
+					Tun: Tun_builder{
+						Name:          new("tun://" + tunname),
+						Mtu:           ptr(int32(9000)),
+						Portal:        new(TunV4UlaGenerate().String()),
+						PortalV6:      new(TunV6UlaGenerate().String()),
+						SkipMulticast: new(true),
+						Driver:        Tun_system_gvisor.Enum(),
+						Route: Route_builder{
+							Routes: []string{
+								fakev4,
+								fakev6,
+							},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				"yuubinsya": Inbound_builder{
+					Name:    new("yuubinsya"),
+					Enabled: new(false),
+					Tcpudp: Tcpudp_builder{
+						Host:    new("127.0.0.1:40501"),
+						Control: TcpUdpControl_disable_udp.Enum(),
+					}.Build(),
+					Yuubinsya: Yuubinsya_builder{
+						Password: new("password"),
+					}.Build(),
+				}.Build(),
+			},
+		}.Build(),
+		AdvancedConfig: &AdvancedConfig{},
+		ConfigVersion:  &ConfigVersion{},
+		Platform:       &Platform{},
+	}).Build()
+}
+
+func ptr[T any](v T) *T { return &v }

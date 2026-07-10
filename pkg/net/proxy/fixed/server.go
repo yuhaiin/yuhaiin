@@ -6,14 +6,13 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
 type Server struct {
@@ -24,8 +23,22 @@ type Server struct {
 	pmu  sync.Mutex
 	smu  sync.RWMutex
 
-	control   config.TcpUdpControl
+	control   Control
 	udpDetect bool
+}
+
+type Control string
+
+const (
+	ControlAll        Control = "tcp_udp_control_all"
+	ControlDisableTCP Control = "disable_tcp"
+	ControlDisableUDP Control = "disable_udp"
+)
+
+type ServerConfig struct {
+	Host             string  `json:"host"`
+	Control          Control `json:"control"`
+	UDPHappyEyeballs bool    `json:"udp_happy_eyeballs,omitzero"`
 }
 
 func (s *Server) Close() error {
@@ -94,7 +107,7 @@ func (s *Server) initStream() (net.Listener, error) {
 }
 
 func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
-	if s.control == config.TcpUdpControl_disable_udp {
+	if s.control == ControlDisableUDP {
 		return nil, errors.ErrUnsupported
 	}
 
@@ -110,7 +123,7 @@ func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
 }
 
 func (s *Server) Accept() (net.Conn, error) {
-	if s.control == config.TcpUdpControl_disable_tcp {
+	if s.control == ControlDisableTCP {
 		return nil, errors.ErrUnsupported
 	}
 
@@ -122,8 +135,20 @@ func (s *Server) Accept() (net.Conn, error) {
 	return lis.Accept()
 }
 
+func (s *Server) SyscallConn() (syscall.RawConn, error) {
+	lis, err := s.initStream()
+	if err != nil {
+		return nil, err
+	}
+	conn, ok := lis.(syscall.Conn)
+	if !ok {
+		return nil, errors.ErrUnsupported
+	}
+	return conn.SyscallConn()
+}
+
 func (s *Server) Addr() net.Addr {
-	if s.control == config.TcpUdpControl_disable_tcp {
+	if s.control == ControlDisableTCP {
 		return netapi.EmptyAddr
 	}
 
@@ -135,16 +160,12 @@ func (s *Server) Addr() net.Addr {
 	return lis.Addr()
 }
 
-func NewServer(c *config.Tcpudp) (netapi.Listener, error) {
+func NewServer(c ServerConfig) (netapi.Listener, error) {
 	return &Server{
-		host:      c.GetHost(),
-		control:   c.GetControl(),
-		udpDetect: c.GetUdpHappyEyeballs(),
+		host:      c.Host,
+		control:   c.Control,
+		udpDetect: c.UDPHappyEyeballs,
 	}, nil
-}
-
-func init() {
-	register.RegisterNetwork(NewServer)
 }
 
 type packet struct {

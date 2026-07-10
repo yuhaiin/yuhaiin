@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/libp2p/go-yamux/v5"
 )
@@ -64,18 +64,24 @@ type MuxClient struct {
 	selector *rangeSelector
 }
 
-func init() {
-	register.RegisterPoint(NewClient)
+type Config struct {
+	Concurrency int32 `json:"concurrency"`
 }
 
-func NewClient(config *node.Mux, dialer netapi.Proxy) (netapi.Proxy, error) {
-	if config.GetConcurrency() <= 0 {
-		config.SetConcurrency(1)
+func init() {
+	register.RegisterContractPoint("mux", func(config contractnode.Concurrency, dialer netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{Concurrency: config.Concurrency}, dialer)
+	})
+}
+
+func NewClient(config Config, dialer netapi.Proxy) (netapi.Proxy, error) {
+	if config.Concurrency <= 0 {
+		config.Concurrency = 1
 	}
 
 	c := &MuxClient{
 		Proxy:    dialer,
-		selector: NewRangeSelector(int(config.GetConcurrency())),
+		selector: NewRangeSelector(int(config.Concurrency)),
 	}
 
 	return c, nil

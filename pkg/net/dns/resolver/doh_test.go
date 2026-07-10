@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/miekg/dns"
 )
@@ -20,75 +19,75 @@ func TestDOH(t *testing.T) {
 
 	configMap := map[string]Config{
 		"google": {
-			Type:   config.Type_doh,
+			Type:   "doh",
 			Host:   "dns.google",
 			Subnet: s,
 			// Dialer: s5Dialer,
 		},
 		"iijJP": {
-			Type:       config.Type_doh,
+			Type:       "doh",
 			Host:       "103.2.57.5",
 			Servername: "public.dns.iij.jp",
 			Subnet:     s,
 		},
 		"cloudflare": {
-			Type:   config.Type_doh,
+			Type:   "doh",
 			Host:   "cloudflare-dns.com",
 			Subnet: s,
 			Dialer: s5Dialer,
 		},
 		"quad9": {
-			Type:   config.Type_doh,
+			Type:   "doh",
 			Host:   "9.9.9.9",
 			Subnet: s,
 		},
 		"a.passcloud": {
-			Type:   config.Type_doh,
+			Type:   "doh",
 			Host:   "a.passcloud.xyz",
 			Subnet: s,
 		},
 		"adguard": {
-			Type: config.Type_doh,
+			Type: "doh",
 			Host: "https://unfiltered.adguard-dns.com/dns-query",
 		},
 		"ali": {
-			Type:   config.Type_doh,
+			Type:   "doh",
 			Host:   "223.5.5.5",
 			Subnet: s,
 		},
 		"dns.pub": {
-			Type:   config.Type_doh,
+			Type:   "doh",
 			Host:   "dns.pub",
 			Subnet: s,
 		},
 		"sm2.dnspub": {
-			Type:   config.Type_doh,
+			Type:   "doh",
 			Host:   "sm2.doh.pub",
 			Subnet: s,
 		},
 		"360": {
-			Type:   config.Type_doh,
+			Type:   "doh",
 			Host:   "doh.360.cn",
 			Subnet: s,
 		},
 		"dnssb": {
-			Type:   config.Type_doh,
+			Type:   "doh",
 			Host:   "doh.dns.sb",
 			Subnet: s,
 			// Dialer: s5Dialer,
 		},
 		"opendns": {
-			Type:   config.Type_doh,
+			Type:   "doh",
 			Host:   "doh.opendns.com",
 			Subnet: s,
 			// Dialer: s5Dialer,
 		},
 		"tuna": {
-			Type: config.Type_doh,
+			Type: "doh",
 			Host: "https://101.6.6.6:8443/dns-query",
 		},
 		"controld": {
-			Type: config.Type_doh,
+			Type: "doh",
 			Host: "https://freedns.controld.com/p0",
 		},
 	}

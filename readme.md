@@ -10,7 +10,7 @@
 - Android [yuhaiin-android](https://github.com/Asutorufa/yuhaiin-android).  
 - Inbound
   - yuubinsya(experimental)
-  - Reality, HTTP2, Quic, Websocket, gRPC, TLS, ECH(Encrypted SNI)
+  - Reality, HTTP2, Quic, Websocket, TLS, ECH(Encrypted SNI)
   - Socks5, Socks4A, HTTP
   - TUN(gso,gro support), Linux/Mac Redir, Tproxy
     - [gvisor](https://github.com/google/gvisor)
@@ -20,7 +20,7 @@
   - yuubinsya(experimental)
   - Socks5, HTTP, TCP, [Wireguard](https://github.com/yuhaiin/yuhaiin/wiki/Wireguard)
   - Shadowsocksr, Shadowsocks, Vmess, trojan, Vless  
-  - Websocket, Quic, obfs-http, Reality, HTTP2, gRPC, TLS, ECH(Encrypted SNI)  
+  - Websocket, Quic, obfs-http, Reality, HTTP2, TLS, ECH(Encrypted SNI)
   - yamux  
   - reverse HTTP, reverse TCP
   - Tailscale(tsnet)
@@ -56,7 +56,7 @@ codesign -s - yuhaiin
 # or
 brew tap yuhaiin/yuhaiin
 brew install yuhaiin
-# host: grpc and http listen address, default: 127.0.0.1:50051
+# host: http listen address, default: 127.0.0.1:50051
 # path: Store application data path, default:
 #   linux ~/.config/yuhaiin/, windows %APPDATA%/yuhaiin/
 yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin
@@ -70,8 +70,6 @@ yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin
 
 - [Golang](https://golang.org)  
 - [google/gVisor](https://github.com/google/gvisor)
-- [gRPC](https://grpc.io/)  
-- [protobuf-go](https://github.com/protocolbuffers/protobuf-go)  
 - [プロ生ちゃん](https://kei.pronama.jp/)
 - [tailscale](https://github.com/tailscale/tailscale)
 - [usque](https://github.com/Diniboy1123/usque)

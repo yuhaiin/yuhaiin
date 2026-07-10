@@ -12,8 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
 type Server struct {
@@ -24,11 +22,10 @@ type Server struct {
 	close    context.CancelFunc
 }
 
-func init() {
-	register.RegisterTransport(NewServer)
+type ServerConfig struct {
 }
 
-func NewServer(c *config.Websocket, ii netapi.Listener) (netapi.Listener, error) {
+func NewServer(_ ServerConfig, ii netapi.Listener) (netapi.Listener, error) {
 	return netapi.NewListener(newServer(ii), ii), nil
 }
 

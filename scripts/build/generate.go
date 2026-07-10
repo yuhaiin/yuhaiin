@@ -15,8 +15,4 @@ import _ "golang.org/x/mobile/bind"
 //go:generate set QT_DEBUG_CONSOLE=true
 //go:generate qtdeploy build
 
-// generate gRPC and protobuf
-//go:generate protoc -I "./" -I "../" --go_out=plugins=grpc:. --go_opt=paths=source_relative api/api.proto
-//go:generate protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative config/config.proto
-//go:generate protoc -I "./" -I "../" --go_out=. --go-grpc_out=. --go-grpc_opt=paths=source_relative --go_opt=paths=source_relative api/api.proto
-//go:generate protoc --go_out=. --go-grpc_out=. --go-grpc_opt=paths=source_relative --go_opt=paths=source_relative config/config.proto
+// generate platform assets

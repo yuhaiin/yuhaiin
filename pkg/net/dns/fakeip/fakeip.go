@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
@@ -34,13 +33,13 @@ type FakeDNS struct {
 	ipv6 pool
 }
 
-func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, ipv6Range netip.Prefix, dbPath string, legacy cache.Cache) (*FakeDNS, error) {
-	ipv4, err := NewSQLiteFakeIPPool(dbPath, ipRange, 655535, legacy)
+func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, ipv6Range netip.Prefix, dbPath string) (*FakeDNS, error) {
+	ipv4, err := NewSQLiteFakeIPPool(dbPath, ipRange, 655535)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite fakeip ipv4 pool failed: %w", err)
 	}
 
-	ipv6, err := NewSQLiteFakeIPPool(dbPath, ipv6Range, 655535, legacy)
+	ipv6, err := NewSQLiteFakeIPPool(dbPath, ipv6Range, 655535)
 	if err != nil {
 		_ = ipv4.Close()
 		return nil, fmt.Errorf("open sqlite fakeip ipv6 pool failed: %w", err)

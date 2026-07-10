@@ -21,7 +21,7 @@ type Tun2socket struct {
 }
 
 func New(o *device.Opt) (*Tun2socket, error) {
-	device, err := device.OpenWriter(o.Interface, int(o.GetMtu()))
+	device, err := device.OpenWriter(o.Interface, int(o.Tun.MTU))
 	if err != nil {
 		return nil, fmt.Errorf("open tun device failed: %w", err)
 	}
@@ -37,7 +37,7 @@ func New(o *device.Opt) (*Tun2socket, error) {
 	handler := &Tun2socket{
 		nat:        nat,
 		device:     device,
-		Mtu:        o.GetMtu(),
+		Mtu:        o.Tun.MTU,
 		handler:    o.Handler,
 		DeviceName: o.Interface.Name,
 	}

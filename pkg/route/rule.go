@@ -4,356 +4,200 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"slices"
 	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/pkg/chore"
-	"github.com/Asutorufa/yuhaiin/pkg/log"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/api"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/statistics"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/paging"
-	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
 type Rules struct {
-	api.UnimplementedRulesServer
-	db    chore.DB
-	route *Route
+	rules    RouteRuleBook
+	settings RouteSettingsBook
+	route    *Route
 }
 
-func NewRules(db chore.DB, route *Route) *Rules {
-	var rules []*config.Rulev2
-	_ = db.View(func(s *config.Setting) error {
-		rules = s.GetBypass().GetRulesV2()
-		return nil
-	})
-	if rules != nil {
-		route.ms.Update(rules...)
-	}
+type RouteRuleBook interface {
+	ListRules(context.Context) ([]plainstore.RouteRuleEntry, error)
+}
 
+type RouteSettingsBook interface {
+	Settings(context.Context) (plainstore.RouteSettings, error)
+	SaveSettings(context.Context, plainstore.RouteSettings) error
+}
+
+func NewRules(rules RouteRuleBook, settings RouteSettingsBook, route *Route) *Rules {
 	r := &Rules{
-		db:    db,
-		route: route,
+		rules:    rules,
+		settings: settings,
+		route:    route,
 	}
 
-	cfg, err := r.Config(context.TODO(), &emptypb.Empty{})
-	if err != nil {
-		log.Warn("get rules config error", "err", err)
-	} else {
-		r.route.config.Store(cfg)
-	}
-
+	r.ApplyStored(context.Background())
 	return r
 }
 
-func (r *Rules) List(ctx context.Context, empty *emptypb.Empty) (*api.RuleResponse, error) {
-	names := make([]string, 0)
-	items := make([]*api.RuleItem, 0)
-	err := r.db.View(func(ss *config.Setting) error {
-		for index, v := range ss.GetBypass().GetRulesV2() {
-			names = append(names, v.GetName())
-			items = append(items, api.RuleItem_builder{
-				Name:     new(v.GetName()),
-				Disabled: new(v.GetDisabled()),
-				Index:    uint32Ptr(uint32(index)),
-				Mode:     stringPtr(v.GetMode().String()),
-				Tag:      new(v.GetTag()),
-				Resolver: new(v.GetResolver()),
-				RuleCount: uint32Ptr(func() uint32 {
-					var count uint32
-					for _, group := range v.GetRules() {
-						count += uint32(len(group.GetRules()))
-					}
-					return count
-				}()),
-			}.Build())
+func (r *Rules) ApplyStored(ctx context.Context) {
+	if r == nil {
+		return
+	}
+	if r.rules != nil {
+		entries, err := r.rules.ListRules(ctx)
+		if err == nil {
+			routes := make([]contractroute.RouteRule, 0, len(entries))
+			for _, entry := range entries {
+				routes = append(routes, entry.Rule)
+			}
+			r.route.ms.Update(routes...)
 		}
-		return nil
-	})
-
-	return api.RuleResponse_builder{
-		Names: names,
-		Items: items,
-	}.Build(), err
+	}
+	if r.settings != nil {
+		settings, err := r.settings.Settings(ctx)
+		if err == nil {
+			r.route.config.Store(routeConfigFromStore(settings))
+		}
+	}
 }
 
-func uint32Ptr(v uint32) *uint32 { return &v }
-
-func stringPtr(v string) *string { return &v }
-
-func (r *Rules) ListPage(ctx context.Context, req *api.PageRequest) (*api.RuleResponse, error) {
-	resp, err := r.List(ctx, &emptypb.Empty{})
-	if err != nil {
-		return resp, err
-	}
-
-	items := paging.Filter(resp.GetItems(), req.GetQuery(), func(item *api.RuleItem, query string) bool {
-		return paging.MatchString(item.GetName(), query)
-	})
-	pageItems, page, pageSize, total := paging.Slice(items, req.GetPage(), req.GetPageSize())
-	names := make([]string, 0, len(pageItems))
-	for _, item := range pageItems {
-		names = append(names, item.GetName())
-	}
-
-	resp.SetNames(names)
-	resp.SetItems(pageItems)
-	resp.SetPage(api.PageResponse_builder{
-		Page:     new(page),
-		PageSize: new(pageSize),
-		Total:    new(total),
-	}.Build())
-	return resp, nil
-}
-
-func (r *Rules) Get(ctx context.Context, index *api.RuleIndex) (*config.Rulev2, error) {
-	var resp *config.Rulev2
-	err := r.db.View(func(ss *config.Setting) error {
-		if err := r.checkIndex(ss, index); err != nil {
+func (r *Rules) SaveContractConfig(ctx context.Context, req contractroute.Config) error {
+	settings := routeSettingsFromContract(req)
+	if r.settings != nil {
+		if err := r.settings.SaveSettings(ctx, settings); err != nil {
 			return err
 		}
-
-		resp = ss.GetBypass().GetRulesV2()[index.GetIndex()]
-
-		return nil
-	})
-
-	return resp, err
+	}
+	r.route.config.Store(routeConfigFromStore(settings))
+	return nil
 }
 
-func (r *Rules) Save(ctx context.Context, req *api.RuleSaveRequest) (*emptypb.Empty, error) {
-	var rules []*config.Rulev2
-	err := r.db.Batch(func(ss *config.Setting) error {
-		if req.GetIndex() == nil {
-			ss.GetBypass().SetRulesV2(append(ss.GetBypass().GetRulesV2(), req.GetRule()))
-			rules = ss.GetBypass().GetRulesV2()
-			return nil
-		}
-
-		if req.GetIndex().GetIndex() >= uint32(len(ss.GetBypass().GetRulesV2())) {
-			return fmt.Errorf("can't find rule %d", req.GetIndex().GetIndex())
-		}
-
-		rule := ss.GetBypass().GetRulesV2()[req.GetIndex().GetIndex()]
-
-		if rule.GetName() != req.GetRule().GetName() {
-			return fmt.Errorf("rule name not match, get: %s, want: %s", rule.GetName(), req.GetRule().GetName())
-		}
-
-		ss.GetBypass().GetRulesV2()[req.GetIndex().GetIndex()] = req.GetRule()
-
-		rules = ss.GetBypass().GetRulesV2()
-		return nil
-	})
-	if err != nil {
-		return &emptypb.Empty{}, err
+func routeSettingsFromContract(req contractroute.Config) plainstore.RouteSettings {
+	return plainstore.RouteSettings{
+		DirectResolver: req.DirectResolver,
+		ProxyResolver:  req.ProxyResolver,
+		ResolveLocally: req.ResolveLocally,
+		UDPProxyFQDN:   udpProxyFQDNStrategyCode(req.UdpProxyFqdnStrategy),
 	}
-
-	r.route.ms.Update(rules...)
-
-	return &emptypb.Empty{}, nil
 }
 
-func (r *Rules) Remove(ctx context.Context, index *api.RuleIndex) (*emptypb.Empty, error) {
-	var rules []*config.Rulev2
-	err := r.db.Batch(func(s *config.Setting) error {
-		if err := r.checkIndex(s, index); err != nil {
-			return err
-		}
-
-		s.GetBypass().SetRulesV2(slices.Delete(s.GetBypass().GetRulesV2(), int(index.GetIndex()), int(index.GetIndex())+1))
-
-		rules = s.GetBypass().GetRulesV2()
-		return nil
-	})
-	if err != nil {
-		return &emptypb.Empty{}, err
+func routeConfigFromStore(settings plainstore.RouteSettings) *RouteConfig {
+	return &RouteConfig{
+		DirectResolver:       settings.DirectResolver,
+		ProxyResolver:        settings.ProxyResolver,
+		ResolveLocally:       settings.ResolveLocally,
+		UDPProxyFQDNStrategy: udpProxyFQDNStrategyFromCode(settings.UDPProxyFQDN),
 	}
-
-	r.route.ms.Update(rules...)
-
-	return &emptypb.Empty{}, nil
 }
 
-func (r *Rules) ChangePriority(ctx context.Context, req *api.ChangePriorityRequest) (*emptypb.Empty, error) {
-	var rules []*config.Rulev2
-	err := r.db.Batch(func(s *config.Setting) error {
-		if err := r.checkIndex(s, req.GetSource()); err != nil {
-			return fmt.Errorf("source index error: %w", err)
+func udpProxyFQDNStrategyCode(value string) int {
+	switch parseUDPProxyFQDNStrategy(value) {
+	case UDPProxyFQDNResolve:
+		return 1
+	case UDPProxyFQDNSkipResolve:
+		return 2
+	default:
+		return 0
+	}
+}
+
+func udpProxyFQDNStrategyFromCode(value int) UDPProxyFQDNStrategy {
+	switch value {
+	case 1:
+		return UDPProxyFQDNResolve
+	case 2:
+		return UDPProxyFQDNSkipResolve
+	default:
+		return UDPProxyFQDNDefault
+	}
+}
+
+func (r *Rules) TestContract(ctx context.Context, host string) (contractroute.RuleTestResponse, error) {
+	ctx, store := netapi.GetOrNewContext(ctx)
+
+	var addr netapi.Address
+	hostname, portstr, err := net.SplitHostPort(host)
+	if err == nil {
+		port, er := strconv.ParseUint(portstr, 10, 16)
+		if er != nil {
+			return contractroute.RuleTestResponse{}, fmt.Errorf("parse port failed: %w", er)
 		}
-
-		if err := r.checkIndex(s, req.GetTarget()); err != nil {
-			return fmt.Errorf("target index error: %w", err)
-		}
-
-		switch req.GetOperate() {
-		case api.ChangePriorityRequest_Exchange:
-			src := s.GetBypass().GetRulesV2()[req.GetSource().GetIndex()]
-			tar := s.GetBypass().GetRulesV2()[req.GetTarget().GetIndex()]
-
-			s.GetBypass().GetRulesV2()[req.GetSource().GetIndex()] = tar
-			s.GetBypass().GetRulesV2()[req.GetTarget().GetIndex()] = src
-
-		case api.ChangePriorityRequest_InsertBefore:
-			result := InsertBefore(s.GetBypass().GetRulesV2(),
-				int(req.GetSource().GetIndex()), int(req.GetTarget().GetIndex()))
-
-			s.GetBypass().SetRulesV2(result)
-		case api.ChangePriorityRequest_InsertAfter:
-			result := InsertAfter(s.GetBypass().GetRulesV2(),
-				int(req.GetSource().GetIndex()), int(req.GetTarget().GetIndex()))
-
-			s.GetBypass().SetRulesV2(result)
-		default:
-			return fmt.Errorf("unknown operate: %d", req.GetOperate())
-		}
-
-		rules = s.GetBypass().GetRulesV2()
-		return nil
-	})
+		addr, err = netapi.ParseAddressPort(hostname, hostname, uint16(port))
+	} else {
+		addr, err = netapi.ParseAddressPort("", host, 0)
+	}
 	if err != nil {
-		return &emptypb.Empty{}, err
+		return contractroute.RuleTestResponse{}, fmt.Errorf("parse addr failed: %w", err)
 	}
 
-	r.route.ms.Update(rules...)
+	result := r.route.dispatch(ctx, addr)
+	ips, _ := store.ConnOptions().RouteIPs(ctx, addr)
 
-	return &emptypb.Empty{}, nil
+	out := contractroute.RuleTestResponse{
+		Mode:        result.Mode.Mode().String(),
+		Tag:         result.Mode.GetTag(),
+		Resolver:    result.Mode.Resolver(),
+		AfterAddr:   result.Addr.String(),
+		Lists:       store.ConnOptions().Lists(),
+		MatchResult: contractMatchHistory(store.MatchHistory()),
+	}
+	if ips != nil {
+		for ip := range ips.Iter() {
+			out.IPs = append(out.IPs, ip.String())
+		}
+	}
+	return out, nil
+}
+
+func (r *Rules) BlockHistoryContract(ctx context.Context) (contractroute.BlockHistoryList, error) {
+	return r.route.Get(), nil
+}
+
+func contractMatchHistory(entry []*netapi.MatchHistoryEntry) []contractroute.MatchHistoryEntry {
+	out := make([]contractroute.MatchHistoryEntry, 0, len(entry))
+	for _, e := range entry {
+		if e == nil {
+			continue
+		}
+		history := make([]contractroute.MatchResult, 0, len(e.UnmatchedHistory)+1)
+		for _, uh := range e.UnmatchedHistory {
+			history = append(history, contractroute.MatchResult{ListName: uh.Value()})
+		}
+		if m := e.MatchedHistory.Value(); m != "" {
+			history = append(history, contractroute.MatchResult{ListName: m, Matched: true})
+		}
+		out = append(out, contractroute.MatchHistoryEntry{
+			RuleName: e.RuleName.Value(),
+			History:  history,
+		})
+	}
+	return out
 }
 
 func InsertBefore[T any](s []T, from, to int) []T {
 	result := make([]T, 0, len(s))
-
 	elem := s[from]
-
 	for index, v := range s {
 		if index == from {
 			continue
 		}
-
 		if index == to {
 			result = append(result, elem)
 		}
-
 		result = append(result, v)
 	}
-
 	return result
 }
 
 func InsertAfter[T any](s []T, from, to int) []T {
 	result := make([]T, 0, len(s))
-
 	elem := s[from]
-
 	for index, v := range s {
 		if index == from {
 			continue
 		}
-
 		result = append(result, v)
-
 		if index == to {
 			result = append(result, elem)
 		}
 	}
-
 	return result
-}
-
-func (r *Rules) checkIndex(s *config.Setting, index *api.RuleIndex) error {
-	if len(s.GetBypass().GetRulesV2())-1 < int(index.GetIndex()) {
-		return fmt.Errorf("can't find rule %d", index.GetIndex())
-	}
-
-	rule := s.GetBypass().GetRulesV2()[index.GetIndex()]
-
-	if rule.GetName() != index.GetName() {
-		return fmt.Errorf("rule name not match, get: %s, want: %s", rule.GetName(), index.GetName())
-	}
-
-	return nil
-}
-
-func (r *Rules) Config(context.Context, *emptypb.Empty) (*config.Configv2, error) {
-	var resp *config.Configv2
-	err := r.db.View(func(ss *config.Setting) error {
-		resp = config.Configv2_builder{
-			DirectResolver: new(ss.GetBypass().GetDirectResolver()),
-			ProxyResolver:  new(ss.GetBypass().GetProxyResolver()),
-			ResolveLocally: new(ss.GetBypass().GetResolveLocally()),
-			UdpProxyFqdn:   ss.GetBypass().GetUdpProxyFqdn().Enum(),
-		}.Build()
-
-		return nil
-	})
-
-	return resp, err
-}
-
-func (r *Rules) SaveConfig(ctx context.Context, req *config.Configv2) (*emptypb.Empty, error) {
-	err := r.db.Batch(func(setting *config.Setting) error {
-		if !setting.HasBypass() {
-			setting.SetBypass(&config.BypassConfig{})
-		}
-
-		setting.GetBypass().SetDirectResolver(req.GetDirectResolver())
-		setting.GetBypass().SetProxyResolver(req.GetProxyResolver())
-		setting.GetBypass().SetResolveLocally(req.GetResolveLocally())
-		setting.GetBypass().SetUdpProxyFqdn(req.GetUdpProxyFqdn())
-
-		r.route.config.Store(req)
-		return nil
-	})
-
-	return &emptypb.Empty{}, err
-}
-
-func (r *Rules) Test(ctx context.Context, req *wrapperspb.StringValue) (*api.TestResponse, error) {
-	var addr netapi.Address
-	host, portstr, err := net.SplitHostPort(req.GetValue())
-	if err == nil {
-		port, er := strconv.ParseUint(portstr, 10, 16)
-		if er != nil {
-			return nil, fmt.Errorf("parse port failed: %w", er)
-		}
-		addr, err = netapi.ParseAddressPort(host, host, uint16(port))
-	} else {
-		addr, err = netapi.ParseAddressPort("", req.GetValue(), 0)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("parse addr failed: %w", err)
-	}
-
-	s := netapi.GetContext(ctx)
-	result := r.route.dispatch(s, addr)
-
-	ips, _ := s.ConnOptions().RouteIPs(s, addr)
-
-	return api.TestResponse_builder{
-		Mode: config.ModeConfig_builder{
-			Mode:            result.Mode.Mode().Enum(),
-			Tag:             new(result.Mode.GetTag()),
-			ResolveStrategy: result.Mode.GetResolveStrategy().Enum(),
-		}.Build(),
-		AfterAddr:   new(result.Addr.String()),
-		MatchResult: statistics.ToProtoMatchHistoryEntry(netapi.GetContext(ctx).MatchHistory()),
-		Lists:       s.ConnOptions().Lists(),
-		Ips: func() []string {
-			if ips == nil {
-				return nil
-			}
-			var ret []string
-			for ip := range ips.Iter() {
-				ret = append(ret, ip.String())
-			}
-			return ret
-		}(),
-	}.Build(), nil
-}
-
-func (r *Rules) BlockHistory(context.Context, *emptypb.Empty) (*api.BlockHistoryList, error) {
-	return r.route.Get(), nil
 }

@@ -11,11 +11,10 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
@@ -26,7 +25,20 @@ type Tls struct {
 }
 
 func init() {
-	register.RegisterPoint(NewClient)
+	register.RegisterContractPoint("tls", func(config contractnode.TLS, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(tlsConfigFromContract(config), p)
+	})
+}
+
+func tlsConfigFromContract(config contractnode.TLS) TLSConfig {
+	return TLSConfig{
+		Enable:             config.Enable,
+		ServerNames:        config.ServerNames,
+		CACert:             config.CACert,
+		InsecureSkipVerify: config.InsecureSkipVerify,
+		NextProtos:         config.NextProtos,
+		ECHConfig:          config.ECHConfig,
+	}
 }
 
 type clientConfigPools []cliectConfigPool
@@ -120,14 +132,23 @@ func newConfigPool(serverName string, config *tls.Config) cliectConfigPool {
 	return &fixedConfigPool{c}
 }
 
-func NewClient(c *node.TlsConfig, p netapi.Proxy) (netapi.Proxy, error) {
+type TLSConfig struct {
+	Enable             bool     `json:"enable"`
+	ServerNames        []string `json:"servernames,omitzero"`
+	CACert             [][]byte `json:"ca_cert,omitzero"`
+	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitzero"`
+	NextProtos         []string `json:"next_protos,omitzero"`
+	ECHConfig          []byte   `json:"ech_config,omitzero"`
+}
+
+func NewClient(c TLSConfig, p netapi.Proxy) (netapi.Proxy, error) {
 	tls := ParseTLSConfig(c)
 	if tls == nil {
 		return p, nil
 	}
 
 	var tlsConfigs []cliectConfigPool
-	for _, v := range c.GetServerNames() {
+	for _, v := range c.ServerNames {
 		tlsConfigs = append(tlsConfigs, newConfigPool(v, tls))
 	}
 
@@ -161,13 +182,8 @@ func (t *Tls) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketCo
 	return t.Proxy.PacketConn(ctx, addr)
 }
 
-func init() {
-	register.RegisterTransport(NewServer)
-	register.RegisterTransport(NewTlsAutoServer)
-}
-
-func NewServer(c *config.Tls, ii netapi.Listener) (netapi.Listener, error) {
-	config, err := register.ParseTLS(c.GetTls())
+func NewServer(c ServerConfig, ii netapi.Listener) (netapi.Listener, error) {
+	config, err := ParseServerTLSConfig(c)
 	if err != nil {
 		return nil, err
 	}
@@ -247,19 +263,33 @@ func TlsAutoConfig(ca *cert.Ca, nextProto []string, servername []string) *tls.Co
 	return config
 }
 
-func NewTlsAutoServer(c *config.TlsAuto, ii netapi.Listener) (netapi.Listener, error) {
-	ca, err := cert.ParseCa(c.GetCaCert(), c.GetCaKey())
+type TlsAutoServerConfig struct {
+	CACert      []byte     `json:"ca_cert,omitzero"`
+	CAKey       []byte     `json:"ca_key,omitzero"`
+	NextProtos  []string   `json:"next_protos,omitzero"`
+	ServerNames []string   `json:"servernames,omitzero"`
+	ECH         TlsAutoECH `json:"ech,omitzero"`
+}
+
+type TlsAutoECH struct {
+	Enable     bool   `json:"enable,omitzero"`
+	Config     []byte `json:"config,omitzero"`
+	PrivateKey []byte `json:"private_key,omitzero"`
+}
+
+func NewTlsAutoServer(c TlsAutoServerConfig, ii netapi.Listener) (netapi.Listener, error) {
+	ca, err := cert.ParseCa(c.CACert, c.CAKey)
 	if err != nil {
 		return nil, err
 	}
 
-	config := TlsAutoConfig(ca, c.GetNextProtos(), c.GetServernames())
+	config := TlsAutoConfig(ca, c.NextProtos, c.ServerNames)
 
-	if c.GetEch().GetEnable() {
+	if c.ECH.Enable {
 		config.EncryptedClientHelloKeys = []tls.EncryptedClientHelloKey{
 			{
-				Config:     ECHConfig(c.GetEch().GetConfig()),
-				PrivateKey: []byte(c.GetEch().GetPrivateKey()),
+				Config:     ECHConfig(c.ECH.Config),
+				PrivateKey: c.ECH.PrivateKey,
 			},
 		}
 	}
@@ -267,8 +297,8 @@ func NewTlsAutoServer(c *config.TlsAuto, ii netapi.Listener) (netapi.Listener, e
 	return netapi.NewListener(tls.NewListener(ii, config), ii), nil
 }
 
-func ParseTLSConfig(t *node.TlsConfig) *tls.Config {
-	if t == nil || !t.GetEnable() {
+func ParseTLSConfig(t TLSConfig) *tls.Config {
+	if !t.Enable {
 		return nil
 	}
 
@@ -278,19 +308,19 @@ func ParseTLSConfig(t *node.TlsConfig) *tls.Config {
 		root = x509.NewCertPool()
 	}
 
-	for i := range t.GetCaCert() {
-		ok := root.AppendCertsFromPEM(t.GetCaCert()[i])
+	for i := range t.CACert {
+		ok := root.AppendCertsFromPEM(t.CACert[i])
 		if !ok {
 			log.Error("add cert from pem failed.")
 		}
 	}
 
 	var servername string
-	if len(t.GetServerNames()) > 0 {
-		servername = t.GetServerNames()[0]
+	if len(t.ServerNames) > 0 {
+		servername = t.ServerNames[0]
 	}
 
-	echConfig := t.GetEchConfig()
+	echConfig := t.ECHConfig
 	if len(echConfig) == 0 {
 		echConfig = nil
 	}
@@ -307,8 +337,8 @@ func ParseTLSConfig(t *node.TlsConfig) *tls.Config {
 	return &tls.Config{
 		ServerName:                     servername,
 		RootCAs:                        root,
-		NextProtos:                     t.GetNextProtos(),
-		InsecureSkipVerify:             t.GetInsecureSkipVerify(),
+		NextProtos:                     t.NextProtos,
+		InsecureSkipVerify:             t.InsecureSkipVerify,
 		ClientSessionCache:             tls.NewLRUClientSessionCache(128),
 		EncryptedClientHelloConfigList: echConfig,
 	}

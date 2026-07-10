@@ -11,8 +11,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
 const (
@@ -26,6 +24,10 @@ type Server struct {
 
 	handler    netapi.Handler
 	usernameID string
+}
+
+type ServerConfig struct {
+	Username string `json:"username,omitzero"`
 }
 
 func (s *Server) Handle(conn net.Conn) error {
@@ -147,13 +149,9 @@ func (s *Server) AcceptPacket() (*netapi.Packet, error) {
 	return nil, io.EOF
 }
 
-func init() {
-	register.RegisterProtocol(NewServer)
-}
-
-func NewServer(o *config.Socks4A, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+func NewServer(o ServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	s := &Server{
-		usernameID: o.GetUsername(),
+		usernameID: o.Username,
 		lis:        ii,
 		handler:    handler,
 	}

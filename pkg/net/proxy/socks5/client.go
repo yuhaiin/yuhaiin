@@ -8,13 +8,13 @@ import (
 	"net"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
@@ -23,19 +23,16 @@ func Dial(host, port, user, password string) netapi.Proxy {
 	if err != nil {
 		return netapi.NewErrProxy(err)
 	}
-	simple, err := fixed.NewClient(node.Fixed_builder{
-		Host: new(addr.Hostname()),
-		Port: new(int32(addr.Port())),
-	}.Build(), nil)
+	simple, err := fixed.NewClient(fixed.Config{Host: addr.Hostname(), Port: int32(addr.Port())}, nil)
 	if err != nil {
 		return netapi.NewErrProxy(err)
 	}
 
-	p, _ := NewClient(node.Socks5_builder{
-		Hostname: new(host),
-		User:     new(user),
-		Password: new(password),
-	}.Build(), simple)
+	p, _ := NewClient(Config{
+		Hostname: host,
+		User:     user,
+		Password: password,
+	}, simple)
 	return p
 }
 
@@ -51,18 +48,32 @@ type Client struct {
 	overridePort uint16
 }
 
+type Config struct {
+	User         string `json:"user"`
+	Password     string `json:"password"`
+	Hostname     string `json:"hostname"`
+	OverridePort int32  `json:"override_port"`
+}
+
 func init() {
-	register.RegisterPoint(NewClient)
+	register.RegisterContractPoint("socks5", func(config contractnode.Socks5, dialer netapi.Proxy) (netapi.Proxy, error) {
+		return NewClient(Config{
+			User:         config.User,
+			Password:     config.Password,
+			Hostname:     config.Hostname,
+			OverridePort: config.OverridePort,
+		}, dialer)
+	})
 }
 
 // New returns a new Socks5 client
-func NewClient(config *node.Socks5, dialer netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(config Config, dialer netapi.Proxy) (netapi.Proxy, error) {
 	return &Client{
 		dialer:       dialer,
-		username:     config.GetUser(),
-		password:     config.GetPassword(),
-		hostname:     config.GetHostname(),
-		overridePort: uint16(config.GetOverridePort()),
+		username:     config.User,
+		password:     config.Password,
+		hostname:     config.Hostname,
+		overridePort: uint16(config.OverridePort),
 	}, nil
 }
 
