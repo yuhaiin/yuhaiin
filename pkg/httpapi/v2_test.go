@@ -44,19 +44,11 @@ func TestV2InboundCRUD(t *testing.T) {
 		ID:      "reversehttp",
 		Name:    "Reverse HTTP",
 		Enabled: true,
-		Network: contractinbound.Network{
-			Type:   contractinbound.NetworkTCPUDP,
-			TCPUDP: &contractinbound.TCPUDPNetwork{Host: ":9002", UDP: contractinbound.UDPTCPOnly},
-		},
+		Network: contractinbound.NewTypedNetwork(contractinbound.TCPUDPNetwork{Host: ":9002", UDP: contractinbound.UDPTCPOnly}),
 		Transports: []contractinbound.Transport{
-			{Type: contractinbound.TransportNormal, Normal: &contractinbound.NormalTransport{}},
+			contractinbound.NewTypedTransport(contractinbound.NormalTransport{}),
 		},
-		Protocol: contractinbound.Protocol{
-			Type: contractinbound.ProtocolReverseHTTP,
-			ReverseHTTP: &contractinbound.ReverseHTTPProtocol{
-				URL: "http://127.0.0.1:3000",
-			},
-		},
+		Protocol: contractinbound.NewTypedProtocol(contractinbound.ReverseHTTPProtocol{URL: "http://127.0.0.1:3000"}),
 	}
 	body, err := json.Marshal(inbound)
 	if err != nil {

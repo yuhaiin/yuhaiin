@@ -23,19 +23,11 @@ func TestInboundStoreSaveGetListDelete(t *testing.T) {
 		ID:      "reversehttp",
 		Name:    "reversehttp",
 		Enabled: true,
-		Network: contract.Network{
-			Type:   contract.NetworkTCPUDP,
-			TCPUDP: &contract.TCPUDPNetwork{Host: ":9002", UDP: contract.UDPTCPOnly},
-		},
+		Network: contract.NewTypedNetwork(contract.TCPUDPNetwork{Host: ":9002", UDP: contract.UDPTCPOnly}),
 		Transports: []contract.Transport{
-			{Type: contract.TransportNormal, Normal: &contract.NormalTransport{}},
+			contract.NewTypedTransport(contract.NormalTransport{}),
 		},
-		Protocol: contract.Protocol{
-			Type: contract.ProtocolReverseHTTP,
-			ReverseHTTP: &contract.ReverseHTTPProtocol{
-				URL: "http://127.0.0.1:3000",
-			},
-		},
+		Protocol: contract.NewTypedProtocol(contract.ReverseHTTPProtocol{URL: "http://127.0.0.1:3000"}),
 	}
 
 	if err := store.Save(ctx, input, 123); err != nil {
@@ -91,10 +83,7 @@ func TestInboundStoreRejectsInvalidTaggedObject(t *testing.T) {
 		ID:      "broken",
 		Name:    "broken",
 		Enabled: true,
-		Network: contract.Network{
-			Type:  contract.NetworkEmpty,
-			Empty: &contract.EmptyNetwork{},
-		},
+		Network: contract.NewTypedNetwork(contract.EmptyNetwork{}),
 		Protocol: contract.Protocol{
 			Type:  contract.ProtocolReverseHTTP,
 			Mixed: &contract.MixedProtocol{},

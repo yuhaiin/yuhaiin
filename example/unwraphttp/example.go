@@ -53,33 +53,27 @@ func main() {
 		Name:   "unwrap-http-example",
 		Origin: "example",
 		Chain: []contractnode.Protocol{
-			protocol("direct", nil),
-			protocol("tls", contractnode.Object{
-				"enable":               true,
-				"insecure_skip_verify": true,
-				"servernames":          []string{"www.youtube.com"},
+			protocol(contractnode.Direct{}),
+			protocol(contractnode.TLS{
+				Enable:             true,
+				InsecureSkipVerify: true,
+				ServerNames:        []string{"www.youtube.com"},
 			}),
-			protocol("http_termination", contractnode.Object{
-				"headers": map[string]any{
-					"*.youtube.com": map[string]any{
-						"headers": []map[string]any{
-							{
-								"key":   "User-Agent",
-								"value": "curl/8.13.0",
-							},
-							{
-								"key":   "Accept",
-								"value": "*/*",
-							},
+			protocol(contractnode.HTTPTermination{
+				Headers: map[string]contractnode.HTTPHeaders{
+					"*.youtube.com": {
+						Headers: []contractnode.HTTPHeader{
+							{Key: "User-Agent", Value: "curl/8.13.0"},
+							{Key: "Accept", Value: "*/*"},
 						},
 					},
 				},
 			}),
-			protocol("tls_termination", contractnode.Object{
-				"tls": map[string]any{
-					"certificates": []map[string]any{{
-						"cert": []byte(cert),
-						"key":  []byte(key),
+			protocol(contractnode.TLSTermination{
+				TLS: contractnode.ServerTLS{
+					Certificates: []contractnode.Certificate{{
+						Cert: []byte(cert),
+						Key:  []byte(key),
 					}},
 				},
 			}),
@@ -106,7 +100,8 @@ func main() {
 				}
 
 				return conn, nil
-			}},
+			},
+		},
 	}
 
 	resp, err := c.Get("https://www.youtube.com")
@@ -119,8 +114,8 @@ func main() {
 	io.CopyN(os.Stdout, resp.Body, 1024)
 }
 
-func protocol(typ string, value contractnode.Object) contractnode.Protocol {
-	protocol, err := contractnode.NewProtocol(typ, value)
+func protocol[T contractnode.ProtocolPayload](value T) contractnode.Protocol {
+	protocol, err := contractnode.NewTypedProtocol(value)
 	if err != nil {
 		panic(err)
 	}

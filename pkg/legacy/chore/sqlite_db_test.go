@@ -29,36 +29,23 @@ func init() {
 				ID:      name,
 				Name:    name,
 				Enabled: inbound.GetEnabled(),
-				Network: contractinbound.Network{
-					Type:  contractinbound.NetworkEmpty,
-					Empty: &contractinbound.EmptyNetwork{},
+				Network: contractinbound.NewTypedNetwork(contractinbound.EmptyNetwork{}),
+				Transports: []contractinbound.Transport{
+					contractinbound.NewTypedTransport(contractinbound.NormalTransport{}),
 				},
-				Transports: []contractinbound.Transport{{
-					Type:   contractinbound.TransportNormal,
-					Normal: &contractinbound.NormalTransport{},
-				}},
-				Protocol: contractinbound.Protocol{
-					Type: contractinbound.ProtocolNone,
-					None: &contractinbound.NoneProtocol{},
-				},
+				Protocol: contractinbound.NewTypedProtocol(contractinbound.NoneProtocol{}),
 			}
 			if tcpudp := inbound.GetTcpudp(); tcpudp != nil {
-				out.Network = contractinbound.Network{
-					Type: contractinbound.NetworkTCPUDP,
-					TCPUDP: &contractinbound.TCPUDPNetwork{
-						Host: tcpudp.GetHost(),
-						UDP:  contractinbound.UDPEnabled,
-					},
-				}
+				out.Network = contractinbound.NewTypedNetwork(contractinbound.TCPUDPNetwork{
+					Host: tcpudp.GetHost(),
+					UDP:  contractinbound.UDPEnabled,
+				})
 			}
 			if mixed := inbound.GetMix(); mixed != nil {
-				out.Protocol = contractinbound.Protocol{
-					Type: contractinbound.ProtocolMixed,
-					Mixed: &contractinbound.MixedProtocol{
-						Username: mixed.GetUsername(),
-						Password: mixed.GetPassword(),
-					},
-				}
+				out.Protocol = contractinbound.NewTypedProtocol(contractinbound.MixedProtocol{
+					Username: mixed.GetUsername(),
+					Password: mixed.GetPassword(),
+				})
 			}
 			return out, nil, nil
 		},

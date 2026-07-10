@@ -43,7 +43,7 @@ func ConvertLegacyNode(old *LegacyPoint) (contractnode.Node, []Warning, error) {
 		out.Chain = append(out.Chain, converted)
 	}
 	if len(out.Chain) == 0 {
-		direct, err := contractnode.NewProtocol("direct", nil)
+		direct, err := contractnode.NewTypedProtocol(contractnode.Direct{})
 		if err != nil {
 			return contractnode.Node{}, warnings, err
 		}
@@ -97,73 +97,73 @@ func convertLegacyNodeProtocol(old *legacy.Protocol) (contractnode.Protocol, err
 	}
 	switch {
 	case old.GetShadowsocks() != nil:
-		return legacyProtocolObject("shadowsocks", old.GetShadowsocks())
+		return legacyProtocolObject[contractnode.Shadowsocks](old.GetShadowsocks())
 	case old.GetShadowsocksr() != nil:
-		return legacyProtocolObject("shadowsocksr", old.GetShadowsocksr())
+		return legacyProtocolObject[contractnode.Shadowsocksr](old.GetShadowsocksr())
 	case old.GetVmess() != nil:
-		return legacyProtocolObject("vmess", old.GetVmess())
+		return legacyProtocolObject[contractnode.Vmess](old.GetVmess())
 	case old.GetWebsocket() != nil:
-		return legacyProtocolObject("websocket", old.GetWebsocket())
+		return legacyProtocolObject[contractnode.Websocket](old.GetWebsocket())
 	case old.GetQuic() != nil:
-		return legacyProtocolObject("quic", old.GetQuic())
+		return legacyProtocolObject[contractnode.Quic](old.GetQuic())
 	case old.GetObfsHttp() != nil:
-		return legacyProtocolObject("obfs_http", old.GetObfsHttp())
+		return legacyProtocolObject[contractnode.ObfsHTTP](old.GetObfsHttp())
 	case old.GetTrojan() != nil:
-		return legacyProtocolObject("trojan", old.GetTrojan())
+		return legacyProtocolObject[contractnode.Trojan](old.GetTrojan())
 	case old.GetSimple() != nil:
-		return legacyProtocolObject("simple", old.GetSimple())
+		return legacyProtocolObject[contractnode.Simple](old.GetSimple())
 	case old.GetNone() != nil:
-		return legacyProtocolObject("none", old.GetNone())
+		return legacyProtocolObject[contractnode.None](old.GetNone())
 	case old.GetSocks5() != nil:
-		return legacyProtocolObject("socks5", old.GetSocks5())
+		return legacyProtocolObject[contractnode.Socks5](old.GetSocks5())
 	case old.GetHttp() != nil:
-		return legacyProtocolObject("http", old.GetHttp())
+		return legacyProtocolObject[contractnode.HTTP](old.GetHttp())
 	case old.GetDirect() != nil:
-		return legacyProtocolObject("direct", old.GetDirect())
+		return legacyProtocolObject[contractnode.Direct](old.GetDirect())
 	case old.GetReject() != nil:
-		return legacyProtocolObject("reject", old.GetReject())
+		return legacyProtocolObject[contractnode.Reject](old.GetReject())
 	case old.GetYuubinsya() != nil:
-		return legacyProtocolObject("yuubinsya", old.GetYuubinsya())
+		return legacyProtocolObject[contractnode.Yuubinsya](old.GetYuubinsya())
 	case old.GetHttp2() != nil:
-		return legacyProtocolObject("http2", old.GetHttp2())
+		return legacyProtocolObject[contractnode.HTTP2](old.GetHttp2())
 	case old.GetReality() != nil:
-		return legacyProtocolObject("reality", old.GetReality())
+		return legacyProtocolObject[contractnode.Reality](old.GetReality())
 	case old.GetTls() != nil:
-		return legacyProtocolObject("tls", old.GetTls())
+		return legacyProtocolObject[contractnode.TLS](old.GetTls())
 	case old.GetWireguard() != nil:
-		return legacyProtocolObject("wireguard", old.GetWireguard())
+		return legacyProtocolObject[contractnode.Wireguard](old.GetWireguard())
 	case old.GetMux() != nil:
-		return legacyProtocolObject("mux", old.GetMux())
+		return legacyProtocolObject[contractnode.Mux](old.GetMux())
 	case old.GetDrop() != nil:
-		return legacyProtocolObject("drop", old.GetDrop())
+		return legacyProtocolObject[contractnode.Drop](old.GetDrop())
 	case old.GetVless() != nil:
-		return legacyProtocolObject("vless", old.GetVless())
+		return legacyProtocolObject[contractnode.Vless](old.GetVless())
 	case old.GetBootstrapDnsWarp() != nil:
-		return legacyProtocolObject("bootstrap_dns_warp", old.GetBootstrapDnsWarp())
+		return legacyProtocolObject[contractnode.BootstrapDNSWarp](old.GetBootstrapDnsWarp())
 	case old.GetTailscale() != nil:
-		return legacyProtocolObject("tailscale", old.GetTailscale())
+		return legacyProtocolObject[contractnode.Tailscale](old.GetTailscale())
 	case old.GetSet() != nil:
-		return legacyProtocolObject("set", old.GetSet())
+		return legacyProtocolObject[contractnode.Set](old.GetSet())
 	case old.GetTlsTermination() != nil:
-		return legacyProtocolObject("tls_termination", old.GetTlsTermination())
+		return legacyProtocolObject[contractnode.TLSTermination](old.GetTlsTermination())
 	case old.GetHttpTermination() != nil:
-		return legacyProtocolObject("http_termination", old.GetHttpTermination())
+		return legacyProtocolObject[contractnode.HTTPTermination](old.GetHttpTermination())
 	case old.GetHttpMock() != nil:
-		return legacyProtocolObject("http_mock", old.GetHttpMock())
+		return legacyProtocolObject[contractnode.HTTPMock](old.GetHttpMock())
 	case old.GetAead() != nil:
-		return legacyProtocolObject("aead", old.GetAead())
+		return legacyProtocolObject[contractnode.AEAD](old.GetAead())
 	case old.GetFixed() != nil:
-		return legacyProtocolObject("fixed", old.GetFixed())
+		return legacyProtocolObject[contractnode.Fixed](old.GetFixed())
 	case old.GetNetworkSplit() != nil:
 		return convertLegacyNetworkSplit(old.GetNetworkSplit())
 	case old.GetCloudflareWarpMasque() != nil:
-		return legacyProtocolObject("cloudflare_warp_masque", old.GetCloudflareWarpMasque())
+		return legacyProtocolObject[contractnode.CloudflareWarpMasque](old.GetCloudflareWarpMasque())
 	case old.GetProxy() != nil:
-		return legacyProtocolObject("proxy", old.GetProxy())
+		return legacyProtocolObject[contractnode.Proxy](old.GetProxy())
 	case old.GetFixedv2() != nil:
-		return legacyProtocolObject("fixedv2", old.GetFixedv2())
+		return legacyProtocolObject[contractnode.FixedV2](old.GetFixedv2())
 	case old.GetPointAsEndpoint() != nil:
-		return legacyProtocolObject("point_as_endpoint", old.GetPointAsEndpoint())
+		return legacyProtocolObject[contractnode.PointAsEndpoint](old.GetPointAsEndpoint())
 	default:
 		return contractnode.Protocol{}, errEmptyLegacyProtocol
 	}
@@ -181,7 +181,7 @@ func convertLegacyNetworkSplit(old *legacy.NetworkSplit) (contractnode.Protocol,
 	if err != nil {
 		return contractnode.Protocol{}, fmt.Errorf("convert network split udp failed: %w", err)
 	}
-	return contractnode.NewProtocol("network_split", contractnode.NetworkSplit{
+	return contractnode.NewTypedProtocol(contractnode.NetworkSplit{
 		TCP: &tcp,
 		UDP: &udp,
 	})
@@ -266,8 +266,30 @@ func convertContractNodeProtocol(in contractnode.Protocol) (*legacy.Protocol, er
 	}
 }
 
-func legacyProtocolObject(typ string, value any) (contractnode.Protocol, error) {
-	return contractnode.NewProtocol(typ, value)
+func legacyProtocolObject[T contractnode.ProtocolPayload](value any) (contractnode.Protocol, error) {
+	if value == nil {
+		var zero T
+		return contractnode.NewTypedProtocol(zero)
+	}
+	if typed, ok := value.(T); ok {
+		return contractnode.NewTypedProtocol(typed)
+	}
+	if typed, ok := value.(*T); ok {
+		if typed == nil {
+			var zero T
+			return contractnode.NewTypedProtocol(zero)
+		}
+		return contractnode.NewTypedProtocol(*typed)
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return contractnode.Protocol{}, fmt.Errorf("marshal legacy protocol object failed: %w", err)
+	}
+	var out T
+	if err := json.Unmarshal(data, &out); err != nil {
+		return contractnode.Protocol{}, fmt.Errorf("decode legacy protocol object failed: %w", err)
+	}
+	return contractnode.NewTypedProtocol(out)
 }
 
 func setLegacyProtocolObject[T any](out *legacy.Protocol, obj any, set func(*T)) (*legacy.Protocol, error) {

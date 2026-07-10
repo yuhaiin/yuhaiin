@@ -48,7 +48,7 @@ func ConvertLegacyInbound(id string, old *legacy.Inbound) (contract.Inbound, []W
 			Entity:  id,
 			Message: err.Error() + "; disabled inbound migrated as none protocol",
 		})
-		protocol = contract.Protocol{Type: contract.ProtocolNone, None: &contract.NoneProtocol{}}
+		protocol = contract.NewTypedProtocol(contract.NoneProtocol{})
 	}
 	out.Protocol = protocol
 
@@ -76,27 +76,21 @@ func ConvertLegacyInbound(id string, old *legacy.Inbound) (contract.Inbound, []W
 func convertLegacyNetwork(old *legacy.Inbound) contract.Network {
 	switch old.WhichNetwork() {
 	case legacy.Inbound_Empty_case:
-		return contract.Network{Type: contract.NetworkEmpty, Empty: &contract.EmptyNetwork{}}
+		return contract.NewTypedNetwork(contract.EmptyNetwork{})
 	case legacy.Inbound_Tcpudp_case:
 		tcpudp := old.GetTcpudp()
-		return contract.Network{
-			Type: contract.NetworkTCPUDP,
-			TCPUDP: &contract.TCPUDPNetwork{
-				Host: tcpudp.GetHost(),
-				UDP:  legacyTCPUDPMode(tcpudp.GetControl()),
-			},
-		}
+		return contract.NewTypedNetwork(contract.TCPUDPNetwork{
+			Host: tcpudp.GetHost(),
+			UDP:  legacyTCPUDPMode(tcpudp.GetControl()),
+		})
 	case legacy.Inbound_Quic_case:
 		quic := old.GetQuic()
-		return contract.Network{
-			Type: contract.NetworkQUIC,
-			QUIC: &contract.QUICNetwork{
-				Host: quic.GetHost(),
-				TLS:  convertLegacyServerTLS(quic.GetTls()),
-			},
-		}
+		return contract.NewTypedNetwork(contract.QUICNetwork{
+			Host: quic.GetHost(),
+			TLS:  convertLegacyServerTLS(quic.GetTls()),
+		})
 	default:
-		return contract.Network{Type: contract.NetworkEmpty, Empty: &contract.EmptyNetwork{}}
+		return contract.NewTypedNetwork(contract.EmptyNetwork{})
 	}
 }
 
@@ -117,98 +111,68 @@ func convertLegacyProtocol(old *legacy.Inbound) (contract.Protocol, error) {
 	switch old.WhichProtocol() {
 	case legacy.Inbound_Http_case:
 		http := old.GetHttp()
-		return contract.Protocol{
-			Type: contract.ProtocolHTTP,
-			HTTP: &contract.HTTPProtocol{
-				Username: http.GetUsername(),
-				Password: http.GetPassword(),
-			},
-		}, nil
+		return contract.NewTypedProtocol(contract.HTTPProtocol{
+			Username: http.GetUsername(),
+			Password: http.GetPassword(),
+		}), nil
 	case legacy.Inbound_Socks5_case:
 		socks5 := old.GetSocks5()
-		return contract.Protocol{
-			Type: contract.ProtocolSocks5,
-			Socks5: &contract.Socks5Protocol{
-				Username: socks5.GetUsername(),
-				Password: socks5.GetPassword(),
-				UDP:      socks5.GetUdp(),
-			},
-		}, nil
+		return contract.NewTypedProtocol(contract.Socks5Protocol{
+			Username: socks5.GetUsername(),
+			Password: socks5.GetPassword(),
+			UDP:      socks5.GetUdp(),
+		}), nil
 	case legacy.Inbound_Yuubinsya_case:
 		yuubinsya := old.GetYuubinsya()
-		return contract.Protocol{
-			Type: contract.ProtocolYuubinsya,
-			Yuubinsya: &contract.YuubinsyaProtocol{
-				Password:    yuubinsya.GetPassword(),
-				UDPCoalesce: yuubinsya.GetUdpCoalesce(),
-			},
-		}, nil
+		return contract.NewTypedProtocol(contract.YuubinsyaProtocol{
+			Password:    yuubinsya.GetPassword(),
+			UDPCoalesce: yuubinsya.GetUdpCoalesce(),
+		}), nil
 	case legacy.Inbound_Mix_case:
 		mixed := old.GetMix()
-		return contract.Protocol{
-			Type: contract.ProtocolMixed,
-			Mixed: &contract.MixedProtocol{
-				Username: mixed.GetUsername(),
-				Password: mixed.GetPassword(),
-			},
-		}, nil
+		return contract.NewTypedProtocol(contract.MixedProtocol{
+			Username: mixed.GetUsername(),
+			Password: mixed.GetPassword(),
+		}), nil
 	case legacy.Inbound_Socks4A_case:
 		socks4a := old.GetSocks4A()
-		return contract.Protocol{
-			Type:    contract.ProtocolSocks4A,
-			Socks4A: &contract.Socks4AProtocol{Username: socks4a.GetUsername()},
-		}, nil
+		return contract.NewTypedProtocol(contract.Socks4AProtocol{Username: socks4a.GetUsername()}), nil
 	case legacy.Inbound_Tproxy_case:
 		tproxy := old.GetTproxy()
-		return contract.Protocol{
-			Type: contract.ProtocolTProxy,
-			TProxy: &contract.TProxyProtocol{
-				Host:         tproxy.GetHost(),
-				DNSHijacking: tproxy.GetDnsHijacking(),
-				ForceFakeIP:  tproxy.GetForceFakeip(),
-			},
-		}, nil
+		return contract.NewTypedProtocol(contract.TProxyProtocol{
+			Host:         tproxy.GetHost(),
+			DNSHijacking: tproxy.GetDnsHijacking(),
+			ForceFakeIP:  tproxy.GetForceFakeip(),
+		}), nil
 	case legacy.Inbound_Redir_case:
 		redir := old.GetRedir()
-		return contract.Protocol{
-			Type:  contract.ProtocolRedir,
-			Redir: &contract.RedirProtocol{Host: redir.GetHost()},
-		}, nil
+		return contract.NewTypedProtocol(contract.RedirProtocol{Host: redir.GetHost()}), nil
 	case legacy.Inbound_Tun_case:
 		tun := old.GetTun()
-		return contract.Protocol{
-			Type: contract.ProtocolTun,
-			Tun: &contract.TunProtocol{
-				Name:          tun.GetName(),
-				MTU:           tun.GetMtu(),
-				ForceFakeIP:   tun.GetForceFakeip(),
-				SkipMulticast: tun.GetSkipMulticast(),
-				Driver:        tun.GetDriver().String(),
-				Portal:        tun.GetPortal(),
-				PortalV6:      tun.GetPortalV6(),
-				Routes:        append([]string(nil), tun.GetRoute().GetRoutes()...),
-				Excludes:      append([]string(nil), tun.GetRoute().GetExcludes()...),
-				PostUp:        append([]string(nil), tun.GetPostUp()...),
-				PostDown:      append([]string(nil), tun.GetPostDown()...),
-			},
-		}, nil
+		return contract.NewTypedProtocol(contract.TunProtocol{
+			Name:          tun.GetName(),
+			MTU:           tun.GetMtu(),
+			ForceFakeIP:   tun.GetForceFakeip(),
+			SkipMulticast: tun.GetSkipMulticast(),
+			Driver:        tun.GetDriver().String(),
+			Portal:        tun.GetPortal(),
+			PortalV6:      tun.GetPortalV6(),
+			Routes:        append([]string(nil), tun.GetRoute().GetRoutes()...),
+			Excludes:      append([]string(nil), tun.GetRoute().GetExcludes()...),
+			PostUp:        append([]string(nil), tun.GetPostUp()...),
+			PostDown:      append([]string(nil), tun.GetPostDown()...),
+		}), nil
 	case legacy.Inbound_ReverseHttp_case:
 		reverseHTTP := old.GetReverseHttp()
-		return contract.Protocol{
-			Type: contract.ProtocolReverseHTTP,
-			ReverseHTTP: &contract.ReverseHTTPProtocol{
-				URL: reverseHTTP.GetUrl(),
-				TLS: convertLegacyClientTLS(reverseHTTP.GetTls()),
-			},
-		}, nil
+		return contract.NewTypedProtocol(contract.ReverseHTTPProtocol{
+			URL: reverseHTTP.GetUrl(),
+			TLS: convertLegacyClientTLS(reverseHTTP.GetTls()),
+		}), nil
 	case legacy.Inbound_ReverseTcp_case:
 		reverseTCP := old.GetReverseTcp()
-		return contract.Protocol{
-			Type:       contract.ProtocolReverseTCP,
-			ReverseTCP: &contract.ReverseTCPProtocol{Target: reverseTCP.GetHost()},
-		}, nil
+		return contract.NewTypedProtocol(contract.ReverseTCPProtocol{Target: reverseTCP.GetHost()}), nil
 	case legacy.Inbound_None_case:
-		return contract.Protocol{Type: contract.ProtocolNone, None: &contract.NoneProtocol{}}, nil
+		return contract.NewTypedProtocol(contract.NoneProtocol{}), nil
 	default:
 		return contract.Protocol{}, fmt.Errorf("legacy inbound protocol is empty")
 	}
@@ -217,61 +181,46 @@ func convertLegacyProtocol(old *legacy.Inbound) (contract.Protocol, error) {
 func convertLegacyTransport(old *legacy.Transport) (contract.Transport, error) {
 	switch old.WhichTransport() {
 	case legacy.Transport_Normal_case:
-		return contract.Transport{Type: contract.TransportNormal, Normal: &contract.NormalTransport{}}, nil
+		return contract.NewTypedTransport(contract.NormalTransport{}), nil
 	case legacy.Transport_Tls_case:
-		return contract.Transport{
-			Type: contract.TransportTLS,
-			TLS:  &contract.TLSTransport{TLS: convertLegacyServerTLS(old.GetTls().GetTls())},
-		}, nil
+		return contract.NewTypedTransport(contract.TLSTransport{TLS: convertLegacyServerTLS(old.GetTls().GetTls())}), nil
 	case legacy.Transport_Mux_case:
-		return contract.Transport{Type: contract.TransportMux, Mux: &contract.MuxTransport{}}, nil
+		return contract.NewTypedTransport(contract.MuxTransport{}), nil
 	case legacy.Transport_Http2_case:
-		return contract.Transport{Type: contract.TransportHTTP2, HTTP2: &contract.HTTP2Transport{}}, nil
+		return contract.NewTypedTransport(contract.HTTP2Transport{}), nil
 	case legacy.Transport_Websocket_case:
-		return contract.Transport{Type: contract.TransportWebSocket, WebSocket: &contract.WebSocketTransport{}}, nil
+		return contract.NewTypedTransport(contract.WebSocketTransport{}), nil
 	case legacy.Transport_Reality_case:
 		reality := old.GetReality()
-		return contract.Transport{
-			Type: contract.TransportReality,
-			Reality: &contract.RealityTransport{
-				ShortIDs:    append([]string(nil), reality.GetShortId()...),
-				ServerNames: append([]string(nil), reality.GetServerName()...),
-				Dest:        reality.GetDest(),
-				PrivateKey:  reality.GetPrivateKey(),
-				PublicKey:   reality.GetPublicKey(),
-				MLDSA65Seed: reality.GetMldsa65Seed(),
-				Debug:       reality.GetDebug(),
-			},
-		}, nil
+		return contract.NewTypedTransport(contract.RealityTransport{
+			ShortIDs:    append([]string(nil), reality.GetShortId()...),
+			ServerNames: append([]string(nil), reality.GetServerName()...),
+			Dest:        reality.GetDest(),
+			PrivateKey:  reality.GetPrivateKey(),
+			PublicKey:   reality.GetPublicKey(),
+			MLDSA65Seed: reality.GetMldsa65Seed(),
+			Debug:       reality.GetDebug(),
+		}), nil
 	case legacy.Transport_TlsAuto_case:
 		tlsAuto := old.GetTlsAuto()
-		return contract.Transport{
-			Type: contract.TransportTLSAuto,
-			TLSAuto: &contract.TLSAutoTransport{
-				ServerNames:  append([]string(nil), tlsAuto.GetServernames()...),
-				NextProtos:   append([]string(nil), tlsAuto.GetNextProtos()...),
-				CACertBase64: append([]byte(nil), tlsAuto.GetCaCert()...),
-				CAKeyBase64:  append([]byte(nil), tlsAuto.GetCaKey()...),
-				ECH:          convertLegacyECH(tlsAuto.GetEch()),
-			},
-		}, nil
+		return contract.NewTypedTransport(contract.TLSAutoTransport{
+			ServerNames:  append([]string(nil), tlsAuto.GetServernames()...),
+			NextProtos:   append([]string(nil), tlsAuto.GetNextProtos()...),
+			CACertBase64: append([]byte(nil), tlsAuto.GetCaCert()...),
+			CAKeyBase64:  append([]byte(nil), tlsAuto.GetCaKey()...),
+			ECH:          convertLegacyECH(tlsAuto.GetEch()),
+		}), nil
 	case legacy.Transport_HttpMock_case:
 		httpMock := old.GetHttpMock()
-		return contract.Transport{
-			Type:     contract.TransportHTTPMock,
-			HTTPMock: &contract.HTTPMockTransport{DataBase64: append([]byte(nil), httpMock.GetData()...)},
-		}, nil
+		return contract.NewTypedTransport(contract.HTTPMockTransport{DataBase64: append([]byte(nil), httpMock.GetData()...)}), nil
 	case legacy.Transport_Aead_case:
 		aead := old.GetAead()
-		return contract.Transport{
-			Type: contract.TransportAEAD,
-			AEAD: &contract.AEADTransport{
-				Password:     aead.GetPassword(),
-				CryptoMethod: aead.GetCryptoMethod().String(),
-			},
-		}, nil
+		return contract.NewTypedTransport(contract.AEADTransport{
+			Password:     aead.GetPassword(),
+			CryptoMethod: aead.GetCryptoMethod().String(),
+		}), nil
 	case legacy.Transport_Proxy_case:
-		return contract.Transport{Type: contract.TransportProxy, Proxy: &contract.ProxyTransport{}}, nil
+		return contract.NewTypedTransport(contract.ProxyTransport{}), nil
 	default:
 		return contract.Transport{}, fmt.Errorf("legacy transport is empty")
 	}

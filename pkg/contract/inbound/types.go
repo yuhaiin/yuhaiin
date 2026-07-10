@@ -2,6 +2,8 @@ package inbound
 
 import (
 	"fmt"
+	"reflect"
+	"strings"
 )
 
 const (
@@ -73,6 +75,13 @@ type QUICNetwork struct {
 }
 
 func (QUICNetwork) NetworkType() string { return NetworkQUIC }
+
+func NewTypedNetwork[T NetworkVariant](value T) Network {
+	var network Network
+	variant := typedVariantPointer(value)
+	setTaggedVariant(&network, variant.Interface().(NetworkVariant).NetworkType(), variant)
+	return network
+}
 
 func (n Network) Variant() (NetworkVariant, error) {
 	switch n.Type {
@@ -218,6 +227,13 @@ func (ReverseTCPProtocol) ProtocolType() string { return ProtocolReverseTCP }
 type NoneProtocol struct{}
 
 func (NoneProtocol) ProtocolType() string { return ProtocolNone }
+
+func NewTypedProtocol[T ProtocolVariant](value T) Protocol {
+	var protocol Protocol
+	variant := typedVariantPointer(value)
+	setTaggedVariant(&protocol, variant.Interface().(ProtocolVariant).ProtocolType(), variant)
+	return protocol
+}
 
 func (p Protocol) Variant() (ProtocolVariant, error) {
 	switch p.Type {
@@ -412,6 +428,65 @@ func (AEADTransport) TransportType() string { return TransportAEAD }
 type ProxyTransport struct{}
 
 func (ProxyTransport) TransportType() string { return TransportProxy }
+
+func NewTypedTransport[T TransportVariant](value T) Transport {
+	var transport Transport
+	variant := typedVariantPointer(value)
+	setTaggedVariant(&transport, variant.Interface().(TransportVariant).TransportType(), variant)
+	return transport
+}
+
+func typedVariantPointer[T any](value T) reflect.Value {
+	variant := reflect.ValueOf(value)
+	if !variant.IsValid() {
+		panic("nil inbound variant")
+	}
+	if variant.Kind() == reflect.Pointer {
+		if variant.IsNil() {
+			variant = reflect.New(variant.Type().Elem())
+		}
+		return variant
+	}
+	pointer := reflect.New(variant.Type())
+	pointer.Elem().Set(variant)
+	return pointer
+}
+
+func setTaggedVariant(target any, typ string, variant reflect.Value) {
+	out := reflect.ValueOf(target)
+	if out.Kind() != reflect.Pointer || out.IsNil() {
+		panic("inbound tagged object target must be a non-nil pointer")
+	}
+	out = out.Elem()
+	typeField := out.FieldByName("Type")
+	if !typeField.IsValid() || !typeField.CanSet() || typeField.Kind() != reflect.String {
+		panic(fmt.Sprintf("inbound tagged object %s has no settable Type field", out.Type()))
+	}
+	typeField.SetString(typ)
+
+	outType := out.Type()
+	for i := 0; i < out.NumField(); i++ {
+		fieldInfo := outType.Field(i)
+		if jsonTagName(fieldInfo.Tag.Get("json")) != typ {
+			continue
+		}
+		field := out.Field(i)
+		if !field.CanSet() || !variant.Type().AssignableTo(field.Type()) {
+			panic(fmt.Sprintf("inbound tagged object field %s cannot accept %s", fieldInfo.Name, variant.Type()))
+		}
+		field.Set(variant)
+		return
+	}
+	panic(fmt.Sprintf("inbound tagged object %s has no variant field for %q", out.Type(), typ))
+}
+
+func jsonTagName(tag string) string {
+	name, _, _ := strings.Cut(tag, ",")
+	if name == "-" {
+		return ""
+	}
+	return name
+}
 
 type ClientTLSConfig struct {
 	Enabled            bool     `json:"enabled"`

@@ -7,7 +7,7 @@ import (
 )
 
 func TestProtocolTaggedObjectJSON(t *testing.T) {
-	protocol, err := NewProtocol("direct", nil)
+	protocol, err := NewTypedProtocol(Direct{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,5 +49,57 @@ func TestProtocolRejectsMismatch(t *testing.T) {
 	}
 	if err := (Protocol{Type: "direct", Direct: &Direct{}, Reject: &Reject{}}).Validate(); err == nil {
 		t.Fatal("expected duplicate concrete object error")
+	}
+}
+
+func TestNewTypedProtocol(t *testing.T) {
+	simple, err := NewTypedProtocol(Simple{Host: "127.0.0.1", Port: 1080})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if simple.Type != "simple" || simple.Simple == nil || simple.Simple.Host != "127.0.0.1" {
+		t.Fatalf("unexpected simple protocol: %#v", simple)
+	}
+	if err := simple.Validate(); err != nil {
+		t.Fatal(err)
+	}
+
+	fixed, err := NewTypedProtocol(Fixed{Host: "127.0.0.1", Port: 1080})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fixed.Type != "fixed" || fixed.Fixed == nil || fixed.Fixed.Host != "127.0.0.1" {
+		t.Fatalf("unexpected fixed protocol: %#v", fixed)
+	}
+	if err := fixed.Validate(); err != nil {
+		t.Fatal(err)
+	}
+
+	direct, err := NewTypedProtocol(Direct{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if direct.Type != "direct" || direct.Direct == nil {
+		t.Fatalf("unexpected direct protocol: %#v", direct)
+	}
+	if err := direct.Validate(); err != nil {
+		t.Fatal(err)
+	}
+
+	tls, err := NewTypedProtocol(&TLS{Enable: true, ServerNames: []string{"example.com"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tls.Type != "tls" || tls.TLS == nil || !tls.TLS.Enable || tls.TLS.ServerNames[0] != "example.com" {
+		t.Fatalf("unexpected tls protocol: %#v", tls)
+	}
+
+	var mux *Mux
+	muxProtocol, err := NewTypedProtocol(mux)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if muxProtocol.Type != "mux" || muxProtocol.Mux == nil {
+		t.Fatalf("unexpected mux protocol: %#v", muxProtocol)
 	}
 }

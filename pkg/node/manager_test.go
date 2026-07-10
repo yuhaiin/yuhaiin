@@ -102,7 +102,7 @@ func TestActiveContractOnlyReturnsRuntimeDialers(t *testing.T) {
 
 func testNode(t *testing.T, id, name string) contractnode.Node {
 	t.Helper()
-	protocol, err := contractnode.NewProtocol("direct", nil)
+	protocol, err := contractnode.NewTypedProtocol(contractnode.Direct{})
 	if err != nil {
 		t.Fatal(err)
 	}

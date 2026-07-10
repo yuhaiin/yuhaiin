@@ -61,3 +61,21 @@ func TestInboundValidateRejectsDuplicateConcreteFields(t *testing.T) {
 		t.Fatal("Validate succeeded with duplicate network concrete fields")
 	}
 }
+
+func TestNewTypedTaggedObjects(t *testing.T) {
+	network := NewTypedNetwork(TCPUDPNetwork{Host: ":9002", UDP: UDPEnabled})
+	if network.Type != NetworkTCPUDP || network.TCPUDP == nil || network.TCPUDP.Host != ":9002" {
+		t.Fatalf("unexpected network: %#v", network)
+	}
+
+	protocol := NewTypedProtocol(&ReverseHTTPProtocol{URL: "http://127.0.0.1:3000"})
+	if protocol.Type != ProtocolReverseHTTP || protocol.ReverseHTTP == nil || protocol.ReverseHTTP.URL != "http://127.0.0.1:3000" {
+		t.Fatalf("unexpected protocol: %#v", protocol)
+	}
+
+	var normal *NormalTransport
+	transport := NewTypedTransport(normal)
+	if transport.Type != TransportNormal || transport.Normal == nil {
+		t.Fatalf("unexpected transport: %#v", transport)
+	}
+}

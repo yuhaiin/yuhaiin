@@ -51,20 +51,20 @@ func main() {
 		Name:   "unwrap-tls-example",
 		Origin: "example",
 		Chain: []contractnode.Protocol{
-			protocol("simple", contractnode.Object{
-				"host": "ip.sb",
-				"port": int32(443),
+			protocol(contractnode.Simple{
+				Host: "ip.sb",
+				Port: 443,
 			}),
-			protocol("tls", contractnode.Object{
-				"enable":               true,
-				"insecure_skip_verify": true,
-				"servernames":          []string{"ip.sb"},
+			protocol(contractnode.TLS{
+				Enable:             true,
+				InsecureSkipVerify: true,
+				ServerNames:        []string{"ip.sb"},
 			}),
-			protocol("tls_termination", contractnode.Object{
-				"tls": map[string]any{
-					"certificates": []map[string]any{{
-						"cert": []byte(cert),
-						"key":  []byte(key),
+			protocol(contractnode.TLSTermination{
+				TLS: contractnode.ServerTLS{
+					Certificates: []contractnode.Certificate{{
+						Cert: []byte(cert),
+						Key:  []byte(key),
 					}},
 				},
 			}),
@@ -104,8 +104,8 @@ func main() {
 	log.Println(buf.String())
 }
 
-func protocol(typ string, value contractnode.Object) contractnode.Protocol {
-	protocol, err := contractnode.NewProtocol(typ, value)
+func protocol[T contractnode.ProtocolPayload](value T) contractnode.Protocol {
+	protocol, err := contractnode.NewTypedProtocol(value)
 	if err != nil {
 		panic(err)
 	}

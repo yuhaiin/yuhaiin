@@ -24,11 +24,11 @@ func main() {
 		Name:   "example",
 		Origin: "example",
 		Chain: []contractnode.Protocol{
-			protocol("simple", contractnode.Object{
-				"host": "127.0.0.1",
-				"port": int32(1080),
+			protocol(contractnode.Simple{
+				Host: "127.0.0.1",
+				Port: 1080,
 			}),
-			protocol("socks5", nil),
+			protocol(contractnode.Socks5{}),
 		},
 	})
 	if err != nil {
@@ -56,8 +56,8 @@ func main() {
 	log.Println(buf.String())
 }
 
-func protocol(typ string, value contractnode.Object) contractnode.Protocol {
-	protocol, err := contractnode.NewProtocol(typ, value)
+func protocol[T contractnode.ProtocolPayload](value T) contractnode.Protocol {
+	protocol, err := contractnode.NewTypedProtocol(value)
 	if err != nil {
 		panic(err)
 	}

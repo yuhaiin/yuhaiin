@@ -29,7 +29,7 @@ func TestSet(t *testing.T) {
 
 	mg := newTestManager(t)
 	p1 := testNode(t, "a", "feefe")
-	fixed, err := contractnode.NewProtocol("fixed", contractnode.Fixed{
+	fixed, err := contractnode.NewTypedProtocol(contractnode.Fixed{
 		Host: host,
 		Port: int32(portInt),
 	})

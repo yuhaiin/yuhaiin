@@ -140,7 +140,7 @@ func TestSqliteNodeStoreUseContractOnlyNode(t *testing.T) {
 
 	dir := t.TempDir()
 	store := NewSqliteNodeStore(paths.PathGenerator.State(dir))
-	protocol, err := contractnode.NewProtocol("direct", nil)
+	protocol, err := contractnode.NewTypedProtocol(contractnode.Direct{})
 	if err != nil {
 		t.Fatalf("create protocol failed: %v", err)
 	}

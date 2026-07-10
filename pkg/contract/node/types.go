@@ -1,9 +1,9 @@
 package node
 
 import (
-	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -290,105 +290,149 @@ type PointAsEndpoint struct {
 	Hash string `json:"hash"`
 }
 
-func NewProtocol(typ string, value any) (Protocol, error) {
-	p := Protocol{Type: typ}
-	switch typ {
-	case "shadowsocks":
-		p.Shadowsocks = protocolValue[Shadowsocks](value)
-	case "shadowsocksr":
-		p.Shadowsocksr = protocolValue[Shadowsocksr](value)
-	case "vmess":
-		p.Vmess = protocolValue[Vmess](value)
-	case "websocket":
-		p.Websocket = protocolValue[Websocket](value)
-	case "quic":
-		p.Quic = protocolValue[Quic](value)
-	case "obfs_http":
-		p.ObfsHTTP = protocolValue[ObfsHTTP](value)
-	case "trojan":
-		p.Trojan = protocolValue[Trojan](value)
-	case "simple":
-		p.Simple = protocolValue[Fixed](value)
-	case "none":
-		p.None = protocolValue[None](value)
-	case "socks5":
-		p.Socks5 = protocolValue[Socks5](value)
-	case "http":
-		p.HTTP = protocolValue[HTTP](value)
-	case "direct":
-		p.Direct = protocolValue[Direct](value)
-	case "reject":
-		p.Reject = protocolValue[Reject](value)
-	case "yuubinsya":
-		p.Yuubinsya = protocolValue[Yuubinsya](value)
-	case "http2":
-		p.HTTP2 = protocolValue[Concurrency](value)
-	case "reality":
-		p.Reality = protocolValue[Reality](value)
-	case "tls":
-		p.TLS = protocolValue[TLS](value)
-	case "wireguard":
-		p.Wireguard = protocolValue[Wireguard](value)
-	case "mux":
-		p.Mux = protocolValue[Concurrency](value)
-	case "drop":
-		p.Drop = protocolValue[Drop](value)
-	case "vless":
-		p.Vless = protocolValue[Vless](value)
-	case "bootstrap_dns_warp":
-		p.BootstrapDNSWarp = protocolValue[BootstrapDNSWarp](value)
-	case "tailscale":
-		p.Tailscale = protocolValue[Tailscale](value)
-	case "set":
-		p.Set = protocolValue[Set](value)
-	case "tls_termination":
-		p.TLSTermination = protocolValue[TLSTermination](value)
-	case "http_termination":
-		p.HTTPTermination = protocolValue[HTTPTermination](value)
-	case "http_mock":
-		p.HTTPMock = protocolValue[HTTPMock](value)
-	case "aead":
-		p.AEAD = protocolValue[AEAD](value)
-	case "fixed":
-		p.Fixed = protocolValue[Fixed](value)
-	case "network_split":
-		p.NetworkSplit = protocolValue[NetworkSplit](value)
-	case "cloudflare_warp_masque":
-		p.CloudflareWarpMasque = protocolValue[CloudflareWarpMasque](value)
-	case "proxy":
-		p.Proxy = protocolValue[Proxy](value)
-	case "fixedv2":
-		p.FixedV2 = protocolValue[FixedV2](value)
-	case "point_as_endpoint":
-		p.PointAsEndpoint = protocolValue[PointAsEndpoint](value)
-	default:
-		return Protocol{}, fmt.Errorf("unknown node protocol type %q", typ)
-	}
-	return p, nil
+type Simple Fixed
+type HTTP2 Concurrency
+type Mux Concurrency
+
+type ProtocolVariant interface{ ProtocolType() string }
+
+func (Shadowsocks) ProtocolType() string          { return "shadowsocks" }
+func (Shadowsocksr) ProtocolType() string         { return "shadowsocksr" }
+func (Vmess) ProtocolType() string                { return "vmess" }
+func (Websocket) ProtocolType() string            { return "websocket" }
+func (Quic) ProtocolType() string                 { return "quic" }
+func (ObfsHTTP) ProtocolType() string             { return "obfs_http" }
+func (Trojan) ProtocolType() string               { return "trojan" }
+func (Simple) ProtocolType() string               { return "simple" }
+func (None) ProtocolType() string                 { return "none" }
+func (Socks5) ProtocolType() string               { return "socks5" }
+func (HTTP) ProtocolType() string                 { return "http" }
+func (Direct) ProtocolType() string               { return "direct" }
+func (Reject) ProtocolType() string               { return "reject" }
+func (Yuubinsya) ProtocolType() string            { return "yuubinsya" }
+func (HTTP2) ProtocolType() string                { return "http2" }
+func (Reality) ProtocolType() string              { return "reality" }
+func (TLS) ProtocolType() string                  { return "tls" }
+func (Wireguard) ProtocolType() string            { return "wireguard" }
+func (Mux) ProtocolType() string                  { return "mux" }
+func (Drop) ProtocolType() string                 { return "drop" }
+func (Vless) ProtocolType() string                { return "vless" }
+func (BootstrapDNSWarp) ProtocolType() string     { return "bootstrap_dns_warp" }
+func (Tailscale) ProtocolType() string            { return "tailscale" }
+func (Set) ProtocolType() string                  { return "set" }
+func (TLSTermination) ProtocolType() string       { return "tls_termination" }
+func (HTTPTermination) ProtocolType() string      { return "http_termination" }
+func (HTTPMock) ProtocolType() string             { return "http_mock" }
+func (AEAD) ProtocolType() string                 { return "aead" }
+func (Fixed) ProtocolType() string                { return "fixed" }
+func (NetworkSplit) ProtocolType() string         { return "network_split" }
+func (CloudflareWarpMasque) ProtocolType() string { return "cloudflare_warp_masque" }
+func (Proxy) ProtocolType() string                { return "proxy" }
+func (FixedV2) ProtocolType() string              { return "fixedv2" }
+func (PointAsEndpoint) ProtocolType() string      { return "point_as_endpoint" }
+
+type ProtocolPayload interface {
+	ProtocolVariant
 }
 
-func protocolValue[T any](value any) *T {
-	if value == nil {
-		return new(T)
-	}
-	if typed, ok := value.(T); ok {
-		return &typed
-	}
-	if typed, ok := value.(*T); ok {
-		if typed == nil {
-			return new(T)
+func NewTypedProtocol[T ProtocolPayload](value T) (Protocol, error) {
+	switch v := any(value).(type) {
+	case Simple:
+		return newTaggedProtocol("simple", Fixed(v))
+	case *Simple:
+		if v == nil {
+			return newTaggedProtocol("simple", Fixed{})
 		}
-		return typed
+		return newTaggedProtocol("simple", Fixed(*v))
+	case HTTP2:
+		return newTaggedProtocol("http2", Concurrency(v))
+	case *HTTP2:
+		if v == nil {
+			return newTaggedProtocol("http2", Concurrency{})
+		}
+		return newTaggedProtocol("http2", Concurrency(*v))
+	case Mux:
+		return newTaggedProtocol("mux", Concurrency(v))
+	case *Mux:
+		if v == nil {
+			return newTaggedProtocol("mux", Concurrency{})
+		}
+		return newTaggedProtocol("mux", Concurrency(*v))
 	}
-	data, err := json.Marshal(value)
+
+	variant, err := typedProtocolVariantPointer(value)
 	if err != nil {
-		return new(T)
+		return Protocol{}, err
 	}
-	var out T
-	if err := json.Unmarshal(data, &out); err != nil {
-		return new(T)
+	return newProtocolFromReflectValue(variant.Interface().(ProtocolVariant).ProtocolType(), variant)
+}
+
+func newTaggedProtocol[T any](typ string, value T) (Protocol, error) {
+	variant, err := typedProtocolVariantPointer(value)
+	if err != nil {
+		return Protocol{}, err
 	}
-	return &out
+	return newProtocolFromReflectValue(typ, variant)
+}
+
+func typedProtocolVariantPointer[T any](value T) (reflect.Value, error) {
+	variant := reflect.ValueOf(value)
+	if !variant.IsValid() {
+		return reflect.Value{}, errors.New("node protocol variant is nil")
+	}
+	if variant.Kind() == reflect.Pointer {
+		if variant.IsNil() {
+			variant = reflect.New(variant.Type().Elem())
+		}
+		return variant, nil
+	}
+	pointer := reflect.New(variant.Type())
+	pointer.Elem().Set(variant)
+	return pointer, nil
+}
+
+func newProtocolFromReflectValue(typ string, variant reflect.Value) (Protocol, error) {
+	var protocol Protocol
+	if err := setTaggedProtocolVariant(&protocol, typ, variant); err != nil {
+		return Protocol{}, err
+	}
+	return protocol, nil
+}
+
+func setTaggedProtocolVariant(protocol *Protocol, typ string, variant reflect.Value) error {
+	out := reflect.ValueOf(protocol)
+	if out.Kind() != reflect.Pointer || out.IsNil() {
+		return errors.New("node protocol target must be a non-nil pointer")
+	}
+	out = out.Elem()
+	typeField := out.FieldByName("Type")
+	if !typeField.IsValid() || !typeField.CanSet() || typeField.Kind() != reflect.String {
+		return fmt.Errorf("node protocol %s has no settable Type field", out.Type())
+	}
+	typeField.SetString(typ)
+
+	outType := out.Type()
+	for i := 0; i < out.NumField(); i++ {
+		fieldInfo := outType.Field(i)
+		if jsonTagName(fieldInfo.Tag.Get("json")) != typ {
+			continue
+		}
+		field := out.Field(i)
+		if !field.CanSet() || !variant.Type().AssignableTo(field.Type()) {
+			return fmt.Errorf("node protocol field %s cannot accept %s", fieldInfo.Name, variant.Type())
+		}
+		field.Set(variant)
+		return nil
+	}
+	return fmt.Errorf("node protocol has no variant field for %q", typ)
+}
+
+func jsonTagName(tag string) string {
+	name, _, _ := strings.Cut(tag, ",")
+	if name == "-" {
+		return ""
+	}
+	return name
 }
 
 func (x Node) Validate() error {

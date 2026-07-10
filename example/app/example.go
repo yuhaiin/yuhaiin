@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
-	"github.com/Asutorufa/yuhaiin/pkg/legacy/chore"
+	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 )
@@ -23,7 +23,7 @@ func main() {
 	}
 	defer os.RemoveAll(dir)
 
-	db := chore.NewSqliteDB(paths.PathGenerator.State(dir))
+	db := migrate.NewStateDB(paths.PathGenerator.State(dir))
 	instance, err := app.Start(&app.StartOptions{
 		ConfigPath:     dir,
 		Auth:           nil,
@@ -39,7 +39,7 @@ func main() {
 	}
 	defer instance.Close()
 
-	direct, err := contractnode.NewProtocol("direct", nil)
+	direct, err := contractnode.NewTypedProtocol(contractnode.Direct{})
 	if err != nil {
 		panic(err)
 	}
