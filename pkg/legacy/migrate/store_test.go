@@ -3,11 +3,13 @@ package migrate
 import (
 	"context"
 	json "encoding/json/v2"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	legacyconfig "github.com/Asutorufa/yuhaiin/pkg/legacy/schema/config"
 	legacynode "github.com/Asutorufa/yuhaiin/pkg/legacy/schema/node"
@@ -67,6 +69,70 @@ func TestMigrateLegacyInbounds(t *testing.T) {
 	assertMarker(t, ctx, sqliteStore, "plain_inbounds_migration_done")
 }
 
+func TestRecoverLegacyInboundTransportsFromConfig(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(dir, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sqliteStore.Close() }()
+
+	inbound := contractinbound.Inbound{
+		ID:      "http2",
+		Name:    "http2",
+		Enabled: true,
+		Network: contractinbound.NewTypedNetwork(contractinbound.TCPUDPNetwork{Host: ":443", UDP: contractinbound.UDPEnabled}),
+		Transports: []contractinbound.Transport{
+			contractinbound.NewTypedTransport(contractinbound.TLSAutoTransport{}),
+		},
+		Protocol: contractinbound.NewTypedProtocol(contractinbound.YuubinsyaProtocol{}),
+	}
+	if err := plainstore.SaveInboundContract(ctx, sqliteStore.DB(), inbound, 100); err != nil {
+		t.Fatal(err)
+	}
+	config := `{
+		"server": {
+			"inbounds": {
+				"http2": {
+					"transport": [
+						{"proxy": {}},
+						{"http_mock": {"data": null}},
+						{"tls_auto": {}},
+						{"grpc": {}},
+						{"http2": {}},
+						{"websocket": {}},
+						{"aead": {"password": "secret", "crypto_method": "XChacha20Poly1305"}}
+					]
+				}
+			}
+		}
+	}`
+	configPath := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := RecoverLegacyInboundTransportsFromConfig(ctx, sqliteStore.DB(), configPath); err != nil {
+		t.Fatal(err)
+	}
+	got, err := plainstore.NewInboundStore(sqliteStore.DB()).Get(ctx, "http2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var types []string
+	for _, transport := range got.Transports {
+		types = append(types, transport.Type)
+	}
+	if joined := strings.Join(types, ","); joined != "proxy,http_mock,tls_auto,http2,websocket,aead" {
+		t.Fatalf("recovered transports = %q", joined)
+	}
+	if got.Transports[5].AEAD.Password != "secret" || got.Transports[5].AEAD.CryptoMethod != "XChacha20Poly1305" {
+		t.Fatalf("recovered aead = %#v", got.Transports[5].AEAD)
+	}
+	assertMarker(t, ctx, sqliteStore, inboundTransportRecoveryDoneKey)
+}
+
 func TestMigrateLegacyNodesBackfillsWhenMarkerDoneButContractsEmpty(t *testing.T) {
 	ctx := context.Background()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
@@ -110,6 +176,80 @@ func TestMigrateLegacyNodesBackfillsWhenMarkerDoneButContractsEmpty(t *testing.T
 	}
 	assertMetadataValue(t, ctx, sqliteStore, "selected_tcp_node_v2", "hash-1")
 	assertMetadataValue(t, ctx, sqliteStore, "selected_udp_node_v2", "hash-1")
+}
+
+func TestRecoverLegacyNodeChainsRestoresPartialNetworkSplit(t *testing.T) {
+	ctx := context.Background()
+	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sqliteStore.Close() }()
+
+	password := "secret"
+	legacyPoint := legacyconfigPointForPartialNetworkSplit(password)
+	legacyJSON, err := json.Marshal(legacyPoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sqliteStore.DB().ExecContext(ctx, `
+		INSERT INTO nodes(hash, group_name, name, origin, selected_tcp, selected_udp, search_text, updated_at, data_json)
+		VALUES ('partial-split', 'manual', 'partial-split', ?, 0, 0, '', 100, ?)
+	`, int(legacynode.Origin_manual), string(legacyJSON)); err != nil {
+		t.Fatal(err)
+	}
+	current := contractnode.Node{
+		ID:      "partial-split",
+		Name:    "partial-split",
+		Group:   "manual",
+		Origin:  "manual",
+		Enabled: true,
+		Chain: []contractnode.Protocol{
+			mustNodeProtocol(t, contractnode.Yuubinsya{Password: password}),
+		},
+	}
+	if err := plainstore.SaveNodeContract(ctx, sqliteStore.DB(), current, 100); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := RecoverLegacyNodeChains(ctx, sqliteStore.DB()); err != nil {
+		t.Fatal(err)
+	}
+	got, err := plainstore.NewNodeStore(sqliteStore.DB()).Get(ctx, "partial-split")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Chain) != 2 || got.Chain[0].Type != "network_split" || got.Chain[0].NetworkSplit.UDP == nil || got.Chain[0].NetworkSplit.TCP != nil {
+		t.Fatalf("recovered chain = %#v", got.Chain)
+	}
+	assertMarker(t, ctx, sqliteStore, nodeChainRecoveryDoneKey)
+}
+
+func legacyconfigPointForPartialNetworkSplit(password string) *legacynode.Point {
+	return legacynode.Point_builder{
+		Hash:   ptr("partial-split"),
+		Name:   ptr("partial-split"),
+		Group:  ptr("manual"),
+		Origin: legacynode.Origin_manual.Enum(),
+		Protocols: []*legacynode.Protocol{
+			legacynode.Protocol_builder{NetworkSplit: legacynode.NetworkSplit_builder{
+				Udp: legacynode.Protocol_builder{Aead: legacynode.Aead_builder{
+					Password:     &password,
+					CryptoMethod: legacynode.AeadCryptoMethod_XChacha20Poly1305.Enum(),
+				}.Build()}.Build(),
+			}.Build()}.Build(),
+			legacynode.Protocol_builder{Yuubinsya: legacynode.Yuubinsya_builder{Password: &password}.Build()}.Build(),
+		},
+	}.Build()
+}
+
+func mustNodeProtocol(t *testing.T, value contractnode.ProtocolPayload) contractnode.Protocol {
+	t.Helper()
+	protocol, err := contractnode.NewTypedProtocol(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return protocol
 }
 
 func TestMigrateLegacyNodesDoesNotOverwriteValidSelection(t *testing.T) {

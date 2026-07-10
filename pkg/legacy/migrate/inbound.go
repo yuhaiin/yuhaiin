@@ -56,7 +56,7 @@ func ConvertLegacyInbound(id string, old *legacy.Inbound) (contract.Inbound, []W
 		if oldTransport.WhichTransport() == legacy.Transport_Transport_not_set_case {
 			warnings = append(warnings, Warning{
 				Entity:  id,
-				Message: fmt.Sprintf("legacy inbound transport[%d] is empty; dropped during migration", index),
+				Message: fmt.Sprintf("legacy inbound transport[%d] has no concrete object in SQLite; deferred to config.json recovery", index),
 			})
 			continue
 		}

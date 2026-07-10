@@ -130,6 +130,36 @@ func TestConvertLegacyNodeConvertsNestedAEADCryptoMethod(t *testing.T) {
 	}
 }
 
+func TestConvertLegacyNodePreservesPartialNetworkSplit(t *testing.T) {
+	password := "secret"
+	point := (&legacy.Point_builder{
+		Hash:   ptr("udp-only-split"),
+		Name:   ptr("udp-only-split"),
+		Origin: legacy.Origin_manual.Enum(),
+		Protocols: []*legacy.Protocol{
+			(&legacy.Protocol_builder{
+				NetworkSplit: (&legacy.NetworkSplit_builder{
+					Udp: (&legacy.Protocol_builder{Aead: (&legacy.Aead_builder{
+						Password:     &password,
+						CryptoMethod: legacy.AeadCryptoMethod_XChacha20Poly1305.Enum(),
+					}).Build()}).Build(),
+				}).Build(),
+			}).Build(),
+		},
+	}).Build()
+
+	node, _, err := ConvertLegacyNode(point)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if node.Chain[0].NetworkSplit.TCP != nil || node.Chain[0].NetworkSplit.UDP == nil {
+		t.Fatalf("network split = %#v", node.Chain[0].NetworkSplit)
+	}
+	if got := node.Chain[0].NetworkSplit.UDP.AEAD.CryptoMethod; got != "XChacha20Poly1305" {
+		t.Fatalf("udp crypto method = %q", got)
+	}
+}
+
 func TestConvertLegacyNodeConvertsSetStrategy(t *testing.T) {
 	point := (&legacy.Point_builder{
 		Hash:   ptr("n1"),

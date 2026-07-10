@@ -173,17 +173,27 @@ func convertLegacyNetworkSplit(old *legacy.NetworkSplit) (contractnode.Protocol,
 	if old == nil {
 		return contractnode.Protocol{}, errors.New("legacy network split is nil")
 	}
-	tcp, err := convertLegacyNodeProtocol(old.GetTcp())
-	if err != nil {
-		return contractnode.Protocol{}, fmt.Errorf("convert network split tcp failed: %w", err)
+	var tcp, udp *contractnode.Protocol
+	if old.GetTcp() != nil {
+		converted, err := convertLegacyNodeProtocol(old.GetTcp())
+		if err != nil {
+			return contractnode.Protocol{}, fmt.Errorf("convert network split tcp failed: %w", err)
+		}
+		tcp = &converted
 	}
-	udp, err := convertLegacyNodeProtocol(old.GetUdp())
-	if err != nil {
-		return contractnode.Protocol{}, fmt.Errorf("convert network split udp failed: %w", err)
+	if old.GetUdp() != nil {
+		converted, err := convertLegacyNodeProtocol(old.GetUdp())
+		if err != nil {
+			return contractnode.Protocol{}, fmt.Errorf("convert network split udp failed: %w", err)
+		}
+		udp = &converted
+	}
+	if tcp == nil && udp == nil {
+		return contractnode.Protocol{}, errEmptyLegacyProtocol
 	}
 	return contractnode.NewTypedProtocol(contractnode.NetworkSplit{
-		TCP: &tcp,
-		UDP: &udp,
+		TCP: tcp,
+		UDP: udp,
 	})
 }
 

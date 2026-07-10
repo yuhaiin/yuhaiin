@@ -139,7 +139,7 @@ func TestConvertLegacyInboundDropsEmptyTransport(t *testing.T) {
 	if len(got.Transports) != 0 {
 		t.Fatalf("transports = %+v", got.Transports)
 	}
-	if len(warnings) != 1 || !strings.Contains(warnings[0].Message, "transport[0] is empty") {
+	if len(warnings) != 1 || !strings.Contains(warnings[0].Message, "transport[0] has no concrete object") {
 		t.Fatalf("warnings = %+v", warnings)
 	}
 }

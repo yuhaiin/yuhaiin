@@ -20,24 +20,31 @@ func init() {
 		return NewBootstrapDnsWarp(p), nil
 	})
 	RegisterContractPoint("network_split", func(config contractnode.NetworkSplit, p netapi.Proxy) (netapi.Proxy, error) {
-		if config.TCP == nil {
-			return nil, errors.New("network split tcp protocol is empty")
+		if config.TCP == nil && config.UDP == nil {
+			return nil, errors.New("network split protocols are empty")
 		}
-		if config.UDP == nil {
-			return nil, errors.New("network split udp protocol is empty")
-		}
-		if config.TCP.Type == "network_split" || config.UDP.Type == "network_split" {
+		if (config.TCP != nil && config.TCP.Type == "network_split") || (config.UDP != nil && config.UDP.Type == "network_split") {
 			return nil, errors.New("nested network split is not supported")
 		}
 
-		tcp, err := ContractWrap(*config.TCP, p)
-		if err != nil {
-			return nil, err
+		tcp := p
+		if config.TCP != nil {
+			var err error
+			tcp, err = ContractWrap(*config.TCP, p)
+			if err != nil {
+				return nil, err
+			}
 		}
-		udp, err := ContractWrap(*config.UDP, p)
-		if err != nil {
-			_ = tcp.Close()
-			return nil, err
+		udp := p
+		if config.UDP != nil {
+			var err error
+			udp, err = ContractWrap(*config.UDP, p)
+			if err != nil {
+				if config.TCP != nil {
+					_ = tcp.Close()
+				}
+				return nil, err
+			}
 		}
 		return &networkSplit{tcp: tcp, udp: udp, Proxy: p}, nil
 	})

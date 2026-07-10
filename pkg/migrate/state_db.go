@@ -70,6 +70,12 @@ func (s *StateDB) Migrate(ctx context.Context) error {
 	if err := legacymigrate.MigrateLegacyBackup(ctx, db, 0); err != nil {
 		return err
 	}
+	if err := legacymigrate.RecoverLegacyInboundTransportsFromConfig(ctx, db, filepath.Join(filepath.Dir(s.path), "config.json")); err != nil {
+		return err
+	}
+	if err := legacymigrate.RecoverLegacyNodeChains(ctx, db); err != nil {
+		return err
+	}
 	if err := legacymigrate.MigrateLegacyStatisticConnectionJSON(ctx, db); err != nil {
 		return err
 	}
