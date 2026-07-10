@@ -3,25 +3,18 @@ package statistics
 import (
 	"context"
 	"database/sql"
-	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
 var (
 	SyncThreshold int64 = 1024 * 1024 * 50 // bytes
-)
-
-var (
-	legacyDownloadKey = []byte{'D', 'O', 'W', 'N', 'L', 'O', 'A', 'D'}
-	legacyUploadKey   = []byte{'U', 'P', 'L', 'O', 'A', 'D'}
 )
 
 type TotalCache struct {
@@ -45,18 +38,18 @@ type TotalCache struct {
 	triggerdUpload   atomic.Bool
 }
 
-func NewSQLiteTotalCache(path string, legacyFlow ...cache.Geter) *TotalCache {
+func NewSQLiteTotalCache(path string) *TotalCache {
 	ctx := context.Background()
 	store, err := storagesqlite.Open(ctx, path)
 	if err != nil {
 		log.Warn("open sqlite total cache failed", "err", err)
-		return newSQLiteTotalCache(nil, nil, legacyFlow...)
+		return newSQLiteTotalCache(nil, nil)
 	}
 
-	return newSQLiteTotalCache(store.DB(), store.Close, legacyFlow...)
+	return newSQLiteTotalCache(store.DB(), store.Close)
 }
 
-func newSQLiteTotalCache(db *sql.DB, closeDB func() error, legacyFlow ...cache.Geter) *TotalCache {
+func newSQLiteTotalCache(db *sql.DB, closeDB func() error) *TotalCache {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &TotalCache{
 		ctx:              ctx,
@@ -67,12 +60,6 @@ func newSQLiteTotalCache(db *sql.DB, closeDB func() error, legacyFlow ...cache.G
 		triggerUpload:    make(chan struct{}),
 		triggerdDownload: atomic.Bool{},
 		triggerdUpload:   atomic.Bool{},
-	}
-
-	if db != nil && len(legacyFlow) > 0 {
-		if err := importLegacyTotalCache(ctx, db, legacyFlow[0]); err != nil {
-			log.Warn("import legacy total flow failed", "err", err)
-		}
 	}
 
 	if db != nil {
@@ -201,64 +188,6 @@ func loadSQLiteTotal(ctx context.Context, db *sql.DB) (download uint64, upload u
 	return download, upload, nil
 }
 
-func importLegacyTotalCache(ctx context.Context, db *sql.DB, legacy cache.Geter) error {
-	if db == nil || legacy == nil {
-		return nil
-	}
-
-	done, err := loadStatisticsMetadata(ctx, db, "legacy_total_flow_import_done")
-	if err != nil {
-		return err
-	}
-	if done == "1" {
-		return nil
-	}
-
-	download, upload, err := loadSQLiteTotal(ctx, db)
-	if err != nil {
-		return err
-	}
-	if download != 0 || upload != 0 {
-		return updateStatisticsMetadata(ctx, db, map[string]string{
-			"legacy_total_flow_import_done":   "1",
-			"legacy_total_flow_import_source": "existing_sqlite",
-		})
-	}
-
-	download, err = loadLegacyFlowValue(legacy, legacyDownloadKey)
-	if err != nil {
-		return fmt.Errorf("load legacy download total failed: %w", err)
-	}
-	upload, err = loadLegacyFlowValue(legacy, legacyUploadKey)
-	if err != nil {
-		return fmt.Errorf("load legacy upload total failed: %w", err)
-	}
-
-	source := "missing"
-	if download != 0 || upload != 0 {
-		if err := persistSQLiteTotal(ctx, db, 0, 0, download, upload); err != nil {
-			return err
-		}
-		source = "pebble_flow_data"
-	}
-
-	return updateStatisticsMetadata(ctx, db, map[string]string{
-		"legacy_total_flow_import_done":   "1",
-		"legacy_total_flow_import_source": source,
-	})
-}
-
-func loadLegacyFlowValue(legacy cache.Geter, key []byte) (uint64, error) {
-	data, err := legacy.Get(key)
-	if err != nil {
-		return 0, err
-	}
-	if len(data) < 8 {
-		return 0, nil
-	}
-	return binary.BigEndian.Uint64(data), nil
-}
-
 func persistSQLiteTotal(ctx context.Context, db *sql.DB, downloadDelta, uploadDelta, totalDownload, totalUpload uint64) error {
 	if db == nil {
 		return nil
@@ -297,41 +226,6 @@ func persistSQLiteTotal(ctx context.Context, db *sql.DB, downloadDelta, uploadDe
 				updated_at = excluded.updated_at
 		`, bucket, uploadDelta, downloadDelta, now); err != nil {
 			return err
-		}
-	}
-
-	return tx.Commit()
-}
-
-func loadStatisticsMetadata(ctx context.Context, queryer interface {
-	QueryRowContext(context.Context, string, ...any) *sql.Row
-}, key string) (string, error) {
-	var value string
-	err := queryer.QueryRowContext(ctx, `SELECT value FROM metadata WHERE key = ?`, key).Scan(&value)
-	switch {
-	case err == nil:
-		return value, nil
-	case err == sql.ErrNoRows:
-		return "", nil
-	default:
-		return "", fmt.Errorf("load statistics metadata %q failed: %w", key, err)
-	}
-}
-
-func updateStatisticsMetadata(ctx context.Context, db *sql.DB, values map[string]string) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	for key, value := range values {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO metadata(key, value)
-			VALUES (?, ?)
-			ON CONFLICT(key) DO UPDATE SET value = excluded.value
-		`, key, value); err != nil {
-			return fmt.Errorf("update statistics metadata %q failed: %w", key, err)
 		}
 	}
 

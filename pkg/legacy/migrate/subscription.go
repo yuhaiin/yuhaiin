@@ -1,11 +1,80 @@
 package migrate
 
 import (
+	"context"
+	"database/sql"
+	json "encoding/json/v2"
+	"fmt"
+	"time"
+
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractsubscription "github.com/Asutorufa/yuhaiin/pkg/contract/subscription"
 	schemaapi "github.com/Asutorufa/yuhaiin/pkg/legacy/schema/api"
 	schemanode "github.com/Asutorufa/yuhaiin/pkg/legacy/schema/node"
 )
+
+// MigrateLegacySubscriptions rewrites the shared subscriptions table from
+// legacy Link JSON (whose type is an enum number) to contract Link JSON.
+func MigrateLegacySubscriptions(ctx context.Context, db *sql.DB, updatedAt int64) error {
+	done, err := loadMigrationMarker(ctx, db, "plain_subscriptions_migration_done")
+	if err != nil {
+		return err
+	}
+	if done == "1" {
+		return nil
+	}
+	if updatedAt == 0 {
+		updatedAt = time.Now().Unix()
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin subscription migration transaction failed: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	rows, err := tx.QueryContext(ctx, `SELECT name, data_json FROM subscriptions ORDER BY name`)
+	if err != nil {
+		return fmt.Errorf("query legacy subscriptions failed: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name, dataJSON string
+		if err := rows.Scan(&name, &dataJSON); err != nil {
+			return fmt.Errorf("scan legacy subscription failed: %w", err)
+		}
+		var legacyLink schemanode.Link
+		if err := json.Unmarshal([]byte(dataJSON), &legacyLink); err != nil {
+			return fmt.Errorf("decode legacy subscription %q failed: %w", name, err)
+		}
+		link := contractsubscription.Link{
+			Name: firstNonEmpty(legacyLink.GetName(), name),
+			URL:  legacyLink.GetUrl(),
+			Type: legacyLink.GetType().String(),
+		}
+		data, err := json.Marshal(link)
+		if err != nil {
+			return fmt.Errorf("encode contract subscription %q failed: %w", name, err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE subscriptions
+			SET updated_at = ?, data_json = ?
+			WHERE name = ?
+		`, updatedAt, string(data), name); err != nil {
+			return fmt.Errorf("update contract subscription %q failed: %w", name, err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate legacy subscriptions failed: %w", err)
+	}
+	if err := markMigrationDone(ctx, tx, "plain_subscriptions_migration_done"); err != nil {
+		return fmt.Errorf("mark subscription migration done failed: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit subscription migration failed: %w", err)
+	}
+	return nil
+}
 
 func ConvertLegacyLinks(in *schemaapi.GetLinksResp) contractsubscription.LinkList {
 	var out contractsubscription.LinkList

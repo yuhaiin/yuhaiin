@@ -11,7 +11,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	"github.com/Asutorufa/yuhaiin/pkg/control"
@@ -65,7 +64,7 @@ type HistoryStore interface {
 	Close() error
 }
 
-func NewSQLiteConnStore(path string, dialer netapi.Proxy, legacyFlow ...cache.Geter) *Connections {
+func NewSQLiteConnStore(path string, dialer netapi.Proxy) *Connections {
 	if dialer == nil {
 		dialer = direct.Default
 	}
@@ -80,13 +79,13 @@ func NewSQLiteConnStore(path string, dialer netapi.Proxy, legacyFlow ...cache.Ge
 		db = store.DB()
 	}
 
-	markInterruptedSessions(db)
+	clearPreviousSessions(db)
 
 	return &Connections{
 		Proxy:        dialer,
 		sqliteDB:     db,
 		sqlite:       store,
-		Cache:        newSQLiteTotalCache(db, nil, legacyFlow...),
+		Cache:        newSQLiteTotalCache(db, nil),
 		notify:       newNotify(),
 		faildHistory: newSQLiteFailedHistory(db),
 		counters:     newCounters(),

@@ -25,14 +25,10 @@ func main() {
 
 	db := migrate.NewStateDB(paths.PathGenerator.State(dir))
 	instance, err := app.Start(&app.StartOptions{
-		ConfigPath:     dir,
-		Auth:           nil,
-		ProcessDumper:  nil,
-		BypassConfig:   db,
-		ResolverConfig: db,
-		InboundConfig:  db,
-		ChoreConfig:    db,
-		BackupConfig:   db,
+		ConfigPath:    dir,
+		Auth:          nil,
+		ProcessDumper: nil,
+		StateStore:    db,
 	})
 	if err != nil {
 		panic(err)

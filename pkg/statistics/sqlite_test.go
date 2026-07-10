@@ -2,12 +2,14 @@ package statistics
 
 import (
 	"context"
+	"database/sql"
 	"encoding/binary"
 	"testing"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/memory"
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
+	legacymigrate "github.com/Asutorufa/yuhaiin/pkg/legacy/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
@@ -91,18 +93,11 @@ func TestSQLiteTotalCacheImportsLegacyFlowData(t *testing.T) {
 
 	path := paths.PathGenerator.State(t.TempDir())
 	legacy := memory.NewMemoryCache().NewCache("flow_data")
-	if err := legacy.Put(legacyDownloadKey, binary.BigEndian.AppendUint64(nil, 987)); err != nil {
+	if err := legacy.Put([]byte("DOWNLOAD"), binary.BigEndian.AppendUint64(nil, 987)); err != nil {
 		t.Fatalf("seed legacy download failed: %v", err)
 	}
-	if err := legacy.Put(legacyUploadKey, binary.BigEndian.AppendUint64(nil, 654)); err != nil {
+	if err := legacy.Put([]byte("UPLOAD"), binary.BigEndian.AppendUint64(nil, 654)); err != nil {
 		t.Fatalf("seed legacy upload failed: %v", err)
-	}
-
-	cache := NewSQLiteTotalCache(path, legacy)
-	defer cache.Close()
-
-	if cache.LoadDownload() != 987 || cache.LoadUpload() != 654 {
-		t.Fatalf("unexpected imported totals download=%d upload=%d", cache.LoadDownload(), cache.LoadUpload())
 	}
 
 	store, err := storagesqlite.Open(context.Background(), path)
@@ -110,6 +105,16 @@ func TestSQLiteTotalCacheImportsLegacyFlowData(t *testing.T) {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
 	defer store.Close()
+	if err := legacymigrate.MigrateLegacyTotalFlow(context.Background(), store.DB(), legacy); err != nil {
+		t.Fatalf("import legacy total flow failed: %v", err)
+	}
+
+	cache := NewSQLiteTotalCache(path)
+	defer cache.Close()
+
+	if cache.LoadDownload() != 987 || cache.LoadUpload() != 654 {
+		t.Fatalf("unexpected imported totals download=%d upload=%d", cache.LoadDownload(), cache.LoadUpload())
+	}
 
 	var source string
 	if err := store.DB().QueryRowContext(context.Background(), `
@@ -119,5 +124,60 @@ func TestSQLiteTotalCacheImportsLegacyFlowData(t *testing.T) {
 	}
 	if source != "pebble_flow_data" {
 		t.Fatalf("unexpected import source %q", source)
+	}
+}
+
+func TestSQLiteConnectionSessionsAreRuntimeOnly(t *testing.T) {
+	ctx := context.Background()
+	path := paths.PathGenerator.State(t.TempDir())
+	store, err := storagesqlite.Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	infoStore := newSQLiteInfoStore(store.DB())
+	infoStore.Store(1, contractconnection.Connection{
+		ID:   "1",
+		Addr: "example.com:443",
+		Network: contractconnection.NetworkType{
+			ConnType: "tcp",
+		},
+	})
+	infoStore.Delete(1)
+	assertConnectionSessionCount(t, ctx, store.DB(), 0)
+
+	if _, err := store.DB().ExecContext(ctx, `
+		INSERT INTO connection_sessions(id, opened_at, last_seen_at, state, protocol, summary_json)
+		VALUES (2, 1, 1, 'closed', 'tcp', '{}'), (3, 1, 1, 'open', 'tcp', '{}')
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	connections := NewSQLiteConnStore(path, nil)
+	if err := connections.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	check, err := storagesqlite.Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer check.Close()
+	assertConnectionSessionCount(t, ctx, check.DB(), 0)
+}
+
+func assertConnectionSessionCount(t *testing.T, ctx context.Context, db interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, want int) {
+	t.Helper()
+	var got int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM connection_sessions`).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("connection session count = %d, want %d", got, want)
 	}
 }

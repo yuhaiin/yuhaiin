@@ -58,11 +58,35 @@ func (a *closers) AddCloser(name string, z io.Closer) {
 }
 
 func (a *closers) Close() error {
+	return a.closeExcept("")
+}
+
+func (a *closers) CloseExcept(name string) error {
+	return a.closeExcept(name)
+}
+
+func (a *closers) CloseNamed(name string) error {
+	var err error
+	for _, closer := range a.closers {
+		if closer.name != name {
+			continue
+		}
+		if er := closer.Close(); er != nil {
+			err = errors.Join(err, fmt.Errorf("%s close error: %w", closer.name, er))
+		}
+	}
+	return err
+}
+
+func (a *closers) closeExcept(name string) error {
 	closers := slices.Clone(a.closers)
 	slices.Reverse(closers)
 
 	var err error
 	for _, v := range closers {
+		if v.name == name {
+			continue
+		}
 		if er := v.Close(); er != nil {
 			err = errors.Join(err, fmt.Errorf("%s close error: %w", v.name, er))
 		}
@@ -98,7 +122,7 @@ func registerV2HTTP(app *AppInstance) {
 	var routeRuleStore *plainstore.RouteRuleStore
 	var routeTagStore *plainstore.RouteTagStore
 	subscribeController := app.Subscribe
-	if sqlStore := app.ChoreConfig; sqlStore != nil {
+	if sqlStore := app.StateStore; sqlStore != nil {
 		db, err := sqlStore.SQLDB(context.Background())
 		if err != nil {
 			log.Error("init v2 sqlite store failed", "err", err)
@@ -149,15 +173,42 @@ func registerV2HTTP(app *AppInstance) {
 
 func (a *AppInstance) Close() error {
 	sysproxy.Unset()
-	return a.closers.Close()
+
+	err := a.closers.CloseExcept("state_store")
+	if er := compactStateStore(context.Background(), a.StateStore); er != nil {
+		err = errors.Join(err, fmt.Errorf("compact state store failed: %w", er))
+	}
+	if er := a.closers.CloseNamed("state_store"); er != nil {
+		err = errors.Join(err, er)
+	}
+	return err
+}
+
+func compactStateStore(ctx context.Context, store SQLStore) error {
+	if store == nil {
+		return nil
+	}
+	db, err := store.SQLDB(ctx)
+	if err != nil {
+		return err
+	}
+
+	log.Info("checkpoint state database before vacuum")
+	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		return err
+	}
+	log.Info("vacuum state database")
+	if _, err := db.ExecContext(ctx, "VACUUM"); err != nil {
+		return err
+	}
+	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		return err
+	}
+	return nil
 }
 
 type StartOptions struct {
-	BypassConfig   any
-	ResolverConfig any
-	InboundConfig  any
-	ChoreConfig    SQLStore
-	BackupConfig   any
+	StateStore SQLStore
 
 	ProcessDumper netapi.ProcessDumper
 

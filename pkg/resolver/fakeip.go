@@ -10,7 +10,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -28,7 +27,6 @@ type Fakedns struct {
 	dialer   netapi.Proxy
 	upstream netapi.Resolver
 	dbPath   string
-	legacy   cache.Cache
 
 	dnsServer netapi.DNSAgent
 	fake      *fakeip.FakeDNS
@@ -45,7 +43,7 @@ type Fakedns struct {
 	enabled atomic.Bool
 }
 
-func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, dbPath string, legacy cache.Cache, initial ...contractresolver.FakeDNS) (*Fakedns, error) {
+func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, dbPath string, initial ...contractresolver.FakeDNS) (*Fakedns, error) {
 	ipv4Range, _ := netip.ParsePrefix("10.2.0.1/24")
 	ipv6Range, _ := netip.ParsePrefix("fc00::/64")
 	if len(initial) > 0 {
@@ -53,7 +51,7 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, dbPath string, le
 		ipv6Range = configuration.GetFakeIPRange(initial[0].IPv6Range, true)
 	}
 
-	fake, err := fakeip.NewFakeDNS(upstream, ipv4Range, ipv6Range, dbPath, legacy)
+	fake, err := fakeip.NewFakeDNS(upstream, ipv4Range, ipv6Range, dbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +61,6 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, dbPath string, le
 		dialer:    dialer,
 		upstream:  upstream,
 		dbPath:    dbPath,
-		legacy:    legacy,
 		whitelist: domain.NewTrie[struct{}](),
 		skipCheck: domain.NewTrie[struct{}](),
 	}
@@ -111,7 +108,7 @@ func (f *Fakedns) Apply(c contractresolver.FakeDNS) {
 		return
 	}
 
-	next, err := fakeip.NewFakeDNS(f.upstream, ipRange, ipv6Range, f.dbPath, f.legacy)
+	next, err := fakeip.NewFakeDNS(f.upstream, ipRange, ipv6Range, f.dbPath)
 	if err != nil {
 		log.Error("reload sqlite fakeip pool failed", "err", err)
 		return

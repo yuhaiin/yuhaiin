@@ -31,10 +31,8 @@ func Start(opt *Opts) error {
 	setting := migrate.NewStateDB(paths.PathGenerator.State(opt.Savepath))
 
 	app, err := app.Start(&app.StartOptions{
-		ConfigPath:     opt.Savepath,
-		BypassConfig:   setting,
-		ResolverConfig: setting,
-		ChoreConfig:    setting,
+		ConfigPath: opt.Savepath,
+		StateStore: setting,
 	})
 	if err != nil {
 		return err

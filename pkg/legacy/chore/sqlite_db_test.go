@@ -19,11 +19,13 @@ func init() {
 		MigrateLegacyInbounds: func(context.Context, *sql.DB, int64) ([]PlainMigrationWarning, error) {
 			return nil, nil
 		},
-		MigrateLegacyNodes:      func(context.Context, *sql.DB, int64) error { return nil },
-		MigrateLegacyResolvers:  func(context.Context, *sql.DB, int64) error { return nil },
-		MigrateLegacyRouteRules: func(context.Context, *sql.DB, int64) error { return nil },
-		MigrateLegacyRouteLists: func(context.Context, *sql.DB, int64) error { return nil },
-		MigrateLegacyRouteTags:  func(context.Context, *sql.DB, int64) error { return nil },
+		ImportLegacyNodes:          func(context.Context, *sql.DB, string, int64) error { return nil },
+		MigrateLegacyNodes:         func(context.Context, *sql.DB, int64) error { return nil },
+		MigrateLegacySubscriptions: func(context.Context, *sql.DB, int64) error { return nil },
+		MigrateLegacyResolvers:     func(context.Context, *sql.DB, int64) error { return nil },
+		MigrateLegacyRouteRules:    func(context.Context, *sql.DB, int64) error { return nil },
+		MigrateLegacyRouteLists:    func(context.Context, *sql.DB, int64) error { return nil },
+		MigrateLegacyRouteTags:     func(context.Context, *sql.DB, int64) error { return nil },
 		ConvertLegacyInbound: func(name string, inbound *config.Inbound) (contractinbound.Inbound, []PlainMigrationWarning, error) {
 			out := contractinbound.Inbound{
 				ID:      name,

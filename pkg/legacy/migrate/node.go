@@ -143,7 +143,7 @@ func convertLegacyNodeProtocol(old *legacy.Protocol) (contractnode.Protocol, err
 	case old.GetTailscale() != nil:
 		return legacyProtocolObject[contractnode.Tailscale](old.GetTailscale())
 	case old.GetSet() != nil:
-		return legacyProtocolObject[contractnode.Set](old.GetSet())
+		return convertLegacySet(old.GetSet())
 	case old.GetTlsTermination() != nil:
 		return legacyProtocolObject[contractnode.TLSTermination](old.GetTlsTermination())
 	case old.GetHttpTermination() != nil:
@@ -151,7 +151,7 @@ func convertLegacyNodeProtocol(old *legacy.Protocol) (contractnode.Protocol, err
 	case old.GetHttpMock() != nil:
 		return legacyProtocolObject[contractnode.HTTPMock](old.GetHttpMock())
 	case old.GetAead() != nil:
-		return legacyProtocolObject[contractnode.AEAD](old.GetAead())
+		return convertLegacyAEAD(old.GetAead())
 	case old.GetFixed() != nil:
 		return legacyProtocolObject[contractnode.Fixed](old.GetFixed())
 	case old.GetNetworkSplit() != nil:
@@ -240,7 +240,7 @@ func convertContractNodeProtocol(in contractnode.Protocol) (*legacy.Protocol, er
 	case "tailscale":
 		return setLegacyProtocolObject(out, in.Tailscale, out.SetTailscale)
 	case "set":
-		return setLegacyProtocolObject(out, in.Set, out.SetSet)
+		return convertContractSet(out, in.Set)
 	case "tls_termination":
 		return setLegacyProtocolObject(out, in.TLSTermination, out.SetTlsTermination)
 	case "http_termination":
@@ -248,7 +248,7 @@ func convertContractNodeProtocol(in contractnode.Protocol) (*legacy.Protocol, er
 	case "http_mock":
 		return setLegacyProtocolObject(out, in.HTTPMock, out.SetHttpMock)
 	case "aead":
-		return setLegacyProtocolObject(out, in.AEAD, out.SetAead)
+		return convertContractAEAD(out, in.AEAD)
 	case "fixed":
 		return setLegacyProtocolObject(out, in.Fixed, out.SetFixed)
 	case "network_split":
@@ -264,6 +264,56 @@ func convertContractNodeProtocol(in contractnode.Protocol) (*legacy.Protocol, er
 	default:
 		return nil, fmt.Errorf("unknown protocol type %q", in.Type)
 	}
+}
+
+func convertLegacyAEAD(old *legacy.Aead) (contractnode.Protocol, error) {
+	if old == nil {
+		return contractnode.Protocol{}, errors.New("legacy aead is nil")
+	}
+	return contractnode.NewTypedProtocol(contractnode.AEAD{
+		Password:     old.GetPassword(),
+		CryptoMethod: old.GetCryptoMethod().String(),
+	})
+}
+
+func convertContractAEAD(out *legacy.Protocol, in *contractnode.AEAD) (*legacy.Protocol, error) {
+	if in == nil {
+		return nil, errors.New("contract aead is nil")
+	}
+	method, ok := legacy.AeadCryptoMethod_value[in.CryptoMethod]
+	if !ok {
+		return nil, fmt.Errorf("unknown aead crypto method %q", in.CryptoMethod)
+	}
+	out.SetAead(&legacy.Aead{
+		Password:     in.Password,
+		CryptoMethod: legacy.AeadCryptoMethod(method),
+	})
+	return out, nil
+}
+
+func convertLegacySet(old *legacy.Set) (contractnode.Protocol, error) {
+	if old == nil {
+		return contractnode.Protocol{}, errors.New("legacy set is nil")
+	}
+	return contractnode.NewTypedProtocol(contractnode.Set{
+		Nodes:    old.GetNodes(),
+		Strategy: old.GetStrategy().String(),
+	})
+}
+
+func convertContractSet(out *legacy.Protocol, in *contractnode.Set) (*legacy.Protocol, error) {
+	if in == nil {
+		return nil, errors.New("contract set is nil")
+	}
+	strategy, ok := legacy.SetStrategyType_value[in.Strategy]
+	if !ok {
+		return nil, fmt.Errorf("unknown set strategy %q", in.Strategy)
+	}
+	out.SetSet(&legacy.Set{
+		Nodes:    in.Nodes,
+		Strategy: legacy.SetStrategyType(strategy),
+	})
+	return out, nil
 }
 
 func legacyProtocolObject[T contractnode.ProtocolPayload](value any) (contractnode.Protocol, error) {

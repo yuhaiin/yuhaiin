@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"sync"
@@ -29,10 +28,7 @@ var savepath string
 
 func SetSavePath(p string) {
 	savepath = p
-
-	ms := filepath.Join(p, "yuhaiin_memory_store.json")
-	legacyPreferenceStore = newMemoryStore(ms, true)
-	appStore = newSQLitePreferenceStore(paths.PathGenerator.State(p), legacyPreferenceStore)
+	appStore = newSQLitePreferenceStore(paths.PathGenerator.State(p))
 }
 
 type App struct {
@@ -85,20 +81,22 @@ func (a *App) Start(opt *Opts) error {
 	dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
 	applyRuntimeProfile()
 
+	// All legacy Android JSON is imported before any preference is read.
+	setting := migrate.NewStateDB(paths.PathGenerator.State(savepath))
+	if err := setting.Migrate(context.Background()); err != nil {
+		return fmt.Errorf("migrate Android state before startup: %w", err)
+	}
+
 	lis, err := net.Listen("tcp", net.JoinHostPort(ifOr(GetStore().GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"), "0"))
 	if err != nil {
+		_ = setting.Close()
 		return err
 	}
 
-	setting := migrate.NewStateDB(paths.PathGenerator.State(savepath))
-
 	app, err := app.Start(&app.StartOptions{
-		ConfigPath:     savepath,
-		BypassConfig:   setting,
-		ResolverConfig: setting,
-		ChoreConfig:    setting,
-		BackupConfig:   setting,
-		ProcessDumper:  processDumper,
+		ConfigPath:    savepath,
+		StateStore:    setting,
+		ProcessDumper: processDumper,
 	})
 	if err != nil {
 		_ = lis.Close()

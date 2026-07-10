@@ -10,12 +10,11 @@ import (
 	"strconv"
 
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
-	legacymigrate "github.com/Asutorufa/yuhaiin/pkg/legacy/migrate"
 	legacyconfig "github.com/Asutorufa/yuhaiin/pkg/legacy/schema/config"
 	legacystatistic "github.com/Asutorufa/yuhaiin/pkg/legacy/schema/statistic"
 )
 
-const plainStatisticJSONMigrationDoneKey = "plain_statistic_json_migration_done"
+const PlainStatisticJSONMigrationDoneKey = "plain_statistic_json_migration_done"
 
 var legacyConnectionStringFields = []string{
 	"id",
@@ -38,36 +37,30 @@ var legacyStatisticConnectionFields = []string{
 	"udp_migrate_id",
 }
 
-func migrateStatisticConnectionJSON(ctx context.Context, db *sql.DB) error {
-	done, err := migrationMarker(ctx, db, plainStatisticJSONMigrationDoneKey)
-	if err != nil {
+// MigrateLegacyStatisticConnectionJSON converts retained connection history
+// from the protobuf-shaped model before the new runtime opens its stores.
+// connection_sessions is deliberately excluded: it is process-local state and
+// is cleared when the connection monitor starts.
+func MigrateLegacyStatisticConnectionJSON(ctx context.Context, db *sql.DB) error {
+	done, err := legacyMetadata(ctx, db, PlainStatisticJSONMigrationDoneKey)
+	if err != nil || done == "1" {
 		return err
-	}
-	if done == "1" {
-		return nil
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin statistic json migration failed: %w", err)
+		return fmt.Errorf("begin statistic json migration: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if err := migrateStatisticJSONColumn(ctx, tx, "connection_sessions", "summary_json"); err != nil {
-		return err
-	}
 	if err := migrateStatisticJSONColumn(ctx, tx, "connection_history", "last_connection_json"); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO metadata(key, value)
-		VALUES (?, '1')
-		ON CONFLICT(key) DO UPDATE SET value = excluded.value
-	`, plainStatisticJSONMigrationDoneKey); err != nil {
-		return fmt.Errorf("mark statistic json migration done failed: %w", err)
+	if err := setLegacyMetadataTx(ctx, tx, map[string]string{PlainStatisticJSONMigrationDoneKey: "1"}); err != nil {
+		return err
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit statistic json migration failed: %w", err)
+		return fmt.Errorf("commit statistic json migration: %w", err)
 	}
 	return nil
 }
@@ -75,7 +68,7 @@ func migrateStatisticConnectionJSON(ctx context.Context, db *sql.DB) error {
 func migrateStatisticJSONColumn(ctx context.Context, tx *sql.Tx, table, column string) error {
 	rows, err := tx.QueryContext(ctx, fmt.Sprintf(`SELECT rowid, %s FROM %s`, column, table))
 	if err != nil {
-		return fmt.Errorf("query %s.%s failed: %w", table, column, err)
+		return fmt.Errorf("query %s.%s: %w", table, column, err)
 	}
 	defer rows.Close()
 
@@ -88,26 +81,23 @@ func migrateStatisticJSONColumn(ctx context.Context, tx *sql.Tx, table, column s
 		var rowID int64
 		var data string
 		if err := rows.Scan(&rowID, &data); err != nil {
-			return fmt.Errorf("scan %s.%s failed: %w", table, column, err)
+			return fmt.Errorf("scan %s.%s: %w", table, column, err)
 		}
 		next, changed, err := migrateConnectionJSONNumbers(data)
 		if err != nil {
-			return fmt.Errorf("migrate %s.%s rowid=%d failed: %w", table, column, rowID, err)
+			return fmt.Errorf("migrate %s.%s rowid=%d: %w", table, column, rowID, err)
 		}
 		if changed {
 			updates = append(updates, update{rowID: rowID, data: next})
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate %s.%s failed: %w", table, column, err)
-	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("close %s.%s rows failed: %w", table, column, err)
+		return fmt.Errorf("iterate %s.%s: %w", table, column, err)
 	}
 
 	for _, update := range updates {
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`UPDATE %s SET %s = ? WHERE rowid = ?`, table, column), update.data, update.rowID); err != nil {
-			return fmt.Errorf("update %s.%s rowid=%d failed: %w", table, column, update.rowID, err)
+			return fmt.Errorf("update %s.%s rowid=%d: %w", table, column, update.rowID, err)
 		}
 	}
 	return nil
@@ -118,7 +108,6 @@ func migrateConnectionJSONNumbers(data string) (string, bool, error) {
 	if err := json.Unmarshal([]byte(data), &raw); err != nil {
 		return "", false, err
 	}
-
 	if hasLegacyStatisticConnectionFields(raw) {
 		return migrateLegacyStatisticConnectionJSON(data)
 	}
@@ -169,14 +158,13 @@ func migrateLegacyStatisticConnectionJSON(data string) (string, bool, error) {
 	if err := json.Unmarshal([]byte(data), &legacy); err != nil {
 		return "", false, err
 	}
-	conn := legacymigrate.ConvertLegacyConnection(&legacy)
-	out, err := json.Marshal(conn)
+	output, err := json.Marshal(ConvertLegacyConnection(&legacy))
 	if err != nil {
 		return "", false, err
 	}
 	var validated contractconnection.Connection
-	if err := json.Unmarshal(out, &validated); err != nil {
+	if err := json.Unmarshal(output, &validated); err != nil {
 		return "", false, err
 	}
-	return string(out), true, nil
+	return string(output), true, nil
 }

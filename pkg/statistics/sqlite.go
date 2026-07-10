@@ -26,19 +26,15 @@ type sqliteInfoStore struct {
 	db *sql.DB
 }
 
-func markInterruptedSessions(db *sql.DB) {
+// clearPreviousSessions removes metadata for connections owned by an earlier
+// process. Connection history is persisted separately in connection_history.
+func clearPreviousSessions(db *sql.DB) {
 	if db == nil {
 		return
 	}
 
-	ctx := context.Background()
-	now := time.Now().Unix()
-	if _, err := db.ExecContext(ctx, `
-		UPDATE connection_sessions
-		SET state = 'interrupted', closed_at = ?, last_seen_at = ?
-		WHERE state = 'open'
-	`, now, now); err != nil {
-		log.Warn("mark interrupted sessions failed", "err", err)
+	if _, err := db.ExecContext(context.Background(), `DELETE FROM connection_sessions`); err != nil {
+		log.Warn("clear previous connection sessions failed", "err", err)
 	}
 }
 
@@ -116,14 +112,8 @@ func (s *sqliteInfoStore) Delete(id uint64) {
 		return
 	}
 
-	ctx := context.Background()
-	now := time.Now().Unix()
-	if _, err := s.db.ExecContext(ctx, `
-		UPDATE connection_sessions
-		SET state = 'closed', closed_at = ?, last_seen_at = ?
-		WHERE id = ?
-	`, now, now, id); err != nil {
-		log.Warn("close sqlite connection session failed", "id", id, "err", err)
+	if _, err := s.db.ExecContext(context.Background(), `DELETE FROM connection_sessions WHERE id = ?`, id); err != nil {
+		log.Warn("delete sqlite connection session failed", "id", id, "err", err)
 	}
 }
 

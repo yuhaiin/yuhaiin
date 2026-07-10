@@ -93,3 +93,69 @@ func TestConvertLegacyNodeBackfillsAllEmptyChainEntries(t *testing.T) {
 		t.Fatalf("chain = %#v", node.Chain)
 	}
 }
+
+func TestConvertLegacyNodeConvertsNestedAEADCryptoMethod(t *testing.T) {
+	password := "secret"
+	point := (&legacy.Point_builder{
+		Hash:   ptr("n1"),
+		Name:   ptr("split-aead"),
+		Origin: legacy.Origin_manual.Enum(),
+		Protocols: []*legacy.Protocol{
+			(&legacy.Protocol_builder{
+				NetworkSplit: (&legacy.NetworkSplit_builder{
+					Tcp: (&legacy.Protocol_builder{Direct: &legacy.Direct{}}).Build(),
+					Udp: (&legacy.Protocol_builder{Aead: (&legacy.Aead_builder{
+						Password:     &password,
+						CryptoMethod: legacy.AeadCryptoMethod_XChacha20Poly1305.Enum(),
+					}).Build()}).Build(),
+				}).Build(),
+			}).Build(),
+		},
+	}).Build()
+
+	node, _, err := ConvertLegacyNode(point)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := node.Chain[0].NetworkSplit.UDP.AEAD.CryptoMethod; got != "XChacha20Poly1305" {
+		t.Fatalf("crypto method = %q", got)
+	}
+
+	roundtrip, err := ConvertContractNode(node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := roundtrip.GetProtocols()[0].GetNetworkSplit().GetUdp().GetAead().GetCryptoMethod(); got != legacy.AeadCryptoMethod_XChacha20Poly1305 {
+		t.Fatalf("roundtrip crypto method = %v", got)
+	}
+}
+
+func TestConvertLegacyNodeConvertsSetStrategy(t *testing.T) {
+	point := (&legacy.Point_builder{
+		Hash:   ptr("n1"),
+		Name:   ptr("set"),
+		Origin: legacy.Origin_manual.Enum(),
+		Protocols: []*legacy.Protocol{
+			(&legacy.Protocol_builder{Set: (&legacy.Set_builder{
+				Nodes:    []string{"a", "b"},
+				Strategy: legacy.Set_round_robin.Enum(),
+			}).Build()}).Build(),
+		},
+	}).Build()
+
+	node, _, err := ConvertLegacyNode(point)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := node.Chain[0].Set.Strategy; got != "round_robin" {
+		t.Fatalf("strategy = %q", got)
+	}
+
+	roundtrip, err := ConvertContractNode(node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := roundtrip.GetProtocols()[0].GetSet().GetStrategy(); got != legacy.Set_round_robin {
+		t.Fatalf("roundtrip strategy = %v", got)
+	}
+}

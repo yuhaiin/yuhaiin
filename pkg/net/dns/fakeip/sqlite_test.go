@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
+	legacymigrate "github.com/Asutorufa/yuhaiin/pkg/legacy/migrate"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
@@ -184,7 +185,7 @@ func TestSQLiteFakeIPPoolImportsLegacyPrefixBucket(t *testing.T) {
 	if err := legacyBucket.Put([]byte("abcd"), shortDomainIP.AsSlice()); err != nil {
 		t.Fatal(err)
 	}
-	if err := legacyBucket.Put([]byte(cursorKey), legacyCursorValue(4, legacyCursor)); err != nil {
+	if err := legacyBucket.Put([]byte("reserved_cursor_state"), legacyCursorValue(4, legacyCursor)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -194,7 +195,10 @@ func TestSQLiteFakeIPPoolImportsLegacyPrefixBucket(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	pool, err := newSQLiteFakeIPPool(store.DB(), prefix, 100, legacy)
+	if err := legacymigrate.MigrateLegacyFakeIP(context.Background(), store.DB(), prefix, legacy); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := newSQLiteFakeIPPool(store.DB(), prefix, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +241,10 @@ func TestSQLiteFakeIPPoolImportsLegacyLRUBucket(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	pool, err := newSQLiteFakeIPPool(store.DB(), prefix, 100, legacy)
+	if err := legacymigrate.MigrateLegacyFakeIP(context.Background(), store.DB(), prefix, legacy); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := newSQLiteFakeIPPool(store.DB(), prefix, 100)
 	if err != nil {
 		t.Fatal(err)
 	}

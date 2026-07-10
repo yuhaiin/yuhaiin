@@ -15,11 +15,13 @@ func init() {
 			warnings, err := MigrateLegacyInbounds(ctx, db, updatedAt)
 			return choreWarnings(warnings), err
 		},
-		MigrateLegacyNodes:      MigrateLegacyNodes,
-		MigrateLegacyResolvers:  MigrateLegacyResolvers,
-		MigrateLegacyRouteRules: MigrateLegacyRouteRules,
-		MigrateLegacyRouteLists: MigrateLegacyRouteLists,
-		MigrateLegacyRouteTags:  MigrateLegacyRouteTags,
+		ImportLegacyNodes:          ImportLegacyNodesFromJSON,
+		MigrateLegacyNodes:         MigrateLegacyNodes,
+		MigrateLegacySubscriptions: MigrateLegacySubscriptions,
+		MigrateLegacyResolvers:     MigrateLegacyResolvers,
+		MigrateLegacyRouteRules:    MigrateLegacyRouteRules,
+		MigrateLegacyRouteLists:    MigrateLegacyRouteLists,
+		MigrateLegacyRouteTags:     MigrateLegacyRouteTags,
 		ConvertLegacyInbound: func(name string, inbound *config.Inbound) (contractinbound.Inbound, []chore.PlainMigrationWarning, error) {
 			converted, warnings, err := ConvertLegacyInbound(name, inbound)
 			return converted, choreWarnings(warnings), err

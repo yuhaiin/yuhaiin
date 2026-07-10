@@ -162,11 +162,17 @@ func (s *SettingsStore) loadLogLevel(ctx context.Context, out *string) error {
 func logLevelString(code int32) string {
 	switch code {
 	case 0:
+		return "verbose"
+	case 1:
 		return "debug"
 	case 2:
-		return "warning"
+		return "info"
 	case 3:
+		return "warning"
+	case 4:
 		return "error"
+	case 5:
+		return "fatal"
 	default:
 		return "info"
 	}
@@ -174,13 +180,17 @@ func logLevelString(code int32) string {
 
 func logLevelCode(level string) int32 {
 	switch level {
-	case "debug", "verbose":
+	case "verbose":
 		return 0
-	case "warning", "warn":
-		return 2
-	case "error", "fatal":
-		return 3
-	default:
+	case "debug":
 		return 1
+	case "warning", "warn":
+		return 3
+	case "error":
+		return 4
+	case "fatal":
+		return 5
+	default:
+		return 2
 	}
 }

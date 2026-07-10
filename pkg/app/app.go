@@ -2,10 +2,13 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
@@ -68,11 +71,11 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	closers := &closers{}
 
-	if closer, ok := so.ChoreConfig.(io.Closer); ok {
-		AddCloser(closers, "chore_config", closer)
+	if closer, ok := so.StateStore.(io.Closer); ok {
+		AddCloser(closers, "state_store", closer)
 	}
 
-	if migrator, ok := so.ChoreConfig.(MigrationStore); ok {
+	if migrator, ok := so.StateStore.(MigrationStore); ok {
 		log.Info("start plain model migration")
 		if err := migrator.Migrate(context.Background()); err != nil {
 			_ = closers.Close()
@@ -100,13 +103,6 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	AddCloser(closers, "network_monitor", interfaces.StartNetworkMonitor())
 
-	// proxy access point/endpoint
-	nodeManager := AddCloser(closers, "node_manager", node.NewManager(paths.PathGenerator.State(so.ConfigPath)))
-
-	configuration.ProxyChain.Set(direct.Default)
-
-	// local,remote,bootstrap dns
-	dns := AddCloser(closers, "resolver", resolver.NewResolver(configuration.ProxyChain))
 	var settingsStore *plainstore.SettingsStore
 	var backupStore *plainstore.BackupStore
 	var resolverStore *plainstore.ResolverStore
@@ -114,7 +110,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	var routeSettingsStore *plainstore.RouteSettingsStore
 	var routeRuleStore *plainstore.RouteRuleStore
 	var routeListStore *plainstore.RouteListStore
-	if sqlStore := so.ChoreConfig; sqlStore != nil {
+	if sqlStore := so.StateStore; sqlStore != nil {
 		db, err := sqlStore.SQLDB(context.Background())
 		if err != nil {
 			log.Error("open v2 sqlite store failed", "err", err)
@@ -136,20 +132,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 			settingsController.Apply(settings)
 		}
 	}
-	list := AddCloser(closers, "lists", route.NewLists(routeListStore, routeSettingsStore, so.ConfigPath))
-	// bypass dialer and dns request
-	router := AddCloser(closers, "router", route.NewRoute(nodeManager.Outbound(), dns, list, so.ProcessDumper))
-	rules := route.NewRules(routeRuleStore, routeSettingsStore, router)
-	// connections' statistic & flow data
-
-	stcs := AddCloser(closers, "statistic", statistics.NewSQLiteConnStore(
-		paths.PathGenerator.State(so.ConfigPath),
-		router,
-		pebbleCache.NewCache("flow_data"),
-	))
-	metrics.SetFlowCounter(stcs.Cache)
-	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, router))
-	// wrap dialer and dns resolver to fake ip, if use
+	// Read the configured ranges before importing the legacy Pebble FakeIP state.
 	var initialFakeDNS contractresolver.FakeDNS
 	if resolverConfigStore != nil {
 		if config, err := resolverConfigStore.FakeDNS(context.Background()); err != nil {
@@ -158,11 +141,46 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 			initialFakeDNS = config
 		}
 	}
+	if so.StateStore != nil {
+		migrator, ok := so.StateStore.(PebbleMigrationStore)
+		if !ok {
+			_ = closers.Close()
+			return nil, errors.New("state store does not support required startup legacy migration")
+		}
+		ctx := context.Background()
+		log.Info("start legacy pebble state migration")
+		if err := migrator.MigrateLegacyPebble(
+			ctx,
+			pebbleCache,
+			configuration.GetFakeIPRange(initialFakeDNS.IPv4Range, false),
+			configuration.GetFakeIPRange(initialFakeDNS.IPv6Range, true),
+		); err != nil {
+			_ = closers.Close()
+			return nil, fmt.Errorf("migrate legacy Pebble state failed: %w", err)
+		}
+		log.Info("legacy pebble state migration finished")
+	}
+	configuration.ProxyChain.Set(direct.Default)
+	// Proxy and DNS runtime objects are created only after every legacy store
+	// has been migrated into the plain SQLite model.
+	nodeManager := AddCloser(closers, "node_manager", node.NewManager(paths.PathGenerator.State(so.ConfigPath)))
+	dns := AddCloser(closers, "resolver", resolver.NewResolver(configuration.ProxyChain))
+	list := AddCloser(closers, "lists", route.NewLists(routeListStore, routeSettingsStore, so.ConfigPath))
+	// bypass dialer and dns request
+	router := AddCloser(closers, "router", route.NewRoute(nodeManager.Outbound(), dns, list, so.ProcessDumper))
+	rules := route.NewRules(routeRuleStore, routeSettingsStore, router)
+	// connections' statistic & flow data
+	stcs := AddCloser(closers, "statistic", statistics.NewSQLiteConnStore(
+		paths.PathGenerator.State(so.ConfigPath),
+		router,
+	))
+	metrics.SetFlowCounter(stcs.Cache)
+	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, router))
+	// Wrap dialer and DNS resolver with the migrated FakeIP pools.
 	fakedns, err := resolver.NewFakeDNS(
 		hosts,
 		hosts,
 		paths.PathGenerator.State(so.ConfigPath),
-		pebbleCache,
 		initialFakeDNS,
 	)
 	if err != nil {
@@ -215,4 +233,8 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	tailscale.Mux.Store(app.Mux)
 
 	return app, nil
+}
+
+type PebbleMigrationStore interface {
+	MigrateLegacyPebble(context.Context, cache.Cache, netip.Prefix, netip.Prefix) error
 }

@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	legacymigrate "github.com/Asutorufa/yuhaiin/pkg/legacy/migrate"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
@@ -47,6 +49,9 @@ func (s *StateDB) Migrate(ctx context.Context) error {
 	if err := s.backupIfNeeded(ctx); err != nil {
 		return err
 	}
+	if err := s.normalizeLegacySettingsKV(ctx); err != nil {
+		return err
+	}
 	if err := s.inner.Migrate(ctx); err != nil {
 		return fmt.Errorf("run legacy-to-plain migration failed: %w", err)
 	}
@@ -54,10 +59,18 @@ func (s *StateDB) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	plainMigrationDone, err := migrationMarker(ctx, db, plainModelMigrationDoneKey)
+	if err != nil {
+		return err
+	}
+	clearedSessions, err := clearConnectionSessions(ctx, db)
+	if err != nil {
+		return err
+	}
 	if err := legacymigrate.MigrateLegacyBackup(ctx, db, 0); err != nil {
 		return err
 	}
-	if err := migrateStatisticConnectionJSON(ctx, db); err != nil {
+	if err := legacymigrate.MigrateLegacyStatisticConnectionJSON(ctx, db); err != nil {
 		return err
 	}
 	if _, err := db.ExecContext(ctx, `
@@ -66,6 +79,64 @@ func (s *StateDB) Migrate(ctx context.Context) error {
 		ON CONFLICT(key) DO UPDATE SET value = excluded.value
 	`, plainModelMigrationDoneKey); err != nil {
 		return fmt.Errorf("mark plain model migration done failed: %w", err)
+	}
+	if plainMigrationDone != "1" || clearedSessions {
+		if err := vacuumMigratedState(ctx, db); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *StateDB) normalizeLegacySettingsKV(ctx context.Context) error {
+	store, err := storagesqlite.Open(ctx, s.path)
+	if err != nil {
+		return fmt.Errorf("open state db for legacy settings normalization: %w", err)
+	}
+	defer store.Close()
+	if err := legacymigrate.NormalizeLegacySettingsKV(ctx, store.DB()); err != nil {
+		return fmt.Errorf("normalize legacy settings JSON: %w", err)
+	}
+	return nil
+}
+
+func clearConnectionSessions(ctx context.Context, db *sql.DB) (bool, error) {
+	result, err := db.ExecContext(ctx, `DELETE FROM connection_sessions`)
+	if err != nil {
+		return false, fmt.Errorf("clear previous connection sessions before migration failed: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("read cleared connection session count: %w", err)
+	}
+	return count > 0, nil
+}
+
+func vacuumMigratedState(ctx context.Context, db *sql.DB) error {
+	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		return fmt.Errorf("checkpoint state db before migration vacuum failed: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, "VACUUM"); err != nil {
+		return fmt.Errorf("vacuum state db after migration failed: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		return fmt.Errorf("checkpoint state db after migration vacuum failed: %w", err)
+	}
+	return nil
+}
+
+// MigrateLegacyPebble completes the second startup migration phase after the
+// old Pebble cache has been opened but before any runtime store uses it.
+func (s *StateDB) MigrateLegacyPebble(ctx context.Context, legacy cache.Cache, ipv4, ipv6 netip.Prefix) error {
+	if s == nil || s.inner == nil {
+		return errors.New("state db is nil")
+	}
+	db, err := s.inner.SQLDB(ctx)
+	if err != nil {
+		return err
+	}
+	if err := legacymigrate.MigrateLegacyPebble(ctx, db, legacy, ipv4, ipv6); err != nil {
+		return fmt.Errorf("migrate legacy pebble state: %w", err)
 	}
 	return nil
 }

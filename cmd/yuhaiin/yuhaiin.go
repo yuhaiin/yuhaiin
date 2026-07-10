@@ -54,14 +54,10 @@ func run(args []string) error {
 	fmt.Println(version.Art)
 
 	app, err := app.Start(&app.StartOptions{
-		ConfigPath:     *path,
-		Auth:           auth,
-		BypassConfig:   setting,
-		ResolverConfig: setting,
-		InboundConfig:  setting,
-		ChoreConfig:    setting,
-		BackupConfig:   setting,
-		ProcessDumper:  getPorcessDumper(),
+		ConfigPath:    *path,
+		Auth:          auth,
+		StateStore:    setting,
+		ProcessDumper: getPorcessDumper(),
 	})
 	if err != nil {
 		return err

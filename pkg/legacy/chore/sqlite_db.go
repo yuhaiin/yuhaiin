@@ -38,13 +38,15 @@ type PlainMigrationWarning struct {
 }
 
 type PlainMigrationHooks struct {
-	MigrateLegacyInbounds   func(context.Context, *sql.DB, int64) ([]PlainMigrationWarning, error)
-	MigrateLegacyNodes      func(context.Context, *sql.DB, int64) error
-	MigrateLegacyResolvers  func(context.Context, *sql.DB, int64) error
-	MigrateLegacyRouteRules func(context.Context, *sql.DB, int64) error
-	MigrateLegacyRouteLists func(context.Context, *sql.DB, int64) error
-	MigrateLegacyRouteTags  func(context.Context, *sql.DB, int64) error
-	ConvertLegacyInbound    func(string, *config.Inbound) (contractinbound.Inbound, []PlainMigrationWarning, error)
+	MigrateLegacyInbounds      func(context.Context, *sql.DB, int64) ([]PlainMigrationWarning, error)
+	ImportLegacyNodes          func(context.Context, *sql.DB, string, int64) error
+	MigrateLegacyNodes         func(context.Context, *sql.DB, int64) error
+	MigrateLegacySubscriptions func(context.Context, *sql.DB, int64) error
+	MigrateLegacyResolvers     func(context.Context, *sql.DB, int64) error
+	MigrateLegacyRouteRules    func(context.Context, *sql.DB, int64) error
+	MigrateLegacyRouteLists    func(context.Context, *sql.DB, int64) error
+	MigrateLegacyRouteTags     func(context.Context, *sql.DB, int64) error
+	ConvertLegacyInbound       func(string, *config.Inbound) (contractinbound.Inbound, []PlainMigrationWarning, error)
 }
 
 var plainMigrationHooks PlainMigrationHooks
@@ -221,7 +223,14 @@ func (c *SqliteDB) ensureInitialized(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 
+	if err := c.ensureLegacyNodesImported(ctx, db); err != nil {
+		return err
+	}
+
 	if err := c.ensurePlainNodesMigrated(ctx, db); err != nil {
+		return err
+	}
+	if err := c.ensurePlainSubscriptionsMigrated(ctx, db); err != nil {
 		return err
 	}
 
@@ -294,6 +303,20 @@ func (c *SqliteDB) ensurePlainNodesMigrated(ctx context.Context, db *sql.DB) err
 		return errors.New("plain node migration hook is not registered")
 	}
 	return plainMigrationHooks.MigrateLegacyNodes(ctx, db, 0)
+}
+
+func (c *SqliteDB) ensurePlainSubscriptionsMigrated(ctx context.Context, db *sql.DB) error {
+	if plainMigrationHooks.MigrateLegacySubscriptions == nil {
+		return errors.New("plain subscription migration hook is not registered")
+	}
+	return plainMigrationHooks.MigrateLegacySubscriptions(ctx, db, 0)
+}
+
+func (c *SqliteDB) ensureLegacyNodesImported(ctx context.Context, db *sql.DB) error {
+	if plainMigrationHooks.ImportLegacyNodes == nil {
+		return errors.New("legacy node import hook is not registered")
+	}
+	return plainMigrationHooks.ImportLegacyNodes(ctx, db, c.Dir(), 0)
 }
 
 func (c *SqliteDB) ensurePlainResolversMigrated(ctx context.Context, db *sql.DB) error {
