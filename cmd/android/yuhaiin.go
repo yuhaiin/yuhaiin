@@ -17,10 +17,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
+	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
 )
 
@@ -86,6 +88,10 @@ func (a *App) Start(opt *Opts) error {
 	if err := setting.Migrate(context.Background()); err != nil {
 		return fmt.Errorf("migrate Android state before startup: %w", err)
 	}
+	if err := configureAndroidTUN(context.Background(), setting, opt.TUN, GetStore().GetString(AdvTunDriverKey)); err != nil {
+		_ = setting.Close()
+		return fmt.Errorf("configure Android TUN before startup: %w", err)
+	}
 
 	lis, err := net.Listen("tcp", net.JoinHostPort(ifOr(GetStore().GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"), "0"))
 	if err != nil {
@@ -148,6 +154,51 @@ func (a *App) Start(opt *Opts) error {
 	}()
 
 	return nil
+}
+
+// configureAndroidTUN binds the persisted TUN inbound to the file descriptor
+// supplied by Android's VpnService. The plain model has a disabled desktop TUN
+// by default, while Android starts this process only after VpnService created
+// a TUN device.
+func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, driver string) error {
+	if tun == nil {
+		return errors.New("Android TUN options are nil")
+	}
+	db, err := state.SQLDB(ctx)
+	if err != nil {
+		return err
+	}
+
+	store := plainstore.NewInboundStore(db)
+	inbounds, err := store.List(ctx)
+	if err != nil {
+		return err
+	}
+
+	tunProtocol := contractinbound.NewTypedProtocol(contractinbound.TunProtocol{
+		Name:          fmt.Sprintf("fd://%d", tun.FD),
+		MTU:           tun.MTU,
+		SkipMulticast: true,
+		Driver:        driver,
+		Portal:        tun.Portal,
+		PortalV6:      tun.PortalV6,
+	})
+	for _, inbound := range inbounds {
+		if inbound.Protocol.Type != contractinbound.ProtocolTun {
+			continue
+		}
+		inbound.Enabled = true
+		inbound.Protocol = tunProtocol
+		return store.Save(ctx, inbound, 0)
+	}
+
+	return store.Save(ctx, contractinbound.Inbound{
+		ID:       "tun",
+		Name:     "tun",
+		Enabled:  true,
+		Network:  contractinbound.NewTypedNetwork(contractinbound.EmptyNetwork{}),
+		Protocol: tunProtocol,
+	}, 0)
 }
 
 func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {

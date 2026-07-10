@@ -26,6 +26,8 @@ import (
 
 var _ DB = (*SqliteDB)(nil)
 
+const legacyAndroidProtobufRepairDoneKey = "legacy_android_protobuf_config_repair_done"
+
 type SqliteDB struct {
 	path        string
 	mu          sync.Mutex
@@ -354,16 +356,19 @@ func (c *SqliteDB) ensureConfigImported(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	if done == "1" {
-		return nil
+		return c.repairLegacyAndroidProtobufConfig(ctx, db)
 	}
 
 	if ok, err := hasConfigState(ctx, db); err != nil {
 		return err
 	} else if ok {
-		return updateMetadata(ctx, db, map[string]string{
+		if err := updateMetadata(ctx, db, map[string]string{
 			"legacy_config_import_done":   "1",
 			"legacy_config_import_source": "existing_sqlite",
-		})
+		}); err != nil {
+			return err
+		}
+		return c.repairLegacyAndroidProtobufConfig(ctx, db)
 	}
 
 	setting, source, err := c.loadLegacyConfig()
@@ -382,8 +387,9 @@ func (c *SqliteDB) ensureConfigImported(ctx context.Context, db *sql.DB) error {
 	}
 
 	if err := updateMetadataTx(ctx, tx, map[string]string{
-		"legacy_config_import_done":   "1",
-		"legacy_config_import_source": source,
+		"legacy_config_import_done":        "1",
+		"legacy_config_import_source":      source,
+		legacyAndroidProtobufRepairDoneKey: "1",
 	}); err != nil {
 		return err
 	}
@@ -392,6 +398,47 @@ func (c *SqliteDB) ensureConfigImported(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("commit sqlite legacy config import transaction failed: %w", err)
 	}
 
+	return nil
+}
+
+func (c *SqliteDB) repairLegacyAndroidProtobufConfig(ctx context.Context, db *sql.DB) error {
+	done, err := loadMetadata(ctx, db, legacyAndroidProtobufRepairDoneKey)
+	if err != nil || done == "1" {
+		return err
+	}
+	path := filepath.Join(c.Dir(), "yuhaiin_memory_config_store.json")
+	if !fileExists(path) {
+		return updateMetadata(ctx, db, map[string]string{legacyAndroidProtobufRepairDoneKey: "1"})
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin Android protobuf config repair: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	setting, err := c.loadSettingTx(ctx, tx)
+	if err != nil {
+		return err
+	}
+	if _, err := applyLegacyAndroidConfigStore(path, setting, c.Dir()); err != nil {
+		return err
+	}
+	if err := c.saveSettingTx(ctx, tx, setting); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM metadata WHERE key IN (
+		'plain_inbounds_migration_done', 'plain_resolvers_migration_done',
+		'plain_route_rules_migration_done', 'plain_route_lists_migration_done',
+		'plain_route_tags_migration_done'
+	)`); err != nil {
+		return fmt.Errorf("reset plain config migration markers: %w", err)
+	}
+	if err := updateMetadataTx(ctx, tx, map[string]string{legacyAndroidProtobufRepairDoneKey: "1"}); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit Android protobuf config repair: %w", err)
+	}
 	return nil
 }
 
@@ -1081,7 +1128,7 @@ func saveDNSTx(ctx context.Context, tx *sql.Tx, dnsSetting *config.DnsConfig, no
 
 	for _, value := range dnsSetting.GetFakednsWhitelist() {
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO dns_fakedns_lists(kind, value)
+			INSERT OR IGNORE INTO dns_fakedns_lists(kind, value)
 			VALUES ('whitelist', ?)
 		`, value); err != nil {
 			return fmt.Errorf("insert dns whitelist %q failed: %w", value, err)
@@ -1090,7 +1137,7 @@ func saveDNSTx(ctx context.Context, tx *sql.Tx, dnsSetting *config.DnsConfig, no
 
 	for _, value := range dnsSetting.GetFakednsSkipCheckList() {
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO dns_fakedns_lists(kind, value)
+			INSERT OR IGNORE INTO dns_fakedns_lists(kind, value)
 			VALUES ('skip_check', ?)
 		`, value); err != nil {
 			return fmt.Errorf("insert dns skip_check %q failed: %w", value, err)
@@ -1330,39 +1377,37 @@ func applyLegacyAndroidConfigStore(path string, setting *config.Setting, dir str
 
 	if data := store.Bytes.Values["chore_db"]; len(data) > 0 {
 		legacySetting := config.DefaultSetting(dir)
-		if err := json.Unmarshal(data, legacySetting); err != nil {
-			return false, fmt.Errorf("unmarshal android chore_db json failed: %w", err)
+		if err := json.Unmarshal(data, legacySetting); err == nil {
+			setting.SetIpv6(legacySetting.GetIpv6())
+			setting.SetUseDefaultInterface(legacySetting.GetUseDefaultInterface())
+			setting.SetNetInterface(legacySetting.GetNetInterface())
+			setting.SetSystemProxy(legacySetting.GetSystemProxy())
+			setting.SetLogcat(legacySetting.GetLogcat())
+			setting.SetAdvancedConfig(legacySetting.GetAdvancedConfig())
+			setting.SetPlatform(legacySetting.GetPlatform())
+			setting.SetConfigVersion(legacySetting.GetConfigVersion())
+			if legacySetting.GetBackup() != nil {
+				setting.SetBackup(legacySetting.GetBackup())
+			}
 		}
-
-		setting.SetIpv6(legacySetting.GetIpv6())
-		setting.SetUseDefaultInterface(legacySetting.GetUseDefaultInterface())
-		setting.SetNetInterface(legacySetting.GetNetInterface())
-		setting.SetSystemProxy(legacySetting.GetSystemProxy())
-		setting.SetLogcat(legacySetting.GetLogcat())
-		setting.SetAdvancedConfig(legacySetting.GetAdvancedConfig())
-		setting.SetPlatform(legacySetting.GetPlatform())
-		setting.SetConfigVersion(legacySetting.GetConfigVersion())
-		if legacySetting.GetBackup() != nil {
-			setting.SetBackup(legacySetting.GetBackup())
-		}
+		// The legacy Android client ignored an unreadable configuration blob and
+		// used its defaults. Do the same here; the original file is left intact.
 		imported = true
 	}
 
 	if data := store.Bytes.Values["resolver_db"]; len(data) > 0 {
 		dnsSetting := defaultSetting.GetDns()
-		if err := json.Unmarshal(data, dnsSetting); err != nil {
-			return false, fmt.Errorf("unmarshal android resolver_db json failed: %w", err)
+		if err := json.Unmarshal(data, dnsSetting); err == nil || unmarshalLegacyAndroidResolverProto(data, dnsSetting) == nil {
+			setting.SetDns(dnsSetting)
 		}
-		setting.SetDns(dnsSetting)
 		imported = true
 	}
 
 	if data := store.Bytes.Values["bypass_db"]; len(data) > 0 {
 		bypass := defaultSetting.GetBypass()
-		if err := json.Unmarshal(data, bypass); err != nil {
-			return false, fmt.Errorf("unmarshal android bypass_db json failed: %w", err)
+		if err := json.Unmarshal(data, bypass); err == nil || unmarshalLegacyAndroidBypassProto(data, bypass) == nil {
+			setting.SetBypass(bypass)
 		}
-		setting.SetBypass(bypass)
 		imported = true
 	}
 
@@ -1374,10 +1419,14 @@ func applyLegacyAndroidConfigStore(path string, setting *config.Setting, dir str
 			// value as corrupt. Inbound listeners themselves were runtime-generated
 			// on Android, so only the persisted runtime settings are recovered.
 			if protoErr := unmarshalLegacyAndroidInboundProto(data, inbound); protoErr != nil {
-				return false, fmt.Errorf("unmarshal android inbound_db (json or legacy protobuf) failed: json: %v; protobuf: %w", jsonErr, protoErr)
+				// Like the original Android store, retain defaults when neither
+				// historic encoding can be read.
+			} else {
+				setting.SetServer(inbound)
 			}
+		} else {
+			setting.SetServer(inbound)
 		}
-		setting.SetServer(inbound)
 		imported = true
 	}
 
@@ -1396,6 +1445,635 @@ func applyLegacyAndroidConfigStore(path string, setting *config.Setting, dir str
 	}
 
 	return imported, nil
+}
+
+// unmarshalLegacyAndroidResolverProto decodes the protobuf representation used
+// by Android's former resolver_db. Its fields intentionally mirror the legacy
+// DnsConfig schema, so resolver names, hosts, fake-DNS ranges and strategies
+// survive the SQLite migration.
+func unmarshalLegacyAndroidResolverProto(data []byte, out *config.DnsConfig) error {
+	if out == nil {
+		return errors.New("dns config is nil")
+	}
+	out.SetResolver(map[string]*config.Dns{})
+	out.SetHosts(map[string]string{})
+	out.SetFakednsWhitelist(nil)
+	out.SetFakednsSkipCheckList(nil)
+	for len(data) > 0 {
+		n, typ, size := protowire.ConsumeTag(data)
+		if size < 0 {
+			return protowire.ParseError(size)
+		}
+		data = data[size:]
+		if n == 4 || n == 6 || n == 13 || n == 9 || n == 14 || n == 8 || n == 10 {
+			if typ != protowire.BytesType {
+				return fmt.Errorf("dns field %d has wire type %d", n, typ)
+			}
+			v, size := protowire.ConsumeBytes(data)
+			if size < 0 {
+				return protowire.ParseError(size)
+			}
+			data = data[size:]
+			switch n {
+			case 4:
+				out.SetServer(string(v))
+			case 6:
+				out.SetFakednsIpRange(string(v))
+			case 13:
+				out.SetFakednsIpv6Range(string(v))
+			case 9:
+				out.SetFakednsWhitelist(append(out.GetFakednsWhitelist(), string(v)))
+			case 14:
+				out.SetFakednsSkipCheckList(append(out.GetFakednsSkipCheckList(), string(v)))
+			case 8:
+				k, val, err := legacyProtoStringMap(v)
+				if err != nil {
+					return err
+				}
+				out.GetHosts()[k] = val
+			case 10:
+				k, msg, err := legacyProtoMessageMap(v)
+				if err != nil {
+					return err
+				}
+				dns, err := legacyProtoDNS(msg)
+				if err != nil {
+					return err
+				}
+				out.GetResolver()[k] = dns
+			}
+			continue
+		}
+		if n == 5 {
+			if typ != protowire.VarintType {
+				return fmt.Errorf("fakedns has wire type %d", typ)
+			}
+			v, size := protowire.ConsumeVarint(data)
+			if size < 0 {
+				return protowire.ParseError(size)
+			}
+			out.SetFakedns(v != 0)
+			data = data[size:]
+			continue
+		}
+		size = protowire.ConsumeFieldValue(n, typ, data)
+		if size < 0 {
+			return protowire.ParseError(size)
+		}
+		data = data[size:]
+	}
+	return nil
+}
+
+func legacyProtoDNS(data []byte) (*config.Dns, error) {
+	out := &config.Dns{}
+	for len(data) > 0 {
+		n, typ, size := protowire.ConsumeTag(data)
+		if size < 0 {
+			return nil, protowire.ParseError(size)
+		}
+		data = data[size:]
+		switch n {
+		case 1, 2, 4:
+			if typ != protowire.BytesType {
+				return nil, fmt.Errorf("dns resolver field %d has wire type %d", n, typ)
+			}
+			v, s := protowire.ConsumeBytes(data)
+			if s < 0 {
+				return nil, protowire.ParseError(s)
+			}
+			if n == 1 {
+				out.SetHost(string(v))
+			} else if n == 2 {
+				out.SetTlsServername(string(v))
+			} else {
+				out.SetSubnet(string(v))
+			}
+			data = data[s:]
+		case 5:
+			if typ != protowire.VarintType {
+				return nil, fmt.Errorf("dns resolver type has wire type %d", typ)
+			}
+			v, s := protowire.ConsumeVarint(data)
+			if s < 0 {
+				return nil, protowire.ParseError(s)
+			}
+			out.SetType(config.Type(v))
+			data = data[s:]
+		default:
+			size = protowire.ConsumeFieldValue(n, typ, data)
+			if size < 0 {
+				return nil, protowire.ParseError(size)
+			}
+			data = data[size:]
+		}
+	}
+	return out, nil
+}
+
+func legacyProtoStringMap(data []byte) (string, string, error) {
+	k, v := "", ""
+	for len(data) > 0 {
+		n, typ, s := protowire.ConsumeTag(data)
+		if s < 0 {
+			return "", "", protowire.ParseError(s)
+		}
+		data = data[s:]
+		if n == 1 || n == 2 {
+			if typ != protowire.BytesType {
+				return "", "", fmt.Errorf("map field %d has wire type %d", n, typ)
+			}
+			b, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return "", "", protowire.ParseError(x)
+			}
+			if n == 1 {
+				k = string(b)
+			} else {
+				v = string(b)
+			}
+			data = data[x:]
+		} else {
+			s = protowire.ConsumeFieldValue(n, typ, data)
+			if s < 0 {
+				return "", "", protowire.ParseError(s)
+			}
+			data = data[s:]
+		}
+	}
+	return k, v, nil
+}
+func legacyProtoMessageMap(data []byte) (string, []byte, error) {
+	k, v := "", []byte(nil)
+	for len(data) > 0 {
+		n, typ, s := protowire.ConsumeTag(data)
+		if s < 0 {
+			return "", nil, protowire.ParseError(s)
+		}
+		data = data[s:]
+		if n == 1 || n == 2 {
+			if typ != protowire.BytesType {
+				return "", nil, fmt.Errorf("map field %d has wire type %d", n, typ)
+			}
+			b, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return "", nil, protowire.ParseError(x)
+			}
+			if n == 1 {
+				k = string(b)
+			} else {
+				v = b
+			}
+			data = data[x:]
+		} else {
+			s = protowire.ConsumeFieldValue(n, typ, data)
+			if s < 0 {
+				return "", nil, protowire.ParseError(s)
+			}
+			data = data[s:]
+		}
+	}
+	return k, v, nil
+}
+
+// The route settings are top-level scalar protobuf fields. Rules and lists are
+// migrated separately from their legacy tables when available.
+func unmarshalLegacyAndroidBypassProto(data []byte, out *config.BypassConfig) error {
+	if out == nil {
+		return errors.New("bypass config is nil")
+	}
+	out.SetRulesV2(nil)
+	out.SetLists(map[string]*config.List{})
+	for len(data) > 0 {
+		n, typ, s := protowire.ConsumeTag(data)
+		if s < 0 {
+			return protowire.ParseError(s)
+		}
+		data = data[s:]
+		switch n {
+		case 6, 9:
+			if typ != protowire.VarintType {
+				return fmt.Errorf("bypass field %d has wire type %d", n, typ)
+			}
+			v, x := protowire.ConsumeVarint(data)
+			if x < 0 {
+				return protowire.ParseError(x)
+			}
+			if n == 6 {
+				out.SetUdpProxyFqdn(config.UdpProxyFqdnStrategy(v))
+			} else {
+				out.SetResolveLocally(v != 0)
+			}
+			data = data[x:]
+		case 10, 11:
+			if typ != protowire.BytesType {
+				return fmt.Errorf("bypass field %d has wire type %d", n, typ)
+			}
+			v, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return protowire.ParseError(x)
+			}
+			if n == 10 {
+				out.SetDirectResolver(string(v))
+			} else {
+				out.SetProxyResolver(string(v))
+			}
+			data = data[x:]
+		case 12:
+			if typ != protowire.BytesType {
+				return fmt.Errorf("bypass rules_v2 has wire type %d", typ)
+			}
+			v, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return protowire.ParseError(x)
+			}
+			rule, err := legacyProtoRuleV2(v)
+			if err != nil {
+				return err
+			}
+			out.SetRulesV2(append(out.GetRulesV2(), rule))
+			data = data[x:]
+		case 13:
+			if typ != protowire.BytesType {
+				return fmt.Errorf("bypass lists has wire type %d", typ)
+			}
+			v, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return protowire.ParseError(x)
+			}
+			name, message, err := legacyProtoMessageMap(v)
+			if err != nil {
+				return err
+			}
+			list, err := legacyProtoList(message)
+			if err != nil {
+				return err
+			}
+			if out.GetLists() == nil {
+				out.SetLists(map[string]*config.List{})
+			}
+			if list.GetName() == "" {
+				list.SetName(name)
+			}
+			out.GetLists()[name] = list
+			data = data[x:]
+		default:
+			s = protowire.ConsumeFieldValue(n, typ, data)
+			if s < 0 {
+				return protowire.ParseError(s)
+			}
+			data = data[s:]
+		}
+	}
+	return nil
+}
+
+func legacyProtoRuleV2(data []byte) (*config.Rulev2, error) {
+	out := &config.Rulev2{}
+	for len(data) > 0 {
+		n, typ, s := protowire.ConsumeTag(data)
+		if s < 0 {
+			return nil, protowire.ParseError(s)
+		}
+		data = data[s:]
+		switch n {
+		case 1, 3, 6:
+			if typ != protowire.BytesType {
+				return nil, fmt.Errorf("rule field %d has wire type %d", n, typ)
+			}
+			v, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return nil, protowire.ParseError(x)
+			}
+			if n == 1 {
+				out.SetName(string(v))
+			} else if n == 3 {
+				out.SetTag(string(v))
+			} else {
+				out.SetResolver(string(v))
+			}
+			data = data[x:]
+		case 2, 4, 5, 8:
+			if typ != protowire.VarintType {
+				return nil, fmt.Errorf("rule field %d has wire type %d", n, typ)
+			}
+			v, x := protowire.ConsumeVarint(data)
+			if x < 0 {
+				return nil, protowire.ParseError(x)
+			}
+			switch n {
+			case 2:
+				out.SetMode(config.Mode(v))
+			case 4:
+				out.SetResolveStrategy(config.ResolveStrategy(v))
+			case 5:
+				out.SetUdpProxyFqdnStrategy(config.UdpProxyFqdnStrategy(v))
+			case 8:
+				out.SetDisabled(v != 0)
+			}
+			data = data[x:]
+		case 7:
+			if typ != protowire.BytesType {
+				return nil, fmt.Errorf("rule groups has wire type %d", typ)
+			}
+			v, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return nil, protowire.ParseError(x)
+			}
+			group, err := legacyProtoOr(v)
+			if err != nil {
+				return nil, err
+			}
+			out.SetRules(append(out.GetRules(), group))
+			data = data[x:]
+		default:
+			s = protowire.ConsumeFieldValue(n, typ, data)
+			if s < 0 {
+				return nil, protowire.ParseError(s)
+			}
+			data = data[s:]
+		}
+	}
+	return out, nil
+}
+
+func legacyProtoOr(data []byte) (*config.Or, error) {
+	out := &config.Or{}
+	for len(data) > 0 {
+		n, typ, s := protowire.ConsumeTag(data)
+		if s < 0 {
+			return nil, protowire.ParseError(s)
+		}
+		data = data[s:]
+		if n == 1 {
+			if typ != protowire.BytesType {
+				return nil, fmt.Errorf("or rule has wire type %d", typ)
+			}
+			v, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return nil, protowire.ParseError(x)
+			}
+			rule, err := legacyProtoRule(v)
+			if err != nil {
+				return nil, err
+			}
+			out.SetRules(append(out.GetRules(), rule))
+			data = data[x:]
+		} else {
+			s = protowire.ConsumeFieldValue(n, typ, data)
+			if s < 0 {
+				return nil, protowire.ParseError(s)
+			}
+			data = data[s:]
+		}
+	}
+	return out, nil
+}
+
+func legacyProtoRule(data []byte) (*config.Rule, error) {
+	out := &config.Rule{}
+	for len(data) > 0 {
+		n, typ, s := protowire.ConsumeTag(data)
+		if s < 0 {
+			return nil, protowire.ParseError(s)
+		}
+		data = data[s:]
+		if n >= 1 && n <= 6 {
+			if typ != protowire.BytesType {
+				return nil, fmt.Errorf("rule condition %d has wire type %d", n, typ)
+			}
+			v, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return nil, protowire.ParseError(x)
+			}
+			switch n {
+			case 1:
+				z, e := legacyProtoSingleString(v)
+				if e != nil {
+					return nil, e
+				}
+				out.SetHost(&config.Host{List: z})
+			case 2:
+				z, e := legacyProtoSingleString(v)
+				if e != nil {
+					return nil, e
+				}
+				out.SetProcess(&config.Process{List: z})
+			case 3:
+				z, zs, e := legacyProtoSource(v)
+				if e != nil {
+					return nil, e
+				}
+				out.SetInbound(&config.Source{Name: z, Names: zs})
+			case 4:
+				z, e := legacyProtoSingleVarint(v)
+				if e != nil {
+					return nil, e
+				}
+				out.SetNetwork(&config.Network{Network: config.NetworkNetworkType(z)})
+			case 5:
+				z, e := legacyProtoSingleString(v)
+				if e != nil {
+					return nil, e
+				}
+				out.SetPort(&config.Port{Ports: z})
+			case 6:
+				z, e := legacyProtoSingleString(v)
+				if e != nil {
+					return nil, e
+				}
+				out.SetGeoip(&config.Geoip{Countries: z})
+			}
+			data = data[x:]
+		} else {
+			s = protowire.ConsumeFieldValue(n, typ, data)
+			if s < 0 {
+				return nil, protowire.ParseError(s)
+			}
+			data = data[s:]
+		}
+	}
+	return out, nil
+}
+
+func legacyProtoSingleString(data []byte) (string, error) {
+	var out string
+	for len(data) > 0 {
+		n, t, s := protowire.ConsumeTag(data)
+		if s < 0 {
+			return "", protowire.ParseError(s)
+		}
+		data = data[s:]
+		if n == 1 {
+			if t != protowire.BytesType {
+				return "", fmt.Errorf("string field has wire type %d", t)
+			}
+			v, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return "", protowire.ParseError(x)
+			}
+			out = string(v)
+			data = data[x:]
+		} else {
+			s = protowire.ConsumeFieldValue(n, t, data)
+			if s < 0 {
+				return "", protowire.ParseError(s)
+			}
+			data = data[s:]
+		}
+	}
+	return out, nil
+}
+func legacyProtoSingleVarint(data []byte) (uint64, error) {
+	var out uint64
+	for len(data) > 0 {
+		n, t, s := protowire.ConsumeTag(data)
+		if s < 0 {
+			return 0, protowire.ParseError(s)
+		}
+		data = data[s:]
+		if n == 1 {
+			if t != protowire.VarintType {
+				return 0, fmt.Errorf("varint field has wire type %d", t)
+			}
+			v, x := protowire.ConsumeVarint(data)
+			if x < 0 {
+				return 0, protowire.ParseError(x)
+			}
+			out = v
+			data = data[x:]
+		} else {
+			s = protowire.ConsumeFieldValue(n, t, data)
+			if s < 0 {
+				return 0, protowire.ParseError(s)
+			}
+			data = data[s:]
+		}
+	}
+	return out, nil
+}
+func legacyProtoSource(data []byte) (string, []string, error) {
+	var name string
+	var names []string
+	for len(data) > 0 {
+		n, t, s := protowire.ConsumeTag(data)
+		if s < 0 {
+			return "", nil, protowire.ParseError(s)
+		}
+		data = data[s:]
+		if n == 1 || n == 2 {
+			if t != protowire.BytesType {
+				return "", nil, fmt.Errorf("source field %d has wire type %d", n, t)
+			}
+			v, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return "", nil, protowire.ParseError(x)
+			}
+			if n == 1 {
+				name = string(v)
+			} else {
+				names = append(names, string(v))
+			}
+			data = data[x:]
+		} else {
+			s = protowire.ConsumeFieldValue(n, t, data)
+			if s < 0 {
+				return "", nil, protowire.ParseError(s)
+			}
+			data = data[s:]
+		}
+	}
+	return name, names, nil
+}
+
+func legacyProtoList(data []byte) (*config.List, error) {
+	out := &config.List{}
+	for len(data) > 0 {
+		n, t, s := protowire.ConsumeTag(data)
+		if s < 0 {
+			return nil, protowire.ParseError(s)
+		}
+		data = data[s:]
+		switch n {
+		case 1:
+			if t != protowire.VarintType {
+				return nil, fmt.Errorf("list type has wire type %d", t)
+			}
+			v, x := protowire.ConsumeVarint(data)
+			if x < 0 {
+				return nil, protowire.ParseError(x)
+			}
+			out.SetListType(config.ListListTypeEnum(v))
+			data = data[x:]
+		case 2, 5:
+			if t != protowire.BytesType {
+				return nil, fmt.Errorf("list field %d has wire type %d", n, t)
+			}
+			v, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return nil, protowire.ParseError(x)
+			}
+			if n == 2 {
+				out.SetName(string(v))
+			} else {
+				out.SetErrorMsgs(append(out.GetErrorMsgs(), string(v)))
+			}
+			data = data[x:]
+		case 3, 4:
+			if t != protowire.BytesType {
+				return nil, fmt.Errorf("list source has wire type %d", t)
+			}
+			v, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return nil, protowire.ParseError(x)
+			}
+			values, err := legacyProtoRepeatedStrings(v)
+			if err != nil {
+				return nil, err
+			}
+			if n == 3 {
+				out.SetLocal(&config.ListLocal{Lists: values})
+			} else {
+				out.SetRemote(&config.ListRemote{Urls: values})
+			}
+			data = data[x:]
+		default:
+			s = protowire.ConsumeFieldValue(n, t, data)
+			if s < 0 {
+				return nil, protowire.ParseError(s)
+			}
+			data = data[s:]
+		}
+	}
+	return out, nil
+}
+func legacyProtoRepeatedStrings(data []byte) ([]string, error) {
+	var out []string
+	for len(data) > 0 {
+		n, t, s := protowire.ConsumeTag(data)
+		if s < 0 {
+			return nil, protowire.ParseError(s)
+		}
+		data = data[s:]
+		if n == 1 {
+			if t != protowire.BytesType {
+				return nil, fmt.Errorf("list value has wire type %d", t)
+			}
+			v, x := protowire.ConsumeBytes(data)
+			if x < 0 {
+				return nil, protowire.ParseError(x)
+			}
+			out = append(out, string(v))
+			data = data[x:]
+		} else {
+			s = protowire.ConsumeFieldValue(n, t, data)
+			if s < 0 {
+				return nil, protowire.ParseError(s)
+			}
+			data = data[s:]
+		}
+	}
+	return out, nil
 }
 
 // unmarshalLegacyAndroidInboundProto decodes the part of the former

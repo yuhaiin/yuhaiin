@@ -181,11 +181,132 @@ func TestUnmarshalLegacyAndroidInboundProto(t *testing.T) {
 	}
 }
 
-func TestApplyLegacyAndroidConfigStoreIgnoresUnreadableBackupBlob(t *testing.T) {
+func TestUnmarshalLegacyAndroidBypassProtoRulesAndLists(t *testing.T) {
+	data := legacyBypassRulesListsFixture()
+	out := config.DefaultSetting(t.TempDir()).GetBypass()
+	if err := unmarshalLegacyAndroidBypassProto(data, out); err != nil {
+		t.Fatalf("unmarshal legacy bypass protobuf: %v", err)
+	}
+	if len(out.GetRulesV2()) != 1 || out.GetRulesV2()[0].GetName() != "block ads" {
+		t.Fatalf("unexpected migrated rules: %+v", out.GetRulesV2())
+	}
+	gotHost := out.GetRulesV2()[0].GetRules()[0].GetRules()[0].GetHost().GetList()
+	if gotHost != "blocked-hosts" {
+		t.Fatalf("host list reference = %q", gotHost)
+	}
+	gotList := out.GetLists()["blocked-hosts"]
+	if gotList == nil || gotList.GetLocal() == nil || len(gotList.GetLocal().GetLists()) != 2 {
+		t.Fatalf("unexpected migrated list: %+v", gotList)
+	}
+}
+
+func TestSaveDNSTxDeduplicatesFakeDNSLists(t *testing.T) {
+	ctx := context.Background()
+	store, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	tx, err := store.DB().BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dns := config.DefaultSetting(t.TempDir()).GetDns()
+	dns.SetFakednsWhitelist([]string{"*.msftncsi.com", "*.msftncsi.com"})
+	dns.SetFakednsSkipCheckList([]string{"localhost", "localhost"})
+	if err := saveDNSTx(ctx, tx, dns, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := store.DB().QueryRow(`SELECT COUNT(*) FROM dns_fakedns_lists`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Fatalf("deduplicated DNS list count = %d, want 2", count)
+	}
+}
+
+func legacyBypassRulesListsFixture() []byte {
+	bytesField := func(number protowire.Number, value []byte) []byte {
+		data := protowire.AppendTag(nil, number, protowire.BytesType)
+		return protowire.AppendBytes(data, value)
+	}
+	stringField := func(number protowire.Number, value string) []byte {
+		return bytesField(number, []byte(value))
+	}
+	varintField := func(number protowire.Number, value uint64) []byte {
+		data := protowire.AppendTag(nil, number, protowire.VarintType)
+		return protowire.AppendVarint(data, value)
+	}
+
+	host := stringField(1, "blocked-hosts")
+	condition := bytesField(1, host)
+	orGroup := bytesField(1, condition)
+	rule := append(stringField(1, "block ads"), varintField(2, 2)...)
+	rule = append(rule, bytesField(7, orGroup)...)
+
+	local := append(stringField(1, "ads.example"), stringField(1, "tracker.example")...)
+	list := append(varintField(1, 0), stringField(2, "blocked-hosts")...)
+	list = append(list, bytesField(3, local)...)
+	listEntry := append(stringField(1, "blocked-hosts"), bytesField(2, list)...)
+
+	return append(bytesField(12, rule), bytesField(13, listEntry)...)
+}
+
+func TestRepairsAndroidProtobufConfigAfterPriorImport(t *testing.T) {
+	dir := t.TempDir()
+	data, err := json.Marshal(&legacyAndroidMemoryStore{Bytes: legacySingleStore[[]byte]{Values: map[string][]byte{
+		"bypass_db": legacyBypassRulesListsFixture(),
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "yuhaiin_memory_config_store.json"), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := storagesqlite.Open(context.Background(), paths.PathGenerator.State(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB().Exec(`INSERT INTO metadata(key, value) VALUES ('legacy_config_import_done', '1')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db := NewSqliteDB(paths.PathGenerator.State(dir))
+	defer db.Close()
+	if err := db.Migrate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var rules, lists int
+	if err := db.store.DB().QueryRow(`SELECT COUNT(*) FROM route_rules WHERE name = 'block ads'`).Scan(&rules); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.store.DB().QueryRow(`SELECT COUNT(*) FROM route_lists WHERE name = 'blocked-hosts'`).Scan(&lists); err != nil {
+		t.Fatal(err)
+	}
+	if rules != 1 || lists != 1 {
+		var allRules, allLists int
+		_ = db.store.DB().QueryRow(`SELECT COUNT(*) FROM route_rules`).Scan(&allRules)
+		_ = db.store.DB().QueryRow(`SELECT COUNT(*) FROM route_lists`).Scan(&allLists)
+		t.Fatalf("repaired route rows: rules=%d/%d lists=%d/%d", rules, allRules, lists, allLists)
+	}
+}
+
+func TestApplyLegacyAndroidConfigStoreIgnoresUnreadableBlobs(t *testing.T) {
 	dir := t.TempDir()
 	store := &legacyAndroidMemoryStore{
 		Bytes: legacySingleStore[[]byte]{Values: map[string][]byte{
-			"backup_db": {0x04},
+			"chore_db":    {0x04},
+			"resolver_db": {0x04},
+			"bypass_db":   {0x04},
+			"backup_db":   {0x04},
 		}},
 	}
 	data, err := json.Marshal(store)

@@ -30,7 +30,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20260611001507-ffb138071028
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20260322125925-9234c772ba8f
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260710152606-b8528c15324f
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260710164851-6003e9538998
 	golang.org/x/crypto v0.54.0
 	golang.org/x/mobile v0.0.0-20260709172247-6129f5bee9d5
 	golang.org/x/net v0.57.0
@@ -38,6 +38,7 @@ require (
 	golang.org/x/sys v0.47.0
 	golang.org/x/time v0.15.0
 	golang.zx2c4.com/wireguard/windows v1.0.1
+	google.golang.org/protobuf v1.36.11
 	gvisor.dev/gvisor v0.0.0-20260224225140-573d5e7127a8
 	tailscale.com v1.9999999999.99999999999
 )
@@ -115,7 +116,6 @@ require (
 	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
 )
 
 tool github.com/cilium/ebpf/cmd/bpf2go

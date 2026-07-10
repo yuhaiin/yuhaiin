@@ -82,11 +82,17 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 			if err := services.Lists.SaveConfig(r.Context(), req, interval); err != nil {
 				return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 			}
-		}
-		if services.RouteSettings != nil {
+		} else if services.RouteSettings != nil {
 			if err := services.RouteSettings.SaveListSettings(r.Context(), routeListConfigToStoreV2(req, interval)); err != nil {
 				return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 			}
+		}
+		if services.RouteSettings != nil {
+			stored, err := services.RouteSettings.ListSettings(r.Context())
+			if err != nil {
+				return writeError(w, http.StatusInternalServerError, "internal", err.Error())
+			}
+			return writeJSON(w, http.StatusOK, routeListConfigFromStoreV2(stored))
 		}
 		return writeJSON(w, http.StatusOK, req)
 	})
