@@ -129,6 +129,7 @@ func dimensionsForConnection(info contractconnection.Connection) []telemetryDime
 		"protocol":    info.Network.ConnType,
 		"inbound":     firstNonEmpty(info.InboundName, info.Inbound),
 		"source":      info.Source,
+		"addr":        info.Addr,
 		"outbound":    firstNonEmpty(info.NodeName, info.NodeID, info.Outbound),
 		"process":     info.Process,
 		"tag":         info.Tag,

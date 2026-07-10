@@ -131,7 +131,7 @@ func TestTelemetryDimensionsAggregateTrafficAndFailures(t *testing.T) {
 		}
 	}
 	for dimension, value := range map[string]string{
-		"protocol": "tcp", "inbound": "socks5", "source": "127.0.0.1:52001", "outbound": "edge-a", "process": "curl", "rule": "media-rule", "tag": "streaming", "destination": "example.com",
+		"protocol": "tcp", "inbound": "socks5", "source": "127.0.0.1:52001", "addr": "example.com:443", "outbound": "edge-a", "process": "curl", "rule": "media-rule", "tag": "streaming", "destination": "example.com",
 	} {
 		item, ok := groups[dimension]
 		if !ok || item.Value != value || item.Download != "123" || item.Upload != "456" || item.Failures != "1" {
