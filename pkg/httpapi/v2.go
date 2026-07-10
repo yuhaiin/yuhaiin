@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
@@ -40,6 +41,7 @@ type ToolsController interface {
 
 type ConnectionMonitor interface {
 	Total(context.Context) (contractconnection.TotalFlow, error)
+	Traffic(context.Context, string, time.Time, time.Time) (contractconnection.TrafficSeries, error)
 	List(context.Context) (contractconnection.Connections, error)
 	Close(context.Context, []uint64) error
 	FailedHistory(context.Context) (contractconnection.FailedHistoryList, error)

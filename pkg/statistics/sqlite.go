@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"net"
 	"sort"
 	"time"
@@ -368,6 +369,36 @@ func (c *Connections) TrafficYearly(ctx context.Context, from, to time.Time) ([]
 		y, _, _ := t.UTC().Date()
 		return time.Date(y, 1, 1, 0, 0, 0, 0, time.UTC)
 	})
+}
+
+func (c *Connections) Traffic(ctx context.Context, interval string, from, to time.Time) (contractconnection.TrafficSeries, error) {
+	var (
+		buckets []TrafficBucket
+		err     error
+	)
+	switch interval {
+	case "hour":
+		buckets, err = c.TrafficHourly(ctx, from, to)
+	case "day":
+		buckets, err = c.TrafficDaily(ctx, from, to)
+	case "month":
+		buckets, err = c.TrafficMonthly(ctx, from, to)
+	default:
+		return contractconnection.TrafficSeries{}, fmt.Errorf("unsupported traffic interval %q", interval)
+	}
+	if err != nil {
+		return contractconnection.TrafficSeries{}, err
+	}
+
+	items := make([]contractconnection.TrafficPoint, 0, len(buckets))
+	for _, bucket := range buckets {
+		items = append(items, contractconnection.TrafficPoint{
+			Start:    bucket.StartUTC,
+			Download: formatUint64(bucket.DownloadBytes),
+			Upload:   formatUint64(bucket.UploadBytes),
+		})
+	}
+	return contractconnection.TrafficSeries{Interval: interval, Items: items}, nil
 }
 
 func (c *Connections) trafficAggregate(ctx context.Context, from, to time.Time, truncate func(time.Time) time.Time) ([]TrafficBucket, error) {

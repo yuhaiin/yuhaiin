@@ -3,6 +3,7 @@ package statistics
 import (
 	"context"
 	"errors"
+	"time"
 
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	"github.com/Asutorufa/yuhaiin/pkg/control"
@@ -21,6 +22,13 @@ func (m ConnectionMonitor) Total(ctx context.Context) (contractconnection.TotalF
 		return contractconnection.TotalFlow{}, errors.New("connections controller is unavailable")
 	}
 	return m.connections.Total(ctx)
+}
+
+func (m ConnectionMonitor) Traffic(ctx context.Context, interval string, from, to time.Time) (contractconnection.TrafficSeries, error) {
+	if m.connections == nil {
+		return contractconnection.TrafficSeries{}, errors.New("connections controller is unavailable")
+	}
+	return m.connections.Traffic(ctx, interval, from, to)
 }
 
 func (m ConnectionMonitor) List(ctx context.Context) (contractconnection.Connections, error) {

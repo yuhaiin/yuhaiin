@@ -86,6 +86,14 @@ func TestSQLiteTelemetryPersistsTotalsAndHistory(t *testing.T) {
 	if daily[0].DownloadBytes != 123 || daily[0].UploadBytes != 456 {
 		t.Fatalf("unexpected daily traffic download=%d upload=%d", daily[0].DownloadBytes, daily[0].UploadBytes)
 	}
+
+	series, err := connections.Traffic(context.Background(), "day", time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatalf("query traffic series failed: %v", err)
+	}
+	if series.Interval != "day" || len(series.Items) != 1 || series.Items[0].Download != "123" || series.Items[0].Upload != "456" {
+		t.Fatalf("unexpected traffic series: %+v", series)
+	}
 }
 
 func TestSQLiteTotalCacheImportsLegacyFlowData(t *testing.T) {

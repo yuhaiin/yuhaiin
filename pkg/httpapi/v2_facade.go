@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
@@ -142,6 +143,32 @@ func registerConnectionsV2(register RegisterFunc, services V2Services) {
 			return err
 		}
 		return writeJSON(w, http.StatusOK, total)
+	})
+
+	register("GET /api/v2/connections/traffic", func(w http.ResponseWriter, r *http.Request) error {
+		if services.Connections == nil {
+			return writeError(w, http.StatusServiceUnavailable, "unavailable", "connections controller is unavailable")
+		}
+		interval := r.URL.Query().Get("interval")
+		if interval == "" {
+			interval = "hour"
+		}
+		from, err := time.Parse(time.RFC3339, r.URL.Query().Get("from"))
+		if err != nil {
+			return writeError(w, http.StatusBadRequest, "bad_request", "from must be an RFC3339 timestamp")
+		}
+		to, err := time.Parse(time.RFC3339, r.URL.Query().Get("to"))
+		if err != nil {
+			return writeError(w, http.StatusBadRequest, "bad_request", "to must be an RFC3339 timestamp")
+		}
+		if !from.Before(to) {
+			return writeError(w, http.StatusBadRequest, "bad_request", "from must be before to")
+		}
+		series, err := services.Connections.Traffic(r.Context(), interval, from, to)
+		if err != nil {
+			return err
+		}
+		return writeJSON(w, http.StatusOK, series)
 	})
 
 	register("GET /api/v2/connections/events", connectionsEventsV2(services))

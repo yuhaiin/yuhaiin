@@ -13,6 +13,19 @@ type TotalFlow struct {
 	Counters map[string]Counter `json:"counters,omitzero"`
 }
 
+// TrafficPoint is an UTC bucket in a traffic time series. Byte counts are
+// strings so clients do not lose precision in JavaScript numbers.
+type TrafficPoint struct {
+	Start    time.Time `json:"start"`
+	Download string    `json:"download"`
+	Upload   string    `json:"upload"`
+}
+
+type TrafficSeries struct {
+	Interval string         `json:"interval"`
+	Items    []TrafficPoint `json:"items"`
+}
+
 type Connection struct {
 	ID            string              `json:"id"`
 	Addr          string              `json:"addr"`
