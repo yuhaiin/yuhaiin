@@ -341,6 +341,9 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		NodeID:       nc.Hash,
 		NodeName:     nc.NodeName,
 		Protocol:     nc.GetProtocol(),
+		Process:      nc.GetProcessName(),
+		PID:          formatUint64ZeroEmpty(uint64(nc.GetProcessPid())),
+		UID:          formatUint64ZeroEmpty(uint64(nc.GetProcessUid())),
 		Mode:         nc.ConnOptions().RouteMode(),
 		UDPMigrateID: formatUint64ZeroEmpty(nc.GetUDPMigrateID()),
 	}
@@ -348,13 +351,10 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 	if configuration.ExtendedStatsEnabled.Load() {
 		connection.Geo = nc.GetGeo()
 		connection.OutboundGeo = outboundGeo
-		connection.Process = nc.GetProcessName()
 		connection.TLSServerName = nc.GetTLSServerName()
 		connection.HTTPHost = nc.GetHTTPHost()
 		connection.Component = nc.GetComponent()
 		connection.MatchHistory = ToMatchHistoryEntry(nc.MatchHistory())
-		connection.PID = formatUint64ZeroEmpty(uint64(nc.GetProcessPid()))
-		connection.UID = formatUint64ZeroEmpty(uint64(nc.GetProcessUid()))
 		connection.Resolver = resolverName(nc.ConnOptions().Resolver().Resolver())
 		connection.Lists = nc.ConnOptions().Lists()
 	}

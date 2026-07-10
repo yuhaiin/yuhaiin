@@ -341,14 +341,6 @@ func newResolverDB() app.SQLStore {
 	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
 }
 
-func newBypassDB() app.SQLStore {
-	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
-}
-
 func newChoreDB() app.SQLStore {
-	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
-}
-
-func newBackupDB() app.SQLStore {
 	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
 }
