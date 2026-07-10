@@ -6,6 +6,7 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -50,7 +51,7 @@ func (s *sqlitePreferenceStore) PutFloat(key string, value float32) { s.put(key,
 func (s *sqlitePreferenceStore) PutBytes(key string, value []byte)  { s.put(key, value) }
 
 func (s *sqlitePreferenceStore) GetString(key string) string {
-	value, ok := getSQLitePreference[string](s, key)
+	value, ok := getSQLiteStringPreference(s, key)
 	if !ok {
 		return defaultStringValue[key]
 	}
@@ -109,23 +110,56 @@ func (s *sqlitePreferenceStore) put(key string, value any) {
 
 func getSQLitePreference[T any](s *sqlitePreferenceStore, key string) (T, bool) {
 	var value T
+	data, ok := getSQLitePreferenceJSON(s, key)
+	if !ok {
+		return value, false
+	}
+	if err := json.Unmarshal(data, &value); err != nil {
+		log.Error("get sqlite android preference failed", "key", key, "err", err)
+		return value, false
+	}
+	return value, true
+}
+
+// getSQLiteStringPreference accepts scalar values from the untyped preference
+// table. This preserves compatibility with callers that historically requested
+// a string for a key that an earlier Android release persisted as a boolean.
+func getSQLiteStringPreference(s *sqlitePreferenceStore, key string) (string, bool) {
+	data, ok := getSQLitePreferenceJSON(s, key)
+	if !ok {
+		return "", false
+	}
+
+	var value string
+	if err := json.Unmarshal(data, &value); err == nil {
+		return value, true
+	}
+
+	var boolean bool
+	if err := json.Unmarshal(data, &boolean); err == nil {
+		return strconv.FormatBool(boolean), true
+	}
+	return "", false
+}
+
+func getSQLitePreferenceJSON(s *sqlitePreferenceStore, key string) ([]byte, bool) {
+	var data string
 	err := s.withDB(func(ctx context.Context, db *sql.DB) error {
-		var data string
 		if err := db.QueryRowContext(ctx, `
 			SELECT value_json FROM android_extra_preferences WHERE key = ?
 		`, key).Scan(&data); err != nil {
 			return err
 		}
-		return json.Unmarshal([]byte(data), &value)
+		return nil
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		return value, false
+		return nil, false
 	}
 	if err != nil {
-		log.Error("get sqlite android preference failed", "key", key, "err", err)
-		return value, false
+		log.Error("read sqlite android preference failed", "key", key, "err", err)
+		return nil, false
 	}
-	return value, true
+	return []byte(data), true
 }
 
 func (s *sqlitePreferenceStore) withDB(fn func(context.Context, *sql.DB) error) error {

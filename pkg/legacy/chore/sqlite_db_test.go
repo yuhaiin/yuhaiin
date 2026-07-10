@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"google.golang.org/protobuf/encoding/protowire"
+
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/legacy/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
@@ -157,6 +159,46 @@ func TestSqliteDBImportsLegacyConfigAndAndroidPreferences(t *testing.T) {
 	}
 	if valueJSON != `"balanced"` {
 		t.Fatalf("expected imported profile preference, got %q", valueJSON)
+	}
+}
+
+func TestUnmarshalLegacyAndroidInboundProto(t *testing.T) {
+	data := protowire.AppendTag(nil, 2, protowire.VarintType)
+	data = protowire.AppendVarint(data, 1)
+	data = protowire.AppendTag(data, 3, protowire.VarintType)
+	data = protowire.AppendVarint(data, 1)
+	sniff := protowire.AppendTag(nil, 1, protowire.VarintType)
+	sniff = protowire.AppendVarint(sniff, 1)
+	data = protowire.AppendTag(data, 4, protowire.BytesType)
+	data = protowire.AppendBytes(data, sniff)
+
+	inbound := config.DefaultSetting(t.TempDir()).GetServer()
+	if err := unmarshalLegacyAndroidInboundProto(data, inbound); err != nil {
+		t.Fatalf("unmarshal legacy inbound protobuf: %v", err)
+	}
+	if !inbound.GetHijackDns() || !inbound.GetHijackDnsFakeip() || !inbound.GetSniff().GetEnabled() {
+		t.Fatalf("unexpected migrated inbound settings: %+v", inbound)
+	}
+}
+
+func TestApplyLegacyAndroidConfigStoreIgnoresUnreadableBackupBlob(t *testing.T) {
+	dir := t.TempDir()
+	store := &legacyAndroidMemoryStore{
+		Bytes: legacySingleStore[[]byte]{Values: map[string][]byte{
+			"backup_db": {0x04},
+		}},
+	}
+	data, err := json.Marshal(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "yuhaiin_memory_config_store.json")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := applyLegacyAndroidConfigStore(path, config.DefaultSetting(dir), dir); err != nil {
+		t.Fatalf("unreadable legacy backup blob should not block migration: %v", err)
 	}
 }
 

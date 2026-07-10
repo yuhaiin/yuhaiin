@@ -21,6 +21,7 @@ import (
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
+	"google.golang.org/protobuf/encoding/protowire"
 )
 
 var _ DB = (*SqliteDB)(nil)
@@ -1367,8 +1368,14 @@ func applyLegacyAndroidConfigStore(path string, setting *config.Setting, dir str
 
 	if data := store.Bytes.Values["inbound_db"]; len(data) > 0 {
 		inbound := defaultSetting.GetServer()
-		if err := json.Unmarshal(data, inbound); err != nil {
-			return false, fmt.Errorf("unmarshal android inbound_db json failed: %w", err)
+		if jsonErr := json.Unmarshal(data, inbound); jsonErr != nil {
+			// Android releases before the JSON settings store wrote this value as a
+			// protobuf message. Try that representation before treating the legacy
+			// value as corrupt. Inbound listeners themselves were runtime-generated
+			// on Android, so only the persisted runtime settings are recovered.
+			if protoErr := unmarshalLegacyAndroidInboundProto(data, inbound); protoErr != nil {
+				return false, fmt.Errorf("unmarshal android inbound_db (json or legacy protobuf) failed: json: %v; protobuf: %w", jsonErr, protoErr)
+			}
 		}
 		setting.SetServer(inbound)
 		imported = true
@@ -1377,15 +1384,113 @@ func applyLegacyAndroidConfigStore(path string, setting *config.Setting, dir str
 	if data := store.Bytes.Values["backup_db"]; len(data) > 0 {
 		legacySetting := config.DefaultSetting(dir)
 		if err := json.Unmarshal(data, legacySetting); err != nil {
-			return false, fmt.Errorf("unmarshal android backup_db json failed: %w", err)
-		}
-		if legacySetting.GetBackup() != nil {
+			// Older Android versions ignored an unreadable protobuf backup blob and
+			// continued with the default backup settings. Preserve that behavior so
+			// a stale or corrupt optional backup configuration cannot prevent VPN
+			// startup after migration.
+			imported = true
+		} else if legacySetting.GetBackup() != nil {
 			setting.SetBackup(legacySetting.GetBackup())
+			imported = true
 		}
-		imported = true
 	}
 
 	return imported, nil
+}
+
+// unmarshalLegacyAndroidInboundProto decodes the part of the former
+// config.InboundConfig protobuf message that Android persisted independently.
+// The listener map is deliberately ignored: Android rebuilt it for each VPN
+// start from the current runtime options, rather than using the stored map.
+func unmarshalLegacyAndroidInboundProto(data []byte, inbound *config.InboundConfig) error {
+	if inbound == nil {
+		return errors.New("inbound config is nil")
+	}
+
+	for len(data) > 0 {
+		number, typ, n := protowire.ConsumeTag(data)
+		if n < 0 {
+			return protowire.ParseError(n)
+		}
+		data = data[n:]
+
+		switch number {
+		case 1: // inbounds: Android generated these at runtime.
+			if typ != protowire.BytesType {
+				return fmt.Errorf("inbounds has wire type %d, want bytes", typ)
+			}
+			_, n = protowire.ConsumeBytes(data)
+		case 2:
+			if typ != protowire.VarintType {
+				return fmt.Errorf("hijack_dns has wire type %d, want varint", typ)
+			}
+			var value uint64
+			value, n = protowire.ConsumeVarint(data)
+			if n >= 0 {
+				inbound.SetHijackDns(value != 0)
+			}
+		case 3:
+			if typ != protowire.VarintType {
+				return fmt.Errorf("hijack_dns_fakeip has wire type %d, want varint", typ)
+			}
+			var value uint64
+			value, n = protowire.ConsumeVarint(data)
+			if n >= 0 {
+				inbound.SetHijackDnsFakeip(value != 0)
+			}
+		case 4:
+			if typ != protowire.BytesType {
+				return fmt.Errorf("sniff has wire type %d, want bytes", typ)
+			}
+			var sniffData []byte
+			sniffData, n = protowire.ConsumeBytes(data)
+			if n >= 0 {
+				sniff, err := unmarshalLegacyAndroidSniffProto(sniffData)
+				if err != nil {
+					return err
+				}
+				inbound.SetSniff(sniff)
+			}
+		default:
+			n = protowire.ConsumeFieldValue(number, typ, data)
+		}
+		if n < 0 {
+			return protowire.ParseError(n)
+		}
+		data = data[n:]
+	}
+	return nil
+}
+
+func unmarshalLegacyAndroidSniffProto(data []byte) (*config.Sniff, error) {
+	sniff := &config.Sniff{}
+	for len(data) > 0 {
+		number, typ, n := protowire.ConsumeTag(data)
+		if n < 0 {
+			return nil, protowire.ParseError(n)
+		}
+		data = data[n:]
+
+		if number == 1 {
+			if typ != protowire.VarintType {
+				return nil, fmt.Errorf("sniff enabled has wire type %d, want varint", typ)
+			}
+			value, n := protowire.ConsumeVarint(data)
+			if n < 0 {
+				return nil, protowire.ParseError(n)
+			}
+			sniff.SetEnabled(value != 0)
+			data = data[n:]
+			continue
+		}
+
+		n = protowire.ConsumeFieldValue(number, typ, data)
+		if n < 0 {
+			return nil, protowire.ParseError(n)
+		}
+		data = data[n:]
+	}
+	return sniff, nil
 }
 
 type legacySingleStore[T any] struct {
