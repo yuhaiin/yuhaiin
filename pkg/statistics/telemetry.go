@@ -127,6 +127,8 @@ func (r *telemetryRecorder) flushCounters(counters []*dimensionCounter) {
 func dimensionsForConnection(info contractconnection.Connection) []telemetryDimension {
 	values := map[string]string{
 		"protocol":    info.Network.ConnType,
+		"inbound":     firstNonEmpty(info.InboundName, info.Inbound),
+		"source":      info.Source,
 		"outbound":    firstNonEmpty(info.NodeName, info.NodeID, info.Outbound),
 		"process":     info.Process,
 		"tag":         info.Tag,
