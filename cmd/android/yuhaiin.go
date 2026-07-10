@@ -310,7 +310,7 @@ func applyRuntimeProfile() {
 
 	processLookupMode := store.GetString(AdvProcessLookupModeKey)
 	if processLookupMode == "" {
-		processLookupMode = ProcessLookupRulesOnlyValue
+		processLookupMode = ProcessLookupAlwaysValue
 	}
 	configuration.ProcessLookupMode.Store(processLookupMode)
 
