@@ -178,6 +178,8 @@ type Lists struct {
 	hostTrie               *hostMatcher
 	hostTrieRefreshTimer   *time.Timer
 	hostTrieRefreshTimerMu sync.Mutex
+	hostTrieRefreshAt      atomic.Int64
+	hostTrieRefreshVersion atomic.Uint64
 
 	processTrie *processMatcher
 
@@ -227,7 +229,7 @@ func NewLists(lists RouteListBook, settings RouteListSettingsBook, configPath st
 		processTrie: newProcessTrie(),
 	}
 
-	l.hostTrieRefreshTimer = time.AfterFunc(time.Second, l.refreshHostTrie)
+	l.hostTrieRefreshTimer = time.AfterFunc(time.Second, l.refreshHostTrieAndMarkApplied)
 
 	var interval uint64
 	if settings != nil {
@@ -242,9 +244,28 @@ func NewLists(lists RouteListBook, settings RouteListSettingsBook, configPath st
 }
 
 func (s *Lists) notifyRefreshHostTrie() {
+	s.hostTrieRefreshVersion.Add(1)
+	s.hostTrieRefreshAt.Store(time.Now().Add(time.Minute).UnixMilli())
 	s.hostTrieRefreshTimerMu.Lock()
 	s.hostTrieRefreshTimer.Reset(time.Minute)
 	s.hostTrieRefreshTimerMu.Unlock()
+}
+
+func (s *Lists) refreshHostTrieAndMarkApplied() {
+	version := s.hostTrieRefreshVersion.Load()
+	s.refreshHostTrie()
+	if s.hostTrieRefreshVersion.Load() == version {
+		s.hostTrieRefreshAt.Store(0)
+	}
+}
+
+func (s *Lists) ApplyListChanges() {
+	s.refreshProcessTrie()
+	s.notifyRefreshHostTrie()
+}
+
+func (s *Lists) ActivationStatus() contractroute.ListActivationStatus {
+	return contractroute.ListActivationStatus{HostIndexRefreshAt: s.hostTrieRefreshAt.Load()}
 }
 
 func (s *Lists) LoadGeoip() *maxminddb.MaxMindDB {

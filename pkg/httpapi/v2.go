@@ -88,6 +88,8 @@ type RouteRuntimeController interface {
 type ListRuntimeController interface {
 	SaveConfig(context.Context, contractroute.ListConfig, uint64) error
 	Refresh(context.Context) error
+	ApplyChanges(context.Context) error
+	ActivationStatus(context.Context) (contractroute.ListActivationStatus, error)
 }
 
 type InboundStore interface {

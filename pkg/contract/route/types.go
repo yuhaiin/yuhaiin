@@ -16,6 +16,10 @@ type ListConfig struct {
 	MaxMindDBGeoIP  MaxMindDBGeoIP `json:"maxMindDbGeoIp"`
 }
 
+type ListActivationStatus struct {
+	HostIndexRefreshAt int64 `json:"hostIndexRefreshAt"`
+}
+
 type MaxMindDBGeoIP struct {
 	DownloadURL string `json:"downloadUrl"`
 	Error       string `json:"error"`

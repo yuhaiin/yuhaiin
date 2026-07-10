@@ -95,6 +95,10 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return service.Refresh(r.Context())
 	})
 
+	registerV2Get(register, "GET /api/v2/route/lists/activation", services.Lists, "list controller is unavailable", func(service ListRuntimeController, r *http.Request) (contractroute.ListActivationStatus, error) {
+		return service.ActivationStatus(r.Context())
+	})
+
 	registerV2Available(register, "POST /api/v2/route/lists", services.RouteLists != nil, "route list store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		var req contractroute.RouteListDetail
 		if err := readJSONBody(r, &req); err != nil {
@@ -102,6 +106,11 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		}
 		if err := services.RouteLists.SaveRouteList(r.Context(), req, 0); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
+		}
+		if services.Lists != nil {
+			if err := services.Lists.ApplyChanges(r.Context()); err != nil {
+				return err
+			}
 		}
 		return writeJSON(w, http.StatusCreated, req)
 	})
@@ -134,6 +143,11 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		if err := services.RouteLists.SaveRouteList(r.Context(), req, 0); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
+		if services.Lists != nil {
+			if err := services.Lists.ApplyChanges(r.Context()); err != nil {
+				return err
+			}
+		}
 		return writeJSON(w, http.StatusOK, req)
 	})
 
@@ -148,6 +162,11 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		}
 		if err != nil {
 			return err
+		}
+		if services.Lists != nil {
+			if err := services.Lists.ApplyChanges(r.Context()); err != nil {
+				return err
+			}
 		}
 		return writeJSON(w, http.StatusNoContent, nil)
 	})

@@ -29,6 +29,21 @@ func (c ContractListController) Refresh(ctx context.Context) error {
 	return c.lists.RefreshContract(ctx)
 }
 
+func (c ContractListController) ApplyChanges(context.Context) error {
+	if c.lists == nil {
+		return errors.New("list controller is unavailable")
+	}
+	c.lists.ApplyListChanges()
+	return nil
+}
+
+func (c ContractListController) ActivationStatus(context.Context) (contractroute.ListActivationStatus, error) {
+	if c.lists == nil {
+		return contractroute.ListActivationStatus{}, errors.New("list controller is unavailable")
+	}
+	return c.lists.ActivationStatus(), nil
+}
+
 type ContractRuleController struct {
 	rules *Rules
 }
