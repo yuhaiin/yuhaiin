@@ -86,8 +86,8 @@ func TestMigrateLegacyNodesBackfillsWhenMarkerDoneButContractsEmpty(t *testing.T
 		t.Fatal(err)
 	}
 	if _, err := sqliteStore.DB().ExecContext(ctx, `
-		INSERT INTO nodes(hash, group_name, name, origin, search_text, updated_at, data_json)
-		VALUES ('hash-1', 'manual', 'alpha', ?, 'alpha manual', 100, ?)
+		INSERT INTO nodes(hash, group_name, name, origin, selected_tcp, selected_udp, search_text, updated_at, data_json)
+		VALUES ('hash-1', 'manual', 'alpha', ?, 1, 1, 'alpha manual', 100, ?)
 	`, int(legacynode.Origin_manual), string(dataJSON)); err != nil {
 		t.Fatal(err)
 	}
@@ -108,6 +108,72 @@ func TestMigrateLegacyNodesBackfillsWhenMarkerDoneButContractsEmpty(t *testing.T
 	if got.ID != "hash-1" || got.Name != "alpha" || len(got.Chain) != 1 || got.Chain[0].Type != "direct" {
 		t.Fatalf("migrated node = %+v", got)
 	}
+	assertMetadataValue(t, ctx, sqliteStore, "selected_tcp_node_v2", "hash-1")
+	assertMetadataValue(t, ctx, sqliteStore, "selected_udp_node_v2", "hash-1")
+}
+
+func TestMigrateLegacyNodesDoesNotOverwriteValidSelection(t *testing.T) {
+	ctx := context.Background()
+	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sqliteStore.Close() }()
+
+	for _, item := range []struct {
+		hash     string
+		name     string
+		selected bool
+	}{
+		{hash: "hash-1", name: "alpha", selected: true},
+		{hash: "hash-2", name: "beta"},
+	} {
+		point := legacynode.Point_builder{
+			Hash:   ptr(item.hash),
+			Name:   ptr(item.name),
+			Group:  ptr("manual"),
+			Origin: legacynode.Origin_manual.Enum(),
+		}.Build()
+		dataJSON, err := json.Marshal(point)
+		if err != nil {
+			t.Fatal(err)
+		}
+		selected := 0
+		if item.selected {
+			selected = 1
+		}
+		if _, err := sqliteStore.DB().ExecContext(ctx, `
+			INSERT INTO nodes(hash, group_name, name, origin, selected_tcp, selected_udp, search_text, updated_at, data_json)
+			VALUES (?, 'manual', ?, ?, ?, ?, ?, 100, ?)
+		`, item.hash, item.name, int(legacynode.Origin_manual), selected, selected, item.name+" manual", string(dataJSON)); err != nil {
+			t.Fatal(err)
+		}
+		node, warnings, err := ConvertLegacyNode(point)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, warning := range warnings {
+			t.Logf("warning: %s: %s", warning.Entity, warning.Message)
+		}
+		if err := plainstore.SaveNodeContract(ctx, sqliteStore.DB(), node, 100); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := sqliteStore.DB().ExecContext(ctx, `
+		INSERT INTO metadata(key, value)
+		VALUES
+			('plain_nodes_migration_done', '1'),
+			('selected_tcp_node_v2', 'hash-2'),
+			('selected_udp_node_v2', 'hash-2')
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := MigrateLegacyNodes(ctx, sqliteStore.DB(), 200); err != nil {
+		t.Fatal(err)
+	}
+	assertMetadataValue(t, ctx, sqliteStore, "selected_tcp_node_v2", "hash-2")
+	assertMetadataValue(t, ctx, sqliteStore, "selected_udp_node_v2", "hash-2")
 }
 
 func TestMigrateLegacyResolvers(t *testing.T) {
@@ -369,5 +435,20 @@ func assertMarker(t *testing.T, ctx context.Context, sqliteStore *storagesqlite.
 	}
 	if marker != "1" {
 		t.Fatalf("%s = %q", key, marker)
+	}
+}
+
+func assertMetadataValue(t *testing.T, ctx context.Context, sqliteStore *storagesqlite.Store, key, want string) {
+	t.Helper()
+	var got string
+	if err := sqliteStore.DB().QueryRowContext(ctx, `
+		SELECT value
+		FROM metadata
+		WHERE key = ?
+	`, key).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("%s = %q, want %q", key, got, want)
 	}
 }

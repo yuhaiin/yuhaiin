@@ -94,7 +94,7 @@ func MigrateLegacyNodes(ctx context.Context, db *sql.DB, updatedAt int64) error 
 			return err
 		}
 		if legacyCount == 0 || legacyCount == contractCount {
-			return nil
+			return syncLegacySelectedNodes(ctx, db)
 		}
 		fmt.Printf("plain node migration warning: legacy nodes=%d, nodes_v2=%d; rebuilding node contracts\n", legacyCount, contractCount)
 	}
@@ -145,11 +145,43 @@ func MigrateLegacyNodes(ctx context.Context, db *sql.DB, updatedAt int64) error 
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("iterate legacy nodes failed: %w", err)
 	}
+	if err := syncLegacySelectedNodes(ctx, tx); err != nil {
+		return err
+	}
 	if err := markMigrationDone(ctx, tx, "plain_nodes_migration_done"); err != nil {
 		return fmt.Errorf("mark plain node migration done failed: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit plain node migration transaction failed: %w", err)
+	}
+	return nil
+}
+
+func syncLegacySelectedNodes(ctx context.Context, execer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}) error {
+	if err := syncLegacySelectedNode(ctx, execer, "selected_tcp_node_v2", "selected_tcp"); err != nil {
+		return err
+	}
+	return syncLegacySelectedNode(ctx, execer, "selected_udp_node_v2", "selected_udp")
+}
+
+func syncLegacySelectedNode(ctx context.Context, execer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}, metadataKey, legacyColumn string) error {
+	_, err := execer.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO metadata(key, value)
+		SELECT ?, hash
+		FROM nodes
+		WHERE %[1]s = 1
+			AND EXISTS (SELECT 1 FROM nodes_v2 WHERE id = nodes.hash)
+		LIMIT 1
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value
+		WHERE metadata.value = ''
+			OR NOT EXISTS (SELECT 1 FROM nodes_v2 WHERE id = metadata.value)
+	`, legacyColumn), metadataKey)
+	if err != nil {
+		return fmt.Errorf("sync legacy selected node %q failed: %w", metadataKey, err)
 	}
 	return nil
 }

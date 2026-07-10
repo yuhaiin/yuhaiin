@@ -213,6 +213,8 @@ func (s *Route) addMatchers() {
 }
 
 func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
+	ctx, _ = netapi.GetOrNewContext(ctx)
+
 	s.dumpProcess(ctx, addr.Network())
 
 	store := netapi.GetContext(ctx)
@@ -276,6 +278,8 @@ func (s *Route) getResolverFallback(mode ModeEnum) string {
 }
 
 func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
+	ctx, _ = netapi.GetOrNewContext(ctx)
+
 	host, err := netapi.ParseAddressPort("", domain, 0)
 	if err != nil {
 		return netapi.ErrorResolver(func(domain string) error { return err })

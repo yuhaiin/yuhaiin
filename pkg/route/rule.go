@@ -111,6 +111,8 @@ func udpProxyFQDNStrategyFromCode(value int) UDPProxyFQDNStrategy {
 }
 
 func (r *Rules) TestContract(ctx context.Context, host string) (contractroute.RuleTestResponse, error) {
+	ctx, store := netapi.GetOrNewContext(ctx)
+
 	var addr netapi.Address
 	hostname, portstr, err := net.SplitHostPort(host)
 	if err == nil {
@@ -126,7 +128,6 @@ func (r *Rules) TestContract(ctx context.Context, host string) (contractroute.Ru
 		return contractroute.RuleTestResponse{}, fmt.Errorf("parse addr failed: %w", err)
 	}
 
-	store := netapi.GetContext(ctx)
 	result := r.route.dispatch(ctx, addr)
 	ips, _ := store.ConnOptions().RouteIPs(ctx, addr)
 
