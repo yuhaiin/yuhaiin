@@ -13,6 +13,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	legacymigrate "github.com/Asutorufa/yuhaiin/pkg/legacy/migrate"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
@@ -63,10 +64,6 @@ func (s *StateDB) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	clearedSessions, err := clearConnectionSessions(ctx, db)
-	if err != nil {
-		return err
-	}
 	if err := legacymigrate.MigrateLegacyBackup(ctx, db, 0); err != nil {
 		return err
 	}
@@ -86,9 +83,9 @@ func (s *StateDB) Migrate(ctx context.Context) error {
 	`, plainModelMigrationDoneKey); err != nil {
 		return fmt.Errorf("mark plain model migration done failed: %w", err)
 	}
-	if plainMigrationDone != "1" || clearedSessions {
+	if plainMigrationDone != "1" {
 		if err := vacuumMigratedState(ctx, db); err != nil {
-			return err
+			log.Warn("vacuum migrated state failed", "err", err)
 		}
 	}
 	return nil
@@ -104,18 +101,6 @@ func (s *StateDB) normalizeLegacySettingsKV(ctx context.Context) error {
 		return fmt.Errorf("normalize legacy settings JSON: %w", err)
 	}
 	return nil
-}
-
-func clearConnectionSessions(ctx context.Context, db *sql.DB) (bool, error) {
-	result, err := db.ExecContext(ctx, `DELETE FROM connection_sessions`)
-	if err != nil {
-		return false, fmt.Errorf("clear previous connection sessions before migration failed: %w", err)
-	}
-	count, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("read cleared connection session count: %w", err)
-	}
-	return count > 0, nil
 }
 
 func vacuumMigratedState(ctx context.Context, db *sql.DB) error {

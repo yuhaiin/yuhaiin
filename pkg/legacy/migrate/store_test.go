@@ -561,6 +561,21 @@ func TestMigrateLegacyBackupRewritesContractJSON(t *testing.T) {
 		t.Fatalf("backup json was not rewritten to contract shape: %s", dataJSON)
 	}
 	assertMarker(t, ctx, sqliteStore, "plain_backup_migration_done")
+
+	got.InstanceName = "current-instance"
+	if err := plainstore.NewBackupStore(sqliteStore.DB()).Save(ctx, got); err != nil {
+		t.Fatal(err)
+	}
+	if err := MigrateLegacyBackup(ctx, sqliteStore.DB(), 300); err != nil {
+		t.Fatal(err)
+	}
+	got, err = plainstore.NewBackupStore(sqliteStore.DB()).Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.InstanceName != "current-instance" {
+		t.Fatalf("completed backup migration overwrote current settings: %+v", got)
+	}
 }
 
 func assertMarker(t *testing.T, ctx context.Context, sqliteStore *storagesqlite.Store, key string) {

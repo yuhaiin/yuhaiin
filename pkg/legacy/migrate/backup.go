@@ -18,12 +18,16 @@ func MigrateLegacyBackup(ctx context.Context, db *sql.DB, updatedAt int64) error
 	if db == nil {
 		return errors.New("database is nil")
 	}
+	done, err := loadMigrationMarker(ctx, db, "plain_backup_migration_done")
+	if err != nil || done == "1" {
+		return err
+	}
 	if updatedAt == 0 {
 		updatedAt = time.Now().Unix()
 	}
 
 	var dataJSON string
-	err := db.QueryRowContext(ctx, `
+	err = db.QueryRowContext(ctx, `
 		SELECT data_json
 		FROM backup_settings
 		WHERE id = 1

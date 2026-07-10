@@ -84,8 +84,50 @@ func TestStateDBMigrateRewritesLegacyConnectionHistory(t *testing.T) {
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM connection_sessions`).Scan(&sessionCount); err != nil {
 		t.Fatal(err)
 	}
-	if sessionCount != 0 {
-		t.Fatalf("connection sessions after migration = %d, want 0", sessionCount)
+	if sessionCount != 1 {
+		t.Fatalf("connection sessions after migration = %d, want 1", sessionCount)
+	}
+}
+
+func TestStateDBMigrateLeavesSessionCleanupToStatisticsStartup(t *testing.T) {
+	ctx := context.Background()
+	statePath := filepath.Join(t.TempDir(), "state.db")
+
+	store, err := storagesqlite.Open(ctx, statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB().ExecContext(ctx, `
+		INSERT INTO metadata(key, value) VALUES (?, '1')
+	`, plainModelMigrationDoneKey); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB().ExecContext(ctx, `
+		INSERT INTO connection_sessions(
+			id, opened_at, last_seen_at, state, protocol, summary_json
+		) VALUES (1, 1, 1, 'open', 'tcp', '{}')
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	state := NewStateDB(statePath)
+	defer func() { _ = state.Close() }()
+	if err := state.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	db, err := state.SQLDB(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sessionCount int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM connection_sessions`).Scan(&sessionCount); err != nil {
+		t.Fatal(err)
+	}
+	if sessionCount != 1 {
+		t.Fatalf("connection sessions after migration = %d, want 1", sessionCount)
 	}
 }
 
