@@ -23,21 +23,12 @@ type ruleIndexV2 struct {
 }
 
 func registerRouteV2(register RegisterFunc, services V2Services) {
-	register("GET /api/v2/route/config", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteSettings == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route settings store is unavailable")
-		}
-		config, err := services.RouteSettings.Settings(r.Context())
-		if err != nil {
-			return err
-		}
-		return writeJSON(w, http.StatusOK, routeConfigFromStoreV2(config))
+	registerV2Get(register, "GET /api/v2/route/config", services.RouteSettings, "route settings store is unavailable", func(store *plainstore.RouteSettingsStore, r *http.Request) (contractroute.Config, error) {
+		config, err := store.Settings(r.Context())
+		return routeConfigFromStoreV2(config), err
 	})
 
-	register("PUT /api/v2/route/config", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteSettings == nil && services.Rules == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route settings service is unavailable")
-		}
+	registerV2Available(register, "PUT /api/v2/route/config", services.RouteSettings != nil || services.Rules != nil, "route settings service is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		var req contractroute.Config
 		if err := readJSONBody(r, &req); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -55,10 +46,7 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, req)
 	})
 
-	register("GET /api/v2/route/lists", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteLists == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route list store is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/route/lists", services.RouteLists != nil, "route list store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		items, err := services.RouteLists.ListRouteLists(r.Context())
 		if err != nil {
 			return err
@@ -76,21 +64,12 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		})
 	})
 
-	register("GET /api/v2/route/lists/config", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteSettings == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route settings store is unavailable")
-		}
-		resp, err := services.RouteSettings.ListSettings(r.Context())
-		if err != nil {
-			return err
-		}
-		return writeJSON(w, http.StatusOK, routeListConfigFromStoreV2(resp))
+	registerV2Get(register, "GET /api/v2/route/lists/config", services.RouteSettings, "route settings store is unavailable", func(store *plainstore.RouteSettingsStore, r *http.Request) (contractroute.ListConfig, error) {
+		config, err := store.ListSettings(r.Context())
+		return routeListConfigFromStoreV2(config), err
 	})
 
-	register("PUT /api/v2/route/lists/config", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteSettings == nil && services.Lists == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route list settings service is unavailable")
-		}
+	registerV2Available(register, "PUT /api/v2/route/lists/config", services.RouteSettings != nil || services.Lists != nil, "route list settings service is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		var req contractroute.ListConfig
 		if err := readJSONBody(r, &req); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -112,20 +91,11 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, req)
 	})
 
-	register("POST /api/v2/route/lists/refresh", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Lists == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "list controller is unavailable")
-		}
-		if err := services.Lists.Refresh(r.Context()); err != nil {
-			return err
-		}
-		return writeJSON(w, http.StatusNoContent, nil)
+	registerV2Action(register, "POST /api/v2/route/lists/refresh", services.Lists, "list controller is unavailable", http.StatusNoContent, 0, func(service ListRuntimeController, r *http.Request) error {
+		return service.Refresh(r.Context())
 	})
 
-	register("POST /api/v2/route/lists", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteLists == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route list store is unavailable")
-		}
+	registerV2Available(register, "POST /api/v2/route/lists", services.RouteLists != nil, "route list store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		var req contractroute.RouteListDetail
 		if err := readJSONBody(r, &req); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -136,10 +106,7 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusCreated, req)
 	})
 
-	register("GET /api/v2/route/lists/{id}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteLists == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route list store is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/route/lists/{id}", services.RouteLists != nil, "route list store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -154,10 +121,7 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, list)
 	})
 
-	register("PUT /api/v2/route/lists/{id}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteLists == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route list store is unavailable")
-		}
+	registerV2Available(register, "PUT /api/v2/route/lists/{id}", services.RouteLists != nil, "route list store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -173,10 +137,7 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, req)
 	})
 
-	register("DELETE /api/v2/route/lists/{id}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteLists == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route list store is unavailable")
-		}
+	registerV2Available(register, "DELETE /api/v2/route/lists/{id}", services.RouteLists != nil, "route list store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -191,10 +152,7 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusNoContent, nil)
 	})
 
-	register("GET /api/v2/route/rules", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteRules == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route rule store is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/route/rules", services.RouteRules != nil, "route rule store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		entries, err := services.RouteRules.ListRules(r.Context())
 		if err != nil {
 			return err
@@ -211,10 +169,7 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, resp)
 	})
 
-	register("POST /api/v2/route/rules", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteRules == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route rule store is unavailable")
-		}
+	registerV2Available(register, "POST /api/v2/route/rules", services.RouteRules != nil, "route rule store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		var req contractroute.RouteRule
 		if err := readJSONBody(r, &req); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -225,10 +180,7 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusCreated, req)
 	})
 
-	register("POST /api/v2/route/rules/priority", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteRules == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route rule store is unavailable")
-		}
+	registerV2Available(register, "POST /api/v2/route/rules/priority", services.RouteRules != nil, "route rule store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		var req changeRulePriorityV2Request
 		if err := readJSONBody(r, &req); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -242,10 +194,7 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusNoContent, nil)
 	})
 
-	register("GET /api/v2/route/rules/{name}/{index}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteRules == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route rule store is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/route/rules/{name}/{index}", services.RouteRules != nil, "route rule store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		index, err := routeRuleIndexFromRequest(r)
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -260,10 +209,7 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, entry.Rule)
 	})
 
-	register("PUT /api/v2/route/rules/{name}/{index}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteRules == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route rule store is unavailable")
-		}
+	registerV2Available(register, "PUT /api/v2/route/rules/{name}/{index}", services.RouteRules != nil, "route rule store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		index, err := routeRuleIndexFromRequest(r)
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -283,10 +229,7 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, req)
 	})
 
-	register("DELETE /api/v2/route/rules/{name}/{index}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteRules == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route rule store is unavailable")
-		}
+	registerV2Available(register, "DELETE /api/v2/route/rules/{name}/{index}", services.RouteRules != nil, "route rule store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		index, err := routeRuleIndexFromRequest(r)
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -301,10 +244,7 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusNoContent, nil)
 	})
 
-	register("POST /api/v2/route/rules/test", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Rules == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "rule controller is unavailable")
-		}
+	registerV2Available(register, "POST /api/v2/route/rules/test", services.Rules != nil, "rule controller is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		var req contractroute.RuleTestRequest
 		if err := readJSONBody(r, &req); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -316,21 +256,11 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, resp)
 	})
 
-	register("GET /api/v2/route/rules/block-history", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Rules == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "rule controller is unavailable")
-		}
-		resp, err := services.Rules.BlockHistory(r.Context())
-		if err != nil {
-			return err
-		}
-		return writeJSON(w, http.StatusOK, resp)
+	registerV2Get(register, "GET /api/v2/route/rules/block-history", services.Rules, "rule controller is unavailable", func(service RouteRuntimeController, r *http.Request) (contractroute.BlockHistoryList, error) {
+		return service.BlockHistory(r.Context())
 	})
 
-	register("GET /api/v2/route/tags", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteTags == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route tag store is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/route/tags", services.RouteTags != nil, "route tag store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		items, err := services.RouteTags.ListTags(r.Context())
 		if err != nil {
 			return err
@@ -348,10 +278,7 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		})
 	})
 
-	register("PUT /api/v2/route/tags/{tag}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteTags == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route tag store is unavailable")
-		}
+	registerV2Available(register, "PUT /api/v2/route/tags/{tag}", services.RouteTags != nil, "route tag store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		tag, err := requiredPathValue(r, "tag")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -371,10 +298,7 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusNoContent, nil)
 	})
 
-	register("DELETE /api/v2/route/tags/{tag}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.RouteTags == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "route tag store is unavailable")
-		}
+	registerV2Available(register, "DELETE /api/v2/route/tags/{tag}", services.RouteTags != nil, "route tag store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		tag, err := requiredPathValue(r, "tag")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())

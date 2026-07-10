@@ -96,6 +96,48 @@ func TestSQLiteTelemetryPersistsTotalsAndHistory(t *testing.T) {
 	}
 }
 
+func TestTelemetryDimensionsAggregateTrafficAndFailures(t *testing.T) {
+	ctx := context.Background()
+	connections := NewSQLiteConnStore(paths.PathGenerator.State(t.TempDir()), nil)
+	defer connections.Close()
+
+	info := contractconnection.Connection{
+		Addr:     "example.com:443",
+		Domain:   "example.com",
+		NodeName: "edge-a",
+		Process:  "curl",
+		Tag:      "streaming",
+		Network:  contractconnection.NetworkType{ConnType: "tcp"},
+		MatchHistory: []contractconnection.MatchHistoryEntry{{
+			RuleName: "media-rule",
+		}},
+	}
+	counter := connections.telemetry.Register(info)
+	counter.download.Add(123)
+	counter.upload.Add(456)
+	connections.telemetry.Remove(counter)
+	connections.telemetry.RecordFailure(info)
+
+	summary, err := connections.Telemetry(ctx, time.Now().Add(-time.Hour), time.Now().Add(time.Hour), 8)
+	if err != nil {
+		t.Fatalf("query telemetry summary failed: %v", err)
+	}
+	groups := make(map[string]contractconnection.TelemetryItem, len(summary.Groups))
+	for _, group := range summary.Groups {
+		if len(group.Items) > 0 {
+			groups[group.Dimension] = group.Items[0]
+		}
+	}
+	for dimension, value := range map[string]string{
+		"protocol": "tcp", "outbound": "edge-a", "process": "curl", "rule": "media-rule", "tag": "streaming", "destination": "example.com",
+	} {
+		item, ok := groups[dimension]
+		if !ok || item.Value != value || item.Download != "123" || item.Upload != "456" || item.Failures != "1" {
+			t.Fatalf("unexpected %s telemetry item: %+v", dimension, item)
+		}
+	}
+}
+
 func TestSQLiteTotalCacheImportsLegacyFlowData(t *testing.T) {
 	t.Parallel()
 

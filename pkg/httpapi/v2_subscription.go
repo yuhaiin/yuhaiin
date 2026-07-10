@@ -9,98 +9,67 @@ import (
 )
 
 func registerSubscriptionV2(register RegisterFunc, services V2Services) {
-	register("GET /api/v2/subscriptions", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Subscriptions == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "subscription store is unavailable")
-		}
-		resp, err := services.Subscriptions.ListLinks(r.Context())
-		if err != nil {
-			return err
-		}
-		return writeJSON(w, http.StatusOK, resp)
-	})
+	const storeUnavailable = "subscription store is unavailable"
+	const controllerUnavailable = "subscription controller is unavailable"
 
-	register("PUT /api/v2/subscriptions", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Subscriptions == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "subscription store is unavailable")
-		}
-		var req contractsubscription.LinkList
-		if err := readJSONBody(r, &req); err != nil {
+	registerV2Get(register, "GET /api/v2/subscriptions", services.Subscriptions, storeUnavailable, func(store *plainstore.SubscriptionStore, r *http.Request) (contractsubscription.LinkList, error) {
+		return store.ListLinks(r.Context())
+	})
+	registerV2Service(register, "PUT /api/v2/subscriptions", services.Subscriptions, storeUnavailable, func(store *plainstore.SubscriptionStore, w http.ResponseWriter, r *http.Request) error {
+		var request contractsubscription.LinkList
+		if err := readJSONBody(r, &request); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
-		if err := services.Subscriptions.SaveLinks(r.Context(), req.Items, 0); err != nil {
+		if err := store.SaveLinks(r.Context(), request.Items, 0); err != nil {
+			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
+		}
+		return writeJSON(w, http.StatusNoContent, nil)
+	})
+	registerV2Service(register, "DELETE /api/v2/subscriptions", services.Subscriptions, storeUnavailable, func(store *plainstore.SubscriptionStore, w http.ResponseWriter, r *http.Request) error {
+		var request contractsubscription.LinkNames
+		if err := readJSONBody(r, &request); err != nil {
+			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
+		}
+		if err := store.DeleteLinks(r.Context(), request.Names); err != nil {
+			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
+		}
+		return writeJSON(w, http.StatusNoContent, nil)
+	})
+	registerV2Service(register, "POST /api/v2/subscriptions/update", services.Subscribe, controllerUnavailable, func(service SubscriptionController, w http.ResponseWriter, r *http.Request) error {
+		var request contractsubscription.LinkNames
+		if err := readJSONBody(r, &request); err != nil {
+			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
+		}
+		if err := service.Update(r.Context(), request.Names); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
 		return writeJSON(w, http.StatusNoContent, nil)
 	})
 
-	register("DELETE /api/v2/subscriptions", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Subscriptions == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "subscription store is unavailable")
-		}
-		var req contractsubscription.LinkNames
-		if err := readJSONBody(r, &req); err != nil {
-			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
-		}
-		if err := services.Subscriptions.DeleteLinks(r.Context(), req.Names); err != nil {
-			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
-		}
-		return writeJSON(w, http.StatusNoContent, nil)
+	registerV2Get(register, "GET /api/v2/publishes", services.Subscriptions, storeUnavailable, func(store *plainstore.SubscriptionStore, r *http.Request) (contractsubscription.PublishList, error) {
+		return store.ListPublishes(r.Context())
 	})
-
-	register("POST /api/v2/subscriptions/update", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Subscribe == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "subscription controller is unavailable")
-		}
-		var req contractsubscription.LinkNames
-		if err := readJSONBody(r, &req); err != nil {
-			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
-		}
-		if err := services.Subscribe.Update(r.Context(), req.Names); err != nil {
-			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
-		}
-		return writeJSON(w, http.StatusNoContent, nil)
-	})
-
-	register("GET /api/v2/publishes", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Subscriptions == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "subscription store is unavailable")
-		}
-		resp, err := services.Subscriptions.ListPublishes(r.Context())
-		if err != nil {
-			return err
-		}
-		return writeJSON(w, http.StatusOK, resp)
-	})
-
-	register("PUT /api/v2/publishes/{name}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Subscriptions == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "subscription store is unavailable")
-		}
+	registerV2Service(register, "PUT /api/v2/publishes/{name}", services.Subscriptions, storeUnavailable, func(store *plainstore.SubscriptionStore, w http.ResponseWriter, r *http.Request) error {
 		name, err := requiredPathValue(r, "name")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
-		var req contractsubscription.Publish
-		if err := readJSONBody(r, &req); err != nil {
+		var request contractsubscription.Publish
+		if err := readJSONBody(r, &request); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
-		req.Name = name
-		if err := services.Subscriptions.SavePublish(r.Context(), req, 0); err != nil {
+		request.Name = name
+		if err := store.SavePublish(r.Context(), request, 0); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
 		return writeJSON(w, http.StatusNoContent, nil)
 	})
-
-	register("DELETE /api/v2/publishes/{name}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Subscriptions == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "subscription store is unavailable")
-		}
+	registerV2Service(register, "DELETE /api/v2/publishes/{name}", services.Subscriptions, storeUnavailable, func(store *plainstore.SubscriptionStore, w http.ResponseWriter, r *http.Request) error {
 		name, err := requiredPathValue(r, "name")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
-		err = services.Subscriptions.DeletePublish(r.Context(), name)
+		err = store.DeletePublish(r.Context(), name)
 		if errors.Is(err, plainstore.ErrNotFound) {
 			return writeError(w, http.StatusNotFound, "not_found", err.Error())
 		}
@@ -109,23 +78,19 @@ func registerSubscriptionV2(register RegisterFunc, services V2Services) {
 		}
 		return writeJSON(w, http.StatusNoContent, nil)
 	})
-
-	register("POST /api/v2/publishes/{name}/resolve", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Subscribe == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "subscription controller is unavailable")
-		}
+	registerV2Service(register, "POST /api/v2/publishes/{name}/resolve", services.Subscribe, controllerUnavailable, func(service SubscriptionController, w http.ResponseWriter, r *http.Request) error {
 		name, err := requiredPathValue(r, "name")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
-		var req contractsubscription.ResolvePublishRequest
-		if err := readJSONBody(r, &req); err != nil {
+		var request contractsubscription.ResolvePublishRequest
+		if err := readJSONBody(r, &request); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
-		resp, err := services.Subscribe.ResolvePublish(r.Context(), name, req)
+		response, err := service.ResolvePublish(r.Context(), name, request)
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
-		return writeJSON(w, http.StatusOK, resp)
+		return writeJSON(w, http.StatusOK, response)
 	})
 }

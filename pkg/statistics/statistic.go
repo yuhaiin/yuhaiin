@@ -31,7 +31,8 @@ type Connections struct {
 	sqliteDB  *sql.DB
 	sqlite    *storagesqlite.Store
 
-	Cache *TotalCache
+	Cache     *TotalCache
+	telemetry *telemetryRecorder
 
 	notify *notify
 
@@ -86,6 +87,7 @@ func NewSQLiteConnStore(path string, dialer netapi.Proxy) *Connections {
 		sqliteDB:     db,
 		sqlite:       store,
 		Cache:        newSQLiteTotalCache(db, nil),
+		telemetry:    newTelemetryRecorder(db),
 		notify:       newNotify(),
 		faildHistory: newSQLiteFailedHistory(db),
 		counters:     newCounters(),
@@ -151,12 +153,12 @@ func (c *Connections) Close() error {
 	if er := c.infoStore.Close(); er != nil {
 		err = errors.Join(err, er)
 	}
-
 	for _, v := range c.connStore.Range {
 		if er := v.Close(); er != nil {
 			err = errors.Join(err, er)
 		}
 	}
+	c.telemetry.Close()
 
 	c.Cache.Close()
 
@@ -183,7 +185,9 @@ func (c *Connections) Remove(id uint64) {
 	}
 
 	c.infoStore.Delete(id)
-	c.counters.Remove(id)
+	if counter := c.counters.Remove(id); counter != nil {
+		c.telemetry.Remove(counter.telemetry)
+	}
 	c.notify.pubRemoveConn(id)
 }
 
@@ -201,13 +205,13 @@ func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.
 	con, err := c.Proxy.PacketConn(ctx, addr)
 	if err != nil {
 		c.faildHistory.Push(ctx, err, "udp", addr)
+		c.recordFailure(ctx, "udp", addr)
 		return nil, err
 	}
 
-	counter := newCounter(c.Cache)
-
 	id := c.idSeed.Generate()
 	info := c.getConnection(ctx, con, addr, id)
+	counter := newCounter(c.Cache, c.telemetry.Register(c.telemetryConnection(ctx, info)))
 
 	z := &packetConn{
 		PacketConn: con,
@@ -226,6 +230,7 @@ func (c *Connections) Ping(ctx context.Context, addr netapi.Address) (uint64, er
 	resp, err := c.Proxy.Ping(ctx, addr)
 	if err != nil {
 		c.faildHistory.Push(ctx, err, "ip", addr)
+		c.recordFailure(ctx, "ip", addr)
 		return 0, err
 	}
 
@@ -235,6 +240,19 @@ func (c *Connections) Ping(ctx context.Context, addr netapi.Address) (uint64, er
 
 	c.history.Push(conn)
 	return resp, nil
+}
+
+func (c *Connections) recordFailure(ctx context.Context, protocol string, addr netapi.Address) {
+	info := c.getConnection(ctx, nil, addr, 0)
+	info.Network.ConnType = protocol
+	c.telemetry.RecordFailure(c.telemetryConnection(ctx, info))
+}
+
+func (c *Connections) telemetryConnection(ctx context.Context, info contractconnection.Connection) contractconnection.Connection {
+	nc := netapi.GetContext(ctx)
+	info.Process = nc.GetProcessName()
+	info.MatchHistory = ToMatchHistoryEntry(nc.MatchHistory())
+	return info
 }
 
 func getRemote(con any, gg netapi.MaxMindDB) (addrStr string, geo string) {
@@ -400,13 +418,13 @@ func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, 
 	con, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
 		c.faildHistory.Push(ctx, err, "tcp", addr)
+		c.recordFailure(ctx, "tcp", addr)
 		return nil, err
 	}
 
-	counter := newCounter(c.Cache)
-
 	id := c.idSeed.Generate()
 	info := c.getConnection(ctx, con, addr, id)
+	counter := newCounter(c.Cache, c.telemetry.Register(c.telemetryConnection(ctx, info)))
 
 	z := &conn{
 		Conn:    con,
@@ -445,10 +463,12 @@ func (c *counters) Store(id uint64, counter *Counter) {
 	c.mu.Unlock()
 }
 
-func (c *counters) Remove(id uint64) {
+func (c *counters) Remove(id uint64) *Counter {
 	c.mu.Lock()
+	counter := c.store[id]
 	delete(c.store, id)
 	c.mu.Unlock()
+	return counter
 }
 
 func (c *counters) Load() map[string]contractconnection.Counter {
@@ -468,20 +488,29 @@ func (c *counters) Load() map[string]contractconnection.Counter {
 }
 
 type Counter struct {
-	cache    *TotalCache
-	download atomic.Uint64
-	upload   atomic.Uint64
+	cache     *TotalCache
+	telemetry *dimensionCounter
+	download  atomic.Uint64
+	upload    atomic.Uint64
 }
 
-func newCounter(cache *TotalCache) *Counter { return &Counter{cache: cache} }
+func newCounter(cache *TotalCache, telemetry *dimensionCounter) *Counter {
+	return &Counter{cache: cache, telemetry: telemetry}
+}
 func (c *Counter) AddDownload(n uint64) {
 	c.cache.AddDownload(n)
 	c.download.Add(n)
+	if c.telemetry != nil {
+		c.telemetry.download.Add(n)
+	}
 }
 
 func (c *Counter) AddUpload(n uint64) {
 	c.cache.AddUpload(n)
 	c.upload.Add(n)
+	if c.telemetry != nil {
+		c.telemetry.upload.Add(n)
+	}
 }
 func (c *Counter) LoadDownload() uint64 { return c.download.Load() }
 func (c *Counter) LoadUpload() uint64   { return c.upload.Load() }

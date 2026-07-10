@@ -42,6 +42,7 @@ type ToolsController interface {
 type ConnectionMonitor interface {
 	Total(context.Context) (contractconnection.TotalFlow, error)
 	Traffic(context.Context, string, time.Time, time.Time) (contractconnection.TrafficSeries, error)
+	Telemetry(context.Context, time.Time, time.Time, int) (contractconnection.TelemetrySummary, error)
 	List(context.Context) (contractconnection.Connections, error)
 	Close(context.Context, []uint64) error
 	FailedHistory(context.Context) (contractconnection.FailedHistoryList, error)
@@ -148,10 +149,7 @@ func RegisterV2(register RegisterFunc, services V2Services) {
 	registerResolverV2(register, services)
 	registerResolverConfigV2(register, services)
 
-	register("GET /api/v2/inbounds/config", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Inbounds == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "inbound store is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/inbounds/config", services.Inbounds != nil, "inbound store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		config, err := services.Inbounds.Settings(r.Context())
 		if err != nil {
 			req := defaultInboundConfigV2()
@@ -163,10 +161,7 @@ func RegisterV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, inboundConfigFromStoreV2(config))
 	})
 
-	register("PUT /api/v2/inbounds/config", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Inbounds == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "inbound store is unavailable")
-		}
+	registerV2Available(register, "PUT /api/v2/inbounds/config", services.Inbounds != nil, "inbound store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		var req inboundConfigV2
 		if err := readJSONBody(r, &req); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -177,10 +172,7 @@ func RegisterV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, req)
 	})
 
-	register("GET /api/v2/inbounds", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Inbounds == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "inbound store is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/inbounds", services.Inbounds != nil, "inbound store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		items, err := services.Inbounds.List(r.Context())
 		if err != nil {
 			return err
@@ -204,10 +196,7 @@ func RegisterV2(register RegisterFunc, services V2Services) {
 		})
 	})
 
-	register("POST /api/v2/inbounds", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Inbounds == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "inbound store is unavailable")
-		}
+	registerV2Available(register, "POST /api/v2/inbounds", services.Inbounds != nil, "inbound store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		var inbound contractinbound.Inbound
 		if err := readJSONBody(r, &inbound); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -225,10 +214,7 @@ func RegisterV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusCreated, saved)
 	})
 
-	register("GET /api/v2/inbounds/{id}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Inbounds == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "inbound store is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/inbounds/{id}", services.Inbounds != nil, "inbound store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -243,10 +229,7 @@ func RegisterV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, inbound)
 	})
 
-	register("PUT /api/v2/inbounds/{id}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Inbounds == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "inbound store is unavailable")
-		}
+	registerV2Available(register, "PUT /api/v2/inbounds/{id}", services.Inbounds != nil, "inbound store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -266,10 +249,7 @@ func RegisterV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, saved)
 	})
 
-	register("DELETE /api/v2/inbounds/{id}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Inbounds == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "inbound store is unavailable")
-		}
+	registerV2Available(register, "DELETE /api/v2/inbounds/{id}", services.Inbounds != nil, "inbound store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -310,10 +290,7 @@ func inboundConfigToStoreV2(config inboundConfigV2) plainstore.InboundSettings {
 }
 
 func registerNodeV2(register RegisterFunc, services V2Services) {
-	register("GET /api/v2/nodes", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Nodes == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "node store is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/nodes", services.Nodes != nil, "node store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		items, err := services.Nodes.List(r.Context())
 		if err != nil {
 			return err
@@ -335,14 +312,11 @@ func registerNodeV2(register RegisterFunc, services V2Services) {
 		})
 	})
 
-	register("POST /api/v2/nodes", func(w http.ResponseWriter, r *http.Request) error {
-		return saveNodeV2(w, r, services, "", http.StatusCreated)
+	registerV2Service(register, "POST /api/v2/nodes", services.Node, "node controller is unavailable", func(service NodeController, w http.ResponseWriter, r *http.Request) error {
+		return saveNodeV2(w, r, service, services.Nodes, "", http.StatusCreated)
 	})
 
-	register("GET /api/v2/nodes/selected", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Node == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "node controller is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/nodes/selected", services.Node != nil, "node controller is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		resp, err := services.Node.Selected(r.Context())
 		if err != nil {
 			return err
@@ -350,10 +324,7 @@ func registerNodeV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, resp)
 	})
 
-	register("GET /api/v2/nodes/active", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Node == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "node controller is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/nodes/active", services.Node != nil, "node controller is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		items, err := services.Node.Active(r.Context())
 		if err != nil {
 			return err
@@ -363,10 +334,7 @@ func registerNodeV2(register RegisterFunc, services V2Services) {
 		}{Items: items})
 	})
 
-	register("GET /api/v2/nodes/{id}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Nodes == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "node store is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/nodes/{id}", services.Nodes != nil, "node store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -381,18 +349,15 @@ func registerNodeV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, node)
 	})
 
-	register("PUT /api/v2/nodes/{id}", func(w http.ResponseWriter, r *http.Request) error {
+	registerV2Service(register, "PUT /api/v2/nodes/{id}", services.Node, "node controller is unavailable", func(service NodeController, w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
-		return saveNodeV2(w, r, services, id, http.StatusOK)
+		return saveNodeV2(w, r, service, services.Nodes, id, http.StatusOK)
 	})
 
-	register("DELETE /api/v2/nodes/{id}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Node == nil && services.Nodes == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "node service is unavailable")
-		}
+	registerV2Available(register, "DELETE /api/v2/nodes/{id}", services.Node != nil || services.Nodes != nil, "node service is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -416,10 +381,7 @@ func registerNodeV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusNoContent, nil)
 	})
 
-	register("POST /api/v2/nodes/{id}/use", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Node == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "node controller is unavailable")
-		}
+	registerV2Available(register, "POST /api/v2/nodes/{id}/use", services.Node != nil, "node controller is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -430,10 +392,7 @@ func registerNodeV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusNoContent, nil)
 	})
 
-	register("POST /api/v2/nodes/{id}/latency", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Node == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "node controller is unavailable")
-		}
+	registerV2Available(register, "POST /api/v2/nodes/{id}/latency", services.Node != nil, "node controller is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -451,10 +410,7 @@ func registerNodeV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, reply)
 	})
 
-	register("POST /api/v2/nodes/{id}/close", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Node == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "node controller is unavailable")
-		}
+	registerV2Available(register, "POST /api/v2/nodes/{id}/close", services.Node != nil, "node controller is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -467,10 +423,7 @@ func registerNodeV2(register RegisterFunc, services V2Services) {
 }
 
 func registerResolverV2(register RegisterFunc, services V2Services) {
-	register("GET /api/v2/resolvers", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Resolvers == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "resolver store is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/resolvers", services.Resolvers != nil, "resolver store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		items, err := services.Resolvers.List(r.Context())
 		if err != nil {
 			return err
@@ -488,14 +441,11 @@ func registerResolverV2(register RegisterFunc, services V2Services) {
 		})
 	})
 
-	register("POST /api/v2/resolvers", func(w http.ResponseWriter, r *http.Request) error {
-		return saveResolverV2(w, r, services, "", http.StatusCreated)
+	registerV2Service(register, "POST /api/v2/resolvers", services.Resolver, "resolver controller is unavailable", func(service ResolverController, w http.ResponseWriter, r *http.Request) error {
+		return saveResolverV2(w, r, service, services.Resolvers, "", http.StatusCreated)
 	})
 
-	register("GET /api/v2/resolvers/{id}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Resolvers == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "resolver store is unavailable")
-		}
+	registerV2Available(register, "GET /api/v2/resolvers/{id}", services.Resolvers != nil, "resolver store is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -510,18 +460,15 @@ func registerResolverV2(register RegisterFunc, services V2Services) {
 		return writeJSON(w, http.StatusOK, resolver)
 	})
 
-	register("PUT /api/v2/resolvers/{id}", func(w http.ResponseWriter, r *http.Request) error {
+	registerV2Service(register, "PUT /api/v2/resolvers/{id}", services.Resolver, "resolver controller is unavailable", func(service ResolverController, w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
-		return saveResolverV2(w, r, services, id, http.StatusOK)
+		return saveResolverV2(w, r, service, services.Resolvers, id, http.StatusOK)
 	})
 
-	register("DELETE /api/v2/resolvers/{id}", func(w http.ResponseWriter, r *http.Request) error {
-		if services.Resolver == nil && services.Resolvers == nil {
-			return writeError(w, http.StatusServiceUnavailable, "unavailable", "resolver service is unavailable")
-		}
+	registerV2Available(register, "DELETE /api/v2/resolvers/{id}", services.Resolver != nil || services.Resolvers != nil, "resolver service is unavailable", func(w http.ResponseWriter, r *http.Request) error {
 		id, err := requiredPathValue(r, "id")
 		if err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -564,10 +511,7 @@ func filterResolvers(items []contractresolver.Resolver, query string) []contract
 	return out
 }
 
-func saveResolverV2(w http.ResponseWriter, r *http.Request, services V2Services, id string, status int) error {
-	if services.Resolver == nil {
-		return writeError(w, http.StatusServiceUnavailable, "unavailable", "resolver controller is unavailable")
-	}
+func saveResolverV2(w http.ResponseWriter, r *http.Request, controller ResolverController, store *plainstore.ResolverStore, id string, status int) error {
 	var resolver contractresolver.Resolver
 	if err := readJSONBody(r, &resolver); err != nil {
 		return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -575,22 +519,19 @@ func saveResolverV2(w http.ResponseWriter, r *http.Request, services V2Services,
 	if id != "" {
 		resolver.ID = id
 	}
-	converted, err := services.Resolver.Save(r.Context(), resolver)
+	converted, err := controller.Save(r.Context(), resolver)
 	if err != nil {
 		return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 	}
-	if services.Resolvers != nil {
-		if err := services.Resolvers.Save(r.Context(), converted, 0); err != nil {
+	if store != nil {
+		if err := store.Save(r.Context(), converted, 0); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
 	}
 	return writeJSON(w, status, converted)
 }
 
-func saveNodeV2(w http.ResponseWriter, r *http.Request, services V2Services, id string, status int) error {
-	if services.Node == nil {
-		return writeError(w, http.StatusServiceUnavailable, "unavailable", "node controller is unavailable")
-	}
+func saveNodeV2(w http.ResponseWriter, r *http.Request, controller NodeController, store *plainstore.NodeStore, id string, status int) error {
 	var node contractnode.Node
 	if err := readJSONBody(r, &node); err != nil {
 		return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -598,12 +539,12 @@ func saveNodeV2(w http.ResponseWriter, r *http.Request, services V2Services, id 
 	if id != "" {
 		node.ID = id
 	}
-	converted, err := services.Node.Save(r.Context(), node)
+	converted, err := controller.Save(r.Context(), node)
 	if err != nil {
 		return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 	}
-	if services.Nodes != nil {
-		if err := services.Nodes.Save(r.Context(), converted, 0); err != nil {
+	if store != nil {
+		if err := store.Save(r.Context(), converted, 0); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
 	}

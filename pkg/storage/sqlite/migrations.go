@@ -319,4 +319,31 @@ var migrations = []Migration{
 			ON route_lists_v2(list_type, source_type)`,
 		},
 	},
+	{
+		Version: 5,
+		Name:    "telemetry_dimensions",
+		Statements: []string{
+			`CREATE TABLE traffic_dimension_hourly (
+				bucket_start_utc  INTEGER NOT NULL,
+				dimension         TEXT NOT NULL,
+				value             TEXT NOT NULL,
+				upload_bytes      INTEGER NOT NULL DEFAULT 0,
+				download_bytes    INTEGER NOT NULL DEFAULT 0,
+				updated_at        INTEGER NOT NULL,
+				PRIMARY KEY (bucket_start_utc, dimension, value)
+			)`,
+			`CREATE INDEX traffic_dimension_hourly_lookup_idx
+			ON traffic_dimension_hourly(dimension, bucket_start_utc DESC)`,
+			`CREATE TABLE failure_dimension_hourly (
+				bucket_start_utc  INTEGER NOT NULL,
+				dimension         TEXT NOT NULL,
+				value             TEXT NOT NULL,
+				failed_count      INTEGER NOT NULL DEFAULT 0,
+				updated_at        INTEGER NOT NULL,
+				PRIMARY KEY (bucket_start_utc, dimension, value)
+			)`,
+			`CREATE INDEX failure_dimension_hourly_lookup_idx
+			ON failure_dimension_hourly(dimension, bucket_start_utc DESC)`,
+		},
+	},
 }

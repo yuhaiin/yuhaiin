@@ -67,8 +67,8 @@ func TestOpenBootstrapsEmptyDatabase(t *testing.T) {
 		}
 	}
 
-	if got := queryString(t, store.DB(), `SELECT value FROM metadata WHERE key = 'schema_version'`); got != "4" {
-		t.Fatalf("metadata schema_version = %q, want 4", got)
+	if got := queryString(t, store.DB(), `SELECT value FROM metadata WHERE key = 'schema_version'`); got != "5" {
+		t.Fatalf("metadata schema_version = %q, want 5", got)
 	}
 
 	if got := queryInt(t, store.DB(), `SELECT COUNT(*) FROM migrate`); got != int64(len(migrations)) {

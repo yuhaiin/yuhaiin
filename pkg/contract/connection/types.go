@@ -26,6 +26,22 @@ type TrafficSeries struct {
 	Items    []TrafficPoint `json:"items"`
 }
 
+type TelemetryItem struct {
+	Value    string `json:"value"`
+	Download string `json:"download"`
+	Upload   string `json:"upload"`
+	Failures string `json:"failures"`
+}
+
+type TelemetryGroup struct {
+	Dimension string          `json:"dimension"`
+	Items     []TelemetryItem `json:"items"`
+}
+
+type TelemetrySummary struct {
+	Groups []TelemetryGroup `json:"groups"`
+}
+
 type Connection struct {
 	ID            string              `json:"id"`
 	Addr          string              `json:"addr"`

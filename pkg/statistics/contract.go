@@ -31,6 +31,13 @@ func (m ConnectionMonitor) Traffic(ctx context.Context, interval string, from, t
 	return m.connections.Traffic(ctx, interval, from, to)
 }
 
+func (m ConnectionMonitor) Telemetry(ctx context.Context, from, to time.Time, limit int) (contractconnection.TelemetrySummary, error) {
+	if m.connections == nil {
+		return contractconnection.TelemetrySummary{}, errors.New("connections controller is unavailable")
+	}
+	return m.connections.Telemetry(ctx, from, to, limit)
+}
+
 func (m ConnectionMonitor) List(ctx context.Context) (contractconnection.Connections, error) {
 	if m.connections == nil {
 		return contractconnection.Connections{}, errors.New("connections controller is unavailable")
