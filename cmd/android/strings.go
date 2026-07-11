@@ -6,7 +6,6 @@ var (
 	AdvAppListKey                           = `app_list`
 	AdvAutoConnectKey                       = `auto_connect`
 	AdvBatteryProfileKey                    = `battery_profile`
-	AdvExtendedStatsKey                     = `extended_stats_enabled`
 	AdvNewAppListKey                        = `new_app_list`
 	AdvPerAppKey                            = `per_app`
 	AdvProcessLookupModeKey                 = `process_lookup_mode`

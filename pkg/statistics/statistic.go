@@ -11,7 +11,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	"github.com/Asutorufa/yuhaiin/pkg/control"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -251,7 +250,7 @@ func (c *Connections) recordFailure(ctx context.Context, protocol string, addr n
 func (c *Connections) telemetryConnection(ctx context.Context, info contractconnection.Connection) contractconnection.Connection {
 	nc := netapi.GetContext(ctx)
 	info.Process = nc.GetProcessName()
-	info.MatchHistory = ToMatchHistoryEntry(nc.MatchHistory())
+	info.MatchHistory = nc.MatchHistory()
 	return info
 }
 
@@ -314,12 +313,7 @@ func getRealAddr(store *netapi.Context, addr netapi.Address) string {
 func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAddr() net.Addr }, addr netapi.Address, id uint64) contractconnection.Connection {
 	nc := netapi.GetContext(ctx)
 
-	maxminddb := nc.ConnOptions().Maxminddb()
-	if !configuration.ExtendedStatsEnabled.Load() {
-		maxminddb = nil
-	}
-
-	outbound, outboundGeo := getRemote(conn, maxminddb)
+	outbound, outboundGeo := getRemote(conn, nc.ConnOptions().Maxminddb())
 
 	connection := contractconnection.Connection{
 		ID:          formatUint64(id),
@@ -348,16 +342,14 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		UDPMigrateID: formatUint64ZeroEmpty(nc.GetUDPMigrateID()),
 	}
 
-	if configuration.ExtendedStatsEnabled.Load() {
-		connection.Geo = nc.GetGeo()
-		connection.OutboundGeo = outboundGeo
-		connection.TLSServerName = nc.GetTLSServerName()
-		connection.HTTPHost = nc.GetHTTPHost()
-		connection.Component = nc.GetComponent()
-		connection.MatchHistory = ToMatchHistoryEntry(nc.MatchHistory())
-		connection.Resolver = resolverName(nc.ConnOptions().Resolver().Resolver())
-		connection.Lists = nc.ConnOptions().Lists()
-	}
+	connection.Geo = nc.GetGeo()
+	connection.OutboundGeo = outboundGeo
+	connection.TLSServerName = nc.GetTLSServerName()
+	connection.HTTPHost = nc.GetHTTPHost()
+	connection.Component = nc.GetComponent()
+	connection.MatchHistory = nc.MatchHistory()
+	connection.Resolver = resolverName(nc.ConnOptions().Resolver().Resolver())
+	connection.Lists = nc.ConnOptions().Lists()
 
 	if conn != nil {
 		if local := conn.LocalAddr(); local != nil {
@@ -366,27 +358,6 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 	}
 
 	return connection
-}
-
-func ToMatchHistoryEntry(entry []*netapi.MatchHistoryEntry) []contractconnection.MatchHistoryEntry {
-	mhis := make([]contractconnection.MatchHistoryEntry, 0, len(entry))
-	for _, e := range entry {
-		his := make([]contractconnection.MatchResult, 0, len(e.UnmatchedHistory))
-		for _, uh := range e.UnmatchedHistory {
-			his = append(his, contractconnection.MatchResult{ListName: uh.Value()})
-		}
-
-		if m := e.MatchedHistory.Value(); m != "" {
-			his = append(his, contractconnection.MatchResult{ListName: m, Matched: true})
-		}
-
-		mhis = append(mhis, contractconnection.MatchHistoryEntry{
-			RuleName: e.RuleName.Value(),
-			History:  his,
-		})
-	}
-
-	return mhis
 }
 
 func formatUint64(v uint64) string {

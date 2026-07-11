@@ -7,7 +7,8 @@ import (
 	"net/netip"
 	"slices"
 	"sync/atomic"
-	"unique"
+
+	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 )
 
 type PacketSniffer interface {
@@ -303,7 +304,7 @@ type Context struct {
 
 	sniff *Sniff `metrics:"Sniff"`
 
-	ruleChain MatchHistory `metrics:"Rule Chain"`
+	ruleChain []contractconnection.MatchHistoryEntry `metrics:"Rule Chain"`
 
 	connOptions *ConnOptions
 
@@ -312,22 +313,22 @@ type Context struct {
 }
 
 func (c *Context) NewMatch(ruleName string) {
-	if c.ruleChain == nil {
-		c.ruleChain = MatchHistory{}
-	}
-
-	c.ruleChain.New(ruleName)
+	c.ruleChain = append(c.ruleChain, contractconnection.MatchHistoryEntry{RuleName: ruleName})
 }
 
 func (c *Context) AddMatchHistory(listName string, matched bool) {
-	if c.ruleChain == nil {
-		c.ruleChain = MatchHistory{}
+	if len(c.ruleChain) == 0 {
+		return
 	}
 
-	c.ruleChain.Add(listName, matched)
+	last := &c.ruleChain[len(c.ruleChain)-1]
+	last.History = append(last.History, contractconnection.MatchResult{
+		ListName: listName,
+		Matched:  matched,
+	})
 }
 
-func (c *Context) MatchHistory() MatchHistory { return c.ruleChain }
+func (c *Context) MatchHistory() []contractconnection.MatchHistoryEntry { return c.ruleChain }
 
 func (c *Context) setAddrInfo(f func(*AddrInfo)) {
 	if c.addrInfo == nil {
@@ -760,34 +761,4 @@ func (e *DialError) Error() string {
 	}
 	s += ": " + e.Err.Error()
 	return s
-}
-
-type MatchHistory []*MatchHistoryEntry
-
-type MatchHistoryEntry struct {
-	RuleName         unique.Handle[string]
-	MatchedHistory   unique.Handle[string] // matched history will always only one
-	UnmatchedHistory []unique.Handle[string]
-}
-
-func (r *MatchHistory) New(name string) {
-	his := &MatchHistoryEntry{
-		RuleName:       unique.Make(name),
-		MatchedHistory: unique.Make(""),
-	}
-	*r = append(*r, his)
-}
-
-func (r *MatchHistory) Add(listName string, matched bool) {
-	if len(*r) == 0 {
-		return
-	}
-
-	chain := (*r)[len(*r)-1]
-
-	if matched {
-		chain.MatchedHistory = unique.Make(listName)
-	} else {
-		chain.UnmatchedHistory = append(chain.UnmatchedHistory, unique.Make(listName))
-	}
 }

@@ -15,7 +15,6 @@ var (
 		AdvAutoConnectKey:                       false,
 		AdvPerAppKey:                            false,
 		AdvAppBypassKey:                         false,
-		AdvExtendedStatsKey:                     false,
 		AdvRegisterUnderlyingNetworkCallbackKey: true,
 		SniffKey:                                true,
 		DnsHijacking:                            true,

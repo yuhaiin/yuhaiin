@@ -47,12 +47,11 @@ var (
 
 	IPv6 = atomicx.NewValue(true)
 	// FakeIPEnabled resolver fake ip or inbound fake ip enable
-	FakeIPEnabled        = atomicx.NewValue(false)
-	BatteryProfile       = atomicx.NewValue("balanced")
-	ProcessLookupMode    = atomicx.NewValue("always")
-	ExtendedStatsEnabled = atomicx.NewValue(true)
-	UDPIdleTimeout       = atomicx.NewValue((time.Minute * 3) / 2)
-	UDPMappingTimeout    = atomicx.NewValue(time.Minute * 5)
+	FakeIPEnabled     = atomicx.NewValue(false)
+	BatteryProfile    = atomicx.NewValue("balanced")
+	ProcessLookupMode = atomicx.NewValue("always")
+	UDPIdleTimeout    = atomicx.NewValue((time.Minute * 3) / 2)
+	UDPMappingTimeout = atomicx.NewValue(time.Minute * 5)
 
 	HistorySize = or[uint](1000, 500)
 

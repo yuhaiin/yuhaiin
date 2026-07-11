@@ -4,17 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
-func TestGetConnectionIncludesProcessWithoutExtendedStats(t *testing.T) {
-	extendedStatsEnabled := configuration.ExtendedStatsEnabled.Load()
-	configuration.ExtendedStatsEnabled.Store(false)
-	t.Cleanup(func() {
-		configuration.ExtendedStatsEnabled.Store(extendedStatsEnabled)
-	})
-
+func TestGetConnectionIncludesProcess(t *testing.T) {
 	ctx := netapi.WithContext(context.Background())
 	ctx.SetProcess("com.example.app", 123, 456)
 	addr, err := netapi.ParseAddressPort("tcp", "example.com", 443)

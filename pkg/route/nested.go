@@ -11,29 +11,16 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 
-func shouldRecordMatchHistory() bool {
-	return configuration.ExtendedStatsEnabled.Load()
-}
-
 func startMatch(store *netapi.Context, ruleName string) {
-	if !shouldRecordMatchHistory() {
-		return
-	}
-
 	store.NewMatch(ruleName)
 }
 
 func recordMatch(store *netapi.Context, listName string, matched bool) {
-	if !shouldRecordMatchHistory() {
-		return
-	}
-
 	store.AddMatchHistory(listName, matched)
 }
 

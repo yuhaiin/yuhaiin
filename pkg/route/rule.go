@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 
+	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
@@ -151,21 +152,18 @@ func (r *Rules) BlockHistoryContract(ctx context.Context) (contractroute.BlockHi
 	return r.route.Get(), nil
 }
 
-func contractMatchHistory(entry []*netapi.MatchHistoryEntry) []contractroute.MatchHistoryEntry {
+func contractMatchHistory(entry []contractconnection.MatchHistoryEntry) []contractroute.MatchHistoryEntry {
 	out := make([]contractroute.MatchHistoryEntry, 0, len(entry))
 	for _, e := range entry {
-		if e == nil {
-			continue
-		}
-		history := make([]contractroute.MatchResult, 0, len(e.UnmatchedHistory)+1)
-		for _, uh := range e.UnmatchedHistory {
-			history = append(history, contractroute.MatchResult{ListName: uh.Value()})
-		}
-		if m := e.MatchedHistory.Value(); m != "" {
-			history = append(history, contractroute.MatchResult{ListName: m, Matched: true})
+		history := make([]contractroute.MatchResult, 0, len(e.History))
+		for _, result := range e.History {
+			history = append(history, contractroute.MatchResult{
+				ListName: result.ListName,
+				Matched:  result.Matched,
+			})
 		}
 		out = append(out, contractroute.MatchHistoryEntry{
-			RuleName: e.RuleName.Value(),
+			RuleName: e.RuleName,
 			History:  history,
 		})
 	}

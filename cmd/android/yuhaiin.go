@@ -314,8 +314,6 @@ func applyRuntimeProfile() {
 	}
 	configuration.ProcessLookupMode.Store(processLookupMode)
 
-	configuration.ExtendedStatsEnabled.Store(store.GetBoolean(AdvExtendedStatsKey))
-
 	udpIdleProfile := store.GetString(AdvUDPIdleProfileKey)
 	if udpIdleProfile == "" {
 		udpIdleProfile = batteryProfile
