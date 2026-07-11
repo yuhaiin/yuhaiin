@@ -103,8 +103,10 @@ func (a v2API) deleteNode(ctx context.Context, request *idRequest) (*emptyRespon
 		removed = true
 	}
 	if a.services.Nodes != nil {
-		if err := a.services.Nodes.Delete(ctx, request.ID); err != nil && !(removed && errors.Is(err, plainstore.ErrNotFound)) {
-			return nil, err
+		if err := a.services.Nodes.Delete(ctx, request.ID); err != nil {
+			if !removed || !errors.Is(err, plainstore.ErrNotFound) {
+				return nil, err
+			}
 		}
 	}
 	return &emptyResponse{}, nil
@@ -196,8 +198,10 @@ func (a v2API) deleteResolver(ctx context.Context, request *idRequest) (*emptyRe
 		removed = true
 	}
 	if a.services.Resolvers != nil {
-		if err := a.services.Resolvers.Delete(ctx, request.ID); err != nil && !(removed && errors.Is(err, plainstore.ErrNotFound)) {
-			return nil, err
+		if err := a.services.Resolvers.Delete(ctx, request.ID); err != nil {
+			if !removed || !errors.Is(err, plainstore.ErrNotFound) {
+				return nil, err
+			}
 		}
 	}
 	return &emptyResponse{}, nil

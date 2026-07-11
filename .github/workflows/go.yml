@@ -152,9 +152,11 @@ jobs:
           set -euo pipefail
 
           if [[ "$REF_TYPE" == "tag" ]]; then
-            previous_tag=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+            previous_tag=$(git describe --tags --match 'v*' --abbrev=0 HEAD^ 2>/dev/null || true)
           else
-            previous_tag=$(git describe --tags --abbrev=0 HEAD 2>/dev/null || true)
+            # The rolling main release is intentionally excluded: its notes should
+            # cover all changes since the latest stable or beta release.
+            previous_tag=$(git describe --tags --match 'v*' --abbrev=0 HEAD 2>/dev/null || true)
           fi
 
           if [[ -n "$previous_tag" ]]; then

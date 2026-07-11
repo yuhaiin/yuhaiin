@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,7 +20,9 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"golang.org/x/mod/semver"
 )
 
@@ -65,7 +68,7 @@ type Service struct {
 func NewService(opt Options) *Service {
 	client := opt.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = proxyHTTPClient()
 	}
 	releasesURL := opt.ReleasesURL
 	if releasesURL == "" {
@@ -91,6 +94,23 @@ func NewService(opt Options) *Service {
 		currentTimestamp, _ = time.Parse(time.RFC3339, version.ReleaseTimestamp)
 	}
 	return &Service{client: client, releasesURL: releasesURL, installer: opt.Installer, current: current, targetOS: targetOS, targetArch: targetArch, currentTimestamp: currentTimestamp}
+}
+
+// proxyHTTPClient routes GitHub API, release assets, and checksum downloads
+// through the same dynamic proxy chain used by rule-list downloads.
+func proxyHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				ad, err := netapi.ParseAddress(network, addr)
+				if err != nil {
+					return nil, fmt.Errorf("parse update address failed: %w", err)
+				}
+				return configuration.ProxyChain.Conn(ctx, ad)
+			},
+		},
+	}
 }
 
 func (s *Service) Check(ctx context.Context, channel string) (contractupdate.CheckResult, error) {
