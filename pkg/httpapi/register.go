@@ -2,20 +2,6 @@ package httpapi
 
 import "net/http"
 
+// RegisterFunc is the small adapter used by RegisterV2 to attach handlers to
+// the host application's ServeMux.
 type RegisterFunc func(pattern string, handler func(http.ResponseWriter, *http.Request) error)
-
-func requiredPathValue(r *http.Request, name string) (string, error) {
-	value := r.PathValue(name)
-	if value == "" {
-		return "", &pathValueError{name: name}
-	}
-	return value, nil
-}
-
-type pathValueError struct {
-	name string
-}
-
-func (e *pathValueError) Error() string {
-	return "missing path value " + e.name
-}

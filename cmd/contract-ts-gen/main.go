@@ -77,7 +77,28 @@ func render(root string) ([]byte, error) {
 func writeType(out *bytes.Buffer, spec *ast.TypeSpec, indent string) error {
 	switch value := spec.Type.(type) {
 	case *ast.StructType:
-		fmt.Fprintf(out, "%sexport interface %s {\n", indent, spec.Name.Name)
+		if variants := taggedUnionVariants(spec.Name.Name, value); len(variants) > 0 {
+			fmt.Fprintf(out, "%sexport type %s =\n", indent, spec.Name.Name)
+			for index, variant := range variants {
+				separator := ""
+				if index == len(variants)-1 {
+					separator = ";"
+				}
+				fmt.Fprintf(out, "%s  | { type: %q; %s: %s }%s\n", indent, variant.name, variant.name, variant.typeName, separator)
+			}
+			return nil
+		}
+		extends := make([]string, 0)
+		for _, field := range value.Fields.List {
+			if len(field.Names) == 0 {
+				extends = append(extends, tsType(field.Type))
+			}
+		}
+		declaration := fmt.Sprintf("%sexport interface %s", indent, spec.Name.Name)
+		if len(extends) > 0 {
+			declaration += " extends " + strings.Join(extends, ", ")
+		}
+		fmt.Fprintf(out, "%s {\n", declaration)
 		for _, field := range value.Fields.List {
 			if len(field.Names) == 0 {
 				continue
@@ -93,11 +114,49 @@ func writeType(out *bytes.Buffer, spec *ast.TypeSpec, indent string) error {
 		}
 		fmt.Fprintf(out, "%s}\n", indent)
 	case *ast.InterfaceType:
-		fmt.Fprintf(out, "%sexport type %s = unknown;\n", indent, spec.Name.Name)
+		// Contract interfaces describe Go-only construction/validation helpers
+		// (for example ProtocolVariant); they have no JSON representation and
+		// should not produce meaningless `unknown` types in the frontend.
+		return nil
 	default:
 		fmt.Fprintf(out, "%sexport type %s = %s;\n", indent, spec.Name.Name, tsType(value))
 	}
 	return nil
+}
+
+type taggedVariant struct{ name, typeName string }
+
+func taggedUnionVariants(typeName string, value *ast.StructType) []taggedVariant {
+	hasType := false
+	variants := make([]taggedVariant, 0)
+	for _, field := range value.Fields.List {
+		if len(field.Names) == 0 {
+			continue
+		}
+		if field.Names[0].Name == "Type" {
+			hasType = true
+			continue
+		}
+		if _, pointer := field.Type.(*ast.StarExpr); !pointer {
+			array, ok := field.Type.(*ast.ArrayType)
+			if !ok {
+				continue
+			}
+			element, ok := array.Elt.(*ast.Ident)
+			if !ok || element.Name != typeName {
+				continue
+			}
+		}
+		name, _ := jsonName(field)
+		if name == "" || name == "-" {
+			continue
+		}
+		variants = append(variants, taggedVariant{name: name, typeName: tsType(field.Type)})
+	}
+	if !hasType || len(variants) == 0 {
+		return nil
+	}
+	return variants
 }
 
 func jsonName(field *ast.Field) (string, bool) {
@@ -142,6 +201,11 @@ func tsType(expr ast.Expr) string {
 			return value.Name
 		}
 	case *ast.ArrayType:
+		// encoding/json represents []byte as a base64 JSON string rather than
+		// an array of numbers.
+		if element, ok := value.Elt.(*ast.Ident); ok && element.Name == "byte" {
+			return "string"
+		}
 		return tsType(value.Elt) + "[]"
 	case *ast.StarExpr:
 		return tsType(value.X)
