@@ -30,9 +30,10 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20260611001507-ffb138071028
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20260322125925-9234c772ba8f
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260711133829-c3b5f1f3aec9
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260711153650-11d9a1d78001
 	golang.org/x/crypto v0.54.0
 	golang.org/x/mobile v0.0.0-20260709172247-6129f5bee9d5
+	golang.org/x/mod v0.38.0
 	golang.org/x/net v0.57.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/sys v0.47.0
@@ -110,7 +111,6 @@ require (
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	golang.org/x/exp v0.0.0-20260611194520-c48552f49976 // indirect
-	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.40.0 // indirect

@@ -59,12 +59,15 @@ func TestSelectMainReleaseByPublishedAt(t *testing.T) {
 		{Tag: "main", Name: "main-old", Prerelease: true, PublishedAt: old, Assets: []releaseAsset{{Name: "yuhaiin-linux-amd64", URL: "old"}, {Name: "checksums.txt", URL: "sum"}}},
 		{Tag: "main", Name: "main-new", Prerelease: true, PublishedAt: newer, Assets: []releaseAsset{{Name: "yuhaiin-linux-amd64", URL: "new"}, {Name: "checksums.txt", URL: "sum"}}},
 	}
-	got, ok := selectReleaseChannel(releases, "main-old", old, contractupdate.ChannelMain, "linux", "amd64")
+	got, ok := selectReleaseChannel(releases, "main-old", "old", old, contractupdate.ChannelMain, "linux", "amd64")
 	if !ok || got.Tag != "main" || got.Version != "main-new" {
 		t.Fatalf("main selection = %#v, %v", got, ok)
 	}
-	if _, ok := selectReleaseChannel(releases, "main-new", newer, contractupdate.ChannelMain, "linux", "amd64"); ok {
+	if _, ok := selectReleaseChannel(releases, "main-new", "new", newer, contractupdate.ChannelMain, "linux", "amd64"); ok {
 		t.Fatal("latest rolling main release should not update itself")
+	}
+	if _, ok := selectReleaseChannel(releases, "main", "new", newer, contractupdate.ChannelMain, "linux", "amd64"); ok {
+		t.Fatal("matching main commit should not update itself")
 	}
 }
 

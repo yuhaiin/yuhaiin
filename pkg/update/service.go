@@ -51,6 +51,7 @@ type Options struct {
 	TargetOS         string
 	TargetArch       string
 	CurrentTimestamp time.Time
+	CurrentCommit    string
 }
 
 type Service struct {
@@ -61,6 +62,7 @@ type Service struct {
 	targetOS         string
 	targetArch       string
 	currentTimestamp time.Time
+	currentCommit    string
 	mu               sync.RWMutex
 	status           contractupdate.Status
 }
@@ -93,7 +95,11 @@ func NewService(opt Options) *Service {
 	if currentTimestamp.IsZero() && version.ReleaseTimestamp != "" {
 		currentTimestamp, _ = time.Parse(time.RFC3339, version.ReleaseTimestamp)
 	}
-	return &Service{client: client, releasesURL: releasesURL, installer: opt.Installer, current: current, targetOS: targetOS, targetArch: targetArch, currentTimestamp: currentTimestamp}
+	currentCommit := opt.CurrentCommit
+	if currentCommit == "" {
+		currentCommit = version.GitCommit
+	}
+	return &Service{client: client, releasesURL: releasesURL, installer: opt.Installer, current: current, targetOS: targetOS, targetArch: targetArch, currentTimestamp: currentTimestamp, currentCommit: currentCommit}
 }
 
 // proxyHTTPClient routes GitHub API, release assets, and checksum downloads
@@ -129,7 +135,7 @@ func (s *Service) Check(ctx context.Context, channel string) (contractupdate.Che
 	if err != nil {
 		return result, err
 	}
-	selected, ok := selectReleaseChannel(releases, s.current, s.currentTimestamp, channel, s.targetOS, s.targetArch)
+	selected, ok := selectReleaseChannel(releases, s.current, s.currentCommit, s.currentTimestamp, channel, s.targetOS, s.targetArch)
 	if !ok {
 		return result, nil
 	}
@@ -170,7 +176,7 @@ func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest
 			channel = contractupdate.ChannelBeta
 		}
 	}
-	selected, ok := selectReleaseChannel(releases, s.current, s.currentTimestamp, normalizeChannel(channel), s.targetOS, s.targetArch)
+	selected, ok := selectReleaseChannel(releases, s.current, s.currentCommit, s.currentTimestamp, normalizeChannel(channel), s.targetOS, s.targetArch)
 	if !ok || selected.Tag != request.TargetTag {
 		return errors.New("requested release is no longer available")
 	}
@@ -259,13 +265,14 @@ func selectRelease(releases []release, current string, includePrerelease bool, t
 	if includePrerelease {
 		channel = contractupdate.ChannelBeta
 	}
-	return selectReleaseChannel(releases, current, time.Time{}, channel, targetOS, targetArch)
+	return selectReleaseChannel(releases, current, "", time.Time{}, channel, targetOS, targetArch)
 }
 
-func selectReleaseChannel(releases []release, current string, currentTimestamp time.Time, channel, targetOS, targetArch string) (release, bool) {
+func selectReleaseChannel(releases []release, current, currentCommit string, currentTimestamp time.Time, channel, targetOS, targetArch string) (release, bool) {
 	channel = normalizeChannel(channel)
 	currentVersion := normalizeVersion(current)
-	isCurrentMain := strings.HasPrefix(strings.TrimSpace(current), "main-")
+	trimmedCurrent := strings.TrimSpace(current)
+	isCurrentMain := trimmedCurrent == "main" || strings.HasPrefix(trimmedCurrent, "main-")
 	var candidates []release
 	assetName := "yuhaiin-" + targetOS + "-" + targetArch
 	if targetOS == "windows" {
@@ -284,7 +291,7 @@ func selectReleaseChannel(releases []release, current string, currentTimestamp t
 		}
 		if channel == contractupdate.ChannelMain {
 			item.Version = mainVersion
-			if item.Version == current || isCurrentMain && !currentTimestamp.IsZero() && !item.PublishedAt.After(currentTimestamp) {
+			if sameMainVersion(current, item.Version, currentCommit) || isCurrentMain && !currentTimestamp.IsZero() && !item.PublishedAt.After(currentTimestamp) {
 				continue
 			}
 		} else {
@@ -327,6 +334,15 @@ func selectReleaseChannel(releases []release, current string, currentTimestamp t
 		sort.Slice(candidates, func(i, j int) bool { return compareVersion(candidates[i].Version, candidates[j].Version) > 0 })
 	}
 	return candidates[0], true
+}
+
+func sameMainVersion(current, release, commit string) bool {
+	current = strings.TrimPrefix(strings.TrimSpace(current), "main-")
+	release = strings.TrimPrefix(strings.TrimSpace(release), "main-")
+	if current != "" && release != "" && (current == release || strings.HasPrefix(release, current) || strings.HasPrefix(current, release)) {
+		return true
+	}
+	return commit != "" && release != "" && (strings.HasPrefix(release, commit) || strings.HasPrefix(commit, release))
 }
 
 func mainReleaseVersion(item release) string {
