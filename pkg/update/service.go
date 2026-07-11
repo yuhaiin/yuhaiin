@@ -224,10 +224,7 @@ func (s *Service) Status(context.Context) contractupdate.Status {
 func (s *Service) updateProgress(stage string, downloaded, total int64) {
 	progress := 0
 	if total > 0 {
-		progress = int(downloaded * 100 / total)
-		if progress > 100 {
-			progress = 100
-		}
+		progress = min(int(downloaded*100/total), 100)
 	}
 	s.mu.Lock()
 	s.status.Stage = stage
