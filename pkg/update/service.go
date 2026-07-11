@@ -22,11 +22,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"golang.org/x/mod/semver"
 )
 
 const defaultReleasesURL = "https://api.github.com/repos/yuhaiin/yuhaiin/releases"
+const updateHTTPTimeout = 30 * time.Minute
 
 type Asset struct {
 	Name        string
@@ -106,7 +108,7 @@ func NewService(opt Options) *Service {
 // through the same dynamic proxy chain used by rule-list downloads.
 func proxyHTTPClient() *http.Client {
 	return &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: updateHTTPTimeout,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				ad, err := netapi.ParseAddress(network, addr)
@@ -173,15 +175,18 @@ func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest
 	}
 	s.status = contractupdate.Status{Running: true, Stage: "preparing"}
 	s.mu.Unlock()
+	log.Info("start software update", "channel", request.Channel, "targetTag", request.TargetTag)
 	fail := func(err error) error {
 		s.finishUpdate(err)
 		return err
 	}
 
+	log.Info("software update preparing release metadata", "url", s.releasesURL)
 	releases, err := s.releases(ctx)
 	if err != nil {
 		return fail(err)
 	}
+	log.Info("software update release metadata received", "count", len(releases))
 	channel := request.Channel
 	if channel == "" {
 		channel = contractupdate.ChannelStable
@@ -193,6 +198,7 @@ func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest
 	if !ok || selected.Tag != request.TargetTag {
 		return fail(errors.New("requested release is no longer available"))
 	}
+	log.Info("software update release selected", "version", selected.Version, "tag", selected.Tag, "asset", selected.Asset.Name, "size", selected.Asset.Size)
 
 	s.mu.Lock()
 	s.status.Stage = "downloading"
@@ -202,6 +208,7 @@ func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest
 	s.mu.Unlock()
 
 	go func() {
+		log.Info("software update download started", "asset", selected.Asset.Name)
 		err := s.downloadAndInstall(context.Background(), selected.Asset)
 		s.finishUpdate(err)
 	}()
@@ -237,10 +244,12 @@ func (s *Service) finishUpdate(err error) {
 	s.status.Error = errorString(err)
 	if err != nil {
 		s.status.Stage = "error"
+		log.Error("software update failed", "err", err)
 		return
 	}
 	s.status.Stage = "completed"
 	s.status.Progress = 100
+	log.Info("software update install helper started")
 }
 
 type release struct {
@@ -418,9 +427,17 @@ func (s *Service) downloadAndInstall(ctx context.Context, asset Asset) error {
 		return err
 	}
 	tmpPath := tmp.Name()
+	lastLoggedProgress := -10
 	if err := download(ctx, s.client, asset.URL, tmp, func(downloaded, total int64) {
 		if total <= 0 {
 			total = asset.Size
+		}
+		if total > 0 {
+			progress := int(downloaded * 100 / total)
+			if progress >= lastLoggedProgress+10 || progress >= 100 {
+				log.Info("software update download progress", "progress", progress, "downloaded", downloaded, "total", total)
+				lastLoggedProgress = progress
+			}
 		}
 		s.updateProgress("downloading", downloaded, total)
 	}); err != nil {
@@ -432,7 +449,9 @@ func (s *Service) downloadAndInstall(ctx context.Context, asset Asset) error {
 		_ = os.Remove(tmpPath)
 		return err
 	}
+	log.Info("software update download finished", "asset", asset.Name)
 	s.updateProgress("verifying", asset.Size, asset.Size)
+	log.Info("software update checksum verification started", "asset", asset.Name)
 	checksum, err := downloadText(ctx, s.client, asset.ChecksumURL)
 	if err != nil {
 		_ = os.Remove(tmpPath)
@@ -452,7 +471,9 @@ func (s *Service) downloadAndInstall(ctx context.Context, asset Asset) error {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("checksum mismatch: got %s want %s", hash, want)
 	}
+	log.Info("software update checksum verification passed", "asset", asset.Name)
 	s.updateProgress("installing", asset.Size, asset.Size)
+	log.Info("software update installer starting", "asset", asset.Name)
 	if err := s.installer.Start(ctx, tmpPath); err != nil {
 		_ = os.Remove(tmpPath)
 		return err
