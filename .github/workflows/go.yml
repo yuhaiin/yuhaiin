@@ -114,6 +114,10 @@ jobs:
       - name: Build
         env:
           GOOS: ${{ matrix.env[0] }}
+          RELEASE_ARCH: ${{ matrix.env[1] }}
+          RELEASE_CHANNEL: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && 'main' || (contains(github.ref_name, 'beta') && 'beta' || 'stable') }}
+          RELEASE_VERSION: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && format('main-{0}', github.sha) || '' }}
+          RELEASE_TIMESTAMP: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && github.event.head_commit.timestamp || '' }}
           GOARCH: ${{ fromJSON('{"amd64v3":"amd64","amd64v4":"amd64"}')[matrix.env[1]] || matrix.env[1] }}
           GOAMD64: ${{ fromJSON('{"amd64v3":"v3","amd64v4":"v4"}')[matrix.env[1]] || '' }}
           GOMIPS: ${{ matrix.env[1] == 'mipsle' && 'softfloat' || '' }}
@@ -165,15 +169,31 @@ jobs:
         with:
           path: artifacts
 
+      - name: generate_checksums
+        run: |
+          find artifacts -type f -print0 | sort -z | xargs -0 sha256sum > checksums.txt
+
+      - name: update_main_release_tag
+        if: github.ref_type == 'branch' && github.ref_name == 'main'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git tag -f main "$GITHUB_SHA"
+          git push origin refs/tags/main --force
+
       - name: Release
         uses: softprops/action-gh-release@v3
         with:
           body_path: release_notes.txt
-          name: ${{ github.ref_type == 'tag' && github.ref_name || 'draft release' }}
-          draft: ${{ github.ref_type != 'tag' }}
+          tag_name: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && 'main' || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && format('main-{0}', github.sha) || github.ref_name }}
+          draft: false
+          overwrite_files: true
           make_latest: ${{ github.ref_type == 'tag' && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'alpha') }}
-          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+          prerelease: ${{ github.ref_type == 'branch' && github.ref_name == 'main' || contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
           # see: https://github.com/softprops/action-gh-release/issues/79#issuecomment-930339070
           files: |
             release_notes.txt
+            checksums.txt
             artifacts/*/*

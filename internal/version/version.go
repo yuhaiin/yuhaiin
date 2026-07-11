@@ -26,7 +26,12 @@ _____.___.     .__           .__.__
 	GitCommit string
 
 	BuildArch string
-	BuildTime string
+	// ReleaseArch is the asset architecture label used by the release workflow.
+	// It preserves amd64v3/amd64v4, which runtime.GOARCH alone cannot distinguish.
+	ReleaseArch      string
+	ReleaseChannel   string
+	ReleaseTimestamp string
+	BuildTime        string
 )
 
 func init() {
@@ -41,6 +46,9 @@ func Output[T io.Writer](w T) T {
 	fmt.Fprintf(w, "commit: %v\n", GitCommit)
 	fmt.Fprintf(w, "platform: %v/%v\n", runtime.GOOS, runtime.GOARCH)
 	fmt.Fprintf(w, "build arch: %v\n", BuildArch)
+	fmt.Fprintf(w, "release arch: %v\n", ReleaseArch)
+	fmt.Fprintf(w, "release channel: %v\n", ReleaseChannel)
+	fmt.Fprintf(w, "release timestamp: %v\n", ReleaseTimestamp)
 	fmt.Fprintf(w, "build time: %v\n", BuildTime)
 	fmt.Fprintf(w, "go version: %v\n", runtime.Version())
 	return w

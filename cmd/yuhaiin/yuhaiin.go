@@ -58,6 +58,7 @@ func run(args []string) error {
 		Auth:          auth,
 		StateStore:    setting,
 		ProcessDumper: getPorcessDumper(),
+		Updater:       newUpdateInstaller(),
 	})
 	if err != nil {
 		return err

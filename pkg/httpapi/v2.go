@@ -14,6 +14,7 @@ import (
 	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
 	contractsubscription "github.com/Asutorufa/yuhaiin/pkg/contract/subscription"
 	contracttools "github.com/Asutorufa/yuhaiin/pkg/contract/tools"
+	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
@@ -32,6 +33,11 @@ type ToolsController interface {
 	Interfaces(context.Context) (contracttools.Interfaces, error)
 	Licenses(context.Context) (contracttools.Licenses, error)
 	TailLogs(context.Context, func(contracttools.LogBatch) error) error
+}
+type UpdateController interface {
+	Check(context.Context, string) (contractupdate.CheckResult, error)
+	Apply(context.Context, contractupdate.ApplyRequest) error
+	Status(context.Context) contractupdate.Status
 }
 type ConnectionMonitor interface {
 	Total(context.Context) (contractconnection.TotalFlow, error)
@@ -102,6 +108,7 @@ type V2Services struct {
 	ResolverConfig ResolverConfigController
 	Connections    ConnectionMonitor
 	Tools          ToolsController
+	Update         UpdateController
 	Backup         BackupController
 	Lists          ListRuntimeController
 	RouteSettings  *plainstore.RouteSettingsStore

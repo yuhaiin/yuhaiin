@@ -27,6 +27,9 @@ func isV2StreamEndpoint(endpoint v2Endpoint) bool {
 
 const (
 	v2Info                     v2Endpoint = "info"
+	v2UpdateCheck              v2Endpoint = "update.check"
+	v2UpdateApply              v2Endpoint = "update.apply"
+	v2UpdateStatus             v2Endpoint = "update.status"
 	v2BackupRun                v2Endpoint = "backup.run"
 	v2BackupRestore            v2Endpoint = "backup.restore"
 	v2ToolsInterfaces          v2Endpoint = "tools.interfaces"
@@ -110,6 +113,9 @@ const (
 
 var v2Routes = []v2Route{
 	{v2Info, "GET /api/v2/info"},
+	{v2UpdateCheck, "POST /api/v2/update/check"},
+	{v2UpdateApply, "POST /api/v2/update/apply"},
+	{v2UpdateStatus, "GET /api/v2/update/status"},
 	{v2SettingsGet, "GET /api/v2/settings"},
 	{v2SettingsPut, "PUT /api/v2/settings"},
 	{v2BackupConfigGet, "GET /api/v2/backup/config"},

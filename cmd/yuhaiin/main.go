@@ -59,6 +59,9 @@ func main() {
 	case "restart":
 		do(restart)
 		return
+	case "update-helper":
+		do(updateHelper)
+		return
 	case "version", "-v", "--version":
 		version.Output(os.Stdout)
 		return

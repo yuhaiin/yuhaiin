@@ -2,6 +2,9 @@ MODULE := github.com/Asutorufa/yuhaiin
 
 BUILD_COMMIT  := $(shell git rev-parse --short HEAD)
 BUILD_VERSION := $(shell git describe --tags)
+ifneq ($(RELEASE_VERSION),)
+BUILD_VERSION := $(RELEASE_VERSION)
+endif
 ifeq ($(OS),Windows_NT)
 	BUILD_ARCH	:= Windows_NT
 	BUILD_TIME	:= $(shell powershell Get-Date)
@@ -21,6 +24,9 @@ GO_LDFLAGS= -s -w -buildid=
 GO_LDFLAGS += -X "$(MODULE)/internal/version.Version=$(BUILD_VERSION)"
 GO_LDFLAGS += -X "$(MODULE)/internal/version.GitCommit=$(BUILD_COMMIT)"
 GO_LDFLAGS += -X "$(MODULE)/internal/version.BuildArch=$(BUILD_ARCH)"
+GO_LDFLAGS += -X "$(MODULE)/internal/version.ReleaseArch=$(RELEASE_ARCH)"
+GO_LDFLAGS += -X "$(MODULE)/internal/version.ReleaseChannel=$(RELEASE_CHANNEL)"
+GO_LDFLAGS += -X "$(MODULE)/internal/version.ReleaseTimestamp=$(RELEASE_TIMESTAMP)"
 GO_LDFLAGS += -X "$(MODULE)/internal/version.BuildTime=$(BUILD_TIME)"
 
 GO_GCFLAGS=
@@ -70,6 +76,7 @@ define build
 	$(eval OS := $(word 2, $(ARGS)))
 	$(eval ARCH := $(word 3, $(ARGS)))
 	$(eval MODE := $(word 4, $(ARGS)))
+	$(if $(RELEASE_ARCH),,$(eval RELEASE_ARCH := $(word 3, $(ARGS))))
 
 	$(if $(filter amd64v3, $(ARCH)),$(eval AMD64V := v3),)
 	$(if $(filter amd64v3, $(ARCH)),$(eval ARCH := amd64),)

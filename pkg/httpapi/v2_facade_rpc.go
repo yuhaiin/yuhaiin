@@ -10,6 +10,7 @@ import (
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
 	contracttools "github.com/Asutorufa/yuhaiin/pkg/contract/tools"
+	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
 )
 
 type v2API struct{ services V2Services }
@@ -17,6 +18,9 @@ type v2API struct{ services V2Services }
 func addFacadeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	api := v2API{services: services}
 	addRPCRoute(handlers, v2Info, api.info)
+	addRPCRoute(handlers, v2UpdateCheck, api.updateCheck)
+	addRPCRoute(handlers, v2UpdateApply, api.updateApply)
+	addRPCRoute(handlers, v2UpdateStatus, api.updateStatus)
 	addRPCRoute(handlers, v2SettingsGet, api.settings)
 	addRPCRoute(handlers, v2SettingsPut, api.saveSettings)
 	addRPCRoute(handlers, v2BackupConfigGet, api.backupConfig)
@@ -48,6 +52,44 @@ func (a v2API) info(ctx context.Context, _ *emptyRequest) (*contractsettings.Inf
 		return nil, unavailable("settings controller is unavailable")
 	}
 	return pointer(a.services.Settings.Info(ctx))
+}
+
+func (a v2API) updateCheck(ctx context.Context, request *contractupdate.CheckRequest) (*contractupdate.CheckResult, error) {
+	if a.services.Update == nil {
+		return nil, unavailable("update controller is unavailable")
+	}
+	channel := request.Channel
+	if channel == "" {
+		channel = contractupdate.ChannelStable
+		if request.IncludePrerelease {
+			channel = contractupdate.ChannelBeta
+		}
+	}
+	return pointer(a.services.Update.Check(ctx, channel))
+}
+
+func (a v2API) updateApply(ctx context.Context, request *contractupdate.ApplyRequest) (*emptyResponse, error) {
+	if a.services.Update == nil {
+		return nil, unavailable("update controller is unavailable")
+	}
+	if request.Channel == "" {
+		request.Channel = contractupdate.ChannelStable
+		if request.IncludePrerelease {
+			request.Channel = contractupdate.ChannelBeta
+		}
+	}
+	if err := a.services.Update.Apply(ctx, *request); err != nil {
+		return nil, badRequest(err)
+	}
+	return &emptyResponse{}, nil
+}
+
+func (a v2API) updateStatus(ctx context.Context, _ *emptyRequest) (*contractupdate.Status, error) {
+	if a.services.Update == nil {
+		return nil, unavailable("update controller is unavailable")
+	}
+	status := a.services.Update.Status(ctx)
+	return &status, nil
 }
 func (a v2API) settings(ctx context.Context, _ *emptyRequest) (*contractsettings.Settings, error) {
 	if a.services.Settings == nil {

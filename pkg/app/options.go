@@ -31,6 +31,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
+	updatepkg "github.com/Asutorufa/yuhaiin/pkg/update"
 	pyroscopepprof "github.com/grafana/pyroscope-go/godeltaprof/http/pprof"
 	yf "github.com/yuhaiin/yuhaiin.github.io"
 )
@@ -164,6 +165,7 @@ func registerV2HTTP(app *AppInstance) {
 		ResolverConfig: resolverConfig,
 		Connections:    app.Connections,
 		Tools:          app.Tools,
+		Update:         updatepkg.NewService(updatepkg.Options{Installer: app.Updater}),
 		Backup:         app.Backup,
 		Lists:          app.Lists,
 		RouteSettings:  routeSettingsStore,
@@ -219,6 +221,8 @@ type StartOptions struct {
 	Auth *Auth
 
 	ConfigPath string
+
+	Updater updatepkg.Installer
 }
 
 type SQLStore interface {
