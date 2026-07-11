@@ -142,8 +142,22 @@ jobs:
           fetch-tags: "true"
 
       - id: generate-release-notes
+        env:
+          REF_TYPE: ${{ github.ref_type }}
         run: |
-          git log $(git describe --tags --abbrev=0 --exclude=$(git describe --tags))..$(git describe --tags) --oneline > release_notes.txt
+          set -euo pipefail
+
+          if [[ "$REF_TYPE" == "tag" ]]; then
+            previous_tag=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+          else
+            previous_tag=$(git describe --tags --abbrev=0 HEAD 2>/dev/null || true)
+          fi
+
+          if [[ -n "$previous_tag" ]]; then
+            git log "$previous_tag..HEAD" --oneline > release_notes.txt
+          else
+            git log HEAD --oneline > release_notes.txt
+          fi
 
       - name: download_artifacts
         id: download-artifacts

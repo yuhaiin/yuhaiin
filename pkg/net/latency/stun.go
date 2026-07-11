@@ -175,7 +175,7 @@ func ParseResponse(msg *stun.Message) (Response, error) {
 	return resp, nil
 }
 
-var parseError = errors.New("parse error")
+var errParse = errors.New("parse error")
 
 func sendRequest(req *stun.Message, conn net.PacketConn, addr net.Addr, timeout time.Duration) (Response, error) {
 	if err := req.NewTransactionID(); err != nil {
@@ -209,7 +209,7 @@ func sendRequest(req *stun.Message, conn net.PacketConn, addr net.Addr, timeout 
 
 	stunResp, err := ParseResponse(resp)
 	if err != nil {
-		return Response{}, fmt.Errorf("%w: %w", parseError, err)
+		return Response{}, fmt.Errorf("%w: %w", errParse, err)
 	}
 
 	stunResp.FromAddr = addr
@@ -249,7 +249,7 @@ func Stun(ctx context.Context, p netapi.Proxy, host string) (StunResponse, error
 		return StunResponse{}, fmt.Errorf("mapping failed: %w", err)
 	}
 
-	var ft NatType = ServerNotSupportChangePort
+	var ft = ServerNotSupportChangePort
 
 	if mt != ServerNotSupportChangePort {
 		ft, err = Filtering(pconn, addr, time.Second*5)

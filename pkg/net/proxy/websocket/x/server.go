@@ -57,7 +57,7 @@ func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Req
 		return nil, err
 	}
 
-	if err := buf.Writer.Flush(); err != nil {
+	if err := buf.Flush(); err != nil {
 		return nil, err
 	}
 

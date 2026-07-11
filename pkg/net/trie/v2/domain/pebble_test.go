@@ -105,8 +105,12 @@ func TestDiskPebbleTrie_WildcardLogic(t *testing.T) {
 	dt, dir := setupPebbleTestDB(t)
 	defer cleanupPebbleTestDB(dt, dir)
 
-	dt.Insert(newFqdnReader("com.google.*"), "WildcardValue")
-	dt.Insert(newFqdnReader("com.google.mail"), "MailValue")
+	if err := dt.Insert(newFqdnReader("com.google.*"), "WildcardValue"); err != nil {
+		t.Fatal(err)
+	}
+	if err := dt.Insert(newFqdnReader("com.google.mail"), "MailValue"); err != nil {
+		t.Fatal(err)
+	}
 
 	tests := []struct {
 		domain string
@@ -143,8 +147,12 @@ func TestDiskPebbleTrie_MultiValues(t *testing.T) {
 	defer cleanupPebbleTestDB(dt, dir)
 
 	domain := "com.server"
-	dt.Insert(newFqdnReader(domain), "IP1")
-	dt.Insert(newFqdnReader(domain), "IP2")
+	if err := dt.Insert(newFqdnReader(domain), "IP1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := dt.Insert(newFqdnReader(domain), "IP2"); err != nil {
+		t.Fatal(err)
+	}
 
 	res := dt.Search(newFqdnReader(domain))
 	if len(res) != 2 {
@@ -163,8 +171,12 @@ func TestDiskPebbleTrie_Remove(t *testing.T) {
 	val := "DeleteMe"
 	valKeep := "KeepMe"
 
-	dt.Insert(newFqdnReader(domain), val)
-	dt.Insert(newFqdnReader(domain), valKeep)
+	if err := dt.Insert(newFqdnReader(domain), val); err != nil {
+		t.Fatal(err)
+	}
+	if err := dt.Insert(newFqdnReader(domain), valKeep); err != nil {
+		t.Fatal(err)
+	}
 
 	err := dt.Remove(newFqdnReader(domain), val)
 	if err != nil {
@@ -179,7 +191,9 @@ func TestDiskPebbleTrie_Remove(t *testing.T) {
 		t.Error("Other value should remain")
 	}
 
-	dt.Remove(newFqdnReader(domain), valKeep)
+	if err := dt.Remove(newFqdnReader(domain), valKeep); err != nil {
+		t.Fatal(err)
+	}
 	res = dt.Search(newFqdnReader(domain))
 	if len(res) != 0 {
 		t.Error("Node should be empty")
@@ -217,7 +231,9 @@ func BenchmarkDiskPebbleTrie(b *testing.B) {
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			dt.Insert(newFqdnReader(domains[i]), "BenchmarkValue")
+			if err := dt.Insert(newFqdnReader(domains[i]), "BenchmarkValue"); err != nil {
+				b.Fatal(err)
+			}
 		}
 	})
 
@@ -228,7 +244,9 @@ func BenchmarkDiskPebbleTrie(b *testing.B) {
 		domains := make([]string, count)
 		for i := range count {
 			domains[i] = randomDomainParts(4)
-			dt.Insert(newFqdnReader(domains[i]), "Val")
+			if err := dt.Insert(newFqdnReader(domains[i]), "Val"); err != nil {
+				b.Fatal(err)
+			}
 		}
 
 		if err := dt.root.Pebble().Close(); err != nil {
@@ -251,7 +269,9 @@ func BenchmarkDiskPebbleTrie(b *testing.B) {
 		defer cleanupPebbleTestDB(dt, dir)
 
 		for range 5000 {
-			dt.Insert(newFqdnReader(randomDomainParts(4)), "Val")
+			if err := dt.Insert(newFqdnReader(randomDomainParts(4)), "Val"); err != nil {
+				b.Fatal(err)
+			}
 		}
 
 		b.ResetTimer()

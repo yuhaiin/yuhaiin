@@ -87,7 +87,7 @@ func (d *Tun) Write(bufs [][]byte) (int, error) {
 }
 
 func (d *Tun) Close() error {
-	d.StopFD.Stop()
+	d.Stop()
 	return nil
 }
 

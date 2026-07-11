@@ -105,10 +105,6 @@ func readFrameHeader(r io.Reader, readBuf []byte) (h Header, err error) {
 	return h, nil
 }
 
-// maxControlPayload is the maximum length of a control frame payload.
-// See https://tools.ietf.org/html/rfc6455#section-5.5.
-const maxControlPayload = 125
-
 // writeFrameHeader writes the bytes of the header to w.
 // See https://tools.ietf.org/html/rfc6455#section-5.2
 func writeFrameHeader(h Header, w *pool.Buffer, buf []byte) (err error) {

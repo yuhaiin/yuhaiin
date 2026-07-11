@@ -1,3 +1,4 @@
+//nolint:staticcheck // Custom scheduling remains required for fair proxy stream writes.
 package http2
 
 import (

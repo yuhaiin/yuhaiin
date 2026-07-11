@@ -26,14 +26,14 @@ func TestMigrateLegacyInbounds(t *testing.T) {
 	defer func() { _ = sqliteStore.Close() }()
 
 	old := legacyconfig.Inbound_builder{
-		Name:    ptr("reversehttp"),
-		Enabled: ptr(true),
+		Name:    new("reversehttp"),
+		Enabled: new(true),
 		Tcpudp: legacyconfig.Tcpudp_builder{
-			Host:    ptr(":9002"),
+			Host:    new(":9002"),
 			Control: legacyconfig.TcpUdpControl_disable_udp.Enum(),
 		}.Build(),
 		ReverseHttp: legacyconfig.ReverseHttp_builder{
-			Url: ptr("http://127.0.0.1:3000"),
+			Url: new("http://127.0.0.1:3000"),
 		}.Build(),
 		Transport: []*legacyconfig.Transport{
 			legacyconfig.Transport_builder{Normal: legacyconfig.Normal_builder{}.Build()}.Build(),
@@ -142,9 +142,9 @@ func TestMigrateLegacyNodesBackfillsWhenMarkerDoneButContractsEmpty(t *testing.T
 	defer func() { _ = sqliteStore.Close() }()
 
 	point := legacynode.Point_builder{
-		Hash:   ptr("hash-1"),
-		Name:   ptr("alpha"),
-		Group:  ptr("manual"),
+		Hash:   new("hash-1"),
+		Name:   new("alpha"),
+		Group:  new("manual"),
 		Origin: legacynode.Origin_manual.Enum(),
 	}.Build()
 	dataJSON, err := json.Marshal(point)
@@ -227,9 +227,9 @@ func TestRecoverLegacyNodeChainsRestoresPartialNetworkSplit(t *testing.T) {
 
 func legacyconfigPointForPartialNetworkSplit(password string) *legacynode.Point {
 	return legacynode.Point_builder{
-		Hash:   ptr("partial-split"),
-		Name:   ptr("partial-split"),
-		Group:  ptr("manual"),
+		Hash:   new("partial-split"),
+		Name:   new("partial-split"),
+		Group:  new("manual"),
 		Origin: legacynode.Origin_manual.Enum(),
 		Protocols: []*legacynode.Protocol{
 			legacynode.Protocol_builder{NetworkSplit: legacynode.NetworkSplit_builder{
@@ -269,9 +269,9 @@ func TestMigrateLegacyNodesDoesNotOverwriteValidSelection(t *testing.T) {
 		{hash: "hash-2", name: "beta"},
 	} {
 		point := legacynode.Point_builder{
-			Hash:   ptr(item.hash),
-			Name:   ptr(item.name),
-			Group:  ptr("manual"),
+			Hash:   new(item.hash),
+			Name:   new(item.name),
+			Group:  new("manual"),
 			Origin: legacynode.Origin_manual.Enum(),
 		}.Build()
 		dataJSON, err := json.Marshal(point)
@@ -325,7 +325,7 @@ func TestMigrateLegacyResolvers(t *testing.T) {
 	defer func() { _ = sqliteStore.Close() }()
 
 	old := legacyconfig.Dns_builder{
-		Host: ptr("dns.google:853"),
+		Host: new("dns.google:853"),
 		Type: legacyconfig.Type_dot.Enum(),
 	}.Build()
 	dataJSON, err := json.Marshal(old)
@@ -359,9 +359,9 @@ func TestMigrateLegacyRouteRules(t *testing.T) {
 	defer func() { _ = sqliteStore.Close() }()
 
 	old := legacyconfig.Rulev2_builder{
-		Name: ptr("legacy"),
+		Name: new("legacy"),
 		Mode: legacyconfig.Mode_bypass.Enum(),
-		Tag:  ptr("direct"),
+		Tag:  new("direct"),
 	}.Build()
 	dataJSON, err := json.Marshal(old)
 	if err != nil {
@@ -396,9 +396,9 @@ func TestMigrateLegacyRouteRulesRenumbersLegacyPriorities(t *testing.T) {
 
 	for i, name := range []string{"tailscale", "vrchat"} {
 		old := legacyconfig.Rulev2_builder{
-			Name: ptr(name),
+			Name: new(name),
 			Mode: legacyconfig.Mode_bypass.Enum(),
-			Tag:  ptr("direct"),
+			Tag:  new("direct"),
 		}.Build()
 		dataJSON, err := json.Marshal(old)
 		if err != nil {
@@ -439,7 +439,7 @@ func TestMigrateLegacyRouteLists(t *testing.T) {
 	defer func() { _ = sqliteStore.Close() }()
 
 	old := legacyconfig.List_builder{
-		Name:     ptr("legacy-list"),
+		Name:     new("legacy-list"),
 		ListType: legacyconfig.List_process.Enum(),
 		Local:    legacyconfig.ListLocal_builder{Lists: []string{"proc"}}.Build(),
 	}.Build()

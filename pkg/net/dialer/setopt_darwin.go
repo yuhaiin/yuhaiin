@@ -8,7 +8,7 @@ import (
 )
 
 // syscall.TCP_KEEPINTVL is missing on some darwin architectures.
-const sysTCP_KEEPINTVL = 0x101
+const sysTCP_KEEPINTVL = 0x101 //nolint:unused // ignore missing constant on some darwin architectures
 
 func setSocketOptions(network, address string, c syscall.RawConn, opts *Options) (err error) {
 	if opts == nil || !isTCPSocket(network) && !isUDPSocket(network) {
@@ -38,7 +38,6 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 		}
 
 		innerErr = BindInterface(network, fd, opts.InterfaceName)
-
 	})
 
 	if innerErr != nil {

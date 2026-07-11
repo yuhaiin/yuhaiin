@@ -62,7 +62,4 @@ var (
 		NewHTTPPortKey:    0,
 		NewYuhaiinPortKey: 3500,
 	}
-
-	defaultLongValue  = map[string]int64{}
-	defaultFloatValue = map[string]float32{}
 )

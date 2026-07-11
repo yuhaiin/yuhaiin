@@ -24,7 +24,7 @@ func FakeipV6UlaGenerate() netip.Prefix {
 
 func TunV6UlaGenerate() netip.Prefix {
 	ip := [16]byte{
-		253, //fd
+		253, // fd
 		byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)),
 		255, 255,
 		0, 0, 0, 0, 0, 0, 0, 1,
@@ -167,7 +167,7 @@ func DefaultSetting(path string) *Setting {
 					Empty:   &Empty{},
 					Tun: Tun_builder{
 						Name:          new("tun://" + tunname),
-						Mtu:           ptr(int32(9000)),
+						Mtu:           new(int32(9000)),
 						Portal:        new(TunV4UlaGenerate().String()),
 						PortalV6:      new(TunV6UlaGenerate().String()),
 						SkipMulticast: new(true),
@@ -198,5 +198,3 @@ func DefaultSetting(path string) *Setting {
 		Platform:       &Platform{},
 	}).Build()
 }
-
-func ptr[T any](v T) *T { return &v }

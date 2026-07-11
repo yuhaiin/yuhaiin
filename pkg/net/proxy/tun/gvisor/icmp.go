@@ -53,8 +53,8 @@ func (f *tunServer) HandleICMPv4(id stack.TransportEndpointID, pkt *stack.Packet
 
 	replyHeaderLength := uint8(header.IPv4MinimumSize + len(newOptions))
 	replyIPHdrView := buffer.NewView(int(replyHeaderLength))
-	replyIPHdrView.Write(ipHdr[:header.IPv4MinimumSize])
-	replyIPHdrView.Write(newOptions)
+	_, _ = replyIPHdrView.Write(ipHdr[:header.IPv4MinimumSize])
+	_, _ = replyIPHdrView.Write(newOptions)
 	replyIPHdr := header.IPv4(replyIPHdrView.AsSlice())
 	replyIPHdr.SetHeaderLength(replyHeaderLength)
 	replyIPHdr.SetSourceAddress(r.LocalAddress())
@@ -70,7 +70,7 @@ func (f *tunServer) HandleICMPv4(id stack.TransportEndpointID, pkt *stack.Packet
 	replyICMPHdr.SetChecksum(^checksum.Checksum(replyData.AsSlice(), 0))
 
 	replyBuf := buffer.MakeWithView(replyIPHdrView)
-	replyBuf.Append(replyData.Clone())
+	_ = replyBuf.Append(replyData.Clone())
 	replyPkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
 		ReserveHeaderBytes: int(r.MaxHeaderLength()),
 		Payload:            replyBuf,

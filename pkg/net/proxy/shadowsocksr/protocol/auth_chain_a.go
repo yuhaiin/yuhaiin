@@ -129,7 +129,7 @@ const authheadLength = 4 + 8 + 4 + 16 + 4
 func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	outData = make([]byte, authheadLength, authheadLength+1500)
 
-	a.Protocol.Auth.nextAuth()
+	a.Auth.nextAuth()
 
 	var key = make([]byte, a.IVSize()+len(a.Key()))
 	copy(key, a.IV)
@@ -137,8 +137,8 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 
 	encrypt := make([]byte, 20)
 	binary.LittleEndian.PutUint32(encrypt[:4], uint32(system.NowUnix()))
-	copy(encrypt[4:8], a.Protocol.Auth.clientID[:])
-	binary.LittleEndian.PutUint32(encrypt[8:], a.Protocol.Auth.connectionID.Load())
+	copy(encrypt[4:8], a.Auth.clientID[:])
+	binary.LittleEndian.PutUint32(encrypt[8:], a.Auth.connectionID.Load())
 	binary.LittleEndian.PutUint16(encrypt[12:], uint16(a.overhead))
 	binary.LittleEndian.PutUint16(encrypt[14:16], 0)
 
@@ -222,7 +222,7 @@ func (a *authChainA) EncryptStream(wbuf *pool.Buffer, plainData []byte) (err err
 	offset := 0
 	if dataLength > 0 && !a.hasSentHeader {
 		headSize := min(1200, dataLength)
-		wbuf.Write(a.packAuthData(plainData[:headSize]))
+		_, _ = wbuf.Write(a.packAuthData(plainData[:headSize]))
 		offset += headSize
 		dataLength -= headSize
 		a.hasSentHeader = true
@@ -232,7 +232,7 @@ func (a *authChainA) EncryptStream(wbuf *pool.Buffer, plainData []byte) (err err
 		dataLen, randLength := a.packedDataLen(plainData[offset : offset+unitSize])
 		b := make([]byte, dataLen)
 		a.packData(b, plainData[offset:offset+unitSize], randLength)
-		wbuf.Write(b)
+		_, _ = wbuf.Write(b)
 		dataLength -= unitSize
 		offset += unitSize
 	}
@@ -240,7 +240,7 @@ func (a *authChainA) EncryptStream(wbuf *pool.Buffer, plainData []byte) (err err
 		dataLen, randLength := a.packedDataLen(plainData[offset:])
 		b := make([]byte, dataLen)
 		a.packData(b, plainData[offset:], randLength)
-		wbuf.Write(b)
+		_, _ = wbuf.Write(b)
 	}
 	return nil
 }
@@ -275,7 +275,7 @@ func (a *authChainA) DecryptStream(rbuf *pool.Buffer, plainData []byte) (n int, 
 
 		b := make([]byte, dataLen)
 		a.decrypter.XORKeyStream(b, plainData[dataPos:dataPos+dataLen])
-		rbuf.Write(b)
+		_, _ = rbuf.Write(b)
 		if a.recvID == 1 {
 			a.TcpMss = int(binary.LittleEndian.Uint16(rbuf.Next(2)))
 		}

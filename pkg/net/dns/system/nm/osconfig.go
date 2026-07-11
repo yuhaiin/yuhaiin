@@ -134,10 +134,10 @@ type OSConfig struct {
 
 func (o *OSConfig) WriteToBufioWriter(w *bufio.Writer) {
 	if o == nil {
-		w.WriteString("<nil>")
+		_, _ = w.WriteString("<nil>")
 		return
 	}
-	w.WriteString("{")
+	_, _ = w.WriteString("{")
 	if len(o.Hosts) > 0 {
 		fmt.Fprintf(w, "Hosts:%v ", o.Hosts)
 	}
@@ -148,7 +148,7 @@ func (o *OSConfig) WriteToBufioWriter(w *bufio.Writer) {
 		fmt.Fprintf(w, "SearchDomains:%v ", o.SearchDomains)
 	}
 	if len(o.MatchDomains) > 0 {
-		w.WriteString("MatchDomains:[")
+		_, _ = w.WriteString("MatchDomains:[")
 		sp := ""
 		var numARPA int
 		for _, s := range o.MatchDomains {
@@ -156,16 +156,16 @@ func (o *OSConfig) WriteToBufioWriter(w *bufio.Writer) {
 				numARPA++
 				continue
 			}
-			w.WriteString(sp)
-			w.WriteString(string(s))
+			_, _ = w.WriteString(sp)
+			_, _ = w.WriteString(string(s))
 			sp = " "
 		}
-		w.WriteString("]")
+		_, _ = w.WriteString("]")
 		if numARPA > 0 {
 			fmt.Fprintf(w, "+%darpa", numARPA)
 		}
 	}
-	w.WriteString("}")
+	_, _ = w.WriteString("}")
 }
 
 func (o OSConfig) IsZero() bool {
@@ -233,35 +233,35 @@ func (fn ArgWriter) Format(f fmt.State, _ rune) {
 // Fixes https://github.com/tailscale/tailscale/issues/5669
 func (a OSConfig) Format(f fmt.State, verb rune) {
 	ArgWriter(func(w *bufio.Writer) {
-		w.WriteString(`{Nameservers:[`)
+		_, _ = w.WriteString(`{Nameservers:[`)
 		for i, ns := range a.Nameservers {
 			if i != 0 {
-				w.WriteString(" ")
+				_, _ = w.WriteString(" ")
 			}
 			fmt.Fprintf(w, "%+v", ns)
 		}
-		w.WriteString(`] SearchDomains:[`)
+		_, _ = w.WriteString(`] SearchDomains:[`)
 		for i, domain := range a.SearchDomains {
 			if i != 0 {
-				w.WriteString(" ")
+				_, _ = w.WriteString(" ")
 			}
 			fmt.Fprintf(w, "%+v", domain)
 		}
-		w.WriteString(`] MatchDomains:[`)
+		_, _ = w.WriteString(`] MatchDomains:[`)
 		for i, domain := range a.MatchDomains {
 			if i != 0 {
-				w.WriteString(" ")
+				_, _ = w.WriteString(" ")
 			}
 			fmt.Fprintf(w, "%+v", domain)
 		}
-		w.WriteString(`] Hosts:[`)
+		_, _ = w.WriteString(`] Hosts:[`)
 		for i, host := range a.Hosts {
 			if i != 0 {
-				w.WriteString(" ")
+				_, _ = w.WriteString(" ")
 			}
 			fmt.Fprintf(w, "%+v", host)
 		}
-		w.WriteString(`]}`)
+		_, _ = w.WriteString(`]}`)
 	}).Format(f, verb)
 }
 

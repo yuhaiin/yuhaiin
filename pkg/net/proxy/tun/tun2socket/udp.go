@@ -140,8 +140,6 @@ func GenerateUDPPacket(mtu, offset int, buf []byte, tuple UDPTuple) ([]byte, err
 		ip = ipv4
 	} else {
 		// ipv6 header size is fixed
-		payloadLength = header.IPv6FixedHeaderSize + uint16(udpTotalLength)
-
 		ipv6 := header.IPv6(ipBuf)
 		ipv6.Encode(&header.IPv6Fields{
 			TransportProtocol: header.UDPProtocolNumber,

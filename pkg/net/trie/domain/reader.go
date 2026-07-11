@@ -34,11 +34,6 @@ func (d *fqdnReader) next() bool {
 	return true
 }
 
-func (d *fqdnReader) reset() {
-	d.aft = len(d.domain)
-	d.pre = strings.LastIndexByte(d.domain, d.separate) + 1
-}
-
 var valueEmpty = string([]byte{0x03})
 
 func (d *fqdnReader) str() string {

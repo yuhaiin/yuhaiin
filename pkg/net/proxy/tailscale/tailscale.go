@@ -92,11 +92,11 @@ type nettypePacketConn struct {
 }
 
 func (p *nettypePacketConn) WriteToUDPAddrPort(b []byte, addr netip.AddrPort) (int, error) {
-	return p.PacketConn.WriteTo(b, net.UDPAddrFromAddrPort(addr))
+	return p.WriteTo(b, net.UDPAddrFromAddrPort(addr))
 }
 
 func (p *nettypePacketConn) ReadFromUDPAddrPort(b []byte) (int, netip.AddrPort, error) {
-	n, addr, err := p.PacketConn.ReadFrom(b)
+	n, addr, err := p.ReadFrom(b)
 	if err != nil {
 		return 0, netip.AddrPort{}, err
 	}
@@ -524,11 +524,11 @@ type warpUDPConn struct {
 }
 
 func (w *warpUDPConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
-	return w.Conn.Write(buf)
+	return w.Write(buf)
 }
 
 func (w *warpUDPConn) ReadFrom(buf []byte) (int, net.Addr, error) {
-	n, err := w.Conn.Read(buf)
+	n, err := w.Read(buf)
 	return n, w.addr, err
 }
 

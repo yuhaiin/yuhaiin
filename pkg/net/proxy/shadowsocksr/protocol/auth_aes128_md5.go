@@ -63,22 +63,22 @@ func (a *authAES128) packData(wbuf *pool.Buffer, data []byte, fullDataSize int) 
 	a.packID = (a.packID + 1) & 0xFFFFFFFF
 
 	// 0~1, out length
-	binary.Write(wbuf, binary.LittleEndian, uint16(outLength))
+	_ = binary.Write(wbuf, binary.LittleEndian, uint16(outLength))
 
 	hmacBuf := pool.GetBytes(6)
 	defer pool.PutBytes(hmacBuf)
 
 	// 2~3, hmac
-	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-2:], hmacBuf)[:2])
+	_, _ = wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-2:], hmacBuf)[:2])
 
 	// 4, rand length
 	if randLength < 128 {
-		wbuf.WriteByte(byte(randLength + 1))
+		_ = wbuf.WriteByte(byte(randLength + 1))
 	} else {
 		// 4, magic number 255
-		wbuf.WriteByte(255)
+		_ = wbuf.WriteByte(255)
 		// 5~6, rand length
-		binary.Write(wbuf, binary.LittleEndian, uint16(randLength+1))
+		_ = binary.Write(wbuf, binary.LittleEndian, uint16(randLength+1))
 		randLength -= 2
 	}
 
@@ -88,11 +88,11 @@ func (a *authAES128) packData(wbuf *pool.Buffer, data []byte, fullDataSize int) 
 	}
 
 	// rand length+4~out length-4, data
-	wbuf.Write(data)
+	_, _ = wbuf.Write(data)
 
 	start := wbuf.Len() - outLength + 4
 	// hmac
-	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[start:], hmacBuf)[:4])
+	_, _ = wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[start:], hmacBuf)[:4])
 }
 
 func (a *authAES128) initUserKey() {
@@ -197,14 +197,14 @@ func (a *authAES128) packAuthData(wbuf *pool.Buffer, data []byte) {
 	defer pool.PutBytes(hmacBuf)
 	bigInt, _ := crand.Int(crand.Reader, big.NewInt(256))
 	_ = wbuf.WriteByte(byte(bigInt.Uint64()))
-	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-1:], hmacBuf)[:6])
-	wbuf.Write(a.uid[:])
-	wbuf.Write(encrypt.Bytes())
-	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-20:], hmacBuf)[:4])
+	_, _ = wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-1:], hmacBuf)[:6])
+	_, _ = wbuf.Write(a.uid[:])
+	_, _ = wbuf.Write(encrypt.Bytes())
+	_, _ = wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-20:], hmacBuf)[:4])
 	_, _ = relay.CopyN(wbuf, crand.Reader, int64(randLength))
-	wbuf.Write(data)
+	_, _ = wbuf.Write(data)
 	start := wbuf.Len() - outLength + 4
-	wbuf.Write(a.hmac.HMAC(a.userKey, wbuf.Bytes()[start:], hmacBuf)[:4])
+	_, _ = wbuf.Write(a.hmac.HMAC(a.userKey, wbuf.Bytes()[start:], hmacBuf)[:4])
 }
 
 func (a *authAES128) EncryptStream(wbuf *pool.Buffer, data []byte) (err error) {
@@ -287,7 +287,7 @@ func (a *authAES128) DecryptStream(rbuf *pool.Buffer, data []byte) (int, error) 
 			return 0, ssr.ErrAuthAES128PosOutOfRange
 		}
 
-		rbuf.Write(data[pos:cdlen])
+		_, _ = rbuf.Write(data[pos:cdlen])
 
 		data, readLen = data[clen:], readLen+clen
 	}

@@ -32,7 +32,7 @@ func TestGenerate(t *testing.T) {
 			Certificates: []tls.Certificate{tc},
 		})
 		err := http.Serve(tlss, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("hello"))
+			_, _ = w.Write([]byte("hello"))
 		}))
 		if errors.Is(err, net.ErrClosed) {
 			return

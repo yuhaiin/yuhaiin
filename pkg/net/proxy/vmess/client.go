@@ -223,7 +223,7 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		stream := cipher.NewCFBEncrypter(block, TimestampHash(now))
+		stream := cipher.NewCFBEncrypter(block, TimestampHash(now)) //nolint:staticcheck // VMess legacy protocol requires CFB.
 		stream.XORKeyStream(buf.Bytes(), buf.Bytes())
 
 		abuf := new(bytes.Buffer)
@@ -251,7 +251,7 @@ func (c *Conn) DecodeRespHeader() error {
 			return err
 		}
 
-		stream := cipher.NewCFBDecrypter(block, c.respBodyIV[:])
+		stream := cipher.NewCFBDecrypter(block, c.respBodyIV[:]) //nolint:staticcheck // VMess legacy protocol requires CFB.
 
 		buf = make([]byte, 4)
 		_, err = io.ReadFull(c.Conn, buf)
@@ -385,7 +385,7 @@ func (c *Conn) WriteTo(b []byte, target net.Addr) (int, error) {
 		return 0, err
 	}
 
-	if t.String() != c.addr.Address.String() {
+	if t.String() != c.addr.String() {
 		return 0, fmt.Errorf("vmess only support symmetric NAT")
 	}
 

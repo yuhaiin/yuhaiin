@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -111,7 +112,9 @@ func main() {
 
 	defer resp.Body.Close()
 
-	io.CopyN(os.Stdout, resp.Body, 1024)
+	if _, err := io.CopyN(os.Stdout, resp.Body, 1024); err != nil && !errors.Is(err, io.EOF) {
+		log.Fatal(err)
+	}
 }
 
 func protocol[T contractnode.ProtocolPayload](value T) contractnode.Protocol {

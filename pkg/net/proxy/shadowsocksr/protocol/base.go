@@ -109,7 +109,7 @@ func (c *conn) Read(b []byte) (n int, err error) {
 		return 0, err
 	}
 
-	c.ciphertext.Write(b[:n])
+	_, _ = c.ciphertext.Write(b[:n])
 	length, err := c.protocol.DecryptStream(&c.plaintext, c.ciphertext.Bytes())
 	if err != nil {
 		c.ciphertext.Reset()

@@ -1,3 +1,4 @@
+//nolint:staticcheck // ShadowsocksR compatibility requires its legacy OFB/CFB/Salsa20 algorithms.
 package cipher
 
 import (

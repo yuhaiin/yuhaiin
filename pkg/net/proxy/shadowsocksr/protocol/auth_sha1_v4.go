@@ -120,19 +120,19 @@ func (a *authSHA1v4) EncryptStream(buffer *pool.Buffer, plainData []byte) (err e
 	offset := 0
 	if !a.hasSentHeader && dataLength > 0 {
 		headSize := min(GetHeadSize(plainData, 30), dataLength)
-		buffer.Write(a.packAuthData(plainData[:headSize]))
+		_, _ = buffer.Write(a.packAuthData(plainData[:headSize]))
 		offset += headSize
 		dataLength -= headSize
 		a.hasSentHeader = true
 	}
 	const blockSize = 4096
 	for dataLength > blockSize {
-		buffer.Write(a.packData(plainData[offset : offset+blockSize]))
+		_, _ = buffer.Write(a.packData(plainData[offset : offset+blockSize]))
 		offset += blockSize
 		dataLength -= blockSize
 	}
 	if dataLength > 0 {
-		buffer.Write(a.packData(plainData[offset:]))
+		_, _ = buffer.Write(a.packData(plainData[offset:]))
 	}
 
 	return nil
@@ -150,7 +150,6 @@ func (a *authSHA1v4) DecryptStream(dst *pool.Buffer, plainData []byte) (n int, e
 		length := int(binary.BigEndian.Uint16(plainData[0:2]))
 		if length >= 8192 || length < 8 {
 			//common.Error("auth_sha1_v4 post decrypt data length error")
-			dataLength = 0
 			plainData = nil
 			return 0, ssr.ErrAuthSHA1v4DataLengthError
 		}
@@ -166,12 +165,11 @@ func (a *authSHA1v4) DecryptStream(dst *pool.Buffer, plainData []byte) (n int, e
 				pos = int(binary.BigEndian.Uint16(plainData[5:5+2])) + 4
 			}
 			outLength := length - pos - 4
-			dst.Write(plainData[pos : pos+outLength])
+			_, _ = dst.Write(plainData[pos : pos+outLength])
 			dataLength -= length
 			plainData = plainData[length:]
 		} else {
 			//common.Error("auth_sha1_v4 post decrypt incorrect checksum")
-			dataLength = 0
 			plainData = nil
 			return 0, ssr.ErrAuthSHA1v4IncorrectChecksum
 		}

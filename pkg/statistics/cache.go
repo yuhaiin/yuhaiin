@@ -167,10 +167,10 @@ func loadSQLiteTotal(ctx context.Context, db *sql.DB) (download uint64, upload u
 			FROM statistics_kv
 			WHERE key = ?
 		`, key).Scan(&value)
-		switch {
-		case err == nil:
+		switch err {
+		case nil:
 			return value, nil
-		case err == sql.ErrNoRows:
+		case sql.ErrNoRows:
 			return 0, nil
 		default:
 			return 0, err

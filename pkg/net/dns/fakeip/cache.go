@@ -36,11 +36,13 @@ func newFakeLru(size int, db cache.Cache, iprange netip.Prefix) *fakeLru {
 		lru.WithLruOptions(
 			lru.WithCapacity[string, netip.Addr](int(size)),
 			lru.WithOnRemove(func(s string, v netip.Addr) {
-				diskCache.Batch(func(txn cache.Batch) error {
+				if err := diskCache.Batch(func(txn cache.Batch) error {
 					_ = txn.Delete([]byte(s))
 					_ = txn.Delete(v.AsSlice())
 					return nil
-				})
+				}); err != nil {
+					log.Warn("remove fakeip cache entry failed", "err", err)
+				}
 			}),
 		),
 		lru.WithOnValueChanged[string](func(old, new netip.Addr) {
@@ -90,12 +92,14 @@ func (f *fakeLru) Add(host string, ip netip.Addr) {
 
 	if f.disk != nil {
 		host, ip := []byte(host), ip.AsSlice()
-		f.disk.Batch(func(txn cache.Batch) error {
+		if err := f.disk.Batch(func(txn cache.Batch) error {
 			if err := txn.Put(host, ip); err != nil {
 				return err
 			}
 			return txn.Put(ip, host)
-		})
+		}); err != nil {
+			log.Warn("store fakeip cache entry failed", "err", err)
+		}
 
 	}
 }

@@ -62,9 +62,9 @@ func (r *randomHead) Read(b []byte) (n int, err error) {
 
 	buf := pool.GetBytes(pool.DefaultSize)
 	defer pool.PutBytes(buf)
-	r.Conn.Read(buf)
+	_, _ = r.Conn.Read(buf)
 	r.rawTransReceived = true
-	r.Conn.Write(nil)
+	_, _ = r.Conn.Write(nil)
 	return 0, nil
 }
 

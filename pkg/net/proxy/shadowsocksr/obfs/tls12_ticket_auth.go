@@ -43,7 +43,7 @@ func (t *tls12TicketAuth) GetData() *tlsAuthData {
 		t.data = &tlsAuthData{}
 		b := make([]byte, 32)
 
-		crand.Read(b)
+		_, _ = crand.Read(b)
 		copy(t.data.localClientID[:], b)
 	}
 	return t.data
@@ -119,7 +119,7 @@ func (t *tls12TicketAuth) Encode(data []byte) ([]byte, error) {
 		hmacData := make([]byte, 43)
 		handshakeFinish := []byte("\x14\x03\x03\x00\x01\x01\x16\x03\x03\x00\x20")
 		copy(hmacData, handshakeFinish)
-		crand.Read(hmacData[11:33])
+		_, _ = crand.Read(hmacData[11:33])
 		h := t.hmacSHA1(hmacData[:33])
 		copy(hmacData[33:], h)
 		t.buffer.Write(hmacData)
@@ -145,7 +145,7 @@ func (t *tls12TicketAuth) Encode(data []byte) ([]byte, error) {
 		tlsData[tlsDataLen-1] = uint8(ticketLen & 0xff)
 		tlsData[tlsDataLen-2] = uint8(ticketLen >> 8)
 		//ticketLen := 208
-		crand.Read(tlsData[tlsDataLen : tlsDataLen+ticketLen])
+		_, _ = crand.Read(tlsData[tlsDataLen : tlsDataLen+ticketLen])
 		tlsDataLen += ticketLen
 		copy(tlsData[tlsDataLen:], tlsData3)
 		tlsDataLen += len(tlsData3)
@@ -184,14 +184,10 @@ func (t *tls12TicketAuth) Encode(data []byte) ([]byte, error) {
 		encodedData[pdata-1] = uint8(l)
 		encodedData[pdata-2] = uint8(l >> 8)
 		pdata -= 2
-		l += 2
 		encodedData[pdata-1] = 0x1
 		encodedData[pdata-2] = 0x3 // tls version
 		pdata -= 2
-		l += 2
 		encodedData[pdata-1] = 0x16 // tls handshake
-		pdata -= 1
-		l += 1
 		packData(&t.sendSaver, data)
 		t.handshakeStatus = 1
 		return encodedData, nil
@@ -268,7 +264,7 @@ func (t *tls12TicketAuth) Read(b []byte) (int, error) {
 	}
 
 	if sendBack {
-		t.Conn.Write(nil)
+		_, _ = t.Conn.Write(nil)
 		return 0, nil
 	}
 

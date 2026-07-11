@@ -37,9 +37,7 @@ type telemetryRecorder struct {
 func newTelemetryRecorder(db *sql.DB) *telemetryRecorder {
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &telemetryRecorder{db: db, ctx: ctx, cancel: cancel}
-	r.wg.Add(1)
-	go func() {
-		defer r.wg.Done()
+	r.wg.Go(func() {
 		ticker := time.NewTicker(telemetryFlushInterval)
 		defer ticker.Stop()
 		for {
@@ -50,7 +48,7 @@ func newTelemetryRecorder(db *sql.DB) *telemetryRecorder {
 				r.flush()
 			}
 		}
-	}()
+	})
 	return r
 }
 

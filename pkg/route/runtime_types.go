@@ -69,15 +69,6 @@ type RouteConfig struct {
 	UDPProxyFQDNStrategy UDPProxyFQDNStrategy
 }
 
-func routeConfigFromContract(in contractroute.Config) *RouteConfig {
-	return &RouteConfig{
-		DirectResolver:       in.DirectResolver,
-		ProxyResolver:        in.ProxyResolver,
-		ResolveLocally:       in.ResolveLocally,
-		UDPProxyFQDNStrategy: parseUDPProxyFQDNStrategy(in.UdpProxyFqdnStrategy),
-	}
-}
-
 func modeEnumFromRule(rule contractroute.RouteRule) ModeEnum {
 	return ModeEnum{
 		Tag:                  rule.Tag,
@@ -128,10 +119,6 @@ func parseUDPProxyFQDNStrategy(value string) UDPProxyFQDNStrategy {
 		return UDPProxyFQDNDefault
 	}
 }
-
-func uint32Ptr(v uint32) *uint32 { return &v }
-
-func stringPtr(v string) *string { return &v }
 
 func formatUint64(v uint64) string {
 	return strconv.FormatUint(v, 10)

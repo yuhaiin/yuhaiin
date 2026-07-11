@@ -8,8 +8,8 @@ import (
 
 func TestConvertLegacyNodeUsesChain(t *testing.T) {
 	point := (&legacy.Point_builder{
-		Hash:   ptr("n1"),
-		Name:   ptr("direct"),
+		Hash:   new("n1"),
+		Name:   new("direct"),
 		Origin: legacy.Origin_manual.Enum(),
 		Protocols: []*legacy.Protocol{
 			(&legacy.Protocol_builder{Direct: &legacy.Direct{}}).Build(),
@@ -38,8 +38,8 @@ func TestConvertLegacyNodeUsesChain(t *testing.T) {
 
 func TestConvertLegacyNodeBackfillsEmptyChain(t *testing.T) {
 	node, warnings, err := ConvertLegacyNode((&legacy.Point_builder{
-		Hash:   ptr("n1"),
-		Name:   ptr("empty"),
+		Hash:   new("n1"),
+		Name:   new("empty"),
 		Origin: legacy.Origin_manual.Enum(),
 	}).Build())
 	if err != nil {
@@ -55,8 +55,8 @@ func TestConvertLegacyNodeBackfillsEmptyChain(t *testing.T) {
 
 func TestConvertLegacyNodeSkipsEmptyChainEntry(t *testing.T) {
 	node, warnings, err := ConvertLegacyNode((&legacy.Point_builder{
-		Hash:   ptr("n1"),
-		Name:   ptr("mixed-empty"),
+		Hash:   new("n1"),
+		Name:   new("mixed-empty"),
 		Origin: legacy.Origin_manual.Enum(),
 		Protocols: []*legacy.Protocol{
 			(&legacy.Protocol_builder{Direct: &legacy.Direct{}}).Build(),
@@ -76,8 +76,8 @@ func TestConvertLegacyNodeSkipsEmptyChainEntry(t *testing.T) {
 
 func TestConvertLegacyNodeBackfillsAllEmptyChainEntries(t *testing.T) {
 	node, warnings, err := ConvertLegacyNode((&legacy.Point_builder{
-		Hash:   ptr("n1"),
-		Name:   ptr("all-empty"),
+		Hash:   new("n1"),
+		Name:   new("all-empty"),
 		Origin: legacy.Origin_manual.Enum(),
 		Protocols: []*legacy.Protocol{
 			{},
@@ -97,8 +97,8 @@ func TestConvertLegacyNodeBackfillsAllEmptyChainEntries(t *testing.T) {
 func TestConvertLegacyNodeConvertsNestedAEADCryptoMethod(t *testing.T) {
 	password := "secret"
 	point := (&legacy.Point_builder{
-		Hash:   ptr("n1"),
-		Name:   ptr("split-aead"),
+		Hash:   new("n1"),
+		Name:   new("split-aead"),
 		Origin: legacy.Origin_manual.Enum(),
 		Protocols: []*legacy.Protocol{
 			(&legacy.Protocol_builder{
@@ -133,8 +133,8 @@ func TestConvertLegacyNodeConvertsNestedAEADCryptoMethod(t *testing.T) {
 func TestConvertLegacyNodePreservesPartialNetworkSplit(t *testing.T) {
 	password := "secret"
 	point := (&legacy.Point_builder{
-		Hash:   ptr("udp-only-split"),
-		Name:   ptr("udp-only-split"),
+		Hash:   new("udp-only-split"),
+		Name:   new("udp-only-split"),
 		Origin: legacy.Origin_manual.Enum(),
 		Protocols: []*legacy.Protocol{
 			(&legacy.Protocol_builder{
@@ -162,8 +162,8 @@ func TestConvertLegacyNodePreservesPartialNetworkSplit(t *testing.T) {
 
 func TestConvertLegacyNodeConvertsSetStrategy(t *testing.T) {
 	point := (&legacy.Point_builder{
-		Hash:   ptr("n1"),
-		Name:   ptr("set"),
+		Hash:   new("n1"),
+		Name:   new("set"),
 		Origin: legacy.Origin_manual.Enum(),
 		Protocols: []*legacy.Protocol{
 			(&legacy.Protocol_builder{Set: (&legacy.Set_builder{

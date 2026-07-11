@@ -341,9 +341,9 @@ func (c *client) removeIpHint(req dns.Question, msg dns.Msg) {
 			continue
 		}
 
-		news := https.SVCB.Value[:0]
+		news := https.Value[:0]
 
-		for _, v := range https.SVCB.Value {
+		for _, v := range https.Value {
 			if v.Key() == dns.SVCB_IPV4HINT || v.Key() == dns.SVCB_IPV6HINT {
 				c.iphintToCache(req.Name, r.Header().Ttl, v)
 				continue

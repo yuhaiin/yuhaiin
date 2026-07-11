@@ -126,7 +126,7 @@ func (m *Message) String() string {
 	tID := base64.StdEncoding.EncodeToString(m.TransactionID[:])
 	var aInfo strings.Builder
 	for k, a := range m.Attributes {
-		aInfo.WriteString(fmt.Sprintf("attr%d=%s ", k, a.Type))
+		fmt.Fprintf(&aInfo, "attr%d=%s ", k, a.Type)
 	}
 	return fmt.Sprintf("%s l=%d attrs=%d id=%s, %s", m.Type, m.Length, len(m.Attributes), tID, aInfo.String())
 }

@@ -94,7 +94,7 @@ func (c *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	if err != nil {
 		return n, addr, err
 	}
-	bb, err := Unpack(b[c.Cipher.SaltSize():], b[:n], c)
+	bb, err := Unpack(b[c.SaltSize():], b[:n], c)
 	if err != nil {
 		return n, addr, err
 	}

@@ -11,13 +11,13 @@ import (
 
 func TestParseLegacyYuhaiinURLRemote(t *testing.T) {
 	payload, err := json.Marshal(node.YuhaiinUrl_builder{
-		Name: subscriptionPtr("share"),
+		Name: new("share"),
 		Remote: node.YuhaiinUrl_Remote_builder{
 			Publish: node.Publish_builder{
-				Name:     subscriptionPtr("share"),
-				Address:  subscriptionPtr("yuubinsya.com:8000"),
-				Path:     subscriptionPtr("/aws/share"),
-				Password: subscriptionPtr("vVfY0CwE1Dp2DHmRlZO!3nqT6"),
+				Name:     new("share"),
+				Address:  new("yuubinsya.com:8000"),
+				Path:     new("/aws/share"),
+				Password: new("vVfY0CwE1Dp2DHmRlZO!3nqT6"),
 			}.Build(),
 		}.Build(),
 	}.Build())
@@ -33,5 +33,3 @@ func TestParseLegacyYuhaiinURLRemote(t *testing.T) {
 		t.Fatalf("unexpected parsed remote: %+v", parsed.Remote)
 	}
 }
-
-func subscriptionPtr[T any](v T) *T { return &v }

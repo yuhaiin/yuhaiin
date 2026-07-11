@@ -134,7 +134,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	n += copy(buf[n:], crlf)
 	n += copy(buf[n:], payload)
 
-	_, err = c.BufioConn.Write(buf[:n])
+	_, err = c.Write(buf[:n])
 	if err != nil {
 		return 0, err
 	}
@@ -143,7 +143,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 }
 
 func (c *PacketConn) ReadFrom(payload []byte) (n int, addr net.Addr, err error) {
-	err = c.BufioConn.BufioRead(func(r *bufio.Reader) error {
+	err = c.BufioRead(func(r *bufio.Reader) error {
 		_, addr, err = tools.ReadAddr("udp", r)
 		if err != nil {
 			return fmt.Errorf("failed to resolve udp packet addr: %w", err)

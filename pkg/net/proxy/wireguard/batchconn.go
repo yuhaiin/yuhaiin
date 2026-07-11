@@ -38,15 +38,17 @@ func NewIPv6Batch(batchSize int, conn net.PacketConn) *Batch {
 		conn:       c,
 		pool: sync.Pool{
 			New: func() any {
-				return make([]ipv6.Message, batchSize)
+				messages := make([]ipv6.Message, batchSize)
+				return &messages
 			},
 		},
 	}
 }
 
 func (b *Batch) WriteBatch(buf [][]byte, addr *net.UDPAddr) error {
-	buffs := b.pool.Get().([]ipv6.Message)
-	defer b.pool.Put(buffs)
+	buffsPtr := b.pool.Get().(*[]ipv6.Message)
+	defer b.pool.Put(buffsPtr)
+	buffs := *buffsPtr
 
 	for i, b := range buf {
 		buffs[i].Buffers = [][]byte{b}
@@ -69,8 +71,9 @@ func (b *Batch) WriteBatch(buf [][]byte, addr *net.UDPAddr) error {
 }
 
 func (b *Batch) ReadBatch(bufs [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
-	msgs := b.pool.Get().([]ipv6.Message)
-	defer b.pool.Put(msgs)
+	msgsPtr := b.pool.Get().(*[]ipv6.Message)
+	defer b.pool.Put(msgsPtr)
+	msgs := *msgsPtr
 
 	for i, b := range bufs {
 		msgs[i].Buffers = [][]byte{b}

@@ -126,7 +126,7 @@ func (m *Mixed) handle() error {
 		if err != nil {
 			log.Error("mixed accept failed", "err", err)
 
-			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+			if ne, ok := err.(net.Error); ok && ne.Temporary() { //nolint:staticcheck // Preserve listener retry semantics.
 				continue
 			}
 			return err

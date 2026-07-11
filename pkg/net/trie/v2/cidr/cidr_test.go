@@ -23,9 +23,11 @@ func TestCidr(t *testing.T) {
 
 	t.Run("Remove", func(t *testing.T) {
 		c := NewCidr[string]()
-		c.Insert("192.168.1.0/24", "lan")
-		c.Insert("192.168.1.0/24", "private")
-		c.Insert("192.168.1.1/32", "host")
+		for _, entry := range []struct{ cidr, mark string }{{"192.168.1.0/24", "lan"}, {"192.168.1.0/24", "private"}, {"192.168.1.1/32", "host"}} {
+			if err := c.Insert(entry.cidr, entry.mark); err != nil {
+				t.Fatal(err)
+			}
+		}
 
 		// Before removal
 		res := c.Search("192.168.1.1")
@@ -64,14 +66,14 @@ func BenchmarkCidr(b *testing.B) {
 			c := NewCidr[string]()
 			b.ResetTimer()
 			for i := 0; b.Loop(); i++ {
-				c.Insert(cidrs[i%len(cidrs)], "benchmark")
+				_ = c.Insert(cidrs[i%len(cidrs)], "benchmark")
 			}
 		})
 
 		b.Run("Search", func(b *testing.B) {
 			c := NewCidr[string]()
 			for _, cidr := range cidrs {
-				c.Insert(cidr, "benchmark")
+				_ = c.Insert(cidr, "benchmark")
 			}
 			b.ResetTimer()
 			for i := 0; b.Loop(); i++ {
@@ -98,14 +100,14 @@ func BenchmarkCidr(b *testing.B) {
 			c := NewCidr[string]()
 			b.ResetTimer()
 			for i := 0; b.Loop(); i++ {
-				c.Insert(cidrs[i%len(cidrs)], "benchmark")
+				_ = c.Insert(cidrs[i%len(cidrs)], "benchmark")
 			}
 		})
 
 		b.Run("Search", func(b *testing.B) {
 			c := NewCidr[string]()
 			for _, cidr := range cidrs {
-				c.Insert(cidr, "benchmark")
+				_ = c.Insert(cidr, "benchmark")
 			}
 			b.ResetTimer()
 			for i := 0; b.Loop(); i++ {
@@ -141,10 +143,10 @@ func BenchmarkCidr(b *testing.B) {
 		b.Run("Search", func(b *testing.B) {
 			c := NewCidr[string]()
 			for _, cidr := range cidrs4 {
-				c.Insert(cidr, "benchmark")
+				_ = c.Insert(cidr, "benchmark")
 			}
 			for _, cidr := range cidrs6 {
-				c.Insert(cidr, "benchmark")
+				_ = c.Insert(cidr, "benchmark")
 			}
 			b.ResetTimer()
 			for i := 0; b.Loop(); i++ {

@@ -1,3 +1,4 @@
+//nolint:unused // listenerWrap is retained for optional HTTP protocol detection.
 package mock
 
 import (

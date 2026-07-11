@@ -64,7 +64,9 @@ func newHostTrie(path string) *hostMatcher {
 
 func (h *hostMatcher) Clear() {
 	h.lists.Clear()
-	h.trie.Clear()
+	if err := h.trie.Clear(); err != nil {
+		log.Error("clear host matcher trie failed", "err", err)
+	}
 }
 
 func (h *hostMatcher) Close() error {

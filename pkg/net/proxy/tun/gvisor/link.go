@@ -27,7 +27,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -209,17 +208,6 @@ func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 			length -= n
 		}
 
-		if e.gso {
-			// TODO: should we split gso[tun.GSOSplit] by ourself? instead of reset checksum?
-			// it seems no problem now that we just reset checksum
-			// see https://github.com/tailscale/tailscale/blob/ff1d0aa027f9e8de36d8f4a4aba67f575534cd06/net/tstun/wrap.go#L1364
-			//
-			// reset checksum when tcp
-			// see: https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/transport/tcp/connect.go#L915
-			// and https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/transport/tcp/connect.go#L840
-			// resetGSOChecksum(buf[offset:], pkt)
-		}
-
 		bufs = append(bufs, buf)
 	}
 
@@ -273,26 +261,4 @@ func (e *Endpoint) SupportedGSO() stack.SupportedGSO {
 		return stack.HostGSOSupported
 	}
 	return stack.GSONotSupported
-}
-
-func resetGSOChecksum(data []byte, pkt *stack.PacketBuffer) {
-	// see: https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/transport/tcp/connect.go#L915
-	// and https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/transport/tcp/connect.go#L840
-	if pkt.GSOOptions.Type == stack.GSONone || !pkt.GSOOptions.NeedsCsum {
-		return
-	}
-
-	if pkt.TransportProtocolNumber == header.TCPProtocolNumber {
-		var network header.Network
-		switch pkt.NetworkProtocolNumber {
-		case header.IPv4ProtocolNumber:
-			network = header.IPv4(data)
-		case header.IPv6ProtocolNumber:
-			network = header.IPv6(data)
-		default:
-			return
-		}
-		tcp := header.TCP(network.Payload())
-		device.ResetTransportChecksum(network, tcp, tcp.Checksum())
-	}
 }

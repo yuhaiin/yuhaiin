@@ -25,7 +25,7 @@ func main() {
 }
 
 func generate(c *netapi.Context) ([]byte, error) {
-	values := reflect.ValueOf(*c)
+	values := reflect.ValueOf(c).Elem()
 	types := values.Type()
 
 	// maps := make(map[string]string)

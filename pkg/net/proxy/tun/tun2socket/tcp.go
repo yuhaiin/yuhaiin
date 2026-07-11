@@ -63,7 +63,7 @@ func (t *TCP) loopv4() {
 		c, err := t.v4listener.AcceptTCP()
 		if err != nil {
 			log.Warn("tun2socket v4 tcp accept failed", "err", err)
-			if e, ok := err.(net.Error); ok && e.Temporary() {
+			if e, ok := err.(net.Error); ok && e.Temporary() { //nolint:staticcheck // Preserve listener retry semantics.
 				continue
 			}
 			return
@@ -96,7 +96,7 @@ func (t *TCP) loopv6() {
 		c, err := t.v6listener.AcceptTCP()
 		if err != nil {
 			log.Warn("tun2socket v6 tcp accept failed", "err", err)
-			if e, ok := err.(net.Error); ok && e.Temporary() {
+			if e, ok := err.(net.Error); ok && e.Temporary() { //nolint:staticcheck // Preserve listener retry semantics.
 				continue
 			}
 			return

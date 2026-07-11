@@ -113,7 +113,8 @@ func TestPacket(t *testing.T) {
 	assert.NoError(t, err)
 	defer pc.Close()
 
-	pc.WriteTo([]byte("hello"), netapi.EmptyAddr)
+	_, err = pc.WriteTo([]byte("hello"), netapi.EmptyAddr)
+	assert.NoError(t, err)
 
 	time.Sleep(time.Second)
 }

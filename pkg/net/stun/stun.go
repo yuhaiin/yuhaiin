@@ -30,14 +30,6 @@ func readFullOrPanic(r io.Reader, v []byte) int {
 	return n
 }
 
-func writeOrPanic(w io.Writer, v []byte) int {
-	n, err := w.Write(v)
-	if err != nil {
-		panic(err) //nolint
-	}
-	return n
-}
-
 // IANA assigned ports for "stun" protocol.
 const (
 	DefaultPort    = 3478

@@ -157,9 +157,13 @@ func (u *udp) loopWrite() {
 			return fmt.Errorf("resolve udp addr failed: %w", err)
 		}
 
-		pk.SetWriteDeadline(time.Now().Add(configuration.ResolverTimeout))
+		if err := pk.SetWriteDeadline(time.Now().Add(configuration.ResolverTimeout)); err != nil {
+			return fmt.Errorf("set packetConn write deadline: %w", err)
+		}
 		_, err = pk.WriteTo(p.question, uaddr)
-		pk.SetWriteDeadline(time.Time{})
+		if resetErr := pk.SetWriteDeadline(time.Time{}); resetErr != nil && err == nil {
+			err = resetErr
+		}
 		if err != nil {
 			close()
 			return fmt.Errorf("write to packetConn failed: %w", err)

@@ -162,7 +162,7 @@ func (a *App) Start(opt *Opts) error {
 // a TUN device.
 func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, driver string) error {
 	if tun == nil {
-		return errors.New("Android TUN options are nil")
+		return errors.New("android TUN options are nil")
 	}
 	db, err := state.SQLDB(ctx)
 	if err != nil {

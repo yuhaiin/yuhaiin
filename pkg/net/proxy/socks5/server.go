@@ -47,7 +47,7 @@ func (s *Server) startTCPServer() error {
 			if err != nil {
 				log.Error("socks5 accept failed", "err", err)
 
-				if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				if ne, ok := err.(net.Error); ok && ne.Temporary() { //nolint:staticcheck // Preserve listener retry semantics.
 					continue
 				}
 				return

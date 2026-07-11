@@ -1,3 +1,4 @@
+//nolint:unused // Retain the legacy DNS decoder helpers until the decoder migration is complete.
 package dns
 
 import (
@@ -200,7 +201,7 @@ _start:
 		r.i += size
 		signature := r.aswer[r.i : r.i+sum-size-18]
 		r.i += sum - size - 18
-		log.Debug(fmt.Sprintln(typeCover, algorithm, label, originalTTL, signExpiration, signInception, keyTag, signName, signature))
+		log.Debug(fmt.Sprintln(string(typeCover), string(algorithm), string(label), string(originalTTL), string(signExpiration), string(signInception), string(keyTag), signName, string(signature)))
 	case NS, MD, MF, CNAME, SOA, MG, MB, MR, NULL, WKS, PTR, HINFO, MINFO, MX, TXT:
 		fallthrough
 	default:
@@ -272,7 +273,6 @@ func (r *resolver) getName(i int) (name string, size int) {
 	s := strings.Builder{}
 	for {
 		if r.aswer[i] == 0 {
-			i++ // lastOfDomain: one byte 0
 			size++
 			break
 		}
@@ -280,7 +280,6 @@ func (r *resolver) getName(i int) (name string, size int) {
 		if r.aswer[i]&128 == 128 && r.aswer[i]&64 == 64 {
 			l := r.aswer[i+1]
 			// fmt.Println(l)
-			i += 2
 			size += 2
 			tmp, _ := r.getName(int(l))
 			s.WriteString(tmp)
@@ -383,7 +382,7 @@ func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, 
 			c = others
 			signature := c[:sum-size-18]
 			c = c[sum-size-18:]
-			log.Debug(fmt.Sprintln(typeCover, algorithm, label, originalTTL, signExpiration, signInception, keyTag, signName, signature))
+			log.Debug(fmt.Sprintln(string(typeCover), string(algorithm), string(label), string(originalTTL), string(signExpiration), string(signInception), string(keyTag), signName, string(signature)))
 		case NS, MD, MF, CNAME, SOA, MG, MB, MR, NULL, WKS, PTR, HINFO, MINFO, MX, TXT:
 			fallthrough
 		default:

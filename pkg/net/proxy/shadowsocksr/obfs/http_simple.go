@@ -96,7 +96,7 @@ func (s *simpleParam) parse(param string) {
 
 	customHeads := strings.Split(param, "#")
 	if len(customHeads) > 1 {
-		s.customHead = strings.Replace(customHeads[1], "\\n", "\r\n", -1)
+		s.customHead = strings.ReplaceAll(customHeads[1], "\\n", "\r\n")
 		param = customHeads[0]
 	}
 
@@ -127,35 +127,35 @@ func (t *httpSimplePost) encode(data []byte) []byte {
 	defer buf.Reset()
 
 	if t.methodGet {
-		buf.WriteString("GET /")
+		_, _ = buf.WriteString("GET /")
 	} else {
-		buf.WriteString("POST /")
+		_, _ = buf.WriteString("POST /")
 	}
 
 	randPathIndex := rand.IntN(len(requestPath)/2) * 2
 
-	buf.WriteString(requestPath[randPathIndex])
-	buf.WriteString(t.data2URLEncode(data[:headSize]))
-	buf.WriteString(requestPath[randPathIndex+1])
-	buf.WriteString("HTTP/1.1\r\n")
-	buf.WriteString(fmt.Sprintf("Host: %s\r\n", net.JoinHostPort(t.param.getRandHost(t.Host), t.Port)))
+	_, _ = buf.WriteString(requestPath[randPathIndex])
+	_, _ = buf.WriteString(t.data2URLEncode(data[:headSize]))
+	_, _ = buf.WriteString(requestPath[randPathIndex+1])
+	_, _ = buf.WriteString("HTTP/1.1\r\n")
+	fmt.Fprintf(buf, "Host: %s\r\n", net.JoinHostPort(t.param.getRandHost(t.Host), t.Port))
 
 	if len(t.param.customHead) > 0 {
-		buf.WriteString(t.param.customHead)
-		buf.WriteString("\r\n\r\n")
+		_, _ = buf.WriteString(t.param.customHead)
+		_, _ = buf.WriteString("\r\n\r\n")
 	} else {
-		buf.WriteString(fmt.Sprintf("User-Agent: %s\r\n", requestUserAgent[t.userAgentIndex]))
-		buf.WriteString("Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n")
-		buf.WriteString("Accept-Language: en-US,en;q=0.8\r\n")
-		buf.WriteString("Accept-Encoding: gzip, deflate\r\n")
+		fmt.Fprintf(buf, "User-Agent: %s\r\n", requestUserAgent[t.userAgentIndex])
+		_, _ = buf.WriteString("Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n")
+		_, _ = buf.WriteString("Accept-Language: en-US,en;q=0.8\r\n")
+		_, _ = buf.WriteString("Accept-Encoding: gzip, deflate\r\n")
 		if !t.methodGet {
-			buf.WriteString(fmt.Sprintf("Content-Type: multipart/form-data; boundary=%s\r\n", t.boundary()))
+			fmt.Fprintf(buf, "Content-Type: multipart/form-data; boundary=%s\r\n", t.boundary())
 		}
-		buf.WriteString("DNT: 1\r\n")
-		buf.WriteString("Connection: keep-alive\r\n")
-		buf.WriteString("\r\n")
+		_, _ = buf.WriteString("DNT: 1\r\n")
+		_, _ = buf.WriteString("Connection: keep-alive\r\n")
+		_, _ = buf.WriteString("\r\n")
 	}
-	buf.Write(data[headSize:])
+	_, _ = buf.Write(data[headSize:])
 
 	t.rawTransSent = true
 

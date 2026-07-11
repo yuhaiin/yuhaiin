@@ -101,7 +101,9 @@ func NewDoH(config Config) (Transport, error) {
 			return dns.Msg{}, fmt.Errorf("read http body failed: %w", err)
 		}
 
-		err = p.Unpack(buf)
+		if err := p.Unpack(buf); err != nil {
+			return dns.Msg{}, fmt.Errorf("unpack dns response: %w", err)
+		}
 		return p, nil
 
 		/*

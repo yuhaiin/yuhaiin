@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
-	contractsubscription "github.com/Asutorufa/yuhaiin/pkg/contract/subscription"
 	"github.com/Asutorufa/yuhaiin/pkg/legacy/node/parser"
 	schemanode "github.com/Asutorufa/yuhaiin/pkg/legacy/schema/node"
 	runtimenode "github.com/Asutorufa/yuhaiin/pkg/node"
@@ -52,7 +51,7 @@ func ParseLegacyYuhaiinURL(raw string) (runtimenode.ParsedYuhaiinURL, error) {
 			}
 		}
 	case schemanode.YuhaiinUrl_Remote_case:
-		out.Remote = ptrToPublish(ConvertLegacyPublish(yu.GetRemote().GetPublish().GetName(), yu.GetRemote().GetPublish()))
+		out.Remote = new(ConvertLegacyPublish(yu.GetRemote().GetPublish().GetName(), yu.GetRemote().GetPublish()))
 	default:
 		return runtimenode.ParsedYuhaiinURL{}, fmt.Errorf("unknown yuhaiin url type")
 	}
@@ -64,8 +63,4 @@ func legacyLinkType(typ string) schemanode.Type {
 		return schemanode.Type(value)
 	}
 	return schemanode.Type_reserve
-}
-
-func ptrToPublish(in contractsubscription.Publish) *contractsubscription.Publish {
-	return &in
 }

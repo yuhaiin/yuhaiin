@@ -1,3 +1,4 @@
+//nolint:unused // Retained as the legacy bpftrace implementation for reference.
 package v1
 
 import (

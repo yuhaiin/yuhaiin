@@ -1542,11 +1542,12 @@ func legacyProtoDNS(data []byte) (*config.Dns, error) {
 			if s < 0 {
 				return nil, protowire.ParseError(s)
 			}
-			if n == 1 {
+			switch n {
+			case 1:
 				out.SetHost(string(v))
-			} else if n == 2 {
+			case 2:
 				out.SetTlsServername(string(v))
-			} else {
+			default:
 				out.SetSubnet(string(v))
 			}
 			data = data[s:]
@@ -1745,11 +1746,12 @@ func legacyProtoRuleV2(data []byte) (*config.Rulev2, error) {
 			if x < 0 {
 				return nil, protowire.ParseError(x)
 			}
-			if n == 1 {
+			switch n {
+			case 1:
 				out.SetName(string(v))
-			} else if n == 3 {
+			case 3:
 				out.SetTag(string(v))
-			} else {
+			default:
 				out.SetResolver(string(v))
 			}
 			data = data[x:]

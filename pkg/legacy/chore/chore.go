@@ -81,7 +81,6 @@ func (c *Chore) LoadLegacy(context.Context) (*config.Setting, error) {
 	})
 
 	return setting, err
-
 }
 
 func (c *Chore) Save(ctx context.Context, s contractsettings.Settings) (contractsettings.Settings, error) {
@@ -142,10 +141,10 @@ func Info() *config.Info {
 		Commit:    new(version.GitCommit),
 		BuildTime: new(version.BuildTime),
 		GoVersion: new(runtime.Version()),
-		Platform:  ptr(runtime.GOOS + "/" + runtime.GOARCH),
-		Compiler:  ptr(runtime.Compiler),
-		Arch:      ptr(runtime.GOARCH),
-		Os:        ptr(runtime.GOOS),
+		Platform:  new(runtime.GOOS + "/" + runtime.GOARCH),
+		Compiler:  new(runtime.Compiler),
+		Arch:      new(runtime.GOARCH),
+		Os:        new(runtime.GOOS),
 		Build_:    build,
 	}).Build()
 }
@@ -217,5 +216,3 @@ func parseLogLevel(level string) config.LogLevel {
 		return config.LogLevel_info
 	}
 }
-
-func ptr[T any](v T) *T { return &v }

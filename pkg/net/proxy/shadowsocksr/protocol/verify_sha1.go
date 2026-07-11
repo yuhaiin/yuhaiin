@@ -1,3 +1,4 @@
+//nolint:unused // OTA verification is retained for legacy ShadowsocksR compatibility.
 package protocol
 
 import (
@@ -38,9 +39,9 @@ func (v *verifySHA1) otaReqChunkAuth(buffer *pool.Buffer, chunkId uint32, data [
 	chunkIdBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(chunkIdBytes, chunkId)
 
-	buffer.Write(nb)
-	buffer.Write(v.hmac.HMAC(append(v.IV, chunkIdBytes...), data, nil))
-	buffer.Write(data)
+	_, _ = buffer.Write(nb)
+	_, _ = buffer.Write(v.hmac.HMAC(append(v.IV, chunkIdBytes...), data, nil))
+	_, _ = buffer.Write(data)
 }
 
 func (v *verifySHA1) otaVerifyAuth(iv []byte, chunkId uint32, data []byte, expectedHmacSha1 []byte) bool {
@@ -61,7 +62,7 @@ func (v *verifySHA1) EncryptStream(buffer *pool.Buffer, data []byte) (err error)
 	offset := 0
 	if !v.hasSentHeader {
 		data[0] |= oneTimeAuthMask
-		buffer.Write(v.otaConnectAuth(data[:v.HeadSize]))
+		_, _ = buffer.Write(v.otaConnectAuth(data[:v.HeadSize]))
 		v.hasSentHeader = true
 		dataLength -= v.HeadSize
 		offset += v.HeadSize

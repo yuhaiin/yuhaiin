@@ -197,7 +197,7 @@ func RegisterPoint[T any](wrap func(T, netapi.Proxy) (netapi.Proxy, error)) {
 	}
 
 	execProtocol.Store(
-		reflect.TypeOf((*T)(nil)).Elem(),
+		reflect.TypeFor[T](),
 		func(t any, p netapi.Proxy) (netapi.Proxy, error) { return wrap(t.(T), p) },
 	)
 }
@@ -209,7 +209,7 @@ func RegisterContractPoint[T any](typ string, wrap func(T, netapi.Proxy) (netapi
 	execContractProtocol.Store(typ, func(config any, p netapi.Proxy) (netapi.Proxy, error) {
 		typed, ok := config.(T)
 		if !ok {
-			return nil, fmt.Errorf("node protocol %q config type %T does not match registered type %s", typ, config, reflect.TypeOf((*T)(nil)).Elem())
+			return nil, fmt.Errorf("node protocol %q config type %T does not match registered type %s", typ, config, reflect.TypeFor[T]())
 		}
 		return wrap(typed, p)
 	})

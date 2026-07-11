@@ -1,3 +1,4 @@
+//nolint:unused // ICMP translators are retained for the incomplete ICMP forwarding path.
 package tun2socket
 
 import (

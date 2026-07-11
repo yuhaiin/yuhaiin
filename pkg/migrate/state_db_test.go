@@ -272,8 +272,8 @@ func TestStateDBMigrateImportsLegacyNodeJSONWithoutStateDB(t *testing.T) {
 	hash := "hash-1"
 	point := legacynode.Point_builder{
 		Hash:   &hash,
-		Name:   stringPtr("alpha-node"),
-		Group:  stringPtr("remote-group"),
+		Name:   new("alpha-node"),
+		Group:  new("remote-group"),
 		Origin: legacynode.Origin_remote.Enum(),
 	}.Build()
 	legacy := legacynode.Node_builder{
@@ -285,24 +285,24 @@ func TestStateDBMigrateImportsLegacyNodeJSONWithoutStateDB(t *testing.T) {
 			},
 			Tags: map[string]*legacynode.Tags{
 				"fast": legacynode.Tags_builder{
-					Tag:  stringPtr("fast"),
+					Tag:  new("fast"),
 					Type: legacynode.TagType_node.Enum(),
 					Hash: []string{hash},
 				}.Build(),
 			},
 			Publishes: map[string]*legacynode.Publish{
 				"pub": legacynode.Publish_builder{
-					Name:     stringPtr("pub"),
-					Path:     stringPtr("/pub"),
-					Password: stringPtr("secret"),
+					Name:     new("pub"),
+					Path:     new("/pub"),
+					Password: new("secret"),
 					Points:   []string{hash},
 				}.Build(),
 			},
 		}).Build(),
 		Links: map[string]*legacynode.Link{
 			"remote-group": legacynode.Link_builder{
-				Name: stringPtr("remote-group"),
-				Url:  stringPtr("https://example.com/sub.txt"),
+				Name: new("remote-group"),
+				Url:  new("https://example.com/sub.txt"),
 			}.Build(),
 		},
 	}.Build()
@@ -369,10 +369,6 @@ func assertStateMetadataValue(t *testing.T, ctx context.Context, db *sql.DB, key
 	if value != want {
 		t.Fatalf("metadata %q = %q, want %q", key, value, want)
 	}
-}
-
-func stringPtr(value string) *string {
-	return &value
 }
 
 func assertConnectionJSONStrings(t *testing.T, ctx context.Context, db *sql.DB, table, column string) {

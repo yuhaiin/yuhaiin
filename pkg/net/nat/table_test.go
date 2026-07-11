@@ -67,10 +67,7 @@ func (testProxy) Conn(context.Context, netapi.Address) (net.Conn, error) {
 }
 
 func (t *testProxy) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	ip := true
-	if addr.Hostname() == "www.google.com" || addr.Hostname() == "10.0.0.2" {
-		ip = false
-	}
+	ip := addr.Hostname() != "www.google.com" && addr.Hostname() != "10.0.0.2"
 
 	x, ok := t.addrMap[addr.Hostname()]
 	if ok {

@@ -12,16 +12,16 @@ import (
 
 func TestConvertLegacyInboundReverseHTTP(t *testing.T) {
 	old := legacy.Inbound_builder{
-		Name:    ptr("reversehttp"),
-		Enabled: ptr(true),
+		Name:    new("reversehttp"),
+		Enabled: new(true),
 		Tcpudp: legacy.Tcpudp_builder{
-			Host:    ptr(":9002"),
+			Host:    new(":9002"),
 			Control: legacy.TcpUdpControl_disable_udp.Enum(),
 		}.Build(),
 		ReverseHttp: legacy.ReverseHttp_builder{
-			Url: ptr("http://127.0.0.1:3000"),
+			Url: new("http://127.0.0.1:3000"),
 			Tls: legacynode.TlsConfig_builder{
-				Enable:      ptr(true),
+				Enable:      new(true),
 				ServerNames: []string{"example.com"},
 				CaCert:      [][]byte{[]byte("ca")},
 				NextProtos:  []string{"h2"},
@@ -63,10 +63,10 @@ func TestConvertLegacyInboundReverseHTTP(t *testing.T) {
 
 func TestConvertLegacyInboundTLSAutoTransport(t *testing.T) {
 	old := legacy.Inbound_builder{
-		Name:    ptr("mixed"),
-		Enabled: ptr(true),
+		Name:    new("mixed"),
+		Enabled: new(true),
 		Tcpudp: legacy.Tcpudp_builder{
-			Host:    ptr(":1080"),
+			Host:    new(":1080"),
 			Control: legacy.TcpUdpControl_tcp_udp_control_all.Enum(),
 		}.Build(),
 		Mix: legacy.Mixed_builder{}.Build(),
@@ -78,10 +78,10 @@ func TestConvertLegacyInboundTLSAutoTransport(t *testing.T) {
 					CaCert:      []byte("cert"),
 					CaKey:       []byte("key"),
 					Ech: legacy.EchConfig_builder{
-						Enable:     ptr(true),
+						Enable:     new(true),
 						Config:     []byte("ech-config"),
 						PrivateKey: []byte("ech-key"),
-						OuterSNI:   ptr("public.example.com"),
+						OuterSNI:   new("public.example.com"),
 					}.Build(),
 				}.Build(),
 			}.Build(),
@@ -111,8 +111,8 @@ func TestConvertLegacyInboundTLSAutoTransport(t *testing.T) {
 
 func TestConvertLegacyInboundRejectsEnabledEmptyProtocol(t *testing.T) {
 	old := legacy.Inbound_builder{
-		Name:    ptr("broken"),
-		Enabled: ptr(true),
+		Name:    new("broken"),
+		Enabled: new(true),
 		Empty:   legacy.Empty_builder{}.Build(),
 	}.Build()
 
@@ -123,8 +123,8 @@ func TestConvertLegacyInboundRejectsEnabledEmptyProtocol(t *testing.T) {
 
 func TestConvertLegacyInboundDropsEmptyTransport(t *testing.T) {
 	old := legacy.Inbound_builder{
-		Name:    ptr("mixed"),
-		Enabled: ptr(true),
+		Name:    new("mixed"),
+		Enabled: new(true),
 		Empty:   legacy.Empty_builder{}.Build(),
 		Mix:     legacy.Mixed_builder{}.Build(),
 		Transport: []*legacy.Transport{
@@ -142,8 +142,4 @@ func TestConvertLegacyInboundDropsEmptyTransport(t *testing.T) {
 	if len(warnings) != 1 || !strings.Contains(warnings[0].Message, "transport[0] has no concrete object") {
 		t.Fatalf("warnings = %+v", warnings)
 	}
-}
-
-func ptr[T any](value T) *T {
-	return &value
 }

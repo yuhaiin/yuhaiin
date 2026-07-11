@@ -109,7 +109,9 @@ func (d *DiskFqdn[T]) Insert(domain string, mark T) {
 	}
 
 	r := newReader(domain, d.separate)
-	d.Root.Insert(r, mark)
+	if err := d.Root.Insert(r, mark); err != nil {
+		return
+	}
 }
 
 func (d *DiskFqdn[T]) Batch(iter iter.Seq2[string, T]) error {
@@ -140,7 +142,9 @@ func (d *DiskFqdn[T]) Remove(domain string, mark T) {
 	}
 
 	r := newReader(domain, d.separate)
-	d.Root.Remove(r, mark)
+	if err := d.Root.Remove(r, mark); err != nil {
+		return
+	}
 }
 
 func (d *DiskFqdn[T]) SetSeparate(b byte) {

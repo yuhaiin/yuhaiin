@@ -397,7 +397,7 @@ func handleFront(mux *http.ServeMux) {
 
 		ext := filepath.Ext(path)
 
-		var ctype string = "application/octet-stream"
+		var ctype = "application/octet-stream"
 
 		if t, ok := cTypeMap[ext]; ok {
 			ctype = t

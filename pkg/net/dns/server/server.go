@@ -109,7 +109,7 @@ func (d *dnsServer) startUDP(listener net.PacketConn) {
 				if err != nil {
 					// we just copy [Temporary] method from [net/http.Server.Serve]
 					// so...
-					if e, ok := err.(net.Error); ok && e.Temporary() {
+					if e, ok := err.(net.Error); ok && e.Temporary() { //nolint:staticcheck // Preserve listener retry semantics.
 						continue
 					}
 
@@ -156,7 +156,7 @@ func (d *dnsServer) startTCP(listener net.Listener) {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				if e, ok := err.(net.Error); ok && e.Temporary() {
+				if e, ok := err.(net.Error); ok && e.Temporary() { //nolint:staticcheck // Preserve listener retry semantics.
 					continue
 				}
 				log.Error("dns server accept failed", "err", err)

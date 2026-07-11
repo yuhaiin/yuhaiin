@@ -27,10 +27,7 @@ func Slice[T any](items []T, page, pageSize uint32) ([]T, uint32, uint32, uint32
 	if start >= total {
 		return nil, page, pageSize, total
 	}
-	end := start + pageSize
-	if end > total {
-		end = total
-	}
+	end := min(start+pageSize, total)
 	return items[start:end], page, pageSize, total
 }
 

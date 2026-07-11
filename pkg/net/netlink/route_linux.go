@@ -1,5 +1,6 @@
 //go:build !android
 
+//nolint:unused // Keep the TUN ioctl helper for platforms that still open TUN by file descriptor.
 package netlink
 
 import (
@@ -44,7 +45,7 @@ func Route(opt *Options) (func(), error) {
 		return nil, fmt.Errorf("unable to set link up: %w", err)
 	}
 
-	var tableIndex int = 63
+	var tableIndex = 63
 	// for {
 	// 	tableIndex = int(rand.Uint32())
 	// 	routeList, fErr := netlink.RouteListFiltered(netlink.FAMILY_ALL, &netlink.Route{Table: tableIndex}, netlink.RT_FILTER_TABLE)

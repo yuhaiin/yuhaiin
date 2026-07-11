@@ -1,3 +1,4 @@
+//nolint:unused // EDNS helpers are retained for the decoder's planned EDNS support.
 package dns
 
 import (

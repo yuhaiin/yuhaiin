@@ -110,7 +110,7 @@ func (c *conn) Handshake() error {
 
 	br := bufio.NewReader(c.Conn)
 
-	_, err := proxyproto.ReadTimeout(br, time.Second*15)
+	_, err := proxyproto.ReadTimeout(br, time.Second*15) //nolint:staticcheck // ReadHeaderTimeout changes wrapped connection deadline semantics.
 	if err != nil {
 		return err
 	}
