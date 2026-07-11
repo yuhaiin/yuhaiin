@@ -47,7 +47,9 @@ func (s *SettingsStore) Load(ctx context.Context) (contractsettings.Settings, er
 	if s == nil || s.db == nil {
 		return contractsettings.Settings{}, errors.New("settings store database is nil")
 	}
-	var out contractsettings.Settings
+	// Pprof used to be enabled unless DISABLED_PPROF was set. Keep that default
+	// for existing installations which do not yet have a persisted setting.
+	out := contractsettings.Settings{Pprof: true}
 	if err := s.load(ctx, "general", "ipv6", &out.IPv6); err != nil {
 		return contractsettings.Settings{}, err
 	}
@@ -55,6 +57,9 @@ func (s *SettingsStore) Load(ctx context.Context) (contractsettings.Settings, er
 		return contractsettings.Settings{}, err
 	}
 	if err := s.load(ctx, "general", "net_interface", &out.NetInterface); err != nil {
+		return contractsettings.Settings{}, err
+	}
+	if err := s.load(ctx, "general", "pprof", &out.Pprof); err != nil {
 		return contractsettings.Settings{}, err
 	}
 	if err := s.load(ctx, "system_proxy", "http", &out.SystemProxy.HTTP); err != nil {
@@ -109,6 +114,7 @@ func (s *SettingsStore) Save(ctx context.Context, settings contractsettings.Sett
 		{"general", "ipv6", settings.IPv6},
 		{"general", "use_default_interface", settings.UseDefaultInterface},
 		{"general", "net_interface", settings.NetInterface},
+		{"general", "pprof", settings.Pprof},
 		{"system_proxy", "http", settings.SystemProxy.HTTP},
 		{"system_proxy", "socks5", settings.SystemProxy.Socks5},
 		{"logcat", "level", logLevelCode(settings.Logcat.Level)},

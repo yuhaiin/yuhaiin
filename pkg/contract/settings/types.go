@@ -4,6 +4,7 @@ type Settings struct {
 	IPv6                bool            `json:"ipv6"`
 	UseDefaultInterface bool            `json:"useDefaultInterface"`
 	NetInterface        string          `json:"netInterface"`
+	Pprof               bool            `json:"pprof"`
 	SystemProxy         SystemProxy     `json:"systemProxy"`
 	Logcat              Logcat          `json:"logcat"`
 	Advanced            AdvancedConfig  `json:"advanced"`

@@ -422,68 +422,51 @@ func (c *Connections) Telemetry(ctx context.Context, from, to time.Time, limit i
 }
 
 func (c *Connections) telemetryDimension(ctx context.Context, dimension string, from, to time.Time, limit int) ([]contractconnection.TelemetryItem, error) {
-	type totals struct{ download, upload, failures uint64 }
-	values := map[string]totals{}
 	rows, err := c.sqliteDB.QueryContext(ctx, `
-		SELECT value, SUM(download_bytes), SUM(upload_bytes)
-		FROM traffic_dimension_hourly
-		WHERE dimension = ? AND bucket_start_utc >= ? AND bucket_start_utc < ?
-		GROUP BY value
-	`, dimension, from.UTC().Unix(), to.UTC().Unix())
+		SELECT value, download_bytes, upload_bytes, failed_count
+		FROM (
+			SELECT
+				value,
+				SUM(download_bytes) AS download_bytes,
+				SUM(upload_bytes) AS upload_bytes,
+				SUM(failed_count) AS failed_count
+			FROM (
+				SELECT value, download_bytes, upload_bytes, 0 AS failed_count
+				FROM traffic_dimension_hourly
+				WHERE dimension = ? AND bucket_start_utc >= ? AND bucket_start_utc < ?
+
+				UNION ALL
+
+				SELECT value, 0 AS download_bytes, 0 AS upload_bytes, failed_count
+				FROM failure_dimension_hourly
+				WHERE dimension = ? AND bucket_start_utc >= ? AND bucket_start_utc < ?
+			)
+			GROUP BY value
+		)
+		ORDER BY download_bytes + upload_bytes DESC, failed_count DESC
+		LIMIT ?
+	`, dimension, from.UTC().Unix(), to.UTC().Unix(), dimension, from.UTC().Unix(), to.UTC().Unix(), limit)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+
+	items := make([]contractconnection.TelemetryItem, 0, limit)
 	for rows.Next() {
 		var value string
-		var download, upload uint64
-		if err := rows.Scan(&value, &download, &upload); err != nil {
-			rows.Close()
+		var download, upload, failures uint64
+		if err := rows.Scan(&value, &download, &upload, &failures); err != nil {
 			return nil, err
 		}
-		values[value] = totals{download: download, upload: upload}
+		items = append(items, contractconnection.TelemetryItem{
+			Value:    value,
+			Download: formatUint64(download),
+			Upload:   formatUint64(upload),
+			Failures: formatUint64(failures),
+		})
 	}
-	if err := rows.Close(); err != nil {
+	if err := rows.Err(); err != nil {
 		return nil, err
-	}
-
-	failures, err := c.sqliteDB.QueryContext(ctx, `
-		SELECT value, SUM(failed_count)
-		FROM failure_dimension_hourly
-		WHERE dimension = ? AND bucket_start_utc >= ? AND bucket_start_utc < ?
-		GROUP BY value
-	`, dimension, from.UTC().Unix(), to.UTC().Unix())
-	if err != nil {
-		return nil, err
-	}
-	for failures.Next() {
-		var value string
-		var failed uint64
-		if err := failures.Scan(&value, &failed); err != nil {
-			failures.Close()
-			return nil, err
-		}
-		current := values[value]
-		current.failures = failed
-		values[value] = current
-	}
-	if err := failures.Close(); err != nil {
-		return nil, err
-	}
-
-	items := make([]contractconnection.TelemetryItem, 0, len(values))
-	for value, total := range values {
-		items = append(items, contractconnection.TelemetryItem{Value: value, Download: formatUint64(total.download), Upload: formatUint64(total.upload), Failures: formatUint64(total.failures)})
-	}
-	sort.Slice(items, func(i, j int) bool {
-		left := parseUint64(items[i].Download) + parseUint64(items[i].Upload)
-		right := parseUint64(items[j].Download) + parseUint64(items[j].Upload)
-		if left == right {
-			return parseUint64(items[i].Failures) > parseUint64(items[j].Failures)
-		}
-		return left > right
-	})
-	if len(items) > limit {
-		items = items[:limit]
 	}
 	return items, nil
 }

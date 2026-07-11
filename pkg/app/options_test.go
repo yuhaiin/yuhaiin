@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"database/sql"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 
@@ -51,5 +53,28 @@ func TestCompactStateStoreVacuum(t *testing.T) {
 	}
 	if freeAfter != 0 {
 		t.Fatalf("freelist_count after vacuum = %d, want 0", freeAfter)
+	}
+}
+
+func TestPprofHandlerHonorsRuntimeSetting(t *testing.T) {
+	t.Setenv("DISABLED_PPROF", "")
+	setPprofEnabled(false)
+	t.Cleanup(func() { setPprofEnabled(false) })
+
+	mux := http.NewServeMux()
+	RegisterHTTP(mux)
+
+	request := httptest.NewRequest(http.MethodGet, "/debug/pprof/", nil)
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("disabled pprof status = %d, want %d", response.Code, http.StatusNotFound)
+	}
+
+	setPprofEnabled(true)
+	response = httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("enabled pprof status = %d, want %d", response.Code, http.StatusOK)
 	}
 }
