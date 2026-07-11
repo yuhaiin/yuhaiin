@@ -17,9 +17,12 @@ type errorPayload struct {
 
 func writeJSON(w http.ResponseWriter, status int, v any) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
 	if status == http.StatusNoContent {
-		return nil
+		status = http.StatusOK
+	}
+	w.WriteHeader(status)
+	if v == nil {
+		v = struct{}{}
 	}
 
 	if err := json.MarshalWrite(w, v); err != nil {

@@ -24,6 +24,39 @@ func TestRegisterV2PatternsAreServeMuxCompatible(t *testing.T) {
 	}, V2Services{})
 }
 
+func TestV2RouteTableHasExactlyOneHandlerPerPattern(t *testing.T) {
+	handlers := newV2Handlers(V2Services{})
+	seen := make(map[string]struct{}, len(v2Routes))
+	for _, route := range v2Routes {
+		if _, exists := seen[route.pattern]; exists {
+			t.Fatalf("duplicate route pattern %q", route.pattern)
+		}
+		seen[route.pattern] = struct{}{}
+		if _, ok := handlers.values[route.endpoint]; !ok {
+			t.Fatalf("route %q has no handler for endpoint %q", route.pattern, route.endpoint)
+		}
+	}
+	if len(handlers.values) != len(v2Routes) {
+		t.Fatalf("handlers=%d routes=%d: handler registration and route table diverged", len(handlers.values), len(v2Routes))
+	}
+}
+
+func TestV2RoutePatternsUsePostRPCExceptStreams(t *testing.T) {
+	for _, route := range v2Routes {
+		pattern := v2RoutePattern(route)
+		if isV2StreamEndpoint(route.endpoint) {
+			if pattern != route.pattern {
+				t.Fatalf("stream route %q changed from %q to %q", route.endpoint, route.pattern, pattern)
+			}
+			continue
+		}
+		expected := "POST /api/v2/rpc/" + string(route.endpoint)
+		if pattern != expected {
+			t.Fatalf("route %q pattern=%q want=%q", route.endpoint, pattern, expected)
+		}
+	}
+}
+
 type listConfigRuntimeStub struct {
 	store *plainstore.RouteSettingsStore
 }
@@ -78,14 +111,14 @@ func TestV2RouteActivationIsCombined(t *testing.T) {
 	})
 
 	statusRecorder := httptest.NewRecorder()
-	mux.ServeHTTP(statusRecorder, httptest.NewRequest(http.MethodGet, "/api/v2/route/activation", nil))
+	mux.ServeHTTP(statusRecorder, httptest.NewRequest(http.MethodPost, "/api/v2/rpc/route.activation", strings.NewReader(`{}`)))
 	if statusRecorder.Code != http.StatusOK || !strings.Contains(statusRecorder.Body.String(), `"hostIndexRefreshAt":123`) || !strings.Contains(statusRecorder.Body.String(), `"ruleApplyAt":456`) {
 		t.Fatalf("unexpected activation status: code=%d body=%s", statusRecorder.Code, statusRecorder.Body.String())
 	}
 
 	applyRecorder := httptest.NewRecorder()
-	mux.ServeHTTP(applyRecorder, httptest.NewRequest(http.MethodPost, "/api/v2/route/apply", nil))
-	if applyRecorder.Code != http.StatusNoContent || listApplied != 1 || ruleApplied != 1 {
+	mux.ServeHTTP(applyRecorder, httptest.NewRequest(http.MethodPost, "/api/v2/rpc/route.apply", strings.NewReader(`{}`)))
+	if applyRecorder.Code != http.StatusOK || applyRecorder.Body.String() != "{}" || listApplied != 1 || ruleApplied != 1 {
 		t.Fatalf("combined apply failed: code=%d list=%d rule=%d", applyRecorder.Code, listApplied, ruleApplied)
 	}
 }
@@ -116,7 +149,7 @@ func TestV2RouteListConfigDoesNotOverwriteRuntimeState(t *testing.T) {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) { _ = handler(w, r) })
 	}, V2Services{Lists: listConfigRuntimeStub{store: settings}, RouteSettings: settings})
 	body := `{"refreshInterval":"60","lastRefreshTime":"0","error":"NOT DOWNLOAD","maxMindDbGeoIp":{"downloadUrl":"https://example.com/geo.mmdb","error":"NOT DOWNLOAD"}}`
-	req := httptest.NewRequest(http.MethodPut, "/api/v2/route/lists/config", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/rpc/route.lists.config.put", strings.NewReader(body))
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusOK {
@@ -166,14 +199,14 @@ func TestV2InboundCRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	post := httptest.NewRequest(http.MethodPost, "/api/v2/inbounds", strings.NewReader(string(body)))
+	post := httptest.NewRequest(http.MethodPost, "/api/v2/rpc/inbounds.post", strings.NewReader(string(body)))
 	postRecorder := httptest.NewRecorder()
 	mux.ServeHTTP(postRecorder, post)
-	if postRecorder.Code != http.StatusCreated {
+	if postRecorder.Code != http.StatusOK {
 		t.Fatalf("POST status = %d body = %s", postRecorder.Code, postRecorder.Body.String())
 	}
 
-	get := httptest.NewRequest(http.MethodGet, "/api/v2/inbounds/reversehttp", nil)
+	get := httptest.NewRequest(http.MethodPost, "/api/v2/rpc/inbound.get", strings.NewReader(`{"id":"reversehttp"}`))
 	getRecorder := httptest.NewRecorder()
 	mux.ServeHTTP(getRecorder, get)
 	if getRecorder.Code != http.StatusOK {
@@ -186,7 +219,7 @@ func TestV2InboundCRUD(t *testing.T) {
 		t.Fatalf("GET body contains config wrapper: %s", getRecorder.Body.String())
 	}
 
-	list := httptest.NewRequest(http.MethodGet, "/api/v2/inbounds?page=1&page_size=10&query=reverse", nil)
+	list := httptest.NewRequest(http.MethodPost, "/api/v2/rpc/inbounds.get", strings.NewReader(`{"page":1,"page_size":10,"query":"reverse"}`))
 	listRecorder := httptest.NewRecorder()
 	mux.ServeHTTP(listRecorder, list)
 	if listRecorder.Code != http.StatusOK {
