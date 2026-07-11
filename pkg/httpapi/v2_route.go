@@ -23,6 +23,39 @@ type ruleIndexV2 struct {
 }
 
 func registerRouteV2(register RegisterFunc, services V2Services) {
+	registerV2Available(register, "GET /api/v2/route/activation", services.Lists != nil || services.Rules != nil, "route runtime is unavailable", func(w http.ResponseWriter, r *http.Request) error {
+		status := contractroute.ActivationStatus{}
+		if services.Lists != nil {
+			listStatus, err := services.Lists.ActivationStatus(r.Context())
+			if err != nil {
+				return err
+			}
+			status.HostIndexRefreshAt = listStatus.HostIndexRefreshAt
+		}
+		if services.Rules != nil {
+			ruleStatus, err := services.Rules.ActivationStatus(r.Context())
+			if err != nil {
+				return err
+			}
+			status.RuleApplyAt = ruleStatus.ApplyAt
+		}
+		return writeJSON(w, http.StatusOK, status)
+	})
+
+	registerV2Available(register, "POST /api/v2/route/apply", services.Lists != nil || services.Rules != nil, "route runtime is unavailable", func(w http.ResponseWriter, r *http.Request) error {
+		if services.Lists != nil {
+			if err := services.Lists.Apply(r.Context()); err != nil {
+				return err
+			}
+		}
+		if services.Rules != nil {
+			if err := services.Rules.Apply(r.Context()); err != nil {
+				return err
+			}
+		}
+		return writeJSON(w, http.StatusNoContent, nil)
+	})
+
 	registerV2Get(register, "GET /api/v2/route/config", services.RouteSettings, "route settings store is unavailable", func(store *plainstore.RouteSettingsStore, r *http.Request) (contractroute.Config, error) {
 		config, err := store.Settings(r.Context())
 		return routeConfigFromStoreV2(config), err
@@ -202,6 +235,9 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		if err := services.RouteRules.SaveRule(r.Context(), req, 0, 0); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
+		if services.Rules != nil {
+			services.Rules.ScheduleApply()
+		}
 		return writeJSON(w, http.StatusCreated, req)
 	})
 
@@ -215,6 +251,9 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		}
 		if err := services.RouteRules.ChangePriority(r.Context(), req.Source.Name, req.Target.Name, req.Operate); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
+		}
+		if services.Rules != nil {
+			services.Rules.ScheduleApply()
 		}
 		return writeJSON(w, http.StatusNoContent, nil)
 	})
@@ -254,6 +293,9 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		if err := services.RouteRules.SaveRule(r.Context(), req, priority, 0); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		}
+		if services.Rules != nil {
+			services.Rules.ScheduleApply()
+		}
 		return writeJSON(w, http.StatusOK, req)
 	})
 
@@ -268,6 +310,9 @@ func registerRouteV2(register RegisterFunc, services V2Services) {
 		}
 		if err != nil {
 			return err
+		}
+		if services.Rules != nil {
+			services.Rules.ScheduleApply()
 		}
 		return writeJSON(w, http.StatusNoContent, nil)
 	})

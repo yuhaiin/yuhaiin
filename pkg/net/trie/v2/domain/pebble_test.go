@@ -101,6 +101,21 @@ func TestDiskPebbleTrie_BasicInsertAndSearch(t *testing.T) {
 	}
 }
 
+func TestDiskPebbleTrie_ClearWithWALDisabled(t *testing.T) {
+	dt, dir := setupPebbleTestDB(t)
+	defer cleanupPebbleTestDB(dt, dir)
+
+	if err := dt.Insert(newFqdnReader("com.example.www"), "value"); err != nil {
+		t.Fatal(err)
+	}
+	if err := dt.Clear(); err != nil {
+		t.Fatalf("Clear failed with WAL disabled: %v", err)
+	}
+	if got := dt.Search(newFqdnReader("com.example.www")); len(got) != 0 {
+		t.Fatalf("Clear left values behind: %v", got)
+	}
+}
+
 func TestDiskPebbleTrie_WildcardLogic(t *testing.T) {
 	dt, dir := setupPebbleTestDB(t)
 	defer cleanupPebbleTestDB(dt, dir)

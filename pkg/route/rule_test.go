@@ -4,12 +4,52 @@ import (
 	"context"
 	"net"
 	"testing"
+	"time"
 
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/miekg/dns"
 )
+
+type staticRuleBook []plainstore.RouteRuleEntry
+
+func (s staticRuleBook) ListRules(context.Context) ([]plainstore.RouteRuleEntry, error) {
+	return s, nil
+}
+
+func TestRuleChangesCanBeScheduledAndAppliedImmediately(t *testing.T) {
+	matchers := newTestMatchers(t)
+	rules := &Rules{
+		rules: staticRuleBook{{Rule: contractroute.RouteRule{Name: "scheduled", Mode: "direct"}}},
+		route: &Route{ms: matchers},
+	}
+
+	before := time.Now().UnixMilli()
+	rules.ScheduleApply()
+	status, err := rules.ActivationStatus(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.ApplyAt < before+59_000 || status.ApplyAt > before+61_000 {
+		t.Fatalf("unexpected scheduled apply time: %d", status.ApplyAt)
+	}
+
+	if err := rules.Apply(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	status, err = rules.ActivationStatus(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.ApplyAt != 0 {
+		t.Fatalf("apply time was not cleared: %d", status.ApplyAt)
+	}
+	if len(matchers.matchers) != 1 || matchers.matchers[0].name != "scheduled" {
+		t.Fatalf("stored rules were not applied: %#v", matchers.matchers)
+	}
+}
 
 func newTestMatchers(t *testing.T) *Matchers {
 	t.Helper()

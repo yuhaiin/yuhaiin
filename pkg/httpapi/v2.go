@@ -81,6 +81,9 @@ type SubscriptionController interface {
 
 type RouteRuntimeController interface {
 	SaveConfig(context.Context, contractroute.Config) error
+	ScheduleApply()
+	Apply(context.Context) error
+	ActivationStatus(context.Context) (contractroute.RuleActivationStatus, error)
 	Test(context.Context, string) (contractroute.RuleTestResponse, error)
 	BlockHistory(context.Context) (contractroute.BlockHistoryList, error)
 }
@@ -89,6 +92,7 @@ type ListRuntimeController interface {
 	SaveConfig(context.Context, contractroute.ListConfig, uint64) error
 	Refresh(context.Context) error
 	ApplyChanges(context.Context) error
+	Apply(context.Context) error
 	ActivationStatus(context.Context) (contractroute.ListActivationStatus, error)
 }
 

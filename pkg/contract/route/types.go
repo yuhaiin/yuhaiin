@@ -20,6 +20,15 @@ type ListActivationStatus struct {
 	HostIndexRefreshAt int64 `json:"hostIndexRefreshAt"`
 }
 
+type RuleActivationStatus struct {
+	ApplyAt int64 `json:"applyAt"`
+}
+
+type ActivationStatus struct {
+	HostIndexRefreshAt int64 `json:"hostIndexRefreshAt"`
+	RuleApplyAt        int64 `json:"ruleApplyAt"`
+}
+
 type MaxMindDBGeoIP struct {
 	DownloadURL string `json:"downloadUrl"`
 	Error       string `json:"error"`

@@ -206,10 +206,7 @@ func (dt *DiskPebbleTrie[T]) Clear() error {
 	if dt.closed.Load() {
 		return errors.New("trie is closed")
 	}
-	start := []byte{0x00}
-	end := []byte{0xff, 0xff, 0xff, 0xff}
-
-	return dt.root.Pebble().DeleteRange(start, end, nil)
+	return dt.root.Clear()
 }
 
 func (dt *DiskPebbleTrie[T]) Close() error {

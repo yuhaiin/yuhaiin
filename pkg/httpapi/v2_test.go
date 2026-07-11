@@ -28,6 +28,68 @@ type listConfigRuntimeStub struct {
 	store *plainstore.RouteSettingsStore
 }
 
+type routeRuntimeStub struct {
+	applyAt int64
+	applied *int
+}
+
+func (routeRuntimeStub) SaveConfig(context.Context, contractroute.Config) error { return nil }
+func (routeRuntimeStub) ScheduleApply()                                         {}
+func (s routeRuntimeStub) Apply(context.Context) error {
+	*s.applied++
+	return nil
+}
+func (s routeRuntimeStub) ActivationStatus(context.Context) (contractroute.RuleActivationStatus, error) {
+	return contractroute.RuleActivationStatus{ApplyAt: s.applyAt}, nil
+}
+func (routeRuntimeStub) Test(context.Context, string) (contractroute.RuleTestResponse, error) {
+	return contractroute.RuleTestResponse{}, nil
+}
+func (routeRuntimeStub) BlockHistory(context.Context) (contractroute.BlockHistoryList, error) {
+	return contractroute.BlockHistoryList{}, nil
+}
+
+type activationListRuntimeStub struct {
+	listConfigRuntimeStub
+	refreshAt int64
+	applied   *int
+}
+
+func (s activationListRuntimeStub) Apply(context.Context) error {
+	*s.applied++
+	return nil
+}
+func (s activationListRuntimeStub) ActivationStatus(context.Context) (contractroute.ListActivationStatus, error) {
+	return contractroute.ListActivationStatus{HostIndexRefreshAt: s.refreshAt}, nil
+}
+
+func TestV2RouteActivationIsCombined(t *testing.T) {
+	listApplied, ruleApplied := 0, 0
+	mux := http.NewServeMux()
+	RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
+		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+			if err := handler(w, r); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}, V2Services{
+		Lists: activationListRuntimeStub{refreshAt: 123, applied: &listApplied},
+		Rules: routeRuntimeStub{applyAt: 456, applied: &ruleApplied},
+	})
+
+	statusRecorder := httptest.NewRecorder()
+	mux.ServeHTTP(statusRecorder, httptest.NewRequest(http.MethodGet, "/api/v2/route/activation", nil))
+	if statusRecorder.Code != http.StatusOK || !strings.Contains(statusRecorder.Body.String(), `"hostIndexRefreshAt":123`) || !strings.Contains(statusRecorder.Body.String(), `"ruleApplyAt":456`) {
+		t.Fatalf("unexpected activation status: code=%d body=%s", statusRecorder.Code, statusRecorder.Body.String())
+	}
+
+	applyRecorder := httptest.NewRecorder()
+	mux.ServeHTTP(applyRecorder, httptest.NewRequest(http.MethodPost, "/api/v2/route/apply", nil))
+	if applyRecorder.Code != http.StatusNoContent || listApplied != 1 || ruleApplied != 1 {
+		t.Fatalf("combined apply failed: code=%d list=%d rule=%d", applyRecorder.Code, listApplied, ruleApplied)
+	}
+}
+
 func (s listConfigRuntimeStub) SaveConfig(ctx context.Context, config contractroute.ListConfig, interval uint64) error {
 	return s.store.SaveListSettings(ctx, plainstore.RouteListSettings{
 		RefreshInterval: interval, LastRefreshTime: 999,
@@ -36,6 +98,7 @@ func (s listConfigRuntimeStub) SaveConfig(ctx context.Context, config contractro
 }
 func (listConfigRuntimeStub) Refresh(context.Context) error      { return nil }
 func (listConfigRuntimeStub) ApplyChanges(context.Context) error { return nil }
+func (listConfigRuntimeStub) Apply(context.Context) error        { return nil }
 func (listConfigRuntimeStub) ActivationStatus(context.Context) (contractroute.ListActivationStatus, error) {
 	return contractroute.ListActivationStatus{}, nil
 }

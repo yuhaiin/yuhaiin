@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
@@ -16,6 +19,11 @@ type Rules struct {
 	rules    RouteRuleBook
 	settings RouteSettingsBook
 	route    *Route
+
+	applyTimer   *time.Timer
+	applyTimerMu sync.Mutex
+	applyAt      atomic.Int64
+	applyVersion atomic.Uint64
 }
 
 type RouteRuleBook interface {
@@ -39,25 +47,76 @@ func NewRules(rules RouteRuleBook, settings RouteSettingsBook, route *Route) *Ru
 }
 
 func (r *Rules) ApplyStored(ctx context.Context) {
+	_ = r.applyStored(ctx)
+}
+
+func (r *Rules) applyStored(ctx context.Context) error {
 	if r == nil {
-		return
+		return nil
 	}
 	if r.rules != nil {
 		entries, err := r.rules.ListRules(ctx)
-		if err == nil {
-			routes := make([]contractroute.RouteRule, 0, len(entries))
-			for _, entry := range entries {
-				routes = append(routes, entry.Rule)
-			}
-			r.route.ms.Update(routes...)
+		if err != nil {
+			return err
 		}
+		routes := make([]contractroute.RouteRule, 0, len(entries))
+		for _, entry := range entries {
+			routes = append(routes, entry.Rule)
+		}
+		r.route.ms.Update(routes...)
 	}
 	if r.settings != nil {
 		settings, err := r.settings.Settings(ctx)
-		if err == nil {
-			r.route.config.Store(routeConfigFromStore(settings))
+		if err != nil {
+			return err
 		}
+		r.route.config.Store(routeConfigFromStore(settings))
 	}
+	return nil
+}
+
+func (r *Rules) ScheduleApply() {
+	if r == nil {
+		return
+	}
+	version := r.applyVersion.Add(1)
+	r.applyAt.Store(time.Now().Add(time.Minute).UnixMilli())
+	r.applyTimerMu.Lock()
+	if r.applyTimer != nil {
+		r.applyTimer.Stop()
+	}
+	r.applyTimer = time.AfterFunc(time.Minute, func() { r.applyScheduled(version) })
+	r.applyTimerMu.Unlock()
+}
+
+func (r *Rules) applyScheduled(version uint64) {
+	if r.applyVersion.Load() != version {
+		return
+	}
+	if err := r.applyStored(context.Background()); err == nil && r.applyVersion.Load() == version {
+		r.applyAt.Store(0)
+	}
+}
+
+func (r *Rules) Apply(ctx context.Context) error {
+	if r == nil {
+		return nil
+	}
+	r.applyVersion.Add(1)
+	r.applyTimerMu.Lock()
+	if r.applyTimer != nil {
+		r.applyTimer.Stop()
+	}
+	r.applyTimerMu.Unlock()
+	if err := r.applyStored(ctx); err != nil {
+		return err
+	}
+	r.applyAt.Store(0)
+	return nil
+}
+
+func (r *Rules) ActivationStatus(context.Context) (contractroute.RuleActivationStatus, error) {
+	return contractroute.RuleActivationStatus{ApplyAt: r.applyAt.Load()}, nil
 }
 
 func (r *Rules) SaveContractConfig(ctx context.Context, req contractroute.Config) error {

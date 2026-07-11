@@ -41,7 +41,7 @@ func (c *Cache) Clear() error {
 	start := []byte{0x00}
 	end := []byte{0xff, 0xff, 0xff, 0xff}
 
-	return c.db.DeleteRange(start, end, nil)
+	return c.db.DeleteRange(start, end, pebble.NoSync)
 }
 
 func (c *Cache) Get(k []byte) (v []byte, err error) {

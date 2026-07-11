@@ -37,6 +37,14 @@ func (c ContractListController) ApplyChanges(context.Context) error {
 	return nil
 }
 
+func (c ContractListController) Apply(context.Context) error {
+	if c.lists == nil {
+		return errors.New("list controller is unavailable")
+	}
+	c.lists.ApplyListChangesNow()
+	return nil
+}
+
 func (c ContractListController) ActivationStatus(context.Context) (contractroute.ListActivationStatus, error) {
 	if c.lists == nil {
 		return contractroute.ListActivationStatus{}, errors.New("list controller is unavailable")
@@ -57,6 +65,26 @@ func (c ContractRuleController) SaveConfig(ctx context.Context, config contractr
 		return errors.New("rule controller is unavailable")
 	}
 	return c.rules.SaveContractConfig(ctx, config)
+}
+
+func (c ContractRuleController) ScheduleApply() {
+	if c.rules != nil {
+		c.rules.ScheduleApply()
+	}
+}
+
+func (c ContractRuleController) Apply(ctx context.Context) error {
+	if c.rules == nil {
+		return errors.New("rule controller is unavailable")
+	}
+	return c.rules.Apply(ctx)
+}
+
+func (c ContractRuleController) ActivationStatus(ctx context.Context) (contractroute.RuleActivationStatus, error) {
+	if c.rules == nil {
+		return contractroute.RuleActivationStatus{}, errors.New("rule controller is unavailable")
+	}
+	return c.rules.ActivationStatus(ctx)
 }
 
 func (c ContractRuleController) Test(ctx context.Context, host string) (contractroute.RuleTestResponse, error) {

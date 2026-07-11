@@ -180,6 +180,7 @@ type Lists struct {
 	hostTrie               *hostMatcher
 	hostTrieRefreshTimer   *time.Timer
 	hostTrieRefreshTimerMu sync.Mutex
+	hostTrieRefreshMu      sync.Mutex
 	hostTrieRefreshAt      atomic.Int64
 	hostTrieRefreshVersion atomic.Uint64
 
@@ -254,11 +255,23 @@ func (s *Lists) notifyRefreshHostTrie() {
 }
 
 func (s *Lists) refreshHostTrieAndMarkApplied() {
+	s.hostTrieRefreshMu.Lock()
+	defer s.hostTrieRefreshMu.Unlock()
 	version := s.hostTrieRefreshVersion.Load()
 	s.refreshHostTrie()
 	if s.hostTrieRefreshVersion.Load() == version {
 		s.hostTrieRefreshAt.Store(0)
 	}
+}
+
+func (s *Lists) ApplyListChangesNow() {
+	s.hostTrieRefreshVersion.Add(1)
+	s.hostTrieRefreshTimerMu.Lock()
+	if s.hostTrieRefreshTimer != nil {
+		s.hostTrieRefreshTimer.Stop()
+	}
+	s.hostTrieRefreshTimerMu.Unlock()
+	s.refreshHostTrieAndMarkApplied()
 }
 
 func (s *Lists) ApplyListChanges() {
