@@ -176,9 +176,9 @@ func jsonName(field *ast.Field) (string, bool) {
 }
 
 func reflectTag(tag, key string) string {
-	for _, part := range strings.Split(tag, " ") {
-		if strings.HasPrefix(part, key+":") {
-			value, _ := strconv.Unquote(strings.TrimPrefix(part, key+":"))
+	for part := range strings.SplitSeq(tag, " ") {
+		if after, ok := strings.CutPrefix(part, key+":"); ok {
+			value, _ := strconv.Unquote(after)
 			return value
 		}
 	}

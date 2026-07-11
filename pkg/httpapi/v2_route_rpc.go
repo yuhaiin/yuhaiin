@@ -113,14 +113,8 @@ func (a v2API) routeLists(ctx context.Context, request *listRequest) (*contractr
 	if query := strings.TrimSpace(request.Query); query != "" {
 		items = filterRouteListItems(items, query)
 	}
-	page := request.Page
-	if page < 1 {
-		page = 1
-	}
-	size := request.PageSize
-	if size < 0 {
-		size = 0
-	}
+	page := max(request.Page, 1)
+	size := max(request.PageSize, 0)
 	return &contractroute.RouteList{Items: paginateV2(items, page, size), Page: contractroute.Page{Page: page, PageSize: size, Total: len(items)}}, nil
 }
 func (a v2API) routeListConfig(ctx context.Context, _ *emptyRequest) (*contractroute.ListConfig, error) {
@@ -250,14 +244,8 @@ func (a v2API) routeRules(ctx context.Context, request *listRequest) (*contractr
 	if query := strings.TrimSpace(request.Query); query != "" {
 		entries = filterRouteRuleEntries(entries, query)
 	}
-	page := request.Page
-	if page < 1 {
-		page = 1
-	}
-	size := request.PageSize
-	if size < 0 {
-		size = 0
-	}
+	page := max(request.Page, 1)
+	size := max(request.PageSize, 0)
 	response := routeRuleListFromEntries(paginateV2(entries, page, size))
 	response.Page = contractroute.Page{Page: page, PageSize: size, Total: len(entries)}
 	return &response, nil
@@ -366,14 +354,8 @@ func (a v2API) routeTags(ctx context.Context, request *listRequest) (*contractro
 	if query := strings.TrimSpace(request.Query); query != "" {
 		items = filterRouteTags(items, query)
 	}
-	page := request.Page
-	if page < 1 {
-		page = 1
-	}
-	size := request.PageSize
-	if size < 0 {
-		size = 0
-	}
+	page := max(request.Page, 1)
+	size := max(request.PageSize, 0)
 	return &contractroute.TagList{Items: paginateV2(items, page, size), Page: contractroute.Page{Page: page, PageSize: size, Total: len(items)}}, nil
 }
 func (a v2API) saveRouteTag(ctx context.Context, request *contractroute.SaveTagRequest) (*emptyResponse, error) {

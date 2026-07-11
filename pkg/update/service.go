@@ -422,7 +422,7 @@ func downloadText(ctx context.Context, client *http.Client, rawURL string) (stri
 }
 
 func parseChecksum(text, name string) (string, error) {
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) >= 2 && filepath.Base(fields[len(fields)-1]) == name && len(fields[0]) == sha256.Size*2 {
 			if _, err := hex.DecodeString(fields[0]); err == nil {

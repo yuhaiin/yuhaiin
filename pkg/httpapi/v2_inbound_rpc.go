@@ -121,14 +121,8 @@ func (a v2API) deleteInbound(ctx context.Context, request *idRequest) (*emptyRes
 }
 
 func pageResponse[T any](items []T, request *listRequest) *listV2[T] {
-	page := request.Page
-	if page < 1 {
-		page = 1
-	}
-	pageSize := request.PageSize
-	if pageSize < 0 {
-		pageSize = 0
-	}
+	page := max(request.Page, 1)
+	pageSize := max(request.PageSize, 0)
 	total := len(items)
 	return &listV2[T]{Items: paginateV2(items, page, pageSize), Page: pageV2{Page: page, PageSize: pageSize, Total: total}}
 }
