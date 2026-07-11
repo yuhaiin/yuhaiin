@@ -36,6 +36,10 @@ type ApplyRequest struct {
 }
 
 type Status struct {
-	Running bool   `json:"running"`
-	Error   string `json:"error"`
+	Running         bool   `json:"running"`
+	Stage           string `json:"stage"`
+	Progress        int    `json:"progress"`
+	BytesDownloaded int64  `json:"bytesDownloaded"`
+	TotalBytes      int64  `json:"totalBytes"`
+	Error           string `json:"error"`
 }

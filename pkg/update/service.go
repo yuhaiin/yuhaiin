@@ -165,9 +165,22 @@ func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest
 	if supported, reason := s.installer.Supported(); !supported {
 		return errors.New(reason)
 	}
+
+	s.mu.Lock()
+	if s.status.Running {
+		s.mu.Unlock()
+		return errors.New("an update is already running")
+	}
+	s.status = contractupdate.Status{Running: true, Stage: "preparing"}
+	s.mu.Unlock()
+	fail := func(err error) error {
+		s.finishUpdate(err)
+		return err
+	}
+
 	releases, err := s.releases(ctx)
 	if err != nil {
-		return err
+		return fail(err)
 	}
 	channel := request.Channel
 	if channel == "" {
@@ -178,22 +191,19 @@ func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest
 	}
 	selected, ok := selectReleaseChannel(releases, s.current, s.currentCommit, s.currentTimestamp, normalizeChannel(channel), s.targetOS, s.targetArch)
 	if !ok || selected.Tag != request.TargetTag {
-		return errors.New("requested release is no longer available")
+		return fail(errors.New("requested release is no longer available"))
 	}
 
 	s.mu.Lock()
-	if s.status.Running {
-		s.mu.Unlock()
-		return errors.New("an update is already running")
-	}
-	s.status = contractupdate.Status{Running: true}
+	s.status.Stage = "downloading"
+	s.status.Progress = 0
+	s.status.BytesDownloaded = 0
+	s.status.TotalBytes = selected.Asset.Size
 	s.mu.Unlock()
 
 	go func() {
 		err := s.downloadAndInstall(context.Background(), selected.Asset)
-		s.mu.Lock()
-		s.status = contractupdate.Status{Error: errorString(err)}
-		s.mu.Unlock()
+		s.finishUpdate(err)
 	}()
 	return nil
 }
@@ -202,6 +212,35 @@ func (s *Service) Status(context.Context) contractupdate.Status {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.status
+}
+
+func (s *Service) updateProgress(stage string, downloaded, total int64) {
+	progress := 0
+	if total > 0 {
+		progress = int(downloaded * 100 / total)
+		if progress > 100 {
+			progress = 100
+		}
+	}
+	s.mu.Lock()
+	s.status.Stage = stage
+	s.status.Progress = progress
+	s.status.BytesDownloaded = downloaded
+	s.status.TotalBytes = total
+	s.mu.Unlock()
+}
+
+func (s *Service) finishUpdate(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.status.Running = false
+	s.status.Error = errorString(err)
+	if err != nil {
+		s.status.Stage = "error"
+		return
+	}
+	s.status.Stage = "completed"
+	s.status.Progress = 100
 }
 
 type release struct {
@@ -379,7 +418,12 @@ func (s *Service) downloadAndInstall(ctx context.Context, asset Asset) error {
 		return err
 	}
 	tmpPath := tmp.Name()
-	if err := download(ctx, s.client, asset.URL, tmp); err != nil {
+	if err := download(ctx, s.client, asset.URL, tmp, func(downloaded, total int64) {
+		if total <= 0 {
+			total = asset.Size
+		}
+		s.updateProgress("downloading", downloaded, total)
+	}); err != nil {
 		tmp.Close()
 		_ = os.Remove(tmpPath)
 		return err
@@ -388,6 +432,7 @@ func (s *Service) downloadAndInstall(ctx context.Context, asset Asset) error {
 		_ = os.Remove(tmpPath)
 		return err
 	}
+	s.updateProgress("verifying", asset.Size, asset.Size)
 	checksum, err := downloadText(ctx, s.client, asset.ChecksumURL)
 	if err != nil {
 		_ = os.Remove(tmpPath)
@@ -407,6 +452,7 @@ func (s *Service) downloadAndInstall(ctx context.Context, asset Asset) error {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("checksum mismatch: got %s want %s", hash, want)
 	}
+	s.updateProgress("installing", asset.Size, asset.Size)
 	if err := s.installer.Start(ctx, tmpPath); err != nil {
 		_ = os.Remove(tmpPath)
 		return err
@@ -423,7 +469,7 @@ func (s *Service) assetChecksum(ctx context.Context, asset Asset) (string, error
 	return parseChecksum(text, asset.Name)
 }
 
-func download(ctx context.Context, client *http.Client, rawURL string, dst *os.File) error {
+func download(ctx context.Context, client *http.Client, rawURL string, dst *os.File, progress func(downloaded, total int64)) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return err
@@ -436,8 +482,25 @@ func download(ctx context.Context, client *http.Client, rawURL string, dst *os.F
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("download failed: %s", resp.Status)
 	}
-	_, err = io.Copy(dst, io.LimitReader(resp.Body, 512<<20))
+	writer := progressWriter{writer: dst, total: resp.ContentLength, progress: progress}
+	_, err = io.Copy(&writer, io.LimitReader(resp.Body, 512<<20))
 	return err
+}
+
+type progressWriter struct {
+	writer   io.Writer
+	total    int64
+	written  int64
+	progress func(downloaded, total int64)
+}
+
+func (w *progressWriter) Write(p []byte) (int, error) {
+	n, err := w.writer.Write(p)
+	w.written += int64(n)
+	if w.progress != nil {
+		w.progress(w.written, w.total)
+	}
+	return n, err
 }
 
 func downloadText(ctx context.Context, client *http.Client, rawURL string) (string, error) {
