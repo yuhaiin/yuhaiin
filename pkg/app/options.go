@@ -16,9 +16,13 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
+	runtimepprof "runtime/pprof"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
@@ -331,22 +335,62 @@ func (w *wrapResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return http.NewResponseController(w.ResponseWriter).Hijack()
 }
 
-func RegisterHTTP(mux *http.ServeMux) {
-	if disabledPprof, _ := strconv.ParseBool("DISABLED_PPROF"); !disabledPprof {
+var (
+	pprofEnabled    atomic.Bool
+	pprofConfigured atomic.Bool
+	pprofMu         sync.Mutex
+)
+
+func setPprofEnabled(enabled bool) {
+	pprofConfigured.Store(true)
+	if disabledByEnv, _ := strconv.ParseBool(os.Getenv("DISABLED_PPROF")); disabledByEnv {
+		enabled = false
+	}
+
+	pprofMu.Lock()
+	defer pprofMu.Unlock()
+	if pprofEnabled.Load() == enabled {
+		return
+	}
+
+	pprofEnabled.Store(enabled)
+	if enabled {
 		runtime.SetCPUProfileRate(25)
 		runtime.SetBlockProfileRate(1000)
 		runtime.SetMutexProfileFraction(20)
-		mux.HandleFunc("GET /debug/pprof/", pprof.Index)
-		mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
-		mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
-		mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
-
-		mux.HandleFunc("GET /debug/pprof/delta_heap", pyroscopepprof.Heap)
-		mux.HandleFunc("GET /debug/pprof/delta_block", pyroscopepprof.Block)
-		mux.HandleFunc("GET /debug/pprof/delta_mutex", pyroscopepprof.Mutex)
-
+		return
 	}
+
+	runtime.SetCPUProfileRate(0)
+	runtimepprof.StopCPUProfile()
+	runtime.SetBlockProfileRate(0)
+	runtime.SetMutexProfileFraction(0)
+	debug.FreeOSMemory()
+}
+
+func pprofHandler(handler func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !pprofEnabled.Load() {
+			http.NotFound(w, r)
+			return
+		}
+		handler(w, r)
+	}
+}
+
+func RegisterHTTP(mux *http.ServeMux) {
+	if !pprofConfigured.Load() {
+		setPprofEnabled(true)
+	}
+	mux.HandleFunc("GET /debug/pprof/", pprofHandler(pprof.Index))
+	mux.HandleFunc("GET /debug/pprof/cmdline", pprofHandler(pprof.Cmdline))
+	mux.HandleFunc("GET /debug/pprof/profile", pprofHandler(pprof.Profile))
+	mux.HandleFunc("GET /debug/pprof/symbol", pprofHandler(pprof.Symbol))
+	mux.HandleFunc("GET /debug/pprof/trace", pprofHandler(pprof.Trace))
+
+	mux.HandleFunc("GET /debug/pprof/delta_heap", pprofHandler(pyroscopepprof.Heap))
+	mux.HandleFunc("GET /debug/pprof/delta_block", pprofHandler(pyroscopepprof.Block))
+	mux.HandleFunc("GET /debug/pprof/delta_mutex", pprofHandler(pyroscopepprof.Mutex))
 
 	HandleFunc(mux, nil, "OPTIONS /", func(w http.ResponseWriter, r *http.Request) error { return nil })
 

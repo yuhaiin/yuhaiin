@@ -67,6 +67,7 @@ func (c *SettingsController) Apply(settings contractsettings.Settings) {
 	}
 
 	configuration.IPv6.Store(settings.IPv6)
+	setPprofEnabled(settings.Pprof)
 	if settings.Advanced.UDPBufferSize > 2048 && settings.Advanced.UDPBufferSize < 65535 {
 		configuration.UDPBufferSize.Store(int(settings.Advanced.UDPBufferSize))
 	}

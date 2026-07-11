@@ -1,6 +1,13 @@
 package store
 
-import "testing"
+import (
+	"context"
+	"path/filepath"
+	"testing"
+
+	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
+	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+)
 
 func TestLogLevelCodeRoundTrip(t *testing.T) {
 	levels := []struct {
@@ -24,5 +31,34 @@ func TestLogLevelCodeRoundTrip(t *testing.T) {
 	}
 	if got := logLevelCode("warn"); got != 3 {
 		t.Errorf("logLevelCode(warn) = %d, want 3", got)
+	}
+}
+
+func TestSettingsStorePprofDefaultsToEnabledAndPersists(t *testing.T) {
+	ctx := context.Background()
+	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqliteStore.Close()
+
+	store := NewSettingsStore(sqliteStore.DB())
+	settings, err := store.Load(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !settings.Pprof {
+		t.Fatal("pprof should preserve the legacy enabled default")
+	}
+
+	if _, err := store.Save(ctx, contractsettings.Settings{Pprof: false}); err != nil {
+		t.Fatal(err)
+	}
+	settings, err = store.Load(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.Pprof {
+		t.Fatal("pprof setting was not persisted")
 	}
 }

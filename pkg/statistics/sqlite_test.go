@@ -140,6 +140,69 @@ func TestTelemetryDimensionsAggregateTrafficAndFailures(t *testing.T) {
 	}
 }
 
+func TestTelemetryDimensionReturnsSQLSortedTopValues(t *testing.T) {
+	ctx := context.Background()
+	connections := NewSQLiteConnStore(paths.PathGenerator.State(t.TempDir()), nil)
+	defer connections.Close()
+
+	bucket := time.Now().UTC().Truncate(time.Hour).Unix()
+	for _, entry := range []struct {
+		value    string
+		download uint64
+		upload   uint64
+	}{
+		{value: "alpha", download: 10},
+		{value: "bravo", download: 100},
+		{value: "tie-low-failures", download: 50},
+		{value: "tie-high-failures", download: 50},
+	} {
+		if _, err := connections.sqliteDB.ExecContext(ctx, `
+			INSERT INTO traffic_dimension_hourly(bucket_start_utc, dimension, value, upload_bytes, download_bytes, updated_at)
+			VALUES (?, 'protocol', ?, ?, ?, ?)
+		`, bucket, entry.value, entry.upload, entry.download, bucket); err != nil {
+			t.Fatalf("seed traffic telemetry: %v", err)
+		}
+	}
+	for _, entry := range []struct {
+		value    string
+		failures uint64
+	}{
+		{value: "tie-high-failures", failures: 3},
+		{value: "failure-only", failures: 9},
+	} {
+		if _, err := connections.sqliteDB.ExecContext(ctx, `
+			INSERT INTO failure_dimension_hourly(bucket_start_utc, dimension, value, failed_count, updated_at)
+			VALUES (?, 'protocol', ?, ?, ?)
+		`, bucket, entry.value, entry.failures, bucket); err != nil {
+			t.Fatalf("seed failure telemetry: %v", err)
+		}
+	}
+
+	items, err := connections.telemetryDimension(ctx, "protocol", time.Unix(bucket-1, 0), time.Unix(bucket+1, 0), 3)
+	if err != nil {
+		t.Fatalf("query telemetry dimension: %v", err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("expected 3 telemetry items, got %d: %+v", len(items), items)
+	}
+	for i, want := range []string{"bravo", "tie-high-failures", "tie-low-failures"} {
+		if items[i].Value != want {
+			t.Fatalf("unexpected item %d: got %+v, want value %q", i, items[i], want)
+		}
+	}
+	if items[1].Failures != "3" {
+		t.Fatalf("unexpected failure count: %+v", items[1])
+	}
+
+	items, err = connections.telemetryDimension(ctx, "protocol", time.Unix(bucket-1, 0), time.Unix(bucket+1, 0), 5)
+	if err != nil {
+		t.Fatalf("query telemetry dimension including failure-only value: %v", err)
+	}
+	if got := items[len(items)-1]; got.Value != "failure-only" || got.Failures != "9" {
+		t.Fatalf("failure-only telemetry value missing: %+v", items)
+	}
+}
+
 func TestSQLiteTotalCacheImportsLegacyFlowData(t *testing.T) {
 	t.Parallel()
 
