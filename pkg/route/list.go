@@ -382,6 +382,10 @@ func (s *Lists) closeCurrentGeoip() {
 }
 
 func (s *Lists) refreshGeoip(ctx context.Context, download string, force bool) string {
+	if strings.TrimSpace(download) == "" {
+		return ""
+	}
+
 	var err error
 	if force {
 		err = s.downloader.Download(ctx, download, s.closeCurrentGeoip)
@@ -390,7 +394,7 @@ func (s *Lists) refreshGeoip(ctx context.Context, download string, force bool) s
 	}
 
 	s.geoipmu.Lock()
-	if s.geoip.m == nil {
+	if s.geoip != nil && s.geoip.m == nil {
 		s.geoip = nil
 	}
 	s.geoipmu.Unlock()
@@ -485,8 +489,11 @@ func (s *Lists) SaveContractConfig(ctx context.Context, req contractroute.ListCo
 		s.resetRefreshInterval(refreshInterval)
 	}
 	settings.RefreshInterval = refreshInterval
-	settings.MaxMindDBDownloadURL = req.MaxMindDBGeoIP.DownloadURL
-	settings.MaxMindDBError = s.refreshGeoip(ctx, settings.MaxMindDBDownloadURL, false)
+	if settings.MaxMindDBDownloadURL != req.MaxMindDBGeoIP.DownloadURL {
+		settings.MaxMindDBDownloadURL = req.MaxMindDBGeoIP.DownloadURL
+		// The database is downloaded by RefreshContract, not while saving config.
+		settings.MaxMindDBError = ""
+	}
 	settings.Error = ""
 	err = s.settings.SaveListSettings(ctx, settings)
 	return err
