@@ -67,7 +67,7 @@ type NodeController interface {
 	Save(context.Context, contractnode.Node) (contractnode.Node, error)
 	Remove(context.Context, string) error
 	Use(context.Context, string) error
-	Close(context.Context, string) error
+	CloseNode(context.Context, string) error
 	Latency(context.Context, string, contractnode.LatencyRequest) (contractnode.LatencyResponse, error)
 }
 type SubscriptionController interface {

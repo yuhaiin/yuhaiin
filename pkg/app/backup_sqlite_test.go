@@ -106,6 +106,11 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	if !bytes.Equal(first, second) {
 		t.Fatal("identical configuration snapshots differ")
 	}
+	firstHash := calculateBytesHash(first, contractbackup.S3{})
+	secondHash := calculateBytesHash(second, contractbackup.S3{})
+	if firstHash != secondHash {
+		t.Fatalf("identical configuration snapshot hashes differ: %s != %s", firstHash, secondHash)
+	}
 
 	snapshotPath := filepath.Join(t.TempDir(), "state.db")
 	if err := os.WriteFile(snapshotPath, first, 0o600); err != nil {

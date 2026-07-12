@@ -17,6 +17,11 @@ type NodeStore struct {
 	db *sql.DB
 }
 
+const (
+	selectedTCPNodeMetadataKey = "selected_tcp_node_v2"
+	selectedUDPNodeMetadataKey = "selected_udp_node_v2"
+)
+
 func NewNodeStore(db *sql.DB) *NodeStore {
 	return &NodeStore{db: db}
 }
@@ -31,6 +36,9 @@ type NodeQueryer interface {
 }
 
 func (s *NodeStore) Save(ctx context.Context, node contractnode.Node, updatedAt int64) error {
+	if s == nil || s.db == nil {
+		return errors.New("node store database is nil")
+	}
 	return SaveNodeContract(ctx, s.db, node, updatedAt)
 }
 
@@ -98,10 +106,16 @@ func SaveNodeContract(ctx context.Context, execer NodeExecer, node contractnode.
 }
 
 func (s *NodeStore) Get(ctx context.Context, id string) (contractnode.Node, error) {
+	if s == nil || s.db == nil {
+		return contractnode.Node{}, errors.New("node store database is nil")
+	}
 	return getNodeContract(ctx, s.db, id)
 }
 
 func (s *NodeStore) List(ctx context.Context) ([]contractnode.Node, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("node store database is nil")
+	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT data_json
 		FROM nodes_v2
@@ -131,12 +145,104 @@ func (s *NodeStore) List(ctx context.Context) ([]contractnode.Node, error) {
 }
 
 func (s *NodeStore) Delete(ctx context.Context, id string) error {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM nodes_v2 WHERE id = ?`, id)
+	if s == nil || s.db == nil {
+		return errors.New("node store database is nil")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin node delete transaction failed: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM node_tags WHERE target_kind = 'node' AND target_id = ?`, id); err != nil {
+		return fmt.Errorf("delete node tag members for %q failed: %w", id, err)
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM nodes_v2 WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("delete node contract %q failed: %w", id, err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("%w: node %s not found", ErrNotFound, id)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit node delete transaction failed: %w", err)
+	}
+	return nil
+}
+
+func (s *NodeStore) Selected(ctx context.Context, tcp bool) (contractnode.Node, bool, error) {
+	if s == nil || s.db == nil {
+		return contractnode.Node{}, false, errors.New("node store database is nil")
+	}
+	key := selectedUDPNodeMetadataKey
+	if tcp {
+		key = selectedTCPNodeMetadataKey
+	}
+	var id string
+	err := s.db.QueryRowContext(ctx, `SELECT value FROM metadata WHERE key = ?`, key).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) || id == "" {
+		return contractnode.Node{}, false, nil
+	}
+	if err != nil {
+		return contractnode.Node{}, false, fmt.Errorf("load metadata %q failed: %w", key, err)
+	}
+	node, err := s.Get(ctx, id)
+	if errors.Is(err, ErrNotFound) {
+		return contractnode.Node{}, false, nil
+	}
+	return node, err == nil, err
+}
+
+func (s *NodeStore) Use(ctx context.Context, id string) error {
+	if _, err := s.Get(ctx, id); err != nil {
+		return err
+	}
+	if s == nil || s.db == nil {
+		return errors.New("node store database is nil")
+	}
+	for key, value := range map[string]string{
+		selectedTCPNodeMetadataKey: id,
+		selectedUDPNodeMetadataKey: id,
+	} {
+		if _, err := s.db.ExecContext(ctx, `
+			INSERT INTO metadata(key, value)
+			VALUES (?, ?)
+			ON CONFLICT(key) DO UPDATE SET value = excluded.value
+		`, key, value); err != nil {
+			return fmt.Errorf("update metadata %q failed: %w", key, err)
+		}
+	}
+	return nil
+}
+
+func (s *NodeStore) AddTag(ctx context.Context, tag, kind, target string) error {
+	if s == nil || s.db == nil {
+		return errors.New("node store database is nil")
+	}
+	if kind == "" {
+		kind = "node"
+	}
+	if kind != "node" && kind != "tag" {
+		return fmt.Errorf("unknown node tag target kind %q", kind)
+	}
+	if tag == target && kind == "tag" {
+		return nil
+	}
+	if _, err := s.db.ExecContext(ctx, `
+		INSERT INTO node_tags(tag_name, target_kind, target_id, updated_at)
+		VALUES (?, ?, ?, unixepoch())
+		ON CONFLICT(tag_name, target_kind, target_id) DO UPDATE SET updated_at = excluded.updated_at
+	`, tag, kind, target); err != nil {
+		return fmt.Errorf("insert node tag failed: %w", err)
+	}
+	return nil
+}
+
+func (s *NodeStore) DeleteTag(ctx context.Context, tag string) error {
+	if s == nil || s.db == nil {
+		return errors.New("node store database is nil")
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM node_tags WHERE tag_name = ?`, tag); err != nil {
+		return fmt.Errorf("delete node tag %q failed: %w", tag, err)
 	}
 	return nil
 }

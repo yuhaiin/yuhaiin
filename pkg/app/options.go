@@ -38,7 +38,7 @@ import (
 
 type AppInstance struct {
 	Node        httpapi.NodeController
-	NodeManager *node.Manager
+	NodeRuntime *node.NodeRuntime
 	Tools       httpapi.ToolsController
 	Subscribe   httpapi.SubscriptionController
 	Connections httpapi.ConnectionMonitor
@@ -146,8 +146,8 @@ func registerV2HTTP(app *AppInstance) {
 			routeListStore = plainstore.NewRouteListStore(db)
 			routeRuleStore = plainstore.NewRouteRuleStore(db)
 			routeTagStore = plainstore.NewRouteTagStore(db)
-			if app.NodeManager != nil {
-				subscribeController = node.NewContractSubscriptionController(app.NodeManager, nodeStore, subscriptionStore)
+			if app.NodeRuntime != nil {
+				subscribeController = node.NewSubscribe(app.NodeRuntime, subscriptionStore)
 			}
 		}
 	}

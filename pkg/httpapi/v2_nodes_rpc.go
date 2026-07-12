@@ -54,11 +54,6 @@ func (a v2API) saveNode(ctx context.Context, request *contractnode.Node) (*contr
 	if err != nil {
 		return nil, badRequest(err)
 	}
-	if a.services.Nodes != nil {
-		if err := a.services.Nodes.Save(ctx, value, 0); err != nil {
-			return nil, badRequest(err)
-		}
-	}
 	return &value, nil
 }
 func (a v2API) selectedNodes(ctx context.Context, _ *emptyRequest) (*contractnode.Selection, error) {
@@ -95,19 +90,14 @@ func (a v2API) deleteNode(ctx context.Context, request *idRequest) (*emptyRespon
 	if a.services.Node == nil && a.services.Nodes == nil {
 		return nil, unavailable("node service is unavailable")
 	}
-	removed := false
 	if a.services.Node != nil {
 		if err := a.services.Node.Remove(ctx, request.ID); err != nil {
 			return nil, &rpcError{status: 404, code: "not_found", message: err.Error()}
 		}
-		removed = true
+		return &emptyResponse{}, nil
 	}
-	if a.services.Nodes != nil {
-		if err := a.services.Nodes.Delete(ctx, request.ID); err != nil {
-			if !removed || !errors.Is(err, plainstore.ErrNotFound) {
-				return nil, err
-			}
-		}
+	if err := a.services.Nodes.Delete(ctx, request.ID); err != nil {
+		return nil, err
 	}
 	return &emptyResponse{}, nil
 }
@@ -140,7 +130,7 @@ func (a v2API) closeNode(ctx context.Context, request *idRequest) (*emptyRespons
 	if a.services.Node == nil {
 		return nil, unavailable("node controller is unavailable")
 	}
-	if err := a.services.Node.Close(ctx, request.ID); err != nil {
+	if err := a.services.Node.CloseNode(ctx, request.ID); err != nil {
 		return nil, badRequest(err)
 	}
 	return &emptyResponse{}, nil

@@ -10,24 +10,6 @@ import (
 	contracttools "github.com/Asutorufa/yuhaiin/pkg/contract/tools"
 )
 
-// RegisterRoute is useful for small standalone JSON endpoints. V2 itself uses
-// addRPCRoute so handlers also receive the request context.
-func RegisterRoute[Request, Response any](mux *http.ServeMux, path string, handler func(*Request) (*Response, error)) {
-	mux.HandleFunc("POST "+path, func(w http.ResponseWriter, r *http.Request) {
-		var request Request
-		if err := readJSONBody(r, &request); err != nil {
-			_ = writeError(w, http.StatusBadRequest, "bad_request", err.Error())
-			return
-		}
-		response, err := handler(&request)
-		if err != nil {
-			_ = writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
-			return
-		}
-		_ = writeJSON(w, http.StatusOK, response)
-	})
-}
-
 func toolsLogsV2(services V2Services) func(http.ResponseWriter, *http.Request) error {
 	return func(w http.ResponseWriter, r *http.Request) error {
 		if services.Tools == nil {

@@ -27,7 +27,7 @@ func TestSet(t *testing.T) {
 
 	fmt.Println(host, portInt)
 
-	mg := newTestManager(t)
+	runtime := newTestRuntime(t)
 	p1 := testNode(t, "a", "feefe")
 	fixed, err := contractnode.NewTypedProtocol(contractnode.Fixed{
 		Host: host,
@@ -42,12 +42,12 @@ func TestSet(t *testing.T) {
 		Enabled: true,
 		Chain:   []contractnode.Protocol{fixed},
 	}
-	_, err = mg.SaveContract(context.Background(), p1)
+	_, err = runtime.Save(context.Background(), p1)
 	assert.NoError(t, err)
-	_, err = mg.SaveContract(context.Background(), p2)
+	_, err = runtime.Save(context.Background(), p2)
 	assert.NoError(t, err)
 
-	se, err := NewContractSet([]string{"a", "b"}, "round_robin", mg)
+	se, err := NewContractSet([]string{"a", "b"}, "round_robin", runtime)
 	assert.NoError(t, err)
 
 	c, err := netapi.ParseAddress("tcp", "www.example.com")

@@ -46,25 +46,23 @@ func RegisterSubscriptionParsers(
 }
 
 type Subscribe struct {
-	n             *Manager
-	nodes         *plainstore.NodeStore
+	runtime       *NodeRuntime
 	subscriptions *plainstore.SubscriptionStore
 }
 
-func NewSubscribe(manager *Manager, nodes *plainstore.NodeStore, subscriptions *plainstore.SubscriptionStore) *Subscribe {
+func NewSubscribe(runtime *NodeRuntime, subscriptions *plainstore.SubscriptionStore) *Subscribe {
 	return &Subscribe{
-		n:             manager,
-		nodes:         nodes,
+		runtime:       runtime,
 		subscriptions: subscriptions,
 	}
 }
 
-func (l *Subscribe) update(ctx context.Context, names ...string) error {
-	if l == nil || l.subscriptions == nil {
+func (s *Subscribe) Update(ctx context.Context, names []string) error {
+	if s == nil || s.subscriptions == nil {
 		return errors.New("subscription store is unavailable")
 	}
 	if len(names) == 0 {
-		links, err := l.subscriptions.ListLinks(ctx)
+		links, err := s.subscriptions.ListLinks(ctx)
 		if err != nil {
 			return err
 		}
@@ -76,7 +74,7 @@ func (l *Subscribe) update(ctx context.Context, names ...string) error {
 
 	var errs error
 	for _, name := range names {
-		link, ok, err := l.subscriptions.GetLink(ctx, name)
+		link, ok, err := s.subscriptions.GetLink(ctx, name)
 		if err != nil {
 			errs = errors.Join(errs, err)
 			continue
@@ -87,9 +85,9 @@ func (l *Subscribe) update(ctx context.Context, names ...string) error {
 
 		scheme, _, _ := system.GetScheme(link.URL)
 		if scheme == "yuhaiin" {
-			err = l.savePublish(ctx, link)
+			err = s.savePublish(ctx, link)
 		} else {
-			err = l.fetch(ctx, link)
+			err = s.fetch(ctx, link)
 		}
 		if err != nil {
 			log.Error("get one link failed", "err", err)
@@ -139,7 +137,7 @@ func (n *Subscribe) fetch(ctx context.Context, link contractsubscription.Link) e
 		return err
 	}
 
-	return n.n.ReplaceRemoteContractNodes(link.Name, nodes)
+	return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, nodes)
 }
 
 type trimBase64Reader struct {
@@ -168,7 +166,7 @@ func (n *Subscribe) savePublish(ctx context.Context, link contractsubscription.L
 	}
 
 	if len(yu.Points) > 0 {
-		return n.n.ReplaceRemoteContractNodes(link.Name, yu.Points)
+		return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, yu.Points)
 	}
 	if yu.Remote == nil {
 		return nil
@@ -178,7 +176,7 @@ func (n *Subscribe) savePublish(ctx context.Context, link contractsubscription.L
 	if err != nil {
 		return err
 	}
-	return n.n.ReplaceRemoteContractNodes(link.Name, nodes)
+	return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, nodes)
 }
 
 func (n *Subscribe) resolveRemotePublish(ctx context.Context, publish contractsubscription.Publish) ([]contractnode.Node, error) {
@@ -240,7 +238,7 @@ func (n *Subscribe) resolveRemotePublish(ctx context.Context, publish contractsu
 	return resp.Points, nil
 }
 
-func (s *Subscribe) ResolvePublishContract(ctx context.Context, name string, req contractsubscription.ResolvePublishRequest) (contractsubscription.ResolvePublishResponse, error) {
+func (s *Subscribe) ResolvePublish(ctx context.Context, name string, req contractsubscription.ResolvePublishRequest) (contractsubscription.ResolvePublishResponse, error) {
 	if s == nil || s.subscriptions == nil {
 		return contractsubscription.ResolvePublishResponse{}, errors.New("subscription store is unavailable")
 	}

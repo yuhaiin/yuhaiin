@@ -163,11 +163,11 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	configuration.ProxyChain.Set(direct.Default)
 	// Proxy and DNS runtime objects are created only after every legacy store
 	// has been migrated into the plain SQLite model.
-	nodeManager := AddCloser(closers, "node_manager", node.NewManager(paths.PathGenerator.State(so.ConfigPath)))
+	nodeRuntime := AddCloser(closers, "node_runtime", node.NewNodeRuntime(paths.PathGenerator.State(so.ConfigPath)))
 	dns := AddCloser(closers, "resolver", resolver.NewResolver(configuration.ProxyChain))
 	list := AddCloser(closers, "lists", route.NewLists(routeListStore, routeSettingsStore, so.ConfigPath))
 	// bypass dialer and dns request
-	router := AddCloser(closers, "router", route.NewRoute(nodeManager.Outbound(), dns, list, so.ProcessDumper))
+	router := AddCloser(closers, "router", route.NewRoute(nodeRuntime, dns, list, so.ProcessDumper))
 	rules := route.NewRules(routeRuleStore, routeSettingsStore, router)
 	// connections' statistic & flow data
 	stcs := AddCloser(closers, "statistic", statistics.NewSQLiteConnStore(
@@ -214,8 +214,8 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		StartOptions: so,
 		Mux:          mux,
 		Tools:        tools,
-		Node:         node.NewContractController(nodeManager),
-		NodeManager:  nodeManager,
+		Node:         nodeRuntime,
+		NodeRuntime:  nodeRuntime,
 		Connections:  statistics.NewConnectionMonitor(stcs),
 		Lists:        route.NewContractListController(list),
 		Rules:        route.NewContractRuleController(rules),

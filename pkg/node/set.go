@@ -18,8 +18,7 @@ import (
 
 type Set struct {
 	netapi.EmptyDispatch
-	manager   *Manager
-	outbound  *Outbound
+	runtime   *NodeRuntime
 	Nodes     []string
 	randomKey id.UUID
 
@@ -27,15 +26,14 @@ type Set struct {
 	strategy string
 }
 
-func NewContractSet(nodes []string, strategy string, m *Manager) (netapi.Proxy, error) {
+func NewContractSet(nodes []string, strategy string, runtime *NodeRuntime) (netapi.Proxy, error) {
 	ns := slices.Compact(nodes)
 	if len(ns) == 0 {
 		return nil, fmt.Errorf("nodes is empty")
 	}
 
 	s := &Set{
-		manager:   m,
-		outbound:  m.Outbound(),
+		runtime:   runtime,
 		Nodes:     ns,
 		randomKey: id.GenerateUUID(),
 		strategy:  strategy,
@@ -141,7 +139,7 @@ func setDo[T io.Closer](s *Set, ctx context.Context, storeIndex bool, f func(con
 		}
 
 		for i, node := range s.loop {
-			dialer, er := s.outbound.GetDialerByID(ctx, node)
+			dialer, er := s.runtime.GetDialerByID(ctx, node)
 			if er != nil {
 				appendError(er)
 				continue
@@ -204,7 +202,7 @@ func (s *Set) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
 	}
 
 	for _, node := range s.loop {
-		dialer, er := s.outbound.GetDialerByID(ctx, node)
+		dialer, er := s.runtime.GetDialerByID(ctx, node)
 		if er != nil {
 			err = errors.Join(err, er)
 			continue
@@ -227,14 +225,14 @@ func (s *Set) Close() error {
 	// Close the set. This will remove all unused nodes in the set.
 
 	// TODO
-	// because here is called from manager, the mu is already locked, we can't get locker here
+	// because here is called from runtime, the mu is already locked, we can't get locker here
 	// so we need to do it in goroutine
 	go func() {
-		ps := s.manager.GetUsingPoints()
+		ps := s.runtime.getUsingPoints()
 		for _, v := range s.Nodes {
 			// TODO skip myself
 			if !ps.Has(v) {
-				s.manager.Store().Delete(v)
+				s.runtime.proxies.Delete(v)
 			}
 		}
 	}()
