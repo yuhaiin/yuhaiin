@@ -71,6 +71,36 @@ func TestSelectMainReleaseByPublishedAt(t *testing.T) {
 	}
 }
 
+func TestSelectMainReleaseUsesCommitWhenPublishedAtIsStale(t *testing.T) {
+	mainRelease := time.Date(2026, 7, 10, 0, 0, 0, 0, time.UTC)
+	currentBuild := mainRelease.Add(24 * time.Hour)
+	releases := []release{
+		{
+			Tag:         "main",
+			Name:        "main-new",
+			Prerelease:  true,
+			PublishedAt: mainRelease,
+			Assets: []releaseAsset{
+				{Name: "yuhaiin-darwin-arm64", URL: "new"},
+				{Name: "checksums.txt", URL: "sum"},
+			},
+		},
+	}
+
+	got, ok := selectReleaseChannel(
+		releases,
+		"main-old",
+		"old",
+		currentBuild,
+		contractupdate.ChannelMain,
+		"darwin",
+		"arm64",
+	)
+	if !ok || got.Version != "main-new" {
+		t.Fatalf("main selection with stale published_at = %#v, %v", got, ok)
+	}
+}
+
 func TestServiceCheckAndApplyVerifiesChecksum(t *testing.T) {
 	binary := []byte("new binary")
 	hash := sha256.Sum256(binary)

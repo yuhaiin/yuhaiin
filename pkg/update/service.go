@@ -146,6 +146,8 @@ func (s *Service) Check(ctx context.Context, channel string) (contractupdate.Che
 	}
 	selected, ok := selectReleaseChannel(releases, s.current, s.currentCommit, s.currentTimestamp, channel, s.targetOS, s.targetArch)
 	if !ok {
+		log.Info("software update no newer release", "channel", channel, "current", s.current, "commit", s.currentCommit, "os", s.targetOS, "arch", s.targetArch, "releases", len(releases))
+		result.Reason = "no newer release found for this platform"
 		return result, nil
 	}
 	result.TargetVersion = selected.Version
@@ -324,7 +326,7 @@ func selectReleaseChannel(releases []release, current, currentCommit string, cur
 	channel = normalizeChannel(channel)
 	currentVersion := normalizeVersion(current)
 	trimmedCurrent := strings.TrimSpace(current)
-	isCurrentMain := trimmedCurrent == "main" || strings.HasPrefix(trimmedCurrent, "main-")
+	isCurrentMain := trimmedCurrent == "main"
 	var candidates []release
 	assetName := "yuhaiin-" + targetOS + "-" + targetArch
 	if targetOS == "windows" {
@@ -343,9 +345,6 @@ func selectReleaseChannel(releases []release, current, currentCommit string, cur
 		}
 		if channel == contractupdate.ChannelMain {
 			item.Version = mainVersion
-			if sameMainVersion(current, item.Version, currentCommit) || isCurrentMain && !currentTimestamp.IsZero() && !item.PublishedAt.After(currentTimestamp) {
-				continue
-			}
 		} else {
 			item.Version = normalizeVersion(item.Tag)
 			if item.Version == "" || currentVersion == "" || compareVersion(item.Version, currentVersion) <= 0 {
@@ -382,6 +381,14 @@ func selectReleaseChannel(releases []release, current, currentCommit string, cur
 			}
 			return candidates[i].PublishedAt.After(candidates[j].PublishedAt)
 		})
+		selected := candidates[0]
+		if sameMainVersion(current, selected.Version, currentCommit) {
+			return release{}, false
+		}
+		if isCurrentMain && currentCommit == "" && !currentTimestamp.IsZero() && !selected.PublishedAt.After(currentTimestamp) {
+			return release{}, false
+		}
+		return selected, true
 	} else {
 		sort.Slice(candidates, func(i, j int) bool { return compareVersion(candidates[i].Version, candidates[j].Version) > 0 })
 	}
