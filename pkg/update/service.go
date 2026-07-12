@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -287,6 +288,9 @@ func (s *Service) releases(ctx context.Context) ([]release, error) {
 		q := u.Query()
 		q.Set("per_page", "100")
 		q.Set("page", fmt.Sprint(page))
+		// The request still goes through the configured proxy chain, but the
+		// unique query prevents an intermediary from serving an old release list.
+		q.Set("update_cache_bust", strconv.FormatInt(time.Now().UnixNano(), 10))
 		u.RawQuery = q.Encode()
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		if err != nil {
@@ -294,6 +298,8 @@ func (s *Service) releases(ctx context.Context) ([]release, error) {
 		}
 		req.Header.Set("Accept", "application/vnd.github+json")
 		req.Header.Set("User-Agent", version.AppName+"/"+version.Version)
+		req.Header.Set("Cache-Control", "no-cache")
+		req.Header.Set("Pragma", "no-cache")
 		resp, err := s.client.Do(req)
 		if err != nil {
 			return nil, err
