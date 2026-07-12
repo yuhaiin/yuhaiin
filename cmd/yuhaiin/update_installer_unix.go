@@ -164,7 +164,7 @@ func waitForDarwinServiceStop(service string) error {
 }
 
 func updateServicePID(data []byte) int {
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		fields := strings.SplitN(strings.TrimSpace(strings.TrimSuffix(line, ";")), "=", 2)
 		if len(fields) != 2 || !strings.EqualFold(strings.Trim(strings.TrimSpace(fields[0]), "\""), "pid") {
 			continue
