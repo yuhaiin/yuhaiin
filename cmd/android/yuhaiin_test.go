@@ -2,13 +2,76 @@ package yuhaiin
 
 import (
 	"context"
+	"net"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
+
+func TestListenAndroidHTTPPrefersPreviousPort(t *testing.T) {
+	SetSavePath(t.TempDir())
+	GetStore().PutBoolean(AllowLanKey, false)
+	GetStore().PutInt(NewYuhaiinPortKey, -1)
+
+	first, err := listenAndroidHTTP()
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listenerPort(t, first)
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	GetStore().PutInt(NewYuhaiinPortKey, int32(port))
+	second, err := listenAndroidHTTP()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	if got := listenerPort(t, second); got != port {
+		t.Fatalf("listener port = %d, want previous port %d", got, port)
+	}
+}
+
+func TestListenAndroidHTTPFallsBackWhenPreviousPortIsBusy(t *testing.T) {
+	SetSavePath(t.TempDir())
+	GetStore().PutBoolean(AllowLanKey, false)
+	GetStore().PutInt(NewYuhaiinPortKey, -1)
+
+	first, err := listenAndroidHTTP()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	port := listenerPort(t, first)
+
+	GetStore().PutInt(NewYuhaiinPortKey, int32(port))
+	second, err := listenAndroidHTTP()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	if got := listenerPort(t, second); got == port {
+		t.Fatalf("fallback listener reused busy port %d", port)
+	}
+}
+
+func listenerPort(t *testing.T, listener net.Listener) int {
+	t.Helper()
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := strconv.Atoi(port)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return value
+}
 
 func TestConfigureAndroidTUNEnablesPersistedInbound(t *testing.T) {
 	ctx := context.Background()

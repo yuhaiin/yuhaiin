@@ -121,6 +121,13 @@ func proxyHTTPClient() *http.Client {
 	}
 }
 
+// NewProxyHTTPClient returns an HTTP client that routes requests through the
+// configured proxy chain. It is also used by the Android binding for APK
+// update downloads.
+func NewProxyHTTPClient() *http.Client {
+	return proxyHTTPClient()
+}
+
 func (s *Service) Check(ctx context.Context, channel string) (contractupdate.CheckResult, error) {
 	channel = normalizeChannel(channel)
 	result := contractupdate.CheckResult{Supported: s.installer != nil, CurrentVersion: s.current, Channel: channel}

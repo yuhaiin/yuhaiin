@@ -93,7 +93,7 @@ func (a *App) Start(opt *Opts) error {
 		return fmt.Errorf("configure Android TUN before startup: %w", err)
 	}
 
-	lis, err := net.Listen("tcp", net.JoinHostPort(ifOr(GetStore().GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"), "0"))
+	lis, err := listenAndroidHTTP()
 	if err != nil {
 		_ = setting.Close()
 		return err
@@ -108,22 +108,6 @@ func (a *App) Start(opt *Opts) error {
 		_ = lis.Close()
 		return err
 	}
-
-	_, portstr, err := net.SplitHostPort(lis.Addr().String())
-	if err != nil {
-		_ = app.Close()
-		_ = lis.Close()
-		return err
-	}
-
-	port, err := strconv.ParseUint(portstr, 10, 16)
-	if err != nil {
-		_ = app.Close()
-		_ = lis.Close()
-		return err
-	}
-
-	GetStore().PutInt(NewYuhaiinPortKey, int32(port))
 
 	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
@@ -154,6 +138,43 @@ func (a *App) Start(opt *Opts) error {
 	}()
 
 	return nil
+}
+
+func listenAndroidHTTP() (net.Listener, error) {
+	allowLAN := GetStore().GetBoolean(AllowLanKey)
+	preferredPort := GetStore().GetInt(NewYuhaiinPortKey)
+	host := ifOr(allowLAN, "0.0.0.0", "127.0.0.1")
+	var listener net.Listener
+	var err error
+	if preferredPort > 0 && preferredPort <= 65535 {
+		listener, err = net.Listen("tcp", net.JoinHostPort(host, strconv.Itoa(int(preferredPort))))
+		if err == nil {
+			log.Info("android http listener using preferred port", "port", preferredPort)
+		} else {
+			log.Warn("preferred android http port unavailable, using a random port", "port", preferredPort, "err", err)
+		}
+	}
+
+	if listener == nil {
+		listener, err = net.Listen("tcp", net.JoinHostPort(host, "0"))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	_, portstr, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		_ = listener.Close()
+		return nil, err
+	}
+	port, err := strconv.ParseUint(portstr, 10, 16)
+	if err != nil {
+		_ = listener.Close()
+		return nil, err
+	}
+	GetStore().PutInt(NewYuhaiinPortKey, int32(port))
+
+	return listener, nil
 }
 
 // configureAndroidTUN binds the persisted TUN inbound to the file descriptor
