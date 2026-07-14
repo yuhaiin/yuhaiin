@@ -5,8 +5,8 @@ import (
 	"runtime"
 	"sync"
 
+	"codeberg.org/miekg/dns/dnsutil"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
-	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -68,8 +68,8 @@ type Metrics interface {
 	RemoveConnection(n int)
 	AddStreamConnectDuration(t float64)
 	AddDNSProcess(domain string)
-	AddLookupIP(t dns.Type)
-	AddLookupIPFailed(rcode string, t dns.Type)
+	AddLookupIP(t uint16)
+	AddLookupIPFailed(rcode string, t uint16)
 	AddTCPDialFailed(addr string)
 
 	AddStreamRequest()
@@ -102,8 +102,8 @@ func (m *EmptyMetrics) AddBlockConnection(string)           {}
 func (m *EmptyMetrics) RemoveConnection(int)                {}
 func (m *EmptyMetrics) AddStreamConnectDuration(float64)    {}
 func (m *EmptyMetrics) AddDNSProcess(string)                {}
-func (m *EmptyMetrics) AddLookupIPFailed(string, dns.Type)  {}
-func (m *EmptyMetrics) AddLookupIP(dns.Type)                {}
+func (m *EmptyMetrics) AddLookupIPFailed(string, uint16)    {}
+func (m *EmptyMetrics) AddLookupIP(uint16)                  {}
 func (m *EmptyMetrics) AddTCPDialFailed(string)             {}
 func (m *EmptyMetrics) AddStreamRequest()                   {}
 func (m *EmptyMetrics) AddPacketRequest()                   {}
@@ -349,12 +349,12 @@ func (p *Prometheus) AddDNSProcess(domain string) {
 	p.DNSServerProcessTotal.Inc()
 }
 
-func (p *Prometheus) AddLookupIPFailed(rcode string, t dns.Type) {
-	p.LookupIPFailedTotal.WithLabelValues(rcode, t.String()).Inc()
+func (p *Prometheus) AddLookupIPFailed(rcode string, t uint16) {
+	p.LookupIPFailedTotal.WithLabelValues(rcode, dnsutil.TypeToString(t)).Inc()
 }
 
-func (p *Prometheus) AddLookupIP(t dns.Type) {
-	p.LookupIPTotal.WithLabelValues(t.String()).Inc()
+func (p *Prometheus) AddLookupIP(t uint16) {
+	p.LookupIPTotal.WithLabelValues(dnsutil.TypeToString(t)).Inc()
 }
 
 func (p *Prometheus) AddTCPDialFailed(addr string) {

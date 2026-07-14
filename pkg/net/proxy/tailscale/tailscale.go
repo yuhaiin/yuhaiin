@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	mdns "codeberg.org/miekg/dns"
+	"codeberg.org/miekg/dns/rdata"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -22,7 +24,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
-	mdns "github.com/miekg/dns"
 	"golang.org/x/sync/singleflight"
 	"tailscale.com/envknob"
 	"tailscale.com/ipn/ipnstate"
@@ -119,7 +120,7 @@ func (hijackResolver) LookupIP(ctx context.Context, domain string, opts ...func(
 	return configuration.ResolverChain.LookupIP(ctx, domain, opts...)
 }
 
-func (hijackResolver) Raw(ctx context.Context, req mdns.Question) (mdns.Msg, error) {
+func (hijackResolver) Raw(ctx context.Context, req netapi.DNSQuestion) (mdns.Msg, error) {
 	return configuration.ResolverChain.Raw(ctx, req)
 }
 
@@ -578,7 +579,8 @@ func (d *dnsPacket) ReadFrom(buf []byte) (int, net.Addr, error) {
 
 func (d *dnsPacket) WriteTo(buf []byte, addr net.Addr) (int, error) {
 	var msg mdns.Msg
-	if err := msg.Unpack(buf); err != nil {
+	msg.Data = append(msg.Data, buf...)
+	if err := msg.Unpack(); err != nil {
 		return 0, err
 	}
 
@@ -588,29 +590,28 @@ func (d *dnsPacket) WriteTo(buf []byte, addr net.Addr) (int, error) {
 
 	msg.Response = true
 
-	if msg.Question[0].Qtype == mdns.TypeA {
-		q := msg.Question[0]
+	q := netapi.DNSQuestionFromRR(msg.Question[0])
+	if q.Qtype == mdns.TypeA {
 		name := strings.TrimSuffix(q.Name, ".")
 
 		if ip, ok := d.dialer.GetDNSMap()[name]; ok {
 			msg.Answer = []mdns.RR{
 				&mdns.A{
-					Hdr: mdns.RR_Header{
-						Name:   q.Name,
-						Ttl:    20,
-						Class:  mdns.ClassINET,
-						Rrtype: mdns.TypeA,
+					Hdr: mdns.Header{
+						Name:  q.Name,
+						TTL:   20,
+						Class: mdns.ClassINET,
 					},
-					A: ip.AsSlice(),
+					A: rdata.A{Addr: ip},
 				},
 			}
 		}
 	}
 
-	data, err := msg.Pack()
-	if err != nil {
+	if err := msg.Pack(); err != nil {
 		return 0, err
 	}
+	data := append([]byte(nil), msg.Data...)
 
 	select {
 	case <-d.writeDeadline.Wait():

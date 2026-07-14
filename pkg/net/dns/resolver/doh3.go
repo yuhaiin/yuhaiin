@@ -7,11 +7,11 @@ import (
 	"io"
 	"net/http"
 
+	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/miekg/dns"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 )
@@ -83,7 +83,8 @@ func NewDoH3(config Config) (Transport, error) {
 			return p, fmt.Errorf("doh3 post failed: %w", err)
 		}
 
-		err = p.Unpack(buf)
+		p.Data = append([]byte(nil), buf...)
+		err = p.Unpack()
 		return p, err
 	}), nil
 }

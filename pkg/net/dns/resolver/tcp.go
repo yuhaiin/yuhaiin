@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/miekg/dns"
 )
 
 func init() {
@@ -103,7 +103,8 @@ func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *t
 		return p, fmt.Errorf("read data from server failed: %w", err)
 	}
 
-	err = p.Unpack(all)
+	p.Data = append([]byte(nil), all...)
+	err = p.Unpack()
 	return p, err
 }
 

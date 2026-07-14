@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/miekg/dns"
 	"golang.org/x/net/http2"
 )
 
@@ -101,7 +101,8 @@ func NewDoH(config Config) (Transport, error) {
 			return dns.Msg{}, fmt.Errorf("read http body failed: %w", err)
 		}
 
-		if err := p.Unpack(buf); err != nil {
+		p.Data = append([]byte(nil), buf...)
+		if err := p.Unpack(); err != nil {
 			return dns.Msg{}, fmt.Errorf("unpack dns response: %w", err)
 		}
 		return p, nil

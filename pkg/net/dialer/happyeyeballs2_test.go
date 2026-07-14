@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
-	"github.com/miekg/dns"
 )
 
 func TestDial(t *testing.T) {
@@ -126,7 +126,7 @@ func (m *mockResolver) LookupIP(ctx context.Context, domain string, opts ...func
 }
 
 // Raw returns a dns message
-func (m *mockResolver) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+func (m *mockResolver) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
 	return dns.Msg{}, errors.ErrUnsupported
 }
 

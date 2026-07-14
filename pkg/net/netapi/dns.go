@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/miekg/dns"
+	"codeberg.org/miekg/dns"
 )
 
 type LookupIPOption struct {
@@ -25,6 +25,56 @@ type LookupIPOption struct {
 type IPs struct {
 	AAAA []net.IP
 	A    []net.IP
+}
+
+// DNSQuestion is the application-level representation of a DNS question.
+// miekg/dns v2 represents questions as RRs, while the rest of yuhaiin only
+// needs the question header. Keeping that boundary explicit avoids leaking
+// the wire-library representation through resolver interfaces.
+type DNSQuestion struct {
+	Name   string
+	Qtype  uint16
+	Qclass uint16
+}
+
+func DNSQuestionFromRR(rr dns.RR) DNSQuestion {
+	if rr == nil {
+		return DNSQuestion{}
+	}
+	return DNSQuestion{
+		Name:   rr.Header().Name,
+		Qtype:  dns.RRToType(rr),
+		Qclass: rr.Header().Class,
+	}
+}
+
+func (q DNSQuestion) RR() dns.RR {
+	newRR, ok := dns.TypeToRR[q.Qtype]
+	if !ok {
+		return nil
+	}
+	rr := newRR()
+	rr.Header().Name = q.Name
+	rr.Header().Class = q.Qclass
+	return rr
+}
+
+func NewDNSMsg(q DNSQuestion) dns.Msg {
+	m := dns.Msg{
+		MsgHeader: dns.MsgHeader{
+			Response:           true,
+			Opcode:             dns.OpcodeQuery,
+			Authoritative:      false,
+			Truncated:          false,
+			RecursionDesired:   true,
+			RecursionAvailable: true,
+			Rcode:              dns.RcodeSuccess,
+		},
+	}
+	if rr := q.RR(); rr != nil {
+		m.Question = []dns.RR{rr}
+	}
+	return m
 }
 
 func (i *IPs) WhoNotEmpty() []net.IP {
@@ -105,7 +155,7 @@ type Resolver interface {
 	// LookupIP returns a list of ip addresses
 	LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) (*IPs, error)
 	// Raw returns a dns message
-	Raw(ctx context.Context, req dns.Question) (dns.Msg, error)
+	Raw(ctx context.Context, req DNSQuestion) (dns.Msg, error)
 	io.Closer
 	Name() string
 }
@@ -118,19 +168,8 @@ func (e ErrorResolver) LookupIP(_ context.Context, domain string, opts ...func(*
 	return &IPs{}, e(domain)
 }
 func (e ErrorResolver) Close() error { return nil }
-func (e ErrorResolver) Raw(_ context.Context, req dns.Question) (dns.Msg, error) {
-	return dns.Msg{
-		MsgHdr: dns.MsgHdr{
-			Response:           true,
-			Opcode:             dns.OpcodeQuery,
-			Authoritative:      false,
-			Truncated:          false,
-			RecursionDesired:   true,
-			RecursionAvailable: true,
-			Rcode:              dns.RcodeSuccess,
-		},
-		Question: []dns.Question{req},
-	}, nil
+func (e ErrorResolver) Raw(_ context.Context, req DNSQuestion) (dns.Msg, error) {
+	return NewDNSMsg(req), nil
 }
 func (e ErrorResolver) Name() string { return "ErrorResolver" }
 
@@ -172,7 +211,8 @@ func (c *dnsConn) Read(p []byte) (n int, err error) {
 
 func (c *dnsConn) Write(packet []byte) (n int, err error) {
 	var rmsg dns.Msg
-	if err = rmsg.Unpack(packet); err != nil {
+	rmsg.Data = packet
+	if err = rmsg.Unpack(); err != nil {
 		return 0, err
 	}
 
@@ -182,17 +222,17 @@ func (c *dnsConn) Write(packet []byte) (n int, err error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
 	defer cancel()
-	msg, err := c.resolver.Raw(ctx, rmsg.Question[0])
+	msg, err := c.resolver.Raw(ctx, DNSQuestionFromRR(rmsg.Question[0]))
 	if err != nil {
 		return 0, err
 	}
 
-	msg.Id = rmsg.Id
+	msg.ID = rmsg.ID
 
-	data, err := msg.Pack()
-	if err != nil {
+	if err := msg.Pack(); err != nil {
 		return 0, err
 	}
+	data := msg.Data
 
 	c.rbuf.Reset()
 	c.rbuf.Write(data)
@@ -230,7 +270,7 @@ func (r *DynamicResolver) Close() error {
 	return r.r.Close()
 }
 
-func (r *DynamicResolver) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+func (r *DynamicResolver) Raw(ctx context.Context, req DNSQuestion) (dns.Msg, error) {
 	return r.getResolver().Raw(ctx, req)
 }
 
@@ -267,7 +307,7 @@ func (b *bootstrapResolver) LookupIP(ctx context.Context, domain string, opts ..
 	return r.LookupIP(ctx, domain, opts...)
 }
 
-func (b *bootstrapResolver) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+func (b *bootstrapResolver) Raw(ctx context.Context, req DNSQuestion) (dns.Msg, error) {
 	b.mu.RLock()
 	r := b.r
 	b.mu.RUnlock()

@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"github.com/miekg/dns"
 	"tailscale.com/version"
 )
 
@@ -68,7 +68,7 @@ func TestTailscale(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			ips, err := r.Raw(ctx, dns.Question{
+			ips, err := r.Raw(ctx, netapi.DNSQuestion{
 				Name:   "code-server.taild2025.ts.net.",
 				Qtype:  dns.TypeA,
 				Qclass: dns.ClassINET,
@@ -89,7 +89,7 @@ func TestTailscale(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			ips, err := r.Raw(ctx, dns.Question{
+			ips, err := r.Raw(ctx, netapi.DNSQuestion{
 				Name:   "code-server.taild2025.ts.net.",
 				Qtype:  dns.TypeA,
 				Qclass: dns.ClassINET,

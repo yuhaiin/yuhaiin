@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
-	"github.com/miekg/dns"
 	"github.com/quic-go/quic-go"
 	"golang.org/x/net/http2"
 )
@@ -108,7 +108,8 @@ func (d *doq) Do(ctx context.Context, b *Request) (p dns.Msg, err error) {
 		return p, fmt.Errorf("read dns server response failed: %w", err)
 	}
 
-	err = p.Unpack(data)
+	p.Data = append([]byte(nil), data...)
+	err = p.Unpack()
 	return p, err
 }
 

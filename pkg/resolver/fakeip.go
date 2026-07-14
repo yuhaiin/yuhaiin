@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -20,7 +21,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"github.com/miekg/dns"
 )
 
 type Fakedns struct {
@@ -142,7 +142,7 @@ func (f *Fakedns) LookupIP(ctx context.Context, domain string, opts ...func(*net
 	return f.resolver(ctx, domain).LookupIP(ctx, domain, opts...)
 }
 
-func (f *Fakedns) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+func (f *Fakedns) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
 	if req.Qtype == dns.TypeAAAA || req.Qtype == dns.TypeA {
 		if _, ok := f.skipCheck.SearchString(system.RelDomain(req.Name)); ok {
 			netapi.GetContext(ctx).ConnOptions().Resolver().SetFakeIPSkipCheckUpstream(ok)

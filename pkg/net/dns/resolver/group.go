@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/miekg/dns"
+	"codeberg.org/miekg/dns"
 )
 
 type Group struct {

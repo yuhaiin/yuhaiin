@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"github.com/miekg/dns"
 )
 
 type Route struct {
@@ -303,7 +303,7 @@ func (f *Route) LookupIP(ctx context.Context, domain string, opts ...func(*netap
 	return f.Resolver(ctx, domain).LookupIP(ctx, domain, opts...)
 }
 
-func (f *Route) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+func (f *Route) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
 	return f.Resolver(ctx, system.RelDomain(req.Name)).Raw(ctx, req)
 }
 

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 
+	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
@@ -19,7 +20,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/ringbuffer"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"github.com/miekg/dns"
 )
 
 type dnsServer struct {
@@ -240,7 +240,8 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 	defer cancel()
 
 	var qmsg dns.Msg
-	if err := qmsg.Unpack(req.Question); err != nil {
+	qmsg.Data = append(qmsg.Data, req.Question...)
+	if err := qmsg.Unpack(); err != nil {
 		return fmt.Errorf("dns server parse failed: %w", err)
 	}
 
@@ -248,22 +249,18 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 		return fmt.Errorf("question is empty")
 	}
 
-	question := qmsg.Question[0]
+	question := netapi.DNSQuestionFromRR(qmsg.Question[0])
 
 	msg, err := d.resolver.Raw(ctx, question)
 	if err != nil {
-		return fmt.Errorf("do raw request (%v:%v) failed: %w", question.Name, dns.Type(question.Qtype), err)
+		return fmt.Errorf("do raw request (%v:%v) failed: %w", question.Name, question.Qtype, err)
 	}
 
-	msg.Id = qmsg.Id
-
-	respBuf := pool.GetBytes(pool.DefaultSize)
-	defer pool.PutBytes(respBuf)
-
-	bytes, err := msg.PackBuffer(respBuf[:0])
-	if err != nil {
+	msg.ID = qmsg.ID
+	if err := msg.Pack(); err != nil {
 		return err
 	}
+	bytes := msg.Data
 
 	if req.Stream || msg.Truncated {
 		return req.WriteBack(bytes)
@@ -277,12 +274,8 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 	// the header.
 	//
 	clientBufferSize := 512
-	for _, additional := range msg.Extra {
-		// rfc 6891
-		// Values lower than 512 MUST be treated as equal to 512.
-		if additional.Header().Rrtype == dns.TypeOPT && additional.Header().Class > 512 {
-			clientBufferSize = int(additional.Header().Class)
-		}
+	if qmsg.UDPSize > uint16(clientBufferSize) {
+		clientBufferSize = int(qmsg.UDPSize)
 	}
 
 	if len(bytes) > clientBufferSize {
@@ -290,10 +283,10 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 		msg.Answer = nil
 		msg.Ns = nil
 		msg.Extra = nil
-		bytes, err = msg.PackBuffer(respBuf[:0])
-		if err != nil {
+		if err = msg.Pack(); err != nil {
 			return err
 		}
+		bytes = msg.Data
 	}
 
 	return req.WriteBack(bytes)

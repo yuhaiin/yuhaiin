@@ -6,12 +6,13 @@ import (
 	"net/netip"
 	"sync"
 
+	"codeberg.org/miekg/dns"
+	"codeberg.org/miekg/dns/rdata"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/fakeip"
 	dnssystem "github.com/Asutorufa/yuhaiin/pkg/net/dns/system"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"github.com/miekg/dns"
 )
 
 type Hosts struct {
@@ -117,27 +118,15 @@ func (h *Hosts) LookupIP(ctx context.Context, domain string, opts ...func(*netap
 	return h.resolver.LookupIP(ctx, addr.Hostname(), opts...)
 }
 
-func (h *Hosts) newDnsMsg(req dns.Question) dns.Msg {
-	return dns.Msg{
-		MsgHdr: dns.MsgHdr{
-			Id:                 0,
-			Response:           true,
-			Authoritative:      false,
-			RecursionDesired:   false,
-			Rcode:              dns.RcodeSuccess,
-			RecursionAvailable: false,
-		},
-		Question: []dns.Question{
-			{
-				Name:   req.Name,
-				Qtype:  req.Qtype,
-				Qclass: dns.ClassINET,
-			},
-		},
-	}
+func (h *Hosts) newDnsMsg(req netapi.DNSQuestion) dns.Msg {
+	req.Qclass = dns.ClassINET
+	msg := netapi.NewDNSMsg(req)
+	msg.RecursionDesired = false
+	msg.RecursionAvailable = false
+	return msg
 }
 
-func (h *Hosts) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+func (h *Hosts) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
 	if req.Qtype == dns.TypePTR {
 		ip, err := fakeip.RetrieveIPFromPtr(req.Name)
 		if err != nil {
@@ -164,7 +153,7 @@ func (h *Hosts) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 			v = system.AbsDomain(v)
 
 			msg.Answer = append(msg.Answer, &dns.PTR{
-				Ptr: v,
+				PTR: rdata.PTR{Ptr: v},
 			})
 		}
 
@@ -199,13 +188,12 @@ func (h *Hosts) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 		msg := h.newDnsMsg(req)
 		msg.Answer = []dns.RR{
 			&dns.AAAA{
-				Hdr: dns.RR_Header{
-					Name:   req.Name,
-					Rrtype: dns.TypeA,
-					Ttl:    600,
-					Class:  dns.ClassINET,
+				Hdr: dns.Header{
+					Name:  req.Name,
+					TTL:   600,
+					Class: dns.ClassINET,
 				},
-				AAAA: ip.AsSlice(),
+				AAAA: rdata.AAAA{Addr: ip},
 			},
 		}
 		return msg, nil
@@ -218,13 +206,12 @@ func (h *Hosts) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	msg := h.newDnsMsg(req)
 	msg.Answer = []dns.RR{
 		&dns.A{
-			Hdr: dns.RR_Header{
-				Name:   req.Name,
-				Rrtype: dns.TypeA,
-				Ttl:    600,
-				Class:  dns.ClassINET,
+			Hdr: dns.Header{
+				Name:  req.Name,
+				TTL:   600,
+				Class: dns.ClassINET,
 			},
-			A: ip.AsSlice(),
+			A: rdata.A{Addr: ip},
 		},
 	}
 

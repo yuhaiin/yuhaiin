@@ -5,9 +5,10 @@ import (
 	"net/netip"
 	"testing"
 
+	"codeberg.org/miekg/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"github.com/miekg/dns"
 )
 
 func TestDOH(t *testing.T) {
@@ -114,28 +115,28 @@ func TestDOH(t *testing.T) {
 	// t.Log(d.LookupIP(context.TODO(), "yahoo.co.jp"))
 	// t.Log(d.LookupIP(context.TODO(), "115-235-111-150.dhost.00cdn.com"))
 
-	t.Log(d.Raw(context.TODO(), dns.Question{
+	t.Log(d.Raw(context.TODO(), netapi.DNSQuestion{
 		Name:  "www.google.com.",
 		Qtype: dns.TypeA,
 	}))
-	t.Log(d.Raw(context.TODO(), dns.Question{
+	t.Log(d.Raw(context.TODO(), netapi.DNSQuestion{
 		Name:  "www.google.com.",
 		Qtype: dns.TypeA,
 	}))
 
-	t.Log(d.Raw(context.TODO(), dns.Question{
+	t.Log(d.Raw(context.TODO(), netapi.DNSQuestion{
 		Name:  "cdn.v2ex.com.",
 		Qtype: dns.TypeHTTPS,
 	}))
-	t.Log(d.Raw(context.TODO(), dns.Question{
+	t.Log(d.Raw(context.TODO(), netapi.DNSQuestion{
 		Name:  "auth.openai.com.",
 		Qtype: dns.TypeHTTPS,
 	}))
-	t.Log(d.Raw(context.TODO(), dns.Question{
+	t.Log(d.Raw(context.TODO(), netapi.DNSQuestion{
 		Name:  "auth.openai.com.",
 		Qtype: dns.TypeA,
 	}))
-	t.Log(d.Raw(context.TODO(), dns.Question{
+	t.Log(d.Raw(context.TODO(), netapi.DNSQuestion{
 		Name:  "auth.openai.com.",
 		Qtype: dns.TypeAAAA,
 	}))

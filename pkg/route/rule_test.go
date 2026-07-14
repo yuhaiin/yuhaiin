@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"codeberg.org/miekg/dns"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"github.com/miekg/dns"
 )
 
 type staticRuleBook []plainstore.RouteRuleEntry
@@ -175,7 +175,7 @@ func (staticResolver) LookupIP(context.Context, string, ...func(*netapi.LookupIP
 	return &netapi.IPs{A: []net.IP{net.ParseIP("1.2.3.4")}}, nil
 }
 
-func (staticResolver) Raw(context.Context, dns.Question) (dns.Msg, error) {
+func (staticResolver) Raw(context.Context, netapi.DNSQuestion) (dns.Msg, error) {
 	return dns.Msg{}, nil
 }
 

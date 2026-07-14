@@ -5,25 +5,25 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math"
-	"math/rand/v2"
 	"net"
 	"net/netip"
 	"net/url"
 	"sync"
 	"time"
 
+	"codeberg.org/miekg/dns"
+	"codeberg.org/miekg/dns/dnsutil"
+	"codeberg.org/miekg/dns/rdata"
+	"codeberg.org/miekg/dns/svcb"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"github.com/miekg/dns"
 )
 
 var (
@@ -45,7 +45,7 @@ func init() {
 
 type Request struct {
 	dnsRequestBytes []byte
-	Question        dns.Question
+	Question        netapi.DNSQuestion
 	ID              uint16
 	Truncated       bool
 }
@@ -112,12 +112,12 @@ func Register(tYPE string, f func(Config) (Transport, error)) {
 
 var _ netapi.Resolver = (*client)(nil)
 
-func CacheKeyFromQuestion(q dns.Question) string {
+func CacheKeyFromQuestion(q netapi.DNSQuestion) string {
 	return fmt.Sprintf("%s:%d", q.Name, q.Qtype)
 }
 
 type client struct {
-	edns0             dns.RR
+	edns0             dns.EDNS0
 	dialer            Transport
 	rawStore          *lru.SyncLru[string, dns.Msg]
 	config            Config
@@ -126,20 +126,9 @@ type client struct {
 }
 
 func NewClient(config Config, dialer Transport) netapi.Resolver {
-	optrbody := &dns.OPT{
-		Hdr: dns.RR_Header{
-			Name:   ".",
-			Rrtype: dns.TypeOPT,
-		},
-	}
-
-	optrbody.SetUDPSize(8192)
-	optrbody.SetExtendedRcode(dns.RcodeSuccess)
-
+	var subnet *dns.SUBNET
 	if config.Subnet.IsValid() {
-		subnet := &dns.EDNS0_SUBNET{
-			Code: dns.EDNS0SUBNET,
-		}
+		subnet = &dns.SUBNET{}
 
 		ip := config.Subnet.Masked().Addr()
 		if ip.Is6() { // family https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
@@ -148,11 +137,12 @@ func NewClient(config Config, dialer Transport) netapi.Resolver {
 			subnet.Family = 1 // family ipv4 1
 		}
 
-		mask := config.Subnet.Bits()
-		subnet.SourceNetmask = uint8(mask)
-		subnet.Address = ip.AsSlice()
-
-		optrbody.Option = append(optrbody.Option, subnet)
+		subnet.Netmask = uint8(config.Subnet.Bits())
+		subnet.Address = ip
+	}
+	var edns0 dns.EDNS0
+	if subnet != nil {
+		edns0 = subnet
 	}
 
 	c := &client{
@@ -162,7 +152,7 @@ func NewClient(config Config, dialer Transport) netapi.Resolver {
 			lru.WithCapacity[string, dns.Msg](int(configuration.DNSCache)),
 			lru.WithDefaultTimeout[string, dns.Msg](time.Second*600),
 		),
-		edns0: optrbody,
+		edns0: edns0,
 	}
 
 	return c
@@ -184,11 +174,11 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 	switch opt.Mode {
 	case netapi.ResolverModePreferIPv4:
 		log.Debug("lookup ipv4 only", "domain", domain)
-		ips, err := c.lookupIP(ctx, domain, dns.Type(dns.TypeA))
+		ips, err := c.lookupIP(ctx, domain, dns.TypeA)
 		return &netapi.IPs{A: ips}, err
 	case netapi.ResolverModePreferIPv6:
 		log.Debug("lookup ipv6 only", "domain", domain)
-		ips, err := c.lookupIP(ctx, domain, dns.Type(dns.TypeAAAA))
+		ips, err := c.lookupIP(ctx, domain, dns.TypeAAAA)
 		return &netapi.IPs{AAAA: ips}, err
 	case netapi.ResolverModeNoSpecified:
 	}
@@ -201,9 +191,9 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 	var a []net.IP
 	var aerr error
 
-	wg.Go(func() { a, aerr = c.lookupIP(ctx, domain, dns.Type(dns.TypeA)) })
+	wg.Go(func() { a, aerr = c.lookupIP(ctx, domain, dns.TypeA) })
 
-	resp, aaaaerr := c.lookupIP(ctx, domain, dns.Type(dns.TypeAAAA))
+	resp, aaaaerr := c.lookupIP(ctx, domain, dns.TypeAAAA)
 
 	wg.Wait()
 
@@ -229,7 +219,7 @@ func mergerError(i4err, i6err error) error {
 	return fmt.Errorf("ipv6: %w, ipv4: %w", i6err, i4err)
 }
 
-func (c *client) queryWithMetrics(ctx context.Context, req dns.Question) (dns.Msg, error) {
+func (c *client) queryWithMetrics(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
 	metrics.Counter.AddDnsQuery(c.config.Name)
 	now := system.CheapNowNano()
 	msg, err := c.query(ctx, req)
@@ -241,12 +231,12 @@ func (c *client) queryWithMetrics(ctx context.Context, req dns.Question) (dns.Ms
 	return msg, err
 }
 
-func (c *client) query(ctx context.Context, req dns.Question) (dns.Msg, error) {
+func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
 	dialer := c.dialer
 
 	reqMsg := &dns.Msg{
-		MsgHdr: dns.MsgHdr{
-			Id:                 uint16(rand.UintN(math.MaxUint16)),
+		MsgHeader: dns.MsgHeader{
+			ID:                 dns.ID(),
 			Response:           false,
 			Opcode:             0,
 			Authoritative:      false,
@@ -254,28 +244,28 @@ func (c *client) query(ctx context.Context, req dns.Question) (dns.Msg, error) {
 			RecursionDesired:   true,
 			RecursionAvailable: false,
 			Rcode:              0,
+			UDPSize:            8192,
 		},
-		Question: []dns.Question{req},
-		// ! github.com/miekg/dns@v1.1.69/msg.go:745 will change edns0 message
-		// ! which will make data race, so copy here
-		Extra: []dns.RR{dns.Copy(c.edns0)},
+		Question: []dns.RR{req.RR()},
 	}
-
-	buf := pool.GetBytes(8192)
-	defer pool.PutBytes(buf)
-
-	bytes, err := reqMsg.PackBuffer(buf[:0])
-	if err != nil {
+	if c.edns0 != nil {
+		reqMsg.Pseudo = []dns.RR{c.edns0.Clone()}
+	}
+	if err := reqMsg.Pack(); err != nil {
 		return dns.Msg{}, err
 	}
+	bytes := reqMsg.Data
 
 	request := &Request{
 		dnsRequestBytes: bytes,
 		Question:        req,
-		ID:              reqMsg.Id,
+		ID:              reqMsg.ID,
 	}
 
-	var msg dns.Msg
+	var (
+		msg dns.Msg
+		err error
+	)
 
 	for _, v := range []bool{false, true} {
 		request.Truncated = v
@@ -285,7 +275,7 @@ func (c *client) query(ctx context.Context, req dns.Question) (dns.Msg, error) {
 			return dns.Msg{}, fmt.Errorf("dns client do failed: %w", err)
 		}
 
-		if msg.Id != reqMsg.Id {
+		if msg.ID != reqMsg.ID {
 			return dns.Msg{}, fmt.Errorf("id not match")
 		}
 
@@ -302,7 +292,7 @@ func (c *client) query(ctx context.Context, req dns.Question) (dns.Msg, error) {
 
 	ttl := uint32(300)
 	if len(msg.Answer) > 0 {
-		ttl = msg.Answer[0].Header().Ttl
+		ttl = msg.Answer[0].Header().TTL
 	}
 
 	if req.Qtype == dns.TypeHTTPS {
@@ -314,7 +304,7 @@ func (c *client) query(ctx context.Context, req dns.Question) (dns.Msg, error) {
 		args := []any{
 			slog.String("resolver", c.config.Name),
 			slog.Any("host", req.Name),
-			slog.Any("type", dns.Type(req.Qtype)),
+			slog.Any("type", dnsutil.TypeToString(req.Qtype)),
 			slog.Any("code", msg.Rcode),
 			slog.Any("ttl", ttl),
 		}
@@ -330,9 +320,9 @@ func (c *client) query(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	return msg, nil
 }
 
-func (c *client) removeIpHint(req dns.Question, msg dns.Msg) {
+func (c *client) removeIpHint(req netapi.DNSQuestion, msg dns.Msg) {
 	for _, r := range msg.Answer {
-		if r.Header().Rrtype != dns.TypeHTTPS {
+		if dns.RRToType(r) != dns.TypeHTTPS {
 			continue
 		}
 
@@ -344,8 +334,8 @@ func (c *client) removeIpHint(req dns.Question, msg dns.Msg) {
 		news := https.Value[:0]
 
 		for _, v := range https.Value {
-			if v.Key() == dns.SVCB_IPV4HINT || v.Key() == dns.SVCB_IPV6HINT {
-				c.iphintToCache(req.Name, r.Header().Ttl, v)
+			if key := svcb.PairToKey(v); key == svcb.KeyIPv4Hint || key == svcb.KeyIPv6Hint {
+				c.iphintToCache(req.Name, r.Header().TTL, v)
 				continue
 			}
 
@@ -356,34 +346,32 @@ func (c *client) removeIpHint(req dns.Question, msg dns.Msg) {
 	}
 }
 
-func (c *client) iphintToCache(name string, ttl uint32, vv dns.SVCBKeyValue) {
+func (c *client) iphintToCache(name string, ttl uint32, vv svcb.Pair) {
 	var qtype uint16
 	var answers []dns.RR
 	switch z := vv.(type) {
-	case *dns.SVCBIPv4Hint:
+	case *svcb.IPV4HINT:
 		qtype = dns.TypeA
 		for _, v := range z.Hint {
 			answers = append(answers, &dns.A{
-				Hdr: dns.RR_Header{
-					Name:   name,
-					Rrtype: dns.TypeA,
-					Ttl:    ttl,
-					Class:  dns.ClassINET,
+				Hdr: dns.Header{
+					Name:  name,
+					TTL:   ttl,
+					Class: dns.ClassINET,
 				},
-				A: v,
+				A: rdata.A{Addr: v},
 			})
 		}
-	case *dns.SVCBIPv6Hint:
+	case *svcb.IPV6HINT:
 		qtype = dns.TypeAAAA
 		for _, v := range z.Hint {
 			answers = append(answers, &dns.AAAA{
-				Hdr: dns.RR_Header{
-					Name:   name,
-					Rrtype: dns.TypeAAAA,
-					Ttl:    ttl,
-					Class:  dns.ClassINET,
+				Hdr: dns.Header{
+					Name:  name,
+					TTL:   ttl,
+					Class: dns.ClassINET,
 				},
-				AAAA: v,
+				AAAA: rdata.AAAA{Addr: v},
 			})
 		}
 	default:
@@ -394,15 +382,15 @@ func (c *client) iphintToCache(name string, ttl uint32, vv dns.SVCBKeyValue) {
 		return
 	}
 
-	req := dns.Question{
+	req := netapi.DNSQuestion{
 		Name:   name,
 		Qtype:  qtype,
 		Qclass: dns.ClassINET,
 	}
 	c.rawStore.Add(CacheKeyFromQuestion(req),
 		dns.Msg{
-			MsgHdr: dns.MsgHdr{
-				Id:                 0,
+			MsgHeader: dns.MsgHeader{
+				ID:                 0,
 				Response:           true,
 				Opcode:             0,
 				Authoritative:      false,
@@ -411,25 +399,25 @@ func (c *client) iphintToCache(name string, ttl uint32, vv dns.SVCBKeyValue) {
 				RecursionAvailable: true,
 				Rcode:              dns.RcodeSuccess,
 			},
-			Question: []dns.Question{req},
+			Question: []dns.RR{req.RR()},
 			Answer:   answers,
 		},
 		lru.WithTimeout[string, dns.Msg](time.Duration(ttl)*time.Second),
 	)
 }
 
-func (c *client) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+func (c *client) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
 	rawmsg, err := c.raw(ctx, req)
 	if err != nil {
 		return dns.Msg{}, err
 	}
 
 	rawmsg = *rawmsg.Copy()
-	rawmsg.Question = []dns.Question{req}
+	rawmsg.Question = []dns.RR{req.RR()}
 	return rawmsg, nil
 }
 
-func (c *client) raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+func (c *client) raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
 	if !system.IsDomainName(req.Name) {
 		return dns.Msg{}, fmt.Errorf("invalid domain: %s", req.Name)
 	}
@@ -476,7 +464,7 @@ func (c *client) raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	return rawmsg, nil
 }
 
-func (c *client) lookupIP(ctx context.Context, domain string, reqType dns.Type) ([]net.IP, error) {
+func (c *client) lookupIP(ctx context.Context, domain string, reqType uint16) ([]net.IP, error) {
 	if len(domain) == 0 {
 		return nil, fmt.Errorf("empty domain")
 	}
@@ -485,7 +473,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dns.Type) 
 
 	domain = system.AbsDomain(domain)
 
-	rawmsg, err := c.raw(ctx, dns.Question{
+	rawmsg, err := c.raw(ctx, netapi.DNSQuestion{
 		Name:   domain,
 		Qtype:  uint16(reqType),
 		Qclass: dns.ClassINET,
@@ -496,9 +484,9 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dns.Type) 
 	}
 
 	if rawmsg.Rcode != dns.RcodeSuccess {
-		metrics.Counter.AddLookupIPFailed(dns.RcodeToString[rawmsg.Rcode], reqType)
+		metrics.Counter.AddLookupIPFailed(dnsutil.RcodeToString(rawmsg.Rcode), reqType)
 		return nil, &net.DNSError{
-			Err:         dns.RcodeToString[rawmsg.Rcode],
+			Err:         dnsutil.RcodeToString(rawmsg.Rcode),
 			Server:      c.config.Host,
 			Name:        domain,
 			IsNotFound:  true,
@@ -513,21 +501,21 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dns.Type) 
 		ips = make([]net.IP, 0, len(rawmsg.Answer))
 
 		for _, v := range rawmsg.Answer {
-			if v.Header().Rrtype != dns.TypeA {
+			if dns.RRToType(v) != dns.TypeA {
 				continue
 			}
 
-			ips = append(ips, v.(*dns.A).A)
+			ips = append(ips, v.(*dns.A).A.Addr.AsSlice())
 		}
 	case dns.TypeAAAA:
 		ips = make([]net.IP, 0, len(rawmsg.Answer))
 
 		for _, v := range rawmsg.Answer {
-			if v.Header().Rrtype != dns.TypeAAAA {
+			if dns.RRToType(v) != dns.TypeAAAA {
 				continue
 			}
 
-			ips = append(ips, v.(*dns.AAAA).AAAA)
+			ips = append(ips, v.(*dns.AAAA).AAAA.Addr.AsSlice())
 		}
 	}
 

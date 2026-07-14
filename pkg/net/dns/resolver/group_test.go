@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/netip"
 	"testing"
 	"time"
 
+	"codeberg.org/miekg/dns"
+	"codeberg.org/miekg/dns/dnsutil"
+	"codeberg.org/miekg/dns/rdata"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"github.com/miekg/dns"
 )
 
 func TestGroup(t *testing.T) {
@@ -35,7 +38,7 @@ func TestGroup(t *testing.T) {
 
 		derr, ok := errors.AsType[*net.DNSError](err)
 		assert.MustEqual(t, true, ok)
-		assert.MustEqual(t, dns.RcodeToString[dns.RcodeServerFailure], derr.Err)
+		assert.MustEqual(t, dnsutil.RcodeToString(dns.RcodeServerFailure), derr.Err)
 	})
 
 	group, err := NewGroup(&mockDialer{err: errors.New("mock err")}, &mockDialer{})
@@ -58,26 +61,26 @@ func (m *mockDialer) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 		time.Sleep(time.Millisecond * 200)
 		return dns.Msg{}, m.err
 	}
-	hdr := dns.RR_Header{
-		Name:   req.Question.Name,
-		Rrtype: req.Question.Qtype,
-		Class:  dns.ClassINET,
+	hdr := dns.Header{
+		Name:  req.Question.Name,
+		Class: req.Question.Qclass,
+		TTL:   0,
 	}
 	var body dns.RR
 
 	switch req.Question.Qtype {
 	case dns.TypeA:
-		body = &dns.A{Hdr: hdr, A: net.IP{127, 0, 0, 1}}
+		body = &dns.A{Hdr: hdr, A: rdata.A{Addr: netip.MustParseAddr("127.0.0.1")}}
 	case dns.TypeAAAA:
-		body = &dns.AAAA{Hdr: hdr, AAAA: net.ParseIP("::1")}
+		body = &dns.AAAA{Hdr: hdr, AAAA: rdata.AAAA{Addr: netip.MustParseAddr("::1")}}
 	}
 
 	return dns.Msg{
-		MsgHdr: dns.MsgHdr{
-			Id:    req.ID,
-			Rcode: m.rCode,
+		MsgHeader: dns.MsgHeader{
+			ID:    req.ID,
+			Rcode: uint16(m.rCode),
 		},
-		Question: []dns.Question{req.Question},
+		Question: []dns.RR{req.Question.RR()},
 		Answer:   []dns.RR{body},
 	}, nil
 }

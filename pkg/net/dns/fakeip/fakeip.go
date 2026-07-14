@@ -9,10 +9,12 @@ import (
 	"strconv"
 	"strings"
 
+	"codeberg.org/miekg/dns"
+	"codeberg.org/miekg/dns/rdata"
+	"codeberg.org/miekg/dns/svcb"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"github.com/miekg/dns"
 )
 
 type pool interface {
@@ -99,42 +101,27 @@ func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netap
 	}, nil
 }
 
-func (f *FakeDNS) newAnswerMessage(req dns.Question, code int, resource ...func(hedaer dns.RR_Header) dns.RR) dns.Msg {
-	msg := dns.Msg{
-		MsgHdr: dns.MsgHdr{
-			Id:                 0,
-			Response:           true,
-			Authoritative:      false,
-			RecursionDesired:   false,
-			Rcode:              code,
-			RecursionAvailable: true,
-		},
-		Question: []dns.Question{
-			{
-				Name:   req.Name,
-				Qtype:  req.Qtype,
-				Qclass: dns.ClassINET,
-			},
-		},
-	}
+func (f *FakeDNS) newAnswerMessage(req netapi.DNSQuestion, code int, resource ...func(dns.Header) dns.RR) dns.Msg {
+	msg := netapi.NewDNSMsg(req)
+	msg.RecursionDesired = false
+	msg.Rcode = uint16(code)
 
 	if len(resource) == 0 {
 		return msg
 	}
 
 	for _, resource := range resource {
-		msg.Answer = append(msg.Answer, resource(dns.RR_Header{
-			Name:   req.Name,
-			Rrtype: req.Qtype,
-			Class:  dns.ClassINET,
-			Ttl:    40,
+		msg.Answer = append(msg.Answer, resource(dns.Header{
+			Name:  req.Name,
+			Class: dns.ClassINET,
+			TTL:   40,
 		}))
 	}
 
 	return msg
 }
 
-func (f *FakeDNS) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
+func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
 	switch req.Qtype {
 	case dns.TypeA, dns.TypeAAAA, dns.TypePTR, dns.TypeHTTPS:
 	default:
@@ -166,10 +153,10 @@ func (f *FakeDNS) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 		msg := f.newAnswerMessage(
 			req,
 			dns.RcodeSuccess,
-			func(header dns.RR_Header) dns.RR {
+			func(header dns.Header) dns.RR {
 				return &dns.PTR{
 					Hdr: header,
-					Ptr: system.AbsDomain(domain),
+					PTR: rdata.PTR{Ptr: system.AbsDomain(domain)},
 				}
 			},
 		)
@@ -184,7 +171,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 		ipv6 := f.ipv6.GetFakeIPForDomain(domain)
 		ipv4 := f.ipv4.GetFakeIPForDomain(domain)
 
-		appendIPHint(msg, []net.IP{ipv4.AsSlice()}, []net.IP{ipv6.AsSlice()})
+		appendIPHint(msg, []netip.Addr{ipv4}, []netip.Addr{ipv6})
 
 		return msg, nil
 
@@ -199,17 +186,17 @@ func (f *FakeDNS) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 				return dns.Msg{}, err
 			}
 
-			if !f.existAnswer(msg, dns.Type(dns.TypeAAAA)) {
+			if !f.existAnswer(msg, dns.TypeAAAA) {
 				return msg, nil
 			}
 		}
 
 		ip := f.ipv6.GetFakeIPForDomain(domain)
 
-		return f.newAnswerMessage(req, dns.RcodeSuccess, func(header dns.RR_Header) dns.RR {
+		return f.newAnswerMessage(req, dns.RcodeSuccess, func(header dns.Header) dns.RR {
 			return &dns.AAAA{
 				Hdr:  header,
-				AAAA: ip.AsSlice(),
+				AAAA: rdata.AAAA{Addr: ip},
 			}
 		}), nil
 
@@ -220,17 +207,17 @@ func (f *FakeDNS) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 				return dns.Msg{}, err
 			}
 
-			if !f.existAnswer(msg, dns.Type(dns.TypeA)) {
+			if !f.existAnswer(msg, dns.TypeA) {
 				return msg, nil
 			}
 		}
 
 		ip := f.ipv4.GetFakeIPForDomain(domain)
 
-		return f.newAnswerMessage(req, dns.RcodeSuccess, func(header dns.RR_Header) dns.RR {
+		return f.newAnswerMessage(req, dns.RcodeSuccess, func(header dns.Header) dns.RR {
 			return &dns.A{
 				Hdr: header,
-				A:   ip.AsSlice(),
+				A:   rdata.A{Addr: ip},
 			}
 		}), nil
 	}
@@ -238,9 +225,9 @@ func (f *FakeDNS) Raw(ctx context.Context, req dns.Question) (dns.Msg, error) {
 	return f.Resolver.Raw(ctx, req)
 }
 
-func (f *FakeDNS) existAnswer(msg dns.Msg, t dns.Type) bool {
+func (f *FakeDNS) existAnswer(msg dns.Msg, t uint16) bool {
 	for _, answer := range msg.Answer {
-		if answer.Header().Rrtype == uint16(t) {
+		if dns.RRToType(answer) == t {
 			return true
 		}
 	}
@@ -341,13 +328,13 @@ func (f *FakeDNS) LookupPtr(ip net.IP) (string, error) {
 	return r, fmt.Errorf("ptr not found")
 }
 
-func appendIPHint(msg dns.Msg, ipv4, ipv6 []net.IP) {
+func appendIPHint(msg dns.Msg, ipv4, ipv6 []netip.Addr) {
 	if len(ipv4) == 0 && len(ipv6) == 0 {
 		return
 	}
 
 	for _, v := range msg.Answer {
-		if v.Header().Rrtype != dns.TypeHTTPS {
+		if dns.RRToType(v) != dns.TypeHTTPS {
 			continue
 		}
 
@@ -358,13 +345,13 @@ func appendIPHint(msg dns.Msg, ipv4, ipv6 []net.IP) {
 
 		// the raw message already cloned, so we no need copy anymore here
 		if len(ipv4) > 0 {
-			https.Value = append(https.Value, &dns.SVCBIPv4Hint{
+			https.Value = append(https.Value, &svcb.IPV4HINT{
 				Hint: ipv4,
 			})
 		}
 
 		if len(ipv6) > 0 {
-			https.Value = append(https.Value, &dns.SVCBIPv6Hint{
+			https.Value = append(https.Value, &svcb.IPV6HINT{
 				Hint: ipv6,
 			})
 		}

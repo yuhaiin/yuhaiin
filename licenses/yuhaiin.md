@@ -47,7 +47,7 @@ Some packages may only be included on certain architectures or operating systems
 - [github.com/kr/text](https://pkg.go.dev/github.com/kr/text) ([MIT](https://github.com/kr/text/blob/v0.2.0/License))
 - [github.com/libp2p/go-buffer-pool](https://pkg.go.dev/github.com/libp2p/go-buffer-pool) ([MIT](https://github.com/libp2p/go-buffer-pool/blob/v0.1.0/LICENSE))
 - [github.com/libp2p/go-yamux/v5](https://pkg.go.dev/github.com/libp2p/go-yamux/v5) ([MPL-2.0](https://github.com/libp2p/go-yamux/blob/v5.1.0/LICENSE))
-- [github.com/miekg/dns](https://pkg.go.dev/github.com/miekg/dns) ([BSD-3-Clause](https://github.com/miekg/dns/blob/v1.1.72/LICENSE))
+- [codeberg.org/miekg/dns](https://pkg.go.dev/codeberg.org/miekg/dns) ([BSD-3-Clause](https://codeberg.org/miekg/dns/src/tag/v0.6.84/LICENSE))
 - [github.com/minio/minlz](https://pkg.go.dev/github.com/minio/minlz) ([Apache-2.0](https://github.com/minio/minlz/blob/v1.1.1/LICENSE))
 - [github.com/munnerz/goautoneg](https://pkg.go.dev/github.com/munnerz/goautoneg) ([BSD-3-Clause](https://github.com/munnerz/goautoneg/blob/a7dc8b61c822/LICENSE))
 - [github.com/ncruces/go-sqlite3](https://pkg.go.dev/github.com/ncruces/go-sqlite3) ([MIT](https://github.com/ncruces/go-sqlite3/blob/v0.35.2/LICENSE))

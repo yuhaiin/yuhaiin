@@ -3,14 +3,15 @@ package resolver
 import (
 	"fmt"
 
+	"codeberg.org/miekg/dns"
+	"codeberg.org/miekg/dns/svcb"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
-	"github.com/miekg/dns"
 )
 
 func GetECHConfig(msg dns.SVCB) ([]tls.ECHConfigSpec, error) {
 	for _, v := range msg.Value {
-		if v.Key() == dns.SVCB_ECHCONFIG {
-			return tls.ParseECHConfigList(v.(*dns.SVCBECHConfig).ECH)
+		if svcb.PairToKey(v) == svcb.KeyEchConfig {
+			return tls.ParseECHConfigList(v.(*svcb.ECHCONFIG).ECH)
 		}
 	}
 

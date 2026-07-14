@@ -10,20 +10,20 @@ import (
 	"sync/atomic"
 	"time"
 
+	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"github.com/miekg/dns"
 )
 
 func init() {
 	Register("udp", NewDoU)
 }
 
-func udpCacheKey(id uint16, question dns.Question) string {
+func udpCacheKey(id uint16, question netapi.DNSQuestion) string {
 	return fmt.Sprintf("%d:%s|%d", id, question.Name, question.Qtype)
 }
 
@@ -75,7 +75,8 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 		}
 
 		msg := &dns.Msg{}
-		if err := msg.Unpack(buf[:n]); err != nil {
+		msg.Data = append(msg.Data, buf[:n]...)
+		if err := msg.Unpack(); err != nil {
 			log.Warn("parse dns message failed", "err", err)
 			continue
 		}
@@ -85,7 +86,7 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 			continue
 		}
 
-		send, ok := u.sender.Load(udpCacheKey(msg.Id, msg.Question[0]))
+		send, ok := u.sender.Load(udpCacheKey(msg.ID, netapi.DNSQuestionFromRR(msg.Question[0])))
 		if !ok || send == nil {
 			continue
 		}
