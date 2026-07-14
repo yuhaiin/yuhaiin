@@ -56,10 +56,10 @@ type mockDialer struct {
 	rCode int
 }
 
-func (m *mockDialer) Do(ctx context.Context, req *Request) (dns.Msg, error) {
+func (m *mockDialer) Do(ctx context.Context, req *Request) (*dns.Msg, error) {
 	if m.err != nil {
 		time.Sleep(time.Millisecond * 200)
-		return dns.Msg{}, m.err
+		return nil, m.err
 	}
 	hdr := dns.Header{
 		Name:  req.Question.Name,
@@ -75,7 +75,7 @@ func (m *mockDialer) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 		body = &dns.AAAA{Hdr: hdr, AAAA: rdata.AAAA{Addr: netip.MustParseAddr("::1")}}
 	}
 
-	return dns.Msg{
+	return &dns.Msg{
 		MsgHeader: dns.MsgHeader{
 			ID:    req.ID,
 			Rcode: uint16(m.rCode),

@@ -228,10 +228,10 @@ func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netap
 	return ips, nil
 }
 
-func (d *dnsWrap) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
+func (d *dnsWrap) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
 	msg, err := d.Resolver.Raw(ctx, req)
 	if err != nil {
-		return dns.Msg{}, fmt.Errorf("[%s] do raw dns request failed: %w", d.Name(), err)
+		return nil, fmt.Errorf("[%s] do raw dns request failed: %w", d.Name(), err)
 	}
 
 	return msg, nil

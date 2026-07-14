@@ -59,8 +59,8 @@ func (q DNSQuestion) RR() dns.RR {
 	return rr
 }
 
-func NewDNSMsg(q DNSQuestion) dns.Msg {
-	m := dns.Msg{
+func NewDNSMsg(q DNSQuestion) *dns.Msg {
+	m := &dns.Msg{
 		MsgHeader: dns.MsgHeader{
 			Response:           true,
 			Opcode:             dns.OpcodeQuery,
@@ -155,7 +155,7 @@ type Resolver interface {
 	// LookupIP returns a list of ip addresses
 	LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) (*IPs, error)
 	// Raw returns a dns message
-	Raw(ctx context.Context, req DNSQuestion) (dns.Msg, error)
+	Raw(ctx context.Context, req DNSQuestion) (*dns.Msg, error)
 	io.Closer
 	Name() string
 }
@@ -168,7 +168,7 @@ func (e ErrorResolver) LookupIP(_ context.Context, domain string, opts ...func(*
 	return &IPs{}, e(domain)
 }
 func (e ErrorResolver) Close() error { return nil }
-func (e ErrorResolver) Raw(_ context.Context, req DNSQuestion) (dns.Msg, error) {
+func (e ErrorResolver) Raw(_ context.Context, req DNSQuestion) (*dns.Msg, error) {
 	return NewDNSMsg(req), nil
 }
 func (e ErrorResolver) Name() string { return "ErrorResolver" }
@@ -270,7 +270,7 @@ func (r *DynamicResolver) Close() error {
 	return r.r.Close()
 }
 
-func (r *DynamicResolver) Raw(ctx context.Context, req DNSQuestion) (dns.Msg, error) {
+func (r *DynamicResolver) Raw(ctx context.Context, req DNSQuestion) (*dns.Msg, error) {
 	return r.getResolver().Raw(ctx, req)
 }
 
@@ -307,13 +307,13 @@ func (b *bootstrapResolver) LookupIP(ctx context.Context, domain string, opts ..
 	return r.LookupIP(ctx, domain, opts...)
 }
 
-func (b *bootstrapResolver) Raw(ctx context.Context, req DNSQuestion) (dns.Msg, error) {
+func (b *bootstrapResolver) Raw(ctx context.Context, req DNSQuestion) (*dns.Msg, error) {
 	b.mu.RLock()
 	r := b.r
 	b.mu.RUnlock()
 
 	if r == nil {
-		return dns.Msg{}, errors.New("bootstrap resolver is not initialized")
+		return nil, errors.New("bootstrap resolver is not initialized")
 	}
 
 	return r.Raw(ctx, req)

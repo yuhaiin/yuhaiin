@@ -118,7 +118,7 @@ func (h *Hosts) LookupIP(ctx context.Context, domain string, opts ...func(*netap
 	return h.resolver.LookupIP(ctx, addr.Hostname(), opts...)
 }
 
-func (h *Hosts) newDnsMsg(req netapi.DNSQuestion) dns.Msg {
+func (h *Hosts) newDnsMsg(req netapi.DNSQuestion) *dns.Msg {
 	req.Qclass = dns.ClassINET
 	msg := netapi.NewDNSMsg(req)
 	msg.RecursionDesired = false
@@ -126,7 +126,7 @@ func (h *Hosts) newDnsMsg(req netapi.DNSQuestion) dns.Msg {
 	return msg
 }
 
-func (h *Hosts) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
+func (h *Hosts) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
 	if req.Qtype == dns.TypePTR {
 		ip, err := fakeip.RetrieveIPFromPtr(req.Name)
 		if err != nil {
@@ -168,7 +168,7 @@ func (h *Hosts) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error
 
 	addr, err := netapi.ParseAddressPort("", domain, 0)
 	if err != nil {
-		return dns.Msg{}, err
+		return nil, err
 	}
 
 	if !addr.IsFqdn() {

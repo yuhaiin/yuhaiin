@@ -72,7 +72,8 @@ func NewDoH(config Config) (Transport, error) {
 
 	uri := u.String()
 
-	return TransportFunc(func(ctx context.Context, b *Request) (p dns.Msg, err error) {
+	return TransportFunc(func(ctx context.Context, b *Request) (p *dns.Msg, err error) {
+		p = new(dns.Msg)
 		req, err := newDohRequest(ctx, http.MethodPost, uri, b.Bytes())
 		if err != nil {
 			return p, err
@@ -98,12 +99,12 @@ func NewDoH(config Config) (Transport, error) {
 
 		_, err = io.ReadFull(resp.Body, buf)
 		if err != nil {
-			return dns.Msg{}, fmt.Errorf("read http body failed: %w", err)
+			return nil, fmt.Errorf("read http body failed: %w", err)
 		}
 
 		p.Data = append([]byte(nil), buf...)
 		if err := p.Unpack(); err != nil {
-			return dns.Msg{}, fmt.Errorf("unpack dns response: %w", err)
+			return nil, fmt.Errorf("unpack dns response: %w", err)
 		}
 		return p, nil
 

@@ -20,7 +20,7 @@ func NewGroup(dialers ...Transport) (*Group, error) {
 	return &Group{dialers}, nil
 }
 
-func (g *Group) Do(ctx context.Context, req *Request) (dns.Msg, error) {
+func (g *Group) Do(ctx context.Context, req *Request) (*dns.Msg, error) {
 	count := len(g.dialers)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -28,7 +28,7 @@ func (g *Group) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 
 	type result struct {
 		err  error
-		resp dns.Msg
+		resp *dns.Msg
 	}
 
 	first := true
@@ -76,12 +76,12 @@ func (g *Group) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 		select {
 		case <-ctx.Done():
 			if fallbackMsg != nil {
-				return *fallbackMsg, nil
+				return fallbackMsg, nil
 			}
 			if err != nil {
-				return dns.Msg{}, err
+				return nil, err
 			}
-			return dns.Msg{}, ctx.Err()
+			return nil, ctx.Err()
 		case r := <-ch:
 			count--
 
@@ -92,7 +92,7 @@ func (g *Group) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 				}
 
 				if fallbackMsg == nil {
-					fallbackMsg = &msg
+					fallbackMsg = msg
 				}
 			} else {
 				err = errors.Join(err, r.err)
@@ -100,10 +100,10 @@ func (g *Group) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 
 			if count == 0 {
 				if fallbackMsg != nil {
-					return *fallbackMsg, nil
+					return fallbackMsg, nil
 				}
 				if err != nil {
-					return dns.Msg{}, err
+					return nil, err
 				}
 			}
 		}

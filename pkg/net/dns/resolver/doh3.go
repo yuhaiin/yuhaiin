@@ -50,7 +50,8 @@ func NewDoH3(config Config) (Transport, error) {
 
 	uri := u.String()
 
-	return TransportFunc(func(ctx context.Context, b *Request) (p dns.Msg, err error) {
+	return TransportFunc(func(ctx context.Context, b *Request) (p *dns.Msg, err error) {
+		p = new(dns.Msg)
 		req, err := newDohRequest(ctx, http.MethodPost, uri, b.Bytes())
 		if err != nil {
 			return p, err

@@ -126,8 +126,8 @@ func (m *mockResolver) LookupIP(ctx context.Context, domain string, opts ...func
 }
 
 // Raw returns a dns message
-func (m *mockResolver) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
-	return dns.Msg{}, errors.ErrUnsupported
+func (m *mockResolver) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	return nil, errors.ErrUnsupported
 }
 
 func (m *mockResolver) Close() error {

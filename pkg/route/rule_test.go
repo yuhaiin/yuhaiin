@@ -175,8 +175,8 @@ func (staticResolver) LookupIP(context.Context, string, ...func(*netapi.LookupIP
 	return &netapi.IPs{A: []net.IP{net.ParseIP("1.2.3.4")}}, nil
 }
 
-func (staticResolver) Raw(context.Context, netapi.DNSQuestion) (dns.Msg, error) {
-	return dns.Msg{}, nil
+func (staticResolver) Raw(context.Context, netapi.DNSQuestion) (*dns.Msg, error) {
+	return nil, nil
 }
 
 func (staticResolver) Close() error { return nil }

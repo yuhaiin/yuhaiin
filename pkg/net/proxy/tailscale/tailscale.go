@@ -120,7 +120,7 @@ func (hijackResolver) LookupIP(ctx context.Context, domain string, opts ...func(
 	return configuration.ResolverChain.LookupIP(ctx, domain, opts...)
 }
 
-func (hijackResolver) Raw(ctx context.Context, req netapi.DNSQuestion) (mdns.Msg, error) {
+func (hijackResolver) Raw(ctx context.Context, req netapi.DNSQuestion) (*mdns.Msg, error) {
 	return configuration.ResolverChain.Raw(ctx, req)
 }
 

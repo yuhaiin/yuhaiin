@@ -142,7 +142,7 @@ func (f *Fakedns) LookupIP(ctx context.Context, domain string, opts ...func(*net
 	return f.resolver(ctx, domain).LookupIP(ctx, domain, opts...)
 }
 
-func (f *Fakedns) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
+func (f *Fakedns) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
 	if req.Qtype == dns.TypeAAAA || req.Qtype == dns.TypeA {
 		if _, ok := f.skipCheck.SearchString(system.RelDomain(req.Name)); ok {
 			netapi.GetContext(ctx).ConnOptions().Resolver().SetFakeIPSkipCheckUpstream(ok)

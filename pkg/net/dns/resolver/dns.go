@@ -52,16 +52,16 @@ type Request struct {
 
 func (r *Request) Bytes() []byte { return r.dnsRequestBytes }
 
-type TransportFunc func(context.Context, *Request) (dns.Msg, error)
+type TransportFunc func(context.Context, *Request) (*dns.Msg, error)
 
-func (f TransportFunc) Do(ctx context.Context, req *Request) (dns.Msg, error) {
+func (f TransportFunc) Do(ctx context.Context, req *Request) (*dns.Msg, error) {
 	return f(ctx, req)
 }
 
 func (f TransportFunc) Close() error { return nil }
 
 type Transport interface {
-	Do(ctx context.Context, req *Request) (dns.Msg, error)
+	Do(ctx context.Context, req *Request) (*dns.Msg, error)
 	Close() error
 }
 
@@ -119,9 +119,9 @@ func CacheKeyFromQuestion(q netapi.DNSQuestion) string {
 type client struct {
 	edns0             dns.EDNS0
 	dialer            Transport
-	rawStore          *lru.SyncLru[string, dns.Msg]
+	rawStore          *lru.SyncLru[string, *dns.Msg]
 	config            Config
-	rawSingleflight   singleflight.GroupSync[string, dns.Msg]
+	rawSingleflight   singleflight.GroupSync[string, *dns.Msg]
 	refreshBackground syncmap.SyncMap[string, struct{}]
 }
 
@@ -149,8 +149,8 @@ func NewClient(config Config, dialer Transport) netapi.Resolver {
 		dialer: dialer,
 		config: config,
 		rawStore: lru.NewSyncLru(
-			lru.WithCapacity[string, dns.Msg](int(configuration.DNSCache)),
-			lru.WithDefaultTimeout[string, dns.Msg](time.Second*600),
+			lru.WithCapacity[string, *dns.Msg](int(configuration.DNSCache)),
+			lru.WithDefaultTimeout[string, *dns.Msg](time.Second*600),
 		),
 		edns0: edns0,
 	}
@@ -219,7 +219,7 @@ func mergerError(i4err, i6err error) error {
 	return fmt.Errorf("ipv6: %w, ipv4: %w", i6err, i4err)
 }
 
-func (c *client) queryWithMetrics(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
+func (c *client) queryWithMetrics(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
 	metrics.Counter.AddDnsQuery(c.config.Name)
 	now := system.CheapNowNano()
 	msg, err := c.query(ctx, req)
@@ -231,7 +231,7 @@ func (c *client) queryWithMetrics(ctx context.Context, req netapi.DNSQuestion) (
 	return msg, err
 }
 
-func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
+func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
 	dialer := c.dialer
 
 	reqMsg := &dns.Msg{
@@ -252,7 +252,7 @@ func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, er
 		reqMsg.Pseudo = []dns.RR{c.edns0.Clone()}
 	}
 	if err := reqMsg.Pack(); err != nil {
-		return dns.Msg{}, err
+		return nil, err
 	}
 	bytes := reqMsg.Data
 
@@ -263,7 +263,7 @@ func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, er
 	}
 
 	var (
-		msg dns.Msg
+		msg *dns.Msg
 		err error
 	)
 
@@ -272,11 +272,11 @@ func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, er
 
 		msg, err = dialer.Do(ctx, request)
 		if err != nil {
-			return dns.Msg{}, fmt.Errorf("dns client do failed: %w", err)
+			return nil, fmt.Errorf("dns client do failed: %w", err)
 		}
 
 		if msg.ID != reqMsg.ID {
-			return dns.Msg{}, fmt.Errorf("id not match")
+			return nil, fmt.Errorf("id not match")
 		}
 
 		if !msg.Truncated {
@@ -314,13 +314,13 @@ func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, er
 	if ttl > 1 {
 		msg.Question = nil
 		c.rawStore.Add(CacheKeyFromQuestion(req), msg,
-			lru.WithTimeout[string, dns.Msg](time.Duration(ttl)*time.Second))
+			lru.WithTimeout[string, *dns.Msg](time.Duration(ttl)*time.Second))
 	}
 
 	return msg, nil
 }
 
-func (c *client) removeIpHint(req netapi.DNSQuestion, msg dns.Msg) {
+func (c *client) removeIpHint(req netapi.DNSQuestion, msg *dns.Msg) {
 	for _, r := range msg.Answer {
 		if dns.RRToType(r) != dns.TypeHTTPS {
 			continue
@@ -388,7 +388,7 @@ func (c *client) iphintToCache(name string, ttl uint32, vv svcb.Pair) {
 		Qclass: dns.ClassINET,
 	}
 	c.rawStore.Add(CacheKeyFromQuestion(req),
-		dns.Msg{
+		&dns.Msg{
 			MsgHeader: dns.MsgHeader{
 				ID:                 0,
 				Response:           true,
@@ -402,24 +402,24 @@ func (c *client) iphintToCache(name string, ttl uint32, vv svcb.Pair) {
 			Question: []dns.RR{req.RR()},
 			Answer:   answers,
 		},
-		lru.WithTimeout[string, dns.Msg](time.Duration(ttl)*time.Second),
+		lru.WithTimeout[string, *dns.Msg](time.Duration(ttl)*time.Second),
 	)
 }
 
-func (c *client) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
+func (c *client) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
 	rawmsg, err := c.raw(ctx, req)
 	if err != nil {
-		return dns.Msg{}, err
+		return nil, err
 	}
 
-	rawmsg = *rawmsg.Copy()
+	rawmsg = rawmsg.Copy()
 	rawmsg.Question = []dns.RR{req.RR()}
 	return rawmsg, nil
 }
 
-func (c *client) raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
+func (c *client) raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
 	if !system.IsDomainName(req.Name) {
-		return dns.Msg{}, fmt.Errorf("invalid domain: %s", req.Name)
+		return nil, fmt.Errorf("invalid domain: %s", req.Name)
 	}
 
 	if req.Qclass == 0 {
@@ -431,15 +431,15 @@ func (c *client) raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, erro
 	rawmsg, expired, ok := c.rawStore.LoadOptimistically(cacheKey)
 	if !ok {
 		var err error
-		rawmsg, err, _ = c.rawSingleflight.Do(ctx, cacheKey, func(ctx context.Context) (dns.Msg, error) {
+		rawmsg, err, _ = c.rawSingleflight.Do(ctx, cacheKey, func(ctx context.Context) (*dns.Msg, error) {
 			msg, err := c.queryWithMetrics(ctx, req)
 			if err != nil {
-				return dns.Msg{}, fmt.Errorf("query with metrics failed: %w", err)
+				return nil, fmt.Errorf("query with metrics failed: %w", err)
 			}
 			return msg, nil
 		})
 		if err != nil {
-			return dns.Msg{}, err
+			return nil, err
 		}
 	}
 
@@ -505,7 +505,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType uint16) ([
 				continue
 			}
 
-			ips = append(ips, v.(*dns.A).A.Addr.AsSlice())
+			ips = append(ips, v.(*dns.A).Addr.AsSlice())
 		}
 	case dns.TypeAAAA:
 		ips = make([]net.IP, 0, len(rawmsg.Answer))
@@ -515,7 +515,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType uint16) ([
 				continue
 			}
 
-			ips = append(ips, v.(*dns.AAAA).AAAA.Addr.AsSlice())
+			ips = append(ips, v.(*dns.AAAA).Addr.AsSlice())
 		}
 	}
 

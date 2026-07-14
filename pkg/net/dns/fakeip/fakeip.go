@@ -101,7 +101,7 @@ func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netap
 	}, nil
 }
 
-func (f *FakeDNS) newAnswerMessage(req netapi.DNSQuestion, code int, resource ...func(dns.Header) dns.RR) dns.Msg {
+func (f *FakeDNS) newAnswerMessage(req netapi.DNSQuestion, code int, resource ...func(dns.Header) dns.RR) *dns.Msg {
 	msg := netapi.NewDNSMsg(req)
 	msg.RecursionDesired = false
 	msg.Rcode = uint16(code)
@@ -121,7 +121,7 @@ func (f *FakeDNS) newAnswerMessage(req netapi.DNSQuestion, code int, resource ..
 	return msg
 }
 
-func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
+func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
 	switch req.Qtype {
 	case dns.TypeA, dns.TypeAAAA, dns.TypePTR, dns.TypeHTTPS:
 	default:
@@ -183,7 +183,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, err
 		if !netapi.GetContext(ctx).ConnOptions().Resolver().FakeIPSkipCheckUpstream() {
 			msg, err := f.Resolver.Raw(ctx, req)
 			if err != nil {
-				return dns.Msg{}, err
+				return nil, err
 			}
 
 			if !f.existAnswer(msg, dns.TypeAAAA) {
@@ -204,7 +204,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, err
 		if !netapi.GetContext(ctx).ConnOptions().Resolver().FakeIPSkipCheckUpstream() {
 			msg, err := f.Resolver.Raw(ctx, req)
 			if err != nil {
-				return dns.Msg{}, err
+				return nil, err
 			}
 
 			if !f.existAnswer(msg, dns.TypeA) {
@@ -225,7 +225,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, err
 	return f.Resolver.Raw(ctx, req)
 }
 
-func (f *FakeDNS) existAnswer(msg dns.Msg, t uint16) bool {
+func (f *FakeDNS) existAnswer(msg *dns.Msg, t uint16) bool {
 	for _, answer := range msg.Answer {
 		if dns.RRToType(answer) == t {
 			return true
@@ -328,7 +328,7 @@ func (f *FakeDNS) LookupPtr(ip net.IP) (string, error) {
 	return r, fmt.Errorf("ptr not found")
 }
 
-func appendIPHint(msg dns.Msg, ipv4, ipv6 []netip.Addr) {
+func appendIPHint(msg *dns.Msg, ipv4, ipv6 []netip.Addr) {
 	if len(ipv4) == 0 && len(ipv6) == 0 {
 		return
 	}

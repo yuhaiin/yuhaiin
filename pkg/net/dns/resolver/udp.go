@@ -207,7 +207,7 @@ func (u *udp) udpAddr() (*net.UDPAddr, error) {
 	return ips.RandUDPAddr(u.addr.Port()), nil
 }
 
-func (u *udp) Do(ctx context.Context, req *Request) (dns.Msg, error) {
+func (u *udp) Do(ctx context.Context, req *Request) (*dns.Msg, error) {
 	if req.Truncated {
 		// If TC is set, the choice of records in the answer (if any)
 		// do not really matter much as the client is supposed to
@@ -231,9 +231,9 @@ func (u *udp) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 
 		select {
 		case <-ctx.Done():
-			return dns.Msg{}, ctx.Err()
+			return nil, ctx.Err()
 		case <-u.ctx.Done():
-			return dns.Msg{}, u.ctx.Err()
+			return nil, u.ctx.Err()
 		case u.wchan <- &udpPacket{ctx, req.Bytes()}:
 		}
 	}
@@ -241,16 +241,16 @@ func (u *udp) Do(ctx context.Context, req *Request) (dns.Msg, error) {
 	select {
 	case <-ctx.Done():
 		if msg := resp.msg.Load(); msg != nil {
-			return *msg, nil
+			return msg, nil
 		}
-		return dns.Msg{}, fmt.Errorf("ctx is canceled: %w", ctx.Err())
+		return nil, fmt.Errorf("ctx is canceled: %w", ctx.Err())
 	case <-u.ctx.Done():
-		return dns.Msg{}, fmt.Errorf("ctx udp resolver is canceled: %w", u.ctx.Err())
+		return nil, fmt.Errorf("ctx udp resolver is canceled: %w", u.ctx.Err())
 	case <-resp.ctx.Done():
 		if msg := resp.msg.Load(); msg != nil {
-			return *msg, nil
+			return msg, nil
 		}
-		return dns.Msg{}, fmt.Errorf("response ctx is canceled: %w", resp.ctx.Err())
+		return nil, fmt.Errorf("response ctx is canceled: %w", resp.ctx.Err())
 	}
 }
 

@@ -58,7 +58,8 @@ func ParseAddr(netType string, host, defaultPort string) (netapi.Address, error)
 	return addr, nil
 }
 
-func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *tls.Config, b *Request) (p dns.Msg, err error) {
+func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *tls.Config, b *Request) (p *dns.Msg, err error) {
+	p = new(dns.Msg)
 	conn, err := config.Dialer.Conn(ctx, addr)
 	if err != nil {
 		return p, fmt.Errorf("tcp dial failed: %w", err)
@@ -114,7 +115,7 @@ func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (Transport
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
-	return TransportFunc(func(ctx context.Context, b *Request) (dns.Msg, error) {
+	return TransportFunc(func(ctx context.Context, b *Request) (*dns.Msg, error) {
 		return tcpDo(ctx, addr, config, tlsConfig, b)
 	}), nil
 }

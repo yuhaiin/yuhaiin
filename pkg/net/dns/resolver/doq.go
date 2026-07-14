@@ -54,7 +54,8 @@ func NewDoQ(config Config) (Transport, error) {
 	return d, nil
 }
 
-func (d *doq) Do(ctx context.Context, b *Request) (p dns.Msg, err error) {
+func (d *doq) Do(ctx context.Context, b *Request) (p *dns.Msg, err error) {
+	p = new(dns.Msg)
 	session, err := d.initSession(ctx)
 	if err != nil {
 		return p, fmt.Errorf("init session failed: %w", err)

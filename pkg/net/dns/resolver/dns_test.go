@@ -13,21 +13,21 @@ import (
 )
 
 func TestClientRoundTripV2Wire(t *testing.T) {
-	resolver := NewClient(Config{Subnet: netip.MustParsePrefix("192.0.2.0/24")}, TransportFunc(func(_ context.Context, req *Request) (dns.Msg, error) {
+	resolver := NewClient(Config{Subnet: netip.MustParsePrefix("192.0.2.0/24")}, TransportFunc(func(_ context.Context, req *Request) (*dns.Msg, error) {
 		var query dns.Msg
 		query.Data = append(query.Data, req.Bytes()...)
 		if err := query.Unpack(); err != nil {
-			return dns.Msg{}, err
+			return nil, err
 		}
 		if query.UDPSize != 8192 || len(query.Pseudo) != 1 {
-			return dns.Msg{}, fmt.Errorf("v2 EDNS fields not preserved: udp=%d pseudo=%d", query.UDPSize, len(query.Pseudo))
+			return nil, fmt.Errorf("v2 EDNS fields not preserved: udp=%d pseudo=%d", query.UDPSize, len(query.Pseudo))
 		}
 		if _, ok := query.Pseudo[0].(*dns.SUBNET); !ok {
-			return dns.Msg{}, fmt.Errorf("expected SUBNET, got %T", query.Pseudo[0])
+			return nil, fmt.Errorf("expected SUBNET, got %T", query.Pseudo[0])
 		}
 
 		question := query.Question[0]
-		response := dns.Msg{
+		response := &dns.Msg{
 			MsgHeader: dns.MsgHeader{ID: query.ID, Response: true, Rcode: dns.RcodeSuccess},
 			Question:  query.Question,
 			Answer: []dns.RR{&dns.A{
@@ -36,7 +36,7 @@ func TestClientRoundTripV2Wire(t *testing.T) {
 			}},
 		}
 		if err := response.Pack(); err != nil {
-			return dns.Msg{}, err
+			return nil, err
 		}
 		return response, nil
 	}))

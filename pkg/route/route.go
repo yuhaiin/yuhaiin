@@ -303,7 +303,7 @@ func (f *Route) LookupIP(ctx context.Context, domain string, opts ...func(*netap
 	return f.Resolver(ctx, domain).LookupIP(ctx, domain, opts...)
 }
 
-func (f *Route) Raw(ctx context.Context, req netapi.DNSQuestion) (dns.Msg, error) {
+func (f *Route) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
 	return f.Resolver(ctx, system.RelDomain(req.Name)).Raw(ctx, req)
 }
 
