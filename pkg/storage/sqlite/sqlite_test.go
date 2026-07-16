@@ -27,6 +27,18 @@ func TestOpenBootstrapsEmptyDatabase(t *testing.T) {
 	if got := queryInt(t, store.DB(), `PRAGMA foreign_keys`); got != 1 {
 		t.Fatalf("foreign_keys pragma = %d, want 1", got)
 	}
+	if got := queryString(t, store.DB(), `PRAGMA journal_mode`); got != sqliteExpectedJournalMode {
+		t.Fatalf("journal_mode pragma = %q, want %q", got, sqliteExpectedJournalMode)
+	}
+	if got := queryString(t, store.DB(), `PRAGMA locking_mode`); got != sqliteExpectedLockingMode {
+		t.Fatalf("locking_mode pragma = %q, want %q", got, sqliteExpectedLockingMode)
+	}
+	if got := queryInt(t, store.DB(), `PRAGMA synchronous`); got != sqliteExpectedSynchronous {
+		t.Fatalf("synchronous pragma = %d, want %d", got, sqliteExpectedSynchronous)
+	}
+	if got := queryInt(t, store.DB(), `PRAGMA busy_timeout`); got != sqliteExpectedBusyTimeout {
+		t.Fatalf("busy_timeout pragma = %d, want %d", got, sqliteExpectedBusyTimeout)
+	}
 
 	for _, name := range []string{
 		"metadata",

@@ -39,6 +39,16 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
 
+      - name: NFS Docker metadata
+        id: meta-nfs
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=main-nfs,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}-nfs
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -73,3 +83,15 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Build and push NFS image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          file: cmd/yuhaiin/Dockerfile
+          build-args: |
+            EXTRA_GO_TAGS=sqlite3_dotlk,yuhaiin_nfs
+          push: true
+          tags: ${{ steps.meta-nfs.outputs.tags }}
+          labels: ${{ steps.meta-nfs.outputs.labels }}

@@ -159,12 +159,7 @@ func Bootstrap(ctx context.Context, db *sql.DB) error {
 }
 
 func configure(ctx context.Context, db *sql.DB) error {
-	for _, stmt := range []string{
-		"PRAGMA journal_mode = WAL",
-		"PRAGMA synchronous = NORMAL",
-		"PRAGMA foreign_keys = ON",
-		"PRAGMA busy_timeout = 5000",
-	} {
+	for _, stmt := range sqlitePragmas() {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("configure sqlite with %q failed: %w", stmt, err)
 		}

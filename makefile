@@ -33,6 +33,9 @@ GO_GCFLAGS=
 # GO_GCFLAGS= -m
 
 GO_TAGS=$(shell $(GO) run ./cmd/buildtags/...),stdlibjson,debug
+ifneq ($(strip $(EXTRA_GO_TAGS)),)
+GO_TAGS := $(GO_TAGS),$(EXTRA_GO_TAGS)
+endif
 GO_BUILD_ARGS=-ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags='$(GO_TAGS)' -trimpath
 GO_BUILD_CMD=CGO_ENABLED=$(CGO_ENABLED) $(GO) build $(GO_BUILD_ARGS)
 
