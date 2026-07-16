@@ -32,7 +32,9 @@ GO_LDFLAGS += -X "$(MODULE)/internal/version.BuildTime=$(BUILD_TIME)"
 GO_GCFLAGS=
 # GO_GCFLAGS= -m
 
-GO_TAGS=$(shell $(GO) run ./cmd/buildtags/...),stdlibjson,debug
+GOHOSTOS := $(shell $(GO) env GOHOSTOS)
+GOHOSTARCH := $(shell $(GO) env GOHOSTARCH)
+GO_TAGS=$(shell GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) $(GO) run ./cmd/buildtags/...),stdlibjson,debug
 ifneq ($(strip $(EXTRA_GO_TAGS)),)
 GO_TAGS := $(GO_TAGS),$(EXTRA_GO_TAGS)
 endif
