@@ -12,13 +12,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
 	"golang.org/x/net/http2"
 )
@@ -30,12 +28,6 @@ type Client struct {
 
 type Config struct {
 	Concurrency int32 `json:"concurrency"`
-}
-
-func init() {
-	register.RegisterContractPoint("http2", func(config contractnode.Concurrency, p netapi.Proxy) (netapi.Proxy, error) {
-		return NewClient(Config{Concurrency: config.Concurrency}, p)
-	})
 }
 
 func NewClient(config Config, p netapi.Proxy) (netapi.Proxy, error) {

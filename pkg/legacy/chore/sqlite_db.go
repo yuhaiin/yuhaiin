@@ -24,8 +24,6 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
-var _ DB = (*SqliteDB)(nil)
-
 const legacyAndroidProtobufRepairDoneKey = "legacy_android_protobuf_config_repair_done"
 
 type SqliteDB struct {

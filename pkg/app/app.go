@@ -33,7 +33,7 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/drop"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2/v2"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mixed"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mock"

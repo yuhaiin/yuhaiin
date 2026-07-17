@@ -14,7 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2/v2"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 )

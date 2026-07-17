@@ -83,7 +83,6 @@ func newServer(lis net.Listener) *Server {
 					MaxConcurrentStreams: math.MaxUint32,
 					IdleTimeout:          time.Minute,
 					MaxReadFrameSize:     pool.DefaultSize,
-					NewWriteScheduler:    http2.NewRandomWriteScheduler, //nolint:staticcheck // Preserve fair proxy stream scheduling.
 				}
 
 				h2Opt := &http2.ServeConnOpts{

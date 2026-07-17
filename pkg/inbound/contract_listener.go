@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/aead"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	yhttp "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
-	yhttp2 "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
+	yhttp2 "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2/v2"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/mixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/mock"
 	ymux "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mux"
