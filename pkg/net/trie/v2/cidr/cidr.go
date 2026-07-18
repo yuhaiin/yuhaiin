@@ -98,3 +98,13 @@ func NewCidr[T comparable]() *Cidr[T] {
 	cidrMapper.v6CidrTrie = NewTrie[T]()
 	return cidrMapper
 }
+
+// Clear removes all prefixes while retaining the matcher instance.
+func (c *Cidr[T]) Clear() error {
+	c.v4CidrTrie = NewTrie[T]()
+	c.v6CidrTrie = NewTrie[T]()
+	return nil
+}
+
+// Close implements the lifecycle shared by memory and disk CIDR matchers.
+func (c *Cidr[T]) Close() error { return nil }

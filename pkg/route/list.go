@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -33,6 +32,14 @@ type Cache interface {
 	Dir() string
 	Close() error
 }
+
+type mmapDir struct {
+	dir string
+}
+
+func (m mmapDir) Dir() string  { return m.dir }
+func (m mmapDir) Close() error { return nil }
+
 type hostMatcher struct {
 	lists *set.Set[string]
 	trie  *trie.Trie[string]
@@ -48,17 +55,12 @@ func newHostTrie(path string) *hostMatcher {
 		panic(err)
 	}
 
-	pebble, err := pebble.New(path)
-	if err != nil {
-		log.Error("new pebble failed", "err", err)
-	}
-
-	trie := trie.NewTrie(trie.WithPebble(pebble), trie.WithCodec(codec.UnsafeStringCodec{}))
+	trie := trie.NewTrie[string](trie.WithMmap(path), trie.WithCodec(codec.UnsafeStringCodec{}))
 
 	return &hostMatcher{
 		lists: set.NewSet[string](),
 		trie:  trie,
-		cache: pebble,
+		cache: mmapDir{dir: path},
 	}
 }
 

@@ -4,18 +4,31 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"net"
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/cidr"
+	diskcidr "github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/cidr/disk"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/disk"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/domain"
 )
 
 type Trie[T comparable] struct {
-	cidr   *cidr.Cidr[T]
+	cidr   cidrMatcher[T]
 	domain domain.Trie[T]
+}
+
+type cidrMatcher[T comparable] interface {
+	InsertCIDR(netip.Prefix, T)
+	InsertIP(netip.Addr, int, T)
+	SearchIP(net.IP) []T
+	RemoveCIDR(netip.Prefix)
+	RemoveIP(netip.Addr, int)
+	Clear() error
+	Close() error
 }
 
 func (x *Trie[T]) Insert(str string, mark T) {
@@ -119,12 +132,14 @@ func (x *Trie[T]) Remove(str string, mark T) {
 }
 
 func (x *Trie[T]) Clear() error {
-	x.cidr = cidr.NewCidr[T]()
-	return x.domain.Clear()
+	return errors.Join(x.cidr.Clear(), x.domain.Clear())
 }
 
 func (x *Trie[T]) Close() error {
 	var err error
+	if er := x.cidr.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
 	if er := x.domain.Close(); er != nil {
 		err = errors.Join(err, er)
 	}
@@ -132,8 +147,10 @@ func (x *Trie[T]) Close() error {
 }
 
 type Options[T comparable] struct {
-	Codec  codec.Codec[T]
-	Pebble *pebble.Cache
+	Codec    codec.Codec[T]
+	Pebble   *pebble.Cache
+	Mmap     string
+	MmapCIDR string
 }
 
 func WithCodec[T comparable](codec codec.Codec[T]) func(*Options[T]) {
@@ -148,6 +165,21 @@ func WithPebble(cache *pebble.Cache) func(*Options[string]) {
 	}
 }
 
+func WithMmap(path string) func(*Options[string]) {
+	return func(o *Options[string]) {
+		o.Mmap = path
+	}
+}
+
+// WithMmapCIDR enables the optional disk-backed CIDR matcher. The default
+// remains the in-memory matcher. Use a separate directory from WithMmap when
+// both disk backends are enabled.
+func WithMmapCIDR(path string) func(*Options[string]) {
+	return func(o *Options[string]) {
+		o.MmapCIDR = path
+	}
+}
+
 // NewTrie create a new trie
 // if cache is nil, use memory trie
 func NewTrie[T comparable](opts ...func(*Options[T])) *Trie[T] {
@@ -156,6 +188,22 @@ func NewTrie[T comparable](opts ...func(*Options[T])) *Trie[T] {
 		o(&opt)
 	}
 	var dt domain.Trie[T]
+	cm, err := newCIDRMatcher(opt)
+	if err != nil {
+		panic(err)
+	}
+
+	if opt.Mmap != "" {
+		dt, err := disk.NewTrie(opt.Mmap, opt.Codec)
+		if err != nil {
+			_ = cm.Close()
+			panic(err)
+		}
+		return &Trie[T]{
+			cidr:   cm,
+			domain: newDiskDomain(dt),
+		}
+	}
 
 	if opt.Pebble != nil {
 		dt = domain.NewDiskFqdn(domain.NewDiskPebbleTrie(opt.Pebble, opt.Codec))
@@ -164,7 +212,14 @@ func NewTrie[T comparable](opts ...func(*Options[T])) *Trie[T] {
 	}
 
 	return &Trie[T]{
-		cidr:   cidr.NewCidr[T](),
+		cidr:   cm,
 		domain: dt,
 	}
+}
+
+func newCIDRMatcher[T comparable](options Options[T]) (cidrMatcher[T], error) {
+	if options.MmapCIDR != "" {
+		return diskcidr.NewTrie(options.MmapCIDR, options.Codec)
+	}
+	return cidr.NewCidr[T](), nil
 }
