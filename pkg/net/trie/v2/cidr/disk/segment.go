@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -308,10 +309,8 @@ func insertPath[T comparable](root *memoryNode[T], path []uint8, value T) {
 		}
 		node = node.children[branch]
 	}
-	for _, existing := range node.values {
-		if existing == value {
-			return
-		}
+	if slices.Contains(node.values, value) {
+		return
 	}
 	node.values = append(node.values, value)
 }

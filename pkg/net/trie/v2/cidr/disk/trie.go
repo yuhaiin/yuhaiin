@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"sync"
 
@@ -241,7 +242,7 @@ func (t *Trie[T]) insertLocked(addr netip.Addr, bits int, value T) {
 		t.memoryUsed += 64
 	}
 	node = node.children[family]
-	for index := 0; index < bits; index++ {
+	for index := range bits {
 		branch := bitAt(data, index)
 		if node.children[branch] == nil {
 			node.children[branch] = newMemoryNode[T]()
@@ -249,10 +250,8 @@ func (t *Trie[T]) insertLocked(addr netip.Addr, bits int, value T) {
 		}
 		node = node.children[branch]
 	}
-	for _, existing := range node.values {
-		if existing == value {
-			return
-		}
+	if slices.Contains(node.values, value) {
+		return
 	}
 	node.values = append(node.values, value)
 	t.memoryUsed += estimateValueSize(value)
@@ -304,7 +303,7 @@ func removeNode[T comparable](root *memoryNode[T], addr netip.Addr, bits int) {
 		return
 	}
 	path = append(path, node)
-	for index := 0; index < bits; index++ {
+	for index := range bits {
 		node = node.children[bitAt(data, index)]
 		if node == nil {
 			return
@@ -353,13 +352,7 @@ func estimateTreeSize[T comparable](root *memoryNode[T]) uint64 {
 
 func appendUnique[T comparable](dst []T, src ...T) []T {
 	for _, value := range src {
-		found := false
-		for _, existing := range dst {
-			if existing == value {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(dst, value)
 		if !found {
 			dst = append(dst, value)
 		}

@@ -84,7 +84,7 @@ func TestTrieCompactsSegments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		if err := trie.Insert("host"+string(rune('a'+i))+".example.com", "value"); err != nil {
 			t.Fatal(err)
 		}
@@ -231,7 +231,7 @@ func BenchmarkDiskTrie(b *testing.B) {
 			b.Fatal(err)
 		}
 		defer trie.Close()
-		for i := 0; i < 5000; i++ {
+		for i := range 5000 {
 			if err := trie.Insert(benchmarkDomain(i), "value"); err != nil {
 				b.Fatal(err)
 			}

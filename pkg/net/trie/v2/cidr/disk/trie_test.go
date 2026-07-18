@@ -55,7 +55,7 @@ func TestTrieSupportsIPv6AndCompaction(t *testing.T) {
 
 	trie.InsertCIDR(netip.MustParsePrefix("2001:db8::/32"), "v6-network")
 	trie.InsertCIDR(netip.MustParsePrefix("2001:db8:1::/48"), "v6-subnet")
-	for index := 0; index < 8; index++ {
+	for index := range 8 {
 		prefix := netip.PrefixFrom(netip.AddrFrom4([4]byte{192, 0, 2, byte(index)}), 32)
 		trie.InsertCIDR(prefix, "v4-host")
 	}

@@ -115,10 +115,7 @@ func comparePath(a, b []uint8) int {
 }
 
 func commonPath(a, b []uint8) int {
-	length := len(a)
-	if len(b) < length {
-		length = len(b)
-	}
+	length := min(len(b), len(a))
 	for index := 0; index < length; index++ {
 		if a[index] != b[index] {
 			return index
