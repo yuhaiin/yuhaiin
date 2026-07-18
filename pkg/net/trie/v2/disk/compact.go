@@ -287,7 +287,7 @@ func buildCompactionPlan[T comparable](dir string, parts []*segment[T], c codec.
 
 func commonPath(a, b []string) int {
 	n := min(len(b), len(a))
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if a[i] != b[i] {
 			return i
 		}
