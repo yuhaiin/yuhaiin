@@ -83,11 +83,11 @@ func routeConfigToStoreV2(value contractroute.Config) plainstore.RouteSettings {
 	return plainstore.RouteSettings{DirectResolver: value.DirectResolver, ProxyResolver: value.ProxyResolver, ResolveLocally: value.ResolveLocally, UDPProxyFQDN: udpProxyFqdnStrategyFromStringV2(value.UdpProxyFqdnStrategy)}
 }
 func routeListConfigFromStoreV2(value plainstore.RouteListSettings) contractroute.ListConfig {
-	return contractroute.ListConfig{RefreshInterval: strconv.FormatUint(value.RefreshInterval, 10), LastRefreshTime: strconv.FormatUint(value.LastRefreshTime, 10), Error: value.Error, MaxMindDBGeoIP: contractroute.MaxMindDBGeoIP{DownloadURL: value.MaxMindDBDownloadURL, Error: value.MaxMindDBError}}
+	return contractroute.ListConfig{RefreshInterval: strconv.FormatUint(value.RefreshInterval, 10), LastRefreshTime: strconv.FormatUint(value.LastRefreshTime, 10), Error: value.Error, HostIndexDisk: value.HostIndexDisk, MaxMindDBGeoIP: contractroute.MaxMindDBGeoIP{DownloadURL: value.MaxMindDBDownloadURL, Error: value.MaxMindDBError}}
 }
 func routeListConfigToStoreV2(value contractroute.ListConfig, refreshInterval uint64) plainstore.RouteListSettings {
 	lastRefreshTime, _ := strconv.ParseUint(value.LastRefreshTime, 10, 64)
-	return plainstore.RouteListSettings{RefreshInterval: refreshInterval, LastRefreshTime: lastRefreshTime, Error: value.Error, MaxMindDBDownloadURL: value.MaxMindDBGeoIP.DownloadURL, MaxMindDBError: value.MaxMindDBGeoIP.Error}
+	return plainstore.RouteListSettings{RefreshInterval: refreshInterval, LastRefreshTime: lastRefreshTime, Error: value.Error, HostIndexDisk: value.HostIndexDisk, MaxMindDBDownloadURL: value.MaxMindDBGeoIP.DownloadURL, MaxMindDBError: value.MaxMindDBGeoIP.Error}
 }
 func udpProxyFqdnStrategyToStringV2(value int) string {
 	switch value {

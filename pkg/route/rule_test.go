@@ -55,7 +55,7 @@ func newTestMatchers(t *testing.T) *Matchers {
 	t.Helper()
 
 	lists := &Lists{
-		hostTrie:    newHostTrie(t.TempDir()),
+		hostTrie:    newHostTrie(t.TempDir(), false),
 		processTrie: newProcessTrie(),
 	}
 
@@ -125,7 +125,7 @@ func TestMatcherRebuildSkipsDisabledRules(t *testing.T) {
 
 func TestRuleTestContractSharesNetapiContext(t *testing.T) {
 	lists := &Lists{
-		hostTrie:    newHostTrie(t.TempDir()),
+		hostTrie:    newHostTrie(t.TempDir(), false),
 		processTrie: newProcessTrie(),
 	}
 	t.Cleanup(func() {

@@ -24,6 +24,7 @@ type RouteListSettings struct {
 	RefreshInterval      uint64
 	LastRefreshTime      uint64
 	Error                string
+	HostIndexDisk        bool
 	MaxMindDBDownloadURL string
 	MaxMindDBError       string
 }
@@ -32,6 +33,7 @@ type routeRefreshConfigJSON struct {
 	RefreshInterval uint64 `json:"refresh_interval"`
 	LastRefreshTime uint64 `json:"last_refresh_time"`
 	Error           string `json:"error"`
+	HostIndexDisk   bool   `json:"host_index_disk"`
 }
 
 type maxminddbGeoIPJSON struct {
@@ -111,6 +113,7 @@ func (s *RouteSettingsStore) SaveListSettings(ctx context.Context, settings Rout
 		RefreshInterval: settings.RefreshInterval,
 		LastRefreshTime: settings.LastRefreshTime,
 		Error:           settings.Error,
+		HostIndexDisk:   settings.HostIndexDisk,
 	}
 	if err := saveSettingsKV(ctx, tx, "route_extra", "refresh_config", refresh, now); err != nil {
 		return err
@@ -148,6 +151,7 @@ func (s *RouteSettingsStore) loadRefreshConfig(ctx context.Context, out *RouteLi
 	out.RefreshInterval = refresh.RefreshInterval
 	out.LastRefreshTime = refresh.LastRefreshTime
 	out.Error = refresh.Error
+	out.HostIndexDisk = refresh.HostIndexDisk
 	return nil
 }
 

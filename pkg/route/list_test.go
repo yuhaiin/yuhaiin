@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 )
 
@@ -64,6 +65,37 @@ func TestListsSaveContractConfigDoesNotDownloadGeoIP(t *testing.T) {
 	}
 	if settings.value.MaxMindDBDownloadURL != geoIPURL || settings.value.MaxMindDBError != "" {
 		t.Fatalf("saved settings = %+v", settings.value)
+	}
+}
+
+func TestListsSaveContractConfigSwitchesHostIndexStorage(t *testing.T) {
+	oldDataDir := configuration.DataDir.Load()
+	configuration.DataDir.Store(t.TempDir())
+	t.Cleanup(func() { configuration.DataDir.Store(oldDataDir) })
+
+	settings := &listSettingsStub{}
+	lists := &Lists{
+		settings: settings,
+		hostTrie: newHostTrie(t.TempDir(), false),
+	}
+	t.Cleanup(func() {
+		if err := lists.Close(); err != nil {
+			t.Logf("close lists failed: %v", err)
+		}
+	})
+
+	if err := lists.SaveContractConfig(context.Background(), contractroute.ListConfig{HostIndexDisk: true}, 0); err != nil {
+		t.Fatal(err)
+	}
+	if !settings.value.HostIndexDisk || lists.hostTrie.cache == nil {
+		t.Fatalf("disk host index was not enabled: settings=%+v cache=%#v", settings.value, lists.hostTrie.cache)
+	}
+
+	if err := lists.SaveContractConfig(context.Background(), contractroute.ListConfig{}, 0); err != nil {
+		t.Fatal(err)
+	}
+	if settings.value.HostIndexDisk || lists.hostTrie.cache != nil {
+		t.Fatalf("memory host index was not enabled: settings=%+v cache=%#v", settings.value, lists.hostTrie.cache)
 	}
 }
 

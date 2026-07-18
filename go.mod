@@ -10,6 +10,7 @@ replace (
 )
 
 require (
+	codeberg.org/miekg/dns v0.6.84
 	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.4
 	github.com/cockroachdb/pebble/v2 v2.1.6
@@ -17,7 +18,6 @@ require (
 	github.com/google/nftables v0.3.0
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.12
 	github.com/libp2p/go-yamux/v5 v5.1.0
-	codeberg.org/miekg/dns v0.6.84
 	github.com/ncruces/go-sqlite3 v0.35.2
 	github.com/oschwald/maxminddb-golang/v2 v2.4.1
 	github.com/pires/go-proxyproto v0.15.0
@@ -30,7 +30,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20260611001507-ffb138071028
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20260322125925-9234c772ba8f
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260711161803-3827c9cf8294
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260718130037-a2b7fd321295
 	golang.org/x/crypto v0.54.0
 	golang.org/x/mobile v0.0.0-20260709172247-6129f5bee9d5
 	golang.org/x/mod v0.38.0

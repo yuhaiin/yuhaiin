@@ -48,6 +48,7 @@ func TestRouteSettingsStoreListSettings(t *testing.T) {
 		RefreshInterval:      3600,
 		LastRefreshTime:      123,
 		Error:                "last error",
+		HostIndexDisk:        true,
 		MaxMindDBDownloadURL: "https://example.com/geo.mmdb",
 		MaxMindDBError:       "geo error",
 	}

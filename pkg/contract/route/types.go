@@ -13,6 +13,7 @@ type ListConfig struct {
 	RefreshInterval string         `json:"refreshInterval"`
 	LastRefreshTime string         `json:"lastRefreshTime"`
 	Error           string         `json:"error"`
+	HostIndexDisk   bool           `json:"hostIndexDisk"`
 	MaxMindDBGeoIP  MaxMindDBGeoIP `json:"maxMindDbGeoIp"`
 }
 

@@ -126,6 +126,7 @@ func TestV2RouteActivationIsCombined(t *testing.T) {
 func (s listConfigRuntimeStub) SaveConfig(ctx context.Context, config contractroute.ListConfig, interval uint64) error {
 	return s.store.SaveListSettings(ctx, plainstore.RouteListSettings{
 		RefreshInterval: interval, LastRefreshTime: 999,
+		HostIndexDisk:        config.HostIndexDisk,
 		MaxMindDBDownloadURL: config.MaxMindDBGeoIP.DownloadURL,
 	})
 }
@@ -148,21 +149,21 @@ func TestV2RouteListConfigDoesNotOverwriteRuntimeState(t *testing.T) {
 	RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) { _ = handler(w, r) })
 	}, V2Services{Lists: listConfigRuntimeStub{store: settings}, RouteSettings: settings})
-	body := `{"refreshInterval":"60","lastRefreshTime":"0","error":"NOT DOWNLOAD","maxMindDbGeoIp":{"downloadUrl":"https://example.com/geo.mmdb","error":"NOT DOWNLOAD"}}`
+	body := `{"refreshInterval":"60","lastRefreshTime":"0","error":"NOT DOWNLOAD","hostIndexDisk":true,"maxMindDbGeoIp":{"downloadUrl":"https://example.com/geo.mmdb","error":"NOT DOWNLOAD"}}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v2/rpc/route.lists.config.put", strings.NewReader(body))
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), `"lastRefreshTime":"999"`) || strings.Contains(recorder.Body.String(), "NOT DOWNLOAD") {
+	if !strings.Contains(recorder.Body.String(), `"lastRefreshTime":"999"`) || !strings.Contains(recorder.Body.String(), `"hostIndexDisk":true`) || strings.Contains(recorder.Body.String(), "NOT DOWNLOAD") {
 		t.Fatalf("response contains stale runtime state: %s", recorder.Body.String())
 	}
 	got, err := settings.ListSettings(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.LastRefreshTime != 999 || got.Error != "" || got.MaxMindDBError != "" {
+	if got.LastRefreshTime != 999 || got.Error != "" || !got.HostIndexDisk || got.MaxMindDBError != "" {
 		t.Fatalf("runtime state overwritten: %+v", got)
 	}
 }

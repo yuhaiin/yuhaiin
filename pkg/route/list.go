@@ -47,7 +47,14 @@ type hostMatcher struct {
 	mu    sync.Mutex
 }
 
-func newHostTrie(path string) *hostMatcher {
+func newHostTrie(path string, useDisk bool) *hostMatcher {
+	if !useDisk {
+		return &hostMatcher{
+			lists: set.NewSet[string](),
+			trie:  trie.NewTrie[string](),
+		}
+	}
+
 	path, err := os.MkdirTemp(path, "trie.*.db")
 	if err != nil {
 		// mkdirtemp will try over 10000 times
@@ -55,7 +62,7 @@ func newHostTrie(path string) *hostMatcher {
 		panic(err)
 	}
 
-	trie := trie.NewTrie[string](trie.WithMmap(path), trie.WithCodec(codec.UnsafeStringCodec{}))
+	trie := trie.NewTrie[string](trie.WithMmap(path), trie.WithMmapCIDR(path), trie.WithCodec(codec.UnsafeStringCodec{}))
 
 	return &hostMatcher{
 		lists: set.NewSet[string](),
@@ -180,6 +187,7 @@ type Lists struct {
 	ticker *time.Timer
 
 	hostTrie               *hostMatcher
+	hostTrieDisk           atomic.Bool
 	hostTrieRefreshTimer   *time.Timer
 	hostTrieRefreshTimerMu sync.Mutex
 	hostTrieRefreshMu      sync.Mutex
@@ -223,6 +231,13 @@ func NewLists(lists RouteListBook, settings RouteListSettingsBook, configPath st
 		}
 	}
 
+	var listConfig RouteListSettings
+	if settings != nil {
+		if config, err := settings.ListSettings(context.Background()); err == nil {
+			listConfig = config
+		}
+	}
+
 	proxy := atomicx.NewValue(direct.Default)
 
 	l := &Lists{
@@ -230,20 +245,14 @@ func NewLists(lists RouteListBook, settings RouteListSettingsBook, configPath st
 		settings:    settings,
 		proxy:       proxy,
 		downloader:  NewDownloader(filepath.Join(configPath, "rules"), proxy.Load),
-		hostTrie:    newHostTrie(configuration.DataDir.Load()),
+		hostTrie:    newHostTrie(configuration.DataDir.Load(), listConfig.HostIndexDisk),
 		processTrie: newProcessTrie(),
 	}
+	l.hostTrieDisk.Store(listConfig.HostIndexDisk)
 
 	l.hostTrieRefreshTimer = time.AfterFunc(time.Second, l.refreshHostTrieAndMarkApplied)
 
-	var interval uint64
-	if settings != nil {
-		if config, err := settings.ListSettings(context.Background()); err == nil {
-			interval = config.RefreshInterval
-		}
-	}
-
-	l.resetRefreshInterval(interval)
+	l.resetRefreshInterval(listConfig.RefreshInterval)
 
 	return l
 }
@@ -491,14 +500,23 @@ func (s *Lists) SaveContractConfig(ctx context.Context, req contractroute.ListCo
 		s.resetRefreshInterval(refreshInterval)
 	}
 	settings.RefreshInterval = refreshInterval
+	hostIndexDiskChanged := settings.HostIndexDisk != req.HostIndexDisk
+	settings.HostIndexDisk = req.HostIndexDisk
 	if settings.MaxMindDBDownloadURL != req.MaxMindDBGeoIP.DownloadURL {
 		settings.MaxMindDBDownloadURL = req.MaxMindDBGeoIP.DownloadURL
 		// The database is downloaded by RefreshContract, not while saving config.
 		settings.MaxMindDBError = ""
 	}
 	settings.Error = ""
-	err = s.settings.SaveListSettings(ctx, settings)
-	return err
+	if err := s.settings.SaveListSettings(ctx, settings); err != nil {
+		return err
+	}
+	if hostIndexDiskChanged {
+		// Switching storage requires rebuilding the current index in the new backend.
+		s.hostTrieDisk.Store(settings.HostIndexDisk)
+		s.refreshHostTrieAndMarkApplied()
+	}
+	return nil
 }
 
 func (s *Lists) SetProxy(proxy netapi.Proxy) { s.proxy.Store(proxy) }
@@ -586,7 +604,7 @@ func (s *Lists) getIter(name string) (contractroute.RouteListDetail, iter.Seq[st
 }
 
 func (s *Lists) refreshHostTrie() {
-	hostTrie := newHostTrie(configuration.DataDir.Load())
+	hostTrie := newHostTrie(configuration.DataDir.Load(), s.hostTrieDisk.Load())
 	for name := range s.hostTrie.lists.Range {
 		_, iter, err := s.getIter(name)
 		if err != nil {
