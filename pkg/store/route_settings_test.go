@@ -63,3 +63,46 @@ func TestRouteSettingsStoreListSettings(t *testing.T) {
 		t.Fatalf("list settings = %+v, want %+v", got, input)
 	}
 }
+
+func TestRouteSettingsStoreListSettingsDefaultsHostIndexDisk(t *testing.T) {
+	ctx := context.Background()
+	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sqliteStore.Close() }()
+
+	store := NewRouteSettingsStore(sqliteStore.DB())
+	got, err := store.ListSettings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.HostIndexDisk {
+		t.Fatalf("default host index storage = false, want true")
+	}
+
+	if _, err := sqliteStore.DB().ExecContext(ctx, `
+		INSERT INTO settings_kv(section, key, value_json, updated_at)
+		VALUES ('route_extra', 'refresh_config', '{"refresh_interval":0}', 1)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	got, err = store.ListSettings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.HostIndexDisk {
+		t.Fatalf("host index storage for old config = false, want true")
+	}
+
+	if err := store.SaveListSettings(ctx, RouteListSettings{HostIndexDisk: false}); err != nil {
+		t.Fatal(err)
+	}
+	got, err = store.ListSettings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.HostIndexDisk {
+		t.Fatalf("explicitly disabled host index storage = true, want false")
+	}
+}

@@ -33,7 +33,7 @@ type routeRefreshConfigJSON struct {
 	RefreshInterval uint64 `json:"refresh_interval"`
 	LastRefreshTime uint64 `json:"last_refresh_time"`
 	Error           string `json:"error"`
-	HostIndexDisk   bool   `json:"host_index_disk"`
+	HostIndexDisk   *bool  `json:"host_index_disk"`
 }
 
 type maxminddbGeoIPJSON struct {
@@ -88,7 +88,10 @@ func (s *RouteSettingsStore) ListSettings(ctx context.Context) (RouteListSetting
 	if s == nil || s.db == nil {
 		return RouteListSettings{}, errors.New("route settings store database is nil")
 	}
-	out := RouteListSettings{}
+	// Disk-backed host indexes are the default. A nil pointer below keeps old
+	// settings, which predate this option, on the same default without
+	// overriding an explicit false saved by the user.
+	out := RouteListSettings{HostIndexDisk: true}
 	if err := s.loadRefreshConfig(ctx, &out); err != nil {
 		return RouteListSettings{}, err
 	}
@@ -109,11 +112,12 @@ func (s *RouteSettingsStore) SaveListSettings(ctx context.Context, settings Rout
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	hostIndexDisk := settings.HostIndexDisk
 	refresh := &routeRefreshConfigJSON{
 		RefreshInterval: settings.RefreshInterval,
 		LastRefreshTime: settings.LastRefreshTime,
 		Error:           settings.Error,
-		HostIndexDisk:   settings.HostIndexDisk,
+		HostIndexDisk:   &hostIndexDisk,
 	}
 	if err := saveSettingsKV(ctx, tx, "route_extra", "refresh_config", refresh, now); err != nil {
 		return err
@@ -151,7 +155,9 @@ func (s *RouteSettingsStore) loadRefreshConfig(ctx context.Context, out *RouteLi
 	out.RefreshInterval = refresh.RefreshInterval
 	out.LastRefreshTime = refresh.LastRefreshTime
 	out.Error = refresh.Error
-	out.HostIndexDisk = refresh.HostIndexDisk
+	if refresh.HostIndexDisk != nil {
+		out.HostIndexDisk = *refresh.HostIndexDisk
+	}
 	return nil
 }
 

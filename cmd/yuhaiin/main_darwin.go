@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
@@ -37,6 +36,9 @@ const darwinLaunchdPlist = `
     </array>
 
     <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
     <true/>
 
     <key>UserName</key>
@@ -64,45 +66,36 @@ func uninstall(args []string) error {
 }
 
 func restart(args []string) error {
-	if err := stop(args); err != nil {
+	out, err := exec.Command("launchctl", "list", service).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error running launchctl list %s: %v, %s", service, err, out)
+	}
+	pid := getPid(out)
+	if err := bootoutDarwinService(); err != nil {
 		return err
 	}
-
-	startTime := time.Now()
-	for {
-		out, err := exec.Command("launchctl", "list", service).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("error running launchctl list %s: %v, %s", service, err, out)
-		}
-
-		pid := getPid(out)
-		if pid == -1 {
-			break
-		}
-
-		if time.Since(startTime) > time.Minute {
-			log.Error("timeout waiting for service to stop, please check manually")
-		} else {
-			log.Info("check service is running, wait for 1 second", "pid", pid)
-			time.Sleep(time.Second)
+	if pid > 0 {
+		if err := waitForDarwinProcessExit(pid); err != nil {
+			return err
 		}
 	}
-
-	return start(args)
+	if err := bootstrapDarwinService(); err != nil {
+		return err
+	}
+	_, err = kickstartDarwinService(service)
+	return err
 }
 
 func stop(args []string) error {
-	if out, err := exec.Command("launchctl", "stop", service).CombinedOutput(); err != nil {
-		return fmt.Errorf("error running launchctl stop %s: %v, %s", service, err, out)
+	if out, err := exec.Command("launchctl", "kill", "TERM", "system/"+service).CombinedOutput(); err != nil {
+		return fmt.Errorf("error running launchctl kill %s: %v, %s", service, err, out)
 	}
 	return nil
 }
 
 func start(args []string) error {
-	if out, err := exec.Command("launchctl", "start", service).CombinedOutput(); err != nil {
-		return fmt.Errorf("error running launchctl start %s: %v, %s", service, err, out)
-	}
-	return nil
+	_, err := kickstartDarwinService(service)
+	return err
 }
 
 func uninstallSystemDaemonDarwin(args []string) (ret error) {
@@ -110,22 +103,12 @@ func uninstallSystemDaemonDarwin(args []string) (ret error) {
 		return errors.New("uninstall subcommand takes no arguments")
 	}
 
-	plist, err := exec.Command("launchctl", "list", service).Output()
-	_ = plist // parse it? https://github.com/DHowett/go-plist if we need something.
-	running := err == nil
+	running := exec.Command("launchctl", "print", "system/"+service).Run() == nil
 
 	if running {
-		out, err := exec.Command("launchctl", "stop", service).CombinedOutput()
-		if err != nil {
-			fmt.Printf("launchctl stop %s: %v, %s\n", service, err, out)
+		if err := bootoutDarwinService(); err != nil {
+			fmt.Printf("launchctl bootout %s: %v\n", sysPlist, err)
 			ret = err
-		}
-		out, err = exec.Command("launchctl", "unload", sysPlist).CombinedOutput()
-		if err != nil {
-			fmt.Printf("launchctl unload %s: %v, %s\n", sysPlist, err, out)
-			if ret == nil {
-				ret = err
-			}
 		}
 	}
 
@@ -206,12 +189,11 @@ func installSystemDaemonDarwin(args []string) (err error) {
 		return err
 	}
 
-	if out, err := exec.Command("launchctl", "load", sysPlist).CombinedOutput(); err != nil {
-		return fmt.Errorf("error running launchctl load %s: %v, %s", sysPlist, err, out)
+	if err := bootstrapDarwinService(); err != nil {
+		return err
 	}
-
-	if out, err := exec.Command("launchctl", "start", service).CombinedOutput(); err != nil {
-		return fmt.Errorf("error running launchctl start %s: %v, %s", service, err, out)
+	if _, err := kickstartDarwinService(service); err != nil {
+		return err
 	}
 
 	return nil
