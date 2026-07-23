@@ -15,6 +15,7 @@ import (
 	contractsubscription "github.com/Asutorufa/yuhaiin/pkg/contract/subscription"
 	contracttools "github.com/Asutorufa/yuhaiin/pkg/contract/tools"
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
+	contractuser "github.com/Asutorufa/yuhaiin/pkg/contract/user"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
@@ -97,9 +98,21 @@ type InboundStore interface {
 	Settings(context.Context) (plainstore.InboundSettings, error)
 	SaveSettings(context.Context, plainstore.InboundSettings) error
 }
+type UserStore interface {
+	List(context.Context) ([]contractuser.UserView, error)
+	Get(context.Context, string) (contractuser.User, error)
+	Create(context.Context, contractuser.UserWrite) (contractuser.UserView, error)
+	Save(context.Context, contractuser.User, int64) error
+	Delete(context.Context, string) error
+}
+type UserRuntime interface {
+	Reload(context.Context) error
+}
 type V2Services struct {
 	Settings       SettingsController
 	Inbounds       InboundStore
+	Users          UserStore
+	Auth           UserRuntime
 	Nodes          *plainstore.NodeStore
 	Node           NodeController
 	Subscriptions  *plainstore.SubscriptionStore

@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -27,6 +28,7 @@ type Inbound struct {
 	ctx context.Context
 
 	dnsHandler netapi.DNSAgent
+	authCenter *auth.Center
 
 	handler *handler
 
@@ -54,6 +56,10 @@ func WithDNSAgent(dnsHandler netapi.DNSAgent) Option {
 	return func(l *Inbound) {
 		l.dnsHandler = dnsHandler
 	}
+}
+
+func WithAuthCenter(center *auth.Center) Option {
+	return func(l *Inbound) { l.authCenter = center }
 }
 
 func NewInbound(dialer netapi.Proxy, opts ...Option) *Inbound {
@@ -189,7 +195,7 @@ func (l *Inbound) SaveContract(req contract.Inbound) {
 		return
 	}
 
-	server, err := listenContract(req, &handlerWrap{name: req.Name, handler: l})
+	server, err := listenContract(req, &handlerWrap{name: req.Name, handler: l}, l.authCenter)
 	if err != nil {
 		log.Error("start contract server failed", "name", req.Name, "id", req.ID, "err", err)
 		return
