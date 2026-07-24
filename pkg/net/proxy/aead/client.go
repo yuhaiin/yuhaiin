@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/auth"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
@@ -25,7 +26,9 @@ type Client struct {
 
 type Config struct {
 	Password     string       `json:"password"`
+	Passwords    []string     `json:"-"`
 	CryptoMethod CryptoMethod `json:"crypto_method"`
+	Auth         *auth.Center `json:"-"`
 }
 
 func NewClient(cfg Config, p netapi.Proxy) (netapi.Proxy, error) {

@@ -23,8 +23,10 @@ type AuthPacketConn struct {
 	rawAddr net.Addr
 	onClose func() error
 
-	password []byte
-	prefix   bool
+	password  []byte
+	passwords [][]byte
+	auth      func([]byte) bool
+	prefix    bool
 }
 
 func NewAuthPacketConn(local net.PacketConn) *AuthPacketConn {
@@ -56,6 +58,22 @@ func (s *AuthPacketConn) WithRealTarget(target net.Addr) *AuthPacketConn {
 
 func (s *AuthPacketConn) WithPassword(password []byte) *AuthPacketConn {
 	s.password = password
+	return s
+}
+
+func (s *AuthPacketConn) WithPasswords(passwords [][]byte) *AuthPacketConn {
+	s.passwords = passwords
+	if len(passwords) > 0 {
+		s.password = passwords[0]
+	}
+	return s
+}
+
+func (s *AuthPacketConn) WithAuthenticator(auth func([]byte) bool) *AuthPacketConn {
+	s.auth = auth
+	if auth != nil {
+		s.password = make([]byte, 32)
+	}
 	return s
 }
 
@@ -111,9 +129,37 @@ func (s *AuthPacketConn) read(p []byte) (int, packetAddr, error) {
 		return 0, packetAddr{}, fmt.Errorf("read from packetConn failed: %w", err)
 	}
 
-	buf, addr, err := DecodePacket(p[:n], s.password, s.prefix)
-	if err != nil {
-		return 0, packetAddr{}, fmt.Errorf("decode packet failed: %w", err)
+	var buf []byte
+	var addr netapi.Address
+	var matched []byte
+	if s.auth != nil {
+		if n < 32 || !s.auth(p[:32]) {
+			return 0, packetAddr{}, errors.New("decode packet failed: key is incorrect")
+		}
+		buf, addr, err = DecodePacket(p[:n], p[:32], s.prefix)
+		if err != nil {
+			return 0, packetAddr{}, fmt.Errorf("decode packet failed: %w", err)
+		}
+		s.password = append(s.password[:0], p[:32]...)
+	} else if len(s.passwords) > 0 {
+		for _, password := range s.passwords {
+			decoded, decodedAddr, decodeErr := DecodePacket(p[:n], password, s.prefix)
+			if decodeErr == nil {
+				buf, addr, matched = decoded, decodedAddr, password
+				break
+			}
+		}
+		if matched == nil {
+			return 0, packetAddr{}, errors.New("decode packet failed: key is incorrect")
+		}
+	} else {
+		buf, addr, err = DecodePacket(p[:n], s.password, s.prefix)
+		if err != nil {
+			return 0, packetAddr{}, fmt.Errorf("decode packet failed: %w", err)
+		}
+	}
+	if matched != nil {
+		s.password = matched
 	}
 
 	return copy(p[0:], buf), packetAddr{addr, rawAddr}, nil
@@ -123,13 +169,26 @@ type UDPServer struct {
 	PacketConn net.PacketConn
 	Handler    func(*netapi.Packet)
 	Password   []byte
+	Passwords  [][]byte
+	Auth       func([]byte) bool
 	Prefix     bool
 }
 
 func (s *UDPServer) Serve() error {
-	p := NewAuthPacketConn(s.PacketConn).WithSocks5Prefix(s.Prefix).WithPassword(s.Password)
+	p := NewAuthPacketConn(s.PacketConn).WithSocks5Prefix(s.Prefix)
+	if len(s.Passwords) > 0 {
+		p.WithPasswords(s.Passwords)
+	} else if s.Auth != nil {
+		p.WithAuthenticator(s.Auth)
+	} else {
+		p.WithPassword(s.Password)
+	}
 
-	buf := pool.GetBytes(configuration.UDPBufferSize.Load() + MaxPacketHeaderSize(s.Password, s.Prefix))
+	password := s.Password
+	if s.Auth != nil {
+		password = make([]byte, 32)
+	}
+	buf := pool.GetBytes(configuration.UDPBufferSize.Load() + MaxPacketHeaderSize(password, s.Prefix))
 	defer pool.PutBytes(buf)
 
 	for {

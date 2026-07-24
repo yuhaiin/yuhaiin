@@ -73,14 +73,21 @@ func TestOpenBootstrapsEmptyDatabase(t *testing.T) {
 		"resolvers_v2",
 		"route_rules_v2",
 		"route_lists_v2",
+		"users_v2",
+		"user_basic_v2",
+		"user_uuid_v2",
+		"user_token_v2",
+		"user_migration_state_v2",
+		"user_migration_sources_v2",
+		"user_migration_dedup_v2",
 	} {
 		if !schemaObjectExists(t, store.DB(), name) {
 			t.Fatalf("schema object %q was not created", name)
 		}
 	}
 
-	if got := queryString(t, store.DB(), `SELECT value FROM metadata WHERE key = 'schema_version'`); got != "5" {
-		t.Fatalf("metadata schema_version = %q, want 5", got)
+	if got := queryString(t, store.DB(), `SELECT value FROM metadata WHERE key = 'schema_version'`); got != "6" {
+		t.Fatalf("metadata schema_version = %q, want 6", got)
 	}
 
 	if got := queryInt(t, store.DB(), `SELECT COUNT(*) FROM migrate`); got != int64(len(migrations)) {

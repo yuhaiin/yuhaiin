@@ -12,6 +12,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
@@ -25,19 +26,22 @@ type Server struct {
 
 	handler            netapi.Handler
 	username, password []byte
+	authenticator      auth.BasicAuthenticator
 }
 
 type ServerConfig struct {
-	Username string `json:"username,omitzero"`
-	Password string `json:"password,omitzero"`
+	Username string                  `json:"username,omitzero"`
+	Password string                  `json:"password,omitzero"`
+	Auth     auth.BasicAuthenticator `json:"-"`
 }
 
 func newServer(o ServerConfig, lis net.Listener, handler netapi.Handler) *Server {
 	h := &Server{
-		username: []byte(o.Username),
-		password: []byte(o.Password),
-		lis:      lis,
-		handler:  handler,
+		username:      []byte(o.Username),
+		password:      []byte(o.Password),
+		lis:           lis,
+		handler:       handler,
+		authenticator: o.Auth,
 	}
 
 	type remoteKey struct{}
@@ -103,7 +107,7 @@ func ParseBasicAuth(auth string) (username, password string, ok bool)
 func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	if len(h.password) > 0 || len(h.username) > 0 {
+	if h.authenticator != nil {
 		username, password, isHas := ParseBasicAuth(r.Header.Get("Proxy-Authorization"))
 		if !isHas {
 			w.Header().Set("Proxy-Authenticate", "Basic")
@@ -111,6 +115,12 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if _, err := h.authenticator.AuthBasic(username, password); err != nil {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+	} else if len(h.password) > 0 || len(h.username) > 0 {
+		username, password, _ := ParseBasicAuth(r.Header.Get("Proxy-Authorization"))
 		if (len(h.username) > 0 && subtle.ConstantTimeCompare(unsafe.Slice(unsafe.StringData(username), len(username)), h.username) != 1) ||
 			(len(h.password) > 0 && subtle.ConstantTimeCompare(unsafe.Slice(unsafe.StringData(password), len(password)), h.password) != 1) {
 			w.WriteHeader(http.StatusForbidden)

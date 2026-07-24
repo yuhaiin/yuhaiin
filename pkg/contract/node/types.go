@@ -104,14 +104,18 @@ type Direct struct {
 }
 
 type Shadowsocks struct {
-	Method   string `json:"method"`
+	Method string `json:"method"`
+	UserID string `json:"userId,omitzero"`
+	// Deprecated: authentication is resolved through UserID.
 	Password string `json:"password"`
 }
 
 type Shadowsocksr struct {
-	Server     string `json:"server"`
-	Port       string `json:"port"`
-	Method     string `json:"method"`
+	Server string `json:"server"`
+	Port   string `json:"port"`
+	Method string `json:"method"`
+	UserID string `json:"userId,omitzero"`
+	// Deprecated: authentication is resolved through UserID.
 	Password   string `json:"password"`
 	Obfs       string `json:"obfs"`
 	ObfsParam  string `json:"obfsparam"`
@@ -120,12 +124,16 @@ type Shadowsocksr struct {
 }
 
 type Vmess struct {
+	UserID string `json:"userId,omitzero"`
+	// Deprecated: authentication is resolved through UserID.
 	UUID     string `json:"id"`
 	AlterID  string `json:"aid"`
 	Security string `json:"security"`
 }
 
 type Vless struct {
+	UserID string `json:"userId,omitzero"`
+	// Deprecated: authentication is resolved through UserID.
 	UUID string `json:"uuid"`
 }
 
@@ -145,6 +153,8 @@ type ObfsHTTP struct {
 }
 
 type Trojan struct {
+	UserID string `json:"userId,omitzero"`
+	// Deprecated: authentication is resolved through UserID.
 	Password string `json:"password"`
 	Peer     string `json:"peer"`
 }
@@ -168,18 +178,26 @@ type FixedAddress struct {
 }
 
 type Socks5 struct {
-	User         string `json:"user"`
+	UserID string `json:"userId,omitzero"`
+	// Deprecated: authentication is resolved through UserID.
+	User string `json:"user"`
+	// Deprecated: authentication is resolved through UserID.
 	Password     string `json:"password"`
 	Hostname     string `json:"hostname"`
 	OverridePort int32  `json:"override_port,omitzero"`
 }
 
 type HTTP struct {
-	User     string `json:"user"`
+	UserID string `json:"userId,omitzero"`
+	// Deprecated: authentication is resolved through UserID.
+	User string `json:"user"`
+	// Deprecated: authentication is resolved through UserID.
 	Password string `json:"password"`
 }
 
 type Yuubinsya struct {
+	UserID string `json:"userId,omitzero"`
+	// Deprecated: authentication is resolved through UserID.
 	Password      string `json:"password"`
 	UDPOverStream bool   `json:"udp_over_stream,omitzero"`
 	UDPCoalesce   bool   `json:"udp_coalesce,omitzero"`
@@ -240,6 +258,8 @@ type WireguardPeer struct {
 }
 
 type Tailscale struct {
+	UserID string `json:"userId,omitzero"`
+	// Deprecated: authentication is resolved through UserID.
 	AuthKey    string `json:"auth_key"`
 	Hostname   string `json:"hostname"`
 	ControlURL string `json:"control_url"`
@@ -269,6 +289,8 @@ type HTTPMock struct {
 }
 
 type AEAD struct {
+	UserID string `json:"userId,omitzero"`
+	// Deprecated: authentication is resolved through UserID.
 	Password     string `json:"password"`
 	CryptoMethod string `json:"crypto_method"`
 }

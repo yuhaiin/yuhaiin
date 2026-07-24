@@ -137,7 +137,7 @@ func (n *Subscribe) fetch(ctx context.Context, link contractsubscription.Link) e
 		return err
 	}
 
-	return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, nodes)
+	return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, stripRemoteCredentials(nodes))
 }
 
 type trimBase64Reader struct {
@@ -166,7 +166,7 @@ func (n *Subscribe) savePublish(ctx context.Context, link contractsubscription.L
 	}
 
 	if len(yu.Points) > 0 {
-		return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, yu.Points)
+		return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, stripRemoteCredentials(yu.Points))
 	}
 	if yu.Remote == nil {
 		return nil
@@ -176,7 +176,73 @@ func (n *Subscribe) savePublish(ctx context.Context, link contractsubscription.L
 	if err != nil {
 		return err
 	}
-	return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, nodes)
+	return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, stripRemoteCredentials(nodes))
+}
+
+// Remote subscriptions are a transport source, not an authority for local
+// users. New subscription payloads therefore lose all incoming authentication
+// material and must use the local user management selection instead.
+func stripRemoteCredentials(nodes []contractnode.Node) []contractnode.Node {
+	for i := range nodes {
+		for j := range nodes[i].Chain {
+			stripRemoteProtocolCredentials(&nodes[i].Chain[j])
+		}
+	}
+	return nodes
+}
+
+func stripRemoteProtocolCredentials(protocol *contractnode.Protocol) {
+	switch protocol.Type {
+	case "shadowsocks":
+		if protocol.Shadowsocks != nil {
+			protocol.Shadowsocks.UserID, protocol.Shadowsocks.Password = "", ""
+		}
+	case "shadowsocksr":
+		if protocol.Shadowsocksr != nil {
+			protocol.Shadowsocksr.UserID, protocol.Shadowsocksr.Password = "", ""
+		}
+	case "vmess":
+		if protocol.Vmess != nil {
+			protocol.Vmess.UserID, protocol.Vmess.UUID = "", ""
+		}
+	case "vless":
+		if protocol.Vless != nil {
+			protocol.Vless.UserID, protocol.Vless.UUID = "", ""
+		}
+	case "trojan":
+		if protocol.Trojan != nil {
+			protocol.Trojan.UserID, protocol.Trojan.Password = "", ""
+		}
+	case "socks5":
+		if protocol.Socks5 != nil {
+			protocol.Socks5.UserID, protocol.Socks5.User, protocol.Socks5.Password = "", "", ""
+		}
+	case "http":
+		if protocol.HTTP != nil {
+			protocol.HTTP.UserID, protocol.HTTP.User, protocol.HTTP.Password = "", "", ""
+		}
+	case "yuubinsya":
+		if protocol.Yuubinsya != nil {
+			protocol.Yuubinsya.UserID, protocol.Yuubinsya.Password = "", ""
+		}
+	case "tailscale":
+		if protocol.Tailscale != nil {
+			protocol.Tailscale.UserID, protocol.Tailscale.AuthKey = "", ""
+		}
+	case "aead":
+		if protocol.AEAD != nil {
+			protocol.AEAD.UserID, protocol.AEAD.Password = "", ""
+		}
+	case "network_split":
+		if protocol.NetworkSplit != nil {
+			if protocol.NetworkSplit.TCP != nil {
+				stripRemoteProtocolCredentials(protocol.NetworkSplit.TCP)
+			}
+			if protocol.NetworkSplit.UDP != nil {
+				stripRemoteProtocolCredentials(protocol.NetworkSplit.UDP)
+			}
+		}
+	}
 }
 
 func (n *Subscribe) resolveRemotePublish(ctx context.Context, publish contractsubscription.Publish) ([]contractnode.Node, error) {

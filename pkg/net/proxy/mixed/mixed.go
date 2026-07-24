@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -29,8 +30,9 @@ type Matcher struct {
 }
 
 type ServerConfig struct {
-	Username string `json:"username,omitzero"`
-	Password string `json:"password,omitzero"`
+	Username string       `json:"username,omitzero"`
+	Password string       `json:"password,omitzero"`
+	Auth     *auth.Center `json:"-"`
 }
 
 func NewServer(o ServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
@@ -81,6 +83,7 @@ func (m *Mixed) socks5(o ServerConfig, ii netapi.Listener, handler netapi.Handle
 	s5, err := socks5.NewServer(socks5.ServerConfig{
 		Username: o.Username,
 		Password: o.Password,
+		Auth:     o.Auth,
 		UDP:      true,
 	}, netapi.NewListener(lis, ii), handler)
 	if err != nil {
@@ -96,6 +99,7 @@ func (m *Mixed) socks4(o ServerConfig, ii netapi.Listener, handler netapi.Handle
 
 	s4, err := socks4a.NewServer(socks4a.ServerConfig{
 		Username: o.Username,
+		Auth:     o.Auth,
 	}, netapi.NewListener(lis, ii), handler)
 	if err != nil {
 		log.Error("new socks4 server failed", "err", err)
@@ -109,6 +113,7 @@ func (m *Mixed) http(o ServerConfig, ii netapi.Listener, handler netapi.Handler)
 	http, err := http.NewServer(http.ServerConfig{
 		Username: o.Username,
 		Password: o.Password,
+		Auth:     o.Auth,
 	}, netapi.NewListener(m.defaultC, ii), handler)
 	if err != nil {
 		log.Error("new http server failed", "err", err)

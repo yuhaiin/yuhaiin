@@ -82,6 +82,11 @@ const (
 	v2InboundGet          v2Endpoint = "inbound.get"
 	v2InboundPut          v2Endpoint = "inbound.put"
 	v2InboundDelete       v2Endpoint = "inbound.delete"
+	v2UsersGet            v2Endpoint = "users.get"
+	v2UsersPost           v2Endpoint = "users.post"
+	v2UserGet             v2Endpoint = "user.get"
+	v2UserPut             v2Endpoint = "user.put"
+	v2UserDelete          v2Endpoint = "user.delete"
 	v2NodesGet            v2Endpoint = "nodes.get"
 	v2NodesPost           v2Endpoint = "nodes.post"
 	v2NodeGet             v2Endpoint = "node.get"
@@ -155,6 +160,11 @@ var v2Routes = []v2Route{
 	{v2InboundGet, "GET /api/v2/inbounds/{id}"},
 	{v2InboundPut, "PUT /api/v2/inbounds/{id}"},
 	{v2InboundDelete, "DELETE /api/v2/inbounds/{id}"},
+	{v2UsersGet, "GET /api/v2/users"},
+	{v2UsersPost, "POST /api/v2/users"},
+	{v2UserGet, "GET /api/v2/users/{id}"},
+	{v2UserPut, "PUT /api/v2/users/{id}"},
+	{v2UserDelete, "DELETE /api/v2/users/{id}"},
 	{v2NodesGet, "GET /api/v2/nodes"},
 	{v2NodesPost, "POST /api/v2/nodes"},
 	{v2NodesSelected, "GET /api/v2/nodes/selected"},
@@ -208,6 +218,7 @@ func newV2Handlers(services V2Services) *v2Handlers {
 	addNodeRPCRoutesV2(handlers, services)
 	addResolverRPCRoutesV2(handlers, services)
 	addInboundRPCRoutesV2(handlers, services)
+	addUserRPCRoutesV2(handlers, services)
 	return handlers
 }
 

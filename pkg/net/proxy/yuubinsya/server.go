@@ -2,6 +2,7 @@ package yuubinsya
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
@@ -23,23 +25,31 @@ type server struct {
 	handler  netapi.Handler
 	ctx      context.Context
 	cancel   context.CancelFunc
-	hash     []byte
+	hashes   [][]byte
 
 	coalesce bool
 }
 
 type ServerConfig struct {
-	Password    string `json:"password,omitzero"`
-	UDPCoalesce bool   `json:"udp_coalesce,omitzero"`
+	Password    string       `json:"password,omitzero"`
+	UDPCoalesce bool         `json:"udp_coalesce,omitzero"`
+	Auth        *auth.Center `json:"-"`
 }
 
 func NewServer(config ServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-	hash := Salt([]byte(config.Password))
+	var hashes [][]byte
+	if config.Auth != nil {
+		for _, password := range config.Auth.InboundPasswords() {
+			hashes = append(hashes, Salt([]byte(password)))
+		}
+	} else {
+		hashes = [][]byte{Salt([]byte(config.Password))}
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &server{
 		listener: ii,
-		hash:     hash,
+		hashes:   hashes,
 		coalesce: config.UDPCoalesce,
 		handler:  handler,
 		ctx:      ctx,
@@ -62,7 +72,15 @@ func (y *server) startUDP() error {
 	return (&UDPServer{
 		PacketConn: packet,
 		Handler:    y.handler.HandlePacket,
-		Password:   y.hash,
+		Passwords:  y.hashes,
+		Auth: func(candidate []byte) bool {
+			for _, expected := range y.hashes {
+				if subtle.ConstantTimeCompare(candidate, expected) == 1 {
+					return true
+				}
+			}
+			return false
+		},
 	}).Serve()
 }
 
@@ -105,7 +123,14 @@ func (y *server) handle(conn net.Conn) error {
 	c := pool.NewBufioConnSize(conn, configuration.UDPBufferSize.Load())
 
 	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 16))
-	header, err := DecodeHeader(y.hash, c)
+	header, hash, err := DecodeHeaderWithAuth(func(candidate []byte) bool {
+		for _, expected := range y.hashes {
+			if subtle.ConstantTimeCompare(candidate, expected) == 1 {
+				return true
+			}
+		}
+		return false
+	}, c)
 	_ = conn.SetReadDeadline(time.Time{})
 	if err != nil {
 		if errors.Is(err, os.ErrDeadlineExceeded) {
@@ -140,7 +165,7 @@ func (y *server) handle(conn net.Conn) error {
 			}
 		}
 
-		pc := newPacketConn(c, y.hash, y.coalesce)
+		pc := newPacketConn(c, hash, y.coalesce)
 		defer pc.Close()
 
 		log.Debug("new udp connect", "from", c.RemoteAddr(), "migrate id", header.MigrateID)
