@@ -21,6 +21,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
+	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
 func run(args []string) error {
@@ -30,10 +31,12 @@ func run(args []string) error {
 	password := flag.String("p", "", "password")
 	path := flag.String("path", configuration.DataDir.Load(), "save data path")
 	webdir := flag.String("eweb", "", "external web page")
+	nfsMode := flag.Bool("nfs-mode", false, "use SQLite settings for NFS/network filesystems")
 	// pprof := flag.Bool("pgo", false, "enables CPU profiling")
 	if err := flag.Parse(args); err != nil {
 		return err
 	}
+	storagesqlite.SetNFSMode(*nfsMode)
 
 	if *webdir != "" && os.Getenv("EXTERNAL_WEB") == "" {
 		os.Setenv("EXTERNAL_WEB", *webdir)

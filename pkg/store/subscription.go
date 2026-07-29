@@ -12,6 +12,7 @@ import (
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractsubscription "github.com/Asutorufa/yuhaiin/pkg/contract/subscription"
+	contractuser "github.com/Asutorufa/yuhaiin/pkg/contract/user"
 )
 
 type SubscriptionStore struct {
@@ -92,14 +93,152 @@ func (s *SubscriptionStore) SaveLinks(ctx context.Context, links []contractsubsc
 }
 
 func (s *SubscriptionStore) DeleteLinks(ctx context.Context, names []string) error {
+	return s.DeleteLinksWithOptions(ctx, contractsubscription.DeleteLinksRequest{Names: names})
+}
+
+func (s *SubscriptionStore) DeleteImpact(ctx context.Context, names []string) (contractsubscription.DeleteImpact, error) {
+	if s == nil || s.db == nil {
+		return contractsubscription.DeleteImpact{}, errors.New("subscription store database is nil")
+	}
+	names = uniqueNames(names)
+	if len(names) == 0 {
+		return contractsubscription.DeleteImpact{}, nil
+	}
+	placeholders, args := namedPlaceholders(names)
+	var impact contractsubscription.DeleteImpact
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(DISTINCT node_id)
+		FROM subscription_nodes_v2
+		WHERE subscription_name IN (`+placeholders+`)
+	`, args...).Scan(&impact.Nodes); err != nil {
+		return contractsubscription.DeleteImpact{}, fmt.Errorf("count subscription nodes failed: %w", err)
+	}
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(DISTINCT user_id)
+		FROM subscription_users_v2 su
+		JOIN users_v2 u ON u.id = su.user_id
+		WHERE su.subscription_name IN (`+placeholders+`) AND u.origin = 'migrated'
+	`, args...).Scan(&impact.Users); err != nil {
+		return contractsubscription.DeleteImpact{}, fmt.Errorf("count subscription users failed: %w", err)
+	}
+	return impact, nil
+}
+
+func (s *SubscriptionStore) DeleteLinksWithOptions(ctx context.Context, request contractsubscription.DeleteLinksRequest) error {
 	if s == nil || s.db == nil {
 		return errors.New("subscription store database is nil")
+	}
+	names := uniqueNames(request.Names)
+	if len(names) == 0 {
+		return nil
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin subscription delete transaction failed: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	placeholders, args := namedPlaceholders(names)
+	var nodeIDs []string
+	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT node_id FROM subscription_nodes_v2 WHERE subscription_name IN (`+placeholders+`)`, args...)
+	if err != nil {
+		return fmt.Errorf("query subscription nodes before delete failed: %w", err)
+	}
+	for rows.Next() {
+		var nodeID string
+		if err := rows.Scan(&nodeID); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("scan subscription node before delete failed: %w", err)
+		}
+		nodeIDs = append(nodeIDs, nodeID)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("iterate subscription nodes before delete failed: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close subscription nodes before delete failed: %w", err)
+	}
+	var userIDs []string
+	rows, err = tx.QueryContext(ctx, `SELECT DISTINCT user_id FROM subscription_users_v2 WHERE subscription_name IN (`+placeholders+`)`, args...)
+	if err != nil {
+		return fmt.Errorf("query subscription users before delete failed: %w", err)
+	}
+	for rows.Next() {
+		var userID string
+		if err := rows.Scan(&userID); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("scan subscription user before delete failed: %w", err)
+		}
+		userIDs = append(userIDs, userID)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("iterate subscription users before delete failed: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close subscription users before delete failed: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM subscription_nodes_v2 WHERE subscription_name IN (`+placeholders+`)`, args...); err != nil {
+		return fmt.Errorf("unlink subscription nodes failed: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM subscription_users_v2 WHERE subscription_name IN (`+placeholders+`)`, args...); err != nil {
+		return fmt.Errorf("unlink subscription users failed: %w", err)
+	}
+	if request.DeleteNodes {
+		for _, nodeID := range nodeIDs {
+			var references int
+			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM subscription_nodes_v2 WHERE node_id = ?`, nodeID).Scan(&references); err != nil {
+				return fmt.Errorf("check remaining subscriptions for node %q failed: %w", nodeID, err)
+			}
+			if references != 0 {
+				continue
+			}
+			if _, err := tx.ExecContext(ctx, `DELETE FROM node_tags_v2 WHERE EXISTS (SELECT 1 FROM json_each(node_tags_v2.members_json) WHERE value = ?)`, nodeID); err != nil {
+				return fmt.Errorf("delete tags for node %q failed: %w", nodeID, err)
+			}
+			if _, err := tx.ExecContext(ctx, `DELETE FROM nodes_v2 WHERE id = ?`, nodeID); err != nil {
+				return fmt.Errorf("delete subscription node %q failed: %w", nodeID, err)
+			}
+		}
+	}
+	if request.DeleteUsers {
+		references, err := nodeUserReferences(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, userID := range userIDs {
+			var origin string
+			if err := tx.QueryRowContext(ctx, `SELECT origin FROM users_v2 WHERE id = ?`, userID).Scan(&origin); errors.Is(err, sql.ErrNoRows) {
+				continue
+			} else if err != nil {
+				return fmt.Errorf("read subscription user %q before delete failed: %w", userID, err)
+			}
+			if origin != string(contractuser.OriginMigrated) || references[userID] != 0 {
+				continue
+			}
+			var remaining int
+			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM subscription_users_v2 WHERE user_id = ?`, userID).Scan(&remaining); err != nil {
+				return fmt.Errorf("check remaining subscriptions for user %q failed: %w", userID, err)
+			}
+			if remaining != 0 {
+				continue
+			}
+			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM user_migration_sources_v2 WHERE user_id = ?`, userID).Scan(&remaining); err != nil {
+				return fmt.Errorf("check migration sources for user %q failed: %w", userID, err)
+			}
+			if remaining != 0 {
+				continue
+			}
+			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM user_migration_dedup_v2 WHERE user_id = ?`, userID).Scan(&remaining); err != nil {
+				return fmt.Errorf("check migration dedup for user %q failed: %w", userID, err)
+			}
+			if remaining == 0 {
+				if _, err := tx.ExecContext(ctx, `DELETE FROM users_v2 WHERE id = ?`, userID); err != nil {
+					return fmt.Errorf("delete subscription user %q failed: %w", userID, err)
+				}
+			}
+		}
+	}
 	for _, name := range names {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM subscriptions WHERE name = ?`, name); err != nil {
 			return fmt.Errorf("delete subscription %q failed: %w", name, err)
@@ -109,6 +248,58 @@ func (s *SubscriptionStore) DeleteLinks(ctx context.Context, names []string) err
 		return fmt.Errorf("commit subscription delete transaction failed: %w", err)
 	}
 	return nil
+}
+
+func uniqueNames(names []string) []string {
+	seen := make(map[string]struct{}, len(names))
+	result := make([]string, 0, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		result = append(result, name)
+	}
+	return result
+}
+
+func namedPlaceholders(names []string) (string, []any) {
+	placeholders := make([]string, len(names))
+	args := make([]any, len(names))
+	for i, name := range names {
+		placeholders[i], args[i] = "?", name
+	}
+	return strings.Join(placeholders, ","), args
+}
+
+func nodeUserReferences(ctx context.Context, queryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}) (map[string]int, error) {
+	references := make(map[string]int)
+	rows, err := queryer.QueryContext(ctx, `SELECT data_json FROM nodes_v2`)
+	if err != nil {
+		return nil, fmt.Errorf("query node user references failed: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var data string
+		if err := rows.Scan(&data); err != nil {
+			return nil, fmt.Errorf("scan node user references failed: %w", err)
+		}
+		var node contractnode.Node
+		if err := json.Unmarshal([]byte(data), &node); err != nil {
+			return nil, fmt.Errorf("decode node user references failed: %w", err)
+		}
+		countProtocolReferences(references, node.Chain)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate node user references failed: %w", err)
+	}
+	return references, nil
 }
 
 func (s *SubscriptionStore) GetLink(ctx context.Context, name string) (contractsubscription.Link, bool, error) {

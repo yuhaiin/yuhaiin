@@ -25,16 +25,42 @@ func NewResolverStore(db *sql.DB) *ResolverStore {
 }
 
 func (s *ResolverStore) List(ctx context.Context) ([]contractresolver.Resolver, error) {
+	items, _, err := s.ListPage(ctx, "", 1, 0)
+	return items, err
+}
+
+func (s *ResolverStore) ListPage(ctx context.Context, query string, page, pageSize int) ([]contractresolver.Resolver, int, error) {
 	if s == nil || s.db == nil {
-		return nil, errors.New("resolver store database is nil")
+		return nil, 0, errors.New("resolver store database is nil")
 	}
-	rows, err := s.db.QueryContext(ctx, `
+
+	where := ""
+	args := []any{}
+	if query = strings.TrimSpace(query); query != "" {
+		where = `
+			WHERE LOWER(id) LIKE ?
+			   OR LOWER(resolver_type) LIKE ?
+			   OR LOWER(host) LIKE ?
+			   OR LOWER(COALESCE(json_extract(data_json, '$.subnet'), '')) LIKE ?
+			   OR LOWER(COALESCE(json_extract(data_json, '$.tlsServerName'), '')) LIKE ?
+		`
+		like := storeLike(query)
+		args = []any{like, like, like, like, like}
+	}
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM resolvers_v2`+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count resolver contracts failed: %w", err)
+	}
+
+	querySQL, queryArgs := appendStorePage(`
 		SELECT data_json
 		FROM resolvers_v2
+	`+where+`
 		ORDER BY id
-	`)
+	`, args, page, pageSize)
+	rows, err := s.db.QueryContext(ctx, querySQL, queryArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("query resolver contracts failed: %w", err)
+		return nil, 0, fmt.Errorf("query resolver contracts failed: %w", err)
 	}
 	defer rows.Close()
 
@@ -42,18 +68,18 @@ func (s *ResolverStore) List(ctx context.Context) ([]contractresolver.Resolver, 
 	for rows.Next() {
 		var dataJSON string
 		if err := rows.Scan(&dataJSON); err != nil {
-			return nil, fmt.Errorf("scan resolver contract failed: %w", err)
+			return nil, 0, fmt.Errorf("scan resolver contract failed: %w", err)
 		}
 		resolver, err := decodeResolver(dataJSON)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, resolver)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate resolver contracts failed: %w", err)
+		return nil, 0, fmt.Errorf("iterate resolver contracts failed: %w", err)
 	}
-	return out, nil
+	return out, total, nil
 }
 
 func (s *ResolverStore) Get(ctx context.Context, id string) (contractresolver.Resolver, error) {

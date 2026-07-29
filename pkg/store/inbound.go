@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	json "encoding/json/v2"
@@ -104,17 +105,42 @@ func (s *InboundStore) Get(ctx context.Context, id string) (contract.Inbound, er
 }
 
 func (s *InboundStore) List(ctx context.Context) ([]contract.Inbound, error) {
+	items, _, err := s.ListPage(ctx, "", 1, 0)
+	return items, err
+}
+
+func (s *InboundStore) ListPage(ctx context.Context, query string, page, pageSize int) ([]contract.Inbound, int, error) {
 	if s == nil || s.db == nil {
-		return nil, errors.New("inbound store database is nil")
+		return nil, 0, errors.New("inbound store database is nil")
 	}
 
-	rows, err := s.db.QueryContext(ctx, `
+	where := ""
+	args := []any{}
+	if query = strings.TrimSpace(query); query != "" {
+		where = `
+			WHERE LOWER(id) LIKE ?
+			   OR LOWER(name) LIKE ?
+			   OR LOWER(network_type) LIKE ?
+			   OR LOWER(protocol_type) LIKE ?
+		`
+		like := storeLike(query)
+		args = []any{like, like, like, like}
+	}
+
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM inbounds_v2`+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count inbounds failed: %w", err)
+	}
+
+	querySQL, queryArgs := appendStorePage(`
 		SELECT data_json
 		FROM inbounds_v2
+	`+where+`
 		ORDER BY name, id
-	`)
+	`, args, page, pageSize)
+	rows, err := s.db.QueryContext(ctx, querySQL, queryArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("query inbounds failed: %w", err)
+		return nil, 0, fmt.Errorf("query inbounds failed: %w", err)
 	}
 	defer rows.Close()
 
@@ -122,18 +148,18 @@ func (s *InboundStore) List(ctx context.Context) ([]contract.Inbound, error) {
 	for rows.Next() {
 		var dataJSON string
 		if err := rows.Scan(&dataJSON); err != nil {
-			return nil, fmt.Errorf("scan inbound failed: %w", err)
+			return nil, 0, fmt.Errorf("scan inbound failed: %w", err)
 		}
 		inbound, err := decodeInbound(dataJSON)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		inbounds = append(inbounds, inbound)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate inbounds failed: %w", err)
+		return nil, 0, fmt.Errorf("iterate inbounds failed: %w", err)
 	}
-	return inbounds, nil
+	return inbounds, total, nil
 }
 
 func (s *InboundStore) Delete(ctx context.Context, id string) error {

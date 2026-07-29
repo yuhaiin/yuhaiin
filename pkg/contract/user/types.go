@@ -83,6 +83,9 @@ type UserView struct {
 type CredentialView struct {
 	Type        CredentialType `json:"type"`
 	Username    string         `json:"username,omitzero"`
+	Password    string         `json:"password,omitzero"`
+	UUID        string         `json:"uuid,omitzero"`
+	Token       string         `json:"token,omitzero"`
 	HasUsername bool           `json:"hasUsername,omitzero"`
 	HasSecret   bool           `json:"hasSecret"`
 }
@@ -184,11 +187,20 @@ func (u User) View() UserView {
 				view.Credential.Username = *c.Username
 				view.Credential.HasUsername = true
 			}
+			if c.Password != nil {
+				view.Credential.Password = *c.Password
+			}
 			view.Credential.HasSecret = c.Password != nil
 		}
 	case CredentialUUID:
+		if u.Credential.UUID != nil {
+			view.Credential.UUID = u.Credential.UUID.UUID
+		}
 		view.Credential.HasSecret = u.Credential.UUID != nil && u.Credential.UUID.UUID != ""
 	case CredentialToken:
+		if u.Credential.Token != nil {
+			view.Credential.Token = u.Credential.Token.Token
+		}
 		view.Credential.HasSecret = u.Credential.Token != nil && u.Credential.Token.Token != ""
 	}
 	return view

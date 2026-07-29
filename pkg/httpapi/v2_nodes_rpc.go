@@ -139,14 +139,11 @@ func (a v2API) resolvers(ctx context.Context, request *listRequest) (*listV2[con
 	if a.services.Resolvers == nil {
 		return nil, unavailable("resolver store is unavailable")
 	}
-	items, err := a.services.Resolvers.List(ctx)
+	items, total, err := a.services.Resolvers.ListPage(ctx, request.Query, request.Page, request.PageSize)
 	if err != nil {
 		return nil, err
 	}
-	if query := strings.TrimSpace(request.Query); query != "" {
-		items = filterResolvers(items, query)
-	}
-	return pageResponse(items, request), nil
+	return pageResponseWithTotal(items, total, request), nil
 }
 func (a v2API) saveResolver(ctx context.Context, request *contractresolver.Resolver) (*contractresolver.Resolver, error) {
 	if a.services.Resolver == nil {

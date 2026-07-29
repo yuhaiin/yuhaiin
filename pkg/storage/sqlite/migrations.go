@@ -410,4 +410,32 @@ var migrations = []Migration{
 			)`,
 		},
 	},
+	{
+		Version: 7,
+		Name:    "subscription_node_user_links",
+		Statements: []string{
+			`CREATE TABLE subscription_nodes_v2 (
+				subscription_name TEXT NOT NULL,
+				node_id          TEXT NOT NULL,
+				PRIMARY KEY (subscription_name, node_id),
+				FOREIGN KEY (subscription_name) REFERENCES subscriptions(name) ON DELETE CASCADE,
+				FOREIGN KEY (node_id) REFERENCES nodes_v2(id) ON DELETE CASCADE
+			)`,
+			`CREATE INDEX subscription_nodes_v2_node_idx
+			ON subscription_nodes_v2(node_id)`,
+			`CREATE TABLE subscription_users_v2 (
+				subscription_name TEXT NOT NULL,
+				user_id          TEXT NOT NULL,
+				PRIMARY KEY (subscription_name, user_id),
+				FOREIGN KEY (subscription_name) REFERENCES subscriptions(name) ON DELETE CASCADE,
+				FOREIGN KEY (user_id) REFERENCES users_v2(id) ON DELETE RESTRICT
+			)`,
+			`CREATE INDEX subscription_users_v2_user_idx
+			ON subscription_users_v2(user_id)`,
+			`INSERT INTO subscription_nodes_v2(subscription_name, node_id)
+			SELECT s.name, n.id
+			FROM subscriptions s
+			JOIN nodes_v2 n ON n.group_name = s.name AND n.origin = 'remote'`,
+		},
+	},
 }

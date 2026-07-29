@@ -26,16 +26,41 @@ func NewRouteRuleStore(db *sql.DB) *RouteRuleStore {
 }
 
 func (s *RouteRuleStore) ListRules(ctx context.Context) ([]RouteRuleEntry, error) {
+	items, _, err := s.ListRulesPage(ctx, "", 1, 0)
+	return items, err
+}
+
+func (s *RouteRuleStore) ListRulesPage(ctx context.Context, query string, page, pageSize int) ([]RouteRuleEntry, int, error) {
 	if s == nil || s.db == nil {
-		return nil, errors.New("route rule store database is nil")
+		return nil, 0, errors.New("route rule store database is nil")
 	}
-	rows, err := s.db.QueryContext(ctx, `
+
+	where := ""
+	args := []any{}
+	if query = strings.TrimSpace(query); query != "" {
+		where = `
+			WHERE LOWER(name) LIKE ?
+			   OR LOWER(action_mode) LIKE ?
+			   OR LOWER(tag) LIKE ?
+			   OR LOWER(COALESCE(json_extract(data_json, '$.resolver'), '')) LIKE ?
+		`
+		like := storeLike(query)
+		args = []any{like, like, like, like}
+	}
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM route_rules_v2`+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count route rule contracts failed: %w", err)
+	}
+
+	querySQL, queryArgs := appendStorePage(`
 		SELECT priority, data_json
 		FROM route_rules_v2
+	`+where+`
 		ORDER BY priority, name
-	`)
+	`, args, page, pageSize)
+	rows, err := s.db.QueryContext(ctx, querySQL, queryArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("query route rule contracts failed: %w", err)
+		return nil, 0, fmt.Errorf("query route rule contracts failed: %w", err)
 	}
 	defer rows.Close()
 
@@ -44,18 +69,18 @@ func (s *RouteRuleStore) ListRules(ctx context.Context) ([]RouteRuleEntry, error
 		var priority int
 		var dataJSON string
 		if err := rows.Scan(&priority, &dataJSON); err != nil {
-			return nil, fmt.Errorf("scan route rule contract failed: %w", err)
+			return nil, 0, fmt.Errorf("scan route rule contract failed: %w", err)
 		}
 		rule, err := decodeRouteRule(dataJSON)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, RouteRuleEntry{Rule: rule, Priority: priority})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate route rule contracts failed: %w", err)
+		return nil, 0, fmt.Errorf("iterate route rule contracts failed: %w", err)
 	}
-	return out, nil
+	return out, total, nil
 }
 
 func (s *RouteRuleStore) GetRule(ctx context.Context, name string) (RouteRuleEntry, error) {

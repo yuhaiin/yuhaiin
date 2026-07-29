@@ -48,7 +48,7 @@ Description=yuhaiin transparent proxy
 After=network.target
 
 [Service]
-ExecStart=%s -host %s -path %s
+ExecStart=%s -host %s -path %s%s
 Restart=on-failure
 RestartSec=5
 
@@ -79,6 +79,7 @@ func install(args []string) error {
 	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
 	host := flag.String("host", "0.0.0.0:50051", "HTTP listen host")
 	path := flag.String("path", "/var/lib/yuhaiin", "save data path")
+	nfsMode := flag.Bool("nfs-mode", false, "use SQLite settings for NFS/network filesystems")
 	if err := flag.Parse(args); err != nil {
 		return err
 	}
@@ -115,7 +116,11 @@ func install(args []string) error {
 	}
 
 	// Write systemd service file
-	serviceContent := fmt.Sprintf(systemdServiceTemplate, targetBin, *host, *path)
+	nfsArg := ""
+	if *nfsMode {
+		nfsArg = " -nfs-mode"
+	}
+	serviceContent := fmt.Sprintf(systemdServiceTemplate, targetBin, *host, *path, nfsArg)
 	if err := os.WriteFile(systemdServicePath, []byte(serviceContent), 0644); err != nil {
 		return fmt.Errorf("failed to write systemd service file: %w", err)
 	}

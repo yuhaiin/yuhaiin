@@ -25,6 +25,7 @@ Actions:
     -host, -h  HTTP listen host [default: 0.0.0.0:50051]
     -path, -p  save data path [default: %s/.yuhaiin]
     -eweb, -e  external web page static files dir
+    -nfs-mode   use SQLite settings for NFS/network filesystems
   help        show help
 `
 

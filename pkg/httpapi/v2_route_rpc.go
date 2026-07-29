@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"strings"
 
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
@@ -106,16 +105,12 @@ func (a v2API) routeLists(ctx context.Context, request *listRequest) (*contractr
 	if a.services.RouteLists == nil {
 		return nil, unavailable("route list store is unavailable")
 	}
-	items, err := a.services.RouteLists.ListRouteLists(ctx)
+	items, total, err := a.services.RouteLists.ListRouteListsPage(ctx, request.Query, request.Page, request.PageSize)
 	if err != nil {
 		return nil, err
 	}
-	if query := strings.TrimSpace(request.Query); query != "" {
-		items = filterRouteListItems(items, query)
-	}
-	page := max(request.Page, 1)
-	size := max(request.PageSize, 0)
-	return &contractroute.RouteList{Items: paginateV2(items, page, size), Page: contractroute.Page{Page: page, PageSize: size, Total: len(items)}}, nil
+	page := pageInfo(request, total)
+	return &contractroute.RouteList{Items: items, Page: contractroute.Page{Page: page.Page, PageSize: page.PageSize, Total: page.Total}}, nil
 }
 func (a v2API) routeListConfig(ctx context.Context, _ *emptyRequest) (*contractroute.ListConfig, error) {
 	if a.services.RouteSettings == nil {
@@ -237,17 +232,13 @@ func (a v2API) routeRules(ctx context.Context, request *listRequest) (*contractr
 	if a.services.RouteRules == nil {
 		return nil, unavailable("route rule store is unavailable")
 	}
-	entries, err := a.services.RouteRules.ListRules(ctx)
+	entries, total, err := a.services.RouteRules.ListRulesPage(ctx, request.Query, request.Page, request.PageSize)
 	if err != nil {
 		return nil, err
 	}
-	if query := strings.TrimSpace(request.Query); query != "" {
-		entries = filterRouteRuleEntries(entries, query)
-	}
-	page := max(request.Page, 1)
-	size := max(request.PageSize, 0)
-	response := routeRuleListFromEntries(paginateV2(entries, page, size))
-	response.Page = contractroute.Page{Page: page, PageSize: size, Total: len(entries)}
+	page := pageInfo(request, total)
+	response := routeRuleListFromEntries(entries)
+	response.Page = contractroute.Page{Page: page.Page, PageSize: page.PageSize, Total: page.Total}
 	return &response, nil
 }
 func (a v2API) createRouteRule(ctx context.Context, request *contractroute.RouteRule) (*contractroute.RouteRule, error) {
@@ -347,16 +338,12 @@ func (a v2API) routeTags(ctx context.Context, request *listRequest) (*contractro
 	if a.services.RouteTags == nil {
 		return nil, unavailable("route tag store is unavailable")
 	}
-	items, err := a.services.RouteTags.ListTags(ctx)
+	items, total, err := a.services.RouteTags.ListTagsPage(ctx, request.Query, request.Page, request.PageSize)
 	if err != nil {
 		return nil, err
 	}
-	if query := strings.TrimSpace(request.Query); query != "" {
-		items = filterRouteTags(items, query)
-	}
-	page := max(request.Page, 1)
-	size := max(request.PageSize, 0)
-	return &contractroute.TagList{Items: paginateV2(items, page, size), Page: contractroute.Page{Page: page, PageSize: size, Total: len(items)}}, nil
+	page := pageInfo(request, total)
+	return &contractroute.TagList{Items: items, Page: contractroute.Page{Page: page.Page, PageSize: page.PageSize, Total: page.Total}}, nil
 }
 func (a v2API) saveRouteTag(ctx context.Context, request *contractroute.SaveTagRequest) (*emptyResponse, error) {
 	if a.services.RouteTags == nil {

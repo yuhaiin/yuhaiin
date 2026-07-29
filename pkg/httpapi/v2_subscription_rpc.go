@@ -13,6 +13,7 @@ func addSubscriptionRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2SubscriptionsGet, api.subscriptions)
 	addRPCRoute(handlers, v2SubscriptionsPut, api.saveSubscriptions)
 	addRPCRoute(handlers, v2SubscriptionsDelete, api.deleteSubscriptions)
+	addRPCRoute(handlers, v2SubscriptionsDeletePreview, api.deleteSubscriptionsPreview)
 	addRPCRoute(handlers, v2SubscriptionsUpdate, api.updateSubscriptions)
 	addRPCRoute(handlers, v2Publishes, api.publishes)
 	addRPCRoute(handlers, v2PublishPut, api.savePublish)
@@ -37,14 +38,25 @@ func (a v2API) saveSubscriptions(ctx context.Context, request *contractsubscript
 	return &emptyResponse{}, nil
 }
 
-func (a v2API) deleteSubscriptions(ctx context.Context, request *contractsubscription.LinkNames) (*emptyResponse, error) {
+func (a v2API) deleteSubscriptions(ctx context.Context, request *contractsubscription.DeleteLinksRequest) (*emptyResponse, error) {
 	if a.services.Subscriptions == nil {
 		return nil, unavailable("subscription store is unavailable")
 	}
-	if err := a.services.Subscriptions.DeleteLinks(ctx, request.Names); err != nil {
+	if err := a.services.Subscriptions.DeleteLinksWithOptions(ctx, *request); err != nil {
 		return nil, badRequest(err)
 	}
 	return &emptyResponse{}, nil
+}
+
+func (a v2API) deleteSubscriptionsPreview(ctx context.Context, request *contractsubscription.LinkNames) (*contractsubscription.DeleteImpact, error) {
+	if a.services.Subscriptions == nil {
+		return nil, unavailable("subscription store is unavailable")
+	}
+	impact, err := a.services.Subscriptions.DeleteImpact(ctx, request.Names)
+	if err != nil {
+		return nil, err
+	}
+	return &impact, nil
 }
 
 func (a v2API) updateSubscriptions(ctx context.Context, request *contractsubscription.LinkNames) (*emptyResponse, error) {

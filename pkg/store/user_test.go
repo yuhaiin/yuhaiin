@@ -92,6 +92,42 @@ func TestUserStoreSupportsExplicitEmptyPassword(t *testing.T) {
 	}
 }
 
+func TestUserStoreListPageUsesDatabasePaginationAndQuery(t *testing.T) {
+	ctx := context.Background()
+	db, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	store := plainstore.NewUserStore(db.DB())
+	for _, name := range []string{"Alice", "Bob", "Charlie"} {
+		password := name + "-secret"
+		if _, err := store.Create(ctx, contractuser.UserWrite{
+			Name: name, Enabled: true, Usage: contractuser.UsageBoth,
+			Credential: contractuser.Credential{Type: contractuser.CredentialBasic, Basic: &contractuser.BasicCredential{Password: &password}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	items, total, err := store.ListPage(ctx, "", 2, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 3 || len(items) != 1 || items[0].Name != "Charlie" {
+		t.Fatalf("page = total %d, items %+v; want total 3 and Charlie", total, items)
+	}
+
+	items, total, err = store.ListPage(ctx, "bo", 1, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 || len(items) != 1 || items[0].Name != "Bob" {
+		t.Fatalf("query page = total %d, items %+v; want total 1 and Bob", total, items)
+	}
+}
+
 func TestUserStoreReportsAndProtectsOutboundReferences(t *testing.T) {
 	ctx := context.Background()
 	db, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))

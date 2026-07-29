@@ -48,3 +48,37 @@ func TestRouteListStoreSaveListGetDelete(t *testing.T) {
 		t.Fatalf("GetRouteList after delete error = %v", err)
 	}
 }
+
+func TestRouteListStoreListPageUsesDatabasePaginationAndQuery(t *testing.T) {
+	ctx := context.Background()
+	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sqliteStore.Close() }()
+
+	store := NewRouteListStore(sqliteStore.DB())
+	for _, detail := range []contractroute.RouteListDetail{
+		{Name: "list-a", Type: "host", Source: contractroute.ListSource{Type: "local", Local: &contractroute.LocalSource{Lists: []string{"a.example"}}}},
+		{Name: "list-b", Type: "host", Source: contractroute.ListSource{Type: "local", Local: &contractroute.LocalSource{Lists: []string{"b.example"}}}},
+	} {
+		if err := store.SaveRouteList(ctx, detail, 123); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	items, total, err := store.ListRouteListsPage(ctx, "", 2, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 2 || len(items) != 1 || items[0].Name != "list-b" {
+		t.Fatalf("page = %+v, total = %d", items, total)
+	}
+	items, total, err = store.ListRouteListsPage(ctx, "b.example", 1, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 || len(items) != 1 || items[0].Name != "list-b" {
+		t.Fatalf("query page = %+v, total = %d", items, total)
+	}
+}

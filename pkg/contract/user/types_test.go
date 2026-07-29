@@ -1,10 +1,6 @@
 package user
 
-import (
-	json "encoding/json/v2"
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestCredentialValidateVariants(t *testing.T) {
 	username, password := "alice", "secret"
@@ -75,7 +71,7 @@ func TestCredentialValidateVariants(t *testing.T) {
 	}
 }
 
-func TestUserViewDoesNotExposeCredentialSecrets(t *testing.T) {
+func TestUserViewExposesCredentialSecrets(t *testing.T) {
 	username, password := "alice", "secret"
 	user := User{
 		ID: "user-1", Name: "Alice", Enabled: true, Origin: OriginManual, Usage: UsageBoth,
@@ -83,32 +79,28 @@ func TestUserViewDoesNotExposeCredentialSecrets(t *testing.T) {
 	}
 
 	view := user.View()
-	if view.Credential.Username != username || !view.Credential.HasUsername || !view.Credential.HasSecret {
+	if view.Credential.Username != username || view.Credential.Password != password || !view.Credential.HasUsername || !view.Credential.HasSecret {
 		t.Fatalf("view = %+v", view)
 	}
-	encoded, err := json.Marshal(view)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(encoded), password) || strings.Contains(string(encoded), "password") {
-		t.Fatalf("view JSON leaks secret: %s", encoded)
-	}
 
-	for _, credential := range []Credential{
-		{Type: CredentialUUID, UUID: &UUIDCredential{UUID: "00000000-0000-0000-0000-000000000001"}},
-		{Type: CredentialToken, Token: &TokenCredential{Token: "secret-token"}},
+	for _, test := range []struct {
+		name       string
+		credential Credential
+		wantUUID   string
+		wantToken  string
+	}{
+		{name: "uuid", credential: Credential{Type: CredentialUUID, UUID: &UUIDCredential{UUID: "00000000-0000-0000-0000-000000000001"}}, wantUUID: "00000000-0000-0000-0000-000000000001"},
+		{name: "token", credential: Credential{Type: CredentialToken, Token: &TokenCredential{Token: "secret-token"}}, wantToken: "secret-token"},
 	} {
-		view := (User{ID: "id", Origin: OriginManual, Usage: UsageOutbound, Credential: credential}).View()
-		if !view.Credential.HasSecret {
-			t.Fatalf("credential view did not report secret: %+v", view)
-		}
-		encoded, err := json.Marshal(view)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if strings.Contains(string(encoded), "secret-token") || strings.Contains(string(encoded), "00000000") {
-			t.Fatalf("credential view leaked secret: %s", encoded)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			view := (User{ID: "id", Origin: OriginManual, Usage: UsageOutbound, Credential: test.credential}).View()
+			if !view.Credential.HasSecret {
+				t.Fatalf("credential view did not report secret: %+v", view)
+			}
+			if view.Credential.UUID != test.wantUUID || view.Credential.Token != test.wantToken {
+				t.Fatalf("credential view = %+v", view.Credential)
+			}
+		})
 	}
 }
 

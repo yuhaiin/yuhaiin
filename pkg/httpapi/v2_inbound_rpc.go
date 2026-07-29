@@ -60,6 +60,15 @@ func (a v2API) inbounds(ctx context.Context, request *listRequest) (*listV2[cont
 	if a.services.Inbounds == nil {
 		return nil, unavailable("inbound store is unavailable")
 	}
+	if store, ok := a.services.Inbounds.(interface {
+		ListPage(context.Context, string, int, int) ([]contractinbound.Inbound, int, error)
+	}); ok {
+		items, total, err := store.ListPage(ctx, request.Query, request.Page, request.PageSize)
+		if err != nil {
+			return nil, err
+		}
+		return pageResponseWithTotal(items, total, request), nil
+	}
 	items, err := a.services.Inbounds.List(ctx)
 	if err != nil {
 		return nil, err
@@ -121,8 +130,13 @@ func (a v2API) deleteInbound(ctx context.Context, request *idRequest) (*emptyRes
 }
 
 func pageResponse[T any](items []T, request *listRequest) *listV2[T] {
-	page := max(request.Page, 1)
-	pageSize := max(request.PageSize, 0)
-	total := len(items)
-	return &listV2[T]{Items: paginateV2(items, page, pageSize), Page: pageV2{Page: page, PageSize: pageSize, Total: total}}
+	return pageResponseWithTotal(paginateV2(items, max(request.Page, 1), max(request.PageSize, 0)), len(items), request)
+}
+
+func pageResponseWithTotal[T any](items []T, total int, request *listRequest) *listV2[T] {
+	return &listV2[T]{Items: items, Page: pageInfo(request, total)}
+}
+
+func pageInfo(request *listRequest, total int) pageV2 {
+	return pageV2{Page: max(request.Page, 1), PageSize: max(request.PageSize, 0), Total: total}
 }

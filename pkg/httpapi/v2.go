@@ -100,6 +100,7 @@ type InboundStore interface {
 }
 type UserStore interface {
 	List(context.Context) ([]contractuser.UserView, error)
+	ListPage(context.Context, string, int, int) ([]contractuser.UserView, int, error)
 	Get(context.Context, string) (contractuser.User, error)
 	Create(context.Context, contractuser.UserWrite) (contractuser.UserView, error)
 	Save(context.Context, contractuser.User, int64) error

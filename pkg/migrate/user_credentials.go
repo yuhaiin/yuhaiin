@@ -55,6 +55,9 @@ func MigrateLegacyCredentials(ctx context.Context, db *sql.DB) error {
 	if err := migrateNodes(ctx, tx); err != nil {
 		return err
 	}
+	if err := linkMigratedSubscriptionUsers(ctx, tx); err != nil {
+		return err
+	}
 
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE user_migration_state_v2
@@ -175,6 +178,119 @@ func migrateNodes(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 	return rows.Err()
+}
+
+func linkMigratedSubscriptionUsers(ctx context.Context, tx *sql.Tx) error {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT sn.subscription_name, n.data_json
+		FROM subscription_nodes_v2 sn
+		JOIN subscriptions s ON s.name = sn.subscription_name
+		JOIN nodes_v2 n ON n.id = sn.node_id
+	`)
+	if err != nil {
+		return fmt.Errorf("query subscription nodes for user links failed: %w", err)
+	}
+	defer rows.Close()
+	type subscriptionUserLink struct {
+		subscriptionName string
+		userID           string
+	}
+	var links []subscriptionUserLink
+	for rows.Next() {
+		var subscriptionName, data string
+		if err := rows.Scan(&subscriptionName, &data); err != nil {
+			return fmt.Errorf("scan subscription node for user links failed: %w", err)
+		}
+		var node contractnode.Node
+		if err := json.Unmarshal([]byte(data), &node); err != nil {
+			return fmt.Errorf("decode subscription node for user links failed: %w", err)
+		}
+		for userID := range nodeUserIDs(node.Chain) {
+			links = append(links, subscriptionUserLink{subscriptionName: subscriptionName, userID: userID})
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate subscription nodes for user links failed: %w", err)
+	}
+	for _, link := range links {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO subscription_users_v2(subscription_name, user_id) VALUES (?, ?)
+			ON CONFLICT(subscription_name, user_id) DO NOTHING
+		`, link.subscriptionName, link.userID); err != nil {
+			return fmt.Errorf("link migrated user %q to subscription %q failed: %w", link.userID, link.subscriptionName, err)
+		}
+	}
+	return nil
+}
+
+func nodeUserIDs(chain []contractnode.Protocol) map[string]struct{} {
+	users := make(map[string]struct{})
+	for _, protocol := range chain {
+		if protocol.NetworkSplit != nil {
+			if protocol.NetworkSplit.TCP != nil {
+				for userID := range nodeUserIDs([]contractnode.Protocol{*protocol.NetworkSplit.TCP}) {
+					users[userID] = struct{}{}
+				}
+			}
+			if protocol.NetworkSplit.UDP != nil {
+				for userID := range nodeUserIDs([]contractnode.Protocol{*protocol.NetworkSplit.UDP}) {
+					users[userID] = struct{}{}
+				}
+			}
+		}
+		for _, userID := range protocolUserIDs(protocol) {
+			if userID != "" {
+				users[userID] = struct{}{}
+			}
+		}
+	}
+	return users
+}
+
+func protocolUserIDs(protocol contractnode.Protocol) []string {
+	switch protocol.Type {
+	case "shadowsocks":
+		if protocol.Shadowsocks != nil {
+			return []string{protocol.Shadowsocks.UserID}
+		}
+	case "shadowsocksr":
+		if protocol.Shadowsocksr != nil {
+			return []string{protocol.Shadowsocksr.UserID}
+		}
+	case "vmess":
+		if protocol.Vmess != nil {
+			return []string{protocol.Vmess.UserID}
+		}
+	case "vless":
+		if protocol.Vless != nil {
+			return []string{protocol.Vless.UserID}
+		}
+	case "trojan":
+		if protocol.Trojan != nil {
+			return []string{protocol.Trojan.UserID}
+		}
+	case "socks5":
+		if protocol.Socks5 != nil {
+			return []string{protocol.Socks5.UserID}
+		}
+	case "http":
+		if protocol.HTTP != nil {
+			return []string{protocol.HTTP.UserID}
+		}
+	case "yuubinsya":
+		if protocol.Yuubinsya != nil {
+			return []string{protocol.Yuubinsya.UserID}
+		}
+	case "tailscale":
+		if protocol.Tailscale != nil {
+			return []string{protocol.Tailscale.UserID}
+		}
+	case "aead":
+		if protocol.AEAD != nil {
+			return []string{protocol.AEAD.UserID}
+		}
+	}
+	return nil
 }
 
 func migrateNodeChain(ctx context.Context, tx *sql.Tx, sourceID string, chain []contractnode.Protocol, prefix string) (bool, error) {

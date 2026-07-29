@@ -6,6 +6,7 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
@@ -22,14 +23,35 @@ var ErrUserReferenced = errors.New("user is referenced by a node or migration ma
 func NewUserStore(db *sql.DB) *UserStore { return &UserStore{db: db} }
 
 func (s *UserStore) List(ctx context.Context) ([]contractuser.UserView, error) {
+	items, _, err := s.ListPage(ctx, "", 1, 0)
+	return items, err
+}
+
+func (s *UserStore) ListPage(ctx context.Context, query string, page, pageSize int) ([]contractuser.UserView, int, error) {
 	if s == nil || s.db == nil {
-		return nil, errors.New("user store database is nil")
+		return nil, 0, errors.New("user store database is nil")
 	}
 	references, err := s.outboundReferences(ctx)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	rows, err := s.db.QueryContext(ctx, `
+	page = max(page, 1)
+	pageSize = max(pageSize, 0)
+	query = strings.ToLower(strings.TrimSpace(query))
+	where := ""
+	args := make([]any, 0, 3)
+	if query != "" {
+		pattern := "%" + query + "%"
+		where = `WHERE LOWER(u.id) LIKE ? OR LOWER(u.name) LIKE ? OR LOWER(u.credential_type) LIKE ?`
+		args = append(args, pattern, pattern, pattern)
+	}
+
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users_v2 u `+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count users failed: %w", err)
+	}
+
+	listQuery := `
 		SELECT u.id, u.name, u.enabled, u.origin, u.usage, u.credential_type,
 		       b.username, b.password, b.allow_any_username, b.allow_any_password,
 		       uuid.uuid, token.token
@@ -37,10 +59,16 @@ func (s *UserStore) List(ctx context.Context) ([]contractuser.UserView, error) {
 		LEFT JOIN user_basic_v2 b ON b.user_id = u.id AND u.credential_type = 'basic'
 		LEFT JOIN user_uuid_v2 uuid ON uuid.user_id = u.id AND u.credential_type = 'uuid'
 		LEFT JOIN user_token_v2 token ON token.user_id = u.id AND u.credential_type = 'token'
-		ORDER BY u.name, u.id
-	`)
+		` + where + `
+		ORDER BY u.name, u.id`
+	listArgs := append([]any(nil), args...)
+	if pageSize > 0 {
+		listQuery += " LIMIT ? OFFSET ?"
+		listArgs = append(listArgs, pageSize, (page-1)*pageSize)
+	}
+	rows, err := s.db.QueryContext(ctx, listQuery, listArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("query users failed: %w", err)
+		return nil, 0, fmt.Errorf("query users page failed: %w", err)
 	}
 	defer rows.Close()
 
@@ -48,16 +76,16 @@ func (s *UserStore) List(ctx context.Context) ([]contractuser.UserView, error) {
 	for rows.Next() {
 		user, err := scanUser(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		view := user.View()
 		view.OutboundReferences = references[user.ID]
 		result = append(result, view)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate users failed: %w", err)
+		return nil, 0, fmt.Errorf("iterate users page failed: %w", err)
 	}
-	return result, nil
+	return result, total, nil
 }
 
 // ListUsers is intentionally internal-facing: AuthCenter is the only caller

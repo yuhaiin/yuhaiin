@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	contractuser "github.com/Asutorufa/yuhaiin/pkg/contract/user"
@@ -32,21 +31,13 @@ func (a v2API) users(ctx context.Context, request *listRequest) (*listV2[contrac
 	if a.services.Users == nil {
 		return nil, unavailable("user store is unavailable")
 	}
-	items, err := a.services.Users.List(ctx)
+	items, total, err := a.services.Users.ListPage(ctx, request.Query, request.Page, request.PageSize)
 	if err != nil {
 		return nil, err
 	}
-	query := strings.ToLower(strings.TrimSpace(request.Query))
-	if query != "" {
-		filtered := items[:0]
-		for _, item := range items {
-			if strings.Contains(strings.ToLower(item.ID), query) || strings.Contains(strings.ToLower(item.Name), query) || strings.Contains(strings.ToLower(string(item.Credential.Type)), query) {
-				filtered = append(filtered, item)
-			}
-		}
-		items = filtered
-	}
-	return pageResponse(items, request), nil
+	page := max(request.Page, 1)
+	pageSize := max(request.PageSize, 0)
+	return &listV2[contractuser.UserView]{Items: items, Page: pageV2{Page: page, PageSize: pageSize, Total: total}}, nil
 }
 
 func (a v2API) createUser(ctx context.Context, request *contractuser.UserWrite) (*contractuser.UserView, error) {

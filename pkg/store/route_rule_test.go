@@ -53,3 +53,37 @@ func TestRouteRuleStoreSavePriorityDelete(t *testing.T) {
 		t.Fatalf("rules after delete = %+v", list)
 	}
 }
+
+func TestRouteRuleStoreListPageUsesDatabasePaginationAndQuery(t *testing.T) {
+	ctx := context.Background()
+	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sqliteStore.Close() }()
+
+	store := NewRouteRuleStore(sqliteStore.DB())
+	for _, rule := range []contractroute.RouteRule{
+		{Name: "rule-a", Mode: "bypass", Tag: "direct", Resolver: "dns-a", Rules: []contractroute.RuleExpr{{Type: "host", Host: &contractroute.ListRef{List: "cn"}}}},
+		{Name: "rule-b", Mode: "proxy", Tag: "node", Resolver: "dns-b", Rules: []contractroute.RuleExpr{{Type: "host", Host: &contractroute.ListRef{List: "global"}}}},
+	} {
+		if err := store.SaveRule(ctx, rule, 0, 100); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	items, total, err := store.ListRulesPage(ctx, "", 2, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 2 || len(items) != 1 || items[0].Rule.Name != "rule-b" {
+		t.Fatalf("page = %+v, total = %d", items, total)
+	}
+	items, total, err = store.ListRulesPage(ctx, "dns-b", 1, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 || len(items) != 1 || items[0].Rule.Name != "rule-b" {
+		t.Fatalf("query page = %+v, total = %d", items, total)
+	}
+}
