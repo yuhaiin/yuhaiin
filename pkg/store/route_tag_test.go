@@ -36,3 +36,37 @@ func TestRouteTagStoreSaveListDelete(t *testing.T) {
 		t.Fatalf("DeleteTag missing error = %v", err)
 	}
 }
+
+func TestRouteTagStoreListPageUsesDatabasePaginationAndQuery(t *testing.T) {
+	ctx := context.Background()
+	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sqliteStore.Close() }()
+
+	store := NewRouteTagStore(sqliteStore.DB())
+	for _, tag := range []contractroute.TagItem{
+		{Name: "tag-a", Type: "node", Hash: []string{"node-a"}},
+		{Name: "tag-b", Type: "mirror", Hash: []string{"node-b"}},
+	} {
+		if err := store.SaveTag(ctx, tag, 123); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	items, total, err := store.ListTagsPage(ctx, "", 2, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 2 || len(items) != 1 || items[0].Name != "tag-b" {
+		t.Fatalf("page = %+v, total = %d", items, total)
+	}
+	items, total, err = store.ListTagsPage(ctx, "node-b", 1, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 || len(items) != 1 || items[0].Name != "tag-b" {
+		t.Fatalf("query page = %+v, total = %d", items, total)
+	}
+}

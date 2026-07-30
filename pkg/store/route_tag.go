@@ -25,16 +25,39 @@ func NewRouteTagStore(db *sql.DB) *RouteTagStore {
 }
 
 func (s *RouteTagStore) ListTags(ctx context.Context) ([]contractroute.TagItem, error) {
+	items, _, err := s.ListTagsPage(ctx, "", 1, 0)
+	return items, err
+}
+
+func (s *RouteTagStore) ListTagsPage(ctx context.Context, query string, page, pageSize int) ([]contractroute.TagItem, int, error) {
 	if s == nil || s.db == nil {
-		return nil, errors.New("route tag store database is nil")
+		return nil, 0, errors.New("route tag store database is nil")
 	}
-	rows, err := s.db.QueryContext(ctx, `
+
+	where := ""
+	args := []any{}
+	if query = strings.TrimSpace(query); query != "" {
+		where = `
+			WHERE LOWER(name) LIKE ?
+			   OR LOWER(members_json) LIKE ?
+		`
+		like := storeLike(query)
+		args = []any{like, like}
+	}
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM node_tags_v2`+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count tag contracts failed: %w", err)
+	}
+
+	querySQL, queryArgs := appendStorePage(`
 		SELECT name, members_json
 		FROM node_tags_v2
+	`+where+`
 		ORDER BY name
-	`)
+	`, args, page, pageSize)
+	rows, err := s.db.QueryContext(ctx, querySQL, queryArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("query tag contracts failed: %w", err)
+		return nil, 0, fmt.Errorf("query tag contracts failed: %w", err)
 	}
 	defer rows.Close()
 
@@ -42,18 +65,18 @@ func (s *RouteTagStore) ListTags(ctx context.Context) ([]contractroute.TagItem, 
 	for rows.Next() {
 		var name, dataJSON string
 		if err := rows.Scan(&name, &dataJSON); err != nil {
-			return nil, fmt.Errorf("scan tag contract failed: %w", err)
+			return nil, 0, fmt.Errorf("scan tag contract failed: %w", err)
 		}
 		tag, err := decodeRouteTag(name, dataJSON)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, tag)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate tag contracts failed: %w", err)
+		return nil, 0, fmt.Errorf("iterate tag contracts failed: %w", err)
 	}
-	return out, nil
+	return out, total, nil
 }
 
 func (s *RouteTagStore) SaveTag(ctx context.Context, tag contractroute.TagItem, updatedAt int64) error {

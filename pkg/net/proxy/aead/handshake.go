@@ -88,13 +88,15 @@ func (h *encryptedHandshaker) handshakeServer(conn net.Conn) (net.Conn, error) {
 	header := newHeader(h)
 	defer header.Def()
 
-	salt := make([]byte, h.hash.Size())
-
 	rpb, time1, err := h.receive(header, conn, nil)
 	if err != nil {
 		return nil, err
 	}
+	return h.finishServerHandshake(conn, header, rpb, time1)
+}
 
+func (h *encryptedHandshaker) finishServerHandshake(conn net.Conn, header *header, rpb *ecdh.PublicKey, time1 []byte) (net.Conn, error) {
+	salt := make([]byte, h.hash.Size())
 	copy(salt, header.salt()) // client salt
 
 	pk, time2, err := h.send(header, conn, salt)
@@ -124,6 +126,31 @@ func (h *encryptedHandshaker) handshakeServer(conn net.Conn) (net.Conn, error) {
 	return NewConn(conn, wnonce, rnonce, waead, raead), nil
 }
 
+func handshakeServerMulti(conn net.Conn, handshakers []*encryptedHandshaker) (net.Conn, error) {
+	if len(handshakers) == 0 {
+		return nil, errors.New("no AEAD credentials configured")
+	}
+	template := newHeader(handshakers[0])
+	raw := pool.GetBytes(len(template.Bytes()))
+	template.Def()
+	defer pool.PutBytes(raw)
+	if _, err := io.ReadFull(conn, raw); err != nil {
+		return nil, err
+	}
+	for _, handshaker := range handshakers {
+		header := &header{th: handshaker, bytes: pool.GetBytes(len(raw))}
+		copy(header.Bytes(), raw)
+		rpb, time1, err := handshaker.receiveHeader(header, nil)
+		if err == nil {
+			result, finishErr := handshaker.finishServerHandshake(conn, header, rpb, time1)
+			header.Def()
+			return result, finishErr
+		}
+		header.Def()
+	}
+	return nil, errors.New("AEAD authentication failed")
+}
+
 func (h *encryptedHandshaker) newAead(cryptKey, salt, time []byte) (cipher.AEAD, []byte, error) {
 	prk, err := hkdf.Extract(h.hash.New, cryptKey, salt)
 	if err != nil {
@@ -150,6 +177,10 @@ func (h *encryptedHandshaker) receive(buf *header, conn net.Conn, salt []byte) (
 	if err != nil {
 		return nil, nil, err
 	}
+	return h.receiveHeader(buf, salt)
+}
+
+func (h *encryptedHandshaker) receiveHeader(buf *header, salt []byte) (_ *ecdh.PublicKey, ttime []byte, _ error) {
 
 	if salt != nil {
 		copy(buf.salt(), salt) // client: verify signature with client salt
@@ -160,7 +191,7 @@ func (h *encryptedHandshaker) receive(buf *header, conn net.Conn, salt []byte) (
 	}
 
 	ttime = make([]byte, 8)
-	if err = h.encryptTime(h.password, buf.salt(), ttime, buf.time()); err != nil {
+	if err := h.encryptTime(h.password, buf.salt(), ttime, buf.time()); err != nil {
 		return nil, nil, fmt.Errorf("decrypt time failed: %w", err)
 	}
 

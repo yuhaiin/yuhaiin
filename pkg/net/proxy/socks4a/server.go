@@ -8,6 +8,7 @@ import (
 	"net"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
@@ -22,12 +23,14 @@ type Server struct {
 	netapi.EmptyInterface
 	lis net.Listener
 
-	handler    netapi.Handler
-	usernameID string
+	handler       netapi.Handler
+	usernameID    string
+	authenticator auth.UsernameAuthenticator
 }
 
 type ServerConfig struct {
-	Username string `json:"username,omitzero"`
+	Username string                     `json:"username,omitzero"`
+	Auth     auth.UsernameAuthenticator `json:"-"`
 }
 
 func (s *Server) Handle(conn net.Conn) error {
@@ -70,7 +73,11 @@ func (s *Server) Handshake(conn net.Conn) (netapi.Address, error) {
 		return nil, err
 	}
 
-	if s.usernameID != "" &&
+	if s.authenticator != nil {
+		if _, err := s.authenticator.AuthUsername(string(userId)); err != nil {
+			return nil, fmt.Errorf("username authentication failed: %w", err)
+		}
+	} else if s.usernameID != "" &&
 		subtle.ConstantTimeCompare(userId, unsafe.Slice(unsafe.StringData(s.usernameID), len(s.usernameID))) != 1 {
 		return nil, fmt.Errorf("username not match")
 	}
@@ -151,9 +158,10 @@ func (s *Server) AcceptPacket() (*netapi.Packet, error) {
 
 func NewServer(o ServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	s := &Server{
-		usernameID: o.Username,
-		lis:        ii,
-		handler:    handler,
+		usernameID:    o.Username,
+		lis:           ii,
+		handler:       handler,
+		authenticator: o.Auth,
 	}
 
 	go s.Server()

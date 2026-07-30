@@ -2,6 +2,7 @@ package aead
 
 import (
 	"context"
+	"crypto/cipher"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -11,14 +12,23 @@ import (
 
 type Server struct {
 	netapi.Listener
-	crypto *encryptedHandshaker
+	cryptos []*encryptedHandshaker
 }
 
 func NewServer(cfg Config, ii netapi.Listener) (netapi.Listener, error) {
-	crypto := NewHandshaker(true, []byte(cfg.Password), cfg.CryptoMethod)
+	passwords := cfg.Passwords
+	if cfg.Auth != nil {
+		passwords = cfg.Auth.InboundPasswords()
+	} else if len(passwords) == 0 {
+		passwords = []string{cfg.Password}
+	}
+	cryptos := make([]*encryptedHandshaker, 0, len(passwords))
+	for _, password := range passwords {
+		cryptos = append(cryptos, NewHandshaker(true, []byte(password), cfg.CryptoMethod))
+	}
 
 	return &Server{
-		crypto:   crypto,
+		cryptos:  cryptos,
 		Listener: ii,
 	}, nil
 }
@@ -37,18 +47,21 @@ func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
 		return nil, err
 	}
 
-	aead, err := newAead(s.crypto.aead, s.crypto.passwordHash)
-	if err != nil {
-		return nil, err
+	var ciphers []cipher.AEAD
+	for _, crypto := range s.cryptos {
+		aead, err := newAead(crypto.aead, crypto.passwordHash)
+		if err != nil {
+			return nil, err
+		}
+		ciphers = append(ciphers, aead)
 	}
-
-	return NewAuthPacketConn(lis, aead), nil
+	return NewMultiAuthPacketConn(lis, ciphers), nil
 }
 
 func (s *Server) Handshake(c net.Conn) net.Conn {
 	return &serverConn{
 		Conn:              c,
-		crypto:            s.crypto,
+		cryptos:           s.cryptos,
 		handshakeComplete: atomic.Bool{},
 	}
 }
@@ -56,7 +69,7 @@ func (s *Server) Handshake(c net.Conn) net.Conn {
 type serverConn struct {
 	net.Conn
 
-	crypto            *encryptedHandshaker
+	cryptos           []*encryptedHandshaker
 	handshakeComplete atomic.Bool
 	mu                sync.Mutex
 }
@@ -75,7 +88,13 @@ func (s *serverConn) handshake() error {
 
 	defer s.handshakeComplete.Store(true)
 
-	conn, err := s.crypto.Handshake(s.Conn)
+	var conn net.Conn
+	var err error
+	if len(s.cryptos) == 1 {
+		conn, err = s.cryptos[0].Handshake(s.Conn)
+	} else {
+		conn, err = handshakeServerMulti(s.Conn, s.cryptos)
+	}
 	if err != nil {
 		return err
 	}

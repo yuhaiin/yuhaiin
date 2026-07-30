@@ -44,3 +44,37 @@ func TestResolverStoreSaveListGetDelete(t *testing.T) {
 		t.Fatalf("Get after delete error = %v", err)
 	}
 }
+
+func TestResolverStoreListPageUsesDatabasePaginationAndQuery(t *testing.T) {
+	ctx := context.Background()
+	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sqliteStore.Close() }()
+
+	store := NewResolverStore(sqliteStore.DB())
+	for _, resolver := range []contractresolver.Resolver{
+		{ID: "resolver-a", Type: "udp", Host: "223.5.5.5:53"},
+		{ID: "resolver-b", Type: "dot", Host: "1.1.1.1:853", Subnet: "2001:db8::/32"},
+	} {
+		if err := store.Save(ctx, resolver, 123); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	items, total, err := store.ListPage(ctx, "", 2, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 2 || len(items) != 1 || items[0].ID != "resolver-b" {
+		t.Fatalf("page = %+v, total = %d", items, total)
+	}
+	items, total, err = store.ListPage(ctx, "2001:db8", 1, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 || len(items) != 1 || items[0].ID != "resolver-b" {
+		t.Fatalf("query page = %+v, total = %d", items, total)
+	}
+}

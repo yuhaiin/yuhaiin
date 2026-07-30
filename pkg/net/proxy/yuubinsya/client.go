@@ -30,7 +30,7 @@ type client struct {
 func init() {
 	register.RegisterContractPoint("yuubinsya", func(config contractnode.Yuubinsya, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewClient(Config{
-			Password:      config.Password,
+			Password:      config.Password, //nolint:staticcheck // resolved UserID credentials are passed through the legacy proxy config.
 			UDPOverStream: config.UDPOverStream,
 			UDPCoalesce:   config.UDPCoalesce,
 		}, p)

@@ -57,7 +57,7 @@ type Client struct {
 func init() {
 	register.RegisterContractPoint("trojan", func(config contractnode.Trojan, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewClient(Config{
-			Password: config.Password,
+			Password: config.Password, //nolint:staticcheck // resolved UserID credentials are passed through the legacy proxy config.
 			Peer:     config.Peer,
 		}, p)
 	})

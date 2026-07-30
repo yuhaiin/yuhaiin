@@ -33,6 +33,7 @@ const darwinLaunchdPlist = `
 		<string>%s</string>
 		<string>-path</string>
 		<string>%s</string>
+		%s
     </array>
 
     <key>RunAtLoad</key>
@@ -142,6 +143,7 @@ func installSystemDaemonDarwin(args []string) (err error) {
 	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
 	host := flag.String("host", "0.0.0.0:50051", "HTTP listen host")
 	path := flag.String("path", "/Library/Application Support/yuhaiin", "save data path")
+	nfsMode := flag.Bool("nfs-mode", false, "use SQLite settings for NFS/network filesystems")
 	if err := flag.Parse(args); err != nil {
 		return err
 	}
@@ -185,7 +187,11 @@ func installSystemDaemonDarwin(args []string) (err error) {
 			return err
 		}
 	}
-	if err := os.WriteFile(sysPlist, fmt.Appendf(nil, darwinLaunchdPlist, *host, *path), 0700); err != nil {
+	nfsArg := ""
+	if *nfsMode {
+		nfsArg = "<string>-nfs-mode</string>"
+	}
+	if err := os.WriteFile(sysPlist, fmt.Appendf(nil, darwinLaunchdPlist, *host, *path, nfsArg), 0700); err != nil {
 		return err
 	}
 

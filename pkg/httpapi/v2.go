@@ -15,6 +15,7 @@ import (
 	contractsubscription "github.com/Asutorufa/yuhaiin/pkg/contract/subscription"
 	contracttools "github.com/Asutorufa/yuhaiin/pkg/contract/tools"
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
+	contractuser "github.com/Asutorufa/yuhaiin/pkg/contract/user"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
@@ -97,9 +98,22 @@ type InboundStore interface {
 	Settings(context.Context) (plainstore.InboundSettings, error)
 	SaveSettings(context.Context, plainstore.InboundSettings) error
 }
+type UserStore interface {
+	List(context.Context) ([]contractuser.UserView, error)
+	ListPage(context.Context, string, int, int) ([]contractuser.UserView, int, error)
+	Get(context.Context, string) (contractuser.User, error)
+	Create(context.Context, contractuser.UserWrite) (contractuser.UserView, error)
+	Save(context.Context, contractuser.User, int64) error
+	Delete(context.Context, string) error
+}
+type UserRuntime interface {
+	Reload(context.Context) error
+}
 type V2Services struct {
 	Settings       SettingsController
 	Inbounds       InboundStore
+	Users          UserStore
+	Auth           UserRuntime
 	Nodes          *plainstore.NodeStore
 	Node           NodeController
 	Subscriptions  *plainstore.SubscriptionStore
@@ -175,19 +189,6 @@ func nodeChainContains(item contractnode.Node, query string) bool {
 		}
 	}
 	return false
-}
-func filterResolvers(items []contractresolver.Resolver, query string) []contractresolver.Resolver {
-	query = strings.ToLower(strings.TrimSpace(query))
-	if query == "" {
-		return items
-	}
-	out := make([]contractresolver.Resolver, 0, len(items))
-	for _, item := range items {
-		if strings.Contains(strings.ToLower(item.ID), query) || strings.Contains(strings.ToLower(item.Type), query) || strings.Contains(strings.ToLower(item.Host), query) || strings.Contains(strings.ToLower(item.Subnet), query) || strings.Contains(strings.ToLower(item.TLSServerName), query) {
-			out = append(out, item)
-		}
-	}
-	return out
 }
 func paginateV2[T any](items []T, page, pageSize int) []T {
 	if pageSize <= 0 {

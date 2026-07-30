@@ -71,7 +71,15 @@ func EncodeHeader(password []byte, header Header, buf *pool.Buffer) {
 }
 
 func DecodeHeader(password []byte, c pool.BufioConn) (Header, error) {
+	header, _, err := DecodeHeaderWithAuth(func(candidate []byte) bool {
+		return subtle.ConstantTimeCompare(candidate, password) == 1
+	}, c)
+	return header, err
+}
+
+func DecodeHeaderWithAuth(auth func([]byte) bool, c pool.BufioConn) (Header, []byte, error) {
 	header := Header{}
+	var matched []byte
 
 	err := c.BufioRead(func(r *bufio.Reader) error {
 		netbyte, err := r.ReadByte()
@@ -103,9 +111,10 @@ func DecodeHeader(password []byte, c pool.BufioConn) (Header, error) {
 
 		_, _ = r.Discard(sha256.Size)
 
-		if subtle.ConstantTimeCompare(passwordBuf, password[:]) == 0 {
+		if auth == nil || !auth(passwordBuf) {
 			return errors.New("password is incorrect")
 		}
+		matched = append(matched[:0], passwordBuf...)
 
 		if header.Protocol.Network() == TCP || header.Protocol == Ping {
 			_, target, err := tools.ReadAddr("tcp", r)
@@ -119,5 +128,5 @@ func DecodeHeader(password []byte, c pool.BufioConn) (Header, error) {
 		return nil
 	})
 
-	return header, err
+	return header, matched, err
 }

@@ -103,14 +103,6 @@ jobs:
           go-version: 'stable'
           # go-version-file: "go.mod"
 
-      # - name: Set up Upx
-      #   run: |
-      #     sudo apt update
-      #     sudo apt install -y upx
-
-      # if [ ${{ matrix.os[0] }} != "darwin" ]; then
-      # upx --lzma --best ${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}${{ matrix.os[1] }}
-      # fi
       - name: Build
         env:
           GOOS: ${{ matrix.env[0] }}

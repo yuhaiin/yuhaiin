@@ -25,16 +25,41 @@ func NewRouteListStore(db *sql.DB) *RouteListStore {
 }
 
 func (s *RouteListStore) ListRouteLists(ctx context.Context) ([]contractroute.ListItem, error) {
+	items, _, err := s.ListRouteListsPage(ctx, "", 1, 0)
+	return items, err
+}
+
+func (s *RouteListStore) ListRouteListsPage(ctx context.Context, query string, page, pageSize int) ([]contractroute.ListItem, int, error) {
 	if s == nil || s.db == nil {
-		return nil, errors.New("route list store database is nil")
+		return nil, 0, errors.New("route list store database is nil")
 	}
-	rows, err := s.db.QueryContext(ctx, `
+
+	where := ""
+	args := []any{}
+	if query = strings.TrimSpace(query); query != "" {
+		where = `
+			WHERE LOWER(name) LIKE ?
+			   OR LOWER(list_type) LIKE ?
+			   OR LOWER(source_type) LIKE ?
+			   OR LOWER(data_json) LIKE ?
+		`
+		like := storeLike(query)
+		args = []any{like, like, like, like}
+	}
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM route_lists_v2`+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count route list contracts failed: %w", err)
+	}
+
+	querySQL, queryArgs := appendStorePage(`
 		SELECT data_json
 		FROM route_lists_v2
+	`+where+`
 		ORDER BY name
-	`)
+	`, args, page, pageSize)
+	rows, err := s.db.QueryContext(ctx, querySQL, queryArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("query route list contracts failed: %w", err)
+		return nil, 0, fmt.Errorf("query route list contracts failed: %w", err)
 	}
 	defer rows.Close()
 
@@ -42,18 +67,18 @@ func (s *RouteListStore) ListRouteLists(ctx context.Context) ([]contractroute.Li
 	for rows.Next() {
 		var dataJSON string
 		if err := rows.Scan(&dataJSON); err != nil {
-			return nil, fmt.Errorf("scan route list contract failed: %w", err)
+			return nil, 0, fmt.Errorf("scan route list contract failed: %w", err)
 		}
 		detail, err := decodeRouteListDetail(dataJSON)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, routeListItemFromDetail(detail))
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate route list contracts failed: %w", err)
+		return nil, 0, fmt.Errorf("iterate route list contracts failed: %w", err)
 	}
-	return out, nil
+	return out, total, nil
 }
 
 func (s *RouteListStore) ListRouteListDetails(ctx context.Context) ([]contractroute.RouteListDetail, error) {

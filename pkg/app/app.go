@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/netip"
 
+	"github.com/Asutorufa/yuhaiin/pkg/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -15,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
+	usermigrate "github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -106,6 +108,8 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	var settingsStore *plainstore.SettingsStore
 	var backupStore *plainstore.BackupStore
 	var resolverStore *plainstore.ResolverStore
+	var userStore *plainstore.UserStore
+	var authCenter *auth.Center
 	var resolverConfigStore *plainstore.ResolverConfigStore
 	var routeSettingsStore *plainstore.RouteSettingsStore
 	var routeRuleStore *plainstore.RouteRuleStore
@@ -115,7 +119,17 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		if err != nil {
 			log.Error("open v2 sqlite store failed", "err", err)
 		} else {
+			if err := usermigrate.MigrateLegacyCredentials(context.Background(), db); err != nil {
+				_ = closers.Close()
+				return nil, fmt.Errorf("migrate legacy credentials failed: %w", err)
+			}
 			settingsStore = plainstore.NewSettingsStore(db)
+			userStore = plainstore.NewUserStore(db)
+			authCenter, err = auth.NewCenter(userStore)
+			if err != nil {
+				_ = closers.Close()
+				return nil, fmt.Errorf("init auth center failed: %w", err)
+			}
 			backupStore = plainstore.NewBackupStore(db)
 			resolverStore = plainstore.NewResolverStore(db)
 			resolverConfigStore = plainstore.NewResolverConfigStore(db)
@@ -164,6 +178,9 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	// Proxy and DNS runtime objects are created only after every legacy store
 	// has been migrated into the plain SQLite model.
 	nodeRuntime := AddCloser(closers, "node_runtime", node.NewNodeRuntime(paths.PathGenerator.State(so.ConfigPath)))
+	if authCenter != nil {
+		nodeRuntime.SetCredentialResolver(authCenter)
+	}
 	dns := AddCloser(closers, "resolver", resolver.NewResolver(configuration.ProxyChain))
 	list := AddCloser(closers, "lists", route.NewLists(routeListStore, routeSettingsStore, so.ConfigPath))
 	// bypass dialer and dns request
@@ -198,7 +215,11 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	list.SetProxy(fakedns)
 
 	// inbound server
-	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, inbound.WithDNSAgent(fakedns)))
+	inboundOptions := []inbound.Option{inbound.WithDNSAgent(fakedns)}
+	if authCenter != nil {
+		inboundOptions = append(inboundOptions, inbound.WithAuthCenter(authCenter))
+	}
+	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, inboundOptions...))
 	dialer.SkipInterface = inbounds.Interfaces
 	// tools
 	tools := NewTools(logController)
@@ -223,6 +244,8 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		ResolverCfg:  resolver.NewContractConfigController(resolverCtr),
 		Setting:      settingsController,
 		Inbound:      inbounds,
+		Users:        userStore,
+		AuthCenter:   authCenter,
 		closers:      closers,
 	}
 

@@ -29,8 +29,8 @@ type Config struct {
 func init() {
 	register.RegisterContractPoint("http", func(config contractnode.HTTP, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewClient(Config{
-			User:     config.User,
-			Password: config.Password,
+			User:     config.User,     //nolint:staticcheck // resolved UserID credentials are passed through the legacy proxy config.
+			Password: config.Password, //nolint:staticcheck // resolved UserID credentials are passed through the legacy proxy config.
 		}, p)
 	})
 }

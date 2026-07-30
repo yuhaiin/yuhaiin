@@ -60,55 +60,61 @@ const (
 	v2RouteRulesTest           v2Endpoint = "route.rules.test"
 	v2RouteRulesBlockHistory   v2Endpoint = "route.rules.block_history"
 
-	v2SettingsGet         v2Endpoint = "settings.get"
-	v2SettingsPut         v2Endpoint = "settings.put"
-	v2BackupConfigGet     v2Endpoint = "backup.config.get"
-	v2BackupConfigPut     v2Endpoint = "backup.config.put"
-	v2ResolverHostsGet    v2Endpoint = "resolver.hosts.get"
-	v2ResolverHostsPut    v2Endpoint = "resolver.hosts.put"
-	v2ResolverFakeDNSGet  v2Endpoint = "resolver.fakedns.get"
-	v2ResolverFakeDNSPut  v2Endpoint = "resolver.fakedns.put"
-	v2ResolverServerGet   v2Endpoint = "resolver.server.get"
-	v2ResolverServerPut   v2Endpoint = "resolver.server.put"
-	v2SubscriptionsGet    v2Endpoint = "subscriptions.get"
-	v2SubscriptionsPut    v2Endpoint = "subscriptions.put"
-	v2SubscriptionsDelete v2Endpoint = "subscriptions.delete"
-	v2PublishPut          v2Endpoint = "publish.put"
-	v2PublishDelete       v2Endpoint = "publish.delete"
-	v2InboundConfigGet    v2Endpoint = "inbounds.config.get"
-	v2InboundConfigPut    v2Endpoint = "inbounds.config.put"
-	v2InboundsGet         v2Endpoint = "inbounds.get"
-	v2InboundsPost        v2Endpoint = "inbounds.post"
-	v2InboundGet          v2Endpoint = "inbound.get"
-	v2InboundPut          v2Endpoint = "inbound.put"
-	v2InboundDelete       v2Endpoint = "inbound.delete"
-	v2NodesGet            v2Endpoint = "nodes.get"
-	v2NodesPost           v2Endpoint = "nodes.post"
-	v2NodeGet             v2Endpoint = "node.get"
-	v2NodePut             v2Endpoint = "node.put"
-	v2NodeDelete          v2Endpoint = "node.delete"
-	v2ResolversGet        v2Endpoint = "resolvers.get"
-	v2ResolversPost       v2Endpoint = "resolvers.post"
-	v2ResolverGet         v2Endpoint = "resolver.get"
-	v2ResolverPut         v2Endpoint = "resolver.put"
-	v2ResolverDelete      v2Endpoint = "resolver.delete"
-	v2RouteConfigGet      v2Endpoint = "route.config.get"
-	v2RouteConfigPut      v2Endpoint = "route.config.put"
-	v2RouteListsGet       v2Endpoint = "route.lists.get"
-	v2RouteListsPost      v2Endpoint = "route.lists.post"
-	v2RouteListConfigGet  v2Endpoint = "route.lists.config.get"
-	v2RouteListConfigPut  v2Endpoint = "route.lists.config.put"
-	v2RouteListGet        v2Endpoint = "route.list.get"
-	v2RouteListPut        v2Endpoint = "route.list.put"
-	v2RouteListDelete     v2Endpoint = "route.list.delete"
-	v2RouteRulesGet       v2Endpoint = "route.rules.get"
-	v2RouteRulesPost      v2Endpoint = "route.rules.post"
-	v2RouteRuleGet        v2Endpoint = "route.rule.get"
-	v2RouteRulePut        v2Endpoint = "route.rule.put"
-	v2RouteRuleDelete     v2Endpoint = "route.rule.delete"
-	v2RouteTagsGet        v2Endpoint = "route.tags.get"
-	v2RouteTagPut         v2Endpoint = "route.tag.put"
-	v2RouteTagDelete      v2Endpoint = "route.tag.delete"
+	v2SettingsGet                v2Endpoint = "settings.get"
+	v2SettingsPut                v2Endpoint = "settings.put"
+	v2BackupConfigGet            v2Endpoint = "backup.config.get"
+	v2BackupConfigPut            v2Endpoint = "backup.config.put"
+	v2ResolverHostsGet           v2Endpoint = "resolver.hosts.get"
+	v2ResolverHostsPut           v2Endpoint = "resolver.hosts.put"
+	v2ResolverFakeDNSGet         v2Endpoint = "resolver.fakedns.get"
+	v2ResolverFakeDNSPut         v2Endpoint = "resolver.fakedns.put"
+	v2ResolverServerGet          v2Endpoint = "resolver.server.get"
+	v2ResolverServerPut          v2Endpoint = "resolver.server.put"
+	v2SubscriptionsGet           v2Endpoint = "subscriptions.get"
+	v2SubscriptionsPut           v2Endpoint = "subscriptions.put"
+	v2SubscriptionsDelete        v2Endpoint = "subscriptions.delete"
+	v2SubscriptionsDeletePreview v2Endpoint = "subscriptions.delete_preview"
+	v2PublishPut                 v2Endpoint = "publish.put"
+	v2PublishDelete              v2Endpoint = "publish.delete"
+	v2InboundConfigGet           v2Endpoint = "inbounds.config.get"
+	v2InboundConfigPut           v2Endpoint = "inbounds.config.put"
+	v2InboundsGet                v2Endpoint = "inbounds.get"
+	v2InboundsPost               v2Endpoint = "inbounds.post"
+	v2InboundGet                 v2Endpoint = "inbound.get"
+	v2InboundPut                 v2Endpoint = "inbound.put"
+	v2InboundDelete              v2Endpoint = "inbound.delete"
+	v2UsersGet                   v2Endpoint = "users.get"
+	v2UsersPost                  v2Endpoint = "users.post"
+	v2UserGet                    v2Endpoint = "user.get"
+	v2UserPut                    v2Endpoint = "user.put"
+	v2UserDelete                 v2Endpoint = "user.delete"
+	v2NodesGet                   v2Endpoint = "nodes.get"
+	v2NodesPost                  v2Endpoint = "nodes.post"
+	v2NodeGet                    v2Endpoint = "node.get"
+	v2NodePut                    v2Endpoint = "node.put"
+	v2NodeDelete                 v2Endpoint = "node.delete"
+	v2ResolversGet               v2Endpoint = "resolvers.get"
+	v2ResolversPost              v2Endpoint = "resolvers.post"
+	v2ResolverGet                v2Endpoint = "resolver.get"
+	v2ResolverPut                v2Endpoint = "resolver.put"
+	v2ResolverDelete             v2Endpoint = "resolver.delete"
+	v2RouteConfigGet             v2Endpoint = "route.config.get"
+	v2RouteConfigPut             v2Endpoint = "route.config.put"
+	v2RouteListsGet              v2Endpoint = "route.lists.get"
+	v2RouteListsPost             v2Endpoint = "route.lists.post"
+	v2RouteListConfigGet         v2Endpoint = "route.lists.config.get"
+	v2RouteListConfigPut         v2Endpoint = "route.lists.config.put"
+	v2RouteListGet               v2Endpoint = "route.list.get"
+	v2RouteListPut               v2Endpoint = "route.list.put"
+	v2RouteListDelete            v2Endpoint = "route.list.delete"
+	v2RouteRulesGet              v2Endpoint = "route.rules.get"
+	v2RouteRulesPost             v2Endpoint = "route.rules.post"
+	v2RouteRuleGet               v2Endpoint = "route.rule.get"
+	v2RouteRulePut               v2Endpoint = "route.rule.put"
+	v2RouteRuleDelete            v2Endpoint = "route.rule.delete"
+	v2RouteTagsGet               v2Endpoint = "route.tags.get"
+	v2RouteTagPut                v2Endpoint = "route.tag.put"
+	v2RouteTagDelete             v2Endpoint = "route.tag.delete"
 )
 
 var v2Routes = []v2Route{
@@ -143,6 +149,7 @@ var v2Routes = []v2Route{
 	{v2SubscriptionsGet, "GET /api/v2/subscriptions"},
 	{v2SubscriptionsPut, "PUT /api/v2/subscriptions"},
 	{v2SubscriptionsDelete, "DELETE /api/v2/subscriptions"},
+	{v2SubscriptionsDeletePreview, "POST /api/v2/subscriptions/delete-preview"},
 	{v2SubscriptionsUpdate, "POST /api/v2/subscriptions/update"},
 	{v2Publishes, "GET /api/v2/publishes"},
 	{v2PublishPut, "PUT /api/v2/publishes/{name}"},
@@ -155,6 +162,11 @@ var v2Routes = []v2Route{
 	{v2InboundGet, "GET /api/v2/inbounds/{id}"},
 	{v2InboundPut, "PUT /api/v2/inbounds/{id}"},
 	{v2InboundDelete, "DELETE /api/v2/inbounds/{id}"},
+	{v2UsersGet, "GET /api/v2/users"},
+	{v2UsersPost, "POST /api/v2/users"},
+	{v2UserGet, "GET /api/v2/users/{id}"},
+	{v2UserPut, "PUT /api/v2/users/{id}"},
+	{v2UserDelete, "DELETE /api/v2/users/{id}"},
 	{v2NodesGet, "GET /api/v2/nodes"},
 	{v2NodesPost, "POST /api/v2/nodes"},
 	{v2NodesSelected, "GET /api/v2/nodes/selected"},
@@ -208,6 +220,7 @@ func newV2Handlers(services V2Services) *v2Handlers {
 	addNodeRPCRoutesV2(handlers, services)
 	addResolverRPCRoutesV2(handlers, services)
 	addInboundRPCRoutesV2(handlers, services)
+	addUserRPCRoutesV2(handlers, services)
 	return handlers
 }
 

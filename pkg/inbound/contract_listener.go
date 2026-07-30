@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/auth"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/aead"
@@ -29,7 +30,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 )
 
-func listenContract(config contract.Inbound, handler netapi.Handler) (netapi.Accepter, error) {
+func listenContract(config contract.Inbound, handler netapi.Handler, authCenter *auth.Center) (netapi.Accepter, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -39,14 +40,14 @@ func listenContract(config contract.Inbound, handler netapi.Handler) (netapi.Acc
 		return nil, err
 	}
 	for _, transport := range config.Transports {
-		lis, err = contractTransport(transport, lis)
+		lis, err = contractTransport(transport, lis, authCenter)
 		if err != nil {
 			closeIfNotNil(lis)
 			return nil, err
 		}
 	}
 
-	server, err := contractProtocol(config.Protocol, lis, handler)
+	server, err := contractProtocol(config.Protocol, lis, handler, authCenter)
 	if err != nil {
 		closeIfNotNil(lis)
 		return nil, err
@@ -109,7 +110,7 @@ func contractUDPControl(mode string) fixed.Control {
 	}
 }
 
-func contractTransport(config contract.Transport, lis netapi.Listener) (netapi.Listener, error) {
+func contractTransport(config contract.Transport, lis netapi.Listener, authCenter *auth.Center) (netapi.Listener, error) {
 	switch config.Type {
 	case contract.TransportNormal:
 		return lis, nil
@@ -156,8 +157,9 @@ func contractTransport(config contract.Transport, lis netapi.Listener) (netapi.L
 	case contract.TransportAEAD:
 		aeadConfig := config.AEAD
 		return aead.NewServer(aead.Config{
-			Password:     aeadConfig.Password,
+			Password:     legacyAuthString(authCenter, aeadConfig.Password),
 			CryptoMethod: aead.CryptoMethod(aeadConfig.CryptoMethod),
+			Auth:         authCenter,
 		}, lis)
 	case contract.TransportProxy:
 		return yproxy.NewServer(yproxy.ServerConfig{}, lis)
@@ -166,36 +168,49 @@ func contractTransport(config contract.Transport, lis netapi.Listener) (netapi.L
 	}
 }
 
-func contractProtocol(config contract.Protocol, lis netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+func contractProtocol(config contract.Protocol, lis netapi.Listener, handler netapi.Handler, authCenter *auth.Center) (netapi.Accepter, error) {
+	basicAuth := authCenter
+	if basicAuth != nil && !basicAuth.HasBasicUsers() {
+		basicAuth = nil
+	}
+	usernameAuth := authCenter
+	if usernameAuth != nil && !usernameAuth.HasUsernameUsers() {
+		usernameAuth = nil
+	}
 	switch config.Type {
 	case contract.ProtocolHTTP:
 		protocol := config.HTTP
 		return yhttp.NewServer(yhttp.ServerConfig{
-			Username: protocol.Username,
-			Password: protocol.Password,
+			Username: legacyAuthString(authCenter, protocol.Username),
+			Password: legacyAuthString(authCenter, protocol.Password),
+			Auth:     basicAuth,
 		}, lis, handler)
 	case contract.ProtocolSocks5:
 		protocol := config.Socks5
 		return socks5.NewServer(socks5.ServerConfig{
-			Username: protocol.Username,
-			Password: protocol.Password,
+			Username: legacyAuthString(authCenter, protocol.Username),
+			Password: legacyAuthString(authCenter, protocol.Password),
+			Auth:     basicAuth,
 			UDP:      protocol.UDP,
 		}, lis, handler)
 	case contract.ProtocolYuubinsya:
 		protocol := config.Yuubinsya
 		return yuubinsya.NewServer(yuubinsya.ServerConfig{
-			Password:    protocol.Password,
+			Password:    legacyAuthString(authCenter, protocol.Password),
 			UDPCoalesce: protocol.UDPCoalesce,
+			Auth:        authCenter,
 		}, lis, handler)
 	case contract.ProtocolMixed:
 		protocol := config.Mixed
 		return mixed.NewServer(mixed.ServerConfig{
-			Username: protocol.Username,
-			Password: protocol.Password,
+			Username: legacyAuthString(authCenter, protocol.Username),
+			Password: legacyAuthString(authCenter, protocol.Password),
+			Auth:     basicAuth,
 		}, lis, handler)
 	case contract.ProtocolSocks4A:
 		return socks4a.NewServer(socks4a.ServerConfig{
-			Username: config.Socks4A.Username,
+			Username: legacyAuthString(authCenter, config.Socks4A.Username),
+			Auth:     usernameAuth,
 		}, lis, handler)
 	case contract.ProtocolTProxy:
 		return contractTProxy(lis, handler)
@@ -222,6 +237,13 @@ func contractProtocol(config contract.Protocol, lis netapi.Listener, handler net
 	default:
 		return nil, fmt.Errorf("unsupported contract inbound protocol %q", config.Type)
 	}
+}
+
+func legacyAuthString(center *auth.Center, value string) string {
+	if center != nil {
+		return ""
+	}
+	return value
 }
 
 func serverTLSConfig(config contract.ServerTLSConfig) ytls.ServerConfig {

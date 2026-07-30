@@ -31,7 +31,7 @@ func init() {
 			Server:     config.Server,
 			Port:       config.Port,
 			Method:     config.Method,
-			Password:   config.Password,
+			Password:   config.Password, //nolint:staticcheck // resolved UserID credentials are passed through the legacy proxy config.
 			Obfs:       config.Obfs,
 			ObfsParam:  config.ObfsParam,
 			Protocol:   config.Protocol,

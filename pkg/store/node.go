@@ -10,6 +10,7 @@ import (
 	"time"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	contractuser "github.com/Asutorufa/yuhaiin/pkg/contract/user"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
 
@@ -39,10 +40,24 @@ func (s *NodeStore) Save(ctx context.Context, node contractnode.Node, updatedAt 
 	if s == nil || s.db == nil {
 		return errors.New("node store database is nil")
 	}
-	return SaveNodeContract(ctx, s.db, node, updatedAt)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin node save transaction failed: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM subscription_nodes_v2 WHERE node_id = ?`, node.ID); err != nil {
+		return fmt.Errorf("detach node %q from subscriptions failed: %w", node.ID, err)
+	}
+	if err := SaveNodeContract(ctx, tx, node, updatedAt); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit node save transaction failed: %w", err)
+	}
+	return nil
 }
 
-func (s *NodeStore) ReplaceRemote(ctx context.Context, group string, nodes []contractnode.Node, updatedAt int64) error {
+func (s *NodeStore) ReplaceRemote(ctx context.Context, subscriptionName string, nodes []contractnode.Node, updatedAt int64) error {
 	if s == nil || s.db == nil {
 		return errors.New("node store database is nil")
 	}
@@ -54,23 +69,315 @@ func (s *NodeStore) ReplaceRemote(ctx context.Context, group string, nodes []con
 		return fmt.Errorf("begin remote node replace transaction failed: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if err := DeleteRemoteNodeContracts(ctx, tx, group); err != nil {
+	oldIDs, err := subscriptionNodeIDs(ctx, tx, subscriptionName)
+	if err != nil {
 		return err
 	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM subscription_nodes_v2 WHERE subscription_name = ?`, subscriptionName); err != nil {
+		return fmt.Errorf("clear subscription nodes for %q failed: %w", subscriptionName, err)
+	}
+	// Keep the user links across refreshes. If a subscription changes a
+	// credential, the old migrated user remains attributable to that
+	// subscription and can be cleaned up when the subscription is deleted.
+	for _, nodeID := range oldIDs {
+		var references int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM subscription_nodes_v2 WHERE node_id = ?`, nodeID).Scan(&references); err != nil {
+			return fmt.Errorf("check subscription node %q references failed: %w", nodeID, err)
+		}
+		if references != 0 {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM node_tags_v2 WHERE EXISTS (SELECT 1 FROM json_each(node_tags_v2.members_json) WHERE value = ?)`, nodeID); err != nil {
+			return fmt.Errorf("delete tags for remote node %q failed: %w", nodeID, err)
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM nodes_v2 WHERE id = ?`, nodeID); err != nil {
+			return fmt.Errorf("delete replaced remote node %q failed: %w", nodeID, err)
+		}
+	}
 	for _, node := range nodes {
-		node.Group = group
+		node.Group = subscriptionName
 		node.Origin = "remote"
 		if node.ID == "" {
 			node.ID = id.GenerateUUID().String()
 		}
+		if err := migrateSubscriptionNodeCredentials(ctx, tx, subscriptionName, node.ID, node.Chain); err != nil {
+			return err
+		}
 		if err := SaveNodeContract(ctx, tx, node, updatedAt); err != nil {
 			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO subscription_nodes_v2(subscription_name, node_id) VALUES (?, ?)`, subscriptionName, node.ID); err != nil {
+			return fmt.Errorf("link node %q to subscription %q failed: %w", node.ID, subscriptionName, err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit remote node replace transaction failed: %w", err)
 	}
 	return nil
+}
+
+func subscriptionNodeIDs(ctx context.Context, queryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, subscriptionName string) ([]string, error) {
+	rows, err := queryer.QueryContext(ctx, `SELECT node_id FROM subscription_nodes_v2 WHERE subscription_name = ?`, subscriptionName)
+	if err != nil {
+		return nil, fmt.Errorf("query subscription nodes for %q failed: %w", subscriptionName, err)
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan subscription node for %q failed: %w", subscriptionName, err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate subscription nodes for %q failed: %w", subscriptionName, err)
+	}
+	return ids, nil
+}
+
+type subscriptionCredentialBinding struct {
+	credential contractuser.Credential
+	setUserID  func(string)
+	clear      func()
+	available  bool
+}
+
+func migrateSubscriptionNodeCredentials(ctx context.Context, tx *sql.Tx, subscriptionName, nodeID string, chain []contractnode.Protocol) error {
+	for index := range chain {
+		protocol := &chain[index]
+		if protocol.Type == "network_split" && protocol.NetworkSplit != nil {
+			if protocol.NetworkSplit.TCP != nil {
+				nested := []contractnode.Protocol{*protocol.NetworkSplit.TCP}
+				if err := migrateSubscriptionNodeCredentials(ctx, tx, subscriptionName, nodeID, nested); err != nil {
+					return err
+				}
+				*protocol.NetworkSplit.TCP = nested[0]
+			}
+			if protocol.NetworkSplit.UDP != nil {
+				nested := []contractnode.Protocol{*protocol.NetworkSplit.UDP}
+				if err := migrateSubscriptionNodeCredentials(ctx, tx, subscriptionName, nodeID, nested); err != nil {
+					return err
+				}
+				*protocol.NetworkSplit.UDP = nested[0]
+			}
+			continue
+		}
+		binding := subscriptionCredentialBindingFor(protocol)
+		if binding.clear == nil {
+			continue
+		}
+		binding.clear()
+		if !binding.available {
+			continue
+		}
+		userID, err := ensureSubscriptionUser(ctx, tx, subscriptionName, binding.credential)
+		if err != nil {
+			return fmt.Errorf("migrate subscription node %q chain[%d] credentials: %w", nodeID, index, err)
+		}
+		binding.setUserID(userID)
+	}
+	return nil
+}
+
+func subscriptionCredentialBindingFor(protocol *contractnode.Protocol) subscriptionCredentialBinding {
+	if protocol == nil {
+		return subscriptionCredentialBinding{}
+	}
+	allowAny := func(username, password string) contractuser.Credential {
+		var usernameValue, passwordValue *string
+		if username != "" {
+			usernameValue = &username
+		}
+		if password != "" || username != "" {
+			passwordValue = &password
+		}
+		return contractuser.Credential{Type: contractuser.CredentialBasic, Basic: &contractuser.BasicCredential{
+			Username: usernameValue, Password: passwordValue, AllowAnyUsername: username == "", AllowAnyPassword: password == "",
+		}}
+	}
+	switch protocol.Type {
+	case "shadowsocks":
+		if protocol.Shadowsocks == nil {
+			return subscriptionCredentialBinding{}
+		}
+		value := protocol.Shadowsocks.Password //nolint:staticcheck // migrate legacy inline credentials.
+		return subscriptionCredentialBinding{
+			credential: allowAny("", value), available: value != "",
+			setUserID: func(userID string) { protocol.Shadowsocks.UserID = userID },
+			clear:     func() { protocol.Shadowsocks.UserID, protocol.Shadowsocks.Password = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
+		}
+	case "shadowsocksr":
+		if protocol.Shadowsocksr == nil {
+			return subscriptionCredentialBinding{}
+		}
+		value := protocol.Shadowsocksr.Password //nolint:staticcheck // migrate legacy inline credentials.
+		return subscriptionCredentialBinding{
+			credential: allowAny("", value), available: value != "",
+			setUserID: func(userID string) { protocol.Shadowsocksr.UserID = userID },
+			clear:     func() { protocol.Shadowsocksr.UserID, protocol.Shadowsocksr.Password = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
+		}
+	case "vmess":
+		if protocol.Vmess == nil {
+			return subscriptionCredentialBinding{}
+		}
+		value := protocol.Vmess.UUID //nolint:staticcheck // migrate legacy inline credentials.
+		return subscriptionCredentialBinding{
+			credential: contractuser.Credential{Type: contractuser.CredentialUUID, UUID: &contractuser.UUIDCredential{UUID: value}}, available: value != "",
+			setUserID: func(userID string) { protocol.Vmess.UserID = userID },
+			clear:     func() { protocol.Vmess.UserID, protocol.Vmess.UUID = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
+		}
+	case "vless":
+		if protocol.Vless == nil {
+			return subscriptionCredentialBinding{}
+		}
+		value := protocol.Vless.UUID //nolint:staticcheck // migrate legacy inline credentials.
+		return subscriptionCredentialBinding{
+			credential: contractuser.Credential{Type: contractuser.CredentialUUID, UUID: &contractuser.UUIDCredential{UUID: value}}, available: value != "",
+			setUserID: func(userID string) { protocol.Vless.UserID = userID },
+			clear:     func() { protocol.Vless.UserID, protocol.Vless.UUID = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
+		}
+	case "trojan":
+		if protocol.Trojan == nil {
+			return subscriptionCredentialBinding{}
+		}
+		value := protocol.Trojan.Password //nolint:staticcheck // migrate legacy inline credentials.
+		return subscriptionCredentialBinding{
+			credential: allowAny("", value), available: value != "",
+			setUserID: func(userID string) { protocol.Trojan.UserID = userID },
+			clear:     func() { protocol.Trojan.UserID, protocol.Trojan.Password = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
+		}
+	case "socks5":
+		if protocol.Socks5 == nil {
+			return subscriptionCredentialBinding{}
+		}
+		username, password := protocol.Socks5.User, protocol.Socks5.Password //nolint:staticcheck // migrate legacy inline credentials.
+		return subscriptionCredentialBinding{
+			credential: allowAny(username, password), available: username != "" || password != "",
+			setUserID: func(userID string) { protocol.Socks5.UserID = userID },
+			clear:     func() { protocol.Socks5.UserID, protocol.Socks5.User, protocol.Socks5.Password = "", "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
+		}
+	case "http":
+		if protocol.HTTP == nil {
+			return subscriptionCredentialBinding{}
+		}
+		username, password := protocol.HTTP.User, protocol.HTTP.Password //nolint:staticcheck // migrate legacy inline credentials.
+		return subscriptionCredentialBinding{
+			credential: allowAny(username, password), available: username != "" || password != "",
+			setUserID: func(userID string) { protocol.HTTP.UserID = userID },
+			clear:     func() { protocol.HTTP.UserID, protocol.HTTP.User, protocol.HTTP.Password = "", "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
+		}
+	case "yuubinsya":
+		if protocol.Yuubinsya == nil {
+			return subscriptionCredentialBinding{}
+		}
+		value := protocol.Yuubinsya.Password //nolint:staticcheck // migrate legacy inline credentials.
+		return subscriptionCredentialBinding{
+			credential: allowAny("", value), available: value != "",
+			setUserID: func(userID string) { protocol.Yuubinsya.UserID = userID },
+			clear:     func() { protocol.Yuubinsya.UserID, protocol.Yuubinsya.Password = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
+		}
+	case "tailscale":
+		if protocol.Tailscale == nil {
+			return subscriptionCredentialBinding{}
+		}
+		value := protocol.Tailscale.AuthKey //nolint:staticcheck // migrate legacy inline credentials.
+		return subscriptionCredentialBinding{
+			credential: contractuser.Credential{Type: contractuser.CredentialToken, Token: &contractuser.TokenCredential{Token: value}}, available: value != "",
+			setUserID: func(userID string) { protocol.Tailscale.UserID = userID },
+			clear:     func() { protocol.Tailscale.UserID, protocol.Tailscale.AuthKey = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
+		}
+	case "aead":
+		if protocol.AEAD == nil {
+			return subscriptionCredentialBinding{}
+		}
+		value := protocol.AEAD.Password //nolint:staticcheck // migrate legacy inline credentials.
+		return subscriptionCredentialBinding{
+			credential: allowAny("", value), available: value != "",
+			setUserID: func(userID string) { protocol.AEAD.UserID = userID },
+			clear:     func() { protocol.AEAD.UserID, protocol.AEAD.Password = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
+		}
+	default:
+		return subscriptionCredentialBinding{}
+	}
+}
+
+func ensureSubscriptionUser(ctx context.Context, tx *sql.Tx, subscriptionName string, credential contractuser.Credential) (string, error) {
+	if err := credential.Validate(); err != nil {
+		return "", err
+	}
+	var userID string
+	var err error
+	switch credential.Type {
+	case contractuser.CredentialBasic:
+		c := credential.Basic
+		var username, password any
+		if c.Username != nil {
+			username = *c.Username
+		}
+		if c.Password != nil {
+			password = *c.Password
+		}
+		err = tx.QueryRowContext(ctx, `
+			SELECT u.id FROM users_v2 u JOIN user_basic_v2 b ON b.user_id = u.id
+			WHERE u.credential_type = 'basic' AND b.username IS ? AND b.password IS ?
+			AND b.allow_any_username = ? AND b.allow_any_password = ? LIMIT 1
+		`, username, password, boolToInt(c.AllowAnyUsername), boolToInt(c.AllowAnyPassword)).Scan(&userID)
+	case contractuser.CredentialUUID:
+		err = tx.QueryRowContext(ctx, `SELECT user_id FROM user_uuid_v2 WHERE uuid = ?`, credential.UUID.UUID).Scan(&userID)
+	case contractuser.CredentialToken:
+		err = tx.QueryRowContext(ctx, `SELECT user_id FROM user_token_v2 WHERE token = ?`, credential.Token.Token).Scan(&userID)
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		userID = id.GenerateUUID().String()
+		if err := insertSubscriptionUser(ctx, tx, userID, subscriptionName, credential); err != nil {
+			return "", err
+		}
+	} else if err != nil {
+		return "", fmt.Errorf("find equivalent subscription user failed: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE users_v2 SET usage = 'both' WHERE id = ? AND usage = 'inbound'`, userID); err != nil {
+		return "", fmt.Errorf("enable outbound usage for subscription user %q failed: %w", userID, err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO subscription_users_v2(subscription_name, user_id) VALUES (?, ?)
+		ON CONFLICT(subscription_name, user_id) DO NOTHING
+	`, subscriptionName, userID); err != nil {
+		return "", fmt.Errorf("link user %q to subscription %q failed: %w", userID, subscriptionName, err)
+	}
+	return userID, nil
+}
+
+func insertSubscriptionUser(ctx context.Context, tx *sql.Tx, userID, subscriptionName string, credential contractuser.Credential) error {
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO users_v2(id, name, enabled, origin, usage, credential_type, updated_at)
+		VALUES (?, ?, 1, 'migrated', 'outbound', ?, unixepoch())
+	`, userID, "Subscription "+subscriptionName, credential.Type); err != nil {
+		return fmt.Errorf("insert subscription user failed: %w", err)
+	}
+	switch credential.Type {
+	case contractuser.CredentialBasic:
+		c := credential.Basic
+		var username, password any
+		if c.Username != nil {
+			username = *c.Username
+		}
+		if c.Password != nil {
+			password = *c.Password
+		}
+		_, err := tx.ExecContext(ctx, `INSERT INTO user_basic_v2(user_id, username, password, allow_any_username, allow_any_password) VALUES (?, ?, ?, ?, ?)`, userID, username, password, boolToInt(c.AllowAnyUsername), boolToInt(c.AllowAnyPassword))
+		return err
+	case contractuser.CredentialUUID:
+		_, err := tx.ExecContext(ctx, `INSERT INTO user_uuid_v2(user_id, uuid) VALUES (?, ?)`, userID, credential.UUID.UUID)
+		return err
+	case contractuser.CredentialToken:
+		_, err := tx.ExecContext(ctx, `INSERT INTO user_token_v2(user_id, token) VALUES (?, ?)`, userID, credential.Token.Token)
+		return err
+	default:
+		return fmt.Errorf("unsupported subscription credential type %q", credential.Type)
+	}
 }
 
 func SaveNodeContract(ctx context.Context, execer NodeExecer, node contractnode.Node, updatedAt int64) error {
@@ -330,8 +637,11 @@ func DeleteNodeContract(ctx context.Context, execer NodeExecer, id string) error
 }
 
 func DeleteRemoteNodeContracts(ctx context.Context, execer NodeExecer, group string) error {
-	if _, err := execer.ExecContext(ctx, `DELETE FROM nodes_v2 WHERE group_name = ? AND origin = 'remote'`, group); err != nil {
-		return fmt.Errorf("delete remote node contracts for group %q failed: %w", group, err)
+	if _, err := execer.ExecContext(ctx, `
+		DELETE FROM nodes_v2
+		WHERE id IN (SELECT node_id FROM subscription_nodes_v2 WHERE subscription_name = ?)
+	`, group); err != nil {
+		return fmt.Errorf("delete subscription node contracts for %q failed: %w", group, err)
 	}
 	return nil
 }

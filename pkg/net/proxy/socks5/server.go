@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
@@ -103,7 +104,7 @@ func (s *Server) handshake1(client net.Conn, buf []byte) error {
 		return fmt.Errorf("read methods failed: %w", err)
 	}
 
-	noNeedVerify := s.username == "" && s.password == ""
+	noNeedVerify := s.authenticator == nil && s.username == "" && s.password == ""
 	userAndPasswordSupport := false
 
 	for _, v := range buf[:nMethods] { // range all supported methods
@@ -117,6 +118,9 @@ func (s *Server) handshake1(client net.Conn, buf []byte) error {
 	}
 
 	if userAndPasswordSupport {
+		if s.authenticator != nil {
+			return verifyUserPassAuth(client, s.authenticator)
+		}
 		return verifyUserPass(client, s.username, s.password)
 	}
 
@@ -126,6 +130,20 @@ func (s *Server) handshake1(client net.Conn, buf []byte) error {
 }
 
 func verifyUserPass(client net.Conn, user, key string) error {
+	return verifyUserPassWith(client, func(username, password []byte) bool {
+		return (len(user) == 0 || subtle.ConstantTimeCompare([]byte(user), username) == 1) &&
+			(len(key) == 0 || subtle.ConstantTimeCompare([]byte(key), password) == 1)
+	})
+}
+
+func verifyUserPassAuth(client net.Conn, authenticator auth.BasicAuthenticator) error {
+	return verifyUserPassWith(client, func(username, password []byte) bool {
+		_, err := authenticator.AuthBasic(string(username), string(password))
+		return err == nil
+	})
+}
+
+func verifyUserPassWith(client net.Conn, check func([]byte, []byte) bool) error {
 	if err := writeHandshake1(client, tools.UserAndPassword); err != nil {
 		return err
 	}
@@ -161,8 +179,7 @@ func verifyUserPass(client net.Conn, user, key string) error {
 
 	password := b[2+usernameLength+1 : 2+usernameLength+1+passwordLength]
 
-	if (len(user) > 0 && subtle.ConstantTimeCompare([]byte(user), username) != 1) ||
-		(len(key) > 0 && subtle.ConstantTimeCompare([]byte(key), password) != 1) {
+	if !check(username, password) {
 		_, err := client.Write([]byte{1, 1})
 		return fmt.Errorf("verify username and password failed, resp err: %w", err)
 	}
@@ -301,15 +318,17 @@ type Server struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 
-	username string
-	password string
-	udp      bool
+	username      string
+	password      string
+	udp           bool
+	authenticator auth.BasicAuthenticator
 }
 
 type ServerConfig struct {
-	Username string `json:"username,omitzero"`
-	Password string `json:"password,omitzero"`
-	UDP      bool   `json:"udp,omitzero"`
+	Username string                  `json:"username,omitzero"`
+	Password string                  `json:"password,omitzero"`
+	UDP      bool                    `json:"udp,omitzero"`
+	Auth     auth.BasicAuthenticator `json:"-"`
 }
 
 func (s *Server) Close() error {
@@ -320,13 +339,14 @@ func (s *Server) Close() error {
 func NewServer(o ServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
-		udp:      o.UDP,
-		username: o.Username,
-		password: o.Password,
-		lis:      ii,
-		handler:  handler,
-		ctx:      ctx,
-		cancel:   cancel,
+		udp:           o.UDP,
+		username:      o.Username,
+		password:      o.Password,
+		lis:           ii,
+		handler:       handler,
+		authenticator: o.Auth,
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 
 	if s.udp {

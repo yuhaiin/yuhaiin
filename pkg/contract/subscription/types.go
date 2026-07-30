@@ -16,6 +16,17 @@ type LinkNames struct {
 	Names []string `json:"names"`
 }
 
+type DeleteLinksRequest struct {
+	Names       []string `json:"names"`
+	DeleteNodes bool     `json:"deleteNodes"`
+	DeleteUsers bool     `json:"deleteUsers"`
+}
+
+type DeleteImpact struct {
+	Nodes int `json:"nodes"`
+	Users int `json:"users"`
+}
+
 type Publish struct {
 	Name     string   `json:"name"`
 	Points   []string `json:"points"`

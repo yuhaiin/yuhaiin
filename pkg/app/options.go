@@ -24,6 +24,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Asutorufa/yuhaiin/pkg/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -49,6 +50,8 @@ type AppInstance struct {
 	Backup      httpapi.BackupController
 	Setting     httpapi.SettingsController
 	Inbound     *inbound.Inbound
+	Users       *plainstore.UserStore
+	AuthCenter  *auth.Center
 	Mux         *http.ServeMux
 	*StartOptions
 	closers *closers
@@ -118,6 +121,8 @@ func (app *AppInstance) RegisterServer() {
 
 func registerV2HTTP(app *AppInstance) {
 	var inboundStore httpapi.InboundStore
+	userStore := app.Users
+	authCenter := app.AuthCenter
 	var nodeStore *plainstore.NodeStore
 	var subscriptionStore *plainstore.SubscriptionStore
 	var resolverStore *plainstore.ResolverStore
@@ -133,6 +138,9 @@ func registerV2HTTP(app *AppInstance) {
 			log.Error("init v2 sqlite store failed", "err", err)
 		} else {
 			plainInboundStore := plainstore.NewInboundStore(db)
+			if authCenter != nil && app.NodeRuntime != nil {
+				app.NodeRuntime.SetCredentialResolver(authCenter)
+			}
 			inboundRuntimeStore := inbound.NewContractStore(plainInboundStore, app.Inbound)
 			if err := inboundRuntimeStore.Sync(context.Background()); err != nil {
 				log.Error("sync v2 inbound runtime failed", "err", err)
@@ -157,6 +165,8 @@ func registerV2HTTP(app *AppInstance) {
 	}, httpapi.V2Services{
 		Settings:       app.Setting,
 		Inbounds:       inboundStore,
+		Users:          userStore,
+		Auth:           authCenter,
 		Nodes:          nodeStore,
 		Node:           app.Node,
 		Subscriptions:  subscriptionStore,

@@ -33,6 +33,16 @@ type NodeRuntime struct {
 	nodes   *plainstore.NodeStore
 	closed  bool
 	proxies *ProxyStore
+	auth    register.CredentialResolver
+}
+
+func (r *NodeRuntime) SetCredentialResolver(resolver register.CredentialResolver) {
+	r.mu.Lock()
+	r.auth = resolver
+	r.mu.Unlock()
+	for key := range r.proxies.Range {
+		r.proxies.Delete(key)
+	}
 }
 
 func NewNodeRuntime(path string) *NodeRuntime {
@@ -83,6 +93,12 @@ func (r *NodeRuntime) Close() error {
 func (r *NodeRuntime) Save(ctx context.Context, node contractnode.Node) (contractnode.Node, error) {
 	nodes, err := r.openNodes(ctx)
 	if err != nil {
+		return contractnode.Node{}, err
+	}
+	r.mu.Lock()
+	resolver := r.auth
+	r.mu.Unlock()
+	if err := register.ValidateCredentialReferences(node, resolver); err != nil {
 		return contractnode.Node{}, err
 	}
 	node.Origin = "manual"
@@ -251,7 +267,10 @@ func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, load fun
 		if err != nil {
 			return nil, err
 		}
-		proxy, err := register.ContractDialer(node)
+		r.mu.Lock()
+		resolver := r.auth
+		r.mu.Unlock()
+		proxy, err := register.ContractDialerWithAuth(node, resolver)
 		if err != nil {
 			return nil, err
 		}

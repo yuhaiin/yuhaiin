@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/auth"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
@@ -12,7 +13,7 @@ import (
 func init() {
 	register.RegisterContractPoint("aead", func(config contractnode.AEAD, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewClient(Config{
-			Password:     config.Password,
+			Password:     config.Password, //nolint:staticcheck // resolved UserID credentials are passed through the legacy proxy config.
 			CryptoMethod: contractCryptoMethod(config.CryptoMethod),
 		}, p)
 	})
@@ -25,7 +26,9 @@ type Client struct {
 
 type Config struct {
 	Password     string       `json:"password"`
+	Passwords    []string     `json:"-"`
 	CryptoMethod CryptoMethod `json:"crypto_method"`
+	Auth         *auth.Center `json:"-"`
 }
 
 func NewClient(cfg Config, p netapi.Proxy) (netapi.Proxy, error) {
