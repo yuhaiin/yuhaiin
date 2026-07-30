@@ -205,5 +205,3 @@ func (u User) View() UserView {
 	}
 	return view
 }
-
-func String(value string) *string { return &value }

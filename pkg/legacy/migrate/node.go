@@ -295,7 +295,7 @@ func convertContractAEAD(out *legacy.Protocol, in *contractnode.AEAD) (*legacy.P
 		return nil, fmt.Errorf("unknown aead crypto method %q", in.CryptoMethod)
 	}
 	out.SetAead(&legacy.Aead{
-		Password:     in.Password,
+		Password:     in.Password, //nolint:staticcheck // preserve the deprecated field when converting to the legacy protocol.
 		CryptoMethod: legacy.AeadCryptoMethod(method),
 	})
 	return out, nil

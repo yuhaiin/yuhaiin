@@ -61,13 +61,6 @@ type multiAuthPacketConn struct {
 	selected map[string]cipher.AEAD
 }
 
-func (s *multiAuthPacketConn) headerSize() int {
-	if len(s.aeads) == 0 {
-		return 0
-	}
-	return s.aeads[0].NonceSize() + s.aeads[0].Overhead()
-}
-
 func (s *multiAuthPacketConn) WriteTo(p []byte, addr net.Addr) (int, error) {
 	if len(s.aeads) == 0 {
 		return 0, errors.New("no AEAD credentials configured")

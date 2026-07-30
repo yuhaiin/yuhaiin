@@ -20,7 +20,7 @@ type Vmess struct {
 func init() {
 	register.RegisterContractPoint("vmess", func(config contractnode.Vmess, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewClient(Config{
-			UUID:     config.UUID,
+			UUID:     config.UUID, //nolint:staticcheck // resolved UserID credentials are passed through the legacy proxy config.
 			AlterID:  config.AlterID,
 			Security: config.Security,
 		}, p)

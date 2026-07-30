@@ -52,7 +52,7 @@ func TestResolveProtocolCredentialsCoversManagedProtocols(t *testing.T) {
 			t.Fatalf("protocol %s: %v", protocols[i].Type, err)
 		}
 	}
-	if protocols[0].Shadowsocks.Password != "ss-resolved" || protocols[1].Shadowsocksr.Password != "ssr-resolved" || protocols[2].Vmess.UUID != "vmess-resolved" || protocols[3].Vless.UUID != "vless-resolved" || protocols[4].Trojan.Password != "trojan-resolved" || protocols[5].Socks5.User != "socks-user" || protocols[5].Socks5.Password != "socks-pass" || protocols[6].HTTP.User != "http-user" || protocols[6].HTTP.Password != "http-pass" || protocols[7].Yuubinsya.Password != "yuu-resolved" || protocols[8].Tailscale.AuthKey != "tail-resolved" || protocols[9].AEAD.Password != "aead-resolved" {
+	if protocols[0].Shadowsocks.Password != "ss-resolved" || protocols[1].Shadowsocksr.Password != "ssr-resolved" || protocols[2].Vmess.UUID != "vmess-resolved" || protocols[3].Vless.UUID != "vless-resolved" || protocols[4].Trojan.Password != "trojan-resolved" || protocols[5].Socks5.User != "socks-user" || protocols[5].Socks5.Password != "socks-pass" || protocols[6].HTTP.User != "http-user" || protocols[6].HTTP.Password != "http-pass" || protocols[7].Yuubinsya.Password != "yuu-resolved" || protocols[8].Tailscale.AuthKey != "tail-resolved" || protocols[9].AEAD.Password != "aead-resolved" { //nolint:staticcheck // assert compatibility fields populated from resolved credentials.
 		t.Fatalf("resolved protocols = %+v", protocols)
 	}
 	if len(resolver.called) != len(protocols) {
@@ -72,7 +72,7 @@ func TestResolveProtocolCredentialsRecursesAndClearsLegacyFields(t *testing.T) {
 	if err := resolveProtocolCredentials(&protocol, resolver); err != nil {
 		t.Fatal(err)
 	}
-	if protocol.NetworkSplit.TCP.HTTP.User != "nested-user" || protocol.NetworkSplit.TCP.HTTP.Password != "nested-pass" || protocol.NetworkSplit.UDP.Vless.UUID != "nested-uuid" {
+	if protocol.NetworkSplit.TCP.HTTP.User != "nested-user" || protocol.NetworkSplit.TCP.HTTP.Password != "nested-pass" || protocol.NetworkSplit.UDP.Vless.UUID != "nested-uuid" { //nolint:staticcheck // assert nested compatibility fields populated from resolved credentials.
 		t.Fatalf("nested resolution failed: %+v", protocol)
 	}
 
@@ -80,7 +80,7 @@ func TestResolveProtocolCredentialsRecursesAndClearsLegacyFields(t *testing.T) {
 	if err := resolveProtocolCredentials(&noUser, resolver); err != nil {
 		t.Fatal(err)
 	}
-	if noUser.HTTP.User != "" || noUser.HTTP.Password != "" {
+	if noUser.HTTP.User != "" || noUser.HTTP.Password != "" { //nolint:staticcheck // assert legacy fields are cleared when no UserID exists.
 		t.Fatalf("legacy credentials were not cleared: %+v", noUser.HTTP)
 	}
 }

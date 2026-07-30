@@ -36,7 +36,7 @@ func TestReplaceRemoteMigratesCredentialsAndLinksSubscription(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stored.Chain[0].Trojan.UserID == "" || stored.Chain[0].Trojan.Password != "" {
+	if stored.Chain[0].Trojan.UserID == "" || stored.Chain[0].Trojan.Password != "" { //nolint:staticcheck // assert migrated storage clears the legacy credential field.
 		t.Fatalf("stored remote credentials = %+v", stored.Chain[0].Trojan)
 	}
 	var userCount int

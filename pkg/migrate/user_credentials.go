@@ -302,53 +302,53 @@ func migrateNodeChain(ctx context.Context, tx *sql.Tx, sourceID string, chain []
 		var err error
 		switch protocol.Type {
 		case "shadowsocks":
-			if protocol.Shadowsocks != nil && protocol.Shadowsocks.UserID == "" && protocol.Shadowsocks.Password != "" {
-				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".shadowsocks", basicCredential(nil, &protocol.Shadowsocks.Password, true, false), "Node "+sourceID)
+			if protocol.Shadowsocks != nil && protocol.Shadowsocks.UserID == "" && protocol.Shadowsocks.Password != "" { //nolint:staticcheck // migrate credentials from the legacy inline field.
+				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".shadowsocks", basicCredential(nil, &protocol.Shadowsocks.Password, true, false), "Node "+sourceID) //nolint:staticcheck // migrate credentials from the legacy inline field.
 				protocol.Shadowsocks.UserID = userID
 			}
 		case "shadowsocksr":
-			if protocol.Shadowsocksr != nil && protocol.Shadowsocksr.UserID == "" && protocol.Shadowsocksr.Password != "" {
-				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".shadowsocksr", basicCredential(nil, &protocol.Shadowsocksr.Password, true, false), "Node "+sourceID)
+			if protocol.Shadowsocksr != nil && protocol.Shadowsocksr.UserID == "" && protocol.Shadowsocksr.Password != "" { //nolint:staticcheck // migrate credentials from the legacy inline field.
+				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".shadowsocksr", basicCredential(nil, &protocol.Shadowsocksr.Password, true, false), "Node "+sourceID) //nolint:staticcheck // migrate credentials from the legacy inline field.
 				protocol.Shadowsocksr.UserID = userID
 			}
 		case "vmess":
-			if protocol.Vmess != nil && protocol.Vmess.UserID == "" && protocol.Vmess.UUID != "" {
-				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".vmess", uuidCredential(protocol.Vmess.UUID), "Node "+sourceID)
+			if protocol.Vmess != nil && protocol.Vmess.UserID == "" && protocol.Vmess.UUID != "" { //nolint:staticcheck // migrate credentials from the legacy inline field.
+				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".vmess", uuidCredential(protocol.Vmess.UUID), "Node "+sourceID) //nolint:staticcheck // migrate credentials from the legacy inline field.
 				protocol.Vmess.UserID = userID
 			}
 		case "vless":
-			if protocol.Vless != nil && protocol.Vless.UserID == "" && protocol.Vless.UUID != "" {
-				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".vless", uuidCredential(protocol.Vless.UUID), "Node "+sourceID)
+			if protocol.Vless != nil && protocol.Vless.UserID == "" && protocol.Vless.UUID != "" { //nolint:staticcheck // migrate credentials from the legacy inline field.
+				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".vless", uuidCredential(protocol.Vless.UUID), "Node "+sourceID) //nolint:staticcheck // migrate credentials from the legacy inline field.
 				protocol.Vless.UserID = userID
 			}
 		case "trojan":
-			if protocol.Trojan != nil && protocol.Trojan.UserID == "" && protocol.Trojan.Password != "" {
-				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".trojan", basicCredential(nil, &protocol.Trojan.Password, true, false), "Node "+sourceID)
+			if protocol.Trojan != nil && protocol.Trojan.UserID == "" && protocol.Trojan.Password != "" { //nolint:staticcheck // migrate credentials from the legacy inline field.
+				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".trojan", basicCredential(nil, &protocol.Trojan.Password, true, false), "Node "+sourceID) //nolint:staticcheck // migrate credentials from the legacy inline field.
 				protocol.Trojan.UserID = userID
 			}
 		case "socks5":
-			if protocol.Socks5 != nil && protocol.Socks5.UserID == "" && (protocol.Socks5.User != "" || protocol.Socks5.Password != "") {
-				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".socks5", basicCredential(&protocol.Socks5.User, &protocol.Socks5.Password, protocol.Socks5.User == "", protocol.Socks5.Password == ""), "Node "+sourceID)
+			if protocol.Socks5 != nil && protocol.Socks5.UserID == "" && (protocol.Socks5.User != "" || protocol.Socks5.Password != "") { //nolint:staticcheck // migrate credentials from the legacy inline fields.
+				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".socks5", basicCredential(&protocol.Socks5.User, &protocol.Socks5.Password, protocol.Socks5.User == "", protocol.Socks5.Password == ""), "Node "+sourceID) //nolint:staticcheck // migrate credentials from the legacy inline fields.
 				protocol.Socks5.UserID = userID
 			}
 		case "http":
-			if protocol.HTTP != nil && protocol.HTTP.UserID == "" && (protocol.HTTP.User != "" || protocol.HTTP.Password != "") {
-				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".http", basicCredential(&protocol.HTTP.User, &protocol.HTTP.Password, protocol.HTTP.User == "", protocol.HTTP.Password == ""), "Node "+sourceID)
+			if protocol.HTTP != nil && protocol.HTTP.UserID == "" && (protocol.HTTP.User != "" || protocol.HTTP.Password != "") { //nolint:staticcheck // migrate credentials from the legacy inline fields.
+				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".http", basicCredential(&protocol.HTTP.User, &protocol.HTTP.Password, protocol.HTTP.User == "", protocol.HTTP.Password == ""), "Node "+sourceID) //nolint:staticcheck // migrate credentials from the legacy inline fields.
 				protocol.HTTP.UserID = userID
 			}
 		case "yuubinsya":
-			if protocol.Yuubinsya != nil && protocol.Yuubinsya.UserID == "" && protocol.Yuubinsya.Password != "" {
-				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".yuubinsya", basicCredential(nil, &protocol.Yuubinsya.Password, true, false), "Node "+sourceID)
+			if protocol.Yuubinsya != nil && protocol.Yuubinsya.UserID == "" && protocol.Yuubinsya.Password != "" { //nolint:staticcheck // migrate credentials from the legacy inline field.
+				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".yuubinsya", basicCredential(nil, &protocol.Yuubinsya.Password, true, false), "Node "+sourceID) //nolint:staticcheck // migrate credentials from the legacy inline field.
 				protocol.Yuubinsya.UserID = userID
 			}
 		case "tailscale":
-			if protocol.Tailscale != nil && protocol.Tailscale.UserID == "" && protocol.Tailscale.AuthKey != "" {
-				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".tailscale", tokenCredential(protocol.Tailscale.AuthKey), "Node "+sourceID)
+			if protocol.Tailscale != nil && protocol.Tailscale.UserID == "" && protocol.Tailscale.AuthKey != "" { //nolint:staticcheck // migrate credentials from the legacy inline field.
+				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".tailscale", tokenCredential(protocol.Tailscale.AuthKey), "Node "+sourceID) //nolint:staticcheck // migrate credentials from the legacy inline field.
 				protocol.Tailscale.UserID = userID
 			}
 		case "aead":
-			if protocol.AEAD != nil && protocol.AEAD.UserID == "" && protocol.AEAD.Password != "" {
-				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".aead", basicCredential(nil, &protocol.AEAD.Password, true, false), "Node "+sourceID)
+			if protocol.AEAD != nil && protocol.AEAD.UserID == "" && protocol.AEAD.Password != "" { //nolint:staticcheck // migrate credentials from the legacy inline field.
+				userID, err = ensureMigratedUser(ctx, tx, "node", sourceID, path+".aead", basicCredential(nil, &protocol.AEAD.Password, true, false), "Node "+sourceID) //nolint:staticcheck // migrate credentials from the legacy inline field.
 				protocol.AEAD.UserID = userID
 			}
 		case "network_split":

@@ -66,7 +66,7 @@ func (c *Client) Ping(ctx context.Context, addr netapi.Address) (uint64, error) 
 func init() {
 	register.RegisterContractPoint("vless", func(config contractnode.Vless, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewClient(Config{
-			UUID: config.UUID,
+			UUID: config.UUID, //nolint:staticcheck // resolved UserID credentials are passed through the legacy proxy config.
 		}, p)
 	})
 }

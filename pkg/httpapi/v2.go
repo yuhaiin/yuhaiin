@@ -190,19 +190,6 @@ func nodeChainContains(item contractnode.Node, query string) bool {
 	}
 	return false
 }
-func filterResolvers(items []contractresolver.Resolver, query string) []contractresolver.Resolver {
-	query = strings.ToLower(strings.TrimSpace(query))
-	if query == "" {
-		return items
-	}
-	out := make([]contractresolver.Resolver, 0, len(items))
-	for _, item := range items {
-		if strings.Contains(strings.ToLower(item.ID), query) || strings.Contains(strings.ToLower(item.Type), query) || strings.Contains(strings.ToLower(item.Host), query) || strings.Contains(strings.ToLower(item.Subnet), query) || strings.Contains(strings.ToLower(item.TLSServerName), query) {
-			out = append(out, item)
-		}
-	}
-	return out
-}
 func paginateV2[T any](items []T, page, pageSize int) []T {
 	if pageSize <= 0 {
 		return items

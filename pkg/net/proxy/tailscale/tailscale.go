@@ -141,7 +141,7 @@ var instanceStore = lru.NewSyncLru(lru.WithCapacity[instance, *Tailscale](100))
 func init() {
 	register.RegisterContractPoint("tailscale", func(config contractnode.Tailscale, p netapi.Proxy) (netapi.Proxy, error) {
 		return New(Config{
-			AuthKey:    config.AuthKey,
+			AuthKey:    config.AuthKey, //nolint:staticcheck // resolved UserID credentials are passed through the legacy proxy config.
 			Hostname:   config.Hostname,
 			ControlURL: config.ControlURL,
 			Debug:      config.Debug,

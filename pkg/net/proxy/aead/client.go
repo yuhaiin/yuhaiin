@@ -13,7 +13,7 @@ import (
 func init() {
 	register.RegisterContractPoint("aead", func(config contractnode.AEAD, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewClient(Config{
-			Password:     config.Password,
+			Password:     config.Password, //nolint:staticcheck // resolved UserID credentials are passed through the legacy proxy config.
 			CryptoMethod: contractCryptoMethod(config.CryptoMethod),
 		}, p)
 	})

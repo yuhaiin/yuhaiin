@@ -232,7 +232,7 @@ func resolveProtocolCredentials(protocol *contractnode.Protocol, resolver Creden
 		if err != nil {
 			return err
 		}
-		protocol.Shadowsocks.Password = value.Password
+		protocol.Shadowsocks.Password = value.Password //nolint:staticcheck // populate the legacy proxy field from the resolved credential.
 	case "shadowsocksr":
 		if protocol.Shadowsocksr == nil {
 			return errors.New("shadowsocksr protocol config is missing")
@@ -241,7 +241,7 @@ func resolveProtocolCredentials(protocol *contractnode.Protocol, resolver Creden
 		if err != nil {
 			return err
 		}
-		protocol.Shadowsocksr.Password = value.Password
+		protocol.Shadowsocksr.Password = value.Password //nolint:staticcheck // populate the legacy proxy field from the resolved credential.
 	case "vmess":
 		if protocol.Vmess == nil {
 			return errors.New("vmess protocol config is missing")
@@ -250,7 +250,7 @@ func resolveProtocolCredentials(protocol *contractnode.Protocol, resolver Creden
 		if err != nil {
 			return err
 		}
-		protocol.Vmess.UUID = value.UUID
+		protocol.Vmess.UUID = value.UUID //nolint:staticcheck // populate the legacy proxy field from the resolved credential.
 	case "vless":
 		if protocol.Vless == nil {
 			return errors.New("vless protocol config is missing")
@@ -259,7 +259,7 @@ func resolveProtocolCredentials(protocol *contractnode.Protocol, resolver Creden
 		if err != nil {
 			return err
 		}
-		protocol.Vless.UUID = value.UUID
+		protocol.Vless.UUID = value.UUID //nolint:staticcheck // populate the legacy proxy field from the resolved credential.
 	case "trojan":
 		if protocol.Trojan == nil {
 			return errors.New("trojan protocol config is missing")
@@ -268,7 +268,7 @@ func resolveProtocolCredentials(protocol *contractnode.Protocol, resolver Creden
 		if err != nil {
 			return err
 		}
-		protocol.Trojan.Password = value.Password
+		protocol.Trojan.Password = value.Password //nolint:staticcheck // populate the legacy proxy field from the resolved credential.
 	case "socks5":
 		if protocol.Socks5 == nil {
 			return errors.New("socks5 protocol config is missing")
@@ -277,7 +277,7 @@ func resolveProtocolCredentials(protocol *contractnode.Protocol, resolver Creden
 		if err != nil {
 			return err
 		}
-		protocol.Socks5.User, protocol.Socks5.Password = value.Username, value.Password
+		protocol.Socks5.User, protocol.Socks5.Password = value.Username, value.Password //nolint:staticcheck // populate the legacy proxy fields from the resolved credential.
 	case "http":
 		if protocol.HTTP == nil {
 			return errors.New("http protocol config is missing")
@@ -286,7 +286,7 @@ func resolveProtocolCredentials(protocol *contractnode.Protocol, resolver Creden
 		if err != nil {
 			return err
 		}
-		protocol.HTTP.User, protocol.HTTP.Password = value.Username, value.Password
+		protocol.HTTP.User, protocol.HTTP.Password = value.Username, value.Password //nolint:staticcheck // populate the legacy proxy fields from the resolved credential.
 	case "yuubinsya":
 		if protocol.Yuubinsya == nil {
 			return errors.New("yuubinsya protocol config is missing")
@@ -295,7 +295,7 @@ func resolveProtocolCredentials(protocol *contractnode.Protocol, resolver Creden
 		if err != nil {
 			return err
 		}
-		protocol.Yuubinsya.Password = value.Password
+		protocol.Yuubinsya.Password = value.Password //nolint:staticcheck // populate the legacy proxy field from the resolved credential.
 	case "tailscale":
 		if protocol.Tailscale == nil {
 			return errors.New("tailscale protocol config is missing")
@@ -304,7 +304,7 @@ func resolveProtocolCredentials(protocol *contractnode.Protocol, resolver Creden
 		if err != nil {
 			return err
 		}
-		protocol.Tailscale.AuthKey = value.Token
+		protocol.Tailscale.AuthKey = value.Token //nolint:staticcheck // populate the legacy proxy field from the resolved credential.
 	case "aead":
 		if protocol.AEAD == nil {
 			return errors.New("aead protocol config is missing")
@@ -313,7 +313,7 @@ func resolveProtocolCredentials(protocol *contractnode.Protocol, resolver Creden
 		if err != nil {
 			return err
 		}
-		protocol.AEAD.Password = value.Password
+		protocol.AEAD.Password = value.Password //nolint:staticcheck // populate the legacy proxy field from the resolved credential.
 	case "network_split":
 		if protocol.NetworkSplit == nil {
 			return errors.New("network split protocol config is missing")

@@ -203,101 +203,101 @@ func subscriptionCredentialBindingFor(protocol *contractnode.Protocol) subscript
 		if protocol.Shadowsocks == nil {
 			return subscriptionCredentialBinding{}
 		}
-		value := protocol.Shadowsocks.Password
+		value := protocol.Shadowsocks.Password //nolint:staticcheck // migrate legacy inline credentials.
 		return subscriptionCredentialBinding{
 			credential: allowAny("", value), available: value != "",
 			setUserID: func(userID string) { protocol.Shadowsocks.UserID = userID },
-			clear:     func() { protocol.Shadowsocks.UserID, protocol.Shadowsocks.Password = "", "" },
+			clear:     func() { protocol.Shadowsocks.UserID, protocol.Shadowsocks.Password = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
 		}
 	case "shadowsocksr":
 		if protocol.Shadowsocksr == nil {
 			return subscriptionCredentialBinding{}
 		}
-		value := protocol.Shadowsocksr.Password
+		value := protocol.Shadowsocksr.Password //nolint:staticcheck // migrate legacy inline credentials.
 		return subscriptionCredentialBinding{
 			credential: allowAny("", value), available: value != "",
 			setUserID: func(userID string) { protocol.Shadowsocksr.UserID = userID },
-			clear:     func() { protocol.Shadowsocksr.UserID, protocol.Shadowsocksr.Password = "", "" },
+			clear:     func() { protocol.Shadowsocksr.UserID, protocol.Shadowsocksr.Password = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
 		}
 	case "vmess":
 		if protocol.Vmess == nil {
 			return subscriptionCredentialBinding{}
 		}
-		value := protocol.Vmess.UUID
+		value := protocol.Vmess.UUID //nolint:staticcheck // migrate legacy inline credentials.
 		return subscriptionCredentialBinding{
 			credential: contractuser.Credential{Type: contractuser.CredentialUUID, UUID: &contractuser.UUIDCredential{UUID: value}}, available: value != "",
 			setUserID: func(userID string) { protocol.Vmess.UserID = userID },
-			clear:     func() { protocol.Vmess.UserID, protocol.Vmess.UUID = "", "" },
+			clear:     func() { protocol.Vmess.UserID, protocol.Vmess.UUID = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
 		}
 	case "vless":
 		if protocol.Vless == nil {
 			return subscriptionCredentialBinding{}
 		}
-		value := protocol.Vless.UUID
+		value := protocol.Vless.UUID //nolint:staticcheck // migrate legacy inline credentials.
 		return subscriptionCredentialBinding{
 			credential: contractuser.Credential{Type: contractuser.CredentialUUID, UUID: &contractuser.UUIDCredential{UUID: value}}, available: value != "",
 			setUserID: func(userID string) { protocol.Vless.UserID = userID },
-			clear:     func() { protocol.Vless.UserID, protocol.Vless.UUID = "", "" },
+			clear:     func() { protocol.Vless.UserID, protocol.Vless.UUID = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
 		}
 	case "trojan":
 		if protocol.Trojan == nil {
 			return subscriptionCredentialBinding{}
 		}
-		value := protocol.Trojan.Password
+		value := protocol.Trojan.Password //nolint:staticcheck // migrate legacy inline credentials.
 		return subscriptionCredentialBinding{
 			credential: allowAny("", value), available: value != "",
 			setUserID: func(userID string) { protocol.Trojan.UserID = userID },
-			clear:     func() { protocol.Trojan.UserID, protocol.Trojan.Password = "", "" },
+			clear:     func() { protocol.Trojan.UserID, protocol.Trojan.Password = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
 		}
 	case "socks5":
 		if protocol.Socks5 == nil {
 			return subscriptionCredentialBinding{}
 		}
-		username, password := protocol.Socks5.User, protocol.Socks5.Password
+		username, password := protocol.Socks5.User, protocol.Socks5.Password //nolint:staticcheck // migrate legacy inline credentials.
 		return subscriptionCredentialBinding{
 			credential: allowAny(username, password), available: username != "" || password != "",
 			setUserID: func(userID string) { protocol.Socks5.UserID = userID },
-			clear:     func() { protocol.Socks5.UserID, protocol.Socks5.User, protocol.Socks5.Password = "", "", "" },
+			clear:     func() { protocol.Socks5.UserID, protocol.Socks5.User, protocol.Socks5.Password = "", "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
 		}
 	case "http":
 		if protocol.HTTP == nil {
 			return subscriptionCredentialBinding{}
 		}
-		username, password := protocol.HTTP.User, protocol.HTTP.Password
+		username, password := protocol.HTTP.User, protocol.HTTP.Password //nolint:staticcheck // migrate legacy inline credentials.
 		return subscriptionCredentialBinding{
 			credential: allowAny(username, password), available: username != "" || password != "",
 			setUserID: func(userID string) { protocol.HTTP.UserID = userID },
-			clear:     func() { protocol.HTTP.UserID, protocol.HTTP.User, protocol.HTTP.Password = "", "", "" },
+			clear:     func() { protocol.HTTP.UserID, protocol.HTTP.User, protocol.HTTP.Password = "", "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
 		}
 	case "yuubinsya":
 		if protocol.Yuubinsya == nil {
 			return subscriptionCredentialBinding{}
 		}
-		value := protocol.Yuubinsya.Password
+		value := protocol.Yuubinsya.Password //nolint:staticcheck // migrate legacy inline credentials.
 		return subscriptionCredentialBinding{
 			credential: allowAny("", value), available: value != "",
 			setUserID: func(userID string) { protocol.Yuubinsya.UserID = userID },
-			clear:     func() { protocol.Yuubinsya.UserID, protocol.Yuubinsya.Password = "", "" },
+			clear:     func() { protocol.Yuubinsya.UserID, protocol.Yuubinsya.Password = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
 		}
 	case "tailscale":
 		if protocol.Tailscale == nil {
 			return subscriptionCredentialBinding{}
 		}
-		value := protocol.Tailscale.AuthKey
+		value := protocol.Tailscale.AuthKey //nolint:staticcheck // migrate legacy inline credentials.
 		return subscriptionCredentialBinding{
 			credential: contractuser.Credential{Type: contractuser.CredentialToken, Token: &contractuser.TokenCredential{Token: value}}, available: value != "",
 			setUserID: func(userID string) { protocol.Tailscale.UserID = userID },
-			clear:     func() { protocol.Tailscale.UserID, protocol.Tailscale.AuthKey = "", "" },
+			clear:     func() { protocol.Tailscale.UserID, protocol.Tailscale.AuthKey = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
 		}
 	case "aead":
 		if protocol.AEAD == nil {
 			return subscriptionCredentialBinding{}
 		}
-		value := protocol.AEAD.Password
+		value := protocol.AEAD.Password //nolint:staticcheck // migrate legacy inline credentials.
 		return subscriptionCredentialBinding{
 			credential: allowAny("", value), available: value != "",
 			setUserID: func(userID string) { protocol.AEAD.UserID = userID },
-			clear:     func() { protocol.AEAD.UserID, protocol.AEAD.Password = "", "" },
+			clear:     func() { protocol.AEAD.UserID, protocol.AEAD.Password = "", "" }, //nolint:staticcheck // clear the legacy inline credential after migration.
 		}
 	default:
 		return subscriptionCredentialBinding{}
