@@ -425,27 +425,43 @@ func (c *Connections) telemetryDimension(ctx context.Context, dimension string, 
 	rows, err := c.sqliteDB.QueryContext(ctx, `
 		SELECT value, download_bytes, upload_bytes, failed_count
 		FROM (
-			SELECT
-				value,
-				SUM(download_bytes) AS download_bytes,
-				SUM(upload_bytes) AS upload_bytes,
-				SUM(failed_count) AS failed_count
+			SELECT value, SUM(download_bytes) AS download_bytes,
+				SUM(upload_bytes) AS upload_bytes, SUM(failed_count) AS failed_count
 			FROM (
-				SELECT value, download_bytes, upload_bytes, 0 AS failed_count
-				FROM traffic_dimension_hourly
-				WHERE dimension = ? AND bucket_start_utc >= ? AND bucket_start_utc < ?
+				SELECT v.value, t.download_bytes, t.upload_bytes, 0 AS failed_count
+				FROM traffic_dimension_hourly t
+				JOIN telemetry_dimension_values v ON v.id = t.value_id
+				WHERE v.dimension = ? AND t.bucket_start_utc >= ? AND t.bucket_start_utc < ?
 
 				UNION ALL
 
-				SELECT value, 0 AS download_bytes, 0 AS upload_bytes, failed_count
-				FROM failure_dimension_hourly
-				WHERE dimension = ? AND bucket_start_utc >= ? AND bucket_start_utc < ?
+				SELECT v.value, d.download_bytes, d.upload_bytes, 0 AS failed_count
+				FROM traffic_dimension_daily d
+				JOIN telemetry_dimension_values v ON v.id = d.value_id
+				WHERE v.dimension = ? AND d.bucket_start_utc < ? AND d.bucket_start_utc + 86400 > ?
+
+				UNION ALL
+
+				SELECT v.value, 0 AS download_bytes, 0 AS upload_bytes, f.failed_count
+				FROM failure_dimension_hourly f
+				JOIN telemetry_dimension_values v ON v.id = f.value_id
+				WHERE v.dimension = ? AND f.bucket_start_utc >= ? AND f.bucket_start_utc < ?
+
+				UNION ALL
+
+				SELECT v.value, 0 AS download_bytes, 0 AS upload_bytes, d.failed_count
+				FROM failure_dimension_daily d
+				JOIN telemetry_dimension_values v ON v.id = d.value_id
+				WHERE v.dimension = ? AND d.bucket_start_utc < ? AND d.bucket_start_utc + 86400 > ?
 			)
 			GROUP BY value
 		)
 		ORDER BY download_bytes + upload_bytes DESC, failed_count DESC
 		LIMIT ?
-	`, dimension, from.UTC().Unix(), to.UTC().Unix(), dimension, from.UTC().Unix(), to.UTC().Unix(), limit)
+	`, dimension, from.UTC().Unix(), to.UTC().Unix(),
+		dimension, to.UTC().Unix(), from.UTC().Unix(),
+		dimension, from.UTC().Unix(), to.UTC().Unix(),
+		dimension, to.UTC().Unix(), from.UTC().Unix(), limit)
 	if err != nil {
 		return nil, err
 	}

@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
+	"time"
 )
 
 func TestOpenBootstrapsEmptyDatabase(t *testing.T) {
@@ -73,18 +75,90 @@ func TestOpenBootstrapsEmptyDatabase(t *testing.T) {
 		"resolvers_v2",
 		"route_rules_v2",
 		"route_lists_v2",
+		"telemetry_dimension_values",
+		"traffic_dimension_daily",
+		"failure_dimension_daily",
 	} {
 		if !schemaObjectExists(t, store.DB(), name) {
 			t.Fatalf("schema object %q was not created", name)
 		}
 	}
 
-	if got := queryString(t, store.DB(), `SELECT value FROM metadata WHERE key = 'schema_version'`); got != "5" {
-		t.Fatalf("metadata schema_version = %q, want 5", got)
+	if got := queryString(t, store.DB(), `SELECT value FROM metadata WHERE key = 'schema_version'`); got != "6" {
+		t.Fatalf("metadata schema_version = %q, want 6", got)
 	}
 
 	if got := queryInt(t, store.DB(), `SELECT COUNT(*) FROM migrate`); got != int64(len(migrations)) {
 		t.Fatalf("migrate row count = %d, want %d", got, len(migrations))
+	}
+}
+
+func TestTelemetryMigrationNormalizesSourceValues(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "state.db")
+	db, err := sql.Open(driverName, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	if err := configure(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if err := bootstrapBase(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	for _, migration := range migrations[:5] {
+		if err := applyMigration(ctx, db, migration); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bucket := time.Now().UTC().Truncate(time.Hour).Unix()
+	for _, value := range []string{
+		"http2.h-20-2127.0.0.1:52001",
+		"http2.h-21-2example.com:443",
+		"http2.h-22-2[2407:cdc0::1]:52002",
+	} {
+		if _, err := db.ExecContext(ctx, `
+			INSERT INTO traffic_dimension_hourly(bucket_start_utc, dimension, value, download_bytes, updated_at)
+			VALUES (?, 'source', ?, 1, ?)
+		`, bucket, value, bucket); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	rows, err := store.DB().QueryContext(ctx, `
+		SELECT v.value
+		FROM traffic_dimension_hourly h
+		JOIN telemetry_dimension_values v ON v.id = h.value_id
+		WHERE v.dimension = 'source'
+		ORDER BY v.value
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var value string
+		if err := rows.Scan(&value); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, value)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"127.0.0.1", "2407:cdc0::1", "example.com"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("normalized source values = %v, want %v", got, want)
 	}
 }
 

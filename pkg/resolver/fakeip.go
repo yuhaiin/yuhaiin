@@ -212,6 +212,7 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 		store.SetFakeIP(addr)
 		z, err := netapi.ParseAddressPort(addr.Network(), t, addr.Port())
 		if err == nil {
+			store.SetDomainString(z.String())
 			return z
 		} else {
 			log.Warn("parse fakeip reverse domain failed", "addr", t, "err", err)

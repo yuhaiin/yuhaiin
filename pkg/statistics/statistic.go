@@ -79,6 +79,7 @@ func NewSQLiteConnStore(path string, dialer netapi.Proxy) *Connections {
 		db = store.DB()
 	}
 
+	normalizePersistedFakeIPDestinations(db)
 	clearPreviousSessions(db)
 
 	return &Connections{

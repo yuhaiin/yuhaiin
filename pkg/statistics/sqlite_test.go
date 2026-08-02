@@ -131,7 +131,7 @@ func TestTelemetryDimensionsAggregateTrafficAndFailures(t *testing.T) {
 		}
 	}
 	for dimension, value := range map[string]string{
-		"protocol": "tcp", "inbound": "socks5", "source": "127.0.0.1:52001", "addr": "example.com:443", "outbound": "edge-a", "process": "curl", "rule": "media-rule", "tag": "streaming", "destination": "example.com",
+		"protocol": "tcp", "inbound": "socks5", "source": "127.0.0.1", "addr": "example.com:443", "outbound": "edge-a", "process": "curl", "rule": "media-rule", "tag": "streaming", "destination": "example.com",
 	} {
 		item, ok := groups[dimension]
 		if !ok || item.Value != value || item.Download != "123" || item.Upload != "456" || item.Failures != "1" {
@@ -156,10 +156,11 @@ func TestTelemetryDimensionReturnsSQLSortedTopValues(t *testing.T) {
 		{value: "tie-low-failures", download: 50},
 		{value: "tie-high-failures", download: 50},
 	} {
+		valueID := seedTelemetryValue(t, ctx, connections.sqliteDB, "protocol", entry.value)
 		if _, err := connections.sqliteDB.ExecContext(ctx, `
-			INSERT INTO traffic_dimension_hourly(bucket_start_utc, dimension, value, upload_bytes, download_bytes, updated_at)
-			VALUES (?, 'protocol', ?, ?, ?, ?)
-		`, bucket, entry.value, entry.upload, entry.download, bucket); err != nil {
+			INSERT INTO traffic_dimension_hourly(bucket_start_utc, value_id, upload_bytes, download_bytes)
+			VALUES (?, ?, ?, ?)
+		`, bucket, valueID, entry.upload, entry.download); err != nil {
 			t.Fatalf("seed traffic telemetry: %v", err)
 		}
 	}
@@ -170,10 +171,11 @@ func TestTelemetryDimensionReturnsSQLSortedTopValues(t *testing.T) {
 		{value: "tie-high-failures", failures: 3},
 		{value: "failure-only", failures: 9},
 	} {
+		valueID := seedTelemetryValue(t, ctx, connections.sqliteDB, "protocol", entry.value)
 		if _, err := connections.sqliteDB.ExecContext(ctx, `
-			INSERT INTO failure_dimension_hourly(bucket_start_utc, dimension, value, failed_count, updated_at)
-			VALUES (?, 'protocol', ?, ?, ?)
-		`, bucket, entry.value, entry.failures, bucket); err != nil {
+			INSERT INTO failure_dimension_hourly(bucket_start_utc, value_id, failed_count)
+			VALUES (?, ?, ?)
+		`, bucket, valueID, entry.failures); err != nil {
 			t.Fatalf("seed failure telemetry: %v", err)
 		}
 	}
@@ -200,6 +202,128 @@ func TestTelemetryDimensionReturnsSQLSortedTopValues(t *testing.T) {
 	}
 	if got := items[len(items)-1]; got.Value != "failure-only" || got.Failures != "9" {
 		t.Fatalf("failure-only telemetry value missing: %+v", items)
+	}
+}
+
+func seedTelemetryValue(t *testing.T, ctx context.Context, db *sql.DB, dimension, value string) int64 {
+	t.Helper()
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO telemetry_dimension_values(dimension, value)
+		VALUES (?, ?)
+		ON CONFLICT(dimension, value) DO NOTHING
+	`, dimension, value); err != nil {
+		t.Fatalf("seed telemetry value: %v", err)
+	}
+	var id int64
+	if err := db.QueryRowContext(ctx, `
+		SELECT id FROM telemetry_dimension_values WHERE dimension = ? AND value = ?
+	`, dimension, value).Scan(&id); err != nil {
+		t.Fatalf("load telemetry value id: %v", err)
+	}
+	return id
+}
+
+func TestNormalizeTelemetrySource(t *testing.T) {
+	for _, test := range []struct {
+		input string
+		want  string
+	}{
+		{input: "http2.h-20-2127.0.0.1:52001", want: "127.0.0.1"},
+		{input: "http2.h-20-2example.com:443", want: "example.com"},
+		{input: "http2.h-20-2[2407:cdc0:8205:26cd:6812:56e0:3052:8cd3]:55391", want: "2407:cdc0:8205:26cd:6812:56e0:3052:8cd3"},
+		{input: "[::1]:443", want: "::1"},
+		{input: "2407:cdc0::1", want: "2407:cdc0::1"},
+	} {
+		if got := normalizeTelemetrySource(test.input); got != test.want {
+			t.Errorf("normalizeTelemetrySource(%q) = %q, want %q", test.input, got, test.want)
+		}
+	}
+}
+
+func TestTelemetryDimensionsSkipFakeIPDestination(t *testing.T) {
+	info := contractconnection.Connection{
+		Addr:        "10.0.0.1:443",
+		Destination: "10.0.0.1:443",
+		FakeIP:      "10.0.0.1:443",
+		Domain:      "example.com:443",
+	}
+	values := dimensionsForConnection(info)
+	for _, value := range values {
+		if value.kind == "destination" {
+			t.Fatalf("fakeip destination should be omitted: %+v", values)
+		}
+	}
+	for _, value := range values {
+		if value.kind == "addr" && value.value != "example.com:443" {
+			t.Fatalf("fakeip addr = %q, want real domain", value.value)
+		}
+	}
+}
+
+func TestNormalizePersistedFakeIPDestinations(t *testing.T) {
+	ctx := context.Background()
+	store, err := storagesqlite.Open(ctx, paths.PathGenerator.State(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	if _, err := store.DB().ExecContext(ctx, `
+		INSERT INTO fakeip_entries(family, prefix, domain, ip, created_at, last_used_at)
+		VALUES (4, '10.0.0.0/24', 'example.com', ?, 1, 2)
+	`, []byte{10, 0, 0, 1}); err != nil {
+		t.Fatal(err)
+	}
+	valueID := seedTelemetryValue(t, ctx, store.DB(), "destination", "10.0.0.1:443")
+	if _, err := store.DB().ExecContext(ctx, `
+		INSERT INTO traffic_dimension_hourly(bucket_start_utc, value_id, download_bytes)
+		VALUES (1, ?, 7)
+	`, valueID); err != nil {
+		t.Fatal(err)
+	}
+
+	normalizePersistedFakeIPDestinations(store.DB())
+	var remaining int
+	if err := store.DB().QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM traffic_dimension_hourly h
+		JOIN telemetry_dimension_values v ON v.id = h.value_id
+		WHERE v.dimension = 'destination'
+	`).Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if remaining != 0 {
+		t.Fatalf("fakeip destination rows remaining = %d, want 0", remaining)
+	}
+}
+
+func TestTelemetryMaintenanceRollsHourlyIntoDaily(t *testing.T) {
+	ctx := context.Background()
+	store, err := storagesqlite.Open(ctx, paths.PathGenerator.State(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	valueID := seedTelemetryValue(t, ctx, store.DB(), "protocol", "tcp")
+	oldBucket := time.Now().UTC().Truncate(time.Hour).Add(-telemetryHourlyRetention - time.Hour).Unix()
+	if _, err := store.DB().ExecContext(ctx, `
+		INSERT INTO traffic_dimension_hourly(bucket_start_utc, value_id, download_bytes)
+		VALUES (?, ?, 11)
+	`, oldBucket, valueID); err != nil {
+		t.Fatal(err)
+	}
+
+	recorder := &telemetryRecorder{db: store.DB()}
+	recorder.compactOldTelemetry(time.Now())
+
+	var daily int64
+	if err := store.DB().QueryRowContext(ctx, `
+		SELECT download_bytes FROM traffic_dimension_daily WHERE value_id = ?
+	`, valueID).Scan(&daily); err != nil {
+		t.Fatal(err)
+	}
+	if daily != 11 {
+		t.Fatalf("daily telemetry download = %d, want 11", daily)
 	}
 }
 

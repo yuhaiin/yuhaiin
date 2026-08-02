@@ -346,4 +346,148 @@ var migrations = []Migration{
 			ON failure_dimension_hourly(dimension, bucket_start_utc DESC)`,
 		},
 	},
+	{
+		Version: 6,
+		Name:    "compact_telemetry_dimensions",
+		Statements: []string{
+			`CREATE TABLE telemetry_dimension_values (
+				id         INTEGER PRIMARY KEY,
+				dimension  TEXT NOT NULL,
+				value      TEXT NOT NULL,
+				UNIQUE (dimension, value)
+			)`,
+			`CREATE TABLE traffic_dimension_hourly_v6 (
+				bucket_start_utc  INTEGER NOT NULL,
+				value_id          INTEGER NOT NULL,
+				upload_bytes      INTEGER NOT NULL DEFAULT 0,
+				download_bytes    INTEGER NOT NULL DEFAULT 0,
+				PRIMARY KEY (bucket_start_utc, value_id),
+				FOREIGN KEY (value_id) REFERENCES telemetry_dimension_values(id)
+			) WITHOUT ROWID`,
+			`CREATE TABLE traffic_dimension_daily_v6 (
+				bucket_start_utc  INTEGER NOT NULL,
+				value_id          INTEGER NOT NULL,
+				upload_bytes      INTEGER NOT NULL DEFAULT 0,
+				download_bytes    INTEGER NOT NULL DEFAULT 0,
+				PRIMARY KEY (bucket_start_utc, value_id),
+				FOREIGN KEY (value_id) REFERENCES telemetry_dimension_values(id)
+			) WITHOUT ROWID`,
+			`CREATE TABLE failure_dimension_hourly_v6 (
+				bucket_start_utc  INTEGER NOT NULL,
+				value_id          INTEGER NOT NULL,
+				failed_count      INTEGER NOT NULL DEFAULT 0,
+				PRIMARY KEY (bucket_start_utc, value_id),
+				FOREIGN KEY (value_id) REFERENCES telemetry_dimension_values(id)
+			) WITHOUT ROWID`,
+			`CREATE TABLE failure_dimension_daily_v6 (
+				bucket_start_utc  INTEGER NOT NULL,
+				value_id          INTEGER NOT NULL,
+				failed_count      INTEGER NOT NULL DEFAULT 0,
+				PRIMARY KEY (bucket_start_utc, value_id),
+				FOREIGN KEY (value_id) REFERENCES telemetry_dimension_values(id)
+			) WITHOUT ROWID`,
+			`CREATE TEMP VIEW telemetry_source_traffic_v6 AS
+			SELECT
+				bucket_start_utc,
+				dimension,
+				CASE
+					WHEN dimension = 'source' AND substr(value, 1, 8) = 'http2.h-' AND instr(substr(value, 9), '-2') > 0
+						THEN substr(value, 8 + instr(substr(value, 9), '-2') + 2)
+					ELSE value
+				END AS value,
+				upload_bytes,
+				download_bytes
+			FROM traffic_dimension_hourly`,
+			`CREATE TEMP VIEW telemetry_source_failure_v6 AS
+			SELECT
+				bucket_start_utc,
+				dimension,
+				CASE
+					WHEN dimension = 'source' AND substr(value, 1, 8) = 'http2.h-' AND instr(substr(value, 9), '-2') > 0
+						THEN substr(value, 8 + instr(substr(value, 9), '-2') + 2)
+					ELSE value
+				END AS value,
+				failed_count
+			FROM failure_dimension_hourly`,
+			`CREATE TEMP VIEW telemetry_normalized_traffic_v6 AS
+			SELECT
+				bucket_start_utc,
+				dimension,
+				CASE
+					WHEN dimension = 'source' AND instr(value, '[') > 0 AND instr(value, ']') > instr(value, '[')
+						THEN substr(value, instr(value, '[') + 1, instr(value, ']') - instr(value, '[') - 1)
+					WHEN dimension = 'source'
+						AND (length(value) - length(replace(value, ':', ''))) = 1
+						AND instr(value, ':') < length(value)
+						AND substr(value, instr(value, ':') + 1) NOT GLOB '*[^0-9]*'
+						THEN substr(value, 1, instr(value, ':') - 1)
+					ELSE value
+				END AS value,
+				upload_bytes,
+				download_bytes
+			FROM telemetry_source_traffic_v6`,
+			`CREATE TEMP VIEW telemetry_normalized_failure_v6 AS
+			SELECT
+				bucket_start_utc,
+				dimension,
+				CASE
+					WHEN dimension = 'source' AND instr(value, '[') > 0 AND instr(value, ']') > instr(value, '[')
+						THEN substr(value, instr(value, '[') + 1, instr(value, ']') - instr(value, '[') - 1)
+					WHEN dimension = 'source'
+						AND (length(value) - length(replace(value, ':', ''))) = 1
+						AND instr(value, ':') < length(value)
+						AND substr(value, instr(value, ':') + 1) NOT GLOB '*[^0-9]*'
+						THEN substr(value, 1, instr(value, ':') - 1)
+					ELSE value
+				END AS value,
+				failed_count
+			FROM telemetry_source_failure_v6`,
+			`INSERT INTO telemetry_dimension_values(dimension, value)
+			SELECT dimension, value FROM telemetry_normalized_traffic_v6
+			UNION
+			SELECT dimension, value FROM telemetry_normalized_failure_v6`,
+			`INSERT INTO traffic_dimension_hourly_v6(bucket_start_utc, value_id, upload_bytes, download_bytes)
+			SELECT t.bucket_start_utc, v.id, SUM(t.upload_bytes), SUM(t.download_bytes)
+			FROM telemetry_normalized_traffic_v6 t
+			JOIN telemetry_dimension_values v ON v.dimension = t.dimension AND v.value = t.value
+			WHERE t.bucket_start_utc >= CAST(strftime('%s', 'now') AS INTEGER) - 30 * 86400
+			GROUP BY t.bucket_start_utc, v.id`,
+			`INSERT INTO traffic_dimension_daily_v6(bucket_start_utc, value_id, upload_bytes, download_bytes)
+			SELECT (t.bucket_start_utc / 86400) * 86400, v.id, SUM(t.upload_bytes), SUM(t.download_bytes)
+			FROM telemetry_normalized_traffic_v6 t
+			JOIN telemetry_dimension_values v ON v.dimension = t.dimension AND v.value = t.value
+			WHERE t.bucket_start_utc < CAST(strftime('%s', 'now') AS INTEGER) - 30 * 86400
+			GROUP BY (t.bucket_start_utc / 86400) * 86400, v.id`,
+			`INSERT INTO failure_dimension_hourly_v6(bucket_start_utc, value_id, failed_count)
+			SELECT t.bucket_start_utc, v.id, SUM(t.failed_count)
+			FROM telemetry_normalized_failure_v6 t
+			JOIN telemetry_dimension_values v ON v.dimension = t.dimension AND v.value = t.value
+			WHERE t.bucket_start_utc >= CAST(strftime('%s', 'now') AS INTEGER) - 30 * 86400
+			GROUP BY t.bucket_start_utc, v.id`,
+			`INSERT INTO failure_dimension_daily_v6(bucket_start_utc, value_id, failed_count)
+			SELECT (t.bucket_start_utc / 86400) * 86400, v.id, SUM(t.failed_count)
+			FROM telemetry_normalized_failure_v6 t
+			JOIN telemetry_dimension_values v ON v.dimension = t.dimension AND v.value = t.value
+			WHERE t.bucket_start_utc < CAST(strftime('%s', 'now') AS INTEGER) - 30 * 86400
+			GROUP BY (t.bucket_start_utc / 86400) * 86400, v.id`,
+			`DROP VIEW telemetry_normalized_traffic_v6`,
+			`DROP VIEW telemetry_normalized_failure_v6`,
+			`DROP VIEW telemetry_source_traffic_v6`,
+			`DROP VIEW telemetry_source_failure_v6`,
+			`DROP TABLE traffic_dimension_hourly`,
+			`DROP TABLE failure_dimension_hourly`,
+			`ALTER TABLE traffic_dimension_hourly_v6 RENAME TO traffic_dimension_hourly`,
+			`ALTER TABLE traffic_dimension_daily_v6 RENAME TO traffic_dimension_daily`,
+			`ALTER TABLE failure_dimension_hourly_v6 RENAME TO failure_dimension_hourly`,
+			`ALTER TABLE failure_dimension_daily_v6 RENAME TO failure_dimension_daily`,
+			`CREATE INDEX traffic_dimension_hourly_lookup_idx
+			ON traffic_dimension_hourly(value_id, bucket_start_utc DESC)`,
+			`CREATE INDEX traffic_dimension_daily_lookup_idx
+			ON traffic_dimension_daily(value_id, bucket_start_utc DESC)`,
+			`CREATE INDEX failure_dimension_hourly_lookup_idx
+			ON failure_dimension_hourly(value_id, bucket_start_utc DESC)`,
+			`CREATE INDEX failure_dimension_daily_lookup_idx
+			ON failure_dimension_daily(value_id, bucket_start_utc DESC)`,
+		},
+	},
 }
