@@ -1,46 +1,45 @@
 module github.com/Asutorufa/yuhaiin
 
-go 1.26.4
+go 1.26.5
 
 replace (
 	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
-	github.com/tailscale/wireguard-go => github.com/yuhaiin/wireguard-go v0.0.0-20260617053048-09509f5a86ad
+	github.com/tailscale/wireguard-go => github.com/yuhaiin/wireguard-go v0.0.0-20260803153011-42cbda171106
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
-	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20260617052153-1a2972bf0399
+	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20260803154233-61af11bbf18c
 )
 
 require (
-	codeberg.org/miekg/dns v0.6.84
+	codeberg.org/miekg/dns v0.6.87
 	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.4
 	github.com/cockroachdb/pebble/v2 v2.1.6
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/nftables v0.3.0
-	github.com/grafana/pyroscope-go/godeltaprof v0.1.12
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/ncruces/go-sqlite3 v0.35.2
 	github.com/oschwald/maxminddb-golang/v2 v2.4.1
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus-community/pro-bing v0.9.1
-	github.com/prometheus/client_golang v1.24.0
-	github.com/quic-go/connect-ip-go v0.1.0
-	github.com/quic-go/quic-go v0.60.0
+	github.com/prometheus/client_golang v1.24.1
+	github.com/quic-go/connect-ip-go v0.2.0
+	github.com/quic-go/quic-go v0.61.0
 	github.com/refraction-networking/utls v1.8.2
 	github.com/rhnvrm/simples3 v0.11.1
-	github.com/tailscale/wireguard-go v0.0.0-20260611001507-ffb138071028
+	github.com/tailscale/wireguard-go v0.0.0-20260730222847-4affce44577c
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20260322125925-9234c772ba8f
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260718130037-a2b7fd321295
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260724114228-8342cd06c31f
 	golang.org/x/crypto v0.54.0
-	golang.org/x/mobile v0.0.0-20260709172247-6129f5bee9d5
+	golang.org/x/mobile v0.0.0-20260730202154-c700fe717e6e
 	golang.org/x/mod v0.38.0
-	golang.org/x/net v0.57.0
+	golang.org/x/net v0.57.1-0.20260729233039-99c3b0a8f463
 	golang.org/x/sync v0.22.0
 	golang.org/x/sys v0.47.0
 	golang.org/x/time v0.15.0
 	golang.zx2c4.com/wireguard/windows v1.0.1
 	google.golang.org/protobuf v1.36.11
-	gvisor.dev/gvisor v0.0.0-20260224225140-573d5e7127a8
+	gvisor.dev/gvisor v0.0.0-20260801065709-124e365c3f93
 	tailscale.com v1.9999999999.99999999999
 )
 
@@ -52,9 +51,7 @@ require (
 	github.com/akutz/memconn v0.1.0 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20250919150558-7d374ff0d59e // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.42.0 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.32.25 // indirect
-	github.com/aws/smithy-go v1.27.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cockroachdb/crlib v0.0.0-20251122031428-fe658a2dbda1 // indirect
@@ -70,7 +67,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/gaissmai/bart v0.28.0 // indirect
 	github.com/getsentry/sentry-go v0.47.0 // indirect
-	github.com/go-json-experiment/json v0.0.0-20260601182631-00ed12fed2a6 // indirect
+	github.com/go-json-experiment/json v0.0.0-20260623181947-01eb4420fa68 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
@@ -81,7 +78,7 @@ require (
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/jsimonetti/rtnetlink v1.4.2 // indirect
 	github.com/juju/ratelimit v1.0.2 // indirect
-	github.com/klauspost/compress v1.19.0 // indirect
+	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
@@ -94,7 +91,7 @@ require (
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.70.0 // indirect
+	github.com/prometheus/common v0.70.1 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
