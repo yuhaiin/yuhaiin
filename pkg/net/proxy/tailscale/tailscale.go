@@ -320,12 +320,7 @@ func (t *Tailscale) resolveAddr(dialer *tsnet.Server, addr netapi.Address) (neti
 		return addr.(netapi.IPAddress).AddrPort(), nil
 	}
 
-	dnsmap := dialer.Sys().Dialer.Get().GetDNSMap()
-	if dnsmap == nil {
-		return netip.AddrPort{}, fmt.Errorf("tailscale dns map is nil")
-	}
-
-	ad, ok := dnsmap[strings.ToLower(addr.Hostname())]
+	ad, ok := dialer.Sys().Dialer.Get().ResolveMagicDNS(addr.Hostname(), "tcp")
 	if !ok {
 		return netip.AddrPort{}, fmt.Errorf("tailscale dns map missing %s", addr.Hostname())
 	}
@@ -594,7 +589,7 @@ func (d *dnsPacket) WriteTo(buf []byte, addr net.Addr) (int, error) {
 	if q.Qtype == mdns.TypeA {
 		name := strings.TrimSuffix(q.Name, ".")
 
-		if ip, ok := d.dialer.GetDNSMap()[name]; ok {
+		if ip, ok := d.dialer.ResolveMagicDNS(name, "tcp"); ok {
 			msg.Answer = []mdns.RR{
 				&mdns.A{
 					Hdr: mdns.Header{
