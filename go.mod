@@ -16,7 +16,6 @@ require (
 	github.com/cockroachdb/pebble/v2 v2.1.6
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/nftables v0.3.0
-	github.com/grafana/pyroscope-go/godeltaprof v0.1.12
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/ncruces/go-sqlite3 v0.35.2
 	github.com/oschwald/maxminddb-golang/v2 v2.4.1

@@ -32,7 +32,6 @@ import (
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	updatepkg "github.com/Asutorufa/yuhaiin/pkg/update"
-	pyroscopepprof "github.com/grafana/pyroscope-go/godeltaprof/http/pprof"
 	yf "github.com/yuhaiin/yuhaiin.github.io"
 )
 
@@ -392,10 +391,6 @@ func RegisterHTTP(mux *http.ServeMux) {
 	mux.HandleFunc("GET /debug/pprof/symbol", pprofHandler(pprof.Symbol))
 	mux.HandleFunc("GET /debug/pprof/trace", pprofHandler(pprof.Trace))
 
-	mux.HandleFunc("GET /debug/pprof/delta_heap", pprofHandler(pyroscopepprof.Heap))
-	mux.HandleFunc("GET /debug/pprof/delta_block", pprofHandler(pyroscopepprof.Block))
-	mux.HandleFunc("GET /debug/pprof/delta_mutex", pprofHandler(pyroscopepprof.Mutex))
-
 	HandleFunc(mux, nil, "OPTIONS /", func(w http.ResponseWriter, r *http.Request) error { return nil })
 
 	handleFront(mux)
@@ -445,7 +440,7 @@ func handleFront(mux *http.ServeMux) {
 
 		ext := filepath.Ext(path)
 
-		var ctype = "application/octet-stream"
+		ctype := "application/octet-stream"
 
 		if t, ok := cTypeMap[ext]; ok {
 			ctype = t
