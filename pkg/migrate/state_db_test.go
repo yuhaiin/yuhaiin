@@ -155,6 +155,13 @@ func TestStateDBMigrateLegacyPebbleBeforeRuntime(t *testing.T) {
 	if err := state.MigrateLegacyPebble(ctx, legacy, prefix, netip.MustParsePrefix("fd00::/120")); err != nil {
 		t.Fatalf("migrate pebble state: %v", err)
 	}
+	done, err := state.LegacyPebbleMigrationDone(ctx)
+	if err != nil {
+		t.Fatalf("check pebble migration marker: %v", err)
+	}
+	if !done {
+		t.Fatal("pebble migration marker was not written")
+	}
 	db, err := state.SQLDB(ctx)
 	if err != nil {
 		t.Fatal(err)

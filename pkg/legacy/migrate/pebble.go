@@ -20,11 +20,29 @@ var (
 
 const legacyFakeIPCursorKey = "reserved_cursor_state"
 
+// LegacyPebbleMigrationDoneKey is written after all legacy Pebble state has
+// been imported into SQLite.
+const LegacyPebbleMigrationDoneKey = "legacy_pebble_migration_done"
+
+// LegacyPebbleMigrationDone reports whether the one-time legacy Pebble import
+// has completed.
+func LegacyPebbleMigrationDone(ctx context.Context, db *sql.DB) (bool, error) {
+	if db == nil {
+		return false, nil
+	}
+	done, err := legacyMetadata(ctx, db, LegacyPebbleMigrationDoneKey)
+	return done == "1", err
+}
+
 // MigrateLegacyPebble imports every persisted Pebble value used by the old
 // runtime. It must run during application startup, before runtime stores open.
 func MigrateLegacyPebble(ctx context.Context, db *sql.DB, legacy cache.Cache, ipv4, ipv6 netip.Prefix) error {
 	if db == nil || legacy == nil {
 		return nil
+	}
+	done, err := LegacyPebbleMigrationDone(ctx, db)
+	if err != nil || done {
+		return err
 	}
 	if err := MigrateLegacyTotalFlow(ctx, db, legacy.NewCache("flow_data")); err != nil {
 		return err
@@ -32,7 +50,12 @@ func MigrateLegacyPebble(ctx context.Context, db *sql.DB, legacy cache.Cache, ip
 	if err := MigrateLegacyFakeIP(ctx, db, ipv4, legacy); err != nil {
 		return err
 	}
-	return MigrateLegacyFakeIP(ctx, db, ipv6, legacy)
+	if err := MigrateLegacyFakeIP(ctx, db, ipv6, legacy); err != nil {
+		return err
+	}
+	return setLegacyMetadata(ctx, db, map[string]string{
+		LegacyPebbleMigrationDoneKey: "1",
+	})
 }
 
 // MigrateLegacyTotalFlow imports the old Pebble flow counters once.

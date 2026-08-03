@@ -132,6 +132,17 @@ func (s *StateDB) MigrateLegacyPebble(ctx context.Context, legacy cache.Cache, i
 	return nil
 }
 
+func (s *StateDB) LegacyPebbleMigrationDone(ctx context.Context) (bool, error) {
+	if s == nil || s.inner == nil {
+		return false, errors.New("state db is nil")
+	}
+	db, err := s.inner.SQLDB(ctx)
+	if err != nil {
+		return false, err
+	}
+	return legacymigrate.LegacyPebbleMigrationDone(ctx, db)
+}
+
 func (s *StateDB) backupIfNeeded(ctx context.Context) error {
 	if s.path == "" {
 		return nil

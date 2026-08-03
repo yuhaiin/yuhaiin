@@ -88,13 +88,6 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	AddCloser(closers, "logger_controller", logController)
 
-	pebbleCache, err := pebble.New(paths.PathGenerator.PebbleCache(so.ConfigPath))
-	if err != nil {
-		_ = closers.Close()
-		return nil, fmt.Errorf("init pebble cache failed: %w", err)
-	}
-	AddCloser(closers, "pebble_cache", pebbleCache.Pebble())
-
 	for _, f := range operators {
 		f(closers)
 	}
@@ -142,23 +135,48 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		}
 	}
 	if so.StateStore != nil {
-		migrator, ok := so.StateStore.(PebbleMigrationStore)
-		if !ok {
-			_ = closers.Close()
-			return nil, errors.New("state store does not support required startup legacy migration")
+		needsMigration := true
+		if status, ok := so.StateStore.(PebbleMigrationStatusStore); ok {
+			done, err := status.LegacyPebbleMigrationDone(context.Background())
+			if err != nil {
+				_ = closers.Close()
+				return nil, fmt.Errorf("check legacy pebble migration status failed: %w", err)
+			}
+			needsMigration = !done
 		}
-		ctx := context.Background()
-		log.Info("start legacy pebble state migration")
-		if err := migrator.MigrateLegacyPebble(
-			ctx,
-			pebbleCache,
-			configuration.GetFakeIPRange(initialFakeDNS.IPv4Range, false),
-			configuration.GetFakeIPRange(initialFakeDNS.IPv6Range, true),
-		); err != nil {
-			_ = closers.Close()
-			return nil, fmt.Errorf("migrate legacy Pebble state failed: %w", err)
+		if !needsMigration {
+			log.Info("legacy pebble state migration already finished")
+		} else {
+			pebbleCache, err := pebble.New(paths.PathGenerator.PebbleCache(so.ConfigPath))
+			if err != nil {
+				_ = closers.Close()
+				return nil, fmt.Errorf("init pebble cache failed: %w", err)
+			}
+
+			migrator, ok := so.StateStore.(PebbleMigrationStore)
+			if !ok {
+				_ = pebbleCache.Pebble().Close()
+				_ = closers.Close()
+				return nil, errors.New("state store does not support required startup legacy migration")
+			}
+			ctx := context.Background()
+			log.Info("start legacy pebble state migration")
+			if err := migrator.MigrateLegacyPebble(
+				ctx,
+				pebbleCache,
+				configuration.GetFakeIPRange(initialFakeDNS.IPv4Range, false),
+				configuration.GetFakeIPRange(initialFakeDNS.IPv6Range, true),
+			); err != nil {
+				_ = pebbleCache.Pebble().Close()
+				_ = closers.Close()
+				return nil, fmt.Errorf("migrate legacy Pebble state failed: %w", err)
+			}
+			if err := pebbleCache.Pebble().Close(); err != nil {
+				_ = closers.Close()
+				return nil, fmt.Errorf("close legacy pebble cache failed: %w", err)
+			}
+			log.Info("legacy pebble state migration finished")
 		}
-		log.Info("legacy pebble state migration finished")
 	}
 	configuration.ProxyChain.Set(direct.Default)
 	// Proxy and DNS runtime objects are created only after every legacy store
@@ -237,4 +255,8 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 type PebbleMigrationStore interface {
 	MigrateLegacyPebble(context.Context, cache.Cache, netip.Prefix, netip.Prefix) error
+}
+
+type PebbleMigrationStatusStore interface {
+	LegacyPebbleMigrationDone(context.Context) (bool, error)
 }
