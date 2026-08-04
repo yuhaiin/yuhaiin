@@ -307,6 +307,8 @@ github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260803170705-237bb778f7bc h1:B4RTT
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260803170705-237bb778f7bc/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260803172038-a57072204d9b h1:CB7zJ2sVKbOutpU1mND/nZp2reD5PbLZ9n9cOzpJAYk=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260803172038-a57072204d9b/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260804035732-6efebc94b5f4 h1:ZVo58KQShEd/J+9yslELR79Nds6jQ3gSbBM1jcimb+o=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260804035732-6efebc94b5f4/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
