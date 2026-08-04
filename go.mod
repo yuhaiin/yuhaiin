@@ -17,7 +17,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/nftables v0.3.0
 	github.com/libp2p/go-yamux/v5 v5.1.0
-	github.com/ncruces/go-sqlite3 v0.35.2
+	github.com/ncruces/go-sqlite3 v0.35.3
 	github.com/oschwald/maxminddb-golang/v2 v2.4.1
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus-community/pro-bing v0.9.1
@@ -29,9 +29,9 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20260730222847-4affce44577c
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20260322125925-9234c772ba8f
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260803170705-237bb778f7bc
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260803172038-a57072204d9b
 	golang.org/x/crypto v0.54.0
-	golang.org/x/mobile v0.0.0-20260730202154-c700fe717e6e
+	golang.org/x/mobile v0.0.0-20260803200217-62cee1672c8e
 	golang.org/x/mod v0.38.0
 	golang.org/x/net v0.57.1-0.20260729233039-99c3b0a8f463
 	golang.org/x/sync v0.22.0
@@ -87,7 +87,7 @@ require (
 	github.com/minio/minlz v1.1.1 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/ncruces/go-sqlite3-wasm/v3 v3.2.35303 // indirect
+	github.com/ncruces/go-sqlite3-wasm/v3 v3.2.35304 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
