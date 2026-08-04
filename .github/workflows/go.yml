@@ -103,9 +103,18 @@ jobs:
           go-version: 'stable'
           # go-version-file: "go.mod"
 
-      - name: Install mipsle cgo toolchain
+      - name: Install OpenWrt mipsle cgo toolchain
         if: matrix.env[0] == 'linux' && matrix.env[1] == 'mipsle'
-        run: sudo apt-get update && sudo apt-get install -y gcc-mipsel-linux-gnu
+        run: |
+          set -euo pipefail
+          toolchain_archive="${RUNNER_TEMP}/openwrt-mipsel-toolchain.tar.zst"
+          toolchain_url="https://downloads.openwrt.org/releases/24.10.4/targets/ramips/mt7621/openwrt-toolchain-24.10.4-ramips-mt7621_gcc-13.3.0_musl.Linux-x86_64.tar.zst"
+          curl --fail --location --retry 3 --output "${toolchain_archive}" "${toolchain_url}"
+          echo "de22b21a116aee1e14367c75ff86a5735e4c8c8fe4c8b3ffea778f6495c6e5ca  ${toolchain_archive}" | sha256sum --check
+          tar --extract --zstd --file "${toolchain_archive}" --directory "${RUNNER_TEMP}"
+          toolchain_root="${RUNNER_TEMP}/openwrt-toolchain-24.10.4-ramips-mt7621_gcc-13.3.0_musl.Linux-x86_64/toolchain-mipsel_24kc_gcc-13.3.0_musl"
+          test -x "${toolchain_root}/bin/mipsel-openwrt-linux-musl-gcc"
+          echo "CC=${toolchain_root}/bin/mipsel-openwrt-linux-musl-gcc" >> "${GITHUB_ENV}"
 
       # - name: Set up Upx
       #   run: |
@@ -126,7 +135,6 @@ jobs:
           GOAMD64: ${{ fromJSON('{"amd64v3":"v3","amd64v4":"v4"}')[matrix.env[1]] || '' }}
           GOMIPS: ${{ matrix.env[1] == 'mipsle' && 'softfloat' || '' }}
           CGO_ENABLED: ${{ matrix.env[0] == 'linux' && matrix.env[1] == 'mipsle' && '1' || '0' }}
-          CC: ${{ matrix.env[0] == 'linux' && matrix.env[1] == 'mipsle' && 'mipsel-linux-gnu-gcc' || '' }}
           STATIC_LINK: ${{ matrix.env[0] == 'linux' && matrix.env[1] == 'mipsle' && '1' || '0' }}
         run: |
           go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
