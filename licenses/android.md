@@ -49,7 +49,7 @@ Some packages may only be included on certain architectures or operating systems
 - [github.com/libp2p/go-yamux/v5](https://pkg.go.dev/github.com/libp2p/go-yamux/v5) ([MPL-2.0](https://github.com/libp2p/go-yamux/blob/v5.1.0/LICENSE))
 - [github.com/minio/minlz](https://pkg.go.dev/github.com/minio/minlz) ([Apache-2.0](https://github.com/minio/minlz/blob/v1.1.1/LICENSE))
 - [github.com/munnerz/goautoneg](https://pkg.go.dev/github.com/munnerz/goautoneg) ([BSD-3-Clause](https://github.com/munnerz/goautoneg/blob/a7dc8b61c822/LICENSE))
-- [github.com/ncruces/go-sqlite3](https://pkg.go.dev/github.com/ncruces/go-sqlite3) ([MIT](https://github.com/ncruces/go-sqlite3/blob/v0.35.2/LICENSE))
+- [github.com/ncruces/go-sqlite3](https://pkg.go.dev/github.com/ncruces/go-sqlite3) ([MIT](https://github.com/ncruces/go-sqlite3/blob/v0.35.3/LICENSE))
 - [github.com/ncruces/go-sqlite3-wasm/v3](https://pkg.go.dev/github.com/ncruces/go-sqlite3-wasm/v3) ([Unknown](Unknown))
 - [github.com/ncruces/go-sqlite3-wasm/v3/fts5](https://pkg.go.dev/github.com/ncruces/go-sqlite3-wasm/v3/fts5) ([Unknown](Unknown))
 - [github.com/ncruces/julianday](https://pkg.go.dev/github.com/ncruces/julianday) ([MIT](https://github.com/ncruces/julianday/blob/v1.0.0/LICENSE))
