@@ -49,6 +49,23 @@ jobs:
         run: |
           go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
 
+      - name: Install musl-cross cgo toolchains
+        run: |
+          set -euo pipefail
+          declare -A toolchain_sha256=(
+            [x86_64-unknown-linux-musl]=5f20e367608d6e547c04534d37d00ecedbaa0c2e82730df12957b3332fa36a2d
+            [aarch64-unknown-linux-musl]=90282c463498dcdab9b96a464a0925d53f30c884b2d7b25e3998999416ae34b8
+          )
+
+          for toolchain_target in "${!toolchain_sha256[@]}"; do
+            archive="${RUNNER_TEMP}/${toolchain_target}.tar.xz"
+            url="https://github.com/cross-tools/musl-cross/releases/download/20260515/${toolchain_target}.tar.xz"
+            curl --fail --location --retry 3 --output "${archive}" "${url}"
+            echo "${toolchain_sha256[$toolchain_target]}  ${archive}" | sha256sum --check
+            tar --extract --xz --file "${archive}" --directory "${RUNNER_TEMP}"
+            test -x "${RUNNER_TEMP}/${toolchain_target}/bin/${toolchain_target}-gcc"
+          done
+
       - name: Build container binaries
         env:
           GOTOOLCHAIN: auto
@@ -57,7 +74,15 @@ jobs:
           mkdir -p .docker-binaries
 
           for arch in amd64 arm64; do
-            GOOS=linux GOARCH="${arch}" CGO_ENABLED=0 make yuhaiin
+            if [[ "${arch}" == amd64 ]]; then
+              toolchain_target=x86_64-unknown-linux-musl
+            else
+              toolchain_target=aarch64-unknown-linux-musl
+            fi
+
+            GOOS=linux GOARCH="${arch}" \
+              CC="${RUNNER_TEMP}/${toolchain_target}/bin/${toolchain_target}-gcc" \
+              CGO_ENABLED=1 STATIC_LINK=1 EXTRA_GO_TAGS=sqlite_mattn make yuhaiin
             mv yuhaiin ".docker-binaries/yuhaiin-linux-${arch}"
           done
 
