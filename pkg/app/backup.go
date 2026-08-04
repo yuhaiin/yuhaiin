@@ -44,11 +44,11 @@ var backupRuntimeTables = []string{
 	"failed_connection_history",
 	"fakeip_entries",
 	"fakeip_cursors",
-	"telemetry_dimension_values",
 	"traffic_dimension_hourly",
 	"traffic_dimension_daily",
 	"failure_dimension_hourly",
 	"failure_dimension_daily",
+	"telemetry_dimension_values",
 }
 
 func NewBackup(store *plainstore.BackupStore, dir string, instance *AppInstance, proxy netapi.Proxy) *Backup {

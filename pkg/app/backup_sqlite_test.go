@@ -90,6 +90,16 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 		VALUES (1, 'example.com:443', '', 1, 1, '{}');
 		INSERT INTO fakeip_entries(family, prefix, domain, ip, created_at, last_used_at)
 		VALUES (4, '198.18.0.0/15', 'example.com', X'01020304', 1, 1);
+		INSERT INTO telemetry_dimension_values(id, dimension, value)
+		VALUES (1, 'source', 'test');
+		INSERT INTO traffic_dimension_hourly(bucket_start_utc, value_id, upload_bytes, download_bytes)
+		VALUES (1, 1, 100, 200);
+		INSERT INTO traffic_dimension_daily(bucket_start_utc, value_id, upload_bytes, download_bytes)
+		VALUES (1, 1, 100, 200);
+		INSERT INTO failure_dimension_hourly(bucket_start_utc, value_id, failed_count)
+		VALUES (1, 1, 2);
+		INSERT INTO failure_dimension_daily(bucket_start_utc, value_id, failed_count)
+		VALUES (1, 1, 2);
 	`); err != nil {
 		t.Fatalf("write runtime state failed: %v", err)
 	}
@@ -127,6 +137,11 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 		"traffic_hourly",
 		"connection_history",
 		"fakeip_entries",
+		"telemetry_dimension_values",
+		"traffic_dimension_hourly",
+		"traffic_dimension_daily",
+		"failure_dimension_hourly",
+		"failure_dimension_daily",
 	} {
 		var count int
 		if err := snapshotStore.DB().QueryRow("SELECT COUNT(*) FROM " + table).Scan(&count); err != nil {
