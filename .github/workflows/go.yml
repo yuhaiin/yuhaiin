@@ -114,7 +114,14 @@ jobs:
           tar --extract --zstd --file "${toolchain_archive}" --directory "${RUNNER_TEMP}"
           toolchain_root="${RUNNER_TEMP}/openwrt-toolchain-24.10.4-ramips-mt7621_gcc-13.3.0_musl.Linux-x86_64/toolchain-mipsel_24kc_gcc-13.3.0_musl"
           test -x "${toolchain_root}/bin/mipsel-openwrt-linux-musl-gcc"
-          echo "CC=${toolchain_root}/bin/mipsel-openwrt-linux-musl-gcc" >> "${GITHUB_ENV}"
+          compiler_wrapper="${RUNNER_TEMP}/mipsel-openwrt-linux-musl-gcc"
+          cat > "${compiler_wrapper}" <<EOF
+          #!/bin/sh
+          export STAGING_DIR="${toolchain_root}"
+          exec "${toolchain_root}/bin/mipsel-openwrt-linux-musl-gcc" "\$@"
+          EOF
+          chmod +x "${compiler_wrapper}"
+          echo "CC=${compiler_wrapper}" >> "${GITHUB_ENV}"
 
       # - name: Set up Upx
       #   run: |
