@@ -103,6 +103,10 @@ jobs:
           go-version: 'stable'
           # go-version-file: "go.mod"
 
+      - name: Install mipsle cgo toolchain
+        if: matrix.env[0] == 'linux' && matrix.env[1] == 'mipsle'
+        run: sudo apt-get update && sudo apt-get install -y gcc-mipsel-linux-gnu
+
       # - name: Set up Upx
       #   run: |
       #     sudo apt update
@@ -121,6 +125,9 @@ jobs:
           GOARCH: ${{ fromJSON('{"amd64v3":"amd64","amd64v4":"amd64"}')[matrix.env[1]] || matrix.env[1] }}
           GOAMD64: ${{ fromJSON('{"amd64v3":"v3","amd64v4":"v4"}')[matrix.env[1]] || '' }}
           GOMIPS: ${{ matrix.env[1] == 'mipsle' && 'softfloat' || '' }}
+          CGO_ENABLED: ${{ matrix.env[0] == 'linux' && matrix.env[1] == 'mipsle' && '1' || '0' }}
+          CC: ${{ matrix.env[0] == 'linux' && matrix.env[1] == 'mipsle' && 'mipsel-linux-gnu-gcc' || '' }}
+          STATIC_LINK: ${{ matrix.env[0] == 'linux' && matrix.env[1] == 'mipsle' && '1' || '0' }}
         run: |
           go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
           make ${{ matrix.cmd }}

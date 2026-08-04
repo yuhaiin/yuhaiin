@@ -18,7 +18,6 @@ require (
 	github.com/google/nftables v0.3.0
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/mattn/go-sqlite3 v1.14.49
-	github.com/ncruces/go-sqlite3 v0.35.3
 	github.com/oschwald/maxminddb-golang/v2 v2.4.1
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus-community/pro-bing v0.9.1
@@ -91,9 +90,7 @@ require (
 	github.com/minio/minlz v1.1.1 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/ncruces/go-sqlite3-wasm/v3 v3.2.35304 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.70.1 // indirect

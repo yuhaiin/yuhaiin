@@ -216,14 +216,8 @@ github.com/mitchellh/go-ps v1.0.0 h1:i6ampVEEF4wQFF+bkYfwYgY+F/uYJDktmvLPf7qIgjc
 github.com/mitchellh/go-ps v1.0.0/go.mod h1:J4lOc8z8yJs6vUwklHw2XEIiT4z4C40KtWVN3nvg8Pg=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
-github.com/ncruces/go-sqlite3 v0.35.3 h1:Ei07Zv1qfV/vyXzelhFsyS5Oh9TArBZHsmFk14Xv3GY=
-github.com/ncruces/go-sqlite3 v0.35.3/go.mod h1:i1rhym/NIiB5xeEfzbN+e24Y+i7NGUpf7C2xZ3Dpwks=
-github.com/ncruces/go-sqlite3-wasm/v3 v3.2.35304 h1:5NoQAewtgKNK3G4bjNPxVoGXu6F6NzLXWCTdD5FFAEY=
-github.com/ncruces/go-sqlite3-wasm/v3 v3.2.35304/go.mod h1:o8gr9w/50fXA5TDskg6bNUjvqmFfw4KaXth4q+yDSjg=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
-github.com/ncruces/julianday v1.0.0 h1:fH0OKwa7NWvniGQtxdJRxAgkBMolni2BjDHaWTxqt7M=
-github.com/ncruces/julianday v1.0.0/go.mod h1:Dusn2KvZrrovOMJuOt0TNXL6tB7U2E8kvza5fFc9G7g=
 github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 h1:zYyBkD/k9seD2A7fsi6Oo2LfFZAehjjQMERAvZLEDnQ=
 github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646/go.mod h1:jpp1/29i3P1S/RLdc7JQKbRpFeM1dOBd8T9ki5s+AY8=
 github.com/oschwald/maxminddb-golang/v2 v2.4.1 h1:OffzqSABE3Sw354GdBThqDsKfpA4GWBqOY2P91V8tjI=
@@ -314,8 +308,6 @@ github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMk
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/wireguard-go v0.0.0-20260803153011-42cbda171106 h1:iVYM/h03SOGshs166xpPW0ju7GmH7izJ/z/bSZrzwQI=
 github.com/yuhaiin/wireguard-go v0.0.0-20260803153011-42cbda171106/go.mod h1:6SerzcvHWQchKO2BfNdmquA77CHSECZuFl+D9fp4RnI=
-github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260803172038-a57072204d9b h1:CB7zJ2sVKbOutpU1mND/nZp2reD5PbLZ9n9cOzpJAYk=
-github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260803172038-a57072204d9b/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260804035732-6efebc94b5f4 h1:ZVo58KQShEd/J+9yslELR79Nds6jQ3gSbBM1jcimb+o=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260804035732-6efebc94b5f4/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

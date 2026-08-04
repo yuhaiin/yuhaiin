@@ -13,7 +13,8 @@ else
 	BUILD_TIME	:= $(shell date)
 endif
 
-CGO_ENABLED := 0
+CGO_ENABLED ?= 0
+STATIC_LINK ?= 0
 
 GOENV=GOEXPERIMENT=jsonv2,greenteagc
 
@@ -28,13 +29,16 @@ GO_LDFLAGS += -X "$(MODULE)/internal/version.ReleaseArch=$(RELEASE_ARCH)"
 GO_LDFLAGS += -X "$(MODULE)/internal/version.ReleaseChannel=$(RELEASE_CHANNEL)"
 GO_LDFLAGS += -X "$(MODULE)/internal/version.ReleaseTimestamp=$(RELEASE_TIMESTAMP)"
 GO_LDFLAGS += -X "$(MODULE)/internal/version.BuildTime=$(BUILD_TIME)"
+ifeq ($(STATIC_LINK),1)
+GO_LDFLAGS += -linkmode external -extldflags "-static"
+endif
 
 GO_GCFLAGS=
 # GO_GCFLAGS= -m
 
 GOHOSTOS := $(shell $(GO) env GOHOSTOS)
 GOHOSTARCH := $(shell $(GO) env GOHOSTARCH)
-GO_TAGS=$(shell GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) $(GO) run ./cmd/buildtags/...),stdlibjson,debug
+GO_TAGS=$(shell GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) $(GO) run ./cmd/buildtags/...),stdlibjson,debug,fts5
 ifneq ($(strip $(EXTRA_GO_TAGS)),)
 GO_TAGS := $(GO_TAGS),$(EXTRA_GO_TAGS)
 endif
@@ -42,7 +46,7 @@ GO_BUILD_ARGS=-ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags='$(GO_TAGS
 GO_BUILD_CMD=CGO_ENABLED=$(CGO_ENABLED) $(GO) build $(GO_BUILD_ARGS)
 
 GO_MOBILE_BIND_CMD=$(GO_MOBILE) bind $(GO_BUILD_ARGS)
-GO_MOBILE_ANDROID_BIND_CMD=$(GO_MOBILE) bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags='$(GO_TAGS),fts5' -trimpath
+GO_MOBILE_ANDROID_BIND_CMD=$(GO_MOBILE) bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags='$(GO_TAGS)' -trimpath
 
 
 # AMD64v3 https://github.com/golang/go/wiki/MinimumRequirements#amd64
@@ -118,7 +122,7 @@ yuhaiin_macos:
 	$(GO_MOBILE_BIND_CMD) -target="macos" -o yuhaiin.xcframework -v ./cmd/macos/
 
 .PHONY: license
-GO_LICENSE_TAGS=android,cgo,darwin,freebsd,ios,js,linux,openbsd,wasm,windows,$(GO_TAGS),fts5
+GO_LICENSE_TAGS=android,cgo,darwin,freebsd,ios,js,linux,openbsd,wasm,windows,$(GO_TAGS)
 license:
 	$(GOENV) GOFLAGS="-tags=$(GO_LICENSE_TAGS)" go-licenses report github.com/Asutorufa/yuhaiin/cmd/yuhaiin > licenses/yuhaiin.md --template .github/licenses.tmpl
 	$(GOENV) GOFLAGS="-tags=$(GO_LICENSE_TAGS)" go-licenses report github.com/Asutorufa/yuhaiin/cmd/android > licenses/android.md --template .github/licenses.tmpl
