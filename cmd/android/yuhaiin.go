@@ -22,6 +22,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
+	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
 )
@@ -30,7 +31,11 @@ var savepath string
 
 func SetSavePath(p string) {
 	savepath = p
+	if old, ok := appStore.(*sqlitePreferenceStore); ok {
+		_ = old.close()
+	}
 	appStore = newSQLitePreferenceStore(paths.PathGenerator.State(p))
+	log.Info("android sqlite backend selected", "backend", storagesqlite.BackendName(), "driver", storagesqlite.DriverName())
 }
 
 type App struct {

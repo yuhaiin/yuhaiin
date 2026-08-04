@@ -1,7 +1,6 @@
 package sqlite
 
 import (
-	"runtime"
 	"sync/atomic"
 )
 
@@ -17,13 +16,6 @@ func NFSMode() bool {
 	return nfsMode.Load()
 }
 
-var sqliteExpectedJournalMode = func() string {
-	if runtime.GOOS == "android" {
-		return "delete"
-	}
-	return "wal"
-}()
-
 const (
 	sqliteExpectedLockingMode = "normal"
 	sqliteExpectedSynchronous = 1
@@ -38,15 +30,6 @@ func sqlitePragmas() []string {
 			"PRAGMA synchronous = FULL",
 			"PRAGMA foreign_keys = ON",
 			"PRAGMA busy_timeout = 30000",
-		}
-	}
-
-	if runtime.GOOS == "android" {
-		return []string{
-			"PRAGMA journal_mode = DELETE",
-			"PRAGMA synchronous = NORMAL",
-			"PRAGMA foreign_keys = ON",
-			"PRAGMA busy_timeout = 5000",
 		}
 	}
 

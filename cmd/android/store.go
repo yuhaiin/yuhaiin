@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -36,7 +37,9 @@ func GetStore() Store { return appStore }
 // application database. Legacy Android JSON is imported during StateDB.Migrate,
 // before this store is used by App.Start.
 type sqlitePreferenceStore struct {
-	path string
+	mu    sync.RWMutex
+	path  string
+	store *storagesqlite.Store
 }
 
 func newSQLitePreferenceStore(path string) *sqlitePreferenceStore {
@@ -166,13 +169,48 @@ func (s *sqlitePreferenceStore) withDB(fn func(context.Context, *sql.DB) error) 
 	if s == nil || s.path == "" {
 		return errors.New("android preference store is not initialized")
 	}
+
 	ctx := context.Background()
-	store, err := storagesqlite.Open(ctx, s.path)
-	if err != nil {
-		return fmt.Errorf("open android preference sqlite failed: %w", err)
+	for {
+		// Keep the database open for the lifetime of this process. Apart from
+		// avoiding an Open/Bootstrap cycle for every preference access, this also
+		// lets the process-local sqlite store sharing work as intended.
+		s.mu.RLock()
+		store := s.store
+		if store != nil {
+			err := fn(ctx, store.DB())
+			s.mu.RUnlock()
+			return err
+		}
+		s.mu.RUnlock()
+
+		s.mu.Lock()
+		if s.store == nil {
+			var err error
+			store, err := storagesqlite.Open(ctx, s.path)
+			if err != nil {
+				s.mu.Unlock()
+				return fmt.Errorf("open android preference sqlite failed: %w", err)
+			}
+			s.store = store
+		}
+		s.mu.Unlock()
 	}
-	defer store.Close()
-	return fn(ctx, store.DB())
+}
+
+func (s *sqlitePreferenceStore) close() error {
+	if s == nil {
+		return nil
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.store == nil {
+		return nil
+	}
+	err := s.store.Close()
+	s.store = nil
+	return err
 }
 
 func ifOr[T any](a bool, b, c T) T {

@@ -10,22 +10,18 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	sqlite3 "github.com/ncruces/go-sqlite3"
-	_ "github.com/ncruces/go-sqlite3/driver"
-	"github.com/ncruces/go-sqlite3/ext/fts5"
 )
-
-const driverName = "sqlite3"
-
-func init() {
-	sqlite3.AutoExtension(fts5.Register)
-}
 
 type Store struct {
 	shared *sharedStore
 	closed bool
 }
+
+// BackendName reports the SQLite implementation selected at build time.
+func BackendName() string { return backendName }
+
+// DriverName reports the database/sql driver name selected at build time.
+func DriverName() string { return driverName }
 
 type sharedStore struct {
 	path string
@@ -204,7 +200,8 @@ func bootstrapBase(ctx context.Context, db *sql.DB) error {
 
 func ensureMetadataDefaults(ctx context.Context, execer interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
-}) error {
+},
+) error {
 	now := strconv.FormatInt(time.Now().Unix(), 10)
 
 	if _, err := execer.ExecContext(ctx, `
@@ -248,9 +245,15 @@ func applyMigration(ctx context.Context, db *sql.DB, migration Migration) error 
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	for _, stmt := range migration.Statements {
+	for index, stmt := range migration.Statements {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("execute sqlite migration %d statement failed: %w", migration.Version, err)
+			return fmt.Errorf(
+				"execute sqlite migration %d statement %d failed%s: %w",
+				migration.Version,
+				index+1,
+				sqliteErrorDetails(err),
+				err,
+			)
 		}
 	}
 

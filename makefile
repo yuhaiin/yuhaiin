@@ -42,6 +42,7 @@ GO_BUILD_ARGS=-ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags='$(GO_TAGS
 GO_BUILD_CMD=CGO_ENABLED=$(CGO_ENABLED) $(GO) build $(GO_BUILD_ARGS)
 
 GO_MOBILE_BIND_CMD=$(GO_MOBILE) bind $(GO_BUILD_ARGS)
+GO_MOBILE_ANDROID_BIND_CMD=$(GO_MOBILE) bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags='$(GO_TAGS),fts5' -trimpath
 
 
 # AMD64v3 https://github.com/golang/go/wiki/MinimumRequirements#amd64
@@ -109,7 +110,7 @@ yuhaiin-%:
 
 .PHONY: yuhaiin_android_aar
 yuhaiin_android_aar:
-	CGO_LDFLAGS="-Wl,-z,max-page-size=16384" $(GO_MOBILE_BIND_CMD) -target="android/arm64,android/amd64" -androidapi 24 -o yuhaiin.aar -v ./cmd/android/
+	CGO_LDFLAGS="-Wl,-z,max-page-size=16384" $(GO_MOBILE_ANDROID_BIND_CMD) -target="android/arm64,android/amd64" -androidapi 24 -o yuhaiin.aar -v ./cmd/android/
 
 # sudo Xcode-select --switch /Applications/Xcode.app/Contents/Developer/
 .PHONY: yuhaiin_macos
@@ -117,9 +118,10 @@ yuhaiin_macos:
 	$(GO_MOBILE_BIND_CMD) -target="macos" -o yuhaiin.xcframework -v ./cmd/macos/
 
 .PHONY: license
+GO_LICENSE_TAGS=android,cgo,darwin,freebsd,ios,js,linux,openbsd,wasm,windows,$(GO_TAGS),fts5
 license:
-	$(GOENV) GOFLAGS="-tags=android,cgo,darwin,freebsd,ios,js,linux,openbsd,wasm,windows,$(GO_TAGS)" go-licenses report github.com/Asutorufa/yuhaiin/cmd/yuhaiin > licenses/yuhaiin.md --template .github/licenses.tmpl
-	$(GOENV) GOFLAGS="-tags=android,cgo,darwin,freebsd,ios,js,linux,openbsd,wasm,windows,$(GO_TAGS)" go-licenses report github.com/Asutorufa/yuhaiin/cmd/android > licenses/android.md --template .github/licenses.tmpl
+	$(GOENV) GOFLAGS="-tags=$(GO_LICENSE_TAGS)" go-licenses report github.com/Asutorufa/yuhaiin/cmd/yuhaiin > licenses/yuhaiin.md --template .github/licenses.tmpl
+	$(GOENV) GOFLAGS="-tags=$(GO_LICENSE_TAGS)" go-licenses report github.com/Asutorufa/yuhaiin/cmd/android > licenses/android.md --template .github/licenses.tmpl
 
 .PHONY: install
 install: build cli
