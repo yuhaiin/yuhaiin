@@ -40,6 +40,7 @@ type Fakedns struct {
 	skipCheckSlice []string
 
 	smu     sync.RWMutex
+	fakeMu  sync.RWMutex
 	enabled atomic.Bool
 }
 
@@ -71,6 +72,12 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, dbPath string, in
 
 func (f *Fakedns) Apply(c contractresolver.FakeDNS) {
 	defer dnssystem.RefreshCache()
+
+	f.fakeMu.Lock()
+	defer f.fakeMu.Unlock()
+	if f.fake == nil {
+		return
+	}
 
 	f.enabled.Store(c.Enabled)
 
@@ -136,6 +143,9 @@ func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
 }
 
 func (f *Fakedns) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
+	f.fakeMu.RLock()
+	defer f.fakeMu.RUnlock()
+
 	if _, ok := f.skipCheck.SearchString(system.RelDomain(domain)); ok {
 		netapi.GetContext(ctx).ConnOptions().Resolver().SetFakeIPSkipCheckUpstream(ok)
 	}
@@ -143,6 +153,9 @@ func (f *Fakedns) LookupIP(ctx context.Context, domain string, opts ...func(*net
 }
 
 func (f *Fakedns) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	f.fakeMu.RLock()
+	defer f.fakeMu.RUnlock()
+
 	if req.Qtype == dns.TypeAAAA || req.Qtype == dns.TypeA {
 		if _, ok := f.skipCheck.SearchString(system.RelDomain(req.Name)); ok {
 			netapi.GetContext(ctx).ConnOptions().Resolver().SetFakeIPSkipCheckUpstream(ok)
@@ -153,6 +166,10 @@ func (f *Fakedns) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 
 func (f *Fakedns) Close() error {
 	var err error
+
+	f.fakeMu.Lock()
+	defer f.fakeMu.Unlock()
+
 	if er := f.upstream.Close(); er != nil {
 		err = errors.Join(err, er)
 	}
@@ -195,11 +212,17 @@ func (f *Fakedns) Ping(ctx context.Context, addr netapi.Address) (uint64, error)
 }
 
 func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Address {
+	f.fakeMu.RLock()
+	defer f.fakeMu.RUnlock()
+
 	if addr.IsFqdn() {
 		return addr
 	}
 
 	addrPort := addr.(netapi.IPAddress).AddrPort()
+	if f.fake == nil {
+		return addr
+	}
 
 	if !f.fake.Contains(addrPort.Addr()) {
 		return addr
