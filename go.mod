@@ -10,7 +10,7 @@ replace (
 )
 
 require (
-	codeberg.org/miekg/dns v0.6.87
+	codeberg.org/miekg/dns v0.6.90
 	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.4
 	github.com/cockroachdb/pebble/v2 v2.1.6
@@ -33,7 +33,7 @@ require (
 	golang.org/x/crypto v0.54.0
 	golang.org/x/mobile v0.0.0-20260803200217-62cee1672c8e
 	golang.org/x/mod v0.38.0
-	golang.org/x/net v0.57.1-0.20260729233039-99c3b0a8f463
+	golang.org/x/net v0.57.1-0.20260804192108-8d10596d2624
 	golang.org/x/sync v0.22.0
 	golang.org/x/sys v0.47.0
 	golang.org/x/time v0.15.0

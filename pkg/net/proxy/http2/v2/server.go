@@ -129,7 +129,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		_, err := relay.Copy(c1, r.Body)
-		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, net.ErrClosed) && !strings.Contains(err.Error(), "stream error:") {
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, net.ErrClosed) && err.Error() != "client disconnected" && !strings.Contains(err.Error(), "stream error:") {
 			log.Error("http2.v2 relay request failed", "err", err)
 		}
 		_ = c1.Close()

@@ -13,11 +13,14 @@ import (
 
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 const telemetryFlushInterval = 15 * time.Second
 const telemetryMaintenanceInterval = time.Hour
 const telemetryHourlyRetention = 30 * 24 * time.Hour
+const telemetryValueIDCacheCapacity = 512
 
 type telemetryDimension struct {
 	kind  string
@@ -28,6 +31,7 @@ type dimensionCounter struct {
 	dimensions []telemetryDimension
 	download   atomic.Uint64
 	upload     atomic.Uint64
+	removed    atomic.Bool
 }
 
 type telemetryRecorder struct {
@@ -35,8 +39,8 @@ type telemetryRecorder struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 	wg              sync.WaitGroup
-	counters        sync.Map // map[*dimensionCounter]struct{}
-	valueIDs        sync.Map // map[telemetryDimension]int64
+	counters        syncmap.SyncMap[*dimensionCounter, struct{}]
+	valueIDs        *lru.SyncLru[telemetryDimension, int64]
 	flushMu         sync.Mutex
 	maintenanceMu   sync.Mutex
 	lastMaintenance time.Time
@@ -44,7 +48,12 @@ type telemetryRecorder struct {
 
 func newTelemetryRecorder(db *sql.DB) *telemetryRecorder {
 	ctx, cancel := context.WithCancel(context.Background())
-	r := &telemetryRecorder{db: db, ctx: ctx, cancel: cancel}
+	r := &telemetryRecorder{
+		db:       db,
+		ctx:      ctx,
+		cancel:   cancel,
+		valueIDs: lru.NewSyncLru(lru.WithCapacity[telemetryDimension, int64](telemetryValueIDCacheCapacity)),
+	}
 	r.wg.Go(func() {
 		ticker := time.NewTicker(telemetryFlushInterval)
 		defer ticker.Stop()
@@ -73,8 +82,9 @@ func (r *telemetryRecorder) Remove(counter *dimensionCounter) {
 	if counter == nil {
 		return
 	}
-	r.flushCounters([]*dimensionCounter{counter})
-	r.counters.Delete(counter)
+	// Keep the counter registered until the next batch flush so its final
+	// traffic delta is persisted without blocking the connection close path.
+	counter.removed.Store(true)
 }
 
 func (r *telemetryRecorder) RecordFailure(info contractconnection.Connection) {
@@ -82,7 +92,7 @@ func (r *telemetryRecorder) RecordFailure(info contractconnection.Connection) {
 	if len(dimensions) == 0 || r.db == nil {
 		return
 	}
-	if err := persistFailureDimensions(context.Background(), r.db, &r.valueIDs, dimensions); err != nil {
+	if err := persistFailureDimensions(context.Background(), r.db, r.valueIDs, dimensions); err != nil {
 		log.Warn("persist telemetry failure dimensions failed", "err", err)
 	}
 }
@@ -96,11 +106,18 @@ func (r *telemetryRecorder) Close() {
 
 func (r *telemetryRecorder) flush() {
 	counters := make([]*dimensionCounter, 0)
-	r.counters.Range(func(key, _ any) bool {
-		counters = append(counters, key.(*dimensionCounter))
+	removed := make([]*dimensionCounter, 0)
+	r.counters.Range(func(counter *dimensionCounter, _ struct{}) bool {
+		counters = append(counters, counter)
+		if counter.removed.Load() {
+			removed = append(removed, counter)
+		}
 		return true
 	})
 	r.flushCounters(counters)
+	for _, counter := range removed {
+		r.counters.Delete(counter)
+	}
 }
 
 func (r *telemetryRecorder) flushCounters(counters []*dimensionCounter) {
@@ -127,7 +144,7 @@ func (r *telemetryRecorder) flushCounters(counters []*dimensionCounter) {
 	if len(deltas) == 0 {
 		return
 	}
-	if err := persistTrafficDimensions(context.Background(), r.db, &r.valueIDs, deltas); err != nil {
+	if err := persistTrafficDimensions(context.Background(), r.db, r.valueIDs, deltas); err != nil {
 		log.Warn("persist telemetry traffic dimensions failed", "err", err)
 	}
 }
@@ -244,7 +261,7 @@ func parseUint64(value string) uint64 {
 	return result
 }
 
-func persistTrafficDimensions(ctx context.Context, db *sql.DB, valueIDs *sync.Map, deltas map[telemetryDimension]contractconnection.Counter) error {
+func persistTrafficDimensions(ctx context.Context, db *sql.DB, valueIDs *lru.SyncLru[telemetryDimension, int64], deltas map[telemetryDimension]contractconnection.Counter) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -271,7 +288,7 @@ func persistTrafficDimensions(ctx context.Context, db *sql.DB, valueIDs *sync.Ma
 	return tx.Commit()
 }
 
-func persistFailureDimensions(ctx context.Context, db *sql.DB, valueIDs *sync.Map, dimensions []telemetryDimension) error {
+func persistFailureDimensions(ctx context.Context, db *sql.DB, valueIDs *lru.SyncLru[telemetryDimension, int64], dimensions []telemetryDimension) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -297,9 +314,9 @@ func persistFailureDimensions(ctx context.Context, db *sql.DB, valueIDs *sync.Ma
 	return tx.Commit()
 }
 
-func telemetryValueID(ctx context.Context, tx *sql.Tx, cache *sync.Map, dimension telemetryDimension) (int64, error) {
+func telemetryValueID(ctx context.Context, tx *sql.Tx, cache *lru.SyncLru[telemetryDimension, int64], dimension telemetryDimension) (int64, error) {
 	if value, ok := cache.Load(dimension); ok {
-		return value.(int64), nil
+		return value, nil
 	}
 
 	if _, err := tx.ExecContext(ctx, `
@@ -318,7 +335,7 @@ func telemetryValueID(ctx context.Context, tx *sql.Tx, cache *sync.Map, dimensio
 	`, dimension.kind, dimension.value).Scan(&id); err != nil {
 		return 0, err
 	}
-	cache.Store(dimension, id)
+	cache.Add(dimension, id)
 	return id, nil
 }
 

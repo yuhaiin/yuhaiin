@@ -2,7 +2,7 @@
 
 Some packages may only be included on certain architectures or operating systems.
 
-- [codeberg.org/miekg/dns](https://pkg.go.dev/codeberg.org/miekg/dns) ([BSD-3-Clause](https://codeberg.org/miekg/dns/src/tag/v0.6.87/LICENSE))
+- [codeberg.org/miekg/dns](https://pkg.go.dev/codeberg.org/miekg/dns) ([BSD-3-Clause](https://codeberg.org/miekg/dns/src/tag/v0.6.90/LICENSE))
 - [github.com/Asutorufa/yuhaiin](https://pkg.go.dev/github.com/Asutorufa/yuhaiin) ([MIT](https://github.com/Asutorufa/yuhaiin/blob/HEAD/LICENSE))
 - [github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/bloom](https://pkg.go.dev/github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/bloom) ([Apache-2.0](https://github.com/Asutorufa/yuhaiin/blob/HEAD/pkg/net/proxy/shadowsocks/bloom/LICENSE))
 - [github.com/Asutorufa/yuhaiin/pkg/net/proxy/tproxy](https://pkg.go.dev/github.com/Asutorufa/yuhaiin/pkg/net/proxy/tproxy) ([MIT](https://github.com/Asutorufa/yuhaiin/blob/HEAD/pkg/net/proxy/tproxy/LICENCE))
@@ -78,7 +78,7 @@ Some packages may only be included on certain architectures or operating systems
 - [golang.org/x/crypto](https://pkg.go.dev/golang.org/x/crypto) ([BSD-3-Clause](https://cs.opensource.google/go/x/crypto/+/v0.54.0:LICENSE))
 - [golang.org/x/exp](https://pkg.go.dev/golang.org/x/exp) ([BSD-3-Clause](https://cs.opensource.google/go/x/exp/+/c48552f4:LICENSE))
 - [golang.org/x/mod/semver](https://pkg.go.dev/golang.org/x/mod/semver) ([BSD-3-Clause](https://cs.opensource.google/go/x/mod/+/v0.38.0:LICENSE))
-- [golang.org/x/net](https://pkg.go.dev/golang.org/x/net) ([BSD-3-Clause](https://cs.opensource.google/go/x/net/+/99c3b0a8:LICENSE))
+- [golang.org/x/net](https://pkg.go.dev/golang.org/x/net) ([BSD-3-Clause](https://cs.opensource.google/go/x/net/+/8d10596d:LICENSE))
 - [golang.org/x/sync](https://pkg.go.dev/golang.org/x/sync) ([BSD-3-Clause](https://cs.opensource.google/go/x/sync/+/v0.22.0:LICENSE))
 - [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys) ([BSD-3-Clause](https://cs.opensource.google/go/x/sys/+/v0.47.0:LICENSE))
 - [golang.org/x/term](https://pkg.go.dev/golang.org/x/term) ([BSD-3-Clause](https://cs.opensource.google/go/x/term/+/v0.45.0:LICENSE))

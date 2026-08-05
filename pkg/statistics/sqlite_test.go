@@ -118,6 +118,7 @@ func TestTelemetryDimensionsAggregateTrafficAndFailures(t *testing.T) {
 	counter.download.Add(123)
 	counter.upload.Add(456)
 	connections.telemetry.Remove(counter)
+	connections.telemetry.flush()
 	connections.telemetry.RecordFailure(info)
 
 	summary, err := connections.Telemetry(ctx, time.Now().Add(-time.Hour), time.Now().Add(time.Hour), 8)
