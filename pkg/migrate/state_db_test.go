@@ -41,6 +41,45 @@ func TestStateDBRequiresExplicitStartupMigration(t *testing.T) {
 	assertStateMarker(t, ctx, db, plainModelMigrationDoneKey)
 }
 
+func TestVacuumStateOnStartupReclaimsDeletedPages(t *testing.T) {
+	ctx := context.Background()
+	store, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+
+	if _, err := store.DB().ExecContext(ctx, `CREATE TABLE startup_vacuum_test(data BLOB)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB().ExecContext(ctx, `INSERT INTO startup_vacuum_test VALUES (zeroblob(8388608))`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB().ExecContext(ctx, `DELETE FROM startup_vacuum_test`); err != nil {
+		t.Fatal(err)
+	}
+
+	var freeBefore int64
+	if err := store.DB().QueryRowContext(ctx, `PRAGMA freelist_count`).Scan(&freeBefore); err != nil {
+		t.Fatal(err)
+	}
+	if freeBefore == 0 {
+		t.Fatal("expected deleted pages before startup vacuum")
+	}
+
+	if err := vacuumStateOnStartup(ctx, store.DB()); err != nil {
+		t.Fatal(err)
+	}
+
+	var freeAfter int64
+	if err := store.DB().QueryRowContext(ctx, `PRAGMA freelist_count`).Scan(&freeAfter); err != nil {
+		t.Fatal(err)
+	}
+	if freeAfter != 0 {
+		t.Fatalf("freelist_count after startup vacuum = %d, want 0", freeAfter)
+	}
+}
+
 func TestStateDBMigrateRewritesLegacyConnectionHistory(t *testing.T) {
 	ctx := context.Background()
 	statePath := filepath.Join(t.TempDir(), "state.db")

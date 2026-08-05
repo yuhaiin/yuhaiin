@@ -84,9 +84,11 @@ func (s *StateDB) Migrate(ctx context.Context) error {
 		return fmt.Errorf("mark plain model migration done failed: %w", err)
 	}
 	if plainMigrationDone != "1" {
-		if err := vacuumMigratedState(ctx, db); err != nil {
+		if err := storagesqlite.Compact(ctx, db); err != nil {
 			log.Warn("vacuum migrated state failed", "err", err)
 		}
+	} else if err := vacuumStateOnStartup(ctx, db); err != nil {
+		log.Warn("vacuum state on startup failed", "err", err)
 	}
 	return nil
 }
@@ -103,15 +105,13 @@ func (s *StateDB) normalizeLegacySettingsKV(ctx context.Context) error {
 	return nil
 }
 
-func vacuumMigratedState(ctx context.Context, db *sql.DB) error {
-	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
-		return fmt.Errorf("checkpoint state db before migration vacuum failed: %w", err)
+func vacuumStateOnStartup(ctx context.Context, db *sql.DB) error {
+	compacted, err := storagesqlite.CompactIfNeeded(ctx, db)
+	if err != nil {
+		return err
 	}
-	if _, err := db.ExecContext(ctx, "VACUUM"); err != nil {
-		return fmt.Errorf("vacuum state db after migration failed: %w", err)
-	}
-	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
-		return fmt.Errorf("checkpoint state db after migration vacuum failed: %w", err)
+	if compacted {
+		log.Info("vacuum state database on startup")
 	}
 	return nil
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
+	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	updatepkg "github.com/Asutorufa/yuhaiin/pkg/update"
@@ -198,18 +199,8 @@ func compactStateStore(ctx context.Context, store SQLStore) error {
 		return err
 	}
 
-	log.Info("checkpoint state database before vacuum")
-	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
-		return err
-	}
-	log.Info("vacuum state database")
-	if _, err := db.ExecContext(ctx, "VACUUM"); err != nil {
-		return err
-	}
-	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
-		return err
-	}
-	return nil
+	log.Info("compact state database")
+	return storagesqlite.Compact(ctx, db)
 }
 
 type StartOptions struct {
