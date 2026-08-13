@@ -12,13 +12,13 @@ replace (
 require (
 	codeberg.org/miekg/dns v0.6.90
 	github.com/cilium/ebpf v0.22.0
-	github.com/cloudflare/circl v1.6.4
+	github.com/cloudflare/circl v1.6.5
 	github.com/cockroachdb/pebble/v2 v2.1.6
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/nftables v0.3.0
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/mattn/go-sqlite3 v1.14.49
-	github.com/oschwald/maxminddb-golang/v2 v2.4.1
+	github.com/oschwald/maxminddb-golang/v2 v2.5.0
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.24.1
@@ -29,16 +29,16 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20260730222847-4affce44577c
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20260322125925-9234c772ba8f
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260804035732-6efebc94b5f4
-	golang.org/x/crypto v0.54.0
-	golang.org/x/mobile v0.0.0-20260803200217-62cee1672c8e
-	golang.org/x/mod v0.38.0
-	golang.org/x/net v0.57.1-0.20260804192108-8d10596d2624
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260805165049-aa87b676ba8a
+	golang.org/x/crypto v0.55.0
+	golang.org/x/mobile v0.0.0-20260813181013-1960c775504c
+	golang.org/x/mod v0.39.0
+	golang.org/x/net v0.58.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/sys v0.47.0
 	golang.org/x/time v0.15.0
 	golang.zx2c4.com/wireguard/windows v1.0.1
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 	gvisor.dev/gvisor v0.0.0-20260801065709-124e365c3f93
 	modernc.org/sqlite v1.56.0
 	tailscale.com v1.9999999999.99999999999
@@ -113,8 +113,8 @@ require (
 	golang.org/x/exp v0.0.0-20260611194520-c48552f49976 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/term v0.45.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
-	golang.org/x/tools v0.48.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/tools v0.49.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	modernc.org/libc v1.74.4 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
