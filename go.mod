@@ -17,7 +17,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/nftables v0.3.0
 	github.com/libp2p/go-yamux/v5 v5.1.0
-	github.com/mattn/go-sqlite3 v1.14.49
+	github.com/mattn/go-sqlite3 v1.14.50
 	github.com/oschwald/maxminddb-golang/v2 v2.5.0
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus-community/pro-bing v0.9.1
@@ -29,10 +29,10 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20260730222847-4affce44577c
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20260322125925-9234c772ba8f
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260805165049-aa87b676ba8a
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260817164825-fbfca5a0c4c8
 	golang.org/x/crypto v0.55.0
-	golang.org/x/mobile v0.0.0-20260813181013-1960c775504c
-	golang.org/x/mod v0.39.0
+	golang.org/x/mobile v0.0.0-20260816165457-f98cc9b3c733
+	golang.org/x/mod v0.40.0
 	golang.org/x/net v0.58.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/sys v0.47.0
