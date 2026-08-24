@@ -68,8 +68,8 @@ func ConvertLegacyRule(in *schemaconfig.Rulev2) contractroute.RouteRule {
 		UdpProxyFqdnStrategy: in.GetUdpProxyFqdnStrategy().String(),
 		Resolver:             in.GetResolver(),
 		Disabled:             in.GetDisabled(),
-	}
-	out.Rules = make([]contractroute.RuleExpr, 0, len(in.GetRules()))
+
+		Rules: make([]contractroute.RuleExpr, 0, len(in.GetRules()))}
 	for _, group := range in.GetRules() {
 		if group == nil {
 			continue

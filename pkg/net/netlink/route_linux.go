@@ -147,11 +147,9 @@ func SetNoqueue(iface string) error {
 	}
 
 	qdisc := &netlink.GenericQdisc{
-		QdiscAttrs: netlink.QdiscAttrs{
-			LinkIndex: link.Attrs().Index,
-			Handle:    netlink.MakeHandle(0, 0),
-			Parent:    netlink.HANDLE_ROOT,
-		},
+		LinkIndex: link.Attrs().Index,
+		Handle:    netlink.MakeHandle(0, 0),
+		Parent:    netlink.HANDLE_ROOT,
 		QdiscType: "noqueue",
 	}
 

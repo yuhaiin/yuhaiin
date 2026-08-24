@@ -10,7 +10,6 @@ import (
 
 	"codeberg.org/miekg/dns"
 	"codeberg.org/miekg/dns/dnsutil"
-	"codeberg.org/miekg/dns/rdata"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -70,16 +69,14 @@ func (m *mockDialer) Do(ctx context.Context, req *Request) (*dns.Msg, error) {
 
 	switch req.Question.Qtype {
 	case dns.TypeA:
-		body = &dns.A{Hdr: hdr, A: rdata.A{Addr: netip.MustParseAddr("127.0.0.1")}}
+		body = &dns.A{Hdr: hdr, Addr: netip.MustParseAddr("127.0.0.1")}
 	case dns.TypeAAAA:
-		body = &dns.AAAA{Hdr: hdr, AAAA: rdata.AAAA{Addr: netip.MustParseAddr("::1")}}
+		body = &dns.AAAA{Hdr: hdr, Addr: netip.MustParseAddr("::1")}
 	}
 
 	return &dns.Msg{
-		MsgHeader: dns.MsgHeader{
-			ID:    req.ID,
-			Rcode: uint16(m.rCode),
-		},
+		ID:       req.ID,
+		Rcode:    uint16(m.rCode),
 		Question: []dns.RR{req.Question.RR()},
 		Answer:   []dns.RR{body},
 	}, nil

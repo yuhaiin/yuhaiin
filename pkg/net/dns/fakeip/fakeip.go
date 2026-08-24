@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"codeberg.org/miekg/dns"
-	"codeberg.org/miekg/dns/rdata"
 	"codeberg.org/miekg/dns/svcb"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -156,7 +155,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 			func(header dns.Header) dns.RR {
 				return &dns.PTR{
 					Hdr: header,
-					PTR: rdata.PTR{Ptr: system.AbsDomain(domain)},
+					Ptr: system.AbsDomain(domain),
 				}
 			},
 		)
@@ -196,7 +195,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 		return f.newAnswerMessage(req, dns.RcodeSuccess, func(header dns.Header) dns.RR {
 			return &dns.AAAA{
 				Hdr:  header,
-				AAAA: rdata.AAAA{Addr: ip},
+				Addr: ip,
 			}
 		}), nil
 
@@ -216,8 +215,8 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 
 		return f.newAnswerMessage(req, dns.RcodeSuccess, func(header dns.Header) dns.RR {
 			return &dns.A{
-				Hdr: header,
-				A:   rdata.A{Addr: ip},
+				Hdr:  header,
+				Addr: ip,
 			}
 		}), nil
 	}

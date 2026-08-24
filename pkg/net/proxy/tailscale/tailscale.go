@@ -14,7 +14,6 @@ import (
 	"time"
 
 	mdns "codeberg.org/miekg/dns"
-	"codeberg.org/miekg/dns/rdata"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -597,7 +596,7 @@ func (d *dnsPacket) WriteTo(buf []byte, addr net.Addr) (int, error) {
 						TTL:   20,
 						Class: mdns.ClassINET,
 					},
-					A: rdata.A{Addr: ip},
+					Addr: ip,
 				},
 			}
 		}

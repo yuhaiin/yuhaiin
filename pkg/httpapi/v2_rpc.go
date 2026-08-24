@@ -45,8 +45,7 @@ func notFound(err error) error {
 }
 
 func writeRPCError(w http.ResponseWriter, err error) error {
-	var rpcErr *rpcError
-	if errors.As(err, &rpcErr) {
+	if rpcErr, ok := errors.AsType[*rpcError](err); ok {
 		return writeError(w, rpcErr.status, rpcErr.code, rpcErr.message)
 	}
 	return writeError(w, http.StatusInternalServerError, "internal_error", err.Error())

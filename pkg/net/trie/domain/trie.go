@@ -1,5 +1,7 @@
 package domain
 
+import "slices"
+
 var (
 	_        uint8 = 0
 	last     uint8 = 1
@@ -122,17 +124,17 @@ func remove[T any](node *trie[T], domain *fqdnReader) {
 		return
 	}
 
-	for i := len(nodes) - 1; i >= 0; i-- {
-		if len(nodes[i].node.Child) != 0 {
+	for i, node := range slices.Backward(nodes) {
+		if len(node.node.Child) != 0 {
 			if i == len(nodes)-1 {
-				nodes[i].node.Symbol = 0
+				node.node.Symbol = 0
 			}
 			break
 		}
 
-		if len(nodes[i].node.Child) == 0 {
+		if len(node.node.Child) == 0 {
 			if i-1 > 0 {
-				delete(nodes[i-1].node.Child, nodes[i].str)
+				delete(nodes[i-1].node.Child, node.str)
 			}
 		}
 	}

@@ -341,16 +341,15 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		UID:          formatUint64ZeroEmpty(uint64(nc.GetProcessUid())),
 		Mode:         nc.ConnOptions().RouteMode(),
 		UDPMigrateID: formatUint64ZeroEmpty(nc.GetUDPMigrateID()),
-	}
 
-	connection.Geo = nc.GetGeo()
-	connection.OutboundGeo = outboundGeo
-	connection.TLSServerName = nc.GetTLSServerName()
-	connection.HTTPHost = nc.GetHTTPHost()
-	connection.Component = nc.GetComponent()
-	connection.MatchHistory = nc.MatchHistory()
-	connection.Resolver = resolverName(nc.ConnOptions().Resolver().Resolver())
-	connection.Lists = nc.ConnOptions().Lists()
+		Geo:           nc.GetGeo(),
+		OutboundGeo:   outboundGeo,
+		TLSServerName: nc.GetTLSServerName(),
+		HTTPHost:      nc.GetHTTPHost(),
+		Component:     nc.GetComponent(),
+		MatchHistory:  nc.MatchHistory(),
+		Resolver:      resolverName(nc.ConnOptions().Resolver().Resolver()),
+		Lists:         nc.ConnOptions().Lists()}
 
 	if conn != nil {
 		if local := conn.LocalAddr(); local != nil {

@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"codeberg.org/miekg/dns"
-	"codeberg.org/miekg/dns/rdata"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/fakeip"
 	dnssystem "github.com/Asutorufa/yuhaiin/pkg/net/dns/system"
@@ -153,7 +152,7 @@ func (h *Hosts) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, erro
 			v = system.AbsDomain(v)
 
 			msg.Answer = append(msg.Answer, &dns.PTR{
-				PTR: rdata.PTR{Ptr: v},
+				Ptr: v,
 			})
 		}
 
@@ -193,7 +192,7 @@ func (h *Hosts) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, erro
 					TTL:   600,
 					Class: dns.ClassINET,
 				},
-				AAAA: rdata.AAAA{Addr: ip},
+				Addr: ip,
 			},
 		}
 		return msg, nil
@@ -211,7 +210,7 @@ func (h *Hosts) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, erro
 				TTL:   600,
 				Class: dns.ClassINET,
 			},
-			A: rdata.A{Addr: ip},
+			Addr: ip,
 		},
 	}
 

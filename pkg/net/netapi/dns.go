@@ -61,15 +61,13 @@ func (q DNSQuestion) RR() dns.RR {
 
 func NewDNSMsg(q DNSQuestion) *dns.Msg {
 	m := &dns.Msg{
-		MsgHeader: dns.MsgHeader{
-			Response:           true,
-			Opcode:             dns.OpcodeQuery,
-			Authoritative:      false,
-			Truncated:          false,
-			RecursionDesired:   true,
-			RecursionAvailable: true,
-			Rcode:              dns.RcodeSuccess,
-		},
+		Response:           true,
+		Opcode:             dns.OpcodeQuery,
+		Authoritative:      false,
+		Truncated:          false,
+		RecursionDesired:   true,
+		RecursionAvailable: true,
+		Rcode:              dns.RcodeSuccess,
 	}
 	if rr := q.RR(); rr != nil {
 		m.Question = []dns.RR{rr}

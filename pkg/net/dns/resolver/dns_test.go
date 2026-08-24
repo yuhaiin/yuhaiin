@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"codeberg.org/miekg/dns"
-	"codeberg.org/miekg/dns/rdata"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
@@ -28,11 +27,11 @@ func TestClientRoundTripV2Wire(t *testing.T) {
 
 		question := query.Question[0]
 		response := &dns.Msg{
-			MsgHeader: dns.MsgHeader{ID: query.ID, Response: true, Rcode: dns.RcodeSuccess},
-			Question:  query.Question,
+			ID: query.ID, Response: true, Rcode: dns.RcodeSuccess,
+			Question: query.Question,
 			Answer: []dns.RR{&dns.A{
-				Hdr: dns.Header{Name: question.Header().Name, Class: dns.ClassINET, TTL: 60},
-				A:   rdata.A{Addr: netip.MustParseAddr("192.0.2.1")},
+				Hdr:  dns.Header{Name: question.Header().Name, Class: dns.ClassINET, TTL: 60},
+				Addr: netip.MustParseAddr("192.0.2.1"),
 			}},
 		}
 		if err := response.Pack(); err != nil {

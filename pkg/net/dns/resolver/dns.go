@@ -13,7 +13,6 @@ import (
 
 	"codeberg.org/miekg/dns"
 	"codeberg.org/miekg/dns/dnsutil"
-	"codeberg.org/miekg/dns/rdata"
 	"codeberg.org/miekg/dns/svcb"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -235,18 +234,16 @@ func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, e
 	dialer := c.dialer
 
 	reqMsg := &dns.Msg{
-		MsgHeader: dns.MsgHeader{
-			ID:                 dns.ID(),
-			Response:           false,
-			Opcode:             0,
-			Authoritative:      false,
-			Truncated:          false,
-			RecursionDesired:   true,
-			RecursionAvailable: false,
-			Rcode:              0,
-			UDPSize:            8192,
-		},
-		Question: []dns.RR{req.RR()},
+		ID:                 dns.ID(),
+		Response:           false,
+		Opcode:             0,
+		Authoritative:      false,
+		Truncated:          false,
+		RecursionDesired:   true,
+		RecursionAvailable: false,
+		Rcode:              0,
+		UDPSize:            8192,
+		Question:           []dns.RR{req.RR()},
 	}
 	if c.edns0 != nil {
 		reqMsg.Pseudo = []dns.RR{c.edns0.Clone()}
@@ -359,7 +356,7 @@ func (c *client) iphintToCache(name string, ttl uint32, vv svcb.Pair) {
 					TTL:   ttl,
 					Class: dns.ClassINET,
 				},
-				A: rdata.A{Addr: v},
+				Addr: v,
 			})
 		}
 	case *svcb.IPV6HINT:
@@ -371,7 +368,7 @@ func (c *client) iphintToCache(name string, ttl uint32, vv svcb.Pair) {
 					TTL:   ttl,
 					Class: dns.ClassINET,
 				},
-				AAAA: rdata.AAAA{Addr: v},
+				Addr: v,
 			})
 		}
 	default:
@@ -389,18 +386,16 @@ func (c *client) iphintToCache(name string, ttl uint32, vv svcb.Pair) {
 	}
 	c.rawStore.Add(CacheKeyFromQuestion(req),
 		&dns.Msg{
-			MsgHeader: dns.MsgHeader{
-				ID:                 0,
-				Response:           true,
-				Opcode:             0,
-				Authoritative:      false,
-				Truncated:          false,
-				RecursionDesired:   true,
-				RecursionAvailable: true,
-				Rcode:              dns.RcodeSuccess,
-			},
-			Question: []dns.RR{req.RR()},
-			Answer:   answers,
+			ID:                 0,
+			Response:           true,
+			Opcode:             0,
+			Authoritative:      false,
+			Truncated:          false,
+			RecursionDesired:   true,
+			RecursionAvailable: true,
+			Rcode:              dns.RcodeSuccess,
+			Question:           []dns.RR{req.RR()},
+			Answer:             answers,
 		},
 		lru.WithTimeout[string, *dns.Msg](time.Duration(ttl)*time.Second),
 	)
