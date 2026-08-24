@@ -84,7 +84,7 @@ func newServer(packetConn net.PacketConn, tlsConfig *tls.Config) (*Server, error
 
 	go func() {
 		defer s.Close()
-		if err := s.server(); err != nil && !errors.Is(err, context.Canceled) {
+		if err := s.server(); !errors.Is(err, context.Canceled) {
 			log.Error("quic server failed:", "err", err)
 		}
 	}()
@@ -166,6 +166,7 @@ func (s *Server) listenDatagram(conn *quic.Conn) error {
 		}
 	}
 }
+
 func (s *Server) listenStream(conn *quic.Conn) error {
 	for {
 		stream, err := conn.AcceptStream(s.ctx)

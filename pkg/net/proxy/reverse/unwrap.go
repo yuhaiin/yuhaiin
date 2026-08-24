@@ -110,7 +110,8 @@ func NewHttpTermination(c Config, p netapi.Proxy) (netapi.Proxy, error) {
 			}
 			w.WriteHeader(http.StatusBadGateway)
 		},
-		Director: func(pr *http.Request) {
+		Rewrite: func(rpr *httputil.ProxyRequest) {
+			pr := rpr.In
 			addr, _ := netapi.ParseAddress("tcp", pr.Host)
 
 			if v, ok := headers.SearchFqdn(addr); ok {
