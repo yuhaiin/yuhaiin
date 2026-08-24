@@ -151,7 +151,7 @@ func newDohRequest(ctx context.Context, method string, uri string, body []byte) 
 	switch method {
 	case http.MethodGet:
 		b64str := base64.URLEncoding.EncodeToString(body)
-		if found := strings.Contains("uri", "?"); found {
+		if found := strings.Contains(uri, "?"); found {
 			uri += "&dns=" + b64str
 		} else {
 			uri += "?dns=" + b64str
