@@ -17,12 +17,12 @@ import (
 	"net"
 	"runtime"
 	"strings"
+	"uuid"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -89,7 +89,7 @@ type Conn struct {
 
 // NewClient .
 func newClient(uuidStr, security string, alterID int) (*Client, error) {
-	uuid, err := id.ParseUUID(uuidStr)
+	uuid, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,6 @@ func (c *Conn) RemoteAddr() net.Addr { return c.addr }
 
 // EncodeRequest encodes requests to network bytes
 func (c *Conn) EncodeRequest() ([]byte, error) {
-
 	buf := new(bytes.Buffer)
 
 	// Request

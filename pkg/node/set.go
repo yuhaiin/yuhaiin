@@ -11,16 +11,16 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"uuid"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
 
 type Set struct {
 	netapi.EmptyDispatch
 	runtime   *NodeRuntime
 	Nodes     []string
-	randomKey id.UUID
+	randomKey uuid.UUID
 
 	lastID   atomic.Int32
 	strategy string
@@ -35,7 +35,7 @@ func NewContractSet(nodes []string, strategy string, runtime *NodeRuntime) (neta
 	s := &Set{
 		runtime:   runtime,
 		Nodes:     ns,
-		randomKey: id.GenerateUUID(),
+		randomKey: uuid.New(),
 		strategy:  strategy,
 	}
 

@@ -12,11 +12,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"uuid"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -234,10 +234,10 @@ type NetworkMonitor interface {
 	Stop() error
 }
 
-var networkMonitors syncmap.SyncMap[id.UUID, func(interfaceName string)]
+var networkMonitors syncmap.SyncMap[uuid.UUID, func(interfaceName string)]
 
 func AddNetworkMonitor(m func(interfaceName string)) io.Closer {
-	uuid := id.GenerateUUID()
+	uuid := uuid.New()
 	networkMonitors.Store(uuid, m)
 
 	return networkMonitorCloser(func() {

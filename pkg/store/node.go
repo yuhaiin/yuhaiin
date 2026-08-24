@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"slices"
 	"time"
+	"uuid"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
 
 type NodeStore struct {
@@ -61,7 +61,7 @@ func (s *NodeStore) ReplaceRemote(ctx context.Context, group string, nodes []con
 		node.Group = group
 		node.Origin = "remote"
 		if node.ID == "" {
-			node.ID = id.GenerateUUID().String()
+			node.ID = uuid.New().String()
 		}
 		if err := SaveNodeContract(ctx, tx, node, updatedAt); err != nil {
 			return err

@@ -9,6 +9,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"uuid"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
@@ -16,7 +17,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
 
 type Tls struct {
@@ -69,7 +69,7 @@ type patternServerNameConfigPool struct {
 
 func (p *patternServerNameConfigPool) getConfig() *tls.Config {
 	c := p.config.Clone()
-	c.ServerName = fmt.Sprintf("%s.%s", id.GenerateUUID().HexString(), p.serverNameSuffix)
+	c.ServerName = fmt.Sprintf("%s.%s", uuid.New().String(), p.serverNameSuffix)
 	return c
 }
 

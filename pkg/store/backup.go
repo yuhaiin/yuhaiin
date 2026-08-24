@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"uuid"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
 
 type BackupStore struct {
@@ -29,7 +29,7 @@ func (s *BackupStore) Get(ctx context.Context) (contractbackup.Option, error) {
 		return contractbackup.Option{}, err
 	}
 	if opt.InstanceName == "" {
-		opt.InstanceName = id.GenerateUUID().String()
+		opt.InstanceName = uuid.New().String()
 		if err := s.Save(ctx, opt); err != nil {
 			return contractbackup.Option{}, err
 		}

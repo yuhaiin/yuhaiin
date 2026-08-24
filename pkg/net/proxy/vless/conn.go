@@ -6,16 +6,16 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"uuid"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 )
 
 type Conn struct {
 	net.Conn
 	dst      netapi.Address
-	id       id.UUID
+	id       uuid.UUID
 	received bool
 	udp      bool
 
