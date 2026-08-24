@@ -10,7 +10,7 @@ replace (
 )
 
 require (
-	codeberg.org/miekg/dns v0.6.90
+	codeberg.org/miekg/dns v0.6.103
 	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.5
 	github.com/cockroachdb/pebble/v2 v2.1.6
@@ -31,7 +31,7 @@ require (
 	github.com/xtls/reality v0.0.0-20260322125925-9234c772ba8f
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260817164825-fbfca5a0c4c8
 	golang.org/x/crypto v0.55.0
-	golang.org/x/mobile v0.0.0-20260816165457-f98cc9b3c733
+	golang.org/x/mobile v0.0.0-20260821190718-4776eadac327
 	golang.org/x/mod v0.40.0
 	golang.org/x/net v0.58.0
 	golang.org/x/sync v0.22.0
@@ -40,7 +40,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v1.0.1
 	google.golang.org/protobuf v1.36.12
 	gvisor.dev/gvisor v0.0.0-20260801065709-124e365c3f93
-	modernc.org/sqlite v1.56.0
+	modernc.org/sqlite v1.57.0
 	tailscale.com v1.9999999999.99999999999
 )
 
