@@ -10,10 +10,10 @@ replace (
 )
 
 require (
-	codeberg.org/miekg/dns v0.6.103
+	codeberg.org/miekg/dns v0.6.104
 	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.5
-	github.com/cockroachdb/pebble/v2 v2.1.6
+	github.com/cockroachdb/pebble/v2 v2.1.7
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/nftables v0.3.0
 	github.com/libp2p/go-yamux/v5 v5.1.0

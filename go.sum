@@ -4,6 +4,8 @@ codeberg.org/miekg/dns v0.6.90 h1:Trqn1KlkSsjWz3bJ6Q2/bfymmPwdfBZDQm2MCiN3Gog=
 codeberg.org/miekg/dns v0.6.90/go.mod h1:58Y3ZTg6Z5ZEm/ZAAwHehbZfrD4u5mE4RByHoPEMyKk=
 codeberg.org/miekg/dns v0.6.103 h1:LyoBlLRSw+UJiMiBreLCSXRXdliSKNI0NnK86y9yLWQ=
 codeberg.org/miekg/dns v0.6.103/go.mod h1:vbidSyLJl5JcDUL2LrXCUjRYSFa5tJweseQox0GOrTk=
+codeberg.org/miekg/dns v0.6.104 h1:MAb7q9cmY5Ed9UpCeXnt1cjPPPHOBsCaUPOkennW6IA=
+codeberg.org/miekg/dns v0.6.104/go.mod h1:vbidSyLJl5JcDUL2LrXCUjRYSFa5tJweseQox0GOrTk=
 filippo.io/edwards25519 v1.2.0 h1:crnVqOiS4jqYleHd9vaKZ+HKtHfllngJIiOpNpoJsjo=
 filippo.io/edwards25519 v1.2.0/go.mod h1:xzAOLCNug/yB62zG1bQ8uziwrIqIuxhctzJT18Q77mc=
 filippo.io/mkcert v1.4.4 h1:8eVbbwfVlaqUM7OwuftKc2nuYOoTDQWqsoXmzoXZdbc=
@@ -82,6 +84,8 @@ github.com/cockroachdb/metamorphic v0.0.0-20231108215700-4ba948b56895 h1:XANOgPY
 github.com/cockroachdb/metamorphic v0.0.0-20231108215700-4ba948b56895/go.mod h1:aPd7gM9ov9M8v32Yy5NJrDyOcD8z642dqs+F0CeNXfA=
 github.com/cockroachdb/pebble/v2 v2.1.6 h1:GDo7Z2+LgFZ7LJLdLmBXhDeTVIwgSPGxIT15hE7vGqM=
 github.com/cockroachdb/pebble/v2 v2.1.6/go.mod h1:Reo1RTniv1UjVTAu/Fv74y5i3kJ5gmVrPhO9UtFiKn8=
+github.com/cockroachdb/pebble/v2 v2.1.7 h1:hFQnbsniSWg9BVcNKMuaUufYPiVXY6uJvaY9grbQ9+U=
+github.com/cockroachdb/pebble/v2 v2.1.7/go.mod h1:JhU5cqqYkr2BdsBHbZhRZOryAtfhcV3eNI/oBcbrxWc=
 github.com/cockroachdb/redact v1.1.8 h1:8eVLLj6juKxiKrAEw2b8cJvNqWq++U8WOfQFuL7KTaA=
 github.com/cockroachdb/redact v1.1.8/go.mod h1:GceHHpJ0rMDpYARL5In88Alq/xMBUtVlz7Qxix6ZVkw=
 github.com/cockroachdb/swiss v0.0.0-20260820225851-333444432258 h1:IJ+uNItEm0qx9FE2AgIc1PMsCUtk8nbSIzhQE1t5GWw=
