@@ -10,7 +10,7 @@ replace (
 )
 
 require (
-	codeberg.org/miekg/dns v0.6.104
+	codeberg.org/miekg/dns v0.6.105
 	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.5
 	github.com/cockroachdb/pebble/v2 v2.1.7
@@ -23,7 +23,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.24.1
 	github.com/quic-go/connect-ip-go v0.2.0
-	github.com/quic-go/quic-go v0.61.0
+	github.com/quic-go/quic-go v0.62.0
 	github.com/refraction-networking/utls v1.8.2
 	github.com/rhnvrm/simples3 v0.11.1
 	github.com/tailscale/wireguard-go v0.0.0-20260730222847-4affce44577c
