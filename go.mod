@@ -10,7 +10,7 @@ replace (
 )
 
 require (
-	codeberg.org/miekg/dns v0.6.105
+	codeberg.org/miekg/dns v0.6.106
 	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.5
 	github.com/cockroachdb/pebble/v2 v2.1.7
@@ -30,7 +30,7 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20260322125925-9234c772ba8f
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260817164825-fbfca5a0c4c8
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/mobile v0.0.0-20260821190718-4776eadac327
 	golang.org/x/mod v0.40.0
 	golang.org/x/net v0.58.0
@@ -40,7 +40,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v1.0.1
 	google.golang.org/protobuf v1.36.12
 	gvisor.dev/gvisor v0.0.0-20260801065709-124e365c3f93
-	modernc.org/sqlite v1.57.0
+	modernc.org/sqlite v1.58.0
 	tailscale.com v1.9999999999.99999999999
 )
 
@@ -116,9 +116,9 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
-	modernc.org/libc v1.74.4 // indirect
+	modernc.org/libc v1.75.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.11.0 // indirect
+	modernc.org/memory v1.12.1 // indirect
 )
 
 tool github.com/cilium/ebpf/cmd/bpf2go
