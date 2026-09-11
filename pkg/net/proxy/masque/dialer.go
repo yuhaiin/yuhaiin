@@ -16,7 +16,6 @@ import (
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 	"github.com/quic-go/quic-go/quicvarint"
-	"golang.org/x/net/http2"
 )
 
 var (
@@ -32,9 +31,9 @@ func DialHttp2(ctx context.Context, dial func(ctx context.Context) (net.Conn, er
 	tlsConfig = tlsConfig.Clone()
 	tlsConfig.NextProtos = []string{"h2"}
 
-	transport := &http2.Transport{
+	transport := &http.Transport{
 		DisableCompression: true,
-		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			conn, err := dial(ctx)
 			if err != nil {
 				return nil, err

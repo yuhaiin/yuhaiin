@@ -18,7 +18,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"golang.org/x/net/http2"
 )
 
 func init() {
@@ -59,16 +58,11 @@ func NewDoH(config Config) (Transport, error) {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+		HTTP2: &http.HTTP2Config{
+			PingTimeout:     5 * time.Second,
+			SendPingTimeout: time.Second * 30, // https://github.com/golang/go/issues/30702
+		},
 	}
-
-	tr2, err := http2.ConfigureTransports(tr)
-	if err != nil {
-		return nil, err
-	}
-
-	tr2.PingTimeout = 5 * time.Second
-	tr2.ReadIdleTimeout = time.Second * 30 // https://github.com/golang/go/issues/30702
-	tr2.IdleConnTimeout = time.Second * 90
 
 	uri := u.String()
 

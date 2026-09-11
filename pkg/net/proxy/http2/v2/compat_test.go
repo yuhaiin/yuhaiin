@@ -12,7 +12,6 @@ import (
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
-	oldhttp2 "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2/v1"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
@@ -25,23 +24,14 @@ type implementation struct {
 }
 
 func TestCompatibility(t *testing.T) {
-	old := implementation{
-		name: "old",
-		newClient: func(c Config, p netapi.Proxy) (netapi.Proxy, error) {
-			return oldhttp2.NewClient(oldhttp2.Config{Concurrency: c.Concurrency}, p)
-		},
-		newServer: func(_ ServerConfig, l netapi.Listener) (netapi.Listener, error) {
-			return oldhttp2.NewServer(oldhttp2.ServerConfig{}, l)
-		},
-	}
 	v2 := implementation{
 		name:      "v2",
 		newClient: NewClient,
 		newServer: NewServer,
 	}
 
-	for _, server := range []implementation{old, v2} {
-		for _, client := range []implementation{old, v2} {
+	for _, server := range []implementation{v2} {
+		for _, client := range []implementation{v2} {
 			name := fmt.Sprintf("client_%s_server_%s", client.name, server.name)
 			t.Run(name, func(t *testing.T) {
 				timeout := 5 * time.Second
