@@ -10,7 +10,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/sha512"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
@@ -32,7 +31,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	utls "github.com/refraction-networking/utls"
-	"golang.org/x/net/http2"
 )
 
 type Client struct {
@@ -221,8 +219,8 @@ func (e *Client) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, 
 func realityClientFallback(uConn net.Conn, serverName string, fingerprint utls.ClientHelloID) {
 	defer uConn.Close()
 	client := &http.Client{
-		Transport: &http2.Transport{
-			DialTLSContext: func(ctx context.Context, network, addr string, config *tls.Config) (net.Conn, error) {
+		Transport: &http.Transport{
+			DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				return uConn, nil
 			},
 		},
