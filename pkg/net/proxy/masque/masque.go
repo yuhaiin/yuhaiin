@@ -165,7 +165,7 @@ func (m *Masque) Connect(ctx context.Context) (*Conn, error) {
 		return nil, fmt.Errorf("failed to dial connect-ip: %v", err)
 	}
 
-	err = ipConn.AdvertiseRoute(ctx, []connectip.IPRoute{
+	err = ipConn.AdvertiseRoute([]connectip.IPRoute{
 		{
 			IPProtocol: 0,
 			StartIP:    netip.AddrFrom4([4]byte{}),
