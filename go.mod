@@ -29,7 +29,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20260730222847-4affce44577c
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20260910011853-5dabb073f8e8
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260912193748-e5a5b1e6add5
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260914162233-5e1d712d817f
 	golang.org/x/crypto v0.57.0
 	golang.org/x/mobile v0.0.0-20260908204917-8b95e45f8d3e
 	golang.org/x/mod v0.41.0
@@ -40,7 +40,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v1.0.1
 	google.golang.org/protobuf v1.36.12
 	gvisor.dev/gvisor v0.0.0-20260801065709-124e365c3f93
-	modernc.org/sqlite v1.58.0
+	modernc.org/sqlite v1.59.0
 	tailscale.com v1.9999999999.99999999999
 )
 
@@ -116,7 +116,7 @@ require (
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/tools v0.50.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
-	modernc.org/libc v1.75.6 // indirect
+	modernc.org/libc v1.75.7 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
