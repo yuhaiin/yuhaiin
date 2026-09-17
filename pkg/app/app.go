@@ -229,19 +229,20 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		})))
 
 	app := &AppInstance{
-		StartOptions: so,
-		Mux:          mux,
-		Tools:        tools,
-		Node:         nodeRuntime,
-		NodeRuntime:  nodeRuntime,
-		Connections:  statistics.NewConnectionMonitor(stcs),
-		Lists:        route.NewContractListController(list),
-		Rules:        route.NewContractRuleController(rules),
-		Resolver:     resolver.NewContractController(resolverCtr),
-		ResolverCfg:  resolver.NewContractConfigController(resolverCtr),
-		Setting:      settingsController,
-		Inbound:      inbounds,
-		closers:      closers,
+		StartOptions:  so,
+		Mux:           mux,
+		Tools:         tools,
+		Node:          nodeRuntime,
+		NodeRuntime:   nodeRuntime,
+		Connections:   statistics.NewConnectionMonitor(stcs),
+		Lists:         route.NewContractListController(list),
+		Rules:         route.NewContractRuleController(rules),
+		Resolver:      resolver.NewContractController(resolverCtr),
+		ResolverCache: resolver.NewContractController(resolverCtr),
+		ResolverCfg:   resolver.NewContractConfigController(resolverCtr),
+		Setting:       settingsController,
+		Inbound:       inbounds,
+		closers:       closers,
 	}
 
 	app.Backup = AddCloser(closers, "backup", NewBackup(backupStore, so.ConfigPath, app, fakedns))

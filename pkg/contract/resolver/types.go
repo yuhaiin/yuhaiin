@@ -31,6 +31,31 @@ type Server struct {
 	Server string `json:"server"`
 }
 
+type DNSCacheRecord struct {
+	Section string `json:"section"`
+	Type    string `json:"type"`
+	Value   string `json:"value"`
+}
+
+type DNSCacheEntry struct {
+	Resolver  string           `json:"resolver"`
+	Domain    string           `json:"domain"`
+	QueryType string           `json:"queryType"`
+	Rcode     string           `json:"rcode"`
+	Records   []DNSCacheRecord `json:"records"`
+	ExpiresIn uint32           `json:"expiresIn"`
+}
+
+type DNSCacheList struct {
+	Items []DNSCacheEntry `json:"items"`
+}
+
+type DNSCacheClearResponse struct {
+	Removed int `json:"removed"`
+}
+
+var ErrDNSCacheNotFound = errors.New("resolver cache is not active")
+
 func (x Resolver) Validate() error {
 	if strings.TrimSpace(x.ID) == "" {
 		return errors.New("resolver id is empty")

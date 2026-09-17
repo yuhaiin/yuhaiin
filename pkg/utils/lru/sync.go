@@ -2,6 +2,9 @@ package lru
 
 import (
 	"sync"
+	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 type SyncLru[K comparable, V any] struct {
@@ -67,6 +70,36 @@ func (l *SyncLru[K, V]) Range(ranger func(K, V) bool) {
 
 	for k, v := range l.lru.mapping {
 		if !ranger(k, v.Value.data) {
+			return
+		}
+	}
+}
+
+// RangeWithExpiration visits the currently valid entries and supplies the
+// remaining lifetime of each entry. Expired entries are removed before they
+// are exposed. The callback runs while the cache is locked and must not call
+// back into this cache.
+func (l *SyncLru[K, V]) RangeWithExpiration(ranger func(K, V, time.Duration) bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := system.CheapNowNano()
+	for _, v := range l.lru.mapping {
+		if v.Value.Expired() {
+			l.lru.removeElement(v)
+			continue
+		}
+
+		var expiresIn time.Duration
+		if v.Value.expire != 0 {
+			expiresIn = time.Duration(v.Value.expire - now)
+			if expiresIn < 0 {
+				l.lru.removeElement(v)
+				continue
+			}
+		}
+
+		if !ranger(v.Value.key, v.Value.data, expiresIn) {
 			return
 		}
 	}

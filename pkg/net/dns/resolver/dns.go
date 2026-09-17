@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,6 +39,22 @@ type nopCloser struct {
 }
 
 func (n nopCloser) Close() error { return nil }
+
+func (n nopCloser) DNSCacheEntries() []netapi.DNSCacheEntry {
+	provider, ok := n.Resolver.(netapi.DNSCacheProvider)
+	if !ok {
+		return nil
+	}
+	return provider.DNSCacheEntries()
+}
+
+func (n nopCloser) ClearDNSCache(domain string) int {
+	provider, ok := n.Resolver.(netapi.DNSCacheProvider)
+	if !ok {
+		return 0
+	}
+	return provider.ClearDNSCache(domain)
+}
 
 func init() {
 	netapi.SetBootstrap(Internet)
@@ -110,6 +128,7 @@ func Register(tYPE string, f func(Config) (Transport, error)) {
 }
 
 var _ netapi.Resolver = (*client)(nil)
+var _ netapi.DNSCacheProvider = (*client)(nil)
 
 func CacheKeyFromQuestion(q netapi.DNSQuestion) string {
 	return fmt.Sprintf("%s:%d", q.Name, q.Qtype)
@@ -531,3 +550,53 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType uint16) ([
 func (c *client) Close() error { return c.dialer.Close() }
 
 func (c *client) Name() string { return c.config.Name }
+
+func (c *client) DNSCacheEntries() []netapi.DNSCacheEntry {
+	entries := make([]netapi.DNSCacheEntry, 0, c.rawStore.Len())
+	c.rawStore.RangeWithExpiration(func(key string, msg *dns.Msg, expiresIn time.Duration) bool {
+		separator := strings.LastIndexByte(key, ':')
+		if separator <= 0 {
+			return true
+		}
+		qtype, err := strconv.ParseUint(key[separator+1:], 10, 16)
+		if err != nil {
+			return true
+		}
+		entries = append(entries, netapi.DNSCacheEntry{
+			Question: netapi.DNSQuestion{
+				Name:   key[:separator],
+				Qtype:  uint16(qtype),
+				Qclass: dns.ClassINET,
+			},
+			Message:   msg.Copy(),
+			ExpiresIn: expiresIn,
+		})
+		return true
+	})
+	return entries
+}
+
+func (c *client) ClearDNSCache(domain string) int {
+	domain = canonicalCacheDomain(domain)
+	if domain == "" {
+		return 0
+	}
+
+	keys := make([]string, 0)
+	c.rawStore.Range(func(key string, _ *dns.Msg) bool {
+		separator := strings.LastIndexByte(key, ':')
+		if separator <= 0 || canonicalCacheDomain(key[:separator]) != domain {
+			return true
+		}
+		keys = append(keys, key)
+		return true
+	})
+	for _, key := range keys {
+		c.rawStore.Delete(key)
+	}
+	return len(keys)
+}
+
+func canonicalCacheDomain(domain string) string {
+	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(domain)), ".")
+}

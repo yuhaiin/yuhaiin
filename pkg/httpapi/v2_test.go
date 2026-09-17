@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	json "encoding/json/v2"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
+	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
@@ -54,6 +56,59 @@ func TestV2RoutePatternsUsePostRPCExceptStreams(t *testing.T) {
 		if pattern != expected {
 			t.Fatalf("route %q pattern=%q want=%q", route.endpoint, pattern, expected)
 		}
+	}
+}
+
+type resolverCacheAPIStub struct{}
+
+func (resolverCacheAPIStub) Cache(context.Context) (contractresolver.DNSCacheList, error) {
+	return contractresolver.DNSCacheList{Items: []contractresolver.DNSCacheEntry{{
+		Resolver: "active", Domain: "example.com", QueryType: "A", Rcode: "NOERROR", ExpiresIn: 30,
+	}}}, nil
+}
+
+func (resolverCacheAPIStub) ClearCache(_ context.Context, resolver, domain string) (contractresolver.DNSCacheClearResponse, error) {
+	if resolver == "missing" {
+		return contractresolver.DNSCacheClearResponse{}, contractresolver.ErrDNSCacheNotFound
+	}
+	if strings.Contains(domain, " ") {
+		return contractresolver.DNSCacheClearResponse{}, errors.New("invalid domain")
+	}
+	return contractresolver.DNSCacheClearResponse{Removed: 2}, nil
+}
+
+func TestV2ResolverCacheAPI(t *testing.T) {
+	mux := http.NewServeMux()
+	RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
+		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+			if err := handler(w, r); err != nil {
+				t.Errorf("handler %s: %v", pattern, err)
+			}
+		})
+	}, V2Services{ResolverCache: resolverCacheAPIStub{}})
+
+	listRecorder := httptest.NewRecorder()
+	mux.ServeHTTP(listRecorder, httptest.NewRequest(http.MethodPost, "/api/v2/rpc/resolver.cache.get", strings.NewReader(`{}`)))
+	if listRecorder.Code != http.StatusOK || !strings.Contains(listRecorder.Body.String(), `"domain":"example.com"`) {
+		t.Fatalf("unexpected cache list response: code=%d body=%s", listRecorder.Code, listRecorder.Body.String())
+	}
+
+	clearRecorder := httptest.NewRecorder()
+	mux.ServeHTTP(clearRecorder, httptest.NewRequest(http.MethodPost, "/api/v2/rpc/resolver.cache.delete", strings.NewReader(`{"resolver":"active","domain":"Example.com."}`)))
+	if clearRecorder.Code != http.StatusOK || !strings.Contains(clearRecorder.Body.String(), `"removed":2`) {
+		t.Fatalf("unexpected cache clear response: code=%d body=%s", clearRecorder.Code, clearRecorder.Body.String())
+	}
+
+	invalidRecorder := httptest.NewRecorder()
+	mux.ServeHTTP(invalidRecorder, httptest.NewRequest(http.MethodPost, "/api/v2/rpc/resolver.cache.delete", strings.NewReader(`{"resolver":"active","domain":"not a domain"}`)))
+	if invalidRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid domain status=%d body=%s, want 400", invalidRecorder.Code, invalidRecorder.Body.String())
+	}
+
+	missingRecorder := httptest.NewRecorder()
+	mux.ServeHTTP(missingRecorder, httptest.NewRequest(http.MethodPost, "/api/v2/rpc/resolver.cache.delete", strings.NewReader(`{"resolver":"missing","domain":"example.com"}`)))
+	if missingRecorder.Code != http.StatusNotFound {
+		t.Fatalf("missing resolver status=%d body=%s, want 404", missingRecorder.Code, missingRecorder.Body.String())
 	}
 }
 

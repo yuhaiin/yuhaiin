@@ -237,6 +237,22 @@ func (d *dnsWrap) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 	return msg, nil
 }
 
+func (d *dnsWrap) DNSCacheEntries() []netapi.DNSCacheEntry {
+	provider, ok := d.Resolver.(netapi.DNSCacheProvider)
+	if !ok {
+		return nil
+	}
+	return provider.DNSCacheEntries()
+}
+
+func (d *dnsWrap) ClearDNSCache(domain string) int {
+	provider, ok := d.Resolver.(netapi.DNSCacheProvider)
+	if !ok {
+		return 0
+	}
+	return provider.ClearDNSCache(domain)
+}
+
 func newContractResolver(dc contractresolver.Resolver, dialer netapi.Proxy) (netapi.Resolver, error) {
 	subnet, err := netip.ParsePrefix(dc.Subnet)
 	if err != nil {

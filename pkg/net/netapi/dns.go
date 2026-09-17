@@ -37,6 +37,20 @@ type DNSQuestion struct {
 	Qclass uint16
 }
 
+// DNSCacheEntry is an optional runtime cache record exposed by resolvers that
+// maintain DNS response caching. It deliberately sits beside Resolver so
+// implementations without a cache do not need to change their interface.
+type DNSCacheEntry struct {
+	Question  DNSQuestion
+	Message   *dns.Msg
+	ExpiresIn time.Duration
+}
+
+type DNSCacheProvider interface {
+	DNSCacheEntries() []DNSCacheEntry
+	ClearDNSCache(domain string) int
+}
+
 func DNSQuestionFromRR(rr dns.RR) DNSQuestion {
 	if rr == nil {
 		return DNSQuestion{}
@@ -272,6 +286,24 @@ func (r *DynamicResolver) Raw(ctx context.Context, req DNSQuestion) (*dns.Msg, e
 	return r.getResolver().Raw(ctx, req)
 }
 
+func (r *DynamicResolver) DNSCacheEntries() []DNSCacheEntry {
+	resolver := r.getResolver()
+	provider, ok := resolver.(DNSCacheProvider)
+	if !ok {
+		return nil
+	}
+	return provider.DNSCacheEntries()
+}
+
+func (r *DynamicResolver) ClearDNSCache(domain string) int {
+	resolver := r.getResolver()
+	provider, ok := resolver.(DNSCacheProvider)
+	if !ok {
+		return 0
+	}
+	return provider.ClearDNSCache(domain)
+}
+
 func (r *DynamicResolver) Set(r2 Resolver) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -315,6 +347,28 @@ func (b *bootstrapResolver) Raw(ctx context.Context, req DNSQuestion) (*dns.Msg,
 	}
 
 	return r.Raw(ctx, req)
+}
+
+func (b *bootstrapResolver) DNSCacheEntries() []DNSCacheEntry {
+	b.mu.RLock()
+	r := b.r
+	b.mu.RUnlock()
+	provider, ok := r.(DNSCacheProvider)
+	if !ok {
+		return nil
+	}
+	return provider.DNSCacheEntries()
+}
+
+func (b *bootstrapResolver) ClearDNSCache(domain string) int {
+	b.mu.RLock()
+	r := b.r
+	b.mu.RUnlock()
+	provider, ok := r.(DNSCacheProvider)
+	if !ok {
+		return 0
+	}
+	return provider.ClearDNSCache(domain)
 }
 
 func (b *bootstrapResolver) Name() string {

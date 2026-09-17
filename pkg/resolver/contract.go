@@ -3,6 +3,8 @@ package resolver
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 )
@@ -27,6 +29,30 @@ func (c ContractController) Remove(ctx context.Context, id string) error {
 		return errors.New("resolver controller is unavailable")
 	}
 	return c.resolver.RemoveContract(ctx, id)
+}
+
+func (c ContractController) Cache(context.Context) (contractresolver.DNSCacheList, error) {
+	if c.resolver == nil || c.resolver.r == nil {
+		return contractresolver.DNSCacheList{}, errors.New("resolver cache controller is unavailable")
+	}
+	return c.resolver.r.DNSCache(), nil
+}
+
+func (c ContractController) ClearCache(_ context.Context, resolverID, domain string) (contractresolver.DNSCacheClearResponse, error) {
+	if c.resolver == nil || c.resolver.r == nil {
+		return contractresolver.DNSCacheClearResponse{}, errors.New("resolver cache controller is unavailable")
+	}
+	if strings.TrimSpace(resolverID) == "" {
+		return contractresolver.DNSCacheClearResponse{}, errors.New("resolver is empty")
+	}
+	if err := validateDNSCacheDomain(domain); err != nil {
+		return contractresolver.DNSCacheClearResponse{}, err
+	}
+	removed, err := c.resolver.r.ClearDNSCache(resolverID, domain)
+	if err != nil {
+		return contractresolver.DNSCacheClearResponse{}, fmt.Errorf("clear resolver cache failed: %w", err)
+	}
+	return contractresolver.DNSCacheClearResponse{Removed: removed}, nil
 }
 
 type ContractConfigController struct {

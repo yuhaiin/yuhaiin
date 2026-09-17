@@ -31,6 +31,8 @@ func addResolverRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2ResolverGet, api.resolver)
 	addRPCRoute(handlers, v2ResolverPut, api.saveResolver)
 	addRPCRoute(handlers, v2ResolverDelete, api.deleteResolver)
+	addRPCRoute(handlers, v2ResolverCacheGet, api.resolverCache)
+	addRPCRoute(handlers, v2ResolverCacheDelete, api.clearResolverCache)
 }
 
 func (a v2API) nodes(ctx context.Context, request *listRequest) (*listV2[contractnode.Node], error) {
@@ -195,4 +197,36 @@ func (a v2API) deleteResolver(ctx context.Context, request *idRequest) (*emptyRe
 		}
 	}
 	return &emptyResponse{}, nil
+}
+
+func (a v2API) resolverCache(ctx context.Context, _ *emptyRequest) (*contractresolver.DNSCacheList, error) {
+	if a.services.ResolverCache == nil {
+		return nil, unavailable("resolver cache controller is unavailable")
+	}
+	return pointer(a.services.ResolverCache.Cache(ctx))
+}
+
+type resolverCacheDeleteRequest struct {
+	Resolver string `json:"resolver"`
+	Domain   string `json:"domain"`
+}
+
+func (a v2API) clearResolverCache(ctx context.Context, request *resolverCacheDeleteRequest) (*contractresolver.DNSCacheClearResponse, error) {
+	if a.services.ResolverCache == nil {
+		return nil, unavailable("resolver cache controller is unavailable")
+	}
+	if strings.TrimSpace(request.Resolver) == "" {
+		return nil, badRequest(errors.New("resolver is empty"))
+	}
+	if strings.TrimSpace(request.Domain) == "" {
+		return nil, badRequest(errors.New("domain is empty"))
+	}
+	value, err := a.services.ResolverCache.ClearCache(ctx, request.Resolver, request.Domain)
+	if errors.Is(err, contractresolver.ErrDNSCacheNotFound) {
+		return nil, notFound(err)
+	}
+	if err != nil {
+		return nil, badRequest(err)
+	}
+	return &value, nil
 }

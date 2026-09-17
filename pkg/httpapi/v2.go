@@ -61,6 +61,10 @@ type ResolverController interface {
 	Save(context.Context, contractresolver.Resolver) (contractresolver.Resolver, error)
 	Remove(context.Context, string) error
 }
+type ResolverCacheController interface {
+	Cache(context.Context) (contractresolver.DNSCacheList, error)
+	ClearCache(context.Context, string, string) (contractresolver.DNSCacheClearResponse, error)
+}
 type NodeController interface {
 	Selected(context.Context) (contractnode.Selection, error)
 	Active(context.Context) ([]contractnode.Node, error)
@@ -105,6 +109,7 @@ type V2Services struct {
 	Subscriptions  *plainstore.SubscriptionStore
 	Resolvers      *plainstore.ResolverStore
 	Resolver       ResolverController
+	ResolverCache  ResolverCacheController
 	ResolverConfig ResolverConfigController
 	Connections    ConnectionMonitor
 	Tools          ToolsController

@@ -37,19 +37,20 @@ import (
 )
 
 type AppInstance struct {
-	Node        httpapi.NodeController
-	NodeRuntime *node.NodeRuntime
-	Tools       httpapi.ToolsController
-	Subscribe   httpapi.SubscriptionController
-	Connections httpapi.ConnectionMonitor
-	Resolver    httpapi.ResolverController
-	ResolverCfg httpapi.ResolverConfigController
-	Lists       httpapi.ListRuntimeController
-	Rules       httpapi.RouteRuntimeController
-	Backup      httpapi.BackupController
-	Setting     httpapi.SettingsController
-	Inbound     *inbound.Inbound
-	Mux         *http.ServeMux
+	Node          httpapi.NodeController
+	NodeRuntime   *node.NodeRuntime
+	Tools         httpapi.ToolsController
+	Subscribe     httpapi.SubscriptionController
+	Connections   httpapi.ConnectionMonitor
+	Resolver      httpapi.ResolverController
+	ResolverCache httpapi.ResolverCacheController
+	ResolverCfg   httpapi.ResolverConfigController
+	Lists         httpapi.ListRuntimeController
+	Rules         httpapi.RouteRuntimeController
+	Backup        httpapi.BackupController
+	Setting       httpapi.SettingsController
+	Inbound       *inbound.Inbound
+	Mux           *http.ServeMux
 	*StartOptions
 	closers *closers
 }
@@ -162,6 +163,7 @@ func registerV2HTTP(app *AppInstance) {
 		Subscriptions:  subscriptionStore,
 		Resolvers:      resolverStore,
 		Resolver:       app.Resolver,
+		ResolverCache:  app.ResolverCache,
 		ResolverConfig: resolverConfig,
 		Connections:    app.Connections,
 		Tools:          app.Tools,
