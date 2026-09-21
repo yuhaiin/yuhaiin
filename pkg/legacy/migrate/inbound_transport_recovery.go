@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
@@ -187,12 +188,12 @@ func recoverLegacyTransports(current []contract.Transport, raw []map[string]json
 
 	insertBefore := make(map[int][]contract.Transport)
 	nextCurrent := len(current)
-	for index := len(expected) - 1; index >= 0; index-- {
-		if expected[index].matched {
-			nextCurrent = expected[index].currentAt
+	for _, e := range slices.Backward(expected) {
+		if e.matched {
+			nextCurrent = e.currentAt
 			continue
 		}
-		insertBefore[nextCurrent] = append([]contract.Transport{expected[index].transport}, insertBefore[nextCurrent]...)
+		insertBefore[nextCurrent] = append([]contract.Transport{e.transport}, insertBefore[nextCurrent]...)
 	}
 
 	recovered := make([]contract.Transport, 0, len(current)+len(expected)-len(matchedExpected))
@@ -214,9 +215,9 @@ func matchTransportSequence(expected, current []string) map[int]int {
 	for i := range dp {
 		dp[i] = make([]int, cols)
 	}
-	for i := len(expected) - 1; i >= 0; i-- {
+	for i, e := range slices.Backward(expected) {
 		for j := len(current) - 1; j >= 0; j-- {
-			if expected[i] == current[j] {
+			if e == current[j] {
 				dp[i][j] = dp[i+1][j+1] + 1
 				continue
 			}
