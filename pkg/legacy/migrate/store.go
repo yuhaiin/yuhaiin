@@ -19,6 +19,13 @@ func MigrateLegacyInbounds(ctx context.Context, db *sql.DB, updatedAt int64) ([]
 	if db == nil {
 		return nil, errors.New("database is nil")
 	}
+	done, err := loadMigrationMarker(ctx, db, "plain_inbounds_migration_done")
+	if err != nil {
+		return nil, err
+	}
+	if done == "1" {
+		return nil, nil
+	}
 	if updatedAt == 0 {
 		updatedAt = time.Now().Unix()
 	}
@@ -89,18 +96,10 @@ func MigrateLegacyNodes(ctx context.Context, db *sql.DB, updatedAt int64) error 
 		return err
 	}
 	if done == "1" {
-		legacyCount, contractCount, err := migrationCounts(ctx, db, "nodes", "nodes_v2")
-		if err != nil {
-			return err
-		}
-		// After the initial migration, nodes_v2 is authoritative. Manual and
-		// remote nodes are written only to nodes_v2, so a count mismatch is
-		// expected and must not trigger a destructive rebuild from the legacy
-		// table. Keep the empty-contract recovery for interrupted migrations.
-		if legacyCount == 0 || contractCount > 0 {
-			return syncLegacySelectedNodes(ctx, db)
-		}
-		fmt.Printf("plain node migration warning: legacy nodes=%d, nodes_v2=%d; rebuilding node contracts\n", legacyCount, contractCount)
+		// After the marker is committed, nodes_v2 is authoritative. In
+		// particular, an empty v2 table can be the result of a user deleting the
+		// last node and must not resurrect the legacy rows on the next restart.
+		return syncLegacySelectedNodes(ctx, db)
 	}
 	if updatedAt == 0 {
 		updatedAt = time.Now().Unix()
@@ -253,18 +252,10 @@ func MigrateLegacyRouteRules(ctx context.Context, db *sql.DB, updatedAt int64) e
 		return err
 	}
 	if done == "1" {
-		legacyCount, contractCount, err := migrationCounts(ctx, db, "route_rules", "route_rules_v2")
-		if err != nil {
-			return err
-		}
-		// route_rules_v2 is the canonical store after the first migration. A
-		// different count normally means the user added or removed a v2 rule,
-		// not that the migration needs to rebuild it from the legacy table.
-		// Only recover when the v2 table is still empty.
-		if legacyCount == 0 || contractCount > 0 {
-			return nil
-		}
-		fmt.Printf("plain route rule migration warning: legacy route_rules=%d, route_rules_v2=%d; rebuilding rule contracts\n", legacyCount, contractCount)
+		// route_rules_v2 is the canonical store after the marker is committed.
+		// A zero-row v2 table is valid after the user removes the last rule; do
+		// not rebuild it from the stale legacy table.
+		return nil
 	}
 	if updatedAt == 0 {
 		updatedAt = time.Now().Unix()
@@ -299,7 +290,10 @@ func MigrateLegacyRouteRules(ctx context.Context, db *sql.DB, updatedAt int64) e
 		if err := json.Unmarshal([]byte(dataJSON), &old); err != nil {
 			return fmt.Errorf("decode legacy route rule %q failed: %w", name, err)
 		}
-		rule := ConvertLegacyRule(&old)
+		rule, warnings := convertLegacyRuleWithWarnings(&old)
+		for _, warning := range warnings {
+			fmt.Printf("plain route rule migration warning: %s: %s\n", warning.Entity, warning.Message)
+		}
 		if rule.Name == "" {
 			rule.Name = name
 		}
@@ -314,9 +308,6 @@ func MigrateLegacyRouteRules(ctx context.Context, db *sql.DB, updatedAt int64) e
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("iterate legacy route rules failed: %w", err)
-	}
-	if err := renumberRouteRules(ctx, tx); err != nil {
-		return err
 	}
 	if err := markMigrationDone(ctx, tx, "plain_route_rules_migration_done"); err != nil {
 		return fmt.Errorf("mark route rule migration done failed: %w", err)
@@ -546,16 +537,6 @@ func loadMigrationMarker(ctx context.Context, db *sql.DB, key string) (string, e
 	return value, nil
 }
 
-func migrationCounts(ctx context.Context, db *sql.DB, legacyTable, contractTable string) (legacyCount int, contractCount int, err error) {
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+legacyTable).Scan(&legacyCount); err != nil {
-		return 0, 0, fmt.Errorf("count legacy table %s failed: %w", legacyTable, err)
-	}
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+contractTable).Scan(&contractCount); err != nil {
-		return 0, 0, fmt.Errorf("count contract table %s failed: %w", contractTable, err)
-	}
-	return legacyCount, contractCount, nil
-}
-
 func markMigrationDone(ctx context.Context, execer interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }, key string) error {
@@ -565,38 +546,4 @@ func markMigrationDone(ctx context.Context, execer interface {
 		ON CONFLICT(key) DO UPDATE SET value = excluded.value
 	`, key)
 	return err
-}
-
-func renumberRouteRules(ctx context.Context, tx *sql.Tx) error {
-	rows, err := tx.QueryContext(ctx, `
-		SELECT name
-		FROM route_rules_v2
-		ORDER BY priority, name
-	`)
-	if err != nil {
-		return fmt.Errorf("query route rules for renumber failed: %w", err)
-	}
-	defer rows.Close()
-	var names []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return fmt.Errorf("scan route rule for renumber failed: %w", err)
-		}
-		names = append(names, name)
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate route rules for renumber failed: %w", err)
-	}
-	for i, name := range names {
-		if _, err := tx.ExecContext(ctx, `UPDATE route_rules_v2 SET priority = ? WHERE name = ?`, -(i + 1), name); err != nil {
-			return fmt.Errorf("stage route rule %q priority failed: %w", name, err)
-		}
-	}
-	for i, name := range names {
-		if _, err := tx.ExecContext(ctx, `UPDATE route_rules_v2 SET priority = ? WHERE name = ?`, i+1, name); err != nil {
-			return fmt.Errorf("update route rule %q priority failed: %w", name, err)
-		}
-	}
-	return nil
 }

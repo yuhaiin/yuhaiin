@@ -42,18 +42,32 @@ func RecoverLegacyNodeChains(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("query legacy nodes for chain recovery: %w", err)
 	}
-	type legacyNode struct {
-		id   string
-		data string
+	type recoveryNode struct {
+		id       string
+		expected contractnode.Node
 	}
-	var legacyNodes []legacyNode
+	var recoveryNodes []recoveryNode
 	for rows.Next() {
-		var item legacyNode
-		if err := rows.Scan(&item.id, &item.data); err != nil {
+		var id, data string
+		if err := rows.Scan(&id, &data); err != nil {
 			_ = rows.Close()
 			return fmt.Errorf("scan legacy node for chain recovery: %w", err)
 		}
-		legacyNodes = append(legacyNodes, item)
+		var legacy legacynode.Point
+		if err := json.Unmarshal([]byte(data), &legacy); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("decode legacy node %q for chain recovery: %w", id, err)
+		}
+		if !hasPartialLegacyNetworkSplit(&legacy) {
+			continue
+		}
+
+		expected, _, err := ConvertLegacyNode(&legacy)
+		if err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("convert legacy node %q for chain recovery: %w", id, err)
+		}
+		recoveryNodes = append(recoveryNodes, recoveryNode{id: id, expected: expected})
 	}
 	if err := rows.Close(); err != nil {
 		return fmt.Errorf("close legacy node rows for chain recovery: %w", err)
@@ -62,19 +76,7 @@ func RecoverLegacyNodeChains(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("iterate legacy nodes for chain recovery: %w", err)
 	}
 
-	for _, item := range legacyNodes {
-		var legacy legacynode.Point
-		if err := json.Unmarshal([]byte(item.data), &legacy); err != nil {
-			return fmt.Errorf("decode legacy node %q for chain recovery: %w", item.id, err)
-		}
-		if !hasPartialLegacyNetworkSplit(&legacy) {
-			continue
-		}
-
-		expected, _, err := ConvertLegacyNode(&legacy)
-		if err != nil {
-			return fmt.Errorf("convert legacy node %q for chain recovery: %w", item.id, err)
-		}
+	for _, item := range recoveryNodes {
 		var dataJSON string
 		var updatedAt int64
 		err = tx.QueryRowContext(ctx, `SELECT data_json, updated_at FROM nodes_v2 WHERE id = ?`, item.id).Scan(&dataJSON, &updatedAt)
@@ -92,7 +94,7 @@ func RecoverLegacyNodeChains(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("validate node contract %q for chain recovery: %w", item.id, err)
 		}
 
-		recovered, changed := recoverPartialNetworkSplits(current.Chain, expected.Chain)
+		recovered, changed := recoverPartialNetworkSplits(current.Chain, item.expected.Chain)
 		if !changed {
 			continue
 		}
@@ -129,18 +131,63 @@ func hasPartialLegacyNetworkSplit(point *legacynode.Point) bool {
 }
 
 func recoverPartialNetworkSplits(current, expected []contractnode.Protocol) ([]contractnode.Protocol, bool) {
-	recovered := make([]contractnode.Protocol, 0, len(current)+1)
-	currentIndex := 0
-	for _, protocol := range expected {
-		if currentIndex < len(current) && current[currentIndex].Type == protocol.Type {
-			recovered = append(recovered, current[currentIndex])
-			currentIndex++
-			continue
-		}
-		if protocol.Type == "network_split" && protocol.NetworkSplit != nil && (protocol.NetworkSplit.TCP == nil) != (protocol.NetworkSplit.UDP == nil) {
-			recovered = append(recovered, protocol)
+	recovered := append([]contractnode.Protocol(nil), current...)
+	splitCount := 0
+	for _, protocol := range current {
+		if protocol.Type == "network_split" {
+			splitCount++
 		}
 	}
-	recovered = append(recovered, current[currentIndex:]...)
+
+	seenExpected := 0
+	for index, protocol := range expected {
+		if !isPartialNetworkSplit(protocol) {
+			continue
+		}
+		seenExpected++
+		if splitCount >= seenExpected {
+			continue
+		}
+
+		// Insert before the next expected step that is already present. This
+		// preserves the complete v2 sequence, including steps that the legacy
+		// conversion did not know about, instead of aligning by raw indexes.
+		insertAt := len(recovered)
+		for _, next := range expected[index+1:] {
+			if isPartialNetworkSplit(next) {
+				continue
+			}
+			if position := findProtocolType(recovered, next.Type); position >= 0 {
+				insertAt = position
+				break
+			}
+		}
+		recovered = insertProtocol(recovered, insertAt, protocol)
+		splitCount++
+	}
 	return recovered, !reflect.DeepEqual(current, recovered)
+}
+
+func isPartialNetworkSplit(protocol contractnode.Protocol) bool {
+	return protocol.Type == "network_split" && protocol.NetworkSplit != nil &&
+		(protocol.NetworkSplit.TCP == nil) != (protocol.NetworkSplit.UDP == nil)
+}
+
+func findProtocolType(protocols []contractnode.Protocol, typ string) int {
+	for index, protocol := range protocols {
+		if protocol.Type == typ {
+			return index
+		}
+	}
+	return -1
+}
+
+func insertProtocol(protocols []contractnode.Protocol, index int, protocol contractnode.Protocol) []contractnode.Protocol {
+	if index < 0 || index > len(protocols) {
+		index = len(protocols)
+	}
+	protocols = append(protocols, contractnode.Protocol{})
+	copy(protocols[index+1:], protocols[index:])
+	protocols[index] = protocol
+	return protocols
 }

@@ -367,6 +367,57 @@ func TestSQLiteTotalCacheImportsLegacyFlowData(t *testing.T) {
 	}
 }
 
+func TestSQLiteTotalCacheImportsOnlyMissingLegacyFlowCounter(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	path := paths.PathGenerator.State(t.TempDir())
+	legacy := memory.NewMemoryCache().NewCache("flow_data")
+	if err := legacy.Put([]byte("DOWNLOAD"), binary.BigEndian.AppendUint64(nil, 987)); err != nil {
+		t.Fatalf("seed legacy download failed: %v", err)
+	}
+	if err := legacy.Put([]byte("UPLOAD"), binary.BigEndian.AppendUint64(nil, 654)); err != nil {
+		t.Fatalf("seed legacy upload failed: %v", err)
+	}
+
+	store, err := storagesqlite.Open(ctx, path)
+	if err != nil {
+		t.Fatalf("open sqlite failed: %v", err)
+	}
+	defer store.Close()
+	if _, err := store.DB().ExecContext(ctx, `
+		INSERT INTO statistics_kv(key, value_int, updated_at)
+		VALUES ('total_download', 111, 1)
+	`); err != nil {
+		t.Fatalf("seed sqlite download failed: %v", err)
+	}
+
+	if err := legacymigrate.MigrateLegacyTotalFlow(ctx, store.DB(), legacy); err != nil {
+		t.Fatalf("import legacy total flow failed: %v", err)
+	}
+
+	var download, upload uint64
+	if err := store.DB().QueryRowContext(ctx, `SELECT value_int FROM statistics_kv WHERE key = 'total_download'`).Scan(&download); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DB().QueryRowContext(ctx, `SELECT value_int FROM statistics_kv WHERE key = 'total_upload'`).Scan(&upload); err != nil {
+		t.Fatal(err)
+	}
+	if download != 111 || upload != 654 {
+		t.Fatalf("unexpected merged totals download=%d upload=%d", download, upload)
+	}
+
+	var source string
+	if err := store.DB().QueryRowContext(ctx, `
+		SELECT value FROM metadata WHERE key = 'legacy_total_flow_import_source'
+	`).Scan(&source); err != nil {
+		t.Fatal(err)
+	}
+	if source != "mixed" {
+		t.Fatalf("unexpected mixed import source %q", source)
+	}
+}
+
 func TestSQLiteConnectionSessionsAreRuntimeOnly(t *testing.T) {
 	ctx := context.Background()
 	path := paths.PathGenerator.State(t.TempDir())

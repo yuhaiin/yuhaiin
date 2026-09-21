@@ -193,6 +193,7 @@ type Lists struct {
 	hostTrieRefreshMu      sync.Mutex
 	hostTrieRefreshAt      atomic.Int64
 	hostTrieRefreshVersion atomic.Uint64
+	hostListMu             sync.RWMutex
 
 	processTrie *processMatcher
 
@@ -250,8 +251,6 @@ func NewLists(lists RouteListBook, settings RouteListSettingsBook, configPath st
 	}
 	l.hostTrieDisk.Store(listConfig.HostIndexDisk)
 
-	l.hostTrieRefreshTimer = time.AfterFunc(time.Second, l.refreshHostTrieAndMarkApplied)
-
 	l.resetRefreshInterval(listConfig.RefreshInterval)
 
 	return l
@@ -261,7 +260,11 @@ func (s *Lists) notifyRefreshHostTrie() {
 	s.hostTrieRefreshVersion.Add(1)
 	s.hostTrieRefreshAt.Store(time.Now().Add(time.Minute).UnixMilli())
 	s.hostTrieRefreshTimerMu.Lock()
-	s.hostTrieRefreshTimer.Reset(time.Minute)
+	if s.hostTrieRefreshTimer == nil {
+		s.hostTrieRefreshTimer = time.AfterFunc(time.Minute, s.refreshHostTrieAndMarkApplied)
+	} else {
+		s.hostTrieRefreshTimer.Reset(time.Minute)
+	}
 	s.hostTrieRefreshTimerMu.Unlock()
 }
 
@@ -419,6 +422,16 @@ func (s *Lists) refreshGeoip(ctx context.Context, download string, force bool) s
 }
 
 func (s *Lists) Close() error {
+	s.hostTrieRefreshMu.Lock()
+	defer s.hostTrieRefreshMu.Unlock()
+
+	s.hostTrieRefreshTimerMu.Lock()
+	if s.hostTrieRefreshTimer != nil {
+		s.hostTrieRefreshTimer.Stop()
+		s.hostTrieRefreshTimer = nil
+	}
+	s.hostTrieRefreshTimerMu.Unlock()
+
 	s.tickermu.Lock()
 	if s.ticker != nil {
 		s.ticker.Stop()
@@ -604,6 +617,13 @@ func (s *Lists) getIter(name string) (contractroute.RouteListDetail, iter.Seq[st
 }
 
 func (s *Lists) refreshHostTrie() {
+	// Matchers.Update replaces the set of registered host lists while it
+	// rebuilds the matcher. Keep the registry stable for the whole rebuild;
+	// taking only a snapshot would allow the startup refresh timer to swap in
+	// an index built from the old (or temporarily empty) registry.
+	s.hostListMu.RLock()
+	defer s.hostListMu.RUnlock()
+
 	hostTrie := newHostTrie(configuration.DataDir.Load(), s.hostTrieDisk.Load())
 	for name := range s.hostTrie.lists.Range {
 		_, iter, err := s.getIter(name)
@@ -636,12 +656,24 @@ func (s *Lists) SetHostTrie(hostTrie *hostMatcher) {
 }
 
 func (s *Lists) ResetHostTrie() {
+	s.hostListMu.Lock()
+	defer s.hostListMu.Unlock()
+	s.resetHostTrieLocked()
+}
+
+func (s *Lists) resetHostTrieLocked() {
 	s.hostTrieMu.Lock()
 	s.hostTrie.Clear()
 	s.hostTrieMu.Unlock()
 }
 
 func (s *Lists) AddNewHostList(name string) {
+	s.hostListMu.Lock()
+	defer s.hostListMu.Unlock()
+	s.addNewHostListLocked(name)
+}
+
+func (s *Lists) addNewHostListLocked(name string) {
 	rules, iter, err := s.getIter(name)
 	if err != nil {
 		log.Warn("get list failed", "list", name, "err", err)
@@ -656,6 +688,19 @@ func (s *Lists) AddNewHostList(name string) {
 	defer s.hostTrieMu.Unlock()
 
 	s.hostTrie.Add(iter, name)
+}
+
+func (s *Lists) updateHostLists(fn func()) {
+	s.hostListMu.Lock()
+	defer s.hostListMu.Unlock()
+	s.resetHostTrieLocked()
+	fn()
+}
+
+func (s *Lists) withHostListLock(fn func()) {
+	s.hostListMu.Lock()
+	defer s.hostListMu.Unlock()
+	fn()
 }
 
 func (s *Lists) refreshProcessTrie() {

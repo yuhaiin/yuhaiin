@@ -32,16 +32,14 @@ func Compact(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-// CompactIfNeeded checkpoints the WAL and compacts the database only when the
-// amount of reusable space is large enough to justify rewriting the file.
+// CompactIfNeeded compacts the database only when the amount of reusable space
+// is large enough to justify rewriting the file. Checkpointing is deferred
+// until after that cheap fragmentation check so ordinary startups do not pay a
+// full WAL checkpoint just to discover that no VACUUM is needed.
 // The bool reports whether VACUUM was executed.
 func CompactIfNeeded(ctx context.Context, db *sql.DB) (bool, error) {
 	if db == nil {
 		return false, errors.New("sqlite database is nil")
-	}
-
-	if err := checkpoint(ctx, db, "before conditional compact"); err != nil {
-		return false, err
 	}
 
 	var pageCount, pageSize, freePages int64
@@ -68,6 +66,9 @@ func CompactIfNeeded(ctx context.Context, db *sql.DB) (bool, error) {
 		return false, nil
 	}
 
+	if err := checkpoint(ctx, db, "before conditional compact"); err != nil {
+		return false, err
+	}
 	if _, err := db.ExecContext(ctx, "VACUUM"); err != nil {
 		return false, fmt.Errorf("vacuum sqlite database conditionally failed: %w", err)
 	}

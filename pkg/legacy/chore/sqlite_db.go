@@ -405,8 +405,10 @@ func (c *SqliteDB) repairLegacyAndroidProtobufConfig(ctx context.Context, db *sq
 		return err
 	}
 	path := filepath.Join(c.Dir(), "yuhaiin_memory_config_store.json")
-	if !fileExists(path) {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return updateMetadata(ctx, db, map[string]string{legacyAndroidProtobufRepairDoneKey: "1"})
+	} else if err != nil {
+		return fmt.Errorf("stat legacy Android config store %q failed: %w", path, err)
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -502,9 +504,11 @@ func (c *SqliteDB) loadLegacyConfig() (*config.Setting, string, error) {
 	sources := []string{"defaults"}
 
 	configPath := paths.PathGenerator.Config(dir)
-	if fileExists(configPath) {
-		setting = jsondb.Open(configPath, config.DefaultSetting(dir)).Data
+	if imported, err := jsondb.OpenStrict(configPath, config.DefaultSetting(dir)); err == nil {
+		setting = imported.Data
 		sources = append(sources, "config.json")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, "", fmt.Errorf("open legacy config %q failed: %w", configPath, err)
 	}
 
 	if ok, err := applyLegacyAndroidConfigStore(filepath.Join(dir, "yuhaiin_memory_config_store.json"), setting, dir); err != nil {
@@ -1304,6 +1308,16 @@ func hasConfigState(ctx context.Context, db *sql.DB) (bool, error) {
 		"route_rules",
 		"route_lists",
 		"backup_settings",
+		// The plain tables are also configuration state. This matters when a
+		// previous startup committed the v2 rows but was interrupted before the
+		// legacy config marker was written; importing defaults at that point
+		// would overwrite the already migrated state.
+		"inbounds_v2",
+		"nodes_v2",
+		"resolvers_v2",
+		"route_rules_v2",
+		"route_lists_v2",
+		"node_tags_v2",
 	} {
 		var count int
 		if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
@@ -2185,11 +2199,10 @@ type legacyAndroidMemoryStore struct {
 }
 
 func loadLegacyAndroidMemoryStore(path string) (*legacyAndroidMemoryStore, bool, error) {
-	if !fileExists(path) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
 		return nil, false, nil
 	}
-
-	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, false, fmt.Errorf("read legacy android store %q failed: %w", path, err)
 	}
@@ -2462,9 +2475,4 @@ func boolToInt(value bool) int {
 		return 1
 	}
 	return 0
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }

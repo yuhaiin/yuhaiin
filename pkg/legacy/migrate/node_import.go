@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	json "encoding/json/v2"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,9 +45,11 @@ func ImportLegacyNodesFromJSON(ctx context.Context, db *sql.DB, dir string, upda
 	data := defaultLegacyNodeData()
 	source := "defaults"
 	nodePath := paths.PathGenerator.Node(dir)
-	if fileExists(nodePath) {
-		data = jsondb.Open(nodePath, defaultLegacyNodeData()).Data
+	if imported, err := jsondb.OpenStrict(nodePath, defaultLegacyNodeData()); err == nil {
+		data = imported.Data
 		source = filepath.Base(nodePath)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("open legacy node json %q failed: %w", nodePath, err)
 	}
 	normalizeLegacyNodeData(data)
 
@@ -285,9 +288,4 @@ func boolToInt(value bool) int {
 		return 1
 	}
 	return 0
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }

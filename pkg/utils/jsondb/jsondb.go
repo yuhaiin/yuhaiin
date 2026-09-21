@@ -44,6 +44,25 @@ func Open[T any](path string, defaultValue T) *DB[T] {
 	}
 }
 
+// OpenStrict opens a JSON database without hiding read or decode failures.
+// Callers that are performing a migration need to distinguish a missing
+// legacy file from a damaged or inaccessible one; silently falling back to
+// defaults can otherwise overwrite the user's configuration.
+func OpenStrict[T any](path string, defaultValue T) (*DB[T], error) {
+	val := clone(defaultValue)
+
+	bs, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(bs, val); err != nil {
+		return nil, err
+	}
+
+	MergeDefault(val, defaultValue)
+	return &DB[T]{Data: val, path: path}, nil
+}
+
 func MergeDefault(src, def any) {
 	mergeDefaultValue(reflect.ValueOf(src), reflect.ValueOf(def))
 }

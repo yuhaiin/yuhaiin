@@ -133,7 +133,7 @@ func TestRecoverLegacyInboundTransportsFromConfig(t *testing.T) {
 	assertMarker(t, ctx, sqliteStore, inboundTransportRecoveryDoneKey)
 }
 
-func TestMigrateLegacyNodesBackfillsWhenMarkerDoneButContractsEmpty(t *testing.T) {
+func TestMigrateLegacyNodesDoesNotResurrectWhenMarkerDoneButContractsEmpty(t *testing.T) {
 	ctx := context.Background()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
@@ -167,15 +167,13 @@ func TestMigrateLegacyNodesBackfillsWhenMarkerDoneButContractsEmpty(t *testing.T
 	if err := MigrateLegacyNodes(ctx, sqliteStore.DB(), 200); err != nil {
 		t.Fatal(err)
 	}
-	got, err := plainstore.NewNodeStore(sqliteStore.DB()).Get(ctx, "hash-1")
+	got, err := plainstore.NewNodeStore(sqliteStore.DB()).List(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ID != "hash-1" || got.Name != "alpha" || len(got.Chain) != 1 || got.Chain[0].Type != "direct" {
-		t.Fatalf("migrated node = %+v", got)
+	if len(got) != 0 {
+		t.Fatalf("legacy node was resurrected after completed migration: %+v", got)
 	}
-	assertMetadataValue(t, ctx, sqliteStore, "selected_tcp_node_v2", "hash-1")
-	assertMetadataValue(t, ctx, sqliteStore, "selected_udp_node_v2", "hash-1")
 }
 
 func TestMigrateLegacyNodesPreservesManualContractAfterMigration(t *testing.T) {
@@ -485,6 +483,46 @@ func TestMigrateLegacyRouteRulesPreservesManualContractAfterMigration(t *testing
 	}
 	if got.Rule.Mode != "direct" || got.Rule.Tag != "direct" {
 		t.Fatalf("manual route rule after restart migration = %+v", got.Rule)
+	}
+}
+
+func TestMigrateLegacyRouteRulesDoesNotResurrectWhenMarkerDoneButContractsEmpty(t *testing.T) {
+	ctx := context.Background()
+	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sqliteStore.Close() }()
+
+	legacyRule := legacyconfig.Rulev2_builder{
+		Name: new("legacy"),
+		Mode: legacyconfig.Mode_bypass.Enum(),
+	}.Build()
+	legacyJSON, err := json.Marshal(legacyRule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sqliteStore.DB().ExecContext(ctx, `
+		INSERT INTO route_rules(name, priority, disabled, updated_at, data_json)
+		VALUES ('legacy', 1, 0, 100, ?)
+	`, string(legacyJSON)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sqliteStore.DB().ExecContext(ctx, `
+		INSERT INTO metadata(key, value) VALUES ('plain_route_rules_migration_done', '1')
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := MigrateLegacyRouteRules(ctx, sqliteStore.DB(), 200); err != nil {
+		t.Fatal(err)
+	}
+	got, err := plainstore.NewRouteRuleStore(sqliteStore.DB()).ListRules(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("legacy route rule was resurrected after completed migration: %+v", got)
 	}
 }
 

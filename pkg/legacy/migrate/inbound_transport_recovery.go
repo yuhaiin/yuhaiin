@@ -135,8 +135,14 @@ func recoverLegacyTransports(current []contract.Transport, raw []map[string]json
 		return current, false, nil
 	}
 
-	recovered := make([]contract.Transport, 0, len(raw)+len(current))
-	currentIndex := 0
+	type expectedTransport struct {
+		transport contract.Transport
+		typ       string
+		matched   bool
+		currentAt int
+	}
+
+	var expected []expectedTransport
 	for index, rawTransport := range raw {
 		typ := legacyTransportType(rawTransport)
 		if typ == "grpc" {
@@ -159,15 +165,79 @@ func recoverLegacyTransports(current []contract.Transport, raw []map[string]json
 		if err != nil {
 			return nil, false, fmt.Errorf("convert transport[%d] %q: %w", index, typ, err)
 		}
-		if currentIndex < len(current) && current[currentIndex].Type == typ {
-			recovered = append(recovered, current[currentIndex])
-			currentIndex++
+		expected = append(expected, expectedTransport{transport: transport, typ: transport.Type, currentAt: -1})
+	}
+
+	// Match the current contract against the legacy sequence using a longest
+	// common subsequence. The current contract is authoritative: only legacy
+	// entries that are not represented in it are restored.
+	currentTypes := make([]string, len(current))
+	for index, transport := range current {
+		currentTypes[index] = transport.Type
+	}
+	expectedTypes := make([]string, len(expected))
+	for index, transport := range expected {
+		expectedTypes[index] = transport.typ
+	}
+	matchedExpected := matchTransportSequence(expectedTypes, currentTypes)
+	for expectedIndex, currentIndex := range matchedExpected {
+		expected[expectedIndex].matched = true
+		expected[expectedIndex].currentAt = currentIndex
+	}
+
+	insertBefore := make(map[int][]contract.Transport)
+	nextCurrent := len(current)
+	for index := len(expected) - 1; index >= 0; index-- {
+		if expected[index].matched {
+			nextCurrent = expected[index].currentAt
 			continue
 		}
-		recovered = append(recovered, transport)
+		insertBefore[nextCurrent] = append([]contract.Transport{expected[index].transport}, insertBefore[nextCurrent]...)
 	}
-	recovered = append(recovered, current[currentIndex:]...)
+
+	recovered := make([]contract.Transport, 0, len(current)+len(expected)-len(matchedExpected))
+	for index := 0; index <= len(current); index++ {
+		recovered = append(recovered, insertBefore[index]...)
+		if index < len(current) {
+			recovered = append(recovered, current[index])
+		}
+	}
 	return recovered, !reflect.DeepEqual(current, recovered), nil
+}
+
+// matchTransportSequence returns the current index matched by each expected
+// index. Unmatched expected entries are restored around these anchors.
+func matchTransportSequence(expected, current []string) map[int]int {
+	rows := len(expected) + 1
+	cols := len(current) + 1
+	dp := make([][]int, rows)
+	for i := range dp {
+		dp[i] = make([]int, cols)
+	}
+	for i := len(expected) - 1; i >= 0; i-- {
+		for j := len(current) - 1; j >= 0; j-- {
+			if expected[i] == current[j] {
+				dp[i][j] = dp[i+1][j+1] + 1
+				continue
+			}
+			dp[i][j] = max(dp[i+1][j], dp[i][j+1])
+		}
+	}
+
+	matched := make(map[int]int, dp[0][0])
+	for i, j := 0, 0; i < len(expected) && j < len(current); {
+		switch {
+		case expected[i] == current[j]:
+			matched[i] = j
+			i++
+			j++
+		case dp[i+1][j] >= dp[i][j+1]:
+			i++
+		default:
+			j++
+		}
+	}
+	return matched
 }
 
 func legacyTransportType(raw map[string]jsontext.Value) string {

@@ -84,8 +84,10 @@ func (s *StateDB) Migrate(ctx context.Context) error {
 		return fmt.Errorf("mark plain model migration done failed: %w", err)
 	}
 	if plainMigrationDone != "1" {
-		if err := storagesqlite.Compact(ctx, db); err != nil {
+		if compacted, err := storagesqlite.CompactIfNeeded(ctx, db); err != nil {
 			log.Warn("vacuum migrated state failed", "err", err)
+		} else if compacted {
+			log.Info("vacuum migrated state database")
 		}
 	} else if err := vacuumStateOnStartup(ctx, db); err != nil {
 		log.Warn("vacuum state on startup failed", "err", err)
@@ -167,7 +169,7 @@ func (s *StateDB) backupIfNeeded(ctx context.Context) error {
 		return nil
 	}
 
-	backupPath := filepath.Join(filepath.Dir(s.path), fmt.Sprintf("%s.plain-migration-%d.bak", filepath.Base(s.path), time.Now().Unix()))
+	backupPath := filepath.Join(filepath.Dir(s.path), fmt.Sprintf("%s.plain-migration-%d.bak", filepath.Base(s.path), time.Now().UnixNano()))
 	if _, err := store.DB().ExecContext(ctx, "VACUUM INTO '"+sqliteStringLiteral(backupPath)+"'"); err != nil {
 		return fmt.Errorf("backup state db before plain migration failed: %w", err)
 	}

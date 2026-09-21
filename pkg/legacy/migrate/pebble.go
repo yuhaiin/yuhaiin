@@ -69,50 +69,66 @@ func MigrateLegacyTotalFlow(ctx context.Context, db *sql.DB, legacy cache.Geter)
 		return err
 	}
 
-	download, upload, err := sqliteTotals(ctx, db)
+	sqliteValues, err := sqliteTotals(ctx, db)
 	if err != nil {
 		return err
 	}
-	if download != 0 || upload != 0 {
-		return setLegacyMetadata(ctx, db, map[string]string{
-			"legacy_total_flow_import_done":   "1",
-			"legacy_total_flow_import_source": "existing_sqlite",
-		})
+
+	legacyValues := map[string]legacyFlowTotal{}
+	for _, item := range []struct {
+		name string
+		key  []byte
+	}{
+		{name: "total_download", key: legacyDownloadKey},
+		{name: "total_upload", key: legacyUploadKey},
+	} {
+		if sqliteValues[item.name].exists {
+			continue
+		}
+		value, err := legacyFlowValue(legacy, item.key)
+		if err != nil {
+			return fmt.Errorf("load legacy %s total: %w", item.name, err)
+		}
+		legacyValues[item.name] = value
 	}
 
-	download, err = legacyFlowValue(legacy, legacyDownloadKey)
-	if err != nil {
-		return fmt.Errorf("load legacy download total: %w", err)
-	}
-	upload, err = legacyFlowValue(legacy, legacyUploadKey)
-	if err != nil {
-		return fmt.Errorf("load legacy upload total: %w", err)
-	}
-
-	source := "missing"
+	imported := 0
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if download != 0 || upload != 0 {
-		now := time.Now().Unix()
-		for key, value := range map[string]uint64{
-			"total_download": download,
-			"total_upload":   upload,
-		} {
-			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO statistics_kv(key, value_int, updated_at)
-				VALUES (?, ?, ?)
-				ON CONFLICT(key) DO UPDATE SET
-					value_int = excluded.value_int,
-					updated_at = excluded.updated_at
-			`, key, value, now); err != nil {
-				return err
-			}
+	now := time.Now().Unix()
+	for _, key := range []string{"total_download", "total_upload"} {
+		value, ok := legacyValues[key]
+		if !ok || !value.exists {
+			continue
 		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO statistics_kv(key, value_int, updated_at)
+			VALUES (?, ?, ?)
+			ON CONFLICT(key) DO NOTHING
+		`, key, value.value, now); err != nil {
+			return err
+		}
+		imported++
+	}
+
+	existing := 0
+	for _, value := range sqliteValues {
+		if value.exists {
+			existing++
+		}
+	}
+	source := "missing"
+	switch {
+	case imported > 0 && existing > 0:
+		source = "mixed"
+	case imported > 0:
 		source = "pebble_flow_data"
+	case existing > 0:
+		source = "existing_sqlite"
 	}
 
 	if err := setLegacyMetadataTx(ctx, tx, map[string]string{
@@ -150,22 +166,32 @@ func MigrateLegacyFakeIP(ctx context.Context, db *sql.DB, prefix netip.Prefix, l
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	deleteEntry, err := tx.PrepareContext(ctx, `
+		DELETE FROM fakeip_entries
+		WHERE family = ? AND prefix = ? AND ip = ? AND domain <> ?
+	`)
+	if err != nil {
+		return fmt.Errorf("prepare legacy fakeip conflict cleanup: %w", err)
+	}
+	defer deleteEntry.Close()
+	insertEntry, err := tx.PrepareContext(ctx, `
+		INSERT INTO fakeip_entries(family, prefix, domain, ip, created_at, last_used_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(family, prefix, domain) DO UPDATE SET
+			ip = excluded.ip,
+			last_used_at = excluded.last_used_at
+	`)
+	if err != nil {
+		return fmt.Errorf("prepare legacy fakeip import: %w", err)
+	}
+	defer insertEntry.Close()
 
 	now := time.Now().UnixNano()
 	for _, entry := range entries {
-		if _, err := tx.ExecContext(ctx, `
-			DELETE FROM fakeip_entries
-			WHERE family = ? AND prefix = ? AND ip = ? AND domain <> ?
-		`, family, prefixKey, entry.addr.AsSlice(), entry.domain); err != nil {
+		if _, err := deleteEntry.ExecContext(ctx, family, prefixKey, entry.addr.AsSlice(), entry.domain); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO fakeip_entries(family, prefix, domain, ip, created_at, last_used_at)
-			VALUES (?, ?, ?, ?, ?, ?)
-			ON CONFLICT(family, prefix, domain) DO UPDATE SET
-				ip = excluded.ip,
-				last_used_at = excluded.last_used_at
-		`, family, prefixKey, entry.domain, entry.addr.AsSlice(), now, now); err != nil {
+		if _, err := insertEntry.ExecContext(ctx, family, prefixKey, entry.domain, entry.addr.AsSlice(), now, now); err != nil {
 			return err
 		}
 	}
@@ -254,32 +280,40 @@ func fakeIPFamily(prefix netip.Prefix) int {
 	return 4
 }
 
-func legacyFlowValue(legacy cache.Geter, key []byte) (uint64, error) {
-	data, err := legacy.Get(key)
-	if err != nil {
-		return 0, err
-	}
-	if len(data) < 8 {
-		return 0, nil
-	}
-	return binary.BigEndian.Uint64(data), nil
+type legacyFlowTotal struct {
+	value  uint64
+	exists bool
 }
 
-func sqliteTotals(ctx context.Context, db *sql.DB) (uint64, uint64, error) {
-	var download, upload uint64
-	for _, total := range []struct {
-		key   string
-		value *uint64
-	}{
-		{key: "total_download", value: &download},
-		{key: "total_upload", value: &upload},
-	} {
-		err := db.QueryRowContext(ctx, `SELECT value_int FROM statistics_kv WHERE key = ?`, total.key).Scan(total.value)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return 0, 0, err
+func legacyFlowValue(legacy cache.Geter, key []byte) (legacyFlowTotal, error) {
+	data, err := legacy.Get(key)
+	if err != nil {
+		return legacyFlowTotal{}, err
+	}
+	if len(data) == 0 {
+		return legacyFlowTotal{}, nil
+	}
+	if len(data) < 8 {
+		return legacyFlowTotal{}, fmt.Errorf("invalid counter length %d", len(data))
+	}
+	return legacyFlowTotal{value: binary.BigEndian.Uint64(data), exists: true}, nil
+}
+
+func sqliteTotals(ctx context.Context, db *sql.DB) (map[string]legacyFlowTotal, error) {
+	values := map[string]legacyFlowTotal{}
+	for _, key := range []string{"total_download", "total_upload"} {
+		var value uint64
+		err := db.QueryRowContext(ctx, `SELECT value_int FROM statistics_kv WHERE key = ?`, key).Scan(&value)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			values[key] = legacyFlowTotal{}
+		case err != nil:
+			return nil, err
+		default:
+			values[key] = legacyFlowTotal{value: value, exists: true}
 		}
 	}
-	return download, upload, nil
+	return values, nil
 }
 
 func legacyMetadata(ctx context.Context, db *sql.DB, key string) (string, error) {

@@ -71,7 +71,6 @@ func migrateStatisticJSONColumn(ctx context.Context, tx *sql.Tx, table, column s
 		return fmt.Errorf("query %s.%s: %w", table, column, err)
 	}
 	defer rows.Close()
-
 	type update struct {
 		rowID int64
 		data  string
@@ -93,6 +92,9 @@ func migrateStatisticJSONColumn(ctx context.Context, tx *sql.Tx, table, column s
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("iterate %s.%s: %w", table, column, err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close %s.%s before updates: %w", table, column, err)
 	}
 
 	for _, update := range updates {

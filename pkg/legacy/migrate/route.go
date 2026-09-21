@@ -57,35 +57,96 @@ func ConvertLegacyRouteList(in *schemaapi.ListResponse) contractroute.RouteList 
 }
 
 func ConvertLegacyRule(in *schemaconfig.Rulev2) contractroute.RouteRule {
+	out, _ := convertLegacyRuleWithWarnings(in)
+	return out
+}
+
+func convertLegacyRuleWithWarnings(in *schemaconfig.Rulev2) (contractroute.RouteRule, []Warning) {
 	if in == nil {
-		return contractroute.RouteRule{Mode: "bypass"}
+		return contractroute.RouteRule{Mode: "bypass"}, nil
 	}
+	mode := in.GetMode().String()
+	resolveStrategy := in.GetResolveStrategy().String()
+	udpProxyFQDNStrategy := in.GetUdpProxyFqdnStrategy().String()
+	var warnings []Warning
+	if _, ok := schemaconfig.Mode_name[int32(in.GetMode())]; !ok {
+		warnings = append(warnings, Warning{Entity: in.GetName(), Message: fmt.Sprintf("unknown legacy route mode %d; migrated as bypass", in.GetMode())})
+		mode = "bypass"
+	}
+	if _, ok := schemaconfig.ResolveStrategy_name[int32(in.GetResolveStrategy())]; !ok {
+		warnings = append(warnings, Warning{Entity: in.GetName(), Message: fmt.Sprintf("unknown legacy resolve strategy %d; migrated as default", in.GetResolveStrategy())})
+		resolveStrategy = "default"
+	}
+	if _, ok := schemaconfig.UdpProxyFqdnStrategy_name[int32(in.GetUdpProxyFqdnStrategy())]; !ok {
+		warnings = append(warnings, Warning{Entity: in.GetName(), Message: fmt.Sprintf("unknown legacy UDP FQDN strategy %d; migrated as default", in.GetUdpProxyFqdnStrategy())})
+		udpProxyFQDNStrategy = "udp_proxy_fqdn_strategy_default"
+	}
+
 	out := contractroute.RouteRule{
 		Name:                 in.GetName(),
-		Mode:                 in.GetMode().String(),
+		Mode:                 mode,
 		Tag:                  in.GetTag(),
-		ResolveStrategy:      in.GetResolveStrategy().String(),
-		UdpProxyFqdnStrategy: in.GetUdpProxyFqdnStrategy().String(),
+		ResolveStrategy:      resolveStrategy,
+		UdpProxyFqdnStrategy: udpProxyFQDNStrategy,
 		Resolver:             in.GetResolver(),
 		Disabled:             in.GetDisabled(),
 
 		Rules: make([]contractroute.RuleExpr, 0, len(in.GetRules()))}
-	for _, group := range in.GetRules() {
+	for index, group := range in.GetRules() {
 		if group == nil {
 			continue
 		}
 		all := make([]contractroute.RuleExpr, 0, len(group.GetRules()))
-		for _, rule := range group.GetRules() {
+		for childIndex, rule := range group.GetRules() {
+			if message := legacyRuleExprWarning(rule); message != "" {
+				warnings = append(warnings, Warning{
+					Entity:  out.Name,
+					Message: fmt.Sprintf("rules[%d].all[%d]: %s", index, childIndex, message),
+				})
+				continue
+			}
 			if expr, ok := convertLegacyRuleExpr(rule); ok {
 				all = append(all, expr)
 			}
 		}
+		if len(group.GetRules()) > 0 && len(all) == 0 {
+			warnings = append(warnings, Warning{
+				Entity:  out.Name,
+				Message: fmt.Sprintf("rules[%d] contains no supported matchers and was skipped", index),
+			})
+			continue
+		}
 		out.Rules = append(out.Rules, contractroute.RuleExpr{Type: "all", All: all})
 	}
-	return out
+	return out, warnings
+}
+
+func legacyRuleExprWarning(in *schemaconfig.Rule) string {
+	if in == nil || in.WhichObject() != schemaconfig.Rule_Network_case {
+		return ""
+	}
+	if _, ok := schemaconfig.NetworkNetworkType_name[int32(in.GetNetwork().GetNetwork())]; !ok {
+		return fmt.Sprintf("unknown legacy network %d; matcher was skipped", in.GetNetwork().GetNetwork())
+	}
+	return ""
 }
 
 func ConvertContractRule(in contractroute.RouteRule) (*schemaconfig.Rulev2, error) {
+	if in.Mode != "" {
+		if _, ok := schemaconfig.Mode_value[in.Mode]; !ok {
+			return nil, fmt.Errorf("unsupported route mode %q", in.Mode)
+		}
+	}
+	if in.ResolveStrategy != "" {
+		if _, ok := schemaconfig.ResolveStrategy_value[in.ResolveStrategy]; !ok {
+			return nil, fmt.Errorf("unsupported resolve strategy %q", in.ResolveStrategy)
+		}
+	}
+	if in.UdpProxyFqdnStrategy != "" {
+		if _, ok := schemaconfig.UdpProxyFqdnStrategy_value[in.UdpProxyFqdnStrategy]; !ok {
+			return nil, fmt.Errorf("unsupported UDP FQDN strategy %q", in.UdpProxyFqdnStrategy)
+		}
+	}
 	out := &schemaconfig.Rulev2{
 		Name:                 in.Name,
 		Mode:                 parseMode(in.Mode),
@@ -130,6 +191,11 @@ func ConvertLegacyListDetail(in *schemaconfig.List) contractroute.RouteListDetai
 }
 
 func ConvertContractListDetail(in contractroute.RouteListDetail) (*schemaconfig.List, error) {
+	if in.Type != "" {
+		if _, ok := schemaconfig.ListListTypeEnum_value[in.Type]; !ok {
+			return nil, fmt.Errorf("unsupported route list type %q", in.Type)
+		}
+	}
 	out := &schemaconfig.List{
 		Name:      in.Name,
 		ListType:  parseListType(in.Type),
@@ -142,12 +208,14 @@ func ConvertContractListDetail(in contractroute.RouteListDetail) (*schemaconfig.
 			urls = append([]string(nil), in.Source.Remote.URLs...)
 		}
 		out.Remote = &schemaconfig.ListRemote{Urls: urls}
-	default:
+	case "", "local":
 		var lists []string
 		if in.Source.Local != nil {
 			lists = append([]string(nil), in.Source.Local.Lists...)
 		}
 		out.Local = &schemaconfig.ListLocal{Lists: lists}
+	default:
+		return nil, fmt.Errorf("unsupported route list source %q", in.Source.Type)
 	}
 	return out, nil
 }
@@ -245,6 +313,9 @@ func convertContractLeafRule(expr contractroute.RuleExpr) (*schemaconfig.Rule, e
 	case "network":
 		if expr.Network == nil {
 			return nil, fmt.Errorf("network is empty")
+		}
+		if _, ok := schemaconfig.NetworkNetworkType_value[expr.Network.Network]; !ok {
+			return nil, fmt.Errorf("unsupported network %q", expr.Network.Network)
 		}
 		return &schemaconfig.Rule{Network: &schemaconfig.Network{Network: parseNetwork(expr.Network.Network)}}, nil
 	case "port":

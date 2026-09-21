@@ -53,6 +53,17 @@ func TestDomainTrie(t *testing.T) {
 		}
 	})
 
+	t.Run("wildcardMatchesNestedSubdomain", func(t *testing.T) {
+		trieRoot := &trie[string]{Value: make([]string, 0)}
+
+		insert(trieRoot, newFqdnReader("*.cdn.hf.co"), "GroupWildcard")
+
+		got := search(trieRoot, newFqdnReader("us.aws.cdn.hf.co"))
+		if !slices.Contains(got, "GroupWildcard") {
+			t.Fatalf("expected nested wildcard match, got %v", got)
+		}
+	})
+
 	t.Run("Wildcard", func(t *testing.T) {
 		trieRoot := &trie[string]{Value: make([]string, 0)}
 

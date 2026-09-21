@@ -230,9 +230,11 @@ func (s *Matchers) appendRule(matchers []MatchEntry, r contractroute.RouteRule) 
 func (s *Matchers) Add(rule ...contractroute.RouteRule) {
 	matchers := make([]MatchEntry, 0, len(rule))
 
-	for _, r := range rule {
-		matchers = s.appendRule(matchers, r)
-	}
+	s.list.withHostListLock(func() {
+		for _, r := range rule {
+			matchers = s.appendRule(matchers, r)
+		}
+	})
 
 	s.mu.Lock()
 	s.matchers = append(s.matchers, matchers...)
@@ -259,12 +261,13 @@ func (s *Matchers) Update(rules ...contractroute.RouteRule) {
 	var ms []MatchEntry
 
 	s.tags.Clear()
-	s.list.ResetHostTrie()
 	s.list.ResetProcessTrie()
 
-	for _, v := range rules {
-		ms = s.appendRule(ms, v)
-	}
+	s.list.updateHostLists(func() {
+		for _, v := range rules {
+			ms = s.appendRule(ms, v)
+		}
+	})
 
 	s.mu.Lock()
 	s.matchers = ms
@@ -318,7 +321,7 @@ func ParseMatcher(lists *Lists, cc contractroute.RouteRule) Matcher {
 			case "host":
 				if rule.Host != nil {
 					andMatchers = append(andMatchers, List(rule.Host.List))
-					lists.AddNewHostList(rule.Host.List)
+					lists.addNewHostListLocked(rule.Host.List)
 				}
 			case "process":
 				if rule.Process != nil {

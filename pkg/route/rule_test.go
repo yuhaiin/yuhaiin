@@ -2,11 +2,14 @@ package route
 
 import (
 	"context"
+	"errors"
 	"net"
+	"slices"
 	"testing"
 	"time"
 
 	"codeberg.org/miekg/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
@@ -17,6 +20,67 @@ type staticRuleBook []plainstore.RouteRuleEntry
 
 func (s staticRuleBook) ListRules(context.Context) ([]plainstore.RouteRuleEntry, error) {
 	return s, nil
+}
+
+type staticRouteListBook struct {
+	detail contractroute.RouteListDetail
+}
+
+func (s staticRouteListBook) ListRouteListDetails(context.Context) ([]contractroute.RouteListDetail, error) {
+	return []contractroute.RouteListDetail{s.detail}, nil
+}
+
+func (s staticRouteListBook) GetRouteList(_ context.Context, name string) (contractroute.RouteListDetail, error) {
+	if name != s.detail.Name {
+		return contractroute.RouteListDetail{}, errors.New("route list not found")
+	}
+	return s.detail, nil
+}
+
+func (staticRouteListBook) SaveRouteList(context.Context, contractroute.RouteListDetail, int64) error {
+	return nil
+}
+
+func TestRulesStartupBuildsHostIndexBeforeTestingRoutes(t *testing.T) {
+	oldDataDir := configuration.DataDir.Load()
+	configuration.DataDir.Store(t.TempDir())
+	t.Cleanup(func() { configuration.DataDir.Store(oldDataDir) })
+
+	lists := NewLists(staticRouteListBook{detail: contractroute.RouteListDetail{
+		Name: "direct_2_host",
+		Type: "host",
+		Source: contractroute.ListSource{
+			Type:  "local",
+			Local: &contractroute.LocalSource{Lists: []string{"*.cdn.hf.co"}},
+		},
+	}}, nil, t.TempDir())
+	t.Cleanup(func() {
+		if err := lists.Close(); err != nil {
+			t.Logf("close lists failed: %v", err)
+		}
+	})
+
+	route := NewRoute(nil, staticResolverBook{resolver: staticResolver{}}, lists, nil)
+	rules := NewRules(staticRuleBook{{Rule: contractroute.RouteRule{
+		Name:  "direct",
+		Mode:  "direct",
+		Rules: []contractroute.RuleExpr{{Type: "host", Host: &contractroute.ListRef{List: "direct_2_host"}}},
+	}}}, nil, route)
+	response, err := rules.TestContract(context.Background(), "us.aws.cdn.hf.co")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Mode != "direct" || !slices.Contains(response.Lists, "direct_2_host") {
+		t.Fatalf("startup route test = %+v", response)
+	}
+
+	addr, err := netapi.ParseAddressPort("", "us.aws.cdn.hf.co", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := lists.HostTrie().Search(context.Background(), addr); !slices.Contains(got, "direct_2_host") {
+		t.Fatalf("startup host index did not match nested wildcard: %v", got)
+	}
 }
 
 func TestRuleChangesCanBeScheduledAndAppliedImmediately(t *testing.T) {

@@ -143,3 +143,27 @@ func TestConvertLegacyInboundDropsEmptyTransport(t *testing.T) {
 		t.Fatalf("warnings = %+v", warnings)
 	}
 }
+
+func TestConvertLegacyInboundWarnsOnUnknownTCPUDPControl(t *testing.T) {
+	control := legacy.TcpUdpControl(99)
+	old := legacy.Inbound_builder{
+		Name:    new("unknown-control"),
+		Enabled: new(true),
+		Tcpudp: legacy.Tcpudp_builder{
+			Host:    new(":1080"),
+			Control: &control,
+		}.Build(),
+		Mix: legacy.Mixed_builder{}.Build(),
+	}.Build()
+
+	got, warnings, err := ConvertLegacyInbound("unknown-control", old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Network.TCPUDP.UDP != contract.UDPEnabled {
+		t.Fatalf("unknown control network = %+v", got.Network)
+	}
+	if len(warnings) != 1 || !strings.Contains(warnings[0].Message, "unknown legacy TCP/UDP control") {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+}

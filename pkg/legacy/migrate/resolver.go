@@ -2,6 +2,7 @@ package migrate
 
 import (
 	"errors"
+	"fmt"
 
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	legacy "github.com/Asutorufa/yuhaiin/pkg/legacy/schema/config"
@@ -14,9 +15,13 @@ func ConvertLegacyResolver(id string, old *legacy.Dns) (contractresolver.Resolve
 	if old == nil {
 		return contractresolver.Resolver{}, errors.New("legacy resolver is nil")
 	}
+	typ, err := legacyResolverTypeToContract(old.GetType())
+	if err != nil {
+		return contractresolver.Resolver{}, fmt.Errorf("resolver %q: %w", id, err)
+	}
 	out := contractresolver.Resolver{
 		ID:            id,
-		Type:          legacyResolverTypeToContract(old.GetType()),
+		Type:          typ,
 		Host:          old.GetHost(),
 		Subnet:        old.GetSubnet(),
 		TLSServerName: old.GetTlsServername(),
@@ -63,20 +68,22 @@ func ConvertContractFakeDNS(in contractresolver.FakeDNS) *legacy.FakednsConfig {
 	}
 }
 
-func legacyResolverTypeToContract(typ legacy.Type) string {
+func legacyResolverTypeToContract(typ legacy.Type) (string, error) {
 	switch typ {
 	case legacy.Type_tcp:
-		return "tcp"
+		return "tcp", nil
 	case legacy.Type_doh:
-		return "doh"
+		return "doh", nil
 	case legacy.Type_dot:
-		return "dot"
+		return "dot", nil
 	case legacy.Type_doq:
-		return "doq"
+		return "doq", nil
 	case legacy.Type_doh3:
-		return "doh3"
+		return "doh3", nil
+	case legacy.Type_reserve, legacy.Type_udp:
+		return "udp", nil
 	default:
-		return "udp"
+		return "", fmt.Errorf("unknown legacy resolver type %d", typ)
 	}
 }
 

@@ -38,6 +38,14 @@ func ConvertLegacyInbound(id string, old *legacy.Inbound) (contract.Inbound, []W
 			Message: "legacy inbound network is empty; migrated as empty network",
 		})
 	}
+	if old.WhichNetwork() == legacy.Inbound_Tcpudp_case {
+		if _, ok := legacy.TcpUdpControl_name[int32(old.GetTcpudp().GetControl())]; !ok {
+			warnings = append(warnings, Warning{
+				Entity:  id,
+				Message: fmt.Sprintf("unknown legacy TCP/UDP control %d; migrated with UDP enabled", old.GetTcpudp().GetControl()),
+			})
+		}
+	}
 
 	protocol, err := convertLegacyProtocol(old)
 	if err != nil {

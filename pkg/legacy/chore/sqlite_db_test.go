@@ -56,6 +56,18 @@ func init() {
 	})
 }
 
+func TestSqliteDBRejectsMalformedLegacyConfig(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(paths.PathGenerator.Config(dir), []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	db := NewSqliteDB(filepath.Join(dir, "state.db"))
+	if _, _, err := db.loadLegacyConfig(); err == nil {
+		t.Fatal("malformed legacy config was accepted")
+	}
+}
+
 func TestSqliteDBImportsLegacyConfigAndAndroidPreferences(t *testing.T) {
 	t.Parallel()
 
