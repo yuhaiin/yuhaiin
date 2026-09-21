@@ -178,6 +178,59 @@ func TestMigrateLegacyNodesBackfillsWhenMarkerDoneButContractsEmpty(t *testing.T
 	assertMetadataValue(t, ctx, sqliteStore, "selected_udp_node_v2", "hash-1")
 }
 
+func TestMigrateLegacyNodesPreservesManualContractAfterMigration(t *testing.T) {
+	ctx := context.Background()
+	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sqliteStore.Close() }()
+
+	legacyPoint := legacynode.Point_builder{
+		Hash:   new("legacy-node"),
+		Name:   new("legacy-node"),
+		Group:  new("manual"),
+		Origin: legacynode.Origin_manual.Enum(),
+	}.Build()
+	legacyJSON, err := json.Marshal(legacyPoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sqliteStore.DB().ExecContext(ctx, `
+		INSERT INTO nodes(hash, group_name, name, origin, selected_tcp, selected_udp, search_text, updated_at, data_json)
+		VALUES ('legacy-node', 'manual', 'legacy-node', ?, 1, 1, 'legacy-node manual', 100, ?)
+	`, int(legacynode.Origin_manual), string(legacyJSON)); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := MigrateLegacyNodes(ctx, sqliteStore.DB(), 200); err != nil {
+		t.Fatal(err)
+	}
+
+	manual := contractnode.Node{
+		ID:      "manual-node",
+		Name:    "manual-node",
+		Group:   "manual",
+		Origin:  "manual",
+		Enabled: true,
+		Chain:   []contractnode.Protocol{mustNodeProtocol(t, contractnode.Direct{})},
+	}
+	if err := plainstore.NewNodeStore(sqliteStore.DB()).Save(ctx, manual, 300); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := MigrateLegacyNodes(ctx, sqliteStore.DB(), 400); err != nil {
+		t.Fatal(err)
+	}
+	got, err := plainstore.NewNodeStore(sqliteStore.DB()).Get(ctx, manual.ID)
+	if err != nil {
+		t.Fatalf("manual node was removed after restart migration: %v", err)
+	}
+	if got.Name != manual.Name || len(got.Chain) != 1 || got.Chain[0].Type != "direct" {
+		t.Fatalf("manual node after restart migration = %+v", got)
+	}
+}
+
 func TestRecoverLegacyNodeChainsRestoresPartialNetworkSplit(t *testing.T) {
 	ctx := context.Background()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
@@ -383,6 +436,55 @@ func TestMigrateLegacyRouteRules(t *testing.T) {
 	}
 	if got.Rule.Name != "legacy" || got.Rule.Mode != "bypass" || got.Priority != 1 {
 		t.Fatalf("migrated rule = %+v", got)
+	}
+}
+
+func TestMigrateLegacyRouteRulesPreservesManualContractAfterMigration(t *testing.T) {
+	ctx := context.Background()
+	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sqliteStore.Close() }()
+
+	legacyRule := legacyconfig.Rulev2_builder{
+		Name: new("legacy"),
+		Mode: legacyconfig.Mode_bypass.Enum(),
+		Tag:  new("direct"),
+	}.Build()
+	legacyJSON, err := json.Marshal(legacyRule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sqliteStore.DB().ExecContext(ctx, `
+		INSERT INTO route_rules(name, priority, disabled, updated_at, data_json)
+		VALUES ('legacy', 1, 0, 100, ?)
+	`, string(legacyJSON)); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := MigrateLegacyRouteRules(ctx, sqliteStore.DB(), 200); err != nil {
+		t.Fatal(err)
+	}
+
+	manual := contractroute.RouteRule{
+		Name: "manual-direct",
+		Mode: "direct",
+		Tag:  "direct",
+	}
+	if err := plainstore.NewRouteRuleStore(sqliteStore.DB()).SaveRule(ctx, manual, 0, 300); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := MigrateLegacyRouteRules(ctx, sqliteStore.DB(), 400); err != nil {
+		t.Fatal(err)
+	}
+	got, err := plainstore.NewRouteRuleStore(sqliteStore.DB()).GetRule(ctx, manual.Name)
+	if err != nil {
+		t.Fatalf("manual route rule was removed after restart migration: %v", err)
+	}
+	if got.Rule.Mode != "direct" || got.Rule.Tag != "direct" {
+		t.Fatalf("manual route rule after restart migration = %+v", got.Rule)
 	}
 }
 

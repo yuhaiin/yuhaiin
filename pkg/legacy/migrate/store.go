@@ -93,7 +93,11 @@ func MigrateLegacyNodes(ctx context.Context, db *sql.DB, updatedAt int64) error 
 		if err != nil {
 			return err
 		}
-		if legacyCount == 0 || legacyCount == contractCount {
+		// After the initial migration, nodes_v2 is authoritative. Manual and
+		// remote nodes are written only to nodes_v2, so a count mismatch is
+		// expected and must not trigger a destructive rebuild from the legacy
+		// table. Keep the empty-contract recovery for interrupted migrations.
+		if legacyCount == 0 || contractCount > 0 {
 			return syncLegacySelectedNodes(ctx, db)
 		}
 		fmt.Printf("plain node migration warning: legacy nodes=%d, nodes_v2=%d; rebuilding node contracts\n", legacyCount, contractCount)
@@ -253,7 +257,11 @@ func MigrateLegacyRouteRules(ctx context.Context, db *sql.DB, updatedAt int64) e
 		if err != nil {
 			return err
 		}
-		if legacyCount == 0 || legacyCount == contractCount {
+		// route_rules_v2 is the canonical store after the first migration. A
+		// different count normally means the user added or removed a v2 rule,
+		// not that the migration needs to rebuild it from the legacy table.
+		// Only recover when the v2 table is still empty.
+		if legacyCount == 0 || contractCount > 0 {
 			return nil
 		}
 		fmt.Printf("plain route rule migration warning: legacy route_rules=%d, route_rules_v2=%d; rebuilding rule contracts\n", legacyCount, contractCount)
