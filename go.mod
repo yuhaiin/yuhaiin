@@ -10,7 +10,7 @@ replace (
 )
 
 require (
-	codeberg.org/miekg/dns v0.6.114
+	codeberg.org/miekg/dns v0.6.115
 	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.5
 	github.com/cockroachdb/pebble/v2 v2.1.7
@@ -22,14 +22,14 @@ require (
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.24.1
-	github.com/quic-go/connect-ip-go v0.3.0
-	github.com/quic-go/quic-go v0.62.0
+	github.com/quic-go/connect-ip-go v0.4.0
+	github.com/quic-go/quic-go v0.63.0
 	github.com/refraction-networking/utls v1.8.2
 	github.com/rhnvrm/simples3 v0.11.1
 	github.com/tailscale/wireguard-go v0.0.0-20260730222847-4affce44577c
 	github.com/vishvananda/netlink v1.3.1
 	github.com/xtls/reality v0.0.0-20260921001439-3c98159dee38
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260917052816-efaca52e2e71
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20260921175206-8b753c10205b
 	golang.org/x/crypto v0.57.0
 	golang.org/x/mobile v0.0.0-20260908204917-8b95e45f8d3e
 	golang.org/x/mod v0.41.0
