@@ -233,7 +233,7 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 	start := system.CheapNowNano()
 
 	store.ConnOptions().
-		AddLists(s.ms.list.HostTrie().Search(ctx, addr)...).
+		AddLists(s.ms.list.SearchHost(ctx, addr)...).
 		AddLists(s.ms.list.ProcessTrie().Search(ctx, addr)...)
 
 	var mode ModeEnum
@@ -286,7 +286,7 @@ func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 	}
 
 	netapi.GetContext(ctx).ConnOptions().
-		AddLists(s.ms.list.HostTrie().Search(ctx, host)...).
+		AddLists(s.ms.list.SearchHost(ctx, host)...).
 		AddLists(s.ms.list.ProcessTrie().Search(ctx, host)...)
 
 	mode := s.ms.Match(ctx, host)

@@ -39,6 +39,9 @@ func TestTriePersistsOverlappingPrefixes(t *testing.T) {
 	assertContainsAll(t, trie.SearchIP(net.ParseIP("10.1.2.3")), "network", "subnet", "host")
 
 	trie.RemoveCIDR(netip.MustParsePrefix("10.1.0.0/16"))
+	if trie.memoryUsed >= trie.memoryLimit {
+		t.Fatalf("RemoveCIDR left an oversized memory builder: used=%d limit=%d", trie.memoryUsed, trie.memoryLimit)
+	}
 	assertContainsAll(t, trie.SearchIP(net.ParseIP("10.1.2.3")), "network", "host")
 	if got := trie.SearchIP(net.ParseIP("10.1.2.4")); !slices.Equal(got, []string{"network"}) {
 		t.Fatalf("after RemoveCIDR = %v, want [network]", got)
@@ -64,6 +67,36 @@ func TestTrieSupportsIPv6AndCompaction(t *testing.T) {
 	assertContainsAll(t, trie.SearchIP(net.ParseIP("192.0.2.3")), "v4-host")
 	if count := len(globSegments(dir)); count >= segmentCompactionThreshold {
 		t.Fatalf("segment count = %d, want less than %d", count, segmentCompactionThreshold)
+	}
+}
+
+func TestTrieMatchesIPv4MappedIPv6PrefixesAsIPv4(t *testing.T) {
+	trie, err := NewTrie[string](t.TempDir(), codec.UnsafeStringCodec{}, WithMemoryLimit(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trie.Close()
+
+	trie.InsertIP(netip.MustParseAddr("::ffff:192.0.2.1"), 128, "mapped-host")
+	trie.InsertCIDR(netip.MustParsePrefix("::ffff:198.51.100.0/120"), "mapped-subnet")
+
+	assertContainsAll(t, trie.SearchIP(net.ParseIP("192.0.2.1")), "mapped-host")
+	assertContainsAll(t, trie.SearchIP(net.ParseIP("198.51.100.42")), "mapped-subnet")
+}
+
+func TestTrieReturnsOverlappingPrefixesFromLeastToMostSpecific(t *testing.T) {
+	trie, err := NewTrie[string](t.TempDir(), codec.UnsafeStringCodec{}, WithMemoryLimit(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trie.Close()
+
+	trie.InsertCIDR(netip.MustParsePrefix("10.1.0.0/16"), "subnet")
+	trie.InsertCIDR(netip.MustParsePrefix("10.0.0.0/8"), "network")
+
+	got := trie.SearchIP(net.ParseIP("10.1.2.3"))
+	if !slices.Equal(got, []string{"network", "subnet"}) {
+		t.Fatalf("SearchIP = %v, want [network subnet]", got)
 	}
 }
 

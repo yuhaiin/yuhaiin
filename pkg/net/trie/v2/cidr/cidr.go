@@ -23,6 +23,10 @@ func (c *Cidr[T]) Insert(cidr string, mark T) error {
 }
 
 func (c *Cidr[T]) RemoveCIDR(ipNet netip.Prefix) {
+	if !ipNet.IsValid() {
+		return
+	}
+	ipNet = normalizePrefix(ipNet)
 	addr := ipNet.Addr()
 	if addr.Is4() {
 		c.remove(c.v4CidrTrie, addr.AsSlice(), ipNet.Bits())
@@ -31,6 +35,10 @@ func (c *Cidr[T]) RemoveCIDR(ipNet netip.Prefix) {
 	}
 }
 func (c *Cidr[T]) RemoveIP(ipNet netip.Addr, maskSize int) {
+	if !ipNet.IsValid() || maskSize < 0 || maskSize > ipNet.BitLen() {
+		return
+	}
+	ipNet, maskSize = normalizeAddrMask(ipNet, maskSize)
 	if ipNet.Is4() {
 		c.remove(c.v4CidrTrie, ipNet.AsSlice(), maskSize)
 	} else {
@@ -60,6 +68,10 @@ func (c *Cidr[T]) remove(trie *Trie[T], ip []byte, maskSize int) {
 }
 
 func (c *Cidr[T]) InsertCIDR(ipNet netip.Prefix, mark T) {
+	if !ipNet.IsValid() {
+		return
+	}
+	ipNet = normalizePrefix(ipNet)
 	if ipNet.Addr().Is4() {
 		c.v4CidrTrie.Insert(ipNet.Addr().AsSlice(), ipNet.Bits(), mark)
 	} else {
@@ -68,11 +80,40 @@ func (c *Cidr[T]) InsertCIDR(ipNet netip.Prefix, mark T) {
 }
 
 func (c *Cidr[T]) InsertIP(ip netip.Addr, maskSize int, mark T) {
+	if !ip.IsValid() || maskSize < 0 || maskSize > ip.BitLen() {
+		return
+	}
+	ip, maskSize = normalizeAddrMask(ip, maskSize)
 	if ip.Is4() {
 		c.v4CidrTrie.Insert(ip.AsSlice(), maskSize, mark)
 	} else {
 		c.v6CidrTrie.Insert(ip.AsSlice(), maskSize, mark)
 	}
+}
+
+func normalizePrefix(prefix netip.Prefix) netip.Prefix {
+	addr, bits := prefix.Addr(), prefix.Bits()
+	if addr.Is4In6() {
+		if bits >= 96 {
+			return netip.PrefixFrom(addr.Unmap(), bits-96).Masked()
+		}
+		if prefix.Contains(netip.MustParseAddr("::ffff:0:0")) {
+			return netip.PrefixFrom(netip.IPv4Unspecified(), 0)
+		}
+	}
+	return prefix.Masked()
+}
+
+func normalizeAddrMask(addr netip.Addr, bits int) (netip.Addr, int) {
+	if addr.Is4In6() {
+		if bits >= 96 {
+			return addr.Unmap(), bits - 96
+		}
+		if netip.PrefixFrom(addr, bits).Masked().Contains(netip.MustParseAddr("::ffff:0:0")) {
+			return netip.IPv4Unspecified(), 0
+		}
+	}
+	return addr, bits
 }
 
 // MatchWithTrie match ip with trie

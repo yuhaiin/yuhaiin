@@ -64,6 +64,9 @@ func TestTriePersistsAndRemoves(t *testing.T) {
 	if got := trie.Search("a.example.com"); slices.Contains(got, "exact") || !slices.Contains(got, "wildcard") {
 		t.Fatalf("after Remove Search = %v", got)
 	}
+	if trie.memoryUsed >= trie.memoryLimit {
+		t.Fatalf("Remove left an oversized memory builder: used=%d limit=%d", trie.memoryUsed, trie.memoryLimit)
+	}
 	if err := trie.Clear(); err != nil {
 		t.Fatal(err)
 	}

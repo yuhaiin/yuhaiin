@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const memoryNodeEstimate = 48
+
 // memoryNode is the short-lived mutable representation used while a segment
 // is being built. It is discarded after the segment is flushed.
 type memoryNode[T comparable] struct {
@@ -13,7 +15,7 @@ type memoryNode[T comparable] struct {
 }
 
 func newMemoryNode[T comparable]() *memoryNode[T] {
-	return &memoryNode[T]{children: make(map[string]*memoryNode[T])}
+	return &memoryNode[T]{}
 }
 
 // splitDomain returns labels in reverse DNS order. For example,
@@ -36,22 +38,31 @@ func splitDomain(domain string, separator byte) []string {
 	return labels
 }
 
-func (t *Trie[T]) insertMemoryLocked(labels []string, value T) {
-	if len(labels) == 0 {
+func (t *Trie[T]) insertMemoryLocked(domain string, value T) {
+	if domain == "" {
 		return
 	}
 	node := t.root
-	for _, label := range labels {
+	end := len(domain)
+	for {
+		start := strings.LastIndexByte(domain[:end], t.separator) + 1
+		label := domain[start:end]
 		child := node.children[label]
 		if child == nil {
 			child = newMemoryNode[T]()
+			if node.children == nil {
+				node.children = make(map[string]*memoryNode[T])
+			}
 			node.children[label] = child
-			// This is deliberately conservative rather than an exact Go heap
-			// measurement. It bounds the builder without adding reflection or
-			// allocator instrumentation to the hot insertion path.
-			t.memoryUsed += uint64(len(label)) + 48
+			// This cheap estimate triggers flushes; it is not strict heap
+			// accounting and omits allocator and map-bucket overhead.
+			t.memoryUsed += uint64(len(label)) + memoryNodeEstimate
 		}
 		node = child
+		if start == 0 {
+			break
+		}
+		end = start - 1
 	}
 	if slices.Contains(node.values, value) {
 		return
@@ -72,7 +83,7 @@ func estimateTreeSize[T comparable](root *memoryNode[T]) uint64 {
 	var visit func(*memoryNode[T])
 	visit = func(node *memoryNode[T]) {
 		for label, child := range node.children {
-			size += uint64(len(label)) + 48
+			size += uint64(len(label)) + memoryNodeEstimate
 			visit(child)
 		}
 		for _, value := range node.values {
@@ -128,6 +139,9 @@ func mergeMemoryNodes[T comparable](dst, src *memoryNode[T]) {
 		dstChild := dst.children[label]
 		if dstChild == nil {
 			dstChild = newMemoryNode[T]()
+			if dst.children == nil {
+				dst.children = make(map[string]*memoryNode[T])
+			}
 			dst.children[label] = dstChild
 		}
 		mergeMemoryNodes(dstChild, srcChild)
@@ -140,6 +154,9 @@ func insertMemoryNode[T comparable](root *memoryNode[T], labels []string, value 
 		child := node.children[label]
 		if child == nil {
 			child = newMemoryNode[T]()
+			if node.children == nil {
+				node.children = make(map[string]*memoryNode[T])
+			}
 			node.children[label] = child
 		}
 		node = child

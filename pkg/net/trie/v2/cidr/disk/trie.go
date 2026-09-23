@@ -120,7 +120,7 @@ func (t *Trie[T]) InsertCIDR(prefix netip.Prefix, mark T) {
 	if t.closed || !prefix.IsValid() {
 		return
 	}
-	prefix = prefix.Masked()
+	prefix = normalizePrefix(prefix)
 	t.insertLocked(prefix.Addr(), prefix.Bits(), mark)
 	_ = t.flushIfNeededLocked()
 }
@@ -132,6 +132,7 @@ func (t *Trie[T]) InsertIP(addr netip.Addr, maskSize int, mark T) {
 	if t.closed || !addr.IsValid() || maskSize < 0 || maskSize > addr.BitLen() {
 		return
 	}
+	addr, maskSize = normalizeAddrMask(addr, maskSize)
 	t.insertLocked(addr, maskSize, mark)
 	_ = t.flushIfNeededLocked()
 }
@@ -165,9 +166,10 @@ func (t *Trie[T]) RemoveCIDR(prefix netip.Prefix) {
 	if err := t.materializeSegmentsLocked(); err != nil {
 		return
 	}
-	prefix = prefix.Masked()
+	prefix = normalizePrefix(prefix)
 	removeNode(t.root, prefix.Addr(), prefix.Bits())
 	t.memoryUsed = estimateTreeSize(t.root)
+	_ = t.flushIfNeededLocked()
 }
 
 // RemoveIP removes all marks attached to exactly the address prefix.
@@ -177,11 +179,13 @@ func (t *Trie[T]) RemoveIP(addr netip.Addr, maskSize int) {
 	if t.closed || !addr.IsValid() || maskSize < 0 || maskSize > addr.BitLen() {
 		return
 	}
+	addr, maskSize = normalizeAddrMask(addr, maskSize)
 	if err := t.materializeSegmentsLocked(); err != nil {
 		return
 	}
 	removeNode(t.root, addr, maskSize)
 	t.memoryUsed = estimateTreeSize(t.root)
+	_ = t.flushIfNeededLocked()
 }
 
 // Sync flushes the mutable builder without changing the configured memory
@@ -264,26 +268,61 @@ func (t *Trie[T]) searchAddr(addr netip.Addr) []T {
 		return nil
 	}
 	data := addr.AsSlice()
-	var result []T
+	var valuesByDepth [129][]T
 	for _, segment := range t.segments {
-		result = appendUnique(result, segment.search(data)...)
+		segment.search(data, &valuesByDepth)
 	}
 	node := t.root.children[1]
 	if addr.Is4() {
 		node = t.root.children[0]
 	}
 	if node == nil {
-		return result
+		return collectBySpecificity(&valuesByDepth, len(data)*8)
 	}
-	result = appendUnique(result, node.values...)
+	valuesByDepth[0] = append(valuesByDepth[0], node.values...)
 	for index := 0; index < len(data)*8; index++ {
 		node = node.children[bitAt(data, index)]
 		if node == nil {
 			break
 		}
-		result = appendUnique(result, node.values...)
+		valuesByDepth[index+1] = append(valuesByDepth[index+1], node.values...)
+	}
+	return collectBySpecificity(&valuesByDepth, len(data)*8)
+}
+
+func collectBySpecificity[T comparable](valuesByDepth *[129][]T, maxDepth int) []T {
+	var result []T
+	for depth := 0; depth <= maxDepth; depth++ {
+		result = appendUnique(result, valuesByDepth[depth]...)
 	}
 	return result
+}
+
+func normalizePrefix(prefix netip.Prefix) netip.Prefix {
+	addr, bits := prefix.Addr(), prefix.Bits()
+	if addr.Is4In6() {
+		if bits >= 96 {
+			return netip.PrefixFrom(addr.Unmap(), bits-96).Masked()
+		}
+		mappedRange := netip.MustParsePrefix("::ffff:0:0/96")
+		if prefix.Contains(mappedRange.Addr()) {
+			return netip.PrefixFrom(netip.IPv4Unspecified(), 0)
+		}
+	}
+	return prefix.Masked()
+}
+
+func normalizeAddrMask(addr netip.Addr, bits int) (netip.Addr, int) {
+	if addr.Is4In6() {
+		if bits >= 96 {
+			return addr.Unmap(), bits - 96
+		}
+		mappedRange := netip.MustParseAddr("::ffff:0:0")
+		if netip.PrefixFrom(addr, bits).Masked().Contains(mappedRange) {
+			return netip.IPv4Unspecified(), 0
+		}
+	}
+	return addr, bits
 }
 
 func bitAt(data []byte, index int) uint8 {

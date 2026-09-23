@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -51,9 +52,9 @@ func TestRulesStartupBuildsHostIndexBeforeTestingRoutes(t *testing.T) {
 		Type: "host",
 		Source: contractroute.ListSource{
 			Type:  "local",
-			Local: &contractroute.LocalSource{Lists: []string{"*.cdn.hf.co"}},
+			Local: &contractroute.LocalSource{Lists: []string{"*.cdn.hf.co", "10.0.0.0/8"}},
 		},
-	}}, nil, t.TempDir())
+	}}, &listSettingsStub{value: RouteListSettings{HostIndexDisk: true}}, t.TempDir())
 	t.Cleanup(func() {
 		if err := lists.Close(); err != nil {
 			t.Logf("close lists failed: %v", err)
@@ -80,6 +81,27 @@ func TestRulesStartupBuildsHostIndexBeforeTestingRoutes(t *testing.T) {
 	}
 	if got := lists.HostTrie().Search(context.Background(), addr); !slices.Contains(got, "direct_2_host") {
 		t.Fatalf("startup host index did not match nested wildcard: %v", got)
+	}
+	segments, err := filepath.Glob(filepath.Join(lists.hostTrie.cache.Dir(), "segment-*.mmap"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(segments) == 0 {
+		t.Fatal("startup disk host index retained its completed builder in memory")
+	}
+	cidrSegments, err := filepath.Glob(filepath.Join(lists.hostTrie.cache.Dir(), "segment-*.cidr"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cidrSegments) == 0 {
+		t.Fatal("startup disk host index retained its completed CIDR builder in memory")
+	}
+	ipAddr, err := netapi.ParseAddressPort("", "10.1.2.3", 80)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := lists.HostTrie().Search(context.Background(), ipAddr); !slices.Contains(got, "direct_2_host") {
+		t.Fatalf("startup disk host index did not match CIDR list: %v", got)
 	}
 }
 
@@ -205,9 +227,11 @@ func TestRuleTestContractSharesNetapiContext(t *testing.T) {
 			{Type: "host", Host: &contractroute.ListRef{List: "CN"}},
 		},
 	})
-	lists.hostTrie.Add(func(yield func(string) bool) {
+	if err := lists.hostTrie.Add(func(yield func(string) bool) {
 		yield("1.2.3.0/24")
-	}, "CN")
+	}, "CN"); err != nil {
+		t.Fatal(err)
+	}
 
 	rules := &Rules{route: route}
 	resp, err := rules.TestContract(context.Background(), "www.baidu.com")

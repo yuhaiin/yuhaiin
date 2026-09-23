@@ -27,6 +27,10 @@ func (d *diskDomain[T]) Batch(values iter.Seq2[string, T]) error {
 	return d.trie.Batch(values)
 }
 
+func (d *diskDomain[T]) Sync() error {
+	return d.trie.Sync()
+}
+
 func (d *diskDomain[T]) Search(address netapi.Address) []T {
 	return d.trie.Search(address.Hostname())
 }

@@ -52,6 +52,24 @@ func TestCidr(t *testing.T) {
 	})
 }
 
+func TestIPv4MappedPrefixesMatchAndRemoveAsIPv4(t *testing.T) {
+	c := NewCidr[string]()
+	c.InsertCIDR(netip.MustParsePrefix("::ffff:198.51.100.0/120"), "mapped-subnet")
+	c.InsertIP(netip.MustParseAddr("::ffff:192.0.2.1"), 128, "mapped-host")
+
+	if got := c.Search("198.51.100.42"); !slices.Contains(got, "mapped-subnet") {
+		t.Fatalf("mapped subnet Search = %v", got)
+	}
+	if got := c.Search("192.0.2.1"); !slices.Contains(got, "mapped-host") {
+		t.Fatalf("mapped host Search = %v", got)
+	}
+
+	c.RemoveIP(netip.MustParseAddr("::ffff:192.0.2.1"), 128)
+	if got := c.Search("192.0.2.1"); slices.Contains(got, "mapped-host") {
+		t.Fatalf("mapped host remained after removal: %v", got)
+	}
+}
+
 func BenchmarkCidr(b *testing.B) {
 	b.Run("IPv4", func(b *testing.B) {
 		cidrs := make([]string, 1000)

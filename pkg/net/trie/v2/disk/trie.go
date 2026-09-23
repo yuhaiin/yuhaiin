@@ -116,7 +116,7 @@ func (t *Trie[T]) Insert(domain string, value T) error {
 	if err := t.checkOpen(); err != nil {
 		return err
 	}
-	t.insertMemoryLocked(splitDomain(domain, t.separator), value)
+	t.insertMemoryLocked(domain, value)
 	return t.flushIfNeededLocked()
 }
 
@@ -129,7 +129,7 @@ func (t *Trie[T]) Batch(items iter.Seq2[string, T]) error {
 		return err
 	}
 	for domain, value := range items {
-		t.insertMemoryLocked(splitDomain(domain, t.separator), value)
+		t.insertMemoryLocked(domain, value)
 		if err := t.flushIfNeededLocked(); err != nil {
 			return err
 		}
@@ -175,7 +175,7 @@ func (t *Trie[T]) Remove(domain string, value T) error {
 	}
 	removeMemoryValue(t.root, splitDomain(domain, t.separator), value)
 	t.memoryUsed = estimateTreeSize(t.root)
-	return nil
+	return t.flushIfNeededLocked()
 }
 
 // Clear removes all segment files and resets the Trie to an empty state.

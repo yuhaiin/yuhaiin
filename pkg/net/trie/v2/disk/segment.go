@@ -370,7 +370,7 @@ func (s *segment[T]) valuesPath(path []string) []T {
 
 func (s *segment[T]) valuesNode(id uint64) []T {
 	node, ok := s.node(id)
-	if !ok || node.valueOff > s.region.size-s.valueOff || node.valueLen > s.region.size-s.valueOff-node.valueOff {
+	if !ok || node.valueLen == 0 || node.valueOff > s.region.size-s.valueOff || node.valueLen > s.region.size-s.valueOff-node.valueOff {
 		return nil
 	}
 	data, ok := s.region.bytesAt(s.valueOff+node.valueOff, node.valueLen)
@@ -410,7 +410,7 @@ func (s *segment[T]) loadNode(root *memoryNode[T], path []string, id uint64) err
 	if !ok || node.firstEdge > s.edgeCnt || uint64(node.edgeCount) > s.edgeCnt-node.firstEdge {
 		return errors.New("invalid disk trie node")
 	}
-	for _, value := range s.valuesPath(path) {
+	for _, value := range s.valuesNode(id) {
 		insertMemoryNode(root, path, value)
 	}
 	for i := uint64(0); i < uint64(node.edgeCount); i++ {

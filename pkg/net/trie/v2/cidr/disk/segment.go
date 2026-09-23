@@ -215,7 +215,7 @@ func (s *segment[T]) node(id uint64) (segmentNode, bool) {
 
 func (s *segment[T]) valuesNode(id uint64) []T {
 	node, ok := s.node(id)
-	if !ok || node.valueOff > s.valueLen || node.valueLen > s.valueLen-node.valueOff {
+	if !ok || node.valueLen == 0 || node.valueOff > s.valueLen || node.valueLen > s.valueLen-node.valueOff {
 		return nil
 	}
 	data, ok := s.region.bytesAt(s.valueOff+node.valueOff, node.valueLen)
@@ -241,39 +241,37 @@ func cloneValues[T comparable](values []T) []T {
 	return values
 }
 
-func (s *segment[T]) search(data []byte) []T {
-	var result []T
+func (s *segment[T]) search(data []byte, valuesByDepth *[129][]T) {
 	root, ok := s.node(0)
 	if !ok {
-		return nil
+		return
 	}
 	nodeID := root.right
 	if len(data) == netIPv4Bytes {
 		nodeID = root.left
 	}
 	if nodeID == absentChild {
-		return nil
+		return
 	}
 	if values := s.valuesNode(nodeID); len(values) != 0 {
-		result = appendUnique(result, values...)
+		valuesByDepth[0] = append(valuesByDepth[0], values...)
 	}
 	for index := 0; index < len(data)*8; index++ {
 		node, ok := s.node(nodeID)
 		if !ok {
-			return result
+			return
 		}
 		nodeID = node.right
 		if bitAt(data, index) == 0 {
 			nodeID = node.left
 		}
 		if nodeID == absentChild {
-			return result
+			return
 		}
 		if values := s.valuesNode(nodeID); len(values) != 0 {
-			result = appendUnique(result, values...)
+			valuesByDepth[index+1] = append(valuesByDepth[index+1], values...)
 		}
 	}
-	return result
 }
 
 func (s *segment[T]) loadInto(root *memoryNode[T]) error {

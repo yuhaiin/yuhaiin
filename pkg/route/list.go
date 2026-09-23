@@ -3,6 +3,7 @@ package route
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"math"
@@ -79,32 +80,31 @@ func (h *hostMatcher) Clear() {
 }
 
 func (h *hostMatcher) Close() error {
-	_ = h.trie.Close()
-	if h.cache == nil {
-		return nil
-	}
-
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	defer os.RemoveAll(h.cache.Dir())
-	err := h.cache.Close()
+	err := h.trie.Close()
+	if h.cache == nil {
+		return err
+	}
+	err = errors.Join(err, h.cache.Close(), os.RemoveAll(h.cache.Dir()))
 	h.cache = nil
 	return err
 }
 
-func (h *hostMatcher) Add(host iter.Seq[string], list string) {
+func (h *hostMatcher) Sync() error {
+	return h.trie.Sync()
+}
+
+func (h *hostMatcher) Add(host iter.Seq[string], list string) error {
 	h.lists.Push(list)
-	err := h.trie.Batch(func(yield func(string, string) bool) {
+	return h.trie.Batch(func(yield func(string, string) bool) {
 		for str := range host {
 			if !yield(str, list) {
 				return
 			}
 		}
 	})
-	if err != nil {
-		log.Error("add host failed", "err", err)
-	}
 }
 
 func (h *hostMatcher) Search(ctx context.Context, addr netapi.Address) []string {
@@ -187,6 +187,8 @@ type Lists struct {
 	ticker *time.Timer
 
 	hostTrie               *hostMatcher
+	hostTrieBuild          *hostMatcher
+	hostTrieBuildErr       error
 	hostTrieDisk           atomic.Bool
 	hostTrieRefreshTimer   *time.Timer
 	hostTrieRefreshTimerMu sync.Mutex
@@ -441,6 +443,10 @@ func (s *Lists) Close() error {
 	s.tickermu.Unlock()
 
 	s.closeCurrentGeoip()
+	s.hostListMu.Lock()
+	defer s.hostListMu.Unlock()
+	s.hostTrieMu.Lock()
+	defer s.hostTrieMu.Unlock()
 	return s.hostTrie.Close()
 }
 
@@ -632,21 +638,43 @@ func (s *Lists) refreshHostTrie() {
 			continue
 		}
 
-		hostTrie.Add(iter, name)
+		if err := hostTrie.Add(iter, name); err != nil {
+			log.Error("add host failed", "list", name, "err", err)
+			if closeErr := hostTrie.Close(); closeErr != nil {
+				log.Error("close failed host trie build", "err", closeErr)
+			}
+			return
+		}
+	}
+	if err := hostTrie.Sync(); err != nil {
+		log.Error("sync host trie failed", "err", err)
+		if closeErr := hostTrie.Close(); closeErr != nil {
+			log.Error("close failed host trie build", "err", closeErr)
+		}
+		return
 	}
 
 	s.hostTrieMu.Lock()
-	if err := s.hostTrie.Close(); err != nil {
-		log.Error("close host trie failed", "err", err)
-	}
+	old := s.hostTrie
 	s.hostTrie = hostTrie
 	s.hostTrieMu.Unlock()
+	if err := old.Close(); err != nil {
+		log.Error("close host trie failed", "err", err)
+	}
 }
 
 func (s *Lists) HostTrie() *hostMatcher {
 	s.hostTrieMu.RLock()
 	defer s.hostTrieMu.RUnlock()
 	return s.hostTrie
+}
+
+// SearchHost holds the trie read lock for the whole lookup so a concurrent
+// refresh cannot close an mmap while it is being queried.
+func (s *Lists) SearchHost(ctx context.Context, addr netapi.Address) []string {
+	s.hostTrieMu.RLock()
+	defer s.hostTrieMu.RUnlock()
+	return s.hostTrie.Search(ctx, addr)
 }
 
 func (s *Lists) SetHostTrie(hostTrie *hostMatcher) {
@@ -671,6 +699,7 @@ func (s *Lists) AddNewHostList(name string) {
 	s.hostListMu.Lock()
 	defer s.hostListMu.Unlock()
 	s.addNewHostListLocked(name)
+	s.syncHostTrie()
 }
 
 func (s *Lists) addNewHostListLocked(name string) {
@@ -684,23 +713,61 @@ func (s *Lists) addNewHostListLocked(name string) {
 		return
 	}
 
-	s.hostTrieMu.Lock()
-	defer s.hostTrieMu.Unlock()
-
-	s.hostTrie.Add(iter, name)
+	if s.hostTrieBuild != nil {
+		if err := s.hostTrieBuild.Add(iter, name); err != nil {
+			log.Error("add host failed", "list", name, "err", err)
+			s.hostTrieBuildErr = errors.Join(s.hostTrieBuildErr, err)
+		}
+		return
+	}
+	s.hostTrieMu.RLock()
+	defer s.hostTrieMu.RUnlock()
+	if err := s.hostTrie.Add(iter, name); err != nil {
+		log.Error("add host failed", "list", name, "err", err)
+	}
 }
 
 func (s *Lists) updateHostLists(fn func()) {
 	s.hostListMu.Lock()
 	defer s.hostListMu.Unlock()
-	s.resetHostTrieLocked()
+
+	build := newHostTrie(configuration.DataDir.Load(), s.hostTrieDisk.Load())
+	s.hostTrieBuild = build
+	s.hostTrieBuildErr = nil
 	fn()
+	buildErr := errors.Join(s.hostTrieBuildErr, build.Sync())
+	s.hostTrieBuild = nil
+	s.hostTrieBuildErr = nil
+	if buildErr != nil {
+		log.Error("build host trie failed", "err", buildErr)
+		if err := build.Close(); err != nil {
+			log.Error("close failed host trie build", "err", err)
+		}
+		return
+	}
+
+	s.hostTrieMu.Lock()
+	old := s.hostTrie
+	s.hostTrie = build
+	s.hostTrieMu.Unlock()
+	if err := old.Close(); err != nil {
+		log.Error("close host trie failed", "err", err)
+	}
 }
 
 func (s *Lists) withHostListLock(fn func()) {
 	s.hostListMu.Lock()
 	defer s.hostListMu.Unlock()
 	fn()
+	s.syncHostTrie()
+}
+
+func (s *Lists) syncHostTrie() {
+	s.hostTrieMu.RLock()
+	defer s.hostTrieMu.RUnlock()
+	if err := s.hostTrie.Sync(); err != nil {
+		log.Error("sync host trie failed", "err", err)
+	}
 }
 
 func (s *Lists) refreshProcessTrie() {

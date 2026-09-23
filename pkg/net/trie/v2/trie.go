@@ -135,6 +135,19 @@ func (x *Trie[T]) Clear() error {
 	return errors.Join(x.cidr.Clear(), x.domain.Clear())
 }
 
+// Sync flushes any mutable disk-backed builders while leaving in-memory
+// implementations unchanged.
+func (x *Trie[T]) Sync() error {
+	var err error
+	if syncer, ok := x.cidr.(interface{ Sync() error }); ok {
+		err = errors.Join(err, syncer.Sync())
+	}
+	if syncer, ok := x.domain.(interface{ Sync() error }); ok {
+		err = errors.Join(err, syncer.Sync())
+	}
+	return err
+}
+
 func (x *Trie[T]) Close() error {
 	var err error
 	if er := x.cidr.Close(); er != nil {
