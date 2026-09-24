@@ -178,6 +178,43 @@ func TestV2RouteActivationIsCombined(t *testing.T) {
 	}
 }
 
+func TestV2RouteTagsIncludeRuleReferences(t *testing.T) {
+	ctx := context.Background()
+	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sqliteStore.Close() }()
+
+	ruleStore := plainstore.NewRouteRuleStore(sqliteStore.DB())
+	if err := ruleStore.SaveRule(ctx, contractroute.RouteRule{Name: "remote", Mode: "proxy", Tag: "rule-only"}, 0, 100); err != nil {
+		t.Fatal(err)
+	}
+	tagStore := plainstore.NewRouteTagStore(sqliteStore.DB())
+	if err := tagStore.SaveTag(ctx, contractroute.TagItem{Name: "configured", Type: "node", Hash: []string{"node-a"}}, 100); err != nil {
+		t.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
+		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+			if err := handler(w, r); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}, V2Services{RouteRules: ruleStore, RouteTags: tagStore})
+
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/v2/rpc/route.tags.get", strings.NewReader(`{"page":1,"page_size":10}`)))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	body := recorder.Body.String()
+	if !strings.Contains(body, `"name":"configured"`) || !strings.Contains(body, `"hash":["node-a"]`) || !strings.Contains(body, `"name":"rule-only"`) || !strings.Contains(body, `"total":2`) {
+		t.Fatalf("unexpected route tags response: %s", body)
+	}
+}
+
 func (s listConfigRuntimeStub) SaveConfig(ctx context.Context, config contractroute.ListConfig, interval uint64) error {
 	return s.store.SaveListSettings(ctx, plainstore.RouteListSettings{
 		RefreshInterval: interval, LastRefreshTime: 999,

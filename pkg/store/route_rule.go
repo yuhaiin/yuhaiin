@@ -304,6 +304,7 @@ func decodeRouteRule(dataJSON string) (contractroute.RouteRule, error) {
 
 func normalizeRouteRule(rule contractroute.RouteRule) contractroute.RouteRule {
 	rule.Name = strings.TrimSpace(rule.Name)
+	rule.Tag = strings.TrimSpace(rule.Tag)
 	if strings.TrimSpace(rule.Mode) == "" {
 		rule.Mode = "bypass"
 	}

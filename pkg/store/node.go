@@ -11,6 +11,7 @@ import (
 	"uuid"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 )
 
 type NodeStore struct {
@@ -153,6 +154,9 @@ func (s *NodeStore) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("begin node delete transaction failed: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := deleteRouteTagNodeMember(ctx, tx, id); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM node_tags WHERE target_kind = 'node' AND target_id = ?`, id); err != nil {
 		return fmt.Errorf("delete node tag members for %q failed: %w", id, err)
 	}
@@ -227,12 +231,25 @@ func (s *NodeStore) AddTag(ctx context.Context, tag, kind, target string) error 
 	if tag == target && kind == "tag" {
 		return nil
 	}
-	if _, err := s.db.ExecContext(ctx, `
-		INSERT INTO node_tags(tag_name, target_kind, target_id, updated_at)
-		VALUES (?, ?, ?, unixepoch())
-		ON CONFLICT(tag_name, target_kind, target_id) DO UPDATE SET updated_at = excluded.updated_at
-	`, tag, kind, target); err != nil {
-		return fmt.Errorf("insert node tag failed: %w", err)
+	item, found, err := NewRouteTagStore(s.db).GetTag(ctx, tag)
+	if err != nil {
+		return err
+	}
+	desiredType := "node"
+	if kind == "tag" {
+		desiredType = "mirror"
+	}
+	if !found {
+		item = contractroute.TagItem{Name: tag, Type: desiredType}
+	} else if len(item.Hash) > 0 && item.Type != desiredType {
+		return fmt.Errorf("tag %q already has type %q", tag, item.Type)
+	}
+	item.Type = desiredType
+	if !slices.Contains(item.Hash, target) {
+		item.Hash = append(item.Hash, target)
+	}
+	if err := SaveRouteTagContract(ctx, s.db, item, 0); err != nil {
+		return fmt.Errorf("insert node tag %q failed: %w", tag, err)
 	}
 	return nil
 }
@@ -241,7 +258,7 @@ func (s *NodeStore) DeleteTag(ctx context.Context, tag string) error {
 	if s == nil || s.db == nil {
 		return errors.New("node store database is nil")
 	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM node_tags WHERE tag_name = ?`, tag); err != nil {
+	if err := NewRouteTagStore(s.db).DeleteTag(ctx, tag); err != nil && !errors.Is(err, ErrNotFound) {
 		return fmt.Errorf("delete node tag %q failed: %w", tag, err)
 	}
 	return nil
@@ -257,31 +274,11 @@ func (s *NodeStore) GetTag(ctx context.Context, name string) (NodeTag, bool, err
 	if s == nil || s.db == nil {
 		return NodeTag{}, false, errors.New("node store database is nil")
 	}
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT target_kind, target_id
-		FROM node_tags
-		WHERE tag_name = ?
-		ORDER BY target_kind, target_id
-	`, name)
+	item, _, err := NewRouteTagStore(s.db).GetTag(ctx, name)
 	if err != nil {
-		return NodeTag{}, false, fmt.Errorf("query node tag %q failed: %w", name, err)
+		return NodeTag{}, false, err
 	}
-	defer rows.Close()
-	tag := NodeTag{Name: name, Kind: "node"}
-	for rows.Next() {
-		var kind, targetID string
-		if err := rows.Scan(&kind, &targetID); err != nil {
-			return NodeTag{}, false, fmt.Errorf("scan node tag %q failed: %w", name, err)
-		}
-		if kind == "tag" {
-			tag.Kind = "mirror"
-		}
-		tag.TargetIDs = append(tag.TargetIDs, targetID)
-	}
-	if err := rows.Err(); err != nil {
-		return NodeTag{}, false, fmt.Errorf("iterate node tag %q failed: %w", name, err)
-	}
-	return tag, len(tag.TargetIDs) > 0, nil
+	return NodeTag{Name: item.Name, Kind: item.Type, TargetIDs: item.Hash}, len(item.Hash) > 0, nil
 }
 
 func (s *NodeStore) UsingIDs(ctx context.Context) ([]string, error) {
@@ -313,6 +310,40 @@ func (s *NodeStore) UsingIDs(ctx context.Context) ([]string, error) {
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate using node ids failed: %w", err)
+	}
+	v2Rows, err := s.db.QueryContext(ctx, `
+		SELECT name, members_json
+		FROM node_tags_v2
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query v2 using node ids failed: %w", err)
+	}
+	for v2Rows.Next() {
+		var name, dataJSON string
+		if err := v2Rows.Scan(&name, &dataJSON); err != nil {
+			_ = v2Rows.Close()
+			return nil, fmt.Errorf("scan v2 using node id failed: %w", err)
+		}
+		tag, err := decodeRouteTag(name, dataJSON)
+		if err != nil {
+			_ = v2Rows.Close()
+			return nil, err
+		}
+		if tag.Type != "node" {
+			continue
+		}
+		for _, id := range tag.Hash {
+			if id != "" {
+				ids[id] = struct{}{}
+			}
+		}
+	}
+	if err := v2Rows.Err(); err != nil {
+		_ = v2Rows.Close()
+		return nil, fmt.Errorf("iterate v2 using node ids failed: %w", err)
+	}
+	if err := v2Rows.Close(); err != nil {
+		return nil, fmt.Errorf("close v2 using node ids failed: %w", err)
 	}
 	out := make([]string, 0, len(ids))
 	for id := range ids {
