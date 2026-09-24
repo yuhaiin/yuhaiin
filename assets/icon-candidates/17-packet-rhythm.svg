@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Packet rhythm</title>
+  <circle cx="128" cy="128" r="106" fill="#FFF3EE"/>
+  <path d="M47 128h162" fill="none" stroke="#455A9A" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="56" cy="128" r="9" fill="#E57969" stroke="#FFF9F6" stroke-width="4"/>
+  <circle cx="92" cy="128" r="12" fill="#F0BC58" stroke="#FFF9F6" stroke-width="4"/>
+  <circle cx="128" cy="128" r="16" fill="#526FC5" stroke="#FFF9F6" stroke-width="4"/>
+  <circle cx="164" cy="128" r="12" fill="#55AFA5" stroke="#FFF9F6" stroke-width="4"/>
+  <circle cx="200" cy="128" r="9" fill="#D66C91" stroke="#FFF9F6" stroke-width="4"/>
+</svg>

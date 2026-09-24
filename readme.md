@@ -1,4 +1,8 @@
-#
+# Yuhaiin
+
+<p align="center">
+  <img src="assets/icon-candidates/17-packet-rhythm.svg" alt="Yuhaiin icon" width="128" />
+</p>
 
 [![GitHub license](https://img.shields.io/github/license/Asutorufa/yuhaiin)](https://github.com/Asutorufa/yuhaiin/blob/master/LICENSE)
 [![releases](https://img.shields.io/github/release-pre/asutorufa/yuhaiin.svg)](https://github.com/Asutorufa/yuhaiin/releases)
