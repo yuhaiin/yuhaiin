@@ -2,7 +2,7 @@
 
 Some packages may only be included on certain architectures or operating systems.
 
-- [codeberg.org/miekg/dns](https://pkg.go.dev/codeberg.org/miekg/dns) ([BSD-3-Clause](https://codeberg.org/miekg/dns/src/tag/v0.6.109/LICENSE))
+- [codeberg.org/miekg/dns](https://pkg.go.dev/codeberg.org/miekg/dns) ([BSD-3-Clause](https://codeberg.org/miekg/dns/src/tag/v0.6.115/LICENSE))
 - [github.com/Asutorufa/yuhaiin](https://pkg.go.dev/github.com/Asutorufa/yuhaiin) ([MIT](https://github.com/Asutorufa/yuhaiin/blob/HEAD/LICENSE))
 - [github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/bloom](https://pkg.go.dev/github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/bloom) ([Apache-2.0](https://github.com/Asutorufa/yuhaiin/blob/HEAD/pkg/net/proxy/shadowsocks/bloom/LICENSE))
 - [github.com/Asutorufa/yuhaiin/pkg/net/proxy/tproxy](https://pkg.go.dev/github.com/Asutorufa/yuhaiin/pkg/net/proxy/tproxy) ([MIT](https://github.com/Asutorufa/yuhaiin/blob/HEAD/pkg/net/proxy/tproxy/LICENCE))
@@ -57,9 +57,9 @@ Some packages may only be included on certain architectures or operating systems
 - [github.com/prometheus/client_golang/prometheus](https://pkg.go.dev/github.com/prometheus/client_golang/prometheus) ([Apache-2.0](https://github.com/prometheus/client_golang/blob/v1.24.1/LICENSE))
 - [github.com/prometheus/client_model/go](https://pkg.go.dev/github.com/prometheus/client_model/go) ([Apache-2.0](https://github.com/prometheus/client_model/blob/v0.6.2/LICENSE))
 - [github.com/prometheus/common](https://pkg.go.dev/github.com/prometheus/common) ([Apache-2.0](https://github.com/prometheus/common/blob/v0.70.1/LICENSE))
-- [github.com/quic-go/connect-ip-go](https://pkg.go.dev/github.com/quic-go/connect-ip-go) ([MIT](https://github.com/quic-go/connect-ip-go/blob/v0.3.0/LICENSE))
+- [github.com/quic-go/connect-ip-go](https://pkg.go.dev/github.com/quic-go/connect-ip-go) ([MIT](https://github.com/quic-go/connect-ip-go/blob/v0.4.0/LICENSE))
 - [github.com/quic-go/qpack](https://pkg.go.dev/github.com/quic-go/qpack) ([MIT](https://github.com/quic-go/qpack/blob/v0.6.0/LICENSE.md))
-- [github.com/quic-go/quic-go](https://pkg.go.dev/github.com/quic-go/quic-go) ([MIT](https://github.com/quic-go/quic-go/blob/v0.62.0/LICENSE))
+- [github.com/quic-go/quic-go](https://pkg.go.dev/github.com/quic-go/quic-go) ([MIT](https://github.com/quic-go/quic-go/blob/v0.63.0/LICENSE))
 - [github.com/refraction-networking/utls](https://pkg.go.dev/github.com/refraction-networking/utls) ([BSD-3-Clause](https://github.com/refraction-networking/utls/blob/v1.8.2/LICENSE))
 - [github.com/refraction-networking/utls/dicttls](https://pkg.go.dev/github.com/refraction-networking/utls/dicttls) ([BSD-3-Clause](https://github.com/refraction-networking/utls/blob/v1.8.2/dicttls/LICENSE))
 - [github.com/rhnvrm/simples3](https://pkg.go.dev/github.com/rhnvrm/simples3) ([BSD-2-Clause](https://github.com/rhnvrm/simples3/blob/v0.11.1/LICENSE))
@@ -69,7 +69,7 @@ Some packages may only be included on certain architectures or operating systems
 - [github.com/tailscale/wireguard-go](https://pkg.go.dev/github.com/tailscale/wireguard-go) ([MIT](https://github.com/yuhaiin/wireguard-go/blob/42cbda171106/LICENSE))
 - [github.com/vishvananda/netlink](https://pkg.go.dev/github.com/vishvananda/netlink) ([Apache-2.0](https://github.com/vishvananda/netlink/blob/v1.3.1/LICENSE))
 - [github.com/vishvananda/netns](https://pkg.go.dev/github.com/vishvananda/netns) ([Apache-2.0](https://github.com/vishvananda/netns/blob/v0.0.5/LICENSE))
-- [github.com/xtls/reality](https://pkg.go.dev/github.com/xtls/reality) ([MPL-2.0](https://github.com/xtls/reality/blob/5dabb073f8e8/LICENSE))
+- [github.com/xtls/reality](https://pkg.go.dev/github.com/xtls/reality) ([MPL-2.0](https://github.com/xtls/reality/blob/3c98159dee38/LICENSE))
 - [github.com/yosida95/uritemplate/v3](https://pkg.go.dev/github.com/yosida95/uritemplate/v3) ([BSD-3-Clause](https://github.com/yosida95/uritemplate/blob/v3.0.2/LICENSE))
 - [github.com/yuhaiin/yuhaiin.github.io](https://pkg.go.dev/github.com/yuhaiin/yuhaiin.github.io) ([Unknown](Unknown))
 - [go4.org/mem](https://pkg.go.dev/go4.org/mem) ([Apache-2.0](https://github.com/go4org/mem/blob/ae6ca9944745/LICENSE))
@@ -85,7 +85,7 @@ Some packages may only be included on certain architectures or operating systems
 - [golang.org/x/time/rate](https://pkg.go.dev/golang.org/x/time/rate) ([BSD-3-Clause](https://cs.opensource.google/go/x/time/+/v0.16.0:LICENSE))
 - [golang.zx2c4.com/wintun](https://pkg.go.dev/golang.zx2c4.com/wintun) ([Unknown](Unknown))
 - [golang.zx2c4.com/wintun/memmod](https://pkg.go.dev/golang.zx2c4.com/wintun/memmod) ([Unknown](Unknown))
-- [golang.zx2c4.com/wireguard/windows/tunnel/winipcfg](https://pkg.go.dev/golang.zx2c4.com/wireguard/windows/tunnel/winipcfg) ([MIT](https://git.zx2c4.com/wireguard-windows/tree/COPYING?h=v1.0.1))
+- [golang.zx2c4.com/wireguard/windows/tunnel/winipcfg](https://pkg.go.dev/golang.zx2c4.com/wireguard/windows/tunnel/winipcfg) ([MIT](https://git.zx2c4.com/wireguard-windows/tree/COPYING?h=v1.1.1))
 - [google.golang.org/protobuf](https://pkg.go.dev/google.golang.org/protobuf) ([BSD-3-Clause](https://github.com/protocolbuffers/protobuf-go/blob/v1.36.12/LICENSE))
 - [gvisor.dev/gvisor/pkg](https://pkg.go.dev/gvisor.dev/gvisor/pkg) ([Apache-2.0](https://github.com/google/gvisor/blob/124e365c3f93/LICENSE))
 - [gvisor.dev/gvisor/pkg](https://pkg.go.dev/gvisor.dev/gvisor/pkg) ([MIT](https://github.com/google/gvisor/blob/124e365c3f93/LICENSE))
