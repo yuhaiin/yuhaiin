@@ -204,7 +204,7 @@ func (n *Nat) readTunQueue(
 				continue
 			}
 
-			if !n.UDP.closed.Load() {
+			if !n.closed.Load() {
 				readFailure.Do(func() {
 					log.Error("tun device read failed", "err", err)
 					_ = opt.Device.Close()
