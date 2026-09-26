@@ -93,6 +93,7 @@ func New(o *device.Opt) (*tunServer, error) {
 	nicID := s.NextNICID()
 	if er := s.CreateNIC(nicID, ep); er != nil {
 		ep.Attach(nil)
+		ep.Close()
 		return nil, fmt.Errorf("create nic failed: %v", er)
 	}
 

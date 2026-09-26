@@ -53,6 +53,39 @@ func TestTable(t *testing.T) {
 	time.Sleep(time.Second * 3)
 }
 
+func TestSourceControlDispatchUsesSkipRouteContext(t *testing.T) {
+	addr, err := netapi.ParseAddressPort("udp", "192.0.2.1", 5353)
+	assert.NoError(t, err)
+
+	dialer := &skipRouteTestProxy{}
+	packetConn := &testPacketConn{t: t, saddr: netapi.EmptyAddr, ip: true}
+	source := &SourceControl{
+		dialer: dialer,
+		conn:   &wrapConn{PacketConn: packetConn},
+	}
+	packet := netapi.NewPacket(addr, addr, []byte("test"), netapi.WriteBackFunc(func([]byte, net.Addr) (int, error) {
+		return 0, nil
+	}))
+	defer packet.DecRef()
+
+	if err := source.write(context.Background(), packet, source.conn); err != nil {
+		t.Fatal(err)
+	}
+	if !dialer.skipRoute {
+		t.Fatal("Dispatch received a context without SkipRoute set")
+	}
+}
+
+type skipRouteTestProxy struct {
+	testProxy
+	skipRoute bool
+}
+
+func (p *skipRouteTestProxy) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Address, error) {
+	p.skipRoute = netapi.GetContext(ctx).ConnOptions().SkipRoute()
+	return addr, nil
+}
+
 type sinffer struct{}
 
 func (sinffer) Packet(ctx *netapi.Context, pkt []byte) {}

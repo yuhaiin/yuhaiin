@@ -22,6 +22,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
+// ErrSendPacketQueueFull reports a UDP packet dropped because a flow's send queue is full.
+var ErrSendPacketQueueFull = errors.New("ringbuffer is full, drop packet")
+
 type sentPacket struct {
 	src     net.Addr
 	srcAddr netapi.Address
@@ -167,7 +170,7 @@ func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) err
 		if !u.sentPackets.Push(pkt) {
 			pkt.DecRef()
 			metrics.Counter.AddSendUDPDroppedPacket()
-			return fmt.Errorf("ringbuffer is full, drop packet")
+			return ErrSendPacketQueueFull
 		}
 
 		select {
@@ -306,7 +309,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 		store.ConnOptions().SetSkipRoute(true)
 
 		var err error
-		dstAddr, err = t.dialer.Dispatch(ctx, pkt.Dst())
+		dstAddr, err = t.dialer.Dispatch(store, pkt.Dst())
 		if err != nil {
 			return fmt.Errorf("dispatch addr failed: %w", err)
 		}

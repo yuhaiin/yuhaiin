@@ -109,9 +109,11 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 }
 
 func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
-	// ! because we use ringbuffer which can drop the packet if the buffer is full
-	// ! so here we assume the network is not congesting
 	if err := s.table.Write(ctx, pack); err != nil {
+		if errors.Is(err, nat.ErrSendPacketQueueFull) {
+			// The metric records queue drops; per-packet logging can amplify congestion.
+			return
+		}
 		log.Error("packet", "error", err)
 	}
 }

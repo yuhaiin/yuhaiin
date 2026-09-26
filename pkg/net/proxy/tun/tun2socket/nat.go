@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"sync"
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -31,6 +32,11 @@ type Nat struct {
 
 	device.InterfaceAddress
 	gatewayPort uint16
+}
+
+type tunQueueReader interface {
+	ReadQueueCount() int
+	ReadQueue(queue int, bufs [][]byte, sizes []int) (int, error)
 }
 
 func dualStackListen(v4addr, v6addr netip.Addr) (v4, v6 *net.TCPListener, port int, err error) {
@@ -138,120 +144,150 @@ func Start(opt *device.Opt) (*Nat, error) {
 		v6network = tcpip.AddrFromSlice(opt.V6Address().Masked().Addr().AsSlice())
 	}
 
+	queueReader, parallelRead := opt.Device.(tunQueueReader)
+	queueCount := 1
+	if parallelRead {
+		queueCount = queueReader.ReadQueueCount()
+		if queueCount < 1 {
+			queueCount = 1
+			parallelRead = false
+		}
+	}
+
 	go func() {
 		defer tab.Close()
 		defer nat.Close()
 
-		offset := opt.Device.Offset()
-		sizes := make([]int, opt.Device.BatchSize())
-		bufs := make([][]byte, opt.Device.BatchSize())
-		for i := range bufs {
-			bufs[i] = make([]byte, opt.MTU+offset)
+		var workers sync.WaitGroup
+		var readFailure sync.Once
+		for queue := range queueCount {
+			workers.Add(1)
+			go func(queue int) {
+				defer workers.Done()
+				nat.readTunQueue(opt, queue, queueReader, parallelRead, &readFailure,
+					broadcast, v4network, v6network)
+			}(queue)
 		}
-
-		wbufs := make([][]byte, opt.Device.BatchSize())
-
-		for {
-			n, err := opt.Device.Read(bufs, sizes)
-			if err != nil {
-				if errors.Is(err, syscall.ENOBUFS) {
-					log.Warn("tun device read failed", "err", err)
-					continue
-				}
-
-				log.Error("tun device read failed", "err", err)
-				return
-			}
-
-			wbufs = wbufs[:0]
-
-			for i := range n {
-				if sizes[i] < header.IPv4MinimumSize {
-					continue
-				}
-
-				raw := bufs[i][offset : sizes[i]+offset]
-
-				ip := nat.processIP(raw)
-				if ip == nil {
-					continue
-				}
-
-				if !configuration.IPv6.Load() {
-					_, ok := ip.(header.IPv6)
-					if ok {
-						continue
-					}
-				}
-
-				if len(ip.Payload()) > len(raw) {
-					continue
-				}
-
-				dst, src := ip.DestinationAddress(), ip.SourceAddress()
-
-				if !net.IP(dst.AsSlice()).IsGlobalUnicast() {
-					continue
-				}
-
-				if v4network.Len() != 0 && (dst.Equal(broadcast) || dst.Equal(v4network)) {
-					continue
-				}
-
-				if v6network.Len() != 0 && dst.Equal(v6network) {
-					continue
-				}
-
-				switch ip.TransportProtocol() {
-				case header.TCPProtocolNumber:
-					tp, pseudoHeaderSum, ok := nat.processTCP(ip, src, dst)
-					if !ok {
-						continue
-					}
-
-					device.ResetChecksum(ip, tp, pseudoHeaderSum)
-					wbufs = append(wbufs, bufs[i][:sizes[i]+offset])
-
-				case header.ICMPv4ProtocolNumber:
-					nat.HandlePing4(bufs[i])
-					continue
-
-				case header.ICMPv6ProtocolNumber:
-					nat.HandlePing6(bufs[i])
-					continue
-
-				case header.UDPProtocolNumber:
-					u := header.UDP(ip.Payload())
-					if u.Length() == 0 {
-						continue
-					}
-
-					nat.handleUDPPacket(UDPTuple{
-						SourceAddr:      src,
-						SourcePort:      u.SourcePort(),
-						DestinationAddr: dst,
-						DestinationPort: u.DestinationPort(),
-					}, u.Payload())
-
-					continue
-
-				default:
-					continue
-				}
-			}
-
-			if len(wbufs) == 0 {
-				continue
-			}
-
-			if _, err = opt.Device.Write(wbufs); err != nil {
-				log.Error("write tcp raw to tun device failed", "err", err)
-			}
-
-		}
+		workers.Wait()
 	}()
 
 	return nat, nil
+}
+
+func (n *Nat) readTunQueue(
+	opt *device.Opt,
+	queue int,
+	queueReader tunQueueReader,
+	parallelRead bool,
+	readFailure *sync.Once,
+	broadcast, v4network, v6network tcpip.Address,
+) {
+	offset := opt.Device.Offset()
+	sizes := make([]int, opt.Device.BatchSize())
+	bufs := make([][]byte, opt.Device.BatchSize())
+	for i := range bufs {
+		bufs[i] = make([]byte, opt.MTU+offset)
+	}
+	wbufs := make([][]byte, 0, opt.Device.BatchSize())
+
+	for {
+		var nread int
+		var err error
+		if parallelRead {
+			nread, err = queueReader.ReadQueue(queue, bufs, sizes)
+		} else {
+			nread, err = opt.Device.Read(bufs, sizes)
+		}
+		if err != nil {
+			if errors.Is(err, syscall.ENOBUFS) {
+				log.Warn("tun device read failed", "err", err)
+				continue
+			}
+
+			if !n.UDP.closed.Load() {
+				readFailure.Do(func() {
+					log.Error("tun device read failed", "err", err)
+					_ = opt.Device.Close()
+				})
+			}
+			return
+		}
+
+		wbufs = wbufs[:0]
+
+		for i := range nread {
+			if sizes[i] < header.IPv4MinimumSize {
+				continue
+			}
+
+			raw := bufs[i][offset : sizes[i]+offset]
+
+			ip := n.processIP(raw)
+			if ip == nil {
+				continue
+			}
+
+			if !configuration.IPv6.Load() {
+				if _, ok := ip.(header.IPv6); ok {
+					continue
+				}
+			}
+
+			if len(ip.Payload()) > len(raw) {
+				continue
+			}
+
+			dst, src := ip.DestinationAddress(), ip.SourceAddress()
+
+			if !net.IP(dst.AsSlice()).IsGlobalUnicast() {
+				continue
+			}
+
+			if v4network.Len() != 0 && (dst.Equal(broadcast) || dst.Equal(v4network)) {
+				continue
+			}
+
+			if v6network.Len() != 0 && dst.Equal(v6network) {
+				continue
+			}
+
+			switch ip.TransportProtocol() {
+			case header.TCPProtocolNumber:
+				tp, pseudoHeaderSum, ok := n.processTCP(ip, src, dst)
+				if !ok {
+					continue
+				}
+
+				device.ResetChecksum(ip, tp, pseudoHeaderSum)
+				wbufs = append(wbufs, bufs[i][:sizes[i]+offset])
+
+			case header.ICMPv4ProtocolNumber:
+				n.HandlePing4(bufs[i])
+			case header.ICMPv6ProtocolNumber:
+				n.HandlePing6(bufs[i])
+			case header.UDPProtocolNumber:
+				u := header.UDP(ip.Payload())
+				if u.Length() == 0 {
+					continue
+				}
+
+				n.handleUDPPacket(UDPTuple{
+					SourceAddr:      src,
+					SourcePort:      u.SourcePort(),
+					DestinationAddr: dst,
+					DestinationPort: u.DestinationPort(),
+				}, u.Payload())
+			}
+		}
+
+		if len(wbufs) == 0 {
+			continue
+		}
+
+		if _, err = opt.Device.Write(wbufs); err != nil {
+			log.Error("write tcp raw to tun device failed", "err", err)
+		}
+	}
 }
 
 func (n *Nat) processIP(raw []byte) header.Network {

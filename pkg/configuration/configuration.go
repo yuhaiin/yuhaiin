@@ -36,7 +36,7 @@ var (
 	UDPBatchSize             = 8
 	MaxUDPUnprocessedPackets = atomicx.NewValue(200)
 	UDPBufferSize            = atomicx.NewValue(2048)
-	RelayBufferSize          = atomicx.NewValue(4096)
+	RelayBufferSize          = atomicx.NewValue(16384)
 	DNSProcessThread         = atomicx.NewValue[int64](150)
 
 	// MPTCP has bug in linux or some server is not support which will

@@ -17,27 +17,41 @@ const (
 )
 
 func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Tun, error) {
-	var err error
-	var device wun.Device
-	offset := offset
-	gsoEnabled := false
-	switch sc.Scheme {
-	case "tun":
-		wd, err := wun.CreateTUN(sc.Name, mtu)
+	if sc.Scheme == "tun" {
+		tun, err := openMultiQueueTUN(sc.Name, mtu, tunQueueCount())
 		if err != nil {
-			return nil, fmt.Errorf("create tun failed: %w", err)
+			device, fallbackErr := wun.CreateTUN(sc.Name, mtu)
+			if fallbackErr != nil {
+				return nil, fmt.Errorf("create multi queue tun failed: %w (single queue fallback: %v)", err, fallbackErr)
+			}
+
+			gsoEnabled := IsGSOEnabled(int(device.File().Fd()))
+			offset := offset
+			if gsoEnabled {
+				offset = 10
+			}
+
+			if err := netlink.SetNoqueue(sc.Name); err != nil {
+				log.Warn("set noqueue failed", slog.String("name", sc.Name), slog.Any("err", err))
+			}
+
+			log.Warn("multi queue TUN unavailable; using legacy device", slog.String("name", sc.Name), slog.Any("err", err))
+			return NewDevice(device, offset, mtu, gsoEnabled), nil
 		}
 
 		if err := netlink.SetNoqueue(sc.Name); err != nil {
 			log.Warn("set noqueue failed", slog.String("name", sc.Name), slog.Any("err", err))
 		}
 
-		gsoEnabled = IsGSOEnabled(int(wd.File().Fd()))
-		if gsoEnabled {
-			offset = 10
-			log.Info("tun gso enabled", slog.String("name", sc.Name))
-		}
-		device = wd
+		log.Info("multi queue tun enabled", slog.String("name", sc.Name), slog.Int("queues", tun.ReadQueueCount()))
+		return tun, nil
+	}
+
+	var err error
+	var device wun.Device
+	offset := offset
+	gsoEnabled := false
+	switch sc.Scheme {
 	case "fd":
 		gsoEnabled = IsGSOEnabled(sc.Fd)
 		if !gsoEnabled {
