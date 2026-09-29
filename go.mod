@@ -18,7 +18,7 @@ require (
 	github.com/google/nftables v0.3.0
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/mattn/go-sqlite3 v1.14.52
-	github.com/oschwald/maxminddb-golang/v2 v2.6.0
+	github.com/oschwald/maxminddb-golang/v2 v2.7.0
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.24.1
@@ -40,7 +40,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v1.1.1
 	google.golang.org/protobuf v1.36.12
 	gvisor.dev/gvisor v0.0.0-20260801065709-124e365c3f93
-	modernc.org/sqlite v1.59.0
+	modernc.org/sqlite v1.60.1
 	tailscale.com v1.9999999999.99999999999
 )
 
@@ -116,7 +116,7 @@ require (
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/tools v0.50.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
-	modernc.org/libc v1.75.7 // indirect
+	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
