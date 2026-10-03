@@ -3,11 +3,35 @@ package resolver
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"sync"
 	"testing"
 
+	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
+
+func TestFakednsDefaultPools(t *testing.T) {
+	f, err := NewFakeDNS(
+		netapi.NewErrProxy(errors.New("test dialer")),
+		netapi.ErrorResolver(func(string) error { return nil }),
+		t.TempDir()+"/state.db",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+	ipv4 := netip.MustParsePrefix("198.18.0.0/16")
+	ipv6 := netip.MustParsePrefix("2001:2::/64")
+	if !f.fake.Equal(ipv4, ipv6) {
+		t.Fatal("constructor did not use the default benchmarking pools")
+	}
+	initial := f.fake
+	f.Apply(contractresolver.FakeDNS{})
+	if f.fake != initial {
+		t.Fatal("applying empty settings replaced the default pools")
+	}
+}
 
 func TestFakednsDispatchAddrConcurrentClose(t *testing.T) {
 	f, err := NewFakeDNS(
@@ -19,7 +43,7 @@ func TestFakednsDispatchAddrConcurrentClose(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addr, err := netapi.ParseAddress("tcp", "10.2.0.1:443")
+	addr, err := netapi.ParseAddress("tcp", "198.18.0.1:443")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,22 +4,16 @@ import (
 	mrand "math/rand/v2"
 	"net/netip"
 	"runtime"
+
+	"github.com/Asutorufa/yuhaiin/pkg/network/defaults"
 )
 
 func FakeipV4UlaGenerate() netip.Prefix {
-	ip := [4]byte{10, byte(mrand.IntN(256)), 0, 0}
-
-	return netip.PrefixFrom(netip.AddrFrom4(ip), 16)
+	return defaults.FakeipV4UlaGenerate()
 }
 
 func FakeipV6UlaGenerate() netip.Prefix {
-	ip := [16]byte{
-		253,
-		byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)), byte(mrand.IntN(256)),
-		255, 255,
-	}
-
-	return netip.PrefixFrom(netip.AddrFrom16(ip), 64)
+	return defaults.FakeipV6UlaGenerate()
 }
 
 func TunV6UlaGenerate() netip.Prefix {

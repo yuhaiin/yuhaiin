@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/netip"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -45,8 +44,8 @@ type Fakedns struct {
 }
 
 func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, dbPath string, initial ...contractresolver.FakeDNS) (*Fakedns, error) {
-	ipv4Range, _ := netip.ParsePrefix("10.2.0.1/24")
-	ipv6Range, _ := netip.ParsePrefix("fc00::/64")
+	ipv4Range := configuration.GetFakeIPRange("", false)
+	ipv6Range := configuration.GetFakeIPRange("", true)
 	if len(initial) > 0 {
 		ipv4Range = configuration.GetFakeIPRange(initial[0].IPv4Range, false)
 		ipv6Range = configuration.GetFakeIPRange(initial[0].IPv6Range, true)

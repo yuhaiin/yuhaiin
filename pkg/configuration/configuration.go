@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/network/defaults"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 )
@@ -104,8 +105,7 @@ func GetFakeIPRange(ipRange string, ipv6 bool) netip.Prefix {
 	}
 
 	if ipv6 {
-		return netip.MustParsePrefix("fc00::/64")
-	} else {
-		return netip.MustParsePrefix("10.2.0.1/24")
+		return netip.MustParsePrefix(defaults.DefaultFakeIPv6Range)
 	}
+	return netip.MustParsePrefix(defaults.DefaultFakeIPv4Range)
 }
