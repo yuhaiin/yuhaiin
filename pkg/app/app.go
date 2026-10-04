@@ -69,6 +69,11 @@ func AddCloser[T io.Closer](a *closers, name string, t T) T {
 func Start(so *StartOptions) (_ *AppInstance, err error) {
 	configuration.DataDir.Store(so.ConfigPath)
 
+	ctx := so.Context
+	if ctx == nil {
+		ctx = ctx
+	}
+
 	closers := &closers{}
 
 	if closer, ok := so.StateStore.(io.Closer); ok {
@@ -77,7 +82,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	if migrator, ok := so.StateStore.(MigrationStore); ok {
 		log.Info("start plain model migration")
-		if err := migrator.Migrate(context.Background()); err != nil {
+		if err := migrator.Migrate(ctx); err != nil {
 			_ = closers.Close()
 			return nil, fmt.Errorf("plain model migration failed: %w", err)
 		}
@@ -104,7 +109,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	var routeRuleStore *plainstore.RouteRuleStore
 	var routeListStore *plainstore.RouteListStore
 	if sqlStore := so.StateStore; sqlStore != nil {
-		db, err := sqlStore.SQLDB(context.Background())
+		db, err := sqlStore.SQLDB(ctx)
 		if err != nil {
 			log.Error("open v2 sqlite store failed", "err", err)
 		} else {
@@ -119,7 +124,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	}
 	settingsController := NewSettingsController(settingsStore, so.ConfigPath, logController)
 	if settingsStore != nil {
-		if settings, err := settingsController.Load(context.Background()); err != nil {
+		if settings, err := settingsController.Load(ctx); err != nil {
 			log.Warn("load initial settings failed", "err", err)
 		} else {
 			settingsController.Apply(settings)
@@ -128,7 +133,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	// Read the configured ranges before importing the legacy Pebble FakeIP state.
 	var initialFakeDNS contractresolver.FakeDNS
 	if resolverConfigStore != nil {
-		if config, err := resolverConfigStore.FakeDNS(context.Background()); err != nil {
+		if config, err := resolverConfigStore.FakeDNS(ctx); err != nil {
 			log.Warn("load initial fakedns config failed", "err", err)
 		} else {
 			initialFakeDNS = config
@@ -137,7 +142,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	if so.StateStore != nil {
 		needsMigration := true
 		if status, ok := so.StateStore.(PebbleMigrationStatusStore); ok {
-			done, err := status.LegacyPebbleMigrationDone(context.Background())
+			done, err := status.LegacyPebbleMigrationDone(ctx)
 			if err != nil {
 				_ = closers.Close()
 				return nil, fmt.Errorf("check legacy pebble migration status failed: %w", err)
@@ -159,7 +164,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 				_ = closers.Close()
 				return nil, errors.New("state store does not support required startup legacy migration")
 			}
-			ctx := context.Background()
+			ctx := ctx
 			log.Info("start legacy pebble state migration")
 			if err := migrator.MigrateLegacyPebble(
 				ctx,
@@ -247,7 +252,11 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	app.Backup = AddCloser(closers, "backup", NewBackup(backupStore, so.ConfigPath, app, fakedns))
 
-	app.RegisterServer()
+	if err := ctx.Err(); err != nil {
+		_ = app.Close()
+		return nil, err
+	}
+	app.RegisterServer(ctx)
 
 	tailscale.Mux.Store(app.Mux)
 
