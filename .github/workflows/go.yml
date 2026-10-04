@@ -69,16 +69,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - {arch: amd64, runner: macos-15-intel}
-          - {arch: amd64v3, runner: macos-15-intel}
-          - {arch: amd64v4, runner: macos-15-intel}
-          - {arch: arm64, runner: macos-15}
+        arch: [amd64, amd64v3, amd64v4, arm64]
     uses: ./.github/workflows/build-binary.yml
     with:
       os: darwin
       arch: ${{ matrix.arch }}
-      runner: ${{ matrix.runner }}
+      runner: ubuntu-24.04
       front_version: ${{ needs.get_version.outputs.front_version }}
 
   windows:

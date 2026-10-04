@@ -7,8 +7,7 @@ the 22 binary targets:
 | Job | Targets | Build environment | SQLite |
 | --- | --- | --- | --- |
 | `linux` | amd64, amd64v3, amd64v4, arm64, mipsle | Ubuntu with musl cross compilers | mattn, statically linked |
-| `darwin` | amd64, amd64v3, amd64v4 | macos-15-intel with Apple's clang/SDK | mattn with CGO |
-| `darwin` | arm64 | macos-15 with Apple's clang/SDK | mattn with CGO |
+| `darwin` | amd64, amd64v3, amd64v4, arm64 | Ubuntu 24.04 with osxcross/LLVM 18 and macOS SDK 14.5 | mattn with CGO |
 | `windows` | amd64, amd64v3, amd64v4, arm64 | Ubuntu with llvm-mingw/UCRT cross compilers | mattn, compiler runtimes statically linked |
 | `cross` | FreeBSD, OpenBSD: amd64, amd64v3, amd64v4, arm64; Android: arm64 | Ubuntu, CGO disabled | modernc |
 
@@ -55,6 +54,12 @@ cache. JSON v2 and Green Tea GC use Go 1.27's defaults.
 - `scripts/build/install-windows-toolchain.sh ARCH` downloads pinned llvm-mingw
   20260922, verifies its SHA-256 checksum, and prints the target compiler path.
   It supports Linux x64/ARM64 and macOS hosts and requires `RUNNER_TEMP`.
+- `scripts/build/install-darwin-toolchain.sh ARCH` installs pinned osxcross with
+  the LLVM build flavor and macOS SDK 14.5, verifying both archive checksums.
+  It runs on Linux with LLVM 18 installed and requires `RUNNER_TEMP` (or an
+  explicit `OSXCROSS_ROOT`). The workflow caches the installation for all four
+  Darwin targets; its key includes the installer so version changes invalidate
+  the cache. SDK packaging follows [osxcross's SDK documentation](https://github.com/tpoechtrager/osxcross/blob/master/README.SDK.md).
 - `scripts/build/check-windows-binary.sh BINARY ARCH` verifies the PE/Go CPU target,
   CGO/mattn build metadata, and DLL imports. `LLVM_READOBJ` selects the tool from
   the installed toolchain. Non-system DLL dependencies fail the build.
@@ -63,11 +68,14 @@ Windows builds include SQLite's C source and statically link compiler runtimes,
 so they remain single executables. They use the UCRT supplied with Windows 10+;
 users do not need SQLite or MinGW installed.
 
-Darwin uses SQLite's bundled C source, so users do not need Homebrew SQLite.
+Darwin is cross-compiled on Linux using [osxcross](https://github.com/tpoechtrager/osxcross).
+It uses SQLite's bundled C source, so users do not need Homebrew SQLite.
 Only macOS system libraries/frameworks are dynamically linked. Its deployment
 target is explicitly macOS 13.0, matching Go 1.27's minimum, so a newer runner
 SDK does not raise the binary's minimum OS version. Review this target when
 upgrading Go.
+Local builds on macOS continue to use the native compiler and SDK. Linux builds
+require `CC` to select the osxcross compiler, whose wrapper supplies the SDK.
 
 ## Validation
 

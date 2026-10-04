@@ -27,9 +27,14 @@ case "$GOOS" in
     ;;
   darwin)
     export CGO_ENABLED=1 EXTRA_GO_TAGS=sqlite_mattn
-    CC="${CC:-$(xcrun --find clang)}"
-    SDKROOT="${SDKROOT:-$(xcrun --show-sdk-path)}"
-    export CC SDKROOT
+    if [[ $(uname -s) == Darwin ]]; then
+      CC="${CC:-$(xcrun --find clang)}"
+      SDKROOT="${SDKROOT:-$(xcrun --show-sdk-path)}"
+      export SDKROOT
+    else
+      : "${CC:?Darwin cgo cross-builds require an osxcross compiler}"
+    fi
+    export CC
     # Keep cgo's deployment target aligned with Go 1.27's macOS minimum.
     export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
     # Explicit flags also make the target part of Go's cgo build cache key.

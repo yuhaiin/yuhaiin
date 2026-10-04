@@ -51,17 +51,27 @@ jobs:
           compiler=$(bash scripts/build/install-musl-toolchain.sh "$RELEASE_ARCH")
           echo "CC=$compiler" >> "$GITHUB_ENV"
 
+      - name: Install Darwin compiler dependencies
+        if: inputs.os == 'darwin'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y clang-18 llvm-18 lld-18 g++ make patch xz-utils bzip2 cpio
+          echo /usr/lib/llvm-18/bin >> "$GITHUB_PATH"
+
+      - name: Restore Darwin toolchain
+        if: inputs.os == 'darwin'
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/osxcross
+          key: osxcross-ubuntu24-${{ runner.arch }}-${{ hashFiles('scripts/build/install-darwin-toolchain.sh') }}
+
       - name: Set up Darwin cgo compiler
         if: inputs.os == 'darwin'
         run: |
-          compiler=$(xcrun --find clang)
-          sdk=$(xcrun --show-sdk-path)
-          {
-            echo "CC=$compiler"
-            echo "SDKROOT=$sdk"
-            # Match Go 1.27's minimum macOS version, rather than the runner's SDK.
-            echo "MACOSX_DEPLOYMENT_TARGET=13.0"
-          } >> "$GITHUB_ENV"
+          compiler=$(bash scripts/build/install-darwin-toolchain.sh "$RELEASE_ARCH")
+          echo "CC=$compiler" >> "$GITHUB_ENV"
+          echo "MACOSX_DEPLOYMENT_TARGET=13.0" >> "$GITHUB_ENV"
+          echo "${compiler%/*}" >> "$GITHUB_PATH"
 
       - name: Install Windows cgo toolchain
         if: inputs.os == 'windows'
