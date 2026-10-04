@@ -77,15 +77,13 @@ func (s *RegistryCatalogService) Catalogs(ctx context.Context, refresh bool) (co
 	out := contractroute.RegistryCatalogList{Items: make([]contractroute.RegistryCatalog, len(enabled))}
 	var wg sync.WaitGroup
 	for i, registry := range enabled {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			catalog, err := s.catalog(ctx, registry, refresh)
 			if err != nil {
 				catalog = contractroute.RegistryCatalog{Registry: registry, Error: err.Error()}
 			}
 			out.Items[i] = catalog
-		}()
+		})
 	}
 	wg.Wait()
 	return out, nil
