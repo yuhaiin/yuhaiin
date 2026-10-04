@@ -20,6 +20,7 @@ import (
 	connectip "github.com/quic-go/connect-ip-go"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
+	"github.com/tailscale/wireguard-go/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 )
 
@@ -214,27 +215,24 @@ func (m *Masque) Forward() {
 	}()
 
 	go func() {
-		sizeBuf := []int{0}
-		devBuf := make([][]byte, 1)
+		packets := make([]tun.ReadPacket, m.dev.BatchSize())
+		slab := make([]byte, m.mtu+2*tun.ReadPacketSpacing)
 
 		for {
-			buf := pool.GetBytes(m.mtu)
-			devBuf[0] = buf
-
-			n, err := m.dev.Read(devBuf, sizeBuf, 0)
+			n, err := m.dev.Read(slab, packets)
 			if err != nil {
-				pool.PutBytes(buf)
 				log.Error("read packet from virtual device failed", "err", err)
 				break
 			}
 
 			if n == 0 {
-				pool.PutBytes(buf)
 				continue
 			}
 
+			packet := packets[0]
+			buf := pool.Clone(slab[packet.Offset : packet.Offset+packet.Size])
 			select {
-			case m.send <- devBuf[0][:sizeBuf[0]]:
+			case m.send <- buf:
 			case <-m.ctx.Done():
 				pool.PutBytes(buf)
 				return

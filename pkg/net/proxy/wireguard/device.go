@@ -136,13 +136,16 @@ func (tun *NetTun) File() *os.File           { return nil }
 func (tun *NetTun) Events() <-chan tun.Event { return tun.events }
 func (tun *NetTun) BatchSize() int           { return 1 }
 
-func (tun *NetTun) Read(buf [][]byte, size []int, offset int) (int, error) {
-	var err error
-	size[0], err = tun.dev.Inbound(buf[0][offset:])
+func (t *NetTun) Read(slab []byte, packets []tun.ReadPacket) (int, error) {
+	if len(packets) == 0 || len(slab) < 2*tun.ReadPacketSpacing {
+		return 0, tun.ErrTooManySegments
+	}
+	n, err := t.dev.Inbound(slab[tun.ReadPacketSpacing : len(slab)-tun.ReadPacketSpacing])
 	if err != nil {
 		return 0, err
 	}
 
+	packets[0] = tun.ReadPacket{Offset: tun.ReadPacketSpacing, Size: n}
 	return 1, nil
 }
 

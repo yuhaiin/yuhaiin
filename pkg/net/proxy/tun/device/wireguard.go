@@ -1,7 +1,10 @@
 package device
 
 import (
+	"errors"
+	"io"
 	"math"
+	"sync"
 
 	wun "github.com/tailscale/wireguard-go/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/checksum"
@@ -13,6 +16,10 @@ type wgDevice struct {
 	offset int
 	mtu    int
 	gso    bool
+
+	readMu  sync.Mutex
+	slab    []byte
+	packets []wun.ReadPacket
 }
 
 func NewDevice(device wun.Device, offset, mtu int, gsoEnabled bool) *wgDevice {
@@ -30,7 +37,37 @@ func (t *wgDevice) Offset() int      { return t.offset }
 func (t *wgDevice) MTU() int         { return t.mtu }
 func (t *wgDevice) GSOEnabled() bool { return t.gso }
 func (t *wgDevice) Read(bufs [][]byte, sizes []int) (n int, err error) {
-	return t.Device.Read(bufs, sizes, t.offset)
+	t.readMu.Lock()
+	defer t.readMu.Unlock()
+
+	if len(bufs) < t.BatchSize() || len(sizes) < len(bufs) {
+		return 0, wun.ErrTooManySegments
+	}
+
+	// The native reader packs packets into one slab, with reserved space
+	// around each packet. Keep the project's per-packet buffer interface.
+	slabSize := wun.ReadPacketSpacing
+	for _, buf := range bufs {
+		if t.offset < 0 || len(buf) < t.offset {
+			return 0, io.ErrShortBuffer
+		}
+		slabSize += len(buf) - t.offset + wun.ReadPacketSpacing
+	}
+	if len(t.slab) < slabSize {
+		t.slab = make([]byte, slabSize)
+	}
+	if len(t.packets) < len(bufs) {
+		t.packets = make([]wun.ReadPacket, len(bufs))
+	}
+
+	n, err = t.Device.Read(t.slab[:slabSize], t.packets[:len(bufs)])
+	for i, packet := range t.packets[:n] {
+		if packet.Size > len(bufs[i])-t.offset {
+			return i, errors.Join(err, io.ErrShortBuffer)
+		}
+		sizes[i] = copy(bufs[i][t.offset:], t.slab[packet.Offset:packet.Offset+packet.Size])
+	}
+	return n, err
 }
 
 func (t *wgDevice) Write(bufs [][]byte) (int, error) {

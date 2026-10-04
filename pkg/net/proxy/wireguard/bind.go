@@ -154,22 +154,33 @@ func (bind *netBindClient) connect() (net.PacketConn, error) {
 	return bind.conn, nil
 }
 
-func (bind *netBindClient) receiveBatch(packets [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
-	conn, err := bind.connectBatch()
+func (bind *netBindClient) receiveBatch(slab []byte, packets []conn.ReceivedPacket) (n int, err error) {
+	batch, err := bind.connectBatch()
 	if err != nil {
 		return 0, err
 	}
 
-	return conn.ReadBatch(packets, sizes, eps)
+	bufs := make([][]byte, len(packets))
+	sizes := make([]int, len(packets))
+	eps := make([]conn.Endpoint, len(packets))
+	packetSize := len(slab) / len(packets)
+	for i := range bufs {
+		bufs[i] = slab[i*packetSize : (i+1)*packetSize]
+	}
+	n, err = batch.ReadBatch(bufs, sizes, eps)
+	for i := range n {
+		packets[i] = conn.ReceivedPacket{Offset: i * packetSize, Size: sizes[i], Endpoint: eps[i]}
+	}
+	return n, err
 }
 
-func (bind *netBindClient) receive(packets [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
-	conn, err := bind.connect()
+func (bind *netBindClient) receive(slab []byte, packets []conn.ReceivedPacket) (n int, err error) {
+	pc, err := bind.connect()
 	if err != nil {
 		return 0, err
 	}
 
-	n, addr, err := conn.ReadFrom(packets[0])
+	n, addr, err := pc.ReadFrom(slab)
 	if err != nil {
 		return 0, err
 	}
@@ -180,11 +191,10 @@ func (bind *netBindClient) receive(packets [][]byte, sizes []int, eps []conn.End
 	}
 
 	if n > 3 {
-		copy(packets[0][1:4], []byte{0, 0, 0})
+		clear(slab[1:4])
 	}
 
-	sizes[0] = n
-	eps[0] = Endpoint(addrPort)
+	packets[0] = conn.ReceivedPacket{Size: n, Endpoint: Endpoint(addrPort)}
 	return 1, nil
 }
 

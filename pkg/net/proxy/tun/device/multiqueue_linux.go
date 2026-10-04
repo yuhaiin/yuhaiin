@@ -22,7 +22,7 @@ const (
 // multiQueueTUN keeps one native TUN device per kernel queue. Each reader owns
 // a queue so packet processing remains ordered within that queue.
 type multiQueueTUN struct {
-	devices []wun.Device
+	devices []*wgDevice
 	mtu     int
 	offset  int
 	next    atomic.Uint32
@@ -45,7 +45,7 @@ func openMultiQueueTUN(name string, mtu, queueCount int) (*multiQueueTUN, error)
 		queueCount = 1
 	}
 
-	tuns := make([]wun.Device, 0, queueCount)
+	tuns := make([]*wgDevice, 0, queueCount)
 
 	for i := range queueCount {
 		tun, err := openTUNQueue(name, mtu, true)
@@ -58,7 +58,7 @@ func openMultiQueueTUN(name string, mtu, queueCount int) (*multiQueueTUN, error)
 					return nil, errors.Join(err, fallbackErr)
 				}
 				log.Warn("multi queue TUN unavailable; using one queue", "name", name, "err", err)
-				tuns = append(tuns, tun)
+				tuns = append(tuns, NewDevice(tun, tunVnetHdrLen, mtu, true))
 				break
 			}
 			// Keep the queues that attached successfully. This permits operation
@@ -66,7 +66,7 @@ func openMultiQueueTUN(name string, mtu, queueCount int) (*multiQueueTUN, error)
 			log.Warn("attach TUN queue failed; using fewer queues", "requested", queueCount, "attached", i, "err", err)
 			break
 		}
-		tuns = append(tuns, tun)
+		tuns = append(tuns, NewDevice(tun, tunVnetHdrLen, mtu, true))
 	}
 
 	return &multiQueueTUN{
@@ -116,7 +116,7 @@ func (t *multiQueueTUN) ReadQueue(queue int, bufs [][]byte, sizes []int) (int, e
 	if queue < 0 || queue >= len(t.devices) {
 		return 0, fmt.Errorf("tun queue index %d out of range", queue)
 	}
-	return t.devices[queue].Read(bufs, sizes, t.offset)
+	return t.devices[queue].Read(bufs, sizes)
 }
 
 func (t *multiQueueTUN) Read(bufs [][]byte, sizes []int) (int, error) {
@@ -126,7 +126,7 @@ func (t *multiQueueTUN) Read(bufs [][]byte, sizes []int) (int, error) {
 
 func (t *multiQueueTUN) Write(bufs [][]byte) (int, error) {
 	queue := int((t.next.Add(1) - 1) % uint32(len(t.devices)))
-	return t.devices[queue].Write(bufs, t.offset)
+	return t.devices[queue].Write(bufs)
 }
 
 func (t *multiQueueTUN) BatchSize() int   { return t.devices[0].BatchSize() }

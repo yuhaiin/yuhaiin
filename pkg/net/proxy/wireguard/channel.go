@@ -47,17 +47,21 @@ func (p *ChannelDevice) Outbound(b []byte) error {
 	}
 }
 
-func (p *ChannelDevice) Read(b [][]byte, size []int, offset int) (int, error) {
-	if len(b) == 0 {
-		return 0, nil
+func (p *ChannelDevice) Read(slab []byte, packets []wun.ReadPacket) (int, error) {
+	if len(packets) == 0 || len(slab) < 2*wun.ReadPacketSpacing {
+		return 0, wun.ErrTooManySegments
 	}
 
 	select {
 	case <-p.ctx.Done():
 		return 0, io.EOF
 	case bb := <-p.outbound:
-		size[0] = copy(b[0][offset:], bb)
-		pool.PutBytes(bb)
+		defer pool.PutBytes(bb)
+		buf := slab[wun.ReadPacketSpacing : len(slab)-wun.ReadPacketSpacing]
+		if len(bb) > len(buf) {
+			return 0, wun.ErrTooManySegments
+		}
+		packets[0] = wun.ReadPacket{Offset: wun.ReadPacketSpacing, Size: copy(buf, bb)}
 		return 1, nil
 	}
 }
