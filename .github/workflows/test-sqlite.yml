@@ -1,0 +1,45 @@
+name: SQLite regressions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**.go'
+      - go.mod
+      - go.sum
+      - .github/workflows/test-sqlite.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - '**.go'
+      - go.mod
+      - go.sum
+      - .github/workflows/test-sqlite.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {backend: mattn, cgo: '1'}
+          - {backend: modernc, cgo: '0'}
+    env:
+      CGO_ENABLED: ${{ matrix.cgo }}
+      SQLITE_BACKEND: ${{ matrix.backend }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Test storage, FakeIP, statistics, and legacy settings
+        run: |
+          go test -timeout=5m -tags="sqlite_${SQLITE_BACKEND},stdlibjson,debug,fts5" \
+            ./pkg/storage/sqlite ./pkg/net/dns/fakeip ./pkg/statistics ./pkg/legacy/chore

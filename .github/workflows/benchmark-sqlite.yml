@@ -1,0 +1,81 @@
+name: Windows SQLite benchmarks
+
+# Performance comparisons are opt-in and do not delay releases.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    env:
+      GOOS: windows
+      GOARCH: ${{ matrix.arch }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Install Windows cgo toolchain
+        run: |
+          compiler=$(bash scripts/build/install-windows-toolchain.sh "$GOARCH")
+          echo "CC=$compiler" >> "$GITHUB_ENV"
+      - name: Compile both SQLite backends
+        run: |
+          mkdir -p windows-benchmarks
+          CGO_ENABLED=1 go test -c -tags=sqlite_mattn,stdlibjson,debug,fts5 \
+            -ldflags='-linkmode external -extldflags -static' \
+            -o windows-benchmarks/statistics-mattn.test.exe ./pkg/statistics
+          CGO_ENABLED=0 go test -c -tags=sqlite_modernc,stdlibjson,debug,fts5 \
+            -o windows-benchmarks/statistics-modernc.test.exe ./pkg/statistics
+      - name: Upload benchmark executables
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-benchmark-executables-${{ matrix.arch }}
+          path: windows-benchmarks/*.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  benchmark:
+    needs: compile
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {arch: amd64, runner: windows-2025}
+          - {arch: arm64, runner: windows-11-arm}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Download benchmark executables
+        uses: actions/download-artifact@v8
+        with:
+          name: windows-benchmark-executables-${{ matrix.arch }}
+          path: windows-benchmarks
+      - name: Compare SQLite performance
+        run: |
+          foreach ($backend in @("modernc", "mattn")) {
+            & ".\windows-benchmarks\statistics-$backend.test.exe" '-test.run=^$' '-test.bench=BenchmarkPersistConnection|BenchmarkAllInfos|BenchmarkTelemetryFlush' '-test.benchmem' '-test.benchtime=500ms' '-test.count=3' '-test.timeout=5m' |
+              Tee-Object -FilePath "windows-benchmarks\benchmark-$backend.txt"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-benchmarks-${{ matrix.arch }}
+          path: windows-benchmarks/benchmark-*.txt
+          if-no-files-found: error
+          retention-days: 7

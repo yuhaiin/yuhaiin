@@ -13,28 +13,34 @@ the 22 binary targets:
 | `cross` | FreeBSD, OpenBSD: amd64, amd64v3, amd64v4, arm64; Android: arm64 | Ubuntu, CGO disabled | modernc |
 
 The reusable binary workflow handles checkout, Go setup, frontend update,
-toolchain setup, and artifact upload. Darwin's baseline amd64 and arm64 jobs
-also run the SQLite storage, FakeIP, statistics, and legacy settings tests.
-The v3/v4 binaries are built without executing them on runners that may lack
-the required CPU instructions. Makefile's build-tag generator always runs with
+toolchain setup, and artifact upload. Release jobs do not compile or run SQLite
+test executables. The v3/v4 binaries are built without executing them on runners
+that may lack the required CPU instructions. Makefile's build-tag generator always runs with
 `GOAMD64=v1`, independently of the target binary's CPU level.
 
-Windows baseline amd64/arm64 jobs also cross-compile the same four test packages.
-`test-windows.yml` executes these tests and the release executable on native
-Windows x64/ARM64 runners before publication. It compares the existing statistics
-benchmarks against modernc and uploads the results as `windows-benchmarks-ARCH`.
-Test executables and benchmark logs are excluded from release downloads; the
-release job only downloads artifacts matching `yuhaiin*`.
+`test-windows.yml` runs the release executable's `version` command on native
+Windows x64/ARM64 runners before publication. Each Windows build also verifies
+the binary's architecture, CGO/mattn metadata, and system DLL imports.
+The release job only downloads artifacts matching `yuhaiin*`.
+
+`test-sqlite.yml` independently runs the SQLite storage, FakeIP, statistics, and
+legacy settings regressions on Ubuntu with both mattn (CGO) and modernc. It runs
+for Go source, module, or its workflow changes on main pushes and pull requests,
+and can also be started manually. These tests do not gate binary publication.
+
+`benchmark-sqlite.yml` is manual-only: select **Windows SQLite benchmarks** in
+Actions and use **Run workflow**. It cross-compiles the statistics benchmarks for
+both backends, runs them on native Windows x64/ARM64, and uploads the comparison
+logs as `windows-benchmarks-ARCH`. Benchmark artifacts belong to that separate
+workflow run and do not enter releases.
 
 `frontend-version.yml` resolves one frontend commit per workflow run. Both the
 binary/AAR workflow and `container.yaml` use it so their parallel builds use
 the same frontend revision within each run. Go versions come from `go.mod`.
 
 `build-binary.yml` explicitly enables setup-go's module/build cache, keyed by
-`go.sum`. Tests and builds share the restored Go cache within each job. Darwin
-tests use the same JSON/debug/SQLite tags and deployment flags as the release
-build so their shared packages can reuse compilation results. JSON v2 and
-Green Tea GC use Go 1.27's defaults.
+`go.sum`. The independent regression and benchmark workflows also enable this
+cache. JSON v2 and Green Tea GC use Go 1.27's defaults.
 
 ## Shared build scripts
 
@@ -71,5 +77,4 @@ To run the same checks locally:
 ```sh
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 shellcheck scripts/build/*.sh
-python3 scripts/build/test_makefile.py
 ```

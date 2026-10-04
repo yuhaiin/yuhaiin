@@ -156,7 +156,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: artifacts
-          # Test executables and benchmark logs are CI-only artifacts.
+          # Download only release artifacts.
           pattern: yuhaiin*
 
       - name: Generate checksums
