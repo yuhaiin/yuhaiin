@@ -28,7 +28,7 @@ func TestFakednsDefaultPools(t *testing.T) {
 		t.Fatal("constructor did not use the default benchmarking pools")
 	}
 	initial := f.fake
-	f.Apply(contractresolver.FakeDNS{})
+	_ = f.Apply(contractresolver.FakeDNS{})
 	if f.fake != initial {
 		t.Fatal("applying empty settings replaced the default pools")
 	}

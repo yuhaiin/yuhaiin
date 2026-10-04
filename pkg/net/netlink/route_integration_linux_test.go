@@ -37,7 +37,7 @@ func TestLinuxRouteLifecycleInNamespace(t *testing.T) {
 		}
 	}()
 	for _, name := range []string{"testtun1", "testtun2"} {
-		if err := netlink.LinkAdd(&netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: name}}); err != nil {
+		if err := netlink.LinkAdd(&netlink.Dummy{Name: name}); err != nil {
 			t.Fatal(err)
 		}
 	}
