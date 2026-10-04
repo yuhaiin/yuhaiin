@@ -81,12 +81,37 @@ jobs:
       runner: ${{ matrix.runner }}
       front_version: ${{ needs.get_version.outputs.front_version }}
 
+  windows:
+    needs: get_version
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, amd64v3, amd64v4, arm64]
+    uses: ./.github/workflows/build-binary.yml
+    with:
+      os: windows
+      arch: ${{ matrix.arch }}
+      front_version: ${{ needs.get_version.outputs.front_version }}
+
+  windows-test:
+    needs: windows
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {arch: amd64, runner: windows-2025}
+          - {arch: arm64, runner: windows-11-arm}
+    uses: ./.github/workflows/test-windows.yml
+    with:
+      arch: ${{ matrix.arch }}
+      runner: ${{ matrix.runner }}
+
   cross:
     needs: get_version
     strategy:
       fail-fast: false
       matrix:
-        os: [freebsd, openbsd, windows]
+        os: [freebsd, openbsd]
         arch: [amd64, amd64v3, amd64v4, arm64]
         include:
           - {os: android, arch: arm64}
@@ -98,7 +123,7 @@ jobs:
 
   release:
     if: github.ref_type == 'tag' || (github.ref_type == 'branch' && github.ref_name == 'main')
-    needs: [linux, darwin, cross, android]
+    needs: [linux, darwin, windows, windows-test, cross, android]
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -131,6 +156,8 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: artifacts
+          # Test executables and benchmark logs are CI-only artifacts.
+          pattern: yuhaiin*
 
       - name: Generate checksums
         run: |

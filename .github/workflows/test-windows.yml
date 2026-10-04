@@ -1,0 +1,64 @@
+name: Test Windows binary
+
+on:
+  workflow_call:
+    inputs:
+      arch:
+        type: string
+        required: true
+      runner:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  test:
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download release binary
+        uses: actions/download-artifact@v8
+        with:
+          name: yuhaiin_windows_${{ inputs.arch }}
+          path: binary
+
+      - name: Download SQLite tests
+        uses: actions/download-artifact@v8
+        with:
+          name: windows-tests-${{ inputs.arch }}
+          path: windows-tests
+
+      - name: Run binary and SQLite regressions
+        env:
+          RELEASE_ARCH: ${{ inputs.arch }}
+        run: |
+          & ".\binary\yuhaiin-windows-$($env:RELEASE_ARCH).exe" version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($package in @("sqlite", "fakeip", "statistics", "chore")) {
+            & ".\windows-tests\$package.test.exe" -test.timeout=5m
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Compare SQLite performance
+        run: |
+          foreach ($backend in @("modernc", "mattn")) {
+            $binary = if ($backend -eq "modernc") { "statistics-modernc.test.exe" } else { "statistics.test.exe" }
+            & ".\windows-tests\$binary" '-test.run=^$' '-test.bench=BenchmarkPersistConnection|BenchmarkAllInfos|BenchmarkTelemetryFlush' -test.benchmem -test.benchtime=500ms -test.count=3 |
+              Tee-Object -FilePath "windows-tests\benchmark-$backend.txt"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-benchmarks-${{ inputs.arch }}
+          path: windows-tests/benchmark-*.txt
+          if-no-files-found: error
+          retention-days: 7

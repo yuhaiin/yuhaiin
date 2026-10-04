@@ -1283,7 +1283,7 @@ Mitigation:
 - preserve total flow counters and history semantics while changing the persistence backend
 - preserve traffic rollup correctness for hourly, daily, monthly, and yearly queries
 
-When running Go tests in this repo, continue using `GOEXPERIMENT=jsonv2,greenteagc`.
+When running Go tests in this repo, use Go 1.27 or newer, which enables JSON v2 and Green Tea GC by default.
 
 ## Risks and Open Questions
 

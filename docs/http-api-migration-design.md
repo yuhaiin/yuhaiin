@@ -953,7 +953,7 @@ Exit criteria:
 - `rg "google.golang.org/grpc|google.golang.org/protobuf|pkg/protos|pkg/idl"`
   has no runtime hits
 - `go mod tidy` removes grpc/protobuf
-- tests pass with `GOEXPERIMENT=jsonv2,greenteagc`
+- tests pass with Go 1.27's default JSON v2 and Green Tea GC settings
 
 ## 11. Testing plan
 

@@ -9,7 +9,8 @@ the 22 binary targets:
 | `linux` | amd64, amd64v3, amd64v4, arm64, mipsle | Ubuntu with musl cross compilers | mattn, statically linked |
 | `darwin` | amd64, amd64v3, amd64v4 | macos-15-intel with Apple's clang/SDK | mattn with CGO |
 | `darwin` | arm64 | macos-15 with Apple's clang/SDK | mattn with CGO |
-| `cross` | FreeBSD, OpenBSD, Windows: amd64, amd64v3, amd64v4, arm64; Android: arm64 | Ubuntu, CGO disabled | modernc |
+| `windows` | amd64, amd64v3, amd64v4, arm64 | Ubuntu with llvm-mingw/UCRT cross compilers | mattn, compiler runtimes statically linked |
+| `cross` | FreeBSD, OpenBSD: amd64, amd64v3, amd64v4, arm64; Android: arm64 | Ubuntu, CGO disabled | modernc |
 
 The reusable binary workflow handles checkout, Go setup, frontend update,
 toolchain setup, and artifact upload. Darwin's baseline amd64 and arm64 jobs
@@ -18,9 +19,22 @@ The v3/v4 binaries are built without executing them on runners that may lack
 the required CPU instructions. Makefile's build-tag generator always runs with
 `GOAMD64=v1`, independently of the target binary's CPU level.
 
+Windows baseline amd64/arm64 jobs also cross-compile the same four test packages.
+`test-windows.yml` executes these tests and the release executable on native
+Windows x64/ARM64 runners before publication. It compares the existing statistics
+benchmarks against modernc and uploads the results as `windows-benchmarks-ARCH`.
+Test executables and benchmark logs are excluded from release downloads; the
+release job only downloads artifacts matching `yuhaiin*`.
+
 `frontend-version.yml` resolves one frontend commit per workflow run. Both the
 binary/AAR workflow and `container.yaml` use it so their parallel builds use
 the same frontend revision within each run. Go versions come from `go.mod`.
+
+`build-binary.yml` explicitly enables setup-go's module/build cache, keyed by
+`go.sum`. Tests and builds share the restored Go cache within each job. Darwin
+tests use the same JSON/debug/SQLite tags and deployment flags as the release
+build so their shared packages can reuse compilation results. JSON v2 and
+Green Tea GC use Go 1.27's defaults.
 
 ## Shared build scripts
 
@@ -32,6 +46,16 @@ the same frontend revision within each run. Go versions come from `go.mod`.
   verifies its SHA-256 checksum, and prints the compiler path. It requires
   `RUNNER_TEMP` and runs on Linux. Update the release URL and checksums together.
   Binary and container builds share this installer and the release script.
+- `scripts/build/install-windows-toolchain.sh ARCH` downloads pinned llvm-mingw
+  20260922, verifies its SHA-256 checksum, and prints the target compiler path.
+  It supports Linux x64/ARM64 and macOS hosts and requires `RUNNER_TEMP`.
+- `scripts/build/check-windows-binary.sh BINARY ARCH` verifies the PE/Go CPU target,
+  CGO/mattn build metadata, and DLL imports. `LLVM_READOBJ` selects the tool from
+  the installed toolchain. Non-system DLL dependencies fail the build.
+
+Windows builds include SQLite's C source and statically link compiler runtimes,
+so they remain single executables. They use the UCRT supplied with Windows 10+;
+users do not need SQLite or MinGW installed.
 
 Darwin uses SQLite's bundled C source, so users do not need Homebrew SQLite.
 Only macOS system libraries/frameworks are dynamically linked. Its deployment
@@ -46,5 +70,6 @@ To run the same checks locally:
 
 ```sh
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-shellcheck scripts/build/install-musl-toolchain.sh scripts/build/release.sh
+shellcheck scripts/build/*.sh
+python3 scripts/build/test_makefile.py
 ```

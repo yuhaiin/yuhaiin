@@ -16,10 +16,8 @@ endif
 CGO_ENABLED ?= 0
 STATIC_LINK ?= 0
 
-GOENV=GOEXPERIMENT=jsonv2,greenteagc
-
-GO=$(GOENV) $(shell command -v go | head -n1)
-GO_MOBILE=$(GOENV) $(shell command -v gomobile | head -n1)
+GO=$(shell command -v go | head -n1)
+GO_MOBILE=$(shell command -v gomobile | head -n1)
 
 GO_LDFLAGS= -s -w -buildid=
 GO_LDFLAGS += -X "$(MODULE)/internal/version.Version=$(BUILD_VERSION)"
@@ -96,6 +94,7 @@ define build
 	$(if $(filter mipsle, $(ARCH)),$(eval MIPS := softfloat),)
 	$(if $(filter lite, $(MODE)),$(eval SUFFIX := _lite),)
 	$(if $(filter windows, $(OS)),$(if $(SUFFIX), $(eval SUFFIX := $(addsuffix .exe, $(SUFFIX))), $(eval SUFFIX := .exe)),)
+	$(eval BUILD_OUTPUT := yuhaiin_$(OS)_$(ARCH)$(AMD64V)$(SUFFIX))
 
 	$(info OS: $(OS), ARCH: $(ARCH), MODE: $(if $(MODE),$(MODE),full), SUFFIX: $(SUFFIX))
 endef
@@ -103,14 +102,14 @@ endef
 .PHONY: yuhaiin-%
 yuhaiin-%:
 	$(build)
-	GOOS=$(OS) GOARCH=$(ARCH) GOMIPS=$(MIPS) GOAMD64=$(AMD64V) $(GO_BUILD_CMD) -o yuhaiin_$(OS)_$(ARCH)$(AMD64V)$(SUFFIX) $(YUHAIIN)
+	GOOS=$(OS) GOARCH=$(ARCH) GOMIPS=$(MIPS) GOAMD64=$(AMD64V) $(GO_BUILD_CMD) -o "$(BUILD_OUTPUT)" $(YUHAIIN)
 
-	@if [ "$(OS)" = "darwin" ]; then \
+	@set -e; if [ "$(OS)" = "darwin" ]; then \
 		if [ -n "$(shell command -v codesign)" ]; then \
-            echo "codesign found, signing..."; \
-            codesign -s - --force --preserve-metadata=entitlements,requirements,flags,runtime yuhaiin_$(OS)_$(ARCH)$(AMD64V3)$(SUFFIX); \
-            codesign -dv --verbose=4 yuhaiin_$(OS)_$(ARCH)$(AMD64V3)$(SUFFIX); \
-        fi \
+			echo "codesign found, signing..."; \
+			codesign -s - --force --preserve-metadata=entitlements,requirements,flags,runtime "$(BUILD_OUTPUT)"; \
+			codesign -dv --verbose=4 "$(BUILD_OUTPUT)"; \
+		fi \
 	fi
 
 .PHONY: yuhaiin_android_aar
@@ -125,8 +124,8 @@ yuhaiin_macos:
 .PHONY: license
 GO_LICENSE_TAGS=android,cgo,darwin,freebsd,ios,js,linux,openbsd,wasm,windows,$(GO_TAGS)
 license:
-	$(GOENV) GOFLAGS="-tags=$(GO_LICENSE_TAGS)" go-licenses report github.com/Asutorufa/yuhaiin/cmd/yuhaiin > licenses/yuhaiin.md --template .github/licenses.tmpl
-	$(GOENV) GOFLAGS="-tags=$(GO_LICENSE_TAGS)" go-licenses report github.com/Asutorufa/yuhaiin/cmd/android > licenses/android.md --template .github/licenses.tmpl
+	GOFLAGS="-tags=$(GO_LICENSE_TAGS)" go-licenses report github.com/Asutorufa/yuhaiin/cmd/yuhaiin > licenses/yuhaiin.md --template .github/licenses.tmpl
+	GOFLAGS="-tags=$(GO_LICENSE_TAGS)" go-licenses report github.com/Asutorufa/yuhaiin/cmd/android > licenses/android.md --template .github/licenses.tmpl
 
 .PHONY: install
 install: build cli

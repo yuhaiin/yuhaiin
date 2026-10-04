@@ -20,7 +20,7 @@ jobs:
       - name: Check workflows and build scripts
         run: |
           go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          shellcheck scripts/build/install-musl-toolchain.sh scripts/build/release.sh
+          shellcheck scripts/build/*.sh
 
   lint:
     runs-on: ubuntu-latest

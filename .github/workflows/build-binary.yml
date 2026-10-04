@@ -37,6 +37,8 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
 
       - name: Update frontend
         env:
@@ -61,6 +63,12 @@ jobs:
             echo "MACOSX_DEPLOYMENT_TARGET=13.0"
           } >> "$GITHUB_ENV"
 
+      - name: Install Windows cgo toolchain
+        if: inputs.os == 'windows'
+        run: |
+          compiler=$(bash scripts/build/install-windows-toolchain.sh "$RELEASE_ARCH")
+          echo "CC=$compiler" >> "$GITHUB_ENV"
+
       - name: Test Darwin SQLite backend
         if: inputs.os == 'darwin' && (inputs.arch == 'amd64' || inputs.arch == 'arm64')
         env:
@@ -68,7 +76,7 @@ jobs:
           # Include the deployment target in Go's cgo build cache key.
           CGO_CFLAGS: '-O2 -g -mmacosx-version-min=13.0'
           CGO_LDFLAGS: '-O2 -g -mmacosx-version-min=13.0'
-        run: go test -tags=sqlite_mattn,fts5 ./pkg/storage/sqlite ./pkg/net/dns/fakeip ./pkg/statistics ./pkg/legacy/chore
+        run: go test -tags=sqlite_mattn,stdlibjson,debug,fts5 ./pkg/storage/sqlite ./pkg/net/dns/fakeip ./pkg/statistics ./pkg/legacy/chore
 
       - name: Build
         id: build
@@ -77,6 +85,37 @@ jobs:
           RELEASE_VERSION: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && format('main-{0}', github.sha) || '' }}
           RELEASE_TIMESTAMP: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && github.event.head_commit.timestamp || '' }}
         run: bash scripts/build/release.sh "$GOOS" "$RELEASE_ARCH"
+
+      - name: Verify Windows binary
+        if: inputs.os == 'windows'
+        env:
+          BINARY: ${{ steps.build.outputs.binary }}
+        run: LLVM_READOBJ="${CC%/*}/llvm-readobj" bash scripts/build/check-windows-binary.sh "$BINARY" "$RELEASE_ARCH"
+
+      - name: Compile Windows SQLite tests
+        if: inputs.os == 'windows' && (inputs.arch == 'amd64' || inputs.arch == 'arm64')
+        env:
+          GOARCH: ${{ inputs.arch }}
+          CGO_ENABLED: '1'
+        run: |
+          mkdir -p windows-tests
+          for package in storage/sqlite net/dns/fakeip statistics legacy/chore; do
+            go test -c -tags=sqlite_mattn,stdlibjson,debug,fts5 \
+              -ldflags='-linkmode external -extldflags -static' \
+              -o "windows-tests/${package##*/}.test.exe" "./pkg/$package"
+          done
+          # Compile the current pure-Go backend too for a native performance comparison.
+          CGO_ENABLED=0 go test -c -tags=sqlite_modernc,stdlibjson,debug,fts5 \
+            -o windows-tests/statistics-modernc.test.exe ./pkg/statistics
+
+      - name: Upload Windows SQLite tests
+        if: inputs.os == 'windows' && (inputs.arch == 'amd64' || inputs.arch == 'arm64')
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-tests-${{ inputs.arch }}
+          path: windows-tests/*.exe
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload binary
         uses: actions/upload-artifact@v7

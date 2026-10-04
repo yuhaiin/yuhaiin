@@ -36,7 +36,12 @@ case "$GOOS" in
     export CGO_CFLAGS="${CGO_CFLAGS:--O2 -g} -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
     export CGO_LDFLAGS="${CGO_LDFLAGS:--O2 -g} -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
     ;;
-  android|freebsd|openbsd|windows) ;;
+  windows)
+    # Link compiler runtimes statically; only Windows system DLLs may be imported.
+    export CGO_ENABLED=1 STATIC_LINK=1 EXTRA_GO_TAGS=sqlite_mattn
+    : "${CC:?Windows cgo builds require the llvm-mingw compiler}"
+    ;;
+  android|freebsd|openbsd) ;;
   *)
     echo "unsupported release OS: $GOOS" >&2
     exit 1

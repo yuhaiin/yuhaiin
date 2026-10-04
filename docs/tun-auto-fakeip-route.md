@@ -41,7 +41,7 @@ updates and close. For real Linux route operations, run the opt-in test in an
 environment permitted to create network namespaces:
 
 ```sh
-YUHAIIN_TEST_TUN_ROUTES=1 GOEXPERIMENT=jsonv2 go test ./pkg/net/netlink -run '^TestLinuxRouteLifecycleInNamespace$' -v
+YUHAIIN_TEST_TUN_ROUTES=1 go test ./pkg/net/netlink -run '^TestLinuxRouteLifecycleInNamespace$' -v
 ```
 
 The integration test creates an isolated network namespace before adding any

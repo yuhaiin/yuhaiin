@@ -12,7 +12,7 @@ func main() {
 
 	for k := range featuretags.Features {
 		switch k {
-		case "netstack", "serve", "acme", "ipnbus", "nattraversal":
+		case "netstack", "serve", "acme", "ipnbus", "udptransport", "nattraversal":
 			continue
 		}
 
