@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
@@ -114,4 +115,34 @@ func TestConfigureAndroidTUNEnablesPersistedInbound(t *testing.T) {
 		return
 	}
 	t.Fatal("Android TUN inbound was not created")
+}
+
+func TestStopCancelsStartupBeforeWaitingForLifecycleLock(t *testing.T) {
+	app := &App{}
+	ctx, cancel := context.WithCancel(context.Background())
+	app.setStartCancel(cancel)
+	defer app.clearStartCancel()
+
+	app.mu.Lock()
+	stopped := make(chan struct{})
+	go func() {
+		_ = app.Stop()
+		close(stopped)
+	}()
+
+	select {
+	case <-ctx.Done():
+		// Cancellation must happen before Stop can acquire app.mu.
+	case <-time.After(time.Second):
+		app.mu.Unlock()
+		<-stopped
+		t.Fatal("Stop waited for lifecycle lock before cancelling startup")
+	}
+
+	app.mu.Unlock()
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not finish after lifecycle lock was released")
+	}
 }

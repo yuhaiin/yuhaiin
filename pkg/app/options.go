@@ -113,12 +113,18 @@ func (m *moduleCloser) Close() error {
 	return m.Closer.Close()
 }
 
-func (app *AppInstance) RegisterServer() {
-	registerV2HTTP(app)
+func (app *AppInstance) RegisterServer(ctx context.Context) error {
+	if err := registerV2HTTP(ctx, app); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	RegisterHTTP(app.Mux)
+	return nil
 }
 
-func registerV2HTTP(app *AppInstance) {
+func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	var inboundStore httpapi.InboundStore
 	var nodeStore *plainstore.NodeStore
 	var subscriptionStore *plainstore.SubscriptionStore
@@ -130,13 +136,19 @@ func registerV2HTTP(app *AppInstance) {
 	var routeTagStore *plainstore.RouteTagStore
 	subscribeController := app.Subscribe
 	if sqlStore := app.StateStore; sqlStore != nil {
-		db, err := sqlStore.SQLDB(context.Background())
+		db, err := sqlStore.SQLDB(ctx)
 		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			log.Error("init v2 sqlite store failed", "err", err)
 		} else {
 			plainInboundStore := plainstore.NewInboundStore(db)
 			inboundRuntimeStore := inbound.NewContractStore(plainInboundStore, app.Inbound)
-			if err := inboundRuntimeStore.Sync(context.Background()); err != nil {
+			if err := inboundRuntimeStore.Sync(ctx); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
 				log.Error("sync v2 inbound runtime failed", "err", err)
 			}
 			inboundStore = inboundRuntimeStore
@@ -178,6 +190,7 @@ func registerV2HTTP(app *AppInstance) {
 		RouteTags:      routeTagStore,
 		Subscribe:      subscribeController,
 	})
+	return ctx.Err()
 }
 
 func (a *AppInstance) Close() error {
@@ -207,6 +220,8 @@ func compactStateStore(ctx context.Context, store SQLStore) error {
 }
 
 type StartOptions struct {
+	Context context.Context
+
 	StateStore SQLStore
 
 	ProcessDumper netapi.ProcessDumper

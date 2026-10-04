@@ -43,6 +43,30 @@ type App struct {
 
 	mu      sync.Mutex
 	started atomic.Bool
+
+	startCancelMu sync.Mutex
+	startCancel   context.CancelFunc
+}
+
+func (a *App) setStartCancel(cancel context.CancelFunc) {
+	a.startCancelMu.Lock()
+	a.startCancel = cancel
+	a.startCancelMu.Unlock()
+}
+
+func (a *App) clearStartCancel() {
+	a.startCancelMu.Lock()
+	a.startCancel = nil
+	a.startCancelMu.Unlock()
+}
+
+func (a *App) cancelStart() {
+	a.startCancelMu.Lock()
+	cancel := a.startCancel
+	a.startCancelMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 }
 
 func (a *App) Start(opt *Opts) error {
@@ -52,6 +76,13 @@ func (a *App) Start(opt *Opts) error {
 	if a.started.Load() {
 		return errors.New("yuhaiin is already running")
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	a.setStartCancel(cancel)
+	defer func() {
+		cancel()
+		a.clearStartCancel()
+	}()
 
 	if a.server != nil {
 		_ = a.server.Close()
@@ -90,12 +121,18 @@ func (a *App) Start(opt *Opts) error {
 
 	// All legacy Android JSON is imported before any preference is read.
 	setting := migrate.NewStateDB(paths.PathGenerator.State(savepath))
-	if err := setting.Migrate(context.Background()); err != nil {
+	if err := setting.Migrate(ctx); err != nil {
+		_ = setting.Close()
 		return fmt.Errorf("migrate Android state before startup: %w", err)
 	}
-	if err := configureAndroidTUN(context.Background(), setting, opt.TUN, GetStore().GetString(AdvTunDriverKey)); err != nil {
+	if err := configureAndroidTUN(ctx, setting, opt.TUN, GetStore().GetString(AdvTunDriverKey)); err != nil {
 		_ = setting.Close()
 		return fmt.Errorf("configure Android TUN before startup: %w", err)
+	}
+
+	if err := ctx.Err(); err != nil {
+		_ = setting.Close()
+		return err
 	}
 
 	lis, err := listenAndroidHTTP()
@@ -104,13 +141,25 @@ func (a *App) Start(opt *Opts) error {
 		return err
 	}
 
+	if err := ctx.Err(); err != nil {
+		_ = lis.Close()
+		_ = setting.Close()
+		return err
+	}
+
 	app, err := app.Start(&app.StartOptions{
+		Context:       ctx,
 		ConfigPath:    savepath,
 		StateStore:    setting,
 		ProcessDumper: processDumper,
 	})
 	if err != nil {
 		_ = lis.Close()
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		_ = lis.Close()
+		_ = app.Close()
 		return err
 	}
 
@@ -283,6 +332,11 @@ func connectionFlowValue(v string) uint64 {
 }
 
 func (a *App) Stop() error {
+	// Signal an in-flight Start before waiting for the lifecycle lock. Start owns
+	// the lock while it initializes storage and runtime state, so cancellation
+	// must not depend on acquiring the same lock first.
+	a.cancelStart()
+
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
