@@ -8,178 +8,104 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   get_version:
-    outputs:
-      front_version: ${{ steps.get-version.outputs.front_version }}
-    runs-on: ubuntu-latest
-    steps:
-      - id: get-version
-        run: |
-          echo "front_version=$(git ls-remote https://github.com/yuhaiin/yuhaiin.github.io.git | grep refs/heads/main | cut -f1)" >> $GITHUB_OUTPUT
+    uses: ./.github/workflows/frontend-version.yml
 
   android:
     needs: get_version
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: "0"
-          fetch-tags: "true"
+          fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7
         with:
-          check-latest: true
-          go-version: 'stable'
-          # go-version-file: "go.mod"
+          go-version-file: go.mod
 
-      - name: set up JDK 17
+      - name: Set up Java
         uses: actions/setup-java@v6
         with:
           java-version: "25.0.4+101.0.LTS"
-          distribution: "temurin"
+          distribution: temurin
 
-      - name: build yuhaiin aar
+      - name: Build Android AAR
+        env:
+          FRONT_VERSION: ${{ needs.get_version.outputs.front_version }}
         run: |
-          go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
-          go env
+          go get -v -u "github.com/yuhaiin/yuhaiin.github.io@${FRONT_VERSION}"
           go install golang.org/x/mobile/cmd/gomobile@latest
           gomobile init
           make yuhaiin_android_aar
 
-      - name: upload_android_aar
+      - name: Upload Android AAR
         uses: actions/upload-artifact@v7
         with:
           name: yuhaiin.aar
           path: yuhaiin.aar
+          if-no-files-found: error
 
-  build:
+  linux:
     needs: get_version
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        env:
-          [
-            [linux, "amd64"],
-            [linux, "amd64v3"],
-            [linux, "amd64v4"],
-            [linux, "arm64"],
-            [linux, "mipsle"],
-            [android, "arm64"],
-            [darwin, "amd64"],
-            [darwin, "amd64v3"],
-            [darwin, "amd64v4"],
-            [darwin, "arm64"],
-            [freebsd, "amd64"],
-            [freebsd, "amd64v3"],
-            [freebsd, "amd64v4"],
-            [freebsd, "arm64"],
-            [openbsd, "amd64"],
-            [openbsd, "amd64v3"],
-            [openbsd, "amd64v4"],
-            [openbsd, "arm64"],
-            [windows, "amd64"],
-            [windows, "amd64v3"],
-            [windows, "amd64v4"],
-            [windows, "arm64"],
-          ]
-        cmd: [yuhaiin]
+        arch: [amd64, amd64v3, amd64v4, arm64, mipsle]
+    uses: ./.github/workflows/build-binary.yml
+    with:
+      os: linux
+      arch: ${{ matrix.arch }}
+      front_version: ${{ needs.get_version.outputs.front_version }}
 
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: "0"
-          fetch-tags: "true"
+  darwin:
+    needs: get_version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {arch: amd64, runner: macos-15-intel}
+          - {arch: amd64v3, runner: macos-15-intel}
+          - {arch: amd64v4, runner: macos-15-intel}
+          - {arch: arm64, runner: macos-15}
+    uses: ./.github/workflows/build-binary.yml
+    with:
+      os: darwin
+      arch: ${{ matrix.arch }}
+      runner: ${{ matrix.runner }}
+      front_version: ${{ needs.get_version.outputs.front_version }}
 
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          check-latest: true
-          go-version: 'stable'
-          # go-version-file: "go.mod"
-
-      - name: Install musl-cross cgo toolchain
-        if: matrix.env[0] == 'linux'
-        run: |
-          set -euo pipefail
-          case "${{ matrix.env[1] }}" in
-            amd64|amd64v3|amd64v4)
-              toolchain_target="x86_64-unknown-linux-musl"
-              toolchain_sha256="5f20e367608d6e547c04534d37d00ecedbaa0c2e82730df12957b3332fa36a2d"
-              ;;
-            arm64)
-              toolchain_target="aarch64-unknown-linux-musl"
-              toolchain_sha256="90282c463498dcdab9b96a464a0925d53f30c884b2d7b25e3998999416ae34b8"
-              ;;
-            mipsle)
-              toolchain_target="mipsel-unknown-linux-muslsf"
-              toolchain_sha256="f4677bd1e8792aa8ccab705295c4360f41dac0690cc8b3125df2c34e4fd66dfa"
-              ;;
-            *)
-              echo "unsupported Linux release architecture: ${{ matrix.env[1] }}" >&2
-              exit 1
-              ;;
-          esac
-
-          toolchain_archive="${RUNNER_TEMP}/${toolchain_target}.tar.xz"
-          toolchain_url="https://github.com/cross-tools/musl-cross/releases/download/20260515/${toolchain_target}.tar.xz"
-          curl --fail --location --retry 3 --output "${toolchain_archive}" "${toolchain_url}"
-          echo "${toolchain_sha256}  ${toolchain_archive}" | sha256sum --check
-          tar --extract --xz --file "${toolchain_archive}" --directory "${RUNNER_TEMP}"
-          toolchain_root="${RUNNER_TEMP}/${toolchain_target}"
-          compiler="${toolchain_root}/bin/${toolchain_target}-gcc"
-          test -x "${compiler}"
-          echo "CC=${compiler}" >> "${GITHUB_ENV}"
-
-      # - name: Set up Upx
-      #   run: |
-      #     sudo apt update
-      #     sudo apt install -y upx
-
-      # if [ ${{ matrix.os[0] }} != "darwin" ]; then
-      # upx --lzma --best ${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}${{ matrix.os[1] }}
-      # fi
-      - name: Build
-        env:
-          GOOS: ${{ matrix.env[0] }}
-          RELEASE_ARCH: ${{ matrix.env[1] }}
-          RELEASE_CHANNEL: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && 'main' || (contains(github.ref_name, 'beta') && 'beta' || 'stable') }}
-          RELEASE_VERSION: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && format('main-{0}', github.sha) || '' }}
-          RELEASE_TIMESTAMP: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && github.event.head_commit.timestamp || '' }}
-          GOARCH: ${{ fromJSON('{"amd64v3":"amd64","amd64v4":"amd64"}')[matrix.env[1]] || matrix.env[1] }}
-          GOAMD64: ${{ fromJSON('{"amd64v3":"v3","amd64v4":"v4"}')[matrix.env[1]] || '' }}
-          GOMIPS: ${{ matrix.env[1] == 'mipsle' && 'softfloat' || '' }}
-          CGO_ENABLED: ${{ matrix.env[0] == 'linux' && '1' || '0' }}
-          STATIC_LINK: ${{ matrix.env[0] == 'linux' && '1' || '0' }}
-          EXTRA_GO_TAGS: ${{ matrix.env[0] == 'linux' && 'sqlite_mattn' || '' }}
-        run: |
-          go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
-          make ${{ matrix.cmd }}
-          mv yuhaiin${{ matrix.env[0] == 'windows' && '.exe' || '' }} yuhaiin-${{ matrix.env[0] }}-${{ matrix.env[1] }}${{ matrix.env[0] == 'windows' && '.exe' || '' }}
-
-      - name: upload_${{ matrix.cmd }}_${{ matrix.env[0] }}_${{ matrix.env[1] }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.cmd }}_${{ matrix.env[0] }}_${{ matrix.env[1] }}
-          path: |
-            yuhaiin-${{ matrix.env[0] }}-${{ matrix.env[1] }}${{ matrix.env[0] == 'windows' && '.exe' || '' }}
+  cross:
+    needs: get_version
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [freebsd, openbsd, windows]
+        arch: [amd64, amd64v3, amd64v4, arm64]
+        include:
+          - {os: android, arch: arm64}
+    uses: ./.github/workflows/build-binary.yml
+    with:
+      os: ${{ matrix.os }}
+      arch: ${{ matrix.arch }}
+      front_version: ${{ needs.get_version.outputs.front_version }}
 
   release:
     if: github.ref_type == 'tag' || (github.ref_type == 'branch' && github.ref_name == 'main')
-    needs: 
-      - build
-      - android
+    needs: [linux, darwin, cross, android]
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: "0"
-          fetch-tags: "true"
+          fetch-depth: 0
 
       - id: generate-release-notes
         env:
@@ -201,17 +127,16 @@ jobs:
             git log HEAD --oneline > release_notes.txt
           fi
 
-      - name: download_artifacts
-        id: download-artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
           path: artifacts
 
-      - name: generate_checksums
+      - name: Generate checksums
         run: |
           find artifacts -type f -print0 | sort -z | xargs -0 sha256sum > checksums.txt
 
-      - name: update_main_release_tag
+      - name: Update rolling release tag
         if: github.ref_type == 'branch' && github.ref_name == 'main'
         run: |
           git config user.name github-actions[bot]

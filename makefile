@@ -38,7 +38,8 @@ GO_GCFLAGS=
 
 GOHOSTOS := $(shell $(GO) env GOHOSTOS)
 GOHOSTARCH := $(shell $(GO) env GOHOSTARCH)
-GO_TAGS=$(shell GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) $(GO) run ./cmd/buildtags/...),stdlibjson,debug,fts5
+# The host tag generator must run even when the release targets a higher CPU level.
+GO_TAGS=$(shell GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOAMD64=v1 $(GO) run ./cmd/buildtags/...),stdlibjson,debug,fts5
 ifneq ($(strip $(EXTRA_GO_TAGS)),)
 GO_TAGS := $(GO_TAGS),$(EXTRA_GO_TAGS)
 endif

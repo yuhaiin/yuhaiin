@@ -1,0 +1,26 @@
+name: Resolve frontend version
+
+on:
+  workflow_call:
+    outputs:
+      front_version:
+        value: ${{ jobs.resolve.outputs.front_version }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      front_version: ${{ steps.resolve.outputs.front_version }}
+    steps:
+      - id: resolve
+        run: |
+          version=$(git ls-remote --exit-code https://github.com/yuhaiin/yuhaiin.github.io.git refs/heads/main | cut -f1)
+          test -n "$version"
+          echo "front_version=$version" >> "$GITHUB_OUTPUT"

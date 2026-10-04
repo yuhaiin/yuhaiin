@@ -5,15 +5,16 @@ on:
     branches: [main]
     tags: [v*]
 
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   get_version:
-    outputs:
-      front_version: ${{ steps.get-version.outputs.front_version }}
-    runs-on: ubuntu-latest
-    steps:
-      - id: get-version
-        run: |
-          echo "front_version=$(git ls-remote https://github.com/yuhaiin/yuhaiin.github.io.git | grep refs/heads/main | cut -f1)" >> $GITHUB_OUTPUT
+    uses: ./.github/workflows/frontend-version.yml
 
   package:
     needs: get_version
@@ -25,8 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: "0"
-          fetch-tags: "true"
+          fetch-depth: 0
 
       - name: Docker metadata
         id: meta
@@ -42,48 +42,20 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          check-latest: true
-          go-version-file: "go.mod"
+          go-version-file: go.mod
 
-      - name: update dep
-        run: |
-          go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
-
-      - name: Install musl-cross cgo toolchains
-        run: |
-          set -euo pipefail
-          declare -A toolchain_sha256=(
-            [x86_64-unknown-linux-musl]=5f20e367608d6e547c04534d37d00ecedbaa0c2e82730df12957b3332fa36a2d
-            [aarch64-unknown-linux-musl]=90282c463498dcdab9b96a464a0925d53f30c884b2d7b25e3998999416ae34b8
-          )
-
-          for toolchain_target in "${!toolchain_sha256[@]}"; do
-            archive="${RUNNER_TEMP}/${toolchain_target}.tar.xz"
-            url="https://github.com/cross-tools/musl-cross/releases/download/20260515/${toolchain_target}.tar.xz"
-            curl --fail --location --retry 3 --output "${archive}" "${url}"
-            echo "${toolchain_sha256[$toolchain_target]}  ${archive}" | sha256sum --check
-            tar --extract --xz --file "${archive}" --directory "${RUNNER_TEMP}"
-            test -x "${RUNNER_TEMP}/${toolchain_target}/bin/${toolchain_target}-gcc"
-          done
+      - name: Update frontend
+        env:
+          FRONT_VERSION: ${{ needs.get_version.outputs.front_version }}
+        run: go get -v -u "github.com/yuhaiin/yuhaiin.github.io@${FRONT_VERSION}"
 
       - name: Build container binaries
         env:
           GOTOOLCHAIN: auto
         run: |
-          set -euo pipefail
-          mkdir -p .docker-binaries
-
           for arch in amd64 arm64; do
-            if [[ "${arch}" == amd64 ]]; then
-              toolchain_target=x86_64-unknown-linux-musl
-            else
-              toolchain_target=aarch64-unknown-linux-musl
-            fi
-
-            GOOS=linux GOARCH="${arch}" \
-              CC="${RUNNER_TEMP}/${toolchain_target}/bin/${toolchain_target}-gcc" \
-              CGO_ENABLED=1 STATIC_LINK=1 EXTRA_GO_TAGS=sqlite_mattn make yuhaiin
-            mv yuhaiin ".docker-binaries/yuhaiin-linux-${arch}"
+            compiler=$(bash scripts/build/install-musl-toolchain.sh "$arch")
+            CC="$compiler" bash scripts/build/release.sh linux "$arch" .docker-binaries
           done
 
       - name: Login to GitHub Container Registry

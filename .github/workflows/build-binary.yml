@@ -1,0 +1,86 @@
+name: Build binary
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        type: string
+        required: true
+      arch:
+        type: string
+        required: true
+      runner:
+        type: string
+        default: ubuntu-latest
+      front_version:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runner }}
+    env:
+      GOOS: ${{ inputs.os }}
+      RELEASE_ARCH: ${{ inputs.arch }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Update frontend
+        env:
+          FRONT_VERSION: ${{ inputs.front_version }}
+        run: go get -v -u "github.com/yuhaiin/yuhaiin.github.io@${FRONT_VERSION}"
+
+      - name: Install Linux cgo toolchain
+        if: inputs.os == 'linux'
+        run: |
+          compiler=$(bash scripts/build/install-musl-toolchain.sh "$RELEASE_ARCH")
+          echo "CC=$compiler" >> "$GITHUB_ENV"
+
+      - name: Set up Darwin cgo compiler
+        if: inputs.os == 'darwin'
+        run: |
+          compiler=$(xcrun --find clang)
+          sdk=$(xcrun --show-sdk-path)
+          {
+            echo "CC=$compiler"
+            echo "SDKROOT=$sdk"
+            # Match Go 1.27's minimum macOS version, rather than the runner's SDK.
+            echo "MACOSX_DEPLOYMENT_TARGET=13.0"
+          } >> "$GITHUB_ENV"
+
+      - name: Test Darwin SQLite backend
+        if: inputs.os == 'darwin' && (inputs.arch == 'amd64' || inputs.arch == 'arm64')
+        env:
+          CGO_ENABLED: '1'
+          # Include the deployment target in Go's cgo build cache key.
+          CGO_CFLAGS: '-O2 -g -mmacosx-version-min=13.0'
+          CGO_LDFLAGS: '-O2 -g -mmacosx-version-min=13.0'
+        run: go test -tags=sqlite_mattn,fts5 ./pkg/storage/sqlite ./pkg/net/dns/fakeip ./pkg/statistics ./pkg/legacy/chore
+
+      - name: Build
+        id: build
+        env:
+          RELEASE_CHANNEL: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && 'main' || (contains(github.ref_name, 'beta') && 'beta' || 'stable') }}
+          RELEASE_VERSION: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && format('main-{0}', github.sha) || '' }}
+          RELEASE_TIMESTAMP: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && github.event.head_commit.timestamp || '' }}
+        run: bash scripts/build/release.sh "$GOOS" "$RELEASE_ARCH"
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: yuhaiin_${{ inputs.os }}_${{ inputs.arch }}
+          path: ${{ steps.build.outputs.binary }}
+          if-no-files-found: error

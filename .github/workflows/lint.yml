@@ -10,6 +10,18 @@ permissions:
   contents: read
 
 jobs:
+  actions-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Check workflows and build scripts
+        run: |
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          shellcheck scripts/build/install-musl-toolchain.sh scripts/build/release.sh
+
   lint:
     runs-on: ubuntu-latest
     steps:
