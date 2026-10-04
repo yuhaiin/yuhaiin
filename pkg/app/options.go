@@ -113,12 +113,18 @@ func (m *moduleCloser) Close() error {
 	return m.Closer.Close()
 }
 
-func (app *AppInstance) RegisterServer(ctx context.Context) {
-	registerV2HTTP(ctx, app)
+func (app *AppInstance) RegisterServer(ctx context.Context) error {
+	if err := registerV2HTTP(ctx, app); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	RegisterHTTP(app.Mux)
+	return nil
 }
 
-func registerV2HTTP(ctx context.Context, app *AppInstance) {
+func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	var inboundStore httpapi.InboundStore
 	var nodeStore *plainstore.NodeStore
 	var subscriptionStore *plainstore.SubscriptionStore
@@ -137,6 +143,9 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) {
 			plainInboundStore := plainstore.NewInboundStore(db)
 			inboundRuntimeStore := inbound.NewContractStore(plainInboundStore, app.Inbound)
 			if err := inboundRuntimeStore.Sync(ctx); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
 				log.Error("sync v2 inbound runtime failed", "err", err)
 			}
 			inboundStore = inboundRuntimeStore
@@ -178,6 +187,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) {
 		RouteTags:      routeTagStore,
 		Subscribe:      subscribeController,
 	})
+	return ctx.Err()
 }
 
 func (a *AppInstance) Close() error {
