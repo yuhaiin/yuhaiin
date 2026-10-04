@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,7 +12,7 @@ import (
 
 func TestRouteRegistryStoreDefaultsAndCRUD(t *testing.T) {
 	ctx := context.Background()
-	sqliteStore, err := storagesqlite.Open(ctx, t.TempDir()+"/state.db")
+	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +72,7 @@ func TestRouteRegistryStoreDefaultsAndCRUD(t *testing.T) {
 
 func TestRouteRegistryStoreRejectsUnsupportedURL(t *testing.T) {
 	ctx := context.Background()
-	sqliteStore, err := storagesqlite.Open(ctx, t.TempDir()+"/state.db")
+	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
