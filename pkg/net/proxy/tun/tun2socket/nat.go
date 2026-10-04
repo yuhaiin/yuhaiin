@@ -91,6 +91,12 @@ func Start(opt *device.Opt) (*Nat, error) {
 	// otherwize the listener will not work
 	opt.UnsetRoute, err = netlink.Route(opt.Options)
 	if err != nil {
+		if opt.Tun.AutoFakeIPRoute {
+			if opt.UnsetRoute != nil {
+				opt.UnsetRoute()
+			}
+			return nil, fmt.Errorf("install TUN routes: %w", err)
+		}
 		log.Warn("set route failed", "err", err)
 	}
 

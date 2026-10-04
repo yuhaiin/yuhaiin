@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -23,9 +24,14 @@ import (
 )
 
 type Fakedns struct {
-	dialer   netapi.Proxy
-	upstream netapi.Resolver
-	dbPath   string
+	// applyMu serializes pool changes and synchronous route notifications.
+	// Callbacks run outside fakeMu so they cannot block DNS on a recursive lock.
+	applyMu          sync.Mutex
+	rangeHandlers    map[uint64]func([2]netip.Prefix) error
+	nextRangeHandler uint64
+	dialer           netapi.Proxy
+	upstream         netapi.Resolver
+	dbPath           string
 
 	dnsServer netapi.DNSAgent
 	fake      *fakeip.FakeDNS
@@ -69,13 +75,67 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, dbPath string, in
 	return f, nil
 }
 
-func (f *Fakedns) Apply(c contractresolver.FakeDNS) {
+// Apply notifies route consumers only after the pool update succeeds. It also
+// retries consumers when the ranges are unchanged (e.g. a failed route deletion).
+func (f *Fakedns) Apply(c contractresolver.FakeDNS) error {
+	f.applyMu.Lock()
+	defer f.applyMu.Unlock()
+	if err := f.apply(c); err != nil {
+		return err
+	}
+	ranges := f.FakeIPRanges()
+	var result error
+	for _, handler := range f.rangeHandlers {
+		result = errors.Join(result, handler(ranges))
+	}
+	return result
+}
+
+func (f *Fakedns) FakeIPRanges() [2]netip.Prefix {
+	f.fakeMu.RLock()
+	defer f.fakeMu.RUnlock()
+	if f.fake == nil {
+		return [2]netip.Prefix{}
+	}
+	return f.fake.Ranges()
+}
+
+// SubscribeFakeIPRanges supplies an initial snapshot and serializes subsequent
+// notifications with registration and cancellation. A cancelled subscription
+// has no callback in flight when cancellation returns.
+func (f *Fakedns) SubscribeFakeIPRanges(handler func([2]netip.Prefix) error) (func(), error) {
+	f.applyMu.Lock()
+	defer f.applyMu.Unlock()
+	ranges := f.FakeIPRanges()
+	if !ranges[0].IsValid() || !ranges[1].IsValid() {
+		return nil, errors.New("fake DNS is closed")
+	}
+	if err := handler(ranges); err != nil {
+		return nil, err
+	}
+	if f.rangeHandlers == nil {
+		f.rangeHandlers = make(map[uint64]func([2]netip.Prefix) error)
+	}
+	f.nextRangeHandler++
+	id := f.nextRangeHandler
+	f.rangeHandlers[id] = handler
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			f.applyMu.Lock()
+			defer f.applyMu.Unlock()
+			delete(f.rangeHandlers, id)
+		})
+	}, nil
+}
+
+func (f *Fakedns) apply(c contractresolver.FakeDNS) error {
 	defer dnssystem.RefreshCache()
 
 	f.fakeMu.Lock()
 	defer f.fakeMu.Unlock()
 	if f.fake == nil {
-		return
+		return errors.New("fake DNS is closed")
 	}
 
 	f.enabled.Store(c.Enabled)
@@ -111,13 +171,12 @@ func (f *Fakedns) Apply(c contractresolver.FakeDNS) {
 	ipv6Range := configuration.GetFakeIPRange(c.IPv6Range, true)
 
 	if f.fake.Equal(ipRange, ipv6Range) {
-		return
+		return nil
 	}
 
 	next, err := fakeip.NewFakeDNS(f.upstream, ipRange, ipv6Range, f.dbPath)
 	if err != nil {
-		log.Error("reload sqlite fakeip pool failed", "err", err)
-		return
+		return fmt.Errorf("reload sqlite fakeip pool failed: %w", err)
 	}
 
 	old := f.fake
@@ -125,6 +184,7 @@ func (f *Fakedns) Apply(c contractresolver.FakeDNS) {
 	if old != nil {
 		_ = old.Close()
 	}
+	return nil
 }
 
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
@@ -164,6 +224,9 @@ func (f *Fakedns) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 }
 
 func (f *Fakedns) Close() error {
+	f.applyMu.Lock()
+	defer f.applyMu.Unlock()
+	f.rangeHandlers = nil
 	var err error
 
 	f.fakeMu.Lock()

@@ -115,3 +115,26 @@ func TestInboundStoreSettings(t *testing.T) {
 		t.Fatalf("settings = %+v, want %+v", got, input)
 	}
 }
+
+func TestInboundStoreTunAutoFakeIPRoutes(t *testing.T) {
+	ctx := context.Background()
+	db, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := NewInboundStore(db.DB())
+	for _, enabled := range []bool{true, false} {
+		input := contract.Inbound{ID: "tun", Name: "tun", Network: contract.NewTypedNetwork(contract.EmptyNetwork{}), Protocol: contract.NewTypedProtocol(contract.TunProtocol{AutoFakeIPRoute: enabled, Routes: []string{"192.0.2.0/24"}})}
+		if err := store.Save(ctx, input, 1); err != nil {
+			t.Fatal(err)
+		}
+		got, err := store.Get(ctx, input.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Protocol.Tun.AutoFakeIPRoute != enabled || len(got.Protocol.Tun.Routes) != 1 {
+			t.Fatalf("bad stored TUN: %+v", got)
+		}
+	}
+}

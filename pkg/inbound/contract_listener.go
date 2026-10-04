@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -29,7 +30,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 )
 
-func listenContract(config contract.Inbound, handler netapi.Handler) (netapi.Accepter, error) {
+func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]netip.Prefix) (netapi.Accepter, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -46,7 +47,7 @@ func listenContract(config contract.Inbound, handler netapi.Handler) (netapi.Acc
 		}
 	}
 
-	server, err := contractProtocol(config.Protocol, lis, handler)
+	server, err := contractProtocol(config.Protocol, lis, handler, ranges)
 	if err != nil {
 		closeIfNotNil(lis)
 		return nil, err
@@ -166,7 +167,7 @@ func contractTransport(config contract.Transport, lis netapi.Listener) (netapi.L
 	}
 }
 
-func contractProtocol(config contract.Protocol, lis netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+func contractProtocol(config contract.Protocol, lis netapi.Listener, handler netapi.Handler, ranges [2]netip.Prefix) (netapi.Accepter, error) {
 	switch config.Type {
 	case contract.ProtocolHTTP:
 		protocol := config.HTTP
@@ -202,7 +203,9 @@ func contractProtocol(config contract.Protocol, lis netapi.Listener, handler net
 	case contract.ProtocolRedir:
 		return redirserver.NewServer(redirserver.ServerConfig{})(lis, handler)
 	case contract.ProtocolTun:
-		return tun.NewTun(tunConfig(*config.Tun), lis, handler)
+		options := tunConfig(*config.Tun)
+		options.FakeIPRanges = ranges
+		return tun.NewTun(options, lis, handler)
 	case contract.ProtocolReverseHTTP:
 		protocol := config.ReverseHTTP
 		tlsConfig := ytls.TLSConfig{}
@@ -264,16 +267,17 @@ func clientTLSConfig(config contract.ClientTLSConfig) ytls.TLSConfig {
 
 func tunConfig(config contract.TunProtocol) device.TunConfig {
 	return device.TunConfig{
-		Name:          config.Name,
-		MTU:           config.MTU,
-		ForceFakeIP:   config.ForceFakeIP,
-		SkipMulticast: config.SkipMulticast,
-		Driver:        device.Driver(config.Driver),
-		Portal:        config.Portal,
-		PortalV6:      config.PortalV6,
-		Routes:        append(append([]string(nil), config.Routes...), config.Excludes...),
-		PostUp:        append([]string(nil), config.PostUp...),
-		PostDown:      append([]string(nil), config.PostDown...),
+		AutoFakeIPRoute: config.AutoFakeIPRoute,
+		Name:            config.Name,
+		MTU:             config.MTU,
+		ForceFakeIP:     config.ForceFakeIP,
+		SkipMulticast:   config.SkipMulticast,
+		Driver:          device.Driver(config.Driver),
+		Portal:          config.Portal,
+		PortalV6:        config.PortalV6,
+		Routes:          append(append([]string(nil), config.Routes...), config.Excludes...),
+		PostUp:          append([]string(nil), config.PostUp...),
+		PostDown:        append([]string(nil), config.PostDown...),
 	}
 }
 

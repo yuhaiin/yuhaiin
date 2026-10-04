@@ -2,6 +2,9 @@ package inbound
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/netip"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -24,7 +27,12 @@ type entry struct {
 var _ netapi.Handler = (*Inbound)(nil)
 
 type Inbound struct {
-	ctx context.Context
+	fakeIPSource        FakeIPRangeSource
+	fakeIPRanges        [2]netip.Prefix
+	unsubscribeFakeIP   func()
+	closed              bool
+	pendingRouteCleanup []netapi.Accepter
+	ctx                 context.Context
 
 	dnsHandler netapi.DNSAgent
 
@@ -50,6 +58,63 @@ type Inbound struct {
 
 type Option func(*Inbound)
 
+// FakeIPRangeSource publishes the active pools rather than persisted settings.
+type FakeIPRangeSource interface {
+	SubscribeFakeIPRanges(func([2]netip.Prefix) error) (func(), error)
+}
+
+func WithFakeIPRangeSource(source FakeIPRangeSource) Option {
+	return func(l *Inbound) { l.fakeIPSource = source }
+}
+
+// UpdateFakeIPRanges keeps the runtime snapshot and updates active TUN routes
+// without modifying the stored inbound configuration or rebuilding listeners.
+func (l *Inbound) UpdateFakeIPRanges(ranges [2]netip.Prefix) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return nil
+	}
+	l.fakeIPRanges = ranges
+	result := l.retryRouteCleanup()
+	for _, entry := range l.store.Range {
+		config := entry.contractConfig
+		if config == nil || config.Protocol.Tun == nil || !config.Protocol.Tun.AutoFakeIPRoute {
+			continue
+		}
+		if updater, ok := entry.server.(interface{ UpdateFakeIPRanges([2]netip.Prefix) error }); ok {
+			if err := updater.UpdateFakeIPRanges(ranges); err != nil {
+				err = fmt.Errorf("update FakeIP routes for TUN %q: %w", config.Name, err)
+				log.Error("update TUN FakeIP routes failed", "err", err)
+				result = errors.Join(result, err)
+			}
+		}
+	}
+	return result
+}
+
+// Keep failed TUN cleanup reachable after its inbound is removed so subsequent
+// saves, range notifications, and repeated Close can retry it.
+func (l *Inbound) closeServer(server netapi.Accepter) error {
+	err := server.Close()
+	if err != nil {
+		if _, ok := server.(interface{ UpdateFakeIPRanges([2]netip.Prefix) error }); ok {
+			l.pendingRouteCleanup = append(l.pendingRouteCleanup, server)
+		}
+	}
+	return err
+}
+
+func (l *Inbound) retryRouteCleanup() error {
+	pending := l.pendingRouteCleanup
+	l.pendingRouteCleanup = nil
+	var result error
+	for _, server := range pending {
+		result = errors.Join(result, l.closeServer(server))
+	}
+	return result
+}
+
 func WithDNSAgent(dnsHandler netapi.DNSAgent) Option {
 	return func(l *Inbound) {
 		l.dnsHandler = dnsHandler
@@ -69,6 +134,14 @@ func NewInbound(dialer netapi.Proxy, opts ...Option) *Inbound {
 
 	for _, opt := range opts {
 		opt(l)
+	}
+
+	if l.fakeIPSource != nil {
+		var err error
+		l.unsubscribeFakeIP, err = l.fakeIPSource.SubscribeFakeIPRanges(l.UpdateFakeIPRanges)
+		if err != nil {
+			log.Error("subscribe TUN FakeIP routes failed", "err", err)
+		}
 	}
 
 	l.hijackDNS.Store(true)
@@ -163,9 +236,18 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 	}
 }
 
-func (l *Inbound) SaveContract(req contract.Inbound) {
+func (l *Inbound) SaveContract(req contract.Inbound) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	if l.closed {
+		return errors.New("inbound runtime is closed")
+	}
+
+	if err := l.retryRouteCleanup(); err != nil {
+		return err
+	}
+	defer l.refreshInterfaces()
 
 	key := req.ID
 	if key == "" {
@@ -175,30 +257,36 @@ func (l *Inbound) SaveContract(req contract.Inbound) {
 	x, ok := l.store.Load(key)
 	if ok {
 		if x.contractConfig != nil && reflect.DeepEqual(*x.contractConfig, req) {
-			return
+			if req.Protocol.Tun != nil && req.Protocol.Tun.AutoFakeIPRoute {
+				if updater, ok := x.server.(interface{ UpdateFakeIPRanges([2]netip.Prefix) error }); ok {
+					return updater.UpdateFakeIPRanges(l.fakeIPRanges)
+				}
+			}
+			return nil
 		}
 
 		l.store.Delete(key)
 
-		if err := x.server.Close(); err != nil {
+		if err := l.closeServer(x.server); err != nil {
 			log.Error("close server failed", "name", req.Name, "id", req.ID, "err", err)
+			return err
 		}
 	}
 
 	if !req.Enabled {
-		return
+		return nil
 	}
 
-	server, err := listenContract(req, &handlerWrap{name: req.Name, handler: l})
+	server, err := listenContract(req, &handlerWrap{name: req.Name, handler: l}, l.fakeIPRanges)
 	if err != nil {
 		log.Error("start contract server failed", "name", req.Name, "id", req.ID, "err", err)
-		return
+		return err
 	}
 
 	log.Info("start contract server", "name", req.Name, "id", req.ID)
 	l.store.Store(key, entry{contractConfig: &req, server: server})
 
-	l.refreshInterfaces()
+	return nil
 }
 
 func (l *Inbound) refreshInterfaces() {
@@ -222,20 +310,20 @@ func (l *Inbound) Interfaces() *set.Set[string] {
 	return l.interfaces
 }
 
-func (l *Inbound) Remove(name string) {
+func (l *Inbound) Remove(name string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
+	result := l.retryRouteCleanup()
 	x, ok := l.store.LoadAndDelete(name)
 	if !ok {
-		return
+		return result
 	}
-
-	if err := x.server.Close(); err != nil {
+	if err := l.closeServer(x.server); err != nil {
 		log.Error("close server failed", "name", name, "err", err)
+		result = errors.Join(result, err)
 	}
-
 	l.refreshInterfaces()
+	return result
 }
 
 func (l *Inbound) SetHijackDnsFakeip(fakeip bool) {
@@ -251,16 +339,29 @@ func (l *Inbound) SetSniff(sniff bool) {
 }
 
 func (l *Inbound) Close() error {
+	// Cancel before acquiring mu: the source may be finishing a callback that needs mu.
+	if l.unsubscribeFakeIP != nil {
+		l.unsubscribeFakeIP()
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return l.retryRouteCleanup()
+	}
+	l.closed = true
+	result := l.retryRouteCleanup()
 	l.close()
 	for k, v := range l.store.Range {
 		log.Info("start close server", "name", k)
-		if err := v.server.Close(); err != nil {
+		if err := l.closeServer(v.server); err != nil {
 			log.Error("close server failed", "name", k, "err", err)
+			result = errors.Join(result, err)
 		}
 		l.store.Delete(k)
 		log.Info("closed server", "name", k)
 	}
-	return l.handler.Close()
+	l.refreshInterfaces()
+	return errors.Join(result, l.handler.Close())
 }
 
 type handlerWrap struct {

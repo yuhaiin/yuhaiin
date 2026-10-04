@@ -145,7 +145,10 @@ func (t *table) newConn(tuple Tuple) uint16 {
 func (t *table) ClearExpired() { t.lru.ClearExpired() }
 
 func newTable() *tableSplit {
-	expire := mappingTimeout()
+	// Retain the timeout provider for this table. The provider still reads the
+	// current runtime setting, while test overrides cannot race with its timer.
+	timeout := mappingTimeout
+	expire := timeout()
 	t := &tableSplit{
 		v6: newTableBase(expire),
 		v4: newTableBase(expire),
@@ -155,7 +158,7 @@ func newTable() *tableSplit {
 		t.v6.ClearExpired()
 		t.v4.ClearExpired()
 
-		t.timer.Reset(mappingTimeout())
+		t.timer.Reset(timeout())
 	})
 
 	return t

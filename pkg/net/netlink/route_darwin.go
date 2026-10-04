@@ -84,22 +84,19 @@ func Route(options *Options) (close func(), err error) {
 
 	close = setDnsservers(options.Platform.Darwin.NetworkService, dns)
 
-	routes := options.Routes
-
-	routes = append(routes, netip.PrefixFrom(options.V4Address().Addr().Next(), options.V4Address().Bits()))
-
-	for _, v := range routes {
-		if v.Addr().Is4() && options.V4Address().IsValid() {
-			err = addRoute(v, options.V4Address().Addr())
-		} else if options.V6Address().IsValid() {
-			err = addRoute(v, options.V6Address().Addr())
+	ifaceInfo, err := net.InterfaceByName(iface)
+	if err != nil {
+		if close != nil {
+			close()
 		}
-		if err != nil {
-			log.Error("add route failed", "err", err)
-		}
+		return nil, err
 	}
-
-	return close, nil
+	backend := &darwinRouteBackend{index: ifaceInfo.Index, v4: options.V4Address().Addr(), v6: options.V6Address().Addr(), restoreDNS: close}
+	var required []netip.Prefix
+	if options.V4Address().IsValid() {
+		required = append(required, options.V4Address().Masked())
+	}
+	return installRoutes(options, backend, required...)
 }
 
 func useSocket(domain, typ, proto int, block func(socketFd int) error) error {
@@ -115,9 +112,10 @@ func useSocket(domain, typ, proto int, block func(socketFd int) error) error {
 	return block(socketFd)
 }
 
-func addRoute(destination netip.Prefix, gateway netip.Addr) error {
+func writeRoute(destination netip.Prefix, gateway netip.Addr, operation int, index int) error {
 	routeMessage := route.RouteMessage{
-		Type:    unix.RTM_ADD,
+		Type:    operation,
+		Index:   index,
 		Flags:   unix.RTF_UP | unix.RTF_STATIC | unix.RTF_GATEWAY,
 		Version: unix.RTM_VERSION,
 		Seq:     1,

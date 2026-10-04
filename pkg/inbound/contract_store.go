@@ -3,6 +3,7 @@ package inbound
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"time"
 
@@ -28,15 +29,16 @@ func (s *ContractStore) Sync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	var result error
 	for _, item := range items {
-		s.runtime.SaveContract(item)
+		result = errors.Join(result, s.runtime.SaveContract(item))
 	}
 	settings, err := s.Settings(ctx)
 	if err != nil {
-		return err
+		return errors.Join(result, err)
 	}
 	s.applySettings(settings)
-	return nil
+	return result
 }
 
 func (s *ContractStore) List(ctx context.Context) ([]contract.Inbound, error) {
@@ -57,16 +59,14 @@ func (s *ContractStore) Save(ctx context.Context, inbound contract.Inbound, upda
 	if err := s.store.Save(ctx, inbound, updatedAt); err != nil {
 		return err
 	}
-	s.runtime.SaveContract(inbound)
-	return nil
+	return s.runtime.SaveContract(inbound)
 }
 
 func (s *ContractStore) Delete(ctx context.Context, id string) error {
 	if err := s.store.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.runtime.Remove(id)
-	return nil
+	return s.runtime.Remove(id)
 }
 
 func (s *ContractStore) Settings(ctx context.Context) (plainstore.InboundSettings, error) {

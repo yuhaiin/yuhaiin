@@ -72,6 +72,7 @@ func New(o *device.Opt) (*tunServer, error) {
 		return nil, fmt.Errorf("open tun failed: %w", err)
 	}
 
+	o.MTU = int(o.Tun.MTU)
 	o.Endpoint = ep
 
 	networkProtocols := []stack.NetworkProtocolFactory{ipv4.NewProtocol}
@@ -101,6 +102,14 @@ func New(o *device.Opt) (*tunServer, error) {
 
 	o.UnsetRoute, err = netlink.Route(o.Options)
 	if err != nil {
+		if o.Tun.AutoFakeIPRoute {
+			if o.UnsetRoute != nil {
+				o.UnsetRoute()
+			}
+			s.Destroy()
+			ep.Close()
+			return nil, fmt.Errorf("install TUN routes: %w", err)
+		}
 		log.Warn("preload failed", "err", err)
 	}
 

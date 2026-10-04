@@ -6,8 +6,10 @@ import (
 	"net"
 	"net/netip"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -49,6 +51,9 @@ func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s ne
 		return nil, err
 	}
 
+	if o.AutoFakeIPRoute && sc.Scheme == "tun" && (!o.FakeIPRanges[0].IsValid() || !o.FakeIPRanges[1].IsValid()) {
+		return nil, errors.New("automatic TUN routes require active FakeIP pools")
+	}
 	sc.Name = checkTunName(sc)
 
 	opt := &device.Opt{
@@ -56,7 +61,6 @@ func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s ne
 		Options: &netlink.Options{
 			Interface: sc,
 			MTU:       int(o.MTU),
-			Routes:    toRoutes(o.Routes),
 			Platform: netlink.Platform{
 				Darwin: netlink.Darwin{
 					NetworkService: o.Platform.Darwin.NetworkService,
@@ -74,11 +78,66 @@ func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s ne
 		opt.Inet6Address = []netip.Prefix{v6address}
 	}
 
+	userRoutes := toRoutes(o.Routes)
+	opt.Routes = effectiveRoutes(opt.Options, userRoutes, o.AutoFakeIPRoute, o.FakeIPRanges)
 	if o.Driver == device.DriverSystemGvisor {
-		return tun2socket.New(opt)
+		s, err = tun2socket.New(opt)
 	} else {
-		return gvisor.New(opt)
+		s, err = gvisor.New(opt)
 	}
+	if err != nil {
+		return nil, err
+	}
+	return &routeAccepter{Accepter: s, options: opt.Options, userRoutes: userRoutes, autoFakeIP: o.AutoFakeIPRoute}, nil
+}
+
+func effectiveRoutes(options *netlink.Options, userRoutes []netip.Prefix, automatic bool, ranges [2]netip.Prefix) []netip.Prefix {
+	routes := slices.Clone(userRoutes)
+	if automatic {
+		for _, p := range options.RoutesForFamilies(ranges[:]) {
+			if p.Addr().Is6() && !configuration.IPv6.Load() {
+				continue
+			}
+			routes = append(routes, p)
+		}
+	}
+	return netlink.NormalizeRoutes(routes)
+}
+
+// routeAccepter keeps system route updates and Close mutually exclusive for
+// both TUN drivers. Its userRoutes never include automatically added prefixes.
+type routeAccepter struct {
+	netapi.Accepter
+	mu         sync.Mutex
+	options    *netlink.Options
+	userRoutes []netip.Prefix
+	autoFakeIP bool
+	closed     bool
+}
+
+func (t *routeAccepter) UpdateFakeIPRanges(ranges [2]netip.Prefix) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed || !t.autoFakeIP || t.options.RouteManager == nil {
+		return nil
+	}
+	routes := effectiveRoutes(t.options, t.userRoutes, true, ranges)
+	return t.options.RouteManager.Update(t.options.RoutesForFamilies(routes))
+}
+
+func (t *routeAccepter) Close() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var err error
+	// Clean up while the interface still exists, before either driver closes it.
+	if t.options.RouteManager != nil {
+		err = t.options.RouteManager.Close()
+	}
+	if t.closed {
+		return err
+	}
+	t.closed = true
+	return errors.Join(err, t.Accepter.Close())
 }
 
 func toRoutes(routes []string) []netip.Prefix {
@@ -107,7 +166,7 @@ func toRoutes(routes []string) []netip.Prefix {
 		}
 	}
 
-	return x
+	return netlink.NormalizeRoutes(x)
 }
 
 func toPrefix(str string, gateway bool) (netip.Prefix, error) {

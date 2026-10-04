@@ -64,6 +64,11 @@ func (f *FakeDNS) Close() error {
 	return err
 }
 
+// Ranges returns the prefixes used by the active pools.
+func (f *FakeDNS) Ranges() [2]netip.Prefix {
+	return [2]netip.Prefix{f.ipv4.Prefix().Masked(), f.ipv6.Prefix().Masked()}
+}
+
 func (f *FakeDNS) Equal(ipRange, ipv6Range netip.Prefix) bool {
 	return ipRange.Masked() == f.ipv4.Prefix().Masked() && ipv6Range.Masked() == f.ipv6.Prefix().Masked()
 }
