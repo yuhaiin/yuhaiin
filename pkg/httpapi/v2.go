@@ -93,6 +93,9 @@ type ListRuntimeController interface {
 	Apply(context.Context) error
 	ActivationStatus(context.Context) (contractroute.ListActivationStatus, error)
 }
+type RegistryCatalogController interface {
+	Catalogs(context.Context, bool) (contractroute.RegistryCatalogList, error)
+}
 type InboundStore interface {
 	List(context.Context) ([]contractinbound.Inbound, error)
 	Get(context.Context, string) (contractinbound.Inbound, error)
@@ -118,6 +121,8 @@ type V2Services struct {
 	Lists          ListRuntimeController
 	RouteSettings  *plainstore.RouteSettingsStore
 	RouteLists     *plainstore.RouteListStore
+	RouteRegistries *plainstore.RouteRegistryStore
+	RegistryCatalogs RegistryCatalogController
 	Rules          RouteRuntimeController
 	RouteRules     *plainstore.RouteRuleStore
 	RouteTags      *plainstore.RouteTagStore
