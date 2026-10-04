@@ -102,8 +102,13 @@ const (
 	v2RouteListConfigPut  v2Endpoint = "route.lists.config.put"
 	v2RouteListGet        v2Endpoint = "route.list.get"
 	v2RouteListPut        v2Endpoint = "route.list.put"
-	v2RouteListDelete     v2Endpoint = "route.list.delete"
-	v2RouteRulesGet       v2Endpoint = "route.rules.get"
+	v2RouteListDelete       v2Endpoint = "route.list.delete"
+	v2RouteRegistriesGet    v2Endpoint = "route.registries.get"
+	v2RouteRegistriesPost   v2Endpoint = "route.registries.post"
+	v2RouteRegistryPut      v2Endpoint = "route.registry.put"
+	v2RouteRegistryDelete   v2Endpoint = "route.registry.delete"
+	v2RouteRegistryCatalogs v2Endpoint = "route.registries.catalogs"
+	v2RouteRulesGet         v2Endpoint = "route.rules.get"
 	v2RouteRulesPost      v2Endpoint = "route.rules.post"
 	v2RouteRuleGet        v2Endpoint = "route.rule.get"
 	v2RouteRulePut        v2Endpoint = "route.rule.put"
@@ -187,6 +192,11 @@ var v2Routes = []v2Route{
 	{v2RouteListGet, "GET /api/v2/route/lists/{id}"},
 	{v2RouteListPut, "PUT /api/v2/route/lists/{id}"},
 	{v2RouteListDelete, "DELETE /api/v2/route/lists/{id}"},
+	{v2RouteRegistriesGet, "GET /api/v2/route/registries"},
+	{v2RouteRegistriesPost, "POST /api/v2/route/registries"},
+	{v2RouteRegistryCatalogs, "GET /api/v2/route/registries/catalogs"},
+	{v2RouteRegistryPut, "PUT /api/v2/route/registries/{id}"},
+	{v2RouteRegistryDelete, "DELETE /api/v2/route/registries/{id}"},
 	{v2RouteRulesGet, "GET /api/v2/route/rules"},
 	{v2RouteRulesPost, "POST /api/v2/route/rules"},
 	{v2RouteRulesPriority, "POST /api/v2/route/rules/priority"},
@@ -208,6 +218,7 @@ func newV2Handlers(services V2Services) *v2Handlers {
 	handlers := &v2Handlers{values: make(map[v2Endpoint]func(http.ResponseWriter, *http.Request) error)}
 	addFacadeRPCRoutesV2(handlers, services)
 	addRouteRPCRoutesV2(handlers, services)
+	addRegistryRPCRoutesV2(handlers, services)
 	addSubscriptionRPCRoutesV2(handlers, services)
 	addNodeRPCRoutesV2(handlers, services)
 	addResolverRPCRoutesV2(handlers, services)
