@@ -111,6 +111,10 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	if sqlStore := so.StateStore; sqlStore != nil {
 		db, err := sqlStore.SQLDB(ctx)
 		if err != nil {
+			if ctx.Err() != nil {
+				_ = closers.Close()
+				return nil, ctx.Err()
+			}
 			log.Error("open v2 sqlite store failed", "err", err)
 		} else {
 			settingsStore = plainstore.NewSettingsStore(db)
@@ -125,6 +129,10 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	settingsController := NewSettingsController(settingsStore, so.ConfigPath, logController)
 	if settingsStore != nil {
 		if settings, err := settingsController.Load(ctx); err != nil {
+			if ctx.Err() != nil {
+				_ = closers.Close()
+				return nil, ctx.Err()
+			}
 			log.Warn("load initial settings failed", "err", err)
 		} else {
 			settingsController.Apply(settings)
@@ -134,6 +142,10 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	var initialFakeDNS contractresolver.FakeDNS
 	if resolverConfigStore != nil {
 		if config, err := resolverConfigStore.FakeDNS(ctx); err != nil {
+			if ctx.Err() != nil {
+				_ = closers.Close()
+				return nil, ctx.Err()
+			}
 			log.Warn("load initial fakedns config failed", "err", err)
 		} else {
 			initialFakeDNS = config
@@ -182,6 +194,11 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 			log.Info("legacy pebble state migration finished")
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		_ = closers.Close()
+		return nil, err
+	}
+
 	configuration.ProxyChain.Set(direct.Default)
 	// Proxy and DNS runtime objects are created only after every legacy store
 	// has been migrated into the plain SQLite model.
