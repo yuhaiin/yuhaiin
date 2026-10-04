@@ -9,7 +9,7 @@ replace (
 )
 
 require (
-	codeberg.org/miekg/dns v0.6.117
+	codeberg.org/miekg/dns v0.6.118
 	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.5
 	github.com/cockroachdb/pebble/v2 v2.1.7
