@@ -22,7 +22,8 @@ func (s registryBookStub) ListRegistries(context.Context) (contractroute.Registr
 
 func TestRegistryCatalogServiceFetchesAndCaches(t *testing.T) {
 	var requests atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{
