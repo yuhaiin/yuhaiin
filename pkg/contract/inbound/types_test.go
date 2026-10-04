@@ -79,3 +79,27 @@ func TestNewTypedTaggedObjects(t *testing.T) {
 		t.Fatalf("unexpected transport: %#v", transport)
 	}
 }
+
+func TestTunAutoFakeIPRouteJSONCompatibility(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		original := NewTypedProtocol(TunProtocol{AutoFakeIPRoute: enabled, Routes: []string{"192.0.2.0/24"}})
+		data, err := json.Marshal(original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded Protocol
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if decoded.Tun.AutoFakeIPRoute != enabled || decoded.Tun.Routes[0] != "192.0.2.0/24" {
+			t.Fatalf("bad round trip: %s", data)
+		}
+	}
+	var old Protocol
+	if err := json.Unmarshal([]byte(`{"type":"tun","tun":{"routes":["198.18.0.0/16"]}}`), &old); err != nil {
+		t.Fatal(err)
+	}
+	if old.Tun.AutoFakeIPRoute {
+		t.Fatal("old config was automatically enabled")
+	}
+}

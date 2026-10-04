@@ -21,6 +21,7 @@ type Darwin struct {
 }
 
 type Options struct {
+	RouteManager *RouteManager
 	Endpoint     stack.LinkEndpoint
 	Device       Tun
 	Platform     Platform

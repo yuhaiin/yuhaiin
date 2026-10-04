@@ -322,3 +322,62 @@ func TestV2InboundCRUD(t *testing.T) {
 		t.Fatalf("LIST body is not v2 list shape: %s", listRecorder.Body.String())
 	}
 }
+
+func TestV2TunAutoFakeIPRouteRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	db, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	mux := http.NewServeMux()
+	RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
+		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+			if err := handler(w, r); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}, V2Services{Inbounds: plainstore.NewInboundStore(db.DB())})
+	for _, flag := range []string{`,"autoFakeIpRoute":true`, `,"autoFakeIpRoute":false`, ""} {
+		body := `{"id":"tun","name":"tun","enabled":false,"network":{"type":"empty","empty":{}},"protocol":{"type":"tun","tun":{"routes":["192.0.2.0/24"]` + flag + `}}}`
+		saved := httptest.NewRecorder()
+		mux.ServeHTTP(saved, httptest.NewRequest(http.MethodPost, "/api/v2/rpc/inbound.put", strings.NewReader(body)))
+		if saved.Code != http.StatusOK {
+			t.Fatalf("save: %d %s", saved.Code, saved.Body.String())
+		}
+		loaded := httptest.NewRecorder()
+		mux.ServeHTTP(loaded, httptest.NewRequest(http.MethodPost, "/api/v2/rpc/inbound.get", strings.NewReader(`{"id":"tun"}`)))
+		if loaded.Code != http.StatusOK {
+			t.Fatalf("load: %d %s", loaded.Code, loaded.Body.String())
+		}
+		var value contractinbound.Inbound
+		if err := json.Unmarshal(loaded.Body.Bytes(), &value); err != nil {
+			t.Fatal(err)
+		}
+		if value.Protocol.Tun.AutoFakeIPRoute != strings.Contains(flag, "true") || len(value.Protocol.Tun.Routes) != 1 {
+			t.Fatalf("bad route flag round trip: %s", loaded.Body.String())
+		}
+	}
+}
+
+type fakeDNSRouteSyncErrorStub struct{ ResolverConfigController }
+
+func (fakeDNSRouteSyncErrorStub) SaveFakeDNS(_ context.Context, req contractresolver.FakeDNS) (contractresolver.FakeDNS, error) {
+	return req, errors.New("update FakeIP routes for TUN: injected route failure")
+}
+
+func TestV2FakeDNSRouteSyncErrorIsReturned(t *testing.T) {
+	mux := http.NewServeMux()
+	RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
+		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+			if err := handler(w, r); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}, V2Services{ResolverConfig: fakeDNSRouteSyncErrorStub{}})
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/v2/rpc/resolver.fakedns.put", strings.NewReader(`{"ipv4Range":"198.19.0.0/16","ipv6Range":"2001:2::/64"}`)))
+	if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "injected route failure") {
+		t.Fatalf("sync failure reported as success: %d %s", recorder.Code, recorder.Body.String())
+	}
+}

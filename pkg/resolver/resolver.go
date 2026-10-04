@@ -379,7 +379,9 @@ func (r *ResolverCtr) ApplyStored(ctx context.Context) {
 		if err != nil {
 			log.Warn("load fakedns setting failed", "err", err)
 		} else {
-			r.fakedns.Apply(fakedns)
+			if err := r.fakedns.Apply(fakedns); err != nil {
+				log.Error("apply fakedns setting failed", "err", err)
+			}
 		}
 
 		log.Info("apply fakedns server")
@@ -471,9 +473,11 @@ func (r *ResolverCtr) SaveContractFakedns(ctx context.Context, req contractresol
 		return contractresolver.FakeDNS{}, err
 	}
 
-	r.fakedns.Apply(req)
+	if err := r.fakedns.Apply(req); err != nil {
+		return req, err
+	}
 
-	return req, err
+	return req, nil
 }
 
 func (r *ResolverCtr) ContractServer(ctx context.Context) (contractresolver.Server, error) {

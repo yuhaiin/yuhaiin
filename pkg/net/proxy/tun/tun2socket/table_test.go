@@ -10,12 +10,15 @@ import (
 
 func TestTable(t *testing.T) {
 	t.Run("expire", func(t *testing.T) {
+		oldSize := defaultTableSize
 		defaultTableSize = 2
+		t.Cleanup(func() { defaultTableSize = oldSize })
 		oldTimeout := mappingTimeout
 		mappingTimeout = func() time.Duration { return time.Second * 2 }
 		t.Cleanup(func() { mappingTimeout = oldTimeout })
 
 		table := newTable()
+		t.Cleanup(func() { _ = table.Close() })
 		port := table.portOf(Tuple{SourcePort: uint16(1)})
 
 		time.Sleep(time.Second * 3)
@@ -27,19 +30,22 @@ func TestTable(t *testing.T) {
 			return true
 		})
 
-		assert.Equal(t, zeroTuple, table.tupleOf(port, false))
+		assert.MustEqual(t, zeroTuple, table.tupleOf(port, false))
 	})
 
 	t.Run("not expire", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
+		oldSize := defaultTableSize
 		defaultTableSize = 2
+		t.Cleanup(func() { defaultTableSize = oldSize })
 		oldTimeout := mappingTimeout
 		mappingTimeout = func() time.Duration { return time.Second * 2 }
 		t.Cleanup(func() { mappingTimeout = oldTimeout })
 
 		table := newTable()
+		t.Cleanup(func() { _ = table.Close() })
 		port := table.portOf(Tuple{SourcePort: uint16(1)})
 
 		go func() {
@@ -56,6 +62,6 @@ func TestTable(t *testing.T) {
 		}()
 		time.Sleep(time.Second * 3)
 
-		assert.Equal(t, Tuple{SourcePort: uint16(1)}, table.tupleOf(port, false))
+		assert.MustEqual(t, Tuple{SourcePort: uint16(1)}, table.tupleOf(port, false))
 	})
 }
