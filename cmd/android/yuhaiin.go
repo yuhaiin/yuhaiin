@@ -122,6 +122,7 @@ func (a *App) Start(opt *Opts) error {
 	// All legacy Android JSON is imported before any preference is read.
 	setting := migrate.NewStateDB(paths.PathGenerator.State(savepath))
 	if err := setting.Migrate(ctx); err != nil {
+		_ = setting.Close()
 		return fmt.Errorf("migrate Android state before startup: %w", err)
 	}
 	if err := configureAndroidTUN(ctx, setting, opt.TUN, GetStore().GetString(AdvTunDriverKey)); err != nil {
