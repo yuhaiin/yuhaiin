@@ -5,11 +5,61 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
+
+type notifyWriteConn struct {
+	net.Conn
+	started chan struct{}
+	once    sync.Once
+}
+
+func (c *notifyWriteConn) Write(b []byte) (int, error) {
+	c.once.Do(func() { close(c.started) })
+	return c.Conn.Write(b)
+}
+
+func TestCoalescedCloseDrainsQueue(t *testing.T) {
+	local, remote := net.Pipe()
+	defer remote.Close()
+	writer := &notifyWriteConn{Conn: local, started: make(chan struct{})}
+	pc := newPacketConn(pool.NewBufioConnSize(writer, 4096), nil, true)
+	defer pc.Close()
+	addr := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 53}
+	if _, err := pc.WriteTo([]byte("first"), addr); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-writer.started:
+	case <-time.After(time.Second):
+		t.Fatal("writer did not start")
+	}
+	for range 64 {
+		if _, err := pc.WriteTo([]byte("queued"), addr); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(pc.coalesceChan) == 0 {
+		t.Fatal("test did not queue packets")
+	}
+	done := make(chan struct{})
+	go func() { _ = pc.Close(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("close left coalescing worker blocked")
+	}
+	if len(pc.coalesceChan) != 0 {
+		t.Fatal("closed connection retained queued packet buffers")
+	}
+	if _, err := pc.WriteTo([]byte("closed"), addr); err == nil {
+		t.Fatal("closed connection accepted packet into abandoned queue")
+	}
+}
 
 /*
 Benchmark Results Summary (on Apple M4)

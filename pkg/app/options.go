@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
@@ -351,13 +352,16 @@ func setPprofEnabled(enabled bool) {
 
 	pprofEnabled.Store(enabled)
 	if enabled {
-		runtime.SetCPUProfileRate(25)
-		runtime.SetBlockProfileRate(1000)
+		// The HTTP CPU profile handler starts and drains its own collector.
+		// Starting runtime sampling here leaves an unread buffer and pollutes
+		// the first requested profile with samples from before the request.
+		// A 100 us block sampling interval still captures network waits without
+		// recording almost every short packet-processing synchronization.
+		runtime.SetBlockProfileRate(int(100 * time.Microsecond))
 		runtime.SetMutexProfileFraction(20)
 		return
 	}
 
-	runtime.SetCPUProfileRate(0)
 	runtimepprof.StopCPUProfile()
 	runtime.SetBlockProfileRate(0)
 	runtime.SetMutexProfileFraction(0)

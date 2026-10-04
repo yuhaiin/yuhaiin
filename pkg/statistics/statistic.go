@@ -97,6 +97,10 @@ func NewSQLiteConnStore(path string, dialer netapi.Proxy) *Connections {
 }
 
 func (c *Connections) allInfos() []contractconnection.Connection {
+	if store, ok := c.infoStore.(*sqliteInfoStore); ok {
+		ids := slice.CollectTo(c.connStore.RangeValues, func(x connection) uint64 { return x.ID() })
+		return store.loadMany(ids)
+	}
 	return slice.CollectTo(c.connStore.RangeValues, func(x connection) contractconnection.Connection {
 		info, ok := c.infoStore.Load(x.ID())
 		if !ok {
@@ -141,6 +145,13 @@ func (c *Connections) Close() error {
 	if er := c.notify.Close(); er != nil {
 		err = errors.Join(err, er)
 	}
+	// Connection removal still needs the prepared metadata statements.
+	// Release sessions and final traffic counters before closing the stores.
+	for _, v := range c.connStore.Range {
+		if er := v.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
+	}
 
 	if er := c.history.Close(); er != nil {
 		err = errors.Join(err, er)
@@ -152,11 +163,6 @@ func (c *Connections) Close() error {
 
 	if er := c.infoStore.Close(); er != nil {
 		err = errors.Join(err, er)
-	}
-	for _, v := range c.connStore.Range {
-		if er := v.Close(); er != nil {
-			err = errors.Join(err, er)
-		}
 	}
 	c.telemetry.Close()
 
@@ -196,9 +202,17 @@ func (c *Connections) storeConnection(o connection, info contractconnection.Conn
 
 	id, _ := strconv.ParseUint(info.ID, 10, 64)
 	c.connStore.Store(id, o)
-	c.infoStore.Store(id, info)
+	session, sessionOK := c.infoStore.(*sqliteInfoStore)
+	history, historyOK := c.history.(*SQLiteHistory)
+	if sessionOK && historyOK && session.db == history.db {
+		if err := storeSQLiteConnection(session, history, id, info); err != nil {
+			log.Warn("store sqlite connection failed", "id", id, "err", err)
+		}
+	} else {
+		c.infoStore.Store(id, info)
+		c.history.Push(info)
+	}
 	c.notify.pubNewConn(info)
-	c.history.Push(info)
 }
 
 func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
@@ -419,7 +433,7 @@ func (c *Connections) AllHistory(context.Context) (contractconnection.AllHistory
 
 type counters struct {
 	store map[uint64]*Counter
-	mu    sync.Mutex
+	mu    sync.RWMutex
 }
 
 func newCounters() *counters {
@@ -443,8 +457,8 @@ func (c *counters) Remove(id uint64) *Counter {
 }
 
 func (c *counters) Load() map[string]contractconnection.Counter {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	tmp := make(map[string]contractconnection.Counter, len(c.store))
 

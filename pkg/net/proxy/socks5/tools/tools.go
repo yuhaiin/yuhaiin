@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -86,6 +87,56 @@ func EncodeAddr(addr netapi.Address, buf []byte) int {
 	binary.BigEndian.PutUint16(buf[offset:], uint16(addr.Port()))
 
 	return offset + 2
+}
+
+// EncodeSysAddr uses the same wire format as EncodeAddr. Common packet
+// addresses are encoded directly so converting an IPAddr to the Address
+// interface does not allocate once per packet. Domain/custom addresses keep
+// ParseSysAddr's fallback behavior. The caller must provide MaxAddrLength bytes.
+func EncodeSysAddr(addr net.Addr, buf []byte) (int, error) {
+	var ip net.IP
+	var port uint16
+	switch addr := addr.(type) {
+	case *net.UDPAddr:
+		if addr == nil {
+			return 0, fmt.Errorf("invalid address")
+		}
+		ip, port = addr.IP, uint16(addr.Port)
+	case *net.TCPAddr:
+		if addr == nil {
+			return 0, fmt.Errorf("invalid address")
+		}
+		ip, port = addr.IP, uint16(addr.Port)
+	case *net.IPAddr:
+		if addr == nil {
+			return 0, fmt.Errorf("invalid address")
+		}
+		ip = addr.IP
+	default:
+		parsed, err := netapi.ParseSysAddr(addr)
+		if err != nil {
+			return 0, err
+		}
+		return EncodeAddr(parsed, buf), nil
+	}
+	parsed, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		// Match ParseSysAddr's unspecified-IPv4 fallback for nil/invalid IPs.
+		parsed = netip.IPv4Unspecified()
+	}
+	parsed = parsed.Unmap()
+	var offset int
+	if parsed.Is4() {
+		buf[0] = IPv4
+		bytes := parsed.As4()
+		offset = 1 + copy(buf[1:], bytes[:])
+	} else {
+		buf[0] = IPv6
+		bytes := parsed.As16()
+		offset = 1 + copy(buf[1:], bytes[:])
+	}
+	binary.BigEndian.PutUint16(buf[offset:], port)
+	return offset + 2, nil
 }
 
 type Addr []byte

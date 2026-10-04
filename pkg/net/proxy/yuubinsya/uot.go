@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -21,6 +22,8 @@ type PacketConn struct {
 	pool.BufioConn
 	ctx          context.Context
 	coalesceChan chan []byte
+	coalesceDone chan struct{}
+	coalesceMu   sync.Mutex
 	cancel       context.CancelCauseFunc
 	hash         []byte
 	coalesce     bool
@@ -29,15 +32,16 @@ type PacketConn struct {
 func newPacketConn(conn pool.BufioConn, hash []byte, coalesce bool) *PacketConn {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	x := &PacketConn{
-		BufioConn:    conn,
-		hash:         hash,
-		coalesceChan: make(chan []byte, 100),
-		ctx:          ctx,
-		cancel:       cancel,
-		coalesce:     coalesce,
+		BufioConn: conn,
+		hash:      hash,
+		ctx:       ctx,
+		cancel:    cancel,
+		coalesce:  coalesce,
 	}
 
 	if coalesce {
+		x.coalesceChan = make(chan []byte, 100)
+		x.coalesceDone = make(chan struct{})
 		go x.loopflush()
 	}
 
@@ -93,15 +97,13 @@ func (c *PacketConn) WriteToOne(payload []byte, addr net.Addr) (int, error) {
 		return 0, fmt.Errorf("payload too large: %d > %d", bufLen, nat.MaxSegmentSize)
 	}
 
-	taddr, err := netapi.ParseSysAddr(addr)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse addr: %w", err)
-	}
-
 	buf := pool.GetBytes(bufLen + tools.MaxAddrLength + 2)
 	defer pool.PutBytes(buf)
 
-	addrLen := tools.EncodeAddr(taddr, buf)
+	addrLen, err := tools.EncodeSysAddr(addr, buf)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse addr: %w", err)
+	}
 	binary.BigEndian.PutUint16(buf[addrLen:], uint16(bufLen))
 	copy(buf[addrLen+2:], payload)
 
@@ -114,26 +116,47 @@ func (c *PacketConn) WriteToCoalesce(payload []byte, addr net.Addr) (int, error)
 		return 0, fmt.Errorf("payload too large: %d > %d", bufLen, nat.MaxSegmentSize)
 	}
 
-	taddr, err := netapi.ParseSysAddr(addr)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse addr: %w", err)
-	}
-
 	buf := pool.GetBytes(bufLen + tools.MaxAddrLength + 2)
 
-	addrLen := tools.EncodeAddr(taddr, buf)
+	addrLen, err := tools.EncodeSysAddr(addr, buf)
+	if err != nil {
+		pool.PutBytes(buf)
+		return 0, fmt.Errorf("failed to parse addr: %w", err)
+	}
 	binary.BigEndian.PutUint16(buf[addrLen:], uint16(bufLen))
 	copy(buf[addrLen+2:], payload)
 
+	c.coalesceMu.Lock()
+	defer c.coalesceMu.Unlock()
+	if err := c.ctx.Err(); err != nil {
+		pool.PutBytes(buf)
+		return 0, err
+	}
 	select {
 	case c.coalesceChan <- buf[:bufLen+addrLen+2]:
 		return len(payload), nil
 	case <-c.ctx.Done():
+		pool.PutBytes(buf)
 		return 0, c.ctx.Err()
 	}
 }
 
 func (c *PacketConn) loopflush() {
+	defer close(c.coalesceDone)
+	defer func() {
+		// Synchronize with writers that were already enqueueing at cancel.
+		// No queued packet may retain its pooled buffer after Close returns.
+		c.coalesceMu.Lock()
+		defer c.coalesceMu.Unlock()
+		for {
+			select {
+			case b := <-c.coalesceChan:
+				pool.PutBytes(b)
+			default:
+				return
+			}
+		}
+	}()
 	buffSize := max(configuration.RelayBufferSize.Load(), configuration.UDPBufferSize.Load())
 
 	buf := pool.NewBufferSize(buffSize * 2)
@@ -182,6 +205,7 @@ func (c *PacketConn) flush(first []byte, buffer *pool.Buffer, buffSize int) {
 
 	if _, err := c.Write(buf); err != nil {
 		c.cancel(err)
+		_ = c.BufioConn.Close()
 		log.Error("write to failed", "err", err)
 	}
 }
@@ -192,7 +216,11 @@ func (c *PacketConn) WriteBack(b []byte, addr net.Addr) (int, error) {
 
 func (c *PacketConn) Close() error {
 	c.cancel(io.EOF)
-	return c.BufioConn.Close()
+	err := c.BufioConn.Close()
+	if c.coalesceDone != nil {
+		<-c.coalesceDone
+	}
+	return err
 }
 
 func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {

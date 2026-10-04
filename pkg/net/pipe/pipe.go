@@ -212,6 +212,50 @@ func (p *Conn) read(b []byte) (n int, err error) {
 	}
 }
 
+// ReadWithBuffer waits for data before asking the caller for a buffer. This
+// lets idle HTTP/2 relays avoid pinning a pooled buffer for the stream's life.
+// The returned buffer belongs to the caller. As with Read, the remote writer
+// is acknowledged after copying, preserving the one-chunk transfer pipeline.
+func (p *Conn) ReadWithBuffer(getBuffer func() []byte) ([]byte, error) {
+	data, err := p.readWithBuffer(getBuffer)
+	if err != nil && err != io.EOF && err != io.ErrClosedPipe {
+		err = &net.OpError{Op: "read", Net: "pipe", Err: err}
+	}
+	return data, err
+}
+
+func (p *Conn) readWithBuffer(getBuffer func() []byte) ([]byte, error) {
+	switch {
+	case isClosedChan(p.localDone):
+		return nil, io.ErrClosedPipe
+	case isClosedChan(p.remoteDone), isClosedChan(p.remoteWriteDone):
+		return nil, io.EOF
+	case isClosedChan(p.readDeadline.Wait()):
+		return nil, os.ErrDeadlineExceeded
+	}
+	select {
+	case data := <-p.rdRx:
+		return p.copyToBuffer(data, getBuffer), nil
+	case <-p.localDone:
+		return nil, io.ErrClosedPipe
+	case <-p.remoteDone:
+		return nil, io.EOF
+	case <-p.remoteWriteDone:
+		return nil, io.EOF
+	case <-p.readDeadline.Wait():
+		return nil, os.ErrDeadlineExceeded
+	}
+}
+
+func (p *Conn) copyToBuffer(data []byte, getBuffer func() []byte) (buf []byte) {
+	n := 0
+	// Keep the paired channel protocol intact even if buffer acquisition panics.
+	defer func() { p.rdTx <- n }()
+	buf = getBuffer()
+	n = copy(buf, data)
+	return buf[:n]
+}
+
 func (p *Conn) Write(b []byte) (int, error) {
 	n, err := p.write(b)
 	if err != nil && err != io.ErrClosedPipe {

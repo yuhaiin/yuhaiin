@@ -11,6 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
@@ -140,10 +141,51 @@ func Copy(dst io.Writer, src io.Reader) (n int64, err error) {
 			err = fmt.Errorf("panic: %v", er)
 		}
 	}()
+	// The pipe exposes when data is ready, so a response relay can borrow
+	// its buffer only while forwarding a chunk instead of pinning it while idle.
+	if p, ok := src.(*pipe.Conn); ok {
+		return copyPipe(dst, p)
+	}
 	buf := pool.GetBytes(configuration.RelayBufferSize.Load())
 	defer pool.PutBytes(buf)
 	// to avoid using (*net.TCPConn).ReadFrom that will make new none-zero buf
 	return io.CopyBuffer(WriteOnlyWriter{dst}, ReadOnlyReader{src}, buf)
+}
+
+func copyPipe(dst io.Writer, src *pipe.Conn) (total int64, err error) {
+	bufferSize := configuration.RelayBufferSize.Load()
+	if bufferSize <= 0 {
+		return 0, fmt.Errorf("relay: invalid buffer size %d", bufferSize)
+	}
+	getBuffer := func() []byte { return pool.GetBytes(bufferSize) }
+	for {
+		data, readErr := src.ReadWithBuffer(getBuffer)
+		if data != nil {
+			n, writeErr := writePipeBuffer(dst, data)
+			total += int64(n)
+			if writeErr != nil {
+				return total, writeErr
+			}
+		}
+		if readErr != nil {
+			if readErr == io.EOF {
+				readErr = nil
+			}
+			return total, readErr
+		}
+	}
+}
+
+func writePipeBuffer(dst io.Writer, data []byte) (n int, err error) {
+	defer pool.PutBytes(data) // Also return it if a writer panics.
+	n, err = dst.Write(data)
+	if n < 0 || n > len(data) {
+		return 0, fmt.Errorf("relay: invalid Write count")
+	}
+	if n != len(data) && err == nil {
+		err = io.ErrShortWrite
+	}
+	return n, err
 }
 
 func CopyN(dst io.Writer, src io.Reader, n int64) (written int64, err error) {

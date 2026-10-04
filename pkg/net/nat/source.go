@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"reflect"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -17,7 +19,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/ringbuffer"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -37,6 +38,11 @@ type ContextCache struct {
 	migrateID uint64
 }
 
+type replyBinding struct {
+	source net.Addr
+	write  netapi.WriteBackFunc
+}
+
 func newContextCache(store *netapi.Context) ContextCache {
 	return ContextCache{
 		resolver:  store.ConnOptions().Resolver(),
@@ -51,7 +57,10 @@ type SourceControl struct {
 	// sniffer is an optional packet sniffer for observability or traffic analysis.
 	sniffer netapi.PacketSniffer
 	// close is the cancel function associated with ctx, used to terminate the SourceControl.
-	close context.CancelFunc
+	close   context.CancelFunc
+	done    chan struct{}
+	workers sync.WaitGroup
+	queueMu sync.Mutex // Prevents enqueue after the shutdown drain.
 
 	// notifySentPacket signals that there are packets ready to be processed and sent from sentPackets.
 	notifySentPacket chan struct{}
@@ -64,8 +73,9 @@ type SourceControl struct {
 
 	// conn is the wrapped PacketConn to the remote destination.
 	conn *wrapConn
-	// wirteBack is a function to write received packets back to the original client.
-	wirteBack *atomicx.Value[netapi.WriteBackFunc]
+	// reply follows the current inbound transport independently of the reused
+	// outbound PacketConn. Its identity also detects migration during a write.
+	reply atomic.Pointer[replyBinding]
 
 	// sentPackets is a ring buffer holding packets waiting to be sent to the remote destination.
 	sentPackets *ringbuffer.RingBuffer[*netapi.Packet]
@@ -87,8 +97,9 @@ type SourceControl struct {
 	// dispatchCache caches the dispatch decision for a destination, indicating how to route it.
 	dispatchCache syncmap.SyncMap[uint64, netapi.Address]
 
-	// loopStopped indicates atomically if the primary I/O loop (loopWriteBack) for this control is stopped.
-	loopStopped atomic.Bool
+	// A failed first dial is idle too. Counting readers also prevents an old
+	// connection's exit from marking its replacement idle.
+	readers atomic.Int64
 }
 
 func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *SourceControl {
@@ -96,16 +107,15 @@ func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *SourceCon
 	s := &SourceControl{
 		ctx:                  ctx,
 		close:                cancel,
+		done:                 make(chan struct{}),
 		notifySentPacket:     make(chan struct{}, 1),
 		notifyReceivedPacket: make(chan struct{}, 1),
 		dialer:               dialer,
 		sniffer:              sniffer,
-		wirteBack: atomicx.NewValue(netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
-			return 0, errors.ErrUnsupported
-		})),
-		sentPackets:     ringbuffer.NewRingBuffer[*netapi.Packet](8, configuration.MaxUDPUnprocessedPackets.Load),
-		receivedPackets: ringbuffer.NewRingBuffer[sentPacket](8, configuration.MaxUDPUnprocessedPackets.Load),
+		sentPackets:          ringbuffer.NewRingBuffer[*netapi.Packet](8, configuration.MaxUDPUnprocessedPackets.Load),
+		receivedPackets:      ringbuffer.NewRingBuffer[sentPacket](8, configuration.MaxUDPUnprocessedPackets.Load),
 	}
+	s.reply.Store(&replyBinding{write: func([]byte, net.Addr) (int, error) { return 0, errors.ErrUnsupported }})
 
 	now := time.Now()
 	s.loopStopTime.Store(&now)
@@ -117,8 +127,16 @@ func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *SourceCon
 }
 
 func (u *SourceControl) Close() error {
+	// This destroys the control itself. Closing one outbound connection only
+	// ends its reader; run and contextCache survive for UOT reconnection.
 	u.close()
+	<-u.done
+	return nil
+}
 
+func (u *SourceControl) drain() {
+	u.queueMu.Lock()
+	defer u.queueMu.Unlock()
 	for {
 		pkt, ok := u.sentPackets.Pop()
 		if !ok {
@@ -137,17 +155,24 @@ func (u *SourceControl) Close() error {
 		pool.PutBytes(pkt.buf)
 	}
 
-	return nil
 }
 
 func (u *SourceControl) IsIdle() (time.Time, bool) {
-	if u.loopStopped.Load() {
+	if u.readers.Load() == 0 {
 		return *u.loopStopTime.Load(), true
 	}
 	return time.Time{}, false
 }
 
 func (u *SourceControl) run() {
+	defer func() {
+		u.close()
+		// All reader workers are started by this goroutine, so Wait cannot
+		// race with a future Add. Drain only after producers have exited.
+		u.workers.Wait()
+		u.drain()
+		close(u.done)
+	}()
 	for {
 		select {
 		case <-u.ctx.Done():
@@ -159,6 +184,11 @@ func (u *SourceControl) run() {
 }
 
 func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) error {
+	u.queueMu.Lock()
+	defer u.queueMu.Unlock()
+	if err := u.ctx.Err(); err != nil {
+		return err
+	}
 	select {
 	case <-u.ctx.Done():
 		return u.ctx.Err()
@@ -183,6 +213,9 @@ func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) err
 
 func (u *SourceControl) handle() {
 	for {
+		if u.ctx.Err() != nil {
+			return
+		}
 		pkt, ok := u.sentPackets.Pop()
 		if !ok {
 			break
@@ -192,7 +225,8 @@ func (u *SourceControl) handle() {
 		pkt.DecRef()
 		if err != nil {
 			if netapi.IsBlockError(err) {
-				_ = u.Close()
+				// Close waits for run itself; signal cancellation here instead.
+				u.close()
 				return
 			}
 
@@ -253,10 +287,18 @@ func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
 			return err
 		}
 
-		u.wirteBack.Store(pkt.WriteBack)
 		u.conn = conn
 		process := store.GetProcessName()
 		u.lastProcess.Store(&process)
+	}
+	if pkt.MigrateID != 0 {
+		binding := u.reply.Load()
+		if !sameReplySource(binding.source, pkt.Src()) {
+			// The same migrate ID can arrive over a different TCP/HTTP2 stream
+			// while the outbound UDP session is healthy. Retarget replies without
+			// reopening that session or allocating a callback on every packet.
+			u.reply.Store(&replyBinding{source: pkt.Src(), write: pkt.WriteBack})
+		}
 	}
 
 	if err := u.write(ctx, pkt, conn); err != nil {
@@ -283,10 +325,43 @@ func (u *SourceControl) newPacketConn(store *netapi.Context, pkt *netapi.Packet)
 	u.contextCache = newContextCache(store)
 
 	conn := &wrapConn{PacketConn: dstpconn}
+	u.reply.Store(&replyBinding{source: pkt.Src(), write: pkt.WriteBack})
 
-	go u.loopWriteBack(conn, pkt.Dst())
+	// The caller releases pkt after handleOne returns; capture the address
+	// before starting a worker that can outlive that packet reference.
+	dst := pkt.Dst()
+	u.readers.Add(1)
+	u.workers.Go(func() { u.loopWriteBack(conn, dst) })
 
 	return conn, nil
+}
+
+func sameReplySource(a, b net.Addr) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	// TCP/HTTP2 remote addresses are normally stable, comparable values or
+	// pointers. Avoid String/ParseSysAddr allocations on that packet path.
+	if reflect.TypeOf(a) == reflect.TypeOf(b) && reflect.TypeOf(a).Comparable() {
+		return a == b
+	}
+	return a.Network() == b.Network() && a.String() == b.String()
+}
+
+func (u *SourceControl) writeReply(ctx context.Context, data []byte, addr net.Addr) error {
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		binding := u.reply.Load()
+		_, err := binding.write(data, addr)
+		if err == nil || binding == u.reply.Load() {
+			return err
+		}
+		// A reply to the old transport may fail after migration has installed
+		// a new one. Retry its still-owned data there instead of closing the
+		// healthy UDP session because of an obsolete callback's error.
+	}
 }
 
 func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.PacketConn) error {
@@ -377,17 +452,31 @@ func (t *SourceControl) mapAddr(src net.Addr, dst netapi.Address) {
 
 func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 	ctx, cancel := context.WithCancel(u.ctx)
-	u.loopStopped.Store(false)
+	closed := make(chan struct{})
+	// Capture this connection, rather than u.conn: an older reader may exit
+	// after a replacement has been installed and must never close that replacement.
+	stopClose := context.AfterFunc(ctx, func() {
+		_ = p.Close()
+		close(closed)
+	})
+	writeDone := make(chan struct{})
 
 	defer func() {
 		cancel()
-		now := time.Now()
-		u.loopStopped.Store(true)
-		u.loopStopTime.Store(&now)
+		// Cancellation must interrupt ReadFrom/WriteTo, not just wake the
+		// queue worker. Wait for any close callback before releasing buffers.
+		if !stopClose() {
+			<-closed
+		}
 		_ = p.Close()
+		<-writeDone
+		now := time.Now()
+		u.loopStopTime.Store(&now)
+		u.readers.Add(-1)
 	}()
 
 	go func() {
+		defer close(writeDone)
 		errCount := 0
 	_loop:
 		for {
@@ -398,18 +487,19 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 				return
 			case <-u.notifyReceivedPacket:
 
-				writeBack := u.wirteBack.Load()
-
 				for {
 					pkt, ok := u.receivedPackets.Pop()
 					if !ok {
 						continue _loop
 					}
 
-					_, err := writeBack(pkt.buf, u.parseAddr(pkt.src, pkt.srcAddr, pkt.srcKey))
+					err := u.writeReply(ctx, pkt.buf, u.parseAddr(pkt.src, pkt.srcAddr, pkt.srcKey))
 					pool.PutBytes(pkt.buf)
 
 					if err != nil {
+						if ctx.Err() != nil {
+							return
+						}
 						if errors.Is(err, net.ErrClosed) || errors.Is(err, io.ErrClosedPipe) {
 							_ = p.Close()
 							return
@@ -507,10 +597,13 @@ func (s *SourceControl) parseAddr(from net.Addr, srcAddr netapi.Address, srcKey 
 
 type wrapConn struct {
 	net.PacketConn
-	closed atomic.Bool
+	closed    atomic.Bool
+	closeOnce sync.Once
+	closeErr  error
 }
 
 func (w *wrapConn) Close() error {
 	w.closed.Store(true)
-	return w.PacketConn.Close()
+	w.closeOnce.Do(func() { w.closeErr = w.PacketConn.Close() })
+	return w.closeErr
 }

@@ -127,7 +127,7 @@ func TestServer(t *testing.T) {
 		a, err := NewServer(ServerConfig{
 			Password: "aaaa",
 		}, netapi.NewListener(lis, &mockPacket{}), mockHandlerPacket(func(req *netapi.Packet) {
-			_, err = req.WriteBack(req.GetPayload(), req.Dst())
+			_, err := req.WriteBack(req.GetPayload(), req.Dst())
 			assert.NoError(t, err)
 		}))
 		assert.NoError(t, err)
@@ -145,8 +145,9 @@ func TestServer(t *testing.T) {
 		c, err := NewClient(Config{Password: "aaaa", UDPOverStream: true}, s)
 		assert.NoError(t, err)
 
-		_, err = c.PacketConn(context.Background(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 443))
+		unused, err := c.PacketConn(context.Background(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 443))
 		assert.NoError(t, err)
+		defer unused.Close()
 
 		pc, err := c.PacketConn(context.Background(), netapi.EmptyAddr)
 		assert.NoError(t, err)
@@ -166,7 +167,7 @@ func TestServer(t *testing.T) {
 
 		go func() {
 			for i := range 10 {
-				_, err = pc.WriteTo(fmt.Appendf(nil, "test %d", i), netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 443))
+				_, err := pc.WriteTo(fmt.Appendf(nil, "test %d", i), netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 443))
 				assert.NoError(t, err)
 			}
 		}()
@@ -221,7 +222,7 @@ func TestServer(t *testing.T) {
 		wg := sync.WaitGroup{}
 		for range 10 {
 			wg.Go(func() {
-				d, err = c.Ping(context.Background(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr(host), uint16(port)))
+				d, err := c.Ping(context.Background(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr(host), uint16(port)))
 				assert.NoError(t, err)
 				t.Log(time.Duration(d))
 			})

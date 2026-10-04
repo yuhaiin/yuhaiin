@@ -77,7 +77,10 @@ func (c *client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 
 	EncodeHeader(c.hash, Header{Protocol: TCP, Addr: addr}, buf)
 
-	_, err = conn.Write(buf.Bytes())
+	err = runHandshake(ctx, conn, func() error {
+		_, err := conn.Write(buf.Bytes())
+		return err
+	})
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
@@ -106,7 +109,12 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 
 	store := netapi.GetContext(ctx)
 
-	migrate, err := pc.handshake(store.GetUDPMigrateID())
+	var migrate uint64
+	err = runHandshake(ctx, pc, func() error {
+		var err error
+		migrate, err = pc.handshake(store.GetUDPMigrateID())
+		return err
+	})
 	if err != nil {
 		_ = pc.Close()
 		return nil, err

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -30,6 +31,10 @@ type Table struct {
 	timer         *time.Ticker
 	sourceControl syncmap.SyncMap[uint64, *SourceControl]
 	closed        atomic.Bool
+	mu            sync.RWMutex // Serializes queue admission with Close.
+	stop          chan struct{}
+	done          chan struct{}
+	closeOnce     sync.Once
 }
 
 func NewTable(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *Table {
@@ -37,10 +42,20 @@ func NewTable(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *Table {
 		dialer:  dialer,
 		sinffer: sniffer,
 		timer:   time.NewTicker(udpIdleTimeout()),
+		stop:    make(chan struct{}),
+		done:    make(chan struct{}),
 	}
 
 	go func() {
-		for range t.timer.C {
+		defer close(t.done)
+		for {
+			// Ticker.Stop does not close C. An explicit stop signal is needed
+			// to release this worker when the table is replaced or closed.
+			select {
+			case <-t.stop:
+				return
+			case <-t.timer.C:
+			}
 			idleTimeout := udpIdleTimeout()
 			for k, v := range t.sourceControl.Range {
 				idleTime, ok := v.IsIdle()
@@ -79,6 +94,11 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		key = srcAddr.Comparable()
 	}
 
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+	if u.closed.Load() {
+		return fmt.Errorf("udp nat table: %w", net.ErrClosed)
+	}
 	r, _, _ := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) {
 		return NewSourceChan(u.sinffer, u.dialer), nil
 	})
@@ -87,10 +107,26 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 }
 
 func (u *Table) Close() error {
-	u.closed.Store(true)
-	u.timer.Stop()
-	for v := range u.sourceControl.RangeValues {
-		_ = v.Close()
-	}
+	u.closeOnce.Do(func() {
+		u.mu.Lock()
+		u.closed.Store(true)
+		close(u.stop)
+		u.timer.Stop()
+		var controls []*SourceControl
+		for v := range u.sourceControl.RangeValues {
+			controls = append(controls, v)
+		}
+		u.sourceControl.Clear()
+		u.mu.Unlock()
+		// No writer can publish another control after the snapshot above.
+		// Wait outside mu because closing a control may interrupt network I/O.
+		for _, v := range controls {
+			v.close()
+		}
+		for _, v := range controls {
+			_ = v.Close()
+		}
+		<-u.done
+	})
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http/httputil"
 	"sync"
+	"unsafe"
 )
 
 const (
@@ -41,12 +42,19 @@ type ReverseProxyBuffer struct{}
 func (ReverseProxyBuffer) Get() []byte  { return GetBytes(DefaultSize) }
 func (ReverseProxyBuffer) Put(b []byte) { PutBytes(b) }
 
-var buffers [32]*sync.Pool
+// Keep packet/relay buffers (normally 16–64 KiB) and larger bounded work
+// buffers, but don't retain rare multi-megabyte requests until the next GC.
+const maxPooledBytes = 1 << 20
+
+var buffers [21]*sync.Pool
 
 func init() {
 	for i := range buffers {
 		buffers[i] = &sync.Pool{
-			New: func() any { return make([]byte, 1<<i) },
+			// A []byte boxed into an interface allocates a slice header on
+			// every Put. Store its first-byte pointer instead: it keeps the
+			// backing array alive, and the bucket provides its exact length.
+			New: func() any { return unsafe.SliceData(make([]byte, 1<<i)) },
 		}
 	}
 }
@@ -74,12 +82,12 @@ func (pool) GetBytes(size int) []byte {
 
 	// Calling this function with a negative length is invalid.
 	// make will panic if length is negative, so we don't have to.
-	if size > MaxLength || size < 0 {
+	if size > maxPooledBytes || size < 0 {
 		return make([]byte, size)
 	}
 
 	l := nextLogBase2(uint32(size))
-	b := buffers[l].Get().([]byte)[:size]
+	b := unsafe.Slice(buffers[l].Get().(*byte), 1<<l)[:size]
 
 	// debug.Get(b)
 
@@ -87,15 +95,16 @@ func (pool) GetBytes(size int) []byte {
 }
 
 func (pool) PutBytes(b []byte) {
-	if cap(b) > MaxLength || cap(b) <= 0 {
+	if cap(b) > maxPooledBytes || cap(b) <= 0 {
 		return
 	}
 
 	// debug.Put(b)
 
 	l := prevLogBase2(uint32(cap(b)))
-	//nolint:staticcheck
-	buffers[l].Put(b) //lint:ignore SA6002 ignore temporarily
+	// The largest power of two fitting in cap(b) is safe even for caller-
+	// allocated slices or subslices. Get never exposes bytes past that size.
+	buffers[l].Put(&b[:1][0])
 }
 
 // var debug = &Deubg{}

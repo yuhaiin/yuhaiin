@@ -1,7 +1,6 @@
 package netlink
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net/netip"
 	"strconv"
@@ -35,89 +34,37 @@ var structSize = func() int {
 	}
 }()
 
-func FindProcessName(network string, ip netip.AddrPort, _ netip.AddrPort) (netapi.Process, error) {
-	var spath string
+func FindProcessName(network string, ip netip.AddrPort, dst netip.AddrPort) (netapi.Process, error) {
+	var query *pcbQuery
+	var read func() ([]byte, error)
+	itemSize := structSize
 	switch network {
 	case "tcp":
-		spath = "net.inet.tcp.pcblist_n"
+		query, read = &tcpPCBQuery, readTCPPCB
+		// rup8(sizeof(xtcpcb_n))
+		itemSize += 208
 	case "udp":
-		spath = "net.inet.udp.pcblist_n"
+		query, read = &udpPCBQuery, readUDPPCB
 	default:
 		return netapi.Process{}, fmt.Errorf("ErrInvalidNetwork: %s", network)
 	}
 
-	value, err := syscall.Sysctl(spath)
+	snapshot := query.acquire(read)
+	if snapshot.err != nil {
+		return netapi.Process{}, snapshot.err
+	}
+	pid, err := findPCBPID(snapshot.data, itemSize, network, ip, dst)
 	if err != nil {
 		return netapi.Process{}, err
 	}
-
-	buf := []byte(value)
-	itemSize := structSize
-	if network == "tcp" {
-		// rup8(sizeof(xtcpcb_n))
-		itemSize += 208
-	}
-
-	// skip the first xinpgen(24 bytes) block
-	for i := 24; i+itemSize <= len(buf); i += itemSize {
-		// offset of xinpcb_n and xsocket_n
-		inp, so := i, i+104
-
-		srcPort := binary.BigEndian.Uint16(buf[inp+18 : inp+20])
-		if ip.Port() != srcPort {
-			continue
-		}
-
-		// xinpcb_n.inp_vflag
-		flag := buf[inp+44]
-
-		var (
-			srcIP     netip.Addr
-			srcIsIPv4 bool
-		)
-
-		isIPv4 := ip.Addr().Is4()
-
-		switch {
-		case flag&0x1 > 0 && isIPv4:
-			// ipv4
-			srcIP, _ = netip.AddrFromSlice(buf[inp+76 : inp+80])
-			srcIsIPv4 = true
-		case flag&0x2 > 0 && !isIPv4:
-			// ipv6
-			srcIP, _ = netip.AddrFromSlice(buf[inp+64 : inp+80])
-		default:
-			continue
-		}
-
-		if ip.Addr().Compare(srcIP) == 0 {
-			// xsocket_n.so_last_pid
-			pid := readNativeUint32(buf[so+68 : so+72])
-			path, err := getExecPathFromPID(pid)
-			return netapi.Process{
-				Path: path,
-				Pid:  uint(pid),
-			}, err
-		}
-
-		// udp packet connection may be not equal with srcIP
-		if network == "udp" && srcIP.IsUnspecified() && isIPv4 == srcIsIPv4 {
-			fallbackUDPPid := readNativeUint32(buf[so+68 : so+72])
-			fallbackUDPProcess, _ := getExecPathFromPID(fallbackUDPPid)
-
-			if fallbackUDPProcess != "" {
-				return netapi.Process{
-					Path: fallbackUDPProcess,
-					Pid:  uint(fallbackUDPPid),
-				}, nil
-			}
-		}
-	}
-	return netapi.Process{}, fmt.Errorf("not found")
+	// Resolve the path live; never cache a PID-to-path association across
+	// queries because PIDs can be recycled when a process exits.
+	path, err := getExecPathFromPID(pid)
+	return netapi.Process{Path: path, Pid: uint(pid)}, err
 }
 
 func getExecPathFromPID(pid uint32) (string, error) {
-	buf := make([]byte, procpidpathinfosize)
+	var buf [procpidpathinfosize]byte
 	_, _, errno := syscall.Syscall6(
 		syscall.SYS_PROC_INFO,
 		proccallnumpidinfo,
@@ -130,9 +77,5 @@ func getExecPathFromPID(pid uint32) (string, error) {
 		return "", errno
 	}
 
-	return unix.ByteSliceToString(buf), nil
-}
-
-func readNativeUint32(b []byte) uint32 {
-	return *(*uint32)(unsafe.Pointer(&b[0]))
+	return unix.ByteSliceToString(buf[:]), nil
 }

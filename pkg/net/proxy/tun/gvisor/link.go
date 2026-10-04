@@ -54,6 +54,14 @@ type Endpoint struct {
 	gso bool
 }
 
+type packetWriteBatch struct{ bufs [][]byte }
+
+var packetWriteBatches = sync.Pool{New: func() any { return new(packetWriteBatch) }}
+
+// Typical TUN batches have at most 128 packets. Don't retain a rare large
+// batch's pointer array; clear every entry before returning it to the pool.
+const maxPooledPacketBatch = 128
+
 // New creates a new channel endpoint.
 func NewEndpoint(w netlink.Tun) *Endpoint {
 	e := &Endpoint{
@@ -177,10 +185,17 @@ func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 	if e.closed.Load() {
 		return 0, &tcpip.ErrClosedForSend{}
 	}
+	if pkts.Len() == 0 {
+		return 0, nil
+	}
 
 	offset := e.dev.Offset()
 
-	bufs := make([][]byte, 0, pkts.Len())
+	batch := packetWriteBatches.Get().(*packetWriteBatch)
+	bufs := batch.bufs[:0]
+	if cap(bufs) < pkts.Len() {
+		bufs = make([][]byte, 0, pkts.Len())
+	}
 
 	for _, pkt := range pkts.AsSlice() {
 		buf := pool.GetBytes(pkt.Size() + offset)
@@ -215,6 +230,13 @@ func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 	for _, b := range bufs {
 		pool.PutBytes(b)
 	}
+	clear(bufs)
+	if cap(bufs) > maxPooledPacketBatch {
+		batch.bufs = nil
+	} else {
+		batch.bufs = bufs[:0]
+	}
+	packetWriteBatches.Put(batch)
 
 	if er != nil {
 		if !errors.Is(er, os.ErrClosed) {

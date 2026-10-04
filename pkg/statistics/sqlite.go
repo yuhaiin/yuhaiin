@@ -23,8 +23,41 @@ type TrafficBucket struct {
 	DownloadBytes uint64
 }
 
+const storeSessionSQL = `
+		INSERT INTO connection_sessions(
+			id, opened_at, last_seen_at, state, protocol, process_name, inbound,
+			inbound_name, outbound, network, destination, host, summary_json
+		)
+		VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			last_seen_at = excluded.last_seen_at,
+			state = 'open',
+			protocol = excluded.protocol,
+			process_name = excluded.process_name,
+			inbound = excluded.inbound,
+			inbound_name = excluded.inbound_name,
+			outbound = excluded.outbound,
+			network = excluded.network,
+			destination = excluded.destination,
+			host = excluded.host,
+			summary_json = excluded.summary_json
+	`
+
+const storeHistorySQL = `
+		INSERT INTO connection_history(protocol, addr, process_name, hit_count, last_seen_at, last_connection_json)
+		VALUES (?, ?, ?, 1, ?, ?)
+		ON CONFLICT(protocol, addr, process_name) DO UPDATE SET
+			hit_count = hit_count + 1,
+			last_seen_at = excluded.last_seen_at,
+			last_connection_json = excluded.last_connection_json
+	`
+
+const deleteSessionSQL = `DELETE FROM connection_sessions WHERE id = ?`
+
 type sqliteInfoStore struct {
-	db *sql.DB
+	db         *sql.DB
+	storeStmt  *sql.Stmt
+	deleteStmt *sql.Stmt
 }
 
 // clearPreviousSessions removes metadata for connections owned by an earlier
@@ -40,7 +73,7 @@ func clearPreviousSessions(db *sql.DB) {
 }
 
 func newSQLiteInfoStore(db *sql.DB) *sqliteInfoStore {
-	return &sqliteInfoStore{db: db}
+	return &sqliteInfoStore{db: db, storeStmt: prepareStatisticStatement(db, storeSessionSQL), deleteStmt: prepareStatisticStatement(db, deleteSessionSQL)}
 }
 
 func (s *sqliteInfoStore) Load(id uint64) (contractconnection.Connection, bool) {
@@ -76,36 +109,20 @@ func (s *sqliteInfoStore) Store(id uint64, info contractconnection.Connection) {
 	}
 
 	ctx := context.Background()
-	data, err := encodeStatisticJSON(info)
+	data, err := encodeStatisticJSON(&info)
 	if err != nil {
 		log.Warn("encode sqlite connection session failed", "id", id, "err", err)
 		return
 	}
 
-	now := time.Now().Unix()
-	if _, err := s.db.ExecContext(ctx, `
-		INSERT INTO connection_sessions(
-			id, opened_at, last_seen_at, state, protocol, process_name, inbound,
-			inbound_name, outbound, network, destination, host, summary_json
-		)
-		VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			last_seen_at = excluded.last_seen_at,
-			state = 'open',
-			protocol = excluded.protocol,
-			process_name = excluded.process_name,
-			inbound = excluded.inbound,
-			inbound_name = excluded.inbound_name,
-			outbound = excluded.outbound,
-			network = excluded.network,
-			destination = excluded.destination,
-			host = excluded.host,
-			summary_json = excluded.summary_json
-	`, id, now, now, info.Network.ConnType, info.Process, info.Inbound,
-		info.InboundName, info.Outbound, info.Network.ConnType,
-		info.Destination, info.Addr, data); err != nil {
+	if err := s.storeEncoded(ctx, nil, id, info, data, time.Now().Unix()); err != nil {
 		log.Warn("store sqlite connection session failed", "id", id, "err", err)
 	}
+}
+
+func (s *sqliteInfoStore) storeEncoded(ctx context.Context, tx *sql.Tx, id uint64, info contractconnection.Connection, data string, now int64) error {
+	return execStatisticStatement(ctx, tx, s.storeStmt, s.db, storeSessionSQL, id, now, now, info.Network.ConnType, info.Process, info.Inbound,
+		info.InboundName, info.Outbound, info.Network.ConnType, info.Destination, info.Addr, data)
 }
 
 func (s *sqliteInfoStore) Delete(id uint64) {
@@ -113,16 +130,19 @@ func (s *sqliteInfoStore) Delete(id uint64) {
 		return
 	}
 
-	if _, err := s.db.ExecContext(context.Background(), `DELETE FROM connection_sessions WHERE id = ?`, id); err != nil {
+	if err := execStatisticStatement(context.Background(), nil, s.deleteStmt, s.db, deleteSessionSQL, id); err != nil {
 		log.Warn("delete sqlite connection session failed", "id", id, "err", err)
 	}
 }
 
-func (*sqliteInfoStore) Close() error { return nil }
+func (s *sqliteInfoStore) Close() error {
+	return errors.Join(closeStatisticStatement(s.storeStmt), closeStatisticStatement(s.deleteStmt))
+}
 
 type SQLiteHistory struct {
-	db      *sql.DB
-	closeDB func() error
+	db       *sql.DB
+	closeDB  func() error
+	pushStmt *sql.Stmt
 }
 
 func NewSQLiteHistory(path string) *SQLiteHistory {
@@ -136,11 +156,13 @@ func NewSQLiteHistory(path string) *SQLiteHistory {
 }
 
 func newSQLiteHistory(db *sql.DB) *SQLiteHistory {
-	return &SQLiteHistory{db: db}
+	return &SQLiteHistory{db: db, pushStmt: prepareStatisticStatement(db, storeHistorySQL)}
 }
 
 func newSQLiteHistoryWithClose(db *sql.DB, closeDB func() error) *SQLiteHistory {
-	return &SQLiteHistory{db: db, closeDB: closeDB}
+	h := newSQLiteHistory(db)
+	h.closeDB = closeDB
+	return h
 }
 
 func (h *SQLiteHistory) Push(c contractconnection.Connection) {
@@ -149,23 +171,19 @@ func (h *SQLiteHistory) Push(c contractconnection.Connection) {
 	}
 
 	ctx := context.Background()
-	data, err := encodeStatisticJSON(c)
+	data, err := encodeStatisticJSON(&c)
 	if err != nil {
 		log.Warn("encode sqlite history failed", "err", err)
 		return
 	}
 
-	now := time.Now().Unix()
-	if _, err := h.db.ExecContext(ctx, `
-		INSERT INTO connection_history(protocol, addr, process_name, hit_count, last_seen_at, last_connection_json)
-		VALUES (?, ?, ?, 1, ?, ?)
-		ON CONFLICT(protocol, addr, process_name) DO UPDATE SET
-			hit_count = hit_count + 1,
-			last_seen_at = excluded.last_seen_at,
-			last_connection_json = excluded.last_connection_json
-	`, c.Network.ConnType, c.Addr, c.Process, now, data); err != nil {
+	if err := h.pushEncoded(ctx, nil, c, data, time.Now().Unix()); err != nil {
 		log.Warn("store sqlite history failed", "err", err)
 	}
+}
+
+func (h *SQLiteHistory) pushEncoded(ctx context.Context, tx *sql.Tx, c contractconnection.Connection, data string, now int64) error {
+	return execStatisticStatement(ctx, tx, h.pushStmt, h.db, storeHistorySQL, c.Network.ConnType, c.Addr, c.Process, now, data)
 }
 
 func (h *SQLiteHistory) Get() contractconnection.AllHistoryList {
@@ -219,10 +237,11 @@ func (h *SQLiteHistory) Get() contractconnection.AllHistoryList {
 }
 
 func (h *SQLiteHistory) Close() error {
-	if h.closeDB == nil {
-		return nil
+	err := closeStatisticStatement(h.pushStmt)
+	if h.closeDB != nil {
+		err = errors.Join(err, h.closeDB())
 	}
-	return h.closeDB()
+	return err
 }
 
 type SQLiteFailedHistory struct {

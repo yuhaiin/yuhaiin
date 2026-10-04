@@ -112,6 +112,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c1, c2 := pipe.Pipe()
+	defer c1.Close() // Also release the request relay when response writes fail.
 	c2.SetLocalAddr(s.Addr())
 	c2.SetRemoteAddr(&addr{addr: r.RemoteAddr, id: s.id.Generate()})
 

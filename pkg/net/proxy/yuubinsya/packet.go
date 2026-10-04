@@ -160,16 +160,15 @@ func (s *UDPServer) Serve() error {
 }
 
 func EncodePacket(dst []byte, addr net.Addr, data, password []byte, prefix bool) ([]byte, error) {
-	ad, err := netapi.ParseSysAddr(addr)
-	if err != nil {
-		return nil, fmt.Errorf("parse addr failed: %w", err)
-	}
-
 	n := copy(dst, password)
 	if prefix {
 		n += copy(dst[n:], []byte{0, 0, 0})
 	}
-	n += tools.EncodeAddr(ad, dst[n:])
+	addrLen, err := tools.EncodeSysAddr(addr, dst[n:])
+	if err != nil {
+		return nil, fmt.Errorf("parse addr failed: %w", err)
+	}
+	n += addrLen
 	n += copy(dst[n:], data)
 	return dst[:n], nil
 }

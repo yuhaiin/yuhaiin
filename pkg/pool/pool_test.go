@@ -19,7 +19,6 @@ func TestBytes(t *testing.T) {
 	t.Log(v, prevLogBase2(2048))
 
 	PutBytes(b)
-	PutBytes(b)
 }
 
 func TestBytesReader(t *testing.T) {

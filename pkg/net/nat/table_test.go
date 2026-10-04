@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -24,6 +23,7 @@ func TestTable(t *testing.T) {
 	}
 
 	table := NewTable(&sinffer{}, tp)
+	defer table.Close()
 
 	for _, v := range []string{
 		"10.0.0.2",
@@ -37,7 +37,7 @@ func TestTable(t *testing.T) {
 
 			dstAddr, err := netapi.ParseAddressPort("tcp", v, 80)
 			assert.NoError(t, err)
-			err = table.Write(ctx, netapi.NewPacket(
+			pkt := netapi.NewPacket(
 				dstAddr,
 				dstAddr,
 				[]byte("test"),
@@ -45,7 +45,9 @@ func TestTable(t *testing.T) {
 					assert.Equal(t, addr.String(), net.JoinHostPort(v, "80"))
 					return 0, nil
 				}),
-			))
+			)
+			err = table.Write(ctx, pkt)
+			pkt.DecRef()
 			assert.NoError(t, err)
 		}
 	}
@@ -155,14 +157,12 @@ type testPacketConn struct {
 
 	ip bool
 
-	mu sync.Mutex
+	mu     sync.Mutex
+	cond   *sync.Cond
+	closed bool
 }
 
 func (t *testPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
-	if t.read {
-		return 0, nil, io.EOF
-	}
-
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -170,8 +170,14 @@ func (t *testPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 		return 0, nil, io.EOF
 	}
 
-	for !t.write {
-		runtime.Gosched()
+	if t.cond == nil {
+		t.cond = sync.NewCond(&t.mu)
+	}
+	for !t.write && !t.closed {
+		t.cond.Wait()
+	}
+	if t.closed {
+		return 0, nil, net.ErrClosed
 	}
 
 	addr = t.saddr
@@ -187,6 +193,11 @@ func (t *testPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 }
 
 func (t *testPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed {
+		return 0, net.ErrClosed
+	}
 	z, err := netapi.ParseSysAddr(addr)
 	if err != nil {
 		return 0, err
@@ -197,10 +208,19 @@ func (t *testPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	t.t.Log("write to remote", string(p), addr)
 	t.saddr = z
 	t.write = true
+	if t.cond != nil {
+		t.cond.Broadcast()
+	}
 	return len(p), nil
 }
 
 func (t *testPacketConn) Close() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.closed = true
+	if t.cond != nil {
+		t.cond.Broadcast()
+	}
 	return nil
 }
 

@@ -27,6 +27,10 @@ type telemetryDimension struct {
 	value string
 }
 
+type trafficDelta struct {
+	upload, download uint64
+}
+
 type dimensionCounter struct {
 	dimensions []telemetryDimension
 	download   atomic.Uint64
@@ -42,6 +46,7 @@ type telemetryRecorder struct {
 	counters        syncmap.SyncMap[*dimensionCounter, struct{}]
 	valueIDs        *lru.SyncLru[telemetryDimension, int64]
 	flushMu         sync.Mutex
+	pending         map[telemetryDimension]trafficDelta // Owned by flushMu; survives a failed transaction.
 	maintenanceMu   sync.Mutex
 	lastMaintenance time.Time
 }
@@ -72,7 +77,7 @@ func newTelemetryRecorder(db *sql.DB) *telemetryRecorder {
 
 func (r *telemetryRecorder) Register(info contractconnection.Connection) *dimensionCounter {
 	counter := &dimensionCounter{dimensions: dimensionsForConnection(info)}
-	if len(counter.dimensions) != 0 {
+	if r.db != nil && len(counter.dimensions) != 0 {
 		r.counters.Store(counter, struct{}{})
 	}
 	return counter
@@ -105,47 +110,47 @@ func (r *telemetryRecorder) Close() {
 }
 
 func (r *telemetryRecorder) flush() {
-	counters := make([]*dimensionCounter, 0)
-	removed := make([]*dimensionCounter, 0)
-	r.counters.Range(func(counter *dimensionCounter, _ struct{}) bool {
-		counters = append(counters, counter)
-		if counter.removed.Load() {
-			removed = append(removed, counter)
-		}
-		return true
-	})
-	r.flushCounters(counters)
-	for _, counter := range removed {
-		r.counters.Delete(counter)
-	}
-}
-
-func (r *telemetryRecorder) flushCounters(counters []*dimensionCounter) {
-	if r.db == nil || len(counters) == 0 {
+	if r.db == nil {
 		return
 	}
 	r.flushMu.Lock()
 	defer r.flushMu.Unlock()
-
-	deltas := make(map[telemetryDimension]contractconnection.Counter)
-	for _, counter := range counters {
-		download := counter.download.Swap(0)
-		upload := counter.upload.Swap(0)
-		if download == 0 && upload == 0 {
-			continue
-		}
-		for _, dimension := range counter.dimensions {
-			current := deltas[dimension]
-			current.Download = formatUint64(parseUint64(current.Download) + download)
-			current.Upload = formatUint64(parseUint64(current.Upload) + upload)
-			deltas[dimension] = current
-		}
+	if r.pending == nil {
+		r.pending = make(map[telemetryDimension]trafficDelta)
 	}
-	if len(deltas) == 0 {
+	// Aggregate in place: avoid per-flush pointer slices and formatting numbers
+	// for an API contract that SQLite never needs. Snapshot removal before Swap
+	// so a concurrently closing connection keeps any later increments registered.
+	r.counters.Range(func(counter *dimensionCounter, _ struct{}) bool {
+		removed := counter.removed.Load()
+		download, upload := counter.download.Swap(0), counter.upload.Swap(0)
+		if download != 0 || upload != 0 {
+			for _, dimension := range counter.dimensions {
+				current := r.pending[dimension]
+				current.download += download
+				current.upload += upload
+				r.pending[dimension] = current
+			}
+		}
+		if removed {
+			r.counters.Delete(counter)
+		}
+		return true
+	})
+	if len(r.pending) == 0 {
 		return
 	}
-	if err := persistTrafficDimensions(context.Background(), r.db, r.valueIDs, deltas); err != nil {
+	if err := persistTrafficDimensions(context.Background(), r.db, r.valueIDs, r.pending); err != nil {
+		// The atomic swaps have consumed the counters. Retain this batch for the
+		// next flush, including deltas of connections that have already closed.
 		log.Warn("persist telemetry traffic dimensions failed", "err", err)
+		return
+	}
+	// Reuse ordinary batches, but do not retain a high-cardinality burst forever.
+	if len(r.pending) > 4096 {
+		r.pending = nil
+	} else {
+		clear(r.pending)
 	}
 }
 
@@ -261,82 +266,111 @@ func parseUint64(value string) uint64 {
 	return result
 }
 
-func persistTrafficDimensions(ctx context.Context, db *sql.DB, valueIDs *lru.SyncLru[telemetryDimension, int64], deltas map[telemetryDimension]contractconnection.Counter) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
+const insertTelemetryValueSQL = `INSERT INTO telemetry_dimension_values(dimension, value)
+ VALUES (?, ?) ON CONFLICT(dimension, value) DO NOTHING`
+const selectTelemetryValueSQL = `SELECT id FROM telemetry_dimension_values WHERE dimension = ? AND value = ?`
+const persistTrafficSQL = `INSERT INTO traffic_dimension_hourly(bucket_start_utc, value_id, upload_bytes, download_bytes)
+ VALUES (?, ?, ?, ?) ON CONFLICT(bucket_start_utc, value_id) DO UPDATE SET
+ upload_bytes = upload_bytes + excluded.upload_bytes, download_bytes = download_bytes + excluded.download_bytes`
+const persistFailureSQL = `INSERT INTO failure_dimension_hourly(bucket_start_utc, value_id, failed_count)
+ VALUES (?, ?, 1) ON CONFLICT(bucket_start_utc, value_id) DO UPDATE SET failed_count = failed_count + 1`
 
-	now := time.Now()
-	bucket := now.UTC().Truncate(time.Hour).Unix()
-	for dimension, counter := range deltas {
-		valueID, err := telemetryValueID(ctx, tx, valueIDs, dimension)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO traffic_dimension_hourly(bucket_start_utc, value_id, upload_bytes, download_bytes)
-			VALUES (?, ?, ?, ?)
-			ON CONFLICT(bucket_start_utc, value_id) DO UPDATE SET
-				upload_bytes = upload_bytes + excluded.upload_bytes,
-				download_bytes = download_bytes + excluded.download_bytes
-		`, bucket, valueID, parseUint64(counter.Upload), parseUint64(counter.Download)); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
+// Statements are prepared once per transaction, rather than once per dimension.
+// A newly inserted value ID is published only after commit: caching it before
+// commit would leave a dangling ID if any later dimension causes a rollback.
+type telemetryTransaction struct {
+	*sql.Tx
+	cache                    *lru.SyncLru[telemetryDimension, int64]
+	newIDs                   map[telemetryDimension]int64
+	insertValue, selectValue *sql.Stmt
 }
 
-func persistFailureDimensions(ctx context.Context, db *sql.DB, valueIDs *lru.SyncLru[telemetryDimension, int64], dimensions []telemetryDimension) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	now := time.Now()
-	bucket := now.UTC().Truncate(time.Hour).Unix()
-	for _, dimension := range dimensions {
-		valueID, err := telemetryValueID(ctx, tx, valueIDs, dimension)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO failure_dimension_hourly(bucket_start_utc, value_id, failed_count)
-			VALUES (?, ?, 1)
-			ON CONFLICT(bucket_start_utc, value_id) DO UPDATE SET
-				failed_count = failed_count + 1
-		`, bucket, valueID); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
-func telemetryValueID(ctx context.Context, tx *sql.Tx, cache *lru.SyncLru[telemetryDimension, int64], dimension telemetryDimension) (int64, error) {
-	if value, ok := cache.Load(dimension); ok {
+func (tx *telemetryTransaction) valueID(ctx context.Context, dimension telemetryDimension) (int64, error) {
+	if value, ok := tx.cache.Load(dimension); ok {
 		return value, nil
 	}
-
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO telemetry_dimension_values(dimension, value)
-		VALUES (?, ?)
-		ON CONFLICT(dimension, value) DO NOTHING
-	`, dimension.kind, dimension.value); err != nil {
+	if value, ok := tx.newIDs[dimension]; ok {
+		return value, nil
+	}
+	if tx.insertValue == nil {
+		var err error
+		tx.insertValue, err = tx.PrepareContext(ctx, insertTelemetryValueSQL)
+		if err != nil {
+			return 0, err
+		}
+		tx.selectValue, err = tx.PrepareContext(ctx, selectTelemetryValueSQL)
+		if err != nil {
+			return 0, err
+		}
+	}
+	if _, err := tx.insertValue.ExecContext(ctx, dimension.kind, dimension.value); err != nil {
 		return 0, err
 	}
-
 	var id int64
-	if err := tx.QueryRowContext(ctx, `
-		SELECT id
-		FROM telemetry_dimension_values
-		WHERE dimension = ? AND value = ?
-	`, dimension.kind, dimension.value).Scan(&id); err != nil {
+	if err := tx.selectValue.QueryRowContext(ctx, dimension.kind, dimension.value).Scan(&id); err != nil {
 		return 0, err
 	}
-	cache.Add(dimension, id)
+	if tx.newIDs == nil {
+		tx.newIDs = make(map[telemetryDimension]int64)
+	}
+	tx.newIDs[dimension] = id
 	return id, nil
+}
+func (tx *telemetryTransaction) commit() error {
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	for dimension, id := range tx.newIDs {
+		tx.cache.Add(dimension, id)
+	}
+	return nil
+}
+
+func persistTrafficDimensions(ctx context.Context, db *sql.DB, valueIDs *lru.SyncLru[telemetryDimension, int64], deltas map[telemetryDimension]trafficDelta) error {
+	raw, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	tx := telemetryTransaction{Tx: raw, cache: valueIDs}
+	defer func() { _ = tx.Rollback() }()
+	stmt, err := tx.PrepareContext(ctx, persistTrafficSQL)
+	if err != nil {
+		return err
+	}
+	bucket := time.Now().UTC().Truncate(time.Hour).Unix()
+	for dimension, counter := range deltas {
+		valueID, err := tx.valueID(ctx, dimension)
+		if err != nil {
+			return err
+		}
+		if _, err := stmt.ExecContext(ctx, bucket, valueID, counter.upload, counter.download); err != nil {
+			return err
+		}
+	}
+	return tx.commit()
+}
+func persistFailureDimensions(ctx context.Context, db *sql.DB, valueIDs *lru.SyncLru[telemetryDimension, int64], dimensions []telemetryDimension) error {
+	raw, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	tx := telemetryTransaction{Tx: raw, cache: valueIDs}
+	defer func() { _ = tx.Rollback() }()
+	stmt, err := tx.PrepareContext(ctx, persistFailureSQL)
+	if err != nil {
+		return err
+	}
+	bucket := time.Now().UTC().Truncate(time.Hour).Unix()
+	for _, dimension := range dimensions {
+		valueID, err := tx.valueID(ctx, dimension)
+		if err != nil {
+			return err
+		}
+		if _, err := stmt.ExecContext(ctx, bucket, valueID); err != nil {
+			return err
+		}
+	}
+	return tx.commit()
 }
 
 func (r *telemetryRecorder) compactOldTelemetry(now time.Time) {
