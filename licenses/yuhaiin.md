@@ -66,7 +66,7 @@ Some packages may only be included on certain architectures or operating systems
 - [github.com/rogpeppe/go-internal/fmtsort](https://pkg.go.dev/github.com/rogpeppe/go-internal/fmtsort) ([BSD-3-Clause](https://github.com/rogpeppe/go-internal/blob/v1.15.0/LICENSE))
 - [github.com/tailscale/certstore](https://pkg.go.dev/github.com/tailscale/certstore) ([MIT](https://github.com/tailscale/certstore/blob/3638fb84b77d/LICENSE.md))
 - [github.com/tailscale/go-winio](https://pkg.go.dev/github.com/tailscale/go-winio) ([MIT](https://github.com/tailscale/go-winio/blob/c4f33415bf55/LICENSE))
-- [github.com/tailscale/wireguard-go](https://pkg.go.dev/github.com/tailscale/wireguard-go) ([MIT](https://github.com/yuhaiin/wireguard-go/blob/42cbda171106/LICENSE))
+- [github.com/tailscale/wireguard-go](https://pkg.go.dev/github.com/tailscale/wireguard-go) ([MIT](https://github.com/tailscale/wireguard-go/blob/18e99eba5393/LICENSE))
 - [github.com/vishvananda/netlink](https://pkg.go.dev/github.com/vishvananda/netlink) ([Apache-2.0](https://github.com/vishvananda/netlink/blob/v1.3.1/LICENSE))
 - [github.com/vishvananda/netns](https://pkg.go.dev/github.com/vishvananda/netns) ([Apache-2.0](https://github.com/vishvananda/netns/blob/v0.0.5/LICENSE))
 - [github.com/xtls/reality](https://pkg.go.dev/github.com/xtls/reality) ([MPL-2.0](https://github.com/xtls/reality/blob/3c98159dee38/LICENSE))

@@ -4,7 +4,6 @@ go 1.27.0
 
 replace (
 	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
-	github.com/tailscale/wireguard-go => github.com/yuhaiin/wireguard-go v0.0.0-20260803153011-42cbda171106
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
 	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20260803154233-61af11bbf18c
 )
@@ -26,8 +25,9 @@ require (
 	github.com/quic-go/quic-go v0.63.0
 	github.com/refraction-networking/utls v1.8.2
 	github.com/rhnvrm/simples3 v0.11.1
-	github.com/tailscale/wireguard-go v0.0.0-20260730222847-4affce44577c
+	github.com/tailscale/wireguard-go v0.0.0-20261002162406-18e99eba5393
 	github.com/vishvananda/netlink v1.3.1
+	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20260921001439-3c98159dee38
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261004003524-5c567b2dda36
 	golang.org/x/crypto v0.57.0
@@ -104,7 +104,6 @@ require (
 	github.com/tailscale/hujson v0.0.0-20260302212456-ecc657c15afd // indirect
 	github.com/tailscale/peercred v0.0.0-20250107143737-35a0c7bd7edc // indirect
 	github.com/tailscale/web-client-prebuilt v0.0.0-20251127225136-f19339b67368 // indirect
-	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.uber.org/mock v0.6.0 // indirect
