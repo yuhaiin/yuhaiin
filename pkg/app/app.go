@@ -71,7 +71,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	ctx := so.Context
 	if ctx == nil {
-		ctx = ctx
+		ctx = context.Background()
 	}
 
 	closers := &closers{}
@@ -164,7 +164,6 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 				_ = closers.Close()
 				return nil, errors.New("state store does not support required startup legacy migration")
 			}
-			ctx := ctx
 			log.Info("start legacy pebble state migration")
 			if err := migrator.MigrateLegacyPebble(
 				ctx,
@@ -256,7 +255,10 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		_ = app.Close()
 		return nil, err
 	}
-	app.RegisterServer(ctx)
+	if err := app.RegisterServer(ctx); err != nil {
+		_ = app.Close()
+		return nil, err
+	}
 
 	tailscale.Mux.Store(app.Mux)
 
