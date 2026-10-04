@@ -138,6 +138,9 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	if sqlStore := app.StateStore; sqlStore != nil {
 		db, err := sqlStore.SQLDB(ctx)
 		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			log.Error("init v2 sqlite store failed", "err", err)
 		} else {
 			plainInboundStore := plainstore.NewInboundStore(db)
