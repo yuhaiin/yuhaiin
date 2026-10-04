@@ -117,7 +117,6 @@ func TestConfigureAndroidTUNEnablesPersistedInbound(t *testing.T) {
 	t.Fatal("Android TUN inbound was not created")
 }
 
-
 func TestStopCancelsStartupBeforeWaitingForLifecycleLock(t *testing.T) {
 	app := &App{}
 	ctx, cancel := context.WithCancel(context.Background())
