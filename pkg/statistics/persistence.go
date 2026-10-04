@@ -58,7 +58,7 @@ func storeSQLiteConnection(s *sqliteInfoStore, h *SQLiteHistory, id uint64, info
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	now := time.Now().Unix()
 	if err = s.storeEncoded(ctx, tx, id, info, data, now); err != nil {
 		return err

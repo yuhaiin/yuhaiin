@@ -57,8 +57,7 @@ func newSlowPool(t *testing.T) (*clientConnectionPool, *slowPoolDialer, *pooledC
 func TestPoolSlowDialDoesNotBlockReuse(t *testing.T) {
 	p, d, first := newSlowPool(t)
 	defer close(d.release)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	slow := make(chan error, 1)
 	go func() {
 		entry, err := p.get(ctx, false)
@@ -85,8 +84,7 @@ func TestPoolSlowDialDoesNotBlockReuse(t *testing.T) {
 func TestPoolWaiterCancellation(t *testing.T) {
 	p, d, _ := newSlowPool(t)
 	defer close(d.release)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	go func() {
 		entry, _ := p.get(ctx, false)
 		if entry != nil {

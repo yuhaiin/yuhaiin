@@ -255,17 +255,6 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func parseUint64(value string) uint64 {
-	var result uint64
-	for _, b := range []byte(value) {
-		if b < '0' || b > '9' {
-			return 0
-		}
-		result = result*10 + uint64(b-'0')
-	}
-	return result
-}
-
 const insertTelemetryValueSQL = `INSERT INTO telemetry_dimension_values(dimension, value)
  VALUES (?, ?) ON CONFLICT(dimension, value) DO NOTHING`
 const selectTelemetryValueSQL = `SELECT id FROM telemetry_dimension_values WHERE dimension = ? AND value = ?`
