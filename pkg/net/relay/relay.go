@@ -157,11 +157,13 @@ func copyBufferReader(dst io.Writer, src netapi.BufferReader) (total int64, err 
 	if bufferSize <= 0 {
 		return 0, fmt.Errorf("relay: invalid buffer size %d", bufferSize)
 	}
-	getBuffer := func() []byte { return pool.GetBytes(bufferSize) }
+	cache := newRelayBufferCache(bufferSize, relayBufferIdleInterval)
+	defer cache.close()
+	getBuffer, releaseBuffer := cache.get, cache.release
 	for {
 		data, readErr := src.ReadWithBuffer(getBuffer)
 		if data != nil {
-			n, writeErr := writePooledBuffer(dst, data)
+			n, writeErr := writeRelayBuffer(dst, data, releaseBuffer)
 			total += int64(n)
 			if writeErr != nil {
 				return total, writeErr
@@ -176,8 +178,8 @@ func copyBufferReader(dst io.Writer, src netapi.BufferReader) (total int64, err 
 	}
 }
 
-func writePooledBuffer(dst io.Writer, data []byte) (n int, err error) {
-	defer pool.PutBytes(data) // Also return it if a writer panics.
+func writeRelayBuffer(dst io.Writer, data []byte, release func([]byte)) (n int, err error) {
+	defer release(data) // End the lease even if a writer panics.
 	n, err = dst.Write(data)
 	if n < 0 || n > len(data) {
 		return 0, fmt.Errorf("relay: invalid Write count")

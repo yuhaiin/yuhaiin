@@ -14,6 +14,16 @@ it. Download accounting still counts bytes read, including a chunk followed by
 a writer failure; connection registration and removal keep the original owner.
 Ordinary TCP/TLS connections continue using the existing copy path.
 
+Buffered relays allocate only when data arrives. After forwarding a chunk,
+they keep their private buffer for 30–60 seconds of inactivity, so a brief pause
+or shared-pool eviction does not force another allocation. The expiry callback
+returns an idle buffer to the pool; the copy goroutine returns it immediately
+when forwarding ends. Source copying and destination writing hold a lease, so
+expiry cannot return storage while either side is using it. A mutex serializes
+borrowing, expiry, and close. Activity sets a flag; only an expiry callback
+reschedules the timer. This uses 30-second activity windows, avoiding per-chunk
+clock reads and timer resets at the cost of conservative expiry timing.
+
 `pool.NewBufferedConnSize` provides temporary pre-read buffering for sniffing.
 After the prefix drains, the reader is reset and returned to its pool; subsequent
 reads go directly to the connection. `BufioRead` can acquire another reader when
@@ -94,51 +104,74 @@ ownership fix. The retained heap remains approximately 152 B per connection
 and allocations remain 11 per operation. Relay and HTTP/2 production copying
 are unchanged by that ownership fix.
 
-## Bursts and cold resume
+## Bursts and short-idle retention
 
 The retained-heap and steady-throughput results above do not establish the
 cost of repeated idle/activity transitions or mobile energy usage.
 `BenchmarkCountedPipeBurstResume` compares the production counted relay with
 the former lifetime-long buffer path by hiding the optional read capability.
-Each operation sends eight chunks on the same open stream. `WarmIdle` inserts
-1 ms of inactivity before each burst. `AfterPoolEviction` inserts two GCs while
-the relay is waiting for input, after the previous buffer has been returned.
-Idle time and GC are excluded from timing and allocation measurements.
+The stream sends one setup chunk before measurement, then each operation sends
+eight chunks. `WarmIdle` inserts 1 ms of inactivity before each burst. `AfterGC`
+inserts two GCs while the relay is waiting for input, after the previous
+destination write and lease release. Idle time and GC are excluded from timing
+and allocation measurements. The benchmark checks a single connection's atomic
+counter, avoiding an inconsistent snapshot across the aggregate cache's flush.
 
-Go's pool expiry is driven by GC, not elapsed wall time. Two GCs model the cold
-buffer state after long idle with no intervening reuse; this is not a literal
-one-hour idle test and does not measure a phone's wakeup or battery usage.
+Go's pool expiry is driven by GC, not elapsed wall time. These two GCs happen
+within the private cache's TTL. A separate `BenchmarkRelayBufferCacheResume`
+simulates an activity-free expiry window, expires the buffer, and runs
+two GCs before resuming. It models the cold-buffer state after long idle without
+waiting a literal hour; neither benchmark measures phone wakeup or battery use.
 
-Six samples, 100 bursts each, on the same host:
+The TTL comparison uses merged commit `8e793fda` as its production baseline,
+with identical fixtures on both revisions. Six samples, 100 bursts each:
 
-| Idle state / chunk size | Retained buffer | Pooled buffer | Pooled allocations per burst |
+| Idle state / chunk size | Immediate return | Short retention | Allocations per burst before / after |
 | --- | ---: | ---: | ---: |
-| Warm idle / 1 KiB | 18.15 us/burst | 19.66 us/burst | 103 B/burst median |
-| Warm idle / 16 KiB | 23.75 us/burst | 19.78 us/burst | 17 B/burst median |
-| Pool evicted / 1 KiB | 7.351 us/burst | 8.584 us/burst (+16.77%) | 17.55 KiB, 3 allocs |
-| Pool evicted / 16 KiB | 9.021 us/burst | 10.450 us/burst (+15.85%) | 17.54 KiB, 3 allocs |
+| Warm idle / 1 KiB | 18.88 us | 18.07 us | 0 / 0 |
+| Warm idle / 16 KiB | 25.77 us | 26.36 us | 0 / 0 |
+| Two GCs / 1 KiB | 7.959 us | 6.939 us | 3 / 0 |
+| Two GCs / 16 KiB | 10.95 us | 8.819 us | 3 / 0 |
 
-Warm-idle timing differences are not significant (p=0.093/0.132); the nonzero
-allocated bytes reflect occasional pool misses even though Go rounds the
-average allocation count to zero. Cold-resume timing increases are significant
-(p=0.002), with about 1.2–1.4 us extra per eight-chunk burst. Cold allocations
-include the buffer and pool bookkeeping. The retained path has no buffer
-allocation during resume, at the cost of keeping 16 KiB throughout idle.
+After two GCs, allocated bytes fall from approximately 17.4 KiB per burst to
+about 1 B per burst of incidental accounting work. Allocation counts are rounded
+averages; the private-cache-only recent-idle benchmark reports exactly 0 B and
+0 allocations. Burst timings have substantial variation, including a change
+in the unchanged lifetime-retained control, so the allocation reduction is the
+reliable result rather than a general burst-latency improvement.
+
+After actual TTL expiry and two GCs, the cache-only benchmark still needs about
+17.51 KiB and 5 allocations per resume, including a new timer. Short retention
+reduces how often this cold state occurs; it cannot eliminate long-idle resume
+allocation while also releasing the large buffer. A recently active flow keeps
+its full configured relay buffer (normally 16 KiB) until the timeout. Initially
+inactive flows still borrow no buffer and create no timer. Their measured heap
+includes accounting, goroutine, and cache metadata; it remains approximately
+4 KiB per relay, with no significant change in the paired idle measurement.
+
+Final steady counted-relay medians for 64 B/16 KiB/64 KiB are
+605.4 ns/798.4 ns/3.281 us, versus 608.6 ns/797.0 ns/3.230 us before retention;
+none differs significantly (p=0.937/0.699/0.699). HTTP/2 final medians are
+24.55 us/35.60 us/83.34 us. Before-change batches ranged from
+24.28–25.31 us/35.38–38.45 us/83.02–101.20 us, depending on run order. The final
+implementation shows no significant slowdown against the first baseline batch;
+the later baseline batch is slower. This host variation prevents attributing
+the apparent HTTP/2 speedup to the cache. HTTP/2 allocations remain 3/11/42.
 
 Sniffing behaves differently: ordinary reads after draining the initial prefix
 go directly to the connection and do not reacquire a reader on each burst.
 `BenchmarkSniffResumeAfterPoolEviction` reports zero bytes and allocations for
 both 1 KiB and 16 KiB resume reads, even after two GCs.
 
-No permanent small relay buffer or TTL is introduced here. A smaller copy
-buffer must be evaluated against large transfers; a TTL adds cache ownership
-and expiry behavior. The current implementation explicitly trades retained
-idle heap for cold-resume allocation. Whether that trade saves mobile energy
-requires measurements on the target device under realistic traffic and GC.
+Expiry uses one-shot timers, with no new permanent goroutine per flow. Active
+flows may reschedule expiry roughly every 30 seconds, and expiry itself is
+additional work. Whether the reduced allocation/GC work outweighs timer work
+and briefly retained heap for mobile energy requires measurements on the target
+device under realistic traffic. Buffer sizes remain unchanged.
 
 ```sh
-go test ./pkg/statistics ./pkg/net/sniff -run '^$' \
-  -bench '^(BenchmarkCountedPipeBurstResume|BenchmarkSniffResumeAfterPoolEviction)$' \
+go test ./pkg/statistics ./pkg/net/sniff ./pkg/net/relay -run '^$' \
+  -bench '^(BenchmarkCountedPipeBurstResume|BenchmarkSniffResumeAfterPoolEviction|BenchmarkRelayBufferCacheResume)$' \
   -benchmem -benchtime=100x -count=6
 ```
 
@@ -176,6 +209,10 @@ reuse. A deterministic regression reproduces prefix corruption through the
 old `GetBufioReader` alias and verifies independent reader ownership.
 Race checks cover both default and CGO SQLite release tags. Vet, Go fix, and
 golangci-lint v2.14.0 are checked, along with Linux/Windows command builds.
+Retention tests additionally cover real timer expiry and reactivation, activity
+extending expiry, hundreds of concurrent expiry attempts during a paused Write,
+and callbacks dispatched before close. A poisoning pool detects early or double
+returns; the timer tests are repeated under the race detector.
 
 The full suite on this macOS host fails `TestDial/prefer_ipv6` (unavailable IPv6
 loopback targets) and NetworkManager `TestNM` (missing system D-Bus socket).
