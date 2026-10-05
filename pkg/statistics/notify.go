@@ -60,6 +60,10 @@ func newNotify() *notify {
 func (n *notify) register(s control.ServerStream[contractconnection.Event], conns []contractconnection.Connection) (uint64, context.Context) {
 	id := n.notifierIDSeed.Generate()
 	ctx, cancel := context.WithCancelCause(context.Background())
+	if n.closed.Load() {
+		cancel(context.Canceled)
+		return id, ctx
+	}
 
 	ne := &notifierEntry{
 		s:      s,
@@ -72,6 +76,12 @@ func (n *notify) register(s control.ServerStream[contractconnection.Event], conn
 	})
 	if err == nil {
 		n.notifier.Store(id, ne)
+		// Close may race with registration after its Range has already passed.
+		// Re-check after publishing so either side is guaranteed to cancel us.
+		if n.closed.Load() {
+			n.notifier.Delete(id)
+			cancel(context.Canceled)
+		}
 	}
 
 	return id, ctx
