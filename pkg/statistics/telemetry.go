@@ -20,6 +20,7 @@ import (
 const telemetryFlushInterval = 15 * time.Second
 const telemetryMaintenanceInterval = time.Hour
 const telemetryHourlyRetention = 30 * 24 * time.Hour
+const telemetryDailyRetention = 365 * 24 * time.Hour
 const telemetryValueIDCacheCapacity = 512
 
 type telemetryDimension struct {
@@ -454,7 +455,8 @@ func (r *telemetryRecorder) compactOldTelemetry(now time.Time) {
 	}
 	r.lastMaintenance = now
 
-	cutoff := now.UTC().Truncate(time.Hour).Add(-telemetryHourlyRetention).Unix()
+	hourlyCutoff := now.UTC().Truncate(time.Hour).Add(-telemetryHourlyRetention).Unix()
+	dailyCutoff := now.UTC().Truncate(24 * time.Hour).Add(-telemetryDailyRetention).Unix()
 	tx, err := r.db.BeginTx(context.Background(), nil)
 	if err != nil {
 		log.Warn("begin telemetry maintenance failed", "err", err)
@@ -486,14 +488,30 @@ func (r *telemetryRecorder) compactOldTelemetry(now time.Time) {
 				ON CONFLICT(bucket_start_utc, value_id) DO UPDATE SET
 					failed_count = failed_count + excluded.failed_count`
 		}
-		if _, err := tx.ExecContext(context.Background(), insert, cutoff); err != nil {
+		if _, err := tx.ExecContext(context.Background(), insert, hourlyCutoff); err != nil {
 			log.Warn("roll up telemetry history failed", "table", tables[0], "err", err)
 			return
 		}
-		if _, err := tx.ExecContext(context.Background(), "DELETE FROM "+tables[0]+" WHERE bucket_start_utc < ?", cutoff); err != nil {
+		if _, err := tx.ExecContext(context.Background(), "DELETE FROM "+tables[0]+" WHERE bucket_start_utc < ?", hourlyCutoff); err != nil {
 			log.Warn("delete rolled up telemetry history failed", "table", tables[0], "err", err)
 			return
 		}
+	}
+	for _, table := range []string{"traffic_dimension_daily", "failure_dimension_daily"} {
+		if _, err := tx.ExecContext(context.Background(), "DELETE FROM "+table+" WHERE bucket_start_utc < ?", dailyCutoff); err != nil {
+			log.Warn("delete expired daily telemetry failed", "table", table, "err", err)
+			return
+		}
+	}
+	if _, err := tx.ExecContext(context.Background(), `
+		DELETE FROM telemetry_dimension_values
+		WHERE NOT EXISTS (SELECT 1 FROM traffic_dimension_hourly WHERE value_id = telemetry_dimension_values.id)
+		  AND NOT EXISTS (SELECT 1 FROM traffic_dimension_daily WHERE value_id = telemetry_dimension_values.id)
+		  AND NOT EXISTS (SELECT 1 FROM failure_dimension_hourly WHERE value_id = telemetry_dimension_values.id)
+		  AND NOT EXISTS (SELECT 1 FROM failure_dimension_daily WHERE value_id = telemetry_dimension_values.id)
+	`); err != nil {
+		log.Warn("delete unused telemetry dimensions failed", "err", err)
+		return
 	}
 	if err := tx.Commit(); err != nil {
 		log.Warn("commit telemetry maintenance failed", "err", err)
