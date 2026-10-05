@@ -487,6 +487,7 @@ func (c *Counter) AddDownload(n uint64) {
 	c.download.Add(n)
 	if c.telemetry != nil {
 		c.telemetry.download.Add(n)
+		c.telemetry.markDirty()
 	}
 }
 
@@ -495,6 +496,7 @@ func (c *Counter) AddUpload(n uint64) {
 	c.upload.Add(n)
 	if c.telemetry != nil {
 		c.telemetry.upload.Add(n)
+		c.telemetry.markDirty()
 	}
 }
 func (c *Counter) LoadDownload() uint64 { return c.download.Load() }
