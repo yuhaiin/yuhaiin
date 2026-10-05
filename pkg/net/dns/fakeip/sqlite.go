@@ -14,7 +14,7 @@ import (
 
 const (
 	sqliteFakeIPTouchInterval      = 5 * time.Minute
-	sqliteFakeIPTouchFlushInterval = time.Second
+	sqliteFakeIPTouchFlushInterval = 5 * time.Second
 )
 
 type SQLiteFakeIPPool struct {
@@ -32,6 +32,7 @@ type SQLiteFakeIPPool struct {
 	touchMu          sync.Mutex
 	touchDomains     map[string]int64
 	touchIPs         map[netip.Addr]int64
+	touchTrigger     chan struct{}
 	touchStop        chan struct{}
 	touchDone        chan struct{}
 	closeOnce        sync.Once
@@ -123,24 +124,42 @@ func (p *SQLiteFakeIPPool) prepare(ctx context.Context) error {
 func (p *SQLiteFakeIPPool) startTouchWorker() {
 	p.touchDomains = map[string]int64{}
 	p.touchIPs = map[netip.Addr]int64{}
+	p.touchTrigger = make(chan struct{}, 1)
 	p.touchStop = make(chan struct{})
 	p.touchDone = make(chan struct{})
 	go p.runTouchWorker()
 }
 
 func (p *SQLiteFakeIPPool) runTouchWorker() {
-	ticker := time.NewTicker(sqliteFakeIPTouchFlushInterval)
-	defer ticker.Stop()
 	defer close(p.touchDone)
 
+	var timer *time.Timer
+	var timerC <-chan time.Time
 	for {
 		select {
-		case <-ticker.C:
+		case <-p.touchTrigger:
+			if timer == nil {
+				timer = time.NewTimer(sqliteFakeIPTouchFlushInterval)
+				timerC = timer.C
+			}
+		case <-timerC:
 			_ = p.flushTouches(context.Background())
+			timer = nil
+			timerC = nil
 		case <-p.touchStop:
+			if timer != nil {
+				timer.Stop()
+			}
 			_ = p.flushTouches(context.Background())
 			return
 		}
+	}
+}
+
+func (p *SQLiteFakeIPPool) scheduleTouchFlush() {
+	select {
+	case p.touchTrigger <- struct{}{}:
+	default:
 	}
 }
 
@@ -259,6 +278,7 @@ func (p *SQLiteFakeIPPool) touchDomain(domain string, now time.Time, lastUsedAt 
 	p.touchMu.Lock()
 	p.touchDomains[domain] = now.UnixNano()
 	p.touchMu.Unlock()
+	p.scheduleTouchFlush()
 }
 
 func (p *SQLiteFakeIPPool) touchIP(ip netip.Addr, now time.Time, lastUsedAt int64) {
@@ -269,6 +289,7 @@ func (p *SQLiteFakeIPPool) touchIP(ip netip.Addr, now time.Time, lastUsedAt int6
 	p.touchMu.Lock()
 	p.touchIPs[ip] = now.UnixNano()
 	p.touchMu.Unlock()
+	p.scheduleTouchFlush()
 }
 
 func (p *SQLiteFakeIPPool) flushTouches(ctx context.Context) error {
