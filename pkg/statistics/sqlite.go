@@ -302,6 +302,7 @@ func (h *SQLiteFailedHistory) run() {
 
 	var timer *time.Timer
 	var timerC <-chan time.Time
+	var retrying bool
 	stopTimer := func() {
 		if timer != nil {
 			timer.Stop()
@@ -316,6 +317,9 @@ func (h *SQLiteFailedHistory) run() {
 		case <-h.stop:
 			return
 		case <-h.trigger:
+			if retrying {
+				continue
+			}
 			h.mu.Lock()
 			flushNow := len(h.pending) >= maxBatch
 			h.mu.Unlock()
@@ -323,6 +327,7 @@ func (h *SQLiteFailedHistory) run() {
 				stopTimer()
 				if err := h.flush(); err != nil {
 					log.Warn("batch store sqlite failed history failed", "err", err)
+					retrying = true
 					timer = time.NewTimer(retryDelay)
 					timerC = timer.C
 				}
@@ -335,10 +340,12 @@ func (h *SQLiteFailedHistory) run() {
 		case <-timerC:
 			if err := h.flush(); err != nil {
 				log.Warn("batch store sqlite failed history failed", "err", err)
+				retrying = true
 				timer.Reset(retryDelay)
 				timerC = timer.C
 				continue
 			}
+			retrying = false
 			timer = nil
 			timerC = nil
 		}
