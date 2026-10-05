@@ -72,8 +72,9 @@ func storeSQLiteConnection(s *sqliteInfoStore, h *SQLiteHistory, id uint64, info
 }
 
 const (
-	connectionPersistenceDelay = 750 * time.Millisecond
-	connectionPersistenceBatch = 32
+	connectionPersistenceDelay      = 750 * time.Millisecond
+	connectionPersistenceRetryDelay = time.Second
+	connectionPersistenceBatch      = 32
 )
 
 type connectionPersistence struct {
@@ -185,7 +186,6 @@ func (p *connectionPersistence) run() {
 	for {
 		select {
 		case <-p.stop:
-			_ = p.flush()
 			return
 		case <-p.trigger:
 			p.mu.Lock()
@@ -195,7 +195,8 @@ func (p *connectionPersistence) run() {
 				stopTimer()
 				if err := p.flush(); err != nil {
 					log.Warn("batch persist connections failed", "err", err)
-					p.signal(false)
+					timer = time.NewTimer(connectionPersistenceRetryDelay)
+					timerC = timer.C
 				}
 				continue
 			}
@@ -206,7 +207,9 @@ func (p *connectionPersistence) run() {
 		case <-timerC:
 			if err := p.flush(); err != nil {
 				log.Warn("batch persist connections failed", "err", err)
-				p.signal(false)
+				timer.Reset(connectionPersistenceRetryDelay)
+				timerC = timer.C
+				continue
 			}
 			timer = nil
 			timerC = nil
@@ -307,11 +310,13 @@ func (p *connectionPersistence) Close() error {
 	if p == nil {
 		return nil
 	}
+	var err error
 	p.closeOnce.Do(func() {
 		close(p.stop)
 		<-p.done
+		err = p.flush()
 	})
-	return nil
+	return err
 }
 
 // Read one SQLite snapshot rather than one query per active connection.
