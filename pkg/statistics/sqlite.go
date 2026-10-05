@@ -323,6 +323,10 @@ func (h *SQLiteFailedHistory) run() {
 				stopTimer()
 				if err := h.flush(); err != nil {
 					log.Warn("batch store sqlite failed history failed", "err", err)
+					select {
+					case h.trigger <- struct{}{}:
+					default:
+					}
 				}
 				continue
 			}
@@ -333,6 +337,10 @@ func (h *SQLiteFailedHistory) run() {
 		case <-timerC:
 			if err := h.flush(); err != nil {
 				log.Warn("batch store sqlite failed history failed", "err", err)
+				select {
+				case h.trigger <- struct{}{}:
+				default:
+				}
 			}
 			timer = nil
 			timerC = nil
