@@ -36,6 +36,7 @@ type dimensionCounter struct {
 	download   atomic.Uint64
 	upload     atomic.Uint64
 	removed    atomic.Bool
+	recorder   *telemetryRecorder
 }
 
 type telemetryRecorder struct {
@@ -44,7 +45,7 @@ type telemetryRecorder struct {
 	cancel          context.CancelFunc
 	wg              sync.WaitGroup
 	counters        syncmap.SyncMap[*dimensionCounter, struct{}]
-	activeCounters  atomic.Int64
+	dirty           atomic.Bool
 	wakeFlush       chan struct{}
 	valueIDs        *lru.SyncLru[telemetryDimension, int64]
 	flushMu         sync.Mutex
@@ -67,31 +68,36 @@ func newTelemetryRecorder(db *sql.DB) *telemetryRecorder {
 }
 
 func (r *telemetryRecorder) run() {
-	var ticker *time.Ticker
-	var tickerC <-chan time.Time
-	stopTicker := func() {
-		if ticker != nil {
-			ticker.Stop()
-			ticker = nil
-			tickerC = nil
+	var timer *time.Timer
+	var timerC <-chan time.Time
+	stopTimer := func() {
+		if timer != nil {
+			timer.Stop()
+			timer = nil
+			timerC = nil
 		}
 	}
-	defer stopTicker()
+	defer stopTimer()
 
 	for {
 		select {
 		case <-r.ctx.Done():
 			return
 		case <-r.wakeFlush:
-			if ticker == nil {
-				ticker = time.NewTicker(telemetryFlushInterval)
-				tickerC = ticker.C
+			if timer == nil {
+				timer = time.NewTimer(telemetryFlushInterval)
+				timerC = timer.C
 			}
-		case <-tickerC:
+		case <-timerC:
+			r.dirty.Store(false)
 			r.flush()
 			r.compactOldTelemetry(time.Now())
-			if r.activeCounters.Load() == 0 && !r.hasPendingTraffic() {
-				stopTicker()
+			if r.dirty.Load() || r.hasPendingTraffic() {
+				timer.Reset(telemetryFlushInterval)
+				timerC = timer.C
+			} else {
+				timer = nil
+				timerC = nil
 			}
 		}
 	}
@@ -104,6 +110,21 @@ func (r *telemetryRecorder) wake() {
 	}
 }
 
+func (r *telemetryRecorder) markDirty() {
+	if r == nil || r.db == nil {
+		return
+	}
+	if r.dirty.CompareAndSwap(false, true) {
+		r.wake()
+	}
+}
+
+func (c *dimensionCounter) markDirty() {
+	if c != nil && c.recorder != nil {
+		c.recorder.markDirty()
+	}
+}
+
 func (r *telemetryRecorder) hasPendingTraffic() bool {
 	r.flushMu.Lock()
 	defer r.flushMu.Unlock()
@@ -111,12 +132,9 @@ func (r *telemetryRecorder) hasPendingTraffic() bool {
 }
 
 func (r *telemetryRecorder) Register(info contractconnection.Connection) *dimensionCounter {
-	counter := &dimensionCounter{dimensions: dimensionsForConnection(info)}
+	counter := &dimensionCounter{dimensions: dimensionsForConnection(info), recorder: r}
 	if r.db != nil && len(counter.dimensions) != 0 {
 		r.counters.Store(counter, struct{}{})
-		if r.activeCounters.Add(1) == 1 {
-			r.wake()
-		}
 	}
 	return counter
 }
@@ -128,6 +146,7 @@ func (r *telemetryRecorder) Remove(counter *dimensionCounter) {
 	// Keep the counter registered until the next batch flush so its final
 	// traffic delta is persisted without blocking the connection close path.
 	counter.removed.Store(true)
+	r.markDirty()
 }
 
 func (r *telemetryRecorder) RecordFailure(info contractconnection.Connection) {
@@ -171,9 +190,7 @@ func (r *telemetryRecorder) flush() {
 			}
 		}
 		if removed {
-			if _, ok := r.counters.LoadAndDelete(counter); ok {
-				r.activeCounters.Add(-1)
-			}
+			r.counters.Delete(counter)
 		}
 		return true
 	})
