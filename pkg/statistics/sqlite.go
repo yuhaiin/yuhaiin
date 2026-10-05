@@ -263,10 +263,11 @@ type SQLiteFailedHistory struct {
 
 	mu      sync.Mutex
 	pending map[failedHistoryKey]failedHistoryPending
-	trigger chan struct{}
-	stop    chan struct{}
-	done    chan struct{}
-	flushMu sync.Mutex
+	trigger   chan struct{}
+	stop      chan struct{}
+	done      chan struct{}
+	flushMu   sync.Mutex
+	closeOnce sync.Once
 }
 
 func NewSQLiteFailedHistory(path string) *SQLiteFailedHistory {
@@ -493,14 +494,17 @@ func (h *SQLiteFailedHistory) Close() error {
 	if h == nil {
 		return nil
 	}
-	if h.stop != nil {
-		close(h.stop)
-		<-h.done
-	}
-	if h.closeDB == nil {
-		return nil
-	}
-	return h.closeDB()
+	var err error
+	h.closeOnce.Do(func() {
+		if h.stop != nil {
+			close(h.stop)
+			<-h.done
+		}
+		if h.closeDB != nil {
+			err = h.closeDB()
+		}
+	})
+	return err
 }
 
 func encodeStatisticJSON(msg any) (string, error) {
