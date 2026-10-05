@@ -98,9 +98,7 @@ func (s *Sniffier) Packet(ctx *netapi.Context, b []byte) {
 }
 
 func (s *Sniffier) Stream(ctx *netapi.Context, cc net.Conn) net.Conn {
-	c := pool.NewBufioConnSize(cc, configuration.SnifferBufferSize)
-
-	var buf []byte
+	c := pool.NewBufferedConnSize(cc, configuration.SnifferBufferSize)
 	_ = c.BufioRead(func(br *bufio.Reader) error {
 		_ = c.SetReadDeadline(time.Now().Add(time.Millisecond * 55))
 		_, err := br.ReadByte()
@@ -108,23 +106,16 @@ func (s *Sniffier) Stream(ctx *netapi.Context, cc net.Conn) net.Conn {
 		if err == nil {
 			_ = br.UnreadByte()
 		}
-
-		buf, _ = br.Peek(br.Buffered())
+		buf, _ := br.Peek(br.Buffered())
+		if len(buf) == 0 {
+			return nil
+		}
+		for _, ck := range s.streamChecker {
+			if ck.enabled && ck.checker(ctx, buf) {
+				break
+			}
+		}
 		return nil
 	})
-
-	if len(buf) == 0 {
-		return c
-	}
-
-	for _, ck := range s.streamChecker {
-		if !ck.enabled {
-			continue
-		}
-		if ck.checker(ctx, buf) {
-			return c
-		}
-	}
-
 	return c
 }

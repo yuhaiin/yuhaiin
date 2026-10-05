@@ -450,7 +450,7 @@ func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, 
 
 	c.counters.Store(z.id, counter)
 	c.storeConnection(z, info)
-	return z, nil
+	return z.withBufferReader(), nil
 }
 
 func (c *Connections) FailedHistory(context.Context) (contractconnection.FailedHistoryList, error) {

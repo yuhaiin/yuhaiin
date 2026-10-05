@@ -243,7 +243,7 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 		}
 	}
 
-	metrics.Counter.AddTrieMatchDuration(float64(time.Duration(system.CheapNowNano() - start).Milliseconds()))
+	metrics.Counter.AddTrieMatchDuration(time.Duration(system.CheapNowNano() - start))
 
 	store.ConnOptions().Resolver().SetUdpSkipResolveTarget(s.skipResolve(mode))
 	store.ConnOptions().Resolver().SetResolver(s.r.Get(mode.Resolver(), s.getResolverFallback(mode)))
