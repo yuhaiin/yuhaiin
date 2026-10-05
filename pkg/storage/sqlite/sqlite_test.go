@@ -72,6 +72,7 @@ func TestOpenBootstrapsEmptyDatabase(t *testing.T) {
 		"resolvers_v2",
 		"route_rules_v2",
 		"route_lists_v2",
+		"route_registries",
 		"telemetry_dimension_values",
 		"traffic_dimension_daily",
 		"failure_dimension_daily",
@@ -81,8 +82,8 @@ func TestOpenBootstrapsEmptyDatabase(t *testing.T) {
 		}
 	}
 
-	if got := queryString(t, store.DB(), `SELECT value FROM metadata WHERE key = 'schema_version'`); got != "6" {
-		t.Fatalf("metadata schema_version = %q, want 6", got)
+	if got := queryString(t, store.DB(), `SELECT value FROM metadata WHERE key = 'schema_version'`); got != "7" {
+		t.Fatalf("metadata schema_version = %q, want 7", got)
 	}
 
 	if got := queryInt(t, store.DB(), `SELECT COUNT(*) FROM migrate`); got != int64(len(migrations)) {

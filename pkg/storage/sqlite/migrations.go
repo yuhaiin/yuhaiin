@@ -490,4 +490,30 @@ var migrations = []Migration{
 			ON failure_dimension_daily(value_id, bucket_start_utc DESC)`,
 		},
 	},
+	{
+		Version: 7,
+		Name:    "route_registries",
+		Statements: []string{
+			`CREATE TABLE route_registries (
+				id          TEXT PRIMARY KEY,
+				name        TEXT NOT NULL,
+				url         TEXT NOT NULL,
+				enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+				builtin     INTEGER NOT NULL DEFAULT 0 CHECK (builtin IN (0, 1)),
+				updated_at  INTEGER NOT NULL
+			)`,
+			`CREATE INDEX route_registries_enabled_name_idx
+			ON route_registries(enabled, name COLLATE NOCASE)`,
+			`INSERT INTO route_registries(id, name, url, enabled, builtin, updated_at)
+			VALUES (
+				'kitte',
+				'Kitte',
+				'https://raw.githubusercontent.com/yuhaiin/kitte/auto-update/manifest.json',
+				1,
+				1,
+				0
+			)`,
+		},
+	},
+
 }

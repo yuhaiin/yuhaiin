@@ -30,6 +30,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
+	routepkg "github.com/Asutorufa/yuhaiin/pkg/route"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
@@ -132,6 +133,8 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	resolverConfig := app.ResolverCfg
 	var routeSettingsStore *plainstore.RouteSettingsStore
 	var routeListStore *plainstore.RouteListStore
+	var routeRegistryStore *plainstore.RouteRegistryStore
+	var registryCatalogs httpapi.RegistryCatalogController
 	var routeRuleStore *plainstore.RouteRuleStore
 	var routeTagStore *plainstore.RouteTagStore
 	subscribeController := app.Subscribe
@@ -158,6 +161,8 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 			resolverConfig = plainstore.NewResolverConfigRuntimeStore(plainstore.NewResolverConfigStore(db), app.ResolverCfg)
 			routeSettingsStore = plainstore.NewRouteSettingsStore(db)
 			routeListStore = plainstore.NewRouteListStore(db)
+			routeRegistryStore = plainstore.NewRouteRegistryStore(db)
+			registryCatalogs = routepkg.NewRegistryCatalogService(routeRegistryStore)
 			routeRuleStore = plainstore.NewRouteRuleStore(db)
 			routeTagStore = plainstore.NewRouteTagStore(db)
 			if app.NodeRuntime != nil {
@@ -184,8 +189,10 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		Backup:         app.Backup,
 		Lists:          app.Lists,
 		RouteSettings:  routeSettingsStore,
-		RouteLists:     routeListStore,
-		Rules:          app.Rules,
+		RouteLists:      routeListStore,
+		RouteRegistries: routeRegistryStore,
+		RegistryCatalogs: registryCatalogs,
+		Rules:           app.Rules,
 		RouteRules:     routeRuleStore,
 		RouteTags:      routeTagStore,
 		Subscribe:      subscribeController,

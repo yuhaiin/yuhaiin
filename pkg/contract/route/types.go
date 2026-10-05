@@ -189,3 +189,55 @@ type BlockHistoryList struct {
 	Items              []BlockHistory `json:"items"`
 	DumpProcessEnabled bool           `json:"dumpProcessEnabled"`
 }
+
+
+type Registry struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	URL       string `json:"url"`
+	Enabled   bool   `json:"enabled"`
+	Builtin   bool   `json:"builtin"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+type RegistryList struct {
+	Items []Registry `json:"items"`
+}
+
+type RegistryFile struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Category   string `json:"category"`
+	Kind       string `json:"kind"`
+	Usage      string `json:"usage"`
+	ListType   string `json:"listType,omitzero"`
+	Format     string `json:"format"`
+	Path       string `json:"path"`
+	URL        string `json:"url"`
+	SourceURL  string `json:"sourceUrl,omitzero"`
+	Size       int64  `json:"size"`
+	SHA256     string `json:"sha256"`
+	Selectable bool   `json:"selectable"`
+}
+
+type RegistryManifest struct {
+	SchemaVersion int            `json:"schemaVersion"`
+	Repository    string         `json:"repository"`
+	Branch        string         `json:"branch"`
+	BaseURL       string         `json:"baseUrl"`
+	Files         []RegistryFile `json:"files"`
+}
+
+type RegistryCatalog struct {
+	Registry      Registry       `json:"registry"`
+	SchemaVersion int            `json:"schemaVersion"`
+	Repository    string         `json:"repository"`
+	Branch        string         `json:"branch"`
+	BaseURL       string         `json:"baseUrl"`
+	Files         []RegistryFile `json:"files"`
+	Error         string         `json:"error,omitzero"`
+}
+
+type RegistryCatalogList struct {
+	Items []RegistryCatalog `json:"items"`
+}
