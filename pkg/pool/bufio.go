@@ -23,6 +23,11 @@ func init() {
 // GetBufioReader borrows a reader owned by the caller, who must return it with
 // PutBufioReader. It never exposes a connection's internal reader: that reader
 // can be released by Read or Close independently of the caller's lifetime.
+// The returned reader wraps r but has independent buffering. Reading or
+// peeking can consume r; those pre-read bytes are then available only through
+// the returned reader, not through r or the original connection. Resetting or
+// pooling the returned reader does not reset the connection's internal reader.
+// For connection-visible pre-read bytes, use NewBufioConnSize and BufioRead.
 func GetBufioReader(r io.Reader, size int) *bufio.Reader {
 	if size == 0 {
 		return nil

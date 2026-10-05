@@ -140,3 +140,34 @@ func TestSniffStreamConcurrentBufferReuse(t *testing.T) {
 	}
 	workers.Wait()
 }
+
+// Measure subsequent activity on the same drained sniffed connection, not
+// repeated sniffing or connection creation. Two idle GCs evict pooled readers;
+// resumed ordinary reads must still bypass the reader pool entirely.
+func BenchmarkSniffResumeAfterPoolEviction(b *testing.B) {
+	for _, size := range []int{1024, 16384} {
+		b.Run(fmt.Sprint(size), func(b *testing.B) {
+			prefix := []byte("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
+			raw := &sniffTestConn{reader: bytes.NewReader(prefix)}
+			c := New().Stream(netapi.WithContext(b.Context()), raw)
+			defer c.Close()
+			if _, err := io.ReadFull(c, make([]byte, len(prefix))); err != nil {
+				b.Fatal(err)
+			}
+			payload := bytes.Repeat([]byte("x"), size)
+			scratch := make([]byte, size)
+			b.ReportAllocs()
+			b.SetBytes(int64(size))
+			for b.Loop() {
+				b.StopTimer()
+				runtime.GC()
+				runtime.GC()
+				raw.reader.Reset(payload)
+				b.StartTimer()
+				if _, err := io.ReadFull(c, scratch); err != nil || !bytes.Equal(scratch, payload) {
+					b.Fatalf("resumed read=%v", err)
+				}
+			}
+		})
+	}
+}

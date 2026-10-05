@@ -29,6 +29,12 @@ Only `NewBufioConnSize`/`NewBufferedConnSize` reuse a connection's reader owner.
 `NewBufioConn` transfers reader ownership to the connection. Temporary
 `BufioRead` callbacks must not retain the reader or its byte slices.
 
+This changes the old `GetBufioReader(bufferedConn, size)` aliasing behavior.
+The returned reader still reads from the supplied connection, but its pre-read
+bytes are private: direct connection reads cannot retrieve them. Code that
+needs connection-visible pre-read bytes must use `NewBufioConnSize` and
+`BufioRead`, or transfer an independently acquired reader with `NewBufioConn`.
+
 Read, callback, release, and close share the same mutex. Close interrupts the
 underlying read before acquiring that mutex. Parsing stays inside the sniff
 callback so slices never outlive reader ownership. If a read supplies both data
@@ -87,6 +93,54 @@ Sniff timings and retained heap were rerun after the independent-reader
 ownership fix. The retained heap remains approximately 152 B per connection
 and allocations remain 11 per operation. Relay and HTTP/2 production copying
 are unchanged by that ownership fix.
+
+## Bursts and cold resume
+
+The retained-heap and steady-throughput results above do not establish the
+cost of repeated idle/activity transitions or mobile energy usage.
+`BenchmarkCountedPipeBurstResume` compares the production counted relay with
+the former lifetime-long buffer path by hiding the optional read capability.
+Each operation sends eight chunks on the same open stream. `WarmIdle` inserts
+1 ms of inactivity before each burst. `AfterPoolEviction` inserts two GCs while
+the relay is waiting for input, after the previous buffer has been returned.
+Idle time and GC are excluded from timing and allocation measurements.
+
+Go's pool expiry is driven by GC, not elapsed wall time. Two GCs model the cold
+buffer state after long idle with no intervening reuse; this is not a literal
+one-hour idle test and does not measure a phone's wakeup or battery usage.
+
+Six samples, 100 bursts each, on the same host:
+
+| Idle state / chunk size | Retained buffer | Pooled buffer | Pooled allocations per burst |
+| --- | ---: | ---: | ---: |
+| Warm idle / 1 KiB | 18.15 us/burst | 19.66 us/burst | 103 B/burst median |
+| Warm idle / 16 KiB | 23.75 us/burst | 19.78 us/burst | 17 B/burst median |
+| Pool evicted / 1 KiB | 7.351 us/burst | 8.584 us/burst (+16.77%) | 17.55 KiB, 3 allocs |
+| Pool evicted / 16 KiB | 9.021 us/burst | 10.450 us/burst (+15.85%) | 17.54 KiB, 3 allocs |
+
+Warm-idle timing differences are not significant (p=0.093/0.132); the nonzero
+allocated bytes reflect occasional pool misses even though Go rounds the
+average allocation count to zero. Cold-resume timing increases are significant
+(p=0.002), with about 1.2–1.4 us extra per eight-chunk burst. Cold allocations
+include the buffer and pool bookkeeping. The retained path has no buffer
+allocation during resume, at the cost of keeping 16 KiB throughout idle.
+
+Sniffing behaves differently: ordinary reads after draining the initial prefix
+go directly to the connection and do not reacquire a reader on each burst.
+`BenchmarkSniffResumeAfterPoolEviction` reports zero bytes and allocations for
+both 1 KiB and 16 KiB resume reads, even after two GCs.
+
+No permanent small relay buffer or TTL is introduced here. A smaller copy
+buffer must be evaluated against large transfers; a TTL adds cache ownership
+and expiry behavior. The current implementation explicitly trades retained
+idle heap for cold-resume allocation. Whether that trade saves mobile energy
+requires measurements on the target device under realistic traffic and GC.
+
+```sh
+go test ./pkg/statistics ./pkg/net/sniff -run '^$' \
+  -bench '^(BenchmarkCountedPipeBurstResume|BenchmarkSniffResumeAfterPoolEviction)$' \
+  -benchmem -benchtime=100x -count=6
+```
 
 An experimental reduction of HTTP/2 request/response copy buffers from 16 KiB
 to 8 KiB saved about 16 KiB per idle tunnel but increased 16 KiB/64 KiB round-trip
