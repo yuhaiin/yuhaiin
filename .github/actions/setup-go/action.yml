@@ -1,0 +1,67 @@
+name: Set up Go with module and build caches
+description: Share downloaded modules while keeping each build target's compiler cache current.
+
+inputs:
+  cache-scope:
+    description: Unique build configuration, including target OS/architecture or test backend.
+    required: true
+  dependency-key:
+    description: Additional dependency revision, such as the resolved frontend commit.
+    default: repo
+  check-latest:
+    description: Check for the latest Go version matching go.mod.
+    default: 'false'
+  build-cache:
+    description: Restore compiler outputs; disable for CodeQL source extraction.
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+        check-latest: ${{ inputs.check-latest }}
+        cache: false
+
+    - name: Locate Go caches
+      id: go-env
+      shell: bash
+      run: |
+        {
+          echo "version=$(go env GOVERSION)"
+          echo "image=${ImageOS:-$RUNNER_OS}"
+          echo "modules=$(go env GOMODCACHE)"
+          echo "build=$(go env GOCACHE)"
+        } >> "$GITHUB_OUTPUT"
+
+    # Module archives are shared across targets, without duplicating them in
+    # every architecture's build cache. Include frontend updates made by go get.
+    - name: Restore Go module cache
+      id: modules
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.go-env.outputs.modules }}
+        key: gomod-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-env.outputs.version }}-${{ hashFiles('go.mod', 'go.sum') }}-${{ inputs.dependency-key }}
+        restore-keys: |
+          gomod-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-env.outputs.version }}-
+
+    # Ensure the first job saving a shared key contains the complete module
+    # graph, even if that job only runs a small auxiliary tool or go fix.
+    - name: Download Go modules on cache miss
+      if: steps.modules.outputs.cache-hit != 'true'
+      shell: bash
+      run: go mod download
+
+    # Caches are immutable. A new commit saves the updated compiler outputs,
+    # while the prefix restores the preceding snapshot for this build target.
+    # Installer/build-script changes invalidate the prefix, including CGO SDKs.
+    # Go itself checks source, flags, dependencies and compiler compatibility.
+    - name: Restore Go build cache
+      if: inputs.build-cache == 'true'
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.go-env.outputs.build }}
+        key: gobuild-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-env.outputs.image }}-${{ steps.go-env.outputs.version }}-${{ inputs.cache-scope }}-${{ hashFiles('.github/actions/setup-go/action.yml', 'scripts/build/*.sh', 'makefile') }}-${{ inputs.dependency-key }}-${{ github.sha }}
+        restore-keys: |
+          gobuild-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-env.outputs.image }}-${{ steps.go-env.outputs.version }}-${{ inputs.cache-scope }}-${{ hashFiles('.github/actions/setup-go/action.yml', 'scripts/build/*.sh', 'makefile') }}-

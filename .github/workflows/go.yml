@@ -26,9 +26,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
+          cache-scope: android-aar
+          dependency-key: ${{ needs.get_version.outputs.front_version }}
 
       - name: Set up Java
         uses: actions/setup-java@v6

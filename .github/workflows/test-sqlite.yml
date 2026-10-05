@@ -8,6 +8,7 @@ on:
       - go.mod
       - go.sum
       - .github/workflows/test-sqlite.yml
+      - .github/actions/setup-go/**
   pull_request:
     branches: [main]
     paths:
@@ -15,6 +16,7 @@ on:
       - go.mod
       - go.sum
       - .github/workflows/test-sqlite.yml
+      - .github/actions/setup-go/**
   workflow_dispatch:
 
 permissions:
@@ -34,11 +36,9 @@ jobs:
       SQLITE_BACKEND: ${{ matrix.backend }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          cache: true
-          cache-dependency-path: go.sum
+          cache-scope: test-sqlite-${{ matrix.backend }}
       - name: Test storage, FakeIP, statistics, and legacy settings
         run: |
           go test -timeout=5m -tags="sqlite_${SQLITE_BACKEND},stdlibjson,debug,fts5" \

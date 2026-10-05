@@ -37,9 +37,31 @@ workflow run and do not enter releases.
 binary/AAR workflow and `container.yaml` use it so their parallel builds use
 the same frontend revision within each run. Go versions come from `go.mod`.
 
-`build-binary.yml` explicitly enables setup-go's module/build cache, keyed by
-`go.sum`. The independent regression and benchmark workflows also enable this
-cache. JSON v2 and Green Tea GC use Go 1.27's defaults.
+All Go workflows use `.github/actions/setup-go`. It disables setup-go's combined
+cache and separately caches the paths returned by `go env GOMODCACHE` and
+`go env GOCACHE`:
+
+- Module archives are shared by runner OS/architecture, Go version and the
+  `go.mod`/`go.sum` hash. Release, AAR and container jobs also include the resolved
+  frontend revision. A cache miss downloads the complete module graph before
+  saving, so a small lint job cannot seed an incomplete shared module cache.
+- Compiler outputs are scoped by runner image, Go version and build
+  configuration. Each release OS/architecture, SQLite backend and auxiliary job
+  has its own scope. Installer, build-script and cache-action changes also
+  invalidate the prefix to cover pinned compiler/SDK updates. A new commit restores
+  the previous snapshot via a prefix and saves the updated cache under its SHA
+  and frontend revision; unchanged dependencies are checked and reused by Go.
+  Exact hits on reruns do not upload another copy. CodeQL shares modules but
+  does not restore ordinary compiler outputs for source extraction.
+
+The previous setup-go key depended only on the runner, Go version and lockfile.
+Parallel cross-builds and regression jobs restored the same archive, and an
+exact hit skipped saving newly compiled packages. This made missing target
+outputs get rebuilt on subsequent commits even though the log reported a hit.
+Splitting the caches also avoids storing a module archive in every target's
+compiler snapshot. Cache capacity and eviction still apply; compiler or source
+changes still require recompilation, and release metadata normally requires
+relinking. JSON v2 and Green Tea GC use Go 1.27's defaults.
 
 ## Shared build scripts
 
@@ -86,3 +108,38 @@ To run the same checks locally:
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 shellcheck scripts/build/*.sh
 ```
+
+### Go cache validation (2026-10-05)
+
+The [baseline run](https://github.com/yuhaiin/yuhaiin/actions/runs/37285861254)
+restored the same ~298 MiB Go cache in Darwin, Windows and Linux cross-builds;
+the [SQLite regression run](https://github.com/yuhaiin/yuhaiin/actions/runs/37285860852)
+also restored that key. Their post steps reported an exact hit and skipped
+saving. The Android AAR restored a separate ~25 MiB cache based on `go.mod`,
+then also skipped saving its new compiler outputs. Repository cache usage was
+10,348,002,272 bytes across 56 entries at inspection time; this is a snapshot,
+not a guarantee of retained capacity.
+
+Local validation passed actionlint v1.7.12, ShellCheck for the composite action,
+and `go mod download` without changing module files. Cache-key checks covered
+all 32 active compiler scopes: different targets/backends get different keys,
+module archives remain shared, new commits/frontends save a new snapshot, and
+Go version, runner image or installer/SDK changes invalidate the compiler prefix.
+
+A separate Go 1.27.1 source copy was built with an empty GOCACHE, its cache was
+archived and restored into another empty directory, then a codec declaration
+was changed to check invalidation:
+
+| Local domain trie package build | Packages compiled | Elapsed |
+| --- | ---: | ---: |
+| Empty cache | 71 | 2.036 s |
+| Restored archive, unchanged source | 0 | 0.039 s |
+| Restored archive, changed codec | 2 (codec and domain disk) | 0.079 s |
+
+This validates Go's compiler-cache reuse and invalidation, not GitHub service
+restore/save behavior or hosted-runner speed. The new keys initially require a
+cold build. After deployment, compare two different commits with the same
+target: `Restore Go build cache` should report a prefix restore, the post step
+should save the new SHA key, and `go build -v` should list fewer unchanged
+packages. Downloading toolchains, generating Android bindings and relinking
+release metadata can still take time even with a warm Go compiler cache.
