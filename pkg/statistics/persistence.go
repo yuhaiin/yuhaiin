@@ -195,6 +195,7 @@ func (p *connectionPersistence) run() {
 				stopTimer()
 				if err := p.flush(); err != nil {
 					log.Warn("batch persist connections failed", "err", err)
+					p.signal(false)
 				}
 				continue
 			}
@@ -205,6 +206,7 @@ func (p *connectionPersistence) run() {
 		case <-timerC:
 			if err := p.flush(); err != nil {
 				log.Warn("batch persist connections failed", "err", err)
+				p.signal(false)
 			}
 			timer = nil
 			timerC = nil
