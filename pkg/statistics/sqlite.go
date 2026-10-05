@@ -55,6 +55,31 @@ const storeHistorySQL = `
 
 const deleteSessionSQL = `DELETE FROM connection_sessions WHERE id = ?`
 
+const pruneConnectionHistorySQL = `
+	DELETE FROM connection_history
+	WHERE rowid IN (
+		SELECT rowid
+		FROM connection_history
+		ORDER BY last_seen_at DESC, rowid DESC
+		LIMIT -1 OFFSET ?
+	)
+`
+
+const pruneFailedConnectionHistorySQL = `
+	DELETE FROM failed_connection_history
+	WHERE rowid IN (
+		SELECT rowid
+		FROM failed_connection_history
+		ORDER BY last_seen_at DESC, rowid DESC
+		LIMIT -1 OFFSET ?
+	)
+`
+
+func pruneHistoryRows(ctx context.Context, tx *sql.Tx, query string, limit uint) error {
+	_, err := tx.ExecContext(ctx, query, int64(limit))
+	return err
+}
+
 type sqliteInfoStore struct {
 	db         *sql.DB
 	storeStmt  *sql.Stmt
@@ -178,8 +203,22 @@ func (h *SQLiteHistory) Push(c contractconnection.Connection) {
 		return
 	}
 
-	if err := h.pushEncoded(ctx, nil, c, data, time.Now().Unix()); err != nil {
+	tx, err := h.db.BeginTx(ctx, nil)
+	if err != nil {
+		log.Warn("begin sqlite history transaction failed", "err", err)
+		return
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := h.pushEncoded(ctx, tx, c, data, time.Now().Unix()); err != nil {
 		log.Warn("store sqlite history failed", "err", err)
+		return
+	}
+	if err := pruneHistoryRows(ctx, tx, pruneConnectionHistorySQL, configuration.HistorySize); err != nil {
+		log.Warn("prune sqlite history failed", "err", err)
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		log.Warn("commit sqlite history failed", "err", err)
 	}
 }
 
@@ -384,6 +423,10 @@ func (h *SQLiteFailedHistory) flush() error {
 			h.requeue(pending)
 			return err
 		}
+	}
+	if err := pruneHistoryRows(context.Background(), tx, pruneFailedConnectionHistorySQL, configuration.HistorySize); err != nil {
+		h.requeue(pending)
+		return err
 	}
 	if err := tx.Commit(); err != nil {
 		h.requeue(pending)
