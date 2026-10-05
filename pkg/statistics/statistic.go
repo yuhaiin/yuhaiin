@@ -33,7 +33,8 @@ type Connections struct {
 	Cache     *TotalCache
 	telemetry *telemetryRecorder
 
-	notify *notify
+	notify      *notify
+	persistence *connectionPersistence
 
 	faildHistory FailedHistoryStore
 	history      HistoryStore
@@ -82,7 +83,9 @@ func NewSQLiteConnStore(path string, dialer netapi.Proxy) *Connections {
 	normalizePersistedFakeIPDestinations(db)
 	clearPreviousSessions(db)
 
-	return &Connections{
+	infoStore := newSQLiteInfoStore(db)
+	history := newSQLiteHistory(db)
+	connections := &Connections{
 		Proxy:        dialer,
 		sqliteDB:     db,
 		sqlite:       store,
@@ -91,15 +94,19 @@ func NewSQLiteConnStore(path string, dialer netapi.Proxy) *Connections {
 		notify:       newNotify(),
 		faildHistory: newSQLiteFailedHistory(db),
 		counters:     newCounters(),
-		infoStore:    newSQLiteInfoStore(db),
-		history:      newSQLiteHistory(db),
+		infoStore:    infoStore,
+		history:      history,
 	}
+	connections.persistence = newConnectionPersistence(db, infoStore, history)
+	return connections
 }
 
 func (c *Connections) allInfos() []contractconnection.Connection {
 	if store, ok := c.infoStore.(*sqliteInfoStore); ok {
 		ids := slice.CollectTo(c.connStore.RangeValues, func(x connection) uint64 { return x.ID() })
-		return store.loadMany(ids)
+		infos := store.loadMany(ids)
+		c.persistence.Overlay(infos)
+		return infos
 	}
 	return slice.CollectTo(c.connStore.RangeValues, func(x connection) contractconnection.Connection {
 		info, ok := c.infoStore.Load(x.ID())
@@ -153,6 +160,10 @@ func (c *Connections) Close() error {
 		}
 	}
 
+	if er := c.persistence.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+
 	if er := c.history.Close(); er != nil {
 		err = errors.Join(err, er)
 	}
@@ -190,7 +201,11 @@ func (c *Connections) Remove(id uint64) {
 		metrics.Counter.RemoveConnection(1)
 	}
 
-	c.infoStore.Delete(id)
+	if c.persistence != nil {
+		c.persistence.Delete(id)
+	} else {
+		c.infoStore.Delete(id)
+	}
 	if counter := c.counters.Remove(id); counter != nil {
 		c.telemetry.Remove(counter.telemetry)
 	}
@@ -202,12 +217,8 @@ func (c *Connections) storeConnection(o connection, info contractconnection.Conn
 
 	id, _ := strconv.ParseUint(info.ID, 10, 64)
 	c.connStore.Store(id, o)
-	session, sessionOK := c.infoStore.(*sqliteInfoStore)
-	history, historyOK := c.history.(*SQLiteHistory)
-	if sessionOK && historyOK && session.db == history.db {
-		if err := storeSQLiteConnection(session, history, id, info); err != nil {
-			log.Warn("store sqlite connection failed", "id", id, "err", err)
-		}
+	if c.persistence != nil {
+		c.persistence.Store(id, info)
 	} else {
 		c.infoStore.Store(id, info)
 		c.history.Push(info)
