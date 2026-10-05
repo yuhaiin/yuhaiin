@@ -503,6 +503,34 @@ func (r *telemetryRecorder) compactOldTelemetry(now time.Time) {
 			return
 		}
 	}
+	rows, err := tx.QueryContext(context.Background(), `
+		SELECT dimension, value
+		FROM telemetry_dimension_values
+		WHERE NOT EXISTS (SELECT 1 FROM traffic_dimension_hourly WHERE value_id = telemetry_dimension_values.id)
+		  AND NOT EXISTS (SELECT 1 FROM traffic_dimension_daily WHERE value_id = telemetry_dimension_values.id)
+		  AND NOT EXISTS (SELECT 1 FROM failure_dimension_hourly WHERE value_id = telemetry_dimension_values.id)
+		  AND NOT EXISTS (SELECT 1 FROM failure_dimension_daily WHERE value_id = telemetry_dimension_values.id)
+	`)
+	if err != nil {
+		log.Warn("load unused telemetry dimensions failed", "err", err)
+		return
+	}
+	var unusedDimensions []telemetryDimension
+	for rows.Next() {
+		var dimension telemetryDimension
+		if err := rows.Scan(&dimension.kind, &dimension.value); err != nil {
+			_ = rows.Close()
+			log.Warn("scan unused telemetry dimension failed", "err", err)
+			return
+		}
+		unusedDimensions = append(unusedDimensions, dimension)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		log.Warn("iterate unused telemetry dimensions failed", "err", err)
+		return
+	}
+	_ = rows.Close()
 	if _, err := tx.ExecContext(context.Background(), `
 		DELETE FROM telemetry_dimension_values
 		WHERE NOT EXISTS (SELECT 1 FROM traffic_dimension_hourly WHERE value_id = telemetry_dimension_values.id)
@@ -515,6 +543,12 @@ func (r *telemetryRecorder) compactOldTelemetry(now time.Time) {
 	}
 	if err := tx.Commit(); err != nil {
 		log.Warn("commit telemetry maintenance failed", "err", err)
+		return
+	}
+	if r.valueIDs != nil {
+		for _, dimension := range unusedDimensions {
+			r.valueIDs.Delete(dimension)
+		}
 	}
 }
 
