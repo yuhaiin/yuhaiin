@@ -325,7 +325,7 @@ func TestWrapConnThrottlesReadDeadlineRefresh(t *testing.T) {
 		t.Fatalf("read deadline remaining = %s, want about 75s", remaining)
 	}
 
-	wrapped.nextReadDeadlineRefresh.Store(time.Now().Add(-time.Second).UnixNano())
+	wrapped.nextReadDeadlineRefresh.Store(-1)
 	wrapped.refreshReadDeadline(time.Minute)
 	pc.mu.Lock()
 	count = pc.readDeadlines
