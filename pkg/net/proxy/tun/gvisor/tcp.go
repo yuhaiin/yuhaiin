@@ -1,6 +1,7 @@
 package gvisor
 
 import (
+	"runtime"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -70,6 +71,9 @@ const (
 )
 
 func tcpKeepaliveProfile() (enabled bool, idle, interval time.Duration) {
+	if runtime.GOOS != "android" {
+		return true, tcpKeepaliveIdle, tcpKeepaliveInterval
+	}
 	switch configuration.BatteryProfile.Load() {
 	case "battery_saver":
 		return false, 0, 0
