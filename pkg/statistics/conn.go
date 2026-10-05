@@ -27,10 +27,11 @@ type conn struct {
 }
 
 func (s *conn) Close() error {
+	err := s.Conn.Close()
 	if s.onClose != nil {
 		s.onClose()
 	}
-	return s.Conn.Close()
+	return err
 }
 
 func (s *conn) Write(b []byte) (_ int, err error) {
@@ -59,10 +60,11 @@ type packetConn struct {
 }
 
 func (s *packetConn) Close() error {
+	err := s.PacketConn.Close()
 	if s.onClose != nil {
 		s.onClose()
 	}
-	return s.PacketConn.Close()
+	return err
 }
 
 func (s *packetConn) ID() uint64 { return s.id }
