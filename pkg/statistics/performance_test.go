@@ -51,6 +51,9 @@ func TestAllInfosReadsCurrentPersistedData(t *testing.T) {
 	c := NewSQLiteConnStore(filepath.Join(t.TempDir(), "state.db"), nil)
 	defer c.Close()
 	c.storeConnection(performanceConnection(1), performanceInfo(1))
+	if err := c.persistence.flush(); err != nil {
+		t.Fatal(err)
+	}
 	// Runtime membership remains authoritative, including metadata write
 	// failures. Persisted rows for untracked connections must not be exposed.
 	c.connStore.Store(2, performanceConnection(2))
