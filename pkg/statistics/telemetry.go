@@ -111,7 +111,7 @@ func (r *telemetryRecorder) wake() {
 }
 
 func (r *telemetryRecorder) markDirty() {
-	if r == nil || r.db == nil {
+	if r == nil || r.db == nil || r.dirty.Load() {
 		return
 	}
 	if r.dirty.CompareAndSwap(false, true) {
