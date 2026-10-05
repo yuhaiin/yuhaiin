@@ -268,3 +268,84 @@ func quietRelayBenchmarkLogs(b *testing.B) {
 	log.SetDefault(slog.NewTextHandler(io.Discard, nil))
 	b.Cleanup(func() { log.SetDefault(previous) })
 }
+
+// Poison released buffers so an early Put is detected even when sync.Pool
+// chooses not to reuse an allocation. Correctly owned buffers are untouched
+// until their destination Write returns.
+type poisoningRelayPool struct{ pool.Pool }
+
+func (p poisoningRelayPool) PutBytes(b []byte) {
+	for i := range b {
+		b[i] = 0xa5
+	}
+	p.Pool.PutBytes(b)
+}
+
+type pausedRelayWriter struct {
+	bytes.Buffer
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (w *pausedRelayWriter) Write(p []byte) (int, error) {
+	close(w.entered)
+	<-w.release
+	return w.Buffer.Write(p)
+}
+
+func TestCountedRelayKeepsBufferUntilWriteReturns(t *testing.T) {
+	sender, receiver := pipe.Pipe()
+	defer sender.Close()
+	c, conn := countedTestConn(t, receiver)
+	defer conn.Close()
+	previous := pool.DefaultPool
+	pool.DefaultPool = poisoningRelayPool{Pool: previous}
+	defer func() { pool.DefaultPool = previous }()
+	dst := &pausedRelayWriter{entered: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan error, 1)
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		_, err := relay.Copy(dst, conn)
+		done <- err
+	}()
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(dst.release) }) }
+	defer func() { _ = conn.Close(); _ = sender.Close(); unblock(); <-stopped }()
+
+	want := bytes.Repeat([]byte("original payload"), 64)
+	source := bytes.Clone(want)
+	if _, err := sender.Write(source); err != nil {
+		t.Fatal(err)
+	}
+	// Write has acknowledged the source. The sender may now overwrite its
+	// own slice while the relay's destination still holds the copied buffer.
+	for i := range source {
+		source[i] = 0x5a
+	}
+	<-dst.entered
+	_ = receiver.Close() // Close the source while the destination is paused.
+	var workers sync.WaitGroup
+	for range 32 {
+		workers.Go(func() {
+			for range 32 {
+				p := pool.GetBytes(16384)
+				for i := range p {
+					p[i] = 0x3c
+				}
+				pool.PutBytes(p)
+			}
+		})
+	}
+	workers.Wait()
+	unblock()
+	if err := <-done; !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("closed relay=%v", err)
+	}
+	if !bytes.Equal(dst.Bytes(), want) {
+		t.Fatal("relay buffer overwritten before destination Write returned")
+	}
+	if got := c.Cache.LoadRunningDownload(); got != uint64(len(want)) {
+		t.Fatalf("download=%d, want %d", got, len(want))
+	}
+}

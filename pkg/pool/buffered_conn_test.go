@@ -7,9 +7,40 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 )
+
+func TestGetBufioReaderDoesNotShareConnectionReader(t *testing.T) {
+	// Pin the pool to one P so returning and borrowing the same reader is
+	// deterministic, rather than relying on sync.Pool's scheduler behavior.
+	previousProcs := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(previousProcs)
+	previous := bufioBuffers[10]
+	bufioBuffers[10] = &sync.Pool{New: func() any { return bufio.NewReaderSize(nil, 1024) }}
+	defer func() { bufioBuffers[10] = previous }()
+
+	c := NewBufferedConnSize(&dataErrorConn{}, 1024)
+	defer c.Close()
+	if err := c.BufioRead(func(r *bufio.Reader) error { _, err := r.Peek(1); return err }); err != nil {
+		t.Fatal(err)
+	}
+	// The caller owns GetBufioReader's result and can return it independently
+	// of the connection. Reusing it must not reset or overwrite c's prefix.
+	borrowed := GetBufioReader(c, 1024)
+	PutBufioReader(borrowed)
+	reused := GetBufioReader(bytes.NewReader([]byte("overwritten")), 1024)
+	defer PutBufioReader(reused)
+	if _, err := reused.Peek(1); err != nil {
+		t.Fatal(err)
+	}
+	var got [6]byte
+	if _, err := io.ReadFull(c, got[:]); err != nil || string(got[:]) != "prefix" {
+		t.Fatalf("connection prefix overwritten through pooled alias: %q/%v", got, err)
+	}
+}
 
 func TestBufferedConnPreservesPrefixAndLaterBufferedReads(t *testing.T) {
 	sender, receiver := net.Pipe()
@@ -188,3 +219,120 @@ func TestBufferedConnCanResumeOngoingBuffering(t *testing.T) {
 		t.Fatalf("raw reads=%d, ongoing buffering was lost", raw.reads)
 	}
 }
+
+type closeStartedConn struct {
+	net.Conn
+	started chan struct{}
+	once    sync.Once
+}
+
+func (c *closeStartedConn) Close() error {
+	err := c.Conn.Close()
+	c.once.Do(func() { close(c.started) })
+	return err
+}
+
+func TestBufferedConnCloseDoesNotReleaseActiveCallback(t *testing.T) {
+	sender, receiver := net.Pipe()
+	defer sender.Close()
+	closing := make(chan struct{})
+	c := NewBufferedConnSize(&closeStartedConn{Conn: receiver, started: closing}, 1024)
+	defer c.Close()
+	entered, release := make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	callbackDone := make(chan error, 1)
+	callbackStopped, closeStopped := make(chan struct{}), make(chan struct{})
+	go func() { _, _ = sender.Write([]byte("original")) }()
+	go func() {
+		defer close(callbackStopped)
+		callbackDone <- c.BufioRead(func(r *bufio.Reader) error {
+			p, err := r.Peek(8)
+			close(entered)
+			<-release
+			if err == nil && string(p) != "original" {
+				return fmt.Errorf("active callback buffer overwritten: %q", p)
+			}
+			return err
+		})
+	}()
+	// Always unblock the callback before closing the connection on failure.
+	defer func() { unblock(); <-callbackStopped; <-closeStopped }()
+	<-entered
+	go func() { defer close(closeStopped); _ = c.Close() }()
+	<-closing
+	select {
+	case <-closeStopped:
+		t.Error("Close returned while the callback owned the reader")
+	default:
+	}
+	// Force other connections to fill pooled readers while Close is waiting.
+	for range 128 {
+		r := GetBufioReader(bytes.NewReader([]byte("overwritten")), 1024)
+		_, _ = r.Peek(8)
+		PutBufioReader(r)
+	}
+	unblock()
+	if err := <-callbackDone; err != nil {
+		t.Error(err)
+	}
+}
+
+func TestBufferedConnConcurrentReadsPreserveData(t *testing.T) {
+	payload := make([]byte, 256*1024)
+	var want [256]int
+	for i := range payload {
+		payload[i] = byte((i*31 + i/256) % 256)
+		want[payload[i]]++
+	}
+	c := NewBufferedConnSize(&readerTestConn{Reader: bytes.NewReader(payload)}, 1024)
+	defer c.Close()
+	if err := c.BufioRead(func(r *bufio.Reader) error { _, err := r.Peek(1); return err }); err != nil {
+		t.Fatal(err)
+	}
+	type result struct {
+		counts [256]int
+		err    error
+	}
+	done := make(chan result, 16)
+	for range cap(done) {
+		go func() {
+			var out result
+			buf := make([]byte, 97)
+			for {
+				n, err := c.Read(buf)
+				for _, b := range buf[:n] {
+					out.counts[b]++
+				}
+				if err != nil {
+					if err != io.EOF {
+						out.err = err
+					}
+					done <- out
+					return
+				}
+			}
+		}()
+	}
+	var got [256]int
+	for range cap(done) {
+		out := <-done
+		if out.err != nil {
+			t.Error(out.err)
+		}
+		for i, n := range out.counts {
+			got[i] += n
+		}
+	}
+	if got != want {
+		t.Fatal("concurrent reads lost, duplicated, or overwrote bytes")
+	}
+}
+
+type readerTestConn struct {
+	net.Conn
+	io.Reader
+}
+
+func (c *readerTestConn) Read(p []byte) (int, error) { return c.Reader.Read(p) }
+func (c *readerTestConn) Close() error               { return nil }

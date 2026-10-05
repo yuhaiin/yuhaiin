@@ -21,6 +21,14 @@ needed. The existing `NewBufioConnSize` constructor retains ongoing buffering
 for protocols such as UDP over stream. Rewrapping the same connection preserves
 ownership and can restore ongoing buffering.
 
+`GetBufioReader` always returns an independently owned reader, even when its
+input is a buffered connection. Returning the connection's internal reader
+would create two owners: an external caller could pool it while the connection
+still holds pre-read bytes, and another connection could overwrite those bytes.
+Only `NewBufioConnSize`/`NewBufferedConnSize` reuse a connection's reader owner.
+`NewBufioConn` transfers reader ownership to the connection. Temporary
+`BufioRead` callbacks must not retain the reader or its byte slices.
+
 Read, callback, release, and close share the same mutex. Close interrupts the
 underlying read before acquiring that mutex. Parsing stays inside the sniff
 callback so slices never outlive reader ownership. If a read supplies both data
@@ -60,9 +68,9 @@ Median results (six samples per revision):
 | --- | ---: | ---: | ---: |
 | Idle counted relay, retained heap | 19.78 KiB/relay | 3.80 KiB/relay | -80.77% |
 | Drained sniff connection, retained heap | 16,600 B/connection | 152 B/connection | -99.08% |
-| Sniff + forward 64 B | 271.8 ns/op | 239.2 ns/op | -11.98% |
-| Sniff + forward 16 KiB | 680.5 ns/op | 559.8 ns/op | -17.74% |
-| Sniff + forward 64 KiB | 1.703 us/op | 1.194 us/op | -29.92% |
+| Sniff + forward 64 B | 271.8 ns/op | 243.5 ns/op | -10.39% |
+| Sniff + forward 16 KiB | 680.5 ns/op | 586.5 ns/op | -13.81% |
+| Sniff + forward 64 KiB | 1.703 us/op | 1.242 us/op | -27.04% |
 | Sniff allocations, all three sizes | 13 allocs/op | 11 allocs/op | -15.38% |
 | Counted pipe relay, 64 B | 611.1 ns/op | 613.6 ns/op | No significant change |
 | Counted pipe relay, 16 KiB | 786.3 ns/op | 803.2 ns/op | No significant change |
@@ -74,6 +82,11 @@ HTTP/2 round trips at 64 B/16 KiB/64 KiB show no significant latency change
 (p=0.240/0.093/0.065), with the same 3/11/42 allocations. No HTTP/2 speedup is
 claimed. The duration observations cost approximately 8.1 ns (TCP), 23.2 ns
 (DNS), and 6.2 ns (route), with zero allocations.
+
+Sniff timings and retained heap were rerun after the independent-reader
+ownership fix. The retained heap remains approximately 152 B per connection
+and allocations remain 11 per operation. Relay and HTTP/2 production copying
+are unchanged by that ownership fix.
 
 An experimental reduction of HTTP/2 request/response copy buffers from 16 KiB
 to 8 KiB saved about 16 KiB per idle tunnel but increased 16 KiB/64 KiB round-trip
@@ -100,6 +113,13 @@ update the three duration method signatures to `time.Duration`.
 Regression tests cover production accounting, payload integrity, EOF and
 deadlines, short writes, pooled-buffer release on writer panic, pre-read prefix
 preservation, close interrupting an active read, and data-plus-error delivery.
+Additional concurrency checks cover 16 readers on one connection, 512 streams
+sniffing and reusing readers concurrently, Close waiting for an active callback,
+and a paused destination Write while its sender overwrites the acknowledged
+source slice, closes, and 32 workers churn the shared buffer pool. Released
+relay buffers are poisoned so premature release is observable even without
+reuse. A deterministic regression reproduces prefix corruption through the
+old `GetBufioReader` alias and verifies independent reader ownership.
 Race checks cover both default and CGO SQLite release tags. Vet, Go fix, and
 golangci-lint v2.14.0 are checked, along with Linux/Windows command builds.
 

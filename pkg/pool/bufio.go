@@ -20,16 +20,10 @@ func init() {
 	}
 }
 
+// GetBufioReader borrows a reader owned by the caller, who must return it with
+// PutBufioReader. It never exposes a connection's internal reader: that reader
+// can be released by Read or Close independently of the caller's lifetime.
 func GetBufioReader(r io.Reader, size int) *bufio.Reader {
-	xx, ok := r.(*bufioConn)
-	if ok {
-		xx.mu.Lock()
-		defer xx.mu.Unlock()
-		if xx.r != nil && xx.r.Size() >= size {
-			return xx.r
-		}
-	}
-
 	if size == 0 {
 		return nil
 	}
@@ -76,6 +70,9 @@ func (c *CloseWriteChecker) CloseWrite() error {
 
 type BufioConn interface {
 	net.Conn
+	// BufioRead serializes the callback with Read and Close. For temporary
+	// buffering, the reader and its slices must not escape the callback.
+	// Callbacks must not return the connection's reader to a pool.
 	BufioRead(f func(*bufio.Reader) error) error
 }
 
@@ -90,6 +87,8 @@ type bufioConn struct {
 	pendingReadErr    error
 }
 
+// NewBufioConn takes ownership of r. The caller must not use or pool r after
+// passing it to the connection; use BufioRead for synchronized access.
 func NewBufioConn(r *bufio.Reader, c net.Conn) BufioConn {
 	xx, ok := c.(*bufioConn)
 	if ok {

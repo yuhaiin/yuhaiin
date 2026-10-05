@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -109,4 +110,33 @@ func TestSniffStreamPreservesReadAhead(t *testing.T) {
 	if !bytes.Equal(got.Bytes(), payload) {
 		t.Fatalf("payload=%q", got.Bytes())
 	}
+}
+
+func TestSniffStreamConcurrentBufferReuse(t *testing.T) {
+	s := New()
+	var workers sync.WaitGroup
+	for worker := range 16 {
+		workers.Go(func() {
+			for iteration := range 32 {
+				host := fmt.Sprintf("worker-%d-%d.example.com", worker, iteration)
+				payload := bytes.Repeat([]byte{byte(worker + 1)}, 32781+iteration)
+				copy(payload, "GET / HTTP/1.1\r\nHost: "+host+"\r\n\r\n")
+				ctx := netapi.WithContext(t.Context())
+				c := s.Stream(ctx, &sniffTestConn{reader: bytes.NewReader(payload)})
+				got, err := io.ReadAll(c)
+				// The drained reader is available to other workers even before
+				// Close; retain ctx across another sniff to check parsed strings.
+				other := s.Stream(netapi.WithContext(t.Context()), &sniffTestConn{
+					reader: bytes.NewReader([]byte("GET / HTTP/1.1\r\nHost: overwritten.example.com\r\n\r\n")),
+				})
+				_ = other.Close()
+				_ = c.Close()
+				if err != nil || !bytes.Equal(got, payload) || ctx.GetHTTPHost() != host {
+					t.Errorf("stream %d/%d corrupted: error=%v host=%q", worker, iteration, err, ctx.GetHTTPHost())
+					return
+				}
+			}
+		})
+	}
+	workers.Wait()
 }
