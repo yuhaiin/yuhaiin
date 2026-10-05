@@ -87,9 +87,10 @@ type connectionPersistence struct {
 	historyQ []contractconnection.Connection
 	overlay  map[uint64]contractconnection.Connection
 
-	trigger chan struct{}
-	stop    chan struct{}
-	done    chan struct{}
+	trigger   chan struct{}
+	stop      chan struct{}
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 func newConnectionPersistence(db *sql.DB, session *sqliteInfoStore, history *SQLiteHistory) *connectionPersistence {
@@ -304,8 +305,10 @@ func (p *connectionPersistence) Close() error {
 	if p == nil {
 		return nil
 	}
-	close(p.stop)
-	<-p.done
+	p.closeOnce.Do(func() {
+		close(p.stop)
+		<-p.done
+	})
 	return nil
 }
 
