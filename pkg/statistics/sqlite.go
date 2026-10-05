@@ -297,6 +297,7 @@ func newSQLiteFailedHistory(db *sql.DB) *SQLiteFailedHistory {
 func (h *SQLiteFailedHistory) run() {
 	defer close(h.done)
 	const delay = 2 * time.Second
+	const retryDelay = time.Second
 	const maxBatch = 32
 
 	var timer *time.Timer
@@ -313,7 +314,6 @@ func (h *SQLiteFailedHistory) run() {
 	for {
 		select {
 		case <-h.stop:
-			_ = h.flush()
 			return
 		case <-h.trigger:
 			h.mu.Lock()
@@ -323,10 +323,8 @@ func (h *SQLiteFailedHistory) run() {
 				stopTimer()
 				if err := h.flush(); err != nil {
 					log.Warn("batch store sqlite failed history failed", "err", err)
-					select {
-					case h.trigger <- struct{}{}:
-					default:
-					}
+					timer = time.NewTimer(retryDelay)
+					timerC = timer.C
 				}
 				continue
 			}
@@ -337,10 +335,9 @@ func (h *SQLiteFailedHistory) run() {
 		case <-timerC:
 			if err := h.flush(); err != nil {
 				log.Warn("batch store sqlite failed history failed", "err", err)
-				select {
-				case h.trigger <- struct{}{}:
-				default:
-				}
+				timer.Reset(retryDelay)
+				timerC = timer.C
+				continue
 			}
 			timer = nil
 			timerC = nil
@@ -508,8 +505,11 @@ func (h *SQLiteFailedHistory) Close() error {
 			close(h.stop)
 			<-h.done
 		}
+		if flushErr := h.flush(); flushErr != nil {
+			err = flushErr
+		}
 		if h.closeDB != nil {
-			err = h.closeDB()
+			err = errors.Join(err, h.closeDB())
 		}
 	})
 	return err
