@@ -43,6 +43,17 @@ func countedTestConn(t testing.TB, raw net.Conn) (*Connections, net.Conn) {
 	return c, conn
 }
 
+func countedConnectionCounter(t testing.TB, c *Connections, conn net.Conn) *Counter {
+	t.Helper()
+	c.counters.mu.RLock()
+	counter := c.counters.store[conn.(connection).ID()]
+	c.counters.mu.RUnlock()
+	if counter == nil {
+		t.Fatal("missing connection counter")
+	}
+	return counter
+}
+
 type observedPipe struct {
 	*pipe.Conn
 	entered chan struct{}
@@ -151,6 +162,7 @@ func BenchmarkCountedPipeRelay(b *testing.B) {
 			defer writer.Close()
 			c, conn := countedTestConn(b, reader)
 			defer conn.Close()
+			counter := countedConnectionCounter(b, c, conn)
 			done := make(chan error, 1)
 			go func() { _, err := relay.Copy(io.Discard, conn); done <- err }()
 			payload := make([]byte, size)
@@ -165,7 +177,7 @@ func BenchmarkCountedPipeRelay(b *testing.B) {
 			if err := <-done; err != nil {
 				b.Fatal(err)
 			}
-			if got := c.Cache.LoadRunningDownload(); got != uint64(b.N)*uint64(size) {
+			if got := counter.LoadDownload(); got != uint64(b.N)*uint64(size) {
 				b.Fatalf("download=%d", got)
 			}
 		})

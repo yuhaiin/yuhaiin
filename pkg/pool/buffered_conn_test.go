@@ -42,6 +42,25 @@ func TestGetBufioReaderDoesNotShareConnectionReader(t *testing.T) {
 	}
 }
 
+func TestGetBufioReaderReadAheadIsPrivate(t *testing.T) {
+	payload := []byte("private read-ahead")
+	c := NewBufioConnSize(&readerTestConn{Reader: bytes.NewReader(payload)}, 1024)
+	defer c.Close()
+	r := GetBufioReader(c, 1024)
+	defer PutBufioReader(r)
+	if _, err := r.Peek(len(payload)); err != nil {
+		t.Fatal(err)
+	}
+	var scratch [1]byte
+	if n, err := c.Read(scratch[:]); n != 0 || err != io.EOF {
+		t.Fatalf("connection must not expose the borrowed reader's prefix: %d/%v", n, err)
+	}
+	got, err := io.ReadAll(r)
+	if err != nil || !bytes.Equal(got, payload) {
+		t.Fatalf("private read-ahead=%q/%v", got, err)
+	}
+}
+
 func TestBufferedConnPreservesPrefixAndLaterBufferedReads(t *testing.T) {
 	sender, receiver := net.Pipe()
 	defer sender.Close()
