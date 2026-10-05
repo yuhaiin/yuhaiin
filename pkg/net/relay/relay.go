@@ -11,7 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
@@ -141,10 +141,10 @@ func Copy(dst io.Writer, src io.Reader) (n int64, err error) {
 			err = fmt.Errorf("panic: %v", er)
 		}
 	}()
-	// The pipe exposes when data is ready, so a response relay can borrow
-	// its buffer only while forwarding a chunk instead of pinning it while idle.
-	if p, ok := src.(*pipe.Conn); ok {
-		return copyPipe(dst, p)
+	// Preserve optional buffered reads through connection wrappers so idle
+	// relays do not pin a buffer for the lifetime of the stream.
+	if reader, ok := src.(netapi.BufferReader); ok {
+		return copyBufferReader(dst, reader)
 	}
 	buf := pool.GetBytes(configuration.RelayBufferSize.Load())
 	defer pool.PutBytes(buf)
@@ -152,7 +152,7 @@ func Copy(dst io.Writer, src io.Reader) (n int64, err error) {
 	return io.CopyBuffer(WriteOnlyWriter{dst}, ReadOnlyReader{src}, buf)
 }
 
-func copyPipe(dst io.Writer, src *pipe.Conn) (total int64, err error) {
+func copyBufferReader(dst io.Writer, src netapi.BufferReader) (total int64, err error) {
 	bufferSize := configuration.RelayBufferSize.Load()
 	if bufferSize <= 0 {
 		return 0, fmt.Errorf("relay: invalid buffer size %d", bufferSize)
@@ -161,7 +161,7 @@ func copyPipe(dst io.Writer, src *pipe.Conn) (total int64, err error) {
 	for {
 		data, readErr := src.ReadWithBuffer(getBuffer)
 		if data != nil {
-			n, writeErr := writePipeBuffer(dst, data)
+			n, writeErr := writePooledBuffer(dst, data)
 			total += int64(n)
 			if writeErr != nil {
 				return total, writeErr
@@ -176,7 +176,7 @@ func copyPipe(dst io.Writer, src *pipe.Conn) (total int64, err error) {
 	}
 }
 
-func writePipeBuffer(dst io.Writer, data []byte) (n int, err error) {
+func writePooledBuffer(dst io.Writer, data []byte) (n int, err error) {
 	defer pool.PutBytes(data) // Also return it if a writer panics.
 	n, err = dst.Write(data)
 	if n < 0 || n > len(data) {

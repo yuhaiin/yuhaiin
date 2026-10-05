@@ -242,7 +242,7 @@ func (c *client) queryWithMetrics(ctx context.Context, req netapi.DNSQuestion) (
 	now := system.CheapNowNano()
 	msg, err := c.query(ctx, req)
 	if err == nil {
-		metrics.Counter.AddDnsQueryDuration(c.config.Name, float64(time.Duration(system.CheapNowNano()-now).Milliseconds()))
+		metrics.Counter.AddDnsQueryDuration(c.config.Name, time.Duration(system.CheapNowNano()-now))
 	} else {
 		metrics.Counter.AddDnsQueryError(c.config.Name)
 	}

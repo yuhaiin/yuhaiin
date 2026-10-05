@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bytes"
 	"errors"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"io"
@@ -79,5 +80,32 @@ func TestPipeCopyWriterErrors(t *testing.T) {
 				t.Fatal("writer stranded")
 			}
 		})
+	}
+}
+
+type terminalBufferReader struct {
+	data []byte
+	err  error
+}
+
+func (r terminalBufferReader) Read([]byte) (int, error) { panic("buffered read capability lost") }
+func (r terminalBufferReader) ReadWithBuffer(get func() []byte) ([]byte, error) {
+	buf := get()
+	n := copy(buf, r.data)
+	return buf[:n], r.err
+}
+
+func TestBufferReaderCopiesDataBeforeTerminalError(t *testing.T) {
+	failure := errors.New("read failure")
+	for _, terminal := range []error{io.EOF, failure} {
+		var dst bytes.Buffer
+		n, err := Copy(&dst, terminalBufferReader{data: []byte("last chunk"), err: terminal})
+		want := terminal
+		if terminal == io.EOF {
+			want = nil
+		}
+		if n != 10 || dst.String() != "last chunk" || !errors.Is(err, want) {
+			t.Fatalf("copy=%d/%v/%q", n, err, dst.String())
+		}
 	}
 }

@@ -98,7 +98,7 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 
 	endNanoSeconds := system.CheapNowNano()
 
-	metrics.Counter.AddStreamConnectDuration(float64(time.Duration(endNanoSeconds - startNanoSeconds).Milliseconds()))
+	metrics.Counter.AddStreamConnectDuration(time.Duration(endNanoSeconds - startNanoSeconds))
 
 	process, pid, uid := store.GetProcess()
 

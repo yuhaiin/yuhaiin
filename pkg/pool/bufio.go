@@ -22,8 +22,12 @@ func init() {
 
 func GetBufioReader(r io.Reader, size int) *bufio.Reader {
 	xx, ok := r.(*bufioConn)
-	if ok && xx.r.Size() >= size {
-		return xx.r
+	if ok {
+		xx.mu.Lock()
+		defer xx.mu.Unlock()
+		if xx.r != nil && xx.r.Size() >= size {
+			return xx.r
+		}
 	}
 
 	if size == 0 {
@@ -80,19 +84,50 @@ type bufioConn struct {
 	r      *bufio.Reader
 	mu     sync.Mutex
 	closed bool
+
+	readerSize        int
+	releaseAfterDrain bool
+	pendingReadErr    error
 }
 
 func NewBufioConn(r *bufio.Reader, c net.Conn) BufioConn {
 	xx, ok := c.(*bufioConn)
-	if ok && xx.r == r {
-		return xx
+	if ok {
+		xx.mu.Lock()
+		sameReader := xx.r == r
+		if sameReader {
+			xx.releaseAfterDrain = false
+		}
+		xx.mu.Unlock()
+		if sameReader {
+			return xx
+		}
 	}
 
-	return &bufioConn{CloseWriteChecker{c}, r, sync.Mutex{}, false}
+	return &bufioConn{CloseWriteChecker: CloseWriteChecker{c}, r: r, readerSize: r.Size()}
+}
+
+// NewBufferedConnSize buffers the initial reads made through BufioRead, then
+// returns the reader to its pool once Read drains the pre-read bytes. Use
+// NewBufioConnSize for ongoing buffering, such as UDP-over-stream decoding.
+func NewBufferedConnSize(c net.Conn, size int) BufioConn {
+	return newBufioConnSize(c, size, true)
 }
 
 func NewBufioConnSize(c net.Conn, size int) BufioConn {
-	return NewBufioConn(GetBufioReader(c, size), c)
+	return newBufioConnSize(c, size, false)
+}
+
+func newBufioConnSize(c net.Conn, size int, releaseAfterDrain bool) *bufioConn {
+	if existing, ok := c.(*bufioConn); ok && existing.readerSize >= size {
+		existing.mu.Lock()
+		existing.releaseAfterDrain = releaseAfterDrain
+		existing.mu.Unlock()
+		return existing
+	}
+	conn := NewBufioConn(GetBufioReader(c, size), c).(*bufioConn)
+	conn.releaseAfterDrain = releaseAfterDrain
+	return conn
 }
 
 func (c *bufioConn) Read(b []byte) (int, error) {
@@ -101,8 +136,24 @@ func (c *bufioConn) Read(b []byte) (int, error) {
 	if c.closed {
 		return 0, io.EOF
 	}
+	if c.pendingReadErr != nil {
+		err := c.pendingReadErr
+		c.pendingReadErr = nil
+		return 0, err
+	}
+	if len(b) == 0 {
+		return 0, nil
+	}
 
-	return c.r.Read(b)
+	if c.r == nil {
+		if c.releaseAfterDrain {
+			return c.Conn.Read(b)
+		}
+		c.restoreReader()
+	}
+	n, err := c.r.Read(b)
+	c.releaseDrainedReader()
+	return n, err
 }
 
 func (c *bufioConn) Close() error {
@@ -114,14 +165,44 @@ func (c *bufioConn) Close() error {
 	}
 
 	c.closed = true
+	c.pendingReadErr = nil
 
-	r := c.r
-	if r != ClosedBufioReader {
-		c.r = ClosedBufioReader
+	c.releaseReader()
+	return err
+}
+
+// The caller holds mu; clearing r before pooling it prevents Close from
+// returning a reader that a drained connection has already released.
+func (c *bufioConn) releaseReader() {
+	if c.r != nil {
+		r := c.r
+		c.r = nil
 		r.Reset(emptyReader{})
 		PutBufioReader(r)
 	}
-	return err
+}
+
+func (c *bufioConn) releaseDrainedReader() {
+	if c.releaseAfterDrain && c.r.Buffered() == 0 {
+		// A zero-length read does no I/O and retrieves any error buffered
+		// alongside the prefix. Preserve it for the next Read/BufioRead.
+		_, c.pendingReadErr = c.r.Read(nil)
+		c.releaseReader()
+	}
+}
+
+// The caller holds mu and has checked that r is nil.
+func (c *bufioConn) restoreReader() {
+	if c.pendingReadErr == nil {
+		c.r = GetBufioReader(c.Conn, c.readerSize)
+	} else {
+		c.r = GetBufioReader(&errorOnceReader{Reader: c.Conn, err: c.pendingReadErr}, c.readerSize)
+		c.pendingReadErr = nil
+		// Discard one synthetic byte to seed bufio's pending error without
+		// consuming it or touching the connection. Callbacks still observe
+		// the original error, even if they only inspect Buffered().
+		_, _ = c.r.Discard(1)
+	}
 }
 
 func (c *bufioConn) BufioRead(f func(*bufio.Reader) error) error {
@@ -130,8 +211,30 @@ func (c *bufioConn) BufioRead(f func(*bufio.Reader) error) error {
 	if c.closed {
 		return io.EOF
 	}
+	if c.r == nil {
+		c.restoreReader()
+	}
+	err := f(c.r)
+	c.releaseDrainedReader()
+	return err
+}
 
-	return f(c.r)
+type errorOnceReader struct {
+	io.Reader
+	err error
+}
+
+func (r *errorOnceReader) Read(b []byte) (int, error) {
+	if r.err != nil {
+		if len(b) == 0 {
+			return 0, nil
+		}
+		b[0] = 0 // Discarded by restoreReader; never exposed to the caller.
+		err := r.err
+		r.err = nil
+		return 1, err
+	}
+	return r.Reader.Read(b)
 }
 
 type emptyReader struct{}

@@ -4,6 +4,7 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"time"
 
 	"codeberg.org/miekg/dns/dnsutil"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
@@ -66,7 +67,7 @@ type Metrics interface {
 	AddGeoCountry(country string)
 	AddBlockConnection(addr string)
 	RemoveConnection(n int)
-	AddStreamConnectDuration(t float64)
+	AddStreamConnectDuration(t time.Duration)
 	AddDNSProcess(domain string)
 	AddLookupIP(t uint16)
 	AddLookupIPFailed(rcode string, t uint16)
@@ -79,46 +80,46 @@ type Metrics interface {
 	AddListenerTransportRequest()
 	AddHappyEyeballsv2DialRequest()
 	AddHappyEyeballsIPsAttempted(int)
-	AddDnsQueryDuration(string, float64)
+	AddDnsQueryDuration(string, time.Duration)
 	AddDnsQuery(string)
 	AddDnsQueryError(string)
 
 	AddFakeIPCacheHit()
 	AddFakeIPCacheMiss()
 
-	AddTrieMatchDuration(float64)
+	AddTrieMatchDuration(time.Duration)
 }
 
 type EmptyMetrics struct{}
 
-func (m *EmptyMetrics) AddReceiveUDPPacket()                {}
-func (m *EmptyMetrics) AddSendUDPPacket()                   {}
-func (m *EmptyMetrics) AddReceiveUDPDroppedPacket()         {}
-func (m *EmptyMetrics) AddSendUDPDroppedPacket()            {}
-func (m *EmptyMetrics) AddReceiveUDPPacketSize(int)         {}
-func (m *EmptyMetrics) AddSendUDPPacketSize(int)            {}
-func (m *EmptyMetrics) AddConnection(string)                {}
-func (m *EmptyMetrics) AddBlockConnection(string)           {}
-func (m *EmptyMetrics) RemoveConnection(int)                {}
-func (m *EmptyMetrics) AddStreamConnectDuration(float64)    {}
-func (m *EmptyMetrics) AddDNSProcess(string)                {}
-func (m *EmptyMetrics) AddLookupIPFailed(string, uint16)    {}
-func (m *EmptyMetrics) AddLookupIP(uint16)                  {}
-func (m *EmptyMetrics) AddTCPDialFailed(string)             {}
-func (m *EmptyMetrics) AddStreamRequest()                   {}
-func (m *EmptyMetrics) AddPacketRequest()                   {}
-func (m *EmptyMetrics) AddPingRequest()                     {}
-func (m *EmptyMetrics) AddListenerNetworkRequest()          {}
-func (m *EmptyMetrics) AddListenerTransportRequest()        {}
-func (m *EmptyMetrics) AddHappyEyeballsv2DialRequest()      {}
-func (m *EmptyMetrics) AddDnsQueryDuration(string, float64) {}
-func (m *EmptyMetrics) AddDnsQueryError(string)             {}
-func (m *EmptyMetrics) AddDnsQuery(string)                  {}
-func (m *EmptyMetrics) AddHappyEyeballsIPsAttempted(int)    {}
-func (m *EmptyMetrics) AddFakeIPCacheHit()                  {}
-func (m *EmptyMetrics) AddFakeIPCacheMiss()                 {}
-func (m *EmptyMetrics) AddTrieMatchDuration(float64)        {}
-func (m *EmptyMetrics) AddGeoCountry(string)                {}
+func (m *EmptyMetrics) AddReceiveUDPPacket()                      {}
+func (m *EmptyMetrics) AddSendUDPPacket()                         {}
+func (m *EmptyMetrics) AddReceiveUDPDroppedPacket()               {}
+func (m *EmptyMetrics) AddSendUDPDroppedPacket()                  {}
+func (m *EmptyMetrics) AddReceiveUDPPacketSize(int)               {}
+func (m *EmptyMetrics) AddSendUDPPacketSize(int)                  {}
+func (m *EmptyMetrics) AddConnection(string)                      {}
+func (m *EmptyMetrics) AddBlockConnection(string)                 {}
+func (m *EmptyMetrics) RemoveConnection(int)                      {}
+func (m *EmptyMetrics) AddStreamConnectDuration(time.Duration)    {}
+func (m *EmptyMetrics) AddDNSProcess(string)                      {}
+func (m *EmptyMetrics) AddLookupIPFailed(string, uint16)          {}
+func (m *EmptyMetrics) AddLookupIP(uint16)                        {}
+func (m *EmptyMetrics) AddTCPDialFailed(string)                   {}
+func (m *EmptyMetrics) AddStreamRequest()                         {}
+func (m *EmptyMetrics) AddPacketRequest()                         {}
+func (m *EmptyMetrics) AddPingRequest()                           {}
+func (m *EmptyMetrics) AddListenerNetworkRequest()                {}
+func (m *EmptyMetrics) AddListenerTransportRequest()              {}
+func (m *EmptyMetrics) AddHappyEyeballsv2DialRequest()            {}
+func (m *EmptyMetrics) AddDnsQueryDuration(string, time.Duration) {}
+func (m *EmptyMetrics) AddDnsQueryError(string)                   {}
+func (m *EmptyMetrics) AddDnsQuery(string)                        {}
+func (m *EmptyMetrics) AddHappyEyeballsIPsAttempted(int)          {}
+func (m *EmptyMetrics) AddFakeIPCacheHit()                        {}
+func (m *EmptyMetrics) AddFakeIPCacheMiss()                       {}
+func (m *EmptyMetrics) AddTrieMatchDuration(time.Duration)        {}
+func (m *EmptyMetrics) AddGeoCountry(string)                      {}
 
 type Prometheus struct {
 	TotalReceiveUDPPacket        prometheus.Counter
@@ -160,6 +161,11 @@ type Prometheus struct {
 }
 
 func NewPrometheus() *Prometheus {
+	return newPrometheus(prometheus.DefaultRegisterer)
+}
+
+func newPrometheus(registerer prometheus.Registerer) *Prometheus {
+	factory := promauto.With(registerer)
 	hostname, _ := os.Hostname()
 	labels := prometheus.Labels{
 		"hostname": hostname,
@@ -168,158 +174,158 @@ func NewPrometheus() *Prometheus {
 	}
 
 	p := &Prometheus{
-		TotalReceiveUDPPacket: promauto.NewCounter(prometheus.CounterOpts{
+		TotalReceiveUDPPacket: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_udp_receive_packets_total",
 			Help:        "The total number of udp receive packets",
 			ConstLabels: labels,
 		}),
-		TotalSendUDPPacket: promauto.NewCounter(prometheus.CounterOpts{
+		TotalSendUDPPacket: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_udp_send_packets_total",
 			Help:        "The total number of udp send packets",
 			ConstLabels: labels,
 		}),
-		TotalReceiveUDPDroppedPacket: promauto.NewCounter(prometheus.CounterOpts{
+		TotalReceiveUDPDroppedPacket: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_udp_receive_dropped_packets_total",
 			Help:        "The total number of udp receive dropped packets",
 			ConstLabels: labels,
 		}),
-		TotalSendUDPDroppedPacket: promauto.NewCounter(prometheus.CounterOpts{
+		TotalSendUDPDroppedPacket: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_udp_send_dropped_packets_total",
 			Help:        "The total number of udp send dropped packets",
 			ConstLabels: labels,
 		}),
-		UDPReceivePacketSize: promauto.NewHistogram(prometheus.HistogramOpts{
+		UDPReceivePacketSize: factory.NewHistogram(prometheus.HistogramOpts{
 			Name:        "yuhaiin_udp_receive_packet_size_bytes",
 			Help:        "The size of udp receive packet",
 			Buckets:     []float64{2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 1500, 2048, 4096, 8192, 16384, 32768, 65536},
 			ConstLabels: labels,
 		}),
-		UDPSendPacketSize: promauto.NewHistogram(prometheus.HistogramOpts{
+		UDPSendPacketSize: factory.NewHistogram(prometheus.HistogramOpts{
 			Name:        "yuhaiin_udp_send_packet_size_bytes",
 			Help:        "The size of udp send packet",
 			Buckets:     []float64{2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 1500, 2048, 4096, 8192, 16384, 32768, 65536},
 			ConstLabels: labels,
 		}),
-		TotalStreamRequest: promauto.NewCounter(prometheus.CounterOpts{
+		TotalStreamRequest: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_stream_request_total",
 			Help:        "The total number of stream request",
 			ConstLabels: labels,
 		}),
-		TotalPacketRequest: promauto.NewCounter(prometheus.CounterOpts{
+		TotalPacketRequest: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_packet_request_total",
 			Help:        "The total number of packet request",
 			ConstLabels: labels,
 		}),
-		TotalPingRequest: promauto.NewCounter(prometheus.CounterOpts{
+		TotalPingRequest: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_ping_request_total",
 			Help:        "The total number of ping request",
 			ConstLabels: labels,
 		}),
-		TotalListenerNetworkRequest: promauto.NewCounter(prometheus.CounterOpts{
+		TotalListenerNetworkRequest: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_listener_network_request_total",
 			Help:        "The total number of listener network request",
 			ConstLabels: labels,
 		}),
-		TotalListenerTransportRequest: promauto.NewCounter(prometheus.CounterOpts{
+		TotalListenerTransportRequest: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_listener_transport_request_total",
 			Help:        "The total number of listener transport request",
 			ConstLabels: labels,
 		}),
-		TotalHappyEyeballsv2DialRequest: promauto.NewCounter(prometheus.CounterOpts{
+		TotalHappyEyeballsv2DialRequest: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_happy_eyeballsv2_dial_request_total",
 			Help:        "The total number of happy eyeballv2 dial request",
 			ConstLabels: labels,
 		}),
-		HappyEyeballsv2IPsAttempted: promauto.NewHistogram(prometheus.HistogramOpts{
+		HappyEyeballsv2IPsAttempted: factory.NewHistogram(prometheus.HistogramOpts{
 			Name:        "yuhaiin_happy_eyeballsv2_ip_attempts",
 			Help:        "The number of happy eyeballv2 ip attempts for each dial request",
 			ConstLabels: labels,
 			Buckets:     []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 14, 18, 20},
 		}),
 
-		TotalConnection: promauto.NewCounter(prometheus.CounterOpts{
+		TotalConnection: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_connection_total",
 			Help:        "The total number of connections",
 			ConstLabels: labels,
 		}),
-		TotalGeoCountry: promauto.NewCounterVec(prometheus.CounterOpts{
+		TotalGeoCountry: factory.NewCounterVec(prometheus.CounterOpts{
 			Name:        "yuhaiin_request_geo_country_total",
 			Help:        "The total number of requests by country",
 			ConstLabels: labels,
 		}, []string{"country"}),
-		CurrentConnection: promauto.NewGauge(prometheus.GaugeOpts{
+		CurrentConnection: factory.NewGauge(prometheus.GaugeOpts{
 			Name:        "yuhaiin_connection_current",
 			Help:        "The current number of connections",
 			ConstLabels: labels,
 		}),
-		TotalBlockConnection: promauto.NewCounter(prometheus.CounterOpts{
+		TotalBlockConnection: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_block_connection_total",
 			Help:        "The total number of block connections",
 			ConstLabels: labels,
 		}),
-		StreamConnectDurationSeconds: promauto.NewHistogram(prometheus.HistogramOpts{
+		StreamConnectDurationSeconds: factory.NewHistogram(prometheus.HistogramOpts{
 			Name:        "yuhaiin_stream_connect_duration_seconds",
 			Help:        "The duration of tcp connect",
-			Buckets:     []float64{50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 2500, 3000, 5000, 10000},
+			Buckets:     []float64{0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.5, 2, 2.5, 3, 5, 10},
 			ConstLabels: labels,
 		}),
-		StreamConnectSummarySeconds: promauto.NewSummary(prometheus.SummaryOpts{
+		StreamConnectSummarySeconds: factory.NewSummary(prometheus.SummaryOpts{
 			Name:        "yuhaiin_stream_connect_summary_seconds",
 			Help:        "The summary of tcp connect",
 			ConstLabels: labels,
 		}),
-		DNSServerProcessTotal: promauto.NewCounter(prometheus.CounterOpts{
+		DNSServerProcessTotal: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_dns_server_process_total",
 			Help:        "The total number of dns process",
 			ConstLabels: labels,
 		}),
-		LookupIPFailedTotal: promauto.NewCounterVec(prometheus.CounterOpts{
+		LookupIPFailedTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Name:        "yuhaiin_dns_lookup_ip_failed_total",
 			Help:        "The total number of dns lookup ip failed",
 			ConstLabels: labels,
 		}, []string{"rcode", "type"}),
-		LookupIPTotal: promauto.NewCounterVec(prometheus.CounterOpts{
+		LookupIPTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Name:        "yuhaiin_dns_lookup_ip_total",
 			Help:        "The total number of dns lookup ip",
 			ConstLabels: labels,
 		}, []string{"type"}),
-		DNSQueryDurationSeconds: promauto.NewHistogramVec(prometheus.HistogramOpts{
+		DNSQueryDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "yuhaiin_dns_query_duration_seconds",
 			Help:        "The duration of dns query",
-			Buckets:     []float64{50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 2500, 3000, 5000, 10000},
+			Buckets:     []float64{0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.5, 2, 2.5, 3, 5, 10},
 			ConstLabels: labels,
 		}, []string{"name"}),
-		DNSQueryTotal: promauto.NewCounterVec(prometheus.CounterOpts{
+		DNSQueryTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Name:        "yuhaiin_dns_query_total",
 			Help:        "The total number of dns query",
 			ConstLabels: labels,
 		}, []string{"name"}),
-		DNSQueryErrorTotal: promauto.NewCounterVec(prometheus.CounterOpts{
+		DNSQueryErrorTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Name:        "yuhaiin_dns_query_error_total",
 			Help:        "The total number of dns query error",
 			ConstLabels: labels,
 		}, []string{"name"}),
-		TCPDialFailedTotal: promauto.NewCounter(prometheus.CounterOpts{
+		TCPDialFailedTotal: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_tcp_dial_failed_total",
 			Help:        "The total number of tcp dial failed",
 			ConstLabels: labels,
 		}),
 
-		FakeIPCacheHitTotal: promauto.NewCounter(prometheus.CounterOpts{
+		FakeIPCacheHitTotal: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_fake_ip_cache_hit_total",
 			Help:        "The total number of fake ip cache hit",
 			ConstLabels: labels,
 		}),
-		FakeIPCacheMissTotal: promauto.NewCounter(prometheus.CounterOpts{
+		FakeIPCacheMissTotal: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_fake_ip_cache_miss_total",
 			Help:        "The total number of fake ip cache miss",
 			ConstLabels: labels,
 		}),
 
-		TrieMatchDurationSeconds: promauto.NewHistogram(prometheus.HistogramOpts{
+		TrieMatchDurationSeconds: factory.NewHistogram(prometheus.HistogramOpts{
 			Name:        "yuhaiin_trie_match_duration_seconds",
 			Help:        "The duration of trie match",
-			Buckets:     []float64{5, 10, 20, 30, 40, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 1000},
+			Buckets:     []float64{0.000005, 0.00001, 0.00002, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.1, 1},
 			ConstLabels: labels,
 		}),
 	}
@@ -340,9 +346,9 @@ func (p *Prometheus) RemoveConnection(n int) {
 	p.CurrentConnection.Sub(float64(n))
 }
 
-func (p *Prometheus) AddStreamConnectDuration(t float64) {
-	p.StreamConnectDurationSeconds.Observe(t)
-	p.StreamConnectSummarySeconds.Observe(t)
+func (p *Prometheus) AddStreamConnectDuration(t time.Duration) {
+	p.StreamConnectDurationSeconds.Observe(t.Seconds())
+	p.StreamConnectSummarySeconds.Observe(t.Seconds())
 }
 
 func (p *Prometheus) AddDNSProcess(domain string) {
@@ -409,8 +415,8 @@ func (p *Prometheus) AddHappyEyeballsv2DialRequest() {
 	p.TotalHappyEyeballsv2DialRequest.Inc()
 }
 
-func (p *Prometheus) AddDnsQueryDuration(name string, t float64) {
-	p.DNSQueryDurationSeconds.WithLabelValues(name).Observe(t)
+func (p *Prometheus) AddDnsQueryDuration(name string, t time.Duration) {
+	p.DNSQueryDurationSeconds.WithLabelValues(name).Observe(t.Seconds())
 }
 
 func (p *Prometheus) AddDnsQuery(name string) {
@@ -433,8 +439,8 @@ func (p *Prometheus) AddFakeIPCacheMiss() {
 	p.FakeIPCacheMissTotal.Inc()
 }
 
-func (p *Prometheus) AddTrieMatchDuration(t float64) {
-	p.TrieMatchDurationSeconds.Observe(t)
+func (p *Prometheus) AddTrieMatchDuration(t time.Duration) {
+	p.TrieMatchDurationSeconds.Observe(t.Seconds())
 }
 
 func (p *Prometheus) AddGeoCountry(country string) {
