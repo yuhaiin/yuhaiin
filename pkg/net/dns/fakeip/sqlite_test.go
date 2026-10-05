@@ -135,6 +135,41 @@ func TestSQLiteFakeIPPoolLazyTouch(t *testing.T) {
 	}
 }
 
+func TestSQLiteFakeIPPoolTouchRetryPreservesPendingUpdates(t *testing.T) {
+	pool, db := newTestSQLiteFakeIPPool(t, netip.MustParsePrefix("10.0.0.0/24"), 100)
+
+	ip := pool.GetFakeIPForDomain("retry.example")
+	first := sqliteFakeIPLastUsed(t, db, "retry.example")
+	stale := first - sqliteFakeIPTouchInterval.Nanoseconds() - 1
+	if _, err := db.ExecContext(context.Background(), `
+		UPDATE fakeip_entries SET last_used_at = ? WHERE domain = 'retry.example'
+	`, stale); err != nil {
+		t.Fatal(err)
+	}
+	if got := pool.GetFakeIPForDomain("retry.example"); got != ip {
+		t.Fatalf("expected cached %s, got %s", ip, got)
+	}
+
+	if _, err := db.ExecContext(context.Background(), `
+		CREATE TRIGGER fail_fakeip_touch BEFORE UPDATE OF last_used_at ON fakeip_entries
+		BEGIN SELECT RAISE(ABORT, 'touch failure'); END
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.flushTouches(context.Background()); err == nil {
+		t.Fatal("failed fakeip touch flush accepted")
+	}
+	if _, err := db.ExecContext(context.Background(), `DROP TRIGGER fail_fakeip_touch`); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.flushTouches(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := sqliteFakeIPLastUsed(t, db, "retry.example"); got <= stale {
+		t.Fatalf("retried touch was lost: got %d, stale %d", got, stale)
+	}
+}
+
 func TestSQLiteFakeIPPoolPersistence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.db")
 	store, err := storagesqlite.Open(context.Background(), path)
