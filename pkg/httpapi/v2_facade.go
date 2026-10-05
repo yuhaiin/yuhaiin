@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	contracttools "github.com/Asutorufa/yuhaiin/pkg/contract/tools"
@@ -15,13 +16,13 @@ func toolsLogsV2(services V2Services) func(http.ResponseWriter, *http.Request) e
 		if services.Tools == nil {
 			return writeError(w, http.StatusServiceUnavailable, "unavailable", "tools controller is unavailable")
 		}
-		flusher, ok := w.(http.Flusher)
+		_, ok := w.(http.Flusher)
 		if !ok {
 			return writeError(w, http.StatusInternalServerError, "stream_unsupported", "http streaming is not supported")
 		}
 		writeSSEHeaders(w)
 		return services.Tools.TailLogs(r.Context(), func(batch contracttools.LogBatch) error {
-			return writeSSEJSON(w, flusher, "log", batch)
+			return writeSSEJSON(w, "log", batch)
 		})
 	}
 }
@@ -31,13 +32,13 @@ func connectionsEventsV2(services V2Services) func(http.ResponseWriter, *http.Re
 		if services.Connections == nil {
 			return writeError(w, http.StatusServiceUnavailable, "unavailable", "connections controller is unavailable")
 		}
-		flusher, ok := w.(http.Flusher)
+		_, ok := w.(http.Flusher)
 		if !ok {
 			return writeError(w, http.StatusInternalServerError, "stream_unsupported", "http streaming is not supported")
 		}
 		writeSSEHeaders(w)
 		return services.Connections.Events(r.Context(), func(event contractconnection.Event) error {
-			return writeSSEJSON(w, flusher, event.Type, event.Payload)
+			return writeSSEJSON(w, event.Type, event.Payload)
 		})
 	}
 }
@@ -48,7 +49,11 @@ func writeSSEHeaders(w http.ResponseWriter) {
 	w.Header().Set("Connection", "keep-alive")
 }
 
-func writeSSEJSON(w http.ResponseWriter, flusher http.Flusher, event string, payload any) error {
+func writeSSEJSON(w http.ResponseWriter, event string, payload any) error {
+	// Bound each write, including Flush, without expiring an idle SSE stream.
+	controller := http.NewResponseController(w)
+	_ = controller.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	defer func() { _ = controller.SetWriteDeadline(time.Time{}) }()
 	if _, err := fmt.Fprintf(w, "event: %s\n", event); err != nil {
 		return err
 	}
@@ -64,8 +69,7 @@ func writeSSEJSON(w http.ResponseWriter, flusher http.Flusher, event string, pay
 	if _, err := w.Write([]byte("\n\n")); err != nil {
 		return err
 	}
-	flusher.Flush()
-	return nil
+	return controller.Flush()
 }
 
 func parseUint64IDs(ids []string) ([]uint64, error) {

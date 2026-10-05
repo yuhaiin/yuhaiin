@@ -20,6 +20,7 @@ import (
 type notifierEntry struct {
 	s      control.ServerStream[contractconnection.Event]
 	cancel context.CancelCauseFunc
+	events chan contractconnection.Event
 }
 
 func (n *notifierEntry) Send(data contractconnection.Event) error {
@@ -37,16 +38,19 @@ func (n *notifierEntry) Context() context.Context {
 
 type notify struct {
 	notifyTrigger chan struct{}
+	done          chan struct{}
 	notifyStore   *notifyStore
 	notifier      syncmap.SyncMap[uint64, *notifierEntry]
 
 	notifierIDSeed id.IDGenerator
 	closed         atomic.Bool
+	subscribers    atomic.Int64
 }
 
 func newNotify() *notify {
 	n := &notify{
 		notifyTrigger: make(chan struct{}, 1),
+		done:          make(chan struct{}),
 		notifyStore:   newNotifyStore(),
 	}
 
@@ -55,65 +59,86 @@ func newNotify() *notify {
 	return n
 }
 
-func (n *notify) register(s control.ServerStream[contractconnection.Event], conns []contractconnection.Connection) (uint64, context.Context) {
+func (n *notify) register(s control.ServerStream[contractconnection.Event]) (uint64, context.Context) {
 	id := n.notifierIDSeed.Generate()
 	ctx, cancel := context.WithCancelCause(context.Background())
+	if n.closed.Load() {
+		cancel(context.Canceled)
+		return id, ctx
+	}
 
 	ne := &notifierEntry{
 		s:      s,
 		cancel: cancel,
+		events: make(chan contractconnection.Event, 16),
 	}
-
-	err := ne.Send(contractconnection.Event{
-		Type:    "connections_added",
-		Payload: contractconnection.Connections{Connections: conns},
-	})
-	if err == nil {
-		n.notifier.Store(id, ne)
+	n.subscribers.Add(1)
+	n.notifier.Store(id, ne)
+	// Close may race with registration after its Range has already passed.
+	// Re-check after publishing so either side is guaranteed to cancel us.
+	if n.closed.Load() {
+		n.unregister(id)
+		cancel(context.Canceled)
 	}
 
 	return id, ctx
 }
 
-func (n *notify) unregister(id uint64) { n.notifier.Delete(id) }
+func (n *notify) unregister(id uint64) {
+	if _, ok := n.notifier.LoadAndDelete(id); ok {
+		n.subscribers.Add(-1)
+	}
+}
 
 func (n *notify) send() {
 	datas := n.notifyStore.dump()
 
 	for notifier := range n.notifier.RangeValues {
-	_loopNotifyDatas:
 		for _, data := range datas {
 			select {
 			case <-notifier.Context().Done():
-				continue
+				notifier.cancel(context.Canceled)
+			case notifier.events <- data:
 			default:
-			}
-
-			err := notifier.Send(data)
-			if err != nil {
-				break _loopNotifyDatas
+				// A slow subscriber must reconnect for a fresh snapshot, rather
+				// than stall delivery and shutdown for every other subscriber.
+				notifier.cancel(fmt.Errorf("connection event subscriber is too slow"))
 			}
 		}
 	}
 }
 
 func (n *notify) start() {
-	ticker := time.NewTicker(time.Second * 2)
-	defer ticker.Stop()
+	defer close(n.done)
+	const debounce = 250 * time.Millisecond
 
+	var timer *time.Timer
+	var timerC <-chan time.Time
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
 	for {
 		select {
 		case <-n.notifyTrigger:
 			if n.closed.Load() {
 				return
 			}
-			n.send()
-
-		case <-ticker.C:
+			if timerC == nil {
+				if timer == nil {
+					timer = time.NewTimer(debounce)
+				} else {
+					timer.Reset(debounce)
+				}
+				timerC = timer.C
+			}
+		case <-timerC:
 			if n.closed.Load() {
 				return
 			}
 			n.send()
+			timerC = nil
 		}
 	}
 }
@@ -126,34 +151,37 @@ func (n *notify) trigger() {
 }
 
 func (n *notify) pubNewConn(conn contractconnection.Connection) {
-	if n.closed.Load() {
+	if n.closed.Load() || n.subscribers.Load() == 0 {
 		return
 	}
 
-	if n.notifyStore.push(conn) > 13 {
-		n.trigger()
-	}
+	n.notifyStore.push(conn)
+	n.trigger()
 }
 
 func (n *notify) pubRemoveConn(id uint64) {
-	if n.closed.Load() {
+	if n.closed.Load() || n.subscribers.Load() == 0 {
 		return
 	}
 
-	if n.notifyStore.remove(id) > 13 {
-		n.trigger()
-	}
+	n.notifyStore.remove(id)
+	n.trigger()
 }
 
 func (n *notify) Close() error {
-	n.closed.Store(true)
+	if n.closed.CompareAndSwap(false, true) {
+		n.trigger()
+	}
+	for entry := range n.notifier.RangeValues {
+		entry.cancel(context.Canceled)
+	}
+	<-n.done
 	return nil
 }
 
 type notifyStore struct {
 	removeStore *set.Set[uint64]
 	store       map[uint64]contractconnection.Connection
-	length      uint64
 	mu          sync.RWMutex
 }
 
@@ -164,33 +192,20 @@ func newNotifyStore() *notifyStore {
 	}
 }
 
-func (n *notifyStore) push(o contractconnection.Connection) int {
+func (n *notifyStore) push(o contractconnection.Connection) {
 	n.mu.Lock()
 	id, _ := strconv.ParseUint(o.ID, 10, 64)
 	n.store[id] = o
-	n.length++
-	len := n.length
 	n.mu.Unlock()
-
-	return int(len)
 }
 
-func (n *notifyStore) remove(id uint64) int {
+func (n *notifyStore) remove(id uint64) {
 	n.mu.Lock()
-
-	_, ok := n.store[id]
-	if ok {
-		delete(n.store, id)
-		n.length--
-	} else {
-		n.length++
-		n.removeStore.Push(id)
-	}
-	len := n.length
-
+	delete(n.store, id)
+	// An initial subscriber snapshot may already contain a pending addition.
+	// Always publish removal, even if the addition has not been broadcast yet.
+	n.removeStore.Push(id)
 	n.mu.Unlock()
-
-	return int(len)
 }
 
 func (n *notifyStore) dump() (datas []contractconnection.Event) {
@@ -201,7 +216,6 @@ func (n *notifyStore) dump() (datas []contractconnection.Event) {
 	n.removeStore.Clear()
 	newConns := slices.Collect(maps.Values(n.store))
 	clear(n.store)
-	n.length = 0
 
 	if len(removeIDs) > 0 {
 		ids := make([]string, 0, len(removeIDs))

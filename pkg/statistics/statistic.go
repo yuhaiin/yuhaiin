@@ -111,16 +111,34 @@ func (c *Connections) allInfos() []contractconnection.Connection {
 }
 
 func (c *Connections) Notify(s control.ServerStream[contractconnection.Event]) error {
-	id, done := c.notify.register(s, c.allInfos())
+	// Subscribe before taking the snapshot so connection events during the
+	// query are queued, including when this is the first subscriber.
+	id, done := c.notify.register(s)
 	defer c.notify.unregister(id)
 	log.Debug("new notify client", "id", id)
 	defer log.Debug("remove notify client", "id", id)
 
-	select {
-	case <-s.Context().Done():
-		return s.Context().Err()
-	case <-done.Done():
+	entry, ok := c.notify.notifier.Load(id)
+	if !ok {
 		return done.Err()
+	}
+	if err := entry.Send(contractconnection.Event{
+		Type:    "connections_added",
+		Payload: contractconnection.Connections{Connections: c.allInfos()},
+	}); err != nil {
+		return err
+	}
+	for {
+		select {
+		case <-s.Context().Done():
+			return s.Context().Err()
+		case <-done.Done():
+			return done.Err()
+		case event := <-entry.events:
+			if err := entry.Send(event); err != nil {
+				return err
+			}
+		}
 	}
 }
 
@@ -487,6 +505,7 @@ func (c *Counter) AddDownload(n uint64) {
 	c.download.Add(n)
 	if c.telemetry != nil {
 		c.telemetry.download.Add(n)
+		c.telemetry.markDirty()
 	}
 }
 
@@ -495,6 +514,7 @@ func (c *Counter) AddUpload(n uint64) {
 	c.upload.Add(n)
 	if c.telemetry != nil {
 		c.telemetry.upload.Add(n)
+		c.telemetry.markDirty()
 	}
 }
 func (c *Counter) LoadDownload() uint64 { return c.download.Load() }

@@ -24,6 +24,15 @@ func (m ConnectionMonitor) Total(ctx context.Context) (contractconnection.TotalF
 	return m.connections.Total(ctx)
 }
 
+// FlowTotals reads only the two totals used by the Android speed notification.
+// It avoids allocating and copying a counter entry for every active flow.
+func (m ConnectionMonitor) FlowTotals() (download, upload uint64) {
+	if m.connections == nil || m.connections.Cache == nil {
+		return 0, 0
+	}
+	return m.connections.Cache.LoadDownload(), m.connections.Cache.LoadUpload()
+}
+
 func (m ConnectionMonitor) Traffic(ctx context.Context, interval string, from, to time.Time) (contractconnection.TrafficSeries, error) {
 	if m.connections == nil {
 		return contractconnection.TrafficSeries{}, errors.New("connections controller is unavailable")

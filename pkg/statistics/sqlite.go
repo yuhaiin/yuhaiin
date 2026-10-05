@@ -427,6 +427,10 @@ func (c *Connections) Telemetry(ctx context.Context, from, to time.Time, limit i
 	if limit <= 0 {
 		limit = 8
 	}
+	// Explicit queries include newly queued failures and traffic.
+	if c.telemetry != nil {
+		c.telemetry.flush()
+	}
 
 	dimensions := []string{"protocol", "inbound", "source", "addr", "outbound", "process", "rule", "tag", "destination"}
 	groups := make([]contractconnection.TelemetryGroup, 0, len(dimensions))

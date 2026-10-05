@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 )
@@ -197,10 +198,11 @@ func TestTelemetryFailureDoesNotCacheRolledBackValueIDs(t *testing.T) {
 	c := NewSQLiteConnStore(filepath.Join(t.TempDir(), "failure.db"), nil)
 	defer c.Close()
 	dimension := telemetryDimension{kind: "protocol", value: "new-protocol"}
+	counts := map[failureBucket]uint64{{dimension: dimension, hour: time.Now().UTC().Truncate(time.Hour).Unix()}: 1}
 	if _, err := c.sqliteDB.Exec(`CREATE TRIGGER fail_dimension BEFORE INSERT ON failure_dimension_hourly BEGIN SELECT RAISE(ABORT, 'test failure'); END`); err != nil {
 		t.Fatal(err)
 	}
-	if err := persistFailureDimensions(context.Background(), c.sqliteDB, c.telemetry.valueIDs, []telemetryDimension{dimension}); err == nil {
+	if err := persistFailureCounts(context.Background(), c.sqliteDB, c.telemetry.valueIDs, counts); err == nil {
 		t.Fatal("failure accepted")
 	}
 	if _, cached := c.telemetry.valueIDs.Load(dimension); cached {
@@ -212,7 +214,7 @@ func TestTelemetryFailureDoesNotCacheRolledBackValueIDs(t *testing.T) {
 	if _, err := c.sqliteDB.Exec(`INSERT INTO telemetry_dimension_values(dimension,value) VALUES ('protocol','other')`); err != nil {
 		t.Fatal(err)
 	}
-	if err := persistFailureDimensions(context.Background(), c.sqliteDB, c.telemetry.valueIDs, []telemetryDimension{dimension}); err != nil {
+	if err := persistFailureCounts(context.Background(), c.sqliteDB, c.telemetry.valueIDs, counts); err != nil {
 		t.Fatal(err)
 	}
 	var failures int

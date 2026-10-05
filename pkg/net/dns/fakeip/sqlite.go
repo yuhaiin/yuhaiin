@@ -14,7 +14,7 @@ import (
 
 const (
 	sqliteFakeIPTouchInterval      = 5 * time.Minute
-	sqliteFakeIPTouchFlushInterval = time.Second
+	sqliteFakeIPTouchFlushInterval = 5 * time.Second
 )
 
 type SQLiteFakeIPPool struct {
@@ -32,6 +32,7 @@ type SQLiteFakeIPPool struct {
 	touchMu          sync.Mutex
 	touchDomains     map[string]int64
 	touchIPs         map[netip.Addr]int64
+	touchTrigger     chan struct{}
 	touchStop        chan struct{}
 	touchDone        chan struct{}
 	closeOnce        sync.Once
@@ -123,24 +124,48 @@ func (p *SQLiteFakeIPPool) prepare(ctx context.Context) error {
 func (p *SQLiteFakeIPPool) startTouchWorker() {
 	p.touchDomains = map[string]int64{}
 	p.touchIPs = map[netip.Addr]int64{}
+	p.touchTrigger = make(chan struct{}, 1)
 	p.touchStop = make(chan struct{})
 	p.touchDone = make(chan struct{})
 	go p.runTouchWorker()
 }
 
 func (p *SQLiteFakeIPPool) runTouchWorker() {
-	ticker := time.NewTicker(sqliteFakeIPTouchFlushInterval)
-	defer ticker.Stop()
 	defer close(p.touchDone)
 
+	var timer *time.Timer
+	var timerC <-chan time.Time
 	for {
 		select {
-		case <-ticker.C:
-			_ = p.flushTouches(context.Background())
+		case <-p.touchTrigger:
+			if timerC == nil {
+				if timer == nil {
+					timer = time.NewTimer(sqliteFakeIPTouchFlushInterval)
+				} else {
+					timer.Reset(sqliteFakeIPTouchFlushInterval)
+				}
+				timerC = timer.C
+			}
+		case <-timerC:
+			if err := p.flushTouches(context.Background()); err != nil {
+				timer.Reset(sqliteFakeIPTouchFlushInterval)
+				timerC = timer.C
+			} else {
+				timerC = nil
+			}
 		case <-p.touchStop:
-			_ = p.flushTouches(context.Background())
+			if timer != nil {
+				timer.Stop()
+			}
 			return
 		}
+	}
+}
+
+func (p *SQLiteFakeIPPool) scheduleTouchFlush() {
+	select {
+	case p.touchTrigger <- struct{}{}:
+	default:
 	}
 }
 
@@ -160,6 +185,9 @@ func (p *SQLiteFakeIPPool) Close() error {
 		if p.touchStop != nil {
 			close(p.touchStop)
 			<-p.touchDone
+		}
+		if e := p.flushTouches(context.Background()); e != nil && err == nil {
+			err = e
 		}
 		if p.lookupDomainStmt != nil {
 			if e := p.lookupDomainStmt.Close(); e != nil && err == nil {
@@ -257,8 +285,12 @@ func (p *SQLiteFakeIPPool) touchDomain(domain string, now time.Time, lastUsedAt 
 	}
 
 	p.touchMu.Lock()
+	wasEmpty := len(p.touchDomains) == 0 && len(p.touchIPs) == 0
 	p.touchDomains[domain] = now.UnixNano()
 	p.touchMu.Unlock()
+	if wasEmpty {
+		p.scheduleTouchFlush()
+	}
 }
 
 func (p *SQLiteFakeIPPool) touchIP(ip netip.Addr, now time.Time, lastUsedAt int64) {
@@ -267,11 +299,15 @@ func (p *SQLiteFakeIPPool) touchIP(ip netip.Addr, now time.Time, lastUsedAt int6
 	}
 
 	p.touchMu.Lock()
+	wasEmpty := len(p.touchDomains) == 0 && len(p.touchIPs) == 0
 	p.touchIPs[ip] = now.UnixNano()
 	p.touchMu.Unlock()
+	if wasEmpty {
+		p.scheduleTouchFlush()
+	}
 }
 
-func (p *SQLiteFakeIPPool) flushTouches(ctx context.Context) error {
+func (p *SQLiteFakeIPPool) flushTouches(ctx context.Context) (err error) {
 	p.touchMu.Lock()
 	if len(p.touchDomains) == 0 && len(p.touchIPs) == 0 {
 		p.touchMu.Unlock()
@@ -283,6 +319,12 @@ func (p *SQLiteFakeIPPool) flushTouches(ctx context.Context) error {
 	p.touchDomains = map[string]int64{}
 	p.touchIPs = map[netip.Addr]int64{}
 	p.touchMu.Unlock()
+
+	defer func() {
+		if err != nil {
+			p.requeueTouches(domains, ips)
+		}
+	}()
 
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -311,6 +353,21 @@ func (p *SQLiteFakeIPPool) flushTouches(ctx context.Context) error {
 	}
 
 	return tx.Commit()
+}
+
+func (p *SQLiteFakeIPPool) requeueTouches(domains map[string]int64, ips map[netip.Addr]int64) {
+	p.touchMu.Lock()
+	for domain, lastUsedAt := range domains {
+		if current := p.touchDomains[domain]; current < lastUsedAt {
+			p.touchDomains[domain] = lastUsedAt
+		}
+	}
+	for ip, lastUsedAt := range ips {
+		if current := p.touchIPs[ip]; current < lastUsedAt {
+			p.touchIPs[ip] = lastUsedAt
+		}
+	}
+	p.touchMu.Unlock()
 }
 
 func (p *SQLiteFakeIPPool) deleteDomain(ctx context.Context, domain string) error {

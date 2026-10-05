@@ -1,8 +1,10 @@
 package gvisor
 
 import (
+	"runtime"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -68,22 +70,38 @@ const (
 	tcpKeepaliveInterval = 30 * time.Second
 )
 
+func tcpKeepaliveProfile() (enabled bool, idle, interval time.Duration) {
+	if runtime.GOOS != "android" {
+		return true, tcpKeepaliveIdle, tcpKeepaliveInterval
+	}
+	switch configuration.BatteryProfile.Load() {
+	case "battery_saver":
+		return false, 0, 0
+	case "balanced":
+		return true, 5 * time.Minute, time.Minute
+	default:
+		return true, tcpKeepaliveIdle, tcpKeepaliveInterval
+	}
+}
+
 func setSocketOptions(s *stack.Stack, ep tcpip.Endpoint) tcpip.Error {
 	{ /* TCP keepalive options */
-		ep.SocketOptions().SetKeepAlive(true)
+		enabled, idleDuration, intervalDuration := tcpKeepaliveProfile()
+		ep.SocketOptions().SetKeepAlive(enabled)
+		if enabled {
+			idle := tcpip.KeepaliveIdleOption(idleDuration)
+			if err := ep.SetSockOpt(&idle); err != nil {
+				return err
+			}
 
-		idle := tcpip.KeepaliveIdleOption(tcpKeepaliveIdle)
-		if err := ep.SetSockOpt(&idle); err != nil {
-			return err
-		}
+			interval := tcpip.KeepaliveIntervalOption(intervalDuration)
+			if err := ep.SetSockOpt(&interval); err != nil {
+				return err
+			}
 
-		interval := tcpip.KeepaliveIntervalOption(tcpKeepaliveInterval)
-		if err := ep.SetSockOpt(&interval); err != nil {
-			return err
-		}
-
-		if err := ep.SetSockOptInt(tcpip.KeepaliveCountOption, tcpKeepaliveCount); err != nil {
-			return err
+			if err := ep.SetSockOptInt(tcpip.KeepaliveCountOption, tcpKeepaliveCount); err != nil {
+				return err
+			}
 		}
 	}
 	{ /* TCP recv/send buffer size */

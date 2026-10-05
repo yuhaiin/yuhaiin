@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	legacymigrate "github.com/Asutorufa/yuhaiin/pkg/legacy/migrate"
@@ -132,6 +133,60 @@ func TestSQLiteFakeIPPoolLazyTouch(t *testing.T) {
 	}
 	if got := sqliteFakeIPLastUsed(t, db, "a.com"); got <= stale {
 		t.Fatalf("stale domain hit did not update last_used_at: got %d, stale %d", got, stale)
+	}
+}
+
+func TestSQLiteFakeIPPoolTouchRetryPreservesPendingUpdates(t *testing.T) {
+	pool, db := newTestSQLiteFakeIPPool(t, netip.MustParsePrefix("10.0.0.0/24"), 100)
+
+	ip := pool.GetFakeIPForDomain("retry.example")
+	first := sqliteFakeIPLastUsed(t, db, "retry.example")
+	stale := first - sqliteFakeIPTouchInterval.Nanoseconds() - 1
+	if _, err := db.ExecContext(context.Background(), `
+		UPDATE fakeip_entries SET last_used_at = ? WHERE domain = 'retry.example'
+	`, stale); err != nil {
+		t.Fatal(err)
+	}
+	if got := pool.GetFakeIPForDomain("retry.example"); got != ip {
+		t.Fatalf("expected cached %s, got %s", ip, got)
+	}
+
+	if _, err := db.ExecContext(context.Background(), `
+		CREATE TRIGGER fail_fakeip_touch BEFORE UPDATE OF last_used_at ON fakeip_entries
+		BEGIN SELECT RAISE(ABORT, 'touch failure'); END
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.flushTouches(context.Background()); err == nil {
+		t.Fatal("failed fakeip touch flush accepted")
+	}
+	if _, err := db.ExecContext(context.Background(), `DROP TRIGGER fail_fakeip_touch`); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.flushTouches(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := sqliteFakeIPLastUsed(t, db, "retry.example"); got <= stale {
+		t.Fatalf("retried touch was lost: got %d, stale %d", got, stale)
+	}
+}
+
+func TestSQLiteFakeIPTouchBurstSignalsOnce(t *testing.T) {
+	p := &SQLiteFakeIPPool{touchDomains: make(map[string]int64), touchIPs: make(map[netip.Addr]int64), touchTrigger: make(chan struct{}, 1)}
+	now := time.Now()
+	stale := now.Add(-sqliteFakeIPTouchInterval - time.Second).UnixNano()
+	p.touchDomain("first.example", now, stale)
+	select {
+	case <-p.touchTrigger:
+	default:
+		t.Fatal("first touch did not schedule a flush")
+	}
+	for range 100 {
+		p.touchDomain("second.example", now, stale)
+		p.touchIP(netip.MustParseAddr("10.0.0.1"), now, stale)
+	}
+	if len(p.touchTrigger) != 0 {
+		t.Fatal("pending touch batch woke its worker again")
 	}
 }
 
