@@ -82,6 +82,7 @@ type connectionPersistence struct {
 	history *SQLiteHistory
 
 	mu       sync.Mutex
+	flushMu  sync.Mutex
 	upserts  map[uint64]contractconnection.Connection
 	deletes  map[uint64]struct{}
 	historyQ []contractconnection.Connection
@@ -208,6 +209,9 @@ func (p *connectionPersistence) run() {
 }
 
 func (p *connectionPersistence) flush() error {
+	p.flushMu.Lock()
+	defer p.flushMu.Unlock()
+
 	p.mu.Lock()
 	if len(p.upserts) == 0 && len(p.deletes) == 0 && len(p.historyQ) == 0 {
 		p.mu.Unlock()
