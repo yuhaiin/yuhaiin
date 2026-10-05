@@ -3,7 +3,6 @@ package statistics
 import (
 	"context"
 	"database/sql"
-	"strconv"
 	"sync"
 	"time"
 
@@ -122,9 +121,8 @@ func (p *connectionPersistence) Store(id uint64, info contractconnection.Connect
 	delete(p.deletes, id)
 	p.overlay[id] = info
 	p.historyQ = append(p.historyQ, info)
-	flushNow := len(p.historyQ) >= connectionPersistenceBatch
 	p.mu.Unlock()
-	p.signal(flushNow)
+	p.signal()
 }
 
 func (p *connectionPersistence) Delete(id uint64) {
@@ -139,34 +137,26 @@ func (p *connectionPersistence) Delete(id uint64) {
 	}
 	delete(p.overlay, id)
 	p.mu.Unlock()
-	p.signal(false)
+	p.signal()
 }
 
-func (p *connectionPersistence) Overlay(infos []contractconnection.Connection) {
+func (p *connectionPersistence) Overlay(ids []uint64, infos []contractconnection.Connection) {
 	if p == nil || len(infos) == 0 {
 		return
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	for i := range infos {
-		id, err := strconv.ParseUint(infos[i].ID, 10, 64)
-		if err != nil {
-			continue
-		}
+	for i, id := range ids {
 		if info, ok := p.overlay[id]; ok {
 			infos[i] = info
 		}
 	}
 }
 
-func (p *connectionPersistence) signal(immediate bool) {
+func (p *connectionPersistence) signal() {
 	select {
 	case p.trigger <- struct{}{}:
 	default:
-	}
-	if immediate {
-		// The worker drains the same coalesced trigger; no second channel or
-		// per-connection timer is needed.
 	}
 }
 
