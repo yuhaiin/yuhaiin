@@ -165,6 +165,7 @@ func (p *connectionPersistence) run() {
 	defer close(p.done)
 	var timer *time.Timer
 	var timerC <-chan time.Time
+	var retrying bool
 	stopTimer := func() {
 		if timer != nil {
 			timer.Stop()
@@ -179,6 +180,9 @@ func (p *connectionPersistence) run() {
 		case <-p.stop:
 			return
 		case <-p.trigger:
+			if retrying {
+				continue
+			}
 			p.mu.Lock()
 			flushNow := len(p.historyQ) >= connectionPersistenceBatch
 			p.mu.Unlock()
@@ -186,6 +190,7 @@ func (p *connectionPersistence) run() {
 				stopTimer()
 				if err := p.flush(); err != nil {
 					log.Warn("batch persist connections failed", "err", err)
+					retrying = true
 					timer = time.NewTimer(connectionPersistenceRetryDelay)
 					timerC = timer.C
 				}
@@ -198,10 +203,12 @@ func (p *connectionPersistence) run() {
 		case <-timerC:
 			if err := p.flush(); err != nil {
 				log.Warn("batch persist connections failed", "err", err)
+				retrying = true
 				timer.Reset(connectionPersistenceRetryDelay)
 				timerC = timer.C
 				continue
 			}
+			retrying = false
 			timer = nil
 			timerC = nil
 		}
