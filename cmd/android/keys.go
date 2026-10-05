@@ -124,7 +124,7 @@ var (
 		AdvTunDriverKey:         TunDriversValue[2],
 		AdvAppListKey:           string(disAllowAppList),
 		AdvBatteryProfileKey:    BatteryProfileBalanced,
-		AdvProcessLookupModeKey: ProcessLookupAlwaysValue,
+		AdvProcessLookupModeKey: ProcessLookupRulesOnlyValue,
 		AdvUDPIdleProfileKey:    BatteryProfileBalanced,
 		AdvVPNMTUProfileKey:     VPNMTUAutoValue,
 	}
