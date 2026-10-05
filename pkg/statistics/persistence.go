@@ -270,7 +270,7 @@ func (p *connectionPersistence) flush() error {
 
 	p.mu.Lock()
 	for id := range upserts {
-		if current, ok := p.overlay[id]; ok && current.ID == upserts[id].ID {
+		if _, newer := p.upserts[id]; !newer {
 			delete(p.overlay, id)
 		}
 	}
