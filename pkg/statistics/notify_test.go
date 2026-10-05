@@ -99,6 +99,47 @@ func TestNotifyRemovalDuringInitialSnapshotIsDelivered(t *testing.T) {
 	<-done
 }
 
+func TestNotifyBatchWindowIncludesEventsAfterTimerArm(t *testing.T) {
+	n := newNotify()
+	defer n.Close()
+
+	s := contractNotifyStream{ctx: context.Background(), send: func(contractconnection.Event) error { return nil }}
+	id, done := n.register(s)
+	defer n.unregister(id)
+	entry, ok := n.notifier.Load(id)
+	if !ok {
+		t.Fatal("subscriber was not registered")
+	}
+
+	n.pubNewConn(performanceInfo(1))
+	deadline := time.Now().Add(time.Second)
+	for len(n.notifyTrigger) != 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if len(n.notifyTrigger) != 0 {
+		t.Fatal("notify worker did not arm batch timer")
+	}
+
+	n.pubNewConn(performanceInfo(2))
+	select {
+	case <-done.Done():
+		t.Fatalf("subscriber canceled before batch delivery: %v", done.Err())
+	case event := <-entry.events:
+		if event.Type != "connections_added" {
+			t.Fatalf("event type = %q, want connections_added", event.Type)
+		}
+		payload, ok := event.Payload.(contractconnection.Connections)
+		if !ok {
+			t.Fatalf("unexpected payload type %T", event.Payload)
+		}
+		if len(payload.Connections) != 2 {
+			t.Fatalf("batch connections = %d, want 2", len(payload.Connections))
+		}
+	case <-time.After(time.Second):
+		t.Fatal("batch window did not flush the latest event")
+	}
+}
+
 func TestNotifySlowSubscriberDoesNotBlockOthers(t *testing.T) {
 	n := newNotify()
 	defer n.Close()
