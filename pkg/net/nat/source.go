@@ -618,7 +618,6 @@ func (w *wrapConn) refreshReadDeadline(timeout time.Duration) {
 		return
 	}
 
-	now := time.Now()
 	nowTick := time.Since(udpDeadlineClockStart).Nanoseconds()
 	next := w.nextReadDeadlineRefresh.Load()
 	if next > nowTick {
@@ -636,7 +635,7 @@ func (w *wrapConn) refreshReadDeadline(timeout time.Duration) {
 		return
 	}
 
-	deadline := now.Add(timeout + refreshInterval)
+	deadline := time.Now().Add(timeout + refreshInterval)
 	if err := w.PacketConn.SetReadDeadline(deadline); err != nil {
 		w.nextReadDeadlineRefresh.Store(0)
 	}

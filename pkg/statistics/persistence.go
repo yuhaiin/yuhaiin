@@ -71,10 +71,18 @@ func storeSQLiteConnection(s *sqliteInfoStore, h *SQLiteHistory, id uint64, info
 }
 
 const (
-	connectionPersistenceDelay      = 750 * time.Millisecond
-	connectionPersistenceRetryDelay = time.Second
-	connectionPersistenceBatch      = 32
+	connectionPersistenceDelay = 750 * time.Millisecond
 )
+
+type connectionHistoryKey struct {
+	protocol, addr, process string
+}
+
+type pendingConnectionHistory struct {
+	info     contractconnection.Connection
+	count    uint64
+	lastSeen int64
+}
 
 type connectionPersistence struct {
 	db      *sql.DB
@@ -85,7 +93,7 @@ type connectionPersistence struct {
 	flushMu  sync.Mutex
 	upserts  map[uint64]contractconnection.Connection
 	deletes  map[uint64]struct{}
-	historyQ []contractconnection.Connection
+	historyQ map[connectionHistoryKey]pendingConnectionHistory
 	overlay  map[uint64]contractconnection.Connection
 
 	trigger   chan struct{}
@@ -99,15 +107,16 @@ func newConnectionPersistence(db *sql.DB, session *sqliteInfoStore, history *SQL
 		return nil
 	}
 	p := &connectionPersistence{
-		db:      db,
-		session: session,
-		history: history,
-		upserts: make(map[uint64]contractconnection.Connection),
-		deletes: make(map[uint64]struct{}),
-		overlay: make(map[uint64]contractconnection.Connection),
-		trigger: make(chan struct{}, 1),
-		stop:    make(chan struct{}),
-		done:    make(chan struct{}),
+		db:       db,
+		session:  session,
+		history:  history,
+		upserts:  make(map[uint64]contractconnection.Connection),
+		deletes:  make(map[uint64]struct{}),
+		overlay:  make(map[uint64]contractconnection.Connection),
+		historyQ: make(map[connectionHistoryKey]pendingConnectionHistory),
+		trigger:  make(chan struct{}, 1),
+		stop:     make(chan struct{}),
+		done:     make(chan struct{}),
 	}
 	go p.run()
 	return p
@@ -121,7 +130,12 @@ func (p *connectionPersistence) Store(id uint64, info contractconnection.Connect
 	p.upserts[id] = info
 	delete(p.deletes, id)
 	p.overlay[id] = info
-	p.historyQ = append(p.historyQ, info)
+	key := connectionHistoryKey{info.Network.ConnType, info.Addr, info.Process}
+	pending := p.historyQ[key]
+	pending.info = info
+	pending.count++
+	pending.lastSeen = time.Now().Unix()
+	p.historyQ[key] = pending
 	p.mu.Unlock()
 	p.signal()
 }
@@ -141,17 +155,24 @@ func (p *connectionPersistence) Delete(id uint64) {
 	p.signal()
 }
 
-func (p *connectionPersistence) Overlay(ids []uint64, infos []contractconnection.Connection) {
-	if p == nil || len(infos) == 0 {
-		return
-	}
+// Capture pending metadata before the database snapshot. A commit may remove
+// the live overlay while the query runs, but cannot remove this local snapshot.
+func (p *connectionPersistence) loadMany(ids []uint64, load func([]uint64) []contractconnection.Connection) []contractconnection.Connection {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	for i, id := range ids {
+	pending := make(map[uint64]contractconnection.Connection)
+	for _, id := range ids {
 		if info, ok := p.overlay[id]; ok {
+			pending[id] = info
+		}
+	}
+	p.mu.Unlock()
+	infos := load(ids)
+	for i, id := range ids {
+		if info, ok := pending[id]; ok {
 			infos[i] = info
 		}
 	}
+	return infos
 }
 
 func (p *connectionPersistence) signal() {
@@ -162,57 +183,13 @@ func (p *connectionPersistence) signal() {
 }
 
 func (p *connectionPersistence) run() {
-	defer close(p.done)
-	var timer *time.Timer
-	var timerC <-chan time.Time
-	var retrying bool
-	stopTimer := func() {
-		if timer != nil {
-			timer.Stop()
-			timer = nil
-			timerC = nil
-		}
-	}
-	defer stopTimer()
-
-	for {
-		select {
-		case <-p.stop:
-			return
-		case <-p.trigger:
-			if retrying {
-				continue
-			}
+	runPersistenceWorker(p.stop, p.trigger, p.done, connectionPersistenceDelay,
+		func() bool {
 			p.mu.Lock()
-			flushNow := len(p.historyQ) >= connectionPersistenceBatch
-			p.mu.Unlock()
-			if flushNow {
-				stopTimer()
-				if err := p.flush(); err != nil {
-					log.Warn("batch persist connections failed", "err", err)
-					retrying = true
-					timer = time.NewTimer(connectionPersistenceRetryDelay)
-					timerC = timer.C
-				}
-				continue
-			}
-			if timer == nil {
-				timer = time.NewTimer(connectionPersistenceDelay)
-				timerC = timer.C
-			}
-		case <-timerC:
-			if err := p.flush(); err != nil {
-				log.Warn("batch persist connections failed", "err", err)
-				retrying = true
-				timer.Reset(connectionPersistenceRetryDelay)
-				timerC = timer.C
-				continue
-			}
-			retrying = false
-			timer = nil
-			timerC = nil
-		}
-	}
+			defer p.mu.Unlock()
+			return len(p.historyQ) >= sqlitePersistenceBatchSize || len(p.upserts) >= sqlitePersistenceBatchSize
+		},
+		p.flush, "connections")
 }
 
 func (p *connectionPersistence) flush() error {
@@ -229,7 +206,7 @@ func (p *connectionPersistence) flush() error {
 	historyQ := p.historyQ
 	p.upserts = make(map[uint64]contractconnection.Connection)
 	p.deletes = make(map[uint64]struct{})
-	p.historyQ = nil
+	p.historyQ = make(map[connectionHistoryKey]pendingConnectionHistory)
 	p.mu.Unlock()
 
 	ctx := context.Background()
@@ -259,7 +236,8 @@ func (p *connectionPersistence) flush() error {
 			return err
 		}
 	}
-	for _, info := range historyQ {
+	for _, pending := range historyQ {
+		info := pending.info
 		data, ok := encoded[info.ID]
 		if !ok {
 			var err error
@@ -269,7 +247,7 @@ func (p *connectionPersistence) flush() error {
 				return err
 			}
 		}
-		if err := p.history.pushEncoded(ctx, tx, info, data, now); err != nil {
+		if err := p.history.pushCountEncoded(ctx, tx, info, data, pending.lastSeen, pending.count); err != nil {
 			p.requeue(upserts, deletes, historyQ)
 			return err
 		}
@@ -289,7 +267,7 @@ func (p *connectionPersistence) flush() error {
 	return nil
 }
 
-func (p *connectionPersistence) requeue(upserts map[uint64]contractconnection.Connection, deletes map[uint64]struct{}, historyQ []contractconnection.Connection) {
+func (p *connectionPersistence) requeue(upserts map[uint64]contractconnection.Connection, deletes map[uint64]struct{}, historyQ map[connectionHistoryKey]pendingConnectionHistory) {
 	p.mu.Lock()
 	for id, info := range upserts {
 		if _, deleted := p.deletes[id]; !deleted {
@@ -303,7 +281,18 @@ func (p *connectionPersistence) requeue(upserts map[uint64]contractconnection.Co
 			p.deletes[id] = struct{}{}
 		}
 	}
-	p.historyQ = append(historyQ, p.historyQ...)
+	for key, old := range historyQ {
+		current, exists := p.historyQ[key]
+		if !exists {
+			p.historyQ[key] = old
+			continue
+		}
+		current.count += old.count
+		if old.lastSeen > current.lastSeen {
+			current.info, current.lastSeen = old.info, old.lastSeen
+		}
+		p.historyQ[key] = current
+	}
 	p.mu.Unlock()
 }
 

@@ -104,9 +104,10 @@ func NewSQLiteConnStore(path string, dialer netapi.Proxy) *Connections {
 func (c *Connections) allInfos() []contractconnection.Connection {
 	if store, ok := c.infoStore.(*sqliteInfoStore); ok {
 		ids := slice.CollectTo(c.connStore.RangeValues, func(x connection) uint64 { return x.ID() })
-		infos := store.loadMany(ids)
-		c.persistence.Overlay(ids, infos)
-		return infos
+		if c.persistence != nil {
+			return c.persistence.loadMany(ids, store.loadMany)
+		}
+		return store.loadMany(ids)
 	}
 	return slice.CollectTo(c.connStore.RangeValues, func(x connection) contractconnection.Connection {
 		info, ok := c.infoStore.Load(x.ID())

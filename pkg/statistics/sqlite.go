@@ -46,9 +46,9 @@ const storeSessionSQL = `
 
 const storeHistorySQL = `
 		INSERT INTO connection_history(protocol, addr, process_name, hit_count, last_seen_at, last_connection_json)
-		VALUES (?, ?, ?, 1, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(protocol, addr, process_name) DO UPDATE SET
-			hit_count = hit_count + 1,
+			hit_count = hit_count + excluded.hit_count,
 			last_seen_at = excluded.last_seen_at,
 			last_connection_json = excluded.last_connection_json
 	`
@@ -184,7 +184,11 @@ func (h *SQLiteHistory) Push(c contractconnection.Connection) {
 }
 
 func (h *SQLiteHistory) pushEncoded(ctx context.Context, tx *sql.Tx, c contractconnection.Connection, data string, now int64) error {
-	return execStatisticStatement(ctx, tx, h.pushStmt, h.db, storeHistorySQL, c.Network.ConnType, c.Addr, c.Process, now, data)
+	return h.pushCountEncoded(ctx, tx, c, data, now, 1)
+}
+
+func (h *SQLiteHistory) pushCountEncoded(ctx context.Context, tx *sql.Tx, c contractconnection.Connection, data string, now int64, count uint64) error {
+	return execStatisticStatement(ctx, tx, h.pushStmt, h.db, storeHistorySQL, c.Network.ConnType, c.Addr, c.Process, count, now, data)
 }
 
 func (h *SQLiteHistory) Get() contractconnection.AllHistoryList {
@@ -261,8 +265,8 @@ type SQLiteFailedHistory struct {
 	db      *sql.DB
 	closeDB func() error
 
-	mu      sync.Mutex
-	pending map[failedHistoryKey]failedHistoryPending
+	mu        sync.Mutex
+	pending   map[failedHistoryKey]failedHistoryPending
 	trigger   chan struct{}
 	stop      chan struct{}
 	done      chan struct{}
@@ -295,61 +299,13 @@ func newSQLiteFailedHistory(db *sql.DB) *SQLiteFailedHistory {
 }
 
 func (h *SQLiteFailedHistory) run() {
-	defer close(h.done)
-	const delay = 2 * time.Second
-	const retryDelay = time.Second
-	const maxBatch = 32
-
-	var timer *time.Timer
-	var timerC <-chan time.Time
-	var retrying bool
-	stopTimer := func() {
-		if timer != nil {
-			timer.Stop()
-			timer = nil
-			timerC = nil
-		}
-	}
-	defer stopTimer()
-
-	for {
-		select {
-		case <-h.stop:
-			return
-		case <-h.trigger:
-			if retrying {
-				continue
-			}
+	runPersistenceWorker(h.stop, h.trigger, h.done, 2*time.Second,
+		func() bool {
 			h.mu.Lock()
-			flushNow := len(h.pending) >= maxBatch
-			h.mu.Unlock()
-			if flushNow {
-				stopTimer()
-				if err := h.flush(); err != nil {
-					log.Warn("batch store sqlite failed history failed", "err", err)
-					retrying = true
-					timer = time.NewTimer(retryDelay)
-					timerC = timer.C
-				}
-				continue
-			}
-			if timer == nil {
-				timer = time.NewTimer(delay)
-				timerC = timer.C
-			}
-		case <-timerC:
-			if err := h.flush(); err != nil {
-				log.Warn("batch store sqlite failed history failed", "err", err)
-				retrying = true
-				timer.Reset(retryDelay)
-				timerC = timer.C
-				continue
-			}
-			retrying = false
-			timer = nil
-			timerC = nil
-		}
-	}
+			defer h.mu.Unlock()
+			return len(h.pending) >= sqlitePersistenceBatchSize
+		},
+		h.flush, "failed history")
 }
 
 func (h *SQLiteFailedHistory) Push(ctx context.Context, err error, protocol string, host netapi.Address) {
@@ -441,7 +397,7 @@ func (h *SQLiteFailedHistory) requeue(pending map[failedHistoryKey]failedHistory
 	for key, value := range pending {
 		current := h.pending[key]
 		current.count += value.count
-		if value.lastSeen >= current.lastSeen {
+		if value.lastSeen > current.lastSeen {
 			current.lastSeen = value.lastSeen
 			current.lastErr = value.lastErr
 		}

@@ -28,7 +28,7 @@ type Table struct {
 	dialer  netapi.Proxy
 	sinffer netapi.PacketSniffer
 
-	timer         *time.Ticker
+	cleanerWake   chan struct{}
 	sourceControl syncmap.SyncMap[uint64, *SourceControl]
 	closed        atomic.Bool
 	mu            sync.RWMutex // Serializes queue admission with Close.
@@ -39,40 +39,62 @@ type Table struct {
 
 func NewTable(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *Table {
 	t := &Table{
-		dialer:  dialer,
-		sinffer: sniffer,
-		timer:   time.NewTicker(udpIdleTimeout()),
-		stop:    make(chan struct{}),
-		done:    make(chan struct{}),
+		dialer:      dialer,
+		sinffer:     sniffer,
+		cleanerWake: make(chan struct{}, 1),
+		stop:        make(chan struct{}),
+		done:        make(chan struct{}),
 	}
 
-	go func() {
-		defer close(t.done)
-		for {
-			// Ticker.Stop does not close C. An explicit stop signal is needed
-			// to release this worker when the table is replaced or closed.
-			select {
-			case <-t.stop:
-				return
-			case <-t.timer.C:
+	go t.runCleaner(udpIdleTimeout)
+
+	return t
+}
+
+// Suspend cleanup while the NAT table is empty. Only publishing a new source
+// starts the timer; existing sources do not signal it on each packet.
+func (t *Table) runCleaner(interval func() time.Duration) {
+	defer close(t.done)
+	var timer *time.Timer
+	var timerC <-chan time.Time
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
+	arm := func() {
+		if timer == nil {
+			timer = time.NewTimer(interval())
+		} else {
+			timer.Reset(interval())
+		}
+		timerC = timer.C
+	}
+	for {
+		select {
+		case <-t.stop:
+			return
+		case <-t.cleanerWake:
+			if timerC == nil {
+				arm()
 			}
-			idleTimeout := udpIdleTimeout()
+		case <-timerC:
+			timerC = nil
+			idleTimeout := interval()
 			for k, v := range t.sourceControl.Range {
 				idleTime, ok := v.IsIdle()
-				if !ok {
-					continue
-				}
-
-				if time.Since(idleTime) > idleTimeout && t.sourceControl.CompareAndDelete(k, v) {
+				if ok && time.Since(idleTime) > idleTimeout && t.sourceControl.CompareAndDelete(k, v) {
 					if err := v.Close(); err != nil {
 						log.Error("close source control failed", "err", err)
 					}
 				}
 			}
+			for range t.sourceControl.RangeValues {
+				arm()
+				break
+			}
 		}
-	}()
-
-	return t
+	}
 }
 
 func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
@@ -99,10 +121,16 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 	if u.closed.Load() {
 		return fmt.Errorf("udp nat table: %w", net.ErrClosed)
 	}
-	r, _, _ := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) {
+	r, loaded, _ := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) {
 		return NewSourceChan(u.sinffer, u.dialer), nil
 	})
 
+	if !loaded {
+		select {
+		case u.cleanerWake <- struct{}{}:
+		default:
+		}
+	}
 	return r.WritePacket(ctx, pkt)
 }
 
@@ -111,7 +139,6 @@ func (u *Table) Close() error {
 		u.mu.Lock()
 		u.closed.Store(true)
 		close(u.stop)
-		u.timer.Stop()
 		var controls []*SourceControl
 		for v := range u.sourceControl.RangeValues {
 			controls = append(controls, v)
