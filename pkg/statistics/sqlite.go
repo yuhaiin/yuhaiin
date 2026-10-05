@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -244,9 +245,28 @@ func (h *SQLiteHistory) Close() error {
 	return err
 }
 
+type failedHistoryKey struct {
+	protocol string
+	host     string
+	process  string
+}
+
+type failedHistoryPending struct {
+	count    uint64
+	lastSeen int64
+	lastErr  string
+}
+
 type SQLiteFailedHistory struct {
 	db      *sql.DB
 	closeDB func() error
+
+	mu      sync.Mutex
+	pending map[failedHistoryKey]failedHistoryPending
+	trigger chan struct{}
+	stop    chan struct{}
+	done    chan struct{}
+	flushMu sync.Mutex
 }
 
 func NewSQLiteFailedHistory(path string) *SQLiteFailedHistory {
@@ -256,11 +276,67 @@ func NewSQLiteFailedHistory(path string) *SQLiteFailedHistory {
 		log.Warn("open sqlite failed history failed", "err", err)
 		return newSQLiteFailedHistory(nil)
 	}
-	return &SQLiteFailedHistory{db: store.DB(), closeDB: store.Close}
+	h := newSQLiteFailedHistory(store.DB())
+	h.closeDB = store.Close
+	return h
 }
 
 func newSQLiteFailedHistory(db *sql.DB) *SQLiteFailedHistory {
-	return &SQLiteFailedHistory{db: db}
+	h := &SQLiteFailedHistory{db: db}
+	if db != nil {
+		h.pending = make(map[failedHistoryKey]failedHistoryPending)
+		h.trigger = make(chan struct{}, 1)
+		h.stop = make(chan struct{})
+		h.done = make(chan struct{})
+		go h.run()
+	}
+	return h
+}
+
+func (h *SQLiteFailedHistory) run() {
+	defer close(h.done)
+	const delay = 2 * time.Second
+	const maxBatch = 32
+
+	var timer *time.Timer
+	var timerC <-chan time.Time
+	stopTimer := func() {
+		if timer != nil {
+			timer.Stop()
+			timer = nil
+			timerC = nil
+		}
+	}
+	defer stopTimer()
+
+	for {
+		select {
+		case <-h.stop:
+			_ = h.flush()
+			return
+		case <-h.trigger:
+			h.mu.Lock()
+			flushNow := len(h.pending) >= maxBatch
+			h.mu.Unlock()
+			if flushNow {
+				stopTimer()
+				if err := h.flush(); err != nil {
+					log.Warn("batch store sqlite failed history failed", "err", err)
+				}
+				continue
+			}
+			if timer == nil {
+				timer = time.NewTimer(delay)
+				timerC = timer.C
+			}
+		case <-timerC:
+			if err := h.flush(); err != nil {
+				log.Warn("batch store sqlite failed history failed", "err", err)
+			}
+			timer = nil
+			timerC = nil
+		}
+	}
 }
 
 func (h *SQLiteFailedHistory) Push(ctx context.Context, err error, protocol string, host netapi.Address) {
@@ -269,30 +345,96 @@ func (h *SQLiteFailedHistory) Push(ctx context.Context, err error, protocol stri
 	}
 
 	storeContext := netapi.GetContext(ctx)
-
 	if de, ok := errors.AsType[*netapi.DialError](err); ok && de.Err != nil {
 		err = de.Err
 	}
-
 	if ne, ok := errors.AsType[*net.OpError](err); ok {
 		err = ne.Err
 	}
-
 	if h.db == nil {
 		return
 	}
 
+	key := failedHistoryKey{
+		protocol: protocol,
+		host:     getRealAddr(storeContext, host),
+		process:  storeContext.GetProcessName(),
+	}
 	now := time.Now().Unix()
-	if _, execErr := h.db.ExecContext(context.Background(), `
+	h.mu.Lock()
+	pending := h.pending[key]
+	pending.count++
+	pending.lastSeen = now
+	pending.lastErr = err.Error()
+	h.pending[key] = pending
+	h.mu.Unlock()
+
+	select {
+	case h.trigger <- struct{}{}:
+	default:
+	}
+}
+
+func (h *SQLiteFailedHistory) flush() error {
+	if h == nil || h.db == nil {
+		return nil
+	}
+	h.flushMu.Lock()
+	defer h.flushMu.Unlock()
+
+	h.mu.Lock()
+	if len(h.pending) == 0 {
+		h.mu.Unlock()
+		return nil
+	}
+	pending := h.pending
+	h.pending = make(map[failedHistoryKey]failedHistoryPending)
+	h.mu.Unlock()
+
+	tx, err := h.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		h.requeue(pending)
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	stmt, err := tx.PrepareContext(context.Background(), `
 		INSERT INTO failed_connection_history(protocol, host, process_name, failed_count, last_seen_at, last_error)
-		VALUES (?, ?, ?, 1, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(protocol, host, process_name) DO UPDATE SET
-			failed_count = failed_count + 1,
+			failed_count = failed_count + excluded.failed_count,
 			last_seen_at = excluded.last_seen_at,
 			last_error = excluded.last_error
-	`, protocol, getRealAddr(storeContext, host), storeContext.GetProcessName(), now, err.Error()); execErr != nil {
-		log.Warn("store sqlite failed history failed", "err", execErr)
+	`)
+	if err != nil {
+		h.requeue(pending)
+		return err
 	}
+	defer stmt.Close()
+	for key, value := range pending {
+		if _, err := stmt.ExecContext(context.Background(), key.protocol, key.host, key.process, value.count, value.lastSeen, value.lastErr); err != nil {
+			h.requeue(pending)
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		h.requeue(pending)
+		return err
+	}
+	return nil
+}
+
+func (h *SQLiteFailedHistory) requeue(pending map[failedHistoryKey]failedHistoryPending) {
+	h.mu.Lock()
+	for key, value := range pending {
+		current := h.pending[key]
+		current.count += value.count
+		if value.lastSeen >= current.lastSeen {
+			current.lastSeen = value.lastSeen
+			current.lastErr = value.lastErr
+		}
+		h.pending[key] = current
+	}
+	h.mu.Unlock()
 }
 
 func (h *SQLiteFailedHistory) Get() contractconnection.FailedHistoryList {
@@ -300,6 +442,9 @@ func (h *SQLiteFailedHistory) Get() contractconnection.FailedHistoryList {
 		return contractconnection.FailedHistoryList{}
 	}
 
+	if err := h.flush(); err != nil {
+		log.Warn("flush sqlite failed history before query failed", "err", err)
+	}
 	ctx := context.Background()
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT protocol, host, process_name, failed_count, last_seen_at, last_error
@@ -345,6 +490,13 @@ func (h *SQLiteFailedHistory) Get() contractconnection.FailedHistoryList {
 }
 
 func (h *SQLiteFailedHistory) Close() error {
+	if h == nil {
+		return nil
+	}
+	if h.stop != nil {
+		close(h.stop)
+		<-h.done
+	}
 	if h.closeDB == nil {
 		return nil
 	}
