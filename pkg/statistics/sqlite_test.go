@@ -576,9 +576,6 @@ func TestSQLiteHistoryPruneKeepsNewestRows(t *testing.T) {
 		"connection_history":        "addr",
 		"failed_connection_history": "host",
 	} {
-		if err := store.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(new(int)); err != nil {
-			t.Fatal(err)
-		}
 		var count int
 		if err := store.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
 			t.Fatal(err)
