@@ -159,6 +159,9 @@ func (n *notify) Close() error {
 		n.trigger()
 	}
 	<-n.done
+	for entry := range n.notifier.RangeValues {
+		entry.cancel(context.Canceled)
+	}
 	return nil
 }
 
