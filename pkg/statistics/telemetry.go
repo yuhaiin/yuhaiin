@@ -44,6 +44,8 @@ type telemetryRecorder struct {
 	cancel          context.CancelFunc
 	wg              sync.WaitGroup
 	counters        syncmap.SyncMap[*dimensionCounter, struct{}]
+	activeCounters  atomic.Int64
+	wakeFlush       chan struct{}
 	valueIDs        *lru.SyncLru[telemetryDimension, int64]
 	flushMu         sync.Mutex
 	pending         map[telemetryDimension]trafficDelta // Owned by flushMu; survives a failed transaction.
@@ -54,31 +56,67 @@ type telemetryRecorder struct {
 func newTelemetryRecorder(db *sql.DB) *telemetryRecorder {
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &telemetryRecorder{
-		db:       db,
-		ctx:      ctx,
-		cancel:   cancel,
-		valueIDs: lru.NewSyncLru(lru.WithCapacity[telemetryDimension, int64](telemetryValueIDCacheCapacity)),
+		db:        db,
+		ctx:       ctx,
+		cancel:    cancel,
+		wakeFlush: make(chan struct{}, 1),
+		valueIDs:  lru.NewSyncLru(lru.WithCapacity[telemetryDimension, int64](telemetryValueIDCacheCapacity)),
 	}
-	r.wg.Go(func() {
-		ticker := time.NewTicker(telemetryFlushInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-r.ctx.Done():
-				return
-			case <-ticker.C:
-				r.flush()
-				r.compactOldTelemetry(time.Now())
+	r.wg.Go(r.run)
+	return r
+}
+
+func (r *telemetryRecorder) run() {
+	var ticker *time.Ticker
+	var tickerC <-chan time.Time
+	stopTicker := func() {
+		if ticker != nil {
+			ticker.Stop()
+			ticker = nil
+			tickerC = nil
+		}
+	}
+	defer stopTicker()
+
+	for {
+		select {
+		case <-r.ctx.Done():
+			return
+		case <-r.wakeFlush:
+			if ticker == nil {
+				ticker = time.NewTicker(telemetryFlushInterval)
+				tickerC = ticker.C
+			}
+		case <-tickerC:
+			r.flush()
+			r.compactOldTelemetry(time.Now())
+			if r.activeCounters.Load() == 0 && !r.hasPendingTraffic() {
+				stopTicker()
 			}
 		}
-	})
-	return r
+	}
+}
+
+func (r *telemetryRecorder) wake() {
+	select {
+	case r.wakeFlush <- struct{}{}:
+	default:
+	}
+}
+
+func (r *telemetryRecorder) hasPendingTraffic() bool {
+	r.flushMu.Lock()
+	defer r.flushMu.Unlock()
+	return len(r.pending) != 0
 }
 
 func (r *telemetryRecorder) Register(info contractconnection.Connection) *dimensionCounter {
 	counter := &dimensionCounter{dimensions: dimensionsForConnection(info)}
 	if r.db != nil && len(counter.dimensions) != 0 {
 		r.counters.Store(counter, struct{}{})
+		if r.activeCounters.Add(1) == 1 {
+			r.wake()
+		}
 	}
 	return counter
 }
@@ -133,7 +171,9 @@ func (r *telemetryRecorder) flush() {
 			}
 		}
 		if removed {
-			r.counters.Delete(counter)
+			if _, ok := r.counters.LoadAndDelete(counter); ok {
+				r.activeCounters.Add(-1)
+			}
 		}
 		return true
 	})
