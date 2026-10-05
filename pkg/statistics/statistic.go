@@ -105,7 +105,7 @@ func (c *Connections) allInfos() []contractconnection.Connection {
 	if store, ok := c.infoStore.(*sqliteInfoStore); ok {
 		ids := slice.CollectTo(c.connStore.RangeValues, func(x connection) uint64 { return x.ID() })
 		infos := store.loadMany(ids)
-		c.persistence.Overlay(infos)
+		c.persistence.Overlay(ids, infos)
 		return infos
 	}
 	return slice.CollectTo(c.connStore.RangeValues, func(x connection) contractconnection.Connection {
