@@ -233,12 +233,14 @@ func (p *connectionPersistence) flush() error {
 	}
 	defer func() { _ = tx.Rollback() }()
 	now := time.Now().Unix()
+	encoded := make(map[string]string, len(upserts))
 	for id, info := range upserts {
 		data, err := encodeStatisticJSON(&info)
 		if err != nil {
 			p.requeue(upserts, deletes, historyQ)
 			return err
 		}
+		encoded[info.ID] = data
 		if err := p.session.storeEncoded(ctx, tx, id, info, data, now); err != nil {
 			p.requeue(upserts, deletes, historyQ)
 			return err
@@ -251,10 +253,14 @@ func (p *connectionPersistence) flush() error {
 		}
 	}
 	for _, info := range historyQ {
-		data, err := encodeStatisticJSON(&info)
-		if err != nil {
-			p.requeue(upserts, deletes, historyQ)
-			return err
+		data, ok := encoded[info.ID]
+		if !ok {
+			var err error
+			data, err = encodeStatisticJSON(&info)
+			if err != nil {
+				p.requeue(upserts, deletes, historyQ)
+				return err
+			}
 		}
 		if err := p.history.pushEncoded(ctx, tx, info, data, now); err != nil {
 			p.requeue(upserts, deletes, historyQ)
