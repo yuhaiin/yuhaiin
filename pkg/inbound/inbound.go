@@ -176,7 +176,8 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 		ForceFakeIP: l.fakeip.Load(),
 	})
 	if err != nil {
-		log.Select(netapi.LogLevel(err)).Print("tcp server handle DnsHijacking", "msg", err)
+		log.Select(netapi.LogLevel(err)).Print("tcp server handle DnsHijacking", "msg", err,
+			"src", meta.Source, "dst", meta.Address)
 	}
 }
 
