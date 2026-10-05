@@ -624,19 +624,13 @@ func (w *wrapConn) refreshReadDeadline(timeout time.Duration) {
 		return
 	}
 
-	refreshInterval := timeout / 4
-	if refreshInterval > 30*time.Second {
-		refreshInterval = 30 * time.Second
-	}
-	if refreshInterval < time.Second {
-		refreshInterval = time.Second
-	}
+	refreshInterval := max(min(timeout/4, 30*time.Second), time.Second)
 	if !w.nextReadDeadlineRefresh.CompareAndSwap(next, nowTick+refreshInterval.Nanoseconds()) {
 		return
 	}
 
 	deadline := time.Now().Add(timeout + refreshInterval)
-	if err := w.PacketConn.SetReadDeadline(deadline); err != nil {
+	if err := w.SetReadDeadline(deadline); err != nil {
 		w.nextReadDeadlineRefresh.Store(0)
 	}
 }
