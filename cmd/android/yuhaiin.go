@@ -16,7 +16,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
-	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
@@ -286,27 +285,31 @@ func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
 	defer ticker.Stop()
 
 	alreadyEmpty := false
-	var last *contractconnection.TotalFlow
+	var lastDownloadBytes, lastUploadBytes uint64
+	haveLast := false
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			flow, err := app.Connections.Total(ctx)
-			if err != nil {
-				log.Error("get connections failed", "err", err)
+			// The notification only needs totals, not the per-connection counter
+			// map and decimal strings built by the monitor API.
+			var downloadBytes, uploadBytes uint64
+			if totals, ok := app.Connections.(interface{ FlowTotals() (uint64, uint64) }); ok {
+				downloadBytes, uploadBytes = totals.FlowTotals()
+			} else {
+				flow, err := app.Connections.Total(ctx)
+				if err != nil {
+					log.Error("get connections failed", "err", err)
+					continue
+				}
+				downloadBytes, uploadBytes = connectionFlowValue(flow.Download), connectionFlowValue(flow.Upload)
+			}
+			if !haveLast {
+				lastDownloadBytes, lastUploadBytes = downloadBytes, uploadBytes
+				haveLast = true
 				continue
 			}
-
-			if last == nil {
-				last = &flow
-				continue
-			}
-
-			downloadBytes := connectionFlowValue(flow.Download)
-			uploadBytes := connectionFlowValue(flow.Upload)
-			lastDownloadBytes := connectionFlowValue(last.Download)
-			lastUploadBytes := connectionFlowValue(last.Upload)
 
 			dr := reduceUnit((downloadBytes - lastDownloadBytes) / 2)
 			ur := reduceUnit((uploadBytes - lastUploadBytes) / 2)
@@ -320,7 +323,7 @@ func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
 			}
 
 			download, upload := reduceUnit(downloadBytes), reduceUnit(uploadBytes)
-			last = &flow
+			lastDownloadBytes, lastUploadBytes = downloadBytes, uploadBytes
 			opt.NotifySpped.Notify(flowString(download, upload, ur, dr))
 		}
 	}

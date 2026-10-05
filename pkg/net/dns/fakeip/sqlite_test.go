@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	legacymigrate "github.com/Asutorufa/yuhaiin/pkg/legacy/migrate"
@@ -167,6 +168,25 @@ func TestSQLiteFakeIPPoolTouchRetryPreservesPendingUpdates(t *testing.T) {
 	}
 	if got := sqliteFakeIPLastUsed(t, db, "retry.example"); got <= stale {
 		t.Fatalf("retried touch was lost: got %d, stale %d", got, stale)
+	}
+}
+
+func TestSQLiteFakeIPTouchBurstSignalsOnce(t *testing.T) {
+	p := &SQLiteFakeIPPool{touchDomains: make(map[string]int64), touchIPs: make(map[netip.Addr]int64), touchTrigger: make(chan struct{}, 1)}
+	now := time.Now()
+	stale := now.Add(-sqliteFakeIPTouchInterval - time.Second).UnixNano()
+	p.touchDomain("first.example", now, stale)
+	select {
+	case <-p.touchTrigger:
+	default:
+		t.Fatal("first touch did not schedule a flush")
+	}
+	for range 100 {
+		p.touchDomain("second.example", now, stale)
+		p.touchIP(netip.MustParseAddr("10.0.0.1"), now, stale)
+	}
+	if len(p.touchTrigger) != 0 {
+		t.Fatal("pending touch batch woke its worker again")
 	}
 }
 

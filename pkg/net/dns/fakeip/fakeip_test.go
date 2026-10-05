@@ -88,11 +88,14 @@ func TestNetip(t *testing.T) {
 		ip netip.Addr
 	}, 1000)
 
+	logged := make(chan struct{})
 	go func() {
+		defer close(logged)
 		for i := range ch {
 			t.Log(i.a, i.ip)
 		}
 	}()
+	defer func() { close(ch); <-logged }()
 
 	getAndRev := func(a string) {
 		ip := ff.GetFakeIPForDomain(a)

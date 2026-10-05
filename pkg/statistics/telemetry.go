@@ -31,6 +31,11 @@ type trafficDelta struct {
 	upload, download uint64
 }
 
+type failureBucket struct {
+	dimension telemetryDimension
+	hour      int64
+}
+
 type dimensionCounter struct {
 	dimensions []telemetryDimension
 	download   atomic.Uint64
@@ -50,6 +55,7 @@ type telemetryRecorder struct {
 	valueIDs        *lru.SyncLru[telemetryDimension, int64]
 	flushMu         sync.Mutex
 	pending         map[telemetryDimension]trafficDelta // Owned by flushMu; survives a failed transaction.
+	pendingFailures map[failureBucket]uint64            // Owned by flushMu; uses the event's hour even on retry.
 	maintenanceMu   sync.Mutex
 	lastMaintenance time.Time
 }
@@ -73,7 +79,6 @@ func (r *telemetryRecorder) run() {
 	stopTimer := func() {
 		if timer != nil {
 			timer.Stop()
-			timer = nil
 			timerC = nil
 		}
 	}
@@ -84,19 +89,22 @@ func (r *telemetryRecorder) run() {
 		case <-r.ctx.Done():
 			return
 		case <-r.wakeFlush:
-			if timer == nil {
-				timer = time.NewTimer(telemetryFlushInterval)
+			if timerC == nil {
+				if timer == nil {
+					timer = time.NewTimer(telemetryFlushInterval)
+				} else {
+					timer.Reset(telemetryFlushInterval)
+				}
 				timerC = timer.C
 			}
 		case <-timerC:
 			r.dirty.Store(false)
 			r.flush()
 			r.compactOldTelemetry(time.Now())
-			if r.dirty.Load() || r.hasPendingTraffic() {
+			if r.dirty.Load() || r.hasPendingWork() {
 				timer.Reset(telemetryFlushInterval)
 				timerC = timer.C
 			} else {
-				timer = nil
 				timerC = nil
 			}
 		}
@@ -125,10 +133,10 @@ func (c *dimensionCounter) markDirty() {
 	}
 }
 
-func (r *telemetryRecorder) hasPendingTraffic() bool {
+func (r *telemetryRecorder) hasPendingWork() bool {
 	r.flushMu.Lock()
 	defer r.flushMu.Unlock()
-	return len(r.pending) != 0
+	return len(r.pending) != 0 || len(r.pendingFailures) != 0
 }
 
 func (r *telemetryRecorder) Register(info contractconnection.Connection) *dimensionCounter {
@@ -154,9 +162,16 @@ func (r *telemetryRecorder) RecordFailure(info contractconnection.Connection) {
 	if len(dimensions) == 0 || r.db == nil {
 		return
 	}
-	if err := persistFailureDimensions(context.Background(), r.db, r.valueIDs, dimensions); err != nil {
-		log.Warn("persist telemetry failure dimensions failed", "err", err)
+	hour := time.Now().UTC().Truncate(time.Hour).Unix()
+	r.flushMu.Lock()
+	if r.pendingFailures == nil {
+		r.pendingFailures = make(map[failureBucket]uint64)
 	}
+	for _, dimension := range dimensions {
+		r.pendingFailures[failureBucket{dimension: dimension, hour: hour}]++
+	}
+	r.flushMu.Unlock()
+	r.markDirty()
 }
 
 func (r *telemetryRecorder) Close() {
@@ -194,20 +209,30 @@ func (r *telemetryRecorder) flush() {
 		}
 		return true
 	})
-	if len(r.pending) == 0 {
-		return
+	if len(r.pending) != 0 {
+		if err := persistTrafficDimensions(context.Background(), r.db, r.valueIDs, r.pending); err != nil {
+			// The atomic swaps have consumed the counters. Retain this batch for the
+			// next flush, including deltas of connections that have already closed.
+			log.Warn("persist telemetry traffic dimensions failed", "err", err)
+			return
+		}
+		// Reuse ordinary batches, but do not retain a high-cardinality burst forever.
+		if len(r.pending) > 4096 {
+			r.pending = nil
+		} else {
+			clear(r.pending)
+		}
 	}
-	if err := persistTrafficDimensions(context.Background(), r.db, r.valueIDs, r.pending); err != nil {
-		// The atomic swaps have consumed the counters. Retain this batch for the
-		// next flush, including deltas of connections that have already closed.
-		log.Warn("persist telemetry traffic dimensions failed", "err", err)
-		return
-	}
-	// Reuse ordinary batches, but do not retain a high-cardinality burst forever.
-	if len(r.pending) > 4096 {
-		r.pending = nil
-	} else {
-		clear(r.pending)
+	if len(r.pendingFailures) != 0 {
+		if err := persistFailureCounts(context.Background(), r.db, r.valueIDs, r.pendingFailures); err != nil {
+			log.Warn("persist telemetry failure dimensions failed", "err", err)
+			return
+		}
+		if len(r.pendingFailures) > 4096 {
+			r.pendingFailures = nil
+		} else {
+			clear(r.pendingFailures)
+		}
 	}
 }
 
@@ -319,7 +344,7 @@ const persistTrafficSQL = `INSERT INTO traffic_dimension_hourly(bucket_start_utc
  VALUES (?, ?, ?, ?) ON CONFLICT(bucket_start_utc, value_id) DO UPDATE SET
  upload_bytes = upload_bytes + excluded.upload_bytes, download_bytes = download_bytes + excluded.download_bytes`
 const persistFailureSQL = `INSERT INTO failure_dimension_hourly(bucket_start_utc, value_id, failed_count)
- VALUES (?, ?, 1) ON CONFLICT(bucket_start_utc, value_id) DO UPDATE SET failed_count = failed_count + 1`
+ VALUES (?, ?, ?) ON CONFLICT(bucket_start_utc, value_id) DO UPDATE SET failed_count = failed_count + excluded.failed_count`
 
 // Statements are prepared once per transaction, rather than once per dimension.
 // A newly inserted value ID is published only after commit: caching it before
@@ -395,7 +420,7 @@ func persistTrafficDimensions(ctx context.Context, db *sql.DB, valueIDs *lru.Syn
 	}
 	return tx.commit()
 }
-func persistFailureDimensions(ctx context.Context, db *sql.DB, valueIDs *lru.SyncLru[telemetryDimension, int64], dimensions []telemetryDimension) error {
+func persistFailureCounts(ctx context.Context, db *sql.DB, valueIDs *lru.SyncLru[telemetryDimension, int64], counts map[failureBucket]uint64) error {
 	raw, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -406,13 +431,12 @@ func persistFailureDimensions(ctx context.Context, db *sql.DB, valueIDs *lru.Syn
 	if err != nil {
 		return err
 	}
-	bucket := time.Now().UTC().Truncate(time.Hour).Unix()
-	for _, dimension := range dimensions {
-		valueID, err := tx.valueID(ctx, dimension)
+	for bucket, count := range counts {
+		valueID, err := tx.valueID(ctx, bucket.dimension)
 		if err != nil {
 			return err
 		}
-		if _, err := stmt.ExecContext(ctx, bucket, valueID); err != nil {
+		if _, err := stmt.ExecContext(ctx, bucket.hour, valueID, count); err != nil {
 			return err
 		}
 	}
