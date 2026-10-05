@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/binary"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache/memory"
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	legacymigrate "github.com/Asutorufa/yuhaiin/pkg/legacy/migrate"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
@@ -470,5 +472,61 @@ func assertConnectionSessionCount(t *testing.T, ctx context.Context, db interfac
 	}
 	if got != want {
 		t.Fatalf("connection session count = %d, want %d", got, want)
+	}
+}
+
+func TestConnectionPersistenceFoldsClosedSession(t *testing.T) {
+	connections := NewSQLiteConnStore(paths.PathGenerator.State(t.TempDir()), nil)
+	defer connections.Close()
+
+	info := performanceInfo(1)
+	connections.storeConnection(performanceConnection(1), info)
+	connections.Remove(1)
+	if err := connections.persistence.flush(); err != nil {
+		t.Fatal(err)
+	}
+
+	var sessions int
+	if err := connections.sqliteDB.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM connection_sessions`).Scan(&sessions); err != nil {
+		t.Fatal(err)
+	}
+	if sessions != 0 {
+		t.Fatalf("closed pending connection persisted as active session: %d", sessions)
+	}
+
+	var hits int
+	if err := connections.sqliteDB.QueryRowContext(context.Background(), `SELECT hit_count FROM connection_history WHERE protocol='tcp' AND addr='example.com:443' AND process_name='browser'`).Scan(&hits); err != nil {
+		t.Fatal(err)
+	}
+	if hits != 1 {
+		t.Fatalf("connection history hits = %d, want 1", hits)
+	}
+}
+
+func TestSQLiteFailedHistoryBatchesDuplicates(t *testing.T) {
+	store, err := storagesqlite.Open(context.Background(), paths.PathGenerator.State(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	history := newSQLiteFailedHistory(store.DB())
+	defer history.Close()
+
+	ctx := netapi.WithContext(context.Background())
+	addr, err := netapi.ParseAddressPort("tcp", "example.com", 443)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		history.Push(ctx, errors.New("dial failed"), "tcp", addr)
+	}
+
+	items := history.Get()
+	if len(items.Items) != 1 {
+		t.Fatalf("failed history items = %d, want 1", len(items.Items))
+	}
+	if items.Items[0].FailedCount != "3" {
+		t.Fatalf("failed history count = %s, want 3", items.Items[0].FailedCount)
 	}
 }

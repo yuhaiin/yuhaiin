@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,6 +34,34 @@ func TestTableCloseStopsCleaner(t *testing.T) {
 	defer pkt.DecRef()
 	if err := table.Write(context.Background(), pkt); !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("write after close: %v", err)
+	}
+}
+
+func TestTableCleanerSleepsWhenEmptyAndRestarts(t *testing.T) {
+	table := &Table{stop: make(chan struct{}), done: make(chan struct{}), cleanerWake: make(chan struct{}, 1)}
+	var checks atomic.Int32
+	go table.runCleaner(func() time.Duration { checks.Add(1); return 10 * time.Millisecond })
+	defer table.Close()
+	time.Sleep(30 * time.Millisecond)
+	if checks.Load() != 0 {
+		t.Fatal("empty NAT table started a timer")
+	}
+	for key := uint64(1); key <= 2; key++ {
+		source := NewSourceChan(nil, nil)
+		old := time.Now().Add(-time.Second)
+		source.loopStopTime.Store(&old)
+		table.sourceControl.Store(key, source)
+		table.cleanerWake <- struct{}{}
+		awaitClosed(t, source.done)
+		if _, exists := table.sourceControl.Load(key); exists {
+			t.Fatal("idle source not removed")
+		}
+		time.Sleep(20 * time.Millisecond)
+		before := checks.Load()
+		time.Sleep(30 * time.Millisecond)
+		if checks.Load() != before {
+			t.Fatal("cleaner continued waking after becoming empty")
+		}
 	}
 }
 

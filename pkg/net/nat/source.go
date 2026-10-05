@@ -422,7 +422,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 
 func (t *SourceControl) WriteTo(b []byte, realDst net.Addr, originDst netapi.Address, conn net.PacketConn) error {
 	_, err := conn.WriteTo(b, realDst)
-	_ = conn.SetReadDeadline(time.Now().Add(udpIdleTimeout()))
+	refreshPacketReadDeadline(conn, udpIdleTimeout())
 	if err == nil && originDst != nil {
 		t.mapAddr(realDst, originDst)
 	}
@@ -524,7 +524,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 
 	for {
 		data := pool.GetBytes(configuration.UDPBufferSize.Load())
-		_ = p.SetReadDeadline(time.Now().Add(udpIdleTimeout()))
+		p.refreshReadDeadline(udpIdleTimeout())
 		n, from, err := p.ReadFrom(data)
 		if err != nil {
 			if ignoreError(err) {
@@ -595,11 +595,44 @@ func (s *SourceControl) parseAddr(from net.Addr, srcAddr netapi.Address, srcKey 
 	return from
 }
 
+var udpDeadlineClockStart = time.Now()
+
 type wrapConn struct {
 	net.PacketConn
-	closed    atomic.Bool
-	closeOnce sync.Once
-	closeErr  error
+	closed                  atomic.Bool
+	nextReadDeadlineRefresh atomic.Int64
+	closeOnce               sync.Once
+	closeErr                error
+}
+
+func refreshPacketReadDeadline(conn net.PacketConn, timeout time.Duration) {
+	if wrapped, ok := conn.(*wrapConn); ok {
+		wrapped.refreshReadDeadline(timeout)
+		return
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(timeout))
+}
+
+func (w *wrapConn) refreshReadDeadline(timeout time.Duration) {
+	if timeout <= 0 {
+		return
+	}
+
+	nowTick := time.Since(udpDeadlineClockStart).Nanoseconds()
+	next := w.nextReadDeadlineRefresh.Load()
+	if next > nowTick {
+		return
+	}
+
+	refreshInterval := max(min(timeout/4, 30*time.Second), time.Second)
+	if !w.nextReadDeadlineRefresh.CompareAndSwap(next, nowTick+refreshInterval.Nanoseconds()) {
+		return
+	}
+
+	deadline := time.Now().Add(timeout + refreshInterval)
+	if err := w.SetReadDeadline(deadline); err != nil {
+		w.nextReadDeadlineRefresh.Store(0)
+	}
 }
 
 func (w *wrapConn) Close() error {
