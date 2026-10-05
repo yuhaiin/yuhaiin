@@ -98,22 +98,27 @@ func (n *notify) send() {
 }
 
 func (n *notify) start() {
-	ticker := time.NewTicker(time.Second * 2)
-	defer ticker.Stop()
+	const debounce = 250 * time.Millisecond
 
+	var timer *time.Timer
+	var timerC <-chan time.Time
 	for {
 		select {
 		case <-n.notifyTrigger:
 			if n.closed.Load() {
+				if timer != nil {
+					timer.Stop()
+				}
 				return
 			}
-			n.send()
-
-		case <-ticker.C:
-			if n.closed.Load() {
-				return
+			if timer == nil {
+				timer = time.NewTimer(debounce)
+				timerC = timer.C
 			}
+		case <-timerC:
 			n.send()
+			timer = nil
+			timerC = nil
 		}
 	}
 }
@@ -130,9 +135,8 @@ func (n *notify) pubNewConn(conn contractconnection.Connection) {
 		return
 	}
 
-	if n.notifyStore.push(conn) > 13 {
-		n.trigger()
-	}
+	n.notifyStore.push(conn)
+	n.trigger()
 }
 
 func (n *notify) pubRemoveConn(id uint64) {
@@ -140,13 +144,13 @@ func (n *notify) pubRemoveConn(id uint64) {
 		return
 	}
 
-	if n.notifyStore.remove(id) > 13 {
-		n.trigger()
-	}
+	n.notifyStore.remove(id)
+	n.trigger()
 }
 
 func (n *notify) Close() error {
 	n.closed.Store(true)
+	n.trigger()
 	return nil
 }
 
