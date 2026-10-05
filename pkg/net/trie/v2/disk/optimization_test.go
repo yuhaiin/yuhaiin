@@ -46,8 +46,12 @@ func TestOwnedMarksAvoidPerQueryCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer trie.Close()
-	trie.Insert("*.example.com", "long-route-list-name")
-	trie.Insert("www.example.com", "another-route-list-name")
+	if err := trie.Insert("*.example.com", "long-route-list-name"); err != nil {
+		t.Fatal(err)
+	}
+	if err := trie.Insert("www.example.com", "another-route-list-name"); err != nil {
+		t.Fatal(err)
+	}
 	if err := trie.Sync(); err != nil {
 		t.Fatal(err)
 	}

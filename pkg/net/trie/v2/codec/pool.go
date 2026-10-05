@@ -39,14 +39,18 @@ func NewPooledStringCodec(source io.Reader) (*PooledStringCodec, error) {
 			return nil, fmt.Errorf("truncated pooled string count: %w", err)
 		}
 		count := binary.LittleEndian.Uint32(header)
-		reader.Discard(4)
+		if _, err := reader.Discard(4); err != nil {
+			return nil, fmt.Errorf("discard pooled string count: %w", err)
+		}
 		for range count {
 			header, err := reader.Peek(4)
 			if err != nil {
 				return nil, fmt.Errorf("truncated pooled string length: %w", err)
 			}
 			size := uint64(binary.LittleEndian.Uint32(header))
-			reader.Discard(4)
+			if _, err := reader.Discard(4); err != nil {
+				return nil, fmt.Errorf("discard pooled string length: %w", err)
+			}
 			if size > stringPoolBuffer {
 				return nil, nil
 			}
@@ -66,7 +70,9 @@ func NewPooledStringCodec(source io.Reader) (*PooledStringCodec, error) {
 				values[owned] = owned
 				used += len(owned)
 			}
-			reader.Discard(int(size))
+			if _, err := reader.Discard(int(size)); err != nil {
+				return nil, fmt.Errorf("discard pooled string: %w", err)
+			}
 		}
 	}
 }

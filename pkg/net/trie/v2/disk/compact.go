@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
@@ -288,8 +289,8 @@ func buildCompactionPlan[T comparable](dir string, parts []*segment[T], c codec.
 		_ = file.Close()
 		return "", compactionStats{}, err
 	}
-	for index := len(stack) - 1; index >= 0; index-- {
-		state := stack[index]
+	for _, state := range slices.Backward(stack) {
+
 		if err := writePlanNode(writer, state.offset, state.node()); err != nil {
 			_ = file.Close()
 			return "", compactionStats{}, err
