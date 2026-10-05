@@ -439,6 +439,11 @@ func (c *Connections) FailedHistory(context.Context) (contractconnection.FailedH
 }
 
 func (c *Connections) AllHistory(context.Context) (contractconnection.AllHistoryList, error) {
+	if c.persistence != nil {
+		if err := c.persistence.flush(); err != nil {
+			log.Warn("flush connection persistence before history query failed", "err", err)
+		}
+	}
 	return c.history.Get(), nil
 }
 
