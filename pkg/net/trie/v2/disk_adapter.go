@@ -27,6 +27,8 @@ func (d *diskDomain[T]) Batch(values iter.Seq2[string, T]) error {
 	return d.trie.Batch(values)
 }
 
+func (d *diskDomain[T]) Optimize() error { return d.trie.Optimize() }
+
 func (d *diskDomain[T]) Sync() error {
 	return d.trie.Sync()
 }

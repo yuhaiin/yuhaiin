@@ -145,7 +145,7 @@ func (t *Trie[T]) Search(domain string) []T {
 	if t.closed {
 		return nil
 	}
-	return t.searchLocked(splitDomain(domain, t.separator))
+	return t.searchLocked(domain)
 }
 
 // Sync flushes the active builder. It is useful when another process should
@@ -159,9 +159,24 @@ func (t *Trie[T]) Sync() error {
 	return t.flushLocked()
 }
 
+// Optimize flushes the builder and merges remaining segments into one. Call
+// after a bulk load before publishing the trie; normal Sync avoids this extra
+// full merge during incremental updates. Later inserts remain supported.
+func (t *Trie[T]) Optimize() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if err := t.checkOpen(); err != nil {
+		return err
+	}
+	if err := t.flushLocked(); err != nil {
+		return err
+	}
+	return t.compactOldestLocked(len(t.segments))
+}
+
 // Remove deletes one value. Since immutable segments are append-only, a
-// removal materializes them into the bounded builder first; this is a rare
-// maintenance path and keeps normal reads and writes simple.
+// removal materializes them into a mutable tree first. This rare maintenance
+// path can temporarily exceed the builder memory limit.
 func (t *Trie[T]) Remove(domain string, value T) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()

@@ -1,10 +1,10 @@
 package disk
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -14,15 +14,16 @@ import (
 )
 
 const (
-	segmentMagic      = "YHCIDR01"
-	segmentVersion    = uint32(1)
-	segmentHeaderSize = 64
-	segmentNodeSize   = 32
+	segmentMagic         = "YHCIDR01"
+	segmentVersion       = uint32(2)
+	legacySegmentVersion = uint32(1)
+	segmentHeaderSize    = 64
+	segmentNodeSize      = 32
 )
 
-// segmentNode is a fixed-width binary prefix node. Child IDs are preorder
-// node offsets; absentChild marks a missing branch. Values are stored in the
-// segment value area and referenced by relative offset and length.
+// segmentNode is a fixed-width binary prefix node. V1 child IDs are preorder;
+// v2 uses postorder IDs and tagged jump links. absentChild marks a missing
+// branch. Values in the segment value area use relative offsets and lengths.
 type segmentNode struct {
 	left     uint64
 	right    uint64
@@ -35,6 +36,10 @@ type segment[T comparable] struct {
 	region *region
 	codec  codec.Codec[T]
 
+	version  uint32
+	rootID   uint64
+	jumpOff  uint64
+	jumpCnt  uint64
 	nodeOff  uint64
 	nodeCnt  uint64
 	valueOff uint64
@@ -42,80 +47,28 @@ type segment[T comparable] struct {
 }
 
 func writeSegment[T comparable](path string, root *memoryNode[T], c codec.Codec[T]) (*segment[T], error) {
-	nodes := make([]segmentNode, 0, 1024)
-	values := make([]byte, 0, 4096)
-	var encodeErr error
-
-	var flatten func(*memoryNode[T]) uint64
-	flatten = func(node *memoryNode[T]) uint64 {
-		id := uint64(len(nodes))
-		nodes = append(nodes, segmentNode{left: absentChild, right: absentChild})
-		encoded, err := encodeValues(c, node.values)
-		if err != nil {
-			encodeErr = err
-			return 0
+	return writeCompressedSegment(path, c, func(yield func([]uint8, []T) error) error {
+		var storage [129]uint8
+		var visit func(*memoryNode[T], []uint8) error
+		visit = func(node *memoryNode[T], path []uint8) error {
+			if err := yield(path, node.values); err != nil {
+				return err
+			}
+			for branch, child := range node.children {
+				if child == nil {
+					continue
+				}
+				if len(path) == len(storage) {
+					return errors.New("CIDR path exceeds address width")
+				}
+				if err := visit(child, append(path, uint8(branch))); err != nil {
+					return err
+				}
+			}
+			return nil
 		}
-		valueOff := uint64(len(values))
-		values = append(values, encoded...)
-
-		left := absentChild
-		if node.children[0] != nil {
-			left = flatten(node.children[0])
-		}
-		right := absentChild
-		if node.children[1] != nil {
-			right = flatten(node.children[1])
-		}
-		nodes[id] = segmentNode{
-			left:     left,
-			right:    right,
-			valueOff: valueOff,
-			valueLen: uint64(len(encoded)),
-		}
-		return id
-	}
-
-	flatten(root)
-	if encodeErr != nil {
-		return nil, encodeErr
-	}
-
-	nodeOff := uint64(segmentHeaderSize)
-	valueOff := nodeOff + uint64(len(nodes))*segmentNodeSize
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".segment-*.tmp")
-	if err != nil {
-		return nil, err
-	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-
-	if err := writeSegmentHeader(tmp, nodeOff, uint64(len(nodes)), valueOff, uint64(len(values))); err != nil {
-		_ = tmp.Close()
-		return nil, err
-	}
-	nodeBuffer := make([]byte, segmentNodeSize)
-	for _, node := range nodes {
-		encodeNode(nodeBuffer, node)
-		if err := writeAll(tmp, nodeBuffer); err != nil {
-			_ = tmp.Close()
-			return nil, err
-		}
-	}
-	if err := writeAll(tmp, values); err != nil {
-		_ = tmp.Close()
-		return nil, err
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return nil, err
-	}
-	if err := tmp.Close(); err != nil {
-		return nil, err
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		return nil, err
-	}
-	return openSegment[T](path, c)
+		return visit(root, storage[:0])
+	})
 }
 
 func encodeValues[T comparable](c codec.Codec[T], values []T) ([]byte, error) {
@@ -123,17 +76,6 @@ func encodeValues[T comparable](c codec.Codec[T], values []T) ([]byte, error) {
 		return nil, nil
 	}
 	return c.Encode(values)
-}
-
-func writeSegmentHeader(file *os.File, nodeOff, nodeCount, valueOff, valueLen uint64) error {
-	header := make([]byte, segmentHeaderSize)
-	copy(header, segmentMagic)
-	binary.LittleEndian.PutUint32(header[8:], segmentVersion)
-	binary.LittleEndian.PutUint64(header[16:], nodeOff)
-	binary.LittleEndian.PutUint64(header[24:], nodeCount)
-	binary.LittleEndian.PutUint64(header[32:], valueOff)
-	binary.LittleEndian.PutUint64(header[40:], valueLen)
-	return writeAll(file, header)
 }
 
 func encodeNode(buffer []byte, node segmentNode) {
@@ -149,13 +91,14 @@ func openSegment[T comparable](path string, c codec.Codec[T]) (*segment[T], erro
 	if err != nil {
 		return nil, err
 	}
-	header, ok := region.bytesAt(0, segmentHeaderSize)
-	if !ok || string(header[:8]) != segmentMagic || binary.LittleEndian.Uint32(header[8:]) != segmentVersion {
-		_ = region.close()
+	header, ok := region.BytesAt(0, segmentHeaderSize)
+	if !ok || string(header[:8]) != segmentMagic || (binary.LittleEndian.Uint32(header[8:]) != segmentVersion && binary.LittleEndian.Uint32(header[8:]) != legacySegmentVersion) {
+		_ = region.Close()
 		return nil, fmt.Errorf("invalid disk CIDR segment: %s", path)
 	}
 	segment := &segment[T]{
 		path:     path,
+		version:  binary.LittleEndian.Uint32(header[8:]),
 		region:   region,
 		codec:    c,
 		nodeOff:  binary.LittleEndian.Uint64(header[16:]),
@@ -163,41 +106,114 @@ func openSegment[T comparable](path string, c codec.Codec[T]) (*segment[T], erro
 		valueOff: binary.LittleEndian.Uint64(header[32:]),
 		valueLen: binary.LittleEndian.Uint64(header[40:]),
 	}
+	if segment.version == segmentVersion {
+		segment.rootID = binary.LittleEndian.Uint64(header[48:])
+		segment.jumpOff = binary.LittleEndian.Uint64(header[56:])
+	}
 	if !segment.valid() {
-		_ = region.close()
+		_ = region.Close()
 		return nil, fmt.Errorf("invalid disk CIDR segment bounds: %s", path)
 	}
-	root, ok := segment.node(0)
-	if !ok || !validChild(root.left, segment.nodeCnt) || !validChild(root.right, segment.nodeCnt) {
-		_ = region.close()
+	root, ok := segment.node(segment.rootID)
+	if !ok || !segment.validLink(root.left) || !segment.validLink(root.right) {
+		_ = region.Close()
 		return nil, fmt.Errorf("invalid disk CIDR segment root: %s", path)
+	}
+	for family, link := range []uint64{root.left, root.right} {
+		if link == absentChild {
+			continue
+		}
+		_, skip, _, ok := segment.decodeLink(link, segment.rootID)
+		width := 128
+		if family == 0 {
+			width = 32
+		}
+		if !ok || skip > width {
+			_ = region.Close()
+			return nil, fmt.Errorf("invalid disk CIDR root jump: %s", path)
+		}
 	}
 	return segment, nil
 }
 
 func (s *segment[T]) valid() bool {
-	if s.nodeCnt == 0 || s.nodeOff > s.region.size || s.nodeCnt > (^uint64(0)/segmentNodeSize) {
+	if s.nodeCnt == 0 || s.rootID >= s.nodeCnt || s.nodeOff < segmentHeaderSize || s.nodeOff > s.region.Size || s.nodeCnt > (^uint64(0)/segmentNodeSize) {
 		return false
 	}
 	nodeBytes := s.nodeCnt * segmentNodeSize
-	if nodeBytes > s.region.size-s.nodeOff {
+	if nodeBytes > s.region.Size-s.nodeOff {
 		return false
 	}
-	if s.valueOff < s.nodeOff+nodeBytes || s.valueOff > s.region.size {
+	if s.valueOff < s.nodeOff+nodeBytes || s.valueOff > s.region.Size {
 		return false
 	}
-	return s.valueLen <= s.region.size-s.valueOff
+	if s.version == segmentVersion {
+		if s.jumpOff != s.nodeOff+nodeBytes || s.valueOff < s.jumpOff || (s.valueOff-s.jumpOff)%jumpSize != 0 {
+			return false
+		}
+		s.jumpCnt = (s.valueOff - s.jumpOff) / jumpSize
+	}
+	return s.valueLen <= s.region.Size-s.valueOff
 }
 
-func validChild(id, nodeCount uint64) bool {
-	return id == absentChild || id < nodeCount
+func (s *segment[T]) validLink(id uint64) bool {
+	if id == absentChild {
+		return true
+	}
+	if s.version == segmentVersion && id&jumpTag != 0 {
+		skip := (id >> jumpShift) & 255
+		return skip != 0 && skip <= 128 && id&jumpMask < s.jumpCnt
+	}
+	return id < s.nodeCnt
+}
+
+// decodeLink returns the additional skipped bits and the endpoint prefix. V1
+// segments have direct links only; v2's postorder IDs also forbid cycles.
+func (s *segment[T]) decodeLink(link, parent uint64) (uint64, int, [16]byte, bool) {
+	var prefix [16]byte
+	if link == absentChild || !s.validLink(link) {
+		return 0, 0, prefix, false
+	}
+	id, skip := link, 0
+	if s.version == segmentVersion && link&jumpTag != 0 {
+		data, ok := s.region.BytesAt(s.jumpOff+(link&jumpMask)*jumpSize, jumpSize)
+		if !ok {
+			return 0, 0, prefix, false
+		}
+		id = binary.LittleEndian.Uint64(data)
+		skip = int((link >> jumpShift) & 255)
+		copy(prefix[:], data[8:])
+	}
+	return id, skip, prefix, id < s.nodeCnt && (s.version == legacySegmentVersion || id < parent)
+}
+
+// follow validates skipped bits before accepting a compressed endpoint.
+func (s *segment[T]) follow(link, parent uint64, expected int, data []byte) (uint64, int, bool) {
+	id, skip, prefix, ok := s.decodeLink(link, parent)
+	depth := expected + skip
+	if !ok || depth > len(data)*8 {
+		return 0, 0, false
+	}
+	if skip != 0 {
+		full := depth / 8
+		if !bytes.Equal(data[:full], prefix[:full]) {
+			return 0, 0, false
+		}
+		if rem := depth % 8; rem != 0 {
+			mask := byte(255 << uint(8-rem))
+			if data[full]&mask != prefix[full]&mask {
+				return 0, 0, false
+			}
+		}
+	}
+	return id, depth, true
 }
 
 func (s *segment[T]) node(id uint64) (segmentNode, bool) {
 	if id >= s.nodeCnt {
 		return segmentNode{}, false
 	}
-	data, ok := s.region.bytesAt(s.nodeOff+id*segmentNodeSize, segmentNodeSize)
+	data, ok := s.region.BytesAt(s.nodeOff+id*segmentNodeSize, segmentNodeSize)
 	if !ok {
 		return segmentNode{}, false
 	}
@@ -207,7 +223,7 @@ func (s *segment[T]) node(id uint64) (segmentNode, bool) {
 		valueOff: binary.LittleEndian.Uint64(data[16:]),
 		valueLen: binary.LittleEndian.Uint64(data[24:]),
 	}
-	if !validChild(node.left, s.nodeCnt) || !validChild(node.right, s.nodeCnt) {
+	if !s.validLink(node.left) || !s.validLink(node.right) {
 		return segmentNode{}, false
 	}
 	return node, true
@@ -215,10 +231,17 @@ func (s *segment[T]) node(id uint64) (segmentNode, bool) {
 
 func (s *segment[T]) valuesNode(id uint64) []T {
 	node, ok := s.node(id)
-	if !ok || node.valueLen == 0 || node.valueOff > s.valueLen || node.valueLen > s.valueLen-node.valueOff {
+	if !ok {
 		return nil
 	}
-	data, ok := s.region.bytesAt(s.valueOff+node.valueOff, node.valueLen)
+	return s.values(node)
+}
+
+func (s *segment[T]) values(node segmentNode) []T {
+	if node.valueLen == 0 || node.valueOff > s.valueLen || node.valueLen > s.valueLen-node.valueOff {
+		return nil
+	}
+	data, ok := s.region.BytesAt(s.valueOff+node.valueOff, node.valueLen)
 	if !ok {
 		return nil
 	}
@@ -229,74 +252,47 @@ func (s *segment[T]) valuesNode(id uint64) []T {
 	return cloneValues(values)
 }
 
+func (s *segment[T]) appendValues(dst []T, node segmentNode) []T {
+	if node.valueLen == 0 || node.valueOff > s.valueLen || node.valueLen > s.valueLen-node.valueOff {
+		return dst
+	}
+	data, ok := s.region.BytesAt(s.valueOff+node.valueOff, node.valueLen)
+	if !ok {
+		return dst
+	}
+	result, err := codec.AppendUniqueOwned(s.codec, dst, data)
+	if err != nil {
+		return dst
+	}
+	return result
+}
+
 // cloneValues detaches string values from the mmap-backed byte slice used by
 // UnsafeStringCodec. Other codecs already return owned values and pass through
 // this loop unchanged.
 func cloneValues[T comparable](values []T) []T {
 	for index, value := range values {
 		if text, ok := any(value).(string); ok {
-			values[index] = any(string([]byte(text))).(T)
+			values[index] = any(strings.Clone(text)).(T)
 		}
 	}
 	return values
 }
 
-func (s *segment[T]) search(data []byte, valuesByDepth *[129][]T) {
-	root, ok := s.node(0)
-	if !ok {
-		return
-	}
-	nodeID := root.right
-	if len(data) == netIPv4Bytes {
-		nodeID = root.left
-	}
-	if nodeID == absentChild {
-		return
-	}
-	if values := s.valuesNode(nodeID); len(values) != 0 {
-		valuesByDepth[0] = append(valuesByDepth[0], values...)
-	}
-	for index := 0; index < len(data)*8; index++ {
-		node, ok := s.node(nodeID)
-		if !ok {
-			return
-		}
-		nodeID = node.right
-		if bitAt(data, index) == 0 {
-			nodeID = node.left
-		}
-		if nodeID == absentChild {
-			return
-		}
-		if values := s.valuesNode(nodeID); len(values) != 0 {
-			valuesByDepth[index+1] = append(valuesByDepth[index+1], values...)
-		}
-	}
-}
-
 func (s *segment[T]) loadInto(root *memoryNode[T]) error {
-	return s.loadNode(root, 0, nil)
-}
-
-func (s *segment[T]) loadNode(root *memoryNode[T], id uint64, path []uint8) error {
-	node, ok := s.node(id)
-	if !ok {
-		return errors.New("invalid disk CIDR node")
-	}
-	for _, value := range s.valuesNode(id) {
-		insertPath(root, path, value)
-	}
-	if node.left != absentChild {
-		if err := s.loadNode(root, node.left, append(path, 0)); err != nil {
+	iterator := newSegmentIterator(s)
+	for {
+		record, ok, err := iterator.next()
+		if err != nil {
 			return err
 		}
-	}
-	if node.right != absentChild {
-		if err := s.loadNode(root, node.right, append(path, 1)); err != nil {
-			return err
+		if !ok {
+			return nil
+		}
+		for _, value := range record.values {
+			insertPath(root, record.path, value)
 		}
 	}
-	return nil
 }
 
 func insertPath[T comparable](root *memoryNode[T], path []uint8, value T) {
@@ -314,7 +310,7 @@ func insertPath[T comparable](root *memoryNode[T], path []uint8, value T) {
 }
 
 func (s *segment[T]) close() error {
-	return s.region.close()
+	return s.region.Close()
 }
 
 func globSegments(dir string) []string {

@@ -139,10 +139,13 @@ func TestHostIndexUpdateKeepsPreviousTrieReadableUntilSwap(t *testing.T) {
 	defer release()
 	go func() {
 		lists.updateHostLists(func() {
-			if err := lists.hostTrieBuild.Add(func(yield func(string) bool) {
-				yield("new.example.com")
-			}, "new"); err != nil {
-				t.Errorf("add new host list: %v", err)
+			for range 3 {
+				if err := lists.hostTrieBuild.Add(func(yield func(string) bool) { yield("new.example.com") }, "new"); err != nil {
+					t.Errorf("add new host list: %v", err)
+				}
+				if err := lists.hostTrieBuild.Sync(); err != nil {
+					t.Errorf("sync new host list: %v", err)
+				}
 			}
 			close(building)
 			<-continueBuild
@@ -166,8 +169,8 @@ func TestHostIndexUpdateKeepsPreviousTrieReadableUntilSwap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(segments) == 0 {
-		t.Fatal("completed update left its domain builder in memory")
+	if len(segments) != 1 {
+		t.Fatalf("completed update has %d domain segments, want 1", len(segments))
 	}
 }
 

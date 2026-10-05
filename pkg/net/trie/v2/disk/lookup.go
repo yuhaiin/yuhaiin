@@ -1,59 +1,128 @@
 package disk
 
-import "slices"
+import (
+	"slices"
+	"strings"
+)
 
-// searchLocked follows the same suffix/wildcard precedence as the existing
-// domain Trie. It consults the active builder and immutable segments through
-// hasChild and valuesAt, so a rule can be split across flush boundaries.
-func (t *Trie[T]) searchLocked(labels []string) []T {
-	if len(labels) == 0 {
-		return nil
-	}
-	var result []T
-	path := make([]string, 0, len(labels)+1)
-	matched := 0
+const missingNode = ^uint64(0)
 
-	if t.hasChild(path, labels[0]) {
-		path = append(path, labels[0])
-		goto descend
+type lookupPosition struct {
+	id   uint64
+	node segmentNode
+}
+
+// lookupCursor tracks the same logical path in every segment and the mutable
+// builder. A failed advance leaves it unchanged, which preserves global
+// exact-before-wildcard precedence across flush boundaries.
+type lookupCursor[T comparable] struct {
+	memory *memoryNode[T]
+	parts  []*segment[T]
+	nodes  []lookupPosition
+	next   []lookupPosition
+}
+
+func (c *lookupCursor[T]) advance(label string) bool {
+	var child *memoryNode[T]
+	if c.memory != nil {
+		child = c.memory.children[label]
 	}
-	if !t.hasChild(path, "*") {
-		return nil
-	}
-	path = append(path, "*")
-	for index, label := range labels {
-		if t.hasChild(path, label) {
-			path = append(path, label)
-			matched = index
-			goto descend
+	found := child != nil
+	for index, part := range c.parts {
+		c.next[index].id = missingNode
+		if c.nodes[index].id == missingNode {
+			continue
+		}
+		if id, ok := part.childNode(c.nodes[index].id, c.nodes[index].node, label); ok {
+			node, ok := part.node(id)
+			if ok {
+				c.next[index] = lookupPosition{id: id, node: node}
+				found = true
+			}
 		}
 	}
-	return nil
-
-descend:
-	for _, label := range labels[matched+1:] {
-		if t.hasChild(path, "*") {
-			result = appendUnique(result, t.valuesAt(appendPath(path, "*"))...)
-		}
-		next := appendPath(path, label)
-		if !t.hasChild(path, label) {
-			return result
-		}
-		path = next
+	if found {
+		c.memory = child
+		c.nodes, c.next = c.next, c.nodes
 	}
+	return found
+}
 
-	result = appendUnique(result, t.valuesAt(path)...)
-	if t.hasChild(path, "*") {
-		result = appendUnique(result, t.valuesAt(appendPath(path, "*"))...)
+func (c *lookupCursor[T]) appendValues(result []T, wildcard bool) []T {
+	for index, part := range c.parts {
+		position := c.nodes[index]
+		if position.id == missingNode {
+			continue
+		}
+		if wildcard {
+			id, ok := part.childNode(position.id, position.node, "*")
+			if !ok {
+				continue
+			}
+			position.node, ok = part.node(id)
+			if !ok {
+				continue
+			}
+		}
+		result = part.appendValues(result, position.node)
+	}
+	node := c.memory
+	if wildcard && node != nil {
+		node = node.children["*"]
+	}
+	if node != nil {
+		result = appendUnique(result, node.values...)
 	}
 	return result
 }
 
-func appendPath(path []string, label string) []string {
-	next := make([]string, len(path)+1)
-	copy(next, path)
-	next[len(path)] = label
-	return next
+func (t *Trie[T]) searchLocked(domain string) []T {
+	if domain == "" {
+		return nil
+	}
+	// Compaction normally keeps fewer than four segments. Retain a fallback
+	// for a trie whose preceding compaction failed, without allocating on the
+	// normal read path.
+	var positions [2 * segmentCompactionThreshold]lookupPosition
+	storage := positions[:]
+	if len(t.segments) > segmentCompactionThreshold {
+		storage = make([]lookupPosition, 2*len(t.segments))
+	}
+	cursor := lookupCursor[T]{
+		memory: t.root,
+		parts:  t.segments,
+		nodes:  storage[:len(t.segments)],
+		next:   storage[len(t.segments) : 2*len(t.segments)],
+	}
+	for index, part := range t.segments {
+		cursor.nodes[index] = lookupPosition{node: part.rootNode}
+	}
+	end := len(domain)
+	start := strings.LastIndexByte(domain[:end], t.separator) + 1
+	if !cursor.advance(domain[start:end]) {
+		if !cursor.advance("*") {
+			return nil
+		}
+		for !cursor.advance(domain[start:end]) {
+			if start == 0 {
+				return nil
+			}
+			end = start - 1
+			start = strings.LastIndexByte(domain[:end], t.separator) + 1
+		}
+	}
+
+	var result []T
+	for start != 0 {
+		result = cursor.appendValues(result, true)
+		end = start - 1
+		start = strings.LastIndexByte(domain[:end], t.separator) + 1
+		if !cursor.advance(domain[start:end]) {
+			return result
+		}
+	}
+	result = cursor.appendValues(result, false)
+	return cursor.appendValues(result, true)
 }
 
 func appendUnique[T comparable](dst []T, src ...T) []T {
@@ -63,61 +132,4 @@ func appendUnique[T comparable](dst []T, src ...T) []T {
 		}
 	}
 	return dst
-}
-
-func (t *Trie[T]) hasChild(path []string, label string) bool {
-	if memoryChildExists(t.root, path, label) {
-		return true
-	}
-	for _, segment := range t.segments {
-		if !segmentMayContainPath(segment, path, label) {
-			continue
-		}
-		if segment.childPath(path, label) {
-			return true
-		}
-	}
-	return false
-}
-
-func (t *Trie[T]) valuesAt(path []string) []T {
-	var result []T
-	for _, segment := range t.segments {
-		if len(path) != 0 && !segment.mayContainRoot(path[0]) {
-			continue
-		}
-		result = appendUnique(result, segment.valuesPath(path)...)
-	}
-	result = appendUnique(result, memoryValuesAt(t.root, path)...)
-	return result
-}
-
-func segmentMayContainPath[T comparable](segment *segment[T], path []string, label string) bool {
-	if len(path) == 0 {
-		return segment.mayContainRoot(label)
-	}
-	return segment.mayContainRoot(path[0])
-}
-
-func memoryChildExists[T comparable](root *memoryNode[T], path []string, label string) bool {
-	node := root
-	for _, part := range path {
-		node = node.children[part]
-		if node == nil {
-			return false
-		}
-	}
-	_, ok := node.children[label]
-	return ok
-}
-
-func memoryValuesAt[T comparable](root *memoryNode[T], path []string) []T {
-	node := root
-	for _, part := range path {
-		node = node.children[part]
-		if node == nil {
-			return nil
-		}
-	}
-	return node.values
 }

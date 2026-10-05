@@ -92,6 +92,8 @@ func (h *hostMatcher) Close() error {
 	return err
 }
 
+func (h *hostMatcher) Optimize() error { return h.trie.Optimize() }
+
 func (h *hostMatcher) Sync() error {
 	return h.trie.Sync()
 }
@@ -646,7 +648,7 @@ func (s *Lists) refreshHostTrie() {
 			return
 		}
 	}
-	if err := hostTrie.Sync(); err != nil {
+	if err := hostTrie.Optimize(); err != nil {
 		log.Error("sync host trie failed", "err", err)
 		if closeErr := hostTrie.Close(); closeErr != nil {
 			log.Error("close failed host trie build", "err", closeErr)
@@ -735,7 +737,7 @@ func (s *Lists) updateHostLists(fn func()) {
 	s.hostTrieBuild = build
 	s.hostTrieBuildErr = nil
 	fn()
-	buildErr := errors.Join(s.hostTrieBuildErr, build.Sync())
+	buildErr := errors.Join(s.hostTrieBuildErr, build.Optimize())
 	s.hostTrieBuild = nil
 	s.hostTrieBuildErr = nil
 	if buildErr != nil {

@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/internal/diskio"
 )
 
 const (
@@ -22,14 +24,19 @@ const (
 	segmentHeaderSize = 64
 	segmentNodeSize   = 32
 	segmentEdgeSize   = 24
+	wildcardKnown     = uint32(1) << 31
+	wildcardIndexMask = wildcardKnown - 1
 )
 
 // segmentNode is the fixed-width on-disk node record. Offsets for values are
 // relative to the segment's value area; edge offsets are relative to the edge
-// array.
+// array. The formerly reserved wildcard field uses its high bit to mark
+// known metadata and a one-based edge index in the low bits (zero means none).
+// Legacy nodes leave this field zero; older readers ignore it.
 type segmentNode struct {
 	firstEdge uint64
 	edgeCount uint32
+	wildcard  uint32
 	valueOff  uint64
 	valueLen  uint64
 }
@@ -47,10 +54,14 @@ type segment[T comparable] struct {
 	region *region
 	codec  codec.Codec[T]
 
+	ownedValues                              bool
+	nodeData, edgeData, labelData, valueData []byte
+
 	// rootIndex is intentionally small: it contains only the first label of
 	// each path. Besides speeding up root lookups, it lets the Trie reject a
 	// segment before walking any deeper nodes.
 	rootIndex map[string]uint64
+	rootNode  segmentNode
 
 	nodeOff  uint64
 	nodeCnt  uint64
@@ -73,13 +84,16 @@ func writeSegment[T comparable](path string, root *memoryNode[T], c codec.Codec[
 	flatten = func(node *memoryNode[T]) uint64 {
 		id := uint64(len(nodes))
 		nodes = append(nodes, segmentNode{})
-		encoded, err := encodeValues(c, node.values)
-		if err != nil {
-			encodeErr = err
-			return 0
-		}
 		valueOff := uint64(len(values))
-		values = append(values, encoded...)
+		if len(node.values) != 0 {
+			var err error
+			values, err = codec.AppendEncode(c, values, node.values)
+			if err != nil {
+				encodeErr = err
+				return 0
+			}
+		}
+		valueLen := uint64(len(values)) - valueOff
 
 		keys := make([]string, 0, len(node.children))
 		for key := range node.children {
@@ -87,7 +101,15 @@ func writeSegment[T comparable](path string, root *memoryNode[T], c codec.Codec[
 		}
 		sort.Strings(keys)
 		firstEdge := uint64(len(edges))
-		for _, key := range keys {
+		wildcard := wildcardKnown
+		for index, key := range keys {
+			if key == "*" {
+				if uint64(index) < uint64(wildcardIndexMask) {
+					wildcard |= uint32(index) + 1
+				} else {
+					wildcard = 0
+				}
+			}
 			labelOff := uint64(len(labels))
 			labels = append(labels, key...)
 			edges = append(edges, segmentEdge{labelOff: labelOff, labelLen: uint32(len(key))})
@@ -96,10 +118,11 @@ func writeSegment[T comparable](path string, root *memoryNode[T], c codec.Codec[
 			edges[firstEdge+uint64(i)].child = flatten(node.children[key])
 		}
 		nodes[id] = segmentNode{
+			wildcard:  wildcard,
 			firstEdge: firstEdge,
 			edgeCount: uint32(len(keys)),
 			valueOff:  valueOff,
-			valueLen:  uint64(len(encoded)),
+			valueLen:  valueLen,
 		}
 		return id
 	}
@@ -119,6 +142,7 @@ func writeSegment[T comparable](path string, root *memoryNode[T], c codec.Codec[
 		return nil, err
 	}
 	tmpName := tmp.Name()
+	writer := bufio.NewWriterSize(tmp, diskio.BufferSize)
 	defer os.Remove(tmpName)
 
 	header := make([]byte, segmentHeaderSize)
@@ -130,7 +154,7 @@ func writeSegment[T comparable](path string, root *memoryNode[T], c codec.Codec[
 	binary.LittleEndian.PutUint64(header[40:], uint64(len(edges)))
 	binary.LittleEndian.PutUint64(header[48:], labelOff)
 	binary.LittleEndian.PutUint64(header[56:], valueOff)
-	if err := writeAll(tmp, header); err != nil {
+	if err := writeAll(writer, header); err != nil {
 		_ = tmp.Close()
 		return nil, err
 	}
@@ -140,9 +164,10 @@ func writeSegment[T comparable](path string, root *memoryNode[T], c codec.Codec[
 		clear(nodeBuffer)
 		binary.LittleEndian.PutUint64(nodeBuffer[0:], node.firstEdge)
 		binary.LittleEndian.PutUint32(nodeBuffer[8:], node.edgeCount)
+		binary.LittleEndian.PutUint32(nodeBuffer[12:], node.wildcard)
 		binary.LittleEndian.PutUint64(nodeBuffer[16:], node.valueOff)
 		binary.LittleEndian.PutUint64(nodeBuffer[24:], node.valueLen)
-		if err := writeAll(tmp, nodeBuffer); err != nil {
+		if err := writeAll(writer, nodeBuffer); err != nil {
 			_ = tmp.Close()
 			return nil, err
 		}
@@ -154,16 +179,20 @@ func writeSegment[T comparable](path string, root *memoryNode[T], c codec.Codec[
 		binary.LittleEndian.PutUint64(edgeBuffer[0:], edge.labelOff)
 		binary.LittleEndian.PutUint32(edgeBuffer[8:], edge.labelLen)
 		binary.LittleEndian.PutUint64(edgeBuffer[16:], edge.child)
-		if err := writeAll(tmp, edgeBuffer); err != nil {
+		if err := writeAll(writer, edgeBuffer); err != nil {
 			_ = tmp.Close()
 			return nil, err
 		}
 	}
-	if err := writeAll(tmp, labels); err != nil {
+	if err := writeAll(writer, labels); err != nil {
 		_ = tmp.Close()
 		return nil, err
 	}
-	if err := writeAll(tmp, values); err != nil {
+	if err := writeAll(writer, values); err != nil {
+		_ = tmp.Close()
+		return nil, err
+	}
+	if err := writer.Flush(); err != nil {
 		_ = tmp.Close()
 		return nil, err
 	}
@@ -185,9 +214,9 @@ func openSegment[T comparable](path string, c codec.Codec[T]) (*segment[T], erro
 	if err != nil {
 		return nil, err
 	}
-	header, ok := region.bytesAt(0, segmentHeaderSize)
+	header, ok := region.BytesAt(0, segmentHeaderSize)
 	if !ok || string(header[:8]) != segmentMagic || binary.LittleEndian.Uint32(header[8:]) != segmentVersion {
-		_ = region.close()
+		_ = region.Close()
 		return nil, fmt.Errorf("invalid disk trie segment: %s", path)
 	}
 	segment := &segment[T]{
@@ -202,18 +231,39 @@ func openSegment[T comparable](path string, c codec.Codec[T]) (*segment[T], erro
 		valueOff: binary.LittleEndian.Uint64(header[56:]),
 	}
 	if !segment.valid() {
-		_ = region.close()
+		_ = region.Close()
 		return nil, fmt.Errorf("invalid disk trie segment bounds: %s", path)
 	}
+	segment.nodeData, _ = region.MappedBytes(segment.nodeOff, segment.nodeCnt*segmentNodeSize)
+	segment.edgeData, _ = region.MappedBytes(segment.edgeOff, segment.edgeCnt*segmentEdgeSize)
+	segment.labelData, _ = region.MappedBytes(segment.labelOff, segment.valueOff-segment.labelOff)
+	segment.valueData, _ = region.MappedBytes(segment.valueOff, region.Size-segment.valueOff)
+	switch any(c).(type) {
+	case codec.UnsafeStringCodec, *codec.UnsafeStringCodec:
+		reader, ok := region.Reader(segment.valueOff, region.Size-segment.valueOff)
+		if !ok {
+			region.Close()
+			return nil, errors.New("invalid string pool area")
+		}
+		pool, err := codec.NewPooledStringCodec(reader)
+		if err != nil {
+			region.Close()
+			return nil, err
+		}
+		if pool != nil {
+			segment.codec = any(pool).(codec.Codec[T])
+			segment.ownedValues = true
+		}
+	}
 	if err := segment.buildRootIndex(); err != nil {
-		_ = region.close()
+		_ = region.Close()
 		return nil, err
 	}
 	return segment, nil
 }
 
 func (s *segment[T]) valid() bool {
-	dataLen := s.region.size
+	dataLen := s.region.Size
 	sectionEnd := func(offset, count, width uint64) (uint64, bool) {
 		if count != 0 && count > ^uint64(0)/width {
 			return 0, false
@@ -236,13 +286,21 @@ func (s *segment[T]) node(id uint64) (segmentNode, bool) {
 	if id >= s.nodeCnt {
 		return segmentNode{}, false
 	}
-	data, ok := s.region.bytesAt(s.nodeOff+id*segmentNodeSize, segmentNodeSize)
-	if !ok {
-		return segmentNode{}, false
+	var data []byte
+	if s.nodeData != nil {
+		offset := id * segmentNodeSize
+		data = s.nodeData[offset : offset+segmentNodeSize]
+	} else {
+		var ok bool
+		data, ok = s.region.BytesAt(s.nodeOff+id*segmentNodeSize, segmentNodeSize)
+		if !ok {
+			return segmentNode{}, false
+		}
 	}
 	return segmentNode{
 		firstEdge: binary.LittleEndian.Uint64(data[0:]),
 		edgeCount: binary.LittleEndian.Uint32(data[8:]),
+		wildcard:  binary.LittleEndian.Uint32(data[12:]),
 		valueOff:  binary.LittleEndian.Uint64(data[16:]),
 		valueLen:  binary.LittleEndian.Uint64(data[24:]),
 	}, true
@@ -253,6 +311,7 @@ func (s *segment[T]) buildRootIndex() error {
 	if !ok || root.firstEdge > s.edgeCnt || uint64(root.edgeCount) > s.edgeCnt-root.firstEdge {
 		return errors.New("invalid disk trie root")
 	}
+	s.rootNode = root
 	s.rootIndex = make(map[string]uint64, root.edgeCount)
 	for i := uint64(0); i < uint64(root.edgeCount); i++ {
 		label, child, ok := s.edge(root.firstEdge + i)
@@ -264,27 +323,35 @@ func (s *segment[T]) buildRootIndex() error {
 	return nil
 }
 
-func (s *segment[T]) mayContainRoot(label string) bool {
-	_, ok := s.rootIndex[label]
-	return ok
-}
-
 func (s *segment[T]) edge(id uint64) ([]byte, uint64, bool) {
 	if id >= s.edgeCnt {
 		return nil, 0, false
 	}
-	data, ok := s.region.bytesAt(s.edgeOff+id*segmentEdgeSize, segmentEdgeSize)
-	if !ok {
-		return nil, 0, false
-	}
-	labelOff := s.labelOff + binary.LittleEndian.Uint64(data[0:])
-	labelLen := uint64(binary.LittleEndian.Uint32(data[8:]))
-	if labelOff < s.labelOff || labelOff > s.valueOff || labelLen > s.valueOff-labelOff {
-		return nil, 0, false
-	}
-	label, ok := s.region.bytesAt(labelOff, labelLen)
-	if !ok {
-		return nil, 0, false
+	var data, label []byte
+	if s.edgeData != nil {
+		offset := id * segmentEdgeSize
+		data = s.edgeData[offset : offset+segmentEdgeSize]
+		labelOff := binary.LittleEndian.Uint64(data)
+		labelLen := uint64(binary.LittleEndian.Uint32(data[8:]))
+		if labelOff > uint64(len(s.labelData)) || labelLen > uint64(len(s.labelData))-labelOff {
+			return nil, 0, false
+		}
+		label = s.labelData[labelOff : labelOff+labelLen]
+	} else {
+		var ok bool
+		data, ok = s.region.BytesAt(s.edgeOff+id*segmentEdgeSize, segmentEdgeSize)
+		if !ok {
+			return nil, 0, false
+		}
+		labelOff := s.labelOff + binary.LittleEndian.Uint64(data)
+		labelLen := uint64(binary.LittleEndian.Uint32(data[8:]))
+		if labelOff < s.labelOff || labelOff > s.valueOff || labelLen > s.valueOff-labelOff {
+			return nil, 0, false
+		}
+		label, ok = s.region.BytesAt(labelOff, labelLen)
+		if !ok {
+			return nil, 0, false
+		}
 	}
 	child := binary.LittleEndian.Uint64(data[16:])
 	if child >= s.nodeCnt {
@@ -296,13 +363,30 @@ func (s *segment[T]) edge(id uint64) ([]byte, uint64, bool) {
 // child finds a child node. Root children use the small path index; deeper
 // nodes use binary search over their sorted edge range.
 func (s *segment[T]) child(id uint64, label string) (uint64, bool) {
+	node, ok := s.node(id)
+	if !ok {
+		return 0, false
+	}
+	return s.childNode(id, node, label)
+}
+
+// childNode uses an already parsed node, avoiding repeated region reads during
+// exact/wildcard lookup. Zero wildcard metadata denotes a legacy node.
+func (s *segment[T]) childNode(id uint64, node segmentNode, label string) (uint64, bool) {
 	if id == 0 {
 		child, ok := s.rootIndex[label]
 		return child, ok
 	}
-	node, ok := s.node(id)
-	if !ok || node.firstEdge > s.edgeCnt || uint64(node.edgeCount) > s.edgeCnt-node.firstEdge {
+	if node.firstEdge > s.edgeCnt || uint64(node.edgeCount) > s.edgeCnt-node.firstEdge {
 		return 0, false
+	}
+	if label == "*" && node.wildcard&wildcardKnown != 0 {
+		index := node.wildcard & wildcardIndexMask
+		if index == 0 || index > node.edgeCount {
+			return 0, false
+		}
+		labelBytes, child, ok := s.edge(node.firstEdge + uint64(index) - 1)
+		return child, ok && len(labelBytes) == 1 && labelBytes[0] == '*'
 	}
 	target := []byte(label)
 	lo, hi := uint64(0), uint64(node.edgeCount)
@@ -325,55 +409,22 @@ func (s *segment[T]) child(id uint64, label string) (uint64, bool) {
 	return 0, false
 }
 
-func (s *segment[T]) childPath(path []string, label string) bool {
-	id := uint64(0)
-	rest := path
-	if len(path) != 0 {
-		var ok bool
-		id, ok = s.rootIndex[path[0]]
-		if !ok {
-			return false
-		}
-		rest = path[1:]
+func (s *segment[T]) valueBytes(node segmentNode) ([]byte, bool) {
+	if node.valueOff > s.region.Size-s.valueOff || node.valueLen > s.region.Size-s.valueOff-node.valueOff {
+		return nil, false
 	}
-	for _, part := range rest {
-		var ok bool
-		id, ok = s.child(id, part)
-		if !ok {
-			return false
-		}
+	if s.valueData != nil {
+		return s.valueData[node.valueOff : node.valueOff+node.valueLen], true
 	}
-	_, ok := s.child(id, label)
-	return ok
-}
-
-func (s *segment[T]) valuesPath(path []string) []T {
-	id := uint64(0)
-	rest := path
-	if len(path) != 0 {
-		var ok bool
-		id, ok = s.rootIndex[path[0]]
-		if !ok {
-			return nil
-		}
-		rest = path[1:]
-	}
-	for _, part := range rest {
-		var ok bool
-		id, ok = s.child(id, part)
-		if !ok {
-			return nil
-		}
-	}
-	return s.valuesNode(id)
+	return s.region.BytesAt(s.valueOff+node.valueOff, node.valueLen)
 }
 
 func (s *segment[T]) valuesNode(id uint64) []T {
 	node, ok := s.node(id)
-	if !ok || node.valueLen == 0 || node.valueOff > s.region.size-s.valueOff || node.valueLen > s.region.size-s.valueOff-node.valueOff {
+	if !ok || node.valueLen == 0 || node.valueOff > s.region.Size-s.valueOff || node.valueLen > s.region.Size-s.valueOff-node.valueOff {
 		return nil
 	}
-	data, ok := s.region.bytesAt(s.valueOff+node.valueOff, node.valueLen)
+	data, ok := s.valueBytes(node)
 	if !ok {
 		return nil
 	}
@@ -381,13 +432,31 @@ func (s *segment[T]) valuesNode(id uint64) []T {
 	if err != nil {
 		return nil
 	}
+	if s.ownedValues {
+		return values
+	}
 	return cloneValues(values)
+}
+
+func (s *segment[T]) appendValues(dst []T, node segmentNode) []T {
+	if node.valueLen == 0 || node.valueOff > s.region.Size-s.valueOff || node.valueLen > s.region.Size-s.valueOff-node.valueOff {
+		return dst
+	}
+	data, ok := s.valueBytes(node)
+	if !ok {
+		return dst
+	}
+	result, err := codec.AppendUniqueOwned(s.codec, dst, data)
+	if err != nil {
+		return dst
+	}
+	return result
 }
 
 func cloneValues[T comparable](values []T) []T {
 	for i, value := range values {
 		if text, ok := any(value).(string); ok {
-			values[i] = any(string([]byte(text))).(T)
+			values[i] = any(strings.Clone(text)).(T)
 		}
 	}
 	return values
@@ -426,7 +495,9 @@ func (s *segment[T]) loadNode(root *memoryNode[T], path []string, id uint64) err
 }
 
 func (s *segment[T]) close() error {
-	return s.region.close()
+	err := s.region.Close()
+	s.nodeData, s.edgeData, s.labelData, s.valueData = nil, nil, nil, nil
+	return err
 }
 
 func globSegments(dir string) []string {

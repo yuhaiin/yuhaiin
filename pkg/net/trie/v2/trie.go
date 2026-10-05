@@ -148,6 +148,18 @@ func (x *Trie[T]) Sync() error {
 	return err
 }
 
+// Optimize prepares a completed bulk load for repeated queries. Disk domain
+// segments are merged into one; CIDR and in-memory matchers retain normal Sync.
+func (x *Trie[T]) Optimize() error {
+	if err := x.Sync(); err != nil {
+		return err
+	}
+	if optimizer, ok := x.domain.(interface{ Optimize() error }); ok {
+		return optimizer.Optimize()
+	}
+	return nil
+}
+
 func (x *Trie[T]) Close() error {
 	var err error
 	if er := x.cidr.Close(); er != nil {

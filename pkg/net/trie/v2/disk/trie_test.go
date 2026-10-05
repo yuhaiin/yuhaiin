@@ -2,9 +2,11 @@ package disk
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
@@ -173,6 +175,168 @@ func TestTrieWildcardPatterns(t *testing.T) {
 		}
 		if !slices.Contains(got, test.mark) {
 			t.Errorf("Search(%q) = %v, want %q", test.domain, got, test.mark)
+		}
+	}
+}
+
+func TestCompactionPreservesParentValues(t *testing.T) {
+	dir := t.TempDir()
+	trie, err := NewTrie[string](dir, codec.UnsafeStringCodec{}, WithMemoryLimit(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"example.com", "child.example.com", "other.net", "another.org"} {
+		if err := trie.Insert(key, key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := trie.Search("example.com"); !slices.Equal(got, []string{"example.com"}) {
+		t.Fatalf("parent value after compaction = %v", got)
+	}
+	if err := trie.Close(); err != nil {
+		t.Fatal(err)
+	}
+	trie, err = NewTrie[string](dir, codec.UnsafeStringCodec{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trie.Close()
+	if got := trie.Search("example.com"); !slices.Equal(got, []string{"example.com"}) {
+		t.Fatalf("reopened parent value = %v", got)
+	}
+}
+
+func TestLookupAcrossFlushBoundaries(t *testing.T) {
+	for _, separator := range []byte{'.', '/'} {
+		t.Run(string(separator), func(t *testing.T) {
+			disk, err := NewTrie[string](t.TempDir(), codec.UnsafeStringCodec{}, WithMemoryLimit(1<<30))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer disk.Close()
+			memory, err := NewTrie[string](t.TempDir(), codec.UnsafeStringCodec{}, WithMemoryLimit(1<<30))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer memory.Close()
+			disk.SetSeparate(separator)
+			memory.SetSeparate(separator)
+			rng := rand.New(rand.NewPCG(1, 2))
+			labels := []string{"a", "b", "c", "*", ""}
+			queries := []string{"", "a", "a.b.c", "a.b.c.a.b.c.a.b.c.a.b.c.a.b.c"}
+			for index := range 100 {
+				parts := make([]string, 1+rng.IntN(6))
+				for i := range parts {
+					parts[i] = labels[rng.IntN(len(labels))]
+				}
+				key := strings.Join(parts, string(separator))
+				value := fmt.Sprintf("list%d", rng.IntN(4))
+				if err := disk.Insert(key, value); err != nil {
+					t.Fatal(err)
+				}
+				if err := memory.Insert(key, value); err != nil {
+					t.Fatal(err)
+				}
+				queries = append(queries, key, strings.ReplaceAll(key, "*", "a"))
+				if index%10 == 9 {
+					if err := disk.Sync(); err != nil {
+						t.Fatal(err)
+					}
+				}
+				for _, query := range queries {
+					got, want := disk.Search(query), memory.Search(query)
+					// Compaction preserves segment order, whereas the memory
+					// builder preserves insertion order. Compare the value sets.
+					slices.Sort(got)
+					slices.Sort(want)
+					if !slices.Equal(got, want) {
+						t.Fatalf("Search(%q) = %v, want %v", query, got, want)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestSearchValuesSurviveClose(t *testing.T) {
+	trie, err := NewTrie[string](t.TempDir(), codec.UnsafeStringCodec{}, WithMemoryLimit(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := trie.Insert("example.com", "owned-value"); err != nil {
+		t.Fatal(err)
+	}
+	got := trie.Search("example.com")
+	if err := trie.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got, []string{"owned-value"}) {
+		t.Fatalf("Search after unmap = %v", got)
+	}
+}
+
+func TestSearchDuringCompaction(t *testing.T) {
+	trie, err := NewTrie[string](t.TempDir(), codec.UnsafeStringCodec{}, WithMemoryLimit(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := trie.Insert("*.example.com", "suffix"); err != nil {
+		t.Fatal(err)
+	}
+	stop := make(chan struct{})
+	var readers sync.WaitGroup
+	t.Cleanup(func() {
+		close(stop)
+		readers.Wait()
+		if err := trie.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	for range 4 {
+		readers.Go(func() {
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				if got := trie.Search("missing.example.com"); !slices.Equal(got, []string{"suffix"}) {
+					t.Errorf("concurrent Search = %v", got)
+					return
+				}
+			}
+		})
+	}
+	for index := range 40 {
+		if err := trie.Insert(fmt.Sprintf("host%d.example.com", index), "host"); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestLargeCompactionAndReopen(t *testing.T) {
+	dir := t.TempDir()
+	trie, err := NewTrie[string](dir, codec.UnsafeStringCodec{}, WithMemoryLimit(32<<10))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := range 5000 {
+		if err := trie.Insert(fmt.Sprintf("host%d.group%d.example.com", index, index%10), fmt.Sprint(index)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := trie.Close(); err != nil {
+		t.Fatal(err)
+	}
+	trie, err = NewTrie[string](dir, codec.UnsafeStringCodec{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trie.Close()
+	for index := range 5000 {
+		key := fmt.Sprintf("host%d.group%d.example.com", index, index%10)
+		if got := trie.Search(key); !slices.Equal(got, []string{fmt.Sprint(index)}) {
+			t.Fatalf("Search(%q) = %v", key, got)
 		}
 	}
 }

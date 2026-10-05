@@ -23,7 +23,6 @@ const (
 	defaultMemoryLimit         = 2 << 20
 	segmentCompactionThreshold = 4
 	absentChild                = ^uint64(0)
-	netIPv4Bytes               = 4
 )
 
 // Option configures a disk CIDR matcher.
@@ -70,6 +69,8 @@ type Trie[T comparable] struct {
 }
 
 // NewTrie opens or creates a disk CIDR matcher in dir.
+// New segments use compressed version 2; legacy version 1 remains readable.
+// Older binaries require rebuilding the index before reading version 2 files.
 func NewTrie[T comparable](dir string, c codec.Codec[T], opts ...Option) (*Trie[T], error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
@@ -261,6 +262,15 @@ func (t *Trie[T]) insertLocked(addr netip.Addr, bits int, value T) {
 	t.memoryUsed += estimateValueSize(value)
 }
 
+// segmentCursor retains each decoded node so values and the next child do not
+// require two reads of the same on-disk record.
+type segmentCursor struct {
+	node   segmentNode
+	id     uint64
+	depth  int
+	active bool
+}
+
 func (t *Trie[T]) searchAddr(addr netip.Addr) []T {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -268,32 +278,81 @@ func (t *Trie[T]) searchAddr(addr netip.Addr) []T {
 		return nil
 	}
 	data := addr.AsSlice()
-	var valuesByDepth [129][]T
-	for _, segment := range t.segments {
-		segment.search(data, &valuesByDepth)
+	maxDepth := len(data) * 8
+	var local [segmentCompactionThreshold]segmentCursor
+	cursors := local[:]
+	if len(t.segments) > len(local) {
+		cursors = make([]segmentCursor, len(t.segments))
+	} else {
+		cursors = cursors[:len(t.segments)]
+	}
+	for index, part := range t.segments {
+		root, ok := part.node(part.rootID)
+		if !ok {
+			continue
+		}
+		link := root.right
+		if addr.Is4() {
+			link = root.left
+		}
+		id, depth, ok := part.follow(link, part.rootID, 0, data)
+		if !ok {
+			continue
+		}
+		cursor := &cursors[index]
+		cursor.id, cursor.depth = id, depth
+		cursor.node, cursor.active = part.node(id)
 	}
 	node := t.root.children[1]
 	if addr.Is4() {
 		node = t.root.children[0]
 	}
-	if node == nil {
-		return collectBySpecificity(&valuesByDepth, len(data)*8)
-	}
-	valuesByDepth[0] = append(valuesByDepth[0], node.values...)
-	for index := 0; index < len(data)*8; index++ {
-		node = node.children[bitAt(data, index)]
-		if node == nil {
+	memoryDepth := 0
+	var result []T
+	// Compressed segments visit only endpoints. Merge the next matching depths
+	// globally so overlapping rules retain shortest-to-longest prefix order.
+	for {
+		depth := maxDepth + 1
+		if node != nil {
+			depth = memoryDepth
+		}
+		for _, cursor := range cursors {
+			if cursor.active {
+				depth = min(depth, cursor.depth)
+			}
+		}
+		if depth > maxDepth {
 			break
 		}
-		valuesByDepth[index+1] = append(valuesByDepth[index+1], node.values...)
-	}
-	return collectBySpecificity(&valuesByDepth, len(data)*8)
-}
-
-func collectBySpecificity[T comparable](valuesByDepth *[129][]T, maxDepth int) []T {
-	var result []T
-	for depth := 0; depth <= maxDepth; depth++ {
-		result = appendUnique(result, valuesByDepth[depth]...)
+		for index, part := range t.segments {
+			cursor := &cursors[index]
+			if !cursor.active || cursor.depth != depth {
+				continue
+			}
+			result = part.appendValues(result, cursor.node)
+			cursor.active = false
+			if depth == maxDepth {
+				continue
+			}
+			link := cursor.node.left
+			if bitAt(data, depth) != 0 {
+				link = cursor.node.right
+			}
+			id, nextDepth, ok := part.follow(link, cursor.id, depth+1, data)
+			if ok {
+				cursor.id, cursor.depth = id, nextDepth
+				cursor.node, cursor.active = part.node(id)
+			}
+		}
+		if node != nil && memoryDepth == depth {
+			result = appendUnique(result, node.values...)
+			if depth == maxDepth {
+				node = nil
+			} else {
+				node = node.children[bitAt(data, depth)]
+				memoryDepth++
+			}
+		}
 	}
 	return result
 }

@@ -1,12 +1,12 @@
 //go:build !aix && !android && !darwin && !dragonfly && !freebsd && !illumos && !linux && !netbsd && !openbsd && !solaris
 
-package disk
+package diskio
 
 import "os"
 
 // Windows and other platforms use ReadAt rather than loading the whole index
 // into the Go heap. The OS still provides its normal file cache.
-func openRegion(path string) (*region, error) {
+func OpenRegion(path string) (*Region, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -20,7 +20,7 @@ func openRegion(path string) (*region, error) {
 		_ = f.Close()
 		return nil, os.ErrInvalid
 	}
-	return &region{file: f, size: uint64(info.Size())}, nil
+	return &Region{file: f, Size: uint64(info.Size())}, nil
 }
 
 // unmapBytes is a no-op when the platform backend uses ReadAt.

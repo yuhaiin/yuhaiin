@@ -1,14 +1,17 @@
 package disk
 
 import (
+	"bufio"
 	"container/heap"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/internal/diskio"
 )
 
 const (
@@ -37,6 +40,7 @@ func newSegmentIterator[T comparable](segment *segment[T]) *segmentIterator[T] {
 	return &segmentIterator[T]{segment: segment, stack: []segmentFrame{{id: 0}}}
 }
 
+// next returns a path borrowed until the next call on this iterator.
 func (it *segmentIterator[T]) next() (segmentRecord[T], bool, error) {
 	for len(it.stack) != 0 {
 		top := &it.stack[len(it.stack)-1]
@@ -46,7 +50,7 @@ func (it *segmentIterator[T]) next() (segmentRecord[T], bool, error) {
 		}
 		if !top.entered {
 			top.entered = true
-			path := append([]string(nil), it.path...)
+			path := it.path
 			return segmentRecord[T]{path: path, values: it.segment.valuesNode(top.id)}, true, nil
 		}
 		if top.next < uint64(node.edgeCount) {
@@ -55,7 +59,10 @@ func (it *segmentIterator[T]) next() (segmentRecord[T], bool, error) {
 				return segmentRecord[T]{}, false, errors.New("invalid disk trie iterator edge")
 			}
 			top.next++
-			it.path = append(it.path, string(label))
+			// The borrowed label is consumed before the next iterator call. Old
+			// regions stay open for both compaction passes; exported results and
+			// materialization use owned labels/marks instead.
+			it.path = append(it.path, unsafe.String(unsafe.SliceData(label), len(label)))
 			it.stack = append(it.stack, segmentFrame{id: child})
 			continue
 		}
@@ -133,7 +140,7 @@ func forEachMerged[T comparable](parts []*segment[T], fn func([]string, []T) err
 	for h.Len() != 0 {
 		first := heap.Pop(&h).(*mergeItem[T])
 		path := first.record.path
-		values := append([]T(nil), first.record.values...)
+		values := first.record.values
 		items := []*mergeItem[T]{first}
 		for h.Len() != 0 && comparePath(h[0].record.path, path) == 0 {
 			item := heap.Pop(&h).(*mergeItem[T])
@@ -159,13 +166,21 @@ func forEachMerged[T comparable](parts []*segment[T], fn func([]string, []T) err
 
 type planNode struct {
 	edgeCount uint32
+	wildcard  uint32
 	valueOff  uint64
 	valueLen  uint64
 }
 
 type planState struct {
 	offset    int64
+	wildcard  uint32
 	edgeCount uint32
+	valueOff  uint64
+	valueLen  uint64
+}
+
+func (state planState) node() planNode {
+	return planNode{wildcard: state.wildcard, edgeCount: state.edgeCount, valueOff: state.valueOff, valueLen: state.valueLen}
 }
 
 type compactionStats struct {
@@ -175,33 +190,25 @@ type compactionStats struct {
 	values uint64
 }
 
-func encodeValues[T comparable](c codec.Codec[T], values []T) ([]byte, error) {
-	if len(values) == 0 {
-		return nil, nil
-	}
-	return c.Encode(values)
-}
-
-func writePlanNode(file *os.File, offset int64, node planNode) error {
+func writePlanNode(file *diskio.WriterAt, offset int64, node planNode) error {
 	data := make([]byte, planNodeSize)
 	binary.LittleEndian.PutUint32(data[0:], node.edgeCount)
+	binary.LittleEndian.PutUint32(data[4:], node.wildcard)
 	binary.LittleEndian.PutUint64(data[8:], node.valueOff)
 	binary.LittleEndian.PutUint64(data[16:], node.valueLen)
 	_, err := file.WriteAt(data, offset)
 	return err
 }
 
-func readPlanNode(file *os.File, offset int64) (planNode, error) {
-	data := make([]byte, planNodeSize)
-	n, err := file.ReadAt(data, offset)
+func readPlanNode(file *bufio.Reader) (planNode, error) {
+	data, err := file.Peek(planNodeSize)
 	if err != nil {
-		return planNode{}, err
-	}
-	if n != len(data) {
 		return planNode{}, errors.New("short disk trie compaction plan")
 	}
+	_, _ = file.Discard(planNodeSize)
 	return planNode{
 		edgeCount: binary.LittleEndian.Uint32(data[0:]),
+		wildcard:  binary.LittleEndian.Uint32(data[4:]),
 		valueOff:  binary.LittleEndian.Uint64(data[8:]),
 		valueLen:  binary.LittleEndian.Uint64(data[16:]),
 	}, nil
@@ -216,6 +223,7 @@ func buildCompactionPlan[T comparable](dir string, parts []*segment[T], c codec.
 		return "", compactionStats{}, err
 	}
 	path := file.Name()
+	writer := diskio.NewWriterAt(file)
 	keep := false
 	defer func() {
 		if !keep {
@@ -223,16 +231,18 @@ func buildCompactionPlan[T comparable](dir string, parts []*segment[T], c codec.
 		}
 	}()
 
-	if err := writePlanNode(file, 0, planNode{}); err != nil {
-		_ = file.Close()
-		return "", compactionStats{}, err
-	}
 	stats := compactionStats{nodes: 1}
-	stack := []planState{{offset: 0}}
+	stack := []planState{{offset: 0, wildcard: wildcardKnown}}
 	var previous []string
+	var scratch []byte
+	sizer, _ := c.(codec.EncodedSizer[T])
 	err = forEachMerged(parts, func(path []string, values []T) error {
 		common := commonPath(previous, path)
 		for len(stack)-1 > common {
+			finished := stack[len(stack)-1]
+			if err := writePlanNode(writer, finished.offset, finished.node()); err != nil {
+				return err
+			}
 			stack = stack[:len(stack)-1]
 		}
 		if len(path) > common+1 {
@@ -241,32 +251,36 @@ func buildCompactionPlan[T comparable](dir string, parts []*segment[T], c codec.
 		if len(path) == common+1 {
 			parent := &stack[len(stack)-1]
 			parent.edgeCount++
-			if err := writePlanNode(file, parent.offset, planNode{edgeCount: parent.edgeCount}); err != nil {
-				return err
+			if path[common] == "*" {
+				if parent.edgeCount <= wildcardIndexMask {
+					parent.wildcard = wildcardKnown | parent.edgeCount
+				} else {
+					parent.wildcard = 0
+				}
 			}
 			stats.edges++
 			stats.labels += uint64(len(path[common]))
-			state := planState{offset: int64(stats.nodes) * planNodeSize}
+			state := planState{offset: int64(stats.nodes) * planNodeSize, wildcard: wildcardKnown}
 			stack = append(stack, state)
 			stats.nodes++
-			if err := writePlanNode(file, state.offset, planNode{}); err != nil {
-				return err
-			}
 		}
 
-		encoded, err := encodeValues(c, values)
-		if err != nil {
-			return err
+		var size uint64
+		if len(values) != 0 {
+			if sizer != nil {
+				size = sizer.EncodedSize(values)
+			} else {
+				var err error
+				scratch, err = codec.AppendEncode(c, scratch[:0], values)
+				if err != nil {
+					return err
+				}
+				size = uint64(len(scratch))
+			}
 		}
 		current := &stack[len(stack)-1]
-		if err := writePlanNode(file, current.offset, planNode{
-			edgeCount: current.edgeCount,
-			valueOff:  stats.values,
-			valueLen:  uint64(len(encoded)),
-		}); err != nil {
-			return err
-		}
-		stats.values += uint64(len(encoded))
+		current.valueOff, current.valueLen = stats.values, size
+		stats.values += size
 		previous = append(previous[:0], path...)
 		return nil
 	})
@@ -274,7 +288,15 @@ func buildCompactionPlan[T comparable](dir string, parts []*segment[T], c codec.
 		_ = file.Close()
 		return "", compactionStats{}, err
 	}
-	if err := file.Sync(); err != nil {
+	for index := len(stack) - 1; index >= 0; index-- {
+		state := stack[index]
+		if err := writePlanNode(writer, state.offset, state.node()); err != nil {
+			_ = file.Close()
+			return "", compactionStats{}, err
+		}
+	}
+	// The plan is disposable; only the final segment needs durable Sync.
+	if err := writer.Flush(); err != nil {
 		_ = file.Close()
 		return "", compactionStats{}, err
 	}
@@ -343,6 +365,7 @@ func compactSegments[T comparable](path string, parts []*segment[T], c codec.Cod
 		_ = tmp.Close()
 		return nil, err
 	}
+	reader := bufio.NewReaderSize(plan, diskio.BufferSize)
 	closePlan := true
 	defer func() {
 		if closePlan {
@@ -356,9 +379,14 @@ func compactSegments[T comparable](path string, parts []*segment[T], c codec.Cod
 		edgeCount uint32
 		nextEdge  uint32
 	}
+	edgesWriter := diskio.NewWriterAt(tmp)
+	labelsWriter := diskio.NewWriterAt(tmp)
+	nodes := diskio.NewWriterAt(tmp)
+	valuesWriter := diskio.NewWriterAt(tmp)
 	stack := make([]outputFrame, 0, 8)
 	var previous []string
 	var nodeID, edgeCursor, labelCursor uint64
+	var scratch []byte
 	err = forEachMerged(parts, func(path []string, values []T) error {
 		common := commonPath(previous, path)
 		for len(stack)-1 > common {
@@ -377,7 +405,7 @@ func compactSegments[T comparable](path string, parts []*segment[T], c codec.Cod
 			parent.nextEdge++
 			labelBytes := []byte(path[common])
 			labelAt := labelOff + labelCursor
-			if _, err := tmp.WriteAt(labelBytes, int64(labelAt)); err != nil {
+			if _, err := labelsWriter.WriteAt(labelBytes, int64(labelAt)); err != nil {
 				return err
 			}
 			labelCursor += uint64(len(labelBytes))
@@ -385,12 +413,12 @@ func compactSegments[T comparable](path string, parts []*segment[T], c codec.Cod
 			binary.LittleEndian.PutUint64(edge[0:], labelCursor-uint64(len(labelBytes)))
 			binary.LittleEndian.PutUint32(edge[8:], uint32(len(labelBytes)))
 			binary.LittleEndian.PutUint64(edge[16:], childID)
-			if _, err := tmp.WriteAt(edge, int64(edgeOff+edgeID*segmentEdgeSize)); err != nil {
+			if _, err := edgesWriter.WriteAt(edge, int64(edgeOff+edgeID*segmentEdgeSize)); err != nil {
 				return err
 			}
 		}
 
-		planNode, err := readPlanNode(plan, int64(nodeID)*planNodeSize)
+		planNode, err := readPlanNode(reader)
 		if err != nil {
 			return err
 		}
@@ -402,20 +430,23 @@ func compactSegments[T comparable](path string, parts []*segment[T], c codec.Cod
 		node := make([]byte, segmentNodeSize)
 		binary.LittleEndian.PutUint64(node[0:], firstEdge)
 		binary.LittleEndian.PutUint32(node[8:], planNode.edgeCount)
+		binary.LittleEndian.PutUint32(node[12:], planNode.wildcard)
 		binary.LittleEndian.PutUint64(node[16:], planNode.valueOff)
 		binary.LittleEndian.PutUint64(node[24:], planNode.valueLen)
-		if _, err := tmp.WriteAt(node, int64(nodeOff+nodeID*segmentNodeSize)); err != nil {
+		if _, err := nodes.WriteAt(node, int64(nodeOff+nodeID*segmentNodeSize)); err != nil {
 			return err
 		}
 		if planNode.valueLen != 0 {
-			encoded, err := encodeValues(c, values)
+			var err error
+			scratch, err = codec.AppendEncode(c, scratch[:0], values)
+			encoded := scratch
 			if err != nil {
 				return err
 			}
 			if uint64(len(encoded)) != planNode.valueLen {
 				return errors.New("disk trie compaction value size changed")
 			}
-			if _, err := tmp.WriteAt(encoded, int64(valueOff+planNode.valueOff)); err != nil {
+			if _, err := valuesWriter.WriteAt(encoded, int64(valueOff+planNode.valueOff)); err != nil {
 				return err
 			}
 		}
@@ -436,6 +467,12 @@ func compactSegments[T comparable](path string, parts []*segment[T], c codec.Cod
 		return nil, err
 	}
 	closePlan = false
+	for _, writer := range []*diskio.WriterAt{nodes, edgesWriter, labelsWriter, valuesWriter} {
+		if err := writer.Flush(); err != nil {
+			_ = tmp.Close()
+			return nil, err
+		}
+	}
 	if err := tmp.Sync(); err != nil {
 		_ = tmp.Close()
 		return nil, err

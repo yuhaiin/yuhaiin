@@ -1,6 +1,6 @@
 //go:build aix || android || darwin || dragonfly || freebsd || illumos || linux || netbsd || openbsd || solaris
 
-package disk
+package diskio
 
 import (
 	"os"
@@ -8,7 +8,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func openRegion(path string) (*region, error) {
+func OpenRegion(path string) (*Region, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func openRegion(path string) (*region, error) {
 		_ = f.Close()
 		return nil, err
 	}
-	return &region{data: data, file: f, size: uint64(info.Size())}, nil
+	return &Region{data: data, file: f, Size: uint64(info.Size())}, nil
 }
 
 // unmapBytes is the Unix half of the region lifecycle.
