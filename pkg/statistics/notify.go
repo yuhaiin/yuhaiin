@@ -110,7 +110,7 @@ func (n *notify) send() {
 
 func (n *notify) start() {
 	defer close(n.done)
-	const debounce = 250 * time.Millisecond
+	const batchWindow = 250 * time.Millisecond
 
 	var timer *time.Timer
 	var timerC <-chan time.Time
@@ -127,9 +127,9 @@ func (n *notify) start() {
 			}
 			if timerC == nil {
 				if timer == nil {
-					timer = time.NewTimer(debounce)
+					timer = time.NewTimer(batchWindow)
 				} else {
-					timer.Reset(debounce)
+					timer.Reset(batchWindow)
 				}
 				timerC = timer.C
 			}

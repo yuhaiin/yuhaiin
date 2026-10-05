@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
@@ -65,6 +66,9 @@ func storeSQLiteConnection(s *sqliteInfoStore, h *SQLiteHistory, id uint64, info
 		return err
 	}
 	if err = h.pushEncoded(ctx, tx, info, data, now); err != nil {
+		return err
+	}
+	if err = pruneHistoryRows(ctx, tx, pruneConnectionHistorySQL, configuration.HistorySize); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -248,6 +252,12 @@ func (p *connectionPersistence) flush() error {
 			}
 		}
 		if err := p.history.pushCountEncoded(ctx, tx, info, data, pending.lastSeen, pending.count); err != nil {
+			p.requeue(upserts, deletes, historyQ)
+			return err
+		}
+	}
+	if len(historyQ) != 0 {
+		if err := pruneHistoryRows(ctx, tx, pruneConnectionHistorySQL, configuration.HistorySize); err != nil {
 			p.requeue(upserts, deletes, historyQ)
 			return err
 		}

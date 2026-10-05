@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
 func TestSQLiteTelemetryPersistsTotalsAndHistory(t *testing.T) {
@@ -330,6 +331,61 @@ func TestTelemetryMaintenanceRollsHourlyIntoDaily(t *testing.T) {
 	}
 }
 
+func TestTelemetryMaintenancePrunesExpiredDailyAndUnusedDimensions(t *testing.T) {
+	ctx := context.Background()
+	store, err := storagesqlite.Open(ctx, paths.PathGenerator.State(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	expiredDimension := telemetryDimension{kind: "destination", value: "expired.example"}
+	liveDimension := telemetryDimension{kind: "destination", value: "live.example"}
+	expiredID := seedTelemetryValue(t, ctx, store.DB(), expiredDimension.kind, expiredDimension.value)
+	liveID := seedTelemetryValue(t, ctx, store.DB(), liveDimension.kind, liveDimension.value)
+	if _, err := store.DB().ExecContext(ctx, `
+		INSERT INTO traffic_dimension_daily(bucket_start_utc, value_id, download_bytes)
+		VALUES (?, ?, 1)
+	`, now.Add(-telemetryDailyRetention-24*time.Hour).Unix(), expiredID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB().ExecContext(ctx, `
+		INSERT INTO failure_dimension_daily(bucket_start_utc, value_id, failed_count)
+		VALUES (?, ?, 1)
+	`, now.Add(-telemetryDailyRetention+24*time.Hour).Unix(), liveID); err != nil {
+		t.Fatal(err)
+	}
+
+	valueIDs := lru.NewSyncLru(lru.WithCapacity[telemetryDimension, int64](telemetryValueIDCacheCapacity))
+	valueIDs.Add(expiredDimension, expiredID)
+	recorder := &telemetryRecorder{db: store.DB(), valueIDs: valueIDs}
+	recorder.compactOldTelemetry(now)
+
+	var count int
+	if err := store.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM traffic_dimension_daily WHERE value_id = ?`, expiredID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("expired daily telemetry rows = %d, want 0", count)
+	}
+	if err := store.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM telemetry_dimension_values WHERE id = ?`, expiredID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("unused telemetry dimension rows = %d, want 0", count)
+	}
+	if _, ok := valueIDs.Load(expiredDimension); ok {
+		t.Fatal("pruned telemetry dimension remained in value ID cache")
+	}
+	if err := store.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM failure_dimension_daily WHERE value_id = ?`, liveID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("live daily telemetry rows = %d, want 1", count)
+	}
+}
+
 func TestSQLiteTotalCacheImportsLegacyFlowData(t *testing.T) {
 	t.Parallel()
 
@@ -472,6 +528,67 @@ func assertConnectionSessionCount(t *testing.T, ctx context.Context, db interfac
 	}
 	if got != want {
 		t.Fatalf("connection session count = %d, want %d", got, want)
+	}
+}
+
+func TestSQLiteHistoryPruneKeepsNewestRows(t *testing.T) {
+	ctx := context.Background()
+	store, err := storagesqlite.Open(ctx, paths.PathGenerator.State(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	tx, err := store.DB().BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	for i, addr := range []string{"old.example:443", "middle.example:443", "new.example:443"} {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO connection_history(protocol, addr, process_name, hit_count, last_seen_at, last_connection_json)
+			VALUES ('tcp', ?, '', 1, ?, '{}')
+		`, addr, i+1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := pruneHistoryRows(ctx, tx, pruneConnectionHistorySQL, 2); err != nil {
+		t.Fatal(err)
+	}
+
+	for i, host := range []string{"old.example:443", "middle.example:443", "new.example:443"} {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO failed_connection_history(protocol, host, process_name, failed_count, last_seen_at, last_error)
+			VALUES ('tcp', ?, '', 1, ?, 'dial failed')
+		`, host, i+1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := pruneHistoryRows(ctx, tx, pruneFailedConnectionHistorySQL, 2); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	for table, column := range map[string]string{
+		"connection_history":        "addr",
+		"failed_connection_history": "host",
+	} {
+		var count int
+		if err := store.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 2 {
+			t.Fatalf("%s rows = %d, want 2", table, count)
+		}
+		if err := store.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE "+column+" = ?", "old.example:443").Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatalf("%s retained oldest row", table)
+		}
 	}
 }
 
