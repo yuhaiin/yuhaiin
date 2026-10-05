@@ -66,8 +66,8 @@ brew install yuhaiin
 yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin
 ```
 
-![webuiv2-1](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/webuiv2-1.png)
-![webuiv2-2](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/webuiv2-2.png)
+![webuiv2.1-1](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/webuiv2.1-1.png)
+![webuiv2.1-2](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/webuiv2.1-2.png)
 
 <details>
 <summary>Acknowledgement</summary>
