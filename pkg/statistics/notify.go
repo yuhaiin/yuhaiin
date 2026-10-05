@@ -37,6 +37,7 @@ func (n *notifierEntry) Context() context.Context {
 
 type notify struct {
 	notifyTrigger chan struct{}
+	done          chan struct{}
 	notifyStore   *notifyStore
 	notifier      syncmap.SyncMap[uint64, *notifierEntry]
 
@@ -47,6 +48,7 @@ type notify struct {
 func newNotify() *notify {
 	n := &notify{
 		notifyTrigger: make(chan struct{}, 1),
+		done:          make(chan struct{}),
 		notifyStore:   newNotifyStore(),
 	}
 
@@ -98,6 +100,7 @@ func (n *notify) send() {
 }
 
 func (n *notify) start() {
+	defer close(n.done)
 	const debounce = 250 * time.Millisecond
 
 	var timer *time.Timer
@@ -116,6 +119,9 @@ func (n *notify) start() {
 				timerC = timer.C
 			}
 		case <-timerC:
+			if n.closed.Load() {
+				return
+			}
 			n.send()
 			timer = nil
 			timerC = nil
@@ -149,8 +155,10 @@ func (n *notify) pubRemoveConn(id uint64) {
 }
 
 func (n *notify) Close() error {
-	n.closed.Store(true)
-	n.trigger()
+	if n.closed.CompareAndSwap(false, true) {
+		n.trigger()
+	}
+	<-n.done
 	return nil
 }
 
