@@ -159,7 +159,8 @@ type testPacketConn struct {
 
 	mu     sync.Mutex
 	cond   *sync.Cond
-	closed bool
+	closed        bool
+	readDeadlines int
 }
 
 func (t *testPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
@@ -233,6 +234,9 @@ func (t *testPacketConn) SetDeadline(time.Time) error {
 }
 
 func (t *testPacketConn) SetReadDeadline(time.Time) error {
+	t.mu.Lock()
+	t.readDeadlines++
+	t.mu.Unlock()
 	return nil
 }
 
@@ -298,5 +302,28 @@ func TestP(t *testing.T) {
 		if err != nil {
 			panic(err)
 		}
+	}
+}
+
+func TestWrapConnThrottlesReadDeadlineRefresh(t *testing.T) {
+	pc := &testPacketConn{t: t, saddr: netapi.EmptyAddr, ip: true}
+	wrapped := &wrapConn{PacketConn: pc}
+	for range 100 {
+		wrapped.refreshReadDeadline(time.Minute)
+	}
+	pc.mu.Lock()
+	count := pc.readDeadlines
+	pc.mu.Unlock()
+	if count != 1 {
+		t.Fatalf("read deadline refreshes = %d, want 1", count)
+	}
+
+	wrapped.nextReadDeadlineRefresh.Store(time.Now().Add(-time.Second).UnixNano())
+	wrapped.refreshReadDeadline(time.Minute)
+	pc.mu.Lock()
+	count = pc.readDeadlines
+	pc.mu.Unlock()
+	if count != 2 {
+		t.Fatalf("read deadline refreshes after refresh window = %d, want 2", count)
 	}
 }
