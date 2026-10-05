@@ -143,14 +143,17 @@ func (p *SQLiteFakeIPPool) runTouchWorker() {
 				timerC = timer.C
 			}
 		case <-timerC:
-			_ = p.flushTouches(context.Background())
-			timer = nil
-			timerC = nil
+			if err := p.flushTouches(context.Background()); err != nil {
+				timer = time.NewTimer(sqliteFakeIPTouchFlushInterval)
+				timerC = timer.C
+			} else {
+				timer = nil
+				timerC = nil
+			}
 		case <-p.touchStop:
 			if timer != nil {
 				timer.Stop()
 			}
-			_ = p.flushTouches(context.Background())
 			return
 		}
 	}
@@ -179,6 +182,9 @@ func (p *SQLiteFakeIPPool) Close() error {
 		if p.touchStop != nil {
 			close(p.touchStop)
 			<-p.touchDone
+		}
+		if e := p.flushTouches(context.Background()); e != nil && err == nil {
+			err = e
 		}
 		if p.lookupDomainStmt != nil {
 			if e := p.lookupDomainStmt.Close(); e != nil && err == nil {
@@ -292,7 +298,7 @@ func (p *SQLiteFakeIPPool) touchIP(ip netip.Addr, now time.Time, lastUsedAt int6
 	p.scheduleTouchFlush()
 }
 
-func (p *SQLiteFakeIPPool) flushTouches(ctx context.Context) error {
+func (p *SQLiteFakeIPPool) flushTouches(ctx context.Context) (err error) {
 	p.touchMu.Lock()
 	if len(p.touchDomains) == 0 && len(p.touchIPs) == 0 {
 		p.touchMu.Unlock()
@@ -304,6 +310,12 @@ func (p *SQLiteFakeIPPool) flushTouches(ctx context.Context) error {
 	p.touchDomains = map[string]int64{}
 	p.touchIPs = map[netip.Addr]int64{}
 	p.touchMu.Unlock()
+
+	defer func() {
+		if err != nil {
+			p.requeueTouches(domains, ips)
+		}
+	}()
 
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -332,6 +344,21 @@ func (p *SQLiteFakeIPPool) flushTouches(ctx context.Context) error {
 	}
 
 	return tx.Commit()
+}
+
+func (p *SQLiteFakeIPPool) requeueTouches(domains map[string]int64, ips map[netip.Addr]int64) {
+	p.touchMu.Lock()
+	for domain, lastUsedAt := range domains {
+		if current := p.touchDomains[domain]; current < lastUsedAt {
+			p.touchDomains[domain] = lastUsedAt
+		}
+	}
+	for ip, lastUsedAt := range ips {
+		if current := p.touchIPs[ip]; current < lastUsedAt {
+			p.touchIPs[ip] = lastUsedAt
+		}
+	}
+	p.touchMu.Unlock()
 }
 
 func (p *SQLiteFakeIPPool) deleteDomain(ctx context.Context, domain string) error {
