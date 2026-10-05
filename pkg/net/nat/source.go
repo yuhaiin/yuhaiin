@@ -595,6 +595,8 @@ func (s *SourceControl) parseAddr(from net.Addr, srcAddr netapi.Address, srcKey 
 	return from
 }
 
+var udpDeadlineClockStart = time.Now()
+
 type wrapConn struct {
 	net.PacketConn
 	closed                  atomic.Bool
@@ -617,9 +619,9 @@ func (w *wrapConn) refreshReadDeadline(timeout time.Duration) {
 	}
 
 	now := time.Now()
-	nowNano := now.UnixNano()
+	nowTick := time.Since(udpDeadlineClockStart).Nanoseconds()
 	next := w.nextReadDeadlineRefresh.Load()
-	if next > nowNano {
+	if next > nowTick {
 		return
 	}
 
@@ -630,7 +632,7 @@ func (w *wrapConn) refreshReadDeadline(timeout time.Duration) {
 	if refreshInterval < time.Second {
 		refreshInterval = time.Second
 	}
-	if !w.nextReadDeadlineRefresh.CompareAndSwap(next, now.Add(refreshInterval).UnixNano()) {
+	if !w.nextReadDeadlineRefresh.CompareAndSwap(next, nowTick+refreshInterval.Nanoseconds()) {
 		return
 	}
 
