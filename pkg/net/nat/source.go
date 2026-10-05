@@ -634,7 +634,8 @@ func (w *wrapConn) refreshReadDeadline(timeout time.Duration) {
 		return
 	}
 
-	if err := w.PacketConn.SetReadDeadline(now.Add(timeout)); err != nil {
+	deadline := now.Add(timeout + refreshInterval)
+	if err := w.PacketConn.SetReadDeadline(deadline); err != nil {
 		w.nextReadDeadlineRefresh.Store(0)
 	}
 }
