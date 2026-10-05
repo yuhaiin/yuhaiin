@@ -310,9 +310,11 @@ func TestP(t *testing.T) {
 func TestWrapConnThrottlesReadDeadlineRefresh(t *testing.T) {
 	pc := &testPacketConn{t: t, saddr: netapi.EmptyAddr, ip: true}
 	wrapped := &wrapConn{PacketConn: pc}
+	before := time.Now()
 	for range 100 {
 		wrapped.refreshReadDeadline(time.Minute)
 	}
+	after := time.Now()
 	pc.mu.Lock()
 	count := pc.readDeadlines
 	deadline := pc.lastReadDeadline
@@ -320,9 +322,9 @@ func TestWrapConnThrottlesReadDeadlineRefresh(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("read deadline refreshes = %d, want 1", count)
 	}
-	remaining := time.Until(deadline)
-	if remaining < 74*time.Second || remaining > 76*time.Second {
-		t.Fatalf("read deadline remaining = %s, want about 75s", remaining)
+	want := time.Minute + 15*time.Second
+	if deadline.Before(before.Add(want)) || deadline.After(after.Add(want)) {
+		t.Fatalf("read deadline = %s, want between %s and %s", deadline, before.Add(want), after.Add(want))
 	}
 
 	wrapped.nextReadDeadlineRefresh.Store(-1)
