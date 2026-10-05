@@ -53,7 +53,7 @@ func writeSSEJSON(w http.ResponseWriter, event string, payload any) error {
 	// Bound each write, including Flush, without expiring an idle SSE stream.
 	controller := http.NewResponseController(w)
 	_ = controller.SetWriteDeadline(time.Now().Add(5 * time.Second))
-	defer controller.SetWriteDeadline(time.Time{})
+	defer func() { _ = controller.SetWriteDeadline(time.Time{}) }()
 	if _, err := fmt.Fprintf(w, "event: %s\n", event); err != nil {
 		return err
 	}
