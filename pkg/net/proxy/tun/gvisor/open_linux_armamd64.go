@@ -31,7 +31,7 @@ type fdBasedEndpoint struct {
 func (e *fdBasedEndpoint) Close() {
 	e.closeOne.Do(func() {
 		e.Attach(nil)
-		e.Close()
+		e.LinkEndpoint.Close()
 		closeTunFDs(e.fds)
 	})
 }

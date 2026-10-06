@@ -150,6 +150,16 @@ func Start(opt *device.Opt) (*Nat, error) {
 		v6network = tcpip.AddrFromSlice(opt.V6Address().Masked().Addr().AsSlice())
 	}
 
+	go func() {
+		defer tab.Close()
+		defer nat.Close()
+		nat.readTunQueues(opt, broadcast, v4network, v6network)
+	}()
+
+	return nat, nil
+}
+
+func (n *Nat) readTunQueues(opt *device.Opt, broadcast, v4network, v6network tcpip.Address) {
 	queueReader, parallelRead := opt.Device.(tunQueueReader)
 	queueCount := 1
 	if parallelRead {
@@ -160,24 +170,17 @@ func Start(opt *device.Opt) (*Nat, error) {
 		}
 	}
 
-	go func() {
-		defer tab.Close()
-		defer nat.Close()
-
-		var workers sync.WaitGroup
-		var readFailure sync.Once
-		for queue := range queueCount {
-			workers.Add(1)
-			go func(queue int) {
-				defer workers.Done()
-				nat.readTunQueue(opt, queue, queueReader, parallelRead, &readFailure,
-					broadcast, v4network, v6network)
-			}(queue)
-		}
-		workers.Wait()
-	}()
-
-	return nat, nil
+	var workers sync.WaitGroup
+	var readFailure sync.Once
+	for queue := range queueCount {
+		workers.Add(1)
+		go func(queue int) {
+			defer workers.Done()
+			n.readTunQueue(opt, queue, queueReader, parallelRead, &readFailure,
+				broadcast, v4network, v6network)
+		}(queue)
+	}
+	workers.Wait()
 }
 
 func (n *Nat) readTunQueue(
