@@ -10,13 +10,11 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink/tcplife"
-	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
@@ -93,77 +91,7 @@ func findProcessName(network string, ip netip.AddrPort, to netip.AddrPort) (neta
 }
 
 func resolveProcessNameByProcSearch(inode, uid uint32) (string, uint, error) {
-	procDir, err := os.Open("/proc")
-	if err != nil {
-		return "", 0, err
-	}
-	defer procDir.Close()
-
-	pids, err := procDir.Readdirnames(-1)
-	if err != nil {
-		return "", 0, err
-	}
-
-	expectedSocketName := fmt.Appendf(nil, "socket:[%d]", inode)
-
-	pathBuffer := pool.NewBufferSize(1024)
-	defer pathBuffer.Reset()
-
-	readlinkBuffer := pool.GetBytes(32)
-	defer pool.PutBytes(readlinkBuffer)
-
-	_, _ = pathBuffer.WriteString("/proc/")
-
-	for _, pidstr := range pids {
-		pid, err := strconv.Atoi(pidstr)
-		if err != nil {
-			continue
-		}
-
-		pathBuffer.Truncate(len("/proc/"))
-		_, _ = pathBuffer.WriteString(pidstr)
-
-		stat := &unix.Stat_t{}
-		err = unix.Stat(pathBuffer.String(), stat)
-		if err != nil {
-			continue
-		}
-
-		if stat.Uid != uid {
-			continue
-		}
-
-		_, _ = pathBuffer.WriteString("/fd/")
-		fdsPrefixLength := pathBuffer.Len()
-
-		fdDir, err := os.Open(pathBuffer.String())
-		if err != nil {
-			continue
-		}
-
-		fds, err := fdDir.Readdirnames(-1)
-		_ = fdDir.Close()
-		if err != nil {
-			continue
-		}
-
-		for _, fd := range fds {
-			pathBuffer.Truncate(fdsPrefixLength)
-			_, _ = pathBuffer.WriteString(fd)
-
-			n, err := unix.Readlink(pathBuffer.String(), readlinkBuffer)
-			if err != nil {
-				continue
-			}
-
-			if bytes.Equal(readlinkBuffer[:n], expectedSocketName) {
-				path, err := os.Readlink("/proc/" + pidstr + "/exe")
-				return path, uint(pid), err
-			}
-		}
-	}
-
-	return "", 0, fmt.Errorf("inode %d of uid %d not found", inode, uid)
+	return resolveProcessNameByProcSearchAt("/proc", inode, uid, defaultProcSearchCalls)
 }
 
 var (
