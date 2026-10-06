@@ -43,7 +43,9 @@ type Connections struct {
 
 	connStore syncmap.SyncMap[uint64, connection]
 
-	idSeed id.IDGenerator
+	idSeed            id.IDGenerator
+	openedConnections atomic.Uint64
+	failedConnections atomic.Uint64
 }
 
 type InfoCache interface {
@@ -236,6 +238,7 @@ func (c *Connections) storeConnection(o connection, info contractconnection.Conn
 
 	id, _ := strconv.ParseUint(info.ID, 10, 64)
 	c.connStore.Store(id, o)
+	c.openedConnections.Add(1)
 	if c.persistence != nil {
 		c.persistence.Store(id, info)
 	} else {
@@ -287,6 +290,7 @@ func (c *Connections) Ping(ctx context.Context, addr netapi.Address) (uint64, er
 }
 
 func (c *Connections) recordFailure(ctx context.Context, protocol string, addr netapi.Address) {
+	c.failedConnections.Add(1)
 	info := c.getConnection(ctx, nil, addr, 0)
 	info.Network.ConnType = protocol
 	c.telemetry.RecordFailure(c.telemetryConnection(ctx, info))

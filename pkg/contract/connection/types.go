@@ -128,3 +128,15 @@ type Event struct {
 	Type    string `json:"type"`
 	Payload any    `json:"payload,omitzero"`
 }
+
+// SessionSummary contains runtime-only session counts and bytes. Lifetime totals
+// remain persisted by TotalCache. Decimal strings preserve full counter precision.
+type SessionSummary struct {
+	Download      string `json:"download"`
+	Upload        string `json:"upload"`
+	TotalDownload string `json:"totalDownload"`
+	TotalUpload   string `json:"totalUpload"`
+	Active        int    `json:"active"`
+	Opened        string `json:"opened"`
+	Failed        string `json:"failed"`
+}
