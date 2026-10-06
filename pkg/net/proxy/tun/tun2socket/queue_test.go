@@ -64,10 +64,8 @@ func startTestQueueReaders(t *testing.T, tun netlink.Tun) (*Nat, <-chan struct{}
 	t.Helper()
 	n := &Nat{
 		UDP: &UDP{}, tab: newTable(), gatewayPort: 1234,
-		InterfaceAddress: device.InterfaceAddress{
-			Addressv4: tcpip.AddrFrom4([4]byte{172, 19, 0, 1}),
-			Portalv4:  tcpip.AddrFrom4([4]byte{172, 19, 0, 2}),
-		},
+		Addressv4: tcpip.AddrFrom4([4]byte{172, 19, 0, 1}),
+		Portalv4:  tcpip.AddrFrom4([4]byte{172, 19, 0, 2}),
 	}
 	done := make(chan struct{})
 	go func() {

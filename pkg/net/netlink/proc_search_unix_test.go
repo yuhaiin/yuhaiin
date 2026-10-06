@@ -39,7 +39,7 @@ func procSearchFixture(t testing.TB) (string, uint32, uint32) {
 func TestProcSearchAllocationBudget(t *testing.T) {
 	root, inode, uid := procSearchFixture(t)
 	lookup := func() {
-		path, pid, err := resolveProcessNameByProcSearchAt(root, inode, uid)
+		path, pid, err := resolveProcessNameByProcSearchAt(root, inode, uid, defaultProcSearchCalls)
 		if err != nil || pid != 1031 || path != "/example/program" {
 			t.Fatalf("path=%q pid=%d err=%v", path, pid, err)
 		}
@@ -60,7 +60,7 @@ func BenchmarkProcSearch(b *testing.B) {
 	root, inode, uid := procSearchFixture(b)
 	b.ReportAllocs()
 	for b.Loop() {
-		path, pid, err := resolveProcessNameByProcSearchAt(root, inode, uid)
+		path, pid, err := resolveProcessNameByProcSearchAt(root, inode, uid, defaultProcSearchCalls)
 		if err != nil || pid != 1031 || path != "/example/program" {
 			b.Fatalf("path=%q pid=%d err=%v", path, pid, err)
 		}
