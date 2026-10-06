@@ -38,12 +38,8 @@ func procSearchFixture(t testing.TB) (string, uint32, uint32) {
 
 func TestProcSearchAllocationBudget(t *testing.T) {
 	root, inode, uid := procSearchFixture(t)
-	// Measure scanning with reused buffers, as in the steady-state lookup.
-	// Race instrumentation randomly discards sync.Pool entries, so measuring
-	// the pool here would include unrelated scratch-buffer allocations.
-	scratch := new(procSearchBuffers)
 	lookup := func() {
-		path, pid, err := findProcessInProc(root, inode, uid, defaultProcSearchCalls, scratch)
+		path, pid, err := resolveProcessNameByProcSearchAt(root, inode, uid, defaultProcSearchCalls)
 		if err != nil || pid != 1031 || path != "/example/program" {
 			t.Fatalf("path=%q pid=%d err=%v", path, pid, err)
 		}
