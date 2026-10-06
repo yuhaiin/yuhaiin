@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/netip"
 	"sync"
-
-	"golang.org/x/sys/unix"
 )
 
 // Share only queries arriving during a kernel read. Clear the in-flight
@@ -15,6 +13,7 @@ import (
 type pcbQuery struct {
 	mu      sync.Mutex
 	current *pcbSnapshot
+	spare   []byte
 }
 
 type pcbSnapshot struct {
@@ -24,7 +23,7 @@ type pcbSnapshot struct {
 	readers int
 }
 
-func (q *pcbQuery) acquire(read func() ([]byte, error)) *pcbSnapshot {
+func (q *pcbQuery) acquire(read func([]byte) ([]byte, error)) *pcbSnapshot {
 	q.mu.Lock()
 	if s := q.current; s != nil {
 		s.readers++
@@ -33,9 +32,11 @@ func (q *pcbQuery) acquire(read func() ([]byte, error)) *pcbSnapshot {
 		return s
 	}
 	s := &pcbSnapshot{ready: make(chan struct{}), readers: 1}
+	buf := q.spare
+	q.spare = nil
 	q.current = s
 	q.mu.Unlock()
-	s.data, s.err = read()
+	s.data, s.err = read(buf)
 	q.mu.Lock()
 	q.current = nil
 	close(s.ready)
@@ -43,10 +44,22 @@ func (q *pcbQuery) acquire(read func() ([]byte, error)) *pcbSnapshot {
 	return s
 }
 
-var tcpPCBQuery, udpPCBQuery pcbQuery
+// A completed read is never a cached result. Only recycle its backing array
+// once every scanner has finished, and retain at most one reasonably sized
+// buffer per protocol rather than keeping a peak-sized table indefinitely.
+func (q *pcbQuery) release(s *pcbSnapshot) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	s.readers--
+	if s.readers == 0 {
+		if cap(s.data) <= 1<<20 && cap(s.data) > cap(q.spare) {
+			q.spare = s.data[:0]
+		}
+		s.data = nil
+	}
+}
 
-func readTCPPCB() ([]byte, error) { return unix.SysctlRaw("net.inet.tcp.pcblist_n") }
-func readUDPPCB() ([]byte, error) { return unix.SysctlRaw("net.inet.udp.pcblist_n") }
+var tcpPCBQuery, udpPCBQuery pcbQuery
 
 // Offsets follow XNU's xinpcb_n and xsocket_n (in_pcblist.c). Ports are
 // network-endian; the PID is native-endian. Scan without allocating an index,

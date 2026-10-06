@@ -36,7 +36,7 @@ var structSize = func() int {
 
 func FindProcessName(network string, ip netip.AddrPort, dst netip.AddrPort) (netapi.Process, error) {
 	var query *pcbQuery
-	var read func() ([]byte, error)
+	var read func([]byte) ([]byte, error)
 	itemSize := structSize
 	switch network {
 	case "tcp":
@@ -51,9 +51,11 @@ func FindProcessName(network string, ip netip.AddrPort, dst netip.AddrPort) (net
 
 	snapshot := query.acquire(read)
 	if snapshot.err != nil {
+		query.release(snapshot)
 		return netapi.Process{}, snapshot.err
 	}
 	pid, err := findPCBPID(snapshot.data, itemSize, network, ip, dst)
+	query.release(snapshot)
 	if err != nil {
 		return netapi.Process{}, err
 	}
