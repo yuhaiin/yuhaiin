@@ -29,6 +29,10 @@ type BackupController interface {
 	Run(context.Context) error
 	Restore(context.Context, contractbackup.RestoreOption) error
 }
+type DiagnosticsController interface {
+	Run(context.Context, contracttools.DiagnosticRequest) (contracttools.DiagnosticReport, error)
+}
+
 type ToolsController interface {
 	Interfaces(context.Context) (contracttools.Interfaces, error)
 	Licenses(context.Context) (contracttools.Licenses, error)
@@ -105,28 +109,29 @@ type InboundStore interface {
 	SaveSettings(context.Context, plainstore.InboundSettings) error
 }
 type V2Services struct {
-	Settings       SettingsController
-	Inbounds       InboundStore
-	Nodes          *plainstore.NodeStore
-	Node           NodeController
-	Subscriptions  *plainstore.SubscriptionStore
-	Resolvers      *plainstore.ResolverStore
-	Resolver       ResolverController
-	ResolverCache  ResolverCacheController
-	ResolverConfig ResolverConfigController
-	Connections    ConnectionMonitor
-	Tools          ToolsController
-	Update         UpdateController
-	Backup         BackupController
-	Lists          ListRuntimeController
-	RouteSettings  *plainstore.RouteSettingsStore
-	RouteLists     *plainstore.RouteListStore
-	RouteRegistries *plainstore.RouteRegistryStore
+	Settings         SettingsController
+	Inbounds         InboundStore
+	Nodes            *plainstore.NodeStore
+	Node             NodeController
+	Subscriptions    *plainstore.SubscriptionStore
+	Resolvers        *plainstore.ResolverStore
+	Resolver         ResolverController
+	ResolverCache    ResolverCacheController
+	ResolverConfig   ResolverConfigController
+	Connections      ConnectionMonitor
+	Tools            ToolsController
+	Diagnostics      DiagnosticsController
+	Update           UpdateController
+	Backup           BackupController
+	Lists            ListRuntimeController
+	RouteSettings    *plainstore.RouteSettingsStore
+	RouteLists       *plainstore.RouteListStore
+	RouteRegistries  *plainstore.RouteRegistryStore
 	RegistryCatalogs RegistryCatalogController
-	Rules          RouteRuntimeController
-	RouteRules     *plainstore.RouteRuleStore
-	RouteTags      *plainstore.RouteTagStore
-	Subscribe      SubscriptionController
+	Rules            RouteRuntimeController
+	RouteRules       *plainstore.RouteRuleStore
+	RouteTags        *plainstore.RouteTagStore
+	Subscribe        SubscriptionController
 }
 type pageV2 struct {
 	Page     int `json:"page"`

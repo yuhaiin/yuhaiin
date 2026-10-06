@@ -101,6 +101,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	AddCloser(closers, "network_monitor", interfaces.StartNetworkMonitor())
 
+	var inboundConfigStore *plainstore.InboundStore
 	var settingsStore *plainstore.SettingsStore
 	var backupStore *plainstore.BackupStore
 	var resolverStore *plainstore.ResolverStore
@@ -117,6 +118,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 			}
 			log.Error("open v2 sqlite store failed", "err", err)
 		} else {
+			inboundConfigStore = plainstore.NewInboundStore(db)
 			settingsStore = plainstore.NewSettingsStore(db)
 			backupStore = plainstore.NewBackupStore(db)
 			resolverStore = plainstore.NewResolverStore(db)
@@ -253,6 +255,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		StartOptions:  so,
 		Mux:           mux,
 		Tools:         tools,
+		Diagnostics:   newDiagnostics(inboundConfigStore, inbounds, nodeRuntime, hosts, rules),
 		Node:          nodeRuntime,
 		NodeRuntime:   nodeRuntime,
 		Connections:   statistics.NewConnectionMonitor(stcs),

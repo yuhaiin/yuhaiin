@@ -42,6 +42,7 @@ type AppInstance struct {
 	Node          httpapi.NodeController
 	NodeRuntime   *node.NodeRuntime
 	Tools         httpapi.ToolsController
+	Diagnostics   httpapi.DiagnosticsController
 	Subscribe     httpapi.SubscriptionController
 	Connections   httpapi.ConnectionMonitor
 	Resolver      httpapi.ResolverController
@@ -174,28 +175,29 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	httpapi.RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
 		HandleFunc(app.Mux, app.Auth, pattern, handler)
 	}, httpapi.V2Services{
-		Settings:       app.Setting,
-		Inbounds:       inboundStore,
-		Nodes:          nodeStore,
-		Node:           app.Node,
-		Subscriptions:  subscriptionStore,
-		Resolvers:      resolverStore,
-		Resolver:       app.Resolver,
-		ResolverCache:  app.ResolverCache,
-		ResolverConfig: resolverConfig,
-		Connections:    app.Connections,
-		Tools:          app.Tools,
-		Update:         updatepkg.NewService(updatepkg.Options{Installer: app.Updater}),
-		Backup:         app.Backup,
-		Lists:          app.Lists,
-		RouteSettings:  routeSettingsStore,
-		RouteLists:      routeListStore,
-		RouteRegistries: routeRegistryStore,
+		Settings:         app.Setting,
+		Inbounds:         inboundStore,
+		Nodes:            nodeStore,
+		Node:             app.Node,
+		Subscriptions:    subscriptionStore,
+		Resolvers:        resolverStore,
+		Resolver:         app.Resolver,
+		ResolverCache:    app.ResolverCache,
+		ResolverConfig:   resolverConfig,
+		Connections:      app.Connections,
+		Tools:            app.Tools,
+		Diagnostics:      app.Diagnostics,
+		Update:           updatepkg.NewService(updatepkg.Options{Installer: app.Updater}),
+		Backup:           app.Backup,
+		Lists:            app.Lists,
+		RouteSettings:    routeSettingsStore,
+		RouteLists:       routeListStore,
+		RouteRegistries:  routeRegistryStore,
 		RegistryCatalogs: registryCatalogs,
-		Rules:           app.Rules,
-		RouteRules:     routeRuleStore,
-		RouteTags:      routeTagStore,
-		Subscribe:      subscribeController,
+		Rules:            app.Rules,
+		RouteRules:       routeRuleStore,
+		RouteTags:        routeTagStore,
+		Subscribe:        subscribeController,
 	})
 	return ctx.Err()
 }
