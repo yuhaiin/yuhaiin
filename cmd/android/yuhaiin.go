@@ -38,7 +38,9 @@ func SetSavePath(p string) {
 }
 
 type App struct {
-	server *http.Server
+	server    *http.Server
+	instance  *app.AppInstance
+	startedAt time.Time
 
 	mu      sync.Mutex
 	started atomic.Bool
@@ -76,6 +78,17 @@ func (a *App) Start(opt *Opts) error {
 		return errors.New("yuhaiin is already running")
 	}
 
+	configLock, err := lockConfiguration()
+	if err != nil {
+		return err
+	}
+	lockTransferred := false
+	defer func() {
+		if !lockTransferred {
+			_ = configLock.Close()
+		}
+	}()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	a.setStartCancel(cancel)
 	defer func() {
@@ -88,7 +101,7 @@ func (a *App) Start(opt *Opts) error {
 	}
 
 	tsLogDir := path.Join(savepath, "tailscale", "logs")
-	err := os.MkdirAll(tsLogDir, 0755)
+	err = os.MkdirAll(tsLogDir, 0755)
 	if err != nil {
 		log.Warn("create ts log dir failed:", "err", err)
 	}
@@ -168,11 +181,15 @@ func (a *App) Start(opt *Opts) error {
 	})}
 
 	a.server = server
+	a.instance = app
+	a.startedAt = time.Now()
 
 	a.started.Store(true)
+	lockTransferred = true
 
 	go func() {
 		defer a.started.Store(false)
+		defer func() { _ = configLock.Close() }()
 		defer func() {
 			if err := app.Close(); err != nil {
 				log.Error("close app error", "err", err)
@@ -287,11 +304,12 @@ func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
 	alreadyEmpty := false
 	var lastDownloadBytes, lastUploadBytes uint64
 	haveLast := false
+	var lastSample time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case sampleTime := <-ticker.C:
 			// The notification only needs totals, not the per-connection counter
 			// map and decimal strings built by the monitor API.
 			var downloadBytes, uploadBytes uint64
@@ -308,13 +326,17 @@ func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
 			if !haveLast {
 				lastDownloadBytes, lastUploadBytes = downloadBytes, uploadBytes
 				haveLast = true
+				lastSample = sampleTime
 				continue
 			}
 
-			dr := reduceUnit((downloadBytes - lastDownloadBytes) / 2)
-			ur := reduceUnit((uploadBytes - lastUploadBytes) / 2)
+			seconds := sampleTime.Sub(lastSample).Seconds()
+			dr := reduceUnit(uint64(float64(downloadBytes-lastDownloadBytes) / seconds))
+			ur := reduceUnit(uint64(float64(uploadBytes-lastUploadBytes) / seconds))
+			lastSample = sampleTime
 			if dr == emptyRate && ur == emptyRate {
 				if alreadyEmpty {
+					lastDownloadBytes, lastUploadBytes = downloadBytes, uploadBytes
 					continue
 				}
 				alreadyEmpty = true
@@ -359,6 +381,7 @@ func (a *App) Stop() error {
 	}
 
 	a.server = nil
+	a.instance = nil
 
 	return nil
 }

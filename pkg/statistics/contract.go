@@ -97,3 +97,18 @@ func (s contractNotifyStream) Send(data *contractconnection.Event) error {
 func (s contractNotifyStream) Context() context.Context { return s.ctx }
 
 var _ control.ServerStream[contractconnection.Event] = contractNotifyStream{}
+
+// SessionSummary does not allocate the per-flow counter map or connection details.
+func (m ConnectionMonitor) SessionSummary() contractconnection.SessionSummary {
+	c := m.connections
+	if c == nil || c.Cache == nil {
+		return contractconnection.SessionSummary{}
+	}
+	active := 0
+	c.connStore.Range(func(_ uint64, _ connection) bool { active++; return true })
+	return contractconnection.SessionSummary{
+		Download: formatUint64(c.Cache.LoadRunningDownload()), Upload: formatUint64(c.Cache.LoadRunningUpload()),
+		TotalDownload: formatUint64(c.Cache.LoadDownload()), TotalUpload: formatUint64(c.Cache.LoadUpload()),
+		Active: active, Opened: formatUint64(c.openedConnections.Load()), Failed: formatUint64(c.failedConnections.Load()),
+	}
+}
