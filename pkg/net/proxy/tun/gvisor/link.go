@@ -78,11 +78,9 @@ func NewEndpoint(w netlink.Tun) *Endpoint {
 // Close closes e. Further packet injections will return an error, and all pending
 // packets are discarded. Close may be called concurrently with WritePackets.
 func (e *Endpoint) Close() {
-	if e.closed.Load() {
-		return
+	if e.closed.CompareAndSwap(false, true) {
+		e.dev.Close()
 	}
-	e.closed.Store(true)
-	e.dev.Close()
 	e.wg.Wait()
 }
 
@@ -100,18 +98,41 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 
 	if dispatcher != nil && !e.IsAttached() {
 		e.attached = true
-		gro := &gro.GRO{
-			Dispatcher: dispatcher,
-		}
-		gro.Init(e.dev.GSOEnabled())
-		e.wg.Go(func() {
-			defer gro.Flush()
-			e.Forward(gro)
+		queueReader, parallelRead := e.dev.(interface {
+			ReadQueueCount() int
+			ReadQueue(int, [][]byte, []int) (int, error)
 		})
+		queueCount := 1
+		if parallelRead {
+			queueCount = queueReader.ReadQueueCount()
+			if queueCount < 1 {
+				queueCount, parallelRead = 1, false
+			}
+		}
+		for queue := range queueCount {
+			read := e.dev.Read
+			if parallelRead {
+				read = func(bufs [][]byte, sizes []int) (int, error) {
+					return queueReader.ReadQueue(queue, bufs, sizes)
+				}
+			}
+			// A blocking read must own one kernel queue. Share neither the
+			// packet buffers nor GRO state between queue readers.
+			e.wg.Go(func() {
+				gro := &gro.GRO{Dispatcher: dispatcher}
+				gro.Init(e.dev.GSOEnabled())
+				defer gro.Flush()
+				e.forward(gro, read)
+			})
+		}
 	}
 }
 
 func (e *Endpoint) Forward(dispatcher *gro.GRO) {
+	e.forward(dispatcher, e.dev.Read)
+}
+
+func (e *Endpoint) forward(dispatcher *gro.GRO, read func([][]byte, []int) (int, error)) {
 	bufs := make([][]byte, e.dev.BatchSize())
 	size := make([]int, e.dev.BatchSize())
 
@@ -122,7 +143,7 @@ func (e *Endpoint) Forward(dispatcher *gro.GRO) {
 	}
 
 	for {
-		n, err := e.dev.Read(bufs, size)
+		n, err := read(bufs, size)
 
 		for i := range n {
 			buf := bufs[i][offset : size[i]+offset]
@@ -144,9 +165,11 @@ func (e *Endpoint) Forward(dispatcher *gro.GRO) {
 			pkt.NetworkProtocolNumber = p
 			pkt.RXChecksumValidated = true
 			dispatcher.Enqueue(pkt)
-			// dispatcher.DeliverNetworkPacket(p, pkt)
 			pkt.DecRef()
 		}
+		// Deliver the last coalesced packets before the next blocking read.
+		// Otherwise a quiet TCP flow can wait indefinitely for another batch.
+		dispatcher.Flush()
 
 		if err != nil {
 			if errors.Is(err, syscall.ENOBUFS) {
@@ -154,7 +177,14 @@ func (e *Endpoint) Forward(dispatcher *gro.GRO) {
 				continue
 			}
 
-			log.Error("dev read failed", "err", err)
+			if !errors.Is(err, os.ErrClosed) {
+				log.Error("dev read failed", "err", err)
+			}
+			// Release other blocked queue readers after a terminal error.
+			// Do not call Close here: this worker belongs to e.wg itself.
+			if e.closed.CompareAndSwap(false, true) {
+				e.dev.Close()
+			}
 			return
 		}
 	}
