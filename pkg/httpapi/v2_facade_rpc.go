@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
@@ -11,6 +12,7 @@ import (
 	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
 	contracttools "github.com/Asutorufa/yuhaiin/pkg/contract/tools"
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
+	"github.com/Asutorufa/yuhaiin/pkg/diagnostics"
 )
 
 type v2API struct{ services V2Services }
@@ -27,6 +29,7 @@ func addFacadeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2BackupConfigPut, api.saveBackupConfig)
 	addRPCRoute(handlers, v2BackupRun, api.runBackup)
 	addRPCRoute(handlers, v2BackupRestore, api.restoreBackup)
+	addRPCRoute(handlers, v2ToolsDiagnostics, api.diagnostics)
 	addRPCRoute(handlers, v2ToolsInterfaces, api.interfaces)
 	addRPCRoute(handlers, v2ToolsLicenses, api.licenses)
 	handlers.add(v2ToolsLogs, toolsLogsV2(services))
@@ -91,12 +94,14 @@ func (a v2API) updateStatus(ctx context.Context, _ *emptyRequest) (*contractupda
 	status := a.services.Update.Status(ctx)
 	return &status, nil
 }
+
 func (a v2API) settings(ctx context.Context, _ *emptyRequest) (*contractsettings.Settings, error) {
 	if a.services.Settings == nil {
 		return nil, unavailable("settings controller is unavailable")
 	}
 	return pointer(a.services.Settings.Load(ctx))
 }
+
 func (a v2API) saveSettings(ctx context.Context, request *contractsettings.Settings) (*contractsettings.Settings, error) {
 	if a.services.Settings == nil {
 		return nil, unavailable("settings controller is unavailable")
@@ -107,12 +112,14 @@ func (a v2API) saveSettings(ctx context.Context, request *contractsettings.Setti
 	}
 	return &value, nil
 }
+
 func (a v2API) backupConfig(ctx context.Context, _ *emptyRequest) (*contractbackup.Option, error) {
 	if a.services.Backup == nil {
 		return nil, unavailable("backup controller is unavailable")
 	}
 	return pointer(a.services.Backup.Get(ctx))
 }
+
 func (a v2API) saveBackupConfig(ctx context.Context, request *contractbackup.Option) (*contractbackup.Option, error) {
 	if a.services.Backup == nil {
 		return nil, unavailable("backup controller is unavailable")
@@ -123,6 +130,7 @@ func (a v2API) saveBackupConfig(ctx context.Context, request *contractbackup.Opt
 	}
 	return &value, nil
 }
+
 func (a v2API) runBackup(ctx context.Context, _ *emptyRequest) (*emptyResponse, error) {
 	if a.services.Backup == nil {
 		return nil, unavailable("backup controller is unavailable")
@@ -132,6 +140,7 @@ func (a v2API) runBackup(ctx context.Context, _ *emptyRequest) (*emptyResponse, 
 	}
 	return &emptyResponse{}, nil
 }
+
 func (a v2API) restoreBackup(ctx context.Context, request *contractbackup.RestoreOption) (*emptyResponse, error) {
 	if a.services.Backup == nil {
 		return nil, unavailable("backup controller is unavailable")
@@ -141,18 +150,21 @@ func (a v2API) restoreBackup(ctx context.Context, request *contractbackup.Restor
 	}
 	return &emptyResponse{}, nil
 }
+
 func (a v2API) interfaces(ctx context.Context, _ *emptyRequest) (*contracttools.Interfaces, error) {
 	if a.services.Tools == nil {
 		return nil, unavailable("tools controller is unavailable")
 	}
 	return pointer(a.services.Tools.Interfaces(ctx))
 }
+
 func (a v2API) licenses(ctx context.Context, _ *emptyRequest) (*contracttools.Licenses, error) {
 	if a.services.Tools == nil {
 		return nil, unavailable("tools controller is unavailable")
 	}
 	return pointer(a.services.Tools.Licenses(ctx))
 }
+
 func (a v2API) totalFlow(ctx context.Context, _ *emptyRequest) (*contractconnection.TotalFlow, error) {
 	if a.services.Connections == nil {
 		return nil, unavailable("connections controller is unavailable")
@@ -218,12 +230,14 @@ func (a v2API) telemetry(ctx context.Context, request *telemetryRequest) (*contr
 	}
 	return pointer(a.services.Connections.Telemetry(ctx, from, to, limit))
 }
+
 func (a v2API) connections(ctx context.Context, _ *emptyRequest) (*contractconnection.Connections, error) {
 	if a.services.Connections == nil {
 		return nil, unavailable("connections controller is unavailable")
 	}
 	return pointer(a.services.Connections.List(ctx))
 }
+
 func (a v2API) closeConnections(ctx context.Context, request *contractconnection.CloseRequest) (*emptyResponse, error) {
 	if a.services.Connections == nil {
 		return nil, unavailable("connections controller is unavailable")
@@ -237,24 +251,28 @@ func (a v2API) closeConnections(ctx context.Context, request *contractconnection
 	}
 	return &emptyResponse{}, nil
 }
+
 func (a v2API) failedHistory(ctx context.Context, _ *emptyRequest) (*contractconnection.FailedHistoryList, error) {
 	if a.services.Connections == nil {
 		return nil, unavailable("connections controller is unavailable")
 	}
 	return pointer(a.services.Connections.FailedHistory(ctx))
 }
+
 func (a v2API) allHistory(ctx context.Context, _ *emptyRequest) (*contractconnection.AllHistoryList, error) {
 	if a.services.Connections == nil {
 		return nil, unavailable("connections controller is unavailable")
 	}
 	return pointer(a.services.Connections.AllHistory(ctx))
 }
+
 func (a v2API) hosts(ctx context.Context, _ *emptyRequest) (*contractresolver.Hosts, error) {
 	if a.services.ResolverConfig == nil {
 		return nil, unavailable("resolver controller is unavailable")
 	}
 	return pointer(a.services.ResolverConfig.Hosts(ctx))
 }
+
 func (a v2API) saveHosts(ctx context.Context, request *contractresolver.Hosts) (*contractresolver.Hosts, error) {
 	if a.services.ResolverConfig == nil {
 		return nil, unavailable("resolver controller is unavailable")
@@ -265,12 +283,14 @@ func (a v2API) saveHosts(ctx context.Context, request *contractresolver.Hosts) (
 	}
 	return &value, nil
 }
+
 func (a v2API) fakeDNS(ctx context.Context, _ *emptyRequest) (*contractresolver.FakeDNS, error) {
 	if a.services.ResolverConfig == nil {
 		return nil, unavailable("resolver controller is unavailable")
 	}
 	return pointer(a.services.ResolverConfig.FakeDNS(ctx))
 }
+
 func (a v2API) saveFakeDNS(ctx context.Context, request *contractresolver.FakeDNS) (*contractresolver.FakeDNS, error) {
 	if a.services.ResolverConfig == nil {
 		return nil, unavailable("resolver controller is unavailable")
@@ -281,12 +301,14 @@ func (a v2API) saveFakeDNS(ctx context.Context, request *contractresolver.FakeDN
 	}
 	return &value, nil
 }
+
 func (a v2API) resolverServer(ctx context.Context, _ *emptyRequest) (*contractresolver.Server, error) {
 	if a.services.ResolverConfig == nil {
 		return nil, unavailable("resolver controller is unavailable")
 	}
 	return pointer(a.services.ResolverConfig.Server(ctx))
 }
+
 func (a v2API) saveResolverServer(ctx context.Context, request *contractresolver.Server) (*contractresolver.Server, error) {
 	if a.services.ResolverConfig == nil {
 		return nil, unavailable("resolver controller is unavailable")
@@ -303,4 +325,18 @@ func pointer[T any](value T, err error) (*T, error) {
 		return nil, err
 	}
 	return &value, nil
+}
+
+func (a v2API) diagnostics(ctx context.Context, request *contracttools.DiagnosticRequest) (*contracttools.DiagnosticReport, error) {
+	if a.services.Diagnostics == nil {
+		return nil, unavailable("diagnostics controller is unavailable")
+	}
+	report, err := a.services.Diagnostics.Run(ctx, *request)
+	if errors.Is(err, diagnostics.ErrInvalidHost) {
+		return nil, badRequest(err)
+	}
+	if errors.Is(err, diagnostics.ErrBusy) {
+		return nil, &rpcError{status: http.StatusTooManyRequests, code: "busy", message: err.Error()}
+	}
+	return &report, err
 }

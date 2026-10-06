@@ -22,6 +22,7 @@ import (
 type entry struct {
 	contractConfig *contract.Inbound
 	server         netapi.Accepter
+	counters       *ingressCounters
 }
 
 var _ netapi.Handler = (*Inbound)(nil)
@@ -237,6 +238,27 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 	}
 }
 
+type ingressCounters struct {
+	streams atomic.Uint64
+	packets atomic.Uint64
+	pings   atomic.Uint64
+}
+
+// ListenerSnapshot exposes ingress counts since this listener was created.
+// Registration and past ingress do not establish current end-to-end forwarding.
+func (l *Inbound) ListenerSnapshot(id string) (registered bool, streams, packets, pings uint64) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	entry, ok := l.store.Load(id)
+	if l.closed || !ok || entry.server == nil {
+		return false, 0, 0, 0
+	}
+	if entry.counters == nil {
+		return true, 0, 0, 0
+	}
+	return true, entry.counters.streams.Load(), entry.counters.packets.Load(), entry.counters.pings.Load()
+}
+
 func (l *Inbound) SaveContract(req contract.Inbound) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -278,14 +300,15 @@ func (l *Inbound) SaveContract(req contract.Inbound) error {
 		return nil
 	}
 
-	server, err := listenContract(req, &handlerWrap{name: req.Name, handler: l}, l.fakeIPRanges)
+	counters := &ingressCounters{}
+	server, err := listenContract(req, &handlerWrap{name: req.Name, handler: l, counters: counters}, l.fakeIPRanges)
 	if err != nil {
 		log.Error("start contract server failed", "name", req.Name, "id", req.ID, "err", err)
 		return err
 	}
 
 	log.Info("start contract server", "name", req.Name, "id", req.ID)
-	l.store.Store(key, entry{contractConfig: &req, server: server})
+	l.store.Store(key, entry{contractConfig: &req, server: server, counters: counters})
 
 	return nil
 }
@@ -366,21 +389,31 @@ func (l *Inbound) Close() error {
 }
 
 type handlerWrap struct {
-	handler *Inbound
-	name    string
+	counters *ingressCounters
+	handler  *Inbound
+	name     string
 }
 
 func (h *handlerWrap) HandleStream(meta *netapi.StreamMeta) {
+	if h.counters != nil {
+		h.counters.streams.Add(1)
+	}
 	meta.InboundName = h.name
 	h.handler.HandleStream(meta)
 }
 
 func (h *handlerWrap) HandlePacket(packet *netapi.Packet) {
+	if h.counters != nil {
+		h.counters.packets.Add(1)
+	}
 	netapi.WithInboundName(h.name)(packet)
 	h.handler.HandlePacket(packet)
 }
 
 func (h *handlerWrap) HandlePing(packet *netapi.PingMeta) {
+	if h.counters != nil {
+		h.counters.pings.Add(1)
+	}
 	packet.InboundName = h.name
 	h.handler.HandlePing(packet)
 }
