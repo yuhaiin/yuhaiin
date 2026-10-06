@@ -396,6 +396,14 @@ func pprofHandler(handler func(http.ResponseWriter, *http.Request)) http.Handler
 			http.NotFound(w, r)
 			return
 		}
+		// Go's leak detector cannot follow gVisor Sleeper's uintptr wake-up
+		// references. It marks live workers as _Gleaked, then their next
+		// Goready fatals with "bad g->status in ready". Reject this profile
+		// before pprof.Index can trigger the detection GC (including debug=2).
+		if r.URL.Path == "/debug/pprof/goroutineleak" {
+			http.Error(w, "goroutineleak profiling is unavailable: incompatible with gVisor worker wake-ups; use /debug/pprof/goroutine instead", http.StatusNotImplemented)
+			return
+		}
 		handler(w, r)
 	}
 }

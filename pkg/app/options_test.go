@@ -9,10 +9,16 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+	"gvisor.dev/gvisor/pkg/sleep"
 )
 
 func TestPprofCPUProfileStartsOnRequest(t *testing.T) {
@@ -136,5 +142,102 @@ func TestPprofHandlerHonorsRuntimeSetting(t *testing.T) {
 	mux.ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
 		t.Fatalf("enabled pprof status = %d, want %d", response.Code, http.StatusOK)
+	}
+}
+
+func TestPprofRejectsGoroutineLeakProfile(t *testing.T) {
+	t.Setenv("DISABLED_PPROF", "")
+	setPprofEnabled(false)
+	t.Cleanup(func() { setPprofEnabled(false) })
+	mux := http.NewServeMux()
+	RegisterHTTP(mux)
+
+	request := httptest.NewRequest(http.MethodGet, "/debug/pprof/goroutineleak", nil)
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("disabled pprof status = %d, want 404", response.Code)
+	}
+
+	setPprofEnabled(true)
+	for _, query := range []string{"", "?debug=1", "?debug=2", "?seconds=1"} {
+		t.Run(query, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/debug/pprof/goroutineleak"+query, nil))
+			if response.Code != http.StatusNotImplemented {
+				t.Fatalf("goroutineleak status = %d, want 501", response.Code)
+			}
+			if !bytes.Contains(response.Body.Bytes(), []byte("gVisor")) {
+				t.Fatalf("missing compatibility explanation: %s", response.Body.String())
+			}
+		})
+	}
+
+	response = httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/debug/pprof/goroutine?debug=1", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("ordinary goroutine profile status = %d, want 200", response.Code)
+	}
+}
+
+func TestPprofGoroutineLeakKeepsGvisorWorkerAlive(t *testing.T) {
+	const helperEnv = "YUHAIIN_TEST_PPROF_GVISOR_WORKER"
+	if os.Getenv(helperEnv) != "1" {
+		// The unguarded handler marks this live worker as leaked. Its next
+		// wake-up then throws a runtime fatal, which must stay in a subprocess.
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, executable, "-test.run=^TestPprofGoroutineLeakKeepsGvisorWorkerAlive$")
+		cmd.Env = append(os.Environ(), helperEnv+"=1")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("gVisor worker failed after profiling: %v\n%s", err, output)
+		}
+		return
+	}
+
+	t.Setenv("DISABLED_PPROF", "")
+	setPprofEnabled(true)
+	t.Cleanup(func() { setPprofEnabled(false) })
+	var sleeper sleep.Sleeper
+	var waker sleep.Waker
+	sleeper.AddWaker(&waker)
+	done := make(chan struct{})
+	go func() {
+		sleeper.Fetch(true)
+		close(done)
+	}()
+
+	// Wait for the real custom park, rather than racing profiling against
+	// goroutine startup. No normal channel wait can reproduce this bug.
+	stack := make([]byte, 1<<20)
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		n := runtime.Stack(stack, true)
+		if strings.Contains(string(stack[:n]), "gvisor.dev/gvisor/pkg/sleep.(*Sleeper).nextWaker") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("gVisor worker did not park")
+		}
+		runtime.Gosched()
+	}
+
+	mux := http.NewServeMux()
+	RegisterHTTP(mux)
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/debug/pprof/goroutineleak?debug=2", nil))
+	waker.Assert()
+	select {
+	case <-done:
+		sleeper.Done()
+	case <-time.After(time.Second):
+		t.Fatal("gVisor worker did not wake after profiling")
+	}
+	if response.Code != http.StatusNotImplemented {
+		t.Fatalf("goroutineleak status = %d, want 501", response.Code)
 	}
 }
