@@ -60,17 +60,10 @@ func NewUidDumper(ud UidDumper) netapi.ProcessDumper {
 }
 
 func (u *uidDumper) GetUidInfo(uid int32) (string, error) {
-	if r, ok := u.cache.Load(uid); ok {
-		return r, nil
-	}
-
-	r, err := u.UidDumper.GetUidInfo(uid)
-	if err != nil {
-		return "", err
-	}
-
-	u.cache.Store(uid, r)
-	return r, nil
+	r, _, err := u.cache.LoadOrCreate(uid, func() (string, error) {
+		return u.UidDumper.GetUidInfo(uid)
+	})
+	return r, err
 }
 
 func (a *uidDumper) ProcessName(networks string, src, dst netapi.Address) (netapi.Process, error) {
@@ -89,7 +82,7 @@ func (a *uidDumper) ProcessName(networks string, src, dst netapi.Address) (netap
 
 	var name string
 	if uid != 0 {
-		name, err = a.UidDumper.GetUidInfo(uid)
+		name, err = a.GetUidInfo(uid)
 		if err != nil {
 			return netapi.Process{}, fmt.Errorf("get uid info error: %v", err)
 		}

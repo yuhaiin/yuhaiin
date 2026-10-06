@@ -8,7 +8,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"gvisor.dev/gvisor/pkg/tcpip"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
@@ -32,7 +31,7 @@ func (t *tunServer) tcpForwarder() *tcp.Forwarder {
 		}
 
 		addr := netapi.ParseIPAddr("tcp", id.LocalAddress.AsSlice(), id.LocalPort)
-		local := gonet.NewTCPConn(wq, ep)
+		local := newTCPConn(wq, ep)
 
 		t.handler.HandleStream(&netapi.StreamMeta{
 			Source:      local.RemoteAddr(),
