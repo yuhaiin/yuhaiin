@@ -1,16 +1,46 @@
 package cert
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
+
+func TestECDSALeafWithEd25519CA(t *testing.T) {
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	assert.NoError(t, err)
+	ca := &Ca{PrivateKey: key, Cert: &x509.Certificate{
+		SerialNumber: big.NewInt(1), PublicKeyAlgorithm: x509.Ed25519,
+		SignatureAlgorithm: x509.PureEd25519, PublicKey: key.Public(),
+		NotBefore: time.Now().Add(-time.Minute), NotAfter: time.Now().Add(time.Hour),
+		IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign,
+	}}
+	rootPEM, err := ca.CertBytes()
+	assert.NoError(t, err)
+	leaf, err := ca.GenerateServerCertWithAlgorithm(x509.ECDSA, "test.example")
+	assert.NoError(t, err)
+	certificate, err := leaf.TlsCert()
+	assert.NoError(t, err)
+	parsed, err := x509.ParseCertificate(certificate.Certificate[0])
+	assert.NoError(t, err)
+	assert.Equal(t, x509.ECDSA, parsed.PublicKeyAlgorithm)
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(rootPEM) {
+		t.Fatal("invalid root certificate")
+	}
+	_, err = parsed.Verify(x509.VerifyOptions{Roots: roots, DNSName: "test.example"})
+	assert.NoError(t, err)
+}
 
 func TestGenerate(t *testing.T) {
 	ca, err := GenerateCa()

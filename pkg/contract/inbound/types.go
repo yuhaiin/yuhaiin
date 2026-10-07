@@ -16,6 +16,7 @@ const (
 	UDPUdpOnly  = "udp_only"
 	UDPDisabled = "disabled"
 
+	ProtocolHysteria2   = "hysteria2"
 	ProtocolHTTP        = "http"
 	ProtocolSocks5      = "socks5"
 	ProtocolYuubinsya   = "yuubinsya"
@@ -131,6 +132,7 @@ func (n Network) nonNilCount() int {
 
 type Protocol struct {
 	Type        string               `json:"type"`
+	Hysteria2   *Hysteria2Protocol   `json:"hysteria2,omitzero"`
 	HTTP        *HTTPProtocol        `json:"http,omitzero"`
 	Socks5      *Socks5Protocol      `json:"socks5,omitzero"`
 	Yuubinsya   *YuubinsyaProtocol   `json:"yuubinsya,omitzero"`
@@ -145,6 +147,18 @@ type Protocol struct {
 }
 
 type ProtocolVariant interface{ ProtocolType() string }
+
+// Hysteria2Protocol bandwidth values use bytes per second, from the server's perspective.
+type Hysteria2Protocol struct {
+	Auth                  string `json:"auth"`
+	UploadBPS             uint64 `json:"uploadBps,omitzero"`
+	DownloadBPS           uint64 `json:"downloadBps,omitzero"`
+	IgnoreClientBandwidth bool   `json:"ignoreClientBandwidth,omitzero"`
+	DisableUDP            bool   `json:"disableUdp,omitzero"`
+	SalamanderPassword    string `json:"salamanderPassword,omitzero"`
+}
+
+func (Hysteria2Protocol) ProtocolType() string { return ProtocolHysteria2 }
 
 type HTTPProtocol struct {
 	Username string `json:"username"`
@@ -238,6 +252,11 @@ func NewTypedProtocol[T ProtocolVariant](value T) Protocol {
 
 func (p Protocol) Variant() (ProtocolVariant, error) {
 	switch p.Type {
+	case ProtocolHysteria2:
+		if p.Hysteria2 == nil {
+			return nil, fmt.Errorf("protocol %s missing hysteria2 field", p.Type)
+		}
+		return p.Hysteria2, nil
 	case ProtocolHTTP:
 		if p.HTTP == nil {
 			return nil, fmt.Errorf("protocol %s missing %s field", p.Type, ProtocolHTTP)
@@ -310,6 +329,9 @@ func (p Protocol) Validate() error {
 
 func (p Protocol) nonNilCount() int {
 	count := 0
+	if p.Hysteria2 != nil {
+		count++
+	}
 	if p.HTTP != nil {
 		count++
 	}

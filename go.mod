@@ -3,6 +3,7 @@ module github.com/Asutorufa/yuhaiin
 go 1.27.1
 
 replace (
+	github.com/apernet/hysteria/core/v2 => github.com/Asutorufa/hysteria/core/v2 v2.13.1-0.20261007150228-a38075fd0e66
 	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
 	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20261004051059-f377f7ca3dbc
@@ -10,6 +11,8 @@ replace (
 
 require (
 	codeberg.org/miekg/dns v0.6.118
+	github.com/apernet/hysteria/core/v2 v2.13.0
+	github.com/apernet/hysteria/extras/v2 v2.13.0
 	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.5
 	github.com/cockroachdb/pebble/v2 v2.1.7
@@ -52,6 +55,7 @@ require (
 	github.com/akutz/memconn v0.1.0 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20250919150558-7d374ff0d59e // indirect
 	github.com/andybalholm/brotli v1.2.3 // indirect
+	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cockroachdb/crlib v0.0.0-20251122031428-fe658a2dbda1 // indirect
@@ -98,6 +102,8 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/safchain/ethtool v0.7.0 // indirect
+	github.com/stretchr/objx v0.5.3 // indirect
+	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/tailscale/certstore v0.1.1-0.20260409135935-3638fb84b77d // indirect
 	github.com/tailscale/go-winio v0.0.0-20231025203758-c4f33415bf55 // indirect
 	github.com/tailscale/hujson v0.0.0-20260727124030-b80ff77dac4f // indirect
@@ -106,6 +112,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.uber.org/mock v0.6.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
 	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb // indirect
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
