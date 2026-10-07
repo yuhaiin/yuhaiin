@@ -80,7 +80,15 @@ Set server `salamanderPassword` and client `salamander_password` to the same sep
 
 The server supplies the real peer/local addresses to the existing stream handler and a unique NAT migration ID for every UDP session. Destination changes within a UDP session are preserved. The embedding handler owns sniffing, routing, DNS hijacking, accounting and relay. TCP requests are accepted before that handler dials the destination; a subsequent target dial failure closes the stream. Unauthenticated HTTP/3 requests receive upstream's default 404 response.
 
-Gecko, port hopping, configurable webpage/reverse-proxy masquerade, share URL import/export and React configuration controls are deferred. Related source comments identify those boundaries.
+Gecko, port hopping, configurable webpage/reverse-proxy masquerade and share URL import/export are deferred. Related source comments identify those boundaries.
+
+## Frontend configuration
+
+[Companion frontend PR #453](https://github.com/yuhaiin/yuhaiin-react/pull/453) adds structured Hysteria 2 node and inbound editors. In the inbound Protocol section, select `hysteria2` and choose **Use**. The editor keeps the listen address, selects UDP-only and retains one existing TLS certificate configuration, or supplies `tls_auto` by default. Enter the shared password and the Server Names that clients will use as SNI, then save. Copy the generated public CA Cert into the client node's CA Certificate list; keep verification enabled and configure the same SNI.
+
+The client and server editors expose bandwidth in bytes/s and optional Salamander passwords. Server controls also include ignoring client bandwidth and disabling UDP proxying. TLS-auto CA/auth fields survive saves and reselection. Hysteria manages ALPN, so its editors hide the TLS-enable and ALPN controls.
+
+Merge the frontend companion before releasing the backend. Its existing workflow publishes the frontend bundle to `yuhaiin/yuhaiin.github.io`; the Go build workflow resolves and embeds that published revision. For local validation, run the backend with `-eweb /absolute/path/to/yuhaiin-react/dist` after building the frontend. The two PRs were tested together this way against a real SQLite store and TCP/UDP forwarding.
 
 ## Fork maintenance and validation
 
