@@ -141,6 +141,10 @@ type client struct {
 	config            Config
 	rawSingleflight   singleflight.GroupSync[string, *dns.Msg]
 	refreshBackground syncmap.SyncMap[string, struct{}]
+	refreshFailures   *lru.SyncLru[string, refreshFailure]
+	refreshSlots      chan struct{}
+	refreshContext    context.Context
+	cancelRefresh     context.CancelFunc
 }
 
 func NewClient(config Config, dialer Transport) netapi.Resolver {
@@ -163,7 +167,15 @@ func NewClient(config Config, dialer Transport) netapi.Resolver {
 		edns0 = subnet
 	}
 
+	refreshContext, cancelRefresh := context.WithCancel(context.Background())
 	c := &client{
+		refreshContext: refreshContext,
+		cancelRefresh:  cancelRefresh,
+		refreshSlots:   make(chan struct{}, backgroundRefreshLimit),
+		refreshFailures: lru.NewSyncLru(
+			lru.WithCapacity[string, refreshFailure](int(configuration.DNSCache)),
+			lru.WithDefaultTimeout[string, refreshFailure](10*time.Minute),
+		),
 		dialer: dialer,
 		config: config,
 		rawStore: lru.NewSyncLru(
@@ -458,21 +470,7 @@ func (c *client) raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, err
 	}
 
 	if expired {
-		if _, ok = c.refreshBackground.LoadOrStore(cacheKey, struct{}{}); !ok {
-			// refresh expired response background
-			go func() {
-				defer c.refreshBackground.Delete(cacheKey)
-
-				ctx = context.WithoutCancel(ctx)
-				ctx, cancel := context.WithTimeout(ctx, configuration.ResolverTimeout)
-				defer cancel()
-
-				_, err := c.queryWithMetrics(ctx, req)
-				if err != nil {
-					log.Error("refresh domain background failed", "req", req, "err", err)
-				}
-			}()
-		}
+		c.refresh(ctx, req, cacheKey)
 	}
 
 	return rawmsg, nil
@@ -547,7 +545,10 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType uint16) ([
 	return ips, nil
 }
 
-func (c *client) Close() error { return c.dialer.Close() }
+func (c *client) Close() error {
+	c.cancelRefresh()
+	return c.dialer.Close()
+}
 
 func (c *client) Name() string { return c.config.Name }
 
