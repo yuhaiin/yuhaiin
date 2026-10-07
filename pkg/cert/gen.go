@@ -182,7 +182,13 @@ func (s *ServerCert) TlsCert() (tls.Certificate, error) {
 }
 
 func (c *Ca) GenerateServerCert(hosts ...string) (*ServerCert, error) {
-	algo := GetAlgorithmsByPublicKeyAlgorithm(c.Cert.PublicKeyAlgorithm)
+	return c.GenerateServerCertWithAlgorithm(c.Cert.PublicKeyAlgorithm, hosts...)
+}
+
+// GenerateServerCertWithAlgorithm selects the leaf key independently of the CA.
+// This allows TLS peers with restricted signature schemes to use a persisted CA.
+func (c *Ca) GenerateServerCertWithAlgorithm(algorithm x509.PublicKeyAlgorithm, hosts ...string) (*ServerCert, error) {
+	algo := GetAlgorithmsByPublicKeyAlgorithm(algorithm)
 	// check http://itdoc.hitachi.co.jp/manuals/3021/30213D1130/D110071.HTM
 	// privateKeyType = "PRIVATE KEY"
 
@@ -212,7 +218,7 @@ func (c *Ca) GenerateServerCert(hosts ...string) (*ServerCert, error) {
 		Issuer:                c.Cert.Subject,
 		SerialNumber:          serialNumber,
 		Subject:               pkix.Name{CommonName: commonName},
-		PublicKeyAlgorithm:    c.Cert.PublicKeyAlgorithm,
+		PublicKeyAlgorithm:    algo.PublicKeyAlgorithm,
 		SignatureAlgorithm:    c.Cert.SignatureAlgorithm,
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,

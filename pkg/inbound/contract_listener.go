@@ -2,6 +2,8 @@ package inbound
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -13,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	yhttp "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	yhttp2 "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2/v2"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/mixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/mock"
 	ymux "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mux"
@@ -33,6 +36,10 @@ import (
 func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]netip.Prefix) (netapi.Accepter, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
+	}
+
+	if config.Protocol.Type == contract.ProtocolHysteria2 {
+		return listenHysteria2(config, handler)
 	}
 
 	lis, err := contractNetwork(config)
@@ -301,4 +308,56 @@ func (n noopAccepter) Close() error {
 
 func (n noopAccepter) AcceptPacket() (*netapi.Packet, error) {
 	return nil, context.Canceled
+}
+
+// Hysteria owns QUIC/HTTP3. TLS transports configure its handshake rather than
+// wrapping a TCP listener, and the existing quic network uses a different wire format.
+func listenHysteria2(config contract.Inbound, handler netapi.Handler) (netapi.Accepter, error) {
+	if config.Network.Type != contract.NetworkTCPUDP || config.Network.TCPUDP.UDP != contract.UDPUdpOnly {
+		return nil, errors.New("hysteria2 requires tcp_udp network with udp_only")
+	}
+	var tlsConfig *tls.Config
+	for _, transport := range config.Transports {
+		if transport.Type == contract.TransportNormal {
+			continue
+		}
+		if tlsConfig != nil {
+			return nil, errors.New("hysteria2 requires exactly one TLS or TLS-auto transport")
+		}
+		var err error
+		switch transport.Type {
+		case contract.TransportTLS:
+			if transport.TLS.TLS == nil {
+				return nil, errors.New("hysteria2 missing TLS config")
+			}
+			tlsConfig, err = ytls.ParseServerTLSConfig(serverTLSConfig(*transport.TLS.TLS))
+		case contract.TransportTLSAuto:
+			auto := transport.TLSAuto
+			if len(auto.ServerNames) == 0 {
+				return nil, errors.New("hysteria2 TLS-auto requires serverNames")
+			}
+			options := ytls.TlsAutoServerConfig{LeafAlgorithm: x509.ECDSA, CACert: auto.CACertBase64, CAKey: auto.CAKeyBase64, ServerNames: auto.ServerNames}
+			if auto.ECH != nil {
+				options.ECH = ytls.TlsAutoECH{Enable: auto.ECH.Enabled, Config: auto.ECH.ConfigBase64, PrivateKey: auto.ECH.PrivateKeyBase64}
+			}
+			tlsConfig, err = ytls.NewTLSAutoConfig(options)
+		default:
+			return nil, fmt.Errorf("hysteria2 does not support transport %q", transport.Type)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	if tlsConfig == nil {
+		return nil, errors.New("hysteria2 requires TLS or TLS-auto")
+	}
+	lis, err := contractNetwork(config)
+	if err != nil {
+		return nil, err
+	}
+	server, err := hysteria2.NewServer(*config.Protocol.Hysteria2, tlsConfig, lis, handler)
+	if err != nil {
+		closeIfNotNil(lis)
+	}
+	return server, err
 }

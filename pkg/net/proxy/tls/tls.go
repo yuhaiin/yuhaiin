@@ -195,6 +195,7 @@ type ServerCert struct {
 	cert       *tls.Certificate
 	ca         *cert.Ca
 	servername string
+	algorithm  x509.PublicKeyAlgorithm
 	mu         sync.RWMutex
 }
 
@@ -219,7 +220,11 @@ func (s *ServerCert) Cert() (*tls.Certificate, error) {
 		servernames = append(servernames, s.servername[2:])
 	}
 
-	sc, err := s.ca.GenerateServerCert(servernames...)
+	algorithm := s.algorithm
+	if algorithm == x509.UnknownPublicKeyAlgorithm {
+		algorithm = s.ca.Cert.PublicKeyAlgorithm
+	}
+	sc, err := s.ca.GenerateServerCertWithAlgorithm(algorithm, servernames...)
 	if err != nil {
 		return nil, err
 	}
@@ -234,12 +239,17 @@ func (s *ServerCert) Cert() (*tls.Certificate, error) {
 	return s.cert, nil
 }
 
-func TlsAutoConfig(ca *cert.Ca, nextProto []string, servername []string) *tls.Config {
+func TlsAutoConfig(ca *cert.Ca, nextProto []string, servername []string, leafAlgorithm ...x509.PublicKeyAlgorithm) *tls.Config {
+	var algorithm x509.PublicKeyAlgorithm
+	if len(leafAlgorithm) != 0 {
+		algorithm = leafAlgorithm[0]
+	}
 	store := domain.NewTrie[*ServerCert]()
 
 	for _, v := range servername {
 		store.Insert(v, &ServerCert{
 			servername: v,
+			algorithm:  algorithm,
 			ca:         ca,
 		})
 	}
@@ -264,11 +274,12 @@ func TlsAutoConfig(ca *cert.Ca, nextProto []string, servername []string) *tls.Co
 }
 
 type TlsAutoServerConfig struct {
-	CACert      []byte     `json:"ca_cert,omitzero"`
-	CAKey       []byte     `json:"ca_key,omitzero"`
-	NextProtos  []string   `json:"next_protos,omitzero"`
-	ServerNames []string   `json:"servernames,omitzero"`
-	ECH         TlsAutoECH `json:"ech,omitzero"`
+	LeafAlgorithm x509.PublicKeyAlgorithm `json:"-"`
+	CACert        []byte                  `json:"ca_cert,omitzero"`
+	CAKey         []byte                  `json:"ca_key,omitzero"`
+	NextProtos    []string                `json:"next_protos,omitzero"`
+	ServerNames   []string                `json:"servernames,omitzero"`
+	ECH           TlsAutoECH              `json:"ech,omitzero"`
 }
 
 type TlsAutoECH struct {
@@ -277,13 +288,14 @@ type TlsAutoECH struct {
 	PrivateKey []byte `json:"private_key,omitzero"`
 }
 
-func NewTlsAutoServer(c TlsAutoServerConfig, ii netapi.Listener) (netapi.Listener, error) {
+// NewTLSAutoConfig builds the shared automatic certificate configuration for TCP and QUIC.
+func NewTLSAutoConfig(c TlsAutoServerConfig) (*tls.Config, error) {
 	ca, err := cert.ParseCa(c.CACert, c.CAKey)
 	if err != nil {
 		return nil, err
 	}
 
-	config := TlsAutoConfig(ca, c.NextProtos, c.ServerNames)
+	config := TlsAutoConfig(ca, c.NextProtos, c.ServerNames, c.LeafAlgorithm)
 
 	if c.ECH.Enable {
 		config.EncryptedClientHelloKeys = []tls.EncryptedClientHelloKey{
@@ -294,6 +306,14 @@ func NewTlsAutoServer(c TlsAutoServerConfig, ii netapi.Listener) (netapi.Listene
 		}
 	}
 
+	return config, nil
+}
+
+func NewTlsAutoServer(c TlsAutoServerConfig, ii netapi.Listener) (netapi.Listener, error) {
+	config, err := NewTLSAutoConfig(c)
+	if err != nil {
+		return nil, err
+	}
 	return netapi.NewListener(tls.NewListener(ii, config), ii), nil
 }
 

@@ -61,6 +61,7 @@ type Protocol struct {
 	Shadowsocksr         *Shadowsocksr         `json:"shadowsocksr,omitzero"`
 	Vmess                *Vmess                `json:"vmess,omitzero"`
 	Websocket            *Websocket            `json:"websocket,omitzero"`
+	Hysteria2            *Hysteria2            `json:"hysteria2,omitzero"`
 	Quic                 *Quic                 `json:"quic,omitzero"`
 	ObfsHTTP             *ObfsHTTP             `json:"obfs_http,omitzero"`
 	Trojan               *Trojan               `json:"trojan,omitzero"`
@@ -138,6 +139,18 @@ type Quic struct {
 	Host string `json:"host"`
 	TLS  TLS    `json:"tls,omitzero"`
 }
+
+// Hysteria2 bandwidth values are bytes per second; zero selects automatic congestion control.
+type Hysteria2 struct {
+	Host               string `json:"host"`
+	Auth               string `json:"auth"`
+	TLS                TLS    `json:"tls,omitzero"`
+	UploadBPS          uint64 `json:"upload_bps,omitzero"`
+	DownloadBPS        uint64 `json:"download_bps,omitzero"`
+	SalamanderPassword string `json:"salamander_password,omitzero"`
+}
+
+func (Hysteria2) ProtocolType() string { return "hysteria2" }
 
 type ObfsHTTP struct {
 	Host string `json:"host"`
@@ -488,6 +501,7 @@ func (x Protocol) presentVariants() map[string]bool {
 		"vmess":                  x.Vmess != nil,
 		"websocket":              x.Websocket != nil,
 		"quic":                   x.Quic != nil,
+		"hysteria2":              x.Hysteria2 != nil,
 		"obfs_http":              x.ObfsHTTP != nil,
 		"trojan":                 x.Trojan != nil,
 		"simple":                 x.Simple != nil,

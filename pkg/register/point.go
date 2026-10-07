@@ -121,6 +121,8 @@ func ContractProtocolConfig(protocol contractnode.Protocol) (any, error) {
 		return *protocol.Vmess, nil
 	case "websocket":
 		return *protocol.Websocket, nil
+	case "hysteria2":
+		return *protocol.Hysteria2, nil
 	case "quic":
 		return *protocol.Quic, nil
 	case "obfs_http":
