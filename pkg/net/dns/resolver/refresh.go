@@ -21,7 +21,7 @@ type refreshFailure struct {
 }
 
 // Refresh work is optional: return stale answers without queueing goroutines when
-// offline or busy. Foreground cache misses still query immediately.
+// offline or busy. New questions still query immediately.
 func (c *client) refresh(ctx context.Context, req netapi.DNSQuestion, key string) {
 	if c.refreshContext.Err() != nil {
 		return
