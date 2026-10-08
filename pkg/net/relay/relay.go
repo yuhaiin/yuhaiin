@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
+	"github.com/apernet/quic-go"
 )
 
 var ignoreError = []error{
@@ -50,6 +51,12 @@ func isIgnoreError(err error) ([]any, bool) {
 		if errors.Is(err, e) {
 			return nil, true
 		}
+	}
+
+	// Hysteria uses code zero when closing a stream or cancelling a request.
+	// Keep these cancellations at Debug without hiding nonzero stream errors.
+	if streamErr, ok := errors.AsType[*quic.StreamError](err); ok && streamErr.ErrorCode == 0 {
+		return nil, true
 	}
 
 	netOpErr, ok := errors.AsType[*net.OpError](err)
