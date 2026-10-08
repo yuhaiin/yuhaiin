@@ -15,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	hyclient "github.com/apernet/hysteria/core/v2/client"
 	"github.com/apernet/hysteria/extras/v2/obfs"
+	"github.com/apernet/hysteria/extras/v2/transport/udphop"
 )
 
 func init() {
@@ -22,7 +23,7 @@ func init() {
 }
 
 // Client shares one QUIC connection, with independent TCP streams and UDP sessions.
-// Gecko, port hopping and HTTP masquerade configuration are deferred; they are
+// Gecko and HTTP masquerade configuration are deferred; they are
 // intentionally absent from the public contract until their lifecycle is supported.
 type Client struct {
 	netapi.EmptyDispatch
@@ -58,7 +59,10 @@ func NewClient(config contractnode.Hysteria2, parent netapi.Proxy) (netapi.Proxy
 	if config.Host == "" {
 		return nil, errors.New("hysteria2 server host is empty")
 	}
-	if _, err := netapi.ParseAddress("udp", config.Host); err != nil {
+	if _, _, err := parseServerAddress(config.Host); err != nil {
+		return nil, err
+	}
+	if _, err := hopIntervalConfig(config); err != nil {
 		return nil, err
 	}
 	if register.IsZero(parent) {
@@ -91,7 +95,7 @@ func (c *Client) getSession(ctx context.Context) (*clientSession, error) {
 	defer cancel()
 	stop := context.AfterFunc(c.ctx, cancel)
 	defer stop()
-	server, err := netapi.ParseAddress("udp", c.config.Host)
+	server, ports, err := parseServerAddress(c.config.Host)
 	if err != nil {
 		return nil, err
 	}
@@ -115,10 +119,22 @@ func (c *Client) getSession(ctx context.Context) (*clientSession, error) {
 	if tlsConfig.ServerName == "" {
 		tlsConfig.ServerName = server.Hostname()
 	}
-	factory := &connFactory{ctx: setup, parent: c.parent, password: c.config.SalamanderPassword}
+	var serverAddr net.Addr = remote
+	if ports != nil {
+		if remote.Zone != "" {
+			return nil, errors.New("hysteria2 port hopping does not support scoped IPv6 addresses")
+		}
+		_, portStr, _ := net.SplitHostPort(c.config.Host)
+		serverAddr = &udphop.UDPHopAddr{IP: remote.IP, Ports: ports.Ports(), PortStr: portStr}
+	}
+	interval, err := hopIntervalConfig(c.config)
+	if err != nil {
+		return nil, err
+	}
+	factory := &connFactory{ctx: setup, hopCtx: c.ctx, parent: c.parent, password: c.config.SalamanderPassword, hopInterval: interval}
 	session, _, err := hyclient.NewClientContext(setup, &hyclient.Config{
 		ConnFactory: factory,
-		ServerAddr:  remote, Auth: c.config.Auth,
+		ServerAddr:  serverAddr, Auth: c.config.Auth,
 		TLSConfig:       hyclient.TLSConfig{ServerName: tlsConfig.ServerName, RootCAs: tlsConfig.RootCAs, InsecureSkipVerify: tlsConfig.InsecureSkipVerify, ECHConfigList: tlsConfig.EncryptedClientHelloConfigList},
 		BandwidthConfig: hyclient.BandwidthConfig{MaxTx: c.config.UploadBPS, MaxRx: c.config.DownloadBPS},
 	})
@@ -180,27 +196,38 @@ type clientSession struct {
 }
 
 type connFactory struct {
-	local    net.Addr
-	ctx      context.Context
-	parent   netapi.Proxy
-	password string
+	local       net.Addr
+	ctx         context.Context
+	parent      netapi.Proxy
+	password    string
+	hopCtx      context.Context
+	hopInterval udphop.HopIntervalConfig
 }
 
 func (f *connFactory) New(remote net.Addr) (net.PacketConn, error) {
 	var conn net.PacketConn
 	var err error
-	if f.parent == nil {
-		conn, err = dialer.ListenPacket(f.ctx, "udp", "", func(o *dialer.Options) {
-			if udp, ok := remote.(*net.UDPAddr); ok {
-				o.PacketConnHintAddress = udp
+	if hop, ok := remote.(*udphop.UDPHopAddr); ok {
+		// The setup context ends after authentication. Subsequent sockets must
+		// use the client's lifetime context so hopping can continue afterwards.
+		initial := true
+		conn, err = udphop.NewUDPHopPacketConn(hop, f.hopInterval, func() (net.PacketConn, error) {
+			ctx := f.hopCtx
+			if initial {
+				ctx, initial = f.ctx, false
 			}
+			ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
+			defer cancel()
+			return f.listenPacket(ctx, &net.UDPAddr{IP: hop.IP, Port: int(hop.Ports[0])})
 		})
-	} else {
-		addr, e := netapi.ParseSysAddr(remote)
-		if e != nil {
-			return nil, e
+		if err == nil && f.parent != nil {
+			// Proxy packet connections need not expose a UDP file descriptor.
+			// Hide udphop's unconditional SyscallConn method on this path so QUIC
+			// uses PacketConn rather than failing on an unsupported syscall.
+			conn = packetConnOnly{conn}
 		}
-		conn, err = f.parent.PacketConn(f.ctx, addr)
+	} else {
+		conn, err = f.listenPacket(f.ctx, remote)
 	}
 	if err != nil {
 		return nil, err
@@ -213,6 +240,30 @@ func (f *connFactory) New(remote net.Addr) (net.PacketConn, error) {
 			return nil, err
 		}
 		conn = wrapped
+	}
+	return conn, nil
+}
+
+type packetConnOnly struct{ net.PacketConn }
+
+func (f *connFactory) listenPacket(ctx context.Context, remote net.Addr) (net.PacketConn, error) {
+	var conn net.PacketConn
+	var err error
+	if f.parent == nil {
+		conn, err = dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
+			if udp, ok := remote.(*net.UDPAddr); ok {
+				o.PacketConnHintAddress = udp
+			}
+		})
+	} else {
+		addr, e := netapi.ParseSysAddr(remote)
+		if e != nil {
+			return nil, e
+		}
+		conn, err = f.parent.PacketConn(ctx, addr)
+	}
+	if err != nil {
+		return nil, err
 	}
 	return conn, nil
 }

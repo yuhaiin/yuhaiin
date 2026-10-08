@@ -148,6 +148,12 @@ type Hysteria2 struct {
 	UploadBPS          uint64 `json:"upload_bps,omitzero"`
 	DownloadBPS        uint64 `json:"download_bps,omitzero"`
 	SalamanderPassword string `json:"salamander_password,omitzero"`
+	// Port hopping uses a port list/range in Host. Intervals are seconds;
+	// zero selects the upstream default of 30 seconds. Fixed and random
+	// intervals are mutually exclusive, and the minimum is five seconds.
+	HopIntervalSeconds    uint32 `json:"hop_interval_seconds,omitzero"`
+	MinHopIntervalSeconds uint32 `json:"min_hop_interval_seconds,omitzero"`
+	MaxHopIntervalSeconds uint32 `json:"max_hop_interval_seconds,omitzero"`
 }
 
 func (Hysteria2) ProtocolType() string { return "hysteria2" }

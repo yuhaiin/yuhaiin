@@ -43,6 +43,8 @@ var (
 	salamander     = flag.String("salamander", "", "optional obfuscation password")
 	bandwidth      = flag.Uint64("bandwidth-bps", 0, "up/down bandwidth in bytes per second; zero uses BBR")
 	relayBuffer    = flag.Int("relay-buffer-size", 16384, "native server relay buffer, matching the advanced setting")
+	hopPorts       = flag.String("hop-ports", "", "server hopping ports; Linux nftables and CAP_NET_ADMIN required")
+	hopInterval    = flag.Uint("hop-interval-seconds", 0, "client port hopping interval; zero defaults to 30 seconds")
 	direction      = flag.String("direction", "upload", "upload or download")
 	count          = flag.Int64("bytes", 64<<20, "payload bytes per TCP stream")
 	streams        = flag.Int("streams", 1, "concurrent TCP streams")
@@ -85,7 +87,7 @@ func runServer(ctx context.Context) error {
 	configuration.RelayBufferSize.Store(*relayBuffer)
 	runtime := inbound.NewInbound(direct.Default)
 	defer runtime.Close()
-	config := ci.Inbound{ID: "hysteria2-bench", Name: "hysteria2-bench", Enabled: true, Network: ci.NewTypedNetwork(ci.TCPUDPNetwork{Host: *listen, UDP: ci.UDPUdpOnly}), Protocol: ci.NewTypedProtocol(ci.Hysteria2Protocol{Auth: *auth, SalamanderPassword: *salamander, UploadBPS: *bandwidth, DownloadBPS: *bandwidth})}
+	config := ci.Inbound{ID: "hysteria2-bench", Name: "hysteria2-bench", Enabled: true, Network: ci.NewTypedNetwork(ci.TCPUDPNetwork{Host: *listen, UDP: ci.UDPUdpOnly}), Protocol: ci.NewTypedProtocol(ci.Hysteria2Protocol{Auth: *auth, SalamanderPassword: *salamander, UploadBPS: *bandwidth, DownloadBPS: *bandwidth, HopPorts: *hopPorts})}
 	if *autoDir != "" {
 		if err := os.MkdirAll(*autoDir, 0700); err != nil {
 			return err
@@ -227,7 +229,7 @@ func runClient(ctx context.Context) error {
 			roots = [][]byte{ca}
 		}
 		var err error
-		proxy, err = hysteria2.NewClient(cn.Hysteria2{Host: *serverAddr, Auth: *auth, SalamanderPassword: *salamander, UploadBPS: *bandwidth, DownloadBPS: *bandwidth, TLS: cn.TLS{ServerNames: []string{"bench.example"}, CACert: roots}}, nil)
+		proxy, err = hysteria2.NewClient(cn.Hysteria2{Host: *serverAddr, Auth: *auth, SalamanderPassword: *salamander, UploadBPS: *bandwidth, DownloadBPS: *bandwidth, HopIntervalSeconds: uint32(*hopInterval), TLS: cn.TLS{ServerNames: []string{"bench.example"}, CACert: roots}}, nil)
 		if err != nil {
 			return err
 		}

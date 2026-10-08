@@ -156,6 +156,9 @@ type Hysteria2Protocol struct {
 	IgnoreClientBandwidth bool   `json:"ignoreClientBandwidth,omitzero"`
 	DisableUDP            bool   `json:"disableUdp,omitzero"`
 	SalamanderPassword    string `json:"salamanderPassword,omitzero"`
+	// HopPorts is a comma-separated port list/range redirected to the listener.
+	// Automatic redirection requires Linux nftables and CAP_NET_ADMIN.
+	HopPorts string `json:"hopPorts,omitzero"`
 }
 
 func (Hysteria2Protocol) ProtocolType() string { return ProtocolHysteria2 }

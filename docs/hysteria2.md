@@ -72,6 +72,60 @@ Save a node through `node.put` (or `nodes.post`), using the usual tagged chain r
 
 The client obtains its UDP transport from the preceding chain proxy. It opens one shared QUIC connection lazily, respects caller cancellation during setup, and reconnects for new requests after disconnection. Existing streams/UDP sessions fail on disconnection and are not replayed. Closing a client permanently closes it.
 
+## Port hopping
+
+The client accepts the [official list/range syntax](https://v2.hysteria.network/docs/advanced/Port-Hopping/) in `host`, for example
+`server.example.com:443,20000-20020` or `[2001:db8::1]:20000-20020`. It changes
+both the destination port and local UDP socket while retaining the same QUIC
+connection, TCP streams and UDP sessions. This is periodic hopping, not parallel
+transmission over multiple paths. Scoped IPv6 addresses are unsupported for hopping.
+
+Client intervals are in seconds:
+
+```json
+{ "host": "server.example.com:20000-20020", "hop_interval_seconds": 30 }
+```
+
+Alternatively set `min_hop_interval_seconds` and `max_hop_interval_seconds` for a
+random interval. Fixed and random settings are mutually exclusive; the minimum
+is 5 seconds. All three zero/omitted means 30 seconds. A single port retains the
+existing non-hopping transport. DNS, SNI and the preceding chain proxy use the
+existing mechanisms; subsequent hop sockets use the client's lifetime context.
+
+On the server, keep a single UDP listen address (for example `0.0.0.0:443`) and
+set the protocol's optional `hopPorts` to `20000-20020` or `443,20000-20020`.
+On Linux this installs native nftables rules forwarding those UDP ports to the
+listener. Rules cover external arrivals and local clients, are scoped to the
+bound address (or local destinations for a wildcard listener), and are removed
+when the inbound stops. A stable per-listener table replaces stale rules after a
+restart on the same bound address. No additional UDP listeners or userspace forwarding process is needed.
+
+Automatic server rules require kernel nftables/NAT support and root or
+`CAP_NET_ADMIN` in the listener's network namespace. In Podman, use
+`--cap-add NET_ADMIN`; ports must also be published or reachable through its
+network. Permit **every hop UDP port** in host firewalls and cloud security
+groups. Choose ranges that do not overlap other services or inbounds. An explicit
+`hopPorts` setting fails if rules cannot be installed; it does not silently fall
+back. On other operating systems, leave `hopPorts` empty and manage UDP
+forwarding externally. Empty `hopPorts` also allows existing external forwarding
+on Linux. Server bandwidth, TLS-auto and Salamander work unchanged with hopping.
+
+The frontend exposes the port list/range and interval controls. An isolated
+Linux integration test keeps TCP and UDP sessions active through two hops over
+IPv4 and IPv6/Salamander and checks socket/rule cleanup. For an external-client
+container test and throughput comparison, run:
+
+```sh
+python scripts/bench/hysteria2/run_hopping.py \
+  --official /absolute/path/to/hysteria-linux-amd64 \
+  --image docker.io/library/debian:trixie-slim \
+  --output /tmp/hysteria2-hopping.json
+```
+
+This creates and removes its own Podman network and containers. Only the server
+container receives `NET_ADMIN`; host firewall rules are not changed. The image
+needs a shell and glibc for the native SQLite fixture.
+
 ## Bandwidth and obfuscation
 
 All bandwidth values use **bytes per second**, from each endpoint's perspective. `uploadBps` / `upload_bps` configure bytes sent; `downloadBps` / `download_bps` configure bytes received. Thus server upload is client download. Zero uses upstream automatic congestion control (BBR); positive bandwidth follows upstream negotiation and Brutal. Nonzero values must be at least 65536. For example, 200 Mbps is 25000000 bytes/second. Server `ignoreClientBandwidth` requests automatic congestion control instead of honoring the client's bandwidth declaration.
@@ -80,7 +134,7 @@ Set server `salamanderPassword` and client `salamander_password` to the same sep
 
 The server supplies the real peer/local addresses to the existing stream handler and a unique NAT migration ID for every UDP session. Destination changes within a UDP session are preserved. The embedding handler owns sniffing, routing, DNS hijacking, accounting and relay. TCP requests are accepted before that handler dials the destination; a subsequent target dial failure closes the stream. Unauthenticated HTTP/3 requests receive upstream's default 404 response.
 
-Gecko, port hopping, configurable webpage/reverse-proxy masquerade and share URL import/export are deferred. Related source comments identify those boundaries.
+Gecko, configurable webpage/reverse-proxy masquerade and share URL import/export are deferred. Related source comments identify those boundaries.
 
 ## Frontend configuration
 
@@ -106,3 +160,6 @@ python scripts/bench/hysteria2/run.py \
 The benchmark uses independent target, server and client processes, IPv4 loopback and `GOMAXPROCS=4`. It exercises the real native inbound handler/NAT with direct outbound. It checks native/official pairings, TLS-auto CA persistence, BBR, configured 200 Mbps Brutal and Salamander. TCP measurements verify payloads or acknowledge received byte counts; UDP measurements record offered/received throughput, packet loss and corruption. It preserves raw results and medians over three repetitions. It measures local CPU/adapter overhead and does not establish WAN or lossy-path throughput.
 
 Measured results and the existing relay buffer tuning are recorded in the [2026-10-07 benchmark report](benchmarks/hysteria2-2026-10-07.md).
+
+Port hopping results, including the upstream client GSO limitation, are recorded
+in the [2026-10-08 hopping report](benchmarks/hysteria2-hopping-2026-10-08.md).

@@ -1,0 +1,163 @@
+{
+  "topology": "independent target/server/client processes; two Podman containers on a disposable bridge",
+  "gomaxprocs": 4,
+  "interval_seconds": 5,
+  "hop_ports": "20000-20020",
+  "congestion": "BBR (both bandwidth settings zero)",
+  "repeats": 1,
+  "official_version": "\u2591\u2588\u2591\u2588\u2591\u2588\u2591\u2588\u2591\u2588\u2580\u2580\u2591\u2580\u2588\u2580\u2591\u2588\u2580\u2580\u2591\u2588\u2580\u2584\u2591\u2580\u2588\u2580\u2591\u2588\u2580\u2588\u2591\u2591\u2591\u2580\u2580\u2584\n\u2591\u2588\u2580\u2588\u2591\u2591\u2588\u2591\u2591\u2580\u2580\u2588\u2591\u2591\u2588\u2591\u2591\u2588\u2580\u2580\u2591\u2588\u2580\u2584\u2591\u2591\u2588\u2591\u2591\u2588\u2580\u2588\u2591\u2591\u2591\u2584\u2580\u2591\n\u2591\u2580\u2591\u2580\u2591\u2591\u2580\u2591\u2591\u2580\u2580\u2580\u2591\u2591\u2580\u2591\u2591\u2580\u2580\u2580\u2591\u2580\u2591\u2580\u2591\u2580\u2580\u2580\u2591\u2580\u2591\u2580\u2591\u2591\u2591\u2580\u2580\u2580\n\na powerful, lightning fast and censorship resistant proxy\nAperture Internet Laboratory <https://github.com/apernet>\n\nVersion:\tv2.13.0\nBuildDate:\t2026-10-05T04:16:24Z\nBuildType:\trelease\nToolchain:\tgo1.26.8 linux/amd64\nCommitHash:\tca8fbd874fd6ca82413948de6dc5924405e103e1\nPlatform:\tlinux\nArchitecture:\tamd64\nLibraries:\tquic-go=v0.63.1-0.20261004180939-a10df75c260c",
+  "go_version": "go version go1.27.1-X:nodwarf5 linux/amd64",
+  "measurements": [
+    {
+      "direction": "download",
+      "mbps": 3131.9373332574087,
+      "payload_bytes": 1073741824,
+      "seconds": 2.742690443,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "fixed",
+      "client": "native",
+      "interval_seconds": 5
+    },
+    {
+      "direction": "download",
+      "mbps": 2980.6718255185733,
+      "payload_bytes": 1073741824,
+      "seconds": 2.881878682,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "hopping",
+      "client": "native",
+      "interval_seconds": 5
+    },
+    {
+      "direction": "upload",
+      "mbps": 4709.428309657552,
+      "payload_bytes": 1073741824,
+      "seconds": 1.8239866980000001,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "fixed",
+      "client": "native",
+      "interval_seconds": 5
+    },
+    {
+      "direction": "upload",
+      "mbps": 1200.1938490181183,
+      "payload_bytes": 1073741824,
+      "seconds": 7.157122659,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "hopping",
+      "client": "native",
+      "interval_seconds": 5
+    },
+    {
+      "direction": "download",
+      "mbps": 2774.076519469912,
+      "payload_bytes": 1073741824,
+      "seconds": 3.096502397,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "hopping-static",
+      "client": "native",
+      "interval_seconds": 3600
+    },
+    {
+      "direction": "upload",
+      "mbps": 1197.8706848350596,
+      "payload_bytes": 1073741824,
+      "seconds": 7.171003265,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "hopping-static",
+      "client": "native",
+      "interval_seconds": 3600
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 79.999033058354,
+      "offered_mbps": 79.9995732756095,
+      "payload_size": 1000,
+      "received": 120000,
+      "seconds": 12.000145043,
+      "send_seconds": 12.000064009,
+      "sent": 120000,
+      "transport": "udp",
+      "mode": "fixed",
+      "client": "native",
+      "interval_seconds": 5
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0.0825,
+      "mbps": 79.93357222216599,
+      "offered_mbps": 79.99972647426854,
+      "payload_size": 1000,
+      "received": 119901,
+      "seconds": 12.00006422,
+      "send_seconds": 12.000041029,
+      "sent": 120000,
+      "transport": "udp",
+      "mode": "hopping",
+      "client": "native",
+      "interval_seconds": 5
+    },
+    {
+      "direction": "download",
+      "mbps": 2672.1379178687266,
+      "payload_bytes": 1073741824,
+      "seconds": 3.214629954,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "official-hopping",
+      "client": "official",
+      "interval_seconds": 5
+    },
+    {
+      "direction": "upload",
+      "mbps": 1130.6397718556163,
+      "payload_bytes": 1073741824,
+      "seconds": 7.597410604,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "official-hopping",
+      "client": "official",
+      "interval_seconds": 5
+    },
+    {
+      "direction": "download",
+      "mbps": 2632.504901412082,
+      "payload_bytes": 33554432,
+      "seconds": 0.101969594,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "official-hopping",
+      "client": "official",
+      "interval_seconds": 5
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 79.99947673008934,
+      "offered_mbps": 79.99995474669227,
+      "payload_size": 1000,
+      "received": 120000,
+      "seconds": 12.000078491,
+      "send_seconds": 12.000006788,
+      "sent": 120000,
+      "transport": "udp",
+      "mode": "official-hopping",
+      "client": "official",
+      "interval_seconds": 5
+    }
+  ],
+  "cpu": "AMD Ryzen 5 5600G with Radeon Graphics",
+  "medians_mbps": {
+    "fixed-upload": 4709.428309657552,
+    "fixed-download": 3131.9373332574087,
+    "hopping-upload": 1200.1938490181183,
+    "hopping-download": 2980.6718255185733
+  }
+}
