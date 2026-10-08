@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"syscall"
 	"testing"
 
 	wun "github.com/tailscale/wireguard-go/tun"
@@ -14,6 +15,21 @@ type slabTestDevice struct {
 	wun.Device
 	payloads [][]byte
 	err      error
+}
+
+func TestDeviceReadOverflowIsRecoverable(t *testing.T) {
+	for _, payloads := range [][][]byte{nil, {[]byte("valid packet")}} {
+		d := NewDevice(&slabTestDevice{payloads: payloads, err: wun.ErrTooManySegments}, 0, 1500, false)
+		bufs := [][]byte{make([]byte, 1500)}
+		sizes := make([]int, 1)
+		n, err := d.Read(bufs, sizes)
+		if n != len(payloads) || !errors.Is(err, syscall.ENOBUFS) || !errors.Is(err, wun.ErrTooManySegments) {
+			t.Fatalf("Read() = %d, %v", n, err)
+		}
+		if n != 0 && !bytes.Equal(bufs[0][:sizes[0]], payloads[0]) {
+			t.Fatal("valid packet preceding overflow was corrupted")
+		}
+	}
 }
 
 func (d *slabTestDevice) BatchSize() int { return len(d.payloads) }

@@ -5,6 +5,7 @@ import (
 	"io"
 	"math"
 	"sync"
+	"syscall"
 
 	wun "github.com/tailscale/wireguard-go/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/checksum"
@@ -61,6 +62,11 @@ func (t *wgDevice) Read(bufs [][]byte, sizes []int) (n int, err error) {
 	}
 
 	n, err = t.Device.Read(t.slab[:slabSize], t.packets[:len(bufs)])
+	if errors.Is(err, wun.ErrTooManySegments) {
+		// A packet that does not fit is dropped by the native reader. Report
+		// buffer pressure so link readers keep the TUN alive for later packets.
+		err = errors.Join(err, syscall.ENOBUFS)
+	}
 	for i, packet := range t.packets[:n] {
 		if packet.Size > len(bufs[i])-t.offset {
 			return i, errors.Join(err, io.ErrShortBuffer)
