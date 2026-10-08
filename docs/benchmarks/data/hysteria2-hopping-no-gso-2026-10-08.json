@@ -1,0 +1,120 @@
+{
+  "topology": "independent target/server/client processes; two Podman containers on a disposable bridge",
+  "gomaxprocs": 4,
+  "interval_seconds": 5,
+  "hop_ports": "20000-20020",
+  "congestion": "BBR (both bandwidth settings zero)",
+  "repeats": 1,
+  "gso_disabled": true,
+  "official_version": "\u2591\u2588\u2591\u2588\u2591\u2588\u2591\u2588\u2591\u2588\u2580\u2580\u2591\u2580\u2588\u2580\u2591\u2588\u2580\u2580\u2591\u2588\u2580\u2584\u2591\u2580\u2588\u2580\u2591\u2588\u2580\u2588\u2591\u2591\u2591\u2580\u2580\u2584\n\u2591\u2588\u2580\u2588\u2591\u2591\u2588\u2591\u2591\u2580\u2580\u2588\u2591\u2591\u2588\u2591\u2591\u2588\u2580\u2580\u2591\u2588\u2580\u2584\u2591\u2591\u2588\u2591\u2591\u2588\u2580\u2588\u2591\u2591\u2591\u2584\u2580\u2591\n\u2591\u2580\u2591\u2580\u2591\u2591\u2580\u2591\u2591\u2580\u2580\u2580\u2591\u2591\u2580\u2591\u2591\u2580\u2580\u2580\u2591\u2580\u2591\u2580\u2591\u2580\u2580\u2580\u2591\u2580\u2591\u2580\u2591\u2591\u2591\u2580\u2580\u2580\n\na powerful, lightning fast and censorship resistant proxy\nAperture Internet Laboratory <https://github.com/apernet>\n\nVersion:\tv2.13.0\nBuildDate:\t2026-10-05T04:16:24Z\nBuildType:\trelease\nToolchain:\tgo1.26.8 linux/amd64\nCommitHash:\tca8fbd874fd6ca82413948de6dc5924405e103e1\nPlatform:\tlinux\nArchitecture:\tamd64\nLibraries:\tquic-go=v0.63.1-0.20261004180939-a10df75c260c",
+  "go_version": "go version go1.27.1-X:nodwarf5 linux/amd64",
+  "measurements": [
+    {
+      "direction": "download",
+      "mbps": 1155.3906392530089,
+      "payload_bytes": 1073741824,
+      "seconds": 7.434658288,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "fixed",
+      "client": "native",
+      "interval_seconds": 5
+    },
+    {
+      "direction": "download",
+      "mbps": 1110.9908157712264,
+      "payload_bytes": 1073741824,
+      "seconds": 7.73177822,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "hopping",
+      "client": "native",
+      "interval_seconds": 5
+    },
+    {
+      "direction": "upload",
+      "mbps": 1180.0276634933805,
+      "payload_bytes": 1073741824,
+      "seconds": 7.27943493,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "fixed",
+      "client": "native",
+      "interval_seconds": 5
+    },
+    {
+      "direction": "upload",
+      "mbps": 1201.5738556891865,
+      "payload_bytes": 1073741824,
+      "seconds": 7.148902709,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "hopping",
+      "client": "native",
+      "interval_seconds": 5
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 79.99947929005592,
+      "offered_mbps": 79.99984290030851,
+      "payload_size": 1000,
+      "received": 120000,
+      "seconds": 12.000078107,
+      "send_seconds": 12.000023565,
+      "sent": 120000,
+      "transport": "udp",
+      "mode": "fixed",
+      "client": "native",
+      "interval_seconds": 5
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 79.99970990105197,
+      "offered_mbps": 79.99933482553075,
+      "payload_size": 1000,
+      "received": 120000,
+      "seconds": 12.000043515,
+      "send_seconds": 12.000099777,
+      "sent": 120000,
+      "transport": "udp",
+      "mode": "hopping",
+      "client": "native",
+      "interval_seconds": 5
+    },
+    {
+      "direction": "download",
+      "mbps": 1069.4087593677136,
+      "payload_bytes": 33554432,
+      "seconds": 0.251012958,
+      "streams": 1,
+      "transport": "tcp",
+      "mode": "official-hopping",
+      "client": "official",
+      "interval_seconds": 5
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 79.99969342784149,
+      "offered_mbps": 79.99966456140649,
+      "payload_size": 1000,
+      "received": 120000,
+      "seconds": 12.000045986,
+      "send_seconds": 12.000050316,
+      "sent": 120000,
+      "transport": "udp",
+      "mode": "official-hopping",
+      "client": "official",
+      "interval_seconds": 5
+    }
+  ],
+  "cpu": "AMD Ryzen 5 5600G with Radeon Graphics",
+  "medians_mbps": {
+    "fixed-upload": 1180.0276634933805,
+    "fixed-download": 1155.3906392530089,
+    "hopping-upload": 1201.5738556891865,
+    "hopping-download": 1110.9908157712264
+  }
+}

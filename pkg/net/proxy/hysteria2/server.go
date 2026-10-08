@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -29,6 +30,7 @@ type Server struct {
 	done      chan struct{}
 	closeOnce sync.Once
 	closeErr  error
+	redirect  io.Closer
 }
 
 func NewServer(config contract.Hysteria2Protocol, tlsConfig *tls.Config, lis netapi.Listener, handler netapi.Handler) (*Server, error) {
@@ -44,6 +46,13 @@ func NewServer(config contract.Hysteria2Protocol, tlsConfig *tls.Config, lis net
 	}
 	if config.SalamanderPassword != "" {
 		packet, err = obfs.WrapPacketConnSalamander(packet, []byte(config.SalamanderPassword))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var redirect io.Closer
+	if config.HopPorts != "" {
+		redirect, err = newHopRedirect(packet.LocalAddr(), config.HopPorts)
 		if err != nil {
 			return nil, err
 		}
@@ -67,9 +76,12 @@ func NewServer(config contract.Hysteria2Protocol, tlsConfig *tls.Config, lis net
 		},
 	})
 	if err != nil {
+		if redirect != nil {
+			err = errors.Join(err, redirect.Close())
+		}
 		return nil, err
 	}
-	s := &Server{core: core, listener: lis, done: make(chan struct{})}
+	s := &Server{core: core, listener: lis, done: make(chan struct{}), redirect: redirect}
 	go func() {
 		defer close(s.done)
 		if err := core.Serve(); err != nil && !errors.Is(err, net.ErrClosed) {
@@ -81,7 +93,10 @@ func NewServer(config contract.Hysteria2Protocol, tlsConfig *tls.Config, lis net
 
 func (s *Server) Close() error {
 	s.closeOnce.Do(func() {
-		s.closeErr = s.core.Close()
+		if s.redirect != nil {
+			s.closeErr = s.redirect.Close()
+		}
+		s.closeErr = errors.Join(s.closeErr, s.core.Close())
 		if err := s.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			s.closeErr = errors.Join(s.closeErr, err)
 		}

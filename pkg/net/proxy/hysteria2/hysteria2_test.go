@@ -46,6 +46,10 @@ func (h *echoHandler) HandlePacket(p *netapi.Packet) {
 func (*echoHandler) HandlePing(*netapi.PingMeta) {}
 
 func newTestServer(t *testing.T, password string) (string, []byte, *Server, *echoHandler) {
+	return newTestServerWithConfig(t, "127.0.0.1:0", password, inbound.Hysteria2Protocol{})
+}
+
+func newTestServerWithConfig(t *testing.T, host, password string, config inbound.Hysteria2Protocol) (string, []byte, *Server, *echoHandler) {
 	t.Helper()
 	ca, err := cert.GenerateCa()
 	if err != nil {
@@ -56,7 +60,7 @@ func newTestServer(t *testing.T, password string) (string, []byte, *Server, *ech
 		t.Fatal(err)
 	}
 	tlsConfig := ytls.TlsAutoConfig(ca, nil, []string{"test.example"}, x509.ECDSA)
-	lis, err := fixed.NewServer(fixed.ServerConfig{Host: "127.0.0.1:0", Control: fixed.ControlDisableTCP})
+	lis, err := fixed.NewServer(fixed.ServerConfig{Host: host, Control: fixed.ControlDisableTCP})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +69,8 @@ func newTestServer(t *testing.T, password string) (string, []byte, *Server, *ech
 		t.Fatal(err)
 	}
 	handler := &echoHandler{streams: make(chan *netapi.StreamMeta, 16), packets: make(chan packetMeta, 32)}
-	server, err := NewServer(inbound.Hysteria2Protocol{Auth: "secret", SalamanderPassword: password}, tlsConfig, lis, handler)
+	config.Auth, config.SalamanderPassword = "secret", password
+	server, err := NewServer(config, tlsConfig, lis, handler)
 	if err != nil {
 		_ = lis.Close()
 		t.Fatal(err)
