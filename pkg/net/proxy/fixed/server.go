@@ -20,8 +20,11 @@ type Server struct {
 	net.PacketConn
 
 	host string
-	pmu  sync.Mutex
-	smu  sync.RWMutex
+	mu   sync.Mutex
+
+	closed    bool
+	closeOnce sync.Once
+	closeErr  error
 
 	control   Control
 	udpDetect bool
@@ -42,58 +45,53 @@ type ServerConfig struct {
 }
 
 func (s *Server) Close() error {
-	var err error
-
-	if s.Listener != nil {
-		if er := s.Listener.Close(); er != nil {
-			err = errors.Join(err, er)
+	s.closeOnce.Do(func() {
+		// Serialize with lazy socket creation so no listener is opened after
+		// shutdown, and wait for any in-progress creation before closing it.
+		s.mu.Lock()
+		s.closed = true
+		listener, packet := s.Listener, s.PacketConn
+		s.mu.Unlock()
+		if listener != nil {
+			s.closeErr = errors.Join(s.closeErr, listener.Close())
 		}
-	}
-
-	if s.PacketConn != nil {
-		if er := s.PacketConn.Close(); er != nil {
-			err = errors.Join(err, er)
+		if packet != nil {
+			s.closeErr = errors.Join(s.closeErr, packet.Close())
 		}
-	}
-
-	return err
+	})
+	return s.closeErr
 }
 
-func (s *Server) initPacketConn() error {
-	if s.PacketConn != nil {
-		return nil
+func (s *Server) initPacketConn() (net.PacketConn, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed {
+		return nil, net.ErrClosed
 	}
-
-	s.pmu.Lock()
-	defer s.pmu.Unlock()
-
 	if s.PacketConn != nil {
-		return nil
+		return s.PacketConn, nil
 	}
 
 	p, err := dialer.ListenPacket(context.TODO(), "udp", s.host, dialer.WithListener())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	s.PacketConn = p
 
-	return nil
+	return p, nil
 }
 
 func (s *Server) initStream() (net.Listener, error) {
-	s.smu.RLock()
-	lis := s.Listener
-	s.smu.RUnlock()
-	if lis != nil {
-		return lis, nil
-	}
-
-	s.smu.Lock()
-	defer s.smu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if s.Listener != nil {
 		return s.Listener, nil
+	}
+	if s.closed {
+		return nil, net.ErrClosed
 	}
 
 	lis, err := dialer.ListenContext(context.TODO(), "tcp", s.host)
@@ -111,15 +109,16 @@ func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
 		return nil, errors.ErrUnsupported
 	}
 
-	if err := s.initPacketConn(); err != nil {
+	packet, err := s.initPacketConn()
+	if err != nil {
 		return nil, err
 	}
 
 	if s.udpDetect {
-		return newUDPDetectPacketConn(s.PacketConn), nil
+		return newUDPDetectPacketConn(packet), nil
 	}
 
-	return s.PacketConn, nil
+	return packet, nil
 }
 
 func (s *Server) Accept() (net.Conn, error) {
