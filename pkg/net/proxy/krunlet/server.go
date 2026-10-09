@@ -90,7 +90,13 @@ func (s *Server) Close() error {
 	for conn := range s.peers { _ = conn.Close() }
 	s.mu.Unlock()
 	s.wg.Wait()
-	return os.Remove(s.path)
+	// net.UnixListener unlinks its path on Close by default. Avoid an
+	// erroneous ENOENT on normal shutdown while still reporting unexpected
+	// filesystem cleanup failures.
+	if err := os.Remove(s.path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 type request struct {
