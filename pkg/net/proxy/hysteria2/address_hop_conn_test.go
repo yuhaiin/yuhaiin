@@ -17,15 +17,7 @@ import (
 func testAddressHopAddr(t *testing.T, first, second string) *addressHopAddr {
 	t.Helper()
 	config := node.Hysteria2{Host: first, HopAddresses: []string{second}}
-	addr, ports, err := parseServerAddress(first)
-	if err != nil {
-		t.Fatal(err)
-	}
-	remote, err := resolveHopAddress(t.Context(), addr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	result, err := resolveAddressHops(t.Context(), config, remote, ports)
+	result, err := resolveAddressHops(t.Context(), config)
 	if err != nil {
 		t.Fatal(err)
 	}

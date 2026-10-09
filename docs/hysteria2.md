@@ -150,14 +150,21 @@ fixed for the entire connection: explicitly set it to the final server's
 certificate name when the relay hostname differs. If omitted, it continues to
 default to the hostname in `host`.
 
-Each hostname resolves to one IP at session setup using the existing resolver;
-DNS is refreshed when a new session is established. All configured hostnames
-must resolve successfully. Entries resolving to the same IP have their port
-sets merged. Initially an IP and one of its ports are chosen randomly. On each
+With `hop_addresses` set, every A/AAAA address returned by the configured
+resolver for `host` and each additional hostname enters the hop pool. For
+example, `"host": "relays.example.com:443"` together with
+`"hop_addresses": ["relays.example.com:443"]` enables hopping across all of
+that domain's returned IPs. Each hostname is resolved once per session; DNS is
+refreshed when a new session is established, not on every hop or by TTL. The
+existing resolver's address-family options are respected. All configured
+hostnames must resolve successfully. Entries resolving to the same IP have their
+port sets merged. Initially an IP and one of its ports are chosen randomly. On each
 hop, a different IP is chosen when available, then one of that IP's ports.
 Selection gives each resolved IP equal weight regardless of its port count.
 Fixed/random interval settings and defaults are shared with port hopping.
 Scoped IPv6 addresses are unsupported.
+Omitting or clearing `hop_addresses` retains the existing single-IP selection
+for ordinary hostnames and port hopping, even when DNS returns multiple IPs.
 
 The transport opens a new socket for the selected relay, including the correct
 address family and preceding chain proxy destination. It temporarily keeps the
@@ -167,6 +174,13 @@ configuration; every relay must forward UDP without terminating QUIC, and NAT
 or forwarding must provide a working return path through that relay. Independent
 Hysteria servers cannot share an existing connection simply by using the same
 password and certificate.
+
+The client transport uses portable Go UDP sockets and explicitly opens `udp4`
+or `udp6` for the selected relay. IPv4 and IPv6 entries can therefore share one
+hop pool, including on macOS, provided both families are reachable. Linux
+nftables support is only needed for the server's optional automatic port-range
+rules, not for client-side address hopping. macOS amd64/arm64 builds are checked;
+mixed-family runtime tests currently run on Linux, not on a real Mac.
 
 This is periodic switching, not health-based failover or simultaneous multipath.
 A local socket-open failure skips that hop. An unreachable relay is not detected

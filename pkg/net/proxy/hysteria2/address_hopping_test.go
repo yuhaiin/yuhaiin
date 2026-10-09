@@ -28,9 +28,13 @@ type addressTestRelay struct {
 	packets  atomic.Int64
 }
 
-func newAddressTestRelay(t *testing.T, ip, backend string) *addressTestRelay {
+func newAddressTestRelay(t *testing.T, listen, backend string) *addressTestRelay {
 	t.Helper()
-	front, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(ip)})
+	local, err := net.ResolveUDPAddr("udp", listen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	front, err := net.ListenUDP("udp", local)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,33 +114,60 @@ func (r *addressTestRelay) reply(conn *net.UDPConn, client *net.UDPAddr) {
 func TestAddressHoppingKeepsTCPAndUDPSessions(t *testing.T) {
 	for _, tc := range []struct {
 		name, secondIP, password string
-		parent                   bool
+		parent, dns              bool
 	}{
 		{name: "IPv4 direct", secondIP: "127.0.0.3"},
 		{name: "IPv4 proxy Salamander", secondIP: "127.0.0.3", password: "salamander", parent: true},
 		{name: "mixed families proxy", secondIP: "::1", parent: true},
+		{name: "DNS IPv4 proxy Salamander", secondIP: "127.0.0.3", password: "salamander", parent: true, dns: true},
+		{name: "DNS mixed families direct", secondIP: "::1", dns: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			backend, ca, _, handler := newTestServer(t, tc.password)
-			relays := []*addressTestRelay{newAddressTestRelay(t, "127.0.0.2", backend), newAddressTestRelay(t, tc.secondIP, backend)}
+			firstRelay := newAddressTestRelay(t, "127.0.0.2:0", backend)
+			_, port, _ := net.SplitHostPort(firstRelay.front.LocalAddr().String())
+			secondPort := "0"
+			if tc.dns {
+				secondPort = port
+			}
+			relays := []*addressTestRelay{firstRelay, newAddressTestRelay(t, net.JoinHostPort(tc.secondIP, secondPort), backend)}
 			var parent netapi.Proxy
 			tracker := &addressTestDialer{}
 			if tc.parent {
 				parent = tracker
 			}
-			clientProxy, err := NewClient(node.Hysteria2{
+			config := node.Hysteria2{
 				Host: relays[0].front.LocalAddr().String(), HopAddresses: []string{relays[1].front.LocalAddr().String()},
 				Auth: "secret", TLS: node.TLS{CACert: [][]byte{ca}, ServerNames: []string{"test.example"}},
 				SalamanderPassword: tc.password, HopIntervalSeconds: 5,
-			}, parent)
+			}
+			var dnsLookups atomic.Int32
+			setupContext := t.Context()
+			if tc.dns {
+				config.Host = net.JoinHostPort("relays.example", port)
+				config.HopAddresses = []string{config.Host}
+				dnsContext := netapi.WithContext(t.Context())
+				dnsContext.ConnOptions().Resolver().SetResolver(&addressHopTestResolver{lookup: func(context.Context, string) (*netapi.IPs, error) {
+					dnsLookups.Add(1)
+					ips := &netapi.IPs{A: []net.IP{net.ParseIP("127.0.0.2")}}
+					if ip := net.ParseIP(tc.secondIP); ip.To4() != nil {
+						ips.A = append(ips.A, ip)
+					} else {
+						ips.AAAA = []net.IP{ip}
+					}
+					return ips, nil
+				}})
+				setupContext = dnsContext
+			}
+			clientProxy, err := NewClient(config, parent)
 			if err != nil {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { _ = clientProxy.Close() })
 			client := clientProxy.(*Client)
 			target, _ := netapi.ParseAddress("tcp", "example.com:443")
-			ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(setupContext, 20*time.Second)
 			defer cancel()
 			stream, err := client.Conn(ctx, target)
 			if err != nil {
@@ -198,6 +229,9 @@ func TestAddressHoppingKeepsTCPAndUDPSessions(t *testing.T) {
 			}
 			if tc.parent && (tracker.opened.Load() < 3 || tracker.opened.Load() != tracker.closed.Load()) {
 				t.Fatalf("socket lifecycle: opened %d, closed %d", tracker.opened.Load(), tracker.closed.Load())
+			}
+			if tc.dns && dnsLookups.Load() != 1 {
+				t.Fatalf("DNS lookups = %d, want one session snapshot", dnsLookups.Load())
 			}
 		})
 	}

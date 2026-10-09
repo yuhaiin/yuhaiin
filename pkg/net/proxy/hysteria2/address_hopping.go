@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strings"
 
 	node "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -61,22 +62,46 @@ func resolveHopAddress(ctx context.Context, addr netapi.Address) (*net.UDPAddr, 
 	return ips.RandUDPAddr(port), nil
 }
 
-func resolveAddressHops(ctx context.Context, config node.Hysteria2, remote *net.UDPAddr, ports hyutils.PortUnion) (*addressHopAddr, error) {
-	result := &addressHopAddr{Addr: remote}
-	if err := result.add(remote, ports); err != nil {
-		return nil, err
-	}
-	for _, value := range config.HopAddresses {
+func resolveAddressHops(ctx context.Context, config node.Hysteria2) (*addressHopAddr, error) {
+	result := &addressHopAddr{}
+	// Repeated hostnames can specify different port sets. Resolve each hostname
+	// once so every entry uses the same DNS snapshot for this QUIC session.
+	resolved := make(map[string]*netapi.IPs)
+	for _, value := range append([]string{config.Host}, config.HopAddresses...) {
 		addr, ports, err := parseServerAddress(value)
 		if err != nil {
 			return nil, err
 		}
-		remote, err := resolveHopAddress(ctx, addr)
-		if err != nil {
-			return nil, fmt.Errorf("hysteria2 resolve relay %q: %w", value, err)
+		if _, ok := addr.(netapi.IPAddress); ok {
+			remote, err := resolveHopAddress(ctx, addr)
+			if err != nil {
+				return nil, err
+			}
+			if err := result.add(remote, ports); err != nil {
+				return nil, err
+			}
+			continue
 		}
-		if err := result.add(remote, ports); err != nil {
-			return nil, err
+		key := strings.ToLower(strings.TrimSuffix(addr.Hostname(), "."))
+		ips := resolved[key]
+		if ips == nil {
+			ips, err = netapi.ResolverIP(ctx, addr.Hostname())
+			if err != nil {
+				return nil, fmt.Errorf("hysteria2 resolve relay %q: %w", value, err)
+			}
+			if ips.Len() == 0 {
+				return nil, fmt.Errorf("hysteria2 relay %q resolved to no IPs", value)
+			}
+			resolved[key] = ips
+		}
+		port := addr.Port()
+		if port == 0 {
+			port = 443
+		}
+		for ip := range ips.Iter() {
+			if err := result.add(&net.UDPAddr{IP: ip, Port: int(port)}, ports); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return result, nil
@@ -85,6 +110,9 @@ func resolveAddressHops(ctx context.Context, config node.Hysteria2, remote *net.
 func (a *addressHopAddr) add(remote *net.UDPAddr, ports hyutils.PortUnion) error {
 	if remote.Zone != "" {
 		return errors.New("hysteria2 address hopping does not support scoped IPv6 addresses")
+	}
+	if a.Addr == nil {
+		a.Addr = remote
 	}
 	values := []uint16{uint16(remote.Port)}
 	if ports != nil {
