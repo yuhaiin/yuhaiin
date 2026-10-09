@@ -1,7 +1,6 @@
 package statistics
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -31,7 +30,7 @@ func BenchmarkMobileConnectionLifecycle(b *testing.B) {
 					c.storeConnection(performanceConnection(id), info)
 					c.Remove(id)
 				}
-				if _, err := c.AllHistory(context.Background()); err != nil {
+				if _, err := c.AllHistory(b.Context()); err != nil {
 					b.Fatal(err)
 				}
 			}

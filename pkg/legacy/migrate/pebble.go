@@ -6,8 +6,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"maps"
 	"net/netip"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cache"
@@ -249,11 +250,7 @@ func collectLegacyFakeIPEntries(prefix netip.Prefix, legacy cache.Cache) ([]lega
 		}
 	}
 
-	domains := make([]string, 0, len(byDomain))
-	for domain := range byDomain {
-		domains = append(domains, domain)
-	}
-	sort.Strings(domains)
+	domains := slices.Sorted(maps.Keys(byDomain))
 	entries := make([]legacyFakeIPEntry, 0, len(domains))
 	for _, domain := range domains {
 		entries = append(entries, legacyFakeIPEntry{domain: domain, addr: byDomain[domain]})

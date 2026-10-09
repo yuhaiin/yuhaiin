@@ -1,12 +1,13 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -197,7 +198,7 @@ func (s *RouteTagStore) ListTags(ctx context.Context) ([]contractroute.TagItem, 
 	if err := ruleRows.Close(); err != nil {
 		return nil, fmt.Errorf("close route rule tags failed: %w", err)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	slices.SortFunc(out, func(a, b contractroute.TagItem) int { return cmp.Compare(a.Name, b.Name) })
 	return out, nil
 }
 

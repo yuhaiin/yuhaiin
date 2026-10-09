@@ -6,8 +6,8 @@ import (
 )
 
 var (
-	crc32Once  sync.Once
-	crc32Table = make([]uint32, 256)
+	initCRC32Table = sync.OnceFunc(createCRC32Table)
+	crc32Table     = make([]uint32, 256)
 )
 
 func createCRC32Table() {
@@ -29,7 +29,7 @@ func CalcCRC32(input []byte, length int) uint32 {
 }
 
 func doCalcCRC32(input []byte, length int, value uint32) uint32 {
-	crc32Once.Do(createCRC32Table)
+	initCRC32Table()
 
 	buffer := input
 	for i := range length {

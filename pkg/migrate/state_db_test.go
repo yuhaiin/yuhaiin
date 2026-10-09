@@ -22,7 +22,7 @@ import (
 )
 
 func TestStateDBRequiresExplicitStartupMigration(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	statePath := filepath.Join(t.TempDir(), "state.db")
 	state := NewStateDB(statePath)
 	defer func() { _ = state.Close() }()
@@ -42,7 +42,7 @@ func TestStateDBRequiresExplicitStartupMigration(t *testing.T) {
 }
 
 func TestVacuumStateOnStartupReclaimsDeletedPages(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +81,7 @@ func TestVacuumStateOnStartupReclaimsDeletedPages(t *testing.T) {
 }
 
 func TestStateDBMigrateRewritesLegacyConnectionHistory(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	statePath := filepath.Join(t.TempDir(), "state.db")
 
 	store, err := storagesqlite.Open(ctx, statePath)
@@ -129,7 +129,7 @@ func TestStateDBMigrateRewritesLegacyConnectionHistory(t *testing.T) {
 }
 
 func TestStateDBMigrateLeavesSessionCleanupToStatisticsStartup(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	statePath := filepath.Join(t.TempDir(), "state.db")
 
 	store, err := storagesqlite.Open(ctx, statePath)
@@ -171,7 +171,7 @@ func TestStateDBMigrateLeavesSessionCleanupToStatisticsStartup(t *testing.T) {
 }
 
 func TestStateDBMigrateLegacyPebbleBeforeRuntime(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	state := NewStateDB(filepath.Join(t.TempDir(), "state.db"))
 	defer func() { _ = state.Close() }()
 	if err := state.Migrate(ctx); err != nil {
@@ -225,7 +225,7 @@ func TestStateDBMigrateLegacyPebbleBeforeRuntime(t *testing.T) {
 }
 
 func TestStateDBMigrateNormalizesLegacyRouteRefreshConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	statePath := filepath.Join(t.TempDir(), "state.db")
 	store, err := storagesqlite.Open(ctx, statePath)
 	if err != nil {
@@ -312,7 +312,7 @@ func TestStateDBMigrateNormalizesLegacyRouteRefreshConfig(t *testing.T) {
 }
 
 func TestStateDBMigrateImportsLegacyNodeJSONWithoutStateDB(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	dir := t.TempDir()
 
 	hash := "hash-1"

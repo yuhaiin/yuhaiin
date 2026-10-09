@@ -126,8 +126,7 @@ func TestRelayBufferCacheExpiryDoesNotReturnLeasedBuffer(t *testing.T) {
 		_, err := writeRelayBuffer(dst, b[:8], c.release)
 		done <- err
 	}()
-	var once sync.Once
-	unblock := func() { once.Do(func() { close(dst.release) }) }
+	unblock := sync.OnceFunc(func() { close(dst.release) })
 	defer func() { unblock(); <-stopped }()
 	<-dst.entered
 	makeCacheIdle(c)

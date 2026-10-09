@@ -14,7 +14,7 @@ func TestNotifyCloseWithBlockedSend(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	initial := make(chan struct{})
 	var calls atomic.Int32
-	s := contractNotifyStream{ctx: context.Background(), send: func(contractconnection.Event) error {
+	s := contractNotifyStream{ctx: t.Context(), send: func(contractconnection.Event) error {
 		call := calls.Add(1)
 		if call == 1 {
 			close(initial)
@@ -75,7 +75,7 @@ func TestNotifyRemovalDuringInitialSnapshotIsDelivered(t *testing.T) {
 	c := &Connections{notify: n, counters: newCounters(), history: newSQLiteHistory(nil)}
 	c.infoStore = snapshotInfoStore{InfoCache: &sqliteInfoStore{}, onLoad: func() { n.pubNewConn(performanceInfo(1)) }}
 	c.storeConnection(performanceConnection(1), performanceInfo(1))
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	removed, done := make(chan struct{}), make(chan struct{})
 	s := contractNotifyStream{ctx: ctx, send: func(event contractconnection.Event) error {
@@ -103,7 +103,7 @@ func TestNotifyBatchWindowIncludesEventsAfterTimerArm(t *testing.T) {
 	n := newNotify()
 	defer n.Close()
 
-	s := contractNotifyStream{ctx: context.Background(), send: func(contractconnection.Event) error { return nil }}
+	s := contractNotifyStream{ctx: t.Context(), send: func(contractconnection.Event) error { return nil }}
 	id, done := n.register(s)
 	defer n.unregister(id)
 	entry, ok := n.notifier.Load(id)
@@ -143,7 +143,7 @@ func TestNotifyBatchWindowIncludesEventsAfterTimerArm(t *testing.T) {
 func TestNotifySlowSubscriberDoesNotBlockOthers(t *testing.T) {
 	n := newNotify()
 	defer n.Close()
-	s := contractNotifyStream{ctx: context.Background(), send: func(contractconnection.Event) error { return nil }}
+	s := contractNotifyStream{ctx: t.Context(), send: func(contractconnection.Event) error { return nil }}
 	slowID, slow := n.register(s)
 	defer n.unregister(slowID)
 	fastID, fast := n.register(s)

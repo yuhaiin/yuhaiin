@@ -1,7 +1,6 @@
 package fakeip
 
 import (
-	"context"
 	"database/sql"
 	"encoding/binary"
 	"fmt"
@@ -18,7 +17,7 @@ import (
 func newTestSQLiteFakeIPPool(tb testing.TB, prefix netip.Prefix, maxNum int) (*SQLiteFakeIPPool, *sql.DB) {
 	tb.Helper()
 
-	store, err := storagesqlite.Open(context.Background(), filepath.Join(tb.TempDir(), "state.db"))
+	store, err := storagesqlite.Open(tb.Context(), filepath.Join(tb.TempDir(), "state.db"))
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -72,7 +71,7 @@ func TestSQLiteFakeIPPoolLRUEviction(t *testing.T) {
 		t.Fatalf("unexpected initial allocation a=%s b=%s", ipA, ipB)
 	}
 
-	if _, err := db.ExecContext(context.Background(), `
+	if _, err := db.ExecContext(t.Context(), `
 		UPDATE fakeip_entries
 		SET last_used_at = CASE domain
 			WHEN 'a.com' THEN 300
@@ -117,7 +116,7 @@ func TestSQLiteFakeIPPoolLazyTouch(t *testing.T) {
 	}
 
 	stale := first - sqliteFakeIPTouchInterval.Nanoseconds() - 1
-	if _, err := db.ExecContext(context.Background(), `
+	if _, err := db.ExecContext(t.Context(), `
 		UPDATE fakeip_entries
 		SET last_used_at = ?
 		WHERE domain = 'a.com'
@@ -128,7 +127,7 @@ func TestSQLiteFakeIPPoolLazyTouch(t *testing.T) {
 	if got := pool.GetFakeIPForDomain("a.com"); got != ip {
 		t.Fatalf("expected cached %s after stale touch, got %s", ip, got)
 	}
-	if err := pool.flushTouches(context.Background()); err != nil {
+	if err := pool.flushTouches(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if got := sqliteFakeIPLastUsed(t, db, "a.com"); got <= stale {
@@ -142,7 +141,7 @@ func TestSQLiteFakeIPPoolTouchRetryPreservesPendingUpdates(t *testing.T) {
 	ip := pool.GetFakeIPForDomain("retry.example")
 	first := sqliteFakeIPLastUsed(t, db, "retry.example")
 	stale := first - sqliteFakeIPTouchInterval.Nanoseconds() - 1
-	if _, err := db.ExecContext(context.Background(), `
+	if _, err := db.ExecContext(t.Context(), `
 		UPDATE fakeip_entries SET last_used_at = ? WHERE domain = 'retry.example'
 	`, stale); err != nil {
 		t.Fatal(err)
@@ -151,19 +150,19 @@ func TestSQLiteFakeIPPoolTouchRetryPreservesPendingUpdates(t *testing.T) {
 		t.Fatalf("expected cached %s, got %s", ip, got)
 	}
 
-	if _, err := db.ExecContext(context.Background(), `
+	if _, err := db.ExecContext(t.Context(), `
 		CREATE TRIGGER fail_fakeip_touch BEFORE UPDATE OF last_used_at ON fakeip_entries
 		BEGIN SELECT RAISE(ABORT, 'touch failure'); END
 	`); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.flushTouches(context.Background()); err == nil {
+	if err := pool.flushTouches(t.Context()); err == nil {
 		t.Fatal("failed fakeip touch flush accepted")
 	}
-	if _, err := db.ExecContext(context.Background(), `DROP TRIGGER fail_fakeip_touch`); err != nil {
+	if _, err := db.ExecContext(t.Context(), `DROP TRIGGER fail_fakeip_touch`); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.flushTouches(context.Background()); err != nil {
+	if err := pool.flushTouches(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if got := sqliteFakeIPLastUsed(t, db, "retry.example"); got <= stale {
@@ -192,7 +191,7 @@ func TestSQLiteFakeIPTouchBurstSignalsOnce(t *testing.T) {
 
 func TestSQLiteFakeIPPoolPersistence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.db")
-	store, err := storagesqlite.Open(context.Background(), path)
+	store, err := storagesqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,13 +243,13 @@ func TestSQLiteFakeIPPoolImportsLegacyPrefixBucket(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store, err := storagesqlite.Open(context.Background(), filepath.Join(t.TempDir(), "state.db"))
+	store, err := storagesqlite.Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	if err := legacymigrate.MigrateLegacyFakeIP(context.Background(), store.DB(), prefix, legacy); err != nil {
+	if err := legacymigrate.MigrateLegacyFakeIP(t.Context(), store.DB(), prefix, legacy); err != nil {
 		t.Fatal(err)
 	}
 	pool, err := newSQLiteFakeIPPool(store.DB(), prefix, 100)
@@ -290,13 +289,13 @@ func TestSQLiteFakeIPPoolImportsLegacyLRUBucket(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store, err := storagesqlite.Open(context.Background(), filepath.Join(t.TempDir(), "state.db"))
+	store, err := storagesqlite.Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	if err := legacymigrate.MigrateLegacyFakeIP(context.Background(), store.DB(), prefix, legacy); err != nil {
+	if err := legacymigrate.MigrateLegacyFakeIP(t.Context(), store.DB(), prefix, legacy); err != nil {
 		t.Fatal(err)
 	}
 	pool, err := newSQLiteFakeIPPool(store.DB(), prefix, 100)
@@ -313,7 +312,7 @@ func TestSQLiteFakeIPPoolImportsLegacyLRUBucket(t *testing.T) {
 func sqliteFakeIPLastUsed(tb testing.TB, db *sql.DB, domain string) int64 {
 	tb.Helper()
 	var lastUsedAt int64
-	if err := db.QueryRowContext(context.Background(), `
+	if err := db.QueryRowContext(tb.Context(), `
 		SELECT last_used_at
 		FROM fakeip_entries
 		WHERE domain = ?

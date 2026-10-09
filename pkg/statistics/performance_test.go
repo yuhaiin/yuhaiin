@@ -1,7 +1,6 @@
 package statistics
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -65,7 +64,7 @@ func TestAllInfosReadsCurrentPersistedData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = c.sqliteDB.ExecContext(context.Background(), "UPDATE connection_sessions SET summary_json=? WHERE id=1", data); err != nil {
+	if _, err = c.sqliteDB.ExecContext(t.Context(), "UPDATE connection_sessions SET summary_json=? WHERE id=1", data); err != nil {
 		t.Fatal(err)
 	}
 	infos := c.allInfos()
@@ -205,7 +204,7 @@ func TestTelemetryFailureDoesNotCacheRolledBackValueIDs(t *testing.T) {
 	if _, err := c.sqliteDB.Exec(`CREATE TRIGGER fail_dimension BEFORE INSERT ON failure_dimension_hourly BEGIN SELECT RAISE(ABORT, 'test failure'); END`); err != nil {
 		t.Fatal(err)
 	}
-	if err := persistFailureCounts(context.Background(), c.sqliteDB, c.telemetry.valueIDs, counts); err == nil {
+	if err := persistFailureCounts(t.Context(), c.sqliteDB, c.telemetry.valueIDs, counts); err == nil {
 		t.Fatal("failure accepted")
 	}
 	if _, cached := c.telemetry.valueIDs.Load(dimension); cached {
@@ -217,7 +216,7 @@ func TestTelemetryFailureDoesNotCacheRolledBackValueIDs(t *testing.T) {
 	if _, err := c.sqliteDB.Exec(`INSERT INTO telemetry_dimension_values(dimension,value) VALUES ('protocol','other')`); err != nil {
 		t.Fatal(err)
 	}
-	if err := persistFailureCounts(context.Background(), c.sqliteDB, c.telemetry.valueIDs, counts); err != nil {
+	if err := persistFailureCounts(t.Context(), c.sqliteDB, c.telemetry.valueIDs, counts); err != nil {
 		t.Fatal(err)
 	}
 	var failures int

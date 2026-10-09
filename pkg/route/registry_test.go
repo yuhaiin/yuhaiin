@@ -68,7 +68,7 @@ func TestRegistryCatalogServiceFetchesAndCaches(t *testing.T) {
 	}}
 	service := newRegistryCatalogService(book, server.Client(), time.Hour)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	first, err := service.Catalogs(ctx, false)
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +109,7 @@ func TestRegistryCatalogServiceKeepsPerRegistryErrors(t *testing.T) {
 		{ID: "broken", Name: "Broken", URL: server.URL, Enabled: true},
 	}}, server.Client(), time.Hour)
 
-	got, err := service.Catalogs(context.Background(), false)
+	got, err := service.Catalogs(t.Context(), false)
 	if err != nil {
 		t.Fatal(err)
 	}

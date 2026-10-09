@@ -96,7 +96,7 @@ func NewDoH(config Config) (Transport, error) {
 			return nil, fmt.Errorf("read http body failed: %w", err)
 		}
 
-		p.Data = append([]byte(nil), buf...)
+		p.Data = bytes.Clone(buf)
 		if err := p.Unpack(); err != nil {
 			return nil, fmt.Errorf("unpack dns response: %w", err)
 		}

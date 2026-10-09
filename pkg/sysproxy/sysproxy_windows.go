@@ -280,7 +280,7 @@ func asciiPtrToString(p *uint16) string {
 			break
 		}
 		res = append(res, *(*uint8)(end))
-		end = unsafe.Pointer(uintptr(end) + 1)
+		end = unsafe.Add(end, 1)
 	}
 	return string(res)
 }

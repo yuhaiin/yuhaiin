@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -11,7 +10,7 @@ import (
 )
 
 func TestInboundStoreSaveGetListDelete(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -71,7 +70,7 @@ func TestInboundStoreSaveGetListDelete(t *testing.T) {
 }
 
 func TestInboundStoreRejectsInvalidTaggedObject(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +94,7 @@ func TestInboundStoreRejectsInvalidTaggedObject(t *testing.T) {
 }
 
 func TestInboundStoreSettings(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -117,7 +116,7 @@ func TestInboundStoreSettings(t *testing.T) {
 }
 
 func TestInboundStoreTunAutoFakeIPRoutes(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	db, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)

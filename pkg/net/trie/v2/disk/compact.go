@@ -492,7 +492,7 @@ func (t *Trie[T]) compactOldestLocked(count int) error {
 	if count < 2 || len(t.segments) < count {
 		return nil
 	}
-	old := append([]*segment[T](nil), t.segments[:count]...)
+	old := slices.Clone(t.segments[:count])
 	finalPath := old[0].path
 	tmpPath := filepath.Join(t.dir, fmt.Sprintf(".compact-%020d.mmap", t.nextSegmentID))
 	merged, err := compactSegments(tmpPath, old, t.codec)

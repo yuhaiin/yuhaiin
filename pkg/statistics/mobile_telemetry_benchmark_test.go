@@ -1,7 +1,6 @@
 package statistics
 
 import (
-	"context"
 	"errors"
 	"strconv"
 	"testing"
@@ -16,7 +15,7 @@ func BenchmarkMobileFailureBurst(b *testing.B) {
 	if c.sqliteDB == nil {
 		b.Fatal("SQLite store unavailable")
 	}
-	ctx := netapi.WithContext(context.Background())
+	ctx := netapi.WithContext(b.Context())
 	addr, err := netapi.ParseAddressPort("tcp", "example.com", 443)
 	if err != nil {
 		b.Fatal(err)
@@ -60,7 +59,7 @@ func BenchmarkMobileNotificationTotals(b *testing.B) {
 	}
 	m := NewConnectionMonitor(c)
 	read := func() (uint64, uint64) {
-		flow, err := m.Total(context.Background())
+		flow, err := m.Total(b.Context())
 		if err != nil {
 			b.Fatal(err)
 		}

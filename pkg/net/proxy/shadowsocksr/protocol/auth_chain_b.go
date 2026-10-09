@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"slices"
 	"sort"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
@@ -24,14 +25,14 @@ func (a *authChainA) authChainBInitDataSize() {
 	for i := range int(length) {
 		a.dataSizeList[i] = int(random.Next() % 2340 % 2040 % 1440)
 	}
-	sort.Ints(a.dataSizeList)
+	slices.Sort(a.dataSizeList)
 
 	length = random.Next()%16 + 8
 	a.dataSizeList2 = make([]int, length)
 	for i := range int(length) {
 		a.dataSizeList2[i] = int(random.Next() % 2340 % 2040 % 1440)
 	}
-	sort.Ints(a.dataSizeList2)
+	slices.Sort(a.dataSizeList2)
 }
 
 func authChainBGetRandLen(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int {

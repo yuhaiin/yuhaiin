@@ -23,9 +23,9 @@ type Frag struct {
 type MergeFrag struct {
 	time     time.Time
 	Data     [][]byte
-	Count    uint32
+	Count    atomic.Uint32
 	Total    uint32
-	TotalLen uint32
+	TotalLen atomic.Uint32
 }
 
 func (f *Frag) Merge(buf []byte) *pool.Buffer {
@@ -62,12 +62,12 @@ func (f *Frag) Merge(buf []byte) *pool.Buffer {
 	}
 
 	mf.Data[index] = fh.Payload()
-	atomic.AddUint32(&mf.TotalLen, uint32(len(fh.Payload())))
+	mf.TotalLen.Add(uint32(len(fh.Payload())))
 
-	if atomic.AddUint32(&mf.Count, 1) == mf.Total {
+	if mf.Count.Add(1) == mf.Total {
 		f.mergeMap.Delete(id)
 
-		buf := pool.NewBufferSize(atomic.LoadUint32(&mf.TotalLen))
+		buf := pool.NewBufferSize(mf.TotalLen.Load())
 
 		for _, v := range mf.Data {
 			_, _ = buf.Write(v)

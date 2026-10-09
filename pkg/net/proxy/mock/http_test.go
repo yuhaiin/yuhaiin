@@ -1,7 +1,6 @@
 package mock
 
 import (
-	"context"
 	"crypto/rand"
 	"net"
 	"strconv"
@@ -56,7 +55,7 @@ func TestMock(t *testing.T) {
 	assert.NoError(t, err)
 	defer c.Close()
 
-	conn, err := c.Conn(context.Background(), netapi.EmptyAddr)
+	conn, err := c.Conn(t.Context(), netapi.EmptyAddr)
 	assert.NoError(t, err)
 	defer conn.Close()
 

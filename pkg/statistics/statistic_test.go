@@ -1,14 +1,13 @@
 package statistics
 
 import (
-	"context"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 func TestGetConnectionIncludesProcess(t *testing.T) {
-	ctx := netapi.WithContext(context.Background())
+	ctx := netapi.WithContext(t.Context())
 	ctx.SetProcess("com.example.app", 123, 456)
 	addr, err := netapi.ParseAddressPort("tcp", "example.com", 443)
 	if err != nil {

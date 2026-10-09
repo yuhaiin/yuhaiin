@@ -1100,8 +1100,7 @@ func saveDNSTx(ctx context.Context, tx *sql.Tx, dnsSetting *config.DnsConfig, no
 		return fmt.Errorf("insert dns_settings failed: %w", err)
 	}
 
-	resolverKeys := slices.Collect(maps.Keys(dnsSetting.GetResolver()))
-	slices.Sort(resolverKeys)
+	resolverKeys := slices.Sorted(maps.Keys(dnsSetting.GetResolver()))
 	for _, name := range resolverKeys {
 		resolver := dnsSetting.GetResolver()[name]
 		dataJSON, err := encodeJSONText(resolver)
@@ -1117,8 +1116,7 @@ func saveDNSTx(ctx context.Context, tx *sql.Tx, dnsSetting *config.DnsConfig, no
 		}
 	}
 
-	hostKeys := slices.Collect(maps.Keys(dnsSetting.GetHosts()))
-	slices.Sort(hostKeys)
+	hostKeys := slices.Sorted(maps.Keys(dnsSetting.GetHosts()))
 	for _, host := range hostKeys {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO dns_hosts(host, target)
@@ -1161,8 +1159,7 @@ func saveInboundTx(ctx context.Context, tx *sql.Tx, inboundSetting *config.Inbou
 		return fmt.Errorf("insert inbound_settings failed: %w", err)
 	}
 
-	inboundNames := slices.Collect(maps.Keys(inboundSetting.GetInbounds()))
-	slices.Sort(inboundNames)
+	inboundNames := slices.Sorted(maps.Keys(inboundSetting.GetInbounds()))
 	for _, name := range inboundNames {
 		inbound := inboundSetting.GetInbounds()[name]
 		applyInboundTypeFallback(inbound, name)
@@ -1231,8 +1228,7 @@ func saveRouteTx(ctx context.Context, tx *sql.Tx, bypass *config.BypassConfig, n
 		}
 	}
 
-	listKeys := slices.Collect(maps.Keys(bypass.GetLists()))
-	slices.Sort(listKeys)
+	listKeys := slices.Sorted(maps.Keys(bypass.GetLists()))
 	for _, name := range listKeys {
 		list := bypass.GetLists()[name]
 		dataJSON, err := encodeJSONText(list)
@@ -1363,8 +1359,7 @@ func updateMetadata(ctx context.Context, db *sql.DB, values map[string]string) e
 }
 
 func updateMetadataTx(ctx context.Context, tx *sql.Tx, values map[string]string) error {
-	keys := slices.Collect(maps.Keys(values))
-	slices.Sort(keys)
+	keys := slices.Sorted(maps.Keys(values))
 
 	for _, key := range keys {
 		if _, err := tx.ExecContext(ctx, `
@@ -2239,48 +2234,42 @@ func loadLegacyAndroidMemoryStore(path string) (*legacyAndroidMemoryStore, bool,
 func saveAndroidPreferencesTx(ctx context.Context, tx *sql.Tx, store *legacyAndroidMemoryStore) error {
 	now := time.Now().Unix()
 
-	stringKeys := slices.Collect(maps.Keys(store.Strings.Values))
-	slices.Sort(stringKeys)
+	stringKeys := slices.Sorted(maps.Keys(store.Strings.Values))
 	for _, key := range stringKeys {
 		if err := saveJSONPreference(ctx, tx, key, store.Strings.Values[key], now); err != nil {
 			return err
 		}
 	}
 
-	intKeys := slices.Collect(maps.Keys(store.Ints.Values))
-	slices.Sort(intKeys)
+	intKeys := slices.Sorted(maps.Keys(store.Ints.Values))
 	for _, key := range intKeys {
 		if err := saveJSONPreference(ctx, tx, key, store.Ints.Values[key], now); err != nil {
 			return err
 		}
 	}
 
-	boolKeys := slices.Collect(maps.Keys(store.Bools.Values))
-	slices.Sort(boolKeys)
+	boolKeys := slices.Sorted(maps.Keys(store.Bools.Values))
 	for _, key := range boolKeys {
 		if err := saveJSONPreference(ctx, tx, key, store.Bools.Values[key], now); err != nil {
 			return err
 		}
 	}
 
-	longKeys := slices.Collect(maps.Keys(store.Longs.Values))
-	slices.Sort(longKeys)
+	longKeys := slices.Sorted(maps.Keys(store.Longs.Values))
 	for _, key := range longKeys {
 		if err := saveJSONPreference(ctx, tx, key, store.Longs.Values[key], now); err != nil {
 			return err
 		}
 	}
 
-	floatKeys := slices.Collect(maps.Keys(store.Floats.Values))
-	slices.Sort(floatKeys)
+	floatKeys := slices.Sorted(maps.Keys(store.Floats.Values))
 	for _, key := range floatKeys {
 		if err := saveJSONPreference(ctx, tx, key, store.Floats.Values[key], now); err != nil {
 			return err
 		}
 	}
 
-	byteKeys := slices.Collect(maps.Keys(store.Bytes.Values))
-	slices.Sort(byteKeys)
+	byteKeys := slices.Sorted(maps.Keys(store.Bytes.Values))
 	for _, key := range byteKeys {
 		if err := saveJSONPreference(ctx, tx, key, store.Bytes.Values[key], now); err != nil {
 			return err

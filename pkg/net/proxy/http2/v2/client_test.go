@@ -67,7 +67,7 @@ func assertTunnelEcho(t *testing.T, conn net.Conn) {
 
 func TestPeerStreamLimitDoesNotCloseActiveTunnel(t *testing.T) {
 	c, d := http2TestClient(t, 1, http.HandlerFunc(echoHTTP2))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	first, err := c.Conn(ctx, netapi.EmptyAddr)
 	if err != nil {
@@ -95,14 +95,14 @@ func TestCanceledStreamPreservesOtherTunnels(t *testing.T) {
 		}
 		echoHTTP2(w, r)
 	}))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	first, err := c.Conn(ctx, netapi.EmptyAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Close()
 	cancel() // Successful tunnels must outlive their dialing context.
-	failingCtx, failingCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	failingCtx, failingCancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer failingCancel()
 	if _, err := c.Conn(failingCtx, netapi.EmptyAddr); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("error=%v", err)
@@ -112,7 +112,7 @@ func TestCanceledStreamPreservesOtherTunnels(t *testing.T) {
 
 func TestConnectRejectsHTTPError(t *testing.T) {
 	c, _ := http2TestClient(t, 100, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "rejected", http.StatusForbidden) }))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	if conn, err := c.Conn(ctx, netapi.EmptyAddr); err == nil {
 		conn.Close()

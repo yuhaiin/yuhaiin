@@ -1,12 +1,13 @@
 package node
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"math/rand/v2"
 	"net"
-	"sort"
+	"slices"
 	"sync"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
@@ -223,7 +224,7 @@ func (r *NodeRuntime) Active(context.Context) ([]contractnode.Node, error) {
 		}
 		return true
 	})
-	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+	slices.SortFunc(items, func(a, b contractnode.Node) int { return cmp.Compare(a.ID, b.ID) })
 	return items, nil
 }
 

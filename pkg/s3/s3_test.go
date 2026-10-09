@@ -1,7 +1,6 @@
 package s3
 
 import (
-	"context"
 	"encoding/json/v2"
 	"os"
 	"testing"
@@ -42,7 +41,7 @@ func TestS3(t *testing.T) {
 		s3, err := NewS3(config, direct.Default)
 		assert.NoError(t, err)
 
-		assert.NoError(t, s3.Put(context.Background(), []byte("test"), "test.json"))
+		assert.NoError(t, s3.Put(t.Context(), []byte("test"), "test.json"))
 
 		data, err = s3.Get(t.Context(), "test.json")
 		assert.NoError(t, err)

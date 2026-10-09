@@ -24,7 +24,7 @@ func TestUncachedFailureDoesNotRetryEveryLookup(t *testing.T) {
 		defer c.Close()
 		q := netapi.DNSQuestion{Name: "uncached.example.", Qtype: dns.TypeA}
 		for range 100 {
-			msg, err := c.Raw(context.Background(), q)
+			msg, err := c.Raw(t.Context(), q)
 			if msg != nil || !errors.Is(err, offline) {
 				t.Fatalf("lookup should retain the upstream error, not fabricate an answer: msg=%v err=%v", msg, err)
 			}
@@ -61,7 +61,7 @@ func TestUncachedFailureBackoffRecoversAndResets(t *testing.T) {
 		q := netapi.DNSQuestion{Name: "uncached.example.", Qtype: dns.TypeA}
 		lookupFailed := func() {
 			t.Helper()
-			if _, err := c.Raw(context.Background(), q); !errors.Is(err, offline) {
+			if _, err := c.Raw(t.Context(), q); !errors.Is(err, offline) {
 				t.Fatalf("expected offline error, got %v", err)
 			}
 		}
@@ -82,7 +82,7 @@ func TestUncachedFailureBackoffRecoversAndResets(t *testing.T) {
 		}
 		online = true
 		time.Sleep(5 * time.Second)
-		if msg, err := c.Raw(context.Background(), q); err != nil || len(msg.Answer) != 1 {
+		if msg, err := c.Raw(t.Context(), q); err != nil || len(msg.Answer) != 1 {
 			t.Fatalf("recovered upstream did not return an answer: msg=%v err=%v", msg, err)
 		}
 		expected++
@@ -112,7 +112,7 @@ func TestUncachedFailureIsSharedAcrossConcurrentAndLaterLookups(t *testing.T) {
 		q := netapi.DNSQuestion{Name: "uncached.example.", Qtype: dns.TypeA}
 		for range 100 {
 			go func() {
-				if _, err := c.Raw(context.Background(), q); !errors.Is(err, offline) {
+				if _, err := c.Raw(t.Context(), q); !errors.Is(err, offline) {
 					t.Errorf("concurrent lookup lost upstream failure: %v", err)
 				}
 			}()
@@ -124,7 +124,7 @@ func TestUncachedFailureIsSharedAcrossConcurrentAndLaterLookups(t *testing.T) {
 		close(release)
 		synctest.Wait()
 		for range 100 {
-			if _, err := c.Raw(context.Background(), q); !errors.Is(err, offline) {
+			if _, err := c.Raw(t.Context(), q); !errors.Is(err, offline) {
 				t.Fatal(err)
 			}
 		}
@@ -149,13 +149,13 @@ func TestUncachedFailureIsScopedAndExplicitlyClearable(t *testing.T) {
 		q := netapi.DNSQuestion{Name: "uncached.example.", Qtype: dns.TypeA}
 		lookupFailed := func(q netapi.DNSQuestion) {
 			t.Helper()
-			if _, err := c.Raw(context.Background(), q); !errors.Is(err, offline) {
+			if _, err := c.Raw(t.Context(), q); !errors.Is(err, offline) {
 				t.Fatal(err)
 			}
 		}
 		lookupFailed(q)
 		lookupFailed(q)
-		if _, err := c.Raw(context.Background(), netapi.DNSQuestion{Name: "other.example.", Qtype: dns.TypeA}); err != nil {
+		if _, err := c.Raw(t.Context(), netapi.DNSQuestion{Name: "other.example.", Qtype: dns.TypeA}); err != nil {
 			t.Fatalf("unrelated question was blocked: %v", err)
 		}
 		v6 := q
@@ -178,7 +178,7 @@ func TestUncachedFailureIsScopedAndExplicitlyClearable(t *testing.T) {
 func TestUncachedCancellationDoesNotBlockNextLookup(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		attempts := 0
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		c := NewClient(Config{Name: "offline-test"}, TransportFunc(func(ctx context.Context, req *Request) (*dns.Msg, error) {
 			attempts++
@@ -193,7 +193,7 @@ func TestUncachedCancellationDoesNotBlockNextLookup(t *testing.T) {
 		if _, err := c.Raw(ctx, q); !errors.Is(err, context.Canceled) {
 			t.Fatalf("expected caller cancellation, got %v", err)
 		}
-		if _, err := c.Raw(context.Background(), q); err != nil {
+		if _, err := c.Raw(t.Context(), q); err != nil {
 			t.Fatalf("canceled lookup poisoned subsequent lookup: %v", err)
 		}
 		if attempts != 2 {
@@ -215,19 +215,19 @@ func TestUncachedTimeoutBacksOff(t *testing.T) {
 		})).(*client)
 		defer c.Close()
 		q := netapi.DNSQuestion{Name: "uncached.example.", Qtype: dns.TypeA}
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		if _, err := c.Raw(ctx, q); !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("expected timeout, got %v", err)
 		}
-		if _, err := c.Raw(context.Background(), q); !errors.Is(err, context.DeadlineExceeded) {
+		if _, err := c.Raw(t.Context(), q); !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("expected retained timeout during cooldown, got %v", err)
 		}
 		if attempts != 1 {
 			t.Fatalf("timeout did not throttle next lookup: attempts=%d want 1", attempts)
 		}
 		time.Sleep(time.Second)
-		if _, err := c.Raw(context.Background(), q); err != nil {
+		if _, err := c.Raw(t.Context(), q); err != nil {
 			t.Fatalf("retry after timeout cooldown failed: %v", err)
 		}
 	})

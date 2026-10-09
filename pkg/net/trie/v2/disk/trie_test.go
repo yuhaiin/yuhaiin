@@ -350,7 +350,7 @@ func BenchmarkDiskTrie(b *testing.B) {
 		defer trie.Close()
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for i := 0; b.Loop(); i++ {
 			if err := trie.Insert(benchmarkDomain(i), "value"); err != nil {
 				b.Fatal(err)
 			}

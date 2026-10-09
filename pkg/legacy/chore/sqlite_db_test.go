@@ -130,7 +130,7 @@ func TestSqliteDBImportsLegacyConfigAndAndroidPreferences(t *testing.T) {
 	}
 
 	db := NewSqliteDB(paths.PathGenerator.State(dir))
-	if err := db.Migrate(context.Background()); err != nil {
+	if err := db.Migrate(t.Context()); err != nil {
 		t.Fatalf("migrate sqlite config failed: %v", err)
 	}
 
@@ -155,14 +155,14 @@ func TestSqliteDBImportsLegacyConfigAndAndroidPreferences(t *testing.T) {
 		t.Fatalf("view imported sqlite config failed: %v", err)
 	}
 
-	store, err := storagesqlite.Open(context.Background(), paths.PathGenerator.State(dir))
+	store, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(dir))
 	if err != nil {
 		t.Fatalf("open sqlite store for verification failed: %v", err)
 	}
 	defer store.Close()
 
 	var valueJSON string
-	if err := store.DB().QueryRowContext(context.Background(), `
+	if err := store.DB().QueryRowContext(t.Context(), `
 		SELECT value_json
 		FROM android_extra_preferences
 		WHERE key = 'profile'
@@ -213,7 +213,7 @@ func TestUnmarshalLegacyAndroidBypassProtoRulesAndLists(t *testing.T) {
 }
 
 func TestSaveDNSTxDeduplicatesFakeDNSLists(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -280,7 +280,7 @@ func TestRepairsAndroidProtobufConfigAfterPriorImport(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store, err := storagesqlite.Open(context.Background(), paths.PathGenerator.State(dir))
+	store, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,7 +293,7 @@ func TestRepairsAndroidProtobufConfigAfterPriorImport(t *testing.T) {
 
 	db := NewSqliteDB(paths.PathGenerator.State(dir))
 	defer db.Close()
-	if err := db.Migrate(context.Background()); err != nil {
+	if err := db.Migrate(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	var rules, lists int
@@ -342,7 +342,7 @@ func TestSqliteDBBatchPersistsAcrossReopen(t *testing.T) {
 	path := paths.PathGenerator.State(dir)
 
 	db := NewSqliteDB(path)
-	if err := db.Migrate(context.Background()); err != nil {
+	if err := db.Migrate(t.Context()); err != nil {
 		t.Fatalf("migrate sqlite config failed: %v", err)
 	}
 
@@ -431,7 +431,7 @@ func TestSqliteDBBatchPersistsAcrossReopen(t *testing.T) {
 	}
 
 	reopened := NewSqliteDB(path)
-	if err := reopened.Migrate(context.Background()); err != nil {
+	if err := reopened.Migrate(t.Context()); err != nil {
 		t.Fatalf("migrate reopened sqlite config failed: %v", err)
 	}
 	if err := reopened.View(func(s *config.Setting) error {

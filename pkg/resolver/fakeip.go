@@ -119,14 +119,11 @@ func (f *Fakedns) SubscribeFakeIPRanges(handler func([2]netip.Prefix) error) (fu
 	f.nextRangeHandler++
 	id := f.nextRangeHandler
 	f.rangeHandlers[id] = handler
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			f.applyMu.Lock()
-			defer f.applyMu.Unlock()
-			delete(f.rangeHandlers, id)
-		})
-	}, nil
+	return sync.OnceFunc(func() {
+		f.applyMu.Lock()
+		defer f.applyMu.Unlock()
+		delete(f.rangeHandlers, id)
+	}), nil
 }
 
 func (f *Fakedns) apply(c contractresolver.FakeDNS) error {

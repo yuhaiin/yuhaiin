@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -721,8 +721,8 @@ func (c *Connections) trafficAggregate(ctx context.Context, from, to time.Time, 
 	for _, bucket := range buckets {
 		result = append(result, *bucket)
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].StartUTC.Before(result[j].StartUTC)
+	slices.SortFunc(result, func(a, b TrafficBucket) int {
+		return a.StartUTC.Compare(b.StartUTC)
 	})
 
 	return result, nil

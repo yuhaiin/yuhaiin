@@ -1,7 +1,6 @@
 package sqlite
 
 import (
-	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"path/filepath"
@@ -9,7 +8,7 @@ import (
 )
 
 func TestConfigBackupRoundTripAndAtomicFailure(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	source, err := Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +88,7 @@ func TestConfigBackupRoundTripAndAtomicFailure(t *testing.T) {
 }
 
 func TestConfigBackupRejectsIncompleteOrUnknownFormat(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)

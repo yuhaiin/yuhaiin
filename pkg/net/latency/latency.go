@@ -92,10 +92,7 @@ func LatencyIp(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.Late
 	wg := sync.WaitGroup{}
 
 	for _, isIPv6 := range []bool{false, true} {
-		wg.Add(1)
-
-		go func(isIPv6 bool) {
-			defer wg.Done()
+		wg.Go(func() {
 			hc := &http.Client{
 				Timeout: time.Second * 6,
 				Transport: &http.Transport{
@@ -148,7 +145,7 @@ func LatencyIp(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.Late
 			} else {
 				reply.IP.IPv6 = string(data)
 			}
-		}(isIPv6)
+		})
 	}
 
 	wg.Wait()

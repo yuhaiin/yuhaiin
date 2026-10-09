@@ -124,20 +124,20 @@ func TestServiceCheckAndApplyVerifiesChecksum(t *testing.T) {
 	dir := t.TempDir()
 	installer := &testInstaller{dir: dir, done: make(chan struct{})}
 	svc := NewService(Options{HTTPClient: &http.Client{Transport: transport}, ReleasesURL: "https://test/releases", Installer: installer, CurrentVersion: "v1.0.0", TargetOS: "linux", TargetArch: "amd64"})
-	result, err := svc.Check(context.Background(), "stable")
+	result, err := svc.Check(t.Context(), "stable")
 	if err != nil || !result.UpdateAvailable || result.AssetSHA256 != hex.EncodeToString(hash[:]) {
 		t.Fatalf("check = %#v, %v", result, err)
 	}
-	if err := svc.Apply(context.Background(), contractupdate.ApplyRequest{TargetTag: "v2.0.0"}); err != nil {
+	if err := svc.Apply(t.Context(), contractupdate.ApplyRequest{TargetTag: "v2.0.0"}); err != nil {
 		t.Fatal(err)
 	}
 	select {
 	case <-installer.done:
 	case <-time.After(5 * time.Second):
-		t.Fatalf("installer was not started, status=%#v", svc.Status(context.Background()))
+		t.Fatalf("installer was not started, status=%#v", svc.Status(t.Context()))
 	}
 	if installer.started == "" {
-		t.Fatalf("installer was not started, status=%#v", svc.Status(context.Background()))
+		t.Fatalf("installer was not started, status=%#v", svc.Status(t.Context()))
 	}
 	if filepath.Dir(installer.started) != dir {
 		t.Fatalf("staged file=%s outside %s", installer.started, dir)

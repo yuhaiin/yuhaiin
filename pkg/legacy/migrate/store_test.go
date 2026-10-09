@@ -18,7 +18,7 @@ import (
 )
 
 func TestMigrateLegacyInbounds(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func TestMigrateLegacyInbounds(t *testing.T) {
 }
 
 func TestRecoverLegacyInboundTransportsFromConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	dir := t.TempDir()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(dir, "state.db"))
 	if err != nil {
@@ -134,7 +134,7 @@ func TestRecoverLegacyInboundTransportsFromConfig(t *testing.T) {
 }
 
 func TestMigrateLegacyNodesDoesNotResurrectWhenMarkerDoneButContractsEmpty(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -177,7 +177,7 @@ func TestMigrateLegacyNodesDoesNotResurrectWhenMarkerDoneButContractsEmpty(t *te
 }
 
 func TestMigrateLegacyNodesPreservesManualContractAfterMigration(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -230,7 +230,7 @@ func TestMigrateLegacyNodesPreservesManualContractAfterMigration(t *testing.T) {
 }
 
 func TestRecoverLegacyNodeChainsRestoresPartialNetworkSplit(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -304,7 +304,7 @@ func mustNodeProtocol(t *testing.T, value contractnode.ProtocolPayload) contract
 }
 
 func TestMigrateLegacyNodesDoesNotOverwriteValidSelection(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -368,7 +368,7 @@ func TestMigrateLegacyNodesDoesNotOverwriteValidSelection(t *testing.T) {
 }
 
 func TestMigrateLegacyResolvers(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -402,7 +402,7 @@ func TestMigrateLegacyResolvers(t *testing.T) {
 }
 
 func TestMigrateLegacyRouteRules(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -438,7 +438,7 @@ func TestMigrateLegacyRouteRules(t *testing.T) {
 }
 
 func TestMigrateLegacyRouteRulesPreservesManualContractAfterMigration(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -487,7 +487,7 @@ func TestMigrateLegacyRouteRulesPreservesManualContractAfterMigration(t *testing
 }
 
 func TestMigrateLegacyRouteRulesDoesNotResurrectWhenMarkerDoneButContractsEmpty(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -527,7 +527,7 @@ func TestMigrateLegacyRouteRulesDoesNotResurrectWhenMarkerDoneButContractsEmpty(
 }
 
 func TestMigrateLegacyRouteRulesRenumbersLegacyPriorities(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -571,7 +571,7 @@ func TestMigrateLegacyRouteRulesRenumbersLegacyPriorities(t *testing.T) {
 }
 
 func TestMigrateLegacyRouteLists(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -606,7 +606,7 @@ func TestMigrateLegacyRouteLists(t *testing.T) {
 }
 
 func TestMigrateLegacyRouteTags(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -644,7 +644,7 @@ func TestMigrateLegacyRouteTags(t *testing.T) {
 }
 
 func TestMigrateLegacyBackupRewritesContractJSON(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)

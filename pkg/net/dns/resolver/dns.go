@@ -560,17 +560,17 @@ func (c *client) Name() string { return c.config.Name }
 func (c *client) DNSCacheEntries() []netapi.DNSCacheEntry {
 	entries := make([]netapi.DNSCacheEntry, 0, c.rawStore.Len())
 	c.rawStore.RangeWithExpiration(func(key string, msg *dns.Msg, expiresIn time.Duration) bool {
-		separator := strings.LastIndexByte(key, ':')
-		if separator <= 0 {
+		name, typeText, found := strings.CutLast(key, ":")
+		if !found || name == "" {
 			return true
 		}
-		qtype, err := strconv.ParseUint(key[separator+1:], 10, 16)
+		qtype, err := strconv.ParseUint(typeText, 10, 16)
 		if err != nil {
 			return true
 		}
 		entries = append(entries, netapi.DNSCacheEntry{
 			Question: netapi.DNSQuestion{
-				Name:   key[:separator],
+				Name:   name,
 				Qtype:  uint16(qtype),
 				Qclass: dns.ClassINET,
 			},
@@ -590,8 +590,8 @@ func (c *client) ClearDNSCache(domain string) int {
 
 	keys := make([]string, 0)
 	c.rawStore.Range(func(key string, _ *dns.Msg) bool {
-		separator := strings.LastIndexByte(key, ':')
-		if separator <= 0 || canonicalCacheDomain(key[:separator]) != domain {
+		name, _, found := strings.CutLast(key, ":")
+		if !found || name == "" || canonicalCacheDomain(name) != domain {
 			return true
 		}
 		keys = append(keys, key)

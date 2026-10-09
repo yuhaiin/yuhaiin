@@ -13,7 +13,7 @@ import (
 )
 
 func TestImportLegacyNodesFromJSONRejectsMalformedFile(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	dir := t.TempDir()
 	store, err := storagesqlite.Open(ctx, filepath.Join(dir, "state.db"))
 	if err != nil {

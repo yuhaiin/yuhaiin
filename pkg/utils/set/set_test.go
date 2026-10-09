@@ -20,13 +20,11 @@ func TestEmptySet(t *testing.T) {
 	// Test for concurrency safety (the race detector will find issues)
 	var wg sync.WaitGroup
 	const numGoroutines = 100
-	wg.Add(numGoroutines)
 	for range numGoroutines {
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			_ = EmptyImmutableSet[int]()
 			_ = EmptyImmutableSet[string]()
-		}()
+		})
 	}
 	wg.Wait()
 }

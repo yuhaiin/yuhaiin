@@ -1,7 +1,6 @@
 package migrate
 
 import (
-	"context"
 	"database/sql"
 	json "encoding/json/v2"
 	"path/filepath"
@@ -13,7 +12,7 @@ import (
 )
 
 func TestMigrateLegacySubscriptionsRewritesEnumType(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)

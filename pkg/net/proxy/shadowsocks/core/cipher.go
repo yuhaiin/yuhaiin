@@ -4,7 +4,7 @@ import (
 	"crypto/md5"
 	"errors"
 	"net"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/shadowaead"
@@ -48,7 +48,7 @@ func ListCipher() []string {
 	for k := range aeadList {
 		l = append(l, k)
 	}
-	sort.Strings(l)
+	slices.Sort(l)
 	return l
 }
 

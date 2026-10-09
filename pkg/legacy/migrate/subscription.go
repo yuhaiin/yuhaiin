@@ -1,6 +1,7 @@
 package migrate
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	json "encoding/json/v2"
@@ -48,7 +49,7 @@ func MigrateLegacySubscriptions(ctx context.Context, db *sql.DB, updatedAt int64
 			return fmt.Errorf("decode legacy subscription %q failed: %w", name, err)
 		}
 		link := contractsubscription.Link{
-			Name: firstNonEmpty(legacyLink.GetName(), name),
+			Name: cmp.Or(legacyLink.GetName(), name),
 			URL:  legacyLink.GetUrl(),
 			Type: legacyLink.GetType().String(),
 		}
@@ -87,7 +88,7 @@ func ConvertLegacyLinks(in *schemaapi.GetLinksResp) contractsubscription.LinkLis
 			continue
 		}
 		out.Items = append(out.Items, contractsubscription.Link{
-			Name: firstNonEmpty(link.GetName(), name),
+			Name: cmp.Or(link.GetName(), name),
 			URL:  link.GetUrl(),
 			Type: link.GetType().String(),
 		})
@@ -121,7 +122,7 @@ func ConvertLegacyPublishes(in *schemaapi.ListPublishResponse) contractsubscript
 		if publish == nil {
 			continue
 		}
-		out.Items = append(out.Items, ConvertLegacyPublish(firstNonEmpty(publish.GetName(), name), publish))
+		out.Items = append(out.Items, ConvertLegacyPublish(cmp.Or(publish.GetName(), name), publish))
 	}
 	return out
 }
@@ -131,7 +132,7 @@ func ConvertLegacyPublish(name string, in *schemanode.Publish) contractsubscript
 		return contractsubscription.Publish{Name: name}
 	}
 	return contractsubscription.Publish{
-		Name:     firstNonEmpty(in.GetName(), name),
+		Name:     cmp.Or(in.GetName(), name),
 		Points:   in.GetPoints(),
 		Path:     in.GetPath(),
 		Password: in.GetPassword(),
@@ -164,13 +165,4 @@ func ConvertLegacyPublishResponse(in *schemaapi.PublishResponse) contractsubscri
 		}
 	}
 	return out
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }

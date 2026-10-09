@@ -75,7 +75,7 @@ func listenerPort(t *testing.T, listener net.Listener) int {
 }
 
 func TestConfigureAndroidTUNEnablesPersistedInbound(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	state := migrate.NewStateDB(filepath.Join(t.TempDir(), "state.db"))
 	defer func() { _ = state.Close() }()
 	if err := state.Migrate(ctx); err != nil {
@@ -119,7 +119,7 @@ func TestConfigureAndroidTUNEnablesPersistedInbound(t *testing.T) {
 
 func TestStopCancelsStartupBeforeWaitingForLifecycleLock(t *testing.T) {
 	app := &App{}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	app.setStartCancel(cancel)
 	defer app.clearStartCancel()
 

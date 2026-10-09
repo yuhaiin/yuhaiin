@@ -15,8 +15,8 @@ const (
 )
 
 func sqliteErrorDetails(err error) string {
-	var sqliteErr *moderncsqlite.Error
-	if !errors.As(err, &sqliteErr) {
+	sqliteErr, ok := errors.AsType[*moderncsqlite.Error](err)
+	if !ok {
 		return ""
 	}
 

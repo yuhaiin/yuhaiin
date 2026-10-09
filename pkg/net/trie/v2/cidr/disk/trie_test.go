@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand/v2"
 	"net"
@@ -290,7 +291,7 @@ func TestCompressedPrefixBoundaries(t *testing.T) {
 				}
 				// A mismatch anywhere within a skipped path must be rejected.
 				for bit := range bits {
-					data := append([]byte(nil), base.AsSlice()...)
+					data := bytes.Clone(base.AsSlice())
 					data[bit/8] ^= 1 << uint(7-bit%8)
 					if got := trie.SearchIP(data); len(got) != 0 {
 						t.Fatalf("bit %d mismatch matched %v", bit, got)
@@ -393,7 +394,7 @@ func benchmarkIPv4Data() ([]netip.Prefix, []net.IP) {
 	for index := range prefixes {
 		addr := netip.AddrFrom4([4]byte{10, byte(index >> 8), byte(index), 1})
 		prefixes[index] = netip.PrefixFrom(addr, 32)
-		ips[index] = net.IP(append([]byte(nil), addr.AsSlice()...))
+		ips[index] = net.IP(bytes.Clone(addr.AsSlice()))
 	}
 	return prefixes, ips
 }
@@ -402,14 +403,14 @@ func benchmarkIPv6Data() ([]netip.Prefix, []net.IP) {
 	prefixes := make([]netip.Prefix, 1000)
 	ips := make([]net.IP, 1000)
 	for index := range prefixes {
-		var bytes [16]byte
-		bytes[0], bytes[1] = 0x20, 0x01
-		bytes[2], bytes[3] = 0x0d, 0xb8
-		bytes[14] = byte(index >> 8)
-		bytes[15] = byte(index)
-		addr := netip.AddrFrom16(bytes)
+		var addrBytes [16]byte
+		addrBytes[0], addrBytes[1] = 0x20, 0x01
+		addrBytes[2], addrBytes[3] = 0x0d, 0xb8
+		addrBytes[14] = byte(index >> 8)
+		addrBytes[15] = byte(index)
+		addr := netip.AddrFrom16(addrBytes)
 		prefixes[index] = netip.PrefixFrom(addr, 128)
-		ips[index] = net.IP(append([]byte(nil), addr.AsSlice()...))
+		ips[index] = net.IP(bytes.Clone(addr.AsSlice()))
 	}
 	return prefixes, ips
 }

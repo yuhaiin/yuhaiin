@@ -37,19 +37,19 @@ func TestSQLiteTelemetryPersistsTotalsAndHistory(t *testing.T) {
 		},
 	})
 
-	store, err := storagesqlite.Open(context.Background(), path)
+	store, err := storagesqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
 	defer store.Close()
 
 	var download, upload uint64
-	if err := store.DB().QueryRowContext(context.Background(), `
+	if err := store.DB().QueryRowContext(t.Context(), `
 		SELECT value_int FROM statistics_kv WHERE key = 'total_download'
 	`).Scan(&download); err != nil {
 		t.Fatalf("query total_download failed: %v", err)
 	}
-	if err := store.DB().QueryRowContext(context.Background(), `
+	if err := store.DB().QueryRowContext(t.Context(), `
 		SELECT value_int FROM statistics_kv WHERE key = 'total_upload'
 	`).Scan(&upload); err != nil {
 		t.Fatalf("query total_upload failed: %v", err)
@@ -59,7 +59,7 @@ func TestSQLiteTelemetryPersistsTotalsAndHistory(t *testing.T) {
 	}
 
 	var hourlyDownload, hourlyUpload uint64
-	if err := store.DB().QueryRowContext(context.Background(), `
+	if err := store.DB().QueryRowContext(t.Context(), `
 		SELECT download_bytes, upload_bytes FROM traffic_hourly LIMIT 1
 	`).Scan(&hourlyDownload, &hourlyUpload); err != nil {
 		t.Fatalf("query traffic_hourly failed: %v", err)
@@ -79,7 +79,7 @@ func TestSQLiteTelemetryPersistsTotalsAndHistory(t *testing.T) {
 	connections := NewSQLiteConnStore(path, nil)
 	defer connections.Close()
 
-	daily, err := connections.TrafficDaily(context.Background(), time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+	daily, err := connections.TrafficDaily(t.Context(), time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
 	if err != nil {
 		t.Fatalf("query daily traffic failed: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestSQLiteTelemetryPersistsTotalsAndHistory(t *testing.T) {
 		t.Fatalf("unexpected daily traffic download=%d upload=%d", daily[0].DownloadBytes, daily[0].UploadBytes)
 	}
 
-	series, err := connections.Traffic(context.Background(), "day", time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+	series, err := connections.Traffic(t.Context(), "day", time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
 	if err != nil {
 		t.Fatalf("query traffic series failed: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestSQLiteTelemetryPersistsTotalsAndHistory(t *testing.T) {
 }
 
 func TestTelemetryDimensionsAggregateTrafficAndFailures(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	connections := NewSQLiteConnStore(paths.PathGenerator.State(t.TempDir()), nil)
 	defer connections.Close()
 
@@ -145,7 +145,7 @@ func TestTelemetryDimensionsAggregateTrafficAndFailures(t *testing.T) {
 }
 
 func TestTelemetryDimensionReturnsSQLSortedTopValues(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	connections := NewSQLiteConnStore(paths.PathGenerator.State(t.TempDir()), nil)
 	defer connections.Close()
 
@@ -265,7 +265,7 @@ func TestTelemetryDimensionsSkipFakeIPDestination(t *testing.T) {
 }
 
 func TestNormalizePersistedFakeIPDestinations(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := storagesqlite.Open(ctx, paths.PathGenerator.State(t.TempDir()))
 	if err != nil {
 		t.Fatal(err)
@@ -301,7 +301,7 @@ func TestNormalizePersistedFakeIPDestinations(t *testing.T) {
 }
 
 func TestTelemetryMaintenanceRollsHourlyIntoDaily(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := storagesqlite.Open(ctx, paths.PathGenerator.State(t.TempDir()))
 	if err != nil {
 		t.Fatal(err)
@@ -332,7 +332,7 @@ func TestTelemetryMaintenanceRollsHourlyIntoDaily(t *testing.T) {
 }
 
 func TestTelemetryMaintenancePrunesExpiredDailyAndUnusedDimensions(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := storagesqlite.Open(ctx, paths.PathGenerator.State(t.TempDir()))
 	if err != nil {
 		t.Fatal(err)
@@ -398,12 +398,12 @@ func TestSQLiteTotalCacheImportsLegacyFlowData(t *testing.T) {
 		t.Fatalf("seed legacy upload failed: %v", err)
 	}
 
-	store, err := storagesqlite.Open(context.Background(), path)
+	store, err := storagesqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
 	defer store.Close()
-	if err := legacymigrate.MigrateLegacyTotalFlow(context.Background(), store.DB(), legacy); err != nil {
+	if err := legacymigrate.MigrateLegacyTotalFlow(t.Context(), store.DB(), legacy); err != nil {
 		t.Fatalf("import legacy total flow failed: %v", err)
 	}
 
@@ -415,7 +415,7 @@ func TestSQLiteTotalCacheImportsLegacyFlowData(t *testing.T) {
 	}
 
 	var source string
-	if err := store.DB().QueryRowContext(context.Background(), `
+	if err := store.DB().QueryRowContext(t.Context(), `
 		SELECT value FROM metadata WHERE key = 'legacy_total_flow_import_source'
 	`).Scan(&source); err != nil {
 		t.Fatalf("query import metadata failed: %v", err)
@@ -428,7 +428,7 @@ func TestSQLiteTotalCacheImportsLegacyFlowData(t *testing.T) {
 func TestSQLiteTotalCacheImportsOnlyMissingLegacyFlowCounter(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	path := paths.PathGenerator.State(t.TempDir())
 	legacy := memory.NewMemoryCache().NewCache("flow_data")
 	if err := legacy.Put([]byte("DOWNLOAD"), binary.BigEndian.AppendUint64(nil, 987)); err != nil {
@@ -477,7 +477,7 @@ func TestSQLiteTotalCacheImportsOnlyMissingLegacyFlowCounter(t *testing.T) {
 }
 
 func TestSQLiteConnectionSessionsAreRuntimeOnly(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	path := paths.PathGenerator.State(t.TempDir())
 	store, err := storagesqlite.Open(ctx, path)
 	if err != nil {
@@ -532,7 +532,7 @@ func assertConnectionSessionCount(t *testing.T, ctx context.Context, db interfac
 }
 
 func TestSQLiteHistoryPruneKeepsNewestRows(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := storagesqlite.Open(ctx, paths.PathGenerator.State(t.TempDir()))
 	if err != nil {
 		t.Fatal(err)
@@ -604,7 +604,7 @@ func TestConnectionPersistenceFoldsClosedSession(t *testing.T) {
 	}
 
 	var sessions int
-	if err := connections.sqliteDB.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM connection_sessions`).Scan(&sessions); err != nil {
+	if err := connections.sqliteDB.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM connection_sessions`).Scan(&sessions); err != nil {
 		t.Fatal(err)
 	}
 	if sessions != 0 {
@@ -612,7 +612,7 @@ func TestConnectionPersistenceFoldsClosedSession(t *testing.T) {
 	}
 
 	var hits int
-	if err := connections.sqliteDB.QueryRowContext(context.Background(), `SELECT hit_count FROM connection_history WHERE protocol='tcp' AND addr='example.com:443' AND process_name='browser'`).Scan(&hits); err != nil {
+	if err := connections.sqliteDB.QueryRowContext(t.Context(), `SELECT hit_count FROM connection_history WHERE protocol='tcp' AND addr='example.com:443' AND process_name='browser'`).Scan(&hits); err != nil {
 		t.Fatal(err)
 	}
 	if hits != 1 {
@@ -621,7 +621,7 @@ func TestConnectionPersistenceFoldsClosedSession(t *testing.T) {
 }
 
 func TestSQLiteFailedHistoryBatchesDuplicates(t *testing.T) {
-	store, err := storagesqlite.Open(context.Background(), paths.PathGenerator.State(t.TempDir()))
+	store, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(t.TempDir()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -630,7 +630,7 @@ func TestSQLiteFailedHistoryBatchesDuplicates(t *testing.T) {
 	history := newSQLiteFailedHistory(store.DB())
 	defer history.Close()
 
-	ctx := netapi.WithContext(context.Background())
+	ctx := netapi.WithContext(t.Context())
 	addr, err := netapi.ParseAddressPort("tcp", "example.com", 443)
 	if err != nil {
 		t.Fatal(err)

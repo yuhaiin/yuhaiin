@@ -11,7 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -172,7 +172,7 @@ func ExportRustSnapshot(ctx context.Context, sourcePath, outputPath string) (Rus
 		_ = tx.Rollback()
 		return report, fmt.Errorf("close FTS5 table query: %w", err)
 	}
-	sort.Strings(virtualTables)
+	slices.Sort(virtualTables)
 	for _, table := range virtualTables {
 		if _, err := tx.ExecContext(ctx, `DROP TABLE "`+strings.ReplaceAll(table, `"`, `""`)+`"`); err != nil {
 			_ = tx.Rollback()

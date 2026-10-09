@@ -26,7 +26,7 @@ func TestTailSnapshotAndBroadcast(t *testing.T) {
 
 	Info("before tail", "i", 1)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	logs := make(chan string, 16)
@@ -70,7 +70,7 @@ func TestTailReturnsCallbackError(t *testing.T) {
 	Info("callback error")
 
 	errExpected := errors.New("callback failed")
-	err := ctr.Tail(context.Background(), func(line []string) error {
+	err := ctr.Tail(t.Context(), func(line []string) error {
 		return errExpected
 	})
 	if !errors.Is(err, errExpected) {
@@ -95,7 +95,7 @@ func TestTailReadsLongLine(t *testing.T) {
 	Info(msg)
 
 	errDone := errors.New("done")
-	err := ctr.Tail(context.Background(), func(line []string) error {
+	err := ctr.Tail(t.Context(), func(line []string) error {
 		if len(line) != 1 {
 			t.Fatalf("expected one line, got %d: %v", len(line), line)
 		}

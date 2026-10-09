@@ -1,7 +1,6 @@
 package reality
 
 import (
-	"context"
 	"io"
 	"testing"
 	"time"
@@ -70,7 +69,7 @@ func TestClient(t *testing.T) {
 	}, pp)
 	assert.NoError(t, err)
 
-	conn, err := pp.Conn(context.Background(), netapi.EmptyAddr)
+	conn, err := pp.Conn(t.Context(), netapi.EmptyAddr)
 	assert.NoError(t, err)
 	defer conn.Close()
 

@@ -65,7 +65,7 @@ func TestTailscale(t *testing.T) {
 		assert.NoError(t, err)
 
 		for range 3 {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 
 			ips, err := r.Raw(ctx, netapi.DNSQuestion{
@@ -86,7 +86,7 @@ func TestTailscale(t *testing.T) {
 		assert.NoError(t, err)
 
 		for range 3 {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 
 			ips, err := r.Raw(ctx, netapi.DNSQuestion{

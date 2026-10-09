@@ -151,8 +151,8 @@ func TestTCPBufferedReadDeadlinesAndEOF(t *testing.T) {
 }
 
 func isTCPTimeout(err error) bool {
-	var timeout net.Error
-	return errors.As(err, &timeout) && timeout.Timeout()
+	timeout, ok := errors.AsType[net.Error](err)
+	return ok && timeout.Timeout()
 }
 
 func TestTCPBufferedReadOwnsReturnedDataAcrossClose(t *testing.T) {

@@ -1,7 +1,6 @@
 package sqlite
 
 import (
-	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -13,7 +12,7 @@ import (
 func TestOpenBootstrapsEmptyDatabase(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	path := filepath.Join(t.TempDir(), "state.db")
 
 	store, err := Open(ctx, path)
@@ -92,7 +91,7 @@ func TestOpenBootstrapsEmptyDatabase(t *testing.T) {
 }
 
 func TestTelemetryMigrationNormalizesSourceValues(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	path := filepath.Join(t.TempDir(), "state.db")
 	db, err := sql.Open(driverName, path)
 	if err != nil {
@@ -163,7 +162,7 @@ func TestTelemetryMigrationNormalizesSourceValues(t *testing.T) {
 func TestOpenIsIdempotent(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	path := filepath.Join(t.TempDir(), "state.db")
 
 	first, err := Open(ctx, path)
@@ -184,7 +183,7 @@ func TestOpenIsIdempotent(t *testing.T) {
 }
 
 func TestOpenSharesDatabasePerPath(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	path := filepath.Join(t.TempDir(), "state.db")
 
 	first, err := Open(ctx, path)

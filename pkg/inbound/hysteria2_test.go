@@ -2,7 +2,6 @@ package inbound
 
 import (
 	"bytes"
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -18,7 +17,7 @@ func TestHysteria2TLSAutoPersistsCA(t *testing.T) {
 	}
 	originalCA := bytes.Clone(config.Transports[0].TLSAuto.CACertBase64)
 	originalKey := bytes.Clone(config.Transports[0].TLSAuto.CAKeyBase64)
-	db, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "state.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

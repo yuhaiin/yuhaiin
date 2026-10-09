@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/codec"
@@ -91,7 +90,7 @@ func NewTrie[T comparable](dir string, c codec.Codec[T], opts ...Option) (*Trie[
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(files)
+	slices.Sort(files)
 	for _, file := range files {
 		segment, err := openSegment[T](file, c)
 		if err != nil {

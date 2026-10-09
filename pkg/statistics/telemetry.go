@@ -1,11 +1,12 @@
 package statistics
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"net"
 	"net/netip"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -240,10 +241,10 @@ func (r *telemetryRecorder) flush() {
 func dimensionsForConnection(info contractconnection.Connection) []telemetryDimension {
 	values := map[string]string{
 		"protocol":    info.Network.ConnType,
-		"inbound":     firstNonEmpty(info.InboundName, info.Inbound),
+		"inbound":     cmp.Or(info.InboundName, info.Inbound),
 		"source":      normalizeTelemetrySource(info.Source),
 		"addr":        telemetryAddr(info),
-		"outbound":    firstNonEmpty(info.NodeName, info.NodeID, info.Outbound),
+		"outbound":    cmp.Or(info.NodeName, info.NodeID, info.Outbound),
 		"process":     info.Process,
 		"tag":         info.Tag,
 		"destination": telemetryDestination(info),
@@ -260,7 +261,7 @@ func dimensionsForConnection(info contractconnection.Connection) []telemetryDime
 			keys = append(keys, key)
 		}
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	result := make([]telemetryDimension, 0, len(keys))
 	for _, key := range keys {
 		result = append(result, telemetryDimension{kind: key, value: values[key]})
@@ -272,7 +273,7 @@ func telemetryDestination(info contractconnection.Connection) string {
 	if info.FakeIP != "" {
 		return ""
 	}
-	if value := firstNonEmpty(info.Domain, info.Hosts); value != "" {
+	if value := cmp.Or(info.Domain, info.Hosts); value != "" {
 		return value
 	}
 	if info.Destination != "" {
@@ -283,7 +284,7 @@ func telemetryDestination(info contractconnection.Connection) string {
 
 func telemetryAddr(info contractconnection.Connection) string {
 	if info.FakeIP != "" && telemetryHost(info.Addr) == telemetryHost(info.FakeIP) {
-		return firstNonEmpty(info.Domain, info.Hosts)
+		return cmp.Or(info.Domain, info.Hosts)
 	}
 	return info.Addr
 }
@@ -302,16 +303,16 @@ func normalizeTelemetrySource(value string) string {
 			value = value[len("http2.h-")+marker+2:]
 		}
 	}
-	if left := strings.LastIndexByte(value, '['); left >= 0 {
-		if right := strings.IndexByte(value[left+1:], ']'); right >= 0 {
-			return value[left+1 : left+1+right]
+	if _, suffix, found := strings.CutLast(value, "["); found {
+		if host, _, found := strings.Cut(suffix, "]"); found {
+			return host
 		}
 	}
 
 	if strings.Count(value, ":") == 1 {
-		colon := strings.LastIndexByte(value, ':')
-		if colon > 0 && colon+1 < len(value) && isDecimal(value[colon+1:]) {
-			return value[:colon]
+		host, port, _ := strings.CutLast(value, ":")
+		if host != "" && isDecimal(port) {
+			return host
 		}
 	}
 	return value
@@ -327,15 +328,6 @@ func isDecimal(value string) bool {
 		}
 	}
 	return true
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 const insertTelemetryValueSQL = `INSERT INTO telemetry_dimension_values(dimension, value)

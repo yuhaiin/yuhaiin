@@ -1,6 +1,7 @@
 package tailscale
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -605,7 +606,7 @@ func (d *dnsPacket) WriteTo(buf []byte, addr net.Addr) (int, error) {
 	if err := msg.Pack(); err != nil {
 		return 0, err
 	}
-	data := append([]byte(nil), msg.Data...)
+	data := bytes.Clone(msg.Data)
 
 	select {
 	case <-d.writeDeadline.Wait():

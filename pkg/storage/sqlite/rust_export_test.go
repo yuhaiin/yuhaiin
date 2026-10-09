@@ -1,7 +1,6 @@
 package sqlite
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -59,7 +58,7 @@ func TestExportRustSnapshotRemovesDerivedFTSWithoutChangingSource(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	report, err := ExportRustSnapshot(context.Background(), sourcePath, outputPath)
+	report, err := ExportRustSnapshot(t.Context(), sourcePath, outputPath)
 	if err != nil {
 		t.Fatalf("export Rust snapshot: %v", err)
 	}
@@ -149,7 +148,7 @@ func TestExportRustSnapshotRejectsExistingOutput(t *testing.T) {
 		_ = os.Remove(outputPath + ".manifest.json")
 	})
 
-	if _, err := ExportRustSnapshot(context.Background(), sourcePath, outputPath); err == nil {
+	if _, err := ExportRustSnapshot(t.Context(), sourcePath, outputPath); err == nil {
 		t.Fatal("export unexpectedly overwrote an existing output")
 	}
 }

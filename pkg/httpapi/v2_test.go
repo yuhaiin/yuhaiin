@@ -179,7 +179,7 @@ func TestV2RouteActivationIsCombined(t *testing.T) {
 }
 
 func TestV2RouteTagsIncludeRuleReferences(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -230,7 +230,7 @@ func (listConfigRuntimeStub) ActivationStatus(context.Context) (contractroute.Li
 }
 
 func TestV2RouteListConfigDoesNotOverwriteRuntimeState(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -261,7 +261,7 @@ func TestV2RouteListConfigDoesNotOverwriteRuntimeState(t *testing.T) {
 }
 
 func TestV2InboundCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -324,7 +324,7 @@ func TestV2InboundCRUD(t *testing.T) {
 }
 
 func TestV2TunAutoFakeIPRouteRoundTrip(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	db, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)

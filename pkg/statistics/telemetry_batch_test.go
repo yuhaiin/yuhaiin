@@ -1,7 +1,6 @@
 package statistics
 
 import (
-	"context"
 	"testing"
 	"time"
 )
@@ -63,7 +62,7 @@ func TestFlowTotalsMatchesMonitorTotals(t *testing.T) {
 	c.Cache.AddUpload(456)
 	m := NewConnectionMonitor(c)
 	download, upload := m.FlowTotals()
-	flow, err := m.Total(context.Background())
+	flow, err := m.Total(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,7 +1,6 @@
 package statistics
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -12,7 +11,7 @@ import (
 )
 
 func TestPendingMetadataSurvivesConcurrentCommit(t *testing.T) {
-	store, err := storagesqlite.Open(context.Background(), t.TempDir()+"/state.db")
+	store, err := storagesqlite.Open(t.Context(), t.TempDir()+"/state.db")
 	if err != nil {
 		t.Fatal(err)
 	}

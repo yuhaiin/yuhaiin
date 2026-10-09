@@ -34,7 +34,7 @@ func TestFailedBackgroundRefreshDoesNotRetryEveryStaleLookup(t *testing.T) {
 		defer c.Close()
 		q := expiredRefreshAnswer(c, "offline.example.")
 		for range 100 {
-			msg, err := c.Raw(context.Background(), q)
+			msg, err := c.Raw(t.Context(), q)
 			if err != nil || len(msg.Answer) != 1 {
 				t.Fatalf("stale answer unavailable: msg=%v err=%v", msg, err)
 			}
@@ -58,7 +58,7 @@ func TestBackgroundRefreshConcurrencyIsBounded(t *testing.T) {
 		defer c.Close()
 		for i := range 20 {
 			q := expiredRefreshAnswer(c, fmt.Sprintf("host-%d.example.", i))
-			if _, err := c.Raw(context.Background(), q); err != nil {
+			if _, err := c.Raw(t.Context(), q); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -78,7 +78,7 @@ func TestClosingClientCancelsBackgroundRefresh(t *testing.T) {
 			return nil, ctx.Err()
 		})).(*client)
 		q := expiredRefreshAnswer(c, "offline.example.")
-		if _, err := c.Raw(context.Background(), q); err != nil {
+		if _, err := c.Raw(t.Context(), q); err != nil {
 			t.Fatal(err)
 		}
 		synctest.Wait()
@@ -109,7 +109,7 @@ func TestBackgroundRefreshBackoffRecoversAndResetsAfterSuccess(t *testing.T) {
 		q := expiredRefreshAnswer(c, "offline.example.")
 		lookup := func() *dns.Msg {
 			t.Helper()
-			msg, err := c.Raw(context.Background(), q)
+			msg, err := c.Raw(t.Context(), q)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -166,16 +166,16 @@ func TestForegroundMissAndOtherQuestionsBypassRefreshBackoff(t *testing.T) {
 		})).(*client)
 		defer c.Close()
 		q := expiredRefreshAnswer(c, "offline.example.")
-		if _, err := c.Raw(context.Background(), q); err != nil {
+		if _, err := c.Raw(t.Context(), q); err != nil {
 			t.Fatal(err)
 		}
 		synctest.Wait()
-		fresh, err := c.Raw(context.Background(), netapi.DNSQuestion{Name: "new.example.", Qtype: dns.TypeA})
+		fresh, err := c.Raw(t.Context(), netapi.DNSQuestion{Name: "new.example.", Qtype: dns.TypeA})
 		if err != nil || fresh.Answer[0].(*dns.A).Addr.String() != "192.0.2.2" {
 			t.Fatalf("foreground miss was blocked: answer=%v err=%v", fresh, err)
 		}
 		other := expiredRefreshAnswer(c, "other.example.")
-		if _, err := c.Raw(context.Background(), other); err != nil {
+		if _, err := c.Raw(t.Context(), other); err != nil {
 			t.Fatal(err)
 		}
 		synctest.Wait()
@@ -186,7 +186,7 @@ func TestForegroundMissAndOtherQuestionsBypassRefreshBackoff(t *testing.T) {
 		if removed := c.ClearDNSCache(q.Name); removed != 1 {
 			t.Fatalf("removed %d records, want 1", removed)
 		}
-		if _, err := c.Raw(context.Background(), q); err == nil {
+		if _, err := c.Raw(t.Context(), q); err == nil {
 			t.Fatal("uncached offline request should report the upstream error")
 		}
 		if got := attempts.Load(); got != 4 {
@@ -208,7 +208,7 @@ func TestBackgroundRefreshPreservesCallerValuesButEndsWithClient(t *testing.T) {
 			return nil, ctx.Err()
 		})).(*client)
 		defer c.Close()
-		ctx, cancel := context.WithCancel(context.WithValue(context.Background(), contextKey{}, "routing-context"))
+		ctx, cancel := context.WithCancel(context.WithValue(t.Context(), contextKey{}, "routing-context"))
 		q := expiredRefreshAnswer(c, "offline.example.")
 		if _, err := c.Raw(ctx, q); err != nil {
 			t.Fatal(err)
@@ -226,7 +226,7 @@ func TestBackgroundRefreshPreservesCallerValuesButEndsWithClient(t *testing.T) {
 		if !ended.Load() {
 			t.Fatal("client close did not cancel refresh")
 		}
-		if _, err := c.Raw(context.Background(), q); err != nil {
+		if _, err := c.Raw(t.Context(), q); err != nil {
 			t.Fatal(err)
 		}
 		synctest.Wait()

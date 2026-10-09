@@ -290,7 +290,7 @@ func BenchmarkDiskPebbleTrie(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			dt.Search(newFqdnReader(randomDomainParts(5)))
 		}
 	})

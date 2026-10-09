@@ -29,7 +29,7 @@ func TestPacketHandshakeContext(t *testing.T) {
 			local, remote := net.Pipe()
 			t.Cleanup(func() { local.Close(); remote.Close() })
 			c := &client{Proxy: handshakeProxy{conn: local}, hash: Salt(nil), overTCP: true}
-			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 			defer cancel()
 			ready := make(chan struct{})
 			if mode != "blocked_write" {
@@ -75,7 +75,7 @@ func TestPacketHandshakeSuccessDetachesContext(t *testing.T) {
 	defer local.Close()
 	defer remote.Close()
 	c := &client{Proxy: handshakeProxy{conn: local}, hash: Salt(nil), overTCP: true}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	go func() {
 		_, _ = io.CopyN(io.Discard, remote, 1+8+32)
@@ -103,7 +103,7 @@ func TestStreamHeaderContext(t *testing.T) {
 	defer local.Close()
 	defer remote.Close()
 	c := &client{Proxy: handshakeProxy{conn: local}, hash: Salt(nil)}
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { _, err := c.Conn(ctx, netapi.EmptyAddr); done <- err }()

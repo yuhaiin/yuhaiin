@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -84,7 +85,7 @@ func NewDoH3(config Config) (Transport, error) {
 			return p, fmt.Errorf("doh3 post failed: %w", err)
 		}
 
-		p.Data = append([]byte(nil), buf...)
+		p.Data = bytes.Clone(buf)
 		err = p.Unpack()
 		return p, err
 	}), nil

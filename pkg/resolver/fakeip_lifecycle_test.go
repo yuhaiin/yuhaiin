@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"context"
 	"errors"
 	"net/netip"
 	"sync"
@@ -55,7 +54,7 @@ func TestFakednsDispatchAddrConcurrentClose(t *testing.T) {
 		wg.Go(func() {
 			<-start
 			for range 1000 {
-				_ = f.dispatchAddr(context.Background(), addr)
+				_ = f.dispatchAddr(t.Context(), addr)
 			}
 		})
 	}
@@ -70,7 +69,7 @@ func TestFakednsDispatchAddrConcurrentClose(t *testing.T) {
 	wg.Wait()
 	<-closed
 
-	if got := f.dispatchAddr(context.Background(), addr); got != addr {
+	if got := f.dispatchAddr(t.Context(), addr); got != addr {
 		t.Fatalf("dispatch after close returned %v, want original address %v", got, addr)
 	}
 }

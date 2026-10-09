@@ -321,8 +321,7 @@ func TestCountedRelayKeepsBufferUntilWriteReturns(t *testing.T) {
 		_, err := relay.Copy(dst, conn)
 		done <- err
 	}()
-	var releaseOnce sync.Once
-	unblock := func() { releaseOnce.Do(func() { close(dst.release) }) }
+	unblock := sync.OnceFunc(func() { close(dst.release) })
 	defer func() { _ = conn.Close(); _ = sender.Close(); unblock(); <-stopped }()
 
 	want := bytes.Repeat([]byte("original payload"), 64)

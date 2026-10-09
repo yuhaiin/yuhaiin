@@ -84,7 +84,7 @@ type testStateStore struct {
 func (s testStateStore) SQLDB(context.Context) (*sql.DB, error) { return s.db, nil }
 
 func TestCompactStateStoreVacuum(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -189,7 +189,7 @@ func TestPprofGoroutineLeakKeepsGvisorWorkerAlive(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, executable, "-test.run=^TestPprofGoroutineLeakKeepsGvisorWorkerAlive$")
 		cmd.Env = append(os.Environ(), helperEnv+"=1")

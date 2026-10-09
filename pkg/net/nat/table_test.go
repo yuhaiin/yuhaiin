@@ -32,7 +32,7 @@ func TestTable(t *testing.T) {
 		"114.114.114.114",
 	} {
 		for range 10 {
-			ctx := context.Background()
+			ctx := t.Context()
 			ctx = netapi.WithContext(ctx)
 
 			dstAddr, err := netapi.ParseAddressPort("tcp", v, 80)
@@ -70,7 +70,7 @@ func TestSourceControlDispatchUsesSkipRouteContext(t *testing.T) {
 	}))
 	defer packet.DecRef()
 
-	if err := source.write(context.Background(), packet, source.conn); err != nil {
+	if err := source.write(t.Context(), packet, source.conn); err != nil {
 		t.Fatal(err)
 	}
 	if !dialer.skipRoute {
@@ -157,10 +157,10 @@ type testPacketConn struct {
 
 	ip bool
 
-	mu     sync.Mutex
-	cond   *sync.Cond
-	closed        bool
-	readDeadlines int
+	mu               sync.Mutex
+	cond             *sync.Cond
+	closed           bool
+	readDeadlines    int
 	lastReadDeadline time.Time
 }
 

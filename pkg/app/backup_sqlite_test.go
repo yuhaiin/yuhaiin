@@ -2,7 +2,6 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,23 +17,23 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	sqliteStore, err := storagesqlite.Open(context.Background(), paths.PathGenerator.State(dir))
+	sqliteStore, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(dir))
 	if err != nil {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
 	settings := plainstore.NewSettingsStore(sqliteStore.DB())
 
-	if _, err := settings.Save(context.Background(), contractsettings.Settings{NetInterface: "before"}); err != nil {
+	if _, err := settings.Save(t.Context(), contractsettings.Settings{NetInterface: "before"}); err != nil {
 		t.Fatalf("write initial sqlite config failed: %v", err)
 	}
 
 	backup := &Backup{dir: dir}
-	snapshot, err := backup.snapshotStateDB(context.Background())
+	snapshot, err := backup.snapshotStateDB(t.Context())
 	if err != nil {
 		t.Fatalf("snapshot sqlite state failed: %v", err)
 	}
 
-	if _, err := settings.Save(context.Background(), contractsettings.Settings{NetInterface: "after"}); err != nil {
+	if _, err := settings.Save(t.Context(), contractsettings.Settings{NetInterface: "after"}); err != nil {
 		t.Fatalf("write modified sqlite config failed: %v", err)
 	}
 	if err := sqliteStore.Close(); err != nil {
@@ -45,13 +44,13 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 		t.Fatalf("restore sqlite state failed: %v", err)
 	}
 
-	reopened, err := storagesqlite.Open(context.Background(), paths.PathGenerator.State(dir))
+	reopened, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(dir))
 	if err != nil {
 		t.Fatalf("reopen sqlite failed: %v", err)
 	}
 	defer reopened.Close()
 	reopenedSettings := plainstore.NewSettingsStore(reopened.DB())
-	got, err := reopenedSettings.Load(context.Background())
+	got, err := reopenedSettings.Load(t.Context())
 	if err != nil {
 		t.Fatalf("view restored sqlite config failed: %v", err)
 	}
@@ -64,17 +63,17 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	sqliteStore, err := storagesqlite.Open(context.Background(), paths.PathGenerator.State(dir))
+	sqliteStore, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(dir))
 	if err != nil {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
 	defer sqliteStore.Close()
 
 	settings := plainstore.NewSettingsStore(sqliteStore.DB())
-	if _, err := settings.Save(context.Background(), contractsettings.Settings{NetInterface: "before"}); err != nil {
+	if _, err := settings.Save(t.Context(), contractsettings.Settings{NetInterface: "before"}); err != nil {
 		t.Fatalf("write initial sqlite config failed: %v", err)
 	}
-	if err := plainstore.NewBackupStore(sqliteStore.DB()).Save(context.Background(), contractbackup.Option{
+	if err := plainstore.NewBackupStore(sqliteStore.DB()).Save(t.Context(), contractbackup.Option{
 		InstanceName:   "instance",
 		Interval:       30,
 		LastBackupHash: "old-hash",
@@ -105,11 +104,11 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	}
 
 	backup := &Backup{dir: dir}
-	first, err := backup.snapshotStateDB(context.Background())
+	first, err := backup.snapshotStateDB(t.Context())
 	if err != nil {
 		t.Fatalf("snapshot first sqlite backup failed: %v", err)
 	}
-	second, err := backup.snapshotStateDB(context.Background())
+	second, err := backup.snapshotStateDB(t.Context())
 	if err != nil {
 		t.Fatalf("snapshot second sqlite backup failed: %v", err)
 	}
@@ -126,7 +125,7 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	if err := os.WriteFile(snapshotPath, first, 0o600); err != nil {
 		t.Fatalf("write sanitized snapshot failed: %v", err)
 	}
-	snapshotStore, err := storagesqlite.Open(context.Background(), snapshotPath)
+	snapshotStore, err := storagesqlite.Open(t.Context(), snapshotPath)
 	if err != nil {
 		t.Fatalf("open sanitized snapshot failed: %v", err)
 	}
@@ -156,7 +155,7 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	if err := snapshotStore.DB().QueryRow(`SELECT data_json FROM backup_settings WHERE id = 1`).Scan(&backupData); err != nil {
 		t.Fatalf("read sanitized backup settings failed: %v", err)
 	}
-	gotBackup, err := plainstore.NewBackupStore(snapshotStore.DB()).Get(context.Background())
+	gotBackup, err := plainstore.NewBackupStore(snapshotStore.DB()).Get(t.Context())
 	if err != nil {
 		t.Fatalf("decode sanitized backup settings failed: %v", err)
 	}

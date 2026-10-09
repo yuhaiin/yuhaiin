@@ -67,7 +67,7 @@ func TestRulesStartupBuildsHostIndexBeforeTestingRoutes(t *testing.T) {
 		Mode:  "direct",
 		Rules: []contractroute.RuleExpr{{Type: "host", Host: &contractroute.ListRef{List: "direct_2_host"}}},
 	}}}, nil, route)
-	response, err := rules.TestContract(context.Background(), "us.aws.cdn.hf.co")
+	response, err := rules.TestContract(t.Context(), "us.aws.cdn.hf.co")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestRulesStartupBuildsHostIndexBeforeTestingRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := lists.HostTrie().Search(context.Background(), addr); !slices.Contains(got, "direct_2_host") {
+	if got := lists.HostTrie().Search(t.Context(), addr); !slices.Contains(got, "direct_2_host") {
 		t.Fatalf("startup host index did not match nested wildcard: %v", got)
 	}
 	segments, err := filepath.Glob(filepath.Join(lists.hostTrie.cache.Dir(), "segment-*.mmap"))
@@ -100,7 +100,7 @@ func TestRulesStartupBuildsHostIndexBeforeTestingRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := lists.HostTrie().Search(context.Background(), ipAddr); !slices.Contains(got, "direct_2_host") {
+	if got := lists.HostTrie().Search(t.Context(), ipAddr); !slices.Contains(got, "direct_2_host") {
 		t.Fatalf("startup disk host index did not match CIDR list: %v", got)
 	}
 }
@@ -114,7 +114,7 @@ func TestRuleChangesCanBeScheduledAndAppliedImmediately(t *testing.T) {
 
 	before := time.Now().UnixMilli()
 	rules.ScheduleApply()
-	status, err := rules.ActivationStatus(context.Background())
+	status, err := rules.ActivationStatus(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,10 +122,10 @@ func TestRuleChangesCanBeScheduledAndAppliedImmediately(t *testing.T) {
 		t.Fatalf("unexpected scheduled apply time: %d", status.ApplyAt)
 	}
 
-	if err := rules.Apply(context.Background()); err != nil {
+	if err := rules.Apply(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	status, err = rules.ActivationStatus(context.Background())
+	status, err = rules.ActivationStatus(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestRuleTestContractSharesNetapiContext(t *testing.T) {
 	}
 
 	rules := &Rules{route: route}
-	resp, err := rules.TestContract(context.Background(), "www.baidu.com")
+	resp, err := rules.TestContract(t.Context(), "www.baidu.com")
 	if err != nil {
 		t.Fatalf("test route failed: %v", err)
 	}

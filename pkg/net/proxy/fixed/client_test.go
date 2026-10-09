@@ -14,7 +14,7 @@ import (
 )
 
 func TestUdpDetect(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	s, err := NewServer(ServerConfig{
@@ -79,7 +79,7 @@ func TestUdpDetect(t *testing.T) {
 
 func TestOptimizationLeak(t *testing.T) {
 	// 1. Setup
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	s, err := NewServer(ServerConfig{

@@ -173,12 +173,10 @@ func (n *Nat) readTunQueues(opt *device.Opt, broadcast, v4network, v6network tcp
 	var workers sync.WaitGroup
 	var readFailure sync.Once
 	for queue := range queueCount {
-		workers.Add(1)
-		go func(queue int) {
-			defer workers.Done()
+		workers.Go(func() {
 			n.readTunQueue(opt, queue, queueReader, parallelRead, &readFailure,
 				broadcast, v4network, v6network)
-		}(queue)
+		})
 	}
 	workers.Wait()
 }

@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"io"
 	"net"
 	"runtime"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 )
 
 // Exercise the real HTTP/2 client and server through a local TCP socket.
@@ -35,7 +36,7 @@ func BenchmarkTunnelRoundTrip(b *testing.B) {
 				b.Fatal(err)
 			}
 			defer client.Close()
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(b.Context(), 5*time.Second)
 			defer cancel()
 			conn, err := client.Conn(ctx, netapi.EmptyAddr)
 			if err != nil {
@@ -101,7 +102,7 @@ func TestTunnelLargePayloadIntegrity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	for i := range 4 {
 		conn, err := client.Conn(ctx, netapi.EmptyAddr)

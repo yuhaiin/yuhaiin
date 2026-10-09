@@ -1,7 +1,6 @@
 package aead
 
 import (
-	"context"
 	crand "crypto/rand"
 	"io"
 	"math/rand/v2"
@@ -82,7 +81,7 @@ func TestPacket(t *testing.T) {
 	}, s)
 	assert.NoError(t, err)
 
-	pc, err := as.Packet(context.Background())
+	pc, err := as.Packet(t.Context())
 	assert.NoError(t, err)
 	defer pc.Close()
 
@@ -109,7 +108,7 @@ func TestPacket(t *testing.T) {
 	assert.NoError(t, err)
 	defer ac.Close()
 
-	pc, err = ac.PacketConn(context.Background(), netapi.EmptyAddr)
+	pc, err = ac.PacketConn(t.Context(), netapi.EmptyAddr)
 	assert.NoError(t, err)
 	defer pc.Close()
 

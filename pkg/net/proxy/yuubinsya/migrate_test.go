@@ -63,7 +63,7 @@ func testUOTMigration(t *testing.T, coalesce bool) {
 	}
 	srv, err := NewServer(ServerConfig{Password: "migration-test", UDPCoalesce: coalesce}, netapi.NewListener(lis, &mockPacket{}), mockHandlerPacket(func(pkt *netapi.Packet) {
 		defer pkt.DecRef()
-		if err := table.Write(context.Background(), pkt); err != nil {
+		if err := table.Write(t.Context(), pkt); err != nil {
 			t.Errorf("forward packet: %v", err)
 		}
 	}))

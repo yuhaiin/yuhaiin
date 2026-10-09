@@ -1,12 +1,13 @@
 package log
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -133,7 +134,7 @@ func (f *FileWriter) removeOldFile() {
 		return
 	}
 
-	sort.Slice(files, func(i, j int) bool { return files[i].Name() > files[j].Name() })
+	slices.SortFunc(files, func(a, b os.DirEntry) int { return cmp.Compare(b.Name(), a.Name()) })
 
 	count := 0
 	for _, file := range files {

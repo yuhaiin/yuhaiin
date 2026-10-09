@@ -258,8 +258,7 @@ func TestBufferedConnCloseDoesNotReleaseActiveCallback(t *testing.T) {
 	c := NewBufferedConnSize(&closeStartedConn{Conn: receiver, started: closing}, 1024)
 	defer c.Close()
 	entered, release := make(chan struct{}), make(chan struct{})
-	var releaseOnce sync.Once
-	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	unblock := sync.OnceFunc(func() { close(release) })
 	callbackDone := make(chan error, 1)
 	callbackStopped, closeStopped := make(chan struct{}), make(chan struct{})
 	go func() { _, _ = sender.Write([]byte("original")) }()

@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	json "encoding/json/v2"
 	"path/filepath"
 	"testing"
@@ -11,7 +10,7 @@ import (
 )
 
 func TestSubscriptionStoreSaveListDeleteLinks(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +59,7 @@ func TestSubscriptionStoreSaveListDeleteLinks(t *testing.T) {
 }
 
 func TestSubscriptionStoreSaveListDeletePublishes(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)

@@ -47,7 +47,7 @@ func newSlowPool(t *testing.T) (*clientConnectionPool, *slowPoolDialer, *pooledC
 	pool := p.(*Client).pool
 	pool.concurrency = 1
 	t.Cleanup(func() { pool.close() })
-	entry, err := pool.get(context.Background(), false)
+	entry, err := pool.get(t.Context(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestPoolSlowDialDoesNotBlockReuse(t *testing.T) {
 	<-d.started
 	first.conn.Release()
 	done := make(chan *pooledConn, 1)
-	go func() { entry, _ := p.get(context.Background(), false); done <- entry }()
+	go func() { entry, _ := p.get(t.Context(), false); done <- entry }()
 	select {
 	case entry := <-done:
 		if entry != first {
@@ -92,7 +92,7 @@ func TestPoolWaiterCancellation(t *testing.T) {
 		}
 	}()
 	<-d.started
-	waitCtx, waitCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	waitCtx, waitCancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer waitCancel()
 	done := make(chan error, 1)
 	go func() { _, err := p.get(waitCtx, false); done <- err }()
@@ -110,7 +110,7 @@ func TestPoolCloseCancelsDial(t *testing.T) {
 	p, d, _ := newSlowPool(t)
 	defer close(d.release)
 	dial := make(chan error, 1)
-	go func() { _, err := p.get(context.Background(), false); dial <- err }()
+	go func() { _, err := p.get(t.Context(), false); dial <- err }()
 	<-d.started
 	done := make(chan error, 1)
 	go func() { done <- p.close() }()
@@ -127,7 +127,7 @@ func TestPoolCloseCancelsDial(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("pool close did not cancel dial")
 	}
-	if _, err := p.get(context.Background(), true); !errors.Is(err, net.ErrClosed) {
+	if _, err := p.get(t.Context(), true); !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("closed pool get=%v", err)
 	}
 }
@@ -149,7 +149,7 @@ func TestPoolCancelsBlockedPreface(t *testing.T) {
 	}
 	p := proxy.(*Client).pool
 	defer p.close()
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { _, err := p.get(ctx, false); done <- err }()

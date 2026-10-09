@@ -1,6 +1,7 @@
 package update
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -14,7 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -381,11 +382,11 @@ func selectReleaseChannel(releases []release, current, currentCommit string, cur
 		return release{}, false
 	}
 	if channel == contractupdate.ChannelMain {
-		sort.Slice(candidates, func(i, j int) bool {
-			if candidates[i].PublishedAt.Equal(candidates[j].PublishedAt) {
-				return candidates[i].Version > candidates[j].Version
+		slices.SortFunc(candidates, func(a, b release) int {
+			if a.PublishedAt.Equal(b.PublishedAt) {
+				return cmp.Compare(b.Version, a.Version)
 			}
-			return candidates[i].PublishedAt.After(candidates[j].PublishedAt)
+			return b.PublishedAt.Compare(a.PublishedAt)
 		})
 		selected := candidates[0]
 		if sameMainVersion(current, selected.Version, currentCommit) {
@@ -396,7 +397,7 @@ func selectReleaseChannel(releases []release, current, currentCommit string, cur
 		}
 		return selected, true
 	} else {
-		sort.Slice(candidates, func(i, j int) bool { return compareVersion(candidates[i].Version, candidates[j].Version) > 0 })
+		slices.SortFunc(candidates, func(a, b release) int { return compareVersion(b.Version, a.Version) })
 	}
 	return candidates[0], true
 }

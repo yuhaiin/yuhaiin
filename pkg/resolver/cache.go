@@ -1,9 +1,10 @@
 package resolver
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -52,14 +53,14 @@ func (r *Resolver) DNSCache() contractresolver.DNSCacheList {
 		})
 	}
 
-	sort.SliceStable(items, func(i, j int) bool {
-		if items[i].Resolver != items[j].Resolver {
-			return items[i].Resolver < items[j].Resolver
+	slices.SortStableFunc(items, func(a, b contractresolver.DNSCacheEntry) int {
+		if a.Resolver != b.Resolver {
+			return cmp.Compare(a.Resolver, b.Resolver)
 		}
-		if strings.EqualFold(items[i].Domain, items[j].Domain) {
-			return items[i].QueryType < items[j].QueryType
+		if strings.EqualFold(a.Domain, b.Domain) {
+			return cmp.Compare(a.QueryType, b.QueryType)
 		}
-		return strings.ToLower(items[i].Domain) < strings.ToLower(items[j].Domain)
+		return cmp.Compare(strings.ToLower(a.Domain), strings.ToLower(b.Domain))
 	})
 	return contractresolver.DNSCacheList{Items: items}
 }

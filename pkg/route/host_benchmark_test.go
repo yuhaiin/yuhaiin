@@ -1,7 +1,6 @@
 package route
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -46,13 +45,13 @@ func BenchmarkHostMatcher(b *testing.B) {
 		}
 	}
 	for _, query := range queries {
-		if got := lists.SearchHost(context.Background(), query); len(got) != 1 {
+		if got := lists.SearchHost(b.Context(), query); len(got) != 1 {
 			b.Fatalf("Search=%v", got)
 		}
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; b.Loop(); index++ {
-		lists.SearchHost(context.Background(), queries[index%count])
+		lists.SearchHost(b.Context(), queries[index%count])
 	}
 }

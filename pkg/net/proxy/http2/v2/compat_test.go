@@ -35,7 +35,7 @@ func TestCompatibility(t *testing.T) {
 			name := fmt.Sprintf("client_%s_server_%s", client.name, server.name)
 			t.Run(name, func(t *testing.T) {
 				timeout := 5 * time.Second
-				ctx, cancel := context.WithTimeout(context.Background(), timeout)
+				ctx, cancel := context.WithTimeout(t.Context(), timeout)
 				defer cancel()
 
 				listener, err := nettest.NewLocalListener("tcp")

@@ -32,7 +32,7 @@ func TestTableCloseStopsCleaner(t *testing.T) {
 	awaitClosed(t, table.done)
 	pkt := lifecyclePacket()
 	defer pkt.DecRef()
-	if err := table.Write(context.Background(), pkt); !errors.Is(err, net.ErrClosed) {
+	if err := table.Write(t.Context(), pkt); !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("write after close: %v", err)
 	}
 }
@@ -117,7 +117,7 @@ func TestSourceCloseInterruptsIO(t *testing.T) {
 			u := NewSourceChan(nil, lifecycleDialer{dial: func(context.Context) (net.PacketConn, error) { return packet, nil }})
 			t.Cleanup(func() { _ = remote.Close(); _ = u.Close() })
 			pkt := lifecyclePacket()
-			if err := u.WritePacket(context.Background(), pkt); err != nil {
+			if err := u.WritePacket(t.Context(), pkt); err != nil {
 				t.Fatal(err)
 			}
 			pkt.DecRef()
@@ -144,7 +144,7 @@ func TestSourceCloseCancelsDialAndDrainsQueue(t *testing.T) {
 	var packets []*netapi.Packet
 	for range 4 {
 		pkt := lifecyclePacket()
-		if err := u.WritePacket(context.Background(), pkt); err != nil {
+		if err := u.WritePacket(t.Context(), pkt); err != nil {
 			t.Fatal(err)
 		}
 		pkt.DecRef()
@@ -159,7 +159,7 @@ func TestSourceCloseCancelsDialAndDrainsQueue(t *testing.T) {
 	}
 	pkt := lifecyclePacket()
 	defer pkt.DecRef()
-	if err := u.WritePacket(context.Background(), pkt); !errors.Is(err, context.Canceled) {
+	if err := u.WritePacket(t.Context(), pkt); !errors.Is(err, context.Canceled) {
 		t.Fatalf("enqueue after close: %v", err)
 	}
 }
@@ -170,7 +170,7 @@ func TestFailedSourceDialIsIdle(t *testing.T) {
 	defer u.Close()
 	pkt := lifecyclePacket()
 	defer pkt.DecRef()
-	if err := u.WritePacket(context.Background(), pkt); err != nil {
+	if err := u.WritePacket(t.Context(), pkt); err != nil {
 		t.Fatal(err)
 	}
 	awaitClosed(t, failed)
@@ -189,7 +189,7 @@ func TestTableConcurrentWriteAndClose(t *testing.T) {
 			<-start
 			for range 16 {
 				pkt := lifecyclePacket()
-				_ = table.Write(context.Background(), pkt)
+				_ = table.Write(t.Context(), pkt)
 				pkt.DecRef()
 			}
 		})
@@ -224,7 +224,7 @@ func TestOldReaderExitDoesNotMarkReplacementIdle(t *testing.T) {
 	base := lifecyclePacket()
 	pkt := netapi.NewPacket(base.Src(), base.Dst(), pool.Clone(base.GetPayload()), netapi.WriteBackFunc(func(b []byte, _ net.Addr) (int, error) { close(blocked); <-release; return len(b), nil }))
 	base.DecRef()
-	if err := u.WritePacket(context.Background(), pkt); err != nil {
+	if err := u.WritePacket(t.Context(), pkt); err != nil {
 		t.Fatal(err)
 	}
 	pkt.DecRef()
@@ -237,7 +237,7 @@ func TestOldReaderExitDoesNotMarkReplacementIdle(t *testing.T) {
 	_ = remote1.Close()
 	awaitClosed(t, first.closed)
 	next := lifecyclePacket()
-	if err := u.WritePacket(context.Background(), next); err != nil {
+	if err := u.WritePacket(t.Context(), next); err != nil {
 		t.Fatal(err)
 	}
 	next.DecRef()
@@ -277,7 +277,7 @@ func TestSourceReconnectPreservesControlAndMigrateID(t *testing.T) {
 	write := func() {
 		pkt := lifecyclePacket()
 		pkt.MigrateID = migrationKey
-		if err := table.Write(context.Background(), pkt); err != nil {
+		if err := table.Write(t.Context(), pkt); err != nil {
 			t.Fatal(err)
 		}
 		pkt.DecRef()
@@ -333,7 +333,7 @@ func TestMigrationDuringWriteBackDoesNotCloseUDPSession(t *testing.T) {
 	const key = 4321
 	write := func(src net.Addr, cb netapi.WriteBackFunc) {
 		pkt := netapi.NewPacket(src, dst, pool.Clone([]byte("request")), cb, netapi.WithMigrateID(key))
-		if err := table.Write(context.Background(), pkt); err != nil {
+		if err := table.Write(t.Context(), pkt); err != nil {
 			t.Fatal(err)
 		}
 		pkt.DecRef()

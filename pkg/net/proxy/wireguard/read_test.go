@@ -2,7 +2,6 @@ package wireguard
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"net"
 	"testing"
@@ -19,7 +18,7 @@ var (
 func TestVirtualDeviceReadSlab(t *testing.T) {
 	for _, inbound := range []bool{false, true} {
 		t.Run(map[bool]string{false: "channel", true: "nettun"}[inbound], func(t *testing.T) {
-			d := NewChannelDevice(context.Background(), 1500)
+			d := NewChannelDevice(t.Context(), 1500)
 			defer d.Close()
 			payload := []byte("virtual device packet")
 			var reader tun.Reader = d

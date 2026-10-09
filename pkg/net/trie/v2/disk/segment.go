@@ -6,9 +6,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -95,11 +96,7 @@ func writeSegment[T comparable](path string, root *memoryNode[T], c codec.Codec[
 		}
 		valueLen := uint64(len(values)) - valueOff
 
-		keys := make([]string, 0, len(node.children))
-		for key := range node.children {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(node.children))
 		firstEdge := uint64(len(edges))
 		wildcard := wildcardKnown
 		for index, key := range keys {

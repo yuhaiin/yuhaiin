@@ -42,9 +42,9 @@ func TestSet(t *testing.T) {
 		Enabled: true,
 		Chain:   []contractnode.Protocol{fixed},
 	}
-	_, err = runtime.Save(context.Background(), p1)
+	_, err = runtime.Save(t.Context(), p1)
 	assert.NoError(t, err)
-	_, err = runtime.Save(context.Background(), p2)
+	_, err = runtime.Save(t.Context(), p2)
 	assert.NoError(t, err)
 
 	se, err := NewContractSet([]string{"a", "b"}, "round_robin", runtime)

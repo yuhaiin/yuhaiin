@@ -52,8 +52,8 @@ func (c *client) queryUncached(ctx context.Context, req netapi.DNSQuestion, key 
 func (c *client) clearQueryFailures(domain string) {
 	var keys []string
 	c.queryFailures.Range(func(key string, _ queryFailure) bool {
-		separator := strings.LastIndexByte(key, ':')
-		if separator > 0 && canonicalCacheDomain(key[:separator]) == domain {
+		name, _, found := strings.CutLast(key, ":")
+		if found && name != "" && canonicalCacheDomain(name) == domain {
 			keys = append(keys, key)
 		}
 		return true

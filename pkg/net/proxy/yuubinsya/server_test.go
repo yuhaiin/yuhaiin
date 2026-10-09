@@ -76,7 +76,7 @@ func TestServer(t *testing.T) {
 			ch := make(chan *netapi.StreamMeta, 1)
 			defer close(ch)
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 
 			a, err := NewServer(ServerConfig{
 				Password: "aaaa",
@@ -145,11 +145,11 @@ func TestServer(t *testing.T) {
 		c, err := NewClient(Config{Password: "aaaa", UDPOverStream: true}, s)
 		assert.NoError(t, err)
 
-		unused, err := c.PacketConn(context.Background(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 443))
+		unused, err := c.PacketConn(t.Context(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 443))
 		assert.NoError(t, err)
 		defer unused.Close()
 
-		pc, err := c.PacketConn(context.Background(), netapi.EmptyAddr)
+		pc, err := c.PacketConn(t.Context(), netapi.EmptyAddr)
 		assert.NoError(t, err)
 		defer pc.Close()
 
@@ -215,14 +215,14 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err)
 		defer c.Close()
 
-		d, err := c.Ping(context.Background(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr(host), uint16(port)))
+		d, err := c.Ping(t.Context(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr(host), uint16(port)))
 		assert.NoError(t, err)
 		t.Log(time.Duration(d))
 
 		wg := sync.WaitGroup{}
 		for range 10 {
 			wg.Go(func() {
-				d, err := c.Ping(context.Background(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr(host), uint16(port)))
+				d, err := c.Ping(t.Context(), netapi.ParseNetipAddr("tcp", netip.MustParseAddr(host), uint16(port)))
 				assert.NoError(t, err)
 				t.Log(time.Duration(d))
 			})

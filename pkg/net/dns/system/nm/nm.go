@@ -1,12 +1,13 @@
 package system
 
 import (
+	"cmp"
 	"context"
 	"encoding/binary"
 	"fmt"
 	"net"
 	"net/netip"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/godbus/dbus/v5"
@@ -338,8 +339,8 @@ func (m *nmManager) GetBaseConfig() (OSConfig, error) {
 		order = append(order, p)
 	}
 
-	sort.Slice(order, func(i, j int) bool {
-		return order[i].priority < order[j].priority
+	slices.SortFunc(order, func(a, b dnsPrio) int {
+		return cmp.Compare(a.priority, b.priority)
 	})
 
 	var (

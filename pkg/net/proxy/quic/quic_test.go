@@ -326,13 +326,13 @@ func TestQuic(t *testing.T) {
 
 	for _, v := range s.(*Server).natMap.Range {
 		for k, v := range v.frag.mergeMap.Range {
-			t.Log("server remain", k, "total", v.Total, "current", v.Count, "total len", v.TotalLen)
+			t.Log("server remain", k, "total", v.Total, "current", v.Count.Load(), "total len", v.TotalLen.Load())
 		}
 	}
 
 	for _, v := range qc.(*Client).natMap.Range {
 		for k, v := range v.session.frag.mergeMap.Range {
-			t.Log("client remain", k, "total", v.Total, "current", v.Count, "total len", v.TotalLen)
+			t.Log("client remain", k, "total", v.Total, "current", v.Count.Load(), "total len", v.TotalLen.Load())
 		}
 	}
 

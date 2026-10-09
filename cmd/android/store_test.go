@@ -1,7 +1,6 @@
 package yuhaiin
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,12 +38,12 @@ func TestSQLitePreferenceStore(t *testing.T) {
 	assert.Equal(t, int32(1234), GetStore().GetInt("port_test"))
 	assert.Equal(t, "true", GetStore().GetString("allow_lan_test"))
 
-	store, err := storagesqlite.Open(context.Background(), paths.PathGenerator.State(dir))
+	store, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(dir))
 	assert.NoError(t, err)
 	defer store.Close()
 
 	var valueJSON string
-	err = store.DB().QueryRowContext(context.Background(), `
+	err = store.DB().QueryRowContext(t.Context(), `
 		SELECT value_json
 		FROM android_extra_preferences
 		WHERE key = 'profile'
@@ -66,7 +65,7 @@ func TestSQLitePreferenceStoreReadsStartupMigratedLegacyData(t *testing.T) {
 
 	state := migrate.NewStateDB(paths.PathGenerator.State(dir))
 	defer func() { _ = state.Close() }()
-	if err := state.Migrate(context.Background()); err != nil {
+	if err := state.Migrate(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 

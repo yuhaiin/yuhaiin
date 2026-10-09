@@ -85,7 +85,7 @@ func TestReportEvidenceAndPrivacy(t *testing.T) {
 			return contractroute.RuleTestResponse{Mode: "block", Tag: "policy", Resolver: "resolver-1"}, nil
 		},
 	})
-	report, err := service.Run(context.Background(), tools.DiagnosticRequest{Host: "example.com"})
+	report, err := service.Run(t.Context(), tools.DiagnosticRequest{Host: "example.com"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestBusyAndCancellation(t *testing.T) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { _, err := service.Run(ctx, tools.DiagnosticRequest{}); done <- err }()
@@ -133,7 +133,7 @@ func TestBusyAndCancellation(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("probe not started")
 	}
-	if _, err := service.Run(context.Background(), tools.DiagnosticRequest{}); !errors.Is(err, ErrBusy) {
+	if _, err := service.Run(t.Context(), tools.DiagnosticRequest{}); !errors.Is(err, ErrBusy) {
 		t.Fatalf("concurrent run: %v", err)
 	}
 	cancel()
@@ -147,7 +147,7 @@ func TestBusyAndCancellation(t *testing.T) {
 	}
 	// The lock must be released, even after cancellation.
 	service.deps.Lookup = nil
-	if _, err := service.Run(context.Background(), tools.DiagnosticRequest{}); err != nil {
+	if _, err := service.Run(t.Context(), tools.DiagnosticRequest{}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -166,7 +166,7 @@ func TestHTTPSVerificationStatusAndNoRedirect(t *testing.T) {
 		return (&net.Dialer{}).DialContext(ctx, "tcp", server.Listener.Addr().String())
 	})
 	// Default production TLS settings must reject an untrusted certificate.
-	if check := https(context.Background(), proxy, "example.com"); check.Message != "tls_verification_failed" {
+	if check := https(t.Context(), proxy, "example.com"); check.Message != "tls_verification_failed" {
 		t.Fatal("TLS verification was bypassed or misclassified")
 	}
 	roots := x509.NewCertPool()
@@ -175,7 +175,7 @@ func TestHTTPSVerificationStatusAndNoRedirect(t *testing.T) {
 	transport.TLSClientConfig = &tls.Config{RootCAs: roots}
 	// httptest's certificate includes example.com. HTTP 302 is still proof
 	// of a verified response, and the probe must not follow redirects.
-	check := requestHTTPS(context.Background(), transport, "example.com")
+	check := requestHTTPS(t.Context(), transport, "example.com")
 	if check.Status != "pass" || len(check.Evidence) != 1 || check.Evidence[0] != "HTTP 302" || redirectVisits.Load() != 0 {
 		t.Fatalf("unexpected HTTPS result: %+v", check)
 	}
@@ -184,7 +184,7 @@ func TestHTTPSVerificationStatusAndNoRedirect(t *testing.T) {
 func TestStalledTLSHonorsContext(t *testing.T) {
 	peer := make(chan net.Conn, 1)
 	proxy := streamFunc(func(context.Context, netapi.Address) (net.Conn, error) { a, b := net.Pipe(); peer <- b; return a, nil })
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
 	defer cancel()
 	check := https(ctx, proxy, "example.com")
 	_ = (<-peer).Close()

@@ -68,10 +68,10 @@ func TestDNSCacheOnlyIncludesInstantiatedResolvers(t *testing.T) {
 func TestContractDNSCacheClearValidation(t *testing.T) {
 	controller := NewContractController(&ResolverCtr{r: NewResolver(nil)})
 
-	if _, err := controller.ClearCache(context.Background(), "active", "not a domain"); err == nil {
+	if _, err := controller.ClearCache(t.Context(), "active", "not a domain"); err == nil {
 		t.Fatal("invalid domain was accepted")
 	}
-	if _, err := controller.ClearCache(context.Background(), "missing", "example.com."); !errors.Is(err, contractresolver.ErrDNSCacheNotFound) {
+	if _, err := controller.ClearCache(t.Context(), "missing", "example.com."); !errors.Is(err, contractresolver.ErrDNSCacheNotFound) {
 		t.Fatalf("missing resolver error=%v, want ErrDNSCacheNotFound", err)
 	}
 }

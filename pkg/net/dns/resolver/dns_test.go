@@ -43,7 +43,7 @@ func TestClientRoundTripV2Wire(t *testing.T) {
 		return response, nil
 	}))
 
-	ips, err := resolver.LookupIP(context.Background(), "example.com", func(opt *netapi.LookupIPOption) {
+	ips, err := resolver.LookupIP(t.Context(), "example.com", func(opt *netapi.LookupIPOption) {
 		opt.Mode = netapi.ResolverModePreferIPv4
 	})
 	if err != nil {

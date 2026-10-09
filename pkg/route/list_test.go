@@ -40,7 +40,7 @@ func TestListsSaveContractConfigWithoutLoadedGeoIP(t *testing.T) {
 		downloader: NewDownloader(t.TempDir(), nil),
 	}
 
-	err := lists.SaveContractConfig(context.Background(), contractroute.ListConfig{
+	err := lists.SaveContractConfig(t.Context(), contractroute.ListConfig{
 		RefreshInterval: "5",
 		MaxMindDBGeoIP:  contractroute.MaxMindDBGeoIP{DownloadURL: geoIPURL},
 	}, 5)
@@ -59,7 +59,7 @@ func TestListsSaveContractConfigDoesNotDownloadGeoIP(t *testing.T) {
 		downloader: NewDownloader(t.TempDir(), nil),
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	const geoIPURL = "https://example.com/geoip.mmdb"
 	if err := lists.SaveContractConfig(ctx, contractroute.ListConfig{
@@ -88,14 +88,14 @@ func TestListsSaveContractConfigSwitchesHostIndexStorage(t *testing.T) {
 		}
 	})
 
-	if err := lists.SaveContractConfig(context.Background(), contractroute.ListConfig{HostIndexDisk: true}, 0); err != nil {
+	if err := lists.SaveContractConfig(t.Context(), contractroute.ListConfig{HostIndexDisk: true}, 0); err != nil {
 		t.Fatal(err)
 	}
 	if !settings.value.HostIndexDisk || lists.hostTrie.cache == nil {
 		t.Fatalf("disk host index was not enabled: settings=%+v cache=%#v", settings.value, lists.hostTrie.cache)
 	}
 
-	if err := lists.SaveContractConfig(context.Background(), contractroute.ListConfig{}, 0); err != nil {
+	if err := lists.SaveContractConfig(t.Context(), contractroute.ListConfig{}, 0); err != nil {
 		t.Fatal(err)
 	}
 	if settings.value.HostIndexDisk || lists.hostTrie.cache != nil {
@@ -134,8 +134,7 @@ func TestHostIndexUpdateKeepsPreviousTrieReadableUntilSwap(t *testing.T) {
 	building := make(chan struct{})
 	continueBuild := make(chan struct{})
 	updated := make(chan struct{})
-	var releaseOnce sync.Once
-	release := func() { releaseOnce.Do(func() { close(continueBuild) }) }
+	release := sync.OnceFunc(func() { close(continueBuild) })
 	defer release()
 	go func() {
 		lists.updateHostLists(func() {
@@ -154,15 +153,15 @@ func TestHostIndexUpdateKeepsPreviousTrieReadableUntilSwap(t *testing.T) {
 	}()
 
 	<-building
-	if got := lists.SearchHost(context.Background(), oldAddress); !slices.Contains(got, "old") {
+	if got := lists.SearchHost(t.Context(), oldAddress); !slices.Contains(got, "old") {
 		t.Fatalf("old index during rebuild = %v, want old list", got)
 	}
 	release()
 	<-updated
-	if got := lists.SearchHost(context.Background(), oldAddress); len(got) != 0 {
+	if got := lists.SearchHost(t.Context(), oldAddress); len(got) != 0 {
 		t.Fatalf("old index after swap = %v, want no matches", got)
 	}
-	if got := lists.SearchHost(context.Background(), newAddress); !slices.Contains(got, "new") {
+	if got := lists.SearchHost(t.Context(), newAddress); !slices.Contains(got, "new") {
 		t.Fatalf("new index after swap = %v, want new list", got)
 	}
 	segments, err := filepath.Glob(filepath.Join(lists.hostTrie.cache.Dir(), "segment-*.mmap"))
@@ -176,7 +175,7 @@ func TestHostIndexUpdateKeepsPreviousTrieReadableUntilSwap(t *testing.T) {
 
 func TestRefreshGeoIPSkipsEmptyURL(t *testing.T) {
 	lists := &Lists{downloader: NewDownloader(t.TempDir(), nil)}
-	if err := lists.refreshGeoip(context.Background(), "", true); err != "" {
+	if err := lists.refreshGeoip(t.Context(), "", true); err != "" {
 		t.Fatalf("refreshGeoip(empty) = %q", err)
 	}
 }
