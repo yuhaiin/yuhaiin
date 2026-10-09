@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"path/filepath"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -51,7 +52,7 @@ func TestKrunletInboundTCPIPv4IPv6(t *testing.T) {
 	} {
 		t.Run(tc.dst, func(t *testing.T) {
 			h := &testHandler{stream: make(chan *netapi.StreamMeta, 1)}
-			path := filepath.Join(t.TempDir(), "inbound.sock")
+			path := shortTestSocket(t)
 			s, err := NewServer(path, h)
 			if err != nil {
 				t.Fatal(err)
@@ -87,7 +88,7 @@ func TestKrunletInboundTCPIPv4IPv6(t *testing.T) {
 
 func TestKrunletInboundUDPDatagrams(t *testing.T) {
 	h := &testHandler{packet: make(chan *netapi.Packet, 3)}
-	path := filepath.Join(t.TempDir(), "inbound.sock")
+	path := shortTestSocket(t)
 	s, err := NewServer(path, h)
 	if err != nil {
 		t.Fatal(err)
@@ -148,7 +149,7 @@ func TestKrunletInboundRejectsMalformedHeader(t *testing.T) {
 }
 
 func TestKrunletInboundExclusiveSocketAndClose(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "inbound.sock")
+	path := shortTestSocket(t)
 	h := &testHandler{stream: make(chan *netapi.StreamMeta, 1)}
 	server, err := NewServer(path, h)
 	if err != nil {
@@ -168,4 +169,14 @@ func TestKrunletInboundExclusiveSocketAndClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	wg.Wait()
+}
+
+func shortTestSocket(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("/tmp", "yin-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return filepath.Join(dir, "inbound.sock")
 }
