@@ -186,10 +186,14 @@ func (s *Server) Close() error {
 
 func NewServer(o ServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	s := newServer(o, ii, handler)
+	// CONNECT tunnels use HTTP/1 hijacking, regardless of the TLS transport's ALPN.
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	server := &http.Server{Handler: s, Protocols: protocols}
 
 	go func() {
 		defer ii.Close()
-		if err := http.Serve(ii, s); err != nil {
+		if err := server.Serve(netapi.WithoutTLSMetadata(ii)); err != nil {
 			log.Error("http serve failed:", err)
 		}
 	}()

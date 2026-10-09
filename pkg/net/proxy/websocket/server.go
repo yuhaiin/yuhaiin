@@ -37,11 +37,14 @@ func newServer(lis net.Listener) *Server {
 		closeCtx: ctx,
 		close:    cancel,
 	}
-	s.server = &http.Server{Handler: s}
+	// WebSocket upgrade uses HTTP/1 independently of the preceding transport.
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	s.server = &http.Server{Handler: s, Protocols: protocols}
 
 	go func() {
 		defer s.Close()
-		log.IfErr("websocket serve", func() error { return s.server.Serve(lis) })
+		log.IfErr("websocket serve", func() error { return s.server.Serve(netapi.WithoutTLSMetadata(lis)) })
 	}()
 
 	return s
