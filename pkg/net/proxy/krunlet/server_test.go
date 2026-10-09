@@ -169,6 +169,16 @@ func TestKrunletInboundExclusiveSocketAndClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	wg.Wait()
+	if _, err := os.Lstat(path); !os.IsNotExist(err) {
+		t.Fatalf("closed inbound socket remains on disk: %v", err)
+	}
+	reopened, err := NewServer(path, h)
+	if err != nil {
+		t.Fatalf("cannot restart inbound with same socket: %v", err)
+	}
+	if err := reopened.Close(); err != nil {
+		t.Fatalf("restarted inbound shutdown: %v", err)
+	}
 }
 
 func shortTestSocket(t *testing.T) string {
