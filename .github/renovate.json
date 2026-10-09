@@ -13,6 +13,7 @@
     ],
     "ignoreDeps": [
         "gvisor.dev/gvisor",
+        "github.com/Asutorufa/hysteria/core/v2",
         "github.com/Asutorufa/tailscale",
         "github.com/tailscale/wireguard-go"
     ]
