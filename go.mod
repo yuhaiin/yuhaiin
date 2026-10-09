@@ -13,6 +13,7 @@ require (
 	codeberg.org/miekg/dns v0.6.118
 	github.com/apernet/hysteria/core/v2 v2.13.0
 	github.com/apernet/hysteria/extras/v2 v2.13.0
+	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
 	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.5
 	github.com/cockroachdb/pebble/v2 v2.1.7
@@ -23,7 +24,7 @@ require (
 	github.com/oschwald/maxminddb-golang/v2 v2.7.0
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus-community/pro-bing v0.9.1
-	github.com/prometheus/client_golang v1.24.1
+	github.com/prometheus/client_golang v1.25.0
 	github.com/quic-go/connect-ip-go v0.4.0
 	github.com/quic-go/quic-go v0.63.0
 	github.com/refraction-networking/utls v1.8.2
@@ -32,11 +33,11 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20260921001439-3c98159dee38
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261005013242-5a8413fb50d9
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261008062213-6bdd3420d217
 	golang.org/x/crypto v0.57.0
 	golang.org/x/mobile v0.0.0-20260908204917-8b95e45f8d3e
 	golang.org/x/mod v0.41.0
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/sync v0.23.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/time v0.16.0
@@ -55,7 +56,6 @@ require (
 	github.com/akutz/memconn v0.1.0 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20250919150558-7d374ff0d59e // indirect
 	github.com/andybalholm/brotli v1.2.3 // indirect
-	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cockroachdb/crlib v0.0.0-20251122031428-fe658a2dbda1 // indirect
@@ -83,7 +83,7 @@ require (
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/jsimonetti/rtnetlink v1.4.2 // indirect
 	github.com/juju/ratelimit v1.0.2 // indirect
-	github.com/klauspost/compress v1.20.0 // indirect
+	github.com/klauspost/compress v1.20.1 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
@@ -96,8 +96,8 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
-	github.com/prometheus/common v0.71.0 // indirect
-	github.com/prometheus/procfs v0.21.1 // indirect
+	github.com/prometheus/common v0.72.0 // indirect
+	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
