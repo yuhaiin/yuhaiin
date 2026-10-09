@@ -16,6 +16,7 @@ import (
 	yhttp "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	yhttp2 "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2/v2"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2"
+	krunletserver "github.com/Asutorufa/yuhaiin/pkg/net/proxy/krunlet"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/mixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/mock"
 	ymux "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mux"
@@ -40,6 +41,17 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 
 	if config.Protocol.Type == contract.ProtocolHysteria2 {
 		return listenHysteria2(config, handler)
+	}
+	if config.Protocol.Type == contract.ProtocolKrunlet {
+		if config.Network.Type != contract.NetworkEmpty {
+			return nil, errors.New("krunlet inbound requires empty network")
+		}
+		for _, transport := range config.Transports {
+			if transport.Type != contract.TransportNormal {
+				return nil, errors.New("krunlet inbound does not support additional transports")
+			}
+		}
+		return krunletserver.NewServer(config.Protocol.Krunlet.Socket, handler)
 	}
 
 	lis, err := contractNetwork(config)

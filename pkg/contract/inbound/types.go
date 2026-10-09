@@ -25,6 +25,7 @@ const (
 	ProtocolTProxy      = "tproxy"
 	ProtocolRedir       = "redir"
 	ProtocolTun         = "tun"
+	ProtocolKrunlet     = "krunlet"
 	ProtocolReverseHTTP = "reverse_http"
 	ProtocolReverseTCP  = "reverse_tcp"
 	ProtocolNone        = "none"
@@ -141,6 +142,7 @@ type Protocol struct {
 	TProxy      *TProxyProtocol      `json:"tproxy,omitzero"`
 	Redir       *RedirProtocol       `json:"redir,omitzero"`
 	Tun         *TunProtocol         `json:"tun,omitzero"`
+	Krunlet     *KrunletProtocol     `json:"krunlet,omitzero"`
 	ReverseHTTP *ReverseHTTPProtocol `json:"reverse_http,omitzero"`
 	ReverseTCP  *ReverseTCPProtocol  `json:"reverse_tcp,omitzero"`
 	None        *NoneProtocol        `json:"none,omitzero"`
@@ -229,6 +231,14 @@ type TunProtocol struct {
 
 func (TunProtocol) ProtocolType() string { return ProtocolTun }
 
+// KrunletProtocol listens for native Krunlet virtual NIC flows on a local
+// Unix socket. It feeds TCP/UDP directly to yuhaiin's normal inbound handler.
+type KrunletProtocol struct {
+	Socket string `json:"socket"`
+}
+
+func (KrunletProtocol) ProtocolType() string { return ProtocolKrunlet }
+
 type ReverseHTTPProtocol struct {
 	URL string           `json:"url"`
 	TLS *ClientTLSConfig `json:"tls,omitzero"`
@@ -300,6 +310,11 @@ func (p Protocol) Variant() (ProtocolVariant, error) {
 			return nil, fmt.Errorf("protocol %s missing %s field", p.Type, ProtocolTun)
 		}
 		return p.Tun, nil
+	case ProtocolKrunlet:
+		if p.Krunlet == nil {
+			return nil, fmt.Errorf("protocol %s missing %s field", p.Type, ProtocolKrunlet)
+		}
+		return p.Krunlet, nil
 	case ProtocolReverseHTTP:
 		if p.ReverseHTTP == nil {
 			return nil, fmt.Errorf("protocol %s missing %s field", p.Type, ProtocolReverseHTTP)
@@ -357,6 +372,9 @@ func (p Protocol) nonNilCount() int {
 		count++
 	}
 	if p.Tun != nil {
+		count++
+	}
+	if p.Krunlet != nil {
 		count++
 	}
 	if p.ReverseHTTP != nil {
