@@ -9,9 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cert"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
+	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/nettest"
@@ -86,6 +88,58 @@ func TestCompatibility(t *testing.T) {
 				assert.Equal(t, string(buf), response)
 			})
 		}
+	}
+}
+
+func TestCompatibilityOverTLS(t *testing.T) {
+	ca, err := cert.GenerateCa()
+	assert.NoError(t, err)
+	caCert, err := ca.CertBytes()
+	assert.NoError(t, err)
+	caKey, err := ca.PrivateKeyBytes()
+	assert.NoError(t, err)
+
+	for _, tc := range []struct {
+		name string
+		alpn []string
+	}{
+		{name: "no_alpn"},
+		{name: "h2", alpn: []string{"h2"}},
+		{name: "custom_alpn", alpn: []string{"yuhaiin"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			assert.NoError(t, err)
+			t.Cleanup(func() { listener.Close() })
+			tlsListener, err := ytls.NewTlsAutoServer(ytls.TlsAutoServerConfig{
+				CACert: caCert, CAKey: caKey,
+				ServerNames: []string{"*.example.com"}, NextProtos: tc.alpn,
+			}, netapi.NewListener(listener, nil))
+			assert.NoError(t, err)
+			srv, err := NewServer(ServerConfig{}, tlsListener)
+			assert.NoError(t, err)
+			t.Cleanup(func() { srv.Close() })
+
+			tlsProxy, err := ytls.NewClient(ytls.TLSConfig{
+				Enable: true, CACert: [][]byte{caCert},
+				ServerNames: []string{"*.example.com"}, NextProtos: tc.alpn,
+			}, &addressDialer{addr: listener.Addr().String()})
+			assert.NoError(t, err)
+			client, err := NewClient(Config{}, tlsProxy)
+			assert.NoError(t, err)
+			t.Cleanup(func() { client.Close() })
+
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			conn, err := client.Conn(ctx, netapi.EmptyAddr)
+			assert.NoError(t, err)
+			defer conn.Close()
+			serverConn, err := acceptWithContext(ctx, srv)
+			assert.NoError(t, err)
+			defer serverConn.Close()
+			go func() { _, _ = io.Copy(serverConn, serverConn) }()
+			assertTunnelEcho(t, conn)
+		})
 	}
 }
 

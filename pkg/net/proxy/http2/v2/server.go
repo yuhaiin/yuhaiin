@@ -40,8 +40,8 @@ func NewServer(_ ServerConfig, ii netapi.Listener) (netapi.Listener, error) {
 func newServer(lis net.Listener) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// This listener accepts only HTTP/2 prior knowledge over plaintext.
-	// Leaving HTTP/1 and TLS HTTP/2 unset is intentional.
+	// The preceding transports handle TLS independently. This layer always
+	// accepts HTTP/2 prior knowledge, regardless of their ALPN configuration.
 	protocols := new(http.Protocols)
 	protocols.SetUnencryptedHTTP2(true)
 
@@ -66,7 +66,7 @@ func newServer(lis net.Listener) *Server {
 	}
 
 	go func() {
-		err := h.http.Serve(lis)
+		err := h.http.Serve(netapi.WithoutTLSMetadata(lis))
 		if err != nil && !errors.Is(err, http.ErrServerClosed) && !strings.Contains(err.Error(), "use of closed network connection") {
 			select {
 			case <-h.closedCtx.Done():
