@@ -126,6 +126,75 @@ This creates and removes its own Podman network and containers. Only the server
 container receives `NET_ADMIN`; host firewall rules are not changed. The image
 needs a shell and glibc for the native SQLite fixture.
 
+## Address hopping through UDP relays
+
+To switch between multiple UDP relays to the **same Hysteria 2 server and UDP
+listener**, add `hop_addresses` to the client configuration. `host` is included
+as the first relay; additional entries accept the same single-port, list and
+range syntax as `host`:
+
+```json
+{
+  "host": "relay-a.example.com:20000-20020",
+  "hop_addresses": [
+    "relay-b.example.com:30000-30020",
+    "[2001:db8::1]:443"
+  ],
+  "hop_interval_seconds": 30,
+  "tls": { "servernames": ["hy2.example.com"] }
+}
+```
+
+Keep the normal `auth` and CA certificate settings. The TLS server name is
+fixed for the entire connection: explicitly set it to the final server's
+certificate name when the relay hostname differs. If omitted, it continues to
+default to the hostname in `host`.
+
+With `hop_addresses` set, every A/AAAA address returned by the configured
+resolver for `host` and each additional hostname enters the hop pool. For
+example, `"host": "relays.example.com:443"` together with
+`"hop_addresses": ["relays.example.com:443"]` enables hopping across all of
+that domain's returned IPs. Each hostname is resolved once per session; DNS is
+refreshed when a new session is established, not on every hop or by TTL. The
+existing resolver's address-family options are respected. All configured
+hostnames must resolve successfully. Entries resolving to the same IP have their
+port sets merged. Initially an IP and one of its ports are chosen randomly. On each
+hop, a different IP is chosen when available, then one of that IP's ports.
+Selection gives each resolved IP equal weight regardless of its port count.
+Fixed/random interval settings and defaults are shared with port hopping.
+Scoped IPv6 addresses are unsupported.
+Omitting or clearing `hop_addresses` retains the existing single-IP selection
+for ordinary hostnames and port hopping, even when DNS returns multiple IPs.
+
+The transport opens a new socket for the selected relay, including the correct
+address family and preceding chain proxy destination. It temporarily keeps the
+previous socket receiving replies. The QUIC connection, TCP streams and UDP
+sessions remain the same. The server requires no additional address-hopping
+configuration; every relay must forward UDP without terminating QUIC, and NAT
+or forwarding must provide a working return path through that relay. Independent
+Hysteria servers cannot share an existing connection simply by using the same
+password and certificate.
+
+The client transport uses portable Go UDP sockets and explicitly opens `udp4`
+or `udp6` for the selected relay. IPv4 and IPv6 entries can therefore share one
+hop pool, including on macOS, provided both families are reachable. Linux
+nftables support is only needed for the server's optional automatic port-range
+rules, not for client-side address hopping. macOS amd64/arm64 builds are checked;
+mixed-family runtime tests currently run on Linux, not on a real Mac.
+
+This is periodic switching, not health-based failover or simultaneous multipath.
+A local socket-open failure skips that hop. An unreachable relay is not detected
+before switching: traffic may stall until the next hop, and an extended outage
+can exceed QUIC's idle timeout and close existing sessions. Relays with different
+latency, bandwidth or MTU can cause pauses or retransmissions during a switch.
+Like the existing port-hopping transport, this uses QUIC's generic PacketConn
+path without client GSO/OOB optimizations. WAN throughput has not been benchmarked.
+
+`TestAddressHoppingKeepsTCPAndUDPSessions` exercises two timed hops through
+distinct relay IPs with persistent TCP/UDP sessions, direct and preceding-proxy
+transports, Salamander, mixed IPv4/IPv6 relay addresses, and socket cleanup.
+These userspace UDP relays require no root privileges or firewall changes.
+
 ## Bandwidth and obfuscation
 
 All bandwidth values use **bytes per second**, from each endpoint's perspective. `uploadBps` / `upload_bps` configure bytes sent; `downloadBps` / `download_bps` configure bytes received. Thus server upload is client download. Zero uses upstream automatic congestion control (BBR); positive bandwidth follows upstream negotiation and Brutal. Nonzero values must be at least 65536. For example, 200 Mbps is 25000000 bytes/second. Server `ignoreClientBandwidth` requests automatic congestion control instead of honoring the client's bandwidth declaration.

@@ -59,7 +59,7 @@ func NewClient(config contractnode.Hysteria2, parent netapi.Proxy) (netapi.Proxy
 	if config.Host == "" {
 		return nil, errors.New("hysteria2 server host is empty")
 	}
-	if _, _, err := parseServerAddress(config.Host); err != nil {
+	if err := validateHopAddresses(config); err != nil {
 		return nil, err
 	}
 	if _, err := hopIntervalConfig(config); err != nil {
@@ -99,33 +99,30 @@ func (c *Client) getSession(ctx context.Context) (*clientSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	port := server.Port()
-	if port == 0 {
-		port = 443
-	}
-	var remote *net.UDPAddr
-	if ip, ok := server.(netapi.IPAddress); ok {
-		remote = net.UDPAddrFromAddrPort(ip.AddrPort())
-		remote.Port = int(port)
-	} else {
-		ips, err := netapi.ResolverIP(setup, server.Hostname())
-		if err != nil {
-			return nil, err
-		}
-		remote = ips.RandUDPAddr(port)
-	}
 	cfg := c.config.TLS
 	tlsConfig := ytls.ParseTLSConfig(ytls.TLSConfig{Enable: true, ServerNames: cfg.ServerNames, CACert: cfg.CACert, InsecureSkipVerify: cfg.InsecureSkipVerify, ECHConfig: cfg.ECHConfig})
 	if tlsConfig.ServerName == "" {
 		tlsConfig.ServerName = server.Hostname()
 	}
-	var serverAddr net.Addr = remote
-	if ports != nil {
-		if remote.Zone != "" {
-			return nil, errors.New("hysteria2 port hopping does not support scoped IPv6 addresses")
+	var serverAddr net.Addr
+	if len(c.config.HopAddresses) != 0 {
+		serverAddr, err = resolveAddressHops(setup, c.config)
+		if err != nil {
+			return nil, err
 		}
-		_, portStr, _ := net.SplitHostPort(c.config.Host)
-		serverAddr = &udphop.UDPHopAddr{IP: remote.IP, Ports: ports.Ports(), PortStr: portStr}
+	} else {
+		remote, err := resolveHopAddress(setup, server)
+		if err != nil {
+			return nil, err
+		}
+		serverAddr = remote
+		if ports != nil {
+			if remote.Zone != "" {
+				return nil, errors.New("hysteria2 port hopping does not support scoped IPv6 addresses")
+			}
+			_, portStr, _ := net.SplitHostPort(c.config.Host)
+			serverAddr = &udphop.UDPHopAddr{IP: remote.IP, Ports: ports.Ports(), PortStr: portStr}
+		}
 	}
 	interval, err := hopIntervalConfig(c.config)
 	if err != nil {
@@ -207,7 +204,9 @@ type connFactory struct {
 func (f *connFactory) New(remote net.Addr) (net.PacketConn, error) {
 	var conn net.PacketConn
 	var err error
-	if hop, ok := remote.(*udphop.UDPHopAddr); ok {
+	if hop, ok := remote.(*addressHopAddr); ok {
+		conn, err = newAddressHopPacketConn(f.ctx, f.hopCtx, hop, f.hopInterval, f.listenPacket)
+	} else if hop, ok := remote.(*udphop.UDPHopAddr); ok {
 		// The setup context ends after authentication. Subsequent sockets must
 		// use the client's lifetime context so hopping can continue afterwards.
 		initial := true
@@ -250,7 +249,16 @@ func (f *connFactory) listenPacket(ctx context.Context, remote net.Addr) (net.Pa
 	var conn net.PacketConn
 	var err error
 	if f.parent == nil {
-		conn, err = dialer.ListenPacket(ctx, "udp", "", func(o *dialer.Options) {
+		network := "udp"
+		if udp, ok := remote.(*net.UDPAddr); ok {
+			// Select the family explicitly instead of relying on a dual-stack
+			// wildcard socket, including when hopping between IPv4 and IPv6.
+			network = "udp6"
+			if udp.IP.To4() != nil {
+				network = "udp4"
+			}
+		}
+		conn, err = dialer.ListenPacket(ctx, network, "", func(o *dialer.Options) {
 			if udp, ok := remote.(*net.UDPAddr); ok {
 				o.PacketConnHintAddress = udp
 			}

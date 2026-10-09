@@ -148,7 +148,10 @@ type Hysteria2 struct {
 	UploadBPS          uint64 `json:"upload_bps,omitzero"`
 	DownloadBPS        uint64 `json:"download_bps,omitzero"`
 	SalamanderPassword string `json:"salamander_password,omitzero"`
-	// Port hopping uses a port list/range in Host. Intervals are seconds;
+	// Additional UDP relays to the same Hysteria server. Host is also included;
+	// with this list set, all DNS answers for each hostname enter the hop pool.
+	HopAddresses []string `json:"hop_addresses,omitzero"`
+	// Port and address hopping share these intervals in seconds;
 	// zero selects the upstream default of 30 seconds. Fixed and random
 	// intervals are mutually exclusive, and the minimum is five seconds.
 	HopIntervalSeconds    uint32 `json:"hop_interval_seconds,omitzero"`
