@@ -151,6 +151,8 @@ func ContractProtocolConfig(protocol contractnode.Protocol) (any, error) {
 		return *protocol.TLS, nil
 	case "wireguard":
 		return *protocol.Wireguard, nil
+	case "globalprotect":
+		return *protocol.GlobalProtect, nil
 	case "mux":
 		return *protocol.Mux, nil
 	case "drop":
