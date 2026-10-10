@@ -188,7 +188,7 @@ func resolveGateway(s *native.ClientSession, mac macAddr, local,router netip.Add
 		frame,err:=s.ReadFrame()
 		if err!=nil {return macAddr{},fmt.Errorf("softether: ARP router %s: %w",router,err)}
 		op,from,src,dst,ok:=parseARP(frame)
-		if ok && op==2 && src==router && dst==local && from!=macAddr{} {return from,nil}
+		if ok && op==2 && src==router && dst==local && from!=(macAddr{}) {return from,nil}
 		// We may receive an ARP question for our IP while resolving the router.
 		if ok && op==1 && dst==local {_=s.WriteFrame(buildARP(mac,local,src,from,2))}
 	}
