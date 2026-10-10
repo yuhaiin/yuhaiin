@@ -20,8 +20,12 @@ jobs:
       - name: Start official SoftEther native SSL VPN server and echo peer
         run: |
           docker compose -f pkg/net/proxy/softether/testdata/compose.yml up -d server echo
+      - name: Initialize official SoftEther native SSL VPN server
+        timeout-minutes: 3
+        run: |
           docker compose -f pkg/net/proxy/softether/testdata/compose.yml run --rm init
       - name: Exercise real native tunnel TCP and UDP
+        timeout-minutes: 4
         run: |
           set -euo pipefail
           echo_ip="$(docker compose -f pkg/net/proxy/softether/testdata/compose.yml exec -T echo hostname -i | awk '{print $1}')"
