@@ -48,8 +48,7 @@ func newReconnectingClient(cfg Config, upstream netapi.Proxy) (*reconnectingClie
 	}
 	r := &reconnectingClient{cfg: cfg, upstream: upstream, ctx: ctx, cancel: cancel,
 		current: first, changed: make(chan struct{})}
-	r.wg.Add(1)
-	go func() { defer r.wg.Done(); r.supervise(first) }()
+	r.wg.Go(func() { ; r.supervise(first) })
 	return r, nil
 }
 
