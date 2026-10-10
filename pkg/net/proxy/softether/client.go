@@ -73,7 +73,7 @@ var _ netapi.Proxy = (*Client)(nil)
 
 func init() {
 	register.RegisterContractPoint("softether", func(cfg contractnode.SoftEther, p netapi.Proxy) (netapi.Proxy, error) {
-		return NewClient(Config{
+		return NewOutbound(Config{
 			Gateway: cfg.Gateway, Username: cfg.Username, Password: cfg.Password,
 			Hub: cfg.Hub, CACertPEM: cfg.CACertPEM, InsecureSkipVerify: cfg.InsecureSkipVerify,
 			Address: cfg.Address, Router: cfg.Router, MTU: int(cfg.MTU),
@@ -105,6 +105,10 @@ func gatewayAddress(input string) (host, endpoint string, err error) {
 }
 
 func NewClient(cfg Config, upstream netapi.Proxy) (*Client, error) {
+    return newClientContext(context.Background(),cfg,upstream)
+}
+
+func newClientContext(parent context.Context,cfg Config, upstream netapi.Proxy) (*Client, error) {
 	host, endpoint, err := gatewayAddress(cfg.Gateway)
 	if err != nil {
 		return nil, err
@@ -165,7 +169,7 @@ func NewClient(cfg Config, upstream netapi.Proxy) (*Client, error) {
 	}
 	tlsConf := &tls.Config{ServerName: host, RootCAs: roots, MinVersion: tls.VersionTLS12,
 		InsecureSkipVerify: cfg.InsecureSkipVerify} //nolint:gosec // explicit user opt-in
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 25*time.Second)
 	defer cancel()
 	a, err := netapi.ParseAddress("tcp", endpoint)
 	if err != nil {
