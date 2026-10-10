@@ -178,7 +178,7 @@ func TestRejectTruncatedData(t *testing.T) {
 
 func TestRejectTooManyElements(t *testing.T) {
 	p := NewPack()
-	for i := 0; i < MaxElementNum+1; i++ {
+	for range MaxElementNum + 1 {
 		p.Add("a", TypeInt, IntValue(0))
 	}
 	_, err := p.Encode()
