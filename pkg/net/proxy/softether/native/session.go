@@ -41,7 +41,7 @@ type ClientSession struct {
 	// anything. It is reported by Policy and not enforced; see policy.go.
 	policy Policy
 
-	logf func(format string, args ...interface{})
+	logf func(format string, args ...any)
 }
 
 // Policy reports the session policy the server stated in its welcome. The zero
@@ -71,7 +71,7 @@ func Connect(ctx context.Context, raw net.Conn, tlsCfg *tls.Config, host, userna
 		_ = conn.SetDeadline(deadline)
 		defer func() { _ = conn.SetDeadline(time.Time{}) }()
 	}
-	cs := &ClientSession{conn: conn, br: bufio.NewReader(conn), host: host, hubName: hubName, logf: func(string, ...interface{}) {}}
+	cs := &ClientSession{conn: conn, br: bufio.NewReader(conn), host: host, hubName: hubName, logf: func(string, ...any) {}}
 	if _, err := rand.Read(cs.uniqueID[:]); err != nil {
 		return nil, fmt.Errorf("softether: random id: %w", err)
 	}
