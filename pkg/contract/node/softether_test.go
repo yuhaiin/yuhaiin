@@ -15,6 +15,9 @@ func TestSoftEtherTypedContract(t *testing.T) {
 		Router:    "192.168.30.1",
 		MTU:       1400,
 		CACertPEM: "PEM",
+        AuthType:"certificate", ClientCertPEM:"client cert", ClientKeyPEM:"client key",
+        IPv6Address:"2001:db8::5/64", IPv6Router:"fe80::1",
+        UDPAcceleration:true, AutoReconnect:true,
 	}
 	typed, err := NewTypedProtocol(in)
 	if err != nil {
@@ -38,7 +41,9 @@ func TestSoftEtherTypedContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	if decoded.SoftEther.Gateway != in.Gateway || decoded.SoftEther.Router != in.Router ||
-		decoded.SoftEther.CACertPEM != in.CACertPEM {
+		decoded.SoftEther.CACertPEM != in.CACertPEM ||
+        decoded.SoftEther.AuthType != in.AuthType || decoded.SoftEther.ClientKeyPEM != in.ClientKeyPEM ||
+        decoded.SoftEther.IPv6Address != in.IPv6Address || !decoded.SoftEther.UDPAcceleration || !decoded.SoftEther.AutoReconnect {
 		t.Fatalf("round trip: %#v", decoded.SoftEther)
 	}
 }
