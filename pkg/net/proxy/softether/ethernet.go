@@ -220,7 +220,7 @@ func negotiateDHCP(s *native.ClientSession, mac macAddr, timeout time.Duration) 
 	if err := s.SetReadDeadline(deadline); err != nil {
 		return lease{}, err
 	}
-	defer s.SetReadDeadline(time.Time{})
+	defer func() { _ = s.SetReadDeadline(time.Time{}) }()
 	if err := s.WriteFrame(buildDHCP(mac, id, 1, netip.Addr{}, netip.Addr{})); err != nil {
 		return lease{}, err
 	}
@@ -270,7 +270,7 @@ func resolveGateway(s *native.ClientSession, mac macAddr, local, router netip.Ad
 	if err := s.SetReadDeadline(deadline); err != nil {
 		return macAddr{}, err
 	}
-	defer s.SetReadDeadline(time.Time{})
+	defer func() { _ = s.SetReadDeadline(time.Time{}) }()
 	if err := s.WriteFrame(buildARP(mac, local, router, macAddr{}, 1)); err != nil {
 		return macAddr{}, err
 	}
