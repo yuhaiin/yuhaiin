@@ -36,7 +36,7 @@ func newUDPAcceleration(sock net.PacketConn, peerIP net.IP, client *native.UDPCl
 	if sock == nil || client == nil || server == nil || server.Version != 2 {
 		return nil, errors.New("softether: UDP acceleration parameters missing")
 	}
-	if peerIP == nil || len(server.KeyV2) != 128 {
+	if peerIP == nil {
 		return nil, errors.New("softether: invalid UDP acceleration peer")
 	}
 	encrypt, err := chacha20poly1305.New(client.KeyV2[:32])
