@@ -7,6 +7,7 @@ import (
  "fmt"
  "io"
  "net"
+ "net/netip"
  "net/url"
  "sync"
  "sync/atomic"
