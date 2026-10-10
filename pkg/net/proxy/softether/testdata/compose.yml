@@ -1,0 +1,24 @@
+services:
+  server:
+    image: siomiz/softethervpn:latest
+    environment:
+      SPW: "seadmin"
+    ports:
+      - "127.0.0.1:14443:443/tcp"
+  init:
+    image: siomiz/softethervpn:latest
+    depends_on:
+      - server
+    environment:
+      SERVER: server
+      SPW: seadmin
+    volumes:
+      - ./native-init.sh:/native-init.sh:ro
+    entrypoint: ["/bin/sh","/native-init.sh"]
+    restart: "no"
+  echo:
+    image: python:3.13-alpine
+    volumes:
+      - ./echo.py:/echo.py:ro
+    entrypoint: ["python","/echo.py"]
+    restart: "on-failure"
