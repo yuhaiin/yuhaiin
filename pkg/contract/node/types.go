@@ -3,17 +3,25 @@ package node
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 	"strings"
 )
 
 type Node struct {
-	ID      string     `json:"id"`
-	Name    string     `json:"name"`
-	Group   string     `json:"group"`
-	Origin  string     `json:"origin"`
-	Enabled bool       `json:"enabled"`
-	Chain   []Protocol `json:"chain"`
+	ID      string         `json:"id"`
+	Name    string         `json:"name"`
+	Group   string         `json:"group"`
+	Origin  string         `json:"origin"`
+	Enabled bool           `json:"enabled"`
+	Chain   []Protocol     `json:"chain"`
+	Latency *LatencyConfig `json:"latency,omitzero"`
+}
+
+// LatencyConfig overrides the global HTTP latency target for one node.
+type LatencyConfig struct {
+	URL                string `json:"url,omitempty"`
+	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
 }
 
 type Selection struct {
@@ -505,6 +513,12 @@ func (x Node) Validate() error {
 	}
 	if len(x.Chain) == 0 {
 		return errors.New("node chain is empty")
+	}
+	if x.Latency != nil && strings.TrimSpace(x.Latency.URL) != "" {
+		latencyURL, err := url.Parse(strings.TrimSpace(x.Latency.URL))
+		if err != nil || latencyURL.Host == "" || (!strings.EqualFold(latencyURL.Scheme, "http") && !strings.EqualFold(latencyURL.Scheme, "https")) {
+			return errors.New("node latency URL must be an absolute HTTP or HTTPS URL")
+		}
 	}
 	for i, protocol := range x.Chain {
 		if err := protocol.Validate(); err != nil {

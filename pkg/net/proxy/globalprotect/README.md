@@ -71,6 +71,11 @@ The outbound does not automatically replace yuhaiin's own routing or DNS
 configuration, or apply the gateway's local-network policy. Configure split
 routing and DNS explicitly in yuhaiin.
 
+For latency checks against an internal service reachable through this tunnel,
+set a per-node HTTP/HTTPS latency URL. TCP Ping sends its HTTP request through
+the node's outbound chain. The URL override and optional per-node TLS
+verification setting are documented in [node configuration](../../../../docs/node.md#per-node-latency-target).
+
 ## Tests
 
 ```sh

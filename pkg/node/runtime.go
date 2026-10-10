@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net"
+	"net/url"
 	"slices"
+	"strings"
 	"sync"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
@@ -270,11 +272,36 @@ func (r *NodeRuntime) CloseNode(_ context.Context, id string) error {
 }
 
 func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.LatencyRequest) (contractnode.LatencyResponse, error) {
-	proxy, err := r.GetDialerByID(ctx, id)
+	nodes, err := r.openNodes(ctx)
 	if err != nil {
 		return contractnode.LatencyResponse{}, err
 	}
-	return latency.Latency(req, &latencyDialer{Proxy: proxy, ipv6: req.IPv6})
+	node, err := nodes.Get(ctx, id)
+	if errors.Is(err, plainstore.ErrNotFound) {
+		return contractnode.LatencyResponse{}, fmt.Errorf("node not found")
+	}
+	if err != nil {
+		return contractnode.LatencyResponse{}, err
+	}
+
+	var latencyOptions latency.LatencyOptions
+	switch req.Type {
+	case "", "http", "tcp":
+		if node.Latency != nil && strings.TrimSpace(node.Latency.URL) != "" {
+			req.URL = strings.TrimSpace(node.Latency.URL)
+			if latencyURL, err := url.Parse(req.URL); err == nil {
+				latencyURL.Scheme = strings.ToLower(latencyURL.Scheme)
+				req.URL = latencyURL.String()
+			}
+			latencyOptions.InsecureSkipVerify = node.Latency.InsecureSkipVerify
+		}
+	}
+
+	proxy, err := r.getContractDialer(ctx, id, func() (contractnode.Node, error) { return node, nil })
+	if err != nil {
+		return contractnode.LatencyResponse{}, err
+	}
+	return latency.LatencyWithOptions(req, &latencyDialer{Proxy: proxy, ipv6: req.IPv6}, latencyOptions)
 }
 
 func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, load func() (contractnode.Node, error)) (netapi.Proxy, error) {

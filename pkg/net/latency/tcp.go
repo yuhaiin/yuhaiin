@@ -2,6 +2,7 @@ package latency
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -11,6 +12,12 @@ import (
 )
 
 func HTTP(p netapi.Proxy, target string) (time.Duration, error) {
+	return HTTPWithInsecureSkipVerify(p, target, false)
+}
+
+// HTTPWithInsecureSkipVerify performs an HTTP GET, optionally skipping TLS
+// certificate verification when explicitly requested by the node config.
+func HTTPWithInsecureSkipVerify(p netapi.Proxy, target string, insecureSkipVerify bool) (time.Duration, error) {
 	tr := &http.Transport{
 		DisableKeepAlives: true,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -29,6 +36,11 @@ func HTTP(p netapi.Proxy, target string) (time.Duration, error) {
 
 			return c, nil
 		},
+	}
+	if insecureSkipVerify {
+		tr.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true, // #nosec G402 -- gated by an explicit per-node setting.
+		}
 	}
 	defer tr.CloseIdleConnections()
 

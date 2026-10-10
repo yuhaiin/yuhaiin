@@ -2,6 +2,9 @@ package node
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
@@ -129,6 +132,39 @@ func TestExtraInfoReadsOnlyCachedProxy(t *testing.T) {
 	}
 	if _, err := runtime.ExtraInfo(t.Context(), "inactive-node"); !errors.Is(err, plainstore.ErrNotFound) {
 		t.Fatalf("inactive node error = %v, want %v", err, plainstore.ErrNotFound)
+	}
+}
+
+func TestLatencyUsesNodeHTTPURLOverride(t *testing.T) {
+	requestedPath := make(chan string, 1)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		requestedPath <- request.URL.Path
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	runtime := newTestRuntime(t)
+	node := testNode(t, "latency-override", "latency-override-node")
+	node.Latency = &contractnode.LatencyConfig{
+		URL:                strings.Replace(server.URL, "https://", "HTTPS://", 1) + "/health",
+		InsecureSkipVerify: true,
+	}
+	if _, err := runtime.Save(t.Context(), node); err != nil {
+		t.Fatalf("save node with latency override: %v", err)
+	}
+
+	result, err := runtime.Latency(t.Context(), node.ID, contractnode.LatencyRequest{
+		Type: "tcp",
+		URL:  "http://global.example.test/ping",
+	})
+	if err != nil {
+		t.Fatalf("test node latency URL: %v", err)
+	}
+	if !result.OK {
+		t.Fatalf("latency result = %+v, want success", result)
+	}
+	if got := <-requestedPath; got != "/health" {
+		t.Fatalf("request path = %q, want per-node /health URL", got)
 	}
 }
 
