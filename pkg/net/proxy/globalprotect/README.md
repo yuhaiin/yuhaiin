@@ -63,9 +63,12 @@ go test ./pkg/net/proxy/globalprotect ./pkg/contract/node ./pkg/register
 ```
 
 Unit tests cover tunnel frame validity, DPD, malformed frames, XML login and
-configuration responses, unsupported SSO, typed protocol JSON round-trip, and
-a local TLS tunnel handshake. Real gateway interoperability still needs
-testing against authorized GlobalProtect deployments.
+configuration responses, unsupported SSO, and typed protocol JSON round-trip.
+The in-process `TestGatewayEndToEndTCPUDP` starts a mock TLS Gateway and
+a second gVisor IP stack, then exercises the full client lifecycle with TCP
+and UDP echo traffic, followed by logout. This is a **mock-server integration
+test**, not evidence of wire compatibility with a PAN-OS device. Real Gateway
+interoperability still needs testing against authorized deployments.
 
 Protocol reference:
 [PAN GlobalProtect protocol observations](https://github.com/dlenski/openconnect/blob/master/PAN_GlobalProtect_protocol_doc.md).
