@@ -257,16 +257,25 @@ func newClientContext(parent context.Context, cfg Config, upstream netapi.Proxy)
 	if !l.ip.Is4() {
 		l, err = negotiateDHCP(session, mac, 10*time.Second)
 		if err != nil {
+			// A VPN may have only an IPv6 router; DHCPv4 absence should not
+			// prevent explicitly configured IPv6 traffic from working.
+			var timeout net.Error
+			if !ipv6Prefix.IsValid() || !errors.As(err, &timeout) || !timeout.Timeout() {
+				_ = session.Close()
+				return nil, err
+			}
+		}
+	}
+	var nextHop macAddr
+	prefixes := make([]netip.Prefix, 0, 2)
+	if l.ip.Is4() {
+		nextHop, err = resolveGateway(session, mac, l.ip, l.router, 7*time.Second)
+		if err != nil {
 			_ = session.Close()
 			return nil, err
 		}
+		prefixes = append(prefixes, netip.PrefixFrom(l.ip, l.mask))
 	}
-	nextHop, err := resolveGateway(session, mac, l.ip, l.router, 7*time.Second)
-	if err != nil {
-		_ = session.Close()
-		return nil, err
-	}
-	prefixes := []netip.Prefix{netip.PrefixFrom(l.ip, l.mask)}
 	var nextHop6 macAddr
 	if ipv6Prefix.IsValid() {
 		nextHop6, err = resolveIPv6Router(session, mac, ipv6Prefix.Addr(), ipv6Router, 7*time.Second)
