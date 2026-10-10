@@ -15,6 +15,7 @@
 - Inbound
   - yuubinsya(experimental)
   - Reality, HTTP2, Quic, Websocket, TLS, ECH(Encrypted SNI)
+  - [Hysteria 2](docs/hysteria2.md)
   - Socks5, Socks4A, HTTP
   - TUN(gso,gro support), Linux/Mac Redir, Tproxy
     - [gvisor](https://github.com/google/gvisor)
@@ -24,6 +25,8 @@
   - yuubinsya(experimental)
   - Socks5, HTTP, TCP, [Wireguard](https://github.com/yuhaiin/yuhaiin/wiki/Wireguard)
   - Shadowsocksr, Shadowsocks, Vmess, trojan, Vless  
+  - [Hysteria 2](docs/hysteria2.md) (TCP and UDP)
+  - [GlobalProtect SSL](pkg/net/proxy/globalprotect/README.md) (experimental; gateway routes and DNS are informational and are not applied automatically)
   - Websocket, Quic, obfs-http, Reality, HTTP2, TLS, ECH(Encrypted SNI)
   - yamux  
   - reverse HTTP, reverse TCP

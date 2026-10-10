@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -56,6 +57,39 @@ func TestV2RoutePatternsUsePostRPCExceptStreams(t *testing.T) {
 		if pattern != expected {
 			t.Fatalf("route %q pattern=%q want=%q", route.endpoint, pattern, expected)
 		}
+	}
+}
+
+type nodeExtraInfoControllerStub struct {
+	NodeController
+	info contractnode.NodeExtraInfo
+	err  error
+}
+
+func (s nodeExtraInfoControllerStub) ExtraInfo(context.Context, string) (contractnode.NodeExtraInfo, error) {
+	return s.info, s.err
+}
+
+func TestV2NodeExtraInfo(t *testing.T) {
+	want := contractnode.NodeExtraInfo{GlobalProtect: &contractnode.GlobalProtectInfo{
+		TunnelPrefix:     "192.0.2.8/32",
+		AccessRoutesIPv4: []string{"198.51.100.0/24"},
+	}}
+	api := v2API{services: V2Services{Node: nodeExtraInfoControllerStub{info: want}}}
+	got, err := api.nodeExtraInfo(t.Context(), &idRequest{ID: "pa-node"})
+	if err != nil {
+		t.Fatalf("node extra info failed: %v", err)
+	}
+	if got.GlobalProtect == nil || got.GlobalProtect.TunnelPrefix != want.GlobalProtect.TunnelPrefix ||
+		len(got.GlobalProtect.AccessRoutesIPv4) != 1 || got.GlobalProtect.AccessRoutesIPv4[0] != "198.51.100.0/24" {
+		t.Fatalf("node extra info = %+v, want %+v", got, want)
+	}
+
+	api.services.Node = nodeExtraInfoControllerStub{err: plainstore.ErrNotFound}
+	if _, err := api.nodeExtraInfo(t.Context(), &idRequest{ID: "inactive-node"}); err == nil {
+		t.Fatal("missing runtime extra info was accepted")
+	} else if rpcErr, ok := err.(*rpcError); !ok || rpcErr.status != http.StatusNotFound {
+		t.Fatalf("missing runtime extra info error = %v, want 404 rpc error", err)
 	}
 }
 

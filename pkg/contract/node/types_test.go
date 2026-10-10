@@ -17,6 +17,10 @@ func TestProtocolTaggedObjectJSON(t *testing.T) {
 		Origin:  "manual",
 		Enabled: true,
 		Chain:   []Protocol{protocol},
+		Latency: &LatencyConfig{
+			URL:                "https://latency.example.com/health",
+			InsecureSkipVerify: true,
+		},
 	}
 	if err := node.Validate(); err != nil {
 		t.Fatal(err)
@@ -30,6 +34,9 @@ func TestProtocolTaggedObjectJSON(t *testing.T) {
 	if !strings.Contains(text, `"chain":[{"type":"direct","direct":{}}]`) {
 		t.Fatalf("unexpected json: %s", text)
 	}
+	if !strings.Contains(text, `"latency":{"url":"https://latency.example.com/health","insecure_skip_verify":true}`) {
+		t.Fatalf("node latency config missing from json: %s", text)
+	}
 	if strings.Contains(text, "protocols") || strings.Contains(text, "case") || strings.Contains(text, "value") {
 		t.Fatalf("protobuf-shaped field leaked into json: %s", text)
 	}
@@ -40,6 +47,14 @@ func TestProtocolTaggedObjectJSON(t *testing.T) {
 	}
 	if err := decoded.Validate(); err != nil {
 		t.Fatal(err)
+	}
+	if decoded.Latency == nil || decoded.Latency.URL != node.Latency.URL || !decoded.Latency.InsecureSkipVerify {
+		t.Fatalf("node latency config did not round-trip: %+v", decoded.Latency)
+	}
+
+	node.Latency.URL = "ftp://latency.example.com/health"
+	if err := node.Validate(); err == nil {
+		t.Fatal("expected non-HTTP latency URL to fail validation")
 	}
 }
 

@@ -42,7 +42,24 @@ jobs:
       - uses: ./.github/actions/setup-go
         with:
           cache-scope: go-fix
+      - name: gofmt check
+        run: |
+          unformatted="$(git ls-files -z -- '*.go' | xargs -0 gofmt -l)"
+          if [[ -n "$unformatted" ]]; then
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
       - name: go fix check
         run: |
           go fix ./...
           git diff --exit-code
+
+  globalprotect-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: globalprotect-tests
+      - name: Test GlobalProtect outbound and node contract
+        run: go test -race ./pkg/net/proxy/globalprotect ./pkg/contract/node ./pkg/register

@@ -25,7 +25,15 @@ const (
 	defaultSTUNTCPHost     = "stun.nextcloud.com:443"
 )
 
+type LatencyOptions struct {
+	InsecureSkipVerify bool
+}
+
 func Latency(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.LatencyResponse, error) {
+	return LatencyWithOptions(l, p, LatencyOptions{})
+}
+
+func LatencyWithOptions(l contractnode.LatencyRequest, p netapi.Proxy, options LatencyOptions) (contractnode.LatencyResponse, error) {
 	if l.Type == "" {
 		l.Type = "http"
 	}
@@ -53,7 +61,7 @@ func Latency(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.Latenc
 	}
 	switch l.Type {
 	case "", "http", "tcp":
-		return LatencyHttp(l, p)
+		return latencyHTTP(l, p, options.InsecureSkipVerify)
 	case "dns", "udp":
 		return LatencyDns(l, p)
 	case "doq":
@@ -68,7 +76,11 @@ func Latency(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.Latenc
 }
 
 func LatencyHttp(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.LatencyResponse, error) {
-	t, err := HTTP(p, l.URL)
+	return latencyHTTP(l, p, false)
+}
+
+func latencyHTTP(l contractnode.LatencyRequest, p netapi.Proxy, insecureSkipVerify bool) (contractnode.LatencyResponse, error) {
+	t, err := HTTPWithInsecureSkipVerify(p, l.URL, insecureSkipVerify)
 	return contractnode.LatencyResponse{OK: err == nil, LatencyMS: t.Milliseconds()}, err
 }
 

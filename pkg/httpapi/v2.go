@@ -72,6 +72,7 @@ type ResolverCacheController interface {
 type NodeController interface {
 	Selected(context.Context) (contractnode.Selection, error)
 	Active(context.Context) ([]contractnode.Node, error)
+	ExtraInfo(context.Context, string) (contractnode.NodeExtraInfo, error)
 	Save(context.Context, contractnode.Node) (contractnode.Node, error)
 	Remove(context.Context, string) error
 	Use(context.Context, string) error

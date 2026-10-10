@@ -1,10 +1,16 @@
 package node
 
 import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
 func newTestRuntime(t *testing.T) *NodeRuntime {
@@ -98,6 +104,76 @@ func TestActiveContractOnlyReturnsRuntimeDialers(t *testing.T) {
 		t.Fatalf("active after deleting active-a = %+v", active)
 	}
 }
+
+func TestExtraInfoReadsOnlyCachedProxy(t *testing.T) {
+	runtime := newTestRuntime(t)
+	want := contractnode.NodeExtraInfo{GlobalProtect: &contractnode.GlobalProtectInfo{
+		TunnelPrefix:     "192.0.2.8/32",
+		AccessRoutesIPv4: []string{"198.51.100.0/24"},
+	}}
+	if _, err := runtime.proxies.LoadOrCreate(t.Context(), "pa-node", func() (*ProxyEntry, error) {
+		return &ProxyEntry{
+			Proxy: extraInfoTestProxy{
+				Proxy: netapi.NewErrProxy(errors.New("proxy must not be used to fetch runtime information")),
+				info:  want,
+			},
+		}, nil
+	}); err != nil {
+		t.Fatalf("seed cached proxy: %v", err)
+	}
+
+	got, err := runtime.ExtraInfo(t.Context(), "pa-node")
+	if err != nil {
+		t.Fatalf("read cached extra info: %v", err)
+	}
+	if got.GlobalProtect == nil || got.GlobalProtect.TunnelPrefix != want.GlobalProtect.TunnelPrefix ||
+		len(got.GlobalProtect.AccessRoutesIPv4) != 1 || got.GlobalProtect.AccessRoutesIPv4[0] != "198.51.100.0/24" {
+		t.Fatalf("extra info = %+v, want %+v", got, want)
+	}
+	if _, err := runtime.ExtraInfo(t.Context(), "inactive-node"); !errors.Is(err, plainstore.ErrNotFound) {
+		t.Fatalf("inactive node error = %v, want %v", err, plainstore.ErrNotFound)
+	}
+}
+
+func TestLatencyUsesNodeHTTPURLOverride(t *testing.T) {
+	requestedPath := make(chan string, 1)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		requestedPath <- request.URL.Path
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	runtime := newTestRuntime(t)
+	node := testNode(t, "latency-override", "latency-override-node")
+	node.Latency = &contractnode.LatencyConfig{
+		URL:                strings.Replace(server.URL, "https://", "HTTPS://", 1) + "/health",
+		InsecureSkipVerify: true,
+	}
+	if _, err := runtime.Save(t.Context(), node); err != nil {
+		t.Fatalf("save node with latency override: %v", err)
+	}
+
+	result, err := runtime.Latency(t.Context(), node.ID, contractnode.LatencyRequest{
+		Type: "tcp",
+		URL:  "http://global.example.test/ping",
+	})
+	if err != nil {
+		t.Fatalf("test node latency URL: %v", err)
+	}
+	if !result.OK {
+		t.Fatalf("latency result = %+v, want success", result)
+	}
+	if got := <-requestedPath; got != "/health" {
+		t.Fatalf("request path = %q, want per-node /health URL", got)
+	}
+}
+
+type extraInfoTestProxy struct {
+	netapi.Proxy
+	info contractnode.NodeExtraInfo
+}
+
+func (p extraInfoTestProxy) NodeExtraInfo() contractnode.NodeExtraInfo { return p.info }
 
 func testNode(t *testing.T, id, name string) contractnode.Node {
 	t.Helper()

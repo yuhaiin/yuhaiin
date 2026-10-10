@@ -3,17 +3,25 @@ package node
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 	"strings"
 )
 
 type Node struct {
-	ID      string     `json:"id"`
-	Name    string     `json:"name"`
-	Group   string     `json:"group"`
-	Origin  string     `json:"origin"`
-	Enabled bool       `json:"enabled"`
-	Chain   []Protocol `json:"chain"`
+	ID      string         `json:"id"`
+	Name    string         `json:"name"`
+	Group   string         `json:"group"`
+	Origin  string         `json:"origin"`
+	Enabled bool           `json:"enabled"`
+	Chain   []Protocol     `json:"chain"`
+	Latency *LatencyConfig `json:"latency,omitzero"`
+}
+
+// LatencyConfig overrides the global HTTP latency target for one node.
+type LatencyConfig struct {
+	URL                string `json:"url,omitempty"`
+	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
 }
 
 type Selection struct {
@@ -76,6 +84,7 @@ type Protocol struct {
 	Reality              *Reality              `json:"reality,omitzero"`
 	TLS                  *TLS                  `json:"tls,omitzero"`
 	Wireguard            *Wireguard            `json:"wireguard,omitzero"`
+	GlobalProtect        *GlobalProtect        `json:"globalprotect,omitzero"`
 	Mux                  *Concurrency          `json:"mux,omitzero"`
 	Drop                 *Drop                 `json:"drop,omitzero"`
 	Vless                *Vless                `json:"vless,omitzero"`
@@ -92,6 +101,40 @@ type Protocol struct {
 	Proxy                *Proxy                `json:"proxy,omitzero"`
 	FixedV2              *FixedV2              `json:"fixedv2,omitzero"`
 	PointAsEndpoint      *PointAsEndpoint      `json:"point_as_endpoint,omitzero"`
+}
+
+// GlobalProtect is a directly addressed gateway with password authentication.
+// Portal discovery, SAML/SSO, HIP and ESP are not supported by this node.
+type GlobalProtect struct {
+	Gateway            string `json:"gateway"`
+	Username           string `json:"username"`
+	Password           string `json:"password"`
+	Computer           string `json:"computer,omitzero"`
+	CACertPEM          string `json:"ca_cert_pem,omitzero"`
+	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
+	MTU                int32  `json:"mtu,omitzero"`
+}
+
+// NodeExtraInfo contains runtime details returned by an outbound after it has
+// connected. It is read from the existing runtime instance and does not start
+// a new connection.
+type NodeExtraInfo struct {
+	GlobalProtect *GlobalProtectInfo `json:"globalprotect,omitzero"`
+}
+
+// GlobalProtectInfo is the tunnel and network configuration returned by
+// GlobalProtect getconfig. Routes are informational and are not applied by
+// the GlobalProtect outbound.
+type GlobalProtectInfo struct {
+	TunnelPrefix                 string   `json:"tunnel_prefix,omitempty"`
+	AccessRoutesIPv4             []string `json:"access_routes_ipv4,omitempty"`
+	ExcludeRoutesIPv4            []string `json:"exclude_routes_ipv4,omitempty"`
+	AccessRoutesIPv6             []string `json:"access_routes_ipv6,omitempty"`
+	ExcludeRoutesIPv6            []string `json:"exclude_routes_ipv6,omitempty"`
+	DNS                          []string `json:"dns,omitempty"`
+	DNSv6                        []string `json:"dns_v6,omitempty"`
+	DNSSuffix                    []string `json:"dns_suffix,omitempty"`
+	NoDirectAccessToLocalNetwork string   `json:"no_direct_access_to_local_network,omitempty"`
 }
 
 type None struct{}
@@ -336,6 +379,7 @@ func (HTTP2) ProtocolType() string                { return "http2" }
 func (Reality) ProtocolType() string              { return "reality" }
 func (TLS) ProtocolType() string                  { return "tls" }
 func (Wireguard) ProtocolType() string            { return "wireguard" }
+func (GlobalProtect) ProtocolType() string        { return "globalprotect" }
 func (Mux) ProtocolType() string                  { return "mux" }
 func (Drop) ProtocolType() string                 { return "drop" }
 func (Vless) ProtocolType() string                { return "vless" }
@@ -470,6 +514,12 @@ func (x Node) Validate() error {
 	if len(x.Chain) == 0 {
 		return errors.New("node chain is empty")
 	}
+	if x.Latency != nil && strings.TrimSpace(x.Latency.URL) != "" {
+		latencyURL, err := url.Parse(strings.TrimSpace(x.Latency.URL))
+		if err != nil || latencyURL.Host == "" || (!strings.EqualFold(latencyURL.Scheme, "http") && !strings.EqualFold(latencyURL.Scheme, "https")) {
+			return errors.New("node latency URL must be an absolute HTTP or HTTPS URL")
+		}
+	}
 	for i, protocol := range x.Chain {
 		if err := protocol.Validate(); err != nil {
 			return fmt.Errorf("node chain[%d]: %w", i, err)
@@ -524,6 +574,7 @@ func (x Protocol) presentVariants() map[string]bool {
 		"reality":                x.Reality != nil,
 		"tls":                    x.TLS != nil,
 		"wireguard":              x.Wireguard != nil,
+		"globalprotect":          x.GlobalProtect != nil,
 		"mux":                    x.Mux != nil,
 		"drop":                   x.Drop != nil,
 		"vless":                  x.Vless != nil,

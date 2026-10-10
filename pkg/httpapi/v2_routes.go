@@ -53,6 +53,7 @@ const (
 	v2NodeUse                  v2Endpoint = "node.use"
 	v2NodeLatency              v2Endpoint = "node.latency"
 	v2NodeClose                v2Endpoint = "node.close"
+	v2NodeExtraInfo            v2Endpoint = "node.extra"
 	v2RouteActivation          v2Endpoint = "route.activation"
 	v2RouteApply               v2Endpoint = "route.apply"
 	v2RouteListRefresh         v2Endpoint = "route.lists.refresh"
@@ -176,6 +177,7 @@ var v2Routes = []v2Route{
 	{v2NodeUse, "POST /api/v2/nodes/{id}/use"},
 	{v2NodeLatency, "POST /api/v2/nodes/{id}/latency"},
 	{v2NodeClose, "POST /api/v2/nodes/{id}/close"},
+	{v2NodeExtraInfo, "GET /api/v2/nodes/{id}/extra"},
 	{v2ResolversGet, "GET /api/v2/resolvers"},
 	{v2ResolversPost, "POST /api/v2/resolvers"},
 	{v2ResolverGet, "GET /api/v2/resolvers/{id}"},
