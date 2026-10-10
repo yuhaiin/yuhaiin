@@ -52,69 +52,6 @@ type Policy struct {
 	VLANID uint32
 }
 
-// defaultPolicy mirrors GetDefaultPolicy (Cedar/Account.c) where veepin agrees
-// with it, and differs in one place on purpose: MaxConnection is 1 rather than
-// 32, because this server accepts one connection per session and the policy
-// should say what is true rather than what the reference's template says.
-func defaultPolicy(maxConnection uint32) Policy {
-	return Policy{
-		Access:        true,
-		MaxConnection: maxConnection,
-		// GetDefaultPolicy's 20. Seconds.
-		TimeOut: 20,
-		VLANID:  0,
-	}
-}
-
-// policyBoolNames is every "policy:" boolean the reference emits, in
-// PackAddPolicy's order. They are listed rather than derived because the list
-// IS the wire format: a name that drifts is silently read back as false by a
-// peer, which for a restriction flag is the permissive answer and therefore
-// invisible in a test that only checks a tunnel came up.
-//
-// Every one of them is a restriction this server does not impose, so all are
-// emitted false. Access is not here: it is the one boolean whose value is not
-// constant, so it is written by addPolicy directly.
-var policyBoolNames = []string{
-	// Ver 2
-	"DHCPFilter", "DHCPNoServer", "DHCPForce", "NoBridge", "NoRouting",
-	"PrivacyFilter", "NoServer", "CheckMac", "CheckIP", "ArpDhcpOnly",
-	"MonitorPort", "NoBroadcastLimiter", "FixPassword", "NoQoS",
-	// Ver 3
-	"RSandRAFilter", "RAFilter", "DHCPv6Filter", "DHCPv6NoServer",
-	"NoRoutingV6", "CheckIPv6", "NoServerV6", "NoSavePassword",
-	"FilterIPv4", "FilterIPv6", "FilterNonIP",
-	"NoIPv6DefaultRouterInRA", "NoIPv6DefaultRouterInRAWhenIPv6",
-}
-
-// policyZeroUintNames is every "policy:" integer that is a limit this server
-// does not impose. Zero is the reference's own "no limit" for each.
-var policyZeroUintNames = []string{
-	"MaxMac", "MaxIP", "MaxUpload", "MaxDownload", "MultiLogins",
-	"MaxIPv6", "AutoDisconnect",
-}
-
-// addPolicy writes the policy into a PACK exactly as PackAddPolicy does: flat
-// elements, "policy:" prefix, booleans as ints (PackAddBool is PackAddInt with
-// a JSON hint the wire never carries).
-func addPolicy(p *Pack, y Policy) {
-	p.Add("policy:Access", TypeInt, IntValue(boolInt(y.Access)))
-	for _, name := range policyBoolNames {
-		p.Add("policy:"+name, TypeInt, IntValue(0))
-	}
-	p.Add("policy:MaxConnection", TypeInt, IntValue(y.MaxConnection))
-	p.Add("policy:TimeOut", TypeInt, IntValue(y.TimeOut))
-	for _, name := range policyZeroUintNames {
-		p.Add("policy:"+name, TypeInt, IntValue(0))
-	}
-	p.Add("policy:VLanId", TypeInt, IntValue(y.VLANID))
-
-	// PackAddPolicy's last line, and unlike every flag above it is
-	// unconditionally true rather than read from the struct: it declares that
-	// the Ver 3 fields are present, which they are because we just wrote them.
-	p.Add("policy:Ver3", TypeInt, IntValue(1))
-}
-
 // getPolicy reads a policy back, as PackGetPolicy does, and reports separately
 // whether the welcome carried one at all.
 //
@@ -139,9 +76,3 @@ func getPolicy(p *Pack) (Policy, bool) {
 	return y, p.Get("policy:Access") != nil
 }
 
-func boolInt(b bool) uint32 {
-	if b {
-		return 1
-	}
-	return 0
-}
