@@ -46,3 +46,13 @@ jobs:
         run: |
           go fix ./...
           git diff --exit-code
+
+  globalprotect-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: globalprotect-tests
+      - name: Test GlobalProtect outbound and node contract
+        run: go test -race ./pkg/net/proxy/globalprotect ./pkg/contract/node ./pkg/register
