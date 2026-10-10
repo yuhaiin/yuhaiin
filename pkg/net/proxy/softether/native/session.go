@@ -5,6 +5,11 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+"crypto/rsa"
+"crypto/sha1"
+"crypto"
+"crypto/x509"
+"encoding/pem"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -50,7 +55,12 @@ type ClientSession struct {
 func (cs *ClientSession) Policy() Policy { return cs.policy }
 
 // Connect dials a SoftEther VPN server and performs the control exchange.
-func Connect(ctx context.Context, raw net.Conn, tlsCfg *tls.Config, host, username, password, hubName string) (_ *ClientSession, err error) {
+func Connect(ctx context.Context, raw net.Conn, tlsCfg *tls.Config, host, username, password, hubName string) (*ClientSession,error) {
+ return ConnectWithCert(ctx,raw,tlsCfg,host,username,password,hubName,"","")
+}
+
+// ConnectWithCert supports SoftEther native certificate authentication, not a TLS client certificate.
+func ConnectWithCert(ctx context.Context, raw net.Conn, tlsCfg *tls.Config, host, username, password, hubName, certPEM, keyPEM string) (_ *ClientSession, err error) {
 	if raw == nil {
 		return nil, errors.New("softether: nil transport")
 	}
@@ -81,7 +91,7 @@ func Connect(ctx context.Context, raw net.Conn, tlsCfg *tls.Config, host, userna
 	if err := cs.hello(); err != nil {
 		return nil, err
 	}
-	if err := cs.login(username, password); err != nil {
+	if err := cs.login(username, password, certPEM, keyPEM); err != nil {
 		return nil, err
 	}
 	return cs, nil
@@ -107,8 +117,10 @@ func (cs *ClientSession) hello() error {
 	return nil
 }
 
-func (cs *ClientSession) login(username, password string) error {
-	securePass := securePassword(hashPassword(username, password), cs.serverRandom)
+func (cs *ClientSession) login(username, password, certPEM, keyPEM string) error {
+	var securePass [sha0Size]byte
+	certMode := certPEM != "" || keyPEM != ""
+	if !certMode { securePass = securePassword(hashPassword(username, password), cs.serverRandom) }
 
 	// PackLoginWithPassword's field set, in its order. authtype is not
 	// optional: the server switches on it to decide which credential to look
@@ -117,8 +129,16 @@ func (cs *ClientSession) login(username, password string) error {
 	req.Add("method", TypeStr, StrValue("login"))
 	req.Add("hubname", TypeStr, StrValue(cs.hubName))
 	req.Add("username", TypeStr, StrValue(username))
-	req.Add("authtype", TypeInt, IntValue(clientAuthTypePassword))
-	req.Add("secure_password", TypeData, DataValue(securePass[:]))
+	if certMode {
+        cert,signature,err:=signClientChallenge(certPEM,keyPEM,cs.serverRandom[:])
+        if err!=nil{return err}
+        req.Add("authtype",TypeInt,IntValue(3)) // CLIENT_AUTHTYPE_CERT (Cedar.h)
+        req.Add("cert",TypeData,DataValue(cert))
+        req.Add("sign",TypeData,DataValue(signature))
+    } else {
+        req.Add("authtype", TypeInt, IntValue(clientAuthTypePassword))
+        req.Add("secure_password", TypeData, DataValue(securePass[:]))
+    }
 	// The client identification the server logs and rate-limits on.
 	// PackAddClientVersion's three fields, and then the same three again under
 	// the names the hello half uses -- the reference sends both sets and the
@@ -233,3 +253,32 @@ func (cs *ClientSession) writePack(p *Pack) error {
 
 // SetReadDeadline bounds DHCP negotiation.
 func (cs *ClientSession) SetReadDeadline(t time.Time) error { return cs.conn.SetReadDeadline(t) }
+
+// signClientChallenge matches Cedar RsaSignEx: SHA-1 of the 20-byte server
+// challenge, encoded as an RSA PKCS#1 v1.5 signature. The private key never
+// crosses the wire and the certificate is sent in DER form.
+func signClientChallenge(certPEM,keyPEM string,challenge []byte)([]byte,[]byte,error){
+ if len(challenge)!=sha0Size{return nil,nil,errors.New("softether: invalid challenge length")}
+ cb,_:=pem.Decode([]byte(certPEM))
+ if cb==nil || cb.Type!="CERTIFICATE"{return nil,nil,errors.New("softether: invalid client certificate PEM")}
+ cert,err:=x509.ParseCertificate(cb.Bytes)
+ if err!=nil{return nil,nil,fmt.Errorf("softether: parse certificate: %w",err)}
+ kb,_:=pem.Decode([]byte(keyPEM))
+ if kb==nil{return nil,nil,errors.New("softether: invalid client private key PEM")}
+ var key *rsa.PrivateKey
+ switch kb.Type {
+ case "RSA PRIVATE KEY": key,err=x509.ParsePKCS1PrivateKey(kb.Bytes)
+ case "PRIVATE KEY":
+  var parsed any
+  parsed,err=x509.ParsePKCS8PrivateKey(kb.Bytes)
+  if err==nil {var ok bool;key,ok=parsed.(*rsa.PrivateKey);if !ok{return nil,nil,errors.New("softether: client authentication requires an RSA key")}}
+ default:return nil,nil,errors.New("softether: unsupported client key format")
+ }
+ if err!=nil{return nil,nil,fmt.Errorf("softether: parse RSA client key: %w",err)}
+ pub,ok:=cert.PublicKey.(*rsa.PublicKey)
+ if !ok || pub.E!=key.PublicKey.E || pub.N.Cmp(key.PublicKey.N)!=0{return nil,nil,errors.New("softether: certificate does not match RSA private key")}
+ digest:=sha1.Sum(challenge)
+ signature,err:=rsa.SignPKCS1v15(rand.Reader,key,crypto.SHA1,digest[:])
+ if err!=nil{return nil,nil,fmt.Errorf("softether: sign challenge: %w",err)}
+ return cert.Raw,signature,nil
+}
