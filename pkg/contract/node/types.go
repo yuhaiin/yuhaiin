@@ -119,22 +119,22 @@ type GlobalProtect struct {
 // SoftEther configures the native SSL-VPN protocol (not SSTP).
 // The virtual hub must provide DHCP unless Address and Router are set.
 type SoftEther struct {
-    Gateway string `json:"gateway"`
-    Username string `json:"username"`
-    Password string `json:"password"`
-    Hub string `json:"hub,omitzero"`
-    AuthType string `json:"auth_type,omitzero"`
-    ClientCertPEM string `json:"client_cert_pem,omitzero"`
-    ClientKeyPEM string `json:"client_key_pem,omitzero"`
-    CACertPEM string `json:"ca_cert_pem,omitzero"`
-    InsecureSkipVerify bool `json:"insecure_skip_verify,omitzero"`
-    Address string `json:"address,omitzero"`
-    Router string `json:"router,omitzero"`
-    IPv6Address string `json:"ipv6_address,omitzero"`
-    IPv6Router string `json:"ipv6_router,omitzero"`
-    UDPAcceleration bool `json:"udp_acceleration,omitzero"`
-    AutoReconnect bool `json:"auto_reconnect,omitzero"`
-    MTU int32 `json:"mtu,omitzero"`
+	Gateway            string `json:"gateway"`
+	Username           string `json:"username"`
+	Password           string `json:"password"`
+	Hub                string `json:"hub,omitzero"`
+	AuthType           string `json:"auth_type,omitzero"`
+	ClientCertPEM      string `json:"client_cert_pem,omitzero"`
+	ClientKeyPEM       string `json:"client_key_pem,omitzero"`
+	CACertPEM          string `json:"ca_cert_pem,omitzero"`
+	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
+	Address            string `json:"address,omitzero"`
+	Router             string `json:"router,omitzero"`
+	IPv6Address        string `json:"ipv6_address,omitzero"`
+	IPv6Router         string `json:"ipv6_router,omitzero"`
+	UDPAcceleration    bool   `json:"udp_acceleration,omitzero"`
+	AutoReconnect      bool   `json:"auto_reconnect,omitzero"`
+	MTU                int32  `json:"mtu,omitzero"`
 }
 
 // NodeExtraInfo contains runtime details returned by an outbound after it has
