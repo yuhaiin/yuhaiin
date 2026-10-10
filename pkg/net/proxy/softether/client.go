@@ -28,6 +28,13 @@ import (
 )
 
 type Config struct {
+    AuthType string
+    ClientCertPEM string
+    ClientKeyPEM string
+    IPv6Address string
+    IPv6Router string
+    UDPAcceleration bool
+    AutoReconnect bool
 	Gateway            string
 	Username           string
 	Password           string
@@ -67,6 +74,7 @@ func init() {
 			Gateway: cfg.Gateway, Username: cfg.Username, Password: cfg.Password,
 			Hub: cfg.Hub, CACertPEM: cfg.CACertPEM, InsecureSkipVerify: cfg.InsecureSkipVerify,
 			Address: cfg.Address, Router: cfg.Router, MTU: int(cfg.MTU),
+            AuthType:cfg.AuthType, ClientCertPEM:cfg.ClientCertPEM, ClientKeyPEM:cfg.ClientKeyPEM, IPv6Address:cfg.IPv6Address, IPv6Router:cfg.IPv6Router, UDPAcceleration:cfg.UDPAcceleration, AutoReconnect:cfg.AutoReconnect,
 		}, p)
 	})
 }
@@ -98,9 +106,13 @@ func NewClient(cfg Config, upstream netapi.Proxy) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Username == "" || cfg.Password == "" {
-		return nil, errors.New("softether: username and password required")
-	}
+	if cfg.Username == "" { return nil, errors.New("softether: username required") }
+    if cfg.AuthType=="" { cfg.AuthType="password" }
+    switch cfg.AuthType {
+    case "password": if cfg.Password=="" {return nil,errors.New("softether: password required")}
+    case "certificate": if cfg.ClientCertPEM=="" || cfg.ClientKeyPEM=="" {return nil,errors.New("softether: certificate and RSA private key required")}
+    default: return nil,fmt.Errorf("softether: unknown auth type %q",cfg.AuthType)
+    }
 	if cfg.Hub == "" {
 		cfg.Hub = "DEFAULT"
 	}
@@ -150,7 +162,9 @@ func NewClient(cfg Config, upstream netapi.Proxy) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("softether: transport: %w", err)
 	}
-	session, err := native.Connect(ctx, raw, tlsConf, host, cfg.Username, cfg.Password, cfg.Hub)
+	clientCert,clientKey:="",""
+    if cfg.AuthType=="certificate"{clientCert,clientKey=cfg.ClientCertPEM,cfg.ClientKeyPEM}
+    session, err := native.ConnectWithCert(ctx, raw, tlsConf, host, cfg.Username, cfg.Password, cfg.Hub,clientCert,clientKey)
 	if err != nil {
 		return nil, err
 	}
