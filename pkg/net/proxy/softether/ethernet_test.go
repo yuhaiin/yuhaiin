@@ -45,7 +45,7 @@ func TestDHCPLease(t *testing.T) {
 func TestDHCPTruncation(t *testing.T) {
 	m := macAddr{2, 3, 4, 5, 6, 7}
 	b := dhcpReply(m, 1, 5)
-	for n := 0; n < len(b); n++ {
+	for n := range b {
 		_, _, _ = parseDHCP(b[:n], m, 1)
 	}
 }
