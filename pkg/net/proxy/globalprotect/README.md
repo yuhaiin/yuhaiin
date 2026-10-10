@@ -70,5 +70,27 @@ and UDP echo traffic, followed by logout. This is a **mock-server integration
 test**, not evidence of wire compatibility with a PAN-OS device. Real Gateway
 interoperability still needs testing against authorized deployments.
 
-Protocol reference:
-[PAN GlobalProtect protocol observations](https://github.com/dlenski/openconnect/blob/master/PAN_GlobalProtect_protocol_doc.md).
+## OpenConnect behavioral compatibility
+
+The `openconnect_compat_test.go` cases are independently authored Go tests
+inspired by OpenConnect's `tests/gp-auth-and-config` and
+`tests/fake-gp-server.py`. They check the wire behavior used by OpenConnect's
+fake Gateway: the JNLP login arguments, the matching `portal`, `domain`,
+`authcookie`, and `preferred-ip` in the subsequent getconfig request, a
+successful `<response>` without optional status/need-tunnel indicators, and
+explicit unsupported errors for SAML and XML/JavaScript OTP challenges.
+Missing optional indicators are accepted; explicitly negative indicators
+continue to fail. No OpenConnect implementation or test source is vendored.
+
+OpenConnect's fake Gateway intentionally refuses tunnel establishment, so it
+cannot validate actual packet transport. Our separate Go in-process Gateway
+drives TCP and UDP traffic through two gVisor stacks, but still isn't PAN-OS.
+
+References:
+- [PAN GlobalProtect protocol observations](https://github.com/dlenski/openconnect/blob/master/PAN_GlobalProtect_protocol_doc.md)
+- [OpenConnect authentication test](https://gitlab.com/openconnect/openconnect/-/blob/master/tests/gp-auth-and-config)
+- [OpenConnect fake GP server](https://gitlab.com/openconnect/openconnect/-/blob/master/tests/fake-gp-server.py)
+
+OpenConnect tests are licensed under LGPL-2.1-or-later; using their scenario
+ideas instead of copying their source keeps yuhaiin's test implementation
+independent.
