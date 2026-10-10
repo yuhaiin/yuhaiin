@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-    "github.com/Asutorufa/yuhaiin/pkg/net/proxy/softether/native"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/softether/native"
 )
 
 // NewOutbound preserves the original fail-closed behavior unless reconnect
@@ -32,7 +32,7 @@ type reconnectingClient struct {
 	current   *Client
 	changed   chan struct{}
 	stopped   bool
-    failure error
+	failure   error
 	wg        sync.WaitGroup
 	closeOnce sync.Once
 }
@@ -110,14 +110,16 @@ func (r *reconnectingClient) supervise(current *Client) {
 				return
 			}
 			// Do not hammer an authentication server with invalid credentials.
-			if errors.Is(err, context.Canceled) {return}
-            if errors.Is(err,native.ErrAuth) {
-                r.mu.Lock()
-                r.failure=err
-                r.notifyLocked()
-                r.mu.Unlock()
-                return
-            }
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if errors.Is(err, native.ErrAuth) {
+				r.mu.Lock()
+				r.failure = err
+				r.notifyLocked()
+				r.mu.Unlock()
+				return
+			}
 			if backoff < time.Minute {
 				backoff *= 2
 				if backoff > time.Minute {
@@ -131,14 +133,18 @@ func (r *reconnectingClient) supervise(current *Client) {
 func (r *reconnectingClient) available(ctx context.Context) (*Client, error) {
 	for {
 		r.mu.RLock()
-		c, changed, stopped, failure := r.current, r.changed, r.stopped,r.failure
+		c, changed, stopped, failure := r.current, r.changed, r.stopped, r.failure
 		if c != nil && c.running.Load() && !stopped {
 			r.mu.RUnlock()
 			return c, nil
 		}
 		r.mu.RUnlock()
-		if stopped {return nil,net.ErrClosed}
-        if failure!=nil{return nil,failure}
+		if stopped {
+			return nil, net.ErrClosed
+		}
+		if failure != nil {
+			return nil, failure
+		}
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
