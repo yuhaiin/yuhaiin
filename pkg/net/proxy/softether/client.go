@@ -354,7 +354,7 @@ func (c *Client) receive() {
 			continue
 		}
 		dst := frame[:6]
-		if !equalMAC(dst, c.mac[:]) && !broadcastMAC(dst) && !(len(dst) == 6 && dst[0] == 0x33 && dst[1] == 0x33) {
+		if !acceptsDestinationMAC(dst, c.mac) {
 			continue
 		}
 		switch uint16(frame[12])<<8 | uint16(frame[13]) {
@@ -426,6 +426,7 @@ func (c *Client) maintainDHCP(current lease, serverMAC macAddr) {
 		return
 	}
 
+renewalLoop:
 	for {
 		var xidBytes [4]byte
 		if _, err := rand.Read(xidBytes[:]); err != nil {
@@ -507,11 +508,18 @@ func (c *Client) maintainDHCP(current lease, serverMAC macAddr) {
 				if !waitUntil(c.ctx, renewAt) {
 					return
 				}
-				break
+				continue renewalLoop
 			case <-timer.C:
 			}
 		}
 	}
+}
+
+func acceptsDestinationMAC(dst []byte, clientMAC macAddr) bool {
+	if len(dst) != len(clientMAC) {
+		return false
+	}
+	return equalMAC(dst, clientMAC[:]) || broadcastMAC(dst) || (dst[0] == 0x33 && dst[1] == 0x33)
 }
 
 func waitUntil(ctx context.Context, deadline time.Time) bool {
@@ -664,7 +672,7 @@ func (c *Client) deliverUDP(frame []byte) {
 		return
 	}
 	dst := frame[:6]
-	if !equalMAC(dst, c.mac[:]) && !broadcastMAC(dst) && !(dst[0] == 0x33 && dst[1] == 0x33) {
+	if !acceptsDestinationMAC(dst, c.mac) {
 		return
 	}
 	switch uint16(frame[12])<<8 | uint16(frame[13]) {

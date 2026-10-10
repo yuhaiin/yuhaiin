@@ -352,7 +352,7 @@ func signClientChallenge(certPEM, keyPEM string, challenge []byte) ([]byte, []by
 		return nil, nil, fmt.Errorf("softether: parse RSA client key: %w", err)
 	}
 	pub, ok := cert.PublicKey.(*rsa.PublicKey)
-	if !ok || pub.E != key.PublicKey.E || pub.N.Cmp(key.PublicKey.N) != 0 {
+	if !ok || pub.E != key.E || pub.N.Cmp(key.N) != 0 {
 		return nil, nil, errors.New("softether: certificate does not match RSA private key")
 	}
 	digest := sha1.Sum(challenge)
