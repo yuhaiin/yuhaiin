@@ -231,9 +231,13 @@ func (net *NetTun) ListenTCP(addr *net.TCPAddr) (*gonet.TCPListener, error) {
 func (n *NetTun) DialUDP(laddr, raddr *net.UDPAddr) (*gonet.UDPConn, error) {
 	var pn tcpip.NetworkProtocolNumber
 	var la, ra *tcpip.FullAddress
-	if laddr != nil && laddr.Port > 0 {
-		la, pn = n.toFullAddr(laddr.IP, laddr.Port)
-	}
+	if laddr != nil {
+        if laddr.Port > 0 {
+            la, pn = n.toFullAddr(laddr.IP, laddr.Port)
+        } else if laddr.IP != nil {
+            _, pn = n.toFullAddr(laddr.IP, 0)
+        }
+    }
 
 	if raddr != nil && raddr.Port > 0 {
 		ra, pn = n.toFullAddr(raddr.IP, raddr.Port)
