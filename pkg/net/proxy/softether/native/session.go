@@ -10,6 +10,7 @@ import (
 "crypto"
 "crypto/x509"
 "encoding/pem"
+"math"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -29,7 +30,22 @@ const (
 var ErrAuth = errors.New("softether: authentication failed")
 
 // ClientSession is the SoftEther VPN client side.
+type UDPClientOptions struct {
+    Port uint16
+    KeyV2 [128]byte
+    KeyV1 [20]byte
+}
+type UDPServerOptions struct {
+    Version uint32
+    KeyV2 [128]byte
+    Port uint16
+    ServerIP net.IP
+    ServerCookie uint32
+    ClientCookie uint32
+}
+
 type ClientSession struct {
+    udpServer *UDPServerOptions
 	conn   *tls.Conn
 	br     *bufio.Reader
 	blocks *blockReader
@@ -60,7 +76,12 @@ func Connect(ctx context.Context, raw net.Conn, tlsCfg *tls.Config, host, userna
 }
 
 // ConnectWithCert supports SoftEther native certificate authentication, not a TLS client certificate.
-func ConnectWithCert(ctx context.Context, raw net.Conn, tlsCfg *tls.Config, host, username, password, hubName, certPEM, keyPEM string) (_ *ClientSession, err error) {
+func ConnectWithCert(ctx context.Context, raw net.Conn, tlsCfg *tls.Config, host, username, password, hubName, certPEM, keyPEM string) (*ClientSession,error) {
+    return ConnectWithOptions(ctx,raw,tlsCfg,host,username,password,hubName,certPEM,keyPEM,nil)
+}
+
+// ConnectWithOptions performs native authentication and optional UDP v2 negotiation.
+func ConnectWithOptions(ctx context.Context, raw net.Conn, tlsCfg *tls.Config, host, username, password, hubName, certPEM, keyPEM string, udp *UDPClientOptions) (_ *ClientSession, err error) {
 	if raw == nil {
 		return nil, errors.New("softether: nil transport")
 	}
@@ -91,7 +112,7 @@ func ConnectWithCert(ctx context.Context, raw net.Conn, tlsCfg *tls.Config, host
 	if err := cs.hello(); err != nil {
 		return nil, err
 	}
-	if err := cs.login(username, password, certPEM, keyPEM); err != nil {
+	if err := cs.login(username, password, certPEM, keyPEM, udp); err != nil {
 		return nil, err
 	}
 	return cs, nil
@@ -117,7 +138,7 @@ func (cs *ClientSession) hello() error {
 	return nil
 }
 
-func (cs *ClientSession) login(username, password, certPEM, keyPEM string) error {
+func (cs *ClientSession) login(username, password, certPEM, keyPEM string, udp *UDPClientOptions) error {
 	var securePass [sha0Size]byte
 	certMode := certPEM != "" || keyPEM != ""
 	if !certMode { securePass = securePassword(hashPassword(username, password), cs.serverRandom) }
@@ -166,7 +187,18 @@ func (cs *ClientSession) login(username, password, certPEM, keyPEM string) error
 	req.Add("require_monitor_mode", TypeInt, IntValue(0))
 	req.Add("unique_id", TypeData, DataValue(cs.uniqueID[:]))
 
-	if err := cs.writePack(req); err != nil {
+	if udp!=nil && udp.Port!=0 {
+        req.Add("use_udp_acceleration",TypeInt,IntValue(1))
+        req.Add("udp_acceleration_version",TypeInt,IntValue(2))
+        req.Add("udp_acceleration_max_version",TypeInt,IntValue(2))
+        // PackAddIp on an unspecified IPv4 address is an integer zero.
+        req.Add("udp_acceleration_client_ip",TypeInt,IntValue(0))
+        req.Add("udp_acceleration_client_port",TypeInt,IntValue(uint32(udp.Port)))
+        req.Add("udp_acceleration_client_key",TypeData,DataValue(udp.KeyV1[:]))
+        req.Add("udp_acceleration_client_key_v2",TypeData,DataValue(udp.KeyV2[:]))
+        req.Add("support_udp_accel_fast_disconnect_detect",TypeInt,IntValue(1))
+    }
+    if err := cs.writePack(req); err != nil {
 		return err
 	}
 
@@ -185,7 +217,26 @@ func (cs *ClientSession) login(username, password, certPEM, keyPEM string) error
 		return fmt.Errorf("%w: login answered without a welcome", ErrAuth)
 	}
 
-	cs.sessionName = resp.GetStr("session_name")
+	if udp!=nil && resp.GetInt("use_udp_acceleration")!=0 &&
+        resp.GetInt("udp_acceleration_version")==2 && resp.GetInt("udp_acceleration_use_encryption")!=0 {
+        port:=resp.GetInt("udp_acceleration_server_port")
+        key:=resp.GetData("udp_acceleration_server_key_v2")
+        sc,cc:=resp.GetInt("udp_acceleration_server_cookie"),resp.GetInt("udp_acceleration_client_cookie")
+        if port>0 && port<65536 && len(key)==128 && sc!=0 && cc!=0 {
+            cfg:=&UDPServerOptions{Version:2,Port:uint16(port),ServerCookie:sc,ClientCookie:cc}
+            copy(cfg.KeyV2[:],key)
+            if resp.GetInt("udp_acceleration_server_ip@ipv6_bool")!=0 {
+                ip:=resp.GetData("udp_acceleration_server_ip@ipv6_array")
+                if len(ip)==16{cfg.ServerIP=net.IP(append([]byte(nil),ip...))}
+            } else {
+                a:=resp.GetInt("udp_acceleration_server_ip")
+                cfg.ServerIP=net.IPv4(byte(a),byte(a>>8),byte(a>>16),byte(a>>24))
+                if cfg.ServerIP.Equal(net.IPv4zero){cfg.ServerIP=nil}
+            }
+            cs.udpServer=cfg
+        }
+    }
+    cs.sessionName = resp.GetStr("session_name")
 	// The server's policy, if it sent one. It is recorded rather than enforced:
 	// see getPolicy for why Access cannot be acted on, and note that the
 	// reference client does not act on it either. Logging a session the server
@@ -282,3 +333,6 @@ func signClientChallenge(certPEM,keyPEM string,challenge []byte)([]byte,[]byte,e
  if err!=nil{return nil,nil,fmt.Errorf("softether: sign challenge: %w",err)}
  return cert.Raw,signature,nil
 }
+
+// UDPOptions reports the negotiated native UDP v2 transport, if the server accepted it.
+func (cs *ClientSession) UDPOptions() *UDPServerOptions { return cs.udpServer }
