@@ -5,6 +5,7 @@ package globalprotect
 
 import (
  "context"
+ "bytes"
  "crypto/tls"
  "crypto/x509"
  "encoding/xml"
@@ -78,6 +79,7 @@ type preloginResponse struct {
  Message string `xml:"msg"`
  SAMLStatus string `xml:"saml-auth-status"`
  SAMLRequest string `xml:"saml-request"`
+ SAMLMethod string `xml:"saml-auth-method"`
 }
 
 type control struct {
@@ -183,7 +185,7 @@ func (c *control) prelogin(ctx context.Context) error {
  if p.XMLName.Local != "prelogin-response" {
   return errors.New("globalprotect: unexpected prelogin response (portal-only gateway or interactive authentication)")
  }
- if p.SAMLRequest != "" || (p.SAMLStatus != "" && p.SAMLStatus != "0") { return ErrInteractiveAuth }
+ if p.SAMLRequest != "" || p.SAMLMethod != "" || (p.SAMLStatus != "" && p.SAMLStatus != "0") { return ErrInteractiveAuth }
  if !strings.EqualFold(p.Status, "success") {
   return fmt.Errorf("globalprotect: prelogin refused: %s", p.Message)
  }
@@ -200,6 +202,13 @@ func commonLoginForm(c *control, user, pass string) url.Values {
 }
 
 func parseLogin(data []byte) (session, error) {
+ // Challenge-based OTP/MFA can be returned as XML or as an old JS snippet.
+ // Both are interactive and must never be mistaken for a successful login.
+ trimmed := bytes.TrimSpace(data)
+ if bytes.HasPrefix(trimmed, []byte("<challenge")) ||
+  (bytes.Contains(data, []byte("respStatus")) && bytes.Contains(data, []byte("Challenge"))) {
+  return session{}, ErrInteractiveAuth
+ }
  var response jnlpResponse
  if err := xml.Unmarshal(data, &response); err != nil { return session{}, fmt.Errorf("globalprotect: login XML: %w", err) }
  if response.XMLName.Local != "jnlp" || len(response.Arguments) < 8 {
@@ -227,6 +236,7 @@ func (c *control) login(ctx context.Context, user, pass string) (session, error)
 func (c *control) getConfig(ctx context.Context, s session) (gatewayConfig, netip.Prefix, error) {
  values := url.Values{
   "user":{s.User}, "authcookie":{s.Cookie}, "portal":{s.Portal},
+  "domain":{s.Domain}, "computer":{c.computer},
   "client-type":{"1"}, "protocol-version":{"p1"}, "app-version":{clientVersion},
   "clientos":{clientOS}, "os-version":{osVersion},
   "enc-algo":{"aes-128-cbc"}, "hmac-algo":{"sha1"},
@@ -236,10 +246,10 @@ func (c *control) getConfig(ctx context.Context, s session) (gatewayConfig, neti
  if err != nil { return gatewayConfig{}, netip.Prefix{}, err }
  var cfg gatewayConfig
  if err := xml.Unmarshal(data, &cfg); err != nil { return cfg, netip.Prefix{}, fmt.Errorf("globalprotect: config XML: %w", err) }
- if cfg.XMLName.Local != "response" || !strings.EqualFold(cfg.Status, "success") {
+ if cfg.XMLName.Local != "response" || (cfg.Status != "" && !strings.EqualFold(cfg.Status, "success")) {
   return cfg, netip.Prefix{}, fmt.Errorf("globalprotect: getconfig refused: %s", cfg.Error)
  }
- if !strings.EqualFold(cfg.NeedTunnel, "yes") { return cfg, netip.Prefix{}, errors.New("globalprotect: gateway did not enable IP tunnel") }
+ if cfg.NeedTunnel != "" && !strings.EqualFold(cfg.NeedTunnel, "yes") { return cfg, netip.Prefix{}, errors.New("globalprotect: gateway did not enable IP tunnel") }
  ip, err := netip.ParseAddr(cfg.IPAddress)
  if err != nil || !ip.Is4() { return cfg, netip.Prefix{}, errors.New("globalprotect: missing or unsupported IPv4 tunnel address") }
  bits := 32
