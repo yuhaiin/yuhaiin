@@ -107,6 +107,28 @@ type GlobalProtect struct {
 	MTU                int32  `json:"mtu,omitzero"`
 }
 
+// NodeExtraInfo contains runtime details returned by an outbound after it has
+// connected. It is read from the existing runtime instance and does not start
+// a new connection.
+type NodeExtraInfo struct {
+	GlobalProtect *GlobalProtectInfo `json:"globalprotect,omitzero"`
+}
+
+// GlobalProtectInfo is the tunnel and network configuration returned by
+// GlobalProtect getconfig. Routes are informational and are not applied by
+// the GlobalProtect outbound.
+type GlobalProtectInfo struct {
+	TunnelPrefix                 string   `json:"tunnel_prefix,omitempty"`
+	AccessRoutesIPv4             []string `json:"access_routes_ipv4,omitempty"`
+	ExcludeRoutesIPv4            []string `json:"exclude_routes_ipv4,omitempty"`
+	AccessRoutesIPv6             []string `json:"access_routes_ipv6,omitempty"`
+	ExcludeRoutesIPv6            []string `json:"exclude_routes_ipv6,omitempty"`
+	DNS                          []string `json:"dns,omitempty"`
+	DNSv6                        []string `json:"dns_v6,omitempty"`
+	DNSSuffix                    []string `json:"dns_suffix,omitempty"`
+	NoDirectAccessToLocalNetwork string   `json:"no_direct_access_to_local_network,omitempty"`
+}
+
 type None struct{}
 type Reject struct{}
 type Drop struct{}

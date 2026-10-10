@@ -12,9 +12,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 )
 
 func TestSSLFrameRoundTrip(t *testing.T) {
@@ -173,7 +176,17 @@ func TestGatewayAuthAndConfig(t *testing.T) {
 			if r.Form.Get("authcookie") != "cookie-123" {
 				t.Error("missing session cookie")
 			}
-			body = "<response status=\"success\"><need-tunnel>yes</need-tunnel><ip-address>10.0.0.8</ip-address><netmask>255.255.255.255</netmask><ssl-tunnel-url>/ssl-tunnel-connect.sslvpn</ssl-tunnel-url><mtu>0</mtu><timeout>3600</timeout></response>"
+			body = `<response status="success"><need-tunnel>yes</need-tunnel>
+<ip-address>10.0.0.8</ip-address><netmask>255.255.255.255</netmask>
+<ssl-tunnel-url>/ssl-tunnel-connect.sslvpn</ssl-tunnel-url><mtu>0</mtu><timeout>3600</timeout>
+<dns></dns><dns-v6></dns-v6><dns-suffix></dns-suffix>
+<access-routes>
+<member>192.0.2.100/32</member><member>198.51.100.21/32</member><member>203.0.113.5/32</member>
+<member>192.0.2.0/24</member><member>198.51.100.0/24</member><member>203.0.113.0/24</member><member>198.18.103.0/24</member>
+</access-routes>
+<exclude-access-routes></exclude-access-routes>
+<access-routes-v6></access-routes-v6><exclude-access-routes-v6></exclude-access-routes-v6>
+<no-direct-access-to-local-network>no</no-direct-access-to-local-network></response>`
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{}, Request: r}, nil
 	})
@@ -189,8 +202,31 @@ func TestGatewayAuthAndConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ip.String() != "10.0.0.8/32" || cfg.Timeout != 3600 || index != 3 {
+	wantRoutes := []string{
+		"192.0.2.100/32", "198.51.100.21/32", "203.0.113.5/32",
+		"192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "198.18.103.0/24",
+	}
+	if ip.String() != "10.0.0.8/32" || cfg.Timeout != 3600 || index != 3 ||
+		!slices.Equal(cfg.AccessRoutes, wantRoutes) || len(cfg.ExcludeRoutes) != 0 ||
+		len(cfg.AccessRoutesV6) != 0 || len(cfg.ExcludeRoutesV6) != 0 ||
+		cfg.NoDirectAccess != "no" {
 		t.Fatalf("ip=%s cfg=%+v requests=%d", ip, cfg, index)
+	}
+}
+
+func TestNodeExtraInfoCopiesGatewayConfig(t *testing.T) {
+	client := Client{extraInfo: contractnode.GlobalProtectInfo{
+		TunnelPrefix:     "10.0.0.8/32",
+		AccessRoutesIPv4: []string{"192.0.2.0/24"},
+	}}
+	info := client.NodeExtraInfo()
+	if info.GlobalProtect == nil || info.GlobalProtect.TunnelPrefix != "10.0.0.8/32" ||
+		!slices.Equal(info.GlobalProtect.AccessRoutesIPv4, []string{"192.0.2.0/24"}) {
+		t.Fatalf("unexpected GlobalProtect extra info: %+v", info)
+	}
+	info.GlobalProtect.AccessRoutesIPv4[0] = "203.0.113.0/24"
+	if got := client.NodeExtraInfo().GlobalProtect.AccessRoutesIPv4[0]; got != "192.0.2.0/24" {
+		t.Fatalf("returned route slice aliases client state: %s", got)
 	}
 }
 

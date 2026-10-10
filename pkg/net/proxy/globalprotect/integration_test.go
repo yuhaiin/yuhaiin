@@ -10,11 +10,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/tailscale/wireguard-go/tun"
@@ -109,7 +111,14 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 			_, _ = fmt.Fprintf(w, `<response status="success"><need-tunnel>yes</need-tunnel>
 <ip-address>%s</ip-address><netmask>255.255.255.255</netmask>
 <ssl-tunnel-url>/ssl-tunnel-connect.sslvpn</ssl-tunnel-url><mtu>%d</mtu>
-<timeout>3600</timeout><ipsec><ipsec-mode>esp-tunnel</ipsec-mode></ipsec></response>`, clientIP, mtu)
+<timeout>3600</timeout><dns></dns><dns-v6></dns-v6><dns-suffix></dns-suffix>
+<access-routes><member>192.0.2.100/32</member><member>198.51.100.21/32</member>
+<member>203.0.113.5/32</member><member>192.0.2.0/24</member><member>198.51.100.0/24</member>
+<member>203.0.113.0/24</member><member>198.18.103.0/24</member></access-routes>
+<exclude-access-routes></exclude-access-routes><access-routes-v6></access-routes-v6>
+<exclude-access-routes-v6></exclude-access-routes-v6>
+<no-direct-access-to-local-network>no</no-direct-access-to-local-network>
+<ipsec><ipsec-mode>esp-tunnel</ipsec-mode></ipsec></response>`, clientIP, mtu)
 		case "/ssl-vpn/logout.esp":
 			mu.Lock()
 			sawLogout = true
@@ -198,6 +207,21 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer proxy.Close()
+	infoProvider, ok := proxy.(interface {
+		NodeExtraInfo() contractnode.NodeExtraInfo
+	})
+	if !ok {
+		t.Fatalf("GlobalProtect proxy does not expose gateway extra info: %T", proxy)
+	}
+	info := infoProvider.NodeExtraInfo().GlobalProtect
+	wantRoutes := []string{
+		"192.0.2.100/32", "198.51.100.21/32", "203.0.113.5/32",
+		"192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "198.18.103.0/24",
+	}
+	if info == nil || info.TunnelPrefix != clientIP+"/32" || !slices.Equal(info.AccessRoutesIPv4, wantRoutes) ||
+		len(info.ExcludeRoutesIPv4) != 0 || info.NoDirectAccessToLocalNetwork != "no" {
+		t.Fatalf("unexpected gateway extra info: %+v", info)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

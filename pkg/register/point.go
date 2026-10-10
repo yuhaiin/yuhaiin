@@ -66,6 +66,16 @@ func (n *networkSplit) PacketConn(ctx context.Context, addr netapi.Address) (net
 	return n.udp.PacketConn(ctx, addr)
 }
 
+func (n *networkSplit) NodeExtraInfo() contractnode.NodeExtraInfo {
+	provider, ok := n.Proxy.(interface {
+		NodeExtraInfo() contractnode.NodeExtraInfo
+	})
+	if !ok {
+		return contractnode.NodeExtraInfo{}
+	}
+	return provider.NodeExtraInfo()
+}
+
 func (n *networkSplit) Close() error {
 	var err error
 	if er := n.tcp.Close(); er != nil {

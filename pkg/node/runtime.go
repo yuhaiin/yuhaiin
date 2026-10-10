@@ -228,6 +228,40 @@ func (r *NodeRuntime) Active(context.Context) ([]contractnode.Node, error) {
 	return items, nil
 }
 
+func (r *NodeRuntime) ExtraInfo(_ context.Context, id string) (contractnode.NodeExtraInfo, error) {
+	if id == "" {
+		return contractnode.NodeExtraInfo{}, errors.New("node id is empty")
+	}
+
+	var (
+		info  contractnode.NodeExtraInfo
+		found bool
+	)
+	r.proxies.Range(func(key string, entry *ProxyEntry) bool {
+		if key != id || entry == nil {
+			return true
+		}
+		entry.mu.RLock()
+		proxy := entry.Proxy
+		entry.mu.RUnlock()
+		provider, ok := proxy.(interface {
+			NodeExtraInfo() contractnode.NodeExtraInfo
+		})
+		if ok {
+			candidate := provider.NodeExtraInfo()
+			if candidate.GlobalProtect != nil {
+				info = candidate
+				found = true
+			}
+		}
+		return false
+	})
+	if !found {
+		return contractnode.NodeExtraInfo{}, plainstore.ErrNotFound
+	}
+	return info, nil
+}
+
 func (r *NodeRuntime) CloseNode(_ context.Context, id string) error {
 	if id != "" {
 		r.proxies.Delete(id)

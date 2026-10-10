@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -43,6 +44,7 @@ type Client struct {
 	dialer       *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
 	mtu          int
 	tunnelURL    string
+	extraInfo    contractnode.GlobalProtectInfo
 }
 
 var _ netapi.Proxy = (*Client)(nil)
@@ -127,6 +129,17 @@ func NewClient(config Config, _ netapi.Proxy) (_ netapi.Proxy, err error) {
 		control: control, session: s, tunnel: network, conn: conn,
 		ctx: runCtx, cancel: runCancel, mtu: mtu,
 		tunnelURL: cfg.TunnelURL,
+		extraInfo: contractnode.GlobalProtectInfo{
+			TunnelPrefix:                 addr.String(),
+			AccessRoutesIPv4:             slices.Clone(cfg.AccessRoutes),
+			ExcludeRoutesIPv4:            slices.Clone(cfg.ExcludeRoutes),
+			AccessRoutesIPv6:             slices.Clone(cfg.AccessRoutesV6),
+			ExcludeRoutesIPv6:            slices.Clone(cfg.ExcludeRoutesV6),
+			DNS:                          slices.Clone(cfg.DNS),
+			DNSv6:                        slices.Clone(cfg.DNSv6),
+			DNSSuffix:                    slices.Clone(cfg.DNSSuffix),
+			NoDirectAccessToLocalNetwork: cfg.NoDirectAccess,
+		},
 		dialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
 			return network.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 		}),
@@ -154,6 +167,20 @@ func NewClient(config Config, _ netapi.Proxy) (_ netapi.Proxy, err error) {
 		go client.expireIdleAfter(secondsDuration(cfg.DisconnectOnIdle))
 	}
 	return client, nil
+}
+
+// NodeExtraInfo returns a copy of the configuration received during this
+// client's getconfig request.
+func (c *Client) NodeExtraInfo() contractnode.NodeExtraInfo {
+	info := c.extraInfo
+	info.AccessRoutesIPv4 = slices.Clone(info.AccessRoutesIPv4)
+	info.ExcludeRoutesIPv4 = slices.Clone(info.ExcludeRoutesIPv4)
+	info.AccessRoutesIPv6 = slices.Clone(info.AccessRoutesIPv6)
+	info.ExcludeRoutesIPv6 = slices.Clone(info.ExcludeRoutesIPv6)
+	info.DNS = slices.Clone(info.DNS)
+	info.DNSv6 = slices.Clone(info.DNSv6)
+	info.DNSSuffix = slices.Clone(info.DNSSuffix)
+	return contractnode.NodeExtraInfo{GlobalProtect: &info}
 }
 
 func secondsDuration(seconds int) time.Duration {

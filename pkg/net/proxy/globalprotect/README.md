@@ -60,8 +60,11 @@ The client always uses the SSL tunnel. It ignores optional ESP settings when
 the server also provides SSL tunnel configuration; ESP-only gateways are not
 supported.
 
-The current UI may require raw contract/API configuration until a dedicated
-frontend editor is added. Credentials are saved with the node using the
+The web node editor includes a GlobalProtect configuration form. After the
+node has connected, its editor can load the last gateway configuration
+returned by `getconfig`, including assigned address, routes, DNS, and the
+local-network policy. This reads the active runtime instance and does not
+start or retry a connection. Credentials are saved with the node using the
 existing yuhaiin node-store security model; protect exports/backups.
 
 The outbound does not automatically replace yuhaiin's own routing or DNS
@@ -75,7 +78,9 @@ go test ./pkg/net/proxy/globalprotect ./pkg/contract/node ./pkg/register
 ```
 
 Unit tests cover tunnel frame validity, DPD, malformed frames, XML login and
-configuration responses, unsupported SSO, and typed protocol JSON round-trip.
+configuration responses (including route lists), unsupported SSO, and typed
+protocol JSON round-trip. Runtime and API tests verify gateway information is
+available only from the active cached outbound.
 The in-process `TestGatewayEndToEndTCPUDP` starts a mock TLS Gateway and
 a second gVisor IP stack, then exercises the full client lifecycle with TCP
 and UDP echo traffic, followed by logout. This is a **mock-server integration
@@ -99,6 +104,7 @@ cannot validate actual packet transport. Our separate Go in-process Gateway
 drives TCP and UDP traffic through two gVisor stacks, but still isn't PAN-OS.
 
 References:
+
 - [PAN GlobalProtect protocol observations](https://github.com/dlenski/openconnect/blob/master/PAN_GlobalProtect_protocol_doc.md)
 - [OpenConnect authentication test](https://gitlab.com/openconnect/openconnect/-/blob/master/tests/gp-auth-and-config)
 - [OpenConnect fake GP server](https://gitlab.com/openconnect/openconnect/-/blob/master/tests/fake-gp-server.py)

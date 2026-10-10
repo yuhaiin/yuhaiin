@@ -1,10 +1,13 @@
 package node
 
 import (
+	"errors"
 	"testing"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
 func newTestRuntime(t *testing.T) *NodeRuntime {
@@ -98,6 +101,43 @@ func TestActiveContractOnlyReturnsRuntimeDialers(t *testing.T) {
 		t.Fatalf("active after deleting active-a = %+v", active)
 	}
 }
+
+func TestExtraInfoReadsOnlyCachedProxy(t *testing.T) {
+	runtime := newTestRuntime(t)
+	want := contractnode.NodeExtraInfo{GlobalProtect: &contractnode.GlobalProtectInfo{
+		TunnelPrefix:     "192.0.2.8/32",
+		AccessRoutesIPv4: []string{"198.51.100.0/24"},
+	}}
+	if _, err := runtime.proxies.LoadOrCreate(t.Context(), "pa-node", func() (*ProxyEntry, error) {
+		return &ProxyEntry{
+			Proxy: extraInfoTestProxy{
+				Proxy: netapi.NewErrProxy(errors.New("proxy must not be used to fetch runtime information")),
+				info:  want,
+			},
+		}, nil
+	}); err != nil {
+		t.Fatalf("seed cached proxy: %v", err)
+	}
+
+	got, err := runtime.ExtraInfo(t.Context(), "pa-node")
+	if err != nil {
+		t.Fatalf("read cached extra info: %v", err)
+	}
+	if got.GlobalProtect == nil || got.GlobalProtect.TunnelPrefix != want.GlobalProtect.TunnelPrefix ||
+		len(got.GlobalProtect.AccessRoutesIPv4) != 1 || got.GlobalProtect.AccessRoutesIPv4[0] != "198.51.100.0/24" {
+		t.Fatalf("extra info = %+v, want %+v", got, want)
+	}
+	if _, err := runtime.ExtraInfo(t.Context(), "inactive-node"); !errors.Is(err, plainstore.ErrNotFound) {
+		t.Fatalf("inactive node error = %v, want %v", err, plainstore.ErrNotFound)
+	}
+}
+
+type extraInfoTestProxy struct {
+	netapi.Proxy
+	info contractnode.NodeExtraInfo
+}
+
+func (p extraInfoTestProxy) NodeExtraInfo() contractnode.NodeExtraInfo { return p.info }
 
 func testNode(t *testing.T, id, name string) contractnode.Node {
 	t.Helper()

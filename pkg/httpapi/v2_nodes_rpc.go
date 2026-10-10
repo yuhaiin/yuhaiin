@@ -22,6 +22,7 @@ func addNodeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2NodeUse, api.useNode)
 	addRPCRoute(handlers, v2NodeLatency, api.nodeLatency)
 	addRPCRoute(handlers, v2NodeClose, api.closeNode)
+	addRPCRoute(handlers, v2NodeExtraInfo, api.nodeExtraInfo)
 }
 
 func addResolverRPCRoutesV2(handlers *v2Handlers, services V2Services) {
@@ -137,6 +138,21 @@ func (a v2API) closeNode(ctx context.Context, request *idRequest) (*emptyRespons
 	}
 	return &emptyResponse{}, nil
 }
+
+func (a v2API) nodeExtraInfo(ctx context.Context, request *idRequest) (*contractnode.NodeExtraInfo, error) {
+	if a.services.Node == nil {
+		return nil, unavailable("node controller is unavailable")
+	}
+	info, err := a.services.Node.ExtraInfo(ctx, request.ID)
+	if errors.Is(err, plainstore.ErrNotFound) {
+		return nil, notFound(errors.New("node is not active or has no runtime extra information"))
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
 func (a v2API) resolvers(ctx context.Context, request *listRequest) (*listV2[contractresolver.Resolver], error) {
 	if a.services.Resolvers == nil {
 		return nil, unavailable("resolver store is unavailable")
