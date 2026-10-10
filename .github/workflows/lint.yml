@@ -54,12 +54,12 @@ jobs:
           go fix ./...
           git diff --exit-code
 
-  globalprotect-tests:
+  vpn-outbound-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
         with:
-          cache-scope: globalprotect-tests
-      - name: Test GlobalProtect outbound and node contract
-        run: go test -race ./pkg/net/proxy/globalprotect ./pkg/contract/node ./pkg/register
+          cache-scope: vpn-outbound-tests
+      - name: Test VPN outbounds and node contract
+        run: go test -race ./pkg/net/proxy/globalprotect ./pkg/net/proxy/softether/... ./pkg/contract/node ./pkg/register
