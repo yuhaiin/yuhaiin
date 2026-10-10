@@ -69,7 +69,7 @@ func Connect(ctx context.Context, raw net.Conn, tlsCfg *tls.Config, host, userna
 	}
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = conn.SetDeadline(deadline)
-		defer conn.SetDeadline(time.Time{})
+		defer func() { _ = conn.SetDeadline(time.Time{}) }()
 	}
 	cs := &ClientSession{conn: conn, br: bufio.NewReader(conn), host: host, hubName: hubName, logf: func(string, ...interface{}) {}}
 	if _, err := rand.Read(cs.uniqueID[:]); err != nil {
