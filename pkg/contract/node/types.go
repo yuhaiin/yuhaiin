@@ -348,6 +348,7 @@ func (HTTP2) ProtocolType() string                { return "http2" }
 func (Reality) ProtocolType() string              { return "reality" }
 func (TLS) ProtocolType() string                  { return "tls" }
 func (Wireguard) ProtocolType() string            { return "wireguard" }
+func (GlobalProtect) ProtocolType() string        { return "globalprotect" }
 func (Mux) ProtocolType() string                  { return "mux" }
 func (Drop) ProtocolType() string                 { return "drop" }
 func (Vless) ProtocolType() string                { return "vless" }
