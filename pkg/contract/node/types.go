@@ -85,6 +85,7 @@ type Protocol struct {
 	TLS                  *TLS                  `json:"tls,omitzero"`
 	Wireguard            *Wireguard            `json:"wireguard,omitzero"`
 	GlobalProtect        *GlobalProtect        `json:"globalprotect,omitzero"`
+	SoftEther            *SoftEther            `json:"softether,omitzero"`
 	Mux                  *Concurrency          `json:"mux,omitzero"`
 	Drop                 *Drop                 `json:"drop,omitzero"`
 	Vless                *Vless                `json:"vless,omitzero"`
@@ -113,6 +114,20 @@ type GlobalProtect struct {
 	CACertPEM          string `json:"ca_cert_pem,omitzero"`
 	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
 	MTU                int32  `json:"mtu,omitzero"`
+}
+
+// SoftEther configures the native SSL-VPN protocol (not SSTP).
+// The virtual hub must provide DHCP unless Address and Router are set.
+type SoftEther struct {
+	Gateway string `json:"gateway"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Hub string `json:"hub,omitzero"`
+	CACertPEM string `json:"ca_cert_pem,omitzero"`
+	InsecureSkipVerify bool `json:"insecure_skip_verify,omitzero"`
+	Address string `json:"address,omitzero"`
+	Router string `json:"router,omitzero"`
+	MTU int32 `json:"mtu,omitzero"`
 }
 
 // NodeExtraInfo contains runtime details returned by an outbound after it has
@@ -380,6 +395,7 @@ func (Reality) ProtocolType() string              { return "reality" }
 func (TLS) ProtocolType() string                  { return "tls" }
 func (Wireguard) ProtocolType() string            { return "wireguard" }
 func (GlobalProtect) ProtocolType() string        { return "globalprotect" }
+func (SoftEther) ProtocolType() string            { return "softether" }
 func (Mux) ProtocolType() string                  { return "mux" }
 func (Drop) ProtocolType() string                 { return "drop" }
 func (Vless) ProtocolType() string                { return "vless" }
@@ -575,6 +591,7 @@ func (x Protocol) presentVariants() map[string]bool {
 		"tls":                    x.TLS != nil,
 		"wireguard":              x.Wireguard != nil,
 		"globalprotect":          x.GlobalProtect != nil,
+		"softether":              x.SoftEther != nil,
 		"mux":                    x.Mux != nil,
 		"drop":                   x.Drop != nil,
 		"vless":                  x.Vless != nil,
