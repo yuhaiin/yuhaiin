@@ -85,6 +85,7 @@ type control struct {
  tlsConfig *tls.Config
  client *http.Client
  transport *http.Transport
+ dial func(context.Context, string) (net.Conn, error)
  computer string
 }
 
@@ -113,21 +114,24 @@ func newControl(c Config) (*control, error) {
   return nil, errors.New("globalprotect: invalid CA certificate PEM")
  }
  tlsConfig := &tls.Config{ServerName: gateway.Hostname(), MinVersion: tls.VersionTLS12, RootCAs: roots}
+ tcpDial := func(ctx context.Context, address string) (net.Conn, error) {
+  a, err := netapi.ParseAddress("tcp", address)
+  if err != nil { return nil, err }
+  return dialer.DialHappyEyeballsv1(ctx, a)
+ }
  tr := &http.Transport{
   TLSClientConfig: tlsConfig,
   DisableKeepAlives: true,
   ForceAttemptHTTP2: false,
   DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-   a, err := netapi.ParseAddress("tcp", address)
-   if err != nil { return nil, err }
-   return dialer.DialHappyEyeballsv1(ctx, a)
+   return tcpDial(ctx, address)
   },
  }
  computer := c.Computer
  if computer == "" { computer, _ = os.Hostname() }
  if computer == "" { computer = "yuhaiin" }
  return &control{
-  gateway: gateway, tlsConfig: tlsConfig, transport: tr, computer: computer,
+  gateway: gateway, tlsConfig: tlsConfig, transport: tr, dial: tcpDial, computer: computer,
   client: &http.Client{Transport: tr, Timeout: 20 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
    return http.ErrUseLastResponse
   }},
@@ -139,9 +143,7 @@ func (c *control) close() { c.transport.CloseIdleConnections() }
 func (c *control) dialTLS(ctx context.Context) (*tls.Conn, error) {
  address := c.gateway.Host
  if c.gateway.Port() == "" { address = net.JoinHostPort(c.gateway.Hostname(), "443") }
- a, err := netapi.ParseAddress("tcp", address)
- if err != nil { return nil, err }
- raw, err := dialer.DialHappyEyeballsv1(ctx, a)
+ raw, err := c.dial(ctx, address)
  if err != nil { return nil, err }
  conn := tls.Client(raw, c.tlsConfig.Clone())
  if err = conn.HandshakeContext(ctx); err != nil {
