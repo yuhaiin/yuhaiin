@@ -154,7 +154,7 @@ func parseDHCP(frame []byte, mac macAddr, xid uint32) (msg byte, l lease, ok boo
 	if d[0] != 2 || d[1] != 1 || d[2] != 6 || binary.BigEndian.Uint32(d[4:8]) != xid {
 		return
 	}
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		if d[28+i] != mac[i] {
 			return
 		}
