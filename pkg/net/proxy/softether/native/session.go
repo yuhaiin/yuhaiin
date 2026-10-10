@@ -10,7 +10,6 @@ import (
 "crypto"
 "crypto/x509"
 "encoding/pem"
-"math"
 	"crypto/tls"
 	"errors"
 	"fmt"
