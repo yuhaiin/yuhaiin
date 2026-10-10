@@ -190,7 +190,6 @@ type BlockHistoryList struct {
 	DumpProcessEnabled bool           `json:"dumpProcessEnabled"`
 }
 
-
 type Registry struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`

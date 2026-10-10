@@ -42,6 +42,13 @@ jobs:
       - uses: ./.github/actions/setup-go
         with:
           cache-scope: go-fix
+      - name: gofmt check
+        run: |
+          unformatted="$(git ls-files -z -- '*.go' | xargs -0 gofmt -l)"
+          if [[ -n "$unformatted" ]]; then
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
       - name: go fix check
         run: |
           go fix ./...

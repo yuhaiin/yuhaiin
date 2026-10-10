@@ -11,15 +11,19 @@ IP stack (the same one used by WireGuard) to expose TCP and UDP connections.
 - Authenticated SSL IP tunnel, IPv4, DPD/keepalive, TCP/UDP via gVisor
 - Validates server certificates against the system trust store, optionally
   extended by a PEM certificate authority. There is no insecure TLS flag.
-- Tunnel MTU defaults to 1300 when the gateway returns zero.
+- Tunnel MTU uses the configured value or the gateway value; when both are
+  zero, it is derived from the TLS TCP MSS (with OpenConnect's conservative
+  base-MTU fallback where the socket MSS is unavailable).
 
 **Not supported yet:** portal discovery, client certificates, SAML/SSO,
-interactive MFA/challenges, HIP reports, ESP/UDP, IPv6 negotiation, automatic
-rekey/reauthentication, applying gateway-pushed DNS/split routes, and automatic
-reconnection. If the gateway requires these features, this outbound may not
-connect. A tunnel lifetime returned by the gateway is enforced: when it
-expires, the tunnel closes with an explicit error instead of continuing with
-expired credentials. This early version is not a replacement for the official
+interactive MFA/challenges, HIP reports, ESP/UDP, IPv6 negotiation,
+reauthentication after the authentication lifetime, applying gateway-pushed
+DNS, split routes or local-network policy, and automatic reconnection. Gateways
+requiring HIP or ESP are rejected with an explicit error. A gateway `<timeout>`
+causes a TLS tunnel rekey 60 seconds before the timeout, or halfway through
+shorter intervals. `<lifetime>` and `<disconnect-on-idle>` are enforced
+separately. An expired authentication lifetime closes the tunnel and requires
+a new login. This early version is not a replacement for the official
 enterprise-managed endpoint client.
 
 ## Node example
@@ -54,7 +58,8 @@ frontend editor is added. Credentials are saved with the node using the
 existing yuhaiin node-store security model; protect exports/backups.
 
 The outbound does not automatically replace yuhaiin's own routing or DNS
-configuration. Configure split routing and DNS explicitly in yuhaiin.
+configuration, or apply the gateway's local-network policy. Configure split
+routing and DNS explicitly in yuhaiin.
 
 ## Tests
 

@@ -515,5 +515,4 @@ var migrations = []Migration{
 			)`,
 		},
 	},
-
 }
