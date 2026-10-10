@@ -33,7 +33,7 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20260921001439-3c98159dee38
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261009035247-d5be68ea987b
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261010161233-f286413a1a45
 	golang.org/x/crypto v0.58.0
 	golang.org/x/mobile v0.0.0-20260908204917-8b95e45f8d3e
 	golang.org/x/mod v0.42.0
