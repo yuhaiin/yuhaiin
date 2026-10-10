@@ -56,6 +56,9 @@ type Client struct {
 	network    *wireguard.NetTun
 	mac        macAddr
 	gatewayMAC macAddr
+    gatewayMAC6 macAddr
+    ipv6 netip.Addr
+    router6 netip.Addr
 	ip         netip.Addr
 	router     netip.Addr
 	mtu        int
@@ -125,7 +128,22 @@ func NewClient(cfg Config, upstream netapi.Proxy) (*Client, error) {
 	if (cfg.Address == "") != (cfg.Router == "") {
 		return nil, errors.New("softether: static address and router must be provided together")
 	}
-	var static lease
+	if (cfg.IPv6Address=="")!=(cfg.IPv6Router=="") {return nil,errors.New("softether: IPv6 address and router must be supplied together")}
+    var ipv6Prefix netip.Prefix
+    var ipv6Router netip.Addr
+    if cfg.IPv6Address!="" {
+        if cfg.MTU<1280{return nil,errors.New("softether: IPv6 MTU must be at least 1280")}
+        var e error
+        ipv6Prefix,e=netip.ParsePrefix(cfg.IPv6Address)
+        if e!=nil || !ipv6Prefix.Addr().Is6() || ipv6Prefix.Addr().IsUnspecified() || ipv6Prefix.Addr().IsMulticast() {
+            return nil,errors.New("softether: invalid static IPv6 prefix")
+        }
+        ipv6Router,e=netip.ParseAddr(cfg.IPv6Router)
+        if e!=nil || !ipv6Router.Is6() || ipv6Router.IsUnspecified() || ipv6Router.IsMulticast(){
+            return nil,errors.New("softether: invalid IPv6 router")
+        }
+    }
+    var static lease
 	if cfg.Address != "" {
 		prefix, e := netip.ParsePrefix(cfg.Address)
 		if e != nil || !prefix.Addr().Is4() {
@@ -187,14 +205,22 @@ func NewClient(cfg Config, upstream netapi.Proxy) (*Client, error) {
 		_ = session.Close()
 		return nil, err
 	}
-	network, err := wireguard.CreateNetTUN([]netip.Prefix{netip.PrefixFrom(l.ip, l.mask)}, cfg.MTU)
+	prefixes:=[]netip.Prefix{netip.PrefixFrom(l.ip,l.mask)}
+    var nextHop6 macAddr
+    if ipv6Prefix.IsValid(){
+        nextHop6,err=resolveIPv6Router(session,mac,ipv6Prefix.Addr(),ipv6Router,7*time.Second)
+        if err!=nil{_ = session.Close();return nil,err}
+        prefixes=append(prefixes,ipv6Prefix)
+    }
+    network, err := wireguard.CreateNetTUN(prefixes, cfg.MTU)
 	if err != nil {
 		_ = session.Close()
 		return nil, err
 	}
 	runCtx, runCancel := context.WithCancel(context.Background())
 	c := &Client{session: session, network: network, mac: mac, gatewayMAC: nextHop,
-		ip: l.ip, router: l.router, mtu: cfg.MTU, ctx: runCtx, cancel: runCancel}
+		ip: l.ip, router: l.router, mtu: cfg.MTU, ctx: runCtx, cancel: runCancel,
+       ipv6:ipv6Prefix.Addr(),router6:ipv6Router,gatewayMAC6:nextHop6}
 	c.tcp = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
 		return network.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 	})
@@ -216,7 +242,7 @@ func (c *Client) receive() {
 			continue
 		}
 		dst := frame[:6]
-		if !equalMAC(dst, c.mac[:]) && !broadcastMAC(dst) {
+		if !equalMAC(dst, c.mac[:]) && !broadcastMAC(dst) && !(len(dst)==6 && dst[0]==0x33 && dst[1]==0x33) {
 			continue
 		}
 		switch uint16(frame[12])<<8 | uint16(frame[13]) {
@@ -228,6 +254,16 @@ func (c *Client) receive() {
 					return
 				}
 			}
+        case etherIPv6:
+            if !c.ipv6.Is6(){continue}
+            typ,target,src,_,from,ok:=parseNeighborMessage(frame)
+            if ok && typ==135 && target==c.ipv6 && src.Is6() && !src.IsUnspecified(){
+                if err:=c.session.WriteFrame(neighborAdvertise(c.mac,from,c.ipv6,src));err!=nil{go c.Close();return}
+                continue
+            }
+            pkt:=frame[14:]
+            if len(pkt)==0 || pkt[0]>>4!=6 || !equalMAC(dst,c.mac[:]){continue}
+            if _,err:=c.network.Write([][]byte{pkt},0);err!=nil{go c.Close();return}
 		case etherIPv4:
 			pkt := frame[14:]
 			if len(pkt) == 0 || pkt[0]>>4 != 4 {
@@ -278,10 +314,16 @@ func (c *Client) transmit() {
 				continue
 			}
 			ip := buf[p.Offset : p.Offset+p.Size]
-			if ip[0]>>4 != 4 {
-				continue
-			}
-			if err := c.session.WriteFrame(ethernetFrame(c.gatewayMAC, c.mac, etherIPv4, ip)); err != nil {
+			var ethertype uint16
+            var dst macAddr
+            switch ip[0]>>4 {
+            case 4: ethertype,dst=etherIPv4,c.gatewayMAC
+            case 6:
+                if !c.ipv6.Is6(){continue}
+                ethertype,dst=etherIPv6,c.gatewayMAC6
+            default: continue
+            }
+			if err := c.session.WriteFrame(ethernetFrame(dst, c.mac, ethertype, ip)); err != nil {
 				go c.Close()
 				return
 			}
@@ -316,11 +358,18 @@ func (c *Client) Conn(ctx context.Context, address netapi.Address) (net.Conn, er
 	return wireguard.NewWrapGoNetTcpConn(conn), nil
 }
 
-func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketConn, error) {
+func (c *Client) PacketConn(ctx context.Context, destination netapi.Address) (net.PacketConn, error) {
 	if !c.running.Load() {
 		return nil, net.ErrClosed
 	}
-	conn, err := c.network.DialUDP(nil, nil)
+	var bind *net.UDPAddr
+    if destination!=nil {
+        if ipaddr,ok:=destination.(netapi.IPAddress);ok && ipaddr.AddrPort().Addr().Is4(){
+            bind=&net.UDPAddr{IP:net.IPv4zero}
+        }
+    }
+    if bind==nil && !c.ipv6.Is6(){bind=&net.UDPAddr{IP:net.IPv4zero}}
+    conn, err := c.network.DialUDP(bind, nil)
 	if err != nil {
 		return nil, err
 	}
