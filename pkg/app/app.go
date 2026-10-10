@@ -49,6 +49,7 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/softether"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"

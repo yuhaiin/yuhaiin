@@ -1,0 +1,40 @@
+name: SoftEther official-server interop
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "pkg/net/proxy/softether/**"
+      - ".github/workflows/softether-interop.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: softether-official-interop
+      - name: Start official SoftEther native SSL VPN server and echo peer
+        run: |
+          docker compose -f pkg/net/proxy/softether/testdata/compose.yml up -d server echo
+      - name: Initialize official SoftEther native SSL VPN server
+        timeout-minutes: 3
+        run: |
+          docker compose -f pkg/net/proxy/softether/testdata/compose.yml run --rm init
+      - name: Exercise real native tunnel TCP and UDP
+        timeout-minutes: 4
+        run: |
+          set -euo pipefail
+          echo_ip="$(docker compose -f pkg/net/proxy/softether/testdata/compose.yml exec -T echo hostname -i | awk '{print $1}')"
+          test -n "$echo_ip"
+          SOFTETHER_GATEWAY=127.0.0.1:14443 SOFTETHER_ECHO_IP="$echo_ip" \
+            go test -tags softether_interop -run '^TestOfficialSoftEtherEgress$' -count=1 -timeout=3m -v ./pkg/net/proxy/softether
+      - name: Collect server logs on failure
+        if: failure()
+        run: docker compose -f pkg/net/proxy/softether/testdata/compose.yml logs --no-color
+      - name: Clean up
+        if: always()
+        run: docker compose -f pkg/net/proxy/softether/testdata/compose.yml down -v --remove-orphans
