@@ -114,13 +114,20 @@ func (u *udpAcceleration) open(packet []byte) ([]byte, error) {
 	u.writeMu.Unlock()
 	if echoTick != 0 && echoTick <= u.tick() {
 		u.lastEcho.Store(echoTick)
-		u.lastSeen.Store(time.Now().UnixNano())
-		u.stableSince.CompareAndSwap(0, time.Now().UnixNano())
+		u.observeAcknowledgement(time.Now())
 	}
 	if size == 0 {
 		return nil, nil
 	}
 	return append([]byte(nil), plain[23:23+size]...), nil
+}
+
+func (u *udpAcceleration) observeAcknowledgement(now time.Time) {
+	nowNS := now.UnixNano()
+	last := u.lastSeen.Swap(nowNS)
+	if last == 0 || now.Sub(time.Unix(0, last)) >= 3*time.Second {
+		u.stableSince.Store(nowNS)
+	}
 }
 
 // ready is deliberately conservative: server ACK, 10 seconds of stable

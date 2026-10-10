@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/softether/native"
 )
@@ -62,5 +63,22 @@ func TestUDPV2AuthenticatedFrameAndTamper(t *testing.T) {
 	packet[len(packet)-1] ^= 0x01
 	if _, err := u.open(packet); err == nil {
 		t.Fatal("accepted altered authenticated UDP payload")
+	}
+}
+
+func TestUDPStabilityRestartsAfterAcknowledgementGap(t *testing.T) {
+	sock, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sock.Close()
+	u := &udpAcceleration{sock: sock}
+	now := time.Now()
+	u.lastSeen.Store(now.Add(-4 * time.Second).UnixNano())
+	u.stableSince.Store(now.Add(-20 * time.Second).UnixNano())
+
+	u.observeAcknowledgement(now)
+	if got := u.stableSince.Load(); got != now.UnixNano() {
+		t.Fatalf("stableSince = %v, want reset to %v", time.Unix(0, got), now)
 	}
 }

@@ -3,6 +3,7 @@ package native
 
 import (
 	"bytes"
+	"encoding/binary"
 	"testing"
 	"unsafe"
 )
@@ -187,6 +188,14 @@ func TestRejectTooManyElements(t *testing.T) {
 	}
 }
 
+func TestDecodeRejectsImpossibleElementCountBeforeAllocation(t *testing.T) {
+	data := make([]byte, 4)
+	binary.BigEndian.PutUint32(data, MaxElementNum)
+	if _, err := Decode(data); err != ErrTruncated {
+		t.Fatalf("Decode() error = %v, want %v", err, ErrTruncated)
+	}
+}
+
 func TestRejectTooManyValues(t *testing.T) {
 	p := NewPack()
 	vals := make([]Value, MaxValueNum+1)
@@ -201,6 +210,18 @@ func TestRejectTooManyValues(t *testing.T) {
 	_, err = Decode(data)
 	if err != ErrTooManyValues {
 		t.Errorf("expected ErrTooManyValues, got %v", err)
+	}
+}
+
+func TestDecodeRejectsImpossibleValueCountBeforeAllocation(t *testing.T) {
+	data := []byte{
+		0, 0, 0, 1, // one element
+		0, 0, 0, 2, 'x', // name "x"
+		0, 0, 0, TypeInt, // type
+		0, 4, 0, 0, // large value count
+	}
+	if _, err := Decode(data); err != ErrTruncated {
+		t.Fatalf("Decode() error = %v, want %v", err, ErrTruncated)
 	}
 }
 

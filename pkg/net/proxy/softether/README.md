@@ -105,3 +105,33 @@ commands are available in
 [veepin's SoftEther interop test](https://github.com/xen0bit/veepin/blob/main/tests/interop/compose.softether.yml).
 The attached unit tests do not by themselves prove interoperability with every
 release of the official server.
+
+The real-server test also enables UDP acceleration to cover the direct UDP
+setup path; when the container network cannot reach the server's UDP endpoint,
+application UDP remains on the TLS fallback. The sustained TCP benchmark sends
+16 MiB per iteration while the peer echoes it, and reports one-way application
+throughput:
+
+```sh
+echo_ip="$(podman compose -f pkg/net/proxy/softether/testdata/compose.yml exec -T echo hostname -i | awk '{print $1}')"
+env SOFTETHER_GATEWAY=127.0.0.1:14443 SOFTETHER_ECHO_IP="$echo_ip" \
+  go test -tags=softether_interop -run '^$' \
+  -bench '^BenchmarkOfficialSoftEtherTCPSustained$' -benchtime=5x \
+  ./pkg/net/proxy/softether
+```
+
+To test lease renewal against a short lease, start the fixture with
+`podman compose -f pkg/net/proxy/softether/testdata/compose.yml up -d server echo`,
+then run:
+
+```sh
+podman compose -f pkg/net/proxy/softether/testdata/compose.yml run --rm -e LEASE_SECONDS=20 init
+echo_ip="$(podman compose -f pkg/net/proxy/softether/testdata/compose.yml exec -T echo hostname -i | awk '{print $1}')"
+env SOFTETHER_GATEWAY=127.0.0.1:14443 SOFTETHER_ECHO_IP="$echo_ip" \
+  SOFTETHER_TEST_DHCP_RENEWAL=1 \
+  go test -tags=softether_interop -run '^TestOfficialSoftEtherDHCPLeaseRenewal$' \
+  -count=1 -timeout=60s ./pkg/net/proxy/softether
+```
+
+The test waits beyond the original lease expiry and verifies TCP traffic still
+passes.

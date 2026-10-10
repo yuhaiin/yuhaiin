@@ -21,10 +21,21 @@ const (
 type macAddr [6]byte
 
 type lease struct {
-	ip     netip.Addr
-	router netip.Addr
-	mask   int
-	server netip.Addr
+	ip        netip.Addr
+	router    netip.Addr
+	mask      int
+	server    netip.Addr
+	leaseTime time.Duration
+	renewal   time.Duration
+	rebinding time.Duration
+	acquired  time.Time
+}
+
+type dhcpLeaseReply struct {
+	kind      byte
+	xid       uint32
+	lease     lease
+	sourceMAC macAddr
 }
 
 func randomMAC() (macAddr, error) {
@@ -127,6 +138,62 @@ func buildDHCP(mac macAddr, xid uint32, typ byte, requested, server netip.Addr) 
 	return ethernetFrame(macAddr{255, 255, 255, 255, 255, 255}, mac, etherIPv4, b)
 }
 
+// buildDHCPRenewal creates a DHCPREQUEST in RENEWING or REBINDING state.
+// Renewal is unicast to the original server; rebinding broadcasts to any
+// server after T2. Both carry ciaddr and omit requested-IP/server-ID options.
+func buildDHCPRenewal(mac, dst macAddr, xid uint32, l lease, rebind bool) []byte {
+	payload := make([]byte, 240)
+	payload[0], payload[1], payload[2] = 1, 1, 6
+	binary.BigEndian.PutUint32(payload[4:8], xid)
+	if rebind {
+		binary.BigEndian.PutUint16(payload[10:12], 0x8000)
+	}
+	ip := l.ip.As4()
+	copy(payload[12:16], ip[:]) // ciaddr
+	copy(payload[28:34], mac[:])
+	copy(payload[236:240], []byte{99, 130, 83, 99})
+	payload = append(payload, 53, 1, 3, 55, 6, 1, 3, 6, 51, 58, 59, 255)
+	if len(payload) < 300 {
+		payload = append(payload, make([]byte, 300-len(payload))...)
+	}
+
+	dstIP := l.server.As4()
+	if rebind {
+		dstIP = [4]byte{255, 255, 255, 255}
+		dst = macAddr{255, 255, 255, 255, 255, 255}
+	}
+	udpLen := 8 + len(payload)
+	ipLen := 20 + udpLen
+	packet := make([]byte, ipLen)
+	packet[0], packet[8], packet[9] = 0x45, 64, 17
+	binary.BigEndian.PutUint16(packet[2:4], uint16(ipLen))
+	copy(packet[12:16], ip[:])
+	copy(packet[16:20], dstIP[:])
+	binary.BigEndian.PutUint16(packet[10:12], ipChecksum(packet[:20]))
+	binary.BigEndian.PutUint16(packet[20:22], 68)
+	binary.BigEndian.PutUint16(packet[22:24], 67)
+	binary.BigEndian.PutUint16(packet[24:26], uint16(udpLen))
+	copy(packet[28:], payload)
+	return ethernetFrame(dst, mac, etherIPv4, packet)
+}
+
+func isDHCPServerReply(frame []byte) bool {
+	if len(frame) < 14+20+8 || binary.BigEndian.Uint16(frame[12:14]) != etherIPv4 {
+		return false
+	}
+	ip := frame[14:]
+	ihl := int(ip[0]&15) * 4
+	if ip[0]>>4 != 4 || ihl < 20 || len(ip) < ihl+8 || ip[9] != 17 {
+		return false
+	}
+	total := int(binary.BigEndian.Uint16(ip[2:4]))
+	if total < ihl+8 || total > len(ip) {
+		return false
+	}
+	return binary.BigEndian.Uint16(ip[ihl:ihl+2]) == 67 &&
+		binary.BigEndian.Uint16(ip[ihl+2:ihl+4]) == 68
+}
+
 func parseDHCP(frame []byte, mac macAddr, xid uint32) (msg byte, l lease, ok bool) {
 	if len(frame) < 14+20+8+240 || binary.BigEndian.Uint16(frame[12:14]) != etherIPv4 {
 		return
@@ -197,6 +264,18 @@ func parseDHCP(frame []byte, mac macAddr, xid uint32) (msg byte, l lease, ok boo
 			if len(v) == 4 {
 				l.server = netip.AddrFrom4([4]byte{v[0], v[1], v[2], v[3]})
 			}
+		case 51:
+			if len(v) == 4 {
+				l.leaseTime = time.Duration(binary.BigEndian.Uint32(v)) * time.Second
+			}
+		case 58:
+			if len(v) == 4 {
+				l.renewal = time.Duration(binary.BigEndian.Uint32(v)) * time.Second
+			}
+		case 59:
+			if len(v) == 4 {
+				l.rebinding = time.Duration(binary.BigEndian.Uint32(v)) * time.Second
+			}
 		}
 	}
 	l.mask = 32
@@ -206,6 +285,14 @@ func parseDHCP(frame []byte, mac macAddr, xid uint32) (msg byte, l lease, ok boo
 			return 0, lease{}, false
 		}
 		l.mask = ones
+	}
+	if l.leaseTime > 0 {
+		if l.renewal <= 0 || l.renewal >= l.leaseTime {
+			l.renewal = l.leaseTime / 2
+		}
+		if l.rebinding <= l.renewal || l.rebinding >= l.leaseTime {
+			l.rebinding = l.leaseTime * 7 / 8
+		}
 	}
 	return msg, l, msg != 0 && l.ip.Is4()
 }
@@ -261,6 +348,7 @@ func negotiateDHCP(s *native.ClientSession, mac macAddr, timeout time.Duration) 
 		if !l.router.Is4() {
 			return lease{}, errors.New("softether: DHCP did not advertise an IPv4 router")
 		}
+		l.acquired = time.Now()
 		return l, nil
 	}
 }

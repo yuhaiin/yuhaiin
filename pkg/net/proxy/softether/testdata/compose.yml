@@ -1,12 +1,12 @@
 services:
   server:
-    image: siomiz/softethervpn:latest
+    image: docker.io/siomiz/softethervpn:latest
     environment:
       SPW: "seadmin"
     ports:
       - "127.0.0.1:14443:443/tcp"
   init:
-    image: siomiz/softethervpn:latest
+    image: docker.io/siomiz/softethervpn:latest
     depends_on:
       - server
     environment:
@@ -17,7 +17,7 @@ services:
     entrypoint: ["/bin/sh","/native-init.sh"]
     restart: "no"
   echo:
-    image: python:3.13-alpine
+    image: docker.io/library/python:3.13-alpine
     volumes:
       - ./echo.py:/echo.py:ro
     entrypoint: ["python","/echo.py"]

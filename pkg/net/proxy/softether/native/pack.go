@@ -204,6 +204,11 @@ func Decode(buf []byte) (*Pack, error) {
 	if count > MaxElementNum {
 		return nil, ErrTooManyElements
 	}
+	// Every element needs at least a 4-byte name length, type, and value
+	// count. Reject impossible declarations before reserving the element slice.
+	if uint64(count) > uint64(len(buf))/12 {
+		return nil, ErrTruncated
+	}
 	p := &Pack{elems: make([]Element, 0, count)}
 	for range count {
 		e, err := decodeElement(&buf)
@@ -232,6 +237,11 @@ func decodeElement(buf *[]byte) (Element, error) {
 
 	if nv > MaxValueNum {
 		return Element{}, ErrTooManyValues
+	}
+	// Every supported value uses at least four encoded bytes (a scalar or a
+	// length prefix). Bound the slice allocation by bytes actually in the PACK.
+	if uint64(nv) > uint64(len(*buf))/4 {
+		return Element{}, ErrTruncated
 	}
 	e := Element{Name: name, Type: int(typ)}
 	e.Values = make([]Value, nv)

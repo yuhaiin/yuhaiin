@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
@@ -67,6 +68,8 @@ type Client struct {
 	cancel      context.CancelFunc
 	once        sync.Once
 	running     atomic.Bool
+	dhcpXID     atomic.Uint32
+	dhcpReplies chan dhcpLeaseReply
 	tcp         *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
 	accel       *udpAcceleration
 }
@@ -214,7 +217,7 @@ func newClientContext(parent context.Context, cfg Config, upstream netapi.Proxy)
 			_ = raw.Close()
 			return nil, errors.New("softether: UDP acceleration through a chained proxy is unsupported")
 		}
-		udpConn, err = dialer.ListenPacket(ctx, "udp", "", nil)
+		udpConn, err = dialer.ListenPacket(ctx, "udp", "")
 		if err != nil {
 			_ = raw.Close()
 			return nil, fmt.Errorf("softether: UDP bind: %w", err)
@@ -254,7 +257,8 @@ func newClientContext(parent context.Context, cfg Config, upstream netapi.Proxy)
 		return nil, err
 	}
 	l := static
-	if !l.ip.Is4() {
+	useDHCP := !l.ip.Is4()
+	if useDHCP {
 		l, err = negotiateDHCP(session, mac, 10*time.Second)
 		if err != nil {
 			// A VPN may have only an IPv6 router; DHCPv4 absence should not
@@ -276,6 +280,20 @@ func newClientContext(parent context.Context, cfg Config, upstream netapi.Proxy)
 		}
 		prefixes = append(prefixes, netip.PrefixFrom(l.ip, l.mask))
 	}
+	renewalMAC := nextHop
+	if useDHCP && l.leaseTime > 0 && l.server.Is4() {
+		prefix := netip.PrefixFrom(l.ip, l.mask)
+		if prefix.Contains(l.server) && l.server != l.router {
+			serverMAC, resolveErr := resolveGateway(session, mac, l.ip, l.server, 2*time.Second)
+			if resolveErr == nil {
+				renewalMAC = serverMAC
+			} else {
+				// A DHCP server on the local segment can still receive a
+				// unicast IP request sent to the Ethernet broadcast address.
+				renewalMAC = macAddr{255, 255, 255, 255, 255, 255}
+			}
+		}
+	}
 	var nextHop6 macAddr
 	if ipv6Prefix.IsValid() {
 		nextHop6, err = resolveIPv6Router(session, mac, ipv6Prefix.Addr(), ipv6Router, 7*time.Second)
@@ -294,6 +312,9 @@ func newClientContext(parent context.Context, cfg Config, upstream netapi.Proxy)
 	c := &Client{session: session, network: network, mac: mac, gatewayMAC: nextHop,
 		ip: l.ip, router: l.router, mtu: cfg.MTU, ctx: runCtx, cancel: runCancel,
 		ipv6: ipv6Prefix.Addr(), router6: ipv6Router, gatewayMAC6: nextHop6}
+	if useDHCP && l.leaseTime > 0 {
+		c.dhcpReplies = make(chan dhcpLeaseReply, 8)
+	}
 	c.tcp = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
 		return network.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 	})
@@ -316,6 +337,9 @@ func newClientContext(parent context.Context, cfg Config, upstream netapi.Proxy)
 	go c.receive()
 	go c.transmit()
 	go c.keepAlive()
+	if c.dhcpReplies != nil {
+		go c.maintainDHCP(l, renewalMAC)
+	}
 	return c, nil
 }
 
@@ -363,6 +387,21 @@ func (c *Client) receive() {
 				return
 			}
 		case etherIPv4:
+			if isDHCPServerReply(frame) {
+				if c.dhcpReplies != nil {
+					if xid := c.dhcpXID.Load(); xid != 0 {
+						if kind, l, ok := parseDHCP(frame, c.mac, xid); ok {
+							reply := dhcpLeaseReply{kind: kind, xid: xid, lease: l}
+							copy(reply.sourceMAC[:], frame[6:12])
+							select {
+							case c.dhcpReplies <- reply:
+							default:
+							}
+						}
+					}
+				}
+				continue
+			}
 			pkt := frame[14:]
 			if len(pkt) == 0 || pkt[0]>>4 != 4 {
 				continue
@@ -372,6 +411,121 @@ func (c *Client) receive() {
 				return
 			}
 		}
+	}
+}
+
+func (c *Client) maintainDHCP(current lease, serverMAC macAddr) {
+	defer c.dhcpXID.Store(0)
+	if current.leaseTime <= 0 || current.acquired.IsZero() {
+		return
+	}
+	expiresAt := current.acquired.Add(current.leaseTime)
+	renewAt := current.acquired.Add(current.renewal)
+	rebindAt := current.acquired.Add(current.rebinding)
+	if !waitUntil(c.ctx, renewAt) {
+		return
+	}
+
+	for {
+		var xidBytes [4]byte
+		if _, err := rand.Read(xidBytes[:]); err != nil {
+			_ = c.Close()
+			return
+		}
+		xid := binary.BigEndian.Uint32(xidBytes[:])
+		if xid == 0 {
+			xid = 1
+		}
+		c.dhcpXID.Store(xid)
+
+		for {
+			now := time.Now()
+			if !now.Before(expiresAt) {
+				_ = c.Close()
+				return
+			}
+			rebinding := !now.Before(rebindAt)
+			requestSent := now
+			frame := buildDHCPRenewal(c.mac, serverMAC, xid, current, rebinding)
+			if err := c.session.WriteFrame(frame); err != nil {
+				_ = c.Close()
+				return
+			}
+
+			remaining := time.Until(expiresAt)
+			if !rebinding {
+				remaining = min(remaining, time.Until(rebindAt))
+			}
+			delay := max(time.Second, remaining/2)
+			timer := time.NewTimer(min(delay, time.Until(expiresAt)))
+			select {
+			case <-c.ctx.Done():
+				timer.Stop()
+				return
+			case reply := <-c.dhcpReplies:
+				timer.Stop()
+				if reply.xid != xid {
+					continue
+				}
+				if reply.kind == 6 {
+					_ = c.Close()
+					return
+				}
+				if reply.kind != 5 {
+					continue
+				}
+				updated := reply.lease
+				if !updated.ip.Is4() || updated.ip.IsUnspecified() {
+					updated.ip = current.ip
+				}
+				if updated.ip != current.ip {
+					_ = c.Close()
+					return
+				}
+				if !updated.router.Is4() || updated.router.IsUnspecified() {
+					updated.router = current.router
+				}
+				if !updated.server.Is4() || updated.server.IsUnspecified() {
+					updated.server = current.server
+				} else if updated.server != current.server && reply.sourceMAC != (macAddr{}) {
+					serverMAC = reply.sourceMAC
+				}
+				if updated.leaseTime <= 0 {
+					updated.leaseTime = current.leaseTime
+				}
+				if updated.renewal <= 0 || updated.renewal >= updated.leaseTime {
+					updated.renewal = updated.leaseTime / 2
+				}
+				if updated.rebinding <= updated.renewal || updated.rebinding >= updated.leaseTime {
+					updated.rebinding = updated.leaseTime * 7 / 8
+				}
+				current = updated
+				expiresAt = requestSent.Add(current.leaseTime)
+				renewAt = requestSent.Add(current.renewal)
+				rebindAt = requestSent.Add(current.rebinding)
+				c.dhcpXID.Store(0)
+				if !waitUntil(c.ctx, renewAt) {
+					return
+				}
+				break
+			case <-timer.C:
+			}
+		}
+	}
+}
+
+func waitUntil(ctx context.Context, deadline time.Time) bool {
+	delay := time.Until(deadline)
+	if delay <= 0 {
+		return true
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 
