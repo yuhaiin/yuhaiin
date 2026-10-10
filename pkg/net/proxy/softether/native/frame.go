@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-
 )
 
 // The SE-VPN data path, once the control PACKs are done with.

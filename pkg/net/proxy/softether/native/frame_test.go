@@ -8,7 +8,6 @@ import (
 	"errors"
 	"io"
 	"testing"
-
 )
 
 // TestBlockFramingIsBigEndian pins the byte order of the data path. It is the

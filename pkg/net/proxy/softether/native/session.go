@@ -15,11 +15,12 @@ import (
 
 const (
 	clientAuthTypePassword = 1
-	connectionTCP = 0
-	protocolVersion = 400
-	protocolBuild = 9799
-	clientStr = "yuhaiin SoftEther-compatible Client"
+	connectionTCP          = 0
+	protocolVersion        = 400
+	protocolBuild          = 9799
+	clientStr              = "yuhaiin SoftEther-compatible Client"
 )
+
 var ErrAuth = errors.New("softether: authentication failed")
 
 // ClientSession is the SoftEther VPN client side.
@@ -29,13 +30,13 @@ type ClientSession struct {
 	blocks *blockReader
 	host   string // Host: header value, as the reference sends the peer's IP
 
-	mu     sync.Mutex
+	mu sync.Mutex
 
 	serverRandom [sha0Size]byte
 	uniqueID     [sha0Size]byte
 
-	hubName      string
-	sessionName  string
+	hubName     string
+	sessionName string
 	// policy is what the server said this session may do, when it said
 	// anything. It is reported by Policy and not enforced; see policy.go.
 	policy Policy
@@ -50,18 +51,40 @@ func (cs *ClientSession) Policy() Policy { return cs.policy }
 
 // Connect dials a SoftEther VPN server and performs the control exchange.
 func Connect(ctx context.Context, raw net.Conn, tlsCfg *tls.Config, host, username, password, hubName string) (_ *ClientSession, err error) {
-	if raw == nil { return nil, errors.New("softether: nil transport") }
-	if tlsCfg == nil { _ = raw.Close(); return nil, errors.New("softether: missing TLS config") }
+	if raw == nil {
+		return nil, errors.New("softether: nil transport")
+	}
+	if tlsCfg == nil {
+		_ = raw.Close()
+		return nil, errors.New("softether: missing TLS config")
+	}
 	conn := tls.Client(raw, tlsCfg)
-	defer func() { if err != nil { _ = conn.Close() } }()
-	if err := conn.HandshakeContext(ctx); err != nil { return nil, fmt.Errorf("softether: TLS handshake: %w", err) }
-	if deadline, ok := ctx.Deadline(); ok { _ = conn.SetDeadline(deadline); defer conn.SetDeadline(time.Time{}) }
-	cs := &ClientSession{conn:conn, br:bufio.NewReader(conn), host:host, hubName:hubName, logf:func(string,...interface{}){}}
-	if _, err := rand.Read(cs.uniqueID[:]); err != nil { return nil, fmt.Errorf("softether: random id: %w",err) }
-	if err := writeSignature(conn,host); err != nil { return nil, fmt.Errorf("softether: signature: %w",err) }
-	if err := cs.hello(); err != nil { return nil,err }
-	if err := cs.login(username,password); err != nil { return nil,err }
-	return cs,nil
+	defer func() {
+		if err != nil {
+			_ = conn.Close()
+		}
+	}()
+	if err := conn.HandshakeContext(ctx); err != nil {
+		return nil, fmt.Errorf("softether: TLS handshake: %w", err)
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(deadline)
+		defer conn.SetDeadline(time.Time{})
+	}
+	cs := &ClientSession{conn: conn, br: bufio.NewReader(conn), host: host, hubName: hubName, logf: func(string, ...interface{}) {}}
+	if _, err := rand.Read(cs.uniqueID[:]); err != nil {
+		return nil, fmt.Errorf("softether: random id: %w", err)
+	}
+	if err := writeSignature(conn, host); err != nil {
+		return nil, fmt.Errorf("softether: signature: %w", err)
+	}
+	if err := cs.hello(); err != nil {
+		return nil, err
+	}
+	if err := cs.login(username, password); err != nil {
+		return nil, err
+	}
+	return cs, nil
 }
 
 // hello reads the server's hello, which arrives unprompted as the response to

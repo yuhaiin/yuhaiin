@@ -70,7 +70,7 @@ func TestEthernetARP(t *testing.T) {
 func TestGatewayAddress(t *testing.T) {
 	cases := []struct {
 		input, host, endpoint string
-		valid bool
+		valid                 bool
 	}{
 		{"vpn.example.org", "vpn.example.org", "vpn.example.org:443", true},
 		{"vpn.example.org:5555", "vpn.example.org", "vpn.example.org:5555", true},
