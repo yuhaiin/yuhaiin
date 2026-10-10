@@ -4,11 +4,9 @@
 package globalprotect
 
 import (
- "bytes"
  "context"
  "crypto/tls"
  "crypto/x509"
- "encoding/pem"
  "encoding/xml"
  "errors"
  "fmt"
@@ -155,7 +153,10 @@ func (c *control) dialTLS(ctx context.Context) (*tls.Conn, error) {
 
 func (c *control) post(ctx context.Context, path string, form url.Values) ([]byte, error) {
  target := *c.gateway
- target.Path = path
+ targetPath, err := url.Parse(path)
+ if err != nil || !strings.HasPrefix(targetPath.Path, "/") || targetPath.IsAbs() || targetPath.Host != "" { return nil, errors.New("globalprotect: invalid control URL path") }
+ target.Path = targetPath.Path
+ target.RawQuery = targetPath.RawQuery
  req, err := http.NewRequestWithContext(ctx, http.MethodPost, target.String(), strings.NewReader(form.Encode()))
  if err != nil { return nil, err }
  req.Header.Set("User-Agent", "PAN GlobalProtect")
@@ -173,7 +174,7 @@ func (c *control) post(ctx context.Context, path string, form url.Values) ([]byt
 }
 
 func (c *control) prelogin(ctx context.Context) error {
- data, err := c.post(ctx, "/ssl-vpn/prelogin.esp", url.Values{"tmp":{"tmp"}, "clientVer":{"4100"}, "clientos":{clientOS}})
+ data, err := c.post(ctx, "/ssl-vpn/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Windows", url.Values{"cas-support":{"yes"}})
  if err != nil { return err }
  var p preloginResponse
  if err := xml.Unmarshal(data, &p); err != nil { return fmt.Errorf("globalprotect: prelogin XML: %w", err) }
@@ -264,20 +265,3 @@ func (c *control) logout(ctx context.Context, s session) error {
  return err
 }
 
-func parsePEM(certs []byte) (*x509.CertPool, error) {
- roots := x509.NewCertPool()
- for len(certs) > 0 {
-  block, rest := pem.Decode(certs)
-  if block == nil { break }
-  certs = rest
-  if block.Type != "CERTIFICATE" { continue }
-  cert, err := x509.ParseCertificate(block.Bytes)
-  if err != nil { return nil, err }
-  roots.AddCert(cert)
- }
- if len(roots.Subjects()) == 0 { return nil, errors.New("no certificate found") }
- return roots, nil
-}
-
-// Reuse the standard library's TLS verifier, never skip gateway verification.
-var _ = bytes.MinRead
