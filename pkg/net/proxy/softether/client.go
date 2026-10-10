@@ -5,6 +5,7 @@ package softether
 
 import (
 	"context"
+"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -67,6 +68,7 @@ type Client struct {
 	once       sync.Once
 	running    atomic.Bool
 	tcp        *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
+    accel *udpAcceleration
 }
 
 var _ netapi.Proxy = (*Client)(nil)
@@ -186,7 +188,27 @@ func newClientContext(parent context.Context,cfg Config, upstream netapi.Proxy) 
 	}
 	clientCert,clientKey:="",""
     if cfg.AuthType=="certificate"{clientCert,clientKey=cfg.ClientCertPEM,cfg.ClientKeyPEM}
-    session, err := native.ConnectWithCert(ctx, raw, tlsConf, host, cfg.Username, cfg.Password, cfg.Hub,clientCert,clientKey)
+    // A UDP socket is created before login because the server needs our port/key.
+    // Using UDP via a TCP-only upstream proxy could silently leak traffic.
+    var udpConn net.PacketConn
+    var udpOpts *native.UDPClientOptions
+    if cfg.UDPAcceleration {
+        if upstream!=nil && !register.IsZero(upstream) {
+            _ = raw.Close()
+            return nil,errors.New("softether: UDP acceleration through a chained proxy is unsupported")
+        }
+        udpConn,err=dialer.ListenPacket(ctx,"udp","",nil)
+        if err!=nil {_ = raw.Close();return nil,fmt.Errorf("softether: UDP bind: %w",err)}
+        defer func(){if udpConn!=nil{_ = udpConn.Close()}}()
+        local,ok:=udpConn.LocalAddr().(*net.UDPAddr)
+        if !ok || local.Port<=0 || local.Port>65535 {_ = raw.Close();return nil,errors.New("softether: invalid UDP local address")}
+        udpOpts=&native.UDPClientOptions{Port:uint16(local.Port)}
+        if _,err=rand.Read(udpOpts.KeyV2[:]);err!=nil{_ = raw.Close();return nil,err}
+        if _,err=rand.Read(udpOpts.KeyV1[:]);err!=nil{_ = raw.Close();return nil,err}
+    }
+    remoteIP:=net.IP(nil)
+    if ra,ok:=raw.RemoteAddr().(*net.TCPAddr);ok{remoteIP=ra.IP}
+    session, err := native.ConnectWithOptions(ctx, raw, tlsConf, host, cfg.Username, cfg.Password, cfg.Hub,clientCert,clientKey,udpOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +250,18 @@ func newClientContext(parent context.Context,cfg Config, upstream netapi.Proxy) 
 	c.tcp = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
 		return network.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 	})
-	c.running.Store(true)
+	if udpConn!=nil && session.UDPOptions()!=nil {
+        udpSettings:=session.UDPOptions()
+        peer:=remoteIP
+        if udpSettings.ServerIP!=nil && !udpSettings.ServerIP.IsUnspecified(){peer=udpSettings.ServerIP}
+        accel,e:=newUDPAcceleration(udpConn,peer,udpOpts,udpSettings)
+        if e==nil {
+            c.accel=accel
+            udpConn=nil // The running Client now owns this socket.
+        }
+    }
+    c.running.Store(true)
+    if c.accel!=nil {go c.accel.run(c.ctx.Done(),c.deliverUDP)}
 	go c.receive()
 	go c.transmit()
 	go c.keepAlive()
@@ -327,7 +360,11 @@ func (c *Client) transmit() {
                 ethertype,dst=etherIPv6,c.gatewayMAC6
             default: continue
             }
-			if err := c.session.WriteFrame(ethernetFrame(dst, c.mac, ethertype, ip)); err != nil {
+			frame:=ethernetFrame(dst,c.mac,ethertype,ip)
+            if c.accel!=nil && c.accel.ready() && len(frame)<=1350 {
+                if err:=c.accel.send(frame);err==nil{continue}
+            }
+            if err := c.session.WriteFrame(frame); err != nil {
 				go c.Close()
 				return
 			}
@@ -390,6 +427,27 @@ func (c *Client) Close() error {
 		c.running.Store(false)
 		c.cancel()
 		err = errors.Join(c.session.Close(), c.network.Close())
+        if c.accel!=nil {err=errors.Join(err,c.accel.sock.Close())}
 	})
 	return err
+}
+
+// deliverUDP processes authenticated Ethernet frames from UDP acceleration.
+// The protocol never interprets UDP datagrams as raw application UDP payloads.
+func (c *Client) deliverUDP(frame []byte) {
+    if len(frame)<14{return}
+    dst:=frame[:6]
+    if !equalMAC(dst,c.mac[:]) && !broadcastMAC(dst) && !(dst[0]==0x33&&dst[1]==0x33){return}
+    switch uint16(frame[12])<<8|uint16(frame[13]) {
+    case etherARP:
+        op,from,src,target,ok:=parseARP(frame)
+        if ok && op==1 && target==c.ip {_ = c.session.WriteFrame(buildARP(c.mac,c.ip,src,from,2))}
+    case etherIPv4:
+        if len(frame)>14 && frame[14]>>4==4 {_,_ = c.network.Write([][]byte{frame[14:]},0)}
+    case etherIPv6:
+        if !c.ipv6.Is6(){return}
+        typ,target,src,_,from,ok:=parseNeighborMessage(frame)
+        if ok&&typ==135&&target==c.ipv6&&!src.IsUnspecified(){_ = c.session.WriteFrame(neighborAdvertise(c.mac,from,c.ipv6,src));return}
+        if len(frame)>14 && frame[14]>>4==6 && equalMAC(dst,c.mac[:]) {_,_=c.network.Write([][]byte{frame[14:]},0)}
+    }
 }
