@@ -49,19 +49,43 @@ Its complete copyright and license terms are retained in
   TCP and UDP application connections use yuhaiin's existing gVisor user stack,
   not an OS TAP interface.
 
+## Extended authentication, IPv6, UDP and reconnect
+
+- `auth_type: "password"` (default) uses the historical SHA-0 challenge-response.
+- `auth_type: "certificate"` requires `client_cert_pem` and
+  `client_key_pem` containing a matching RSA X.509 certificate and RSA
+  private key. It uses SoftEther's native RSA/SHA-1 challenge signature
+  (not mutual TLS). The private key is stored in node settings: protect
+  exports and backups. The server must grant certificate login to that user.
+- `ipv6_address: "2001:db8:30::25/64"` and `ipv6_router: "fe80::1"`
+  enable a second gVisor IPv6 protocol address and in-memory ICMPv6 neighbor
+  discovery. IPv6 forwarding requires both values and MTU >= 1280.
+  Automatic SLAAC, router advertisements, DHCPv6, IPv6 DNS and address
+  reconfiguration are **not** implemented.
+- `udp_acceleration: true` requests the native encrypted UDP Acceleration
+  **v2** channel (ChaCha20-Poly1305). UDP acceleration needs a direct UDP
+  transport path and cannot be chained through a TCP-only upstream proxy.
+  Only authenticated UDP Ethernet frames are accepted; the tunnel remains
+  on TLS if the peer does not negotiate compatible v2 or acknowledgments stop.
+  Legacy v1/RC4 and NAT-T relay discovery are not implemented.
+- `auto_reconnect: true` reconnects a failed TLS session with bounded
+  exponential backoff, rebuilding DHCP/static address, ARP/NDP and the
+  userspace gVisor network. New TCP/UDP connections wait for the replacement
+  session. Existing live TCP/UDP sockets are **not** migrated.
+
 ## Limitations
 
-This early implementation supports one TLS/TCP session, username/password
-login, virtual Ethernet, DHCP or static IPv4, and IPv4 TCP/UDP via one resolved
-gateway MAC. It does **not** implement UDP Acceleration, multiple TCP channels,
-certificate/SSO authentication, IPv6, dynamic reconfiguration, or reconnecting
-an interrupted session. The connection fails closed when the TLS data path
-fails. This first version is for routed VPN egress through SecureNAT or a
-reachable IPv4 gateway; arbitrary on-link L2 peer discovery is not supported.
+This is experimental, pending official SoftEther VPN Server interoperability
+validation of all four extended modes. It does not implement SSO,
+hardware-backed private keys, multiple parallel TCP channels, full generic
+layer-2 bridging, automatic IPv6 configuration, or server-pushed DNS and
+split-route policy. Only a virtual gateway (or SecureNAT) path is supported.
+The client fails closed when transport is unavailable and does not use a
+direct bypass in place of a failed VPN tunnel.
 
 No OS-wide kill switch or split-route policy is installed by this outbound.
-The TunnelCrack advisory requires additional consideration at the OS-routing /
-policy layer; adding an SSL VPN protocol is not equivalent to a leak-proof VPN.
+The TunnelCrack advisory requires additional OS-routing and policy defenses;
+adding a protocol is not equivalent to a leak-proof VPN.
 
 ## Tests
 
