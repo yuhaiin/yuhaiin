@@ -76,6 +76,7 @@ type Protocol struct {
 	Reality              *Reality              `json:"reality,omitzero"`
 	TLS                  *TLS                  `json:"tls,omitzero"`
 	Wireguard            *Wireguard            `json:"wireguard,omitzero"`
+	GlobalProtect        *GlobalProtect        `json:"globalprotect,omitzero"`
 	Mux                  *Concurrency          `json:"mux,omitzero"`
 	Drop                 *Drop                 `json:"drop,omitzero"`
 	Vless                *Vless                `json:"vless,omitzero"`
@@ -92,6 +93,17 @@ type Protocol struct {
 	Proxy                *Proxy                `json:"proxy,omitzero"`
 	FixedV2              *FixedV2              `json:"fixedv2,omitzero"`
 	PointAsEndpoint      *PointAsEndpoint      `json:"point_as_endpoint,omitzero"`
+}
+
+// GlobalProtect is a directly addressed gateway with password authentication.
+// Portal discovery, SAML/SSO, HIP and ESP are not supported by this node.
+type GlobalProtect struct {
+	Gateway string `json:"gateway"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Computer string `json:"computer,omitzero"`
+	CACertPEM string `json:"ca_cert_pem,omitzero"`
+	MTU int32 `json:"mtu,omitzero"`
 }
 
 type None struct{}
@@ -524,6 +536,7 @@ func (x Protocol) presentVariants() map[string]bool {
 		"reality":                x.Reality != nil,
 		"tls":                    x.TLS != nil,
 		"wireguard":              x.Wireguard != nil,
+		"globalprotect":          x.GlobalProtect != nil,
 		"mux":                    x.Mux != nil,
 		"drop":                   x.Drop != nil,
 		"vless":                  x.Vless != nil,
