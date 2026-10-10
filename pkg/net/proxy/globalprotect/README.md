@@ -10,7 +10,8 @@ IP stack (the same one used by WireGuard) to expose TCP and UDP connections.
 - Gateway prelogin (rejects SAML/SSO), cookie and `getconfig.esp`
 - Authenticated SSL IP tunnel, IPv4, DPD/keepalive, TCP/UDP via gVisor
 - Validates server certificates against the system trust store, optionally
-  extended by a PEM certificate authority. There is no insecure TLS flag.
+  extended by a PEM certificate authority. `insecure_skip_verify` is an
+  explicit opt-in for gateways whose certificate cannot be verified.
 - Tunnel MTU uses the configured value or the gateway value; when both are
   zero, it is derived from the TLS TCP MSS (with OpenConnect's conservative
   base-MTU fallback where the socket MSS is unavailable).
@@ -19,7 +20,7 @@ IP stack (the same one used by WireGuard) to expose TCP and UDP connections.
 interactive MFA/challenges, HIP reports, ESP/UDP, IPv6 negotiation,
 reauthentication after the authentication lifetime, applying gateway-pushed
 DNS, split routes or local-network policy, and automatic reconnection. Gateways
-requiring HIP or ESP are rejected with an explicit error. A gateway `<timeout>`
+requiring HIP are rejected with an explicit error. A gateway `<timeout>`
 causes a TLS tunnel rekey 60 seconds before the timeout, or halfway through
 shorter intervals. `<lifetime>` and `<disconnect-on-idle>` are enforced
 separately. An expired authentication lifetime closes the tunnel and requires
@@ -50,8 +51,14 @@ enterprise-managed endpoint client.
 
 The `gateway` is the gateway hostname (optional HTTPS scheme and TCP port).
 It must not be a portal URL with a path. `ca_cert_pem` is an optional PEM
-bundle for gateways using a private enterprise certificate authority. The
-optional `computer` field identifies the local device during login/logout.
+bundle for gateways using a private enterprise certificate authority. Set
+`insecure_skip_verify` to `true` to disable certificate-chain and hostname
+verification; it is `false` by default. The optional `computer` field identifies
+the local device during login/logout.
+
+The client always uses the SSL tunnel. It ignores optional ESP settings when
+the server also provides SSL tunnel configuration; ESP-only gateways are not
+supported.
 
 The current UI may require raw contract/API configuration until a dedicated
 frontend editor is added. Credentials are saved with the node using the

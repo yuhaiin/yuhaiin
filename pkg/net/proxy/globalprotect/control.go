@@ -36,15 +36,16 @@ var (
 	ErrInvalidAuthCookie = errors.New("globalprotect: authentication cookie is invalid; reconnect to authenticate again")
 )
 
-// Config intentionally has no insecure_skip_verify setting. Enterprises can
-// supply a trusted CA PEM instead of disabling gateway authentication.
+// Config validates gateway certificates by default. InsecureSkipVerify is an
+// explicit opt-in that disables certificate-chain and hostname verification.
 type Config struct {
-	Gateway   string
-	Username  string
-	Password  string
-	Computer  string
-	CACertPEM string
-	MTU       int
+	Gateway            string
+	Username           string
+	Password           string
+	Computer           string
+	CACertPEM          string
+	InsecureSkipVerify bool
+	MTU                int
 }
 
 type session struct {
@@ -56,27 +57,26 @@ type session struct {
 }
 
 type gatewayConfig struct {
-	XMLName          xml.Name  `xml:"response"`
-	Status           string    `xml:"status,attr"`
-	Error            string    `xml:"error"`
-	NeedTunnel       string    `xml:"need-tunnel"`
-	IPAddress        string    `xml:"ip-address"`
-	Netmask          string    `xml:"netmask"`
-	TunnelURL        string    `xml:"ssl-tunnel-url"`
-	Timeout          int       `xml:"timeout"`
-	Lifetime         int       `xml:"lifetime"`
-	DisconnectOnIdle int       `xml:"disconnect-on-idle"`
-	MTU              int       `xml:"mtu"`
-	HIPReportNeeded  string    `xml:"hip-report-needed"`
-	IPSec            *struct{} `xml:"ipsec"`
-	DNS              []string  `xml:"dns>member"`
-	DNSv6            []string  `xml:"dns-v6>member"`
-	DNSSuffix        []string  `xml:"dns-suffix>member"`
-	AccessRoutes     []string  `xml:"access-routes>member"`
-	ExcludeRoutes    []string  `xml:"exclude-access-routes>member"`
-	AccessRoutesV6   []string  `xml:"access-routes-v6>member"`
-	ExcludeRoutesV6  []string  `xml:"exclude-access-routes-v6>member"`
-	NoDirectAccess   string    `xml:"no-direct-access-to-local-network"`
+	XMLName          xml.Name `xml:"response"`
+	Status           string   `xml:"status,attr"`
+	Error            string   `xml:"error"`
+	NeedTunnel       string   `xml:"need-tunnel"`
+	IPAddress        string   `xml:"ip-address"`
+	Netmask          string   `xml:"netmask"`
+	TunnelURL        string   `xml:"ssl-tunnel-url"`
+	Timeout          int      `xml:"timeout"`
+	Lifetime         int      `xml:"lifetime"`
+	DisconnectOnIdle int      `xml:"disconnect-on-idle"`
+	MTU              int      `xml:"mtu"`
+	HIPReportNeeded  string   `xml:"hip-report-needed"`
+	DNS              []string `xml:"dns>member"`
+	DNSv6            []string `xml:"dns-v6>member"`
+	DNSSuffix        []string `xml:"dns-suffix>member"`
+	AccessRoutes     []string `xml:"access-routes>member"`
+	ExcludeRoutes    []string `xml:"exclude-access-routes>member"`
+	AccessRoutesV6   []string `xml:"access-routes-v6>member"`
+	ExcludeRoutesV6  []string `xml:"exclude-access-routes-v6>member"`
+	NoDirectAccess   string   `xml:"no-direct-access-to-local-network"`
 }
 
 type jnlpResponse struct {
@@ -136,7 +136,12 @@ func newControl(c Config) (*control, error) {
 	if c.CACertPEM != "" && !roots.AppendCertsFromPEM([]byte(c.CACertPEM)) {
 		return nil, errors.New("globalprotect: invalid CA certificate PEM")
 	}
-	tlsConfig := &tls.Config{ServerName: gateway.Hostname(), MinVersion: tls.VersionTLS12, RootCAs: roots}
+	tlsConfig := &tls.Config{
+		ServerName:         gateway.Hostname(),
+		MinVersion:         tls.VersionTLS12,
+		RootCAs:            roots,
+		InsecureSkipVerify: c.InsecureSkipVerify,
+	}
 	tcpDial := func(ctx context.Context, address string) (net.Conn, error) {
 		a, err := netapi.ParseAddress("tcp", address)
 		if err != nil {
@@ -390,9 +395,6 @@ func (c *control) getConfig(ctx context.Context, s session) (gatewayConfig, neti
 	}
 	if value := strings.TrimSpace(cfg.HIPReportNeeded); value != "" && !isNegativeFlag(value) {
 		return cfg, netip.Prefix{}, errors.New("globalprotect: gateway requires an unsupported HIP report")
-	}
-	if cfg.IPSec != nil {
-		return cfg, netip.Prefix{}, errors.New("globalprotect: gateway supplied ESP settings; ESP is unsupported")
 	}
 	ip, err := netip.ParseAddr(cfg.IPAddress)
 	if err != nil || !ip.Is4() || ip.IsUnspecified() {

@@ -109,7 +109,7 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 			_, _ = fmt.Fprintf(w, `<response status="success"><need-tunnel>yes</need-tunnel>
 <ip-address>%s</ip-address><netmask>255.255.255.255</netmask>
 <ssl-tunnel-url>/ssl-tunnel-connect.sslvpn</ssl-tunnel-url><mtu>%d</mtu>
-<timeout>3600</timeout></response>`, clientIP, mtu)
+<timeout>3600</timeout><ipsec><ipsec-mode>esp-tunnel</ipsec-mode></ipsec></response>`, clientIP, mtu)
 		case "/ssl-vpn/logout.esp":
 			mu.Lock()
 			sawLogout = true

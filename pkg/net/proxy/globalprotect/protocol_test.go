@@ -91,6 +91,43 @@ func TestGatewayValidation(t *testing.T) {
 	}
 }
 
+func TestTLSInsecureSkipVerifyOption(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	for _, skipVerify := range []bool{false, true} {
+		name := "verify_certificate"
+		if skipVerify {
+			name = "skip_verification"
+		}
+		t.Run(name, func(t *testing.T) {
+			c, err := newControl(Config{Gateway: "untrusted.example.invalid", InsecureSkipVerify: skipVerify})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.close()
+			c.transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, network, address)
+			}
+
+			resp, err := c.client.Get(server.URL)
+			if skipVerify {
+				if err != nil {
+					t.Fatal(err)
+				}
+				_ = resp.Body.Close()
+				return
+			}
+			if err == nil {
+				_ = resp.Body.Close()
+				t.Fatal("accepted a self-signed certificate by default")
+			}
+		})
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

@@ -51,7 +51,8 @@ func init() {
 	register.RegisterContractPoint("globalprotect", func(config contractnode.GlobalProtect, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewClient(Config{
 			Gateway: config.Gateway, Username: config.Username, Password: config.Password,
-			Computer: config.Computer, CACertPEM: config.CACertPEM, MTU: int(config.MTU),
+			Computer: config.Computer, CACertPEM: config.CACertPEM,
+			InsecureSkipVerify: config.InsecureSkipVerify, MTU: int(config.MTU),
 		}, p)
 	})
 }
@@ -62,6 +63,9 @@ func init() {
 func NewClient(config Config, _ netapi.Proxy) (_ netapi.Proxy, err error) {
 	if config.Username == "" || config.Password == "" {
 		return nil, errors.New("globalprotect: username and password required")
+	}
+	if config.InsecureSkipVerify {
+		log.Warn("globalprotect TLS certificate verification is disabled")
 	}
 	control, err := newControl(config)
 	if err != nil {

@@ -98,12 +98,13 @@ type Protocol struct {
 // GlobalProtect is a directly addressed gateway with password authentication.
 // Portal discovery, SAML/SSO, HIP and ESP are not supported by this node.
 type GlobalProtect struct {
-	Gateway   string `json:"gateway"`
-	Username  string `json:"username"`
-	Password  string `json:"password"`
-	Computer  string `json:"computer,omitzero"`
-	CACertPEM string `json:"ca_cert_pem,omitzero"`
-	MTU       int32  `json:"mtu,omitzero"`
+	Gateway            string `json:"gateway"`
+	Username           string `json:"username"`
+	Password           string `json:"password"`
+	Computer           string `json:"computer,omitzero"`
+	CACertPEM          string `json:"ca_cert_pem,omitzero"`
+	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
+	MTU                int32  `json:"mtu,omitzero"`
 }
 
 type None struct{}
