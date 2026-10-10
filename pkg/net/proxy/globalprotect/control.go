@@ -32,8 +32,9 @@ const (
 )
 
 var (
-	ErrInteractiveAuth   = errors.New("globalprotect: SAML/SSO or interactive challenge is unsupported")
-	ErrInvalidAuthCookie = errors.New("globalprotect: authentication cookie is invalid; reconnect to authenticate again")
+	ErrInteractiveAuth        = errors.New("globalprotect: SAML/SSO or interactive challenge is unsupported")
+	ErrInvalidAuthCookie      = errors.New("globalprotect: authentication cookie is invalid; reconnect to authenticate again")
+	errAuthenticationRejected = errors.New("globalprotect: gateway login failed or requires interactive authentication")
 )
 
 // Config validates gateway certificates by default. InsecureSkipVerify is an
@@ -233,6 +234,9 @@ func (c *control) post(ctx context.Context, path string, form url.Values) ([]byt
 		if resp.StatusCode == 513 {
 			return nil, errors.New("globalprotect: gateway requires an unsupported client certificate")
 		}
+		if path == "/ssl-vpn/login.esp" && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) {
+			return nil, errAuthenticationRejected
+		}
 		if resp.StatusCode >= 300 && resp.StatusCode < 400 {
 			return nil, errors.New("globalprotect: gateway redirected to a portal or interactive login flow, which is unsupported")
 		}
@@ -329,7 +333,7 @@ func parseLogin(data []byte) (session, error) {
 		return session{}, fmt.Errorf("globalprotect: login XML: %w", err)
 	}
 	if response.XMLName.Local != "jnlp" || len(response.Arguments) < 8 {
-		return session{}, errors.New("globalprotect: gateway login failed or requires interactive authentication")
+		return session{}, errAuthenticationRejected
 	}
 	args := response.Arguments
 	if len(args) <= 14 {

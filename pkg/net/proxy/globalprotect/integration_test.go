@@ -79,8 +79,18 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 	var (
 		mu            sync.Mutex
 		authenticated bool
+		loginCount    int
 		sawLogout     bool
+		tunnelCount   int
 	)
+	dropFirstTunnel := make(chan struct{}, 1)
+	tunnelReady := make(chan int, 2)
+	defer func() {
+		select {
+		case dropFirstTunnel <- struct{}{}:
+		default:
+		}
+	}()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/ssl-vpn/prelogin.esp":
@@ -93,6 +103,7 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 			}
 			mu.Lock()
 			authenticated = true
+			loginCount++
 			mu.Unlock()
 			_, _ = io.WriteString(w, "<jnlp><application-desc>"+
 				"<argument>(null)</argument><argument>test-cookie</argument>"+
@@ -141,6 +152,17 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 			defer conn.Close()
 			if _, err := io.WriteString(conn, "START_TUNNEL"); err != nil {
 				return
+			}
+			mu.Lock()
+			tunnelCount++
+			tunnelNumber := tunnelCount
+			mu.Unlock()
+			tunnelReady <- tunnelNumber
+			if tunnelNumber == 1 {
+				go func() {
+					<-dropFirstTunnel
+					_ = conn.Close()
+				}()
 			}
 			var writeMu sync.Mutex
 			writeFrame := func(frame []byte) error {
@@ -207,6 +229,16 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer proxy.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	select {
+	case tunnelNumber := <-tunnelReady:
+		if tunnelNumber != 1 {
+			t.Fatalf("initial tunnel number = %d, want 1", tunnelNumber)
+		}
+	case <-ctx.Done():
+		t.Fatal("initial tunnel did not start")
+	}
 	infoProvider, ok := proxy.(interface {
 		NodeExtraInfo() contractnode.NodeExtraInfo
 	})
@@ -223,8 +255,6 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 		t.Fatalf("unexpected gateway extra info: %+v", info)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	tcpAddr, err := netapi.ParseAddress("tcp", fmt.Sprintf("%s:%d", serverIP, tcpPort))
 	if err != nil {
 		t.Fatal(err)
@@ -269,12 +299,43 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 	if !bytes.Equal(buf[:n], udpPayload) {
 		t.Fatalf("UDP echo mismatch: %q", buf[:n])
 	}
+	_ = tcpConn.Close()
+	_ = packetConn.Close()
+
+	dropFirstTunnel <- struct{}{}
+	select {
+	case tunnelNumber := <-tunnelReady:
+		if tunnelNumber != 2 {
+			t.Fatalf("reconnected tunnel number = %d, want 2", tunnelNumber)
+		}
+	case <-ctx.Done():
+		t.Fatal("GlobalProtect client did not reconnect after tunnel loss")
+	}
+	reconnectedConn, err := proxy.Conn(ctx, tcpAddr)
+	if err != nil {
+		t.Fatalf("dial after tunnel reconnect: %v", err)
+	}
+	defer reconnectedConn.Close()
+	_ = reconnectedConn.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := reconnectedConn.Write(data); err != nil {
+		t.Fatalf("write after tunnel reconnect: %v", err)
+	}
+	if _, err := io.ReadFull(reconnectedConn, echoed); err != nil {
+		t.Fatalf("read after tunnel reconnect: %v", err)
+	}
+	if !bytes.Equal(data, echoed) {
+		t.Fatalf("TCP echo after reconnect mismatch: %q", echoed)
+	}
 
 	mu.Lock()
 	wasAuthenticated := authenticated
+	logins := loginCount
 	mu.Unlock()
 	if !wasAuthenticated {
 		t.Fatal("gateway authentication was bypassed")
+	}
+	if logins < 2 {
+		t.Fatalf("gateway login count = %d, want at least 2", logins)
 	}
 	if err := proxy.Close(); err != nil {
 		t.Fatal(err)

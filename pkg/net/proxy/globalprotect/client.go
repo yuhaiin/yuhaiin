@@ -38,14 +38,26 @@ type Client struct {
 	connMu       sync.RWMutex
 	rekeyWait    chan struct{}
 	lastActivity atomic.Int64
+	lastDPD      atomic.Int64
 	closed       atomic.Bool
 	mu           sync.Mutex
 	failure      error
+	done         chan struct{}
 	dialer       *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
 	mtu          int
 	tunnelURL    string
 	extraInfo    contractnode.GlobalProtectInfo
 }
+
+const (
+	globalprotectDPDInterval = 10 * time.Second
+	globalprotectDPDTimeout  = 3 * globalprotectDPDInterval
+)
+
+var (
+	errGatewayIdleDisconnect = errors.New("globalprotect: gateway disconnect-on-idle timeout elapsed")
+	errDPDTimeout            = errors.New("globalprotect: gateway DPD response timed out")
+)
 
 var _ netapi.Proxy = (*Client)(nil)
 
@@ -59,22 +71,17 @@ func init() {
 	})
 }
 
-// NewClient connects to a directly addressed GlobalProtect gateway with
-// username/password auth. Portal gateway discovery and interactive auth are
-// intentionally not attempted.
-func NewClient(config Config, _ netapi.Proxy) (_ netapi.Proxy, err error) {
+// connectClient establishes one session with a directly addressed gateway.
+func connectClient(parent context.Context, config Config) (_ *Client, err error) {
 	if config.Username == "" || config.Password == "" {
 		return nil, errors.New("globalprotect: username and password required")
-	}
-	if config.InsecureSkipVerify {
-		log.Warn("globalprotect TLS certificate verification is disabled")
 	}
 	control, err := newControl(config)
 	if err != nil {
 		return nil, err
 	}
 	defer control.close()
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 25*time.Second)
 	defer cancel()
 
 	if err := control.prelogin(ctx); err != nil {
@@ -123,11 +130,16 @@ func NewClient(config Config, _ netapi.Proxy) (_ netapi.Proxy, err error) {
 		_ = conn.Close()
 		return nil, err
 	}
+	if err := parent.Err(); err != nil {
+		_ = network.Close()
+		_ = conn.Close()
+		return nil, err
+	}
 
 	runCtx, runCancel := context.WithCancel(context.Background())
 	client := &Client{
 		control: control, session: s, tunnel: network, conn: conn,
-		ctx: runCtx, cancel: runCancel, mtu: mtu,
+		ctx: runCtx, cancel: runCancel, done: make(chan struct{}), mtu: mtu,
 		tunnelURL: cfg.TunnelURL,
 		extraInfo: contractnode.GlobalProtectInfo{
 			TunnelPrefix:                 addr.String(),
@@ -145,6 +157,7 @@ func NewClient(config Config, _ netapi.Proxy) (_ netapi.Proxy, err error) {
 		}),
 	}
 	client.lastActivity.Store(time.Now().UnixNano())
+	client.lastDPD.Store(time.Now().UnixNano())
 	if len(cfg.DNS) > 0 || len(cfg.DNSv6) > 0 || len(cfg.DNSSuffix) > 0 ||
 		len(cfg.AccessRoutes) > 0 || len(cfg.ExcludeRoutes) > 0 ||
 		len(cfg.AccessRoutesV6) > 0 || len(cfg.ExcludeRoutesV6) > 0 || strings.TrimSpace(cfg.NoDirectAccess) != "" {
@@ -414,6 +427,7 @@ func (c *Client) receivePackets() {
 			return
 		}
 		if isDPD {
+			c.lastDPD.Store(time.Now().UnixNano())
 			continue
 		}
 		c.touchActivity()
@@ -428,19 +442,28 @@ func (c *Client) receivePackets() {
 }
 
 func (c *Client) keepalive() {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(globalprotectDPDInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-c.ctx.Done():
 			return
 		case <-ticker.C:
+			lastDPD := time.Unix(0, c.lastDPD.Load())
+			if dpdResponseTimedOut(time.Now(), lastDPD) {
+				c.fail(errDPDTimeout)
+				return
+			}
 			if err := c.sendFrame(dpdFrame()); err != nil {
 				c.fail(err)
 				return
 			}
 		}
 	}
+}
+
+func dpdResponseTimedOut(now, lastResponse time.Time) bool {
+	return now.Sub(lastResponse) >= globalprotectDPDTimeout
 }
 
 func (c *Client) touchActivity() { c.lastActivity.Store(time.Now().UnixNano()) }
@@ -458,7 +481,7 @@ func (c *Client) expireIdleAfter(d time.Duration) {
 		case <-ticker.C:
 			last := time.Unix(0, c.lastActivity.Load())
 			if time.Since(last) >= d {
-				c.fail(errors.New("globalprotect: gateway disconnect-on-idle timeout elapsed"))
+				c.fail(errGatewayIdleDisconnect)
 				return
 			}
 		}
@@ -573,6 +596,9 @@ func (c *Client) Close() error {
 			log.Debug("globalprotect logout failed", "error", err)
 		}
 		c.control.close()
+		if c.done != nil {
+			close(c.done)
+		}
 	})
 	return nil
 }

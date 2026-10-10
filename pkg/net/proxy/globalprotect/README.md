@@ -9,6 +9,8 @@ IP stack (the same one used by WireGuard) to expose TCP and UDP connections.
 - Username/password login against `/ssl-vpn/login.esp`
 - Gateway prelogin (rejects SAML/SSO), cookie and `getconfig.esp`
 - Authenticated SSL IP tunnel, IPv4, DPD/keepalive, TCP/UDP via gVisor
+- Automatic reconnection after an established tunnel drops, with capped
+  exponential backoff
 - Validates server certificates against the system trust store, optionally
   extended by a PEM certificate authority. `insecure_skip_verify` is an
   explicit opt-in for gateways whose certificate cannot be verified.
@@ -17,15 +19,23 @@ IP stack (the same one used by WireGuard) to expose TCP and UDP connections.
   base-MTU fallback where the socket MSS is unavailable).
 
 **Not supported yet:** portal discovery, client certificates, SAML/SSO,
-interactive MFA/challenges, HIP reports, ESP/UDP, IPv6 negotiation,
-reauthentication after the authentication lifetime, applying gateway-pushed
-DNS, split routes or local-network policy, and automatic reconnection. Gateways
-requiring HIP are rejected with an explicit error. A gateway `<timeout>`
-causes a TLS tunnel rekey 60 seconds before the timeout, or halfway through
-shorter intervals. `<lifetime>` and `<disconnect-on-idle>` are enforced
-separately. An expired authentication lifetime closes the tunnel and requires
-a new login. This early version is not a replacement for the official
-enterprise-managed endpoint client.
+interactive MFA/challenges, HIP reports, ESP/UDP, IPv6 negotiation, applying
+gateway-pushed DNS, split routes or local-network policy. Gateways requiring
+HIP are rejected with an explicit error. A gateway `<timeout>` causes a TLS
+tunnel rekey 60 seconds before the timeout, or halfway through shorter
+intervals. `<lifetime>` and `<disconnect-on-idle>` are enforced separately.
+When the active TLS tunnel drops or its authentication lifetime expires, the
+client starts a fresh login and retries until it reconnects or the node is
+closed. Retry delays grow from 1 second exponentially up to 60 seconds, with
+jitter to avoid synchronized retries. A gateway-requested idle disconnect
+waits for the next connection request before logging in again. Initial
+connection failures still return an error to the caller. If a reconnect is
+rejected or requires interactive authentication, automatic retries stop to
+avoid repeating login attempts; close and reopen the node after fixing the
+credentials or authentication requirement. Missing DPD responses are treated
+as a tunnel failure after 30 seconds, even when the underlying TCP connection
+has not reported an error. This early version is not a replacement for the
+official enterprise-managed endpoint client.
 
 ## Node example
 

@@ -81,6 +81,22 @@ func TestDPDFrame(t *testing.T) {
 	}
 }
 
+func TestDPDResponseTimeout(t *testing.T) {
+	now := time.Unix(100, 0)
+	for _, test := range []struct {
+		age  time.Duration
+		want bool
+	}{
+		{age: globalprotectDPDTimeout - time.Second, want: false},
+		{age: globalprotectDPDTimeout, want: true},
+		{age: globalprotectDPDTimeout + time.Second, want: true},
+	} {
+		if got := dpdResponseTimedOut(now, now.Add(-test.age)); got != test.want {
+			t.Errorf("DPD timeout at age %s = %t, want %t", test.age, got, test.want)
+		}
+	}
+}
+
 func TestGatewayValidation(t *testing.T) {
 	for _, raw := range []string{"http://host", "https://user:pass@host", "https://host/ssl-vpn", "https://host?x=y", ""} {
 		if _, err := parseGateway(raw); err == nil {
@@ -321,4 +337,23 @@ func TestInvalidTrustedCA(t *testing.T) {
 		t.Fatal("accepted invalid CA")
 	}
 	_ = pem.Block{} // keeps PEM test helpers available for certificate follow-up
+}
+
+func TestLoginUnauthorizedIsAuthenticationRejected(t *testing.T) {
+	c, err := newControl(Config{Gateway: "vpn.example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.close()
+	c.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusUnauthorized,
+			Body:       io.NopCloser(strings.NewReader("unauthorized")),
+			Header:     http.Header{},
+			Request:    r,
+		}, nil
+	})
+	if _, err := c.login(context.Background(), "alice", "wrong"); !errors.Is(err, errAuthenticationRejected) {
+		t.Fatalf("login error = %v, want authentication rejection", err)
+	}
 }
