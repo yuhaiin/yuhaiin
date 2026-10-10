@@ -75,4 +75,3 @@ func getPolicy(p *Pack) (Policy, bool) {
 	}
 	return y, p.Get("policy:Access") != nil
 }
-
