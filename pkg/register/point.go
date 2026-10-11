@@ -163,6 +163,10 @@ func ContractProtocolConfig(protocol contractnode.Protocol) (any, error) {
 		return *protocol.Wireguard, nil
 	case "openvpn":
 		return *protocol.OpenVPN, nil
+	case "l2tp":
+		return *protocol.L2TP, nil
+	case "l2tpv3":
+		return *protocol.L2TPv3, nil
 	case "globalprotect":
 		return *protocol.GlobalProtect, nil
 	case "softether":
