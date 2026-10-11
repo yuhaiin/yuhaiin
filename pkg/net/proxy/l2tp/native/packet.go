@@ -197,6 +197,8 @@ func knownAVP(t uint16, version int) bool {
 	return false
 }
 
+// RFC 2661 section 4.3 fixes the hidden-AVP mask to MD5. This decodes
+// legacy protocol fields; it does not provide data-channel encryption.
 func unhide(typ uint16, value []byte, secret string, vector []byte) ([]byte, error) {
 	if secret == "" || len(vector) == 0 || len(value) < 2 {
 		return nil, errors.New("l2tp: hidden AVP without secret/vector")
@@ -218,6 +220,8 @@ func unhide(typ uint16, value []byte, secret string, vector []byte) ([]byte, err
 	return plain[2 : 2+n], nil
 }
 
+// CHAP algorithm 5 (RFC 1994) and L2TPv2 tunnel authentication (RFC 2661)
+// require this MD5 response on the wire. It is not a password-storage hash.
 func challengeResponse(message byte, secret string, challenge []byte) []byte {
 	h := md5.New()
 	h.Write([]byte{message})

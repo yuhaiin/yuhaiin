@@ -52,6 +52,15 @@ MPPE, PPP compression or Ethernet VLAN trunking. Control authentication and
 cookies do not provide data encryption. Use a trusted network or a protected
 upstream transport when encryption is needed.
 
+Legacy authentication and AVP hiding use protocol-mandated primitives:
+[CHAP algorithm 5](https://www.rfc-editor.org/rfc/rfc1994) uses MD5,
+[MS-CHAPv2](https://www.rfc-editor.org/rfc/rfc2759) uses MD4/DES, and
+[L2TPv2 AVP hiding and tunnel authentication](https://www.rfc-editor.org/rfc/rfc2661)
+use MD5. These mechanisms retain their legacy security limitations;
+changing the primitives would break interoperability. They are confined
+to protocol compatibility and provide neither secure password storage
+nor transport encryption. PAP transmits its credentials in plaintext.
+
 The upstream UDP proxy is always honored. Reconnect uses bounded backoff and
 stops after explicit authentication rejection; existing sockets belong to the
 old session. `node.extra` reports cached active `l2tp`/`l2tpv3` addresses,
