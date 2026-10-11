@@ -9,13 +9,15 @@ import (
 )
 
 type Node struct {
-	ID      string         `json:"id"`
-	Name    string         `json:"name"`
-	Group   string         `json:"group"`
-	Origin  string         `json:"origin"`
-	Enabled bool           `json:"enabled"`
-	Chain   []Protocol     `json:"chain"`
-	Latency *LatencyConfig `json:"latency,omitzero"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Group   string `json:"group"`
+	Origin  string `json:"origin"`
+	Enabled bool   `json:"enabled"`
+	// DisableIPv6 forces destination connections through this node to use IPv4.
+	DisableIPv6 bool           `json:"disable_ipv6,omitzero"`
+	Chain       []Protocol     `json:"chain"`
+	Latency     *LatencyConfig `json:"latency,omitzero"`
 }
 
 // LatencyConfig overrides the global HTTP latency target for one node.

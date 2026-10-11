@@ -102,8 +102,12 @@ func LatencyIp(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.Late
 	reply := contractnode.LatencyResponse{OK: true, IP: &contractnode.IPLatency{}}
 
 	wg := sync.WaitGroup{}
+	families := []bool{false, true}
+	if disabled, ok := p.(interface{ IPv6Disabled() bool }); ok && disabled.IPv6Disabled() {
+		families = []bool{false}
+	}
 
-	for _, isIPv6 := range []bool{false, true} {
+	for _, isIPv6 := range families {
 		wg.Go(func() {
 			hc := &http.Client{
 				Timeout: time.Second * 6,

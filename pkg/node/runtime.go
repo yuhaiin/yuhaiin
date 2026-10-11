@@ -297,28 +297,31 @@ func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.L
 		}
 	}
 
-	proxy, err := r.getContractDialer(ctx, id, func() (contractnode.Node, error) { return node, nil })
+	proxy, err := r.getContractDialer(ctx, id, node)
 	if err != nil {
 		return contractnode.LatencyResponse{}, err
 	}
 	return latency.LatencyWithOptions(req, &latencyDialer{Proxy: proxy, ipv6: req.IPv6}, latencyOptions)
 }
 
-func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, load func() (contractnode.Node, error)) (netapi.Proxy, error) {
+func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node contractnode.Node) (netapi.Proxy, error) {
 	if id == "" {
 		return nil, fmt.Errorf("hash is empty")
 	}
-	return r.proxies.LoadOrCreate(ctx, id, func() (*ProxyEntry, error) {
-		node, err := load()
-		if err != nil {
-			return nil, err
-		}
+	proxy, err := r.proxies.LoadOrCreate(ctx, id, func() (*ProxyEntry, error) {
 		proxy, err := register.ContractDialer(node)
 		if err != nil {
 			return nil, err
 		}
 		return &ProxyEntry{Proxy: proxy, ContractConfig: &node, Name: node.Name}, nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	if node.DisableIPv6 {
+		return &ipv4OnlyNodeProxy{Proxy: proxy}, nil
+	}
+	return proxy, nil
 }
 
 func (r *NodeRuntime) Get(ctx context.Context, network, mode, tag string) (netapi.Proxy, error) {
@@ -355,12 +358,12 @@ func (r *NodeRuntime) Get(ctx context.Context, network, mode, tag string) (netap
 	case "tcp":
 		selected, ok, err := nodes.Selected(ctx, true)
 		if err == nil && ok {
-			return r.getContractDialer(ctx, selected.ID, func() (contractnode.Node, error) { return selected, nil })
+			return r.getContractDialer(ctx, selected.ID, selected)
 		}
 	case "udp":
 		selected, ok, err := nodes.Selected(ctx, false)
 		if err == nil && ok {
-			return r.getContractDialer(ctx, selected.ID, func() (contractnode.Node, error) { return selected, nil })
+			return r.getContractDialer(ctx, selected.ID, selected)
 		}
 	default:
 		return nil, fmt.Errorf("invalid network: %s", network)
@@ -380,7 +383,7 @@ func (r *NodeRuntime) GetDialerByID(ctx context.Context, id string) (netapi.Prox
 	if err != nil {
 		return nil, err
 	}
-	return r.getContractDialer(ctx, id, func() (contractnode.Node, error) { return node, nil })
+	return r.getContractDialer(ctx, id, node)
 }
 
 func (r *NodeRuntime) tagConn(ctx context.Context, tag string) (string, error) {
@@ -413,11 +416,23 @@ type latencyDialer struct {
 }
 
 func (d *latencyDialer) Conn(ctx context.Context, address netapi.Address) (net.Conn, error) {
-	return d.Proxy.Conn(withResolverMode(ctx, d.ipv6), address)
+	if !d.IPv6Disabled() {
+		ctx = withResolverMode(ctx, d.ipv6)
+	}
+	return d.Proxy.Conn(ctx, address)
 }
 
 func (d *latencyDialer) PacketConn(ctx context.Context, address netapi.Address) (net.PacketConn, error) {
-	return d.Proxy.PacketConn(withResolverMode(ctx, d.ipv6), address)
+	if !d.IPv6Disabled() {
+		ctx = withResolverMode(ctx, d.ipv6)
+	}
+	return d.Proxy.PacketConn(ctx, address)
+}
+
+// IPv6Disabled reports whether the wrapped node only accepts IPv4 destinations.
+func (d *latencyDialer) IPv6Disabled() bool {
+	proxy, ok := d.Proxy.(interface{ IPv6Disabled() bool })
+	return ok && proxy.IPv6Disabled()
 }
 
 func withResolverMode(ctx context.Context, ipv6 bool) context.Context {
