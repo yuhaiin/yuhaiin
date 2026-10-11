@@ -64,7 +64,7 @@ jobs:
       - name: Test VPN outbounds and node contract
         run: go test -race ./pkg/net/proxy/amneziawg/... ./pkg/net/proxy/enterprisevpn/... ./pkg/net/proxy/globalprotect ./pkg/net/proxy/softether/... ./pkg/contract/node ./pkg/register
 
-  migrate-enterprise-vpn-branch:
+  separate-vpn-branch:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feat/five-vpn-protocols-20261011' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
@@ -76,15 +76,14 @@ jobs:
           persist-credentials: true
       - uses: ./.github/actions/setup-go
         with:
-          cache-scope: enterprise-migration
-      - name: Keep only required client engine sources under net/proxy
+          cache-scope: vpn-package-migration
+      - name: Split clients into four independent outbounds
         run: |
-          if [[ ! -d third_party/veepin ]]; then exit 0; fi
-          python3 scripts/migrate_enterprisevpn_engines.py
-          rm scripts/migrate_enterprisevpn_engines.py
-          gofmt -w pkg/contract/node/types.go pkg/net/proxy/enterprisevpn/*.go
+          if [[ ! -d pkg/net/proxy/enterprisevpn ]]; then exit 0; fi
+          python3 scripts/separate_vpn_outbounds.py
+          rm scripts/separate_vpn_outbounds.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A third_party/ pkg/net/proxy/enterprisevpn/ pkg/contract/node/types.go go.mod scripts/
-          git commit -m "refactor(vpn): move minimal client engines under net/proxy; remove PQ and vendor module"
+          git add -A pkg/net/proxy/ pkg/app/app.go scripts/ .github/workflows/lint.yml
+          git commit -m "refactor(vpn): split IKEv2 AnyConnect SSTP Fortinet into independent proxy packages"
           git push origin HEAD:feat/five-vpn-protocols-20261011
