@@ -55,12 +55,6 @@ type Config struct {
 	SkipVerify bool
 	Logger     *slog.Logger
 
-	// PostQuantumOnly requires a post-quantum key exchange and ML-DSA
-	// authentication, refusing anything less rather than negotiating down. It is
-	// what the pq-sstp registry name sets; see internal/pqpolicy for the
-	// contract and doc/pq-variants-plan.md for why it is a name rather than a
-	// flag.
-	PostQuantumOnly bool
 }
 
 func (c *Config) validate() error {

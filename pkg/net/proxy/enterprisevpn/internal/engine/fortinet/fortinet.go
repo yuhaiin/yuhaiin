@@ -79,11 +79,6 @@ type Config struct {
 	TUNName    string
 	Logger     *slog.Logger
 
-	// PostQuantumOnly requires a post-quantum key exchange and ML-DSA
-	// authentication, refusing anything less rather than negotiating down. It is
-	// what the pq-fortinet registry name sets; see internal/pqpolicy for the contract
-	// and doc/pq-variants-plan.md for why it is a name rather than a flag.
-	PostQuantumOnly bool
 }
 
 // Session is a running Fortinet client.

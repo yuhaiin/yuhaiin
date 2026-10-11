@@ -72,16 +72,7 @@ type Config struct {
 	// TUNName is the desired TUN interface name; empty lets the kernel pick.
 	TUNName string
 
-	// PostQuantum offers ML-KEM-768 as an additional key exchange (RFC 9370),
-	// carried in an IKE_INTERMEDIATE exchange (RFC 9242). The result is hybrid:
-	// the classical group still runs and still contributes. A server that does
-	// not support it is not an error — the handshake proceeds classically.
-	PostQuantum bool
 
-	// PostQuantumOnly additionally requires the responder to authenticate with
-	// an ML-DSA certificate. It is what the pq-ikev2 registry name sets, and it
-	// implies PostQuantum.
-	PostQuantumOnly bool
 
 	// IPTFS enables AGGFRAG aggregation and fragmentation (RFC 9347) for the
 	// Child SA. When set, the client advertises USE_AGGFRAG in IKE_AUTH and
@@ -164,7 +155,6 @@ const (
 	OptKey       = "key"          // client private-key PEM path
 	OptCA        = "ca"           // CA bundle PEM path to verify the server (optional)
 	OptShape     = "shape"        // per-flow upstream shaping budget in bytes (0 = off)
-	OptPQ        = "post-quantum" // offer ML-KEM-768 as an additional key exchange
 	OptIPTFS     = "iptfs"        // enable AGGFRAG (IP-TFS) aggregation (RFC 9347)
 	OptIPTFSRate = "iptfs-rate"   // constant-rate IP-TFS in bytes/sec; 0 = aggregation only
 	OptTCP       = "tcp"          // carry IKE and ESP over TCP (RFC 8229/9329) instead of UDP
@@ -173,12 +163,6 @@ const (
 // parseOptions turns string-keyed options into a Dialer. It is what the registry
 // calls for client.Dial(ctx, "ikev2", opts).
 func parseOptions(opts map[string]string) (client.Dialer, error) {
-	// The deprecation, said once and where the operator will see it. -pq only
-	// ever OFFERED ML-KEM and fell back silently when the responder declined,
-	// which is the downgrade the pq-ikev2 name exists to close. Warnf rather
-	// than Printf so it survives -log-level warn: a line telling somebody their
-	// post-quantum protection is optional should not be hidden at the level
-	// they turned logging down to.
 
 	cfg := Config{
 		Server:      opts[OptGateway],
@@ -191,7 +175,6 @@ func parseOptions(opts map[string]string) (client.Dialer, error) {
 		CertFile:    opts[OptCert],
 		KeyFile:     opts[OptKey],
 		CAFile:      opts[OptCA],
-		PostQuantum: opts[OptPQ] == "true" || false,
 		IPTFS:       opts[OptIPTFS] == "true",
 		TCP:         opts[OptTCP] == "true",
 		// Without this the engine's log goes nowhere: Dial discards a nil
@@ -321,8 +304,6 @@ func Dial(ctx context.Context, cfg Config) (client.Session, client.Result, error
 		LocalID:         parseIdentity(cfg.LocalID),
 		EAPUsername:     cfg.EAPUser,
 		EAPPassword:     cfg.EAPPassword,
-		PostQuantum:     false,
-		PostQuantumAuth: false,
 		IPTFS:           cfg.IPTFS,
 		IPTFSRate:       cfg.IPTFSRate,
 		TCP:             cfg.TCP,
