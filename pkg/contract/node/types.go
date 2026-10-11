@@ -8,16 +8,23 @@ import (
 	"strings"
 )
 
+type IPVersion string
+
+const (
+	IPVersionAuto IPVersion = "auto"
+	IPVersionIPv4 IPVersion = "ipv4"
+	IPVersionIPv6 IPVersion = "ipv6"
+)
+
 type Node struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Group   string `json:"group"`
-	Origin  string `json:"origin"`
-	Enabled bool   `json:"enabled"`
-	// DisableIPv6 forces destination connections through this node to use IPv4.
-	DisableIPv6 bool           `json:"disable_ipv6,omitzero"`
-	Chain       []Protocol     `json:"chain"`
-	Latency     *LatencyConfig `json:"latency,omitzero"`
+	ID        string         `json:"id"`
+	Name      string         `json:"name"`
+	Group     string         `json:"group"`
+	Origin    string         `json:"origin"`
+	Enabled   bool           `json:"enabled"`
+	IPVersion IPVersion      `json:"ip_version,omitempty"`
+	Chain     []Protocol     `json:"chain"`
+	Latency   *LatencyConfig `json:"latency,omitzero"`
 }
 
 // LatencyConfig overrides the global HTTP latency target for one node.
@@ -624,6 +631,11 @@ func (x Node) Validate() error {
 	}
 	if x.Origin == "" {
 		return errors.New("node origin is empty")
+	}
+	switch x.IPVersion {
+	case "", IPVersionAuto, IPVersionIPv4, IPVersionIPv6:
+	default:
+		return fmt.Errorf("unsupported node IP version %q", x.IPVersion)
 	}
 	if len(x.Chain) == 0 {
 		return errors.New("node chain is empty")
