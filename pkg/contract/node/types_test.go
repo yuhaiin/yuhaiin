@@ -121,11 +121,11 @@ func TestNewTypedProtocol(t *testing.T) {
 
 func TestAmneziaWGTaggedJSONRoundTrip(t *testing.T) {
 	want := AmneziaWG{
-		SecretKey:            "private-key-placeholder",
-		Endpoint:             []string{"10.12.0.2/24"},
-		MTU:                  1400,
-		H1:                   "1000-2000",
-		I1:                   "<r 16>",
+		SecretKey:           "private-key-placeholder",
+		Endpoint:            []string{"10.12.0.2/24"},
+		MTU:                 1400,
+		H1:                  "1000-2000",
+		I1:                  "<r 16>",
 		HeaderProtectionKey: "test-protection-key",
 		Peers: []WireguardPeer{{
 			PublicKey:  "peer-key-placeholder",
