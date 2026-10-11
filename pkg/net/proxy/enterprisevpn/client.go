@@ -146,12 +146,13 @@ func NewFortinet(c contractnode.Fortinet,up netapi.Proxy)(*Client,error){
 		if !roots.AppendCertsFromPEM([]byte(c.CACertPEM)){return nil,errors.New("fortinet: invalid CA PEM")}
 	}
 	return connect("fortinet",up,func(ctx context.Context,tun string)(client.Session,client.Result,error){
-		return fortinet.Dial(ctx,fortinet.Config{
+		s,info,e:=fortinet.Dial(ctx,fortinet.Config{
 			Server:host,Port:port,Username:c.Username,Password:c.Password,Realm:c.Realm,
 			Token:c.Token,TOTPSecret:c.TOTPSecret,RootCAs:roots,
 			Insecure:c.InsecureSkipVerify,NoDTLS:c.DisableDTLS||chained(up),
 			TUNName:tun,DialContext:endpointDialer(up),
 		})
+		return s,info,e
 	})
 }
 func (c *Client) Conn(ctx context.Context,addr netapi.Address)(net.Conn,error){
