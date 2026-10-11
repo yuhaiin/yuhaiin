@@ -33,6 +33,7 @@
   - [AnyConnect](pkg/net/proxy/anyconnect/README.md) (CSTP over TLS with optional DTLS)
   - [SSTP](pkg/net/proxy/sstp/README.md) (PPP over TLS with MS-CHAPv2)
   - [Fortinet SSL VPN](pkg/net/proxy/fortinet/README.md) (TLS or optional DTLS data channel)
+  - [SoftEther native SSL-VPN](pkg/net/proxy/softether/README.md) (experimental; distinct from SSTP and OpenVPN compatibility modes)
   - Websocket, Quic, obfs-http, Reality, HTTP2, TLS, ECH(Encrypted SNI)
   - yamux  
   - reverse HTTP, reverse TCP
