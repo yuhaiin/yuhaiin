@@ -14,8 +14,6 @@ func testConfig()contractnode.AmneziaWG{
 func TestIPC(t *testing.T){
  c:=testConfig();c.H1="1000-2000";c.JC=4;c.JMin=10;c.JMax=20;c.S1=24;c.I1="<r 64>"
  r,err:=buildIPC(c);if err!=nil{t.Fatal(err)}
- b:=new(strings.Builder);if _,err:=strings.NewReader("").WriteTo(b);err!=nil{t.Fatal(err)}
- _=b
  data:=make([]byte,4096);n,err:=r.Read(data);if err!=nil&&n==0{t.Fatal(err)}
  txt:=string(data[:n])
  for _,key:=range []string{"h1=1000-2000","jc=4","i1=<r 64>","allowed_ip=0.0.0.0/0"}{
