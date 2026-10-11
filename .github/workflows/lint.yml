@@ -63,3 +63,26 @@ jobs:
           cache-scope: vpn-outbound-tests
       - name: Test VPN outbounds and node contract
         run: go test -race ./pkg/net/proxy/amneziawg/... ./pkg/net/proxy/globalprotect ./pkg/net/proxy/softether/... ./pkg/contract/node ./pkg/register
+
+  vendor-veepin-branch:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feat/five-vpn-protocols-20261011' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/five-vpn-protocols-20261011
+          persist-credentials: true
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: veepin-vendor-branch
+      - name: Vendor pinned protocol engine
+        run: |
+          if [[ -f third_party/veepin/UPSTREAM.md ]]; then exit 0; fi
+          python3 scripts/vendor_veepin_for_yuhaiin.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add third_party/veepin/
+          git commit -m "vendor: pin MIT veepin IKEv2 AnyConnect SSTP Fortinet engines"
+          git push origin HEAD:feat/five-vpn-protocols-20261011
