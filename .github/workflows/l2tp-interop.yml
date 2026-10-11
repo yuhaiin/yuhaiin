@@ -20,7 +20,7 @@ jobs:
         with:
           cache-scope: l2tp-interop
       - name: Test protocol and contract with race detector
-        run: go test -race ./pkg/net/proxy/l2tp/... ./pkg/contract/node ./pkg/register
+        run: go test -race ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/wireguard ./pkg/net/proxy/tun/gvisor ./pkg/contract/node ./pkg/register
       - name: Load PPP and L2TP Ethernet kernel support
         run: |
           sudo apt-get update
