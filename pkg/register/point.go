@@ -159,6 +159,8 @@ func ContractProtocolConfig(protocol contractnode.Protocol) (any, error) {
 		return *protocol.Reality, nil
 	case "tls":
 		return *protocol.TLS, nil
+	case "amneziawg":
+		return *protocol.AmneziaWG, nil
 	case "wireguard":
 		return *protocol.Wireguard, nil
 	case "openvpn":

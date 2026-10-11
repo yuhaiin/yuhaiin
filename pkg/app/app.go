@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/aead"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/amneziawg"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/drop"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"

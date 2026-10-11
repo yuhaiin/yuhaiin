@@ -92,6 +92,7 @@ type Protocol struct {
 	HTTP2                *Concurrency          `json:"http2,omitzero"`
 	Reality              *Reality              `json:"reality,omitzero"`
 	TLS                  *TLS                  `json:"tls,omitzero"`
+	AmneziaWG            *AmneziaWG            `json:"amneziawg,omitzero"`
 	Wireguard            *Wireguard            `json:"wireguard,omitzero"`
 	OpenVPN              *OpenVPN              `json:"openvpn,omitzero"`
 	L2TP                 *L2TP                 `json:"l2tp,omitzero"`
@@ -413,6 +414,35 @@ type Wireguard struct {
 	Reserved  []byte          `json:"reserved,omitzero"`
 }
 
+// AmneziaWG uses the official amneziawg-go/v3 userspace protocol engine.
+// The fields mirror its UAPI; strings retain its uint32 range notation.
+type AmneziaWG struct {
+ SecretKey string `json:"secretKey"`
+ Endpoint []string `json:"endpoint,omitzero"`
+ Peers []WireguardPeer `json:"peers,omitzero"`
+ MTU int32 `json:"mtu,omitzero"`
+ JC uint32 `json:"jc,omitzero"`
+ JMin uint32 `json:"jmin,omitzero"`
+ JMax uint32 `json:"jmax,omitzero"`
+ S1 uint32 `json:"s1,omitzero"`
+ S2 uint32 `json:"s2,omitzero"`
+ S3 uint32 `json:"s3,omitzero"`
+ S4 uint32 `json:"s4,omitzero"`
+ H1 string `json:"h1,omitzero"`
+ H2 string `json:"h2,omitzero"`
+ H3 string `json:"h3,omitzero"`
+ H4 string `json:"h4,omitzero"`
+ I1 string `json:"i1,omitzero"`
+ I2 string `json:"i2,omitzero"`
+ I3 string `json:"i3,omitzero"`
+ I4 string `json:"i4,omitzero"`
+ I5 string `json:"i5,omitzero"`
+ HeaderProtectionKey string `json:"header_protection_key,omitzero"`
+ ContentPaddingAddition string `json:"content_padding_addition,omitzero"`
+ RandomTrailers bool `json:"random_trailers,omitzero"`
+ DisableCookies bool `json:"disable_cookies,omitzero"`
+}
+
 type WireguardPeer struct {
 	PublicKey    string   `json:"publicKey"`
 	PreSharedKey string   `json:"preSharedKey,omitzero"`
@@ -495,6 +525,7 @@ func (Yuubinsya) ProtocolType() string            { return "yuubinsya" }
 func (HTTP2) ProtocolType() string                { return "http2" }
 func (Reality) ProtocolType() string              { return "reality" }
 func (TLS) ProtocolType() string                  { return "tls" }
+func (AmneziaWG) ProtocolType() string            { return "amneziawg" }
 func (Wireguard) ProtocolType() string            { return "wireguard" }
 func (OpenVPN) ProtocolType() string              { return "openvpn" }
 func (L2TP) ProtocolType() string                 { return "l2tp" }
@@ -699,6 +730,7 @@ func (x Protocol) presentVariants() map[string]bool {
 		"http2":                  x.HTTP2 != nil,
 		"reality":                x.Reality != nil,
 		"tls":                    x.TLS != nil,
+		"amneziawg":              x.AmneziaWG != nil,
 		"wireguard":              x.Wireguard != nil,
 		"globalprotect":          x.GlobalProtect != nil,
 		"openvpn":                x.OpenVPN != nil,

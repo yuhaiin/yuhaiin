@@ -11,6 +11,7 @@ replace (
 
 require (
 	codeberg.org/miekg/dns v0.6.118
+	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260828
 	github.com/apernet/hysteria/core/v2 v2.13.0
 	github.com/apernet/hysteria/extras/v2 v2.13.0
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
