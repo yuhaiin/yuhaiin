@@ -90,8 +90,9 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// TLSConfig verifies the CA chain and server EKU. OpenVPN certificate identities
-// commonly use a CN without a DNS SAN; ServerName opts into hostname checking.
+// TLSConfig verifies the CA chain and server EKU. System roots also require the
+// gateway identity. An explicit OpenVPN CA permits CN-only server certificates;
+// ServerName enables hostname verification for those certificates as well.
 func (c Config) TLSConfig() (*tls.Config, error) {
 	roots, err := x509.SystemCertPool()
 	if err != nil || roots == nil {
@@ -103,8 +104,15 @@ func (c Config) TLSConfig() (*tls.Config, error) {
 			return nil, errors.New("openvpn: invalid CA PEM")
 		}
 	}
-	cfg := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: c.ServerName, RootCAs: roots,
-		InsecureSkipVerify: c.InsecureSkipVerify || c.ServerName == ""}
+	serverName := c.ServerName
+	if serverName == "" && c.CACertPEM == "" && !c.InsecureSkipVerify {
+		serverName, _, err = net.SplitHostPort(c.Gateway)
+		if err != nil || serverName == "" {
+			return nil, errors.New("openvpn: system trust requires a gateway host or server name")
+		}
+	}
+	cfg := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: serverName, RootCAs: roots,
+		InsecureSkipVerify: c.InsecureSkipVerify || serverName == ""}
 	if c.ClientCertPEM != "" {
 		cert, err := tls.X509KeyPair([]byte(c.ClientCertPEM), []byte(c.ClientKeyPEM))
 		if err != nil {
@@ -113,9 +121,9 @@ func (c Config) TLSConfig() (*tls.Config, error) {
 		cfg.Certificates = []tls.Certificate{cert}
 	}
 	// With a server name, use Go's standard chain/EKU/hostname verification.
-	// Without one, replace only the hostname requirement with CA/EKU checks;
-	// OpenVPN CA-issued certificates commonly have no DNS SAN.
-	if !c.InsecureSkipVerify && c.ServerName == "" {
+	// With an explicit CA and no name, replace only the hostname requirement
+	// with CA/EKU checks; OpenVPN certificates commonly have no DNS SAN.
+	if !c.InsecureSkipVerify && serverName == "" {
 		cfg.VerifyConnection = func(state tls.ConnectionState) error {
 			if len(state.PeerCertificates) == 0 {
 				return errors.New("openvpn: server sent no certificate")
@@ -125,7 +133,7 @@ func (c Config) TLSConfig() (*tls.Config, error) {
 				intermediate.AddCert(cert)
 			}
 			_, err := state.PeerCertificates[0].Verify(x509.VerifyOptions{
-				Roots: roots, Intermediates: intermediate, DNSName: c.ServerName,
+				Roots: roots, Intermediates: intermediate,
 				KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 			})
 			return err

@@ -37,8 +37,10 @@ GlobalProtect and SoftEther. Both application TCP and UDP use the tunnel.
 - Certificate auth, username/password auth, or both are supported. Omit both
   client PEM fields for a server configured with `verify-client-cert none`.
 - Certificates are verified against `ca_cert_pem` or system roots, including
-  the server-auth EKU. OpenVPN commonly uses CA-issued certificates without
-  DNS SANs. Optional `server_name` additionally verifies the DNS/IP identity.
+  the server-auth EKU. System roots also verify the gateway DNS/IP identity.
+  An explicit OpenVPN CA permits certificates without DNS SANs. Optional
+  `server_name` enables identity verification with that CA, or overrides the
+  gateway name when using system roots.
   `insecure_skip_verify` disables these checks only by explicit opt-in.
 - `tls_auth_key` and `tls_crypt_key` are mutually exclusive inline static keys.
   For tls-auth, `auth` supports SHA1 (default), SHA256, and SHA512;

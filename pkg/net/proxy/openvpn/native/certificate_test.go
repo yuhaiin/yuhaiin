@@ -15,6 +15,27 @@ import (
 	"time"
 )
 
+func TestTLSSystemTrustRequiresGatewayIdentity(t *testing.T) {
+	for _, gateway := range []string{"vpn.example:1194", "[2001:db8::1]:1194"} {
+		t.Run(gateway, func(t *testing.T) {
+			cfg, err := (Config{Gateway: gateway}).TLSConfig()
+			if err != nil {
+				t.Fatal(err)
+			}
+			host, _, err := net.SplitHostPort(gateway)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.ServerName != host || cfg.InsecureSkipVerify || cfg.RootCAs == nil {
+				t.Fatalf("system trust must verify gateway identity: %+v", cfg)
+			}
+		})
+	}
+	if _, err := (Config{}).TLSConfig(); err == nil {
+		t.Fatal("system trust without a gateway identity must fail")
+	}
+}
+
 func TestTLSCertificateVerification(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
