@@ -37,7 +37,7 @@ func (b *packetBridge) Attach(cfg client.Result) (*wireguard.NetTun, error) {
 		ip   net.IP
 		bits int
 	}{
-		{cfg.AssignedIP, ipv4Bits(cfg.Netmask)},
+		{cfg.AssignedIP, ipv4Bits(net.IPMask(cfg.Netmask))},
 		{cfg.AssignedIP6, cfg.Prefix6},
 	} {
 		if addr.ip == nil {
