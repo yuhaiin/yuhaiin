@@ -93,6 +93,11 @@ type Protocol struct {
 	Reality              *Reality              `json:"reality,omitzero"`
 	TLS                  *TLS                  `json:"tls,omitzero"`
 	AmneziaWG            *AmneziaWG            `json:"amneziawg,omitzero"`
+	// Additional client-only enterprise VPN protocols.
+	IKEv2                *IKEv2                `json:"ikev2,omitzero"`
+	AnyConnect           *AnyConnect           `json:"anyconnect,omitzero"`
+	SSTP                 *SSTP                 `json:"sstp,omitzero"`
+	Fortinet             *Fortinet             `json:"fortinet,omitzero"`
 	Wireguard            *Wireguard            `json:"wireguard,omitzero"`
 	OpenVPN              *OpenVPN              `json:"openvpn,omitzero"`
 	L2TP                 *L2TP                 `json:"l2tp,omitzero"`
@@ -406,6 +411,49 @@ type TLSTermination struct {
 	TLS ServerTLS `json:"tls"`
 }
 
+// IKEv2 uses ESP over UDP/NAT-T or RFC 8229 TCP encapsulation.
+// EAP credentials supplement, rather than replace, authentication of the peer.
+type IKEv2 struct {
+	Gateway string `json:"gateway"`
+	PSK string `json:"psk,omitzero"`
+	LocalID string `json:"local_id"`
+	ServerID string `json:"server_id,omitzero"`
+	Username string `json:"username,omitzero"`
+	Password string `json:"password,omitzero"`
+	TCP bool `json:"tcp,omitzero"`
+	MTU int32 `json:"mtu,omitzero"`
+}
+
+type AnyConnect struct {
+	Gateway string `json:"gateway"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	InsecureSkipVerify bool `json:"insecure_skip_verify,omitzero"`
+	DisableDTLS bool `json:"disable_dtls,omitzero"`
+	MTU int32 `json:"mtu,omitzero"`
+}
+
+type SSTP struct {
+	Gateway string `json:"gateway"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	InsecureSkipVerify bool `json:"insecure_skip_verify,omitzero"`
+	MTU int32 `json:"mtu,omitzero"`
+}
+
+type Fortinet struct {
+	Gateway string `json:"gateway"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Realm string `json:"realm,omitzero"`
+	Token string `json:"token,omitzero"`
+	TOTPSecret string `json:"totp_secret,omitzero"`
+	CACertPEM string `json:"ca_cert_pem,omitzero"`
+	InsecureSkipVerify bool `json:"insecure_skip_verify,omitzero"`
+	DisableDTLS bool `json:"disable_dtls,omitzero"`
+	MTU int32 `json:"mtu,omitzero"`
+}
+
 type Wireguard struct {
 	SecretKey string          `json:"secretKey"`
 	Endpoint  []string        `json:"endpoint,omitzero"`
@@ -526,6 +574,10 @@ func (HTTP2) ProtocolType() string                { return "http2" }
 func (Reality) ProtocolType() string              { return "reality" }
 func (TLS) ProtocolType() string                  { return "tls" }
 func (AmneziaWG) ProtocolType() string            { return "amneziawg" }
+func (IKEv2) ProtocolType() string                { return "ikev2" }
+func (AnyConnect) ProtocolType() string           { return "anyconnect" }
+func (SSTP) ProtocolType() string                 { return "sstp" }
+func (Fortinet) ProtocolType() string             { return "fortinet" }
 func (Wireguard) ProtocolType() string            { return "wireguard" }
 func (OpenVPN) ProtocolType() string              { return "openvpn" }
 func (L2TP) ProtocolType() string                 { return "l2tp" }
@@ -731,6 +783,10 @@ func (x Protocol) presentVariants() map[string]bool {
 		"reality":                x.Reality != nil,
 		"tls":                    x.TLS != nil,
 		"amneziawg":              x.AmneziaWG != nil,
+		"ikev2":                  x.IKEv2 != nil,
+		"anyconnect":             x.AnyConnect != nil,
+		"sstp":                   x.SSTP != nil,
+		"fortinet":               x.Fortinet != nil,
 		"wireguard":              x.Wireguard != nil,
 		"globalprotect":          x.GlobalProtect != nil,
 		"openvpn":                x.OpenVPN != nil,
