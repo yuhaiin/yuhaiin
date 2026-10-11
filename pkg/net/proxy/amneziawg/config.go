@@ -42,9 +42,22 @@ func validateConfig(c contractnode.AmneziaWG)error{
  for _,s:=range []uint32{c.S1,c.S2,c.S3,c.S4}{if s>1500{return fmt.Errorf("amneziawg: padding exceeds 1500")}}
  for _,s:=range []string{c.H1,c.H2,c.H3,c.H4,c.ContentPaddingAddition}{
   if err:=parseRange(s);err!=nil{return err}
+  if s==c.ContentPaddingAddition && s!="" {
+   parts:=strings.Split(s,"-")
+   upper:=parts[len(parts)-1]
+   n,_:=strconv.ParseUint(upper,10,32)
+   if n>1500{return fmt.Errorf("amneziawg: content padding exceeds safe limit")}
+  }
  }
  for _,s:=range []string{c.I1,c.I2,c.I3,c.I4,c.I5}{
   if len(s)>1024||strings.ContainsAny(s,"\r\n") {return fmt.Errorf("amneziawg: invalid custom packet pattern")}
+  for _,tag:=range customTag.FindAllString(s,-1){
+   if strings.HasPrefix(tag,"<r ")||strings.HasPrefix(tag,"<rc ")||strings.HasPrefix(tag,"<rd "){
+    ix:=strings.LastIndexByte(tag,' ')
+    n,_:=strconv.ParseUint(strings.TrimSuffix(tag[ix+1:],">"),10,32)
+    if n>1500{return fmt.Errorf("amneziawg: custom packet size exceeds 1500")}
+   }
+  }
   remain:=customTag.ReplaceAllString(s,"")
   if remain!=""{return fmt.Errorf("amneziawg: unsupported custom packet tag")}
  }
