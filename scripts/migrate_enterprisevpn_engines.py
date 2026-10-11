@@ -27,10 +27,10 @@ if not SOURCE.is_dir() or TARGET.exists():
 roots = ("client", "dataplane", "ikev2", "anyconnect", "sstp", "fortinet")
 packages = deque(roots)
 files: dict[str, list[tuple[pathlib.Path, str]]] = {}
-scan = re.compile(r'(?m)^\\s*(?:\\w+\\s+)?"(github\\.com/xen0bit/veepin(?:/[^"]+)?)"')
+scan = re.compile(r'(?m)^\s*(?:\w+\s+)?"(github\.com/xen0bit/veepin(?:/[^"]+)?)"')
 def remove_pq(src: str) -> str:
-    src = re.sub(r'(?m)^\\s*"github.com/xen0bit/veepin/internal/pqpolicy"\\n', "", src)
-    src = re.sub(r'(?m)^.*(?:PostQuantumOnly: pqpolicy.Requested\\(opts\\)|cfg.PostQuantumOnly = pqpolicy.Requested\\(opts\\)).*\\n', "", src)
+    src = re.sub(r'(?m)^\s*"github.com/xen0bit/veepin/internal/pqpolicy"\n', "", src)
+    src = re.sub(r'(?m)^.*(?:PostQuantumOnly: pqpolicy.Requested\(opts\)|cfg.PostQuantumOnly = pqpolicy.Requested\(opts\)).*\n', "", src)
     src = src.replace('pqpolicy.Requested(opts)', 'false')
     for pattern in ('if cfg.PostQuantumOnly {', 'if opts[OptPQ] == "true" && !false {'):
         while pattern in src:
@@ -87,21 +87,21 @@ for package,members in files.items():
         (d/old.name).write_text(src.replace(OLD_IMPORT,NEW_IMPORT))
 shutil.copy2(SOURCE/"LICENSE",TARGET/"LICENSE")
 (TARGET/"UPSTREAM.md").write_text(
-    "# Enterprise VPN protocol engines\\n\\n"
-    "Selected client code adapted from [veepin](https://github.com/xen0bit/veepin)\\n"
-    f"at commit \`{PIN}\`. Copyright (c) 2026 Remy, MIT (see LICENSE).\\n\\n"
-    "Only the import closure of the IKEv2, AnyConnect, SSTP and Fortinet clients\\n"
-    "is kept. No extra Go module, external subprocess, OS route setup, unused\\n"
-    "VPN variants or PQ-specific facade packages are included. Custom changes\\n"
-    "inject yuhaiin's packet bridge and outbound dialers.\\n"
+    "# Enterprise VPN protocol engines\n\n"
+    "Selected client code adapted from [veepin](https://github.com/xen0bit/veepin)\n"
+    f"at commit `{PIN}`. Copyright (c) 2026 Remy, MIT (see LICENSE).\n\n"
+    "Only the import closure of the IKEv2, AnyConnect, SSTP and Fortinet clients\n"
+    "is kept. No extra Go module, external subprocess, OS route setup, unused\n"
+    "VPN variants or PQ-specific facade packages are included. Custom changes\n"
+    "inject yuhaiin's packet bridge and outbound dialers.\n"
 )
 
 outer=ROOT/"pkg/net/proxy/enterprisevpn/client.go"
 outer.write_text(outer.read_text().replace(OLD_IMPORT,NEW_IMPORT))
 mod=ROOT/"go.mod"
 m=mod.read_text()
-m=m.replace("\tgithub.com/xen0bit/veepin => ./third_party/veepin\\n","")
-m=m.replace("\tgithub.com/xen0bit/veepin v0.0.0\\n","")
+m=m.replace("\tgithub.com/xen0bit/veepin => ./third_party/veepin\n","")
+m=m.replace("\tgithub.com/xen0bit/veepin v0.0.0\n","")
 mod.write_text(m)
 
 # Root code no longer depends on a third-party module, and no upstream source
