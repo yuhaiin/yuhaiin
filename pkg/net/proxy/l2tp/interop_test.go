@@ -282,3 +282,20 @@ func benchmarkTunnel(b *testing.B, cfg Config, target string) {
 		}
 	})
 }
+
+func TestLinuxL2TPv3RejectsWrongSecret(t *testing.T) {
+	cfg := v3InteropConfig(t)
+	if cfg.Static || cfg.SharedSecret == "" {
+		t.Skip("needs authenticated dynamic signalling")
+	}
+	cfg.SharedSecret = "incorrect-test-secret"
+	ctx, cancel := context.WithTimeout(t.Context(), 700*time.Millisecond)
+	defer cancel()
+	c, err := connectClient(ctx, cfg, nil)
+	if c != nil {
+		_ = c.Close()
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected unauthenticated control messages to be discarded: %v", err)
+	}
+}

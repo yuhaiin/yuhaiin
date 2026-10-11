@@ -81,3 +81,5 @@ container echo server. TCP uses 256 KiB round trips, UDP uses 1200-byte round
 trips, with three 2-second samples. Race-enabled interop runs separately.
 These measurements include localhost/container transport and the userspace
 network stack; they are not remote encrypted VPN throughput measurements.
+
+See [BENCHMARK.md](BENCHMARK.md) for the local baseline samples.
