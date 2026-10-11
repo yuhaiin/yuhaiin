@@ -1,0 +1,27 @@
+name: L2TP server interop
+on:
+  pull_request:
+    paths:
+      - "pkg/net/proxy/l2tp/**"
+      - "pkg/contract/node/**"
+      - "pkg/register/point.go"
+      - "scripts/bench/l2tp/**"
+      - ".github/workflows/l2tp-interop.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-peers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: l2tp-interop
+      - name: Test protocol and contract with race detector
+        run: go test -race ./pkg/net/proxy/l2tp/... ./pkg/contract/node ./pkg/register
+      - name: Load PPP and L2TP Ethernet kernel support
+        run: sudo modprobe ppp_generic && sudo modprobe l2tp_eth
+      - name: Test stock PPP servers and Linux L2TPv3 over IPv4 and IPv6
+        run: python3 scripts/bench/l2tp/run.py --runtime docker --ppp

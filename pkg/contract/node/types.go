@@ -85,6 +85,8 @@ type Protocol struct {
 	TLS                  *TLS                  `json:"tls,omitzero"`
 	Wireguard            *Wireguard            `json:"wireguard,omitzero"`
 	OpenVPN              *OpenVPN              `json:"openvpn,omitzero"`
+	L2TP                 *L2TP                 `json:"l2tp,omitzero"`
+	L2TPv3               *L2TPv3               `json:"l2tpv3,omitzero"`
 	GlobalProtect        *GlobalProtect        `json:"globalprotect,omitzero"`
 	SoftEther            *SoftEther            `json:"softether,omitzero"`
 	Mux                  *Concurrency          `json:"mux,omitzero"`
@@ -103,6 +105,54 @@ type Protocol struct {
 	Proxy                *Proxy                `json:"proxy,omitzero"`
 	FixedV2              *FixedV2              `json:"fixedv2,omitzero"`
 	PointAsEndpoint      *PointAsEndpoint      `json:"point_as_endpoint,omitzero"`
+}
+
+// L2TP is a UDP client LAC with userspace PPP. It does not enable IPsec.
+type L2TP struct {
+	AuthType      string `json:"auth_type,omitzero"`
+	Gateway       string `json:"gateway"`
+	Username      string `json:"username,omitzero"`
+	Password      string `json:"password,omitzero"`
+	SharedSecret  string `json:"shared_secret,omitzero"`
+	Hostname      string `json:"hostname,omitzero"`
+	IPv6          bool   `json:"ipv6,omitzero"`
+	IPv6Address   string `json:"ipv6_address,omitzero"`
+	MTU           int32  `json:"mtu,omitzero"`
+	AutoReconnect bool   `json:"auto_reconnect,omitzero"`
+}
+
+// L2TPv3 carries an Ethernet pseudowire over UDP. IP addresses and routers
+// belong to the userspace stack. Static sessions require prearranged peer IDs.
+type L2TPv3 struct {
+	LocalAddress   string `json:"local_address,omitzero"`
+	Gateway        string `json:"gateway"`
+	Hostname       string `json:"hostname,omitzero"`
+	SharedSecret   string `json:"shared_secret,omitzero"`
+	Static         bool   `json:"static,omitzero"`
+	LocalSessionID uint32 `json:"local_session_id,omitzero"`
+	PeerSessionID  uint32 `json:"peer_session_id,omitzero"`
+	LocalCookie    string `json:"local_cookie,omitzero"`
+	PeerCookie     string `json:"peer_cookie,omitzero"`
+	Sublayer       bool   `json:"sublayer,omitzero"`
+	RemoteEndID    string `json:"remote_end_id,omitzero"`
+	Address        string `json:"address,omitzero"`
+	Router         string `json:"router,omitzero"`
+	IPv6Address    string `json:"ipv6_address,omitzero"`
+	IPv6Router     string `json:"ipv6_router,omitzero"`
+	MTU            int32  `json:"mtu,omitzero"`
+	AutoReconnect  bool   `json:"auto_reconnect,omitzero"`
+}
+
+type L2TPInfo struct {
+	TunnelPrefixes []string `json:"tunnel_prefixes,omitempty"`
+	DNS            []string `json:"dns,omitempty"`
+	Auth           string   `json:"auth,omitempty"`
+	PeerAddress    string   `json:"peer_address,omitempty"`
+	MTU            int32    `json:"mtu,omitzero"`
+	LocalTunnelID  uint32   `json:"local_tunnel_id,omitzero"`
+	PeerTunnelID   uint32   `json:"peer_tunnel_id,omitzero"`
+	LocalSessionID uint32   `json:"local_session_id,omitzero"`
+	PeerSessionID  uint32   `json:"peer_session_id,omitzero"`
 }
 
 // OpenVPN is a native TLS client with an in-memory credential configuration.
@@ -173,6 +223,8 @@ type SoftEther struct {
 // connected. It is read from the existing runtime instance and does not start
 // a new connection.
 type NodeExtraInfo struct {
+	L2TP          *L2TPInfo          `json:"l2tp,omitzero"`
+	L2TPv3        *L2TPInfo          `json:"l2tpv3,omitzero"`
 	OpenVPN       *OpenVPNInfo       `json:"openvpn,omitzero"`
 	GlobalProtect *GlobalProtectInfo `json:"globalprotect,omitzero"`
 }
@@ -436,6 +488,8 @@ func (Reality) ProtocolType() string              { return "reality" }
 func (TLS) ProtocolType() string                  { return "tls" }
 func (Wireguard) ProtocolType() string            { return "wireguard" }
 func (OpenVPN) ProtocolType() string              { return "openvpn" }
+func (L2TP) ProtocolType() string                 { return "l2tp" }
+func (L2TPv3) ProtocolType() string               { return "l2tpv3" }
 func (GlobalProtect) ProtocolType() string        { return "globalprotect" }
 func (SoftEther) ProtocolType() string            { return "softether" }
 func (Mux) ProtocolType() string                  { return "mux" }
@@ -634,6 +688,8 @@ func (x Protocol) presentVariants() map[string]bool {
 		"wireguard":              x.Wireguard != nil,
 		"globalprotect":          x.GlobalProtect != nil,
 		"openvpn":                x.OpenVPN != nil,
+		"l2tp":                   x.L2TP != nil,
+		"l2tpv3":                 x.L2TPv3 != nil,
 		"softether":              x.SoftEther != nil,
 		"mux":                    x.Mux != nil,
 		"drop":                   x.Drop != nil,
