@@ -26,7 +26,8 @@
   - Socks5, HTTP, TCP, [Wireguard](https://github.com/yuhaiin/yuhaiin/wiki/Wireguard)
   - Shadowsocksr, Shadowsocks, Vmess, trojan, Vless  
   - [Hysteria 2](docs/hysteria2.md) (TCP and UDP)
-  - [GlobalProtect SSL](pkg/net/proxy/globalprotect/README.md) (experimental; gateway routes and DNS are informational and are not applied automatically)
+  - [OpenVPN](pkg/net/proxy/openvpn/README.md) (native TCP/UDP, IPv4/IPv6, AEAD, rekey)
+  - [GlobalProtect SSL](pkg/net/proxy/globalprotect/README.md) (experimental SSL or optional ESP/UDP; gateway routes and DNS are informational and are not applied automatically)
   - Websocket, Quic, obfs-http, Reality, HTTP2, TLS, ECH(Encrypted SNI)
   - yamux  
   - reverse HTTP, reverse TCP

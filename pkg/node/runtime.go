@@ -251,7 +251,7 @@ func (r *NodeRuntime) ExtraInfo(_ context.Context, id string) (contractnode.Node
 		})
 		if ok {
 			candidate := provider.NodeExtraInfo()
-			if candidate.GlobalProtect != nil {
+			if candidate.GlobalProtect != nil || candidate.OpenVPN != nil {
 				info = candidate
 				found = true
 			}

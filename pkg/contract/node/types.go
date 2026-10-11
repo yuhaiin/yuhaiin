@@ -84,6 +84,7 @@ type Protocol struct {
 	Reality              *Reality              `json:"reality,omitzero"`
 	TLS                  *TLS                  `json:"tls,omitzero"`
 	Wireguard            *Wireguard            `json:"wireguard,omitzero"`
+	OpenVPN              *OpenVPN              `json:"openvpn,omitzero"`
 	GlobalProtect        *GlobalProtect        `json:"globalprotect,omitzero"`
 	SoftEther            *SoftEther            `json:"softether,omitzero"`
 	Mux                  *Concurrency          `json:"mux,omitzero"`
@@ -104,8 +105,38 @@ type Protocol struct {
 	PointAsEndpoint      *PointAsEndpoint      `json:"point_as_endpoint,omitzero"`
 }
 
+// OpenVPN is a native TLS client with an in-memory credential configuration.
+type OpenVPN struct {
+	Gateway            string   `json:"gateway"`
+	Network            string   `json:"network,omitzero"`
+	CACertPEM          string   `json:"ca_cert_pem,omitzero"`
+	ClientCertPEM      string   `json:"client_cert_pem,omitzero"`
+	ClientKeyPEM       string   `json:"client_key_pem,omitzero"`
+	ServerName         string   `json:"server_name,omitzero"`
+	Username           string   `json:"username,omitzero"`
+	Password           string   `json:"password,omitzero"`
+	TLSAuthKey         string   `json:"tls_auth_key,omitzero"`
+	TLSCryptKey        string   `json:"tls_crypt_key,omitzero"`
+	KeyDirection       *int32   `json:"key_direction,omitzero"`
+	Auth               string   `json:"auth,omitzero"`
+	DataCiphers        []string `json:"data_ciphers,omitzero"`
+	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitzero"`
+	AutoReconnect      bool     `json:"auto_reconnect,omitzero"`
+	MTU                int32    `json:"mtu,omitzero"`
+	RenegotiateSeconds int32    `json:"renegotiate_seconds,omitzero"`
+}
+
+type OpenVPNInfo struct {
+	TunnelPrefixes []string `json:"tunnel_prefixes,omitempty"`
+	DNS            []string `json:"dns,omitempty"`
+	Routes         []string `json:"routes,omitempty"`
+	Gateway        string   `json:"gateway,omitempty"`
+	Cipher         string   `json:"cipher,omitempty"`
+	MTU            int32    `json:"mtu,omitzero"`
+}
+
 // GlobalProtect is a directly addressed gateway with password authentication.
-// Portal discovery, SAML/SSO, HIP and ESP are not supported by this node.
+// Portal discovery, SAML/SSO and HIP are not supported by this node.
 type GlobalProtect struct {
 	Gateway            string `json:"gateway"`
 	Username           string `json:"username"`
@@ -114,6 +145,7 @@ type GlobalProtect struct {
 	CACertPEM          string `json:"ca_cert_pem,omitzero"`
 	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
 	MTU                int32  `json:"mtu,omitzero"`
+	UseESP             bool   `json:"use_esp,omitzero"`
 }
 
 // SoftEther configures the native SSL-VPN protocol (not SSTP).
@@ -141,6 +173,7 @@ type SoftEther struct {
 // connected. It is read from the existing runtime instance and does not start
 // a new connection.
 type NodeExtraInfo struct {
+	OpenVPN       *OpenVPNInfo       `json:"openvpn,omitzero"`
 	GlobalProtect *GlobalProtectInfo `json:"globalprotect,omitzero"`
 }
 
@@ -157,6 +190,7 @@ type GlobalProtectInfo struct {
 	DNSv6                        []string `json:"dns_v6,omitempty"`
 	DNSSuffix                    []string `json:"dns_suffix,omitempty"`
 	NoDirectAccessToLocalNetwork string   `json:"no_direct_access_to_local_network,omitempty"`
+	DataTransport                string   `json:"data_transport,omitempty"`
 }
 
 type None struct{}
@@ -401,6 +435,7 @@ func (HTTP2) ProtocolType() string                { return "http2" }
 func (Reality) ProtocolType() string              { return "reality" }
 func (TLS) ProtocolType() string                  { return "tls" }
 func (Wireguard) ProtocolType() string            { return "wireguard" }
+func (OpenVPN) ProtocolType() string              { return "openvpn" }
 func (GlobalProtect) ProtocolType() string        { return "globalprotect" }
 func (SoftEther) ProtocolType() string            { return "softether" }
 func (Mux) ProtocolType() string                  { return "mux" }
@@ -598,6 +633,7 @@ func (x Protocol) presentVariants() map[string]bool {
 		"tls":                    x.TLS != nil,
 		"wireguard":              x.Wireguard != nil,
 		"globalprotect":          x.GlobalProtect != nil,
+		"openvpn":                x.OpenVPN != nil,
 		"softether":              x.SoftEther != nil,
 		"mux":                    x.Mux != nil,
 		"drop":                   x.Drop != nil,

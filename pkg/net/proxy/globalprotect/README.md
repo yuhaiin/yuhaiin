@@ -1,4 +1,4 @@
-# GlobalProtect SSL outbound (experimental)
+# GlobalProtect SSL/ESP outbound (experimental)
 
 This is a **direct GlobalProtect gateway** outbound, implemented in Go without
 CGO, OS TUN, or new module dependencies. It uses yuhaiin's existing gVisor
@@ -19,7 +19,7 @@ IP stack (the same one used by WireGuard) to expose TCP and UDP connections.
   base-MTU fallback where the socket MSS is unavailable).
 
 **Not supported yet:** portal discovery, client certificates, SAML/SSO,
-interactive MFA/challenges, HIP reports, ESP/UDP, IPv6 negotiation, applying
+interactive MFA/challenges, HIP reports, IPv6 negotiation, applying
 gateway-pushed DNS, split routes or local-network policy. Gateways requiring
 HIP are rejected with an explicit error. A gateway `<timeout>` causes a TLS
 tunnel rekey 60 seconds before the timeout, or halfway through shorter
@@ -66,9 +66,29 @@ bundle for gateways using a private enterprise certificate authority. Set
 verification; it is `false` by default. The optional `computer` field identifies
 the local device during login/logout.
 
-The client always uses the SSL tunnel. It ignores optional ESP settings when
-the server also provides SSL tunnel configuration; ESP-only gateways are not
-supported.
+The default remains SSL. Set `use_esp` to `true` to try the gateway's ESP-over-UDP
+path first. Supported suites are AES-128/256-CBC with HMAC-SHA1-96 or
+HMAC-SHA256-128; unsupported keying or failed activation falls back to SSL.
+Three authenticated activation probes bound UDP discovery to six seconds.
+Opening SSL happens after those probes because it may invalidate the ESP keys.
+Replay/tamper checks precede delivery to gVisor; sequence exhaustion fails closed.
+The gateway's HTTPS configuration supplies the ESP keys. ESP supplies no
+independent key exchange or forward secrecy. With ESP, gateway timeout forces a
+fresh login/session before the key lifetime ends. Both transports honor the
+preceding outbound proxy; a proxy that cannot carry UDP triggers SSL fallback
+through that same proxy, without an unproxied UDP dial.
+
+`data_transport` in gateway extra info identifies the active `ssl` or `esp` path.
+The ESP simulator verifies activation, authenticated TCP/UDP egress, replay and
+tamper rejection, and SSL fallback when UDP is blocked. This is not evidence of
+PAN-OS interoperability. The activation/keying layout was adapted from
+[xen0bit/veepin](https://github.com/xen0bit/veepin/tree/810e017596c0b5b55bc0da563929bde13a6b201d/internal/gp)
+(MIT); see [license](ESP_THIRD_PARTY_LICENSE).
+
+Compared with that reference, the missing outbound feature was ESP/UDP; its
+server/listener API is outside this outbound's scope. Neither client implements
+portal discovery, SAML, client certificates, HIP submission or negotiated IPv6.
+Yuhaiin additionally enforces idle/auth lifetimes, reconnect and route-info API.
 
 The web node editor includes a GlobalProtect configuration form. After the
 node has connected, its editor can load the last gateway configuration

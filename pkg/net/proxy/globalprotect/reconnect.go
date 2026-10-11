@@ -22,7 +22,8 @@ const (
 // username/password auth. Portal discovery and interactive authentication are
 // not attempted. After a successful connection, dropped tunnels are retried
 // with capped exponential backoff until the proxy is closed.
-func NewClient(config Config, _ netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(config Config, upstream netapi.Proxy) (netapi.Proxy, error) {
+	config.upstream = upstream
 	if config.InsecureSkipVerify {
 		log.Warn("globalprotect TLS certificate verification is disabled")
 	}

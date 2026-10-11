@@ -63,7 +63,7 @@ func TestOpenConnectGatewayConfigCompatibility(t *testing.T) {
 			for key, want := range map[string]string{
 				"user": "alice", "portal": "Portal42", "domain": "Domain42",
 				"authcookie": "cookie-value", "preferred-ip": "192.0.2.48",
-				"enc-algo": "aes-128-cbc,aes-256-cbc", "hmac-algo": "sha1,md5,sha256",
+				"enc-algo": "aes-128-cbc,aes-256-cbc", "hmac-algo": "sha256,sha1",
 			} {
 				if got := r.Form.Get(key); got != want {
 					t.Errorf("getconfig %s=%q want %q", key, got, want)
