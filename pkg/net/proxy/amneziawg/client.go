@@ -70,6 +70,10 @@ func (c *Client) PacketConn(ctx context.Context,_ netapi.Address)(net.PacketConn
  return wireguard.NewWrapGoNetUdpConn(context.WithoutCancel(ctx),conn),nil
 }
 
+func (c *Client) Ping(context.Context, netapi.Address) (uint64, error) {
+ return 0,nil
+}
+
 func (c *Client) Close() error {
  c.once.Do(func(){c.engine.Close()})
  return nil
