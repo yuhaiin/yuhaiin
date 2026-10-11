@@ -35,3 +35,34 @@ func (*rejectingProxy) Conn(context.Context,netapi.Address)(net.Conn,error){retu
 func (*rejectingProxy) PacketConn(context.Context,netapi.Address)(net.PacketConn,error){return nil,net.ErrClosed}
 func (*rejectingProxy) Ping(context.Context,netapi.Address)(uint64,error){return 0,net.ErrClosed}
 func (*rejectingProxy) Close()error{return nil}
+
+
+func TestChainedVPNProtocolsNeverDialDirectly(t *testing.T){
+	up:=&rejectingProxy{}
+	tests:=[]struct{
+		name string
+		dial func()error
+	}{
+		{"ikev2/tcp",func()error{
+			_,err:=NewIKEv2(contractnode.IKEv2{Gateway:"127.0.0.1:4500",PSK:"testing",LocalID:"client",TCP:true},up)
+			return err
+		}},
+		{"sstp",func()error{
+			_,err:=NewSSTP(contractnode.SSTP{Gateway:"127.0.0.1:443",Username:"test",Password:"test"},up)
+			return err
+		}},
+		{"anyconnect",func()error{
+			_,err:=NewAnyConnect(contractnode.AnyConnect{Gateway:"127.0.0.1:443",Username:"test",Password:"test"},up)
+			return err
+		}},
+		{"fortinet",func()error{
+			_,err:=NewFortinet(contractnode.Fortinet{Gateway:"127.0.0.1:443",Username:"test",Password:"test"},up)
+			return err
+		}},
+	}
+	for _,tt:=range tests{
+		t.Run(tt.name,func(t *testing.T){
+			if err:=tt.dial();err==nil{t.Fatal("unexpected connection: upstream refused all connections")}
+		})
+	}
+}
