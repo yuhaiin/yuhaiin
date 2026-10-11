@@ -74,25 +74,25 @@ type STUNLatency struct {
 type Protocol struct {
 	Type string `json:"type"`
 
-	Shadowsocks          *Shadowsocks          `json:"shadowsocks,omitzero"`
-	Shadowsocksr         *Shadowsocksr         `json:"shadowsocksr,omitzero"`
-	Vmess                *Vmess                `json:"vmess,omitzero"`
-	Websocket            *Websocket            `json:"websocket,omitzero"`
-	Hysteria2            *Hysteria2            `json:"hysteria2,omitzero"`
-	Quic                 *Quic                 `json:"quic,omitzero"`
-	ObfsHTTP             *ObfsHTTP             `json:"obfs_http,omitzero"`
-	Trojan               *Trojan               `json:"trojan,omitzero"`
-	Simple               *Fixed                `json:"simple,omitzero"`
-	None                 *None                 `json:"none,omitzero"`
-	Socks5               *Socks5               `json:"socks5,omitzero"`
-	HTTP                 *HTTP                 `json:"http,omitzero"`
-	Direct               *Direct               `json:"direct,omitzero"`
-	Reject               *Reject               `json:"reject,omitzero"`
-	Yuubinsya            *Yuubinsya            `json:"yuubinsya,omitzero"`
-	HTTP2                *Concurrency          `json:"http2,omitzero"`
-	Reality              *Reality              `json:"reality,omitzero"`
-	TLS                  *TLS                  `json:"tls,omitzero"`
-	AmneziaWG            *AmneziaWG            `json:"amneziawg,omitzero"`
+	Shadowsocks  *Shadowsocks  `json:"shadowsocks,omitzero"`
+	Shadowsocksr *Shadowsocksr `json:"shadowsocksr,omitzero"`
+	Vmess        *Vmess        `json:"vmess,omitzero"`
+	Websocket    *Websocket    `json:"websocket,omitzero"`
+	Hysteria2    *Hysteria2    `json:"hysteria2,omitzero"`
+	Quic         *Quic         `json:"quic,omitzero"`
+	ObfsHTTP     *ObfsHTTP     `json:"obfs_http,omitzero"`
+	Trojan       *Trojan       `json:"trojan,omitzero"`
+	Simple       *Fixed        `json:"simple,omitzero"`
+	None         *None         `json:"none,omitzero"`
+	Socks5       *Socks5       `json:"socks5,omitzero"`
+	HTTP         *HTTP         `json:"http,omitzero"`
+	Direct       *Direct       `json:"direct,omitzero"`
+	Reject       *Reject       `json:"reject,omitzero"`
+	Yuubinsya    *Yuubinsya    `json:"yuubinsya,omitzero"`
+	HTTP2        *Concurrency  `json:"http2,omitzero"`
+	Reality      *Reality      `json:"reality,omitzero"`
+	TLS          *TLS          `json:"tls,omitzero"`
+	AmneziaWG    *AmneziaWG    `json:"amneziawg,omitzero"`
 	// Additional client-only enterprise VPN protocols.
 	IKEv2                *IKEv2                `json:"ikev2,omitzero"`
 	AnyConnect           *AnyConnect           `json:"anyconnect,omitzero"`
@@ -414,44 +414,44 @@ type TLSTermination struct {
 // IKEv2 uses ESP over UDP/NAT-T or RFC 8229 TCP encapsulation.
 // EAP credentials supplement, rather than replace, authentication of the peer.
 type IKEv2 struct {
-	Gateway string `json:"gateway"`
-	PSK string `json:"psk,omitzero"`
-	LocalID string `json:"local_id"`
+	Gateway  string `json:"gateway"`
+	PSK      string `json:"psk,omitzero"`
+	LocalID  string `json:"local_id"`
 	ServerID string `json:"server_id,omitzero"`
 	Username string `json:"username,omitzero"`
 	Password string `json:"password,omitzero"`
-	TCP bool `json:"tcp,omitzero"`
-	MTU int32 `json:"mtu,omitzero"`
+	TCP      bool   `json:"tcp,omitzero"`
+	MTU      int32  `json:"mtu,omitzero"`
 }
 
 type AnyConnect struct {
-	Gateway string `json:"gateway"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	InsecureSkipVerify bool `json:"insecure_skip_verify,omitzero"`
-	DisableDTLS bool `json:"disable_dtls,omitzero"`
-	MTU int32 `json:"mtu,omitzero"`
+	Gateway            string `json:"gateway"`
+	Username           string `json:"username"`
+	Password           string `json:"password"`
+	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
+	DisableDTLS        bool   `json:"disable_dtls,omitzero"`
+	MTU                int32  `json:"mtu,omitzero"`
 }
 
 type SSTP struct {
-	Gateway string `json:"gateway"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	InsecureSkipVerify bool `json:"insecure_skip_verify,omitzero"`
-	MTU int32 `json:"mtu,omitzero"`
+	Gateway            string `json:"gateway"`
+	Username           string `json:"username"`
+	Password           string `json:"password"`
+	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
+	MTU                int32  `json:"mtu,omitzero"`
 }
 
 type Fortinet struct {
-	Gateway string `json:"gateway"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Realm string `json:"realm,omitzero"`
-	Token string `json:"token,omitzero"`
-	TOTPSecret string `json:"totp_secret,omitzero"`
-	CACertPEM string `json:"ca_cert_pem,omitzero"`
-	InsecureSkipVerify bool `json:"insecure_skip_verify,omitzero"`
-	DisableDTLS bool `json:"disable_dtls,omitzero"`
-	MTU int32 `json:"mtu,omitzero"`
+	Gateway            string `json:"gateway"`
+	Username           string `json:"username"`
+	Password           string `json:"password"`
+	Realm              string `json:"realm,omitzero"`
+	Token              string `json:"token,omitzero"`
+	TOTPSecret         string `json:"totp_secret,omitzero"`
+	CACertPEM          string `json:"ca_cert_pem,omitzero"`
+	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
+	DisableDTLS        bool   `json:"disable_dtls,omitzero"`
+	MTU                int32  `json:"mtu,omitzero"`
 }
 
 type Wireguard struct {
