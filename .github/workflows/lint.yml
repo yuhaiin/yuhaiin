@@ -79,10 +79,14 @@ jobs:
           cache-scope: veepin-vendor-branch
       - name: Vendor pinned protocol engine
         run: |
-          if [[ -f third_party/veepin/UPSTREAM.md ]]; then exit 0; fi
-          python3 scripts/vendor_veepin_for_yuhaiin.py
+          if [[ ! -f third_party/veepin/UPSTREAM.md ]]; then
+            python3 scripts/vendor_veepin_for_yuhaiin.py
+          fi
+          gofmt -w pkg/contract/node/types.go pkg/net/proxy/enterprisevpn/*.go
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add third_party/veepin/
-          git commit -m "vendor: pin MIT veepin IKEv2 AnyConnect SSTP Fortinet engines"
-          git push origin HEAD:feat/five-vpn-protocols-20261011
+          git add third_party/veepin/ pkg/contract/node/types.go pkg/net/proxy/enterprisevpn/
+          if ! git diff --cached --quiet; then
+            git commit -m "style(vpn): format enterprise VPN sources"
+            git push origin HEAD:feat/five-vpn-protocols-20261011
+          fi
