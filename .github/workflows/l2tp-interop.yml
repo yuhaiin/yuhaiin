@@ -22,6 +22,10 @@ jobs:
       - name: Test protocol and contract with race detector
         run: go test -race ./pkg/net/proxy/l2tp/... ./pkg/contract/node ./pkg/register
       - name: Load PPP and L2TP Ethernet kernel support
-        run: sudo modprobe ppp_generic && sudo modprobe l2tp_eth
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+          sudo modprobe ppp_generic
+          sudo modprobe l2tp_eth
       - name: Test stock PPP servers and Linux L2TPv3 over IPv4 and IPv6
         run: python3 scripts/bench/l2tp/run.py --runtime docker --ppp
