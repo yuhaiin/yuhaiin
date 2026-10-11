@@ -103,8 +103,8 @@ func (c Config) TLSConfig() (*tls.Config, error) {
 			return nil, errors.New("openvpn: invalid CA PEM")
 		}
 	}
-	cfg := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: c.ServerName,
-		InsecureSkipVerify: true} //nolint:gosec // Custom CA/EKU verification below; optional hostname check.
+	cfg := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: c.ServerName, RootCAs: roots,
+		InsecureSkipVerify: c.InsecureSkipVerify || c.ServerName == ""}
 	if c.ClientCertPEM != "" {
 		cert, err := tls.X509KeyPair([]byte(c.ClientCertPEM), []byte(c.ClientKeyPEM))
 		if err != nil {
@@ -112,7 +112,10 @@ func (c Config) TLSConfig() (*tls.Config, error) {
 		}
 		cfg.Certificates = []tls.Certificate{cert}
 	}
-	if !c.InsecureSkipVerify {
+	// With a server name, use Go's standard chain/EKU/hostname verification.
+	// Without one, replace only the hostname requirement with CA/EKU checks;
+	// OpenVPN CA-issued certificates commonly have no DNS SAN.
+	if !c.InsecureSkipVerify && c.ServerName == "" {
 		cfg.VerifyConnection = func(state tls.ConnectionState) error {
 			if len(state.PeerCertificates) == 0 {
 				return errors.New("openvpn: server sent no certificate")
