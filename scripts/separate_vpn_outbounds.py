@@ -310,14 +310,6 @@ app.write_text(text)
 # The old monolithic wrapper and engine are dead after the import rewrite.
 shutil.rmtree(OLD)
 
-# The temporary job must not survive the migration.
-workflow=ROOT/".github/workflows/lint.yml"
-w=workflow.read_text()
-tag="  separate-vpn-branch:"
-if tag in w:
-    w=w[:w.index(tag)].rstrip()+"\n"
-    workflow.write_text(w)
-
 subprocess.run(["gofmt","-w",*[str(p) for p in (BASE/"vpnkit").rglob("*.go")],
      *[str(p) for proto in outbounds for p in (BASE/proto).rglob("*.go")],str(app)] ,check=True)
 print("Moved independent VPN protocols and shared primitives; no internal/engine or enterprisevpn")
