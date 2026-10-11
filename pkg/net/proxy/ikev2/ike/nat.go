@@ -26,19 +26,3 @@ func natDetectionHash(spiI, spiR uint64, ip net.IP, port uint16) []byte {
 	h.Write(p[:])
 	return h.Sum(nil)
 }
-
-// natInfo records what NAT detection concluded for a session.
-type natInfo struct {
-	// peerBehindNAT is true if the source-IP hash the peer sent does not match
-	// what we observed, i.e. the initiator is behind NAT.
-	peerBehindNAT bool
-	// weAreBehindNAT is true if the destination-IP hash the peer sent does not
-	// match our own address, i.e. the responder is behind NAT.
-	weAreBehindNAT bool
-}
-
-// natDetected reports whether either endpoint is behind NAT, meaning ESP must
-// be UDP-encapsulated on port 4500.
-func (n natInfo) natDetected() bool {
-	return n.peerBehindNAT || n.weAreBehindNAT
-}

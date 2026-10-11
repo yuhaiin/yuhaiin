@@ -1,11 +1,8 @@
-// Package ikev2 is the public entry point to this module's IKEv2
-// implementation: a client that performs the handshake (PSK or EAP-MSCHAPv2)
-// and runs a userspace ESP-in-UDP data path over a TUN device.
+// Package ikev2 implements the IKEv2 outbound: it performs the client handshake
+// (PSK or EAP-MSCHAPv2) and runs a userspace ESP data path.
 //
-// Like every protocol here, Dial installs no addresses, routes or DNS. It
-// returns the negotiated client.Result and the caller applies it — the veepin
-// command hands it to dataplane's router, and the NetworkManager plugin hands it
-// to NM.
+// Dial installs no host addresses, routes or DNS. It returns the negotiated
+// client.Result for the caller to apply to its packet stack.
 //
 // Importing this package also registers "ikev2" with the client registry, so a
 // caller that dials by name only needs the blank import:
@@ -175,14 +172,8 @@ func parseOptions(opts map[string]string) (client.Dialer, error) {
 		CAFile:      opts[OptCA],
 		IPTFS:       opts[OptIPTFS] == "true",
 		TCP:         opts[OptTCP] == "true",
-		// Without this the engine's log goes nowhere: Dial discards a nil
-		// Logger, so every line internal/ikev2/ike writes -- AGGFRAG
-		// negotiated or declined, a rekey, a MOBIKE roam, a certificate
-		// warning -- was dropped on the floor for every dial through the
-		// registry, which is every dial `veepin connect ikev2` makes. The
-		// server half has always wired one (server.go); the client half never
-		// did, and nothing failed, because a discarded log looks exactly like
-		// a quiet protocol.
+		// Surface protocol progress such as AGGFRAG negotiation, rekeys,
+		// MOBIKE roaming, and certificate warnings.
 		//
 		// It is also what makes an IKEv2 interop cell able to use
 		// runInteropRequiringLog. Without a log there is no way to assert that

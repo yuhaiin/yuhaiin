@@ -179,7 +179,7 @@ func (s *SA) appendEncapsulated(dst, inner []byte, nextHeader uint8, minInner in
 	// Zero the TFC region explicitly: the scratch comes from a pool and still
 	// holds a previous packet's bytes, which must not be shipped as filler.
 	clear(pt[len(inner):payloadLen])
-	for i := 0; i < padLen; i++ {
+	for i := range padLen {
 		pt[payloadLen+i] = byte(i + 1)
 	}
 	pt[ptLen-2] = byte(padLen)

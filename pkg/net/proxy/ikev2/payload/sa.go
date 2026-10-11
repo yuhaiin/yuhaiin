@@ -138,7 +138,7 @@ func ParseSA(buf []byte) (SAPayload, error) {
 func parseTransforms(buf []byte, count int) ([]Transform, error) {
 	var out []Transform
 	off := 0
-	for i := 0; i < count; i++ {
+	for range count {
 		if off+8 > len(buf) {
 			return nil, ErrTruncated
 		}

@@ -263,7 +263,7 @@ func ParseTS(buf []byte) (TSPayload, error) {
 	count := int(buf[0])
 	off := 4
 	var ts TSPayload
-	for i := 0; i < count; i++ {
+	for range count {
 		if off+8 > len(buf) {
 			return ts, ErrTruncated
 		}
@@ -324,7 +324,7 @@ func ParseDelete(buf []byte) (DeletePayload, error) {
 	n := int(binary.BigEndian.Uint16(buf[2:4]))
 	off := 4
 	sz := int(d.SPISize)
-	for i := 0; i < n; i++ {
+	for range n {
 		if off+sz > len(buf) {
 			return d, ErrTruncated
 		}

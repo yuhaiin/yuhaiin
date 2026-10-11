@@ -1,4 +1,4 @@
-// Package enterprisevpn adapts four in-process VPN protocol engines to the
+// Package vpnkit adapts four in-process VPN protocol engines to the
 // existing yuhaiin gVisor IP stack, without installing any host network routes.
 package vpnkit
 
@@ -10,8 +10,8 @@ import (
 	"net/netip"
 	"sync"
 
+	vpnclient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/session"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
-	"github.com/xen0bit/veepin/client"
 )
 
 // packetBridge is a one-shot, packet-oriented TUN used by the vendored
@@ -28,9 +28,9 @@ type packetBridge struct {
 func newPacketBridge() *packetBridge {
 	return &packetBridge{ready: make(chan struct{})}
 }
-func (b *packetBridge) Attach(cfg client.Result) (*wireguard.NetTun, error) {
+func (b *packetBridge) Attach(cfg vpnclient.Result) (*wireguard.NetTun, error) {
 	if cfg.Layer2 {
-		return nil, errors.New("enterprisevpn: layer 2 tunnels are unsupported")
+		return nil, errors.New("vpnkit: layer 2 tunnels are unsupported")
 	}
 	var prefixes []netip.Prefix
 	for _, addr := range []struct {
@@ -45,7 +45,7 @@ func (b *packetBridge) Attach(cfg client.Result) (*wireguard.NetTun, error) {
 		}
 		ip, ok := netip.AddrFromSlice(addr.ip)
 		if !ok {
-			return nil, errors.New("enterprisevpn: invalid assigned IP")
+			return nil, errors.New("vpnkit: invalid assigned IP")
 		}
 		ip = ip.Unmap()
 		bits := addr.bits
@@ -53,19 +53,19 @@ func (b *packetBridge) Attach(cfg client.Result) (*wireguard.NetTun, error) {
 			bits = ip.BitLen()
 		}
 		if bits > ip.BitLen() {
-			return nil, errors.New("enterprisevpn: invalid address prefix")
+			return nil, errors.New("vpnkit: invalid address prefix")
 		}
 		prefixes = append(prefixes, netip.PrefixFrom(ip, bits))
 	}
 	if len(prefixes) == 0 {
-		return nil, errors.New("enterprisevpn: VPN server did not assign an address")
+		return nil, errors.New("vpnkit: VPN server did not assign an address")
 	}
 	mtu := cfg.MTU
 	if mtu <= 0 {
 		mtu = 1400
 	}
 	if mtu < 576 || mtu > 9000 {
-		return nil, fmt.Errorf("enterprisevpn: unsafe MTU %d", mtu)
+		return nil, fmt.Errorf("vpnkit: unsafe MTU %d", mtu)
 	}
 	network, err := wireguard.CreateNetTUN(prefixes, mtu)
 	if err != nil {

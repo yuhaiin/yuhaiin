@@ -5,9 +5,8 @@ import (
 	"fmt"
 )
 
-// Handshake message bodies. Only what a PSK handshake needs is modelled: there
-// are no certificate, certificate-request or key-share messages, and the only
-// extension we emit is the one AnyConnect's PSK identity is carried by.
+// Handshake message bodies used by the AnyConnect PSK and Fortinet ECDHE client
+// handshakes.
 
 // clientHello is the client's opening message, and its retransmission carrying
 // the server's cookie.
@@ -38,39 +37,11 @@ func (m clientHello) marshal() []byte {
 	return out
 }
 
-func parseClientHello(b []byte) (clientHello, error) {
-	var m clientHello
-	r := reader{b: b}
-	m.version = r.uint16()
-	m.random = r.bytes(randomLen)
-	m.sessionID = r.vector8()
-	m.cookie = r.vector8()
-	suites := r.vector16()
-	if r.err != nil {
-		return m, fmt.Errorf("dtls: malformed ClientHello: %w", r.err)
-	}
-	if len(suites)%2 != 0 {
-		return m, fmt.Errorf("dtls: malformed ClientHello cipher suite list")
-	}
-	for i := 0; i < len(suites); i += 2 {
-		m.cipherSuites = append(m.cipherSuites, binary.BigEndian.Uint16(suites[i:]))
-	}
-	return m, nil
-}
-
-// helloVerifyRequest carries the stateless cookie a server uses to confirm the
-// client owns its source address before it commits any memory (RFC 6347 section
-// 4.2.1) — DTLS's defence against being used as an amplification reflector.
+// helloVerifyRequest carries the peer's cookie challenge (RFC 6347 section
+// 4.2.1), which the client echoes in its next ClientHello.
 type helloVerifyRequest struct {
 	version uint16
 	cookie  []byte
-}
-
-func (m helloVerifyRequest) marshal() []byte {
-	out := make([]byte, 0, 3+len(m.cookie))
-	out = binary.BigEndian.AppendUint16(out, m.version)
-	out = append(out, byte(len(m.cookie)))
-	return append(out, m.cookie...)
 }
 
 func parseHelloVerifyRequest(b []byte) (helloVerifyRequest, error) {
@@ -84,23 +55,12 @@ func parseHelloVerifyRequest(b []byte) (helloVerifyRequest, error) {
 	return m, nil
 }
 
-// serverHello selects the version, suite and session.
+// serverHello carries the peer's selected version, suite and session.
 type serverHello struct {
 	version     uint16
 	random      []byte
 	sessionID   []byte
 	cipherSuite uint16
-}
-
-func (m serverHello) marshal() []byte {
-	out := make([]byte, 0, 64)
-	out = binary.BigEndian.AppendUint16(out, m.version)
-	out = append(out, m.random...)
-	out = append(out, byte(len(m.sessionID)))
-	out = append(out, m.sessionID...)
-	out = binary.BigEndian.AppendUint16(out, m.cipherSuite)
-	out = append(out, 0) // null compression
-	return out
 }
 
 func parseServerHello(b []byte) (serverHello, error) {
@@ -116,19 +76,6 @@ func parseServerHello(b []byte) (serverHello, error) {
 	return m, nil
 }
 
-// pskIdentityHint is the server's optional ServerKeyExchange for a PSK suite: a
-// hint naming which key to use. AnyConnect has exactly one, so the hint is empty,
-// but the message is still sent because some stacks expect it.
-type pskIdentityHint struct {
-	hint []byte
-}
-
-func (m pskIdentityHint) marshal() []byte {
-	out := make([]byte, 0, 2+len(m.hint))
-	out = binary.BigEndian.AppendUint16(out, uint16(len(m.hint)))
-	return append(out, m.hint...)
-}
-
 // pskClientKeyExchange names the identity the client is authenticating with.
 type pskClientKeyExchange struct {
 	identity []byte
@@ -138,16 +85,6 @@ func (m pskClientKeyExchange) marshal() []byte {
 	out := make([]byte, 0, 2+len(m.identity))
 	out = binary.BigEndian.AppendUint16(out, uint16(len(m.identity)))
 	return append(out, m.identity...)
-}
-
-func parsePSKClientKeyExchange(b []byte) (pskClientKeyExchange, error) {
-	var m pskClientKeyExchange
-	r := reader{b: b}
-	m.identity = r.vector16()
-	if r.err != nil {
-		return m, fmt.Errorf("dtls: malformed ClientKeyExchange: %w", r.err)
-	}
-	return m, nil
 }
 
 // reader is a bounds-checked cursor over a message body. Every accessor is a

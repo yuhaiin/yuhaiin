@@ -23,7 +23,7 @@ import (
 //
 // # Persistent, so a reader never takes a lock
 //
-// No node is ever modified once it is reachable. insert and remove copy the
+// No node is ever modified once it is reachable. insert and removeOwned copy the
 // nodes along the one path they change and leave every other subtree shared,
 // so a routeTable value is a snapshot: the pump publishes one through an
 // atomic pointer and its packet path reads that snapshot with no lock at all,
@@ -104,16 +104,6 @@ func withEntry(n *routeNode, a addrBits, depth, bits int, v bound, set bool) *ro
 	return &cp
 }
 
-// remove drops p's entry. Interior nodes are left in place: route sets are small
-// and churn with SA lifetime, not per packet, so pruning would buy nothing.
-func (t *routeTable) remove(p netip.Prefix) {
-	p = p.Masked()
-	if n := t.node(p); n != nil && n.set {
-		root := t.rootFor(p.Addr())
-		*root = withEntry(*root, bitsOf(p.Addr()), 0, p.Bits(), bound{}, false)
-	}
-}
-
 // removeOwned drops p's entry only while owner still holds it.
 //
 // Make-before-break SA replacement — install the new tunnel, then retire the old
@@ -158,6 +148,3 @@ func (t *routeTable) lookup(a netip.Addr) bound {
 	}
 	return best
 }
-
-// empty reports whether any route is installed in either family.
-func (t *routeTable) empty() bool { return t.root4 == nil && t.root6 == nil }

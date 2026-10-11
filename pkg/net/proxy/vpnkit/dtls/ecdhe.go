@@ -10,7 +10,6 @@ package dtls
 // layer are all shared with the PSK path.
 
 import (
-	"crypto"
 	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -26,24 +25,6 @@ const (
 	ecCurveTypeNamedCurve uint8  = 3
 	ecNamedCurveSecp256r1 uint16 = 23
 )
-
-// signatureAndHash for ecdsa_secp256r1_sha256: hash=sha256(4), signature=ecdsa(3).
-const (
-	sigHashSHA256 uint8 = 4
-	sigAlgECDSA   uint8 = 3
-)
-
-// marshalCertificate renders a Certificate handshake body: a 3-octet-length list
-// of 3-octet-length DER certificates.
-func marshalCertificate(chain [][]byte) []byte {
-	var list []byte
-	for _, der := range chain {
-		list = append(list, putUint24(len(der))...)
-		list = append(list, der...)
-	}
-	out := putUint24(len(list))
-	return append(out, list...)
-}
 
 // parseCertificate decodes a Certificate body into its DER entries.
 func parseCertificate(b []byte) ([][]byte, error) {
@@ -81,26 +62,6 @@ func ecdheServerParams(pubkey []byte) []byte {
 	out = binary.BigEndian.AppendUint16(out, ecNamedCurveSecp256r1)
 	out = append(out, byte(len(pubkey)))
 	return append(out, pubkey...)
-}
-
-// signECDHE signs the ServerKeyExchange parameters with the certificate key. The
-// signature covers clientRandom || serverRandom || ServerECDHParams (RFC 4492
-// §5.4), which binds the ephemeral key to this specific handshake.
-func signECDHE(key crypto.Signer, clientRand, serverRand, params []byte) ([]byte, error) {
-	h := sha256.New()
-	h.Write(clientRand)
-	h.Write(serverRand)
-	h.Write(params)
-	return key.Sign(rand.Reader, h.Sum(nil), crypto.SHA256)
-}
-
-// marshalECDHEServerKeyExchange builds the ServerKeyExchange body: the signed
-// curve/point parameters, the signature algorithm, and the signature.
-func marshalECDHEServerKeyExchange(params, signature []byte) []byte {
-	out := append([]byte(nil), params...)
-	out = append(out, sigHashSHA256, sigAlgECDSA)
-	out = binary.BigEndian.AppendUint16(out, uint16(len(signature)))
-	return append(out, signature...)
 }
 
 // serverKeyExchangeECDHE is a parsed ServerKeyExchange.
@@ -165,15 +126,6 @@ func marshalECDHEClientKeyExchange(pubkey []byte) []byte {
 	return append(out, pubkey...)
 }
 
-func parseECDHEClientKeyExchange(b []byte) ([]byte, error) {
-	r := reader{b: b}
-	pub := r.vector8()
-	if r.err != nil {
-		return nil, fmt.Errorf("dtls: malformed ClientKeyExchange: %w", r.err)
-	}
-	return pub, nil
-}
-
 // newECDHEKey generates an ephemeral P-256 key and returns it with its public
 // point in uncompressed form (0x04||X||Y).
 func newECDHEKey() (*ecdh.PrivateKey, []byte, error) {
@@ -193,9 +145,4 @@ func ecdhePremaster(priv *ecdh.PrivateKey, peerPub []byte) ([]byte, error) {
 		return nil, fmt.Errorf("dtls: peer ECDHE key: %w", err)
 	}
 	return priv.ECDH(pub)
-}
-
-// putUint24 encodes a length as three big-endian octets.
-func putUint24(n int) []byte {
-	return []byte{byte(n >> 16), byte(n >> 8), byte(n)}
 }

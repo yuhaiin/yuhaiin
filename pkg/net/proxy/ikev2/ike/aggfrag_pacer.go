@@ -132,7 +132,7 @@ func newPacedTunnel(t *aggfragTunnel, rateBytesPerSec, payloadSize int) *pacedTu
 // The two are separate because a timer has a floor a configuration does not. At
 // or above pacerMinInterval one payload per tick gives the exact rate; below it
 // the period is clamped and the count grows to compensate, which keeps the rate
-// and quantises the timing. Saying which happened is what burstsFor is for.
+// while quantising the timing.
 func pacing(rateBytesPerSec, payloadSize int) (time.Duration, int) {
 	if rateBytesPerSec <= 0 || payloadSize <= 0 {
 		return 0, 0
@@ -148,17 +148,6 @@ func pacing(rateBytesPerSec, payloadSize int) (time.Duration, int) {
 	}
 	n := int((pacerMinInterval + perPayload - 1) / perPayload)
 	return pacerMinInterval, max(n, 1)
-}
-
-// burstsFor reports whether a rate is above the point at which the sender emits
-// bursts rather than a smooth stream, and how many payloads a burst holds.
-//
-// It is exported to the package (and pinned by a test) so the number in the
-// documentation and the number in the code cannot drift: "roughly 100 Mbit/s"
-// is a claim, and this is where it is checked.
-func burstsFor(rateBytesPerSec, payloadSize int) (bursty bool, perTick int) {
-	_, n := pacing(rateBytesPerSec, payloadSize)
-	return n > 1, n
 }
 
 // Enqueue takes a copy of one inner packet for transmission.

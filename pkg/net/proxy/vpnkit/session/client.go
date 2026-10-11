@@ -3,9 +3,9 @@
 // and a registry that dials one by name.
 //
 // It deliberately does NOT install addresses, routes or DNS: Dial returns the
-// negotiated Result and the caller applies it. That is what lets the same dial
-// path serve both the veepin command (which hands Result to dataplane's router)
-// and the NetworkManager plugin (which hands Result to NM).
+// negotiated Result and the caller applies it. The protocol packages share
+// this contract while the outbound adapter connects the session to yuhaiin's
+// packet stack.
 //
 // Two ways in, for two kinds of caller:
 //
@@ -20,14 +20,8 @@
 //
 //	import _ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/ikev2"
 //
-// The server side mirrors this exactly (see server.go): a protocol that can act
-// as a responder registers with RegisterServer and is built by NewServer, so the
-// veepin command dispatches `connect` and `serve` through the same registry
-// shape. Not every protocol registers both — some are client-only — so Protocols
-// and ServerProtocols are distinct sets.
-//
 // This package is CGO-free and depends only on the standard library, so it is
-// safe to embed in the core binaries and to import from the separate nm/ module.
+// safe to embed in the core binaries.
 package client
 
 import (
@@ -40,15 +34,8 @@ import (
 )
 
 // ErrAuth wraps a handshake failure caused by rejected credentials (a wrong PSK
-// or EAP password). A Dial error satisfies errors.Is(err, ErrAuth), letting
-// callers distinguish a bad password from a transport failure.
-//
-// Two callers act on it, and both do the wrong thing without it. `veepin
-// connect -retry` treats an auth failure as permanent and stops; anything else
-// it retries with backoff, so a protocol that reports a rejected password as an
-// ordinary error hammers the server until the account locks out. And the
-// NetworkManager plugin maps it to NM's LoginFailed, which is what makes NM
-// re-prompt for the password rather than report a broken network.
+// or EAP password). Callers can distinguish bad credentials from transport
+// failures with errors.Is.
 //
 // A protocol that authenticates a credential is therefore expected to produce
 // it; autherr_test.go is the guard that says so by name.
@@ -221,10 +208,8 @@ func Register(protocol string, parse ParseFunc) {
 	protocols[protocol] = parse
 }
 
-// Protocols lists the registered protocol names, sorted. Variants are NOT
-// included: this is the list "how many protocols does veepin speak" is counted
-// from, and pq-ikev2 is ikev2 with a floor under it rather than a seventeenth
-// protocol. Use AllProtocols for a usage message or a validity check.
+// Protocols lists the registered protocol names, sorted. Variants are not
+// included. Use AllProtocols for a usage message or a validity check.
 func Protocols() []string {
 	mu.RLock()
 	defer mu.RUnlock()

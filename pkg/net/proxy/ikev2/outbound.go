@@ -28,7 +28,7 @@ func NewOutbound(c node.IKEv2, up netapi.Proxy) (netapi.Proxy, error) {
 	if c.LocalID == "" || c.PSK == "" {
 		return nil, errors.New("ikev2: local ID and PSK are required")
 	}
-	return vpnkit.NewOutbound("ikev2", func(ctx context.Context, tun string) (client.Session, client.Result, error) {
+	return vpnkit.NewOutbound("ikev2", int(c.MTU), func(ctx context.Context, tun string) (client.Session, client.Result, error) {
 		return Dial(ctx, Config{Server: host, Port: p, LocalID: c.LocalID, ServerID: c.ServerID,
 			PSK: c.PSK, EAPUser: c.Username, EAPPassword: c.Password, TCP: c.TCP,
 			TUNName: tun, DialContext: vpnkit.EndpointDialer(up)})

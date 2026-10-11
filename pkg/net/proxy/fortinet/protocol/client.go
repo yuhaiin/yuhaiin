@@ -182,7 +182,7 @@ func runClient(conn net.Conn, cfg Config, tun io.ReadWriteCloser, logger *vlog.L
 	// with it and then registered back on the link for inbound control frames.
 	// No PPP-level credentials: the SVPNCOOKIE already authenticated, so the
 	// server will not request authentication and the link goes LCP->IPCP.
-	link := &pppLink{conn: conn, tun: tun, ownsTUN: true, datagram: datagram, logger: logger, done: make(chan struct{})}
+	link := &pppLink{conn: conn, tun: tun, datagram: datagram, logger: logger, done: make(chan struct{})}
 	sess := ppp.New("", "", link, h)
 	link.client = sess
 

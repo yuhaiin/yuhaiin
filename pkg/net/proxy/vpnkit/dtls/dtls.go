@@ -1,13 +1,11 @@
-// Package dtls implements the subset of DTLS 1.2 (RFC 6347) that the AnyConnect
-// data channel needs: a pre-shared-key handshake with AES-GCM, in both the
-// client and server roles.
+// Package dtls implements the client-side subset of DTLS 1.2 (RFC 6347) used by
+// the AnyConnect and Fortinet data channels.
 //
 // It is deliberately not a general-purpose DTLS stack. AnyConnect's
-// PSK-NEGOTIATE mode derives the pre-shared key from the already-established
-// CSTP/TLS session with an RFC 5705 exporter, so there are no certificates, no
-// chain validation and no key exchange to negotiate — which removes most of what
-// makes DTLS large. What remains is the record layer, the PSK handshake flights,
-// and the reliability machinery DTLS needs because it runs over UDP:
+// PSK-NEGOTIATE mode derives its key from the established CSTP/TLS session with
+// an RFC 5705 exporter; Fortinet uses a certificate-based ECDHE handshake. What
+// remains is the record layer, these handshake flights, and the reliability
+// machinery DTLS needs because it runs over UDP:
 // retransmission, fragmentation and reassembly, and replay detection.
 //
 // Only AEAD cipher suites are supported, so there is no CBC/MAC-then-encrypt

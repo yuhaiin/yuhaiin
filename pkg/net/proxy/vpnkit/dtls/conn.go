@@ -3,8 +3,6 @@ package dtls
 import (
 	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
-	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -17,7 +15,7 @@ import (
 // Config parameters one DTLS connection.
 //
 // It selects the key exchange by what is set: a PSK gives the AnyConnect
-// pre-shared-key handshake, and a Certificate gives Fortinet's certificate-based
+// pre-shared-key handshake; an empty PSK uses Fortinet's certificate-based
 // ECDHE handshake. The two are never mixed on one connection.
 type Config struct {
 	// PSK is the pre-shared key. For AnyConnect it comes from an RFC 5705
@@ -30,10 +28,6 @@ type Config struct {
 	// UDP flow back to the HTTPS session that authorised it.
 	SessionID []byte
 
-	// Certificate is the server's certificate and key for a certificate-based
-	// (ECDHE-ECDSA) handshake. When set, the connection uses ECDHE rather than
-	// PSK. It is ignored on a client.
-	Certificate *tls.Certificate
 	// InsecureSkipVerify, on a client, skips X.509 chain and hostname validation
 	// of the server certificate. The ServerKeyExchange signature is still checked
 	// against the presented certificate regardless -- that is what proves the
@@ -64,15 +58,6 @@ func (c *Conn) offeredSuites() []suite {
 	return pskSuites
 }
 
-// serverSuites is what a server will accept, chosen the same way: a configured
-// certificate means ECDHE, otherwise PSK.
-func (c *Conn) serverSuites() []suite {
-	if c.cfg.Certificate != nil {
-		return ecdheSuites
-	}
-	return pskSuites
-}
-
 // retransmit backs off between flight retransmissions, doubling each time from
 // the initial value, as RFC 6347 section 4.2.4.1 requires.
 const (
@@ -91,8 +76,8 @@ const (
 )
 
 // Conn is an established DTLS connection carrying application datagrams. It
-// wraps a net.Conn that must deliver whole datagrams — a connected UDP socket,
-// or one side of a demultiplexing server.
+// wraps a net.Conn that must deliver whole datagrams, usually a connected UDP
+// socket.
 //
 // Read and Write are datagram-oriented: each Write becomes one record and each
 // Read returns one record's payload, so unlike a stream there is no framing for
@@ -116,22 +101,6 @@ type Conn struct {
 	replay  replayWindow
 	pending [][]byte // decrypted application payloads not yet returned by Read
 	readBuf []byte
-
-	// deferred holds encrypted handshake records that arrived before the read
-	// keys were installed, so they can be decrypted once the keys exist rather
-	// than dropped. This happens when a peer coalesces its ClientKeyExchange,
-	// ChangeCipherSpec and Finished into one datagram: the Finished is at the new
-	// epoch, but the ClientKeyExchange that unlocks it is in the same datagram.
-	deferred []deferredRecord
-}
-
-// deferredRecord is an encrypted record held until its keys are available.
-type deferredRecord struct {
-	typ      uint8
-	version  uint16
-	epoch    uint16
-	sequence uint64
-	fragment []byte
 }
 
 // Client performs a DTLS handshake in the client role and returns the
@@ -279,7 +248,7 @@ func (c *Conn) SetWriteDeadline(t time.Time) error { return c.conn.SetWriteDeadl
 // CipherSuite reports the negotiated suite, for logging.
 func (c *Conn) CipherSuite() uint16 { return c.suite.id }
 
-// --- handshake plumbing shared by both roles ---
+// --- client handshake plumbing ---
 
 // handshakeState tracks a handshake in progress.
 type handshakeState struct {
@@ -376,22 +345,8 @@ func (c *Conn) consumeHandshake(hs *handshakeState, buf []byte) ([]handshakeMsg,
 
 		payload := rec.fragment
 		if rec.epoch != 0 {
-			// Encrypted: the peer has already changed cipher spec, so this is its
-			// Finished.
 			if c.in == nil {
-				// The keys are not installed yet. A peer that coalesces its
-				// ClientKeyExchange and Finished into one datagram lands here for
-				// the Finished; hold it rather than drop it, so it can be
-				// decrypted once the ClientKeyExchange in this same datagram has
-				// installed the keys. drainDeferred replays it then.
-				c.deferred = append(c.deferred, deferredRecord{
-					typ:      rec.typ,
-					version:  rec.version,
-					epoch:    rec.epoch,
-					sequence: rec.sequence,
-					fragment: append([]byte(nil), rec.fragment...),
-				})
-				continue
+				return nil, errors.New("dtls: received encrypted handshake record before read keys were installed")
 			}
 			if err := c.replay.check(rec.sequence); err != nil {
 				continue
@@ -437,33 +392,6 @@ func (c *Conn) dispatchRecord(hs *handshakeState, typ uint8, payload []byte) ([]
 			out = append(out, ready...)
 		}
 	}
-	return out, nil
-}
-
-// drainDeferred decrypts and processes the encrypted records that were held for
-// want of keys, returning the handshake messages they carried. It is called once
-// the read keys are installed, so a Finished that shared a datagram with the
-// ClientKeyExchange is recovered rather than lost.
-func (c *Conn) drainDeferred(hs *handshakeState) ([]handshakeMsg, error) {
-	if len(c.deferred) == 0 {
-		return nil, nil
-	}
-	var out []handshakeMsg
-	for _, rec := range c.deferred {
-		if err := c.replay.check(rec.sequence); err != nil {
-			continue
-		}
-		payload, err := c.in.open(rec.typ, rec.version, rec.epoch, rec.sequence, rec.fragment)
-		if err != nil {
-			return nil, fmt.Errorf("dtls: decrypting a deferred record: %w", err)
-		}
-		msgs, err := c.dispatchRecord(hs, rec.typ, payload)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, msgs...)
-	}
-	c.deferred = nil
 	return out, nil
 }
 
@@ -518,16 +446,6 @@ func randomBytes(n int) ([]byte, error) {
 // in the first four octets; modern practice (RFC 8446 and every current stack)
 // is 32 fully random octets, which leaks nothing about the host clock.
 func newRandom() ([]byte, error) { return randomBytes(randomLen) }
-
-// cookieMAC derives a stateless HelloVerifyRequest cookie from the client's
-// address, keyed by a per-server secret. Deriving rather than storing is the
-// point of the mechanism: the server can verify the cookie it gets back without
-// having allocated anything when it issued it.
-func cookieMAC(secret, addr []byte) []byte {
-	mac := hmac.New(sha256.New, secret)
-	mac.Write(addr)
-	return mac.Sum(nil)[:16]
-}
 
 func constantTimeEqual(a, b []byte) bool { return hmac.Equal(a, b) }
 

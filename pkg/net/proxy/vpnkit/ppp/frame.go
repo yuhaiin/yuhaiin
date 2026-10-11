@@ -1,11 +1,7 @@
-// Package ppp is a minimal PPP implementation for tunnelling IP over a datagram
-// transport — the link SSTP carries inside its data packets. It provides both
-// roles: the client (Session) does LCP link setup, MS-CHAPv2 authentication and
-// IPCP to learn its assigned address and DNS; the server (ServerSession) is the
-// authenticator — it opens LCP requiring MS-CHAPv2, challenges and verifies the
-// client, and assigns the address over IPCP. It is transport-neutral (it sends
-// and receives PPP frames through a Transport the caller supplies), so L2TP could
-// drive it too.
+// Package ppp is a minimal client-side PPP implementation for tunnelling IP
+// over a transport such as SSTP. It performs LCP setup, MS-CHAPv2
+// authentication and IPCP to learn the assigned address and DNS. It is
+// transport-neutral: frames go through a Transport supplied by the caller.
 //
 // The framing follows RFC 1661, the control-protocol option format is shared by
 // LCP (RFC 1661) and IPCP (RFC 1332), and authentication is MS-CHAPv2 (RFC 2759)

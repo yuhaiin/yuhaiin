@@ -23,7 +23,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	engine "github.com/Asutorufa/yuhaiin/pkg/net/proxy/anyconnect/protocol"
@@ -63,7 +62,9 @@ type Config struct {
 	// Insecure skips TLS certificate verification, for self-signed test servers.
 	Insecure bool
 	// NoDTLS keeps the tunnel on TLS even when the server offers a UDP channel.
-	NoDTLS  bool
+	NoDTLS bool
+	// MTU limits the inner path MTU reported to the server; zero uses the default.
+	MTU     int
 	TUNName string
 	Logger  *slog.Logger
 }
@@ -166,6 +167,7 @@ func Dial(ctx context.Context, cfg Config) (client.Session, client.Result, error
 		Hostname: cfg.TUNName,
 		Username: cfg.Username,
 		Password: cfg.Password,
+		BaseMTU:  cfg.MTU,
 		NoDTLS:   cfg.NoDTLS,
 		Logger:   logger,
 	})
@@ -272,19 +274,4 @@ func (s *session) Close() error {
 	err := s.engine.Close()
 	s.tun.Close()
 	return err
-}
-
-// parseIPList parses a comma/space-separated list of IPs, dropping anything
-// unparseable.
-func parseIPList(list string) []net.IP {
-	fields := strings.FieldsFunc(list, func(r rune) bool {
-		return r == ',' || r == ' ' || r == '\t'
-	})
-	var out []net.IP
-	for _, s := range fields {
-		if ip := net.ParseIP(s); ip != nil {
-			out = append(out, ip)
-		}
-	}
-	return out
 }

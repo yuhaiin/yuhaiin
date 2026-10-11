@@ -21,10 +21,10 @@
 package ike
 
 import (
-	"crypto/mlkem"
 	"encoding/binary"
 	"fmt"
-	"net"
+
+	"crypto/mlkem"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/ikev2/payload"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/cryptoutil"
@@ -92,14 +92,7 @@ func finalIntAuth(intAuthI, intAuthR []byte, ikeAuthMsgID uint32) []byte {
 	return binary.BigEndian.AppendUint32(out, ikeAuthMsgID)
 }
 
-// intAuth returns the IntAuth value for this SA's AUTH computation, given the
-// message ID of the first IKE_AUTH request. Nil when no IKE_INTERMEDIATE
-// exchange ran, which is the overwhelmingly common case.
-func (sa *IKESA) intAuth(ikeAuthMsgID uint32) []byte {
-	return finalIntAuth(sa.IntAuthI, sa.IntAuthR, ikeAuthMsgID)
-}
-
-// intAuth is the client's equivalent of [IKESA.intAuth].
+// intAuth combines the client's directional authentication chains.
 func (c *Client) intAuth(ikeAuthMsgID uint32) []byte {
 	return finalIntAuth(c.intAuthI, c.intAuthR, ikeAuthMsgID)
 }
@@ -126,23 +119,6 @@ func hasIntermediateSupport(msg *payload.Message) bool {
 	return false
 }
 
-// kemEncapsulate performs the responder's half of a KEM exchange: given the
-// initiator's encapsulation key, return the ciphertext to send back and the
-// shared secret to mix into SKEYSEED. Both are needed — discarding the secret
-// leaves the responder keyed off the old SKEYSEED while the initiator moves to
-// the new one, and every subsequent message fails to decrypt.
-func kemEncapsulate(group uint16, peerPublic []byte) (ciphertext, shared []byte, err error) {
-	if group != payload.MLKEM768 {
-		return nil, nil, fmt.Errorf("ike: unsupported additional key exchange method %d", group)
-	}
-	ek, err := mlkem.NewEncapsulationKey768(peerPublic)
-	if err != nil {
-		return nil, nil, fmt.Errorf("ike: ml-kem-768 encapsulation key: %w", err)
-	}
-	shared, ciphertext = ek.Encapsulate()
-	return ciphertext, shared, nil
-}
-
 // rekeyFromAdditionalExchange applies RFC 9370 section 2.2.2 after an additional
 // key exchange has produced a shared secret:
 //
@@ -155,88 +131,6 @@ func rekeyFromAdditionalExchange(suite Suite, keys SAKeys, shared, ni, nr []byte
 	skeyseed := DeriveIntermediateSKEYSEED(suite.PRF, keys.SKd, shared, ni, nr)
 	return expandIKEKeys(suite.PRF, skeyseed, ni, nr, spiI, spiR,
 		suite.encKeyLen(), suite.integKeyLen())
-}
-
-// handleIKEIntermediate answers an IKE_INTERMEDIATE request. The caller
-// (handleSecured) already holds sa.mu.
-func (s *Server) handleIKEIntermediate(sa *IKESA, hdr payload.Header, inners []payload.RawPayload, remote *net.UDPAddr) {
-	if sa.State != StateSAInitDone && sa.State != StateIntermediate {
-		s.log.Printf("ikev2: IKE_INTERMEDIATE from %s in wrong state %s", remote, sa.State)
-		return
-	}
-	if sa.ADDKEGroup == 0 {
-		// Nothing was negotiated, so there is nothing this exchange could carry.
-		// Refusing is better than answering an empty message: it surfaces a peer
-		// that skipped negotiation instead of letting the handshake drift on.
-		s.log.Printf("ikev2: IKE_INTERMEDIATE from %s but no additional key exchange was negotiated", remote)
-		s.respondEncryptedNotify(sa, payload.IKE_INTERMEDIATE, hdr.MessageID, payload.InvalidSyntax, remote)
-		return
-	}
-
-	var ke payload.KEPayload
-	found := false
-	for _, in := range inners {
-		if in.Type != payload.TypeKE {
-			continue
-		}
-		parsed, err := payload.ParseKE(in.Body)
-		if err != nil {
-			s.log.Printf("ikev2: IKE_INTERMEDIATE KE parse from %s: %v", remote, err)
-			return
-		}
-		ke, found = parsed, true
-		break
-	}
-	if !found {
-		s.log.Printf("ikev2: IKE_INTERMEDIATE from %s carried no KE payload", remote)
-		s.respondEncryptedNotify(sa, payload.IKE_INTERMEDIATE, hdr.MessageID, payload.InvalidSyntax, remote)
-		return
-	}
-	if ke.Group != sa.ADDKEGroup {
-		// RFC 9370 section 2.1: the KE payload's method must match the n-th
-		// negotiated additional key exchange.
-		s.log.Printf("ikev2: IKE_INTERMEDIATE from %s used method %d, negotiated %d", remote, ke.Group, sa.ADDKEGroup)
-		s.respondEncryptedNotify(sa, payload.IKE_INTERMEDIATE, hdr.MessageID, payload.InvalidSyntax, remote)
-		return
-	}
-
-	ct, shared, err := kemEncapsulate(ke.Group, ke.KeyData)
-	if err != nil {
-		s.log.Printf("ikev2: IKE_INTERMEDIATE from %s: %v", remote, err)
-		s.respondEncryptedNotify(sa, payload.IKE_INTERMEDIATE, hdr.MessageID, payload.InvalidSyntax, remote)
-		return
-	}
-
-	// Fold the request into the initiator's IntAuth chain before re-keying: the
-	// chain is keyed by the SK_p in force for this exchange (RFC 9242 3.3).
-	reqInner, err := reencodeInners(inners)
-	if err != nil {
-		s.log.Printf("ikev2: IKE_INTERMEDIATE from %s: %v", remote, err)
-		return
-	}
-	reqHdr := hdr
-	reqHdr.Flags = payload.FlagInitiator
-	sa.IntAuthI = chainIntAuth(sa.Suite.PRF, sa.Keys.SKpi, sa.IntAuthI,
-		intAuthBlob(reqHdr, inners[0].Type, reqInner))
-
-	b := payload.NewBuilder()
-	b.Add(payload.TypeKE, false, payload.MarshalKE(payload.KEPayload{Group: ke.Group, KeyData: ct}))
-	respInner := b.Bytes()
-	respHdr := payload.Header{
-		InitiatorSPI: sa.InitiatorSPI, ResponderSPI: sa.ResponderSPI, Version: 0x20,
-		ExchangeType: payload.IKE_INTERMEDIATE,
-		Flags:        payload.FlagResponse, MessageID: hdr.MessageID,
-	}
-	sa.IntAuthR = chainIntAuth(sa.Suite.PRF, sa.Keys.SKpr, sa.IntAuthR,
-		intAuthBlob(respHdr, b.FirstType(), respInner))
-
-	// Send under the *old* keys — the peer has not re-keyed either until it has
-	// this message — then re-key.
-	s.respondEncrypted(sa, payload.IKE_INTERMEDIATE, hdr.MessageID, b.FirstType(), respInner, remote)
-
-	sa.Keys = rekeyFromAdditionalExchange(sa.Suite, sa.Keys, shared, sa.Ni, sa.Nr, sa.InitiatorSPI, sa.ResponderSPI)
-	sa.State = StateIntermediate
-	sa.RecvMsgID++
 }
 
 // reencodeInners rebuilds the plaintext inner payload chain from parsed

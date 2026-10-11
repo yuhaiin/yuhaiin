@@ -21,7 +21,7 @@ func NewOutbound(c node.SSTP, up netapi.Proxy) (netapi.Proxy, error) {
 	if c.Username == "" || c.Password == "" {
 		return nil, errors.New("sstp: username/password required")
 	}
-	return vpnkit.NewOutbound("sstp", func(ctx context.Context, tun string) (client.Session, client.Result, error) {
+	return vpnkit.NewOutbound("sstp", int(c.MTU), func(ctx context.Context, tun string) (client.Session, client.Result, error) {
 		return Dial(ctx, Config{Server: host, Port: port, Username: c.Username, Password: c.Password,
 			TUNName: tun, SkipVerify: c.InsecureSkipVerify, DialContext: vpnkit.EndpointDialer(up)})
 	})

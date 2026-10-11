@@ -3,6 +3,7 @@ package dataplane
 import (
 	"encoding/binary"
 	"log/slog"
+	"maps"
 	"net"
 	"net/netip"
 	"sync"
@@ -258,9 +259,7 @@ type view struct {
 // sharing them with the published snapshot is safe.
 func (v *view) clone() *view {
 	n := &view{byKey: make(map[uint32]bound, len(v.byKey)+1), routes: v.routes}
-	for k, b := range v.byKey {
-		n.byKey[k] = b
-	}
+	maps.Copy(n.byKey, v.byKey)
 	return n
 }
 
@@ -794,7 +793,7 @@ func (p *Pump) routeOutbound(pkt []byte) {
 // one nobody -- and no time-series database -- can reason about.
 func (p *Pump) Stats() PumpStats {
 	out := PumpStats{Drops: make(map[string]uint64, numDropReasons)}
-	for r := DropReason(0); r < numDropReasons; r++ {
+	for r := range numDropReasons {
 		out.Drops[r.String()] = p.drops[r].Load()
 	}
 	p.retiredMu.Lock()

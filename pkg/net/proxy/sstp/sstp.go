@@ -158,7 +158,7 @@ func Dial(ctx context.Context, cfg Config) (client.Session, client.Result, error
 		// MS-CHAPv2 refusal is in there, and it is the one the caller must be
 		// able to tell apart -- SSTP servers are Windows RRAS and SoftEther,
 		// both of which count failed logins.
-		return nil, client.Result{}, client.WrapAuth(fmt.Errorf("sstp: %w", s.closeErr), ppp.ErrAuth)
+		return nil, client.Result{}, client.WrapAuth(fmt.Errorf("sstp: %w", s.err()), ppp.ErrAuth)
 	}
 
 	tun, err := dataplane.OpenTUN(cfg.TUNName)
@@ -381,7 +381,7 @@ func (s *session) outboundLoop(tun *dataplane.TUN) {
 func (s *session) Wait(ctx context.Context) error {
 	select {
 	case <-s.done:
-		return s.closeErr
+		return s.err()
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -389,6 +389,11 @@ func (s *session) Wait(ctx context.Context) error {
 
 func (s *session) Close() error {
 	s.closeOnce.Do(func() {
+		s.mu.Lock()
+		if !s.closed {
+			s.closed = true
+		}
+		s.mu.Unlock()
 		close(s.done)
 		if tun := s.tun.Load(); tun != nil {
 			_ = tun.Close()
@@ -397,5 +402,11 @@ func (s *session) Close() error {
 			_ = s.tlsConn.Close()
 		}
 	})
+	return s.err()
+}
+
+func (s *session) err() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.closeErr
 }

@@ -25,7 +25,7 @@ func md4(data []byte) [16]byte {
 		padded = append(padded, 0)
 	}
 	bitLen := uint64(msgLen) * 8
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		padded = append(padded, byte(bitLen>>(8*uint(i))))
 	}
 
@@ -33,7 +33,7 @@ func md4(data []byte) [16]byte {
 
 	for off := 0; off < len(padded); off += 64 {
 		var x [16]uint32
-		for i := 0; i < 16; i++ {
+		for i := range 16 {
 			j := off + i*4
 			x[i] = uint32(padded[j]) | uint32(padded[j+1])<<8 |
 				uint32(padded[j+2])<<16 | uint32(padded[j+3])<<24

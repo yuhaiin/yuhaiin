@@ -6,14 +6,10 @@ import (
 	"strings"
 )
 
-// The authentication exchange is a short series of XML documents POSTed over the
-// HTTPS connection. The client opens with type="init"; the server replies with
-// type="auth-request" carrying a form; the client answers with type="auth-reply"
-// filling that form's inputs; and the server ends with type="complete" and a
-// session cookie. Servers vary in how many rounds they take — ocserv asks for
-// the username and password in one form or two depending on its auth backend —
-// so the client loops on whatever form it is handed rather than assuming a fixed
-// number of steps.
+// The client opens the XML authentication exchange with type="init", answers
+// each server-provided auth form, and reads the completion message and session
+// cookie. Servers may use multiple rounds, so the client follows the forms it
+// receives rather than assuming a fixed sequence.
 
 // clientVersion is the AnyConnect client version veepin reports. Servers gate
 // behaviour on it, and this is the version the protocol draft uses in its
@@ -127,50 +123,4 @@ func isPasswordField(in formInput) bool {
 	return in.Type == "password" ||
 		strings.Contains(strings.ToLower(in.Name), "pass") ||
 		strings.Contains(strings.ToLower(in.Name), "secret")
-}
-
-// credentialForm is the form a veepin server presents: one username and one
-// password, answered in a single round.
-func credentialForm() configAuth {
-	return configAuth{
-		Type: "auth-request",
-		Auth: auth{
-			ID: "main",
-			Form: &form{
-				Method: "post",
-				Action: authPath,
-				Inputs: []formInput{
-					{Type: "text", Name: "username", Label: "Username:"},
-					{Type: "password", Name: "password", Label: "Password:"},
-				},
-			},
-		},
-	}
-}
-
-// completeMessage ends a successful exchange, handing the client the session
-// token it presents on the CONNECT request.
-func completeMessage(sessionID, token string) configAuth {
-	m := configAuth{Type: "complete", SessionID: sessionID, SessionToken: token}
-	m.Auth.ID = "success"
-	return m
-}
-
-// failureMessage rejects the credentials by re-presenting the form with an
-// error attached, which is how the protocol reports a bad password: a client is
-// expected to be able to try again.
-func failureMessage(reason string) configAuth {
-	m := credentialForm()
-	m.Auth.Error = reason
-	return m
-}
-
-// field returns the value the client supplied for an input name.
-func (a auth) field(name string) string {
-	for _, f := range a.Fields {
-		if strings.EqualFold(f.XMLName.Local, name) {
-			return f.Value
-		}
-	}
-	return ""
 }

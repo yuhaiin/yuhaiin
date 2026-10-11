@@ -21,9 +21,9 @@ func NewOutbound(c node.AnyConnect, up netapi.Proxy) (netapi.Proxy, error) {
 	if c.Username == "" || c.Password == "" {
 		return nil, errors.New("anyconnect: username/password required")
 	}
-	return vpnkit.NewOutbound("anyconnect", func(ctx context.Context, tun string) (client.Session, client.Result, error) {
+	return vpnkit.NewOutbound("anyconnect", int(c.MTU), func(ctx context.Context, tun string) (client.Session, client.Result, error) {
 		return Dial(ctx, Config{Server: host, Port: port, Username: c.Username, Password: c.Password,
 			TUNName: tun, Insecure: c.InsecureSkipVerify,
-			NoDTLS: c.DisableDTLS || vpnkit.IsChained(up), DialContext: vpnkit.EndpointDialer(up)})
+			MTU: int(c.MTU), NoDTLS: c.DisableDTLS || vpnkit.IsChained(up), DialContext: vpnkit.EndpointDialer(up)})
 	})
 }

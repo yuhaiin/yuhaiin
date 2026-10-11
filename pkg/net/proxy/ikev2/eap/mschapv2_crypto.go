@@ -94,34 +94,6 @@ func expandDESKey(key7 []byte) []byte {
 	return k[:]
 }
 
-// Magic constants from RFC 2759 section 8.7 for GenerateAuthenticatorResponse.
-var (
-	authMagic1 = []byte("Magic server to client signing constant")
-	authMagic2 = []byte("Pad to make it do more than one iteration")
-)
-
-// generateAuthenticatorResponse computes the 20-octet Authenticator Response
-// ("S=..." success value) per RFC 2759 section 8.7.
-func generateAuthenticatorResponse(ntHash []byte, ntResponse [24]byte,
-	peerChallenge, authChallenge [16]byte, username string) []byte {
-
-	hashHash := ntPasswordHashHash(ntHash)
-
-	h1 := sha1.New()
-	h1.Write(hashHash)
-	h1.Write(ntResponse[:])
-	h1.Write(authMagic1)
-	digest := h1.Sum(nil)
-
-	ch := challengeHash(peerChallenge, authChallenge, username)
-
-	h2 := sha1.New()
-	h2.Write(digest)
-	h2.Write(ch[:])
-	h2.Write(authMagic2)
-	return h2.Sum(nil) // 20 octets
-}
-
 // Magic constants from RFC 3079 section 3.3, defined as their exact ASCII
 // strings to avoid transcription errors. magic2 is used for the send key on the
 // client / receive key on the server; magic3 is the mirror.

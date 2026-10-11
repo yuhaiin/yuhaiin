@@ -2,7 +2,7 @@ package anyconnect
 
 import "strconv"
 
-// headerList is an ordered list of response headers written verbatim.
+// headerList is an ordered list of HTTP headers written verbatim.
 //
 // net/http's Header canonicalizes names to Go's MIME form, which turns
 // X-CSTP-MTU into X-Cstp-Mtu. That is correct HTTP — header names are
@@ -22,10 +22,6 @@ func (h *headerList) set(name, value string) {
 			return
 		}
 	}
-	*h = append(*h, [2]string{name, value})
-}
-
-func (h *headerList) add(name, value string) {
 	*h = append(*h, [2]string{name, value})
 }
 

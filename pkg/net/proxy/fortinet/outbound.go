@@ -32,7 +32,7 @@ func NewOutbound(c node.Fortinet, up netapi.Proxy) (netapi.Proxy, error) {
 			return nil, errors.New("fortinet: invalid CA PEM")
 		}
 	}
-	return vpnkit.NewOutbound("fortinet", func(ctx context.Context, tun string) (client.Session, client.Result, error) {
+	return vpnkit.NewOutbound("fortinet", int(c.MTU), func(ctx context.Context, tun string) (client.Session, client.Result, error) {
 		s, res, e := Dial(ctx, Config{Server: host, Port: port, Username: c.Username, Password: c.Password,
 			Realm: c.Realm, Token: c.Token, TOTPSecret: c.TOTPSecret, RootCAs: roots,
 			Insecure: c.InsecureSkipVerify, NoDTLS: c.DisableDTLS || vpnkit.IsChained(up),

@@ -40,9 +40,11 @@ const maxTCPFrame = 0xffff
 
 var (
 	errTCPFrameShort = errors.New("ike: TCP frame length below its own header")
-	errTCPBadPrefix  = errors.New("ike: TCP stream did not begin with IKETCP")
 	errTCPFrameEmpty = errors.New("ike: TCP frame carries no payload")
 )
+
+// nonESPMarker distinguishes IKE messages from ESP packets on the TCP stream.
+var nonESPMarker = []byte{0, 0, 0, 0}
 
 // appendTCPFrame appends one length-prefixed frame carrying payload.
 //
@@ -79,28 +81,10 @@ type tcpReader struct {
 	buf []byte
 	// start and end bound the unconsumed bytes within buf.
 	start, end int
-	// prefixSeen records that the peer's stream prefix has been consumed. Only
-	// a responder expects one.
-	prefixSeen bool
 }
 
 func newTCPReader(r io.Reader) *tcpReader {
 	return &tcpReader{r: r, buf: make([]byte, 0, 4096)}
-}
-
-// expectPrefix consumes the six-octet stream prefix a TCP originator sends. A
-// responder calls this once before reading frames; an originator never does,
-// because its peer sends no prefix.
-func (t *tcpReader) expectPrefix() error {
-	if err := t.fill(len(tcpStreamPrefix)); err != nil {
-		return err
-	}
-	if string(t.buf[t.start:t.start+len(tcpStreamPrefix)]) != tcpStreamPrefix {
-		return errTCPBadPrefix
-	}
-	t.start += len(tcpStreamPrefix)
-	t.prefixSeen = true
-	return nil
 }
 
 // Next returns the next frame's payload -- the message with its non-ESP marker

@@ -36,7 +36,10 @@ var _ netapi.Proxy = (*Client)(nil)
 
 type DialSession func(context.Context, string) (vpnclient.Session, vpnclient.Result, error)
 
-func NewOutbound(name string, dial DialSession) (*Client, error) {
+func NewOutbound(name string, mtu int, dial DialSession) (*Client, error) {
+	if mtu < 0 || mtu > 9000 || mtu > 0 && mtu < 576 {
+		return nil, fmt.Errorf("%s: MTU outside 576..9000", name)
+	}
 	bridge := newPacketBridge()
 	var id [16]byte
 	if _, err := rand.Read(id[:]); err != nil {
@@ -59,6 +62,16 @@ func NewOutbound(name string, dial DialSession) (*Client, error) {
 		_ = session.Close()
 		_ = bridge.Close()
 		return nil, fmt.Errorf("%s: invalid assigned tunnel configuration: %w", name, err)
+	}
+	if mtu > 0 {
+		if assigned.AssignedIP6 != nil && mtu < 1280 {
+			_ = session.Close()
+			_ = bridge.Close()
+			return nil, fmt.Errorf("%s: IPv6 requires an MTU of at least 1280", name)
+		}
+		if assigned.MTU <= 0 || mtu < assigned.MTU {
+			assigned.MTU = mtu
+		}
 	}
 	network, err := bridge.Attach(assigned)
 	if err != nil {

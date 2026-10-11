@@ -49,11 +49,7 @@ const (
 	hdrDefaultDomain = "X-CSTP-Default-Domain"
 	hdrDPD           = "X-CSTP-DPD"
 	hdrKeepalive     = "X-CSTP-Keepalive"
-	hdrDisconnected  = "X-CSTP-Disconnected-Timeout"
-	hdrSessTimeout   = "X-CSTP-Session-Timeout"
-	hdrIdleTimeout   = "X-CSTP-Idle-Timeout"
 	hdrHostname      = "X-CSTP-Hostname"
-	hdrLease         = "X-CSTP-Lease-Duration"
 )
 
 // Headers negotiating the optional DTLS data channel (RFC 5705 keying, see
@@ -231,34 +227,4 @@ func parseTunnelConfig(h http.Header) (TunnelConfig, error) {
 	}
 	cfg.Domains = h.Get(hdrDefaultDomain)
 	return cfg, nil
-}
-
-// writeTunnelConfig renders a server's assignment as CONNECT response headers.
-func writeTunnelConfig(h *headerList, cfg TunnelConfig, dpd, keepalive int) {
-	h.set(hdrVersion, "1")
-	h.set(hdrAddress, cfg.Address.String())
-	h.set(hdrNetmask, cfg.Netmask.String())
-	for _, ip := range cfg.DNS {
-		h.add(hdrDNS, ip.String())
-	}
-	mtu := cfg.MTU
-	if mtu == 0 {
-		mtu = defaultMTU
-	}
-	h.setInt(hdrMTU, mtu)
-	h.setInt(hdrBaseMTU, mtu)
-	for _, r := range cfg.SplitInclude {
-		h.add(hdrSplitInclude, r)
-	}
-	if cfg.Domains != "" {
-		h.set(hdrDefaultDomain, cfg.Domains)
-	}
-	h.setInt(hdrDPD, dpd)
-	h.setInt(hdrKeepalive, keepalive)
-	// Zero disables each timeout: veepin holds a session for as long as its
-	// connection lives rather than expiring it on a clock.
-	h.set(hdrSessTimeout, "0")
-	h.set(hdrIdleTimeout, "0")
-	h.set(hdrDisconnected, "0")
-	h.set(hdrLease, "0")
 }

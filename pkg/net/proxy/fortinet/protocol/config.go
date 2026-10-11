@@ -1,18 +1,11 @@
 package fortinet
 
-// The tunnel configuration exchanged as XML at /remote/fortisslvpn_xml.
-//
-// The server builds this from the address it assigned; the client parses it to
-// learn its address, DNS and routes. The element and attribute names are
-// openconnect's — <sslvpn-tunnel> at the root, <ipv4><assigned-addr ipv4=…>,
-// <dns ip=… domain=…>, and <split-tunnel-info><addr ip=… mask=…> — so the two
-// interoperate with real FortiOS and with the openconnect client.
+// The tunnel configuration returned as XML at /remote/fortisslvpn_xml.
 
 import (
 	"encoding/xml"
 	"fmt"
 	"net"
-	"strings"
 )
 
 // Route is one split-tunnel entry: a network and its mask.
@@ -35,51 +28,6 @@ type Config struct {
 	// DTLS reports whether the gateway offers the UDP data channel, from the
 	// dtls attribute on <sslvpn-tunnel>. A client that can speak it prefers it.
 	DTLS bool
-}
-
-// BuildConfigXML renders a Config as the fortisslvpn_xml document. A full tunnel
-// (no Include routes) omits <split-tunnel-info> entirely, which is how the client
-// is told to route everything — the presence of split-includes is what switches
-// it to split tunnelling. The dtls attribute advertises the UDP data channel;
-// dtls="0" leaves a client that would prefer it on the TLS tunnel.
-func BuildConfigXML(cfg Config) []byte {
-	dtls := "0"
-	if cfg.DTLS {
-		dtls = "1"
-	}
-	var b strings.Builder
-	b.WriteString(`<?xml version="1.0" encoding="utf-8"?>`)
-	b.WriteString(`<sslvpn-tunnel ver="2" dtls="` + dtls + `">`)
-	b.WriteString(`<ipv4>`)
-	fmt.Fprintf(&b, `<assigned-addr ipv4=%q/>`, cfg.AssignedIP.String())
-	for _, d := range cfg.DNS {
-		if cfg.Domain != "" {
-			fmt.Fprintf(&b, `<dns ip=%q domain=%q/>`, d.String(), cfg.Domain)
-		} else {
-			fmt.Fprintf(&b, `<dns ip=%q/>`, d.String())
-		}
-	}
-	writeSplit(&b, cfg.Include, false)
-	writeSplit(&b, cfg.Exclude, true)
-	b.WriteString(`</ipv4>`)
-	b.WriteString(`<idle-timeout val="3600"/><auth-timeout val="18000"/>`)
-	b.WriteString(`</sslvpn-tunnel>`)
-	return []byte(b.String())
-}
-
-func writeSplit(b *strings.Builder, routes []Route, negate bool) {
-	if len(routes) == 0 {
-		return
-	}
-	if negate {
-		b.WriteString(`<split-tunnel-info negate="1">`)
-	} else {
-		b.WriteString(`<split-tunnel-info>`)
-	}
-	for _, r := range routes {
-		fmt.Fprintf(b, `<addr ip=%q mask=%q/>`, r.IP.String(), net.IP(r.Mask).String())
-	}
-	b.WriteString(`</split-tunnel-info>`)
 }
 
 // xmlTunnel mirrors the parts of <sslvpn-tunnel> this code reads.

@@ -3,6 +3,7 @@ package eap
 import (
 	"bufio"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 	"sync"
@@ -38,12 +39,12 @@ func LoadFileStore(path string) (*FileStore, error) {
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		idx := strings.IndexByte(line, ':')
-		if idx < 0 {
+		before, after, ok := strings.Cut(line, ":")
+		if !ok {
 			return nil, fmt.Errorf("eap: %s:%d: missing ':' separator", path, lineNo)
 		}
-		user := strings.TrimSpace(line[:idx])
-		pass := line[idx+1:]
+		user := strings.TrimSpace(before)
+		pass := after
 		if user == "" {
 			return nil, fmt.Errorf("eap: %s:%d: empty username", path, lineNo)
 		}
@@ -59,9 +60,7 @@ func LoadFileStore(path string) (*FileStore, error) {
 // programmatic configuration).
 func NewMemoryStore(users map[string]string) *FileStore {
 	cp := make(map[string]string, len(users))
-	for k, v := range users {
-		cp[k] = v
-	}
+	maps.Copy(cp, users)
 	return &FileStore{users: cp}
 }
 

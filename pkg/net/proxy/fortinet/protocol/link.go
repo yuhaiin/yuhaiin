@@ -6,8 +6,7 @@ package fortinet
 // PPP: each record is the 6-octet Fortinet header and a bare PPP frame. pppLink
 // is the glue between that byte stream and internal/ppp — it reads records and
 // splits them (an IP frame to the TUN, a control frame to the PPP state machine),
-// and it writes the TUN's outbound packets back out as framed PPP. It serves both
-// roles; only the session it drives differs.
+// and it writes the TUN's outbound packets back out as framed PPP.
 
 import (
 	"context"
@@ -26,25 +25,13 @@ const maxInnerPacket = 65535
 // pppLink couples a framed net.Conn to a PPP session and a TUN.
 type pppLink struct {
 	conn   net.Conn
-	reader io.Reader // read side; nil means read from conn (a hijacked server conn sets it)
 	tun    io.ReadWriteCloser
 	logger *vlog.Logger
-
-	// ownsTUN is true for a client, which has the TUN to itself; false for a
-	// server link, which shares one TUN across clients and must not close it.
-	ownsTUN bool
 	// datagram is true when the carrier is DTLS: each datagram holds exactly one
 	// framed record, so records are read whole rather than streamed. Over the TLS
 	// carrier records are a byte stream and this is false.
 	datagram bool
-	// assignedSrc, when set, is the only inner source address this link may send.
-	// A server sets it so one client cannot inject traffic as another; a client
-	// leaves it nil.
-	assignedSrc net.IP
-
-	// Exactly one of these drives the control frames.
-	client *ppp.Session
-	server *ppp.ServerSession
+	client   *ppp.Session
 
 	// alt is a DTLS carrier attached to a link that already has a TLS one. A
 	// real client brings DTLS up alongside the tunnel rather than instead of it
@@ -58,22 +45,12 @@ type pppLink struct {
 	err       error
 }
 
-// probe runs PPP's own liveness check over the link's current carrier. Only a
-// client link has one to run: a server link answers echoes rather than sending
-// them, and it has many peers rather than one.
+// probe runs PPP's own liveness check over the link's current carrier.
 func (l *pppLink) probe(ctx context.Context) error {
 	if l.client == nil {
 		return errors.New("fortinet: only a client link probes")
 	}
 	return l.client.SendEcho(ctx)
-}
-
-// rd is the read side of the link.
-func (l *pppLink) rd() io.Reader {
-	if l.reader != nil {
-		return l.reader
-	}
-	return l.conn
 }
 
 // SendPPP writes one PPP frame to the tunnel, wrapped in the Fortinet header. It
@@ -182,22 +159,13 @@ func (l *pppLink) readLoop() {
 // session -- and reports whether the link is still usable.
 func (l *pppLink) dispatch(frame []byte) bool {
 	if ipPacket, ok := ppp.IsIP(frame); ok {
-		if l.assignedSrc != nil && !sourceIs(ipPacket, l.assignedSrc) {
-			// A client sending from an address it was not assigned is spoofing;
-			// drop it rather than let it reach the shared TUN as another client.
-			return true
-		}
 		if _, err := l.tun.Write(ipPacket); err != nil {
 			l.stop(err)
 			return false
 		}
 		return true
 	}
-	if l.client != nil {
-		l.client.Receive(frame)
-	} else {
-		l.server.Receive(frame)
-	}
+	l.client.Receive(frame)
 	return true
 }
 
@@ -206,9 +174,9 @@ func (l *pppLink) dispatch(frame []byte) bool {
 // PPP frame does.
 func (l *pppLink) readFrame(dgram []byte) ([]byte, error) {
 	if !l.datagram {
-		return ReadFrame(l.rd())
+		return ReadFrame(l.conn)
 	}
-	n, err := l.rd().Read(dgram)
+	n, err := l.conn.Read(dgram)
 	if err != nil {
 		return nil, err
 	}
@@ -233,9 +201,7 @@ func (l *pppLink) tunLoop() {
 	}
 }
 
-// stop tears the link down once, recording the first cause. It closes the TUN
-// only when it owns it, so a server link ending does not take the shared TUN —
-// and every other client — down with it.
+// stop tears the link down once, recording the first cause.
 func (l *pppLink) stop(cause error) {
 	l.closeOnce.Do(func() {
 		l.err = cause
@@ -248,19 +214,10 @@ func (l *pppLink) stop(cause error) {
 			_ = alt.Close()
 		}
 		_ = l.conn.Close()
-		if l.ownsTUN && l.tun != nil {
+		if l.tun != nil {
 			_ = l.tun.Close()
 		}
 	})
-}
-
-// sourceIs reports whether an IPv4 packet's source address equals ip.
-func sourceIs(pkt []byte, ip net.IP) bool {
-	if len(pkt) < 20 || pkt[0]>>4 != 4 {
-		return false
-	}
-	v4 := ip.To4()
-	return v4 != nil && pkt[12] == v4[0] && pkt[13] == v4[1] && pkt[14] == v4[2] && pkt[15] == v4[3]
 }
 
 // Wait blocks until the link stops and returns why.

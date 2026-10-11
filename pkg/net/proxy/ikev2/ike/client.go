@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
@@ -469,15 +470,6 @@ func (c *Client) DataStream() *TCPStream { return c.tcp }
 
 func (c *Client) saInit() error {
 	c.spiI = newIKESPI()
-	dh, err := transform.DH(payload.DH_CURVE25519)
-	if err != nil {
-		return err
-	}
-	c.dh = dh
-	pub, err := dh.Generate()
-	if err != nil {
-		return err
-	}
 	c.ni = mustNonce(32)
 
 	props := DefaultIKEProposals()
@@ -493,57 +485,91 @@ func (c *Client) saInit() error {
 		}
 	}
 
-	b := payload.NewBuilder()
-	b.Add(payload.TypeSA, false, payload.MarshalSA(payload.SAPayload{Proposals: props}))
-	b.Add(payload.TypeKE, false, payload.MarshalKE(payload.KEPayload{Group: payload.DH_CURVE25519, KeyData: pub}))
-	b.Add(payload.TypeNonce, false, payload.MarshalNonce(c.ni))
-	local := c.localAddr()
-	b.Add(payload.TypeNotify, false, payload.MarshalNotify(payload.NotifyPayload{
-		Protocol: payload.ProtoNone, Type: payload.NATDetectionSourceIP,
-		Data: natDetectionHash(c.spiI, 0, local.IP, uint16(local.Port)),
-	}))
-	b.Add(payload.TypeNotify, false, payload.MarshalNotify(payload.NotifyPayload{
-		Protocol: payload.ProtoNone, Type: payload.NATDetectionDestinationIP,
-		Data: natDetectionHash(c.spiI, 0, net.IPv4zero, 0),
-	}))
-	// Advertise IKE fragmentation (RFC 7383) so a server set to always fragment
-	// can deliver large protected responses as reassemblable SKF fragments.
-	addFragSupported(b)
-	// Advertise RFC 7427 signature hashes when we will authenticate with a
-	// certificate, so the responder signs (and accepts) a Digital Signature.
-	if c.certCred != nil {
-		addSigHashNotify(b)
-	}
-	// Advertise IKE_INTERMEDIATE support (RFC 9242), but only when we have
-	// something to put in it. An unconditional notify invites a responder to
-	// expect an exchange we will never send.
-	if c.cfg.PostQuantum {
-		addIntermediateNotify(b)
-	}
-	chain := b.Bytes()
+	dhGroup := uint16(payload.DH_CURVE25519)
+	var msg *payload.Message
+	for attempt := range maxSAInitAttempts {
+		dh, err := transform.DH(dhGroup)
+		if err != nil {
+			return fmt.Errorf("ike: responder requested unsupported DH group %d: %w", dhGroup, err)
+		}
+		pub, err := dh.Generate()
+		if err != nil {
+			return err
+		}
+		c.dh = dh
 
-	hdr := payload.Header{
-		InitiatorSPI: c.spiI, NextPayload: b.FirstType(), Version: 0x20,
-		ExchangeType: payload.IKE_SA_INIT, Flags: payload.FlagInitiator, MessageID: 0,
-		Length: uint32(payload.HeaderLen + len(chain)),
-	}
-	req := append(hdr.Marshal(nil), chain...)
-	c.saInitReq = req
-	if err := c.writeIKE(req); err != nil {
-		return err
-	}
+		b := payload.NewBuilder()
+		b.Add(payload.TypeSA, false, payload.MarshalSA(payload.SAPayload{Proposals: props}))
+		b.Add(payload.TypeKE, false, payload.MarshalKE(payload.KEPayload{Group: dhGroup, KeyData: pub}))
+		b.Add(payload.TypeNonce, false, payload.MarshalNonce(c.ni))
+		local := c.localAddr()
+		b.Add(payload.TypeNotify, false, payload.MarshalNotify(payload.NotifyPayload{
+			Protocol: payload.ProtoNone, Type: payload.NATDetectionSourceIP,
+			Data: natDetectionHash(c.spiI, 0, local.IP, uint16(local.Port)),
+		}))
+		b.Add(payload.TypeNotify, false, payload.MarshalNotify(payload.NotifyPayload{
+			Protocol: payload.ProtoNone, Type: payload.NATDetectionDestinationIP,
+			Data: natDetectionHash(c.spiI, 0, net.IPv4zero, 0),
+		}))
+		// Advertise IKE fragmentation (RFC 7383) so a server set to always fragment
+		// can deliver large protected responses as reassemblable SKF fragments.
+		addFragSupported(b)
+		// Advertise RFC 7427 signature hashes when we will authenticate with a
+		// certificate, so the responder signs (and accepts) a Digital Signature.
+		if c.certCred != nil {
+			addSigHashNotify(b)
+		}
+		// Advertise IKE_INTERMEDIATE support (RFC 9242), but only when we have
+		// something to put in it. An unconditional notify invites a responder to
+		// expect an exchange we will never send.
+		if c.cfg.PostQuantum {
+			addIntermediateNotify(b)
+		}
+		chain := b.Bytes()
+		hdr := payload.Header{
+			InitiatorSPI: c.spiI, NextPayload: b.FirstType(), Version: 0x20,
+			ExchangeType: payload.IKE_SA_INIT, Flags: payload.FlagInitiator, MessageID: 0,
+			Length: uint32(payload.HeaderLen + len(chain)),
+		}
+		c.saInitReq = append(hdr.Marshal(nil), chain...)
+		if err := c.writeIKE(c.saInitReq); err != nil {
+			return err
+		}
 
-	resp, err := c.readMessage()
-	if err != nil {
-		return err
+		resp, err := c.readMessage()
+		if err != nil {
+			return err
+		}
+		c.saInitResp = append([]byte(nil), resp...)
+		msg, err = payload.ParseMessage(resp)
+		if err != nil {
+			return err
+		}
+		n := findNotifyError(msg)
+		if n == 0 {
+			break
+		}
+		if n != uint16(payload.InvalidKEPayload) {
+			return fmt.Errorf("server rejected SA_INIT: notify %d", n)
+		}
+		group, err := invalidKEGroup(msg)
+		if err != nil {
+			return err
+		}
+		if attempt == maxSAInitAttempts-1 {
+			return fmt.Errorf("ike: responder kept rejecting DH groups after %d SA_INIT attempts", maxSAInitAttempts)
+		}
+		if group == dhGroup {
+			return fmt.Errorf("ike: responder repeated INVALID_KE_PAYLOAD for DH group %d", group)
+		}
+		if !ikeProposalOffersDH(props, group) {
+			return fmt.Errorf("ike: responder requested unoffered DH group %d", group)
+		}
+		c.log.Printf("ikev2 client: retrying IKE_SA_INIT with responder DH group %d", group)
+		dhGroup = group
 	}
-	c.saInitResp = append([]byte(nil), resp...)
-	msg, err := payload.ParseMessage(resp)
-	if err != nil {
-		return err
-	}
-	if n := findNotifyError(msg); n != 0 {
-		return fmt.Errorf("server rejected SA_INIT: notify %d", n)
+	if msg == nil {
+		return errors.New("ike: IKE_SA_INIT returned no response")
 	}
 	c.spiR = msg.Header.ResponderSPI
 	c.frag = findFragSupported(msg.Payloads)
@@ -601,6 +627,47 @@ func (c *Client) saInit() error {
 		suite.encKeyLen(), suite.integKeyLen())
 	c.keys = keys
 	return nil
+}
+
+const maxSAInitAttempts = 4
+
+// invalidKEGroup returns the responder's preferred DH group from its
+// INVALID_KE_PAYLOAD notification.
+func invalidKEGroup(msg *payload.Message) (uint16, error) {
+	for _, p := range msg.Payloads {
+		if p.Type != payload.TypeNotify {
+			continue
+		}
+		n, err := payload.ParseNotify(p.Body)
+		if err != nil {
+			return 0, fmt.Errorf("ike: parse INVALID_KE_PAYLOAD: %w", err)
+		}
+		if n.Type != payload.InvalidKEPayload {
+			continue
+		}
+		if n.Protocol != payload.ProtoNone || len(n.SPI) != 0 || len(n.Data) != 2 {
+			return 0, errors.New("ike: malformed INVALID_KE_PAYLOAD")
+		}
+		return binary.BigEndian.Uint16(n.Data), nil
+	}
+	return 0, errors.New("ike: INVALID_KE_PAYLOAD omitted the requested DH group")
+}
+
+// ikeProposalOffersDH reports whether the full SA offer includes group. RFC
+// 7296 requires retries to retain the acceptable suite list, and the KE group
+// can only be changed to one from that list.
+func ikeProposalOffersDH(proposals []payload.Proposal, group uint16) bool {
+	for _, proposal := range proposals {
+		if proposal.Protocol != payload.ProtoIKE {
+			continue
+		}
+		for _, transform := range proposal.Transforms {
+			if transform.Type == payload.TransformDH && transform.ID == group {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // --- IKE_AUTH (PSK) ---
