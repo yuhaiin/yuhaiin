@@ -45,7 +45,7 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-openvpn-') as directory:
         try:
             run(args.runtime, 'run', '-d', '--name', name, '--cap-add', 'NET_ADMIN',
                 '--device', '/dev/net/tun', '-p', '127.0.0.1::1194/'+network,
-                '-v', str(state)+':/state:Z', '-e', 'OVPN_NETWORK='+network,
+                '-e', 'OVPN_NETWORK='+network,
                 '-e', 'OVPN_PROTECTION='+protection, '-e', 'OVPN_CIPHER='+cipher,
                 '-e', 'OVPN_NO_CERT='+str(int(no_cert)), '-e', 'OVPN_RENEG='+str(reneg), image)
             for _ in range(120):
@@ -61,6 +61,13 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-openvpn-') as directory:
                 raise RuntimeError('server startup timed out')
             published = run(args.runtime, 'port', name, '1194/'+network, capture_output=True)
             gateway = published.stdout.strip().splitlines()[0]
+            # Docker's root-owned 0600 keys cannot be read through a bind mount
+            # by the host test user. Copy only the client credentials out; cp
+            # creates host-owned files for both Docker and rootless Podman.
+            for credential in ('ca.crt', 'client.crt', 'client.key', 'ta.key'):
+                destination = state / credential
+                run(args.runtime, 'cp', name+':/state/'+credential, str(destination))
+                destination.chmod(0o600)
             env = os.environ | {
                 'OPENVPN_TEST_STATE': str(state), 'OPENVPN_TEST_GATEWAY': gateway,
                 'OPENVPN_TEST_NETWORK': network, 'OPENVPN_TEST_PROTECTION': protection,
@@ -90,7 +97,7 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-openvpn-') as directory:
             subprocess.run([args.runtime, 'logs', name], check=False)
             raise
         finally:
-            subprocess.run([args.runtime, 'rm', '-f', '--time', '0', name], check=False,
+            subprocess.run([args.runtime, 'rm', '-f', name], check=False,
                            stdout=subprocess.DEVNULL)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
