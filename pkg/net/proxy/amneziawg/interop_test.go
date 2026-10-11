@@ -19,6 +19,24 @@ func TestOfficialAmneziaWGServerTCPAndUDP(t *testing.T) {
 		t.Skip("set AMNEZIAWG_TEST_* variables to run the official AmneziaWG server test")
 	}
 	c := newAmneziaWGInteropClient(t)
+	exerciseAmneziaWGInterop(t, c)
+}
+
+func TestOfficialAmneziaWGServerReconnectAfterClose(t *testing.T) {
+	if !amneziaWGInteropConfigured() {
+		t.Skip("set AMNEZIAWG_TEST_* variables to run the official AmneziaWG server test")
+	}
+	for range 2 {
+		c := newAmneziaWGInteropClient(t)
+		exerciseAmneziaWGInterop(t, c)
+		if err := c.Close(); err != nil {
+			t.Fatalf("close AmneziaWG client: %v", err)
+		}
+	}
+}
+
+func exerciseAmneziaWGInterop(t *testing.T, c *Client) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 

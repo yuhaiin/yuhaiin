@@ -42,6 +42,28 @@ func TestSoftEtherSSTPRejectsBadPassword(t *testing.T) {
 	}
 }
 
+func TestSoftEtherSSTPReconnectAfterClose(t *testing.T) {
+	if os.Getenv("SSTP_TEST_GATEWAY") == "" {
+		t.Skip("set SSTP_TEST_GATEWAY to run the SoftEther integration test")
+	}
+	for range 2 {
+		_, sess, result := dialSoftEther(t, "test-password")
+		if result.AssignedIP.To4() == nil {
+			t.Fatalf("assigned IP = %v, want IPv4", result.AssignedIP)
+		}
+		if err := sess.Close(); err != nil {
+			t.Fatalf("close SSTP session: %v", err)
+		}
+		waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		_ = sess.Wait(waitCtx)
+		if err := waitCtx.Err(); err != nil {
+			cancel()
+			t.Fatalf("SSTP session did not stop after close: %v", err)
+		}
+		cancel()
+	}
+}
+
 func BenchmarkSoftEtherSSTPConnect(b *testing.B) {
 	if os.Getenv("SSTP_TEST_GATEWAY") == "" {
 		b.Skip("set SSTP_TEST_GATEWAY to run the SoftEther benchmark")

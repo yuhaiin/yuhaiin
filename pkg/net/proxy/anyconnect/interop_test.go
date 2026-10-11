@@ -51,6 +51,29 @@ func TestOcservAnyConnectRejectsBadPassword(t *testing.T) {
 	}
 }
 
+func TestOcservAnyConnectReconnectAfterClose(t *testing.T) {
+	if os.Getenv("ANYCONNECT_TEST_GATEWAY") == "" {
+		t.Skip("set ANYCONNECT_TEST_GATEWAY to run the ocserv integration test")
+	}
+	for range 2 {
+		dev, sess, result := dialOcserv(t, "test-password")
+		want := []byte("ocserv reconnect UDP echo")
+		if got := ocservUDPEcho(t, dev, result.AssignedIP, want); !bytes.Equal(got, want) {
+			t.Fatalf("UDP echo = %q, want %q", got, want)
+		}
+		if err := sess.Close(); err != nil {
+			t.Fatalf("close AnyConnect session: %v", err)
+		}
+		waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		_ = sess.Wait(waitCtx)
+		if err := waitCtx.Err(); err != nil {
+			cancel()
+			t.Fatalf("AnyConnect session did not stop after close: %v", err)
+		}
+		cancel()
+	}
+}
+
 func BenchmarkOcservAnyConnectConnect(b *testing.B) {
 	if os.Getenv("ANYCONNECT_TEST_GATEWAY") == "" {
 		b.Skip("set ANYCONNECT_TEST_GATEWAY to run the ocserv benchmark")

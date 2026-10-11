@@ -46,6 +46,26 @@ func TestStrongSwanIKEv2RejectsBadPassword(t *testing.T) {
 	}
 }
 
+func TestStrongSwanIKEv2ReconnectAfterClose(t *testing.T) {
+	if os.Getenv("IKEV2_TEST_GATEWAY") == "" {
+		t.Skip("set IKEV2_TEST_GATEWAY to run the strongSwan integration test")
+	}
+	for range 2 {
+		client, result := connectStrongSwan(t, "test-password")
+		tunnel, err := result.BuildTunnel()
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []byte("strongSwan reconnect UDP echo")
+		if got := strongSwanUDPEcho(t, client, tunnel, result.AssignedIP, want); !bytes.Equal(got, want) {
+			t.Fatalf("UDP echo = %q, want %q", got, want)
+		}
+		if err := client.Close(); err != nil {
+			t.Fatalf("close IKEv2 client: %v", err)
+		}
+	}
+}
+
 func BenchmarkStrongSwanIKEv2Connect(b *testing.B) {
 	if os.Getenv("IKEV2_TEST_GATEWAY") == "" {
 		b.Skip("set IKEV2_TEST_GATEWAY to run the strongSwan benchmark")
