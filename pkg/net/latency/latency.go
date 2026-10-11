@@ -103,8 +103,13 @@ func LatencyIp(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.Late
 
 	wg := sync.WaitGroup{}
 	families := []bool{false, true}
-	if disabled, ok := p.(interface{ IPv6Disabled() bool }); ok && disabled.IPv6Disabled() {
-		families = []bool{false}
+	if configured, ok := p.(interface{ IPVersion() contractnode.IPVersion }); ok {
+		switch configured.IPVersion() {
+		case contractnode.IPVersionIPv4:
+			families = []bool{false}
+		case contractnode.IPVersionIPv6:
+			families = []bool{true}
+		}
 	}
 
 	for _, isIPv6 := range families {
