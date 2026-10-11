@@ -174,17 +174,18 @@ func (tun *NetTun) Write(buffers [][]byte, offset int) (int, error) {
 func (tun *NetTun) Flush() error { return nil }
 
 func (tun *NetTun) Close() error {
-	tun.stack.RemoveNIC(1)
-	tun.stack.Destroy()
-
 	tun.closeOnce.Do(func() {
+		// Drain packet dispatch before RemoveNIC takes the stack lock.
+		// Detaching the endpoint there waits for readers that may need
+		// that same lock, for example IPv6's NIC name lookup.
+		tun.ep.Close()
+		tun.stack.RemoveNIC(1)
+		tun.stack.Destroy()
 		if tun.events != nil {
 			close(tun.events)
 		}
 	})
-
-	tun.ep.Close()
-	return tun.dev.Close()
+	return nil
 }
 
 func (tun *NetTun) MTU() (int, error) { return int(tun.ep.MTU()), nil }

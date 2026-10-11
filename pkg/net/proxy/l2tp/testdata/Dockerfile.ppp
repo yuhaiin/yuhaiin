@@ -1,0 +1,4 @@
+FROM alpine:3.22
+RUN apk add --no-cache xl2tpd ppp iproute2 python3
+COPY ppp-server.py /server.py
+CMD ["python3", "-u", "/server.py"]

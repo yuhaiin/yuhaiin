@@ -404,7 +404,8 @@ func (b *bootstrapResolver) SetBootstrap(r Resolver) {
 	defer b.mu.Unlock()
 	if b.r != nil {
 		if err := b.r.Close(); err != nil {
-			slog.Warn("close bootstrap resolver failed", "err", err)
+			// Upstream errors can contain credentials or authentication packets.
+			slog.Warn("close bootstrap resolver failed")
 		}
 	}
 
