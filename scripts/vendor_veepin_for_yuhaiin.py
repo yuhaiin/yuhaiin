@@ -176,6 +176,7 @@ edit("fortinet/fortinet.go",
 # at the yuhaiin boundary if a chain cannot carry UDP NAT-T.
 edit("ikev2/client.go","type Config struct {","type Config struct {"+dial_field)
 edit("ikev2/client.go",'TCP:             cfg.TCP,','TCP:             cfg.TCP,\n\t\tDialContext: cfg.DialContext,')
+edit("internal/ikev2/ike/client.go", "import (", 'import (\\n\\t"context"')
 edit("internal/ikev2/ike/client.go",
      'type ClientConfig struct {',
      'type ClientConfig struct {\n\tDialContext func(context.Context,string,string)(net.Conn,error)')
