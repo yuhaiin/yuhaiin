@@ -3,7 +3,6 @@ module github.com/Asutorufa/yuhaiin
 go 1.27.1
 
 replace (
-	github.com/xen0bit/veepin => ./third_party/veepin
 	github.com/apernet/hysteria/core/v2 => github.com/Asutorufa/hysteria/core/v2 v2.13.1-0.20261007150228-a38075fd0e66
 	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
@@ -13,7 +12,6 @@ replace (
 require (
 	codeberg.org/miekg/dns v0.6.118
 	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260828
-	github.com/xen0bit/veepin v0.0.0
 	github.com/apernet/hysteria/core/v2 v2.13.0
 	github.com/apernet/hysteria/extras/v2 v2.13.0
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
