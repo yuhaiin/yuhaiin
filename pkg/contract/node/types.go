@@ -417,30 +417,30 @@ type Wireguard struct {
 // AmneziaWG uses the official amneziawg-go/v3 userspace protocol engine.
 // The fields mirror its UAPI; strings retain its uint32 range notation.
 type AmneziaWG struct {
- SecretKey string `json:"secretKey"`
- Endpoint []string `json:"endpoint,omitzero"`
- Peers []WireguardPeer `json:"peers,omitzero"`
- MTU int32 `json:"mtu,omitzero"`
- JC uint32 `json:"jc,omitzero"`
- JMin uint32 `json:"jmin,omitzero"`
- JMax uint32 `json:"jmax,omitzero"`
- S1 uint32 `json:"s1,omitzero"`
- S2 uint32 `json:"s2,omitzero"`
- S3 uint32 `json:"s3,omitzero"`
- S4 uint32 `json:"s4,omitzero"`
- H1 string `json:"h1,omitzero"`
- H2 string `json:"h2,omitzero"`
- H3 string `json:"h3,omitzero"`
- H4 string `json:"h4,omitzero"`
- I1 string `json:"i1,omitzero"`
- I2 string `json:"i2,omitzero"`
- I3 string `json:"i3,omitzero"`
- I4 string `json:"i4,omitzero"`
- I5 string `json:"i5,omitzero"`
- HeaderProtectionKey string `json:"header_protection_key,omitzero"`
- ContentPaddingAddition string `json:"content_padding_addition,omitzero"`
- RandomTrailers bool `json:"random_trailers,omitzero"`
- DisableCookies bool `json:"disable_cookies,omitzero"`
+	SecretKey              string          `json:"secretKey"`
+	Endpoint               []string        `json:"endpoint,omitzero"`
+	Peers                  []WireguardPeer `json:"peers,omitzero"`
+	MTU                    int32           `json:"mtu,omitzero"`
+	JC                     uint32          `json:"jc,omitzero"`
+	JMin                   uint32          `json:"jmin,omitzero"`
+	JMax                   uint32          `json:"jmax,omitzero"`
+	S1                     uint32          `json:"s1,omitzero"`
+	S2                     uint32          `json:"s2,omitzero"`
+	S3                     uint32          `json:"s3,omitzero"`
+	S4                     uint32          `json:"s4,omitzero"`
+	H1                     string          `json:"h1,omitzero"`
+	H2                     string          `json:"h2,omitzero"`
+	H3                     string          `json:"h3,omitzero"`
+	H4                     string          `json:"h4,omitzero"`
+	I1                     string          `json:"i1,omitzero"`
+	I2                     string          `json:"i2,omitzero"`
+	I3                     string          `json:"i3,omitzero"`
+	I4                     string          `json:"i4,omitzero"`
+	I5                     string          `json:"i5,omitzero"`
+	HeaderProtectionKey    string          `json:"header_protection_key,omitzero"`
+	ContentPaddingAddition string          `json:"content_padding_addition,omitzero"`
+	RandomTrailers         bool            `json:"random_trailers,omitzero"`
+	DisableCookies         bool            `json:"disable_cookies,omitzero"`
 }
 
 type WireguardPeer struct {
