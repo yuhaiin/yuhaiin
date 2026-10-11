@@ -9,7 +9,7 @@ import (
 func TestGlobalProtectTypedContract(t *testing.T) {
 	original := GlobalProtect{
 		Gateway: "vpn.example.com", Username: "alice", Password: "secret",
-		MTU: 1300, CACertPEM: "ca", InsecureSkipVerify: true,
+		UseESP: true, MTU: 1300, CACertPEM: "ca", InsecureSkipVerify: true,
 	}
 	protocol, err := NewTypedProtocol(original)
 	if err != nil {
@@ -36,7 +36,7 @@ func TestGlobalProtectTypedContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	if decoded.GlobalProtect.Gateway != original.Gateway || decoded.GlobalProtect.CACertPEM != original.CACertPEM ||
-		decoded.GlobalProtect.InsecureSkipVerify != original.InsecureSkipVerify {
+		decoded.GlobalProtect.InsecureSkipVerify != original.InsecureSkipVerify || decoded.GlobalProtect.UseESP != original.UseESP {
 		t.Fatalf("contract round trip lost config: %#v", decoded.GlobalProtect)
 	}
 }

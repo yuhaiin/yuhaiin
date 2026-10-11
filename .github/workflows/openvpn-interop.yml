@@ -1,0 +1,26 @@
+name: OpenVPN official-server interop
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "pkg/net/proxy/openvpn/**"
+      - "pkg/contract/node/**"
+      - "pkg/register/point.go"
+      - "scripts/bench/openvpn/**"
+      - ".github/workflows/openvpn-interop.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: openvpn-interop
+      - name: Test OpenVPN protocol and node contract with race detector
+        run: go test -race ./pkg/net/proxy/openvpn/... ./pkg/contract/node ./pkg/register
+      - name: Test stock OpenVPN with TCP, UDP, dual stack and rekey
+        run: python3 scripts/bench/openvpn/run.py --runtime docker

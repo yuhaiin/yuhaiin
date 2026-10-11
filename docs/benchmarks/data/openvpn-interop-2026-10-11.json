@@ -1,0 +1,45 @@
+{
+  "host": "Linux-7.2.6-zen2-1-zen-x86_64-with-glibc2.44",
+  "results": [
+    {
+      "network": "udp",
+      "protection": "tls-crypt",
+      "cipher": "AES-256-GCM",
+      "no_cert": false,
+      "tests": "=== RUN   TestOfficialOpenVPN\n=== RUN   TestOfficialOpenVPN/10.88.0.1\n=== RUN   TestOfficialOpenVPN/fd88::1\n=== NAME  TestOfficialOpenVPN\n    interop_test.go:128: negotiated: &{TunnelPrefixes:[fd88::1000/64 10.88.0.2/24] DNS:[10.88.0.1] Routes:[route 10.99.0.0 255.255.0.0] Gateway:10.88.0.1 Cipher:AES-256-GCM MTU:1400}\n--- PASS: TestOfficialOpenVPN (6.20s)\n    --- PASS: TestOfficialOpenVPN/10.88.0.1 (0.01s)\n    --- PASS: TestOfficialOpenVPN/fd88::1 (0.02s)\n=== RUN   TestOfficialOpenVPNBadCredentials\n    interop_test.go:149: rejected: openvpn: authentication rejected\n--- PASS: TestOfficialOpenVPNBadCredentials (0.03s)\n=== RUN   TestOfficialOpenVPNUntrustedCA\n--- PASS: TestOfficialOpenVPNUntrustedCA (0.01s)\n=== RUN   TestOfficialOpenVPNReconnect\n--- PASS: TestOfficialOpenVPNReconnect (5.06s)\n=== RUN   TestOfficialOpenVPNRekey\n--- PASS: TestOfficialOpenVPNRekey (0.42s)\n=== RUN   TestOfficialOpenVPNServerDrivenRekey\n    interop_test.go:307: needs a two-second server renegotiation interval\n--- SKIP: TestOfficialOpenVPNServerDrivenRekey (0.00s)\nPASS\n",
+      "renegotiate_seconds": 3600
+    },
+    {
+      "network": "tcp",
+      "protection": "tls-crypt",
+      "cipher": "AES-128-GCM",
+      "no_cert": false,
+      "tests": "=== RUN   TestOfficialOpenVPN\n=== RUN   TestOfficialOpenVPN/10.88.0.1\n=== RUN   TestOfficialOpenVPN/fd88::1\n=== NAME  TestOfficialOpenVPN\n    interop_test.go:128: negotiated: &{TunnelPrefixes:[fd88::1000/64 10.88.0.2/24] DNS:[10.88.0.1] Routes:[route 10.99.0.0 255.255.0.0] Gateway:10.88.0.1 Cipher:AES-128-GCM MTU:1400}\n--- PASS: TestOfficialOpenVPN (6.29s)\n    --- PASS: TestOfficialOpenVPN/10.88.0.1 (0.01s)\n    --- PASS: TestOfficialOpenVPN/fd88::1 (0.01s)\n=== RUN   TestOfficialOpenVPNBadCredentials\n    interop_test.go:149: rejected: openvpn: authentication rejected\n--- PASS: TestOfficialOpenVPNBadCredentials (0.05s)\n=== RUN   TestOfficialOpenVPNUntrustedCA\n--- PASS: TestOfficialOpenVPNUntrustedCA (0.01s)\n=== RUN   TestOfficialOpenVPNReconnect\n--- PASS: TestOfficialOpenVPNReconnect (5.12s)\n=== RUN   TestOfficialOpenVPNRekey\n--- PASS: TestOfficialOpenVPNRekey (0.64s)\n=== RUN   TestOfficialOpenVPNServerDrivenRekey\n    interop_test.go:307: needs a two-second server renegotiation interval\n--- SKIP: TestOfficialOpenVPNServerDrivenRekey (0.00s)\nPASS\n",
+      "renegotiate_seconds": 3600
+    },
+    {
+      "network": "udp",
+      "protection": "tls-auth",
+      "cipher": "CHACHA20-POLY1305",
+      "no_cert": false,
+      "tests": "=== RUN   TestOfficialOpenVPN\n=== RUN   TestOfficialOpenVPN/10.88.0.1\n=== RUN   TestOfficialOpenVPN/fd88::1\n=== NAME  TestOfficialOpenVPN\n    interop_test.go:128: negotiated: &{TunnelPrefixes:[fd88::1000/64 10.88.0.2/24] DNS:[10.88.0.1] Routes:[route 10.99.0.0 255.255.0.0] Gateway:10.88.0.1 Cipher:CHACHA20-POLY1305 MTU:1400}\n--- PASS: TestOfficialOpenVPN (6.20s)\n    --- PASS: TestOfficialOpenVPN/10.88.0.1 (0.01s)\n    --- PASS: TestOfficialOpenVPN/fd88::1 (0.01s)\n=== RUN   TestOfficialOpenVPNBadCredentials\n    interop_test.go:149: rejected: openvpn: authentication rejected\n--- PASS: TestOfficialOpenVPNBadCredentials (0.03s)\n=== RUN   TestOfficialOpenVPNUntrustedCA\n--- PASS: TestOfficialOpenVPNUntrustedCA (0.01s)\n=== RUN   TestOfficialOpenVPNReconnect\n--- PASS: TestOfficialOpenVPNReconnect (5.06s)\n=== RUN   TestOfficialOpenVPNRekey\n--- PASS: TestOfficialOpenVPNRekey (0.42s)\n=== RUN   TestOfficialOpenVPNServerDrivenRekey\n    interop_test.go:307: needs a two-second server renegotiation interval\n--- SKIP: TestOfficialOpenVPNServerDrivenRekey (0.00s)\nPASS\n",
+      "renegotiate_seconds": 3600
+    },
+    {
+      "network": "udp",
+      "protection": "none",
+      "cipher": "AES-256-GCM",
+      "no_cert": true,
+      "tests": "=== RUN   TestOfficialOpenVPN\n=== RUN   TestOfficialOpenVPN/10.88.0.1\n=== RUN   TestOfficialOpenVPN/fd88::1\n=== NAME  TestOfficialOpenVPN\n    interop_test.go:128: negotiated: &{TunnelPrefixes:[fd88::1000/64 10.88.0.2/24] DNS:[10.88.0.1] Routes:[route 10.99.0.0 255.255.0.0] Gateway:10.88.0.1 Cipher:AES-256-GCM MTU:1400}\n--- PASS: TestOfficialOpenVPN (6.19s)\n    --- PASS: TestOfficialOpenVPN/10.88.0.1 (0.01s)\n    --- PASS: TestOfficialOpenVPN/fd88::1 (0.01s)\n=== RUN   TestOfficialOpenVPNBadCredentials\n    interop_test.go:149: rejected: openvpn: authentication rejected\n--- PASS: TestOfficialOpenVPNBadCredentials (0.03s)\n=== RUN   TestOfficialOpenVPNUntrustedCA\n--- PASS: TestOfficialOpenVPNUntrustedCA (0.00s)\n=== RUN   TestOfficialOpenVPNReconnect\n--- PASS: TestOfficialOpenVPNReconnect (5.06s)\n=== RUN   TestOfficialOpenVPNRekey\n--- PASS: TestOfficialOpenVPNRekey (0.42s)\n=== RUN   TestOfficialOpenVPNServerDrivenRekey\n    interop_test.go:307: needs a two-second server renegotiation interval\n--- SKIP: TestOfficialOpenVPNServerDrivenRekey (0.00s)\nPASS\n",
+      "renegotiate_seconds": 3600
+    },
+    {
+      "network": "udp",
+      "protection": "tls-crypt",
+      "cipher": "AES-256-GCM",
+      "no_cert": false,
+      "tests": "=== RUN   TestOfficialOpenVPN\n=== RUN   TestOfficialOpenVPN/10.88.0.1\n=== RUN   TestOfficialOpenVPN/fd88::1\n=== NAME  TestOfficialOpenVPN\n    interop_test.go:128: negotiated: &{TunnelPrefixes:[fd88::1000/64 10.88.0.2/24] DNS:[10.88.0.1] Routes:[route 10.99.0.0 255.255.0.0] Gateway:10.88.0.1 Cipher:AES-256-GCM MTU:1400}\n--- PASS: TestOfficialOpenVPN (6.20s)\n    --- PASS: TestOfficialOpenVPN/10.88.0.1 (0.01s)\n    --- PASS: TestOfficialOpenVPN/fd88::1 (0.01s)\n=== RUN   TestOfficialOpenVPNBadCredentials\n    interop_test.go:149: rejected: openvpn: authentication rejected\n--- PASS: TestOfficialOpenVPNBadCredentials (0.03s)\n=== RUN   TestOfficialOpenVPNUntrustedCA\n--- PASS: TestOfficialOpenVPNUntrustedCA (0.01s)\n=== RUN   TestOfficialOpenVPNReconnect\n--- PASS: TestOfficialOpenVPNReconnect (5.14s)\n=== RUN   TestOfficialOpenVPNRekey\n--- PASS: TestOfficialOpenVPNRekey (1.45s)\n=== RUN   TestOfficialOpenVPNServerDrivenRekey\n    interop_test.go:352: successful server rekeys: 11\n--- PASS: TestOfficialOpenVPNServerDrivenRekey (24.05s)\nPASS\n",
+      "renegotiate_seconds": 2
+    }
+  ]
+}

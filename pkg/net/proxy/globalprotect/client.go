@@ -31,6 +31,7 @@ type Client struct {
 	session      session
 	tunnel       *wireguard.NetTun
 	conn         *tls.Conn
+	esp          *espTunnel
 	ctx          context.Context
 	cancel       context.CancelFunc
 	closeOnce    sync.Once
@@ -66,7 +67,7 @@ func init() {
 		return NewClient(Config{
 			Gateway: config.Gateway, Username: config.Username, Password: config.Password,
 			Computer: config.Computer, CACertPEM: config.CACertPEM,
-			InsecureSkipVerify: config.InsecureSkipVerify, MTU: int(config.MTU),
+			InsecureSkipVerify: config.InsecureSkipVerify, MTU: int(config.MTU), UseESP: config.UseESP,
 		}, p)
 	})
 }
@@ -109,30 +110,56 @@ func connectClient(parent context.Context, config Config) (_ *Client, err error)
 		return nil, errors.New("globalprotect: authentication lifetime elapsed during setup")
 	}
 
-	conn, err := connectTunnel(ctx, control, s, cfg.TunnelURL)
-	if err != nil {
-		return nil, err
+	var esp *espTunnel
+	if config.UseESP && cfg.IPSec != nil {
+		esp, err = connectESP(ctx, control, cfg, addr.Addr())
+		if err != nil {
+			log.Debug("globalprotect: ESP unavailable, trying SSL tunnel", "error", err)
+		}
 	}
+	var conn *tls.Conn
+	if esp == nil {
+		conn, err = connectTunnel(ctx, control, s, cfg.TunnelURL)
+		if err != nil {
+			return nil, err
+		}
+	}
+	closeTransport := func() {
+		if esp != nil {
+			_ = esp.socket.Close()
+		}
+		if conn != nil {
+			_ = conn.Close()
+		}
+	}
+
 	mtuValue := config.MTU
 	if mtuValue == 0 {
 		mtuValue = cfg.MTU
 	}
-	mtu := calculateMTU(conn, mtuValue)
+	mtu := mtuValue
+	if esp != nil {
+		if mtu == 0 {
+			mtu = 1400
+		}
+	} else {
+		mtu = calculateMTU(conn, mtuValue)
+	}
 	if mtuValue == 0 && mtu > 1500 {
 		mtu = 1500
 	}
 	if mtu < 576 || mtu > 1500 {
-		_ = conn.Close()
+		closeTransport()
 		return nil, fmt.Errorf("globalprotect: invalid MTU %d", mtu)
 	}
 	network, err := wireguard.CreateNetTUN([]netip.Prefix{addr}, mtu)
 	if err != nil {
-		_ = conn.Close()
+		closeTransport()
 		return nil, err
 	}
 	if err := parent.Err(); err != nil {
 		_ = network.Close()
-		_ = conn.Close()
+		closeTransport()
 		return nil, err
 	}
 
@@ -140,7 +167,7 @@ func connectClient(parent context.Context, config Config) (_ *Client, err error)
 	client := &Client{
 		control: control, session: s, tunnel: network, conn: conn,
 		ctx: runCtx, cancel: runCancel, done: make(chan struct{}), mtu: mtu,
-		tunnelURL: cfg.TunnelURL,
+		tunnelURL: cfg.TunnelURL, esp: esp,
 		extraInfo: contractnode.GlobalProtectInfo{
 			TunnelPrefix:                 addr.String(),
 			AccessRoutesIPv4:             slices.Clone(cfg.AccessRoutes),
@@ -166,12 +193,25 @@ func connectClient(parent context.Context, config Config) (_ *Client, err error)
 			"route_count", len(cfg.AccessRoutes)+len(cfg.ExcludeRoutes)+len(cfg.AccessRoutesV6)+len(cfg.ExcludeRoutesV6),
 			"local_network_policy", strings.TrimSpace(cfg.NoDirectAccess) != "")
 	}
+	if esp != nil {
+		client.extraInfo.DataTransport = "esp"
+	} else {
+		client.extraInfo.DataTransport = "ssl"
+	}
 	success = true
 	go client.sendPackets()
-	go client.receivePackets()
+	if esp != nil {
+		go client.receiveESP()
+	} else {
+		go client.receivePackets()
+	}
 	go client.keepalive()
 	if cfg.Timeout > 0 {
-		go client.rekeyAfter(secondsDuration(cfg.Timeout))
+		if esp != nil {
+			go client.expireSessionAfter(secondsDuration(cfg.Timeout) / 2)
+		} else {
+			go client.rekeyAfter(secondsDuration(cfg.Timeout))
+		}
 	}
 	if cfg.Lifetime > 0 {
 		go client.expireSessionAfter(authLifetime - time.Since(loginTime))
@@ -386,6 +426,13 @@ func (c *Client) sendPackets() {
 				return
 			}
 			c.touchActivity()
+			if c.esp != nil {
+				if err := c.esp.send(slab[p.Offset : p.Offset+p.Size]); err != nil {
+					c.fail(err)
+					return
+				}
+				continue
+			}
 			frame, err := encodeFrame(slab[p.Offset : p.Offset+p.Size])
 			if err == nil {
 				err = c.sendFrame(frame)
@@ -453,6 +500,13 @@ func (c *Client) keepalive() {
 			if dpdResponseTimedOut(time.Now(), lastDPD) {
 				c.fail(errDPDTimeout)
 				return
+			}
+			if c.esp != nil {
+				if err := c.esp.send(activationPing(c.esp.local, c.esp.remote, 1)); err != nil {
+					c.fail(err)
+					return
+				}
+				continue
 			}
 			if err := c.sendFrame(dpdFrame()); err != nil {
 				c.fail(err)
@@ -582,6 +636,9 @@ func (c *Client) Close() error {
 	c.closeOnce.Do(func() {
 		c.closed.Store(true)
 		c.cancel()
+		if c.esp != nil {
+			_ = c.esp.socket.Close()
+		}
 		c.connMu.Lock()
 		conn := c.conn
 		c.conn = nil

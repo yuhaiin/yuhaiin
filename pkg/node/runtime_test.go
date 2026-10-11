@@ -135,6 +135,23 @@ func TestExtraInfoReadsOnlyCachedProxy(t *testing.T) {
 	}
 }
 
+func TestOpenVPNExtraInfoReadsCachedProxy(t *testing.T) {
+	runtime := newTestRuntime(t)
+	want := contractnode.NodeExtraInfo{OpenVPN: &contractnode.OpenVPNInfo{TunnelPrefixes: []string{"10.8.0.2/24", "fd00::2/64"}, Cipher: "AES-256-GCM"}}
+	if _, err := runtime.proxies.LoadOrCreate(t.Context(), "openvpn-node", func() (*ProxyEntry, error) {
+		return &ProxyEntry{Proxy: extraInfoTestProxy{Proxy: netapi.NewErrProxy(errors.New("must not connect")), info: want}}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := runtime.ExtraInfo(t.Context(), "openvpn-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.OpenVPN == nil || got.OpenVPN.Cipher != want.OpenVPN.Cipher || len(got.OpenVPN.TunnelPrefixes) != 2 {
+		t.Fatalf("missing OpenVPN runtime info: %+v", got)
+	}
+}
+
 func TestLatencyUsesNodeHTTPURLOverride(t *testing.T) {
 	requestedPath := make(chan string, 1)
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {

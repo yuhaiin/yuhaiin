@@ -22,6 +22,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
 const (
@@ -47,6 +48,8 @@ type Config struct {
 	CACertPEM          string
 	InsecureSkipVerify bool
 	MTU                int
+	UseESP             bool
+	upstream           netapi.Proxy
 }
 
 type session struct {
@@ -58,26 +61,28 @@ type session struct {
 }
 
 type gatewayConfig struct {
-	XMLName          xml.Name `xml:"response"`
-	Status           string   `xml:"status,attr"`
-	Error            string   `xml:"error"`
-	NeedTunnel       string   `xml:"need-tunnel"`
-	IPAddress        string   `xml:"ip-address"`
-	Netmask          string   `xml:"netmask"`
-	TunnelURL        string   `xml:"ssl-tunnel-url"`
-	Timeout          int      `xml:"timeout"`
-	Lifetime         int      `xml:"lifetime"`
-	DisconnectOnIdle int      `xml:"disconnect-on-idle"`
-	MTU              int      `xml:"mtu"`
-	HIPReportNeeded  string   `xml:"hip-report-needed"`
-	DNS              []string `xml:"dns>member"`
-	DNSv6            []string `xml:"dns-v6>member"`
-	DNSSuffix        []string `xml:"dns-suffix>member"`
-	AccessRoutes     []string `xml:"access-routes>member"`
-	ExcludeRoutes    []string `xml:"exclude-access-routes>member"`
-	AccessRoutesV6   []string `xml:"access-routes-v6>member"`
-	ExcludeRoutesV6  []string `xml:"exclude-access-routes-v6>member"`
-	NoDirectAccess   string   `xml:"no-direct-access-to-local-network"`
+	IPSec            *espConfig `xml:"ipsec"`
+	GatewayAddress   string     `xml:"gw-address"`
+	XMLName          xml.Name   `xml:"response"`
+	Status           string     `xml:"status,attr"`
+	Error            string     `xml:"error"`
+	NeedTunnel       string     `xml:"need-tunnel"`
+	IPAddress        string     `xml:"ip-address"`
+	Netmask          string     `xml:"netmask"`
+	TunnelURL        string     `xml:"ssl-tunnel-url"`
+	Timeout          int        `xml:"timeout"`
+	Lifetime         int        `xml:"lifetime"`
+	DisconnectOnIdle int        `xml:"disconnect-on-idle"`
+	MTU              int        `xml:"mtu"`
+	HIPReportNeeded  string     `xml:"hip-report-needed"`
+	DNS              []string   `xml:"dns>member"`
+	DNSv6            []string   `xml:"dns-v6>member"`
+	DNSSuffix        []string   `xml:"dns-suffix>member"`
+	AccessRoutes     []string   `xml:"access-routes>member"`
+	ExcludeRoutes    []string   `xml:"exclude-access-routes>member"`
+	AccessRoutesV6   []string   `xml:"access-routes-v6>member"`
+	ExcludeRoutesV6  []string   `xml:"exclude-access-routes-v6>member"`
+	NoDirectAccess   string     `xml:"no-direct-access-to-local-network"`
 }
 
 type jnlpResponse struct {
@@ -101,6 +106,7 @@ type control struct {
 	transport *http.Transport
 	dial      func(context.Context, string) (net.Conn, error)
 	computer  string
+	upstream  netapi.Proxy
 }
 
 func parseGateway(raw string) (*url.URL, error) {
@@ -148,6 +154,9 @@ func newControl(c Config) (*control, error) {
 		if err != nil {
 			return nil, err
 		}
+		if c.upstream != nil && !register.IsZero(c.upstream) {
+			return c.upstream.Conn(ctx, a)
+		}
 		return dialer.DialHappyEyeballsv1(ctx, a)
 	}
 	tr := &http.Transport{
@@ -166,7 +175,7 @@ func newControl(c Config) (*control, error) {
 		computer = "yuhaiin"
 	}
 	return &control{
-		gateway: gateway, tlsConfig: tlsConfig, transport: tr, dial: tcpDial, computer: computer,
+		upstream: c.upstream, gateway: gateway, tlsConfig: tlsConfig, transport: tr, dial: tcpDial, computer: computer,
 		client: &http.Client{Transport: tr, Timeout: 20 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}},
@@ -377,7 +386,7 @@ func (c *control) getConfig(ctx context.Context, s session) (gatewayConfig, neti
 		"domain": {s.Domain}, "computer": {c.computer},
 		"client-type": {"1"}, "protocol-version": {"p1"}, "app-version": {clientVersion},
 		"clientos": {clientOS}, "os-version": {osVersion},
-		"enc-algo": {"aes-128-cbc,aes-256-cbc"}, "hmac-algo": {"sha1,md5,sha256"},
+		"enc-algo": {"aes-128-cbc,aes-256-cbc"}, "hmac-algo": {"sha256,sha1"},
 	}
 	if s.PreferredIP != "" {
 		values.Set("preferred-ip", s.PreferredIP)
