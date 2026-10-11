@@ -62,7 +62,7 @@ jobs:
         with:
           cache-scope: vpn-outbound-tests
       - name: Test VPN outbounds and node contract
-        run: go test -race ./pkg/net/proxy/amneziawg/... ./pkg/net/proxy/globalprotect ./pkg/net/proxy/softether/... ./pkg/contract/node ./pkg/register
+        run: go test -race ./pkg/net/proxy/amneziawg/... ./pkg/net/proxy/enterprisevpn/... ./pkg/net/proxy/globalprotect ./pkg/net/proxy/softether/... ./pkg/contract/node ./pkg/register
 
   vendor-veepin-branch:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feat/five-vpn-protocols-20261011' && github.event.pull_request.head.repo.full_name == github.repository
