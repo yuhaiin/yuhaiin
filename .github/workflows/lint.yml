@@ -63,24 +63,3 @@ jobs:
           cache-scope: vpn-outbound-tests
       - name: Test VPN outbounds and node contract
         run: go test -race ./pkg/net/proxy/globalprotect ./pkg/net/proxy/softether/... ./pkg/contract/node ./pkg/register
-
-  format-awg-branch:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feat/five-vpn-protocols-20261011' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: feat/five-vpn-protocols-20261011
-          persist-credentials: true
-      - name: Apply gofmt to new implementation
-        run: |
-          gofmt -w pkg/contract/node/types.go pkg/net/proxy/amneziawg/*.go
-          if ! git diff --quiet; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add pkg/contract/node/types.go pkg/net/proxy/amneziawg/
-            git commit -m "style(amneziawg): gofmt the new integration"
-            git push origin HEAD:feat/five-vpn-protocols-20261011
-          fi
