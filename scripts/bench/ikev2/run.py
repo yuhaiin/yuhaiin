@@ -80,6 +80,11 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-ikev2-') as directory:
             '--cap-add', 'NET_ADMIN', '-p', f'127.0.0.1:{host_ike}:500/udp',
             '-p', f'127.0.0.1:{host_natt}:4500/udp', image)
         ready(name, 'roadwarrior', [args.runtime, 'exec', name, 'swanctl', '--list-conns'])
+        server_ips = run(args.runtime, 'exec', name, 'hostname', '-I',
+                         capture_output=True).stdout.split()
+        server_ip = next((address for address in server_ips if ':' not in address), '')
+        if not server_ip:
+            raise RuntimeError('strongSwan container has no network IP for the UDP echo test')
 
         run(args.runtime, 'run', '-d', '--name', echo, '--network=container:' + name,
             '-v', str(fixture / 'echo.py') + ':/echo.py:ro',
@@ -92,6 +97,7 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-ikev2-') as directory:
             'IKEV2_TEST_GATEWAY': '127.0.0.1',
             'IKEV2_TEST_PORT': str(host_ike),
             'IKEV2_TEST_NATT_PORT': str(host_natt),
+            'IKEV2_TEST_ECHO_IP': server_ip,
         }
         print('\n=== strongSwan interop (race instrumented) ===', flush=True)
         tests = run(str(test_binary), '-test.run=TestStrongSwanIKEv2', '-test.v',

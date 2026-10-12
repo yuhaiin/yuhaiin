@@ -164,7 +164,11 @@ func strongSwanUDPEchoBenchmark(b *testing.B, client *Client, tunnel dataplane.T
 }
 
 func strongSwanUDPEchoPacket(client *Client, tunnel dataplane.Tunnel, src net.IP, data []byte) ([]byte, error) {
-	inner := testutil.IPv4UDP(src, net.IPv4(127, 0, 0, 1), 40123, 4242, data)
+	echoIP := net.ParseIP(envString("IKEV2_TEST_ECHO_IP", "127.0.0.1"))
+	if echoIP == nil || echoIP.To4() == nil {
+		return nil, errors.New("IKEV2_TEST_ECHO_IP must be an IPv4 address")
+	}
+	inner := testutil.IPv4UDP(src, echoIP.To4(), 40123, 4242, data)
 	packet, err := tunnel.Encapsulate(inner)
 	if err != nil {
 		return nil, err
