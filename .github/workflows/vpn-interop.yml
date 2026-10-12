@@ -1,0 +1,35 @@
+name: VPN protocol interoperability
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "go.mod"
+      - "go.sum"
+      - "pkg/net/proxy/amneziawg/**"
+      - "pkg/net/proxy/anyconnect/**"
+      - "pkg/net/proxy/ikev2/**"
+      - "pkg/net/proxy/vpnkit/**"
+      - "pkg/net/proxy/internal/testutil/**"
+      - "scripts/bench/amneziawg/**"
+      - "scripts/bench/anyconnect/**"
+      - "scripts/bench/ikev2/**"
+      - ".github/actions/setup-go/**"
+      - ".github/workflows/vpn-interop.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  protocol-interop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        protocol: [amneziawg, anyconnect, ikev2]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: vpn-${{ matrix.protocol }}-interop
+      - name: Run ${{ matrix.protocol }} against its container fixture
+        run: python3 scripts/bench/${{ matrix.protocol }}/run.py --runtime docker

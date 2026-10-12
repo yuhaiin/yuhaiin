@@ -62,4 +62,4 @@ jobs:
         with:
           cache-scope: vpn-outbound-tests
       - name: Test VPN outbounds and node contract
-        run: go test -race ./pkg/net/proxy/globalprotect ./pkg/net/proxy/softether/... ./pkg/contract/node ./pkg/register
+        run: go test -race ./pkg/net/proxy/amneziawg/... ./pkg/net/proxy/ikev2/... ./pkg/net/proxy/anyconnect/... ./pkg/net/proxy/sstp/... ./pkg/net/proxy/fortinet/... ./pkg/net/proxy/vpnkit/... ./pkg/net/proxy/globalprotect ./pkg/net/proxy/softether/... ./pkg/contract/node ./pkg/register

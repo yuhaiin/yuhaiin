@@ -171,6 +171,10 @@ func (tun *NetTun) Write(buffers [][]byte, offset int) (int, error) {
 	return n, nil
 }
 
+// ReadPacket is the common IP packet ingress boundary used by different
+// WireGuard engines. It avoids coupling gVisor to their incompatible TUN APIs.
+func (tun *NetTun) ReadPacket(buf []byte) (int, error) { return tun.dev.Inbound(buf) }
+
 func (tun *NetTun) Flush() error { return nil }
 
 func (tun *NetTun) Close() error {
@@ -178,6 +182,7 @@ func (tun *NetTun) Close() error {
 		// Drain packet dispatch before RemoveNIC takes the stack lock.
 		// Detaching the endpoint there waits for readers that may need
 		// that same lock, for example IPv6's NIC name lookup.
+		_ = tun.dev.Close() // unblock readers before tearing down gVisor
 		tun.ep.Close()
 		tun.stack.RemoveNIC(1)
 		tun.stack.Destroy()

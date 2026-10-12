@@ -11,6 +11,7 @@ replace (
 
 require (
 	codeberg.org/miekg/dns v0.6.118
+	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260828
 	github.com/apernet/hysteria/core/v2 v2.13.0
 	github.com/apernet/hysteria/extras/v2 v2.13.0
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
@@ -34,6 +35,7 @@ require (
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20260921001439-3c98159dee38
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261010161233-f286413a1a45
+	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/mobile v0.0.0-20260908204917-8b95e45f8d3e
 	golang.org/x/mod v0.42.0

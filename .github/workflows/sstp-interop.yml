@@ -1,0 +1,27 @@
+name: SSTP SoftEther interop
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "pkg/net/proxy/sstp/**"
+      - "pkg/net/proxy/vpnkit/**"
+      - "pkg/net/proxy/internal/testutil/**"
+      - "pkg/net/proxy/softether/testdata/echo.py"
+      - "pkg/contract/node/**"
+      - "pkg/register/point.go"
+      - "scripts/bench/sstp/**"
+      - ".github/workflows/sstp-interop.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  softether-sstp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: softether-sstp-interop
+      - name: Test SSTP against real SoftEther PPP server
+        run: python3 scripts/bench/sstp/run.py --runtime docker
