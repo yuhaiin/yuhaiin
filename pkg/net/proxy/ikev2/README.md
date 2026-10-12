@@ -25,6 +25,11 @@ server. `server_id` optionally pins the expected server identity. UDP/NAT-T is
 the default. Set `tcp` only when the gateway supports RFC 8229 TCP
 encapsulation. `mtu` optionally lowers the server's recommended tunnel MTU.
 
+EAP-MSCHAPv2 is a legacy method whose required DES/SHA-1 challenge algorithms
+are weak and allow offline password guessing. Enable it only when the gateway
+requires it, and use a strong, unique password. The PSK does not remove this
+password risk; prefer a stronger EAP method when the gateway supports one.
+
 The contract-level node currently exposes PSK and EAP authentication. The
 lower-level Go client also supports certificate authentication, rekey tuning,
 and IP-TFS options.

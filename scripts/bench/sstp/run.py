@@ -62,6 +62,7 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-sstp-') as directory:
     bench_binary = Path(directory) / 'bench.test'
     host_port = free_tcp_port()
     name = 'yuhaiin-sstp-' + uuid.uuid4().hex[:10]
+    echo_name = name + '-echo'
 
     try:
         run(args.runtime, 'run', '-d', '--name', name, '--stop-timeout', '1',
@@ -70,12 +71,21 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-sstp-') as directory:
             '-e', 'SPW=yuhaiin-test-admin', '-e', 'HPW=yuhaiin-test-hub',
             '-e', 'USERS=alice:test-password', args.image)
         ready(name, host_port)
+        run(args.runtime, 'run', '-d', '--name', echo_name,
+            '--network=container:' + name,
+            '-v', str(root / 'pkg/net/proxy/softether/testdata/echo.py') + ':/echo.py:ro',
+            'docker.io/library/python:3.13-alpine', 'python', '/echo.py')
+        echo_ip = run(args.runtime, 'exec', echo_name, 'python', '-c',
+                      'import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);'
+                      's.connect(("1.1.1.1",53));print(s.getsockname()[0])',
+                      capture_output=True).stdout.strip()
 
         run('go', 'test', '-c', '-race', '-tags=sstp_interop', '-o', str(test_binary),
             './pkg/net/proxy/sstp')
         test_env = os.environ | {
             'SSTP_TEST_GATEWAY': '127.0.0.1',
             'SSTP_TEST_PORT': str(host_port),
+            'SSTP_TEST_ECHO_IP': echo_ip,
         }
         print('\n=== SoftEther SSTP interop (race instrumented) ===', flush=True)
         tests = run(str(test_binary), '-test.run=TestSoftEtherSSTP', '-test.v',
@@ -88,7 +98,7 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-sstp-') as directory:
                 './pkg/net/proxy/sstp')
             print('\n=== SoftEther SSTP benchmark (uninstrumented) ===', flush=True)
             sample = run(str(bench_binary), '-test.run=^$',
-                         '-test.bench=BenchmarkSoftEtherSSTP', '-test.benchtime=1x',
+                         '-test.bench=BenchmarkSoftEtherSSTP', '-test.benchtime=3x',
                          '-test.count=3', '-test.timeout=10m', env=test_env,
                          capture_output=True)
             print(sample.stdout, flush=True)
@@ -103,6 +113,7 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-sstp-') as directory:
         print(logs.stdout or logs.stderr or '', flush=True)
         raise
     finally:
+        remove(echo_name)
         remove(name)
 
 if args.output:
