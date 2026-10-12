@@ -222,8 +222,17 @@ func (l *pppLink) stop(cause error) {
 
 // Wait blocks until the link stops and returns why.
 func (l *pppLink) Wait() error {
-	<-l.done
-	return l.err
+	return l.WaitContext(context.Background())
+}
+
+// WaitContext waits until the link stops or ctx is cancelled.
+func (l *pppLink) WaitContext(ctx context.Context) error {
+	select {
+	case <-l.done:
+		return l.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Close tears the link down.

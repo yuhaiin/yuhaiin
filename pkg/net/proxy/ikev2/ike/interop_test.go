@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/internal/testutil"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/internal/testutil/leaktest"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/dataplane"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/vlog"
 )
@@ -21,6 +22,7 @@ func TestStrongSwanIKEv2UDP(t *testing.T) {
 	if os.Getenv("IKEV2_TEST_GATEWAY") == "" {
 		t.Skip("set IKEV2_TEST_GATEWAY to run the strongSwan integration test")
 	}
+	leaktest.VerifyNoGoroutineLeaks(t)
 	client, result := connectStrongSwan(t, "test-password")
 	tunnel, err := result.BuildTunnel()
 	if err != nil {
@@ -38,6 +40,7 @@ func TestStrongSwanIKEv2RejectsBadPassword(t *testing.T) {
 	if os.Getenv("IKEV2_TEST_GATEWAY") == "" {
 		t.Skip("set IKEV2_TEST_GATEWAY to run the strongSwan integration test")
 	}
+	leaktest.VerifyNoGoroutineLeaks(t)
 	cfg := strongSwanConfig("wrong-password")
 	client := NewClient(cfg)
 	defer client.Close()
@@ -50,6 +53,7 @@ func TestStrongSwanIKEv2ReconnectAfterClose(t *testing.T) {
 	if os.Getenv("IKEV2_TEST_GATEWAY") == "" {
 		t.Skip("set IKEV2_TEST_GATEWAY to run the strongSwan integration test")
 	}
+	leaktest.VerifyNoGoroutineLeaks(t)
 	for range 2 {
 		client, result := connectStrongSwan(t, "test-password")
 		tunnel, err := result.BuildTunnel()

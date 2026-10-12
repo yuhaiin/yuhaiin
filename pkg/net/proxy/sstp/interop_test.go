@@ -17,6 +17,7 @@ import (
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/internal/testutil"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/internal/testutil/leaktest"
 	client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/session"
 )
 
@@ -24,6 +25,7 @@ func TestSoftEtherSSTPConnect(t *testing.T) {
 	if os.Getenv("SSTP_TEST_GATEWAY") == "" {
 		t.Skip("set SSTP_TEST_GATEWAY to run the SoftEther integration test")
 	}
+	leaktest.VerifyNoGoroutineLeaks(t)
 	_, sess, result := dialSoftEther(t, "test-password")
 	if result.AssignedIP.To4() == nil {
 		t.Fatalf("assigned IP = %v, want IPv4", result.AssignedIP)
@@ -37,6 +39,7 @@ func TestSoftEtherSSTPRejectsBadPassword(t *testing.T) {
 	if os.Getenv("SSTP_TEST_GATEWAY") == "" {
 		t.Skip("set SSTP_TEST_GATEWAY to run the SoftEther integration test")
 	}
+	leaktest.VerifyNoGoroutineLeaks(t)
 	dev, unregister := newSSTPTestTUN(t)
 	defer unregister()
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
@@ -51,6 +54,7 @@ func TestSoftEtherSSTPReconnectAfterClose(t *testing.T) {
 	if os.Getenv("SSTP_TEST_GATEWAY") == "" {
 		t.Skip("set SSTP_TEST_GATEWAY to run the SoftEther integration test")
 	}
+	leaktest.VerifyNoGoroutineLeaks(t)
 	for range 2 {
 		_, sess, result := dialSoftEther(t, "test-password")
 		if result.AssignedIP.To4() == nil {
@@ -69,7 +73,40 @@ func TestSoftEtherSSTPReconnectAfterClose(t *testing.T) {
 	}
 }
 
+func TestSoftEtherSSTPWaitCancellationAndCloseStopsSession(t *testing.T) {
+	if os.Getenv("SSTP_TEST_GATEWAY") == "" {
+		t.Skip("set SSTP_TEST_GATEWAY to run the SoftEther integration test")
+	}
+	leaktest.VerifyNoGoroutineLeaks(t)
+	_, sess, _ := dialSoftEther(t, "test-password")
+	ctx, cancel := context.WithCancel(t.Context())
+	waitResult := make(chan error, 1)
+	go func() { waitResult <- sess.Wait(ctx) }()
+	cancel()
+
+	select {
+	case err := <-waitResult:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Wait() error = %v, want context.Canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Wait() did not return after cancellation")
+	}
+	if err := sess.Close(); err != nil {
+		t.Fatalf("close SSTP session: %v", err)
+	}
+
+	stopped := make(chan error, 1)
+	go func() { stopped <- sess.Wait(t.Context()) }()
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("session kept running after Wait context cancellation")
+	}
+}
+
 func TestSoftEtherSSTPProxyEcho(t *testing.T) {
+	leaktest.VerifyNoGoroutineLeaks(t)
 	proxy, target := dialSoftEtherProxy(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()

@@ -117,7 +117,7 @@ func Dial(ctx context.Context, cfg Config) (*Session, client.Result, error) {
 	if err != nil {
 		return nil, client.Result{}, err
 	}
-	fcfg, cookie, err := ifortinet.Login(hc, base, cfg.Username, cfg.Password, cfg.Realm, token)
+	fcfg, cookie, err := ifortinet.LoginContext(ctx, hc, base, cfg.Username, cfg.Password, cfg.Realm, token)
 	if err != nil {
 		// Both refusals reach the caller as client.ErrAuth, and the second is
 		// the one that is easy to get wrong: a gateway demanding a second
@@ -129,13 +129,16 @@ func Dial(ctx context.Context, cfg Config) (*Session, client.Result, error) {
 	if fcfg.AssignedIP == nil {
 		return nil, client.Result{}, fmt.Errorf("fortinet: server assigned no address")
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, client.Result{}, err
+	}
 
 	tun, err := dataplane.OpenTUN(cfg.TUNName)
 	if err != nil {
 		return nil, client.Result{}, fmt.Errorf("fortinet: opening TUN: %w", err)
 	}
 
-	c, err := dialDataPath(host, cookie, fcfg, tlsConfig, tun, logger, !cfg.NoDTLS, cfg.DialContext)
+	c, err := dialDataPath(ctx, host, cookie, fcfg, tlsConfig, tun, logger, !cfg.NoDTLS, cfg.DialContext)
 	if err != nil {
 		_ = tun.Close()
 		return nil, client.Result{}, err
@@ -188,20 +191,29 @@ func tokenFunc(cfg Config, logger *vlog.Logger) (ifortinet.TokenFunc, error) {
 // the reference client uses and the reason the protocol has a fallback at all —
 // the TLS carrier stays open underneath, so a UDP path that fails or later dies
 // costs nothing but the datagrams in flight.
-func dialDataPath(host, cookie string, fcfg ifortinet.Config, tlsConfig *tls.Config,
+func dialDataPath(ctx context.Context, host, cookie string, fcfg ifortinet.Config, tlsConfig *tls.Config,
 	tun io.ReadWriteCloser, logger *vlog.Logger, wantDTLS bool, dial func(context.Context, string, string) (net.Conn, error),
 ) (*ifortinet.Client, error) {
-	c, err := dialTLSPath(host, cookie, fcfg, tlsConfig, tun, logger, dial)
+	c, err := dialTLSPath(ctx, host, cookie, fcfg, tlsConfig, tun, logger, dial)
 	if err != nil {
 		return nil, err
 	}
 	if !wantDTLS || !fcfg.DTLS {
 		return c, nil
 	}
-	dc, err := dialDTLSChannel(host, cookie, tlsConfig)
+	dc, err := dialDTLSChannel(ctx, host, cookie, tlsConfig, dial)
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			_ = c.Close()
+			return nil, ctxErr
+		}
 		logger.Printf("fortinet: DTLS channel unavailable (%v), staying on the TLS tunnel", err)
 		return c, nil
+	}
+	if err := ctx.Err(); err != nil {
+		_ = dc.Close()
+		_ = c.Close()
+		return nil, err
 	}
 	c.AttachDTLS(dc)
 	logger.Printf("fortinet: data channel over DTLS")
@@ -209,13 +221,30 @@ func dialDataPath(host, cookie string, fcfg ifortinet.Config, tlsConfig *tls.Con
 }
 
 // dialDTLSChannel opens the UDP data channel and presents the cookie on it.
-func dialDTLSChannel(host, cookie string, tlsConfig *tls.Config) (net.Conn, error) {
+func dialDTLSChannel(ctx context.Context, host, cookie string, tlsConfig *tls.Config,
+	dial func(context.Context, string, string) (net.Conn, error),
+) (net.Conn, error) {
 	// The UDP channel is the same port number as the HTTPS control plane.
-	udp, err := net.Dial("udp", host)
+	var udp net.Conn
+	var err error
+	if dial != nil {
+		udp, err = dial(ctx, "udp", host)
+	} else {
+		udp, err = (&net.Dialer{}).DialContext(ctx, "udp", host)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("fortinet: dialing DTLS channel: %w", err)
 	}
+	stop := context.AfterFunc(ctx, func() { _ = udp.Close() })
 	dc, err := ifortinet.DialDTLS(udp, cookie, tlsConfig)
+	stop()
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		if dc != nil {
+			_ = dc.Close()
+		}
+		_ = udp.Close()
+		return nil, ctxErr
+	}
 	if err != nil {
 		_ = udp.Close()
 		return nil, err
@@ -223,34 +252,44 @@ func dialDTLSChannel(host, cookie string, tlsConfig *tls.Config) (net.Conn, erro
 	return dc, nil
 }
 
-func dialTLSPath(host, cookie string, fcfg ifortinet.Config, tlsConfig *tls.Config,
+func dialTLSPath(ctx context.Context, host, cookie string, fcfg ifortinet.Config, tlsConfig *tls.Config,
 	tun io.ReadWriteCloser, logger *vlog.Logger, dial func(context.Context, string, string) (net.Conn, error),
 ) (*ifortinet.Client, error) {
-	var conn *tls.Conn
+	var raw net.Conn
 	var err error
 	if dial != nil {
-		raw, e := dial(context.Background(), "tcp", host)
-		if e != nil {
-			return nil, e
-		}
-		conn = tls.Client(raw, tlsConfig)
-		err = conn.Handshake()
-		if err != nil {
-			conn.Close()
-		}
+		raw, err = dial(ctx, "tcp", host)
 	} else {
-		conn, err = tls.Dial("tcp", host, tlsConfig)
+		raw, err = (&net.Dialer{}).DialContext(ctx, "tcp", host)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("fortinet: dialing tunnel: %w", err)
 	}
+	stop := context.AfterFunc(ctx, func() { _ = raw.Close() })
+	defer stop()
+	conn := tls.Client(raw, tlsConfig)
+	if err := conn.HandshakeContext(ctx); err != nil {
+		_ = conn.Close()
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		return nil, fmt.Errorf("fortinet: TLS handshake: %w", err)
+	}
 	if _, err := conn.Write(ifortinet.TunnelRequest(host, cookie)); err != nil {
 		_ = conn.Close()
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		return nil, fmt.Errorf("fortinet: sending tunnel request: %w", err)
 	}
-	c, err := ifortinet.RunClient(conn, fcfg, tun, logger)
+	c, err := ifortinet.RunClientContext(ctx, conn, fcfg, tun, logger)
 	if err != nil {
 		_ = conn.Close()
+		return nil, err
+	}
+	stop()
+	if err := ctx.Err(); err != nil {
+		_ = c.Close()
 		return nil, err
 	}
 	return c, nil

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/internal/testutil"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/internal/testutil/leaktest"
 	client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/session"
 )
 
@@ -23,6 +24,7 @@ func TestOcservAnyConnectUDP(t *testing.T) {
 	if os.Getenv("ANYCONNECT_TEST_GATEWAY") == "" {
 		t.Skip("set ANYCONNECT_TEST_GATEWAY to run the ocserv integration test")
 	}
+	leaktest.VerifyNoGoroutineLeaks(t)
 	dev, sess, result := dialOcserv(t, "test-password")
 	if result.AssignedIP.To4() == nil {
 		t.Fatalf("assigned IP = %v, want IPv4", result.AssignedIP)
@@ -41,6 +43,7 @@ func TestOcservAnyConnectRejectsBadPassword(t *testing.T) {
 	if os.Getenv("ANYCONNECT_TEST_GATEWAY") == "" {
 		t.Skip("set ANYCONNECT_TEST_GATEWAY to run the ocserv integration test")
 	}
+	leaktest.VerifyNoGoroutineLeaks(t)
 	dev, unregister := registerAnyConnectTestTUN(t)
 	defer unregister()
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
@@ -55,6 +58,7 @@ func TestOcservAnyConnectReconnectAfterClose(t *testing.T) {
 	if os.Getenv("ANYCONNECT_TEST_GATEWAY") == "" {
 		t.Skip("set ANYCONNECT_TEST_GATEWAY to run the ocserv integration test")
 	}
+	leaktest.VerifyNoGoroutineLeaks(t)
 	for range 2 {
 		dev, sess, result := dialOcserv(t, "test-password")
 		want := []byte("ocserv reconnect UDP echo")
@@ -71,6 +75,35 @@ func TestOcservAnyConnectReconnectAfterClose(t *testing.T) {
 			t.Fatalf("AnyConnect session did not stop after close: %v", err)
 		}
 		cancel()
+	}
+}
+
+func TestOcservAnyConnectWaitCancellationClosesSession(t *testing.T) {
+	if os.Getenv("ANYCONNECT_TEST_GATEWAY") == "" {
+		t.Skip("set ANYCONNECT_TEST_GATEWAY to run the ocserv integration test")
+	}
+	leaktest.VerifyNoGoroutineLeaks(t)
+	_, sess, _ := dialOcserv(t, "test-password")
+	ctx, cancel := context.WithCancel(t.Context())
+	waitResult := make(chan error, 1)
+	go func() { waitResult <- sess.Wait(ctx) }()
+	cancel()
+
+	select {
+	case err := <-waitResult:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Wait() error = %v, want context.Canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Wait() did not return after cancellation")
+	}
+
+	stopped := make(chan error, 1)
+	go func() { stopped <- sess.Wait(t.Context()) }()
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("session kept running after Wait context cancellation")
 	}
 }
 

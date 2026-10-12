@@ -4,6 +4,7 @@ package amneziawg
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"testing"
@@ -12,12 +13,14 @@ import (
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/internal/testutil/leaktest"
 )
 
 func TestOfficialAmneziaWGServerTCPAndUDP(t *testing.T) {
 	if !amneziaWGInteropConfigured() {
 		t.Skip("set AMNEZIAWG_TEST_* variables to run the official AmneziaWG server test")
 	}
+	leaktest.VerifyNoGoroutineLeaks(t)
 	c := newAmneziaWGInteropClient(t)
 	exerciseAmneziaWGInterop(t, c)
 }
@@ -26,12 +29,49 @@ func TestOfficialAmneziaWGServerReconnectAfterClose(t *testing.T) {
 	if !amneziaWGInteropConfigured() {
 		t.Skip("set AMNEZIAWG_TEST_* variables to run the official AmneziaWG server test")
 	}
+	leaktest.VerifyNoGoroutineLeaks(t)
 	for range 2 {
 		c := newAmneziaWGInteropClient(t)
 		exerciseAmneziaWGInterop(t, c)
 		if err := c.Close(); err != nil {
 			t.Fatalf("close AmneziaWG client: %v", err)
 		}
+	}
+}
+
+func TestOfficialAmneziaWGServerCancelPendingTunnelDial(t *testing.T) {
+	if !amneziaWGInteropConfigured() {
+		t.Skip("set AMNEZIAWG_TEST_* variables to run the official AmneziaWG server test")
+	}
+	leaktest.VerifyNoGoroutineLeaks(t)
+	c := newAmneziaWGInteropClient(t)
+	t.Cleanup(func() { _ = c.Close() })
+	address, err := netapi.ParseAddress("tcp", "10.8.0.99:4243")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	started := make(chan struct{})
+	result := make(chan error, 1)
+	go func() {
+		close(started)
+		conn, err := c.Conn(ctx, address)
+		if conn != nil {
+			_ = conn.Close()
+		}
+		result <- err
+	}()
+	<-started
+	cancel()
+
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Conn() error = %v, want context.Canceled", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("TCP dial through AmneziaWG did not stop after cancellation")
 	}
 }
 

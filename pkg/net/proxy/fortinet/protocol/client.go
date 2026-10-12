@@ -52,8 +52,14 @@ var ErrChallenge = errors.New("fortinet: the gateway requires a second factor")
 // challenge and may be nil where none is expected. It returns the parsed config
 // and the SVPNCOOKIE value, which the caller puts on the tunnel request.
 func Login(hc *http.Client, base, username, password, realm string, token TokenFunc) (Config, string, error) {
+	return LoginContext(context.Background(), hc, base, username, password, realm, token)
+}
+
+// LoginContext performs Login while honoring ctx for the authentication,
+// second-factor, and configuration requests.
+func LoginContext(ctx context.Context, hc *http.Client, base, username, password, realm string, token TokenFunc) (Config, string, error) {
 	form := BuildLoginForm(username, password, realm)
-	result, err := postLogin(hc, base, form)
+	result, err := postLogin(ctx, hc, base, form)
 	if err != nil {
 		return Config{}, "", err
 	}
@@ -61,7 +67,7 @@ func Login(hc *http.Client, base, username, password, realm string, token TokenF
 	// A gateway that wants a second factor answers the password with a challenge
 	// rather than a cookie; answering it correctly resumes the same exchange.
 	if result.IsChallenge() {
-		result, err = answerChallenge(hc, base, username, realm, result.Challenge(), token)
+		result, err = answerChallenge(ctx, hc, base, username, realm, result.Challenge(), token)
 		if err != nil {
 			return Config{}, "", err
 		}
@@ -79,7 +85,11 @@ func Login(hc *http.Client, base, username, password, realm string, token TokenF
 	if redir == "" {
 		redir = PathConfigXML
 	}
-	cfgResp, err := hc.Get(base + redir)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+redir, nil)
+	if err != nil {
+		return Config{}, "", fmt.Errorf("fortinet: config request: %w", err)
+	}
+	cfgResp, err := hc.Do(req)
 	if err != nil {
 		return Config{}, "", fmt.Errorf("fortinet: config request: %w", err)
 	}
@@ -94,8 +104,13 @@ func Login(hc *http.Client, base, username, password, realm string, token TokenF
 }
 
 // postLogin submits a logincheck form and decodes the response line.
-func postLogin(hc *http.Client, base, form string) (LoginResult, error) {
-	resp, err := hc.Post(base+PathLoginCheck, "application/x-www-form-urlencoded", strings.NewReader(form))
+func postLogin(ctx context.Context, hc *http.Client, base, form string) (LoginResult, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+PathLoginCheck, strings.NewReader(form))
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("fortinet: login request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := hc.Do(req)
 	if err != nil {
 		return LoginResult{}, fmt.Errorf("fortinet: login request: %w", err)
 	}
@@ -112,7 +127,7 @@ func postLogin(hc *http.Client, base, form string) (LoginResult, error) {
 }
 
 // answerChallenge submits the second factor and returns the follow-up result.
-func answerChallenge(hc *http.Client, base, username, realm string, c Challenge, token TokenFunc) (LoginResult, error) {
+func answerChallenge(ctx context.Context, hc *http.Client, base, username, realm string, c Challenge, token TokenFunc) (LoginResult, error) {
 	if token == nil {
 		if c.Message != "" {
 			return LoginResult{}, fmt.Errorf("%w: %s", ErrChallenge, c.Message)
@@ -123,7 +138,7 @@ func answerChallenge(hc *http.Client, base, username, realm string, c Challenge,
 	if err != nil {
 		return LoginResult{}, fmt.Errorf("fortinet: obtaining the token code: %w", err)
 	}
-	result, err := postLogin(hc, base, BuildChallengeForm(username, code, realm, c))
+	result, err := postLogin(ctx, hc, base, BuildChallengeForm(username, code, realm, c))
 	if err != nil {
 		return LoginResult{}, err
 	}
@@ -163,6 +178,26 @@ func (c *Client) AssignedConfig() Config { return c.cfg }
 // IPCP.
 func RunClient(conn net.Conn, cfg Config, tun io.ReadWriteCloser, logger *vlog.Logger) (*Client, error) {
 	return runClient(conn, cfg, tun, logger, false)
+}
+
+// RunClientContext drives PPP setup until the tunnel is up, the connection
+// closes, or ctx is cancelled. Cancellation closes conn to interrupt pending
+// reads and writes during PPP negotiation.
+func RunClientContext(ctx context.Context, conn net.Conn, cfg Config, tun io.ReadWriteCloser, logger *vlog.Logger) (*Client, error) {
+	if err := ctx.Err(); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	c, err := runClient(conn, cfg, tun, logger, false)
+	stop()
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		if c != nil {
+			_ = c.Close()
+		}
+		return nil, ctxErr
+	}
+	return c, err
 }
 
 // RunDTLSClient is RunClient over the UDP data channel: conn is the established
@@ -221,6 +256,10 @@ func (c *Client) Probe(ctx context.Context) error { return c.link.probe(ctx) }
 
 // Wait blocks until the tunnel stops.
 func (c *Client) Wait() error { return c.link.Wait() }
+
+// WaitContext waits for the tunnel to stop or for ctx to be cancelled without
+// creating a goroutine that outlives the caller's wait.
+func (c *Client) WaitContext(ctx context.Context) error { return c.link.WaitContext(ctx) }
 
 // Close tears the tunnel down.
 func (c *Client) Close() error { return c.link.Close() }
