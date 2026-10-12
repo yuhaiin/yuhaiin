@@ -17,7 +17,7 @@ services:
     entrypoint: ["/bin/sh","/native-init.sh"]
     restart: "no"
   echo:
-    image: docker.io/library/python:3.13-alpine
+    image: docker.io/library/python:3.14-alpine
     volumes:
       - ./echo.py:/echo.py:ro
     entrypoint: ["python","/echo.py"]
