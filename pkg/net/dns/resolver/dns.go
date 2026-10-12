@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -574,12 +575,39 @@ func (c *client) DNSCacheEntries() []netapi.DNSCacheEntry {
 				Qtype:  uint16(qtype),
 				Qclass: dns.ClassINET,
 			},
-			Message:   msg.Copy(),
+			Message:   cloneDNSMessage(msg),
 			ExpiresIn: expiresIn,
 		})
 		return true
 	})
 	return entries
+}
+
+func cloneDNSMessage(msg *dns.Msg) *dns.Msg {
+	cloned := msg.Copy()
+	cloned.Question = cloneDNSRecords(msg.Question)
+	cloned.Answer = cloneDNSRecords(msg.Answer)
+	cloned.Ns = cloneDNSRecords(msg.Ns)
+	cloned.Extra = cloneDNSRecords(msg.Extra)
+	cloned.Pseudo = cloneDNSRecords(msg.Pseudo)
+	cloned.Data = slices.Clone(msg.Data)
+	return cloned
+}
+
+func cloneDNSRecords(records []dns.RR) []dns.RR {
+	cloned := slices.Clone(records)
+	for i, record := range cloned {
+		if https, ok := record.(*dns.HTTPS); ok {
+			// HTTPS promotes SVCB.Clone, which returns an SVCB RR.
+			svcb := https.SVCB.Clone().(*dns.SVCB)
+			cloned[i] = &dns.HTTPS{SVCB: *svcb}
+			continue
+		}
+		if cloner, ok := record.(dns.Cloner); ok {
+			cloned[i] = cloner.Clone()
+		}
+	}
+	return cloned
 }
 
 func (c *client) ClearDNSCache(domain string) int {

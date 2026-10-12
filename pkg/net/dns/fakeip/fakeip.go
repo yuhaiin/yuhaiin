@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -337,7 +338,7 @@ func appendIPHint(msg *dns.Msg, ipv4, ipv6 []netip.Addr) {
 		return
 	}
 
-	for _, v := range msg.Answer {
+	for i, v := range msg.Answer {
 		if dns.RRToType(v) != dns.TypeHTTPS {
 			continue
 		}
@@ -347,18 +348,23 @@ func appendIPHint(msg *dns.Msg, ipv4, ipv6 []netip.Addr) {
 			continue
 		}
 
-		// the raw message already cloned, so we no need copy anymore here
+		// dns.Msg.Copy is shallow, so detach the answer and HTTPS parameter
+		// slices before adding hints to avoid mutating the resolver's cache.
+		httpsCopy := *https
+		httpsCopy.Value = slices.Clone(https.Value)
 		if len(ipv4) > 0 {
-			https.Value = append(https.Value, &svcb.IPV4HINT{
+			httpsCopy.Value = append(httpsCopy.Value, &svcb.IPV4HINT{
 				Hint: ipv4,
 			})
 		}
 
 		if len(ipv6) > 0 {
-			https.Value = append(https.Value, &svcb.IPV6HINT{
+			httpsCopy.Value = append(httpsCopy.Value, &svcb.IPV6HINT{
 				Hint: ipv6,
 			})
 		}
+		msg.Answer = slices.Clone(msg.Answer)
+		msg.Answer[i] = &httpsCopy
 
 		break
 	}
