@@ -16,7 +16,6 @@ require (
 	github.com/apernet/hysteria/extras/v2 v2.13.0
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
 	github.com/cilium/ebpf v0.22.0
-	github.com/cloudflare/circl v1.6.5
 	github.com/cockroachdb/pebble/v2 v2.1.7
 	github.com/godbus/dbus/v5 v5.2.3
 	github.com/google/nftables v0.3.0

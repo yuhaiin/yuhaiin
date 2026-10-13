@@ -8,6 +8,7 @@ import (
 	"crypto/ed25519"
 	"crypto/hkdf"
 	"crypto/hmac"
+	"crypto/mldsa"
 	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/x509"
@@ -29,7 +30,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	utls "github.com/refraction-networking/utls"
 )
 
@@ -38,7 +38,7 @@ type Client struct {
 	proxy         netapi.Proxy
 	utls          *utls.Config
 	publicKey     []byte
-	mldsa65verify []byte
+	mldsa65verify *mldsa.PublicKey
 	shortID       [8]byte
 
 	// TODO: remove debug log
@@ -74,11 +74,15 @@ func NewClient(config Config, p netapi.Proxy) (netapi.Proxy, error) {
 		return nil, fmt.Errorf("invalid public_key")
 	}
 
-	var mldsa65Verify []byte
+	var mldsa65Verify *mldsa.PublicKey
 	if config.MLDSA65Verify != "" {
-		mldsa65Verify, err = base64.RawURLEncoding.DecodeString(config.MLDSA65Verify)
-		if err != nil || len(mldsa65Verify) != 1952 {
-			return nil, fmt.Errorf(`invalid "mldsa65Verify": %s`, config.MLDSA65Verify)
+		encodedKey, err := base64.RawURLEncoding.DecodeString(config.MLDSA65Verify)
+		if err != nil {
+			return nil, fmt.Errorf("decode mldsa65_verify: %w", err)
+		}
+		mldsa65Verify, err = mldsa.NewPublicKey(mldsa.MLDSA65(), encodedKey)
+		if err != nil {
+			return nil, fmt.Errorf("invalid mldsa65_verify: %w", err)
 		}
 	}
 
@@ -240,7 +244,7 @@ type realityVerifier struct {
 	*utls.UConn
 	serverName    string
 	authKey       []byte
-	mldsa65verify []byte
+	mldsa65verify *mldsa.PublicKey
 	verified      bool
 }
 
@@ -251,12 +255,11 @@ func (c *realityVerifier) VerifyPeerCertificate(rawCerts [][]byte, verifiedChain
 		h := hmac.New(sha512.New, c.authKey)
 		h.Write(pub)
 		if bytes.Equal(h.Sum(nil), certs[0].Signature) {
-			if len(c.mldsa65verify) > 0 {
+			if c.mldsa65verify != nil {
 				if len(certs[0].Extensions) > 0 {
 					h.Write(c.HandshakeState.Hello.Raw)
 					h.Write(c.HandshakeState.ServerHello.Raw)
-					verify, _ := mldsa65.Scheme().UnmarshalBinaryPublicKey(c.mldsa65verify)
-					if mldsa65.Verify(verify.(*mldsa65.PublicKey), h.Sum(nil), nil, certs[0].Extensions[0].Value) {
+					if mldsa.Verify(c.mldsa65verify, h.Sum(nil), certs[0].Extensions[0].Value, nil) == nil {
 						c.verified = true
 						return nil
 					}
