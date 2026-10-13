@@ -155,3 +155,21 @@ a jsdom-only scrolling shim; the real Chrome group-edit flow was checked separat
 The backend full suite, focused routing/storage/runtime and VPN race checks,
 workflow-pinned lint, go fix and production build passed. Tracked Go files pass the
 gofmt check. React lint warnings remain.
+
+## Compact list refinement
+
+Routing rules, nodes and shared destinations now use flat rows with restrained
+separators and nearby controls. The routing list places the name, status, action
+and destination together instead of distributing them across expanding columns.
+These pages cap the content width at 896 px. Fallback settings collapse behind
+a summary; the rule menu keeps priority and enable/disable controls accessible.
+Other accordion consumers retain their panel appearance.
+
+Isolated Chrome checks covered light/dark desktop rendering, 390 px mobile
+rendering without horizontal overflow, a long node name, expansion, searching
+Node 94 in a 95-node group, shared-destination editing and the rule priority menu
+opening exactly one dialog. No page errors were recorded. Captures taken during
+page transitions or with the heading scrolled out of view were replaced. The
+frontend again passed 78 tests in 40 files, TypeScript, i18n, lint, style audit and
+production build. The frontend PR includes inspected synthetic-data screenshots
+in `docs/ux-refactor`.
