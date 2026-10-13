@@ -48,6 +48,7 @@ const (
 	v2SubscriptionsUpdate      v2Endpoint = "subscriptions.update"
 	v2Publishes                v2Endpoint = "publishes"
 	v2PublishResolve           v2Endpoint = "publish.resolve"
+	v2NodesGroups              v2Endpoint = "nodes.groups"
 	v2NodesSelected            v2Endpoint = "nodes.selected"
 	v2NodesSelect              v2Endpoint = "nodes.select"
 	v2NodesImportPreview       v2Endpoint = "nodes.import.preview"
@@ -179,6 +180,7 @@ var v2Routes = []v2Route{
 	{v2InboundPut, "PUT /api/v2/inbounds/{id}"},
 	{v2InboundDelete, "DELETE /api/v2/inbounds/{id}"},
 	{v2NodesGet, "GET /api/v2/nodes"},
+	{v2NodesGroups, "GET /api/v2/nodes/groups"},
 	{v2NodesPost, "POST /api/v2/nodes"},
 	{v2NodesImportPreview, "POST /api/v2/nodes/import/preview"},
 	{v2NodesSelected, "GET /api/v2/nodes/selected"},
