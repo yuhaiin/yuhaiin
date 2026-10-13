@@ -276,6 +276,12 @@ func HandleFunc(mux *http.ServeMux, auth *Auth, path string, b func(http.Respons
 		w := &wrapResponseWriter{ow, false}
 
 		cross(r, w)
+		// Browser CORS preflights never include Basic credentials. Handle them
+		// before authentication; the actual RPC request is still authenticated.
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 
 		if auth != nil {
 			token := r.URL.Query().Get("token")
