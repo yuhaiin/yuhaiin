@@ -16,7 +16,6 @@ require (
 	github.com/apernet/hysteria/extras/v2 v2.13.0
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
 	github.com/cilium/ebpf v0.22.0
-	github.com/cloudflare/circl v1.6.5
 	github.com/cockroachdb/pebble/v2 v2.1.7
 	github.com/godbus/dbus/v5 v5.2.3
 	github.com/google/nftables v0.3.0
@@ -33,7 +32,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20261002162406-18e99eba5393
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
-	github.com/xtls/reality v0.0.0-20260921001439-3c98159dee38
+	github.com/xtls/reality v0.0.0-20261012183509-14cefac9bd7a
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261012050811-35224b68aa49
 	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.58.0

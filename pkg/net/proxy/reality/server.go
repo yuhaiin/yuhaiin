@@ -2,6 +2,7 @@ package reality
 
 import (
 	"context"
+	"crypto/mldsa"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	"github.com/xtls/reality"
 	"golang.org/x/crypto/curve25519"
 )
@@ -69,15 +69,9 @@ func NewServer(config ServerConfig, ii netapi.Listener) (netapi.Listener, error)
 		return nil, err
 	}
 
-	var mldsa65Key []byte
-	if config.MLDSA65Seed != "" {
-		mldsa65Seed, err := base64.RawURLEncoding.DecodeString(config.MLDSA65Seed)
-		if err != nil || len(mldsa65Seed) != 32 {
-			return nil, fmt.Errorf("mldsa65 seed is invalid: %w, %s", err, config.MLDSA65Seed)
-		}
-
-		_, key := mldsa65.NewKeyFromSeed((*[32]byte)(mldsa65Seed))
-		mldsa65Key = key.Bytes()
+	mldsa65Key, err := parseMLDSA65PrivateKey(config.MLDSA65Seed)
+	if err != nil {
+		return nil, err
 	}
 
 	realityConfig := &reality.Config{
@@ -101,6 +95,26 @@ func NewServer(config ServerConfig, ii netapi.Listener) (netapi.Listener, error)
 	lis := reality.NewListener(ii, realityConfig)
 
 	return netapi.NewListener(lis, ii), nil
+}
+
+func parseMLDSA65PrivateKey(encodedSeed string) (*mldsa.PrivateKey, error) {
+	if encodedSeed == "" {
+		return nil, nil
+	}
+
+	seed, err := base64.RawURLEncoding.DecodeString(encodedSeed)
+	if err != nil {
+		return nil, fmt.Errorf("decode mldsa65 seed: %w", err)
+	}
+	if len(seed) != mldsa.PrivateKeySize {
+		return nil, fmt.Errorf("invalid mldsa65 seed length: got %d, want %d", len(seed), mldsa.PrivateKeySize)
+	}
+
+	key, err := mldsa.NewPrivateKey(mldsa.MLDSA65(), seed)
+	if err != nil {
+		return nil, fmt.Errorf("create mldsa65 private key: %w", err)
+	}
+	return key, nil
 }
 
 func GenerateKey() (string, string, error) {
