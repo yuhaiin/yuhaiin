@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"slices"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
@@ -14,6 +15,7 @@ import (
 func addNodeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	api := v2API{services: services}
 	addRPCRoute(handlers, v2NodesGet, api.nodes)
+	addRPCRoute(handlers, v2NodesGroups, api.nodeGroups)
 	addRPCRoute(handlers, v2NodesPost, api.saveNode)
 	addRPCRoute(handlers, v2NodesImportPreview, api.previewNodeImport)
 	addRPCRoute(handlers, v2NodesSelected, api.selectedNodes)
@@ -47,7 +49,49 @@ func addResolverRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2ResolverCacheDelete, api.clearResolverCache)
 }
 
-func (a v2API) nodes(ctx context.Context, request *listRequest) (*listV2[contractnode.Node], error) {
+type nodeListRequest struct {
+    listRequest
+    Group string `json:"group"`
+    EnabledOnly bool `json:"enabled_only"`
+}
+
+type nodeGroup struct {
+    Name string `json:"name"`
+    Count int `json:"count"`
+    Enabled int `json:"enabled"`
+}
+
+type nodeGroupsResponse struct {
+    Items []nodeGroup `json:"items"`
+}
+
+// The group catalog is small even when the node list is large. Listing nodes
+// remains lazy and paginated, with server-side group filtering.
+func (a v2API) nodeGroups(ctx context.Context, _ *emptyRequest) (*nodeGroupsResponse, error) {
+    if a.services.Nodes == nil {
+        return nil, unavailable("node store is unavailable")
+    }
+    nodes, err := a.services.Nodes.List(ctx)
+    if err != nil { return nil, err }
+    index := map[string]*nodeGroup{}
+    for _, node := range nodes {
+        group := strings.TrimSpace(node.Group)
+        if group == "" { group = "manual" }
+        entry := index[group]
+        if entry == nil {
+            entry = &nodeGroup{Name: group}
+            index[group] = entry
+        }
+        entry.Count++
+        if node.Enabled { entry.Enabled++ }
+    }
+    groups := make([]nodeGroup, 0, len(index))
+    for _, group := range index { groups = append(groups, *group) }
+    slices.SortFunc(groups, func(a, b nodeGroup) int { return strings.Compare(a.Name, b.Name) })
+    return &nodeGroupsResponse{Items: groups}, nil
+}
+
+func (a v2API) nodes(ctx context.Context, request *nodeListRequest) (*listV2[contractnode.Node], error) {
 	if a.services.Nodes == nil {
 		return nil, unavailable("node store is unavailable")
 	}
@@ -55,10 +99,26 @@ func (a v2API) nodes(ctx context.Context, request *listRequest) (*listV2[contrac
 	if err != nil {
 		return nil, err
 	}
+	// Exact group matching avoids a misleading substring match (e.g. "aws"
+	// also matching "aws-backup"). The filter runs before pagination.
+	if group := strings.TrimSpace(request.Group); group != "" {
+        selected := make([]contractnode.Node, 0)
+        for _, node := range items {
+            actual := strings.TrimSpace(node.Group)
+            if actual == "" { actual = "manual" }
+            if actual == group { selected = append(selected, node) }
+        }
+        items = selected
+    }
+    if request.EnabledOnly {
+        selected := make([]contractnode.Node, 0, len(items))
+        for _, node := range items { if node.Enabled { selected = append(selected, node) } }
+        items = selected
+    }
 	if query := strings.TrimSpace(request.Query); query != "" {
 		items = filterNodes(items, query)
 	}
-	return pageResponse(items, request), nil
+	return pageResponse(items, &request.listRequest), nil
 }
 func (a v2API) saveNode(ctx context.Context, request *contractnode.Node) (*contractnode.Node, error) {
 	if a.services.Node == nil {
