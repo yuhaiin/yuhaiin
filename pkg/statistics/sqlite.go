@@ -602,7 +602,7 @@ func (c *Connections) Telemetry(ctx context.Context, from, to time.Time, limit i
 		c.telemetry.flush()
 	}
 
-	dimensions := []string{"protocol", "inbound", "source", "addr", "outbound", "process", "rule", "tag", "destination"}
+	dimensions := []string{"protocol", "inbound", "source", "addr", "outbound", "process", "rule", "selector", "destination"}
 	groups := make([]contractconnection.TelemetryGroup, 0, len(dimensions))
 	for _, dimension := range dimensions {
 		items, err := c.telemetryDimension(ctx, dimension, from, to, limit)

@@ -6,6 +6,7 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"time"
 )
 
@@ -14,6 +15,9 @@ type RouteSettingsStore struct {
 }
 
 type RouteSettings struct {
+	Revision       uint64
+	DefaultMode    string
+	DefaultTarget  contractroute.Target
 	DirectResolver string
 	ProxyResolver  string
 	ResolveLocally bool
@@ -21,6 +25,7 @@ type RouteSettings struct {
 }
 
 type RouteListSettings struct {
+	Revision             uint64
 	RefreshInterval      uint64
 	LastRefreshTime      uint64
 	Error                string
@@ -30,6 +35,7 @@ type RouteListSettings struct {
 }
 
 type routeRefreshConfigJSON struct {
+	Revision        uint64 `json:"revision"`
 	RefreshInterval uint64 `json:"refresh_interval"`
 	LastRefreshTime uint64 `json:"last_refresh_time"`
 	Error           string `json:"error"`
@@ -49,13 +55,22 @@ func (s *RouteSettingsStore) Settings(ctx context.Context) (RouteSettings, error
 	if s == nil || s.db == nil {
 		return RouteSettings{}, errors.New("route settings store database is nil")
 	}
-	var out RouteSettings
+	return readRouteSettings(ctx, s.db)
+}
+
+type routeQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func readRouteSettings(ctx context.Context, q routeQueryer) (RouteSettings, error) {
+	out := RouteSettings{DefaultMode: "proxy", DefaultTarget: contractroute.Target{Type: "default"}}
 	var resolveLocally int
-	err := s.db.QueryRowContext(ctx, `
-		SELECT direct_resolver, proxy_resolver, resolve_locally, udp_proxy_fqdn
+	var targetJSON string
+	err := q.QueryRowContext(ctx, `
+		SELECT direct_resolver, proxy_resolver, resolve_locally, udp_proxy_fqdn, revision, default_mode, default_target_json
 		FROM route_settings
 		WHERE id = 1
-	`).Scan(&out.DirectResolver, &out.ProxyResolver, &resolveLocally, &out.UDPProxyFQDN)
+	`).Scan(&out.DirectResolver, &out.ProxyResolver, &resolveLocally, &out.UDPProxyFQDN, &out.Revision, &out.DefaultMode, &targetJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, nil
 	}
@@ -63,6 +78,9 @@ func (s *RouteSettingsStore) Settings(ctx context.Context) (RouteSettings, error
 		return RouteSettings{}, fmt.Errorf("query route settings failed: %w", err)
 	}
 	out.ResolveLocally = resolveLocally != 0
+	if err := json.Unmarshal([]byte(targetJSON), &out.DefaultTarget); err != nil {
+		return RouteSettings{}, err
+	}
 	return out, nil
 }
 
@@ -70,15 +88,32 @@ func (s *RouteSettingsStore) SaveSettings(ctx context.Context, settings RouteSet
 	if s == nil || s.db == nil {
 		return errors.New("route settings store database is nil")
 	}
-	if _, err := s.db.ExecContext(ctx, `
-		INSERT INTO route_settings(id, direct_resolver, proxy_resolver, resolve_locally, udp_proxy_fqdn)
-		VALUES (1, ?, ?, ?, ?)
+	return saveRouteSettings(ctx, s.db, settings)
+}
+
+func saveRouteSettings(ctx context.Context, execer NodeExecer, settings RouteSettings) error {
+	if settings.DefaultMode == "" {
+		settings.DefaultMode = "proxy"
+	}
+	if settings.DefaultTarget.Type == "" {
+		settings.DefaultTarget.Type = "default"
+	}
+	target, err := json.Marshal(settings.DefaultTarget)
+	if err != nil {
+		return err
+	}
+	if _, err := execer.ExecContext(ctx, `
+		INSERT INTO route_settings(id, direct_resolver, proxy_resolver, resolve_locally, udp_proxy_fqdn, revision, default_mode, default_target_json)
+		VALUES (1, ?, ?, ?, ?, 1, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			direct_resolver = excluded.direct_resolver,
 			proxy_resolver = excluded.proxy_resolver,
 			resolve_locally = excluded.resolve_locally,
-			udp_proxy_fqdn = excluded.udp_proxy_fqdn
-	`, settings.DirectResolver, settings.ProxyResolver, boolToInt(settings.ResolveLocally), settings.UDPProxyFQDN); err != nil {
+			udp_proxy_fqdn = excluded.udp_proxy_fqdn,
+			revision = route_settings.revision + 1,
+			default_mode = excluded.default_mode,
+			default_target_json = excluded.default_target_json
+	`, settings.DirectResolver, settings.ProxyResolver, boolToInt(settings.ResolveLocally), settings.UDPProxyFQDN, settings.DefaultMode, string(target)); err != nil {
 		return fmt.Errorf("save route settings failed: %w", err)
 	}
 	return nil
@@ -91,11 +126,15 @@ func (s *RouteSettingsStore) ListSettings(ctx context.Context) (RouteListSetting
 	// Disk-backed host indexes are the default. A nil pointer below keeps old
 	// settings, which predate this option, on the same default without
 	// overriding an explicit false saved by the user.
+	return readRouteListSettings(ctx, s.db)
+}
+
+func readRouteListSettings(ctx context.Context, q routeQueryer) (RouteListSettings, error) {
 	out := RouteListSettings{HostIndexDisk: true}
-	if err := s.loadRefreshConfig(ctx, &out); err != nil {
+	if err := loadRefreshConfig(ctx, q, &out); err != nil {
 		return RouteListSettings{}, err
 	}
-	if err := s.loadMaxMindDB(ctx, &out); err != nil {
+	if err := loadMaxMindDB(ctx, q, &out); err != nil {
 		return RouteListSettings{}, err
 	}
 	return out, nil
@@ -112,8 +151,19 @@ func (s *RouteSettingsStore) SaveListSettings(ctx context.Context, settings Rout
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := saveRouteListSettings(ctx, tx, settings, now); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit route list settings transaction failed: %w", err)
+	}
+	return nil
+}
+
+func saveRouteListSettings(ctx context.Context, tx *sql.Tx, settings RouteListSettings, now int64) error {
 	hostIndexDisk := settings.HostIndexDisk
 	refresh := &routeRefreshConfigJSON{
+		Revision:        settings.Revision,
 		RefreshInterval: settings.RefreshInterval,
 		LastRefreshTime: settings.LastRefreshTime,
 		Error:           settings.Error,
@@ -129,15 +179,12 @@ func (s *RouteSettingsStore) SaveListSettings(ctx context.Context, settings Rout
 	if err := saveSettingsKV(ctx, tx, "route_extra", "maxminddb_geoip", geoip, now); err != nil {
 		return err
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit route list settings transaction failed: %w", err)
-	}
 	return nil
 }
 
-func (s *RouteSettingsStore) loadRefreshConfig(ctx context.Context, out *RouteListSettings) error {
+func loadRefreshConfig(ctx context.Context, q routeQueryer, out *RouteListSettings) error {
 	var data string
-	err := s.db.QueryRowContext(ctx, `
+	err := q.QueryRowContext(ctx, `
 		SELECT value_json
 		FROM settings_kv
 		WHERE section = 'route_extra' AND key = 'refresh_config'
@@ -153,6 +200,7 @@ func (s *RouteSettingsStore) loadRefreshConfig(ctx context.Context, out *RouteLi
 		return fmt.Errorf("decode route refresh config failed: %w", err)
 	}
 	out.RefreshInterval = refresh.RefreshInterval
+	out.Revision = refresh.Revision
 	out.LastRefreshTime = refresh.LastRefreshTime
 	out.Error = refresh.Error
 	if refresh.HostIndexDisk != nil {
@@ -161,9 +209,9 @@ func (s *RouteSettingsStore) loadRefreshConfig(ctx context.Context, out *RouteLi
 	return nil
 }
 
-func (s *RouteSettingsStore) loadMaxMindDB(ctx context.Context, out *RouteListSettings) error {
+func loadMaxMindDB(ctx context.Context, q routeQueryer, out *RouteListSettings) error {
 	var data string
-	err := s.db.QueryRowContext(ctx, `
+	err := q.QueryRowContext(ctx, `
 		SELECT value_json
 		FROM settings_kv
 		WHERE section = 'route_extra' AND key = 'maxminddb_geoip'

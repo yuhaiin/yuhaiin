@@ -108,14 +108,26 @@ func (s *ResolverStore) Delete(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("resolver store database is nil")
 	}
-	res, err := s.db.ExecContext(ctx, `DELETE FROM resolvers_v2 WHERE id = ?`, id)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	refs, err := ResolverReferences(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	if len(refs) > 0 {
+		return &ResourceInUseError{References: refs}
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM resolvers_v2 WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("delete resolver %q failed: %w", id, err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("%w: resolver %s not found", ErrNotFound, id)
 	}
-	return nil
+	return tx.Commit()
 }
 
 func decodeResolver(dataJSON string) (contractresolver.Resolver, error) {
@@ -132,6 +144,10 @@ func decodeResolver(dataJSON string) (contractresolver.Resolver, error) {
 
 func normalizeResolver(resolver contractresolver.Resolver) contractresolver.Resolver {
 	resolver.ID = strings.TrimSpace(resolver.ID)
+	resolver.Name = strings.TrimSpace(resolver.Name)
+	if resolver.Name == "" {
+		resolver.Name = resolver.ID
+	}
 	if strings.TrimSpace(resolver.Type) == "" {
 		resolver.Type = "udp"
 	}

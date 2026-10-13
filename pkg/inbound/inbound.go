@@ -28,6 +28,8 @@ type entry struct {
 var _ netapi.Handler = (*Inbound)(nil)
 
 type Inbound struct {
+	states              map[string]runtimeState
+	eventID             uint64
 	fakeIPSource        FakeIPRangeSource
 	fakeIPRanges        [2]netip.Prefix
 	unsubscribeFakeIP   func()
@@ -168,6 +170,7 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 			store.SetInbound(meta.Inbound)
 		}
 		store.SetInboundName(meta.InboundName)
+		store.SetInboundID(meta.InboundID)
 		l.handler.Stream(store, meta)
 		return
 	}
@@ -199,6 +202,7 @@ func (l *Inbound) HandlePing(packet *netapi.PingMeta) {
 	store.Source = packet.Source
 	store.Destination = packet.Destination
 	store.SetInboundName(packet.InboundName)
+	store.SetInboundID(packet.InboundID)
 	store.ConnOptions().SetIsUdp(true)
 	l.handler.Ping(store, packet)
 }
@@ -259,7 +263,7 @@ func (l *Inbound) ListenerSnapshot(id string) (registered bool, streams, packets
 	return true, entry.counters.streams.Load(), entry.counters.packets.Load(), entry.counters.pings.Load()
 }
 
-func (l *Inbound) SaveContract(req contract.Inbound) error {
+func (l *Inbound) SaveContract(req contract.Inbound) (result error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -267,14 +271,29 @@ func (l *Inbound) SaveContract(req contract.Inbound) error {
 		return errors.New("inbound runtime is closed")
 	}
 
-	if err := l.retryRouteCleanup(); err != nil {
-		return err
-	}
 	defer l.refreshInterfaces()
 
 	key := req.ID
 	if key == "" {
 		key = req.Name
+	}
+
+	l.recordState(key, "starting", "")
+	defer func() {
+		state, message := "disabled", ""
+		if result != nil {
+			state, message = "failed", result.Error()
+			if entry, ok := l.store.Load(key); ok && entry.server != nil {
+				state = "degraded"
+			}
+		} else if req.Enabled {
+			state = "running"
+		}
+		l.recordState(key, state, message)
+	}()
+
+	if err := l.retryRouteCleanup(); err != nil {
+		return err
 	}
 
 	x, ok := l.store.Load(key)
@@ -301,7 +320,7 @@ func (l *Inbound) SaveContract(req contract.Inbound) error {
 	}
 
 	counters := &ingressCounters{}
-	server, err := listenContract(req, &handlerWrap{name: req.Name, handler: l, counters: counters}, l.fakeIPRanges)
+	server, err := listenContract(req, &handlerWrap{id: req.ID, name: req.Name, handler: l, counters: counters}, l.fakeIPRanges)
 	if err != nil {
 		log.Error("start contract server failed", "name", req.Name, "id", req.ID, "err", err)
 		return err
@@ -338,6 +357,8 @@ func (l *Inbound) Remove(name string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	result := l.retryRouteCleanup()
+	l.recordState(name, "stopping", "")
+	defer delete(l.states, name)
 	x, ok := l.store.LoadAndDelete(name)
 	if !ok {
 		return result
@@ -376,12 +397,14 @@ func (l *Inbound) Close() error {
 	result := l.retryRouteCleanup()
 	l.close()
 	for k, v := range l.store.Range {
+		l.recordState(k, "stopping", "")
 		log.Info("start close server", "name", k)
 		if err := l.closeServer(v.server); err != nil {
 			log.Error("close server failed", "name", k, "err", err)
 			result = errors.Join(result, err)
 		}
 		l.store.Delete(k)
+		l.recordState(k, "disabled", "")
 		log.Info("closed server", "name", k)
 	}
 	l.refreshInterfaces()
@@ -392,6 +415,7 @@ type handlerWrap struct {
 	counters *ingressCounters
 	handler  *Inbound
 	name     string
+	id       string
 }
 
 func (h *handlerWrap) HandleStream(meta *netapi.StreamMeta) {
@@ -399,6 +423,7 @@ func (h *handlerWrap) HandleStream(meta *netapi.StreamMeta) {
 		h.counters.streams.Add(1)
 	}
 	meta.InboundName = h.name
+	meta.InboundID = h.id
 	h.handler.HandleStream(meta)
 }
 
@@ -407,6 +432,7 @@ func (h *handlerWrap) HandlePacket(packet *netapi.Packet) {
 		h.counters.packets.Add(1)
 	}
 	netapi.WithInboundName(h.name)(packet)
+	netapi.WithInboundID(h.id)(packet)
 	h.handler.HandlePacket(packet)
 }
 
@@ -415,5 +441,6 @@ func (h *handlerWrap) HandlePing(packet *netapi.PingMeta) {
 		h.counters.pings.Add(1)
 	}
 	packet.InboundName = h.name
+	packet.InboundID = h.id
 	h.handler.HandlePing(packet)
 }

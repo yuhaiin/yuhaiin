@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"net/http"
 )
 
@@ -33,6 +34,9 @@ type rpcError struct {
 func (e *rpcError) Error() string { return e.message }
 
 func badRequest(err error) error {
+	if errors.Is(err, plainstore.ErrConflict) {
+		return &rpcError{status: http.StatusConflict, code: "conflict", message: err.Error()}
+	}
 	return &rpcError{status: http.StatusBadRequest, code: "bad_request", message: err.Error()}
 }
 
@@ -45,6 +49,12 @@ func notFound(err error) error {
 }
 
 func writeRPCError(w http.ResponseWriter, err error) error {
+	if errors.Is(err, plainstore.ErrConflict) {
+		return writeError(w, http.StatusConflict, "conflict", err.Error())
+	}
+	if inUse, ok := errors.AsType[*plainstore.ResourceInUseError](err); ok {
+		return writeJSON(w, http.StatusConflict, errorBody{Error: errorPayload{Code: "resource_in_use", Message: inUse.Error(), References: inUse.References}})
+	}
 	if rpcErr, ok := errors.AsType[*rpcError](err); ok {
 		return writeError(w, rpcErr.status, rpcErr.code, rpcErr.message)
 	}

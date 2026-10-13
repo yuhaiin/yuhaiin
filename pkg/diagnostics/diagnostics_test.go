@@ -82,7 +82,7 @@ func TestReportEvidenceAndPrivacy(t *testing.T) {
 			if host != "example.com:443" {
 				t.Errorf("route input: %s", host)
 			}
-			return contractroute.RuleTestResponse{Mode: "block", Tag: "policy", Resolver: "resolver-1"}, nil
+			return contractroute.RuleTestResponse{Mode: "block", Target: contractroute.Target{Type: "default"}, Resolver: "resolver-1"}, nil
 		},
 	})
 	report, err := service.Run(t.Context(), tools.DiagnosticRequest{Host: "example.com"})

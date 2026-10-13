@@ -11,7 +11,6 @@ import (
 	"uuid"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
-	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 )
 
 type NodeStore struct {
@@ -25,6 +24,10 @@ const (
 
 func NewNodeStore(db *sql.DB) *NodeStore {
 	return &NodeStore{db: db}
+}
+
+func (s *NodeStore) Selector(ctx context.Context, id string) (contractnode.Selector, error) {
+	return NewSelectorStore(s.db).Get(ctx, id)
 }
 
 type NodeExecer interface {
@@ -55,16 +58,64 @@ func (s *NodeStore) ReplaceRemote(ctx context.Context, group string, nodes []con
 		return fmt.Errorf("begin remote node replace transaction failed: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if err := DeleteRemoteNodeContracts(ctx, tx, group); err != nil {
+	rows, err := tx.QueryContext(ctx, `SELECT id, name FROM nodes_v2 WHERE group_name = ? AND origin = 'remote'`, group)
+	if err != nil {
 		return err
 	}
+	oldIDs := []string{}
+	byName := map[string][]string{}
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		oldIDs = append(oldIDs, id)
+		byName[name] = append(byName[name], id)
+	}
+	err = rows.Err()
+	_ = rows.Close()
+	if err != nil {
+		return err
+	}
+	seen := map[string]bool{}
 	for _, node := range nodes {
-		node.Group = group
-		node.Origin = "remote"
+		node.Group, node.Origin = group, "remote"
 		if node.ID == "" {
-			node.ID = uuid.New().String()
+			if candidates := byName[node.Name]; len(candidates) == 1 && !seen[candidates[0]] {
+				node.ID = candidates[0]
+			} else {
+				node.ID = uuid.New().String()
+			}
+		}
+		if seen[node.ID] {
+			return fmt.Errorf("subscription contains duplicate node ID %q", node.ID)
+		}
+		seen[node.ID] = true
+		var existingOrigin, existingGroup string
+		err := tx.QueryRowContext(ctx, `SELECT origin, group_name FROM nodes_v2 WHERE id = ?`, node.ID).Scan(&existingOrigin, &existingGroup)
+		if err == nil && (existingOrigin != "remote" || existingGroup != group) {
+			return fmt.Errorf("node ID %q belongs to another source", node.ID)
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
 		}
 		if err := SaveNodeContract(ctx, tx, node, updatedAt); err != nil {
+			return err
+		}
+	}
+	for _, id := range oldIDs {
+		if seen[id] {
+			continue
+		}
+		refs, err := NodeReferences(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if len(refs) > 0 {
+			return &ResourceInUseError{References: refs}
+		}
+		if err := DeleteNodeContract(ctx, tx, id); err != nil {
 			return err
 		}
 	}
@@ -154,11 +205,12 @@ func (s *NodeStore) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("begin node delete transaction failed: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if err := deleteRouteTagNodeMember(ctx, tx, id); err != nil {
+	refs, err := NodeReferences(ctx, tx, id)
+	if err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM node_tags WHERE target_kind = 'node' AND target_id = ?`, id); err != nil {
-		return fmt.Errorf("delete node tag members for %q failed: %w", id, err)
+	if len(refs) > 0 {
+		return &ResourceInUseError{References: refs}
 	}
 	res, err := tx.ExecContext(ctx, `DELETE FROM nodes_v2 WHERE id = ?`, id)
 	if err != nil {
@@ -197,17 +249,30 @@ func (s *NodeStore) Selected(ctx context.Context, tcp bool) (contractnode.Node, 
 }
 
 func (s *NodeStore) Use(ctx context.Context, id string) error {
-	if _, err := s.Get(ctx, id); err != nil {
-		return err
-	}
+	return s.Select(ctx, contractnode.SelectionRequest{TCPID: id, UDPID: id})
+}
+
+func (s *NodeStore) Select(ctx context.Context, selection contractnode.SelectionRequest) error {
 	if s == nil || s.db == nil {
 		return errors.New("node store database is nil")
 	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
 	for key, value := range map[string]string{
-		selectedTCPNodeMetadataKey: id,
-		selectedUDPNodeMetadataKey: id,
+		selectedTCPNodeMetadataKey: selection.TCPID,
+		selectedUDPNodeMetadataKey: selection.UDPID,
 	} {
-		if _, err := s.db.ExecContext(ctx, `
+		node, err := getNodeContract(ctx, tx, value)
+		if err != nil {
+			return err
+		}
+		if !node.Enabled {
+			return fmt.Errorf("disabled node %q cannot be used as the default destination", node.Name)
+		}
+		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO metadata(key, value)
 			VALUES (?, ?)
 			ON CONFLICT(key) DO UPDATE SET value = excluded.value
@@ -215,70 +280,42 @@ func (s *NodeStore) Use(ctx context.Context, id string) error {
 			return fmt.Errorf("update metadata %q failed: %w", key, err)
 		}
 	}
-	return nil
+	return tx.Commit()
 }
 
-func (s *NodeStore) AddTag(ctx context.Context, tag, kind, target string) error {
+// Selection reads both default destinations from one database snapshot.
+func (s *NodeStore) Selection(ctx context.Context) (contractnode.Selection, error) {
 	if s == nil || s.db == nil {
-		return errors.New("node store database is nil")
+		return contractnode.Selection{}, errors.New("node store database is nil")
 	}
-	if kind == "" {
-		kind = "node"
-	}
-	if kind != "node" && kind != "tag" {
-		return fmt.Errorf("unknown node tag target kind %q", kind)
-	}
-	if tag == target && kind == "tag" {
-		return nil
-	}
-	item, found, err := NewRouteTagStore(s.db).GetTag(ctx, tag)
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return err
+		return contractnode.Selection{}, err
 	}
-	desiredType := "node"
-	if kind == "tag" {
-		desiredType = "mirror"
+	defer func() { _ = tx.Rollback() }()
+	var selection contractnode.Selection
+	for key, destination := range map[string]**contractnode.Node{
+		selectedTCPNodeMetadataKey: &selection.TCP,
+		selectedUDPNodeMetadataKey: &selection.UDP,
+	} {
+		var id string
+		err := tx.QueryRowContext(ctx, `SELECT value FROM metadata WHERE key = ?`, key).Scan(&id)
+		if errors.Is(err, sql.ErrNoRows) || id == "" {
+			continue
+		}
+		if err != nil {
+			return selection, err
+		}
+		node, err := getNodeContract(ctx, tx, id)
+		if errors.Is(err, ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return selection, err
+		}
+		*destination = &node
 	}
-	if !found {
-		item = contractroute.TagItem{Name: tag, Type: desiredType}
-	} else if len(item.Hash) > 0 && item.Type != desiredType {
-		return fmt.Errorf("tag %q already has type %q", tag, item.Type)
-	}
-	item.Type = desiredType
-	if !slices.Contains(item.Hash, target) {
-		item.Hash = append(item.Hash, target)
-	}
-	if err := SaveRouteTagContract(ctx, s.db, item, 0); err != nil {
-		return fmt.Errorf("insert node tag %q failed: %w", tag, err)
-	}
-	return nil
-}
-
-func (s *NodeStore) DeleteTag(ctx context.Context, tag string) error {
-	if s == nil || s.db == nil {
-		return errors.New("node store database is nil")
-	}
-	if err := NewRouteTagStore(s.db).DeleteTag(ctx, tag); err != nil && !errors.Is(err, ErrNotFound) {
-		return fmt.Errorf("delete node tag %q failed: %w", tag, err)
-	}
-	return nil
-}
-
-type NodeTag struct {
-	Name      string
-	Kind      string
-	TargetIDs []string
-}
-
-func (s *NodeStore) GetTag(ctx context.Context, name string) (NodeTag, bool, error) {
-	if s == nil || s.db == nil {
-		return NodeTag{}, false, errors.New("node store database is nil")
-	}
-	item, _, err := NewRouteTagStore(s.db).GetTag(ctx, name)
-	if err != nil {
-		return NodeTag{}, false, err
-	}
-	return NodeTag{Name: item.Name, Kind: item.Type, TargetIDs: item.Hash}, len(item.Hash) > 0, nil
+	return selection, tx.Commit()
 }
 
 func (s *NodeStore) UsingIDs(ctx context.Context) ([]string, error) {
@@ -291,9 +328,15 @@ func (s *NodeStore) UsingIDs(ctx context.Context) ([]string, error) {
 		FROM metadata
 		WHERE key IN ('selected_tcp_node_v2', 'selected_udp_node_v2')
 		UNION
-		SELECT target_id
-		FROM node_tags
-		WHERE target_kind = 'node'
+		SELECT node_id FROM outbound_selectors
+		UNION
+		SELECT json_extract(data_json, '$.target.id') FROM route_rules_v2 WHERE json_extract(data_json, '$.target.type') = 'node'
+		UNION
+		SELECT json_extract(default_target_json, '$.id') FROM route_settings WHERE json_extract(default_target_json, '$.type') = 'node'
+		UNION
+		SELECT json_extract(r.value, '$.target.id') FROM route_configuration_state s, json_each(s.applied_rules_json) r WHERE json_extract(r.value, '$.target.type') = 'node'
+		UNION
+		SELECT json_extract(applied_config_json, '$.defaultTarget.id') FROM route_configuration_state WHERE json_extract(applied_config_json, '$.defaultTarget.type') = 'node'
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("query using node ids failed: %w", err)
@@ -311,39 +354,52 @@ func (s *NodeStore) UsingIDs(ctx context.Context) ([]string, error) {
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate using node ids failed: %w", err)
 	}
-	v2Rows, err := s.db.QueryContext(ctx, `
-		SELECT name, members_json
-		FROM node_tags_v2
-	`)
+	configured, err := s.List(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("query v2 using node ids failed: %w", err)
+		return nil, err
 	}
-	for v2Rows.Next() {
-		var name, dataJSON string
-		if err := v2Rows.Scan(&name, &dataJSON); err != nil {
-			_ = v2Rows.Close()
-			return nil, fmt.Errorf("scan v2 using node id failed: %w", err)
+	byID := make(map[string]contractnode.Node, len(configured))
+	for _, node := range configured {
+		byID[node.ID] = node
+	}
+	var includeChain func([]contractnode.Protocol)
+	var includeNode func(string)
+	visited := map[string]bool{}
+	includeNode = func(id string) {
+		if id == "" {
+			return
 		}
-		tag, err := decodeRouteTag(name, dataJSON)
-		if err != nil {
-			_ = v2Rows.Close()
-			return nil, err
+		if visited[id] {
+			return
 		}
-		if tag.Type != "node" {
-			continue
+		visited[id] = true
+		ids[id] = struct{}{}
+		if node, exists := byID[id]; exists {
+			includeChain(node.Chain)
 		}
-		for _, id := range tag.Hash {
-			if id != "" {
-				ids[id] = struct{}{}
+	}
+	includeChain = func(chain []contractnode.Protocol) {
+		for _, protocol := range chain {
+			if protocol.Set != nil {
+				for _, id := range protocol.Set.Nodes {
+					includeNode(id)
+				}
+			}
+			if protocol.PointAsEndpoint != nil {
+				includeNode(protocol.PointAsEndpoint.Hash)
+			}
+			if protocol.NetworkSplit != nil {
+				if protocol.NetworkSplit.TCP != nil {
+					includeChain([]contractnode.Protocol{*protocol.NetworkSplit.TCP})
+				}
+				if protocol.NetworkSplit.UDP != nil {
+					includeChain([]contractnode.Protocol{*protocol.NetworkSplit.UDP})
+				}
 			}
 		}
 	}
-	if err := v2Rows.Err(); err != nil {
-		_ = v2Rows.Close()
-		return nil, fmt.Errorf("iterate v2 using node ids failed: %w", err)
-	}
-	if err := v2Rows.Close(); err != nil {
-		return nil, fmt.Errorf("close v2 using node ids failed: %w", err)
+	for id := range ids {
+		includeNode(id)
 	}
 	out := make([]string, 0, len(ids))
 	for id := range ids {
@@ -356,13 +412,6 @@ func (s *NodeStore) UsingIDs(ctx context.Context) ([]string, error) {
 func DeleteNodeContract(ctx context.Context, execer NodeExecer, id string) error {
 	if _, err := execer.ExecContext(ctx, `DELETE FROM nodes_v2 WHERE id = ?`, id); err != nil {
 		return fmt.Errorf("delete node contract %q failed: %w", id, err)
-	}
-	return nil
-}
-
-func DeleteRemoteNodeContracts(ctx context.Context, execer NodeExecer, group string) error {
-	if _, err := execer.ExecContext(ctx, `DELETE FROM nodes_v2 WHERE group_name = ? AND origin = 'remote'`, group); err != nil {
-		return fmt.Errorf("delete remote node contracts for group %q failed: %w", group, err)
 	}
 	return nil
 }

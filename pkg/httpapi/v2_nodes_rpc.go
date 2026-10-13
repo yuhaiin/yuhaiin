@@ -7,6 +7,7 @@ import (
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
+	runtimenode "github.com/Asutorufa/yuhaiin/pkg/node"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
@@ -14,7 +15,9 @@ func addNodeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	api := v2API{services: services}
 	addRPCRoute(handlers, v2NodesGet, api.nodes)
 	addRPCRoute(handlers, v2NodesPost, api.saveNode)
+	addRPCRoute(handlers, v2NodesImportPreview, api.previewNodeImport)
 	addRPCRoute(handlers, v2NodesSelected, api.selectedNodes)
+	addRPCRoute(handlers, v2NodesSelect, api.selectNodes)
 	addRPCRoute(handlers, v2NodesActive, api.activeNodes)
 	addRPCRoute(handlers, v2NodeGet, api.node)
 	addRPCRoute(handlers, v2NodePut, api.saveNode)
@@ -23,6 +26,14 @@ func addNodeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2NodeLatency, api.nodeLatency)
 	addRPCRoute(handlers, v2NodeClose, api.closeNode)
 	addRPCRoute(handlers, v2NodeExtraInfo, api.nodeExtraInfo)
+}
+
+func (a v2API) previewNodeImport(_ context.Context, request *contractnode.ImportRequest) (*contractnode.ImportPreview, error) {
+	preview, err := runtimenode.PreviewImport(*request)
+	if err != nil {
+		return nil, badRequest(err)
+	}
+	return &preview, nil
 }
 
 func addResolverRPCRoutesV2(handlers *v2Handlers, services V2Services) {
@@ -65,6 +76,16 @@ func (a v2API) selectedNodes(ctx context.Context, _ *emptyRequest) (*contractnod
 	}
 	return pointer(a.services.Node.Selected(ctx))
 }
+
+func (a v2API) selectNodes(ctx context.Context, request *contractnode.SelectionRequest) (*emptyResponse, error) {
+	if a.services.Node == nil {
+		return nil, unavailable("node controller is unavailable")
+	}
+	if err := a.services.Node.Select(ctx, *request); err != nil {
+		return nil, badRequest(err)
+	}
+	return &emptyResponse{}, nil
+}
 func (a v2API) activeNodes(ctx context.Context, _ *emptyRequest) (*struct {
 	Items []contractnode.Node `json:"items"`
 }, error) {
@@ -95,7 +116,10 @@ func (a v2API) deleteNode(ctx context.Context, request *idRequest) (*emptyRespon
 	}
 	if a.services.Node != nil {
 		if err := a.services.Node.Remove(ctx, request.ID); err != nil {
-			return nil, &rpcError{status: 404, code: "not_found", message: err.Error()}
+			if errors.Is(err, plainstore.ErrNotFound) {
+				return nil, notFound(err)
+			}
+			return nil, err
 		}
 		return &emptyResponse{}, nil
 	}
@@ -174,11 +198,6 @@ func (a v2API) saveResolver(ctx context.Context, request *contractresolver.Resol
 	if err != nil {
 		return nil, badRequest(err)
 	}
-	if a.services.Resolvers != nil {
-		if err := a.services.Resolvers.Save(ctx, value, 0); err != nil {
-			return nil, badRequest(err)
-		}
-	}
 	return &value, nil
 }
 func (a v2API) resolver(ctx context.Context, request *idRequest) (*contractresolver.Resolver, error) {
@@ -201,7 +220,10 @@ func (a v2API) deleteResolver(ctx context.Context, request *idRequest) (*emptyRe
 	removed := false
 	if a.services.Resolver != nil {
 		if err := a.services.Resolver.Remove(ctx, request.ID); err != nil {
-			return nil, &rpcError{status: 404, code: "not_found", message: err.Error()}
+			if errors.Is(err, plainstore.ErrNotFound) {
+				return nil, notFound(err)
+			}
+			return nil, err
 		}
 		removed = true
 	}

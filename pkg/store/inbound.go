@@ -141,7 +141,19 @@ func (s *InboundStore) Delete(ctx context.Context, id string) error {
 		return errors.New("inbound store database is nil")
 	}
 
-	result, err := s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	refs, err := InboundReferences(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	if len(refs) > 0 {
+		return &ResourceInUseError{References: refs}
+	}
+	result, err := tx.ExecContext(ctx, `
 		DELETE FROM inbounds_v2
 		WHERE id = ?
 	`, id)
@@ -151,7 +163,7 @@ func (s *InboundStore) Delete(ctx context.Context, id string) error {
 	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
 		return fmt.Errorf("%w: inbound %s", ErrNotFound, id)
 	}
-	return nil
+	return tx.Commit()
 }
 
 func decodeInbound(dataJSON string) (contract.Inbound, error) {

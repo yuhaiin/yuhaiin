@@ -175,18 +175,28 @@ func (h *processMatcher) Empty() bool {
 }
 
 type Lists struct {
-	lists    RouteListBook
-	settings RouteListSettingsBook
+	contentMu           sync.Mutex
+	applyCoordinator    atomic.Pointer[func(context.Context) error]
+	scheduleCoordinator atomic.Pointer[func()]
+	indexFingerprint    [32]byte
+	lists               RouteListBook
+	settings            RouteListSettingsBook
 
 	proxy *atomicx.Value[netapi.Proxy]
 
-	geoip *struct {
+	geoipURL       string
+	geoipRefreshed uint64
+	geoip          *struct {
 		m *maxminddb.MaxMindDB
 	}
 
 	downloader *Downloader
 
-	ticker *time.Timer
+	ticker         *time.Timer
+	tickerVersion  atomic.Uint64
+	closed         atomic.Bool
+	refreshContext context.Context
+	refreshCancel  context.CancelFunc
 
 	hostTrie               *hostMatcher
 	hostTrieBuild          *hostMatcher
@@ -245,13 +255,16 @@ func NewLists(lists RouteListBook, settings RouteListSettingsBook, configPath st
 
 	proxy := atomicx.NewValue(direct.Default)
 
+	refreshContext, refreshCancel := context.WithCancel(context.Background())
 	l := &Lists{
-		lists:       lists,
-		settings:    settings,
-		proxy:       proxy,
-		downloader:  NewDownloader(filepath.Join(configPath, "rules"), proxy.Load),
-		hostTrie:    newHostTrie(configuration.DataDir.Load(), listConfig.HostIndexDisk),
-		processTrie: newProcessTrie(),
+		refreshContext: refreshContext,
+		refreshCancel:  refreshCancel,
+		lists:          lists,
+		settings:       settings,
+		proxy:          proxy,
+		downloader:     NewDownloader(filepath.Join(configPath, "rules"), proxy.Load),
+		hostTrie:       newHostTrie(configuration.DataDir.Load(), listConfig.HostIndexDisk),
+		processTrie:    newProcessTrie(),
 	}
 	l.hostTrieDisk.Store(listConfig.HostIndexDisk)
 
@@ -261,6 +274,10 @@ func NewLists(lists RouteListBook, settings RouteListSettingsBook, configPath st
 }
 
 func (s *Lists) notifyRefreshHostTrie() {
+	if schedule := s.scheduleCoordinator.Load(); schedule != nil {
+		(*schedule)()
+		return
+	}
 	s.hostTrieRefreshVersion.Add(1)
 	s.hostTrieRefreshAt.Store(time.Now().Add(time.Minute).UnixMilli())
 	s.hostTrieRefreshTimerMu.Lock()
@@ -282,7 +299,10 @@ func (s *Lists) refreshHostTrieAndMarkApplied() {
 	}
 }
 
-func (s *Lists) ApplyListChangesNow() {
+func (s *Lists) ApplyListChangesNow() error {
+	if apply := s.applyCoordinator.Load(); apply != nil {
+		return (*apply)(context.Background())
+	}
 	s.hostTrieRefreshVersion.Add(1)
 	s.hostTrieRefreshTimerMu.Lock()
 	if s.hostTrieRefreshTimer != nil {
@@ -290,9 +310,14 @@ func (s *Lists) ApplyListChangesNow() {
 	}
 	s.hostTrieRefreshTimerMu.Unlock()
 	s.refreshHostTrieAndMarkApplied()
+	return nil
 }
 
 func (s *Lists) ApplyListChanges() {
+	if schedule := s.scheduleCoordinator.Load(); schedule != nil {
+		(*schedule)()
+		return
+	}
 	s.refreshProcessTrie()
 	s.notifyRefreshHostTrie()
 }
@@ -308,6 +333,9 @@ func (s *Lists) LoadGeoip() *maxminddb.MaxMindDB {
 
 	if g != nil {
 		return g.m
+	}
+	if s.applyCoordinator.Load() != nil {
+		return nil
 	}
 
 	s.geoipmu.Lock()
@@ -353,13 +381,14 @@ func (s *Lists) resetRefreshInterval(minute uint64) {
 	s.tickermu.Lock()
 	defer s.tickermu.Unlock()
 
+	version := s.tickerVersion.Add(1)
 	if s.ticker != nil {
 		s.ticker.Stop()
 		s.ticker = nil
 		log.Info("stop lists refresh ticker")
 	}
 
-	if minute == 0 {
+	if s.closed.Load() || minute == 0 {
 		return
 	}
 
@@ -373,12 +402,14 @@ func (s *Lists) resetRefreshInterval(minute uint64) {
 	log.Info("start lists refresh ticker", "interval", interval, "min", minute)
 
 	s.ticker = time.AfterFunc(interval, func() {
-		if err := s.RefreshContract(context.Background()); err != nil {
+		if err := s.RefreshContract(s.refreshContext); err != nil {
 			log.Error("refresh lists failed", "err", err)
 		}
 
 		s.tickermu.Lock()
-		s.ticker.Reset(interval)
+		if s.tickerVersion.Load() == version && !s.closed.Load() && s.ticker != nil {
+			s.ticker.Reset(interval)
+		}
 		s.tickermu.Unlock()
 	})
 }
@@ -406,9 +437,17 @@ func (s *Lists) refreshGeoip(ctx context.Context, download string, force bool) s
 
 	var err error
 	if force {
-		err = s.downloader.Download(ctx, download, s.closeCurrentGeoip)
+		err = s.downloader.Download(ctx, download, func() {
+			if s.scheduleCoordinator.Load() == nil {
+				s.closeCurrentGeoip()
+			}
+		})
 	} else {
-		err = s.downloader.DownloadIfNotExists(ctx, download, s.closeCurrentGeoip)
+		err = s.downloader.DownloadIfNotExists(ctx, download, func() {
+			if s.scheduleCoordinator.Load() == nil {
+				s.closeCurrentGeoip()
+			}
+		})
 	}
 
 	s.geoipmu.Lock()
@@ -426,6 +465,12 @@ func (s *Lists) refreshGeoip(ctx context.Context, download string, force bool) s
 }
 
 func (s *Lists) Close() error {
+	s.closed.Store(true)
+	if s.refreshCancel != nil {
+		s.refreshCancel()
+	}
+	s.contentMu.Lock()
+	defer s.contentMu.Unlock()
 	s.hostTrieRefreshMu.Lock()
 	defer s.hostTrieRefreshMu.Unlock()
 
@@ -457,6 +502,18 @@ func (s *Lists) RefreshContract(ctx context.Context) error {
 		return fmt.Errorf("refreshing")
 	}
 	defer s.refreshing.Store(false)
+	if s.refreshContext != nil {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		stop := context.AfterFunc(s.refreshContext, cancel)
+		defer cancel()
+		defer stop()
+	}
+	s.contentMu.Lock()
+	defer s.contentMu.Unlock()
+	if s.closed.Load() {
+		return errors.New("list runtime is closed")
+	}
 
 	if s.lists == nil || s.settings == nil {
 		return nil
@@ -471,6 +528,7 @@ func (s *Lists) RefreshContract(ctx context.Context) error {
 		return err
 	}
 
+	var refreshErr error
 	errorMsgs := map[string][]string{}
 	for _, list := range lists {
 		if list.Source.Type != "remote" || list.Source.Remote == nil {
@@ -482,6 +540,7 @@ func (s *Lists) RefreshContract(ctx context.Context) error {
 			er := s.downloader.Download(ctx, url, nil)
 			cancel()
 			if er != nil {
+				refreshErr = errors.Join(refreshErr, fmt.Errorf("refresh list %q: %w", list.Name, er))
 				errorMsgs[list.Name] = append(errorMsgs[list.Name], fmt.Sprintf("%s: %s", url, er.Error()))
 				log.Error("download remote failed", "err", er, "url", url)
 			}
@@ -491,7 +550,15 @@ func (s *Lists) RefreshContract(ctx context.Context) error {
 	for _, list := range lists {
 		if nextErrors, ok := errorMsgs[list.Name]; ok {
 			list.ErrorMsgs = nextErrors
-			if err := s.lists.SaveRouteList(ctx, list, 0); err != nil {
+			var err error
+			if store, ok := s.lists.(interface {
+				UpdateRefreshErrors(context.Context, contractroute.RouteListDetail) error
+			}); ok {
+				err = store.UpdateRefreshErrors(ctx, list)
+			} else {
+				err = s.lists.SaveRouteList(ctx, list, 0)
+			}
+			if err != nil {
 				return err
 			}
 		}
@@ -500,44 +567,29 @@ func (s *Lists) RefreshContract(ctx context.Context) error {
 	settings.MaxMindDBError = s.refreshGeoip(ctx, settings.MaxMindDBDownloadURL, true)
 	settings.LastRefreshTime = uint64(time.Now().Unix())
 	settings.Error = ""
-	if err := s.settings.SaveListSettings(ctx, settings); err != nil {
-		return err
+	if settings.MaxMindDBError != "" {
+		refreshErr = errors.Join(refreshErr, fmt.Errorf("refresh GeoIP: %s", settings.MaxMindDBError))
+	}
+	if refreshErr != nil {
+		settings.Error = refreshErr.Error()
+	}
+	var saveErr error
+	if store, ok := s.settings.(interface {
+		RecordRefresh(context.Context, RouteListSettings) error
+	}); ok {
+		saveErr = store.RecordRefresh(ctx, settings)
+	} else {
+		saveErr = s.settings.SaveListSettings(ctx, settings)
+	}
+	if saveErr != nil {
+		return saveErr
 	}
 
 	s.notifyRefreshHostTrie()
-	s.refreshProcessTrie()
-	return nil
-}
-
-func (s *Lists) SaveContractConfig(ctx context.Context, req contractroute.ListConfig, refreshInterval uint64) error {
-	if s.settings == nil {
-		return nil
+	if s.scheduleCoordinator.Load() == nil {
+		s.refreshProcessTrie()
 	}
-	settings, err := s.settings.ListSettings(ctx)
-	if err != nil {
-		return err
-	}
-	if refreshInterval != settings.RefreshInterval {
-		s.resetRefreshInterval(refreshInterval)
-	}
-	settings.RefreshInterval = refreshInterval
-	hostIndexDiskChanged := settings.HostIndexDisk != req.HostIndexDisk
-	settings.HostIndexDisk = req.HostIndexDisk
-	if settings.MaxMindDBDownloadURL != req.MaxMindDBGeoIP.DownloadURL {
-		settings.MaxMindDBDownloadURL = req.MaxMindDBGeoIP.DownloadURL
-		// The database is downloaded by RefreshContract, not while saving config.
-		settings.MaxMindDBError = ""
-	}
-	settings.Error = ""
-	if err := s.settings.SaveListSettings(ctx, settings); err != nil {
-		return err
-	}
-	if hostIndexDiskChanged {
-		// Switching storage requires rebuilding the current index in the new backend.
-		s.hostTrieDisk.Store(settings.HostIndexDisk)
-		s.refreshHostTrieAndMarkApplied()
-	}
-	return nil
+	return refreshErr
 }
 
 func (s *Lists) SetProxy(proxy netapi.Proxy) { s.proxy.Store(proxy) }
@@ -551,6 +603,11 @@ func (s *Lists) getIter(name string) (contractroute.RouteListDetail, iter.Seq[st
 		return contractroute.RouteListDetail{}, nil, err
 	}
 
+	values, err := s.values(rules)
+	return rules, values, err
+}
+
+func (s *Lists) values(rules contractroute.RouteListDetail) (iter.Seq[string], error) {
 	var iter iter.Seq[string]
 
 	switch rules.Source.Type {
@@ -583,7 +640,7 @@ func (s *Lists) getIter(name string) (contractroute.RouteListDetail, iter.Seq[st
 		case "host", "process":
 			iter = trimRuleIter(slices.Values(values))
 		default:
-			return contractroute.RouteListDetail{}, nil, fmt.Errorf("list %s is unknown", name)
+			return nil, fmt.Errorf("list %s is unknown", rules.ID)
 		}
 
 	case "remote":
@@ -615,13 +672,13 @@ func (s *Lists) getIter(name string) (contractroute.RouteListDetail, iter.Seq[st
 		case "host", "process":
 			iter = s.getLocalCacheTrimRuleIter(urls)
 		default:
-			return contractroute.RouteListDetail{}, nil, fmt.Errorf("list %s is unknown", name)
+			return nil, fmt.Errorf("list %s is unknown", rules.ID)
 		}
 	default:
-		return contractroute.RouteListDetail{}, nil, fmt.Errorf("list %s is unknown", name)
+		return nil, fmt.Errorf("list %s is unknown", rules.ID)
 	}
 
-	return rules, iter, nil
+	return iter, nil
 }
 
 func (s *Lists) refreshHostTrie() {
@@ -674,9 +731,32 @@ func (s *Lists) HostTrie() *hostMatcher {
 // SearchHost holds the trie read lock for the whole lookup so a concurrent
 // refresh cannot close an mmap while it is being queried.
 func (s *Lists) SearchHost(ctx context.Context, addr netapi.Address) []string {
+	clone := func(values []string) []string {
+		result := make([]string, len(values))
+		for i, value := range values {
+			result[i] = strings.Clone(value)
+		}
+		return result
+	}
+	s.hostTrieMu.RLock()
+	matches := clone(s.hostTrie.trie.SearchFqdn(addr))
+	s.hostTrieMu.RUnlock()
+	if len(matches) > 0 || !addr.IsFqdn() {
+		return matches
+	}
+	ips, err := netapi.GetContext(ctx).ConnOptions().RouteIPs(ctx, addr)
+	if err != nil {
+		return nil
+	}
 	s.hostTrieMu.RLock()
 	defer s.hostTrieMu.RUnlock()
-	return s.hostTrie.Search(ctx, addr)
+	for ip := range ips.Iter() {
+		matched := s.hostTrie.trie.SearchFqdn(netapi.ParseIPAddr(addr.Network(), ip, addr.Port()))
+		if len(matched) > 0 {
+			return clone(matched)
+		}
+	}
+	return nil
 }
 
 func (s *Lists) SetHostTrie(hostTrie *hostMatcher) {
@@ -755,13 +835,6 @@ func (s *Lists) updateHostLists(fn func()) {
 	if err := old.Close(); err != nil {
 		log.Error("close host trie failed", "err", err)
 	}
-}
-
-func (s *Lists) withHostListLock(fn func()) {
-	s.hostListMu.Lock()
-	defer s.hostListMu.Unlock()
-	fn()
-	s.syncHostTrie()
 }
 
 func (s *Lists) syncHostTrie() {

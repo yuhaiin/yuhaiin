@@ -38,7 +38,8 @@ const (
 )
 
 type ModeEnum struct {
-	Tag                  string
+	config               *RouteConfig
+	target               contractroute.Target
 	resolver             string
 	mode                 Mode
 	resolveStrategy      ResolveStrategy
@@ -46,12 +47,11 @@ type ModeEnum struct {
 }
 
 func (m ModeEnum) Mode() Mode                              { return m.mode }
-func (m ModeEnum) GetTag() string                          { return m.Tag }
+func (m ModeEnum) Target() contractroute.Target            { return m.target }
 func (m ModeEnum) GetResolveStrategy() ResolveStrategy     { return m.resolveStrategy }
 func (m ModeEnum) UdpProxyFqdn() UDPProxyFQDNStrategy      { return m.udpProxyFQDNStrategy }
 func (m ModeEnum) Resolver() string                        { return m.resolver }
 func (m ModeEnum) WithResolver(resolver string) ModeEnum   { m.resolver = resolver; return m }
-func (m ModeEnum) WithTag(tag string) ModeEnum             { m.Tag = tag; return m }
 func (m ModeEnum) WithResolve(s ResolveStrategy) ModeEnum  { m.resolveStrategy = s; return m }
 func (m ModeEnum) WithUDP(s UDPProxyFQDNStrategy) ModeEnum { m.udpProxyFQDNStrategy = s; return m }
 
@@ -63,6 +63,10 @@ var (
 )
 
 type RouteConfig struct {
+	Generation           uint64
+	Revision             uint64
+	DefaultMode          string
+	DefaultTarget        contractroute.Target
 	DirectResolver       string
 	ProxyResolver        string
 	ResolveLocally       bool
@@ -71,7 +75,7 @@ type RouteConfig struct {
 
 func modeEnumFromRule(rule contractroute.RouteRule) ModeEnum {
 	return ModeEnum{
-		Tag:                  rule.Tag,
+		target:               rule.Target,
 		resolver:             rule.Resolver,
 		mode:                 parseMode(rule.Mode),
 		resolveStrategy:      parseResolveStrategy(rule.ResolveStrategy),

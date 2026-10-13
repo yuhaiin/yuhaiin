@@ -246,7 +246,7 @@ func dimensionsForConnection(info contractconnection.Connection) []telemetryDime
 		"addr":        telemetryAddr(info),
 		"outbound":    cmp.Or(info.NodeName, info.NodeID, info.Outbound),
 		"process":     info.Process,
-		"tag":         info.Tag,
+		"selector":    info.SelectorName,
 		"destination": telemetryDestination(info),
 	}
 	for _, match := range info.MatchHistory {

@@ -284,13 +284,13 @@ func (s *Service) route(ctx context.Context, host string) tools.DiagnosticCheck 
 		return failure(err)
 	}
 	status, message := "pass", "route_matched"
-	if route.Mode == "proxy" && route.Tag == "" {
+	if route.Mode == "proxy" && route.Target.ID == "" {
 		message = "route_selected_node"
 	}
 	if route.Mode == "block" {
 		status, message = "warning", "route_blocks_target"
 	}
-	return result(status, message, "mode="+route.Mode, "tag="+route.Tag, "resolver="+route.Resolver, "destination="+route.AfterAddr)
+	return result(status, message, "mode="+route.Mode, "destinationType="+route.Target.Type, "destinationId="+route.Target.ID, "resolver="+route.Resolver, "destination="+route.AfterAddr)
 }
 
 func findings(checks []tools.DiagnosticCheck) []string {

@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"iter"
 	"math"
 	"slices"
 	"strconv"
@@ -12,13 +11,11 @@ import (
 	"sync"
 
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
-
-func startMatch(store *netapi.Context, ruleName string) {
-	store.NewMatch(ruleName)
-}
 
 func recordMatch(store *netapi.Context, listName string, matched bool) {
 	store.AddMatchHistory(listName, matched)
@@ -48,14 +45,14 @@ func NewInbound(inbounds ...string) *Inbound {
 
 func (s *Inbound) Match(ctx context.Context, addr netapi.Address) bool {
 	store := netapi.GetContext(ctx)
-	inbound := store.GetInboundName()
+	inbound := cmp.Or(store.GetInboundID(), store.GetInboundName())
 	if inbound != "" {
 		ok := s.store.Has(inbound)
-		recordMatch(store, inbound, ok)
+		store.AddConditionHistory("inbound", inbound, cmp.Or(store.GetInboundName(), inbound), ok)
 		return ok
 	}
 
-	recordMatch(store, inbound, false)
+	store.AddConditionHistory("inbound", inbound, cmp.Or(store.GetInboundName(), inbound), false)
 	return false
 }
 
@@ -94,17 +91,22 @@ func NewPort(ports string) *Port {
 		set: set.NewSet[uint16](),
 	}
 
-	for v := range strings.SplitSeq(ports, ",") {
-		v = strings.TrimSpace(v)
-		if v == "" {
+	for part := range strings.SplitSeq(ports, ",") {
+		start, end, isRange := strings.Cut(strings.TrimSpace(part), "-")
+		first, err := strconv.ParseUint(start, 10, 16)
+		if err != nil || first == 0 {
 			continue
 		}
-
-		port, err := strconv.ParseUint(v, 10, 16)
-		if err != nil {
-			continue
+		last := first
+		if isRange {
+			last, err = strconv.ParseUint(end, 10, 16)
+			if err != nil || last < first {
+				continue
+			}
 		}
-		p.set.Push(uint16(port))
+		for port := first; port <= last; port++ {
+			p.set.Push(uint16(port))
+		}
 	}
 
 	return p
@@ -190,22 +192,26 @@ func (s *Or) Match(ctx context.Context, addr netapi.Address) bool {
 }
 
 type MatchEntry struct {
+	id      string
 	matcher Matcher
 	name    string
 	mode    ModeEnum
 }
 
 type Matchers struct {
-	list     *Lists
-	tags     *set.Set[string]
-	matchers []MatchEntry
-	mu       sync.RWMutex
+	listNames      map[string]string
+	list           *Lists
+	matchers       []MatchEntry
+	mu             sync.RWMutex
+	applyMu        sync.Mutex
+	generation     uint64
+	runtimeConfig  *RouteConfig
+	prepareContext func(context.Context, *RouteConfig)
 }
 
 func NewMatchers(list *Lists) *Matchers {
 	return &Matchers{
 		list: list,
-		tags: set.NewSet[string](),
 	}
 }
 
@@ -215,83 +221,126 @@ func (s *Matchers) appendRule(matchers []MatchEntry, r contractroute.RouteRule) 
 	}
 
 	matchers = append(matchers, MatchEntry{
+		id:      r.ID,
 		mode:    modeEnumFromRule(r),
-		matcher: ParseMatcher(s.list, r),
+		matcher: ParseMatcher(r),
 		name:    r.Name,
 	})
-
-	if tag := r.Tag; tag != "" {
-		s.tags.Push(tag)
-	}
 
 	return matchers
 }
 
-func (s *Matchers) Add(rule ...contractroute.RouteRule) {
-	matchers := make([]MatchEntry, 0, len(rule))
-
-	s.list.withHostListLock(func() {
-		for _, r := range rule {
-			matchers = s.appendRule(matchers, r)
-		}
-	})
-
-	s.mu.Lock()
-	s.matchers = append(s.matchers, matchers...)
-	s.mu.Unlock()
+func (s *Matchers) Update(rules ...contractroute.RouteRule) error {
+	return s.UpdateContext(context.Background(), rules...)
 }
 
-func (s *Matchers) ChangePriority(source int, target int, operate string) {
-	s.mu.Lock()
-	switch operate {
-	case "", "exchange":
-		src := s.matchers[source]
-		dst := s.matchers[target]
-		s.matchers[source] = dst
-		s.matchers[target] = src
-	case "insert_before":
-		s.matchers = InsertBefore(s.matchers, source, target)
-	case "insert_after":
-		s.matchers = InsertAfter(s.matchers, source, target)
+func (s *Matchers) UpdateContext(ctx context.Context, rules ...contractroute.RouteRule) error {
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
+	prepared, err := s.list.prepareRules(ctx, rules)
+	if err != nil {
+		return err
 	}
-	s.mu.Unlock()
+	var ms []MatchEntry
+	for _, rule := range rules {
+		ms = s.appendRule(ms, rule)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.list.installPrepared(prepared)
+	s.matchers = ms
+	s.listNames = prepared.names
+	s.generation++
+	return nil
 }
 
-func (s *Matchers) Update(rules ...contractroute.RouteRule) {
-	var ms []MatchEntry
-
-	s.tags.Clear()
-	s.list.ResetProcessTrie()
-
-	s.list.updateHostLists(func() {
-		for _, v := range rules {
-			ms = s.appendRule(ms, v)
+func (s *Matchers) UpdateSnapshot(ctx context.Context, snapshot plainstore.RouteSnapshot, activate func(context.Context, uint64, func()) error, config *RouteConfig, publish func()) error {
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
+	prepared, err := s.list.prepareSnapshot(ctx, snapshot)
+	if err != nil {
+		return err
+	}
+	installed := false
+	defer func() {
+		if !installed && prepared != nil {
+			prepared.close()
 		}
+	}()
+	var entries []MatchEntry
+	for _, entry := range snapshot.Rules {
+		entries = s.appendRule(entries, entry.Rule)
+	}
+	return activate(ctx, snapshot.Revision, func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.list.installPrepared(prepared)
+		s.matchers = entries
+		s.listNames = prepared.names
+		s.runtimeConfig = config
+		publish()
+		s.generation++
+		installed = true
 	})
-
-	s.mu.Lock()
-	s.matchers = ms
-	s.mu.Unlock()
 }
 
 func (s *Matchers) Match(ctx context.Context, addr netapi.Address) ModeEnum {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	store := netapi.GetContext(ctx)
-
-	for _, v := range s.matchers {
-		startMatch(store, v.name)
-		if v.matcher.Match(ctx, addr) {
-			return v.mode
+	for {
+		if ctx.Err() != nil {
+			return ProxyMode
 		}
+		s.mu.RLock()
+		generation, matchers, config := s.generation, s.matchers, s.runtimeConfig
+		s.mu.RUnlock()
+		if config != nil && s.prepareContext != nil {
+			s.prepareContext(ctx, config)
+		}
+		state := netapi.GetContext(ctx)
+		if geo := s.list.LoadGeoip(); geo != nil {
+			state.SetGeo("")
+			if country, err := geo.LookupAddr(ctx, addr); err == nil {
+				state.SetGeo(country)
+				metrics.Counter.AddGeoCountry(country)
+			}
+			state.ConnOptions().SetMaxminddb(geo)
+		} else if state.ConnOptions().Maxminddb() != nil {
+			state.SetGeo("")
+			state.ConnOptions().SetMaxminddb(nil)
+		}
+		// Resolving an address may route a DNS connection recursively. Do not
+		// hold the rule or index lock across resolver calls.
+		hosts := s.list.SearchHost(ctx, addr)
+		processes := s.list.ProcessTrie().Search(ctx, addr)
+		s.mu.RLock()
+		if generation != s.generation {
+			s.mu.RUnlock()
+			continue
+		}
+		store := netapi.GetContext(ctx)
+		store.SetMatchedRule("", "")
+		store.ConnOptions().SetMatchedLists(nil, s.listNames)
+		store.ConnOptions().AddLists(hosts...).AddLists(processes...)
+		for _, entry := range matchers {
+			store.NewRuleMatch(entry.id, entry.name)
+			if entry.matcher.Match(ctx, addr) {
+				store.SetMatchedRule(entry.id, entry.name)
+				s.mu.RUnlock()
+				mode := entry.mode
+				mode.config = config
+				return mode
+			}
+		}
+		s.mu.RUnlock()
+		mode := ProxyMode
+		if config != nil {
+			mode = modeEnumFromRule(contractroute.RouteRule{Mode: config.DefaultMode, Target: config.DefaultTarget})
+			if mode.mode.Unspecified() {
+				mode.mode = ModeProxy
+			}
+			mode.config = config
+		}
+		return mode
 	}
-
-	return ProxyMode
-}
-
-func (s *Matchers) Tags() iter.Seq[string] {
-	return s.tags.Range
 }
 
 type List string
@@ -300,11 +349,11 @@ func (s List) Match(ctx context.Context, addr netapi.Address) bool {
 	store := netapi.GetContext(ctx)
 
 	if store.ConnOptions().HasList(string(s)) {
-		recordMatch(store, fmt.Sprintf("List %s", string(s)), true)
+		store.AddConditionHistory("list", string(s), store.ConnOptions().ListName(string(s)), true)
 		return true
 	}
 
-	recordMatch(store, fmt.Sprintf("List %s", string(s)), false)
+	store.AddConditionHistory("list", string(s), store.ConnOptions().ListName(string(s)), false)
 	return false
 }
 
@@ -312,64 +361,80 @@ func (s List) String() string {
 	return string(s)
 }
 
-func ParseMatcher(lists *Lists, cc contractroute.RouteRule) Matcher {
-	matchers := make([]Matcher, 0, len(cc.Rules))
+// ParseMatcher compiles boolean expressions only. List owns all matching
+// data and index preparation; a List matcher only reads the match context.
+func ParseMatcher(cc contractroute.RouteRule) Matcher {
+	children := make([]Matcher, 0, len(cc.Rules))
 	for _, expr := range cc.Rules {
-		andMatchers := make([]Matcher, 0)
-		for _, rule := range sortRule(flattenRuleExpr(expr)) {
-			switch rule.Type {
-			case "host":
-				if rule.Host != nil {
-					andMatchers = append(andMatchers, List(rule.Host.List))
-					lists.addNewHostListLocked(rule.Host.List)
-				}
-			case "process":
-				if rule.Process != nil {
-					andMatchers = append(andMatchers, List(rule.Process.List))
-					lists.AddNewProcessList(rule.Process.List)
-				}
-			case "inbound":
-				if rule.Inbound != nil {
-					names := append([]string(nil), rule.Inbound.Names...)
-					if rule.Inbound.Name != "" {
-						names = append(names, rule.Inbound.Name)
-					}
-					andMatchers = append(andMatchers, NewInbound(names...))
-				}
-			case "network":
-				if rule.Network != nil {
-					andMatchers = append(andMatchers, NewNetwork(rule.Network.Network))
-				}
-			case "port":
-				if rule.Port != nil {
-					andMatchers = append(andMatchers, NewPort(rule.Port.Ports))
-				}
-			case "geoip":
-				if rule.GeoIP != nil {
-					andMatchers = append(andMatchers, NewGeoip(rule.GeoIP.Countries))
-				}
-			}
-		}
-
-		if len(andMatchers) == 1 {
-			matchers = append(matchers, andMatchers[0])
-		} else {
-			matchers = append(matchers, NewAnd(andMatchers...))
-		}
+		children = append(children, parseCondition(expr))
 	}
-
-	if len(matchers) == 1 {
-		return matchers[0]
-	}
-
-	return NewOr(cc.Name, matchers...)
+	return NewOr(cc.Name, children...)
 }
 
-func flattenRuleExpr(expr contractroute.RuleExpr) []contractroute.RuleExpr {
-	if expr.Type == "all" {
-		return expr.All
+type constantMatcher bool
+
+func (m constantMatcher) Match(context.Context, netapi.Address) bool { return bool(m) }
+
+type notMatcher struct{ child Matcher }
+
+func (m notMatcher) Match(ctx context.Context, addr netapi.Address) bool {
+	return !m.child.Match(ctx, addr)
+}
+
+func parseCondition(expr contractroute.RuleExpr) Matcher {
+	switch expr.Type {
+	case "always":
+		return constantMatcher(true)
+	case "all", "any":
+		exprs := expr.All
+		if expr.Type == "any" {
+			exprs = expr.Any
+		}
+		if len(exprs) == 0 {
+			return constantMatcher(false)
+		}
+		children := make([]Matcher, 0, len(exprs))
+		for _, child := range sortRule(slices.Clone(exprs)) {
+			children = append(children, parseCondition(child))
+		}
+		if expr.Type == "all" {
+			return NewAnd(children...)
+		}
+		return NewOr("", children...)
+	case "not":
+		if expr.Not != nil {
+			return notMatcher{parseCondition(*expr.Not)}
+		}
+	case "host":
+		if expr.Host != nil {
+			return List(expr.Host.List)
+		}
+	case "process":
+		if expr.Process != nil {
+			return List(expr.Process.List)
+		}
+	case "inbound":
+		if expr.Inbound != nil {
+			names := slices.Clone(expr.Inbound.Names)
+			if expr.Inbound.Name != "" {
+				names = append(names, expr.Inbound.Name)
+			}
+			return NewInbound(names...)
+		}
+	case "network":
+		if expr.Network != nil {
+			return NewNetwork(expr.Network.Network)
+		}
+	case "port":
+		if expr.Port != nil {
+			return NewPort(expr.Port.Ports)
+		}
+	case "geoip":
+		if expr.GeoIP != nil {
+			return NewGeoip(expr.GeoIP.Countries)
+		}
 	}
-	return []contractroute.RuleExpr{expr}
+	return constantMatcher(false)
 }
 
 func sortRule(rules []contractroute.RuleExpr) []contractroute.RuleExpr {

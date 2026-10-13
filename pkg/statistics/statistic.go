@@ -364,6 +364,8 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 
 	outbound, outboundGeo := getRemote(conn, nc.ConnOptions().Maxminddb())
 
+	selectorID, selectorName := nc.Selector()
+	ruleID, ruleName := nc.MatchedRule()
 	connection := contractconnection.Connection{
 		ID:          formatUint64(id),
 		Addr:        getRealAddr(nc, addr),
@@ -371,6 +373,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		Source:      stringerValue(nc.Source),
 		Inbound:     stringerValue(nc.GetInbound()),
 		InboundName: nc.GetInboundName(),
+		InboundID:   nc.GetInboundID(),
 		Interface:   nc.GetInterface(),
 		Outbound:    outbound,
 		LocalAddr:   getLocal(conn),
@@ -378,9 +381,10 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		FakeIP:      stringerValue(nc.GetFakeIP()),
 		Hosts:       stringerValue(nc.GetHosts()),
 
-		Domain:       nc.GetDomainString(),
-		IP:           nc.GetIPString(),
-		Tag:          nc.GetTag(),
+		Domain:     nc.GetDomainString(),
+		IP:         nc.GetIPString(),
+		SelectorID: selectorID, SelectorName: selectorName,
+		RuleID: ruleID, RuleName: ruleName,
 		NodeID:       nc.Hash,
 		NodeName:     nc.NodeName,
 		Protocol:     nc.GetProtocol(),
@@ -397,6 +401,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		Component:     nc.GetComponent(),
 		MatchHistory:  nc.MatchHistory(),
 		Resolver:      resolverName(nc.ConnOptions().Resolver().Resolver()),
+		ListNames:     nc.ConnOptions().MatchedListNames(),
 		Lists:         nc.ConnOptions().Lists()}
 
 	if conn != nil {

@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand/v2"
 	"net"
 	"net/url"
 	"slices"
@@ -13,6 +12,7 @@ import (
 	"sync"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -97,11 +97,6 @@ func (r *NodeRuntime) Save(ctx context.Context, node contractnode.Node) (contrac
 }
 
 func (r *NodeRuntime) ReplaceRemoteContractNodes(ctx context.Context, group string, points []contractnode.Node) error {
-	for _, point := range points {
-		if point.ID != "" {
-			r.proxies.Delete(point.ID)
-		}
-	}
 	nodes, err := r.openNodes(ctx)
 	if err != nil {
 		return err
@@ -109,11 +104,19 @@ func (r *NodeRuntime) ReplaceRemoteContractNodes(ctx context.Context, group stri
 	if err := nodes.ReplaceRemote(ctx, group, points, 0); err != nil {
 		return err
 	}
+	configured, err := nodes.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, node := range configured {
+		if node.Origin == "remote" && node.Group == group {
+			r.proxies.Delete(node.ID)
+		}
+	}
 	return r.clearIdleProxies(ctx, nodes)
 }
 
 func (r *NodeRuntime) Remove(ctx context.Context, id string) error {
-	r.proxies.Delete(id)
 	nodes, err := r.openNodes(ctx)
 	if err != nil {
 		return err
@@ -121,37 +124,20 @@ func (r *NodeRuntime) Remove(ctx context.Context, id string) error {
 	if err := nodes.Delete(ctx, id); err != nil && !errors.Is(err, plainstore.ErrNotFound) {
 		return err
 	}
+	r.proxies.Delete(id)
 	return r.clearIdleProxies(ctx, nodes)
 }
 
 func (r *NodeRuntime) Use(ctx context.Context, id string) error {
-	nodes, err := r.openNodes(ctx)
-	if err != nil {
-		return err
-	}
-	if err := nodes.Use(ctx, id); err != nil {
-		return err
-	}
-	return r.clearIdleProxies(ctx, nodes)
+	return r.Select(ctx, contractnode.SelectionRequest{TCPID: id, UDPID: id})
 }
 
-func (r *NodeRuntime) AddContractTag(ctx context.Context, tag, kind, target string) error {
+func (r *NodeRuntime) Select(ctx context.Context, selection contractnode.SelectionRequest) error {
 	nodes, err := r.openNodes(ctx)
 	if err != nil {
 		return err
 	}
-	if err := nodes.AddTag(ctx, tag, kind, target); err != nil {
-		return err
-	}
-	return r.clearIdleProxies(ctx, nodes)
-}
-
-func (r *NodeRuntime) DeleteTag(ctx context.Context, tag string) error {
-	nodes, err := r.openNodes(ctx)
-	if err != nil {
-		return err
-	}
-	if err := nodes.DeleteTag(ctx, tag); err != nil {
+	if err := nodes.Select(ctx, selection); err != nil {
 		return err
 	}
 	return r.clearIdleProxies(ctx, nodes)
@@ -195,22 +181,7 @@ func (r *NodeRuntime) Selected(ctx context.Context) (contractnode.Selection, err
 	if err != nil {
 		return contractnode.Selection{}, err
 	}
-	tcp, tcpOK, err := nodes.Selected(ctx, true)
-	if err != nil {
-		return contractnode.Selection{}, err
-	}
-	udp, udpOK, err := nodes.Selected(ctx, false)
-	if err != nil {
-		return contractnode.Selection{}, err
-	}
-	var out contractnode.Selection
-	if tcpOK {
-		out.TCP = &tcp
-	}
-	if udpOK {
-		out.UDP = &udp
-	}
-	return out, nil
+	return nodes.Selection(ctx)
 }
 
 func (r *NodeRuntime) Active(context.Context) ([]contractnode.Node, error) {
@@ -306,7 +277,10 @@ func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.L
 
 func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node contractnode.Node) (netapi.Proxy, error) {
 	if id == "" {
-		return nil, fmt.Errorf("hash is empty")
+		return nil, fmt.Errorf("node ID is empty")
+	}
+	if !node.Enabled {
+		return nil, fmt.Errorf("node %q is disabled", node.Name)
 	}
 	switch node.IPVersion {
 	case "", contractnode.IPVersionAuto, contractnode.IPVersionIPv4, contractnode.IPVersionIPv6:
@@ -329,28 +303,36 @@ func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node con
 	return proxy, nil
 }
 
-func (r *NodeRuntime) Get(ctx context.Context, network, mode, tag string) (netapi.Proxy, error) {
-	connection := netapi.GetContext(ctx)
-	if tag != "" {
-		connection.SetTag(tag)
-		id, err := r.tagConn(ctx, tag)
-		if err != nil {
-			return nil, err
-		}
-		if id != "" {
-			if proxy, err := r.GetDialerByID(ctx, id); err == nil {
-				return proxy, nil
-			}
-		}
-	}
-
-	switch mode {
-	case "direct":
+func (r *NodeRuntime) GetTarget(ctx context.Context, network, mode string, target contractroute.Target) (netapi.Proxy, error) {
+	if mode == "direct" {
 		return direct.Default, nil
-	case "block":
+	}
+	if mode == "block" {
 		metrics.Counter.AddBlockConnection(mode)
 		return reject.Default, nil
 	}
+	switch target.Type {
+	case "", "default":
+		return r.selected(ctx, network)
+	case "node":
+		return r.GetDialerByID(ctx, target.ID)
+	case "selector":
+		nodes, err := r.openNodes(ctx)
+		if err != nil {
+			return nil, err
+		}
+		selector, err := nodes.Selector(ctx, target.ID)
+		if err != nil {
+			return nil, err
+		}
+		netapi.GetContext(ctx).SetSelector(selector.ID, selector.Name)
+		return r.GetDialerByID(ctx, selector.NodeID)
+	default:
+		return nil, fmt.Errorf("unknown destination type %q", target.Type)
+	}
+}
+
+func (r *NodeRuntime) selected(ctx context.Context, network string) (netapi.Proxy, error) {
 	if len(network) < 3 {
 		return nil, fmt.Errorf("invalid network: %s", network)
 	}
@@ -389,30 +371,6 @@ func (r *NodeRuntime) GetDialerByID(ctx context.Context, id string) (netapi.Prox
 		return nil, err
 	}
 	return r.getContractDialer(ctx, id, node)
-}
-
-func (r *NodeRuntime) tagConn(ctx context.Context, tag string) (string, error) {
-	nodes, err := r.openNodes(ctx)
-	if err != nil {
-		return "", err
-	}
-	for {
-		value, ok, err := nodes.GetTag(ctx, tag)
-		if err != nil {
-			return "", err
-		}
-		if !ok || len(value.TargetIDs) == 0 {
-			return "", nil
-		}
-		if value.Kind == "mirror" {
-			if tag == value.TargetIDs[0] {
-				return "", nil
-			}
-			tag = value.TargetIDs[0]
-			continue
-		}
-		return value.TargetIDs[rand.IntN(len(value.TargetIDs))], nil
-	}
 }
 
 type latencyDialer struct {

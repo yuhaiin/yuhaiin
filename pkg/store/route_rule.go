@@ -67,7 +67,7 @@ func (s *RouteRuleStore) GetRule(ctx context.Context, name string) (RouteRuleEnt
 	err := s.db.QueryRowContext(ctx, `
 		SELECT priority, data_json
 		FROM route_rules_v2
-		WHERE name = ?
+		WHERE id = ?
 	`, name).Scan(&priority, &dataJSON)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
@@ -121,7 +121,7 @@ func (s *RouteRuleStore) DeleteRule(ctx context.Context, name string) error {
 		return fmt.Errorf("begin route rule delete transaction failed: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	res, err := tx.ExecContext(ctx, `DELETE FROM route_rules_v2 WHERE name = ?`, name)
+	res, err := tx.ExecContext(ctx, `DELETE FROM route_rules_v2 WHERE id = ?`, name)
 	if err != nil {
 		return fmt.Errorf("delete route rule %q failed: %w", name, err)
 	}
@@ -153,10 +153,10 @@ func (s *RouteRuleStore) ChangePriority(ctx context.Context, sourceName, targetN
 	}
 	sourceIndex, targetIndex := -1, -1
 	for i, entry := range entries {
-		if entry.Rule.Name == sourceName {
+		if entry.Rule.ID == sourceName {
 			sourceIndex = i
 		}
-		if entry.Rule.Name == targetName {
+		if entry.Rule.ID == targetName {
 			targetIndex = i
 		}
 	}
@@ -175,7 +175,7 @@ func (s *RouteRuleStore) ChangePriority(ctx context.Context, sourceName, targetN
 		entries = append(entries[:sourceIndex], entries[sourceIndex+1:]...)
 		targetIndex = -1
 		for i, entry := range entries {
-			if entry.Rule.Name == targetName {
+			if entry.Rule.ID == targetName {
 				targetIndex = i
 				break
 			}
@@ -220,7 +220,7 @@ func SaveRouteRuleContract(ctx context.Context, execer interface {
 		matchType = "all"
 	}
 	if _, err := execer.ExecContext(ctx, `
-		INSERT INTO route_rules_v2(id, name, priority, disabled, action_mode, match_type, tag, updated_at, data_json)
+		INSERT INTO route_rules_v2(id, name, priority, disabled, action_mode, match_type, revision, updated_at, data_json)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
@@ -228,10 +228,10 @@ func SaveRouteRuleContract(ctx context.Context, execer interface {
 			disabled = excluded.disabled,
 			action_mode = excluded.action_mode,
 			match_type = excluded.match_type,
-			tag = excluded.tag,
+			revision = excluded.revision,
 			updated_at = excluded.updated_at,
 			data_json = excluded.data_json
-	`, rule.Name, rule.Name, priority, boolToInt(rule.Disabled), rule.Mode, matchType, rule.Tag, updatedAt, string(dataJSON)); err != nil {
+	`, rule.ID, rule.Name, priority, boolToInt(rule.Disabled), rule.Mode, matchType, rule.Revision, updatedAt, string(dataJSON)); err != nil {
 		return fmt.Errorf("upsert route rule %q failed: %w", rule.Name, err)
 	}
 	return nil
@@ -270,12 +270,12 @@ func listRouteRulesTx(ctx context.Context, q interface {
 
 func rewriteRouteRuleOrderTx(ctx context.Context, tx *sql.Tx, entries []RouteRuleEntry) error {
 	for i, entry := range entries {
-		if _, err := tx.ExecContext(ctx, `UPDATE route_rules_v2 SET priority = ? WHERE name = ?`, -(i + 1), entry.Rule.Name); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE route_rules_v2 SET priority = ? WHERE id = ?`, -(i + 1), entry.Rule.ID); err != nil {
 			return fmt.Errorf("stage route rule %q priority failed: %w", entry.Rule.Name, err)
 		}
 	}
 	for i, entry := range entries {
-		if _, err := tx.ExecContext(ctx, `UPDATE route_rules_v2 SET priority = ? WHERE name = ?`, i+1, entry.Rule.Name); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE route_rules_v2 SET priority = ? WHERE id = ?`, i+1, entry.Rule.ID); err != nil {
 			return fmt.Errorf("update route rule %q priority failed: %w", entry.Rule.Name, err)
 		}
 	}
@@ -304,9 +304,15 @@ func decodeRouteRule(dataJSON string) (contractroute.RouteRule, error) {
 
 func normalizeRouteRule(rule contractroute.RouteRule) contractroute.RouteRule {
 	rule.Name = strings.TrimSpace(rule.Name)
-	rule.Tag = strings.TrimSpace(rule.Tag)
+	rule.ID = strings.TrimSpace(rule.ID)
+	if rule.ID == "" {
+		rule.ID = rule.Name
+	}
+	if rule.Revision == 0 {
+		rule.Revision = 1
+	}
 	if strings.TrimSpace(rule.Mode) == "" {
-		rule.Mode = "bypass"
+		rule.Mode = "proxy"
 	}
 	return rule
 }

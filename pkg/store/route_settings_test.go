@@ -29,6 +29,9 @@ func TestRouteSettingsStoreSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	input.Revision = 1
+	input.DefaultMode = "proxy"
+	input.DefaultTarget.Type = "default"
 	if got != input {
 		t.Fatalf("settings = %+v, want %+v", got, input)
 	}

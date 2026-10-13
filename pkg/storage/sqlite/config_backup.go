@@ -34,7 +34,7 @@ type ConfigBackupTable struct {
 var configBackupTables = []string{
 	"settings_kv", "settings_json", "android_extra_preferences",
 	"dns_settings", "dns_hosts", "dns_fakedns_lists", "dns_resolvers", "resolvers_v2",
-	"inbound_settings", "inbounds", "inbounds_v2", "nodes", "nodes_v2", "node_tags", "node_tags_v2",
+	"inbound_settings", "inbounds", "inbounds_v2", "nodes", "nodes_v2", "node_tags", "outbound_selectors",
 	"subscriptions", "publishes", "route_settings", "route_rules", "route_rules_v2",
 	"route_lists", "route_list_refresh", "route_lists_v2", "route_registries", "backup_settings", "metadata",
 }

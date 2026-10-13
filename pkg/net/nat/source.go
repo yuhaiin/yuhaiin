@@ -262,6 +262,7 @@ func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
 		store.Source = pkt.Src()
 		store.Destination = pkt.Dst()
 		store.SetInboundName(pkt.InboundName())
+		store.SetInboundID(pkt.InboundID())
 		store.ConnOptions().SetIsUdp(true)
 
 		if u.sniffer != nil {

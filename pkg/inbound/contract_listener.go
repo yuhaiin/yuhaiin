@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -38,6 +39,9 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+	if !slices.Contains(Capabilities().Protocols, config.Protocol.Type) {
+		return nil, fmt.Errorf("inbound protocol %q is not supported on %s", config.Protocol.Type, Capabilities().Platform)
+	}
 
 	if config.Protocol.Type == contract.ProtocolHysteria2 {
 		return listenHysteria2(config, handler)
@@ -58,6 +62,18 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 	if err != nil {
 		return nil, err
 	}
+	if binder, ok := lis.(interface{ Bind() error }); ok {
+		if err := binder.Bind(); err != nil {
+			closeIfNotNil(lis)
+			return nil, fmt.Errorf("bind inbound listener: %w", err)
+		}
+	}
+	var bindings []contract.RuntimeListener
+	if bound, ok := lis.(interface{ BoundAddresses() []net.Addr }); ok {
+		for _, address := range bound.BoundAddresses() {
+			bindings = append(bindings, contract.RuntimeListener{Kind: address.Network(), Listen: address.String()})
+		}
+	}
 	for _, transport := range config.Transports {
 		lis, err = contractTransport(transport, lis)
 		if err != nil {
@@ -71,7 +87,19 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 		closeIfNotNil(lis)
 		return nil, err
 	}
+	if len(bindings) > 0 {
+		return &boundAccepter{Accepter: server, bindings: bindings}, nil
+	}
 	return server, nil
+}
+
+type boundAccepter struct {
+	netapi.Accepter
+	bindings []contract.RuntimeListener
+}
+
+func (s *boundAccepter) listenerBindings() []contract.RuntimeListener {
+	return slices.Clone(s.bindings)
 }
 
 func contractNetwork(config contract.Inbound) (netapi.Listener, error) {

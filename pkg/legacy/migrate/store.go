@@ -9,9 +9,9 @@ import (
 	"time"
 
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
-	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	legacyconfig "github.com/Asutorufa/yuhaiin/pkg/legacy/schema/config"
 	legacynode "github.com/Asutorufa/yuhaiin/pkg/legacy/schema/node"
+	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
@@ -375,7 +375,7 @@ func MigrateLegacyRouteLists(ctx context.Context, db *sql.DB, updatedAt int64) e
 	return nil
 }
 
-func MigrateLegacyRouteTags(ctx context.Context, db *sql.DB, updatedAt int64) error {
+func MigrateLegacyRouteTags(ctx context.Context, db *sql.DB, _ int64) error {
 	done, err := loadMigrationMarker(ctx, db, "plain_route_tags_migration_done")
 	if err != nil {
 		return err
@@ -383,17 +383,11 @@ func MigrateLegacyRouteTags(ctx context.Context, db *sql.DB, updatedAt int64) er
 	if done == "1" {
 		return nil
 	}
-	if updatedAt == 0 {
-		updatedAt = time.Now().Unix()
-	}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tag migration transaction failed: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `DELETE FROM node_tags_v2`); err != nil {
-		return fmt.Errorf("clear tag contracts failed: %w", err)
-	}
 	rows, err := tx.QueryContext(ctx, `
 		SELECT tag_name, target_kind, target_id
 		FROM node_tags
@@ -404,15 +398,15 @@ func MigrateLegacyRouteTags(ctx context.Context, db *sql.DB, updatedAt int64) er
 	}
 	defer rows.Close()
 
-	tags := map[string]contractroute.TagItem{}
+	tags := map[string]storagesqlite.LegacyRouteBinding{}
 	for rows.Next() {
 		var name, kind, target string
 		if err := rows.Scan(&name, &kind, &target); err != nil {
 			return fmt.Errorf("scan legacy node tag failed: %w", err)
 		}
 		item := tags[name]
-		if item.Name == "" {
-			item = contractroute.TagItem{Name: name, Type: "node"}
+		if item.Type == "" {
+			item.Type = "node"
 		}
 		if kind == "tag" {
 			item.Type = "mirror"
@@ -423,10 +417,11 @@ func MigrateLegacyRouteTags(ctx context.Context, db *sql.DB, updatedAt int64) er
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("iterate legacy node tags failed: %w", err)
 	}
-	for _, item := range tags {
-		if err := plainstore.SaveRouteTagContract(ctx, tx, item, updatedAt); err != nil {
-			return err
-		}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if err := storagesqlite.UpgradeRouteSelectors(ctx, tx, tags); err != nil {
+		return err
 	}
 	if err := markMigrationDone(ctx, tx, "plain_route_tags_migration_done"); err != nil {
 		return fmt.Errorf("mark tag migration done failed: %w", err)

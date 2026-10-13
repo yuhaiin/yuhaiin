@@ -3,6 +3,7 @@ package httpapi
 import (
 	json "encoding/json/v2"
 	"fmt"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"net/http"
 )
 
@@ -11,8 +12,9 @@ type errorBody struct {
 }
 
 type errorPayload struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code       string                    `json:"code"`
+	Message    string                    `json:"message"`
+	References []contractroute.Reference `json:"references,omitzero"`
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) error {

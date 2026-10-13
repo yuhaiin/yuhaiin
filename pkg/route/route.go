@@ -2,7 +2,6 @@ package route
 
 import (
 	"context"
-	"iter"
 	"net"
 	"path/filepath"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -38,7 +38,7 @@ type Resolver interface {
 }
 
 type Dialer interface {
-	Get(ctx context.Context, network string, str string, tag string) (netapi.Proxy, error)
+	GetTarget(ctx context.Context, network string, mode string, target contractroute.Target) (netapi.Proxy, error)
 }
 
 func NewRoute(d Dialer, r Resolver, list *Lists, ProcessDumper netapi.ProcessDumper) *Route {
@@ -52,11 +52,14 @@ func NewRoute(d Dialer, r Resolver, list *Lists, ProcessDumper netapi.ProcessDum
 	}
 
 	rr.addMatchers()
+	if r != nil {
+		rr.ms.prepareContext = func(ctx context.Context, config *RouteConfig) {
+			netapi.GetContext(ctx).ConnOptions().Resolver().SetResolver(r.Get(config.ProxyResolver, ""))
+		}
+	}
 
 	return rr
 }
-
-func (s *Route) Tags() iter.Seq[string] { return s.ms.Tags() }
 
 func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
 	result := s.dispatch(ctx, host)
@@ -65,7 +68,7 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 		s.Push(ctx, "tcp", host.String())
 	}
 
-	p, err := s.d.Get(ctx, "tcp", result.Mode.Mode().String(), result.Mode.GetTag())
+	p, err := s.d.GetTarget(ctx, "tcp", result.Mode.Mode().String(), result.Mode.Target())
 	if err != nil {
 		return nil, netapi.NewDialError("tcp", err, result.Addr)
 	}
@@ -85,7 +88,7 @@ func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.Packet
 		s.Push(ctx, "udp", host.String())
 	}
 
-	p, err := s.d.Get(ctx, "udp", result.Mode.Mode().String(), result.Mode.GetTag())
+	p, err := s.d.GetTarget(ctx, "udp", result.Mode.Mode().String(), result.Mode.Target())
 	if err != nil {
 		return nil, netapi.NewDialError("udp", err, result.Addr)
 	}
@@ -105,7 +108,7 @@ func (s *Route) Ping(ctx context.Context, host netapi.Address) (uint64, error) {
 		s.Push(ctx, "ping", host.String())
 	}
 
-	p, err := s.d.Get(ctx, "udp", result.Mode.Mode().String(), result.Mode.GetTag())
+	p, err := s.d.GetTarget(ctx, "udp", result.Mode.Mode().String(), result.Mode.Target())
 	if err != nil {
 		return 0, netapi.NewDialError("udp", err, result.Addr)
 	}
@@ -125,7 +128,7 @@ func (s *Route) skipResolve(mode ModeEnum) bool {
 		return false
 	}
 
-	switch s.config.Load().UDPProxyFQDNStrategy {
+	switch s.configFor(mode).UDPProxyFQDNStrategy {
 	case UDPProxyFQDNSkipResolve:
 		return mode.UdpProxyFqdn() != UDPProxyFQDNResolve
 	default:
@@ -221,20 +224,7 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 
 	store.ConnOptions().Resolver().SetResolver(s.r.Get(s.getResolverFallback(ProxyMode), ""))
 
-	if geo := s.ms.list.LoadGeoip(); geo != nil {
-		if country, err := geo.LookupAddr(ctx, addr); err == nil {
-			store.SetGeo(country)
-			metrics.Counter.AddGeoCountry(country)
-		}
-
-		store.ConnOptions().SetMaxminddb(geo)
-	}
-
 	start := system.CheapNowNano()
-
-	store.ConnOptions().
-		AddLists(s.ms.list.SearchHost(ctx, addr)...).
-		AddLists(s.ms.list.ProcessTrie().Search(ctx, addr)...)
 
 	var mode ModeEnum
 	for _, m := range s.matchers {
@@ -249,7 +239,7 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 	store.ConnOptions().Resolver().SetResolver(s.r.Get(mode.Resolver(), s.getResolverFallback(mode)))
 	store.ConnOptions().SetRouteMode(mode.Mode().String())
 
-	if s.config.Load().ResolveLocally && addr.IsFqdn() && mode.Mode() == ModeProxy {
+	if s.configFor(mode).ResolveLocally && addr.IsFqdn() && mode.Mode() == ModeProxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
 		ip, err := netapi.ResolverIP(ctx, addr.Hostname())
 		if err == nil {
@@ -264,12 +254,19 @@ func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
 	return routeResult{addr, mode}
 }
 
+func (s *Route) configFor(mode ModeEnum) *RouteConfig {
+	if mode.config != nil {
+		return mode.config
+	}
+	return s.config.Load()
+}
+
 func (s *Route) getResolverFallback(mode ModeEnum) string {
 	switch mode.Mode() {
 	case ModeProxy:
-		return s.config.Load().ProxyResolver
+		return s.configFor(mode).ProxyResolver
 	case ModeDirect:
-		return s.config.Load().DirectResolver
+		return s.configFor(mode).DirectResolver
 	case ModeBlock:
 		return ModeBlock.String()
 	}
@@ -284,10 +281,6 @@ func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 	if err != nil {
 		return netapi.ErrorResolver(func(domain string) error { return err })
 	}
-
-	netapi.GetContext(ctx).ConnOptions().
-		AddLists(s.ms.list.SearchHost(ctx, host)...).
-		AddLists(s.ms.list.ProcessTrie().Search(ctx, host)...)
 
 	mode := s.ms.Match(ctx, host)
 

@@ -1,9 +1,15 @@
 package sqlite
 
+import (
+	"context"
+	"database/sql"
+)
+
 type Migration struct {
 	Version    int
 	Name       string
 	Statements []string
+	Transform  func(context.Context, *sql.Tx) error
 }
 
 var migrations = []Migration{
@@ -515,4 +521,44 @@ var migrations = []Migration{
 			)`,
 		},
 	},
+	{
+		Version: 8,
+		Name:    "route_identity_and_ownership",
+		Statements: []string{
+			`ALTER TABLE route_rules_v2 ADD COLUMN revision INTEGER NOT NULL DEFAULT 1`,
+			`UPDATE route_rules_v2 SET data_json = json_set(data_json, '$.id', id, '$.revision', revision)`,
+			`CREATE TABLE route_lists_owned (
+				id TEXT PRIMARY KEY,
+				name TEXT NOT NULL,
+				owner_rule_id TEXT REFERENCES route_rules_v2(id) ON DELETE CASCADE,
+				list_type TEXT NOT NULL,
+				source_type TEXT NOT NULL,
+				updated_at INTEGER NOT NULL,
+				data_json TEXT NOT NULL CHECK (json_valid(data_json))
+			)`,
+			`INSERT INTO route_lists_owned(id, name, list_type, source_type, updated_at, data_json)
+			 SELECT name, name, list_type, source_type, updated_at, json_set(data_json, '$.id', name)
+			 FROM route_lists_v2`,
+			`DROP TABLE route_lists_v2`,
+			`ALTER TABLE route_lists_owned RENAME TO route_lists_v2`,
+			`CREATE INDEX route_lists_owner_idx ON route_lists_v2(owner_rule_id)`,
+			`CREATE INDEX route_lists_v2_type_idx ON route_lists_v2(list_type, source_type)`,
+			`CREATE UNIQUE INDEX route_lists_shared_name_idx ON route_lists_v2(name) WHERE owner_rule_id IS NULL`,
+		},
+	},
+	{
+		Version: 9,
+		Name:    "outbound_selectors",
+		Statements: []string{
+			`CREATE TABLE outbound_selectors (
+				id TEXT PRIMARY KEY,
+				name TEXT NOT NULL,
+				node_id TEXT NOT NULL REFERENCES nodes_v2(id),
+				revision INTEGER NOT NULL
+			)`,
+			`CREATE INDEX outbound_selectors_node_idx ON outbound_selectors(node_id)`,
+		},
+	},
+	{Version: 10, Name: "replace_route_aliases", Transform: upgradeStoredRouteBindings},
+	{Version: 11, Name: "route_configuration_versions", Transform: addRouteConfigurationVersions},
 }

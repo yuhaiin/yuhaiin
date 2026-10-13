@@ -2,6 +2,7 @@ package mixed
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"net"
 	"time"
@@ -83,6 +84,10 @@ func (m *Mixed) socks5(o ServerConfig, ii netapi.Listener, handler netapi.Handle
 		Password: o.Password,
 		UDP:      true,
 	}, netapi.NewListener(lis, ii), handler)
+	if errors.Is(err, errors.ErrUnsupported) {
+		// A TCP-only listener still provides SOCKS5 CONNECT; UDP ASSOCIATE is disabled.
+		s5, err = socks5.NewServer(socks5.ServerConfig{Username: o.Username, Password: o.Password, UDP: false}, netapi.NewListener(lis, ii), handler)
+	}
 	if err != nil {
 		log.Error("new socks5 server failed", "err", err)
 		return
