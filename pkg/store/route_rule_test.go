@@ -18,8 +18,8 @@ func TestRouteRuleStoreSavePriorityDelete(t *testing.T) {
 	defer func() { _ = sqliteStore.Close() }()
 
 	store := NewRouteRuleStore(sqliteStore.DB())
-	first := contractroute.RouteRule{Name: "first", Mode: "bypass", Tag: "direct", Rules: []contractroute.RuleExpr{{Type: "host", Host: &contractroute.ListRef{List: "cn"}}}}
-	second := contractroute.RouteRule{Name: "second", Mode: "proxy", Tag: "node", Rules: []contractroute.RuleExpr{{Type: "inbound", Inbound: &contractroute.SourceRef{Name: "mixed"}}}}
+	first := contractroute.RouteRule{Name: "first", Mode: "bypass", Rules: []contractroute.RuleExpr{{Type: "host", Host: &contractroute.ListRef{List: "cn"}}}}
+	second := contractroute.RouteRule{Name: "second", Mode: "proxy", Rules: []contractroute.RuleExpr{{Type: "inbound", Inbound: &contractroute.SourceRef{Name: "mixed"}}}}
 	if err := store.SaveRule(ctx, first, 0, 100); err != nil {
 		t.Fatal(err)
 	}

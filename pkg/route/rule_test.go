@@ -23,6 +23,50 @@ func (s staticRuleBook) ListRules(context.Context) ([]plainstore.RouteRuleEntry,
 	return s, nil
 }
 
+type routeSettingsStub struct {
+	value plainstore.RouteSettings
+	err   error
+}
+
+func (s *routeSettingsStub) Settings(context.Context) (plainstore.RouteSettings, error) {
+	return s.value, s.err
+}
+func (s *routeSettingsStub) SaveSettings(_ context.Context, value plainstore.RouteSettings) error {
+	s.value = value
+	return s.err
+}
+
+func TestFailedSettingsReadRetainsRulesAndExposesApplyError(t *testing.T) {
+	matchers := newTestMatchers(t)
+	if err := matchers.Update(contractroute.RouteRule{Name: "running", Mode: "direct"}); err != nil {
+		t.Fatal(err)
+	}
+	route := NewRoute(nil, nil, matchers.list, nil)
+	route.ms = matchers
+	previousConfig := route.config.Load()
+	settings := &routeSettingsStub{err: errors.New("settings read failed"), value: plainstore.RouteSettings{DirectResolver: "new"}}
+	rules := &Rules{route: route, rules: staticRuleBook{{Rule: contractroute.RouteRule{Name: "saved", Mode: "block"}}}, settings: settings}
+	index := matchers.list.hostTrie
+	if err := rules.Apply(t.Context()); err == nil {
+		t.Fatal("settings error was hidden")
+	}
+	if matchers.matchers[0].name != "running" || matchers.list.hostTrie != index || route.config.Load() != previousConfig {
+		t.Fatal("failed apply changed running state")
+	}
+	status, err := rules.ActivationStatus(t.Context())
+	if err != nil || status.Error != "settings read failed" {
+		t.Fatalf("failure status: %+v, %v", status, err)
+	}
+	settings.err = nil
+	if err := rules.Apply(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	status, err = rules.ActivationStatus(t.Context())
+	if err != nil || status.Error != "" || matchers.matchers[0].name != "saved" || route.config.Load().DirectResolver != "new" {
+		t.Fatalf("successful retry: %+v, %v", status, err)
+	}
+}
+
 type staticRouteListBook struct {
 	detail contractroute.RouteListDetail
 }
@@ -32,7 +76,7 @@ func (s staticRouteListBook) ListRouteListDetails(context.Context) ([]contractro
 }
 
 func (s staticRouteListBook) GetRouteList(_ context.Context, name string) (contractroute.RouteListDetail, error) {
-	if name != s.detail.Name {
+	if name != s.detail.ID && name != s.detail.Name {
 		return contractroute.RouteListDetail{}, errors.New("route list not found")
 	}
 	return s.detail, nil
@@ -173,13 +217,15 @@ func TestChangePriority(t *testing.T) {
 func TestDisabledRuleSkippedBeforeParsing(t *testing.T) {
 	matchers := newTestMatchers(t)
 
-	matchers.Update(contractroute.RouteRule{
+	if err := matchers.Update(contractroute.RouteRule{
 		Name:     "disabled-host-list",
 		Disabled: true,
 		Rules: []contractroute.RuleExpr{
 			{Type: "host", Host: &contractroute.ListRef{List: "disabled-list"}},
 		},
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	if len(matchers.matchers) != 0 {
 		t.Fatalf("disabled rule should not be added to runtime matchers, got %d", len(matchers.matchers))
@@ -189,7 +235,7 @@ func TestDisabledRuleSkippedBeforeParsing(t *testing.T) {
 func TestMatcherRebuildSkipsDisabledRules(t *testing.T) {
 	matchers := newTestMatchers(t)
 
-	matchers.Update(
+	if err := matchers.Update(
 		contractroute.RouteRule{Name: "enabled-a"},
 		contractroute.RouteRule{
 			Name:     "disabled-b",
@@ -199,7 +245,9 @@ func TestMatcherRebuildSkipsDisabledRules(t *testing.T) {
 			},
 		},
 		contractroute.RouteRule{Name: "enabled-c"},
-	)
+	); err != nil {
+		t.Fatal(err)
+	}
 
 	if len(matchers.matchers) != 2 {
 		t.Fatalf("disabled rule should be skipped during rebuild, got %d matchers", len(matchers.matchers))
@@ -219,14 +267,17 @@ func TestRuleTestContractSharesNetapiContext(t *testing.T) {
 			t.Logf("close lists failed: %v", err)
 		}
 	})
+	lists.lists = staticRouteListBook{detail: contractroute.RouteListDetail{Name: "CN", Type: "host", Source: contractroute.ListSource{Type: "local", Local: &contractroute.LocalSource{Lists: []string{"*.baidu.com"}}}}}
 	route := NewRoute(nil, staticResolverBook{resolver: staticResolver{}}, lists, nil)
-	route.ms.Update(contractroute.RouteRule{
+	if err := route.ms.Update(contractroute.RouteRule{
 		Name: "cn-direct",
 		Mode: "direct",
 		Rules: []contractroute.RuleExpr{
 			{Type: "host", Host: &contractroute.ListRef{List: "CN"}},
 		},
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if err := lists.hostTrie.Add(func(yield func(string) bool) {
 		yield("1.2.3.0/24")
 	}, "CN"); err != nil {

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
@@ -18,6 +19,43 @@ func newTestRuntime(t *testing.T) *NodeRuntime {
 	runtime := NewNodeRuntime(paths.PathGenerator.State(t.TempDir()))
 	t.Cleanup(func() { _ = runtime.Close() })
 	return runtime
+}
+
+func TestDefaultSelectionIsAtomicAndSupportsSeparateNetworks(t *testing.T) {
+	runtime := newTestRuntime(t)
+	for _, id := range []string{"a", "b", "disabled"} {
+		value := testNode(t, id, id)
+		value.Enabled = id != "disabled"
+		if _, err := runtime.Save(t.Context(), value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := runtime.Use(t.Context(), "a"); err != nil {
+		t.Fatal(err)
+	}
+	for _, invalid := range []string{"missing", "disabled", ""} {
+		if err := runtime.Select(t.Context(), contractnode.SelectionRequest{TCPID: "b", UDPID: invalid}); err == nil {
+			t.Fatalf("accepted %q", invalid)
+		}
+		got, err := runtime.Selected(t.Context())
+		if err != nil || got.TCP == nil || got.UDP == nil || got.TCP.ID != "a" || got.UDP.ID != "a" {
+			t.Fatalf("failed selection changed defaults: %+v, %v", got, err)
+		}
+	}
+	if err := runtime.Select(t.Context(), contractnode.SelectionRequest{TCPID: "a", UDPID: "b"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := runtime.Selected(t.Context())
+	if err != nil || got.TCP.ID != "a" || got.UDP.ID != "b" {
+		t.Fatalf("separate defaults: %+v, %v", got, err)
+	}
+	if err := runtime.Use(t.Context(), "b"); err != nil {
+		t.Fatal(err)
+	}
+	got, err = runtime.Selected(t.Context())
+	if err != nil || got.TCP.ID != "b" || got.UDP.ID != "b" {
+		t.Fatalf("combined defaults: %+v, %v", got, err)
+	}
 }
 
 func TestAddNode(t *testing.T) {
@@ -34,21 +72,6 @@ func TestAddNode(t *testing.T) {
 		}
 	}
 
-	if err := runtime.AddContractTag(t.Context(), "test_tag", "tag", "b"); err != nil {
-		t.Fatal(err)
-	}
-	if err := runtime.AddContractTag(t.Context(), "test_tag3", "node", "c"); err != nil {
-		t.Fatal(err)
-	}
-	if err := runtime.AddContractTag(t.Context(), "test_tag2", "node", "b"); err != nil {
-		t.Fatal(err)
-	}
-	if err := runtime.AddContractTag(t.Context(), "test_tag2", "node", "c"); err != nil {
-		t.Fatal(err)
-	}
-	if err := runtime.DeleteTag(t.Context(), "test_tag2"); err != nil {
-		t.Fatal(err)
-	}
 	if err := runtime.Remove(t.Context(), "c"); err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +89,7 @@ func TestContractOnlyNodeOutbound(t *testing.T) {
 	if _, err := runtime.GetDialerByID(t.Context(), input.ID); err != nil {
 		t.Fatalf("get contract node dialer by id failed: %v", err)
 	}
-	if _, err := runtime.Get(t.Context(), "tcp", "proxy", ""); err != nil {
+	if _, err := runtime.GetTarget(t.Context(), "tcp", "proxy", contractroute.Target{Type: "default"}); err != nil {
 		t.Fatalf("get selected contract node dialer failed: %v", err)
 	}
 }

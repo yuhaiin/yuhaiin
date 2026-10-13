@@ -51,6 +51,11 @@ type Inbound struct {
 	Protocol   Protocol    `json:"protocol"`
 }
 
+type Capabilities struct {
+	Platform  string   `json:"platform"`
+	Protocols []string `json:"protocols"`
+}
+
 type Network struct {
 	Type   string         `json:"type"`
 	Empty  *EmptyNetwork  `json:"empty,omitzero"`

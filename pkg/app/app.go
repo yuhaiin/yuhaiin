@@ -219,7 +219,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	list := AddCloser(closers, "lists", route.NewLists(routeListStore, routeSettingsStore, so.ConfigPath))
 	// bypass dialer and dns request
 	router := AddCloser(closers, "router", route.NewRoute(nodeRuntime, dns, list, so.ProcessDumper))
-	rules := route.NewRules(routeRuleStore, routeSettingsStore, router)
+	rules := AddCloser(closers, "rules", route.NewRules(routeRuleStore, routeSettingsStore, router))
 	// connections' statistic & flow data
 	stcs := AddCloser(closers, "statistic", statistics.NewSQLiteConnStore(
 		paths.PathGenerator.State(so.ConfigPath),

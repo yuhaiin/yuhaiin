@@ -118,7 +118,8 @@ type ConnOptions struct {
 		IPs *IPs
 		Err error
 	}
-	lists []string
+	lists     []string
+	listNames map[string]string
 
 	routeMode string
 	skipRoute bool
@@ -251,6 +252,28 @@ func (s *ConnOptions) Lists() []string {
 	return s.lists
 }
 
+// SetMatchedLists binds matching identities and labels to the same runtime snapshot.
+// The supplied names are immutable and can be shared by connections.
+func (s *ConnOptions) SetMatchedLists(ids []string, names map[string]string) {
+	s.lists = ids
+	s.listNames = names
+}
+
+func (s *ConnOptions) ListName(id string) string {
+	if name := s.listNames[id]; name != "" {
+		return name
+	}
+	return id
+}
+
+func (s *ConnOptions) MatchedListNames() map[string]string {
+	names := make(map[string]string, len(s.lists))
+	for _, id := range s.lists {
+		names[id] = s.ListName(id)
+	}
+	return names
+}
+
 func (s *ConnOptions) HasList(list string) bool {
 	return slices.Contains(s.lists, list)
 }
@@ -282,7 +305,10 @@ type AddrInfo struct {
 	domainString *string `metrics:"DOMAIN"`
 	ipString     *string `metrics:"IP"`
 	geo          *string `metrics:"Geo"`
-	tag          *string `metrics:"Tag"`
+	selectorID   *string `metrics:"SelectorID"`
+	selectorName *string `metrics:"SelectorName"`
+	ruleID       *string `metrics:"RuleID"`
+	ruleName     *string `metrics:"RuleName"`
 	// dns resolver
 	component    *string `metrics:"Component"`
 	udpMigrateID uint64  `metrics:"UDP MigrateID"`
@@ -296,6 +322,7 @@ type Context struct {
 
 	inbound       *net.Addr              `metrics:"Inbound"`
 	inboundName   *string                `metrics:"InboundName"`
+	inboundID     *string                `metrics:"InboundID"`
 	interfaceName atomic.Pointer[string] `metrics:"InterfaceName"`
 	fakeIP        *net.Addr              `metrics:"FakeIP"`
 	hosts         *net.Addr              `metrics:"Hosts"`
@@ -304,7 +331,8 @@ type Context struct {
 
 	sniff *Sniff `metrics:"Sniff"`
 
-	ruleChain []contractconnection.MatchHistoryEntry `metrics:"Rule Chain"`
+	ruleChain     []contractconnection.MatchHistoryEntry `metrics:"Rule Chain"`
+	sharedHistory bool
 
 	connOptions *ConnOptions
 
@@ -313,19 +341,65 @@ type Context struct {
 }
 
 func (c *Context) NewMatch(ruleName string) {
-	c.ruleChain = append(c.ruleChain, contractconnection.MatchHistoryEntry{RuleName: ruleName})
+	c.NewRuleMatch("", ruleName)
+}
+
+// ForkContext isolates dial attempts while retaining routing and inbound metadata.
+// Strings and list labels are immutable; mutable option containers are copied.
+func ForkContext(ctx context.Context) *Context {
+	parent := GetContext(ctx)
+	child := &Context{Context: ctx, Source: parent.Source, Destination: parent.Destination,
+		inbound: parent.inbound, inboundName: parent.inboundName, inboundID: parent.inboundID,
+		fakeIP: parent.fakeIP, hosts: parent.hosts, Hash: parent.Hash, NodeName: parent.NodeName,
+		ruleChain: parent.ruleChain, sharedHistory: true}
+	child.interfaceName.Store(parent.interfaceName.Load())
+	if parent.addrInfo != nil {
+		child.addrInfo = new(*parent.addrInfo)
+	}
+	if parent.sniff != nil {
+		child.sniff = new(*parent.sniff)
+	}
+	if parent.connOptions != nil {
+		child.connOptions = new(*parent.connOptions)
+		child.connOptions.lists = slices.Clone(parent.connOptions.lists)
+		if parent.connOptions.resolver != nil {
+			child.connOptions.resolver = new(*parent.connOptions.resolver)
+		}
+	}
+	return child
+}
+
+// AcceptDialResult publishes only the winning outbound identity and bindings.
+func (c *Context) AcceptDialResult(child *Context) {
+	c.Hash, c.NodeName = child.Hash, child.NodeName
+	c.interfaceName.Store(child.interfaceName.Load())
+	c.ConnOptions().bindAddress = child.ConnOptions().bindAddress
+	c.ConnOptions().bindInterface = child.ConnOptions().bindInterface
+}
+
+func (c *Context) NewRuleMatch(id, name string) {
+	if c.sharedHistory {
+		c.ruleChain = slices.Clone(c.ruleChain)
+		c.sharedHistory = false
+	}
+	c.ruleChain = append(c.ruleChain, contractconnection.MatchHistoryEntry{RuleID: id, RuleName: name})
 }
 
 func (c *Context) AddMatchHistory(listName string, matched bool) {
+	c.AddConditionHistory("", "", listName, matched)
+}
+
+func (c *Context) AddConditionHistory(kind, id, name string, matched bool) {
 	if len(c.ruleChain) == 0 {
 		return
 	}
-
+	if c.sharedHistory {
+		c.ruleChain = slices.Clone(c.ruleChain)
+		c.ruleChain[len(c.ruleChain)-1].History = slices.Clone(c.ruleChain[len(c.ruleChain)-1].History)
+		c.sharedHistory = false
+	}
 	last := &c.ruleChain[len(c.ruleChain)-1]
-	last.History = append(last.History, contractconnection.MatchResult{
-		ListName: listName,
-		Matched:  matched,
-	})
+	last.History = append(last.History, contractconnection.MatchResult{Kind: kind, ID: id, ListName: name, Matched: matched})
 }
 
 func (c *Context) MatchHistory() []contractconnection.MatchHistoryEntry { return c.ruleChain }
@@ -384,23 +458,40 @@ func (s *Context) ConnOptions() *ConnOptions {
 	return s.connOptions
 }
 
-func (s *Context) SetTag(str string) *Context {
-	if str == "" {
-		return s
-	}
-
-	s.setAddrInfo(func(a *AddrInfo) {
-		a.tag = &str
-	})
-
+func (s *Context) SetSelector(id, name string) *Context {
+	s.setAddrInfo(func(a *AddrInfo) { a.selectorID, a.selectorName = new(id), new(name) })
 	return s
 }
 
-func (s *Context) GetTag() string {
-	if s.addrInfo != nil && s.addrInfo.tag != nil {
-		return *s.addrInfo.tag
+func (s *Context) Selector() (id, name string) {
+	if s.addrInfo == nil {
+		return
 	}
-	return ""
+	if s.addrInfo.selectorID != nil {
+		id = *s.addrInfo.selectorID
+	}
+	if s.addrInfo.selectorName != nil {
+		name = *s.addrInfo.selectorName
+	}
+	return
+}
+
+func (s *Context) SetMatchedRule(id, name string) *Context {
+	s.setAddrInfo(func(a *AddrInfo) { a.ruleID, a.ruleName = new(id), new(name) })
+	return s
+}
+
+func (s *Context) MatchedRule() (id, name string) {
+	if s.addrInfo == nil {
+		return
+	}
+	if s.addrInfo.ruleID != nil {
+		id = *s.addrInfo.ruleID
+	}
+	if s.addrInfo.ruleName != nil {
+		name = *s.addrInfo.ruleName
+	}
+	return
 }
 
 func (s *Context) SetComponent(str string) *Context {
@@ -449,9 +540,6 @@ func (c *Context) GetGeo() string {
 }
 
 func (c *Context) SetGeo(str string) *Context {
-	if str == "" {
-		return c
-	}
 
 	c.setAddrInfo(func(a *AddrInfo) {
 		a.geo = &str
@@ -484,6 +572,14 @@ func (c *Context) SetInboundName(name string) *Context {
 	c.inboundName = &name
 
 	return c
+}
+
+func (c *Context) SetInboundID(id string) *Context { c.inboundID = new(id); return c }
+func (c *Context) GetInboundID() string {
+	if c.inboundID != nil {
+		return *c.inboundID
+	}
+	return ""
 }
 
 func (c *Context) SetInterface(name string) *Context {

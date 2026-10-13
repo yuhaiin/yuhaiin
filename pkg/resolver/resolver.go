@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"reflect"
 	"sync"
+	"uuid"
 
 	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -397,7 +398,13 @@ func (r *ResolverCtr) ApplyStored(ctx context.Context) {
 
 func (r *ResolverCtr) SaveContract(ctx context.Context, req contractresolver.Resolver) (contractresolver.Resolver, error) {
 	if req.ID == "" {
-		return contractresolver.Resolver{}, fmt.Errorf("name is empty")
+		req.ID = uuid.New().String()
+	}
+	if req.Name == "" {
+		req.Name = req.Host
+	}
+	if req.Name == "" {
+		req.Name = req.ID
 	}
 	if err := req.Validate(); err != nil {
 		return contractresolver.Resolver{}, err
@@ -427,10 +434,11 @@ func (r *ResolverCtr) RemoveContract(ctx context.Context, id string) error {
 		return errors.New("resolver store is unavailable")
 	}
 	err := r.resolvers.Delete(ctx, id)
-
+	if err != nil {
+		return err
+	}
 	r.r.Delete(id)
-
-	return err
+	return nil
 }
 
 func (r *ResolverCtr) ContractHosts(ctx context.Context) (contractresolver.Hosts, error) {

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
+	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
@@ -24,10 +25,18 @@ func addInboundRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2InboundConfigGet, api.inboundConfig)
 	addRPCRoute(handlers, v2InboundConfigPut, api.saveInboundConfig)
 	addRPCRoute(handlers, v2InboundsGet, api.inbounds)
+	addRPCRoute(handlers, v2InboundCapabilities, api.inboundCapabilities)
+	addRPCRoute(handlers, v2InboundStatuses, api.inboundStatuses)
+	addRPCRoute(handlers, v2InboundEvents, api.inboundEvents)
+	addRPCRoute(handlers, v2InboundRetry, api.retryInbound)
 	addRPCRoute(handlers, v2InboundsPost, api.createInbound)
 	addRPCRoute(handlers, v2InboundGet, api.inbound)
 	addRPCRoute(handlers, v2InboundPut, api.saveInbound)
 	addRPCRoute(handlers, v2InboundDelete, api.deleteInbound)
+}
+
+func (a v2API) inboundCapabilities(context.Context, *emptyRequest) (*contractinbound.Capabilities, error) {
+	return new(inbound.Capabilities()), nil
 }
 
 func (a v2API) inboundConfig(ctx context.Context, _ *emptyRequest) (*inboundConfigV2, error) {
@@ -125,4 +134,52 @@ func pageResponse[T any](items []T, request *listRequest) *listV2[T] {
 	pageSize := max(request.PageSize, 0)
 	total := len(items)
 	return &listV2[T]{Items: paginateV2(items, page, pageSize), Page: pageV2{Page: page, PageSize: pageSize, Total: total}}
+}
+
+// Runtime reads come from the listener owner, rather than inferring health from saved configuration.
+type inboundRuntimeController interface {
+	Statuses(context.Context) ([]contractinbound.RuntimeStatus, error)
+	Events(context.Context, string) ([]contractinbound.RuntimeEvent, error)
+	Retry(context.Context, string) error
+}
+
+func (a v2API) inboundStatuses(ctx context.Context, _ *emptyRequest) (*listV2[contractinbound.RuntimeStatus], error) {
+	runtime, ok := a.services.Inbounds.(inboundRuntimeController)
+	if !ok {
+		return nil, unavailable("inbound runtime is unavailable")
+	}
+	items, err := runtime.Statuses(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &listV2[contractinbound.RuntimeStatus]{Items: items}, nil
+}
+
+func (a v2API) inboundEvents(ctx context.Context, req *idRequest) (*listV2[contractinbound.RuntimeEvent], error) {
+	runtime, ok := a.services.Inbounds.(inboundRuntimeController)
+	if !ok {
+		return nil, unavailable("inbound runtime is unavailable")
+	}
+	items, err := runtime.Events(ctx, req.ID)
+	if errors.Is(err, plainstore.ErrNotFound) {
+		return nil, notFound(err)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &listV2[contractinbound.RuntimeEvent]{Items: items}, nil
+}
+
+func (a v2API) retryInbound(ctx context.Context, req *idRequest) (*emptyResponse, error) {
+	runtime, ok := a.services.Inbounds.(inboundRuntimeController)
+	if !ok {
+		return nil, unavailable("inbound runtime is unavailable")
+	}
+	if err := runtime.Retry(ctx, req.ID); err != nil {
+		if errors.Is(err, plainstore.ErrNotFound) {
+			return nil, notFound(err)
+		}
+		return nil, badRequest(err)
+	}
+	return &emptyResponse{}, nil
 }

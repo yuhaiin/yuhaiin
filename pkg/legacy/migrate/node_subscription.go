@@ -5,6 +5,7 @@ import (
 	json "encoding/json/v2"
 	"fmt"
 	"strings"
+	"uuid"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/legacy/node/parser"
@@ -23,7 +24,11 @@ func ParseLegacyShareURL(data []byte, group, typ string) (contractnode.Node, err
 		return contractnode.Node{}, err
 	}
 	point.SetOrigin(schemanode.Origin_remote)
+	// Share links do not carry persistent identities. Validate the conversion with
+	// a temporary identity; the destination store assigns or retains the real one.
+	point.SetHash(uuid.New().String())
 	node, _, err := ConvertLegacyNode(point)
+	node.ID = ""
 	return node, err
 }
 

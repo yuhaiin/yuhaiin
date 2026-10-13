@@ -137,7 +137,8 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	var routeRegistryStore *plainstore.RouteRegistryStore
 	var registryCatalogs httpapi.RegistryCatalogController
 	var routeRuleStore *plainstore.RouteRuleStore
-	var routeTagStore *plainstore.RouteTagStore
+	var routeEditor *plainstore.RouteEditorStore
+	var selectors *plainstore.SelectorStore
 	subscribeController := app.Subscribe
 	if sqlStore := app.StateStore; sqlStore != nil {
 		db, err := sqlStore.SQLDB(ctx)
@@ -165,7 +166,8 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 			routeRegistryStore = plainstore.NewRouteRegistryStore(db)
 			registryCatalogs = routepkg.NewRegistryCatalogService(routeRegistryStore)
 			routeRuleStore = plainstore.NewRouteRuleStore(db)
-			routeTagStore = plainstore.NewRouteTagStore(db)
+			routeEditor = plainstore.NewRouteEditorStore(db)
+			selectors = plainstore.NewSelectorStore(db)
 			if app.NodeRuntime != nil {
 				subscribeController = node.NewSubscribe(app.NodeRuntime, subscriptionStore)
 			}
@@ -196,7 +198,8 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		RegistryCatalogs: registryCatalogs,
 		Rules:            app.Rules,
 		RouteRules:       routeRuleStore,
-		RouteTags:        routeTagStore,
+		RouteEditor:      routeEditor,
+		Selectors:        selectors,
 		Subscribe:        subscribeController,
 	})
 	return ctx.Err()
@@ -273,6 +276,12 @@ func HandleFunc(mux *http.ServeMux, auth *Auth, path string, b func(http.Respons
 		w := &wrapResponseWriter{ow, false}
 
 		cross(r, w)
+		// Browser CORS preflights never include Basic credentials. Handle them
+		// before authentication; the actual RPC request is still authenticated.
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 
 		if auth != nil {
 			token := r.URL.Query().Get("token")

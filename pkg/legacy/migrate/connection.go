@@ -50,7 +50,7 @@ func ConvertLegacyConnection(in *schemastatistic.Connection) contractconnection.
 	out.Hosts = in.GetHosts()
 	out.Domain = in.GetDomain()
 	out.IP = in.GetIp()
-	out.Tag = in.GetTag()
+	out.SelectorName = in.GetTag()
 	out.NodeID = in.GetHash()
 	out.NodeName = in.GetNodeName()
 	out.Protocol = in.GetProtocol()

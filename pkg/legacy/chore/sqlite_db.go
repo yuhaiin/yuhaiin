@@ -1313,7 +1313,7 @@ func hasConfigState(ctx context.Context, db *sql.DB) (bool, error) {
 		"resolvers_v2",
 		"route_rules_v2",
 		"route_lists_v2",
-		"node_tags_v2",
+		"outbound_selectors",
 	} {
 		var count int
 		if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {

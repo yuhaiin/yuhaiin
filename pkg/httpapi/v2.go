@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"time"
 
@@ -71,6 +72,7 @@ type ResolverCacheController interface {
 }
 type NodeController interface {
 	Selected(context.Context) (contractnode.Selection, error)
+	Select(context.Context, contractnode.SelectionRequest) error
 	Active(context.Context) ([]contractnode.Node, error)
 	ExtraInfo(context.Context, string) (contractnode.NodeExtraInfo, error)
 	Save(context.Context, contractnode.Node) (contractnode.Node, error)
@@ -84,7 +86,6 @@ type SubscriptionController interface {
 	ResolvePublish(context.Context, string, contractsubscription.ResolvePublishRequest) (contractsubscription.ResolvePublishResponse, error)
 }
 type RouteRuntimeController interface {
-	SaveConfig(context.Context, contractroute.Config) error
 	ScheduleApply()
 	Apply(context.Context) error
 	ActivationStatus(context.Context) (contractroute.RuleActivationStatus, error)
@@ -92,7 +93,6 @@ type RouteRuntimeController interface {
 	BlockHistory(context.Context) (contractroute.BlockHistoryList, error)
 }
 type ListRuntimeController interface {
-	SaveConfig(context.Context, contractroute.ListConfig, uint64) error
 	Refresh(context.Context) error
 	ApplyChanges(context.Context) error
 	Apply(context.Context) error
@@ -131,7 +131,8 @@ type V2Services struct {
 	RegistryCatalogs RegistryCatalogController
 	Rules            RouteRuntimeController
 	RouteRules       *plainstore.RouteRuleStore
-	RouteTags        *plainstore.RouteTagStore
+	RouteEditor      *plainstore.RouteEditorStore
+	Selectors        *plainstore.SelectorStore
 	Subscribe        SubscriptionController
 }
 type pageV2 struct {
@@ -151,6 +152,13 @@ type inboundConfigV2 struct {
 
 func RegisterV2(register RegisterFunc, services V2Services) {
 	handlers := newV2Handlers(services)
+	// Cross-origin JSON RPC clients send an OPTIONS preflight because they use
+	// Content-Type: application/json and may include Authorization. ServeMux
+	// otherwise answers 405 since the actual endpoints are POST-only.
+	register("OPTIONS /api/v2/rpc/", func(w http.ResponseWriter, _ *http.Request) error {
+		w.WriteHeader(http.StatusNoContent)
+		return nil
+	})
 	for _, route := range v2Routes {
 		register(v2RoutePattern(route), handlers.handler(route.endpoint))
 	}
@@ -199,7 +207,7 @@ func filterResolvers(items []contractresolver.Resolver, query string) []contract
 	}
 	out := make([]contractresolver.Resolver, 0, len(items))
 	for _, item := range items {
-		if strings.Contains(strings.ToLower(item.ID), query) || strings.Contains(strings.ToLower(item.Type), query) || strings.Contains(strings.ToLower(item.Host), query) || strings.Contains(strings.ToLower(item.Subnet), query) || strings.Contains(strings.ToLower(item.TLSServerName), query) {
+		if strings.Contains(strings.ToLower(item.ID), query) || strings.Contains(strings.ToLower(item.Name), query) || strings.Contains(strings.ToLower(item.Type), query) || strings.Contains(strings.ToLower(item.Host), query) || strings.Contains(strings.ToLower(item.Subnet), query) || strings.Contains(strings.ToLower(item.TLSServerName), query) {
 			out = append(out, item)
 		}
 	}

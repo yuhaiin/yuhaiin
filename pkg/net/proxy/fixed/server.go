@@ -104,6 +104,36 @@ func (s *Server) initStream() (net.Listener, error) {
 	return lis, nil
 }
 
+// Bind opens the configured sockets before a managed inbound is published.
+// Other users can retain lazy creation by omitting this call.
+// BoundAddresses reports sockets that have actually been opened.
+func (s *Server) BoundAddresses() []net.Addr {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var addresses []net.Addr
+	if s.Listener != nil {
+		addresses = append(addresses, s.Listener.Addr())
+	}
+	if s.PacketConn != nil {
+		addresses = append(addresses, s.LocalAddr())
+	}
+	return addresses
+}
+
+func (s *Server) Bind() error {
+	if s.control != ControlDisableTCP {
+		if _, err := s.initStream(); err != nil {
+			return err
+		}
+	}
+	if s.control != ControlDisableUDP {
+		if _, err := s.initPacketConn(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
 	if s.control == ControlDisableUDP {
 		return nil, errors.ErrUnsupported

@@ -382,7 +382,7 @@ func TestStateDBMigrateImportsLegacyNodeJSONWithoutStateDB(t *testing.T) {
 	assertStateMetadataValue(t, ctx, db, "legacy_node_import_source", "node.json")
 
 	var tagMembers string
-	if err := db.QueryRowContext(ctx, `SELECT members_json FROM node_tags_v2 WHERE name = 'fast'`).Scan(&tagMembers); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT node_id FROM outbound_selectors WHERE name = 'fast'`).Scan(&tagMembers); err != nil {
 		t.Fatalf("query migrated node tag failed: %v", err)
 	}
 	if !strings.Contains(tagMembers, hash) {

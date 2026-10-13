@@ -49,6 +49,7 @@ type Connection struct {
 	Source        string              `json:"source"`
 	Inbound       string              `json:"inbound"`
 	InboundName   string              `json:"inboundName"`
+	InboundID     string              `json:"inboundId"`
 	Interface     string              `json:"interface"`
 	Outbound      string              `json:"outbound"`
 	LocalAddr     string              `json:"localAddr"`
@@ -57,7 +58,10 @@ type Connection struct {
 	Hosts         string              `json:"hosts"`
 	Domain        string              `json:"domain"`
 	IP            string              `json:"ip"`
-	Tag           string              `json:"tag"`
+	SelectorID    string              `json:"selectorId"`
+	SelectorName  string              `json:"selectorName"`
+	RuleID        string              `json:"ruleId"`
+	RuleName      string              `json:"ruleName"`
 	NodeID        string              `json:"nodeId"`
 	NodeName      string              `json:"nodeName"`
 	Protocol      string              `json:"protocol"`
@@ -73,6 +77,7 @@ type Connection struct {
 	Resolver      string              `json:"resolver"`
 	Geo           string              `json:"geo"`
 	OutboundGeo   string              `json:"outboundGeo"`
+	ListNames     map[string]string   `json:"listNames,omitempty"`
 	Lists         []string            `json:"lists,omitzero"`
 }
 
@@ -82,11 +87,14 @@ type NetworkType struct {
 }
 
 type MatchHistoryEntry struct {
+	RuleID   string        `json:"ruleId,omitempty"`
 	RuleName string        `json:"ruleName"`
 	History  []MatchResult `json:"history"`
 }
 
 type MatchResult struct {
+	Kind     string `json:"kind,omitempty"`
+	ID       string `json:"id,omitempty"`
 	ListName string `json:"listName"`
 	Matched  bool   `json:"matched"`
 }

@@ -136,6 +136,7 @@ type PingMeta struct {
 	Destination Address
 	WriteBack   func(uint64, error) error
 	InboundName string
+	InboundID   string
 }
 
 type StreamMeta struct {
@@ -147,6 +148,7 @@ type StreamMeta struct {
 	Address Address
 
 	InboundName string
+	InboundID   string
 
 	DnsRequest bool
 }
@@ -164,6 +166,7 @@ type Packet struct {
 	dst         Address
 	writeBack   WriteBack
 	inboundName string
+	inboundID   string
 	// Payload will set to nil when ref count is negative, get it by [Packet.GetPayload]
 	// ! DON'T use Payload directly
 	payload   []byte
@@ -192,6 +195,8 @@ func WithInboundName(name string) func(*Packet) {
 	}
 }
 
+func WithInboundID(id string) func(*Packet) { return func(p *Packet) { p.inboundID = id } }
+
 func NewPacket(src net.Addr, dst Address, payload []byte, writeBack WriteBack, opts ...func(*Packet)) *Packet {
 	pp := &Packet{
 		src:       src,
@@ -210,6 +215,7 @@ func NewPacket(src net.Addr, dst Address, payload []byte, writeBack WriteBack, o
 func (p *Packet) Src() net.Addr       { return p.src }
 func (p *Packet) Dst() Address        { return p.dst }
 func (p *Packet) InboundName() string { return p.inboundName }
+func (p *Packet) InboundID() string   { return p.inboundID }
 func (p *Packet) IsDNSRequest() bool  { return p.dnsRequest }
 
 func (p *Packet) GetPayload() []byte {

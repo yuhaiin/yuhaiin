@@ -2,6 +2,7 @@ package route
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -24,6 +25,10 @@ type Rules struct {
 	applyTimerMu sync.Mutex
 	applyAt      atomic.Int64
 	applyVersion atomic.Uint64
+	applyMu      sync.Mutex
+	applyError   atomic.Pointer[string]
+	closed       atomic.Bool
+	applying     atomic.Bool
 }
 
 type RouteRuleBook interface {
@@ -32,7 +37,6 @@ type RouteRuleBook interface {
 
 type RouteSettingsBook interface {
 	Settings(context.Context) (plainstore.RouteSettings, error)
-	SaveSettings(context.Context, plainstore.RouteSettings) error
 }
 
 func NewRules(rules RouteRuleBook, settings RouteSettingsBook, route *Route) *Rules {
@@ -42,6 +46,14 @@ func NewRules(rules RouteRuleBook, settings RouteSettingsBook, route *Route) *Ru
 		route:    route,
 	}
 
+	route.ms.list.applyCoordinator.Store(new(r.Apply))
+	route.ms.list.scheduleCoordinator.Store(new(r.ScheduleApply))
+	if book, ok := rules.(interface{ ResetActivation(context.Context) error }); ok {
+		if err := book.ResetActivation(context.Background()); err != nil {
+			r.applyError.Store(new(err.Error()))
+			return r
+		}
+	}
 	r.ApplyStored(context.Background())
 	return r
 }
@@ -50,9 +62,58 @@ func (r *Rules) ApplyStored(ctx context.Context) {
 	_ = r.applyStored(ctx)
 }
 
-func (r *Rules) applyStored(ctx context.Context) error {
+func (r *Rules) applyStored(ctx context.Context) (err error) {
 	if r == nil {
 		return nil
+	}
+	r.applyMu.Lock()
+	defer r.applyMu.Unlock()
+	if r.closed.Load() {
+		return errors.New("route runtime is closed")
+	}
+	r.applying.Store(true)
+	defer r.applying.Store(false)
+	defer func() {
+		message := ""
+		if err != nil {
+			message = err.Error()
+		}
+		r.applyError.Store(new(message))
+	}()
+	if book, ok := r.rules.(interface {
+		Snapshot(context.Context) (plainstore.RouteSnapshot, error)
+		ActivateSnapshot(context.Context, uint64, func()) error
+	}); ok {
+		r.route.ms.list.contentMu.Lock()
+		defer r.route.ms.list.contentMu.Unlock()
+		for range 4 {
+			snapshot, err := book.Snapshot(ctx)
+			if err != nil {
+				return err
+			}
+			config := routeConfigFromStore(snapshot.Settings)
+			config.Generation = snapshot.Revision
+			err = r.route.ms.UpdateSnapshot(ctx, snapshot, book.ActivateSnapshot, config, func() { r.route.config.Store(config) })
+			if errors.Is(err, plainstore.ErrConflict) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			r.route.ms.list.resetRefreshInterval(snapshot.ListSettings.RefreshInterval)
+			return nil
+		}
+		return plainstore.ErrConflict
+	}
+	// Read settings before installing any rules or indexes. A failed settings
+	// read must leave the whole running configuration untouched.
+	var config *RouteConfig
+	if r.settings != nil {
+		settings, err := r.settings.Settings(ctx)
+		if err != nil {
+			return err
+		}
+		config = routeConfigFromStore(settings)
 	}
 	if r.rules != nil {
 		entries, err := r.rules.ListRules(ctx)
@@ -63,25 +124,27 @@ func (r *Rules) applyStored(ctx context.Context) error {
 		for _, entry := range entries {
 			routes = append(routes, entry.Rule)
 		}
-		r.route.ms.Update(routes...)
-	}
-	if r.settings != nil {
-		settings, err := r.settings.Settings(ctx)
-		if err != nil {
+		if err := r.route.ms.UpdateContext(ctx, routes...); err != nil {
 			return err
 		}
-		r.route.config.Store(routeConfigFromStore(settings))
+	}
+	if config != nil {
+		r.route.config.Store(config)
 	}
 	return nil
 }
 
 func (r *Rules) ScheduleApply() {
-	if r == nil {
+	if r == nil || r.closed.Load() {
 		return
 	}
 	version := r.applyVersion.Add(1)
 	r.applyAt.Store(time.Now().Add(time.Minute).UnixMilli())
 	r.applyTimerMu.Lock()
+	if r.closed.Load() {
+		r.applyTimerMu.Unlock()
+		return
+	}
 	if r.applyTimer != nil {
 		r.applyTimer.Stop()
 	}
@@ -90,7 +153,7 @@ func (r *Rules) ScheduleApply() {
 }
 
 func (r *Rules) applyScheduled(version uint64) {
-	if r.applyVersion.Load() != version {
+	if r.closed.Load() || r.applyVersion.Load() != version {
 		return
 	}
 	if err := r.applyStored(context.Background()); err == nil && r.applyVersion.Load() == version {
@@ -102,7 +165,10 @@ func (r *Rules) Apply(ctx context.Context) error {
 	if r == nil {
 		return nil
 	}
-	r.applyVersion.Add(1)
+	if r.closed.Load() {
+		return errors.New("route runtime is closed")
+	}
+	version := r.applyVersion.Add(1)
 	r.applyTimerMu.Lock()
 	if r.applyTimer != nil {
 		r.applyTimer.Stop()
@@ -111,51 +177,68 @@ func (r *Rules) Apply(ctx context.Context) error {
 	if err := r.applyStored(ctx); err != nil {
 		return err
 	}
+	if r.applyVersion.Load() == version {
+		r.applyAt.Store(0)
+	}
+	return nil
+}
+
+func (r *Rules) Close() error {
+	r.closed.Store(true)
+	r.applyVersion.Add(1)
+	r.applyTimerMu.Lock()
+	if r.applyTimer != nil {
+		r.applyTimer.Stop()
+	}
+	r.applyTimerMu.Unlock()
+	r.applyMu.Lock()
 	r.applyAt.Store(0)
+	r.applyMu.Unlock()
 	return nil
 }
 
-func (r *Rules) ActivationStatus(context.Context) (contractroute.RuleActivationStatus, error) {
-	return contractroute.RuleActivationStatus{ApplyAt: r.applyAt.Load()}, nil
-}
-
-func (r *Rules) SaveContractConfig(ctx context.Context, req contractroute.Config) error {
-	settings := routeSettingsFromContract(req)
-	if r.settings != nil {
-		if err := r.settings.SaveSettings(ctx, settings); err != nil {
-			return err
+func (r *Rules) ActivationStatus(ctx context.Context) (contractroute.RuleActivationStatus, error) {
+	var config *RouteConfig
+	if r.route != nil && r.route.config != nil {
+		config = r.route.config.Load()
+	}
+	status := contractroute.RuleActivationStatus{ApplyAt: r.applyAt.Load(), Applying: r.applying.Load()}
+	if config != nil {
+		status.AppliedRevision = config.Generation
+		mode := config.DefaultMode
+		if mode == "" {
+			mode = "proxy"
 		}
+		target := config.DefaultTarget
+		if target.Type == "" {
+			target.Type = "default"
+		}
+		status.RunningConfig = &contractroute.Config{Revision: config.Revision, DefaultMode: mode, DefaultTarget: target, DirectResolver: config.DirectResolver, ProxyResolver: config.ProxyResolver, ResolveLocally: config.ResolveLocally, UdpProxyFqdnStrategy: string(config.UDPProxyFQDNStrategy)}
 	}
-	r.route.config.Store(routeConfigFromStore(settings))
-	return nil
-}
-
-func routeSettingsFromContract(req contractroute.Config) plainstore.RouteSettings {
-	return plainstore.RouteSettings{
-		DirectResolver: req.DirectResolver,
-		ProxyResolver:  req.ProxyResolver,
-		ResolveLocally: req.ResolveLocally,
-		UDPProxyFQDN:   udpProxyFQDNStrategyCode(req.UdpProxyFqdnStrategy),
+	if book, ok := r.rules.(interface {
+		ConfigurationRevision(context.Context) (uint64, error)
+	}); ok {
+		revision, err := book.ConfigurationRevision(ctx)
+		if err != nil {
+			return status, err
+		}
+		status.SavedRevision = revision
 	}
+	if message := r.applyError.Load(); message != nil {
+		status.Error = *message
+	}
+	return status, nil
 }
 
 func routeConfigFromStore(settings plainstore.RouteSettings) *RouteConfig {
 	return &RouteConfig{
+		Revision:             settings.Revision,
+		DefaultMode:          settings.DefaultMode,
+		DefaultTarget:        settings.DefaultTarget,
 		DirectResolver:       settings.DirectResolver,
 		ProxyResolver:        settings.ProxyResolver,
 		ResolveLocally:       settings.ResolveLocally,
 		UDPProxyFQDNStrategy: udpProxyFQDNStrategyFromCode(settings.UDPProxyFQDN),
-	}
-}
-
-func udpProxyFQDNStrategyCode(value string) int {
-	switch parseUDPProxyFQDNStrategy(value) {
-	case UDPProxyFQDNResolve:
-		return 1
-	case UDPProxyFQDNSkipResolve:
-		return 2
-	default:
-		return 0
 	}
 }
 
@@ -193,10 +276,11 @@ func (r *Rules) TestContract(ctx context.Context, host string) (contractroute.Ru
 
 	out := contractroute.RuleTestResponse{
 		Mode:        result.Mode.Mode().String(),
-		Tag:         result.Mode.GetTag(),
+		Target:      result.Mode.Target(),
 		Resolver:    result.Mode.Resolver(),
 		AfterAddr:   result.Addr.String(),
 		Lists:       store.ConnOptions().Lists(),
+		ListNames:   store.ConnOptions().MatchedListNames(),
 		MatchResult: contractMatchHistory(store.MatchHistory()),
 	}
 	if ips != nil {
@@ -217,11 +301,13 @@ func contractMatchHistory(entry []contractconnection.MatchHistoryEntry) []contra
 		history := make([]contractroute.MatchResult, 0, len(e.History))
 		for _, result := range e.History {
 			history = append(history, contractroute.MatchResult{
+				Kind: result.Kind, ID: result.ID,
 				ListName: result.ListName,
 				Matched:  result.Matched,
 			})
 		}
 		out = append(out, contractroute.MatchHistoryEntry{
+			RuleID:   e.RuleID,
 			RuleName: e.RuleName,
 			History:  history,
 		})

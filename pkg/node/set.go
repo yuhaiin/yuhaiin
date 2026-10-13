@@ -101,7 +101,7 @@ func (s *Set) nestedLoopCounter(ctx context.Context) (context.Context, error) {
 }
 
 func (s *Set) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	return setDo(s, ctx, true, func(ctx context.Context, dialer netapi.Proxy) (net.Conn, error) {
+	return s.do(ctx, true, func(ctx context.Context, dialer netapi.Proxy) (net.Conn, error) {
 		return dialer.Conn(ctx, addr)
 	})
 }
@@ -114,7 +114,7 @@ func (s *Set) storeIndex(i int) {
 	s.lastID.Store(int32(i))
 }
 
-func setDo[T io.Closer](s *Set, ctx context.Context, storeIndex bool, f func(context.Context, netapi.Proxy) (T, error)) (T, error) {
+func (s *Set) do[T io.Closer](ctx context.Context, storeIndex bool, f func(context.Context, netapi.Proxy) (T, error)) (T, error) {
 	ctx, err := s.nestedLoopCounter(ctx)
 	if err != nil {
 		return *new(T), err
@@ -123,7 +123,11 @@ func setDo[T io.Closer](s *Set, ctx context.Context, storeIndex bool, f func(con
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(context.Canceled)
 
-	ch := make(chan T)
+	type result struct {
+		connection T
+		state      *netapi.Context
+	}
+	ch := make(chan result)
 
 	go func() {
 		var (
@@ -139,14 +143,15 @@ func setDo[T io.Closer](s *Set, ctx context.Context, storeIndex bool, f func(con
 		}
 
 		for i, node := range s.loop {
-			dialer, er := s.runtime.GetDialerByID(ctx, node)
+			attempt := netapi.ForkContext(ctx)
+			dialer, er := s.runtime.GetDialerByID(attempt, node)
 			if er != nil {
 				appendError(er)
 				continue
 			}
 
 			wg.Go(func() {
-				conn, er := f(ctx, dialer)
+				conn, er := f(attempt, dialer)
 				if er != nil {
 					appendError(er)
 					select {
@@ -157,7 +162,7 @@ func setDo[T io.Closer](s *Set, ctx context.Context, storeIndex bool, f func(con
 				}
 
 				select {
-				case ch <- conn:
+				case ch <- result{connection: conn, state: attempt}:
 					if storeIndex {
 						s.storeIndex(i)
 					}
@@ -184,13 +189,14 @@ func setDo[T io.Closer](s *Set, ctx context.Context, storeIndex bool, f func(con
 	select {
 	case <-ctx.Done():
 		return *new(T), context.Cause(ctx)
-	case conn := <-ch:
-		return conn, nil
+	case winner := <-ch:
+		netapi.GetContext(ctx).AcceptDialResult(winner.state)
+		return winner.connection, nil
 	}
 }
 
 func (s *Set) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	return setDo(s, ctx, false, func(ctx context.Context, dialer netapi.Proxy) (net.PacketConn, error) {
+	return s.do(ctx, false, func(ctx context.Context, dialer netapi.Proxy) (net.PacketConn, error) {
 		return dialer.PacketConn(ctx, addr)
 	})
 }

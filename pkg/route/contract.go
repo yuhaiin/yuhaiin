@@ -15,13 +15,6 @@ func NewContractListController(lists *Lists) ContractListController {
 	return ContractListController{lists: lists}
 }
 
-func (c ContractListController) SaveConfig(ctx context.Context, config contractroute.ListConfig, refreshInterval uint64) error {
-	if c.lists == nil {
-		return errors.New("list controller is unavailable")
-	}
-	return c.lists.SaveContractConfig(ctx, config, refreshInterval)
-}
-
 func (c ContractListController) Refresh(ctx context.Context) error {
 	if c.lists == nil {
 		return errors.New("list controller is unavailable")
@@ -41,8 +34,7 @@ func (c ContractListController) Apply(context.Context) error {
 	if c.lists == nil {
 		return errors.New("list controller is unavailable")
 	}
-	c.lists.ApplyListChangesNow()
-	return nil
+	return c.lists.ApplyListChangesNow()
 }
 
 func (c ContractListController) ActivationStatus(context.Context) (contractroute.ListActivationStatus, error) {
@@ -58,13 +50,6 @@ type ContractRuleController struct {
 
 func NewContractRuleController(rules *Rules) ContractRuleController {
 	return ContractRuleController{rules: rules}
-}
-
-func (c ContractRuleController) SaveConfig(ctx context.Context, config contractroute.Config) error {
-	if c.rules == nil {
-		return errors.New("rule controller is unavailable")
-	}
-	return c.rules.SaveContractConfig(ctx, config)
 }
 
 func (c ContractRuleController) ScheduleApply() {

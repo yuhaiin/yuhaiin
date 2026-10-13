@@ -38,6 +38,39 @@ type Selection struct {
 	UDP *Node `json:"udp,omitzero"`
 }
 
+type SelectionRequest struct {
+	TCPID string `json:"tcpId"`
+	UDPID string `json:"udpId"`
+}
+
+type ImportRequest struct {
+	Text  string `json:"text"`
+	Group string `json:"group"`
+}
+
+type ImportIssue struct {
+	Line    int    `json:"line"`
+	Message string `json:"message"`
+}
+
+type ImportPreview struct {
+	Items  []Node        `json:"items"`
+	Errors []ImportIssue `json:"errors"`
+}
+
+// Selector is an independently named choice of node shared by routing rules.
+// Its chosen node may itself use a Set protocol chain.
+type Selector struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	NodeID   string `json:"nodeId"`
+	Revision uint64 `json:"revision"`
+}
+
+type SelectorList struct {
+	Items []Selector `json:"items"`
+}
+
 type LatencyRequest struct {
 	Type         string `json:"type"`
 	URL          string `json:"url"`

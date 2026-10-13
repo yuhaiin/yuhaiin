@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"uuid"
 
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
@@ -33,9 +34,6 @@ func addRouteRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2RouteRuleDelete, api.deleteRouteRule)
 	addRPCRoute(handlers, v2RouteRulesTest, api.testRouteRule)
 	addRPCRoute(handlers, v2RouteRulesBlockHistory, api.routeBlockHistory)
-	addRPCRoute(handlers, v2RouteTagsGet, api.routeTags)
-	addRPCRoute(handlers, v2RouteTagPut, api.saveRouteTag)
-	addRPCRoute(handlers, v2RouteTagDelete, api.deleteRouteTag)
 }
 
 func (a v2API) routeActivation(ctx context.Context, _ *emptyRequest) (*contractroute.ActivationStatus, error) {
@@ -55,7 +53,12 @@ func (a v2API) routeActivation(ctx context.Context, _ *emptyRequest) (*contractr
 		if err != nil {
 			return nil, err
 		}
+		result.SavedRevision = status.SavedRevision
+		result.RunningConfig = status.RunningConfig
+		result.Applying = status.Applying
+		result.AppliedRevision = status.AppliedRevision
 		result.RuleApplyAt = status.ApplyAt
+		result.Error = status.Error
 	}
 	return &result, nil
 }
@@ -63,13 +66,12 @@ func (a v2API) applyRoute(ctx context.Context, _ *emptyRequest) (*emptyResponse,
 	if a.services.Lists == nil && a.services.Rules == nil {
 		return nil, unavailable("route runtime is unavailable")
 	}
-	if a.services.Lists != nil {
-		if err := a.services.Lists.Apply(ctx); err != nil {
-			return nil, err
-		}
-	}
 	if a.services.Rules != nil {
 		if err := a.services.Rules.Apply(ctx); err != nil {
+			return nil, err
+		}
+	} else if a.services.Lists != nil {
+		if err := a.services.Lists.Apply(ctx); err != nil {
 			return nil, err
 		}
 	}
@@ -87,20 +89,16 @@ func (a v2API) routeConfig(ctx context.Context, _ *emptyRequest) (*contractroute
 	return &result, nil
 }
 func (a v2API) saveRouteConfig(ctx context.Context, request *contractroute.Config) (*contractroute.Config, error) {
-	if a.services.RouteSettings == nil && a.services.Rules == nil {
-		return nil, unavailable("route settings service is unavailable")
+	if a.services.RouteSettings == nil {
+		return nil, unavailable("route settings store is unavailable")
 	}
-	if a.services.Rules != nil {
-		if err := a.services.Rules.SaveConfig(ctx, *request); err != nil {
-			return nil, badRequest(err)
-		}
+	stored, err := a.services.RouteSettings.SaveConfig(ctx, *request)
+	if err != nil {
+		return nil, badRequest(err)
 	}
-	if a.services.RouteSettings != nil {
-		if err := a.services.RouteSettings.SaveSettings(ctx, routeConfigToStoreV2(*request)); err != nil {
-			return nil, badRequest(err)
-		}
-	}
-	return request, nil
+	a.scheduleRouteApply()
+	result := routeConfigFromStoreV2(stored)
+	return &result, nil
 }
 func (a v2API) routeLists(ctx context.Context, request *listRequest) (*contractroute.RouteList, error) {
 	if a.services.RouteLists == nil {
@@ -129,25 +127,18 @@ func (a v2API) routeListConfig(ctx context.Context, _ *emptyRequest) (*contractr
 	return &result, nil
 }
 func (a v2API) saveRouteListConfig(ctx context.Context, request *contractroute.ListConfig) (*contractroute.ListConfig, error) {
-	if a.services.RouteSettings == nil && a.services.Lists == nil {
-		return nil, unavailable("route list settings service is unavailable")
+	if a.services.RouteSettings == nil {
+		return nil, unavailable("route list settings store is unavailable")
 	}
 	interval, err := strconv.ParseUint(request.RefreshInterval, 10, 64)
 	if err != nil {
 		return nil, badRequest(err)
 	}
-	if a.services.Lists != nil {
-		if err := a.services.Lists.SaveConfig(ctx, *request, interval); err != nil {
-			return nil, badRequest(err)
-		}
-	} else if err := a.services.RouteSettings.SaveListSettings(ctx, routeListConfigToStoreV2(*request, interval)); err != nil {
+	stored, err := a.services.RouteSettings.SaveListConfig(ctx, *request, interval)
+	if err != nil {
 		return nil, badRequest(err)
 	}
-	if a.services.RouteSettings == nil {
-		return request, nil
-	}
-	stored, err := a.services.RouteSettings.ListSettings(ctx)
-	if err != nil {
+	if err := a.scheduleListApply(ctx); err != nil {
 		return nil, err
 	}
 	result := routeListConfigFromStoreV2(stored)
@@ -172,15 +163,16 @@ func (a v2API) createRouteList(ctx context.Context, request *contractroute.Route
 	if a.services.RouteLists == nil {
 		return nil, unavailable("route list store is unavailable")
 	}
+	if request.ID == "" {
+		request.ID = uuid.New().String()
+	}
 	if err := a.services.RouteLists.SaveRouteList(ctx, *request, 0); err != nil {
 		return nil, badRequest(err)
 	}
-	if a.services.Lists != nil {
-		if err := a.services.Lists.ApplyChanges(ctx); err != nil {
-			return nil, err
-		}
+	if err := a.scheduleListApply(ctx); err != nil {
+		return nil, err
 	}
-	return request, nil
+	return pointer(a.services.RouteLists.GetRouteList(ctx, request.ID))
 }
 func (a v2API) routeList(ctx context.Context, request *idRequest) (*contractroute.RouteListDetail, error) {
 	if a.services.RouteLists == nil {
@@ -205,16 +197,14 @@ func (a v2API) saveRouteList(ctx context.Context, request *routeListSaveRequest)
 	if a.services.RouteLists == nil {
 		return nil, unavailable("route list store is unavailable")
 	}
-	request.Name = request.ID
+	request.RouteListDetail.ID = request.ID
 	if err := a.services.RouteLists.SaveRouteList(ctx, request.RouteListDetail, 0); err != nil {
 		return nil, badRequest(err)
 	}
-	if a.services.Lists != nil {
-		if err := a.services.Lists.ApplyChanges(ctx); err != nil {
-			return nil, err
-		}
+	if err := a.scheduleListApply(ctx); err != nil {
+		return nil, err
 	}
-	return &request.RouteListDetail, nil
+	return pointer(a.services.RouteLists.GetRouteList(ctx, request.ID))
 }
 func (a v2API) deleteRouteList(ctx context.Context, request *idRequest) (*emptyResponse, error) {
 	if a.services.RouteLists == nil {
@@ -226,10 +216,8 @@ func (a v2API) deleteRouteList(ctx context.Context, request *idRequest) (*emptyR
 		}
 		return nil, err
 	}
-	if a.services.Lists != nil {
-		if err := a.services.Lists.ApplyChanges(ctx); err != nil {
-			return nil, err
-		}
+	if err := a.scheduleListApply(ctx); err != nil {
+		return nil, err
 	}
 	return &emptyResponse{}, nil
 }
@@ -250,15 +238,19 @@ func (a v2API) routeRules(ctx context.Context, request *listRequest) (*contractr
 	response.Page = contractroute.Page{Page: page, PageSize: size, Total: len(entries)}
 	return &response, nil
 }
-func (a v2API) createRouteRule(ctx context.Context, request *contractroute.RouteRule) (*contractroute.RouteRule, error) {
-	if a.services.RouteRules == nil {
-		return nil, unavailable("route rule store is unavailable")
+func (a v2API) createRouteRule(ctx context.Context, request *contractroute.RuleDraft) (*contractroute.RuleDraft, error) {
+	if a.services.RouteEditor == nil {
+		return nil, unavailable("route editor is unavailable")
 	}
-	if err := a.services.RouteRules.SaveRule(ctx, *request, 0, 0); err != nil {
+	if request.Rule.Revision != 0 {
+		return nil, badRequest(errors.New("new rule must have revision zero"))
+	}
+	result, err := a.services.RouteEditor.Save(ctx, *request)
+	if err != nil {
 		return nil, badRequest(err)
 	}
 	a.scheduleRouteApply()
-	return request, nil
+	return &result, nil
 }
 func (a v2API) changeRouteRulePriority(ctx context.Context, request *changeRulePriorityV2Request) (*emptyResponse, error) {
 	if a.services.RouteRules == nil {
@@ -267,58 +259,49 @@ func (a v2API) changeRouteRulePriority(ctx context.Context, request *changeRuleP
 	if err := validateRulePriorityOperateV2(request.Operate); err != nil {
 		return nil, badRequest(err)
 	}
-	if err := a.services.RouteRules.ChangePriority(ctx, request.Source.Name, request.Target.Name, request.Operate); err != nil {
+	if err := a.services.RouteRules.ChangePriority(ctx, request.Source.ID, request.Target.ID, request.Operate); err != nil {
 		return nil, badRequest(err)
 	}
 	a.scheduleRouteApply()
 	return &emptyResponse{}, nil
 }
 
-type ruleRequest struct {
-	Name  string `json:"name"`
-	Index uint32 `json:"index"`
-}
-
-func (a v2API) routeRule(ctx context.Context, request *ruleRequest) (*contractroute.RouteRule, error) {
-	if a.services.RouteRules == nil {
-		return nil, unavailable("route rule store is unavailable")
+func (a v2API) routeRule(ctx context.Context, request *idRequest) (*contractroute.RuleDraft, error) {
+	if a.services.RouteEditor == nil {
+		return nil, unavailable("route editor is unavailable")
 	}
-	entry, err := a.services.RouteRules.GetRule(ctx, request.Name)
+	draft, err := a.services.RouteEditor.Get(ctx, request.ID)
 	if errors.Is(err, plainstore.ErrNotFound) {
 		return nil, notFound(err)
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &entry.Rule, nil
+	return &draft, nil
 }
 
 type routeRuleSaveRequest struct {
-	Name  string `json:"name"`
-	Index uint32 `json:"index"`
-	contractroute.RouteRule
+	ID string `json:"id"`
+	contractroute.RuleDraft
 }
 
-func (a v2API) saveRouteRule(ctx context.Context, request *routeRuleSaveRequest) (*contractroute.RouteRule, error) {
-	if a.services.RouteRules == nil {
-		return nil, unavailable("route rule store is unavailable")
+func (a v2API) saveRouteRule(ctx context.Context, request *routeRuleSaveRequest) (*contractroute.RuleDraft, error) {
+	if a.services.RouteEditor == nil {
+		return nil, unavailable("route editor is unavailable")
 	}
-	request.RouteRule.Name = request.Name
-	priority := int(request.Index)
-	if entry, err := a.services.RouteRules.GetRule(ctx, request.Name); err == nil {
-		priority = entry.Priority
-	}
-	if err := a.services.RouteRules.SaveRule(ctx, request.RouteRule, priority, 0); err != nil {
+	request.Rule.ID = request.ID
+	result, err := a.services.RouteEditor.Save(ctx, request.RuleDraft)
+	if err != nil {
 		return nil, badRequest(err)
 	}
 	a.scheduleRouteApply()
-	return &request.RouteRule, nil
+	return &result, nil
 }
-func (a v2API) deleteRouteRule(ctx context.Context, request *ruleRequest) (*emptyResponse, error) {
+func (a v2API) deleteRouteRule(ctx context.Context, request *idRequest) (*emptyResponse, error) {
 	if a.services.RouteRules == nil {
 		return nil, unavailable("route rule store is unavailable")
 	}
-	if err := a.services.RouteRules.DeleteRule(ctx, request.Name); err != nil {
+	if err := a.services.RouteRules.DeleteRule(ctx, request.ID); err != nil {
 		if errors.Is(err, plainstore.ErrNotFound) {
 			return nil, notFound(err)
 		}
@@ -343,44 +326,19 @@ func (a v2API) routeBlockHistory(ctx context.Context, _ *emptyRequest) (*contrac
 	}
 	return pointer(a.services.Rules.BlockHistory(ctx))
 }
-func (a v2API) routeTags(ctx context.Context, request *listRequest) (*contractroute.TagList, error) {
-	if a.services.RouteTags == nil {
-		return nil, unavailable("route tag store is unavailable")
-	}
-	items, err := a.services.RouteTags.ListTags(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if query := strings.TrimSpace(request.Query); query != "" {
-		items = filterRouteTags(items, query)
-	}
-	page := max(request.Page, 1)
-	size := max(request.PageSize, 0)
-	return &contractroute.TagList{Items: paginateV2(items, page, size), Page: contractroute.Page{Page: page, PageSize: size, Total: len(items)}}, nil
-}
-func (a v2API) saveRouteTag(ctx context.Context, request *contractroute.SaveTagRequest) (*emptyResponse, error) {
-	if a.services.RouteTags == nil {
-		return nil, unavailable("route tag store is unavailable")
-	}
-	if err := a.services.RouteTags.SaveTag(ctx, contractroute.TagItem{Name: request.Tag, Type: request.Type, Hash: []string{request.Hash}}, 0); err != nil {
-		return nil, badRequest(err)
-	}
-	return &emptyResponse{}, nil
-}
-func (a v2API) deleteRouteTag(ctx context.Context, request *contractroute.SaveTagRequest) (*emptyResponse, error) {
-	if a.services.RouteTags == nil {
-		return nil, unavailable("route tag store is unavailable")
-	}
-	if err := a.services.RouteTags.DeleteTag(ctx, request.Tag); err != nil {
-		if errors.Is(err, plainstore.ErrNotFound) {
-			return nil, notFound(err)
-		}
-		return nil, err
-	}
-	return &emptyResponse{}, nil
-}
 func (a v2API) scheduleRouteApply() {
 	if a.services.Rules != nil {
 		a.services.Rules.ScheduleApply()
 	}
+}
+
+func (a v2API) scheduleListApply(ctx context.Context) error {
+	if a.services.Rules != nil {
+		a.services.Rules.ScheduleApply()
+		return nil
+	}
+	if a.services.Lists != nil {
+		return a.services.Lists.ApplyChanges(ctx)
+	}
+	return nil
 }

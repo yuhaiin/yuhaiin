@@ -466,9 +466,9 @@ func TestMigrateLegacyRouteRulesPreservesManualContractAfterMigration(t *testing
 	}
 
 	manual := contractroute.RouteRule{
-		Name: "manual-direct",
-		Mode: "direct",
-		Tag:  "direct",
+		Name:   "manual-direct",
+		Mode:   "direct",
+		Target: contractroute.Target{Type: "default"},
 	}
 	if err := plainstore.NewRouteRuleStore(sqliteStore.DB()).SaveRule(ctx, manual, 0, 300); err != nil {
 		t.Fatal(err)
@@ -481,7 +481,7 @@ func TestMigrateLegacyRouteRulesPreservesManualContractAfterMigration(t *testing
 	if err != nil {
 		t.Fatalf("manual route rule was removed after restart migration: %v", err)
 	}
-	if got.Rule.Mode != "direct" || got.Rule.Tag != "direct" {
+	if got.Rule.Mode != "direct" || got.Rule.Target.Type != "default" {
 		t.Fatalf("manual route rule after restart migration = %+v", got.Rule)
 	}
 }
@@ -613,6 +613,9 @@ func TestMigrateLegacyRouteTags(t *testing.T) {
 	}
 	defer func() { _ = sqliteStore.Close() }()
 
+	if err := plainstore.NewNodeStore(sqliteStore.DB()).Save(ctx, contractnode.Node{ID: "node-a", Name: "Node A", Enabled: true, Origin: "manual", Chain: []contractnode.Protocol{{Type: "direct", Direct: &contractnode.Direct{}}}}, 100); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := sqliteStore.DB().ExecContext(ctx, `
 		INSERT INTO node_tags(tag_name, target_kind, target_id, updated_at)
 		VALUES
@@ -624,23 +627,14 @@ func TestMigrateLegacyRouteTags(t *testing.T) {
 	if err := MigrateLegacyRouteTags(ctx, sqliteStore.DB(), 200); err != nil {
 		t.Fatal(err)
 	}
-	got, err := plainstore.NewRouteTagStore(sqliteStore.DB()).ListTags(ctx)
+	got, err := plainstore.NewSelectorStore(sqliteStore.DB()).List(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("tags = %+v", got)
+	if len(got) != 1 || got[0].Name != "node-tag" || got[0].NodeID != "node-a" {
+		t.Fatalf("selectors = %+v", got)
 	}
-	byName := map[string]contractroute.TagItem{}
-	for _, item := range got {
-		byName[item.Name] = item
-	}
-	if byName["node-tag"].Type != "node" || byName["node-tag"].Hash[0] != "node-a" {
-		t.Fatalf("node tag = %+v", byName["node-tag"])
-	}
-	if byName["mirror-tag"].Type != "mirror" || byName["mirror-tag"].Hash[0] != "node-tag" {
-		t.Fatalf("mirror tag = %+v", byName["mirror-tag"])
-	}
+
 }
 
 func TestMigrateLegacyBackupRewritesContractJSON(t *testing.T) {

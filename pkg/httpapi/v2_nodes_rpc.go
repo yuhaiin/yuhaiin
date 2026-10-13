@@ -7,14 +7,18 @@ import (
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
+	runtimenode "github.com/Asutorufa/yuhaiin/pkg/node"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
 func addNodeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	api := v2API{services: services}
 	addRPCRoute(handlers, v2NodesGet, api.nodes)
+	addRPCRoute(handlers, v2NodesGroups, api.nodeGroups)
 	addRPCRoute(handlers, v2NodesPost, api.saveNode)
+	addRPCRoute(handlers, v2NodesImportPreview, api.previewNodeImport)
 	addRPCRoute(handlers, v2NodesSelected, api.selectedNodes)
+	addRPCRoute(handlers, v2NodesSelect, api.selectNodes)
 	addRPCRoute(handlers, v2NodesActive, api.activeNodes)
 	addRPCRoute(handlers, v2NodeGet, api.node)
 	addRPCRoute(handlers, v2NodePut, api.saveNode)
@@ -23,6 +27,14 @@ func addNodeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2NodeLatency, api.nodeLatency)
 	addRPCRoute(handlers, v2NodeClose, api.closeNode)
 	addRPCRoute(handlers, v2NodeExtraInfo, api.nodeExtraInfo)
+}
+
+func (a v2API) previewNodeImport(_ context.Context, request *contractnode.ImportRequest) (*contractnode.ImportPreview, error) {
+	preview, err := runtimenode.PreviewImport(*request)
+	if err != nil {
+		return nil, badRequest(err)
+	}
+	return &preview, nil
 }
 
 func addResolverRPCRoutesV2(handlers *v2Handlers, services V2Services) {
@@ -36,18 +48,61 @@ func addResolverRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2ResolverCacheDelete, api.clearResolverCache)
 }
 
-func (a v2API) nodes(ctx context.Context, request *listRequest) (*listV2[contractnode.Node], error) {
+type nodeListRequest struct {
+	listRequest
+	Group       string `json:"group"`
+	EnabledOnly bool   `json:"enabled_only"`
+}
+
+type nodeGroupsResponse struct {
+	Items []plainstore.NodeGroupSummary `json:"items"`
+}
+
+// A group selection must never fetch and decode the entire node database.
+func (a v2API) nodeGroups(ctx context.Context, _ *emptyRequest) (*nodeGroupsResponse, error) {
 	if a.services.Nodes == nil {
 		return nil, unavailable("node store is unavailable")
+	}
+	groups, err := a.services.Nodes.Groups(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &nodeGroupsResponse{Items: groups}, nil
+}
+
+func (a v2API) nodes(ctx context.Context, request *nodeListRequest) (*listV2[contractnode.Node], error) {
+	if a.services.Nodes == nil {
+		return nil, unavailable("node store is unavailable")
+	}
+	if group := strings.TrimSpace(request.Group); group != "" {
+		// Only query the current group/page from SQLite. This is called by the
+		// default-destination picker, which must remain cheap for large lists.
+		items, total, err := a.services.Nodes.ListGroupPage(ctx, group, request.Query, request.EnabledOnly, request.Page, request.PageSize)
+		if err != nil {
+			return nil, err
+		}
+		return &listV2[contractnode.Node]{
+			Items: items,
+			Page:  pageV2{Page: max(request.Page, 1), PageSize: min(100, max(request.PageSize, 1)), Total: total},
+		}, nil
 	}
 	items, err := a.services.Nodes.List(ctx)
 	if err != nil {
 		return nil, err
 	}
+	if request.EnabledOnly {
+		enabled := make([]contractnode.Node, 0, len(items))
+		for _, node := range items {
+			if node.Enabled {
+				enabled = append(enabled, node)
+			}
+		}
+		items = enabled
+	}
 	if query := strings.TrimSpace(request.Query); query != "" {
 		items = filterNodes(items, query)
 	}
-	return pageResponse(items, request), nil
+	return pageResponse(items, &request.listRequest), nil
 }
 func (a v2API) saveNode(ctx context.Context, request *contractnode.Node) (*contractnode.Node, error) {
 	if a.services.Node == nil {
@@ -64,6 +119,16 @@ func (a v2API) selectedNodes(ctx context.Context, _ *emptyRequest) (*contractnod
 		return nil, unavailable("node controller is unavailable")
 	}
 	return pointer(a.services.Node.Selected(ctx))
+}
+
+func (a v2API) selectNodes(ctx context.Context, request *contractnode.SelectionRequest) (*emptyResponse, error) {
+	if a.services.Node == nil {
+		return nil, unavailable("node controller is unavailable")
+	}
+	if err := a.services.Node.Select(ctx, *request); err != nil {
+		return nil, badRequest(err)
+	}
+	return &emptyResponse{}, nil
 }
 func (a v2API) activeNodes(ctx context.Context, _ *emptyRequest) (*struct {
 	Items []contractnode.Node `json:"items"`
@@ -95,7 +160,10 @@ func (a v2API) deleteNode(ctx context.Context, request *idRequest) (*emptyRespon
 	}
 	if a.services.Node != nil {
 		if err := a.services.Node.Remove(ctx, request.ID); err != nil {
-			return nil, &rpcError{status: 404, code: "not_found", message: err.Error()}
+			if errors.Is(err, plainstore.ErrNotFound) {
+				return nil, notFound(err)
+			}
+			return nil, err
 		}
 		return &emptyResponse{}, nil
 	}
@@ -174,11 +242,6 @@ func (a v2API) saveResolver(ctx context.Context, request *contractresolver.Resol
 	if err != nil {
 		return nil, badRequest(err)
 	}
-	if a.services.Resolvers != nil {
-		if err := a.services.Resolvers.Save(ctx, value, 0); err != nil {
-			return nil, badRequest(err)
-		}
-	}
 	return &value, nil
 }
 func (a v2API) resolver(ctx context.Context, request *idRequest) (*contractresolver.Resolver, error) {
@@ -201,7 +264,10 @@ func (a v2API) deleteResolver(ctx context.Context, request *idRequest) (*emptyRe
 	removed := false
 	if a.services.Resolver != nil {
 		if err := a.services.Resolver.Remove(ctx, request.ID); err != nil {
-			return nil, &rpcError{status: 404, code: "not_found", message: err.Error()}
+			if errors.Is(err, plainstore.ErrNotFound) {
+				return nil, notFound(err)
+			}
+			return nil, err
 		}
 		removed = true
 	}

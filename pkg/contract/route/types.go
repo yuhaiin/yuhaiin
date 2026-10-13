@@ -3,6 +3,9 @@ package route
 import "time"
 
 type Config struct {
+	Revision             uint64 `json:"revision"`
+	DefaultMode          string `json:"defaultMode"`
+	DefaultTarget        Target `json:"defaultTarget"`
 	DirectResolver       string `json:"directResolver"`
 	ProxyResolver        string `json:"proxyResolver"`
 	ResolveLocally       bool   `json:"resolveLocally"`
@@ -10,6 +13,7 @@ type Config struct {
 }
 
 type ListConfig struct {
+	Revision        uint64         `json:"revision"`
 	RefreshInterval string         `json:"refreshInterval"`
 	LastRefreshTime string         `json:"lastRefreshTime"`
 	Error           string         `json:"error"`
@@ -22,12 +26,22 @@ type ListActivationStatus struct {
 }
 
 type RuleActivationStatus struct {
-	ApplyAt int64 `json:"applyAt"`
+	Applying        bool    `json:"applying,omitzero"`
+	RunningConfig   *Config `json:"runningConfig,omitzero"`
+	SavedRevision   uint64  `json:"savedRevision"`
+	AppliedRevision uint64  `json:"appliedRevision"`
+	ApplyAt         int64   `json:"applyAt"`
+	Error           string  `json:"error,omitempty"`
 }
 
 type ActivationStatus struct {
-	HostIndexRefreshAt int64 `json:"hostIndexRefreshAt"`
-	RuleApplyAt        int64 `json:"ruleApplyAt"`
+	Applying           bool    `json:"applying,omitzero"`
+	RunningConfig      *Config `json:"runningConfig,omitzero"`
+	SavedRevision      uint64  `json:"savedRevision"`
+	AppliedRevision    uint64  `json:"appliedRevision"`
+	HostIndexRefreshAt int64   `json:"hostIndexRefreshAt"`
+	RuleApplyAt        int64   `json:"ruleApplyAt"`
+	Error              string  `json:"error,omitempty"`
 }
 
 type MaxMindDBGeoIP struct {
@@ -36,19 +50,22 @@ type MaxMindDBGeoIP struct {
 }
 
 type RuleItem struct {
+	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Disabled  bool   `json:"disabled"`
 	Index     uint32 `json:"index"`
 	Mode      string `json:"mode"`
-	Tag       string `json:"tag"`
+	Target    Target `json:"target"`
 	Resolver  string `json:"resolver"`
 	RuleCount uint32 `json:"ruleCount"`
 }
 
 type RouteRule struct {
+	ID                   string     `json:"id"`
+	Revision             uint64     `json:"revision"`
 	Name                 string     `json:"name"`
 	Mode                 string     `json:"mode"`
-	Tag                  string     `json:"tag,omitzero"`
+	Target               Target     `json:"target"`
 	ResolveStrategy      string     `json:"resolveStrategy,omitzero"`
 	UdpProxyFqdnStrategy string     `json:"udpProxyFqdnStrategy,omitzero"`
 	Resolver             string     `json:"resolver,omitzero"`
@@ -56,18 +73,43 @@ type RouteRule struct {
 	Disabled             bool       `json:"disabled,omitzero"`
 }
 
-type RuleExpr struct {
-	Type    string       `json:"type"`
-	All     []RuleExpr   `json:"all,omitzero"`
-	Any     []RuleExpr   `json:"any,omitzero"`
-	Not     *RuleExpr    `json:"not,omitzero"`
-	Host    *ListRef     `json:"host,omitzero"`
-	Process *ListRef     `json:"process,omitzero"`
-	Inbound *SourceRef   `json:"inbound,omitzero"`
-	Network *NetworkExpr `json:"network,omitzero"`
-	Port    *PortExpr    `json:"port,omitzero"`
-	GeoIP   *GeoIPExpr   `json:"geoip,omitzero"`
+// Target distinguishes a specific node, a shared selector, and the current
+// global selection without requiring an alias for ordinary routing rules.
+type Target struct {
+	Type string `json:"type"`
+	ID   string `json:"id,omitzero"`
 }
+
+// RuleDraft is an editable view of one rule and its exclusively owned lists.
+// Shared lists remain references in Rule; matching data never lives in Rule.
+type RuleDraft struct {
+	// ShareLists promotes the named owned lists during this save transaction.
+	ShareLists []string          `json:"shareLists,omitempty"`
+	Rule       RouteRule         `json:"rule"`
+	Lists      []RouteListDetail `json:"lists"`
+}
+
+type Reference struct {
+	Kind string `json:"kind"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type RuleExpr struct {
+	Type    string        `json:"type"`
+	Always  *MatchAllExpr `json:"always,omitzero"`
+	All     []RuleExpr    `json:"all,omitzero"`
+	Any     []RuleExpr    `json:"any,omitzero"`
+	Not     *RuleExpr     `json:"not,omitzero"`
+	Host    *ListRef      `json:"host,omitzero"`
+	Process *ListRef      `json:"process,omitzero"`
+	Inbound *SourceRef    `json:"inbound,omitzero"`
+	Network *NetworkExpr  `json:"network,omitzero"`
+	Port    *PortExpr     `json:"port,omitzero"`
+	GeoIP   *GeoIPExpr    `json:"geoip,omitzero"`
+}
+
+type MatchAllExpr struct{}
 
 type ListRef struct {
 	List string `json:"list"`
@@ -96,19 +138,24 @@ type RuleList struct {
 }
 
 type ListItem struct {
-	Name       string `json:"name"`
-	Type       string `json:"type"`
-	Source     string `json:"source"`
-	ItemCount  uint32 `json:"itemCount"`
-	ErrorCount uint32 `json:"errorCount"`
-	Preview    string `json:"preview"`
+	ID          string `json:"id"`
+	OwnerRuleID string `json:"ownerRuleId,omitzero"`
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Source      string `json:"source"`
+	ItemCount   uint32 `json:"itemCount"`
+	ErrorCount  uint32 `json:"errorCount"`
+	Preview     string `json:"preview"`
 }
 
 type RouteListDetail struct {
-	Name      string     `json:"name"`
-	Type      string     `json:"type"`
-	Source    ListSource `json:"source"`
-	ErrorMsgs []string   `json:"errorMsgs,omitzero"`
+	Revision    uint64     `json:"revision"`
+	ID          string     `json:"id"`
+	OwnerRuleID string     `json:"ownerRuleId,omitzero"`
+	Name        string     `json:"name"`
+	Type        string     `json:"type"`
+	Source      ListSource `json:"source"`
+	ErrorMsgs   []string   `json:"errorMsgs,omitzero"`
 }
 
 type ListSource struct {
@@ -130,23 +177,6 @@ type RouteList struct {
 	Page  Page       `json:"page"`
 }
 
-type TagItem struct {
-	Name string   `json:"name"`
-	Type string   `json:"type"`
-	Hash []string `json:"hash"`
-}
-
-type TagList struct {
-	Items []TagItem `json:"items"`
-	Page  Page      `json:"page"`
-}
-
-type SaveTagRequest struct {
-	Tag  string `json:"tag"`
-	Type string `json:"type"`
-	Hash string `json:"hash"`
-}
-
 type Page struct {
 	Page     int `json:"page"`
 	PageSize int `json:"pageSize"`
@@ -158,21 +188,25 @@ type RuleTestRequest struct {
 }
 
 type RuleTestResponse struct {
+	Target      Target              `json:"target"`
 	Mode        string              `json:"mode"`
-	Tag         string              `json:"tag"`
 	Resolver    string              `json:"resolver"`
 	AfterAddr   string              `json:"afterAddr"`
+	ListNames   map[string]string   `json:"listNames,omitempty"`
 	Lists       []string            `json:"lists"`
 	IPs         []string            `json:"ips"`
 	MatchResult []MatchHistoryEntry `json:"matchResult"`
 }
 
 type MatchHistoryEntry struct {
+	RuleID   string        `json:"ruleId,omitempty"`
 	RuleName string        `json:"ruleName"`
 	History  []MatchResult `json:"history"`
 }
 
 type MatchResult struct {
+	Kind     string `json:"kind,omitempty"`
+	ID       string `json:"id,omitempty"`
 	ListName string `json:"listName"`
 	Matched  bool   `json:"matched"`
 }

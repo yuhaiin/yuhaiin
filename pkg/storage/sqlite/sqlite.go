@@ -256,6 +256,11 @@ func applyMigration(ctx context.Context, db *sql.DB, migration Migration) error 
 			)
 		}
 	}
+	if migration.Transform != nil {
+		if err := migration.Transform(ctx, tx); err != nil {
+			return fmt.Errorf("transform sqlite migration %d: %w", migration.Version, err)
+		}
+	}
 
 	now := time.Now().Unix()
 	if _, err := tx.ExecContext(ctx, `

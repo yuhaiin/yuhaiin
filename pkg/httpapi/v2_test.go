@@ -155,8 +155,7 @@ type routeRuntimeStub struct {
 	applied *int
 }
 
-func (routeRuntimeStub) SaveConfig(context.Context, contractroute.Config) error { return nil }
-func (routeRuntimeStub) ScheduleApply()                                         {}
+func (routeRuntimeStub) ScheduleApply() {}
 func (s routeRuntimeStub) Apply(context.Context) error {
 	*s.applied++
 	return nil
@@ -207,28 +206,18 @@ func TestV2RouteActivationIsCombined(t *testing.T) {
 
 	applyRecorder := httptest.NewRecorder()
 	mux.ServeHTTP(applyRecorder, httptest.NewRequest(http.MethodPost, "/api/v2/rpc/route.apply", strings.NewReader(`{}`)))
-	if applyRecorder.Code != http.StatusOK || applyRecorder.Body.String() != "{}" || listApplied != 1 || ruleApplied != 1 {
+	if applyRecorder.Code != http.StatusOK || applyRecorder.Body.String() != "{}" || listApplied != 0 || ruleApplied != 1 {
 		t.Fatalf("combined apply failed: code=%d list=%d rule=%d", applyRecorder.Code, listApplied, ruleApplied)
 	}
 }
 
-func TestV2RouteTagsIncludeRuleReferences(t *testing.T) {
+func TestV2RuleDraftOwnsListsAndRejectsStaleUpdates(t *testing.T) {
 	ctx := t.Context()
-	sqliteStore, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	db, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = sqliteStore.Close() }()
-
-	ruleStore := plainstore.NewRouteRuleStore(sqliteStore.DB())
-	if err := ruleStore.SaveRule(ctx, contractroute.RouteRule{Name: "remote", Mode: "proxy", Tag: "rule-only"}, 0, 100); err != nil {
-		t.Fatal(err)
-	}
-	tagStore := plainstore.NewRouteTagStore(sqliteStore.DB())
-	if err := tagStore.SaveTag(ctx, contractroute.TagItem{Name: "configured", Type: "node", Hash: []string{"node-a"}}, 100); err != nil {
-		t.Fatal(err)
-	}
-
+	defer func() { _ = db.Close() }()
 	mux := http.NewServeMux()
 	RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
@@ -236,26 +225,39 @@ func TestV2RouteTagsIncludeRuleReferences(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
-	}, V2Services{RouteRules: ruleStore, RouteTags: tagStore})
-
-	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/v2/rpc/route.tags.get", strings.NewReader(`{"page":1,"page_size":10}`)))
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}, V2Services{RouteRules: plainstore.NewRouteRuleStore(db.DB()), RouteLists: plainstore.NewRouteListStore(db.DB()), RouteEditor: plainstore.NewRouteEditorStore(db.DB())})
+	body := `{"rule":{"id":"rule-a","name":"Websites","mode":"direct","revision":0,"rules":[{"type":"host","host":{"list":"private-a"}}]},"lists":[{"id":"private-a","name":"Websites","type":"host","source":{"type":"local","local":{"lists":["example.com"]}}}]}`
+	call := func(operation, data string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		mux.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/v2/rpc/"+operation, strings.NewReader(data)))
+		return recorder
 	}
-	body := recorder.Body.String()
-	if !strings.Contains(body, `"name":"configured"`) || !strings.Contains(body, `"hash":["node-a"]`) || !strings.Contains(body, `"name":"rule-only"`) || !strings.Contains(body, `"total":2`) {
-		t.Fatalf("unexpected route tags response: %s", body)
+	created := call("route.rules.post", body)
+	if created.Code != http.StatusOK || !strings.Contains(created.Body.String(), `"revision":1`) {
+		t.Fatalf("create: %d %s", created.Code, created.Body.String())
+	}
+	shared := call("route.lists.get", `{}`)
+	if shared.Code != http.StatusOK || strings.Contains(shared.Body.String(), "private-a") {
+		t.Fatalf("private data exposed: %s", shared.Body.String())
+	}
+	update := strings.Replace(body, `"revision":0`, `"revision":1`, 1)
+	update = strings.Replace(update, `"name":"Websites"`, `"name":"Renamed"`, 1)
+	update = `{"id":"rule-a",` + update[1:]
+	saved := call("route.rule.put", update)
+	if saved.Code != http.StatusOK || !strings.Contains(saved.Body.String(), `"name":"Renamed"`) || !strings.Contains(saved.Body.String(), `"revision":2`) {
+		t.Fatalf("update: %d %s", saved.Code, saved.Body.String())
+	}
+	if stale := call("route.rule.put", update); stale.Code != http.StatusConflict {
+		t.Fatalf("stale: %d %s", stale.Code, stale.Body.String())
+	}
+	if deleted := call("route.rule.delete", `{"id":"rule-a"}`); deleted.Code != http.StatusOK {
+		t.Fatalf("delete: %d %s", deleted.Code, deleted.Body.String())
+	}
+	if _, err := plainstore.NewRouteListStore(db.DB()).GetRouteList(ctx, "private-a"); !errors.Is(err, plainstore.ErrNotFound) {
+		t.Fatalf("private data survived rule deletion: %v", err)
 	}
 }
 
-func (s listConfigRuntimeStub) SaveConfig(ctx context.Context, config contractroute.ListConfig, interval uint64) error {
-	return s.store.SaveListSettings(ctx, plainstore.RouteListSettings{
-		RefreshInterval: interval, LastRefreshTime: 999,
-		HostIndexDisk:        config.HostIndexDisk,
-		MaxMindDBDownloadURL: config.MaxMindDBGeoIP.DownloadURL,
-	})
-}
 func (listConfigRuntimeStub) Refresh(context.Context) error      { return nil }
 func (listConfigRuntimeStub) ApplyChanges(context.Context) error { return nil }
 func (listConfigRuntimeStub) Apply(context.Context) error        { return nil }
@@ -271,6 +273,9 @@ func TestV2RouteListConfigDoesNotOverwriteRuntimeState(t *testing.T) {
 	}
 	defer sqliteStore.Close()
 	settings := plainstore.NewRouteSettingsStore(sqliteStore.DB())
+	if err := settings.SaveListSettings(ctx, plainstore.RouteListSettings{LastRefreshTime: 999}); err != nil {
+		t.Fatal(err)
+	}
 	mux := http.NewServeMux()
 	RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) { _ = handler(w, r) })

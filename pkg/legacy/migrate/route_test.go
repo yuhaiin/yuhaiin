@@ -29,21 +29,9 @@ func TestConvertLegacyRulePreservesExplicitEmptyGroup(t *testing.T) {
 	}.Build()
 
 	got := ConvertLegacyRule(legacy)
-	want := []contractroute.RuleExpr{{Type: "all", All: nil}}
+	want := []contractroute.RuleExpr{{Type: "always"}}
 	if len(got.Rules) != 1 || got.Rules[0].Type != want[0].Type || len(got.Rules[0].All) != 0 {
 		t.Fatalf("explicit empty group was not preserved: %#v", got.Rules)
-	}
-}
-
-func TestConvertContractRuleRejectsUnknownEnum(t *testing.T) {
-	if _, err := ConvertContractRule(contractroute.RouteRule{Name: "bad", Mode: "unknown"}); err == nil {
-		t.Fatal("unknown route mode was silently converted")
-	}
-	if _, err := ConvertContractRule(contractroute.RouteRule{
-		Name:  "bad-network",
-		Rules: []contractroute.RuleExpr{{Type: "network", Network: &contractroute.NetworkExpr{Network: "icmp"}}},
-	}); err == nil {
-		t.Fatal("unknown network was silently converted")
 	}
 }
 

@@ -48,7 +48,14 @@ const (
 	v2SubscriptionsUpdate      v2Endpoint = "subscriptions.update"
 	v2Publishes                v2Endpoint = "publishes"
 	v2PublishResolve           v2Endpoint = "publish.resolve"
+	v2NodesGroups              v2Endpoint = "nodes.groups"
 	v2NodesSelected            v2Endpoint = "nodes.selected"
+	v2NodesSelect              v2Endpoint = "nodes.select"
+	v2NodesImportPreview       v2Endpoint = "nodes.import.preview"
+	v2InboundStatuses          v2Endpoint = "inbounds.status"
+	v2InboundEvents            v2Endpoint = "inbound.events"
+	v2InboundRetry             v2Endpoint = "inbound.retry"
+	v2InboundCapabilities      v2Endpoint = "inbound.capabilities"
 	v2NodesActive              v2Endpoint = "nodes.active"
 	v2NodeUse                  v2Endpoint = "node.use"
 	v2NodeLatency              v2Endpoint = "node.latency"
@@ -115,9 +122,10 @@ const (
 	v2RouteRuleGet          v2Endpoint = "route.rule.get"
 	v2RouteRulePut          v2Endpoint = "route.rule.put"
 	v2RouteRuleDelete       v2Endpoint = "route.rule.delete"
-	v2RouteTagsGet          v2Endpoint = "route.tags.get"
-	v2RouteTagPut           v2Endpoint = "route.tag.put"
-	v2RouteTagDelete        v2Endpoint = "route.tag.delete"
+	v2SelectorsGet          v2Endpoint = "outbound.selectors.get"
+	v2SelectorPut           v2Endpoint = "outbound.selector.put"
+	v2SelectorDelete        v2Endpoint = "outbound.selector.delete"
+	v2SelectorReferences    v2Endpoint = "outbound.selector.references"
 )
 
 var v2Routes = []v2Route{
@@ -163,13 +171,20 @@ var v2Routes = []v2Route{
 	{v2InboundConfigGet, "GET /api/v2/inbounds/config"},
 	{v2InboundConfigPut, "PUT /api/v2/inbounds/config"},
 	{v2InboundsGet, "GET /api/v2/inbounds"},
+	{v2InboundCapabilities, "GET /api/v2/inbounds/capabilities"},
 	{v2InboundsPost, "POST /api/v2/inbounds"},
+	{v2InboundStatuses, "GET /api/v2/inbounds/status"},
+	{v2InboundEvents, "GET /api/v2/inbounds/{id}/events"},
+	{v2InboundRetry, "POST /api/v2/inbounds/{id}/retry"},
 	{v2InboundGet, "GET /api/v2/inbounds/{id}"},
 	{v2InboundPut, "PUT /api/v2/inbounds/{id}"},
 	{v2InboundDelete, "DELETE /api/v2/inbounds/{id}"},
 	{v2NodesGet, "GET /api/v2/nodes"},
+	{v2NodesGroups, "GET /api/v2/nodes/groups"},
 	{v2NodesPost, "POST /api/v2/nodes"},
+	{v2NodesImportPreview, "POST /api/v2/nodes/import/preview"},
 	{v2NodesSelected, "GET /api/v2/nodes/selected"},
+	{v2NodesSelect, "PUT /api/v2/nodes/selected"},
 	{v2NodesActive, "GET /api/v2/nodes/active"},
 	{v2NodeGet, "GET /api/v2/nodes/{id}"},
 	{v2NodePut, "PUT /api/v2/nodes/{id}"},
@@ -201,17 +216,18 @@ var v2Routes = []v2Route{
 	{v2RouteRegistryCatalogs, "GET /api/v2/route/registries/catalogs"},
 	{v2RouteRegistryPut, "PUT /api/v2/route/registries/{id}"},
 	{v2RouteRegistryDelete, "DELETE /api/v2/route/registries/{id}"},
+	{v2SelectorsGet, "GET /api/v2/outbound/selectors"},
+	{v2SelectorPut, "PUT /api/v2/outbound/selectors"},
+	{v2SelectorDelete, "DELETE /api/v2/outbound/selectors/{id}"},
+	{v2SelectorReferences, "GET /api/v2/outbound/selectors/{id}/references"},
 	{v2RouteRulesGet, "GET /api/v2/route/rules"},
 	{v2RouteRulesPost, "POST /api/v2/route/rules"},
 	{v2RouteRulesPriority, "POST /api/v2/route/rules/priority"},
-	{v2RouteRuleGet, "GET /api/v2/route/rules/{name}/{index}"},
-	{v2RouteRulePut, "PUT /api/v2/route/rules/{name}/{index}"},
-	{v2RouteRuleDelete, "DELETE /api/v2/route/rules/{name}/{index}"},
+	{v2RouteRuleGet, "GET /api/v2/route/rules/{id}"},
+	{v2RouteRulePut, "PUT /api/v2/route/rules/{id}"},
+	{v2RouteRuleDelete, "DELETE /api/v2/route/rules/{id}"},
 	{v2RouteRulesTest, "POST /api/v2/route/rules/test"},
 	{v2RouteRulesBlockHistory, "GET /api/v2/route/rules/block-history"},
-	{v2RouteTagsGet, "GET /api/v2/route/tags"},
-	{v2RouteTagPut, "PUT /api/v2/route/tags/{tag}"},
-	{v2RouteTagDelete, "DELETE /api/v2/route/tags/{tag}"},
 }
 
 type v2Handlers struct {
@@ -222,6 +238,7 @@ func newV2Handlers(services V2Services) *v2Handlers {
 	handlers := &v2Handlers{values: make(map[v2Endpoint]func(http.ResponseWriter, *http.Request) error)}
 	addFacadeRPCRoutesV2(handlers, services)
 	addRouteRPCRoutesV2(handlers, services)
+	addSelectorRPCRoutesV2(handlers, services)
 	addRegistryRPCRoutesV2(handlers, services)
 	addSubscriptionRPCRoutesV2(handlers, services)
 	addNodeRPCRoutesV2(handlers, services)
