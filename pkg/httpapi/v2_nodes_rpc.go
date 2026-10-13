@@ -49,44 +49,60 @@ func addResolverRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 }
 
 type nodeListRequest struct {
-    listRequest
-    Group string `json:"group"`
-    EnabledOnly bool `json:"enabled_only"`
+	listRequest
+	Group       string `json:"group"`
+	EnabledOnly bool   `json:"enabled_only"`
 }
 
 type nodeGroupsResponse struct {
-    Items []plainstore.NodeGroupSummary `json:"items"`
+	Items []plainstore.NodeGroupSummary `json:"items"`
 }
 
 // A group selection must never fetch and decode the entire node database.
 func (a v2API) nodeGroups(ctx context.Context, _ *emptyRequest) (*nodeGroupsResponse, error) {
-    if a.services.Nodes == nil { return nil, unavailable("node store is unavailable") }
-    groups, err := a.services.Nodes.Groups(ctx)
-    if err != nil { return nil, err }
-    return &nodeGroupsResponse{Items: groups}, nil
+	if a.services.Nodes == nil {
+		return nil, unavailable("node store is unavailable")
+	}
+	groups, err := a.services.Nodes.Groups(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &nodeGroupsResponse{Items: groups}, nil
 }
 
 func (a v2API) nodes(ctx context.Context, request *nodeListRequest) (*listV2[contractnode.Node], error) {
-    if a.services.Nodes == nil { return nil, unavailable("node store is unavailable") }
-    if group := strings.TrimSpace(request.Group); group != "" {
-        // Only query the current group/page from SQLite. This is called by the
-        // default-destination picker, which must remain cheap for large lists.
-        items, total, err := a.services.Nodes.ListGroupPage(ctx, group, request.Query, request.EnabledOnly, request.Page, request.PageSize)
-        if err != nil { return nil, err }
-        return &listV2[contractnode.Node]{
-            Items: items,
-            Page: pageV2{Page: max(request.Page, 1), PageSize: min(100, max(request.PageSize, 1)), Total: total},
-        }, nil
-    }
-    items, err := a.services.Nodes.List(ctx)
-    if err != nil { return nil, err }
-    if request.EnabledOnly {
-        enabled := make([]contractnode.Node, 0, len(items))
-        for _, node := range items { if node.Enabled { enabled = append(enabled, node) } }
-        items = enabled
-    }
-    if query := strings.TrimSpace(request.Query); query != "" { items = filterNodes(items, query) }
-    return pageResponse(items, &request.listRequest), nil
+	if a.services.Nodes == nil {
+		return nil, unavailable("node store is unavailable")
+	}
+	if group := strings.TrimSpace(request.Group); group != "" {
+		// Only query the current group/page from SQLite. This is called by the
+		// default-destination picker, which must remain cheap for large lists.
+		items, total, err := a.services.Nodes.ListGroupPage(ctx, group, request.Query, request.EnabledOnly, request.Page, request.PageSize)
+		if err != nil {
+			return nil, err
+		}
+		return &listV2[contractnode.Node]{
+			Items: items,
+			Page:  pageV2{Page: max(request.Page, 1), PageSize: min(100, max(request.PageSize, 1)), Total: total},
+		}, nil
+	}
+	items, err := a.services.Nodes.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.EnabledOnly {
+		enabled := make([]contractnode.Node, 0, len(items))
+		for _, node := range items {
+			if node.Enabled {
+				enabled = append(enabled, node)
+			}
+		}
+		items = enabled
+	}
+	if query := strings.TrimSpace(request.Query); query != "" {
+		items = filterNodes(items, query)
+	}
+	return pageResponse(items, &request.listRequest), nil
 }
 func (a v2API) saveNode(ctx context.Context, request *contractnode.Node) (*contractnode.Node, error) {
 	if a.services.Node == nil {
