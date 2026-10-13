@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 	"uuid"
 
@@ -194,6 +195,69 @@ func (s *NodeStore) List(ctx context.Context) ([]contractnode.Node, error) {
 		return nil, fmt.Errorf("iterate node contracts failed: %w", err)
 	}
 	return nodes, nil
+}
+
+// NodeGroupSummary contains only group metadata, never full node contracts.
+type NodeGroupSummary struct {
+    Name string `json:"name"`
+    Count int `json:"count"`
+    Enabled int `json:"enabled"`
+}
+
+func (s *NodeStore) Groups(ctx context.Context) ([]NodeGroupSummary, error) {
+    if s == nil || s.db == nil { return nil, errors.New("node store database is nil") }
+    rows, err := s.db.QueryContext(ctx, `
+        SELECT COALESCE(NULLIF(group_name,''), 'manual'), COUNT(*),
+               SUM(CASE WHEN enabled != 0 THEN 1 ELSE 0 END)
+        FROM nodes_v2
+        GROUP BY COALESCE(NULLIF(group_name,''), 'manual')
+        ORDER BY 1
+    `)
+    if err != nil { return nil, fmt.Errorf("list node groups: %w", err) }
+    defer rows.Close()
+    result := []NodeGroupSummary{}
+    for rows.Next() {
+        var item NodeGroupSummary
+        if err := rows.Scan(&item.Name, &item.Count, &item.Enabled); err != nil { return nil, err }
+        result = append(result, item)
+    }
+    return result, rows.Err()
+}
+
+// ListGroupPage reads only the requested page. In particular, selecting one
+// default node must not deserialize every node stored in other groups.
+func (s *NodeStore) ListGroupPage(ctx context.Context, group, query string, enabledOnly bool, page, pageSize int) ([]contractnode.Node, int, error) {
+    if s == nil || s.db == nil { return nil, 0, errors.New("node store database is nil") }
+    group = strings.TrimSpace(group)
+    if group == "" { return nil, 0, errors.New("node group is required") }
+    page = max(1, page)
+    pageSize = min(100, max(1, pageSize))
+    where := "(group_name = ? OR (group_name = '' AND ? = 'manual'))"
+    args := []any{group, group}
+    if enabledOnly { where += " AND enabled != 0" }
+    if query = strings.TrimSpace(query); query != "" {
+        where += " AND (LOWER(id) LIKE ? OR LOWER(name) LIKE ? OR LOWER(group_name) LIKE ? OR LOWER(origin) LIKE ? OR LOWER(chain_types_json) LIKE ?)"
+        needle := "%" + strings.ToLower(query) + "%"
+        for i := 0; i < 5; i++ { args = append(args, needle) }
+    }
+    var total int
+    if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM nodes_v2 WHERE " + where, args...).Scan(&total); err != nil {
+        return nil, 0, fmt.Errorf("count group nodes: %w", err)
+    }
+    queryArgs := append(append([]any{}, args...), pageSize, (page - 1) * pageSize)
+    rows, err := s.db.QueryContext(ctx, "SELECT data_json FROM nodes_v2 WHERE " + where + " ORDER BY name, id LIMIT ? OFFSET ?", queryArgs...)
+    if err != nil { return nil, 0, fmt.Errorf("list group nodes: %w", err) }
+    defer rows.Close()
+    items := []contractnode.Node{}
+    for rows.Next() {
+        var raw string
+        if err := rows.Scan(&raw); err != nil { return nil, 0, err }
+        node, err := decodeNodeContract(raw)
+        if err != nil { return nil, 0, err }
+        items = append(items, node)
+    }
+    if err := rows.Err(); err != nil { return nil, 0, err }
+    return items, total, nil
 }
 
 func (s *NodeStore) Delete(ctx context.Context, id string) error {
