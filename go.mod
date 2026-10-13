@@ -25,7 +25,7 @@ require (
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.25.0
-	github.com/quic-go/connect-ip-go v0.4.0
+	github.com/quic-go/connect-ip-go v0.5.0
 	github.com/quic-go/quic-go v0.63.0
 	github.com/refraction-networking/utls v1.8.2
 	github.com/rhnvrm/simples3 v0.11.1
@@ -33,7 +33,7 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20261012183509-14cefac9bd7a
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261012050811-35224b68aa49
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261013095945-752845de9eee
 	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/mobile v0.0.0-20261011034528-197770444867
