@@ -230,20 +230,24 @@ func (s *NodeStore) Groups(ctx context.Context) ([]NodeGroupSummary, error) {
 	return result, rows.Err()
 }
 
-// ListGroupPage reads only the requested page. In particular, selecting one
+// ListPage reads only the requested page. In particular, selecting one
 // default node must not deserialize every node stored in other groups.
-func (s *NodeStore) ListGroupPage(ctx context.Context, group, query string, enabledOnly bool, page, pageSize int) ([]contractnode.Node, int, error) {
+func (s *NodeStore) ListPage(ctx context.Context, group, query string, enabledOnly bool, page, pageSize int) ([]contractnode.Node, int, error) {
 	if s == nil || s.db == nil {
 		return nil, 0, errors.New("node store database is nil")
 	}
 	group = strings.TrimSpace(group)
-	if group == "" {
-		return nil, 0, errors.New("node group is required")
-	}
 	page = max(1, page)
-	pageSize = min(100, max(1, pageSize))
-	where := "(group_name = ? OR (group_name = '' AND ? = 'manual'))"
-	args := []any{group, group}
+	if pageSize <= 0 {
+		pageSize = 100
+	}
+	pageSize = min(100, pageSize)
+	where := "1 = 1"
+	args := []any{}
+	if group != "" {
+		where = "(group_name = ? OR (group_name = '' AND ? = 'manual'))"
+		args = append(args, group, group)
+	}
 	if enabledOnly {
 		where += " AND enabled != 0"
 	}
@@ -258,7 +262,7 @@ func (s *NodeStore) ListGroupPage(ctx context.Context, group, query string, enab
 	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM nodes_v2 WHERE "+where, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count group nodes: %w", err)
 	}
-	queryArgs := append(append([]any{}, args...), pageSize, (page-1)*pageSize)
+	queryArgs := append(slices.Clone(args), pageSize, (page-1)*pageSize)
 	rows, err := s.db.QueryContext(ctx, "SELECT data_json FROM nodes_v2 WHERE "+where+" ORDER BY name, id LIMIT ? OFFSET ?", queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list group nodes: %w", err)

@@ -121,6 +121,8 @@ func render(routes []route) []byte {
 	output.WriteString("export function rpcPath(operation: RPCOperation): string {\n  return `/api/v2/rpc/${operation}`;\n}\n\n")
 	output.WriteString(`export function resolveRPCRoute(method: string, path: string): { operation: RPCOperation; params: Record<string, string> } {
   const actual = path.split("/").filter(Boolean);
+  let match: { operation: RPCOperation; params: Record<string, string> } | undefined;
+  let parameterCount = Infinity;
   for (const route of legacyRoutes) {
     if (route.method !== method) continue;
     const expected = route.pattern.split("/").filter(Boolean);
@@ -136,9 +138,14 @@ func render(routes []route) []byte {
         break;
       }
     }
-    if (matched) return { operation: route.operation, params };
+    // Prefer literal routes over placeholders, as Go's ServeMux does.
+    if (matched && Object.keys(params).length < parameterCount) {
+      match = { operation: route.operation, params };
+      parameterCount = Object.keys(params).length;
+    }
   }
-	  throw new Error("Unknown API route: " + method + " " + path);
+  if (match) return match;
+  throw new Error("Unknown API route: " + method + " " + path);
 }
 `)
 	return output.Bytes()

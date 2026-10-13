@@ -182,24 +182,6 @@ func filterInbounds(items []contractinbound.Inbound, query string) []contractinb
 	}
 	return out
 }
-func filterNodes(items []contractnode.Node, query string) []contractnode.Node {
-	query = strings.ToLower(query)
-	out := make([]contractnode.Node, 0, len(items))
-	for _, item := range items {
-		if strings.Contains(strings.ToLower(item.ID), query) || strings.Contains(strings.ToLower(item.Name), query) || strings.Contains(strings.ToLower(item.Group), query) || strings.Contains(strings.ToLower(item.Origin), query) || nodeChainContains(item, query) {
-			out = append(out, item)
-		}
-	}
-	return out
-}
-func nodeChainContains(item contractnode.Node, query string) bool {
-	for _, protocol := range item.Chain {
-		if strings.Contains(strings.ToLower(protocol.Type), query) {
-			return true
-		}
-	}
-	return false
-}
 func filterResolvers(items []contractresolver.Resolver, query string) []contractresolver.Resolver {
 	query = strings.ToLower(strings.TrimSpace(query))
 	if query == "" {
