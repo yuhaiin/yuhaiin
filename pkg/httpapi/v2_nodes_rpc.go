@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"slices"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
@@ -55,70 +54,39 @@ type nodeListRequest struct {
     EnabledOnly bool `json:"enabled_only"`
 }
 
-type nodeGroup struct {
-    Name string `json:"name"`
-    Count int `json:"count"`
-    Enabled int `json:"enabled"`
-}
-
 type nodeGroupsResponse struct {
-    Items []nodeGroup `json:"items"`
+    Items []plainstore.NodeGroupSummary `json:"items"`
 }
 
-// The group catalog is small even when the node list is large. Listing nodes
-// remains lazy and paginated, with server-side group filtering.
+// A group selection must never fetch and decode the entire node database.
 func (a v2API) nodeGroups(ctx context.Context, _ *emptyRequest) (*nodeGroupsResponse, error) {
-    if a.services.Nodes == nil {
-        return nil, unavailable("node store is unavailable")
-    }
-    nodes, err := a.services.Nodes.List(ctx)
+    if a.services.Nodes == nil { return nil, unavailable("node store is unavailable") }
+    groups, err := a.services.Nodes.Groups(ctx)
     if err != nil { return nil, err }
-    index := map[string]*nodeGroup{}
-    for _, node := range nodes {
-        group := strings.TrimSpace(node.Group)
-        if group == "" { group = "manual" }
-        entry := index[group]
-        if entry == nil {
-            entry = &nodeGroup{Name: group}
-            index[group] = entry
-        }
-        entry.Count++
-        if node.Enabled { entry.Enabled++ }
-    }
-    groups := make([]nodeGroup, 0, len(index))
-    for _, group := range index { groups = append(groups, *group) }
-    slices.SortFunc(groups, func(a, b nodeGroup) int { return strings.Compare(a.Name, b.Name) })
     return &nodeGroupsResponse{Items: groups}, nil
 }
 
 func (a v2API) nodes(ctx context.Context, request *nodeListRequest) (*listV2[contractnode.Node], error) {
-	if a.services.Nodes == nil {
-		return nil, unavailable("node store is unavailable")
-	}
-	items, err := a.services.Nodes.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// Exact group matching avoids a misleading substring match (e.g. "aws"
-	// also matching "aws-backup"). The filter runs before pagination.
-	if group := strings.TrimSpace(request.Group); group != "" {
-        selected := make([]contractnode.Node, 0)
-        for _, node := range items {
-            actual := strings.TrimSpace(node.Group)
-            if actual == "" { actual = "manual" }
-            if actual == group { selected = append(selected, node) }
-        }
-        items = selected
+    if a.services.Nodes == nil { return nil, unavailable("node store is unavailable") }
+    if group := strings.TrimSpace(request.Group); group != "" {
+        // Only query the current group/page from SQLite. This is called by the
+        // default-destination picker, which must remain cheap for large lists.
+        items, total, err := a.services.Nodes.ListGroupPage(ctx, group, request.Query, request.EnabledOnly, request.Page, request.PageSize)
+        if err != nil { return nil, err }
+        return &listV2[contractnode.Node]{
+            Items: items,
+            Page: pageV2{Page: max(request.Page, 1), PageSize: min(100, max(request.PageSize, 1)), Total: total},
+        }, nil
     }
+    items, err := a.services.Nodes.List(ctx)
+    if err != nil { return nil, err }
     if request.EnabledOnly {
-        selected := make([]contractnode.Node, 0, len(items))
-        for _, node := range items { if node.Enabled { selected = append(selected, node) } }
-        items = selected
+        enabled := make([]contractnode.Node, 0, len(items))
+        for _, node := range items { if node.Enabled { enabled = append(enabled, node) } }
+        items = enabled
     }
-	if query := strings.TrimSpace(request.Query); query != "" {
-		items = filterNodes(items, query)
-	}
-	return pageResponse(items, &request.listRequest), nil
+    if query := strings.TrimSpace(request.Query); query != "" { items = filterNodes(items, query) }
+    return pageResponse(items, &request.listRequest), nil
 }
 func (a v2API) saveNode(ctx context.Context, request *contractnode.Node) (*contractnode.Node, error) {
 	if a.services.Node == nil {
