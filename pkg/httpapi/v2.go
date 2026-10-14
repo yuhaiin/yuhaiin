@@ -63,6 +63,7 @@ type ResolverConfigController interface {
 	SaveServer(context.Context, contractresolver.Server) (contractresolver.Server, error)
 }
 type ResolverController interface {
+	Test(context.Context, contractresolver.TestRequest) (contractresolver.TestResponse, error)
 	Save(context.Context, contractresolver.Resolver) (contractresolver.Resolver, error)
 	Remove(context.Context, string) error
 }
@@ -93,6 +94,7 @@ type RouteRuntimeController interface {
 	BlockHistory(context.Context) (contractroute.BlockHistoryList, error)
 }
 type ListRuntimeController interface {
+	GeoIPCountries(context.Context) (contractroute.GeoIPCountries, error)
 	Refresh(context.Context) error
 	ApplyChanges(context.Context) error
 	Apply(context.Context) error

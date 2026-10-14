@@ -274,3 +274,9 @@ type RegistryCatalog struct {
 type RegistryCatalogList struct {
 	Items []RegistryCatalog `json:"items"`
 }
+
+// GeoIPCountries describes the country values of the currently applied database.
+type GeoIPCountries struct {
+	Codes  []string `json:"codes"`
+	Loaded bool     `json:"loaded"`
+}

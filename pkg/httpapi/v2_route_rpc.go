@@ -17,6 +17,7 @@ func addRouteRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2RouteApply, api.applyRoute)
 	addRPCRoute(handlers, v2RouteConfigGet, api.routeConfig)
 	addRPCRoute(handlers, v2RouteConfigPut, api.saveRouteConfig)
+	addRPCRoute(handlers, v2RouteGeoIPCountries, api.geoIPCountries)
 	addRPCRoute(handlers, v2RouteListsGet, api.routeLists)
 	addRPCRoute(handlers, v2RouteListConfigGet, api.routeListConfig)
 	addRPCRoute(handlers, v2RouteListConfigPut, api.saveRouteListConfig)
@@ -341,4 +342,11 @@ func (a v2API) scheduleListApply(ctx context.Context) error {
 		return a.services.Lists.ApplyChanges(ctx)
 	}
 	return nil
+}
+
+func (a v2API) geoIPCountries(ctx context.Context, _ *emptyRequest) (*contractroute.GeoIPCountries, error) {
+	if a.services.Lists == nil {
+		return nil, unavailable("list controller is unavailable")
+	}
+	return pointer(a.services.Lists.GeoIPCountries(ctx))
 }

@@ -43,6 +43,8 @@ func addResolverRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2ResolversPost, api.saveResolver)
 	addRPCRoute(handlers, v2ResolverGet, api.resolver)
 	addRPCRoute(handlers, v2ResolverPut, api.saveResolver)
+	addRPCRoute(handlers, v2ResolverTest, api.testResolver)
+	addRPCRoute(handlers, v2ResolverQueryTypes, api.resolverQueryTypes)
 	addRPCRoute(handlers, v2ResolverDelete, api.deleteResolver)
 	addRPCRoute(handlers, v2ResolverCacheGet, api.resolverCache)
 	addRPCRoute(handlers, v2ResolverCacheDelete, api.clearResolverCache)

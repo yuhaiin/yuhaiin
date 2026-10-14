@@ -1,9 +1,13 @@
 package resolver
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"strings"
+
+	"codeberg.org/miekg/dns"
+	"codeberg.org/miekg/dns/dnsutil"
 )
 
 type Resolver struct {
@@ -70,4 +74,40 @@ func (x Resolver) Validate() error {
 		return errors.New("resolver host is empty")
 	}
 	return nil
+}
+
+type QueryTypeList struct {
+	Types []string `json:"types"`
+}
+
+type TestRequest struct {
+	Resolver  Resolver `json:"resolver"`
+	Domain    string   `json:"domain"`
+	QueryType string   `json:"queryType"`
+}
+
+type TestResponse struct {
+	Domain    string           `json:"domain"`
+	QueryType string           `json:"queryType"`
+	ElapsedMS float64          `json:"elapsedMs"`
+	Rcode     string           `json:"rcode"`
+	Truncated bool             `json:"truncated"`
+	Records   []DNSCacheRecord `json:"records"`
+	Error     string           `json:"error,omitzero"`
+}
+
+func (r TestRequest) Validate() error {
+	if strings.TrimSpace(r.Domain) == "" || strings.ContainsAny(r.Domain, ":/\\ \t\r\n?#@") || !dnsutil.IsName(strings.TrimSpace(r.Domain)) {
+		return errors.New("invalid DNS query domain")
+	}
+	queryType := strings.ToUpper(strings.TrimSpace(r.QueryType))
+	if queryType == "" {
+		queryType = "A"
+	}
+	if _, ok := dns.StringToType[queryType]; !ok || queryType == "OPT" || queryType == "TSIG" || queryType == "AXFR" || queryType == "IXFR" {
+		return fmt.Errorf("unsupported DNS query type %q", r.QueryType)
+	}
+	config := r.Resolver
+	config.ID = cmp.Or(config.ID, "resolver-test")
+	return config.Validate()
 }
