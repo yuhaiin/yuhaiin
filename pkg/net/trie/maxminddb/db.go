@@ -3,7 +3,9 @@ package maxminddb
 import (
 	"context"
 	"errors"
+	"maps"
 	"net/netip"
+	"slices"
 	"sync"
 	"unsafe"
 
@@ -15,9 +17,10 @@ import (
 var _ (netapi.MaxMindDB) = (*MaxMindDB)(nil)
 
 type MaxMindDB struct {
-	db     *maxminddb.Reader
-	closed bool
-	mu     sync.RWMutex
+	countries func() ([]string, error)
+	db        *maxminddb.Reader
+	closed    bool
+	mu        sync.RWMutex
 }
 
 func NewMaxMindDB(path string) (*MaxMindDB, error) {
@@ -25,7 +28,42 @@ func NewMaxMindDB(path string) (*MaxMindDB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &MaxMindDB{db: db}, nil
+	return &MaxMindDB{db: db, countries: sync.OnceValues(func() ([]string, error) { return readCountries(db) })}, nil
+}
+
+// Countries enumerates each record once per loaded database. The returned slice
+// belongs to the caller; neither API clients nor a database reload can mutate it.
+func (m *MaxMindDB) Countries() ([]string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.closed {
+		return nil, errors.New("maxminddb closed")
+	}
+	codes, err := m.countries()
+	return slices.Clone(codes), err
+}
+
+func readCountries(db *maxminddb.Reader) ([]string, error) {
+	codes := map[string]struct{}{}
+	seen := map[uintptr]struct{}{}
+	for result := range db.Networks() {
+		if err := result.Err(); err != nil {
+			return nil, err
+		}
+		offset := result.Offset()
+		if _, ok := seen[offset]; ok {
+			continue
+		}
+		seen[offset] = struct{}{}
+		var country FastCountry
+		if err := result.Decode(&country); err != nil {
+			return nil, err
+		}
+		if country.CountryISO != "" {
+			codes[country.CountryISO] = struct{}{}
+		}
+	}
+	return slices.Sorted(maps.Keys(codes)), nil
 }
 
 func (m *MaxMindDB) Lookup(ip netip.Addr) (string, error) {

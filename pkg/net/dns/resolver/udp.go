@@ -34,8 +34,9 @@ type udpresp struct {
 }
 
 func (r *udpresp) setMsg(msg *dns.Msg) {
-	r.cancel()
+	// Publish the response before waking the waiting query.
 	r.msg.Store(msg)
+	r.cancel()
 }
 
 type udpPacket struct {

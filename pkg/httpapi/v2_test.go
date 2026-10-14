@@ -420,3 +420,7 @@ func TestV2FakeDNSRouteSyncErrorIsReturned(t *testing.T) {
 		t.Fatalf("sync failure reported as success: %d %s", recorder.Code, recorder.Body.String())
 	}
 }
+
+func (listConfigRuntimeStub) GeoIPCountries(context.Context) (contractroute.GeoIPCountries, error) {
+	return contractroute.GeoIPCountries{Codes: []string{"CN", "JP"}, Loaded: true}, nil
+}

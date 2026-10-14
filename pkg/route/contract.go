@@ -44,6 +44,16 @@ func (c ContractListController) ActivationStatus(context.Context) (contractroute
 	return c.lists.ActivationStatus(), nil
 }
 
+func (c ContractListController) GeoIPCountries(ctx context.Context) (contractroute.GeoIPCountries, error) {
+	if err := ctx.Err(); err != nil {
+		return contractroute.GeoIPCountries{}, err
+	}
+	if c.lists == nil {
+		return contractroute.GeoIPCountries{}, errors.New("list controller is unavailable")
+	}
+	return c.lists.GeoIPCountries()
+}
+
 type ContractRuleController struct {
 	rules *Rules
 }

@@ -377,6 +377,19 @@ func (s *Lists) LoadGeoip() *maxminddb.MaxMindDB {
 	return ggeoip
 }
 
+// GeoIPCountries holds the same database generation through catalog extraction.
+// Snapshot application swaps the database and its cache together.
+func (s *Lists) GeoIPCountries() (contractroute.GeoIPCountries, error) {
+	s.LoadGeoip()
+	s.geoipmu.RLock()
+	defer s.geoipmu.RUnlock()
+	if s.geoip == nil || s.geoip.m == nil {
+		return contractroute.GeoIPCountries{Codes: []string{}}, nil
+	}
+	codes, err := s.geoip.m.Countries()
+	return contractroute.GeoIPCountries{Codes: codes, Loaded: true}, err
+}
+
 func (s *Lists) resetRefreshInterval(minute uint64) {
 	s.tickermu.Lock()
 	defer s.tickermu.Unlock()

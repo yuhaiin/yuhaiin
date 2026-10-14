@@ -101,10 +101,13 @@ const (
 	v2ResolversGet          v2Endpoint = "resolvers.get"
 	v2ResolversPost         v2Endpoint = "resolvers.post"
 	v2ResolverGet           v2Endpoint = "resolver.get"
+	v2ResolverTest          v2Endpoint = "resolver.test"
+	v2ResolverQueryTypes    v2Endpoint = "resolver.query_types"
 	v2ResolverPut           v2Endpoint = "resolver.put"
 	v2ResolverDelete        v2Endpoint = "resolver.delete"
 	v2RouteConfigGet        v2Endpoint = "route.config.get"
 	v2RouteConfigPut        v2Endpoint = "route.config.put"
+	v2RouteGeoIPCountries   v2Endpoint = "route.geoip.countries"
 	v2RouteListsGet         v2Endpoint = "route.lists.get"
 	v2RouteListsPost        v2Endpoint = "route.lists.post"
 	v2RouteListConfigGet    v2Endpoint = "route.lists.config.get"
@@ -194,6 +197,8 @@ var v2Routes = []v2Route{
 	{v2NodeClose, "POST /api/v2/nodes/{id}/close"},
 	{v2NodeExtraInfo, "GET /api/v2/nodes/{id}/extra"},
 	{v2ResolversGet, "GET /api/v2/resolvers"},
+	{v2ResolverTest, "POST /api/v2/resolvers/test"},
+	{v2ResolverQueryTypes, "GET /api/v2/resolvers/query-types"},
 	{v2ResolversPost, "POST /api/v2/resolvers"},
 	{v2ResolverGet, "GET /api/v2/resolvers/{id}"},
 	{v2ResolverPut, "PUT /api/v2/resolvers/{id}"},
@@ -202,6 +207,7 @@ var v2Routes = []v2Route{
 	{v2RouteApply, "POST /api/v2/route/apply"},
 	{v2RouteConfigGet, "GET /api/v2/route/config"},
 	{v2RouteConfigPut, "PUT /api/v2/route/config"},
+	{v2RouteGeoIPCountries, "GET /api/v2/route/geoip/countries"},
 	{v2RouteListsGet, "GET /api/v2/route/lists"},
 	{v2RouteListConfigGet, "GET /api/v2/route/lists/config"},
 	{v2RouteListConfigPut, "PUT /api/v2/route/lists/config"},
