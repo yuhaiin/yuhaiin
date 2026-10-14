@@ -33,11 +33,9 @@ func (s *ResolverConfigRuntimeStore) Hosts(ctx context.Context) (contractresolve
 
 func (s *ResolverConfigRuntimeStore) SaveHosts(ctx context.Context, hosts contractresolver.Hosts) (contractresolver.Hosts, error) {
 	if s.Runtime != nil {
-		next, err := s.Runtime.SaveHosts(ctx, hosts)
-		if err != nil {
-			return contractresolver.Hosts{}, err
-		}
-		hosts = next
+		// The runtime owns persistence and activation. A second bulk write here
+		// could overwrite an individual mapping saved after activation.
+		return s.Runtime.SaveHosts(ctx, hosts)
 	}
 	if s.Store != nil {
 		return s.Store.SaveHosts(ctx, hosts)

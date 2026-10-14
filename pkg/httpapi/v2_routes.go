@@ -101,6 +101,11 @@ const (
 	v2ResolversGet          v2Endpoint = "resolvers.get"
 	v2ResolversPost         v2Endpoint = "resolvers.post"
 	v2ResolverGet           v2Endpoint = "resolver.get"
+	v2HostEntries           v2Endpoint = "resolver.hosts.entries"
+	v2HostEntryGet          v2Endpoint = "resolver.hosts.entry.get"
+	v2HostEntryPost         v2Endpoint = "resolver.hosts.entry.post"
+	v2HostEntryPut          v2Endpoint = "resolver.hosts.entry.put"
+	v2HostEntryDelete       v2Endpoint = "resolver.hosts.entry.delete"
 	v2ResolverTest          v2Endpoint = "resolver.test"
 	v2ResolverQueryTypes    v2Endpoint = "resolver.query_types"
 	v2ResolverPut           v2Endpoint = "resolver.put"
@@ -197,6 +202,11 @@ var v2Routes = []v2Route{
 	{v2NodeClose, "POST /api/v2/nodes/{id}/close"},
 	{v2NodeExtraInfo, "GET /api/v2/nodes/{id}/extra"},
 	{v2ResolversGet, "GET /api/v2/resolvers"},
+	{v2HostEntries, "GET /api/v2/resolver/hosts/entries"},
+	{v2HostEntryPost, "POST /api/v2/resolver/hosts/entries"},
+	{v2HostEntryGet, "GET /api/v2/resolver/hosts/entries/{host}"},
+	{v2HostEntryPut, "PUT /api/v2/resolver/hosts/entries/{host}"},
+	{v2HostEntryDelete, "DELETE /api/v2/resolver/hosts/entries/{host}"},
 	{v2ResolverTest, "POST /api/v2/resolvers/test"},
 	{v2ResolverQueryTypes, "GET /api/v2/resolvers/query-types"},
 	{v2ResolversPost, "POST /api/v2/resolvers"},

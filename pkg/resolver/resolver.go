@@ -306,6 +306,7 @@ func (d *dnsDialer) PacketConn(c context.Context, addr netapi.Address) (net.Pack
 }
 
 type ResolverCtr struct {
+	hostsMu   sync.Mutex
 	resolvers ResolverBook
 	config    ResolverConfigBook
 
@@ -449,6 +450,8 @@ func (r *ResolverCtr) ContractHosts(ctx context.Context) (contractresolver.Hosts
 }
 
 func (r *ResolverCtr) SaveContractHosts(ctx context.Context, req contractresolver.Hosts) (contractresolver.Hosts, error) {
+	r.hostsMu.Lock()
+	defer r.hostsMu.Unlock()
 	if req.Hosts == nil {
 		req.Hosts = map[string]string{}
 	}
