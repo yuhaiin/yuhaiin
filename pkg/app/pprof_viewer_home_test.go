@@ -13,16 +13,18 @@ import (
 	"testing"
 )
 
-// Run in a fresh process because HOME and XDG_CONFIG_HOME are process-global.
-// A normal CI runner has HOME set and would never exercise the failure path.
+// Run in a fresh process because user config variables are process-global.
+// Normal CI runners set them, which otherwise hides this regression.
 func TestProfilerViewerWithoutHome(t *testing.T) {
 	dir := t.TempDir()
 	cmd := exec.Command(os.Args[0], "-test.run=^TestProfilerViewerNoHomeSubprocess$")
 	env := make([]string, 0, len(os.Environ())+1)
 	for _, entry := range os.Environ() {
-		if strings.HasPrefix(entry, "HOME=") ||
-			strings.HasPrefix(entry, "XDG_CONFIG_HOME=") ||
-			strings.HasPrefix(entry, "YUHAIIN_PPROF_NO_HOME_TEST=") {
+		name, _, _ := strings.Cut(entry, "=")
+		if strings.EqualFold(name, "HOME") ||
+			strings.EqualFold(name, "XDG_CONFIG_HOME") ||
+			strings.EqualFold(name, "AppData") ||
+			name == "YUHAIIN_PPROF_NO_HOME_TEST" {
 			continue
 		}
 		env = append(env, entry)
@@ -30,7 +32,7 @@ func TestProfilerViewerWithoutHome(t *testing.T) {
 	cmd.Env = append(env, "YUHAIIN_PPROF_NO_HOME_TEST="+dir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("pprof Viewer without HOME: %v\n%s", err, out)
+		t.Fatalf("pprof Viewer without user config variables: %v\n%s", err, out)
 	}
 }
 
@@ -40,18 +42,38 @@ func TestProfilerViewerNoHomeSubprocess(t *testing.T) {
 		return
 	}
 	if _, err := os.UserConfigDir(); err == nil {
-		t.Skip("platform resolves a user config directory even without HOME")
+		t.Skip("platform resolves a user config directory without user variables")
 	}
 	if err := prepareProfilerViewerConfigDir(dataDir); err != nil {
 		t.Fatalf("prepare pprof config: %v", err)
 	}
-	if got := os.Getenv("HOME"); got != "" {
-		t.Fatalf("HOME was unexpectedly set: %q", got)
+
+	var envName, subDir string
+	switch runtime.GOOS {
+	case "windows":
+		envName, subDir = "AppData", "pprof-config"
+	case "darwin", "ios":
+		envName, subDir = "HOME", "pprof-home"
+	default:
+		envName, subDir = "XDG_CONFIG_HOME", "pprof-config"
 	}
-	want := filepath.Join(dataDir, "pprof-config")
-	if got := os.Getenv("XDG_CONFIG_HOME"); got != want {
-		t.Fatalf("XDG_CONFIG_HOME = %q, want %q", got, want)
+	want := filepath.Join(dataDir, subDir)
+	if got := os.Getenv(envName); got != want {
+		t.Fatalf("%s = %q, want %q", envName, got, want)
 	}
+	if runtime.GOOS != "darwin" && runtime.GOOS != "ios" && os.Getenv("HOME") != "" {
+		t.Fatalf("HOME was unexpectedly set: %q", os.Getenv("HOME"))
+	}
+	if got, err := os.UserConfigDir(); err != nil {
+		t.Fatal(err)
+	} else if runtime.GOOS == "darwin" || runtime.GOOS == "ios" {
+		if expected := filepath.Join(want, "Library", "Application Support"); got != expected {
+			t.Fatalf("UserConfigDir = %q, want %q", got, expected)
+		}
+	} else if got != want {
+		t.Fatalf("UserConfigDir = %q, want %q", got, want)
+	}
+
 	info, err := os.Stat(want)
 	if err != nil {
 		t.Fatal(err)
@@ -73,7 +95,7 @@ func TestProfilerViewerNoHomeSubprocess(t *testing.T) {
 	var v profilerView
 	handlers, err := v.handlersFor(data.Bytes())
 	if err != nil {
-		t.Fatalf("official pprof Viewer failed without HOME: %v", err)
+		t.Fatalf("official pprof Viewer failed without user config variables: %v", err)
 	}
 	for _, path := range []string{"/flamegraph", "/top"} {
 		h := handlers[path]
@@ -91,32 +113,48 @@ func TestProfilerViewerNoHomeSubprocess(t *testing.T) {
 
 func TestProfilerViewerPreservesExistingConfig(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", dir)
-	if resolved, err := os.UserConfigDir(); err != nil || resolved != dir {
-		t.Skip("platform does not honor XDG_CONFIG_HOME")
+	var envName string
+	switch runtime.GOOS {
+	case "windows":
+		envName = "AppData"
+	case "darwin", "ios":
+		envName = "HOME"
+	default:
+		envName = "XDG_CONFIG_HOME"
+	}
+	t.Setenv(envName, dir)
+	before, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
 	}
 	if err := prepareProfilerViewerConfigDir(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
-	if got := os.Getenv("XDG_CONFIG_HOME"); got != dir {
-		t.Fatalf("overwrote configured XDG_CONFIG_HOME: %q", got)
+	if got := os.Getenv(envName); got != dir {
+		t.Fatalf("overwrote configured %s: %q", envName, got)
+	}
+	if got, err := os.UserConfigDir(); err != nil || got != before {
+		t.Fatalf("UserConfigDir changed: %q, %v", got, err)
 	}
 }
 
 func TestProfilerViewerConfigDirectoryError(t *testing.T) {
 	t.Setenv("HOME", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("AppData", "")
 	if _, err := os.UserConfigDir(); err == nil {
-		t.Skip("platform resolves a user config directory without HOME")
+		t.Skip("platform resolves a user config directory without user variables")
 	}
 	dir := filepath.Join(t.TempDir(), "file-not-directory")
 	if err := os.WriteFile(dir, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := prepareProfilerViewerConfigDir(dir); err == nil {
-		t.Fatal("expected error when profile config directory is not writable")
+		t.Fatal("expected error when the fallback directory cannot be created")
 	}
-	if got := os.Getenv("XDG_CONFIG_HOME"); got != "" {
-		t.Fatalf("modified XDG_CONFIG_HOME after failure: %q", got)
+	for _, name := range []string{"HOME", "AppData", "XDG_CONFIG_HOME"} {
+		if got := os.Getenv(name); got != "" {
+			t.Fatalf("modified %s after setup failure: %q", name, got)
+		}
 	}
 }
