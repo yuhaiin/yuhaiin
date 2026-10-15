@@ -448,5 +448,5 @@ func (p *profilerService) serveView(w http.ResponseWriter, r *http.Request) {
 	// temporarily changes it. Keep official handlers outside that window.
 	profilerViewerInitMu.Lock()
 	defer profilerViewerInitMu.Unlock()
-	h.ServeHTTP(w, clone)
+	h.ServeHTTP(profilerResponsiveWriter{ResponseWriter: w}, clone)
 }
