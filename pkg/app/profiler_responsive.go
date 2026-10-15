@@ -65,7 +65,7 @@ func (w profilerResponsiveWriter) Write(p []byte) (int, error) {
 	}
 	const headEnd = "</head>"
 	i := bytes.Index(bytes.ToLower(p), []byte(headEnd))
-	if i < 0 || bytes.Contains(p, []byte("id="yuhaiin-pprof-responsive"")) {
+	if i < 0 || bytes.Contains(p, []byte("yuhaiin-pprof-responsive")) {
 		return w.ResponseWriter.Write(p)
 	}
 	w.Header().Del("Content-Length")
