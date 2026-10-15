@@ -410,4 +410,3 @@ func (p *profilerService) serveView(w http.ResponseWriter, r *http.Request) {
 	clone.URL.Path = "/" + suffix
 	h.ServeHTTP(w, clone)
 }
-
