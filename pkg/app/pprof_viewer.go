@@ -2,7 +2,10 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -16,6 +19,50 @@ import (
 // defaults and settings. All viewer instances share identical defaults;
 // per-request UI filters remain URL-scoped.
 var profilerViewerInitMu sync.Mutex
+
+// prepareProfilerViewerConfigDir runs when the profiler is registered, never
+// while serving a request. google/pprof's Web UI calls os.UserConfigDir even
+// when saved UI configurations are unused. Android services and minimal
+// containers may run without HOME, causing initialization to fail.
+//
+// When the platform has no user config directory, point XDG_CONFIG_HOME at a
+// private directory under yuhaiin's existing data directory. This is a
+// process-wide fallback because google/pprof has no public setting for the
+// config path. Never replace a working user configuration or caller-provided
+// XDG_CONFIG_HOME, and never set HOME.
+func prepareProfilerViewerConfigDir(dataDir string) error {
+	profilerViewerInitMu.Lock()
+	defer profilerViewerInitMu.Unlock()
+
+	_, lookupErr := os.UserConfigDir()
+	if lookupErr == nil {
+		return nil
+	}
+	if os.Getenv("XDG_CONFIG_HOME") != "" {
+		return fmt.Errorf("pprof viewer user config directory: %w", lookupErr)
+	}
+	if dataDir == "" {
+		return fmt.Errorf("pprof viewer needs a data directory without HOME: %w", lookupErr)
+	}
+
+	dir, err := filepath.Abs(filepath.Join(dataDir, "pprof-config"))
+	if err != nil {
+		return fmt.Errorf("resolve pprof viewer config directory: %w", err)
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("create pprof viewer config directory: %w", err)
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		return fmt.Errorf("protect pprof viewer config directory: %w", err)
+	}
+	if err := os.Setenv("XDG_CONFIG_HOME", dir); err != nil {
+		return fmt.Errorf("set pprof viewer config directory: %w", err)
+	}
+	if _, err := os.UserConfigDir(); err != nil {
+		return fmt.Errorf("pprof viewer still cannot resolve config directory: %w", err)
+	}
+	return nil
+}
 
 type profilerView struct {
 	once     sync.Once
