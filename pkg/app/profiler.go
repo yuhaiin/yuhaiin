@@ -310,7 +310,7 @@ type profileResponse struct {
 	err    error
 }
 
-func (w *profileResponse) Header() http.Header { return w.header }
+func (w *profileResponse) Header() http.Header    { return w.header }
 func (w *profileResponse) WriteHeader(status int) { w.status = status }
 func (w *profileResponse) Write(b []byte) (int, error) {
 	if w.buffer.Len()+len(b) > profilerMaxCapture {
