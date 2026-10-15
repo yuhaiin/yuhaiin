@@ -53,7 +53,7 @@ func (f profilerViewerFetch) Fetch(_ string, _, _ time.Duration) (*profile.Profi
 type profilerViewerFlags struct{ extra string }
 
 func (f *profilerViewerFlags) Bool(_ string, value bool, _ string) *bool { return &value }
-func (f *profilerViewerFlags) Int(_ string, value int, _ string) *int { return &value }
+func (f *profilerViewerFlags) Int(_ string, value int, _ string) *int    { return &value }
 func (f *profilerViewerFlags) Float64(_ string, value float64, _ string) *float64 {
 	return &value
 }
@@ -71,15 +71,17 @@ func (f *profilerViewerFlags) StringList(_ string, value, _ string) *[]*string {
 	v := []*string{&value}
 	return &v
 }
-func (f *profilerViewerFlags) ExtraUsage() string { return f.extra }
+func (f *profilerViewerFlags) ExtraUsage() string     { return f.extra }
 func (f *profilerViewerFlags) AddExtraUsage(s string) { f.extra += s }
-func (f *profilerViewerFlags) Parse(func()) []string { return []string{"yuhaiin-session.pb.gz"} }
+func (f *profilerViewerFlags) Parse(func()) []string  { return []string{"yuhaiin-session.pb.gz"} }
 
 type profilerViewerUI struct{}
 
-func (profilerViewerUI) ReadLine(string) (string, error) { return "", errors.New("interactive input disabled") }
-func (profilerViewerUI) Print(...interface{})           {}
-func (profilerViewerUI) PrintErr(...interface{})        {}
-func (profilerViewerUI) IsTerminal() bool               { return false }
-func (profilerViewerUI) WantBrowser() bool              { return false }
+func (profilerViewerUI) ReadLine(string) (string, error) {
+	return "", errors.New("interactive input disabled")
+}
+func (profilerViewerUI) Print(...interface{})                {}
+func (profilerViewerUI) PrintErr(...interface{})             {}
+func (profilerViewerUI) IsTerminal() bool                    { return false }
+func (profilerViewerUI) WantBrowser() bool                   { return false }
 func (profilerViewerUI) SetAutoComplete(func(string) string) {}
