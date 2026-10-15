@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/google/pprof/profile"
 )
 
@@ -49,10 +50,11 @@ type profilerSession struct {
 type profilerService struct {
 	mu         sync.Mutex
 	sessions   map[string]*profilerSession
-	cpuRunning atomic.Bool
-	done       chan struct{}
-	closed     bool
-	stopOnce   sync.Once
+	cpuRunning     atomic.Bool
+	done           chan struct{}
+	closed         bool
+	stopOnce       sync.Once
+	viewerInitErr  error
 }
 
 var activeProfiler atomic.Pointer[profilerService]
@@ -322,6 +324,10 @@ func (w *profileResponse) Write(b []byte) (int, error) {
 
 func registerProfilerHTTP(app *AppInstance) {
 	p := newProfilerService()
+	p.viewerInitErr = prepareProfilerViewerConfigDir(app.ConfigPath)
+	if p.viewerInitErr != nil {
+		log.Warn("pprof web viewer config unavailable", "err", p.viewerInitErr)
+	}
 	app.profiler = p
 	activeProfiler.Store(p)
 
@@ -392,6 +398,10 @@ func (p *profilerService) serveView(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/vnd.google.protobuf+gzip")
 		w.Header().Set("Content-Disposition", "attachment; filename=profile.pb.gz")
 		_, _ = w.Write(s.raw)
+		return
+	}
+	if p.viewerInitErr != nil {
+		http.Error(w, "pprof viewer unavailable: "+p.viewerInitErr.Error(), http.StatusInternalServerError)
 		return
 	}
 	handlers, err := s.view.handlersFor(s.raw)
