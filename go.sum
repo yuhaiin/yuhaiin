@@ -277,6 +277,8 @@ github.com/quic-go/connect-ip-go v0.4.0 h1:m9xcVslaw9OzLQV79shdXHhKJZZhUmYQhWe6J
 github.com/quic-go/connect-ip-go v0.4.0/go.mod h1:cookeVNLMXicKUvht2irdmBfDW7BV+oy8T8mLYN53ow=
 github.com/quic-go/connect-ip-go v0.5.0 h1:XIhmbjEc6BPxrfIhSh48gH9Bqs+4A16kcQSmpp8kX2A=
 github.com/quic-go/connect-ip-go v0.5.0/go.mod h1:9yKpfh478CV1+TXhLp0D8KVFnpT+61UfreE82uz5aRQ=
+github.com/quic-go/connect-ip-go v0.6.0 h1:KEX0+aFbRnxX40atYIYQXjZvm4rhTeLUdd9/Ipl4V0Q=
+github.com/quic-go/connect-ip-go v0.6.0/go.mod h1:9yKpfh478CV1+TXhLp0D8KVFnpT+61UfreE82uz5aRQ=
 github.com/quic-go/go-ossfuzz-seeds v0.1.0 h1:APacT+iIaNF6fd8AGEiN3bT/Jtkd2jz4v4TzM7MFjy0=
 github.com/quic-go/go-ossfuzz-seeds v0.1.0/go.mod h1:3IOHRbJIc+L6YKMwfDtJAM9Vj9k0YY4muhuyUYk5tbk=
 github.com/quic-go/qpack v0.6.0 h1:g7W+BMYynC1LbYLSqRt8PBg5Tgwxn214ZZR34VIOjz8=
@@ -370,6 +372,8 @@ github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261015024533-a59a994aa5d6 h1:jq5ja
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261015024533-a59a994aa5d6/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261015054741-dd21f056b0fd h1:KlMfTiPY8LuoOX+a4LyAAO0BGfu7LD3mZdG4g6j0gMk=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261015054741-dd21f056b0fd/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261015150444-fe1eaf74832c h1:BOqBUHwMh2mKwmTFu8goL9a7oWxfaopTMMeVQwYfNTc=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261015150444-fe1eaf74832c/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
