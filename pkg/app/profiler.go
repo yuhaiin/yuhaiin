@@ -385,7 +385,7 @@ func (p *profilerService) serveView(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if suffix == "" {
-		http.Redirect(w, r, "flamegraph", http.StatusFound)
+		http.Redirect(w, r, "/debug/profiler/"+id+"/flamegraph", http.StatusFound)
 		return
 	}
 	if suffix == "download" {
