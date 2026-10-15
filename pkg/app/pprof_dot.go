@@ -89,7 +89,9 @@ func profilerDOT(raw []byte, query url.Values) (dot string, err error) {
 		var discard profilerDOTWriter
 		restoreErr := driver.PProf(&driver.Options{
 			Flagset: &profilerDOTFlags{options: profilerDOTDefaults(), command: "comments"},
-			UI: profilerViewerUI{}, Fetch: profilerViewerFetch{raw: raw}, Writer: &discard,
+			UI:      profilerViewerUI{},
+			Fetch:   profilerViewerFetch{raw: raw},
+			Writer:  &discard,
 		})
 		if restoreErr != nil {
 			err = errors.Join(err, fmt.Errorf("restore pprof viewer configuration: %w", restoreErr))
