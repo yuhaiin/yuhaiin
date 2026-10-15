@@ -29,9 +29,10 @@ func TestProfilerDOTWithoutGraphviz(t *testing.T) {
 		t.Fatalf("missing digraph header: %.120s", dot)
 	}
 	for _, query := range []url.Values{
+		{"f": {"testing"}},
+		{"n": {"10"}, "trim": {"true"}},
+		{"si": {"inuse_space"}},
 		{"focus": {"testing"}},
-		{"nodecount": {"10"}, "trim": {"true"}},
-		{"sample_index": {"inuse_space"}},
 	} {
 		if _, err := profilerDOT(raw, query); err != nil {
 			t.Errorf("DOT options %v: %v", query, err)
@@ -42,6 +43,8 @@ func TestProfilerDOTWithoutGraphviz(t *testing.T) {
 		{"output": {"/tmp/graph.dot"}},
 		{"focus": {"a", "b"}},
 		{"focus": {strings.Repeat("x", 1025)}},
+		{"n": {"abc"}},
+		{"f": {"a"}, "focus": {"b"}},
 	} {
 		if _, err := profilerDOT(raw, query); err == nil {
 			t.Errorf("expected rejection for options %v", query)
@@ -71,7 +74,8 @@ func TestProfilerWASMGraphBridge(t *testing.T) {
 		wantText string
 	}{
 		{base + "/dot", http.StatusOK, "digraph"},
-		{base + "/dot?nodecount=3", http.StatusOK, "digraph"},
+		{base + "/dot?n=3", http.StatusOK, "digraph"},
+		{base + "/dot?si=inuse_space", http.StatusOK, "digraph"},
 		{base + "/dot?http=1", http.StatusBadRequest, "unknown graph option"},
 		{base + "/graph?focus=Go", http.StatusOK, "yuhaiin:pprof-graph"},
 	} {
@@ -82,6 +86,16 @@ func TestProfilerWASMGraphBridge(t *testing.T) {
 		}
 		if w.Header().Get("Cache-Control") != "no-store" {
 			t.Errorf("%s: missing Cache-Control no-store", tc.path)
+		}
+	}
+
+	// Using a different sample type in the DOT endpoint must not poison the
+	// process-global currentConfig of the official pprof Viewer.
+	for _, suffix := range []string{"flamegraph", "top", "peek"} {
+		w := httptest.NewRecorder()
+		p.serveView(w, httptest.NewRequest(http.MethodGet, base+"/"+suffix, nil))
+		if w.Code != http.StatusOK {
+			t.Errorf("%s after DOT: %d: %.200s", suffix, w.Code, w.Body.String())
 		}
 	}
 }
