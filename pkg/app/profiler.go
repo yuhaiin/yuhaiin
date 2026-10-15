@@ -34,7 +34,7 @@ type profilerSessionInfo struct {
 	Seconds     int       `json:"seconds"`
 	Status      string    `json:"status"`
 	CreatedAt   time.Time `json:"createdAt"`
-	CompletedAt time.Time `json:"completedAt,omitempty"`
+	CompletedAt time.Time `json:"completedAt"`
 	Size        int       `json:"size"`
 	Error       string    `json:"error,omitempty"`
 }
