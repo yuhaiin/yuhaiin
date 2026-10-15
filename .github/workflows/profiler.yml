@@ -1,0 +1,29 @@
+name: Embedded Profiler
+
+on:
+  pull_request:
+    paths:
+      - 'pkg/app/profiler.go'
+      - 'pkg/app/pprof_viewer.go'
+      - 'pkg/app/profiler_test.go'
+      - 'pkg/app/options.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/profiler.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  profiler-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify profiler capture and official viewer
+        run: go test -race -count=1 ./pkg/app -run '^TestProfiler'
