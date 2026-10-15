@@ -56,6 +56,7 @@ type AppInstance struct {
 	Mux           *http.ServeMux
 	*StartOptions
 	closers *closers
+	profiler *profilerService
 }
 
 type closers struct {
@@ -123,6 +124,7 @@ func (app *AppInstance) RegisterServer(ctx context.Context) error {
 		return err
 	}
 	RegisterHTTP(app.Mux)
+	registerProfilerHTTP(app)
 	return nil
 }
 
@@ -206,6 +208,10 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 }
 
 func (a *AppInstance) Close() error {
+	if a.profiler != nil {
+		a.profiler.stop()
+		activeProfiler.CompareAndSwap(a.profiler, nil)
+	}
 	sysproxy.Unset()
 
 	err := a.closers.CloseExcept("state_store")
@@ -395,6 +401,9 @@ func setPprofEnabled(enabled bool) {
 		return
 	}
 
+	if p := activeProfiler.Load(); p != nil {
+		p.clear()
+	}
 	runtimepprof.StopCPUProfile()
 	runtime.SetBlockProfileRate(0)
 	runtime.SetMutexProfileFraction(0)
