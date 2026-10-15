@@ -401,6 +401,27 @@ func (p *profilerService) serveView(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(s.raw)
 		return
 	}
+	if suffix == "graph" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'")
+		_, _ = io.WriteString(w, graphBridgePage)
+		return
+	}
+	if suffix == "dot" {
+		if !validProfilerGraphQuery(r.URL.RawQuery) {
+			http.Error(w, "invalid graph query", http.StatusBadRequest)
+			return
+		}
+		dot, err := profilerDOT(s.raw, r.URL.Query())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "text/vnd.graphviz; charset=utf-8")
+		_, _ = io.WriteString(w, dot)
+		return
+	}
+
 	if p.viewerInitErr != nil {
 		http.Error(w, "pprof viewer unavailable: "+p.viewerInitErr.Error(), http.StatusInternalServerError)
 		return
