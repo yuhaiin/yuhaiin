@@ -55,7 +55,7 @@ type AppInstance struct {
 	Inbound       *inbound.Inbound
 	Mux           *http.ServeMux
 	*StartOptions
-	closers *closers
+	closers  *closers
 	profiler *profilerService
 }
 
