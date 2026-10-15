@@ -80,8 +80,8 @@ type profilerViewerUI struct{}
 func (profilerViewerUI) ReadLine(string) (string, error) {
 	return "", errors.New("interactive input disabled")
 }
-func (profilerViewerUI) Print(...interface{})                {}
-func (profilerViewerUI) PrintErr(...interface{})             {}
+func (profilerViewerUI) Print(...any)                {}
+func (profilerViewerUI) PrintErr(...any)             {}
 func (profilerViewerUI) IsTerminal() bool                    { return false }
 func (profilerViewerUI) WantBrowser() bool                   { return false }
 func (profilerViewerUI) SetAutoComplete(func(string) string) {}
