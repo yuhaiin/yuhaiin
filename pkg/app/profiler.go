@@ -8,10 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/pprof"
-	"runtime"
 	runtimepprof "runtime/pprof"
 	"sort"
 	"strconv"
@@ -123,13 +121,12 @@ func (p *profilerService) evictLocked(now time.Time) {
 	sort.Slice(finished, func(i, j int) bool {
 		return finished[i].info.CreatedAt.Before(finished[j].info.CreatedAt)
 	})
-	for _, s := range finished {
-		if len(finished) <= profilerMaxSessions && total <= profilerMaxBytes {
+	for i, s := range finished {
+		if len(finished)-i <= profilerMaxSessions && total <= profilerMaxBytes {
 			break
 		}
 		delete(p.sessions, s.info.ID)
 		total -= len(s.raw)
-		finished = finished[1:]
 	}
 }
 
@@ -414,7 +411,3 @@ func (p *profilerService) serveView(w http.ResponseWriter, r *http.Request) {
 	h.ServeHTTP(w, clone)
 }
 
-// Keep net/http/pprof's sampling semantics intact. These profiles may have
-// different sample types even though the viewer uses the same UI.
-var _ = runtime.GOMAXPROCS
-var _ io.Writer = (*bytes.Buffer)(nil)
