@@ -22,6 +22,39 @@ func TestHexDecode(t *testing.T) {
 		base64.RawURLEncoding.EncodeToString(key.PublicKey().Bytes()))
 }
 
+func TestParseX25519PrivateKey(t *testing.T) {
+	private, public, err := GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	key, err := parseX25519PrivateKey(private)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := base64.RawURLEncoding.EncodeToString(key.PublicKey().Bytes()); got != public {
+		t.Fatalf("X25519 public key mismatch: got %q, want %q", got, public)
+	}
+}
+
+func TestParseX25519PrivateKeyInvalid(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		key  string
+	}{
+		{name: "invalid base64", key: "!"},
+		{name: "empty key", key: ""},
+		{name: "short key", key: base64.RawURLEncoding.EncodeToString(make([]byte, 31))},
+		{name: "long key", key: base64.RawURLEncoding.EncodeToString(make([]byte, 33))},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if key, err := parseX25519PrivateKey(tc.key); err == nil || key != nil {
+				t.Fatalf("expected invalid X25519 private key error: key=%v, err=%v", key, err)
+			}
+		})
+	}
+}
+
 func TestParseMLDSA65PrivateKey(t *testing.T) {
 	var seed [mldsa.PrivateKeySize]byte
 	for i := range seed {
