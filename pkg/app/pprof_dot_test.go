@@ -66,7 +66,7 @@ func TestProfilerWASMGraphBridge(t *testing.T) {
 	}
 	base := "/debug/profiler/" + info.ID
 	for _, tc := range []struct {
-		path string
+		path     string
 		wantCode int
 		wantText string
 	}{
