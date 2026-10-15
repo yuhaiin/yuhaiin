@@ -409,6 +409,9 @@ func (p *profilerService) serveView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if suffix == "dot" {
+		// The session ID is an expiring unguessable capability. The React app
+		// may run on another origin; requests omit browser credentials.
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		if !validProfilerGraphQuery(r.URL.RawQuery) {
 			http.Error(w, "invalid graph query", http.StatusBadRequest)
 			return
