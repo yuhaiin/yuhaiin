@@ -2,7 +2,6 @@ package reality
 
 import (
 	"bufio"
-	"bytes"
 	"crypto/ed25519"
 	"crypto/hmac"
 	"crypto/rand"
@@ -115,31 +114,26 @@ func TestRealityClientRejectsInvalidPublicKey(t *testing.T) {
 	}
 }
 
-func TestRealityVerifierRejectsInvalidCertificates(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		cert [][]byte
-	}{
-		{name: "empty certificate chain"},
-		{name: "malformed certificate", cert: [][]byte{[]byte("not a certificate")}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			v := &realityVerifier{serverName: "example.com"}
-			if err := v.VerifyPeerCertificate(tc.cert, nil); err == nil {
-				t.Fatal("expected certificate validation error")
-			}
-			if v.verified {
-				t.Fatal("invalid certificate marked as verified")
-			}
-		})
+func TestRealityVerifierRejectsMissingCertificates(t *testing.T) {
+	v := &realityVerifier{serverName: "example.com"}
+	if err := v.VerifyConnection(utls.ConnectionState{}); err == nil {
+		t.Fatal("expected certificate validation error")
+	}
+	if v.verified {
+		t.Fatal("missing certificate marked as verified")
 	}
 }
 
 func TestRealityVerifierHMACSignature(t *testing.T) {
 	authKey := []byte("test-reality-auth-key-32-bytes!!!!")
 	certificate := realityHMACTestCertificate(t, authKey)
+	parsed, err := x509.ParseCertificate(certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := utls.ConnectionState{PeerCertificates: []*x509.Certificate{parsed}}
 	v := &realityVerifier{serverName: "example.com", authKey: authKey}
-	if err := v.VerifyPeerCertificate([][]byte{certificate}, nil); err != nil {
+	if err := v.VerifyConnection(state); err != nil {
 		t.Fatalf("valid REALITY certificate rejected: %v", err)
 	}
 	if !v.verified {
@@ -147,7 +141,7 @@ func TestRealityVerifierHMACSignature(t *testing.T) {
 	}
 
 	v = &realityVerifier{serverName: "example.com", authKey: []byte("different auth key")}
-	if err := v.VerifyPeerCertificate([][]byte{certificate}, nil); err == nil {
+	if err := v.VerifyConnection(state); err == nil {
 		t.Fatal("certificate with invalid REALITY signature accepted")
 	}
 	if v.verified {
@@ -232,11 +226,19 @@ func TestRealityClientFallbackSendsDecoyRequest(t *testing.T) {
 	}
 }
 
-func TestRealityVerifierMalformedIntermediate(t *testing.T) {
-	// An invalid intermediate must not panic or be silently discarded.
-	der := realityHMACTestCertificate(t, []byte("real-auth"))
+func TestRealityVerifierRejectsUntrustedChain(t *testing.T) {
+	der := realityHMACTestCertificate(t, []byte("correct-auth"))
+	leaf, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatal(err)
+	}
 	v := &realityVerifier{serverName: "example.com", authKey: []byte("wrong-auth")}
-	if err := v.VerifyPeerCertificate([][]byte{der, bytes.Repeat([]byte{0x00}, 8)}, nil); err == nil {
-		t.Fatal("expected invalid intermediate certificate error")
+	if err := v.VerifyConnection(utls.ConnectionState{
+		PeerCertificates: []*x509.Certificate{leaf, leaf},
+	}); err == nil {
+		t.Fatal("expected an untrusted certificate chain error")
+	}
+	if v.verified {
+		t.Fatal("untrusted certificate marked as verified")
 	}
 }
