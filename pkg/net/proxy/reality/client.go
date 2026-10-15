@@ -147,7 +147,7 @@ func (e *Client) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, 
 	}
 
 	uConfig := e.utls.Clone()
-	uConfig.VerifyPeerCertificate = verifier.VerifyPeerCertificate
+	uConfig.VerifyConnection = verifier.VerifyConnection
 	uConn := utls.UClient(conn, uConfig, utls.HelloChrome_Auto)
 	verifier.UConn = uConn
 	err := uConn.BuildHandshakeState()
@@ -254,18 +254,15 @@ type realityVerifier struct {
 	verified      bool
 }
 
-func (c *realityVerifier) VerifyPeerCertificate(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-	if len(rawCerts) == 0 {
+func (c *realityVerifier) VerifyConnection(state utls.ConnectionState) error {
+	// uTLS has already parsed the certificates before calling VerifyConnection.
+	// This avoids depending on unexported fields or parsing the chain twice.
+	certs := state.PeerCertificates
+	if len(certs) == 0 {
 		return errors.New("reality: no peer certificates")
 	}
 
-	// Use the public TLS callback argument rather than relying on uTLS's
-	// unexported peerCertificates field and its internal struct layout.
-	leaf, err := x509.ParseCertificate(rawCerts[0])
-	if err != nil {
-		return fmt.Errorf("reality: parse peer certificate: %w", err)
-	}
-
+	leaf := certs[0]
 	if pub, ok := leaf.PublicKey.(ed25519.PublicKey); ok {
 		h := hmac.New(sha512.New, c.authKey)
 		_, _ = h.Write(pub)
@@ -287,15 +284,10 @@ func (c *realityVerifier) VerifyPeerCertificate(rawCerts [][]byte, _ [][]*x509.C
 	}
 
 	intermediates := x509.NewCertPool()
-	for _, raw := range rawCerts[1:] {
-		cert, err := x509.ParseCertificate(raw)
-		if err != nil {
-			return fmt.Errorf("reality: parse intermediate certificate: %w", err)
-		}
+	for _, cert := range certs[1:] {
 		intermediates.AddCert(cert)
 	}
-
-	_, err = leaf.Verify(x509.VerifyOptions{
+	_, err := leaf.Verify(x509.VerifyOptions{
 		DNSName:       c.serverName,
 		Intermediates: intermediates,
 	})
