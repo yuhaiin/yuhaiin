@@ -5,6 +5,7 @@ on:
     paths:
       - 'pkg/app/profiler.go'
       - 'pkg/app/pprof_viewer.go'
+      - 'pkg/app/pprof_viewer_home_test.go'
       - 'pkg/app/profiler_test.go'
       - 'pkg/app/options.go'
       - 'go.mod'
@@ -17,8 +18,18 @@ permissions:
 
 jobs:
   profiler-tests:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            race: '-race'
+          - os: macos-latest
+            race: ''
+          - os: windows-latest
+            race: ''
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -26,4 +37,4 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Verify profiler capture and official viewer
-        run: go test -race -count=1 ./pkg/app -run '^TestProfiler'
+        run: go test ${{ matrix.race }} -count=1 ./pkg/app -run '^TestProfiler'
