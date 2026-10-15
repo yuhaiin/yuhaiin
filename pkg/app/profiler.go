@@ -50,11 +50,12 @@ type profilerSession struct {
 type profilerService struct {
 	mu         sync.Mutex
 	sessions   map[string]*profilerSession
-	cpuRunning     atomic.Bool
-	done           chan struct{}
-	closed         bool
-	stopOnce       sync.Once
-	viewerInitErr  error
+	cpuRunning atomic.Bool
+	done       chan struct{}
+	closed     bool
+	stopOnce   sync.Once
+
+	viewerInitErr error
 }
 
 var activeProfiler atomic.Pointer[profilerService]
