@@ -17,7 +17,7 @@ require (
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
 	github.com/cilium/ebpf v0.22.0
 	github.com/cockroachdb/pebble/v2 v2.1.7
-	github.com/godbus/dbus/v5 v5.2.3
+	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/nftables v0.3.0
 	github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3
 	github.com/libp2p/go-yamux/v5 v5.1.0
@@ -33,8 +33,8 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20261002162406-18e99eba5393
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
-	github.com/xtls/reality v0.0.0-20261012183509-14cefac9bd7a
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261013152211-efa99eeaef1d
+	github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261014165511-bad8d14399da
 	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/mobile v0.0.0-20261011034528-197770444867

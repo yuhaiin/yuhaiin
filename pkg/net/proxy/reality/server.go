@@ -2,6 +2,7 @@ package reality
 
 import (
 	"context"
+	"crypto/ecdh"
 	"crypto/mldsa"
 	"crypto/rand"
 	"encoding/base64"
@@ -61,7 +62,7 @@ func ServerNameMap(s []string) map[string]bool {
 
 func NewServer(config ServerConfig, ii netapi.Listener) (netapi.Listener, error) {
 	var ids map[[8]byte]bool
-	privateKey, err := base64.RawURLEncoding.DecodeString(config.PrivateKey)
+	privateKey, err := parseX25519PrivateKey(config.PrivateKey)
 	if err == nil {
 		ids, err = ShortIDMap(config.ShortID)
 	}
@@ -95,6 +96,19 @@ func NewServer(config ServerConfig, ii netapi.Listener) (netapi.Listener, error)
 	lis := reality.NewListener(ii, realityConfig)
 
 	return netapi.NewListener(lis, ii), nil
+}
+
+func parseX25519PrivateKey(encodedKey string) (*ecdh.PrivateKey, error) {
+	rawKey, err := base64.RawURLEncoding.DecodeString(encodedKey)
+	if err != nil {
+		return nil, fmt.Errorf("decode private_key: %w", err)
+	}
+
+	key, err := ecdh.X25519().NewPrivateKey(rawKey)
+	if err != nil {
+		return nil, fmt.Errorf("invalid private_key: %w", err)
+	}
+	return key, nil
 }
 
 func parseMLDSA65PrivateKey(encodedSeed string) (*mldsa.PrivateKey, error) {

@@ -1,10 +1,10 @@
 package reality
 
 import (
-	"bytes"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/hkdf"
 	"crypto/hmac"
@@ -15,14 +15,14 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand/v2"
 	"net"
 	"net/http"
-	"reflect"
 	"strings"
-	"unsafe"
+	"time"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -33,11 +33,13 @@ import (
 	utls "github.com/refraction-networking/utls"
 )
 
+var errRealityVerificationFailed = errors.New("reality verification failed")
+
 type Client struct {
 	netapi.EmptyDispatch
 	proxy         netapi.Proxy
 	utls          *utls.Config
-	publicKey     []byte
+	publicKey     *ecdh.PublicKey
 	mldsa65verify *mldsa.PublicKey
 	shortID       [8]byte
 
@@ -66,12 +68,13 @@ type Config struct {
 }
 
 func NewClient(config Config, p netapi.Proxy) (netapi.Proxy, error) {
-	publicKey, err := base64.RawURLEncoding.DecodeString(config.PublicKey)
+	decodedPublicKey, err := base64.RawURLEncoding.DecodeString(config.PublicKey)
 	if err != nil {
 		return nil, fmt.Errorf("decode public_key failed: %w", err)
 	}
-	if len(publicKey) != 32 {
-		return nil, fmt.Errorf("invalid public_key")
+	publicKey, err := ecdh.X25519().NewPublicKey(decodedPublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("invalid public_key: %w", err)
 	}
 
 	var mldsa65Verify *mldsa.PublicKey
@@ -116,7 +119,11 @@ func (e *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 
 	conn, err := e.ClientHandshake(ctx, con)
 	if err != nil {
-		con.Close()
+		// A successfully established TLS connection may be used by the
+		// background decoy request. In that case, it owns the connection.
+		if !errors.Is(err, errRealityVerificationFailed) {
+			_ = con.Close()
+		}
 		return nil, fmt.Errorf("handshake failed: %w", err)
 	}
 
@@ -140,7 +147,7 @@ func (e *Client) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, 
 	}
 
 	uConfig := e.utls.Clone()
-	uConfig.VerifyPeerCertificate = verifier.VerifyPeerCertificate
+	uConfig.VerifyConnection = verifier.VerifyConnection
 	uConn := utls.UClient(conn, uConfig, utls.HelloChrome_Auto)
 	verifier.UConn = uConn
 	err := uConn.BuildHandshakeState()
@@ -170,37 +177,32 @@ func (e *Client) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, 
 		return nil, fmt.Errorf("current fingerprint %s %s does not support TLS 1.3, REALITY handshake cannot establish", uConn.ClientHelloID.Client, uConn.ClientHelloID.Version)
 	}
 
-	peerKey, err := ecdhe.Curve().NewPublicKey(e.publicKey)
-	if err != nil {
-		return nil, fmt.Errorf("new ecdhe public key failed: %w", err)
-	}
-
-	authKey, err := ecdhe.ECDH(peerKey)
+	authKey, err := ecdhe.ECDH(e.publicKey)
 	if err != nil {
 		return nil, fmt.Errorf("ecdh key failed: %w", err)
 	}
 
-	prt, err := hkdf.Extract(sha256.New, authKey, hello.Random[:20])
-	if err != nil {
-		return nil, err
-	}
-
-	authKey, err = hkdf.Expand(sha256.New, prt, "REALITY", len(authKey))
+	authKey, err = hkdf.Key(sha256.New, authKey, hello.Random[:20], "REALITY", 32)
 	if err != nil {
 		return nil, err
 	}
 
 	verifier.authKey = authKey
 
-	block, _ := aes.NewCipher(authKey)
-	aead, _ := cipher.NewGCM(block)
+	block, err := aes.NewCipher(authKey)
+	if err != nil {
+		return nil, fmt.Errorf("create reality cipher: %w", err)
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("create reality AEAD: %w", err)
+	}
 
 	aead.Seal(hello.SessionId[:0], hello.Random[20:], hello.SessionId[:16], hello.Raw)
 	copy(hello.Raw[39:], hello.SessionId)
 
 	if e.Deubg {
 		log.Debug("REALITY", "hello.sessionId", hello.SessionId)
-		log.Debug("REALITY", "uConn.AuthKey", authKey)
 	}
 
 	err = uConn.HandshakeContext(ctx)
@@ -214,7 +216,7 @@ func (e *Client) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, 
 
 	if !verifier.verified {
 		go realityClientFallback(uConn, e.utls.ServerName, utls.HelloChrome_Auto)
-		return nil, fmt.Errorf("reality verification failed")
+		return nil, errRealityVerificationFailed
 	}
 
 	return uConn, nil
@@ -223,13 +225,17 @@ func (e *Client) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, 
 func realityClientFallback(uConn net.Conn, serverName string, fingerprint utls.ClientHelloID) {
 	defer uConn.Close()
 	client := &http.Client{
+		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
 			DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				return uConn, nil
 			},
 		},
 	}
-	request, _ := http.NewRequest("GET", "https://"+serverName, nil)
+	request, err := http.NewRequest(http.MethodGet, "https://"+serverName, nil)
+	if err != nil {
+		return
+	}
 	request.Header.Set("User-Agent", fingerprint.Client)
 	request.AddCookie(&http.Cookie{Name: "padding", Value: strings.Repeat("0", rand.IntN(32)+30)})
 	response, err := client.Do(request)
@@ -248,18 +254,24 @@ type realityVerifier struct {
 	verified      bool
 }
 
-func (c *realityVerifier) VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-	p, _ := reflect.TypeFor[utls.Conn]().FieldByName("peerCertificates")
-	certs := *(*([]*x509.Certificate))(unsafe.Add(unsafe.Pointer(c.Conn), p.Offset))
-	if pub, ok := certs[0].PublicKey.(ed25519.PublicKey); ok {
+func (c *realityVerifier) VerifyConnection(state utls.ConnectionState) error {
+	// uTLS has already parsed the certificates before calling VerifyConnection.
+	// This avoids depending on unexported fields or parsing the chain twice.
+	certs := state.PeerCertificates
+	if len(certs) == 0 {
+		return errors.New("reality: no peer certificates")
+	}
+
+	leaf := certs[0]
+	if pub, ok := leaf.PublicKey.(ed25519.PublicKey); ok {
 		h := hmac.New(sha512.New, c.authKey)
-		h.Write(pub)
-		if bytes.Equal(h.Sum(nil), certs[0].Signature) {
+		_, _ = h.Write(pub)
+		if hmac.Equal(h.Sum(nil), leaf.Signature) {
 			if c.mldsa65verify != nil {
-				if len(certs[0].Extensions) > 0 {
-					h.Write(c.HandshakeState.Hello.Raw)
-					h.Write(c.HandshakeState.ServerHello.Raw)
-					if mldsa.Verify(c.mldsa65verify, h.Sum(nil), certs[0].Extensions[0].Value, nil) == nil {
+				if len(leaf.Extensions) > 0 {
+					_, _ = h.Write(c.HandshakeState.Hello.Raw)
+					_, _ = h.Write(c.HandshakeState.ServerHello.Raw)
+					if mldsa.Verify(c.mldsa65verify, h.Sum(nil), leaf.Extensions[0].Value, nil) == nil {
 						c.verified = true
 						return nil
 					}
@@ -270,15 +282,14 @@ func (c *realityVerifier) VerifyPeerCertificate(rawCerts [][]byte, verifiedChain
 			}
 		}
 	}
-	opts := x509.VerifyOptions{
-		DNSName:       c.serverName,
-		Intermediates: x509.NewCertPool(),
-	}
+
+	intermediates := x509.NewCertPool()
 	for _, cert := range certs[1:] {
-		opts.Intermediates.AddCert(cert)
+		intermediates.AddCert(cert)
 	}
-	if _, err := certs[0].Verify(opts); err != nil {
-		return err
-	}
-	return nil
+	_, err := leaf.Verify(x509.VerifyOptions{
+		DNSName:       c.serverName,
+		Intermediates: intermediates,
+	})
+	return err
 }
