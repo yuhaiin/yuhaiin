@@ -32,7 +32,10 @@ var profilerDOTParams = map[string]string{
 	"g": "granularity", "granularity": "granularity",
 	"rel": "relative_percentages", "relative_percentages": "relative_percentages",
 	"trim": "trim", "mean": "mean", "noinlines": "noinlines",
-	"unit": "unit",
+	"unit": "unit", "sort": "sort",
+	"dropneg": "drop_negative", "calltree": "call_tree",
+	"compact": "compact_labels", "prunefrom": "prune_from",
+	"norm": "normalize", "showcolumns": "showcolumns",
 }
 
 // pprof's public driver stores the last command's configuration globally.
@@ -47,7 +50,10 @@ func profilerDOTDefaults() url.Values {
 		"show_from": {""}, "tagfocus": {""}, "tagignore": {""},
 		"tagshow": {""}, "taghide": {""},
 		"relative_percentages": {"false"}, "mean": {"false"},
-		"noinlines": {"false"},
+		"noinlines": {"false"}, "drop_negative": {"false"},
+		"call_tree": {"false"}, "compact_labels": {"false"},
+		"prune_from": {""}, "normalize": {"false"},
+		"showcolumns": {"false"}, "sort": {"flat"},
 	}
 }
 
@@ -73,9 +79,20 @@ func profilerDOT(raw []byte, query url.Values) (dot string, err error) {
 			if fraction, parseErr := strconv.ParseFloat(values[0], 64); parseErr != nil || fraction < 0 || fraction > 1 {
 				return "", fmt.Errorf("invalid graph fraction %q", values[0])
 			}
-		case "trim", "mean", "noinlines", "relative_percentages":
+		case "trim", "mean", "noinlines", "relative_percentages",
+			"drop_negative", "call_tree", "compact_labels", "normalize", "showcolumns":
 			if _, parseErr := strconv.ParseBool(values[0]); parseErr != nil {
 				return "", fmt.Errorf("invalid graph boolean %q", values[0])
+			}
+		case "sort":
+			if values[0] != "flat" && values[0] != "cum" {
+				return "", fmt.Errorf("invalid graph sort %q", values[0])
+			}
+		case "granularity":
+			switch values[0] {
+			case "functions", "filefunctions", "files", "lines", "addresses":
+			default:
+				return "", fmt.Errorf("invalid graph granularity %q", values[0])
 			}
 		}
 		opts.Set(flag, values[0])
@@ -142,6 +159,17 @@ type profilerDOTFlags struct {
 func (f *profilerDOTFlags) Bool(name string, def bool, _ string) *bool {
 	if name == f.command {
 		return new(true)
+	}
+	// These fields are represented as a group of bool choice flags by pprof.
+	switch name {
+	case "flat", "cum":
+		if selected := f.options.Get("sort"); selected != "" {
+			return new(selected == name)
+		}
+	case "functions", "filefunctions", "files", "lines", "addresses":
+		if selected := f.options.Get("granularity"); selected != "" {
+			return new(selected == name)
+		}
 	}
 	if value, ok := f.options[name]; ok {
 		parsed, err := strconv.ParseBool(value[0])
