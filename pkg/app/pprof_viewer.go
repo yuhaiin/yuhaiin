@@ -2,7 +2,11 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -16,6 +20,63 @@ import (
 // defaults and settings. All viewer instances share identical defaults;
 // per-request UI filters remain URL-scoped.
 var profilerViewerInitMu sync.Mutex
+
+// prepareProfilerViewerConfigDir runs once when the profiler is registered,
+// never while serving HTTP requests. google/pprof calls os.UserConfigDir
+// during Web UI initialization even if saving settings is disabled.
+//
+// Only when the platform's user config directory is unavailable, fall back
+// to a private directory under yuhaiin's ConfigPath. Upstream pprof has no
+// public way to specify the settings file path, so a process-wide environment
+// fallback is required. Never override an existing usable config directory.
+// On macOS/iOS this sets HOME if missing; on Windows AppData; on other
+// supported platforms XDG_CONFIG_HOME. No environment changes occur per request.
+func prepareProfilerViewerConfigDir(dataDir string) error {
+	profilerViewerInitMu.Lock()
+	defer profilerViewerInitMu.Unlock()
+
+	_, lookupErr := os.UserConfigDir()
+	if lookupErr == nil {
+		return nil
+	}
+
+	var envName, subDir string
+	switch runtime.GOOS {
+	case "windows":
+		envName = "AppData"
+		subDir = "pprof-config"
+	case "darwin", "ios":
+		envName = "HOME"
+		subDir = "pprof-home"
+	default:
+		envName = "XDG_CONFIG_HOME"
+		subDir = "pprof-config"
+	}
+	if os.Getenv(envName) != "" {
+		return fmt.Errorf("pprof viewer user config directory: %w", lookupErr)
+	}
+	if dataDir == "" {
+		return fmt.Errorf("pprof viewer requires a data directory when %s is missing: %w", envName, lookupErr)
+	}
+
+	dir, err := filepath.Abs(filepath.Join(dataDir, subDir))
+	if err != nil {
+		return fmt.Errorf("resolve pprof viewer config directory: %w", err)
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("create pprof viewer config directory: %w", err)
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		return fmt.Errorf("protect pprof viewer config directory: %w", err)
+	}
+	if err := os.Setenv(envName, dir); err != nil {
+		return fmt.Errorf("set %s for pprof viewer: %w", envName, err)
+	}
+	if _, err := os.UserConfigDir(); err != nil {
+		return fmt.Errorf("pprof viewer still cannot resolve config directory: %w", err)
+	}
+	return nil
+}
 
 type profilerView struct {
 	once     sync.Once
