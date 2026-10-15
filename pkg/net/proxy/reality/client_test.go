@@ -209,7 +209,7 @@ func TestRealityClientFallbackSendsDecoyRequest(t *testing.T) {
 			result <- fmt.Errorf("unexpected decoy request: %s %s", req.Method, req.Host)
 			return
 		}
-		if _, err := io.WriteString(serverConn, "HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\nConnection: close\\r\\n\\r\\nOK"); err != nil {
+		if _, err := io.WriteString(serverConn, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK"); err != nil {
 			result <- err
 			return
 		}
