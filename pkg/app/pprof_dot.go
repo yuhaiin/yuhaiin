@@ -45,7 +45,7 @@ func profilerDOTDefaults() url.Values {
 	return url.Values{
 		"sample_index": {""}, "nodecount": {"-1"},
 		"nodefraction": {"0.005"}, "edgefraction": {"0.001"},
-		"unit": {"minimum"}, "trim": {"true"}, "granularity": {""},
+		"unit": {"minimum"}, "trim": {"true"}, "granularity": {"functions"},
 		"focus": {""}, "ignore": {""}, "hide": {""}, "show": {""},
 		"show_from": {""}, "tagfocus": {""}, "tagignore": {""},
 		"tagshow": {""}, "taghide": {""},
