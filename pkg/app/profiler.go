@@ -444,5 +444,9 @@ func (p *profilerService) serveView(w http.ResponseWriter, r *http.Request) {
 	// /debug/profiler/<session-id>/ without an additional listener.
 	clone := r.Clone(r.Context())
 	clone.URL.Path = "/" + suffix
+	// google/pprof uses a process-global currentConfig; DOT generation
+	// temporarily changes it. Keep official handlers outside that window.
+	profilerViewerInitMu.Lock()
+	defer profilerViewerInitMu.Unlock()
 	h.ServeHTTP(w, clone)
 }
