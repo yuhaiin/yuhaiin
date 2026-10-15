@@ -1,13 +1,28 @@
 package reality
 
 import (
+	"bufio"
+	"bytes"
+	"crypto/ed25519"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha512"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
+	"encoding/base64"
+	"fmt"
 	"io"
+	"math/big"
+	"net"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	utls "github.com/refraction-networking/utls"
 )
 
 func TestClient(t *testing.T) {
@@ -80,4 +95,148 @@ func TestClient(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Log(string(buf[:n]))
+}
+
+func TestRealityClientRejectsInvalidPublicKey(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		key  string
+	}{
+		{name: "invalid base64", key: "!"},
+		{name: "empty public key", key: ""},
+		{name: "short public key", key: base64.RawURLEncoding.EncodeToString(make([]byte, 31))},
+		{name: "long public key", key: base64.RawURLEncoding.EncodeToString(make([]byte, 33))},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := NewClient(Config{PublicKey: tc.key}, nil); err == nil {
+				t.Fatal("expected invalid public key error")
+			}
+		})
+	}
+}
+
+func TestRealityVerifierRejectsInvalidCertificates(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cert [][]byte
+	}{
+		{name: "empty certificate chain"},
+		{name: "malformed certificate", cert: [][]byte{[]byte("not a certificate")}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v := &realityVerifier{serverName: "example.com"}
+			if err := v.VerifyPeerCertificate(tc.cert, nil); err == nil {
+				t.Fatal("expected certificate validation error")
+			}
+			if v.verified {
+				t.Fatal("invalid certificate marked as verified")
+			}
+		})
+	}
+}
+
+func TestRealityVerifierHMACSignature(t *testing.T) {
+	authKey := []byte("test-reality-auth-key-32-bytes!!!!")
+	certificate := realityHMACTestCertificate(t, authKey)
+	v := &realityVerifier{serverName: "example.com", authKey: authKey}
+	if err := v.VerifyPeerCertificate([][]byte{certificate}, nil); err != nil {
+		t.Fatalf("valid REALITY certificate rejected: %v", err)
+	}
+	if !v.verified {
+		t.Fatal("valid REALITY certificate not verified")
+	}
+
+	v = &realityVerifier{serverName: "example.com", authKey: []byte("different auth key")}
+	if err := v.VerifyPeerCertificate([][]byte{certificate}, nil); err == nil {
+		t.Fatal("certificate with invalid REALITY signature accepted")
+	}
+	if v.verified {
+		t.Fatal("invalid signature marked as verified")
+	}
+}
+
+func realityHMACTestCertificate(t *testing.T, authKey []byte) []byte {
+	t.Helper()
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cert := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		NotBefore:    time.Now().Add(-time.Minute),
+		NotAfter:     time.Now().Add(time.Minute),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, cert, cert, publicKey, privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// REALITY replaces the certificate signature with an HMAC over the
+	// ephemeral Ed25519 public key.
+	var encoded struct {
+		TBS                asn1.RawValue
+		SignatureAlgorithm pkix.AlgorithmIdentifier
+		SignatureValue     asn1.BitString
+	}
+	if _, err := asn1.Unmarshal(der, &encoded); err != nil {
+		t.Fatal(err)
+	}
+	mac := hmac.New(sha512.New, authKey)
+	_, _ = mac.Write(publicKey)
+	sig := mac.Sum(nil)
+	encoded.SignatureValue = asn1.BitString{Bytes: sig, BitLength: len(sig) * 8}
+	der, err = asn1.Marshal(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return der
+}
+
+func TestRealityClientFallbackSendsDecoyRequest(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer serverConn.Close()
+	result := make(chan error, 1)
+	go func() {
+		reader := bufio.NewReader(serverConn)
+		req, err := http.ReadRequest(reader)
+		if err != nil {
+			result <- err
+			return
+		}
+		if req.Method != http.MethodGet || req.Host != "example.com" {
+			result <- fmt.Errorf("unexpected decoy request: %s %s", req.Method, req.Host)
+			return
+		}
+		if _, err := io.WriteString(serverConn, "HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\nConnection: close\\r\\n\\r\\nOK"); err != nil {
+			result <- err
+			return
+		}
+		result <- nil
+	}()
+
+	realityClientFallback(clientConn, "example.com", utls.HelloChrome_Auto)
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(7 * time.Second):
+		t.Fatal("decoy request did not complete")
+	}
+	var b [1]byte
+	_ = serverConn.SetReadDeadline(time.Now().Add(time.Second))
+	if n, err := serverConn.Read(b[:]); n != 0 || err != io.EOF {
+		t.Fatalf("fallback left client connection open: n=%d, err=%v", n, err)
+	}
+}
+
+func TestRealityVerifierMalformedIntermediate(t *testing.T) {
+	// An invalid intermediate must not panic or be silently discarded.
+	der := realityHMACTestCertificate(t, []byte("real-auth"))
+	v := &realityVerifier{serverName: "example.com", authKey: []byte("wrong-auth")}
+	if err := v.VerifyPeerCertificate([][]byte{der, bytes.Repeat([]byte{0x00}, 8)}, nil); err == nil {
+		t.Fatal("expected invalid intermediate certificate error")
+	}
 }
