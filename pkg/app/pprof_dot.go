@@ -82,17 +82,16 @@ type profilerDOTFlags struct {
 
 func (f *profilerDOTFlags) Bool(name string, def bool, _ string) *bool {
 	if name == "dot" {
-		return profilerBoolPtr(true)
+		return new(true)
 	}
 	if value, ok := f.options[name]; ok {
 		parsed, err := strconv.ParseBool(value[0])
 		if err == nil {
-			return profilerBoolPtr(parsed)
+			return new(parsed)
 		}
 	}
-	return profilerBoolPtr(def)
+	return new(def)
 }
-func profilerBoolPtr(v bool) *bool { return &v }
 func (f *profilerDOTFlags) Int(name string, def int, _ string) *int {
 	if value, ok := f.options[name]; ok {
 		if parsed, err := strconv.Atoi(value[0]); err == nil {
