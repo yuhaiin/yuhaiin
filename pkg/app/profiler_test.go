@@ -96,7 +96,7 @@ func TestProfilerLimitsAndCancellation(t *testing.T) {
 	t.Cleanup(p.stop)
 
 	for _, tc := range []struct {
-		kind string
+		kind    string
 		seconds int
 	}{
 		{"goroutineleak", 0},
