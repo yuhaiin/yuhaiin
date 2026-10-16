@@ -314,17 +314,19 @@ func clientTLSConfig(config contract.ClientTLSConfig) ytls.TLSConfig {
 
 func tunConfig(config contract.TunProtocol) device.TunConfig {
 	return device.TunConfig{
-		AutoFakeIPRoute: config.AutoFakeIPRoute,
-		Name:            config.Name,
-		MTU:             config.MTU,
-		ForceFakeIP:     config.ForceFakeIP,
-		SkipMulticast:   config.SkipMulticast,
-		Driver:          device.Driver(config.Driver),
-		Portal:          config.Portal,
-		PortalV6:        config.PortalV6,
-		Routes:          append(append([]string(nil), config.Routes...), config.Excludes...),
-		PostUp:          append([]string(nil), config.PostUp...),
-		PostDown:        append([]string(nil), config.PostDown...),
+		Stack:             config.Stack,
+		CongestionControl: config.CongestionControl,
+		AutoFakeIPRoute:   config.AutoFakeIPRoute,
+		Name:              config.Name,
+		MTU:               config.MTU,
+		ForceFakeIP:       config.ForceFakeIP,
+		SkipMulticast:     config.SkipMulticast,
+		Driver:            device.Driver(config.Driver),
+		Portal:            config.Portal,
+		PortalV6:          config.PortalV6,
+		Routes:            append(append([]string(nil), config.Routes...), config.Excludes...),
+		PostUp:            append([]string(nil), config.PostUp...),
+		PostDown:          append([]string(nil), config.PostDown...),
 	}
 }
 
