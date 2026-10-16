@@ -87,7 +87,7 @@ func TestConfigureAndroidTUNEnablesPersistedInbound(t *testing.T) {
 		MTU:      1500,
 		Portal:   "10.0.0.1/24",
 		PortalV6: "fd00::1/64",
-	}, "channel"); err != nil {
+	}, "channel", "", ""); err != nil {
 		t.Fatalf("configure Android TUN: %v", err)
 	}
 
@@ -145,4 +145,110 @@ func TestStopCancelsStartupBeforeWaitingForLifecycleLock(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Stop did not finish after lifecycle lock was released")
 	}
+}
+
+func TestConfigureAndroidTUNStackSelection(t *testing.T) {
+	for _, tc := range []struct {
+		name, stack, cc, driver       string
+		wantStack, wantCC, wantDriver string
+		wantErr                       bool
+	}{
+		{name: "legacy", driver: TunDriverSystemGvisorValue, wantDriver: TunDriverSystemGvisorValue},
+		{name: "legacy ignores remembered algorithm", driver: TunDriverFdbasedValue, cc: "bbr", wantDriver: TunDriverFdbasedValue},
+		{name: "lightweight defaults to CUBIC", driver: TunDriverSystemGvisorValue, stack: "lightweight", wantStack: "lightweight", wantDriver: TunDriverChannelValue},
+		{name: "lightweight Reno", driver: TunDriverFdbasedValue, stack: "lightweight", cc: "reno", wantStack: "lightweight", wantCC: "reno", wantDriver: TunDriverChannelValue},
+		{name: "lightweight CUBIC", driver: TunDriverFdbasedValue, stack: "lightweight", cc: "cubic", wantStack: "lightweight", wantCC: "cubic", wantDriver: TunDriverChannelValue},
+		{name: "lightweight BBR", driver: TunDriverFdbasedValue, stack: "lightweight", cc: "bbr", wantStack: "lightweight", wantCC: "bbr", wantDriver: TunDriverChannelValue},
+		{name: "unknown stack", driver: TunDriverFdbasedValue, stack: "broken", wantErr: true},
+		{name: "unknown algorithm", driver: TunDriverFdbasedValue, stack: "lightweight", cc: "broken", wantErr: true},
+		{name: "invalid lightweight MTU", driver: TunDriverFdbasedValue, stack: "lightweight", cc: "cubic", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			state := migrate.NewStateDB(filepath.Join(t.TempDir(), "state.db"))
+			defer func() { _ = state.Close() }()
+			if err := state.Migrate(ctx); err != nil {
+				t.Fatal(err)
+			}
+			mtu := int32(1500)
+			if tc.name == "invalid lightweight MTU" {
+				mtu = 576
+			}
+			err := configureAndroidTUN(ctx, state, &TUN{
+				FD: 42, MTU: mtu, Portal: "10.0.0.1/24", PortalV6: "fd00::1/64",
+			}, tc.driver, tc.stack, tc.cc)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("invalid TUN selection was accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			db, err := state.SQLDB(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			inbounds, err := plainstore.NewInboundStore(db).List(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, in := range inbounds {
+				if in.Protocol.Type != contractinbound.ProtocolTun {
+					continue
+				}
+				if in.Protocol.Tun == nil {
+					t.Fatal("nil TUN protocol")
+				}
+				got := in.Protocol.Tun
+				if got.Stack != tc.wantStack || got.CongestionControl != tc.wantCC || got.Driver != tc.wantDriver {
+					t.Fatalf("TUN selection: stack=%q cc=%q driver=%q; want %q %q %q",
+						got.Stack, got.CongestionControl, got.Driver, tc.wantStack, tc.wantCC, tc.wantDriver)
+				}
+				found = true
+			}
+			if !found {
+				t.Fatal("no TUN inbound persisted")
+			}
+		})
+	}
+}
+
+// Reconfiguring an existing Android inbound must not retain stale lightweight
+// settings after reverting to the legacy stack.
+func TestConfigureAndroidTUNCanReturnToLegacy(t *testing.T) {
+	ctx := t.Context()
+	state := migrate.NewStateDB(filepath.Join(t.TempDir(), "state.db"))
+	defer func() { _ = state.Close() }()
+	if err := state.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	tun := &TUN{FD: 42, MTU: 1500, Portal: "10.0.0.1/24", PortalV6: "fd00::1/64"}
+	if err := configureAndroidTUN(ctx, state, tun, TunDriverFdbasedValue, "lightweight", "bbr"); err != nil {
+		t.Fatal(err)
+	}
+	if err := configureAndroidTUN(ctx, state, tun, TunDriverSystemGvisorValue, "", "bbr"); err != nil {
+		t.Fatal(err)
+	}
+	db, err := state.SQLDB(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inbounds, err := plainstore.NewInboundStore(db).List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, in := range inbounds {
+		if in.Protocol.Type != contractinbound.ProtocolTun {
+			continue
+		}
+		got := in.Protocol.Tun
+		if got == nil || got.Stack != "" || got.CongestionControl != "" || got.Driver != TunDriverSystemGvisorValue {
+			t.Fatalf("legacy TUN was not restored: %+v", got)
+		}
+		return
+	}
+	t.Fatal("no TUN inbound found")
 }
