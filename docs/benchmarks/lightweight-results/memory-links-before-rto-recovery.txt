@@ -1,0 +1,76 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkUDP/payload=64/flows=1-4         	  535833	      2100 ns/op	  30.47 MB/s	    476099 packets/s	     896 B/op	      13 allocs/op
+BenchmarkUDP/payload=64/flows=1-4         	  577743	      2127 ns/op	  30.10 MB/s	    470245 packets/s	     896 B/op	      13 allocs/op
+BenchmarkUDP/payload=64/flows=1-4         	  594470	      2108 ns/op	  30.36 MB/s	    474409 packets/s	     896 B/op	      12 allocs/op
+BenchmarkUDP/payload=64/flows=100-4       	  540876	      2089 ns/op	  30.64 MB/s	    478692 packets/s	     895 B/op	      12 allocs/op
+BenchmarkUDP/payload=64/flows=100-4       	  562090	      2103 ns/op	  30.43 MB/s	    475441 packets/s	     895 B/op	      12 allocs/op
+BenchmarkUDP/payload=64/flows=100-4       	  576244	      2117 ns/op	  30.24 MB/s	    472452 packets/s	     895 B/op	      12 allocs/op
+BenchmarkUDP/payload=512/flows=1-4        	  409029	      2869 ns/op	 178.44 MB/s	    348518 packets/s	    2799 B/op	      12 allocs/op
+BenchmarkUDP/payload=512/flows=1-4        	  427149	      2864 ns/op	 178.78 MB/s	    349178 packets/s	    2800 B/op	      12 allocs/op
+BenchmarkUDP/payload=512/flows=1-4        	  408189	      2888 ns/op	 177.30 MB/s	    346285 packets/s	    2799 B/op	      12 allocs/op
+BenchmarkUDP/payload=512/flows=100-4      	  424260	      2872 ns/op	 178.29 MB/s	    348225 packets/s	    2799 B/op	      12 allocs/op
+BenchmarkUDP/payload=512/flows=100-4      	  403996	      2899 ns/op	 176.62 MB/s	    344954 packets/s	    2799 B/op	      12 allocs/op
+BenchmarkUDP/payload=512/flows=100-4      	  410607	      2909 ns/op	 176.00 MB/s	    343750 packets/s	    2799 B/op	      12 allocs/op
+BenchmarkUDP/payload=1200/flows=1-4       	  308196	      3913 ns/op	 306.65 MB/s	    255542 packets/s	    5679 B/op	      12 allocs/op
+BenchmarkUDP/payload=1200/flows=1-4       	  293818	      3989 ns/op	 300.80 MB/s	    250670 packets/s	    5679 B/op	      12 allocs/op
+BenchmarkUDP/payload=1200/flows=1-4       	  303786	      3954 ns/op	 303.46 MB/s	    252880 packets/s	    5679 B/op	      12 allocs/op
+BenchmarkUDP/payload=1200/flows=100-4     	  302361	      3967 ns/op	 302.53 MB/s	    252106 packets/s	    5679 B/op	      12 allocs/op
+BenchmarkUDP/payload=1200/flows=100-4     	  298731	      4019 ns/op	 298.57 MB/s	    248810 packets/s	    5679 B/op	      12 allocs/op
+BenchmarkUDP/payload=1200/flows=100-4     	  308823	      4016 ns/op	 298.79 MB/s	    248995 packets/s	    5679 B/op	      12 allocs/op
+BenchmarkImpairedTCP/reno/rtt1ms-4        	     448	   2440843 ns/op	  26.85 MB/s	        14.00 goroutines	   3138912 heap-live-B	         0 link-drops	      2751 p95-us	      4752 p99-us	         0 retransmits	  369498 B/op	     451 allocs/op
+BenchmarkImpairedTCP/reno/rtt1ms-4        	     450	   2451564 ns/op	  26.73 MB/s	        14.00 goroutines	   2783936 heap-live-B	         0 link-drops	      2745 p95-us	      4570 p99-us	         0 retransmits	  368944 B/op	     449 allocs/op
+BenchmarkImpairedTCP/reno/rtt1ms-4        	     442	   2454099 ns/op	  26.70 MB/s	        14.00 goroutines	   2410848 heap-live-B	         0 link-drops	      2735 p95-us	      4614 p99-us	         0 retransmits	  369147 B/op	     451 allocs/op
+BenchmarkImpairedTCP/reno/rtt10ms-4       	      94	  12198794 ns/op	   5.37 MB/s	        14.00 goroutines	   2014728 heap-live-B	         0 link-drops	     20802 p95-us	     31095 p99-us	         0 retransmits	  369088 B/op	     448 allocs/op
+BenchmarkImpairedTCP/reno/rtt10ms-4       	      96	  12108649 ns/op	   5.41 MB/s	        14.00 goroutines	   2805272 heap-live-B	         0 link-drops	     21001 p95-us	     31080 p99-us	         0 retransmits	  369260 B/op	     449 allocs/op
+BenchmarkImpairedTCP/reno/rtt10ms-4       	      92	  12464011 ns/op	   5.26 MB/s	        14.00 goroutines	   2779680 heap-live-B	         0 link-drops	     20916 p95-us	     31080 p99-us	         0 retransmits	  370082 B/op	     457 allocs/op
+BenchmarkImpairedTCP/reno/rtt50ms-loss0.1pct-4         	       4	 343928300 ns/op	   0.19 MB/s	        14.00 goroutines	   3363792 heap-live-B	         0 link-drops	    456286 p95-us	    456286 p99-us	         8.000 retransmits	  393074 B/op	     701 allocs/op
+BenchmarkImpairedTCP/reno/rtt50ms-loss0.1pct-4         	       4	 304575256 ns/op	   0.22 MB/s	        14.00 goroutines	   3313224 heap-live-B	         0 link-drops	    305534 p95-us	    305534 p99-us	        11.00 retransmits	  397764 B/op	     694 allocs/op
+BenchmarkImpairedTCP/reno/rtt50ms-loss0.1pct-4         	       4	 330114952 ns/op	   0.20 MB/s	        14.00 goroutines	   3318224 heap-live-B	         0 link-drops	    355201 p95-us	    355201 p99-us	        12.00 retransmits	  398066 B/op	     692 allocs/op
+BenchmarkImpairedTCP/reno/rtt100ms-loss1pct-4          	       2	 554088932 ns/op	   0.12 MB/s	        14.00 goroutines	   2529520 heap-live-B	         0 link-drops	    509072 p95-us	    509072 p99-us	         8.000 retransmits	  405912 B/op	     713 allocs/op
+BenchmarkImpairedTCP/reno/rtt100ms-loss1pct-4          	       2	 504158142 ns/op	   0.13 MB/s	        14.00 goroutines	   2542464 heap-live-B	         0 link-drops	    502457 p95-us	    502457 p99-us	        11.00 retransmits	  447404 B/op	     711 allocs/op
+BenchmarkImpairedTCP/reno/rtt100ms-loss1pct-4          	       2	 554642150 ns/op	   0.12 MB/s	        14.00 goroutines	   2525920 heap-live-B	         0 link-drops	    508939 p95-us	    508939 p99-us	         7.000 retransmits	  404352 B/op	     721 allocs/op
+--- FAIL: BenchmarkImpairedTCP/reno/rtt100ms-10Mbps-queue32
+    stack_bench_test.go:91: i/o timeout
+BenchmarkImpairedTCP/cubic/rtt1ms-4                    	     468	   2544575 ns/op	  25.76 MB/s	        14.00 goroutines	   1878928 heap-live-B	         0 link-drops	      4459 p95-us	      4775 p99-us	         0 retransmits	  369377 B/op	     449 allocs/op
+BenchmarkImpairedTCP/cubic/rtt1ms-4                    	     464	   2544181 ns/op	  25.76 MB/s	        14.00 goroutines	   2673480 heap-live-B	         0 link-drops	      4477 p95-us	      4874 p99-us	         0 retransmits	  368944 B/op	     451 allocs/op
+BenchmarkImpairedTCP/cubic/rtt1ms-4                    	     468	   2530509 ns/op	  25.90 MB/s	        14.00 goroutines	   2244576 heap-live-B	         0 link-drops	      4130 p95-us	      4875 p99-us	         0 retransmits	  368962 B/op	     449 allocs/op
+BenchmarkImpairedTCP/cubic/rtt10ms-4                   	      67	  15995941 ns/op	   4.10 MB/s	        14.00 goroutines	   2787360 heap-live-B	         0 link-drops	     31129 p95-us	     41309 p99-us	         0 retransmits	  368815 B/op	     445 allocs/op
+BenchmarkImpairedTCP/cubic/rtt10ms-4                   	      72	  15124601 ns/op	   4.33 MB/s	        14.00 goroutines	   2457464 heap-live-B	         0 link-drops	     30974 p95-us	     31143 p99-us	         0 retransmits	  369383 B/op	     449 allocs/op
+BenchmarkImpairedTCP/cubic/rtt10ms-4                   	      68	  15735150 ns/op	   4.16 MB/s	        14.00 goroutines	   2474120 heap-live-B	         0 link-drops	     31153 p95-us	     41288 p99-us	         0 retransmits	  369510 B/op	     448 allocs/op
+BenchmarkImpairedTCP/cubic/rtt50ms-loss0.1pct-4        	       4	 254451404 ns/op	   0.26 MB/s	        14.00 goroutines	   3396832 heap-live-B	         0 link-drops	    253346 p95-us	    253346 p99-us	        15.00 retransmits	  401706 B/op	     681 allocs/op
+BenchmarkImpairedTCP/cubic/rtt50ms-loss0.1pct-4        	       4	 279346791 ns/op	   0.23 MB/s	        14.00 goroutines	   3322120 heap-live-B	         0 link-drops	    357790 p95-us	    357790 p99-us	         9.000 retransmits	  393634 B/op	     665 allocs/op
+BenchmarkImpairedTCP/cubic/rtt50ms-loss0.1pct-4        	       4	 265923583 ns/op	   0.25 MB/s	        14.00 goroutines	   3306128 heap-live-B	         0 link-drops	    303056 p95-us	    303056 p99-us	         7.000 retransmits	  388904 B/op	     657 allocs/op
+BenchmarkImpairedTCP/cubic/rtt100ms-loss1pct-4         	       3	 368605942 ns/op	   0.18 MB/s	        14.00 goroutines	   2946296 heap-live-B	         1.000 link-drops	    402826 p95-us	    402826 p99-us	         6.000 retransmits	  399301 B/op	     670 allocs/op
+BenchmarkImpairedTCP/cubic/rtt100ms-loss1pct-4         	       2	 658206126 ns/op	   0.10 MB/s	        14.00 goroutines	   2590048 heap-live-B	         0 link-drops	    610822 p95-us	    610822 p99-us	         7.000 retransmits	  402908 B/op	     715 allocs/op
+BenchmarkImpairedTCP/cubic/rtt100ms-loss1pct-4         	       2	 705758991 ns/op	   0.09 MB/s	        14.00 goroutines	   2543736 heap-live-B	         0 link-drops	    609571 p95-us	    609571 p99-us	         7.000 retransmits	  438468 B/op	     729 allocs/op
+--- FAIL: BenchmarkImpairedTCP/cubic/rtt100ms-10Mbps-queue32
+    stack_bench_test.go:91: i/o timeout
+BenchmarkImpairedTCP/bbr/rtt1ms-4                      	      20	  93746600 ns/op	   0.70 MB/s	        14.00 goroutines	   2321744 heap-live-B	         0 link-drops	    101864 p95-us	    101864 p99-us	         0 retransmits	  393735 B/op	     880 allocs/op
+BenchmarkImpairedTCP/bbr/rtt1ms-4                      	      18	  94784945 ns/op	   0.69 MB/s	        14.00 goroutines	   3352144 heap-live-B	         0 link-drops	     98827 p95-us	     98827 p99-us	         0 retransmits	  393458 B/op	     878 allocs/op
+BenchmarkImpairedTCP/bbr/rtt1ms-4                      	      18	  94564077 ns/op	   0.69 MB/s	        14.00 goroutines	   3286576 heap-live-B	         0 link-drops	    102120 p95-us	    102120 p99-us	         0 retransmits	  393698 B/op	     878 allocs/op
+BenchmarkImpairedTCP/bbr/rtt10ms-4                     	       7	 301423435 ns/op	   0.22 MB/s	        14.00 goroutines	   2666728 heap-live-B	         0 link-drops	    332454 p95-us	    332454 p99-us	         0 retransmits	  394146 B/op	     880 allocs/op
+BenchmarkImpairedTCP/bbr/rtt10ms-4                     	       6	 296221372 ns/op	   0.22 MB/s	        14.00 goroutines	   2329384 heap-live-B	         0 link-drops	    332130 p95-us	    332130 p99-us	         0 retransmits	  405596 B/op	     883 allocs/op
+BenchmarkImpairedTCP/bbr/rtt10ms-4                     	       6	 296308924 ns/op	   0.22 MB/s	        14.00 goroutines	   2286504 heap-live-B	         0 link-drops	    332317 p95-us	    332317 p99-us	         0 retransmits	  405881 B/op	     884 allocs/op
+BenchmarkImpairedTCP/bbr/rtt50ms-loss0.1pct-4          	       9	 122800512 ns/op	   0.53 MB/s	        14.00 goroutines	   2052424 heap-live-B	         2.000 link-drops	    145917 p95-us	    145917 p99-us	         2.000 retransmits	  397512 B/op	     789 allocs/op
+BenchmarkImpairedTCP/bbr/rtt50ms-loss0.1pct-4          	       9	 123274372 ns/op	   0.53 MB/s	        14.00 goroutines	   1999248 heap-live-B	         2.000 link-drops	    148840 p95-us	    148840 p99-us	         2.000 retransmits	  395574 B/op	     784 allocs/op
+BenchmarkImpairedTCP/bbr/rtt50ms-loss0.1pct-4          	       9	 122846557 ns/op	   0.53 MB/s	        14.00 goroutines	   1779240 heap-live-B	         2.000 link-drops	    145726 p95-us	    145726 p99-us	         2.000 retransmits	  395203 B/op	     780 allocs/op
+BenchmarkImpairedTCP/bbr/rtt100ms-loss1pct-4           	       4	 267578359 ns/op	   0.24 MB/s	        14.00 goroutines	   3328928 heap-live-B	         2.000 link-drops	    260009 p95-us	    260009 p99-us	         2.000 retransmits	  417072 B/op	     806 allocs/op
+BenchmarkImpairedTCP/bbr/rtt100ms-loss1pct-4           	       4	 266854609 ns/op	   0.25 MB/s	        14.00 goroutines	   3381928 heap-live-B	         2.000 link-drops	    257428 p95-us	    257428 p99-us	         2.000 retransmits	  388470 B/op	     751 allocs/op
+BenchmarkImpairedTCP/bbr/rtt100ms-loss1pct-4           	       4	 266889340 ns/op	   0.25 MB/s	        14.00 goroutines	   3384256 heap-live-B	         2.000 link-drops	    259174 p95-us	    259174 p99-us	         2.000 retransmits	  388224 B/op	     748 allocs/op
+BenchmarkImpairedTCP/bbr/rtt100ms-10Mbps-queue32-4     	       3	 546865210 ns/op	   0.12 MB/s	        14.00 goroutines	   3025120 heap-live-B	        13.00 link-drops	    363951 p95-us	    363951 p99-us	         8.000 retransmits	  401160 B/op	     867 allocs/op
+BenchmarkImpairedTCP/bbr/rtt100ms-10Mbps-queue32-4     	--- FAIL: BenchmarkImpairedTCP/bbr/rtt100ms-10Mbps-queue32
+    stack_bench_test.go:91: i/o timeout
+--- FAIL: BenchmarkImpairedTCP/bbr/rtt100ms-10Mbps-queue32-4
+    stack_bench_test.go:91: i/o timeout
+BenchmarkImpairedTCP/bbr/rtt100ms-10Mbps-queue32-4     	--- FAIL: BenchmarkImpairedTCP/bbr/rtt100ms-10Mbps-queue32
+    stack_bench_test.go:91: i/o timeout
+--- FAIL: BenchmarkImpairedTCP/bbr/rtt100ms-10Mbps-queue32-4
+    stack_bench_test.go:91: i/o timeout
+--- FAIL: BenchmarkImpairedTCP
+FAIL
+exit status 1
+FAIL	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	91.341s
+FAIL

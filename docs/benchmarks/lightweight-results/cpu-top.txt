@@ -1,0 +1,21 @@
+File: lightweight-profile.test
+Build ID: e1914418fba20d39fad5079566c3aa5992a5e379
+Type: cpu
+Time: 2026-10-16 17:26:58 CST
+Duration: 1.17s, Total samples = 2020ms (172.40%)
+Showing nodes accounting for 930ms, 46.04% of 2020ms total
+Dropped 82 nodes (cum <= 10.10ms)
+Showing top 12 nodes out of 168
+      flat  flat%   sum%        cum   cum%
+     260ms 12.87% 12.87%      260ms 12.87%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.sumBytes
+     110ms  5.45% 18.32%      110ms  5.45%  runtime.memmove
+      80ms  3.96% 22.28%      250ms 12.38%  runtime.selectgo
+      70ms  3.47% 25.74%       70ms  3.47%  runtime.procyieldAsm
+      60ms  2.97% 28.71%       60ms  2.97%  runtime.nanotime
+      60ms  2.97% 31.68%       90ms  4.46%  runtime.typePointers.next
+      60ms  2.97% 34.65%       60ms  2.97%  time.runtimeNow
+      50ms  2.48% 37.13%       50ms  2.48%  runtime.futex
+      50ms  2.48% 39.60%       50ms  2.48%  runtime.memclrNoHeapPointers
+      50ms  2.48% 42.08%       50ms  2.48%  runtime.unlock2
+      40ms  1.98% 44.06%       50ms  2.48%  runtime.scanblock
+      40ms  1.98% 46.04%       50ms  2.48%  runtime.tryDeferToSpanScan

@@ -16,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
@@ -28,6 +29,17 @@ func init() {
 }
 
 func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s netapi.Accepter, err error) {
+	if o.Stack != "" && o.Stack != "lightweight" {
+		return nil, fmt.Errorf("unknown TUN stack %q", o.Stack)
+	}
+	if o.Stack == "" && o.CongestionControl != "" {
+		return nil, errors.New("congestion_control requires stack lightweight")
+	}
+	if o.Stack == "lightweight" {
+		if err := lightweighttun.Validate(o); err != nil {
+			return nil, err
+		}
+	}
 	v4address, v4err := toPrefix(o.Portal, true)
 	v6address, v6err := toPrefix(o.PortalV6, true)
 	if v4err != nil && v6err != nil {
@@ -80,7 +92,9 @@ func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s ne
 
 	userRoutes := toRoutes(o.Routes)
 	opt.Routes = effectiveRoutes(opt.Options, userRoutes, o.AutoFakeIPRoute, o.FakeIPRanges)
-	if o.Driver == device.DriverSystemGvisor {
+	if o.Stack == "lightweight" {
+		s, err = lightweighttun.New(opt)
+	} else if o.Driver == device.DriverSystemGvisor {
 		s, err = tun2socket.New(opt)
 	} else {
 		s, err = gvisor.New(opt)

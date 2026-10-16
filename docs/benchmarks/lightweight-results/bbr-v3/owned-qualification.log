@@ -1,0 +1,86 @@
+=== RUN   TestBBRSharedBottleneck
+=== RUN   TestBBRSharedBottleneck/rtt50ms-10Mbps-queue32
+=== RUN   TestBBRSharedBottleneck/rtt50ms-10Mbps-queue32/sharing
+    bbr_fairness_test.go:107: startup-duration=4.200050123s delivered=[1659164 1599468 1788776]
+    bbr_fairness_test.go:107: phase=0 bottleneck=1250000 B/s cumulative-delivered=[4685824 3711868 3686400] drops=173
+    bbr_fairness_test.go:107: phase=1 bottleneck=1250000 B/s cumulative-delivered=[9787088 8147228 6102148] drops=246
+    bbr_fairness_test.go:107: phase=2 bottleneck=1250000 B/s cumulative-delivered=[14548992 12398308 9039264] drops=296
+    bbr_fairness_test.go:107: flow=0 model={Version:3 Mode:PROBE_BW Phase:UP Bandwidth:408956 MaxBandwidth:408956 BandwidthLo:18446744073709551615 InflightLo:18446744073709551615 InflightHi:30442 MinRTT:51.333866ms PacingGain:1.25 Round:434 ProbeWait:2.902634876s}
+    bbr_fairness_test.go:107: flow=1 model={Version:3 Mode:PROBE_BW Phase:DOWN Bandwidth:449299 MaxBandwidth:449299 BandwidthLo:18446744073709551615 InflightLo:18446744073709551615 InflightHi:40068 MinRTT:50.899271ms PacingGain:0.90625 Round:435 ProbeWait:2.324480557s}
+    bbr_fairness_test.go:107: jain=0.966 trial-payload-utilization=0.960 measured-payload=35989808 measured-capacity=37501245
+    bbr_fairness_test.go:107: BBR intra-algorithm jain=0.994
+=== RUN   TestBBRSharedBottleneck/rtt200ms-loss0.1pct-10Mbps-queue64
+=== RUN   TestBBRSharedBottleneck/rtt200ms-loss0.1pct-10Mbps-queue64/cubic-control
+    bbr_fairness_test.go:103: startup-duration=4.800526678s delivered=[4708048]
+    bbr_fairness_test.go:103: phase=0 bottleneck=1250000 B/s cumulative-delivered=[6928972] drops=98
+    bbr_fairness_test.go:103: phase=1 bottleneck=1250000 B/s cumulative-delivered=[10479920] drops=104
+    bbr_fairness_test.go:103: phase=2 bottleneck=1250000 B/s cumulative-delivered=[13607480] drops=109
+    bbr_fairness_test.go:103: jain=1.000 trial-payload-utilization=0.421 measured-payload=13607480 measured-capacity=37501783
+=== RUN   TestBBRSharedBottleneck/rtt200ms-loss0.1pct-10Mbps-queue64/bbr-control
+    bbr_fairness_test.go:104: startup-duration=4.800423665s delivered=[4767744]
+    bbr_fairness_test.go:104: phase=0 bottleneck=1250000 B/s cumulative-delivered=[11598088] drops=317
+    bbr_fairness_test.go:104: phase=1 bottleneck=1250000 B/s cumulative-delivered=[23643572] drops=359
+    bbr_fairness_test.go:104: phase=2 bottleneck=1250000 B/s cumulative-delivered=[35453192] drops=390
+    bbr_fairness_test.go:104: flow=0 model={Version:3 Mode:PROBE_BW Phase:REFILL Bandwidth:1222247 MaxBandwidth:1222247 BandwidthLo:18446744073709551615 InflightLo:18446744073709551615 InflightHi:336027 MinRTT:200.685454ms PacingGain:1 Round:149 ProbeWait:2.709487031s}
+    bbr_fairness_test.go:104: jain=1.000 trial-payload-utilization=0.925 measured-payload=35454652 measured-capacity=37501076
+=== RUN   TestBBRSharedBottleneck/rtt200ms-loss0.1pct-10Mbps-queue64/sharing
+    bbr_fairness_test.go:107: startup-duration=4.800012377s delivered=[1441468 1708316 1803700]
+    bbr_fairness_test.go:107: phase=0 bottleneck=1250000 B/s cumulative-delivered=[3968172 4958188 3124640] drops=690
+    bbr_fairness_test.go:107: phase=1 bottleneck=1250000 B/s cumulative-delivered=[7720108 11199032 4827116] drops=731
+    bbr_fairness_test.go:107: phase=2 bottleneck=1250000 B/s cumulative-delivered=[11766956 17167512 6476060] drops=810
+    bbr_fairness_test.go:107: flow=0 model={Version:3 Mode:PROBE_RTT Phase:UP Bandwidth:548005 MaxBandwidth:548005 BandwidthLo:18446744073709551615 InflightLo:18446744073709551615 InflightHi:130705 MinRTT:200.934893ms PacingGain:1 Round:136 ProbeWait:2.247385318s}
+    bbr_fairness_test.go:107: flow=1 model={Version:3 Mode:PROBE_RTT Phase:CRUISE Bandwidth:674917 MaxBandwidth:741953 BandwidthLo:674917 InflightLo:190768 InflightHi:191590 MinRTT:201.522889ms PacingGain:1 Round:135 ProbeWait:2.823960742s}
+    bbr_fairness_test.go:107: CUBIC standalone=453561 B/s mixed=215865 B/s achievable-share=416667 B/s
+    bbr_fairness_test.go:107: jain=0.880 trial-payload-utilization=0.928 measured-payload=35410528 measured-capacity=37500590
+    bbr_fairness_test.go:107: BBR intra-algorithm jain=0.966
+    bbr_fairness_test.go:107: standalone-normalized mixed jain=0.974
+=== RUN   TestBBRSharedBottleneck/rtt100ms-loss1pct-10Mbps-queue64
+=== RUN   TestBBRSharedBottleneck/rtt100ms-loss1pct-10Mbps-queue64/cubic-control
+    bbr_fairness_test.go:103: startup-duration=4.400038092s delivered=[1994144]
+    bbr_fairness_test.go:103: phase=0 bottleneck=1250000 B/s cumulative-delivered=[1933312] drops=48
+    bbr_fairness_test.go:103: phase=1 bottleneck=1250000 B/s cumulative-delivered=[3823636] drops=78
+    bbr_fairness_test.go:103: phase=2 bottleneck=1250000 B/s cumulative-delivered=[5353188] drops=98
+    bbr_fairness_test.go:103: jain=1.000 trial-payload-utilization=0.171 measured-payload=5353188 measured-capacity=37502025
+=== RUN   TestBBRSharedBottleneck/rtt100ms-loss1pct-10Mbps-queue64/bbr-control
+    bbr_fairness_test.go:104: startup-duration=4.411501678s delivered=[4676740]
+    bbr_fairness_test.go:104: phase=0 bottleneck=1250000 B/s cumulative-delivered=[10379832] drops=290
+    bbr_fairness_test.go:104: phase=1 bottleneck=1250000 B/s cumulative-delivered=[20678068] drops=438
+    bbr_fairness_test.go:104: phase=2 bottleneck=1250000 B/s cumulative-delivered=[31454360] drops=600
+    bbr_fairness_test.go:104: flow=0 model={Version:3 Mode:PROBE_BW Phase:CRUISE Bandwidth:1026337 MaxBandwidth:1223088 BandwidthLo:1026337 InflightLo:107064 InflightHi:128152 MinRTT:100.682816ms PacingGain:1 Round:312 ProbeWait:2.587599386s}
+    bbr_fairness_test.go:104: jain=1.000 trial-payload-utilization=0.840 measured-payload=31454360 measured-capacity=37502981
+=== RUN   TestBBRSharedBottleneck/rtt100ms-loss1pct-10Mbps-queue64/sharing
+    bbr_fairness_test.go:107: startup-duration=4.4002882s delivered=[2250448 2287596 527208]
+    bbr_fairness_test.go:107: phase=0 bottleneck=1250000 B/s cumulative-delivered=[4270060 5598948 1620556] drops=290
+    bbr_fairness_test.go:107: phase=1 bottleneck=1250000 B/s cumulative-delivered=[8664216 10252004 3002652] drops=448
+    bbr_fairness_test.go:107: phase=2 bottleneck=1250000 B/s cumulative-delivered=[11546340 14897436 4596280] drops=580
+    bbr_fairness_test.go:107: flow=0 model={Version:3 Mode:PROBE_BW Phase:CRUISE Bandwidth:261915 MaxBandwidth:337160 BandwidthLo:261915 InflightLo:26928 InflightHi:34228 MinRTT:100.542447ms PacingGain:1 Round:302 ProbeWait:2.6466564s}
+    bbr_fairness_test.go:107: flow=1 model={Version:3 Mode:PROBE_BW Phase:CRUISE Bandwidth:472474 MaxBandwidth:571611 BandwidthLo:472474 InflightLo:49152 InflightHi:58236 MinRTT:100.574429ms PacingGain:1 Round:307 ProbeWait:2.770295412s}
+    bbr_fairness_test.go:107: CUBIC standalone=178430 B/s mixed=153200 B/s achievable-share=178430 B/s
+    bbr_fairness_test.go:107: jain=0.853 trial-payload-utilization=0.840 measured-payload=31040056 measured-capacity=37502308
+    bbr_fairness_test.go:107: BBR intra-algorithm jain=0.984
+    bbr_fairness_test.go:107: standalone-normalized mixed jain=0.878
+--- PASS: TestBBRSharedBottleneck (244.42s)
+    --- PASS: TestBBRSharedBottleneck/rtt50ms-10Mbps-queue32 (34.45s)
+        --- PASS: TestBBRSharedBottleneck/rtt50ms-10Mbps-queue32/sharing (34.45s)
+    --- PASS: TestBBRSharedBottleneck/rtt200ms-loss0.1pct-10Mbps-queue64 (105.96s)
+        --- PASS: TestBBRSharedBottleneck/rtt200ms-loss0.1pct-10Mbps-queue64/cubic-control (35.11s)
+        --- PASS: TestBBRSharedBottleneck/rtt200ms-loss0.1pct-10Mbps-queue64/bbr-control (35.11s)
+        --- PASS: TestBBRSharedBottleneck/rtt200ms-loss0.1pct-10Mbps-queue64/sharing (35.74s)
+    --- PASS: TestBBRSharedBottleneck/rtt100ms-loss1pct-10Mbps-queue64 (104.01s)
+        --- PASS: TestBBRSharedBottleneck/rtt100ms-loss1pct-10Mbps-queue64/cubic-control (34.57s)
+        --- PASS: TestBBRSharedBottleneck/rtt100ms-loss1pct-10Mbps-queue64/bbr-control (34.57s)
+        --- PASS: TestBBRSharedBottleneck/rtt100ms-loss1pct-10Mbps-queue64/sharing (34.87s)
+=== RUN   TestBBRBandwidthChanges
+=== RUN   TestBBRBandwidthChanges/sharing
+    bbr_fairness_test.go:107: startup-duration=4.400010339s delivered=[1551776 1659164 1915144]
+    bbr_fairness_test.go:107: phase=0 bottleneck=1250000 B/s cumulative-delivered=[3982772 4569676 3393272] drops=362
+    bbr_fairness_test.go:107: phase=1 bottleneck=625000 B/s cumulative-delivered=[5886560 7591632 4457908] drops=520
+    bbr_fairness_test.go:107: phase=2 bottleneck=1250000 B/s cumulative-delivered=[11158964 10686748 7125580] drops=559
+    bbr_fairness_test.go:107: flow=0 model={Version:3 Mode:PROBE_BW Phase:CRUISE Bandwidth:627293 MaxBandwidth:810259 BandwidthLo:627293 InflightLo:77265 InflightHi:77265 MinRTT:100.594724ms PacingGain:1 Round:257 ProbeWait:2.870360047s}
+    bbr_fairness_test.go:107: flow=1 model={Version:3 Mode:PROBE_BW Phase:CRUISE Bandwidth:349656 MaxBandwidth:349656 BandwidthLo:18446744073709551615 InflightLo:43636 InflightHi:43636 MinRTT:100.580155ms PacingGain:1 Round:255 ProbeWait:2.424684458s}
+    bbr_fairness_test.go:107: jain=0.966 trial-payload-utilization=0.928 measured-payload=28972752 measured-capacity=31251039
+    bbr_fairness_test.go:107: BBR intra-algorithm jain=1.000
+--- PASS: TestBBRBandwidthChanges (34.87s)
+    --- PASS: TestBBRBandwidthChanges/sharing (34.87s)
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	280.318s

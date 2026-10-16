@@ -1,0 +1,84 @@
+name: Lightweight TCP/IP stack
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: lightweight-race
+      - name: Protocol, independent peers, race and resource bounds
+        env:
+          CGO_ENABLED: '1'
+        run: go test -race -count=1 -timeout=180s ./pkg/net/proxy/tun/...
+      - name: Parser fuzzing
+        run: |
+          go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzParsePacket$' -fuzztime=10s -parallel=4
+          go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzTCPOptions$' -fuzztime=10s -parallel=4
+      - name: Benchmark smoke test
+        run: go test ./pkg/net/proxy/tun/lightweight/... -run '^$' -bench . -benchtime=1x -benchmem -timeout=180s
+
+  qualification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: lightweight-qualification
+      - name: Sustained BBR v3 coexistence and changing bandwidth
+        env:
+          CGO_ENABLED: '1'
+        run: >-
+          go test -race -tags lightweight_qualification
+          ./pkg/net/proxy/tun/lightweight
+          -run '^TestBBR(SharedBottleneck|BandwidthChanges)$'
+          -count=1 -v -timeout=600s
+
+  kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: lightweight-kernel
+      - name: Build independent Linux kernel interoperability suite
+        env:
+          CGO_ENABLED: '1'
+        run: go test -race -c -tags lightweight_kernel -o /tmp/lightweight-kernel.test ./pkg/net/proxy/tun/lightweight
+      - name: TCP, UDP fragments and ICMP in isolated network namespace
+        run: sudo unshare --net /tmp/lightweight-kernel.test -test.run '^TestLinuxKernel' -test.v -test.timeout=90s
+
+  portable-core:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - {os: linux, arch: amd64}
+          - {os: linux, arch: arm64}
+          - {os: linux, arch: '386'}
+          - {os: linux, arch: mipsle}
+          - {os: darwin, arch: arm64}
+          - {os: windows, arch: amd64}
+          - {os: android, arch: arm64}
+          - {os: ios, arch: arm64}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: lightweight-${{ matrix.target.os }}-${{ matrix.target.arch }}
+      - name: Compile the independent core
+        env:
+          CGO_ENABLED: '0'
+          GOOS: ${{ matrix.target.os }}
+          GOARCH: ${{ matrix.target.arch }}
+        run: go build ./pkg/net/proxy/tun/lightweight/...

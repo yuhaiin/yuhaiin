@@ -21,19 +21,21 @@ const (
 )
 
 type TunConfig struct {
-	AutoFakeIPRoute bool            `json:"auto_fakeip_route,omitzero"`
-	FakeIPRanges    [2]netip.Prefix `json:"-"`
-	Name            string          `json:"name,omitzero"`
-	MTU             int32           `json:"mtu,omitzero"`
-	ForceFakeIP     bool            `json:"force_fakeip,omitzero"`
-	SkipMulticast   bool            `json:"skip_multicast,omitzero"`
-	Driver          Driver          `json:"driver,omitzero"`
-	Portal          string          `json:"portal,omitzero"`
-	PortalV6        string          `json:"portal_v6,omitzero"`
-	Routes          []string        `json:"routes,omitzero"`
-	PostUp          []string        `json:"post_up,omitzero"`
-	PostDown        []string        `json:"post_down,omitzero"`
-	Platform        PlatformConfig  `json:"platform,omitzero"`
+	Stack             string          `json:"stack,omitzero"`
+	CongestionControl string          `json:"congestion_control,omitzero"`
+	AutoFakeIPRoute   bool            `json:"auto_fakeip_route,omitzero"`
+	FakeIPRanges      [2]netip.Prefix `json:"-"`
+	Name              string          `json:"name,omitzero"`
+	MTU               int32           `json:"mtu,omitzero"`
+	ForceFakeIP       bool            `json:"force_fakeip,omitzero"`
+	SkipMulticast     bool            `json:"skip_multicast,omitzero"`
+	Driver            Driver          `json:"driver,omitzero"`
+	Portal            string          `json:"portal,omitzero"`
+	PortalV6          string          `json:"portal_v6,omitzero"`
+	Routes            []string        `json:"routes,omitzero"`
+	PostUp            []string        `json:"post_up,omitzero"`
+	PostDown          []string        `json:"post_down,omitzero"`
+	Platform          PlatformConfig  `json:"platform,omitzero"`
 }
 
 type PlatformConfig struct {

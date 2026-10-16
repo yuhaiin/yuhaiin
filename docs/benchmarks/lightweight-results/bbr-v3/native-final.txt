@@ -1,0 +1,2482 @@
+{"os": "Linux-7.2.6-zen2-1-zen-x86_64-with-glibc2.44", "go": "go version go1.27.2-X:nodwarf5 linux/amd64", "gomaxprocs": 4, "offload": false, "tun_tx_queue": 10000, "samples": 3, "benchtime": "500ms", "client": "Linux TCP, same process", "binary_sha256": "59cfd286d24ac31edcfcfa4b789c5840552529552099aa19a4af7a11797a989f", "workload": "TCP stream"}
+
+# sample 1: gvisor/mtu=1280/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=1/upload-4         	    2532	    223264 ns/op	 293.54 MB/s	         6.087 CPU-s/GB	  26984448 RSS-B	  26497024 RSS-peak-B	        10.00 goroutines	    871104 heap-live-B	       278.6 p95-us	       319.5 p99-us	     702 B/op	      32 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1280/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=1/download-4         	    1690	    344503 ns/op	 190.23 MB/s	        11.23 CPU-s/GB	  24842240 RSS-B	  23982080 RSS-peak-B	        10.00 goroutines	   1064632 heap-live-B	       476.9 p95-us	       496.6 p99-us	    1016 B/op	      61 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1280/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=8/upload-4         	     429	   1402591 ns/op	 373.80 MB/s	         5.951 CPU-s/GB	  29208576 RSS-B	  28438528 RSS-peak-B	        24.00 goroutines	   1943024 heap-live-B	      1727 p95-us	      1819 p99-us	    8821 B/op	     295 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1280/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=8/download-4         	     234	   2538324 ns/op	 206.55 MB/s	        10.92 CPU-s/GB	  29163520 RSS-B	  28524544 RSS-peak-B	        24.00 goroutines	   2442768 heap-live-B	      2833 p95-us	      2973 p99-us	   14937 B/op	     500 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1280/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=100/upload-4         	      33	  17006362 ns/op	 385.36 MB/s	         6.020 CPU-s/GB	  37777408 RSS-B	  37216256 RSS-peak-B	       208.0 goroutines	   8802840 heap-live-B	     18647 p95-us	     19532 p99-us	  147008 B/op	    3716 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1280/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=100/download-4         	      16	  34736435 ns/op	 188.67 MB/s	        12.41 CPU-s/GB	  48447488 RSS-B	  47915008 RSS-peak-B	       208.0 goroutines	  18380624 heap-live-B	     39250 p95-us	     39250 p99-us	 1142854 B/op	    7716 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=1/upload-4         	    2904	    198514 ns/op	 330.13 MB/s	         5.172 CPU-s/GB	  26927104 RSS-B	  26058752 RSS-peak-B	        10.00 goroutines	    850768 heap-live-B	       241.7 p95-us	       278.8 p99-us	     599 B/op	      26 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=1/download-4         	    2040	    288639 ns/op	 227.05 MB/s	         9.299 CPU-s/GB	  26853376 RSS-B	  26271744 RSS-peak-B	        10.00 goroutines	   1053512 heap-live-B	       406.1 p95-us	       431.3 p99-us	     862 B/op	      53 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1500/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=8/upload-4         	     510	   1210431 ns/op	 433.14 MB/s	         4.982 CPU-s/GB	  27086848 RSS-B	  26640384 RSS-peak-B	        24.00 goroutines	   1529816 heap-live-B	      1460 p95-us	      1571 p99-us	    7315 B/op	     240 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1500/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=8/download-4         	     286	   2059040 ns/op	 254.63 MB/s	         9.103 CPU-s/GB	  28925952 RSS-B	  28160000 RSS-peak-B	        24.00 goroutines	   2401184 heap-live-B	      2319 p95-us	      2527 p99-us	   12192 B/op	     432 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=100/upload-4         	      42	  17712654 ns/op	 370.00 MB/s	         5.950 CPU-s/GB	  40042496 RSS-B	  39362560 RSS-peak-B	       208.0 goroutines	   8421904 heap-live-B	     27215 p95-us	     31322 p99-us	  111641 B/op	    3210 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=100/download-4         	      19	  29131351 ns/op	 224.97 MB/s	        10.56 CPU-s/GB	  48357376 RSS-B	  47693824 RSS-peak-B	       208.0 goroutines	  18930632 heap-live-B	     42882 p95-us	     42882 p99-us	  940370 B/op	    6438 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=9000/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=1/upload-4         	    7278	     86589 ns/op	 756.86 MB/s	         1.609 CPU-s/GB	  27045888 RSS-B	  26456064 RSS-peak-B	        10.00 goroutines	    910328 heap-live-B	       128.1 p95-us	       189.0 p99-us	     358 B/op	       7 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=9000/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=1/download-4         	    6388	     85538 ns/op	 766.16 MB/s	         2.265 CPU-s/GB	  26947584 RSS-B	  26337280 RSS-peak-B	        10.00 goroutines	   1053328 heap-live-B	       110.7 p95-us	       128.9 p99-us	     412 B/op	      14 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=9000/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=8/upload-4         	    1777	    337448 ns/op	1553.69 MB/s	         1.417 CPU-s/GB	  29298688 RSS-B	  28475392 RSS-peak-B	        24.00 goroutines	   2126152 heap-live-B	       408.8 p95-us	       444.3 p99-us	    4089 B/op	      80 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=9000/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=8/download-4         	    1128	    536393 ns/op	 977.43 MB/s	         2.336 CPU-s/GB	  29249536 RSS-B	  28291072 RSS-peak-B	        24.00 goroutines	   2052456 heap-live-B	       616.4 p95-us	       658.8 p99-us	    4235 B/op	     113 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=9000/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=100/upload-4         	     147	   3992002 ns/op	1641.68 MB/s	         1.533 CPU-s/GB	  44212224 RSS-B	  43524096 RSS-peak-B	       208.0 goroutines	  10589904 heap-live-B	      4649 p95-us	      5027 p99-us	   73772 B/op	    1183 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=9000/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=100/download-4         	      86	   6821419 ns/op	 960.74 MB/s	         2.697 CPU-s/GB	  46272512 RSS-B	  45686784 RSS-peak-B	       208.0 goroutines	  16097136 heap-live-B	      7484 p95-us	     10380 p99-us	  175014 B/op	    1525 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=1280/flows=1/upload
+time=2026-10-17T02:56:19.855+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:19.856+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:19.856+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:39899 "v6 listener"=[2001:db8::1]:39899 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:20.425+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:56:20.425+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:39899: use of closed network connection"
+time=2026-10-17T02:56:20.425+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:39899: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=1/upload-4         	    1545	    361634 ns/op	 181.22 MB/s	         8.684 CPU-s/GB	  26230784 RSS-B	  25825280 RSS-peak-B	        10.00 goroutines	    559664 heap-live-B	       396.4 p95-us	       503.1 p99-us	    3885 B/op	     160 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=1280/flows=1/download
+time=2026-10-17T02:56:20.440+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:20.440+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:20.440+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:40219 "v6 listener"=[2001:db8::1]:40219 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:21.036+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:56:21.037+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:40219: use of closed network connection"
+time=2026-10-17T02:56:21.037+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:40219: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=1/download-4         	    2018	    289149 ns/op	 226.65 MB/s	         4.587 CPU-s/GB	  26398720 RSS-B	  25849856 RSS-peak-B	        10.00 goroutines	    558432 heap-live-B	       304.5 p95-us	       332.5 p99-us	    2729 B/op	     112 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=1280/flows=8/upload
+time=2026-10-17T02:56:21.051+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:21.051+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:21.051+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:35431 "v6 listener"=[2001:db8::1]:35431 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:21.654+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:56:21.655+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:35431: use of closed network connection"
+time=2026-10-17T02:56:21.655+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:35431: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=8/upload-4         	     216	   2755952 ns/op	 190.24 MB/s	         9.138 CPU-s/GB	  26349568 RSS-B	  25915392 RSS-peak-B	        24.00 goroutines	   1053424 heap-live-B	      3512 p95-us	      3739 p99-us	   32505 B/op	    1287 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=1280/flows=8/download
+time=2026-10-17T02:56:21.669+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:21.669+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:21.669+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:44945 "v6 listener"=[2001:db8::1]:44945 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:22.271+08:00 level=ERROR source=nat.go:295 msg="write tcp raw to tun device failed" err="write lwtest0: file already closed"
+time=2026-10-17T02:56:22.271+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:56:22.271+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:44945: use of closed network connection"
+time=2026-10-17T02:56:22.271+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:44945: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=8/download-4         	     213	   2819572 ns/op	 185.95 MB/s	         9.231 CPU-s/GB	  26095616 RSS-B	  25649152 RSS-peak-B	        24.00 goroutines	   1063072 heap-live-B	      3538 p95-us	      3720 p99-us	   32139 B/op	    1296 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=1280/flows=100/upload
+time=2026-10-17T02:56:22.294+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:22.294+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:22.294+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:43897 "v6 listener"=[2001:db8::1]:43897 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:22.877+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:56:22.877+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:43897: use of closed network connection"
+time=2026-10-17T02:56:22.877+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:43897: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=100/upload-4         	      15	  36626071 ns/op	 178.93 MB/s	         9.421 CPU-s/GB	  36982784 RSS-B	  36376576 RSS-peak-B	       208.0 goroutines	   7295240 heap-live-B	     51588 p95-us	     51588 p99-us	  646977 B/op	   16486 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=1280/flows=100/download
+time=2026-10-17T02:56:22.892+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:22.892+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:22.892+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:36963 "v6 listener"=[2001:db8::1]:36963 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:23.484+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:56:23.485+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:36963: use of closed network connection"
+time=2026-10-17T02:56:23.485+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:36963: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=100/download-4         	      15	  36274237 ns/op	 180.67 MB/s	         9.342 CPU-s/GB	  36995072 RSS-B	  36458496 RSS-peak-B	       208.0 goroutines	   7307544 heap-live-B	     45993 p95-us	     45993 p99-us	  478821 B/op	   16240 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=1500/flows=1/upload
+time=2026-10-17T02:56:23.499+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:23.499+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:23.499+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:37603 "v6 listener"=[2001:db8::1]:37603 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:24.093+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:37603: use of closed network connection"
+time=2026-10-17T02:56:24.093+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:37603: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=1/upload-4         	    1791	    324401 ns/op	 202.02 MB/s	         7.695 CPU-s/GB	  26341376 RSS-B	  25505792 RSS-peak-B	        10.00 goroutines	    559376 heap-live-B	       349.2 p95-us	       399.8 p99-us	    3333 B/op	     138 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=1500/flows=1/download
+time=2026-10-17T02:56:24.108+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:24.108+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:24.108+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:36735 "v6 listener"=[2001:db8::1]:36735 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:24.688+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:56:24.688+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:36735: use of closed network connection"
+time=2026-10-17T02:56:24.688+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:36735: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=1/download-4         	    2232	    255416 ns/op	 256.59 MB/s	         4.068 CPU-s/GB	  26185728 RSS-B	  25706496 RSS-peak-B	        10.00 goroutines	    560448 heap-live-B	       273.8 p95-us	       317.1 p99-us	    2311 B/op	      96 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=1500/flows=8/upload
+time=2026-10-17T02:56:24.703+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:24.703+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:24.703+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:43955 "v6 listener"=[2001:db8::1]:43955 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:25.317+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:56:25.317+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:43955: use of closed network connection"
+time=2026-10-17T02:56:25.317+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:43955: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=8/upload-4         	     252	   2395887 ns/op	 218.83 MB/s	         8.031 CPU-s/GB	  25796608 RSS-B	  25636864 RSS-peak-B	        24.00 goroutines	   1058032 heap-live-B	      3119 p95-us	      3294 p99-us	   28233 B/op	    1097 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=1500/flows=8/download
+time=2026-10-17T02:56:25.332+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:25.332+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:25.332+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:41919 "v6 listener"=[2001:db8::1]:41919 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:25.940+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:41919: use of closed network connection"
+time=2026-10-17T02:56:25.940+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:41919: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=8/download-4         	     258	   2311255 ns/op	 226.84 MB/s	         7.754 CPU-s/GB	  26353664 RSS-B	  25739264 RSS-peak-B	        24.00 goroutines	   1059424 heap-live-B	      2988 p95-us	      3091 p99-us	   28196 B/op	    1098 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=1500/flows=100/upload
+time=2026-10-17T02:56:25.955+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:25.955+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:25.955+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:44101 "v6 listener"=[2001:db8::1]:44101 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:26.558+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:56:26.558+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:44101: use of closed network connection"
+time=2026-10-17T02:56:26.558+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:44101: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=100/upload-4         	      18	  31056875 ns/op	 211.02 MB/s	         8.058 CPU-s/GB	  37101568 RSS-B	  36487168 RSS-peak-B	       208.0 goroutines	   7312760 heap-live-B	     45489 p95-us	     45489 p99-us	  528169 B/op	   14006 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=1500/flows=100/download
+time=2026-10-17T02:56:26.572+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:26.572+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:26.572+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:36009 "v6 listener"=[2001:db8::1]:36009 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:27.167+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:36009: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+time=2026-10-17T02:56:27.167+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:36009: use of closed network connection"
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=100/download-4         	      18	  30845683 ns/op	 212.46 MB/s	         8.081 CPU-s/GB	  32890880 RSS-B	  34471936 RSS-peak-B	       208.0 goroutines	   7316272 heap-live-B	     43992 p95-us	     43992 p99-us	  332683 B/op	   13809 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=9000/flows=1/upload
+time=2026-10-17T02:56:27.182+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:27.182+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:27.182+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:45507 "v6 listener"=[2001:db8::1]:45507 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:27.733+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:56:27.734+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:45507: use of closed network connection"
+time=2026-10-17T02:56:27.734+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:45507: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=1/upload-4         	    5707	     95277 ns/op	 687.85 MB/s	         2.275 CPU-s/GB	  26275840 RSS-B	  25640960 RSS-peak-B	        10.00 goroutines	    568464 heap-live-B	       117.4 p95-us	       137.8 p99-us	     623 B/op	      25 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=9000/flows=1/download
+time=2026-10-17T02:56:27.747+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:27.747+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:27.748+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:42059 "v6 listener"=[2001:db8::1]:42059 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:28.329+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:56:28.329+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:42059: use of closed network connection"
+time=2026-10-17T02:56:28.329+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:42059: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=1/download-4         	    5676	    100998 ns/op	 648.88 MB/s	         1.730 CPU-s/GB	  26222592 RSS-B	  25608192 RSS-peak-B	        10.00 goroutines	    568112 heap-live-B	       113.1 p95-us	       126.1 p99-us	     492 B/op	      20 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=9000/flows=8/upload
+time=2026-10-17T02:56:28.343+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:28.343+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:28.344+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:46123 "v6 listener"=[2001:db8::1]:46123 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:28.944+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:56:28.944+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:46123: use of closed network connection"
+time=2026-10-17T02:56:28.944+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:46123: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=8/upload-4         	    1005	    585925 ns/op	 894.80 MB/s	         2.184 CPU-s/GB	  26370048 RSS-B	  25665536 RSS-peak-B	        24.00 goroutines	   1074256 heap-live-B	       759.6 p95-us	       819.0 p99-us	    4956 B/op	     205 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=9000/flows=8/download
+time=2026-10-17T02:56:28.959+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:28.959+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:28.959+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:43533 "v6 listener"=[2001:db8::1]:43533 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:29.573+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:56:29.574+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:43533: use of closed network connection"
+time=2026-10-17T02:56:29.574+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:43533: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=8/download-4         	    1065	    567022 ns/op	 924.63 MB/s	         2.256 CPU-s/GB	  26329088 RSS-B	  25653248 RSS-peak-B	        24.00 goroutines	   1082008 heap-live-B	       670.8 p95-us	       735.4 p99-us	    5308 B/op	     204 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=9000/flows=100/upload
+time=2026-10-17T02:56:29.588+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:29.588+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:29.589+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:43005 "v6 listener"=[2001:db8::1]:43005 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:30.228+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:43005: use of closed network connection"
+time=2026-10-17T02:56:30.228+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:43005: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=100/upload-4         	      80	   7374973 ns/op	 888.63 MB/s	         2.202 CPU-s/GB	  34910208 RSS-B	  34324480 RSS-peak-B	       208.0 goroutines	   7315992 heap-live-B	      8571 p95-us	     10008 p99-us	   71931 B/op	    2539 allocs/op
+PASS
+
+# sample 1: tun2socket/mtu=9000/flows=100/download
+time=2026-10-17T02:56:30.243+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:30.243+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:56:30.244+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:39763 "v6 listener"=[2001:db8::1]:39763 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:56:30.876+08:00 level=ERROR source=nat.go:295 msg="write tcp raw to tun device failed" err="write lwtest0: file already closed"
+time=2026-10-17T02:56:30.876+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:39763: use of closed network connection"
+time=2026-10-17T02:56:30.876+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:39763: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=100/download-4         	      82	   7244708 ns/op	 904.61 MB/s	         2.162 CPU-s/GB	  32129024 RSS-B	  36425728 RSS-peak-B	       208.0 goroutines	   7320464 heap-live-B	      7940 p95-us	     11626 p99-us	  107162 B/op	    2580 allocs/op
+PASS
+
+# sample 1: reno/mtu=1280/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=1/upload-4         	    3181	    194464 ns/op	 337.01 MB/s	         5.082 CPU-s/GB	  26038272 RSS-B	  25747456 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1134760 heap-live-B	       241.1 p95-us	       283.8 p99-us	         0 retransmits	    4643 B/op	      75 allocs/op
+PASS
+
+# sample 1: reno/mtu=1280/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=1/download-4         	    2680	    223185 ns/op	 293.64 MB/s	         7.348 CPU-s/GB	  24223744 RSS-B	  23486464 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1193768 heap-live-B	       287.6 p95-us	       309.3 p99-us	         0 retransmits	     507 B/op	       5 allocs/op
+PASS
+
+# sample 1: reno/mtu=1280/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=8/upload-4         	     492	   1206728 ns/op	 434.47 MB/s	         4.689 CPU-s/GB	  27492352 RSS-B	  27275264 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1682856 heap-live-B	      1352 p95-us	      1472 p99-us	         0 retransmits	   39769 B/op	     623 allocs/op
+PASS
+
+# sample 1: reno/mtu=1280/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=8/download-4         	     378	   1554911 ns/op	 337.18 MB/s	         8.479 CPU-s/GB	  28372992 RSS-B	  27525120 RSS-peak-B	         1.000 drops	        22.00 goroutines	   3029664 heap-live-B	      1967 p95-us	      2038 p99-us	         0 retransmits	    8786 B/op	      44 allocs/op
+PASS
+
+# sample 1: reno/mtu=1280/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=100/upload-4         	      40	  14955782 ns/op	 438.20 MB/s	         4.767 CPU-s/GB	  43458560 RSS-B	  42815488 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8718184 heap-live-B	     15742 p95-us	     17066 p99-us	         0 retransmits	  529726 B/op	    7876 allocs/op
+PASS
+
+# sample 1: reno/mtu=1280/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=100/download-4         	      28	  20263540 ns/op	 323.42 MB/s	         9.522 CPU-s/GB	  49541120 RSS-B	  48828416 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17368224 heap-live-B	     23299 p95-us	     24254 p99-us	         0 retransmits	  757126 B/op	    1886 allocs/op
+PASS
+
+# sample 1: reno/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=1/upload-4         	    3414	    171961 ns/op	 381.11 MB/s	         4.494 CPU-s/GB	  25735168 RSS-B	  25329664 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1118016 heap-live-B	       204.0 p95-us	       238.8 p99-us	         0 retransmits	    4118 B/op	      66 allocs/op
+PASS
+
+# sample 1: reno/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=1/download-4         	    2942	    199071 ns/op	 329.21 MB/s	         6.419 CPU-s/GB	  26021888 RSS-B	  25329664 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1174136 heap-live-B	       255.8 p95-us	       275.0 p99-us	         0 retransmits	     469 B/op	       5 allocs/op
+PASS
+
+# sample 1: reno/mtu=1500/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=8/upload-4         	     560	   1064888 ns/op	 492.34 MB/s	         4.133 CPU-s/GB	  26234880 RSS-B	  25669632 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1665088 heap-live-B	      1172 p95-us	      1266 p99-us	         0 retransmits	   33939 B/op	     537 allocs/op
+PASS
+
+# sample 1: reno/mtu=1500/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=8/download-4         	     480	   1238117 ns/op	 423.46 MB/s	         6.956 CPU-s/GB	  26173440 RSS-B	  25657344 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2868496 heap-live-B	      1586 p95-us	      1686 p99-us	         0 retransmits	    7133 B/op	      43 allocs/op
+PASS
+
+# sample 1: reno/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=100/upload-4         	      39	  13231266 ns/op	 495.31 MB/s	         4.219 CPU-s/GB	  43409408 RSS-B	  42737664 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8674584 heap-live-B	     14395 p95-us	     14709 p99-us	         0 retransmits	  583789 B/op	    6878 allocs/op
+PASS
+
+# sample 1: reno/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=100/download-4         	      34	  16666072 ns/op	 393.23 MB/s	         8.059 CPU-s/GB	  45486080 RSS-B	  44793856 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17392984 heap-live-B	     21075 p95-us	     21115 p99-us	         0 retransmits	  532113 B/op	    1049 allocs/op
+PASS
+
+# sample 1: reno/mtu=9000/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=1/upload-4         	    6604	     87588 ns/op	 748.23 MB/s	         1.780 CPU-s/GB	  25894912 RSS-B	  25612288 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1127736 heap-live-B	        97.98 p95-us	       109.7 p99-us	         0 retransmits	    1215 B/op	      17 allocs/op
+PASS
+
+# sample 1: reno/mtu=9000/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=1/download-4         	    6655	     85663 ns/op	 765.05 MB/s	         2.135 CPU-s/GB	  24072192 RSS-B	  23519232 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1167808 heap-live-B	       103.5 p95-us	       117.7 p99-us	         0 retransmits	     434 B/op	       5 allocs/op
+PASS
+
+# sample 1: reno/mtu=9000/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=8/upload-4         	    1344	    427841 ns/op	1225.43 MB/s	         1.582 CPU-s/GB	  28000256 RSS-B	  27447296 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1848208 heap-live-B	       481.2 p95-us	       504.5 p99-us	         0 retransmits	   10279 B/op	     138 allocs/op
+PASS
+
+# sample 1: reno/mtu=9000/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=8/download-4         	    1696	    349086 ns/op	1501.89 MB/s	         1.975 CPU-s/GB	  30494720 RSS-B	  29872128 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2847320 heap-live-B	       449.5 p95-us	       489.4 p99-us	         0 retransmits	    4192 B/op	      40 allocs/op
+PASS
+
+# sample 1: reno/mtu=9000/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=100/upload-4         	     100	   5050884 ns/op	1297.52 MB/s	         1.616 CPU-s/GB	  41230336 RSS-B	  40505344 RSS-peak-B	         1.000 drops	       206.0 goroutines	   9754880 heap-live-B	      5679 p95-us	      5964 p99-us	         0 retransmits	  179453 B/op	    1829 allocs/op
+PASS
+
+# sample 1: reno/mtu=9000/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=100/download-4         	     156	   3816367 ns/op	1717.24 MB/s	         1.916 CPU-s/GB	  58363904 RSS-B	  57958400 RSS-peak-B	         1.000 drops	       206.0 goroutines	  18425376 heap-live-B	      4598 p95-us	      5522 p99-us	         0 retransmits	  219653 B/op	     539 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1280/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=1/upload-4         	    3172	    190489 ns/op	 344.04 MB/s	         4.977 CPU-s/GB	  26218496 RSS-B	  25456640 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1126240 heap-live-B	       225.3 p95-us	       262.9 p99-us	         0 retransmits	    4632 B/op	      75 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1280/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=1/download-4         	    2564	    221204 ns/op	 296.27 MB/s	         7.304 CPU-s/GB	  26095616 RSS-B	  25464832 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1193896 heap-live-B	       286.6 p95-us	       309.5 p99-us	         0 retransmits	     485 B/op	       5 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1280/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=8/upload-4         	     505	   1218866 ns/op	 430.14 MB/s	         4.714 CPU-s/GB	  27889664 RSS-B	  28053504 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1787480 heap-live-B	      1391 p95-us	      1571 p99-us	         0 retransmits	   39624 B/op	     624 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1280/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=8/download-4         	     402	   1519975 ns/op	 344.93 MB/s	         8.349 CPU-s/GB	  28381184 RSS-B	  27799552 RSS-peak-B	         1.000 drops	        22.00 goroutines	   3009560 heap-live-B	      1916 p95-us	      2023 p99-us	         0 retransmits	    8220 B/op	      44 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1280/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=100/upload-4         	      42	  15012813 ns/op	 436.53 MB/s	         4.770 CPU-s/GB	  41222144 RSS-B	  40599552 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8883512 heap-live-B	     15800 p95-us	     16347 p99-us	         0 retransmits	  535604 B/op	    7878 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1280/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=100/download-4         	      28	  20413644 ns/op	 321.04 MB/s	         9.501 CPU-s/GB	  49655808 RSS-B	  48926720 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17551072 heap-live-B	     23966 p95-us	     24012 p99-us	         0 retransmits	  751821 B/op	    1876 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=1/upload-4         	    3418	    167744 ns/op	 390.69 MB/s	         4.391 CPU-s/GB	  25817088 RSS-B	  25735168 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1115336 heap-live-B	       195.7 p95-us	       215.4 p99-us	         0 retransmits	    4050 B/op	      65 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=1/download-4         	    3068	    192826 ns/op	 339.87 MB/s	         6.157 CPU-s/GB	  24031232 RSS-B	  23433216 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1177000 heap-live-B	       245.5 p95-us	       267.9 p99-us	         0 retransmits	     466 B/op	       5 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1500/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=8/upload-4         	     553	   1106234 ns/op	 473.94 MB/s	         4.295 CPU-s/GB	  27463680 RSS-B	  27611136 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1668600 heap-live-B	      1231 p95-us	      1372 p99-us	         0 retransmits	   34488 B/op	     541 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1500/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=8/download-4         	     484	   1231993 ns/op	 425.56 MB/s	         6.951 CPU-s/GB	  28479488 RSS-B	  27811840 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2871072 heap-live-B	      1573 p95-us	      1622 p99-us	         0 retransmits	    6700 B/op	      43 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=100/upload-4         	      45	  13238777 ns/op	 495.03 MB/s	         4.237 CPU-s/GB	  39559168 RSS-B	  38821888 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8780976 heap-live-B	     14068 p95-us	     14390 p99-us	         0 retransmits	  522990 B/op	    6836 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=100/download-4         	      33	  16031268 ns/op	 408.80 MB/s	         7.760 CPU-s/GB	  45445120 RSS-B	  44851200 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17399520 heap-live-B	     19239 p95-us	     20946 p99-us	         0 retransmits	  399424 B/op	     991 allocs/op
+PASS
+
+# sample 1: cubic/mtu=9000/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=1/upload-4         	    6622	     87955 ns/op	 745.11 MB/s	         1.789 CPU-s/GB	  25366528 RSS-B	  25296896 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1133704 heap-live-B	        97.91 p95-us	       108.1 p99-us	         0 retransmits	    1225 B/op	      17 allocs/op
+PASS
+
+# sample 1: cubic/mtu=9000/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=1/download-4         	    6651	     88819 ns/op	 737.86 MB/s	         2.199 CPU-s/GB	  26312704 RSS-B	  25575424 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1171440 heap-live-B	       108.0 p95-us	       120.2 p99-us	         0 retransmits	     434 B/op	       5 allocs/op
+PASS
+
+# sample 1: cubic/mtu=9000/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=8/upload-4         	    1366	    434647 ns/op	1206.24 MB/s	         1.597 CPU-s/GB	  28033024 RSS-B	  28094464 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1856224 heap-live-B	       490.0 p95-us	       601.3 p99-us	         0 retransmits	   10368 B/op	     139 allocs/op
+PASS
+
+# sample 1: cubic/mtu=9000/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=8/download-4         	    1854	    324556 ns/op	1615.40 MB/s	         1.880 CPU-s/GB	  28446720 RSS-B	  27906048 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2824584 heap-live-B	       429.9 p95-us	       469.9 p99-us	         0 retransmits	    4170 B/op	      40 allocs/op
+PASS
+
+# sample 1: cubic/mtu=9000/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=100/upload-4         	     100	   5151639 ns/op	1272.14 MB/s	         1.658 CPU-s/GB	  41177088 RSS-B	  40550400 RSS-peak-B	         1.000 drops	       206.0 goroutines	   9755296 heap-live-B	      5676 p95-us	      5804 p99-us	         0 retransmits	  167815 B/op	    1832 allocs/op
+PASS
+
+# sample 1: cubic/mtu=9000/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=100/download-4         	     145	   4115588 ns/op	1592.38 MB/s	         2.018 CPU-s/GB	  60338176 RSS-B	  60035072 RSS-peak-B	         1.000 drops	       206.0 goroutines	  18375440 heap-live-B	      5091 p95-us	      5744 p99-us	         0 retransmits	  338825 B/op	     560 allocs/op
+PASS
+
+# sample 1: bbr/mtu=1280/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=1/upload-4         	    3078	    191523 ns/op	 342.18 MB/s	         5.003 CPU-s/GB	  25849856 RSS-B	  25399296 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1132760 heap-live-B	       225.3 p95-us	       248.8 p99-us	         0 retransmits	    4643 B/op	      75 allocs/op
+PASS
+
+# sample 1: bbr/mtu=1280/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=1/download-4         	    2800	    217463 ns/op	 301.37 MB/s	         7.119 CPU-s/GB	  26083328 RSS-B	  25387008 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1196712 heap-live-B	       273.3 p95-us	       302.7 p99-us	         0 retransmits	     502 B/op	       5 allocs/op
+PASS
+
+# sample 1: bbr/mtu=1280/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=8/upload-4         	     496	   1207088 ns/op	 434.34 MB/s	         4.708 CPU-s/GB	  27844608 RSS-B	  27701248 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1919112 heap-live-B	      1325 p95-us	      1443 p99-us	         0 retransmits	   39996 B/op	     622 allocs/op
+PASS
+
+# sample 1: bbr/mtu=1280/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=8/download-4         	     376	   1554087 ns/op	 337.36 MB/s	         8.473 CPU-s/GB	  28303360 RSS-B	  27705344 RSS-peak-B	         1.000 drops	        22.00 goroutines	   3020904 heap-live-B	      2012 p95-us	      2105 p99-us	         0 retransmits	    8056 B/op	      44 allocs/op
+PASS
+
+# sample 1: bbr/mtu=1280/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=100/upload-4         	      39	  14898907 ns/op	 439.87 MB/s	         4.736 CPU-s/GB	  41193472 RSS-B	  40378368 RSS-peak-B	         1.000 drops	       206.0 goroutines	   9051608 heap-live-B	     15989 p95-us	     16471 p99-us	         0 retransmits	  525713 B/op	    7894 allocs/op
+PASS
+
+# sample 1: bbr/mtu=1280/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=100/download-4         	      28	  19685734 ns/op	 332.91 MB/s	        10.16 CPU-s/GB	  51802112 RSS-B	  51175424 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17536800 heap-live-B	     22488 p95-us	     24033 p99-us	         0 retransmits	  804380 B/op	    1918 allocs/op
+PASS
+
+# sample 1: bbr/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=1/upload-4         	    3150	    170849 ns/op	 383.59 MB/s	         4.475 CPU-s/GB	  25796608 RSS-B	  25440256 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1116840 heap-live-B	       204.2 p95-us	       241.0 p99-us	         0 retransmits	    4095 B/op	      66 allocs/op
+PASS
+
+# sample 1: bbr/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=1/download-4         	    3170	    195574 ns/op	 335.10 MB/s	         6.297 CPU-s/GB	  23990272 RSS-B	  23302144 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1178616 heap-live-B	       252.6 p95-us	       275.3 p99-us	         0 retransmits	     484 B/op	       5 allocs/op
+PASS
+
+# sample 1: bbr/mtu=1500/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=8/upload-4         	     566	   1076460 ns/op	 487.05 MB/s	         4.180 CPU-s/GB	  27717632 RSS-B	  27783168 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1686544 heap-live-B	      1192 p95-us	      1363 p99-us	         0 retransmits	   34162 B/op	     538 allocs/op
+PASS
+
+# sample 1: bbr/mtu=1500/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=8/download-4         	     488	   1243896 ns/op	 421.49 MB/s	         7.016 CPU-s/GB	  28450816 RSS-B	  27856896 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2870608 heap-live-B	      1568 p95-us	      1626 p99-us	         0 retransmits	    6516 B/op	      43 allocs/op
+PASS
+
+# sample 1: bbr/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=100/upload-4         	      43	  13228323 ns/op	 495.42 MB/s	         4.218 CPU-s/GB	  41091072 RSS-B	  40472576 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8783328 heap-live-B	     13845 p95-us	     14338 p99-us	         0 retransmits	  561532 B/op	    6813 allocs/op
+PASS
+
+# sample 1: bbr/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=100/download-4         	      34	  15502480 ns/op	 422.75 MB/s	         8.140 CPU-s/GB	  45408256 RSS-B	  45027328 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17546920 heap-live-B	     18505 p95-us	     19458 p99-us	         0 retransmits	  520152 B/op	    1101 allocs/op
+PASS
+
+# sample 1: bbr/mtu=9000/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=1/upload-4         	    6798	     87568 ns/op	 748.40 MB/s	         1.779 CPU-s/GB	  26222592 RSS-B	  25223168 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1134880 heap-live-B	        98.07 p95-us	       108.3 p99-us	         0 retransmits	    1209 B/op	      16 allocs/op
+PASS
+
+# sample 1: bbr/mtu=9000/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=1/download-4         	    5900	     91776 ns/op	 714.09 MB/s	         2.305 CPU-s/GB	  26472448 RSS-B	  25600000 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1172272 heap-live-B	       115.5 p95-us	       137.9 p99-us	         0 retransmits	     437 B/op	       5 allocs/op
+PASS
+
+# sample 1: bbr/mtu=9000/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=8/upload-4         	    1383	    445268 ns/op	1177.47 MB/s	         1.656 CPU-s/GB	  27754496 RSS-B	  27910144 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1876304 heap-live-B	       509.3 p95-us	       655.8 p99-us	         0 retransmits	   10436 B/op	     139 allocs/op
+PASS
+
+# sample 1: bbr/mtu=9000/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=8/download-4         	    1680	    351603 ns/op	1491.13 MB/s	         2.008 CPU-s/GB	  28794880 RSS-B	  27983872 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2852840 heap-live-B	       466.1 p95-us	       496.6 p99-us	         0 retransmits	    4284 B/op	      40 allocs/op
+PASS
+
+# sample 1: bbr/mtu=9000/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=100/upload-4         	     100	   5236427 ns/op	1251.54 MB/s	         1.692 CPU-s/GB	  40869888 RSS-B	  40595456 RSS-peak-B	         1.000 drops	       206.0 goroutines	  10005152 heap-live-B	      5947 p95-us	      6399 p99-us	         0 retransmits	  171522 B/op	    1843 allocs/op
+PASS
+
+# sample 1: bbr/mtu=9000/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=100/download-4         	     154	   3857563 ns/op	1698.90 MB/s	         1.934 CPU-s/GB	  56139776 RSS-B	  55640064 RSS-peak-B	         1.000 drops	       206.0 goroutines	  18422776 heap-live-B	      4796 p95-us	      5045 p99-us	         0 retransmits	  221022 B/op	     541 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1280/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=1/upload-4         	    2476	    225778 ns/op	 290.27 MB/s	         6.214 CPU-s/GB	  26890240 RSS-B	  26124288 RSS-peak-B	        10.00 goroutines	    868784 heap-live-B	       281.0 p95-us	       321.6 p99-us	     704 B/op	      32 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1280/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=1/download-4         	    1588	    368453 ns/op	 177.87 MB/s	        12.07 CPU-s/GB	  26828800 RSS-B	  26157056 RSS-peak-B	        10.00 goroutines	   1057520 heap-live-B	       491.5 p95-us	       508.5 p99-us	     986 B/op	      61 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1280/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=8/upload-4         	     420	   1435023 ns/op	 365.35 MB/s	         6.183 CPU-s/GB	  27086848 RSS-B	  26357760 RSS-peak-B	        24.00 goroutines	   1508352 heap-live-B	      1785 p95-us	      1950 p99-us	    8750 B/op	     303 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1280/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=8/download-4         	     230	   2570334 ns/op	 203.98 MB/s	        11.07 CPU-s/GB	  29241344 RSS-B	  28426240 RSS-peak-B	        24.00 goroutines	   2460840 heap-live-B	      2862 p95-us	      2970 p99-us	   14310 B/op	     501 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1280/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=100/upload-4         	      34	  17986636 ns/op	 364.36 MB/s	         6.306 CPU-s/GB	  33366016 RSS-B	  35028992 RSS-peak-B	       208.0 goroutines	   8755384 heap-live-B	     21511 p95-us	     22808 p99-us	  147402 B/op	    3844 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1280/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=100/download-4         	      16	  34552320 ns/op	 189.67 MB/s	        12.38 CPU-s/GB	  46239744 RSS-B	  45510656 RSS-peak-B	       208.0 goroutines	  19345824 heap-live-B	     43246 p95-us	     43246 p99-us	  973169 B/op	    7611 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=1/upload-4         	    2943	    199621 ns/op	 328.30 MB/s	         5.225 CPU-s/GB	  26914816 RSS-B	  26243072 RSS-peak-B	        10.00 goroutines	    848512 heap-live-B	       243.8 p95-us	       278.0 p99-us	     594 B/op	      26 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=1/download-4         	    1950	    287252 ns/op	 228.15 MB/s	         9.240 CPU-s/GB	  26882048 RSS-B	  26374144 RSS-peak-B	        10.00 goroutines	   1045792 heap-live-B	       375.4 p95-us	       408.3 p99-us	     869 B/op	      53 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1500/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=8/upload-4         	     447	   1252319 ns/op	 418.65 MB/s	         5.284 CPU-s/GB	  27070464 RSS-B	  26406912 RSS-peak-B	        24.00 goroutines	   1517432 heap-live-B	      1554 p95-us	      1675 p99-us	    8102 B/op	     258 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1500/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=8/download-4         	     290	   2052237 ns/op	 255.47 MB/s	         9.138 CPU-s/GB	  29224960 RSS-B	  28385280 RSS-peak-B	        24.00 goroutines	   2360208 heap-live-B	      2356 p95-us	      2757 p99-us	   11655 B/op	     432 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=100/upload-4         	      39	  14811370 ns/op	 442.47 MB/s	         5.210 CPU-s/GB	  37793792 RSS-B	  37212160 RSS-peak-B	       208.0 goroutines	   8993768 heap-live-B	     16453 p95-us	     16503 p99-us	  237644 B/op	    3286 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=100/download-4         	      20	  27532233 ns/op	 238.03 MB/s	        10.11 CPU-s/GB	  46342144 RSS-B	  45428736 RSS-peak-B	       208.0 goroutines	  18790344 heap-live-B	     33602 p95-us	     35066 p99-us	  909641 B/op	    6469 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=9000/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=1/upload-4         	    7578	     74770 ns/op	 876.50 MB/s	         1.398 CPU-s/GB	  26976256 RSS-B	  25952256 RSS-peak-B	        10.00 goroutines	    900336 heap-live-B	        86.07 p95-us	        98.38 p99-us	     335 B/op	       7 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=9000/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=1/download-4         	    6213	     85620 ns/op	 765.43 MB/s	         2.293 CPU-s/GB	  26935296 RSS-B	  26345472 RSS-peak-B	        10.00 goroutines	   1058240 heap-live-B	       109.8 p95-us	       124.2 p99-us	     446 B/op	      14 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=9000/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=8/upload-4         	    1706	    338029 ns/op	1551.02 MB/s	         1.424 CPU-s/GB	  29175808 RSS-B	  28405760 RSS-peak-B	        24.00 goroutines	   2042216 heap-live-B	       405.5 p95-us	       433.2 p99-us	    3989 B/op	      80 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=9000/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=8/download-4         	    1118	    541052 ns/op	 969.02 MB/s	         2.354 CPU-s/GB	  29167616 RSS-B	  28397568 RSS-peak-B	        24.00 goroutines	   1951672 heap-live-B	       636.1 p95-us	       723.4 p99-us	    4112 B/op	     113 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=9000/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=100/upload-4         	     147	   4037839 ns/op	1623.05 MB/s	         1.549 CPU-s/GB	  44187648 RSS-B	  43446272 RSS-peak-B	       208.0 goroutines	  10577656 heap-live-B	      4778 p95-us	      5059 p99-us	  100012 B/op	    1183 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=9000/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=100/download-4         	      87	   6823926 ns/op	 960.39 MB/s	         2.647 CPU-s/GB	  44142592 RSS-B	  43671552 RSS-peak-B	       208.0 goroutines	  15896008 heap-live-B	      7388 p95-us	      9290 p99-us	  147582 B/op	    1523 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=1280/flows=1/upload
+time=2026-10-17T02:57:15.100+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:15.100+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:15.101+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:38965 "v6 listener"=[2001:db8::1]:38965 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:15.718+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:15.719+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:38965: use of closed network connection"
+time=2026-10-17T02:57:15.719+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:38965: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=1/upload-4         	    1554	    390625 ns/op	 167.77 MB/s	         9.222 CPU-s/GB	  26288128 RSS-B	  25956352 RSS-peak-B	        10.00 goroutines	    564952 heap-live-B	       517.8 p95-us	       545.8 p99-us	    3916 B/op	     163 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=1280/flows=1/download
+time=2026-10-17T02:57:15.733+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:15.733+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:15.733+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:43335 "v6 listener"=[2001:db8::1]:43335 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:16.354+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:43335: use of closed network connection"
+time=2026-10-17T02:57:16.354+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:43335: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=1/download-4         	    1999	    302175 ns/op	 216.88 MB/s	         4.917 CPU-s/GB	  26267648 RSS-B	  25546752 RSS-peak-B	        10.00 goroutines	    564808 heap-live-B	       374.4 p95-us	       503.8 p99-us	    2763 B/op	     113 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=1280/flows=8/upload
+time=2026-10-17T02:57:16.370+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:16.371+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:16.371+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:40787 "v6 listener"=[2001:db8::1]:40787 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:16.973+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:16.974+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:40787: use of closed network connection"
+time=2026-10-17T02:57:16.974+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:40787: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=8/upload-4         	     206	   2860254 ns/op	 183.30 MB/s	         9.467 CPU-s/GB	  25845760 RSS-B	  25636864 RSS-peak-B	        24.00 goroutines	   1059560 heap-live-B	      3735 p95-us	      3900 p99-us	   31126 B/op	    1291 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=1280/flows=8/download
+time=2026-10-17T02:57:16.988+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:16.988+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:16.988+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:46611 "v6 listener"=[2001:db8::1]:46611 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:17.585+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:17.585+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:46611: use of closed network connection"
+time=2026-10-17T02:57:17.585+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:46611: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=8/download-4         	     206	   2886917 ns/op	 181.61 MB/s	         9.473 CPU-s/GB	  26025984 RSS-B	  25399296 RSS-peak-B	        24.00 goroutines	   1059184 heap-live-B	      3491 p95-us	      3743 p99-us	   31273 B/op	    1299 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=1280/flows=100/upload
+time=2026-10-17T02:57:17.606+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:17.606+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:17.606+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:33761 "v6 listener"=[2001:db8::1]:33761 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:18.180+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:18.180+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:33761: use of closed network connection"
+time=2026-10-17T02:57:18.180+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:33761: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=100/upload-4         	      15	  36428597 ns/op	 179.90 MB/s	         9.373 CPU-s/GB	  34201600 RSS-B	  34344960 RSS-peak-B	       208.0 goroutines	   7295896 heap-live-B	     51279 p95-us	     51279 p99-us	  457234 B/op	   16415 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=1280/flows=100/download
+time=2026-10-17T02:57:18.202+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:18.202+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:18.202+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:33949 "v6 listener"=[2001:db8::1]:33949 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:18.787+08:00 level=ERROR source=nat.go:295 msg="write tcp raw to tun device failed" err="write lwtest0: file already closed"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=100/download-4         	time=2026-10-17T02:57:18.787+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:33949: use of closed network connection"
+      15	  35936192 ns/op	 182.37 MB/s	         9.288 CPU-s/GB	  33157120 RSS-B	  36585472 RSS-peak-B	       208.0 goroutines	   7306272 heap-live-B	     52201 p95-us	     52201 p99-us	  496214 B/op	   16203 allocs/op
+time=2026-10-17T02:57:18.788+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:33949: use of closed network connection"
+PASS
+
+# sample 2: tun2socket/mtu=1500/flows=1/upload
+time=2026-10-17T02:57:18.802+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:18.802+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:18.802+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:40915 "v6 listener"=[2001:db8::1]:40915 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:19.356+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:19.356+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:40915: use of closed network connection"
+time=2026-10-17T02:57:19.356+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:40915: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=1/upload-4         	    1761	    306041 ns/op	 214.14 MB/s	         7.381 CPU-s/GB	  25972736 RSS-B	  25649152 RSS-peak-B	        10.00 goroutines	    558880 heap-live-B	       340.0 p95-us	       374.1 p99-us	    3271 B/op	     136 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=1500/flows=1/download
+time=2026-10-17T02:57:19.371+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:19.371+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:19.371+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:38573 "v6 listener"=[2001:db8::1]:38573 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:19.939+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:19.940+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:38573: use of closed network connection"
+time=2026-10-17T02:57:19.939+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:38573: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=1/download-4         	    2196	    255451 ns/op	 256.55 MB/s	         4.096 CPU-s/GB	  26058752 RSS-B	  25862144 RSS-peak-B	        10.00 goroutines	    560848 heap-live-B	       280.1 p95-us	       356.5 p99-us	    2314 B/op	      96 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=1500/flows=8/upload
+time=2026-10-17T02:57:19.954+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:19.954+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:19.954+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:37965 "v6 listener"=[2001:db8::1]:37965 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:20.566+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:20.567+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:37965: use of closed network connection"
+time=2026-10-17T02:57:20.567+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:37965: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=8/upload-4         	     249	   2417783 ns/op	 216.85 MB/s	         8.084 CPU-s/GB	  28463104 RSS-B	  27697152 RSS-peak-B	        24.00 goroutines	   1055432 heap-live-B	      3191 p95-us	      3259 p99-us	   27242 B/op	    1099 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=1500/flows=8/download
+time=2026-10-17T02:57:20.581+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:20.581+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:20.581+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:45005 "v6 listener"=[2001:db8::1]:45005 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:21.186+08:00 level=ERROR source=nat.go:295 msg="write tcp raw to tun device failed" err="write lwtest0: file already closed"
+time=2026-10-17T02:57:21.186+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:45005: use of closed network connection"
+time=2026-10-17T02:57:21.187+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:45005: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=8/download-4         	     253	   2347985 ns/op	 223.29 MB/s	         7.814 CPU-s/GB	  26320896 RSS-B	  25661440 RSS-peak-B	        24.00 goroutines	   1062592 heap-live-B	      2795 p95-us	      3112 p99-us	   28352 B/op	    1102 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=1500/flows=100/upload
+time=2026-10-17T02:57:21.201+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:21.201+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:21.201+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:32787 "v6 listener"=[2001:db8::1]:32787 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:21.821+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:21.822+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:32787: use of closed network connection"
+time=2026-10-17T02:57:21.822+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:32787: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=100/upload-4         	      19	  30579453 ns/op	 214.31 MB/s	         7.957 CPU-s/GB	  39182336 RSS-B	  38543360 RSS-peak-B	       208.0 goroutines	   7316264 heap-live-B	     45441 p95-us	     45441 p99-us	  578570 B/op	   13958 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=1500/flows=100/download
+time=2026-10-17T02:57:21.836+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:21.836+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:21.836+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:39227 "v6 listener"=[2001:db8::1]:39227 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:22.443+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:39227: use of closed network connection"
+time=2026-10-17T02:57:22.443+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:39227: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=100/download-4         	      18	  31363312 ns/op	 208.96 MB/s	         8.202 CPU-s/GB	  34865152 RSS-B	  34156544 RSS-peak-B	       208.0 goroutines	   7313776 heap-live-B	     45198 p95-us	     45198 p99-us	  333932 B/op	   13857 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=9000/flows=1/upload
+time=2026-10-17T02:57:22.458+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:22.458+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:22.458+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:46673 "v6 listener"=[2001:db8::1]:46673 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:23.001+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:23.002+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:46673: use of closed network connection"
+time=2026-10-17T02:57:23.002+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:46673: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=1/upload-4         	    6126	     87381 ns/op	 750.00 MB/s	         2.144 CPU-s/GB	  26263552 RSS-B	  25534464 RSS-peak-B	        10.00 goroutines	    568880 heap-live-B	       103.1 p95-us	       120.6 p99-us	     622 B/op	      25 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=9000/flows=1/download
+time=2026-10-17T02:57:23.016+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:23.016+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:23.016+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:42769 "v6 listener"=[2001:db8::1]:42769 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:23.580+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:23.581+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:42769: use of closed network connection"
+time=2026-10-17T02:57:23.581+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:42769: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=1/download-4         	    5382	    101857 ns/op	 643.41 MB/s	         1.749 CPU-s/GB	  26230784 RSS-B	  25821184 RSS-peak-B	        10.00 goroutines	    568512 heap-live-B	       116.4 p95-us	       133.7 p99-us	     480 B/op	      20 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=9000/flows=8/upload
+time=2026-10-17T02:57:23.595+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:23.595+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:23.596+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:43065 "v6 listener"=[2001:db8::1]:43065 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:24.212+08:00 level=ERROR source=nat.go:295 msg="write tcp raw to tun device failed" err="write lwtest0: file already closed"
+time=2026-10-17T02:57:24.212+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:24.212+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:43065: use of closed network connection"
+time=2026-10-17T02:57:24.212+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:43065: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=8/upload-4         	    1046	    588083 ns/op	 891.52 MB/s	         2.193 CPU-s/GB	  26312704 RSS-B	  25600000 RSS-peak-B	        24.00 goroutines	   1076296 heap-live-B	       768.6 p95-us	       811.1 p99-us	    4972 B/op	     205 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=9000/flows=8/download
+time=2026-10-17T02:57:24.236+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:24.236+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:24.236+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:32999 "v6 listener"=[2001:db8::1]:32999 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:24.826+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:24.826+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:32999: use of closed network connection"
+time=2026-10-17T02:57:24.827+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:32999: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=8/download-4         	    1069	    543586 ns/op	 964.50 MB/s	         2.206 CPU-s/GB	  26447872 RSS-B	  25849856 RSS-peak-B	        24.00 goroutines	   1080624 heap-live-B	       634.1 p95-us	       680.0 p99-us	    5351 B/op	     203 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=9000/flows=100/upload
+time=2026-10-17T02:57:24.841+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:24.841+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:24.841+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:37365 "v6 listener"=[2001:db8::1]:37365 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:25.470+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:25.471+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:37365: use of closed network connection"
+time=2026-10-17T02:57:25.471+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:37365: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=100/upload-4         	      80	   7381262 ns/op	 887.87 MB/s	         2.193 CPU-s/GB	  34889728 RSS-B	  34435072 RSS-peak-B	       208.0 goroutines	   7308648 heap-live-B	      8691 p95-us	     10125 p99-us	   93670 B/op	    2552 allocs/op
+PASS
+
+# sample 2: tun2socket/mtu=9000/flows=100/download
+time=2026-10-17T02:57:25.485+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:25.485+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:57:25.485+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:46439 "v6 listener"=[2001:db8::1]:46439 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:57:26.121+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:57:26.122+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:46439: use of closed network connection"
+time=2026-10-17T02:57:26.122+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:46439: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=100/download-4         	      79	   7570534 ns/op	 865.67 MB/s	         2.240 CPU-s/GB	  34918400 RSS-B	  34291712 RSS-peak-B	       208.0 goroutines	   7337368 heap-live-B	      9554 p95-us	     10291 p99-us	   66677 B/op	    2588 allocs/op
+PASS
+
+# sample 2: reno/mtu=1280/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=1/upload-4         	    3159	    186241 ns/op	 351.89 MB/s	         4.864 CPU-s/GB	  26238976 RSS-B	  25718784 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1131240 heap-live-B	       219.7 p95-us	       247.9 p99-us	         0 retransmits	    4634 B/op	      75 allocs/op
+PASS
+
+# sample 2: reno/mtu=1280/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=1/download-4         	    2779	    210464 ns/op	 311.39 MB/s	         6.928 CPU-s/GB	  23941120 RSS-B	  22904832 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1192248 heap-live-B	       263.9 p95-us	       283.9 p99-us	         0 retransmits	     479 B/op	       5 allocs/op
+PASS
+
+# sample 2: reno/mtu=1280/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=8/upload-4         	     493	   1208212 ns/op	 433.94 MB/s	         4.712 CPU-s/GB	  27430912 RSS-B	  27688960 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1647200 heap-live-B	      1328 p95-us	      1525 p99-us	         0 retransmits	   39560 B/op	     624 allocs/op
+PASS
+
+# sample 2: reno/mtu=1280/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=8/download-4         	     403	   1431572 ns/op	 366.23 MB/s	         8.021 CPU-s/GB	  28233728 RSS-B	  27959296 RSS-peak-B	         1.000 drops	        22.00 goroutines	   3017000 heap-live-B	      1831 p95-us	      1894 p99-us	         0 retransmits	    7082 B/op	      44 allocs/op
+PASS
+
+# sample 2: reno/mtu=1280/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=100/upload-4         	      39	  15144548 ns/op	 432.74 MB/s	         4.812 CPU-s/GB	  38936576 RSS-B	  38547456 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8919744 heap-live-B	     16646 p95-us	     17156 p99-us	         0 retransmits	  533353 B/op	    7908 allocs/op
+PASS
+
+# sample 2: reno/mtu=1280/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=100/download-4         	      32	  19278638 ns/op	 339.94 MB/s	         9.136 CPU-s/GB	  52011008 RSS-B	  51204096 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17427152 heap-live-B	     22706 p95-us	     23277 p99-us	         0 retransmits	  568916 B/op	    1848 allocs/op
+PASS
+
+# sample 2: reno/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=1/upload-4         	    3466	    171060 ns/op	 383.12 MB/s	         4.480 CPU-s/GB	  27209728 RSS-B	  27234304 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1112464 heap-live-B	       203.8 p95-us	       231.8 p99-us	         0 retransmits	    4109 B/op	      66 allocs/op
+PASS
+
+# sample 2: reno/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=1/download-4         	    3153	    189570 ns/op	 345.71 MB/s	         6.070 CPU-s/GB	  26050560 RSS-B	  25649152 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1173096 heap-live-B	       239.6 p95-us	       262.0 p99-us	         0 retransmits	     465 B/op	       5 allocs/op
+PASS
+
+# sample 2: reno/mtu=1500/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=8/upload-4         	     550	   1080060 ns/op	 485.43 MB/s	         4.194 CPU-s/GB	  27623424 RSS-B	  26779648 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1747440 heap-live-B	      1196 p95-us	      1290 p99-us	         0 retransmits	   34502 B/op	     539 allocs/op
+PASS
+
+# sample 2: reno/mtu=1500/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=8/download-4         	     505	   1218291 ns/op	 430.35 MB/s	         6.889 CPU-s/GB	  28303360 RSS-B	  27697152 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2896000 heap-live-B	      1574 p95-us	      1660 p99-us	         0 retransmits	    7126 B/op	      43 allocs/op
+PASS
+
+# sample 2: reno/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=100/upload-4         	      38	  13433406 ns/op	 487.86 MB/s	         4.315 CPU-s/GB	  38252544 RSS-B	  38133760 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8835712 heap-live-B	     15383 p95-us	     15448 p99-us	         0 retransmits	  528527 B/op	    6866 allocs/op
+PASS
+
+# sample 2: reno/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=100/download-4         	      33	  15332150 ns/op	 427.44 MB/s	         7.482 CPU-s/GB	  43401216 RSS-B	  42651648 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17423888 heap-live-B	     18832 p95-us	     20034 p99-us	         0 retransmits	  471555 B/op	    1006 allocs/op
+PASS
+
+# sample 2: reno/mtu=9000/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=1/upload-4         	    6590	     86922 ns/op	 753.96 MB/s	         1.780 CPU-s/GB	  26267648 RSS-B	  25833472 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1129832 heap-live-B	        98.17 p95-us	       112.9 p99-us	         0 retransmits	    1233 B/op	      17 allocs/op
+PASS
+
+# sample 2: reno/mtu=9000/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=1/download-4         	    6100	     87558 ns/op	 748.49 MB/s	         2.177 CPU-s/GB	  26292224 RSS-B	  25608192 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1169984 heap-live-B	       107.0 p95-us	       121.5 p99-us	         0 retransmits	     436 B/op	       5 allocs/op
+PASS
+
+# sample 2: reno/mtu=9000/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=8/upload-4         	    1342	    436893 ns/op	1200.04 MB/s	         1.623 CPU-s/GB	  27938816 RSS-B	  27557888 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1869664 heap-live-B	       509.1 p95-us	       627.1 p99-us	         0 retransmits	   10275 B/op	     138 allocs/op
+PASS
+
+# sample 2: reno/mtu=9000/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=8/download-4         	    1654	    363136 ns/op	1443.78 MB/s	         2.053 CPU-s/GB	  30515200 RSS-B	  29818880 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2849464 heap-live-B	       466.7 p95-us	       499.4 p99-us	         0 retransmits	    4297 B/op	      40 allocs/op
+PASS
+
+# sample 2: reno/mtu=9000/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=100/upload-4         	     100	   5080189 ns/op	1290.03 MB/s	         1.630 CPU-s/GB	  43286528 RSS-B	  42696704 RSS-peak-B	         1.000 drops	       206.0 goroutines	  10370560 heap-live-B	      5599 p95-us	      5779 p99-us	         0 retransmits	  191479 B/op	    1823 allocs/op
+PASS
+
+# sample 2: reno/mtu=9000/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=100/download-4         	     144	   4168321 ns/op	1572.24 MB/s	         2.038 CPU-s/GB	  60477440 RSS-B	  59834368 RSS-peak-B	         1.000 drops	       206.0 goroutines	  18416448 heap-live-B	      5098 p95-us	      5233 p99-us	         0 retransmits	  310924 B/op	     557 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1280/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=1/upload-4         	    2998	    191604 ns/op	 342.04 MB/s	         5.009 CPU-s/GB	  27828224 RSS-B	  27770880 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1125528 heap-live-B	       228.8 p95-us	       260.5 p99-us	         0 retransmits	    4633 B/op	      75 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1280/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=1/download-4         	    2610	    214870 ns/op	 305.00 MB/s	         7.095 CPU-s/GB	  26087424 RSS-B	  25509888 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1192312 heap-live-B	       270.3 p95-us	       297.4 p99-us	         0 retransmits	     484 B/op	       5 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1280/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=8/upload-4         	     496	   1202428 ns/op	 436.02 MB/s	         4.692 CPU-s/GB	  28381184 RSS-B	  27561984 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1679840 heap-live-B	      1312 p95-us	      1504 p99-us	         0 retransmits	   39353 B/op	     624 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1280/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=8/download-4         	     414	   1459626 ns/op	 359.19 MB/s	         8.115 CPU-s/GB	  28299264 RSS-B	  27389952 RSS-peak-B	         1.000 drops	        22.00 goroutines	   3037376 heap-live-B	      1877 p95-us	      1948 p99-us	         0 retransmits	    7826 B/op	      44 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1280/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=100/upload-4         	      39	  15163029 ns/op	 432.21 MB/s	         4.826 CPU-s/GB	  43401216 RSS-B	  42418176 RSS-peak-B	         1.000 drops	       206.0 goroutines	   9812216 heap-live-B	     16250 p95-us	     16366 p99-us	         0 retransmits	  583498 B/op	    7909 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1280/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=100/download-4         	      30	  20271350 ns/op	 323.29 MB/s	         9.503 CPU-s/GB	  51777536 RSS-B	  51380224 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17511240 heap-live-B	     24317 p95-us	     24735 p99-us	         0 retransmits	  750217 B/op	    1860 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=1/upload-4         	    3396	    171680 ns/op	 381.73 MB/s	         4.503 CPU-s/GB	  28397568 RSS-B	  27340800 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1120312 heap-live-B	       203.0 p95-us	       230.5 p99-us	         0 retransmits	    4110 B/op	      66 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=1/download-4         	    3136	    195421 ns/op	 335.36 MB/s	         6.300 CPU-s/GB	  26071040 RSS-B	  25333760 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1176536 heap-live-B	       251.7 p95-us	       273.7 p99-us	         0 retransmits	     465 B/op	       5 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1500/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=8/upload-4         	     542	   1086260 ns/op	 482.65 MB/s	         4.218 CPU-s/GB	  26816512 RSS-B	  27762688 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1681576 heap-live-B	      1197 p95-us	      1397 p99-us	         0 retransmits	   34658 B/op	     542 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1500/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=8/download-4         	     471	   1214255 ns/op	 431.78 MB/s	         6.884 CPU-s/GB	  28246016 RSS-B	  27488256 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2887576 heap-live-B	      1543 p95-us	      1595 p99-us	         0 retransmits	    7380 B/op	      43 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=100/upload-4         	      45	  13285196 ns/op	 493.30 MB/s	         4.249 CPU-s/GB	  41422848 RSS-B	  40595456 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8717280 heap-live-B	     14257 p95-us	     14432 p99-us	         0 retransmits	  478326 B/op	    6832 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=100/download-4         	      37	  15323232 ns/op	 427.69 MB/s	         7.529 CPU-s/GB	  45502464 RSS-B	  44818432 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17419512 heap-live-B	     19766 p95-us	     21475 p99-us	         0 retransmits	  499469 B/op	     954 allocs/op
+PASS
+
+# sample 2: cubic/mtu=9000/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=1/upload-4         	    6598	     88214 ns/op	 742.92 MB/s	         1.789 CPU-s/GB	  25755648 RSS-B	  25640960 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1127816 heap-live-B	        99.62 p95-us	       112.7 p99-us	         0 retransmits	    1207 B/op	      16 allocs/op
+PASS
+
+# sample 2: cubic/mtu=9000/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=1/download-4         	    6541	     87402 ns/op	 749.82 MB/s	         2.155 CPU-s/GB	  26222592 RSS-B	  25427968 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1171952 heap-live-B	       106.6 p95-us	       120.9 p99-us	         0 retransmits	     444 B/op	       5 allocs/op
+PASS
+
+# sample 2: cubic/mtu=9000/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=8/upload-4         	    1353	    431726 ns/op	1214.40 MB/s	         1.601 CPU-s/GB	  27660288 RSS-B	  27947008 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1860688 heap-live-B	       486.0 p95-us	       543.3 p99-us	         0 retransmits	   10160 B/op	     138 allocs/op
+PASS
+
+# sample 2: cubic/mtu=9000/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=8/download-4         	    1704	    352414 ns/op	1487.71 MB/s	         2.001 CPU-s/GB	  30593024 RSS-B	  29868032 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2858696 heap-live-B	       460.7 p95-us	       491.2 p99-us	         0 retransmits	    4345 B/op	      40 allocs/op
+PASS
+
+# sample 2: cubic/mtu=9000/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=100/upload-4         	     100	   5143336 ns/op	1274.19 MB/s	         1.643 CPU-s/GB	  36536320 RSS-B	  42778624 RSS-peak-B	         1.000 drops	       206.0 goroutines	   9668656 heap-live-B	      5702 p95-us	      5939 p99-us	         0 retransmits	  195932 B/op	    1835 allocs/op
+PASS
+
+# sample 2: cubic/mtu=9000/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=100/download-4         	     159	   3771126 ns/op	1737.84 MB/s	         1.896 CPU-s/GB	  56242176 RSS-B	  55660544 RSS-peak-B	         1.000 drops	       206.0 goroutines	  18342864 heap-live-B	      4698 p95-us	      4989 p99-us	         0 retransmits	  218469 B/op	     539 allocs/op
+PASS
+
+# sample 2: bbr/mtu=1280/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=1/upload-4         	    3123	    191489 ns/op	 342.24 MB/s	         5.019 CPU-s/GB	  26054656 RSS-B	  25776128 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1131736 heap-live-B	       224.1 p95-us	       246.1 p99-us	         0 retransmits	    4611 B/op	      75 allocs/op
+PASS
+
+# sample 2: bbr/mtu=1280/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=1/download-4         	    2774	    201226 ns/op	 325.68 MB/s	         6.613 CPU-s/GB	  26083328 RSS-B	  25317376 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1196488 heap-live-B	       253.4 p95-us	       278.1 p99-us	         0 retransmits	     480 B/op	       5 allocs/op
+PASS
+
+# sample 2: bbr/mtu=1280/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=8/upload-4         	     493	   1202426 ns/op	 436.03 MB/s	         4.691 CPU-s/GB	  27852800 RSS-B	  27963392 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1692128 heap-live-B	      1317 p95-us	      1493 p99-us	         0 retransmits	   38789 B/op	     624 allocs/op
+PASS
+
+# sample 2: bbr/mtu=1280/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=8/download-4         	     404	   1461467 ns/op	 358.74 MB/s	         8.045 CPU-s/GB	  28229632 RSS-B	  27635712 RSS-peak-B	         1.000 drops	        22.00 goroutines	   3043392 heap-live-B	      1908 p95-us	      1975 p99-us	         0 retransmits	    8449 B/op	      44 allocs/op
+PASS
+
+# sample 2: bbr/mtu=1280/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=100/upload-4         	      38	  15811134 ns/op	 414.49 MB/s	         4.880 CPU-s/GB	  41164800 RSS-B	  40402944 RSS-peak-B	         1.000 drops	       206.0 goroutines	   9638568 heap-live-B	     23307 p95-us	     33911 p99-us	         0 retransmits	  626226 B/op	    7878 allocs/op
+PASS
+
+# sample 2: bbr/mtu=1280/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=100/download-4         	      27	  19786567 ns/op	 331.21 MB/s	        10.14 CPU-s/GB	  47505408 RSS-B	  46931968 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17507056 heap-live-B	     23713 p95-us	     25053 p99-us	         0 retransmits	  772270 B/op	    1889 allocs/op
+PASS
+
+# sample 2: bbr/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=1/upload-4         	    3600	    172994 ns/op	 378.83 MB/s	         4.506 CPU-s/GB	  25612288 RSS-B	  25788416 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1116936 heap-live-B	       210.7 p95-us	       245.3 p99-us	         0 retransmits	    4098 B/op	      66 allocs/op
+PASS
+
+# sample 2: bbr/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=1/download-4         	    2786	    196053 ns/op	 334.28 MB/s	         6.320 CPU-s/GB	  26075136 RSS-B	  25481216 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1178312 heap-live-B	       251.9 p95-us	       274.3 p99-us	         0 retransmits	     472 B/op	       5 allocs/op
+PASS
+
+# sample 2: bbr/mtu=1500/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=8/upload-4         	     548	   1052102 ns/op	 498.32 MB/s	         4.077 CPU-s/GB	  25366528 RSS-B	  25874432 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1656400 heap-live-B	      1160 p95-us	      1375 p99-us	         0 retransmits	   34209 B/op	     537 allocs/op
+PASS
+
+# sample 2: bbr/mtu=1500/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=8/download-4         	     508	   1205270 ns/op	 435.00 MB/s	         6.870 CPU-s/GB	  26218496 RSS-B	  25559040 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2882256 heap-live-B	      1544 p95-us	      1600 p99-us	         0 retransmits	    6817 B/op	      43 allocs/op
+PASS
+
+# sample 2: bbr/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=100/upload-4         	      42	  13087011 ns/op	 500.77 MB/s	         4.171 CPU-s/GB	  41553920 RSS-B	  40898560 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8811144 heap-live-B	     13966 p95-us	     14489 p99-us	         0 retransmits	  450256 B/op	    6771 allocs/op
+PASS
+
+# sample 2: bbr/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=100/download-4         	      33	  15595348 ns/op	 420.23 MB/s	         8.211 CPU-s/GB	  45387776 RSS-B	  44892160 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17442272 heap-live-B	     18303 p95-us	     18692 p99-us	         0 retransmits	  494934 B/op	    1010 allocs/op
+PASS
+
+# sample 2: bbr/mtu=9000/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=1/upload-4         	    6523	     87421 ns/op	 749.66 MB/s	         1.788 CPU-s/GB	  25939968 RSS-B	  25661440 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1135528 heap-live-B	        98.38 p95-us	       109.3 p99-us	         0 retransmits	    1228 B/op	      17 allocs/op
+PASS
+
+# sample 2: bbr/mtu=9000/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=1/download-4         	    6510	     88404 ns/op	 741.32 MB/s	         2.208 CPU-s/GB	  26279936 RSS-B	  25415680 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1174512 heap-live-B	       106.9 p95-us	       119.8 p99-us	         0 retransmits	     445 B/op	       5 allocs/op
+PASS
+
+# sample 2: bbr/mtu=9000/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=8/upload-4         	    1351	    432631 ns/op	1211.86 MB/s	         1.607 CPU-s/GB	  28135424 RSS-B	  27914240 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2060720 heap-live-B	       497.5 p95-us	       619.1 p99-us	         0 retransmits	   10428 B/op	     138 allocs/op
+PASS
+
+# sample 2: bbr/mtu=9000/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=8/download-4         	    1644	    341054 ns/op	1537.26 MB/s	         1.960 CPU-s/GB	  30679040 RSS-B	  30126080 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2843776 heap-live-B	       452.3 p95-us	       489.2 p99-us	         0 retransmits	    4222 B/op	      40 allocs/op
+PASS
+
+# sample 2: bbr/mtu=9000/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=100/upload-4         	     100	   5047421 ns/op	1298.41 MB/s	         1.616 CPU-s/GB	  43327488 RSS-B	  42442752 RSS-peak-B	         1.000 drops	       206.0 goroutines	   9660176 heap-live-B	      5663 p95-us	      5846 p99-us	         0 retransmits	  166367 B/op	    1823 allocs/op
+PASS
+
+# sample 2: bbr/mtu=9000/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=100/download-4         	     142	   4172018 ns/op	1570.85 MB/s	         2.037 CPU-s/GB	  56201216 RSS-B	  55476224 RSS-peak-B	         1.000 drops	       206.0 goroutines	  18400504 heap-live-B	      5166 p95-us	      5313 p99-us	         0 retransmits	  266298 B/op	     549 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1280/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=1/upload-4         	    2457	    224929 ns/op	 291.36 MB/s	         6.187 CPU-s/GB	  24784896 RSS-B	  24137728 RSS-peak-B	        10.00 goroutines	    870880 heap-live-B	       281.5 p95-us	       319.9 p99-us	     701 B/op	      32 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1280/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=1/download-4         	    1677	    349447 ns/op	 187.54 MB/s	        11.48 CPU-s/GB	  24748032 RSS-B	  23855104 RSS-peak-B	        10.00 goroutines	   1062816 heap-live-B	       481.6 p95-us	       499.8 p99-us	    1015 B/op	      61 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1280/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=8/upload-4         	     403	   1430155 ns/op	 366.60 MB/s	         6.058 CPU-s/GB	  27140096 RSS-B	  26370048 RSS-peak-B	        24.00 goroutines	   1497840 heap-live-B	      1830 p95-us	      2005 p99-us	    8416 B/op	     293 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1280/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=8/download-4         	     228	   2592655 ns/op	 202.22 MB/s	        11.15 CPU-s/GB	  29212672 RSS-B	  28438528 RSS-peak-B	        24.00 goroutines	   2419912 heap-live-B	      2924 p95-us	      3234 p99-us	   14625 B/op	     500 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1280/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=100/upload-4         	      33	  17643261 ns/op	 371.45 MB/s	         6.226 CPU-s/GB	  37761024 RSS-B	  37109760 RSS-peak-B	       208.0 goroutines	   8776752 heap-live-B	     20737 p95-us	     21568 p99-us	  239756 B/op	    3914 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1280/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1280/flows=100/download-4         	      16	  34710444 ns/op	 188.81 MB/s	        12.47 CPU-s/GB	  48406528 RSS-B	  47550464 RSS-peak-B	       208.0 goroutines	  20678392 heap-live-B	     42009 p95-us	     42009 p99-us	 1067235 B/op	    7875 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=1/upload-4         	    2974	    196500 ns/op	 333.52 MB/s	         5.126 CPU-s/GB	  24858624 RSS-B	  24313856 RSS-peak-B	        10.00 goroutines	    848264 heap-live-B	       237.8 p95-us	       274.4 p99-us	     613 B/op	      26 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=1/download-4         	    1956	    302897 ns/op	 216.36 MB/s	         9.872 CPU-s/GB	  26935296 RSS-B	  26542080 RSS-peak-B	        10.00 goroutines	   1058456 heap-live-B	       413.6 p95-us	       428.6 p99-us	     873 B/op	      53 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1500/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=8/upload-4         	     484	   1246859 ns/op	 420.49 MB/s	         5.164 CPU-s/GB	  27086848 RSS-B	  26341376 RSS-peak-B	        24.00 goroutines	   1471736 heap-live-B	      1541 p95-us	      1619 p99-us	    7291 B/op	     247 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1500/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=8/download-4         	     278	   2086200 ns/op	 251.31 MB/s	         9.280 CPU-s/GB	  29134848 RSS-B	  28573696 RSS-peak-B	        24.00 goroutines	   2353392 heap-live-B	      2324 p95-us	      2521 p99-us	   11776 B/op	     433 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=100/upload-4         	      38	  14741742 ns/op	 444.56 MB/s	         5.176 CPU-s/GB	  37781504 RSS-B	  37015552 RSS-peak-B	       208.0 goroutines	   8859744 heap-live-B	     16817 p95-us	     17301 p99-us	  236566 B/op	    3291 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=100/download-4         	      20	  27900242 ns/op	 234.89 MB/s	        10.28 CPU-s/GB	  48386048 RSS-B	  47554560 RSS-peak-B	       208.0 goroutines	  18978488 heap-live-B	     33909 p95-us	     34950 p99-us	  672303 B/op	    6382 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=9000/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=1/upload-4         	    7468	     74190 ns/op	 883.36 MB/s	         1.383 CPU-s/GB	  24862720 RSS-B	  23711744 RSS-peak-B	        10.00 goroutines	    900864 heap-live-B	        85.11 p95-us	        97.36 p99-us	     336 B/op	       7 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=9000/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=1/download-4         	    6177	     83595 ns/op	 783.97 MB/s	         2.227 CPU-s/GB	  27009024 RSS-B	  26062848 RSS-peak-B	        10.00 goroutines	   1065736 heap-live-B	       105.6 p95-us	       120.9 p99-us	     427 B/op	      14 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=9000/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=8/upload-4         	    1785	    338256 ns/op	1549.97 MB/s	         1.430 CPU-s/GB	  28991488 RSS-B	  28463104 RSS-peak-B	        24.00 goroutines	   1948008 heap-live-B	       411.0 p95-us	       464.2 p99-us	    4272 B/op	      83 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=9000/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=8/download-4         	    1074	    547260 ns/op	 958.02 MB/s	         2.393 CPU-s/GB	  31277056 RSS-B	  30478336 RSS-peak-B	        24.00 goroutines	   2149352 heap-live-B	       632.5 p95-us	       675.8 p99-us	    4202 B/op	     112 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=9000/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=100/upload-4         	     146	   4042788 ns/op	1621.06 MB/s	         1.536 CPU-s/GB	  44175360 RSS-B	  43294720 RSS-peak-B	       208.0 goroutines	  10631056 heap-live-B	      4758 p95-us	      4883 p99-us	   82696 B/op	    1194 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=9000/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=9000/flows=100/download-4         	      88	   6632331 ns/op	 988.13 MB/s	         2.621 CPU-s/GB	  46317568 RSS-B	  45703168 RSS-peak-B	       208.0 goroutines	  14836568 heap-live-B	      7184 p95-us	      9475 p99-us	  142556 B/op	    1524 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=1280/flows=1/upload
+time=2026-10-17T02:58:10.031+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:10.031+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:10.031+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:45435 "v6 listener"=[2001:db8::1]:45435 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:10.632+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:10.633+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:45435: use of closed network connection"
+time=2026-10-17T02:58:10.633+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:45435: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=1/upload-4         	    1550	    379679 ns/op	 172.61 MB/s	         9.015 CPU-s/GB	  26267648 RSS-B	  25726976 RSS-peak-B	        10.00 goroutines	    559408 heap-live-B	       400.9 p95-us	       512.7 p99-us	    3918 B/op	     163 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=1280/flows=1/download
+time=2026-10-17T02:58:10.647+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:10.647+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:10.647+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:42977 "v6 listener"=[2001:db8::1]:42977 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:11.237+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:11.238+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:42977: use of closed network connection"
+time=2026-10-17T02:58:11.238+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:42977: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=1/download-4         	    2031	    287370 ns/op	 228.05 MB/s	         4.603 CPU-s/GB	  25989120 RSS-B	  25616384 RSS-peak-B	        10.00 goroutines	    559440 heap-live-B	       308.1 p95-us	       377.7 p99-us	    2737 B/op	     112 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=1280/flows=8/upload
+time=2026-10-17T02:58:11.252+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:11.252+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:11.252+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:46251 "v6 listener"=[2001:db8::1]:46251 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:11.860+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:11.861+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:46251: use of closed network connection"
+time=2026-10-17T02:58:11.860+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:46251: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=8/upload-4         	     210	   2818137 ns/op	 186.04 MB/s	         9.311 CPU-s/GB	  26320896 RSS-B	  25686016 RSS-peak-B	        24.00 goroutines	   1057016 heap-live-B	      3291 p95-us	      3860 p99-us	   32736 B/op	    1295 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=1280/flows=8/download
+time=2026-10-17T02:58:11.875+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:11.875+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:11.875+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:46395 "v6 listener"=[2001:db8::1]:46395 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:12.477+08:00 level=ERROR source=nat.go:295 msg="write tcp raw to tun device failed" err="write lwtest0: file already closed"
+time=2026-10-17T02:58:12.477+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:46395: use of closed network connection"
+time=2026-10-17T02:58:12.478+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:46395: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=8/download-4         	     208	   2853913 ns/op	 183.71 MB/s	         9.354 CPU-s/GB	  26304512 RSS-B	  25473024 RSS-peak-B	        24.00 goroutines	   1059360 heap-live-B	      3156 p95-us	      3835 p99-us	   31322 B/op	    1302 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=1280/flows=100/upload
+time=2026-10-17T02:58:12.492+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:12.492+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:12.492+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:41115 "v6 listener"=[2001:db8::1]:41115 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:13.082+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:13.082+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:41115: use of closed network connection"
+time=2026-10-17T02:58:13.082+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:41115: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=100/upload-4         	      15	  36904207 ns/op	 177.58 MB/s	         9.514 CPU-s/GB	  36986880 RSS-B	  36536320 RSS-peak-B	       208.0 goroutines	   7312784 heap-live-B	     53911 p95-us	     53911 p99-us	  506246 B/op	   16450 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=1280/flows=100/download
+time=2026-10-17T02:58:13.097+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:13.097+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:13.097+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:38965 "v6 listener"=[2001:db8::1]:38965 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:13.691+08:00 level=ERROR source=nat.go:295 msg="write tcp raw to tun device failed" err="write lwtest0: file already closed"
+time=2026-10-17T02:58:13.692+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:38965: use of closed network connection"
+time=2026-10-17T02:58:13.692+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:38965: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1280/flows=100/download-4         	      15	  37437685 ns/op	 175.05 MB/s	         9.782 CPU-s/GB	  34902016 RSS-B	  34283520 RSS-peak-B	       208.0 goroutines	   7314160 heap-live-B	     47387 p95-us	     47387 p99-us	  543712 B/op	   16206 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=1500/flows=1/upload
+time=2026-10-17T02:58:13.706+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:13.706+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:13.706+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:41629 "v6 listener"=[2001:db8::1]:41629 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:14.308+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:14.309+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:41629: use of closed network connection"
+time=2026-10-17T02:58:14.309+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:41629: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=1/upload-4         	    1900	    311812 ns/op	 210.18 MB/s	         7.471 CPU-s/GB	  26255360 RSS-B	  25538560 RSS-peak-B	        10.00 goroutines	    564472 heap-live-B	       363.5 p95-us	       448.1 p99-us	    3257 B/op	     135 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=1500/flows=1/download
+time=2026-10-17T02:58:14.323+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:14.323+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:14.323+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:37747 "v6 listener"=[2001:db8::1]:37747 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:14.917+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:14.917+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:37747: use of closed network connection"
+time=2026-10-17T02:58:14.917+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:37747: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=1/download-4         	    2256	    258307 ns/op	 253.71 MB/s	         4.124 CPU-s/GB	  25870336 RSS-B	  25632768 RSS-peak-B	        10.00 goroutines	    560224 heap-live-B	       276.6 p95-us	       323.3 p99-us	    2315 B/op	      96 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=1500/flows=8/upload
+time=2026-10-17T02:58:14.932+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:14.932+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:14.932+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:38723 "v6 listener"=[2001:db8::1]:38723 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:15.548+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:15.549+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:38723: use of closed network connection"
+time=2026-10-17T02:58:15.549+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:38723: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=8/upload-4         	     254	   2373086 ns/op	 220.93 MB/s	         7.970 CPU-s/GB	  26124288 RSS-B	  25923584 RSS-peak-B	        24.00 goroutines	   1052816 heap-live-B	      3107 p95-us	      3194 p99-us	   26384 B/op	    1096 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=1500/flows=8/download
+time=2026-10-17T02:58:15.563+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:15.563+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:15.563+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:35107 "v6 listener"=[2001:db8::1]:35107 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:16.164+08:00 level=ERROR source=nat.go:295 msg="write tcp raw to tun device failed" err="write lwtest0: file already closed"
+time=2026-10-17T02:58:16.165+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:35107: use of closed network connection"
+time=2026-10-17T02:58:16.165+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:35107: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=8/download-4         	     261	   2275630 ns/op	 230.39 MB/s	         7.572 CPU-s/GB	  25841664 RSS-B	  25612288 RSS-peak-B	        24.00 goroutines	   1059920 heap-live-B	      2437 p95-us	      3097 p99-us	   28091 B/op	    1095 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=1500/flows=100/upload
+time=2026-10-17T02:58:16.179+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:16.179+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:16.179+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:36613 "v6 listener"=[2001:db8::1]:36613 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:16.790+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:16.790+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:36613: use of closed network connection"
+time=2026-10-17T02:58:16.790+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:36613: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=100/upload-4         	      18	  31518480 ns/op	 207.93 MB/s	         8.195 CPU-s/GB	  36990976 RSS-B	  36200448 RSS-peak-B	       208.0 goroutines	   7306648 heap-live-B	     44972 p95-us	     44972 p99-us	  344321 B/op	   13984 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=1500/flows=100/download
+time=2026-10-17T02:58:16.804+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:16.804+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:16.805+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:46761 "v6 listener"=[2001:db8::1]:46761 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:17.446+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:17.447+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:46761: use of closed network connection"
+time=2026-10-17T02:58:17.446+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:46761: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=1500/flows=100/download-4         	      18	  32927601 ns/op	 199.03 MB/s	         8.622 CPU-s/GB	  31608832 RSS-B	  36298752 RSS-peak-B	       208.0 goroutines	   7317968 heap-live-B	     44977 p95-us	     44977 p99-us	  406995 B/op	   13850 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=9000/flows=1/upload
+time=2026-10-17T02:58:17.462+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:17.462+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:17.462+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:34099 "v6 listener"=[2001:db8::1]:34099 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:18.057+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:18.058+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:34099: use of closed network connection"
+time=2026-10-17T02:58:18.058+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:34099: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=1/upload-4         	    6332	     92108 ns/op	 711.51 MB/s	         2.240 CPU-s/GB	  26304512 RSS-B	  25690112 RSS-peak-B	        10.00 goroutines	    569472 heap-live-B	       120.9 p95-us	       147.6 p99-us	     622 B/op	      25 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=9000/flows=1/download
+time=2026-10-17T02:58:18.072+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:18.072+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:18.072+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:43055 "v6 listener"=[2001:db8::1]:43055 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:18.619+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:18.620+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:43055: use of closed network connection"
+time=2026-10-17T02:58:18.620+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:43055: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=1/download-4         	    5215	    103231 ns/op	 634.85 MB/s	         1.763 CPU-s/GB	  26292224 RSS-B	  25862144 RSS-peak-B	        10.00 goroutines	    569376 heap-live-B	       116.4 p95-us	       142.4 p99-us	     494 B/op	      20 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=9000/flows=8/upload
+time=2026-10-17T02:58:18.634+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:18.634+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:18.634+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:36807 "v6 listener"=[2001:db8::1]:36807 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:19.215+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:19.215+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:36807: use of closed network connection"
+time=2026-10-17T02:58:19.215+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:36807: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=8/upload-4         	     969	    587823 ns/op	 891.92 MB/s	         2.218 CPU-s/GB	  26353664 RSS-B	  25726976 RSS-peak-B	        24.00 goroutines	   1084936 heap-live-B	       773.1 p95-us	       803.3 p99-us	    5114 B/op	     205 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=9000/flows=8/download
+time=2026-10-17T02:58:19.230+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:19.230+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:19.230+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:43373 "v6 listener"=[2001:db8::1]:43373 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:19.852+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:19.852+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:43373: use of closed network connection"
+time=2026-10-17T02:58:19.852+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:43373: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=8/download-4         	    1100	    556145 ns/op	 942.72 MB/s	         2.220 CPU-s/GB	  26554368 RSS-B	  25845760 RSS-peak-B	        24.00 goroutines	   1077552 heap-live-B	       653.8 p95-us	       697.4 p99-us	    5231 B/op	     204 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=9000/flows=100/upload
+time=2026-10-17T02:58:19.866+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:19.867+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:19.867+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:45129 "v6 listener"=[2001:db8::1]:45129 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:20.491+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:20.492+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:45129: use of closed network connection"
+time=2026-10-17T02:58:20.492+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:45129: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=100/upload-4         	      80	   7352770 ns/op	 891.31 MB/s	         2.170 CPU-s/GB	  34856960 RSS-B	  34463744 RSS-peak-B	       208.0 goroutines	   7319552 heap-live-B	      8622 p95-us	      9213 p99-us	   62312 B/op	    2550 allocs/op
+PASS
+
+# sample 3: tun2socket/mtu=9000/flows=100/download
+time=2026-10-17T02:58:20.506+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:20.506+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:58:20.506+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:35471 "v6 listener"=[2001:db8::1]:35471 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:58:21.135+08:00 level=ERROR source=nat.go:295 msg="write tcp raw to tun device failed" err="write lwtest0: file already closed"
+time=2026-10-17T02:58:21.135+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:58:21.135+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:35471: use of closed network connection"
+time=2026-10-17T02:58:21.135+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:35471: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/tun2socket/mtu=9000/flows=100/download-4         	      82	   7368569 ns/op	 889.40 MB/s	         2.163 CPU-s/GB	  37072896 RSS-B	  36368384 RSS-peak-B	       208.0 goroutines	   7330320 heap-live-B	      8535 p95-us	     10302 p99-us	   69719 B/op	    2587 allocs/op
+PASS
+
+# sample 3: reno/mtu=1280/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=1/upload-4         	    3103	    190574 ns/op	 343.89 MB/s	         4.975 CPU-s/GB	  26230784 RSS-B	  25800704 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1133000 heap-live-B	       225.0 p95-us	       246.2 p99-us	         0 retransmits	    4632 B/op	      75 allocs/op
+PASS
+
+# sample 3: reno/mtu=1280/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=1/download-4         	    2864	    219228 ns/op	 298.94 MB/s	         7.203 CPU-s/GB	  25980928 RSS-B	  25378816 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1193032 heap-live-B	       279.2 p95-us	       303.0 p99-us	         0 retransmits	     477 B/op	       5 allocs/op
+PASS
+
+# sample 3: reno/mtu=1280/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=8/upload-4         	     504	   1198978 ns/op	 437.28 MB/s	         4.665 CPU-s/GB	  27561984 RSS-B	  27627520 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1812328 heap-live-B	      1313 p95-us	      1569 p99-us	         0 retransmits	   39728 B/op	     625 allocs/op
+PASS
+
+# sample 3: reno/mtu=1280/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=8/download-4         	     397	   1498823 ns/op	 349.80 MB/s	         8.275 CPU-s/GB	  28270592 RSS-B	  27738112 RSS-peak-B	         1.000 drops	        22.00 goroutines	   3016928 heap-live-B	      1937 p95-us	      2016 p99-us	         0 retransmits	    8320 B/op	      44 allocs/op
+PASS
+
+# sample 3: reno/mtu=1280/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=100/upload-4         	      39	  15197427 ns/op	 431.23 MB/s	         4.855 CPU-s/GB	  41426944 RSS-B	  40751104 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8745264 heap-live-B	     16967 p95-us	     18391 p99-us	         0 retransmits	  619061 B/op	    7897 allocs/op
+PASS
+
+# sample 3: reno/mtu=1280/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1280/flows=100/download-4         	      25	  20716208 ns/op	 316.35 MB/s	         9.747 CPU-s/GB	  49700864 RSS-B	  49127424 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17379528 heap-live-B	     23689 p95-us	     24066 p99-us	         0 retransmits	  747186 B/op	    1936 allocs/op
+PASS
+
+# sample 3: reno/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=1/upload-4         	    3406	    170196 ns/op	 385.06 MB/s	         4.452 CPU-s/GB	  25665536 RSS-B	  25411584 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1117840 heap-live-B	       200.1 p95-us	       227.6 p99-us	         0 retransmits	    4097 B/op	      66 allocs/op
+PASS
+
+# sample 3: reno/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=1/download-4         	    2840	    196369 ns/op	 333.74 MB/s	         6.352 CPU-s/GB	  26124288 RSS-B	  25645056 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1173080 heap-live-B	       252.0 p95-us	       269.6 p99-us	         0 retransmits	     471 B/op	       5 allocs/op
+PASS
+
+# sample 3: reno/mtu=1500/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=8/upload-4         	     553	   1063683 ns/op	 492.90 MB/s	         4.111 CPU-s/GB	  25677824 RSS-B	  25579520 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1653240 heap-live-B	      1174 p95-us	      1388 p99-us	         0 retransmits	   33921 B/op	     539 allocs/op
+PASS
+
+# sample 3: reno/mtu=1500/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=8/download-4         	     511	   1175523 ns/op	 446.00 MB/s	         6.732 CPU-s/GB	  28344320 RSS-B	  27525120 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2865696 heap-live-B	      1506 p95-us	      1576 p99-us	         0 retransmits	    7021 B/op	      43 allocs/op
+PASS
+
+# sample 3: reno/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=100/upload-4         	      37	  13532781 ns/op	 484.28 MB/s	         4.307 CPU-s/GB	  43307008 RSS-B	  42704896 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8680048 heap-live-B	     14692 p95-us	     15733 p99-us	         0 retransmits	  581999 B/op	    6868 allocs/op
+PASS
+
+# sample 3: reno/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=1500/flows=100/download-4         	      31	  16393215 ns/op	 399.78 MB/s	         7.922 CPU-s/GB	  43491328 RSS-B	  42717184 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17438552 heap-live-B	     19697 p95-us	     19901 p99-us	         0 retransmits	  566299 B/op	    1051 allocs/op
+PASS
+
+# sample 3: reno/mtu=9000/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=1/upload-4         	    6670	     87159 ns/op	 751.91 MB/s	         1.755 CPU-s/GB	  25952256 RSS-B	  26120192 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1127448 heap-live-B	        98.32 p95-us	       108.8 p99-us	         0 retransmits	    1199 B/op	      16 allocs/op
+PASS
+
+# sample 3: reno/mtu=9000/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=1/download-4         	    6524	     88957 ns/op	 736.72 MB/s	         2.210 CPU-s/GB	  24047616 RSS-B	  23216128 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1168864 heap-live-B	       108.4 p95-us	       123.0 p99-us	         0 retransmits	     434 B/op	       5 allocs/op
+PASS
+
+# sample 3: reno/mtu=9000/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=8/upload-4         	    1386	    429966 ns/op	1219.37 MB/s	         1.599 CPU-s/GB	  28073984 RSS-B	  27672576 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1853368 heap-live-B	       489.6 p95-us	       556.0 p99-us	         0 retransmits	   10460 B/op	     139 allocs/op
+PASS
+
+# sample 3: reno/mtu=9000/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=8/download-4         	    1596	    357317 ns/op	1467.29 MB/s	         2.026 CPU-s/GB	  30515200 RSS-B	  29560832 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2846008 heap-live-B	       468.5 p95-us	       498.4 p99-us	         0 retransmits	    4337 B/op	      40 allocs/op
+PASS
+
+# sample 3: reno/mtu=9000/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=100/upload-4         	      99	   5157526 ns/op	1270.69 MB/s	         1.672 CPU-s/GB	  41164800 RSS-B	  40579072 RSS-peak-B	         1.000 drops	       206.0 goroutines	   9699552 heap-live-B	      5993 p95-us	      6928 p99-us	         0 retransmits	  173106 B/op	    1833 allocs/op
+PASS
+
+# sample 3: reno/mtu=9000/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/reno/mtu=9000/flows=100/download-4         	     141	   4231907 ns/op	1548.62 MB/s	         2.067 CPU-s/GB	  60235776 RSS-B	  59617280 RSS-peak-B	         1.000 drops	       206.0 goroutines	  18344376 heap-live-B	      5155 p95-us	      5311 p99-us	         0 retransmits	  324531 B/op	     559 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1280/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=1/upload-4         	    2970	    192654 ns/op	 340.17 MB/s	         5.033 CPU-s/GB	  26234880 RSS-B	  25567232 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1126024 heap-live-B	       230.7 p95-us	       259.2 p99-us	         0 retransmits	    4636 B/op	      75 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1280/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=1/download-4         	    2790	    209974 ns/op	 312.11 MB/s	         6.881 CPU-s/GB	  26103808 RSS-B	  25157632 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1192664 heap-live-B	       262.5 p95-us	       279.8 p99-us	         0 retransmits	     479 B/op	       5 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1280/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=8/upload-4         	     494	   1215554 ns/op	 431.32 MB/s	         4.741 CPU-s/GB	  27783168 RSS-B	  27979776 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1686392 heap-live-B	      1327 p95-us	      1545 p99-us	         0 retransmits	   39428 B/op	     624 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1280/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=8/download-4         	     385	   1542603 ns/op	 339.87 MB/s	         8.470 CPU-s/GB	  28336128 RSS-B	  27467776 RSS-peak-B	         1.000 drops	        22.00 goroutines	   3002448 heap-live-B	      1951 p95-us	      2046 p99-us	         0 retransmits	    7570 B/op	      44 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1280/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=100/upload-4         	      38	  15059706 ns/op	 435.17 MB/s	         4.795 CPU-s/GB	  39325696 RSS-B	  38490112 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8940256 heap-live-B	     16309 p95-us	     16320 p99-us	         0 retransmits	  524206 B/op	    7889 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1280/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1280/flows=100/download-4         	      27	  19896138 ns/op	 329.39 MB/s	         9.332 CPU-s/GB	  49876992 RSS-B	  49250304 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17487744 heap-live-B	     22976 p95-us	     23217 p99-us	         0 retransmits	  787279 B/op	    1891 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=1/upload-4         	    3475	    169180 ns/op	 387.38 MB/s	         4.428 CPU-s/GB	  25686016 RSS-B	  25481216 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1119704 heap-live-B	       197.9 p95-us	       223.0 p99-us	         0 retransmits	    4077 B/op	      65 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=1/download-4         	    3122	    187868 ns/op	 348.84 MB/s	         6.006 CPU-s/GB	  26308608 RSS-B	  25583616 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1176312 heap-live-B	       235.3 p95-us	       252.8 p99-us	         0 retransmits	     465 B/op	       5 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1500/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=8/upload-4         	     564	   1073056 ns/op	 488.59 MB/s	         4.165 CPU-s/GB	  27914240 RSS-B	  27750400 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1648984 heap-live-B	      1185 p95-us	      1355 p99-us	         0 retransmits	   34119 B/op	     539 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1500/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=8/download-4         	     505	   1224276 ns/op	 428.24 MB/s	         6.939 CPU-s/GB	  26472448 RSS-B	  25669632 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2870864 heap-live-B	      1562 p95-us	      1624 p99-us	         0 retransmits	    6810 B/op	      43 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=100/upload-4         	      42	  13278442 ns/op	 493.55 MB/s	         4.229 CPU-s/GB	  43335680 RSS-B	  42594304 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8844552 heap-live-B	     14039 p95-us	     14311 p99-us	         0 retransmits	  578166 B/op	    6838 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=100/download-4         	      37	  15991859 ns/op	 409.81 MB/s	         7.782 CPU-s/GB	  43372544 RSS-B	  42856448 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17576456 heap-live-B	     18705 p95-us	     18959 p99-us	         0 retransmits	  486947 B/op	    1007 allocs/op
+PASS
+
+# sample 3: cubic/mtu=9000/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=1/upload-4         	    6572	     87145 ns/op	 752.03 MB/s	         1.778 CPU-s/GB	  26456064 RSS-B	  25886720 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1131520 heap-live-B	        97.85 p95-us	       107.6 p99-us	         0 retransmits	    1217 B/op	      17 allocs/op
+PASS
+
+# sample 3: cubic/mtu=9000/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=1/download-4         	    6634	     85888 ns/op	 763.04 MB/s	         2.129 CPU-s/GB	  24309760 RSS-B	  23465984 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1171040 heap-live-B	       105.7 p95-us	       120.1 p99-us	         0 retransmits	     444 B/op	       5 allocs/op
+PASS
+
+# sample 3: cubic/mtu=9000/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=8/upload-4         	    1322	    432591 ns/op	1211.97 MB/s	         1.607 CPU-s/GB	  28405760 RSS-B	  27484160 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2082320 heap-live-B	       493.1 p95-us	       580.7 p99-us	         0 retransmits	   10424 B/op	     138 allocs/op
+PASS
+
+# sample 3: cubic/mtu=9000/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=8/download-4         	    1683	    354052 ns/op	1480.82 MB/s	         2.005 CPU-s/GB	  30601216 RSS-B	  30109696 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2854736 heap-live-B	       456.5 p95-us	       496.2 p99-us	         0 retransmits	    4288 B/op	      40 allocs/op
+PASS
+
+# sample 3: cubic/mtu=9000/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=100/upload-4         	     120	   4994339 ns/op	1312.21 MB/s	         1.601 CPU-s/GB	  43470848 RSS-B	  42639360 RSS-peak-B	         1.000 drops	       206.0 goroutines	   9661448 heap-live-B	      5583 p95-us	      5915 p99-us	         0 retransmits	  182775 B/op	    1821 allocs/op
+PASS
+
+# sample 3: cubic/mtu=9000/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=9000/flows=100/download-4         	     150	   3929660 ns/op	1667.73 MB/s	         1.942 CPU-s/GB	  58400768 RSS-B	  57896960 RSS-peak-B	         1.000 drops	       206.0 goroutines	  18376184 heap-live-B	      4504 p95-us	      4861 p99-us	         0 retransmits	  242452 B/op	     543 allocs/op
+PASS
+
+# sample 3: bbr/mtu=1280/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=1/upload-4         	    3014	    190239 ns/op	 344.49 MB/s	         4.954 CPU-s/GB	  25985024 RSS-B	  25518080 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1131224 heap-live-B	       223.1 p95-us	       246.0 p99-us	         0 retransmits	    4624 B/op	      75 allocs/op
+PASS
+
+# sample 3: bbr/mtu=1280/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=1/download-4         	    2647	    224962 ns/op	 291.32 MB/s	         7.396 CPU-s/GB	  23998464 RSS-B	  23105536 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1197160 heap-live-B	       290.3 p95-us	       314.5 p99-us	         0 retransmits	     483 B/op	       5 allocs/op
+PASS
+
+# sample 3: bbr/mtu=1280/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=8/upload-4         	     483	   1211045 ns/op	 432.92 MB/s	         4.704 CPU-s/GB	  27701248 RSS-B	  27557888 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1693296 heap-live-B	      1383 p95-us	      1585 p99-us	         0 retransmits	   39494 B/op	     622 allocs/op
+PASS
+
+# sample 3: bbr/mtu=1280/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=8/download-4         	     385	   1538414 ns/op	 340.80 MB/s	         8.436 CPU-s/GB	  26210304 RSS-B	  25243648 RSS-peak-B	         1.000 drops	        22.00 goroutines	   3031976 heap-live-B	      1962 p95-us	      2040 p99-us	         0 retransmits	    8322 B/op	      44 allocs/op
+PASS
+
+# sample 3: bbr/mtu=1280/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=100/upload-4         	      40	  14877970 ns/op	 440.49 MB/s	         4.724 CPU-s/GB	  43384832 RSS-B	  42708992 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8741240 heap-live-B	     15784 p95-us	     16051 p99-us	         0 retransmits	  541731 B/op	    7921 allocs/op
+PASS
+
+# sample 3: bbr/mtu=1280/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1280/flows=100/download-4         	      28	  18195073 ns/op	 360.19 MB/s	         9.504 CPU-s/GB	  49659904 RSS-B	  49025024 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17567112 heap-live-B	     20314 p95-us	     21805 p99-us	         0 retransmits	  746013 B/op	    1906 allocs/op
+PASS
+
+# sample 3: bbr/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=1/upload-4         	    3600	    167769 ns/op	 390.63 MB/s	         4.387 CPU-s/GB	  25882624 RSS-B	  25968640 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1118392 heap-live-B	       196.4 p95-us	       226.1 p99-us	         0 retransmits	    4099 B/op	      66 allocs/op
+PASS
+
+# sample 3: bbr/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=1/download-4         	    3177	    199694 ns/op	 328.18 MB/s	         6.416 CPU-s/GB	  26136576 RSS-B	  25612288 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1177496 heap-live-B	       256.2 p95-us	       275.8 p99-us	         0 retransmits	     465 B/op	       5 allocs/op
+PASS
+
+# sample 3: bbr/mtu=1500/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=8/upload-4         	     555	   1062202 ns/op	 493.59 MB/s	         4.119 CPU-s/GB	  27938816 RSS-B	  27860992 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1668976 heap-live-B	      1171 p95-us	      1338 p99-us	         0 retransmits	   34264 B/op	     537 allocs/op
+PASS
+
+# sample 3: bbr/mtu=1500/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=8/download-4         	     489	   1217288 ns/op	 430.70 MB/s	         6.907 CPU-s/GB	  28475392 RSS-B	  27852800 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2887552 heap-live-B	      1554 p95-us	      1628 p99-us	         0 retransmits	    6684 B/op	      43 allocs/op
+PASS
+
+# sample 3: bbr/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=100/upload-4         	      43	  13310298 ns/op	 492.37 MB/s	         4.235 CPU-s/GB	  41377792 RSS-B	  40472576 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8858664 heap-live-B	     13978 p95-us	     14045 p99-us	         0 retransmits	  483256 B/op	    6813 allocs/op
+PASS
+
+# sample 3: bbr/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=1500/flows=100/download-4         	      37	  15458130 ns/op	 423.96 MB/s	         8.021 CPU-s/GB	  45654016 RSS-B	  45088768 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17600080 heap-live-B	     21149 p95-us	     23142 p99-us	         0 retransmits	  501667 B/op	     989 allocs/op
+PASS
+
+# sample 3: bbr/mtu=9000/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=1/upload-4         	    6610	     90669 ns/op	 722.80 MB/s	         1.862 CPU-s/GB	  26025984 RSS-B	  25489408 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1132520 heap-live-B	       112.7 p95-us	       133.2 p99-us	         0 retransmits	    1241 B/op	      17 allocs/op
+PASS
+
+# sample 3: bbr/mtu=9000/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=1/download-4         	    6622	     83624 ns/op	 783.70 MB/s	         2.070 CPU-s/GB	  26206208 RSS-B	  25350144 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1171920 heap-live-B	       100.7 p95-us	       113.3 p99-us	         0 retransmits	     433 B/op	       5 allocs/op
+PASS
+
+# sample 3: bbr/mtu=9000/flows=8/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=8/upload-4         	    1362	    442087 ns/op	1185.94 MB/s	         1.633 CPU-s/GB	  28012544 RSS-B	  27848704 RSS-peak-B	         1.000 drops	        22.00 goroutines	   1890208 heap-live-B	       528.9 p95-us	       636.1 p99-us	         0 retransmits	   10229 B/op	     138 allocs/op
+PASS
+
+# sample 3: bbr/mtu=9000/flows=8/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=8/download-4         	    1662	    342936 ns/op	1528.82 MB/s	         1.977 CPU-s/GB	  28585984 RSS-B	  27652096 RSS-peak-B	         1.000 drops	        22.00 goroutines	   2854448 heap-live-B	       449.4 p95-us	       484.4 p99-us	         0 retransmits	    4131 B/op	      40 allocs/op
+PASS
+
+# sample 3: bbr/mtu=9000/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=100/upload-4         	     100	   5107902 ns/op	1283.03 MB/s	         1.652 CPU-s/GB	  45531136 RSS-B	  44806144 RSS-peak-B	         1.000 drops	       206.0 goroutines	  10233544 heap-live-B	      5526 p95-us	      5850 p99-us	         0 retransmits	  171747 B/op	    1827 allocs/op
+PASS
+
+# sample 3: bbr/mtu=9000/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/bbr/mtu=9000/flows=100/download-4         	     150	   4035113 ns/op	1624.14 MB/s	         2.003 CPU-s/GB	  56070144 RSS-B	  55324672 RSS-peak-B	         1.000 drops	       206.0 goroutines	  18384016 heap-live-B	      5049 p95-us	      5277 p99-us	         0 retransmits	  238217 B/op	     542 allocs/op
+PASS

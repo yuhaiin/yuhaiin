@@ -1,0 +1,371 @@
+package lightweight
+
+import (
+	"crypto/rand"
+	"encoding/binary"
+	"errors"
+	"io"
+	"maps"
+	"net"
+	"net/netip"
+	"slices"
+	"sync"
+	"sync/atomic"
+)
+
+// PacketIO transfers complete IP packets, without link/virtio headers. ReadPacket
+// may borrow its buffer only until return; WritePacket may borrow until return.
+// Exactly one reader and one writer run concurrently. Close MUST interrupt both.
+// Implementations exposing GSO must first segment and finish partial checksums.
+type PacketIO interface {
+	ReadPacket([]byte) (int, error)
+	WritePacket([]byte) error
+	Close() error
+}
+
+type flowKey struct{ local, remote netip.AddrPort }
+type flowShard struct {
+	sync.Mutex
+	flows map[flowKey]*TCPConn
+}
+
+// Includes the connection, built-in controller and the small queue arrays
+// retained after a burst. Payloads and live queue entries are charged separately.
+const connectionCharge = 5120
+
+type Stack struct {
+	buffers                                       bufferPool
+	outputMu                                      sync.Mutex
+	outputCount                                   atomic.Int64
+	outputWaiters                                 outputQueue
+	config                                        Config
+	link                                          PacketIO
+	done                                          chan struct{}
+	once                                          sync.Once
+	txMu                                          sync.RWMutex
+	wg                                            sync.WaitGroup
+	closeErr                                      error
+	scheduler                                     *scheduler
+	outgoing                                      chan *ownedBuffer
+	forwarded                                     chan Datagram
+	shards                                        [32]flowShard
+	mu                                            sync.Mutex
+	listeners                                     map[netip.AddrPort]*TCPListener
+	udp                                           map[netip.AddrPort]*UDPConn
+	fragments                                     fragmentTable
+	nextPort                                      atomic.Uint32
+	nextID                                        atomic.Uint32
+	flows                                         atomic.Int64
+	memory                                        atomic.Int64
+	packetsIn, packetsOut, drops, retransmissions atomic.Uint64
+	icmpMu                                        sync.Mutex
+	icmpTokens                                    float64
+	icmpStamp                                     int64
+}
+type Statistics struct {
+	MemoryBytes, Connections                      int64
+	CachedBytes                                   int64
+	PacketsIn, PacketsOut, Drops, Retransmissions uint64
+}
+
+func (s *Stack) Stats() Statistics {
+	return Statistics{MemoryBytes: s.memory.Load(), Connections: s.flows.Load(), CachedBytes: s.buffers.cached.Load(), PacketsIn: s.packetsIn.Load(), PacketsOut: s.packetsOut.Load(), Drops: s.drops.Load(), Retransmissions: s.retransmissions.Load()}
+}
+
+// New takes ownership of link only on success. Close joins all stack workers.
+func New(config Config, link PacketIO) (*Stack, error) {
+	c, err := config.normalize()
+	if err != nil {
+		return nil, err
+	}
+	if link == nil {
+		return nil, errors.New("lightweight: nil PacketIO")
+	}
+	s := &Stack{config: c, link: link, done: make(chan struct{}), outgoing: make(chan *ownedBuffer, c.QueuePackets), forwarded: make(chan Datagram, min(c.QueuePackets, 256)), listeners: make(map[netip.AddrPort]*TCPListener), udp: make(map[netip.AddrPort]*UDPConn), icmpTokens: 100}
+	s.scheduler = newScheduler(s.done)
+	s.buffers.init(s)
+	s.fragments.init(s)
+	for i := range s.shards {
+		s.shards[i].flows = make(map[flowKey]*TCPConn)
+	}
+	var seed [4]byte
+	_, _ = rand.Read(seed[:])
+	s.nextPort.Store(binary.BigEndian.Uint32(seed[:]) % 16384)
+	s.wg.Go(s.scheduler.loop)
+	s.wg.Go(s.readLoop)
+	s.wg.Go(s.writeLoop)
+	return s, nil
+}
+func (s *Stack) Done() <-chan struct{} { return s.done }
+func (s *Stack) closed() bool {
+	select {
+	case <-s.done:
+		return true
+	default:
+		return false
+	}
+}
+func (s *Stack) reserve(n int) bool {
+	for {
+		old := s.memory.Load()
+		if int64(n) > s.config.MemoryLimit-old {
+			if s.buffers.trim(n) {
+				continue
+			}
+			return false
+		}
+		if s.memory.CompareAndSwap(old, old+int64(n)) {
+			return true
+		}
+	}
+}
+func (s *Stack) release(n int) { s.memory.Add(-int64(n)); s.wakeOutput() }
+func (s *Stack) shutdown() {
+	s.once.Do(func() {
+		s.txMu.Lock()
+		close(s.done)
+		s.txMu.Unlock()
+		s.closeErr = s.link.Close()
+		// Publish closed before taking table snapshots. Registrations check under
+		// the table lock, so none can appear after their respective snapshot.
+		for i := range s.shards {
+			sh := &s.shards[i]
+			sh.Lock()
+			cs := slices.Collect(maps.Values(sh.flows))
+			sh.Unlock()
+			for _, c := range cs {
+				c.abort(net.ErrClosed)
+			}
+		}
+		s.mu.Lock()
+		us := slices.Collect(maps.Values(s.udp))
+		ls := slices.Collect(maps.Values(s.listeners))
+		s.mu.Unlock()
+		for _, u := range us {
+			_ = u.Close()
+		}
+		for _, l := range ls {
+			_ = l.Close()
+		}
+		s.fragments.close()
+	})
+}
+func (s *Stack) Close() error {
+	s.shutdown()
+	s.wg.Wait()
+	for {
+		select {
+		case p := <-s.outgoing:
+			p.release()
+		default:
+			goto forwarded
+		}
+	}
+forwarded:
+	for {
+		select {
+		case p := <-s.forwarded:
+			s.release(len(p.Payload) + receiveCharge)
+		default:
+			s.buffers.close()
+			return s.closeErr
+		}
+	}
+}
+func (s *Stack) readLoop() {
+	defer s.shutdown()
+	b := make([]byte, 65575)
+	attempts := 0
+	for {
+		n, err := s.link.ReadPacket(b)
+		if n > 0 && n <= len(b) {
+			s.packetsIn.Add(1)
+			if e := s.input(b[:n]); e != nil {
+				s.drops.Add(1)
+			}
+		}
+		if err != nil {
+			if s.retryPacketIO(err, attempts) {
+				attempts++
+				continue
+			}
+			// A too-large packet has already been consumed/dropped by the device.
+			if errors.Is(err, io.ErrShortBuffer) && !s.closed() {
+				s.drops.Add(1)
+				continue
+			}
+			return
+		}
+		if n <= 0 || n > len(b) {
+			return
+		}
+		attempts = 0
+	}
+}
+func (s *Stack) writeLoop() {
+	defer s.shutdown()
+	for {
+		select {
+		case <-s.done:
+			return
+		case b := <-s.outgoing:
+			err := s.link.WritePacket(b.data)
+			for attempt := 0; err != nil && s.retryPacketIO(err, attempt); attempt++ {
+				err = s.link.WritePacket(b.data)
+			}
+			b.release()
+			if err != nil {
+				return
+			}
+			s.packetsOut.Add(1)
+		}
+	}
+}
+
+// emit copies unowned packet data; the owned fast path transfers its lease.
+func (s *Stack) emit(b []byte) error {
+	packet, err := s.buffers.get(len(b))
+	if err != nil {
+		return err
+	}
+	copy(packet.data, b)
+	if err = s.emitOwned(packet); err != nil {
+		packet.release()
+	}
+	return err
+}
+func (s *Stack) emitOwned(packet *ownedBuffer) error {
+	s.txMu.RLock()
+	defer s.txMu.RUnlock()
+	if s.closed() {
+		return net.ErrClosed
+	}
+	select {
+	case s.outgoing <- packet:
+		return nil
+	default:
+		return ErrLimit
+	}
+}
+func (s *Stack) ipBuffer(src, dst netip.Addr, proto uint8, payloadSize int) (*ownedBuffer, int, error) {
+	h, err := ipHeaderSize(src, dst, payloadSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	packet, err := s.buffers.get(h + payloadSize)
+	if err != nil {
+		return nil, h, err
+	}
+	fillIPHeader(packet.data, src, dst, proto, uint16(s.nextID.Add(1)), h)
+	return packet, h, nil
+}
+func (s *Stack) sendIP(src, dst netip.Addr, proto uint8, payload []byte) error {
+	h, err := ipHeaderSize(src, dst, len(payload))
+	if err != nil {
+		return err
+	}
+	if h+len(payload) > s.config.MTU {
+		return ErrMTU
+	}
+	packet, h, err := s.ipBuffer(src, dst, proto, len(payload))
+	if err != nil {
+		return err
+	}
+	copy(packet.data[h:], payload)
+	if err = s.emitOwned(packet); err != nil {
+		packet.release()
+	}
+	return err
+}
+func (s *Stack) input(b []byte) error {
+	p, err := ParsePacket(b)
+	if err != nil {
+		return err
+	}
+	if p.Source.IsUnspecified() || p.Source.IsMulticast() || p.Destination.IsMulticast() || p.Destination.IsUnspecified() {
+		return ErrUnsupported
+	}
+	if !s.config.Promiscuous && !s.local(p.Destination) {
+		return ErrUnsupported
+	}
+	if p.HopLimit == 0 {
+		s.icmpError(p, 11, 0, 0)
+		return ErrMalformed
+	}
+	if p.Fragmented {
+		var complete bool
+		p, complete, err = s.fragments.add(p)
+		if err != nil || !complete {
+			return err
+		}
+	}
+	if err := p.ValidateTransport(); err != nil {
+		return err
+	}
+	switch p.Protocol {
+	case 6:
+		s.handleTCP(p)
+	case 17:
+		s.handleUDP(p)
+	case 1, 58:
+		s.handleICMP(p)
+	default:
+		return ErrUnsupported
+	}
+	return nil
+}
+func (s *Stack) local(a netip.Addr) bool {
+	return slices.Contains(s.config.Addresses, a)
+}
+func (s *Stack) source(remote netip.Addr) (netip.Addr, error) {
+	for _, v := range s.config.Addresses {
+		if remote.Is4() == v.Is4() {
+			return v, nil
+		}
+	}
+	return netip.Addr{}, errors.New("lightweight: no source address for family")
+}
+func (s *Stack) shard(k flowKey) *flowShard {
+	a := k.local.Addr().As16()
+	b := k.remote.Addr().As16()
+	return &s.shards[(uint32(k.local.Port())^uint32(k.remote.Port())^uint32(a[15])^uint32(b[15]))%32]
+}
+func (s *Stack) find(k flowKey) *TCPConn {
+	sh := s.shard(k)
+	sh.Lock()
+	c := sh.flows[k]
+	sh.Unlock()
+	return c
+}
+func (s *Stack) add(c *TCPConn) error {
+	sh := s.shard(c.key)
+	sh.Lock()
+	defer sh.Unlock()
+	if s.closed() {
+		return net.ErrClosed
+	}
+	if sh.flows[c.key] != nil {
+		return errors.New("lightweight: tuple in use")
+	}
+	if s.flows.Add(1) > int64(s.config.MaxConnections) {
+		s.flows.Add(-1)
+		return ErrLimit
+	}
+	if !s.reserve(connectionCharge) {
+		s.flows.Add(-1)
+		return ErrLimit
+	}
+	sh.flows[c.key] = c
+	return nil
+}
+func (s *Stack) remove(c *TCPConn) {
+	sh := s.shard(c.key)
+	sh.Lock()
+	if sh.flows[c.key] == c {
+		delete(sh.flows, c.key)
+		s.flows.Add(-1)
+		s.release(connectionCharge)
+	}
+	sh.Unlock()
+}
+func (s *Stack) port() uint16 { return uint16(49152 + s.nextPort.Add(1)%16384) }

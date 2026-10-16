@@ -1,0 +1,12 @@
+=== RUN   TestBBRSharedBottleneck
+=== RUN   TestBBRSharedBottleneck/rtt50ms-10Mbps-queue32
+    bbr_fairness_test.go:88: phase=0 bottleneck=1250000 B/s cumulative-delivered=[910204 552676 138372] drops=116
+    bbr_fairness_test.go:88: phase=1 bottleneck=1250000 B/s cumulative-delivered=[1066420 1204792 1128712] drops=126
+    bbr_fairness_test.go:88: phase=2 bottleneck=1250000 B/s cumulative-delivered=[2210380 2540980 2274132] drops=127
+    bbr_fairness_test.go:88: flow=0 model={Version:3 Mode:PROBE_BW Phase:UP Bandwidth:89338 MaxBandwidth:89338 BandwidthLo:18446744073709551615 InflightLo:18446744073709551615 InflightHi:183144 MinRTT:50.366785ms PacingGain:1.25 Round:101 ProbeWait:2.752255567s}
+    bbr_fairness_test.go:88: flow=1 model={Version:3 Mode:PROBE_BW Phase:CRUISE Bandwidth:759045 MaxBandwidth:759045 BandwidthLo:18446744073709551615 InflightLo:18446744073709551615 InflightHi:66996 MinRTT:50.206688ms PacingGain:1 Round:96 ProbeWait:2.773100317s}
+    bbr_fairness_test.go:88: jain=0.996 payload-utilization=0.937 total-payload=7025492 capacity=7501640
+--- PASS: TestBBRSharedBottleneck (7.23s)
+    --- PASS: TestBBRSharedBottleneck/rtt50ms-10Mbps-queue32 (7.23s)
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	7.234s

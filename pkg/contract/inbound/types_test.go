@@ -6,6 +6,28 @@ import (
 	"testing"
 )
 
+func TestTunStackJSONCompatibility(t *testing.T) {
+	var old TunProtocol
+	if err := json.Unmarshal([]byte(`{"driver":"channel","name":"tun://test"}`), &old); err != nil {
+		t.Fatal(err)
+	}
+	if old.Stack != "" || old.CongestionControl != "" {
+		t.Fatal("legacy config opted into new stack")
+	}
+	configured := TunProtocol{Driver: "channel", Stack: "lightweight", CongestionControl: "bbr"}
+	b, err := json.Marshal(configured)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got TunProtocol
+	if err = json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Stack != "lightweight" || got.CongestionControl != "bbr" || got.Driver != "channel" {
+		t.Fatalf("roundtrip: %+v", got)
+	}
+}
+
 func TestProtocolTaggedObjectJSON(t *testing.T) {
 	var protocol Protocol
 	if err := json.Unmarshal([]byte(`{"type":"reverse_http","reverse_http":{"url":"http://127.0.0.1:3000"}}`), &protocol); err != nil {

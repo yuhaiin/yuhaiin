@@ -1,0 +1,93 @@
+{"os": "Linux-7.2.6-zen2-1-zen-x86_64-with-glibc2.44", "go": "go version go1.27.2-X:nodwarf5 linux/amd64", "gomaxprocs": 4, "offload": false, "tun_tx_queue": 10000, "samples": 3, "benchtime": "1x", "client": "Linux TCP, same process", "binary_sha256": "463289de8dff768a430fcfd794e0e126729c3eb2d6d90a50820b28a8a38d7510", "workload": "1000 idle connections"}
+
+# sample 1: gvisor/idle=1000
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUNIdle/gvisor-4         	       1	   1195351 ns/op	   4075224 closed-heap-live-B	         0 goroutines/conn	      5089 heap-per-conn-B	  27033600 idle-RSS-B	   5617200 idle-heap-live-B	      7324 rss-per-conn-B	    3776 B/op	      16 allocs/op
+PASS
+
+# sample 1: tun2socket/idle=1000
+time=2026-10-16T21:48:40.726+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-16T21:48:40.726+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-16T21:48:40.726+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:41023 "v6 listener"=[2001:db8::1]:41023 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-16T21:48:40.854+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-16T21:48:40.854+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:41023: use of closed network connection"
+time=2026-10-16T21:48:40.854+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:41023: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUNIdle/tun2socket-4         	       1	    607055 ns/op	    745360 closed-heap-live-B	         0 goroutines/conn	      1027 heap-per-conn-B	  23973888 idle-RSS-B	   1458616 idle-heap-live-B	      4485 rss-per-conn-B	    3776 B/op	      16 allocs/op
+PASS
+
+# sample 1: cubic/idle=1000
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUNIdle/cubic-4         	       1	    618203 ns/op	    654408 closed-heap-live-B	         0 goroutines/conn	      1504 heap-per-conn-B	  23285760 idle-RSS-B	   2074344 idle-heap-live-B	      4452 rss-per-conn-B	    3776 B/op	      16 allocs/op
+PASS
+
+# sample 2: gvisor/idle=1000
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUNIdle/gvisor-4         	       1	   1046365 ns/op	   2558752 closed-heap-live-B	         0 goroutines/conn	      5071 heap-per-conn-B	  27271168 idle-RSS-B	   5599288 idle-heap-live-B	      7770 rss-per-conn-B	    3776 B/op	      16 allocs/op
+PASS
+
+# sample 2: tun2socket/idle=1000
+time=2026-10-16T21:48:41.143+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-16T21:48:41.143+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-16T21:48:41.143+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:34421 "v6 listener"=[2001:db8::1]:34421 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-16T21:48:41.265+08:00 level=ERROR source=nat.go:295 msg="write tcp raw to tun device failed" err="write lwtest0: file already closed"
+time=2026-10-16T21:48:41.265+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-16T21:48:41.265+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:34421: use of closed network connection"
+time=2026-10-16T21:48:41.265+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:34421: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUNIdle/tun2socket-4         	       1	    721114 ns/op	    747352 closed-heap-live-B	         0 goroutines/conn	      1030 heap-per-conn-B	  21716992 idle-RSS-B	   1462296 idle-heap-live-B	      2503 rss-per-conn-B	    3776 B/op	      16 allocs/op
+PASS
+
+# sample 2: cubic/idle=1000
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUNIdle/cubic-4         	       1	    576937 ns/op	    645208 closed-heap-live-B	         0 goroutines/conn	      1495 heap-per-conn-B	  23232512 idle-RSS-B	   2065032 idle-heap-live-B	      4510 rss-per-conn-B	    3776 B/op	      16 allocs/op
+PASS
+
+# sample 3: gvisor/idle=1000
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUNIdle/gvisor-4         	       1	   1221308 ns/op	   2747808 closed-heap-live-B	         0 goroutines/conn	      5067 heap-per-conn-B	  29294592 idle-RSS-B	   5595392 idle-heap-live-B	      9916 rss-per-conn-B	    3776 B/op	      16 allocs/op
+PASS
+
+# sample 3: tun2socket/idle=1000
+time=2026-10-16T21:48:41.560+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-16T21:48:41.560+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-16T21:48:41.561+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:42679 "v6 listener"=[2001:db8::1]:42679 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-16T21:48:41.699+08:00 level=ERROR source=nat.go:295 msg="write tcp raw to tun device failed" err="write lwtest0: file already closed"
+time=2026-10-16T21:48:41.699+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-16T21:48:41.700+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:42679: use of closed network connection"
+time=2026-10-16T21:48:41.700+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:42679: use of closed network connection"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUNIdle/tun2socket-4         	       1	    733883 ns/op	    749040 closed-heap-live-B	         0 goroutines/conn	      1026 heap-per-conn-B	  23842816 idle-RSS-B	   1463296 idle-heap-live-B	      2417 rss-per-conn-B	    3776 B/op	      16 allocs/op
+PASS
+
+# sample 3: cubic/idle=1000
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUNIdle/cubic-4         	       1	    545100 ns/op	    639520 closed-heap-live-B	         0 goroutines/conn	      1495 heap-per-conn-B	  23388160 idle-RSS-B	   2065368 idle-heap-live-B	      4526 rss-per-conn-B	    3776 B/op	      16 allocs/op
+PASS

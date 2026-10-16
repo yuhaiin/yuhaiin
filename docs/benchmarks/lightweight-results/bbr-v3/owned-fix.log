@@ -1,0 +1,4 @@
+pkg/net/netlink/tcplife/test/test.go:8:2: no required module provides package github.com/Asutorufa/yuhaiin/pkg/net/netlink/tcplife; to add it:
+	go get github.com/Asutorufa/yuhaiin/pkg/net/netlink/tcplife
+
+exit=1

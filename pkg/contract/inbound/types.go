@@ -220,18 +220,20 @@ type RedirProtocol struct {
 func (RedirProtocol) ProtocolType() string { return ProtocolRedir }
 
 type TunProtocol struct {
-	AutoFakeIPRoute bool     `json:"autoFakeIpRoute"`
-	Name            string   `json:"name"`
-	MTU             int32    `json:"mtu"`
-	ForceFakeIP     bool     `json:"forceFakeIp"`
-	SkipMulticast   bool     `json:"skipMulticast"`
-	Driver          string   `json:"driver"`
-	Portal          string   `json:"portal"`
-	PortalV6        string   `json:"portalV6"`
-	Routes          []string `json:"routes"`
-	Excludes        []string `json:"excludes"`
-	PostUp          []string `json:"postUp"`
-	PostDown        []string `json:"postDown"`
+	Stack             string   `json:"stack,omitzero"`
+	CongestionControl string   `json:"congestionControl,omitzero"`
+	AutoFakeIPRoute   bool     `json:"autoFakeIpRoute"`
+	Name              string   `json:"name"`
+	MTU               int32    `json:"mtu"`
+	ForceFakeIP       bool     `json:"forceFakeIp"`
+	SkipMulticast     bool     `json:"skipMulticast"`
+	Driver            string   `json:"driver"`
+	Portal            string   `json:"portal"`
+	PortalV6          string   `json:"portalV6"`
+	Routes            []string `json:"routes"`
+	Excludes          []string `json:"excludes"`
+	PostUp            []string `json:"postUp"`
+	PostDown          []string `json:"postDown"`
 }
 
 func (TunProtocol) ProtocolType() string { return ProtocolTun }

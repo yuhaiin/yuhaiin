@@ -1,0 +1,15 @@
+=== RUN   TestLinuxKernelContinuousPMTU
+=== RUN   TestLinuxKernelContinuousPMTU/reno/ipv6=false
+=== RUN   TestLinuxKernelContinuousPMTU/reno/ipv6=true
+=== RUN   TestLinuxKernelContinuousPMTU/cubic/ipv6=false
+=== RUN   TestLinuxKernelContinuousPMTU/cubic/ipv6=true
+=== RUN   TestLinuxKernelContinuousPMTU/bbr/ipv6=false
+=== RUN   TestLinuxKernelContinuousPMTU/bbr/ipv6=true
+--- PASS: TestLinuxKernelContinuousPMTU (1.12s)
+    --- PASS: TestLinuxKernelContinuousPMTU/reno/ipv6=false (0.13s)
+    --- PASS: TestLinuxKernelContinuousPMTU/reno/ipv6=true (0.12s)
+    --- PASS: TestLinuxKernelContinuousPMTU/cubic/ipv6=false (0.12s)
+    --- PASS: TestLinuxKernelContinuousPMTU/cubic/ipv6=true (0.13s)
+    --- PASS: TestLinuxKernelContinuousPMTU/bbr/ipv6=false (0.27s)
+    --- PASS: TestLinuxKernelContinuousPMTU/bbr/ipv6=true (0.34s)
+PASS
