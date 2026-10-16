@@ -18,13 +18,25 @@ func DialHappyEyeballsv1(ctx context.Context, addr netapi.Address) (net.Conn, er
 	c, err := dialHappyEyeballs(ctx, addr)
 	if err != nil {
 		metrics.Counter.AddTCPDialFailed(addr.String())
+		return nil, err
 	}
-	return c, err
+	if netapi.IsNilConn(c) {
+		metrics.Counter.AddTCPDialFailed(addr.String())
+		return nil, errors.New("happy eyeballs: dial succeeded with nil connection")
+	}
+	return c, nil
 }
 
 func dialHappyEyeballs(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	if !addr.IsFqdn() {
-		return DialTCPContext(ctx, addr.(netapi.IPAddress).AddrPort())
+		c, err := DialTCPContext(ctx, addr.(netapi.IPAddress).AddrPort())
+		if err != nil {
+			return nil, err
+		}
+		if c == nil {
+			return nil, errors.New("happy eyeballs: dial succeeded with nil connection")
+		}
+		return c, nil
 	}
 
 	ips, err := netapi.ResolverIP(ctx, addr.Hostname())
@@ -103,7 +115,14 @@ func DialHappyEyeballs(ctx context.Context, ips []netip.AddrPort) (net.Conn, err
 // primary address.
 func DialParallel(ctx context.Context, primaries, fallbacks []netip.AddrPort) (net.Conn, error) {
 	if len(fallbacks) == 0 {
-		return DialSerial(ctx, primaries)
+		c, err := DialSerial(ctx, primaries)
+		if err != nil {
+			return nil, err
+		}
+		if c == nil {
+			return nil, errors.New("happy eyeballs: dial succeeded with nil connection")
+		}
+		return c, nil
 	}
 
 	returned := make(chan struct{})
@@ -123,11 +142,17 @@ func DialParallel(ctx context.Context, primaries, fallbacks []netip.AddrPort) (n
 			ras = fallbacks
 		}
 		c, err := DialSerial(ctx, ras)
+		// Assigning a nil *net.TCPConn to net.Conn produces a non-nil
+		// interface, so normalize the failure before either sending or closing.
+		var conn net.Conn
+		if c != nil {
+			conn = c
+		}
 		select {
-		case results <- dialResult{Conn: c, error: err, primary: primary, done: true}:
+		case results <- dialResult{Conn: conn, error: err, primary: primary, done: true}:
 		case <-returned:
 			if c != nil {
-				c.Close()
+				_ = c.Close()
 			}
 		}
 	}
@@ -156,8 +181,11 @@ func DialParallel(ctx context.Context, primaries, fallbacks []netip.AddrPort) (n
 			go startRacer(fallbackCtx, false)
 
 		case res := <-results:
-			if res.error == nil {
+			if res.error == nil && !netapi.IsNilConn(res.Conn) {
 				return res.Conn, nil
+			}
+			if res.error == nil {
+				res.error = errors.New("happy eyeballs: dial succeeded with nil connection")
 			}
 			if res.primary {
 				primary = res
