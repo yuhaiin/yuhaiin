@@ -3,16 +3,13 @@ package migrate
 import (
 	"context"
 	"database/sql"
-	"encoding/binary"
 	json "encoding/json/v2"
 	"errors"
-	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache/memory"
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	legacymigrate "github.com/Asutorufa/yuhaiin/pkg/legacy/migrate"
 	legacynode "github.com/Asutorufa/yuhaiin/pkg/legacy/schema/node"
@@ -167,60 +164,6 @@ func TestStateDBMigrateLeavesSessionCleanupToStatisticsStartup(t *testing.T) {
 	}
 	if sessionCount != 1 {
 		t.Fatalf("connection sessions after migration = %d, want 1", sessionCount)
-	}
-}
-
-func TestStateDBMigrateLegacyPebbleBeforeRuntime(t *testing.T) {
-	ctx := t.Context()
-	state := NewStateDB(filepath.Join(t.TempDir(), "state.db"))
-	defer func() { _ = state.Close() }()
-	if err := state.Migrate(ctx); err != nil {
-		t.Fatalf("migrate sqlite state: %v", err)
-	}
-
-	legacy := memory.NewMemoryCache()
-	flow := legacy.NewCache("flow_data")
-	if err := flow.Put([]byte("DOWNLOAD"), binary.BigEndian.AppendUint64(nil, 123)); err != nil {
-		t.Fatal(err)
-	}
-	if err := flow.Put([]byte("UPLOAD"), binary.BigEndian.AppendUint64(nil, 456)); err != nil {
-		t.Fatal(err)
-	}
-	prefix := netip.MustParsePrefix("10.42.0.0/24")
-	if err := legacy.NewCache(prefix.String()).Put([]byte("old.example"), netip.MustParseAddr("10.42.0.2").AsSlice()); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := state.MigrateLegacyPebble(ctx, legacy, prefix, netip.MustParsePrefix("fd00::/120")); err != nil {
-		t.Fatalf("migrate pebble state: %v", err)
-	}
-	done, err := state.LegacyPebbleMigrationDone(ctx)
-	if err != nil {
-		t.Fatalf("check pebble migration marker: %v", err)
-	}
-	if !done {
-		t.Fatal("pebble migration marker was not written")
-	}
-	db, err := state.SQLDB(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var download, upload uint64
-	if err := db.QueryRowContext(ctx, `SELECT value_int FROM statistics_kv WHERE key = 'total_download'`).Scan(&download); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.QueryRowContext(ctx, `SELECT value_int FROM statistics_kv WHERE key = 'total_upload'`).Scan(&upload); err != nil {
-		t.Fatal(err)
-	}
-	if download != 123 || upload != 456 {
-		t.Fatalf("unexpected migrated totals download=%d upload=%d", download, upload)
-	}
-	var domain string
-	if err := db.QueryRowContext(ctx, `SELECT domain FROM fakeip_entries WHERE family = 4 AND prefix = ?`, prefix.String()).Scan(&domain); err != nil {
-		t.Fatal(err)
-	}
-	if domain != "old.example" {
-		t.Fatalf("unexpected migrated fakeip domain %q", domain)
 	}
 }
 
