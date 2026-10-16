@@ -26,6 +26,7 @@ type UDPConn struct {
 	queue                       []Datagram
 	bytes                       int
 	closed                      bool
+	dualStack                   bool
 	err                         error
 	readDeadline, writeDeadline time.Time
 }
@@ -37,6 +38,16 @@ func (s *Stack) ListenUDP(local netip.AddrPort) (*UDPConn, error) {
 	return s.DialUDP(local, netip.AddrPort{})
 }
 func (s *Stack) DialUDP(local, remote netip.AddrPort) (*UDPConn, error) {
+	return s.dialUDP(local, remote, false)
+}
+
+// ListenDualUDP binds one wildcard socket for both IPv4 and IPv6 datagrams.
+// A zero port selects an ephemeral port shared by both families.
+func (s *Stack) ListenDualUDP(port uint16) (*UDPConn, error) {
+	return s.dialUDP(netip.AddrPortFrom(netip.IPv6Unspecified(), port), netip.AddrPort{}, true)
+}
+
+func (s *Stack) dialUDP(local, remote netip.AddrPort, dual bool) (*UDPConn, error) {
 	if s.closed() {
 		return nil, net.ErrClosed
 	}
@@ -76,7 +87,7 @@ func (s *Stack) DialUDP(local, remote netip.AddrPort) (*UDPConn, error) {
 		found := false
 		for range 16384 {
 			local = netip.AddrPortFrom(local.Addr(), s.port())
-			if !s.udpBound(local) {
+			if !s.udpBound(local, dual) {
 				found = true
 				break
 			}
@@ -84,19 +95,19 @@ func (s *Stack) DialUDP(local, remote netip.AddrPort) (*UDPConn, error) {
 		if !found {
 			return nil, ErrLimit
 		}
-	} else if s.udpBound(local) {
+	} else if s.udpBound(local, dual) {
 		return nil, errors.New("lightweight: UDP address in use")
 	}
 	if !s.reserve(1024) {
 		return nil, ErrLimit
 	}
-	u := &UDPConn{stack: s, local: local, remote: remote}
+	u := &UDPConn{stack: s, local: local, remote: remote, dualStack: dual}
 	s.udp[local] = u
 	return u, nil
 }
-func (s *Stack) udpBound(a netip.AddrPort) bool {
-	for k := range s.udp {
-		if k.Port() == a.Port() && k.Addr().Is4() == a.Addr().Is4() && (k.Addr() == a.Addr() || k.Addr().IsUnspecified() || a.Addr().IsUnspecified()) {
+func (s *Stack) udpBound(a netip.AddrPort, dual bool) bool {
+	for k, u := range s.udp {
+		if k.Port() == a.Port() && (dual || u.dualStack || k.Addr().Is4() == a.Addr().Is4() && (k.Addr() == a.Addr() || k.Addr().IsUnspecified() || a.Addr().IsUnspecified())) {
 			return true
 		}
 	}
@@ -114,6 +125,12 @@ func (s *Stack) handleUDP(p Packet) {
 			anyAddr = netip.IPv4Unspecified()
 		}
 		u = s.udp[netip.AddrPortFrom(anyAddr, dst.Port())]
+	}
+	if u == nil && dst.Addr().Is4() {
+		candidate := s.udp[netip.AddrPortFrom(netip.IPv6Unspecified(), dst.Port())]
+		if candidate != nil && candidate.dualStack {
+			u = candidate
+		}
 	}
 	s.mu.Unlock()
 	if u != nil {
@@ -256,7 +273,11 @@ func (u *UDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	if u.remote.IsValid() && u.remote != dst.AddrPort() {
 		return 0, errors.New("lightweight: connected UDP destination mismatch")
 	}
-	return u.stack.WriteUDP(u.local, dst.AddrPort(), b)
+	source := u.local
+	if u.dualStack && dst.AddrPort().Addr().Is4() {
+		source = netip.AddrPortFrom(netip.IPv4Unspecified(), source.Port())
+	}
+	return u.stack.WriteUDP(source, dst.AddrPort(), b)
 }
 func (u *UDPConn) Write(b []byte) (int, error) {
 	if !u.remote.IsValid() {

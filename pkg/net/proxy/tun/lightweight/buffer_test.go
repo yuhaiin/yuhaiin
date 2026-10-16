@@ -22,7 +22,8 @@ func TestFixedMetadataCharges(t *testing.T) {
 			t.Fatal(err)
 		}
 		footprint := reflect.TypeFor[TCPConn]().Size() + reflect.TypeOf(controller).Elem().Size() +
-			64*(reflect.TypeFor[*sendSegment]().Size()+reflect.TypeFor[receiveChunk]().Size())
+			64*(reflect.TypeFor[*sendSegment]().Size()+reflect.TypeFor[receiveChunk]().Size()) +
+			2*segmentCharge + 3*128 // SYN/FIN and conservative channel headers.
 		if footprint > connectionCharge {
 			t.Fatalf("%s connection and retained queues need %d bytes, charge %d", algorithm, footprint, connectionCharge)
 		}

@@ -21,7 +21,6 @@ import (
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 	"github.com/tailscale/wireguard-go/tun"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 )
 
 type Masque struct {
@@ -32,12 +31,12 @@ type Masque struct {
 	TlsConfig *tls.Config
 	addr      *net.UDPAddr
 	cancel    context.CancelFunc
-	dev       *wireguard.NetTun
+	dev       *wireguard.LightweightNetTun
 
 	receive chan []byte
 	send    chan []byte
 
-	happyDialer    *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
+	happyDialer    *dialer.HappyEyeballsv2Dialer[net.Conn]
 	localAddresses []netip.Prefix
 	mtu            int
 
@@ -45,7 +44,7 @@ type Masque struct {
 }
 
 func NewMasque(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAddresses []netip.Prefix, mtu int) (*Masque, error) {
-	dev, err := wireguard.CreateNetTUN(localAddresses, mtu)
+	dev, err := wireguard.CreateLightweightNetTUN(localAddresses, mtu)
 	if err != nil {
 		return nil, err
 	}
@@ -63,10 +62,10 @@ func NewMasque(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAd
 		dev:            dev,
 		receive:        make(chan []byte, 100),
 		send:           make(chan []byte, 100),
-		happyDialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
+		happyDialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 			return dev.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 		},
-			dialer.WithHappyEyeballsSemaphore[*gonet.TCPConn](semaphore.NewEmptySemaphore())),
+			dialer.WithHappyEyeballsSemaphore[net.Conn](semaphore.NewEmptySemaphore())),
 	}
 
 	go z.Forward()
@@ -339,7 +338,7 @@ func (m *Masque) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 		return nil, err
 	}
 
-	return wireguard.NewWrapGoNetTcpConn(conn), nil
+	return conn, nil
 }
 
 func (m *Masque) PacketConn(ctx context.Context, a netapi.Address) (net.PacketConn, error) {

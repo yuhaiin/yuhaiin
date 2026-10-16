@@ -18,6 +18,12 @@ func (c *TCPConn) schedule(now time.Time) {
 	if c.outputWaiting {
 		at = c.endAt
 	}
+	if c.readWaiting {
+		at = earliest(at, c.readDeadline)
+	}
+	if c.writeWaiting {
+		at = earliest(at, c.writeDeadline)
+	}
 	if c.state == SynSent || c.state == SynReceived {
 		at = earliest(at, c.born.Add(c.stack.config.HandshakeTimeout))
 	}
@@ -130,6 +136,12 @@ func (c *TCPConn) onTimer(now time.Time) {
 	defer c.mu.Unlock()
 	if c.state == Closed {
 		return
+	}
+	if !c.readDeadline.IsZero() && !now.Before(c.readDeadline) {
+		c.notifyRead()
+	}
+	if !c.writeDeadline.IsZero() && !now.Before(c.writeDeadline) {
+		c.notifyWrite()
 	}
 	if c.outputReady.Swap(false) {
 		c.outputWaiting = false

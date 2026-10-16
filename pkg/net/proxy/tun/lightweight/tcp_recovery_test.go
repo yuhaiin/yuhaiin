@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"syscall"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -177,8 +178,8 @@ func TestTCPResetChallengeAndDeadlines(t *testing.T) {
 		if c.State() != Closed {
 			t.Fatal("exact reset did not close")
 		}
-		if _, err = c.Write([]byte{1}); err == nil {
-			t.Fatal("reset write succeeded")
+		if _, err = c.Write([]byte{1}); !errors.Is(err, syscall.ECONNRESET) {
+			t.Fatalf("reset write: %v", err)
 		}
 		_ = c.Close()
 		if _, err = c.Read(make([]byte, 1)); !errors.Is(err, net.ErrClosed) {

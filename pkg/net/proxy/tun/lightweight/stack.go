@@ -29,9 +29,10 @@ type flowShard struct {
 	flows map[flowKey]*TCPConn
 }
 
-// Includes the connection, built-in controller and the small queue arrays
-// retained after a burst. Payloads and live queue entries are charged separately.
-const connectionCharge = 5120
+// Includes the connection, built-in controller, IO/handshake signals, control
+// descriptors and small retained queue arrays. Payloads and live queue entries
+// are charged separately.
+const connectionCharge = 6144
 
 type Stack struct {
 	buffers                                       bufferPool

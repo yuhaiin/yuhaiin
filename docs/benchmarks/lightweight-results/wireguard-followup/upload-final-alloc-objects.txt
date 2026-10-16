@@ -1,0 +1,120 @@
+File: lightweight-followup-final.test
+Build ID: c5482f67775cb4c02dc3f521e1d79c9eb89307a9
+Type: alloc_objects
+Time: 2026-10-17 03:58:25 CST
+Showing nodes accounting for 24915, 97.05% of 25672 total
+Dropped 81 nodes (cum <= 128)
+      flat  flat%   sum%        cum   cum%
+      2049  7.98%  7.98%       2049  7.98%  testing.rewrite
+      2048  7.98% 15.96%       2250  8.76%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.kernelLink
+      1783  6.95% 22.90%       1783  6.95%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*bufferPool).get
+      1577  6.14% 29.05%       1577  6.14%  runtime/pprof.allFrames
+      1536  5.98% 35.03%       1536  5.98%  regexp/syntax.(*parser).collapse
+      1441  5.61% 40.64%       1441  5.61%  regexp/syntax.(*compiler).inst (inline)
+      1435  5.59% 46.23%      10821 42.15%  regexp.compile
+      1379  5.37% 51.60%       1416  5.52%  runtime/pprof.(*profileBuilder).emitLocation
+      1302  5.07% 56.68%       1302  5.07%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*sliceQueue[go.shape.struct { github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.owner *github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.ownedBuffer; github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.data []uint8; github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.offset int }]).push (inline)
+      1110  4.32% 61.00%       1110  4.32%  regexp.newQueue (inline)
+      1024  3.99% 64.99%       1024  3.99%  regexp/syntax.(*Regexp).CapNames
+      1024  3.99% 68.98%       1024  3.99%  regexp/syntax.(*parser).maybeConcat
+      1024  3.99% 72.97%       1024  3.99%  unicode/utf8.AppendRune (inline)
+       733  2.86% 75.82%        733  2.86%  regexp/syntax.(*parser).newRegexp (inline)
+       683  2.66% 78.48%       1366  5.32%  regexp/syntax.(*compiler).init (inline)
+       587  2.29% 80.77%        587  2.29%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.transferWorkload.func2
+       512  1.99% 82.76%        512  1.99%  syscall.anyToSockaddr
+       499  1.94% 84.71%        500  1.95%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.transferWorkload
+       385  1.50% 86.21%       3678 14.33%  regexp/syntax.parse
+       343  1.34% 87.54%       1421  5.54%  net.(*Dialer).DialContext
+       341  1.33% 88.87%        341  1.33%  net.sockaddrToTCP
+       341  1.33% 90.20%        341  1.33%  syscall.ByteSliceFromString
+       290  1.13% 91.33%       1400  5.45%  regexp.makeOnePass
+       220  0.86% 92.19%        220  0.86%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion.newCubic (inline)
+       158  0.62% 92.80%        158  0.62%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*bufferPool).takeSegment
+       154   0.6% 93.40%        154   0.6%  runtime.mallocgc
+       146  0.57% 93.97%        146  0.57%  context.(*cancelCtx).Done
+       146  0.57% 94.54%        146  0.57%  context.WithDeadlineCause
+       146  0.57% 95.11%        146  0.57%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).waitIO
+       146  0.57% 95.68%        146  0.57%  github.com/prometheus/client_golang/prometheus.(*goCollector).Describe
+       136  0.53% 96.21%        136  0.53%  regexp.onePassCopy
+       115  0.45% 96.65%        188  0.73%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).newTCP
+       101  0.39% 97.05%        484  1.89%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.transferWorkload.func1
+         1 0.0039% 97.05%       3526 13.73%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).readLoop
+         0     0% 97.05%        146  0.57%  context.WithDeadline (inline)
+         0     0% 97.05%        146  0.57%  context.WithTimeout
+         0     0% 97.05%       3525 13.73%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).handleTCP
+         0     0% 97.05%       3525 13.73%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).input
+         0     0% 97.05%       1025  3.99%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).ipBuffer
+         0     0% 97.05%        225  0.88%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).Read
+         0     0% 97.05%        225  0.88%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).ReadWithBuffer
+         0     0% 97.05%        158  0.62%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).Write
+         0     0% 97.05%       1302  5.07%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).deliverReceived
+         0     0% 97.05%        147  0.57%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).negotiate
+         0     0% 97.05%       1025  3.99%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).output
+         0     0% 97.05%       3085 12.02%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).receive
+         0     0% 97.05%        758  2.95%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).receiveBuffer
+         0     0% 97.05%       1025  3.99%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).sendACK
+         0     0% 97.05%      12729 49.58%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.BenchmarkTUN
+         0     0% 97.05%       4317 16.82%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.BenchmarkTUN.func1
+         0     0% 97.05%       2250  8.76%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.benchmarkStack
+         0     0% 97.05%        220  0.86%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion.New
+         0     0% 97.05%        220  0.86%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion.init.func2
+         0     0% 97.05%        146  0.57%  github.com/prometheus/client_golang/prometheus.(*Registry).Register.func1
+         0     0% 97.05%        146  0.57%  github.com/prometheus/procfs.init
+         0     0% 97.05%        225  0.88%  io.ReadAtLeast
+         0     0% 97.05%        225  0.88%  io.ReadFull (inline)
+         0     0% 97.05%        361  1.41%  main.main
+         0     0% 97.05%        591  2.30%  net.(*netFD).connect
+         0     0% 97.05%        932  3.63%  net.(*netFD).dial
+         0     0% 97.05%       1078  4.20%  net.(*sysDialer).dialParallel
+         0     0% 97.05%       1078  4.20%  net.(*sysDialer).dialSerial
+         0     0% 97.05%        932  3.63%  net.(*sysDialer).dialSingle
+         0     0% 97.05%        932  3.63%  net.(*sysDialer).dialTCP
+         0     0% 97.05%        932  3.63%  net.(*sysDialer).doDialTCP (inline)
+         0     0% 97.05%        932  3.63%  net.(*sysDialer).doDialTCPProto
+         0     0% 97.05%        932  3.63%  net.internetSocket
+         0     0% 97.05%        932  3.63%  net.socket
+         0     0% 97.05%        341  1.33%  os.Create (inline)
+         0     0% 97.05%        341  1.33%  os.OpenFile
+         0     0% 97.05%        341  1.33%  os.ignoringEINTR (inline)
+         0     0% 97.05%        341  1.33%  os.open
+         0     0% 97.05%        341  1.33%  os.openFileNolog
+         0     0% 97.05%        341  1.33%  os.openFileNolog.func1 (inline)
+         0     0% 97.05%      10821 42.15%  regexp.Compile (inline)
+         0     0% 97.05%        146  0.57%  regexp.MustCompile
+         0     0% 97.05%       1536  5.98%  regexp.compileOnePass
+         0     0% 97.05%       1024  3.99%  regexp.onePassPrefix
+         0     0% 97.05%        687  2.68%  regexp/syntax.(*compiler).compile
+         0     0% 97.05%        205   0.8%  regexp/syntax.(*compiler).empty (inline)
+         0     0% 97.05%        482  1.88%  regexp/syntax.(*compiler).rune
+         0     0% 97.05%       1536  5.98%  regexp/syntax.(*parser).concat
+         0     0% 97.05%       1611  6.28%  regexp/syntax.(*parser).literal
+         0     0% 97.05%        146  0.57%  regexp/syntax.(*parser).op
+         0     0% 97.05%       1024  3.99%  regexp/syntax.(*parser).push
+         0     0% 97.05%       2124  8.27%  regexp/syntax.Compile
+         0     0% 97.05%       3678 14.33%  regexp/syntax.Parse (inline)
+         0     0% 97.05%        151  0.59%  runtime.doInit (inline)
+         0     0% 97.05%        151  0.59%  runtime.doInit1
+         0     0% 97.05%        512  1.99%  runtime.main
+         0     0% 97.05%        138  0.54%  runtime.malg
+         0     0% 97.05%        154   0.6%  runtime.newobject
+         0     0% 97.05%        138  0.54%  runtime.newproc.func1
+         0     0% 97.05%        138  0.54%  runtime.newproc1
+         0     0% 97.05%        138  0.54%  runtime.systemstack
+         0     0% 97.05%       2993 11.66%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0% 97.05%       2995 11.67%  runtime/pprof.(*profileBuilder).build
+         0     0% 97.05%        186  0.72%  runtime/pprof.newProfileBuilder
+         0     0% 97.05%       3185 12.41%  runtime/pprof.profileWriter
+         0     0% 97.05%       1024  3.99%  strings.(*Builder).WriteRune
+         0     0% 97.05%       4597 17.91%  sync.(*WaitGroup).Go.func1
+         0     0% 97.05%        341  1.33%  syscall.BytePtrFromString (inline)
+         0     0% 97.05%        512  1.99%  syscall.Getpeername
+         0     0% 97.05%        341  1.33%  syscall.Open (inline)
+         0     0% 97.05%        341  1.33%  syscall.openat
+         0     0% 97.05%      12729 49.58%  testing.(*B).Run
+         0     0% 97.05%      17046 66.40%  testing.(*B).run1.func1
+         0     0% 97.05%      17064 66.47%  testing.(*B).runN
+         0     0% 97.05%        361  1.41%  testing.(*M).Run
+         0     0% 97.05%        343  1.34%  testing.(*M).before
+         0     0% 97.05%      12729 49.58%  testing.(*matcher).fullName
+         0     0% 97.05%      10675 41.58%  testing.simpleMatch.matches
+         0     0% 97.05%      10675 41.58%  testing/internal/testdeps.TestDeps.MatchString

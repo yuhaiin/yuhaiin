@@ -1,0 +1,107 @@
+Total: 2288753
+ROUTINE ======================== github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).receive in /home/asutorufa/Documents/Programming/yuhaiin-lightweight-wireguard/pkg/net/proxy/tun/lightweight/tcp_recv.go
+   1483215    1484533 (flat, cum) 64.86% of Total
+         .          .      8:func (c *TCPConn) receive(seq uint32, data []byte, fin bool, now time.Time) {
+         .          .      9:	if c.recvFIN {
+         .          .     10:		c.sendACK()
+         .          .     11:		return
+         .          .     12:	}
+         .          .     13:	original := seq
+         .          .     14:	finSeq := seq + uint32(len(data))
+         .          .     15:	if before(seq, c.rcvNxt) {
+         .          .     16:		n := min(len(data), int(c.rcvNxt-seq))
+         .          .     17:		data = data[n:]
+         .          .     18:		seq += uint32(n)
+         .          .     19:	}
+         .          .     20:	if before(seq, c.rcvAdv) {
+         .          .     21:		data = data[:min(len(data), int(c.rcvAdv-seq))]
+         .          .     22:	} else {
+         .          .     23:		data = nil
+         .          .     24:	}
+         .          .     25:	if fin && (finSeq == c.rcvNxt || !before(finSeq, c.rcvNxt) && before(finSeq, c.rcvAdv)) {
+         .          .     26:		if !c.finPending || c.finSeq == finSeq {
+         .          .     27:			c.finPending = true
+         .          .     28:			c.finSeq = finSeq
+         .          .     29:		}
+         .          .     30:	}
+         .          .     31:	if c.finPending && after(seq+uint32(len(data)), c.finSeq) {
+         .          .     32:		if before(seq, c.finSeq) {
+         .          .     33:			data = data[:int(c.finSeq-seq)]
+         .          .     34:		} else {
+         .          .     35:			data = nil
+         .          .     36:		}
+         .          .     37:	}
+         .          .     38:	progressed := false
+         .          .     39:	if seq == c.rcvNxt && len(c.ooo) == 0 && len(data) > 0 {
+         .          .     40:		// Ordered traffic goes directly to the reader queue. Passing every
+         .          .     41:		// packet through an empty reordering slice allocates a piece per MSS.
+         .          .     42:		if c.rx.len() >= maxReceiveChunks {
+         .          .     43:			c.sendACK()
+         .          .     44:			return
+         .          .     45:		}
+         .          .     46:		if owner := c.receiveBuffer(data); owner != nil {
+         .          .     47:			c.deliverReceived(owner)
+         .          .     48:			progressed = true
+         .          .     49:		}
+         .          .     50:	} else {
+         .          .     51:		// First-arrival wins. Subtract existing intervals before allocating; malicious
+         .          .     52:		// overlaps and duplicates cannot multiply queue memory. The piece count and
+         .          .     53:		// byte budget independently bound metadata and payloads.
+         .          .     54:		additions := make([]receivePiece, 0, 4)
+         .          .     55:		cursor := seq
+         .          .     56:		end := seq + uint32(len(data))
+         .          .     57:		for _, v := range c.ooo {
+         .          .     58:			ve := v.seq + uint32(len(v.data))
+         .          .     59:			if !after(ve, cursor) {
+         .          .     60:				continue
+         .          .     61:			}
+         .          .     62:			if !before(v.seq, end) {
+         .          .     63:				break
+         .          .     64:			}
+         .          .     65:			if after(v.seq, cursor) {
+         .          .     66:				additions = append(additions, receivePiece{seq: cursor, data: data[int(cursor-seq):int(v.seq-seq)]})
+         .          .     67:			}
+         .          .     68:			if after(ve, cursor) {
+         .          .     69:				cursor = ve
+         .          .     70:			}
+         .          .     71:			if !before(cursor, end) {
+         .          .     72:				break
+         .          .     73:			}
+         .        998     74:		}
+         .          .     75:		if before(cursor, end) {
+         .          .     76:			additions = append(additions, receivePiece{seq: cursor, data: data[int(cursor-seq):]})
+         .          .     77:		}
+         .          .     78:		if len(additions)+len(c.ooo) > 128 && (len(additions) == 0 || additions[0].seq != c.rcvNxt) || len(additions)+len(c.ooo)+c.rx.len() > maxReceiveChunks {
+         .          .     79:			c.sendACK()
+         .          .     80:			return
+         .          .     81:		}
+         .          .     82:		for _, v := range additions {
+   1483215    1483215     83:			owner := c.receiveBuffer(v.data)
+         .          .     84:			if owner == nil {
+         .          .     85:				break
+         .          .     86:			}
+         .          .     87:			c.ooo = append(c.ooo, receivePiece{seq: v.seq, data: owner.data, owner: owner})
+         .          .     88:		}
+         .          .     89:		slices.SortFunc(c.ooo, func(a, b receivePiece) int {
+         .          .     90:			if before(a.seq, b.seq) {
+         .          .     91:				return -1
+         .          .     92:			}
+         .          .     93:			if a.seq == b.seq {
+         .          .     94:				return 0
+         .          .     95:			}
+         .          .     96:			return 1
+         .          .     97:		})
+         .          .     98:		for len(c.ooo) > 0 && c.ooo[0].seq == c.rcvNxt {
+         .          .     99:			v := c.ooo[0]
+         .          .    100:			c.ooo[0] = receivePiece{}
+         .          .    101:			c.ooo = c.ooo[1:]
+         .          .    102:			c.deliverReceived(v.owner)
+         .          .    103:			progressed = true
+         .          .    104:		}
+         .          .    105:		if len(c.ooo) == 0 {
+         .        320    106:			// An advanced empty slice can still retain a large reordering array,
+         .          .    107:			// after all of its per-piece charges have been released by the reader.
+         .          .    108:			c.ooo = nil
+         .          .    109:		}
+         .          .    110:	}
+         .          .    111:	if c.finPending && c.finSeq == c.rcvNxt {

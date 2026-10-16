@@ -1,5 +1,8 @@
 # BBR v3, recovery and packet ownership
 
+Newer upload-allocation and single-flow memory results are in
+[the WireGuard follow-up](lightweight-wireguard-followup.md).
+
 This report follows the historical [transport checkpoint](lightweight-optimization.md).
 The stack remains opt-in; neither legacy stack nor default selection is replaced.
 Raw measurements, including unsuccessful development runs, are in

@@ -58,6 +58,9 @@ func isIgnoreError(err error) ([]any, bool) {
 	if streamErr, ok := errors.AsType[*quic.StreamError](err); ok && streamErr.ErrorCode == 0 {
 		return nil, true
 	}
+	if errno, ok := errors.AsType[syscall.Errno](err); ok && ignoreSyscallErrno[errno] {
+		return nil, true
+	}
 
 	netOpErr, ok := errors.AsType[*net.OpError](err)
 	if !ok {

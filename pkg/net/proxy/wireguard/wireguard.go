@@ -29,12 +29,12 @@ import (
 
 type Wireguard struct {
 	netapi.EmptyDispatch
-	net    *NetTun
+	net    *LightweightNetTun
 	bind   *netBindClient
 	conf   Config
 	device *device.Device
 
-	happyDialer *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
+	happyDialer *dialer.HappyEyeballsv2Dialer[net.Conn]
 	once        sync.Once
 }
 
@@ -90,7 +90,7 @@ func NewClient(conf Config, p netapi.Proxy) (netapi.Proxy, error) {
 		return nil, err
 	}
 
-	tun, err := CreateNetTUN(endpoints, int(conf.MTU))
+	tun, err := CreateLightweightNetTUN(endpoints, int(conf.MTU))
 	if err != nil {
 		return nil, err
 	}
@@ -99,9 +99,9 @@ func NewClient(conf Config, p netapi.Proxy) (netapi.Proxy, error) {
 		conf: conf,
 		net:  tun,
 		bind: newNetBindClient(conf.Reserved),
-		happyDialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
+		happyDialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 			return tun.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
-		}, dialer.WithHappyEyeballsSemaphore[*gonet.TCPConn](semaphore.NewEmptySemaphore())),
+		}, dialer.WithHappyEyeballsSemaphore[net.Conn](semaphore.NewEmptySemaphore())),
 	}
 
 	return w, nil
@@ -151,7 +151,7 @@ func (w *Wireguard) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 		return nil, err
 	}
 
-	return NewWrapGoNetTcpConn(conn), nil
+	return conn, nil
 }
 
 func processErr(err error) {
@@ -201,14 +201,19 @@ func (w *Wireguard) Ping(ctx context.Context, addr netapi.Address) (uint64, erro
 	return 0, nil
 }
 
+type udpConn interface {
+	net.Conn
+	net.PacketConn
+}
+
 type wrapGoNetUdpConn struct {
-	*gonet.UDPConn
+	udpConn
 	ctx        context.Context
 	udpAddrMap syncmap.SyncMap[string, *net.UDPAddr]
 }
 
-func NewWrapGoNetUdpConn(ctx context.Context, conn *gonet.UDPConn) *wrapGoNetUdpConn {
-	return &wrapGoNetUdpConn{UDPConn: conn, ctx: ctx}
+func NewWrapGoNetUdpConn(ctx context.Context, conn udpConn) *wrapGoNetUdpConn {
+	return &wrapGoNetUdpConn{udpConn: conn, ctx: ctx}
 }
 
 func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
@@ -235,7 +240,7 @@ func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 		}
 	}
 
-	n, err := w.UDPConn.WriteTo(buf, udpAddr)
+	n, err := w.udpConn.WriteTo(buf, udpAddr)
 	if err != nil {
 		return n, err
 	}
@@ -244,13 +249,13 @@ func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 }
 
 func (w *wrapGoNetUdpConn) ReadFrom(buf []byte) (int, net.Addr, error) {
-	n, addr, err := w.UDPConn.ReadFrom(buf)
+	n, addr, err := w.udpConn.ReadFrom(buf)
 	processErr(err)
 	return n, addr, err
 }
 
 // creates a tun interface on netstack given a configuration
-func makeVirtualTun(h Config, bind *netBindClient, tun *NetTun) (*device.Device, error) {
+func makeVirtualTun(h Config, bind *netBindClient, tun *LightweightNetTun) (*device.Device, error) {
 	// dev := device.NewDevice(tun, conn.NewDefaultBind(), nil /* device.NewLogger(device.LogLevelVerbose, "") */)
 	dev := device.NewDevice(
 		tun,

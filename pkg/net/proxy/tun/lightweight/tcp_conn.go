@@ -16,6 +16,7 @@ const maxSendSegments = 16384
 const maxReceiveChunks = 8192
 
 type sendSegment struct {
+	cacheNext                *sendSegment
 	owner                    *ownedBuffer
 	deliveredBytes           uint32
 	retransmitEnd            uint32
@@ -52,8 +53,8 @@ type receivePiece struct {
 	data  []byte
 }
 
-// TCPConn serializes protocol state with mu. Application writes additionally
-// take writeMu; Close never takes writeMu and always interrupts a blocked Write.
+// TCPConn serializes protocol state with mu and application IO with readMu and
+// writeMu. Close never takes the IO locks and always interrupts blocked calls.
 // No callback retains caller-owned read/write buffers. Queued bytes belong to
 // this connection until consumed/ACKed, or until finish releases them.
 type TCPConn struct {
@@ -64,8 +65,9 @@ type TCPConn struct {
 	outputReady                                              atomic.Bool
 	stack                                                    *Stack
 	key                                                      flowKey
-	mu, writeMu                                              sync.Mutex
-	changed, writeChanged                                    chan struct{}
+	mu, readMu, writeMu                                      sync.Mutex
+	changed, readChanged, writeChanged                       chan struct{}
+	readWaiting, writeWaiting                                bool
 	state                                                    TCPState
 	listener                                                 *TCPListener
 	controller                                               congestion.Controller
@@ -165,6 +167,8 @@ func (c *TCPConn) Read(b []byte) (int, error) {
 // ReadWithBuffer structurally implements netapi.BufferReader without importing
 // netapi. The caller's allocator is invoked only when data is ready.
 func (c *TCPConn) ReadWithBuffer(get func() []byte) ([]byte, error) {
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for {
@@ -221,10 +225,7 @@ func (c *TCPConn) ReadWithBuffer(get func() []byte) ([]byte, error) {
 		if c.state == Closed {
 			return nil, c.errorLocked()
 		}
-		ch, at := watch(&c.changed), c.readDeadline
-		c.mu.Unlock()
-		err := waitSocket(ch, c.stack.done, at)
-		c.mu.Lock()
+		err := c.waitIO(false)
 		if err != nil {
 			return nil, err
 		}
@@ -250,10 +251,7 @@ func (c *TCPConn) Write(b []byte) (int, error) {
 		}
 		available := c.stack.config.SendBuffer - c.txBytes
 		if available <= 0 || c.tx.len() >= maxSendSegments {
-			ch, at := watch(&c.writeChanged), c.writeDeadline
-			c.mu.Unlock()
-			err := waitSocket(ch, c.stack.done, at)
-			c.mu.Lock()
+			err := c.waitIO(true)
 			if err != nil {
 				return written, err
 			}
@@ -356,14 +354,14 @@ func (c *TCPConn) SetReadDeadline(t time.Time) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.readDeadline = t
-	notify(&c.changed)
+	c.notifyRead()
 	return nil
 }
 func (c *TCPConn) SetWriteDeadline(t time.Time) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.writeDeadline = t
-	notify(&c.writeChanged)
+	c.notifyWrite()
 	return nil
 }
 func (c *TCPConn) enqueueControl(flags uint8) {
@@ -377,6 +375,57 @@ func (c *TCPConn) enqueueControl(flags uint8) {
 // State and close changes interrupt both directions. Data and ACK progress
 // notify their own direction so a stream of ACKs cannot churn a blocked reader.
 func (c *TCPConn) notifyAll() {
+	c.notifyRead()
+	c.notifyWrite()
+}
+
+// waitIO shares the connection's scheduler job for socket deadlines. Each
+// direction serializes application IO, so one persistent notification channel
+// suffices. The state check and waiter registration both hold mu.
+func (c *TCPConn) waitIO(write bool) error {
+	var ch <-chan struct{}
+	if write {
+		if c.writeChanged == nil {
+			c.writeChanged = make(chan struct{}, 1)
+		}
+		ch = c.writeChanged
+		c.writeWaiting = true
+	} else {
+		if c.readChanged == nil {
+			c.readChanged = make(chan struct{}, 1)
+		}
+		ch = c.readChanged
+		c.readWaiting = true
+	}
+	c.schedule(time.Now())
+	c.mu.Unlock()
+	err := waitSocket(ch, c.stack.done, time.Time{})
+	c.mu.Lock()
+	if write {
+		c.writeWaiting = false
+	} else {
+		c.readWaiting = false
+	}
+	return err
+}
+
+func (c *TCPConn) notifyRead() {
+	// Handshake observers use broadcast channels until DialContextTCP returns.
 	notify(&c.changed)
-	notify(&c.writeChanged)
+	if c.readWaiting {
+		c.readWaiting = false
+		signal(c.readChanged)
+	}
+}
+func (c *TCPConn) notifyWrite() {
+	if c.writeWaiting {
+		c.writeWaiting = false
+		signal(c.writeChanged)
+	}
+}
+func signal(ch chan struct{}) {
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
 }
