@@ -3,20 +3,16 @@ package trie
 import (
 	crand "crypto/rand"
 	"net"
-	"os"
 	"slices"
 	"strconv"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 func TestTrie(t *testing.T) {
-	cache, _ := pebble.New("test.db")
-	defer os.RemoveAll("test.db")
-	defer cache.Close()
-	trie := NewTrie[string](WithPebble(cache))
+	trie := NewTrie[string]()
+	defer trie.Close()
 
 	// Insert rules
 	trie.Insert("*.google.com", "google")
@@ -96,12 +92,8 @@ func BenchmarkTrie(b *testing.B) {
 		rules = append(rules, addr.String()) // Add to rules to ensure they are inserted in pre-fill
 	}
 
-	cache, _ := pebble.New("test.db")
-	defer os.RemoveAll("test.db")
-	defer cache.Close()
-
 	b.Run("Insert", func(b *testing.B) {
-		trie := NewTrie[string](WithPebble(cache))
+		trie := NewTrie[string]()
 		b.ResetTimer()
 		for i := 0; b.Loop(); i++ {
 			trie.Insert(rules[i%len(rules)], "benchmark")
@@ -109,7 +101,7 @@ func BenchmarkTrie(b *testing.B) {
 	})
 
 	b.Run("Search", func(b *testing.B) {
-		trie := NewTrie[string](WithPebble(cache))
+		trie := NewTrie[string]()
 		for _, r := range rules {
 			trie.Insert(r, "benchmark")
 		}

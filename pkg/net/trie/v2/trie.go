@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/cidr"
 	diskcidr "github.com/Asutorufa/yuhaiin/pkg/net/trie/v2/cidr/disk"
@@ -173,7 +172,6 @@ func (x *Trie[T]) Close() error {
 
 type Options[T comparable] struct {
 	Codec    codec.Codec[T]
-	Pebble   *pebble.Cache
 	Mmap     string
 	MmapCIDR string
 }
@@ -181,12 +179,6 @@ type Options[T comparable] struct {
 func WithCodec[T comparable](codec codec.Codec[T]) func(*Options[T]) {
 	return func(o *Options[T]) {
 		o.Codec = codec
-	}
-}
-
-func WithPebble(cache *pebble.Cache) func(*Options[string]) {
-	return func(o *Options[string]) {
-		o.Pebble = cache
 	}
 }
 
@@ -206,7 +198,7 @@ func WithMmapCIDR(path string) func(*Options[string]) {
 }
 
 // NewTrie create a new trie
-// if cache is nil, use memory trie
+// If no mmap backend is configured, use the in-memory domain trie.
 func NewTrie[T comparable](opts ...func(*Options[T])) *Trie[T] {
 	opt := Options[T]{Codec: codec.GobCodec[T]{}}
 	for _, o := range opts {
@@ -230,11 +222,7 @@ func NewTrie[T comparable](opts ...func(*Options[T])) *Trie[T] {
 		}
 	}
 
-	if opt.Pebble != nil {
-		dt = domain.NewDiskFqdn(domain.NewDiskPebbleTrie(opt.Pebble, opt.Codec))
-	} else {
-		dt = domain.NewTrie[T]()
-	}
+	dt = domain.NewTrie[T]()
 
 	return &Trie[T]{
 		cidr:   cm,

@@ -5,13 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache"
 	legacymigrate "github.com/Asutorufa/yuhaiin/pkg/legacy/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -116,33 +114,6 @@ func vacuumStateOnStartup(ctx context.Context, db *sql.DB) error {
 		log.Info("vacuum state database on startup")
 	}
 	return nil
-}
-
-// MigrateLegacyPebble completes the second startup migration phase after the
-// old Pebble cache has been opened but before any runtime store uses it.
-func (s *StateDB) MigrateLegacyPebble(ctx context.Context, legacy cache.Cache, ipv4, ipv6 netip.Prefix) error {
-	if s == nil || s.inner == nil {
-		return errors.New("state db is nil")
-	}
-	db, err := s.inner.SQLDB(ctx)
-	if err != nil {
-		return err
-	}
-	if err := legacymigrate.MigrateLegacyPebble(ctx, db, legacy, ipv4, ipv6); err != nil {
-		return fmt.Errorf("migrate legacy pebble state: %w", err)
-	}
-	return nil
-}
-
-func (s *StateDB) LegacyPebbleMigrationDone(ctx context.Context) (bool, error) {
-	if s == nil || s.inner == nil {
-		return false, errors.New("state db is nil")
-	}
-	db, err := s.inner.SQLDB(ctx)
-	if err != nil {
-		return false, err
-	}
-	return legacymigrate.LegacyPebbleMigrationDone(ctx, db)
 }
 
 func (s *StateDB) backupIfNeeded(ctx context.Context) error {

@@ -2,6 +2,8 @@
 
 ## Background
 
+> Historical design note: the SQLite rollout is complete. The former Pebble-backed caches, migration path and temporary trie backend have been removed.
+
 Today the persistent state is split across JSON files and ad-hoc local stores:
 
 - `config.json`
@@ -13,7 +15,6 @@ Today the persistent state is split across JSON files and ad-hoc local stores:
 - Android keeps additional JSON-backed key/value stores in `cmd/android/store.go`
   - `yuhaiin_memory_store.json` stores app-level preferences and runtime-facing toggles
   - `yuhaiin_memory_config_store.json` stores protobuf payload bytes for Android config domains today
-- Pebble is already used for caches and high-churn data such as connection statistics/history, fakeip disk cache, and temporary trie state
 
 This works, but it keeps application state in large mutable protobuf objects even when the application only needs one small slice of data. A lot of business logic is currently expressed as:
 
@@ -41,7 +42,6 @@ The goal of this redesign is not "store JSON inside SQLite". The goal is to make
 - Reduce "load everything, mutate everything, save everything" code paths.
 - Make writes transactional and migration-safe.
 - Unify Android and non-Android persistent state around the same schema and storage layer.
-- Keep Pebble only for data that is still better modeled as cache/stateful storage rather than relational data.
 
 ### Secondary goals
 
@@ -51,7 +51,6 @@ The goal of this redesign is not "store JSON inside SQLite". The goal is to make
 
 ### Non-goals
 
-- Replacing fakeip and trie temp caches in the first phase.
 - Eliminating all runtime memory indexes. Some runtime structures should remain in memory for performance or side effects.
 - Fully normalizing every protobuf field into individual SQL columns. Over-normalization would make the schema brittle and tedious to evolve.
 
@@ -146,7 +145,6 @@ Android also uses the same `state.db` file as the source of truth instead of:
 
 Keep existing non-relational stores as-is for now:
 
-- `pebble_cache/`
 - temporary trie databases
 - logs
 - lock file
