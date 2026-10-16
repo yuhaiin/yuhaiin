@@ -16,6 +16,8 @@ var (
 	AdvRouteNonChn                          = `Non-Chinese IPs`
 	AdvRouteNonLocal                        = `Non-Local IPs`
 	AdvTunDriverKey                         = `Tun Driver`
+	AdvTunStackKey                          = `android_tun_stack`
+	AdvTunCongestionControlKey              = `android_tun_congestion_control`
 	AdvUDPIdleProfileKey                    = `udp_idle_profile`
 	AdvVPNMTUProfileKey                     = `vpn_mtu_profile`
 	AllowLanKey                             = `allow_lan`
