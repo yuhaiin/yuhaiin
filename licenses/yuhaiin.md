@@ -66,7 +66,6 @@ Some packages may only be included on certain architectures or operating systems
 - [github.com/oschwald/maxminddb-golang/v2](https://pkg.go.dev/github.com/oschwald/maxminddb-golang/v2) ([ISC](https://github.com/oschwald/maxminddb-golang/blob/v2.8.0/LICENSE))
 - [github.com/pires/go-proxyproto](https://pkg.go.dev/github.com/pires/go-proxyproto) ([Apache-2.0](https://github.com/pires/go-proxyproto/blob/v0.15.0/LICENSE))
 - [github.com/pkg/errors](https://pkg.go.dev/github.com/pkg/errors) ([BSD-2-Clause](https://github.com/pkg/errors/blob/v0.9.1/LICENSE))
-- [github.com/prometheus-community/pro-bing](https://pkg.go.dev/github.com/prometheus-community/pro-bing) ([MIT](https://github.com/Asutorufa/pro-bing/blob/626d07c0d4ca/LICENSE))
 - [github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil](https://pkg.go.dev/github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil) ([BSD-3-Clause](https://github.com/prometheus/client_golang/blob/v1.25.0/internal/github.com/golang/gddo/LICENSE))
 - [github.com/prometheus/client_golang/prometheus](https://pkg.go.dev/github.com/prometheus/client_golang/prometheus) ([Apache-2.0](https://github.com/prometheus/client_golang/blob/v1.25.0/LICENSE))
 - [github.com/prometheus/client_model/go](https://pkg.go.dev/github.com/prometheus/client_model/go) ([Apache-2.0](https://github.com/prometheus/client_model/blob/v0.6.3/LICENSE))
