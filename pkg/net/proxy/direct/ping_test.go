@@ -196,7 +196,7 @@ func (c *fakeICMPConn) Close() error {
 	}
 	return nil
 }
-func (c *fakeICMPConn) LocalAddr() net.Addr                { return c.target }
-func (c *fakeICMPConn) SetDeadline(time.Time) error       { return nil }
-func (c *fakeICMPConn) SetReadDeadline(time.Time) error   { return nil }
-func (c *fakeICMPConn) SetWriteDeadline(time.Time) error  { return nil }
+func (c *fakeICMPConn) LocalAddr() net.Addr              { return c.target }
+func (c *fakeICMPConn) SetDeadline(time.Time) error      { return nil }
+func (c *fakeICMPConn) SetReadDeadline(time.Time) error  { return nil }
+func (c *fakeICMPConn) SetWriteDeadline(time.Time) error { return nil }
