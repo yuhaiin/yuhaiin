@@ -186,3 +186,131 @@ func TestTCPResetChallengeAndDeadlines(t *testing.T) {
 		}
 	})
 }
+
+func TestTCPSACKRepairsMultipleHolesInOneFlight(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		_, c, peer, seq := passiveWire(t, 100, 10000, "reno")
+		if _, err := c.Write(make([]byte, 8*1460)); err != nil {
+			t.Fatal(err)
+		}
+		for range 8 {
+			_ = peerPacket(t, peer)
+		}
+		sack := make([]byte, 28)
+		sack[0], sack[1], sack[2], sack[3] = 1, 1, 5, 26
+		for i, block := range [][2]int{{1, 2}, {3, 4}, {5, 8}} {
+			binary.BigEndian.PutUint32(sack[4+8*i:], seq+uint32(block[0]*1460))
+			binary.BigEndian.PutUint32(sack[8+8*i:], seq+uint32(block[1]*1460))
+		}
+		now := time.Now()
+		for range 3 {
+			_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq, flagACK, 10000, sack, nil))
+			synctest.Wait()
+		}
+		for _, index := range []int{0, 2, 4} {
+			p := peerPacket(t, peer)
+			if binary.BigEndian.Uint32(p.Payload[4:8]) != seq+uint32(index*1460) || !time.Now().Equal(now) {
+				t.Fatal("SACK recovery serialized each loss behind another RTT/RTO")
+			}
+		}
+	})
+}
+
+func TestTCPSACKRenegingRepairsRemainderWithoutAnotherRTO(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		_, c, peer, seq := passiveWire(t, 100, 10000, "reno")
+		if _, err := c.Write(make([]byte, 3*1460)); err != nil {
+			t.Fatal(err)
+		}
+		for range 3 {
+			_ = peerPacket(t, peer)
+		}
+		sack := []byte{1, 1, 5, 10, 0, 0, 0, 0, 0, 0, 0, 0}
+		binary.BigEndian.PutUint32(sack[4:8], seq+1460)
+		binary.BigEndian.PutUint32(sack[8:12], seq+3*1460)
+		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq, flagACK, 10000, sack, nil))
+		synctest.Wait()
+		time.Sleep(time.Second)
+		_ = peerPacket(t, peer) // RTO retries the original cumulative hole.
+		now := time.Now()
+		// This ACK stops at data previously SACKed: the receiver has discarded it.
+		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq+1460, flagACK, 10000, nil, nil))
+		for _, index := range []int{1, 2} {
+			p := peerPacket(t, peer)
+			if binary.BigEndian.Uint32(p.Payload[4:8]) != seq+uint32(index*1460) || time.Since(now) < 10*time.Millisecond || time.Since(now) >= time.Second {
+				t.Fatal("SACK reneging did not repair the flight after a short ACK-reordering grace")
+			}
+		}
+		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq+3*1460, flagACK, 10000, nil, nil))
+		synctest.Wait()
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if c.tx.len() != 0 || c.flight() != 0 || c.delivered != 1+3*1460 {
+			t.Fatal("reneging corrupted flight or double-counted delivery")
+		}
+	})
+}
+
+func TestTCPSACKRepairsLostReplacementWithNewEvidence(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s, c, peer, seq := passiveWire(t, 100, 10000, "reno")
+		if _, err := c.Write(make([]byte, 16*1460)); err != nil {
+			t.Fatal(err)
+		}
+		for range 10 {
+			_ = peerPacket(t, peer)
+		}
+		sack := []byte{1, 1, 5, 10, 0, 0, 0, 0, 0, 0, 0, 0}
+		binary.BigEndian.PutUint32(sack[4:8], seq+1460)
+		binary.BigEndian.PutUint32(sack[8:12], seq+10*1460)
+		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq, flagACK, 10000, sack, nil))
+		_ = peerPacket(t, peer) // First repair is lost too.
+		for received := 0; received < 6*1460; {
+			p := peerPacket(t, peer)
+			if binary.BigEndian.Uint32(p.Payload[4:8]) != seq+10*1460+uint32(received) {
+				t.Fatal("unexpected new-data sequence during recovery")
+			}
+			received += len(p.Payload) - int(p.Payload[12]>>4)*4
+		}
+		now := time.Now()
+		binary.BigEndian.PutUint32(sack[8:12], seq+16*1460)
+		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq, flagACK, 10000, sack, nil))
+		repair := peerPacket(t, peer)
+		if !time.Now().Equal(now) || binary.BigEndian.Uint32(repair.Payload[4:8]) != seq || s.Stats().Retransmissions != 2 {
+			t.Fatal("new SACK evidence did not repair a lost retransmission before RTO")
+		}
+		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq+16*1460, flagACK, 10000, nil, nil))
+		synctest.Wait()
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if c.flight() != 0 || c.tx.len() != 0 || c.delivered != 1+16*1460 {
+			t.Fatal("repaired replacement corrupted delivery accounting")
+		}
+	})
+}
+
+func TestReorderedACKDoesNotDeclareSACKReneging(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s, c, peer, seq := passiveWire(t, 100, 10000, "reno")
+		if _, err := c.Write(make([]byte, 3*1460)); err != nil {
+			t.Fatal(err)
+		}
+		for range 3 {
+			_ = peerPacket(t, peer)
+		}
+		sack := []byte{1, 1, 5, 10, 0, 0, 0, 0, 0, 0, 0, 0}
+		binary.BigEndian.PutUint32(sack[4:8], seq+1460)
+		binary.BigEndian.PutUint32(sack[8:12], seq+3*1460)
+		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq, flagACK, 10000, sack, nil))
+		// This advancing ACK was generated before the SACK above, but reordered.
+		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq+1460, flagACK, 10000, nil, nil))
+		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq+3*1460, flagACK, 10000, nil, nil))
+		synctest.Wait()
+		time.Sleep(20 * time.Millisecond)
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if c.lost != 0 || s.Stats().Retransmissions != 0 || c.flight() != 0 {
+			t.Fatal("reordered cumulative ACK caused spurious SACK-reneging recovery")
+		}
+	})
+}

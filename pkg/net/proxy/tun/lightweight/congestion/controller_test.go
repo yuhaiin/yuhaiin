@@ -85,10 +85,11 @@ func TestBBRBandwidthModesAndAppLimited(t *testing.T) {
 	c := x.(*bbr)
 	start := time.Unix(100, 0)
 	delivered := uint64(0)
+	flight := uint64(50000)
 	ack := func(now time.Time, rate uint64, limited bool, rtt time.Duration) {
 		old := delivered
 		delivered += 10000
-		c.OnAck(AckEvent{Now: now, AckedBytes: 10000, PriorDelivered: old, Delivered: delivered, DeliveryRate: rate, RTT: rtt, BytesInFlight: 1000, AppLimited: limited})
+		c.OnAck(AckEvent{Now: now, AckedBytes: 10000, PriorDelivered: old, Delivered: delivered, DeliveryRate: rate, RTT: rtt, BytesInFlight: flight, AppLimited: limited})
 	}
 	for i := range 4 {
 		ack(start.Add(time.Duration(i)*100*time.Millisecond), 100000, false, 100*time.Millisecond)
@@ -96,20 +97,21 @@ func TestBBRBandwidthModesAndAppLimited(t *testing.T) {
 	if c.mode != Drain {
 		t.Fatalf("startup exit: %+v", c.Snapshot())
 	}
+	flight = 1000
 	ack(start.Add(time.Second), 100000, false, 110*time.Millisecond)
 	if c.mode != ProbeBW {
 		t.Fatal("drain did not drain")
 	}
-	bw := c.bw
+	bw := c.bandwidth()
 	ack(start.Add(2*time.Second), 1, true, 110*time.Millisecond)
-	if c.bw != bw {
+	if c.bandwidth() != bw {
 		t.Fatal("app limited sample polluted max bandwidth")
 	}
 	if c.rate == 0 || c.minRTT != 100*time.Millisecond {
 		t.Fatal("missing pacing or minimum RTT")
 	}
 	ack(start.Add(11*time.Second), 100000, false, 120*time.Millisecond)
-	if c.mode != ProbeRTT || c.window != 4000 {
+	if c.mode != ProbeRTT || c.window != c.probeWindow() {
 		t.Fatalf("probe RTT: %+v", c.Snapshot())
 	}
 	ack(start.Add(12*time.Second), 100000, false, 100*time.Millisecond)

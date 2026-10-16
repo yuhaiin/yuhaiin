@@ -4,10 +4,75 @@ import (
 	"bytes"
 	"errors"
 	"net"
+	"reflect"
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
 )
+
+func TestFixedMetadataCharges(t *testing.T) {
+	if reflect.TypeFor[ownedBuffer]().Size() > bufferCharge {
+		t.Fatal("buffer descriptor exceeds its memory charge")
+	}
+	for _, algorithm := range []string{"reno", "cubic", "bbr"} {
+		controller, err := congestion.New(algorithm, congestion.Config{MSS: 1460})
+		if err != nil {
+			t.Fatal(err)
+		}
+		footprint := reflect.TypeFor[TCPConn]().Size() + reflect.TypeOf(controller).Elem().Size() +
+			64*(reflect.TypeFor[*sendSegment]().Size()+reflect.TypeFor[receiveChunk]().Size())
+		if footprint > connectionCharge {
+			t.Fatalf("%s connection and retained queues need %d bytes, charge %d", algorithm, footprint, connectionCharge)
+		}
+	}
+}
+
+func TestSendDescriptorOwnershipAndBudget(t *testing.T) {
+	if reflect.TypeFor[sendSegment]().Size() > segmentCharge {
+		t.Fatal("descriptor exceeds retained-memory charge")
+	}
+	link, _ := memoryPair()
+	s, err := New(Config{MemoryLimit: 1 << 20}, link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	owner, err := s.buffers.get(1000)
+	if err != nil || !s.reserve(segmentCharge) {
+		t.Fatalf("reserve descriptor: %v", err)
+	}
+	v := s.buffers.takeSegment()
+	*v = sendSegment{owner: owner, data: owner.data, sacked: true, lossReported: true, transmissions: 2, delivered: 100}
+	cost := owner.cost + segmentCharge
+	s.buffers.releaseSegment(v)
+	if s.Stats().MemoryBytes != int64(cost) || s.Stats().CachedBytes != int64(cost) {
+		t.Fatalf("cache hid or doubled retained bytes: %+v", s.Stats())
+	}
+	if !s.reserve(segmentCharge) {
+		t.Fatal("reserve replacement")
+	}
+	again := s.buffers.takeSegment()
+	if again != v || !reflect.ValueOf(*again).IsZero() {
+		t.Fatal("descriptor was not cleared before reuse")
+	}
+	// Give the checked-out descriptor its own payload ownership before return.
+	owner, err = s.buffers.get(1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	*again = sendSegment{owner: owner, data: owner.data}
+	s.buffers.releaseSegment(again)
+	if !s.reserve((1 << 20) - 100) {
+		t.Fatal("cached metadata prevented memory-pressure reclamation")
+	}
+	s.release((1 << 20) - 100)
+	_ = s.Close()
+	if s.Stats().MemoryBytes != 0 || s.Stats().CachedBytes != 0 {
+		t.Fatal("descriptor cache survived close")
+	}
+}
 
 func TestBufferOwnershipAndPressure(t *testing.T) {
 	link, _ := memoryPair()
@@ -84,6 +149,16 @@ func TestBufferCacheIdleReclamation(t *testing.T) {
 			t.Fatal(err)
 		}
 		b.release()
+		if !s.reserve(segmentCharge) {
+			t.Fatal("reserve metadata")
+		}
+		v := s.buffers.takeSegment()
+		b, err = s.buffers.get(100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		*v = sendSegment{owner: b, data: b.data}
+		s.buffers.releaseSegment(v)
 		if s.Stats().CachedBytes == 0 {
 			t.Fatal("released buffer was not cached")
 		}

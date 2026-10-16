@@ -75,12 +75,15 @@ func (p *packetIO) WritePacket(b []byte) error {
 	p.writeBuffers[0] = data
 	n, err := p.device.Write(p.writeBuffers[:])
 	p.writeBuffers[0] = nil
+	// Native batch writers can report an accepted prefix plus an error. Our
+	// one packet is complete when n==1; surfacing that trailing error would
+	// make the stack retry an already accepted datagram.
+	if n == 1 {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
-	if n != 1 {
-		return io.ErrShortWrite
-	}
-	return nil
+	return io.ErrShortWrite
 }
 func (p *packetIO) Close() error { return p.device.Close() }

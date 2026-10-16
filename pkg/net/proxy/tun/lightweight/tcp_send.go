@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
+	"sort"
 	"time"
 )
 
@@ -142,7 +143,7 @@ func (c *TCPConn) setSACK(v *sendSegment, sacked bool) {
 	if v.sacked == sacked {
 		return
 	}
-	if v.transmissions > 0 {
+	if v.transmissions > 0 && !v.lossReported {
 		if sacked {
 			c.bytesInFlight -= uint64(v.length())
 		} else {
@@ -150,25 +151,53 @@ func (c *TCPConn) setSACK(v *sendSegment, sacked bool) {
 		}
 	}
 	v.sacked = sacked
+	if sacked {
+		v.lossReported = false
+		v.resend = false
+	}
 }
 func (c *TCPConn) transmit(v *sendSegment, now time.Time, retrans bool) bool {
 	if !c.output(v.seq, v.flags, v.data) {
 		return false
 	}
-	if v.transmissions == 0 {
-		if c.sndUna == c.sndNxt {
-			c.firstFlight = now
-			c.deliveredAt = now
+	newTransmission := v.transmissions == 0
+	restoring := !newTransmission && v.lossReported && !v.sacked
+	idle := newTransmission && c.sndUna == c.sndNxt
+	if idle {
+		c.firstFlight = now
+		c.deliveredAt = now
+	}
+	intentionalLimit := false
+	if limiter, ok := c.controller.(congestion.RateSampleLimiter); ok {
+		intentionalLimit = limiter.RateSampleLimited()
+	}
+	if intentionalLimit || newTransmission && len(v.data) > 0 && !c.writePending && v.seq+v.length() == c.sndEnd && c.flight() < c.controller.CongestionWindow() {
+		outstanding := uint64(c.sndEnd - (c.iss + uint32(c.delivered)))
+		pending := c.flight()
+		if newTransmission {
+			pending += uint64(v.length())
 		}
+		c.appLimitedUntil = max(c.delivered+min(pending, outstanding), 1)
+	}
+	v.delivered = c.delivered
+	v.deliveredAt = c.deliveredAt
+	v.firstFlight = c.firstFlight
+	v.lostAtSend = c.lost
+	v.txInFlight = c.flight()
+	if newTransmission || restoring {
+		v.txInFlight += uint64(v.length())
+	}
+	if newTransmission {
 		v.firstSent = now
-		v.delivered = c.delivered
-		v.deliveredAt = c.deliveredAt
-		v.firstFlight = c.firstFlight
-		// A large cwnd alone does not imply application limitation. A paced
-		// sender can have a full write backlog while using only a small flight.
-		v.appLimited = v.seq+v.length() == c.sndEnd && c.flight() < c.controller.CongestionWindow()
-		c.controller.OnPacketSent(congestion.SentPacket{Now: now, Bytes: uint64(v.length()), BytesInFlight: c.flight(), Delivered: c.delivered, AppLimited: v.appLimited})
+	}
+	v.appLimited = c.appLimitedUntil > 0
+	c.controller.OnPacketSent(congestion.SentPacket{Now: now, Bytes: uint64(v.length()), BytesInFlight: c.flight(), Delivered: c.delivered, AppLimited: v.appLimited, IdleRestart: idle, Retransmission: retrans})
+	if newTransmission || restoring {
 		c.bytesInFlight += uint64(v.length())
+	}
+	v.lossReported = false
+	if retrans {
+		v.retransmitEnd = c.sndNxt
 	}
 	v.sent = now
 	v.resend = false
@@ -177,6 +206,14 @@ func (c *TCPConn) transmit(v *sendSegment, now time.Time, retrans bool) bool {
 		c.stack.retransmissions.Add(1)
 	} else {
 		c.sndNxt = v.seq + v.length()
+	}
+	// A byte cwnd need not be an MSS multiple. If the next packet does not
+	// fit, the sender is cwnd limited even though flight is slightly below cwnd.
+	if before(c.sndNxt, c.sndEnd) {
+		next := min(c.mss, int(c.sndEnd-c.sndNxt))
+		if c.flight()+uint64(next) > c.controller.CongestionWindow() {
+			c.cwndLimited = true
+		}
 	}
 	rate := c.controller.PacingRate()
 	if rate > 0 {
@@ -195,7 +232,7 @@ func pacingDeadline(now, previous time.Time, bytes uint32, rate uint64) time.Tim
 	// budget independently bound a catch-up burst. Idle time cannot accumulate.
 	base := now
 	if !previous.IsZero() {
-		base = maxTime(now.Add(-time.Millisecond), previous)
+		base = maxTime(now.Add(-congestion.DefaultPacingQuantum), previous)
 	}
 	return base.Add(max(spacing, time.Nanosecond))
 }
@@ -211,9 +248,12 @@ func (c *TCPConn) pump(now time.Time) {
 		return
 	}
 	sent := 0
-	for i := 0; i < c.tx.len() && sent < 64; i++ {
+	for i := 0; i < c.tx.len() && sent < congestion.DefaultMaxBurstPackets; i++ {
 		v := c.tx.values()[i]
-		if v.resend {
+		if v.resend || v.lossReported {
+			if v.lossReported && c.flight()+uint64(v.length()) > c.controller.CongestionWindow() {
+				break
+			}
 			// PMTU replacements reuse already admitted sequence space. They do not
 			// consume a new congestion/window allowance or advance sndNxt.
 			if !c.paceAt.IsZero() && now.Before(c.paceAt) {
@@ -261,7 +301,8 @@ func (c *TCPConn) pump(now time.Time) {
 					return
 				}
 				v.owner.hold()
-				tail := &sendSegment{seq: v.seq + uint32(n), flags: v.flags, data: v.data[n:], owner: v.owner}
+				tail := c.stack.buffers.takeSegment()
+				*tail = sendSegment{seq: v.seq + uint32(n), flags: v.flags, data: v.data[n:], owner: v.owner}
 				v.data = v.data[:n]
 				c.tx.insert(i+1, tail)
 			}
@@ -280,10 +321,38 @@ func (c *TCPConn) pump(now time.Time) {
 	c.schedule(now)
 }
 
+// Transmissions always form a prefix. Do not scan megabytes of queued,
+// untransmitted application data for every SACK at a remote bottleneck.
+func (c *TCPConn) sentSegments() []*sendSegment {
+	values := c.tx.values()
+	n := sort.Search(len(values), func(i int) bool { return values[i].transmissions == 0 })
+	return values[:n]
+}
+
+// deliverySample keeps a value snapshot: ACK processing can release or mutate
+// the source descriptor before the controller consumes its timing information.
+type deliverySample struct {
+	segment sendSegment
+	valid   bool
+	bytes   uint64
+}
+
+func (s *deliverySample) credit(v *sendSegment, n uint32) {
+	fresh := n - min(n, v.deliveredBytes)
+	if fresh == 0 {
+		return
+	}
+	s.bytes += uint64(fresh)
+	if !s.valid || !v.sent.Before(s.segment.sent) {
+		s.segment = *v
+		s.valid = true
+	}
+}
 func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, pure bool) {
 	if before(ack, c.sndUna) || after(ack, c.sndNxt) {
 		return
 	}
+	priorFlight := c.flight()
 	oldWindow := c.peerWindow
 	if c.state != SynSent && c.peerScale > 0 {
 		wnd <<= c.peerScale
@@ -293,9 +362,8 @@ func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, 
 		c.sndWL1 = seq
 		c.sndWL2 = ack
 	}
-	// Validate the entire SACK option before using any block. SACK never frees
-	// retransmission memory; only a cumulative ACK can do that (RFC 2018).
-	validSACK := c.sack
+	var sample deliverySample
+	validSACK := c.sack && o.count > 0
 	for i := range o.count {
 		b := o.blocks[i]
 		if !before(b.start, b.end) || before(b.start, ack) || after(b.end, c.sndNxt) {
@@ -303,116 +371,163 @@ func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, 
 		}
 	}
 	if validSACK {
-		for _, v := range c.tx.values() {
-			if v.transmissions == 0 {
-				continue
-			}
+		for _, v := range c.sentSegments() {
 			for i := range o.count {
 				b := o.blocks[i]
 				if !before(v.seq, b.start) && !after(v.seq+v.length(), b.end) {
+					sample.credit(v, v.length())
+					v.deliveredBytes = v.length()
 					c.setSACK(v, true)
+					break
 				}
 			}
 		}
 	}
-	if ack == c.sndUna {
-		if pure && wnd == oldWindow && c.sndUna != c.sndNxt {
-			c.dupACKs++
-			if c.dupACKs == 3 && !c.recovering {
-				c.recovering = true
-				c.recover = c.sndNxt
-				c.controller.OnLoss(congestion.LossEvent{Now: now, BytesInFlight: uint64(c.sndNxt - c.sndUna), LostBytes: uint64(c.mss)})
-				c.retransmit(now)
-			} else if c.recovering {
-				c.controller.OnAck(congestion.AckEvent{Now: now, InRecovery: true})
-			}
-		}
-		return
-	}
 	acked := uint64(ack - c.sndUna)
-	c.sndUna = ack
-	c.dupACKs = 0
-	c.retries = 0
-	var sample sendSegment
-	haveSample := false
-	ambiguous := false
 	rtt := time.Duration(0)
-	released := 0
-	for c.tx.len() > 0 {
-		v := c.tx.values()[0]
-		if v.transmissions == 0 || !after(ack, v.seq) {
-			break
-		}
-		if v.transmissions == 1 {
-			sample = *v
-			haveSample = true
-			rtt = now.Sub(v.firstSent)
-		} else {
-			ambiguous = true
-		}
-		if !before(ack, v.seq+v.length()) {
-			if !v.sacked {
-				c.bytesInFlight -= uint64(v.length())
-			}
-			c.tx.pop()
-			c.txBytes -= len(v.data)
-			released += segmentMemory(v)
-			v.owner.release()
-			if v.flags&flagFIN != 0 {
-				c.finAcked(now)
-			}
-		} else {
-			n := int(ack - v.seq)
-			if n > len(v.data) {
+	ambiguous := false
+	if acked > 0 {
+		c.sndUna = ack
+		c.dupACKs = 0
+		c.retries = 0
+		for c.tx.len() > 0 {
+			v := c.tx.values()[0]
+			if v.transmissions == 0 || !after(ack, v.seq) {
 				break
 			}
-			// Keep a bounded view of the original allocation until the final ACK.
-			// Its entire capacity remains charged, even after a partial ACK.
-			if !v.sacked {
+			n := min(uint32(ack-v.seq), v.length())
+			sample.credit(v, n)
+			if v.transmissions == 1 {
+				rtt = now.Sub(v.firstSent)
+			} else {
+				ambiguous = true
+			}
+			if !v.sacked && !v.lossReported {
 				c.bytesInFlight -= uint64(n)
 			}
-			v.data = v.data[n:]
-			v.seq = ack
-			c.txBytes -= n
-			break
+			if n == v.length() {
+				c.tx.pop()
+				c.txBytes -= len(v.data)
+				fin := v.flags&flagFIN != 0
+				c.stack.buffers.releaseSegment(v)
+				if fin {
+					c.finAcked(now)
+				}
+			} else {
+				if n > uint32(len(v.data)) {
+					break
+				}
+				v.deliveredBytes -= min(n, v.deliveredBytes)
+				v.data = v.data[n:]
+				v.seq = ack
+				c.txBytes -= int(n)
+				break
+			}
 		}
 	}
-	c.stack.release(released)
-	c.delivered += acked
-	c.deliveredAt = now
-	// A cumulative ACK covering any retransmission cannot identify which
-	// transmission it acknowledges (Karn, RFC 6298 section 3).
+	// An advancing ACK stopping at a SACKed head suggests receiver reneging.
+	// ACKs themselves can reorder: give a newer ACK a bounded grace period.
+	suspectReneging := acked > 0 && c.tx.len() > 0 && c.tx.values()[0].sacked
+	c.delivered += sample.bytes
+	if c.tx.len() == 0 || !c.tx.values()[0].sacked {
+		c.renegeAt = time.Time{}
+	}
+	if suspectReneging && c.renegeAt.IsZero() {
+		c.renegeAt = now.Add(max(c.srtt/2, 10*time.Millisecond))
+	}
+	if sample.bytes > 0 {
+		c.deliveredAt = now
+	}
+	if c.appLimitedUntil > 0 && c.delivered > c.appLimitedUntil {
+		c.appLimitedUntil = 0
+	}
 	if ambiguous {
 		rtt = 0
 	}
 	if rtt > 0 {
 		c.updateRTT(rtt)
 	}
-	rate := uint64(0)
-	prior := c.delivered - acked
-	appLimited := false
-	if haveSample {
-		c.firstFlight = sample.firstSent
-		interval := max(now.Sub(sample.deliveredAt), sample.firstSent.Sub(sample.firstFlight))
+	newLoss := false
+	if validSACK {
+		newLoss = c.inferSACKLoss(now)
+	}
+	event := congestion.AckEvent{Now: now, AckedBytes: acked, PriorInFlight: priorFlight, NewlyDelivered: sample.bytes, BytesInFlight: c.flight(), Delivered: c.delivered, PriorDelivered: c.delivered - sample.bytes, RTT: rtt, ACK: ack, NextSeq: c.sndNxt, CwndLimited: c.cwndLimited || priorFlight >= c.controller.CongestionWindow(), PacingDelay: max(c.paceAt.Sub(now), 0)}
+	c.cwndLimited = false
+	if sample.valid {
+		v := &sample.segment
+		interval := max(now.Sub(v.deliveredAt), v.sent.Sub(v.firstFlight))
+		event.PriorDelivered = v.delivered
+		event.SampleDelivered = c.delivered - v.delivered
+		event.SampleLost = c.lost - v.lostAtSend
+		event.TxInFlight = v.txInFlight
+		event.AppLimited = v.appLimited
 		if interval > 0 {
-			rate = uint64(float64(c.delivered-sample.delivered) / interval.Seconds())
+			event.DeliveryRate = uint64(float64(event.SampleDelivered) / interval.Seconds())
+			event.RateSample = event.DeliveryRate > 0
+			c.firstFlight = v.sent
 		}
-		prior = sample.delivered
-		appLimited = sample.appLimited
+	}
+	if suspectReneging {
+		event.RateSample = false
+		event.DeliveryRate = 0
+	}
+	if newLoss && !c.recovering {
+		c.recovering = true
+		c.recover = c.sndNxt
+		c.controller.OnLoss(congestion.LossEvent{Now: now, BytesInFlight: uint64(c.sndNxt - c.sndUna), LostBytes: uint64(c.mss)})
+		c.retransmit(now)
+	}
+	if acked == 0 {
+		if pure && wnd == oldWindow && c.sndUna != c.sndNxt {
+			c.dupACKs++
+			headOriginal := c.tx.len() > 0 && c.tx.values()[0].transmissions == 1 && !c.tx.values()[0].resend
+			if c.dupACKs == 3 && !c.recovering && headOriginal {
+				c.recovering = true
+				c.recover = c.sndNxt
+				c.controller.OnLoss(congestion.LossEvent{Now: now, BytesInFlight: uint64(c.sndNxt - c.sndUna), LostBytes: uint64(c.mss)})
+				c.retransmit(now)
+			} else if c.recovering {
+				event.InRecovery = true
+				c.ackController(event)
+				return
+			}
+		}
+		if sample.bytes > 0 {
+			event.InRecovery = c.recovering
+			c.ackController(event)
+		}
+		return
 	}
 	recovered := c.recovering && !before(ack, c.recover)
-	c.controller.OnAck(congestion.AckEvent{Now: now, AckedBytes: acked, BytesInFlight: c.flight(), Delivered: c.delivered, PriorDelivered: prior, DeliveryRate: rate, RTT: rtt, AppLimited: appLimited, InRecovery: c.recovering, RecoveryDone: recovered})
+	event.InRecovery = c.recovering
+	event.RecoveryDone = recovered
+	c.ackController(event)
 	if recovered {
 		c.recovering = false
 	} else if c.recovering {
-		c.retransmit(now)
+		// A partial NewReno ACK identifies the next original loss. Already
+		// retransmitted data remains in flight until stronger evidence or an RTO.
+		for _, v := range c.tx.values() {
+			if v.transmissions > 0 && !v.sacked {
+				if v.transmissions == 1 {
+					c.markLost(v, now)
+				}
+				break
+			}
+		}
 	}
 	if c.sndUna == c.sndNxt {
 		c.rtoAt = time.Time{}
 	} else {
 		c.rtoAt = now.Add(c.rto)
 	}
-	notify(&c.changed)
+	notify(&c.writeChanged)
+}
+func (c *TCPConn) ackController(event congestion.AckEvent) {
+	event.BytesInFlight = c.flight()
+	event.LostBytes = c.lost - c.lossAtACK
+	c.lossAtACK = c.lost
+	c.controller.OnAck(event)
 }
 func (c *TCPConn) updateRTT(r time.Duration) {
 	if c.srtt == 0 {

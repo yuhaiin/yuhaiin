@@ -164,7 +164,7 @@ func benchmarkStack(b *testing.B, kind string, mtu int) (net.Listener, func() St
 // deltas include the same 1000 Linux clients for every implementation; kernel
 // socket memory is outside these process metrics (relevant for tun2socket).
 func BenchmarkTUNIdle(b *testing.B) {
-	for _, kind := range []string{"gvisor", "tun2socket", "cubic"} {
+	for _, kind := range []string{"gvisor", "tun2socket", "reno", "cubic", "bbr"} {
 		b.Run(kind, func(b *testing.B) {
 			l, _ := benchmarkStack(b, kind, 1500)
 			defer l.Close()
@@ -270,7 +270,7 @@ func BenchmarkTUN(b *testing.B) {
 										c := servers[0].(*TCPConn)
 										c.mu.Lock()
 										snap := c.controller.(interface{ Snapshot() congestion.BBRSnapshot }).Snapshot()
-										b.Logf("BBR diagnostic: mode=%s bw=%d pace=%d cwnd=%d flight=%d queued=%d delivered=%d firstFlightAge=%s minRTT=%s round=%d", snap.Mode, snap.Bandwidth, c.controller.PacingRate(), c.controller.CongestionWindow(), c.flight(), c.txBytes, c.delivered, time.Since(c.firstFlight), snap.MinRTT, snap.Round)
+										b.Logf("BBR diagnostic: v=%d mode=%s phase=%s bw=%d bwLo=%d inflightLo=%d inflightHi=%d pace=%d cwnd=%d flight=%d queued=%d delivered=%d lost=%d minRTT=%s round=%d", snap.Version, snap.Mode, snap.Phase, snap.Bandwidth, snap.BandwidthLo, snap.InflightLo, snap.InflightHi, c.controller.PacingRate(), c.controller.CongestionWindow(), c.flight(), c.txBytes, c.delivered, c.lost, snap.MinRTT, snap.Round)
 										c.mu.Unlock()
 									}
 								}

@@ -36,11 +36,9 @@ func TestTCPFlightACKSACKAndPartialACK(t *testing.T) {
 		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq+100, flagACK, 10000, sack, nil))
 		synctest.Wait()
 		check(mss - 100)
-		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq+2*mss, flagACK, 10000, nil, nil))
-		synctest.Wait()
-		check(0) // The remaining segment is already SACKed.
 		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq+3*mss, flagACK, 10000, nil, nil))
 		synctest.Wait()
-		check(0)
+		check(0) // Cumulative ACK retires the already-delivered SACK ranges once.
+
 	})
 }

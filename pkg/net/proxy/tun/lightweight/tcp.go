@@ -300,7 +300,7 @@ func (s *Stack) handleTCP(p Packet) {
 		}
 		c.processAck(ack, wnd, seq, opts, now, true)
 		c.state = Established
-		notify(&c.changed)
+		c.notifyAll()
 		c.sendACK()
 		if len(data) > 0 {
 			c.receive(seq+1, data, flags&flagFIN != 0, now)
@@ -366,7 +366,7 @@ func (s *Stack) handleTCP(p Packet) {
 			c.finish(ErrLimit)
 			return
 		}
-		notify(&c.changed)
+		c.notifyAll()
 	} else {
 		if after(ack, c.sndNxt) {
 			c.sendACK()

@@ -1,7 +1,6 @@
 package lightweight
 
 import (
-	"container/list"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
@@ -30,13 +29,15 @@ type flowShard struct {
 	flows map[flowKey]*TCPConn
 }
 
-const connectionCharge = 4096
+// Includes the connection, built-in controller and the small queue arrays
+// retained after a burst. Payloads and live queue entries are charged separately.
+const connectionCharge = 5120
 
 type Stack struct {
 	buffers                                       bufferPool
 	outputMu                                      sync.Mutex
 	outputCount                                   atomic.Int64
-	outputWaiters                                 list.List
+	outputWaiters                                 outputQueue
 	config                                        Config
 	link                                          PacketIO
 	done                                          chan struct{}

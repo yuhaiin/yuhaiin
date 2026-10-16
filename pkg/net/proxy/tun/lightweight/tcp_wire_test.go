@@ -54,6 +54,9 @@ func passiveWire(t *testing.T, isn uint32, window uint16, algorithms ...string) 
 	return passiveConfigured(t, isn, window, Config{CongestionControl: algorithm}, false)
 }
 func passiveConfigured(t *testing.T, isn uint32, window uint16, cfg Config, unbuffered bool) (*Stack, *TCPConn, *memoryIO, uint32) {
+	return passiveConfiguredFamily(t, isn, window, cfg, unbuffered, false)
+}
+func passiveConfiguredFamily(t *testing.T, isn uint32, window uint16, cfg Config, unbuffered, ipv6 bool) (*Stack, *TCPConn, *memoryIO, uint32) {
 	t.Helper()
 	a, b := memoryPair()
 	if unbuffered {
@@ -61,18 +64,27 @@ func passiveConfigured(t *testing.T, isn uint32, window uint16, cfg Config, unbu
 		a.tx = ch
 		b.rx = ch
 	}
-	cfg.Addresses = []netip.Addr{netip.MustParseAddr("192.0.2.1")}
+	localAddr, remoteAddr := netip.MustParseAddr("192.0.2.1"), netip.MustParseAddr("192.0.2.2")
+	if ipv6 {
+		localAddr = netip.MustParseAddr("2001:db8::1")
+		remoteAddr = netip.MustParseAddr("2001:db8::2")
+	}
+	cfg.Addresses = []netip.Addr{localAddr}
 	s, err := New(cfg, a)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
-	l, err := s.ListenTCP(netip.MustParseAddrPort("192.0.2.1:80"))
+	local, remote := netip.AddrPortFrom(localAddr, 80), netip.AddrPortFrom(remoteAddr, 40000)
+	l, err := s.ListenTCP(local)
 	if err != nil {
 		t.Fatal(err)
 	}
-	remote, local := netip.MustParseAddrPort("192.0.2.2:40000"), netip.MustParseAddrPort("192.0.2.1:80")
-	_ = b.WritePacket(wireTCP(remote, local, isn, 0, flagSYN, window, []byte{2, 4, 5, 180, 4, 2, 3, 3, 3, 1, 1, 1}, nil))
+	mss := s.config.MTU - 40
+	if ipv6 {
+		mss -= 20
+	}
+	_ = b.WritePacket(wireTCP(remote, local, isn, 0, flagSYN, window, []byte{2, 4, byte(mss >> 8), byte(mss), 4, 2, 3, 3, 3, 1, 1, 1}, nil))
 	synack := peerPacket(t, b)
 	serverISN := binary.BigEndian.Uint32(synack.Payload[4:8])
 	_ = b.WritePacket(wireTCP(remote, local, isn+1, serverISN+1, flagACK, window, nil, nil))

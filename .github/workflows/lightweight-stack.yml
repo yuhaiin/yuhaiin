@@ -27,6 +27,22 @@ jobs:
       - name: Benchmark smoke test
         run: go test ./pkg/net/proxy/tun/lightweight/... -run '^$' -bench . -benchtime=1x -benchmem -timeout=180s
 
+  qualification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: lightweight-qualification
+      - name: Sustained BBR v3 coexistence and changing bandwidth
+        env:
+          CGO_ENABLED: '1'
+        run: >-
+          go test -race -tags lightweight_qualification
+          ./pkg/net/proxy/tun/lightweight
+          -run '^TestBBR(SharedBottleneck|BandwidthChanges)$'
+          -count=1 -v -timeout=600s
+
   kernel:
     runs-on: ubuntu-latest
     steps:

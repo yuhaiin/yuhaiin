@@ -40,6 +40,7 @@ type bufferPool struct {
 	mu         sync.RWMutex
 	closed     bool
 	classes    [len(bufferSizes)]chan *ownedBuffer
+	segments   chan *sendSegment
 	cached     atomic.Int64
 	cacheLimit int64
 	activity   atomic.Bool
@@ -50,9 +51,16 @@ type bufferPool struct {
 func (p *bufferPool) init(s *Stack) {
 	p.stack = s
 	p.idleJob = timerJob{index: -1, run: p.expire}
-	p.cacheLimit = min(8<<20, s.config.MemoryLimit/8)
+	// A 100-flow 64 KiB burst needs about 9 MiB for immutable application
+	// chunks, their descriptors and output frames together. Keeping that set
+	// avoids allocation/GC peaks; small configurations still cap it at 1/8.
+	p.cacheLimit = min(10<<20, s.config.MemoryLimit/8)
+	p.segments = make(chan *sendSegment, 4096)
 	for i := range bufferSizes {
-		p.classes[i] = make(chan *ownedBuffer, 512)
+		// The shared byte budget remains the limit. A small per-class count
+		// otherwise discards most of a multi-flow burst of MTU-sized packets
+		// while leaving that budget unused.
+		p.classes[i] = make(chan *ownedBuffer, 4096)
 	}
 }
 func bufferClass(n int) (int, int) {
@@ -156,6 +164,16 @@ func (p *bufferPool) trim(need int) bool {
 		}
 	nextClass:
 	}
+	for p.stack.memory.Load()+int64(need) > p.stack.config.MemoryLimit {
+		select {
+		case <-p.segments:
+			p.cached.Add(-segmentCharge)
+			p.stack.memory.Add(-segmentCharge)
+			freed = true
+		default:
+			return freed
+		}
+	}
 	return freed
 }
 
@@ -195,4 +213,56 @@ func (p *bufferPool) drain() {
 		}
 	nextClass:
 	}
+	for {
+		select {
+		case <-p.segments:
+			p.cached.Add(-segmentCharge)
+			p.stack.memory.Add(-segmentCharge)
+		default:
+			return
+		}
+	}
+}
+
+// takeSegment consumes a reservation already made by the caller. A cached
+// descriptor is still charged, so its replacement reservation is redundant.
+func (p *bufferPool) takeSegment() *sendSegment {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	select {
+	case v := <-p.segments:
+		p.cached.Add(-segmentCharge)
+		p.stack.release(segmentCharge)
+		p.activity.Store(true)
+		return v
+	default:
+		return new(sendSegment)
+	}
+}
+
+func (p *bufferPool) releaseSegment(v *sendSegment) {
+	owner := v.owner
+	// Clear timing, SACK and data references before either object becomes
+	// visible to another connection. ACK sampling keeps its own value copy.
+	*v = sendSegment{}
+	if owner == nil { // SYN/FIN descriptors belong to the connection charge.
+		return
+	}
+	owner.release()
+	p.mu.RLock()
+	if !p.closed && !p.stack.closed() && p.cacheReserve(segmentCharge) {
+		select {
+		case p.segments <- v:
+			p.activity.Store(true)
+			if p.expiring.CompareAndSwap(false, true) {
+				p.stack.scheduler.set(&p.idleJob, time.Now().Add(2*time.Second))
+			}
+			p.mu.RUnlock()
+			return
+		default:
+			p.cached.Add(-segmentCharge)
+		}
+	}
+	p.mu.RUnlock()
+	p.stack.release(segmentCharge)
 }

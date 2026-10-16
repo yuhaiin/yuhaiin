@@ -2,7 +2,9 @@ package lightweighttun
 
 import (
 	"bytes"
+	"errors"
 	"io"
+	"syscall"
 	"testing"
 )
 
@@ -12,6 +14,46 @@ type testTun struct {
 	packets [][]byte
 	written []byte
 	nextErr error
+}
+
+type writeResultTun struct {
+	testTun
+	count int
+	err   error
+}
+
+func (d *writeResultTun) Write(b [][]byte) (int, error) {
+	d.written = bytes.Clone(b[0])
+	return d.count, d.err
+}
+
+func TestPacketDeviceAcceptedWriteIsNotRetried(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		count int
+		err   error
+		want  error
+	}{
+		{"accepted", 1, nil, nil},
+		{"accepted-with-next-error", 1, syscall.EAGAIN, nil},
+		{"unaccepted-transient", 0, syscall.EAGAIN, syscall.EAGAIN},
+		{"short-without-error", 0, nil, io.ErrShortWrite},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &writeResultTun{count: tc.count, err: tc.err}
+			p, err := newPacketIO(d)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = p.WritePacket([]byte("packet"))
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("accepted=%d: got %v, want %v", tc.count, err, tc.want)
+			}
+			if p.writeBuffers[0] != nil {
+				t.Fatal("borrowed packet retained after synchronous write")
+			}
+		})
+	}
 }
 
 func (d *testTun) Read(b [][]byte, sizes []int) (int, error) {

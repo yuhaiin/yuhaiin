@@ -1,6 +1,7 @@
 package congestion
 
 type reno struct {
+	hy                        hystart
 	config                    Config
 	window, threshold, credit uint64
 	recovery                  bool
@@ -28,7 +29,11 @@ func (c *reno) OnAck(e AckEvent) {
 		return
 	}
 	if c.window < c.threshold {
-		c.window += min(e.AckedBytes, c.config.MSS)
+		growth, exit := c.hy.ack(e, c.config.MSS)
+		c.window += growth
+		if exit {
+			c.threshold = c.window
+		}
 	} else {
 		c.credit += e.AckedBytes * c.config.MSS
 		grow := c.credit / c.window
@@ -38,14 +43,25 @@ func (c *reno) OnAck(e AckEvent) {
 	c.window = min(c.window, c.config.MaxWindow)
 }
 func (c *reno) OnLoss(e LossEvent) {
+	c.hy.reset()
 	c.threshold = max(2*c.config.MSS, e.BytesInFlight/2)
 	c.window = min(c.config.MaxWindow, c.threshold+3*c.config.MSS)
 	c.credit = 0
 	c.recovery = true
 }
 func (c *reno) OnTimeout(e TimeoutEvent) {
+	c.hy.reset()
 	c.threshold = max(2*c.config.MSS, e.BytesInFlight/2)
 	c.window = c.config.MSS
 	c.credit = 0
 	c.recovery = false
+}
+
+func (c *reno) UpdateMSS(mss uint64) {
+	if mss == 0 || mss > 65535 {
+		return
+	}
+	c.config.MSS = mss
+	c.window = min(c.config.MaxWindow, max(c.window, mss))
+	c.threshold = min(c.config.MaxWindow, max(c.threshold, 2*mss))
 }

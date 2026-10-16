@@ -1,7 +1,6 @@
 package lightweight
 
 import (
-	"container/list"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
 	"io"
 	"net"
@@ -16,15 +15,12 @@ const receiveCharge = 128
 const maxSendSegments = 16384
 const maxReceiveChunks = 8192
 
-func segmentMemory(v *sendSegment) int {
-	if v.owner == nil {
-		return 0
-	}
-	return segmentCharge
-}
-
 type sendSegment struct {
 	owner                    *ownedBuffer
+	deliveredBytes           uint32
+	retransmitEnd            uint32
+	lostAtSend, txInFlight   uint64
+	lossReported             bool
 	seq                      uint32
 	flags                    uint8
 	data                     []byte
@@ -61,14 +57,15 @@ type receivePiece struct {
 // No callback retains caller-owned read/write buffers. Queued bytes belong to
 // this connection until consumed/ACKed, or until finish releases them.
 type TCPConn struct {
-	outputEntry                                              *list.Element
+	outputPrev, outputNext                                   *TCPConn
+	outputQueued                                             bool
 	outputWaiting                                            bool
 	outputBytes                                              int
 	outputReady                                              atomic.Bool
 	stack                                                    *Stack
 	key                                                      flowKey
 	mu, writeMu                                              sync.Mutex
-	changed                                                  chan struct{}
+	changed, writeChanged                                    chan struct{}
 	state                                                    TCPState
 	listener                                                 *TCPListener
 	controller                                               congestion.Controller
@@ -92,10 +89,15 @@ type TCPConn struct {
 	readDeadline, writeDeadline                              time.Time
 	srtt, rttvar, rto                                        time.Duration
 	rtoAt, paceAt, ackAt, persistAt, endAt, born, lastActive time.Time
+	renegeAt                                                 time.Time
 	retries, dupACKs, ackPending, keepaliveSent              int
 	recovering                                               bool
 	recover                                                  uint32
 	delivered                                                uint64
+	lost, appLimitedUntil                                    uint64
+	lossAtACK                                                uint64
+	writePending                                             bool
+	cwndLimited                                              bool
 	deliveredAt, firstFlight                                 time.Time
 	job                                                      timerJob
 	persistProbes                                            int
@@ -125,8 +127,7 @@ func (c *TCPConn) finish(err error) {
 	c.cancelOutputWait()
 	c.err = err
 	for _, v := range c.tx.values() {
-		v.owner.release()
-		c.stack.release(segmentMemory(v))
+		c.stack.buffers.releaseSegment(v)
 	}
 	c.tx.reset()
 	c.txBytes = 0
@@ -138,7 +139,7 @@ func (c *TCPConn) finish(err error) {
 	if c.rxBytes == 0 {
 		c.stack.remove(c)
 	}
-	notify(&c.changed)
+	c.notifyAll()
 }
 func (c *TCPConn) clearReceive() {
 	for _, v := range c.rx.values() {
@@ -235,6 +236,8 @@ func (c *TCPConn) Write(b []byte) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	written := 0
+	c.writePending = true
+	defer func() { c.writePending = false }()
 	for written < len(b) {
 		if c.appClosed || c.writeClosed {
 			return written, net.ErrClosed
@@ -247,7 +250,7 @@ func (c *TCPConn) Write(b []byte) (int, error) {
 		}
 		available := c.stack.config.SendBuffer - c.txBytes
 		if available <= 0 || c.tx.len() >= maxSendSegments {
-			ch, at := watch(&c.changed), c.writeDeadline
+			ch, at := watch(&c.writeChanged), c.writeDeadline
 			c.mu.Unlock()
 			err := waitSocket(ch, c.stack.done, at)
 			c.mu.Lock()
@@ -272,7 +275,9 @@ func (c *TCPConn) Write(b []byte) (int, error) {
 			}
 			end := min(n, off+c.mss)
 			owner.hold()
-			c.tx.push(&sendSegment{seq: c.sndEnd, flags: flagACK | flagPSH, data: owner.data[off:end], owner: owner})
+			v := c.stack.buffers.takeSegment()
+			*v = sendSegment{seq: c.sndEnd, flags: flagACK | flagPSH, data: owner.data[off:end], owner: owner}
+			c.tx.push(v)
 			k := end - off
 			c.sndEnd += uint32(k)
 			c.txBytes += k
@@ -280,6 +285,7 @@ func (c *TCPConn) Write(b []byte) (int, error) {
 			off = end
 		}
 		owner.release()
+		c.writePending = written < len(b)
 		c.pump(time.Now())
 	}
 	return written, nil
@@ -303,7 +309,7 @@ func (c *TCPConn) closeWriteLocked() error {
 	}
 	c.enqueueControl(flagFIN)
 	c.pump(time.Now())
-	notify(&c.changed)
+	c.notifyAll()
 	return nil
 }
 func (c *TCPConn) CloseRead() error {
@@ -312,7 +318,7 @@ func (c *TCPConn) CloseRead() error {
 	c.readClosed = true
 	c.clearReceive()
 	c.sendACK()
-	notify(&c.changed)
+	c.notifyAll()
 	return nil
 }
 func (c *TCPConn) Close() error {
@@ -325,7 +331,7 @@ func (c *TCPConn) Close() error {
 	if c.state == Closed {
 		c.clearReceive()
 		c.stack.remove(c)
-		notify(&c.changed)
+		c.notifyAll()
 		return nil
 	}
 	if c.rxBytes > 0 || c.state == SynSent || c.state == SynReceived {
@@ -335,7 +341,7 @@ func (c *TCPConn) Close() error {
 	}
 	c.readClosed = true
 	_ = c.closeWriteLocked()
-	notify(&c.changed)
+	c.notifyAll()
 	return nil
 }
 func (c *TCPConn) SetDeadline(t time.Time) error {
@@ -343,7 +349,7 @@ func (c *TCPConn) SetDeadline(t time.Time) error {
 	defer c.mu.Unlock()
 	c.readDeadline = t
 	c.writeDeadline = t
-	notify(&c.changed)
+	c.notifyAll()
 	return nil
 }
 func (c *TCPConn) SetReadDeadline(t time.Time) error {
@@ -357,7 +363,7 @@ func (c *TCPConn) SetWriteDeadline(t time.Time) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.writeDeadline = t
-	notify(&c.changed)
+	notify(&c.writeChanged)
 	return nil
 }
 func (c *TCPConn) enqueueControl(flags uint8) {
@@ -366,4 +372,11 @@ func (c *TCPConn) enqueueControl(flags uint8) {
 	if flags&flagFIN != 0 {
 		c.endAt = time.Now().Add(2 * time.Minute)
 	}
+}
+
+// State and close changes interrupt both directions. Data and ACK progress
+// notify their own direction so a stream of ACKs cannot churn a blocked reader.
+func (c *TCPConn) notifyAll() {
+	notify(&c.changed)
+	notify(&c.writeChanged)
 }

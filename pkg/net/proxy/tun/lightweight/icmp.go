@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
 	"net/netip"
 	"time"
 )
@@ -196,6 +197,9 @@ func (s *Stack) handleICMPError(p Packet) {
 			}
 			c.pathMSS = max(28, mtu-h)
 			c.mss = min(c.mss, c.pathMSS)
+			if updater, ok := c.controller.(congestion.MSSUpdater); ok {
+				updater.UpdateMSS(uint64(c.mss))
+			}
 			c.resegment()
 			c.pump(time.Now())
 			return
@@ -245,16 +249,20 @@ func (c *TCPConn) resegment() {
 			tx = append(tx, v)
 			continue
 		}
-		for off := 0; off < len(v.data); off += c.mss {
-			end := min(len(v.data), off+c.mss)
-			part := *v
-			part.seq += uint32(off)
-			part.data = v.data[off:end]
+		original := *v
+		for off := 0; off < len(original.data); off += c.mss {
+			end := min(len(original.data), off+c.mss)
+			part := v
 			if off > 0 {
-				part.owner.hold()
+				part = c.stack.buffers.takeSegment()
+				original.owner.hold()
 			}
+			*part = original
+			part.seq += uint32(off)
+			part.data = original.data[off:end]
+			part.deliveredBytes = min(uint32(end-off), original.deliveredBytes-min(original.deliveredBytes, uint32(off)))
 			part.sacked = false
-			tx = append(tx, &part)
+			tx = append(tx, part)
 		}
 	}
 	c.tx = sliceQueue[*sendSegment]{items: tx}

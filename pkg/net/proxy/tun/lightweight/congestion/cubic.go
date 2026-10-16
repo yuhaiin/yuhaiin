@@ -6,8 +6,9 @@ import (
 )
 
 // CUBIC uses byte windows at the interface and segment windows in its cubic
-// function. HyStart++ is intentionally not claimed by this implementation.
+// function. RFC 9406 HyStart++ controls the slow-start exit.
 type cubic struct {
+	hy                                   hystart
 	config                               Config
 	window, threshold                    uint64
 	lastMax, origin, k, friendly, credit float64
@@ -44,7 +45,11 @@ func (c *cubic) OnAck(e AckEvent) {
 		return
 	}
 	if c.window < c.threshold {
-		c.window = min(c.config.MaxWindow, c.window+min(e.AckedBytes, c.config.MSS))
+		growth, exit := c.hy.ack(e, c.config.MSS)
+		c.window = min(c.config.MaxWindow, c.window+growth)
+		if exit {
+			c.threshold = c.window
+		}
 		return
 	}
 	w := float64(c.window) / float64(c.config.MSS)
@@ -75,6 +80,7 @@ func (c *cubic) OnAck(e AckEvent) {
 	}
 }
 func (c *cubic) OnLoss(e LossEvent) {
+	c.hy.reset()
 	w := float64(c.window) / float64(c.config.MSS)
 	if w < c.lastMax {
 		c.lastMax = w * 0.85
@@ -88,7 +94,17 @@ func (c *cubic) OnLoss(e LossEvent) {
 	c.recovery = true
 }
 func (c *cubic) OnTimeout(e TimeoutEvent) {
+	c.hy.reset()
 	c.OnLoss(LossEvent{Now: e.Now, BytesInFlight: e.BytesInFlight})
 	c.window = c.config.MSS
 	c.recovery = false
+}
+
+func (c *cubic) UpdateMSS(mss uint64) {
+	if mss == 0 || mss > 65535 {
+		return
+	}
+	c.config.MSS = mss
+	c.window = min(c.config.MaxWindow, max(c.window, mss))
+	c.threshold = min(c.config.MaxWindow, max(c.threshold, 2*mss))
 }

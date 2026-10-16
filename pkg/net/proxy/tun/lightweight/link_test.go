@@ -47,18 +47,19 @@ func (h *wireHeap) Pop() any {
 }
 
 type simulatedIO struct {
-	base       PacketIO
-	profile    linkProfile
-	mu         sync.Mutex
-	wire       wireHeap
-	next       [2]time.Time
-	rng        uint64
-	counts     [2]int
-	incoming   chan []byte
-	wake, done chan struct{}
-	once       sync.Once
-	wg         sync.WaitGroup
-	drops      atomic.Uint64
+	base          PacketIO
+	profile       linkProfile
+	mu            sync.Mutex
+	wire          wireHeap
+	next          [2]time.Time
+	serialization [2]sliceQueue[time.Time]
+	rng           uint64
+	counts        [2]int
+	incoming      chan []byte
+	wake, done    chan struct{}
+	once          sync.Once
+	wg            sync.WaitGroup
+	drops         atomic.Uint64
 }
 
 func simulate(base PacketIO, p linkProfile) *simulatedIO {
@@ -81,7 +82,7 @@ func (q *simulatedIO) enqueue(b []byte, out bool) {
 		return
 	default:
 	}
-	if len(b) > q.profile.mtu || len(q.wire) >= q.profile.queue || int(q.random()%1000000) < q.profile.lossPPM {
+	if len(b) > q.profile.mtu || len(q.wire) >= 8192 {
 		q.drops.Add(1)
 		return
 	}
@@ -89,12 +90,26 @@ func (q *simulatedIO) enqueue(b []byte, out bool) {
 	if out {
 		dir = 1
 	}
-	q.counts[dir]++
 	now := time.Now()
+	queue := &q.serialization[dir]
+	for queue.len() > 0 && !queue.values()[0].After(now) {
+		queue.pop()
+	}
+	if queue.len() >= q.profile.queue {
+		q.drops.Add(1)
+		return
+	}
+	q.counts[dir]++
 	at := now
 	if q.profile.bytesPerSecond > 0 {
 		at = maxTime(now, q.next[dir]).Add(time.Duration(float64(len(b)) / float64(q.profile.bytesPerSecond) * float64(time.Second)))
 		q.next[dir] = at
+		queue.push(at)
+	}
+	// Random path loss still consumes its serialization time/bandwidth.
+	if int(q.random()%1000000) < q.profile.lossPPM {
+		q.drops.Add(1)
+		return
 	}
 	at = at.Add(q.profile.rtt / 2)
 	if q.profile.jitter > 0 {

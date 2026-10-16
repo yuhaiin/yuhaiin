@@ -11,24 +11,42 @@ import (
 	"time"
 )
 
+const DefaultPacingQuantum = time.Millisecond
+const DefaultMaxBurstPackets = 64
+
 type Config struct {
 	MSS, MaxWindow uint64
 	InitialRTT     time.Duration
+	// Actual sender scheduling/batching bounds, independent of NIC offload.
+	PacingQuantum   time.Duration
+	MaxBurstPackets uint64
 }
 type SentPacket struct {
 	Now                             time.Time
 	Bytes, BytesInFlight, Delivered uint64
 	AppLimited                      bool
+	IdleRestart, Retransmission     bool
 }
 type AckEvent struct {
 	Now                                                                time.Time
 	AckedBytes, BytesInFlight, Delivered, PriorDelivered, DeliveryRate uint64
+	// NewlyDelivered includes fresh SACK delivery; AckedBytes remains the
+	// cumulative-ACK advance used by loss-based controllers. SampleDelivered,
+	// SampleLost and TxInFlight describe the sampled transmission's flight.
+	NewlyDelivered, SampleDelivered, SampleLost, TxInFlight, LostBytes uint64
+	PriorInFlight                                                      uint64
+	RateSample                                                         bool
+	ACK, NextSeq                                                       uint32
+	CwndLimited                                                        bool
+	PacingDelay                                                        time.Duration
 	RTT                                                                time.Duration
 	AppLimited, RecoveryDone, InRecovery                               bool
 }
 type LossEvent struct {
-	Now                      time.Time
-	BytesInFlight, LostBytes uint64
+	Now                               time.Time
+	BytesInFlight, LostBytes          uint64
+	Delivered, SampleLost, TxInFlight uint64
+	AppLimited                        bool
 }
 type TimeoutEvent struct {
 	Now           time.Time
@@ -43,6 +61,20 @@ type Controller interface {
 	CongestionWindow() uint64
 	PacingRate() uint64
 }
+
+// LossSampler receives each inferred lost transmission, separately from the
+// recovery-episode OnLoss/OnTimeout events. PMTU replacements are not losses.
+// A controller may implement this without changing legacy recovery semantics.
+type LossSampler interface{ OnPacketLost(LossEvent) }
+
+// RateSampleLimiter marks deliberate model measurement dips so their lower
+// delivery rates do not replace a bottleneck-bandwidth estimate.
+type RateSampleLimiter interface{ RateSampleLimited() bool }
+
+// MSSUpdater preserves a controller's byte model when PMTU changes the
+// transport's segmentation size. Updating MSS does not reset congestion state.
+type MSSUpdater interface{ UpdateMSS(uint64) }
+
 type Factory func(Config) Controller
 
 var registry = struct {
@@ -86,6 +118,15 @@ func New(name string, c Config) (Controller, error) {
 	}
 	if c.InitialRTT < 0 {
 		return nil, errors.New("congestion: negative RTT")
+	}
+	if c.PacingQuantum == 0 {
+		c.PacingQuantum = DefaultPacingQuantum
+	}
+	if c.MaxBurstPackets == 0 {
+		c.MaxBurstPackets = DefaultMaxBurstPackets
+	}
+	if c.PacingQuantum < 0 || c.PacingQuantum > time.Second || c.MaxBurstPackets > 1024 {
+		return nil, errors.New("congestion: invalid sender scheduling budget")
 	}
 	registry.RLock()
 	f, ok := registry.factories[name]

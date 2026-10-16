@@ -10,6 +10,9 @@ import (
 //go:embed yuhaiin.md
 var yuhaiin []byte
 
+//go:embed bbr-v3.md
+var bbrV3 []byte
+
 //go:embed android.md
 var android []byte
 
@@ -43,7 +46,7 @@ func FindLicense(b string) (License, bool) {
 }
 
 func Yuhaiin() []License {
-	return getLicenses(yuhaiin)
+	return append(getLicenses(yuhaiin), getLicenses(bbrV3)...)
 }
 
 func Android() []License {

@@ -1,8 +1,8 @@
 package lightweight
 
-// sliceQueue retains the head capacity during normal FIFO use. Empty queues
-// discard unusually large backing arrays so a burst cannot pin metadata for
-// the remainder of an idle connection's lifetime. Callers serialize access.
+// sliceQueue retains small arrays during normal FIFO use. Larger queues
+// shrink their backing arrays as they drain, so keeping one entry
+// outstanding cannot pin metadata from an earlier burst. Callers serialize access.
 type sliceQueue[T any] struct {
 	items []T
 	head  int
@@ -21,6 +21,14 @@ func (q *sliceQueue[T]) pop() {
 		} else {
 			q.items = q.items[:0]
 		}
+	} else if cap(q.items) > 64 && q.len() <= (cap(q.items)-1)/2 {
+		// The fixed connection charge covers the small retained array. Larger
+		// arrays remain proportional to live entries and their metadata charges.
+		active := q.values()
+		items := make([]T, len(active), max(64, len(active)))
+		copy(items, active)
+		clear(q.items)
+		q.items, q.head = items, 0
 	}
 }
 func (q *sliceQueue[T]) push(v T) {

@@ -90,3 +90,27 @@ func TestPacingLateWakePreservesBoundedCredit(t *testing.T) {
 		t.Fatal("idle pacing credit accumulated without bound")
 	}
 }
+
+func TestCwndLimitedWithSubMSSSlack(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		_, c, peer, seq := passiveWire(t, 100, 10000, "reno")
+		c.mu.Lock()
+		recorder := &rateRecorder{Controller: c.controller, window: 3*1460 + 100}
+		c.controller = recorder
+		c.mu.Unlock()
+		if _, err := c.Write(make([]byte, 8*1460)); err != nil {
+			t.Fatal(err)
+		}
+		for range 3 {
+			_ = peerPacket(t, peer)
+		}
+		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq+1460, flagACK, 10000, nil, nil))
+		synctest.Wait()
+		c.mu.Lock()
+		limited := recorder.last.CwndLimited
+		c.mu.Unlock()
+		if !limited {
+			t.Fatal("sender cannot fit another MSS, but rate sample says it is not cwnd limited")
+		}
+	})
+}

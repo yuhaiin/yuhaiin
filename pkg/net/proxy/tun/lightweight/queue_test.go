@@ -35,8 +35,32 @@ func TestQueueCompactionAndOwnership(t *testing.T) {
 	for q.len() > 0 {
 		q.pop()
 	}
-	if q.items != nil {
+	if cap(q.items) > 64 {
 		t.Fatal("empty queue retained a burst-sized allocation")
+	}
+}
+
+func TestQueueReclaimsPartiallyDrainedBurst(t *testing.T) {
+	var q sliceQueue[int]
+	for i := range 4096 {
+		q.push(i)
+	}
+	for want := range 4095 {
+		if q.values()[0] != want {
+			t.Fatal("queue shrink reordered entries")
+		}
+		q.pop()
+		if cap(q.items) > max(64, 2*q.len()) {
+			t.Fatalf("%d remaining entries retained capacity %d", q.len(), cap(q.items))
+		}
+	}
+	if q.values()[0] != 4095 {
+		t.Fatal("queue shrink lost its last entry")
+	}
+	q.push(4096)
+	q.insert(1, -1)
+	if q.values()[1] != -1 || q.values()[2] != 4096 {
+		t.Fatal("queue failed after shrinking and inserting")
 	}
 }
 

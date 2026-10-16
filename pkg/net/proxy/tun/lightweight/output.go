@@ -12,14 +12,13 @@ func (c *TCPConn) waitOutput(bytes int) {
 	c.outputBytes = bytes
 	// Register before observing capacity. A concurrent release must either see
 	// this waiter or be observed by the capacity check under the same lock.
-	if c.outputEntry == nil {
-		c.outputEntry = s.outputWaiters.PushBack(c)
+	if !c.outputQueued {
+		s.outputWaiters.push(c)
 		s.outputCount.Add(1)
 	}
-	if s.outputWaiters.Front() == c.outputEntry && len(s.outgoing) < cap(s.outgoing) && s.buffers.canGet(bytes) {
-		s.outputWaiters.Remove(c.outputEntry)
+	if s.outputWaiters.head == c && len(s.outgoing) < cap(s.outgoing) && s.buffers.canGet(bytes) {
+		s.outputWaiters.remove(c)
 		s.outputCount.Add(-1)
-		c.outputEntry = nil
 		c.outputReady.Store(true)
 	}
 	s.outputMu.Unlock()
@@ -29,16 +28,14 @@ func (s *Stack) wakeOutput() {
 		return
 	}
 	s.outputMu.Lock()
-	entry := s.outputWaiters.Front()
-	if entry != nil {
-		c := entry.Value.(*TCPConn)
+	c := s.outputWaiters.head
+	if c != nil {
 		if len(s.outgoing) >= cap(s.outgoing) || !s.buffers.canGet(c.outputBytes) {
 			s.outputMu.Unlock()
 			return
 		}
-		s.outputWaiters.Remove(entry)
+		s.outputWaiters.remove(c)
 		s.outputCount.Add(-1)
-		c.outputEntry = nil
 		c.outputReady.Store(true)
 		s.scheduler.set(&c.job, time.Now())
 	}
@@ -47,10 +44,45 @@ func (s *Stack) wakeOutput() {
 func (c *TCPConn) cancelOutputWait() {
 	s := c.stack
 	s.outputMu.Lock()
-	if c.outputEntry != nil {
-		s.outputWaiters.Remove(c.outputEntry)
+	if c.outputQueued {
+		s.outputWaiters.remove(c)
 		s.outputCount.Add(-1)
-		c.outputEntry = nil
 	}
 	s.outputMu.Unlock()
+}
+
+// Waiters embed their links; a full output queue must not allocate a list node
+// on every retry. All queue access holds outputMu, including cancellation.
+type outputQueue struct {
+	head, tail *TCPConn
+	n          int
+}
+
+func (q *outputQueue) Len() int { return q.n }
+func (q *outputQueue) push(c *TCPConn) {
+	c.outputPrev = q.tail
+	c.outputNext = nil
+	c.outputQueued = true
+	if q.tail == nil {
+		q.head = c
+	} else {
+		q.tail.outputNext = c
+	}
+	q.tail = c
+	q.n++
+}
+func (q *outputQueue) remove(c *TCPConn) {
+	if c.outputPrev == nil {
+		q.head = c.outputNext
+	} else {
+		c.outputPrev.outputNext = c.outputNext
+	}
+	if c.outputNext == nil {
+		q.tail = c.outputPrev
+	} else {
+		c.outputNext.outputPrev = c.outputPrev
+	}
+	c.outputPrev, c.outputNext = nil, nil
+	c.outputQueued = false
+	q.n--
 }

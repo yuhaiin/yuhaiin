@@ -106,6 +106,11 @@ func (c *TCPConn) receive(seq uint32, data []byte, fin bool, now time.Time) {
 			c.rx.push(receiveChunk{data: v.data, owner: v.owner})
 		}
 	}
+	if len(c.ooo) == 0 {
+		// An advanced empty slice can still retain a large reordering array,
+		// after all of its per-piece charges have been released by the reader.
+		c.ooo = nil
+	}
 	if c.finPending && c.finSeq == c.rcvNxt {
 		c.finPending = false
 		c.recvFIN = true

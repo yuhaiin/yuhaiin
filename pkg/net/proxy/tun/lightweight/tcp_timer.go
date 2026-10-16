@@ -1,9 +1,12 @@
 package lightweight
 
 import (
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
 	"os"
+	"slices"
+	"sort"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
 )
 
 func (c *TCPConn) schedule(now time.Time) {
@@ -11,7 +14,7 @@ func (c *TCPConn) schedule(now time.Time) {
 		c.stack.scheduler.set(&c.job, time.Time{})
 		return
 	}
-	at := earliest(c.endAt, c.ackAt)
+	at := earliest(earliest(c.endAt, c.ackAt), c.renegeAt)
 	if c.outputWaiting {
 		at = c.endAt
 	}
@@ -29,7 +32,7 @@ func (c *TCPConn) schedule(now time.Time) {
 		at = earliest(at, c.persistAt)
 		if c.controller.PacingRate() > 0 && c.peerWindow > 0 && c.flight() < c.controller.CongestionWindow() {
 			for _, v := range c.tx.values() {
-				if v.transmissions == 0 && v.flags&flagSYN == 0 && before(v.seq, c.sndUna+c.peerWindow) {
+				if (v.transmissions == 0 || v.lossReported) && v.flags&flagSYN == 0 && before(v.seq, c.sndUna+c.peerWindow) {
 					at = earliest(at, maxTime(c.paceAt, now))
 					break
 				}
@@ -53,15 +56,74 @@ func (c *TCPConn) schedule(now time.Time) {
 	c.stack.scheduler.set(&c.job, at)
 	c.stack.outputMu.Unlock()
 }
+func (c *TCPConn) markLost(v *sendSegment, now time.Time) bool {
+	if v.lossReported || v.transmissions == 0 {
+		return false
+	}
+	v.lossReported = true
+	if !v.sacked {
+		c.bytesInFlight -= uint64(v.length())
+	}
+	c.lost += uint64(v.length())
+	if observer, ok := c.controller.(congestion.LossSampler); ok {
+		observer.OnPacketLost(congestion.LossEvent{Now: now, BytesInFlight: c.flight(), LostBytes: uint64(v.length()), Delivered: c.delivered, SampleLost: c.lost - v.lostAtSend, TxInFlight: v.txInFlight, AppLimited: v.appLimited})
+	}
+	return true
+}
+
+// Three MSS of selectively acknowledged data above an original transmission
+// demonstrate a hole. Retransmissions need new evidence (or an RTO), so an old
+// repeated SACK block cannot repeatedly mark the replacement as lost.
+func (c *TCPConn) inferSACKLoss(now time.Time) bool {
+	above := uint64(0)
+	changed := false
+	values := c.sentSegments()
+	for _, v := range slices.Backward(values) {
+		if v.transmissions == 0 {
+			continue
+		}
+		if v.sacked {
+			above += uint64(v.length())
+			continue
+		}
+		if v.resend {
+			continue
+		} // An explicit PMTU replacement is already pending.
+		evidence := above
+		if v.transmissions > 1 {
+			// Old duplicate ACKs can describe the flight preceding a PMTU repair.
+			// A replacement needs SACK evidence from new sequence space sent after it.
+			evidence = 0
+			start := sort.Search(len(values), func(j int) bool { return !before(values[j].seq, v.retransmitEnd) })
+			for _, later := range values[start:] {
+				if later.sacked {
+					evidence += uint64(later.length())
+				}
+				if evidence >= 3*uint64(c.mss) {
+					break
+				}
+			}
+		}
+		if evidence >= 3*uint64(c.mss) {
+			changed = c.markLost(v, now) || changed
+		}
+	}
+	return changed
+}
 func (c *TCPConn) retransmit(now time.Time) {
-	for _, v := range c.tx.values() {
-		if v.transmissions > 0 && !v.sacked {
+	for _, v := range c.sentSegments() {
+		if v.lossReported && !v.sacked {
 			c.transmit(v, now, true)
 			return
 		}
 	}
-	// SACK is advisory and a receiver may renege. An RTO still retransmits the
-	// oldest cumulatively unacknowledged segment, even if all are SACKed.
+	for _, v := range c.tx.values() {
+		if v.transmissions > 0 && !v.sacked {
+			c.markLost(v, now)
+			c.transmit(v, now, true)
+			return
+		}
+	}
 }
 func (c *TCPConn) onTimer(now time.Time) {
 	c.mu.Lock()
@@ -88,6 +150,20 @@ func (c *TCPConn) onTimer(now time.Time) {
 	if c.ackPending > 0 && (c.ackAt.IsZero() || !now.Before(c.ackAt)) {
 		c.sendACK()
 	}
+	if !c.renegeAt.IsZero() && !now.Before(c.renegeAt) {
+		c.renegeAt = time.Time{}
+		if c.tx.len() > 0 && c.tx.values()[0].sacked {
+			if !c.recovering {
+				c.recovering = true
+				c.recover = c.sndNxt
+				c.controller.OnLoss(congestion.LossEvent{Now: now, BytesInFlight: uint64(c.sndNxt - c.sndUna), LostBytes: uint64(c.mss)})
+			}
+			for _, v := range c.sentSegments() {
+				c.setSACK(v, false)
+				c.markLost(v, now)
+			}
+		}
+	}
 	if !c.rtoAt.IsZero() && !now.Before(c.rtoAt) {
 		if c.retries >= 12 {
 			c.sendReset()
@@ -101,10 +177,18 @@ func (c *TCPConn) onTimer(now time.Time) {
 		c.recovering = true
 		c.recover = c.sndNxt
 		c.dupACKs = 0
-		for _, v := range c.tx.values() {
-			c.setSACK(v, false)
-		}
 		c.controller.OnTimeout(congestion.TimeoutEvent{Now: now, BytesInFlight: uint64(c.sndNxt - c.sndUna)})
+		// Keep useful SACK evidence across an RTO. If the oldest outstanding data
+		// was reneged, retry that head. Advancing ACKs that still stop at SACKed
+		// data use the separate grace check above.
+		for i, v := range c.tx.values() {
+			if i == 0 && v.sacked {
+				c.setSACK(v, false)
+			}
+			if v.transmissions > 0 && !v.sacked {
+				c.markLost(v, now)
+			}
+		}
 		c.retransmit(now)
 		c.rto = min(time.Minute, c.rto*2)
 		c.rtoAt = now.Add(c.rto)
