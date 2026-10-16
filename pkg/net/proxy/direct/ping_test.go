@@ -153,8 +153,8 @@ type fakeICMPConn struct {
 func newFakeICMPConn(target *net.UDPAddr) *fakeICMPConn {
 	return &fakeICMPConn{
 		target: target,
-		reply: make(chan []byte, 1),
-		sent: make(chan struct{}),
+		reply:  make(chan []byte, 1),
+		sent:   make(chan struct{}),
 		closed: make(chan struct{}),
 	}
 }
