@@ -65,7 +65,9 @@ jobs:
       # unrelated Tailnet packet buffers and produce spurious logging alerts.
       # Keep ./... so application coverage is preserved; no query is suppressed.
       - name: Compile application and embedded Tailscale for analysis
-        run: go test -run '^$' ./... tailscale.com/tsnet
+        run: |
+          "$CODEQL_DIST/codeql" database trace-command "$CODEQL_EXTRACTOR_GO_WIP_DATABASE" -- \
+            go build -buildmode=archive ./... tailscale.com/tsnet
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

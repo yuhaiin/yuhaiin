@@ -105,8 +105,9 @@ to published fork commit `223166903dc3e50a35f968ad48dd41a480ba7381`
 and `go list -m -json tailscale.com` confirmed a downloaded module with checksums.
 No local filesystem replacement is part of the PR.
 
-CodeQL uses a manual compile of `./...` and `tailscale.com/tsnet`, including
-test compilation without executing tests. Selecting tsnet as an extraction root
+CodeQL uses an explicitly traced archive build of `./...` and
+`tailscale.com/tsnet`. Archive mode accommodates helper main packages without
+an entry point. Selecting tsnet as an extraction root
 includes the embedded transport implementation instead of inferring dataflow
 from its external interfaces alone. The former inferred flows propagated
 `Server.AuthKey` through unrelated packet reads into VPN parser logging.
