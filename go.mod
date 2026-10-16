@@ -1,12 +1,12 @@
 module github.com/Asutorufa/yuhaiin
 
-go 1.27.1
+go 1.27.2
 
 replace (
 	github.com/apernet/hysteria/core/v2 => github.com/Asutorufa/hysteria/core/v2 v2.13.1-0.20261007150228-a38075fd0e66
 	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
-	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20261004051059-f377f7ca3dbc
+	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20261016051747-4441c394b330
 )
 
 require (
@@ -58,24 +58,29 @@ require (
 	github.com/akutz/memconn v0.1.0 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20250919150558-7d374ff0d59e // indirect
 	github.com/andybalholm/brotli v1.2.3 // indirect
+	github.com/axiomhq/hyperloglog v0.2.6 // indirect
+	github.com/benbjohnson/immutable v0.4.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/bradfitz/reco v0.0.0-20260929154613-b883fbd17e3f // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/cockroachdb/crlib v0.0.0-20251122031428-fe658a2dbda1 // indirect
 	github.com/cockroachdb/errors v1.13.0 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20241215232642-bb51bb14a506 // indirect
 	github.com/cockroachdb/redact v1.1.8 // indirect
 	github.com/cockroachdb/swiss v0.0.0-20260820225851-333444432258 // indirect
-	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20250429170803-42689b6311bb // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/creachadair/msync v0.10.1 // indirect
 	github.com/dblohm7/wingoes v0.0.0-20260526185140-fb298caac7ca // indirect
+	github.com/dgryski/go-metro v0.0.0-20250106013310-edb8663e5e33 // indirect
 	github.com/dunglas/httpsfv v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.3 // indirect
 	github.com/gaissmai/bart v0.29.0 // indirect
 	github.com/getsentry/sentry-go v0.47.0 // indirect
 	github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3 // indirect
+	github.com/go4org/hashtriemap v0.0.0-20260925222741-44e5305f85d9 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
@@ -84,9 +89,10 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hdevalence/ed25519consensus v0.2.0 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
-	github.com/jsimonetti/rtnetlink v1.4.2 // indirect
 	github.com/ianlancetaylor/demangle v0.0.0-20250417193237-f615e6bd150b // indirect
+	github.com/jsimonetti/rtnetlink v1.4.2 // indirect
 	github.com/juju/ratelimit v1.0.2 // indirect
+	github.com/kamstrup/intmap v0.5.2 // indirect
 	github.com/klauspost/compress v1.20.1 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect

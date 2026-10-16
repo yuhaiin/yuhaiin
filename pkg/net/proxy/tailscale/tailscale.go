@@ -1,180 +1,61 @@
 package tailscale
 
 import (
-	"bytes"
 	"context"
+	"crypto/pbkdf2"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/netip"
 	"os"
-	"path"
-	"strings"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	mdns "codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
-	"github.com/Asutorufa/yuhaiin/pkg/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"golang.org/x/sync/singleflight"
-	"tailscale.com/envknob"
 	"tailscale.com/ipn/ipnstate"
-	"tailscale.com/net/dnscache"
-	"tailscale.com/net/netns"
 	"tailscale.com/net/tsaddr"
-	"tailscale.com/net/tsdial"
 	"tailscale.com/tailcfg"
 	"tailscale.com/tsnet"
-	"tailscale.com/types/nettype"
 )
-
-type hijackDialer struct{}
-
-func (d hijackDialer) Dial(network, address string) (net.Conn, error) {
-	return d.DialContext(context.Background(), network, address)
-}
-
-func (d hijackDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	ad, err := netapi.ParseAddress(network, address)
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
-	defer cancel()
-
-	store := netapi.WithContext(ctx)
-	store.SetComponent("tailscale")
-	store.ConnOptions().
-		SetRouteMode("direct").
-		SetResolver(*(&netapi.ResolverOptions{}).SetResolver(netapi.Bootstrap()).SetIsResolver())
-
-	return configuration.ProxyChain.Conn(store, ad)
-}
-
-type hijackListener struct{}
-
-func (l hijackListener) Listen(ctx context.Context, network, address string) (net.Listener, error) {
-	return dialer.ListenContext(ctx, network, address)
-}
-
-func (l hijackListener) ListenPacket(ctx context.Context, network, address string) (net.PacketConn, error) {
-	store := netapi.WithContext(ctx)
-	store.ConnOptions().
-		SetRouteMode("direct").
-		SetBindAddress(address).
-		SetResolver(*(&netapi.ResolverOptions{}).SetResolver(netapi.Bootstrap()).SetIsResolver())
-	store.SetComponent("tailscale").
-		SetDomainString("tailscale-" + network + "-listener" + address).
-		SetIPString(address)
-
-	pc, err := configuration.ProxyChain.PacketConn(store, netapi.DomainAddr{
-		AddressNetwork: netapi.ParseAddressNetwork(network),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &nettypePacketConn{pc}, nil
-}
-
-var _ nettype.PacketConn = (*nettypePacketConn)(nil)
-
-type nettypePacketConn struct {
-	net.PacketConn
-}
-
-func (p *nettypePacketConn) WriteToUDPAddrPort(b []byte, addr netip.AddrPort) (int, error) {
-	return p.WriteTo(b, net.UDPAddrFromAddrPort(addr))
-}
-
-func (p *nettypePacketConn) ReadFromUDPAddrPort(b []byte) (int, netip.AddrPort, error) {
-	n, addr, err := p.ReadFrom(b)
-	if err != nil {
-		return 0, netip.AddrPort{}, err
-	}
-
-	ad, err := netapi.ParseSysAddr(addr)
-	if err != nil {
-		return 0, netip.AddrPort{}, err
-	}
-
-	if ad.IsFqdn() {
-		return 0, netip.AddrPort{}, fmt.Errorf("address: %s is not ip address", ad.Hostname())
-	}
-
-	return n, ad.(netapi.IPAddress).AddrPort(), nil
-}
-
-type hijackResolver struct{}
-
-func (hijackResolver) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
-	return configuration.ResolverChain.LookupIP(ctx, domain, opts...)
-}
-
-func (hijackResolver) Raw(ctx context.Context, req netapi.DNSQuestion) (*mdns.Msg, error) {
-	return configuration.ResolverChain.Raw(ctx, req)
-}
-
-func (hijackResolver) Close() error { return nil }
-
-func (hijackResolver) Name() string { return "tailscale-hijack-resolver" }
 
 var Mux atomic.Pointer[http.ServeMux]
 
-type instance struct {
-	authKey    string
-	hostname   string
-	controlUrl string
-}
-
-var instanceStore = lru.NewSyncLru(lru.WithCapacity[instance, *Tailscale](100))
+// A state directory belongs to one running server. In particular a replacement
+// configuration must not open the old server's state before it has shut down.
+var stateOwners = struct {
+	sync.Mutex
+	paths map[string]*Tailscale
+}{paths: make(map[string]*Tailscale)}
 
 func init() {
 	register.RegisterContractPoint("tailscale", func(config contractnode.Tailscale, p netapi.Proxy) (netapi.Proxy, error) {
-		return New(Config{
-			AuthKey:    config.AuthKey,
-			Hostname:   config.Hostname,
-			ControlURL: config.ControlURL,
-			Debug:      config.Debug,
-		}, p)
+		return New(Config{AuthKey: config.AuthKey, Hostname: config.Hostname, ControlURL: config.ControlURL, Debug: config.Debug}, p)
 	})
-	netns.SetWrapDialer(func(d netns.Dialer) netns.Dialer { return hijackDialer{} })
-	netns.SetWrapListener(func(li netns.ListenerInterface) netns.ListenerInterface { return hijackListener{} })
-	dnscache.Get().Forward = &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			return netapi.NewDnsConn(hijackResolver{}), nil
-		},
-	}
-	// disable portmapper for tailscale, this is a global setting
-	// on my macbook, portmapper will make nat travel faild, so disable it
-	//
-	// mybe some tailscale bug, we need more test
-	envknob.Setenv("TS_DISABLE_PORTMAPPER", "true")
-	envknob.Setenv("TS_DISABLE_UPNP", "true")
-	envknob.Setenv("TS_ENABLE_RAW_DISCO", "false")
-	// envknob.SetNoLogsNoSupport()
 }
 
 type Tailscale struct {
 	netapi.EmptyDispatch
-	dialer     netapi.Proxy
-	tsnet      *tsnet.Server
-	authKey    string
-	hostname   string
-	controlUrl string
-	mu         sync.RWMutex
-	debug      atomic.Bool
-	sf         singleflight.Group
+	dialer   netapi.Proxy
+	config   Config
+	ctx      context.Context
+	cancel   context.CancelFunc
+	mu       sync.Mutex
+	tsnet    *tsnet.Server
+	closed   bool
+	stateDir string
+	sf       singleflight.Group
 }
 
 type Config struct {
@@ -184,458 +65,373 @@ type Config struct {
 	Debug      bool   `json:"debug"`
 }
 
-func New(c Config, dialer netapi.Proxy) (netapi.Proxy, error) {
+func New(c Config, upstream netapi.Proxy) (netapi.Proxy, error) {
 	if c.AuthKey == "" {
-		return nil, fmt.Errorf("auth_key is required")
+		return nil, errors.New("auth_key is required")
 	}
-
-	tt, _ := instanceStore.LoadOrAdd(instance{
-		authKey:    c.AuthKey,
-		hostname:   c.Hostname,
-		controlUrl: c.ControlURL,
-	}, func() *Tailscale {
-		return &Tailscale{
-			dialer:     dialer,
-			authKey:    c.AuthKey,
-			hostname:   c.Hostname,
-			controlUrl: c.ControlURL,
-		}
-	})
-
-	tt.debug.Store(c.Debug)
-	if tsnet := tt.tsnet; tsnet != nil {
-		if c.Debug {
-			tsnet.Logf = log.InfoFormat
-		} else {
-			tsnet.Logf = nil
-		}
+	if upstream == nil || register.IsZero(upstream) {
+		upstream = direct.Default
 	}
-
-	return tt, nil
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Tailscale{dialer: upstream, config: c, ctx: ctx, cancel: cancel}, nil
 }
 
-func (t *Tailscale) init(context.Context) (*tsnet.Server, error) {
-	t.mu.RLock()
-	tsdialer := t.tsnet
-	t.mu.RUnlock()
-	if tsdialer != nil {
-		return tsdialer, nil
+// statePath derives a deterministic opaque identity without exposing a fast
+// credential digest in directory names. Public configuration forms a stable,
+// length-delimited salt; this is an identity namespace, not a password verifier.
+func statePath(base string, c Config) (string, error) {
+	salt := fmt.Appendf(nil, "yuhaiin/tailscale/state/v2:%d:%s%d:%s", len(c.Hostname), c.Hostname, len(c.ControlURL), c.ControlURL)
+	identity, err := pbkdf2.Key(sha256.New, c.AuthKey, salt, 600_000, 32)
+	if err != nil {
+		return "", fmt.Errorf("derive tailscale state identity: %w", err)
 	}
+	return filepath.Join(base, "tailscale", "v2-"+hex.EncodeToString(identity)), nil
+}
 
+func (t *Tailscale) init(ctx context.Context) (*tsnet.Server, error) {
+	if err := checkLoop(ctx, t); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-
-	// make fakeip work
-	// it's seem control by remote, we can't set these options here
-	//
-	// netns.SetBindToInterfaceByRoute(false)
-	// netns.SetDisableBindConnToInterface(true)
-
+	if t.closed {
+		return nil, net.ErrClosed
+	}
 	if t.tsnet != nil {
 		return t.tsnet, nil
 	}
-
-	t.tsnet = &tsnet.Server{
-		AuthKey:      t.authKey,
-		Hostname:     t.hostname,
-		Ephemeral:    false,
-		RunWebClient: true,
-		ControlURL:   t.controlUrl,
-		Dir:          path.Join(configuration.DataDir.Load(), "tailscale", t.hostname),
-		UserLogf:     log.InfoFormat,
-	}
-
-	if t.debug.Load() {
-		t.tsnet.Logf = log.InfoFormat
-	}
-
-	if err := t.tsnet.Start(); err != nil {
-		t.tsnet.Close()
-		t.tsnet = nil
+	dir, err := statePath(configuration.DataDir.Load(), t.config)
+	if err != nil {
 		return nil, err
 	}
-
-	go func() {
-		lis, err := t.tsnet.Listen("tcp", ":80")
-		if err != nil {
-			log.Warn("tailscale listen metrics failed", "err", err)
-			return
-		}
-		defer lis.Close()
-
-		if err := http.Serve(lis, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if mux := Mux.Load(); mux != nil {
-				mux.ServeHTTP(w, r)
-			}
-		})); err != nil {
-			log.Warn("tailscale serve metrics failed", "err", err)
-		}
-	}()
-
-	return t.tsnet, nil
+	stateOwners.Lock()
+	if stateOwners.paths[dir] != nil {
+		stateOwners.Unlock()
+		return nil, errors.New("tailscale state is already in use; close the previous node or use a distinct hostname")
+	}
+	stateOwners.paths[dir] = t
+	stateOwners.Unlock()
+	release := func() { stateOwners.Lock(); delete(stateOwners.paths, dir); stateOwners.Unlock() }
+	if err := migrateState(configuration.DataDir.Load(), dir, t.config.Hostname); err != nil {
+		release()
+		return nil, err
+	}
+	u := &underlay{owner: t, ancestors: appendLoop(ctx, t)}
+	s := &tsnet.Server{
+		Hostname: t.config.Hostname, ControlURL: t.config.ControlURL,
+		RunWebClient: true, Dir: dir, UserLogf: log.InfoFormat, Underlay: u.network(),
+	}
+	if t.config.Debug {
+		s.Logf = log.InfoFormat
+	}
+	// AuthKey is consumed synchronously during Start's one-time initialization.
+	// Do not keep bootstrap credentials on the server exposed to network code.
+	s.AuthKey = t.config.AuthKey
+	err = s.Start()
+	s.AuthKey = ""
+	if err != nil {
+		_ = s.Close()
+		release()
+		return nil, err
+	}
+	t.tsnet, t.stateDir = s, dir
+	go serveMetrics(s)
+	return s, nil
 }
 
-func (t *Tailscale) up(ctx context.Context, dialer *tsnet.Server) (*ipnstate.Status, error) {
+func serveMetrics(s *tsnet.Server) {
+	lis, err := s.Listen("tcp", ":80")
+	if err != nil {
+		log.Debug("tailscale listen metrics failed", "err", err)
+		return
+	}
+	defer lis.Close()
+	err = http.Serve(lis, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if mux := Mux.Load(); mux != nil {
+			mux.ServeHTTP(w, r)
+		}
+	}))
+	if err != nil && !errors.Is(err, net.ErrClosed) {
+		log.Debug("tailscale serve metrics stopped", "err", err)
+	}
+}
+
+func (t *Tailscale) up(ctx context.Context, s *tsnet.Server) (*ipnstate.Status, error) {
 	ch := t.sf.DoChan("up", func() (any, error) {
-		defer func() {
-			if err := recover(); err != nil {
-				log.Error("tailscale conn panic", "err", err)
-			}
-		}()
-
-		upCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		upCtx, cancel := context.WithTimeout(t.ctx, 3*time.Minute)
 		defer cancel()
-
-		return dialer.Up(upCtx)
+		return s.Up(upCtx)
 	})
-
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	case <-t.ctx.Done():
+		return nil, net.ErrClosed
 	case res := <-ch:
 		if res.Err != nil {
 			return nil, res.Err
-		}
-		if res.Val == nil {
-			return nil, fmt.Errorf("tailscale up failed")
 		}
 		return res.Val.(*ipnstate.Status), nil
 	}
 }
 
+func (t *Tailscale) ready(ctx context.Context) (*tsnet.Server, error) {
+	s, err := t.init(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := t.up(ctx, s); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
 func (t *Tailscale) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-
-	if t.tsnet != nil {
-		t.tsnet.Close()
-		t.tsnet = nil
+	if t.closed {
+		return nil
 	}
-
-	return nil
+	t.closed = true
+	t.cancel()
+	defer forgetUnderlay(t)
+	var err error
+	if t.tsnet != nil {
+		err = t.tsnet.Close()
+	}
+	if t.stateDir != "" {
+		stateOwners.Lock()
+		delete(stateOwners.paths, t.stateDir)
+		stateOwners.Unlock()
+	}
+	return err
 }
 
-func (t *Tailscale) resolveAddr(dialer *tsnet.Server, addr netapi.Address) (netip.AddrPort, error) {
-	if !addr.IsFqdn() {
-		return addr.(netapi.IPAddress).AddrPort(), nil
+// resolveAddr delegates MagicDNS (including family selection and ExtraRecords)
+// and route classification to Tailscale. Dialing the resulting IP through
+// netstack keeps the transport pinned even if a route disappears afterwards.
+// Server.Dial/UserDial can fall back to a host socket on such a route change.
+func resolveAddr(ctx context.Context, s *tsnet.Server, network string, addr netapi.Address) (netip.AddrPort, error) {
+	ip, viaTailnet, err := s.Sys().Dialer.Get().UserDialPlan(ctx, network, addr.String())
+	if err != nil {
+		return netip.AddrPort{}, err
 	}
-
-	ad, ok := dialer.Sys().Dialer.Get().ResolveMagicDNS(addr.Hostname(), "tcp")
-	if !ok {
-		return netip.AddrPort{}, fmt.Errorf("tailscale dns map missing %s", addr.Hostname())
+	if !viaTailnet {
+		return netip.AddrPort{}, fmt.Errorf("tailscale: destination %s has no tailnet route", addr)
 	}
+	return ip, nil
+}
 
-	naddr := netip.AddrPortFrom(ad, addr.Port())
-
-	return naddr, nil
+func isServiceDNS(addr netapi.Address) bool {
+	if addr.IsFqdn() || addr.Port() != 53 {
+		return false
+	}
+	ip := addr.(netapi.IPAddress).AddrPort().Addr().Unmap()
+	return ip == tsaddr.TailscaleServiceIP() || ip == tsaddr.TailscaleServiceIPv6()
 }
 
 func (t *Tailscale) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	dialer, err := t.init(ctx)
+	s, err := t.ready(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if isServiceDNS(addr) {
+		src, dst := pipe.Pipe()
+		stop := context.AfterFunc(t.ctx, func() { _ = src.Close() })
+		go func() {
+			defer src.Close()
+			defer stop()
+			s.Sys().DNSManager.Get().HandleTCPConn(src, netip.AddrPort{})
+		}()
+		return dst, nil
+	}
+	ip, err := resolveAddr(ctx, s, "tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	return s.Sys().Dialer.Get().NetstackDialTCP(ctx, ip)
+}
+
+func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
+	s, err := t.ready(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if isServiceDNS(addr) {
+		return newDNSPacket(t.ctx, s.Sys().DNSManager.Get().Query, addr.(netapi.IPAddress).AddrPort()), nil
+	}
+	ip, err := resolveAddr(ctx, s, "udp", addr)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = t.up(ctx, dialer)
+	v4, v6 := s.TailscaleIPs()
+	local, network := v4, "udp4"
+	if ip.Addr().Is6() {
+		local, network = v6, "udp6"
+	}
+	if !local.IsValid() {
+		return nil, errors.New("tailscale has no local address for the destination family")
+	}
+	pc, err := s.ListenPacket(network, netip.AddrPortFrom(local, 0).String())
 	if err != nil {
 		return nil, err
 	}
-
-	// see: https://github.com/tailscale/tailscale/issues/10860
-	//      https://github.com/tailscale/tailscale/issues/4677
-	//
-	// the magic dns is not working on tsnet, so we need hijack it
-	if addr.Port() == 53 {
-		if hostname := addr.Hostname(); hostname == tsaddr.TailscaleServiceIP().String() || hostname == tsaddr.TailscaleServiceIPv6().String() {
-			src, dst := pipe.Pipe()
-			go func() {
-				defer src.Close()
-				t.tsnet.Sys().DNSManager.Get().HandleTCPConn(src, netip.AddrPort{})
-			}()
-			return dst, nil
-		}
-	}
-
-	nip, err := t.resolveAddr(dialer, addr)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := dialer.Sys().Dialer.Get().NetstackDialTCP(ctx, nip)
-	if err != nil {
-		return nil, err
-	}
-	return conn, nil
+	pcCtx, pcCancel := context.WithCancel(t.ctx)
+	return &tailnetPacketConn{PacketConn: pc, server: s, ctx: pcCtx, cancel: pcCancel, network: network, writeDeadline: pipe.MakePipeDeadline()}, nil
 }
 
 func (t *Tailscale) PacketConnPacket(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	dialer, err := t.init(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	states, err := t.up(ctx, dialer)
-	if err != nil {
-		return nil, err
-	}
-
-	var laddr netip.Addr
-
-	for _, ip := range states.TailscaleIPs {
-		if !addr.IsFqdn() && addr.(netapi.IPAddress).AddrPort().Addr().Is4() {
-			if ip.Is4() {
-				laddr = ip
-			}
-		} else {
-			if ip.Is6() {
-				laddr = ip
-			}
-		}
-	}
-
-	if !laddr.IsValid() {
-		return nil, fmt.Errorf("tailscale ip not found")
-	}
-
-	conn, err := dialer.ListenPacket("udp", net.JoinHostPort(laddr.String(), "0"))
-	if err != nil {
-		return nil, err
-	}
-
-	return &warpPacketConn{ctx: context.WithoutCancel(ctx), PacketConn: conn}, nil
-}
-
-var (
-	tailscaleServiceIP   = tsaddr.TailscaleServiceIP()
-	tailscaleServiceIPv6 = tsaddr.TailscaleServiceIPv6()
-)
-
-func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	dialer, err := t.init(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = t.up(ctx, dialer)
-	if err != nil {
-		return nil, err
-	}
-
-	// see: https://github.com/tailscale/tailscale/issues/10860
-	//      https://github.com/tailscale/tailscale/issues/4677
-	//
-	// the magic dns is not working on tsnet, so we need hijack it
-	if !addr.IsFqdn() && addr.Port() == 53 {
-		ipaddr := addr.(netapi.IPAddress).AddrPort().Addr().Unmap()
-		if ipaddr == tailscaleServiceIP || ipaddr == tailscaleServiceIPv6 {
-			return NewDnsPacket(dialer.Sys().Dialer.Get(), ipaddr), nil
-		}
-	}
-
-	nip, err := t.resolveAddr(dialer, addr)
-	if err != nil {
-		return nil, err
-	}
-
-	// tailscale tsnet only support dial udp, listenPacket will error with "endpoint is in invalid state"
-	conn, err := dialer.Sys().Dialer.Get().NetstackDialUDP(ctx, nip)
-	if err != nil {
-		return nil, err
-	}
-
-	return &warpUDPConn{ctx: context.WithoutCancel(ctx), ts: t, addr: addr, Conn: conn}, nil
+	return t.PacketConn(ctx, addr)
 }
 
 func (t *Tailscale) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
-	dialer, err := t.init(ctx)
+	s, err := t.ready(ctx)
 	if err != nil {
 		return 0, err
 	}
-
-	_, err = t.up(ctx, dialer)
+	ip, err := resolveAddr(ctx, s, "tcp", addr)
 	if err != nil {
 		return 0, err
 	}
-
-	nip, err := t.resolveAddr(dialer, addr)
-	if err != nil {
-		return 0, err
-	}
-
-	var resp uint64
-	dialer.Sys().Engine.Get().Ping(nip.Addr(),
-		tailcfg.PingICMP, 8, func(pr *ipnstate.PingResult) {
-			if pr.Err != "" {
-				err = fmt.Errorf("tailscale ping failed: %s", pr.Err)
-			}
-			resp = uint64(pr.LatencySeconds)
-		})
-
-	return resp, err
+	pingCtx, cancel := context.WithTimeout(ctx, configuration.Timeout)
+	defer cancel()
+	stop := context.AfterFunc(t.ctx, cancel)
+	defer stop()
+	return awaitPing(pingCtx, func(cb func(*ipnstate.PingResult)) {
+		s.Sys().Engine.Get().Ping(ip.Addr(), tailcfg.PingICMP, 8, cb)
+	})
 }
 
-type warpPacketConn struct {
-	ctx context.Context
+func awaitPing(ctx context.Context, ping func(func(*ipnstate.PingResult))) (uint64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	ch := make(chan *ipnstate.PingResult, 1)
+	ping(func(r *ipnstate.PingResult) {
+		select {
+		case ch <- r:
+		default:
+		}
+	})
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	case r := <-ch:
+		if r == nil {
+			return 0, errors.New("tailscale ping returned no result")
+		}
+		if r.Err != "" {
+			return 0, fmt.Errorf("tailscale ping failed: %s", r.Err)
+		}
+		return uint64(r.LatencySeconds * float64(time.Second)), nil
+	}
+}
+
+// tailnetPacketConn is a real unconnected socket. Every destination is checked
+// and resolved through this server; ordinary names cannot escape to host sockets.
+type tailnetPacketConn struct {
 	net.PacketConn
+	server        *tsnet.Server
+	ctx           context.Context
+	network       string
+	cancel        context.CancelFunc
+	writeDeadline pipe.PipeDeadline
 }
 
-func (c *warpPacketConn) Close() error {
-	return c.PacketConn.Close()
-}
-
-func (w *warpPacketConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
+func (p *tailnetPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	a, err := netapi.ParseSysAddr(addr)
 	if err != nil {
 		return 0, err
 	}
-
-	var udpAddr *net.UDPAddr
-	if !a.IsFqdn() {
-		udpAddr = net.UDPAddrFromAddrPort(a.(netapi.IPAddress).AddrPort())
-	} else {
-		ctx, cancel := context.WithTimeout(w.ctx, configuration.ResolverTimeout)
-		ips, err := netapi.ResolverIP(ctx, a.Hostname())
-		cancel()
+	if p.ctx.Err() != nil {
+		return 0, net.ErrClosed
+	}
+	ctx := p.ctx
+	// IP datagrams avoid a timer and watcher goroutine. Only hostname resolution
+	// can block before the socket sees its write deadline.
+	if a.IsFqdn() {
+		lookupCtx, cancel := context.WithTimeout(ctx, configuration.ResolverTimeout)
+		defer cancel()
+		var stop context.CancelFunc
+		ctx, stop, err = withWriteDeadline(lookupCtx, &p.writeDeadline)
 		if err != nil {
 			return 0, err
 		}
-		udpAddr = ips.RandUDPAddr(a.Port())
+		defer stop()
 	}
-
-	return w.PacketConn.WriteTo(buf, udpAddr)
-}
-
-func (w *warpPacketConn) ReadFrom(buf []byte) (int, net.Addr, error) {
-	n, addr, err := w.PacketConn.ReadFrom(buf)
-	return n, addr, err
-}
-
-var _ net.PacketConn = (*warpUDPConn)(nil)
-
-type warpUDPConn struct {
-	ctx  context.Context
-	ts   *Tailscale
-	addr net.Addr
-	net.Conn
-}
-
-func (w *warpUDPConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
-	return w.Write(buf)
-}
-
-func (w *warpUDPConn) ReadFrom(buf []byte) (int, net.Addr, error) {
-	n, err := w.Read(buf)
-	return n, w.addr, err
-}
-
-type dnsPacket struct {
-	src           netip.Addr
-	ctx           context.Context
-	cancel        context.CancelFunc
-	ch            chan []byte
-	dialer        *tsdial.Dialer
-	writeDeadline pipe.PipeDeadline
-	readDeadline  pipe.PipeDeadline
-}
-
-func NewDnsPacket(dialer *tsdial.Dialer, src netip.Addr) net.PacketConn {
-	ctx, cancel := context.WithCancel(context.Background())
-	return &dnsPacket{
-		cancel:        cancel,
-		ctx:           ctx,
-		ch:            make(chan []byte, 100),
-		writeDeadline: pipe.MakePipeDeadline(),
-		readDeadline:  pipe.MakePipeDeadline(),
-		dialer:        dialer,
-		src:           src,
-	}
-}
-
-func (d *dnsPacket) Close() error {
-	d.cancel()
-	return nil
-}
-
-func (d *dnsPacket) ReadFrom(buf []byte) (int, net.Addr, error) {
-	select {
-	case <-d.readDeadline.Wait():
-		return 0, nil, os.ErrDeadlineExceeded
-	case <-d.ctx.Done():
-		return 0, nil, d.ctx.Err()
-	case b := <-d.ch:
-		n := copy(buf, b)
-		pool.PutBytes(b)
-		return n, &net.UDPAddr{
-			IP:   d.src.AsSlice(),
-			Port: 53,
-		}, nil
-	}
-}
-
-func (d *dnsPacket) WriteTo(buf []byte, addr net.Addr) (int, error) {
-	var msg mdns.Msg
-	msg.Data = append(msg.Data, buf...)
-	if err := msg.Unpack(); err != nil {
-		return 0, err
-	}
-
-	if len(msg.Question) == 0 {
-		return len(buf), nil
-	}
-
-	msg.Response = true
-
-	q := netapi.DNSQuestionFromRR(msg.Question[0])
-	if q.Qtype == mdns.TypeA {
-		name := strings.TrimSuffix(q.Name, ".")
-
-		if ip, ok := d.dialer.ResolveMagicDNS(name, "tcp"); ok {
-			msg.Answer = []mdns.RR{
-				&mdns.A{
-					Hdr: mdns.Header{
-						Name:  q.Name,
-						TTL:   20,
-						Class: mdns.ClassINET,
-					},
-					Addr: ip,
-				},
-			}
+	ip, err := resolveAddr(ctx, p.server, p.network, a)
+	if cause := context.Cause(ctx); cause != nil {
+		if p.ctx.Err() != nil {
+			return 0, net.ErrClosed
 		}
+		return 0, cause
 	}
-
-	if err := msg.Pack(); err != nil {
+	if err != nil {
 		return 0, err
 	}
-	data := bytes.Clone(msg.Data)
-
-	select {
-	case <-d.writeDeadline.Wait():
-		return 0, os.ErrDeadlineExceeded
-	case <-d.ctx.Done():
-		return 0, d.ctx.Err()
-	case d.ch <- data:
-		return len(buf), nil
+	if p.network == "udp4" && !ip.Addr().Is4() || p.network == "udp6" && !ip.Addr().Is6() {
+		return 0, errors.New("tailscale UDP destination does not match socket address family")
 	}
+	return p.PacketConn.WriteTo(b, net.UDPAddrFromAddrPort(ip))
 }
 
-func (d *dnsPacket) LocalAddr() net.Addr {
-	return &net.UDPAddr{
-		IP: net.IPv4zero,
+func (p *tailnetPacketConn) Close() error {
+	p.cancel()
+	p.writeDeadline.Set(time.Time{})
+	return p.PacketConn.Close()
+}
+func (p *tailnetPacketConn) SetWriteDeadline(t time.Time) error {
+	if p.ctx.Err() != nil {
+		return net.ErrClosed
 	}
+	p.writeDeadline.Set(t)
+	return p.PacketConn.SetWriteDeadline(t)
+}
+func (p *tailnetPacketConn) SetDeadline(t time.Time) error {
+	if err := p.SetReadDeadline(t); err != nil {
+		return err
+	}
+	return p.SetWriteDeadline(t)
 }
 
-func (d *dnsPacket) SetDeadline(t time.Time) error {
-	_ = d.SetReadDeadline(t)
-	_ = d.SetWriteDeadline(t)
-	return nil
-}
-
-func (d *dnsPacket) SetReadDeadline(t time.Time) error {
-	d.readDeadline.Set(t)
-	return nil
-}
-
-func (d *dnsPacket) SetWriteDeadline(t time.Time) error {
-	d.writeDeadline.Set(t)
-	return nil
+// migrateState preserves existing node identity when adopting hashed state
+// directories. Already-migrated configurations are never overwritten.
+func migrateState(base, dir, hostname string) error {
+	if _, err := os.Lstat(dir); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if hostname == "" {
+		// The old empty-hostname configuration stored state in the tailscale root.
+		old := filepath.Join(base, "tailscale", "tailscaled.state")
+		if _, err := os.Lstat(old); errors.Is(err, os.ErrNotExist) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return err
+		}
+		return os.Rename(old, filepath.Join(dir, "tailscaled.state"))
+	}
+	if hostname == "." || hostname == ".." || filepath.Base(hostname) != hostname {
+		return nil
+	}
+	old := filepath.Join(base, "tailscale", hostname)
+	info, err := os.Lstat(old)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return errors.New("tailscale legacy state path is not a directory")
+	}
+	return os.Rename(old, dir)
 }
