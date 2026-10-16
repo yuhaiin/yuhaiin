@@ -14,9 +14,6 @@ func (p pathGenerator) Lock(dir string) string   { return p.makeDir(filepath.Joi
 func (p pathGenerator) Node(dir string) string   { return p.makeDir(filepath.Join(dir, "node.json")) }
 func (p pathGenerator) Config(dir string) string { return p.makeDir(filepath.Join(dir, "config.json")) }
 func (p pathGenerator) State(dir string) string  { return p.makeDir(filepath.Join(dir, "state.db")) }
-func (p pathGenerator) PebbleCache(dir string) string {
-	return p.makeDir(filepath.Join(dir, "pebble_cache"))
-}
 
 func (p pathGenerator) Log(dir string) string {
 	return p.makeDir(filepath.Join(dir, "log", "yuhaiin.log"))
