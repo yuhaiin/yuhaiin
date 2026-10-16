@@ -14,9 +14,9 @@ import (
 
 type malformedUnderlayProxy struct {
 	netapi.Proxy
-	conn net.Conn
-	err error
-	pc net.PacketConn
+	conn      net.Conn
+	err       error
+	pc        net.PacketConn
 	packetErr error
 }
 
@@ -34,7 +34,7 @@ func TestUnderlayNormalizesTypedNilTCP(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		conn net.Conn
-		err error
+		err  error
 	}{
 		{name: "failed dial typed nil", conn: absent, err: dialFailure},
 		{name: "failed dial nil", err: dialFailure},
