@@ -1,0 +1,20 @@
+File: lightweight-profile.test
+Build ID: e1914418fba20d39fad5079566c3aa5992a5e379
+Type: alloc_space
+Time: 2026-10-16 17:26:59 CST
+Showing nodes accounting for 2098.42MB, 99.42% of 2110.72MB total
+Dropped 54 nodes (cum <= 10.55MB)
+Showing top 12 nodes out of 23
+      flat  flat%   sum%        cum   cum%
+  428.57MB 20.30% 20.30%  1194.19MB 56.58%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).Write
+  424.60MB 20.12% 40.42%   468.60MB 22.20%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).receive
+  411.59MB 19.50% 59.92%   411.59MB 19.50%  bytes.Clone (inline)
+  389.56MB 18.46% 78.38%   389.56MB 18.46%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.makeIP
+  382.56MB 18.12% 96.50%   772.12MB 36.58%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).output
+   48.51MB  2.30% 98.80%    48.51MB  2.30%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.notify (inline)
+      12MB  0.57% 99.37%       17MB  0.81%  time.NewTimer
+    0.53MB 0.025% 99.39%  1199.22MB 56.82%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.transferWorkload.func1
+    0.50MB 0.024% 99.42%   412.09MB 19.52%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).writeLoop
+         0     0% 99.42%   479.60MB 22.72%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).handleTCP
+         0     0% 99.42%   479.60MB 22.72%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).input
+         0     0% 99.42%   479.60MB 22.72%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).readLoop
