@@ -4,7 +4,6 @@ go 1.27.2
 
 replace (
 	github.com/apernet/hysteria/core/v2 => github.com/Asutorufa/hysteria/core/v2 v2.13.1-0.20261007150228-a38075fd0e66
-	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
 	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20261016051747-4441c394b330
 )
@@ -15,7 +14,6 @@ require (
 	github.com/apernet/hysteria/core/v2 v2.13.0
 	github.com/apernet/hysteria/extras/v2 v2.13.0
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
-	github.com/cilium/ebpf v0.22.0
 	github.com/cockroachdb/pebble/v2 v2.1.7
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/nftables v0.3.0
@@ -24,7 +22,6 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/oschwald/maxminddb-golang/v2 v2.8.0
 	github.com/pires/go-proxyproto v0.15.0
-	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.25.0
 	github.com/quic-go/connect-ip-go v0.6.0
 	github.com/quic-go/quic-go v0.63.0
@@ -136,4 +133,3 @@ require (
 	modernc.org/memory v1.12.1 // indirect
 )
 
-tool github.com/cilium/ebpf/cmd/bpf2go
