@@ -50,7 +50,7 @@ func (c *TCPConn) receive(seq uint32, data []byte, fin bool, now time.Time) {
 			break
 		}
 		if after(v.seq, cursor) {
-			additions = append(additions, receivePiece{cursor, data[int(cursor-seq):int(v.seq-seq)]})
+			additions = append(additions, receivePiece{seq: cursor, data: data[int(cursor-seq):int(v.seq-seq)]})
 		}
 		if after(ve, cursor) {
 			cursor = ve
@@ -60,21 +60,27 @@ func (c *TCPConn) receive(seq uint32, data []byte, fin bool, now time.Time) {
 		}
 	}
 	if before(cursor, end) {
-		additions = append(additions, receivePiece{cursor, data[int(cursor-seq):]})
+		additions = append(additions, receivePiece{seq: cursor, data: data[int(cursor-seq):]})
 	}
-	if len(additions)+len(c.ooo) > 128 && (len(additions) == 0 || additions[0].seq != c.rcvNxt) || len(additions)+len(c.ooo)+len(c.rx) > maxReceiveChunks {
+	if len(additions)+len(c.ooo) > 128 && (len(additions) == 0 || additions[0].seq != c.rcvNxt) || len(additions)+len(c.ooo)+c.rx.len() > maxReceiveChunks {
 		c.sendACK()
 		return
 	}
 	for _, v := range additions {
-		if len(v.data) > c.receiveLimit-c.rxBytes || !c.stack.reserve(len(v.data)+receiveCharge) {
+		if len(v.data) > c.receiveLimit-c.rxBytes || !c.stack.reserve(receiveCharge) {
 			c.stack.drops.Add(1)
 			break
 		}
-		b := make([]byte, len(v.data))
+		owner, err := c.stack.buffers.get(len(v.data))
+		if err != nil {
+			c.stack.release(receiveCharge)
+			c.stack.drops.Add(1)
+			break
+		}
+		b := owner.data
 		copy(b, v.data)
 		c.rxBytes += len(b)
-		c.ooo = append(c.ooo, receivePiece{v.seq, b})
+		c.ooo = append(c.ooo, receivePiece{seq: v.seq, data: b, owner: owner})
 	}
 	slices.SortFunc(c.ooo, func(a, b receivePiece) int {
 		if before(a.seq, b.seq) {
@@ -93,10 +99,11 @@ func (c *TCPConn) receive(seq uint32, data []byte, fin bool, now time.Time) {
 		c.rcvNxt += uint32(len(v.data))
 		progressed = true
 		if c.readClosed {
-			c.stack.release(len(v.data) + receiveCharge)
+			v.owner.release()
+			c.stack.release(receiveCharge)
 			c.rxBytes -= len(v.data)
 		} else {
-			c.rx = append(c.rx, receiveChunk{data: v.data})
+			c.rx.push(receiveChunk{data: v.data, owner: v.owner})
 		}
 	}
 	if c.finPending && c.finSeq == c.rcvNxt {
@@ -114,7 +121,8 @@ func (c *TCPConn) receive(seq uint32, data []byte, fin bool, now time.Time) {
 		}
 		// Any queued bytes beyond FIN are no longer part of this byte stream.
 		for _, v := range c.ooo {
-			c.stack.release(len(v.data) + receiveCharge)
+			v.owner.release()
+			c.stack.release(receiveCharge)
 			c.rxBytes -= len(v.data)
 		}
 		c.ooo = nil

@@ -6,9 +6,21 @@ import (
 	"time"
 )
 
-// changed channels implement broadcast wakeups. Replace/close only while the
-// socket lock is held; waiters snapshot the channel and deadline under that lock.
-func notify(ch *chan struct{}) { close(*ch); *ch = make(chan struct{}) }
+// Allocate a broadcast channel only while an operation actually waits. All
+// condition checks, watch and notify calls hold the socket lock; notifications
+// cannot be lost between checking a condition and registering its waiter.
+func watch(ch *chan struct{}) <-chan struct{} {
+	if *ch == nil {
+		*ch = make(chan struct{})
+	}
+	return *ch
+}
+func notify(ch *chan struct{}) {
+	if *ch != nil {
+		close(*ch)
+		*ch = nil
+	}
+}
 func waitSocket(ch, done <-chan struct{}, deadline time.Time) error {
 	var timer *time.Timer
 	var timeout <-chan time.Time

@@ -3,6 +3,10 @@
 Status: experimental opt-in implementation. Replacement readiness and the full
 acceptance matrix are not established; measured results and gaps are explicit below.
 
+The later [transport optimization checkpoint](benchmarks/lightweight-optimization.md) records updated
+measurements, idle baselines, correctness fixes and pending BBR v3/HyStart++ work.
+The original full matrix below is historical and predates those changes.
+
 ## Architecture and implementation plan
 
 The independent `pkg/net/proxy/tun/lightweight` core owns IP packets, sockets,

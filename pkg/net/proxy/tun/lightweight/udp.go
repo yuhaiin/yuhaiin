@@ -90,7 +90,7 @@ func (s *Stack) DialUDP(local, remote netip.AddrPort) (*UDPConn, error) {
 	if !s.reserve(1024) {
 		return nil, ErrLimit
 	}
-	u := &UDPConn{stack: s, local: local, remote: remote, changed: make(chan struct{})}
+	u := &UDPConn{stack: s, local: local, remote: remote}
 	s.udp[local] = u
 	return u, nil
 }
@@ -230,7 +230,7 @@ func (u *UDPConn) ReadFrom(b []byte) (int, net.Addr, error) {
 			u.stack.release(len(d.Payload) + receiveCharge)
 			return n, net.UDPAddrFromAddrPort(d.Source), nil
 		}
-		ch, at := u.changed, u.readDeadline
+		ch, at := watch(&u.changed), u.readDeadline
 		u.mu.Unlock()
 		err := waitSocket(ch, u.stack.done, at)
 		u.mu.Lock()

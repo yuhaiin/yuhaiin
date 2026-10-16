@@ -4,14 +4,17 @@ package lightweighttun
 import (
 	"errors"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"io"
 )
 
 type packetIO struct {
-	device      netlink.Tun
-	buffers     [][]byte
-	sizes       []int
-	count, next int
+	device       netlink.Tun
+	buffers      [][]byte
+	sizes        []int
+	count, next  int
+	pendingErr   error
+	writeBuffers [1][]byte
 }
 
 func newPacketIO(d netlink.Tun) (*packetIO, error) {
@@ -30,13 +33,19 @@ func newPacketIO(d netlink.Tun) (*packetIO, error) {
 }
 func (p *packetIO) ReadPacket(b []byte) (int, error) {
 	if p.next == p.count {
+		if p.pendingErr != nil {
+			err := p.pendingErr
+			p.pendingErr = nil
+			return 0, err
+		}
 		n, err := p.device.Read(p.buffers, p.sizes)
-		if err != nil {
+		if n == 0 && err != nil {
 			return 0, err
 		}
 		if n < 1 || n > len(p.buffers) {
 			return 0, io.ErrUnexpectedEOF
 		}
+		p.pendingErr = err
 		p.count = n
 		p.next = 0
 	}
@@ -50,9 +59,22 @@ func (p *packetIO) ReadPacket(b []byte) (int, error) {
 	return copy(b, p.buffers[i][offset:offset+n]), nil
 }
 func (p *packetIO) WritePacket(b []byte) error {
-	data := make([]byte, p.device.Offset()+len(b))
-	copy(data[p.device.Offset():], b)
-	n, err := p.device.Write([][]byte{data})
+	if len(b) > 65575 {
+		return io.ErrShortBuffer
+	}
+	offset := p.device.Offset()
+	data := b
+	if offset > 0 {
+		data = pool.GetBytes(offset + len(b))
+		defer pool.PutBytes(data)
+		clear(data[:offset])
+		copy(data[offset:], b)
+	}
+	// The stack has one writer. Native device writes borrow these buffers only
+	// until return, so zero-offset TUNs need no additional copy or allocation.
+	p.writeBuffers[0] = data
+	n, err := p.device.Write(p.writeBuffers[:])
+	p.writeBuffers[0] = nil
 	if err != nil {
 		return err
 	}

@@ -11,6 +11,7 @@ type testTun struct {
 	gso     bool
 	packets [][]byte
 	written []byte
+	nextErr error
 }
 
 func (d *testTun) Read(b [][]byte, sizes []int) (int, error) {
@@ -22,9 +23,11 @@ func (d *testTun) Read(b [][]byte, sizes []int) (int, error) {
 		sizes[i] = copy(b[i][d.offset:], d.packets[i])
 	}
 	d.packets = d.packets[n:]
-	return n, nil
+	err := d.nextErr
+	d.nextErr = nil
+	return n, err
 }
-func (d *testTun) Write(b [][]byte) (int, error) { d.written = b[0]; return len(b), nil }
+func (d *testTun) Write(b [][]byte) (int, error) { d.written = bytes.Clone(b[0]); return len(b), nil }
 func (d *testTun) Close() error                  { return nil }
 func (d *testTun) MTU() int                      { return 1500 }
 func (d *testTun) Offset() int                   { return d.offset }
@@ -56,5 +59,23 @@ func TestPacketDeviceOffsetsAndOwnership(t *testing.T) {
 	}
 	if _, err := newPacketIO(&testTun{gso: true}); err == nil {
 		t.Fatal("accepted unvalidated offload")
+	}
+}
+
+func TestPacketDeviceDrainsPartialBatchBeforeError(t *testing.T) {
+	d := &testTun{packets: [][]byte{[]byte("first"), []byte("second")}, nextErr: io.EOF}
+	p, err := newPacketIO(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := make([]byte, 100)
+	for _, want := range []string{"first", "second"} {
+		n, err := p.ReadPacket(b)
+		if err != nil || string(b[:n]) != want {
+			t.Fatalf("batch data %q %v", b[:n], err)
+		}
+	}
+	if _, err := p.ReadPacket(b); err != io.EOF {
+		t.Fatalf("pending batch error: %v", err)
 	}
 }

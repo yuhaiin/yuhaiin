@@ -19,10 +19,16 @@ func (c *TCPConn) schedule(now time.Time) {
 		at = earliest(at, c.born.Add(c.stack.config.HandshakeTimeout))
 	}
 	if c.state != TimeWait && !c.outputWaiting {
+		for _, v := range c.tx.values() {
+			if v.resend {
+				at = earliest(at, maxTime(c.paceAt, now))
+				break
+			}
+		}
 		at = earliest(at, c.rtoAt)
 		at = earliest(at, c.persistAt)
 		if c.controller.PacingRate() > 0 && c.peerWindow > 0 && c.flight() < c.controller.CongestionWindow() {
-			for _, v := range c.tx {
+			for _, v := range c.tx.values() {
 				if v.transmissions == 0 && v.flags&flagSYN == 0 && before(v.seq, c.sndUna+c.peerWindow) {
 					at = earliest(at, maxTime(c.paceAt, now))
 					break
@@ -48,7 +54,7 @@ func (c *TCPConn) schedule(now time.Time) {
 	c.stack.outputMu.Unlock()
 }
 func (c *TCPConn) retransmit(now time.Time) {
-	for _, v := range c.tx {
+	for _, v := range c.tx.values() {
 		if v.transmissions > 0 && !v.sacked {
 			c.transmit(v, now, true)
 			return
@@ -95,8 +101,8 @@ func (c *TCPConn) onTimer(now time.Time) {
 		c.recovering = true
 		c.recover = c.sndNxt
 		c.dupACKs = 0
-		for _, v := range c.tx {
-			v.sacked = false
+		for _, v := range c.tx.values() {
+			c.setSACK(v, false)
 		}
 		c.controller.OnTimeout(congestion.TimeoutEvent{Now: now, BytesInFlight: uint64(c.sndNxt - c.sndUna)})
 		c.retransmit(now)

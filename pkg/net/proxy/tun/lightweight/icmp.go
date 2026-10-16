@@ -197,8 +197,7 @@ func (s *Stack) handleICMPError(p Packet) {
 			c.pathMSS = max(28, mtu-h)
 			c.mss = min(c.mss, c.pathMSS)
 			c.resegment()
-			c.retransmit(time.Now())
-			c.schedule(time.Now())
+			c.pump(time.Now())
 			return
 		}
 		if c.state == SynSent || c.state == SynReceived {
@@ -224,17 +223,24 @@ func (s *Stack) handleICMPError(p Packet) {
 }
 func (c *TCPConn) resegment() {
 	extra := 0
-	for _, v := range c.tx {
+	for _, v := range c.tx.values() {
 		if len(v.data) > c.mss {
 			extra += (len(v.data) - 1) / c.mss
 		}
 	}
-	if len(c.tx)+extra > maxSendSegments || !c.stack.reserve(extra*segmentCharge) {
+	if c.tx.len()+extra > maxSendSegments || !c.stack.reserve(extra*segmentCharge) {
 		c.finish(ErrLimit)
 		return
 	}
 	var tx []*sendSegment
-	for _, v := range c.tx {
+	for _, v := range c.tx.values() {
+		// All outstanding data may have met the old path limit. Keep transmission
+		// history for Karn and cumulative ACKs, but explicitly schedule replacement
+		// packets rather than making them appear to be newly sent sequence space.
+		if v.transmissions > 0 && len(v.data) > 0 {
+			v.resend = true
+			c.setSACK(v, false)
+		}
 		if len(v.data) <= c.mss {
 			tx = append(tx, v)
 			continue
@@ -243,10 +249,13 @@ func (c *TCPConn) resegment() {
 			end := min(len(v.data), off+c.mss)
 			part := *v
 			part.seq += uint32(off)
-			part.data = bytes.Clone(v.data[off:end])
+			part.data = v.data[off:end]
+			if off > 0 {
+				part.owner.hold()
+			}
 			part.sacked = false
 			tx = append(tx, &part)
 		}
 	}
-	c.tx = tx
+	c.tx = sliceQueue[*sendSegment]{items: tx}
 }

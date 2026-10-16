@@ -149,7 +149,7 @@ func (s *Stack) newTCP(k flowKey, state TCPState) (*TCPConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &TCPConn{stack: s, key: k, state: state, iss: iss, sndUna: iss, sndNxt: iss, sndEnd: iss, mss: min(mss, peerMSS), pathMSS: mss, peerScale: -1, receiveLimit: s.config.ReceiveBuffer, rto: time.Second, changed: make(chan struct{}), controller: cc, born: time.Now(), lastActive: time.Now()}
+	c := &TCPConn{stack: s, key: k, state: state, iss: iss, sndUna: iss, sndNxt: iss, sndEnd: iss, mss: min(mss, peerMSS), pathMSS: mss, peerScale: -1, receiveLimit: s.config.ReceiveBuffer, rto: time.Second, controller: cc, born: time.Now(), lastActive: time.Now()}
 	for (s.config.MaxReceiveBuffer>>c.ownScale) > 65535 && c.ownScale < 14 {
 		c.ownScale++
 	}
@@ -198,7 +198,7 @@ func (s *Stack) DialContextTCP(ctx context.Context, remote netip.AddrPort) (net.
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for c.state == SynSent || c.state == SynReceived {
-		ch := c.changed
+		ch := watch(&c.changed)
 		c.mu.Unlock()
 		err = waitSocket(ch, s.done, time.Time{})
 		c.mu.Lock()
@@ -292,8 +292,8 @@ func (s *Stack) handleTCP(p Packet) {
 		}
 		if flags&flagACK == 0 {
 			c.state = SynReceived
-			if len(c.tx) > 0 {
-				c.transmit(c.tx[0], now, true)
+			if c.tx.len() > 0 {
+				c.transmit(c.tx.values()[0], now, true)
 			}
 			c.schedule(now)
 			return
@@ -309,8 +309,8 @@ func (s *Stack) handleTCP(p Packet) {
 		return
 	}
 	if c.state == SynReceived && flags&flagSYN != 0 && seq+1 == c.rcvNxt {
-		if len(c.tx) > 0 {
-			c.transmit(c.tx[0], now, true)
+		if c.tx.len() > 0 {
+			c.transmit(c.tx.values()[0], now, true)
 		}
 		c.schedule(now)
 		return

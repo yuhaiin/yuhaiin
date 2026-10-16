@@ -203,23 +203,23 @@ func (p Packet) ValidateTransport() error {
 	return nil
 }
 
-func makeIP(src, dst netip.Addr, proto uint8, payload []byte, id uint16) ([]byte, error) {
+func ipHeaderSize(src, dst netip.Addr, payloadSize int) (int, error) {
 	if !src.IsValid() || !dst.IsValid() || src.Is4() != dst.Is4() || src.Zone() != "" || dst.Zone() != "" {
-		return nil, ErrMalformed
+		return 0, ErrMalformed
 	}
 	h := 40
+	limit := 65535
 	if src.Is4() {
 		h = 20
-	}
-	limit := 65535
-	if h == 20 {
 		limit -= h
 	}
-	if len(payload) > limit {
-		return nil, ErrMTU
+	if payloadSize < 0 || payloadSize > limit {
+		return 0, ErrMTU
 	}
-	b := make([]byte, h+len(payload))
-	copy(b[h:], payload)
+	return h, nil
+}
+func fillIPHeader(b []byte, src, dst netip.Addr, proto uint8, id uint16, h int) {
+	clear(b[:h])
 	if h == 20 {
 		b[0] = 0x45
 		binary.BigEndian.PutUint16(b[2:4], uint16(len(b)))
@@ -232,11 +232,20 @@ func makeIP(src, dst netip.Addr, proto uint8, payload []byte, id uint16) ([]byte
 		binary.BigEndian.PutUint16(b[10:12], Checksum(b[:20]))
 	} else {
 		b[0] = 0x60
-		binary.BigEndian.PutUint16(b[4:6], uint16(len(payload)))
+		binary.BigEndian.PutUint16(b[4:6], uint16(len(b)-h))
 		b[6] = proto
 		b[7] = 64
 		copy(b[8:24], src.AsSlice())
 		copy(b[24:40], dst.AsSlice())
 	}
+}
+func makeIP(src, dst netip.Addr, proto uint8, payload []byte, id uint16) ([]byte, error) {
+	h, err := ipHeaderSize(src, dst, len(payload))
+	if err != nil {
+		return nil, err
+	}
+	b := make([]byte, h+len(payload))
+	fillIPHeader(b, src, dst, proto, id, h)
+	copy(b[h:], payload)
 	return b, nil
 }

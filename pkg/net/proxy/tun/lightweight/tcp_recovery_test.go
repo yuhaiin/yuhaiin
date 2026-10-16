@@ -124,7 +124,7 @@ func TestTCPSACKAndFastRetransmit(t *testing.T) {
 		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq+4380, flagACK, 1000, nil, nil))
 		synctest.Wait()
 		c.mu.Lock()
-		remaining, recovering := len(c.tx), c.recovering
+		remaining, recovering := c.tx.len(), c.recovering
 		c.mu.Unlock()
 		if remaining != 0 || recovering {
 			t.Fatal("cumulative ACK failed to finish recovery")

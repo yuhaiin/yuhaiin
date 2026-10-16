@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"io"
 	"maps"
 	"net"
 	"net/netip"
@@ -32,7 +33,9 @@ type flowShard struct {
 const connectionCharge = 4096
 
 type Stack struct {
+	buffers                                       bufferPool
 	outputMu                                      sync.Mutex
+	outputCount                                   atomic.Int64
 	outputWaiters                                 list.List
 	config                                        Config
 	link                                          PacketIO
@@ -42,7 +45,7 @@ type Stack struct {
 	wg                                            sync.WaitGroup
 	closeErr                                      error
 	scheduler                                     *scheduler
-	outgoing                                      chan []byte
+	outgoing                                      chan *ownedBuffer
 	forwarded                                     chan Datagram
 	shards                                        [32]flowShard
 	mu                                            sync.Mutex
@@ -60,11 +63,12 @@ type Stack struct {
 }
 type Statistics struct {
 	MemoryBytes, Connections                      int64
+	CachedBytes                                   int64
 	PacketsIn, PacketsOut, Drops, Retransmissions uint64
 }
 
 func (s *Stack) Stats() Statistics {
-	return Statistics{s.memory.Load(), s.flows.Load(), s.packetsIn.Load(), s.packetsOut.Load(), s.drops.Load(), s.retransmissions.Load()}
+	return Statistics{MemoryBytes: s.memory.Load(), Connections: s.flows.Load(), CachedBytes: s.buffers.cached.Load(), PacketsIn: s.packetsIn.Load(), PacketsOut: s.packetsOut.Load(), Drops: s.drops.Load(), Retransmissions: s.retransmissions.Load()}
 }
 
 // New takes ownership of link only on success. Close joins all stack workers.
@@ -76,8 +80,9 @@ func New(config Config, link PacketIO) (*Stack, error) {
 	if link == nil {
 		return nil, errors.New("lightweight: nil PacketIO")
 	}
-	s := &Stack{config: c, link: link, done: make(chan struct{}), outgoing: make(chan []byte, c.QueuePackets), forwarded: make(chan Datagram, min(c.QueuePackets, 256)), listeners: make(map[netip.AddrPort]*TCPListener), udp: make(map[netip.AddrPort]*UDPConn), icmpTokens: 100}
+	s := &Stack{config: c, link: link, done: make(chan struct{}), outgoing: make(chan *ownedBuffer, c.QueuePackets), forwarded: make(chan Datagram, min(c.QueuePackets, 256)), listeners: make(map[netip.AddrPort]*TCPListener), udp: make(map[netip.AddrPort]*UDPConn), icmpTokens: 100}
 	s.scheduler = newScheduler(s.done)
+	s.buffers.init(s)
 	s.fragments.init(s)
 	for i := range s.shards {
 		s.shards[i].flows = make(map[flowKey]*TCPConn)
@@ -103,6 +108,9 @@ func (s *Stack) reserve(n int) bool {
 	for {
 		old := s.memory.Load()
 		if int64(n) > s.config.MemoryLimit-old {
+			if s.buffers.trim(n) {
+				continue
+			}
 			return false
 		}
 		if s.memory.CompareAndSwap(old, old+int64(n)) {
@@ -147,7 +155,7 @@ func (s *Stack) Close() error {
 	for {
 		select {
 		case p := <-s.outgoing:
-			s.release(len(p))
+			p.release()
 		default:
 			goto forwarded
 		}
@@ -158,6 +166,7 @@ forwarded:
 		case p := <-s.forwarded:
 			s.release(len(p.Payload) + receiveCharge)
 		default:
+			s.buffers.close()
 			return s.closeErr
 		}
 	}
@@ -165,6 +174,7 @@ forwarded:
 func (s *Stack) readLoop() {
 	defer s.shutdown()
 	b := make([]byte, 65575)
+	attempts := 0
 	for {
 		n, err := s.link.ReadPacket(b)
 		if n > 0 && n <= len(b) {
@@ -174,11 +184,21 @@ func (s *Stack) readLoop() {
 			}
 		}
 		if err != nil {
+			if s.retryPacketIO(err, attempts) {
+				attempts++
+				continue
+			}
+			// A too-large packet has already been consumed/dropped by the device.
+			if errors.Is(err, io.ErrShortBuffer) && !s.closed() {
+				s.drops.Add(1)
+				continue
+			}
 			return
 		}
 		if n <= 0 || n > len(b) {
 			return
 		}
+		attempts = 0
 	}
 }
 func (s *Stack) writeLoop() {
@@ -188,8 +208,11 @@ func (s *Stack) writeLoop() {
 		case <-s.done:
 			return
 		case b := <-s.outgoing:
-			err := s.link.WritePacket(b)
-			s.release(len(b))
+			err := s.link.WritePacket(b.data)
+			for attempt := 0; err != nil && s.retryPacketIO(err, attempt); attempt++ {
+				err = s.link.WritePacket(b.data)
+			}
+			b.release()
 			if err != nil {
 				return
 			}
@@ -197,32 +220,61 @@ func (s *Stack) writeLoop() {
 		}
 	}
 }
+
+// emit copies unowned packet data; the owned fast path transfers its lease.
 func (s *Stack) emit(b []byte) error {
+	packet, err := s.buffers.get(len(b))
+	if err != nil {
+		return err
+	}
+	copy(packet.data, b)
+	if err = s.emitOwned(packet); err != nil {
+		packet.release()
+	}
+	return err
+}
+func (s *Stack) emitOwned(packet *ownedBuffer) error {
 	s.txMu.RLock()
 	defer s.txMu.RUnlock()
 	if s.closed() {
 		return net.ErrClosed
 	}
-	if !s.reserve(len(b)) {
-		return ErrLimit
-	}
 	select {
-	case s.outgoing <- b:
+	case s.outgoing <- packet:
 		return nil
 	default:
-		s.memory.Add(-int64(len(b)))
 		return ErrLimit
 	}
 }
+func (s *Stack) ipBuffer(src, dst netip.Addr, proto uint8, payloadSize int) (*ownedBuffer, int, error) {
+	h, err := ipHeaderSize(src, dst, payloadSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	packet, err := s.buffers.get(h + payloadSize)
+	if err != nil {
+		return nil, h, err
+	}
+	fillIPHeader(packet.data, src, dst, proto, uint16(s.nextID.Add(1)), h)
+	return packet, h, nil
+}
 func (s *Stack) sendIP(src, dst netip.Addr, proto uint8, payload []byte) error {
-	b, err := makeIP(src, dst, proto, payload, uint16(s.nextID.Add(1)))
+	h, err := ipHeaderSize(src, dst, len(payload))
 	if err != nil {
 		return err
 	}
-	if len(b) > s.config.MTU {
+	if h+len(payload) > s.config.MTU {
 		return ErrMTU
 	}
-	return s.emit(b)
+	packet, h, err := s.ipBuffer(src, dst, proto, len(payload))
+	if err != nil {
+		return err
+	}
+	copy(packet.data[h:], payload)
+	if err = s.emitOwned(packet); err != nil {
+		packet.release()
+	}
+	return err
 }
 func (s *Stack) input(b []byte) error {
 	p, err := ParsePacket(b)

@@ -14,9 +14,10 @@ func (c *TCPConn) receiveWindow() uint32 {
 	}
 	return free
 }
-func (c *TCPConn) headerOptions(syn bool) []byte {
+func (c *TCPConn) headerOptions(dst []byte, syn bool) []byte {
 	if syn {
-		b := []byte{2, 4, byte(c.pathMSS >> 8), byte(c.pathMSS), 4, 2, 1, 3, 3, byte(c.ownScale), 1, 1}
+		b := dst[:12]
+		copy(b, []byte{2, 4, byte(c.pathMSS >> 8), byte(c.pathMSS), 4, 2, 1, 3, 3, byte(c.ownScale), 1, 1})
 		return b
 	}
 	if !c.sack || len(c.ooo) == 0 {
@@ -36,7 +37,7 @@ func (c *TCPConn) headerOptions(syn bool) []byte {
 		blocks[n] = sackBlock{v.seq, end}
 		n++
 	}
-	b := make([]byte, 4+8*n)
+	b := dst[:4+8*n]
 	b[0] = 1
 	b[1] = 1
 	b[2] = 5
@@ -49,13 +50,35 @@ func (c *TCPConn) headerOptions(syn bool) []byte {
 }
 func (c *TCPConn) output(seq uint32, flags uint8, data []byte) bool {
 	syn := flags&flagSYN != 0
-	opts := c.headerOptions(syn)
+	var options [40]byte
+	opts := c.headerOptions(options[:], syn)
 	// SACK blocks occupy TCP option space and reduce this packet's usable MSS.
 	// A full-sized data segment can omit SACK; the cumulative ACK still applies.
-	if 20+len(opts)+len(data) > c.pathMSS+20 {
+	if len(data) > c.pathMSS-len(opts) {
 		opts = nil
 	}
-	b := make([]byte, 20+len(opts)+len(data))
+	// Bound the untrusted payload before adding header sizes. This also makes
+	// allocation arithmetic safe on 32-bit targets.
+	maxData := 65535 - 20 - len(opts)
+	if c.key.local.Addr().Is4() {
+		maxData -= 20
+	}
+	maxData = min(maxData, c.pathMSS-len(opts))
+	if len(data) > maxData {
+		c.finish(ErrMTU)
+		return false
+	}
+	packet, ih, err := c.stack.ipBuffer(c.key.local.Addr(), c.key.remote.Addr(), 6, 20+len(opts)+len(data))
+	if err != nil {
+		if errors.Is(err, ErrLimit) {
+			c.waitOutput(ih + 20 + len(opts) + len(data))
+		} else {
+			c.finish(err)
+		}
+		return false
+	}
+	b := packet.data[ih:]
+	clear(b[:20])
 	binary.BigEndian.PutUint16(b[:2], c.key.local.Port())
 	binary.BigEndian.PutUint16(b[2:4], c.key.remote.Port())
 	binary.BigEndian.PutUint32(b[4:8], seq)
@@ -72,19 +95,12 @@ func (c *TCPConn) output(seq uint32, flags uint8, data []byte) bool {
 	}
 	scaled := min(window>>shift, 65535)
 	binary.BigEndian.PutUint16(b[14:16], uint16(scaled))
-	if !syn {
-		// Window scaling rounds the wire field down. Keep the greatest right
-		// edge already offered: older in-flight data remains acceptable even
-		// when this ACK's quantized field represents a slightly smaller edge.
-		edge := c.rcvNxt + (scaled << shift)
-		if after(edge, c.rcvAdv) {
-			c.rcvAdv = edge
-		}
-	}
+
 	copy(b[20:], opts)
 	copy(b[20+len(opts):], data)
 	binary.BigEndian.PutUint16(b[16:18], transportChecksum(c.key.local.Addr(), c.key.remote.Addr(), 6, b))
-	if err := c.stack.sendIP(c.key.local.Addr(), c.key.remote.Addr(), 6, b); err != nil {
+	if err := c.stack.emitOwned(packet); err != nil {
+		packet.release()
 		if errors.Is(err, ErrLimit) {
 			h := 20
 			if c.key.local.Addr().Is6() {
@@ -99,6 +115,15 @@ func (c *TCPConn) output(seq uint32, flags uint8, data []byte) bool {
 		}
 		return false
 	}
+	if !syn {
+		// Window scaling rounds the wire field down. Keep the greatest right
+		// edge already offered: older in-flight data remains acceptable even
+		// when this ACK's quantized field represents a slightly smaller edge.
+		edge := c.rcvNxt + (scaled << shift)
+		if after(edge, c.rcvAdv) {
+			c.rcvAdv = edge
+		}
+	}
 	if flags&flagACK != 0 {
 		c.ackPending = 0
 		c.ackAt = time.Time{}
@@ -110,15 +135,21 @@ func (c *TCPConn) sendACK() {
 		c.schedule(time.Now())
 	}
 }
-func (c *TCPConn) sendReset() { c.output(c.sndNxt, flagRST|flagACK, nil) }
-func (c *TCPConn) flight() uint64 {
-	n := uint64(0)
-	for _, v := range c.tx {
-		if v.transmissions > 0 && !v.sacked {
-			n += uint64(v.length())
+func (c *TCPConn) sendReset()     { c.output(c.sndNxt, flagRST|flagACK, nil) }
+func (c *TCPConn) flight() uint64 { return c.bytesInFlight }
+
+func (c *TCPConn) setSACK(v *sendSegment, sacked bool) {
+	if v.sacked == sacked {
+		return
+	}
+	if v.transmissions > 0 {
+		if sacked {
+			c.bytesInFlight -= uint64(v.length())
+		} else {
+			c.bytesInFlight += uint64(v.length())
 		}
 	}
-	return n
+	v.sacked = sacked
 }
 func (c *TCPConn) transmit(v *sendSegment, now time.Time, retrans bool) bool {
 	if !c.output(v.seq, v.flags, v.data) {
@@ -133,10 +164,14 @@ func (c *TCPConn) transmit(v *sendSegment, now time.Time, retrans bool) bool {
 		v.delivered = c.delivered
 		v.deliveredAt = c.deliveredAt
 		v.firstFlight = c.firstFlight
-		v.appLimited = c.txBytes < int(c.controller.CongestionWindow())
+		// A large cwnd alone does not imply application limitation. A paced
+		// sender can have a full write backlog while using only a small flight.
+		v.appLimited = v.seq+v.length() == c.sndEnd && c.flight() < c.controller.CongestionWindow()
 		c.controller.OnPacketSent(congestion.SentPacket{Now: now, Bytes: uint64(v.length()), BytesInFlight: c.flight(), Delivered: c.delivered, AppLimited: v.appLimited})
+		c.bytesInFlight += uint64(v.length())
 	}
 	v.sent = now
+	v.resend = false
 	v.transmissions++
 	if retrans {
 		c.stack.retransmissions.Add(1)
@@ -145,13 +180,24 @@ func (c *TCPConn) transmit(v *sendSegment, now time.Time, retrans bool) bool {
 	}
 	rate := c.controller.PacingRate()
 	if rate > 0 {
-		spacing := time.Duration(float64(v.length()) / float64(rate) * float64(time.Second))
-		c.paceAt = maxTime(now, c.paceAt).Add(max(spacing, time.Microsecond))
+		c.paceAt = pacingDeadline(now, c.paceAt, v.length(), rate)
 	}
 	if c.rtoAt.IsZero() {
 		c.rtoAt = now.Add(c.rto)
 	}
 	return true
+}
+func pacingDeadline(now, previous time.Time, bytes uint32, rate uint64) time.Time {
+	spacing := time.Duration(float64(bytes) / float64(rate) * float64(time.Second))
+	// Preserve earned pacing credit when the shared timer runs late. Restarting
+	// from now on every packet turns timer granularity into a throughput cap.
+	// At most one millisecond of credit is retained; cwnd and the 64-packet pump
+	// budget independently bound a catch-up burst. Idle time cannot accumulate.
+	base := now
+	if !previous.IsZero() {
+		base = maxTime(now.Add(-time.Millisecond), previous)
+	}
+	return base.Add(max(spacing, time.Nanosecond))
 }
 func maxTime(a, b time.Time) time.Time {
 	if b.After(a) {
@@ -165,8 +211,20 @@ func (c *TCPConn) pump(now time.Time) {
 		return
 	}
 	sent := 0
-	for i := 0; i < len(c.tx) && sent < 64; i++ {
-		v := c.tx[i]
+	for i := 0; i < c.tx.len() && sent < 64; i++ {
+		v := c.tx.values()[i]
+		if v.resend {
+			// PMTU replacements reuse already admitted sequence space. They do not
+			// consume a new congestion/window allowance or advance sndNxt.
+			if !c.paceAt.IsZero() && now.Before(c.paceAt) {
+				break
+			}
+			if !c.transmit(v, now, true) {
+				break
+			}
+			sent++
+			continue
+		}
 		if v.transmissions > 0 {
 			continue
 		}
@@ -193,23 +251,19 @@ func (c *TCPConn) pump(now time.Time) {
 					break
 				}
 				// Split only untransmitted buffers. Ownership/accounting stays with the
-				// backing allocation, so make independent pieces before releasing it.
+				// backing allocation; both read-only views retain it until ACKed.
 				n := int(available)
 				if n >= len(v.data) {
 					break
 				}
-				if len(c.tx) >= maxSendSegments || !c.stack.reserve(segmentCharge) {
+				if c.tx.len() >= maxSendSegments || !c.stack.reserve(segmentCharge) {
 					c.finish(ErrLimit)
 					return
 				}
-				left, rightData := make([]byte, n), make([]byte, len(v.data)-n)
-				copy(left, v.data[:n])
-				copy(rightData, v.data[n:])
-				v.data = left
-				tail := &sendSegment{seq: v.seq + uint32(n), flags: v.flags, data: rightData}
-				c.tx = append(c.tx, nil)
-				copy(c.tx[i+2:], c.tx[i+1:])
-				c.tx[i+1] = tail
+				v.owner.hold()
+				tail := &sendSegment{seq: v.seq + uint32(n), flags: v.flags, data: v.data[n:], owner: v.owner}
+				v.data = v.data[:n]
+				c.tx.insert(i+1, tail)
 			}
 		}
 		if !c.transmit(v, now, false) {
@@ -217,7 +271,7 @@ func (c *TCPConn) pump(now time.Time) {
 		}
 		sent++
 	}
-	if c.peerWindow == 0 && len(c.tx) > 0 && c.persistAt.IsZero() {
+	if c.peerWindow == 0 && c.tx.len() > 0 && c.persistAt.IsZero() {
 		c.persistAt = now.Add(c.rto)
 	}
 	if c.peerWindow > 0 {
@@ -249,14 +303,14 @@ func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, 
 		}
 	}
 	if validSACK {
-		for _, v := range c.tx {
+		for _, v := range c.tx.values() {
 			if v.transmissions == 0 {
 				continue
 			}
 			for i := range o.count {
 				b := o.blocks[i]
 				if !before(v.seq, b.start) && !after(v.seq+v.length(), b.end) {
-					v.sacked = true
+					c.setSACK(v, true)
 				}
 			}
 		}
@@ -279,26 +333,31 @@ func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, 
 	c.sndUna = ack
 	c.dupACKs = 0
 	c.retries = 0
-	var sample *sendSegment
+	var sample sendSegment
+	haveSample := false
 	ambiguous := false
 	rtt := time.Duration(0)
 	released := 0
-	for len(c.tx) > 0 {
-		v := c.tx[0]
+	for c.tx.len() > 0 {
+		v := c.tx.values()[0]
 		if v.transmissions == 0 || !after(ack, v.seq) {
 			break
 		}
 		if v.transmissions == 1 {
-			sample = v
+			sample = *v
+			haveSample = true
 			rtt = now.Sub(v.firstSent)
 		} else {
 			ambiguous = true
 		}
 		if !before(ack, v.seq+v.length()) {
-			c.tx[0] = nil
-			c.tx = c.tx[1:]
+			if !v.sacked {
+				c.bytesInFlight -= uint64(v.length())
+			}
+			c.tx.pop()
 			c.txBytes -= len(v.data)
 			released += segmentMemory(v)
+			v.owner.release()
 			if v.flags&flagFIN != 0 {
 				c.finAcked(now)
 			}
@@ -307,14 +366,14 @@ func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, 
 			if n > len(v.data) {
 				break
 			}
-			// Copy the remainder, so accounting matches retained allocations after a
-			// partial ACK and an attacker cannot pin an entire large backing buffer.
-			remaining := make([]byte, len(v.data)-n)
-			copy(remaining, v.data[n:])
-			v.data = remaining
+			// Keep a bounded view of the original allocation until the final ACK.
+			// Its entire capacity remains charged, even after a partial ACK.
+			if !v.sacked {
+				c.bytesInFlight -= uint64(n)
+			}
+			v.data = v.data[n:]
 			v.seq = ack
 			c.txBytes -= n
-			released += n
 			break
 		}
 	}
@@ -332,7 +391,8 @@ func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, 
 	rate := uint64(0)
 	prior := c.delivered - acked
 	appLimited := false
-	if sample != nil {
+	if haveSample {
+		c.firstFlight = sample.firstSent
 		interval := max(now.Sub(sample.deliveredAt), sample.firstSent.Sub(sample.firstFlight))
 		if interval > 0 {
 			rate = uint64(float64(c.delivered-sample.delivered) / interval.Seconds())

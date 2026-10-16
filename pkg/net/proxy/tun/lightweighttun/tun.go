@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
-	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 type server struct {
@@ -128,8 +127,8 @@ func (s *server) udpLoop() {
 		if err != nil {
 			return
 		}
-		payload := pool.Clone(d.Payload)
-		s.options.HandlePacket(netapi.NewPacket(net.UDPAddrFromAddrPort(d.Source), netapi.ParseNetipAddrPort("udp", d.Destination), payload, netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
+		// ReceiveUDP transfers its allocation; netapi.Packet owns its final release.
+		s.options.HandlePacket(netapi.NewPacket(net.UDPAddrFromAddrPort(d.Source), netapi.ParseNetipAddrPort("udp", d.Destination), d.Payload, netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 			source, ok := addr.(*net.UDPAddr)
 			if !ok || source == nil {
 				return 0, fmt.Errorf("lightweight: invalid UDP reply address %T", addr)

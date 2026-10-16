@@ -17,19 +17,21 @@ const maxSendSegments = 16384
 const maxReceiveChunks = 8192
 
 func segmentMemory(v *sendSegment) int {
-	if len(v.data) == 0 {
+	if v.owner == nil {
 		return 0
 	}
-	return len(v.data) + segmentCharge
+	return segmentCharge
 }
 
 type sendSegment struct {
+	owner                    *ownedBuffer
 	seq                      uint32
 	flags                    uint8
 	data                     []byte
 	sent, firstSent          time.Time
 	transmissions            int
 	sacked                   bool
+	resend                   bool
 	delivered                uint64
 	deliveredAt, firstFlight time.Time
 	appLimited               bool
@@ -44,12 +46,14 @@ func (s *sendSegment) length() uint32 {
 }
 
 type receiveChunk struct {
+	owner  *ownedBuffer
 	data   []byte
 	offset int
 }
 type receivePiece struct {
-	seq  uint32
-	data []byte
+	owner *ownedBuffer
+	seq   uint32
+	data  []byte
 }
 
 // TCPConn serializes protocol state with mu. Application writes additionally
@@ -59,6 +63,7 @@ type receivePiece struct {
 type TCPConn struct {
 	outputEntry                                              *list.Element
 	outputWaiting                                            bool
+	outputBytes                                              int
 	outputReady                                              atomic.Bool
 	stack                                                    *Stack
 	key                                                      flowKey
@@ -72,9 +77,10 @@ type TCPConn struct {
 	ownScale, peerScale                                      int
 	mss, pathMSS                                             int
 	sack                                                     bool
-	tx                                                       []*sendSegment
+	tx                                                       sliceQueue[*sendSegment]
 	txBytes                                                  int
-	rx                                                       []receiveChunk
+	bytesInFlight                                            uint64
+	rx                                                       sliceQueue[receiveChunk]
 	ooo                                                      []receivePiece
 	rxBytes, receiveLimit, consumed                          int
 	growthAt                                                 time.Time
@@ -118,11 +124,13 @@ func (c *TCPConn) finish(err error) {
 	c.state = Closed
 	c.cancelOutputWait()
 	c.err = err
-	for _, v := range c.tx {
+	for _, v := range c.tx.values() {
+		v.owner.release()
 		c.stack.release(segmentMemory(v))
 	}
-	c.tx = nil
+	c.tx.reset()
 	c.txBytes = 0
+	c.bytesInFlight = 0
 	if err != nil {
 		c.clearReceive()
 	}
@@ -133,13 +141,15 @@ func (c *TCPConn) finish(err error) {
 	notify(&c.changed)
 }
 func (c *TCPConn) clearReceive() {
-	for _, v := range c.rx {
-		c.stack.release(len(v.data) + receiveCharge)
+	for _, v := range c.rx.values() {
+		v.owner.release()
+		c.stack.release(receiveCharge)
 	}
 	for _, v := range c.ooo {
-		c.stack.release(len(v.data) + receiveCharge)
+		v.owner.release()
+		c.stack.release(receiveCharge)
 	}
-	c.rx = nil
+	c.rx.reset()
 	c.ooo = nil
 	c.rxBytes = 0
 }
@@ -166,22 +176,22 @@ func (c *TCPConn) ReadWithBuffer(get func() []byte) ([]byte, error) {
 		if !c.readDeadline.IsZero() && !time.Now().Before(c.readDeadline) {
 			return nil, os.ErrDeadlineExceeded
 		}
-		if len(c.rx) > 0 {
+		if c.rx.len() > 0 {
 			b := get()
 			if len(b) == 0 {
 				return b, io.ErrShortBuffer
 			}
 			n := 0
-			for len(c.rx) > 0 && n < len(b) {
-				v := &c.rx[0]
+			for c.rx.len() > 0 && n < len(b) {
+				v := &c.rx.values()[0]
 				k := copy(b[n:], v.data[v.offset:])
 				v.offset += k
 				n += k
 				c.rxBytes -= k
 				if v.offset == len(v.data) {
-					c.stack.release(len(v.data) + receiveCharge)
-					c.rx[0] = receiveChunk{}
-					c.rx = c.rx[1:]
+					v.owner.release()
+					c.stack.release(receiveCharge)
+					c.rx.pop()
 				}
 			}
 			if c.state == Closed && c.rxBytes == 0 {
@@ -210,7 +220,7 @@ func (c *TCPConn) ReadWithBuffer(get func() []byte) ([]byte, error) {
 		if c.state == Closed {
 			return nil, c.errorLocked()
 		}
-		ch, at := c.changed, c.readDeadline
+		ch, at := watch(&c.changed), c.readDeadline
 		c.mu.Unlock()
 		err := waitSocket(ch, c.stack.done, at)
 		c.mu.Lock()
@@ -236,8 +246,8 @@ func (c *TCPConn) Write(b []byte) (int, error) {
 			return written, os.ErrDeadlineExceeded
 		}
 		available := c.stack.config.SendBuffer - c.txBytes
-		if available <= 0 || len(c.tx) >= maxSendSegments {
-			ch, at := c.changed, c.writeDeadline
+		if available <= 0 || c.tx.len() >= maxSendSegments {
+			ch, at := watch(&c.changed), c.writeDeadline
 			c.mu.Unlock()
 			err := waitSocket(ch, c.stack.done, at)
 			c.mu.Lock()
@@ -246,16 +256,30 @@ func (c *TCPConn) Write(b []byte) (int, error) {
 			}
 			continue
 		}
-		n := min(len(b)-written, available, c.mss)
-		if !c.stack.reserve(n + segmentCharge) {
-			return written, ErrLimit
+		// Copy a bounded application chunk once; MSS-sized retransmission views
+		// share that immutable allocation until every view is cumulatively ACKed.
+		n := min(len(b)-written, available, 16384, (maxSendSegments-c.tx.len())*c.mss)
+		owner, err := c.stack.buffers.get(n)
+		if err != nil {
+			return written, err
 		}
-		data := make([]byte, n)
-		copy(data, b[written:written+n])
-		c.tx = append(c.tx, &sendSegment{seq: c.sndEnd, flags: flagACK | flagPSH, data: data})
-		c.sndEnd += uint32(n)
-		c.txBytes += n
-		written += n
+		copy(owner.data, b[written:written+n])
+		for off := 0; off < n; {
+			if !c.stack.reserve(segmentCharge) {
+				owner.release()
+				c.pump(time.Now())
+				return written, ErrLimit
+			}
+			end := min(n, off+c.mss)
+			owner.hold()
+			c.tx.push(&sendSegment{seq: c.sndEnd, flags: flagACK | flagPSH, data: owner.data[off:end], owner: owner})
+			k := end - off
+			c.sndEnd += uint32(k)
+			c.txBytes += k
+			written += k
+			off = end
+		}
+		owner.release()
 		c.pump(time.Now())
 	}
 	return written, nil
@@ -337,7 +361,7 @@ func (c *TCPConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 func (c *TCPConn) enqueueControl(flags uint8) {
-	c.tx = append(c.tx, &sendSegment{seq: c.sndEnd, flags: flags})
+	c.tx.push(&sendSegment{seq: c.sndEnd, flags: flags})
 	c.sndEnd++
 	if flags&flagFIN != 0 {
 		c.endAt = time.Now().Add(2 * time.Minute)
