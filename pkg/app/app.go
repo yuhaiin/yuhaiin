@@ -2,14 +2,10 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
@@ -150,7 +146,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 			settingsController.Apply(settings)
 		}
 	}
-	// Read the configured ranges before importing the legacy Pebble FakeIP state.
+	// Load FakeDNS settings from the SQLite state store.
 	var initialFakeDNS contractresolver.FakeDNS
 	if resolverConfigStore != nil {
 		if config, err := resolverConfigStore.FakeDNS(ctx); err != nil {
@@ -163,57 +159,13 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 			initialFakeDNS = config
 		}
 	}
-	if so.StateStore != nil {
-		needsMigration := true
-		if status, ok := so.StateStore.(PebbleMigrationStatusStore); ok {
-			done, err := status.LegacyPebbleMigrationDone(ctx)
-			if err != nil {
-				_ = closers.Close()
-				return nil, fmt.Errorf("check legacy pebble migration status failed: %w", err)
-			}
-			needsMigration = !done
-		}
-		if !needsMigration {
-			log.Info("legacy pebble state migration already finished")
-		} else {
-			pebbleCache, err := pebble.New(paths.PathGenerator.PebbleCache(so.ConfigPath))
-			if err != nil {
-				_ = closers.Close()
-				return nil, fmt.Errorf("init pebble cache failed: %w", err)
-			}
-
-			migrator, ok := so.StateStore.(PebbleMigrationStore)
-			if !ok {
-				_ = pebbleCache.Pebble().Close()
-				_ = closers.Close()
-				return nil, errors.New("state store does not support required startup legacy migration")
-			}
-			log.Info("start legacy pebble state migration")
-			if err := migrator.MigrateLegacyPebble(
-				ctx,
-				pebbleCache,
-				configuration.GetFakeIPRange(initialFakeDNS.IPv4Range, false),
-				configuration.GetFakeIPRange(initialFakeDNS.IPv6Range, true),
-			); err != nil {
-				_ = pebbleCache.Pebble().Close()
-				_ = closers.Close()
-				return nil, fmt.Errorf("migrate legacy Pebble state failed: %w", err)
-			}
-			if err := pebbleCache.Pebble().Close(); err != nil {
-				_ = closers.Close()
-				return nil, fmt.Errorf("close legacy pebble cache failed: %w", err)
-			}
-			log.Info("legacy pebble state migration finished")
-		}
-	}
 	if err := ctx.Err(); err != nil {
 		_ = closers.Close()
 		return nil, err
 	}
 
 	configuration.ProxyChain.Set(direct.Default)
-	// Proxy and DNS runtime objects are created only after every legacy store
-	// has been migrated into the plain SQLite model.
+	// Proxy and DNS runtime objects are created after SQLite state initialization.
 	nodeRuntime := AddCloser(closers, "node_runtime", node.NewNodeRuntime(paths.PathGenerator.State(so.ConfigPath)))
 	dns := AddCloser(closers, "resolver", resolver.NewResolver(configuration.ProxyChain))
 	list := AddCloser(closers, "lists", route.NewLists(routeListStore, routeSettingsStore, so.ConfigPath))
@@ -293,12 +245,4 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	tailscale.Mux.Store(app.Mux)
 
 	return app, nil
-}
-
-type PebbleMigrationStore interface {
-	MigrateLegacyPebble(context.Context, cache.Cache, netip.Prefix, netip.Prefix) error
-}
-
-type PebbleMigrationStatusStore interface {
-	LegacyPebbleMigrationDone(context.Context) (bool, error)
 }
