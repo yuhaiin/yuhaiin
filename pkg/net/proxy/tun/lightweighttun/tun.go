@@ -129,11 +129,19 @@ func (s *server) udpLoop() {
 		}
 		// ReceiveUDP transfers its allocation; netapi.Packet owns its final release.
 		s.options.HandlePacket(netapi.NewPacket(net.UDPAddrFromAddrPort(d.Source), netapi.ParseNetipAddrPort("udp", d.Destination), d.Payload, netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
-			source, ok := addr.(*net.UDPAddr)
-			if !ok || source == nil {
+			var source netip.AddrPort
+			switch addr := addr.(type) {
+			case netapi.IPAddress:
+				source = addr.AddrPort()
+			case *net.UDPAddr:
+				if addr != nil {
+					source = addr.AddrPort()
+				}
+			}
+			if !source.IsValid() {
 				return 0, fmt.Errorf("lightweight: invalid UDP reply address %T", addr)
 			}
-			n, err := s.stack.WriteUDP(source.AddrPort(), d.Source, b)
+			n, err := s.stack.WriteUDP(source, d.Source, b)
 			if err != nil {
 				log.Debug("lightweight UDP writeback failed", "err", err)
 			}
