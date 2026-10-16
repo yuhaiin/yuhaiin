@@ -3,9 +3,10 @@
 Status: experimental opt-in implementation. Replacement readiness and the full
 acceptance matrix are not established; measured results and gaps are explicit below.
 
-The later [transport optimization checkpoint](benchmarks/lightweight-optimization.md) records updated
-measurements, idle baselines, correctness fixes and pending BBR v3/HyStart++ work.
-The original full matrix below is historical and predates those changes.
+The [BBR v3 and ownership report](benchmarks/lightweight-bbr-v3.md) records the
+current controller, PMTU/recovery tests and performance work. The earlier
+[transport checkpoint](benchmarks/lightweight-optimization.md) and original
+benchmark matrix are historical measurements.
 
 ## Architecture and implementation plan
 
@@ -20,7 +21,7 @@ Implementation order:
 1. Packet parsing/checksums, bounded reassembly, in-memory PacketIO tests, UDP
    and ICMP, with malformed-packet fuzzing.
 2. Active/passive TCP, receive ordering, retransmission and socket lifecycle.
-3. Independent Reno, CUBIC and BBR v1 controllers with actual scheduled pacing.
+3. Independent Reno/HyStart++, CUBIC/HyStart++ and BBR v3 controllers with actual scheduled pacing.
 4. Explicit opt-in JSON configuration and device/Handler adapter.
 5. Reference-peer interoperability, race/leak/resource tests, benchmarks,
    platform builds and recorded results.
@@ -47,11 +48,13 @@ The [Xray PR](https://github.com/XTLS/Xray-core/pull/7130) documents the pitfall
 of fixed receive windows on long RTT links, missing fragment reassembly, and
 mixing offload gains with stack gains. The
 [mipstack project](https://github.com/MetaCubeX/mipstack) is MPL-2.0 licensed.
-This implementation is written independently; no reference implementation
-source is vendored or copied. Protocol sources include RFC 9293, RFC 5681,
-RFC 6582, RFC 6298, RFC 7323, RFC 2018, RFC 8200, RFC 5722, RFC 9438 and the
-BBR v1 congestion-control draft. Validation evidence and outstanding gaps are
-recorded below as the implementation is exercised.
+No Xray or mipstack source is copied. Protocol sources include RFC 9293,
+RFC 5681, RFC 6582, RFC 6298, RFC 7323, RFC 2018, RFC 8200, RFC 5722,
+RFC 9438 and RFC 9406. The BBR v3 model adapts Google's
+[2026-09-16 release](https://github.com/google/bbr/blob/674859761ded9f32690c7bdaf22ef585531452ed/net/ipv4/tcp_bbr3.c)
+under its BSD-3-Clause option. Attribution and complete terms are in
+[licenses/bbr-v3.md](../licenses/bbr-v3.md), also embedded in the binary's
+existing license catalog. The remaining code retains the repository license.
 
 ## Modules, packet flow and sockets
 
@@ -110,14 +113,22 @@ cancellation and handshake/teardown timeouts. TIME-WAIT reserves the tuple for
 Send/receive sequence arithmetic uses signed differences within bounded windows,
 including wraparound. Receive overlaps use first-arrival bytes; duplicates do
 not allocate more payload memory. Cumulative ACKs alone free send storage.
-Validated SACK blocks mark retained segments, and RTO clears the scoreboard to
-allow receiver reneging. Three duplicate ACKs trigger fast retransmit; partial
-recovery ACKs retransmit the next gap. RTT estimation uses SRTT/RTTVAR, Karn's
+Validated SACK blocks credit newly delivered bytes once and remove those bytes
+from the incremental flight count. Inferred lost transmissions leave the pipe;
+repair packets re-enter it once. Multiple SACK-proven holes can be repaired in
+one flight. RTO preserves useful SACK evidence. An advancing ACK stopping at a
+SACKed head starts a short reneging confirmation interval, allowing reordered
+ACKs to retire the head before discarding the scoreboard. Three duplicate ACKs
+trigger fast retransmit of original data; partial recovery ACKs identify the
+next original gap. RTT estimation uses SRTT/RTTVAR, Karn's
 rule and RFC 6298's one-second minimum RTO with exponential backoff. Delayed ACKs
 wait at most 20ms; reordering, FIN and window updates trigger immediate ACKs.
 Zero-window probes do not consume new sequence space. Optional keepalive is
 scheduled only when enabled and idle. ICMP PMTU feedback validates the quoted
 TCP tuple and sent sequence before reducing MSS and splitting retained data.
+Replacement pieces retain sequence/delivery/Karn history and explicitly request
+resend. Old ACK/SACK feedback cannot classify a replacement as a new loss;
+re-loss repair requires SACK evidence beyond its retransmission boundary.
 
 Each connection owns a protocol mutex and a separate application Write mutex.
 Close does not wait for the Write mutex and interrupts blocked reads/writes.
@@ -133,22 +144,36 @@ processing has its own lock and never takes a connection lock.
 A controller receives byte-based sent/ACK/loss/timeout events; window sizes are
 bytes, pacing rates bytes/second, and RTTs time.Duration. cwnd is independent of
 peer receive window. TCP admits data against both windows and bytes in flight.
-The delivery sampler records prior delivered bytes and send/ACK intervals;
-compressed ACKs cannot use an interval shorter than the send interval.
+The delivery sampler records prior delivered/lost bytes, flight and send/ACK
+intervals. Fresh SACK delivery is counted once; cumulative ACKs never credit it
+again. Retransmissions carry fresh rate metadata while ambiguous RTTs still
+obey Karn. App-limited bubbles persist until their delivery boundary is passed,
+and intentional PROBE_RTT samples cannot lower the bandwidth maximum.
 
 Reno supplies slow start, additive growth, fast recovery and timeout reduction.
 CUBIC uses a time epoch, cubic origin/K, beta 0.7, fast convergence and a
-Reno-friendly estimate. HyStart++ is not implemented. BBR v1 has a ten-round
-bandwidth maximum, minimum RTT aging, STARTUP/DRAIN/PROBE_BW/PROBE_RTT,
-app-limited sampling, gain cycling and a scheduled pacing rate. It is an
-independent implementation of the principal v1 mechanisms, not BBRv2/v3 or a
-claim of bit-for-bit equivalence to Linux BBR.
+Reno-friendly estimate. Both use RFC 9406 HyStart++: sequence-based rounds,
+eight valid RTT samples, a 4–16ms delay threshold, quarter-rate Conservative
+Slow Start and five CSS rounds. Lower RTTs can resume ordinary slow start.
+Loss/timeout resets the estimator. BBR uses its own STARTUP and never HyStart++.
+
+The name `bbr` selects v3 only; v1/v2 aliases are rejected. It includes v3's
+UP/DOWN/CRUISE/REFILL phases, bandwidth/inflight lower and upper bounds,
+loss-aware probe feedback, randomized/Reno-conscious probe timing, ACK
+aggregation and aging min-RTT/PROBE_RTT. The model uses byte units and the
+actual PacketIO sender batch budget rather than Linux's packet/TSO units.
+Snapshot exposes version, mode, phase, bounds and round state. This adaptation
+does not claim Linux bit-for-bit equivalence; ECN and transport DSACK-based
+spurious-loss proof are not implemented.
 
 One reusable timer and one heap entry per connection combine pacing, RTO,
 delayed ACK, persist and teardown. The shared scheduler sleeps when empty.
 Pacing emits packets at scheduled times; the virtual-time test observes actual
 wire spacing. A full output queue keeps TCP data untransmitted and parks the
-connection in a bounded FIFO. Capacity release wakes a waiter. Readiness and
+connection in a bounded FIFO with links embedded in the connection. Capacity
+release wakes only the head when both an output slot and its packet allocation
+fit. ACK progress wakes blocked writers; receive progress wakes readers,
+avoiding channel/timer churn from unrelated ACKs. Readiness and
 heap updates share the waiter lock to prevent a stale deadline overwriting a
 writer wakeup. Neither packet timers nor a queue polling loop are required.
 
@@ -177,6 +202,12 @@ with consumption. A global 256MiB budget accounts retained payloads and
 conservative per-flow/segment/datagram metadata charges. Channel arrays, worker
 stacks, maps and temporary parsing/assembly buffers add bounded implementation
 overhead; MemoryBytes is accounting, not an exact process RSS measurement.
+Owned payloads and cleared send descriptors share a cache bounded by the
+smaller of 10MiB and one-eighth of MemoryLimit. Cached capacity remains charged,
+is evictable under pressure and expires after 2–4 idle seconds. Each size class
+allows up to 4096 entries within that shared byte budget. A 5120-byte connection
+charge covers the built-in controller and retained small send/receive queues;
+reflection-based tests guard these fixed metadata charges.
 
 IPv4 validates IHL, total length, options and header checksums. IPv6 bounds
 extension traversal to eight headers, rejects unsupported source-routing/IPsec
@@ -247,7 +278,8 @@ This remains an experimental opt-in implementation. Additional conformance and
 long-duration hostile-network testing is required before considering retirement
 of either legacy stack. In particular, exhaustive simultaneous-open/close and
 keepalive/persist fault matrices, timestamp/PAWS/ECN support, independent
-congestion-control fairness studies, real mobile/macOS/Windows runtime runs,
+broader congestion-control fairness studies beyond the shared-bottleneck
+profiles recorded in the report, real mobile/macOS/Windows runtime runs,
 UDP PMTU caching and Linux offload/multiqueue are not established here. Do not
 interpret platform compilation or passing interoperability cases as exhaustive
 RFC conformance or replacement readiness.

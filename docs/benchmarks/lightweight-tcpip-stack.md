@@ -3,9 +3,9 @@
 Status: experimental; these measurements do not justify replacing either legacy
 stack. All numbers below are measured locally, not imported from reference projects.
 
-The later [transport optimization checkpoint](lightweight-optimization.md) records updated
-measurements, idle baselines, correctness fixes and pending BBR v3/HyStart++ work.
-The original full matrix below is historical and predates those changes.
+See the [BBR v3 and ownership report](lightweight-bbr-v3.md) for current code
+and measurements. The [transport checkpoint](lightweight-optimization.md) and
+the full original matrix below are historical and predate that work.
 
 ## Environment and reproducibility
 

@@ -2,8 +2,10 @@
 
 Status: work in progress on 2026-10-16. This checkpoint improves the transport
 and records remaining regressions; it does not complete the acceptance matrix.
-The current controller is still BBR v1. The requested final implementation must
-replace it with BBR v3, with no v1/v2 selection, and add HyStart++ to Reno/CUBIC.
+This historical checkpoint used BBR v1. The subsequent
+[BBR v3 and ownership report](lightweight-bbr-v3.md) records its replacement
+with v3, Reno/CUBIC HyStart++ and further resource work. Figures in this file
+remain the measurements of commit 774efaba.
 
 ## Correctness and ownership
 
