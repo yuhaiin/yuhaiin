@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"syscall"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -30,6 +31,9 @@ func TestHysteriaStreamCancellationLogLevel(t *testing.T) {
 		{"wrapped failure", fmt.Errorf("read: %w", &quic.StreamError{ErrorCode: 1}), slog.LevelError},
 		{"connection closed", &quic.TransportError{ErrorCode: quic.NoError}, slog.LevelDebug},
 		{"other failure", errors.New("read failed"), slog.LevelError},
+		{"TCP reset", syscall.ECONNRESET, slog.LevelDebug},
+		{"lightweight TCP reset", fmt.Errorf("lightweight: %w", syscall.ECONNRESET), slog.LevelDebug},
+		{"TCP permission failure", fmt.Errorf("lightweight: %w", syscall.EACCES), slog.LevelError},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var output bytes.Buffer

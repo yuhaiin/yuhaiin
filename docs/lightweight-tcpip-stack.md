@@ -263,7 +263,37 @@ GSO/GRO and multiqueue acceleration are unavailable. No offload performance
 claim is made. Existing gVisor/tun2socket openers and defaults are unchanged.
 System address/route installation and PostUp/PostDown remain in the adapter;
 NewTun's existing routeAccepter owns route updates and cleanup before device
-closure. WireGuard/OpenVPN/MASQUE/L2TP are not migrated.
+closure.
+
+### WireGuard tunnel integration
+
+WireGuard, AmneziaWG and MASQUE construct `wireguard.LightweightNetTun` with
+the `RemoteTunnel` profile and default CUBIC + HyStart++. The remote profile
+starts with a 256KiB receive window and permits 6MiB of queued send data per
+connection. The TUN inbound congestion selector does not configure outbounds.
+Their existing keys, peers, allowed IPs, and encrypted transports retain their
+contracts. The new stack requires MTU 1280..65535; zero selects the adapter's
+existing default (1500, or 1400 for AmneziaWG).
+
+The packet bridge copies directly between borrowed engine and stack buffers.
+It acknowledges each copy before releasing the writer, including during Close;
+it has no per-packet allocation or retained packet queue. Both engine TUN APIs
+retain their required prefix/suffix space and offset handling. Unconnected UDP
+sockets and wildcard TCP listeners support IPv4 and IPv6 on one ephemeral port.
+
+The existing `wireguard.NetTun` factory remains available to the other VPN
+implementations. OpenVPN, GlobalProtect, SoftEther, L2TP and VPNKit retain
+their gVisor transport and concrete socket types.
+
+Local interoperability tests use two encrypted WireGuard engines over loopback,
+with gVisor as the independent peer stack. They cover IPv4/IPv6 bulk TCP,
+half-close, UDP across multiple destinations and both families, cancellation,
+and passive ephemeral listeners. AmneziaWG's TUN adapter has a dual-stack
+offset/ownership regression test. External AmneziaWG servers and remote MASQUE
+services still require separate integration qualification.
+
+Peer TCP resets retain the standard `syscall.ECONNRESET` cause. Relay logs
+classify these expected disconnects at Debug, while other failures remain Error.
 
 ## Validation and remaining acceptance work
 
@@ -274,7 +304,8 @@ UDP fragmentation in both directions and kernel ping. Virtual-time tests cover
 wraparound, overlaps, window scaling/reopening, SACK validation, fast retransmit,
 Karn sampling, TIME-WAIT, RST, pacing, blocked IO and output queue pressure.
 
-This remains an experimental opt-in implementation. Additional conformance and
+The TUN inbound remains opt-in; the migrated outbounds use lightweight by default.
+Additional conformance and
 long-duration hostile-network testing is required before considering retirement
 of either legacy stack. In particular, exhaustive simultaneous-open/close and
 keepalive/persist fault matrices, timestamp/PAWS/ECN support, independent

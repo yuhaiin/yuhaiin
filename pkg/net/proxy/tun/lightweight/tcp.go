@@ -5,9 +5,11 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
@@ -29,20 +31,31 @@ const (
 )
 
 type TCPListener struct {
-	stack  *Stack
-	local  netip.AddrPort
-	mu     sync.Mutex
-	closed bool
-	ready  chan *TCPConn
-	done   chan struct{}
+	stack     *Stack
+	local     netip.AddrPort
+	mu        sync.Mutex
+	closed    bool
+	ready     chan *TCPConn
+	done      chan struct{}
+	dualStack bool
 }
 
 var _ net.Listener = (*TCPListener)(nil)
 
 // A zero AddrPort is a transparent listener for any destination. An unspecified
-// address with a nonzero port listens on that family. This is an IP-only API.
+// address listens on that family. A valid address with port zero selects an
+// ephemeral port. This is an IP-only API.
 func (s *Stack) ListenTCP(local netip.AddrPort) (*TCPListener, error) {
-	if local.IsValid() && (local.Port() == 0 || local.Addr().Is4In6() || local.Addr().Zone() != "" || local.Addr().IsMulticast() || !local.Addr().IsUnspecified() && !s.local(local.Addr()) && !s.config.Promiscuous) {
+	return s.listenTCP(local, false)
+}
+
+// ListenDualTCP binds one wildcard listener for both IPv4 and IPv6 connections.
+func (s *Stack) ListenDualTCP(port uint16) (*TCPListener, error) {
+	return s.listenTCP(netip.AddrPortFrom(netip.IPv6Unspecified(), port), true)
+}
+
+func (s *Stack) listenTCP(local netip.AddrPort, dual bool) (*TCPListener, error) {
+	if local.IsValid() && (local.Addr().Is4In6() || local.Addr().Zone() != "" || local.Addr().IsMulticast() || !local.Addr().IsUnspecified() && !s.local(local.Addr()) && !s.config.Promiscuous) {
 		return nil, ErrMalformed
 	}
 	s.mu.Lock()
@@ -53,12 +66,36 @@ func (s *Stack) ListenTCP(local netip.AddrPort) (*TCPListener, error) {
 	if len(s.listeners) >= 1024 {
 		return nil, ErrLimit
 	}
-	if s.listeners[local] != nil {
+	if local.IsValid() && local.Port() == 0 {
+		found := false
+		for range 16384 {
+			local = netip.AddrPortFrom(local.Addr(), s.port())
+			if !s.tcpListenerBound(local, dual) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, ErrLimit
+		}
+	} else if s.tcpListenerBound(local, dual) {
 		return nil, errors.New("lightweight: TCP listener already exists")
 	}
-	l := &TCPListener{stack: s, local: local, ready: make(chan *TCPConn, 128), done: make(chan struct{})}
+	l := &TCPListener{stack: s, local: local, ready: make(chan *TCPConn, 128), done: make(chan struct{}), dualStack: dual}
 	s.listeners[local] = l
 	return l, nil
+}
+
+func (s *Stack) tcpListenerBound(a netip.AddrPort, dual bool) bool {
+	if !a.IsValid() {
+		return s.listeners[a] != nil
+	}
+	for k, l := range s.listeners {
+		if k.IsValid() && k.Port() == a.Port() && (dual || l.dualStack || k.Addr().Is4() == a.Addr().Is4() && (k.Addr() == a.Addr() || k.Addr().IsUnspecified() || a.Addr().IsUnspecified())) {
+			return true
+		}
+	}
+	return false
 }
 func (l *TCPListener) Accept() (net.Conn, error) {
 	for {
@@ -127,6 +164,11 @@ func (s *Stack) listener(dst netip.AddrPort) *TCPListener {
 	}
 	if l := s.listeners[netip.AddrPortFrom(anyAddr, dst.Port())]; l != nil {
 		return l
+	}
+	if dst.Addr().Is4() {
+		if l := s.listeners[netip.AddrPortFrom(netip.IPv6Unspecified(), dst.Port())]; l != nil && l.dualStack {
+			return l
+		}
 	}
 	return s.listeners[netip.AddrPort{}]
 }
@@ -327,7 +369,7 @@ func (s *Stack) handleTCP(p Packet) {
 	// an in-window reset gets a challenge ACK, and an out-of-window one is ignored.
 	if flags&flagRST != 0 {
 		if seq == c.rcvNxt {
-			c.finish(errors.New("lightweight: connection reset"))
+			c.finish(fmt.Errorf("lightweight: %w", syscall.ECONNRESET))
 		} else if !before(seq, c.rcvNxt) && before(seq, c.rcvAdv) {
 			c.sendACK()
 		}

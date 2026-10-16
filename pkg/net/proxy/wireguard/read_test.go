@@ -13,16 +13,22 @@ import (
 var (
 	_ tun.Device = (*ChannelDevice)(nil)
 	_ tun.Device = (*NetTun)(nil)
+	_ tun.Device = (*LightweightNetTun)(nil)
 )
 
 func TestVirtualDeviceReadSlab(t *testing.T) {
-	for _, inbound := range []bool{false, true} {
-		t.Run(map[bool]string{false: "channel", true: "nettun"}[inbound], func(t *testing.T) {
+	for _, kind := range []string{"channel", "nettun", "lightweight"} {
+		t.Run(kind, func(t *testing.T) {
 			d := NewChannelDevice(t.Context(), 1500)
 			defer d.Close()
 			payload := []byte("virtual device packet")
 			var reader tun.Reader = d
-			if inbound {
+			if kind == "lightweight" {
+				link := newPacketLink()
+				defer link.Close()
+				reader = &LightweightNetTun{link: link}
+				go func() { _ = link.WritePacket(payload) }()
+			} else if kind == "nettun" {
 				reader = &NetTun{dev: d}
 				if _, err := d.Write([][]byte{payload}, 0); err != nil {
 					t.Fatal(err)

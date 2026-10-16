@@ -15,14 +15,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	awgdevice "github.com/amnezia-vpn/amneziawg-go/v3/device"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 )
 
 type Client struct {
 	netapi.EmptyDispatch
-	network *wireguard.NetTun
+	network *wireguard.LightweightNetTun
 	engine  *awgdevice.Device
-	tcp     *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
+	tcp     *dialer.HappyEyeballsv2Dialer[net.Conn]
 	once    sync.Once
 }
 
@@ -46,7 +45,7 @@ func NewClient(cfg contractnode.AmneziaWG, upstream netapi.Proxy) (*Client, erro
 	if mtu == 0 {
 		mtu = 1400
 	}
-	network, err := wireguard.CreateNetTUN(ips, mtu)
+	network, err := wireguard.CreateLightweightNetTUN(ips, mtu)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +68,7 @@ func NewClient(cfg contractnode.AmneziaWG, upstream netapi.Proxy) (*Client, erro
 		return nil, fmt.Errorf("amneziawg: start: %w", err)
 	}
 	c := &Client{network: network, engine: engine}
-	c.tcp = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
+	c.tcp = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 		return network.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 	})
 	return c, nil
@@ -80,7 +79,7 @@ func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 	if err != nil {
 		return nil, err
 	}
-	return wireguard.NewWrapGoNetTcpConn(conn), nil
+	return conn, nil
 }
 
 func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketConn, error) {

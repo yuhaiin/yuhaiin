@@ -10,23 +10,23 @@ import (
 	awgtun "github.com/amnezia-vpn/amneziawg-go/v3/tun"
 )
 
-// tunAdapter bridges the official v3 TUN API and yuhaiin's gVisor stack.
+// tunAdapter bridges the official v3 TUN API and yuhaiin's lightweight stack.
 // No host TUN, routing changes, or elevated privileges are needed.
 type tunAdapter struct {
-	net    *wireguard.NetTun
+	net    *wireguard.LightweightNetTun
 	events chan awgtun.Event
 	once   sync.Once
 }
 
 var _ awgtun.Device = (*tunAdapter)(nil)
 
-func newTunAdapter(net *wireguard.NetTun) *tunAdapter {
+func newTunAdapter(net *wireguard.LightweightNetTun) *tunAdapter {
 	a := &tunAdapter{net: net, events: make(chan awgtun.Event, 1)}
 	a.events <- awgtun.EventUp
 	return a
 }
 func (a *tunAdapter) File() *os.File              { return nil }
-func (a *tunAdapter) Name() (string, error)       { return "amneziawg-gvisor", nil }
+func (a *tunAdapter) Name() (string, error)       { return "amneziawg-lightweight", nil }
 func (a *tunAdapter) MTU() (int, error)           { return a.net.MTU() }
 func (a *tunAdapter) BatchSize() int              { return 1 }
 func (a *tunAdapter) Events() <-chan awgtun.Event { return a.events }
