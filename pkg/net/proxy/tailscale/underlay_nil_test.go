@@ -43,8 +43,7 @@ func TestUnderlayNormalizesTypedNilTCP(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &malformedUnderlayProxy{Proxy: direct.Default, conn: tt.conn, err: tt.err}
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 			u := &underlay{owner: &Tailscale{dialer: p, ctx: ctx}}
 			// Includes the exact DERP happy-eyeballs tcp4 path.
 			for _, network := range []string{"tcp4", "tcp6", "tcp"} {
