@@ -307,7 +307,11 @@ func TestIdleTCPRelayBuffers(t *testing.T) {
 				_ = conn.Close()
 			}
 			for range count {
-				<-done
+				// Closing the connections terminates relay.Copy. Only
+				// expected connection-close errors are acceptable.
+				if err := <-done; err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.ErrClosedPipe) {
+					t.Errorf("relay copy after close: %v", err)
+				}
 			}
 			want := int64(0)
 			if mode == "ordinary" {

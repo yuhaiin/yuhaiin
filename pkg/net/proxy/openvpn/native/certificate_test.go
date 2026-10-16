@@ -117,9 +117,9 @@ func TestTLSCertificateVerification(t *testing.T) {
 			}()
 			err = tls.Client(clientWire, clientConfig).HandshakeContext(ctx)
 			_ = clientWire.Close()
-			<-serverDone
+			serverErr := <-serverDone
 			if (err == nil) != test.wantSuccess {
-				t.Fatalf("handshake error = %v, want success %v", err, test.wantSuccess)
+				t.Fatalf("client handshake error = %v, server handshake error = %v, want success %v", err, serverErr, test.wantSuccess)
 			}
 		})
 	}

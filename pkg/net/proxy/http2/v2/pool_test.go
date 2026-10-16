@@ -115,7 +115,10 @@ func TestPoolCloseCancelsDial(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- p.close() }()
 	select {
-	case <-done:
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("pool close: %v", err)
+		}
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("pool close blocked on dial")
 	}
