@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"github.com/quic-go/quic-go"
+	"github.com/apernet/quic-go"
 )
 
 type Frag struct {
