@@ -6,7 +6,7 @@ replace (
 	github.com/apernet/hysteria/core/v2 => github.com/Asutorufa/hysteria/core/v2 v2.13.1-0.20261007150228-a38075fd0e66
 	github.com/prometheus-community/pro-bing => github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
-	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20261016032636-80f59bfc198c
+	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20261016035049-180c1e021c3e
 )
 
 require (

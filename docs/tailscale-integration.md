@@ -93,8 +93,8 @@ its full transport contract and tests.
 ## Validation record
 
 The implementation was tested with Go 1.27.2 on Linux. The dependency is pinned
-to published fork commit `80f59bfc198cbfdf098e69ebb848115021fc2025`
-(`v0.0.0-20261016032636-80f59bfc198c`); `go mod download tailscale.com`
+to published fork commit `180c1e021c3e475c2c5e100f7c793256bc83d8ad`
+(`v0.0.0-20261016035049-180c1e021c3e`); `go mod download tailscale.com`
 and `go list -m -json tailscale.com` confirmed a downloaded module with checksums.
 No local filesystem replacement is part of the PR.
 
