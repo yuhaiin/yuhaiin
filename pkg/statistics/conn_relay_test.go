@@ -268,7 +268,10 @@ func TestCountedRelayCountsReadBytesOnWriteFailure(t *testing.T) {
 	}
 	_ = conn.Close()
 	select {
-	case <-done:
+	case err := <-done:
+		if err != nil && !errors.Is(err, io.ErrClosedPipe) {
+			t.Fatalf("partial write sender: %v", err)
+		}
 	case <-time.After(time.Second):
 		t.Fatal("partial write stranded sender")
 	}
