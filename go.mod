@@ -16,7 +16,7 @@ require (
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/nftables v0.3.0
-	github.com/google/pprof v0.0.0-20261014150452-c3b4e57cab2c
+	github.com/google/pprof v0.0.0-20261016150608-1facf8f91b50
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/oschwald/maxminddb-golang/v2 v2.8.0
@@ -30,7 +30,7 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261015164059-e76114195165
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261016193835-65584995a244
 	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/mobile v0.0.0-20261011034528-197770444867
