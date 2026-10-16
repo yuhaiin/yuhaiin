@@ -117,6 +117,43 @@ func (u *underlay) context(ctx context.Context) (*netapi.Context, error) {
 	return store, u.owner.ctx.Err()
 }
 
+// normalizeUnderlayConn enforces the net.Conn contract at the Tailscale
+// boundary. A typed-nil *net.TCPConn compares unequal to nil and otherwise
+// panics in DERP's asynchronous dial cancellation cleanup.
+func normalizeUnderlayConn(ctx context.Context, conn net.Conn, err error) (net.Conn, error) {
+	if err != nil {
+		if !netapi.IsNilConn(conn) {
+			_ = conn.Close()
+		}
+		return nil, err
+	}
+	if netapi.IsNilConn(conn) {
+		return nil, errors.New("tailscale underlay: upstream returned a nil TCP connection without error")
+	}
+	if err := ctx.Err(); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return conn, nil
+}
+
+func normalizeUnderlayPacketConn(ctx context.Context, pc net.PacketConn, err error) (net.PacketConn, error) {
+	if err != nil {
+		if !netapi.IsNilPacketConn(pc) {
+			_ = pc.Close()
+		}
+		return nil, err
+	}
+	if netapi.IsNilPacketConn(pc) {
+		return nil, errors.New("tailscale underlay: upstream returned a nil UDP socket without error")
+	}
+	if err := ctx.Err(); err != nil {
+		_ = pc.Close()
+		return nil, err
+	}
+	return pc, nil
+}
+
 func (u *underlay) dialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	addr, err := netapi.ParseAddress(network, address)
 	if err != nil {
@@ -155,11 +192,16 @@ func (u *underlay) dialContext(ctx context.Context, network, address string) (ne
 				if (ip.To4() != nil) != want4 {
 					continue
 				}
-				conn, err := u.owner.dialer.Conn(store, netapi.ParseIPAddr("tcp", ip, addr.Port()))
-				if err == nil {
+				conn, dialErr := u.owner.dialer.Conn(store, netapi.ParseIPAddr("tcp", ip, addr.Port()))
+				conn, dialErr = normalizeUnderlayConn(store, conn, dialErr)
+				if dialErr == nil && u.owner.ctx.Err() == nil {
 					return conn, nil
 				}
-				lastErr = err
+				if dialErr == nil {
+					_ = conn.Close()
+					return nil, net.ErrClosed
+				}
+				lastErr = dialErr
 				if store.Err() != nil {
 					return nil, store.Err()
 				}
@@ -170,7 +212,16 @@ func (u *underlay) dialContext(ctx context.Context, network, address string) (ne
 			return nil, errors.New("tailscale underlay DNS has no address in requested family")
 		}
 	}
-	return u.owner.dialer.Conn(store, addr)
+	conn, err := u.owner.dialer.Conn(store, addr)
+	conn, err = normalizeUnderlayConn(store, conn, err)
+	if err != nil {
+		return nil, err
+	}
+	if u.owner.ctx.Err() != nil {
+		_ = conn.Close()
+		return nil, net.ErrClosed
+	}
+	return conn, nil
 }
 
 func (u *underlay) ListenPacket(ctx context.Context, network, address string) (nettype.PacketConn, error) {
@@ -207,8 +258,13 @@ func (u *underlay) ListenPacket(ctx context.Context, network, address string) (n
 	} else {
 		pc, err = u.owner.dialer.PacketConn(store, packetListenAddress{AddressNetwork: netapi.UDP, network: network})
 	}
+	pc, err = normalizeUnderlayPacketConn(store, pc, err)
 	if err != nil {
 		return nil, err
+	}
+	if u.owner.ctx.Err() != nil {
+		_ = pc.Close()
+		return nil, net.ErrClosed
 	}
 	if _, ok := pc.LocalAddr().(*net.UDPAddr); !ok {
 		_ = pc.Close()
@@ -217,6 +273,9 @@ func (u *underlay) ListenPacket(ctx context.Context, network, address string) (n
 	if directPC, ok := pc.(*direct.UDPPacketConn); ok {
 		// Direct with a selected interface also preserves the native UDP fast path.
 		pc = directPC.BufferPacketConn
+		if netapi.IsNilPacketConn(pc) {
+			return nil, errors.New("tailscale underlay: direct UDP wrapper contains no socket")
+		}
 	}
 	if native, ok := pc.(nettype.PacketConn); ok {
 		return native, nil

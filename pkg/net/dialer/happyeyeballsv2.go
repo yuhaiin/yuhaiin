@@ -77,7 +77,14 @@ func NewHappyEyeballsv2Dialer[T net.Conn](
 // https://datatracker.ietf.org/doc/html/rfc8305
 // modified from https://github.com/tailscale/tailscale/blob/ee976ad704980e20ec36c6aaaad0a2ce5b30b3d5/net/dnscache/dnscache.go#L577
 func DialHappyEyeballsv2(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	return DefaultHappyEyeballsv2Dialer.Load().DialHappyEyeballsv2(ctx, addr)
+	conn, err := DefaultHappyEyeballsv2Dialer.Load().DialHappyEyeballsv2(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	if netapi.IsNilConn(conn) {
+		return nil, errors.New("happy eyeballs: dial succeeded with nil connection")
+	}
+	return conn, nil
 }
 
 func moveToFront(ip net.IP, ips []net.IP) {
@@ -335,7 +342,17 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 	}
 
 	if !addr.IsFqdn() {
-		return h.dialContext(octx, addr.(netapi.IPAddress).AddrPort().Addr().AsSlice(), addr.Port())
+		conn, dialErr := h.dialContext(octx, addr.(netapi.IPAddress).AddrPort().Addr().AsSlice(), addr.Port())
+		if dialErr != nil {
+			if !netapi.IsNilConn(conn) {
+				_ = conn.Close()
+			}
+			return t, dialErr
+		}
+		if netapi.IsNilConn(conn) {
+			return t, errors.New("happy eyeballs: dial succeeded with nil connection")
+		}
+		return conn, nil
 	}
 
 	ctx, cancel := context.WithCancelCause(octx)
@@ -382,7 +399,17 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 				start := system.CheapNowNano()
 
 				c, err := h.dialContext(ctx, ip, addr.Port())
+				if err == nil && netapi.IsNilConn(c) {
+					err = errors.New("happy eyeballs: dial succeeded with nil connection")
+				}
 				if err != nil {
+					// A failed dial must not leak a partial connection, and
+					// its result must not expose a typed-nil net.Conn.
+					if !netapi.IsNilConn(c) {
+						_ = c.Close()
+					}
+					var zero T
+					c = zero
 					// Best effort wake-up a pending dial.
 					// e.g. IPv4 dials failing quickly on an IPv6-only system.
 					// In that case we don't want to wait 300ms per IPv4 before
@@ -398,7 +425,7 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 				select {
 				case resc <- res{c, err}:
 				case <-ctx.Done():
-					if err == nil {
+					if err == nil && !netapi.IsNilConn(c) {
 						_ = c.Close()
 					}
 				}
@@ -438,6 +465,10 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(octx context.Context, add
 		case r := <-resc:
 			if r.err != nil {
 				dialErrors = errors.Join(dialErrors, r.err)
+				continue
+			}
+			if netapi.IsNilConn(r.c) {
+				dialErrors = errors.Join(dialErrors, errors.New("happy eyeballs: dial succeeded with nil connection"))
 				continue
 			}
 

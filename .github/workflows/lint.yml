@@ -82,3 +82,19 @@ jobs:
           go test -count=1 -tags="$tags" \
             -run '^(TestDNSPacket.*|TestTailscaleDNSManagerMissing|TestUnavailableTailscaleDialer)$' \
             ./pkg/net/proxy/tailscale
+
+  network-conn-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: network-conn-contract
+      - name: Reproduce canceled DERP dials and typed-nil connection failures
+        run: |
+          pattern='^(TestIsNilConn|TestIsNilPacketConn|TestHappyEyeballsDirectDialReturnsTrueNilOnFailure|TestHappyEyeballsV2GenericRejectsNilSuccess|TestHappyEyeballsParallelDoesNotReturnTypedNil|TestUnderlayNormalizesTypedNilTCP|TestUnderlayNormalizesTCPConnectionCleanup|TestUnderlayNormalizesTypedNilUDP)$'
+          go test -race -count=1 -run "$pattern" \
+            ./pkg/net/netapi ./pkg/net/dialer ./pkg/net/proxy/tailscale
+          tags="$(go run ./cmd/buildtags/...)"
+          go test -race -count=1 -tags="$tags" -run "$pattern" \
+            ./pkg/net/netapi ./pkg/net/dialer ./pkg/net/proxy/tailscale
