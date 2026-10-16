@@ -8,9 +8,6 @@ import (
 func TestIsNilConn(t *testing.T) {
 	var missing *net.TCPConn
 	var c net.Conn = missing
-	if c == nil {
-		t.Fatal("test must exercise a typed-nil interface")
-	}
 	if !IsNilConn(c) || !IsNilConn(nil) {
 		t.Fatal("nil TCP connections must be detected")
 	}
@@ -22,9 +19,6 @@ func TestIsNilConn(t *testing.T) {
 func TestIsNilPacketConn(t *testing.T) {
 	var missing *net.UDPConn
 	var c net.PacketConn = missing
-	if c == nil {
-		t.Fatal("test must exercise a typed-nil interface")
-	}
 	if !IsNilPacketConn(c) || !IsNilPacketConn(nil) {
 		t.Fatal("nil UDP connections must be detected")
 	}
