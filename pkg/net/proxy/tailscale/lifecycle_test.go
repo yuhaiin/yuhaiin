@@ -73,12 +73,12 @@ func TestInstanceOwnership(t *testing.T) {
 	if p1 == p2 {
 		t.Fatal("independent lifetimes share an outbound")
 	}
-	first := statePath(t.TempDir(), c)
+	first := mustStatePath(t, t.TempDir(), c)
 	if strings.Contains(first, "secret") || strings.Contains(first, "private") {
 		t.Fatal("secret or hostname leaked in state path")
 	}
 	c.ControlURL = "https://other.example"
-	if statePath("base", c) == statePath("base", Config{AuthKey: "secret", Hostname: "../../private", ControlURL: "https://control.example"}) {
+	if mustStatePath(t, "base", c) == mustStatePath(t, "base", Config{AuthKey: "secret", Hostname: "../../private", ControlURL: "https://control.example"}) {
 		t.Fatal("different controls share state")
 	}
 	_ = p1.Close()
@@ -225,7 +225,7 @@ func TestStateMigration(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(old, "tailscaled.state"), []byte("identity"), 0600); err != nil {
 				t.Fatal(err)
 			}
-			dir := statePath(base, Config{Hostname: hostname, AuthKey: "secret"})
+			dir := mustStatePath(t, base, Config{Hostname: hostname, AuthKey: "secret"})
 			if err := migrateState(base, dir, hostname); err != nil {
 				t.Fatal(err)
 			}
@@ -295,5 +295,31 @@ func TestUnderlayAddressFamilies(t *testing.T) {
 	proxy.mu.Unlock()
 	if tcp != 0 {
 		t.Fatal("invalid family reached upstream")
+	}
+}
+
+func mustStatePath(t *testing.T, base string, c Config) string {
+	t.Helper()
+	dir, err := statePath(base, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestStateIdentityIsolation(t *testing.T) {
+	c := Config{AuthKey: "key", Hostname: "node", ControlURL: "https://control.example"}
+	dir := mustStatePath(t, "base", c)
+	if mustStatePath(t, "base", c) != dir {
+		t.Fatal("identity is not stable")
+	}
+	for _, changed := range []Config{
+		{AuthKey: "other", Hostname: c.Hostname, ControlURL: c.ControlURL},
+		{AuthKey: c.AuthKey, Hostname: "other", ControlURL: c.ControlURL},
+		{AuthKey: c.AuthKey, Hostname: c.Hostname, ControlURL: "https://other.example"},
+	} {
+		if mustStatePath(t, "base", changed) == dir {
+			t.Fatal("different credentials or configurations share identity")
+		}
 	}
 }

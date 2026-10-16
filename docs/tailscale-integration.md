@@ -50,6 +50,9 @@ nanoseconds, matching `netapi.Proxy.Ping` and the direct outbound. Late callback
 cannot block. Production ACL and ICMP availability still govern success.
 
 `Close` is terminal and cancels shared Up work and virtual DNS connections.
+The bootstrap AuthKey is set only for the synchronous `Server.Start` call and
+cleared afterwards, including on failure. Cached network server objects therefore
+do not retain it. A local control-server regression checks this after startup.
 There is no LRU of shared outbound objects or mutable live logging callback.
 Separate creations cannot silently reuse another upstream or share Close.
 Context ancestry rejects immediate recursive proxy chains. A small graph of
@@ -58,13 +61,17 @@ dependencies are removed at Close. If changing a dynamic upstream would change
 these dependencies, recreate/close the outbound as for a configuration change.
 This graph governs dependency validation, not process-global packet routing.
 
-State directories hash the auth key, hostname and control URL, with field lengths
-included in the hash input. Secrets and user-controlled path components do not
+State directories derive an opaque ID with PBKDF2-HMAC-SHA256 (600,000 rounds),
+using the auth key and a length-delimited hostname/control-URL namespace salt.
+The derivation runs once during initialization, outside the packet path. Secrets and user-controlled path components do not
 appear in directory names. A running state directory has one owner. A second
 copy with the same identity is refused until the first node closes; distinct
 configurations get distinct directories. The first start atomically moves a
 legacy hostname directory into its hashed location (or moves `tailscaled.state`
 for the old empty-hostname layout). Existing hashed state is never overwritten.
+The `v2-` directory prefix distinguishes this from the fast SHA-256 layout of
+intermediate, unreleased PR revisions. That intermediate layout is not migrated
+automatically; the released hostname-based state layout still migrates as above.
 Public node configuration, protobuf and frontend contracts are unchanged.
 
 For explicitly supplied underlays, host port mapping, raw disco, captive-portal
@@ -93,8 +100,8 @@ its full transport contract and tests.
 ## Validation record
 
 The implementation was tested with Go 1.27.2 on Linux. The dependency is pinned
-to published fork commit `180c1e021c3e475c2c5e100f7c793256bc83d8ad`
-(`v0.0.0-20261016035049-180c1e021c3e`); `go mod download tailscale.com`
+to published fork commit `223166903dc3e50a35f968ad48dd41a480ba7381`
+(`v0.0.0-20261016035925-223166903dc3`); `go mod download tailscale.com`
 and `go list -m -json tailscale.com` confirmed a downloaded module with checksums.
 No local filesystem replacement is part of the PR.
 

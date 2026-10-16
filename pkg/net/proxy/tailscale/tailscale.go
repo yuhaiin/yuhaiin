@@ -2,6 +2,7 @@ package tailscale
 
 import (
 	"context"
+	"crypto/pbkdf2"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -75,14 +76,16 @@ func New(c Config, upstream netapi.Proxy) (netapi.Proxy, error) {
 	return &Tailscale{dialer: upstream, config: c, ctx: ctx, cancel: cancel}, nil
 }
 
-func statePath(base string, c Config) string {
-	// Length-delimited fields prevent ambiguous identities, and neither secrets nor
-	// user-controlled path segments appear in the resulting directory name.
-	h := sha256.New()
-	for _, s := range []string{c.AuthKey, c.Hostname, c.ControlURL} {
-		fmt.Fprintf(h, "%d:%s", len(s), s)
+// statePath derives a deterministic opaque identity without exposing a fast
+// credential digest in directory names. Public configuration forms a stable,
+// length-delimited salt; this is an identity namespace, not a password verifier.
+func statePath(base string, c Config) (string, error) {
+	salt := fmt.Appendf(nil, "yuhaiin/tailscale/state/v2:%d:%s%d:%s", len(c.Hostname), c.Hostname, len(c.ControlURL), c.ControlURL)
+	identity, err := pbkdf2.Key(sha256.New, c.AuthKey, salt, 600_000, 32)
+	if err != nil {
+		return "", fmt.Errorf("derive tailscale state identity: %w", err)
 	}
-	return filepath.Join(base, "tailscale", hex.EncodeToString(h.Sum(nil)))
+	return filepath.Join(base, "tailscale", "v2-"+hex.EncodeToString(identity)), nil
 }
 
 func (t *Tailscale) init(ctx context.Context) (*tsnet.Server, error) {
@@ -100,7 +103,10 @@ func (t *Tailscale) init(ctx context.Context) (*tsnet.Server, error) {
 	if t.tsnet != nil {
 		return t.tsnet, nil
 	}
-	dir := statePath(configuration.DataDir.Load(), t.config)
+	dir, err := statePath(configuration.DataDir.Load(), t.config)
+	if err != nil {
+		return nil, err
+	}
 	stateOwners.Lock()
 	if stateOwners.paths[dir] != nil {
 		stateOwners.Unlock()
@@ -115,13 +121,18 @@ func (t *Tailscale) init(ctx context.Context) (*tsnet.Server, error) {
 	}
 	u := &underlay{owner: t, ancestors: appendLoop(ctx, t)}
 	s := &tsnet.Server{
-		AuthKey: t.config.AuthKey, Hostname: t.config.Hostname, ControlURL: t.config.ControlURL,
+		Hostname: t.config.Hostname, ControlURL: t.config.ControlURL,
 		RunWebClient: true, Dir: dir, UserLogf: log.InfoFormat, Underlay: u.network(),
 	}
 	if t.config.Debug {
 		s.Logf = log.InfoFormat
 	}
-	if err := s.Start(); err != nil {
+	// AuthKey is consumed synchronously during Start's one-time initialization.
+	// Do not keep bootstrap credentials on the server exposed to network code.
+	s.AuthKey = t.config.AuthKey
+	err = s.Start()
+	s.AuthKey = ""
+	if err != nil {
 		_ = s.Close()
 		release()
 		return nil, err

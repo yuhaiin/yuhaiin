@@ -12,8 +12,8 @@ github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca h1:v1rk85kIl4rm
 github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca/go.mod h1:caro6uVgT00VyAMuaqqqYBZonNfp1tfIYWlXkLN1Je8=
 github.com/Asutorufa/tailscale v0.0.0-20261004051059-f377f7ca3dbc h1:CMIQ2z4SIojN8gZXrjcqEv/wahldSLiThHLAHO63WuM=
 github.com/Asutorufa/tailscale v0.0.0-20261004051059-f377f7ca3dbc/go.mod h1:Jli0v3cqD82Kfar+7Uxy3HaiLyHdpkj6Hp9LagzZBWI=
-github.com/Asutorufa/tailscale v0.0.0-20261016035049-180c1e021c3e h1:OnHx149GEkc0nuB47RRpsIjKPefzughwJHo7pgtwZ1c=
-github.com/Asutorufa/tailscale v0.0.0-20261016035049-180c1e021c3e/go.mod h1:Jli0v3cqD82Kfar+7Uxy3HaiLyHdpkj6Hp9LagzZBWI=
+github.com/Asutorufa/tailscale v0.0.0-20261016035925-223166903dc3 h1:9qgbddLwL03lirGammxo2yjB4h2BD/9dOEts4t0Mh9M=
+github.com/Asutorufa/tailscale v0.0.0-20261016035925-223166903dc3/go.mod h1:Jli0v3cqD82Kfar+7Uxy3HaiLyHdpkj6Hp9LagzZBWI=
 github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk=
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/DataDog/zstd v1.5.7 h1:ybO8RBeh29qrxIhCA9E8gKY6xfONU9T6G6aP9DTKfLE=

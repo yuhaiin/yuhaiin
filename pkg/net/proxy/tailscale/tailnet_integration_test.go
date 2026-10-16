@@ -82,6 +82,11 @@ func TestLocalTailnet(t *testing.T) {
 	if t.Failed() {
 		return
 	}
+	for _, s := range servers {
+		if s.AuthKey != "" {
+			t.Fatal("started network server retained its bootstrap authentication key")
+		}
+	}
 	a, b := nodes[0], nodes[1]
 	target, err := netapi.ParseAddress("tcp", "ADAPTER1.tail-scale.ts.net.:12345")
 	if err != nil {
