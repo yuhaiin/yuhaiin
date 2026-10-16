@@ -63,3 +63,22 @@ jobs:
           cache-scope: vpn-outbound-tests
       - name: Test VPN outbounds and node contract
         run: go test -race ./pkg/net/proxy/amneziawg/... ./pkg/net/proxy/ikev2/... ./pkg/net/proxy/anyconnect/... ./pkg/net/proxy/sstp/... ./pkg/net/proxy/fortinet/... ./pkg/net/proxy/vpnkit/... ./pkg/net/proxy/globalprotect ./pkg/net/proxy/softether/... ./pkg/contract/node ./pkg/register
+
+  tailscale-release-dns:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: tailscale-release-dns
+      - name: Test MagicDNS with production Tailscale build tags
+        run: |
+          go test ./cmd/buildtags
+          tags="$(go run ./cmd/buildtags/...)"
+          if [[ ",$tags," == *",ts_omit_dns,"* ]]; then
+            echo "release build unexpectedly disables Tailscale MagicDNS" >&2
+            exit 1
+          fi
+          go test -count=1 -tags="$tags" \
+            -run '^(TestDNSPacket.*|TestTailscaleDNSManagerMissing|TestUnavailableTailscaleDialer)$' \
+            ./pkg/net/proxy/tailscale

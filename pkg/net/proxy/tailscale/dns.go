@@ -62,6 +62,9 @@ func (d *dnsPacket) WriteTo(b []byte, addr net.Addr) (int, error) {
 	if a.IsFqdn() || a.(netapi.IPAddress).AddrPort() != d.server {
 		return 0, errors.New("tailscale DNS socket only accepts its service address")
 	}
+	if d.query == nil {
+		return 0, errTailscaleDNSUnavailable
+	}
 	ctx, cancel, err := withWriteDeadline(d.ctx, &d.writeDeadline)
 	if err != nil {
 		return 0, err

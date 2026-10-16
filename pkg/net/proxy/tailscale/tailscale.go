@@ -25,8 +25,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"golang.org/x/sync/singleflight"
 	"tailscale.com/ipn/ipnstate"
+	"tailscale.com/net/dns"
 	"tailscale.com/net/tsaddr"
 	"tailscale.com/tailcfg"
+	"tailscale.com/tsd"
 	"tailscale.com/tsnet"
 )
 
@@ -186,6 +188,9 @@ func (t *Tailscale) ready(ctx context.Context) (*tsnet.Server, error) {
 	if _, err := t.up(ctx, s); err != nil {
 		return nil, err
 	}
+	if t.ctx.Err() != nil {
+		return nil, net.ErrClosed
+	}
 	return s, nil
 }
 
@@ -215,7 +220,15 @@ func (t *Tailscale) Close() error {
 // netstack keeps the transport pinned even if a route disappears afterwards.
 // Server.Dial/UserDial can fall back to a host socket on such a route change.
 func resolveAddr(ctx context.Context, s *tsnet.Server, network string, addr netapi.Address) (netip.AddrPort, error) {
-	ip, viaTailnet, err := s.Sys().Dialer.Get().UserDialPlan(ctx, network, addr.String())
+	sys := s.Sys()
+	if sys == nil {
+		return netip.AddrPort{}, errors.New("tailscale: system unavailable")
+	}
+	dialer, ok := sys.Dialer.GetOK()
+	if !ok || dialer == nil {
+		return netip.AddrPort{}, errors.New("tailscale: dialer subsystem unavailable")
+	}
+	ip, viaTailnet, err := dialer.UserDialPlan(ctx, network, addr.String())
 	if err != nil {
 		return netip.AddrPort{}, err
 	}
@@ -233,18 +246,38 @@ func isServiceDNS(addr netapi.Address) bool {
 	return ip == tsaddr.TailscaleServiceIP() || ip == tsaddr.TailscaleServiceIPv6()
 }
 
+// errTailscaleDNSUnavailable indicates an incompatible Tailscale build or an
+// unavailable DNS subsystem. A release built with ts_omit_dns gets a nil
+// *dns.Manager even after tsnet.Up reports Running.
+var errTailscaleDNSUnavailable = errors.New("tailscale: DNS manager unavailable (check ts_omit_dns build tag)")
+
+func tailscaleDNSManager(sys *tsd.System) (*dns.Manager, error) {
+	if sys == nil {
+		return nil, errTailscaleDNSUnavailable
+	}
+	manager, ok := sys.DNSManager.GetOK()
+	if !ok || manager == nil {
+		return nil, errTailscaleDNSUnavailable
+	}
+	return manager, nil
+}
+
 func (t *Tailscale) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	s, err := t.ready(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if isServiceDNS(addr) {
+		manager, err := tailscaleDNSManager(s.Sys())
+		if err != nil {
+			return nil, err
+		}
 		src, dst := pipe.Pipe()
 		stop := context.AfterFunc(t.ctx, func() { _ = src.Close() })
 		go func() {
 			defer src.Close()
 			defer stop()
-			s.Sys().DNSManager.Get().HandleTCPConn(src, netip.AddrPort{})
+			manager.HandleTCPConn(src, netip.AddrPort{})
 		}()
 		return dst, nil
 	}
@@ -252,7 +285,11 @@ func (t *Tailscale) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 	if err != nil {
 		return nil, err
 	}
-	return s.Sys().Dialer.Get().NetstackDialTCP(ctx, ip)
+	dialer, ok := s.Sys().Dialer.GetOK()
+	if !ok || dialer == nil || dialer.NetstackDialTCP == nil {
+		return nil, errors.New("tailscale: TCP dialer subsystem unavailable")
+	}
+	return dialer.NetstackDialTCP(ctx, ip)
 }
 
 func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
@@ -261,7 +298,11 @@ func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 		return nil, err
 	}
 	if isServiceDNS(addr) {
-		return newDNSPacket(t.ctx, s.Sys().DNSManager.Get().Query, addr.(netapi.IPAddress).AddrPort()), nil
+		manager, err := tailscaleDNSManager(s.Sys())
+		if err != nil {
+			return nil, err
+		}
+		return newDNSPacket(t.ctx, manager.Query, addr.(netapi.IPAddress).AddrPort()), nil
 	}
 	ip, err := resolveAddr(ctx, s, "udp", addr)
 	if err != nil {
@@ -301,8 +342,16 @@ func (t *Tailscale) Ping(ctx context.Context, addr netapi.Address) (uint64, erro
 	defer cancel()
 	stop := context.AfterFunc(t.ctx, cancel)
 	defer stop()
+	sys := s.Sys()
+	if sys == nil {
+		return 0, errors.New("tailscale: system unavailable")
+	}
+	engine, ok := sys.Engine.GetOK()
+	if !ok || engine == nil {
+		return 0, errors.New("tailscale: engine subsystem unavailable")
+	}
 	return awaitPing(pingCtx, func(cb func(*ipnstate.PingResult)) {
-		s.Sys().Engine.Get().Ping(ip.Addr(), tailcfg.PingICMP, 8, cb)
+		engine.Ping(ip.Addr(), tailcfg.PingICMP, 8, cb)
 	})
 }
 
