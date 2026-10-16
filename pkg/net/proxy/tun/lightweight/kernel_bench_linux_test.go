@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	gvisortun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -70,6 +72,13 @@ type benchmarkListener struct {
 	stop  func()
 }
 
+type ownedBenchmarkListener struct {
+	net.Listener
+	stack *Stack
+}
+
+func (l *ownedBenchmarkListener) Close() error { _ = l.Listener.Close(); return l.stack.Close() }
+
 func (l *benchmarkListener) Accept() (net.Conn, error) {
 	select {
 	case c := <-l.ready:
@@ -104,7 +113,7 @@ func benchmarkStack(b *testing.B, kind string, mtu int) (net.Listener, func() St
 			b.Fatal(err)
 		}
 		b.Cleanup(func() { _ = s.Close() })
-		return listener, s.Stats
+		return &ownedBenchmarkListener{listener, s}, s.Stats
 	case "gvisor":
 		ep := gvisortun.NewEndpoint(dev)
 		s := stack.New(stack.Options{NetworkProtocols: []stack.NetworkProtocolFactory{ipv4.NewProtocol, ipv6.NewProtocol}, TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol}})
@@ -150,6 +159,58 @@ func benchmarkStack(b *testing.B, kind string, mtu int) (net.Listener, func() St
 	b.Cleanup(func() { _ = l.Close() })
 	return l, func() Statistics { return Statistics{} }
 }
+
+// Each invocation is isolated in its own process by the runner. Heap and RSS
+// deltas include the same 1000 Linux clients for every implementation; kernel
+// socket memory is outside these process metrics (relevant for tun2socket).
+func BenchmarkTUNIdle(b *testing.B) {
+	for _, kind := range []string{"gvisor", "tun2socket", "cubic"} {
+		b.Run(kind, func(b *testing.B) {
+			l, _ := benchmarkStack(b, kind, 1500)
+			defer l.Close()
+			debug.FreeOSMemory()
+			var baseline runtime.MemStats
+			runtime.ReadMemStats(&baseline)
+			baselineRSS := rssBytes()
+			baselineGoroutines := runtime.NumGoroutine()
+			clients, servers := make([]net.Conn, 1000), make([]net.Conn, 1000)
+			for i := range clients {
+				ctx, cancel := context.WithTimeout(b.Context(), 5*time.Second)
+				c, err := (&net.Dialer{}).DialContext(ctx, "tcp", "192.0.2.2:18080")
+				cancel()
+				if err != nil {
+					b.Fatal(err)
+				}
+				clients[i] = c
+				servers[i], err = l.Accept()
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+			for b.Loop() {
+				debug.FreeOSMemory()
+				var live runtime.MemStats
+				runtime.ReadMemStats(&live)
+				b.ReportMetric(float64(int64(live.HeapAlloc)-int64(baseline.HeapAlloc))/1000, "heap-per-conn-B")
+				b.ReportMetric((rssBytes()-baselineRSS)/1000, "rss-per-conn-B")
+				b.ReportMetric(float64(live.HeapAlloc), "idle-heap-live-B")
+				b.ReportMetric(rssBytes(), "idle-RSS-B")
+				b.ReportMetric(float64(runtime.NumGoroutine()-baselineGoroutines)/1000, "goroutines/conn")
+				runtime.KeepAlive(clients)
+				runtime.KeepAlive(servers)
+			}
+			for i, c := range clients {
+				_ = c.Close()
+				_ = servers[i].Close()
+			}
+			_ = l.Close()
+			debug.FreeOSMemory()
+			var after runtime.MemStats
+			runtime.ReadMemStats(&after)
+			b.ReportMetric(float64(after.HeapAlloc), "closed-heap-live-B")
+		})
+	}
+}
 func cpuSeconds() float64 {
 	var r unix.Rusage
 	if unix.Getrusage(unix.RUSAGE_SELF, &r) != nil {
@@ -194,11 +255,41 @@ func BenchmarkTUN(b *testing.B) {
 							_ = c.SetDeadline(time.Now().Add(2 * time.Minute))
 							_ = servers[i].SetDeadline(time.Now().Add(2 * time.Minute))
 						}
-						cpu := cpuSeconds()
-						transferWorkload(b, clients, servers, 65536, direction)
-						elapsedCPU := cpuSeconds() - cpu
+						if kind == "bbr" && os.Getenv("LIGHTWEIGHT_BBR_TRACE") == "1" {
+							done := make(chan struct{})
+							var traceWorkers sync.WaitGroup
+							defer func() { close(done); traceWorkers.Wait() }()
+							traceWorkers.Go(func() {
+								ticker := time.NewTicker(100 * time.Millisecond)
+								defer ticker.Stop()
+								for {
+									select {
+									case <-done:
+										return
+									case <-ticker.C:
+										c := servers[0].(*TCPConn)
+										c.mu.Lock()
+										snap := c.controller.(interface{ Snapshot() congestion.BBRSnapshot }).Snapshot()
+										b.Logf("BBR diagnostic: mode=%s bw=%d pace=%d cwnd=%d flight=%d queued=%d delivered=%d firstFlightAge=%s minRTT=%s round=%d", snap.Mode, snap.Bandwidth, c.controller.PacingRate(), c.controller.CongestionWindow(), c.flight(), c.txBytes, c.delivered, time.Since(c.firstFlight), snap.MinRTT, snap.Round)
+										c.mu.Unlock()
+									}
+								}
+							})
+						}
+						cpu, elapsedCPU := 0.0, 0.0
+						transferWorkload(b, clients, servers, 65536, direction, func(start bool) {
+							if start {
+								cpu = cpuSeconds()
+							} else {
+								elapsedCPU = cpuSeconds() - cpu
+							}
+						})
 						b.ReportMetric(elapsedCPU/(float64(b.N*65536*flows)/1e9), "CPU-s/GB")
 						b.ReportMetric(rssBytes(), "RSS-B")
+						var usage unix.Rusage
+						if unix.Getrusage(unix.RUSAGE_SELF, &usage) == nil {
+							b.ReportMetric(float64(usage.Maxrss)*1024, "RSS-peak-B")
+						}
 						st := stats()
 						if kind != "gvisor" && kind != "tun2socket" {
 							b.ReportMetric(float64(st.Retransmissions), "retransmits")

@@ -117,7 +117,7 @@ func binaryPutUDP(b []byte) { b[0] = 1; b[2] = 1; b[4] = byte(len(b) >> 8); b[5]
 // transferWorkload is shared by in-memory and kernel/TUN benchmarks. Each
 // iteration completes one payload on every flow and verifies its full content.
 // It measures bulk upload/download plus a one-byte completion/request marker.
-func transferWorkload(b *testing.B, clients, servers []net.Conn, size int, direction string) {
+func transferWorkload(b *testing.B, clients, servers []net.Conn, size int, direction string, measure ...func(bool)) {
 	b.Helper()
 	for i, c := range clients {
 		_ = c.SetDeadline(time.Now().Add(5 * time.Second))
@@ -132,7 +132,10 @@ func transferWorkload(b *testing.B, clients, servers []net.Conn, size int, direc
 	for i, server := range servers {
 		workers.Go(func() {
 			defer server.Close()
-			buf := make([]byte, size)
+			var buf []byte
+			if direction == "upload" {
+				buf = make([]byte, size)
+			}
 			marker := []byte{1}
 			for {
 				if direction == "upload" {
@@ -158,7 +161,10 @@ func transferWorkload(b *testing.B, clients, servers []net.Conn, size int, direc
 		jobs[i] = make(chan struct{})
 		client := clients[i]
 		workers.Go(func() {
-			buf := make([]byte, size)
+			var buf []byte
+			if direction == "download" {
+				buf = make([]byte, size)
+			}
 			marker := []byte{1}
 			<-start
 			for {
@@ -198,6 +204,9 @@ func transferWorkload(b *testing.B, clients, servers []net.Conn, size int, direc
 	latencies := make([]int64, 0, 100000)
 	b.SetBytes(int64(size * len(clients)))
 	b.ReportAllocs()
+	if len(measure) > 0 {
+		measure[0](true)
+	}
 	for b.Loop() {
 		now := time.Now()
 		for _, job := range jobs {
@@ -212,11 +221,15 @@ func transferWorkload(b *testing.B, clients, servers []net.Conn, size int, direc
 			latencies = append(latencies, time.Since(now).Nanoseconds())
 		}
 	}
+	if len(measure) > 0 {
+		measure[0](false)
+	}
 	slices.Sort(latencies)
 	if len(latencies) > 0 {
-		b.ReportMetric(float64(latencies[(len(latencies)-1)*95/100])/1000, "p95-us")
-		b.ReportMetric(float64(latencies[(len(latencies)-1)*99/100])/1000, "p99-us")
+		b.ReportMetric(float64(latencies[(len(latencies)*95+99)/100-1])/1000, "p95-us")
+		b.ReportMetric(float64(latencies[(len(latencies)*99+99)/100-1])/1000, "p99-us")
 	}
+	runtime.GC()
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	b.ReportMetric(float64(mem.HeapAlloc), "heap-live-B")
