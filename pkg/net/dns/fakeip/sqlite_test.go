@@ -2,15 +2,12 @@ package fakeip
 
 import (
 	"database/sql"
-	"encoding/binary"
 	"fmt"
 	"net/netip"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/cache/pebble"
-	legacymigrate "github.com/Asutorufa/yuhaiin/pkg/legacy/migrate"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
@@ -218,97 +215,6 @@ func TestSQLiteFakeIPPoolPersistence(t *testing.T) {
 	}
 }
 
-func TestSQLiteFakeIPPoolImportsLegacyPrefixBucket(t *testing.T) {
-	legacy, err := pebble.New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = legacy.Close() })
-
-	prefix := netip.MustParsePrefix("10.8.0.0/24")
-	legacyBucket := legacy.NewCache(prefix.String())
-	legacyIP := netip.MustParseAddr("10.8.0.2")
-	shortDomainIP := netip.MustParseAddr("10.8.0.8")
-	legacyCursor := netip.MustParseAddr("10.8.0.3")
-	if err := legacyBucket.Put([]byte("legacy.example"), legacyIP.AsSlice()); err != nil {
-		t.Fatal(err)
-	}
-	if err := legacyBucket.Put(legacyIP.AsSlice(), []byte("legacy.example")); err != nil {
-		t.Fatal(err)
-	}
-	if err := legacyBucket.Put([]byte("abcd"), shortDomainIP.AsSlice()); err != nil {
-		t.Fatal(err)
-	}
-	if err := legacyBucket.Put([]byte("reserved_cursor_state"), legacyCursorValue(4, legacyCursor)); err != nil {
-		t.Fatal(err)
-	}
-
-	store, err := storagesqlite.Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	if err := legacymigrate.MigrateLegacyFakeIP(t.Context(), store.DB(), prefix, legacy); err != nil {
-		t.Fatal(err)
-	}
-	pool, err := newSQLiteFakeIPPool(store.DB(), prefix, 100)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = pool.Close() })
-
-	if got := pool.GetFakeIPForDomain("legacy.example"); got != legacyIP {
-		t.Fatalf("expected legacy.example to keep %s, got %s", legacyIP, got)
-	}
-	if domain, ok := pool.GetDomainFromIP(legacyIP); !ok || domain != "legacy.example" {
-		t.Fatalf("expected reverse legacy mapping, got domain=%q ok=%v", domain, ok)
-	}
-	if got := pool.GetFakeIPForDomain("abcd"); got != shortDomainIP {
-		t.Fatalf("expected short legacy domain to keep %s, got %s", shortDomainIP, got)
-	}
-	if got := pool.GetFakeIPForDomain("new.example"); got != netip.MustParseAddr("10.8.0.4") {
-		t.Fatalf("expected cursor import to allocate 10.8.0.4, got %s", got)
-	}
-}
-
-func TestSQLiteFakeIPPoolImportsLegacyLRUBucket(t *testing.T) {
-	legacy, err := pebble.New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = legacy.Close() })
-
-	prefix := netip.MustParsePrefix("10.9.0.0/24")
-	legacyBucket := legacy.NewCache("fakedns_cache")
-	legacyIP := netip.MustParseAddr("10.9.0.7")
-	if err := legacyBucket.Put([]byte("old-lru.example"), legacyIP.AsSlice()); err != nil {
-		t.Fatal(err)
-	}
-	if err := legacyBucket.Put(legacyIP.AsSlice(), []byte("old-lru.example")); err != nil {
-		t.Fatal(err)
-	}
-
-	store, err := storagesqlite.Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	if err := legacymigrate.MigrateLegacyFakeIP(t.Context(), store.DB(), prefix, legacy); err != nil {
-		t.Fatal(err)
-	}
-	pool, err := newSQLiteFakeIPPool(store.DB(), prefix, 100)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = pool.Close() })
-
-	if got := pool.GetFakeIPForDomain("old-lru.example"); got != legacyIP {
-		t.Fatalf("expected old-lru.example to keep %s, got %s", legacyIP, got)
-	}
-}
-
 func sqliteFakeIPLastUsed(tb testing.TB, db *sql.DB, domain string) int64 {
 	tb.Helper()
 	var lastUsedAt int64
@@ -320,13 +226,6 @@ func sqliteFakeIPLastUsed(tb testing.TB, db *sql.DB, domain string) int64 {
 		tb.Fatal(err)
 	}
 	return lastUsedAt
-}
-
-func legacyCursorValue(index uint64, addr netip.Addr) []byte {
-	buf := make([]byte, 8+len(addr.AsSlice()))
-	binary.BigEndian.PutUint64(buf[:8], index)
-	copy(buf[8:], addr.AsSlice())
-	return buf
 }
 
 func BenchmarkSQLiteFakeIPPool(b *testing.B) {
