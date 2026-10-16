@@ -111,7 +111,18 @@ an entry point. Selecting tsnet as an extraction root
 includes the embedded transport implementation instead of inferring dataflow
 from its external interfaces alone. The former inferred flows propagated
 `Server.AuthKey` through unrelated packet reads into VPN parser logging.
-No security query, logging sink or alert is suppressed by this configuration.
+This configuration preserves the security queries and logging sinks.
+
+The remaining shared CodeQL alert #163 was triaged as a false positive after
+reviewing PR SARIF analysis 1964860655 and main analysis 1961280609. Its
+field-to-whole-object taint step and generic PacketConn read summary conflate
+credential metadata with received bytes. The new trace retains the tsnet server
+for UDP listener cleanup and route checks; neither reference serializes the
+AuthKey into packets. The reported VPN path logs only `hdr.gsoType`, virtio
+header byte 1 formatted as hexadecimal, rather than a credential or payload.
+The existing main paths similarly conflate whole protocol buffers or wrapper
+objects with this metadata byte. The alert is marked false positive with this
+evidence; a future direct credential-to-log path requires a fresh review.
 
 - `go test ./pkg/net/proxy/tailscale/...` and its `-race -count=1` variant cover
   native DNS A/AAAA/PTR/NXDOMAIN/NODATA, IPv6-only records, case and trailing-dot
