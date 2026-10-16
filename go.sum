@@ -285,6 +285,8 @@ github.com/quic-go/qpack v0.6.0 h1:g7W+BMYynC1LbYLSqRt8PBg5Tgwxn214ZZR34VIOjz8=
 github.com/quic-go/qpack v0.6.0/go.mod h1:lUpLKChi8njB4ty2bFLX2x4gzDqXwUpaO1DP9qMDZII=
 github.com/quic-go/quic-go v0.63.0 h1:LIFGHI4PFUhhw2dDD1ARHdCff143ffMHwZtbnbuJ78A=
 github.com/quic-go/quic-go v0.63.0/go.mod h1:RAro2j2yN9a9EiPACLHT9IB2NXCvGQmmo/alT0yYI0w=
+github.com/quic-go/quic-go v0.64.0 h1:dlUpiyp9+7UrbbuhLvV7CJ9F8uoZxXf/vi2h8tkuuoA=
+github.com/quic-go/quic-go v0.64.0/go.mod h1:RAro2j2yN9a9EiPACLHT9IB2NXCvGQmmo/alT0yYI0w=
 github.com/refraction-networking/utls v1.8.2 h1:j4Q1gJj0xngdeH+Ox/qND11aEfhpgoEvV+S9iJ2IdQo=
 github.com/refraction-networking/utls v1.8.2/go.mod h1:jkSOEkLqn+S/jtpEHPOsVv/4V4EVnelwbMQl4vCWXAM=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
@@ -374,6 +376,8 @@ github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261015054741-dd21f056b0fd h1:KlMfT
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261015054741-dd21f056b0fd/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261015150444-fe1eaf74832c h1:BOqBUHwMh2mKwmTFu8goL9a7oWxfaopTMMeVQwYfNTc=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261015150444-fe1eaf74832c/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261015164059-e76114195165 h1:p9b4LGMjAXzGuHftOWug/RflHM4oPEVlZd/OOHFxZTY=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261015164059-e76114195165/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
