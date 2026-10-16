@@ -1,3 +1,5 @@
+//go:build !ts_omit_tailnetlock
+
 package tailscale
 
 import (
