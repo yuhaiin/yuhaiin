@@ -8,8 +8,6 @@ filippo.io/mkcert v1.4.4 h1:8eVbbwfVlaqUM7OwuftKc2nuYOoTDQWqsoXmzoXZdbc=
 filippo.io/mkcert v1.4.4/go.mod h1:VyvOchVuAye3BoUsPUOOofKygVwLV2KQMVFJNRq+1dA=
 github.com/Asutorufa/hysteria/core/v2 v2.13.1-0.20261007150228-a38075fd0e66 h1:ogYd3FGGTZ6/fy9DJtvaVm8OIdJ5SndJOgEL8LmYL14=
 github.com/Asutorufa/hysteria/core/v2 v2.13.1-0.20261007150228-a38075fd0e66/go.mod h1:nmxpy/ABkrPG1eNaMzGWUoIlOBjAkb3X2I8H1TGgd1A=
-github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca h1:v1rk85kIl4rmOnniC8yJnI25hru7LdSK3XEU1ICfIe0=
-github.com/Asutorufa/pro-bing v0.0.0-20250716081333-626d07c0d4ca/go.mod h1:caro6uVgT00VyAMuaqqqYBZonNfp1tfIYWlXkLN1Je8=
 github.com/Asutorufa/tailscale v0.0.0-20261004051059-f377f7ca3dbc h1:CMIQ2z4SIojN8gZXrjcqEv/wahldSLiThHLAHO63WuM=
 github.com/Asutorufa/tailscale v0.0.0-20261004051059-f377f7ca3dbc/go.mod h1:Jli0v3cqD82Kfar+7Uxy3HaiLyHdpkj6Hp9LagzZBWI=
 github.com/Asutorufa/tailscale v0.0.0-20261016051747-4441c394b330 h1:LFee5doaFHLOzvOzfNnTzb7kfZkXFRz9iDxb4xpyxdE=
@@ -82,8 +80,6 @@ github.com/chzyer/logex v1.2.1/go.mod h1:JLbx6lG2kDbNRFnfkgvh4eRJRPX1QCoOIWomwys
 github.com/chzyer/readline v1.5.1 h1:upd/6fQk4src78LMRzh5vItIt361/o4uq553V8B5sGI=
 github.com/chzyer/readline v1.5.1/go.mod h1:Eh+b79XXUwfKfcPLepksvw2tcLE/Ct21YObkaSkeBlk=
 github.com/chzyer/test v1.0.0/go.mod h1:2JlltgoNkt4TW/z9V/IzDdFaMTM2JPIi26O1pF38GC8=
-github.com/cilium/ebpf v0.22.0 h1:v2ktp0roffpMOj2MMf3idtCQZOsAoC4BJbAJN+ke2bY=
-github.com/cilium/ebpf v0.22.0/go.mod h1:CDzZbe2hC5JjlDC+CY3KFCzlYwN4gbxppYM+Z10bQt4=
 github.com/cockroachdb/crlib v0.0.0-20251122031428-fe658a2dbda1 h1:iX0YCYC5Jbt2/g7zNTP/QxhrV8Syp5kkzNiERKeN1uE=
 github.com/cockroachdb/crlib v0.0.0-20251122031428-fe658a2dbda1/go.mod h1:NjNuToN/FbhwH1cCyM9G4Rhtxx+ZaOgtoqFR+thng7w=
 github.com/cockroachdb/datadriven v1.0.3-0.20250407164829-2945557346d5 h1:UycK/E0TkisVrQbSoxvU827FwgBBcZ95nRRmpj/12QI=

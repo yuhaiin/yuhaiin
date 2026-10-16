@@ -51,7 +51,7 @@
 - Full cone NAT.
 - Ping(yuubinsya, Tailscale, Socks5(custom cmd), Wireguard(TODO))
 - Trace Process of Connections
-  - Linux: eBPF or /proc
+  - Linux: netlink + /proc
   - Windows, Darwin: syscall
 - Support Proxy Chain Warp
 - auto set Linux(KDE/Plasma,Gnome),Windows,MacOS Proxy  
