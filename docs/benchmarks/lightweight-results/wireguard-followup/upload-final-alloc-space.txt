@@ -1,0 +1,77 @@
+File: lightweight-followup-final.test
+Build ID: c5482f67775cb4c02dc3f521e1d79c9eb89307a9
+Type: alloc_space
+Time: 2026-10-17 03:58:25 CST
+Showing nodes accounting for 12.54MB, 93.41% of 13.43MB total
+Dropped 124 nodes (cum <= 0.07MB)
+      flat  flat%   sum%        cum   cum%
+    6.37MB 47.42% 47.42%     6.62MB 49.28%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.transferWorkload.func1
+    1.13MB  8.38% 55.79%     1.13MB  8.38%  runtime/pprof.StartCPUProfile
+    1.06MB  7.89% 63.68%     1.06MB  7.89%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*bufferPool).get
+    0.81MB  6.05% 69.73%     0.88MB  6.53%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.transferWorkload
+    0.66MB  4.92% 74.66%     0.66MB  4.92%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*sliceQueue[go.shape.struct { github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.owner *github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.ownedBuffer; github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.data []uint8; github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.offset int }]).push (inline)
+    0.31MB  2.33% 76.98%     0.31MB  2.33%  compress/flate.(*fastGen).addBlock
+    0.27MB  1.99% 78.97%     0.27MB  1.99%  runtime/pprof.allFrames
+    0.26MB  1.92% 80.89%     0.45MB  3.38%  compress/flate.NewWriter (inline)
+    0.23MB  1.74% 82.64%     0.78MB  5.79%  runtime/pprof.(*profileBuilder).emitLocation
+    0.22MB  1.65% 84.29%     0.22MB  1.65%  regexp/syntax.(*compiler).inst (inline)
+    0.20MB  1.51% 85.80%     0.20MB  1.51%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*sliceQueue[go.shape.struct { github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.owner *github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.ownedBuffer; github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.data []uint8; github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.offset int }]).pop
+    0.13MB  0.99% 86.79%     0.13MB  0.99%  compress/flate.newFastEnc (inline)
+    0.11MB  0.84% 87.63%     0.13MB  0.96%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).newTCP
+    0.11MB  0.84% 88.47%     0.11MB  0.84%  regexp.onePassCopy
+    0.10MB  0.72% 89.19%     0.10MB  0.72%  runtime.mallocgc
+    0.08MB  0.59% 89.77%     0.14MB  1.05%  regexp.makeOnePass
+    0.08MB  0.58% 90.36%     0.79MB  5.87%  regexp.compile
+    0.08MB  0.58% 90.94%     0.08MB  0.58%  regexp/syntax.(*parser).newRegexp (inline)
+    0.07MB  0.53% 91.47%     1.98MB 14.77%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).readLoop
+    0.07MB  0.53% 92.00%     0.07MB  0.53%  slices.Grow[go.shape.[]uint8,go.shape.uint8] (inline)
+    0.06MB  0.47% 92.47%     0.20MB  1.46%  compress/flate.(*compressor).init
+    0.06MB  0.47% 92.94%     0.13MB  0.94%  net.(*Dialer).DialContext
+    0.05MB  0.35% 93.29%     0.17MB  1.28%  regexp/syntax.parse
+    0.02MB  0.12% 93.41%     0.08MB  0.61%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.kernelLink
+         0     0% 93.41%     0.31MB  2.33%  compress/flate.(*Writer).Close (inline)
+         0     0% 93.41%     0.31MB  2.33%  compress/flate.(*compressor).close
+         0     0% 93.41%     0.31MB  2.33%  compress/flate.(*compressor).deflateFast
+         0     0% 93.41%     0.31MB  2.33%  compress/flate.(*fastEncL1).encode
+         0     0% 93.41%     0.31MB  2.33%  compress/gzip.(*Writer).Close
+         0     0% 93.41%     0.45MB  3.38%  compress/gzip.(*Writer).Write
+         0     0% 93.41%     1.91MB 14.24%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).handleTCP
+         0     0% 93.41%     1.91MB 14.24%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).input
+         0     0% 93.41%     0.22MB  1.63%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).Read
+         0     0% 93.41%     0.22MB  1.63%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).ReadWithBuffer
+         0     0% 93.41%     0.66MB  4.92%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).deliverReceived
+         0     0% 93.41%     1.72MB 12.81%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).receive
+         0     0% 93.41%        1MB  7.42%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).receiveBuffer
+         0     0% 93.41%     0.82MB  6.12%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.BenchmarkTUN
+         0     0% 93.41%     1.10MB  8.19%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.BenchmarkTUN.func1
+         0     0% 93.41%     0.08MB  0.61%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.benchmarkStack
+         0     0% 93.41%     0.22MB  1.63%  io.ReadAtLeast
+         0     0% 93.41%     0.22MB  1.63%  io.ReadFull (inline)
+         0     0% 93.41%     1.16MB  8.61%  main.main
+         0     0% 93.41%     0.07MB  0.53%  os.ReadFile
+         0     0% 93.41%     0.07MB  0.53%  os.readFileContents
+         0     0% 93.41%     0.79MB  5.87%  regexp.Compile (inline)
+         0     0% 93.41%     0.25MB  1.89%  regexp.compileOnePass
+         0     0% 93.41%     0.14MB  1.06%  regexp/syntax.(*compiler).compile
+         0     0% 93.41%     0.13MB  0.94%  regexp/syntax.(*compiler).rune
+         0     0% 93.41%     0.08MB  0.58%  regexp/syntax.(*parser).literal
+         0     0% 93.41%     0.25MB  1.88%  regexp/syntax.Compile
+         0     0% 93.41%     0.17MB  1.28%  regexp/syntax.Parse (inline)
+         0     0% 93.41%     1.19MB  8.86%  runtime.main
+         0     0% 93.41%     0.10MB  0.72%  runtime.newobject
+         0     0% 93.41%     1.05MB  7.79%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0% 93.41%     1.38MB 10.30%  runtime/pprof.(*profileBuilder).build
+         0     0% 93.41%     0.45MB  3.38%  runtime/pprof.(*profileBuilder).flush
+         0     0% 93.41%     0.09MB  0.65%  runtime/pprof.(*profileBuilder).readMapping
+         0     0% 93.41%     0.10MB  0.76%  runtime/pprof.newProfileBuilder
+         0     0% 93.41%     1.53MB 11.36%  runtime/pprof.profileWriter
+         0     0% 93.41%     8.66MB 64.51%  sync.(*WaitGroup).Go.func1
+         0     0% 93.41%     0.82MB  6.12%  testing.(*B).Run
+         0     0% 93.41%     1.92MB 14.31%  testing.(*B).run1.func1
+         0     0% 93.41%     1.94MB 14.43%  testing.(*B).runN
+         0     0% 93.41%     1.16MB  8.61%  testing.(*M).Run
+         0     0% 93.41%     1.14MB  8.50%  testing.(*M).before
+         0     0% 93.41%     0.82MB  6.12%  testing.(*matcher).fullName
+         0     0% 93.41%     0.77MB  5.76%  testing.simpleMatch.matches
+         0     0% 93.41%     0.77MB  5.76%  testing/internal/testdeps.TestDeps.MatchString
+         0     0% 93.41%     1.13MB  8.38%  testing/internal/testdeps.TestDeps.StartCPUProfile

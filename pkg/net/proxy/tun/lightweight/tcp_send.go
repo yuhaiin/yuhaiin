@@ -521,7 +521,7 @@ func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, 
 	} else {
 		c.rtoAt = now.Add(c.rto)
 	}
-	notify(&c.writeChanged)
+	c.notifyWrite()
 }
 func (c *TCPConn) ackController(event congestion.AckEvent) {
 	event.BytesInFlight = c.flight()

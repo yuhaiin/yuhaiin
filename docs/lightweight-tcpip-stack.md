@@ -205,8 +205,10 @@ overhead; MemoryBytes is accounting, not an exact process RSS measurement.
 Owned payloads and cleared send descriptors share a cache bounded by the
 smaller of 10MiB and one-eighth of MemoryLimit. Cached capacity remains charged,
 is evictable under pressure and expires after 2–4 idle seconds. Each size class
-allows up to 4096 entries within that shared byte budget. A 5120-byte connection
-charge covers the built-in controller and retained small send/receive queues;
+allows up to 4096 entries within that shared byte budget. Cache links are part
+of charged descriptors, so empty classes need no preallocated pointer arrays.
+A 6144-byte connection charge covers the built-in controller, small retained
+send/receive queues, control descriptors and IO/handshake notification channels;
 reflection-based tests guard these fixed metadata charges.
 
 IPv4 validates IHL, total length, options and header checksums. IPv6 bounds

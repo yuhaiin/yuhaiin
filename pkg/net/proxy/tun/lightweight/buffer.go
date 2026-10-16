@@ -14,10 +14,11 @@ var bufferSizes = [...]int{64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384}
 
 // An ownedBuffer is exclusively owned by either one connection, the output
 // queue/writer, or its cache. A connection may split it into multiple read-only
-// views, under its own lock. Publishing through the output/cache channels
+// views, under its own lock. Publishing through the output queue or locked cache
 // transfers exclusive ownership; packet I/O must not retain the borrowed slice.
 // refs is therefore never accessed concurrently, even across queue transfers.
 type ownedBuffer struct {
+	cacheNext  *ownedBuffer
 	data       []byte
 	pool       *bufferPool
 	class      int
@@ -39,8 +40,8 @@ type bufferPool struct {
 	stack      *Stack
 	mu         sync.RWMutex
 	closed     bool
-	classes    [len(bufferSizes)]chan *ownedBuffer
-	segments   chan *sendSegment
+	classes    [len(bufferSizes)]bufferFreeList
+	segments   segmentFreeList
 	cached     atomic.Int64
 	cacheLimit int64
 	activity   atomic.Bool
@@ -55,13 +56,6 @@ func (p *bufferPool) init(s *Stack) {
 	// chunks, their descriptors and output frames together. Keeping that set
 	// avoids allocation/GC peaks; small configurations still cap it at 1/8.
 	p.cacheLimit = min(10<<20, s.config.MemoryLimit/8)
-	p.segments = make(chan *sendSegment, 4096)
-	for i := range bufferSizes {
-		// The shared byte budget remains the limit. A small per-class count
-		// otherwise discards most of a multi-flow burst of MTU-sized packets
-		// while leaving that budget unused.
-		p.classes[i] = make(chan *ownedBuffer, 4096)
-	}
 }
 func bufferClass(n int) (int, int) {
 	if n <= 64 {
@@ -78,7 +72,7 @@ func (p *bufferPool) canGet(n int) bool {
 		return false
 	}
 	i, size := bufferClass(n)
-	if i >= 0 && len(p.classes[i]) > 0 {
+	if i >= 0 && p.classes[i].available() {
 		return true
 	}
 	// A cached allocation in another size class can be evicted on pressure.
@@ -95,14 +89,12 @@ func (p *bufferPool) get(n int) (*ownedBuffer, error) {
 	}
 	i, size := bufferClass(n)
 	if i >= 0 {
-		select {
-		case b := <-p.classes[i]:
+		if b := p.classes[i].pop(); b != nil {
 			p.activity.Store(true)
 			p.cached.Add(-int64(b.cost))
 			b.data = b.data[:n]
 			b.refs = 1
 			return b, nil
-		default:
 		}
 	}
 	cost := size + bufferCharge
@@ -130,8 +122,7 @@ func (p *bufferPool) put(b *ownedBuffer) {
 	p.mu.RLock()
 	if !p.closed && !p.stack.closed() && b.class >= 0 && p.cacheReserve(b.cost) {
 		b.data = b.data[:0]
-		select {
-		case p.classes[b.class] <- b:
+		if p.classes[b.class].push(b) {
 			p.activity.Store(true)
 			if p.expiring.CompareAndSwap(false, true) {
 				p.stack.scheduler.set(&p.idleJob, time.Now().Add(2*time.Second))
@@ -139,9 +130,8 @@ func (p *bufferPool) put(b *ownedBuffer) {
 			p.mu.RUnlock()
 			p.stack.wakeOutput()
 			return
-		default:
-			p.cached.Add(-int64(b.cost))
 		}
+		p.cached.Add(-int64(b.cost))
 	}
 	p.mu.RUnlock()
 	p.stack.release(b.cost)
@@ -153,26 +143,22 @@ func (p *bufferPool) trim(need int) bool {
 	freed := false
 	for i := len(p.classes) - 1; i >= 0; i-- {
 		for p.stack.memory.Load()+int64(need) > p.stack.config.MemoryLimit {
-			select {
-			case b := <-p.classes[i]:
-				p.cached.Add(-int64(b.cost))
-				p.stack.memory.Add(-int64(b.cost))
-				freed = true
-			default:
-				goto nextClass
+			b := p.classes[i].pop()
+			if b == nil {
+				break
 			}
+			p.cached.Add(-int64(b.cost))
+			p.stack.memory.Add(-int64(b.cost))
+			freed = true
 		}
-	nextClass:
 	}
 	for p.stack.memory.Load()+int64(need) > p.stack.config.MemoryLimit {
-		select {
-		case <-p.segments:
-			p.cached.Add(-segmentCharge)
-			p.stack.memory.Add(-segmentCharge)
-			freed = true
-		default:
-			return freed
+		if p.segments.pop() == nil {
+			break
 		}
+		p.cached.Add(-segmentCharge)
+		p.stack.memory.Add(-segmentCharge)
+		freed = true
 	}
 	return freed
 }
@@ -201,26 +187,19 @@ func (p *bufferPool) close() {
 	p.drain()
 }
 func (p *bufferPool) drain() {
-	for _, cache := range p.classes {
+	for i := range p.classes {
 		for {
-			select {
-			case b := <-cache:
-				p.cached.Add(-int64(b.cost))
-				p.stack.memory.Add(-int64(b.cost))
-			default:
-				goto nextClass
+			b := p.classes[i].pop()
+			if b == nil {
+				break
 			}
+			p.cached.Add(-int64(b.cost))
+			p.stack.memory.Add(-int64(b.cost))
 		}
-	nextClass:
 	}
-	for {
-		select {
-		case <-p.segments:
-			p.cached.Add(-segmentCharge)
-			p.stack.memory.Add(-segmentCharge)
-		default:
-			return
-		}
+	for p.segments.pop() != nil {
+		p.cached.Add(-segmentCharge)
+		p.stack.memory.Add(-segmentCharge)
 	}
 }
 
@@ -229,15 +208,13 @@ func (p *bufferPool) drain() {
 func (p *bufferPool) takeSegment() *sendSegment {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	select {
-	case v := <-p.segments:
+	if v := p.segments.pop(); v != nil {
 		p.cached.Add(-segmentCharge)
 		p.stack.release(segmentCharge)
 		p.activity.Store(true)
 		return v
-	default:
-		return new(sendSegment)
 	}
+	return new(sendSegment)
 }
 
 func (p *bufferPool) releaseSegment(v *sendSegment) {
@@ -251,8 +228,7 @@ func (p *bufferPool) releaseSegment(v *sendSegment) {
 	owner.release()
 	p.mu.RLock()
 	if !p.closed && !p.stack.closed() && p.cacheReserve(segmentCharge) {
-		select {
-		case p.segments <- v:
+		if p.segments.push(v) {
 			p.activity.Store(true)
 			if p.expiring.CompareAndSwap(false, true) {
 				p.stack.scheduler.set(&p.idleJob, time.Now().Add(2*time.Second))
@@ -262,9 +238,8 @@ func (p *bufferPool) releaseSegment(v *sendSegment) {
 			// descriptor evictable can nevertheless admit a waiting ACK/packet.
 			p.stack.wakeOutput()
 			return
-		default:
-			p.cached.Add(-segmentCharge)
 		}
+		p.cached.Add(-segmentCharge)
 	}
 	p.mu.RUnlock()
 	p.stack.release(segmentCharge)

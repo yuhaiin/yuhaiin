@@ -1,0 +1,193 @@
+{"os": "Linux-7.2.6-zen2-1-zen-x86_64-with-glibc2.44", "go": "go version go1.27.2-X:nodwarf5 linux/amd64", "gomaxprocs": 4, "offload": false, "tun_tx_queue": 10000, "samples": 3, "benchtime": "500ms", "client": "Linux TCP, same process", "binary_sha256": "2c45b20b059eefca72067e3e83b3951f6be4e0c07f9425f83a2408c6664264f8", "workload": "TCP stream"}
+
+# sample 1: gvisor/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=1/upload-4         	    3092	    197321 ns/op	 332.13 MB/s	         5.156 CPU-s/GB	  26791936 RSS-B	  26243072 RSS-peak-B	        10.00 goroutines	    848608 heap-live-B	       240.0 p95-us	       274.6 p99-us	     597 B/op	      27 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=1/download-4         	    2218	    293407 ns/op	 223.36 MB/s	         9.527 CPU-s/GB	  26783744 RSS-B	  26300416 RSS-peak-B	        10.00 goroutines	   1054216 heap-live-B	       411.1 p95-us	       429.2 p99-us	     847 B/op	      53 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=100/upload-4         	      34	  15319488 ns/op	 427.79 MB/s	         5.344 CPU-s/GB	  37646336 RSS-B	  36818944 RSS-peak-B	       208.0 goroutines	   8841528 heap-live-B	     17273 p95-us	     17682 p99-us	  166943 B/op	    3341 allocs/op
+PASS
+
+# sample 1: gvisor/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=100/download-4         	      20	  28206213 ns/op	 232.35 MB/s	        10.36 CPU-s/GB	  46161920 RSS-B	  45572096 RSS-peak-B	       208.0 goroutines	  16829288 heap-live-B	     32668 p95-us	     35939 p99-us	  843840 B/op	    6472 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=1/upload-4         	    3426	    170479 ns/op	 384.42 MB/s	         4.462 CPU-s/GB	  25628672 RSS-B	  25681920 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1122920 heap-live-B	       202.7 p95-us	       250.8 p99-us	         0 retransmits	    4096 B/op	      66 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=1/download-4         	    3272	    189673 ns/op	 345.52 MB/s	         6.080 CPU-s/GB	  25960448 RSS-B	  25149440 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1176984 heap-live-B	       238.7 p95-us	       263.2 p99-us	         0 retransmits	     463 B/op	       5 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=100/upload-4         	      42	  13620327 ns/op	 481.16 MB/s	         4.313 CPU-s/GB	  41025536 RSS-B	  40230912 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8712152 heap-live-B	     15668 p95-us	     16135 p99-us	         0 retransmits	  456506 B/op	    6868 allocs/op
+PASS
+
+# sample 1: cubic/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=100/download-4         	      37	  15653254 ns/op	 418.67 MB/s	         7.650 CPU-s/GB	  43376640 RSS-B	  42786816 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17483424 heap-live-B	     18713 p95-us	     19564 p99-us	         0 retransmits	  404846 B/op	     957 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=1/upload-4         	    2808	    199596 ns/op	 328.34 MB/s	         5.215 CPU-s/GB	  24682496 RSS-B	  24137728 RSS-peak-B	        10.00 goroutines	    845496 heap-live-B	       244.7 p95-us	       281.2 p99-us	     606 B/op	      26 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=1/download-4         	    1910	    279558 ns/op	 234.43 MB/s	         8.801 CPU-s/GB	  24657920 RSS-B	  23924736 RSS-peak-B	        10.00 goroutines	   1047496 heap-live-B	       375.6 p95-us	       422.1 p99-us	     907 B/op	      53 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=100/upload-4         	      34	  15247672 ns/op	 429.81 MB/s	         5.345 CPU-s/GB	  37732352 RSS-B	  37203968 RSS-peak-B	       208.0 goroutines	   9345072 heap-live-B	     17805 p95-us	     18499 p99-us	  265032 B/op	    3297 allocs/op
+PASS
+
+# sample 2: gvisor/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=100/download-4         	      20	  28103073 ns/op	 233.20 MB/s	        10.32 CPU-s/GB	  48234496 RSS-B	  47722496 RSS-peak-B	       208.0 goroutines	  19090456 heap-live-B	     33891 p95-us	     35950 p99-us	  830970 B/op	    6482 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=1/upload-4         	    3544	    170614 ns/op	 384.12 MB/s	         4.461 CPU-s/GB	  24010752 RSS-B	  23359488 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1115344 heap-live-B	       200.4 p95-us	       228.0 p99-us	         0 retransmits	    4094 B/op	      66 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=1/download-4         	    3110	    191095 ns/op	 342.95 MB/s	         6.120 CPU-s/GB	  25882624 RSS-B	  25268224 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1177736 heap-live-B	       242.7 p95-us	       272.1 p99-us	         0 retransmits	     466 B/op	       5 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=100/upload-4         	      40	  13451005 ns/op	 487.22 MB/s	         4.287 CPU-s/GB	  41127936 RSS-B	  40525824 RSS-peak-B	         1.000 drops	       206.0 goroutines	   9009856 heap-live-B	     14309 p95-us	     15488 p99-us	         0 retransmits	  591535 B/op	    6857 allocs/op
+PASS
+
+# sample 2: cubic/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=100/download-4         	      32	  16201789 ns/op	 404.50 MB/s	         7.848 CPU-s/GB	  45305856 RSS-B	  44728320 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17577408 heap-live-B	     19663 p95-us	     21054 p99-us	         0 retransmits	  456324 B/op	    1028 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=1/upload-4         	    2988	    198619 ns/op	 329.96 MB/s	         5.178 CPU-s/GB	  24678400 RSS-B	  23908352 RSS-peak-B	        10.00 goroutines	    852368 heap-live-B	       240.8 p95-us	       277.2 p99-us	     604 B/op	      27 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=1/download-4         	    1825	    288710 ns/op	 227.00 MB/s	         9.231 CPU-s/GB	  26750976 RSS-B	  25997312 RSS-peak-B	        10.00 goroutines	   1043088 heap-live-B	       382.2 p95-us	       422.3 p99-us	     881 B/op	      53 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=100/upload-4         	      39	  14892609 ns/op	 440.06 MB/s	         5.233 CPU-s/GB	  37683200 RSS-B	  37281792 RSS-peak-B	       208.0 goroutines	   8675912 heap-live-B	     16982 p95-us	     17558 p99-us	  175849 B/op	    3277 allocs/op
+PASS
+
+# sample 3: gvisor/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/gvisor/mtu=1500/flows=100/download-4         	      20	  28073899 ns/op	 233.44 MB/s	        10.31 CPU-s/GB	  46157824 RSS-B	  45604864 RSS-peak-B	       208.0 goroutines	  17177160 heap-live-B	     35397 p95-us	     37524 p99-us	  805042 B/op	    6447 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1500/flows=1/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=1/upload-4         	    3528	    169112 ns/op	 387.53 MB/s	         4.425 CPU-s/GB	  25452544 RSS-B	  25550848 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1116472 heap-live-B	       197.9 p95-us	       216.4 p99-us	         0 retransmits	    4062 B/op	      65 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1500/flows=1/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=1/download-4         	    3024	    201547 ns/op	 325.16 MB/s	         6.516 CPU-s/GB	  26218496 RSS-B	  25649152 RSS-peak-B	         1.000 drops	         8.000 goroutines	   1176216 heap-live-B	       258.0 p95-us	       280.6 p99-us	         0 retransmits	     467 B/op	       5 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1500/flows=100/upload
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=100/upload-4         	      43	  13194579 ns/op	 496.69 MB/s	         4.204 CPU-s/GB	  43147264 RSS-B	  42680320 RSS-peak-B	         1.000 drops	       206.0 goroutines	   8749336 heap-live-B	     14014 p95-us	     14185 p99-us	         0 retransmits	  562109 B/op	    6836 allocs/op
+PASS
+
+# sample 3: cubic/mtu=1500/flows=100/download
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkTUN/cubic/mtu=1500/flows=100/download-4         	      38	  15242080 ns/op	 429.97 MB/s	         7.460 CPU-s/GB	  45232128 RSS-B	  44666880 RSS-peak-B	         1.000 drops	       206.0 goroutines	  17494472 heap-live-B	     18709 p95-us	     19030 p99-us	         0 retransmits	  343948 B/op	     940 allocs/op
+PASS

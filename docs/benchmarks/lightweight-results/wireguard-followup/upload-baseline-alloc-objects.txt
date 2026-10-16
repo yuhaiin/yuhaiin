@@ -1,0 +1,26 @@
+File: lightweight-followup-baseline.test
+Build ID: ddf913e5e68168a5fa0ff0ecbd5a57bdd040d98b
+Type: alloc_objects
+Time: 2026-10-17 03:45:55 CST
+Showing nodes accounting for 2262104, 98.84% of 2288753 total
+Dropped 159 nodes (cum <= 11443)
+      flat  flat%   sum%        cum   cum%
+   1483215 64.80% 64.80%    1484533 64.86%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).receive
+    397577 17.37% 82.18%     582968 25.47%  time.NewTimer
+    193757  8.47% 90.64%     193757  8.47%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.watch (inline)
+    185684  8.11% 98.75%     185684  8.11%  time.newTimer
+      1024 0.045% 98.80%      13004  0.57%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.BenchmarkTUN
+       747 0.033% 98.83%     583715 25.50%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.waitSocket
+        99 0.0043% 98.84%     777808 33.98%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.transferWorkload.func1
+         1 4.4e-05% 98.84%    1484769 64.87%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).readLoop
+         0     0% 98.84%    1484768 64.87%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).handleTCP
+         0     0% 98.84%    1484768 64.87%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).input
+         0     0% 98.84%     777551 33.97%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).Read
+         0     0% 98.84%     777551 33.97%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).ReadWithBuffer
+         0     0% 98.84%     777551 33.97%  io.ReadAtLeast
+         0     0% 98.84%     777551 33.97%  io.ReadFull (inline)
+         0     0% 98.84%    2265511 98.98%  sync.(*WaitGroup).Go.func1
+         0     0% 98.84%      11980  0.52%  testing.(*B).Run
+         0     0% 98.84%      19424  0.85%  testing.(*B).run1.func1
+         0     0% 98.84%      19424  0.85%  testing.(*B).runN
+         0     0% 98.84%      11980  0.52%  testing.(*matcher).fullName

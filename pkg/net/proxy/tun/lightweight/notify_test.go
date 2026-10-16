@@ -13,7 +13,10 @@ func TestACKOnlyWakesWriter(t *testing.T) {
 	_ = peerPacket(t, peer)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	read, write := watch(&c.changed), watch(&c.writeChanged)
+	read := watch(&c.changed)
+	c.writeChanged = make(chan struct{}, 1)
+	c.writeWaiting = true
+	write := c.writeChanged
 	c.processAck(c.sndNxt, c.peerWindow, c.rcvNxt, tcpOptions{}, time.Now(), true)
 	select {
 	case <-read:
@@ -31,7 +34,9 @@ func TestTCPDeadlineNotifications(t *testing.T) {
 	for _, mode := range []string{"read", "write", "both"} {
 		t.Run(mode, func(t *testing.T) {
 			c := &TCPConn{appClosed: true}
-			read, write := watch(&c.changed), watch(&c.writeChanged)
+			c.readChanged, c.writeChanged = make(chan struct{}, 1), make(chan struct{}, 1)
+			c.readWaiting, c.writeWaiting = true, true
+			read, write := c.readChanged, c.writeChanged
 			switch mode {
 			case "read":
 				_ = c.SetReadDeadline(time.Now())

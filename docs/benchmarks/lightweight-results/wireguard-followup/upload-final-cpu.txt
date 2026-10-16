@@ -1,0 +1,106 @@
+File: lightweight-followup-final.test
+Build ID: c5482f67775cb4c02dc3f521e1d79c9eb89307a9
+Type: cpu
+Time: 2026-10-17 03:58:20 CST
+Duration: 4.81s, Total samples = 10.13s (210.52%)
+Showing nodes accounting for 8.98s, 88.65% of 10.13s total
+Dropped 134 nodes (cum <= 0.05s)
+      flat  flat%   sum%        cum   cum%
+     5.47s 54.00% 54.00%      5.47s 54.00%  internal/runtime/syscall/linux.Syscall6
+     1.18s 11.65% 65.65%      1.18s 11.65%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.sumBytes (inline)
+     0.22s  2.17% 67.82%      0.22s  2.17%  runtime.memmove
+     0.15s  1.48% 69.30%      0.15s  1.48%  time.runtimeNow
+     0.12s  1.18% 70.48%      0.12s  1.18%  runtime.futex
+     0.11s  1.09% 71.57%      0.35s  3.46%  runtime.selectgo
+     0.09s  0.89% 72.46%      0.15s  1.48%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).processAck
+     0.09s  0.89% 73.35%      0.09s  0.89%  memeqbody
+     0.09s  0.89% 74.23%      0.12s  1.18%  runtime.lock2
+     0.08s  0.79% 75.02%      1.27s 12.54%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).handleTCP
+     0.07s  0.69% 75.72%      0.09s  0.89%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.jobHeap.Less
+     0.07s  0.69% 76.41%      0.07s  0.69%  runtime.exitsyscall
+     0.07s  0.69% 77.10%      0.07s  0.69%  runtime.usleep
+     0.06s  0.59% 77.69%      4.50s 44.42%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).readLoop
+     0.06s  0.59% 78.28%      0.65s  6.42%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).ReadWithBuffer
+     0.06s  0.59% 78.87%      0.34s  3.36%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).schedule
+     0.06s  0.59% 79.47%      0.17s  1.68%  runtime.chansend
+     0.06s  0.59% 80.06%      0.06s  0.59%  sync/atomic.(*Int32).Add (inline)
+     0.05s  0.49% 80.55%      0.10s  0.99%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).find
+     0.05s  0.49% 81.05%      0.46s  4.54%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).receive
+     0.05s  0.49% 81.54%      0.06s  0.59%  internal/poll.(*FD).readUnlock
+     0.04s  0.39% 81.93%      0.10s  0.99%  container/heap.down
+     0.04s  0.39% 82.33%      0.13s  1.28%  runtime.sellock
+     0.03s   0.3% 82.63%      2.66s 26.26%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).writeLoop
+     0.03s   0.3% 82.92%      0.22s  2.17%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).waitIO
+     0.03s   0.3% 83.22%      0.08s  0.79%  internal/sync.(*Mutex).Lock (inline)
+     0.03s   0.3% 83.51%      1.88s 18.56%  os.(*File).Read
+     0.03s   0.3% 83.81%      0.43s  4.24%  runtime.findRunnable
+     0.03s   0.3% 84.11%      5.44s 53.70%  syscall.Syscall
+     0.03s   0.3% 84.40%      1.77s 17.47%  syscall.read
+     0.02s   0.2% 84.60%      2.54s 25.07%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).input
+     0.02s   0.2% 84.80%      0.10s  0.99%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).ipBuffer
+     0.02s   0.2% 85.00%      1.90s 18.76%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*kernelIO).ReadPacket
+     0.02s   0.2% 85.19%      2.47s 24.38%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*kernelIO).WritePacket
+     0.02s   0.2% 85.39%      0.10s  0.99%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*ownedBuffer).release (inline)
+     0.02s   0.2% 85.59%      0.06s  0.59%  runtime.notewakeup
+     0.02s   0.2% 85.78%      0.06s  0.59%  runtime.procyield (inline)
+     0.02s   0.2% 85.98%      0.09s  0.89%  runtime.runqgrab
+     0.02s   0.2% 86.18%      0.06s  0.59%  runtime.selectnbrecv
+     0.02s   0.2% 86.38%      1.79s 17.67%  syscall.Read (inline)
+     0.01s 0.099% 86.48%      0.07s  0.69%  container/heap.up
+     0.01s 0.099% 86.57%      0.07s  0.69%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).closed (inline)
+     0.01s 0.099% 86.67%      0.06s  0.59%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).Write
+     0.01s 0.099% 86.77%      0.24s  2.37%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).output
+     0.01s 0.099% 86.87%      0.11s  1.09%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).receiveBuffer
+     0.01s 0.099% 86.97%      0.08s  0.79%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*bufferPool).get
+     0.01s 0.099% 87.07%      0.17s  1.68%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*scheduler).loop
+     0.01s 0.099% 87.17%      0.27s  2.67%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*scheduler).set
+     0.01s 0.099% 87.27%      1.17s 11.55%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.Packet.ValidateTransport
+     0.01s 0.099% 87.36%      1.17s 11.55%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.transportChecksum
+     0.01s 0.099% 87.46%      1.93s 19.05%  internal/poll.(*FD).Read
+     0.01s 0.099% 87.56%      0.06s  0.59%  internal/poll.runtime_pollReset
+     0.01s 0.099% 87.66%      1.36s 13.43%  net.(*netFD).Write
+     0.01s 0.099% 87.76%      2.45s 24.19%  os.(*File).Write
+     0.01s 0.099% 87.86%      0.13s  1.28%  runtime.lockWithRank (inline)
+     0.01s 0.099% 87.96%      0.10s  0.99%  runtime.runqsteal
+     0.01s 0.099% 88.06%      0.51s  5.03%  runtime.schedule
+     0.01s 0.099% 88.15%      0.17s  1.68%  runtime.selectnbsend
+     0.01s 0.099% 88.25%      0.06s  0.59%  runtime.send
+     0.01s 0.099% 88.35%      0.11s  1.09%  runtime.stealWork
+     0.01s 0.099% 88.45%      5.32s 52.52%  syscall.RawSyscall6
+     0.01s 0.099% 88.55%      3.71s 36.62%  syscall.Write (inline)
+     0.01s 0.099% 88.65%      0.16s  1.58%  time.Now
+         0     0% 88.65%      0.09s  0.89%  bytes.Equal (inline)
+         0     0% 88.65%      0.10s  0.99%  container/heap.Remove
+         0     0% 88.65%      0.10s  0.99%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).emitOwned
+         0     0% 88.65%      0.65s  6.42%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).Read
+         0     0% 88.65%      0.30s  2.96%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).pump
+         0     0% 88.65%      0.22s  2.17%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).sendACK
+         0     0% 88.65%      0.08s  0.79%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*bufferPool).put
+         0     0% 88.65%      0.80s  7.90%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.transferWorkload.func1
+         0     0% 88.65%      1.46s 14.41%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.transferWorkload.func2
+         0     0% 88.65%      0.08s  0.79%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.waitSocket
+         0     0% 88.65%      3.79s 37.41%  internal/poll.(*FD).Write
+         0     0% 88.65%      0.06s  0.59%  internal/poll.(*pollDesc).prepare
+         0     0% 88.65%      5.50s 54.29%  internal/poll.ignoringEINTRIO (inline)
+         0     0% 88.65%      0.16s  1.58%  internal/runtime/syscall/linux.EpollWait
+         0     0% 88.65%      0.74s  7.31%  io.ReadAtLeast
+         0     0% 88.65%      0.74s  7.31%  io.ReadFull (inline)
+         0     0% 88.65%      0.09s  0.89%  net.(*conn).Read
+         0     0% 88.65%      1.36s 13.43%  net.(*conn).Write
+         0     0% 88.65%      0.09s  0.89%  net.(*netFD).Read
+         0     0% 88.65%      1.84s 18.16%  os.(*File).read (inline)
+         0     0% 88.65%      2.44s 24.09%  os.(*File).write (inline)
+         0     0% 88.65%      0.08s  0.79%  runtime.futexsleep
+         0     0% 88.65%      0.13s  1.28%  runtime.lock (inline)
+         0     0% 88.65%      0.08s  0.79%  runtime.mPark (inline)
+         0     0% 88.65%      0.51s  5.03%  runtime.mcall
+         0     0% 88.65%      0.17s  1.68%  runtime.netpoll
+         0     0% 88.65%      0.08s  0.79%  runtime.notesleep
+         0     0% 88.65%      0.51s  5.03%  runtime.park_m
+         0     0% 88.65%      0.06s  0.59%  runtime.resetspinning
+         0     0% 88.65%      0.07s  0.69%  runtime.startm
+         0     0% 88.65%      0.09s  0.89%  runtime.stopm
+         0     0% 88.65%      0.07s  0.69%  runtime.wakep
+         0     0% 88.65%      0.08s  0.79%  sync.(*Mutex).Lock (inline)
+         0     0% 88.65%      9.59s 94.67%  sync.(*WaitGroup).Go.func1
+         0     0% 88.65%      3.70s 36.53%  syscall.write
