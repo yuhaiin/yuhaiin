@@ -7,11 +7,9 @@ import (
 	"time"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	probing "github.com/prometheus-community/pro-bing"
 )
 
 type direct struct {
@@ -93,74 +91,6 @@ func (d *direct) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		resolver:         store.ConnOptions().Resolver(),
 		BufferPacketConn: NewBufferPacketConn(p),
 	}, nil
-}
-
-func (d *direct) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
-	var ip net.IP
-	if addr.IsFqdn() {
-		z, err := netapi.ResolverIP(ctx, addr.Hostname())
-		if err != nil {
-			return 0, err
-		}
-		ip = z.Rand()
-	} else {
-		ip = addr.(netapi.IPAddress).AddrPort().Addr().Unmap().AsSlice()
-	}
-
-	pinger := probing.New("")
-	defer pinger.Stop()
-
-	pinger.SetIPAddr(&net.IPAddr{IP: ip})
-	var network string
-	if ip.To4() == nil {
-		network = "ip6"
-	} else {
-		network = "ip4"
-	}
-
-	iface, err := dialer.GetInterfaceByIP(ip)
-	if err != nil {
-		return 0, err
-	}
-
-	bindFd := func(uintptr) {}
-	if iface != "" {
-		bindFd = func(fd uintptr) {
-			if err := dialer.BindInterface(network, fd, iface); err != nil {
-				log.Warn("bind interface failed", "err", err)
-			}
-		}
-	}
-
-	pinger.SetNetwork(network)
-	pinger.Control = func(fd uintptr) {
-		bindFd(fd)
-
-		if dialer.DefaultMarkSymbol != nil {
-			if !dialer.DefaultMarkSymbol(int32(fd)) {
-				log.Warn("mark symbol failed", "addr", addr)
-			}
-		}
-	}
-
-	pinger.SetPrivileged(false)
-	pinger.Count = 1
-
-	var resp uint64
-	pinger.OnRecv = func(p *probing.Packet) {
-		resp = uint64(p.Rtt)
-	}
-
-	pinger.OnDuplicateRecv = func(p *probing.Packet) {
-		resp = uint64(p.Rtt)
-	}
-
-	err = pinger.RunWithContext(ctx) // Blocks until finished.
-	if err != nil {
-		return 0, fmt.Errorf("ping %v:%v failed: %w", addr, ip, err)
-	}
-
-	return resp, nil
 }
 
 func (d *direct) Close() error { return nil }
