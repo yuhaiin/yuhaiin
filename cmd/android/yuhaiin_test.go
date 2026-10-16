@@ -149,9 +149,9 @@ func TestStopCancelsStartupBeforeWaitingForLifecycleLock(t *testing.T) {
 
 func TestConfigureAndroidTUNStackSelection(t *testing.T) {
 	for _, tc := range []struct {
-		name, stack, cc, driver string
+		name, stack, cc, driver       string
 		wantStack, wantCC, wantDriver string
-		wantErr bool
+		wantErr                       bool
 	}{
 		{name: "legacy", driver: TunDriverSystemGvisorValue, wantDriver: TunDriverSystemGvisorValue},
 		{name: "legacy ignores remembered algorithm", driver: TunDriverFdbasedValue, cc: "bbr", wantDriver: TunDriverFdbasedValue},
@@ -241,7 +241,9 @@ func TestConfigureAndroidTUNCanReturnToLegacy(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, in := range inbounds {
-		if in.Protocol.Type != contractinbound.ProtocolTun { continue }
+		if in.Protocol.Type != contractinbound.ProtocolTun {
+			continue
+		}
 		got := in.Protocol.Tun
 		if got == nil || got.Stack != "" || got.CongestionControl != "" || got.Driver != TunDriverSystemGvisorValue {
 			t.Fatalf("legacy TUN was not restored: %+v", got)

@@ -292,12 +292,12 @@ func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, 
 	tunProtocol := contractinbound.NewTypedProtocol(contractinbound.TunProtocol{
 		Stack:             stack,
 		CongestionControl: congestionControl,
-		Name:          fmt.Sprintf("fd://%d", tun.FD),
-		MTU:           tun.MTU,
-		SkipMulticast: true,
-		Driver:        driver,
-		Portal:        tun.Portal,
-		PortalV6:      tun.PortalV6,
+		Name:              fmt.Sprintf("fd://%d", tun.FD),
+		MTU:               tun.MTU,
+		SkipMulticast:     true,
+		Driver:            driver,
+		Portal:            tun.Portal,
+		PortalV6:          tun.PortalV6,
 	})
 	for _, inbound := range inbounds {
 		if inbound.Protocol.Type != contractinbound.ProtocolTun {
