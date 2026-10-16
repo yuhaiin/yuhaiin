@@ -48,7 +48,7 @@ func (d *direct) Ping(ctx context.Context, addr netapi.Address) (uint64, error) 
 
 	network := "udp4"
 	proto := 1
-	requestType := ipv4.ICMPTypeEcho
+	var requestType icmp.Type = ipv4.ICMPTypeEcho
 	if target.To4() == nil {
 		network = "udp6"
 		proto = 58
