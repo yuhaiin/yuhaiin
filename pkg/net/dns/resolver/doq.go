@@ -16,7 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
-	"github.com/quic-go/quic-go"
+	"github.com/apernet/quic-go"
 	"golang.org/x/net/http2"
 )
 

@@ -17,7 +17,7 @@ import (
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"github.com/quic-go/quic-go"
+	"github.com/apernet/quic-go"
 )
 
 type Server struct {
