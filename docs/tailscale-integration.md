@@ -100,8 +100,8 @@ its full transport contract and tests.
 ## Validation record
 
 The implementation was tested with Go 1.27.2 on Linux. The dependency is pinned
-to published fork commit `223166903dc3e50a35f968ad48dd41a480ba7381`
-(`v0.0.0-20261016035925-223166903dc3`); `go mod download tailscale.com`
+to published fork commit `4441c394b330b12f24a68ff99f4d33377ea2f9eb`
+(`v0.0.0-20261016051747-4441c394b330`); `go mod download tailscale.com`
 and `go list -m -json tailscale.com` confirmed a downloaded module with checksums.
 No local filesystem replacement is part of the PR.
 
@@ -136,18 +136,29 @@ evidence; a future direct credential-to-log path requires a fresh review.
   TCP, IPv4/IPv6 UDP to multiple ports, native service DNS over UDP/TCP, rejection
   of non-Tailnet TCP/UDP, rebind, state ownership, configuration replacement and
   close isolation. No Tailnet account or external service is required.
-- The fork's focused tests and race suite cover netns, tsdial, DNS/resolver,
-  netcheck, UDP relay, tsnet, magicsock, DERP HTTP and control HTTP/Noise. Local
-  fork integration tests also use real STUN. Only the pre-existing magicsock
-  `TestNetworkSendErrors/network-down` assertion fails because this host rejects
-  `sendmmsg` with `operation not permitted`; reproduced on upstream `9128778b6`.
-- `GOMAXPROCS=4 go test -p=4 -timeout=5m ./...` was executed in both repositories.
-  The fork additionally has existing `cmd/containerboot` port-9002 conflicts and
-  `tstest/integration/TestC2NDebugNetmap` panic (`body closed by handler`), each
-  reproduced on upstream `9128778b6`. yuhaiin has an unrelated
-  `pkg/utils/syncmap/TestLoadOrCreate` timeout with `GOMAXPROCS=4`, reproduced on
-  unmodified `main` (`08131975`) using a 15-second diagnostic timeout. That test
-  calls `t.Parallel` inside the goroutine which its subtest waits for. Tests and
+- The fork was rebased without code conflicts from `9128778b6` onto upstream
+  `e9d5cdc3231edd3f93254c16f505fd86344a9faf` (56 commits, fetched 2026-10-16).
+  It still has one private commit. Upstream's Go 1.27.2 minimum is reflected
+  in the consumer's go.mod. Range-diff verified the integration Go patch stayed
+  unchanged; the fork maintenance report and commit message record the rebase.
+- The rebased fork's focused tests and race suite cover netns, tsdial,
+  DNS/resolver, netcheck, UDP relay, tsnet, magicsock, DERP HTTP and control
+  HTTP/Noise. Real local control/DERP/STUN integration passes, including races.
+  magicsock's `TestNetworkSendErrors/network-down` assertion hits host
+  `sendmmsg EPERM`; resolver race test `TestForwarderRaceLoserNoReadError` times
+  out waiting for losing UDP reads. Both reproduce on unmodified `e9d5cdc32`.
+  The unmodified exhaustive UDP-relay VNI allocation race test exceeded the
+  four-minute budget; a separate real-UDP `TestServer` race run passed. No race
+  detector report was emitted.
+- `GOMAXPROCS=4 go test -p=4 -timeout=5m ./...` ran on the rebased fork. Besides
+  magicsock, containerboot's occupied port 9002 and compositedav's TTL-cache
+  goroutine-count failures reproduce on unmodified `e9d5cdc32`. The former
+  C2N debug-netmap panic no longer reproduces; that test and the integration
+  package passed on the new base.
+- The original yuhaiin `GOMAXPROCS=4` run hit an unrelated
+  `pkg/utils/syncmap/TestLoadOrCreate` timeout, reproduced on unmodified main
+  (`08131975`) using a 15-second diagnostic timeout. That test calls
+  `t.Parallel` inside the goroutine which its subtest waits for. Tests and
   assertions were not removed or skipped to hide these failures.
 - `go test -timeout=2m ./...` with the default concurrency settings passed
   across the full yuhaiin repository. The `GOMAXPROCS=4` failure above is a
