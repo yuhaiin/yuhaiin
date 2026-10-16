@@ -88,9 +88,9 @@ was still lower. CPU profiles include Linux TCP client, checksums and syscalls;
 end-of-process heap profiles after Close do not represent live traffic memory.
 
 The final 2s diagnostic profile is retained as `cpu-final.pprof` and
-`alloc-final.pprof`. CPU samples are dominated by syscalls (55.5%), checksum
-summation (9.3%) and copies (3.1%). Total sampled allocation fell from roughly
-429MiB before the ownership/notification work to 41MiB in this profiled run;
+`alloc-final.pprof`. CPU samples are dominated by syscalls (56.1%), checksum
+summation (9.9%) and copies (3.4%). Total sampled allocation fell from roughly
+429MiB before the ownership/notification work to 43MiB in this profiled run;
 these totals include setup, profiling and cleanup and are not bytes/batch.
 Remaining allocation is chiefly descriptor/payload cache misses and workload
 buffers. Both allocation profiles and their benchmark logs are retained.
@@ -207,12 +207,19 @@ proof of fairness across other bottlenecks or competing implementations.
   Those pass. `go fix` adapted one reverse loop to `slices.Backward`; the final
   `go fix -diff` check produces no changes. No diagnostic file was deleted.
 
+A cache-pressure regression also verifies that returning only a send
+descriptor wakes output while its shared payload remains live. Such a return
+creates evictable budget even when no packet-buffer reference reaches zero.
+The regression failed before the capacity notification was added and passes
+under race afterward. A separate final matrix includes that notification.
+
 The native matrix preceding the final stale-reference clearing is retained as
 `native-before-reference-clear.*`; it completed all 270 samples, resuming 119
-completed samples after the close-log parsing repair. The final matrix is a
-separate fresh run of the final source. No older measurement is silently replaced.
-Idle sampling uses a separate binary with the same production source; its
-original unmatched Reno filter is retained as `idle-filter-mismatch.txt` and
+completed samples after the close-log parsing repair. The matrix before the descriptor-capacity notification is retained as
+`native-pre-metadata-wakeup.*`. The final matrix is a separate fresh run of
+the final source. No older measurement is silently replaced.
+Final idle and native sampling use the same binary. The earlier
+unmatched Reno filter is retained as `idle-filter-mismatch.txt` and
 was repaired by adding all controllers to the idle benchmark.
 
 ## Final native medians
@@ -224,49 +231,49 @@ matrix and final full matrix remain available; every median below uses only
 
 | MTU | Flows | Direction | gVisor MB/s | tun2socket MB/s | Reno MB/s | CUBIC MB/s | BBR v3 MB/s |
 | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: |
-| 1280 | 1 | upload | 293.14 | 174.41 | 341.27 | 340.74 | 344.64 |
-| 1280 | 1 | download | 185.99 | 227.12 | 311.44 | 310.77 | 307.03 |
-| 1280 | 8 | upload | 371.44 | 179.44 | 431.84 | 432.30 | 432.80 |
-| 1280 | 8 | download | 204.51 | 182.87 | 352.70 | 348.71 | 339.77 |
-| 1280 | 100 | upload | 370.77 | 175.79 | 436.05 | 422.77 | 433.66 |
-| 1280 | 100 | download | 194.90 | 178.98 | 328.58 | 329.75 | 347.98 |
-| 1500 | 1 | upload | 332.38 | 206.25 | 384.25 | 380.77 | 382.16 |
-| 1500 | 1 | download | 231.01 | 258.30 | 333.76 | 327.80 | 326.14 |
-| 1500 | 8 | upload | 427.50 | 218.56 | 485.51 | 480.09 | 486.74 |
-| 1500 | 8 | download | 258.62 | 227.07 | 431.43 | 427.14 | 428.11 |
-| 1500 | 100 | upload | 429.37 | 206.42 | 488.55 | 487.27 | 485.21 |
-| 1500 | 100 | download | 235.65 | 208.16 | 404.32 | 416.33 | 413.21 |
-| 9000 | 1 | upload | 881.79 | 749.70 | 723.64 | 731.97 | 732.43 |
-| 9000 | 1 | download | 781.51 | 664.64 | 730.65 | 729.90 | 723.80 |
-| 9000 | 8 | upload | 1547.00 | 904.57 | 1174.28 | 1188.54 | 1178.59 |
-| 9000 | 8 | download | 1001.77 | 942.63 | 1489.66 | 1464.21 | 1474.00 |
-| 9000 | 100 | upload | 1624.78 | 878.32 | 1268.01 | 1273.57 | 1292.89 |
-| 9000 | 100 | download | 982.83 | 888.08 | 1608.56 | 1574.00 | 1668.37 |
+| 1280 | 1 | upload | 291.36 | 172.61 | 343.89 | 342.04 | 342.24 |
+| 1280 | 1 | download | 187.54 | 226.65 | 298.94 | 305.00 | 301.37 |
+| 1280 | 8 | upload | 366.60 | 186.04 | 434.47 | 431.32 | 434.34 |
+| 1280 | 8 | download | 203.98 | 183.71 | 349.80 | 344.93 | 340.80 |
+| 1280 | 100 | upload | 371.45 | 178.93 | 432.74 | 435.17 | 439.87 |
+| 1280 | 100 | download | 188.81 | 180.67 | 323.42 | 323.29 | 332.91 |
+| 1500 | 1 | upload | 330.13 | 210.18 | 383.12 | 387.38 | 383.59 |
+| 1500 | 1 | download | 227.05 | 256.55 | 333.74 | 339.87 | 334.28 |
+| 1500 | 8 | upload | 420.49 | 218.83 | 492.34 | 482.65 | 493.59 |
+| 1500 | 8 | download | 254.63 | 226.84 | 430.35 | 428.24 | 430.70 |
+| 1500 | 100 | upload | 442.47 | 211.02 | 487.86 | 493.55 | 495.42 |
+| 1500 | 100 | download | 234.89 | 208.96 | 399.78 | 409.81 | 422.75 |
+| 9000 | 1 | upload | 876.50 | 711.51 | 751.91 | 745.11 | 748.40 |
+| 9000 | 1 | download | 766.16 | 643.41 | 748.49 | 749.82 | 741.32 |
+| 9000 | 8 | upload | 1551.02 | 891.92 | 1219.37 | 1211.97 | 1185.94 |
+| 9000 | 8 | download | 969.02 | 942.72 | 1467.29 | 1487.71 | 1528.82 |
+| 9000 | 100 | upload | 1623.05 | 888.63 | 1290.03 | 1274.19 | 1283.03 |
+| 9000 | 100 | download | 960.74 | 889.40 | 1572.24 | 1667.73 | 1624.14 |
 
 MTU 1500 CPU/memory medians. Allocation and latency are per complete batch
 of all flows; they are not independent packet latency.
 
 | Stack | Flows/direction | CPU s/GB | bytes/batch | allocs/batch | live heap MiB | peak RSS MiB | P95/P99 ms |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| gvisor | 1/download | 9.158 | 874 | 53 | 1.00 | 25.07 | 0.41/0.43 |
-| tun2socket | 1/download | 4.065 | 2,318 | 96 | 0.53 | 24.25 | 0.27/0.33 |
-| reno | 1/download | 6.328 | 470 | 5 | 1.12 | 23.97 | 0.25/0.28 |
-| cubic | 1/download | 6.432 | 468 | 5 | 1.12 | 24.45 | 0.26/0.28 |
-| bbr | 1/download | 6.434 | 469 | 5 | 1.12 | 22.46 | 0.26/0.28 |
-| gvisor | 100/upload | 5.399 | 160,716 | 3,344 | 8.42 | 35.21 | 18.22/18.43 |
-| tun2socket | 100/upload | 8.273 | 343,152 | 13,958 | 6.97 | 34.64 | 45.15/45.15 |
-| reno | 100/upload | 4.275 | 483,281 | 6,856 | 8.45 | 38.85 | 14.40/15.36 |
-| cubic | 100/upload | 4.284 | 575,208 | 6,853 | 8.27 | 36.83 | 14.38/15.31 |
-| bbr | 100/upload | 4.302 | 518,974 | 6,849 | 8.39 | 38.58 | 14.46/14.96 |
-| gvisor | 100/download | 10.200 | 858,332 | 6,418 | 17.92 | 45.61 | 33.48/35.62 |
-| tun2socket | 100/download | 8.194 | 534,893 | 13,871 | 6.97 | 34.92 | 42.25/42.25 |
-| reno | 100/download | 7.676 | 565,256 | 1,039 | 16.55 | 42.84 | 19.49/20.42 |
-| cubic | 100/download | 7.532 | 474,269 | 978 | 16.69 | 42.79 | 18.92/19.36 |
-| bbr | 100/download | 8.208 | 469,795 | 1,035 | 16.75 | 42.82 | 19.11/19.83 |
+| gvisor | 1/download | 9.299 | 869 | 53 | 1.00 | 25.15 | 0.41/0.43 |
+| tun2socket | 1/download | 4.096 | 2,314 | 96 | 0.53 | 24.52 | 0.28/0.32 |
+| reno | 1/download | 6.352 | 469 | 5 | 1.12 | 24.46 | 0.25/0.27 |
+| cubic | 1/download | 6.157 | 465 | 5 | 1.12 | 24.16 | 0.25/0.27 |
+| bbr | 1/download | 6.320 | 472 | 5 | 1.12 | 24.30 | 0.25/0.28 |
+| gvisor | 100/upload | 5.210 | 236,566 | 3,286 | 8.45 | 35.49 | 16.82/17.30 |
+| tun2socket | 100/upload | 8.058 | 528,169 | 13,984 | 6.97 | 34.80 | 45.44/45.44 |
+| reno | 100/upload | 4.307 | 581,999 | 6,868 | 8.28 | 40.73 | 14.69/15.45 |
+| cubic | 100/upload | 4.237 | 522,990 | 6,836 | 8.37 | 38.71 | 14.07/14.39 |
+| bbr | 100/upload | 4.218 | 483,256 | 6,813 | 8.40 | 38.60 | 13.97/14.34 |
+| gvisor | 100/download | 10.280 | 909,641 | 6,438 | 18.05 | 45.35 | 33.91/35.07 |
+| tun2socket | 100/download | 8.202 | 333,932 | 13,850 | 6.98 | 32.88 | 44.98/44.98 |
+| reno | 100/download | 7.922 | 532,113 | 1,049 | 16.62 | 40.74 | 19.70/20.03 |
+| cubic | 100/download | 7.760 | 486,947 | 991 | 16.61 | 42.74 | 19.24/20.95 |
+| bbr | 100/download | 8.140 | 501,667 | 1,010 | 16.73 | 42.94 | 18.50/19.46 |
 
-BBR's MTU 1280 single-download median is 307.03 MB/s, versus
-the original 1.48 MB/s. At MTU 1500, CUBIC 100-flow download is 416.33
-versus 235.65 MB/s for gVisor, with 474,269 versus 858,332
+BBR's MTU 1280 single-download median is 301.37 MB/s, versus
+the original 1.48 MB/s. At MTU 1500, CUBIC 100-flow download is 409.81
+versus 234.89 MB/s for gVisor, with 486,947 versus 909,641
 bytes allocated per batch. These observations do not establish an across-the-board
 memory advantage: upload allocation remains higher, as do single-flow live heap
 and some RSS cases. The full raw medians retain every unfavorable result.
@@ -282,14 +289,13 @@ predict encrypted remote-tunnel throughput.
 
 | Stack | heap delta bytes/connection | added goroutines/connection | total idle heap MiB |
 | --- | ---: | ---: | ---: |
-| gvisor | 5077 | 0 | 5.35 |
+| gvisor | 5084 | 0 | 5.35 |
 | tun2socket | 1027 | 0 | 1.39 |
-| reno | 1484 | 0 | 2.23 |
-| cubic | 1584 | 0 | 2.33 |
+| reno | 1488 | 0 | 2.23 |
+| cubic | 1585 | 0 | 2.33 |
 | bbr | 1936 | 0 | 2.66 |
 
 The idle delta subtracts a post-setup baseline and excludes kernel socket
 memory. Raw records also include RSS and live heap after socket closure.
-Protocol caches drain on Stack.Close; runtime caches may remain. Idle and native
-binaries differ only in benchmark coverage (all controllers were added to the
-idle loop); each artifact records its own SHA256.
+Protocol caches drain on Stack.Close; runtime caches may remain. Final idle and native
+measurements use the same binary, verified by the SHA256 in each artifact.

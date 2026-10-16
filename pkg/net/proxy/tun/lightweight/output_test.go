@@ -2,6 +2,38 @@ package lightweight
 
 import "testing"
 
+func TestOutputWakesAfterDescriptorBecomesEvictable(t *testing.T) {
+	s := &Stack{config: Config{MemoryLimit: 1 << 20}, done: make(chan struct{}), outgoing: make(chan *ownedBuffer, 1)}
+	s.scheduler = newScheduler(s.done)
+	s.buffers.init(s)
+	owner, err := s.buffers.get(1024)
+	if err != nil || !s.reserve(segmentCharge) {
+		t.Fatalf("reserve: %v", err)
+	}
+	owner.hold() // Other outstanding views keep the payload allocation live.
+	v := s.buffers.takeSegment()
+	*v = sendSegment{owner: owner, data: owner.data[:64]}
+	rest := int(s.config.MemoryLimit - s.memory.Load())
+	if !s.reserve(rest) {
+		t.Fatal("fill memory budget")
+	}
+	waiter := &TCPConn{stack: s, job: timerJob{index: -1}}
+	waiter.waitOutput(64)
+	if waiter.outputReady.Load() {
+		t.Fatal("full allocation budget admitted output")
+	}
+	s.buffers.releaseSegment(v)
+	if !waiter.outputReady.Load() || s.outputCount.Load() != 0 {
+		t.Fatal("evictable metadata capacity failed to wake output")
+	}
+	owner.release()
+	s.release(rest)
+	s.buffers.close()
+	if s.memory.Load() != 0 {
+		t.Fatal("metadata-pressure test leaked reservation")
+	}
+}
+
 func TestOutputCapacityAndFIFO(t *testing.T) {
 	s := &Stack{config: Config{MemoryLimit: 1 << 20}, done: make(chan struct{}), outgoing: make(chan *ownedBuffer, 1)}
 	s.scheduler = newScheduler(s.done)

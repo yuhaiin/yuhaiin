@@ -258,6 +258,9 @@ func (p *bufferPool) releaseSegment(v *sendSegment) {
 				p.stack.scheduler.set(&p.idleJob, time.Now().Add(2*time.Second))
 			}
 			p.mu.RUnlock()
+			// The retained payload may still have other views. Making only this
+			// descriptor evictable can nevertheless admit a waiting ACK/packet.
+			p.stack.wakeOutput()
 			return
 		default:
 			p.cached.Add(-segmentCharge)

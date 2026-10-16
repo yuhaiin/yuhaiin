@@ -1,24 +1,25 @@
-{"os": "Linux-7.2.6-zen2-1-zen-x86_64-with-glibc2.44", "go": "go version go1.27.2-X:nodwarf5 linux/amd64", "gomaxprocs": 4, "offload": false, "tun_tx_queue": 10000, "samples": 3, "benchtime": "1x", "client": "Linux TCP, same process", "binary_sha256": "7e9c945e41d8bf7b4f992f863116394af424869aefbc648f17fd1c427975b8b5", "workload": "1000 idle connections"}
+{"os": "Linux-7.2.6-zen2-1-zen-x86_64-with-glibc2.44", "go": "go version go1.27.2-X:nodwarf5 linux/amd64", "gomaxprocs": 4, "offload": false, "tun_tx_queue": 10000, "samples": 3, "benchtime": "1x", "client": "Linux TCP, same process", "binary_sha256": "59cfd286d24ac31edcfcfa4b789c5840552529552099aa19a4af7a11797a989f", "workload": "1000 idle connections"}
 
 # sample 1: gvisor/idle=1000
 goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/gvisor-4         	       1	   1078915 ns/op	   3764184 closed-heap-live-B	         0 goroutines/conn	      5071 heap-per-conn-B	  31502336 idle-RSS-B	   5604744 idle-heap-live-B	      9519 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/gvisor-4         	       1	   1175481 ns/op	   2831584 closed-heap-live-B	         0 goroutines/conn	      5070 heap-per-conn-B	  31399936 idle-RSS-B	   5597376 idle-heap-live-B	      9662 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 1: tun2socket/idle=1000
-time=2026-10-17T02:43:08.443+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
-time=2026-10-17T02:43:08.444+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
-time=2026-10-17T02:43:08.444+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:32969 "v6 listener"=[2001:db8::1]:32969 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
-time=2026-10-17T02:43:08.580+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:32969: use of closed network connection"
-time=2026-10-17T02:43:08.580+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:32969: use of closed network connection"
+time=2026-10-17T02:59:09.135+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:59:09.135+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:59:09.135+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:41661 "v6 listener"=[2001:db8::1]:41661 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:59:09.273+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:59:09.273+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:41661: use of closed network connection"
+time=2026-10-17T02:59:09.273+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:41661: use of closed network connection"
 goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/tun2socket-4         	       1	    716036 ns/op	    747216 closed-heap-live-B	         0 goroutines/conn	      1026 heap-per-conn-B	  25874432 idle-RSS-B	   1457432 idle-heap-live-B	      4559 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/tun2socket-4         	       1	    647185 ns/op	    742576 closed-heap-live-B	         0 goroutines/conn	      1026 heap-per-conn-B	  25886720 idle-RSS-B	   1458104 idle-heap-live-B	      2421 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 1: reno/idle=1000
@@ -26,7 +27,7 @@ goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/reno-4         	       1	    618044 ns/op	    932272 closed-heap-live-B	         0 goroutines/conn	      1488 heap-per-conn-B	  25542656 idle-RSS-B	   2342008 idle-heap-live-B	      4342 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/reno-4         	       1	    600152 ns/op	    932000 closed-heap-live-B	         0 goroutines/conn	      1488 heap-per-conn-B	  25366528 idle-RSS-B	   2341848 idle-heap-live-B	      2195 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 1: cubic/idle=1000
@@ -34,7 +35,7 @@ goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/cubic-4         	       1	    670495 ns/op	    933264 closed-heap-live-B	         0 goroutines/conn	      1585 heap-per-conn-B	  25710592 idle-RSS-B	   2438864 idle-heap-live-B	      2556 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/cubic-4         	       1	    599432 ns/op	    919016 closed-heap-live-B	         0 goroutines/conn	      1570 heap-per-conn-B	  25812992 idle-RSS-B	   2424976 idle-heap-live-B	      4710 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 1: bbr/idle=1000
@@ -42,7 +43,7 @@ goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/bbr-4         	       1	    671456 ns/op	    937672 closed-heap-live-B	         0 goroutines/conn	      1936 heap-per-conn-B	  25608192 idle-RSS-B	   2795408 idle-heap-live-B	      4481 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/bbr-4         	       1	    610372 ns/op	    932000 closed-heap-live-B	         0 goroutines/conn	      1936 heap-per-conn-B	  25956352 idle-RSS-B	   2789960 idle-heap-live-B	      4878 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 2: gvisor/idle=1000
@@ -50,21 +51,20 @@ goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/gvisor-4         	       1	    984273 ns/op	   4065120 closed-heap-live-B	         0 goroutines/conn	      5077 heap-per-conn-B	  31531008 idle-RSS-B	   5605616 idle-heap-live-B	      7578 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/gvisor-4         	       1	   1175481 ns/op	   2915768 closed-heap-live-B	         0 goroutines/conn	      5098 heap-per-conn-B	  29188096 idle-RSS-B	   5625488 idle-heap-live-B	      7225 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 2: tun2socket/idle=1000
-time=2026-10-17T02:43:09.092+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
-time=2026-10-17T02:43:09.092+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
-time=2026-10-17T02:43:09.092+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:46333 "v6 listener"=[2001:db8::1]:46333 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
-time=2026-10-17T02:43:09.240+08:00 level=ERROR source=nat.go:295 msg="write tcp raw to tun device failed" err="write lwtest0: file already closed"
-time=2026-10-17T02:43:09.241+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:46333: use of closed network connection"
-time=2026-10-17T02:43:09.240+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:46333: use of closed network connection"
+time=2026-10-17T02:59:09.786+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:59:09.787+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:59:09.787+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:40917 "v6 listener"=[2001:db8::1]:40917 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:59:09.929+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:40917: use of closed network connection"
+time=2026-10-17T02:59:09.929+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:40917: use of closed network connection"
 goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/tun2socket-4         	       1	    635734 ns/op	    743856 closed-heap-live-B	         0 goroutines/conn	      1027 heap-per-conn-B	  25853952 idle-RSS-B	   1458840 idle-heap-live-B	      2511 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/tun2socket-4         	       1	    647395 ns/op	    747344 closed-heap-live-B	         0 goroutines/conn	      1028 heap-per-conn-B	  25948160 idle-RSS-B	   1459576 idle-heap-live-B	      4583 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 2: reno/idle=1000
@@ -72,7 +72,7 @@ goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/reno-4         	       1	    612004 ns/op	    924360 closed-heap-live-B	         0 goroutines/conn	      1479 heap-per-conn-B	  25546752 idle-RSS-B	   2333424 idle-heap-live-B	      4424 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/reno-4         	       1	    678326 ns/op	    937528 closed-heap-live-B	         0 goroutines/conn	      1488 heap-per-conn-B	  25460736 idle-RSS-B	   2341192 idle-heap-live-B	      4510 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 2: cubic/idle=1000
@@ -80,7 +80,7 @@ goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/cubic-4         	       1	    665165 ns/op	    932816 closed-heap-live-B	         0 goroutines/conn	      1584 heap-per-conn-B	  25391104 idle-RSS-B	   2438304 idle-heap-live-B	      4297 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/cubic-4         	       1	    705099 ns/op	    933416 closed-heap-live-B	         0 goroutines/conn	      1585 heap-per-conn-B	  25600000 idle-RSS-B	   2438816 idle-heap-live-B	      2445 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 2: bbr/idle=1000
@@ -88,7 +88,7 @@ goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/bbr-4         	       1	    658495 ns/op	    933016 closed-heap-live-B	         0 goroutines/conn	      1931 heap-per-conn-B	  25616384 idle-RSS-B	   2784792 idle-heap-live-B	      2339 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/bbr-4         	       1	    695228 ns/op	    937328 closed-heap-live-B	         0 goroutines/conn	      1941 heap-per-conn-B	  25808896 idle-RSS-B	   2795080 idle-heap-live-B	      4805 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 3: gvisor/idle=1000
@@ -96,21 +96,21 @@ goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/gvisor-4         	       1	   1110766 ns/op	   2963840 closed-heap-live-B	         0 goroutines/conn	      5090 heap-per-conn-B	  29454336 idle-RSS-B	   5617864 idle-heap-live-B	      7492 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/gvisor-4         	       1	   1127318 ns/op	   2672928 closed-heap-live-B	         0 goroutines/conn	      5084 heap-per-conn-B	  31371264 idle-RSS-B	   5611472 idle-heap-live-B	      9486 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 3: tun2socket/idle=1000
-time=2026-10-17T02:43:09.748+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
-time=2026-10-17T02:43:09.748+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
-time=2026-10-17T02:43:09.749+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:34097 "v6 listener"=[2001:db8::1]:34097 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
-time=2026-10-17T02:43:09.876+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
-time=2026-10-17T02:43:09.876+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:34097: use of closed network connection"
-time=2026-10-17T02:43:09.876+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:34097: use of closed network connection"
+time=2026-10-17T02:59:10.443+08:00 level=INFO source=nat.go:47 msg="bind v4 listener to interface" iface=lwtest0
+time=2026-10-17T02:59:10.443+08:00 level=INFO source=nat.go:54 msg="bind v6 listener to interface" iface=lwtest0
+time=2026-10-17T02:59:10.443+08:00 level=INFO source=nat.go:111 msg="new tun2socket tcp server" "v4 listener"=192.0.2.1:41581 "v6 listener"=[2001:db8::1]:41581 "v4 gateway"=192.0.2.1/24 "v4 portal"=192.0.2.2 "v6 gateway"=2001:db8::1/64 "v6 portal"=2001:db8::2
+time=2026-10-17T02:59:10.569+08:00 level=ERROR source=nat.go:216 msg="tun device read failed" err="read lwtest0: file already closed"
+time=2026-10-17T02:59:10.569+08:00 level=WARN source=tcp.go:98 msg="tun2socket v6 tcp accept failed" err="accept tcp [2001:db8::1]:41581: use of closed network connection"
+time=2026-10-17T02:59:10.569+08:00 level=WARN source=tcp.go:65 msg="tun2socket v4 tcp accept failed" err="accept tcp 192.0.2.1:41581: use of closed network connection"
 goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/tun2socket-4         	       1	    695385 ns/op	    741368 closed-heap-live-B	         0 goroutines/conn	      1029 heap-per-conn-B	  25731072 idle-RSS-B	   1460856 idle-heap-live-B	      4456 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/tun2socket-4         	       1	    694938 ns/op	    740424 closed-heap-live-B	         0 goroutines/conn	      1027 heap-per-conn-B	  25948160 idle-RSS-B	   1459000 idle-heap-live-B	      4760 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 3: reno/idle=1000
@@ -118,7 +118,7 @@ goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/reno-4         	       1	    692486 ns/op	    933528 closed-heap-live-B	         0 goroutines/conn	      1484 heap-per-conn-B	  25485312 idle-RSS-B	   2337352 idle-heap-live-B	      4452 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/reno-4         	       1	    609592 ns/op	    927616 closed-heap-live-B	         0 goroutines/conn	      1484 heap-per-conn-B	  25628672 idle-RSS-B	   2337832 idle-heap-live-B	      4481 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 3: cubic/idle=1000
@@ -126,7 +126,7 @@ goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/cubic-4         	       1	    746707 ns/op	    919864 closed-heap-live-B	         0 goroutines/conn	      1570 heap-per-conn-B	  25526272 idle-RSS-B	   2424480 idle-heap-live-B	      4473 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/cubic-4         	       1	    632733 ns/op	    933968 closed-heap-live-B	         0 goroutines/conn	      1585 heap-per-conn-B	  25579520 idle-RSS-B	   2439480 idle-heap-live-B	      4420 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS
 
 # sample 3: bbr/idle=1000
@@ -134,5 +134,5 @@ goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUNIdle/bbr-4         	       1	    790539 ns/op	    932432 closed-heap-live-B	         0 goroutines/conn	      1937 heap-per-conn-B	  25632768 idle-RSS-B	   2790424 idle-heap-live-B	      4481 rss-per-conn-B	    3776 B/op	      16 allocs/op
+BenchmarkTUNIdle/bbr-4         	       1	    652965 ns/op	    918880 closed-heap-live-B	         0 goroutines/conn	      1923 heap-per-conn-B	  25616384 idle-RSS-B	   2776280 idle-heap-live-B	      2482 rss-per-conn-B	    3776 B/op	      16 allocs/op
 PASS

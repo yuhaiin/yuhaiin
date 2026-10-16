@@ -1,0 +1,9 @@
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun	(cached)
+?   	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/batch	[no test files]
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device	(cached)
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor	(cached)
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	8.701s
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion	(cached)
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun	(cached)
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket	(cached)
+ok  	github.com/Asutorufa/yuhaiin/licenses	(cached)

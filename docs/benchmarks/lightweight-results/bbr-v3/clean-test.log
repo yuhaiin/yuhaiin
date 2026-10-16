@@ -34,8 +34,8 @@ ok  	github.com/Asutorufa/yuhaiin/pkg/contract/route	(cached)
 ?   	github.com/Asutorufa/yuhaiin/pkg/contract/update	[no test files]
 ?   	github.com/Asutorufa/yuhaiin/pkg/control	[no test files]
 ok  	github.com/Asutorufa/yuhaiin/pkg/diagnostics	(cached)
-ok  	github.com/Asutorufa/yuhaiin/pkg/httpapi	0.197s
-ok  	github.com/Asutorufa/yuhaiin/pkg/inbound	0.140s
+ok  	github.com/Asutorufa/yuhaiin/pkg/httpapi	0.192s
+ok  	github.com/Asutorufa/yuhaiin/pkg/inbound	2.307s
 ok  	github.com/Asutorufa/yuhaiin/pkg/legacy/chore	(cached)
 ok  	github.com/Asutorufa/yuhaiin/pkg/legacy/migrate	(cached)
 ok  	github.com/Asutorufa/yuhaiin/pkg/legacy/node/parser	(cached)
@@ -132,9 +132,9 @@ ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun	(cached)
 ?   	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/batch	[no test files]
 ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device	(cached)
 ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor	(cached)
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	9.129s
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	8.730s
 ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion	(cached)
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun	0.004s
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun	(cached)
 ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket	(cached)
 ?   	github.com/Asutorufa/yuhaiin/pkg/net/proxy/vless	[no test files]
 ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess	(cached)
