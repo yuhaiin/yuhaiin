@@ -18,6 +18,12 @@ on:
       - ".github/actions/setup-go/**"
       - ".github/workflows/vpn-interop.yml"
   workflow_dispatch:
+
+# Drop superseded automatic checks; preserve explicitly dispatched runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 jobs:
