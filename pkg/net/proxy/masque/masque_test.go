@@ -8,7 +8,7 @@ import (
 
 func TestIsRetryableHTTP3ConnectFailure(t *testing.T) {
 	cases := []struct {
-		err error
+		err   error
 		retry bool
 	}{
 		{nil, false},
