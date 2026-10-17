@@ -5,6 +5,11 @@ on:
     branches: [main]
     tags: [v*]
 
+# Cancel superseded workflow runs on the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
