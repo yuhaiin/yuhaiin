@@ -55,6 +55,7 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 	if err != nil {
 		return nil, err
 	}
+	d = device.ConfigureDarwinTUN(d, o.Interface, o.Tun.Platform.Darwin)
 	o.Device = d
 	p, err := NewPacketIO(d)
 	if err != nil {

@@ -21,22 +21,23 @@ type Tun2socket struct {
 }
 
 func New(o *device.Opt) (*Tun2socket, error) {
-	device, err := device.OpenWriter(o.Interface, int(o.Tun.MTU))
+	dev, err := device.OpenWriter(o.Interface, int(o.Tun.MTU))
 	if err != nil {
 		return nil, fmt.Errorf("open tun device failed: %w", err)
 	}
 
-	o.Device = device
+	dev = device.ConfigureDarwinTUN(dev, o.Interface, o.Tun.Platform.Darwin)
+	o.Device = dev
 
 	nat, err := Start(o)
 	if err != nil {
-		_ = device.Close()
+		_ = dev.Close()
 		return nil, err
 	}
 
 	handler := &Tun2socket{
 		nat:        nat,
-		device:     device,
+		device:     dev,
 		Mtu:        o.Tun.MTU,
 		handler:    o.Handler,
 		DeviceName: o.Interface.Name,

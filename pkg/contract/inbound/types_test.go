@@ -125,3 +125,27 @@ func TestTunAutoFakeIPRouteJSONCompatibility(t *testing.T) {
 		t.Fatal("old config was automatically enabled")
 	}
 }
+
+func TestDarwinTunBatchJSONCompatibility(t *testing.T) {
+	var legacy TunProtocol
+	if err := json.Unmarshal([]byte(`{"name":"tun://utun8","mtu":1500}`), &legacy); err != nil {
+		t.Fatal(err)
+	}
+	if legacy.Darwin.ExperimentalBatch {
+		t.Fatal("legacy config enabled experiment")
+	}
+	for _, enabled := range []bool{false, true} {
+		want := TunProtocol{Darwin: DarwinTunOptions{ExperimentalBatch: enabled, BatchSize: 64, PendingPackets: 128}}
+		data, err := json.Marshal(want)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), `"experimentalBatch":`) {
+			t.Fatal("wrong API field", string(data))
+		}
+		var got TunProtocol
+		if err = json.Unmarshal(data, &got); err != nil || got.Darwin != want.Darwin {
+			t.Fatal(got, err)
+		}
+	}
+}

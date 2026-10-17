@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -28,34 +27,39 @@ type utunBatchOptions struct{ batch, pending int }
 
 func validUTUNBatch(n int) bool { return n == 1 || n == 16 || n == 32 || n == 64 || n == 128 }
 
-func readUTUNBatchOptions() (utunBatchOptions, error) {
-	value := os.Getenv("YUHAIIN_EXPERIMENTAL_UTUN_BATCH")
-	if value == "" || value == "0" {
+func init() { configureDarwinTUN = experimentalUTUN }
+
+func resolveUTUNBatchOptions(config DarwinConfig) (utunBatchOptions, error) {
+	if !config.ExperimentalBatch {
 		return utunBatchOptions{}, nil
 	}
-	n, err := strconv.Atoi(value)
-	if err != nil || !validUTUNBatch(n) {
-		return utunBatchOptions{}, fmt.Errorf("invalid YUHAIIN_EXPERIMENTAL_UTUN_BATCH %q (want 1,16,32,64,128)", value)
+	n, p := config.BatchSize, config.PendingPackets
+	if n == 0 {
+		n = 32
 	}
-	p := n
-	if value := os.Getenv("YUHAIIN_EXPERIMENTAL_UTUN_PENDING"); value != "" {
-		p, err = strconv.Atoi(value)
-		if err != nil || !validUTUNBatch(p) {
-			return utunBatchOptions{}, fmt.Errorf("invalid YUHAIIN_EXPERIMENTAL_UTUN_PENDING %q", value)
-		}
+	if p == 0 {
+		p = n
+	}
+	if !validUTUNBatch(n) || !validUTUNBatch(p) {
+		return utunBatchOptions{}, fmt.Errorf("invalid Darwin batch/pending size %d/%d (want 1,16,32,64,128)", n, p)
 	}
 	return utunBatchOptions{batch: n, pending: p}, nil
 }
 
-func experimentalUTUN(d *wgDevice, owned bool) netlink.Tun {
-	opt, err := readUTUNBatchOptions()
+func experimentalUTUN(original netlink.Tun, owned bool, config DarwinConfig) netlink.Tun {
+	opt, err := resolveUTUNBatchOptions(config)
 	if err != nil {
 		log.Warn("utun batching disabled", "err", err)
-		return d
+		return original
 	}
 	if opt.batch == 0 {
-		return d
+		return original
 	}
+	d, ok := original.(*wgDevice)
+	if !ok {
+		return original
+	}
+
 	// Never change a borrowed fd's queue or assume a NetworkExtension fd is safe.
 	if !owned {
 		log.Warn("utun batching disabled for external fd")
@@ -170,6 +174,7 @@ type utunBatch struct {
 	rc                                                    syscall.RawConn
 	batch                                                 int // immutable, even after fallback: readers already allocated buffers
 	sendBytes                                             int // actual SO_SNDBUF, immutable
+	nativeEventsDone                                      <-chan struct{}
 	readMu, writeMu                                       sync.Mutex
 	rx, tx                                                *msgxIO
 	disabled                                              atomic.Bool
@@ -180,7 +185,11 @@ type utunBatch struct {
 }
 
 func newUTUNBatch(d netlink.Tun, rc syscall.RawConn, batch, sendBytes int) *utunBatch {
-	return &utunBatch{Tun: d, rc: rc, batch: batch, sendBytes: sendBytes, rx: newMsgxIO(false), tx: newMsgxIO(true)}
+	b := &utunBatch{Tun: d, rc: rc, batch: batch, sendBytes: sendBytes, rx: newMsgxIO(false), tx: newMsgxIO(true)}
+	if native, ok := d.(*wgDevice); ok {
+		b.nativeEventsDone = native.eventsDone
+	}
+	return b
 }
 
 func (d *utunBatch) BatchSize() int                 { return d.batch }
@@ -229,6 +238,15 @@ func (d *utunBatch) Read(bufs [][]byte, sizes []int) (int, error) {
 			return 0, io.ErrShortBuffer
 		}
 	}
+	if d.nativeEventsDone != nil && !d.disabled.Load() {
+		select {
+		case <-d.nativeEventsDone:
+			// The native reader checks its private route-listener error queue.
+			// Do not bypass that terminal error after the event stream ends.
+			d.disable("native events", errors.New("utun event stream stopped"))
+		default:
+		}
+	}
 	if d.disabled.Load() {
 		d.fallbackReads.Add(1)
 		return d.Tun.Read(bufs, sizes)
@@ -268,8 +286,13 @@ func (d *utunBatch) Read(bufs [][]byte, sizes []int) (int, error) {
 		out++
 	}
 	if out != n {
-		return out, syscall.ENOBUFS
-	} // never deliver a truncated IP packet
+		// Legacy tun2socket readers discard n when err != nil. Deliver valid
+		// frames first; drops remain observable in RXDropped. With no valid
+		// frame, return pressure so all callers keep the device alive.
+		if out == 0 {
+			return 0, syscall.ENOBUFS
+		}
+	}
 	return out, nil
 }
 

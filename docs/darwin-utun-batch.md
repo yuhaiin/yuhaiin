@@ -6,19 +6,32 @@ route change. This experiment is **not ready to enable by default**.
 
 ## Enable and inspect
 
-Set these in the environment of the process that creates the TUN, then recreate
-its `tun://utun...` inbound:
+Open **Inbounds → edit the TUN → Advanced editor → macOS** in the WebUI.
+Enable **Experimental packet batching**, then select the batch maximum and
+pending packet limit and save. Saving recreates the TUN with those settings.
+The controls appear only when the connected backend reports macOS; they are
+per inbound, persisted with the configuration, and default to **off** for both
+new and existing TUNs. No environment variable is needed.
 
-```sh
-YUHAIIN_EXPERIMENTAL_UTUN_BATCH=32 \
-YUHAIIN_EXPERIMENTAL_UTUN_PENDING=32 ./yuhaiin
+The TUN protocol object's corresponding API fields are:
+
+```json
+{
+  "darwin": {
+    "experimentalBatch": true,
+    "batchSize": 32,
+    "pendingPackets": 32
+  }
+}
 ```
 
-`BATCH` accepts `1,16,32,64,128`; unset or `0` preserves the original path.
-`PENDING` accepts the same values and defaults to `BATCH`. Invalid options warn
-and preserve the original device. `32` is a trial setting, not an established
-optimum. No configuration schema or WebUI change is needed for this experiment.
-Other platforms ignore these environment variables.
+Both numeric options accept `1,16,32,64,128`. When enabled, a missing/zero
+`batchSize` uses 32, and missing/zero `pendingPackets` uses the batch maximum.
+With `experimentalBatch: false` or a missing `darwin` field, the original
+single-packet path is retained. Invalid enabled options warn and safely keep
+the native device. `32` is a trial setting, not an established optimum. Other
+platforms preserve these settings but ignore them at runtime. Companion [WebUI PR 491](https://github.com/yuhaiin/yuhaiin-react/pull/491)
+requires this backend version.
 
 Only devices created by yuhaiin are eligible. External `fd://` devices keep their
 existing ownership and I/O behavior. Before enabling, the adapter requires:
@@ -74,7 +87,9 @@ EINTR retries; EAGAIN parks and does not disable batching. ENOBUFS propagates
 normal pressure without permanently disabling batching. The owning `os.File`
 keeps fd references valid through the callback and poll wait. Close marks the
 adapter closed and closes the native device before joining I/O locks.
-Cancellation follows the existing device Close contract.
+Cancellation follows the existing device Close contract. A stopped native event
+stream switches back to the native reader to preserve its route-listener error
+reporting.
 
 Each direction owns reusable header/iovec arrays and a separate lock. Actual
 pointers, escape analysis and `runtime.KeepAlive` protect synchronous kernel
@@ -146,7 +161,10 @@ A fallback after seeing ENOSPC cannot undo a kernel mbuf leak. **Never enable
 this on netif or borrowed NetworkExtension fds.**
 
 Receive frames with bad AF/version, invalid IP length, short headers or
-`MSG_TRUNC` are dropped and reported as recoverable ENOBUFS. On the tested XNU,
+`MSG_TRUNC` are dropped and counted. If any valid frames remain, they are
+delivered without an accompanying error (legacy tun2socket readers otherwise
+discard the entire prefix); if none remain, recoverable ENOBUFS keeps readers
+alive. On the tested XNU,
 a truncated datagram can have `msg_flags == 0`; the IPv4 total length / IPv6
 payload-length checks are necessary to avoid forwarding a truncated IP packet.
 IPv6 jumbograms are unsupported. Unexpected receive errors may already have
@@ -187,24 +205,24 @@ production TUN traffic follows from these microbenchmarks.
 Apple M4, Darwin 27.0.0 / XNU 13432.1.9, Go 1.27.2, darwin/arm64,
 `CGO_ENABLED=0`, default GOMAXPROCS=10. Medians of five 300 ms samples,
 with the same 128-packet offered burst for every path; no other validation
-jobs ran concurrently. Values below are **ns per packet**, not utun throughput.
+jobs from this experiment ran concurrently. Values below are **ns per packet**, not utun throughput.
 
 | IP bytes | read/write | msgx 1 | msgx 16 | msgx 32 | msgx 64 | msgx 128 |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 64 | 1925 | 2211 | 1404 | 1359 | 1329 | 1325 |
-| 512 | 2017 | 2259 | 1459 | 1407 | 1386 | 1365 |
-| 1400 | 2079 | 2286 | 1487 | 1425 | 1388 | 1377 |
+| 64 | 1975 | 2315 | 1413 | 1364 | 1440 | 1346 |
+| 512 | 2042 | 2403 | 1467 | 1414 | 1418 | 1398 |
+| 1400 | 2224 | 2529 | 1510 | 1446 | 1406 | 1509 |
 
 All measured paths reported 0 B/op and 0 allocs/op (one op is 128 offered
-packets). At batch 32, CPU time/packet changed from 2768/2884/2963 ns to
-1996/2053/2063 ns for 64/512/1400 bytes respectively: about
-28–30% less CPU/packet. Wall time/packet fell about
-29–31%. Saturated process CPU cores
+packets). At batch 32, CPU time/packet changed from 2831/2927/3114 ns to
+2004/2068/2091 ns for 64/512/1400 bytes respectively: about
+29–33% less CPU/packet. Wall time/packet fell about
+31–35%. Saturated process CPU cores
 were not necessarily lower: the experiment processes more packets per second.
 
 At batch 32, actual RX/TX averages were approximately 32/32; total syscall
 attempts/packet were approximately 0.0625, versus 2.0 for read/write.
-At batch 128, TX averaged 128 but RX averaged 98.1–104.3. Batch 1 was
+At batch 128, TX averaged 128 but RX averaged 87.3–98.9. Batch 1 was
 slower than the original path. Larger supplied bursts show diminishing gains;
 this does not select the optimum pending queue or justify a default change.
 
@@ -226,7 +244,8 @@ adapter tests also cross-compiled. This does not constitute amd64 runtime testin
 Unfiltered local `go test ./...` failed on IPv6 loopback (`TestDial/prefer_ipv6`),
 absent DBus (`TestNM`), and an unconfigured 127.0.0.2 alias (Hysteria2 address
 hopping). The same failures were reproduced in an archived, unmodified main
-checkout. They were not changed as part of this experiment. Full Darwin lint
+checkout. They were not changed as part of this experiment. The full suite passes when
+those four environment-dependent root tests are explicitly excluded. Full Darwin lint
 also has four existing vpnkit/dataplane unused-code diagnostics; affected
 Darwin TUN lint is clean. Hosted CI status is tracked in the PR.
 

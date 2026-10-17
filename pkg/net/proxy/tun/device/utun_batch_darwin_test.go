@@ -418,27 +418,30 @@ func TestUTUNBatchValidation(t *testing.T) {
 }
 
 func TestUTUNBatchOptions(t *testing.T) {
-	t.Setenv("YUHAIIN_EXPERIMENTAL_UTUN_PENDING", "")
-	for _, v := range []string{"", "0", "1", "16", "32", "64", "128", "true", "-1", "256"} {
-		t.Setenv("YUHAIIN_EXPERIMENTAL_UTUN_BATCH", v)
-		o, e := readUTUNBatchOptions()
-		valid := v == "" || v == "0" || v == "1" || v == "16" || v == "32" || v == "64" || v == "128"
-		if (e == nil) != valid {
-			t.Fatalf("%q: %v", v, e)
-		}
-		if v == "" && o.batch != 0 {
-			t.Fatal("enabled by default")
+	for _, n := range []int{1, 16, 32, 64, 128} {
+		o, e := resolveUTUNBatchOptions(DarwinConfig{ExperimentalBatch: true, BatchSize: n})
+		if e != nil || o.batch != n || o.pending != n {
+			t.Fatal(o, e)
 		}
 	}
-	t.Setenv("YUHAIIN_EXPERIMENTAL_UTUN_BATCH", "32")
-	t.Setenv("YUHAIIN_EXPERIMENTAL_UTUN_PENDING", "128")
-	if o, e := readUTUNBatchOptions(); e != nil || o.batch != 32 || o.pending != 128 {
+	for _, c := range []DarwinConfig{{}, {BatchSize: 128, PendingPackets: 64}} {
+		o, e := resolveUTUNBatchOptions(c)
+		if e != nil || o.batch != 0 {
+			t.Fatal("enabled by default", o, e)
+		}
+	}
+	if o, e := resolveUTUNBatchOptions(DarwinConfig{ExperimentalBatch: true}); e != nil || o.batch != 32 || o.pending != 32 {
 		t.Fatal(o, e)
 	}
-	t.Setenv("YUHAIIN_EXPERIMENTAL_UTUN_PENDING", "256")
-	if _, e := readUTUNBatchOptions(); e == nil {
-		t.Fatal("invalid queue accepted")
+	if o, e := resolveUTUNBatchOptions(DarwinConfig{ExperimentalBatch: true, BatchSize: 16, PendingPackets: 128}); e != nil || o.batch != 16 || o.pending != 128 {
+		t.Fatal(o, e)
 	}
+	for _, c := range []DarwinConfig{{ExperimentalBatch: true, BatchSize: 7}, {ExperimentalBatch: true, PendingPackets: 256}} {
+		if _, e := resolveUTUNBatchOptions(c); e == nil {
+			t.Fatal("invalid config accepted")
+		}
+	}
+
 	for _, v := range []struct{ rcv, mtu, request, want int }{{512 << 10, 1500, 128, 128}, {512 << 10, 9000, 128, 50}, {512 << 10, 65575, 128, 6}, {1, 1500, 128, 1}, {-1, 1500, 16, 1}} {
 		if got := utunPendingLimit(v.rcv, v.mtu, v.request); got != v.want {
 			t.Fatalf("%+v got=%d", v, got)
@@ -516,13 +519,11 @@ func TestUTUNQueueSafetyGate(t *testing.T) {
 }
 
 func TestUTUNBatchDefaultAndExternalFD(t *testing.T) {
-	t.Setenv("YUHAIIN_EXPERIMENTAL_UTUN_BATCH", "")
 	d := new(wgDevice)
-	if experimentalUTUN(d, true) != d {
+	if experimentalUTUN(d, true, DarwinConfig{}) != d {
 		t.Fatal("default path changed")
 	}
-	t.Setenv("YUHAIIN_EXPERIMENTAL_UTUN_BATCH", "32")
-	if experimentalUTUN(d, false) != d {
+	if experimentalUTUN(d, false, DarwinConfig{ExperimentalBatch: true}) != d {
 		t.Fatal("external fd used SPI")
 	}
 }
@@ -721,5 +722,38 @@ func TestUTUNBatchHonorsSendByteBudget(t *testing.T) {
 		if e != nil || !bytes.Equal(b[:n], w) {
 			t.Fatal("byte-limited ordering/integrity", i, e)
 		}
+	}
+}
+
+func TestUTUNBatchPreservesNativeEventFailure(t *testing.T) {
+	failed := make(chan struct{})
+	close(failed)
+	want := errors.New("native route listener failed")
+	native := &wgDevice{Device: &slabTestDevice{err: want}, offset: 4, mtu: 1500, eventsDone: failed}
+	d := newUTUNBatch(native, new(scriptedRawConn), 16, 512<<10)
+	defer d.Close()
+	d.rx.trap = func(uintptr, []msgHdrX, bool) (int, syscall.Errno) { t.Fatal("bypassed native failure"); return 0, 0 }
+	if n, e := d.Read(frames(16, 64), make([]int, 16)); n != 0 || !errors.Is(e, want) {
+		t.Fatal(n, e)
+	}
+	if !d.disabled.Load() || d.UTUNBatchStats().FallbackReads != 1 || d.UTUNBatchStats().RXCalls != 0 {
+		t.Fatal("native lifecycle error not preserved")
+	}
+}
+
+func TestUTUNBatchValidPrefixSurvivesDroppedFrame(t *testing.T) {
+	d, _ := newTestBatch(t, 16)
+	d.rx.trap = func(_ uintptr, h []msgHdrX, _ bool) (int, syscall.Errno) {
+		payload := frames(2, 64)
+		for i := range 2 {
+			copy(unsafe.Slice(h[i].Iov.Base, int(h[i].Iov.Len)), payload[i])
+			h[i].Datalen = uint64(len(payload[i]))
+		}
+		h[1].Flags = unix.MSG_TRUNC
+		return 2, 0
+	}
+	sizes := make([]int, 16)
+	if n, e := d.Read(frames(16, 64), sizes); n != 1 || e != nil || sizes[0] != 64 || d.UTUNBatchStats().RXDropped != 1 {
+		t.Fatal("valid prefix hidden from legacy reader", n, e, sizes[0])
 	}
 }
