@@ -81,7 +81,7 @@ type Conn struct {
 	tr            *http3.Transport
 	h3conn        *http3.ClientConn
 	ipconn        *connectip.Conn
-	outbound       cloudflareDatagramSender
+	outbound      cloudflareDatagramSender
 }
 
 func (c *Conn) Close() error {
