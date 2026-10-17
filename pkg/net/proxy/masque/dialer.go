@@ -69,7 +69,10 @@ func DialHttp2(ctx context.Context, dial func(ctx context.Context) (net.Conn, er
 
 	log.Info("resp", "r", rsp)
 
-	return newProxiedConn(&http2Stream{rsp.Body, w}), rsp, nil
+	return newProxiedConn(&http2Stream{rsp.Body, w}, func() error {
+		transport.CloseIdleConnections()
+		return errors.Join(rsp.Body.Close(), w.Close(), r.Close())
+	}), rsp, nil
 }
 
 // Dial dials a proxied connection to a target server.
