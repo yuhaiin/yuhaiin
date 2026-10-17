@@ -223,8 +223,9 @@ were not necessarily lower: the experiment processes more packets per second.
 At batch 32, actual RX/TX averages were approximately 32/32; total syscall
 attempts/packet were approximately 0.0625, versus 2.0 for read/write.
 At batch 128, TX averaged 128 but RX averaged 87.3–98.9. Batch 1 was
-slower than the original path. Larger supplied bursts show diminishing gains;
-this does not select the optimum pending queue or justify a default change.
+slower than the original path. Larger supplied bursts did not consistently
+improve latency or CPU cost; these results do not select the optimum pending
+queue or justify a default change.
 
 The [90 individual measurements](benchmarks/data/darwin-utun-socket-2026-10-17.csv)
 include packets/s, Gbps, ns/op, allocation metrics, CPU cores/time, syscall
