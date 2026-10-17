@@ -56,7 +56,7 @@ func PrepareTlsConfig(privKey *ecdsa.PrivateKey, peerPubKey *ecdsa.PublicKey, ce
 		// WARN: SNI is usually not for the endpoint, so we must skip verification
 		InsecureSkipVerify: true,
 		// we pin to the endpoint public key
-		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 			if len(rawCerts) == 0 {
 				return nil
 			}
