@@ -77,29 +77,37 @@ func DialHttp2(ctx context.Context, dial func(ctx context.Context) (net.Conn, er
 
 // Dial dials a proxied connection to a target server.
 func Dial(ctx context.Context, conn *http3.ClientConn, uri string, requestProtocol string) (*connectip.Conn, *http.Response, error) {
+	ipConn, resp, _, err := dialCloudflare(ctx, conn, uri, requestProtocol)
+	return ipConn, resp, err
+}
+
+// dialCloudflare also returns its HTTP/3 request stream. Cloudflare WARP needs
+// to send IP datagrams without the remote-route check imposed by connect-ip-go;
+// its control capsules and inbound datagrams still use the library.
+func dialCloudflare(ctx context.Context, conn *http3.ClientConn, uri string, requestProtocol string) (*connectip.Conn, *http.Response, *http3.RequestStream, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
-		return nil, nil, fmt.Errorf("connect-ip: failed to parse URI: %w", err)
+		return nil, nil, nil, fmt.Errorf("connect-ip: failed to parse URI: %w", err)
 	}
 
 	select {
 	case <-ctx.Done():
-		return nil, nil, context.Cause(ctx)
+		return nil, nil, nil, context.Cause(ctx)
 	case <-conn.Context().Done():
-		return nil, nil, context.Cause(conn.Context())
+		return nil, nil, nil, context.Cause(conn.Context())
 	case <-conn.ReceivedSettings():
 	}
 	settings := conn.Settings()
 	if !settings.EnableExtendedConnect {
-		return nil, nil, errors.New("connect-ip: server didn't enable Extended CONNECT")
+		return nil, nil, nil, errors.New("connect-ip: server didn't enable Extended CONNECT")
 	}
 	if !settings.EnableDatagrams {
-		return nil, nil, errors.New("connect-ip: server didn't enable datagrams")
+		return nil, nil, nil, errors.New("connect-ip: server didn't enable datagrams")
 	}
 
 	rstr, err := conn.OpenRequestStream(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("connect-ip: failed to open request stream: %w", err)
+		return nil, nil, nil, fmt.Errorf("connect-ip: failed to open request stream: %w", err)
 	}
 	keepStream := false
 	defer func() {
@@ -115,19 +123,19 @@ func Dial(ctx context.Context, conn *http3.ClientConn, uri string, requestProtoc
 		Header: headers,
 		URL:    u,
 	}); err != nil {
-		return nil, nil, fmt.Errorf("connect-ip: failed to send request: %w", err)
+		return nil, nil, nil, fmt.Errorf("connect-ip: failed to send request: %w", err)
 	}
 	// TODO: optimistically return the connection
 	rsp, err := rstr.ReadResponse()
 	if err != nil {
-		return nil, nil, fmt.Errorf("connect-ip: failed to read response: %w", err)
+		return nil, nil, nil, fmt.Errorf("connect-ip: failed to read response: %w", err)
 	}
 	if rsp.StatusCode < 200 || rsp.StatusCode > 299 {
-		return nil, rsp, fmt.Errorf("connect-ip: server responded with %d", rsp.StatusCode)
+		return nil, rsp, nil, fmt.Errorf("connect-ip: server responded with %d", rsp.StatusCode)
 	}
 
 	keepStream = true
-	return newProxiedConn(rstr, nil), rsp, nil
+	return newProxiedConn(rstr, nil), rsp, rstr, nil
 }
 
 type http2Stream struct {
