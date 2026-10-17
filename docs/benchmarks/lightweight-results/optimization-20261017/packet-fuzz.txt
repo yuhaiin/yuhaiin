@@ -1,8 +1,0 @@
-fuzz: elapsed: 0s, gathering baseline coverage: 0/62 completed
-fuzz: elapsed: 0s, gathering baseline coverage: 62/62 completed, now fuzzing with 4 workers
-fuzz: elapsed: 3s, execs: 175301 (58430/sec), new interesting: 3 (total: 65)
-fuzz: elapsed: 6s, execs: 359938 (61537/sec), new interesting: 4 (total: 66)
-fuzz: elapsed: 9s, execs: 545137 (61742/sec), new interesting: 4 (total: 66)
-fuzz: elapsed: 10s, execs: 605207 (56174/sec), new interesting: 4 (total: 66)
-PASS
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	10.077s

@@ -1,6 +1,0 @@
-goos: linux
-goarch: amd64
-pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
-cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkTUN/cubic/mtu=1500/flows=100/download-4         	     144	  16546870 ns/op	 396.06 MB/s	         8.125 CPU-s/GB	  60223488 RSS-B	  59809792 RSS-peak-B	         1.000 drops	       206.0 goroutines	  16416936 heap-live-B	     19510 p95-us	     21323 p99-us	         0 retransmits	 1851267 B/op	   14703 allocs/op
-PASS

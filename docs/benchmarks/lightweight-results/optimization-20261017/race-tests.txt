@@ -1,8 +1,0 @@
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun	1.015s
-?   	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/batch	[no test files]
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device	1.014s
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor	2.673s
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	6.387s
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion	1.014s
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun	1.036s
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket	7.027s

@@ -1,5 +1,0 @@
---- FAIL: TestOutputWakesAfterDescriptorBecomesEvictable (0.00s)
-    output_test.go:27: evictable metadata capacity failed to wake output
-FAIL
-FAIL	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	0.002s
-FAIL

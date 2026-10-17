@@ -1,6 +1,0 @@
-=== RUN   TestChecksumGuardPages
-    checksum_guard_linux_test.go:15: guard page size=16384
---- PASS: TestChecksumGuardPages (0.00s)
-=== RUN   TestChecksumReference
---- PASS: TestChecksumReference (0.31s)
-PASS

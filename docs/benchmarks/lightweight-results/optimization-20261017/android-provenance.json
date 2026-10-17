@@ -1,4 +1,0 @@
-{
-  "apk_sha256": "209c805878cd487066ed7f0dd09ad1d57f90c7bd8249807562dcc866b5d049ee",
-  "note": "Native production PacketViewReader path; APK predates the final legacy ReadPacket compatibility fix, which does not execute on this path. Legacy checksum completion is independently exercised by Linux kernel tests."
-}

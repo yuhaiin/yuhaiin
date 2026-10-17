@@ -226,9 +226,9 @@ python scripts/bench/hysteria2/run.py \
   --output /tmp/hysteria2-benchmark.json
 ```
 
-The benchmark uses independent target, server and client processes, IPv4 loopback and `GOMAXPROCS=4`. It exercises the real native inbound handler/NAT with direct outbound. It checks native/official pairings, TLS-auto CA persistence, BBR, configured 200 Mbps Brutal and Salamander. TCP measurements verify payloads or acknowledge received byte counts; UDP measurements record offered/received throughput, packet loss and corruption. It preserves raw results and medians over three repetitions. It measures local CPU/adapter overhead and does not establish WAN or lossy-path throughput.
+The benchmark uses independent target, server and client processes, IPv4 loopback and `GOMAXPROCS=4`. It exercises the real native inbound handler/NAT with direct outbound. It checks native/official pairings, TLS-auto CA persistence, BBR, configured 200 Mbps Brutal and Salamander. TCP measurements verify payloads or acknowledge received byte counts; UDP measurements record offered/received throughput, packet loss and corruption. Its published snapshot reports medians over three repetitions; original raw results are available through Git history. It measures local CPU/adapter overhead and does not establish WAN or lossy-path throughput.
 
-Measured results and the existing relay buffer tuning are recorded in the [2026-10-07 benchmark report](benchmarks/hysteria2-2026-10-07.md).
+Measured results and the existing relay buffer tuning are recorded in the [2026-10-07 benchmark report](benchmarks/protocols.md#hysteria-2-official-interoperability-and-buffers-2026-10-07).
 
 Port hopping results, including the upstream client GSO limitation, are recorded
-in the [2026-10-08 hopping report](benchmarks/hysteria2-hopping-2026-10-08.md).
+in the [2026-10-08 hopping report](benchmarks/protocols.md#hysteria-2-port-hopping-2026-10-08).

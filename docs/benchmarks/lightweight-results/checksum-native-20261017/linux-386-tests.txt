@@ -1,2 +1,0 @@
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	6.284s
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion	(cached)
