@@ -93,8 +93,14 @@ func LoginContext(ctx context.Context, hc *http.Client, base, username, password
 	if err != nil {
 		return Config{}, "", fmt.Errorf("fortinet: config request: %w", err)
 	}
-	cfgBody, _ := io.ReadAll(cfgResp.Body)
+	cfgBody, err := io.ReadAll(cfgResp.Body)
 	_ = cfgResp.Body.Close()
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return Config{}, "", ctxErr
+	}
+	if err != nil {
+		return Config{}, "", fmt.Errorf("fortinet: config response: %w", err)
+	}
 
 	cfg, err := ParseConfigXML(cfgBody)
 	if err != nil {
@@ -114,14 +120,20 @@ func postLogin(ctx context.Context, hc *http.Client, base, form string) (LoginRe
 	if err != nil {
 		return LoginResult{}, fmt.Errorf("fortinet: login request: %w", err)
 	}
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 	_ = resp.Body.Close()
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return LoginResult{}, ctxErr
+	}
 
 	// A rejected login is an HTTP error with no parsable line, so it is reported
 	// as an auth failure rather than as a malformed response.
 	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized ||
 		resp.StatusCode == http.StatusMethodNotAllowed {
 		return LoginResult{}, fmt.Errorf("%w: gateway returned %s", ErrAuth, resp.Status)
+	}
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("fortinet: login response: %w", err)
 	}
 	return ParseLoginResult(string(body))
 }
