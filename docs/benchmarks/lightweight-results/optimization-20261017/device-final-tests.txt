@@ -1,0 +1,2 @@
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device	1.014s
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun	1.020s

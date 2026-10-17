@@ -28,22 +28,18 @@ func (c *TCPConn) schedule(now time.Time) {
 		at = earliest(at, c.born.Add(c.stack.config.HandshakeTimeout))
 	}
 	if c.state != TimeWait && !c.outputWaiting {
-		for _, v := range c.tx.values() {
+		i := c.nextSendIndex()
+		if i < c.tx.len() {
+			v := c.tx.values()[i]
 			if v.resend {
 				at = earliest(at, maxTime(c.paceAt, now))
-				break
+			}
+			if c.controller.PacingRate() > 0 && c.peerWindow > 0 && c.flight() < c.controller.CongestionWindow() && v.flags&flagSYN == 0 && before(v.seq, c.sndUna+c.peerWindow) {
+				at = earliest(at, maxTime(c.paceAt, now))
 			}
 		}
 		at = earliest(at, c.rtoAt)
 		at = earliest(at, c.persistAt)
-		if c.controller.PacingRate() > 0 && c.peerWindow > 0 && c.flight() < c.controller.CongestionWindow() {
-			for _, v := range c.tx.values() {
-				if (v.transmissions == 0 || v.lossReported) && v.flags&flagSYN == 0 && before(v.seq, c.sndUna+c.peerWindow) {
-					at = earliest(at, maxTime(c.paceAt, now))
-					break
-				}
-			}
-		}
 		if c.stack.config.KeepaliveIdle > 0 && c.state == Established && c.sndUna == c.sndNxt {
 			idle := c.stack.config.KeepaliveIdle
 			if c.keepaliveSent > 0 {
@@ -67,6 +63,7 @@ func (c *TCPConn) markLost(v *sendSegment, now time.Time) bool {
 		return false
 	}
 	v.lossReported = true
+	c.repairPending = true
 	if !v.sacked {
 		c.bytesInFlight -= uint64(v.length())
 	}

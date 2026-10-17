@@ -163,6 +163,9 @@ func validateIPOptions(b []byte, v6 bool) error {
 }
 
 func (p Packet) ValidateTransport() error {
+	return p.validateTransport(false)
+}
+func (p Packet) validateTransport(checksumVerified bool) error {
 	b := p.Payload
 	if p.Fragmented {
 		return ErrMalformed
@@ -176,7 +179,7 @@ func (p Packet) ValidateTransport() error {
 		if len(b) < 8 || int(binary.BigEndian.Uint16(b[4:6])) != len(b) {
 			return ErrMalformed
 		}
-		if binary.BigEndian.Uint16(b[6:8]) == 0 {
+		if binary.BigEndian.Uint16(b[6:8]) == 0 && !checksumVerified {
 			if p.Source.Is4() {
 				return nil
 			}
@@ -197,7 +200,7 @@ func (p Packet) ValidateTransport() error {
 	default:
 		return ErrUnsupported
 	}
-	if transportChecksum(p.Source, p.Destination, p.Protocol, b) != 0 {
+	if (p.Protocol != 6 && p.Protocol != 17 || !checksumVerified) && transportChecksum(p.Source, p.Destination, p.Protocol, b) != 0 {
 		return ErrChecksum
 	}
 	return nil

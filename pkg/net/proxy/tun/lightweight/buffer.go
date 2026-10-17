@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-const bufferCharge = 64
+const bufferCharge = 80
 
-var bufferSizes = [...]int{64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384}
+var bufferSizes = [...]int{64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536}
 
 // An ownedBuffer is exclusively owned by either one connection, the output
 // queue/writer, or its cache. A connection may split it into multiple read-only
@@ -18,11 +18,12 @@ var bufferSizes = [...]int{64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384}
 // transfers exclusive ownership; packet I/O must not retain the borrowed slice.
 // refs is therefore never accessed concurrently, even across queue transfers.
 type ownedBuffer struct {
-	cacheNext  *ownedBuffer
-	data       []byte
-	pool       *bufferPool
-	class      int
-	cost, refs int
+	cacheNext           *ownedBuffer
+	data                []byte
+	pool                *bufferPool
+	class               int
+	cost, refs          int
+	offset, segmentSize int
 }
 
 func (b *ownedBuffer) hold() { b.refs++ }
@@ -68,7 +69,7 @@ func bufferClass(n int) (int, int) {
 	return i, bufferSizes[i]
 }
 func (p *bufferPool) canGet(n int) bool {
-	if n < 0 || n > 65575 {
+	if n < 0 || n > maxPacketBufferSize {
 		return false
 	}
 	i, size := bufferClass(n)
@@ -79,7 +80,7 @@ func (p *bufferPool) canGet(n int) bool {
 	return p.stack.memory.Load()-p.cached.Load()+int64(size+bufferCharge) <= p.stack.config.MemoryLimit
 }
 func (p *bufferPool) get(n int) (*ownedBuffer, error) {
-	if n < 0 || n > 65575 {
+	if n < 0 || n > maxPacketBufferSize {
 		return nil, ErrLimit
 	}
 	p.mu.RLock()
@@ -94,6 +95,7 @@ func (p *bufferPool) get(n int) (*ownedBuffer, error) {
 			p.cached.Add(-int64(b.cost))
 			b.data = b.data[:n]
 			b.refs = 1
+			b.offset, b.segmentSize = 0, 0
 			return b, nil
 		}
 	}

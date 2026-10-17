@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
+	"slices"
 	"sort"
 	"time"
 )
@@ -24,19 +25,39 @@ func (c *TCPConn) headerOptions(dst []byte, syn bool) []byte {
 	if !c.sack || len(c.ooo) == 0 {
 		return nil
 	}
-	var blocks [4]sackBlock
-	n := 0
+	var ranges [128]sackBlock
+	rangeCount := 0
 	for _, v := range c.ooo {
 		end := v.seq + uint32(len(v.data))
-		if n > 0 && blocks[n-1].end == v.seq {
-			blocks[n-1].end = end
+		if rangeCount > 0 && ranges[rangeCount-1].end == v.seq {
+			ranges[rangeCount-1].end = end
 			continue
 		}
+		if rangeCount == len(ranges) {
+			break
+		}
+		ranges[rangeCount] = sackBlock{v.seq, end}
+		rangeCount++
+	}
+	var blocks [4]sackBlock
+	n := 0
+	for _, seq := range c.sackRecent[:c.sackRecentCount] {
+		for _, block := range ranges[:rangeCount] {
+			if !before(seq, block.start) && before(seq, block.end) && !slices.Contains(blocks[:n], block) {
+				blocks[n] = block
+				n++
+				break
+			}
+		}
+	}
+	for _, block := range ranges[:rangeCount] {
 		if n == len(blocks) {
 			break
 		}
-		blocks[n] = sackBlock{v.seq, end}
-		n++
+		if !slices.Contains(blocks[:n], block) {
+			blocks[n] = block
+			n++
+		}
 	}
 	b := dst[:4+8*n]
 	b[0] = 1
@@ -50,6 +71,9 @@ func (c *TCPConn) headerOptions(dst []byte, syn bool) []byte {
 	return b
 }
 func (c *TCPConn) output(seq uint32, flags uint8, data []byte) bool {
+	return c.outputSegment(seq, flags, data, 0)
+}
+func (c *TCPConn) outputSegment(seq uint32, flags uint8, data []byte, segmentSize int) bool {
 	syn := flags&flagSYN != 0
 	var options [40]byte
 	opts := c.headerOptions(options[:], syn)
@@ -64,7 +88,19 @@ func (c *TCPConn) output(seq uint32, flags uint8, data []byte) bool {
 	if c.key.local.Addr().Is4() {
 		maxData -= 20
 	}
-	maxData = min(maxData, c.pathMSS-len(opts))
+	if segmentSize == 0 {
+		maxData = min(maxData, c.pathMSS-len(opts))
+	} else {
+		ipSize := 40
+		if c.key.local.Addr().Is4() {
+			ipSize = 20
+		}
+		maxData = min(maxData, c.stack.gsoMax-ipSize-20-len(opts))
+		if segmentSize > c.pathMSS || segmentSize != c.mss || flags & ^uint8(flagACK|flagPSH) != 0 {
+			c.finish(ErrMTU)
+			return false
+		}
+	}
 	if len(data) > maxData {
 		c.finish(ErrMTU)
 		return false
@@ -99,7 +135,14 @@ func (c *TCPConn) output(seq uint32, flags uint8, data []byte) bool {
 
 	copy(b[20:], opts)
 	copy(b[20+len(opts):], data)
-	binary.BigEndian.PutUint16(b[16:18], transportChecksum(c.key.local.Addr(), c.key.remote.Addr(), 6, b))
+	if segmentSize == 0 {
+		binary.BigEndian.PutUint16(b[16:18], transportChecksum(c.key.local.Addr(), c.key.remote.Addr(), 6, b))
+	} else {
+		// CHECKSUM_PARTIAL starts with the non-complemented pseudo-header sum.
+		// The kernel completes TCP checksums after segmenting to segmentSize.
+		binary.BigEndian.PutUint16(b[16:18], fold(pseudoHeaderSum(c.key.local.Addr(), c.key.remote.Addr(), 6, len(b))))
+		packet.segmentSize = segmentSize
+	}
 	if err := c.stack.emitOwned(packet); err != nil {
 		packet.release()
 		if errors.Is(err, ErrLimit) {
@@ -107,7 +150,7 @@ func (c *TCPConn) output(seq uint32, flags uint8, data []byte) bool {
 			if c.key.local.Addr().Is6() {
 				h = 40
 			}
-			c.waitOutput(len(b) + h)
+			c.waitOutput(c.stack.headroom + len(b) + h)
 			if flags == flagACK && len(data) == 0 {
 				c.ackPending = max(c.ackPending, 1)
 			}
@@ -160,6 +203,10 @@ func (c *TCPConn) transmit(v *sendSegment, now time.Time, retrans bool) bool {
 	if !c.output(v.seq, v.flags, v.data) {
 		return false
 	}
+	c.recordTransmission(v, now, retrans)
+	return true
+}
+func (c *TCPConn) recordTransmission(v *sendSegment, now time.Time, retrans bool) {
 	newTransmission := v.transmissions == 0
 	restoring := !newTransmission && v.lossReported && !v.sacked
 	idle := newTransmission && c.sndUna == c.sndNxt
@@ -222,7 +269,6 @@ func (c *TCPConn) transmit(v *sendSegment, now time.Time, retrans bool) bool {
 	if c.rtoAt.IsZero() {
 		c.rtoAt = now.Add(c.rto)
 	}
-	return true
 }
 func pacingDeadline(now, previous time.Time, bytes uint32, rate uint64) time.Time {
 	spacing := time.Duration(float64(bytes) / float64(rate) * float64(time.Second))
@@ -248,7 +294,11 @@ func (c *TCPConn) pump(now time.Time) {
 		return
 	}
 	sent := 0
-	for i := 0; i < c.tx.len() && sent < congestion.DefaultMaxBurstPackets; i++ {
+	for sent < congestion.DefaultMaxBurstPackets {
+		i := c.nextSendIndex()
+		if i == c.tx.len() {
+			break
+		}
 		v := c.tx.values()[i]
 		if v.resend || v.lossReported {
 			if v.lossReported && c.flight()+uint64(v.length()) > c.controller.CongestionWindow() {
@@ -263,9 +313,6 @@ func (c *TCPConn) pump(now time.Time) {
 				break
 			}
 			sent++
-			continue
-		}
-		if v.transmissions > 0 {
 			continue
 		}
 		if v.flags&flagSYN == 0 {
@@ -307,6 +354,13 @@ func (c *TCPConn) pump(now time.Time) {
 				c.tx.insert(i+1, tail)
 			}
 		}
+		if count := c.transmitGroup(i, now, congestion.DefaultMaxBurstPackets-sent); count != 0 {
+			if count < 0 {
+				break
+			}
+			sent += count
+			continue
+		}
 		if !c.transmit(v, now, false) {
 			break
 		}
@@ -319,6 +373,67 @@ func (c *TCPConn) pump(now time.Time) {
 		c.persistAt = time.Time{}
 	}
 	c.schedule(now)
+}
+
+// Group only contiguous immutable views belonging to one Write allocation.
+// Wire MSS, cwnd, rwnd, pacing quantum and the logical-packet work budget still
+// bound the group. Retransmissions retain individual descriptors and wire MSS.
+func (c *TCPConn) transmitGroup(index int, now time.Time, budget int) int {
+	if c.stack.gsoMax == 0 || budget < 2 {
+		return 0
+	}
+	values := c.tx.values()[index:]
+	first := values[0]
+	if first.transmissions != 0 || first.owner == nil || len(first.data) != c.mss || first.flags & ^uint8(flagACK|flagPSH) != 0 {
+		return 0
+	}
+	h := 40
+	if c.key.local.Addr().Is6() {
+		h = 60
+	}
+	limit := min(c.stack.gsoMax-h, int(c.sndUna+c.peerWindow-first.seq), int(c.controller.CongestionWindow()-c.flight()))
+	if rate := c.controller.PacingRate(); rate > 0 {
+		quantum := int(min(float64(limit), float64(rate)*congestion.DefaultPacingQuantum.Seconds()))
+		limit = min(limit, max(c.mss, quantum))
+	}
+	length, count := len(first.data), 1
+	for _, next := range values[1:] {
+		if count == budget || next.transmissions != 0 || next.owner != first.owner || next.flags != first.flags || next.seq != first.seq+uint32(length) || len(next.data) == 0 || len(next.data) > c.mss || length+len(next.data) > limit {
+			break
+		}
+		length += len(next.data)
+		count++
+		if len(next.data) < c.mss {
+			break
+		}
+	}
+	if count == 1 {
+		return 0
+	}
+	if !c.outputSegment(first.seq, first.flags, first.data[:length], c.mss) {
+		return -1
+	}
+	for _, v := range values[:count] {
+		c.recordTransmission(v, now, false)
+	}
+	return count
+}
+
+// New transmissions form a suffix. Only loss and PMTU feedback can make a
+// sent entry runnable again; scan that prefix only while such repair is pending.
+// Binary search remains valid across ACK pops, partial splits and queue compaction.
+func (c *TCPConn) nextSendIndex() int {
+	values := c.tx.values()
+	n := len(c.sentSegments())
+	if c.repairPending {
+		for i, v := range values[:n] {
+			if v.resend || v.lossReported {
+				return i
+			}
+		}
+		c.repairPending = false
+	}
+	return n
 }
 
 // Transmissions always form a prefix. Do not scan megabytes of queued,

@@ -76,6 +76,9 @@ type TCPConn struct {
 	ownScale, peerScale                                      int
 	mss, pathMSS                                             int
 	sack                                                     bool
+	sackRecent                                               [4]uint32
+	sackRecentCount                                          int
+	repairPending                                            bool
 	tx                                                       sliceQueue[*sendSegment]
 	txBytes                                                  int
 	bytesInFlight                                            uint64
@@ -259,7 +262,11 @@ func (c *TCPConn) Write(b []byte) (int, error) {
 		}
 		// Copy a bounded application chunk once; MSS-sized retransmission views
 		// share that immutable allocation until every view is cumulatively ACKed.
-		n := min(len(b)-written, available, 16384, (maxSendSegments-c.tx.len())*c.mss)
+		chunkSize := 16384
+		if c.stack.gsoMax > 0 {
+			chunkSize = 65536
+		}
+		n := min(len(b)-written, available, chunkSize, (maxSendSegments-c.tx.len())*c.mss)
 		owner, err := c.stack.buffers.get(n)
 		if err != nil {
 			return written, err

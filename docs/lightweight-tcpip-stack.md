@@ -3,6 +3,13 @@
 Status: experimental opt-in implementation. Replacement readiness and the full
 acceptance matrix are not established; measured results and gaps are explicit below.
 
+The [2026-10-17 performance review](benchmarks/lightweight-performance-review-20261017.md)
+compares independent-process SOCKS/TUN throughput with a pinned hev-socks5-tunnel,
+separates plain packets, checksum offload and TSO, and prioritizes macOS, Android
+and Linux improvements. The [follow-up implementation and measurements](benchmarks/lightweight-offload-optimization-20261017.md)
+cover Linux TCP GSO, borrowed input views, owned output headroom, TX scheduling,
+software checksums and the SACK reporting fix.
+
 The [BBR v3 and ownership report](benchmarks/lightweight-bbr-v3.md) records the
 current controller, PMTU/recovery tests and performance work. The earlier
 [transport checkpoint](benchmarks/lightweight-optimization.md) and original
@@ -59,8 +66,13 @@ existing license catalog. The remaining code retains the repository license.
 ## Modules, packet flow and sockets
 
 `PacketIO` owns one reader and one writer. It transfers IP packets without a
-link or virtio header; Close must interrupt both operations. The core owns its
-read buffer. Parsing borrows that buffer only during synchronous dispatch.
+link or virtio header; Close must interrupt both operations. An optional
+`PacketViewReader` lends an adapter buffer until the next read or Close; otherwise
+the core owns its read scratch buffer. Parsing borrows it during synchronous dispatch.
+Trusted kernel checksum metadata can suppress transport checksum scanning while
+IP/transport structure remains validated; ordinary wire packets remain checked.
+An optional `PacketBufferWriter` accepts owned storage with reserved prefix bytes
+and a TCP GSO segment size. Capabilities are fixed when the link opens.
 Queued receive data, retransmission data and outbound packets each have their
 own allocation. No asynchronous worker holds a caller's Write slice.
 
@@ -280,12 +292,17 @@ stacks/algorithms, legacy-driver combinations and invalid MTUs return errors
 before opening a device. The adapter supports the channel/default device mode;
 fdbased and system_gvisor remain legacy implementations, not lightweight aliases.
 
-Linux opens IFF_TUN|IFF_NO_PI without VNET or offload. Existing native fd devices
-must satisfy that contract; VNET/TAP/packet-info fds are rejected. macOS utun and
-Windows use the existing offset-aware packet wrapper, and Android uses the
-validated Linux fd path. The new Linux path currently has one queue; offload,
-GSO/GRO and multiqueue acceleration are unavailable. No offload performance
-claim is made. Existing gVisor/tun2socket openers and defaults are unchanged.
+Linux negotiates IFF_VNET_HDR with checksum and TCPv4/v6 segmentation on newly
+created TUN devices, falling back to plain IP when unavailable. Supplied fds are
+duplicated and inspected without changing framing; TAP/packet-info fds are
+rejected. Plain Android VpnService fds retain the ordinary IP path without
+offload negotiation. The Linux adapter validates virtio metadata and retains
+kernel TCP super-packets. Output groups only new contiguous views of the same
+owned allocation, bounded by wire MSS, cwnd, rwnd, pacing and work budget;
+retransmissions keep individual descriptors. macOS reserves four-byte utun
+headroom and borrows native input slabs. Windows retains its offset-aware wrapper.
+This path has one queue; multiqueue is not implemented. Existing gVisor/tun2socket
+openers and defaults are unchanged.
 System address/route installation and PostUp/PostDown remain in the adapter;
 NewTun's existing routeAccepter owns route updates and cleanup before device
 closure.
@@ -360,6 +377,6 @@ of either legacy stack. In particular, exhaustive simultaneous-open/close and
 keepalive/persist fault matrices, timestamp/PAWS/ECN support, independent
 broader congestion-control fairness studies beyond the shared-bottleneck
 profiles recorded in the report, real mobile/macOS/Windows runtime runs,
-UDP PMTU caching and Linux offload/multiqueue are not established here. Do not
+UDP PMTU caching, UDP segmentation offload and multiqueue are not established here. Do not
 interpret platform compilation or passing interoperability cases as exhaustive
 RFC conformance or replacement readiness.

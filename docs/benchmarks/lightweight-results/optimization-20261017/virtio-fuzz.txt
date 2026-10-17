@@ -1,0 +1,8 @@
+fuzz: elapsed: 0s, gathering baseline coverage: 0/3 completed
+fuzz: elapsed: 0s, gathering baseline coverage: 3/3 completed, now fuzzing with 4 workers
+fuzz: elapsed: 3s, execs: 64457 (21485/sec), new interesting: 11 (total: 14)
+fuzz: elapsed: 6s, execs: 64457 (0/sec), new interesting: 11 (total: 14)
+fuzz: elapsed: 9s, execs: 64457 (0/sec), new interesting: 11 (total: 14)
+fuzz: elapsed: 11s, execs: 64457 (0/sec), new interesting: 11 (total: 14)
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device	11.007s

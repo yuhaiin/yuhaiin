@@ -1,0 +1,10 @@
+=== RUN   TestReviewSACKMostRecentBlock
+    review_sack_recent_test.go:25: trigger=401 first SACK={start:201 end:202}; want [401,402)
+    review_sack_recent_test.go:25: trigger=601 first SACK={start:201 end:202}; want [601,602)
+    review_sack_recent_test.go:25: trigger=801 first SACK={start:201 end:202}; want [801,802)
+    review_sack_recent_test.go:25: trigger=1001 first SACK={start:201 end:202}; want [1001,1002)
+    review_sack_recent_test.go:33: newest segment [1001,1002) omitted from all 4 SACK blocks
+--- FAIL: TestReviewSACKMostRecentBlock (0.00s)
+FAIL
+FAIL	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	0.003s
+FAIL
