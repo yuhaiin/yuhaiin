@@ -146,7 +146,7 @@ func (h *http2Stream) SendDatagram(b []byte) error {
 }
 
 func (h *http2Stream) CancelRead(quic.StreamErrorCode) {
-	_ = h.ReadCloser.Close()
+	_ = h.Close()
 }
 func (h *http2Stream) CancelWrite(quic.StreamErrorCode) {
 	if closer, ok := h.Writer.(io.Closer); ok {
