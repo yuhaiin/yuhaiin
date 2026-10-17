@@ -314,6 +314,11 @@ func clientTLSConfig(config contract.ClientTLSConfig) ytls.TLSConfig {
 
 func tunConfig(config contract.TunProtocol) device.TunConfig {
 	return device.TunConfig{
+		Platform: device.PlatformConfig{Darwin: device.DarwinConfig{
+			ExperimentalBatch: config.Darwin.ExperimentalBatch,
+			BatchSize:         config.Darwin.BatchSize,
+			PendingPackets:    config.Darwin.PendingPackets,
+		}},
 		Stack:             config.Stack,
 		CongestionControl: config.CongestionControl,
 		AutoFakeIPRoute:   config.AutoFakeIPRoute,

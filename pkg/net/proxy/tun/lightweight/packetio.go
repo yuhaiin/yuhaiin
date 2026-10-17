@@ -21,5 +21,21 @@ type PacketBufferWriter interface {
 	WritePacketBuffer(buffer []byte, offset, segmentSize int) error
 }
 
+// PacketBatchWriter optionally borrows an already queued, ordered prefix of
+// complete packets. No caller-owned buffer may be retained after return. The
+// count is an accepted prefix, including on error; retry only the suffix.
+// PacketBatchSize is immutable, in [1,128]. Implemented only by the experimental
+// Darwin adapter; existing single-packet and GSO paths keep their semantics.
+type PacketBatchWriter interface {
+	PacketBufferWriter
+	PacketBatchSize() int
+	WritePacketBatch([]PacketBuffer) (int, error)
+}
+
+type PacketBuffer struct {
+	Data                []byte
+	Offset, SegmentSize int
+}
+
 const maxPacketHeadroom = 64
 const maxPacketBufferSize = 65575 + maxPacketHeadroom

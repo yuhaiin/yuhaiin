@@ -73,7 +73,7 @@ func New(o *device.Opt) (*tunServer, error) {
 		o.Tun.MTU = 1500
 	}
 
-	ep, err := Open(o.Interface, o.Tun.Driver, int(o.Tun.MTU))
+	ep, err := Open(o.Interface, o.Tun.Driver, int(o.Tun.MTU), o.Tun.Platform.Darwin)
 	if err != nil {
 		return nil, fmt.Errorf("open tun failed: %w", err)
 	}

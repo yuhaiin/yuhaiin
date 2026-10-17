@@ -43,7 +43,18 @@ type PlatformConfig struct {
 }
 
 type DarwinConfig struct {
-	NetworkService string `json:"network_service,omitzero"`
+	NetworkService    string `json:"network_service,omitzero"`
+	ExperimentalBatch bool   `json:"experimental_batch,omitzero"`
+	BatchSize         int    `json:"batch_size,omitzero"`
+	PendingPackets    int    `json:"pending_packets,omitzero"`
+}
+
+var configureDarwinTUN = func(d netlink.Tun, _ bool, _ DarwinConfig) netlink.Tun { return d }
+
+// ConfigureDarwinTUN applies per-inbound options after the native device opens.
+// On other platforms this leaves the native device and its behavior unchanged.
+func ConfigureDarwinTUN(d netlink.Tun, sc netlink.TunScheme, config DarwinConfig) netlink.Tun {
+	return configureDarwinTUN(d, sc.Scheme == "tun", config)
 }
 
 type Opt struct {

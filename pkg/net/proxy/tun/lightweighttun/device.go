@@ -27,7 +27,13 @@ type devicePacketWriter interface {
 
 // NewPacketIO adapts a native TUN to the independent packet stack. The returned
 // adapter owns the device; on error ownership remains with the caller.
-func NewPacketIO(d netlink.Tun) (lightweight.PacketIO, error) { return newPacketIO(d) }
+func NewPacketIO(d netlink.Tun) (lightweight.PacketIO, error) {
+	p, err := newPacketIO(d)
+	if err != nil {
+		return nil, err
+	}
+	return platformPacketIO(p), nil
+}
 
 func newPacketIO(d netlink.Tun) (*packetIO, error) {
 	writer, offloadAware := d.(devicePacketWriter)

@@ -94,6 +94,9 @@ func New(config Config, link PacketIO) (*Stack, error) {
 		}
 		s.packetWriter = writer
 	}
+	if writer, ok := link.(PacketBatchWriter); ok && (writer.PacketBatchSize() < 1 || writer.PacketBatchSize() > 128) {
+		return nil, errors.New("lightweight: invalid packet batch size")
+	}
 	if c.ForwardPing {
 		s.pings = make(chan *PingRequest, min(c.QueuePackets, 64))
 	}
@@ -240,6 +243,10 @@ func (s *Stack) readLoop() {
 }
 func (s *Stack) writeLoop() {
 	defer s.shutdown()
+	if writer, ok := s.link.(PacketBatchWriter); ok && writer.PacketBatchSize() > 1 {
+		s.writeBatchLoop(writer)
+		return
+	}
 	for {
 		select {
 		case <-s.done:
