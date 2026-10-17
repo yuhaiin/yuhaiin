@@ -75,12 +75,12 @@ func NewMasque(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAd
 }
 
 type Conn struct {
-	packetConn net.PacketConn
+	packetConn    net.PacketConn
 	quicTransport *quic.Transport
-	quicConn   *quic.Conn
-	tr         *http3.Transport
-	h3conn     *http3.ClientConn
-	ipconn     *connectip.Conn
+	quicConn      *quic.Conn
+	tr            *http3.Transport
+	h3conn        *http3.ClientConn
+	ipconn        *connectip.Conn
 }
 
 func (c *Conn) Close() error {
