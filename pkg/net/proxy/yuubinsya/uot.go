@@ -214,6 +214,17 @@ func (c *PacketConn) WriteBack(b []byte, addr net.Addr) (int, error) {
 	return c.WriteTo(b, addr)
 }
 
+// Cancellation closes this UOT transport, unblocking both a direct socket
+// write and a coalescing queue waiting for a stalled flusher.
+func (c *PacketConn) WriteBackContext(ctx context.Context, b []byte, addr net.Addr) (int, error) {
+	stop := context.AfterFunc(ctx, func() { _ = c.Close() })
+	defer stop()
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.WriteTo(b, addr)
+}
+
 func (c *PacketConn) Close() error {
 	c.cancel(io.EOF)
 	err := c.BufioConn.Close()

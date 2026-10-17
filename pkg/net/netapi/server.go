@@ -157,6 +157,21 @@ type WriteBack interface {
 	WriteBack(b []byte, addr net.Addr) (int, error)
 }
 
+// ContextWriteBack allows transports that may block to interrupt a reply when
+// its NAT source is closed or migrates to another inbound transport.
+type ContextWriteBack interface {
+	WriteBackContext(context.Context, []byte, net.Addr) (int, error)
+}
+
+type WriteBackContextFunc func(context.Context, []byte, net.Addr) (int, error)
+
+func (f WriteBackContextFunc) WriteBack(b []byte, addr net.Addr) (int, error) {
+	return f(context.Background(), b, addr)
+}
+func (f WriteBackContextFunc) WriteBackContext(ctx context.Context, b []byte, addr net.Addr) (int, error) {
+	return f(ctx, b, addr)
+}
+
 type WriteBackFunc func(b []byte, addr net.Addr) (int, error)
 
 func (f WriteBackFunc) WriteBack(b []byte, addr net.Addr) (int, error) { return f(b, addr) }
@@ -212,6 +227,10 @@ func NewPacket(src net.Addr, dst Address, payload []byte, writeBack WriteBack, o
 	return pp
 }
 
+// ReplyWriter identifies the inbound transport independently of its remote
+// address: multiplexed streams can share that address while requiring migration.
+func (p *Packet) ReplyWriter() WriteBack { return p.writeBack }
+
 func (p *Packet) Src() net.Addr       { return p.src }
 func (p *Packet) Dst() Address        { return p.dst }
 func (p *Packet) InboundName() string { return p.inboundName }
@@ -254,6 +273,18 @@ func (p *Packet) DecRef() {
 }
 
 func (p *Packet) WriteBack(b []byte, addr net.Addr) (int, error) {
+	return p.writeBack.WriteBack(b, addr)
+}
+
+// WriteBackContext uses cancellation when the inbound supports it. Legacy
+// WriteBack implementations must arrange for their own bounded writes.
+func (p *Packet) WriteBackContext(ctx context.Context, b []byte, addr net.Addr) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if writer, ok := p.writeBack.(ContextWriteBack); ok {
+		return writer.WriteBackContext(ctx, b, addr)
+	}
 	return p.writeBack.WriteBack(b, addr)
 }
 

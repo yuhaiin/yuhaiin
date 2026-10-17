@@ -174,6 +174,12 @@ func TestFailedSourceDialIsIdle(t *testing.T) {
 		t.Fatal(err)
 	}
 	awaitClosed(t, failed)
+	// The dial callback signals before it returns; idle means the sender has
+	// also finished processing and released its in-flight admission.
+	deadline := time.Now().Add(time.Second)
+	for u.pending.Load() != 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
 	if _, idle := u.IsIdle(); !idle {
 		t.Fatal("failed first dial cannot be reaped")
 	}
@@ -372,5 +378,119 @@ func TestMigrationDuringWriteBackDoesNotCloseUDPSession(t *testing.T) {
 	}
 	if _, idle := source.IsIdle(); idle {
 		t.Fatal("migrated session became idle")
+	}
+}
+
+func TestRetiredSourceIsReplacedOnAdmission(t *testing.T) {
+	local, remote := net.Pipe()
+	conn := &lifecyclePacketConn{Conn: local, reading: make(chan struct{}), writing: make(chan struct{}), closed: make(chan struct{})}
+	table := NewTable(nil, lifecycleDialer{dial: func(context.Context) (net.PacketConn, error) { return conn, nil }})
+	t.Cleanup(func() { _ = remote.Close(); _ = table.Close() })
+	old := NewSourceChan(nil, nil)
+	pkt := lifecyclePacket()
+	defer pkt.DecRef()
+	key := pkt.Src().(netapi.Address).Comparable()
+	table.sourceControl.Store(key, old)
+	old.loopStopTime.Store(new(time.Now().Add(-time.Hour)))
+	if !old.retireIdle(time.Second) {
+		t.Fatal("idle source not retired")
+	}
+	if err := table.Write(t.Context(), pkt); err != nil {
+		t.Fatal(err)
+	}
+	awaitClosed(t, conn.writing)
+	awaitClosed(t, old.done)
+	current, _ := table.sourceControl.Load(key)
+	if current == old {
+		t.Fatal("admitted packet to retired source")
+	}
+}
+
+func TestCleanerCannotRetireDialingSource(t *testing.T) {
+	dialing := make(chan struct{})
+	source := NewSourceChan(nil, lifecycleDialer{dial: func(ctx context.Context) (net.PacketConn, error) { close(dialing); <-ctx.Done(); return nil, ctx.Err() }})
+	defer source.Close()
+	source.loopStopTime.Store(new(time.Now().Add(-time.Hour)))
+	pkt := lifecyclePacket()
+	defer pkt.DecRef()
+	if err := source.WritePacket(t.Context(), pkt); err != nil {
+		t.Fatal(err)
+	}
+	awaitClosed(t, dialing)
+	if source.retireIdle(time.Second) {
+		t.Fatal("cleaner canceled a dial in progress")
+	}
+}
+
+func TestMigrationCancelsBlockedReplyAndRetriesOnNewTransport(t *testing.T) {
+	local, remote := net.Pipe()
+	conn := &lifecyclePacketConn{Conn: local, reading: make(chan struct{}), writing: make(chan struct{}), closed: make(chan struct{})}
+	table := NewTable(nil, lifecycleDialer{dial: func(context.Context) (net.PacketConn, error) { return conn, nil }})
+	t.Cleanup(func() { _ = remote.Close(); _ = table.Close() })
+	started := make(chan struct{})
+	dst, _ := netapi.ParseAddressPort("udp", "192.0.2.20", 443)
+	src := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1000}
+	enqueue := func(write netapi.WriteBack) {
+		pkt := netapi.NewPacket(src, dst, pool.Clone([]byte("request")), write, netapi.WithMigrateID(8754))
+		err := table.Write(t.Context(), pkt)
+		pkt.DecRef()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	enqueue(&contextReplyWriter{write: netapi.WriteBackContextFunc(func(ctx context.Context, _ []byte, _ net.Addr) (int, error) {
+		close(started)
+		<-ctx.Done()
+		return 0, ctx.Err()
+	})})
+	awaitClosed(t, conn.reading)
+	if _, err := remote.Write([]byte("reply")); err != nil {
+		t.Fatal(err)
+	}
+	awaitClosed(t, started)
+	delivered := make(chan string, 1)
+	enqueue(&contextReplyWriter{write: netapi.WriteBackContextFunc(func(_ context.Context, b []byte, _ net.Addr) (int, error) { delivered <- string(b); return len(b), nil })})
+	select {
+	case got := <-delivered:
+		if got != "reply" {
+			t.Fatalf("reply=%q", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("migration did not unblock and retry reply")
+	}
+	select {
+	case <-conn.closed:
+		t.Fatal("migration closed shared outbound socket")
+	default:
+	}
+}
+
+// A stable comparable writer models a UOT stream. Different streams can share
+// exactly the same source address when carried by HTTP/2 or a multiplexer.
+type contextReplyWriter struct{ write netapi.WriteBackContextFunc }
+
+func (w *contextReplyWriter) WriteBack(b []byte, a net.Addr) (int, error) {
+	return w.write(context.Background(), b, a)
+}
+func (w *contextReplyWriter) WriteBackContext(ctx context.Context, b []byte, a net.Addr) (int, error) {
+	return w.write(ctx, b, a)
+}
+
+func TestReplyWriterIdentitySurvivesFreshAddressObjects(t *testing.T) {
+	source := NewSourceChan(nil, nil)
+	defer source.Close()
+	writer := &contextReplyWriter{}
+	dst, _ := netapi.ParseAddressPort("udp", "192.0.2.20", 443)
+	packet := func() *netapi.Packet {
+		return netapi.NewPacket(&net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1000}, dst, nil, writer)
+	}
+	first, next := packet(), packet()
+	defer first.DecRef()
+	defer next.DecRef()
+	source.bindReply(first)
+	binding := source.reply.Load()
+	source.bindReply(next)
+	if binding.ctx.Err() != nil || source.reply.Load() != binding {
+		t.Fatal("same transport was canceled because its address pointer changed")
 	}
 }
