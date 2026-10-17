@@ -18,7 +18,6 @@ import (
 	vpnclient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/session"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 )
 
 // Client only contains protocol-independent outbound IP packet plumbing.
@@ -27,8 +26,8 @@ type Client struct {
 	netapi.EmptyDispatch
 	session vpnclient.Session
 	bridge  *packetBridge
-	network *wireguard.NetTun
-	tcp     *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
+	network *wireguard.LightweightNetTun
+	tcp     *dialer.HappyEyeballsv2Dialer[net.Conn]
 	once    sync.Once
 }
 
@@ -80,7 +79,7 @@ func NewOutbound(name string, mtu int, dial DialSession) (*Client, error) {
 		return nil, err
 	}
 	c := &Client{session: session, bridge: bridge, network: network}
-	c.tcp = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
+	c.tcp = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 		return network.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 	})
 	return c, nil
@@ -123,7 +122,7 @@ func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 	if err != nil {
 		return nil, err
 	}
-	return wireguard.NewWrapGoNetTcpConn(conn), nil
+	return conn, nil
 }
 func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketConn, error) {
 	udp, err := c.network.DialUDP(nil, nil)

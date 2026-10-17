@@ -3,12 +3,14 @@
 package tailscale
 
 import (
+	"bufio"
 	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"net/netip"
 	"strconv"
@@ -20,6 +22,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	wire "golang.org/x/net/dns/dnsmessage"
 	"tailscale.com/derp/derpserver"
 	"tailscale.com/tailcfg"
@@ -125,6 +128,9 @@ func TestLocalTailnet(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer c.Close()
+		if _, ok := c.(*lightweight.TCPConn); !ok {
+			t.Fatalf("outbound TCP uses %T, want lightweight", c)
+		}
 		_ = c.SetDeadline(time.Now().Add(5 * time.Second))
 		if _, err := c.Write([]byte("hello")); err != nil {
 			t.Fatal(err)
@@ -149,6 +155,9 @@ func TestLocalTailnet(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer pc.Close()
+			if _, ok := pc.(*tailnetPacketConn).PacketConn.(*lightweight.UDPConn); !ok {
+				t.Fatal("outbound UDP does not use lightweight")
+			}
 			_ = pc.SetDeadline(time.Now().Add(5 * time.Second))
 			// The same PacketConn must deliver to distinct destination ports correctly.
 			for _, port := range []uint16{12345, 12346} {
@@ -179,6 +188,33 @@ func TestLocalTailnet(t *testing.T) {
 			}
 		})
 	}
+	t.Run("metrics-lightweight-listener", func(t *testing.T) {
+		old := Mux.Load()
+		mux := http.NewServeMux()
+		mux.HandleFunc("GET /stack-test", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "lightweight metrics") })
+		Mux.Store(mux)
+		defer Mux.Store(old)
+		ip, _ := servers[1].TailscaleIPs()
+		conn, err := a.Conn(ctx, netapi.ParseNetipAddr("tcp", ip, 80))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.Close()
+		_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+		if _, err := io.WriteString(conn, "GET /stack-test HTTP/1.1\r\nHost: tailnet\r\nConnection: close\r\n\r\n"); err != nil {
+			t.Fatal(err)
+		}
+		response, err := http.ReadResponse(bufio.NewReader(conn), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		body, err := io.ReadAll(response.Body)
+		if err != nil || string(body) != "lightweight metrics" {
+			t.Fatalf("metrics: %q %v", body, err)
+		}
+	})
+
 	t.Run("route_rejection", func(t *testing.T) {
 		_, err := a.Conn(ctx, netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 9))
 		if err == nil {

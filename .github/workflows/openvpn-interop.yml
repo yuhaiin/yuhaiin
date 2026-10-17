@@ -3,6 +3,8 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - "pkg/net/proxy/wireguard/**"
+      - "pkg/net/proxy/tun/lightweight/**"
       - "pkg/net/proxy/openvpn/**"
       - "pkg/contract/node/**"
       - "pkg/register/point.go"

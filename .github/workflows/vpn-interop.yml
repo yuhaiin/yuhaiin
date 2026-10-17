@@ -3,6 +3,8 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - "pkg/net/proxy/wireguard/**"
+      - "pkg/net/proxy/tun/lightweight/**"
       - "go.mod"
       - "go.sum"
       - "pkg/net/proxy/amneziawg/**"

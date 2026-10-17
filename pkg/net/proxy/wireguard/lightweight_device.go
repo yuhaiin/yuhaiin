@@ -13,8 +13,8 @@ import (
 	"github.com/tailscale/wireguard-go/tun"
 )
 
-// LightweightNetTun connects a lightweight IP stack to an encrypted tunnel's
-// packet interface without changing the legacy NetTun used by other VPNs.
+// LightweightNetTun connects the shared BBR v3 lightweight IP stack to a VPN's
+// packet interface.
 type LightweightNetTun struct {
 	stack        *lightweight.Stack
 	link         *packetLink
@@ -104,7 +104,8 @@ func (n *LightweightNetTun) DialContextTCP(ctx context.Context, addr *net.TCPAdd
 	if addr == nil {
 		return nil, errors.New("wireguard: nil TCP destination")
 	}
-	return n.stack.DialContextTCP(ctx, addr.AddrPort())
+	ap := addr.AddrPort()
+	return n.stack.DialContextTCP(ctx, netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port()))
 }
 
 func (n *LightweightNetTun) ListenTCP(addr *net.TCPAddr) (*lightweight.TCPListener, error) {
@@ -121,19 +122,22 @@ func (n *LightweightNetTun) ListenTCP(addr *net.TCPAddr) (*lightweight.TCPListen
 		}
 		return n.stack.ListenTCP(netip.AddrPortFrom(netip.IPv4Unspecified(), uint16(port)))
 	}
-	return n.stack.ListenTCP(addr.AddrPort())
+	ap := addr.AddrPort()
+	return n.stack.ListenTCP(netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port()))
 }
 
 func (n *LightweightNetTun) DialUDP(local, remote *net.UDPAddr) (*lightweight.UDPConn, error) {
 	var la, ra netip.AddrPort
 	if remote != nil {
 		ra = remote.AddrPort()
+		ra = netip.AddrPortFrom(ra.Addr().Unmap(), ra.Port())
 		if !ra.IsValid() {
 			return nil, errors.New("wireguard: invalid UDP destination")
 		}
 	}
 	if local != nil && len(local.IP) > 0 {
 		la = local.AddrPort()
+		la = netip.AddrPortFrom(la.Addr().Unmap(), la.Port())
 		if !la.IsValid() {
 			return nil, errors.New("wireguard: invalid UDP source")
 		}

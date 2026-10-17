@@ -26,7 +26,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/tailscale/wireguard-go/tun"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 )
 
 type Config struct {
@@ -55,7 +54,7 @@ type Config struct {
 type Client struct {
 	netapi.EmptyDispatch
 	session     *native.ClientSession
-	network     *wireguard.NetTun
+	network     *wireguard.LightweightNetTun
 	mac         macAddr
 	gatewayMAC  macAddr
 	gatewayMAC6 macAddr
@@ -70,7 +69,7 @@ type Client struct {
 	running     atomic.Bool
 	dhcpXID     atomic.Uint32
 	dhcpReplies chan dhcpLeaseReply
-	tcp         *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
+	tcp         *dialer.HappyEyeballsv2Dialer[net.Conn]
 	accel       *udpAcceleration
 }
 
@@ -303,7 +302,7 @@ func newClientContext(parent context.Context, cfg Config, upstream netapi.Proxy)
 		}
 		prefixes = append(prefixes, ipv6Prefix)
 	}
-	network, err := wireguard.CreateNetTUN(prefixes, cfg.MTU)
+	network, err := wireguard.CreateLightweightNetTUN(prefixes, cfg.MTU)
 	if err != nil {
 		_ = session.Close()
 		return nil, err
@@ -315,7 +314,7 @@ func newClientContext(parent context.Context, cfg Config, upstream netapi.Proxy)
 	if useDHCP && l.leaseTime > 0 {
 		c.dhcpReplies = make(chan dhcpLeaseReply, 8)
 	}
-	c.tcp = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
+	c.tcp = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 		return network.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 	})
 	if udpConn != nil && session.UDPOptions() != nil {
@@ -625,7 +624,7 @@ func (c *Client) Conn(ctx context.Context, address netapi.Address) (net.Conn, er
 	if err != nil {
 		return nil, err
 	}
-	return wireguard.NewWrapGoNetTcpConn(conn), nil
+	return conn, nil
 }
 
 func (c *Client) PacketConn(ctx context.Context, destination netapi.Address) (net.PacketConn, error) {

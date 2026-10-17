@@ -2,6 +2,8 @@ name: L2TP server interop
 on:
   pull_request:
     paths:
+      - "pkg/net/proxy/wireguard/**"
+      - "pkg/net/proxy/tun/lightweight/**"
       - "pkg/net/proxy/l2tp/**"
       - "pkg/contract/node/**"
       - "pkg/register/point.go"

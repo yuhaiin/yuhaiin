@@ -24,7 +24,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/tailscale/wireguard-go/device"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 )
 
 type Wireguard struct {
@@ -164,26 +163,6 @@ func processErr(err error) {
 			nerr.Err = os.ErrDeadlineExceeded
 		}
 	}
-}
-
-type wrapGoNetTcpConn struct {
-	*gonet.TCPConn
-}
-
-func NewWrapGoNetTcpConn(conn *gonet.TCPConn) *wrapGoNetTcpConn {
-	return &wrapGoNetTcpConn{TCPConn: conn}
-}
-
-func (w *wrapGoNetTcpConn) Read(b []byte) (int, error) {
-	n, err := w.TCPConn.Read(b)
-	processErr(err)
-	return n, err
-}
-
-func (w *wrapGoNetTcpConn) Write(b []byte) (int, error) {
-	n, err := w.TCPConn.Write(b)
-	processErr(err)
-	return n, err
 }
 
 func (w *Wireguard) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {

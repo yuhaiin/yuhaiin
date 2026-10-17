@@ -1,8 +1,8 @@
 # Native OpenVPN outbound
 
 Pure Go, no CGO, external OpenVPN client, root privileges, or host TUN. The
-native TLS/IP tunnel feeds the same in-process gVisor stack as WireGuard,
-GlobalProtect and SoftEther. Both application TCP and UDP use the tunnel.
+native TLS/IP tunnel feeds the shared lightweight stack with BBR v3.
+Both application TCP and UDP use the tunnel.
 
 ## Configuration
 

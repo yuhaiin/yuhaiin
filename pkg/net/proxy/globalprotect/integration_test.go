@@ -24,7 +24,7 @@ import (
 
 // TestGatewayEndToEndTCPUDP starts a full in-process fake HTTPS gateway.
 // Unlike the XML fixture tests it drives the public GlobalProtect client
-// through prelogin -> login -> config -> TLS tunnel -> gVisor TCP/UDP echo.
+// through prelogin -> login -> config -> TLS tunnel -> lightweight TCP/UDP echo.
 // It is NOT a compatibility test against a real PAN-OS server.
 func TestGatewayEndToEndTCPUDP(t *testing.T) {
 	const (
@@ -34,7 +34,7 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 		udpPort  = 23457
 		mtu      = 1300
 	)
-	stack, err := wireguard.CreateNetTUN([]netip.Prefix{netip.MustParsePrefix(serverIP + "/32")}, mtu)
+	stack, err := wireguard.CreateLightweightNetTUN([]netip.Prefix{netip.MustParsePrefix(serverIP + "/32")}, mtu)
 	if err != nil {
 		t.Fatal(err)
 	}

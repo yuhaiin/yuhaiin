@@ -40,7 +40,7 @@ func (d *shutdownDispatcher) DeliverNetworkPacket(tcpip.NetworkProtocolNumber, *
 func TestNetTunCloseWithPacketInFlight(t *testing.T) {
 	channel := NewChannelDevice(t.Context(), 1400)
 	d := &closeNotifyingDevice{Tun: device.NewDevice(channel, 0, 1400, false), closed: make(chan struct{})}
-	n := &NetTun{dev: channel, ep: gvisor.NewEndpoint(d), stack: stack.New(stack.Options{})}
+	n := &referenceNetTun{dev: channel, ep: gvisor.NewEndpoint(d), stack: stack.New(stack.Options{})}
 	dispatcher := &shutdownDispatcher{stack: n.stack, entered: make(chan struct{}), closed: d.closed}
 	n.ep.Attach(dispatcher)
 	if err := n.stack.CreateNIC(1, n.ep); err != nil {

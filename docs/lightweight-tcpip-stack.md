@@ -267,32 +267,56 @@ System address/route installation and PostUp/PostDown remain in the adapter;
 NewTun's existing routeAccepter owns route updates and cleanup before device
 closure.
 
-### WireGuard tunnel integration
+### VPN tunnel integration
 
-WireGuard, AmneziaWG and MASQUE construct `wireguard.LightweightNetTun` with
-the `RemoteTunnel` profile and default CUBIC + HyStart++. The remote profile
-starts with a 256KiB receive window and permits 6MiB of queued send data per
-connection. The TUN inbound congestion selector does not configure outbounds.
-Their existing keys, peers, allowed IPs, and encrypted transports retain their
-contracts. The new stack requires MTU 1280..65535; zero selects the adapter's
-existing default (1500, or 1400 for AmneziaWG).
+All VPN outbound application TCP/UDP traffic uses `wireguard.LightweightNetTun`
+with the `RemoteTunnel` profile. An empty congestion setting in this profile
+selects **BBR v3**; explicit `reno`, `cubic` and `bbr` settings remain available
+in the core API. The local TUN inbound retains its existing CUBIC default and
+congestion selector. The remote profile starts with a 256KiB receive window
+and permits 6MiB of queued send data per connection.
 
-The packet bridge copies directly between borrowed engine and stack buffers.
-It acknowledges each copy before releasing the writer, including during Close;
-it has no per-packet allocation or retained packet queue. Both engine TUN APIs
-retain their required prefix/suffix space and offset handling. Unconnected UDP
-sockets and wildcard TCP listeners support IPv4 and IPv6 on one ephemeral port.
+| Outbound | Stack attachment |
+| --- | --- |
+| WireGuard, AmneziaWG, MASQUE | Shared IP packet adapter |
+| GlobalProtect (SSL/ESP), OpenVPN | Native protocol session to IP adapter |
+| SoftEther | Existing DHCP/ARP/NDP Ethernet handling to IP adapter |
+| L2TPv2 | PPP IP packets to IP adapter |
+| L2TPv3 | Ethernet framing and bounded ARP/NDP resolution to IP adapter |
+| AnyConnect, Fortinet, IKEv2, SSTP | Shared VPNKit packet bridge |
+| Tailscale | Custom tsnet TUN; assigned addresses configure the IP adapter |
 
-The existing `wireguard.NetTun` factory remains available to the other VPN
-implementations. OpenVPN, GlobalProtect, SoftEther, L2TP and VPNKit retain
-their gVisor transport and concrete socket types.
+Existing credentials, encryption, peer configuration and upstream proxy
+transports are unchanged. Remote-tunnel IPv4 MTU is 576..65535; configuring an IPv6 address
+requires at least 1280. Each protocol may enforce a narrower negotiated range.
+Zero retains the adapter's existing default (1500, or 1400 for AmneziaWG).
+IPv4-mapped `net.IP` values are normalized at the socket adapter boundary.
 
-Local interoperability tests use two encrypted WireGuard engines over loopback,
-with gVisor as the independent peer stack. They cover IPv4/IPv6 bulk TCP,
-half-close, UDP across multiple destinations and both families, cancellation,
-and passive ephemeral listeners. AmneziaWG's TUN adapter has a dual-stack
-offset/ownership regression test. External AmneziaWG servers and remote MASQUE
-services still require separate integration qualification.
+The shared IP packet bridge copies directly between borrowed engine and stack
+buffers. It acknowledges each copy before releasing the writer, including
+during Close; it has no per-packet allocation or retained packet queue.
+Both WireGuard engine TUN APIs retain their required prefix/suffix space and
+offset handling. Unconnected UDP sockets and wildcard TCP listeners support
+IPv4 and IPv6 on one ephemeral port. L2TPv3 bounds its Ethernet output queue,
+neighbor table and unresolved IP packet queue to 256 entries each; resolution
+retries three times and expires idle mappings after one minute.
+
+Tailscale still owns authentication, peer/ACL updates, route validation,
+MagicDNS, and encryption. Application dials and the yuhaiin metrics listener
+use lightweight. The tsnet SDK still initializes its internal gVisor services;
+those SDK internals and the selectable legacy TUN inbound are separate from
+the migrated VPN outbound application sockets. Destination route checks and
+MagicDNS resolution remain in place for every Tailscale UDP destination.
+
+The previous WireGuard and L2TPv3 gVisor adapters now exist only in test files
+as independent peers. WireGuard interop exercises two encrypted engines and
+covers IPv4/IPv6 bulk TCP, half-close, multiple UDP destinations, cancellation,
+and passive ephemeral listeners. L2TPv3 adapter tests exercise independent
+Ethernet peers with minimum IPv4 MTU, dual stack, routed destinations,
+link-local IPv6 gateways and fragmented UDP in both directions. Tailscale's
+local control/DERP test checks that outbound sockets are lightweight while
+its peer listeners use the SDK's independent stack. Existing official-server
+interop workflows also run when the shared VPN adapter or core changes.
 
 Peer TCP resets retain the standard `syscall.ECONNRESET` cause. Relay logs
 classify these expected disconnects at Debug, while other failures remain Error.

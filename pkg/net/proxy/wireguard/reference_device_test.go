@@ -23,7 +23,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 )
 
-type NetTun struct {
+type referenceNetTun struct {
 	ep           *gvisor.Endpoint
 	stack        *stack.Stack
 	events       chan tun.Event
@@ -33,7 +33,7 @@ type NetTun struct {
 	closeOnce sync.Once
 }
 
-func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*NetTun, error) {
+func createReferenceNetTUN(localAddresses []netip.Prefix, mtu int) (*referenceNetTun, error) {
 	opts := stack.Options{
 		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol, ipv6.NewProtocol},
 		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol, icmp.NewProtocol4, icmp.NewProtocol6},
@@ -41,7 +41,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*NetTun, error) {
 	}
 
 	rwc := NewChannelDevice(context.TODO(), mtu)
-	dev := &NetTun{
+	dev := &referenceNetTun{
 		ep:     gvisor.NewEndpoint(device.NewDevice(rwc, 0, mtu, false)),
 		dev:    rwc,
 		stack:  stack.New(opts),
@@ -108,35 +108,13 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*NetTun, error) {
 }
 
 // convert endpoint string to netip.Addr
-func ParseEndpoints(addresses []string) ([]netip.Prefix, error) {
-	endpoints := make([]netip.Prefix, 0, len(addresses))
-	for _, str := range addresses {
-		prefix, err := netip.ParsePrefix(str)
-		if err != nil {
-			addr, err := netip.ParseAddr(str)
-			if err != nil {
-				return nil, err
-			}
 
-			if addr.Is4() {
-				prefix = netip.PrefixFrom(addr, 32)
-			} else {
-				prefix = netip.PrefixFrom(addr, 128)
-			}
-		}
+func (tun *referenceNetTun) Name() (string, error)    { return "go", nil }
+func (tun *referenceNetTun) File() *os.File           { return nil }
+func (tun *referenceNetTun) Events() <-chan tun.Event { return tun.events }
+func (tun *referenceNetTun) BatchSize() int           { return 1 }
 
-		endpoints = append(endpoints, prefix)
-	}
-
-	return endpoints, nil
-}
-
-func (tun *NetTun) Name() (string, error)    { return "go", nil }
-func (tun *NetTun) File() *os.File           { return nil }
-func (tun *NetTun) Events() <-chan tun.Event { return tun.events }
-func (tun *NetTun) BatchSize() int           { return 1 }
-
-func (t *NetTun) Read(slab []byte, packets []tun.ReadPacket) (int, error) {
+func (t *referenceNetTun) Read(slab []byte, packets []tun.ReadPacket) (int, error) {
 	if len(packets) == 0 || len(slab) < 2*tun.ReadPacketSpacing {
 		return 0, tun.ErrTooManySegments
 	}
@@ -149,7 +127,7 @@ func (t *NetTun) Read(slab []byte, packets []tun.ReadPacket) (int, error) {
 	return 1, nil
 }
 
-func (tun *NetTun) Write(buffers [][]byte, offset int) (int, error) {
+func (tun *referenceNetTun) Write(buffers [][]byte, offset int) (int, error) {
 	n := 0
 	for _, buf := range buffers {
 		packet := buf[offset:]
@@ -173,11 +151,11 @@ func (tun *NetTun) Write(buffers [][]byte, offset int) (int, error) {
 
 // ReadPacket is the common IP packet ingress boundary used by different
 // WireGuard engines. It avoids coupling gVisor to their incompatible TUN APIs.
-func (tun *NetTun) ReadPacket(buf []byte) (int, error) { return tun.dev.Inbound(buf) }
+func (tun *referenceNetTun) ReadPacket(buf []byte) (int, error) { return tun.dev.Inbound(buf) }
 
-func (tun *NetTun) Flush() error { return nil }
+func (tun *referenceNetTun) Flush() error { return nil }
 
-func (tun *NetTun) Close() error {
+func (tun *referenceNetTun) Close() error {
 	tun.closeOnce.Do(func() {
 		// Drain packet dispatch before RemoveNIC takes the stack lock.
 		// Detaching the endpoint there waits for readers that may need
@@ -193,9 +171,9 @@ func (tun *NetTun) Close() error {
 	return nil
 }
 
-func (tun *NetTun) MTU() (int, error) { return int(tun.ep.MTU()), nil }
+func (tun *referenceNetTun) MTU() (int, error) { return int(tun.ep.MTU()), nil }
 
-func (n *NetTun) toFullAddr(ip net.IP, port int) (*tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
+func (n *referenceNetTun) toFullAddr(ip net.IP, port int) (*tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
 	var protoNumber tcpip.NetworkProtocolNumber
 	if ip.To4() == nil {
 		protoNumber = ipv6.ProtocolNumber
@@ -211,7 +189,7 @@ func (n *NetTun) toFullAddr(ip net.IP, port int) (*tcpip.FullAddress, tcpip.Netw
 	}, protoNumber
 }
 
-func (net *NetTun) DialContextTCP(ctx context.Context, addr *net.TCPAddr) (*gonet.TCPConn, error) {
+func (net *referenceNetTun) DialContextTCP(ctx context.Context, addr *net.TCPAddr) (*gonet.TCPConn, error) {
 	if addr == nil {
 		return nil, errors.New("addr is nil")
 	}
@@ -221,7 +199,7 @@ func (net *NetTun) DialContextTCP(ctx context.Context, addr *net.TCPAddr) (*gone
 	return gonet.DialContextTCP(ctx, net.stack, *gonetAddr, protoNumber)
 }
 
-func (net *NetTun) ListenTCP(addr *net.TCPAddr) (*gonet.TCPListener, error) {
+func (net *referenceNetTun) ListenTCP(addr *net.TCPAddr) (*gonet.TCPListener, error) {
 	if addr == nil {
 		pn := ipv4.ProtocolNumber
 		if net.HasV6() {
@@ -234,7 +212,7 @@ func (net *NetTun) ListenTCP(addr *net.TCPAddr) (*gonet.TCPListener, error) {
 	return gonet.ListenTCP(net.stack, *gonetAddr, protoNumber)
 }
 
-func (n *NetTun) DialUDP(laddr, raddr *net.UDPAddr) (*gonet.UDPConn, error) {
+func (n *referenceNetTun) DialUDP(laddr, raddr *net.UDPAddr) (*gonet.UDPConn, error) {
 	var pn tcpip.NetworkProtocolNumber
 	var la, ra *tcpip.FullAddress
 	if laddr != nil {
@@ -260,5 +238,5 @@ func (n *NetTun) DialUDP(laddr, raddr *net.UDPAddr) (*gonet.UDPConn, error) {
 	return gonet.DialUDP(n.stack, la, ra, pn)
 }
 
-func (n *NetTun) HasV4() bool { return n.hasV4 }
-func (n *NetTun) HasV6() bool { return n.hasV6 }
+func (n *referenceNetTun) HasV4() bool { return n.hasV4 }
+func (n *referenceNetTun) HasV6() bool { return n.hasV6 }
