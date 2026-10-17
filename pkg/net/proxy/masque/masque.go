@@ -81,6 +81,7 @@ type Conn struct {
 	tr            *http3.Transport
 	h3conn        *http3.ClientConn
 	ipconn        *connectip.Conn
+	outbound      cloudflareDatagramSender
 }
 
 func (c *Conn) Close() error {
@@ -198,7 +199,7 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 
 	mConn.h3conn = hconn
 
-	ipConn, resp, err := Dial(ctx, hconn, ConnectURI, "cf-connect-ip")
+	ipConn, resp, stream, err := dialCloudflare(ctx, hconn, ConnectURI, "cf-connect-ip")
 	if err != nil {
 		_ = mConn.Close()
 		if strings.Contains(err.Error(), "tls: access denied") {
@@ -208,6 +209,7 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 	}
 	// Own the CONNECT-IP stream immediately; route advertisement can fail too.
 	mConn.ipconn = ipConn
+	mConn.outbound = stream
 	if resp.StatusCode != http.StatusOK {
 		_ = mConn.Close()
 		return nil, fmt.Errorf("failed to dial connect-ip: %s", resp.Status)
@@ -331,7 +333,7 @@ func (m *Masque) Start() error {
 			return ctx.Err()
 
 		case buf := <-m.send:
-			icmp, err := conn.ipconn.WritePacket(buf)
+			icmp, err := sendCloudflareIPPacket(conn.outbound, buf)
 			pool.PutBytes(buf)
 			if err != nil {
 				if _, ok := errors.AsType[*connectip.CloseError](err); ok {
