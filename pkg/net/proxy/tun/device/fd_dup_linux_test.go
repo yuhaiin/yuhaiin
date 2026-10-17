@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"golang.org/x/sys/unix"
 )
 
@@ -81,5 +82,26 @@ func TestBorrowedFDDuplicationIsCloexecAndRejectsClosedFD(t *testing.T) {
 	}
 	if _, err := NewFd(-1, 1500); !errors.Is(err, unix.EBADF) {
 		t.Fatalf("invalid borrowed FD error = %v, want EBADF", err)
+	}
+}
+
+func TestPacketWriterFailedInspectLeavesBorrowedFDOpen(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	_, err = OpenPacketWriter(netlink.TunScheme{Scheme: "fd", Fd: int(reader.Fd())}, 1500)
+	if err == nil {
+		t.Fatal("pipe must be rejected by TUNGETIFF")
+	}
+	if _, err := writer.Write([]byte{'b'}); err != nil {
+		t.Fatalf("failed TUN inspection closed caller fd: %v", err)
+	}
+	buffer := make([]byte, 1)
+	if _, err := reader.Read(buffer); err != nil || buffer[0] != 'b' {
+		t.Fatalf("borrowed fd invalid after TUN rejection: data=%q err=%v", buffer, err)
 	}
 }
