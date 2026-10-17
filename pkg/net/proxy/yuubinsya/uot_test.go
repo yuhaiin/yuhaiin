@@ -1,6 +1,7 @@
 package yuubinsya
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"io"
@@ -175,6 +176,58 @@ func BenchmarkUoT_Latency(b *testing.B) {
 					b.Fatal(err)
 				}
 				<-received
+			}
+		})
+	}
+}
+
+func TestWriteBackContextInterruptsBlockedTransport(t *testing.T) {
+	for _, coalesce := range []bool{false, true} {
+		t.Run(fmt.Sprint(coalesce), func(t *testing.T) {
+			local, remote := net.Pipe()
+			defer remote.Close()
+			writer := &notifyWriteConn{Conn: local, started: make(chan struct{})}
+			pc := newPacketConn(pool.NewBufioConnSize(writer, 4096), nil, coalesce)
+			defer pc.Close()
+			addr := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 53}
+			if coalesce {
+				if _, err := pc.WriteTo([]byte("first"), addr); err != nil {
+					t.Fatal(err)
+				}
+				select {
+				case <-writer.started:
+				case <-time.After(time.Second):
+					t.Fatal("flusher did not start")
+				}
+				for range cap(pc.coalesceChan) {
+					if _, err := pc.WriteTo([]byte("queued"), addr); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { _, err := pc.WriteBackContext(ctx, []byte("blocked"), addr); done <- err }()
+			if !coalesce {
+				select {
+				case <-writer.started:
+				case <-time.After(time.Second):
+					t.Fatal("write did not start")
+				}
+			}
+			cancel()
+			select {
+			case err := <-done:
+				if err == nil {
+					t.Fatal("canceled write succeeded")
+				}
+			case <-time.After(time.Second):
+				t.Fatal("cancel did not interrupt write")
+			}
+			// Close joins the cancellation callback's transport cleanup too.
+			if err := pc.Close(); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}

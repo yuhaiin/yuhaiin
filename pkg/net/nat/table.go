@@ -2,6 +2,7 @@ package nat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -26,7 +27,7 @@ func udpIdleTimeout() time.Duration {
 
 type Table struct {
 	dialer  netapi.Proxy
-	sinffer netapi.PacketSniffer
+	sniffer netapi.PacketSniffer
 
 	cleanerWake   chan struct{}
 	sourceControl syncmap.SyncMap[uint64, *SourceControl]
@@ -40,7 +41,7 @@ type Table struct {
 func NewTable(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *Table {
 	t := &Table{
 		dialer:      dialer,
-		sinffer:     sniffer,
+		sniffer:     sniffer,
 		cleanerWake: make(chan struct{}, 1),
 		stop:        make(chan struct{}),
 		done:        make(chan struct{}),
@@ -82,8 +83,7 @@ func (t *Table) runCleaner(interval func() time.Duration) {
 			timerC = nil
 			idleTimeout := interval()
 			for k, v := range t.sourceControl.Range {
-				idleTime, ok := v.IsIdle()
-				if ok && time.Since(idleTime) > idleTimeout && t.sourceControl.CompareAndDelete(k, v) {
+				if v.retireIdle(idleTimeout) && t.sourceControl.CompareAndDelete(k, v) {
 					if err := v.Close(); err != nil {
 						log.Error("close source control failed", "err", err)
 					}
@@ -121,17 +121,22 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 	if u.closed.Load() {
 		return fmt.Errorf("udp nat table: %w", net.ErrClosed)
 	}
-	r, loaded, _ := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) {
-		return NewSourceChan(u.sinffer, u.dialer), nil
-	})
-
-	if !loaded {
-		select {
-		case u.cleanerWake <- struct{}{}:
-		default:
+	for {
+		r, loaded, _ := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) { return NewSourceChan(u.sniffer, u.dialer), nil })
+		if !loaded {
+			select {
+			case u.cleanerWake <- struct{}{}:
+			default:
+			}
 		}
+		err := r.WritePacket(ctx, pkt)
+		if !errors.Is(err, context.Canceled) || ctx.Err() != nil {
+			return err
+		}
+		// Cleanup can retire a control between lookup and admission. Retry the
+		// same source mapping; never add the destination to the full-cone key.
+		u.sourceControl.CompareAndDelete(key, r)
 	}
-	return r.WritePacket(ctx, pkt)
 }
 
 func (u *Table) Close() error {

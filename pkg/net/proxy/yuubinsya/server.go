@@ -167,9 +167,7 @@ func (y *server) handle(conn net.Conn) error {
 				c.RemoteAddr(),
 				dst,
 				pool.Clone(buf[:n]),
-				netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
-					return pc.WriteTo(b, addr)
-				}),
+				pc,
 				netapi.WithMigrateID(header.MigrateID),
 			))
 		}
