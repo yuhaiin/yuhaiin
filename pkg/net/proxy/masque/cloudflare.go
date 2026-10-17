@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -45,25 +44,6 @@ var Headers = map[string]string{
 }
 
 func PrepareTlsConfig(privKey *ecdsa.PrivateKey, peerPubKey *ecdsa.PublicKey, cert [][]byte, sni string) (*tls.Config, error) {
-	verfiyCert := func(cert *x509.Certificate) error {
-		if _, ok := cert.PublicKey.(*ecdsa.PublicKey); !ok {
-			// we only support ECDSA
-			// TODO: don't hardcode cert type in the future
-			// as backend can start using different cert types
-			return x509.ErrUnsupportedAlgorithm
-		}
-
-		if !cert.PublicKey.(*ecdsa.PublicKey).Equal(peerPubKey) {
-			// reason is incorrect, but the best I could figure
-			// detail explains the actual reason
-
-			// 10 is NoValidChains, but we support go1.22 where it's not defined
-			return x509.CertificateInvalidError{Cert: cert, Reason: 10, Detail: "remote endpoint has a different public key than what we trust in config.json"}
-		}
-
-		return nil
-	}
-
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{
 			{
@@ -81,21 +61,27 @@ func PrepareTlsConfig(privKey *ecdsa.PrivateKey, peerPubKey *ecdsa.PublicKey, ce
 				return nil
 			}
 
-			var err error
-			for _, v := range rawCerts {
-				cert, er := x509.ParseCertificate(v)
-				if er != nil {
-					err = errors.Join(err, er)
-					continue
-				}
-
-				if er = verfiyCert(cert); er != nil {
-					err = errors.Join(err, er)
-					continue
-				}
+			cert, err := x509.ParseCertificate(rawCerts[0])
+			if err != nil {
+				return err
 			}
 
-			return err
+			if _, ok := cert.PublicKey.(*ecdsa.PublicKey); !ok {
+				// we only support ECDSA
+				// TODO: don't hardcode cert type in the future
+				// as backend can start using different cert types
+				return x509.ErrUnsupportedAlgorithm
+			}
+
+			if !cert.PublicKey.(*ecdsa.PublicKey).Equal(peerPubKey) {
+				// reason is incorrect, but the best I could figure
+				// detail explains the actual reason
+
+				//10 is NoValidChains, but we support go1.22 where it's not defined
+				return x509.CertificateInvalidError{Cert: cert, Reason: 10, Detail: "remote endpoint has a different public key than what we trust in config.json"}
+			}
+
+			return nil
 		},
 	}
 

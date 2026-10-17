@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"strings"
 	"sync"
 	"time"
 
@@ -74,11 +75,12 @@ func NewMasque(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAd
 }
 
 type Conn struct {
-	packetConn net.PacketConn
-	quicConn   *quic.Conn
-	tr         *http3.Transport
-	h3conn     *http3.ClientConn
-	ipconn     *connectip.Conn
+	packetConn    net.PacketConn
+	quicTransport *quic.Transport
+	quicConn      *quic.Conn
+	tr            *http3.Transport
+	h3conn        *http3.ClientConn
+	ipconn        *connectip.Conn
 }
 
 func (c *Conn) Close() error {
@@ -107,6 +109,12 @@ func (c *Conn) Close() error {
 		}
 	}
 
+	if c.quicTransport != nil {
+		if er := c.quicTransport.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
+	}
+
 	if c.packetConn != nil {
 		if er := c.packetConn.Close(); er != nil {
 			err = errors.Join(err, er)
@@ -116,7 +124,36 @@ func (c *Conn) Close() error {
 	return err
 }
 
+// Connect retries the specific transient HTTP/3 framing failure observed by usque.
+// Other failures (especially authentication failures) are returned immediately.
 func (m *Masque) Connect(ctx context.Context) (*Conn, error) {
+	var lastErr error
+	for range 2 {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		conn, err := m.connectOnce(ctx)
+		if err == nil {
+			return conn, nil
+		}
+		lastErr = err
+		if !isRetryableHTTP3ConnectFailure(err) {
+			break
+		}
+	}
+	return nil, lastErr
+}
+
+func isRetryableHTTP3ConnectFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	return strings.Contains(message, "failed to read response") &&
+		strings.Contains(message, "PROTOCOL_VIOLATION")
+}
+
+func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 	mConn := &Conn{}
 
 	conn, err := dialer.ListenPacket(ctx, "udp", "")
@@ -126,10 +163,15 @@ func (m *Masque) Connect(ctx context.Context) (*Conn, error) {
 
 	mConn.packetConn = conn
 
-	quicConn, err := quic.Dial(ctx, conn, m.addr, m.TlsConfig, &quic.Config{
-		EnableDatagrams:   true,
-		InitialPacketSize: 1242,
-		KeepAlivePeriod:   time.Second * 30,
+	// Cloudflare's MASQUE endpoint intermittently rejects shorter source CIDs.
+	// Match the upstream usque transport's 20-byte connection ID.
+	quicTransport := &quic.Transport{Conn: conn, ConnectionIDLength: 20}
+	mConn.quicTransport = quicTransport
+	quicConn, err := quicTransport.Dial(ctx, m.addr, m.TlsConfig, &quic.Config{
+		EnableDatagrams:         true,
+		InitialPacketSize:       1242,
+		DisablePathMTUDiscovery: true,
+		KeepAlivePeriod:         30 * time.Second,
 	})
 	if err != nil {
 		_ = mConn.Close()
@@ -159,10 +201,16 @@ func (m *Masque) Connect(ctx context.Context) (*Conn, error) {
 	ipConn, resp, err := Dial(ctx, hconn, ConnectURI, "cf-connect-ip")
 	if err != nil {
 		_ = mConn.Close()
-		if err.Error() == "CRYPTO_ERROR 0x131 (remote): tls: access denied" {
+		if strings.Contains(err.Error(), "tls: access denied") {
 			return nil, errors.New("login failed! Please double-check if your tls key and cert is enrolled in the Cloudflare Access service")
 		}
-		return nil, fmt.Errorf("failed to dial connect-ip: %v", err)
+		return nil, fmt.Errorf("failed to dial connect-ip: %w", err)
+	}
+	// Own the CONNECT-IP stream immediately; route advertisement can fail too.
+	mConn.ipconn = ipConn
+	if resp.StatusCode != http.StatusOK {
+		_ = mConn.Close()
+		return nil, fmt.Errorf("failed to dial connect-ip: %s", resp.Status)
 	}
 
 	err = ipConn.AdvertiseRoute([]connectip.IPRoute{
@@ -185,13 +233,6 @@ func (m *Masque) Connect(ctx context.Context) (*Conn, error) {
 	if err != nil {
 		_ = mConn.Close()
 		return nil, err
-	}
-
-	mConn.ipconn = ipConn
-
-	if resp.StatusCode != http.StatusOK {
-		_ = mConn.Close()
-		return nil, fmt.Errorf("failed to dial connect-ip: %v", resp.Status)
 	}
 
 	return mConn, nil
@@ -267,13 +308,18 @@ func (m *Masque) Start() error {
 					return
 				}
 
-				log.Warn("Error reading from IP connection, continuing...", "err", err)
-				continue
+				// Receive errors are not necessarily transient. Reconnect instead
+				// of spinning forever on a dead QUIC session.
+				if ctx.Err() == nil {
+					log.Warn("reading from IP connection failed, reconnecting", "err", err)
+				}
+				return
 			}
 
 			select {
 			case m.receive <- buf[:n]:
 			case <-ctx.Done():
+				pool.PutBytes(buf)
 				return
 			}
 		}
@@ -322,9 +368,12 @@ func (m *Masque) init() {
 					log.Error("start masque failed", "err", err)
 				}
 
-				log.Info("check masque disconnected, retrying in 5 seconds")
-
-				time.Sleep(time.Second * 5)
+				select {
+				case <-m.ctx.Done():
+					return
+				case <-time.After(5 * time.Second):
+					log.Info("masque reconnecting")
+				}
 			}
 		}()
 	})
@@ -342,12 +391,16 @@ func (m *Masque) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 }
 
 func (m *Masque) PacketConn(ctx context.Context, a netapi.Address) (net.PacketConn, error) {
+	if err := m.ctx.Err(); err != nil {
+		return nil, net.ErrClosed
+	}
+	m.init()
 	pc, err := m.dev.DialUDP(nil, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return wireguard.NewWrapGoNetUdpConn(context.WithoutCancel(context.Background()), pc), nil
+	return wireguard.NewWrapGoNetUdpConn(context.WithoutCancel(ctx), pc), nil
 }
 
 func (m *Masque) Close() error {
