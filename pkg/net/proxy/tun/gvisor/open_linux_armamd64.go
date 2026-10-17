@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	vnetlink "github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip/link/fdbased"
@@ -115,11 +116,22 @@ func init() {
 	openFD = func(sc netlink.TunScheme, mtu int) (stack.LinkEndpoint, error) {
 		switch sc.Scheme {
 		case "fd":
-			return fdbased.New(&fdbased.Options{
-				FDs:               []int{sc.Fd},
+			// fdbased.New borrows its FDs. Keep Android's original FD open
+			// independently, and release only our duplicate on endpoint.Close.
+			owned, err := device.DuplicateBorrowedFD(sc.Fd)
+			if err != nil {
+				return nil, fmt.Errorf("duplicate fdbased TUN fd: %w", err)
+			}
+			endpoint, err := fdbased.New(&fdbased.Options{
+				FDs:               []int{owned},
 				MTU:               uint32(mtu),
 				RXChecksumOffload: true,
 			})
+			if err != nil {
+				_ = unix.Close(owned)
+				return nil, err
+			}
+			return &fdBasedEndpoint{LinkEndpoint: endpoint, fds: []int{owned}}, nil
 		case "tun":
 			// fdbased current not support gso, so open new tun direct instead of wireguard
 			//

@@ -14,9 +14,15 @@ type Fd struct {
 
 var _ netlink.Tun = (*Fd)(nil)
 
+// NewFd borrows the caller's descriptor. The returned device owns a duplicate
+// on Linux, allowing Android's ParcelFileDescriptor to close independently.
 func NewFd(fd int, mtu int) (*Fd, error) {
+	owned, err := duplicateTUNFD(fd)
+	if err != nil {
+		return nil, fmt.Errorf("duplicate borrowed tun fd %d: %w", fd, err)
+	}
 	return &Fd{
-		fd:  os.NewFile(uintptr(fd), fmt.Sprintf("fd-%d", fd)),
+		fd:  os.NewFile(uintptr(owned), fmt.Sprintf("fd-%d", fd)),
 		mtu: mtu,
 	}, nil
 }
