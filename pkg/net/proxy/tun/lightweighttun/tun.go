@@ -33,6 +33,13 @@ func Validate(o device.TunConfig) error {
 	}
 	return lightweight.ValidateConfig(lightweight.Config{MTU: int(o.MTU), CongestionControl: o.CongestionControl})
 }
+func stackConfig(o *device.Opt) lightweight.Config {
+	var addresses []netip.Addr
+	for _, a := range append(append([]netip.Prefix(nil), o.Inet4Address...), o.Inet6Address...) {
+		addresses = append(addresses, a.Addr())
+	}
+	return lightweight.Config{Addresses: addresses, MTU: o.MTU, CongestionControl: o.Tun.CongestionControl, Promiscuous: true, ForwardUDP: true, ForwardPing: forwardPing}
+}
 func New(o *device.Opt) (netapi.Accepter, error) {
 	if err := Validate(o.Tun); err != nil {
 		return nil, err
@@ -54,11 +61,7 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 		_ = d.Close()
 		return nil, err
 	}
-	var addresses []netip.Addr
-	for _, a := range append(append([]netip.Prefix(nil), o.Inet4Address...), o.Inet6Address...) {
-		addresses = append(addresses, a.Addr())
-	}
-	stack, err := lightweight.New(lightweight.Config{Addresses: addresses, MTU: o.MTU, CongestionControl: o.Tun.CongestionControl, Promiscuous: true, ForwardUDP: true}, p)
+	stack, err := lightweight.New(stackConfig(o), p)
 	if err != nil {
 		_ = p.Close()
 		return nil, err
@@ -81,6 +84,11 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 	s := &server{stack: stack, options: o, listener: l, streams: make(chan struct{}, 8192)}
 	s.wg.Go(s.tcpLoop)
 	s.wg.Go(s.udpLoop)
+	if forwardPing {
+		for range pingWorkers {
+			s.wg.Go(s.pingLoop)
+		}
+	}
 	return s, nil
 }
 func (s *server) Interface() string { return s.options.Interface.Name }

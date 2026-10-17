@@ -230,6 +230,29 @@ local stack response, like the existing gVisor TUN default; it does not measure
 remote destination RTT. UDP reports associated ICMP errors to its connected
 reader; a per-destination UDP PMTU cache is not implemented.
 
+The core also has an opt-in `ForwardPing` path for nonlocal Echo requests.
+`ReceivePing` transfers an owned request from a queue capped at 64 entries
+(and the configured `QueuePackets` limit). Queued payloads and request metadata
+count against the global memory budget. The receiver owns retained input after
+handoff. `PingRequest.Reply` emits at most once, preserving the Echo identifier,
+sequence and payload on success; an error produces a correctly quoted ICMP
+Destination Unreachable. Close drains queued requests and rejects late replies.
+
+The TUN adapter's corresponding `HandlePing` integration is prepared behind
+`const forwardPing = false`. This gate controls both core interception and
+startup of eight bounded workers. It has no user configuration or UI toggle,
+and production still answers Echo locally without invoking routing or outbound
+`Ping`. Explicit tests enable the prepared path, including local-prefix and
+loopback bypass, upstream failures and delayed callbacks. Outbound `Ping`
+implementations are unchanged; enabling the gate later requires separately
+checking their support and behavior.
+
+Native TUN wrappers own and drain device events so repeated stack replacements
+do not strand native link listeners. Closing a wrapper interrupts reads and
+releases its slab. The legacy gVisor ingress also revokes UDP reply writers on
+close: callbacks retained by shared NAT sessions no longer retain its stack or
+device, and late replies return `net.ErrClosed`.
+
 ## Configuration and compatibility
 
 The current inbound contract uses JSON, not a new protobuf schema. Opt in with:

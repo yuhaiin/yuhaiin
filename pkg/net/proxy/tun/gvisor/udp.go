@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -27,12 +28,15 @@ func (f *tunServer) HandleUDP(id stack.TransportEndpointID, pkt *stack.PacketBuf
 		return true
 	}
 
+	// Capture only the revocable writer, not the server and its device. NAT
+	// sessions can outlive an inbound replacement or a switch of packet stacks.
+	writer := f.udpReply
 	f.handler.HandlePacket(netapi.NewPacket(
 		netapi.ParseIPAddr("udp", id.RemoteAddress.AsSlice(), srcPort),
 		netapi.ParseIPAddr("udp", id.LocalAddress.AsSlice(), dstPort),
 		buf.Bytes,
 		netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
-			return f.WriteUDPBack(b, id.RemoteAddress, srcPort, addr)
+			return writer.write(b, id.RemoteAddress, srcPort, addr)
 		}),
 		netapi.WithDNSRequest(f.IsDNSRequest(dstPort, id.LocalAddress)),
 	))
@@ -40,7 +44,33 @@ func (f *tunServer) HandleUDP(id stack.TransportEndpointID, pkt *stack.PacketBuf
 	return true
 }
 
+type udpReply struct {
+	stack atomic.Pointer[stack.Stack]
+	nicID tcpip.NICID
+	mtu   int
+}
+
+func newUDPReply(s *stack.Stack, nicID tcpip.NICID, mtu int) *udpReply {
+	w := &udpReply{nicID: nicID, mtu: mtu}
+	w.stack.Store(s)
+	return w
+}
+
 func (w *tunServer) WriteUDPBack(data []byte, sourceAddr tcpip.Address, sourcePort uint16, from net.Addr) (int, error) {
+	return w.udpReply.write(data, sourceAddr, sourcePort, from)
+}
+
+func (w *udpReply) close() {
+	w.stack.Store(nil)
+}
+
+func (w *udpReply) write(data []byte, sourceAddr tcpip.Address, sourcePort uint16, from net.Addr) (int, error) {
+	// Do not hold a shutdown lock across device I/O. Closing the endpoint
+	// must be able to interrupt a reply already blocked in WriteRawPacket.
+	s := w.stack.Load()
+	if s == nil {
+		return 0, net.ErrClosed
+	}
 	tuple, err := tun2socket.ToTuple(sourceAddr, sourcePort, from)
 	if err != nil {
 		return 0, err
@@ -60,13 +90,16 @@ func (w *tunServer) WriteUDPBack(data []byte, sourceAddr tcpip.Address, sourcePo
 		sourceNetwork = header.IPv4ProtocolNumber
 	}
 
-	buf, err := tun2socket.GenerateUDPPacket(int(w.ep.MTU()), 0, data, tuple)
+	buf, err := tun2socket.GenerateUDPPacket(w.mtu, 0, data, tuple)
 	if err != nil {
 		return 0, err
 	}
 
-	gerr := w.stack.WriteRawPacket(w.nicID, sourceNetwork, buffer.MakeWithData(buf))
+	gerr := s.WriteRawPacket(w.nicID, sourceNetwork, buffer.MakeWithData(buf))
 	if gerr != nil {
+		if w.stack.Load() == nil {
+			return 0, net.ErrClosed
+		}
 		return 0, fmt.Errorf("failed to write packet: %v", gerr)
 	}
 

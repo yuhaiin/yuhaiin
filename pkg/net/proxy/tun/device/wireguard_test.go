@@ -32,7 +32,8 @@ func TestDeviceReadOverflowIsRecoverable(t *testing.T) {
 	}
 }
 
-func (d *slabTestDevice) BatchSize() int { return len(d.payloads) }
+func (d *slabTestDevice) BatchSize() int           { return len(d.payloads) }
+func (d *slabTestDevice) Events() <-chan wun.Event { return nil }
 
 func (d *slabTestDevice) Read(slab []byte, packets []wun.ReadPacket) (int, error) {
 	offset := wun.ReadPacketSpacing

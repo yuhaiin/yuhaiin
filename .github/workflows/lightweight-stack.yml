@@ -58,9 +58,13 @@ jobs:
       - name: Build independent Linux kernel interoperability suite
         env:
           CGO_ENABLED: '1'
-        run: go test -race -c -tags lightweight_kernel -o /tmp/lightweight-kernel.test ./pkg/net/proxy/tun/lightweight
+        run: |
+          go test -race -c -tags lightweight_kernel -o /tmp/lightweight-kernel.test ./pkg/net/proxy/tun/lightweight
+          go test -race -c -tags lightweight_kernel -o /tmp/lightweight-device.test ./pkg/net/proxy/tun/device
       - name: TCP, UDP fragments and ICMP in isolated network namespace
         run: sudo unshare --net /tmp/lightweight-kernel.test -test.run '^TestLinuxKernel' -test.v -test.timeout=90s
+      - name: Native TUN event and buffer cleanup after repeated shutdown
+        run: sudo unshare --net /tmp/lightweight-device.test -test.run '^TestLinuxKernelDeviceLifecycle$' -test.v -test.timeout=30s
 
   portable-core:
     runs-on: ubuntu-latest
