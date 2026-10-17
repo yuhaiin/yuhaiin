@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/tls"
 	"crypto/x509"
 	"math/big"
 	"testing"
@@ -55,7 +54,7 @@ func TestPrepareTLSConfigPeerPinning(t *testing.T) {
 		certs   [][]byte
 		wantErr bool
 	}{
-		{"no peer cert", nil, true},
+		{"no peer cert (usque behavior)", nil, false},
 		{"matching leaf", [][]byte{trustedCert}, false},
 		{"matching leaf with unrelated intermediate", [][]byte{trustedCert, otherCert}, false},
 		{"untrusted leaf", [][]byte{otherCert}, true},
@@ -71,32 +70,23 @@ func TestPrepareTLSConfigPeerPinning(t *testing.T) {
 	}
 }
 
-func TestPrepareTLSConfigRefreshesClientCertificate(t *testing.T) {
+func TestPrepareTLSConfigUsesStaticClientCertificate(t *testing.T) {
 	clientKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := PrepareTlsConfig(clientKey, &clientKey.PublicKey, [][]byte{testMASQUECertificate(t, clientKey)}, ConnectSNI2)
+	originalCert := testMASQUECertificate(t, clientKey)
+	cfg, err := PrepareTlsConfig(clientKey, &clientKey.PublicKey, [][]byte{originalCert}, ConnectSNI2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.GetClientCertificate == nil {
-		t.Fatal("client certificate must be generated for every handshake")
+	if cfg.GetClientCertificate != nil {
+		t.Fatal("usque uses a static client certificate, not a refresh callback")
 	}
-	for range 2 {
-		cert, err := cfg.GetClientCertificate(&tls.CertificateRequestInfo{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(cert.Certificate) == 0 {
-			t.Fatal("empty client certificate chain")
-		}
-		leaf, err := x509.ParseCertificate(cert.Certificate[0])
-		if err != nil {
-			t.Fatal(err)
-		}
-		if time.Until(leaf.NotAfter) < 23*time.Hour {
-			t.Fatalf("certificate expires too soon: %v", leaf.NotAfter)
-		}
+	if len(cfg.Certificates) != 1 || len(cfg.Certificates[0].Certificate) != 1 {
+		t.Fatal("expected exactly one configured client certificate")
+	}
+	if string(cfg.Certificates[0].Certificate[0]) != string(originalCert) {
+		t.Fatal("configured client certificate differs from the generated certificate")
 	}
 }
