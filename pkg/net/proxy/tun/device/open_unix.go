@@ -25,7 +25,17 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Tun, error) {
 	var err error
 	switch sc.Scheme {
 	case "fd":
-		device, err = wun.CreateTUNFromFile(os.NewFile(uintptr(sc.Fd), strconv.Itoa(sc.Fd)), mtu)
+		// The native TUN owns its file, including on initialization failure.
+		// Keep the caller's descriptor available for reconnects.
+		owned, dupErr := duplicateTUNFD(sc.Fd)
+		if dupErr != nil {
+			return nil, fmt.Errorf("duplicate borrowed tun fd %d: %w", sc.Fd, dupErr)
+		}
+		file := os.NewFile(uintptr(owned), strconv.Itoa(sc.Fd))
+		device, err = wun.CreateTUNFromFile(file, mtu)
+		if err != nil {
+			_ = file.Close()
+		}
 	case "tun":
 		device, err = wun.CreateTUN(sc.Name, mtu)
 	}
