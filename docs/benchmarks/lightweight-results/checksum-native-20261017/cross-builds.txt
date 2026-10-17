@@ -1,0 +1,15 @@
+core linux/amd64
+core linux/arm64
+core linux/386
+core linux/mipsle
+core darwin/amd64
+core darwin/arm64
+core android/arm64
+core android/amd64
+core windows/amd64
+core windows/arm64
+core ios/arm64
+adapter darwin/arm64
+adapter darwin/amd64
+adapter android/arm64
+adapter linux/386

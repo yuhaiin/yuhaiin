@@ -16,7 +16,8 @@ import (
 // PacketIO transfers complete IP packets, without link/virtio headers. ReadPacket
 // may borrow its buffer only until return; WritePacket may borrow until return.
 // Exactly one reader and one writer run concurrently. Close MUST interrupt both.
-// Implementations exposing GSO must first segment and finish partial checksums.
+// Complete-packet implementations need no offload awareness. Optional packet
+// views and prefixed/GSO writes are negotiated through the interfaces in packetio.go.
 type PacketIO interface {
 	ReadPacket([]byte) (int, error)
 	WritePacket([]byte) error
@@ -41,6 +42,8 @@ type Stack struct {
 	outputWaiters                                 outputQueue
 	config                                        Config
 	link                                          PacketIO
+	packetWriter                                  PacketBufferWriter
+	headroom, gsoMax                              int
 	done                                          chan struct{}
 	once                                          sync.Once
 	txMu                                          sync.RWMutex
@@ -84,6 +87,13 @@ func New(config Config, link PacketIO) (*Stack, error) {
 		return nil, errors.New("lightweight: nil PacketIO")
 	}
 	s := &Stack{config: c, link: link, done: make(chan struct{}), outgoing: make(chan *ownedBuffer, c.QueuePackets), forwarded: make(chan Datagram, min(c.QueuePackets, 256)), listeners: make(map[netip.AddrPort]*TCPListener), udp: make(map[netip.AddrPort]*UDPConn), icmpTokens: 100}
+	if writer, ok := link.(PacketBufferWriter); ok {
+		s.headroom, s.gsoMax = writer.Headroom(), writer.MaxGSOPacketSize()
+		if s.headroom < 0 || s.headroom > maxPacketHeadroom || s.gsoMax < 0 || s.gsoMax > 65535 || s.gsoMax > 0 && s.gsoMax < c.MTU {
+			return nil, errors.New("lightweight: invalid packet writer capabilities")
+		}
+		s.packetWriter = writer
+	}
 	if c.ForwardPing {
 		s.pings = make(chan *PingRequest, min(c.QueuePackets, 64))
 	}
@@ -188,13 +198,25 @@ pings:
 }
 func (s *Stack) readLoop() {
 	defer s.shutdown()
-	b := make([]byte, 65575)
+	var read func() ([]byte, bool, error)
+	if reader, ok := s.link.(PacketViewReader); ok {
+		read = reader.ReadPacketView
+	} else {
+		b := make([]byte, 65575)
+		read = func() ([]byte, bool, error) {
+			n, err := s.link.ReadPacket(b)
+			if n < 0 || n > len(b) {
+				return nil, false, io.ErrShortBuffer
+			}
+			return b[:n], false, err
+		}
+	}
 	attempts := 0
 	for {
-		n, err := s.link.ReadPacket(b)
-		if n > 0 && n <= len(b) {
+		b, verified, err := read()
+		if len(b) > 0 && len(b) <= 65575 {
 			s.packetsIn.Add(1)
-			if e := s.input(b[:n]); e != nil {
+			if e := s.inputVerified(b, verified); e != nil {
 				s.drops.Add(1)
 			}
 		}
@@ -210,7 +232,7 @@ func (s *Stack) readLoop() {
 			}
 			return
 		}
-		if n <= 0 || n > len(b) {
+		if len(b) == 0 || len(b) > 65575 {
 			return
 		}
 		attempts = 0
@@ -223,9 +245,15 @@ func (s *Stack) writeLoop() {
 		case <-s.done:
 			return
 		case b := <-s.outgoing:
-			err := s.link.WritePacket(b.data)
+			write := func() error {
+				if s.packetWriter != nil {
+					return s.packetWriter.WritePacketBuffer(b.data, b.offset, b.segmentSize)
+				}
+				return s.link.WritePacket(b.data[b.offset:])
+			}
+			err := write()
 			for attempt := 0; err != nil && s.retryPacketIO(err, attempt); attempt++ {
-				err = s.link.WritePacket(b.data)
+				err = write()
 			}
 			b.release()
 			if err != nil {
@@ -238,11 +266,12 @@ func (s *Stack) writeLoop() {
 
 // emit copies unowned packet data; the owned fast path transfers its lease.
 func (s *Stack) emit(b []byte) error {
-	packet, err := s.buffers.get(len(b))
+	packet, err := s.buffers.get(s.headroom + len(b))
 	if err != nil {
 		return err
 	}
-	copy(packet.data, b)
+	packet.offset = s.headroom
+	copy(packet.data[packet.offset:], b)
 	if err = s.emitOwned(packet); err != nil {
 		packet.release()
 	}
@@ -266,12 +295,13 @@ func (s *Stack) ipBuffer(src, dst netip.Addr, proto uint8, payloadSize int) (*ow
 	if err != nil {
 		return nil, 0, err
 	}
-	packet, err := s.buffers.get(h + payloadSize)
+	packet, err := s.buffers.get(s.headroom + h + payloadSize)
 	if err != nil {
-		return nil, h, err
+		return nil, s.headroom + h, err
 	}
-	fillIPHeader(packet.data, src, dst, proto, uint16(s.nextID.Add(1)), h)
-	return packet, h, nil
+	packet.offset = s.headroom
+	fillIPHeader(packet.data[packet.offset:], src, dst, proto, uint16(s.nextID.Add(1)), h)
+	return packet, packet.offset + h, nil
 }
 func (s *Stack) sendIP(src, dst netip.Addr, proto uint8, payload []byte) error {
 	h, err := ipHeaderSize(src, dst, len(payload))
@@ -292,6 +322,9 @@ func (s *Stack) sendIP(src, dst netip.Addr, proto uint8, payload []byte) error {
 	return err
 }
 func (s *Stack) input(b []byte) error {
+	return s.inputVerified(b, false)
+}
+func (s *Stack) inputVerified(b []byte, checksumVerified bool) error {
 	p, err := ParsePacket(b)
 	if err != nil {
 		return err
@@ -307,13 +340,14 @@ func (s *Stack) input(b []byte) error {
 		return ErrMalformed
 	}
 	if p.Fragmented {
+		checksumVerified = false // Fragment reassembly produces a new complete packet.
 		var complete bool
 		p, complete, err = s.fragments.add(p)
 		if err != nil || !complete {
 			return err
 		}
 	}
-	if err := p.ValidateTransport(); err != nil {
+	if err := p.validateTransport(checksumVerified); err != nil {
 		return err
 	}
 	switch p.Protocol {

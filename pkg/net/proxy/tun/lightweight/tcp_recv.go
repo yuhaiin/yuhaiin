@@ -36,6 +36,9 @@ func (c *TCPConn) receive(seq uint32, data []byte, fin bool, now time.Time) {
 		}
 	}
 	progressed := false
+	if len(data) > 0 && seq != c.rcvNxt {
+		c.rememberSACK(seq)
+	}
 	if seq == c.rcvNxt && len(c.ooo) == 0 && len(data) > 0 {
 		// Ordered traffic goes directly to the reader queue. Passing every
 		// packet through an empty reordering slice allocates a piece per MSS.
@@ -132,11 +135,34 @@ func (c *TCPConn) receive(seq uint32, data []byte, fin bool, now time.Time) {
 	if progressed {
 		c.notifyRead()
 	}
-	c.ackPending++
+	if len(c.ooo) == 0 {
+		c.sackRecentCount = 0
+	}
+	// A TUN GSO record may deliver many wire segments in one input call.
+	// Do not delay feedback for such a record as if it were one small segment.
+	c.ackPending += max(1, (len(data)+c.pathMSS-1)/c.pathMSS)
 	if fin || original != seq || !progressed || len(c.ooo) > 0 || c.ackPending >= 2 || c.receiveWindow() == 0 {
 		c.sendACK()
 	} else if c.ackAt.IsZero() {
 		c.ackAt = now.Add(20 * time.Millisecond)
+	}
+}
+
+// Keep arrival order independently of the sequence-sorted reassembly queue.
+// Anchors are resolved against the current merged ranges when building an ACK.
+func (c *TCPConn) rememberSACK(seq uint32) {
+	i := 0
+	for i < c.sackRecentCount && c.sackRecent[i] != seq {
+		i++
+	}
+	newAnchor := i == c.sackRecentCount
+	if i == len(c.sackRecent) {
+		i--
+	}
+	copy(c.sackRecent[1:i+1], c.sackRecent[:i])
+	c.sackRecent[0] = seq
+	if newAnchor {
+		c.sackRecentCount = min(c.sackRecentCount+1, len(c.sackRecent))
 	}
 }
 

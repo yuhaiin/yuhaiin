@@ -1,0 +1,34 @@
+File: yuhaiin-stackprobe-checksum-portable
+Build ID: 8867d0239b47f10006fc97e2a99ed7a6512dd651
+Type: cpu
+Time: 2026-10-17 18:36:31 CST
+Duration: 8.21s, Total samples = 13.15s (160.25%)
+Showing nodes accounting for 11.49s, 87.38% of 13.15s total
+Dropped 129 nodes (cum <= 0.07s)
+Showing top 25 nodes out of 104
+      flat  flat%   sum%        cum   cum%
+     7.87s 59.85% 59.85%      7.87s 59.85%  internal/runtime/syscall/linux.Syscall6
+     1.32s 10.04% 69.89%      1.32s 10.04%  runtime.memmove
+     0.24s  1.83% 71.71%      0.24s  1.83%  runtime.futex
+     0.21s  1.60% 73.31%      0.27s  2.05%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).recordTransmission
+     0.20s  1.52% 74.83%      2.76s 20.99%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).Write
+     0.18s  1.37% 76.20%      0.18s  1.37%  runtime.procyieldAsm
+     0.18s  1.37% 77.57%      0.18s  1.37%  sync/atomic.(*Int32).Add (inline)
+     0.15s  1.14% 78.71%      0.82s  6.24%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).processAck
+     0.12s  0.91% 79.62%      0.33s  2.51%  runtime.selectgo
+     0.10s  0.76% 80.38%      0.16s  1.22%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*segmentFreeList).pop
+     0.09s  0.68% 81.06%      0.32s  2.43%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*bufferPool).takeSegment
+     0.09s  0.68% 81.75%      0.11s  0.84%  internal/sync.(*Mutex).Unlock (inline)
+     0.09s  0.68% 82.43%      0.11s  0.84%  runtime.chanrecv
+     0.09s  0.68% 83.12%      0.09s  0.68%  sync/atomic.(*Int64).CompareAndSwap (inline)
+     0.08s  0.61% 83.73%      1.49s 11.33%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).transmitGroup
+     0.07s  0.53% 84.26%      0.07s  0.53%  runtime.(*waitq).dequeue (inline)
+     0.07s  0.53% 84.79%      0.07s  0.53%  runtime.exitsyscall
+     0.07s  0.53% 85.32%      0.07s  0.53%  runtime.usleep
+     0.05s  0.38% 85.70%      0.09s  0.68%  runtime.lock2
+     0.04s   0.3% 86.01%      1.19s  9.05%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).handleTCP
+     0.04s   0.3% 86.31%      0.42s  3.19%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*bufferPool).releaseSegment
+     0.04s   0.3% 86.62%      6.28s 47.76%  io.copyBuffer
+     0.04s   0.3% 86.92%      7.79s 59.24%  syscall.Syscall
+     0.03s  0.23% 87.15%      0.10s  0.76%  runtime.runqgrab
+     0.03s  0.23% 87.38%      0.07s  0.53%  runtime.sellock

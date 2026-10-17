@@ -42,7 +42,8 @@ func ParsePacket(b []byte) (Packet, error) {
 		if h < 20 || h > len(b) || n < h || n > len(b) || b[6]&0x80 != 0 {
 			return p, ErrMalformed
 		}
-		if Checksum(b[:h]) != 0 {
+		// IPv4 headers are at most 60 bytes; retain the leaf Go checksum path.
+		if ^fold(sumBytesGeneric(b[:h], 0)) != 0 {
 			return p, ErrChecksum
 		}
 		if err := validateIPOptions(b[20:h], false); err != nil {
@@ -163,6 +164,9 @@ func validateIPOptions(b []byte, v6 bool) error {
 }
 
 func (p Packet) ValidateTransport() error {
+	return p.validateTransport(false)
+}
+func (p Packet) validateTransport(checksumVerified bool) error {
 	b := p.Payload
 	if p.Fragmented {
 		return ErrMalformed
@@ -176,7 +180,7 @@ func (p Packet) ValidateTransport() error {
 		if len(b) < 8 || int(binary.BigEndian.Uint16(b[4:6])) != len(b) {
 			return ErrMalformed
 		}
-		if binary.BigEndian.Uint16(b[6:8]) == 0 {
+		if binary.BigEndian.Uint16(b[6:8]) == 0 && !checksumVerified {
 			if p.Source.Is4() {
 				return nil
 			}
@@ -197,7 +201,7 @@ func (p Packet) ValidateTransport() error {
 	default:
 		return ErrUnsupported
 	}
-	if transportChecksum(p.Source, p.Destination, p.Protocol, b) != 0 {
+	if (p.Protocol != 6 && p.Protocol != 17 || !checksumVerified) && transportChecksum(p.Source, p.Destination, p.Protocol, b) != 0 {
 		return ErrChecksum
 	}
 	return nil
@@ -229,7 +233,7 @@ func fillIPHeader(b []byte, src, dst netip.Addr, proto uint8, id uint16, h int) 
 		b[9] = proto
 		copy(b[12:16], src.AsSlice())
 		copy(b[16:20], dst.AsSlice())
-		binary.BigEndian.PutUint16(b[10:12], Checksum(b[:20]))
+		binary.BigEndian.PutUint16(b[10:12], ^fold(sumBytesGeneric(b[:20], 0)))
 	} else {
 		b[0] = 0x60
 		binary.BigEndian.PutUint16(b[4:6], uint16(len(b)-h))

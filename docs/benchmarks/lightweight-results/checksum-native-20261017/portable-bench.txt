@@ -1,0 +1,21 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkChecksum/40         	37598632	         9.564 ns/op	4182.24 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/40         	37563756	         9.585 ns/op	4173.16 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/40         	37695960	         9.654 ns/op	4143.54 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/40         	37655067	         9.639 ns/op	4149.88 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/40         	37725942	         9.623 ns/op	4156.85 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/1500       	 1631710	       220.8 ns/op	6792.06 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/1500       	 1629561	       221.0 ns/op	6786.71 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/1500       	 1621324	       221.6 ns/op	6769.70 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/1500       	 1631023	       220.8 ns/op	6794.34 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/1500       	 1627660	       221.0 ns/op	6787.03 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/65535      	   38968	      9166 ns/op	7149.65 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/65535      	   38582	      9252 ns/op	7083.71 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/65535      	   39265	      9175 ns/op	7142.55 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/65535      	   39606	      9132 ns/op	7176.54 MB/s	       0 B/op	       0 allocs/op
+BenchmarkChecksum/65535      	   39145	      9230 ns/op	7100.43 MB/s	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	5.414s

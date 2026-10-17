@@ -1,0 +1,34 @@
+File: yuhaiin-stackprobe-optimized
+Build ID: ea976d009602ec094693d56250ecbc4f8987371a
+Type: cpu
+Time: 2026-10-17 17:59:40 CST
+Duration: 5.21s, Total samples = 10.03s (192.62%)
+Showing nodes accounting for 8.10s, 80.76% of 10.03s total
+Dropped 119 nodes (cum <= 0.05s)
+Showing top 25 nodes out of 93
+      flat  flat%   sum%        cum   cum%
+     5.78s 57.63% 57.63%      5.78s 57.63%  internal/runtime/syscall/linux.Syscall6
+     0.31s  3.09% 60.72%      0.42s  4.19%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.sumBytes
+     0.28s  2.79% 63.51%      0.28s  2.79%  runtime.memmove
+     0.14s  1.40% 64.91%      0.33s  3.29%  runtime.selectgo
+     0.12s  1.20% 66.10%      0.15s  1.50%  runtime.chanrecv
+     0.12s  1.20% 67.30%      0.16s  1.60%  sort.Search (inline)
+     0.11s  1.10% 68.39%      0.11s  1.10%  encoding/binary.bigEndian.Uint32 (inline)
+     0.10s     1% 69.39%      0.11s  1.10%  runtime.lock2
+     0.09s   0.9% 70.29%      3.99s 39.78%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).readLoop
+     0.09s   0.9% 71.19%      0.23s  2.29%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).schedule
+     0.09s   0.9% 72.08%      0.09s   0.9%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*bufferFreeList).pop
+     0.08s   0.8% 72.88%      0.45s  4.49%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).processAck
+     0.08s   0.8% 73.68%      0.09s   0.9%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).recordTransmission
+     0.08s   0.8% 74.48%      0.08s   0.8%  time.runtimeNow
+     0.07s   0.7% 75.17%      0.09s   0.9%  runtime.exitsyscall
+     0.07s   0.7% 75.87%      0.07s   0.7%  runtime.procyieldAsm
+     0.07s   0.7% 76.57%      0.07s   0.7%  sync/atomic.(*Int32).Add (inline)
+     0.07s   0.7% 77.27%      5.77s 57.53%  syscall.RawSyscall6
+     0.06s   0.6% 77.87%      0.08s   0.8%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).find
+     0.06s   0.6% 78.46%      5.99s 59.72%  syscall.Syscall
+     0.05s   0.5% 78.96%      0.09s   0.9%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion.(*cubic).OnAck
+     0.05s   0.5% 79.46%      1.57s 15.65%  os.(*File).Read
+     0.05s   0.5% 79.96%      0.15s  1.50%  runtime.chansend
+     0.04s   0.4% 80.36%      2.16s 21.54%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).handleTCP
+     0.04s   0.4% 80.76%      1.54s 15.35%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).pump

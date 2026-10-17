@@ -1,0 +1,408 @@
+{
+  "metadata": {
+    "host": "Linux-7.2.6-zen2-1-zen-x86_64-with-glibc2.44",
+    "go": "go version go1.27.2-X:nodwarf5 linux/amd64",
+    "iperf": "iperf 3.22 (cJSON 1.7.15)\nLinux asutorufa 7.2.6-zen2-1-zen #1 ZEN SMP PREEMPT_DYNAMIC Mon, 14 Sep 2026 22:41:40 +0000 x86_64\nOptional features available: CPU affinity setting, IPv6 flow label, SCTP, TCP congestion algorithm setting, sendfile / zerocopy, socket pacing, authentication, bind to device, support IPv4 don't fragment, POSIX threads, GSO/GRO support",
+    "repo_head": "29be8d0fe2a52eb78ed28ad5c6cc62cc902845d3",
+    "probe_sha256": "4ed70c9e3c3e669bf97eacc4b3e5ddc4bcebd989069d2298bb840fe29d05cd4f",
+    "hev_lib_sha256": "8968b1b4f0017f9f2da7c95cf1f7d06fdec1ad22032985f0d601371ac41a598b",
+    "arguments": {
+      "probe": "/tmp/yuhaiin-stackprobe",
+      "hev_lib": "/tmp/yuhaiin-hev-socks5-tunnel/bin/libhev-socks5-tunnel.so",
+      "output": "docs/benchmarks/lightweight-results/hev-20261017/ipv4-mtu1500.jsonl",
+      "stacks": [
+        "direct",
+        "socks",
+        "cubic",
+        "bbr",
+        "hev-plain",
+        "hev-csum",
+        "hev-tso",
+        "hev-jumbo"
+      ],
+      "mtus": [
+        1500
+      ],
+      "flow_counts": [
+        1,
+        8
+      ],
+      "directions": [
+        "upload",
+        "download"
+      ],
+      "samples": 3,
+      "seconds": 5,
+      "proxy_cpus": "0-2",
+      "client_cpus": "3",
+      "backend_cpus": "4",
+      "server_cpus": "5",
+      "procs": 3,
+      "profile_dir": null,
+      "case": null,
+      "mtu": null,
+      "flows": null,
+      "direction": null,
+      "sample": null
+    },
+    "topology": "Linux client -> TUN -> tested proxy -> common SOCKS -> loopback iperf server",
+    "notes": "fresh user/net namespace and independent processes per sample; IPv4 TCP; no encryption; hev buffer defaults; lightweight local_tun profile",
+    "hev_head": "873541b81f00f8fd462392fc622adbb8a8cd59b0",
+    "hev_submodules": "9f1cf0bfca0c003dd0cf0fbdcf6912a2b46a8d05 src/core (1.6.5)\n b2f2250371c1bd436a42f3c380ee46d4ac3bada8 third-part/hev-task-system (5.10.5)\n 7f51e51c72d088481af972c3a115cec41c043d49 third-part/lwip (2.2.1.9)\n 94441ec8777eb319936735a58b376963d09c73d4 third-part/yaml (0.2.5.3)",
+    "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           48 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  12\nOn-line CPU(s) list:                     0-11\nVendor ID:                               AuthenticAMD\nModel name:                              AMD Ryzen 5 5600G with Radeon Graphics\nCPU family:                              25\nModel:                                   80\nThread(s) per core:                      2\nCore(s) per socket:                      6\nSocket(s):                               1\nStepping:                                0\nMicrocode version:                       0xa500012\nFrequency boost:                         disabled\nCPU(s) scaling MHz:                      84%\nCPU max MHz:                             4778.1729\nCPU min MHz:                             431.7630\nBogoMIPS:                                8000.57\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cat_l3 cdp_l3 hw_pstate ssbd mba ibrs ibpb stibp vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif v_spec_ctrl umip pku ospke vaes vpclmulqdq rdpid overflow_recov succor smca fsrm debug_swap\nVirtualization:                          AMD-V\nL1d cache:                               192 KiB (6 instances)\nL1i cache:                               192 KiB (6 instances)\nL2 cache:                                3 MiB (6 instances)\nL3 cache:                                16 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-11\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Mitigation; Safe RET\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Retpolines; IBPB conditional; IBRS_FW; STIBP always-on; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Mitigation; Clear CPU buffers\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace"
+  },
+  "medians": [
+    {
+      "case": "bbr",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "download",
+      "gbps": 0.9583499714914425,
+      "proxy_cpu_seconds_per_GB": 11.23541032720186,
+      "proxy_cpu_cores": 1.3443946803635969,
+      "proxy_peak_rss_bytes": 14553088,
+      "sender_retransmits": 10
+    },
+    {
+      "case": "bbr",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "upload",
+      "gbps": 4.446822825579754,
+      "proxy_cpu_seconds_per_GB": 3.771552715966659,
+      "proxy_cpu_cores": 2.082896146854082,
+      "proxy_peak_rss_bytes": 17010688,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "bbr",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "download",
+      "gbps": 2.4008415789885236,
+      "proxy_cpu_seconds_per_GB": 6.783757212693248,
+      "proxy_cpu_cores": 2.0470627576919935,
+      "proxy_peak_rss_bytes": 29859840,
+      "sender_retransmits": 58
+    },
+    {
+      "case": "bbr",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "upload",
+      "gbps": 4.443904341440753,
+      "proxy_cpu_seconds_per_GB": 3.6006713464315183,
+      "proxy_cpu_cores": 1.9946753169189482,
+      "proxy_peak_rss_bytes": 16986112,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "cubic",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "download",
+      "gbps": 2.805925626007202,
+      "proxy_cpu_seconds_per_GB": 5.017088019354357,
+      "proxy_cpu_cores": 1.7393966637851395,
+      "proxy_peak_rss_bytes": 17133568,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "cubic",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "upload",
+      "gbps": 4.444775563131223,
+      "proxy_cpu_seconds_per_GB": 3.7860856865300248,
+      "proxy_cpu_cores": 2.0914090729820765,
+      "proxy_peak_rss_bytes": 16871424,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "cubic",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "download",
+      "gbps": 2.7248897822134737,
+      "proxy_cpu_seconds_per_GB": 5.160232219889773,
+      "proxy_cpu_cores": 1.7622945096363525,
+      "proxy_peak_rss_bytes": 29921280,
+      "sender_retransmits": 67
+    },
+    {
+      "case": "cubic",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "upload",
+      "gbps": 4.42996374237041,
+      "proxy_cpu_seconds_per_GB": 3.6113982719918902,
+      "proxy_cpu_cores": 1.994390877810393,
+      "proxy_peak_rss_bytes": 16875520,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "direct",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "download",
+      "gbps": 55.0658415970014,
+      "proxy_cpu_seconds_per_GB": 0.0,
+      "proxy_cpu_cores": 0.0,
+      "proxy_peak_rss_bytes": 0,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "direct",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "upload",
+      "gbps": 55.360336414425845,
+      "proxy_cpu_seconds_per_GB": 0.0,
+      "proxy_cpu_cores": 0.0,
+      "proxy_peak_rss_bytes": 0,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "direct",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "download",
+      "gbps": 49.5927196229014,
+      "proxy_cpu_seconds_per_GB": 0.0,
+      "proxy_cpu_cores": 0.0,
+      "proxy_peak_rss_bytes": 0,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "direct",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "upload",
+      "gbps": 49.28004456822763,
+      "proxy_cpu_seconds_per_GB": 0.0,
+      "proxy_cpu_cores": 0.0,
+      "proxy_peak_rss_bytes": 0,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "hev-csum",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "download",
+      "gbps": 3.325712392320212,
+      "proxy_cpu_seconds_per_GB": 2.289924835661139,
+      "proxy_cpu_cores": 0.8706853699992708,
+      "proxy_peak_rss_bytes": 22040576,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "hev-csum",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "upload",
+      "gbps": 3.3769277312376067,
+      "proxy_cpu_seconds_per_GB": 2.226246619288198,
+      "proxy_cpu_cores": 0.8670806327045399,
+      "proxy_peak_rss_bytes": 22118400,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "hev-csum",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "download",
+      "gbps": 3.321014040248365,
+      "proxy_cpu_seconds_per_GB": 2.2884329390905216,
+      "proxy_cpu_cores": 0.8670013907143702,
+      "proxy_peak_rss_bytes": 22597632,
+      "sender_retransmits": 56
+    },
+    {
+      "case": "hev-csum",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "upload",
+      "gbps": 3.15126708610945,
+      "proxy_cpu_seconds_per_GB": 2.455191923908155,
+      "proxy_cpu_cores": 0.8929110529851415,
+      "proxy_peak_rss_bytes": 23003136,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "hev-jumbo",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "download",
+      "gbps": 19.521885965382435,
+      "proxy_cpu_seconds_per_GB": 0.33765635574216907,
+      "proxy_cpu_cores": 0.754555803244286,
+      "proxy_peak_rss_bytes": 22069248,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "hev-jumbo",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "upload",
+      "gbps": 3.530419151030485,
+      "proxy_cpu_seconds_per_GB": 2.1220472130185426,
+      "proxy_cpu_cores": 0.8656237393734709,
+      "proxy_peak_rss_bytes": 22081536,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "hev-jumbo",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "download",
+      "gbps": 18.999437142514303,
+      "proxy_cpu_seconds_per_GB": 0.3376807071778421,
+      "proxy_cpu_cores": 0.7323470348395469,
+      "proxy_peak_rss_bytes": 22433792,
+      "sender_retransmits": 12
+    },
+    {
+      "case": "hev-jumbo",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "upload",
+      "gbps": 3.2605199350996736,
+      "proxy_cpu_seconds_per_GB": 2.251441487619744,
+      "proxy_cpu_cores": 0.8451580994026471,
+      "proxy_peak_rss_bytes": 22863872,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "hev-plain",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "download",
+      "gbps": 3.243528121513272,
+      "proxy_cpu_seconds_per_GB": 2.3479613350197193,
+      "proxy_cpu_cores": 0.8719928577831939,
+      "proxy_peak_rss_bytes": 22048768,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "hev-plain",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "upload",
+      "gbps": 3.508163840275105,
+      "proxy_cpu_seconds_per_GB": 2.110917693300317,
+      "proxy_cpu_cores": 0.8549680886213297,
+      "proxy_peak_rss_bytes": 22056960,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "hev-plain",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "download",
+      "gbps": 3.363874675016119,
+      "proxy_cpu_seconds_per_GB": 2.2544311500607814,
+      "proxy_cpu_cores": 0.8671583104794396,
+      "proxy_peak_rss_bytes": 22450176,
+      "sender_retransmits": 56
+    },
+    {
+      "case": "hev-plain",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "upload",
+      "gbps": 3.2703712095786837,
+      "proxy_cpu_seconds_per_GB": 2.36661344172595,
+      "proxy_cpu_cores": 0.8934306893411038,
+      "proxy_peak_rss_bytes": 22913024,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "hev-tso",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "download",
+      "gbps": 21.560513023641242,
+      "proxy_cpu_seconds_per_GB": 0.29976225303674237,
+      "proxy_cpu_cores": 0.7395539330917569,
+      "proxy_peak_rss_bytes": 22044672,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "hev-tso",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "upload",
+      "gbps": 22.440918847890615,
+      "proxy_cpu_seconds_per_GB": 0.2994127977803422,
+      "proxy_cpu_cores": 0.7750548612070969,
+      "proxy_peak_rss_bytes": 22220800,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "hev-tso",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "download",
+      "gbps": 20.52074104606009,
+      "proxy_cpu_seconds_per_GB": 0.3040686594642584,
+      "proxy_cpu_cores": 0.7137530226393406,
+      "proxy_peak_rss_bytes": 22482944,
+      "sender_retransmits": 10
+    },
+    {
+      "case": "hev-tso",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "upload",
+      "gbps": 20.635026082652075,
+      "proxy_cpu_seconds_per_GB": 0.3208852047522172,
+      "proxy_cpu_cores": 0.7631620341258186,
+      "proxy_peak_rss_bytes": 23400448,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "socks",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "download",
+      "gbps": 49.2526184638701,
+      "proxy_cpu_seconds_per_GB": 0.11499640909744102,
+      "proxy_cpu_cores": 0.7073984734651816,
+      "proxy_peak_rss_bytes": 9646080,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "socks",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "upload",
+      "gbps": 49.44616106396364,
+      "proxy_cpu_seconds_per_GB": 0.11485812798575742,
+      "proxy_cpu_cores": 0.7172533034657115,
+      "proxy_peak_rss_bytes": 9658368,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "socks",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "download",
+      "gbps": 48.86691803103608,
+      "proxy_cpu_seconds_per_GB": 0.11721511823925619,
+      "proxy_cpu_cores": 0.7085597960594211,
+      "proxy_peak_rss_bytes": 9666560,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "socks",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "upload",
+      "gbps": 48.973992511615634,
+      "proxy_cpu_seconds_per_GB": 0.11593633337872516,
+      "proxy_cpu_cores": 0.7086511639921301,
+      "proxy_peak_rss_bytes": 9658368,
+      "sender_retransmits": 0
+    }
+  ]
+}

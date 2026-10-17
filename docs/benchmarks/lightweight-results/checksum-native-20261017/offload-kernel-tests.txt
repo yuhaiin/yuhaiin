@@ -1,0 +1,53 @@
+=== RUN   TestLinuxOffloadTCP
+=== RUN   TestLinuxOffloadTCP/reno/v6=false/active=false/loss=false
+=== RUN   TestLinuxOffloadTCP/reno/v6=false/active=false/loss=true
+=== RUN   TestLinuxOffloadTCP/reno/v6=false/active=true/loss=false
+=== RUN   TestLinuxOffloadTCP/reno/v6=false/active=true/loss=true
+=== RUN   TestLinuxOffloadTCP/reno/v6=true/active=false/loss=false
+=== RUN   TestLinuxOffloadTCP/reno/v6=true/active=false/loss=true
+=== RUN   TestLinuxOffloadTCP/reno/v6=true/active=true/loss=false
+=== RUN   TestLinuxOffloadTCP/reno/v6=true/active=true/loss=true
+=== RUN   TestLinuxOffloadTCP/cubic/v6=false/active=false/loss=false
+=== RUN   TestLinuxOffloadTCP/cubic/v6=false/active=false/loss=true
+=== RUN   TestLinuxOffloadTCP/cubic/v6=false/active=true/loss=false
+=== RUN   TestLinuxOffloadTCP/cubic/v6=false/active=true/loss=true
+=== RUN   TestLinuxOffloadTCP/cubic/v6=true/active=false/loss=false
+=== RUN   TestLinuxOffloadTCP/cubic/v6=true/active=false/loss=true
+=== RUN   TestLinuxOffloadTCP/cubic/v6=true/active=true/loss=false
+=== RUN   TestLinuxOffloadTCP/cubic/v6=true/active=true/loss=true
+=== RUN   TestLinuxOffloadTCP/bbr/v6=false/active=false/loss=false
+=== RUN   TestLinuxOffloadTCP/bbr/v6=false/active=false/loss=true
+=== RUN   TestLinuxOffloadTCP/bbr/v6=false/active=true/loss=false
+=== RUN   TestLinuxOffloadTCP/bbr/v6=false/active=true/loss=true
+=== RUN   TestLinuxOffloadTCP/bbr/v6=true/active=false/loss=false
+=== RUN   TestLinuxOffloadTCP/bbr/v6=true/active=false/loss=true
+=== RUN   TestLinuxOffloadTCP/bbr/v6=true/active=true/loss=false
+=== RUN   TestLinuxOffloadTCP/bbr/v6=true/active=true/loss=true
+--- PASS: TestLinuxOffloadTCP (15.29s)
+    --- PASS: TestLinuxOffloadTCP/reno/v6=false/active=false/loss=false (0.06s)
+    --- PASS: TestLinuxOffloadTCP/reno/v6=false/active=false/loss=true (1.06s)
+    --- PASS: TestLinuxOffloadTCP/reno/v6=false/active=true/loss=false (0.06s)
+    --- PASS: TestLinuxOffloadTCP/reno/v6=false/active=true/loss=true (1.08s)
+    --- PASS: TestLinuxOffloadTCP/reno/v6=true/active=false/loss=false (0.07s)
+    --- PASS: TestLinuxOffloadTCP/reno/v6=true/active=false/loss=true (1.10s)
+    --- PASS: TestLinuxOffloadTCP/reno/v6=true/active=true/loss=false (0.07s)
+    --- PASS: TestLinuxOffloadTCP/reno/v6=true/active=true/loss=true (1.09s)
+    --- PASS: TestLinuxOffloadTCP/cubic/v6=false/active=false/loss=false (0.08s)
+    --- PASS: TestLinuxOffloadTCP/cubic/v6=false/active=false/loss=true (1.10s)
+    --- PASS: TestLinuxOffloadTCP/cubic/v6=false/active=true/loss=false (0.13s)
+    --- PASS: TestLinuxOffloadTCP/cubic/v6=false/active=true/loss=true (1.14s)
+    --- PASS: TestLinuxOffloadTCP/cubic/v6=true/active=false/loss=false (0.08s)
+    --- PASS: TestLinuxOffloadTCP/cubic/v6=true/active=false/loss=true (1.11s)
+    --- PASS: TestLinuxOffloadTCP/cubic/v6=true/active=true/loss=false (0.11s)
+    --- PASS: TestLinuxOffloadTCP/cubic/v6=true/active=true/loss=true (1.27s)
+    --- PASS: TestLinuxOffloadTCP/bbr/v6=false/active=false/loss=false (0.19s)
+    --- PASS: TestLinuxOffloadTCP/bbr/v6=false/active=false/loss=true (1.22s)
+    --- PASS: TestLinuxOffloadTCP/bbr/v6=false/active=true/loss=false (0.17s)
+    --- PASS: TestLinuxOffloadTCP/bbr/v6=false/active=true/loss=true (1.21s)
+    --- PASS: TestLinuxOffloadTCP/bbr/v6=true/active=false/loss=false (0.26s)
+    --- PASS: TestLinuxOffloadTCP/bbr/v6=true/active=false/loss=true (1.17s)
+    --- PASS: TestLinuxOffloadTCP/bbr/v6=true/active=true/loss=false (0.23s)
+    --- PASS: TestLinuxOffloadTCP/bbr/v6=true/active=true/loss=true (1.21s)
+=== RUN   TestLinuxOffloadUDPAndICMP
+--- PASS: TestLinuxOffloadUDPAndICMP (0.05s)
+PASS

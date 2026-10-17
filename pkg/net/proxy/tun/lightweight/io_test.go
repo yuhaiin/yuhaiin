@@ -145,7 +145,7 @@ func TestAllocationLengthBounds(t *testing.T) {
 	}
 	defer s.Close()
 	src, dst := netip.MustParseAddr("192.0.2.1"), netip.MustParseAddr("192.0.2.2")
-	for _, n := range []int{-1, math.MinInt, math.MaxInt, 65576} {
+	for _, n := range []int{-1, math.MinInt, math.MaxInt, maxPacketBufferSize + 1} {
 		if _, err := s.buffers.get(n); !errors.Is(err, ErrLimit) {
 			t.Fatalf("lease length %d: %v", n, err)
 		}

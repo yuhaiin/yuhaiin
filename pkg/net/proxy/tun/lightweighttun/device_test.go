@@ -22,6 +22,78 @@ type writeResultTun struct {
 	err   error
 }
 
+type borrowedWriteTun struct {
+	testTun
+	start *byte
+}
+
+type partialViewTun struct{ testTun }
+
+func (d *partialViewTun) BatchSize() int                        { return 1 }
+func (d *partialViewTun) ReadPacketView() ([]byte, bool, error) { return []byte("partial"), true, nil }
+
+func TestPacketDeviceCompleteReadKeepsChecksumContract(t *testing.T) {
+	d := &partialViewTun{packets: [][]byte{[]byte("complete")}}
+	p, err := newPacketIO(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, verified, err := p.ReadPacketView(); string(b) != "partial" || !verified || err != nil {
+		t.Fatalf("partial view=%q verified=%v err=%v", b, verified, err)
+	}
+	b := make([]byte, 32)
+	if n, err := p.ReadPacket(b); string(b[:n]) != "complete" || err != nil {
+		t.Fatalf("complete read=%q err=%v", b[:n], err)
+	}
+}
+
+func (d *borrowedWriteTun) Write(b [][]byte) (int, error) {
+	d.start = &b[0][0]
+	b[0][0] = 42
+	return 1, syscall.EAGAIN
+}
+
+func TestPacketDeviceBorrowsReservedHeadroom(t *testing.T) {
+	d := &borrowedWriteTun{offset: 4}
+	p, err := newPacketIO(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := make([]byte, 4+16)
+	if err := p.WritePacketBuffer(b, 4, 0); err != nil {
+		t.Fatal(err)
+	}
+	if d.start != &b[0] || b[0] != 42 {
+		t.Fatal("reserved packet storage was copied")
+	}
+	if p.writeBuffers[0] != nil {
+		t.Fatal("packet retained after write")
+	}
+	if err := p.WritePacketBuffer(b, 4, 1400); err == nil {
+		t.Fatal("GSO accepted on a plain device")
+	}
+}
+
+func TestPacketDeviceBorrowedRead(t *testing.T) {
+	d := &testTun{offset: 4, packets: [][]byte{[]byte("first"), []byte("second")}, nextErr: io.EOF}
+	p, err := newPacketIO(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, want := range []string{"first", "second"} {
+		b, verified, err := p.ReadPacketView()
+		if err != nil || verified || string(b) != want {
+			t.Fatalf("packet=%q verified=%v err=%v", b, verified, err)
+		}
+		if &b[0] != &p.buffers[i][4] {
+			t.Fatal("borrowed batch input was copied")
+		}
+	}
+	if _, _, err := p.ReadPacketView(); err != io.EOF {
+		t.Fatalf("pending error: %v", err)
+	}
+}
+
 func (d *writeResultTun) Write(b [][]byte) (int, error) {
 	d.written = bytes.Clone(b[0])
 	return d.count, d.err

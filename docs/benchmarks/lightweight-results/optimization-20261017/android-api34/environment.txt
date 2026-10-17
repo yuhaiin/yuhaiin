@@ -1,0 +1,8 @@
+getconf PAGESIZE
+4096
+uname -a
+Linux localhost 6.1.23-android14-4-00257-g7e35917775b8-ab9964412 #1 SMP PREEMPT Mon Apr 17 20:50:58 UTC 2023 x86_64 Toybox
+getenforce
+Enforcing
+getprop ro.build.fingerprint
+google/sdk_gphone64_x86_64/emu64xa:14/UE1A.230829.036.A4/12096271:user/release-keys

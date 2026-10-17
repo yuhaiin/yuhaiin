@@ -34,6 +34,37 @@ func TestDeviceReadOverflowIsRecoverable(t *testing.T) {
 
 func (d *slabTestDevice) BatchSize() int           { return len(d.payloads) }
 func (d *slabTestDevice) Events() <-chan wun.Event { return nil }
+func (d *slabTestDevice) Close() error             { return nil }
+
+func TestDeviceReadBorrowedNativeSlab(t *testing.T) {
+	native := &slabTestDevice{payloads: [][]byte{[]byte("first")}, err: wun.ErrTooManySegments}
+	d := NewDevice(native, 4, 1500, false)
+	b, verified, err := d.ReadPacketView()
+	if string(b) != "first" || verified || !errors.Is(err, syscall.ENOBUFS) {
+		t.Fatalf("view=%q verified=%v error=%v", b, verified, err)
+	}
+	if &b[0] != &d.slab[wun.ReadPacketSpacing] {
+		t.Fatal("native input was copied")
+	}
+	native.payloads[0] = []byte("other")
+	native.err = nil
+	next, _, err := d.ReadPacketView()
+	if err != nil || string(next) != "other" || &b[0] != &next[0] {
+		t.Fatalf("slab reuse: %q %v", next, err)
+	}
+	if err := d.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if d.slab != nil || d.packets != nil {
+		t.Fatal("native buffers retained after close")
+	}
+	if _, _, err := d.ReadPacketView(); err == nil {
+		t.Fatal("read after close succeeded")
+	}
+	if string(next) != "other" {
+		t.Fatal("close mutated borrowed storage")
+	}
+}
 
 func (d *slabTestDevice) Read(slab []byte, packets []wun.ReadPacket) (int, error) {
 	offset := wun.ReadPacketSpacing

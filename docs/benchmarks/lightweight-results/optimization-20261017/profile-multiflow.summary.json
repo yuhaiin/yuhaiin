@@ -1,0 +1,62 @@
+{
+  "metadata": {
+    "host": "Linux-7.2.6-zen2-1-zen-x86_64-with-glibc2.44",
+    "go": "go version go1.27.2-X:nodwarf5 linux/amd64",
+    "iperf": "iperf 3.22 (cJSON 1.7.15)\nLinux asutorufa 7.2.6-zen2-1-zen #1 ZEN SMP PREEMPT_DYNAMIC Mon, 14 Sep 2026 22:41:40 +0000 x86_64\nOptional features available: CPU affinity setting, IPv6 flow label, SCTP, TCP congestion algorithm setting, sendfile / zerocopy, socket pacing, authentication, bind to device, support IPv4 don't fragment, POSIX threads, GSO/GRO support",
+    "repo_head": "29be8d0fe2a52eb78ed28ad5c6cc62cc902845d3",
+    "source_label": "Separate optimized eight-flow BBR GSO CPU profile; excluded from formal medians",
+    "worktree_status": "M .github/workflows/lightweight-stack.yml\n M docs/lightweight-tcpip-stack.md\n M pkg/net/proxy/tun/device/packet_linux.go\n M pkg/net/proxy/tun/device/wireguard.go\n M pkg/net/proxy/tun/device/wireguard_test.go\n M pkg/net/proxy/tun/lightweight/buffer.go\n M pkg/net/proxy/tun/lightweight/checksum.go\n M pkg/net/proxy/tun/lightweight/icmp.go\n M pkg/net/proxy/tun/lightweight/io_test.go\n M pkg/net/proxy/tun/lightweight/packet.go\n M pkg/net/proxy/tun/lightweight/stack.go\n M pkg/net/proxy/tun/lightweight/tcp_conn.go\n M pkg/net/proxy/tun/lightweight/tcp_recv.go\n M pkg/net/proxy/tun/lightweight/tcp_send.go\n M pkg/net/proxy/tun/lightweight/tcp_timer.go\n M pkg/net/proxy/tun/lightweighttun/device.go\n M pkg/net/proxy/tun/lightweighttun/device_test.go\n?? docs/benchmarks/lightweight-offload-optimization-20261017.md\n?? docs/benchmarks/lightweight-performance-review-20261017.md\n?? docs/benchmarks/lightweight-platform-research-20261017.md\n?? docs/benchmarks/lightweight-results/hev-20261017/\n?? docs/benchmarks/lightweight-results/optimization-20261017/\n?? pkg/net/proxy/tun/device/packet_offload_linux.go\n?? pkg/net/proxy/tun/device/packet_offload_linux_test.go\n?? pkg/net/proxy/tun/lightweight/checksum_test.go\n?? pkg/net/proxy/tun/lightweight/gso_test.go\n?? pkg/net/proxy/tun/lightweight/packetio.go\n?? pkg/net/proxy/tun/lightweight/packetio_test.go\n?? pkg/net/proxy/tun/lightweight/sack_recent_test.go\n?? pkg/net/proxy/tun/lightweighttun/offload_kernel_linux_test.go\n?? scripts/benchmarks/android-vpn-probe/\n?? scripts/benchmarks/build_android_probe.py\n?? scripts/benchmarks/build_baseline_probe.py\n?? scripts/benchmarks/hev_compare.py\n?? scripts/benchmarks/stackprobe/",
+    "tracked_diff_sha256": "d6e6a85f0d30b2bfec837277cc280c067e1e090674ee7bf7f2dea4553735d6a4",
+    "probe_sha256": "42547973852e32df4c39852fdea9e7574e5f4af147edca0b0dd3acd2b2b8f33c",
+    "hev_lib_sha256": "8968b1b4f0017f9f2da7c95cf1f7d06fdec1ad22032985f0d601371ac41a598b",
+    "arguments": {
+      "probe": "/tmp/yuhaiin-stackprobe-optimized",
+      "hev_lib": "/tmp/yuhaiin-hev-socks5-tunnel/bin/libhev-socks5-tunnel.so",
+      "output": "docs/benchmarks/lightweight-results/optimization-20261017/profile-multiflow.jsonl",
+      "stacks": [
+        "gso-bbr"
+      ],
+      "mtus": [
+        1500
+      ],
+      "flow_counts": [
+        8
+      ],
+      "directions": [
+        "download"
+      ],
+      "samples": 1,
+      "seconds": 5,
+      "proxy_cpus": "0-2",
+      "client_cpus": "3",
+      "backend_cpus": "4",
+      "server_cpus": "5",
+      "procs": 3,
+      "profile_dir": "/home/asutorufa/Documents/Programming/yuhaiin/docs/benchmarks/lightweight-results/optimization-20261017/profiles",
+      "source_label": "Separate optimized eight-flow BBR GSO CPU profile; excluded from formal medians",
+      "case": null,
+      "mtu": null,
+      "flows": null,
+      "direction": null,
+      "sample": null
+    },
+    "topology": "Linux client -> TUN -> tested proxy -> common SOCKS -> loopback iperf server",
+    "notes": "fresh user/net namespace and independent processes per sample; IPv4 TCP; no encryption; hev buffer defaults; lightweight local_tun profile",
+    "hev_head": "873541b81f00f8fd462392fc622adbb8a8cd59b0",
+    "hev_submodules": "9f1cf0bfca0c003dd0cf0fbdcf6912a2b46a8d05 src/core (1.6.5)\n b2f2250371c1bd436a42f3c380ee46d4ac3bada8 third-part/hev-task-system (5.10.5)\n 7f51e51c72d088481af972c3a115cec41c043d49 third-part/lwip (2.2.1.9)\n 94441ec8777eb319936735a58b376963d09c73d4 third-part/yaml (0.2.5.3)",
+    "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           48 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  12\nOn-line CPU(s) list:                     0-11\nVendor ID:                               AuthenticAMD\nModel name:                              AMD Ryzen 5 5600G with Radeon Graphics\nCPU family:                              25\nModel:                                   80\nThread(s) per core:                      2\nCore(s) per socket:                      6\nSocket(s):                               1\nStepping:                                0\nMicrocode version:                       0xa500012\nFrequency boost:                         disabled\nCPU(s) scaling MHz:                      84%\nCPU max MHz:                             4778.1729\nCPU min MHz:                             431.7630\nBogoMIPS:                                8000.57\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cat_l3 cdp_l3 hw_pstate ssbd mba ibrs ibpb stibp vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif v_spec_ctrl umip pku ospke vaes vpclmulqdq rdpid overflow_recov succor smca fsrm debug_swap\nVirtualization:                          AMD-V\nL1d cache:                               192 KiB (6 instances)\nL1i cache:                               192 KiB (6 instances)\nL2 cache:                                3 MiB (6 instances)\nL3 cache:                                16 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-11\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Mitigation; Safe RET\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Retpolines; IBPB conditional; IBRS_FW; STIBP always-on; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Mitigation; Clear CPU buffers\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace"
+  },
+  "medians": [
+    {
+      "case": "gso-bbr",
+      "mtu": 1500,
+      "flows": 8,
+      "direction": "download",
+      "gbps": 10.074144154784758,
+      "proxy_cpu_seconds_per_GB": 1.6992677397301261,
+      "proxy_cpu_cores": 2.135715088704407,
+      "proxy_peak_rss_bytes": 53993472,
+      "sender_retransmits": 42
+    }
+  ]
+}

@@ -55,6 +55,39 @@ func NewDevice(device wun.Device, offset, mtu int, gsoEnabled bool) *wgDevice {
 func (t *wgDevice) Offset() int      { return t.offset }
 func (t *wgDevice) MTU() int         { return t.mtu }
 func (t *wgDevice) GSOEnabled() bool { return t.gso }
+
+// ReadPacketView is the single-packet native path (notably macOS utun). Its
+// borrowed slab is consumed synchronously before the next read. Batch/GSO
+// devices keep using Read, where the native engine owns segmentation semantics.
+func (t *wgDevice) ReadPacketView() ([]byte, bool, error) {
+	t.readMu.Lock()
+	defer t.readMu.Unlock()
+	if t.closed.Load() {
+		return nil, false, os.ErrClosed
+	}
+	if t.BatchSize() != 1 || t.gso {
+		return nil, false, errors.New("native packet views require a plain single-packet device")
+	}
+	const size = 65575 + 2*wun.ReadPacketSpacing
+	if len(t.slab) < size {
+		t.slab = make([]byte, size)
+	}
+	if len(t.packets) == 0 {
+		t.packets = make([]wun.ReadPacket, 1)
+	}
+	n, err := t.Device.Read(t.slab[:size], t.packets[:1])
+	if errors.Is(err, wun.ErrTooManySegments) {
+		err = errors.Join(err, syscall.ENOBUFS)
+	}
+	if n == 0 {
+		return nil, false, err
+	}
+	p := t.packets[0]
+	if n != 1 || p.Offset < 0 || p.Size < 1 || p.Offset > len(t.slab) || p.Size > len(t.slab)-p.Offset {
+		return nil, false, io.ErrShortBuffer
+	}
+	return t.slab[p.Offset : p.Offset+p.Size], false, err
+}
 func (t *wgDevice) Read(bufs [][]byte, sizes []int) (n int, err error) {
 	t.readMu.Lock()
 	defer t.readMu.Unlock()

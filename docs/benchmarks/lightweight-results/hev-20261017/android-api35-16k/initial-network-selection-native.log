@@ -1,0 +1,5 @@
+ANDROID_TUN flags=0x1001 uid=10209
+ANDROID_TUN selinux=u:r:untrusted_app_32:s0:c209,c256,c512,c768\0
+ANDROID_TUN TUNSETOFFLOAD(0)=permission denied
+READY
+STATS {MemoryBytes:128 Connections:0 CachedBytes:128 PacketsIn:5 PacketsOut:1 Drops:4 Retransmissions:0}

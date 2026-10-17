@@ -1,0 +1,39 @@
+File: yuhaiin-stackprobe
+Build ID: d426404b235a4a8ba55a0c8363cea61774e6f5da
+Type: cpu
+Time: 2026-10-17 17:11:09 CST
+Duration: 5.21s, Total samples = 6.73s (129.28%)
+Showing nodes accounting for 6.14s, 91.23% of 6.73s total
+Dropped 76 nodes (cum <= 0.03s)
+Showing top 30 nodes out of 90
+      flat  flat%   sum%        cum   cum%
+     2.12s 31.50% 31.50%      2.25s 33.43%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).schedule
+     1.37s 20.36% 51.86%      1.37s 20.36%  internal/runtime/syscall/linux.Syscall6
+     0.84s 12.48% 64.34%      3.97s 58.99%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).pump
+     0.28s  4.16% 68.50%      0.28s  4.16%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*sliceQueue[go.shape.*uint8]).values (inline)
+     0.25s  3.71% 72.21%      0.25s  3.71%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.sumBytes (inline)
+     0.22s  3.27% 75.48%      0.22s  3.27%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*sliceQueue[go.shape.*uint8]).len (inline)
+     0.20s  2.97% 78.45%      0.20s  2.97%  time.runtimeNow
+     0.14s  2.08% 80.53%      0.14s  2.08%  runtime.procyieldAsm
+     0.13s  1.93% 82.47%      0.13s  1.93%  runtime.futex
+     0.10s  1.49% 83.95%      0.10s  1.49%  runtime.memmove
+     0.07s  1.04% 84.99%      0.07s  1.04%  runtime.usleep
+     0.04s  0.59% 85.59%      0.21s  3.12%  internal/sync.(*Mutex).lockSlow
+     0.04s  0.59% 86.18%      0.04s  0.59%  runtime.nanotime (inline)
+     0.04s  0.59% 86.78%      0.04s  0.59%  sync/atomic.(*Int32).Add (inline)
+     0.03s  0.45% 87.22%      0.14s  2.08%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).processAck
+     0.03s  0.45% 87.67%      0.09s  1.34%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*scheduler).set
+     0.03s  0.45% 88.11%      0.09s  1.34%  internal/sync.(*Mutex).unlockSlow
+     0.02s   0.3% 88.41%      0.38s  5.65%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*TCPConn).transmit
+     0.02s   0.3% 88.71%      3.52s 52.30%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*scheduler).loop
+     0.02s   0.3% 89.00%      0.07s  1.04%  runtime.selectgo
+     0.02s   0.3% 89.30%      0.06s  0.89%  sync.(*RWMutex).RLock (inline)
+     0.02s   0.3% 89.60%      1.30s 19.32%  syscall.RawSyscall6
+     0.02s   0.3% 89.90%      0.46s  6.84%  syscall.read
+     0.02s   0.3% 90.19%      0.04s  0.59%  time.Time.Add
+     0.02s   0.3% 90.49%      0.06s  0.89%  time.Until
+     0.01s  0.15% 90.64%      1.06s 15.75%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).input
+     0.01s  0.15% 90.79%      0.04s  0.59%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).ipBuffer
+     0.01s  0.15% 90.94%      1.45s 21.55%  github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.(*Stack).readLoop
+     0.01s  0.15% 91.08%      0.22s  3.27%  internal/sync.(*Mutex).Lock (inline)
+     0.01s  0.15% 91.23%      0.38s  5.65%  os.(*File).Read

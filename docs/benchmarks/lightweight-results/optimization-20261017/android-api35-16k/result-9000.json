@@ -1,0 +1,52 @@
+{
+  "mtu": 9000,
+  "api": 35,
+  "fingerprint": "google\/sdk_gphone16k_x86_64\/emu64xa16k:15\/AE3A.240806.043\/12960925:userdebug\/dev-keys",
+  "uid": 10209,
+  "vpn_network": "103",
+  "samples": [
+    {
+      "sample": 1,
+      "direction": "upload",
+      "bytes": 268435456,
+      "elapsed_ns": 117469859,
+      "mbps": 18281.146042747867
+    },
+    {
+      "sample": 1,
+      "direction": "download",
+      "bytes": 268435456,
+      "elapsed_ns": 228259834,
+      "mbps": 9408.066282918615
+    },
+    {
+      "sample": 2,
+      "direction": "upload",
+      "bytes": 268435456,
+      "elapsed_ns": 116711258,
+      "mbps": 18399.970018316486
+    },
+    {
+      "sample": 2,
+      "direction": "download",
+      "bytes": 268435456,
+      "elapsed_ns": 224442582,
+      "mbps": 9568.075847567998
+    },
+    {
+      "sample": 3,
+      "direction": "upload",
+      "bytes": 268435456,
+      "elapsed_ns": 115036268,
+      "mbps": 18667.88348870984
+    },
+    {
+      "sample": 3,
+      "direction": "download",
+      "bytes": 268435456,
+      "elapsed_ns": 225218672,
+      "mbps": 9535.104833581472
+    }
+  ],
+  "ok": true
+}
