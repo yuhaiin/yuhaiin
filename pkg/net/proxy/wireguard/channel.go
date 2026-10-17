@@ -4,18 +4,20 @@ import (
 	"context"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	wun "github.com/tailscale/wireguard-go/tun"
 )
 
 type ChannelDevice struct {
-	ctx      context.Context
-	inbound  chan []byte
-	outbound chan []byte
-	cancel   context.CancelFunc
-	events   chan wun.Event
-	mtu      int
+	ctx       context.Context
+	inbound   chan []byte
+	outbound  chan []byte
+	cancel    context.CancelFunc
+	events    chan wun.Event
+	mtu       int
+	closeOnce sync.Once
 }
 
 func NewChannelDevice(ctx context.Context, mtu int) *ChannelDevice {
@@ -92,13 +94,12 @@ func (p *ChannelDevice) Write(b [][]byte, offset int) (int, error) {
 }
 
 func (p *ChannelDevice) Close() error {
-	select {
-	case <-p.ctx.Done():
-		return nil
-	default:
-	}
-	p.cancel()
-	close(p.events)
+	// Parent cancellation stops I/O but does not close the event channel.
+	// Complete device shutdown exactly once even when the parent is done.
+	p.closeOnce.Do(func() {
+		p.cancel()
+		close(p.events)
+	})
 	return nil
 }
 

@@ -3,6 +3,7 @@ package gvisor
 import (
 	"fmt"
 	"net/netip"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -23,9 +24,11 @@ import (
 type tunServer struct {
 	ep stack.LinkEndpoint
 
-	handler  netapi.Handler
-	stack    *stack.Stack
-	postDown func()
+	handler   netapi.Handler
+	stack     *stack.Stack
+	postDown  func()
+	udpReply  *udpReply
+	closeOnce sync.Once
 
 	DeviceName string
 
@@ -38,26 +41,29 @@ func (t *tunServer) Interface() string {
 }
 
 func (t *tunServer) Close() error {
+	t.closeOnce.Do(func() {
+		// Detach callbacks retained by NAT before destroying their target stack.
+		t.udpReply.close()
+		log.Debug("start close tun server")
 
-	log.Debug("start close tun server")
+		log.Debug("start close endpoint")
+		t.ep.Close()
 
-	log.Debug("start close endpoint")
-	t.ep.Close()
+		log.Debug("start close stack")
+		if t.stack != nil {
+			log.Debug("start remove routes")
+			t.stack.RemoveRoutes(func(r tcpip.Route) bool {
+				return true
+			})
+			log.Debug("start destroy stack")
+			t.stack.Destroy()
+		}
+		log.Debug("start close tun channel server")
 
-	log.Debug("start close stack")
-	if t.stack != nil {
-		log.Debug("start remove routes")
-		t.stack.RemoveRoutes(func(r tcpip.Route) bool {
-			return true
-		})
-		log.Debug("start destroy stack")
-		t.stack.Destroy()
-	}
-	log.Debug("start close tun channel server")
-
-	if t.postDown != nil {
-		t.postDown()
-	}
+		if t.postDown != nil {
+			t.postDown()
+		}
+	})
 
 	return nil
 }
@@ -123,6 +129,7 @@ func New(o *device.Opt) (*tunServer, error) {
 		handler:          o.Handler,
 		InterfaceAddress: o.InterfaceAddress(),
 		DeviceName:       o.Interface.Name,
+		udpReply:         newUDPReply(s, nicID, int(ep.MTU())),
 	}
 
 	s.SetSpoofing(nicID, true)

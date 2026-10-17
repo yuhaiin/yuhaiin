@@ -247,6 +247,12 @@ loopback bypass, upstream failures and delayed callbacks. Outbound `Ping`
 implementations are unchanged; enabling the gate later requires separately
 checking their support and behavior.
 
+Native TUN wrappers own and drain device events so repeated stack replacements
+do not strand native link listeners. Closing a wrapper interrupts reads and
+releases its slab. The legacy gVisor ingress also revokes UDP reply writers on
+close: callbacks retained by shared NAT sessions no longer retain its stack or
+device, and late replies return `net.ErrClosed`.
+
 ## Configuration and compatibility
 
 The current inbound contract uses JSON, not a new protobuf schema. Opt in with:

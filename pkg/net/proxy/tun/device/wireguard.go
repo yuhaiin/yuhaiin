@@ -4,7 +4,9 @@ import (
 	"errors"
 	"io"
 	"math"
+	"os"
 	"sync"
+	"sync/atomic"
 	"syscall"
 
 	wun "github.com/tailscale/wireguard-go/tun"
@@ -21,14 +23,30 @@ type wgDevice struct {
 	readMu  sync.Mutex
 	slab    []byte
 	packets []wun.ReadPacket
+
+	closed     atomic.Bool
+	closeOnce  sync.Once
+	closeErr   error
+	eventsDone <-chan struct{}
 }
 
+// NewDevice owns the device, including its event stream. Packet stack adapters
+// do not consume link events; draining them keeps native listeners stoppable.
 func NewDevice(device wun.Device, offset, mtu int, gsoEnabled bool) *wgDevice {
 	wrwc := &wgDevice{
 		Device: device,
 		offset: offset,
 		mtu:    mtu,
 		gso:    gsoEnabled,
+	}
+	if events := device.Events(); events != nil {
+		done := make(chan struct{})
+		wrwc.eventsDone = done
+		go func() {
+			defer close(done)
+			for range events {
+			}
+		}()
 	}
 
 	return wrwc
@@ -40,6 +58,9 @@ func (t *wgDevice) GSOEnabled() bool { return t.gso }
 func (t *wgDevice) Read(bufs [][]byte, sizes []int) (n int, err error) {
 	t.readMu.Lock()
 	defer t.readMu.Unlock()
+	if t.closed.Load() {
+		return 0, os.ErrClosed
+	}
 
 	if len(bufs) < t.BatchSize() || len(sizes) < len(bufs) {
 		return 0, wun.ErrTooManySegments
@@ -77,7 +98,25 @@ func (t *wgDevice) Read(bufs [][]byte, sizes []int) (n int, err error) {
 }
 
 func (t *wgDevice) Write(bufs [][]byte) (int, error) {
+	if t.closed.Load() {
+		return 0, os.ErrClosed
+	}
 	return t.Device.Write(bufs, t.offset)
+}
+
+func (t *wgDevice) Close() error {
+	t.closeOnce.Do(func() {
+		t.closed.Store(true)
+		// Unblock a native Read before taking the lock that protects its slab.
+		t.closeErr = t.Device.Close()
+		t.readMu.Lock()
+		t.slab, t.packets = nil, nil
+		t.readMu.Unlock()
+		if t.eventsDone != nil {
+			<-t.eventsDone
+		}
+	})
+	return t.closeErr
 }
 
 func (t *wgDevice) Tun() wun.Device { return t.Device }
