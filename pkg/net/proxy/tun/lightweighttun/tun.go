@@ -56,7 +56,7 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 		return nil, err
 	}
 	o.Device = d
-	p, err := newPacketIO(d)
+	p, err := NewPacketIO(d)
 	if err != nil {
 		_ = d.Close()
 		return nil, err
