@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -56,40 +55,34 @@ func PrepareTlsConfig(privKey *ecdsa.PrivateKey, peerPubKey *ecdsa.PublicKey, ce
 		NextProtos: []string{http3.NextProtoH3},
 		// WARN: SNI is usually not for the endpoint, so we must skip verification
 		InsecureSkipVerify: true,
-		// Cloudflare's SNI does not match the pinned endpoint certificate.
-		// Verify the leaf's public key; rejecting an absent leaf is essential
-		// when standard certificate chain verification is disabled.
-		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+		// we pin to the endpoint public key
+		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 			if len(rawCerts) == 0 {
-				return errors.New("masque: peer did not present a certificate")
+				return nil
 			}
-			leaf, err := x509.ParseCertificate(rawCerts[0])
+
+			cert, err := x509.ParseCertificate(rawCerts[0])
 			if err != nil {
-				return fmt.Errorf("masque: parse peer certificate: %w", err)
+				return err
 			}
-			key, ok := leaf.PublicKey.(*ecdsa.PublicKey)
-			if !ok {
+
+			if _, ok := cert.PublicKey.(*ecdsa.PublicKey); !ok {
+				// we only support ECDSA
+				// TODO: don't hardcode cert type in the future
+				// as backend can start using different cert types
 				return x509.ErrUnsupportedAlgorithm
 			}
-			if !key.Equal(peerPubKey) {
-				return x509.CertificateInvalidError{
-					Cert: leaf, Reason: x509.NotAuthorizedToSign,
-					Detail: "MASQUE endpoint certificate does not match the configured public key",
-				}
+
+			if !cert.PublicKey.(*ecdsa.PublicKey).Equal(peerPubKey) {
+				// reason is incorrect, but the best I could figure
+				// detail explains the actual reason
+
+				//10 is NoValidChains, but we support go1.22 where it's not defined
+				return x509.CertificateInvalidError{Cert: cert, Reason: 10, Detail: "remote endpoint has a different public key than what we trust in config.json"}
 			}
+
 			return nil
 		},
-	}
-
-	// The self-issued client certificate only lasts one day. Generate a fresh
-	// certificate at each TLS handshake so an unattended proxy can reconnect
-	// after running for more than 24 hours.
-	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-		certs, err := GenerateCert(privKey, &privKey.PublicKey)
-		if err != nil {
-			return nil, err
-		}
-		return &tls.Certificate{Certificate: certs, PrivateKey: privKey}, nil
 	}
 
 	return tlsConfig, nil
@@ -181,9 +174,6 @@ func NewCloudflareWarpMasque(o Config, p netapi.Proxy) (netapi.Proxy, error) {
 
 	if o.MTU == 0 {
 		o.MTU = 1280
-	}
-	if o.MTU < 1280 {
-		return nil, fmt.Errorf("invalid MASQUE MTU %d: minimum is 1280", o.MTU)
 	}
 
 	return NewMasque(p, tlsConfig, net.UDPAddrFromAddrPort(udpAddr), localAddresses, int(o.MTU))
