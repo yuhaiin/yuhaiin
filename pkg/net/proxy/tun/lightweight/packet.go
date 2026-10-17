@@ -42,7 +42,8 @@ func ParsePacket(b []byte) (Packet, error) {
 		if h < 20 || h > len(b) || n < h || n > len(b) || b[6]&0x80 != 0 {
 			return p, ErrMalformed
 		}
-		if Checksum(b[:h]) != 0 {
+		// IPv4 headers are at most 60 bytes; retain the leaf Go checksum path.
+		if ^fold(sumBytesGeneric(b[:h], 0)) != 0 {
 			return p, ErrChecksum
 		}
 		if err := validateIPOptions(b[20:h], false); err != nil {
@@ -232,7 +233,7 @@ func fillIPHeader(b []byte, src, dst netip.Addr, proto uint8, id uint16, h int) 
 		b[9] = proto
 		copy(b[12:16], src.AsSlice())
 		copy(b[16:20], dst.AsSlice())
-		binary.BigEndian.PutUint16(b[10:12], Checksum(b[:20]))
+		binary.BigEndian.PutUint16(b[10:12], ^fold(sumBytesGeneric(b[:20], 0)))
 	} else {
 		b[0] = 0x60
 		binary.BigEndian.PutUint16(b[4:6], uint16(len(b)-h))

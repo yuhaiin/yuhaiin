@@ -9,6 +9,9 @@ separates plain packets, checksum offload and TSO, and prioritizes macOS, Androi
 and Linux improvements. The [follow-up implementation and measurements](benchmarks/lightweight-offload-optimization-20261017.md)
 cover Linux TCP GSO, borrowed input views, owned output headroom, TX scheduling,
 software checksums and the SACK reporting fix.
+The [native checksum follow-up](benchmarks/lightweight-native-checksum-20261017.md)
+adds amd64 carry intrinsics and arm64 NEON assembly with a portable fallback,
+reference/guard-page tests and interleaved CPU-efficiency measurements.
 
 The [BBR v3 and ownership report](benchmarks/lightweight-bbr-v3.md) records the
 current controller, PMTU/recovery tests and performance work. The earlier

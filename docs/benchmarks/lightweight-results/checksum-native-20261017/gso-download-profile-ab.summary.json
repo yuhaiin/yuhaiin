@@ -1,0 +1,78 @@
+{
+  "metadata": {
+    "host": "Linux-7.2.6-zen2-1-zen-x86_64-with-glibc2.44",
+    "go": "go version go1.27.2-X:nodwarf5 linux/amd64",
+    "iperf": "iperf 3.22 (cJSON 1.7.15)\nLinux asutorufa 7.2.6-zen2-1-zen #1 ZEN SMP PREEMPT_DYNAMIC Mon, 14 Sep 2026 22:41:40 +0000 x86_64\nOptional features available: CPU affinity setting, IPv6 flow label, SCTP, TCP congestion algorithm setting, sendfile / zerocopy, socket pacing, authentication, bind to device, support IPv4 don't fragment, POSIX threads, GSO/GRO support",
+    "repo_head": "bb04f0bc1b65584260d6d7ee0be6e14d97028ec6",
+    "source_label": "profile diagnosis of native checksum A/B GSO download regression; profiling overhead applies to both variants",
+    "worktree_status": "M .github/workflows/lightweight-stack.yml\n M docs/benchmarks/lightweight-offload-optimization-20261017.md\n M docs/lightweight-tcpip-stack.md\n M pkg/net/proxy/tun/lightweight/checksum.go\n M pkg/net/proxy/tun/lightweight/checksum_test.go\n M pkg/net/proxy/tun/lightweight/packet.go\n M scripts/benchmarks/hev_compare.py\n M scripts/benchmarks/stackprobe/main_linux.go\n?? docs/benchmarks/lightweight-native-checksum-20261017.md\n?? docs/benchmarks/lightweight-results/checksum-native-20261017/\n?? pkg/net/proxy/tun/lightweight/checksum_amd64.go\n?? pkg/net/proxy/tun/lightweight/checksum_arm64.go\n?? pkg/net/proxy/tun/lightweight/checksum_arm64.s\n?? pkg/net/proxy/tun/lightweight/checksum_generic.go\n?? pkg/net/proxy/tun/lightweight/checksum_guard_linux_test.go\n?? pkg/net/proxy/tun/lightweight/checksum_native.go\n?? scripts/benchmarks/checksum_portable.py",
+    "tracked_diff_sha256": "7648932a21e1c1e1c2656bd1859558998416c7e8351c94ac6ae005b89169b850",
+    "probe_sha256": "8e539708f59abff8774656c868cd4b126ce7014e8f6743be9bfb877ddd9332e3",
+    "hev_lib_sha256": "8968b1b4f0017f9f2da7c95cf1f7d06fdec1ad22032985f0d601371ac41a598b",
+    "arguments": {
+      "probe": "/tmp/yuhaiin-stackprobe-checksum-portable",
+      "compare_probe": "/tmp/yuhaiin-stackprobe-checksum-native",
+      "hev_lib": "/tmp/yuhaiin-hev-socks5-tunnel/bin/libhev-socks5-tunnel.so",
+      "output": "/tmp/checksum-profile-ab.jsonl",
+      "stacks": [
+        "gso-cubic"
+      ],
+      "mtus": [
+        1500
+      ],
+      "flow_counts": [
+        1
+      ],
+      "directions": [
+        "download"
+      ],
+      "samples": 1,
+      "seconds": 8,
+      "proxy_cpus": "0-2",
+      "client_cpus": "3",
+      "backend_cpus": "4",
+      "server_cpus": "5",
+      "procs": 3,
+      "profile_dir": "/tmp/checksum-native-profiles",
+      "source_label": "profile diagnosis of native checksum A/B GSO download regression; profiling overhead applies to both variants",
+      "case": null,
+      "mtu": null,
+      "flows": null,
+      "direction": null,
+      "sample": null,
+      "variant": null
+    },
+    "topology": "Linux client -> TUN -> tested proxy -> common SOCKS -> loopback iperf server",
+    "notes": "fresh user/net namespace and independent processes per sample; IPv4 TCP; no encryption; hev buffer defaults; lightweight local_tun profile",
+    "hev_head": "873541b81f00f8fd462392fc622adbb8a8cd59b0",
+    "hev_submodules": "9f1cf0bfca0c003dd0cf0fbdcf6912a2b46a8d05 src/core (1.6.5)\n b2f2250371c1bd436a42f3c380ee46d4ac3bada8 third-part/hev-task-system (5.10.5)\n 7f51e51c72d088481af972c3a115cec41c043d49 third-part/lwip (2.2.1.9)\n 94441ec8777eb319936735a58b376963d09c73d4 third-part/yaml (0.2.5.3)",
+    "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           48 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  12\nOn-line CPU(s) list:                     0-11\nVendor ID:                               AuthenticAMD\nModel name:                              AMD Ryzen 5 5600G with Radeon Graphics\nCPU family:                              25\nModel:                                   80\nThread(s) per core:                      2\nCore(s) per socket:                      6\nSocket(s):                               1\nStepping:                                0\nMicrocode version:                       0xa500012\nFrequency boost:                         disabled\nCPU(s) scaling MHz:                      84%\nCPU max MHz:                             4778.1729\nCPU min MHz:                             431.7630\nBogoMIPS:                                8000.57\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cat_l3 cdp_l3 hw_pstate ssbd mba ibrs ibpb stibp vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif v_spec_ctrl umip pku ospke vaes vpclmulqdq rdpid overflow_recov succor smca fsrm debug_swap\nVirtualization:                          AMD-V\nL1d cache:                               192 KiB (6 instances)\nL1i cache:                               192 KiB (6 instances)\nL2 cache:                                3 MiB (6 instances)\nL3 cache:                                16 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-11\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Mitigation; Safe RET\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Retpolines; IBPB conditional; IBRS_FW; STIBP always-on; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Mitigation; Clear CPU buffers\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace",
+    "compare_probe_sha256": "25214bcb8ff3f15963cb6defc3d6535fb589c8d4c820accf12ef3d848a11b63d"
+  },
+  "medians": [
+    {
+      "case": "gso-cubic",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "download",
+      "variant": "baseline",
+      "gbps": 17.271224504739457,
+      "proxy_cpu_seconds_per_GB": 0.7619435997878913,
+      "proxy_cpu_cores": 1.6438938119383923,
+      "proxy_peak_rss_bytes": 26546176,
+      "sender_retransmits": 0
+    },
+    {
+      "case": "gso-cubic",
+      "mtu": 1500,
+      "flows": 1,
+      "direction": "download",
+      "variant": "candidate",
+      "gbps": 18.227258260968256,
+      "proxy_cpu_seconds_per_GB": 0.7148065831297546,
+      "proxy_cpu_cores": 1.627663924544477,
+      "proxy_peak_rss_bytes": 26529792,
+      "sender_retransmits": 0
+    }
+  ]
+}

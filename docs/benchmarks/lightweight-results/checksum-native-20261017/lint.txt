@@ -1,0 +1,3 @@
+golangci-lint v2.15.0 run --timeout=5m
+0 issues.
+actionlint v1.7.12: passed (no diagnostics)

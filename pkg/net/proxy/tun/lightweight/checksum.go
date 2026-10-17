@@ -6,11 +6,22 @@ import (
 )
 
 // Checksum returns the Internet checksum, including an odd trailing octet.
-func Checksum(b []byte) uint16 { return ^fold(sumBytes(b, 0)) }
+func Checksum(b []byte) uint16 {
+	if checksumAccelerated && len(b) >= 128 {
+		return ^fold(sumBytes(b, 0))
+	}
+	return ^fold(sumBytesGeneric(b, 0))
+}
+
 func sumBytes(b []byte, sum uint32) uint32 {
-	// Four bounded word loads amortize loop and bounds checks on both arm64
-	// and amd64 without unsafe alignment assumptions or architecture assembly.
-	// Folding each block also makes the exported Checksum safe beyond 64 KiB.
+	if checksumAccelerated && len(b) >= 128 {
+		b, sum = checksumBulk(b, sum)
+	}
+	return sumBytesGeneric(b, sum)
+}
+func sumBytesGeneric(b []byte, sum uint32) uint32 {
+	// Portable small-packet and tail loop, also used for the entire input on
+	// other architectures. Folding each block bounds accumulation.
 	for len(b) >= 16 {
 		a := binary.BigEndian.Uint32(b[:4])
 		c := binary.BigEndian.Uint32(b[4:8])
@@ -36,10 +47,16 @@ func fold(sum uint32) uint16 {
 	return uint16(sum)
 }
 func transportChecksum(src, dst netip.Addr, proto uint8, b []byte) uint16 {
-	return ^fold(sumBytes(b, pseudoHeaderSum(src, dst, proto, len(b))))
+	sum := pseudoHeaderSum(src, dst, proto, len(b))
+	if checksumAccelerated && len(b) >= 128 {
+		return ^fold(sumBytes(b, sum))
+	}
+	return ^fold(sumBytesGeneric(b, sum))
 }
 func pseudoHeaderSum(src, dst netip.Addr, proto uint8, length int) uint32 {
-	sum := sumBytes(src.AsSlice(), 0)
-	sum = sumBytes(dst.AsSlice(), sum)
+	// Addresses and packet headers must retain the leaf Go path: GSO eliminates
+	// payload checksumming, leaving many tiny ACK/header calls in the hot path.
+	sum := sumBytesGeneric(src.AsSlice(), 0)
+	sum = sumBytesGeneric(dst.AsSlice(), sum)
 	return sum + uint32(proto) + uint32(length&65535) + uint32(length>>16)
 }

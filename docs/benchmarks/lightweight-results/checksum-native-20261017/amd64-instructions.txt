@@ -1,0 +1,33 @@
+TEXT github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight.checksumBlocks(SB) /home/asutorufa/Documents/Programming/yuhaiin/pkg/net/proxy/tun/lightweight/checksum_amd64.go
+  checksum_amd64.go:10	0x619ee0		4889442408		MOVQ AX, 0x8(SP)
+  checksum_amd64.go:12	0x619ee5		31d2			XORL DX, DX
+  checksum_amd64.go:12	0x619ee7		eb57			JMP 0x619f40
+  checksum_amd64.go:23	0x619ee9		4883c1c0		ADDQ $-0x40, CX
+  checksum_amd64.go:23	0x619eed		4889ce			MOVQ CX, SI
+  checksum_amd64.go:23	0x619ef0		48f7de			NEGQ SI
+  checksum_amd64.go:23	0x619ef3		48c1fe3f		SARQ $0x3f, SI
+  checksum_amd64.go:23	0x619ef7		83e640			ANDL $0x40, SI
+  binary.go:117		0x619efa		488b38			MOVQ 0(AX), DI
+  binary.go:117		0x619efd		4c8b4008		MOVQ 0x8(AX), R8
+  binary.go:117		0x619f01		4c8b4810		MOVQ 0x10(AX), R9
+  binary.go:117		0x619f05		4c8b5018		MOVQ 0x18(AX), R10
+  binary.go:117		0x619f09		4c8b5820		MOVQ 0x20(AX), R11
+  binary.go:117		0x619f0d		4c8b6028		MOVQ 0x28(AX), R12
+  binary.go:117		0x619f11		4c8b6830		MOVQ 0x30(AX), R13
+  binary.go:117		0x619f15		4c8b7838		MOVQ 0x38(AX), R15
+  checksum_amd64.go:23	0x619f19		4801f0			ADDQ SI, AX
+  checksum_amd64.go:14	0x619f1c		4801fa			ADDQ DI, DX
+  checksum_amd64.go:15	0x619f1f		4c11c2			ADCQ R8, DX
+  checksum_amd64.go:16	0x619f22		4c11ca			ADCQ R9, DX
+  checksum_amd64.go:17	0x619f25		4c11d2			ADCQ R10, DX
+  checksum_amd64.go:18	0x619f28		4c11da			ADCQ R11, DX
+  checksum_amd64.go:19	0x619f2b		4c11e2			ADCQ R12, DX
+  checksum_amd64.go:20	0x619f2e		4c11ea			ADCQ R13, DX
+  checksum_amd64.go:21	0x619f31		4c11fa			ADCQ R15, DX
+  checksum_amd64.go:22	0x619f34		4883d200		ADCQ $0x0, DX
+  checksum_amd64.go:23	0x619f38		4883c3c0		ADDQ $-0x40, BX
+  checksum_amd64.go:23	0x619f3c		0f1f4000		NOPL 0(AX)
+  checksum_amd64.go:12	0x619f40		4883fb40		CMPQ BX, $0x40
+  checksum_amd64.go:12	0x619f44		7da3			JGE 0x619ee9
+  checksum_amd64.go:25	0x619f46		4889d0			MOVQ DX, AX
+  checksum_amd64.go:25	0x619f49		c3			RET

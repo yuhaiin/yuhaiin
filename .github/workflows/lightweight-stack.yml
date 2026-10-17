@@ -29,7 +29,10 @@ jobs:
         run: |
           go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzParsePacket$' -fuzztime=10s -parallel=4
           go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzTCPOptions$' -fuzztime=10s -parallel=4
+          go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzChecksum$' -fuzztime=10s -parallel=4
           go test ./pkg/net/proxy/tun/device -run '^$' -fuzz '^FuzzVirtioPacket$' -fuzztime=10s -parallel=4
+      - name: Portable checksum fallback
+        run: python3 scripts/benchmarks/checksum_portable.py test ./pkg/net/proxy/tun/lightweight -run '^TestChecksum' -count=1
       - name: Benchmark smoke test
         run: go test ./pkg/net/proxy/tun/lightweight/... -run '^$' -bench . -benchtime=1x -benchmem -timeout=180s
 
@@ -95,3 +98,15 @@ jobs:
           GOOS: ${{ matrix.target.os }}
           GOARCH: ${{ matrix.target.arch }}
         run: go build ./pkg/net/proxy/tun/lightweight/...
+      - name: Execute ARM64 checksum and guard-page tests
+        if: matrix.target.os == 'linux' && matrix.target.arch == 'arm64'
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y qemu-user
+          go test -c -o /tmp/lightweight-arm64.test ./pkg/net/proxy/tun/lightweight
+          qemu-aarch64 /tmp/lightweight-arm64.test -test.run '^TestChecksum' -test.v
+          qemu-aarch64 -p 16384 /tmp/lightweight-arm64.test -test.run '^TestChecksum' -test.v

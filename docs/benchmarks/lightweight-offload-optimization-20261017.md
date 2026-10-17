@@ -1,5 +1,9 @@
 # Lightweight stack: offloads, packet ownership and scheduling
 
+This report records the `bb04f0bc` checkpoint. The subsequent
+[native checksum follow-up](lightweight-native-checksum-20261017.md) adds
+architecture-specific acceleration and separate A/B measurements.
+
 Date: 2026-10-17. Baseline: `29be8d0f`; hev:
 `873541b81f00f8fd462392fc622adbb8a8cd59b0` with its pinned submodules.
 The [baseline audit](lightweight-performance-review-20261017.md) explains the

@@ -116,7 +116,8 @@ misc:
                 else:
                     argv = [a.probe, "-mode=stack", f"-fd={fd}", f"-mtu={a.mtu}", f"-cc={a.case.removeprefix('gso-')}"]
                     if a.profile_dir:
-                        profile = Path(a.profile_dir) / f"{a.case}-{a.mtu}-{a.flows}-{a.direction}-{a.sample}.cpu"
+                        prefix = f"{a.variant}-" if a.variant else ""
+                        profile = Path(a.profile_dir) / f"{prefix}{a.case}-{a.mtu}-{a.flows}-{a.direction}-{a.sample}.cpu"
                         argv.append(f"-cpuprofile={profile}")
                     proxy_process = start("proxy", a.proxy_cpus, argv, (fd,))
                 run("ip", "addr", "add", "198.18.0.1/24", "dev", "bench0")
@@ -181,6 +182,7 @@ def main():
         sys.exit(call(os.fsencode(sys.argv[3]), int(sys.argv[4])))
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--probe", required=True)
+    p.add_argument("--compare-probe", help="interleave a second probe binary under identical conditions")
     p.add_argument("--hev-lib", required=True)
     p.add_argument("--output", type=Path)
     p.add_argument("--stacks", nargs="+", choices=STACKS, default=["cubic", "bbr", "hev-plain", "hev-tso"])
@@ -201,10 +203,13 @@ def main():
     p.add_argument("--flows", type=int, help=argparse.SUPPRESS)
     p.add_argument("--direction", help=argparse.SUPPRESS)
     p.add_argument("--sample", type=int, help=argparse.SUPPRESS)
+    p.add_argument("--variant", help=argparse.SUPPRESS)
     a = p.parse_args()
     if a.seconds < 1 or a.samples < 1 or any(n < 1 for n in a.flow_counts):
         p.error("durations, samples and flows must be positive")
     a.probe, a.hev_lib = str(Path(a.probe).resolve()), str(Path(a.hev_lib).resolve())
+    if a.compare_probe:
+        a.compare_probe = str(Path(a.compare_probe).resolve())
     if a.case:
         worker(a)
         return
@@ -229,20 +234,28 @@ def main():
         metadata["hev_head"] = run("git", "-C", str(hev_root), "rev-parse", "HEAD")
         metadata["hev_submodules"] = run("git", "-C", str(hev_root), "submodule", "status")
     metadata["cpu"] = run("lscpu")
+    variants = [(None, a.probe)]
+    if a.compare_probe:
+        variants = [("baseline", a.probe), ("candidate", a.compare_probe)]
+        metadata["compare_probe_sha256"] = hashlib.file_digest(open(a.compare_probe, "rb"), "sha256").hexdigest()
     a.output.parent.mkdir(parents=True, exist_ok=True)
     cases = list(itertools.product(a.stacks, a.mtus, a.flow_counts, a.directions))
+    runs = [(case, mtu, flows, direction, variant, probe)
+            for case, mtu, flows, direction in cases for variant, probe in variants]
     records = []
     with a.output.open("w") as f:
         f.write(json.dumps({"metadata": metadata}) + "\n")
         f.flush()
         for sample in range(1, a.samples + 1):
-            random.Random(1729 + sample).shuffle(cases)
-            for case, mtu, flows, direction in cases:
-                print(f"sample={sample} {case} mtu={mtu} flows={flows} {direction}", flush=True)
+            random.Random(1729 + sample).shuffle(runs)
+            for case, mtu, flows, direction, variant, probe in runs:
+                print(f"sample={sample} {variant or ''} {case} mtu={mtu} flows={flows} {direction}", flush=True)
                 argv = ["unshare", "-Urn", sys.executable, SELF, "--case", case,
-                        "--probe", a.probe, "--hev-lib", a.hev_lib, "--mtu", str(mtu),
+                        "--probe", probe, "--hev-lib", a.hev_lib, "--mtu", str(mtu),
                         "--flows", str(flows), "--direction", direction, "--sample", str(sample),
                         "--seconds", str(a.seconds), "--procs", str(a.procs)]
+                if variant:
+                    argv.extend(["--variant", variant])
                 for key in ("proxy_cpus", "client_cpus", "backend_cpus", "server_cpus", "profile_dir"):
                     if getattr(a, key):
                         argv.extend(["--" + key.replace("_", "-"), getattr(a, key)])
@@ -250,16 +263,20 @@ def main():
                 if result.returncode:
                     raise RuntimeError(result.stdout + result.stderr)
                 row = json.loads(result.stdout)
+                if variant:
+                    row["variant"] = variant
                 records.append(row)
                 f.write(json.dumps(row) + "\n")
                 f.flush()
                 print(f"  {row['gbps']:.3f} Gbit/s, proxy {row['proxy_cpu_seconds_per_GB']:.3f} CPU s/GB", flush=True)
     medians = []
     for case, mtu, flows, direction in sorted(cases):
-        rows = [r for r in records if (r["case"], r["mtu"], r["flows"], r["direction"]) == (case, mtu, flows, direction)]
-        medians.append(dict(case=case, mtu=mtu, flows=flows, direction=direction,
-            **{k: statistics.median(r[k] for r in rows) for k in (
-                "gbps", "proxy_cpu_seconds_per_GB", "proxy_cpu_cores", "proxy_peak_rss_bytes", "sender_retransmits")}))
+        for variant, _ in variants:
+            rows = [r for r in records if (r["case"], r["mtu"], r["flows"], r["direction"], r.get("variant")) == (case, mtu, flows, direction, variant)]
+            medians.append(dict(case=case, mtu=mtu, flows=flows, direction=direction,
+                **({"variant": variant} if variant else {}),
+                **{k: statistics.median(r[k] for r in rows) for k in (
+                    "gbps", "proxy_cpu_seconds_per_GB", "proxy_cpu_cores", "proxy_peak_rss_bytes", "sender_retransmits")}))
     a.output.with_suffix(".summary.json").write_text(json.dumps({"metadata": metadata, "medians": medians}, indent=2) + "\n")
 
 

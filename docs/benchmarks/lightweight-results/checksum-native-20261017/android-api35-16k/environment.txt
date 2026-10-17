@@ -1,0 +1,10 @@
+AVD: Yuhaiin_API35_16K; read-only, no-snapshot, RAM override 4096 MiB
+getconf PAGESIZE
+16384
+getenforce
+Enforcing
+uname -a
+Linux localhost 6.6.50-android15-8-g8adecb593e9b-ab12525588 #1 SMP PREEMPT Fri Oct 18 23:59:20 UTC 2024 x86_64 Toybox
+getprop ro.build.fingerprint
+google/sdk_gphone16k_x86_64/emu64xa16k:15/AE3A.240806.043/12960925:userdebug/dev-keys
+APK SHA256: e565678dafd52080b5793fe53871800604e8fde41be8604f197529bcc9c47d28

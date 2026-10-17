@@ -120,11 +120,11 @@ func serveIntegrity(c net.Conn) {
 		n := min(left, uint64(len(pattern)))
 		if header[0] == 0 {
 			if _, err := io.ReadFull(c, buf[:n]); err != nil || !bytes.Equal(buf[:n], pattern[:n]) {
-				log.Printf("integrity read failed: %v", err)
+				log.Print("integrity read failed")
 				return
 			}
 		} else if written, err := c.Write(pattern[:n]); err != nil || uint64(written) != n {
-			log.Printf("integrity write failed: %v", err)
+			log.Print("integrity write failed")
 			return
 		}
 		left -= n
