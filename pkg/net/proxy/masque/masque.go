@@ -168,9 +168,10 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 	quicTransport := &quic.Transport{Conn: conn, ConnectionIDLength: 20}
 	mConn.quicTransport = quicTransport
 	quicConn, err := quicTransport.Dial(ctx, m.addr, m.TlsConfig, &quic.Config{
-		EnableDatagrams:   true,
-		InitialPacketSize: 1242,
-		KeepAlivePeriod:   time.Second * 30,
+		EnableDatagrams:         true,
+		InitialPacketSize:       1242,
+		DisablePathMTUDiscovery: true,
+		KeepAlivePeriod:         30 * time.Second,
 	})
 	if err != nil {
 		_ = mConn.Close()
