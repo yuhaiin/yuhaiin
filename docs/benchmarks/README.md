@@ -7,17 +7,19 @@ This directory contains the **latest retained measurement snapshots**, not a per
 | Report | Scope | Latest retained measurements |
 | --- | --- | --- |
 | [Lightweight TCP/IP](lightweight.md) | Native stack, hev/lwIP comparison, Linux TUN offload, native checksums, correctness limits | 2026-10-17 |
+| [Full-cone UDP NAT](nat.md) | NAT cache/send microbenchmarks, queue round trips, full-cone correctness | 2026-10-18 |
 | [Protocol benchmarks](protocols.md) | Hysteria 2 interoperability/port hopping; OpenVPN real-server interop | 2026-10-07 to 2026-10-11 |
 
 ## Retained machine-readable data
 
-The `data/` directory contains only the four summary datasets needed to inspect the documented lightweight comparisons. Values, metadata and test conditions are unchanged from the original files:
+The `data/` directory retains the summary datasets needed to inspect the documented comparisons. Values, metadata and test conditions in the lightweight summaries are unchanged from the original files:
 
 | File | Original source / comparison |
 | --- | --- |
 | [hev-baseline.summary.json](data/hev-baseline.summary.json) | `lightweight-results/hev-20261017/ipv4-mtu1500.summary.json` (pre-optimization comparison) |
 | [offload-before.summary.json](data/offload-before.summary.json) | `lightweight-results/optimization-20261017/before.summary.json` |
 | [offload-after.summary.json](data/offload-after.summary.json) | `lightweight-results/optimization-20261017/after.summary.json` |
+| [nat-fullcone.summary.json](data/nat-fullcone.summary.json) | Full-cone NAT before/after samples, revisions and fixture conditions |
 | [checksum-native.summary.json](data/checksum-native.summary.json) | `lightweight-results/checksum-native-20261017/ab.summary.json` |
 
 The full historical records, including intermediate stages, unsuccessful trials, JSONL samples, profiles, local device logs and protocol JSON, remain accessible through the repository's Git history. Removing a file here does **not** turn its old measurements into current benchmark results.

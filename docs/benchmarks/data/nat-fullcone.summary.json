@@ -1,0 +1,132 @@
+{
+  "date": "2026-10-18",
+  "baseline_revision": "f535076cc0be3a337cce3ea40359769511f09991",
+  "candidate_code_revision": "d4be98a3891d68abb2ef1157e7fdeebf5a440739",
+  "environment": {
+    "os": "linux",
+    "arch": "amd64",
+    "cpu": "AMD Ryzen 5 5600G",
+    "go_version": "go version go1.27.2-X:nodwarf5 linux/amd64",
+    "gomaxprocs": 12,
+    "cpu_affinity": "not pinned",
+    "benchmark_duration": "Go default 1s per sample",
+    "samples": 5
+  },
+  "fixtures": {
+    "BenchmarkNATCachedSend": "Synchronous warmed NAT address cache and send bookkeeping; no I/O; 1200-byte payload.",
+    "BenchmarkNATRoundTrip": "One source and target, same process, deterministic in-memory datagram echo; includes Table, queues, reader, and writeback; no socket syscalls."
+  },
+  "interpretation": "Go payload-processing microbenchmarks, not physical-network or encrypted end-to-end bandwidth.",
+  "baseline": {
+    "BenchmarkNATCachedSend/IP": {
+      "ns_per_op_samples": [
+        204.0,
+        201.9,
+        200.7,
+        200.0,
+        200.1
+      ],
+      "bytes_per_op": 304,
+      "allocs_per_op": 2,
+      "median_ns_per_op": 200.7
+    },
+    "BenchmarkNATCachedSend/MappedIP": {
+      "ns_per_op_samples": [
+        208.8,
+        209.0,
+        209.4,
+        209.1,
+        210.2
+      ],
+      "bytes_per_op": 248,
+      "allocs_per_op": 3,
+      "median_ns_per_op": 209.1
+    },
+    "BenchmarkNATCachedSend/RemoteDomain": {
+      "ns_per_op_samples": [
+        180.8,
+        178.7,
+        177.2,
+        178.0,
+        177.5
+      ],
+      "bytes_per_op": 304,
+      "allocs_per_op": 2,
+      "median_ns_per_op": 178.0
+    },
+    "BenchmarkNATRoundTrip/1200": {
+      "ns_per_op_samples": [
+        1620.0,
+        1623.0,
+        1629.0,
+        1630.0,
+        1630.0
+      ],
+      "bytes_per_op": 304,
+      "allocs_per_op": 2,
+      "median_ns_per_op": 1629.0
+    }
+  },
+  "candidate": {
+    "BenchmarkNATCachedSend/IP": {
+      "ns_per_op_samples": [
+        53.21,
+        52.65,
+        52.59,
+        52.74,
+        52.5
+      ],
+      "bytes_per_op": 0,
+      "allocs_per_op": 0,
+      "median_ns_per_op": 52.65
+    },
+    "BenchmarkNATCachedSend/MappedIP": {
+      "ns_per_op_samples": [
+        52.51,
+        53.12,
+        52.41,
+        52.54,
+        52.45
+      ],
+      "bytes_per_op": 0,
+      "allocs_per_op": 0,
+      "median_ns_per_op": 52.51
+    },
+    "BenchmarkNATCachedSend/RemoteDomain": {
+      "ns_per_op_samples": [
+        47.31,
+        49.55,
+        47.44,
+        47.55,
+        47.6
+      ],
+      "bytes_per_op": 0,
+      "allocs_per_op": 0,
+      "median_ns_per_op": 47.55
+    },
+    "BenchmarkNATRoundTrip/1200": {
+      "ns_per_op_samples": [
+        1387.0,
+        1388.0,
+        1374.0,
+        1397.0,
+        1393.0
+      ],
+      "bytes_per_op": 0,
+      "allocs_per_op": 0,
+      "median_ns_per_op": 1388.0
+    },
+    "BenchmarkNATRoundTrip/4096": {
+      "ns_per_op_samples": [
+        1436.0,
+        1458.0,
+        1445.0,
+        1439.0,
+        1433.0
+      ],
+      "bytes_per_op": 0,
+      "allocs_per_op": 0,
+      "median_ns_per_op": 1439.0
+    }
+  }
+}
