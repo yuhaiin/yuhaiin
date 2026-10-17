@@ -124,7 +124,7 @@ func (t *Tailscale) init(ctx context.Context) (*tsnet.Server, error) {
 	u := &underlay{owner: t, ancestors: appendLoop(ctx, t)}
 	s := &tsnet.Server{
 		Hostname: t.config.Hostname, ControlURL: t.config.ControlURL,
-		RunWebClient: true, Dir: dir, UserLogf: log.InfoFormat, Underlay: u.network(),
+		RunWebClient: true, Dir: dir, UserLogf: log.InfoFormat, Underlay: u.network(), Tun: newTailnetTun(),
 	}
 	if t.config.Debug {
 		s.Logf = log.InfoFormat
@@ -140,25 +140,30 @@ func (t *Tailscale) init(ctx context.Context) (*tsnet.Server, error) {
 		return nil, err
 	}
 	t.tsnet, t.stateDir = s, dir
-	go serveMetrics(s)
 	return s, nil
 }
 
-func serveMetrics(s *tsnet.Server) {
-	lis, err := s.Listen("tcp", ":80")
+func serveMetrics(n *tailnetTun) {
+	network, err := n.await()
+	if err != nil {
+		return
+	}
+	lis, err := network.ListenTCP(&net.TCPAddr{Port: 80})
 	if err != nil {
 		log.Debug("tailscale listen metrics failed", "err", err)
 		return
 	}
-	defer lis.Close()
-	err = http.Serve(lis, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if mux := Mux.Load(); mux != nil {
-			mux.ServeHTTP(w, r)
+	go func() {
+		defer lis.Close()
+		err := http.Serve(lis, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if mux := Mux.Load(); mux != nil {
+				mux.ServeHTTP(w, r)
+			}
+		}))
+		if err != nil && !errors.Is(err, net.ErrClosed) {
+			log.Debug("tailscale serve metrics stopped", "err", err)
 		}
-	}))
-	if err != nil && !errors.Is(err, net.ErrClosed) {
-		log.Debug("tailscale serve metrics stopped", "err", err)
-	}
+	}()
 }
 
 func (t *Tailscale) up(ctx context.Context, s *tsnet.Server) (*ipnstate.Status, error) {
@@ -191,6 +196,12 @@ func (t *Tailscale) ready(ctx context.Context) (*tsnet.Server, error) {
 	if t.ctx.Err() != nil {
 		return nil, net.ErrClosed
 	}
+	network := s.Tun.(*tailnetTun)
+	v4, v6 := s.TailscaleIPs()
+	if err := network.configure(v4, v6); err != nil {
+		return nil, err
+	}
+	network.metrics.Do(func() { serveMetrics(network) })
 	return s, nil
 }
 
@@ -217,7 +228,7 @@ func (t *Tailscale) Close() error {
 
 // resolveAddr delegates MagicDNS (including family selection and ExtraRecords)
 // and route classification to Tailscale. Dialing the resulting IP through
-// netstack keeps the transport pinned even if a route disappears afterwards.
+// our stack keeps the transport pinned even if a route disappears afterwards.
 // Server.Dial/UserDial can fall back to a host socket on such a route change.
 func resolveAddr(ctx context.Context, s *tsnet.Server, network string, addr netapi.Address) (netip.AddrPort, error) {
 	sys := s.Sys()
@@ -285,11 +296,11 @@ func (t *Tailscale) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 	if err != nil {
 		return nil, err
 	}
-	dialer, ok := s.Sys().Dialer.GetOK()
-	if !ok || dialer == nil || dialer.NetstackDialTCP == nil {
-		return nil, errors.New("tailscale: TCP dialer subsystem unavailable")
+	network, err := s.Tun.(*tailnetTun).await()
+	if err != nil {
+		return nil, err
 	}
-	return dialer.NetstackDialTCP(ctx, ip)
+	return network.DialContextTCP(ctx, net.TCPAddrFromAddrPort(ip))
 }
 
 func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
@@ -317,7 +328,11 @@ func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 	if !local.IsValid() {
 		return nil, errors.New("tailscale has no local address for the destination family")
 	}
-	pc, err := s.ListenPacket(network, netip.AddrPortFrom(local, 0).String())
+	stack, err := s.Tun.(*tailnetTun).await()
+	if err != nil {
+		return nil, err
+	}
+	pc, err := stack.DialUDP(&net.UDPAddr{IP: net.IP(local.AsSlice())}, nil)
 	if err != nil {
 		return nil, err
 	}

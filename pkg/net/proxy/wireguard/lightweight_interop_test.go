@@ -40,7 +40,7 @@ func TestLightweightWireGuardInterop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	peerNet, err := CreateNetTUN([]netip.Prefix{netip.MustParsePrefix("192.0.2.2/32"), netip.MustParsePrefix("2001:db8::2/128")}, 1400)
+	peerNet, err := createReferenceNetTUN([]netip.Prefix{netip.MustParsePrefix("192.0.2.2/32"), netip.MustParsePrefix("2001:db8::2/128")}, 1400)
 	if err != nil {
 		t.Fatal(err)
 	}

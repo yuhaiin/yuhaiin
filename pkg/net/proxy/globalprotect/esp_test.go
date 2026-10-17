@@ -102,7 +102,7 @@ func testESPGateway(t *testing.T, blocked bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stack, err := wireguard.CreateNetTUN([]netip.Prefix{netip.MustParsePrefix("10.204.0.1/32")}, 1300)
+	stack, err := wireguard.CreateLightweightNetTUN([]netip.Prefix{netip.MustParsePrefix("10.204.0.1/32")}, 1300)
 	if err != nil {
 		t.Fatal(err)
 	}

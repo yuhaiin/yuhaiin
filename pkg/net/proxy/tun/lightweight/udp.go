@@ -259,9 +259,11 @@ func (u *UDPConn) ReadFrom(b []byte) (int, net.Addr, error) {
 func (u *UDPConn) Read(b []byte) (int, error) { n, _, err := u.ReadFrom(b); return n, err }
 func (u *UDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	dst, ok := addr.(*net.UDPAddr)
-	if !ok || dst == nil {
+	if !ok || dst == nil || dst.Port < 1 || dst.Port > 65535 || dst.Zone != "" {
 		return 0, ErrMalformed
 	}
+	destination := dst.AddrPort()
+	destination = netip.AddrPortFrom(destination.Addr().Unmap(), destination.Port())
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	if u.closed {
@@ -270,14 +272,14 @@ func (u *UDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	if !u.writeDeadline.IsZero() && !time.Now().Before(u.writeDeadline) {
 		return 0, os.ErrDeadlineExceeded
 	}
-	if u.remote.IsValid() && u.remote != dst.AddrPort() {
+	if u.remote.IsValid() && u.remote != destination {
 		return 0, errors.New("lightweight: connected UDP destination mismatch")
 	}
 	source := u.local
-	if u.dualStack && dst.AddrPort().Addr().Is4() {
+	if u.dualStack && destination.Addr().Is4() {
 		source = netip.AddrPortFrom(netip.IPv4Unspecified(), source.Port())
 	}
-	return u.stack.WriteUDP(source, dst.AddrPort(), b)
+	return u.stack.WriteUDP(source, destination, b)
 }
 func (u *UDPConn) Write(b []byte) (int, error) {
 	if !u.remote.IsValid() {

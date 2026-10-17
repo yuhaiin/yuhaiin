@@ -17,7 +17,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/tailscale/wireguard-go/tun"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 )
 
 type Config struct {
@@ -28,8 +27,8 @@ type Config struct {
 type Client struct {
 	netapi.EmptyDispatch
 	session *native.Session
-	network *wireguard.NetTun
-	tcp     *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
+	network *wireguard.LightweightNetTun
+	tcp     *dialer.HappyEyeballsv2Dialer[net.Conn]
 	once    sync.Once
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -78,14 +77,14 @@ func connectClient(parent context.Context, cfg Config, upstream netapi.Proxy) (*
 		return nil, err
 	}
 	info := session.Info()
-	network, err := wireguard.CreateNetTUN(info.Prefixes, info.MTU)
+	network, err := wireguard.CreateLightweightNetTUN(info.Prefixes, info.MTU)
 	if err != nil {
 		_ = session.Close()
 		return nil, err
 	}
 	run, cancelRun := context.WithCancel(context.Background())
 	c := &Client{session: session, network: network, ctx: run, cancel: cancelRun}
-	c.tcp = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
+	c.tcp = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 		return network.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 	})
 	c.wg.Go(c.receive)
@@ -135,7 +134,7 @@ func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 	if err != nil {
 		return nil, err
 	}
-	return wireguard.NewWrapGoNetTcpConn(conn), nil
+	return conn, nil
 }
 func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	if err := ctx.Err(); err != nil {

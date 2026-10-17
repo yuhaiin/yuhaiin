@@ -22,14 +22,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/tailscale/wireguard-go/tun"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 )
 
 type Client struct {
 	netapi.EmptyDispatch
 	control      *control
 	session      session
-	tunnel       *wireguard.NetTun
+	tunnel       *wireguard.LightweightNetTun
 	conn         *tls.Conn
 	esp          *espTunnel
 	ctx          context.Context
@@ -44,7 +43,7 @@ type Client struct {
 	mu           sync.Mutex
 	failure      error
 	done         chan struct{}
-	dialer       *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
+	dialer       *dialer.HappyEyeballsv2Dialer[net.Conn]
 	mtu          int
 	tunnelURL    string
 	extraInfo    contractnode.GlobalProtectInfo
@@ -152,7 +151,7 @@ func connectClient(parent context.Context, config Config) (_ *Client, err error)
 		closeTransport()
 		return nil, fmt.Errorf("globalprotect: invalid MTU %d", mtu)
 	}
-	network, err := wireguard.CreateNetTUN([]netip.Prefix{addr}, mtu)
+	network, err := wireguard.CreateLightweightNetTUN([]netip.Prefix{addr}, mtu)
 	if err != nil {
 		closeTransport()
 		return nil, err
@@ -179,7 +178,7 @@ func connectClient(parent context.Context, config Config) (_ *Client, err error)
 			DNSSuffix:                    slices.Clone(cfg.DNSSuffix),
 			NoDirectAccessToLocalNetwork: cfg.NoDirectAccess,
 		},
-		dialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
+		dialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 			return network.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 		}),
 	}
@@ -330,7 +329,7 @@ func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 	if err != nil {
 		return nil, err
 	}
-	return wireguard.NewWrapGoNetTcpConn(conn), nil
+	return conn, nil
 }
 
 func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketConn, error) {

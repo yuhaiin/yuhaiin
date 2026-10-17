@@ -1,5 +1,5 @@
 // Package vpnkit adapts four in-process VPN protocol engines to the
-// existing yuhaiin gVisor IP stack, without installing any host network routes.
+// shared lightweight IP stack, without installing any host network routes.
 package vpnkit
 
 import (
@@ -21,14 +21,14 @@ type packetBridge struct {
 	mu      sync.Mutex
 	ready   chan struct{}
 	once    sync.Once
-	network *wireguard.NetTun
+	network *wireguard.LightweightNetTun
 	closed  bool
 }
 
 func newPacketBridge() *packetBridge {
 	return &packetBridge{ready: make(chan struct{})}
 }
-func (b *packetBridge) Attach(cfg vpnclient.Result) (*wireguard.NetTun, error) {
+func (b *packetBridge) Attach(cfg vpnclient.Result) (*wireguard.LightweightNetTun, error) {
 	if cfg.Layer2 {
 		return nil, errors.New("vpnkit: layer 2 tunnels are unsupported")
 	}
@@ -67,7 +67,7 @@ func (b *packetBridge) Attach(cfg vpnclient.Result) (*wireguard.NetTun, error) {
 	if mtu < 576 || mtu > 9000 {
 		return nil, fmt.Errorf("vpnkit: unsafe MTU %d", mtu)
 	}
-	network, err := wireguard.CreateNetTUN(prefixes, mtu)
+	network, err := wireguard.CreateLightweightNetTUN(prefixes, mtu)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func ipv4Bits(mask net.IPMask) int {
 	}
 	return ones
 }
-func (b *packetBridge) await() (*wireguard.NetTun, error) {
+func (b *packetBridge) await() (*wireguard.LightweightNetTun, error) {
 	<-b.ready
 	b.mu.Lock()
 	defer b.mu.Unlock()

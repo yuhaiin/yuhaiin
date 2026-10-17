@@ -30,6 +30,8 @@ protection = os.environ.get('OVPN_PROTECTION', 'tls-crypt')
 config = '''port 1194
 proto {proto}
 dev tun
+# Exercise the userspace data channel; rootless peers cannot manage host DCO.
+disable-dco
 ca /state/ca.crt
 cert /state/server.crt
 key /state/server.key

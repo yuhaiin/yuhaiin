@@ -33,11 +33,18 @@ func (c Config) normalize() (Config, error) {
 	if c.MTU == 0 {
 		c.MTU = 1500
 	}
-	if c.MTU < 1280 || c.MTU > 65535 {
-		return c, fmt.Errorf("lightweight: MTU must be 1280..65535")
+	minMTU := 1280
+	if c.Profile == RemoteTunnel {
+		minMTU = 576
+	}
+	if c.MTU < minMTU || c.MTU > 65535 {
+		return c, fmt.Errorf("lightweight: MTU must be %d..65535", minMTU)
 	}
 	if c.CongestionControl == "" {
 		c.CongestionControl = "cubic"
+		if c.Profile == RemoteTunnel {
+			c.CongestionControl = "bbr"
+		}
 	}
 	if c.Profile == "" {
 		c.Profile = LocalTun
@@ -101,6 +108,9 @@ func (c Config) normalize() (Config, error) {
 	}
 	c.Addresses = slices.Clone(c.Addresses)
 	for _, a := range c.Addresses {
+		if a.Is6() && c.MTU < 1280 {
+			return c, fmt.Errorf("lightweight: IPv6 requires MTU >= 1280")
+		}
 		if !a.IsValid() || a.IsUnspecified() || a.IsMulticast() || a.Is4In6() || a.Zone() != "" {
 			return c, fmt.Errorf("lightweight: invalid local address %v", a)
 		}

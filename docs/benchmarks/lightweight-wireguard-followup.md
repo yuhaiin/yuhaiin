@@ -1,5 +1,11 @@
 # WireGuard integration and upload/memory follow-up
 
+> Historical benchmark snapshot: this report describes the initial WireGuard
+> migration and its CUBIC default. The subsequent all-VPN migration uses
+> lightweight with BBR v3 by default; see [VPN tunnel integration](../lightweight-tcpip-stack.md#vpn-tunnel-integration).
+> Measurements below retain their original algorithms and topology.
+
+
 This follows the merged lightweight stack in #544. The implementation baseline
 is commit `8525676c`, which includes the WireGuard adapter but precedes the
 receive, deadline, notification and cache optimizations below. The frontend
