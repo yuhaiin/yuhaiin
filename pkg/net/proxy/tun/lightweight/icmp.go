@@ -25,25 +25,19 @@ func (s *Stack) allowICMP() bool {
 }
 func (s *Stack) handleICMP(p Packet) {
 	b := p.Payload
-	echo, reply := byte(8), byte(0)
+	echo := byte(8)
 	if p.Protocol == 58 {
 		echo = 128
-		reply = 129
 	}
 	if b[0] == echo && b[1] == 0 {
 		if !s.allowICMP() {
 			return
 		}
-		out := bytes.Clone(b)
-		out[0] = reply
-		out[2] = 0
-		out[3] = 0
-		checksum := Checksum(out)
-		if p.Protocol == 58 {
-			checksum = transportChecksum(p.Destination, p.Source, 58, out)
+		if s.config.ForwardPing && !s.local(p.Destination) {
+			s.forwardPing(p)
+			return
 		}
-		binary.BigEndian.PutUint16(out[2:4], checksum)
-		if err := s.sendDatagram(flowAddress{p.Destination}, flowAddress{p.Source}, p.Protocol, out); err != nil {
+		if err := s.echoReply(p); err != nil {
 			s.drops.Add(1)
 		}
 		return
@@ -54,12 +48,29 @@ func (s *Stack) handleICMP(p Packet) {
 	}
 	s.handleICMPError(p)
 }
+func (s *Stack) echoReply(p Packet) error {
+	out := bytes.Clone(p.Payload)
+	out[0] = 0
+	if p.Protocol == 58 {
+		out[0] = 129
+	}
+	out[2], out[3] = 0, 0
+	sum := Checksum(out)
+	if p.Protocol == 58 {
+		sum = transportChecksum(p.Destination, p.Source, 58, out)
+	}
+	binary.BigEndian.PutUint16(out[2:4], sum)
+	return s.sendDatagram(flowAddress{p.Destination}, flowAddress{p.Source}, p.Protocol, out)
+}
 func (s *Stack) icmpError(p Packet, typ, code byte, mtu uint32) {
+	_ = s.writeICMPError(p, typ, code, mtu)
+}
+func (s *Stack) writeICMPError(p Packet, typ, code byte, mtu uint32) error {
 	if !s.allowICMP() || p.FragmentOffset != 0 || p.Source.IsUnspecified() || p.Source.IsMulticast() || p.Destination.IsMulticast() {
-		return
+		return nil
 	}
 	if (p.Protocol == 1 && len(p.Payload) > 0 && (p.Payload[0] == 3 || p.Payload[0] == 11 || p.Payload[0] == 12)) || (p.Protocol == 58 && len(p.Payload) > 0 && p.Payload[0] < 128) {
-		return
+		return nil
 	}
 	proto := byte(1)
 	quote := min(len(p.Data), s.config.MTU-28)
@@ -97,7 +108,7 @@ func (s *Stack) icmpError(p Packet, typ, code byte, mtu uint32) {
 		sum = transportChecksum(p.Destination, p.Source, 58, b)
 	}
 	binary.BigEndian.PutUint16(b[2:4], sum)
-	_ = s.sendIP(p.Destination, p.Source, proto, b)
+	return s.sendIP(p.Destination, p.Source, proto, b)
 }
 
 // ICMP quotations are intentionally truncated IP packets; parse just enough

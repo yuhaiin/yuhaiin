@@ -27,6 +27,10 @@ type Config struct {
 	MaxFragmentGroups, MaxFragmentBytes                                           int
 	FragmentTimeout, HandshakeTimeout, TimeWait, KeepaliveIdle, KeepaliveInterval time.Duration
 	KeepaliveProbes                                                               int
+
+	// ForwardPing queues nonlocal Echo requests for ReceivePing instead of replying locally.
+	// It is opt-in; VPN stacks and the production TUN adapter leave it disabled.
+	ForwardPing bool
 }
 
 func (c Config) normalize() (Config, error) {

@@ -49,6 +49,7 @@ type Stack struct {
 	scheduler                                     *scheduler
 	outgoing                                      chan *ownedBuffer
 	forwarded                                     chan Datagram
+	pings                                         chan *PingRequest
 	shards                                        [32]flowShard
 	mu                                            sync.Mutex
 	listeners                                     map[netip.AddrPort]*TCPListener
@@ -83,6 +84,9 @@ func New(config Config, link PacketIO) (*Stack, error) {
 		return nil, errors.New("lightweight: nil PacketIO")
 	}
 	s := &Stack{config: c, link: link, done: make(chan struct{}), outgoing: make(chan *ownedBuffer, c.QueuePackets), forwarded: make(chan Datagram, min(c.QueuePackets, 256)), listeners: make(map[netip.AddrPort]*TCPListener), udp: make(map[netip.AddrPort]*UDPConn), icmpTokens: 100}
+	if c.ForwardPing {
+		s.pings = make(chan *PingRequest, min(c.QueuePackets, 64))
+	}
 	s.scheduler = newScheduler(s.done)
 	s.buffers.init(s)
 	s.fragments.init(s)
@@ -167,6 +171,15 @@ forwarded:
 		select {
 		case p := <-s.forwarded:
 			s.release(len(p.Payload) + receiveCharge)
+		default:
+			goto pings
+		}
+	}
+pings:
+	for {
+		select {
+		case p := <-s.pings:
+			s.release(len(p.packet) + pingCharge)
 		default:
 			s.buffers.close()
 			return s.closeErr
