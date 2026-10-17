@@ -1,1 +1,0 @@
-The initial activity was killed by Android lowmemorykiller during cold boot while the VPN consent dialog was open, before the native stack started. Relaunching after boot completed produced the recorded successful run. No root or SELinux changes were used.

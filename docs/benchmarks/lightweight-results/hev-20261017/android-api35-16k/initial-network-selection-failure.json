@@ -1,8 +1,0 @@
-{
-  "mtu": 1500,
-  "api": 35,
-  "fingerprint": "google\/sdk_gphone16k_x86_64\/emu64xa16k:15\/AE3A.240806.043\/12960925:userdebug\/dev-keys",
-  "uid": 10209,
-  "ok": false,
-  "error": "java.net.ConnectException: failed to connect to \/198.18.0.2 (port 5201) from \/10.0.2.17 (port 45960) after 10000ms: isConnected failed: ECONNRESET (Connection reset by peer)"
-}

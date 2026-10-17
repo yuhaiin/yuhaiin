@@ -1,1 +1,0 @@
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	0.071s

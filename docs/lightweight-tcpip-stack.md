@@ -1,22 +1,12 @@
 # Lightweight TCP/IP stack
 
-Status: experimental opt-in implementation. Replacement readiness and the full
-acceptance matrix are not established; measured results and gaps are explicit below.
-
-The [2026-10-17 performance review](benchmarks/lightweight-performance-review-20261017.md)
-compares independent-process SOCKS/TUN throughput with a pinned hev-socks5-tunnel,
-separates plain packets, checksum offload and TSO, and prioritizes macOS, Android
-and Linux improvements. The [follow-up implementation and measurements](benchmarks/lightweight-offload-optimization-20261017.md)
-cover Linux TCP GSO, borrowed input views, owned output headroom, TX scheduling,
-software checksums and the SACK reporting fix.
-The [native checksum follow-up](benchmarks/lightweight-native-checksum-20261017.md)
-adds amd64 carry intrinsics and arm64 NEON assembly with a portable fallback,
-reference/guard-page tests and interleaved CPU-efficiency measurements.
-
-The [BBR v3 and ownership report](benchmarks/lightweight-bbr-v3.md) records the
-current controller, PMTU/recovery tests and performance work. The earlier
-[transport checkpoint](benchmarks/lightweight-optimization.md) and original
-benchmark matrix are historical measurements.
+Status: experimental implementation; replacement readiness and the full acceptance
+matrix are not established. Current source behavior and integration are detailed
+below. [Consolidated benchmarks](benchmarks/lightweight.md) cover the latest
+retained 2026-10-17 hev comparison, Linux TUN offloads, ownership, BBR v3
+and native-checksum follow-up. Results are dated and are not a performance
+claim for arbitrary later revisions. See the [benchmark index](benchmarks/README.md)
+for methodology and retained machine-readable summaries.
 
 ## Architecture and implementation plan
 

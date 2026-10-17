@@ -1,6 +1,0 @@
-go fix ./...: passed; no source changes
-go test ./...: passed
-golangci-lint v2.15.0 run --timeout=5m: 0 issues
-actionlint v1.7.12: passed
-English documentation and local Markdown links: passed
-Python fixture syntax: passed

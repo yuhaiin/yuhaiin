@@ -1,6 +1,0 @@
---- FAIL: TestPacketDeviceAcceptedWriteIsNotRetried (0.00s)
-    --- FAIL: TestPacketDeviceAcceptedWriteIsNotRetried/accepted-with-next-error (0.00s)
-        device_test.go:50: accepted=1: got resource temporarily unavailable, want <nil>
-FAIL
-FAIL	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun	0.003s
-FAIL
