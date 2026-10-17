@@ -2,9 +2,10 @@ package device
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"golang.org/x/sys/unix"
-	"os"
 )
 
 // OpenPacketWriter deliberately negotiates ordinary IP packets. It leaves the
@@ -32,15 +33,24 @@ func OpenPacketWriter(sc netlink.TunScheme, mtu int) (netlink.Tun, error) {
 			return nil, err
 		}
 	case "fd":
+		var err error
+		fd, err = duplicateTUNFD(fd)
+		if err != nil {
+			return nil, fmt.Errorf("duplicate packet TUN fd: %w", err)
+		}
+		owned = true
 		ifr, err := unix.NewIfreq("")
 		if err != nil {
+			_ = unix.Close(fd)
 			return nil, err
 		}
 		if err = unix.IoctlIfreq(fd, unix.TUNGETIFF, ifr); err != nil {
+			_ = unix.Close(fd)
 			return nil, fmt.Errorf("inspect packet TUN fd: %w", err)
 		}
 		flags := ifr.Uint16()
 		if flags&unix.IFF_VNET_HDR != 0 || flags&unix.IFF_NO_PI == 0 || flags&unix.IFF_TUN == 0 {
+			_ = unix.Close(fd)
 			return nil, fmt.Errorf("lightweight requires an IP-only TUN fd without VNET/offload headers")
 		}
 	default:

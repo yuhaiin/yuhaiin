@@ -58,7 +58,16 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Tun, error) {
 			return NewFd(sc.Fd, mtu)
 		}
 
-		device, _, err = wun.CreateUnmonitoredTUNFromFD(sc.Fd)
+		// The Go TUN takes ownership of its fd; never hand it Android's
+		// ParcelFileDescriptor directly.
+		owned, dupErr := duplicateTUNFD(sc.Fd)
+		if dupErr != nil {
+			return nil, fmt.Errorf("duplicate offload TUN fd: %w", dupErr)
+		}
+		device, _, err = wun.CreateUnmonitoredTUNFromFD(owned)
+		if err != nil {
+			_ = unix.Close(owned)
+		}
 
 	default:
 		return nil, fmt.Errorf("invalid tun: %v", sc)
