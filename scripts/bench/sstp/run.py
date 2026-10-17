@@ -42,7 +42,10 @@ def free_tcp_port():
 
 
 def ready(name, port):
-    for _ in range(120):
+    # The image configures users/NAT, stops its bootstrap daemon, then starts
+    # the foreground server. That can exceed 30 seconds on a shared runner.
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline:
         logs = run(args.runtime, 'logs', name, capture_output=True)
         if '[initial setup OK]' in logs.stdout + logs.stderr:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -65,7 +68,7 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-sstp-') as directory:
     echo_name = name + '-echo'
 
     try:
-        run(args.runtime, 'run', '-d', '--name', name, '--stop-timeout', '1',
+        run(args.runtime, 'run', '-d', '--init', '--name', name, '--stop-timeout', '1',
             '--cap-add', 'NET_ADMIN', '--device', '/dev/net/tun',
             '-p', f'127.0.0.1:{host_port}:443/tcp',
             '-e', 'SPW=yuhaiin-test-admin', '-e', 'HPW=yuhaiin-test-hub',

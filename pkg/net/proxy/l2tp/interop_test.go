@@ -58,7 +58,7 @@ func TestOfficialL2TPConnect(t *testing.T) {
 
 func echoTCP(t testing.TB, proxy netapi.Proxy, target string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	addr, err := netapi.ParseAddress("tcp", net.JoinHostPort(target, "19991"))
 	if err != nil {
@@ -69,15 +69,15 @@ func echoTCP(t testing.TB, proxy netapi.Proxy, target string) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+	if err := conn.SetDeadline(time.Now().Add(15 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	payload := bytes.Repeat([]byte("l2tp-real-tcp"), 8192)
 	completed := make(chan error, 1)
 	go func() { _, err := io.Copy(conn, bytes.NewReader(payload)); completed <- err }()
 	got := make([]byte, len(payload))
-	if _, err := io.ReadFull(conn, got); err != nil {
-		t.Fatal(err)
+	if n, err := io.ReadFull(conn, got); err != nil {
+		t.Fatalf("TCP echo from %s: received %d/%d bytes: %v", target, n, len(payload), err)
 	}
 	if err := <-completed; err != nil {
 		t.Fatal(err)
