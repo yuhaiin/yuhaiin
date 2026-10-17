@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 	_ "unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -86,6 +87,9 @@ func Dial(ctx context.Context, conn *http3.ClientConn, uri string, requestProtoc
 	case <-conn.ReceivedSettings():
 	}
 	settings := conn.Settings()
+	if !settings.EnableExtendedConnect {
+		return nil, nil, errors.New("connect-ip: server didn't enable Extended CONNECT")
+	}
 	if !settings.EnableDatagrams {
 		return nil, nil, errors.New("connect-ip: server didn't enable datagrams")
 	}
@@ -94,6 +98,13 @@ func Dial(ctx context.Context, conn *http3.ClientConn, uri string, requestProtoc
 	if err != nil {
 		return nil, nil, fmt.Errorf("connect-ip: failed to open request stream: %w", err)
 	}
+	keepStream := false
+	defer func() {
+		if !keepStream {
+			rstr.CancelRead(quic.StreamErrorCode(http3.ErrCodeNoError))
+			rstr.CancelWrite(quic.StreamErrorCode(http3.ErrCodeNoError))
+		}
+	}()
 	if err := rstr.SendRequestHeader(&http.Request{
 		Method: http.MethodConnect,
 		Proto:  requestProtocol,
@@ -112,7 +123,8 @@ func Dial(ctx context.Context, conn *http3.ClientConn, uri string, requestProtoc
 		return nil, rsp, fmt.Errorf("connect-ip: server responded with %d", rsp.StatusCode)
 	}
 
-	return newProxiedConn(rstr), rsp, nil
+	keepStream = true
+	return newProxiedConn(rstr, nil), rsp, nil
 }
 
 type http2Stream struct {
@@ -130,14 +142,29 @@ func (h *http2Stream) SendDatagram(b []byte) error {
 	return http3.WriteCapsule(w, 0, b)
 }
 
-func (h *http2Stream) CancelRead(quic.StreamErrorCode) {}
+func (h *http2Stream) CancelRead(quic.StreamErrorCode) {
+	_ = h.ReadCloser.Close()
+}
+func (h *http2Stream) CancelWrite(quic.StreamErrorCode) {
+	if closer, ok := h.Writer.(io.Closer); ok {
+		_ = closer.Close()
+	}
+}
+func (h *http2Stream) SetWriteDeadline(t time.Time) error {
+	if conn, ok := h.Writer.(interface{ SetWriteDeadline(time.Time) error }); ok {
+		return conn.SetWriteDeadline(t)
+	}
+	return nil
+}
 
 type http3Stream interface {
 	io.ReadWriteCloser
 	ReceiveDatagram(context.Context) ([]byte, error)
 	SendDatagram([]byte) error
 	CancelRead(quic.StreamErrorCode)
+	CancelWrite(quic.StreamErrorCode)
+	SetWriteDeadline(time.Time) error
 }
 
 //go:linkname newProxiedConn github.com/quic-go/connect-ip-go.newProxiedConn
-func newProxiedConn(str http3Stream) *connectip.Conn
+func newProxiedConn(str http3Stream, closeConn func() error) *connectip.Conn
