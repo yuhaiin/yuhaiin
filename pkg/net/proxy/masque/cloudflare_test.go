@@ -51,8 +51,8 @@ func TestPrepareTLSConfigPeerPinning(t *testing.T) {
 	trustedCert := testMASQUECertificate(t, trusted)
 	otherCert := testMASQUECertificate(t, other)
 	for _, tc := range []struct {
-		name string
-		certs [][]byte
+		name    string
+		certs   [][]byte
 		wantErr bool
 	}{
 		{"no peer cert", nil, true},
