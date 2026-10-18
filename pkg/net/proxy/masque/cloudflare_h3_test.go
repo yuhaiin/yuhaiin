@@ -58,7 +58,9 @@ func testCloudflareHTTP3BBRTunnel(t *testing.T, network string) {
 	defer server.Close()
 	go func() { _ = server.Serve(socket) }()
 	m := &Masque{addr: socket.LocalAddr().(*net.UDPAddr), TlsConfig: &tls.Config{InsecureSkipVerify: true, NextProtos: []string{http3.NextProtoH3}}}
-	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	// Keep the CONNECT request context alive while PMTU discovery and the echo run.
+	// QUIC sends MTU probes on an RTT-based schedule, which can be delayed by -race.
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 	conn, err := m.connectOnce(ctx)
 	if err != nil {
@@ -69,11 +71,21 @@ func testCloudflareHTTP3BBRTunnel(t *testing.T, network string) {
 	if (local.IP.To4() != nil) != (m.addr.IP.To4() != nil) {
 		t.Fatalf("outer socket family %v does not match endpoint %v", local, m.addr)
 	}
-	for conn.ipconn.MaxPacketSize() < 1280 {
+	// Give PMTU discovery its own window instead of sharing a 3s deadline
+	// with the QUIC handshake and CONNECT-IP establishment.
+	mtuCtx, cancelMTU := context.WithTimeout(ctx, 10*time.Second)
+	defer cancelMTU()
+	mtuTicker := time.NewTicker(20 * time.Millisecond)
+	defer mtuTicker.Stop()
+	for {
+		maxPacketSize := conn.ipconn.MaxPacketSize()
+		if maxPacketSize >= 1280 {
+			break
+		}
 		select {
-		case <-ctx.Done():
-			t.Fatal("QUIC path never grew to carry a minimum-MTU IPv6 packet")
-		case <-time.After(10 * time.Millisecond):
+		case <-mtuCtx.Done():
+			t.Fatalf("QUIC path never grew to carry a minimum-MTU IPv6 packet: max packet size=%d, err=%v", maxPacketSize, mtuCtx.Err())
+		case <-mtuTicker.C:
 		}
 	}
 	buf := make([]byte, packetHeadroom+1280)
@@ -93,12 +105,14 @@ func testCloudflareHTTP3BBRTunnel(t *testing.T, network string) {
 		n, err := conn.ipconn.ReadPacket(b)
 		done <- result{packet: b[:n], err: err}
 	}()
+	echoCtx, cancelEcho := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelEcho()
 	select {
 	case result := <-done:
 		if result.err != nil || !bytes.Equal(result.packet, packet) {
 			t.Fatalf("IPv6 echo length=%d, err=%v", len(result.packet), result.err)
 		}
-	case <-ctx.Done():
-		t.Fatal("IPv6 echo did not return")
+	case <-echoCtx.Done():
+		t.Fatalf("IPv6 echo did not return: %v", echoCtx.Err())
 	}
 }
