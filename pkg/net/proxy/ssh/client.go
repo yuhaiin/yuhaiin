@@ -31,8 +31,8 @@ func init() {
 // Client reuses one SSH transport for any number of direct-tcpip channels.
 type Client struct {
 	netapi.EmptyDispatch
-	upstream netapi.Proxy
-	config   gossh.ClientConfig
+	upstream  netapi.Proxy
+	config    gossh.ClientConfig
 	keepAlive time.Duration
 
 	mu     sync.Mutex
