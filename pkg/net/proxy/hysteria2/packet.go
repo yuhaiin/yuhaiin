@@ -9,7 +9,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
-	hyclient "github.com/apernet/hysteria/core/v2/client"
 )
 
 type datagram struct {
@@ -18,7 +17,7 @@ type datagram struct {
 }
 
 type packetConn struct {
-	conn          hyclient.HyUDPConn
+	conn          hyUDPConn
 	local         net.Addr
 	done          chan struct{}
 	packets       chan datagram
@@ -28,7 +27,7 @@ type packetConn struct {
 	closeOnce     sync.Once
 }
 
-func newPacketConn(conn hyclient.HyUDPConn, local net.Addr) *packetConn {
+func newPacketConn(conn hyUDPConn, local net.Addr) *packetConn {
 	p := &packetConn{conn: conn, local: local, done: make(chan struct{}), packets: make(chan datagram, 128), readDeadline: pipe.MakePipeDeadline(), writeDeadline: pipe.MakePipeDeadline()}
 	go p.receive()
 	return p

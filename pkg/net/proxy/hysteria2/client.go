@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	hyclient "github.com/apernet/hysteria/core/v2/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2/internal/obfs"
 )
 
@@ -31,7 +30,7 @@ type Client struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	gate      chan struct{}
-	session   *clientSession
+	session   *nativeClientSession
 	closeOnce sync.Once
 	closeErr  error
 }
@@ -71,7 +70,7 @@ func NewClient(config contractnode.Hysteria2, parent netapi.Proxy) (netapi.Proxy
 	return &Client{config: config, parent: parent, ctx: ctx, cancel: cancel, gate: make(chan struct{}, 1)}, nil
 }
 
-func (c *Client) getSession(ctx context.Context) (*clientSession, error) {
+func (c *Client) getSession(ctx context.Context) (*nativeClientSession, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -127,20 +126,10 @@ func (c *Client) getSession(ctx context.Context) (*clientSession, error) {
 		return nil, err
 	}
 	factory := &connFactory{ctx: setup, hopCtx: c.ctx, parent: c.parent, password: c.config.SalamanderPassword, hopInterval: interval}
-	session, _, err := hyclient.NewClientContext(setup, &hyclient.Config{
-		ConnFactory: factory,
-		ServerAddr:  serverAddr, Auth: c.config.Auth,
-		TLSConfig:       hyclient.TLSConfig{ServerName: tlsConfig.ServerName, RootCAs: tlsConfig.RootCAs, InsecureSkipVerify: tlsConfig.InsecureSkipVerify, ECHConfigList: tlsConfig.EncryptedClientHelloConfigList},
-		BandwidthConfig: hyclient.BandwidthConfig{MaxTx: c.config.UploadBPS, MaxRx: c.config.DownloadBPS},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("hysteria2 connect: %w", err)
-	}
-	if c.ctx.Err() != nil {
-		_ = session.Close()
-		return nil, net.ErrClosed
-	}
-	c.session = &clientSession{ContextClient: session, local: factory.local}
+	session, err := dialNativeSession(setup, factory, serverAddr, c.config.Auth, tlsConfig, c.config.UploadBPS, c.config.DownloadBPS)
+	if err != nil { return nil, fmt.Errorf("hysteria2 connect: %w", err) }
+	if c.ctx.Err() != nil { _ = session.Close(); return nil, net.ErrClosed }
+	c.session = session
 	return c.session, nil
 }
 
@@ -183,11 +172,6 @@ func (c *Client) Close() error {
 		}
 	})
 	return c.closeErr
-}
-
-type clientSession struct {
-	hyclient.ContextClient
-	local net.Addr
 }
 
 type connFactory struct {
