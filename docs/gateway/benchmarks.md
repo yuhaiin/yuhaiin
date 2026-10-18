@@ -63,7 +63,9 @@ SSE, WebSocket, HTTP/2 gRPC frames/trailers, an 8 MiB response, HTTP interceptio
 MITM trust rejection, TLS passthrough/exclusion, lossless binary probes, CA
 SAN/chain/expiry/cache coalescing, SQLite revision/reference transactions,
 configuration rollback/concurrent updates, loop rejection, legacy adapters and
-pipelined CONNECT bytes. The workflow has an `http-gateway-tests` race job.
+pipelined CONNECT bytes, hot admission revocation, physical/upgraded listener
+cleanup (including same-address owner replacement), no-SNI/IP, unsupported ALPN,
+probe timeout/replay, and upstream client-certificate rejection without fallback. The workflow has an `http-gateway-tests` race job.
 
 Actual process testing used a temporary database and local HTTP application:
 reverse proxy, Path block 204, Rule tester, conflict 409, public-only CA status,
@@ -77,3 +79,11 @@ and component tests, including saved edits, 409 draft retention, Rule tester and
 explicit CA confirmation. Browser rendering/screenshots were unavailable in this
 execution environment; responsive layouts are implemented but visual browser
 verification is a remaining manual check.
+
+The initial GitHub race job exposed an existing GeoIP test assuming the user's
+config directory already existed. Its fixture now uses a temporary data directory,
+matching the other Route tests. A missed gofmt change in the inbound hook was also
+corrected. `go build ./...` encounters pre-existing executable test directories
+`cmd/test` and `pkg/net/proxy/tproxy/test` without `main`; the actual application
+and CI target builds are checked separately. See [review](review.md) for findings
+and [interception](interception.md) for the privileged local verification recipe.

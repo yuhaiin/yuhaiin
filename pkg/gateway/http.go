@@ -387,5 +387,8 @@ func (e *Engine) Test(request contract.TestRequest) (contract.TestResult, error)
 		result.RuleID = "url-filters"
 	}
 	result.RequiresMITM = u.Scheme == "https"
+	if upstream := e.upstreams[result.Action.Upstream]; result.Action.Type == "reverse_proxy" && upstream != nil && (result.Action.Outbound.Type == "" || result.Action.Outbound.Type == "inherit_route") {
+		result.Action.Outbound = upstream.config.Outbound
+	}
 	return result, nil
 }

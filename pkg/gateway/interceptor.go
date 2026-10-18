@@ -262,8 +262,13 @@ func (l *singleListener) Addr() net.Addr { return l.conn.LocalAddr() }
 
 func (m *Manager) serveIntercepted(ctx context.Context, engine *Engine, conn net.Conn, meta Metadata) {
 	m.sessionsMu.Lock()
-	session := interceptSession{gatewayID: engine.config.ID, inboundID: meta.Context.GetInboundID(), mitm: meta.Scheme == "https"}
-	if !sessionAllowed(m.current.Load(), session) {
+	session := interceptSession{gatewayID: engine.config.ID, inboundID: meta.Context.GetInboundID(), mitm: meta.Scheme == "https", host: hostname(meta.Authority), process: meta.Context.GetProcessName(), port: uint16(meta.OriginalDestination.Port())}
+	if source := meta.Context.Source; source != nil {
+		if address, err := netip.ParseAddrPort(source.String()); err == nil {
+			session.source = address.Addr().Unmap()
+		}
+	}
+	if m.sessionsClosed || !sessionAllowed(m.current.Load(), session) {
 		m.sessionsMu.Unlock()
 		_ = conn.Close()
 		return
@@ -283,8 +288,9 @@ func (m *Manager) serveIntercepted(ctx context.Context, engine *Engine, conn net
 				_ = listener.Close()
 			}
 		}()
-		current := m.current.Load().gateways[engine.config.ID]
-		if current == nil || !current.engine.config.Enabled {
+		snapshot := m.current.Load()
+		current := snapshot.gateways[engine.config.ID]
+		if !sessionAllowed(snapshot, session) {
 			http.Error(w, "gateway disabled", http.StatusServiceUnavailable)
 			return
 		}

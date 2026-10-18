@@ -48,3 +48,48 @@ request. Forwarding uses that admitted destination rather than a client-chosen
 arbitrary authority. Internal outbound sockets are tracked to reject recursive
 Gateway/inbound reentry, including a backend alias resolving to a listener. These
 checks supplement existing Route security; they do not globally bypass Route.
+
+## Reproduce on a privileged Linux test machine
+
+These steps are a manual test procedure, not a claim that TUN/TProxy/Redir or
+WireGuard device setup was exercised in this change. Use an isolated VM with
+root/CAP_NET_ADMIN and a saved copy of its network configuration.
+
+1. Start the application with a temporary state directory. In the existing
+   Inbound editor create the desired TUN, TProxy, Redir or WireGuard inbound and
+   complete its existing OS route/firewall/peer setup. Record its stable ID.
+   Confirm ordinary TCP and UDP forwarding work with interception `off` first.
+2. Create an interception-only Gateway (`listen` empty). Give it a default
+   `respond` action with body `gateway-ok`; attach an enabled Path prefix
+   `/ads/` rule with `block` status 204. Generate its CA and download the public
+   certificate to `./gateway-ca.pem`. In Interception select the test inbound,
+   mode `https_mitm`, domains `app.example.com`, ports 80 and 443. Save/activate.
+3. From the client captured by that inbound, run:
+
+   ```sh
+   curl --noproxy '*' --resolve app.example.com:80:198.18.0.2 \
+     --max-time 10 http://app.example.com/health
+   curl --noproxy '*' --resolve app.example.com:443:198.18.0.2 \
+     --cacert ./gateway-ca.pem --max-time 10 https://app.example.com/health
+   curl --noproxy '*' --resolve app.example.com:443:198.18.0.2 \
+     --cacert ./gateway-ca.pem --max-time 10 -o /dev/null -w '%{http_code}\n' \
+     https://app.example.com/ads/banner.js
+   ```
+
+   The first two responses must contain `gateway-ok`; the last must be 204.
+   `198.18.0.2` is a synthetic destination: route it through the test inbound;
+   there is no required upstream server because these actions respond locally.
+   For a SOCKS/Mixed check, replace `--noproxy '*'` with
+   `--socks5 127.0.0.1:1080` (use the configured client-side proxy address).
+4. Repeat HTTPS without `--cacert`: it must fail trust verification. Exclude
+   `app.example.com` or switch to `off`: a fresh request to the synthetic
+   destination must no longer receive the Gateway's local response. Existing
+   decrypted sessions are closed when an admission constraint excludes them.
+5. Replace the default action with `forward`, use a real controlled destination,
+   and verify its actual certificate and response. Compare TCP and UDP before
+   and after disabling interception. Restore the VM network configuration.
+
+Repeat independently for each supported inbound and for a remote WireGuard
+client, preserving that client's source IP. Inspect Gateway counters and existing
+Connections to confirm the intended inbound/outbound. An unreachable synthetic
+address before setup is expected and does not demonstrate interception success.

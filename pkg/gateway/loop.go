@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/contract/route"
@@ -62,7 +63,7 @@ func (m *Manager) selectForRequest(ctx context.Context, a netapi.Address, t rout
 		}
 		listenIP, _ := netip.ParseAddr(host)
 		dstIP, _ := netip.ParseAddr(dstHost)
-		if host == dstHost || listenIP.IsUnspecified() || (listenIP.IsLoopback() && (dstIP.IsLoopback() || dstHost == "localhost")) {
+		if host == dstHost || ((host == "" || listenIP.IsUnspecified()) && localDestination(dstHost, dstIP)) || (listenIP.IsLoopback() && (dstIP.IsLoopback() || dstHost == "localhost")) {
 			return Selection{}, errors.New("gateway listener loop rejected")
 		}
 	}
@@ -80,6 +81,28 @@ func (m *Manager) selectForRequest(ctx context.Context, a netapi.Address, t rout
 type interceptSession struct {
 	gatewayID, inboundID string
 	mitm                 bool
+	host, process        string
+	port                 uint16
+	source               netip.Addr
+}
+
+// Hostname aliases are caught by actual socket reentry tracking. Never resolve
+// arbitrary remote names just to compare them with a wildcard listener.
+func localDestination(host string, ip netip.Addr) bool {
+	if host == "localhost" || ip.IsLoopback() || ip.IsUnspecified() {
+		return true
+	}
+	if !ip.IsValid() {
+		return false
+	}
+	addresses, _ := net.InterfaceAddrs()
+	for _, address := range addresses {
+		prefix, err := netip.ParsePrefix(address.String())
+		if err == nil && prefix.Addr().Unmap() == ip.Unmap() {
+			return true
+		}
+	}
+	return false
 }
 
 func sessionAllowed(s *snapshot, session interceptSession) bool {
@@ -89,6 +112,20 @@ func sessionAllowed(s *snapshot, session interceptSession) bool {
 	}
 	for _, i := range s.interceptions {
 		if i.config.GatewayID == session.gatewayID && i.config.InboundID == session.inboundID {
+			if !matchesDomains(session.host, i.config.Domains, i.config.ExcludeDomains) ||
+				(len(i.config.Ports) > 0 && !slices.Contains(i.config.Ports, session.port)) ||
+				(len(i.config.Processes) > 0 && !slices.Contains(i.config.Processes, session.process)) {
+				return false
+			}
+			if len(i.sources) > 0 {
+				matched := false
+				for _, prefix := range i.sources {
+					matched = matched || prefix.Contains(session.source)
+				}
+				if !matched {
+					return false
+				}
+			}
 			if session.mitm {
 				return i.config.Mode == "https_mitm"
 			}

@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -55,6 +57,7 @@ type Manager struct {
 	internalConnections sync.Map
 	sessionsMu          sync.Mutex
 	sessions            map[net.Conn]interceptSession
+	sessionsClosed      bool
 }
 
 type Option func(*Manager)
@@ -120,8 +123,7 @@ func (m *Manager) Save(ctx context.Context, config contract.Config) (contract.Co
 	saved, err := m.store.Save(ctx, prepared.config)
 	if err != nil {
 		for _, l := range listeners {
-			_ = l.server.Close()
-			_ = l.raw.Close()
+			l.close()
 		}
 		prepared.close()
 		return config, err
@@ -308,7 +310,34 @@ func (m *Manager) Test(request contract.TestRequest) (contract.TestResult, error
 	if g == nil {
 		return contract.TestResult{}, errors.New("gateway not found")
 	}
-	return g.engine.Test(request)
+	result, err := g.engine.Test(request)
+	var source netip.Addr
+	if request.SourceIP != "" {
+		var parseErr error
+		source, parseErr = netip.ParseAddr(request.SourceIP)
+		if parseErr != nil {
+			return result, errors.New("invalid test source IP")
+		}
+		source = source.Unmap()
+	}
+	// HTTPS on an ordinary listener is terminated using its site certificate.
+	// MITM is relevant only when testing a configured inbound interception.
+	result.RequiresMITM = false
+	if err == nil && request.InboundID != "" {
+		parsed, _ := url.Parse(request.URL)
+		if parsed.Scheme == "https" {
+			port := uint16(443)
+			if parsed.Port() != "" {
+				value, parseErr := strconv.ParseUint(parsed.Port(), 10, 16)
+				if parseErr != nil {
+					return result, errors.New("invalid test URL port")
+				}
+				port = uint16(value)
+			}
+			result.RequiresMITM = sessionAllowed(s, interceptSession{gatewayID: request.GatewayID, inboundID: request.InboundID, mitm: true, host: hostname(parsed.Hostname()), port: port, process: request.Process, source: source})
+		}
+	}
+	return result, err
 }
 
 func (m *Manager) Close() error {
@@ -319,13 +348,13 @@ func (m *Manager) Close() error {
 	}
 	m.closed = true
 	m.sessionsMu.Lock()
+	m.sessionsClosed = true
 	for conn := range m.sessions {
 		_ = conn.Close()
 	}
 	m.sessionsMu.Unlock()
 	for addr, l := range m.listeners {
-		_ = l.server.Close()
-		_ = l.raw.Close()
+		l.close()
 		delete(m.listeners, addr)
 	}
 	if s := m.current.Load(); s != nil {

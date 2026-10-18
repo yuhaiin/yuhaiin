@@ -133,6 +133,7 @@ type TestRequest struct {
 	Method    string              `json:"method"`
 	InboundID string              `json:"inboundId"`
 	Process   string              `json:"process,omitempty"`
+	SourceIP  string              `json:"sourceIp,omitempty"`
 	Headers   map[string][]string `json:"headers"`
 }
 

@@ -7,12 +7,16 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
 func TestGeoIPCountriesFollowAppliedSnapshot(t *testing.T) {
+	oldDir := configuration.DataDir.Load()
+	configuration.DataDir.Store(t.TempDir())
+	t.Cleanup(func() { configuration.DataDir.Store(oldDir) })
 	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)

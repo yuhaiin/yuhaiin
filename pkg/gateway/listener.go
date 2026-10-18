@@ -7,18 +7,82 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 type listenerRuntime struct {
-	raw    net.Listener
-	server *http.Server
+	raw         net.Listener
+	server      *http.Server
+	mu          sync.Mutex
+	closed      bool
+	connections map[*listenerConn]struct{}
+	gatewayID   string
 }
+type listenerConn struct {
+	net.Conn
+	owner *listenerRuntime
+}
+
+func (c *listenerConn) Close() error {
+	err := c.Conn.Close()
+	c.owner.mu.Lock()
+	delete(c.owner.connections, c)
+	c.owner.mu.Unlock()
+	return err
+}
+func (l *listenerRuntime) track(c net.Conn) net.Conn {
+	wrapped := &listenerConn{Conn: c, owner: l}
+	l.mu.Lock()
+	if !l.closed {
+		l.connections[wrapped] = struct{}{}
+	}
+	closed := l.closed
+	l.mu.Unlock()
+	if closed {
+		_ = wrapped.Close()
+	}
+	return wrapped
+}
+func (l *listenerRuntime) close() {
+	l.mu.Lock()
+	l.closed = true
+	connections := make([]*listenerConn, 0, len(l.connections))
+	for conn := range l.connections {
+		connections = append(connections, conn)
+	}
+	l.mu.Unlock()
+	_ = l.server.Close()
+	_ = l.raw.Close()
+	// Server.Close excludes hijacked connections. Track physical sockets below
+	// TLS so both net/http's concrete *tls.Conn and upgraded lifetimes survive.
+	for _, conn := range connections {
+		_ = conn.Close()
+	}
+}
+
+func (l *listenerRuntime) reassign(gatewayID string) {
+	if l.gatewayID == gatewayID {
+		return
+	}
+	l.gatewayID = gatewayID
+	l.mu.Lock()
+	connections := make([]*listenerConn, 0, len(l.connections))
+	for conn := range l.connections {
+		connections = append(connections, conn)
+	}
+	l.mu.Unlock()
+	for _, conn := range connections {
+		_ = conn.Close()
+	}
+}
+
 type selectedListener struct {
 	net.Listener
 	selectTLS func() (*tls.Config, bool)
+	track     func(net.Conn) net.Conn
 }
 
 func (l selectedListener) Accept() (net.Conn, error) {
@@ -26,6 +90,7 @@ func (l selectedListener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+	c = l.track(c)
 	config, ok := l.selectTLS()
 	if !ok {
 		_ = c.Close()
@@ -93,7 +158,7 @@ func (m *Manager) stageListeners(s *snapshot) (map[string]*listenerRuntime, erro
 			}
 			entry.engine.ServeHTTP(w, r.WithContext(state))
 		})
-		staged[address] = &listenerRuntime{lis, server}
+		staged[address] = &listenerRuntime{raw: lis, server: server, connections: make(map[*listenerConn]struct{}), gatewayID: s.listeners[address].engine.config.ID}
 	}
 	return staged, nil
 }
@@ -111,14 +176,15 @@ func (m *Manager) publishListeners(staged map[string]*listenerRuntime, s *snapsh
 					return nil, false
 				}
 				return entry.tls, true
-			}})
+			}, l.track})
 		}()
 	}
 	for address, l := range m.listeners {
 		if s.listeners[address] == nil {
-			_ = l.server.Close()
-			_ = l.raw.Close()
+			l.close()
 			delete(m.listeners, address)
+		} else {
+			l.reassign(s.listeners[address].engine.config.ID)
 		}
 	}
 	m.closeSessions(s)

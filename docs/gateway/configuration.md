@@ -18,7 +18,7 @@ The actual API uses authenticated JSON RPC POSTs, like the rest of `/api/v2`:
 | `gateway.resource.put` | `{kind,id,gateway}` / `rule` / `upstream` / `filter` | Activated config |
 | `gateway.resource.delete` | `{kind,id,revision}` | Activated config |
 | `gateway.status` | `{}` | Request, TLS, filter, duration, backend-health status |
-| `gateway.test` | `{gatewayId,url,method,inboundId,headers}` | Match trace and action |
+| `gateway.test` | `{gatewayId,url,method,inboundId,sourceIp,process,headers}` | Match trace and action |
 | `gateway.filters.refresh` | `{id}` | Updated and activated config |
 | `gateway.ca.status` | `{}` | Public CA status/certificate/cache counts |
 | `gateway.ca.generate` | `{revision}` | New/rotated public CA status |
@@ -58,3 +58,12 @@ Configure authentication and TLS for remote clients or a hosted cross-origin UI.
 
 Config backups include Gateway config and references. They deliberately exclude
 the CA private key; see the [CA recovery procedure](certificate-authority.md).
+
+Rule tester evaluates saved configuration without making an upstream request.
+Leave `inboundId` empty for an ordinary reverse listener (site TLS does not
+require MITM). For interception, provide its inbound ID and, when restricted,
+client source IP and process. MITM eligibility includes the domain exclusions,
+URL port and admission constraints. A rule's inherited outbound includes its
+Upstream fallback; `inherit_route` ultimately uses the existing L4 Route.
+The visual editor removes attached rule IDs and owned filters/interceptions
+alongside resource deletion in one draft, and prevents deleting used Upstreams.
