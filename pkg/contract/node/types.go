@@ -589,6 +589,7 @@ type CloudflareWarpMasque struct {
 	EndpointPublicKey string   `json:"endpoint_public_key"`
 	LocalAddresses    []string `json:"local_addresses,omitzero"`
 	MTU               int32    `json:"mtu,omitzero"`
+	Transport         string   `json:"transport,omitzero"`
 }
 
 type PointAsEndpoint struct {

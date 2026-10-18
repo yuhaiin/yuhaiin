@@ -109,6 +109,7 @@ func init() {
 			EndpointPublicKey: config.EndpointPublicKey,
 			LocalAddresses:    config.LocalAddresses,
 			MTU:               config.MTU,
+			Transport:         config.Transport,
 		}, p)
 	})
 }

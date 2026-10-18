@@ -46,7 +46,7 @@ func TestIPv4OutboundCapsuleWithoutRemoteRoute(t *testing.T) {
     if data[0] != 0 || !bytes.Equal(data[1:], b) {
         t.Fatal("IP context ID or payload modified")
     }
-    if b[8] != 63 || calculateIPv4Checksum(b[:24]) != 0 {
+    if b[8] != 63 || binary.BigEndian.Uint16(b[10:12]) != calculateIPv4Checksum(b[:24]) {
         t.Fatal("IPv4 TTL or checksum was not updated")
     }
 }
