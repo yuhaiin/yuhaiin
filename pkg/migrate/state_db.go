@@ -5,161 +5,75 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
+	"sync"
 
-	legacymigrate "github.com/Asutorufa/yuhaiin/pkg/legacy/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
-const plainModelMigrationDoneKey = "plain_model_migration_done"
-
+// StateDB owns the application SQLite handle. Schema migrations are managed by
+// sqlite.Open/Bootstrap and are independent of retired JSON/protobuf imports.
 type StateDB struct {
 	path  string
-	inner interface {
-		SQLDB(context.Context) (*sql.DB, error)
-		Migrate(context.Context) error
-		Close() error
-	}
+	mu    sync.Mutex
+	store *storagesqlite.Store
 }
 
 func NewStateDB(path string) *StateDB {
-	return &StateDB{
-		path:  path,
-		inner: legacymigrate.NewStateDB(path),
-	}
-}
-
-func (s *StateDB) SQLDB(ctx context.Context) (*sql.DB, error) {
-	return s.inner.SQLDB(ctx)
-}
-
-func (s *StateDB) Close() error {
-	return s.inner.Close()
+	return &StateDB{path: path}
 }
 
 func (s *StateDB) Migrate(ctx context.Context) error {
-	if s == nil || s.inner == nil {
+	if s == nil {
 		return errors.New("state db is nil")
 	}
-	if err := s.backupIfNeeded(ctx); err != nil {
-		return err
-	}
-	if err := s.normalizeLegacySettingsKV(ctx); err != nil {
-		return err
-	}
-	if err := s.inner.Migrate(ctx); err != nil {
-		return fmt.Errorf("run legacy-to-plain migration failed: %w", err)
-	}
-	db, err := s.inner.SQLDB(ctx)
-	if err != nil {
-		return err
-	}
-	plainMigrationDone, err := migrationMarker(ctx, db, plainModelMigrationDoneKey)
-	if err != nil {
-		return err
-	}
-	if err := legacymigrate.MigrateLegacyBackup(ctx, db, 0); err != nil {
-		return err
-	}
-	if err := legacymigrate.RecoverLegacyInboundTransportsFromConfig(ctx, db, filepath.Join(filepath.Dir(s.path), "config.json")); err != nil {
-		return err
-	}
-	if err := legacymigrate.RecoverLegacyNodeChains(ctx, db); err != nil {
-		return err
-	}
-	if err := legacymigrate.MigrateLegacyStatisticConnectionJSON(ctx, db); err != nil {
-		return err
-	}
-	if _, err := db.ExecContext(ctx, `
-		INSERT INTO metadata(key, value)
-		VALUES (?, '1')
-		ON CONFLICT(key) DO UPDATE SET value = excluded.value
-	`, plainModelMigrationDoneKey); err != nil {
-		return fmt.Errorf("mark plain model migration done failed: %w", err)
-	}
-	if plainMigrationDone != "1" {
-		if compacted, err := storagesqlite.CompactIfNeeded(ctx, db); err != nil {
-			log.Warn("vacuum migrated state failed", "err", err)
-		} else if compacted {
-			log.Info("vacuum migrated state database")
-		}
-	} else if err := vacuumStateOnStartup(ctx, db); err != nil {
-		log.Warn("vacuum state on startup failed", "err", err)
-	}
-	return nil
-}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-func (s *StateDB) normalizeLegacySettingsKV(ctx context.Context) error {
+	if s.store != nil {
+		return nil
+	}
+
 	store, err := storagesqlite.Open(ctx, s.path)
 	if err != nil {
-		return fmt.Errorf("open state db for legacy settings normalization: %w", err)
+		return fmt.Errorf("initialize state sqlite database: %w", err)
 	}
-	defer store.Close()
-	if err := legacymigrate.NormalizeLegacySettingsKV(ctx, store.DB()); err != nil {
-		return fmt.Errorf("normalize legacy settings JSON: %w", err)
+	if err := initializeSQLiteDefaults(ctx, store.DB()); err != nil {
+		_ = store.Close()
+		return fmt.Errorf("initialize sqlite defaults: %w", err)
 	}
-	return nil
-}
-
-func vacuumStateOnStartup(ctx context.Context, db *sql.DB) error {
-	compacted, err := storagesqlite.CompactIfNeeded(ctx, db)
-	if err != nil {
-		return err
-	}
-	if compacted {
+	if compacted, err := storagesqlite.CompactIfNeeded(ctx, store.DB()); err != nil {
+		log.Warn("vacuum state on startup failed", "err", err)
+	} else if compacted {
 		log.Info("vacuum state database on startup")
 	}
+
+	s.store = store
 	return nil
 }
 
-func (s *StateDB) backupIfNeeded(ctx context.Context) error {
-	if s.path == "" {
-		return nil
+func (s *StateDB) SQLDB(_ context.Context) (*sql.DB, error) {
+	if s == nil {
+		return nil, errors.New("state db is nil")
 	}
-	if _, err := os.Stat(s.path); errors.Is(err, os.ErrNotExist) {
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("stat state db before migration failed: %w", err)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.store == nil {
+		return nil, errors.New("state database has not been initialized; call Migrate before SQLDB")
 	}
-
-	store, err := storagesqlite.Open(ctx, s.path)
-	if err != nil {
-		return fmt.Errorf("open state db before migration backup failed: %w", err)
-	}
-	defer store.Close()
-
-	done, err := migrationMarker(ctx, store.DB(), plainModelMigrationDoneKey)
-	if err != nil {
-		return err
-	}
-	if done == "1" {
-		return nil
-	}
-
-	backupPath := filepath.Join(filepath.Dir(s.path), fmt.Sprintf("%s.plain-migration-%d.bak", filepath.Base(s.path), time.Now().UnixNano()))
-	if _, err := store.DB().ExecContext(ctx, "VACUUM INTO '"+sqliteStringLiteral(backupPath)+"'"); err != nil {
-		return fmt.Errorf("backup state db before plain migration failed: %w", err)
-	}
-	fmt.Printf("plain model migration backup: %s\n", backupPath)
-	return nil
+	return s.store.DB(), nil
 }
 
-func migrationMarker(ctx context.Context, db *sql.DB, key string) (string, error) {
-	var value string
-	err := db.QueryRowContext(ctx, `SELECT value FROM metadata WHERE key = ?`, key).Scan(&value)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
+func (s *StateDB) Close() error {
+	if s == nil {
+		return nil
 	}
-	if err != nil {
-		return "", fmt.Errorf("load migration marker %q failed: %w", key, err)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.store == nil {
+		return nil
 	}
-	return value, nil
-}
-
-func sqliteStringLiteral(path string) string {
-	return strings.ReplaceAll(path, "'", "''")
+	err := s.store.Close()
+	s.store = nil
+	return err
 }

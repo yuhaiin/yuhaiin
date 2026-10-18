@@ -1,5 +1,7 @@
 # SQLite Storage Redesign
 
+> Implementation note (2026-10): SQLite `state.db` is authoritative. The old JSON/protobuf importer and in-memory FakeIP cache were removed. `pkg/migrate` initializes the database through `pkg/storage/sqlite`; existing SQLite databases remain supported. Direct upgrades from retired JSON files are no longer supported.
+
 ## Background
 
 > Historical design note: the SQLite rollout is complete. The former Pebble-backed caches, migration path and temporary trie backend have been removed.

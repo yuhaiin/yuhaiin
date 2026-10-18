@@ -4,7 +4,6 @@ import (
 	"net/netip"
 	"testing"
 
-	legacyconfig "github.com/Asutorufa/yuhaiin/pkg/legacy/schema/config"
 	"github.com/Asutorufa/yuhaiin/pkg/network/defaults"
 )
 
@@ -19,9 +18,8 @@ func TestFakeIPPoolsStayWithinBenchmarkRanges(t *testing.T) {
 	for range 256 {
 		check(defaults.FakeipV4UlaGenerate(), "198.18.0.0/15", 16)
 		check(defaults.FakeipV6UlaGenerate(), "2001:2::/48", 64)
-		// Configuration seeding must use the same ranges as the generators.
-		dns := legacyconfig.DefaultSetting(t.TempDir()).GetDns()
-		check(netip.MustParsePrefix(dns.GetFakednsIpRange()), "198.18.0.0/15", 16)
-		check(netip.MustParsePrefix(dns.GetFakednsIpv6Range()), "2001:2::/48", 64)
+		// The declared defaults remain in the reserved address spaces.
+		check(netip.MustParsePrefix(defaults.DefaultFakeIPv4Range), "198.18.0.0/15", 16)
+		check(netip.MustParsePrefix(defaults.DefaultFakeIPv6Range), "2001:2::/48", 64)
 	}
 }

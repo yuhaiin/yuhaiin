@@ -88,12 +88,12 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	}
 
 	if migrator, ok := so.StateStore.(MigrationStore); ok {
-		log.Info("start plain model migration")
+		log.Info("initialize sqlite schema")
 		if err := migrator.Migrate(ctx); err != nil {
 			_ = closers.Close()
-			return nil, fmt.Errorf("plain model migration failed: %w", err)
+			return nil, fmt.Errorf("sqlite initialization failed: %w", err)
 		}
-		log.Info("plain model migration finished")
+		log.Info("sqlite schema ready")
 	}
 
 	logController := log.NewController()

@@ -83,8 +83,8 @@ func PreviewImport(request contractnode.ImportRequest) (contractnode.ImportPrevi
 			if raw == "" {
 				continue
 			}
-			if strings.HasPrefix(raw, "yuhaiin://") && subscriptionParsers.parseYuhaiinURL != nil {
-				parsed, err := subscriptionParsers.parseYuhaiinURL(raw)
+			if strings.HasPrefix(raw, "yuhaiin://") {
+				parsed, err := parseYuhaiinURL(raw)
 				if err != nil {
 					result.Errors = append(result.Errors, contractnode.ImportIssue{Line: line, Message: "invalid yuhaiin link"})
 					continue
@@ -98,10 +98,7 @@ func PreviewImport(request contractnode.ImportRequest) (contractnode.ImportPrevi
 				}
 				continue
 			}
-			if subscriptionParsers.parseShareURL == nil {
-				return result, errors.New("node link parser is unavailable")
-			}
-			value, err := subscriptionParsers.parseShareURL([]byte(raw), group, "reserve")
+			value, err := parseShareURL([]byte(raw), group, "reserve")
 			if err != nil {
 				// Do not echo URLs containing passwords or tokens in error messages.
 				result.Errors = append(result.Errors, contractnode.ImportIssue{Line: line, Message: "unsupported or invalid node link"})
