@@ -283,9 +283,9 @@ func Set[K comparable, V any, T ~map[K]V](m *T, k K, v V) {
 }
 
 type monitor struct {
-	ctx             context.Context
-	cancel          context.CancelFunc
-	done            chan struct{}
+	ctx    context.Context
+	cancel context.CancelFunc
+	done   chan struct{}
 
 	onMsg func(msgs []route.Message)
 }
