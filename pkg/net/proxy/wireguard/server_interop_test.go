@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,7 +51,7 @@ func TestWireGuardInboundUDPInterop(t *testing.T) {
 			t.Fatal(err)
 		}
 		serverPeers = append(serverPeers, ServerPeer{
-			PublicKey: base64.StdEncoding.EncodeToString(clients[i].PublicKey().Bytes()),
+			PublicKey:  base64.StdEncoding.EncodeToString(clients[i].PublicKey().Bytes()),
 			AllowedIPs: []string{fmt.Sprintf("10.66.0.%d/32", i+2)},
 		})
 	}
@@ -115,6 +116,20 @@ func TestWireGuardInboundUDPInterop(t *testing.T) {
 			reply := make([]byte, 512)
 			n, from, err := socket.ReadFrom(reply)
 			if err != nil {
+				t.Logf("client stack: %+v", client.net.stack.Stats())
+				t.Logf("server stack: %+v", server.(*inboundServer).tunnel.Stack().Stats())
+				for name, engine := range map[string]interface{ IpcGet() (string, error) }{
+					"client": client.device, "server": server.(*inboundServer).device,
+				} {
+					state, _ := engine.IpcGet()
+					for _, line := range strings.Split(state, "\n") {
+						for _, label := range []string{"listen_port=", "endpoint=", "last_handshake_time_sec=", "tx_bytes=", "rx_bytes="} {
+							if strings.HasPrefix(line, label) {
+								t.Logf("%s %s", name, line)
+							}
+						}
+					}
+				}
 				t.Fatalf("UDP reply from peer %d: %v", i, err)
 			}
 			if !bytes.Equal(payload, reply[:n]) || from.(*net.UDPAddr).AddrPort() != destination.AddrPort() {
