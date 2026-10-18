@@ -16,13 +16,16 @@ import (
 )
 
 type server struct {
-	stack    *lightweight.Stack
-	options  *device.Opt
-	listener net.Listener
-	once     sync.Once
-	err      error
-	wg       sync.WaitGroup
-	streams  chan struct{}
+	stack     *lightweight.Stack
+	options   *device.Opt
+	handler   netapi.Handler
+	addresses []netip.Prefix
+	name      string
+	listener  net.Listener
+	once      sync.Once
+	err       error
+	wg        sync.WaitGroup
+	streams   chan struct{}
 }
 
 var _ netapi.Accepter = (*server)(nil)
@@ -82,7 +85,7 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 		return nil, fmt.Errorf("install lightweight TUN routes: %w", err)
 	}
 	o.PostUp()
-	s := &server{stack: stack, options: o, listener: l, streams: make(chan struct{}, 8192)}
+	s := &server{stack: stack, options: o, handler: o.Handler, addresses: append(append([]netip.Prefix(nil), o.Inet4Address...), o.Inet6Address...), listener: l, streams: make(chan struct{}, 8192)}
 	s.wg.Go(s.tcpLoop)
 	s.wg.Go(s.udpLoop)
 	if forwardPing {
@@ -92,16 +95,60 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 	}
 	return s, nil
 }
-func (s *server) Interface() string { return s.options.Interface.Name }
+
+// NewFromStack shares the normal TCP/UDP proxy handler with non-TUN packet
+// sources such as a WireGuard listener. The caller retains ownership of the
+// packet device; closing the accepter closes the lightweight stack.
+func NewFromStack(stack *lightweight.Stack, handler netapi.Handler, addresses []netip.Prefix, name string) (netapi.Accepter, error) {
+	if stack == nil || handler == nil {
+		return nil, errors.New("lightweight: missing stack or inbound handler")
+	}
+	l, err := stack.ListenTCP(netip.AddrPort{})
+	if err != nil {
+		return nil, err
+	}
+	s := &server{stack: stack, handler: handler, addresses: append([]netip.Prefix(nil), addresses...), name: name, listener: l, streams: make(chan struct{}, 8192)}
+	s.wg.Go(s.tcpLoop)
+	s.wg.Go(s.udpLoop)
+	return s, nil
+}
+
+func (s *server) Interface() string {
+	if s.options != nil {
+		return s.options.Interface.Name
+	}
+	return s.name
+}
 func (s *server) Close() error {
-	s.once.Do(func() { s.err = s.stack.Close(); s.wg.Wait(); s.options.PostDown() })
+	s.once.Do(func() {
+		s.err = s.stack.Close()
+		s.wg.Wait()
+		if s.options != nil {
+			s.options.PostDown()
+		}
+	})
 	return s.err
 }
+func (s *server) flowHandler() netapi.Handler {
+	if s.handler != nil {
+		return s.handler
+	}
+	// Legacy constructors and package tests pass the Handler through Opt.
+	if s.options != nil {
+		return s.options.Handler
+	}
+	return nil
+}
+
 func (s *server) isDNS(a netip.AddrPort) bool {
 	if a.Port() != 53 {
 		return false
 	}
-	for _, p := range append(append([]netip.Prefix(nil), s.options.Inet4Address...), s.options.Inet6Address...) {
+	addresses := s.addresses
+	if len(addresses) == 0 && s.options != nil {
+		addresses = append(append([]netip.Prefix(nil), s.options.Inet4Address...), s.options.Inet6Address...)
+	}
+	for _, p := range addresses {
 		if a.Addr() == p.Addr() || a.Addr() == p.Addr().Next() {
 			return true
 		}
@@ -120,7 +167,7 @@ func (s *server) tcpLoop() {
 			s.wg.Go(func() {
 				defer func() { <-s.streams }()
 				defer c.Close()
-				s.options.HandleStream(&netapi.StreamMeta{Source: c.RemoteAddr(), Destination: c.LocalAddr(), Src: c, Address: netapi.ParseNetipAddrPort("tcp", dst), DnsRequest: s.isDNS(dst)})
+				s.flowHandler().HandleStream(&netapi.StreamMeta{Source: c.RemoteAddr(), Destination: c.LocalAddr(), Src: c, Address: netapi.ParseNetipAddrPort("tcp", dst), DnsRequest: s.isDNS(dst)})
 			})
 		case <-s.stack.Done():
 			_ = c.Close()
@@ -137,7 +184,7 @@ func (s *server) udpLoop() {
 			return
 		}
 		// ReceiveUDP transfers its allocation; netapi.Packet owns its final release.
-		s.options.HandlePacket(netapi.NewPacket(net.UDPAddrFromAddrPort(d.Source), netapi.ParseNetipAddrPort("udp", d.Destination), d.Payload, netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
+		s.flowHandler().HandlePacket(netapi.NewPacket(net.UDPAddrFromAddrPort(d.Source), netapi.ParseNetipAddrPort("udp", d.Destination), d.Payload, netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 			var source netip.AddrPort
 			switch addr := addr.(type) {
 			case netapi.IPAddress:

@@ -25,6 +25,7 @@ const (
 	ProtocolTProxy      = "tproxy"
 	ProtocolRedir       = "redir"
 	ProtocolTun         = "tun"
+	ProtocolWireguard   = "wireguard"
 	ProtocolKrunlet     = "krunlet"
 	ProtocolReverseHTTP = "reverse_http"
 	ProtocolReverseTCP  = "reverse_tcp"
@@ -147,6 +148,7 @@ type Protocol struct {
 	TProxy      *TProxyProtocol      `json:"tproxy,omitzero"`
 	Redir       *RedirProtocol       `json:"redir,omitzero"`
 	Tun         *TunProtocol         `json:"tun,omitzero"`
+	Wireguard   *WireguardProtocol   `json:"wireguard,omitzero"`
 	Krunlet     *KrunletProtocol     `json:"krunlet,omitzero"`
 	ReverseHTTP *ReverseHTTPProtocol `json:"reverse_http,omitzero"`
 	ReverseTCP  *ReverseTCPProtocol  `json:"reverse_tcp,omitzero"`
@@ -245,6 +247,24 @@ type DarwinTunOptions struct {
 
 func (TunProtocol) ProtocolType() string { return ProtocolTun }
 
+// WireguardProtocol accepts standard WireGuard peers without creating a TUN
+// device or changing any host routes. Each client must have a unique host IP.
+type WireguardProtocol struct {
+	PrivateKey string          `json:"privateKey"`
+	ListenPort int             `json:"listenPort"`
+	Addresses  []string        `json:"addresses"`
+	MTU        int             `json:"mtu,omitzero"`
+	Peers      []WireguardPeer `json:"peers"`
+}
+
+type WireguardPeer struct {
+	PublicKey    string   `json:"publicKey"`
+	PreSharedKey string   `json:"preSharedKey,omitzero"`
+	AllowedIPs   []string `json:"allowedIps"`
+}
+
+func (WireguardProtocol) ProtocolType() string { return ProtocolWireguard }
+
 // KrunletProtocol listens for native Krunlet virtual NIC flows on a local
 // Unix socket. It feeds TCP/UDP directly to yuhaiin's normal inbound handler.
 type KrunletProtocol struct {
@@ -319,6 +339,11 @@ func (p Protocol) Variant() (ProtocolVariant, error) {
 			return nil, fmt.Errorf("protocol %s missing %s field", p.Type, ProtocolRedir)
 		}
 		return p.Redir, nil
+	case ProtocolWireguard:
+		if p.Wireguard == nil {
+			return nil, fmt.Errorf("protocol %s missing wireguard field", p.Type)
+		}
+		return p.Wireguard, nil
 	case ProtocolTun:
 		if p.Tun == nil {
 			return nil, fmt.Errorf("protocol %s missing %s field", p.Type, ProtocolTun)
@@ -386,6 +411,9 @@ func (p Protocol) nonNilCount() int {
 		count++
 	}
 	if p.Tun != nil {
+		count++
+	}
+	if p.Wireguard != nil {
 		count++
 	}
 	if p.Krunlet != nil {

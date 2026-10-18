@@ -21,6 +21,7 @@
     - [gvisor](https://github.com/google/gvisor)
     - tun2socket(hijack tun TCP to a local TCP listener)
   - yamux  
+- [WireGuard inbound](docs/wireguard-inbound.md) (userspace lightweight TCP/IP stack, no system TUN)
 - Outbound
   - yuubinsya(experimental)
   - Socks5, HTTP, TCP, [Wireguard](https://github.com/yuhaiin/yuhaiin/wiki/Wireguard)
