@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,6 +39,8 @@ type DefaultRouteDetails struct {
 	// TODO(bradfitz): break this out into v4-vs-v6 once that need arises.
 }
 
+var ErrNoDefaultRoute = errors.New("no default route found")
+
 // defaultRouteInterface is like DefaultRoute but only returns the
 // interface name.
 func defaultRouteInterface() (string, error) {
@@ -54,7 +57,10 @@ var (
 )
 
 func SetDefaultInterfaceName(name string) {
+	defaultInterfaceNameMu.Lock()
+	defer defaultInterfaceNameMu.Unlock()
 	defaultInterfaceName.Store(&name)
+	lastNetworkState.Store(nil)
 }
 
 func DefaultInterfaceName() string {
@@ -92,21 +98,58 @@ func DefaultInterfaceName() string {
 	return *defaultInterfaceName.Load()
 }
 
+// networkState holds the parts of network state which require notifying
+// interface listeners. Full routing-table changes still refresh DefaultRouter.
+type networkState struct {
+	name      string
+	addresses []string
+	gateways  []string
+}
+
+var lastNetworkState atomic.Pointer[networkState]
+
+func snapshotNetwork(name string, addrs map[netip.Addr]string, routes router) networkState {
+	s := networkState{name: name}
+	if name == "" {
+		return s
+	}
+	for addr, iface := range addrs {
+		if iface == name {
+			s.addresses = append(s.addresses, addr.String())
+		}
+	}
+	for _, r := range [][]rtInfo{routes.v4, routes.v6} {
+		for _, entry := range r {
+			if entry.OutputIface == name && entry.Dst.IsValid() && entry.Dst.Bits() == 0 {
+				s.gateways = append(s.gateways, fmt.Sprintf("%s:%s", entry.Dst, entry.Gateway))
+			}
+		}
+	}
+	slices.Sort(s.addresses)
+	slices.Sort(s.gateways)
+	return s
+}
+
+func networkStateChanged(a, b networkState) bool {
+	return a.name != b.name ||
+		!slices.Equal(a.addresses, b.addresses) ||
+		!slices.Equal(a.gateways, b.gateways)
+}
+
 func StartNetworkMonitor() networkMonitorCloser {
 	log.Info("start network monitor")
 
 	ctx, cancel := context.WithCancel(context.Background())
+	events := make(chan string, 1)
+	// Initial reconciliation matters when an event was missed before startup.
+	events <- "startup"
 
-	timer := time.NewTimer(time.Hour)
-	timer.Stop()
-
-	reason := atomicx.NewValue("")
-	nm := startMonitor(func(r string) {
+	nm := startMonitor(func(reason string) {
 		select {
 		case <-ctx.Done():
+		case events <- reason:
 		default:
-			reason.Store(r)
-			timer.Reset(time.Second * 5)
+			// One pending event is enough: the monitor reads a fresh snapshot.
 		}
 	})
 
@@ -115,70 +158,133 @@ func StartNetworkMonitor() networkMonitorCloser {
 			if err := nm.Stop(); err != nil {
 				log.Error("stop network monitor failed", "err", err)
 			}
-			timer.Stop()
 		}()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-timer.C:
-				if err := reGetDefaultInterface(reason.Load()); err != nil {
-					log.Error("re get default interface failed", "err", err, "reason", reason)
-				}
-			}
-		}
+		runNetworkMonitor(ctx, events, reGetDefaultInterface,
+			750*time.Millisecond, 5*time.Second, time.Minute)
 	}()
 
 	return networkMonitorCloser(cancel)
 }
 
-func reGetDefaultInterface(reason string) error {
-	router, err := routes()
-	if err == nil {
-		defaultrouter.Store(router.ToTrie())
-	} else {
-		log.Error("get routes failed", "err", err)
+// runNetworkMonitor owns its timer. Route socket callbacks never Reset it.
+// Continuous events must not postpone a refresh beyond maxWait.
+func runNetworkMonitor(
+	ctx context.Context,
+	events <-chan string,
+	refresh func(string) error,
+	debounce, maxWait, poll time.Duration,
+) {
+	timer := time.NewTimer(time.Hour)
+	timer.Stop()
+	defer timer.Stop()
+	ticker := time.NewTicker(poll)
+	defer ticker.Stop()
+
+	var timerCh <-chan time.Time
+	var firstEvent time.Time
+	var reason string
+	pending := false
+	retries := 0
+
+	schedule := func(d time.Duration) {
+		if timerCh != nil {
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+		}
+		if d < 0 {
+			d = 0
+		}
+		timer.Reset(d)
+		timerCh = timer.C
+	}
+	apply := func(why string) {
+		if err := refresh(why); err != nil {
+			log.Error("refresh network state failed", "err", err, "reason", why)
+			if retries < 3 {
+				retries++
+				pending = true
+				firstEvent = time.Now()
+				reason = "retry"
+				schedule(5 * time.Second)
+			}
+			return
+		}
+		retries = 0
 	}
 
-	maps, err := getLocalAddresses()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case r, ok := <-events:
+			if !ok {
+				return
+			}
+			if !pending {
+				firstEvent = time.Now()
+				pending = true
+			}
+			reason = r
+			delay := debounce
+			if remaining := time.Until(firstEvent.Add(maxWait)); delay > remaining {
+				delay = remaining
+			}
+			schedule(delay)
+		case <-timerCh:
+			timerCh = nil
+			pending = false
+			apply(reason)
+		case <-ticker.C:
+			if !pending {
+				apply("periodic")
+			}
+		}
+	}
+}
+
+func reGetDefaultInterface(reason string) error {
+	// Collect all observations before publishing any of them. A transient
+	// failure must not produce a mixed old/new cache.
+	routes, err := routes()
+	if err != nil {
+		return fmt.Errorf("get routes failed: %w", err)
+	}
+	addresses, err := getLocalAddresses()
 	if err != nil {
 		return fmt.Errorf("get local addresses failed: %w", err)
 	}
-
-	localAddresses.Store(&maps)
-
-	r, err := defaultRouteInterface()
-	if err != nil {
+	name, err := defaultRouteInterface()
+	if errors.Is(err, ErrNoDefaultRoute) {
+		name = ""
+	} else if err != nil {
 		return fmt.Errorf("get default route interface failed: %w", err)
 	}
 
-	if r == "" {
-		return nil
-	}
-
+	next := snapshotNetwork(name, addresses, routes)
+	defaultInterfaceNameMu.Lock()
 	old := defaultInterfaceName.Load()
+	oldName := atomicx.PointerOrEmpty(old)
+	prev := lastNetworkState.Load()
+	changed := oldName != name || (prev != nil && networkStateChanged(*prev, next))
+	defaultrouter.Store(routes.ToTrie())
+	localAddresses.Store(&addresses)
+	defaultInterfaceName.Store(&name)
+	lastNetworkState.Store(&next)
+	defaultInterfaceNameMu.Unlock()
 
-	if old != nil && *old == r {
-		log.Info("default interface not changed", "new", r, "old", *old, "reason", reason)
+	if !changed {
 		return nil
 	}
-
-	if !defaultInterfaceName.CompareAndSwap(old, &r) {
-		return nil
-	}
-
-	log.Info("update default interface",
-		"new", r, "old", atomicx.PointerOrEmpty(old), "reason", reason)
-
-	for _, v := range networkMonitors.Range {
-		if v == nil {
-			continue
+	log.Info("network state changed", "new", name, "old", oldName, "reason", reason)
+	for _, notify := range networkMonitors.Range {
+		if notify != nil {
+			notify(name)
 		}
-
-		v(r)
 	}
-
 	return nil
 }
 
@@ -270,8 +376,10 @@ func LocalAddresses() map[netip.Addr]string {
 		return map[netip.Addr]string{}
 	}
 
-	localAddresses.Store(&xx)
-	return xx
+	if localAddresses.CompareAndSwap(nil, &xx) {
+		return xx
+	}
+	return *localAddresses.Load()
 }
 
 func getLocalAddresses() (map[netip.Addr]string, error) {
@@ -331,7 +439,8 @@ func DefaultRouter() *cidr.Cidr[string] {
 	}
 
 	trie := rs.ToTrie()
-	defaultrouter.Store(trie)
-
-	return trie
+	if defaultrouter.CompareAndSwap(nil, trie) {
+		return trie
+	}
+	return defaultrouter.Load()
 }

@@ -264,16 +264,21 @@ func setDnsserversToDefaultNetworkService(interfaceName string, dns []string) fu
 func setDnsservers(networkService string, dns []string) func() {
 	var monitor io.Closer
 	var close func()
+	var mu sync.Mutex
+	var stopped bool
 
 	if networkService == "" {
 		close = setDnsserversToDefaultNetworkService("", dns)
 
-		var mu sync.Mutex
 		monitor = interfaces.AddNetworkMonitor(func(interfaceName string) {
 			mu.Lock()
 			defer mu.Unlock()
-
-			close()
+			if stopped {
+				return
+			}
+			if close != nil {
+				close()
+			}
 			close = setDnsserversToDefaultNetworkService(interfaceName, dns)
 		})
 	} else {
@@ -297,7 +302,12 @@ func setDnsservers(networkService string, dns []string) func() {
 		if monitor != nil {
 			_ = monitor.Close()
 		}
-
+		mu.Lock()
+		defer mu.Unlock()
+		if stopped {
+			return
+		}
+		stopped = true
 		if close != nil {
 			close()
 		}

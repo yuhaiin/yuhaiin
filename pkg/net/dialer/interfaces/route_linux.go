@@ -58,7 +58,7 @@ loop:
 					// 	Mask: net.CIDRMask(int(rt.Src_len), len(attr.Value)*8),
 					// }
 				case syscall.RTA_GATEWAY:
-					// routeInfo.Gateway = net.IP(attr.Value)
+					routeInfo.Gateway, _ = netip.AddrFromSlice(attr.Value)
 				case syscall.RTA_PREFSRC:
 					// routeInfo.PrefSrc = net.IP(attr.Value)
 				case syscall.RTA_IIF:
@@ -76,7 +76,15 @@ loop:
 				}
 			}
 			if !routeInfo.Dst.IsValid() {
-				continue loop
+				if rt.Dst_len != 0 {
+					continue loop
+				}
+				// Netlink omits RTA_DST for default routes.
+				if rt.Family == syscall.AF_INET {
+					routeInfo.Dst = netip.PrefixFrom(netip.IPv4Unspecified(), 0)
+				} else {
+					routeInfo.Dst = netip.PrefixFrom(netip.IPv6Unspecified(), 0)
+				}
 			}
 
 			switch rt.Family {
