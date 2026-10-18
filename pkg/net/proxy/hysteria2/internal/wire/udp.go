@@ -79,7 +79,7 @@ func ParseUDPMessage(b []byte) (UDPMessage, error) {
 }
 
 // FragmentUDPMessage splits a datagram at the maximum QUIC payload size.
-// PacketID must be unique per fragmented message in a session. The caller
+// PacketID identifies a fragmented message within its session. The caller
 // must not mutate Data before all fragment writes complete.
 func FragmentUDPMessage(m UDPMessage, maxDatagram int) ([]UDPMessage, error) {
 	if err := m.validate(); err != nil {
@@ -91,8 +91,8 @@ func FragmentUDPMessage(m UDPMessage, maxDatagram int) ([]UDPMessage, error) {
 	if m.Size() <= maxDatagram {
 		return []UDPMessage{m}, nil
 	}
-	if m.FragmentCount != 1 || m.FragmentID != 0 || m.PacketID == 0 {
-		return nil, fmt.Errorf("%w: fragmented packets need fresh nonzero packet ID", ErrMalformed)
+	if m.FragmentCount != 1 || m.FragmentID != 0 {
+		return nil, fmt.Errorf("%w: fragmented packet must start with count 1", ErrMalformed)
 	}
 	maxPayload := maxDatagram - m.HeaderSize()
 	count := (len(m.Data) + maxPayload - 1) / maxPayload
@@ -156,9 +156,6 @@ func (d *Defragger) Feed(m UDPMessage, now time.Time) (UDPMessage, bool, error) 
 	}
 	if m.FragmentCount == 1 {
 		return m, true, nil
-	}
-	if m.PacketID == 0 {
-		return UDPMessage{}, false, fmt.Errorf("%w: fragmented packet with zero ID", ErrMalformed)
 	}
 	if d.pending == nil {
 		d.pending = make(map[uint16]*fragmentAssembly)

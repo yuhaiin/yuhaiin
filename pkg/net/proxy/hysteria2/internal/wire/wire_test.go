@@ -129,7 +129,7 @@ func TestUDPAndFragments(t *testing.T) {
 
 func TestInterleavedUDPAndIPv6Maximum(t *testing.T) {
 	address := "[2001:db8:abcd:0123:4567:89ab:cdef:0123]:443"
-	long := UDPMessage{SessionID: 1, PacketID: 100, FragmentCount: 1,
+	long := UDPMessage{SessionID: 1, PacketID: 0, FragmentCount: 1,
 		Address: address, Data: bytes.Repeat([]byte{0x42}, 65507)}
 	if long.Size() <= MaxPacket {
 		t.Fatal("regression requires wire size larger than a UDP payload")
