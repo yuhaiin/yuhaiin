@@ -3,11 +3,11 @@ package protocol
 import (
 	crand "crypto/rand"
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"net"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
@@ -34,24 +34,26 @@ func (e *errorProtocol) DecryptPacket(data []byte) ([]byte, error) { return nil,
 func (e *errorProtocol) GetOverhead() int                          { return 0 }
 
 type AuthData struct {
+	mu           sync.Mutex
 	clientID     [4]byte
-	connectionID atomic.Uint32
-
-	mu sync.Mutex
+	connectionID uint32
 }
 
 func NewAuth() *AuthData { return &AuthData{} }
 
-func (a *AuthData) nextAuth() {
-	if a.connectionID.Load() <= 0xFF000000 && a.connectionID.Load() != 0 {
-		a.connectionID.Add(1)
-		return
-	}
-
+// nextAuth reserves a unique connection ID and snapshots its client ID under
+// the same lock. The shared AuthData is used by concurrent SSR connections.
+func (a *AuthData) nextAuth() ([4]byte, uint32) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	crand.Read(a.clientID[:])
-	a.connectionID.Store(rand.Uint32() & 0xFFFFFF)
+
+	if a.connectionID == 0 || a.connectionID > 0xFF000000 {
+		_, _ = crand.Read(a.clientID[:])
+		a.connectionID = rand.Uint32() & 0xFFFFFF
+	} else {
+		a.connectionID++
+	}
+	return a.clientID, a.connectionID
 }
 
 type packetConn struct {
@@ -66,8 +68,14 @@ func (c *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	_, err = c.PacketConn.WriteTo(data, addr)
-	return len(b), err
+	n, err := c.PacketConn.WriteTo(data, addr)
+	if err != nil {
+		return 0, err
+	}
+	if n != len(data) {
+		return 0, io.ErrShortWrite
+	}
+	return len(b), nil
 }
 
 func (c *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
@@ -77,7 +85,10 @@ func (c *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	}
 	decoded, err := c.protocol.DecryptPacket(b[:n])
 	if err != nil {
-		return n, addr, err
+		return 0, addr, err
+	}
+	if len(decoded) > len(b) {
+		return 0, addr, io.ErrShortBuffer
 	}
 	copy(b, decoded)
 	return len(decoded), addr, nil
@@ -99,37 +110,63 @@ func newConn(c net.Conn, p protocol) net.Conn {
 	}
 }
 
-func (c *conn) Read(b []byte) (n int, err error) {
+func (c *conn) Read(b []byte) (int, error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
 	if c.plaintext.Len() > 0 {
 		return c.plaintext.Read(b)
 	}
 
-	n, err = c.Conn.Read(b)
-	if err != nil {
-		return 0, err
+	// A TCP read is not a protocol frame. Keep fetching ciphertext until
+	// the decoder produces plaintext or the underlying stream terminates.
+	for {
+		n, readErr := c.Conn.Read(b)
+		if n > 0 {
+			_, _ = c.ciphertext.Write(b[:n])
+			consumed, err := c.protocol.DecryptStream(&c.plaintext, c.ciphertext.Bytes())
+			if err != nil {
+				c.ciphertext.Reset()
+				return 0, err
+			}
+			if consumed < 0 || consumed > c.ciphertext.Len() {
+				return 0, fmt.Errorf("ssr protocol consumed invalid ciphertext length %d", consumed)
+			}
+			c.ciphertext.Next(consumed)
+			if c.plaintext.Len() > 0 {
+				n, _ = c.plaintext.Read(b)
+				return n, nil
+			}
+		}
+		if readErr != nil {
+			if readErr == io.EOF && c.ciphertext.Len() != 0 {
+				return 0, io.ErrUnexpectedEOF
+			}
+			return 0, readErr
+		}
+		if n == 0 {
+			return 0, io.ErrNoProgress
+		}
 	}
-
-	_, _ = c.ciphertext.Write(b[:n])
-	length, err := c.protocol.DecryptStream(&c.plaintext, c.ciphertext.Bytes())
-	if err != nil {
-		c.ciphertext.Reset()
-		return 0, err
-	}
-	c.ciphertext.Next(length)
-
-	n, _ = c.plaintext.Read(b)
-	return n, nil
 }
 
-func (c *conn) Write(b []byte) (n int, err error) {
+func (c *conn) Write(b []byte) (int, error) {
 	buf := pool.NewBufferSize(len(b) + 1024)
 	defer buf.Reset()
 
-	if err = c.protocol.EncryptStream(buf, b); err != nil {
+	if err := c.protocol.EncryptStream(buf, b); err != nil {
 		return 0, err
 	}
-	if _, err = c.Conn.Write(buf.Bytes()); err != nil {
-		return 0, err
+	data := buf.Bytes()
+	for len(data) > 0 {
+		n, err := c.Conn.Write(data)
+		if err != nil {
+			return 0, err
+		}
+		if n <= 0 {
+			return 0, io.ErrShortWrite
+		}
+		data = data[n:]
 	}
 	return len(b), nil
 }
