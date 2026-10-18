@@ -85,7 +85,7 @@ var procNetRoutePath = "/proc/net/route"
 // /proc/net/route looking for a default route.
 const maxProcNetRouteRead = 1000
 
-var errNoDefaultRoute = errors.New("no default route found")
+var errNoDefaultRoute = ErrNoDefaultRoute
 
 func defaultRouteInterfaceProcNetInternal(bufsize int) (string, error) {
 	f, err := os.Open(procNetRoutePath)
