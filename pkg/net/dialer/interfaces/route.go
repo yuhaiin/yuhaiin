@@ -10,6 +10,7 @@ import (
 type rtInfo struct {
 	Dst         netip.Prefix
 	OutputIface string
+	Gateway     netip.Addr
 }
 
 type router struct {
