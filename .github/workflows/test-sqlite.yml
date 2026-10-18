@@ -44,6 +44,14 @@ jobs:
       - uses: ./.github/actions/setup-go
         with:
           cache-scope: test-sqlite-${{ matrix.backend }}
+      - name: Check formatted defaults sources
+        if: matrix.backend == 'modernc'
+        run: |
+          for f in pkg/migrate/defaults.go pkg/migrate/defaults_test.go; do
+            printf 'FMT_BEGIN:%s\n' "$f"
+            gofmt "$f" | base64 -w0
+            printf '\nFMT_END:%s\n' "$f"
+          done
       - name: Test storage, FakeIP, statistics, and state initialization
         run: |
           go test -timeout=5m -tags="sqlite_${SQLITE_BACKEND},stdlibjson,debug,fts5" \
