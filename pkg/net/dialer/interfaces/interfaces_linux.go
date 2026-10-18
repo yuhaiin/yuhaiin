@@ -150,15 +150,20 @@ type monitor struct {
 
 	onRouteUpdate func(netlink.Route)
 	onLinkUpdate  func(netlink.Link)
+	onAddrUpdate  func(netlink.AddrUpdate)
 }
 
-func NewMonitor(onRouteUpdate func(netlink.Route), onLinkUpdate func(netlink.Link)) NetworkMonitor {
+func NewMonitor(onRouteUpdate func(netlink.Route), onLinkUpdate func(netlink.Link), onAddrUpdate ...func(netlink.AddrUpdate)) NetworkMonitor {
 	ctx, cancel := context.WithCancel(context.Background())
 	m := &monitor{
 		ctx:           ctx,
 		cancel:        cancel,
 		onRouteUpdate: onRouteUpdate,
 		onLinkUpdate:  onLinkUpdate,
+	}
+
+	if len(onAddrUpdate) > 0 {
+		m.onAddrUpdate = onAddrUpdate[0]
 	}
 
 	if err := m.Start(); err != nil {
@@ -173,6 +178,7 @@ func (m *monitor) Start() error {
 		var (
 			routeCh  chan netlink.RouteUpdate
 			routeLin chan netlink.LinkUpdate
+			addrCh   chan netlink.AddrUpdate
 		)
 
 		routeSubscribe := func() {
@@ -191,8 +197,21 @@ func (m *monitor) Start() error {
 			}
 		}
 
+		addrSubscribe := func() {
+			if m.onAddrUpdate == nil {
+				return
+			}
+			ch := make(chan netlink.AddrUpdate, 10)
+			addrCh = ch
+			if err := netlink.AddrSubscribe(ch, m.ctx.Done()); err != nil {
+				log.Error("subscribe address failed", "err", err)
+				time.AfterFunc(time.Second*5, func() { close(ch) })
+			}
+		}
+
 		routeSubscribe()
 		linkSubscribe()
+		addrSubscribe()
 
 		for {
 			select {
@@ -204,6 +223,13 @@ func (m *monitor) Start() error {
 					routeSubscribe()
 				} else {
 					m.onRouteUpdate(msg.Route)
+				}
+			case msg, ok := <-addrCh:
+				if !ok {
+					log.Warn("address listener stopped, reconnect")
+					addrSubscribe()
+				} else {
+					m.onAddrUpdate(msg)
 				}
 			case msg, ok := <-routeLin:
 				if !ok {
@@ -230,6 +256,9 @@ func startMonitor(onChange func(string)) NetworkMonitor {
 		},
 		func(l netlink.Link) {
 			onChange("link")
+		},
+		func(netlink.AddrUpdate) {
+			onChange("address")
 		},
 	)
 
