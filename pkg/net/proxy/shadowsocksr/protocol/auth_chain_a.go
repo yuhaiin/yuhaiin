@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
@@ -34,6 +35,7 @@ type authChainA struct {
 
 	randomClient ssr.Shift128plusContext
 	randomServer ssr.Shift128plusContext
+	tcpMss       atomic.Int32
 	userKeyLen   int
 	hmac         ssr.HMAC
 
@@ -57,6 +59,7 @@ func newAuthChain(info Protocol, rnd func(dataLength int, random *ssr.Shift128pl
 		Protocol: info,
 		overhead: 4 + info.ObfsOverhead,
 	}
+	a.tcpMss.Store(int32(info.TcpMss))
 	a.initUserKey()
 	return a
 }
@@ -231,7 +234,7 @@ func (a *authChainA) EncryptStream(wbuf *pool.Buffer, plainData []byte) (err err
 		dataLength -= headSize
 		a.hasSentHeader = true
 	}
-	unitSize := a.TcpMss - a.overhead
+	unitSize := int(a.tcpMss.Load()) - a.overhead
 	if unitSize <= 0 {
 		return ssr.ErrAuthChainDataLengthError
 	}
@@ -289,7 +292,7 @@ func (a *authChainA) DecryptStream(rbuf *pool.Buffer, plainData []byte) (n int, 
 		b := make([]byte, dataLen)
 		a.decrypter.XORKeyStream(b, plainData[dataPos:dataPos+dataLen])
 		if a.recvID == 1 {
-			a.TcpMss = int(binary.LittleEndian.Uint16(b[:2]))
+			a.tcpMss.Store(int32(binary.LittleEndian.Uint16(b[:2])))
 			b = b[2:]
 		}
 		_, _ = rbuf.Write(b)
