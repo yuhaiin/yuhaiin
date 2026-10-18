@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -46,6 +47,7 @@ type AppInstance struct {
 	Subscribe     httpapi.SubscriptionController
 	Connections   httpapi.ConnectionMonitor
 	Resolver      httpapi.ResolverController
+	FakeIP        contractresolver.FakeIPEntries
 	ResolverCache httpapi.ResolverCacheController
 	ResolverCfg   httpapi.ResolverConfigController
 	Lists         httpapi.ListRuntimeController
@@ -186,6 +188,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		Subscriptions:    subscriptionStore,
 		Resolvers:        resolverStore,
 		Resolver:         app.Resolver,
+		FakeIP:           app.FakeIP,
 		ResolverCache:    app.ResolverCache,
 		ResolverConfig:   resolverConfig,
 		Connections:      app.Connections,
