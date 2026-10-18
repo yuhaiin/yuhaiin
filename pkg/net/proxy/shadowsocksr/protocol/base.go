@@ -100,6 +100,7 @@ type conn struct {
 	protocol protocol
 	net.Conn
 
+	readMu, writeMu sync.Mutex
 	ciphertext, plaintext pool.Buffer
 }
 
@@ -114,6 +115,8 @@ func (c *conn) Read(b []byte) (int, error) {
 	if len(b) == 0 {
 		return 0, nil
 	}
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
 	if c.plaintext.Len() > 0 {
 		return c.plaintext.Read(b)
 	}
@@ -151,6 +154,9 @@ func (c *conn) Read(b []byte) (int, error) {
 }
 
 func (c *conn) Write(b []byte) (int, error) {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
 	buf := pool.NewBufferSize(len(b) + 1024)
 	defer buf.Reset()
 
