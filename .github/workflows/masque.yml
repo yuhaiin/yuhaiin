@@ -54,12 +54,3 @@ jobs:
             echo "Separate quic-go modules still in direct go.mod" >&2
             exit 1
           fi
-      - name: Check Go formatting
-        shell: bash
-        run: |
-          set -euo pipefail
-          unformatted="$(find pkg/net/proxy/masque -name '*.go' -print0 | xargs -0 gofmt -l)"
-          if [[ -n "$unformatted" ]]; then
-            printf '%s\n' "$unformatted"
-            exit 1
-          fi

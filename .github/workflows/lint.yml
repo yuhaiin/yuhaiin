@@ -15,18 +15,6 @@ permissions:
   contents: read
 
 jobs:
-  actions-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-go
-        with:
-          cache-scope: actionlint
-      - name: Check workflows and build scripts
-        run: |
-          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          shellcheck scripts/build/*.sh
-
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -58,26 +46,10 @@ jobs:
         run: |
           go fix ./...
           git diff --exit-code
-
-  ssr-protocol-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-go
-        with:
-          cache-scope: ssr-protocol-tests
-      - name: Test SSR protocols with the race detector
-        run: go test -race -count=1 ./pkg/net/proxy/shadowsocksr/...
-
-  ssh-outbound-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-go
-        with:
-          cache-scope: ssh-outbound-tests
-      - name: Test SSH outbound and node contract
-        run: go test -race -count=1 -timeout=90s ./pkg/net/proxy/ssh/... ./pkg/contract/node ./pkg/register
+      - name: Check workflows and build scripts
+        run: |
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          shellcheck scripts/build/*.sh
 
   vpn-outbound-tests:
     runs-on: ubuntu-latest
@@ -86,6 +58,10 @@ jobs:
       - uses: ./.github/actions/setup-go
         with:
           cache-scope: vpn-outbound-tests
+      - name: Test SSR protocols with the race detector
+        run: go test -race -count=1 ./pkg/net/proxy/shadowsocksr/...
+      - name: Test SSH outbound and node contract
+        run: go test -race -count=1 -timeout=90s ./pkg/net/proxy/ssh/... ./pkg/contract/node ./pkg/register
       - name: Test VPN outbounds and node contract
         run: go test -race ./pkg/net/proxy/wireguard/... ./pkg/net/proxy/masque/... ./pkg/net/proxy/amneziawg/... ./pkg/net/proxy/ikev2/... ./pkg/net/proxy/anyconnect/... ./pkg/net/proxy/sstp/... ./pkg/net/proxy/fortinet/... ./pkg/net/proxy/vpnkit/... ./pkg/net/proxy/globalprotect ./pkg/net/proxy/softether/... ./pkg/net/proxy/openvpn/... ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/tailscale/... ./pkg/contract/node ./pkg/register
 

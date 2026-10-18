@@ -23,6 +23,36 @@ jobs:
   get_version:
     uses: ./.github/workflows/frontend-version.yml
 
+  # PRs exercise representative targets; main/tags still build the full release matrix.
+  pr-build:
+    if: github.event_name == 'pull_request'
+    needs: get_version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: linux, arch: amd64, runner: ubuntu-latest}
+          - {os: linux, arch: arm64, runner: ubuntu-latest}
+          - {os: darwin, arch: arm64, runner: ubuntu-24.04}
+          - {os: windows, arch: amd64, runner: ubuntu-latest}
+          - {os: freebsd, arch: amd64, runner: ubuntu-latest}
+          - {os: openbsd, arch: amd64, runner: ubuntu-latest}
+          - {os: android, arch: arm64, runner: ubuntu-latest}
+    uses: ./.github/workflows/build-binary.yml
+    with:
+      os: ${{ matrix.os }}
+      arch: ${{ matrix.arch }}
+      runner: ${{ matrix.runner }}
+      front_version: ${{ needs.get_version.outputs.front_version }}
+
+  pr-windows-test:
+    if: github.event_name == 'pull_request'
+    needs: pr-build
+    uses: ./.github/workflows/test-windows.yml
+    with:
+      arch: amd64
+      runner: windows-2025
+
   android:
     needs: get_version
     runs-on: ubuntu-latest
@@ -59,6 +89,7 @@ jobs:
           if-no-files-found: error
 
   linux:
+    if: github.event_name == 'push'
     needs: get_version
     strategy:
       fail-fast: false
@@ -71,6 +102,7 @@ jobs:
       front_version: ${{ needs.get_version.outputs.front_version }}
 
   darwin:
+    if: github.event_name == 'push'
     needs: get_version
     strategy:
       fail-fast: false
@@ -84,6 +116,7 @@ jobs:
       front_version: ${{ needs.get_version.outputs.front_version }}
 
   windows:
+    if: github.event_name == 'push'
     needs: get_version
     strategy:
       fail-fast: false
@@ -96,6 +129,7 @@ jobs:
       front_version: ${{ needs.get_version.outputs.front_version }}
 
   windows-test:
+    if: github.event_name == 'push'
     needs: windows
     strategy:
       fail-fast: false
@@ -109,6 +143,7 @@ jobs:
       runner: ${{ matrix.runner }}
 
   cross:
+    if: github.event_name == 'push'
     needs: get_version
     strategy:
       fail-fast: false
