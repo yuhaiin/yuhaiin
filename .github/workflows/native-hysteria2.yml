@@ -1,0 +1,36 @@
+name: Hysteria 2
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pkg/net/proxy/hysteria2/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/native-hysteria2.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'pkg/net/proxy/hysteria2/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/native-hysteria2.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: hysteria2-native
+      - name: Native HY2 protocol, Client, Server and hopping tests
+        run: go test -count=1 -race -timeout=10m ./pkg/net/proxy/hysteria2/...
