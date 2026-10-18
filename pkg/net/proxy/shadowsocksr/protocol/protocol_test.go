@@ -196,25 +196,35 @@ func (testFrameProtocol) DecryptStream(dst *pool.Buffer, data []byte) (int, erro
 	return consumed, nil
 }
 func (testFrameProtocol) EncryptPacket(data []byte) ([]byte, error) { return data, nil }
+
 func (testFrameProtocol) DecryptPacket(data []byte) ([]byte, error) { return data, nil }
+
 func (testFrameProtocol) GetOverhead() int                          { return 0 }
 
 type fragmentConn struct {
 	io.Reader
-	written bytes.Buffer
+	written  bytes.Buffer
 	maxWrite int
 }
+
 func (c *fragmentConn) Write(p []byte) (int, error) {
 	if c.maxWrite > 0 && len(p) > c.maxWrite {
 		p = p[:c.maxWrite]
 	}
 	return c.written.Write(p)
 }
+
 func (c *fragmentConn) Close() error { return nil }
+
+
 func (c *fragmentConn) LocalAddr() net.Addr { return nil }
+
 func (c *fragmentConn) RemoteAddr() net.Addr { return nil }
+
 func (c *fragmentConn) SetDeadline(time.Time) error { return nil }
+
 func (c *fragmentConn) SetReadDeadline(time.Time) error { return nil }
+
 func (c *fragmentConn) SetWriteDeadline(time.Time) error { return nil }
 
 func TestStreamFramingAndShortWrite(t *testing.T) {
