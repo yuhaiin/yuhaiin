@@ -1,5 +1,8 @@
 # WireGuard inbound (no system TUN)
 
+See [validation and benchmarks](wireguard-inbound-benchmarks.md) for encrypted
+interoperability coverage, measurements, and reproduction commands.
+
 This inbound terminates standard WireGuard sessions using `wireguard-go` and
 hands decrypted IPv4/IPv6 packets to yuhaiin's in-memory **lightweight TCP/IP**
 stack. Streams and datagrams enter the same DNS / routing / proxy handlers as

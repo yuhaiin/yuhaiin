@@ -26,7 +26,7 @@ const (
 type serverBind struct {
 	conn.Bind
 	mu      sync.Mutex
-	peers   map[string]conn.Endpoint
+	peers   map[[32]byte]conn.Endpoint
 	pending map[uint32]pendingHandshake
 }
 
@@ -36,22 +36,24 @@ type pendingHandshake struct {
 }
 
 func newServerBind(base conn.Bind) *serverBind {
-	return &serverBind{Bind: base, peers: make(map[string]conn.Endpoint), pending: make(map[uint32]pendingHandshake)}
+	return &serverBind{Bind: base, peers: make(map[[32]byte]conn.Endpoint), pending: make(map[uint32]pendingHandshake)}
 }
 
 var _ conn.Bind = (*serverBind)(nil)
 var _ conn.PeerAwareEndpoint = (*serverReceiveEndpoint)(nil)
 
 type serverPeerEndpoint struct {
-	key string
+	key [32]byte
 }
 
 func (e serverPeerEndpoint) ClearSrc()           {}
 func (e serverPeerEndpoint) SrcToString() string { return "" }
-func (e serverPeerEndpoint) DstToString() string { return serverPeerPrefix + e.key }
-func (e serverPeerEndpoint) DstToBytes() []byte  { return nil }
-func (e serverPeerEndpoint) DstIP() netip.Addr   { return netip.Addr{} }
-func (e serverPeerEndpoint) SrcIP() netip.Addr   { return netip.Addr{} }
+func (e serverPeerEndpoint) DstToString() string {
+	return serverPeerPrefix + hex.EncodeToString(e.key[:])
+}
+func (e serverPeerEndpoint) DstToBytes() []byte { return nil }
+func (e serverPeerEndpoint) DstIP() netip.Addr  { return netip.Addr{} }
+func (e serverPeerEndpoint) SrcIP() netip.Addr  { return netip.Addr{} }
 
 type serverReceiveEndpoint struct {
 	conn.Endpoint
@@ -60,7 +62,7 @@ type serverReceiveEndpoint struct {
 
 func (e *serverReceiveEndpoint) FromPeer(key [32]byte) {
 	e.owner.mu.Lock()
-	e.owner.peers[hex.EncodeToString(key[:])] = e.Endpoint
+	e.owner.peers[key] = e.Endpoint
 	e.owner.mu.Unlock()
 }
 
@@ -70,7 +72,7 @@ func (b *serverBind) ParseEndpoint(address string) (conn.Endpoint, error) {
 		if err != nil || len(data) != 32 {
 			return nil, errors.New("wireguard: invalid server peer endpoint")
 		}
-		return serverPeerEndpoint{key: key}, nil
+		return serverPeerEndpoint{key: [32]byte(data)}, nil
 	}
 	return b.Bind.ParseEndpoint(address)
 }
@@ -142,7 +144,7 @@ func (b *serverBind) Send(buffers [][]byte, destination conn.Endpoint, offset in
 	}
 	b.mu.Unlock()
 	if real == nil {
-		return fmt.Errorf("wireguard: no authenticated endpoint for peer %s", peer.key[:8])
+		return fmt.Errorf("wireguard: no authenticated endpoint for peer %x", peer.key[:4])
 	}
 	return b.Bind.Send(buffers, real, offset)
 }
