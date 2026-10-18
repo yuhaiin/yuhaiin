@@ -2,7 +2,6 @@ package hysteria2
 
 import (
 	"context"
-	"crypto/subtle"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -14,9 +13,8 @@ import (
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2/internal/obfs"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	hyserver "github.com/apernet/hysteria/core/v2/server"
-	"github.com/apernet/hysteria/extras/v2/obfs"
 )
 
 // Packet IDs must be unique across listeners and reconnects, not just within a
@@ -25,7 +23,7 @@ var packetIDs atomic.Uint64
 
 type Server struct {
 	netapi.EmptyInterface
-	core      hyserver.Server
+	core      *nativeServer
 	listener  netapi.Listener
 	done      chan struct{}
 	closeOnce sync.Once
@@ -57,24 +55,7 @@ func NewServer(config contract.Hysteria2Protocol, tlsConfig *tls.Config, lis net
 			return nil, err
 		}
 	}
-	core, err := hyserver.NewServer(&hyserver.Config{
-		Conn:                  packet,
-		TLSConfig:             hyserver.TLSConfig{Certificates: tlsConfig.Certificates, GetCertificate: tlsConfig.GetCertificate, ECHKeys: tlsConfig.EncryptedClientHelloKeys},
-		Authenticator:         passwordAuth(config.Auth),
-		BandwidthConfig:       hyserver.BandwidthConfig{MaxTx: config.UploadBPS, MaxRx: config.DownloadBPS},
-		IgnoreClientBandwidth: config.IgnoreClientBandwidth, DisableUDP: config.DisableUDP,
-		StreamHandler: func(_ context.Context, meta hyserver.RequestMetadata, stream hyserver.HyStream, target string) {
-			addr, err := netapi.ParseAddress("tcp", target)
-			if err != nil {
-				return
-			}
-			conn := &streamConn{HyStream: stream, local: meta.Inbound, remote: meta.Source}
-			handler.HandleStream(&netapi.StreamMeta{Source: meta.Source, Destination: addr, Inbound: meta.Inbound, Src: conn, Address: addr})
-		},
-		UDPHandler: func(ctx context.Context, meta hyserver.RequestMetadata, _ string) (hyserver.UDPConn, error) {
-			return newServerPacketConn(ctx, meta.Source, handler), nil
-		},
-	})
+	core, err := newNativeServer(packet, tlsConfig, handler, config.Auth, config.UploadBPS, config.DownloadBPS, config.IgnoreClientBandwidth, config.DisableUDP)
 	if err != nil {
 		if redirect != nil {
 			err = errors.Join(err, redirect.Close())
@@ -104,20 +85,6 @@ func (s *Server) Close() error {
 	})
 	return s.closeErr
 }
-
-type passwordAuth string
-
-func (p passwordAuth) Authenticate(_ net.Addr, auth string, _ uint64) (bool, string) {
-	return subtle.ConstantTimeCompare([]byte(p), []byte(auth)) == 1, "user"
-}
-
-type streamConn struct {
-	hyserver.HyStream
-	local, remote net.Addr
-}
-
-func (s *streamConn) LocalAddr() net.Addr  { return s.local }
-func (s *streamConn) RemoteAddr() net.Addr { return s.remote }
 
 type serverPacketConn struct {
 	source  net.Addr

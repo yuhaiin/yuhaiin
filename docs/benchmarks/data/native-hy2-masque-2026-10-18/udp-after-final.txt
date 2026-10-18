@@ -1,0 +1,21 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2
+cpu: Apple M4
+BenchmarkNativeDatagramEncoding/1000         	12257446	        43.70 ns/op	22882.37 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNativeDatagramEncoding/1000         	13850854	        43.37 ns/op	23059.11 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNativeDatagramEncoding/1000         	13905975	        43.39 ns/op	23046.30 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNativeDatagramEncoding/1000         	13819921	        43.52 ns/op	22980.47 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNativeDatagramEncoding/1000         	13663820	        43.39 ns/op	23049.04 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNativeDatagramEncoding/8192         	 1281459	       463.2 ns/op	17685.36 MB/s	     360 B/op	       2 allocs/op
+BenchmarkNativeDatagramEncoding/8192         	 1295469	       460.1 ns/op	17804.48 MB/s	     360 B/op	       2 allocs/op
+BenchmarkNativeDatagramEncoding/8192         	 1332214	       449.6 ns/op	18221.39 MB/s	     360 B/op	       2 allocs/op
+BenchmarkNativeDatagramEncoding/8192         	 1288201	       464.9 ns/op	17620.71 MB/s	     360 B/op	       2 allocs/op
+BenchmarkNativeDatagramEncoding/8192         	 1299912	       462.6 ns/op	17707.76 MB/s	     360 B/op	       2 allocs/op
+BenchmarkNativeDatagramEncoding/65535        	  208196	      2943 ns/op	22269.20 MB/s	    3080 B/op	       2 allocs/op
+BenchmarkNativeDatagramEncoding/65535        	  201373	      3024 ns/op	21670.47 MB/s	    3080 B/op	       2 allocs/op
+BenchmarkNativeDatagramEncoding/65535        	  195946	      3101 ns/op	21136.01 MB/s	    3080 B/op	       2 allocs/op
+BenchmarkNativeDatagramEncoding/65535        	  202999	      3019 ns/op	21706.98 MB/s	    3080 B/op	       2 allocs/op
+BenchmarkNativeDatagramEncoding/65535        	  206883	      3014 ns/op	21741.17 MB/s	    3080 B/op	       2 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2	9.200s

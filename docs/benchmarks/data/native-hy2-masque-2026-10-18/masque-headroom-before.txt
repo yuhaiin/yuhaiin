@@ -1,0 +1,11 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque/connectip
+cpu: Apple M4
+BenchmarkPacketEncoding 	 4117982	       131.3 ns/op	9139.71 MB/s	    1280 B/op	       1 allocs/op
+BenchmarkPacketEncoding 	 4711623	       127.1 ns/op	9444.67 MB/s	    1280 B/op	       1 allocs/op
+BenchmarkPacketEncoding 	 4622954	       133.5 ns/op	8991.48 MB/s	    1280 B/op	       1 allocs/op
+BenchmarkPacketEncoding 	 4605782	       128.3 ns/op	9351.91 MB/s	    1280 B/op	       1 allocs/op
+BenchmarkPacketEncoding 	 4215927	       132.6 ns/op	9051.06 MB/s	    1280 B/op	       1 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque/connectip	3.306s

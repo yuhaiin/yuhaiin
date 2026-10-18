@@ -11,11 +11,9 @@ import (
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2/internal/obfs"
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	hyclient "github.com/apernet/hysteria/core/v2/client"
-	"github.com/apernet/hysteria/extras/v2/obfs"
-	"github.com/apernet/hysteria/extras/v2/transport/udphop"
 )
 
 func init() {
@@ -32,7 +30,7 @@ type Client struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	gate      chan struct{}
-	session   *clientSession
+	session   *nativeClientSession
 	closeOnce sync.Once
 	closeErr  error
 }
@@ -72,7 +70,7 @@ func NewClient(config contractnode.Hysteria2, parent netapi.Proxy) (netapi.Proxy
 	return &Client{config: config, parent: parent, ctx: ctx, cancel: cancel, gate: make(chan struct{}, 1)}, nil
 }
 
-func (c *Client) getSession(ctx context.Context) (*clientSession, error) {
+func (c *Client) getSession(ctx context.Context) (*nativeClientSession, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -120,8 +118,7 @@ func (c *Client) getSession(ctx context.Context) (*clientSession, error) {
 			if remote.Zone != "" {
 				return nil, errors.New("hysteria2 port hopping does not support scoped IPv6 addresses")
 			}
-			_, portStr, _ := net.SplitHostPort(c.config.Host)
-			serverAddr = &udphop.UDPHopAddr{IP: remote.IP, Ports: ports.Ports(), PortStr: portStr}
+			serverAddr = &addressHopAddr{Addr: remote, targets: []hopTarget{{ip: remote.IP, ports: ports.Ports()}}}
 		}
 	}
 	interval, err := hopIntervalConfig(c.config)
@@ -129,12 +126,7 @@ func (c *Client) getSession(ctx context.Context) (*clientSession, error) {
 		return nil, err
 	}
 	factory := &connFactory{ctx: setup, hopCtx: c.ctx, parent: c.parent, password: c.config.SalamanderPassword, hopInterval: interval}
-	session, _, err := hyclient.NewClientContext(setup, &hyclient.Config{
-		ConnFactory: factory,
-		ServerAddr:  serverAddr, Auth: c.config.Auth,
-		TLSConfig:       hyclient.TLSConfig{ServerName: tlsConfig.ServerName, RootCAs: tlsConfig.RootCAs, InsecureSkipVerify: tlsConfig.InsecureSkipVerify, ECHConfigList: tlsConfig.EncryptedClientHelloConfigList},
-		BandwidthConfig: hyclient.BandwidthConfig{MaxTx: c.config.UploadBPS, MaxRx: c.config.DownloadBPS},
-	})
+	session, err := dialNativeSession(setup, factory, serverAddr, c.config.Auth, tlsConfig, c.config.UploadBPS, c.config.DownloadBPS)
 	if err != nil {
 		return nil, fmt.Errorf("hysteria2 connect: %w", err)
 	}
@@ -142,7 +134,7 @@ func (c *Client) getSession(ctx context.Context) (*clientSession, error) {
 		_ = session.Close()
 		return nil, net.ErrClosed
 	}
-	c.session = &clientSession{ContextClient: session, local: factory.local}
+	c.session = session
 	return c.session, nil
 }
 
@@ -187,18 +179,13 @@ func (c *Client) Close() error {
 	return c.closeErr
 }
 
-type clientSession struct {
-	hyclient.ContextClient
-	local net.Addr
-}
-
 type connFactory struct {
 	local       net.Addr
 	ctx         context.Context
 	parent      netapi.Proxy
 	password    string
 	hopCtx      context.Context
-	hopInterval udphop.HopIntervalConfig
+	hopInterval hopInterval
 }
 
 func (f *connFactory) New(remote net.Addr) (net.PacketConn, error) {
@@ -206,25 +193,6 @@ func (f *connFactory) New(remote net.Addr) (net.PacketConn, error) {
 	var err error
 	if hop, ok := remote.(*addressHopAddr); ok {
 		conn, err = newAddressHopPacketConn(f.ctx, f.hopCtx, hop, f.hopInterval, f.listenPacket)
-	} else if hop, ok := remote.(*udphop.UDPHopAddr); ok {
-		// The setup context ends after authentication. Subsequent sockets must
-		// use the client's lifetime context so hopping can continue afterwards.
-		initial := true
-		conn, err = udphop.NewUDPHopPacketConn(hop, f.hopInterval, func() (net.PacketConn, error) {
-			ctx := f.hopCtx
-			if initial {
-				ctx, initial = f.ctx, false
-			}
-			ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
-			defer cancel()
-			return f.listenPacket(ctx, &net.UDPAddr{IP: hop.IP, Port: int(hop.Ports[0])})
-		})
-		if err == nil && f.parent != nil {
-			// Proxy packet connections need not expose a UDP file descriptor.
-			// Hide udphop's unconditional SyscallConn method on this path so QUIC
-			// uses PacketConn rather than failing on an unsupported syscall.
-			conn = packetConnOnly{conn}
-		}
 	} else {
 		conn, err = f.listenPacket(f.ctx, remote)
 	}
@@ -242,8 +210,6 @@ func (f *connFactory) New(remote net.Addr) (net.PacketConn, error) {
 	}
 	return conn, nil
 }
-
-type packetConnOnly struct{ net.PacketConn }
 
 func (f *connFactory) listenPacket(ctx context.Context, remote net.Addr) (net.PacketConn, error) {
 	var conn net.PacketConn

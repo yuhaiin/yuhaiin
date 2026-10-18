@@ -1,0 +1,11 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque
+cpu: Apple M4
+BenchmarkHTTP2CapsuleTunnel 	   15926	     35548 ns/op	  33.76 MB/s	    2858 B/op	      12 allocs/op
+BenchmarkHTTP2CapsuleTunnel 	   18063	     33406 ns/op	  35.92 MB/s	    2858 B/op	      12 allocs/op
+BenchmarkHTTP2CapsuleTunnel 	   17858	     33816 ns/op	  35.49 MB/s	    2858 B/op	      12 allocs/op
+BenchmarkHTTP2CapsuleTunnel 	   14160	     40322 ns/op	  29.76 MB/s	    2858 B/op	      12 allocs/op
+BenchmarkHTTP2CapsuleTunnel 	   17756	     33732 ns/op	  35.57 MB/s	    2858 B/op	      12 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque	3.325s

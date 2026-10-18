@@ -1,0 +1,69 @@
+name: Hysteria 2
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pkg/net/proxy/hysteria2/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/native-hysteria2.yml'
+      - 'scripts/bench/hysteria2/**'
+  push:
+    branches: [main]
+    paths:
+      - 'pkg/net/proxy/hysteria2/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/native-hysteria2.yml'
+      - 'scripts/bench/hysteria2/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: hysteria2-native
+      - name: Native HY2 protocol, Client, Server and hopping tests
+        run: go test -count=1 -race -timeout=10m ./pkg/net/proxy/hysteria2/...
+
+  official-interoperability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: hysteria2-interop
+      - name: Fetch and verify official Hysteria 2.13.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --silent --show-error \
+            -o "${RUNNER_TEMP}/hysteria" \
+            "https://github.com/HyNetworks/hysteria/releases/download/app/v2.13.0/hysteria-linux-amd64"
+          echo "907ba8c9693edb104b20582681fb7dc15639d5b64a9cbb616a7b539190a86691  ${RUNNER_TEMP}/hysteria" | sha256sum --check
+          chmod +x "${RUNNER_TEMP}/hysteria"
+      - name: Bidirectional native/official TCP, UDP, Brutal and Salamander smoke test
+        shell: bash
+        run: |
+          python3 scripts/bench/hysteria2/run.py \
+            --official "${RUNNER_TEMP}/hysteria" \
+            --output "${RUNNER_TEMP}/hysteria2-interop.json" \
+            --smoke-only
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: hysteria2-native-interop
+          path: ${{ runner.temp }}/hysteria2-interop.json
+          if-no-files-found: ignore

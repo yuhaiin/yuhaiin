@@ -1,0 +1,2800 @@
+{
+  "topology": "independent target, server and client processes over IPv4 loopback",
+  "gomaxprocs": 4,
+  "platform": "macOS-27.0.1-arm64-arm-64bit",
+  "cpu": "arm",
+  "native_relay_buffer_bytes": 16384,
+  "go_version": "go version go1.27.2 darwin/arm64",
+  "official_version": "\n\u2591\u2588\u2591\u2588\u2591\u2588\u2591\u2588\u2591\u2588\u2580\u2580\u2591\u2580\u2588\u2580\u2591\u2588\u2580\u2580\u2591\u2588\u2580\u2584\u2591\u2580\u2588\u2580\u2591\u2588\u2580\u2588\u2591\u2591\u2591\u2580\u2580\u2584\n\u2591\u2588\u2580\u2588\u2591\u2591\u2588\u2591\u2591\u2580\u2580\u2588\u2591\u2591\u2588\u2591\u2591\u2588\u2580\u2580\u2591\u2588\u2580\u2584\u2591\u2591\u2588\u2591\u2591\u2588\u2580\u2588\u2591\u2591\u2591\u2584\u2580\u2591\n\u2591\u2580\u2591\u2580\u2591\u2591\u2580\u2591\u2591\u2580\u2580\u2580\u2591\u2591\u2580\u2591\u2591\u2580\u2580\u2580\u2591\u2580\u2591\u2580\u2591\u2580\u2580\u2580\u2591\u2580\u2591\u2580\u2591\u2591\u2591\u2580\u2580\u2580\n\na powerful, lightning fast and censorship resistant proxy\nAperture Internet Laboratory <https://github.com/apernet>\n\nVersion:\tv2.13.0\nBuildDate:\t2026-10-05T04:16:24Z\nBuildType:\trelease\nToolchain:\tgo1.26.8 linux/amd64\nCommitHash:\tca8fbd874fd6ca82413948de6dc5924405e103e1\nPlatform:\tdarwin\nArchitecture:\tarm64\nLibraries:\tquic-go=v0.63.1-0.20261004180939-a10df75c260c\n",
+  "official_sha256": "c8c3589239ce4ecf335c07a3f6ec11b3ef8fbdfe9e5a5ea0ef8ba8ce50d2bb90",
+  "repeats": 3,
+  "tcp_payload_bytes": 268435456,
+  "resource_sampling": true,
+  "measurements": [
+    {
+      "direction": "upload",
+      "mbps": 1720.135884160081,
+      "payload_bytes": 268435456,
+      "seconds": 1.248438375,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.269454542,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23347200,
+            "rss_sampled_peak_bytes": 23412736,
+            "rss_end_bytes": 23412736,
+            "cpu_seconds": 0.685310616,
+            "cpu_one_core_percent": 53.98465193722549
+          },
+          "server": {
+            "rss_start_bytes": 27344896,
+            "rss_sampled_peak_bytes": 33587200,
+            "rss_end_bytes": 33587200,
+            "cpu_seconds": 3.287505832,
+            "cpu_one_core_percent": 258.96995309659536
+          },
+          "workload": {
+            "rss_start_bytes": 622592,
+            "rss_sampled_peak_bytes": 32473088,
+            "rss_end_bytes": 32473088,
+            "cpu_seconds": 2.8682689999999997,
+            "cpu_one_core_percent": 225.94499488584282
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 0
+    },
+    {
+      "direction": "upload",
+      "mbps": 1586.3298424254845,
+      "payload_bytes": 268435456,
+      "seconds": 1.353743459,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.3688743749999999,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23412736,
+            "rss_sampled_peak_bytes": 23576576,
+            "rss_end_bytes": 23576576,
+            "cpu_seconds": 0.7257918879999999,
+            "cpu_one_core_percent": 53.02107346410075
+          },
+          "server": {
+            "rss_start_bytes": 33587200,
+            "rss_sampled_peak_bytes": 33718272,
+            "rss_end_bytes": 33718272,
+            "cpu_seconds": 3.443728000000001,
+            "cpu_one_core_percent": 251.57370631618414
+          },
+          "workload": {
+            "rss_start_bytes": 622592,
+            "rss_sampled_peak_bytes": 32768000,
+            "rss_end_bytes": 32768000,
+            "cpu_seconds": 3.0618090000000024,
+            "cpu_one_core_percent": 223.67348355103826
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 1
+    },
+    {
+      "direction": "upload",
+      "mbps": 1811.4343487292651,
+      "payload_bytes": 268435456,
+      "seconds": 1.185515583,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.2002056669999988,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23576576,
+            "rss_sampled_peak_bytes": 23576576,
+            "rss_end_bytes": 23576576,
+            "cpu_seconds": 0.641659456,
+            "cpu_one_core_percent": 53.462458447132185
+          },
+          "server": {
+            "rss_start_bytes": 33718272,
+            "rss_sampled_peak_bytes": 33783808,
+            "rss_end_bytes": 33783808,
+            "cpu_seconds": 3.1622423039999994,
+            "cpu_one_core_percent": 263.4750352332741
+          },
+          "workload": {
+            "rss_start_bytes": 458752,
+            "rss_sampled_peak_bytes": 32964608,
+            "rss_end_bytes": 32964608,
+            "cpu_seconds": 2.7329209999999984,
+            "cpu_one_core_percent": 227.70439060091533
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 2
+    },
+    {
+      "direction": "download",
+      "mbps": 2361.1586685561606,
+      "payload_bytes": 268435456,
+      "seconds": 0.909504167,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 0.9235046659999995,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23576576,
+            "rss_sampled_peak_bytes": 23576576,
+            "rss_end_bytes": 23576576,
+            "cpu_seconds": 0.035364704000000025,
+            "cpu_one_core_percent": 3.8294017672023375
+          },
+          "server": {
+            "rss_start_bytes": 33783808,
+            "rss_sampled_peak_bytes": 33914880,
+            "rss_end_bytes": 33914880,
+            "cpu_seconds": 2.0387607039999995,
+            "cpu_one_core_percent": 220.76344376585973
+          },
+          "workload": {
+            "rss_start_bytes": 475136,
+            "rss_sampled_peak_bytes": 32964608,
+            "rss_end_bytes": 32964608,
+            "cpu_seconds": 2.2484349999999997,
+            "cpu_one_core_percent": 243.46763831077396
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 0
+    },
+    {
+      "direction": "download",
+      "mbps": 2366.468236582886,
+      "payload_bytes": 268435456,
+      "seconds": 0.907463542,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 0.9217184589999992,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23576576,
+            "rss_sampled_peak_bytes": 23576576,
+            "rss_end_bytes": 23576576,
+            "cpu_seconds": 0.03966956799999988,
+            "cpu_one_core_percent": 4.303870407785759
+          },
+          "server": {
+            "rss_start_bytes": 33914880,
+            "rss_sampled_peak_bytes": 33964032,
+            "rss_end_bytes": 33964032,
+            "cpu_seconds": 2.0228200960000002,
+            "cpu_one_core_percent": 219.46181898045313
+          },
+          "workload": {
+            "rss_start_bytes": 458752,
+            "rss_sampled_peak_bytes": 33161216,
+            "rss_end_bytes": 33161216,
+            "cpu_seconds": 2.215277999999998,
+            "cpu_one_core_percent": 240.34215419786878
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 1
+    },
+    {
+      "direction": "download",
+      "mbps": 2158.985463862936,
+      "payload_bytes": 268435456,
+      "seconds": 0.994672583,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.0084722910000004,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23576576,
+            "rss_sampled_peak_bytes": 23576576,
+            "rss_end_bytes": 23576576,
+            "cpu_seconds": 0.034397087999999965,
+            "cpu_one_core_percent": 3.410811413161569
+          },
+          "server": {
+            "rss_start_bytes": 33964032,
+            "rss_sampled_peak_bytes": 33996800,
+            "rss_end_bytes": 33996800,
+            "cpu_seconds": 2.186265087999999,
+            "cpu_one_core_percent": 216.78980250732522
+          },
+          "workload": {
+            "rss_start_bytes": 475136,
+            "rss_sampled_peak_bytes": 33406976,
+            "rss_end_bytes": 33406976,
+            "cpu_seconds": 2.3967040000000015,
+            "cpu_one_core_percent": 237.65690157172602
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 2
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 40.004573422845134,
+      "offered_mbps": 39.998508355627145,
+      "payload_size": 1000,
+      "received": 4000,
+      "seconds": 0.799908542,
+      "send_seconds": 0.800029834,
+      "sent": 4000,
+      "transport": "udp",
+      "resources": {
+        "wall_seconds": 1.8168746250000005,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23576576,
+            "rss_sampled_peak_bytes": 23609344,
+            "rss_end_bytes": 23609344,
+            "cpu_seconds": 0.06412566400000053,
+            "cpu_one_core_percent": 3.529449039445994
+          },
+          "server": {
+            "rss_start_bytes": 33996800,
+            "rss_sampled_peak_bytes": 34226176,
+            "rss_end_bytes": 34226176,
+            "cpu_seconds": 0.2566773760000025,
+            "cpu_one_core_percent": 14.127412671636737
+          },
+          "workload": {
+            "rss_start_bytes": 458752,
+            "rss_sampled_peak_bytes": 32178176,
+            "rss_end_bytes": 32178176,
+            "cpu_seconds": 0.24573299999999776,
+            "cpu_one_core_percent": 13.525038911256614
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 0
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 40.004900600323545,
+      "offered_mbps": 39.998435461196934,
+      "payload_size": 1000,
+      "received": 4000,
+      "seconds": 0.799902,
+      "send_seconds": 0.800031292,
+      "sent": 4000,
+      "transport": "udp",
+      "resources": {
+        "wall_seconds": 1.8234148329999993,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23609344,
+            "rss_sampled_peak_bytes": 23625728,
+            "rss_end_bytes": 23625728,
+            "cpu_seconds": 0.07230095999999975,
+            "cpu_one_core_percent": 3.9651404985581675
+          },
+          "server": {
+            "rss_start_bytes": 34226176,
+            "rss_sampled_peak_bytes": 34242560,
+            "rss_end_bytes": 34242560,
+            "cpu_seconds": 0.2841267199999997,
+            "cpu_one_core_percent": 15.582121789178174
+          },
+          "workload": {
+            "rss_start_bytes": 655360,
+            "rss_sampled_peak_bytes": 31932416,
+            "rss_end_bytes": 31932416,
+            "cpu_seconds": 0.27537000000000056,
+            "cpu_one_core_percent": 15.1018843883673
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 1
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 40.0050547886915,
+      "offered_mbps": 39.998608398415556,
+      "payload_size": 1000,
+      "received": 4000,
+      "seconds": 0.799898917,
+      "send_seconds": 0.800027833,
+      "sent": 4000,
+      "transport": "udp",
+      "resources": {
+        "wall_seconds": 1.825197124999999,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23625728,
+            "rss_sampled_peak_bytes": 23674880,
+            "rss_end_bytes": 23674880,
+            "cpu_seconds": 0.07440569599999991,
+            "cpu_one_core_percent": 4.0765841114285095
+          },
+          "server": {
+            "rss_start_bytes": 34242560,
+            "rss_sampled_peak_bytes": 34750464,
+            "rss_end_bytes": 34750464,
+            "cpu_seconds": 0.27865036799999743,
+            "cpu_one_core_percent": 15.266864284590499
+          },
+          "workload": {
+            "rss_start_bytes": 475136,
+            "rss_sampled_peak_bytes": 32391168,
+            "rss_end_bytes": 32391168,
+            "cpu_seconds": 0.27568000000000303,
+            "cpu_one_core_percent": 15.10412197257889
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 2
+    },
+    {
+      "direction": "upload",
+      "mbps": 1466.8924785241209,
+      "payload_bytes": 268435456,
+      "seconds": 1.463968,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.4952294580000007,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23674880,
+            "rss_sampled_peak_bytes": 24543232,
+            "rss_end_bytes": 24543232,
+            "cpu_seconds": 1.8603082239999997,
+            "cpu_one_core_percent": 124.41623685560099
+          },
+          "server": {
+            "rss_start_bytes": 34750464,
+            "rss_sampled_peak_bytes": 35209216,
+            "rss_end_bytes": 35209216,
+            "cpu_seconds": 3.7074314239999993,
+            "cpu_one_core_percent": 247.95066764929916
+          },
+          "workload": {
+            "rss_start_bytes": 704512,
+            "rss_sampled_peak_bytes": 33472512,
+            "rss_end_bytes": 33472512,
+            "cpu_seconds": 3.14747,
+            "cpu_one_core_percent": 210.5008019444731
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 0
+    },
+    {
+      "direction": "upload",
+      "mbps": 1508.0243820783542,
+      "payload_bytes": 268435456,
+      "seconds": 1.42403775,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.438880000000001,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 24543232,
+            "rss_sampled_peak_bytes": 24543232,
+            "rss_end_bytes": 24543232,
+            "cpu_seconds": 1.802130816000001,
+            "cpu_one_core_percent": 125.24538641165348
+          },
+          "server": {
+            "rss_start_bytes": 35209216,
+            "rss_sampled_peak_bytes": 35258368,
+            "rss_end_bytes": 35258368,
+            "cpu_seconds": 3.7151621120000016,
+            "cpu_one_core_percent": 258.19818970310234
+          },
+          "workload": {
+            "rss_start_bytes": 458752,
+            "rss_sampled_peak_bytes": 33488896,
+            "rss_end_bytes": 33488896,
+            "cpu_seconds": 3.101880999999999,
+            "cpu_one_core_percent": 215.5760730568217
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 1
+    },
+    {
+      "direction": "upload",
+      "mbps": 1578.7417878804865,
+      "payload_bytes": 268435456,
+      "seconds": 1.360250083,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.3748080840000014,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 24543232,
+            "rss_sampled_peak_bytes": 24608768,
+            "rss_end_bytes": 24608768,
+            "cpu_seconds": 1.7680331519999992,
+            "cpu_one_core_percent": 128.60217892055962
+          },
+          "server": {
+            "rss_start_bytes": 35258368,
+            "rss_sampled_peak_bytes": 35291136,
+            "rss_end_bytes": 35291136,
+            "cpu_seconds": 3.816681471999999,
+            "cpu_one_core_percent": 277.61558259792685
+          },
+          "workload": {
+            "rss_start_bytes": 475136,
+            "rss_sampled_peak_bytes": 33243136,
+            "rss_end_bytes": 33243136,
+            "cpu_seconds": 3.0410840000000086,
+            "cpu_one_core_percent": 221.20061959135276
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 2
+    },
+    {
+      "direction": "download",
+      "mbps": 2474.861408722584,
+      "payload_bytes": 268435456,
+      "seconds": 0.86771875,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 0.8822997920000013,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 24608768,
+            "rss_sampled_peak_bytes": 24870912,
+            "rss_end_bytes": 24870912,
+            "cpu_seconds": 0.03947071999999974,
+            "cpu_one_core_percent": 4.47361773831175
+          },
+          "server": {
+            "rss_start_bytes": 35291136,
+            "rss_sampled_peak_bytes": 35291136,
+            "rss_end_bytes": 35291136,
+            "cpu_seconds": 1.9256760319999984,
+            "cpu_one_core_percent": 218.2564304628098
+          },
+          "workload": {
+            "rss_start_bytes": 475136,
+            "rss_sampled_peak_bytes": 34029568,
+            "rss_end_bytes": 34029568,
+            "cpu_seconds": 2.2664149999999985,
+            "cpu_one_core_percent": 256.87583977125036
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 0
+    },
+    {
+      "direction": "download",
+      "mbps": 2504.459251933609,
+      "payload_bytes": 268435456,
+      "seconds": 0.857464,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 0.8719660840000003,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 24870912,
+            "rss_sampled_peak_bytes": 25133056,
+            "rss_end_bytes": 25133056,
+            "cpu_seconds": 0.039705344000001475,
+            "cpu_one_core_percent": 4.55354224534282
+          },
+          "server": {
+            "rss_start_bytes": 35291136,
+            "rss_sampled_peak_bytes": 35323904,
+            "rss_end_bytes": 35323904,
+            "cpu_seconds": 1.9316961279999987,
+            "cpu_one_core_percent": 221.5334017509789
+          },
+          "workload": {
+            "rss_start_bytes": 475136,
+            "rss_sampled_peak_bytes": 34013184,
+            "rss_end_bytes": 34013184,
+            "cpu_seconds": 2.263442999999995,
+            "cpu_one_core_percent": 259.5792475800004
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 1
+    },
+    {
+      "direction": "download",
+      "mbps": 2126.7311837543443,
+      "payload_bytes": 268435456,
+      "seconds": 1.009757916,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.0242229999999992,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 25133056,
+            "rss_sampled_peak_bytes": 25395200,
+            "rss_end_bytes": 25395200,
+            "cpu_seconds": 0.04209651199999964,
+            "cpu_one_core_percent": 4.110092431042817
+          },
+          "server": {
+            "rss_start_bytes": 35323904,
+            "rss_sampled_peak_bytes": 35323904,
+            "rss_end_bytes": 35323904,
+            "cpu_seconds": 2.157282304000006,
+            "cpu_one_core_percent": 210.6262312016043
+          },
+          "workload": {
+            "rss_start_bytes": 475136,
+            "rss_sampled_peak_bytes": 34390016,
+            "rss_end_bytes": 34390016,
+            "cpu_seconds": 2.526675000000001,
+            "cpu_one_core_percent": 246.69188252948848
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "repeat": 2
+    },
+    {
+      "direction": "upload",
+      "mbps": 1550.7845814731825,
+      "payload_bytes": 268435456,
+      "seconds": 1.384772375,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.3947603340000008,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 25395200,
+            "rss_sampled_peak_bytes": 25526272,
+            "rss_end_bytes": 25526272,
+            "cpu_seconds": 0.7448842239999989,
+            "cpu_one_core_percent": 53.40589389029746
+          },
+          "server": {
+            "rss_start_bytes": 29065216,
+            "rss_sampled_peak_bytes": 32800768,
+            "rss_end_bytes": 32800768,
+            "cpu_seconds": 3.5253355550000003,
+            "cpu_one_core_percent": 252.75565049156313
+          },
+          "official_client": {
+            "rss_start_bytes": 22609920,
+            "rss_sampled_peak_bytes": 28377088,
+            "rss_end_bytes": 28377088,
+            "cpu_seconds": 3.10390694,
+            "cpu_one_core_percent": 222.54052286519916
+          },
+          "workload": {
+            "rss_start_bytes": 671744,
+            "rss_sampled_peak_bytes": 23298048,
+            "rss_end_bytes": 23298048,
+            "cpu_seconds": 0.05746499999999344,
+            "cpu_one_core_percent": 4.120062680244921
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 0
+    },
+    {
+      "direction": "upload",
+      "mbps": 1521.2508029449561,
+      "payload_bytes": 268435456,
+      "seconds": 1.411656542,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.420660667,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 25526272,
+            "rss_sampled_peak_bytes": 25706496,
+            "rss_end_bytes": 25706496,
+            "cpu_seconds": 0.7615095040000011,
+            "cpu_one_core_percent": 53.602490847309504
+          },
+          "server": {
+            "rss_start_bytes": 32833536,
+            "rss_sampled_peak_bytes": 33423360,
+            "rss_end_bytes": 33423360,
+            "cpu_seconds": 3.5203222399999996,
+            "cpu_one_core_percent": 247.79472831002226
+          },
+          "official_client": {
+            "rss_start_bytes": 22675456,
+            "rss_sampled_peak_bytes": 28573696,
+            "rss_end_bytes": 28573696,
+            "cpu_seconds": 3.1082864150000002,
+            "cpu_one_core_percent": 218.79161485928577
+          },
+          "workload": {
+            "rss_start_bytes": 589824,
+            "rss_sampled_peak_bytes": 22347776,
+            "rss_end_bytes": 22347776,
+            "cpu_seconds": 0.05519199999999813,
+            "cpu_one_core_percent": 3.884953056140192
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 1
+    },
+    {
+      "direction": "upload",
+      "mbps": 1549.4657335810855,
+      "payload_bytes": 268435456,
+      "seconds": 1.385951042,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.3949832089999994,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 25706496,
+            "rss_sampled_peak_bytes": 25706496,
+            "rss_end_bytes": 25706496,
+            "cpu_seconds": 0.762276095999999,
+            "cpu_one_core_percent": 54.64410546894256
+          },
+          "server": {
+            "rss_start_bytes": 33456128,
+            "rss_sampled_peak_bytes": 33521664,
+            "rss_end_bytes": 33521664,
+            "cpu_seconds": 3.6157502720000005,
+            "cpu_one_core_percent": 259.1966877215654
+          },
+          "official_client": {
+            "rss_start_bytes": 22577152,
+            "rss_sampled_peak_bytes": 28377088,
+            "rss_end_bytes": 28377088,
+            "cpu_seconds": 3.1530556560000003,
+            "cpu_one_core_percent": 226.02821565574857
+          },
+          "workload": {
+            "rss_start_bytes": 655360,
+            "rss_sampled_peak_bytes": 23035904,
+            "rss_end_bytes": 23035904,
+            "cpu_seconds": 0.05686699999999689,
+            "cpu_one_core_percent": 4.076536522669852
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 2
+    },
+    {
+      "direction": "download",
+      "mbps": 1965.744583432397,
+      "payload_bytes": 268435456,
+      "seconds": 1.092453041,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.1010561669999994,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 25706496,
+            "rss_sampled_peak_bytes": 25706496,
+            "rss_end_bytes": 25706496,
+            "cpu_seconds": 0.040796416000000946,
+            "cpu_one_core_percent": 3.7052075291633115
+          },
+          "server": {
+            "rss_start_bytes": 33587200,
+            "rss_sampled_peak_bytes": 33669120,
+            "rss_end_bytes": 33669120,
+            "cpu_seconds": 2.509557504,
+            "cpu_one_core_percent": 227.92275082911382
+          },
+          "official_client": {
+            "rss_start_bytes": 22593536,
+            "rss_sampled_peak_bytes": 28901376,
+            "rss_end_bytes": 28901376,
+            "cpu_seconds": 3.012517101,
+            "cpu_one_core_percent": 273.60249107073946
+          },
+          "workload": {
+            "rss_start_bytes": 589824,
+            "rss_sampled_peak_bytes": 22446080,
+            "rss_end_bytes": 22446080,
+            "cpu_seconds": 0.6147290000000112,
+            "cpu_one_core_percent": 55.83084845480108
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 0
+    },
+    {
+      "direction": "download",
+      "mbps": 1931.8951738553908,
+      "payload_bytes": 268435456,
+      "seconds": 1.111594292,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.1201951669999985,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 25706496,
+            "rss_sampled_peak_bytes": 25706496,
+            "rss_end_bytes": 25706496,
+            "cpu_seconds": 0.04532991999999858,
+            "cpu_one_core_percent": 4.046609138780425
+          },
+          "server": {
+            "rss_start_bytes": 33685504,
+            "rss_sampled_peak_bytes": 33701888,
+            "rss_end_bytes": 33701888,
+            "cpu_seconds": 2.540242175999998,
+            "cpu_one_core_percent": 226.7678214326737
+          },
+          "official_client": {
+            "rss_start_bytes": 22577152,
+            "rss_sampled_peak_bytes": 28884992,
+            "rss_end_bytes": 28884992,
+            "cpu_seconds": 3.0273424340000004,
+            "cpu_one_core_percent": 270.2513386223174
+          },
+          "workload": {
+            "rss_start_bytes": 638976,
+            "rss_sampled_peak_bytes": 22593536,
+            "rss_end_bytes": 22593536,
+            "cpu_seconds": 0.615799999999993,
+            "cpu_one_core_percent": 54.972563544366174
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 1
+    },
+    {
+      "direction": "download",
+      "mbps": 1439.6650220780296,
+      "payload_bytes": 268435456,
+      "seconds": 1.491655083,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.500333083000001,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 25706496,
+            "rss_sampled_peak_bytes": 25706496,
+            "rss_end_bytes": 25706496,
+            "cpu_seconds": 0.04923903999999979,
+            "cpu_one_core_percent": 3.2818739090618156
+          },
+          "server": {
+            "rss_start_bytes": 33701888,
+            "rss_sampled_peak_bytes": 33767424,
+            "rss_end_bytes": 33767424,
+            "cpu_seconds": 2.944349184,
+            "cpu_one_core_percent": 196.24636804732768
+          },
+          "official_client": {
+            "rss_start_bytes": 22740992,
+            "rss_sampled_peak_bytes": 28655616,
+            "rss_end_bytes": 28655616,
+            "cpu_seconds": 3.395212829,
+            "cpu_one_core_percent": 226.2972714172962
+          },
+          "workload": {
+            "rss_start_bytes": 622592,
+            "rss_sampled_peak_bytes": 22380544,
+            "rss_end_bytes": 22380544,
+            "cpu_seconds": 0.6868649999999903,
+            "cpu_one_core_percent": 45.78083412161817
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 2
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 39.99529430365459,
+      "offered_mbps": 39.99856465150748,
+      "payload_size": 1000,
+      "received": 4000,
+      "seconds": 0.800094125,
+      "send_seconds": 0.800028708,
+      "sent": 4000,
+      "transport": "udp",
+      "resources": {
+        "wall_seconds": 1.8242764999999963,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 25706496,
+            "rss_sampled_peak_bytes": 25706496,
+            "rss_end_bytes": 22855680,
+            "cpu_seconds": 0.07929164800000166,
+            "cpu_one_core_percent": 4.346470943412461
+          },
+          "server": {
+            "rss_start_bytes": 33767424,
+            "rss_sampled_peak_bytes": 33882112,
+            "rss_end_bytes": 23330816,
+            "cpu_seconds": 0.293452288000001,
+            "cpu_one_core_percent": 16.085954514022497
+          },
+          "official_client": {
+            "rss_start_bytes": 22462464,
+            "rss_sampled_peak_bytes": 28180480,
+            "rss_end_bytes": 28000256,
+            "cpu_seconds": 0.293916081,
+            "cpu_one_core_percent": 16.11137790789941
+          },
+          "workload": {
+            "rss_start_bytes": 671744,
+            "rss_sampled_peak_bytes": 23789568,
+            "rss_end_bytes": 22265856,
+            "cpu_seconds": 0.15744000000000113,
+            "cpu_one_core_percent": 8.630270685392343
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 0
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 37.54068248566582,
+      "offered_mbps": 39.738874168933776,
+      "payload_size": 1000,
+      "received": 4000,
+      "seconds": 0.852408584,
+      "send_seconds": 0.805256834,
+      "sent": 4000,
+      "transport": "udp",
+      "resources": {
+        "wall_seconds": 1.8201922080000017,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22855680,
+            "rss_sampled_peak_bytes": 22872064,
+            "rss_end_bytes": 20021248,
+            "cpu_seconds": 0.09013388800000044,
+            "cpu_one_core_percent": 4.951888465616394
+          },
+          "server": {
+            "rss_start_bytes": 27230208,
+            "rss_sampled_peak_bytes": 32178176,
+            "rss_end_bytes": 30556160,
+            "cpu_seconds": 0.3227571200000021,
+            "cpu_one_core_percent": 17.73203503352223
+          },
+          "official_client": {
+            "rss_start_bytes": 22921216,
+            "rss_sampled_peak_bytes": 28295168,
+            "rss_end_bytes": 24576000,
+            "cpu_seconds": 0.296381454,
+            "cpu_one_core_percent": 16.28297564934965
+          },
+          "workload": {
+            "rss_start_bytes": 655360,
+            "rss_sampled_peak_bytes": 23543808,
+            "rss_end_bytes": 17072128,
+            "cpu_seconds": 0.1662150000000011,
+            "cpu_one_core_percent": 9.131727916945405
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 1
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 1.85,
+      "mbps": 39.26244776822806,
+      "offered_mbps": 39.99815218536442,
+      "payload_size": 1000,
+      "received": 3926,
+      "seconds": 0.799950125,
+      "send_seconds": 0.800036958,
+      "sent": 4000,
+      "transport": "udp",
+      "resources": {
+        "wall_seconds": 1.8182660419999976,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 20021248,
+            "rss_sampled_peak_bytes": 20217856,
+            "rss_end_bytes": 20217856,
+            "cpu_seconds": 0.08957260799999922,
+            "cpu_one_core_percent": 4.926265240122619
+          },
+          "server": {
+            "rss_start_bytes": 30621696,
+            "rss_sampled_peak_bytes": 31113216,
+            "rss_end_bytes": 31113216,
+            "cpu_seconds": 0.30739404799999903,
+            "cpu_one_core_percent": 16.905889506789755
+          },
+          "official_client": {
+            "rss_start_bytes": 22528000,
+            "rss_sampled_peak_bytes": 28098560,
+            "rss_end_bytes": 28098560,
+            "cpu_seconds": 0.288306703,
+            "cpu_one_core_percent": 15.856134159711727
+          },
+          "workload": {
+            "rss_start_bytes": 475136,
+            "rss_sampled_peak_bytes": 23625728,
+            "rss_end_bytes": 23625728,
+            "cpu_seconds": 0.16339299999999923,
+            "cpu_one_core_percent": 8.986198731417515
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 2
+    },
+    {
+      "direction": "upload",
+      "mbps": 576.4981840771601,
+      "payload_bytes": 268435456,
+      "seconds": 3.725048417,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 3.742055332999996,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 20217856,
+            "rss_sampled_peak_bytes": 20660224,
+            "rss_end_bytes": 20660224,
+            "cpu_seconds": 1.5086251520000005,
+            "cpu_one_core_percent": 40.31541540008548
+          },
+          "server": {
+            "rss_start_bytes": 31113216,
+            "rss_sampled_peak_bytes": 32768000,
+            "rss_end_bytes": 32768000,
+            "cpu_seconds": 3.50162688,
+            "cpu_one_core_percent": 93.57496264473339
+          },
+          "official_client": {
+            "rss_start_bytes": 22839296,
+            "rss_sampled_peak_bytes": 28262400,
+            "rss_end_bytes": 28262400,
+            "cpu_seconds": 3.4633799229999997,
+            "cpu_one_core_percent": 92.55287842639721
+          },
+          "workload": {
+            "rss_start_bytes": 114688,
+            "rss_sampled_peak_bytes": 23166976,
+            "rss_end_bytes": 23166976,
+            "cpu_seconds": 0.06080000000000041,
+            "cpu_one_core_percent": 1.6247755468451934
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 0
+    },
+    {
+      "direction": "upload",
+      "mbps": 752.9389135303334,
+      "payload_bytes": 268435456,
+      "seconds": 2.852135292,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 2.867048957999998,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 20660224,
+            "rss_sampled_peak_bytes": 22069248,
+            "rss_end_bytes": 22069248,
+            "cpu_seconds": 1.7730483199999991,
+            "cpu_one_core_percent": 61.84227566301644
+          },
+          "server": {
+            "rss_start_bytes": 32768000,
+            "rss_sampled_peak_bytes": 32833536,
+            "rss_end_bytes": 32833536,
+            "cpu_seconds": 3.8045788159999994,
+            "cpu_one_core_percent": 132.70016911933047
+          },
+          "official_client": {
+            "rss_start_bytes": 22970368,
+            "rss_sampled_peak_bytes": 28884992,
+            "rss_end_bytes": 28884992,
+            "cpu_seconds": 3.85344338,
+            "cpu_one_core_percent": 134.40451964545778
+          },
+          "workload": {
+            "rss_start_bytes": 638976,
+            "rss_sampled_peak_bytes": 23117824,
+            "rss_end_bytes": 23117824,
+            "cpu_seconds": 0.06393599999999822,
+            "cpu_one_core_percent": 2.230028190540521
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 1
+    },
+    {
+      "direction": "upload",
+      "mbps": 760.634617789927,
+      "payload_bytes": 268435456,
+      "seconds": 2.8232788749999997,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 2.8377607080000047,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22069248,
+            "rss_sampled_peak_bytes": 22396928,
+            "rss_end_bytes": 22347776,
+            "cpu_seconds": 1.6430538240000008,
+            "cpu_one_core_percent": 57.89966079127198
+          },
+          "server": {
+            "rss_start_bytes": 32833536,
+            "rss_sampled_peak_bytes": 32866304,
+            "rss_end_bytes": 31801344,
+            "cpu_seconds": 3.638757376000001,
+            "cpu_one_core_percent": 128.2263640391484
+          },
+          "official_client": {
+            "rss_start_bytes": 22609920,
+            "rss_sampled_peak_bytes": 28508160,
+            "rss_end_bytes": 28065792,
+            "cpu_seconds": 3.9107384430000005,
+            "cpu_one_core_percent": 137.81071927506562
+          },
+          "workload": {
+            "rss_start_bytes": 638976,
+            "rss_sampled_peak_bytes": 23150592,
+            "rss_end_bytes": 22069248,
+            "cpu_seconds": 0.05822200000000066,
+            "cpu_one_core_percent": 2.0516881439603245
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 2
+    },
+    {
+      "direction": "download",
+      "mbps": 897.2345841338263,
+      "payload_bytes": 268435456,
+      "seconds": 2.39344725,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 2.4110654159999996,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22347776,
+            "rss_sampled_peak_bytes": 22347776,
+            "rss_end_bytes": 16367616,
+            "cpu_seconds": 0.047387903999998926,
+            "cpu_one_core_percent": 1.9654341887834923
+          },
+          "server": {
+            "rss_start_bytes": 31784960,
+            "rss_sampled_peak_bytes": 31834112,
+            "rss_end_bytes": 31604736,
+            "cpu_seconds": 3.5662182399999978,
+            "cpu_one_core_percent": 147.910472123001
+          },
+          "official_client": {
+            "rss_start_bytes": 22495232,
+            "rss_sampled_peak_bytes": 28016640,
+            "rss_end_bytes": 27230208,
+            "cpu_seconds": 4.071323284,
+            "cpu_one_core_percent": 168.85992627916326
+          },
+          "workload": {
+            "rss_start_bytes": 114688,
+            "rss_sampled_peak_bytes": 23379968,
+            "rss_end_bytes": 16482304,
+            "cpu_seconds": 1.672192999999993,
+            "cpu_one_core_percent": 69.35494113528412
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 0
+    },
+    {
+      "direction": "download",
+      "mbps": 920.7749245031167,
+      "payload_bytes": 268435456,
+      "seconds": 2.332256875,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 2.3512090420000007,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 16367616,
+            "rss_sampled_peak_bytes": 17154048,
+            "rss_end_bytes": 16351232,
+            "cpu_seconds": 0.04729113600000012,
+            "cpu_one_core_percent": 2.011353952593387
+          },
+          "server": {
+            "rss_start_bytes": 31637504,
+            "rss_sampled_peak_bytes": 32161792,
+            "rss_end_bytes": 32161792,
+            "cpu_seconds": 3.4782976000000048,
+            "cpu_one_core_percent": 147.93655255090687
+          },
+          "official_client": {
+            "rss_start_bytes": 22839296,
+            "rss_sampled_peak_bytes": 28426240,
+            "rss_end_bytes": 26968064,
+            "cpu_seconds": 3.980457602,
+            "cpu_one_core_percent": 169.2940751288587
+          },
+          "workload": {
+            "rss_start_bytes": 622592,
+            "rss_sampled_peak_bytes": 23527424,
+            "rss_end_bytes": 21872640,
+            "cpu_seconds": 1.7871959999999945,
+            "cpu_one_core_percent": 76.01178662020448
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 1
+    },
+    {
+      "direction": "download",
+      "mbps": 1409.1514605620623,
+      "payload_bytes": 268435456,
+      "seconds": 1.523955166,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.5382772919999965,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 16351232,
+            "rss_sampled_peak_bytes": 17055744,
+            "rss_end_bytes": 17055744,
+            "cpu_seconds": 0.05026841599999976,
+            "cpu_one_core_percent": 3.267838396979982
+          },
+          "server": {
+            "rss_start_bytes": 32161792,
+            "rss_sampled_peak_bytes": 32178176,
+            "rss_end_bytes": 32178176,
+            "cpu_seconds": 3.199745024000002,
+            "cpu_one_core_percent": 208.00833768012285
+          },
+          "official_client": {
+            "rss_start_bytes": 22577152,
+            "rss_sampled_peak_bytes": 28327936,
+            "rss_end_bytes": 28327936,
+            "cpu_seconds": 4.169066174,
+            "cpu_one_core_percent": 271.02175893005443
+          },
+          "workload": {
+            "rss_start_bytes": 638976,
+            "rss_sampled_peak_bytes": 23461888,
+            "rss_end_bytes": 23461888,
+            "cpu_seconds": 1.8959720000000004,
+            "cpu_one_core_percent": 123.25294079684072
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "repeat": 2
+    },
+    {
+      "direction": "upload",
+      "mbps": 1528.637088114587,
+      "payload_bytes": 268435456,
+      "seconds": 1.4048355,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.4240529170000045,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 17055744,
+            "rss_sampled_peak_bytes": 17203200,
+            "rss_end_bytes": 17203200,
+            "cpu_seconds": 0.785654528000002,
+            "cpu_one_core_percent": 55.17031836535324
+          },
+          "server": {
+            "rss_start_bytes": 20004864,
+            "rss_sampled_peak_bytes": 30883840,
+            "rss_end_bytes": 30883840,
+            "cpu_seconds": 3.697921113,
+            "cpu_one_core_percent": 259.6758216534722
+          },
+          "workload": {
+            "rss_start_bytes": 655360,
+            "rss_sampled_peak_bytes": 33144832,
+            "rss_end_bytes": 33144832,
+            "cpu_seconds": 3.242085000000003,
+            "cpu_one_core_percent": 227.66604817115746
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 0
+    },
+    {
+      "direction": "upload",
+      "mbps": 1520.977851366044,
+      "payload_bytes": 268435456,
+      "seconds": 1.411909875,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.427453374999999,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 17203200,
+            "rss_sampled_peak_bytes": 17334272,
+            "rss_end_bytes": 17334272,
+            "cpu_seconds": 0.7905948159999987,
+            "cpu_one_core_percent": 55.3849834850122
+          },
+          "server": {
+            "rss_start_bytes": 30900224,
+            "rss_sampled_peak_bytes": 30949376,
+            "rss_end_bytes": 30949376,
+            "cpu_seconds": 3.7391412480000006,
+            "cpu_one_core_percent": 261.9448952579627
+          },
+          "workload": {
+            "rss_start_bytes": 655360,
+            "rss_sampled_peak_bytes": 33161216,
+            "rss_end_bytes": 33161216,
+            "cpu_seconds": 3.289978000000005,
+            "cpu_one_core_percent": 230.47884138422438
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 1
+    },
+    {
+      "direction": "upload",
+      "mbps": 1462.1152819444408,
+      "payload_bytes": 268435456,
+      "seconds": 1.46875125,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.485261874999999,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 17334272,
+            "rss_sampled_peak_bytes": 17465344,
+            "rss_end_bytes": 17465344,
+            "cpu_seconds": 0.8067747840000017,
+            "cpu_one_core_percent": 54.3186893557072
+          },
+          "server": {
+            "rss_start_bytes": 30949376,
+            "rss_sampled_peak_bytes": 30998528,
+            "rss_end_bytes": 30998528,
+            "cpu_seconds": 3.8094783999999997,
+            "cpu_one_core_percent": 256.4853016239983
+          },
+          "workload": {
+            "rss_start_bytes": 475136,
+            "rss_sampled_peak_bytes": 32964608,
+            "rss_end_bytes": 32964608,
+            "cpu_seconds": 3.3811870000000113,
+            "cpu_one_core_percent": 227.6492150584565
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 2
+    },
+    {
+      "direction": "download",
+      "mbps": 1827.951418917257,
+      "payload_bytes": 268435456,
+      "seconds": 1.174803458,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.191259875,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 17465344,
+            "rss_sampled_peak_bytes": 17530880,
+            "rss_end_bytes": 17530880,
+            "cpu_seconds": 0.045750015999999505,
+            "cpu_one_core_percent": 3.8404731797081224
+          },
+          "server": {
+            "rss_start_bytes": 30998528,
+            "rss_sampled_peak_bytes": 31178752,
+            "rss_end_bytes": 31178752,
+            "cpu_seconds": 2.5087667200000006,
+            "cpu_one_core_percent": 210.5977690216419
+          },
+          "workload": {
+            "rss_start_bytes": 475136,
+            "rss_sampled_peak_bytes": 33603584,
+            "rss_end_bytes": 33603584,
+            "cpu_seconds": 2.9130949999999984,
+            "cpu_one_core_percent": 244.53900119820608
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 0
+    },
+    {
+      "direction": "download",
+      "mbps": 1810.1012202149182,
+      "payload_bytes": 268435456,
+      "seconds": 1.186388708,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.2024590830000008,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 17530880,
+            "rss_sampled_peak_bytes": 17645568,
+            "rss_end_bytes": 17645568,
+            "cpu_seconds": 0.047390463999999355,
+            "cpu_one_core_percent": 3.9411290305001856
+          },
+          "server": {
+            "rss_start_bytes": 31178752,
+            "rss_sampled_peak_bytes": 31227904,
+            "rss_end_bytes": 31227904,
+            "cpu_seconds": 2.580521472000001,
+            "cpu_one_core_percent": 214.60368244397046
+          },
+          "workload": {
+            "rss_start_bytes": 507904,
+            "rss_sampled_peak_bytes": 33341440,
+            "rss_end_bytes": 33341440,
+            "cpu_seconds": 3.0212170000000214,
+            "cpu_one_core_percent": 251.2532062598274
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 1
+    },
+    {
+      "direction": "download",
+      "mbps": 1168.583606766022,
+      "payload_bytes": 268435456,
+      "seconds": 1.837680792,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.8540237089999962,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 17645568,
+            "rss_sampled_peak_bytes": 17711104,
+            "rss_end_bytes": 17711104,
+            "cpu_seconds": 0.052743423999999095,
+            "cpu_one_core_percent": 2.8448084964591573
+          },
+          "server": {
+            "rss_start_bytes": 31227904,
+            "rss_sampled_peak_bytes": 31244288,
+            "rss_end_bytes": 31244288,
+            "cpu_seconds": 3.547409408,
+            "cpu_one_core_percent": 191.33570896530574
+          },
+          "workload": {
+            "rss_start_bytes": 638976,
+            "rss_sampled_peak_bytes": 33488896,
+            "rss_end_bytes": 33488896,
+            "cpu_seconds": 3.9191159999999883,
+            "cpu_one_core_percent": 211.3843518276171
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 2
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 40.00517777014585,
+      "offered_mbps": 39.998908379791686,
+      "payload_size": 1000,
+      "received": 4000,
+      "seconds": 0.799896458,
+      "send_seconds": 0.800021833,
+      "sent": 4000,
+      "transport": "udp",
+      "resources": {
+        "wall_seconds": 1.8177270830000012,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 17711104,
+            "rss_sampled_peak_bytes": 22020096,
+            "rss_end_bytes": 22020096,
+            "cpu_seconds": 0.07873356800000053,
+            "cpu_one_core_percent": 4.331429549372043
+          },
+          "server": {
+            "rss_start_bytes": 31244288,
+            "rss_sampled_peak_bytes": 31784960,
+            "rss_end_bytes": 31784960,
+            "cpu_seconds": 0.2701706239999986,
+            "cpu_one_core_percent": 14.863101646376164
+          },
+          "workload": {
+            "rss_start_bytes": 540672,
+            "rss_sampled_peak_bytes": 32620544,
+            "rss_end_bytes": 32620544,
+            "cpu_seconds": 0.2729519999999894,
+            "cpu_one_core_percent": 15.016115595830028
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 0
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 40.00454221573453,
+      "offered_mbps": 39.99908547090956,
+      "payload_size": 1000,
+      "received": 4000,
+      "seconds": 0.799909166,
+      "send_seconds": 0.800018291,
+      "sent": 4000,
+      "transport": "udp",
+      "resources": {
+        "wall_seconds": 1.8179942920000087,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22020096,
+            "rss_sampled_peak_bytes": 22085632,
+            "rss_end_bytes": 22085632,
+            "cpu_seconds": 0.06821452799999861,
+            "cpu_one_core_percent": 3.7521860382165757
+          },
+          "server": {
+            "rss_start_bytes": 31784960,
+            "rss_sampled_peak_bytes": 31801344,
+            "rss_end_bytes": 31801344,
+            "cpu_seconds": 0.2448465920000018,
+            "cpu_one_core_percent": 13.467951636451048
+          },
+          "workload": {
+            "rss_start_bytes": 524288,
+            "rss_sampled_peak_bytes": 32358400,
+            "rss_end_bytes": 32358400,
+            "cpu_seconds": 0.25103399999999,
+            "cpu_one_core_percent": 13.808294179176047
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 1
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 40.00455676904448,
+      "offered_mbps": 39.998666694444076,
+      "payload_size": 1000,
+      "received": 4000,
+      "seconds": 0.799908875,
+      "send_seconds": 0.800026667,
+      "sent": 4000,
+      "transport": "udp",
+      "resources": {
+        "wall_seconds": 1.822501833000004,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22085632,
+            "rss_sampled_peak_bytes": 22085632,
+            "rss_end_bytes": 22085632,
+            "cpu_seconds": 0.06680755200000021,
+            "cpu_one_core_percent": 3.665705613586621
+          },
+          "server": {
+            "rss_start_bytes": 31801344,
+            "rss_sampled_peak_bytes": 31948800,
+            "rss_end_bytes": 31948800,
+            "cpu_seconds": 0.24273151999999953,
+            "cpu_one_core_percent": 13.318588525117768
+          },
+          "workload": {
+            "rss_start_bytes": 655360,
+            "rss_sampled_peak_bytes": 31752192,
+            "rss_end_bytes": 31752192,
+            "cpu_seconds": 0.2443890000000124,
+            "cpu_one_core_percent": 13.40953383831312
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 2
+    },
+    {
+      "direction": "upload",
+      "mbps": 1304.495171024616,
+      "payload_bytes": 268435456,
+      "seconds": 1.6462181660000001,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.675810166000005,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22085632,
+            "rss_sampled_peak_bytes": 22200320,
+            "rss_end_bytes": 22200320,
+            "cpu_seconds": 1.8580490239999996,
+            "cpu_one_core_percent": 110.87467194658335
+          },
+          "server": {
+            "rss_start_bytes": 31948800,
+            "rss_sampled_peak_bytes": 31965184,
+            "rss_end_bytes": 31965184,
+            "cpu_seconds": 3.8887480320000023,
+            "cpu_one_core_percent": 232.05182250935158
+          },
+          "workload": {
+            "rss_start_bytes": 114688,
+            "rss_sampled_peak_bytes": 33406976,
+            "rss_end_bytes": 33406976,
+            "cpu_seconds": 3.3145800000000065,
+            "cpu_one_core_percent": 197.78970597317624
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 0
+    },
+    {
+      "direction": "upload",
+      "mbps": 1374.2762582953076,
+      "payload_bytes": 268435456,
+      "seconds": 1.5626287909999999,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.5784996670000027,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22200320,
+            "rss_sampled_peak_bytes": 22233088,
+            "rss_end_bytes": 22233088,
+            "cpu_seconds": 1.937600768000003,
+            "cpu_one_core_percent": 122.74952022527096
+          },
+          "server": {
+            "rss_start_bytes": 31965184,
+            "rss_sampled_peak_bytes": 31981568,
+            "rss_end_bytes": 31981568,
+            "cpu_seconds": 4.048866815999997,
+            "cpu_one_core_percent": 256.5009610483491
+          },
+          "workload": {
+            "rss_start_bytes": 475136,
+            "rss_sampled_peak_bytes": 33669120,
+            "rss_end_bytes": 33669120,
+            "cpu_seconds": 3.372265000000013,
+            "cpu_one_core_percent": 213.63735897449558
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 1
+    },
+    {
+      "direction": "upload",
+      "mbps": 1371.933700518953,
+      "payload_bytes": 268435456,
+      "seconds": 1.565296958,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.5805104589999956,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22233088,
+            "rss_sampled_peak_bytes": 22855680,
+            "rss_end_bytes": 22855680,
+            "cpu_seconds": 1.9714887679999968,
+            "cpu_one_core_percent": 124.73747052881745
+          },
+          "server": {
+            "rss_start_bytes": 31981568,
+            "rss_sampled_peak_bytes": 31981568,
+            "rss_end_bytes": 31981568,
+            "cpu_seconds": 4.146748416000001,
+            "cpu_one_core_percent": 262.3676668754024
+          },
+          "workload": {
+            "rss_start_bytes": 573440,
+            "rss_sampled_peak_bytes": 33570816,
+            "rss_end_bytes": 33570816,
+            "cpu_seconds": 3.426052999999996,
+            "cpu_one_core_percent": 216.76876483105926
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 2
+    },
+    {
+      "direction": "download",
+      "mbps": 2194.0355064016208,
+      "payload_bytes": 268435456,
+      "seconds": 0.978782541,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 0.9953041659999968,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22855680,
+            "rss_sampled_peak_bytes": 22872064,
+            "rss_end_bytes": 22872064,
+            "cpu_seconds": 0.041516032000000536,
+            "cpu_one_core_percent": 4.171190417784373
+          },
+          "server": {
+            "rss_start_bytes": 31981568,
+            "rss_sampled_peak_bytes": 31997952,
+            "rss_end_bytes": 31997952,
+            "cpu_seconds": 2.1525524480000016,
+            "cpu_one_core_percent": 216.2708166540527
+          },
+          "workload": {
+            "rss_start_bytes": 491520,
+            "rss_sampled_peak_bytes": 34422784,
+            "rss_end_bytes": 34422784,
+            "cpu_seconds": 2.5950619999999844,
+            "cpu_one_core_percent": 260.7305473691741
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 0
+    },
+    {
+      "direction": "download",
+      "mbps": 2110.457258247,
+      "payload_bytes": 268435456,
+      "seconds": 1.01754425,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.032875875000002,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22872064,
+            "rss_sampled_peak_bytes": 22872064,
+            "rss_end_bytes": 22872064,
+            "cpu_seconds": 0.04502169599999917,
+            "cpu_one_core_percent": 4.358868000474798
+          },
+          "server": {
+            "rss_start_bytes": 31997952,
+            "rss_sampled_peak_bytes": 32014336,
+            "rss_end_bytes": 32014336,
+            "cpu_seconds": 2.219915264000008,
+            "cpu_one_core_percent": 214.92565735452033
+          },
+          "workload": {
+            "rss_start_bytes": 475136,
+            "rss_sampled_peak_bytes": 34062336,
+            "rss_end_bytes": 34062336,
+            "cpu_seconds": 2.6555720000000065,
+            "cpu_one_core_percent": 257.10465935705986
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 1
+    },
+    {
+      "direction": "download",
+      "mbps": 2060.673318959739,
+      "payload_bytes": 268435456,
+      "seconds": 1.042127167,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.058337917000003,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22872064,
+            "rss_sampled_peak_bytes": 22872064,
+            "rss_end_bytes": 22872064,
+            "cpu_seconds": 0.04262860800000112,
+            "cpu_one_core_percent": 4.027882523649676
+          },
+          "server": {
+            "rss_start_bytes": 32014336,
+            "rss_sampled_peak_bytes": 32030720,
+            "rss_end_bytes": 32030720,
+            "cpu_seconds": 2.278957056000003,
+            "cpu_one_core_percent": 215.3335923615025
+          },
+          "workload": {
+            "rss_start_bytes": 475136,
+            "rss_sampled_peak_bytes": 34570240,
+            "rss_end_bytes": 34570240,
+            "cpu_seconds": 2.7485510000000204,
+            "cpu_one_core_percent": 259.7044815129696
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "repeat": 2
+    },
+    {
+      "direction": "upload",
+      "mbps": 1459.7359357621733,
+      "payload_bytes": 268435456,
+      "seconds": 1.471145291,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.4801468750000026,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22872064,
+            "rss_sampled_peak_bytes": 22872064,
+            "rss_end_bytes": 22872064,
+            "cpu_seconds": 0.8022184960000018,
+            "cpu_one_core_percent": 54.19857377329533
+          },
+          "server": {
+            "rss_start_bytes": 23265280,
+            "rss_sampled_peak_bytes": 31883264,
+            "rss_end_bytes": 31883264,
+            "cpu_seconds": 3.7604461569999996,
+            "cpu_one_core_percent": 254.05898701775746
+          },
+          "official_client": {
+            "rss_start_bytes": 22659072,
+            "rss_sampled_peak_bytes": 30867456,
+            "rss_end_bytes": 30867456,
+            "cpu_seconds": 3.3118645580000003,
+            "cpu_one_core_percent": 223.7524271366647
+          },
+          "workload": {
+            "rss_start_bytes": 655360,
+            "rss_sampled_peak_bytes": 23298048,
+            "rss_end_bytes": 23298048,
+            "cpu_seconds": 0.05482900000001223,
+            "cpu_one_core_percent": 3.704294548472572
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 0
+    },
+    {
+      "direction": "upload",
+      "mbps": 1416.24773679168,
+      "payload_bytes": 268435456,
+      "seconds": 1.516319209,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.525291542000005,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22872064,
+            "rss_sampled_peak_bytes": 22872064,
+            "rss_end_bytes": 22872064,
+            "cpu_seconds": 0.8287754239999963,
+            "cpu_one_core_percent": 54.33554184095735
+          },
+          "server": {
+            "rss_start_bytes": 32980992,
+            "rss_sampled_peak_bytes": 33161216,
+            "rss_end_bytes": 33161216,
+            "cpu_seconds": 3.9008349439999996,
+            "cpu_one_core_percent": 255.74356354753763
+          },
+          "official_client": {
+            "rss_start_bytes": 22052864,
+            "rss_sampled_peak_bytes": 30638080,
+            "rss_end_bytes": 30638080,
+            "cpu_seconds": 3.4499023720000004,
+            "cpu_one_core_percent": 226.17986640615547
+          },
+          "workload": {
+            "rss_start_bytes": 622592,
+            "rss_sampled_peak_bytes": 22511616,
+            "rss_end_bytes": 22511616,
+            "cpu_seconds": 0.06012899999998922,
+            "cpu_one_core_percent": 3.942131608567526
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 1
+    },
+    {
+      "direction": "upload",
+      "mbps": 1132.3772374095731,
+      "payload_bytes": 268435456,
+      "seconds": 1.896438375,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.9062903750000117,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22872064,
+            "rss_sampled_peak_bytes": 22872064,
+            "rss_end_bytes": 22872064,
+            "cpu_seconds": 0.8968268800000025,
+            "cpu_one_core_percent": 47.04565955750561
+          },
+          "server": {
+            "rss_start_bytes": 33161216,
+            "rss_sampled_peak_bytes": 33193984,
+            "rss_end_bytes": 33193984,
+            "cpu_seconds": 4.1132159999999995,
+            "cpu_one_core_percent": 215.77069547969438
+          },
+          "official_client": {
+            "rss_start_bytes": 22495232,
+            "rss_sampled_peak_bytes": 31047680,
+            "rss_end_bytes": 31047680,
+            "cpu_seconds": 3.82786459,
+            "cpu_one_core_percent": 200.8017582316113
+          },
+          "workload": {
+            "rss_start_bytes": 622592,
+            "rss_sampled_peak_bytes": 23216128,
+            "rss_end_bytes": 23216128,
+            "cpu_seconds": 0.06363799999999742,
+            "cpu_one_core_percent": 3.3383161786145528
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 2
+    },
+    {
+      "direction": "download",
+      "mbps": 1744.1989736002472,
+      "payload_bytes": 268435456,
+      "seconds": 1.2312148330000001,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.2399827920000064,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22872064,
+            "rss_sampled_peak_bytes": 22872064,
+            "rss_end_bytes": 22872064,
+            "cpu_seconds": 0.04210380800000024,
+            "cpu_one_core_percent": 3.395515508089408
+          },
+          "server": {
+            "rss_start_bytes": 33210368,
+            "rss_sampled_peak_bytes": 33341440,
+            "rss_end_bytes": 33341440,
+            "cpu_seconds": 2.736767232,
+            "cpu_one_core_percent": 220.71009772529055
+          },
+          "official_client": {
+            "rss_start_bytes": 22577152,
+            "rss_sampled_peak_bytes": 31195136,
+            "rss_end_bytes": 31195136,
+            "cpu_seconds": 3.438992065,
+            "cpu_one_core_percent": 277.34191854817146
+          },
+          "workload": {
+            "rss_start_bytes": 671744,
+            "rss_sampled_peak_bytes": 22888448,
+            "rss_end_bytes": 22888448,
+            "cpu_seconds": 0.6934879999999737,
+            "cpu_one_core_percent": 55.9272277384935
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 0
+    },
+    {
+      "direction": "download",
+      "mbps": 1682.8819444930418,
+      "payload_bytes": 268435456,
+      "seconds": 1.276075042,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.2855016669999912,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22872064,
+            "rss_sampled_peak_bytes": 22872064,
+            "rss_end_bytes": 22872064,
+            "cpu_seconds": 0.047430143999999785,
+            "cpu_one_core_percent": 3.6896213530931274
+          },
+          "server": {
+            "rss_start_bytes": 33341440,
+            "rss_sampled_peak_bytes": 33357824,
+            "rss_end_bytes": 33357824,
+            "cpu_seconds": 2.780542464,
+            "cpu_one_core_percent": 216.30018345203897
+          },
+          "official_client": {
+            "rss_start_bytes": 22708224,
+            "rss_sampled_peak_bytes": 30916608,
+            "rss_end_bytes": 30916608,
+            "cpu_seconds": 3.439571526,
+            "cpu_one_core_percent": 267.5664772980822
+          },
+          "workload": {
+            "rss_start_bytes": 655360,
+            "rss_sampled_peak_bytes": 23216128,
+            "rss_end_bytes": 23216128,
+            "cpu_seconds": 0.6965879999999913,
+            "cpu_one_core_percent": 54.18802774683575
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 1
+    },
+    {
+      "direction": "download",
+      "mbps": 1564.8773378992744,
+      "payload_bytes": 268435456,
+      "seconds": 1.372301583,
+      "streams": 1,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.3812747919999993,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22872064,
+            "rss_sampled_peak_bytes": 22872064,
+            "rss_end_bytes": 22872064,
+            "cpu_seconds": 0.05007308800000132,
+            "cpu_one_core_percent": 3.6251358737604
+          },
+          "server": {
+            "rss_start_bytes": 33357824,
+            "rss_sampled_peak_bytes": 33374208,
+            "rss_end_bytes": 33374208,
+            "cpu_seconds": 2.8227051519999975,
+            "cpu_one_core_percent": 204.3550760752607
+          },
+          "official_client": {
+            "rss_start_bytes": 22724608,
+            "rss_sampled_peak_bytes": 31686656,
+            "rss_end_bytes": 31686656,
+            "cpu_seconds": 3.462484922,
+            "cpu_one_core_percent": 250.67314208974588
+          },
+          "workload": {
+            "rss_start_bytes": 671744,
+            "rss_sampled_peak_bytes": 22609920,
+            "rss_end_bytes": 22609920,
+            "cpu_seconds": 0.6945670000000064,
+            "cpu_one_core_percent": 50.28449111087569
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 2
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 40.00434007085429,
+      "offered_mbps": 39.99873548997591,
+      "payload_size": 1000,
+      "received": 4000,
+      "seconds": 0.799913208,
+      "send_seconds": 0.800025291,
+      "sent": 4000,
+      "transport": "udp",
+      "resources": {
+        "wall_seconds": 1.8101975420000116,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22872064,
+            "rss_sampled_peak_bytes": 22872064,
+            "rss_end_bytes": 22872064,
+            "cpu_seconds": 0.06485043200000007,
+            "cpu_one_core_percent": 3.582505803667678
+          },
+          "server": {
+            "rss_start_bytes": 33374208,
+            "rss_sampled_peak_bytes": 33423360,
+            "rss_end_bytes": 33423360,
+            "cpu_seconds": 0.24629811200000162,
+            "cpu_one_core_percent": 13.606145533038186
+          },
+          "official_client": {
+            "rss_start_bytes": 22757376,
+            "rss_sampled_peak_bytes": 30490624,
+            "rss_end_bytes": 30490624,
+            "cpu_seconds": 0.261637793,
+            "cpu_one_core_percent": 14.453549235898716
+          },
+          "workload": {
+            "rss_start_bytes": 655360,
+            "rss_sampled_peak_bytes": 23527424,
+            "rss_end_bytes": 23527424,
+            "cpu_seconds": 0.1462269999999819,
+            "cpu_one_core_percent": 8.077958156899374
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 0
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 40.00270228254594,
+      "offered_mbps": 39.9989604270185,
+      "payload_size": 1000,
+      "received": 4000,
+      "seconds": 0.799945958,
+      "send_seconds": 0.800020792,
+      "sent": 4000,
+      "transport": "udp",
+      "resources": {
+        "wall_seconds": 1.811804207999998,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22872064,
+            "rss_sampled_peak_bytes": 22872064,
+            "rss_end_bytes": 22872064,
+            "cpu_seconds": 0.07040972799999778,
+            "cpu_one_core_percent": 3.8861664902368886
+          },
+          "server": {
+            "rss_start_bytes": 33456128,
+            "rss_sampled_peak_bytes": 33456128,
+            "rss_end_bytes": 33456128,
+            "cpu_seconds": 0.26392729599999853,
+            "cpu_one_core_percent": 14.567098080169533
+          },
+          "official_client": {
+            "rss_start_bytes": 22609920,
+            "rss_sampled_peak_bytes": 30408704,
+            "rss_end_bytes": 30408704,
+            "cpu_seconds": 0.277064038,
+            "cpu_one_core_percent": 15.29216218709656
+          },
+          "workload": {
+            "rss_start_bytes": 671744,
+            "rss_sampled_peak_bytes": 23838720,
+            "rss_end_bytes": 23838720,
+            "cpu_seconds": 0.15029600000002574,
+            "cpu_one_core_percent": 8.295377576472982
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 1
+    },
+    {
+      "corrupt": 0,
+      "loss_percent": 0,
+      "mbps": 40.00234388733715,
+      "offered_mbps": 39.999052122462324,
+      "payload_size": 1000,
+      "received": 4000,
+      "seconds": 0.799953125,
+      "send_seconds": 0.800018958,
+      "sent": 4000,
+      "transport": "udp",
+      "resources": {
+        "wall_seconds": 1.812198500000008,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22872064,
+            "rss_sampled_peak_bytes": 22888448,
+            "rss_end_bytes": 22888448,
+            "cpu_seconds": 0.06919782399999974,
+            "cpu_one_core_percent": 3.8184461580781264
+          },
+          "server": {
+            "rss_start_bytes": 33456128,
+            "rss_sampled_peak_bytes": 33456128,
+            "rss_end_bytes": 33456128,
+            "cpu_seconds": 0.25507686400000296,
+            "cpu_one_core_percent": 14.075547684207985
+          },
+          "official_client": {
+            "rss_start_bytes": 22626304,
+            "rss_sampled_peak_bytes": 30015488,
+            "rss_end_bytes": 30015488,
+            "cpu_seconds": 0.27095199700000006,
+            "cpu_one_core_percent": 14.951562811689715
+          },
+          "workload": {
+            "rss_start_bytes": 671744,
+            "rss_sampled_peak_bytes": 23691264,
+            "rss_end_bytes": 23691264,
+            "cpu_seconds": 0.15181499999999915,
+            "cpu_one_core_percent": 8.377393536083297
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 2
+    },
+    {
+      "direction": "upload",
+      "mbps": 1292.9509671250844,
+      "payload_bytes": 268435456,
+      "seconds": 1.660916541,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.671564791999998,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 22888448,
+            "rss_sampled_peak_bytes": 23019520,
+            "rss_end_bytes": 23019520,
+            "cpu_seconds": 1.9263974400000023,
+            "cpu_one_core_percent": 115.24515527125344
+          },
+          "server": {
+            "rss_start_bytes": 33456128,
+            "rss_sampled_peak_bytes": 33456128,
+            "rss_end_bytes": 33456128,
+            "cpu_seconds": 4.109391872000003,
+            "cpu_one_core_percent": 245.84101625418825
+          },
+          "official_client": {
+            "rss_start_bytes": 22659072,
+            "rss_sampled_peak_bytes": 30851072,
+            "rss_end_bytes": 30851072,
+            "cpu_seconds": 3.511099923,
+            "cpu_one_core_percent": 210.04868849857928
+          },
+          "workload": {
+            "rss_start_bytes": 671744,
+            "rss_sampled_peak_bytes": 22986752,
+            "rss_end_bytes": 22986752,
+            "cpu_seconds": 0.057946000000015374,
+            "cpu_one_core_percent": 3.4665721770009283
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 0
+    },
+    {
+      "direction": "upload",
+      "mbps": 1317.8514246095876,
+      "payload_bytes": 268435456,
+      "seconds": 1.6295339580000001,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.6390350830000102,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23019520,
+            "rss_sampled_peak_bytes": 23019520,
+            "rss_end_bytes": 23019520,
+            "cpu_seconds": 1.995375615999997,
+            "cpu_one_core_percent": 121.74087282791764
+          },
+          "server": {
+            "rss_start_bytes": 33472512,
+            "rss_sampled_peak_bytes": 33488896,
+            "rss_end_bytes": 33488896,
+            "cpu_seconds": 4.092571648000003,
+            "cpu_one_core_percent": 249.69396265204762
+          },
+          "official_client": {
+            "rss_start_bytes": 22626304,
+            "rss_sampled_peak_bytes": 31129600,
+            "rss_end_bytes": 31129600,
+            "cpu_seconds": 3.47308174,
+            "cpu_one_core_percent": 211.8979499598654
+          },
+          "workload": {
+            "rss_start_bytes": 655360,
+            "rss_sampled_peak_bytes": 23379968,
+            "rss_end_bytes": 23379968,
+            "cpu_seconds": 0.06011999999998352,
+            "cpu_one_core_percent": 3.6680117847107208
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 1
+    },
+    {
+      "direction": "upload",
+      "mbps": 1325.0100489897493,
+      "payload_bytes": 268435456,
+      "seconds": 1.6207300839999998,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.6298716659999997,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23019520,
+            "rss_sampled_peak_bytes": 23019520,
+            "rss_end_bytes": 23019520,
+            "cpu_seconds": 1.9675560960000027,
+            "cpu_one_core_percent": 120.7184674133726
+          },
+          "server": {
+            "rss_start_bytes": 33488896,
+            "rss_sampled_peak_bytes": 33521664,
+            "rss_end_bytes": 33521664,
+            "cpu_seconds": 4.0474316800000025,
+            "cpu_one_core_percent": 248.32824353178268
+          },
+          "official_client": {
+            "rss_start_bytes": 22544384,
+            "rss_sampled_peak_bytes": 30752768,
+            "rss_end_bytes": 30752768,
+            "cpu_seconds": 3.454157899,
+            "cpu_one_core_percent": 211.9282131873075
+          },
+          "workload": {
+            "rss_start_bytes": 655360,
+            "rss_sampled_peak_bytes": 23347200,
+            "rss_end_bytes": 23347200,
+            "cpu_seconds": 0.05988099999999008,
+            "cpu_one_core_percent": 3.673970242512952
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 2
+    },
+    {
+      "direction": "download",
+      "mbps": 1376.8246056626815,
+      "payload_bytes": 268435456,
+      "seconds": 1.559736541,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.568983375000002,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23019520,
+            "rss_sampled_peak_bytes": 23019520,
+            "rss_end_bytes": 23019520,
+            "cpu_seconds": 0.04822425599999747,
+            "cpu_one_core_percent": 3.073598915603386
+          },
+          "server": {
+            "rss_start_bytes": 33521664,
+            "rss_sampled_peak_bytes": 33570816,
+            "rss_end_bytes": 33570816,
+            "cpu_seconds": 3.1839406080000003,
+            "cpu_one_core_percent": 202.93016858766885
+          },
+          "official_client": {
+            "rss_start_bytes": 22495232,
+            "rss_sampled_peak_bytes": 31047680,
+            "rss_end_bytes": 31047680,
+            "cpu_seconds": 4.167638873,
+            "cpu_one_core_percent": 265.6267070388808
+          },
+          "workload": {
+            "rss_start_bytes": 671744,
+            "rss_sampled_peak_bytes": 23101440,
+            "rss_end_bytes": 23101440,
+            "cpu_seconds": 1.8458110000000545,
+            "cpu_one_core_percent": 117.64375769756337
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 0
+    },
+    {
+      "direction": "download",
+      "mbps": 1487.840207169903,
+      "payload_bytes": 268435456,
+      "seconds": 1.443356375,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.4539207499999947,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23019520,
+            "rss_sampled_peak_bytes": 23019520,
+            "rss_end_bytes": 23019520,
+            "cpu_seconds": 0.049270272000001114,
+            "cpu_one_core_percent": 3.3887866309082733
+          },
+          "server": {
+            "rss_start_bytes": 33570816,
+            "rss_sampled_peak_bytes": 33587200,
+            "rss_end_bytes": 33587200,
+            "cpu_seconds": 3.039493119999996,
+            "cpu_one_core_percent": 209.0549378293148
+          },
+          "official_client": {
+            "rss_start_bytes": 22708224,
+            "rss_sampled_peak_bytes": 31522816,
+            "rss_end_bytes": 31522816,
+            "cpu_seconds": 4.052632393,
+            "cpu_one_core_percent": 278.73819071637945
+          },
+          "workload": {
+            "rss_start_bytes": 737280,
+            "rss_sampled_peak_bytes": 22757376,
+            "rss_end_bytes": 22757376,
+            "cpu_seconds": 1.7610999999999706,
+            "cpu_one_core_percent": 121.12764743195095
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 1
+    },
+    {
+      "direction": "download",
+      "mbps": 1451.616623260904,
+      "payload_bytes": 268435456,
+      "seconds": 1.479373833,
+      "streams": 4,
+      "transport": "tcp",
+      "resources": {
+        "wall_seconds": 1.4888591669999869,
+        "rss_sample_interval_seconds": 0.02,
+        "processes": {
+          "target": {
+            "rss_start_bytes": 23019520,
+            "rss_sampled_peak_bytes": 23101440,
+            "rss_end_bytes": 23101440,
+            "cpu_seconds": 0.05182361600000007,
+            "cpu_one_core_percent": 3.480760111409552
+          },
+          "server": {
+            "rss_start_bytes": 33636352,
+            "rss_sampled_peak_bytes": 33652736,
+            "rss_end_bytes": 33652736,
+            "cpu_seconds": 3.0887219199999976,
+            "cpu_one_core_percent": 207.4556135637525
+          },
+          "official_client": {
+            "rss_start_bytes": 22708224,
+            "rss_sampled_peak_bytes": 30703616,
+            "rss_end_bytes": 30703616,
+            "cpu_seconds": 4.0693542439999995,
+            "cpu_one_core_percent": 273.3202934297435
+          },
+          "workload": {
+            "rss_start_bytes": 655360,
+            "rss_sampled_peak_bytes": 23314432,
+            "rss_end_bytes": 23314432,
+            "cpu_seconds": 1.811567000000025,
+            "cpu_one_core_percent": 121.6748393772049
+          }
+        }
+      },
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "repeat": 2
+    }
+  ],
+  "medians": [
+    {
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "transport": "tcp",
+      "direction": "upload",
+      "streams": 1,
+      "mbps": 1720.135884160081
+    },
+    {
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "transport": "tcp",
+      "direction": "download",
+      "streams": 1,
+      "mbps": 2361.1586685561606
+    },
+    {
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "transport": "udp",
+      "direction": "echo",
+      "streams": 1,
+      "mbps": 40.004900600323545
+    },
+    {
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "transport": "tcp",
+      "direction": "upload",
+      "streams": 4,
+      "mbps": 1508.0243820783542
+    },
+    {
+      "scenario": "bbr",
+      "server": "native",
+      "client": "native",
+      "transport": "tcp",
+      "direction": "download",
+      "streams": 4,
+      "mbps": 2474.861408722584
+    },
+    {
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "transport": "tcp",
+      "direction": "upload",
+      "streams": 1,
+      "mbps": 1549.4657335810855
+    },
+    {
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "transport": "tcp",
+      "direction": "download",
+      "streams": 1,
+      "mbps": 1931.8951738553908
+    },
+    {
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "transport": "udp",
+      "direction": "echo",
+      "streams": 1,
+      "mbps": 39.26244776822806
+    },
+    {
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "transport": "tcp",
+      "direction": "upload",
+      "streams": 4,
+      "mbps": 752.9389135303334
+    },
+    {
+      "scenario": "bbr",
+      "server": "native",
+      "client": "official",
+      "transport": "tcp",
+      "direction": "download",
+      "streams": 4,
+      "mbps": 920.7749245031167
+    },
+    {
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "transport": "tcp",
+      "direction": "upload",
+      "streams": 1,
+      "mbps": 1520.977851366044
+    },
+    {
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "transport": "tcp",
+      "direction": "download",
+      "streams": 1,
+      "mbps": 1810.1012202149182
+    },
+    {
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "transport": "udp",
+      "direction": "echo",
+      "streams": 1,
+      "mbps": 40.00455676904448
+    },
+    {
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "transport": "tcp",
+      "direction": "upload",
+      "streams": 4,
+      "mbps": 1371.933700518953
+    },
+    {
+      "scenario": "bbr",
+      "server": "official",
+      "client": "native",
+      "transport": "tcp",
+      "direction": "download",
+      "streams": 4,
+      "mbps": 2110.457258247
+    },
+    {
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "transport": "tcp",
+      "direction": "upload",
+      "streams": 1,
+      "mbps": 1416.24773679168
+    },
+    {
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "transport": "tcp",
+      "direction": "download",
+      "streams": 1,
+      "mbps": 1682.8819444930418
+    },
+    {
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "transport": "udp",
+      "direction": "echo",
+      "streams": 1,
+      "mbps": 40.00270228254594
+    },
+    {
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "transport": "tcp",
+      "direction": "upload",
+      "streams": 4,
+      "mbps": 1317.8514246095876
+    },
+    {
+      "scenario": "bbr",
+      "server": "official",
+      "client": "official",
+      "transport": "tcp",
+      "direction": "download",
+      "streams": 4,
+      "mbps": 1451.616623260904
+    }
+  ],
+  "measurement_notes": {
+    "rss": "20 ms sampled process RSS; not exact peak RSS or Go heap",
+    "cpu": "user+system CPU time; workload collected at wait, persistent peers measured by deltas",
+    "comparison": "separate sequential runs, not randomized; official/official controls also slowed in the native run; do not attribute whole-run throughput or CPU differences to implementation"
+  }
+}

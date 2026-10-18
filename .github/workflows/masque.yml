@@ -1,0 +1,61 @@
+name: MASQUE CONNECT-IP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pkg/net/proxy/masque/**'
+      - 'pkg/net/proxy/hysteria2/masque_bbr.go'
+      - 'pkg/net/proxy/hysteria2/internal/congestion/**'
+      - 'pkg/contract/node/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/masque.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pkg/net/proxy/masque/**'
+      - 'pkg/net/proxy/hysteria2/masque_bbr.go'
+      - 'pkg/net/proxy/hysteria2/internal/congestion/**'
+      - 'pkg/contract/node/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/masque.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  masque:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: masque
+      - name: Compile and race-test CONNECT-IP, HTTP/2 and WARP MASQUE
+        run: go test -race -count=1 -timeout=10m ./pkg/net/proxy/masque/...
+      - name: Test shared native BBR controller
+        run: go test -count=1 ./pkg/net/proxy/hysteria2/internal/congestion/...
+      - name: Verify QUIC import consolidation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R -nE '^[[:space:]]*(import[[:space:]]+)?"github.com/quic-go/(connect-ip-go|quic-go)(/[^"]*)?"' pkg --include='*.go'; then
+            echo "Separate quic-go modules are still imported" >&2
+            exit 1
+          fi
+          if grep -E '^\s*github.com/quic-go/(quic-go|connect-ip-go) ' go.mod; then
+            echo "Separate quic-go modules still in direct go.mod" >&2
+            exit 1
+          fi
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          unformatted="$(find pkg/net/proxy/masque -name '*.go' -print0 | xargs -0 gofmt -l)"
+          if [[ -n "$unformatted" ]]; then
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi

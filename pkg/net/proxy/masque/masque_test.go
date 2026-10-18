@@ -35,3 +35,10 @@ func TestPacketConnAfterShutdown(t *testing.T) {
 		t.Fatalf("PacketConn after shutdown = (%v, %v), want nil, net.ErrClosed", pc, err)
 	}
 }
+
+func TestInvalidMASQUETransport(t *testing.T) {
+	_, err := NewMasqueWithTransport(nil, nil, nil, nil, 1280, "h1")
+	if err == nil {
+		t.Fatal("unsupported MASQUE transport accepted")
+	}
+}

@@ -11,7 +11,6 @@ import (
 
 	node "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/apernet/hysteria/extras/v2/transport/udphop"
 )
 
 func testAddressHopAddr(t *testing.T, first, second string) *addressHopAddr {
@@ -64,7 +63,7 @@ func TestAddressHopSocketLifecycle(t *testing.T) {
 		}
 		return tracker.PacketConn(ctx, target)
 	}
-	c, err := newAddressHopPacketConn(setup, t.Context(), addr, udphop.HopIntervalConfig{Min: time.Hour, Max: time.Hour}, listen)
+	c, err := newAddressHopPacketConn(setup, t.Context(), addr, hopInterval{Min: time.Hour, Max: time.Hour}, listen)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +160,7 @@ func TestAddressHopCloseCancelsSocketOpen(t *testing.T) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
-	c, err := newAddressHopPacketConn(t.Context(), t.Context(), addr, udphop.HopIntervalConfig{Min: time.Millisecond, Max: time.Millisecond}, listen)
+	c, err := newAddressHopPacketConn(t.Context(), t.Context(), addr, hopInterval{Min: time.Millisecond, Max: time.Millisecond}, listen)
 	if err != nil {
 		t.Fatal(err)
 	}

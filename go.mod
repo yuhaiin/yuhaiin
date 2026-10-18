@@ -3,7 +3,6 @@ module github.com/Asutorufa/yuhaiin
 go 1.27.2
 
 replace (
-	github.com/apernet/hysteria/core/v2 => github.com/Asutorufa/hysteria/core/v2 v2.13.1-0.20261007150228-a38075fd0e66
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
 	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20261016051747-4441c394b330
 )
@@ -11,8 +10,6 @@ replace (
 require (
 	codeberg.org/miekg/dns v0.6.118
 	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260828
-	github.com/apernet/hysteria/core/v2 v2.13.0
-	github.com/apernet/hysteria/extras/v2 v2.13.0
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/nftables v0.3.0
@@ -22,8 +19,6 @@ require (
 	github.com/oschwald/maxminddb-golang/v2 v2.8.0
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus/client_golang v1.25.0
-	github.com/quic-go/connect-ip-go v0.6.0
-	github.com/quic-go/quic-go v0.64.0
 	github.com/refraction-networking/utls v1.8.2
 	github.com/rhnvrm/simples3 v0.11.1
 	github.com/tailscale/wireguard-go v0.0.0-20261002162406-18e99eba5393

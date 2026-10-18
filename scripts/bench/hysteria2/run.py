@@ -69,15 +69,92 @@ class Peer:
         self.process.stdout.close()
 
 
-def command_result(command):
-    result = subprocess.run(command, env=ENV, text=True, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, timeout=150)
-    if result.returncode:
-        raise RuntimeError(" ".join(map(str, command)) + "\n" + result.stdout + result.stderr)
-    for line in reversed(result.stdout.splitlines()):
+class ResourceMonitor:
+    """Optional process CPU deltas and sampled RSS; never a Go heap estimate."""
+
+    interval = .02
+
+    def __init__(self, peers):
+        import psutil
+        self.processes = {}
+        for name, peer in peers.items():
+            try:
+                self.processes[name] = psutil.Process(peer.pid)
+            except psutil.NoSuchProcess:
+                pass
+        self.samples = {}
+        self.stop = threading.Event()
+        self.started = time.monotonic()
+        self.sample()
+        self.thread = threading.Thread(target=self.run, daemon=True)
+        self.thread.start()
+
+    def sample(self):
+        import psutil
+        for name, process in self.processes.items():
+            try:
+                with process.oneshot():
+                    cpu = process.cpu_times()
+                    rss = process.memory_info().rss
+                row = self.samples.setdefault(name, {"cpu_start": cpu.user + cpu.system,
+                                                      "rss_start_bytes": rss,
+                                                      "rss_sampled_peak_bytes": rss})
+                row["cpu_end"] = cpu.user + cpu.system
+                row["rss_end_bytes"] = rss
+                row["rss_sampled_peak_bytes"] = max(row["rss_sampled_peak_bytes"], rss)
+            except psutil.NoSuchProcess:
+                pass
+
+    def run(self):
+        while not self.stop.wait(self.interval):
+            self.sample()
+
+    def finish(self, workload_cpu):
+        self.stop.set()
+        self.thread.join()
+        self.sample()
+        elapsed = time.monotonic() - self.started
+        # A very short process may exit before the first RSS sample. Its CPU
+        # time is still available from wait, but don't fabricate a peak RSS.
+        self.samples.setdefault("workload", {"cpu_start": 0, "cpu_end": 0,
+                                           "rss_start_bytes": None, "rss_end_bytes": None,
+                                           "rss_sampled_peak_bytes": None})
+        for name, row in self.samples.items():
+            cpu = row.pop("cpu_end") - row.pop("cpu_start")
+            row["cpu_seconds"] = workload_cpu if name == "workload" else max(cpu, 0)
+            row["cpu_one_core_percent"] = 100 * row["cpu_seconds"] / elapsed
+        return {"wall_seconds": elapsed, "rss_sample_interval_seconds": self.interval,
+                "processes": self.samples}
+
+
+def command_result(command, peers=None):
+    if peers is not None:
+        import resource
+        usage = resource.getrusage(resource.RUSAGE_CHILDREN)
+    process = subprocess.Popen(command, env=ENV, text=True, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
+    monitor = ResourceMonitor(dict(peers, workload=process)) if peers is not None else None
+    try:
+        stdout, stderr = process.communicate(timeout=150)
+    except BaseException:
+        process.kill()
+        process.communicate()
+        if monitor:
+            monitor.finish(0)
+        raise
+    resources = None
+    if monitor:
+        after = resource.getrusage(resource.RUSAGE_CHILDREN)
+        resources = monitor.finish(after.ru_utime + after.ru_stime - usage.ru_utime - usage.ru_stime)
+    if process.returncode:
+        raise RuntimeError(" ".join(map(str, command)) + "\n" + stdout + stderr)
+    for line in reversed(stdout.splitlines()):
         if line.startswith('{'):
-            return json.loads(line)
-    raise RuntimeError("missing measurement: " + result.stdout + result.stderr)
+            measurement = json.loads(line)
+            if resources:
+                measurement["resources"] = resources
+            return measurement
+    raise RuntimeError("missing measurement: " + stdout + stderr)
 
 
 def main():
@@ -88,10 +165,19 @@ def main():
     parser.add_argument("--bytes", type=int, default=128 << 20, help="total TCP payload per measurement")
     parser.add_argument("--udp-pps", type=int, default=20000)
     parser.add_argument("--udp-packets", type=int, default=40000)
+    parser.add_argument("--udp-size", type=int, default=1000, help="UDP echo payload bytes (8..65507)")
     parser.add_argument("--smoke-only", action="store_true")
     parser.add_argument("--scenario", choices=("bbr", "brutal-200mbps", "salamander"))
     parser.add_argument("--relay-buffer-size", type=int, default=16384)
+    parser.add_argument("--resources", action="store_true", help="record per-process CPU and sampled RSS (requires psutil)")
     args = parser.parse_args()
+    if not 8 <= args.udp_size <= 65507:
+        parser.error("--udp-size must be between 8 and 65507 bytes")
+    if args.resources:
+        try:
+            import psutil
+        except ImportError:
+            parser.error("--resources requires psutil; install it in a Python virtual environment")
     official = str(args.official.resolve())
     version = subprocess.check_output([official, "version"], text=True)
     cpuinfo = pathlib.Path("/proc/cpuinfo")
@@ -103,6 +189,7 @@ def main():
               "official_version": version, "official_sha256": hashlib.sha256(args.official.read_bytes()).hexdigest(),
               "repeats": 1 if args.smoke_only else args.repeats,
               "tcp_payload_bytes": (1 << 20) if args.smoke_only else args.bytes,
+              "resource_sampling": args.resources,
               "measurements": []}
     with tempfile.TemporaryDirectory(prefix="hy2-bench-") as directory:
         work = pathlib.Path(directory)
@@ -183,8 +270,14 @@ def main():
                                                             "-streams", str(streams), "-bytes", str(payload)]
                                 if transport == "udp":
                                     command += ["-udp-packets", str(100 if args.smoke_only else args.udp_packets),
-                                                "-udp-pps", str(500 if args.smoke_only else args.udp_pps)]
-                                measurement = command_result(command)
+                                                "-udp-pps", str(500 if args.smoke_only else args.udp_pps),
+                                                "-udp-size", str(args.udp_size)]
+                                peers = None
+                                if args.resources:
+                                    peers = {"target": target_peer.process, "server": server_peer.process}
+                                    if client_peer:
+                                        peers["official_client"] = client_peer.process
+                                measurement = command_result(command, peers)
                                 measurement.update(scenario=label, server=server_impl, client=client_impl, repeat=repeat)
                                 report["measurements"].append(measurement)
                                 print(json.dumps(measurement), flush=True)

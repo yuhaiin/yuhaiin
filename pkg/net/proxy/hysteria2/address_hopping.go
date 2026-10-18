@@ -10,7 +10,6 @@ import (
 
 	node "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	hyutils "github.com/apernet/hysteria/extras/v2/utils"
 )
 
 // QUIC sees one logical peer; the packet connection selects the actual relay.
@@ -107,7 +106,7 @@ func resolveAddressHops(ctx context.Context, config node.Hysteria2) (*addressHop
 	return result, nil
 }
 
-func (a *addressHopAddr) add(remote *net.UDPAddr, ports hyutils.PortUnion) error {
+func (a *addressHopAddr) add(remote *net.UDPAddr, ports portRanges) error {
 	if remote.Zone != "" {
 		return errors.New("hysteria2 address hopping does not support scoped IPv6 addresses")
 	}
