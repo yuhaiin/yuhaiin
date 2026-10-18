@@ -62,8 +62,12 @@ jobs:
         run: go test -race -count=1 ./pkg/net/proxy/shadowsocksr/...
       - name: Test SSH outbound and node contract
         run: go test -race -count=1 -timeout=90s ./pkg/net/proxy/ssh/... ./pkg/contract/node ./pkg/register
+      - name: Test MASQUE and CONNECT-IP independently with race detector
+        # PMTU probing uses timers and packet acknowledgements. Keep this
+        # network timing test out of the large parallel VPN package test run.
+        run: go test -race -count=1 -p 1 -timeout=10m ./pkg/net/proxy/masque/...
       - name: Test VPN outbounds and node contract
-        run: go test -race ./pkg/net/proxy/wireguard/... ./pkg/net/proxy/masque/... ./pkg/net/proxy/amneziawg/... ./pkg/net/proxy/ikev2/... ./pkg/net/proxy/anyconnect/... ./pkg/net/proxy/sstp/... ./pkg/net/proxy/fortinet/... ./pkg/net/proxy/vpnkit/... ./pkg/net/proxy/globalprotect ./pkg/net/proxy/softether/... ./pkg/net/proxy/openvpn/... ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/tailscale/... ./pkg/contract/node ./pkg/register
+        run: go test -race ./pkg/net/proxy/wireguard/... ./pkg/net/proxy/amneziawg/... ./pkg/net/proxy/ikev2/... ./pkg/net/proxy/anyconnect/... ./pkg/net/proxy/sstp/... ./pkg/net/proxy/fortinet/... ./pkg/net/proxy/vpnkit/... ./pkg/net/proxy/globalprotect ./pkg/net/proxy/softether/... ./pkg/net/proxy/openvpn/... ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/tailscale/... ./pkg/contract/node ./pkg/register
 
   tailscale-release-dns:
     runs-on: ubuntu-latest
