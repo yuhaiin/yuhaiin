@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MPL-2.0
+// Adapted from XTLS/Xray-core transport/internet/masque/http2.go.
+// The corresponding MPL-2.0 license is included in XRAY_MPL_LICENSE.
 package masque
 
 import (
@@ -37,10 +40,10 @@ const (
 )
 
 var (
-	errHTTP2StreamUsed        = go_masqueHTTP2Error("http2: the connection carries a single stream")
-	errHTTP2NoExtendedConnect = go_masqueHTTP2Error("http2: the server did not enable extended CONNECT")
-	errHTTP2BodyClosed        = go_masqueHTTP2Error("http2: response body closed")
-	errHTTP2IdleTimeout       = go_masqueHTTP2Error("http2: no frame received within the idle timeout")
+	errHTTP2StreamUsed        = go_errors.New("http2: the connection carries a single stream")
+	errHTTP2NoExtendedConnect = go_errors.New("http2: the server did not enable extended CONNECT")
+	errHTTP2BodyClosed        = go_errors.New("http2: response body closed")
+	errHTTP2IdleTimeout       = go_errors.New("http2: no frame received within the idle timeout")
 )
 
 type http2ClientConn struct {

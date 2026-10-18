@@ -18,7 +18,7 @@ func (m *Masque) connectHTTP2(ctx context.Context) (*Conn, error) {
     cfg.NextProtos = []string{"h2"}
     secure := tls.Client(tcp, cfg)
     if err := secure.HandshakeContext(ctx); err != nil { _ = secure.Close(); return nil, fmt.Errorf("MASQUE HTTP/2 handshake: %w",err) }
-    if secure.ConnectionState().NegotiatedProtocol != "h2" {
+    if secure.ConnectionState().NegotiatedProtocol != "h2" && secure.ConnectionState().NegotiatedProtocol != "" {
        _ = secure.Close()
        return nil, fmt.Errorf("MASQUE HTTP/2 requires ALPN h2, got %q", secure.ConnectionState().NegotiatedProtocol)
     }
