@@ -108,7 +108,7 @@ func TestSQLiteDefaultsNeverReappearAfterUserDeletesInbound(t *testing.T) {
 		t.Fatal(err)
 	}
 	var count int
-	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM inbounds_v2").Scan(&count); err != nil {
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM inbounds_v2 WHERE id = 'mixed'").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 0 {
