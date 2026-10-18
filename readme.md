@@ -22,6 +22,7 @@
     - tun2socket(hijack tun TCP to a local TCP listener)
   - yamux  
 - [WireGuard inbound](docs/wireguard-inbound.md) (userspace lightweight TCP/IP stack, no system TUN)
+- [HTTP Gateway](docs/gateway/architecture.md): HTTP/HTTPS reverse proxy, HTTP request policies, existing outbound/selector integration, WebSocket/SSE/gRPC streaming, and explicitly enabled HTTP/TLS interception with a persistent local CA. See [configuration](docs/gateway/configuration.md), [recipes](docs/gateway/reverse-proxy.md), [TLS boundaries](docs/gateway/interception.md), and [benchmarks](docs/gateway/benchmarks.md).
 - Outbound
   - yuubinsya(experimental)
   - [SSH direct-tcpip](pkg/net/proxy/ssh/README.md) (TCP only, host-key pinning, password/key authentication)

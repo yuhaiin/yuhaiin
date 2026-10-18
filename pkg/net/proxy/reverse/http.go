@@ -3,20 +3,20 @@ package reverse
 import (
 	"bufio"
 	"context"
-	"fmt"
+	"crypto/tls"
+	"errors"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/configuration"
-	"github.com/Asutorufa/yuhaiin/pkg/log"
+	contract "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/gateway"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	ptls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
-	sniffhttp "github.com/Asutorufa/yuhaiin/pkg/net/sniff/http"
-	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 type HTTPServerConfig struct {
@@ -24,121 +24,104 @@ type HTTPServerConfig struct {
 	TLS ptls.TLSConfig `json:"tls,omitzero"`
 }
 
+// NewHTTPServer adapts persisted reverse_http listeners to the shared Gateway
+// engine. Existing non-HTTP/TLS passthrough and explicitly configured TLS options
+// remain supported; managed gateways use their independent verified profiles.
 func NewHTTPServer(o HTTPServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	uri, err := url.Parse(o.URL)
+	if err != nil || uri == nil || (uri.Scheme != "http" && uri.Scheme != "https") || uri.Hostname() == "" {
+		return nil, errors.New("reverse_http requires an HTTP or HTTPS upstream URL")
+	}
+	engine, err := gateway.NewEngine(contract.Gateway{ID: "legacy-reverse", Enabled: true, Default: contract.Action{Type: "reverse_proxy", Upstream: "legacy", PreserveHost: true}}, nil, []contract.Upstream{{ID: "legacy", Backends: []contract.Backend{{URL: o.URL}}}},
+		func(_ context.Context, a netapi.Address, _ route.Target) (gateway.Selection, error) {
+			return gateway.Selection{Identity: "legacy-handler", Proxy: handlerProxy{handler: handler, inbound: ii.Addr()}, Destination: a}, nil
+		}, gateway.WithClientTLS(ptls.ParseTLSConfig(o.TLS)))
 	if err != nil {
 		return nil, err
 	}
-
-	tlsConfig := ptls.ParseTLSConfig(o.TLS)
-
-	httpch := netapi.NewChannelStreamListener(ii.Addr())
+	channel := netapi.NewChannelStreamListener(ii.Addr())
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetHTTP2(true)
+	protocols.SetUnencryptedHTTP2(true)
+	server := &http.Server{Handler: engine, Protocols: protocols, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12, NextProtos: []string{"h2", "http/1.1"}}, ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+		state := netapi.WithContext(ctx)
+		state.Source = c.RemoteAddr()
+		state.SetInbound(ii.Addr())
+		return state
+	}}
+	go func() { _ = server.Serve(channel) }()
+	port := uri.Port()
+	if port == "" {
+		port = "80"
+		if uri.Scheme == "https" {
+			port = "443"
+		}
+	}
+	destination, err := netapi.ParseAddress("tcp", net.JoinHostPort(uri.Hostname(), port))
+	if err != nil {
+		_ = server.Close()
+		_ = engine.Close()
+		return nil, err
+	}
 	go func() {
-		defer httpch.Close()
-
-		ii := netapi.NewErrCountListener(ii, 10)
+		defer channel.Close()
 		for {
 			conn, err := ii.Accept()
 			if err != nil {
-				log.Error("reverse http accept failed", "err", err)
-				break
+				return
 			}
-
 			go func() {
-				c := pool.NewBufioConnSize(conn, configuration.SnifferBufferSize)
-
-				var buf []byte
-				_ = c.BufioRead(func(br *bufio.Reader) error {
-					_ = c.SetReadDeadline(time.Now().Add(time.Millisecond * 55))
-					_, err := br.ReadByte()
-					_ = c.SetReadDeadline(time.Time{})
-					if err == nil {
-						_ = br.UnreadByte()
-					}
-
-					buf, _ = br.Peek(br.Buffered())
-					return nil
-				})
-
-				if len(buf) == 0 || sniffhttp.Sniff(buf) != "" {
-					httpch.NewConn(c)
+				if _, ok := conn.(*tls.Conn); ok {
+					channel.NewConn(conn)
 					return
 				}
-
-				defer c.Close()
-
-				host := uri.Host
-				_, _, err := net.SplitHostPort(uri.Host)
-				if err != nil {
-					host = net.JoinHostPort(uri.Host, "443")
+				reader := bufio.NewReaderSize(conn, 4096)
+				_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+				first, err := reader.Peek(1)
+				_ = conn.SetReadDeadline(time.Time{})
+				buffered := &legacyReaderConn{Conn: conn, reader: reader}
+				if err == nil && !strings.ContainsRune("GHPDOTC", rune(first[0])) {
+					handler.HandleStream(&netapi.StreamMeta{Source: conn.RemoteAddr(), Inbound: ii.Addr(), Destination: destination, Address: destination, Src: buffered})
+					return
 				}
-
-				address, err := netapi.ParseAddress("tcp", host)
-				if err != nil {
-					log.Error("parse address failed", "err", err)
-				}
-
-				sm := &netapi.StreamMeta{
-					Source:      c.RemoteAddr(),
-					Inbound:     ii.Addr(),
-					Destination: address,
-					Src:         c,
-					Address:     address,
-				}
-
-				handler.HandleStream(sm)
+				channel.NewConn(buffered)
 			}()
 		}
 	}()
+	return &legacyHTTPServer{listener: ii, server: server, engine: engine, channel: channel}, nil
+}
 
-	type remoteKey struct{}
-	rp := httputil.NewSingleHostReverseProxy(uri)
-	rp.BufferPool = pool.ReverseProxyBuffer{}
-	rp.Transport = &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			address, err := netapi.ParseAddress(network, addr)
-			if err != nil {
-				return nil, fmt.Errorf("parse address failed: %w", err)
-			}
+type handlerProxy struct {
+	netapi.Proxy
+	handler netapi.Handler
+	inbound net.Addr
+}
 
-			remoteAddr, _ := ctx.Value(remoteKey{}).(string)
-			source, err := netapi.ParseAddress(network, remoteAddr)
-			if err != nil {
-				source, err = netapi.ParseAddressPort(network, remoteAddr, 0)
-				if err != nil {
-					return nil, err
-				}
-			}
+func (p handlerProxy) Conn(ctx context.Context, a netapi.Address) (net.Conn, error) {
+	local, remote := pipe.Pipe()
+	state := netapi.GetContext(ctx)
+	go p.handler.HandleStream(&netapi.StreamMeta{Source: state.Source, Inbound: p.inbound, Destination: a, Address: a, Src: local, InboundName: state.GetInboundName(), InboundID: state.GetInboundID()})
+	return remote, nil
+}
 
-			local, remote := pipe.Pipe()
+type legacyReaderConn struct {
+	net.Conn
+	reader *bufio.Reader
+}
 
-			sm := &netapi.StreamMeta{
-				Source:      source,
-				Inbound:     ii.Addr(),
-				Destination: address,
-				Src:         local,
-				Address:     address,
-			}
+func (c *legacyReaderConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
 
-			go handler.HandleStream(sm)
-			return remote, nil
-		},
+type legacyHTTPServer struct {
+	netapi.EmptyInterface
+	listener netapi.Listener
+	server   *http.Server
+	engine   *gateway.Engine
+	channel  *netapi.ChannelStreamListener
+}
 
-		TLSClientConfig: tlsConfig,
-	}
-
-	go func() {
-		if err := http.Serve(httpch, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Debug("reverse http serve", "host", r.Host, "method", r.Method, "path", r.URL.Path, "target", o.URL)
-
-			r = r.WithContext(context.WithValue(r.Context(), remoteKey{}, r.RemoteAddr))
-			rp.ServeHTTP(w, r)
-		})); err != nil {
-			log.Error("reverse http serve failed", "err", err)
-		}
-	}()
-
-	return &accepter{Listener: ii}, nil
+func (s *legacyHTTPServer) Close() error {
+	return errors.Join(s.listener.Close(), s.channel.Close(), s.server.Close(), s.engine.Close())
 }
 
 type accepter struct {

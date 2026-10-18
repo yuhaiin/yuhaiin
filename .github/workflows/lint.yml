@@ -123,3 +123,18 @@ jobs:
           tags="$(go run ./cmd/buildtags/...)"
           go test -race -count=1 -tags="$tags" -run "$pattern" \
             ./pkg/net/netapi ./pkg/net/dialer ./pkg/net/proxy/tailscale
+
+  http-gateway-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: http-gateway-tests
+      - name: Test Gateway, interception, CA, storage and compatibility
+        run: |
+          go test -race -count=1 -timeout=180s \
+            ./pkg/gateway ./pkg/cert ./pkg/net/proxy/reverse ./pkg/net/proxy/http \
+            ./pkg/net/proxy/tls ./pkg/inbound ./pkg/httpapi ./pkg/store \
+            ./pkg/storage/sqlite ./pkg/route ./pkg/resolver ./pkg/statistics \
+            ./pkg/node ./pkg/app

@@ -61,6 +61,11 @@ func (h *Hosts) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Addre
 	return h.dialer.Dispatch(ctx, haddr)
 }
 
+// RecoverDestination applies the existing hosts mapping before HTTP selection.
+func (h *Hosts) RecoverDestination(ctx context.Context, addr netapi.Address) netapi.Address {
+	return h.dispatchAddr(ctx, addr)
+}
+
 func (h *Hosts) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	return h.dialer.Conn(ctx, h.dispatchAddr(ctx, addr))
 }

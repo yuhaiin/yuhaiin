@@ -1,0 +1,76 @@
+{
+  "revision": 0,
+  "gateways": [
+    {
+      "id": "intercept",
+      "name": "Explicit interception",
+      "enabled": true,
+      "revision": 0,
+      "listen": "",
+      "ruleIds": [
+        "ads"
+      ],
+      "default": {
+        "type": "forward",
+        "outbound": {
+          "type": "inherit_route"
+        },
+        "rewrite": {}
+      },
+      "maxBodyBytes": 16777216
+    }
+  ],
+  "rules": [
+    {
+      "id": "ads",
+      "name": "Block ad paths",
+      "enabled": true,
+      "revision": 0,
+      "priority": 10,
+      "match": {
+        "all": [
+          {
+            "field": "host",
+            "operator": "domain",
+            "value": "app.example.com"
+          },
+          {
+            "field": "path",
+            "operator": "prefix",
+            "value": "/ads/"
+          }
+        ]
+      },
+      "action": {
+        "type": "block",
+        "status": 204,
+        "outbound": {
+          "type": "inherit_route"
+        },
+        "rewrite": {}
+      }
+    }
+  ],
+  "upstreams": [],
+  "interceptions": [
+    {
+      "inboundId": "tun",
+      "gatewayId": "intercept",
+      "mode": "https_mitm",
+      "domains": [
+        "app.example.com"
+      ],
+      "excludeDomains": [
+        "pinned.app.example.com"
+      ],
+      "ports": [
+        80,
+        443
+      ],
+      "sources": [],
+      "processes": [],
+      "unknownTls": "passthrough"
+    }
+  ],
+  "filterLists": []
+}

@@ -258,6 +258,11 @@ func (f *Fakedns) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Add
 	return f.dialer.Dispatch(ctx, f.dispatchAddr(ctx, addr))
 }
 
+// RecoverDestination restores FakeIP identity without performing L4 selection.
+func (f *Fakedns) RecoverDestination(ctx context.Context, addr netapi.Address) netapi.Address {
+	return f.dispatchAddr(ctx, addr)
+}
+
 func (f *Fakedns) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	return f.dialer.Conn(ctx, f.dispatchAddr(ctx, addr))
 }

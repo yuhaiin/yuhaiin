@@ -439,7 +439,13 @@ func resolverName(resolver netapi.Resolver) string {
 }
 
 func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	con, err := c.Proxy.Conn(ctx, addr)
+	return c.ConnWithProxy(ctx, addr, c.Proxy)
+}
+
+// ConnWithProxy records a preselected Gateway dial in the ordinary Connections
+// and traffic stores, without selecting an outbound again at connection time.
+func (c *Connections) ConnWithProxy(ctx context.Context, addr netapi.Address, proxy netapi.Proxy) (net.Conn, error) {
+	con, err := proxy.Conn(ctx, addr)
 	if err != nil {
 		c.faildHistory.Push(ctx, err, "tcp", addr)
 		c.recordFailure(ctx, "tcp", addr)

@@ -61,6 +61,12 @@ type Inbound struct {
 
 type Option func(*Inbound)
 
+// WithInterceptor installs one optional hook shared by every TCP inbound.
+// UDP and disabled installations keep the existing forwarding path.
+func WithInterceptor(i interface {
+	Intercept(*netapi.Context, *netapi.StreamMeta) bool
+}) Option { return func(l *Inbound) { l.handler.interceptor = i } }
+
 // FakeIPRangeSource publishes the active pools rather than persisted settings.
 type FakeIPRangeSource interface {
 	SubscribeFakeIPRanges(func([2]netip.Prefix) error) (func(), error)

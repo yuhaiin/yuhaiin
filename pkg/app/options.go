@@ -40,6 +40,7 @@ import (
 )
 
 type AppInstance struct {
+	Gateway       httpapi.GatewayController
 	Node          httpapi.NodeController
 	NodeRuntime   *node.NodeRuntime
 	Tools         httpapi.ToolsController
@@ -179,8 +180,9 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	}
 
 	httpapi.RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
-		HandleFunc(app.Mux, app.Auth, pattern, handler)
+		HandleFunc(app.Mux, app.Auth, pattern, guardGatewayManagement(app.Auth, pattern, handler))
 	}, httpapi.V2Services{
+		Gateway:          app.Gateway,
 		Settings:         app.Setting,
 		Inbounds:         inboundStore,
 		Nodes:            nodeStore,

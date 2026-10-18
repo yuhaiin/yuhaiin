@@ -67,11 +67,27 @@ func ResolverReferences(ctx context.Context, q ruleReferenceQueryer, id string) 
 }
 
 func InboundReferences(ctx context.Context, q ruleReferenceQueryer, id string) ([]contractroute.Reference, error) {
-	return matchingRuleReferences(ctx, q, func(rule contractroute.RouteRule) bool {
+	refs, err := matchingRuleReferences(ctx, q, func(rule contractroute.RouteRule) bool {
 		found := false
 		visitInboundRefs(rule.Rules, func(ref string) { found = found || ref == id })
 		return found
 	})
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q.QueryContext(ctx, `SELECT owner_id,owner_name FROM gateway_references WHERE inbound_id=?`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		ref := contractroute.Reference{Kind: "gateway"}
+		if err := rows.Scan(&ref.ID, &ref.Name); err != nil {
+			return nil, err
+		}
+		refs = append(refs, ref)
+	}
+	return refs, rows.Err()
 }
 
 func visitInboundRefs(rules []contractroute.RuleExpr, visit func(string)) {

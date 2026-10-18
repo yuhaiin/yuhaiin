@@ -1,0 +1,39 @@
+# Troubleshooting and compatibility
+
+| Symptom | Check |
+| --- | --- |
+| Save returns 409 | Reload the current config/entity revision and reconcile edits. Old runtime stays active. |
+| Listen fails / source denied | Verify the address, port ownership, and explicit CIDR ACL. Public listeners require an ACL. |
+| Forward returns 502 on a reverse listener | Use a configured reverse-proxy Upstream. Forward requires an admitted original destination. |
+| HTTPS client rejects certificate | Verify CA fingerprint and installation, hostname/SAN and clock. Pinned clients/user-CA restrictions require exclusion or passthrough. |
+| HTTPS upstream returns 502 | Verify actual backend hostname, SNI, trust PEM, outbound node and Route Block rules. Verification is enabled by default. |
+| A path rule has no effect | Attach it to the Gateway, enable it, check priority, save/activate, and run Rule tester. Passthrough has no path visibility. |
+| Upstream is unhealthy | Check HEAD health-path response, passive failure threshold, recovery delay and outbound reachability. |
+| Remote filters do not update | Save edits first, then update explicitly. Sources must return 200 without redirects and contain supported rules under 4 MiB. |
+| Process rule does not match | Check global process lookup mode and whether the platform exposes the initiating process. |
+| gRPC / streaming ends early | Check application protocol support and configured request timeout/body limit. |
+| Loop is rejected | Check backend aliases, listener ports and TUN recursion. Correct the destination rather than bypassing all routing. |
+
+Gateway Statistics contains request/block/forward/error counters, total duration,
+TLS/protocol failures, filter parse errors, latest selected outbound and backend
+health. Existing Connections/Statistics records the physical upstream sockets
+and bytes, so a reused HTTP/2 socket is one connection even if it carries many
+requests. Authorization, Cookies and bodies are not logged by the Gateway. The existing
+`/metrics` endpoint also exports `yuhaiin_gateway_*` request, failure, duration and
+backend-health metrics; backend metric labels omit URL paths and queries.
+
+Old `reverse_http` entries remain persisted and use the new HTTP engine through
+an adapter, preserving their destination, Host behavior and explicitly configured
+TLS profile. Existing legacy opt-outs of certificate verification remain explicit
+legacy settings; managed Gateways have no insecure-verification option. The
+legacy non-HTTP forwarding behavior remains. `http_termination` keeps its outbound
+chain role and passes TLS ownership with typed metadata, not RemoteAddr strings.
+`reverse_tcp` remains a TCP feature. TLS Auto remains listener certificate
+generation, sharing issuance/cache code but never automatically enabling MITM.
+
+Run the reproducible unit/integration/race checks in [benchmarks](benchmarks.md).
+Real privileged TUN/TProxy/Redir/WireGuard traffic and browser rendering need an
+appropriate local test environment; synthetic stream tests do not prove OS
+installation or every third-party client works. HTTP/3 Gateway, ECH decryption,
+pinning bypass, client-private-key impersonation, full browser Adblock syntax,
+automatic remote-list scheduling and hardware-backed CA keys are not implemented.

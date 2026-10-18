@@ -8,11 +8,14 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/gateway"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
@@ -116,6 +119,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	var routeSettingsStore *plainstore.RouteSettingsStore
 	var routeRuleStore *plainstore.RouteRuleStore
 	var routeListStore *plainstore.RouteListStore
+	var gatewayStore *plainstore.GatewayStore
 	if sqlStore := so.StateStore; sqlStore != nil {
 		db, err := sqlStore.SQLDB(ctx)
 		if err != nil {
@@ -133,6 +137,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 			routeSettingsStore = plainstore.NewRouteSettingsStore(db)
 			routeRuleStore = plainstore.NewRouteRuleStore(db)
 			routeListStore = plainstore.NewRouteListStore(db)
+			gatewayStore = plainstore.NewGatewayStore(db)
 		}
 	}
 	settingsController := NewSettingsController(settingsStore, so.ConfigPath, logController)
@@ -202,19 +207,56 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	list.SetProxy(fakedns)
 
 	// inbound server
-	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, inbound.WithDNSAgent(fakedns), inbound.WithFakeIPRangeSource(fakedns)))
+	var gatewayManager *gateway.Manager
+	if gatewayStore != nil {
+		authority, err := gateway.NewAuthority(ctx, gatewayStore)
+		if err != nil {
+			_ = closers.Close()
+			return nil, err
+		}
+		gatewayManager, err = gateway.NewManager(ctx, gatewayStore, authority, func(ctx context.Context, a netapi.Address, target contractroute.Target) (gateway.Selection, error) {
+			a = hosts.RecoverDestination(ctx, fakedns.RecoverDestination(ctx, a))
+			proxy, destination, err := router.ResolveTCP(ctx, a, target)
+			if err != nil {
+				return gateway.Selection{}, err
+			}
+			label := netapi.GetContext(ctx).NodeName
+			if label == "" {
+				label = netapi.GetContext(ctx).ConnOptions().RouteMode()
+			}
+			return gateway.Selection{Label: label, Identity: gateway.ProxyIdentity(proxy), Proxy: selectedGatewayProxy{Proxy: proxy, connections: stcs}, Destination: destination}, nil
+		}, gateway.WithDestinationRecovery(fakedns.RecoverDestination), gateway.WithProcessLookup(router.PrepareGatewayContext))
+		if err != nil {
+			_ = closers.Close()
+			return nil, fmt.Errorf("initialize gateway: %w", err)
+		}
+		AddCloser(closers, "gateway", gatewayManager)
+	}
+	var interceptionOptions []inbound.Option
+	if gatewayManager != nil {
+		interceptionOptions = append(interceptionOptions, inbound.WithInterceptor(gatewayManager))
+	}
+	interceptionOptions = append(interceptionOptions, inbound.WithDNSAgent(fakedns), inbound.WithFakeIPRangeSource(fakedns))
+	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))
 	dialer.SkipInterface = inbounds.Interfaces
 	// tools
 	tools := NewTools(logController)
 	mux := http.NewServeMux()
+	metricsGatherer := prometheus.DefaultGatherer
+	if gatewayManager != nil {
+		registry := prometheus.NewRegistry()
+		registry.MustRegister(gatewayManager.Metrics())
+		metricsGatherer = prometheus.Gatherers{prometheus.DefaultGatherer, registry}
+	}
 
 	mux.Handle("GET /metrics", promhttp.InstrumentMetricHandler(
-		prometheus.DefaultRegisterer, promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
+		prometheus.DefaultRegisterer, promhttp.HandlerFor(metricsGatherer, promhttp.HandlerOpts{
 			DisableCompression: true,
 			EnableOpenMetrics:  true,
 		})))
 
 	app := &AppInstance{
+		Gateway:       gatewayManager,
 		StartOptions:  so,
 		Mux:           mux,
 		Tools:         tools,

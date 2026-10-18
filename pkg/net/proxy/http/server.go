@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bufio"
 	"context"
 	"crypto/subtle"
 	"errors"
@@ -10,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"time"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -97,8 +97,10 @@ func newServer(o ServerConfig, lis net.Listener, handler netapi.Handler) *Server
 	return h
 }
 
-//go:linkname ParseBasicAuth net/http.parseBasicAuth
-func ParseBasicAuth(auth string) (username, password string, ok bool)
+func ParseBasicAuth(auth string) (username, password string, ok bool) {
+	r := &http.Request{Header: http.Header{"Authorization": {auth}}}
+	return r.BasicAuth()
+}
 
 func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
@@ -111,8 +113,8 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if (len(h.username) > 0 && subtle.ConstantTimeCompare(unsafe.Slice(unsafe.StringData(username), len(username)), h.username) != 1) ||
-			(len(h.password) > 0 && subtle.ConstantTimeCompare(unsafe.Slice(unsafe.StringData(password), len(password)), h.password) != 1) {
+		if (len(h.username) > 0 && subtle.ConstantTimeCompare([]byte(username), h.username) != 1) ||
+			(len(h.password) > 0 && subtle.ConstantTimeCompare([]byte(password), h.password) != 1) {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
@@ -145,13 +147,6 @@ func (h *Server) connect(w http.ResponseWriter, req *http.Request) error {
 		return fmt.Errorf("parse address failed: %w", err)
 	}
 
-	w.WriteHeader(http.StatusOK)
-
-	client, _, err := http.NewResponseController(w).Hijack()
-	if err != nil {
-		return fmt.Errorf("hijack failed: %w", err)
-	}
-
 	source, err := netapi.ParseAddress("tcp", req.RemoteAddr)
 	if err != nil {
 		source, err = netapi.ParseAddressPort("tcp", req.RemoteAddr, 0)
@@ -159,6 +154,21 @@ func (h *Server) connect(w http.ResponseWriter, req *http.Request) error {
 			return err
 		}
 	}
+	client, buffered, err := http.NewResponseController(w).Hijack()
+	if err != nil {
+		return fmt.Errorf("hijack failed: %w", err)
+	}
+	if _, err := buffered.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
+		_ = client.Close()
+		return err
+	}
+	if err := buffered.Flush(); err != nil {
+		_ = client.Close()
+		return err
+	}
+	// CONNECT may arrive in the same packet as ClientHello or application data.
+	// Hijack's reader owns those bytes; replay them before reading the socket.
+	client = &hijackedConn{Conn: client, reader: buffered.Reader}
 
 	sm := &netapi.StreamMeta{
 		Source:      source,
@@ -171,6 +181,13 @@ func (h *Server) connect(w http.ResponseWriter, req *http.Request) error {
 	h.handler.HandleStream(sm)
 	return nil
 }
+
+type hijackedConn struct {
+	net.Conn
+	reader *bufio.Reader
+}
+
+func (c *hijackedConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
 
 func (s *Server) AcceptPacket() (*netapi.Packet, error) {
 	return nil, io.EOF

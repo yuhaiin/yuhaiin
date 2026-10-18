@@ -41,6 +41,12 @@ type Dialer interface {
 	GetTarget(ctx context.Context, network string, mode string, target contractroute.Target) (netapi.Proxy, error)
 }
 
+// PrepareGatewayContext exposes the existing process metadata lookup without
+// selecting an outbound before HTTP request parsing.
+func (s *Route) PrepareGatewayContext(ctx context.Context, a netapi.Address) {
+	s.dumpProcessFor(ctx, true, a.Network())
+}
+
 func NewRoute(d Dialer, r Resolver, list *Lists, ProcessDumper netapi.ProcessDumper) *Route {
 	rr := &Route{
 		config:        atomicx.NewValue(&RouteConfig{}),
@@ -62,23 +68,44 @@ func NewRoute(d Dialer, r Resolver, list *Lists, ProcessDumper netapi.ProcessDum
 }
 
 func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
+	p, address, err := s.ResolveTCP(ctx, host, contractroute.Target{Type: "inherit_route"})
+	if err != nil {
+		return nil, err
+	}
+	conn, err := p.Conn(ctx, address)
+	if err != nil {
+		return nil, netapi.NewDialError("tcp", err, address)
+	}
+	return conn, nil
+}
+
+// ResolveTCP performs the same routing and outbound selection as Conn before an
+// HTTP transport looks up a reusable connection. An explicit HTTP target may
+// override the destination selection, but never an existing L4 block decision.
+func (s *Route) ResolveTCP(ctx context.Context, host netapi.Address, target contractroute.Target) (netapi.Proxy, netapi.Address, error) {
 	result := s.dispatch(ctx, host)
 
 	if result.Mode.Mode() == ModeBlock {
 		s.Push(ctx, "tcp", host.String())
 	}
 
-	p, err := s.d.GetTarget(ctx, "tcp", result.Mode.Mode().String(), result.Mode.Target())
-	if err != nil {
-		return nil, netapi.NewDialError("tcp", err, result.Addr)
+	mode := result.Mode.Mode().String()
+	selected := result.Mode.Target()
+	if result.Mode.Mode() != ModeBlock {
+		switch target.Type {
+		case "direct":
+			mode = "direct"
+			selected = contractroute.Target{}
+		case "node", "selector", "default":
+			mode = "proxy"
+			selected = target
+		}
 	}
-
-	conn, err := p.Conn(ctx, result.Addr)
+	p, err := s.d.GetTarget(ctx, "tcp", mode, selected)
 	if err != nil {
-		return nil, netapi.NewDialError("tcp", err, result.Addr)
+		return nil, nil, netapi.NewDialError("tcp", err, result.Addr)
 	}
-
-	return conn, nil
+	return p, result.Addr, nil
 }
 
 func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
@@ -305,7 +332,11 @@ func (f *Route) Close() error { return nil }
 func (f *Route) Name() string { return "route" }
 
 func (c *Route) dumpProcess(ctx context.Context, networks ...string) (s netapi.Process) {
-	if c.ProcessDumper == nil || !c.shouldDumpProcess() {
+	return c.dumpProcessFor(ctx, false, networks...)
+}
+
+func (c *Route) dumpProcessFor(ctx context.Context, force bool, networks ...string) (s netapi.Process) {
+	if c.ProcessDumper == nil || configuration.ProcessLookupMode.Load() == "off" || (!force && !c.shouldDumpProcess()) {
 		return
 	}
 

@@ -1,0 +1,308 @@
+package gateway
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"crypto/tls"
+	"errors"
+	"io"
+	"net"
+	"net/http"
+	"net/netip"
+	"slices"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	contract "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+)
+
+type interceptRule struct {
+	config  contract.Interception
+	sources []netip.Prefix
+}
+
+// Intercept is called once in the common inbound stream path. A false return
+// leaves ownership with that path, including every buffered probe byte.
+func (m *Manager) Intercept(ctx *netapi.Context, meta *netapi.StreamMeta) bool {
+	s := m.current.Load()
+	if len(s.interceptions) == 0 {
+		return false
+	}
+	if m.internalSource(meta.Source) {
+		_ = meta.Src.Close()
+		return true
+	}
+	var selected *interceptRule
+	for n := range s.interceptions {
+		i := &s.interceptions[n]
+		if i.config.Mode == "off" || i.config.InboundID != ctx.GetInboundID() {
+			continue
+		}
+		g := s.gateways[i.config.GatewayID]
+		if g == nil || !g.engine.config.Enabled {
+			continue
+		}
+		if len(i.config.Ports) > 0 && !slices.Contains(i.config.Ports, uint16(meta.Address.Port())) {
+			continue
+		}
+		if len(i.config.Processes) > 0 && !slices.Contains(i.config.Processes, ctx.GetProcessName()) {
+			if m.lookupProcess != nil {
+				m.lookupProcess(ctx, meta.Address)
+			}
+			if !slices.Contains(i.config.Processes, ctx.GetProcessName()) {
+				continue
+			}
+		}
+		if len(i.sources) > 0 {
+			if ctx.Source == nil {
+				continue
+			}
+			source, err := netip.ParseAddrPort(ctx.Source.String())
+			if err != nil {
+				continue
+			}
+			matched := false
+			for _, prefix := range i.sources {
+				matched = matched || prefix.Contains(source.Addr().Unmap())
+			}
+			if !matched {
+				continue
+			}
+		}
+		selected = i
+		break
+	}
+	if selected == nil || selected.config.Mode == "tls_passthrough" {
+		return false
+	}
+	config := selected.config
+	g := s.gateways[config.GatewayID]
+	if g.engine.policy.needsProcess && ctx.GetProcessName() == "" && m.lookupProcess != nil {
+		m.lookupProcess(ctx, meta.Address)
+	}
+	// Admission has already matched an explicitly configured inbound and port.
+	// Unselected TCP and all UDP traffic never allocate this reader or wait here.
+	reader := bufio.NewReaderSize(meta.Src, 16<<10)
+	replay := &readerConn{Conn: meta.Src, reader: reader}
+	meta.Src = replay
+	_ = meta.Src.SetReadDeadline(time.Now().Add(10 * time.Second))
+	first, err := reader.Peek(1)
+	if err != nil {
+		_ = meta.Src.SetReadDeadline(time.Time{})
+		return false
+	}
+	destination := meta.Address
+	if m.recoverDestination != nil {
+		destination = m.recoverDestination(ctx, destination)
+	}
+	if first[0] == 0x16 {
+		if config.Mode != "https_mitm" {
+			_ = meta.Src.SetReadDeadline(time.Time{})
+			return false
+		}
+		capture := &helloCapture{Conn: replay, remaining: 64 << 10}
+		var hello *tls.ClientHelloInfo
+		probe := tls.Server(capture, &tls.Config{MinVersion: tls.VersionTLS12, GetConfigForClient: func(chi *tls.ClientHelloInfo) (*tls.Config, error) { hello = chi; return nil, errHelloCaptured }})
+		_ = probe.HandshakeContext(ctx)
+		meta.Src = &readerConn{Conn: replay, reader: io.MultiReader(bytes.NewReader(capture.bytes.Bytes()), replay)}
+		_ = meta.Src.SetReadDeadline(time.Time{})
+		host := ""
+		if hello != nil {
+			host = hostname(hello.ServerName)
+		}
+		if host == "" {
+			host = hostname(destination.Hostname())
+		}
+		if !matchesDomains(host, config.Domains, config.ExcludeDomains) {
+			return false
+		}
+		if hello == nil || slices.Contains(hello.Extensions, uint16(0xfe0d)) || (!slices.Contains(hello.SupportedProtos, "h2") && !slices.Contains(hello.SupportedProtos, "http/1.1")) {
+			g.engine.Counters.ProtocolFailures.Add(1)
+			log.Debug("gateway TLS admission", "gateway", config.GatewayID, "reason", "unsupported_client_hello", "action", config.UnknownTLS)
+			if config.UnknownTLS == "reject" {
+				_ = meta.Src.Close()
+				return true
+			}
+			return false
+		}
+		certificate, err := m.Authority.Certificate(host)
+		if err != nil {
+			g.engine.Counters.TLSFailures.Add(1)
+			log.Debug("gateway TLS interception failed", "gateway", config.GatewayID, "reason", "certificate_unavailable")
+			_ = meta.Src.Close()
+			return true
+		}
+		ctx.SetTLSServerName(host).SetProtocol("tls")
+		tlsConn := tls.Server(meta.Src, &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{*certificate}, NextProtos: []string{"h2", "http/1.1"}})
+		_ = tlsConn.SetDeadline(time.Now().Add(10 * time.Second))
+		if err := tlsConn.HandshakeContext(ctx); err != nil {
+			g.engine.Counters.TLSFailures.Add(1)
+			log.Debug("gateway TLS interception failed", "gateway", config.GatewayID, "reason", "handshake_failed")
+			_ = tlsConn.Close()
+			return true
+		}
+		_ = tlsConn.SetDeadline(time.Time{})
+		// Once the real handshake starts there is no passthrough fallback.
+		m.serveIntercepted(ctx, g.engine, tlsConn, Metadata{Context: ctx, OriginalDestination: destination, Authority: host, Scheme: "https"})
+		return true
+	}
+	if !strings.ContainsRune("GHPDOTC", rune(first[0])) {
+		_ = meta.Src.SetReadDeadline(time.Time{})
+		return false
+	}
+	// Only HTTP/1 request lines are accepted on plaintext streams. HTTP/2
+	// prior knowledge is deliberately passed through, never parsed as HTTP/1.
+	header, err := probeHTTPHeader(reader)
+	meta.Src = &readerConn{Conn: replay, reader: io.MultiReader(bytes.NewReader(header), reader)}
+	_ = meta.Src.SetReadDeadline(time.Time{})
+	if err != nil {
+		return false
+	}
+	request, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(header)))
+	if err != nil {
+		return false
+	}
+	_ = request.Body.Close()
+	if !matchesDomains(hostname(request.Host), config.Domains, config.ExcludeDomains) {
+		return false
+	}
+	ctx.SetHTTPHost(hostname(request.Host)).SetProtocol("http")
+	m.serveIntercepted(ctx, g.engine, meta.Src, Metadata{Context: ctx, OriginalDestination: destination, Authority: request.Host, Scheme: "http"})
+	return true
+}
+
+func matchesDomains(host string, include, exclude []string) bool {
+	for _, d := range exclude {
+		if domainMatches(host, hostname(strings.TrimPrefix(d, "*."))) {
+			return false
+		}
+	}
+	if len(include) == 0 {
+		return true
+	}
+	for _, d := range include {
+		if domainMatches(host, hostname(strings.TrimPrefix(d, "*."))) {
+			return true
+		}
+	}
+	return false
+}
+
+var errHelloCaptured = errors.New("ClientHello captured")
+
+type helloCapture struct {
+	net.Conn
+	bytes     bytes.Buffer
+	remaining int
+}
+
+func (c *helloCapture) Read(p []byte) (int, error) {
+	if c.remaining <= 0 {
+		return 0, errors.New("ClientHello exceeds capture limit")
+	}
+	n, err := c.Conn.Read(p[:min(len(p), c.remaining)])
+	c.remaining -= n
+	_, _ = c.bytes.Write(p[:n])
+	return n, err
+}
+
+// The speculative TLS parser can emit alerts, but they never reach the client.
+func (c *helloCapture) Write(p []byte) (int, error) { return len(p), nil }
+
+type readerConn struct {
+	net.Conn
+	reader io.Reader
+}
+
+func (c *readerConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
+
+func probeHTTPHeader(reader *bufio.Reader) ([]byte, error) {
+	var data []byte
+	for len(data) < 64<<10 {
+		line, err := reader.ReadSlice('\n')
+		data = append(data, line...)
+		if err != nil {
+			return data, err
+		}
+		if len(data) == len(line) {
+			parts := strings.Split(strings.TrimSuffix(string(line), "\r\n"), " ")
+			if len(parts) != 3 || !slices.Contains([]string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE", "CONNECT"}, parts[0]) || parts[2] != "HTTP/1.1" {
+				return data, errors.New("not HTTP/1.1")
+			}
+		}
+		if bytes.Equal(line, []byte("\r\n")) {
+			return data, nil
+		}
+	}
+	return data, errors.New("HTTP header exceeds probe limit")
+}
+
+type singleListener struct {
+	conn     net.Conn
+	done     chan struct{}
+	once     sync.Once
+	accepted bool
+}
+
+func (l *singleListener) Accept() (net.Conn, error) {
+	if !l.accepted {
+		l.accepted = true
+		return l.conn, nil
+	}
+	<-l.done
+	return nil, net.ErrClosed
+}
+func (l *singleListener) Close() error   { l.once.Do(func() { close(l.done) }); return nil }
+func (l *singleListener) Addr() net.Addr { return l.conn.LocalAddr() }
+
+func (m *Manager) serveIntercepted(ctx context.Context, engine *Engine, conn net.Conn, meta Metadata) {
+	m.sessionsMu.Lock()
+	session := interceptSession{gatewayID: engine.config.ID, inboundID: meta.Context.GetInboundID(), mitm: meta.Scheme == "https"}
+	if !sessionAllowed(m.current.Load(), session) {
+		m.sessionsMu.Unlock()
+		_ = conn.Close()
+		return
+	}
+	m.sessions[conn] = session
+	m.sessionsMu.Unlock()
+	defer func() { _ = conn.Close(); m.sessionsMu.Lock(); delete(m.sessions, conn); m.sessionsMu.Unlock() }()
+	// Preserve the concrete *tls.Conn: net/http uses it for ALPN and r.TLS.
+	listener := &singleListener{conn: conn, done: make(chan struct{})}
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetHTTP2(true)
+	var hijacked atomic.Bool
+	server := &http.Server{ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second, MaxHeaderBytes: 1 << 20, Protocols: protocols, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12, NextProtos: []string{"h2", "http/1.1"}}, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if hijacked.Load() {
+				_ = listener.Close()
+			}
+		}()
+		current := m.current.Load().gateways[engine.config.ID]
+		if current == nil || !current.engine.config.Enabled {
+			http.Error(w, "gateway disabled", http.StatusServiceUnavailable)
+			return
+		}
+		current.engine.ServeHTTP(w, r)
+	}),
+		ConnContext: func(_ context.Context, _ net.Conn) context.Context { return WithMetadata(ctx, meta) },
+	}
+	// Wrapping *tls.Conn to observe Close would hide it from net/http. Use
+	// ConnState instead to release the listener after the real connection closes.
+	server.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateClosed {
+			_ = listener.Close()
+		}
+		if state == http.StateHijacked {
+			hijacked.Store(true)
+		}
+	}
+	stop := context.AfterFunc(ctx, func() { _ = server.Close(); _ = conn.Close() })
+	defer stop()
+	_ = server.Serve(listener)
+}

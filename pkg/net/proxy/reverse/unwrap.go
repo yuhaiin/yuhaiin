@@ -2,20 +2,20 @@ package reverse
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"strings"
+	"sync/atomic"
+	"time"
 
+	contractgateway "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
-	"github.com/Asutorufa/yuhaiin/pkg/log"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/gateway"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
-	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
-	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
@@ -49,7 +49,9 @@ func httpHeadersFromContract(headers contractnode.HTTPHeaders) HTTPHeaders {
 
 type httpTermination struct {
 	netapi.Proxy
-	ch *netapi.ChannelStreamListener
+	ch     *netapi.ChannelStreamListener
+	server *http.Server
+	engine *gateway.Engine
 }
 
 type Config struct {
@@ -65,126 +67,73 @@ type HTTPHeader struct {
 	Value string `json:"value"`
 }
 
+// NewHttpTermination remains an outbound-chain adapter. TLS ownership is typed
+// connection metadata; no address strings are modified to carry protocol state.
 func NewHttpTermination(c Config, p netapi.Proxy) (netapi.Proxy, error) {
 	ch := netapi.NewChannelStreamListener(netapi.EmptyAddr)
-
-	headers := trie.NewTrie[*HTTPHeaders]()
-
-	for k := range c.Headers {
-		v := c.Headers[k]
-		headers.Insert(k, &v)
-	}
-
-	tr := &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			add, err := netapi.ParseAddress(network, addr)
-			if err != nil {
-				return nil, err
-			}
-
-			return p.Conn(ctx, add)
-		},
-	}
-
-	type tlsTerminationKey struct{}
-
-	tr.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		if ctx.Value(tlsTerminationKey{}) == true {
-			return tr.DialContext(ctx, network, addr)
+	var rules []contractgateway.Rule
+	for domain, headers := range c.Headers {
+		requestHeaders := make(map[string][]string)
+		for _, header := range headers.Headers {
+			requestHeaders[header.Key] = []string{header.Value}
 		}
-
-		conn, err := tr.DialContext(ctx, network, addr)
-		if err != nil {
-			return nil, err
-		}
-
-		return tls.Client(conn, tr.TLSClientConfig), nil
+		name := strings.TrimPrefix(domain, "*.")
+		rules = append(rules, contractgateway.Rule{ID: domain, Name: domain, Enabled: true, Priority: -len(name), Match: contractgateway.Condition{Field: "host", Operator: "domain", Value: name}, Action: contractgateway.Action{Type: "forward", Rewrite: contractgateway.Rewrite{Headers: requestHeaders}}})
 	}
-
-	hr := &httputil.ReverseProxy{
-		Transport:  tr,
-		BufferPool: pool.ReverseProxyBuffer{},
-		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			if err != nil && !errors.Is(err, context.Canceled) {
-				log.Error("http: proxy error: ", "err", err)
-			}
-			w.WriteHeader(http.StatusBadGateway)
-		},
-		Rewrite: func(rpr *httputil.ProxyRequest) {
-			pr := rpr.In
-			addr, _ := netapi.ParseAddress("tcp", pr.Host)
-
-			if v, ok := headers.SearchFqdn(addr); ok {
-				for _, v := range v.Headers {
-					pr.Header.Set(v.Key, v.Value)
-				}
-			}
-
-			var defaultScheme string
-			if strings.HasSuffix(pr.RemoteAddr, "tlsTermination:true") {
-				defaultScheme = "https"
-				pr.RemoteAddr = strings.TrimSuffix(pr.RemoteAddr, "tlsTermination:true")
-				*pr = *pr.WithContext(context.WithValue(pr.Context(), tlsTerminationKey{}, true))
-			} else {
-				defaultScheme = "http"
-			}
-
-			pr.RequestURI = ""
-			pr.URL.Scheme = defaultScheme
-			pr.URL.Host = pr.Host
-		},
+	engine, err := gateway.NewEngine(contractgateway.Gateway{ID: "legacy-termination", Enabled: true, Default: contractgateway.Action{Type: "forward"}}, rules, nil, func(ctx context.Context, a netapi.Address, _ contractroute.Target) (gateway.Selection, error) {
+		state, _ := ctx.Value(terminationKey{}).(*terminationState)
+		terminated := state != nil && state.tls.Load()
+		return gateway.Selection{Identity: fmt.Sprintf("legacy-termination:%p", p), Proxy: p, Destination: a, TLSAlreadyTerminated: terminated}, nil
+	})
+	if err != nil {
+		_ = ch.Close()
+		return nil, err
 	}
-
-	go func() {
-		defer ch.Close()
-
-		s := http.Server{
-			Handler: hr,
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+	server := &http.Server{ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second, Protocols: protocols, ConnContext: func(ctx context.Context, conn net.Conn) context.Context {
+		return context.WithValue(ctx, terminationKey{}, conn.(*terminationServerConn).state)
+	}}
+	server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		state, _ := r.Context().Value(terminationKey{}).(*terminationState)
+		if state == nil {
+			http.Error(w, "missing termination metadata", http.StatusInternalServerError)
+			return
 		}
-
-		err := s.Serve(ch)
-		if err != nil {
-			log.Warn("reverse proxy error", "err", err)
+		scheme := "http"
+		if state.tls.Load() {
+			scheme = "https"
 		}
-	}()
-
-	return &httpTermination{
-		Proxy: p,
-		ch:    ch,
-	}, nil
+		original := netapi.ForkContext(context.WithValue(state.context, terminationKey{}, state))
+		engine.ServeHTTP(w, r.WithContext(gateway.WithMetadata(r.Context(), gateway.Metadata{Context: original, OriginalDestination: state.destination, Authority: state.destination.Hostname(), Scheme: scheme})))
+	})
+	go func() { _ = server.Serve(ch) }()
+	return &httpTermination{Proxy: p, ch: ch, server: server, engine: engine}, nil
 }
 
-func (u *httpTermination) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	p1, p2 := pipe.Pipe()
-
-	uw := &unWrapHttpAddr{}
-
-	p1.SetRemoteAddr(uw)
-
-	u.ch.NewConn(p1)
-
-	return &wrapConn{p2, uw}, nil
+type terminationKey struct{}
+type terminationState struct {
+	tls         atomic.Bool
+	context     context.Context
+	destination netapi.Address
 }
-
-func (u *httpTermination) Close() error {
-	u.ch.Close()
-	return u.Proxy.Close()
+type terminationServerConn struct {
+	*pipe.Conn
+	state *terminationState
 }
-
 type wrapConn struct {
 	*pipe.Conn
-	uw *unWrapHttpAddr
+	state *terminationState
 }
 
-func (w *wrapConn) SetTLSTermination(ok bool) { w.uw.SetTLSTermination(ok) }
-
-type unWrapHttpAddr struct {
-	netapi.DomainAddr
-	tlsTermination bool
+func (w *wrapConn) SetTLSTermination(ok bool) { w.state.tls.Store(ok) }
+func (u *httpTermination) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+	left, right := pipe.Pipe()
+	state := &terminationState{context: netapi.ForkContext(context.WithoutCancel(ctx)), destination: addr}
+	u.ch.NewConn(&terminationServerConn{Conn: left, state: state})
+	return &wrapConn{Conn: right, state: state}, nil
 }
-
-func (u *unWrapHttpAddr) SetTLSTermination(ok bool) { u.tlsTermination = ok }
-
-func (u *unWrapHttpAddr) String() string {
-	return fmt.Sprintf("tlsTermination:%v", u.tlsTermination)
+func (u *httpTermination) Close() error {
+	return errors.Join(u.ch.Close(), u.server.Close(), u.engine.Close(), u.Proxy.Close())
 }
