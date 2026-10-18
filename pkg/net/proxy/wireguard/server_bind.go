@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	serverPeerPrefix = "wgpeer:"
+	serverPeerPrefix     = "wgpeer:"
 	handshakeMaxPending = 4096
 	handshakePendingTTL = 15 * time.Second
 )
@@ -25,14 +25,14 @@ const (
 // an incoming handshake to an existing configured peer.
 type serverBind struct {
 	conn.Bind
-	mu       sync.Mutex
-	peers    map[string]conn.Endpoint
-	pending  map[uint32]pendingHandshake
+	mu      sync.Mutex
+	peers   map[string]conn.Endpoint
+	pending map[uint32]pendingHandshake
 }
 
 type pendingHandshake struct {
 	endpoint conn.Endpoint
-	seen time.Time
+	seen     time.Time
 }
 
 func newServerBind(base conn.Bind) *serverBind {
@@ -46,12 +46,12 @@ type serverPeerEndpoint struct {
 	key string
 }
 
-func (e serverPeerEndpoint) ClearSrc() {}
+func (e serverPeerEndpoint) ClearSrc()          {}
 func (e serverPeerEndpoint) SrcToString() string { return "" }
 func (e serverPeerEndpoint) DstToString() string { return serverPeerPrefix + e.key }
-func (e serverPeerEndpoint) DstToBytes() []byte { return nil }
-func (e serverPeerEndpoint) DstIP() netip.Addr { return netip.Addr{} }
-func (e serverPeerEndpoint) SrcIP() netip.Addr { return netip.Addr{} }
+func (e serverPeerEndpoint) DstToBytes() []byte  { return nil }
+func (e serverPeerEndpoint) DstIP() netip.Addr   { return netip.Addr{} }
+func (e serverPeerEndpoint) SrcIP() netip.Addr   { return netip.Addr{} }
 
 type serverReceiveEndpoint struct {
 	conn.Endpoint
