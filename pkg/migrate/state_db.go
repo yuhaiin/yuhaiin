@@ -38,6 +38,10 @@ func (s *StateDB) Migrate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("initialize state sqlite database: %w", err)
 	}
+	if err := initializeSQLiteDefaults(ctx, store.DB()); err != nil {
+		_ = store.Close()
+		return fmt.Errorf("initialize sqlite defaults: %w", err)
+	}
 	if compacted, err := storagesqlite.CompactIfNeeded(ctx, store.DB()); err != nil {
 		log.Warn("vacuum state on startup failed", "err", err)
 	} else if compacted {
