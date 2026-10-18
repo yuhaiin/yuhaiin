@@ -9,9 +9,9 @@ import (
 
 func TestNetworkStateDiff(t *testing.T) {
 	addresses := map[netip.Addr]string{
-		netip.MustParseAddr("192.0.2.5"): "en0",
+		netip.MustParseAddr("192.0.2.5"):   "en0",
 		netip.MustParseAddr("2001:db8::5"): "en0",
-		netip.MustParseAddr("10.10.0.1"): "utun0",
+		netip.MustParseAddr("10.10.0.1"):   "utun0",
 	}
 	routes := router{v4: []rtInfo{
 		{Dst: netip.MustParsePrefix("0.0.0.0/0"), OutputIface: "en0", Gateway: netip.MustParseAddr("192.0.2.1")},
