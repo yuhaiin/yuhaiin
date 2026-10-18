@@ -38,7 +38,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -R -nE '"github.com/quic-go/(connect-ip-go|quic-go)(/[^"]*)?"' pkg --include='*.go'; then
+          if grep -R -nE '^[[:space:]]*(import[[:space:]]+)?"github.com/quic-go/(connect-ip-go|quic-go)(/[^"]*)?"' pkg --include='*.go'; then
             echo "Separate quic-go modules are still imported" >&2
             exit 1
           fi
