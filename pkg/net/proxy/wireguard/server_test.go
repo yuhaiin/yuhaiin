@@ -8,7 +8,9 @@ import (
 
 func testWGKey(n byte) string {
 	key := make([]byte, 32)
-	for i := range key { key[i] = n }
+	for i := range key {
+		key[i] = n
+	}
 	return base64.StdEncoding.EncodeToString(key)
 }
 
@@ -21,7 +23,9 @@ func testServer() ServerConfig {
 
 func TestServerIPC(t *testing.T) {
 	ipc, addresses, err := serverIPC(testServer())
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(addresses) != 2 || !strings.Contains(ipc.String(), "listen_port=51820\n") ||
 		!strings.Contains(ipc.String(), "allowed_ip=10.66.0.2/32") ||
 		!strings.Contains(ipc.String(), "allowed_ip=fd66::2/128") {
@@ -31,7 +35,7 @@ func TestServerIPC(t *testing.T) {
 
 func TestServerIPCRejectsInvalidPeers(t *testing.T) {
 	tests := []struct {
-		name string
+		name   string
 		modify func(*ServerConfig)
 	}{
 		{"bad private key", func(c *ServerConfig) { c.PrivateKey = "invalid" }},
@@ -54,7 +58,9 @@ func TestServerIPCRejectsInvalidPeers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := testServer()
 			tt.modify(&c)
-			if _, _, err := serverIPC(c); err == nil { t.Fatal("expected invalid configuration to fail") }
+			if _, _, err := serverIPC(c); err == nil {
+				t.Fatal("expected invalid configuration to fail")
+			}
 		})
 	}
 }

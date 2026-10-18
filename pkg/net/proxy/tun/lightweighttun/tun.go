@@ -16,16 +16,16 @@ import (
 )
 
 type server struct {
-	stack    *lightweight.Stack
-	options  *device.Opt
-	handler  netapi.Handler
+	stack     *lightweight.Stack
+	options   *device.Opt
+	handler   netapi.Handler
 	addresses []netip.Prefix
-	name     string
-	listener net.Listener
-	once     sync.Once
-	err      error
-	wg       sync.WaitGroup
-	streams  chan struct{}
+	name      string
+	listener  net.Listener
+	once      sync.Once
+	err       error
+	wg        sync.WaitGroup
+	streams   chan struct{}
 }
 
 var _ netapi.Accepter = (*server)(nil)

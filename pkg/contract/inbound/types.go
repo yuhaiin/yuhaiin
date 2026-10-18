@@ -250,11 +250,11 @@ func (TunProtocol) ProtocolType() string { return ProtocolTun }
 // WireguardProtocol accepts standard WireGuard peers without creating a TUN
 // device or changing any host routes. Each client must have a unique host IP.
 type WireguardProtocol struct {
-	PrivateKey string              `json:"privateKey"`
-	ListenPort int                 `json:"listenPort"`
-	Addresses  []string            `json:"addresses"`
-	MTU        int                 `json:"mtu,omitzero"`
-	Peers      []WireguardPeer     `json:"peers"`
+	PrivateKey string          `json:"privateKey"`
+	ListenPort int             `json:"listenPort"`
+	Addresses  []string        `json:"addresses"`
+	MTU        int             `json:"mtu,omitzero"`
+	Peers      []WireguardPeer `json:"peers"`
 }
 
 type WireguardPeer struct {

@@ -31,8 +31,8 @@ import (
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 )
 

@@ -148,7 +148,11 @@ func NewServer(config ServerConfig, handler netapi.Handler) (netapi.Accepter, er
 	if err != nil {
 		return nil, err
 	}
-	tunnel, err := CreateLightweightInboundTUN(addresses, config.MTU)
+	mtu := config.MTU
+	if mtu == 0 {
+		mtu = 1420
+	}
+	tunnel, err := CreateLightweightInboundTUN(addresses, mtu)
 	if err != nil {
 		return nil, err
 	}
