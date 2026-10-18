@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
-	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
 func TestFreshSQLiteHasUsableDefaults(t *testing.T) {

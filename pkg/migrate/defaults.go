@@ -42,10 +42,10 @@ func initializeSQLiteDefaults(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	var populated int
-	if err := tx.QueryRowContext(ctx, "SELECT EXISTS(" +
-		"SELECT 1 FROM settings_kv UNION ALL SELECT 1 FROM inbounds_v2 " +
-		"UNION ALL SELECT 1 FROM resolvers_v2 UNION ALL SELECT 1 FROM nodes_v2 " +
-		"UNION ALL SELECT 1 FROM route_rules_v2 UNION ALL SELECT 1 FROM route_lists_v2 " +
+	if err := tx.QueryRowContext(ctx, "SELECT EXISTS("+
+		"SELECT 1 FROM settings_kv UNION ALL SELECT 1 FROM inbounds_v2 "+
+		"UNION ALL SELECT 1 FROM resolvers_v2 UNION ALL SELECT 1 FROM nodes_v2 "+
+		"UNION ALL SELECT 1 FROM route_rules_v2 UNION ALL SELECT 1 FROM route_lists_v2 "+
 		"UNION ALL SELECT 1 FROM dns_settings)").Scan(&populated); err != nil {
 		return fmt.Errorf("check sqlite initial state: %w", err)
 	}
