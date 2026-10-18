@@ -15,11 +15,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque/connectip"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque/connectip"
 	"github.com/apernet/quic-go"
 	"github.com/apernet/quic-go/http3"
 	"github.com/tailscale/wireguard-go/tun"
@@ -47,14 +47,14 @@ type Masque struct {
 }
 
 func NewMasque(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAddresses []netip.Prefix, mtu int) (*Masque, error) {
-    return NewMasqueWithTransport(p, tlsConfig, addr, localAddresses, mtu, "h3")
+	return NewMasqueWithTransport(p, tlsConfig, addr, localAddresses, mtu, "h3")
 }
 
 // NewMasqueWithTransport selects QUIC/HTTP3 with BBR or TCP/HTTP2.
 func NewMasqueWithTransport(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAddresses []netip.Prefix, mtu int, transport string) (*Masque, error) {
-    if transport != "" && transport != "h3" && transport != "h2" {
-        return nil, fmt.Errorf("unsupported MASQUE transport %q", transport)
-    }
+	if transport != "" && transport != "h3" && transport != "h2" {
+		return nil, fmt.Errorf("unsupported MASQUE transport %q", transport)
+	}
 	dev, err := wireguard.CreateLightweightNetTUN(localAddresses, mtu)
 	if err != nil {
 		return nil, err
@@ -98,7 +98,9 @@ type Conn struct {
 func (c *Conn) Close() error {
 	var err error
 	if c.h2 != nil {
-		if er := c.h2.Close(); er != nil { err = errors.Join(err, er) }
+		if er := c.h2.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
 	}
 	if c.ipconn != nil {
 		if er := c.ipconn.Close(); er != nil {
@@ -142,7 +144,9 @@ func (c *Conn) Close() error {
 // Connect retries the specific transient HTTP/3 framing failure observed by usque.
 // Other failures (especially authentication failures) are returned immediately.
 func (m *Masque) Connect(ctx context.Context) (*Conn, error) {
-	if m.http2 { return m.connectHTTP2(ctx) }
+	if m.http2 {
+		return m.connectHTTP2(ctx)
+	}
 	var lastErr error
 	for range 2 {
 		if err := ctx.Err(); err != nil {
@@ -216,8 +220,11 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 	mConn.h3conn = hconn
 
 	req, err := connectip.NewRequest(ctx, ConnectURI+"/")
-    if err != nil { _ = mConn.Close(); return nil, err }
-    ipConn, resp, err := connectip.NewCloudflareClientConn(hconn, quicConn).Dial(req)
+	if err != nil {
+		_ = mConn.Close()
+		return nil, err
+	}
+	ipConn, resp, err := connectip.NewCloudflareClientConn(hconn, quicConn).Dial(req)
 	if err != nil {
 		_ = mConn.Close()
 		if strings.Contains(err.Error(), "tls: access denied") {
@@ -229,11 +236,11 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 }
 
 func finishMasqueConnect(mConn *Conn, ipConn *connectip.Conn, resp *http.Response) (*Conn, error) {
-    mConn.ipconn = ipConn
-    if resp.StatusCode != http.StatusOK {
-        _ = mConn.Close()
-        return nil, fmt.Errorf("failed to dial connect-ip: %s", resp.Status)
-    }
+	mConn.ipconn = ipConn
+	if resp.StatusCode != http.StatusOK {
+		_ = mConn.Close()
+		return nil, fmt.Errorf("failed to dial connect-ip: %s", resp.Status)
+	}
 	err := ipConn.AdvertiseRoute([]connectip.IPRoute{
 		{
 			IPProtocol: 0,

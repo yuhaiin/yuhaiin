@@ -37,6 +37,8 @@ func TestPacketConnAfterShutdown(t *testing.T) {
 }
 
 func TestInvalidMASQUETransport(t *testing.T) {
-    _, err := NewMasqueWithTransport(nil, nil, nil, nil, 1280, "h1")
-    if err == nil { t.Fatal("unsupported MASQUE transport accepted") }
+	_, err := NewMasqueWithTransport(nil, nil, nil, nil, 1280, "h1")
+	if err == nil {
+		t.Fatal("unsupported MASQUE transport accepted")
+	}
 }
