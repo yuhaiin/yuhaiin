@@ -1,8 +1,11 @@
 # CI builds
 
-`.github/workflows/go.yml` defines the release targets and waits for every binary
-and the Android AAR before publishing. It calls `build-binary.yml` for each of
-the 22 binary targets:
+`.github/workflows/go.yml` defines the build targets. Pull requests build seven
+representative binaries (Linux amd64/arm64, macOS arm64, Windows amd64,
+FreeBSD amd64, OpenBSD amd64, and Android arm64), run the Windows amd64
+executable on a native runner, and build the Android AAR. Full releases on
+`main` pushes and version tags still wait for all 22 binary targets, the native
+Windows x64/ARM64 smoke tests, and the Android AAR before publication:
 
 | Job | Targets | Build environment | SQLite |
 | --- | --- | --- | --- |
@@ -17,8 +20,9 @@ test executables. The v3/v4 binaries are built without executing them on runners
 that may lack the required CPU instructions. Makefile's build-tag generator always runs with
 `GOAMD64=v1`, independently of the target binary's CPU level.
 
-`test-windows.yml` runs the release executable's `version` command on native
-Windows x64/ARM64 runners before publication. Each Windows build also verifies
+`test-windows.yml` runs the executable's `version` command on a native Windows
+x64 runner for PRs and on both x64/ARM64 runners before release publication.
+Each Windows build also verifies
 the binary's architecture, CGO/mattn metadata, and system DLL imports.
 The release job only downloads artifacts matching `yuhaiin*`.
 
@@ -27,11 +31,11 @@ legacy settings regressions on Ubuntu with both mattn (CGO) and modernc. It runs
 for Go source, module, or its workflow changes on main pushes and pull requests,
 and can also be started manually. These tests do not gate binary publication.
 
-`benchmark-sqlite.yml` is manual-only: select **Windows SQLite benchmarks** in
-Actions and use **Run workflow**. It cross-compiles the statistics benchmarks for
-both backends, runs them on native Windows x64/ARM64, and uploads the comparison
-logs as `windows-benchmarks-ARCH`. Benchmark artifacts belong to that separate
-workflow run and do not enter releases.
+Windows SQLite performance comparisons are still opt-in. In Actions, select
+**SQLite regressions**, choose **Run workflow**, and enable the
+`windows_benchmarks` input. This cross-compiles the statistics benchmarks for
+both backends, runs them on native Windows x64/ARM64, and uploads comparison
+logs as `windows-benchmarks-ARCH`. Benchmark artifacts do not enter releases.
 
 `frontend-version.yml` resolves one frontend commit per workflow run. Both the
 binary/AAR workflow and `container.yaml` use it so their parallel builds use
@@ -101,7 +105,9 @@ require `CC` to select the osxcross compiler, whose wrapper supplies the SDK.
 
 ## Validation
 
-`lint.yml` checks workflows with actionlint and build scripts with ShellCheck.
+`lint.yml` combines formatting, Go fixes, actionlint and ShellCheck in one
+static-check job; SSR, SSH and VPN race tests also share a runner. It keeps
+their existing commands and test coverage while avoiding redundant setup.
 To run the same checks locally:
 
 ```sh
