@@ -42,7 +42,7 @@ func TestPacerHugeRateDoesNotOverflow(t *testing.T) {
 func TestPacerZeroRateAvoidsDivideByZero(t *testing.T) {
 	p := NewPacer(func() congestion.ByteCount { return 0 })
 	t0 := monotime.Now()
-	p.SentPacket(t0, 10 * congestion.InitialPacketSize)
+	p.SentPacket(t0, 10*congestion.InitialPacketSize)
 	if p.TimeUntilSend().IsZero() {
 		t.Fatal("expected delayed send on zero bandwidth")
 	}
