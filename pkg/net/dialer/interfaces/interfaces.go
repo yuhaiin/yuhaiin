@@ -101,9 +101,9 @@ func DefaultInterfaceName() string {
 // networkState holds the parts of network state which require notifying
 // interface listeners. Full routing-table changes still refresh DefaultRouter.
 type networkState struct {
-	name       string
-	addresses  []string
-	gateways   []string
+	name      string
+	addresses []string
+	gateways  []string
 }
 
 var lastNetworkState atomic.Pointer[networkState]
