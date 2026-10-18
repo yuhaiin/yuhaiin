@@ -2,6 +2,8 @@
  *
  * Copyright 2024 Marten Seemann
  * Adapted from github.com/quic-go/connect-ip-go (commit a0c35fa).
+ * Cloudflare H2 and headroom-send behavior additionally follows the MIT-licensed
+ * Diniboy1123/connect-ip-go at 66cba32d7d33; see ../USQUE_MIT_LICENSE.
  */
 
 package connectip
@@ -63,6 +65,8 @@ const (
 )
 
 var errCapsuleLimit = goerrors.New("connect-ip: capsule limit exceeded")
+
+var errControlCapsulesUnsupported = fmt.Errorf("connect-ip: Cloudflare HTTP/2 only supports DATAGRAM capsules: %w", goerrors.ErrUnsupported)
 
 type streamWrite struct {
 	Data []byte
@@ -174,14 +178,11 @@ func startProxiedConn(str requestStream, bare bool) *Conn {
 }
 
 func (c *Conn) AdvertiseRoute(routes []IPRoute) error {
-	for i, route := range routes {
-		err := route.validate()
-		if err == nil && i > 0 {
-			err = checkRouteOrder(routes[i-1], route)
-		}
-		if err != nil {
-			return fmt.Errorf("connect-ip: invalid route %d: %w", i, err)
-		}
+	if c.bare {
+		return errControlCapsulesUnsupported
+	}
+	if err := validateRoutes(routes); err != nil {
+		return err
 	}
 
 	c.mu.Lock()
@@ -203,7 +204,39 @@ func (c *Conn) AdvertiseRoute(routes []IPRoute) error {
 	return nil
 }
 
+// SetLocalRoutes configures the destination/protocol filter without sending a
+// ROUTE_ADVERTISEMENT. Cloudflare HTTP/2 only carries DATAGRAM capsules.
+func (c *Conn) SetLocalRoutes(routes []IPRoute) error {
+	if err := validateRoutes(routes); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closeErr != nil {
+		return c.closeErr
+	}
+	c.localRoutes = slices.Clone(routes)
+	return nil
+}
+
+func validateRoutes(routes []IPRoute) error {
+	for i, route := range routes {
+		err := route.validate()
+		if err == nil && i > 0 {
+			err = checkRouteOrder(routes[i-1], route)
+		}
+		if err != nil {
+			return fmt.Errorf("connect-ip: invalid route %d: %w", i, err)
+		}
+	}
+
+	return nil
+}
+
 func (c *Conn) RequestAddresses(prefixes []netip.Prefix) ([]AddressRequestID, error) {
+	if c.bare {
+		return nil, errControlCapsulesUnsupported
+	}
 	if len(prefixes) == 0 {
 		return nil, goerrors.New("connect-ip: address request must contain at least one prefix")
 	}
@@ -286,6 +319,9 @@ func (c *Conn) AssignAddresses(prefixes []netip.Prefix) error {
 }
 
 func (c *Conn) sendAddressAssignment(capsule *addressAssignCapsule, restrictPeer bool) error {
+	if c.bare {
+		return errControlCapsulesUnsupported
+	}
 	c.mu.Lock()
 	if c.closeErr != nil {
 		err := c.closeErr
@@ -373,6 +409,14 @@ func (c *Conn) readFromStream() error {
 		}
 		if err != nil {
 			return err
+		}
+		// The Cloudflare H2 transport in usque/connect-ip-go skips every
+		// non-DATAGRAM capsule. These aren't CONNECT-IP control messages here.
+		if c.bare && t != capsuleTypeDatagram {
+			if err := cr.Discard(); err != nil {
+				return err
+			}
+			continue
 		}
 		switch t {
 		case capsuleTypeAddressAssign:
@@ -591,6 +635,35 @@ func (c *Conn) WritePacket(b []byte) (icmp []byte, err error) {
 	if err != nil {
 		return nil, nil
 	}
+	return c.sendComposedDatagram(data, b)
+}
+
+// WritePacketBuffer prefixes a packet in caller-owned headroom. The transport
+// copies accepted bytes before returning; the caller can then recycle buf.
+// Short headroom falls back to WritePacket without changing the wire format.
+func (c *Conn) WritePacketBuffer(buf []byte, packetOffset, packetLen int) ([]byte, error) {
+	if packetOffset < 0 || packetLen < 0 || packetOffset > len(buf) || packetLen > len(buf)-packetOffset {
+		return nil, goerrors.New("connect-ip: invalid packet bounds")
+	}
+	select {
+	case <-c.closeChan:
+		return nil, c.closeErr
+	default:
+	}
+	packet := buf[packetOffset : packetOffset+packetLen]
+	prefixLen := c.datagramPrefixLen(packetLen)
+	if packetOffset < prefixLen {
+		return c.WritePacket(packet)
+	}
+	if err := validateOutgoingPacket(packet); err != nil {
+		return nil, nil
+	}
+	data := buf[packetOffset-prefixLen : packetOffset+packetLen]
+	c.appendDatagramPrefix(data[:0], packetLen)
+	return c.sendComposedDatagram(data, packet)
+}
+
+func (c *Conn) sendComposedDatagram(data, b []byte) ([]byte, error) {
 	if c.h3 == nil {
 		if err := c.write(data); err != nil {
 			select {
@@ -623,53 +696,71 @@ func (c *Conn) WritePacket(b []byte) (icmp []byte, err error) {
 }
 
 func (c *Conn) composeDatagram(b []byte) ([]byte, error) {
+	if err := validateOutgoingPacket(b); err != nil {
+		return nil, err
+	}
+	data := make([]byte, 0, c.datagramPrefixLen(len(b))+len(b))
+	data = c.appendDatagramPrefix(data, len(b))
+	return append(data, b...), nil
+}
+
+func validateOutgoingPacket(b []byte) error {
 	if len(b) == 0 {
-		return nil, goerrors.New("connect-ip: empty packet")
+		return goerrors.New("connect-ip: empty packet")
 	}
 	switch v := ipVersion(b); v {
 	default:
-		return nil, fmt.Errorf("connect-ip: unknown IP versions: %d", v)
+		return fmt.Errorf("connect-ip: unknown IP versions: %d", v)
 	case 4:
 		if len(b) < ipv4.HeaderLen {
-			return nil, fmt.Errorf("connect-ip: IPv4 packet too short")
+			return fmt.Errorf("connect-ip: IPv4 packet too short")
 		}
 		hdrLen := int(b[0]&0x0f) << 2
 		totalLen := int(binary.BigEndian.Uint16(b[2:4]))
 		if hdrLen < ipv4.HeaderLen || hdrLen > totalLen || totalLen > len(b) {
-			return nil, fmt.Errorf("connect-ip: malformed IPv4 header: header length %d, total length %d, packet length %d", hdrLen, totalLen, len(b))
+			return fmt.Errorf("connect-ip: malformed IPv4 header: header length %d, total length %d, packet length %d", hdrLen, totalLen, len(b))
 		}
 		ttl := b[8]
 		if ttl <= 1 {
-			return nil, fmt.Errorf("connect-ip: datagram TTL too small: %d", ttl)
+			return fmt.Errorf("connect-ip: datagram TTL too small: %d", ttl)
 		}
 		b[8]--
 		binary.BigEndian.PutUint16(b[10:12], calculateIPv4Checksum(b[:hdrLen]))
 	case 6:
 		if len(b) < ipv6.HeaderLen {
-			return nil, fmt.Errorf("connect-ip: IPv6 packet too short")
+			return fmt.Errorf("connect-ip: IPv6 packet too short")
 		}
 		hopLimit := b[7]
 		if hopLimit <= 1 {
-			return nil, fmt.Errorf("connect-ip: datagram Hop Limit too small: %d", hopLimit)
+			return fmt.Errorf("connect-ip: datagram Hop Limit too small: %d", hopLimit)
 		}
 		b[7]--
 	}
+	return nil
+}
+
+func (c *Conn) datagramPrefixLen(packetLen int) int {
+	contextLen := len(contextIDZero)
+	if c.bare {
+		contextLen = 0
+	}
+	if c.h3 != nil {
+		return contextLen
+	}
+	return quicvarint.Len(uint64(capsuleTypeDatagram)) + quicvarint.Len(uint64(packetLen+contextLen)) + contextLen
+}
+
+func (c *Conn) appendDatagramPrefix(data []byte, packetLen int) []byte {
 	contextID := contextIDZero
 	if c.bare {
 		contextID = nil
 	}
-	size := len(contextID) + len(b)
-	var data []byte
+	size := len(contextID) + packetLen
 	if c.h3 == nil {
-		data = make([]byte, 0, quicvarint.Len(uint64(capsuleTypeDatagram))+quicvarint.Len(uint64(size))+size)
 		data = quicvarint.Append(data, uint64(capsuleTypeDatagram))
 		data = quicvarint.Append(data, uint64(size))
-	} else {
-		data = make([]byte, 0, size)
 	}
-	data = append(data, contextID...)
-	data = append(data, b...)
-	return data, nil
+	return append(data, contextID...)
 }
 
 func (c *Conn) datagramOverhead() int {

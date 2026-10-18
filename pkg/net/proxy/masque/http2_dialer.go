@@ -10,7 +10,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque/connectip"
 )
 
-// connectHTTP2 establishes Cloudflare CONNECT-IP via TLS and extended HTTP/2 CONNECT.
+// connectHTTP2 establishes Cloudflare CONNECT-IP using ordinary HTTP/2 CONNECT
+// with cf-connect-proto, not the RFC 8441 :protocol pseudo-header.
 func (m *Masque) connectHTTP2(ctx context.Context) (*Conn, error) {
 	c := &Conn{}
 	tcp, err := dialer.DialTCPContext(ctx, m.addr.AddrPort())

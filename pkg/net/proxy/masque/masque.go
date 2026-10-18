@@ -46,6 +46,10 @@ type Masque struct {
 	once sync.Once
 }
 
+// Room for the DATAGRAM capsule header and optional IP context ID. It is
+// included in queued send buffers and reclaimed with the rest of the buffer.
+const packetHeadroom = 16
+
 func NewMasque(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAddresses []netip.Prefix, mtu int) (*Masque, error) {
 	return NewMasqueWithTransport(p, tlsConfig, addr, localAddresses, mtu, "h3")
 }
@@ -176,7 +180,11 @@ func isRetryableHTTP3ConnectFailure(err error) bool {
 func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 	mConn := &Conn{}
 
-	conn, err := dialer.ListenPacket(ctx, "udp", "")
+	network := "udp4"
+	if m.addr.IP.To4() == nil {
+		network = "udp6"
+	}
+	conn, err := dialer.ListenPacket(ctx, network, "", func(o *dialer.Options) { o.PacketConnHintAddress = m.addr })
 	if err != nil {
 		return nil, err
 	}
@@ -188,10 +196,8 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 	quicTransport := &quic.Transport{Conn: conn, ConnectionIDLength: 20}
 	mConn.quicTransport = quicTransport
 	quicConn, err := quicTransport.Dial(ctx, m.addr, m.TlsConfig, &quic.Config{
-		EnableDatagrams:         true,
-		InitialPacketSize:       1242,
-		DisablePathMTUDiscovery: true,
-		KeepAlivePeriod:         30 * time.Second,
+		EnableDatagrams: true,
+		KeepAlivePeriod: 30 * time.Second,
 	})
 	if err != nil {
 		_ = mConn.Close()
@@ -243,7 +249,7 @@ func finishMasqueConnect(mConn *Conn, ipConn *connectip.Conn, resp *http.Respons
 		_ = mConn.Close()
 		return nil, fmt.Errorf("failed to dial connect-ip: %s", resp.Status)
 	}
-	err := ipConn.AdvertiseRoute([]connectip.IPRoute{
+	routes := []connectip.IPRoute{
 		{
 			IPProtocol: 0,
 			StartIP:    netip.AddrFrom4([4]byte{}),
@@ -259,7 +265,13 @@ func finishMasqueConnect(mConn *Conn, ipConn *connectip.Conn, resp *http.Respons
 				255, 255, 255, 255,
 			}),
 		},
-	})
+	}
+	var err error
+	if mConn.h2 != nil {
+		err = ipConn.SetLocalRoutes(routes)
+	} else {
+		err = ipConn.AdvertiseRoute(routes)
+	}
 	if err != nil {
 		_ = mConn.Close()
 		return nil, err
@@ -300,7 +312,8 @@ func (m *Masque) Forward() {
 			}
 
 			packet := packets[0]
-			buf := pool.Clone(slab[packet.Offset : packet.Offset+packet.Size])
+			buf := pool.GetBytes(packetHeadroom + packet.Size)
+			copy(buf[packetHeadroom:], slab[packet.Offset:packet.Offset+packet.Size])
 			select {
 			case m.send <- buf:
 			case <-m.ctx.Done():
@@ -361,7 +374,7 @@ func (m *Masque) Start() error {
 			return ctx.Err()
 
 		case buf := <-m.send:
-			icmp, err := conn.ipconn.WritePacket(buf)
+			icmp, err := conn.ipconn.WritePacketBuffer(buf, packetHeadroom, len(buf)-packetHeadroom)
 			pool.PutBytes(buf)
 			if err != nil {
 				if _, ok := errors.AsType[*connectip.CloseError](err); ok {

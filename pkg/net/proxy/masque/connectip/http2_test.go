@@ -6,10 +6,13 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/netip"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/apernet/quic-go/quicvarint"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
@@ -41,6 +44,51 @@ func TestCloudflareHTTP2Headers(t *testing.T) {
 	}
 	if captured.Host != "cloudflareaccess.com:443" {
 		t.Fatalf("wrong authority: %s", captured.Host)
+	}
+}
+
+func TestCloudflareHTTP2SkipsControlCapsules(t *testing.T) {
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	rt := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: reader}, nil
+	})
+	req, err := NewRequest(t.Context(), "https://cloudflareaccess.com/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, _, err := NewCloudflareHTTP2ClientConn(rt).Dial(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	routes := []IPRoute{{StartIP: netip.IPv4Unspecified(), EndIP: netip.MustParseAddr("255.255.255.255")}}
+	if err := c.SetLocalRoutes(routes); err != nil {
+		t.Fatal(err)
+	}
+	for _, err := range []error{c.AdvertiseRoute(routes), c.AssignAddresses(nil), func() error {
+		_, err := c.RequestAddresses([]netip.Prefix{netip.MustParsePrefix("192.0.2.0/24")})
+		return err
+	}()} {
+		if !errors.Is(err, errors.ErrUnsupported) {
+			t.Fatalf("control capsule: %v", err)
+		}
+	}
+	packet := testIPv4Packet()
+	// Even known CONNECT-IP capsule types are opaque on the Cloudflare H2
+	// transport. Its upstream adapter skips them instead of parsing controls.
+	data := []byte{3, 1, 0xff}
+	data = quicvarint.Append(data, 0)
+	data = quicvarint.Append(data, uint64(len(packet)))
+	data = append(data, packet...)
+	done := make(chan error, 1)
+	go func() { _, err := writer.Write(data); done <- err }()
+	buf := make([]byte, 1500)
+	if n, err := c.ReadPacket(buf); err != nil || !bytes.Equal(buf[:n], packet) {
+		t.Fatalf("read bare IP after unsupported capsule: %d %v", n, err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }
 

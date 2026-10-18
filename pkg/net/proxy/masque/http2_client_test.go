@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque/connectip"
+	"github.com/apernet/quic-go/quicvarint"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
 )
@@ -28,6 +29,10 @@ type observeHeaderWrite struct {
 // It deliberately advertises a 1024-byte stream window so every packet stalls
 // for WINDOW_UPDATE at least once. TLS and Cloudflare authentication are absent.
 func newHTTP2EchoTunnel(t testing.TB) *connectip.Conn {
+	return newHTTP2EchoTunnelMode(t, false, nil)
+}
+
+func newHTTP2EchoTunnelMode(t testing.TB, cloudflare bool, observed chan<- uint64) *connectip.Conn {
 	t.Helper()
 	lis, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
@@ -47,8 +52,13 @@ func newHTTP2EchoTunnel(t testing.TB) *connectip.Conn {
 			return
 		}
 		fr := http2.NewFramer(conn, conn)
+		var pending []byte
 		fr.ReadMetaHeaders = hpack.NewDecoder(4096, nil)
-		if err := fr.WriteSettings(http2.Setting{ID: http2.SettingEnableConnectProtocol, Val: 1}, http2.Setting{ID: http2.SettingInitialWindowSize, Val: 1024}); err != nil {
+		settings := []http2.Setting{{ID: http2.SettingInitialWindowSize, Val: 1024}}
+		if !cloudflare {
+			settings = append(settings, http2.Setting{ID: http2.SettingEnableConnectProtocol, Val: 1})
+		}
+		if err := fr.WriteSettings(settings...); err != nil {
 			return
 		}
 		for {
@@ -64,8 +74,17 @@ func newHTTP2EchoTunnel(t testing.TB) *connectip.Conn {
 					}
 				}
 			case *http2.MetaHeadersFrame:
-				if f.PseudoValue("protocol") != "connect-ip" {
+				if !cloudflare && f.PseudoValue("protocol") != "connect-ip" {
 					return
+				}
+				if cloudflare {
+					h := make(http.Header)
+					for _, field := range f.RegularFields() {
+						h.Add(field.Name, field.Value)
+					}
+					if f.PseudoValue("method") != "CONNECT" || f.PseudoValue("protocol") != "" || f.PseudoValue("authority") != "cloudflareaccess.com:443" || h.Get("Cf-Connect-Proto") != "cf-connect-ip" || h.Get("Pq-Enabled") != "false" || h.Get("User-Agent") != "" {
+						return
+					}
 				}
 				var block bytes.Buffer
 				enc := hpack.NewEncoder(&block)
@@ -80,6 +99,27 @@ func newHTTP2EchoTunnel(t testing.TB) *connectip.Conn {
 					return
 				}
 				if f.Length > 0 {
+					if observed != nil {
+						pending = append(pending, f.Data()...)
+						for len(pending) > 0 {
+							typ, n, err := quicvarint.Parse(pending)
+							if err != nil {
+								break
+							}
+							length, k, err := quicvarint.Parse(pending[n:])
+							if err != nil || length > uint64(len(pending)-n-k) {
+								break
+							}
+							if cloudflare && typ == 0 {
+								payload := pending[n+k : n+k+int(length)]
+								if len(payload) == 0 || (payload[0]>>4 != 4 && payload[0]>>4 != 6) {
+									return
+								}
+							}
+							observed <- typ
+							pending = pending[n+k+int(length):]
+						}
+					}
 					if err := fr.WriteWindowUpdate(0, f.Length); err != nil {
 						return
 					}
@@ -105,19 +145,62 @@ func newHTTP2EchoTunnel(t testing.TB) *connectip.Conn {
 	t.Cleanup(func() { _ = c.Close(); <-done })
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	req, err := connectip.NewRequest(ctx, "https://proxy.example/")
+	url := "https://proxy.example/"
+	if cloudflare {
+		url = ConnectURI + "/"
+	}
+	req, err := connectip.NewRequest(ctx, url)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tunnel, _, err := connectip.NewHTTP2ClientConn(c).Dial(req)
+	client := connectip.NewHTTP2ClientConn(c)
+	if cloudflare {
+		client = connectip.NewCloudflareHTTP2ClientConn(c)
+		req.Header()["User-Agent"] = []string{""}
+	}
+	tunnel, response, err := client.Dial(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = tunnel.Close() })
-	if err := tunnel.AdvertiseRoute([]connectip.IPRoute{{StartIP: netip.IPv4Unspecified(), EndIP: netip.MustParseAddr("255.255.255.255")}}); err != nil {
+	if cloudflare {
+		if _, err := finishMasqueConnect(&Conn{h2: c}, tunnel, response); err != nil {
+			t.Fatal(err)
+		}
+	} else if err := tunnel.AdvertiseRoute([]connectip.IPRoute{{StartIP: netip.IPv4Unspecified(), EndIP: netip.MustParseAddr("255.255.255.255")}}); err != nil {
 		t.Fatal(err)
 	}
 	return tunnel
+}
+
+func TestCloudflareHTTP2DatagramOnly(t *testing.T) {
+	observed := make(chan uint64, 16)
+	tunnel := newHTTP2EchoTunnelMode(t, true, observed)
+	select {
+	case typ := <-observed:
+		t.Fatalf("setup sent control capsule %d to a datagram-only Cloudflare endpoint", typ)
+	case <-time.After(100 * time.Millisecond):
+	}
+	for _, packet := range [][]byte{echoTunnelPacket(), func() []byte {
+		p := make([]byte, 1280)
+		p[0], p[6], p[7] = 0x60, 17, 64
+		binary.BigEndian.PutUint16(p[4:6], uint16(len(p)-40))
+		return p
+	}()} {
+		received := make([]byte, 1500)
+		buf := make([]byte, packetHeadroom+len(packet))
+		copy(buf[packetHeadroom:], packet)
+		packet = buf[packetHeadroom:]
+		if _, err := tunnel.WritePacketBuffer(buf, packetHeadroom, len(packet)); err != nil {
+			t.Fatal(err)
+		}
+		if n, err := tunnel.ReadPacket(received); err != nil || !bytes.Equal(received[:n], packet) {
+			t.Fatalf("Cloudflare capsule echo: %d, %v", n, err)
+		}
+		if typ := <-observed; typ != 0 {
+			t.Fatalf("sent capsule %d, want DATAGRAM", typ)
+		}
+	}
 }
 
 func echoTunnelPacket() []byte {
@@ -132,11 +215,14 @@ func echoTunnelPacket() []byte {
 func TestHTTP2CapsuleTunnelFlowControl(t *testing.T) {
 	tunnel := newHTTP2EchoTunnel(t)
 	packet, received := echoTunnelPacket(), make([]byte, 1500)
+	buf := make([]byte, packetHeadroom+len(packet))
+	copy(buf[packetHeadroom:], packet)
+	packet = buf[packetHeadroom:]
 	// Exceeds the 6 MiB stream receive window as well as the initial send
 	// window, so neither missing window updates nor capsule splitting can hide.
 	for range 6000 {
 		packet[8] = 64
-		if _, err := tunnel.WritePacket(packet); err != nil {
+		if _, err := tunnel.WritePacketBuffer(buf, packetHeadroom, len(packet)); err != nil {
 			t.Fatal(err)
 		}
 		n, err := tunnel.ReadPacket(received)

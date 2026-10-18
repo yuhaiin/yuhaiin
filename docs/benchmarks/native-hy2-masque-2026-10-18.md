@@ -28,6 +28,16 @@ The local HTTP/2 capsule echo benchmark measured median **33.8 us/1200-byte roun
 
 Allocation reductions reduce transient allocator/GC work. Pooling can retain reusable storage; these allocation figures do not imply the same reduction in process RSS.
 
+## usque compatibility follow-up
+
+The Cloudflare implementation was additionally compared with [usque `6aa03fc9`](https://github.com/Diniboy1123/usque/tree/6aa03fc97d12848dce34eedbd187fb1077b5d1ea) and its pinned CONNECT-IP adapter. Cloudflare H2 now configures receive routes locally, sends only type-0 DATAGRAM capsules containing raw IP, and skips non-DATAGRAM capsules. It uses ordinary CONNECT without requiring the extended-CONNECT setting. A real TCP fixture reproduces the previous unwanted ROUTE_ADVERTISEMENT and checks both IPv4 and IPv6 framing after repair.
+
+H3 retains **BBR standard by default** and enables QUIC path MTU discovery instead of fixing the outer packet size at 1242 bytes. Real loopback H3 fixtures run through the default BBR connection setup over IPv4 and IPv6, verify matching outer socket families, discover enough MTU and echo a 1280-byte IPv6 packet. The previous fixed-MTU configuration fails this test. These fixtures do not authenticate to Cloudflare.
+
+The send queue now reserves header space to avoid allocating/copying a second CONNECT-IP payload. Five paired component runs on the same host measured median **133.0 ns/op, 1280 B/op, 1 alloc/op** for the copying API and **23.73 ns/op, 0 B/op, 0 alloc/op** for the headroom API (1200-byte IPv4). This measures encoding only, excluding encryption, sockets and process RSS. Raw `masque-headroom-before.txt` and `masque-headroom-after.txt` retain the samples. Bounds, fallback, IPv4 options/checksum and IPv6 hop limit have regression coverage.
+
+The follow-up passed five-repeat MASQUE race tests, the supported full-repository suite with the same host exclusions, Linux full lint, affected-package Darwin lint, clean go fix, and Android/Windows protocol builds. See [MASQUE transport documentation](../masque.md) for endpoint/pin configuration and upstream MIT attribution.
+
 ## Process CPU and RSS
 
 The process-isolated HY2 harness was extended with optional `--resources` sampling (`psutil`, 20 ms interval, Linux/macOS). Each row below is the median of three measurements. TCP verifies 256 MiB per measurement, split across one or four streams. UDP sends 4000 x 1000 B at 5000 packets/s (40 Mbps offered). Every peer has `GOMAXPROCS=4`; target, server and workload/client are separate processes on IPv4 loopback.
@@ -69,6 +79,7 @@ go test -race -count=1 ./pkg/net/proxy/hysteria2/... ./pkg/net/proxy/masque/...
 go test -run '^$' -bench BenchmarkNativeDatagramEncoding -benchmem -cpu=1 -count=5 -benchtime=500ms ./pkg/net/proxy/hysteria2
 go test -run '^$' -bench BenchmarkStreamBufferSmallReads -benchmem -cpu=1 -count=5 -benchtime=500ms ./pkg/net/proxy/masque/connectip
 go test -run '^$' -bench BenchmarkHTTP2CapsuleTunnel -benchmem -cpu=1 -count=5 -benchtime=500ms ./pkg/net/proxy/masque
+go test -run '^$' -bench BenchmarkPacketEncoding -benchmem -cpu=1 -count=5 -benchtime=500ms ./pkg/net/proxy/masque/connectip
 python3 scripts/bench/hysteria2/run.py --official /absolute/path/to/hysteria --output /tmp/interop.json --smoke-only --udp-size 3000
 python3 -m venv /tmp/hy2-resources
 /tmp/hy2-resources/bin/pip install psutil
