@@ -96,10 +96,11 @@ func (m *nativeServerUDP) expire() {
 
 func (m *nativeServerUDP) closeAll() {
 	m.mu.Lock()
-	if m.closed { m.mu.Unlock(); return }
-	m.closed = true
 	var conns []*serverPacketConn
-	for id, s := range m.sessions { delete(m.sessions,id); conns=append(conns,s.conn) }
+	if !m.closed {
+		m.closed = true
+		for id, s := range m.sessions { delete(m.sessions,id); conns=append(conns,s.conn) }
+	}
 	m.mu.Unlock()
 	for _, conn := range conns { _ = conn.Close() }
 	m.wg.Wait()

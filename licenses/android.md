@@ -15,8 +15,6 @@ Some packages may only be included on certain architectures or operating systems
 - [github.com/akutz/memconn](https://pkg.go.dev/github.com/akutz/memconn) ([Apache-2.0](https://github.com/akutz/memconn/blob/v0.1.0/LICENSE))
 - [github.com/amnezia-vpn/amneziawg-go/v3](https://pkg.go.dev/github.com/amnezia-vpn/amneziawg-go/v3) ([MIT](https://github.com/amnezia-vpn/amneziawg-go/blob/v3.1.20260828/LICENSE))
 - [github.com/andybalholm/brotli](https://pkg.go.dev/github.com/andybalholm/brotli) ([MIT](https://github.com/andybalholm/brotli/blob/v1.2.3/LICENSE))
-- [github.com/apernet/hysteria/core/v2](https://pkg.go.dev/github.com/apernet/hysteria/core/v2) ([MIT](https://github.com/Asutorufa/hysteria/blob/a38075fd0e66/core/LICENSE.md))
-- [github.com/apernet/hysteria/extras/v2](https://pkg.go.dev/github.com/apernet/hysteria/extras/v2) ([MIT](https://github.com/apernet/hysteria/blob/extras/v2.13.0/extras/LICENSE.md))
 - [github.com/apernet/quic-go](https://pkg.go.dev/github.com/apernet/quic-go) ([MIT](https://github.com/apernet/quic-go/blob/a10df75c260c/LICENSE))
 - [github.com/beorn7/perks/quantile](https://pkg.go.dev/github.com/beorn7/perks/quantile) ([MIT](https://github.com/beorn7/perks/blob/v1.0.1/LICENSE))
 - [github.com/cespare/xxhash/v2](https://pkg.go.dev/github.com/cespare/xxhash/v2) ([MIT](https://github.com/cespare/xxhash/blob/v2.3.0/LICENSE.txt))

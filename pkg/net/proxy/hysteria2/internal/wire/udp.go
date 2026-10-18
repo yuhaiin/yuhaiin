@@ -2,7 +2,6 @@ package wire
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"time"
 )
@@ -43,7 +42,7 @@ func (m UDPMessage) validate() error {
 func AppendUDPMessage(dst []byte, m UDPMessage) ([]byte, error) {
 	if err := m.validate(); err != nil { return nil, err }
 	start := len(dst)
-	dst = append(dst, make([]byte, 8)...)
+	dst = append(dst, 0, 0, 0, 0, 0, 0, 0, 0)
 	binary.BigEndian.PutUint32(dst[start:], m.SessionID)
 	binary.BigEndian.PutUint16(dst[start+4:], m.PacketID)
 	dst[start+6], dst[start+7] = m.FragmentID, m.FragmentCount
@@ -159,10 +158,3 @@ func equalBytes(a, b []byte) bool {
 	return true
 }
 
-// DatagramTooLarge extracts QUIC's maximum datagram payload from a QUIC error.
-// Callers decide whether they should retry with fragmentation; this helper
-// does not depend on a particular QUIC implementation.
-func DatagramTooLarge(max int, err error) error {
-	if err == nil { return nil }
-	return errors.Join(err, fmt.Errorf("hysteria2: datagram limit %d", max))
-}

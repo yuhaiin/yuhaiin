@@ -17,7 +17,7 @@ const saltSize = 8
 // This is obfuscation, not authenticated encryption.
 func WrapPacketConnSalamander(conn net.PacketConn, password []byte) (net.PacketConn, error) {
 	if len(password) < 4 { return nil, fmt.Errorf("hysteria2: salamander password too short") }
-	c := &connWrapper{PacketConn: conn, keyInput: make([]byte, len(password)+saltSize), readBuf: make([]byte, 65535+saltSize)}
+	c := &connWrapper{PacketConn: conn, keyInput: make([]byte, len(password)+saltSize), readBuf: make([]byte, 65535+saltSize), writeBuf: make([]byte, 2048)}
 	copy(c.keyInput, password)
 	if udp, ok := conn.(udpLike); ok { return &udpWrapper{connWrapper:c, udpLike:udp}, nil }
 	return c, nil
@@ -25,12 +25,15 @@ func WrapPacketConnSalamander(conn net.PacketConn, password []byte) (net.PacketC
 
 type connWrapper struct {
 	net.PacketConn
-	readMu, writeMu sync.Mutex
+	readMu, writeMu, keyMu sync.Mutex
 	keyInput []byte
 	readBuf []byte
+	writeBuf []byte
 }
 
 func (c *connWrapper) key(salt []byte) [32]byte {
+	c.keyMu.Lock()
+	defer c.keyMu.Unlock()
 	copy(c.keyInput[len(c.keyInput)-saltSize:], salt)
 	return blake2b.Sum256(c.keyInput)
 }
@@ -52,7 +55,8 @@ func (c *connWrapper) WriteTo(src []byte, addr net.Addr) (int, error) {
 	if len(src) == 0 || len(src) > 65535-saltSize { return 0, fmt.Errorf("hysteria2: oversized salamander packet") }
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
-	out := make([]byte, len(src)+saltSize)
+	if cap(c.writeBuf) < len(src)+saltSize { c.writeBuf = make([]byte, len(src)+saltSize) }
+	out := c.writeBuf[:len(src)+saltSize]
 	if _, err := rand.Read(out[:saltSize]); err != nil { return 0, err }
 	key := c.key(out[:saltSize])
 	for i, v := range src { out[i+saltSize] = v ^ key[i%len(key)] }

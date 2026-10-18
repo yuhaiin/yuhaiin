@@ -1,7 +1,6 @@
 package hysteria2
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
@@ -130,4 +129,3 @@ func (s *nativeUDPSession) Close() error {
 }
 
 var _ hyUDPConn = (*nativeUDPSession)(nil)
-var _ = context.Canceled

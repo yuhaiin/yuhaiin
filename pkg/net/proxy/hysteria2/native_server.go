@@ -106,10 +106,11 @@ func (s *nativeServer) serveConn(conn *quic.Conn) {
 	_ = h3.ServeQUICConn(conn)
 	h.mu.Lock()
 	h.closing = true
+	udp := h.udp
 	h.mu.Unlock()
 	_ = conn.CloseWithError(0x100,"")
 	h.requests.Wait()
-	if h.udp != nil { h.udp.closeAll() }
+	if udp != nil { udp.closeAll() }
 }
 
 type nativeHTTPHandler struct {
