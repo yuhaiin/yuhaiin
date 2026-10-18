@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -107,8 +108,8 @@ func TestUDPAndFragments(t *testing.T) {
 	var d Defragger
 	var output UDPMessage
 	var complete bool
-	for i := len(parts) - 1; i >= 0; i-- {
-		encoded, err := AppendUDPMessage(nil, parts[i])
+	for _, part := range slices.Backward(parts) {
+		encoded, err := AppendUDPMessage(nil, part)
 		if err != nil || len(encoded) > MaxDatagram {
 			t.Fatalf("encode %v, len %d", err, len(encoded))
 		}

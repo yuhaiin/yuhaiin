@@ -18,7 +18,7 @@ func parseHopPorts(s string) (portRanges, error) {
 		return nil, fmt.Errorf("hysteria2: empty hopping ports")
 	}
 	var result portRanges
-	for _, part := range strings.Split(s, ",") {
+	for part := range strings.SplitSeq(s, ",") {
 		values := strings.Split(part, "-")
 		if len(values) > 2 {
 			return nil, fmt.Errorf("hysteria2: invalid port range %q", part)
