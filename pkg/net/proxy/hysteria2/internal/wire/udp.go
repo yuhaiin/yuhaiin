@@ -31,8 +31,8 @@ func (m UDPMessage) validate() error {
 	if m.FragmentCount == 0 || m.FragmentID >= m.FragmentCount {
 		return fmt.Errorf("%w: invalid fragmentation fields", ErrMalformed)
 	}
-	if m.Size() > MaxPacket {
-		return fmt.Errorf("%w: UDP packet exceeds maximum size", ErrMalformed)
+	if len(m.Data) > MaxPacket {
+		return fmt.Errorf("%w: UDP payload exceeds maximum size", ErrMalformed)
 	}
 	return nil
 }
@@ -111,27 +111,43 @@ func FragmentUDPMessage(m UDPMessage, maxDatagram int) ([]UDPMessage, error) {
 	return result, nil
 }
 
-// Defragger accepts at most one fragmented packet per UDP session.
-// Expiration and an upper bound on reassembled size keep malicious clients
-// from retaining unbounded memory. Not safe for concurrent Feed calls.
+// Defragger reassembles interleaved UDP messages within a session.
+// Completed packets own their buffer. Feed must be called serially.
 type Defragger struct {
-	packet  uint16
+	pending map[uint16]*fragmentAssembly
+	buffered int
+}
+
+type fragmentAssembly struct {
 	address string
-	count   uint8
-	size    int
-	parts   [][]byte
+	count uint8
+	size int
+	parts [][]byte
 	started time.Time
 }
 
 const FragmentTimeout = 5 * time.Second
+const maxPendingAssemblies = 8
+const maxPendingBytes = MaxPacket * 2
 
 func (d *Defragger) Reset() {
-	d.packet = 0
-	d.address = ""
-	d.count = 0
-	d.size = 0
-	d.parts = nil
-	d.started = time.Time{}
+	d.pending = nil
+	d.buffered = 0
+}
+
+func (d *Defragger) drop(id uint16) {
+	if old := d.pending[id]; old != nil {
+		d.buffered -= old.size
+		delete(d.pending, id)
+	}
+}
+
+func (d *Defragger) expire(now time.Time) {
+	for id, a := range d.pending {
+		if now.Before(a.started) || now.Sub(a.started) >= FragmentTimeout {
+			d.drop(id)
+		}
+	}
 }
 
 func (d *Defragger) Feed(m UDPMessage, now time.Time) (UDPMessage, bool, error) {
@@ -144,36 +160,58 @@ func (d *Defragger) Feed(m UDPMessage, now time.Time) (UDPMessage, bool, error) 
 	if m.PacketID == 0 {
 		return UDPMessage{}, false, fmt.Errorf("%w: fragmented packet with zero ID", ErrMalformed)
 	}
-	if len(d.parts) == 0 || d.packet != m.PacketID ||
-		d.count != m.FragmentCount || d.address != m.Address ||
-		now.Sub(d.started) >= FragmentTimeout || now.Before(d.started) {
-		d.Reset()
-		d.packet, d.address, d.count, d.started = m.PacketID, m.Address, m.FragmentCount, now
-		d.parts = make([][]byte, int(m.FragmentCount))
+	if d.pending == nil {
+		d.pending = make(map[uint16]*fragmentAssembly)
 	}
-	if d.parts[m.FragmentID] != nil {
-		if !equalBytes(d.parts[m.FragmentID], m.Data) {
-			d.Reset()
+	d.expire(now)
+	a := d.pending[m.PacketID]
+	if a != nil && (a.count != m.FragmentCount || a.address != m.Address) {
+		d.drop(m.PacketID)
+		return UDPMessage{}, false, fmt.Errorf("%w: conflicting packet ID", ErrMalformed)
+	}
+	if a == nil {
+		if len(d.pending) >= maxPendingAssemblies {
+			var oldest uint16
+			var started time.Time
+			for id, candidate := range d.pending {
+				if started.IsZero() || candidate.started.Before(started) {
+					oldest, started = id, candidate.started
+				}
+			}
+			d.drop(oldest)
+		}
+		a = &fragmentAssembly{
+			address: m.Address,
+			count: m.FragmentCount,
+			parts: make([][]byte, int(m.FragmentCount)),
+			started: now,
+		}
+		d.pending[m.PacketID] = a
+	}
+	if a.parts[m.FragmentID] != nil {
+		if !equalBytes(a.parts[m.FragmentID], m.Data) {
+			d.drop(m.PacketID)
 			return UDPMessage{}, false, fmt.Errorf("%w: conflicting duplicate fragment", ErrMalformed)
 		}
 		return UDPMessage{}, false, nil
 	}
-	if d.size+len(m.Data) > MaxPacket {
-		d.Reset()
+	if a.size+len(m.Data) > MaxPacket || d.buffered+len(m.Data) > maxPendingBytes {
+		d.drop(m.PacketID)
 		return UDPMessage{}, false, fmt.Errorf("%w: oversized reassembly", ErrMalformed)
 	}
-	d.parts[m.FragmentID] = append([]byte(nil), m.Data...)
-	d.size += len(m.Data)
-	for _, part := range d.parts {
+	a.parts[m.FragmentID] = append([]byte(nil), m.Data...)
+	a.size += len(m.Data)
+	d.buffered += len(m.Data)
+	for _, part := range a.parts {
 		if part == nil {
 			return UDPMessage{}, false, nil
 		}
 	}
-	payload := make([]byte, 0, d.size)
-	for _, part := range d.parts {
+	payload := make([]byte, 0, a.size)
+	for _, part := range a.parts {
 		payload = append(payload, part...)
 	}
-	d.Reset()
+	d.drop(m.PacketID)
 	m.Data, m.FragmentID, m.FragmentCount = payload, 0, 1
 	return m, true, nil
 }

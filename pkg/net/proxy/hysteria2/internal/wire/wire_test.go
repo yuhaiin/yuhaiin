@@ -127,6 +127,61 @@ func TestUDPAndFragments(t *testing.T) {
 	}
 }
 
+func TestInterleavedUDPAndIPv6Maximum(t *testing.T) {
+	address := "[2001:db8:abcd:0123:4567:89ab:cdef:0123]:443"
+	long := UDPMessage{SessionID: 1, PacketID: 100, FragmentCount: 1,
+		Address: address, Data: bytes.Repeat([]byte{0x42}, 65507)}
+	if long.Size() <= MaxPacket {
+		t.Fatal("regression requires wire size larger than a UDP payload")
+	}
+	parts, err := FragmentUDPMessage(long, MaxDatagram)
+	if err != nil {
+		t.Fatal(err)
+	}
+	short := UDPMessage{SessionID: 1, PacketID: 101, FragmentCount: 1,
+		Address: "example.org:53", Data: bytes.Repeat([]byte{0x77}, 8192)}
+	other, err := FragmentUDPMessage(short, MaxDatagram)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var d Defragger
+	var receivedLong, receivedShort bool
+	now := time.Now()
+	for i := 0; i < len(parts) || i < len(other); i++ {
+		for _, fragment := range [][]UDPMessage{parts, other} {
+			if i >= len(fragment) {
+				continue
+			}
+			serialized, err := AppendUDPMessage(nil, fragment[i])
+			if err != nil || len(serialized) > MaxDatagram {
+				t.Fatalf("fragment serialization: %v", err)
+			}
+			decoded, err := ParseUDPMessage(serialized)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, complete, err := d.Feed(decoded, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !complete {
+				continue
+			}
+			switch result.PacketID {
+			case long.PacketID:
+				receivedLong = bytes.Equal(result.Data, long.Data)
+			case short.PacketID:
+				receivedShort = bytes.Equal(result.Data, short.Data)
+			default:
+				t.Fatalf("unexpected packet ID %d", result.PacketID)
+			}
+		}
+	}
+	if !receivedLong || !receivedShort || len(d.pending) != 0 || d.buffered != 0 {
+		t.Fatalf("interleaved UDP corrupted: long=%t short=%t", receivedLong, receivedShort)
+	}
+}
+
 func TestMalformedUDPPackets(t *testing.T) {
 	for _, b := range [][]byte{nil, make([]byte, 8), {0, 0, 0, 1, 0, 0, 0, 1, 1, 0}, {0, 0, 0, 1, 0, 0, 2, 2, 1, 'x', 'y'}} {
 		if _, err := ParseUDPMessage(b); err == nil {
@@ -149,7 +204,7 @@ func TestFragmentGuards(t *testing.T) {
 	if _, _, err := d.Feed(m, time.Now()); !errors.Is(err, ErrMalformed) {
 		t.Fatal("conflicting duplicate not rejected", err)
 	}
-	if len(d.parts) != 0 {
+	if len(d.pending) != 0 {
 		t.Fatal("did not clear buffered fragments")
 	}
 	m.Data = []byte("one")
@@ -160,7 +215,7 @@ func TestFragmentGuards(t *testing.T) {
 	if _, _, err := d.Feed(m, now.Add(FragmentTimeout)); err != nil {
 		t.Fatal(err)
 	}
-	if len(d.parts) != 2 || d.size != 3 {
+	if len(d.pending) != 1 || d.pending[1].size != 3 {
 		t.Fatal("expired fragment was not reset")
 	}
 }
