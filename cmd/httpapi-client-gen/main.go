@@ -21,7 +21,7 @@ type route struct {
 }
 
 func main() {
-	input := flag.String("input", "", "v2_routes.go input path")
+	input := flag.String("input", "", "endpoints.go input path")
 	output := flag.String("output", "", "generated TypeScript output path")
 	flag.Parse()
 	if *input == "" || *output == "" {
