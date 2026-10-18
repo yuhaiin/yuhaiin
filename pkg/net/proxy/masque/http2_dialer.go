@@ -16,6 +16,10 @@ func (m *Masque) connectHTTP2(ctx context.Context) (*Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The HTTP/2 preface and initial SETTINGS are written before its reader
+	// starts. A blocked socket must still honor the caller's setup deadline.
+	stop := context.AfterFunc(ctx, func() { _ = tcp.Close() })
+	defer stop()
 	cfg := m.TlsConfig.Clone()
 	cfg.NextProtos = []string{"h2"}
 	secure := tls.Client(tcp, cfg)
@@ -43,6 +47,10 @@ func (m *Masque) connectHTTP2(ctx context.Context) (*Conn, error) {
 	if err != nil {
 		_ = c.Close()
 		return nil, fmt.Errorf("MASQUE HTTP/2 CONNECT-IP: %w", err)
+	}
+	if !stop() {
+		_ = c.Close()
+		return nil, context.Cause(ctx)
 	}
 	return finishMasqueConnect(c, ipConn, resp)
 }

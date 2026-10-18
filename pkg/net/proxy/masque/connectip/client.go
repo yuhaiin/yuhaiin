@@ -36,7 +36,7 @@ func NewCloudflareClientConn(conn *http3.ClientConn, quicConn *quic.Conn) *Clien
 	return &ClientConn{clientConn: conn, quicConn: quicConn}
 }
 
-func (c *ClientConn) Dial(req *Request) (*Conn, *http.Response, error) {
+func (c *ClientConn) Dial(req *Request) (ipConn *Conn, response *http.Response, err error) {
 	httpReq := req.httpRequest()
 	if httpReq.URL == nil {
 		return nil, nil, errors.New("connect-ip: request URL is nil")
@@ -76,6 +76,25 @@ func (c *ClientConn) Dial(req *Request) (*Conn, *http.Response, error) {
 		if !keepStream {
 			rstr.CancelRead(quic.StreamErrorCode(http3.ErrCodeNoError))
 			rstr.CancelWrite(quic.StreamErrorCode(http3.ErrCodeNoError))
+		}
+	}()
+	// Opening a stream observes ctx, but reading the CONNECT response doesn't.
+	// Keep cancellation attached until the entire handshake has completed.
+	canceled := make(chan struct{})
+	stop := context.AfterFunc(httpReq.Context(), func() {
+		rstr.CancelRead(quic.StreamErrorCode(http3.ErrCodeRequestCanceled))
+		rstr.CancelWrite(quic.StreamErrorCode(http3.ErrCodeRequestCanceled))
+		close(canceled)
+	})
+	defer func() {
+		if !stop() {
+			<-canceled
+			if ipConn != nil {
+				_ = ipConn.Close()
+				ipConn = nil
+			}
+			keepStream = false
+			err = context.Cause(httpReq.Context())
 		}
 	}()
 	if err := rstr.SendRequestHeader(httpReq); err != nil {

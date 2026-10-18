@@ -110,9 +110,12 @@ type StreamBuffer struct {
 	mu       sync.Mutex
 	cond     sync.Cond
 	buf      []byte
+	head     int
+	size     int
 	closed   bool
 	err      error
 	deadline time.Time
+	timer    *time.Timer
 }
 
 func NewStreamBuffer() *StreamBuffer {
@@ -122,19 +125,25 @@ func NewStreamBuffer() *StreamBuffer {
 }
 
 func (b *StreamBuffer) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	for len(b.buf) == 0 && !b.closed && b.err == nil {
+	for b.size == 0 && !b.closed && b.err == nil {
 		b.cond.Wait()
 	}
 	if b.err != nil {
 		return 0, b.err
 	}
-	if len(b.buf) == 0 {
+	if b.size == 0 {
 		return 0, io.EOF
 	}
-	n := copy(p, b.buf)
-	b.buf = b.buf[:copy(b.buf, b.buf[n:])]
+	n := min(len(p), b.size)
+	first := copy(p[:n], b.buf[b.head:min(b.head+n, len(b.buf))])
+	copy(p[first:n], b.buf[:n-first])
+	b.head = (b.head + n) % maxStreamBuffer
+	b.size -= n
 	b.cond.Broadcast()
 	return n, nil
 }
@@ -142,26 +151,40 @@ func (b *StreamBuffer) Read(p []byte) (int, error) {
 func (b *StreamBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	for {
+	written := 0
+	for len(p) > 0 {
 		switch {
 		case b.err != nil:
-			return 0, b.err
+			return written, b.err
 		case b.closed:
-			return 0, io.ErrClosedPipe
+			return written, io.ErrClosedPipe
 		case !b.deadline.IsZero() && !time.Now().Before(b.deadline):
-			return 0, os.ErrDeadlineExceeded
-		case len(b.buf) < maxStreamBuffer:
-			b.buf = append(b.buf, p...)
+			return written, os.ErrDeadlineExceeded
+		case b.size < maxStreamBuffer:
+			if b.buf == nil {
+				b.buf = make([]byte, maxStreamBuffer)
+			}
+			n := min(len(p), maxStreamBuffer-b.size)
+			tail := (b.head + b.size) % maxStreamBuffer
+			first := copy(b.buf[tail:], p[:n])
+			copy(b.buf, p[first:n])
+			b.size += n
+			written += n
+			p = p[n:]
 			b.cond.Broadcast()
-			return len(p), nil
+			continue
 		}
 		b.cond.Wait()
 	}
+	return written, nil
 }
 
 func (b *StreamBuffer) Close() error {
 	b.mu.Lock()
 	b.closed = true
+	if b.timer != nil {
+		b.timer.Stop()
+	}
 	b.cond.Broadcast()
 	b.mu.Unlock()
 	return nil
@@ -172,6 +195,10 @@ func (b *StreamBuffer) CloseWithError(err error) {
 	if b.err == nil {
 		b.err = err
 		b.buf = nil
+		b.size = 0
+	}
+	if b.timer != nil {
+		b.timer.Stop()
 	}
 	b.cond.Broadcast()
 	b.mu.Unlock()
@@ -180,15 +207,22 @@ func (b *StreamBuffer) CloseWithError(err error) {
 func (b *StreamBuffer) SetWriteDeadline(t time.Time) error {
 	b.mu.Lock()
 	b.deadline = t
-	b.cond.Broadcast()
-	b.mu.Unlock()
-	if d := time.Until(t); d > 0 {
-		time.AfterFunc(d, func() {
-			b.mu.Lock()
-			b.cond.Broadcast()
-			b.mu.Unlock()
-		})
+	if b.timer != nil {
+		b.timer.Stop()
 	}
+	b.cond.Broadcast()
+	if d := time.Until(t); !t.IsZero() && d > 0 && !b.closed && b.err == nil {
+		if b.timer == nil {
+			b.timer = time.AfterFunc(d, func() {
+				b.mu.Lock()
+				b.cond.Broadcast()
+				b.mu.Unlock()
+			})
+		} else {
+			b.timer.Reset(d)
+		}
+	}
+	b.mu.Unlock()
 	return nil
 }
 

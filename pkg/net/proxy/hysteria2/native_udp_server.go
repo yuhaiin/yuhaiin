@@ -83,12 +83,14 @@ func (m *nativeServerUDP) run() {
 func (m *nativeServerUDP) sendReplies(entry *nativeServerUDPSession) {
 	defer m.wg.Done()
 	buf := make([]byte, 65535)
+	var packetID uint16
 	for {
 		n, addr, err := entry.conn.ReadFrom(buf)
 		if err != nil {
 			return
 		}
-		msg := wire.UDPMessage{SessionID: entry.id, FragmentCount: 1, Address: addr, Data: buf[:n]}
+		msg := wire.UDPMessage{SessionID: entry.id, PacketID: packetID, FragmentCount: 1, Address: addr, Data: buf[:n]}
+		packetID++
 		if err := sendNativeDatagram(m.conn, msg); err != nil {
 			return
 		}

@@ -1,11 +1,15 @@
 package connectip
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
@@ -37,6 +41,55 @@ func TestCloudflareHTTP2Headers(t *testing.T) {
 	}
 	if captured.Host != "cloudflareaccess.com:443" {
 		t.Fatalf("wrong authority: %s", captured.Host)
+	}
+}
+
+func TestStreamBufferBoundsLargeWrite(t *testing.T) {
+	b := NewStreamBuffer()
+	defer b.Close()
+	if err := b.SetWriteDeadline(time.Now().Add(20 * time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	n, err := b.Write(bytes.Repeat([]byte{1}, 3*maxStreamBuffer))
+	if n != maxStreamBuffer || !errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("large write = %d, %v; want bounded partial write and deadline", n, err)
+	}
+}
+
+func TestStreamBufferWrapAndCloseBlockedWriter(t *testing.T) {
+	b := NewStreamBuffer()
+	defer b.Close()
+	first := bytes.Repeat([]byte{1}, maxStreamBuffer-100)
+	if _, err := b.Write(first); err != nil {
+		t.Fatal(err)
+	}
+	got := make([]byte, len(first)-100)
+	if _, err := io.ReadFull(b, got); err != nil || !bytes.Equal(got, first[:len(got)]) {
+		t.Fatalf("first read: %v", err)
+	}
+	second := bytes.Repeat([]byte{2}, 1000)
+	if _, err := b.Write(second); err != nil {
+		t.Fatal(err)
+	}
+	got = make([]byte, 1100)
+	if _, err := io.ReadFull(b, got); err != nil || !bytes.Equal(got, append(first[:100:100], second...)) {
+		t.Fatalf("wrapped read: %v", err)
+	}
+	if _, err := b.Write(make([]byte, maxStreamBuffer)); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { _, err := b.Write([]byte{3}); done <- err }()
+	if err := b.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if !errors.Is(err, io.ErrClosedPipe) {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Close did not wake blocked writer")
 	}
 }
 

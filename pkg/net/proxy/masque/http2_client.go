@@ -78,6 +78,7 @@ type http2ClientConn struct {
 	recvEnd          bool
 	streamErr        error
 	reqBody          io.Closer
+	stopContext      func() bool
 	recv             bytes.Buffer
 	recvErr          error
 	recvUnacked      int64
@@ -176,6 +177,7 @@ func (c *http2ClientConn) roundTrip(req *http.Request) (*http.Response, error) {
 	c.streamOpen = true
 	c.streamSendWindow = c.initialWindow
 	c.reqBody = req.Body
+	c.stopContext = context.AfterFunc(ctx, func() { c.fail(context.Cause(ctx)) })
 	maxFrameSize := int(c.maxFrameSize)
 	c.mu.Unlock()
 
@@ -188,8 +190,6 @@ func (c *http2ClientConn) roundTrip(req *http.Request) (*http.Response, error) {
 	} else {
 		c.endStream()
 	}
-	context.AfterFunc(ctx, func() { c.abortStream(context.Cause(ctx), true) })
-
 	select {
 	case rsp := <-c.responses:
 		return rsp, nil
@@ -207,7 +207,8 @@ func (c *http2ClientConn) writeHeaders(req *http.Request, maxFrameSize int) erro
 
 	c.hbuf.Reset()
 	field := func(name, value string) {
-		c.henc.WriteField(hpack.HeaderField{Name: name, Value: value})
+		// The encoder writes to bytes.Buffer, whose writes cannot fail.
+		_ = c.henc.WriteField(hpack.HeaderField{Name: name, Value: value})
 	}
 	host := req.Host
 	if host == "" {
@@ -353,8 +354,12 @@ func (c *http2ClientConn) abortStream(err error, reset bool) {
 	if c.recvErr == nil {
 		c.recvErr = err
 	}
-	reset = reset && c.streamOpen && !(c.sentEnd && c.recvEnd)
+	reset = reset && c.streamOpen && (!c.sentEnd || !c.recvEnd)
 	body := c.reqBody
+	if c.stopContext != nil {
+		c.stopContext()
+		c.stopContext = nil
+	}
 	close(c.aborted)
 	c.cond.Broadcast()
 	c.mu.Unlock()
@@ -363,9 +368,13 @@ func (c *http2ClientConn) abortStream(err error, reset bool) {
 		body.Close()
 	}
 	if reset {
-		go c.write(func(fr *http2.Framer) error {
-			return fr.WriteRSTStream(http2StreamID, http2.ErrCodeCancel)
-		})
+		go func() {
+			if err := c.write(func(fr *http2.Framer) error {
+				return fr.WriteRSTStream(http2StreamID, http2.ErrCodeCancel)
+			}); err != nil {
+				c.fail(err)
+			}
+		}()
 	}
 }
 
@@ -392,9 +401,13 @@ func (c *http2ClientConn) keepAlive(period time.Duration) {
 		}
 		if time.Since(lastFrame) >= period {
 			pingAt = time.Now()
-			go c.write(func(fr *http2.Framer) error {
-				return fr.WritePing(false, [8]byte{})
-			})
+			go func() {
+				if err := c.write(func(fr *http2.Framer) error {
+					return fr.WritePing(false, [8]byte{})
+				}); err != nil {
+					c.fail(err)
+				}
+			}()
 		}
 	}
 }
@@ -441,8 +454,16 @@ func (c *http2ClientConn) handleFrame(f http2.Frame) error {
 		c.mu.Lock()
 		switch f.StreamID {
 		case 0:
+			if c.connSendWindow+int64(f.Increment) > 1<<31-1 {
+				c.mu.Unlock()
+				return http2.ConnectionError(http2.ErrCodeFlowControl)
+			}
 			c.connSendWindow += int64(f.Increment)
 		case http2StreamID:
+			if c.streamSendWindow+int64(f.Increment) > 1<<31-1 {
+				c.mu.Unlock()
+				return http2.StreamError{StreamID: http2StreamID, Code: http2.ErrCodeFlowControl}
+			}
 			c.streamSendWindow += int64(f.Increment)
 		}
 		c.cond.Broadcast()
@@ -478,7 +499,11 @@ func (c *http2ClientConn) applySettings(f *http2.SettingsFrame) error {
 		case http2.SettingMaxFrameSize:
 			c.maxFrameSize = s.Val
 		case http2.SettingInitialWindowSize:
-			c.streamSendWindow += int64(s.Val) - c.initialWindow
+			window := c.streamSendWindow + int64(s.Val) - c.initialWindow
+			if window > 1<<31-1 {
+				return http2.ConnectionError(http2.ErrCodeFlowControl)
+			}
+			c.streamSendWindow = window
 			c.initialWindow = int64(s.Val)
 		case http2.SettingEnableConnectProtocol:
 			if !c.gotSettings {

@@ -1,0 +1,11 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque/connectip
+cpu: Apple M4
+BenchmarkStreamBufferSmallReads 	  711571	       819.4 ns/op	39990.56 MB/s	       0 B/op	       0 allocs/op
+BenchmarkStreamBufferSmallReads 	  735793	       813.8 ns/op	40265.39 MB/s	       0 B/op	       0 allocs/op
+BenchmarkStreamBufferSmallReads 	  736647	       815.1 ns/op	40199.12 MB/s	       0 B/op	       0 allocs/op
+BenchmarkStreamBufferSmallReads 	  737620	       816.5 ns/op	40132.06 MB/s	       0 B/op	       0 allocs/op
+BenchmarkStreamBufferSmallReads 	  739021	       824.9 ns/op	39723.10 MB/s	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque/connectip	3.400s

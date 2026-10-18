@@ -1,14 +1,14 @@
 package hysteria2
 
 import (
-	"crypto/rand"
-	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2/internal/wire"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/apernet/quic-go"
 )
 
@@ -26,11 +26,12 @@ type nativeUDPManager struct {
 	closed   bool
 }
 type nativeUDPSession struct {
-	manager  *nativeUDPManager
-	id       uint32
-	receive  chan wire.UDPMessage
-	fragment wire.Defragger
-	sendMu   sync.Mutex
+	manager      *nativeUDPManager
+	id           uint32
+	receive      chan wire.UDPMessage
+	fragment     wire.Defragger
+	sendMu       sync.Mutex
+	nextPacketID uint16
 }
 
 func newNativeUDPManager(conn *quic.Conn) *nativeUDPManager {
@@ -113,12 +114,24 @@ func (s *nativeUDPSession) Send(data []byte, address string) error {
 	if !active {
 		return io.ErrClosedPipe
 	}
-	msg := wire.UDPMessage{SessionID: s.id, FragmentCount: 1, Address: address, Data: data}
+	msg := wire.UDPMessage{SessionID: s.id, PacketID: s.nextPacketID, FragmentCount: 1, Address: address, Data: data}
+	s.nextPacketID++
 	return sendNativeDatagram(s.manager.conn, msg)
 }
 
-func sendNativeDatagram(conn *quic.Conn, msg wire.UDPMessage) error {
-	b, err := wire.AppendUDPMessage(nil, msg)
+type nativeDatagramSender interface {
+	SendDatagram([]byte) error
+}
+
+func sendNativeDatagram(conn nativeDatagramSender, msg wire.UDPMessage) error {
+	if len(msg.Address) > wire.MaxAddress || len(msg.Data) > wire.MaxPacket {
+		return fmt.Errorf("%w: oversized UDP message", wire.ErrMalformed)
+	}
+	// SendDatagram copies accepted payloads. Reuse one bounded encoding buffer
+	// for the original packet and all fragments, returning it after the copies.
+	buffer := pool.GetBytes(msg.Size())
+	defer pool.PutBytes(buffer)
+	b, err := wire.AppendUDPMessage(buffer[:0], msg)
 	if err != nil {
 		return err
 	}
@@ -130,17 +143,12 @@ func sendNativeDatagram(conn *quic.Conn, msg wire.UDPMessage) error {
 	if !errors.As(err, &tooLarge) {
 		return err
 	}
-	var packetID [2]byte
-	if _, err := rand.Read(packetID[:]); err != nil {
-		return err
-	}
-	msg.PacketID = binary.BigEndian.Uint16(packetID[:]) | 1
 	fragments, err := wire.FragmentUDPMessage(msg, int(tooLarge.MaxDatagramPayloadSize))
 	if err != nil {
 		return err
 	}
 	for _, fragment := range fragments {
-		b, err := wire.AppendUDPMessage(nil, fragment)
+		b, err := wire.AppendUDPMessage(buffer[:0], fragment)
 		if err != nil {
 			return err
 		}

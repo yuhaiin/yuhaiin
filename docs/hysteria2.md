@@ -1,5 +1,7 @@
 # Hysteria 2
 
+Current native implementation review, regression coverage, CPU/RSS snapshots and component benchmarks: [2026-10-18 measurements](benchmarks/native-hy2-masque-2026-10-18.md).
+
 The Go backend supports Hysteria 2 TCP and UDP clients/servers, authenticated with one nonempty shared `auth` string. It implements HY2 framing, HTTP/3 authentication, TCP/UDP sessions, Salamander and hopping inside yuhaiin. BBR/Brutal are MIT-licensed controllers adapted from Hysteria; QUIC remains `github.com/apernet/quic-go`.
 
 ## Server configuration

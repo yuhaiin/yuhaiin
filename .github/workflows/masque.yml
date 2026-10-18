@@ -2,18 +2,22 @@ name: MASQUE CONNECT-IP
 
 on:
   push:
-    branches: [codex/masque-apernet-bbr-h2]
+    branches: [main]
     paths:
       - 'pkg/net/proxy/masque/**'
       - 'pkg/net/proxy/hysteria2/masque_bbr.go'
+      - 'pkg/net/proxy/hysteria2/internal/congestion/**'
+      - 'pkg/contract/node/**'
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/masque.yml'
   pull_request:
-    branches: [main, codex/native-hysteria2]
+    branches: [main]
     paths:
       - 'pkg/net/proxy/masque/**'
       - 'pkg/net/proxy/hysteria2/masque_bbr.go'
+      - 'pkg/net/proxy/hysteria2/internal/congestion/**'
+      - 'pkg/contract/node/**'
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/masque.yml'

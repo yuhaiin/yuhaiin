@@ -200,7 +200,15 @@ func (h *nativeHTTPHandler) dispatchStream(frame http3.FrameType, stream *quic.S
 }
 
 func (h *nativeHTTPHandler) handleTCP(stream *quic.Stream) {
-	defer stream.Close()
+	// A handler may hand the stream to another goroutine. It owns the stream
+	// after dispatch, just as it does for the other inbound protocols.
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			stream.CancelRead(0)
+			_ = stream.Close()
+		}
+	}()
 	addr, err := wire.ReadTCPRequestBody(stream)
 	if err != nil {
 		stream.CancelRead(0)
@@ -215,6 +223,7 @@ func (h *nativeHTTPHandler) handleTCP(stream *quic.Stream) {
 		return
 	}
 	conn := &nativeTCPConn{Stream: stream, local: h.conn.LocalAddr(), remote: h.conn.RemoteAddr()}
+	handedOff = true
 	h.server.handler.HandleStream(&netapi.StreamMeta{
 		Source: h.conn.RemoteAddr(), Destination: destination, Inbound: h.conn.LocalAddr(),
 		Src: conn, Address: destination,

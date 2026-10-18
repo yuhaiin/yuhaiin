@@ -8,6 +8,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/native-hysteria2.yml'
+      - 'scripts/bench/hysteria2/**'
   push:
     branches: [main]
     paths:
@@ -15,6 +16,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/native-hysteria2.yml'
+      - 'scripts/bench/hysteria2/**'
 
 permissions:
   contents: read

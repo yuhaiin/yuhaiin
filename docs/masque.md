@@ -1,5 +1,7 @@
 # Cloudflare WARP MASQUE
 
+Local regression coverage, HTTP/2 framing benchmarks and validation limits: [2026-10-18 review](benchmarks/native-hy2-masque-2026-10-18.md).
+
 MASQUE uses the local CONNECT-IP implementation in `pkg/net/proxy/masque/connectip` on top of `github.com/apernet/quic-go` (HTTP/3).
 It no longer imports `github.com/quic-go/quic-go` or `github.com/quic-go/connect-ip-go`.
 

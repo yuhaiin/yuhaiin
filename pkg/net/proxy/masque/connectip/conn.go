@@ -90,11 +90,11 @@ type Conn struct {
 
 	closeChan chan struct{}
 	closeErr  error
+	ctx       context.Context
+	cancel    context.CancelFunc
 
 	closeOnce   sync.Once
 	closeResult error
-
-	datagramCapsuleOnce sync.Once
 
 	bare bool
 }
@@ -108,7 +108,10 @@ func newBareProxiedConn(str requestStream) *Conn {
 }
 
 func startProxiedConn(str requestStream, bare bool) *Conn {
+	ctx, cancel := context.WithCancel(context.Background())
 	c := &Conn{
+		ctx:                    ctx,
+		cancel:                 cancel,
 		bare:                   bare,
 		str:                    str,
 		writeNotify:            make(chan struct{}, 1),
@@ -122,6 +125,7 @@ func startProxiedConn(str requestStream, bare bool) *Conn {
 		c.datagrams = make(chan []byte, maxQueuedDatagrams)
 	}
 	go func() {
+		defer cancel()
 		err := c.readFromStream()
 		c.mu.Lock()
 		closing := c.closeErr != nil
@@ -146,8 +150,6 @@ func startProxiedConn(str requestStream, bare bool) *Conn {
 			}
 		}
 		c.mu.Unlock()
-		if err != nil && !closing {
-		}
 	}()
 	go func() {
 		err := c.writeToStream()
@@ -163,8 +165,7 @@ func startProxiedConn(str requestStream, bare bool) *Conn {
 				c.str.CancelWrite(quic.StreamErrorCode(http3.ErrCodeNoError))
 			}
 			c.mu.Unlock()
-			if !closing {
-			}
+			cancel()
 		}
 		c.writeDone <- err
 		close(c.writeDone)
@@ -330,7 +331,7 @@ func (c *Conn) queueWrite(w streamWrite) error {
 }
 
 func (c *Conn) queueFin() {
-	c.str.SetWriteDeadline(time.Now())
+	_ = c.str.SetWriteDeadline(time.Now())
 	c.queuedWrites = append(c.queuedWrites, streamWrite{Fin: true})
 	c.notifyWriter()
 }
@@ -416,8 +417,6 @@ func (c *Conn) readFromStream() error {
 				}
 				continue
 			}
-			c.datagramCapsuleOnce.Do(func() {
-			})
 			if err := cr.Discard(); err != nil {
 				return err
 			}
@@ -477,7 +476,7 @@ func (c *Conn) queueDatagram(cr http3.CapsuleReader) error {
 
 func (c *Conn) receiveDatagram() ([]byte, error) {
 	if c.h3 != nil {
-		return c.h3.ReceiveDatagram(context.Background())
+		return c.h3.ReceiveDatagram(c.ctx)
 	}
 	select {
 	case data := <-c.datagrams:
@@ -703,6 +702,7 @@ func (c *Conn) Close() error {
 			c.queueFin()
 		}
 		c.mu.Unlock()
+		c.cancel()
 		c.closeResult = <-c.writeDone
 		c.str.CancelRead(quic.StreamErrorCode(http3.ErrCodeNoError))
 	})
