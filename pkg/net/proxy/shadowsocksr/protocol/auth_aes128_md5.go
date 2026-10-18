@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"math"
-	"math/big"
 	"math/rand/v2"
 	"strconv"
 	"strings"
@@ -100,7 +99,7 @@ func (a *authAES128) initUserKey() {
 		return
 	}
 
-	params := strings.Split(a.info.Param, ":")
+	params := strings.SplitN(a.info.Param, ":", 2)
 	if len(params) >= 2 {
 		userID, err := strconv.ParseUint(params[0], 10, 32)
 		if err == nil {
@@ -178,10 +177,10 @@ func (a *authAES128) packAuthData(wbuf *pool.Buffer, data []byte) {
 	encrypt := pool.NewBufferSize(16)
 	defer encrypt.Reset()
 
-	a.info.Auth.nextAuth()
+	clientID, connectionID := a.info.Auth.nextAuth()
 	_ = binary.Write(encrypt, binary.LittleEndian, uint32(system.NowUnix()))
-	_, _ = encrypt.Write(a.info.Auth.clientID[:])
-	_ = binary.Write(encrypt, binary.LittleEndian, a.info.Auth.connectionID.Load())
+	_, _ = encrypt.Write(clientID[:])
+	_ = binary.Write(encrypt, binary.LittleEndian, connectionID)
 	_ = binary.Write(encrypt, binary.LittleEndian, uint16(outLength))
 	_ = binary.Write(encrypt, binary.LittleEndian, uint16(randLength))
 
@@ -195,8 +194,9 @@ func (a *authAES128) packAuthData(wbuf *pool.Buffer, data []byte) {
 
 	hmacBuf := pool.GetBytes(6)
 	defer pool.PutBytes(hmacBuf)
-	bigInt, _ := crand.Int(crand.Reader, big.NewInt(256))
-	_ = wbuf.WriteByte(byte(bigInt.Uint64()))
+	var random [1]byte
+	_, _ = crand.Read(random[:])
+	_ = wbuf.WriteByte(random[0])
 	_, _ = wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-1:], hmacBuf)[:6])
 	_, _ = wbuf.Write(a.uid[:])
 	_, _ = wbuf.Write(encrypt.Bytes())
@@ -310,6 +310,9 @@ func (a *authAES128) EncryptPacket(b []byte) ([]byte, error) {
 
 // https://github.com/shadowsocksrr/shadowsocksr/blob/fd723a92c488d202b407323f0512987346944136/shadowsocks/obfsplugin/auth.py#L764
 func (a *authAES128) DecryptPacket(b []byte) ([]byte, error) {
+	if len(b) < 4 {
+		return nil, ssr.ErrAuthAES128DataLengthError
+	}
 	hmacBuf := pool.GetBytes(6)
 	defer pool.PutBytes(hmacBuf)
 	if !bytes.Equal(a.hmac.HMAC(a.info.Key(), b[:len(b)-4], hmacBuf)[:4], b[len(b)-4:]) {
