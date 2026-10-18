@@ -61,7 +61,7 @@ func TestRunNetworkMonitorCoalescesEvents(t *testing.T) {
 			return nil
 		}, 20*time.Millisecond, 100*time.Millisecond, time.Hour)
 	}()
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		events <- "route"
 	}
 	select {
