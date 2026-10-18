@@ -30,7 +30,12 @@ func NewVerifySHA1(info Protocol) protocol {
 }
 
 func (v *verifySHA1) otaConnectAuth(data []byte) []byte {
-	return append(data, v.hmac.HMAC(append(v.IV, v.Key()...), data, nil)...)
+	key := make([]byte, len(v.IV)+len(v.Key()))
+	copy(key, v.IV)
+	copy(key[len(v.IV):], v.Key())
+	out := make([]byte, 0, len(data)+20)
+	out = append(out, data...)
+	return append(out, v.hmac.HMAC(key, data, nil)...)
 }
 
 func (v *verifySHA1) otaReqChunkAuth(buffer *pool.Buffer, chunkId uint32, data []byte) {
@@ -40,14 +45,20 @@ func (v *verifySHA1) otaReqChunkAuth(buffer *pool.Buffer, chunkId uint32, data [
 	binary.BigEndian.PutUint32(chunkIdBytes, chunkId)
 
 	_, _ = buffer.Write(nb)
-	_, _ = buffer.Write(v.hmac.HMAC(append(v.IV, chunkIdBytes...), data, nil))
+	key := make([]byte, len(v.IV)+len(chunkIdBytes))
+	copy(key, v.IV)
+	copy(key[len(v.IV):], chunkIdBytes)
+	_, _ = buffer.Write(v.hmac.HMAC(key, data, nil))
 	_, _ = buffer.Write(data)
 }
 
 func (v *verifySHA1) otaVerifyAuth(iv []byte, chunkId uint32, data []byte, expectedHmacSha1 []byte) bool {
 	chunkIdBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(chunkIdBytes, chunkId)
-	actualHmacSha1 := v.hmac.HMAC(append(iv, chunkIdBytes...), data, nil)
+	key := make([]byte, len(iv)+len(chunkIdBytes))
+	copy(key, iv)
+	copy(key[len(iv):], chunkIdBytes)
+	actualHmacSha1 := v.hmac.HMAC(key, data, nil)
 	return bytes.Equal(expectedHmacSha1, actualHmacSha1)
 }
 
@@ -60,12 +71,21 @@ func (v *verifySHA1) getAndIncreaseChunkId() (chunkId uint32) {
 func (v *verifySHA1) EncryptStream(buffer *pool.Buffer, data []byte) (err error) {
 	dataLength := len(data)
 	offset := 0
+	if dataLength == 0 {
+		return nil
+	}
 	if !v.hasSentHeader {
-		data[0] |= oneTimeAuthMask
-		_, _ = buffer.Write(v.otaConnectAuth(data[:v.HeadSize]))
+		headSize := v.HeadSize
+		if headSize <= 0 {
+			headSize = GetHeadSize(data, 30)
+		}
+		headSize = min(headSize, dataLength)
+		header := append([]byte(nil), data[:headSize]...)
+		header[0] |= oneTimeAuthMask
+		_, _ = buffer.Write(v.otaConnectAuth(header))
 		v.hasSentHeader = true
-		dataLength -= v.HeadSize
-		offset += v.HeadSize
+		dataLength -= headSize
+		offset += headSize
 	}
 	const blockSize = 4096
 	for dataLength > blockSize {

@@ -39,6 +39,9 @@ func authChainBGetRandLen(dataLength int, random *ssr.Shift128plusContext, lastH
 	if dataLength > 1440 {
 		return 0
 	}
+	if len(dataSizeList) == 0 || len(dataSizeList2) == 0 {
+		return authChainAGetRandLen(dataLength, random, lastHash, nil, nil, overhead)
+	}
 	random.InitFromBinDatalen(lastHash[:16], dataLength)
 	// libev version, upper_bound
 	pos := sort.Search(len(dataSizeList), func(i int) bool { return dataSizeList[i] > dataLength+overhead })
