@@ -2,6 +2,7 @@ package brutal
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"time"
@@ -47,6 +48,9 @@ type pktInfo struct {
 
 func NewBrutalSender(bps uint64, disableLossCompensation bool) *BrutalSender {
 	debug, _ := strconv.ParseBool(os.Getenv(debugEnv))
+	// Bandwidth can originate from an untrusted HTTP/3 header. ByteCount is
+	// signed, so never allow uint64 -> int64 to wrap into a negative rate.
+	bps = min(bps, uint64(math.MaxInt64))
 	bs := &BrutalSender{
 		bps:                     congestion.ByteCount(bps),
 		maxDatagramSize:         congestion.InitialPacketSize,
@@ -55,7 +59,7 @@ func NewBrutalSender(bps uint64, disableLossCompensation bool) *BrutalSender {
 		debug:                   debug,
 	}
 	bs.pacer = common.NewPacer(func() congestion.ByteCount {
-		return congestion.ByteCount(float64(bs.bps) / bs.ackRate)
+		return common.SaturatingByteCount(float64(bs.bps) / bs.ackRate)
 	})
 	return bs
 }
@@ -81,7 +85,7 @@ func (b *BrutalSender) GetCongestionWindow() congestion.ByteCount {
 	if rtt <= 0 {
 		return 10240
 	}
-	cwnd := max(congestion.ByteCount(float64(b.bps)*rtt.Seconds()*congestionWindowMultiplier/b.ackRate), b.maxDatagramSize)
+	cwnd := max(common.SaturatingByteCount(float64(b.bps)*rtt.Seconds()*congestionWindowMultiplier/b.ackRate), b.maxDatagramSize)
 	return cwnd
 }
 

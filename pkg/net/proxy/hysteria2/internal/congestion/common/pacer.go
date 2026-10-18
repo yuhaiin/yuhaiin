@@ -1,6 +1,7 @@
 package common
 
 import (
+	"math"
 	"time"
 
 	"github.com/apernet/quic-go/congestion"
@@ -39,22 +40,47 @@ func (p *Pacer) SentPacket(sendTime monotime.Time, size congestion.ByteCount) {
 	p.lastSentTime = sendTime
 }
 
+// SaturatingByteCount converts a computed pacing rate or congestion window
+// without overflowing int64. The float64 representation of MaxInt64 rounds
+// up to 2^63, so it must be compared before converting.
+func SaturatingByteCount(value float64) congestion.ByteCount {
+	switch {
+	case math.IsNaN(value) || value <= 0:
+		return 0
+	case value >= float64(math.MaxInt64):
+		return congestion.ByteCount(math.MaxInt64)
+	default:
+		return congestion.ByteCount(value)
+	}
+}
+
 func (p *Pacer) Budget(now monotime.Time) congestion.ByteCount {
+	maxBudget := p.maxBurstSize()
 	if p.lastSentTime.IsZero() {
-		return p.maxBurstSize()
+		return maxBudget
 	}
-	budget := p.budgetAtLastSent + (p.getBandwidth()*congestion.ByteCount(now.Sub(p.lastSentTime).Nanoseconds()))/1e9
-	if budget < 0 { // protect against overflows
-		budget = congestion.ByteCount(1<<62 - 1)
+	budget := max(p.budgetAtLastSent, 0)
+	if budget >= maxBudget {
+		return maxBudget
 	}
-	return min(p.maxBurstSize(), budget)
+	elapsed := now.Sub(p.lastSentTime)
+	if elapsed <= 0 {
+		return budget
+	}
+	// A signed integer multiplication of nanoseconds and bytes/s can wrap
+	// well before the final division. Cap the refill before converting.
+	refill := float64(p.getBandwidth()) * elapsed.Seconds()
+	if refill >= float64(maxBudget-budget) {
+		return maxBudget
+	}
+	return budget + SaturatingByteCount(refill)
 }
 
 func (p *Pacer) maxBurstSize() congestion.ByteCount {
-	return max(
-		congestion.ByteCount((maxBurstPacingDelayMultiplier*congestion.MinPacingDelay).Nanoseconds())*p.getBandwidth()/1e9,
-		maxBurstPackets*p.maxDatagramSize,
-	)
+	rate := p.getBandwidth()
+	duration := maxBurstPacingDelayMultiplier * congestion.MinPacingDelay
+	burst := SaturatingByteCount(float64(duration) * float64(rate) / float64(time.Second))
+	return max(burst, maxBurstPackets*p.maxDatagramSize)
 }
 
 // TimeUntilSend returns when the next packet should be sent.
@@ -64,7 +90,11 @@ func (p *Pacer) TimeUntilSend() monotime.Time {
 		return 0
 	}
 	diff := 1e9 * uint64(p.maxDatagramSize-p.budgetAtLastSent)
-	bw := uint64(p.getBandwidth())
+	rate := p.getBandwidth()
+	if rate <= 0 {
+		return p.lastSentTime.Add(time.Second)
+	}
+	bw := uint64(rate)
 	// We might need to round up this value.
 	// Otherwise, we might have a budget (slightly) smaller than the datagram size when the timer expires.
 	d := diff / bw
