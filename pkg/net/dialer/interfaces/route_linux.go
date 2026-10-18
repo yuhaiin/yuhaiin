@@ -58,7 +58,7 @@ loop:
 					// 	Mask: net.CIDRMask(int(rt.Src_len), len(attr.Value)*8),
 					// }
 				case syscall.RTA_GATEWAY:
-					// routeInfo.Gateway = net.IP(attr.Value)
+					routeInfo.Gateway, _ = netip.AddrFromSlice(attr.Value)
 				case syscall.RTA_PREFSRC:
 					// routeInfo.PrefSrc = net.IP(attr.Value)
 				case syscall.RTA_IIF:
