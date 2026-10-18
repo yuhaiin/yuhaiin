@@ -70,7 +70,7 @@ func TestWireGuardInboundUDPInterop(t *testing.T) {
 		MTU: 1420, Peers: serverPeers,
 	}, handler, &wgdevice.Logger{
 		Verbosef: func(string, ...any) {},
-		Errorf: func(string, ...any) {},
+		Errorf:   func(string, ...any) {},
 	})
 	if err != nil {
 		t.Fatal(err)
