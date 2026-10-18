@@ -376,8 +376,10 @@ func LocalAddresses() map[netip.Addr]string {
 		return map[netip.Addr]string{}
 	}
 
-	localAddresses.Store(&xx)
-	return xx
+	if localAddresses.CompareAndSwap(nil, &xx) {
+		return xx
+	}
+	return *localAddresses.Load()
 }
 
 func getLocalAddresses() (map[netip.Addr]string, error) {
@@ -437,7 +439,8 @@ func DefaultRouter() *cidr.Cidr[string] {
 	}
 
 	trie := rs.ToTrie()
-	defaultrouter.Store(trie)
-
-	return trie
+	if defaultrouter.CompareAndSwap(nil, trie) {
+		return trie
+	}
+	return defaultrouter.Load()
 }
