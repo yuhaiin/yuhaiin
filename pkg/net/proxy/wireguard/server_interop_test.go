@@ -22,7 +22,7 @@ type inboundEchoHandler struct {
 }
 
 func (*inboundEchoHandler) HandleStream(meta *netapi.StreamMeta) { _ = meta.Src.Close() }
-func (*inboundEchoHandler) HandlePing(*netapi.PingMeta) {}
+func (*inboundEchoHandler) HandlePing(*netapi.PingMeta)          {}
 
 func (h *inboundEchoHandler) HandlePacket(packet *netapi.Packet) {
 	defer packet.DecRef()
@@ -68,7 +68,10 @@ func TestWireGuardInboundUDPInterop(t *testing.T) {
 		PrivateKey: base64.StdEncoding.EncodeToString(serverKey.Bytes()),
 		ListenPort: port, Addresses: []string{"10.66.0.1/24"},
 		MTU: 1420, Peers: serverPeers,
-	}, handler, &wgdevice.Logger{Verbosef: t.Logf, Errorf: t.Logf})
+	}, handler, &wgdevice.Logger{
+		Verbosef: func(string, ...any) {},
+		Errorf: func(string, ...any) {},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
