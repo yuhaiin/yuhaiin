@@ -68,12 +68,19 @@ func routes() (router, error) {
 			// 	gatewayAddr = netip.AddrFrom16(g.IP)
 			// }
 
+			var gateway netip.Addr
+			switch g := msg.Addrs[1].(type) {
+			case *route.Inet4Addr:
+				gateway = netip.AddrFrom4(g.IP)
+			case *route.Inet6Addr:
+				gateway = netip.AddrFrom16(g.IP)
+			}
 			prefix := netip.PrefixFrom(ip, bits)
 
 			if ip.Is4() {
-				ret.v4 = append(ret.v4, rtInfo{Dst: prefix, OutputIface: iface.Name})
+				ret.v4 = append(ret.v4, rtInfo{Dst: prefix, OutputIface: iface.Name, Gateway: gateway})
 			} else {
-				ret.v6 = append(ret.v6, rtInfo{Dst: prefix, OutputIface: iface.Name})
+				ret.v6 = append(ret.v6, rtInfo{Dst: prefix, OutputIface: iface.Name, Gateway: gateway})
 			}
 		}
 	}
