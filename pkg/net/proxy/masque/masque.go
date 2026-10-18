@@ -97,13 +97,13 @@ type Conn struct {
 
 func (c *Conn) Close() error {
 	var err error
-	if c.h2 != nil {
-		if er := c.h2.Close(); er != nil {
+	if c.ipconn != nil {
+		if er := c.ipconn.Close(); er != nil {
 			err = errors.Join(err, er)
 		}
 	}
-	if c.ipconn != nil {
-		if er := c.ipconn.Close(); er != nil {
+	if c.h2 != nil {
+		if er := c.h2.Close(); er != nil {
 			err = errors.Join(err, er)
 		}
 	}
@@ -224,6 +224,8 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 		_ = mConn.Close()
 		return nil, err
 	}
+	// Preserve the empty User-Agent used by our previous Cloudflare WARP client.
+	req.Header()["User-Agent"] = []string{""}
 	ipConn, resp, err := connectip.NewCloudflareClientConn(hconn, quicConn).Dial(req)
 	if err != nil {
 		_ = mConn.Close()

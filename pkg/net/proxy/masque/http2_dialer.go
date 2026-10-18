@@ -38,6 +38,7 @@ func (m *Masque) connectHTTP2(ctx context.Context) (*Conn, error) {
 		_ = c.Close()
 		return nil, err
 	}
+	request.Header()["User-Agent"] = []string{""}
 	ipConn, resp, err := connectip.NewCloudflareHTTP2ClientConn(h2).Dial(request)
 	if err != nil {
 		_ = c.Close()
