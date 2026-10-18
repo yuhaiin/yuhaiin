@@ -95,6 +95,7 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 	}
 	return s, nil
 }
+
 // NewFromStack shares the normal TCP/UDP proxy handler with non-TUN packet
 // sources such as a WireGuard listener. The caller retains ownership of the
 // packet device; closing the accepter closes the lightweight stack.
