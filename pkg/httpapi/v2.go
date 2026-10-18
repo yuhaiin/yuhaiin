@@ -119,6 +119,7 @@ type V2Services struct {
 	Subscriptions    *plainstore.SubscriptionStore
 	Resolvers        *plainstore.ResolverStore
 	Resolver         ResolverController
+	FakeIP           contractresolver.FakeIPEntries
 	ResolverCache    ResolverCacheController
 	ResolverConfig   ResolverConfigController
 	Connections      ConnectionMonitor

@@ -79,6 +79,8 @@ const (
 	v2ResolverFakeDNSPut    v2Endpoint = "resolver.fakedns.put"
 	v2ResolverServerGet     v2Endpoint = "resolver.server.get"
 	v2ResolverServerPut     v2Endpoint = "resolver.server.put"
+	v2FakeIPEntries         v2Endpoint = "resolver.fakeip.entries"
+	v2FakeIPEntryDelete     v2Endpoint = "resolver.fakeip.entry.delete"
 	v2ResolverCacheGet      v2Endpoint = "resolver.cache.get"
 	v2ResolverCacheDelete   v2Endpoint = "resolver.cache.delete"
 	v2SubscriptionsGet      v2Endpoint = "subscriptions.get"
@@ -166,6 +168,8 @@ var v2Routes = []v2Route{
 	{v2ResolverFakeDNSPut, "PUT /api/v2/resolver/fakedns"},
 	{v2ResolverServerGet, "GET /api/v2/resolver/server"},
 	{v2ResolverServerPut, "PUT /api/v2/resolver/server"},
+	{v2FakeIPEntries, "GET /api/v2/resolver/fakeip/entries"},
+	{v2FakeIPEntryDelete, "DELETE /api/v2/resolver/fakeip/entries/{ip}/{domain}"},
 	{v2ResolverCacheGet, "GET /api/v2/resolver/cache"},
 	{v2ResolverCacheDelete, "DELETE /api/v2/resolver/cache/{resolver}/{domain}"},
 	{v2SubscriptionsGet, "GET /api/v2/subscriptions"},
