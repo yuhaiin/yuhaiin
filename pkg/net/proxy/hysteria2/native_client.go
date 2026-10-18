@@ -96,7 +96,7 @@ func (s *nativeClientSession) TCPContext(ctx context.Context, destination string
 	abort := context.AfterFunc(ctx, func() { stream.CancelRead(0); stream.CancelWrite(0) })
 	defer abort()
 	if deadline, ok := ctx.Deadline(); ok { _ = stream.SetDeadline(deadline) }
-	defer stream.SetDeadline(time.Time{})
+	defer func() { _ = stream.SetDeadline(time.Time{}) }()
 	if err := wire.WriteTCPRequest(stream, destination); err != nil {
 		stream.CancelRead(0); stream.CancelWrite(0)
 		return nil, err

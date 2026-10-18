@@ -206,8 +206,6 @@ func (f *connFactory) New(remote net.Addr) (net.PacketConn, error) {
 	return conn, nil
 }
 
-type packetConnOnly struct{ net.PacketConn }
-
 func (f *connFactory) listenPacket(ctx context.Context, remote net.Addr) (net.PacketConn, error) {
 	var conn net.PacketConn
 	var err error

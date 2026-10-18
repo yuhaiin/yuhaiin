@@ -483,9 +483,6 @@ type bandwidthSampler struct {
 	recentAckPoints recentAckPoints
 	a0Candidates    RingBuffer[ackPoint]
 
-	// Maximum number of tracked packets.
-	maxTrackedPackets congestion.ByteCount
-
 	maxAckHeightTracker              *maxAckHeightTracker
 	totalBytesAckedAfterLastAckEvent congestion.ByteCount
 
@@ -726,10 +723,6 @@ func (b *bandwidthSampler) EndOfAppLimitedPhase() congestion.PacketNumber {
 	return b.endOfAppLimitedPhase
 }
 
-func (b *bandwidthSampler) max_ack_height() congestion.ByteCount {
-	return b.maxAckHeightTracker.Get()
-}
-
 func (b *bandwidthSampler) chooseA0Point(totalBytesAcked congestion.ByteCount, a0 *ackPoint) bool {
 	if b.a0Candidates.Empty() {
 		return false
@@ -872,6 +865,3 @@ func bytesFromBandwidthAndTimeDelta(bandwidth Bandwidth, delta time.Duration) co
 		(congestion.ByteCount(time.Second) * 8)
 }
 
-func timeDeltaFromBytesAndBandwidth(bytes congestion.ByteCount, bandwidth Bandwidth) time.Duration {
-	return time.Duration(bytes*8) * time.Second / time.Duration(bandwidth)
-}
