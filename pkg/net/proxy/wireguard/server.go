@@ -141,6 +141,10 @@ func serverIPC(c ServerConfig) (*bytes.Buffer, []netip.Prefix, error) {
 // NewServer serves standard WireGuard peers through a memory-only IP stack and
 // the same stream/datagram handlers used by the normal lightweight TUN inbound.
 func NewServer(config ServerConfig, handler netapi.Handler) (netapi.Accepter, error) {
+	return newServer(config, handler, nil)
+}
+
+func newServer(config ServerConfig, handler netapi.Handler, logger *device.Logger) (netapi.Accepter, error) {
 	if handler == nil {
 		return nil, errors.New("wireguard: nil inbound handler")
 	}
@@ -161,11 +165,13 @@ func NewServer(config ServerConfig, handler netapi.Handler) (netapi.Accepter, er
 		_ = tunnel.Close()
 		return nil, err
 	}
-	logger := &device.Logger{
-		Verbosef: func(string, ...any) {},
-		Errorf: func(format string, args ...any) {
-			log.Warn("wireguard inbound", "error", fmt.Sprintf(format, args...))
-		},
+	if logger == nil {
+		logger = &device.Logger{
+			Verbosef: func(string, ...any) {},
+			Errorf: func(format string, args ...any) {
+				log.Warn("wireguard inbound", "error", fmt.Sprintf(format, args...))
+			},
+		}
 	}
 	dev := device.NewDevice(tunnel, conn.NewDefaultBind(), logger)
 	if err = dev.IpcSetOperation(ipc); err == nil {
