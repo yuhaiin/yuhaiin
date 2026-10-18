@@ -864,4 +864,3 @@ func bytesFromBandwidthAndTimeDelta(bandwidth Bandwidth, delta time.Duration) co
 	return (congestion.ByteCount(bandwidth) * congestion.ByteCount(delta)) /
 		(congestion.ByteCount(time.Second) * 8)
 }
-

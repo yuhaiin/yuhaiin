@@ -13,8 +13,8 @@ import (
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2/internal/obfs"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 // Packet IDs must be unique across listeners and reconnects, not just within a

@@ -11,9 +11,9 @@ import (
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2/internal/obfs"
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2/internal/obfs"
 )
 
 func init() {
@@ -127,8 +127,13 @@ func (c *Client) getSession(ctx context.Context) (*nativeClientSession, error) {
 	}
 	factory := &connFactory{ctx: setup, hopCtx: c.ctx, parent: c.parent, password: c.config.SalamanderPassword, hopInterval: interval}
 	session, err := dialNativeSession(setup, factory, serverAddr, c.config.Auth, tlsConfig, c.config.UploadBPS, c.config.DownloadBPS)
-	if err != nil { return nil, fmt.Errorf("hysteria2 connect: %w", err) }
-	if c.ctx.Err() != nil { _ = session.Close(); return nil, net.ErrClosed }
+	if err != nil {
+		return nil, fmt.Errorf("hysteria2 connect: %w", err)
+	}
+	if c.ctx.Err() != nil {
+		_ = session.Close()
+		return nil, net.ErrClosed
+	}
 	c.session = session
 	return c.session, nil
 }
