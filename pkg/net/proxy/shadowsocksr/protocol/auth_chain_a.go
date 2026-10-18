@@ -49,14 +49,35 @@ type authChainA struct {
 func NewAuthChainA(info Protocol) protocol { return newAuthChain(info, authChainAGetRandLen) }
 
 func newAuthChain(info Protocol, rnd func(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int) *authChainA {
-	return &authChainA{
-		salt:     info.Name,
+	a := &authChainA{
+		salt:     strings.ToLower(info.Name),
 		hmac:     ssr.HMAC(crypto.MD5),
 		rnd:      rnd,
 		recvID:   1,
 		Protocol: info,
 		overhead: 4 + info.ObfsOverhead,
 	}
+	a.initUserKey()
+	return a
+}
+
+// Credentials are connection-independent; UDP may be used without a TCP handshake.
+func (a *authChainA) initUserKey() {
+	if a.userKey != nil {
+		return
+	}
+	params := strings.SplitN(a.Param, ":", 2)
+	if len(params) == 2 {
+		if id, err := strconv.ParseUint(params[0], 10, 32); err == nil {
+			binary.LittleEndian.PutUint32(a.uid[:], uint32(id))
+			a.userKey = []byte(params[1])
+		}
+	}
+	if a.userKey == nil {
+		_, _ = crand.Read(a.uid[:])
+		a.userKey = append([]byte{}, a.Key()...)
+	}
+	a.userKeyLen = len(a.userKey)
 }
 
 func authChainAGetRandLen(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int {
@@ -129,7 +150,7 @@ const authheadLength = 4 + 8 + 4 + 16 + 4
 func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	outData = make([]byte, authheadLength, authheadLength+1500)
 
-	a.Auth.nextAuth()
+	clientID, connectionID := a.Auth.nextAuth()
 
 	var key = make([]byte, a.IVSize()+len(a.Key()))
 	copy(key, a.IV)
@@ -137,8 +158,8 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 
 	encrypt := make([]byte, 20)
 	binary.LittleEndian.PutUint32(encrypt[:4], uint32(system.NowUnix()))
-	copy(encrypt[4:8], a.Auth.clientID[:])
-	binary.LittleEndian.PutUint32(encrypt[8:], a.Auth.connectionID.Load())
+	copy(encrypt[4:8], clientID[:])
+	binary.LittleEndian.PutUint32(encrypt[8:], connectionID)
 	binary.LittleEndian.PutUint16(encrypt[12:], uint16(a.overhead))
 	binary.LittleEndian.PutUint16(encrypt[14:16], 0)
 
@@ -151,25 +172,8 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	var base64UserKey string
 	// uid & 16 bytes auth data
 	{
-		uid := make([]byte, 4)
-		if a.userKey == nil {
-			params := strings.Split(a.Param, ":")
-			if len(params) >= 2 {
-				if userID, err := strconv.ParseUint(params[0], 10, 32); err == nil {
-					binary.LittleEndian.PutUint32(a.uid[:], uint32(userID))
-					a.userKeyLen = len(params[1])
-					a.userKey = []byte(params[1])
-				}
-			}
-			if a.userKey == nil {
-				crand.Read(a.uid[:])
-
-				a.userKeyLen = len(a.Key())
-				a.userKey = make([]byte, len(a.Key()))
-				copy(a.userKey, a.Key())
-			}
-		}
-		for i := range 4 {
+		var uid [4]byte
+		for i := range uid {
 			uid[i] = a.uid[i] ^ a.lastClientHash[8+i]
 		}
 		base64UserKey = base64.StdEncoding.EncodeToString(a.userKey)
@@ -227,25 +231,31 @@ func (a *authChainA) EncryptStream(wbuf *pool.Buffer, plainData []byte) (err err
 		dataLength -= headSize
 		a.hasSentHeader = true
 	}
-	var unitSize = a.TcpMss - a.overhead
+	unitSize := a.TcpMss - a.overhead
+	if unitSize <= 0 {
+		return ssr.ErrAuthChainDataLengthError
+	}
 	for dataLength > unitSize {
 		dataLen, randLength := a.packedDataLen(plainData[offset : offset+unitSize])
-		b := make([]byte, dataLen)
-		a.packData(b, plainData[offset:offset+unitSize], randLength)
-		_, _ = wbuf.Write(b)
+		start := wbuf.Len()
+		wbuf.Advance(dataLen)
+		a.packData(wbuf.Bytes()[start:], plainData[offset:offset+unitSize], randLength)
 		dataLength -= unitSize
 		offset += unitSize
 	}
 	if dataLength > 0 {
 		dataLen, randLength := a.packedDataLen(plainData[offset:])
-		b := make([]byte, dataLen)
-		a.packData(b, plainData[offset:], randLength)
-		_, _ = wbuf.Write(b)
+		start := wbuf.Len()
+		wbuf.Advance(dataLen)
+		a.packData(wbuf.Bytes()[start:], plainData[offset:], randLength)
 	}
 	return nil
 }
 
 func (a *authChainA) DecryptStream(rbuf *pool.Buffer, plainData []byte) (n int, err error) {
+	if len(a.lastServerHash) < 16 || a.decrypter == nil {
+		return 0, ssr.ErrAuthChainDataLengthError
+	}
 	key := make([]byte, len(a.userKey)+4)
 	readlenth := 0
 	copy(key, a.userKey)
@@ -273,12 +283,16 @@ func (a *authChainA) DecryptStream(rbuf *pool.Buffer, plainData []byte) (n int, 
 			dataPos = 2 + getRandStartPos(&a.randomServer, randLen)
 		}
 
+		if a.recvID == 1 && dataLen < 2 {
+			return 0, ssr.ErrAuthChainDataLengthError
+		}
 		b := make([]byte, dataLen)
 		a.decrypter.XORKeyStream(b, plainData[dataPos:dataPos+dataLen])
-		_, _ = rbuf.Write(b)
 		if a.recvID == 1 {
-			a.TcpMss = int(binary.LittleEndian.Uint16(rbuf.Next(2)))
+			a.TcpMss = int(binary.LittleEndian.Uint16(b[:2]))
+			b = b[2:]
 		}
+		_, _ = rbuf.Write(b)
 		a.lastServerHash = hash
 		a.recvID++
 		plainData = plainData[length:]
@@ -292,59 +306,62 @@ func (a *authChainA) GetOverhead() int {
 	return a.overhead
 }
 
+// EncryptPacket implements client-to-server auth_chain UDP framing:
+// RC4(payload) | random padding | random[3] | UID^MAC[4] | HMAC[1].
 func (a *authChainA) EncryptPacket(b []byte) ([]byte, error) {
-	if a.userKey == nil {
-		params := strings.Split(a.Param, ":")
-		if len(params) >= 2 {
-			if userID, err := strconv.ParseUint(params[0], 10, 32); err == nil {
-				binary.LittleEndian.PutUint32(a.uid[:], uint32(userID))
-				a.userKeyLen = len(params[1])
-				a.userKey = []byte(params[1])
-			}
-		}
-		if a.userKey == nil {
-			crand.Read(a.uid[:])
-
-			a.userKeyLen = len(a.Key())
-			a.userKey = make([]byte, len(a.Key()))
-			copy(a.userKey, a.Key())
-		}
+	var random [3]byte
+	if _, err := crand.Read(random[:]); err != nil {
+		return nil, err
 	}
-	authData := make([]byte, 3)
-	crand.Read(authData)
+	mac := a.hmac.HMAC(a.Key(), random[:], nil)
+	var rng ssr.Shift128plusContext
+	padding := udpGetRandLength(mac, &rng)
 
-	md5Data := a.hmac.HMAC(a.userKey, authData, nil)
-	randDataLength := udpGetRandLength(md5Data, &a.randomClient)
-
-	key := core.KDF(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(md5Data), 16)
+	key := core.KDF(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(mac), 16)
 	rc4Cipher, err := rc4.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
-	wantedData := b[:len(b)-8-randDataLength]
-	rc4Cipher.XORKeyStream(wantedData, wantedData)
-	return wantedData, nil
+
+	out := make([]byte, len(b)+padding+3+4+1)
+	rc4Cipher.XORKeyStream(out[:len(b)], b)
+	if _, err := crand.Read(out[len(b) : len(b)+padding]); err != nil {
+		return nil, err
+	}
+	randomStart := len(b) + padding
+	copy(out[randomStart:], random[:])
+	for i := range a.uid {
+		out[randomStart+3+i] = a.uid[i] ^ mac[i]
+	}
+	out[len(out)-1] = a.hmac.HMAC(a.userKey, out[:len(out)-1], nil)[0]
+	return out, nil
 }
 
+// DecryptPacket implements server-to-client auth_chain UDP framing:
+// RC4(payload) | random padding | random[7] | HMAC[1].
 func (a *authChainA) DecryptPacket(b []byte) ([]byte, error) {
-	if len(b) < 9 {
+	if len(b) < 8 {
 		return nil, ssr.ErrAuthChainDataLengthError
 	}
-	if !bytes.Equal(a.hmac.HMAC(a.userKey, b[:len(b)-1], nil)[:1], b[len(b)-1:]) {
+	if a.hmac.HMAC(a.userKey, b[:len(b)-1], nil)[0] != b[len(b)-1] {
 		return nil, ssr.ErrAuthChainIncorrectHMAC
 	}
-	md5Data := a.hmac.HMAC(a.Key(), b[len(b)-8:len(b)-1], nil)
 
-	randDataLength := udpGetRandLength(md5Data, &a.randomServer)
+	mac := a.hmac.HMAC(a.Key(), b[len(b)-8:len(b)-1], nil)
+	var rng ssr.Shift128plusContext
+	padding := udpGetRandLength(mac, &rng)
+	if padding > len(b)-8 {
+		return nil, ssr.ErrAuthChainDataLengthError
+	}
 
-	key := core.KDF(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(md5Data), 16)
+	key := core.KDF(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(mac), 16)
 	rc4Cipher, err := rc4.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
-	wantedData := b[:len(b)-8-randDataLength]
-	rc4Cipher.XORKeyStream(wantedData, wantedData)
-	return wantedData, nil
+	out := make([]byte, len(b)-8-padding)
+	rc4Cipher.XORKeyStream(out, b[:len(out)])
+	return out, nil
 }
 
 func udpGetRandLength(lastHash []byte, random *ssr.Shift128plusContext) int {
