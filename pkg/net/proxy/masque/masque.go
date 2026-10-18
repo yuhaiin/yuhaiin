@@ -342,10 +342,8 @@ func (m *Masque) Start() error {
 		defer cancel()
 
 		for {
-			buf := pool.GetBytes(m.mtu)
-			n, err := conn.ipconn.ReadPacket(buf)
+			packet, err := conn.ipconn.ReadPacketBuffer()
 			if err != nil {
-				pool.PutBytes(buf)
 				if _, ok := errors.AsType[*connectip.CloseError](err); ok {
 					log.Error("connection closed while reading from IP connection", "err", err)
 					return
@@ -359,8 +357,11 @@ func (m *Masque) Start() error {
 				return
 			}
 
+			// The configured MTU limits local transmission, not peer packet
+			// sizes. Clone only the actual packet into pooled queue storage.
+			buf := pool.Clone(packet)
 			select {
-			case m.receive <- buf[:n]:
+			case m.receive <- buf:
 			case <-ctx.Done():
 				pool.PutBytes(buf)
 				return

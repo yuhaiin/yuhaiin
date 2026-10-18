@@ -38,8 +38,24 @@ Apple M4 / Go 1.27.2, `-cpu=1 -count=5 -benchtime=500ms`: a 1200-byte encoding f
 
 ## Development
 
+The node page's UDP Ping uses DNS-over-QUIC (DoQ), rather than plain DNS/UDP.
+DoQ starts with a 1200-byte QUIC UDP payload so the Initial and IPv6/UDP headers
+fit a 1280-byte tunnel without fragmentation; QUIC PMTU discovery remains enabled.
+The local transmit MTU does not cap received peer IP packets. MASQUE accepts a
+complete validated packet and pools storage for its actual size, so a peer's
+1280-byte QUIC UDP payload (1308-byte IPv4 or 1328-byte IPv6 packet) cannot cause
+a short-buffer error and reconnect the entire tunnel.
+
+This was reproduced on a remote Linux host with live Cloudflare WARP credentials:
+plain UDP DNS and STUN succeeded while the page's DoQ timed out. Both IPv4 and
+IPv6 DoQ succeeded after the fixes with the original MTU 1280 retained. The
+regressions exercise the real DoQ dial and a complete H3/IP/UDP tunnel, including
+another UDP exchange after the large reply. Credentials are not stored in the
+tests or this repository.
+
 ```sh
 go test -race -count=1 ./pkg/net/proxy/masque/...
+go test -race -count=1 ./pkg/net/dns/resolver
 go test ./pkg/net/proxy/hysteria2/internal/congestion/...
 ```
 
