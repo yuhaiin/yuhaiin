@@ -31,6 +31,7 @@ import (
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 )
@@ -45,6 +46,17 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 
 	if config.Protocol.Type == contract.ProtocolHysteria2 {
 		return listenHysteria2(config, handler)
+	}
+	if config.Protocol.Type == contract.ProtocolWireguard {
+		if config.Network.Type != contract.NetworkEmpty || len(config.Transports) != 0 {
+			return nil, errors.New("wireguard inbound requires empty network without transports")
+		}
+		p := config.Protocol.Wireguard
+		return wireguard.NewServer(wireguard.ServerConfig{
+			PrivateKey: p.PrivateKey, ListenPort: p.ListenPort,
+			Addresses: p.Addresses, MTU: p.MTU,
+			Peers: toWireguardPeers(p.Peers),
+		}, handler)
 	}
 	if config.Protocol.Type == contract.ProtocolKrunlet {
 		if config.Network.Type != contract.NetworkEmpty {
@@ -91,6 +103,14 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 		return &boundAccepter{Accepter: server, bindings: bindings}, nil
 	}
 	return server, nil
+}
+
+func toWireguardPeers(peers []contract.WireguardPeer) []wireguard.ServerPeer {
+	out := make([]wireguard.ServerPeer, 0, len(peers))
+	for _, p := range peers {
+		out = append(out, wireguard.ServerPeer{PublicKey: p.PublicKey, PreSharedKey: p.PreSharedKey, AllowedIPs: p.AllowedIPs})
+	}
+	return out
 }
 
 type boundAccepter struct {

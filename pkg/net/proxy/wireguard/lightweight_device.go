@@ -26,6 +26,16 @@ type LightweightNetTun struct {
 }
 
 func CreateLightweightNetTUN(localAddresses []netip.Prefix, mtu int) (*LightweightNetTun, error) {
+	return createLightweightNetTUN(localAddresses, mtu, false)
+}
+
+// CreateLightweightInboundTUN terminates arbitrary routed client destinations
+// entirely in the in-memory lightweight TCP/IP stack. It never opens a system TUN.
+func CreateLightweightInboundTUN(localAddresses []netip.Prefix, mtu int) (*LightweightNetTun, error) {
+	return createLightweightNetTUN(localAddresses, mtu, true)
+}
+
+func createLightweightNetTUN(localAddresses []netip.Prefix, mtu int, inbound bool) (*LightweightNetTun, error) {
 	if mtu == 0 {
 		mtu = 1500
 	}
@@ -41,7 +51,7 @@ func CreateLightweightNetTUN(localAddresses []netip.Prefix, mtu int) (*Lightweig
 		dev.hasV6 = dev.hasV6 || ip.Is6()
 	}
 	var err error
-	dev.stack, err = lightweight.New(lightweight.Config{Addresses: addresses, MTU: mtu, Profile: lightweight.RemoteTunnel}, dev.link)
+	dev.stack, err = lightweight.New(lightweight.Config{Addresses: addresses, MTU: mtu, Profile: lightweight.RemoteTunnel, Promiscuous: inbound, ForwardUDP: inbound}, dev.link)
 	if err != nil {
 		_ = dev.link.Close()
 		return nil, err
@@ -49,6 +59,9 @@ func CreateLightweightNetTUN(localAddresses []netip.Prefix, mtu int) (*Lightweig
 	dev.events <- tun.EventUp
 	return dev, nil
 }
+
+// Stack is the already-running userspace protocol stack behind this packet link.
+func (n *LightweightNetTun) Stack() *lightweight.Stack { return n.stack }
 
 func (n *LightweightNetTun) Name() (string, error)    { return "lightweight", nil }
 func (n *LightweightNetTun) File() *os.File           { return nil }
