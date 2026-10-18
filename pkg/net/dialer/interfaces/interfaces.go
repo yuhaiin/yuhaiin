@@ -258,16 +258,23 @@ func reGetDefaultInterface(reason string) error {
 		return fmt.Errorf("get local addresses failed: %w", err)
 	}
 	name, err := defaultRouteInterface()
+	unsupported := errors.Is(err, errors.ErrUnsupported)
 	if errors.Is(err, ErrNoDefaultRoute) {
 		name = ""
-	} else if err != nil {
+	} else if err != nil && !unsupported {
 		return fmt.Errorf("get default route interface failed: %w", err)
 	}
 
-	next := snapshotNetwork(name, addresses, routes)
 	defaultInterfaceNameMu.Lock()
 	old := defaultInterfaceName.Load()
 	oldName := atomicx.PointerOrEmpty(old)
+	if unsupported {
+		// Android and other stub platforms may supply the interface through
+		// the embedding application. Unsupported discovery is not a failure
+		// or evidence that this configured interface has disappeared.
+		name = oldName
+	}
+	next := snapshotNetwork(name, addresses, routes)
 	prev := lastNetworkState.Load()
 	changed := oldName != name || (prev != nil && networkStateChanged(*prev, next))
 	defaultrouter.Store(routes.ToTrie())

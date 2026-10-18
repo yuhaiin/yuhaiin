@@ -2,9 +2,9 @@ package interfaces
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -323,23 +323,25 @@ func (m *monitor) start() error {
 	if err != nil {
 		return err
 	}
-	// Only this goroutine owns and closes routeSocket. Stop merely cancels.
-	defer unix.Close(routeSocket)
-	if err := unix.SetNonblock(routeSocket, true); err != nil {
-		return err
-	}
-	kq, err := unix.Kqueue()
-	if err != nil {
-		return err
-	}
-	defer unix.Close(kq)
+	return m.readRouteSocket(routeSocket)
+}
 
-	var change unix.Kevent_t
-	unix.SetKevent(&change, routeSocket, unix.EVFILT_READ, unix.EV_ADD|unix.EV_ENABLE)
-	if _, err := unix.Kevent(kq, []unix.Kevent_t{change}, nil, nil); err != nil {
+// readRouteSocket takes ownership of routeSocket.
+func (m *monitor) readRouteSocket(routeSocket int) error {
+	if err := unix.SetNonblock(routeSocket, true); err != nil {
+		unix.Close(routeSocket)
+		return err
+	}
+	unix.CloseOnExec(routeSocket)
+	// The runtime poller sleeps until a route event or cancellation. os.File
+	// serializes Close with Read, avoiding both idle polling and fd reuse races.
+	f := os.NewFile(uintptr(routeSocket), "route monitor")
+	defer f.Close()
+	if err := f.SetReadDeadline(time.Time{}); err != nil {
 		return fmt.Errorf("register route socket: %w", err)
 	}
-	var events [1]unix.Kevent_t
+	stop := context.AfterFunc(m.ctx, func() { _ = f.Close() })
+	defer stop()
 	buf := pool.GetBytes(64 << 10)
 	defer pool.PutBytes(buf)
 
@@ -347,26 +349,11 @@ func (m *monitor) start() error {
 		if m.ctx.Err() != nil {
 			return nil
 		}
-		// A bounded wait makes cancellation reliable without closing a live
-		// descriptor from another goroutine (which can race with fd reuse).
-		nready, err := unix.Kevent(kq, nil, events[:], &unix.Timespec{Sec: 1})
-		if errors.Is(err, unix.EINTR) {
-			continue
-		}
+		n, err := f.Read(buf)
 		if err != nil {
-			return fmt.Errorf("wait for route event: %w", err)
-		}
-		if nready == 0 {
-			continue
-		}
-		if events[0].Flags&unix.EV_ERROR != 0 {
-			return fmt.Errorf("route socket event: %w", syscall.Errno(events[0].Data))
-		}
-		n, err := unix.Read(routeSocket, buf)
-		if errors.Is(err, unix.EAGAIN) || errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EINTR) {
-			continue
-		}
-		if err != nil {
+			if m.ctx.Err() != nil {
+				return nil
+			}
 			return fmt.Errorf("read route socket: %w", err)
 		}
 		if n == 0 {
