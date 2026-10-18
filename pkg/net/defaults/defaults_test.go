@@ -4,7 +4,7 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/network/defaults"
+	"github.com/Asutorufa/yuhaiin/pkg/net/defaults"
 )
 
 func TestFakeIPPoolsStayWithinBenchmarkRanges(t *testing.T) {

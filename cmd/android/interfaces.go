@@ -6,8 +6,8 @@ import (
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/defaults"
 	di "github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
-	"github.com/Asutorufa/yuhaiin/pkg/network/defaults"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"tailscale.com/net/netaddr"
 	"tailscale.com/net/netmon"

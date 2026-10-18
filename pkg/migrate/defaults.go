@@ -11,7 +11,7 @@ import (
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
-	"github.com/Asutorufa/yuhaiin/pkg/network/defaults"
+	"github.com/Asutorufa/yuhaiin/pkg/net/defaults"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
