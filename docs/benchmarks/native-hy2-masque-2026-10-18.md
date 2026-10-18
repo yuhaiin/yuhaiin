@@ -7,6 +7,7 @@ Apple M4, macOS arm64, Go 1.27.2. These measurements cover the replacement HY2 i
 - HY2 TCP streams remain owned by the inbound handler after dispatch. Previously a channel/asynchronous handler received a stream whose sending side was immediately closed by the protocol dispatcher.
 - HTTP/3 CONNECT setup observes cancellation while waiting for response headers, not only while opening the stream. Closing CONNECT-IP also cancels blocked QUIC datagram reads.
 - HTTP/2 setup/header writes observe cancellation; send-window updates and SETTINGS cannot exceed the protocol's signed 31-bit flow-control bound. Failed PING/RST writes terminate the connection.
+- HTTP/2's outer TCP connection uses the project dialer, preserving interface binding, socket protection/routing marks and interface loop prevention. A regression rejects a skipped interface before attempting the outer connection; the previous plain `net.Dialer` bypassed that protection.
 - The HTTP/2 request-body buffer enforces its 32 KiB bound even on a single large write, supports partial writes/deadlines, and wakes blocked writers on close. Ring storage avoids moving all remaining bytes after every small read; deadline resets reuse a timer.
 - HY2 UDP encoding reuses a bounded pooled buffer across fragments. Per-session packet IDs advance instead of using random IDs forced into half of the 16-bit namespace. QUIC copies accepted datagram payloads before returning, so returning the encoding buffer to the pool is safe.
 

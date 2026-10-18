@@ -4,15 +4,16 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque/connectip"
-	"net"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque/connectip"
 )
 
 // connectHTTP2 establishes Cloudflare CONNECT-IP via TLS and extended HTTP/2 CONNECT.
 func (m *Masque) connectHTTP2(ctx context.Context) (*Conn, error) {
 	c := &Conn{}
-	tcp, err := (&net.Dialer{}).DialContext(ctx, "tcp", m.addr.String())
+	tcp, err := dialer.DialTCPContext(ctx, m.addr.AddrPort())
 	if err != nil {
 		return nil, err
 	}
