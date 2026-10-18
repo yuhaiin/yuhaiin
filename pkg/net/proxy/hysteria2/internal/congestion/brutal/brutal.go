@@ -50,7 +50,9 @@ func NewBrutalSender(bps uint64, disableLossCompensation bool) *BrutalSender {
 	debug, _ := strconv.ParseBool(os.Getenv(debugEnv))
 	// Bandwidth can originate from an untrusted HTTP/3 header. ByteCount is
 	// signed, so never allow uint64 -> int64 to wrap into a negative rate.
-	bps = min(bps, uint64(math.MaxInt64))
+	if bps > uint64(math.MaxInt64) {
+		bps = uint64(math.MaxInt64)
+	}
 	bs := &BrutalSender{
 		bps:                     congestion.ByteCount(bps),
 		maxDatagramSize:         congestion.InitialPacketSize,
