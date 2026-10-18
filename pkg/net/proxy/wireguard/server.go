@@ -101,7 +101,7 @@ func serverIPC(c ServerConfig) (*bytes.Buffer, []netip.Prefix, error) {
 		if len(peer.AllowedIPs) == 0 {
 			return nil, nil, fmt.Errorf("wireguard: peer %d requires allowedIps", i)
 		}
-		fmt.Fprintf(ipc, "public_key=%s\nreplace_allowed_ips=true\n", public)
+		fmt.Fprintf(ipc, "public_key=%s\nendpoint=%s%s\nreplace_allowed_ips=true\n", public, serverPeerPrefix, public)
 		if peer.PreSharedKey != "" {
 			psk, err := keyHex(peer.PreSharedKey)
 			if err != nil {
@@ -173,7 +173,7 @@ func newServer(config ServerConfig, handler netapi.Handler, logger *device.Logge
 			},
 		}
 	}
-	dev := device.NewDevice(tunnel, conn.NewDefaultBind(), logger)
+	dev := device.NewDevice(tunnel, newServerBind(conn.NewDefaultBind()), logger)
 	if err = dev.IpcSetOperation(ipc); err == nil {
 		err = dev.Up()
 	}
