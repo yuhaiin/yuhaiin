@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	wgdevice "github.com/tailscale/wireguard-go/device"
 )
 
 type inboundEchoHandler struct {
@@ -63,11 +64,11 @@ func TestWireGuardInboundUDPInterop(t *testing.T) {
 	_ = probe.Close()
 
 	handler := &inboundEchoHandler{errors: make(chan error, 2)}
-	server, err := NewServer(ServerConfig{
+	server, err := newServer(ServerConfig{
 		PrivateKey: base64.StdEncoding.EncodeToString(serverKey.Bytes()),
 		ListenPort: port, Addresses: []string{"10.66.0.1/24"},
 		MTU: 1420, Peers: serverPeers,
-	}, handler)
+	}, handler, &wgdevice.Logger{Verbosef: t.Logf, Errorf: t.Logf})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,11 +78,11 @@ func TestWireGuardInboundUDPInterop(t *testing.T) {
 		t.Run(fmt.Sprintf("peer-%d", i+1), func(t *testing.T) {
 			proxy, err := NewClient(Config{
 				SecretKey: base64.StdEncoding.EncodeToString(private.Bytes()),
-				Endpoint: []string{fmt.Sprintf("10.66.0.%d/32", i+2)},
-				MTU: 1420,
+				Endpoint:  []string{fmt.Sprintf("10.66.0.%d/32", i+2)},
+				MTU:       1420,
 				Peers: []PeerConfig{{
-					PublicKey: base64.StdEncoding.EncodeToString(serverKey.PublicKey().Bytes()),
-					Endpoint: net.JoinHostPort("127.0.0.1", strconv.Itoa(port)),
+					PublicKey:  base64.StdEncoding.EncodeToString(serverKey.PublicKey().Bytes()),
+					Endpoint:   net.JoinHostPort("127.0.0.1", strconv.Itoa(port)),
 					AllowedIPs: []string{"0.0.0.0/0"},
 				}},
 			}, nil)
