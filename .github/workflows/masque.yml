@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'pkg/net/proxy/masque/**'
+      - 'pkg/net/dns/resolver/**'
       - 'pkg/net/proxy/hysteria2/masque_bbr.go'
       - 'pkg/net/proxy/hysteria2/internal/congestion/**'
       - 'pkg/contract/node/**'
@@ -15,6 +16,7 @@ on:
     branches: [main]
     paths:
       - 'pkg/net/proxy/masque/**'
+      - 'pkg/net/dns/resolver/**'
       - 'pkg/net/proxy/hysteria2/masque_bbr.go'
       - 'pkg/net/proxy/hysteria2/internal/congestion/**'
       - 'pkg/contract/node/**'
@@ -38,6 +40,8 @@ jobs:
         run: go test -race -count=1 -timeout=10m ./pkg/net/proxy/masque/...
       - name: Test shared native BBR controller
         run: go test -count=1 ./pkg/net/proxy/hysteria2/internal/congestion/...
+      - name: Race-test DoQ initial packets on minimum-MTU IPv6 paths
+        run: go test -race -count=1 -timeout=2m ./pkg/net/dns/resolver
       - name: Verify QUIC import consolidation
         shell: bash
         run: |

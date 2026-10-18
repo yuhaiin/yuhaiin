@@ -203,7 +203,10 @@ func (d *doq) initSession(ctx context.Context) (*quic.Conn, error) {
 			NextProtos: []string{"http/1.1", "doq-i02", "doq-i01", "doq-i00", "doq", "dq", http2.NextProtoTLS},
 			ServerName: d.servername,
 		},
-		&quic.Config{},
+		// A QUIC Initial must fit an IPv6 minimum-MTU path, including the
+		// 40-byte IPv6 and 8-byte UDP headers. Larger defaults require IP
+		// fragmentation inside 1280-byte VPNs before PMTU discovery can run.
+		&quic.Config{InitialPacketSize: 1200},
 	)
 	if err != nil {
 		_ = d.conn.Close()

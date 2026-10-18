@@ -531,19 +531,33 @@ func (c *Conn) receiveDatagram() ([]byte, error) {
 }
 
 func (c *Conn) ReadPacket(b []byte) (int, error) {
+	packet, err := c.ReadPacketBuffer()
+	if err != nil {
+		return 0, err
+	}
+	if len(packet) > len(b) {
+		return 0, io.ErrShortBuffer
+	}
+	return copy(b, packet), nil
+}
+
+// ReadPacketBuffer returns the next validated IP packet in an owned buffer.
+// Its size is independent of the local transmit MTU: the peer can send larger
+// packets, including QUIC UDP payloads with additional IP and UDP headers.
+func (c *Conn) ReadPacketBuffer() ([]byte, error) {
 	for {
 		select {
 		case <-c.closeChan:
-			return 0, c.closeErr
+			return nil, c.closeErr
 		default:
 		}
 		data, err := c.receiveDatagram()
 		if err != nil {
 			select {
 			case <-c.closeChan:
-				return 0, c.closeErr
+				return nil, c.closeErr
 			default:
-				return 0, err
+				return nil, err
 			}
 		}
 		packet := data
@@ -560,10 +574,7 @@ func (c *Conn) ReadPacket(b []byte) (int, error) {
 		if err := c.handleIncomingProxiedPacket(packet); err != nil {
 			continue
 		}
-		if len(packet) > len(b) {
-			return 0, io.ErrShortBuffer
-		}
-		return copy(b, packet), nil
+		return packet, nil
 	}
 }
 
