@@ -126,7 +126,7 @@ func TestWireGuardInboundUDPInterop(t *testing.T) {
 					"client": client.device, "server": server.(*inboundServer).device,
 				} {
 					state, _ := engine.IpcGet()
-					for _, line := range strings.Split(state, "\n") {
+					for line := range strings.SplitSeq(state, "\n") {
 						for _, label := range []string{"listen_port=", "endpoint=", "last_handshake_time_sec=", "tx_bytes=", "rx_bytes="} {
 							if strings.HasPrefix(line, label) {
 								t.Logf("%s %s", name, line)
