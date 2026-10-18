@@ -138,12 +138,13 @@ func TestManagedListenerClosesHijackedConnections(t *testing.T) {
 				_ = m.Close()
 			} else {
 				draft := m.Config()
-				if change == "replace" {
+				switch change {
+				case "replace":
 					draft.Gateways[0].ID = "new-owner"
 					draft.Gateways[0].Revision = 0
-				} else if change == "delete" {
+				case "delete":
 					draft.Gateways = nil
-				} else {
+				default:
 					draft.Gateways[0].Enabled = false
 				}
 				if _, err := m.Save(t.Context(), draft); err != nil {

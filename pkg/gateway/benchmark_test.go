@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
@@ -168,5 +170,37 @@ func BenchmarkConcurrentReverseProxy(b *testing.B) {
 	if len(latencies) > 0 {
 		b.ReportMetric(float64(latencies[len(latencies)/2])/1000, "p50-us")
 		b.ReportMetric(float64(latencies[len(latencies)*95/100])/1000, "p95-us")
+	}
+}
+
+// This isolates request context + effective-outbound callback + warm pool lookup.
+// Synthetic A/B callbacks exclude actual Route matching, DNS and socket traffic;
+// complete HTTP request benchmarks above include the engine's forwarding work.
+func BenchmarkRequestOutboundSelectionAndPool(b *testing.B) {
+	address, _ := netapi.ParseAddress("tcp", "example.com:443")
+	proxies := map[string]*mockOutbound{"a": {}, "b": {}}
+	selectOutbound := func(_ context.Context, a netapi.Address, target route.Target) (Selection, error) {
+		return Selection{Proxy: proxies[target.ID], Identity: target.ID, Destination: a}, nil
+	}
+	transports := NewTransportPool(256)
+	defer transports.Close()
+	ctx := netapi.WithContext(b.Context())
+	n := 0
+	b.ReportAllocs()
+	for b.Loop() {
+		id := "a"
+		if n%2 == 1 {
+			id = "b"
+		}
+		n++
+		selection, err := selectOutbound(netapi.ForkContext(ctx), address, route.Target{Type: "node", ID: id})
+		if err != nil {
+			b.Fatal(err)
+		}
+		_, release, err := transports.borrow(selection, "https://example.com", contract.Upstream{})
+		if err != nil {
+			b.Fatal(err)
+		}
+		release()
 	}
 }

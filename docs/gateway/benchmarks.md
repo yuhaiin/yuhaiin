@@ -8,6 +8,7 @@ is 16 KiB; certificate handshakes use TLS over `net.Pipe` and a verified local C
 
 | Benchmark | ns/op | B/op | allocs/op | Throughput |
 | --- | ---: | ---: | ---: | ---: |
+| Request context + synthetic A/B selection + warm pool lookup | 321.0 | 555 | 7 | — |
 | 100 Path rules, match last | 1,058 | 0 | 0 | — |
 | Disabled interception hook | 2.518 | 0 | 0 | — |
 | HTTP/1 reverse proxy, complete request/response | 179,536 | 14,863 | 185 | 91.26 MB/s |
@@ -20,7 +21,9 @@ Concurrent benchmark sampled up to 8,192 requests with Go benchmark parallelism
 at two logical test workers: p50 **258.3 us**, p95 **347.0 us**. These latency
 figures cover the whole local request. Both reverse-proxy benchmarks resolve an
 outbound and borrow its transport on every request; their totals include that
-selection and pool work. A separate HTTP/2 test uses distinguishable A/B mock
+selection and pool work. The isolated selection benchmark alternates synthetic
+A/B callbacks and performs request context creation and warm transport lookup;
+it excludes real Route matching, DNS and socket traffic. A separate HTTP/2 test uses distinguishable A/B mock
 outbounds on the same downstream connection and changes a Selector while pools
 already contain connections.
 
