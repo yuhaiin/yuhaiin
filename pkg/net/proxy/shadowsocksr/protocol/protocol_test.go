@@ -8,10 +8,10 @@ import (
 	"errors"
 	"io"
 	"net"
-	"time"
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	ssrcipher "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
@@ -199,7 +199,7 @@ func (testFrameProtocol) EncryptPacket(data []byte) ([]byte, error) { return dat
 
 func (testFrameProtocol) DecryptPacket(data []byte) ([]byte, error) { return data, nil }
 
-func (testFrameProtocol) GetOverhead() int                          { return 0 }
+func (testFrameProtocol) GetOverhead() int { return 0 }
 
 type fragmentConn struct {
 	io.Reader
@@ -215,7 +215,6 @@ func (c *fragmentConn) Write(p []byte) (int, error) {
 }
 
 func (c *fragmentConn) Close() error { return nil }
-
 
 func (c *fragmentConn) LocalAddr() net.Addr { return nil }
 
