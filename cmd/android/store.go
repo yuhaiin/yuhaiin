@@ -34,8 +34,7 @@ type Store interface {
 func GetStore() Store { return appStore }
 
 // sqlitePreferenceStore is deliberately a thin typed facade over the shared
-// application database. Legacy Android JSON is imported during StateDB.Migrate,
-// before this store is used by App.Start.
+// application SQLite database. Schema initialization happens before App.Start.
 type sqlitePreferenceStore struct {
 	mu    sync.RWMutex
 	path  string

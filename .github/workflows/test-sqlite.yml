@@ -44,7 +44,7 @@ jobs:
       - uses: ./.github/actions/setup-go
         with:
           cache-scope: test-sqlite-${{ matrix.backend }}
-      - name: Test storage, FakeIP, statistics, and legacy settings
+      - name: Test storage, FakeIP, statistics, and state initialization
         run: |
           go test -timeout=5m -tags="sqlite_${SQLITE_BACKEND},stdlibjson,debug,fts5" \
-            ./pkg/storage/sqlite ./pkg/net/dns/fakeip ./pkg/statistics ./pkg/legacy/chore
+            ./pkg/storage/sqlite ./pkg/net/dns/fakeip ./pkg/statistics ./pkg/migrate ./pkg/node

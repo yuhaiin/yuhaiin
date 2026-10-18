@@ -2,14 +2,11 @@ package fakeip
 
 import (
 	"fmt"
-	"log/slog"
 	"net"
 	"net/netip"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
@@ -69,59 +66,6 @@ func TestRetrieveIPFromPtr(t *testing.T) {
 			assert.EqualAny(t, ip, v.expect, slices.Equal)
 		}
 	}
-}
-
-func TestNetip(t *testing.T) {
-	slog.SetLogLoggerLevel(slog.LevelDebug)
-
-	t.Log(len("f.f.f.f.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.f.f.f"))
-	addr, _ := netip.ParseAddr("2606:4700:20::681a:ffff")
-	t.Log(addr.As16())
-
-	z, err := netip.ParsePrefix("127.0.0.1/30")
-	assert.NoError(t, err)
-
-	ff := NewFakeIPPool(z, NewMemCache(t))
-
-	ch := make(chan struct {
-		a  string
-		ip netip.Addr
-	}, 1000)
-
-	logged := make(chan struct{})
-	go func() {
-		defer close(logged)
-		for i := range ch {
-			t.Log(i.a, i.ip)
-		}
-	}()
-	defer func() { close(ch); <-logged }()
-
-	getAndRev := func(a string) {
-		ip := ff.GetFakeIPForDomain(a)
-		ch <- struct {
-			a  string
-			ip netip.Addr
-		}{
-			a, ip,
-		}
-	}
-
-	wg := sync.WaitGroup{}
-
-	wg.Go(func() {
-		getAndRev(fmt.Sprint(1))
-	})
-
-	now := time.Now()
-	for i := range 50 {
-		wg.Go(func() {
-			getAndRev(fmt.Sprint(i))
-		})
-	}
-
-	wg.Wait()
-	t.Log(time.Since(now))
 }
 
 func BenchmarkParsePtr(b *testing.B) {

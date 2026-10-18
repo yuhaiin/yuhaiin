@@ -133,7 +133,7 @@ func (a *App) Start(opt *Opts) error {
 	dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
 	applyRuntimeProfile()
 
-	// All legacy Android JSON is imported before any preference is read.
+	// Initialize SQLite schema before reading Android preferences.
 	setting := migrate.NewStateDB(paths.PathGenerator.State(savepath))
 	if err := setting.Migrate(ctx); err != nil {
 		_ = setting.Close()

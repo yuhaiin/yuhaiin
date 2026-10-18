@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
-	_ "github.com/Asutorufa/yuhaiin/pkg/legacy/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 )
 

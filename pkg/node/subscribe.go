@@ -32,19 +32,6 @@ type ParsedYuhaiinURL struct {
 	Remote *contractsubscription.Publish
 }
 
-var subscriptionParsers struct {
-	parseShareURL   func(data []byte, group, typ string) (contractnode.Node, error)
-	parseYuhaiinURL func(raw string) (ParsedYuhaiinURL, error)
-}
-
-func RegisterSubscriptionParsers(
-	parseShareURL func(data []byte, group, typ string) (contractnode.Node, error),
-	parseYuhaiinURL func(raw string) (ParsedYuhaiinURL, error),
-) {
-	subscriptionParsers.parseShareURL = parseShareURL
-	subscriptionParsers.parseYuhaiinURL = parseYuhaiinURL
-}
-
 type Subscribe struct {
 	runtime       *NodeRuntime
 	subscriptions *plainstore.SubscriptionStore
@@ -120,12 +107,9 @@ func (n *Subscribe) fetch(ctx context.Context, link contractsubscription.Link) e
 			continue
 		}
 
-		if subscriptionParsers.parseShareURL == nil {
-			return errors.New("subscription parser is not registered")
-		}
-		node, err := subscriptionParsers.parseShareURL(scanner.Bytes(), link.Name, link.Type)
+		node, err := parseShareURL(scanner.Bytes(), link.Name, link.Type)
 		if err != nil {
-			log.Error("parse url failed", slog.String("url", scanner.Text()), slog.Any("err", err))
+			log.Error("parse url failed", slog.Any("err", err))
 		} else {
 			node.Group = link.Name
 			node.Origin = "remote"
@@ -157,10 +141,7 @@ func (t *trimBase64Reader) Read(b []byte) (int, error) {
 }
 
 func (n *Subscribe) savePublish(ctx context.Context, link contractsubscription.Link) error {
-	if subscriptionParsers.parseYuhaiinURL == nil {
-		return errors.New("subscription parser is not registered")
-	}
-	yu, err := subscriptionParsers.parseYuhaiinURL(link.URL)
+	yu, err := parseYuhaiinURL(link.URL)
 	if err != nil {
 		return err
 	}
