@@ -145,6 +145,8 @@ func ContractProtocolConfig(protocol contractnode.Protocol) (any, error) {
 		return *protocol.None, nil
 	case "socks5":
 		return *protocol.Socks5, nil
+	case "ssh":
+		return *protocol.SSH, nil
 	case "http":
 		return *protocol.HTTP, nil
 	case "direct":

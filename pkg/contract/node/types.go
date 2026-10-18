@@ -118,6 +118,7 @@ type Protocol struct {
 	Simple       *Fixed        `json:"simple,omitzero"`
 	None         *None         `json:"none,omitzero"`
 	Socks5       *Socks5       `json:"socks5,omitzero"`
+	SSH          *SSH          `json:"ssh,omitzero"`
 	HTTP         *HTTP         `json:"http,omitzero"`
 	Direct       *Direct       `json:"direct,omitzero"`
 	Reject       *Reject       `json:"reject,omitzero"`
@@ -395,6 +396,17 @@ type Socks5 struct {
 	OverridePort int32  `json:"override_port,omitzero"`
 }
 
+// SSH is an SSH direct-tcpip outbound. The preceding simple/fixed protocol
+// specifies the SSH server; host_key pins its public key or SHA256 fingerprint.
+type SSH struct {
+	User                 string `json:"user"`
+	Password             string `json:"password,omitzero"`
+	PrivateKey           string `json:"private_key,omitzero"`
+	PrivateKeyPassphrase string `json:"private_key_passphrase,omitzero"`
+	HostKey              string `json:"host_key"`
+	KeepAliveSeconds     int32  `json:"keep_alive_seconds,omitzero"`
+}
+
 type HTTP struct {
 	User     string `json:"user"`
 	Password string `json:"password"`
@@ -599,6 +611,7 @@ func (Trojan) ProtocolType() string               { return "trojan" }
 func (Simple) ProtocolType() string               { return "simple" }
 func (None) ProtocolType() string                 { return "none" }
 func (Socks5) ProtocolType() string               { return "socks5" }
+func (SSH) ProtocolType() string                  { return "ssh" }
 func (HTTP) ProtocolType() string                 { return "http" }
 func (Direct) ProtocolType() string               { return "direct" }
 func (Reject) ProtocolType() string               { return "reject" }
@@ -808,6 +821,7 @@ func (x Protocol) presentVariants() map[string]bool {
 		"simple":                 x.Simple != nil,
 		"none":                   x.None != nil,
 		"socks5":                 x.Socks5 != nil,
+		"ssh":                    x.SSH != nil,
 		"http":                   x.HTTP != nil,
 		"direct":                 x.Direct != nil,
 		"reject":                 x.Reject != nil,
