@@ -70,7 +70,7 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	outLength := dataOffset + dataLength + 12 + ssr.ObfsHMACSHA1Len
 	outData = make([]byte, outLength)
 
-	a.Auth.nextAuth()
+	clientID, connectionID := a.Auth.nextAuth()
 
 	// 0-1, out length
 	binary.BigEndian.PutUint16(outData[0:2], uint16(outLength&0xFFFF))
@@ -99,9 +99,9 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	now := system.NowUnix()
 	binary.LittleEndian.PutUint32(outData[dataOffset:dataOffset+4], uint32(now))
 	// rand length+10~rand length+14, client ID
-	copy(outData[dataOffset+4:dataOffset+4+4], a.Auth.clientID[0:4])
+	copy(outData[dataOffset+4:dataOffset+4+4], clientID[:])
 	// rand length+14~rand length+18, connection ID
-	binary.LittleEndian.PutUint32(outData[dataOffset+8:dataOffset+8+4], a.Auth.connectionID.Load())
+	binary.LittleEndian.PutUint32(outData[dataOffset+8:dataOffset+8+4], connectionID)
 	// rand length+18~rand length+18+data length, data
 	copy(outData[dataOffset+12:], data)
 
@@ -164,8 +164,10 @@ func (a *authSHA1v4) DecryptStream(dst *pool.Buffer, plainData []byte) (n int, e
 			} else {
 				pos = int(binary.BigEndian.Uint16(plainData[5:5+2])) + 4
 			}
-			outLength := length - pos - 4
-			_, _ = dst.Write(plainData[pos : pos+outLength])
+			if pos > length-4 {
+				return 0, ssr.ErrAuthSHA1v4DataLengthError
+			}
+			_, _ = dst.Write(plainData[pos : length-4])
 			dataLength -= length
 			plainData = plainData[length:]
 		} else {
@@ -181,32 +183,15 @@ func (a *authSHA1v4) GetOverhead() int {
 	return 7
 }
 
-func calcShortAdler32(input []byte, a, b uint32) (uint32, uint32) {
-	for _, i := range input {
-		a += uint32(i)
-		b += a
-	}
-	a %= 65521
-	b %= 65521
-	return a, b
-}
+// Keep the exported helpers for callers while sharing the checksum
+// implementation with the SSR utility package.
+func CalcAdler32(input []byte) uint32 { return ssr.CalcAdler32(input) }
 
-func CalcAdler32(input []byte) uint32 {
-	var a uint32 = 1
-	var b uint32 = 0
-	const nMax = 5552
-	for length := len(input); length > nMax; length -= nMax {
-		a, b = calcShortAdler32(input[:nMax], a, b)
-		input = input[nMax:]
+func CheckAdler32(input []byte, length int) bool {
+	if length < 4 || length > len(input) {
+		return false
 	}
-	a, b = calcShortAdler32(input, a, b)
-	return (b << 16) + a
-}
-
-func CheckAdler32(input []byte, l int) bool {
-	adler32 := CalcAdler32(input[:l-4])
-	checksum := binary.LittleEndian.Uint32(input[l-4:])
-	return adler32 == checksum
+	return CalcAdler32(input[:length-4]) == binary.LittleEndian.Uint32(input[length-4:length])
 }
 
 func (a *authSHA1v4) EncryptPacket(b []byte) ([]byte, error) {
