@@ -87,6 +87,28 @@ func TestAuthHeaders(t *testing.T) {
 	}
 }
 
+func TestAuthBandwidthDoesNotOverflowSignedByteCount(t *testing.T) {
+	h := make(http.Header)
+	for _, value := range []string{
+		"9223372036854775808", "18446744073709551615", "-1", "bogus",
+	} {
+		h.Set(HeaderReceive, value)
+		if got := ReadClientAuth(h).ReceiveBytesPerSecond; got != 0 {
+			t.Fatalf("client rate %q parsed as %d", value, got)
+		}
+		if got := ReadServerAuth(h).ReceiveBytesPerSecond; got != 0 {
+			t.Fatalf("server rate %q parsed as %d", value, got)
+		}
+	}
+	h.Set(HeaderReceive, "9223372036854775807")
+	if got := ReadClientAuth(h).ReceiveBytesPerSecond; got != 9223372036854775807 {
+		t.Fatalf("largest representable rate = %d", got)
+	}
+	if got := ReadServerAuth(h).ReceiveBytesPerSecond; got != 9223372036854775807 {
+		t.Fatalf("largest server rate = %d", got)
+	}
+}
+
 func TestUDPAndFragments(t *testing.T) {
 	m := UDPMessage{SessionID: 0x01020304, PacketID: 17, FragmentCount: 1,
 		Address: "example.org:53", Data: bytes.Repeat([]byte{0xaa}, 4000)}

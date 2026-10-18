@@ -54,8 +54,20 @@ func WriteClientAuth(h http.Header, a ClientAuth) error {
 	return nil
 }
 
+// boundedReceiveBandwidth parses the negotiated byte rate as a *signed* 64-bit
+// quantity. The congestion implementation uses a signed ByteCount, so a
+// full-range ParseUint would allow hostile HTTP/3 headers to wrap the rate.
+// Invalid, negative and overflowing values retain the legacy auto/zero mode.
+func boundedReceiveBandwidth(value string) uint64 {
+	v, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || v < 0 {
+		return 0
+	}
+	return uint64(v)
+}
+
 func ReadClientAuth(h http.Header) ClientAuth {
-	v, _ := strconv.ParseUint(h.Get(HeaderReceive), 10, 64)
+	v := boundedReceiveBandwidth(h.Get(HeaderReceive))
 	return ClientAuth{Password: h.Get(HeaderAuth), ReceiveBytesPerSecond: v}
 }
 
@@ -76,7 +88,7 @@ func WriteServerAuth(h http.Header, a ServerAuth) error {
 
 func ReadServerAuth(h http.Header) ServerAuth {
 	rx := h.Get(HeaderReceive)
-	v, _ := strconv.ParseUint(rx, 10, 64)
+	v := boundedReceiveBandwidth(rx)
 	b, _ := strconv.ParseBool(h.Get(HeaderUDP))
 	return ServerAuth{UDPEnabled: b, ReceiveBytesPerSecond: v, AutoBandwidth: rx == "auto"}
 }
