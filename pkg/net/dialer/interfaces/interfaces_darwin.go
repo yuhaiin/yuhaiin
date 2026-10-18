@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/netip"
 	"reflect"
 	"slices"
 	"strings"
@@ -94,7 +93,7 @@ func defaultRoute() (d DefaultRouteDetails, err error) {
 
 // ErrNoGatewayIndexFound is returned by DefaultRouteInterfaceIndex when no
 // default route is found.
-var ErrNoGatewayIndexFound = errors.New("no gateway index found")
+var ErrNoGatewayIndexFound = ErrNoDefaultRoute
 
 // DefaultRouteInterfaceIndex returns the index of the network interface that
 // owns the default route. It returns the first IPv4 or IPv6 default route it
@@ -122,21 +121,33 @@ func DefaultRouteInterfaceIndex() (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("route.ParseRIB: %w", err)
 	}
+	var ipv6Fallback *route.RouteMessage
 	for _, m := range msgs {
 		rm, ok := m.(*route.RouteMessage)
-		if !ok {
+		if !ok || !isDefaultGateway(rm) {
 			continue
 		}
-		if isDefaultGateway(rm) {
-			if delegatedIndex, err := getDelegatedInterface(rm.Index); err == nil && delegatedIndex != 0 {
-				return delegatedIndex, nil
-			} else if err != nil {
-				log.Error("interfaces_bsd: could not get delegated interface", "err", err)
-			}
-			return rm.Index, nil
+		if addrType(rm.Addrs, unix.RTAX_DST).Family() == syscall.AF_INET {
+			return underlyingInterfaceIndex(rm.Index), nil
+		}
+		if ipv6Fallback == nil {
+			ipv6Fallback = rm
 		}
 	}
+	if ipv6Fallback != nil {
+		return underlyingInterfaceIndex(ipv6Fallback.Index), nil
+	}
 	return 0, ErrNoGatewayIndexFound
+}
+
+// Resolve delegation at lookup time: it can change without the utun name changing.
+func underlyingInterfaceIndex(index int) int {
+	if delegated, err := getDelegatedInterface(index); err == nil && delegated != 0 {
+		return delegated
+	} else if err != nil {
+		log.Warn("get delegated interface failed", "err", err)
+	}
+	return index
 }
 
 var v4default = [4]byte{0, 0, 0, 0}
@@ -274,7 +285,7 @@ func Set[K comparable, V any, T ~map[K]V](m *T, k K, v V) {
 type monitor struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
-	routeSocketFile int
+	done            chan struct{}
 
 	onMsg func(msgs []route.Message)
 }
@@ -285,6 +296,7 @@ func NewMonitor(onMsg func(msgs []route.Message)) NetworkMonitor {
 		ctx:    ctx,
 		cancel: cancel,
 		onMsg:  onMsg,
+		done:   make(chan struct{}),
 	}
 
 	go m.Start()
@@ -293,14 +305,14 @@ func NewMonitor(onMsg func(msgs []route.Message)) NetworkMonitor {
 }
 
 func (m *monitor) Start() {
-	for {
-		select {
-		case <-m.ctx.Done():
-			return
-		default:
-			if err := m.start(); err != nil {
-				log.Error("start monitor failed", "err", err)
-				time.Sleep(time.Second)
+	defer close(m.done)
+	for m.ctx.Err() == nil {
+		if err := m.start(); err != nil && m.ctx.Err() == nil {
+			log.Error("start monitor failed", "err", err)
+			select {
+			case <-m.ctx.Done():
+				return
+			case <-time.After(time.Second):
 			}
 		}
 	}
@@ -311,25 +323,61 @@ func (m *monitor) start() error {
 	if err != nil {
 		return err
 	}
-
-	m.routeSocketFile = routeSocket
+	// Only this goroutine owns and closes routeSocket. Stop merely cancels.
 	defer unix.Close(routeSocket)
+	if err := unix.SetNonblock(routeSocket, true); err != nil {
+		return err
+	}
+	kq, err := unix.Kqueue()
+	if err != nil {
+		return err
+	}
+	defer unix.Close(kq)
 
-	buf := pool.GetBytes(2 << 10)
+	var change unix.Kevent_t
+	unix.SetKevent(&change, routeSocket, unix.EVFILT_READ, unix.EV_ADD|unix.EV_ENABLE)
+	if _, err := unix.Kevent(kq, []unix.Kevent_t{change}, nil, nil); err != nil {
+		return fmt.Errorf("register route socket: %w", err)
+	}
+	var events [1]unix.Kevent_t
+	buf := pool.GetBytes(64 << 10)
 	defer pool.PutBytes(buf)
 
 	for {
-		n, err := unix.Read(routeSocket, buf[:])
-		if err != nil {
-			return fmt.Errorf("read failed: %w", err)
+		if m.ctx.Err() != nil {
+			return nil
 		}
-
-		msgs, err := route.ParseRIB(route.RIBTypeRoute, buf[:n])
-		if err != nil {
-			log.Warn("parse rib failed", "err", err, "plen", n, "msgs", len(msgs))
+		// A bounded wait makes cancellation reliable without closing a live
+		// descriptor from another goroutine (which can race with fd reuse).
+		nready, err := unix.Kevent(kq, nil, events[:], &unix.Timespec{Sec: 1})
+		if errors.Is(err, unix.EINTR) {
 			continue
 		}
-
+		if err != nil {
+			return fmt.Errorf("wait for route event: %w", err)
+		}
+		if nready == 0 {
+			continue
+		}
+		if events[0].Flags&unix.EV_ERROR != 0 {
+			return fmt.Errorf("route socket event: %w", syscall.Errno(events[0].Data))
+		}
+		n, err := unix.Read(routeSocket, buf)
+		if errors.Is(err, unix.EAGAIN) || errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EINTR) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("read route socket: %w", err)
+		}
+		if n == 0 {
+			continue
+		}
+		msgs, err := route.ParseRIB(route.RIBTypeRoute, buf[:n])
+		if err != nil {
+			log.Warn("parse rib failed", "err", err, "plen", n)
+			// The periodic reconciliation covers dropped or truncated events.
+			continue
+		}
 		m.onMsg(msgs)
 	}
 }
@@ -341,7 +389,8 @@ func skipMessage(msg route.Message) bool {
 	case *route.InterfaceAddrMessage:
 		return skipInterfaceAddrMessage(msg)
 	case *route.RouteMessage:
-		return skipRouteMessage(msg)
+		// DefaultRouter caches all prefixes, not just default gateways.
+		return false
 	}
 	return false
 }
@@ -377,46 +426,15 @@ func skipInterfaceAddrMessage(msg *route.InterfaceAddrMessage) bool {
 	return false
 }
 
-// ipOfAddr returns the route.Addr (possibly nil) as a netip.Addr
-// (possibly zero).
-func ipOfAddr(a route.Addr) netip.Addr {
-	switch a := a.(type) {
-	case *route.Inet4Addr:
-		return netip.AddrFrom4(a.IP)
-	case *route.Inet6Addr:
-		ip := netip.AddrFrom16(a.IP)
-		if a.ZoneID != 0 {
-			ip = ip.WithZone(fmt.Sprint(a.ZoneID)) // TODO: look up net.InterfaceByIndex? but it might be changing?
-		}
-		return ip
-	}
-	return netip.Addr{}
-}
-
-func skipRouteMessage(msg *route.RouteMessage) bool {
-	if ip := ipOfAddr(addrType(msg.Addrs, unix.RTAX_DST)); ip.IsLinkLocalUnicast() {
-		// Skip those like:
-		// dst = fe80::b476:66ff:fe30:c8f6%15
-		return true
-	}
-
-	// currently we only care about default gateways
-	// so skip none-default gateways message
-	return !isDefaultGateway(msg)
-}
-
 func (m *monitor) Stop() error {
 	m.cancel()
-	rsf := m.routeSocketFile
-	if rsf != 0 {
-		unix.Close(rsf)
-	}
+	<-m.done
 	return nil
 }
 
 func startMonitor(onChange func(reason string)) NetworkMonitor {
-	messageTypes := set.NewSet[string]()
 	m := NewMonitor(func(msgs []route.Message) {
+		messageTypes := set.NewSet[string]()
 		nSkip := 0
 		for _, msg := range msgs {
 			if skipMessage(msg) {
