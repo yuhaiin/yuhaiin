@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	serverPeerPrefix     = "wgpeer:"
+	serverPeerPrefix    = "wgpeer:"
 	handshakeMaxPending = 4096
 	handshakePendingTTL = 15 * time.Second
 )
@@ -46,7 +46,7 @@ type serverPeerEndpoint struct {
 	key string
 }
 
-func (e serverPeerEndpoint) ClearSrc()          {}
+func (e serverPeerEndpoint) ClearSrc()           {}
 func (e serverPeerEndpoint) SrcToString() string { return "" }
 func (e serverPeerEndpoint) DstToString() string { return serverPeerPrefix + e.key }
 func (e serverPeerEndpoint) DstToBytes() []byte  { return nil }
