@@ -128,11 +128,26 @@ func (s *server) Close() error {
 	})
 	return s.err
 }
+func (s *server) flowHandler() netapi.Handler {
+	if s.handler != nil {
+		return s.handler
+	}
+	// Legacy constructors and package tests pass the Handler through Opt.
+	if s.options != nil {
+		return s.options.Handler
+	}
+	return nil
+}
+
 func (s *server) isDNS(a netip.AddrPort) bool {
 	if a.Port() != 53 {
 		return false
 	}
-	for _, p := range s.addresses {
+	addresses := s.addresses
+	if len(addresses) == 0 && s.options != nil {
+		addresses = append(append([]netip.Prefix(nil), s.options.Inet4Address...), s.options.Inet6Address...)
+	}
+	for _, p := range addresses {
 		if a.Addr() == p.Addr() || a.Addr() == p.Addr().Next() {
 			return true
 		}
@@ -151,7 +166,7 @@ func (s *server) tcpLoop() {
 			s.wg.Go(func() {
 				defer func() { <-s.streams }()
 				defer c.Close()
-				s.handler.HandleStream(&netapi.StreamMeta{Source: c.RemoteAddr(), Destination: c.LocalAddr(), Src: c, Address: netapi.ParseNetipAddrPort("tcp", dst), DnsRequest: s.isDNS(dst)})
+				s.flowHandler().HandleStream(&netapi.StreamMeta{Source: c.RemoteAddr(), Destination: c.LocalAddr(), Src: c, Address: netapi.ParseNetipAddrPort("tcp", dst), DnsRequest: s.isDNS(dst)})
 			})
 		case <-s.stack.Done():
 			_ = c.Close()
@@ -168,7 +183,7 @@ func (s *server) udpLoop() {
 			return
 		}
 		// ReceiveUDP transfers its allocation; netapi.Packet owns its final release.
-		s.handler.HandlePacket(netapi.NewPacket(net.UDPAddrFromAddrPort(d.Source), netapi.ParseNetipAddrPort("udp", d.Destination), d.Payload, netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
+		s.flowHandler().HandlePacket(netapi.NewPacket(net.UDPAddrFromAddrPort(d.Source), netapi.ParseNetipAddrPort("udp", d.Destination), d.Payload, netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 			var source netip.AddrPort
 			switch addr := addr.(type) {
 			case netapi.IPAddress:
