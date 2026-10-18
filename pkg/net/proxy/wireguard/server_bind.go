@@ -84,7 +84,7 @@ func (b *serverBind) Open(port uint16) ([]conn.ReceiveFunc, uint16, error) {
 	for i, receive := range receivers {
 		wrapped[i] = func(slab []byte, packets []conn.ReceivedPacket) (int, error) {
 			n, err := receive(slab, packets)
-			for j := 0; j < n; j++ {
+			for j := range n {
 				packet := packets[j].Bytes(slab)
 				original := packets[j].Endpoint
 				if len(packet) >= 8 && binary.LittleEndian.Uint32(packet[:4]) == 1 {
