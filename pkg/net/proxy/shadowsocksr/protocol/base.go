@@ -101,6 +101,7 @@ type conn struct {
 	net.Conn
 
 	readMu, writeMu sync.Mutex
+
 	ciphertext, plaintext pool.Buffer
 }
 
