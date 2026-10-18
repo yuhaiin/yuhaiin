@@ -90,8 +90,8 @@ func pinnedHostKey(pin string) (gossh.HostKeyCallback, error) {
 	if pin == "" {
 		return nil, errors.New("a pinned public key or SHA256 fingerprint is required")
 	}
-	if strings.HasPrefix(pin, "SHA256:") {
-		digest, err := base64.RawStdEncoding.DecodeString(strings.TrimPrefix(pin, "SHA256:"))
+	if after, ok := strings.CutPrefix(pin, "SHA256:"); ok {
+		digest, err := base64.RawStdEncoding.DecodeString(after)
 		if err != nil || len(digest) != 32 {
 			return nil, errors.New("invalid SHA256 fingerprint")
 		}
