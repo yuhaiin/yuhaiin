@@ -19,8 +19,6 @@ require (
 	github.com/oschwald/maxminddb-golang/v2 v2.8.0
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus/client_golang v1.25.0
-	github.com/quic-go/connect-ip-go v0.6.0
-	github.com/quic-go/quic-go v0.64.0
 	github.com/refraction-networking/utls v1.8.2
 	github.com/rhnvrm/simples3 v0.11.1
 	github.com/tailscale/wireguard-go v0.0.0-20261002162406-18e99eba5393

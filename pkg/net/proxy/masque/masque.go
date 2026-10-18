@@ -18,9 +18,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
-	connectip "github.com/quic-go/connect-ip-go"
-	"github.com/quic-go/quic-go"
-	"github.com/quic-go/quic-go/http3"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque/connectip"
+	"github.com/apernet/quic-go"
+	"github.com/apernet/quic-go/http3"
 	"github.com/tailscale/wireguard-go/tun"
 )
 
@@ -40,11 +41,20 @@ type Masque struct {
 	happyDialer    *dialer.HappyEyeballsv2Dialer[net.Conn]
 	localAddresses []netip.Prefix
 	mtu            int
+	http2          bool
 
 	once sync.Once
 }
 
 func NewMasque(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAddresses []netip.Prefix, mtu int) (*Masque, error) {
+    return NewMasqueWithTransport(p, tlsConfig, addr, localAddresses, mtu, "h3")
+}
+
+// NewMasqueWithTransport selects QUIC/HTTP3 with BBR or TCP/HTTP2.
+func NewMasqueWithTransport(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAddresses []netip.Prefix, mtu int, transport string) (*Masque, error) {
+    if transport != "" && transport != "h3" && transport != "h2" {
+        return nil, fmt.Errorf("unsupported MASQUE transport %q", transport)
+    }
 	dev, err := wireguard.CreateLightweightNetTUN(localAddresses, mtu)
 	if err != nil {
 		return nil, err
@@ -60,6 +70,7 @@ func NewMasque(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAd
 		addr:           addr,
 		localAddresses: localAddresses,
 		mtu:            mtu,
+		http2:          transport == "h2",
 		dev:            dev,
 		receive:        make(chan []byte, 100),
 		send:           make(chan []byte, 100),
@@ -79,13 +90,16 @@ type Conn struct {
 	quicTransport *quic.Transport
 	quicConn      *quic.Conn
 	tr            *http3.Transport
+	h2            *http2ClientConn
 	h3conn        *http3.ClientConn
 	ipconn        *connectip.Conn
-	outbound      cloudflareDatagramSender
 }
 
 func (c *Conn) Close() error {
 	var err error
+	if c.h2 != nil {
+		if er := c.h2.Close(); er != nil { err = errors.Join(err, er) }
+	}
 	if c.ipconn != nil {
 		if er := c.ipconn.Close(); er != nil {
 			err = errors.Join(err, er)
@@ -128,6 +142,7 @@ func (c *Conn) Close() error {
 // Connect retries the specific transient HTTP/3 framing failure observed by usque.
 // Other failures (especially authentication failures) are returned immediately.
 func (m *Masque) Connect(ctx context.Context) (*Conn, error) {
+	if m.http2 { return m.connectHTTP2(ctx) }
 	var lastErr error
 	for range 2 {
 		if err := ctx.Err(); err != nil {
@@ -180,6 +195,7 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 	}
 
 	mConn.quicConn = quicConn
+	hysteria2.UseBBRForMASQUE(quicConn)
 
 	tr := &http3.Transport{
 		EnableDatagrams: true,
@@ -199,7 +215,9 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 
 	mConn.h3conn = hconn
 
-	ipConn, resp, stream, err := dialCloudflare(ctx, hconn, ConnectURI, "cf-connect-ip")
+	req, err := connectip.NewRequest(ctx, ConnectURI+"/")
+    if err != nil { _ = mConn.Close(); return nil, err }
+    ipConn, resp, err := connectip.NewCloudflareClientConn(hconn, quicConn).Dial(req)
 	if err != nil {
 		_ = mConn.Close()
 		if strings.Contains(err.Error(), "tls: access denied") {
@@ -207,15 +225,16 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 		}
 		return nil, fmt.Errorf("failed to dial connect-ip: %w", err)
 	}
-	// Own the CONNECT-IP stream immediately; route advertisement can fail too.
-	mConn.ipconn = ipConn
-	mConn.outbound = stream
-	if resp.StatusCode != http.StatusOK {
-		_ = mConn.Close()
-		return nil, fmt.Errorf("failed to dial connect-ip: %s", resp.Status)
-	}
+	return finishMasqueConnect(mConn, ipConn, resp)
+}
 
-	err = ipConn.AdvertiseRoute([]connectip.IPRoute{
+func finishMasqueConnect(mConn *Conn, ipConn *connectip.Conn, resp *http.Response) (*Conn, error) {
+    mConn.ipconn = ipConn
+    if resp.StatusCode != http.StatusOK {
+        _ = mConn.Close()
+        return nil, fmt.Errorf("failed to dial connect-ip: %s", resp.Status)
+    }
+	err := ipConn.AdvertiseRoute([]connectip.IPRoute{
 		{
 			IPProtocol: 0,
 			StartIP:    netip.AddrFrom4([4]byte{}),
@@ -333,7 +352,7 @@ func (m *Masque) Start() error {
 			return ctx.Err()
 
 		case buf := <-m.send:
-			icmp, err := sendCloudflareIPPacket(conn.outbound, buf)
+			icmp, err := conn.ipconn.WritePacket(buf)
 			pool.PutBytes(buf)
 			if err != nil {
 				if _, ok := errors.AsType[*connectip.CloseError](err); ok {

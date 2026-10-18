@@ -17,7 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/quic-go/quic-go/http3"
+	"github.com/apernet/quic-go/http3"
 )
 
 const (
@@ -58,7 +58,7 @@ func PrepareTlsConfig(privKey *ecdsa.PrivateKey, peerPubKey *ecdsa.PublicKey, ce
 		// we pin to the endpoint public key
 		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 			if len(rawCerts) == 0 {
-				return nil
+				return fmt.Errorf("MASQUE server returned no certificate")
 			}
 
 			cert, err := x509.ParseCertificate(rawCerts[0])
@@ -119,6 +119,7 @@ type Config struct {
 	EndpointPublicKey string   `json:"endpoint_public_key"`
 	LocalAddresses    []string `json:"local_addresses,omitzero"`
 	MTU               int32    `json:"mtu,omitzero"`
+	Transport         string   `json:"transport,omitzero"`
 }
 
 func NewCloudflareWarpMasque(o Config, p netapi.Proxy) (netapi.Proxy, error) {
@@ -176,5 +177,5 @@ func NewCloudflareWarpMasque(o Config, p netapi.Proxy) (netapi.Proxy, error) {
 		o.MTU = 1280
 	}
 
-	return NewMasque(p, tlsConfig, net.UDPAddrFromAddrPort(udpAddr), localAddresses, int(o.MTU))
+	return NewMasqueWithTransport(p, tlsConfig, net.UDPAddrFromAddrPort(udpAddr), localAddresses, int(o.MTU), o.Transport)
 }

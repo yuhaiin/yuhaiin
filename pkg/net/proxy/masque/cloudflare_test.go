@@ -54,7 +54,7 @@ func TestPrepareTLSConfigPeerPinning(t *testing.T) {
 		certs   [][]byte
 		wantErr bool
 	}{
-		{"no peer cert (usque behavior)", nil, false},
+		{"no peer cert", nil, true},
 		{"matching leaf", [][]byte{trustedCert}, false},
 		{"matching leaf with unrelated intermediate", [][]byte{trustedCert, otherCert}, false},
 		{"untrusted leaf", [][]byte{otherCert}, true},
