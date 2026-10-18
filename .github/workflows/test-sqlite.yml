@@ -48,9 +48,9 @@ jobs:
         if: matrix.backend == 'modernc'
         run: |
           for f in cmd/android/store_test.go pkg/migrate/state_db_test.go pkg/node/share_links.go pkg/node/share_links_test.go; do
-            printf 'FMT_BEGIN:%s\\n' "$f"
+            printf 'FMT_BEGIN:%s\n' "$f"
             gofmt "$f" | base64 -w0
-            printf '\\nFMT_END:%s\\n' "$f"
+            printf '\nFMT_END:%s\n' "$f"
           done
       - name: Test storage, FakeIP, statistics, and state initialization
         run: |
