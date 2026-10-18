@@ -76,7 +76,15 @@ loop:
 				}
 			}
 			if !routeInfo.Dst.IsValid() {
-				continue loop
+				if rt.Dst_len != 0 {
+					continue loop
+				}
+				// Netlink omits RTA_DST for default routes.
+				if rt.Family == syscall.AF_INET {
+					routeInfo.Dst = netip.PrefixFrom(netip.IPv4Unspecified(), 0)
+				} else {
+					routeInfo.Dst = netip.PrefixFrom(netip.IPv6Unspecified(), 0)
+				}
 			}
 
 			switch rt.Family {
