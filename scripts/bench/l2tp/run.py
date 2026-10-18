@@ -70,36 +70,37 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
             result['benchmark'] = sample.stdout
         results.append(result)
 
+    # Isolate each authentication case's PPP leases and SecureNAT state.
     # SoftEther's raw L2TP server runs entirely in userspace, including SecureNAT.
-    name = 'yuhaiin-l2tp-'+uuid.uuid4().hex[:10]
-    echo = name+'-echo'
-    try:
-        run(args.runtime, 'run', '-d', '--init', '--name', name, '--stop-timeout', '1', '--cap-add', 'NET_ADMIN', '-p', '127.0.0.1::1701/udp',
-            '-e', 'USERS=alice:test-password', '-e', 'SPW=test-admin-password', '-e', 'HPW=test-hub-password',
-            'docker.io/siomiz/softethervpn:4.43')
-        ready(name, '[initial setup OK]')
-        run(args.runtime, 'run', '-d', '--init', '--name', echo, '--stop-timeout', '1', '--network=container:'+name,
-            '-v', str(root/'pkg/net/proxy/softether/testdata/echo.py')+':/echo.py:ro',
-            'docker.io/library/python:3.13-alpine', 'python', '/echo.py')
-        target = run(args.runtime, 'exec', echo, 'python', '-c',
-                     'import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.connect(("1.1.1.1",53));print(s.getsockname()[0])', capture_output=True).stdout.strip()
-        run(args.runtime, 'exec', echo, 'python', '-c',
-            'import socket,time;deadline=time.monotonic()+30\n'
-            'while True:\n'
-            ' try:\n'
-            '  with socket.create_connection(("127.0.0.1",19991),timeout=1):break\n'
-            ' except OSError:\n'
-            '  if time.monotonic()>=deadline:raise\n'
-            '  time.sleep(.1)')
-        for auth in ('pap', 'mschap-v2'):
-            exercise('SoftEther / '+auth, {'L2TP_TEST_GATEWAY': gateway(name), 'L2TP_TEST_TARGET': target, 'L2TP_TEST_AUTH': auth}, '^TestOfficialL2TP', 'BenchmarkRealL2TP')
-    except subprocess.CalledProcessError as exc:
-        print(exc.stdout or '', exc.stderr or '', flush=True)
-        subprocess.run([args.runtime, 'logs', name], check=False)
-        raise
-    finally:
-        remove(echo)
-        remove(name)
+    for auth in ('pap', 'mschap-v2'):
+        name = 'yuhaiin-l2tp-'+uuid.uuid4().hex[:10]
+        echo = name+'-echo'
+        try:
+            run(args.runtime, 'run', '-d', '--init', '--name', name, '--stop-timeout', '1', '--cap-add', 'NET_ADMIN', '-p', '127.0.0.1::1701/udp',
+                '-e', 'USERS=alice:test-password', '-e', 'SPW=test-admin-password', '-e', 'HPW=test-hub-password',
+                'docker.io/siomiz/softethervpn:4.43')
+            ready(name, '[initial setup OK]')
+            run(args.runtime, 'run', '-d', '--init', '--name', echo, '--stop-timeout', '1', '--network=container:'+name,
+                '-v', str(root/'pkg/net/proxy/softether/testdata/echo.py')+':/echo.py:ro',
+                'docker.io/library/python:3.13-alpine', 'python', '/echo.py')
+            target = run(args.runtime, 'exec', echo, 'python', '-c',
+                         'import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.connect(("1.1.1.1",53));print(s.getsockname()[0])', capture_output=True).stdout.strip()
+            run(args.runtime, 'exec', echo, 'python', '-c',
+                'import socket,time;deadline=time.monotonic()+30\n'
+                'while True:\n'
+                ' try:\n'
+                '  with socket.create_connection(("127.0.0.1",19991),timeout=1):break\n'
+                ' except OSError:\n'
+                '  if time.monotonic()>=deadline:raise\n'
+                '  time.sleep(.1)')
+            exercise('SoftEther / '+auth, {'L2TP_TEST_GATEWAY': gateway(name), 'L2TP_TEST_TARGET': target, 'L2TP_TEST_AUTH': auth}, '^(TestOfficialL2TP.*|TestTCPEchoIntegrity)$', 'BenchmarkRealL2TP')
+        except subprocess.CalledProcessError as exc:
+            print(exc.stdout or '', exc.stderr or '', flush=True)
+            subprocess.run([args.runtime, 'logs', name], check=False)
+            raise
+        finally:
+            remove(echo)
+            remove(name)
 
     if args.ppp:
         for auth in ('pap', 'chap-md5', 'mschap-v2'):
@@ -109,7 +110,7 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
                     '-e', 'PPP_AUTH='+auth, 'localhost/yuhaiin-l2tp-ppp-test')
                 ready(name, 'PPP server ready')
                 exercise('xl2tpd / '+auth+' / IPv6CP', {'L2TP_TEST_GATEWAY': gateway(name), 'L2TP_TEST_TARGET': '10.88.0.1',
-                         'L2TP_TEST_AUTH': auth, 'L2TP_TEST_IPV6': '1'}, '^TestOfficialL2TP', 'BenchmarkRealL2TP')
+                         'L2TP_TEST_AUTH': auth, 'L2TP_TEST_IPV6': '1'}, '^(TestOfficialL2TP.*|TestTCPEchoIntegrity)$', 'BenchmarkRealL2TP')
             except subprocess.CalledProcessError as exc:
                 print(exc.stdout or '', exc.stderr or '', flush=True)
                 subprocess.run([args.runtime, 'logs', name], check=False)

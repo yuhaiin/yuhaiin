@@ -7,13 +7,16 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/l2tp/native"
+	"fmt"
 	"io"
 	"net"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/l2tp/native"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 )
 
 func TestLinuxL2TPv3(t *testing.T) {
@@ -73,17 +76,53 @@ func echoTCP(t testing.TB, proxy netapi.Proxy, target string) {
 		t.Fatal(err)
 	}
 	payload := bytes.Repeat([]byte("l2tp-real-tcp"), 8192)
-	completed := make(chan error, 1)
-	go func() { _, err := io.Copy(conn, bytes.NewReader(payload)); completed <- err }()
-	got := make([]byte, len(payload))
-	if n, err := io.ReadFull(conn, got); err != nil {
-		t.Fatalf("TCP echo from %s: received %d/%d bytes: %v", target, n, len(payload), err)
+	if err := exchangeTCPEcho(conn, payload); err != nil {
+		logInteropState(t, proxy)
+		t.Fatalf("TCP echo from %s (%v -> %v): %v", target, conn.LocalAddr(), conn.RemoteAddr(), err)
 	}
-	if err := <-completed; err != nil {
-		t.Fatal(err)
+}
+
+// Keep the interoperability check bounded in flight while still transferring
+// the full payload over many TCP segments. Bulk, concurrent write/read traffic
+// remains covered by BenchmarkRealL2TP and BenchmarkRealL2TPv3.
+func exchangeTCPEcho(conn io.ReadWriter, payload []byte) error {
+	var reply [4096]byte
+	for offset := 0; offset < len(payload); {
+		want := payload[offset:min(offset+len(reply), len(payload))]
+		n, err := conn.Write(want)
+		if err == nil && n != len(want) {
+			err = io.ErrShortWrite
+		}
+		if err != nil {
+			return fmt.Errorf("write at byte %d/%d: %w", offset+n, len(payload), err)
+		}
+		n, err = io.ReadFull(conn, reply[:len(want)])
+		if err != nil {
+			return fmt.Errorf("read at byte %d/%d after writing %d bytes: %w", offset+n, len(payload), offset+len(want), err)
+		}
+		if !bytes.Equal(want, reply[:n]) {
+			return fmt.Errorf("TCP payload mismatch at byte %d", offset)
+		}
+		offset += n
 	}
-	if !bytes.Equal(got, payload) {
-		t.Fatal("TCP payload mismatch")
+	return nil
+}
+
+func logInteropState(t testing.TB, proxy netapi.Proxy) {
+	t.Helper()
+	client, ok := proxy.(*Client)
+	if reconnect, reconnecting := proxy.(*reconnectingClient); reconnecting {
+		reconnect.mu.RLock()
+		client = reconnect.current
+		reconnect.mu.RUnlock()
+		ok = client != nil
+	}
+	if !ok {
+		return
+	}
+	t.Logf("L2TP session: %+v; error: %v", client.session.Info(), client.session.Err())
+	if network, ok := client.network.(interface{ Stack() *lightweight.Stack }); ok {
+		t.Logf("IP stack: %+v", network.Stack().Stats())
 	}
 }
 func echoUDP(t testing.TB, proxy netapi.Proxy, target string) {
