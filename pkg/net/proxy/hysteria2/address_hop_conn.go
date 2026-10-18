@@ -12,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
-	"github.com/apernet/hysteria/extras/v2/transport/udphop"
 )
 
 type hopSocket struct {
@@ -29,7 +28,7 @@ type hopPacket struct {
 // select the current relay, including when the address family changes.
 type addressHopPacketConn struct {
 	addr      *addressHopAddr
-	interval  udphop.HopIntervalConfig
+	interval  hopInterval
 	listen    func(context.Context, net.Addr) (net.PacketConn, error)
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -50,7 +49,7 @@ type addressHopPacketConn struct {
 	closed          bool
 }
 
-func newAddressHopPacketConn(setup, lifetime context.Context, addr *addressHopAddr, interval udphop.HopIntervalConfig, listen func(context.Context, net.Addr) (net.PacketConn, error)) (*addressHopPacketConn, error) {
+func newAddressHopPacketConn(setup, lifetime context.Context, addr *addressHopAddr, interval hopInterval, listen func(context.Context, net.Addr) (net.PacketConn, error)) (*addressHopPacketConn, error) {
 	ctx, cancel := context.WithCancel(lifetime)
 	c := &addressHopPacketConn{
 		addr: addr, interval: interval, listen: listen, ctx: ctx, cancel: cancel,

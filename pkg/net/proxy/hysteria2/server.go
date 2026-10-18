@@ -16,7 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	hyserver "github.com/apernet/hysteria/core/v2/server"
-	"github.com/apernet/hysteria/extras/v2/obfs"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2/internal/obfs"
 )
 
 // Packet IDs must be unique across listeners and reconnects, not just within a

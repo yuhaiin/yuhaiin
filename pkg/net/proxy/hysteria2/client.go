@@ -14,8 +14,7 @@ import (
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	hyclient "github.com/apernet/hysteria/core/v2/client"
-	"github.com/apernet/hysteria/extras/v2/obfs"
-	"github.com/apernet/hysteria/extras/v2/transport/udphop"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2/internal/obfs"
 )
 
 func init() {
@@ -120,8 +119,7 @@ func (c *Client) getSession(ctx context.Context) (*clientSession, error) {
 			if remote.Zone != "" {
 				return nil, errors.New("hysteria2 port hopping does not support scoped IPv6 addresses")
 			}
-			_, portStr, _ := net.SplitHostPort(c.config.Host)
-			serverAddr = &udphop.UDPHopAddr{IP: remote.IP, Ports: ports.Ports(), PortStr: portStr}
+			serverAddr = &addressHopAddr{Addr: remote, targets: []hopTarget{{ip: remote.IP, ports: ports.Ports()}}}
 		}
 	}
 	interval, err := hopIntervalConfig(c.config)
@@ -198,7 +196,7 @@ type connFactory struct {
 	parent      netapi.Proxy
 	password    string
 	hopCtx      context.Context
-	hopInterval udphop.HopIntervalConfig
+	hopInterval hopInterval
 }
 
 func (f *connFactory) New(remote net.Addr) (net.PacketConn, error) {
@@ -206,25 +204,6 @@ func (f *connFactory) New(remote net.Addr) (net.PacketConn, error) {
 	var err error
 	if hop, ok := remote.(*addressHopAddr); ok {
 		conn, err = newAddressHopPacketConn(f.ctx, f.hopCtx, hop, f.hopInterval, f.listenPacket)
-	} else if hop, ok := remote.(*udphop.UDPHopAddr); ok {
-		// The setup context ends after authentication. Subsequent sockets must
-		// use the client's lifetime context so hopping can continue afterwards.
-		initial := true
-		conn, err = udphop.NewUDPHopPacketConn(hop, f.hopInterval, func() (net.PacketConn, error) {
-			ctx := f.hopCtx
-			if initial {
-				ctx, initial = f.ctx, false
-			}
-			ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
-			defer cancel()
-			return f.listenPacket(ctx, &net.UDPAddr{IP: hop.IP, Port: int(hop.Ports[0])})
-		})
-		if err == nil && f.parent != nil {
-			// Proxy packet connections need not expose a UDP file descriptor.
-			// Hide udphop's unconditional SyscallConn method on this path so QUIC
-			// uses PacketConn rather than failing on an unsupported syscall.
-			conn = packetConnOnly{conn}
-		}
 	} else {
 		conn, err = f.listenPacket(f.ctx, remote)
 	}
