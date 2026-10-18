@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"runtime"
 	"time"
 
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
@@ -117,6 +118,35 @@ func seedDefaultSQLiteRows(ctx context.Context, tx *sql.Tx) error {
 		Protocol: contractinbound.NewTypedProtocol(contractinbound.MixedProtocol{}),
 	}, now); err != nil {
 		return fmt.Errorf("seed default mixed inbound: %w", err)
+	}
+	tunName := "tun0"
+	switch runtime.GOOS {
+	case "darwin":
+		tunName = "utun0"
+	case "windows":
+		tunName = "wintun"
+	}
+	if err := plainstore.SaveInboundContract(ctx, tx, contractinbound.Inbound{
+		ID: "tun", Name: "tun", Enabled: false,
+		Network: contractinbound.NewTypedNetwork(contractinbound.EmptyNetwork{}),
+		Protocol: contractinbound.NewTypedProtocol(contractinbound.TunProtocol{
+			Name: "tun://" + tunName, MTU: 9000, SkipMulticast: true,
+			Driver: "system_gvisor",
+			Portal: defaults.TunV4UlaGenerate().String(),
+			PortalV6: defaults.TunV6UlaGenerate().String(),
+			Routes: []string{ipv4, ipv6},
+		}),
+	}, now); err != nil {
+		return fmt.Errorf("seed default TUN preset: %w", err)
+	}
+	if err := plainstore.SaveInboundContract(ctx, tx, contractinbound.Inbound{
+		ID: "yuubinsya", Name: "yuubinsya", Enabled: false,
+		Network: contractinbound.NewTypedNetwork(contractinbound.TCPUDPNetwork{
+			Host: "127.0.0.1:40501", UDP: contractinbound.UDPTCPOnly,
+		}),
+		Protocol: contractinbound.NewTypedProtocol(contractinbound.YuubinsyaProtocol{Password: "password"}),
+	}, now); err != nil {
+		return fmt.Errorf("seed default Yuubinsya preset: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx,
 		"INSERT INTO route_settings(id, direct_resolver, proxy_resolver, resolve_locally, udp_proxy_fqdn, revision, default_mode, default_target_json) "+

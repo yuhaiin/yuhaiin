@@ -35,10 +35,17 @@ func TestFreshSQLiteHasUsableDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(inbounds) != 1 || inbounds[0].ID != "mixed" || !inbounds[0].Enabled ||
+	if len(inbounds) != 3 || inbounds[0].ID != "mixed" || !inbounds[0].Enabled ||
 		inbounds[0].Protocol.Type != contractinbound.ProtocolMixed ||
 		inbounds[0].Network.TCPUDP == nil || inbounds[0].Network.TCPUDP.Host != "127.0.0.1:1080" {
 		t.Fatalf("incorrect default mixed inbound: %+v", inbounds)
+	}
+
+	if inbounds[1].ID != "tun" || inbounds[1].Enabled ||
+		inbounds[1].Protocol.Type != contractinbound.ProtocolTun ||
+		inbounds[2].ID != "yuubinsya" || inbounds[2].Enabled ||
+		inbounds[2].Protocol.Type != contractinbound.ProtocolYuubinsya {
+		t.Fatalf("incorrect disabled inbound presets: %+v", inbounds)
 	}
 
 	settings, err := plainstore.NewSettingsStore(db).Load(ctx)
