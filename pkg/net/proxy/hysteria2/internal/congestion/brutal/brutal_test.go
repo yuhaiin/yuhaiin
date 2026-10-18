@@ -19,8 +19,8 @@ func (f fixedRTT) SmoothedRTT() time.Duration { return f.rtt }
 
 func TestBrutalRateDoesNotOverflow(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		rate uint64
+		name     string
+		rate     uint64
 		expected congestion.ByteCount
 	}{
 		{"normal", 65536, 65536},

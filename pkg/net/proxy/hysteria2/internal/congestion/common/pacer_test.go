@@ -11,7 +11,7 @@ import (
 
 func TestSaturatingByteCount(t *testing.T) {
 	for _, tt := range []struct {
-		value float64
+		value    float64
 		expected congestion.ByteCount
 	}{
 		{0, 0},
