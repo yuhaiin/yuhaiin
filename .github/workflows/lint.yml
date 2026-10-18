@@ -69,6 +69,16 @@ jobs:
       - name: Test SSR protocols with the race detector
         run: go test -race -count=1 ./pkg/net/proxy/shadowsocksr/...
 
+  ssh-outbound-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: ssh-outbound-tests
+      - name: Test SSH outbound and node contract
+        run: go test -race -count=1 -timeout=90s ./pkg/net/proxy/ssh/... ./pkg/contract/node ./pkg/register
+
   vpn-outbound-tests:
     runs-on: ubuntu-latest
     steps:

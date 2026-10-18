@@ -24,6 +24,7 @@
 - [WireGuard inbound](docs/wireguard-inbound.md) (userspace lightweight TCP/IP stack, no system TUN)
 - Outbound
   - yuubinsya(experimental)
+  - [SSH direct-tcpip](pkg/net/proxy/ssh/README.md) (TCP only, host-key pinning, password/key authentication)
   - Socks5, HTTP, TCP, [Wireguard](https://github.com/yuhaiin/yuhaiin/wiki/Wireguard)
   - Shadowsocksr, Shadowsocks, Vmess, trojan, Vless  
   - [Hysteria 2](docs/hysteria2.md) (TCP and UDP)
