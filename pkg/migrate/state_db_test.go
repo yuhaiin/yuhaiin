@@ -64,7 +64,7 @@ func TestStateDBPreservesExistingSQLiteData(t *testing.T) {
 	}
 	for query, want := range map[string]string{
 		"SELECT value_json FROM settings_kv WHERE section='general' AND key='ipv6'": "true",
-		"SELECT value_json FROM android_extra_preferences WHERE key='test'": "123",
+		"SELECT value_json FROM android_extra_preferences WHERE key='test'":         "123",
 	} {
 		var value string
 		if err := db.QueryRowContext(ctx, query).Scan(&value); err != nil || value != want {

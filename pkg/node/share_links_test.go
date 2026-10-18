@@ -48,9 +48,9 @@ func TestYuhaiinRemoteLinkWithoutLegacySchema(t *testing.T) {
 		"name": "share",
 		"remote": map[string]any{
 			"publish": map[string]any{
-				"name": "share",
-				"address": "example.com:8000",
-				"path": "/share",
+				"name":     "share",
+				"address":  "example.com:8000",
+				"path":     "/share",
 				"password": "secret",
 			},
 		},

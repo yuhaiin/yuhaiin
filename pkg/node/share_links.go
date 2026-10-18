@@ -226,21 +226,21 @@ func parseVMessLink(raw, group string) (contractnode.Node, error) {
 		return contractnode.Node{}, err
 	}
 	var params struct {
-		Address string `json:"add"`
-		Port json.Number `json:"port"`
-		UUID string `json:"id"`
-		AlterID json.Number `json:"aid"`
-		Security string `json:"security"`
-		Name string `json:"ps"`
-		Remark string `json:"remark"`
-		Network string `json:"net"`
-		HeaderType string `json:"headerType"`
-		Type string `json:"type"`
-		TLS string `json:"tls"`
-		SNI string `json:"sni"`
-		Host string `json:"host"`
-		Path string `json:"path"`
-		VerifyCert bool `json:"verify_cert"`
+		Address    string      `json:"add"`
+		Port       json.Number `json:"port"`
+		UUID       string      `json:"id"`
+		AlterID    json.Number `json:"aid"`
+		Security   string      `json:"security"`
+		Name       string      `json:"ps"`
+		Remark     string      `json:"remark"`
+		Network    string      `json:"net"`
+		HeaderType string      `json:"headerType"`
+		Type       string      `json:"type"`
+		TLS        string      `json:"tls"`
+		SNI        string      `json:"sni"`
+		Host       string      `json:"host"`
+		Path       string      `json:"path"`
+		VerifyCert bool        `json:"verify_cert"`
 	}
 	// The classic vmess format allows numeric or string port/alterId.
 	if err := json.Unmarshal(decoded, &params); err != nil {
@@ -299,7 +299,7 @@ func parseYuhaiinURL(raw string) (ParsedYuhaiinURL, error) {
 		return ParsedYuhaiinURL{}, err
 	}
 	var payload struct {
-		Name string `json:"name"`
+		Name   string `json:"name"`
 		Points *struct {
 			Points []json.RawMessage `json:"points"`
 		} `json:"points"`
@@ -332,7 +332,6 @@ func parseYuhaiinURL(raw string) (ParsedYuhaiinURL, error) {
 	return result, nil
 }
 
-
 func decodeSharedPoint(raw json.RawMessage) (contractnode.Node, error) {
 	var current contractnode.Node
 	if err := json.Unmarshal(raw, &current); err == nil && len(current.Chain) != 0 {
@@ -351,19 +350,20 @@ func decodeSharedPoint(raw json.RawMessage) (contractnode.Node, error) {
 	// Existing yuhaiin:// URLs contain a small protobuf-shaped JSON envelope.
 	// Decode only link-facing fields here; persisted protobuf migration is gone.
 	var old struct {
-		Hash string `json:"hash"`
-		Name string `json:"name"`
-		Group string `json:"group"`
-		Origin int `json:"origin"`
+		Hash      string                       `json:"hash"`
+		Name      string                       `json:"name"`
+		Group     string                       `json:"group"`
+		Origin    int                          `json:"origin"`
 		Protocols []map[string]json.RawMessage `json:"protocols"`
 	}
 	if err := json.Unmarshal(raw, &old); err != nil {
 		return contractnode.Node{}, errors.New("invalid shared node")
 	}
 	origin := "reserve"
-	if old.Origin == 101 {
+	switch old.Origin {
+	case 101:
 		origin = "remote"
-	} else if old.Origin == 102 {
+	case 102:
 		origin = "manual"
 	}
 	point := contractnode.Node{ID: old.Hash, Name: old.Name, Group: old.Group, Origin: origin, Enabled: true}
