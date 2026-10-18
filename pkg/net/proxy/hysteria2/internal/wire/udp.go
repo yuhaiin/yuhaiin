@@ -114,15 +114,15 @@ func FragmentUDPMessage(m UDPMessage, maxDatagram int) ([]UDPMessage, error) {
 // Defragger reassembles interleaved UDP messages within a session.
 // Completed packets own their buffer. Feed must be called serially.
 type Defragger struct {
-	pending map[uint16]*fragmentAssembly
+	pending  map[uint16]*fragmentAssembly
 	buffered int
 }
 
 type fragmentAssembly struct {
 	address string
-	count uint8
-	size int
-	parts [][]byte
+	count   uint8
+	size    int
+	parts   [][]byte
 	started time.Time
 }
 
@@ -182,8 +182,8 @@ func (d *Defragger) Feed(m UDPMessage, now time.Time) (UDPMessage, bool, error) 
 		}
 		a = &fragmentAssembly{
 			address: m.Address,
-			count: m.FragmentCount,
-			parts: make([][]byte, int(m.FragmentCount)),
+			count:   m.FragmentCount,
+			parts:   make([][]byte, int(m.FragmentCount)),
 			started: now,
 		}
 		d.pending[m.PacketID] = a
