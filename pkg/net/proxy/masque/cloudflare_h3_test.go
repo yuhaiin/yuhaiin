@@ -48,21 +48,21 @@ func testCloudflareHTTP3BBRTunnel(t *testing.T, network string) {
 		QUICConfig:      &quic.Config{InitialPacketSize: 1400},
 		EnableDatagrams: true,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodConnect || r.Proto != "cf-connect-ip" {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		stream := w.(http3.HTTPStreamer).HTTPStream()
-		for {
-			b, err := stream.ReceiveDatagram(r.Context())
-			if err != nil {
+			if r.Method != http.MethodConnect || r.Proto != "cf-connect-ip" {
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			if err := stream.SendDatagram(b); err != nil {
-				return
+			w.WriteHeader(http.StatusOK)
+			stream := w.(http3.HTTPStreamer).HTTPStream()
+			for {
+				b, err := stream.ReceiveDatagram(r.Context())
+				if err != nil {
+					return
+				}
+				if err := stream.SendDatagram(b); err != nil {
+					return
+				}
 			}
-		}
 		}),
 	}
 	defer server.Close()
