@@ -14,25 +14,25 @@ type Workspace struct {
 }
 
 type WorkspaceGateway struct {
-	ID             string         `json:"id"`
-	Name           string         `json:"name"`
-	Enabled        bool           `json:"enabled"`
-	Revision       uint64         `json:"revision"`
-	Listener       *ListenerSource `json:"listener,omitempty"`
-	Policies       []Rule         `json:"policies"`
-	BackendPools   []Upstream     `json:"backendPools"`
-	Sources        []InboundSource `json:"sources"`
-	Filters        []FilterList   `json:"filters"`
-	Fallback       Action         `json:"fallback"`
-	MaxBodyBytes   int64          `json:"maxBodyBytes"`
+	ID           string          `json:"id"`
+	Name         string          `json:"name"`
+	Enabled      bool            `json:"enabled"`
+	Revision     uint64          `json:"revision"`
+	Listener     *ListenerSource `json:"listener,omitempty"`
+	Policies     []Rule          `json:"policies"`
+	BackendPools []Upstream      `json:"backendPools"`
+	Sources      []InboundSource `json:"sources"`
+	Filters      []FilterList    `json:"filters"`
+	Fallback     Action          `json:"fallback"`
+	MaxBodyBytes int64           `json:"maxBodyBytes"`
 }
 
 type ListenerSource struct {
-	Listen         string   `json:"listen"`
-	AllowedSources []string `json:"allowedSources"`
-	TLSMode        string   `json:"tlsMode"`
-	CertificateFile string  `json:"certificateFile,omitempty"`
-	KeyFile        string   `json:"keyFile,omitempty"`
+	Listen          string   `json:"listen"`
+	AllowedSources  []string `json:"allowedSources"`
+	TLSMode         string   `json:"tlsMode"`
+	CertificateFile string   `json:"certificateFile,omitempty"`
+	KeyFile         string   `json:"keyFile,omitempty"`
 }
 
 type InboundSource struct {
