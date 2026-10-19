@@ -13,6 +13,10 @@ import (
 type Limits struct {
 	MaxSessions   int64
 	MaxQueueBytes int64
+	// SessionsPerSec is a creation-rate budget (CPS), separate from the
+	// number of live sessions. It is evaluated only on new admissions.
+	SessionsPerSec float64
+	SessionBurst   float64
 	PacketsPerSec float64
 	PacketBurst   float64
 }
@@ -20,6 +24,7 @@ type Limits struct {
 type Counters struct {
 	Sessions, QueueBytes        int64
 	DeniedSessions, DeniedBytes uint64
+	DeniedRateSessions          uint64
 	DeniedPackets               uint64
 }
 
@@ -28,21 +33,27 @@ type Governor struct {
 	limits          Limits
 	sessions, bytes atomic.Int64
 	deniedSessions  atomic.Uint64
+	deniedRateSessions atomic.Uint64
 	deniedBytes     atomic.Uint64
 	deniedPackets   atomic.Uint64
 	mu              sync.Mutex
 	tokens          float64
 	last            time.Time
+	sessionTokens   float64
+	sessionLast     time.Time
 }
 
 func NewGovernor(l Limits, parent *Governor) *Governor {
-	if l.MaxSessions < 0 || l.MaxQueueBytes < 0 || l.PacketsPerSec < 0 || l.PacketBurst < 0 {
+	if l.MaxSessions < 0 || l.MaxQueueBytes < 0 || l.SessionsPerSec < 0 || l.SessionBurst < 0 || l.PacketsPerSec < 0 || l.PacketBurst < 0 {
 		panic("trafficcontrol: negative resource limit")
+	}
+	if l.SessionsPerSec > 0 && l.SessionBurst == 0 {
+		l.SessionBurst = l.SessionsPerSec
 	}
 	if l.PacketsPerSec > 0 && l.PacketBurst == 0 {
 		l.PacketBurst = l.PacketsPerSec
 	}
-	return &Governor{parent: parent, limits: l, tokens: l.PacketBurst}
+	return &Governor{parent: parent, limits: l, tokens: l.PacketBurst, sessionTokens: l.SessionBurst}
 }
 
 // Session is a single owned reservation; Release may be called concurrently
@@ -81,6 +92,12 @@ func (g *Governor) AcquireSession() (*Session, bool) {
 			return nil, false
 		}
 	}
+	if !g.admitSession(time.Now()) {
+		if parent != nil { parent.Release() }
+		g.deniedSessions.Add(1)
+		g.deniedRateSessions.Add(1)
+		return nil, false
+	}
 	if !reserve(&g.sessions, 1, g.limits.MaxSessions) {
 		if parent != nil {
 			parent.Release()
@@ -89,6 +106,22 @@ func (g *Governor) AcquireSession() (*Session, bool) {
 		return nil, false
 	}
 	return &Session{owner: g, parent: parent}, true
+}
+
+// admitSession uses a separate token bucket, so an existing active session
+// never loses progress merely because another peer floods new handshakes.
+func (g *Governor) admitSession(now time.Time) bool {
+	if g.limits.SessionsPerSec == 0 { return true }
+	g.mu.Lock()
+	if g.sessionLast.IsZero() { g.sessionLast = now
+	} else if elapsed := now.Sub(g.sessionLast).Seconds(); elapsed > 0 {
+		g.sessionTokens = min(g.limits.SessionBurst, g.sessionTokens+elapsed*g.limits.SessionsPerSec)
+		g.sessionLast = now
+	}
+	ok := g.sessionTokens >= 1
+	if ok { g.sessionTokens-- }
+	g.mu.Unlock()
+	return ok
 }
 
 func (l *Session) Release() {
@@ -176,6 +209,7 @@ func (g *Governor) Snapshot() Counters {
 	return Counters{
 		Sessions: g.sessions.Load(), QueueBytes: g.bytes.Load(),
 		DeniedSessions: g.deniedSessions.Load(), DeniedBytes: g.deniedBytes.Load(),
+		DeniedRateSessions: g.deniedRateSessions.Load(),
 		DeniedPackets: g.deniedPackets.Load(),
 	}
 }

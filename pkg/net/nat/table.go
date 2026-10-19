@@ -56,7 +56,7 @@ func NewTableWithParent(sniffer netapi.PacketSniffer, dialer netapi.Proxy, paren
 		dialer:      dialer,
 		sniffer:     sniffer,
 		cleanerWake: make(chan struct{}, 1),
-		budget:      trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 16384, MaxQueueBytes: 64 << 20}, parent),
+		budget:      trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 16384, MaxQueueBytes: 64 << 20, SessionsPerSec: 1000, SessionBurst: 2048}, parent),
 		stop:        make(chan struct{}),
 		done:        make(chan struct{}),
 	}

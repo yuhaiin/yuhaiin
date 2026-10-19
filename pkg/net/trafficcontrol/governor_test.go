@@ -110,3 +110,24 @@ func TestQueueBytesConcurrentAdmission(t *testing.T) {
 		t.Fatalf("reserved %d, stats %+v", count, g.Snapshot())
 	}
 }
+
+
+func TestSessionCreationRateLimitDoesNotAffectExistingLease(t *testing.T) {
+	g:=NewGovernor(Limits{MaxSessions:4,SessionsPerSec:2,SessionBurst:2},nil)
+	one,ok:=g.AcquireSession()
+	if !ok{t.Fatal("first session denied")}
+	two,ok:=g.AcquireSession()
+	if !ok{t.Fatal("second session denied")}
+	two.Release()
+	if _,ok:=g.AcquireSession();ok{t.Fatal("rate limit bypassed despite available concurrency")}
+	if got:=g.Snapshot();got.Sessions!=1||got.DeniedRateSessions!=1 {t.Fatal(got)}
+	// Pretend a second elapsed without sleeping or depending on a wall clock.
+	g.mu.Lock()
+	g.sessionLast=g.sessionLast.Add(-time.Second)
+	g.mu.Unlock()
+	three,ok:=g.AcquireSession()
+	if !ok{t.Fatal("new budget was not replenished")}
+	one.Release()
+	three.Release()
+	if got:=g.Snapshot();got.Sessions!=0{t.Fatal(got)}
+}

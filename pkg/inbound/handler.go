@@ -37,7 +37,7 @@ type handler struct {
 
 func NewHandler(dialer netapi.Proxy) *handler {
 	sniffer := newControlSniffer()
-	root := trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 65536}, nil)
+	root := trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 65536, SessionsPerSec: 4000, SessionBurst: 8192}, nil)
 	h := &handler{
 		dialer:       dialer,
 		table:        nat.NewTableWithParent(sniffer, dialer, root),
@@ -94,7 +94,7 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 		if id == "" {
 			id = meta.InboundName
 		}
-		scope, _ := s.streamScopes.LoadOrStore(id, trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 8192}, s.globalBudget))
+		scope, _ := s.streamScopes.LoadOrStore(id, trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 8192, SessionsPerSec: 1000, SessionBurst: 2048}, s.globalBudget))
 		lease, ok := scope.(*trafficcontrol.Governor).AcquireSession()
 		if !ok {
 			_ = meta.Src.Close()

@@ -2,6 +2,7 @@ package trafficcontrol
 
 import (
 	"container/list"
+	"math"
 	"sync"
 	"time"
 )
@@ -37,6 +38,9 @@ type fairFlow[T any] struct {
 	head       int
 	deficit    int
 	firstAbove time.Time
+	dropping   bool
+	dropCount  uint64
+	dropNext   time.Time
 	element    *list.Element
 }
 
@@ -148,21 +152,30 @@ func (q *FairQueue[T]) Pop(now time.Time) (value T, ok bool, dropped []T) {
 		if delay > q.maxSojourn {
 			q.maxSojourn = delay
 		}
-		// The low-backlog guard avoids dropping the last packet of an idle
-		// flow even when the writer was temporarily descheduled.
-		congested := delay > q.cfg.Target && q.bytes > int64(q.cfg.Quantum)
+		// CoDel: the delay must remain above target for an interval before
+		// entering dropping state. Once dropping, schedule subsequent drops
+		// using interval / sqrt(drop count). The inverse square root is only
+		// evaluated on a drop, not on the ordinary dequeue fast path.
+		congested := delay > q.cfg.Target && q.bytes > int64(q.cfg.Quantum) && q.count > 1
 		if !congested {
 			f.firstAbove = time.Time{}
+			f.dropping = false
+			f.dropCount = 0
 		} else if f.firstAbove.IsZero() {
 			f.firstAbove = now.Add(q.cfg.Interval)
-		} else if !now.Before(f.firstAbove) {
+		}
+		shouldDrop := congested && (f.dropping && !now.Before(f.dropNext) ||
+			!f.dropping && !f.firstAbove.IsZero() && !now.Before(f.firstAbove))
+		if shouldDrop {
+			if !f.dropping {
+				f.dropping = true
+				f.dropCount = 0
+			}
+			f.dropCount++
+			f.dropNext = now.Add(time.Duration(float64(q.cfg.Interval) / math.Sqrt(float64(f.dropCount))))
 			old := q.remove(f)
 			q.dropped++
 			dropped = append(dropped, old.value)
-			if q.flows[f.key] != nil {
-				// Gradually accelerate drops under persistent queueing.
-				f.firstAbove = now.Add(q.cfg.Interval / 2)
-			}
 			continue
 		}
 		chosen := q.remove(f)

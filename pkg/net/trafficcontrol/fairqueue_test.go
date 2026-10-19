@@ -2,6 +2,7 @@ package trafficcontrol
 
 import (
 	"testing"
+	"sync"
 	"time"
 )
 
@@ -105,4 +106,32 @@ func TestFairQueueIdleLastPacketNotDropped(t *testing.T) {
 	if !ok || x != 7 || len(drops) != 0 {
 		t.Fatal("isolated flow dropped", x, ok, drops)
 	}
+}
+
+
+func TestFairQueueConcurrentFlowOwnership(t *testing.T) {
+	type item struct{ flow, seq int }
+	const flows, perFlow = 16, 64
+	q:=NewFairQueue[item](FairConfig{MaxPackets:flows*perFlow,MaxBytes:flows*perFlow*512,Quantum:1514})
+	now:=time.Now()
+	var wg sync.WaitGroup
+	for flow:=range flows {
+		wg.Add(1)
+		go func(){
+			defer wg.Done()
+			for n:=range perFlow {
+				if !q.Push(uint64(flow),512,item{flow,n},now){t.Errorf("flow %d admission failed",flow);return}
+			}
+		}()
+	}
+	wg.Wait()
+	var seen [flows]int
+	for range flows*perFlow {
+		x,ok,drops:=q.Pop(now)
+		if !ok||len(drops)!=0 {t.Fatal("missing packet or premature drop")}
+		if x.seq!=seen[x.flow]{t.Fatalf("flow=%d out of order: got=%d expected=%d",x.flow,x.seq,seen[x.flow])}
+		seen[x.flow]++
+	}
+	for i:=range flows {if seen[i]!=perFlow{t.Fatalf("flow %d lost packets",i)}}
+	if s:=q.Stats();s.Packets!=0||s.Bytes!=0||s.Flows!=0{t.Fatal(s)}
 }
