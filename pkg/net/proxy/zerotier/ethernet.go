@@ -64,6 +64,8 @@ func (b *etherBridge) source(ip netip.Addr) netip.Addr {
 }
 
 func (b *etherBridge) nextHop(dest netip.Addr) netip.Addr {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	var best int = -1
 	next := dest
 	for _, route := range b.cfg.Routes {
@@ -72,6 +74,13 @@ func (b *etherBridge) nextHop(dest netip.Addr) netip.Addr {
 		}
 	}
 	return next
+}
+
+// updateRoutes changes managed routes without disconnecting existing TCP/UDP sessions.
+func (b *etherBridge) updateRoutes(routes []zt.Route) {
+	b.mu.Lock()
+	b.cfg.Routes = append([]zt.Route(nil), routes...)
+	b.mu.Unlock()
 }
 
 func (b *etherBridge) outgoing(data []byte) {
@@ -123,6 +132,9 @@ func (b *etherBridge) outgoing(data []byte) {
 		if len(b.pending[next]) < 8 {
 			b.pending[next] = append(b.pending[next], append([]byte(nil), data...))
 		}
+	} else {
+		b.mu.Unlock()
+		return // Do not grow the retry bookkeeping after the pending table is full.
 	}
 	last := b.requested[next]
 	request := time.Since(last) >= time.Second
@@ -231,7 +243,10 @@ func (b *etherBridge) handleARP(f zt.Frame) {
 		return
 	}
 	sender := netip.AddrFrom4([4]byte(p[14:18]))
-	b.learn(sender, fromMAC(p[8:14]))
+	if fromMAC(p[8:14]) != f.SourceMAC {
+		return // ZeroTier's authenticated sender MAC must match the ARP payload.
+	}
+	b.learn(sender, f.SourceMAC)
 	target := netip.AddrFrom4([4]byte(p[24:28]))
 	if op != 1 || !b.local(target) {
 		return
