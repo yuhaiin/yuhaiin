@@ -73,6 +73,10 @@ or select the ZeroTier node template in the web UI. Higher-level wrappers may fo
   across the IP stack are not guaranteed.
 - Identity files include private identity state. Back them up securely and
   restrict access. They are written with `0600` permissions.
+- Native bindings are compiled for Linux AMD64/ARM64, macOS AMD64/ARM64,
+  Windows AMD64, and Android ARM64 **with CGO/NDK enabled**. FreeBSD, OpenBSD,
+  unsupported architectures and CGO-disabled Android cross builds retain a
+  protocol registration stub that explicitly returns an unsupported error.
 - Native packaging matters: macOS requires a signed dylib installed with the
   application; Android ARM64 requires `libztgo.so` under
   `jniLibs/arm64-v8a/` during APK/AAR packaging. The ZeroTier Go binding
