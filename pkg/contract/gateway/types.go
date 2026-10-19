@@ -111,8 +111,9 @@ type Interception struct {
 	Ports          []uint16 `json:"ports"`
 	Sources        []string `json:"sources"`
 	Processes      []string `json:"processes"`
-	// Unknown TLS (including unsupported ALPN and ECH) is passed through or rejected
-	// before any MITM handshake data is sent. Empty is passthrough.
+	// Unknown TLS (such as malformed ClientHello or unsupported ALPN) is passed
+	// through or rejected before MITM begins. ECH offers use the visible outer
+	// ClientHello when no ECH keys are configured. Empty is passthrough.
 	UnknownTLS string `json:"unknownTls"`
 }
 

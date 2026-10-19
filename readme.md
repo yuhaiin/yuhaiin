@@ -53,7 +53,7 @@ flowchart TD
   E --> I[Enterprise VPN / Overlay / Proxy / Direct]
 ```
 
-The HTTP Gateway is **optional**: ordinary connections continue through L4 routing without HTTP inspection. HTTPS interception is opt-in and requires an explicitly configured CA, target allowlist, and client trust. It is not intended to bypass certificate pinning or decrypt HTTP/3/ECH traffic.
+The HTTP Gateway is **optional**: ordinary connections continue through L4 routing without HTTP inspection. HTTPS interception is opt-in and requires an explicitly configured CA, target allowlist, and client trust. GREASE ECH can be inspected as ordinary TLS; real ECH inner traffic and HTTP/3 are not decrypted. The Gateway does not bypass certificate pinning.
 
 ## Supported Connectivity
 

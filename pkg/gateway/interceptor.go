@@ -114,7 +114,11 @@ func (m *Manager) intercept(ctx *netapi.Context, meta *netapi.StreamMeta, gatewa
 		if !matchesDomains(host, config.Domains, config.ExcludeDomains) {
 			return false
 		}
-		if hello == nil || slices.Contains(hello.Extensions, uint16(0xfe0d)) || (!slices.Contains(hello.SupportedProtos, "h2") && !slices.Contains(hello.SupportedProtos, "http/1.1")) {
+		// Do not classify the ECH extension itself as an unsupported protocol.
+		// This TLS server has no ECH keys, so crypto/tls uses ClientHelloOuter:
+		// GREASE continues as an ordinary TLS handshake, while a real ECH client
+		// can detect rejection and may retry with ECH disabled.
+		if hello == nil || (!slices.Contains(hello.SupportedProtos, "h2") && !slices.Contains(hello.SupportedProtos, "http/1.1")) {
 			g.engine.Counters.ProtocolFailures.Add(1)
 			log.Debug("gateway TLS admission", "gateway", config.GatewayID, "reason", "unsupported_client_hello", "action", config.UnknownTLS)
 			if config.UnknownTLS == "reject" {
