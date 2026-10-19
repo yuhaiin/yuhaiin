@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	vnetlink "github.com/vishvananda/netlink"
@@ -147,9 +148,10 @@ func init() {
 				closeTunFDs(fds)
 				return nil, err
 			}
+			txQueueLengthSet := true
 			if err := vnetlink.LinkSetTxQLen(tunLink, tunTxQueueLength); err != nil {
-				closeTunFDs(fds)
-				return nil, fmt.Errorf("set tun tx queue length: %w", err)
+				log.Warn("set tun tx queue length failed; using existing queue length", "name", sc.Name, "err", err)
+				txQueueLengthSet = false
 			}
 
 			if err := vnetlink.LinkSetMTU(tunLink, mtu); err != nil {
@@ -157,7 +159,7 @@ func init() {
 				return nil, err
 			}
 
-			if multiQueue {
+			if multiQueue && txQueueLengthSet {
 				for _, fd := range fds {
 					if err := resizeTunQueue(fd); err != nil {
 						closeTunFDs(fds)
