@@ -67,6 +67,16 @@ func TestProtocolRejectsMismatch(t *testing.T) {
 	}
 }
 
+func TestRemovedHTTPTerminationProtocolIsRejected(t *testing.T) {
+	var protocol Protocol
+	if err := json.Unmarshal([]byte(`{"type":"http_termination","http_termination":{"headers":{}}}`), &protocol); err != nil {
+		t.Fatal(err)
+	}
+	if err := protocol.Validate(); err == nil {
+		t.Fatal("removed http_termination protocol accepted")
+	}
+}
+
 func TestNewTypedProtocol(t *testing.T) {
 	simple, err := NewTypedProtocol(Simple{Host: "127.0.0.1", Port: 1080})
 	if err != nil {

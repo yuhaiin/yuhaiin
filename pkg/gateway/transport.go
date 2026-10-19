@@ -19,11 +19,10 @@ import (
 // Selection pins the result of the existing Route/NodeRuntime selection for one
 // HTTP request. Identity changes when the selected proxy instance changes.
 type Selection struct {
-	Label                string
-	Identity             string
-	Proxy                netapi.Proxy
-	Destination          netapi.Address
-	TLSAlreadyTerminated bool
+	Label       string
+	Identity    string
+	Proxy       netapi.Proxy
+	Destination netapi.Address
 }
 
 type SelectOutbound func(context.Context, netapi.Address, route.Target) (Selection, error)
@@ -38,7 +37,6 @@ func ProxyIdentity(proxy netapi.Proxy) string {
 type transportKey struct {
 	identity, destination, origin, serverName, trust string
 	connectMS, idleMS, requestMS, maxConns           int
-	alreadyTLS                                       bool
 }
 type transportEntry struct {
 	transport *http.Transport
@@ -50,12 +48,11 @@ type transportEntry struct {
 // TransportPool bounds idle pool ownership. Evicted transports drain active
 // streams and close their idle connections when the last borrower returns.
 type TransportPool struct {
-	mu        sync.Mutex
-	entries   map[transportKey]*transportEntry
-	clock     uint64
-	capacity  int
-	closed    bool
-	clientTLS *tls.Config
+	mu       sync.Mutex
+	entries  map[transportKey]*transportEntry
+	clock    uint64
+	capacity int
+	closed   bool
 }
 
 func NewTransportPool(capacity int) *TransportPool {
@@ -66,16 +63,13 @@ func (p *TransportPool) borrow(s Selection, origin string, u contract.Upstream) 
 	if s.Proxy == nil || s.Destination == nil || s.Identity == "" {
 		return nil, nil, errors.New("outbound selection is incomplete")
 	}
-	key := transportKey{s.Identity, s.Destination.String(), origin, u.ServerName, u.TrustPEM, u.ConnectTimeoutMS, u.IdleTimeoutMS, u.RequestTimeoutMS, u.MaxConnections, s.TLSAlreadyTerminated}
+	key := transportKey{s.Identity, s.Destination.String(), origin, u.ServerName, u.TrustPEM, u.ConnectTimeoutMS, u.IdleTimeoutMS, u.RequestTimeoutMS, u.MaxConnections}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.clock++
 	e := p.entries[key]
 	if e == nil {
 		config := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: u.ServerName}
-		if p.clientTLS != nil {
-			config = p.clientTLS.Clone()
-		}
 		if u.TrustPEM != "" {
 			roots, err := x509.SystemCertPool()
 			if err != nil {
@@ -98,10 +92,6 @@ func (p *TransportPool) borrow(s Selection, origin string, u contract.Upstream) 
 				// so competing Happy Eyeballs attempts cannot mutate the request state.
 				return s.Proxy.Conn(netapi.ForkContext(ctx), s.Destination)
 			},
-		}
-		if s.TLSAlreadyTerminated {
-			tr.DialTLSContext = tr.DialContext
-			tr.ForceAttemptHTTP2 = false
 		}
 		e = &transportEntry{transport: tr}
 		if p.closed {

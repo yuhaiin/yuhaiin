@@ -113,7 +113,9 @@ validates the Gateway reference. Saved and currently applied Route rules both
 protect the Gateway from deletion; remove the rule and apply before deleting it.
 Disabling a referenced Gateway is allowed and returns new traffic to normal
 routing. Existing interception-only configs require a corresponding L4 action;
-reverse listeners and legacy reverse configurations retain their separate roles.
+Gateway reverse listeners retain their separate role. The old `reverse_http`
+and `http_termination` protocol types have been removed; see
+[configuration changes](troubleshooting.md).
 
 For IP-only TUN traffic, supply FakeIP recovery or enable the existing sniffing
 when routing by domain. Without either, an L4 domain rule cannot know the hostname.

@@ -30,15 +30,15 @@ func TestTunStackJSONCompatibility(t *testing.T) {
 
 func TestProtocolTaggedObjectJSON(t *testing.T) {
 	var protocol Protocol
-	if err := json.Unmarshal([]byte(`{"type":"reverse_http","reverse_http":{"url":"http://127.0.0.1:3000"}}`), &protocol); err != nil {
+	if err := json.Unmarshal([]byte(`{"type":"reverse_tcp","reverse_tcp":{"target":"127.0.0.1:3000"}}`), &protocol); err != nil {
 		t.Fatal(err)
 	}
 
 	if err := protocol.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if got := protocol.ReverseHTTP.URL; got != "http://127.0.0.1:3000" {
-		t.Fatalf("ReverseHTTP.URL = %q", got)
+	if got := protocol.ReverseTCP.Target; got != "127.0.0.1:3000" {
+		t.Fatalf("ReverseTCP.Target = %q", got)
 	}
 
 	data, err := json.Marshal(protocol)
@@ -48,19 +48,29 @@ func TestProtocolTaggedObjectJSON(t *testing.T) {
 	if strings.Contains(string(data), `"config"`) {
 		t.Fatalf("tagged object json must not contain config wrapper: %s", data)
 	}
-	if !strings.Contains(string(data), `"reverse_http"`) {
-		t.Fatalf("tagged object json missing reverse_http field: %s", data)
+	if !strings.Contains(string(data), `"reverse_tcp"`) {
+		t.Fatalf("tagged object json missing reverse_tcp field: %s", data)
 	}
 }
 
 func TestTaggedObjectRejectsMismatchedField(t *testing.T) {
 	var protocol Protocol
-	if err := json.Unmarshal([]byte(`{"type":"reverse_http","mixed":{}}`), &protocol); err != nil {
+	if err := json.Unmarshal([]byte(`{"type":"reverse_tcp","mixed":{}}`), &protocol); err != nil {
 		t.Fatal(err)
 	}
 
 	if err := protocol.Validate(); err == nil {
 		t.Fatal("Validate succeeded for mismatched type and concrete field")
+	}
+}
+
+func TestRemovedReverseHTTPProtocolIsRejected(t *testing.T) {
+	var protocol Protocol
+	if err := json.Unmarshal([]byte(`{"type":"reverse_http","reverse_http":{"url":"http://127.0.0.1:3000"}}`), &protocol); err != nil {
+		t.Fatal(err)
+	}
+	if err := protocol.Validate(); err == nil {
+		t.Fatal("removed reverse_http protocol accepted")
 	}
 }
 
@@ -90,8 +100,8 @@ func TestNewTypedTaggedObjects(t *testing.T) {
 		t.Fatalf("unexpected network: %#v", network)
 	}
 
-	protocol := NewTypedProtocol(&ReverseHTTPProtocol{URL: "http://127.0.0.1:3000"})
-	if protocol.Type != ProtocolReverseHTTP || protocol.ReverseHTTP == nil || protocol.ReverseHTTP.URL != "http://127.0.0.1:3000" {
+	protocol := NewTypedProtocol(&ReverseTCPProtocol{Target: "127.0.0.1:3000"})
+	if protocol.Type != ProtocolReverseTCP || protocol.ReverseTCP == nil || protocol.ReverseTCP.Target != "127.0.0.1:3000" {
 		t.Fatalf("unexpected protocol: %#v", protocol)
 	}
 

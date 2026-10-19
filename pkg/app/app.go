@@ -49,7 +49,6 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reverse"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"

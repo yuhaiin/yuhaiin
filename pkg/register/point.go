@@ -197,8 +197,6 @@ func ContractProtocolConfig(protocol contractnode.Protocol) (any, error) {
 		return *protocol.Set, nil
 	case "tls_termination":
 		return *protocol.TLSTermination, nil
-	case "http_termination":
-		return *protocol.HTTPTermination, nil
 	case "http_mock":
 		return *protocol.HTTPMock, nil
 	case "aead":

@@ -61,3 +61,15 @@ preservation, reference integrity for saved/applied rules, and the actual common
 handler/TLS integration. Tests cover cheap admission failures, process lookup
 reuse, unused health workers, long HTTP headers with the smaller probe buffer,
 and zero-allocation filtering for unrelated hosts.
+
+## Removal of legacy HTTP adapters
+
+The legacy compatibility requirement was dropped. The old `reverse_http` inbound,
+`http_termination` outbound, unused Hijack wrapper and `pkg/net/proxy/reverse`
+package are removed, along with their contracts, registration, example and UI.
+The legacy-only Gateway client-TLS override and already-terminated-TLS pool branch
+are also removed. Gateway's normal upstream certificate verification remains.
+`reverse_tcp` keeps its existing contract and now lives in `pkg/inbound`, with a
+raw-stream handoff/listener-close regression. Storage/API round-trip fixtures use
+that retained TCP protocol. Removed protocol types are rejected; there is no
+compatibility migration or automatic deletion of stored entries.

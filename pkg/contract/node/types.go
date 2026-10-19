@@ -145,7 +145,6 @@ type Protocol struct {
 	Tailscale            *Tailscale            `json:"tailscale,omitzero"`
 	Set                  *Set                  `json:"set,omitzero"`
 	TLSTermination       *TLSTermination       `json:"tls_termination,omitzero"`
-	HTTPTermination      *HTTPTermination      `json:"http_termination,omitzero"`
 	HTTPMock             *HTTPMock             `json:"http_mock,omitzero"`
 	AEAD                 *AEAD                 `json:"aead,omitzero"`
 	Fixed                *Fixed                `json:"fixed,omitzero"`
@@ -556,19 +555,6 @@ type Set struct {
 	Strategy string   `json:"strategy,omitzero"`
 }
 
-type HTTPTermination struct {
-	Headers map[string]HTTPHeaders `json:"headers,omitzero"`
-}
-
-type HTTPHeaders struct {
-	Headers []HTTPHeader `json:"headers,omitzero"`
-}
-
-type HTTPHeader struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
 type HTTPMock struct {
 	Data []byte `json:"data,omitzero"`
 }
@@ -637,7 +623,6 @@ func (BootstrapDNSWarp) ProtocolType() string     { return "bootstrap_dns_warp" 
 func (Tailscale) ProtocolType() string            { return "tailscale" }
 func (Set) ProtocolType() string                  { return "set" }
 func (TLSTermination) ProtocolType() string       { return "tls_termination" }
-func (HTTPTermination) ProtocolType() string      { return "http_termination" }
 func (HTTPMock) ProtocolType() string             { return "http_mock" }
 func (AEAD) ProtocolType() string                 { return "aead" }
 func (Fixed) ProtocolType() string                { return "fixed" }
@@ -847,7 +832,6 @@ func (x Protocol) presentVariants() map[string]bool {
 		"tailscale":              x.Tailscale != nil,
 		"set":                    x.Set != nil,
 		"tls_termination":        x.TLSTermination != nil,
-		"http_termination":       x.HTTPTermination != nil,
 		"http_mock":              x.HTTPMock != nil,
 		"aead":                   x.AEAD != nil,
 		"fixed":                  x.Fixed != nil,

@@ -37,8 +37,7 @@ their pinned transport. Family-restricting node wrappers expose their stable
 parent/family pool identity rather than a newly allocated wrapper address.
 
 Pool keys include effective proxy identity, resolved destination, origin, SNI,
-trust material, connect/idle/request timeout, maximum connections, and the legacy
-outbound TLS-termination boundary. Pools have 256 entries per Gateway. Retiring
+trust material, connect/idle/request timeout, and maximum connections. Pools have 256 entries per Gateway. Retiring
 an entry closes idle connections; active responses retain ownership until body
 completion/close. Config replacement drains old pools without buffering bodies.
 
@@ -59,9 +58,11 @@ listeners and interception sessions close; surviving connections use the current
 HTTP policy for subsequent requests. Already executing requests retain their
 snapshot safely.
 
-`reverse_http` and `http_termination` are compatibility adapters over the same HTTP
-engine. `reverse_tcp` remains because TCP forwarding is not replaced by an HTTP
-Gateway. TLS Auto shares certificate issuance/cache code but keeps its own CA and
+`reverse_http` and the `http_termination` outbound have been removed. Configure
+HTTP reverse proxying, policies and header rewriting directly in Gateway.
+`reverse_tcp` remains as a small inbound-owned TCP stream adapter; the old
+`pkg/net/proxy/reverse` package is gone. TLS Auto shares certificate issuance/cache
+code but keeps its own CA and
 domain policy. Enabling TLS Auto never enables MITM.
 
 See [configuration](configuration.md), [interception](interception.md),

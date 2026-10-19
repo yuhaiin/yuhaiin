@@ -39,7 +39,7 @@
   - [SoftEther native SSL-VPN](pkg/net/proxy/softether/README.md) (experimental; distinct from SSTP and OpenVPN compatibility modes)
   - Websocket, Quic, obfs-http, Reality, HTTP2, TLS, ECH(Encrypted SNI)
   - yamux  
-  - reverse HTTP, reverse TCP
+  - HTTP/HTTPS reverse proxy through HTTP Gateway; fixed-target TCP forwarding through `reverse_tcp`
   - Tailscale(tsnet)
   - Cloudflare Warp/zero trust (wireguard & Masque) [tools: [usque](https://github.com/Diniboy1123/usque)]
 - support DNS:

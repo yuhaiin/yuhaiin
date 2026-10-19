@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -59,27 +58,12 @@ type Engine struct {
 	lastOutbound   atomic.Pointer[string]
 }
 
-// WithClientTLS is used by existing reverse_http configurations to retain their
-// explicitly configured TLS profile. Managed gateways use verified TLS defaults.
-func WithClientTLS(config *tls.Config) EngineOption {
-	return func(e *Engine) {
-		if config != nil {
-			e.pool.clientTLS = config.Clone()
-		}
-	}
-}
-
-type EngineOption func(*Engine)
-
-func NewEngine(config contract.Gateway, rules []contract.Rule, upstreams []contract.Upstream, selectOutbound SelectOutbound, options ...EngineOption) (*Engine, error) {
+func NewEngine(config contract.Gateway, rules []contract.Rule, upstreams []contract.Upstream, selectOutbound SelectOutbound) (*Engine, error) {
 	policy, err := CompilePolicy(rules, config.Default)
 	if err != nil {
 		return nil, err
 	}
 	e := &Engine{config: config, policy: policy, upstreams: make(map[string]*upstream), selectOutbound: selectOutbound, pool: NewTransportPool(256), Counters: new(Counters)}
-	for _, option := range options {
-		option(e)
-	}
 	needed := make(map[string]bool)
 	for _, action := range append([]contract.Action{policy.fallback}, ruleActions(policy)...) {
 		if action.Type == "reverse_proxy" {

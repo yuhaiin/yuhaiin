@@ -1,4 +1,4 @@
-# Troubleshooting and compatibility
+# Troubleshooting and configuration changes
 
 | Symptom | Check |
 | --- | --- |
@@ -22,17 +22,22 @@ requests. Authorization, Cookies and bodies are not logged by the Gateway. The e
 `/metrics` endpoint also exports `yuhaiin_gateway_*` request, failure, duration and
 backend-health metrics; backend metric labels omit URL paths and queries.
 
-Old `reverse_http` entries remain persisted and use the new HTTP engine through
-an adapter, preserving their destination, Host behavior and explicitly configured
-TLS profile. Existing legacy opt-outs of certificate verification remain explicit
-legacy settings; managed Gateways have no insecure-verification option. The
-legacy non-HTTP forwarding behavior remains. `http_termination` keeps its outbound
-chain role and passes TLS ownership with typed metadata, not RemoteAddr strings.
-`reverse_tcp` remains a TCP feature. TLS Auto remains listener certificate
-generation, sharing issuance/cache code but never automatically enabling MITM.
+The old `reverse_http` inbound and `http_termination` outbound are no longer
+supported. There is no compatibility adapter or automatic configuration migration.
+Use a Gateway listener with a reverse-proxy Upstream for HTTP reverse proxying;
+use HTTP rules with rewrite/header actions for request modifications. Existing
+entries of either removed protocol type are rejected by contract validation;
+remove them and configure Gateway explicitly. This change does not rewrite or
+delete stored configuration rows automatically.
+
+`reverse_tcp` keeps its existing contract and TCP forwarding behavior, with its
+implementation now owned by `pkg/inbound`. TLS Auto and the separate
+`tls_termination` outbound retain their TLS roles; neither enables MITM by itself.
+Gateway upstream TLS verification remains enabled and supports explicit trust
+certificates and server names without the removed legacy TLS override hooks.
 
 Run the reproducible unit/integration/race checks in [benchmarks](benchmarks.md).
-Real privileged TUN/TProxy/Redir/WireGuard traffic and browser rendering need an
+Real privileged TUN/TProxy/Redir/WireGuard traffic needs an
 appropriate local test environment; synthetic stream tests do not prove OS
 installation or every third-party client works. HTTP/3 Gateway, ECH decryption,
 pinning bypass, client-private-key impersonation, full browser Adblock syntax,

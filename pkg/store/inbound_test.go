@@ -19,25 +19,25 @@ func TestInboundStoreSaveGetListDelete(t *testing.T) {
 
 	store := NewInboundStore(sqliteStore.DB())
 	input := contract.Inbound{
-		ID:      "reversehttp",
-		Name:    "reversehttp",
+		ID:      "reversetcp",
+		Name:    "reversetcp",
 		Enabled: true,
 		Network: contract.NewTypedNetwork(contract.TCPUDPNetwork{Host: ":9002", UDP: contract.UDPTCPOnly}),
 		Transports: []contract.Transport{
 			contract.NewTypedTransport(contract.NormalTransport{}),
 		},
-		Protocol: contract.NewTypedProtocol(contract.ReverseHTTPProtocol{URL: "http://127.0.0.1:3000"}),
+		Protocol: contract.NewTypedProtocol(contract.ReverseTCPProtocol{Target: "127.0.0.1:3000"}),
 	}
 
 	if err := store.Save(ctx, input, 123); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := store.Get(ctx, "reversehttp")
+	got, err := store.Get(ctx, "reversetcp")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Protocol.ReverseHTTP.URL != "http://127.0.0.1:3000" {
+	if got.Protocol.ReverseTCP.Target != "127.0.0.1:3000" {
 		t.Fatalf("got protocol = %+v", got.Protocol)
 	}
 
@@ -45,11 +45,11 @@ func TestInboundStoreSaveGetListDelete(t *testing.T) {
 	if err := sqliteStore.DB().QueryRowContext(ctx, `
 		SELECT network_type, protocol_type, transport_types_json
 		FROM inbounds_v2
-		WHERE id = 'reversehttp'
+		WHERE id = 'reversetcp'
 	`).Scan(&networkType, &protocolType, &transportTypes); err != nil {
 		t.Fatal(err)
 	}
-	if networkType != contract.NetworkTCPUDP || protocolType != contract.ProtocolReverseHTTP || transportTypes != `["normal"]` {
+	if networkType != contract.NetworkTCPUDP || protocolType != contract.ProtocolReverseTCP || transportTypes != `["normal"]` {
 		t.Fatalf("projection = network:%q protocol:%q transports:%q", networkType, protocolType, transportTypes)
 	}
 
@@ -57,14 +57,14 @@ func TestInboundStoreSaveGetListDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list) != 1 || list[0].ID != "reversehttp" {
+	if len(list) != 1 || list[0].ID != "reversetcp" {
 		t.Fatalf("list = %+v", list)
 	}
 
-	if err := store.Delete(ctx, "reversehttp"); err != nil {
+	if err := store.Delete(ctx, "reversetcp"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Get(ctx, "reversehttp"); !errors.Is(err, ErrNotFound) {
+	if _, err := store.Get(ctx, "reversetcp"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Get after delete error = %v", err)
 	}
 }
@@ -84,7 +84,7 @@ func TestInboundStoreRejectsInvalidTaggedObject(t *testing.T) {
 		Enabled: true,
 		Network: contract.NewTypedNetwork(contract.EmptyNetwork{}),
 		Protocol: contract.Protocol{
-			Type:  contract.ProtocolReverseHTTP,
+			Type:  contract.ProtocolReverseTCP,
 			Mixed: &contract.MixedProtocol{},
 		},
 	}, 0)

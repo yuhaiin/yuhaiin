@@ -25,7 +25,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
 	redirserver "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reverse"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
@@ -273,20 +272,8 @@ func contractProtocol(config contract.Protocol, lis netapi.Listener, handler net
 		options := tunConfig(*config.Tun)
 		options.FakeIPRanges = ranges
 		return tun.NewTun(options, lis, handler)
-	case contract.ProtocolReverseHTTP:
-		protocol := config.ReverseHTTP
-		tlsConfig := ytls.TLSConfig{}
-		if protocol.TLS != nil {
-			tlsConfig = clientTLSConfig(*protocol.TLS)
-		}
-		return reverse.NewHTTPServer(reverse.HTTPServerConfig{
-			URL: protocol.URL,
-			TLS: tlsConfig,
-		}, lis, handler)
 	case contract.ProtocolReverseTCP:
-		return reverse.NewTCPServer(reverse.TCPServerConfig{
-			Host: config.ReverseTCP.Target,
-		}, lis, handler)
+		return newReverseTCPServer(config.ReverseTCP.Target, lis, handler)
 	case contract.ProtocolNone:
 		return noopAccepter{Listener: lis}, nil
 	default:
@@ -318,17 +305,6 @@ func certificateConfig(config contract.Certificate) ytls.CertificateConfig {
 		Key:          config.KeyBase64,
 		CertFilePath: config.CertFile,
 		KeyFilePath:  config.KeyFile,
-	}
-}
-
-func clientTLSConfig(config contract.ClientTLSConfig) ytls.TLSConfig {
-	return ytls.TLSConfig{
-		Enable:             config.Enabled,
-		ServerNames:        append([]string(nil), config.ServerNames...),
-		CACert:             append([][]byte(nil), config.CACertsBase64...),
-		InsecureSkipVerify: config.InsecureSkipVerify,
-		NextProtos:         append([]string(nil), config.NextProtos...),
-		ECHConfig:          append([]byte(nil), config.ECHConfigBase64...),
 	}
 }
 

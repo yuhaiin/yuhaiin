@@ -52,9 +52,10 @@ GOMAXPROCS=2 go test ./pkg/inbound -run '^$' \
 GOMAXPROCS=2 go test ./pkg/inbound -run '^$' \
   -bench 'BenchmarkGatewayDisabledTCPForwarding/DisabledGateway$' -benchmem -benchtime=1s -count=5
 go test -race -count=1 -timeout=180s \
-  ./pkg/gateway ./pkg/cert ./pkg/net/proxy/reverse ./pkg/net/proxy/http \
+  ./pkg/gateway ./pkg/cert ./pkg/net/proxy/http \
   ./pkg/net/proxy/tls ./pkg/inbound ./pkg/httpapi ./pkg/store ./pkg/storage/sqlite \
-  ./pkg/route ./pkg/resolver ./pkg/statistics ./pkg/node ./pkg/app
+  ./pkg/route ./pkg/resolver ./pkg/statistics ./pkg/node ./pkg/app \
+  ./pkg/contract/inbound ./pkg/contract/node
 golangci-lint run --timeout=5m
 go fix ./...
 git diff --exit-code
@@ -65,7 +66,7 @@ selection/reuse, Selector changes, upstream certificate rejection, cancellation,
 SSE, WebSocket, HTTP/2 gRPC frames/trailers, an 8 MiB response, HTTP interception,
 MITM trust rejection, TLS passthrough/exclusion, lossless binary probes, CA
 SAN/chain/expiry/cache coalescing, SQLite revision/reference transactions,
-configuration rollback/concurrent updates, loop rejection, legacy adapters and
+configuration rollback/concurrent updates, loop rejection and
 pipelined CONNECT bytes, hot admission revocation, physical/upgraded listener
 cleanup (including same-address owner replacement), no-SNI/IP, unsupported ALPN,
 probe timeout/replay, and upstream client-certificate rejection without fallback. The workflow has an `http-gateway-tests` race job.
@@ -79,9 +80,12 @@ platform permissions, routes and the actual client trust installation.
 
 Frontend validation uses TypeScript, lint, translation checking, production build
 and component tests, including saved edits, 409 draft retention, Rule tester and
-explicit CA confirmation. Browser rendering/screenshots were unavailable in this
-execution environment; responsive layouts are implemented but visual browser
-verification is a remaining manual check.
+explicit CA confirmation. Local Chrome testing also verified Gateway editing,
+Rule tester, filters, CA confirmation and responsive layouts at desktop and
+mobile viewport sizes. Real traffic through the browser-saved configuration
+returned the local reverse-proxy response and an HTTP/2 204 for a blocked HTTPS
+path. Physical mobile devices, OS trust installation and Spotify certificate
+pinning remain outside this verification.
 
 The initial GitHub race job exposed an existing GeoIP test assuming the user's
 config directory already existed. Its fixture now uses a temporary data directory,

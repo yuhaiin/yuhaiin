@@ -317,14 +317,14 @@ func TestV2InboundCRUD(t *testing.T) {
 	}, V2Services{Inbounds: plainstore.NewInboundStore(sqliteStore.DB())})
 
 	inbound := contractinbound.Inbound{
-		ID:      "reversehttp",
-		Name:    "Reverse HTTP",
+		ID:      "reversetcp",
+		Name:    "Reverse TCP",
 		Enabled: true,
 		Network: contractinbound.NewTypedNetwork(contractinbound.TCPUDPNetwork{Host: ":9002", UDP: contractinbound.UDPTCPOnly}),
 		Transports: []contractinbound.Transport{
 			contractinbound.NewTypedTransport(contractinbound.NormalTransport{}),
 		},
-		Protocol: contractinbound.NewTypedProtocol(contractinbound.ReverseHTTPProtocol{URL: "http://127.0.0.1:3000"}),
+		Protocol: contractinbound.NewTypedProtocol(contractinbound.ReverseTCPProtocol{Target: "127.0.0.1:3000"}),
 	}
 	body, err := json.Marshal(inbound)
 	if err != nil {
@@ -338,14 +338,14 @@ func TestV2InboundCRUD(t *testing.T) {
 		t.Fatalf("POST status = %d body = %s", postRecorder.Code, postRecorder.Body.String())
 	}
 
-	get := httptest.NewRequest(http.MethodPost, "/api/v2/rpc/inbound.get", strings.NewReader(`{"id":"reversehttp"}`))
+	get := httptest.NewRequest(http.MethodPost, "/api/v2/rpc/inbound.get", strings.NewReader(`{"id":"reversetcp"}`))
 	getRecorder := httptest.NewRecorder()
 	mux.ServeHTTP(getRecorder, get)
 	if getRecorder.Code != http.StatusOK {
 		t.Fatalf("GET status = %d body = %s", getRecorder.Code, getRecorder.Body.String())
 	}
-	if !strings.Contains(getRecorder.Body.String(), `"reverse_http"`) {
-		t.Fatalf("GET body missing reverse_http tagged field: %s", getRecorder.Body.String())
+	if !strings.Contains(getRecorder.Body.String(), `"reverse_tcp"`) {
+		t.Fatalf("GET body missing reverse_tcp tagged field: %s", getRecorder.Body.String())
 	}
 	if strings.Contains(getRecorder.Body.String(), `"config"`) {
 		t.Fatalf("GET body contains config wrapper: %s", getRecorder.Body.String())

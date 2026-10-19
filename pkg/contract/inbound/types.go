@@ -16,20 +16,19 @@ const (
 	UDPUdpOnly  = "udp_only"
 	UDPDisabled = "disabled"
 
-	ProtocolHysteria2   = "hysteria2"
-	ProtocolHTTP        = "http"
-	ProtocolSocks5      = "socks5"
-	ProtocolYuubinsya   = "yuubinsya"
-	ProtocolMixed       = "mixed"
-	ProtocolSocks4A     = "socks4a"
-	ProtocolTProxy      = "tproxy"
-	ProtocolRedir       = "redir"
-	ProtocolTun         = "tun"
-	ProtocolWireguard   = "wireguard"
-	ProtocolKrunlet     = "krunlet"
-	ProtocolReverseHTTP = "reverse_http"
-	ProtocolReverseTCP  = "reverse_tcp"
-	ProtocolNone        = "none"
+	ProtocolHysteria2  = "hysteria2"
+	ProtocolHTTP       = "http"
+	ProtocolSocks5     = "socks5"
+	ProtocolYuubinsya  = "yuubinsya"
+	ProtocolMixed      = "mixed"
+	ProtocolSocks4A    = "socks4a"
+	ProtocolTProxy     = "tproxy"
+	ProtocolRedir      = "redir"
+	ProtocolTun        = "tun"
+	ProtocolWireguard  = "wireguard"
+	ProtocolKrunlet    = "krunlet"
+	ProtocolReverseTCP = "reverse_tcp"
+	ProtocolNone       = "none"
 
 	TransportNormal    = "normal"
 	TransportTLS       = "tls"
@@ -138,21 +137,20 @@ func (n Network) nonNilCount() int {
 }
 
 type Protocol struct {
-	Type        string               `json:"type"`
-	Hysteria2   *Hysteria2Protocol   `json:"hysteria2,omitzero"`
-	HTTP        *HTTPProtocol        `json:"http,omitzero"`
-	Socks5      *Socks5Protocol      `json:"socks5,omitzero"`
-	Yuubinsya   *YuubinsyaProtocol   `json:"yuubinsya,omitzero"`
-	Mixed       *MixedProtocol       `json:"mixed,omitzero"`
-	Socks4A     *Socks4AProtocol     `json:"socks4a,omitzero"`
-	TProxy      *TProxyProtocol      `json:"tproxy,omitzero"`
-	Redir       *RedirProtocol       `json:"redir,omitzero"`
-	Tun         *TunProtocol         `json:"tun,omitzero"`
-	Wireguard   *WireguardProtocol   `json:"wireguard,omitzero"`
-	Krunlet     *KrunletProtocol     `json:"krunlet,omitzero"`
-	ReverseHTTP *ReverseHTTPProtocol `json:"reverse_http,omitzero"`
-	ReverseTCP  *ReverseTCPProtocol  `json:"reverse_tcp,omitzero"`
-	None        *NoneProtocol        `json:"none,omitzero"`
+	Type       string              `json:"type"`
+	Hysteria2  *Hysteria2Protocol  `json:"hysteria2,omitzero"`
+	HTTP       *HTTPProtocol       `json:"http,omitzero"`
+	Socks5     *Socks5Protocol     `json:"socks5,omitzero"`
+	Yuubinsya  *YuubinsyaProtocol  `json:"yuubinsya,omitzero"`
+	Mixed      *MixedProtocol      `json:"mixed,omitzero"`
+	Socks4A    *Socks4AProtocol    `json:"socks4a,omitzero"`
+	TProxy     *TProxyProtocol     `json:"tproxy,omitzero"`
+	Redir      *RedirProtocol      `json:"redir,omitzero"`
+	Tun        *TunProtocol        `json:"tun,omitzero"`
+	Wireguard  *WireguardProtocol  `json:"wireguard,omitzero"`
+	Krunlet    *KrunletProtocol    `json:"krunlet,omitzero"`
+	ReverseTCP *ReverseTCPProtocol `json:"reverse_tcp,omitzero"`
+	None       *NoneProtocol       `json:"none,omitzero"`
 }
 
 type ProtocolVariant interface{ ProtocolType() string }
@@ -273,13 +271,6 @@ type KrunletProtocol struct {
 
 func (KrunletProtocol) ProtocolType() string { return ProtocolKrunlet }
 
-type ReverseHTTPProtocol struct {
-	URL string           `json:"url"`
-	TLS *ClientTLSConfig `json:"tls,omitzero"`
-}
-
-func (ReverseHTTPProtocol) ProtocolType() string { return ProtocolReverseHTTP }
-
 type ReverseTCPProtocol struct {
 	Target string `json:"target"`
 }
@@ -354,11 +345,6 @@ func (p Protocol) Variant() (ProtocolVariant, error) {
 			return nil, fmt.Errorf("protocol %s missing %s field", p.Type, ProtocolKrunlet)
 		}
 		return p.Krunlet, nil
-	case ProtocolReverseHTTP:
-		if p.ReverseHTTP == nil {
-			return nil, fmt.Errorf("protocol %s missing %s field", p.Type, ProtocolReverseHTTP)
-		}
-		return p.ReverseHTTP, nil
 	case ProtocolReverseTCP:
 		if p.ReverseTCP == nil {
 			return nil, fmt.Errorf("protocol %s missing %s field", p.Type, ProtocolReverseTCP)
@@ -417,9 +403,6 @@ func (p Protocol) nonNilCount() int {
 		count++
 	}
 	if p.Krunlet != nil {
-		count++
-	}
-	if p.ReverseHTTP != nil {
 		count++
 	}
 	if p.ReverseTCP != nil {
@@ -572,15 +555,6 @@ func jsonTagName(tag string) string {
 		return ""
 	}
 	return name
-}
-
-type ClientTLSConfig struct {
-	Enabled            bool     `json:"enabled"`
-	ServerNames        []string `json:"serverNames"`
-	CACertsBase64      [][]byte `json:"caCertsBase64"`
-	InsecureSkipVerify bool     `json:"insecureSkipVerify"`
-	NextProtos         []string `json:"nextProtos"`
-	ECHConfigBase64    []byte   `json:"echConfigBase64"`
 }
 
 type ServerTLSConfig struct {
