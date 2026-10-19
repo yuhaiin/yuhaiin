@@ -31,6 +31,14 @@ func TestGatewaySQLiteRevisionAndTargetReferences(t *testing.T) {
 	if saved.Revision != 1 {
 		t.Fatal(saved.Revision)
 	}
+	var schemaVersion int
+	var flatRules any
+	if err := editor.db.QueryRowContext(ctx, `SELECT json_extract(data_json, '$.version'), json_type(data_json, '$.rules') FROM gateway_configuration WHERE id=1`).Scan(&schemaVersion, &flatRules); err != nil {
+		t.Fatal(err)
+	}
+	if schemaVersion != 2 || flatRules != nil {
+		t.Fatalf("gateway record is not nested v2: version=%d flat_rules=%v", schemaVersion, flatRules)
+	}
 	if _, err := s.Save(ctx, config); !errors.Is(err, ErrConflict) {
 		t.Fatalf("stale config: %v", err)
 	}
@@ -83,5 +91,16 @@ func TestGatewayCAStoreCASAndConfigSeparation(t *testing.T) {
 	var count int
 	if err := editor.db.QueryRowContext(ctx, `SELECT count(*) FROM gateway_configuration WHERE data_json LIKE '%private-key%'`).Scan(&count); err != nil || count != 0 {
 		t.Fatal("CA key entered normal configuration")
+	}
+}
+
+func TestGatewayStoreRejectsLegacyFlatDocument(t *testing.T) {
+	editor, _, _ := editorStore(t)
+	ctx := t.Context()
+	if _, err := editor.db.ExecContext(ctx, `INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,'{"revision":1,"gateways":[]}')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewGatewayStore(editor.db).Load(ctx); err == nil {
+		t.Fatal("legacy flat Gateway configuration was silently loaded")
 	}
 }
