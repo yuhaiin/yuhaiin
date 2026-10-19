@@ -115,7 +115,7 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 
 func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 	if err := s.table.Write(ctx, pack); err != nil {
-		if errors.Is(err, nat.ErrSendPacketQueueFull) {
+		if errors.Is(err, nat.ErrSendPacketQueueFull) || errors.Is(err, nat.ErrNATSessionLimit) {
 			// The metric records queue drops; per-packet logging can amplify congestion.
 			return
 		}

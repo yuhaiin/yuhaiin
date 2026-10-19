@@ -22,6 +22,7 @@ type Config struct {
 	Profile                                                                       NetworkProfile
 	Promiscuous, ForwardUDP                                                       bool
 	MaxConnections, MaxUDPSockets, QueuePackets                                   int
+	InputPacketsPerSecond, InputPacketBurst                                       int
 	SendBuffer, ReceiveBuffer, MaxReceiveBuffer                                   int
 	MemoryLimit                                                                   int64
 	MaxFragmentGroups, MaxFragmentBytes                                           int
@@ -56,6 +57,7 @@ func (c Config) normalize() (Config, error) {
 	if c.Profile != LocalTun && c.Profile != RemoteTunnel {
 		return c, fmt.Errorf("lightweight: unknown profile %q", c.Profile)
 	}
+	if c.InputPacketsPerSecond < 0 || c.InputPacketBurst < 0 { return c, fmt.Errorf("lightweight: negative input packet rate limit") }
 	if c.MaxConnections == 0 {
 		c.MaxConnections = 8192
 	}

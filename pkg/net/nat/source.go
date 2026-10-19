@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/ringbuffer"
 )
@@ -49,6 +50,8 @@ func newContextCache(store *netapi.Context) ContextCache {
 type SourceControl struct {
 	ctx    context.Context
 	dialer netapi.Proxy
+	sessionLease *trafficcontrol.Session
+	queueBudget *trafficcontrol.Governor
 
 	// sniffer is an optional packet sniffer for observability or traffic analysis.
 	sniffer netapi.PacketSniffer
@@ -136,6 +139,7 @@ func (u *SourceControl) Close() error {
 	// ends its reader; run and contextCache survive for UOT reconnection.
 	u.close()
 	<-u.done
+	u.sessionLease.Release()
 	return nil
 }
 
@@ -148,6 +152,7 @@ func (u *SourceControl) drain() {
 			break
 		}
 
+		u.queueBudget.ReleaseQueueBytes(int64(len(pkt.GetPayload())))
 		pkt.DecRef()
 		u.pending.Add(-1)
 	}
@@ -158,6 +163,7 @@ func (u *SourceControl) drain() {
 			break
 		}
 
+		u.queueBudget.ReleaseQueueBytes(int64(len(pkt.buf)))
 		pool.PutBytes(pkt.buf)
 	}
 
@@ -206,9 +212,14 @@ func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) err
 		return ctx.Err()
 
 	default:
+		if !u.queueBudget.ReserveQueueBytes(int64(len(pkt.GetPayload()))) {
+			metrics.Counter.AddSendUDPDroppedPacket()
+			return ErrSendPacketQueueFull
+		}
 		pkt.IncRef()
 		u.pending.Add(1)
 		if !u.sentPackets.Push(pkt) {
+			u.queueBudget.ReleaseQueueBytes(int64(len(pkt.GetPayload())))
 			u.pending.Add(-1)
 			pkt.DecRef()
 			metrics.Counter.AddSendUDPDroppedPacket()
@@ -233,6 +244,7 @@ func (u *SourceControl) handle() {
 			break
 		}
 
+		u.queueBudget.ReleaseQueueBytes(int64(len(pkt.GetPayload())))
 		err := u.handleOne(pkt)
 		pkt.DecRef()
 		u.pending.Add(-1)

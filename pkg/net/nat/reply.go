@@ -78,6 +78,7 @@ func (u *SourceControl) runReply() {
 					break
 				}
 				err := u.writeReply(u.ctx, pkt.buf, pkt.from)
+				u.queueBudget.ReleaseQueueBytes(int64(len(pkt.buf)))
 				pool.PutBytes(pkt.buf)
 				if pkt.conn != lastConn {
 					errorsInRow = 0

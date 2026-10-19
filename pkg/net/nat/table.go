@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -31,6 +32,7 @@ type Table struct {
 
 	cleanerWake   chan struct{}
 	sourceControl syncmap.SyncMap[uint64, *SourceControl]
+	budget        *trafficcontrol.Governor
 	closed        atomic.Bool
 	mu            sync.RWMutex // Serializes queue admission with Close.
 	stop          chan struct{}
@@ -38,11 +40,17 @@ type Table struct {
 	closeOnce     sync.Once
 }
 
+var ErrNATSessionLimit = errors.New("udp nat: session limit")
+
+// ResourceStats exposes live NAT sessions and charged queue bytes.
+func (t *Table) ResourceStats() trafficcontrol.Counters { return t.budget.Snapshot() }
+
 func NewTable(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *Table {
 	t := &Table{
 		dialer:      dialer,
 		sniffer:     sniffer,
 		cleanerWake: make(chan struct{}, 1),
+		budget: trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 16384, MaxQueueBytes: 64 << 20}, nil),
 		stop:        make(chan struct{}),
 		done:        make(chan struct{}),
 	}
@@ -122,7 +130,14 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return fmt.Errorf("udp nat table: %w", net.ErrClosed)
 	}
 	for {
-		r, loaded, _ := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) { return NewSourceChan(u.sniffer, u.dialer), nil })
+		r, loaded, err := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) {
+			lease, ok := u.budget.AcquireSession()
+			if !ok { return nil, ErrNATSessionLimit }
+			source := NewSourceChan(u.sniffer, u.dialer)
+			source.sessionLease, source.queueBudget = lease, u.budget
+			return source, nil
+		})
+		if err != nil { return err }
 		if !loaded {
 			select {
 			case u.cleanerWake <- struct{}{}:
