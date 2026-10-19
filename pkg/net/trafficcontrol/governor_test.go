@@ -171,23 +171,39 @@ func TestGovernorPendingTaskCapAndRelease(t *testing.T) {
 	}
 }
 
-
 func TestOverQuotaChildCannotConsumeParentAdmissionTokens(t *testing.T) {
-	root:=NewGovernor(Limits{MaxSessions:10,SessionsPerSec:2,SessionBurst:2,PacketsPerSec:2,PacketBurst:2},nil)
-	noisy:=NewGovernor(Limits{MaxSessions:1,SessionsPerSec:1,SessionBurst:1,PacketsPerSec:1,PacketBurst:1},root)
-	quiet:=NewGovernor(Limits{MaxSessions:2,SessionsPerSec:1,SessionBurst:1,PacketsPerSec:1,PacketBurst:1},root)
-	busy,ok:=noisy.AcquireSession()
-	if !ok{t.Fatal("first connection")}
-	for range 100 {
-		if lease,allowed:=noisy.AcquireSession();allowed {lease.Release();t.Fatal("over quota child admitted")}
+	root := NewGovernor(Limits{MaxSessions: 10, SessionsPerSec: 2, SessionBurst: 2, PacketsPerSec: 2, PacketBurst: 2}, nil)
+	noisy := NewGovernor(Limits{MaxSessions: 1, SessionsPerSec: 1, SessionBurst: 1, PacketsPerSec: 1, PacketBurst: 1}, root)
+	quiet := NewGovernor(Limits{MaxSessions: 2, SessionsPerSec: 1, SessionBurst: 1, PacketsPerSec: 1, PacketBurst: 1}, root)
+	busy, ok := noisy.AcquireSession()
+	if !ok {
+		t.Fatal("first connection")
 	}
-	healthy,ok:=quiet.AcquireSession()
-	if !ok{t.Fatal("noisy child starved healthy parent session tokens")}
-	now:=time.Unix(300,0)
-	if !noisy.AdmitPacket(now){t.Fatal("first packet")}
-	for range 100 {if noisy.AdmitPacket(now){t.Fatal("noisy PPS bypass")}}
-	if !quiet.AdmitPacket(now){t.Fatal("noisy child consumed healthy parent's packet quota")}
+	for range 100 {
+		if lease, allowed := noisy.AcquireSession(); allowed {
+			lease.Release()
+			t.Fatal("over quota child admitted")
+		}
+	}
+	healthy, ok := quiet.AcquireSession()
+	if !ok {
+		t.Fatal("noisy child starved healthy parent session tokens")
+	}
+	now := time.Unix(300, 0)
+	if !noisy.AdmitPacket(now) {
+		t.Fatal("first packet")
+	}
+	for range 100 {
+		if noisy.AdmitPacket(now) {
+			t.Fatal("noisy PPS bypass")
+		}
+	}
+	if !quiet.AdmitPacket(now) {
+		t.Fatal("noisy child consumed healthy parent's packet quota")
+	}
 	busy.Release()
 	healthy.Release()
-	if root.Snapshot().Sessions!=0{t.Fatal("session leakage",root.Snapshot())}
+	if root.Snapshot().Sessions != 0 {
+		t.Fatal("session leakage", root.Snapshot())
+	}
 }
