@@ -33,13 +33,27 @@ TLS probes use the public `crypto/tls` ClientHello callback, a bounded 64 KiB
 capture, and a write sink. Probe alerts never reach the client. All captured and
 read-ahead bytes are replayed before passthrough or the real MITM handshake.
 ALPN must advertise HTTP/1.1 or h2 for MITM. Missing SNI can use a recovered DNS
-name or an IP SAN. ECH offers and unsupported ALPN follow `unknownTls`
-(`passthrough` by default, or `reject`) before a real server handshake is sent.
-Once real MITM handshake bytes are sent, failure closes the connection; there is
-no misleading fallback to the original TLS session.
+name or an IP SAN. An ECH extension alone does not follow `unknownTls`:
+GREASE ECH continues as an ordinary TLS handshake and can be inspected. Gateway
+has no ECH keys for decrypting a real ECH inner ClientHello, so it completes the
+handshake using the visible outer name. When the L4-selected or recovered destination
+is an allowed FQDN, ECH can use a different outer public name without adding
+that public name to the interception allowlist. Explicit exclusions of the
+outer public name still apply. If the outer ALPN hides HTTP, Gateway admits
+this approved destination/public-name mismatch using a TLS handshake without
+ALPN to enable client-side ECH rejection and retry. The client must trust the
+Gateway CA and choose to retry. If the destination is only an IP with no
+allowed recovered FQDN, the outer name must itself be allowed. Ordinary GREASE
+on the same hostname, non-ECH unsupported ALPN, and malformed ClientHellos still
+follow `unknownTls` (`passthrough` by default, or `reject`) before a MITM
+handshake is sent. GREASE and real ECH cannot reliably be distinguished by the
+extension alone, so this exception requires an independently allowed destination.
+Once real MITM handshake bytes are sent, failure closes the connection;
+there is no fallback to the original TLS session.
 
 Client certificate authentication, pinned clients, clients rejecting user CAs,
-non-HTTP TLS and ECH plaintext are not bypassed. Pinning/trust failures fail the
+and non-HTTP TLS are not bypassed. Real ECH inner names and requests are not
+visible unless the client retries without ECH. Pinning/trust failures fail the
 client handshake. An upstream requesting a client certificate fails unless its
 existing outbound chain independently owns that authentication; Gateway does
 not impersonate the client's private key. Exclude such traffic in advance.

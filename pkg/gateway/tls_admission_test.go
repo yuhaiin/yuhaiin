@@ -32,45 +32,63 @@ func (*helloRecorder) SetWriteDeadline(time.Time) error { return nil }
 
 func TestUnsupportedTLSAdmissionIsLosslessBeforeHandshake(t *testing.T) {
 	for _, protocol := range []string{"", "custom-protocol"} {
-		for _, strategy := range []string{"passthrough", "reject"} {
-			t.Run(protocol+"/"+strategy, func(t *testing.T) {
-				config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "forward"}}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}, UnknownTLS: strategy}}}
-				m, _ := newTestManager(t, config, nil)
-				recorded := new(helloRecorder)
-				clientConfig := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: "example.com"}
-				if protocol != "" {
-					clientConfig.NextProtos = []string{protocol}
+		for _, ech := range []bool{false, true} {
+			for _, strategy := range []string{"passthrough", "reject"} {
+				name := protocol + "/" + strategy
+				if ech {
+					name += "/ech-grease"
 				}
-				client := tls.Client(recorded, clientConfig)
-				_ = client.HandshakeContext(t.Context())
-				hello := bytes.Clone(recorded.Bytes())
-				if len(hello) == 0 {
-					t.Fatal("no ClientHello")
-				}
-				left, right := net.Pipe()
-				defer left.Close()
-				defer right.Close()
-				go func() { _, _ = right.Write(hello) }()
-				dst, _ := netapi.ParseAddress("tcp", "example.com:443")
-				ctx := netapi.WithContext(t.Context()).SetInboundID("in")
-				meta := &netapi.StreamMeta{Src: left, Address: dst}
-				handled := m.InterceptGateway(ctx, meta, "g")
-				if handled != (strategy == "reject") {
-					t.Fatalf("handled=%t", handled)
-				}
-				if !handled {
-					replay := make([]byte, len(hello))
-					if _, err := io.ReadFull(meta.Src, replay); err != nil || !bytes.Equal(replay, hello) {
-						t.Fatalf("ClientHello changed: %v", err)
+				t.Run(name, func(t *testing.T) {
+					config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "forward"}}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}, UnknownTLS: strategy}}}
+					m, _ := newTestManager(t, config, nil)
+					var hello []byte
+					if ech {
+						var nextProtos []string
+						if protocol != "" {
+							nextProtos = []string{protocol}
+						}
+						hello = recordedGREASEECHClientHello(t, "example.com", nextProtos)
+					} else {
+						recorded := new(helloRecorder)
+						clientConfig := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: "example.com"}
+						if protocol != "" {
+							clientConfig.NextProtos = []string{protocol}
+						}
+						client := tls.Client(recorded, clientConfig)
+						_ = client.HandshakeContext(t.Context())
+						hello = bytes.Clone(recorded.Bytes())
+						if len(hello) == 0 {
+							t.Fatal("no ClientHello")
+						}
 					}
-					// Probe parser alerts must not reach the client, even on protocol rejection.
-					_ = right.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
-					var b [1]byte
-					if n, err := right.Read(b[:]); n != 0 || err == nil {
-						t.Fatalf("probe wrote TLS data: n=%d err=%v", n, err)
+					left, right := net.Pipe()
+					defer left.Close()
+					defer right.Close()
+					go func() { _, _ = right.Write(hello) }()
+					dst, _ := netapi.ParseAddress("tcp", "example.com:443")
+					ctx := netapi.WithContext(t.Context()).SetInboundID("in")
+					meta := &netapi.StreamMeta{Src: left, Address: dst}
+					handled := m.InterceptGateway(ctx, meta, "g")
+					if handled != (strategy == "reject") {
+						t.Fatalf("handled=%t", handled)
 					}
-				}
-			})
+					if got := m.current.Load().gateways["g"].engine.Counters.ProtocolFailures.Load(); got != 1 {
+						t.Fatalf("protocol failures=%d, want 1 for unsupported ALPN", got)
+					}
+					if !handled {
+						replay := make([]byte, len(hello))
+						if _, err := io.ReadFull(meta.Src, replay); err != nil || !bytes.Equal(replay, hello) {
+							t.Fatalf("ClientHello changed: %v", err)
+						}
+						// Probe parser alerts must not reach the client, even on protocol rejection.
+						_ = right.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
+						var b [1]byte
+						if n, err := right.Read(b[:]); n != 0 || err == nil {
+							t.Fatalf("probe wrote TLS data: n=%d err=%v", n, err)
+						}
+					}
+				})
+			}
 		}
 	}
 }

@@ -64,7 +64,10 @@ yet a single transaction or activation snapshot.
 
 HTTPS MITM additionally requires a generated/imported Gateway CA, explicit
 domain allowlist, and client trust in the public CA. Unsupported/ECH/pinned TLS
-flows cannot be forcibly decrypted. QUIC/HTTP3 is not intercepted.
+flows cannot be forcibly decrypted. GREASE ECH can be intercepted like normal
+TLS. Real ECH inner ClientHello data remains encrypted; Gateway uses the visible
+outer name and some clients may retry with ECH disabled. QUIC/HTTP3 is not
+intercepted.
 
 A listener's `tlsMode: "termination"` uses its regular site certificate and
 private-key file paths. It does not use the MITM CA. Non-loopback listeners
