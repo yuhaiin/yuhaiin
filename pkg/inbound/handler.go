@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -14,14 +15,19 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniff"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
+var ErrStreamAdmissionLimit = errors.New("inbound: stream session limit")
+
 type handler struct {
 	dialer netapi.Proxy
 	table  *nat.Table
+	globalBudget *trafficcontrol.Governor
+	streamScopes sync.Map // inbound ID/name -> *trafficcontrol.Governor
 
 	sniffer     *controlSniffer
 	interceptor interface {
@@ -31,9 +37,11 @@ type handler struct {
 
 func NewHandler(dialer netapi.Proxy) *handler {
 	sniffer := newControlSniffer()
+	root := trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 65536}, nil)
 	h := &handler{
-		dialer:  dialer,
-		table:   nat.NewTable(sniffer, dialer),
+		dialer: dialer,
+		table: nat.NewTableWithParent(sniffer, dialer, root),
+		globalBudget: root,
 		sniffer: sniffer,
 	}
 	return h
@@ -73,11 +81,23 @@ func (s *handler) logLevel(err error) slog.Level {
 
 func (s *handler) Stream(ctx *netapi.Context, meta *netapi.StreamMeta) {
 	if err := s.stream(ctx, meta); err != nil {
+		if errors.Is(err, ErrStreamAdmissionLimit) { return } // overload is counted; avoid log storms
 		log.Select(s.logLevel(err)).Print("inbound handler stream", "msg", err)
 	}
 }
 
 func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
+	if s.globalBudget != nil {
+		id := meta.InboundID
+		if id == "" { id = meta.InboundName }
+		scope, _ := s.streamScopes.LoadOrStore(id, trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 8192}, s.globalBudget))
+		lease, ok := scope.(*trafficcontrol.Governor).AcquireSession()
+		if !ok {
+			_ = meta.Src.Close()
+			return ErrStreamAdmissionLimit
+		}
+		defer lease.Release()
+	}
 	dst := meta.Address
 
 	startNanoSeconds := system.CheapNowNano()

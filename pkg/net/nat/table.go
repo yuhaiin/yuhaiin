@@ -46,11 +46,17 @@ var ErrNATSessionLimit = errors.New("udp nat: session limit")
 func (t *Table) ResourceStats() trafficcontrol.Counters { return t.budget.Snapshot() }
 
 func NewTable(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *Table {
+	return NewTableWithParent(sniffer, dialer, nil)
+}
+
+// NewTableWithParent enforces a shared engine session budget across TCP and NAT
+// sessions while preserving per-table NAT caps.
+func NewTableWithParent(sniffer netapi.PacketSniffer, dialer netapi.Proxy, parent *trafficcontrol.Governor) *Table {
 	t := &Table{
 		dialer:      dialer,
 		sniffer:     sniffer,
 		cleanerWake: make(chan struct{}, 1),
-		budget: trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 16384, MaxQueueBytes: 64 << 20}, nil),
+		budget: trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 16384, MaxQueueBytes: 64 << 20}, parent),
 		stop:        make(chan struct{}),
 		done:        make(chan struct{}),
 	}
