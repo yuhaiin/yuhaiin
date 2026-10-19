@@ -9,6 +9,7 @@ import (
 // or filter has exactly one owner; ownership is a structural property, not a
 // second mutable relation in the UI. Runtime compilation still uses Config.
 type Workspace struct {
+	Version  int                `json:"version"`
 	Revision uint64             `json:"revision"`
 	Gateways []WorkspaceGateway `json:"gateways"`
 }
@@ -68,7 +69,7 @@ func (s InboundSource) interception(gatewayID string) Interception {
 // between Gateways or storing orphaned resources is not part of the v2 model.
 // Do not silently drop such resources when projecting a persisted snapshot.
 func WorkspaceFromConfig(cfg Config) (Workspace, error) {
-	doc := Workspace{Revision: cfg.Revision, Gateways: make([]WorkspaceGateway, 0, len(cfg.Gateways))}
+	doc := Workspace{Version: 2, Revision: cfg.Revision, Gateways: make([]WorkspaceGateway, 0, len(cfg.Gateways))}
 	rules := make(map[string]Rule, len(cfg.Rules))
 	pools := make(map[string]Upstream, len(cfg.Upstreams))
 	seenRules := make(map[string]string)
@@ -188,6 +189,9 @@ func WorkspaceFromConfig(cfg Config) (Workspace, error) {
 // ConfigFromWorkspace projects a single nested revision into the existing
 // compiler representation. It never reads or mutates a previously saved Config.
 func ConfigFromWorkspace(doc Workspace) (Config, error) {
+	if doc.Version != 2 {
+		return Config{}, fmt.Errorf("unsupported Gateway workspace version %d (expected 2)", doc.Version)
+	}
 	cfg := Config{
 		Revision: doc.Revision, Gateways: []Gateway{}, Rules: []Rule{},
 		Upstreams: []Upstream{}, Interceptions: []Interception{},
