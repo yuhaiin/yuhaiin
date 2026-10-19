@@ -8,7 +8,8 @@ routing actions, the hook returns without allocation or reads. UDP/QUIC is uncha
 See [Route handoff](route-handoff.md) for configuration and fallback semantics.
 
 Create a matching **Routing -> HTTP Gateway** action and choose its Gateway.
-Then choose that Gateway and a stable inbound ID in **Interception**. Modes:
+Set the Gateway’s **Interception** mode directly. Inbound conditions belong in
+Routing; no Gateway attachment is required. Modes:
 
 | Mode | Behavior |
 | --- | --- |
@@ -18,12 +19,10 @@ Then choose that Gateway and a stable inbound ID in **Interception**. Modes:
 | `https_mitm` | Admit HTTP and explicitly allowlisted HTTPS using the local CA |
 
 Source CIDRs, destination ports, process paths, domains, and excluded domains
-further constrain admission. An excluded inbound has no active interception
-entry. MITM requires a nonempty domain allowlist and a generated/imported CA.
+further constrain admission. MITM requires a nonempty domain allowlist and a generated/imported CA.
 Generate the CA in TLS/CA first, and install its public root only on authorized
-clients. [explicit-mitm.json](examples/explicit-mitm.json) illustrates a TUN with
-stable ID `tun`, allowing only `app.example.com` and excluding a pinned subdomain.
-Use your actual inbound ID and preserve existing config/revisions when saving.
+clients. [explicit-mitm.json](examples/explicit-mitm.json) allows only `app.example.com` and excludes a pinned subdomain.
+Preserve existing config/revisions when saving.
 
 For plaintext only, change the example mode to `http_only`. For encrypted
 passthrough, use `tls_passthrough`; HTTP policies cannot inspect those requests.
@@ -65,7 +64,7 @@ root/CAP_NET_ADMIN and a saved copy of its network configuration.
 2. Create an interception-only Gateway (`listen` empty). Give it a default
    `respond` action with body `gateway-ok`; attach an enabled Path prefix
    `/ads/` rule with `block` status 204. Generate its CA and download the public
-   certificate to `./gateway-ca.pem`. In Interception select the test inbound,
+   certificate to `./gateway-ca.pem`. In Interception select
    mode `https_mitm`, domains `app.example.com`, ports 80 and 443. Save/activate.
    In existing Routing create a rule matching the synthetic destination
    `198.18.0.2/32`, TCP ports 80/443 and this inbound, with HTTP Gateway action

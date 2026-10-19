@@ -106,7 +106,7 @@ func interceptListener(t *testing.T, m *Manager, destination, fallback string) (
 				dst, _ := netapi.ParseAddress("tcp", destination)
 				ctx.Destination = dst
 				meta := &netapi.StreamMeta{Src: c, Address: dst, Source: c.RemoteAddr(), Destination: dst, InboundID: "in"}
-				if m.Intercept(ctx, meta) {
+				if m.InterceptGateway(ctx, meta, "g") {
 					return
 				}
 				defer meta.Src.Close()
@@ -140,7 +140,7 @@ func TestHTTPSMITMHTTP2AndPassthrough(t *testing.T) {
 		wantError  bool
 	}{{"MITM trusted", "https_mitm", nil, true, false}, {"untrusted MITM", "https_mitm", nil, false, true}, {"TLS passthrough", "tls_passthrough", nil, false, false}, {"excluded domain", "https_mitm", []string{"example.com"}, false, false}} {
 		t.Run(tc.name, func(t *testing.T) {
-			config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "reverse_proxy", Upstream: "u"}}}, Upstreams: []contract.Upstream{{ID: "u", TrustPEM: string(backendPEM), Backends: []contract.Backend{{URL: up.URL}}}}, Interceptions: []contract.Interception{{InboundID: "in", GatewayID: "g", Mode: tc.mode, Domains: []string{"example.com"}, ExcludeDomains: tc.exclude}}}
+			config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "reverse_proxy", Upstream: "u"}}}, Upstreams: []contract.Upstream{{ID: "u", TrustPEM: string(backendPEM), Backends: []contract.Backend{{URL: up.URL}}}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: tc.mode, Domains: []string{"example.com"}, ExcludeDomains: tc.exclude}}}
 			m, _ := newTestManager(t, config, func(_ context.Context, dst netapi.Address, _ route.Target) (Selection, error) {
 				return Selection{Identity: "up", Proxy: p, Destination: dst}, nil
 			})
@@ -183,7 +183,7 @@ func TestPlaintextInterceptionAndProbeReplay(t *testing.T) {
 	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = io.Copy(w, r.Body) }))
 	defer up.Close()
 	p := &mockOutbound{destination: strings.TrimPrefix(up.URL, "http://")}
-	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, RuleIDs: []string{"ads"}, Default: contract.Action{Type: "forward"}}}, Rules: []contract.Rule{{ID: "ads", Enabled: true, Match: contract.Condition{Field: "path", Operator: "prefix", Value: "/ads/"}, Action: contract.Action{Type: "block", Status: 204}}}, Interceptions: []contract.Interception{{InboundID: "in", GatewayID: "g", Mode: "http_only", Domains: []string{"example.com"}}}}
+	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, RuleIDs: []string{"ads"}, Default: contract.Action{Type: "forward"}}}, Rules: []contract.Rule{{ID: "ads", Enabled: true, Match: contract.Condition{Field: "path", Operator: "prefix", Value: "/ads/"}, Action: contract.Action{Type: "block", Status: 204}}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: "http_only", Domains: []string{"example.com"}}}}
 	m, _ := newTestManager(t, config, func(_ context.Context, dst netapi.Address, _ route.Target) (Selection, error) {
 		return Selection{Identity: "up", Proxy: p, Destination: dst}, nil
 	})
@@ -215,7 +215,7 @@ func TestPlaintextInterceptionAndProbeReplay(t *testing.T) {
 	ctx := netapi.WithContext(t.Context()).SetInboundID("in")
 	meta := &netapi.StreamMeta{Src: left, Address: dst}
 	go func() { _, _ = right.Write([]byte{0, 1, 2, 3}) }()
-	if m.Intercept(ctx, meta) {
+	if m.InterceptGateway(ctx, meta, "g") {
 		t.Fatal("binary stream intercepted")
 	}
 	buf := make([]byte, 4)

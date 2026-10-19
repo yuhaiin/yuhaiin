@@ -9,6 +9,7 @@ import (
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
 	"github.com/Asutorufa/yuhaiin/pkg/gateway"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/route"
 )
 
 type emptyGatewayStore struct{}
@@ -46,7 +47,9 @@ func BenchmarkGatewayDisabledTCPForwarding(b *testing.B) {
 					b.Fatal(err)
 				}
 				defer manager.Close()
-				h.interceptor = manager
+				router := route.NewRoute(gatewayRouteDialer{}, gatewayResolverBook{}, nil, nil)
+				router.SetGatewayHandler(nil, manager.InterceptGateway)
+				h.interceptor = router
 			}
 			destination, _ := netapi.ParseAddress("tcp", "example.com:80")
 			payload := make([]byte, 4096)

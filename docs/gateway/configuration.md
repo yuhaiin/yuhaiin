@@ -1,7 +1,7 @@
 # HTTP Gateway v2 configuration
 
 HTTP Gateway is configured through a **Gateway-owned workspace document**. Each
-Gateway contains its own listener, inbound sources, HTTP policies, backend pools,
+Gateway contains its own listener, HTTP/TLS interception settings, HTTP policies, backend pools,
 URL filters, and fallback. The old separate `gateway.config.*` and
 `gateway.resource.*` management APIs have been removed.
 
@@ -11,7 +11,7 @@ URL filters, and fallback. The old separate `gateway.config.*` and
 Workspace (version=2, revision)
 └─ gateways[]
    ├─ listener?             optional HTTP/HTTPS listening socket
-   ├─ sources[]             existing Inbound admission permissions
+   ├─ interception?         HTTP/TLS handling for Route-selected streams
    ├─ policies[]            ordered HTTP conditions and actions
    ├─ backendPools[]        pools owned by actions in this Gateway
    ├─ filters[]             per-Gateway URL filters
@@ -55,10 +55,10 @@ reconcile before retrying.
 
 ## Source and Routing separation
 
-A Gateway listener accepts direct HTTP/HTTPS connections. A `sources[]` entry
-authorizes requests from a selected existing Inbound, but **does not** divert
-its TCP flows on its own. Add an explicit `HTTP Gateway` action in the existing
-L4 Routing editor, selecting the Gateway, and apply Routing. Ordinary Route
+A Gateway listener accepts direct HTTP/HTTPS connections. Configure the Gateway’s
+`interception` mode directly, then add an explicit `HTTP Gateway` action in the
+existing L4 Routing editor and apply Routing. Routing controls which Inbounds
+and connections reach the Gateway; no additional Inbound attachment is required. Ordinary Route
 priority and Block behavior remain authoritative. Routing and Gateway are not
 yet a single transaction or activation snapshot.
 
@@ -82,7 +82,7 @@ schema. Ordinary config backups exclude Gateway CA private-key material:
 preserve its key through a protected database snapshot or separate import.
 
 The HTTP engine still compiles an internal representation of policies, pools and
-inbound admissions. This is a runtime implementation detail, not a second
+Gateway interception settings. This is a runtime implementation detail, not a second
 supported persisted or public configuration format.
 
 The tester evaluates the saved HTTP policy and admission without making an

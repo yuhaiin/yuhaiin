@@ -127,7 +127,7 @@ func BenchmarkDisabledInterception(b *testing.B) {
 	meta := new(netapi.StreamMeta)
 	b.ReportAllocs()
 	for b.Loop() {
-		if m.Intercept(ctx, meta) {
+		if m.InterceptGateway(ctx, meta, "g") {
 			b.Fatal("disabled interception accepted stream")
 		}
 	}

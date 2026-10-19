@@ -39,25 +39,22 @@
         }
       ],
       "backendPools": [],
-      "sources": [
-        {
-          "inboundId": "tun",
-          "mode": "https_mitm",
-          "domains": [
-            "app.example.com"
-          ],
-          "excludeDomains": [
-            "pinned.app.example.com"
-          ],
-          "ports": [
-            80,
-            443
-          ],
-          "sources": [],
-          "processes": [],
-          "unknownTls": "passthrough"
-        }
-      ],
+      "interception": {
+        "mode": "https_mitm",
+        "domains": [
+          "app.example.com"
+        ],
+        "excludeDomains": [
+          "pinned.app.example.com"
+        ],
+        "ports": [
+          80,
+          443
+        ],
+        "sources": [],
+        "processes": [],
+        "unknownTls": "passthrough"
+      },
       "filters": [],
       "fallback": {
         "type": "forward",

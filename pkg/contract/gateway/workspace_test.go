@@ -27,7 +27,7 @@ func workspaceFixture() Config {
 			Balance: "round_robin",
 		}},
 		Interceptions: []Interception{{
-			InboundID: "mixed", GatewayID: "site", Mode: "http_only",
+			GatewayID: "site", Mode: "http_only",
 			Domains: []string{"example.com"}, UnknownTLS: "passthrough",
 		}},
 		FilterLists: []FilterList{{
@@ -49,7 +49,7 @@ func TestWorkspaceRoundTripPreservesOwnedResources(t *testing.T) {
 	g := document.Gateways[0]
 	if g.Listener == nil || g.Listener.Listen != "127.0.0.1:8080" ||
 		len(g.Policies) != 1 || len(g.BackendPools) != 1 ||
-		len(g.Sources) != 1 || len(g.Filters) != 1 {
+		g.Interception == nil || len(g.Filters) != 1 {
 		t.Fatalf("lost Gateway resources: %+v", g)
 	}
 	converted, err := ConfigFromWorkspace(document)
@@ -81,9 +81,9 @@ func TestWorkspaceProjectionRejectsSharingOrOrphans(t *testing.T) {
 		{"orphan pool", func(c *Config) {
 			c.Gateways[0].Default = Action{Type: "forward"}
 		}, "orphan backend pool"},
-		{"orphan inbound", func(c *Config) {
+		{"orphan Gateway interception", func(c *Config) {
 			c.Interceptions[0].GatewayID = "missing"
-		}, "orphan inbound"},
+		}, "orphan Gateway interception"},
 		{"orphan filter", func(c *Config) {
 			c.FilterLists[0].GatewayID = "missing"
 		}, "orphan filters"},
@@ -99,7 +99,7 @@ func TestWorkspaceProjectionRejectsSharingOrOrphans(t *testing.T) {
 	}
 }
 
-func TestWorkspaceRejectsForeignPoolAndDuplicateSource(t *testing.T) {
+func TestWorkspaceRejectsForeignPoolAndDuplicateInterception(t *testing.T) {
 	doc, err := WorkspaceFromConfig(workspaceFixture())
 	if err != nil {
 		t.Fatal(err)
@@ -108,13 +108,10 @@ func TestWorkspaceRejectsForeignPoolAndDuplicateSource(t *testing.T) {
 	if _, err := ConfigFromWorkspace(doc); err == nil || !strings.Contains(err.Error(), "foreign backend pool") {
 		t.Fatalf("foreign backend pool: %v", err)
 	}
-	doc, _ = WorkspaceFromConfig(workspaceFixture())
-	doc.Gateways = append(doc.Gateways, WorkspaceGateway{
-		ID: "other", Name: "Other", Fallback: Action{Type: "block"},
-		Sources: []InboundSource{{InboundID: "mixed"}},
-	})
-	if _, err := ConfigFromWorkspace(doc); err == nil || !strings.Contains(err.Error(), "inbound source") {
-		t.Fatalf("duplicate source: %v", err)
+	config := workspaceFixture()
+	config.Interceptions = append(config.Interceptions, config.Interceptions[0])
+	if _, err := WorkspaceFromConfig(config); err == nil || !strings.Contains(err.Error(), "duplicate Gateway interception") {
+		t.Fatalf("duplicate interception: %v", err)
 	}
 }
 

@@ -16,12 +16,12 @@ import (
 )
 
 func admissionConfig() contract.Config {
-	return contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "forward"}}}, Interceptions: []contract.Interception{{InboundID: "in", GatewayID: "g", Mode: "http_only", Domains: []string{"example.com"}, ExcludeDomains: []string{"excluded.example.com"}, Ports: []uint16{80, 443}}}}
+	return contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "forward"}}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: "http_only", Domains: []string{"example.com"}, ExcludeDomains: []string{"excluded.example.com"}, Ports: []uint16{80, 443}}}}
 }
 
 func TestAdmissionRejectsBeforeProbingOrProcessLookup(t *testing.T) {
 	for _, tc := range []struct {
-		name, destination, inbound string
+		name, destination, gateway string
 		source                     netip.Addr
 		process                    bool
 		mode                       string
@@ -29,7 +29,7 @@ func TestAdmissionRejectsBeforeProbingOrProcessLookup(t *testing.T) {
 	}{
 		{name: "unrelated domain", destination: "other.example:443"},
 		{name: "excluded domain", destination: "excluded.example.com:443"},
-		{name: "wrong inbound", destination: "example.com:443", inbound: "other"},
+		{name: "other gateway", destination: "example.com:443", gateway: "other"},
 		{name: "wrong port", destination: "example.com:8443"},
 		{name: "source before process", destination: "example.com:443", source: netip.MustParseAddr("192.0.2.1"), process: true},
 		{name: "domain before process", destination: "other.example:443", process: true},
@@ -63,15 +63,15 @@ func TestAdmissionRejectsBeforeProbingOrProcessLookup(t *testing.T) {
 			address, _ := netapi.ParseAddress("tcp", tc.destination)
 			conn := new(failOnReadConn)
 			meta := &netapi.StreamMeta{Src: conn, Address: address}
-			inbound := tc.inbound
-			if inbound == "" {
-				inbound = "in"
+			gatewayID := tc.gateway
+			if gatewayID == "" {
+				gatewayID = "g"
 			}
-			ctx := netapi.WithContext(t.Context()).SetInboundID(inbound)
+			ctx := netapi.WithContext(t.Context()).SetInboundID("in")
 			if tc.source.IsValid() {
 				ctx.Source = net.TCPAddrFromAddrPort(netip.AddrPortFrom(tc.source, 1234))
 			}
-			if m.Intercept(ctx, meta) || conn.read || lookups != 0 {
+			if m.InterceptGateway(ctx, meta, gatewayID) || conn.read || lookups != 0 {
 				t.Fatalf("read=%t process lookups=%d", conn.read, lookups)
 			}
 			if tc.recovered && recoveries != 1 {
@@ -120,19 +120,19 @@ func TestGatewayOnlyStartsHealthForReferencedUpstreams(t *testing.T) {
 }
 
 func BenchmarkAdmissionBypass(b *testing.B) {
-	for _, tc := range []struct{ name, destination, inbound string }{{"KnownDomain", "other.example:443", "in"}, {"ExcludedDomain", "excluded.example.com:443", "in"}, {"OtherInbound", "example.com:443", "other"}, {"OtherPort", "example.com:8443", "in"}} {
+	for _, tc := range []struct{ name, destination, gateway string }{{"KnownDomain", "other.example:443", "g"}, {"ExcludedDomain", "excluded.example.com:443", "g"}, {"OtherGateway", "example.com:443", "other"}, {"OtherPort", "example.com:8443", "g"}} {
 		b.Run(tc.name, func(b *testing.B) {
 			m, _ := newTestManager(b, admissionConfig(), nil)
 			address, _ := netapi.ParseAddress("tcp", tc.destination)
 			conn := new(failOnReadConn)
 			meta := &netapi.StreamMeta{Src: conn, Address: address}
-			ctx := netapi.WithContext(b.Context()).SetInboundID(tc.inbound)
+			ctx := netapi.WithContext(b.Context()).SetInboundID("in")
 			ctx.Source = net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:1234"))
 			meta.Source = ctx.Source
 			b.ReportAllocs()
 			for b.Loop() {
 				meta.Src = conn
-				if m.Intercept(ctx, meta) {
+				if m.InterceptGateway(ctx, meta, tc.gateway) {
 					b.Fatal("unexpected interception")
 				}
 			}
@@ -146,12 +146,12 @@ func TestAdmissionRechecksSniffedHostBeforeAllocatingProbe(t *testing.T) {
 	conn := new(failOnReadConn)
 	meta := &netapi.StreamMeta{Src: conn, Address: address}
 	ctx := netapi.WithContext(t.Context()).SetInboundID("in").SetTLSServerName("other.example")
-	if m.Intercept(ctx, meta) || conn.read || meta.Src != conn {
+	if m.InterceptGateway(ctx, meta, "g") || conn.read || meta.Src != conn {
 		t.Fatal("known excluded SNI was probed again")
 	}
 }
 func TestHTTPProbePreservesLongHeaderLines(t *testing.T) {
-	m, _ := newTestManager(t, contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "respond", Body: "ok"}}}, Interceptions: []contract.Interception{{InboundID: "in", GatewayID: "g", Mode: "http_only", Domains: []string{"example.com"}}}}, nil)
+	m, _ := newTestManager(t, contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "respond", Body: "ok"}}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: "http_only", Domains: []string{"example.com"}}}}, nil)
 	address, _ := interceptListener(t, m, "192.0.2.1:80", "127.0.0.1:1")
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return new(net.Dialer).DialContext(ctx, "tcp", address)

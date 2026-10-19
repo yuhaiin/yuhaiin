@@ -34,7 +34,7 @@ func TestUnsupportedTLSAdmissionIsLosslessBeforeHandshake(t *testing.T) {
 	for _, protocol := range []string{"", "custom-protocol"} {
 		for _, strategy := range []string{"passthrough", "reject"} {
 			t.Run(protocol+"/"+strategy, func(t *testing.T) {
-				config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "forward"}}}, Interceptions: []contract.Interception{{InboundID: "in", GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}, UnknownTLS: strategy}}}
+				config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "forward"}}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}, UnknownTLS: strategy}}}
 				m, _ := newTestManager(t, config, nil)
 				recorded := new(helloRecorder)
 				clientConfig := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: "example.com"}
@@ -54,7 +54,7 @@ func TestUnsupportedTLSAdmissionIsLosslessBeforeHandshake(t *testing.T) {
 				dst, _ := netapi.ParseAddress("tcp", "example.com:443")
 				ctx := netapi.WithContext(t.Context()).SetInboundID("in")
 				meta := &netapi.StreamMeta{Src: left, Address: dst}
-				handled := m.Intercept(ctx, meta)
+				handled := m.InterceptGateway(ctx, meta, "g")
 				if handled != (strategy == "reject") {
 					t.Fatalf("handled=%t", handled)
 				}
@@ -76,7 +76,7 @@ func TestUnsupportedTLSAdmissionIsLosslessBeforeHandshake(t *testing.T) {
 }
 
 func TestMITMWithoutSNIUsesIPDestinationSAN(t *testing.T) {
-	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "respond", Body: "ip endpoint"}}}, Interceptions: []contract.Interception{{InboundID: "in", GatewayID: "g", Mode: "https_mitm", Domains: []string{"127.0.0.1"}}}}
+	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "respond", Body: "ip endpoint"}}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: "https_mitm", Domains: []string{"127.0.0.1"}}}}
 	m, _ := newTestManager(t, config, nil)
 	address, _ := interceptListener(t, m, "127.0.0.1:443", "127.0.0.1:1")
 	roots := x509.NewCertPool()
@@ -105,7 +105,7 @@ func TestMITMDoesNotFallbackAfterUpstreamRequiresClientCertificate(t *testing.T)
 	defer upstream.Close()
 	trust := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: upstream.Certificate().Raw})
 	p := &mockOutbound{destination: strings.TrimPrefix(upstream.URL, "https://")}
-	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "reverse_proxy", Upstream: "u"}}}, Upstreams: []contract.Upstream{{ID: "u", Backends: []contract.Backend{{URL: upstream.URL}}, TrustPEM: string(trust)}}, Interceptions: []contract.Interception{{InboundID: "in", GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}}}}
+	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "reverse_proxy", Upstream: "u"}}}, Upstreams: []contract.Upstream{{ID: "u", Backends: []contract.Backend{{URL: upstream.URL}}, TrustPEM: string(trust)}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}}}}
 	m, _ := newTestManager(t, config, func(_ context.Context, a netapi.Address, _ route.Target) (Selection, error) {
 		return Selection{Proxy: p, Identity: "up", Destination: a}, nil
 	})
@@ -127,12 +127,12 @@ func TestMITMDoesNotFallbackAfterUpstreamRequiresClientCertificate(t *testing.T)
 }
 
 func TestUnselectedInboundDoesNotProbe(t *testing.T) {
-	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "forward"}}}, Interceptions: []contract.Interception{{InboundID: "in", GatewayID: "g", Mode: "http_only"}}}
+	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "forward"}}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: "http_only"}}}
 	m, _ := newTestManager(t, config, nil)
 	c := &failOnReadConn{}
 	dst, _ := netapi.ParseAddress("tcp", "example.com:80")
 	meta := &netapi.StreamMeta{Src: c, Address: dst}
-	if m.Intercept(netapi.WithContext(t.Context()).SetInboundID("other"), meta) || c.read {
+	if m.InterceptGateway(netapi.WithContext(t.Context()).SetInboundID("other"), meta, "other") || c.read {
 		t.Fatal("unselected inbound was probed")
 	}
 }
@@ -158,7 +158,7 @@ func (c shortProbeConn) SetReadDeadline(deadline time.Time) error {
 	return c.Conn.SetReadDeadline(deadline)
 }
 func TestTLSProbeTimeoutLeavesAllBytesForPassthrough(t *testing.T) {
-	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "forward"}}}, Interceptions: []contract.Interception{{InboundID: "in", GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}}}}
+	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "forward"}}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}}}}
 	m, _ := newTestManager(t, config, nil)
 	left, right := net.Pipe()
 	defer left.Close()
@@ -166,7 +166,7 @@ func TestTLSProbeTimeoutLeavesAllBytesForPassthrough(t *testing.T) {
 	go func() { _, _ = right.Write([]byte{0x16}) }()
 	dst, _ := netapi.ParseAddress("tcp", "example.com:443")
 	meta := &netapi.StreamMeta{Src: shortProbeConn{left}, Address: dst}
-	if m.Intercept(netapi.WithContext(t.Context()).SetInboundID("in"), meta) {
+	if m.InterceptGateway(netapi.WithContext(t.Context()).SetInboundID("in"), meta, "g") {
 		t.Fatal("incomplete hello intercepted")
 	}
 	var b [1]byte

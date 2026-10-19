@@ -103,7 +103,6 @@ type Backend struct {
 }
 
 type Interception struct {
-	InboundID      string   `json:"inboundId"`
 	GatewayID      string   `json:"gatewayId"`
 	Mode           string   `json:"mode"`
 	Domains        []string `json:"domains"`

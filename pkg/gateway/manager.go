@@ -35,8 +35,7 @@ type snapshot struct {
 	startupError          string
 	gateways              map[string]*gatewayRuntime
 	listeners             map[string]*gatewayRuntime
-	interceptions         []interceptRule
-	interceptionByInbound map[string]*interceptRule
+	interceptionByGateway map[string]*interceptRule
 }
 
 func (s *snapshot) close() {
@@ -162,7 +161,7 @@ func (m *Manager) prepare(config contract.Config) (*snapshot, error) {
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
-	s := &snapshot{config: config, gateways: make(map[string]*gatewayRuntime), listeners: make(map[string]*gatewayRuntime), interceptionByInbound: make(map[string]*interceptRule)}
+	s := &snapshot{config: config, gateways: make(map[string]*gatewayRuntime), listeners: make(map[string]*gatewayRuntime), interceptionByGateway: make(map[string]*interceptRule)}
 	success := false
 	defer func() {
 		if !success {
@@ -254,11 +253,11 @@ func (m *Manager) prepare(config contract.Config) (*snapshot, error) {
 			s.listeners[g.Listen] = entry
 		}
 	}
-	seenInbounds := make(map[string]bool)
+	seenGateways := make(map[string]bool)
 	for _, i := range config.Interceptions {
 		g := s.gateways[i.GatewayID]
-		if g == nil || i.InboundID == "" {
-			return nil, errors.New("interception requires existing gateway and inbound")
+		if g == nil {
+			return nil, errors.New("interception requires existing gateway")
 		}
 		if !slices.Contains([]string{"off", "http_only", "tls_passthrough", "https_mitm"}, i.Mode) {
 			return nil, errors.New("unsupported interception mode")
@@ -266,10 +265,10 @@ func (m *Manager) prepare(config contract.Config) (*snapshot, error) {
 		if i.Mode == "https_mitm" && (m.Authority == nil || !m.Authority.Status().Present) {
 			return nil, errors.New("generate a gateway CA before enabling MITM")
 		}
-		if seenInbounds[i.InboundID] {
-			return nil, errors.New("only one interception setting is allowed per inbound")
+		if seenGateways[i.GatewayID] {
+			return nil, errors.New("only one interception setting is allowed per gateway")
 		}
-		seenInbounds[i.InboundID] = true
+		seenGateways[i.GatewayID] = true
 		if i.Mode == "https_mitm" && len(i.Domains) == 0 {
 			return nil, errors.New("MITM requires an explicit domain allowlist")
 		}
@@ -290,12 +289,8 @@ func (m *Manager) prepare(config contract.Config) (*snapshot, error) {
 			}
 		}
 		if g.engine.config.Enabled && (i.Mode == "http_only" || i.Mode == "https_mitm") {
-			s.interceptions = append(s.interceptions, entry)
+			s.interceptionByGateway[i.GatewayID] = &entry
 		}
-	}
-	for n := range s.interceptions {
-		i := &s.interceptions[n]
-		s.interceptionByInbound[i.config.InboundID] = i
 	}
 	for _, list := range config.FilterLists {
 		if s.gateways[list.GatewayID] == nil {
@@ -340,10 +335,10 @@ func (m *Manager) Test(request contract.TestRequest) (contract.TestResult, error
 		}
 		source = source.Unmap()
 	}
-	// HTTPS on an ordinary listener is terminated using its site certificate.
-	// MITM is relevant only when testing a configured inbound interception.
+	// Report interception for the selected Gateway; the preceding L4 decision
+	// is outside this tester. Direct listeners use their own site certificates.
 	result.RequiresMITM = false
-	if err == nil && request.InboundID != "" {
+	if err == nil {
 		parsed, _ := url.Parse(request.URL)
 		if parsed.Scheme == "https" {
 			port := uint16(443)
@@ -354,7 +349,7 @@ func (m *Manager) Test(request contract.TestRequest) (contract.TestResult, error
 				}
 				port = uint16(value)
 			}
-			result.RequiresMITM = sessionAllowed(s, interceptSession{gatewayID: request.GatewayID, inboundID: request.InboundID, mitm: true, host: hostname(parsed.Hostname()), port: port, process: request.Process, source: source})
+			result.RequiresMITM = sessionAllowed(s, interceptSession{gatewayID: request.GatewayID, mitm: true, host: hostname(parsed.Hostname()), port: port, process: request.Process, source: source})
 		}
 	}
 	return result, err
