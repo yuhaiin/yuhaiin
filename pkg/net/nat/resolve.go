@@ -37,8 +37,13 @@ func (u *SourceControl) appendResolution(p *pendingResolution, pkt *netapi.Packe
 }
 
 func (u *SourceControl) queueResolution(pkt *netapi.Packet, dst netapi.Address, conn net.PacketConn) error {
+	if !u.queueBudget.ReservePendingTask() {
+		metrics.Counter.AddSendUDPDroppedPacket()
+		return ErrSendPacketQueueFull
+	}
 	p := &pendingResolution{key: pkt.Dst().Comparable(), destination: dst, mapper: u.mapper, conn: conn}
 	if err := u.appendResolution(p, pkt); err != nil {
+		u.queueBudget.ReleasePendingTask()
 		return err
 	}
 	u.resolutions[p.key] = p
@@ -80,6 +85,7 @@ func (u *SourceControl) startResolutions() {
 func (u *SourceControl) finishResolution(result resolutionResult) {
 	p := result.pending
 	delete(u.resolutions, p.key)
+	u.queueBudget.ReleasePendingTask()
 	u.resolving--
 	u.pendingPackets -= len(p.packets)
 	// A replacement with a fresh socket may use new hosts/resolver settings.
@@ -112,6 +118,7 @@ func (u *SourceControl) finishResolution(result resolutionResult) {
 
 func (u *SourceControl) drainResolutions() {
 	for _, p := range u.resolutions {
+		u.queueBudget.ReleasePendingTask()
 		for _, pkt := range p.packets {
 			u.queueBudget.ReleaseQueueBytes(int64(len(pkt.GetPayload())))
 			pkt.DecRef()

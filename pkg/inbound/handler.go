@@ -94,7 +94,12 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 		if id == "" {
 			id = meta.InboundName
 		}
-		scope, _ := s.streamScopes.LoadOrStore(id, trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 8192, SessionsPerSec: 1000, SessionBurst: 2048}, s.globalBudget))
+		scope, ok := s.streamScopes.Load(id)
+		if !ok {
+			scope, _ = s.streamScopes.LoadOrStore(id, trafficcontrol.NewGovernor(trafficcontrol.Limits{
+				MaxSessions: 8192, SessionsPerSec: 1000, SessionBurst: 2048,
+			}, s.globalBudget))
+		}
 		lease, ok := scope.(*trafficcontrol.Governor).AcquireSession()
 		if !ok {
 			_ = meta.Src.Close()

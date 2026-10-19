@@ -142,3 +142,17 @@ func TestSessionCreationRateLimitDoesNotAffectExistingLease(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+
+func TestGovernorPendingTaskCapAndRelease(t *testing.T) {
+	root:=NewGovernor(Limits{MaxPendingTasks:2},nil)
+	child:=NewGovernor(Limits{MaxPendingTasks:1},root)
+	if !child.ReservePendingTask(){t.Fatal("reserve")}
+	if child.ReservePendingTask(){t.Fatal("child cap bypass")}
+	if !root.ReservePendingTask(){t.Fatal("root second task denied")}
+	if root.ReservePendingTask(){t.Fatal("parent cap bypass")}
+	if stats:=root.Snapshot();stats.PendingTasks!=2||stats.DeniedPending==0{t.Fatal(stats)}
+	child.ReleasePendingTask()
+	root.ReleasePendingTask()
+	if stats:=root.Snapshot();stats.PendingTasks!=0{t.Fatal(stats)}
+}

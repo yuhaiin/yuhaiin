@@ -13,6 +13,7 @@ import (
 type Limits struct {
 	MaxSessions   int64
 	MaxQueueBytes int64
+	MaxPendingTasks int64
 	// SessionsPerSec is a creation-rate budget (CPS), separate from the
 	// number of live sessions. It is evaluated only on new admissions.
 	SessionsPerSec float64
@@ -22,8 +23,8 @@ type Limits struct {
 }
 
 type Counters struct {
-	Sessions, QueueBytes        int64
-	DeniedSessions, DeniedBytes uint64
+	Sessions, QueueBytes, PendingTasks int64
+	DeniedSessions, DeniedBytes, DeniedPending uint64
 	DeniedRateSessions          uint64
 	DeniedPackets               uint64
 }
@@ -31,10 +32,11 @@ type Counters struct {
 type Governor struct {
 	parent             *Governor
 	limits             Limits
-	sessions, bytes    atomic.Int64
+	sessions, bytes, pending atomic.Int64
 	deniedSessions     atomic.Uint64
 	deniedRateSessions atomic.Uint64
 	deniedBytes        atomic.Uint64
+	deniedPending      atomic.Uint64
 	deniedPackets      atomic.Uint64
 	mu                 sync.Mutex
 	tokens             float64
@@ -44,7 +46,7 @@ type Governor struct {
 }
 
 func NewGovernor(l Limits, parent *Governor) *Governor {
-	if l.MaxSessions < 0 || l.MaxQueueBytes < 0 || l.SessionsPerSec < 0 || l.SessionBurst < 0 || l.PacketsPerSec < 0 || l.PacketBurst < 0 {
+	if l.MaxSessions < 0 || l.MaxQueueBytes < 0 || l.MaxPendingTasks < 0 || l.SessionsPerSec < 0 || l.SessionBurst < 0 || l.PacketsPerSec < 0 || l.PacketBurst < 0 {
 		panic("trafficcontrol: negative resource limit")
 	}
 	if l.SessionsPerSec > 0 && l.SessionBurst == 0 {
@@ -177,6 +179,27 @@ func (g *Governor) ReleaseQueueBytes(n int64) {
 	g.parent.ReleaseQueueBytes(n)
 }
 
+// ReservePendingTask bounds asynchronous work separately from session and
+// byte limits. Reserve before starting a task and release after it terminates.
+func (g *Governor) ReservePendingTask() bool {
+	if g == nil { return true }
+	if g.parent != nil && !g.parent.ReservePendingTask() {
+		g.deniedPending.Add(1)
+		return false
+	}
+	if !reserve(&g.pending,1,g.limits.MaxPendingTasks) {
+		if g.parent != nil {g.parent.ReleasePendingTask()}
+		g.deniedPending.Add(1)
+		return false
+	}
+	return true
+}
+func (g *Governor) ReleasePendingTask() {
+	if g == nil {return}
+	if remain:=g.pending.Add(-1);remain<0 {panic("trafficcontrol: pending task released more than reserved")}
+	g.parent.ReleasePendingTask()
+}
+
 // AdmitPacket implements a bounded token bucket using the caller's timestamp;
 // callers can skip it if the configured rate is zero. It intentionally does not
 // allocate, create timers or hold a lock during packet processing.
@@ -214,9 +237,9 @@ func (g *Governor) Snapshot() Counters {
 		return Counters{}
 	}
 	return Counters{
-		Sessions: g.sessions.Load(), QueueBytes: g.bytes.Load(),
+		Sessions: g.sessions.Load(), QueueBytes: g.bytes.Load(), PendingTasks: g.pending.Load(),
 		DeniedSessions: g.deniedSessions.Load(), DeniedBytes: g.deniedBytes.Load(),
-		DeniedRateSessions: g.deniedRateSessions.Load(),
+		DeniedRateSessions: g.deniedRateSessions.Load(), DeniedPending: g.deniedPending.Load(),
 		DeniedPackets:      g.deniedPackets.Load(),
 	}
 }

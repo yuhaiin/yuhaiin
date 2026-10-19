@@ -86,6 +86,7 @@ func TestPendingResolutionBytesAreChargedUntilDrain(t *testing.T) {
 	u := &SourceControl{queueBudget: g, resolutions: make(map[uint64]*pendingResolution)}
 	packet := netapi.NewPacket(nil, nil, []byte("test"), nil)
 	p := &pendingResolution{key: 1}
+	if !g.ReservePendingTask() { t.Fatal("failed to reserve pending task") }
 	if err := u.appendResolution(p, packet); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +99,7 @@ func TestPendingResolutionBytesAreChargedUntilDrain(t *testing.T) {
 		t.Fatalf("expected queue cap: %v", err)
 	}
 	u.drainResolutions()
-	if got := g.Snapshot(); got.QueueBytes != 0 {
+	if got := g.Snapshot(); got.QueueBytes != 0 || got.PendingTasks != 0 {
 		t.Fatal("bytes leaked after cancellation", got)
 	}
 	packet.DecRef()
