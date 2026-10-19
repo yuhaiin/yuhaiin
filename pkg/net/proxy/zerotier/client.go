@@ -10,6 +10,8 @@ import (
 	"net/netip"
 	"path/filepath"
 	"regexp"
+	"strconv"
+	"strings"
 	"slices"
 	"sync"
 
@@ -118,7 +120,13 @@ func NewClient(cfg contractnode.ZeroTier, previous netapi.Proxy) (*Client, error
 		return nil, fmt.Errorf("zerotier: join network: %w", err)
 	}
 	for _, moon := range cfg.Moons {
-		if err := c.node.Node.Orbit(moon.ID, moon.Seed); err != nil {
+		moonID, parseErr := strconv.ParseUint(strings.TrimPrefix(moon.ID, "0x"), 16, 64)
+		seed, seedErr := strconv.ParseUint(strings.TrimPrefix(moon.Seed, "0x"), 16, 64)
+		if parseErr != nil || seedErr != nil || moonID == 0 || seed == 0 {
+			_ = c.Close()
+			return nil, fmt.Errorf("zerotier: invalid moon ID or seed: %q %q", moon.ID, moon.Seed)
+		}
+		if err := c.node.Node.Orbit(moonID, seed); err != nil {
 			_ = c.Close()
 			return nil, fmt.Errorf("zerotier: orbit moon: %w", err)
 		}
