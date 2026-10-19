@@ -108,7 +108,15 @@ func parseConfig(raw string, logger *slog.Logger) (*config.C, error) {
 	if c.GetString("stats.type", "none") != "none" {
 		return nil, errors.New("nebula: external stats listeners are disabled")
 	}
-	if c.GetInt("routines", 1) != 1 || c.GetInt("tun.routines", 1) != 1 || c.GetInt("listen.routines", 1) != 1 {
+	routines := c.GetInt("routines", 0)
+	if routines != 0 {
+		if routines < 1 {
+			routines = 1
+		}
+	} else {
+		routines = max(c.GetInt("tun.routines", 1), c.GetInt("listen.routines", 1))
+	}
+	if routines != 1 {
 		return nil, errors.New("nebula: multiple packet routines are not supported by the in-memory device")
 	}
 	mtu := c.GetInt("tun.mtu", defaultMTU)

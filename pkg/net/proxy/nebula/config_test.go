@@ -23,6 +23,9 @@ func TestParseConfig(t *testing.T) {
 		{"Lighthouse DNS", "lighthouse:\n  serve_dns: true\n", "disabled"},
 		{"stats listener", "stats:\n  type: prometheus\n", "disabled"},
 		{"multiqueue", "routines: 2\n", "multiple"},
+		{"single routine fallback", "routines: 0\n", ""},
+		{"single routine from legacy setting", "tun:\n  routines: 0\n", ""},
+		{"multiple legacy routines", "tun:\n  routines: 2\n", "multiple"},
 		{"tiny MTU", "tun:\n  mtu: 100\n", "invalid MTU"},
 		{"valid userspace config", "listen:\n  host: 0.0.0.0\n  port: 0\ntun:\n  mtu: 1300\n", ""},
 	}
