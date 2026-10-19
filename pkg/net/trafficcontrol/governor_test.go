@@ -76,10 +76,13 @@ func TestGovernorConcurrentLimit(t *testing.T) {
 func TestPacketTokenBudget(t *testing.T) {
 	g := NewGovernor(Limits{PacketsPerSec: 100, PacketBurst: 2}, nil)
 	now := time.Unix(100, 0)
-	if !g.AdmitPacket(now) || !g.AdmitPacket(now) || g.AdmitPacket(now) {
+	first, second, overflow := g.AdmitPacket(now), g.AdmitPacket(now), g.AdmitPacket(now)
+	if !first || !second || overflow {
 		t.Fatal("burst not enforced")
 	}
-	if !g.AdmitPacket(now.Add(10*time.Millisecond)) || g.AdmitPacket(now.Add(10*time.Millisecond)) {
+	after := now.Add(10 * time.Millisecond)
+	refilled, again := g.AdmitPacket(after), g.AdmitPacket(after)
+	if !refilled || again {
 		t.Fatal("tokens not refilled")
 	}
 	if g.Snapshot().DeniedPackets != 2 {

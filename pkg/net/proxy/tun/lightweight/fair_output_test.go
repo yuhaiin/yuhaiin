@@ -44,14 +44,15 @@ func TestFairOutputInterleavesFlowsAndReleasesBuffers(t *testing.T) {
 			t.Fatal("missing packet", i)
 		}
 		port := uint16(p.data[20])<<8 | uint16(p.data[21])
-		if port == 1000 {
+		switch port {
+		case 1000:
 			seenBulk++
-		} else if port == 2000 {
+		case 2000:
 			seenInteractive++
 			if firstInteractive < 0 {
 				firstInteractive = i
 			}
-		} else {
+		default:
 			t.Fatal("unexpected flow")
 		}
 		p.release()
