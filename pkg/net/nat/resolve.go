@@ -25,7 +25,7 @@ type resolutionResult struct {
 }
 
 func (u *SourceControl) appendResolution(p *pendingResolution, pkt *netapi.Packet) error {
-	if u.pendingPackets >= maxPendingPackets() {
+	if u.pendingPackets >= maxPendingPackets() || !u.queueBudget.ReserveQueueBytes(int64(len(pkt.GetPayload()))) {
 		metrics.Counter.AddSendUDPDroppedPacket()
 		return ErrSendPacketQueueFull
 	}
@@ -100,6 +100,7 @@ func (u *SourceControl) finishResolution(result resolutionResult) {
 		} else {
 			err = sendPacket(pkt.GetPayload(), result.addr, p.conn)
 		}
+		u.queueBudget.ReleaseQueueBytes(int64(len(pkt.GetPayload())))
 		pkt.DecRef()
 		u.pending.Add(-1)
 		if err != nil {
@@ -112,6 +113,7 @@ func (u *SourceControl) finishResolution(result resolutionResult) {
 func (u *SourceControl) drainResolutions() {
 	for _, p := range u.resolutions {
 		for _, pkt := range p.packets {
+			u.queueBudget.ReleaseQueueBytes(int64(len(pkt.GetPayload())))
 			pkt.DecRef()
 			u.pending.Add(-1)
 		}
