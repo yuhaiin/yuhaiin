@@ -85,29 +85,28 @@ func (g *Governor) AcquireSession() (*Session, bool) {
 	if g == nil {
 		return nil, true
 	}
+	// Always evaluate the local concurrency and CPS budget before touching
+	// the parent governor. Otherwise an abusive over-quota child could drain
+	// the parent's token bucket and deny unrelated healthy peers.
+	if !reserve(&g.sessions, 1, g.limits.MaxSessions) {
+		g.deniedSessions.Add(1)
+		return nil, false
+	}
+	if !g.admitSession(time.Now()) {
+		g.sessions.Add(-1)
+		g.deniedSessions.Add(1)
+		g.deniedRateSessions.Add(1)
+		return nil, false
+	}
 	var parent *Session
 	if g.parent != nil {
 		var ok bool
 		parent, ok = g.parent.AcquireSession()
 		if !ok {
+			g.sessions.Add(-1)
 			g.deniedSessions.Add(1)
 			return nil, false
 		}
-	}
-	if !g.admitSession(time.Now()) {
-		if parent != nil {
-			parent.Release()
-		}
-		g.deniedSessions.Add(1)
-		g.deniedRateSessions.Add(1)
-		return nil, false
-	}
-	if !reserve(&g.sessions, 1, g.limits.MaxSessions) {
-		if parent != nil {
-			parent.Release()
-		}
-		g.deniedSessions.Add(1)
-		return nil, false
 	}
 	return &Session{owner: g, parent: parent}, true
 }
@@ -215,11 +214,13 @@ func (g *Governor) AdmitPacket(now time.Time) bool {
 	if g == nil {
 		return true
 	}
-	if g.parent != nil && !g.parent.AdmitPacket(now) {
-		g.deniedPackets.Add(1)
-		return false
-	}
 	if g.limits.PacketsPerSec == 0 {
+		if g.parent != nil {
+			if !g.parent.AdmitPacket(now) {
+				g.deniedPackets.Add(1)
+				return false
+			}
+		}
 		return true
 	}
 	g.mu.Lock()
@@ -236,8 +237,13 @@ func (g *Governor) AdmitPacket(now time.Time) bool {
 	g.mu.Unlock()
 	if !ok {
 		g.deniedPackets.Add(1)
+		return false
 	}
-	return ok
+	if g.parent != nil && !g.parent.AdmitPacket(now) {
+		g.deniedPackets.Add(1)
+		return false
+	}
+	return true
 }
 
 func (g *Governor) Snapshot() Counters {
