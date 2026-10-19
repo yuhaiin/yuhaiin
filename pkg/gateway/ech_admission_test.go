@@ -141,7 +141,6 @@ func TestHTTPSMITMRealECHRejectionCanRetryWithoutECH(t *testing.T) {
 	}
 }
 
-
 func TestHTTPSMITMECHOuterWithoutHTTPALPNStillRejects(t *testing.T) {
 	config := echPathGatewayConfig([]string{"secret.example"}, "reject")
 	m, _ := newTestManager(t, config, nil)
