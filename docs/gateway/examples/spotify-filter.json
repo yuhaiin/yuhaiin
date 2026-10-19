@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "revision": 0,
   "gateways": [
     {
@@ -6,11 +7,71 @@
       "name": "Spotify request filtering",
       "enabled": true,
       "revision": 0,
-      "listen": "",
-      "ruleIds": [
-        "spotify-denylist"
+      "policies": [
+        {
+          "id": "spotify-denylist",
+          "name": "Spotify ads and tracking",
+          "enabled": true,
+          "revision": 0,
+          "priority": 10,
+          "match": {
+            "any": [
+              {
+                "field": "url",
+                "operator": "regex",
+                "value": "https://.*-spclient\\.spotify\\.com/ads/.*"
+              },
+              {
+                "field": "url",
+                "operator": "regex",
+                "value": "https://.*-spclient\\.spotify\\.com/ad-logic/.*"
+              },
+              {
+                "field": "url",
+                "operator": "regex",
+                "value": "https://spclient\\.wg\\.spotify\\.com/ads/.*"
+              },
+              {
+                "field": "url",
+                "operator": "regex",
+                "value": "https://spclient\\.wg\\.spotify\\.com/ad-logic/.*"
+              },
+              {
+                "field": "url",
+                "operator": "regex",
+                "value": "https://spclient\\.wg\\.spotify\\.com/gabo-receiver-service/.*"
+              }
+            ]
+          },
+          "action": {
+            "type": "block",
+            "status": 204,
+            "outbound": {
+              "type": "inherit_route"
+            },
+            "rewrite": {}
+          }
+        }
       ],
-      "default": {
+      "backendPools": [],
+      "sources": [
+        {
+          "inboundId": "spotify-inbound",
+          "mode": "https_mitm",
+          "domains": [
+            "spotify.com"
+          ],
+          "excludeDomains": [],
+          "ports": [
+            443
+          ],
+          "sources": [],
+          "processes": [],
+          "unknownTls": "passthrough"
+        }
+      ],
+      "filters": [],
+      "fallback": {
         "type": "forward",
         "outbound": {
           "type": "inherit_route"
@@ -19,70 +80,5 @@
       },
       "maxBodyBytes": 16777216
     }
-  ],
-  "rules": [
-    {
-      "id": "spotify-denylist",
-      "name": "Spotify ads and tracking",
-      "enabled": true,
-      "revision": 0,
-      "priority": 10,
-      "match": {
-        "any": [
-          {
-            "field": "url",
-            "operator": "regex",
-            "value": "https://.*-spclient\\.spotify\\.com/ads/.*"
-          },
-          {
-            "field": "url",
-            "operator": "regex",
-            "value": "https://.*-spclient\\.spotify\\.com/ad-logic/.*"
-          },
-          {
-            "field": "url",
-            "operator": "regex",
-            "value": "https://spclient\\.wg\\.spotify\\.com/ads/.*"
-          },
-          {
-            "field": "url",
-            "operator": "regex",
-            "value": "https://spclient\\.wg\\.spotify\\.com/ad-logic/.*"
-          },
-          {
-            "field": "url",
-            "operator": "regex",
-            "value": "https://spclient\\.wg\\.spotify\\.com/gabo-receiver-service/.*"
-          }
-        ]
-      },
-      "action": {
-        "type": "block",
-        "status": 204,
-        "outbound": {
-          "type": "inherit_route"
-        },
-        "rewrite": {}
-      }
-    }
-  ],
-  "upstreams": [],
-  "interceptions": [
-    {
-      "inboundId": "spotify-inbound",
-      "gatewayId": "spotify",
-      "mode": "https_mitm",
-      "domains": [
-        "spotify.com"
-      ],
-      "excludeDomains": [],
-      "ports": [
-        443
-      ],
-      "sources": [],
-      "processes": [],
-      "unknownTls": "passthrough"
-    }
-  ],
-  "filterLists": []
+  ]
 }
