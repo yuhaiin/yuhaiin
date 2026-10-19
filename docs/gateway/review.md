@@ -72,4 +72,7 @@ are also removed. Gateway's normal upstream certificate verification remains.
 `reverse_tcp` keeps its existing contract and now lives in `pkg/inbound`, with a
 raw-stream handoff/listener-close regression. Storage/API round-trip fixtures use
 that retained TCP protocol. Removed protocol types are rejected; there is no
-compatibility migration or automatic deletion of stored entries.
+compatibility migration or automatic deletion of stored entries. Unsupported
+Inbound entries remain readable and report their failed runtime status while
+other listeners start. See [configuration loading](configuration-loading.md) for
+the follow-up failure-isolation audit and regression coverage.

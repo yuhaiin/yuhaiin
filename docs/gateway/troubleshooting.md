@@ -26,15 +26,24 @@ The old `reverse_http` inbound and `http_termination` outbound are no longer
 supported. There is no compatibility adapter or automatic configuration migration.
 Use a Gateway listener with a reverse-proxy Upstream for HTTP reverse proxying;
 use HTTP rules with rewrite/header actions for request modifications. Existing
-entries of either removed protocol type are rejected by contract validation;
-remove them and configure Gateway explicitly. This change does not rewrite or
-delete stored configuration rows automatically.
+entries cannot be activated or saved as new configurations. Unsupported Inbounds
+remain visible through the list/detail API and the existing runtime-status panel
+as `failed`, with the validation error and lifecycle event. Only that Inbound is
+skipped during startup; valid listeners still start. Remove or replace the old
+entry and configure Gateway explicitly. This change does not rewrite or delete
+stored configuration rows automatically.
 
 `reverse_tcp` keeps its existing contract and TCP forwarding behavior, with its
 implementation now owned by `pkg/inbound`. TLS Auto and the separate
 `tls_termination` outbound retain their TLS roles; neither enables MITM by itself.
 Gateway upstream TLS verification remains enabled and supports explicit trust
 certificates and server names without the removed legacy TLS override hooks.
+
+A saved Gateway policy or listener that cannot start no longer aborts unrelated
+proxy listeners. Its saved draft remains editable, and Gateway status/UI reports
+`startupError`. Connections explicitly routed to that failed Gateway are closed
+until a valid configuration is saved; they do not bypass its HTTP policy. Gateway
+rules/upstreams are validated together, rather than partially activating a policy.
 
 Run the reproducible unit/integration/race checks in [benchmarks](benchmarks.md).
 Real privileged TUN/TProxy/Redir/WireGuard traffic needs an

@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
@@ -31,6 +32,7 @@ type gatewayRuntime struct {
 }
 type snapshot struct {
 	config                contract.Config
+	startupError          string
 	gateways              map[string]*gatewayRuntime
 	listeners             map[string]*gatewayRuntime
 	interceptions         []interceptRule
@@ -79,18 +81,31 @@ func NewManager(ctx context.Context, store ConfigStore, authority *Authority, se
 	if err != nil {
 		return nil, err
 	}
+	if err := m.start(config); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		// Keep the saved draft available for repair without starting a partial
+		// policy or preventing unrelated inbound listeners from starting.
+		m.current.Store(&snapshot{config: config, startupError: err.Error()})
+		log.Warn("gateway startup failed; saved configuration requires repair", "err", err)
+	}
+	return m, nil
+}
+
+func (m *Manager) start(config contract.Config) error {
 	prepared, err := m.prepare(config)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	listeners, err := m.stageListeners(prepared)
 	if err != nil {
 		prepared.close()
-		return nil, err
+		return err
 	}
 	m.current.Store(prepared)
 	m.publishListeners(listeners, prepared)
-	return m, nil
+	return nil
 }
 
 func (m *Manager) Config() contract.Config {
