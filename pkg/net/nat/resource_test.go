@@ -81,19 +81,26 @@ func BenchmarkNATSessionReservation(b *testing.B) {
 	}
 }
 
-
 func TestPendingResolutionBytesAreChargedUntilDrain(t *testing.T) {
-	g := trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxQueueBytes:4},nil)
-	u := &SourceControl{queueBudget:g, resolutions:make(map[uint64]*pendingResolution)}
-	packet:=netapi.NewPacket(nil,nil,[]byte("test"),nil)
-	p:=&pendingResolution{key:1}
-	if err:=u.appendResolution(p,packet);err!=nil{t.Fatal(err)}
-	u.resolutions[p.key]=p
-	if got:=g.Snapshot();got.QueueBytes!=4{t.Fatal(got)}
-	second:=netapi.NewPacket(nil,nil,[]byte("second"),nil)
-	if err:=u.appendResolution(p,second);!errors.Is(err,ErrSendPacketQueueFull){t.Fatalf("expected queue cap: %v",err)}
+	g := trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxQueueBytes: 4}, nil)
+	u := &SourceControl{queueBudget: g, resolutions: make(map[uint64]*pendingResolution)}
+	packet := netapi.NewPacket(nil, nil, []byte("test"), nil)
+	p := &pendingResolution{key: 1}
+	if err := u.appendResolution(p, packet); err != nil {
+		t.Fatal(err)
+	}
+	u.resolutions[p.key] = p
+	if got := g.Snapshot(); got.QueueBytes != 4 {
+		t.Fatal(got)
+	}
+	second := netapi.NewPacket(nil, nil, []byte("second"), nil)
+	if err := u.appendResolution(p, second); !errors.Is(err, ErrSendPacketQueueFull) {
+		t.Fatalf("expected queue cap: %v", err)
+	}
 	u.drainResolutions()
-	if got:=g.Snapshot();got.QueueBytes!=0{t.Fatal("bytes leaked after cancellation",got)}
+	if got := g.Snapshot(); got.QueueBytes != 0 {
+		t.Fatal("bytes leaked after cancellation", got)
+	}
 	packet.DecRef()
 	second.DecRef()
 }
