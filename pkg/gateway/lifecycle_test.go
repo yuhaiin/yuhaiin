@@ -44,7 +44,7 @@ func TestWildcardListenerOnlyRejectsLocalDestinations(t *testing.T) {
 func TestMITMHotAdmissionRevokesHTTP2Session(t *testing.T) {
 	for _, change := range []string{"exclude", "domains", "ports", "sources", "processes", "mode", "disable"} {
 		t.Run(change, func(t *testing.T) {
-			config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "respond", Body: "ok"}}}, Interceptions: []contract.Interception{{InboundID: "in", GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}}}}
+			config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "respond", Body: "ok"}}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}}}}
 			m, _ := newTestManager(t, config, nil)
 			address, workers := interceptListener(t, m, "example.com:443", "127.0.0.1:1")
 			roots := x509.NewCertPool()
@@ -160,12 +160,12 @@ func TestManagedListenerClosesHijackedConnections(t *testing.T) {
 }
 
 func TestRuleTesterEffectiveOutboundAndTLSOwnership(t *testing.T) {
-	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "reverse_proxy", Upstream: "u"}}}, Upstreams: []contract.Upstream{{ID: "u", Outbound: route.Target{Type: "direct"}, Backends: []contract.Backend{{URL: "https://example.com"}}}}, Interceptions: []contract.Interception{{InboundID: "in", GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}, ExcludeDomains: []string{"excluded.example.com"}}}}
+	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "reverse_proxy", Upstream: "u"}}}, Upstreams: []contract.Upstream{{ID: "u", Outbound: route.Target{Type: "direct"}, Backends: []contract.Backend{{URL: "https://example.com"}}}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}, ExcludeDomains: []string{"excluded.example.com"}}}}
 	m, _ := newTestManager(t, config, nil)
 	for _, tc := range []struct {
 		url, inbound string
 		mitm         bool
-	}{{"https://example.com/", "", false}, {"https://example.com/", "in", true}, {"https://excluded.example.com/", "in", false}, {"https://other.example/", "in", false}, {"http://example.com/", "in", false}} {
+	}{{"https://example.com/", "", true}, {"https://example.com/", "other", true}, {"https://example.com/", "in", true}, {"https://excluded.example.com/", "in", false}, {"https://other.example/", "in", false}, {"http://example.com/", "in", false}} {
 		result, err := m.Test(contract.TestRequest{GatewayID: "g", URL: tc.url, InboundID: tc.inbound})
 		if err != nil || result.RequiresMITM != tc.mitm || result.Action.Outbound.Type != "direct" {
 			t.Fatalf("%+v result=%+v err=%v", tc, result, err)
@@ -174,7 +174,7 @@ func TestRuleTesterEffectiveOutboundAndTLSOwnership(t *testing.T) {
 }
 
 func TestRuleTesterAdmissionSourceIP(t *testing.T) {
-	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "block"}}}, Interceptions: []contract.Interception{{InboundID: "in", GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}, Sources: []string{"192.0.2.0/24"}}}}
+	config := contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "g", Enabled: true, Default: contract.Action{Type: "block"}}}, Interceptions: []contract.Interception{{GatewayID: "g", Mode: "https_mitm", Domains: []string{"example.com"}, Sources: []string{"192.0.2.0/24"}}}}
 	m, _ := newTestManager(t, config, nil)
 	for _, tc := range []struct {
 		source string

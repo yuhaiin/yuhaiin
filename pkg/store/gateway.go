@@ -161,11 +161,6 @@ func (s *GatewayStore) Save(ctx context.Context, cfg contract.Config) (contract.
 			return cfg, err
 		}
 	}
-	for _, i := range cfg.Interceptions {
-		if err := ref(i.GatewayID, "Gateway interception", "inbound", i.InboundID); err != nil {
-			return cfg, err
-		}
-	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET revision=excluded.revision,data_json=excluded.data_json`, cfg.Revision, string(data))
 	if err != nil {
 		return cfg, err

@@ -15,17 +15,17 @@ type Workspace struct {
 }
 
 type WorkspaceGateway struct {
-	ID           string          `json:"id"`
-	Name         string          `json:"name"`
-	Enabled      bool            `json:"enabled"`
-	Revision     uint64          `json:"revision"`
-	Listener     *ListenerSource `json:"listener,omitempty"`
-	Policies     []Rule          `json:"policies"`
-	BackendPools []Upstream      `json:"backendPools"`
-	Sources      []InboundSource `json:"sources"`
-	Filters      []FilterList    `json:"filters"`
-	Fallback     Action          `json:"fallback"`
-	MaxBodyBytes int64           `json:"maxBodyBytes"`
+	ID           string                `json:"id"`
+	Name         string                `json:"name"`
+	Enabled      bool                  `json:"enabled"`
+	Revision     uint64                `json:"revision"`
+	Listener     *ListenerSource       `json:"listener,omitempty"`
+	Policies     []Rule                `json:"policies"`
+	BackendPools []Upstream            `json:"backendPools"`
+	Interception *InterceptionSettings `json:"interception,omitempty"`
+	Filters      []FilterList          `json:"filters"`
+	Fallback     Action                `json:"fallback"`
+	MaxBodyBytes int64                 `json:"maxBodyBytes"`
 }
 
 type ListenerSource struct {
@@ -36,8 +36,9 @@ type ListenerSource struct {
 	KeyFile         string   `json:"keyFile,omitempty"`
 }
 
-type InboundSource struct {
-	InboundID      string   `json:"inboundId"`
+// InterceptionSettings controls HTTP/TLS handling after Routing selects the
+// owning Gateway. Routing owns Inbound selection.
+type InterceptionSettings struct {
 	Mode           string   `json:"mode"`
 	Domains        []string `json:"domains"`
 	ExcludeDomains []string `json:"excludeDomains"`
@@ -47,18 +48,18 @@ type InboundSource struct {
 	UnknownTLS     string   `json:"unknownTls"`
 }
 
-func sourceOf(i Interception) InboundSource {
-	return InboundSource{
-		InboundID: i.InboundID, Mode: i.Mode,
+func settingsOf(i Interception) InterceptionSettings {
+	return InterceptionSettings{
+		Mode:    i.Mode,
 		Domains: i.Domains, ExcludeDomains: i.ExcludeDomains,
 		Ports: i.Ports, Sources: i.Sources,
 		Processes: i.Processes, UnknownTLS: i.UnknownTLS,
 	}
 }
 
-func (s InboundSource) interception(gatewayID string) Interception {
+func (s InterceptionSettings) interception(gatewayID string) Interception {
 	return Interception{
-		InboundID: s.InboundID, GatewayID: gatewayID, Mode: s.Mode,
+		GatewayID: gatewayID, Mode: s.Mode,
 		Domains: s.Domains, ExcludeDomains: s.ExcludeDomains,
 		Ports: s.Ports, Sources: s.Sources,
 		Processes: s.Processes, UnknownTLS: s.UnknownTLS,
@@ -74,7 +75,7 @@ func WorkspaceFromConfig(cfg Config) (Workspace, error) {
 	pools := make(map[string]Upstream, len(cfg.Upstreams))
 	seenRules := make(map[string]string)
 	seenPools := make(map[string]string)
-	seenInbounds := make(map[string]bool)
+	seenInterceptions := make(map[string]bool)
 	seenFilters := make(map[string]bool)
 
 	for _, rule := range cfg.Rules {
@@ -101,7 +102,7 @@ func WorkspaceFromConfig(cfg Config) (Workspace, error) {
 			ID: g.ID, Name: g.Name, Enabled: g.Enabled, Revision: g.Revision,
 			MaxBodyBytes: g.MaxBodyBytes, Fallback: g.Default,
 			Policies: []Rule{}, BackendPools: []Upstream{},
-			Sources: []InboundSource{}, Filters: []FilterList{},
+			Filters: []FilterList{},
 		}
 		if g.Listen != "" {
 			entry.Listener = &ListenerSource{
@@ -149,11 +150,12 @@ func WorkspaceFromConfig(cfg Config) (Workspace, error) {
 			if intercept.GatewayID != g.ID {
 				continue
 			}
-			if seenInbounds[intercept.InboundID] {
-				return Workspace{}, fmt.Errorf("duplicate inbound source %s", intercept.InboundID)
+			if seenInterceptions[intercept.GatewayID] {
+				return Workspace{}, fmt.Errorf("duplicate Gateway interception %s", intercept.GatewayID)
 			}
-			seenInbounds[intercept.InboundID] = true
-			entry.Sources = append(entry.Sources, sourceOf(intercept))
+			seenInterceptions[intercept.GatewayID] = true
+			settings := settingsOf(intercept)
+			entry.Interception = &settings
 		}
 		for _, filter := range cfg.FilterLists {
 			if filter.GatewayID != g.ID {
@@ -177,8 +179,8 @@ func WorkspaceFromConfig(cfg Config) (Workspace, error) {
 			return Workspace{}, fmt.Errorf("orphan backend pool %s", id)
 		}
 	}
-	if len(seenInbounds) != len(cfg.Interceptions) {
-		return Workspace{}, errors.New("workspace contains orphan inbound sources")
+	if len(seenInterceptions) != len(cfg.Interceptions) {
+		return Workspace{}, errors.New("workspace contains orphan Gateway interceptions")
 	}
 	if len(seenFilters) != len(cfg.FilterLists) {
 		return Workspace{}, errors.New("workspace contains orphan filters")
@@ -200,7 +202,6 @@ func ConfigFromWorkspace(doc Workspace) (Config, error) {
 	seenGateway := map[string]bool{}
 	seenRule := map[string]bool{}
 	seenPool := map[string]bool{}
-	seenSource := map[string]bool{}
 	seenFilter := map[string]bool{}
 	for _, g := range doc.Gateways {
 		if g.ID == "" || seenGateway[g.ID] {
@@ -243,12 +244,8 @@ func ConfigFromWorkspace(doc Workspace) (Config, error) {
 			entry.RuleIDs = append(entry.RuleIDs, rule.ID)
 			cfg.Rules = append(cfg.Rules, rule)
 		}
-		for _, src := range g.Sources {
-			if src.InboundID == "" || seenSource[src.InboundID] {
-				return Config{}, fmt.Errorf("duplicate or empty inbound source %q", src.InboundID)
-			}
-			seenSource[src.InboundID] = true
-			cfg.Interceptions = append(cfg.Interceptions, src.interception(g.ID))
+		if g.Interception != nil {
+			cfg.Interceptions = append(cfg.Interceptions, g.Interception.interception(g.ID))
 		}
 		for _, filter := range g.Filters {
 			if filter.ID == "" || seenFilter[filter.ID] {

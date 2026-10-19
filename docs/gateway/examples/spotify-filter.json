@@ -54,22 +54,19 @@
         }
       ],
       "backendPools": [],
-      "sources": [
-        {
-          "inboundId": "spotify-inbound",
-          "mode": "https_mitm",
-          "domains": [
-            "spotify.com"
-          ],
-          "excludeDomains": [],
-          "ports": [
-            443
-          ],
-          "sources": [],
-          "processes": [],
-          "unknownTls": "passthrough"
-        }
-      ],
+      "interception": {
+        "mode": "https_mitm",
+        "domains": [
+          "spotify.com"
+        ],
+        "excludeDomains": [],
+        "ports": [
+          443
+        ],
+        "sources": [],
+        "processes": [],
+        "unknownTls": "passthrough"
+      },
       "filters": [],
       "fallback": {
         "type": "forward",

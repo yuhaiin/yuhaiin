@@ -7,7 +7,7 @@ second domain/process routing engine.
 ```text
 Inbound -> existing sniffing (if enabled) -> FakeIP/hosts recovery -> L4 Route
   direct/proxy/block -> existing forwarding (no Gateway probe)
-  gateway           -> Gateway inbound/domain/TLS admission -> HTTP policy
+  gateway           -> Gateway domain/TLS admission -> HTTP policy
                          not admitted -> normal L4 rules, skipping Gateway actions
 ```
 
@@ -21,7 +21,7 @@ A Gateway needs both configuration layers:
 1. **Routing rule**: decide which TCP connections are candidates. Reuse existing
    host lists, process lists, inbound/network/port conditions and priorities.
 2. **Gateway Interception**: authorize HTTP-only or explicitly allowlisted MITM
-   on the chosen inbound, with domain exclusions/source/port/process limits.
+   on the chosen Gateway, with its existing admission limits.
    These permissions alone no longer divert application traffic.
 
 Known destinations from SOCKS/CONNECT or recovered FakeIP are tested against the
@@ -64,8 +64,7 @@ The URL filter-list importer accepts the documented Adblock subset, not a TOML
 `denylist` array or arbitrary regex; put these expressions in HTTP policy leaves.
 
 Use the example as a complete new configuration only, or merge its resources into
-the current config while retaining unrelated entries and revisions. Replace
-`spotify-inbound` with the actual inbound ID, generate/import a CA, and explicitly
+the current config while retaining unrelated entries and revisions. Generate/import a CA, and explicitly
 trust its public certificate in the client before HTTPS MITM.
 
 Create the interception-only Spotify Gateway, its URL denylist rule and trusted
@@ -128,7 +127,7 @@ requests arrived.
 
 ## Other avoided work
 
-Admission rules are indexed by inbound; disabled Gateways and passthrough/off
+Interception settings are indexed by Gateway; disabled Gateways and passthrough/off
 entries have no active interception runtime. Source/known-domain rejection occurs
 before process lookup. Process lookups needed by HTTP rules happen only after
 protocol/domain admission, and established process metadata is reused.

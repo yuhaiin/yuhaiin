@@ -79,12 +79,7 @@ func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer manager.Close()
-	config := gatewaycontract.Config{Gateways: []gatewaycontract.Gateway{{ID: "g", Name: "g", Enabled: true, RuleIDs: []string{"ads"}, Default: gatewaycontract.Action{Type: "reverse_proxy", Upstream: "u"}}}, Rules: []gatewaycontract.Rule{{ID: "ads", Enabled: true, Match: gatewaycontract.Condition{Field: "path", Operator: "prefix", Value: "/ads/"}, Action: gatewaycontract.Action{Type: "block", Status: 204}}}, Upstreams: []gatewaycontract.Upstream{{ID: "u", Backends: []gatewaycontract.Backend{{URL: backend.URL}}}}, Interceptions: []gatewaycontract.Interception{{InboundID: "in", GatewayID: "g", Mode: "https_mitm", Domains: []string{"app.example"}, Ports: []uint16{80, 443}}}}
-	// The external inbound reference is intentionally created in this test DB.
-	err = store.NewInboundStore(db.DB()).Save(t.Context(), inboundcontract.Inbound{ID: "in", Name: "in", Network: inboundcontract.NewTypedNetwork(inboundcontract.TCPUDPNetwork{Host: "127.0.0.1:0", UDP: inboundcontract.UDPTCPOnly}), Protocol: inboundcontract.NewTypedProtocol(inboundcontract.MixedProtocol{})}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	config := gatewaycontract.Config{Gateways: []gatewaycontract.Gateway{{ID: "g", Name: "g", Enabled: true, RuleIDs: []string{"ads"}, Default: gatewaycontract.Action{Type: "reverse_proxy", Upstream: "u"}}}, Rules: []gatewaycontract.Rule{{ID: "ads", Enabled: true, Match: gatewaycontract.Condition{Field: "path", Operator: "prefix", Value: "/ads/"}, Action: gatewaycontract.Action{Type: "block", Status: 204}}}, Upstreams: []gatewaycontract.Upstream{{ID: "u", Backends: []gatewaycontract.Backend{{URL: backend.URL}}}}, Interceptions: []gatewaycontract.Interception{{GatewayID: "g", Mode: "https_mitm", Domains: []string{"app.example"}, Ports: []uint16{80, 443}}}}
 	if _, err = manager.Save(t.Context(), config); err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +106,7 @@ func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
 			t.Error("inbound workers did not close")
 		}
 	})
-	start := func(host string, port uint16) string {
+	start := func(inboundID, host string, port uint16) string {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			t.Fatal(err)
@@ -124,7 +119,7 @@ func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
 					return
 				}
 				workers.Go(func() {
-					ctx := netapi.WithContext(t.Context()).SetInboundID("in")
+					ctx := netapi.WithContext(t.Context()).SetInboundID(inboundID)
 					ctx.Source = conn.RemoteAddr()
 					ctx.Destination = conn.LocalAddr()
 					address, _ := netapi.ParseAddressPort("tcp", host, port)
@@ -134,7 +129,7 @@ func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
 		}()
 		return listener.Addr().String()
 	}
-	appHTTP, appTLS, outside := start("app.example", 80), start("app.example", 443), start("outside.example", 80)
+	appHTTP, appTLS, outside := start("http-in", "app.example", 80), start("tls-in", "app.example", 443), start("outside-in", "outside.example", 80)
 	roots := x509.NewCertPool()
 	roots.AppendCertsFromPEM([]byte(manager.CAStatus().CertificatePEM))
 	transport := &http.Transport{DisableKeepAlives: true, ForceAttemptHTTP2: true, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots}, DialContext: func(ctx context.Context, _, address string) (net.Conn, error) {
@@ -170,8 +165,20 @@ func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
 	if requests := manager.Status().Gateways[0].Requests; requests != 2 {
 		t.Fatalf("unrelated traffic reached Gateway: %d", requests)
 	}
-	// An existing interception permission does nothing once its L4 action is gone.
-	if err = book.DeleteRule(t.Context(), draft.Rule.ID); err != nil {
+	// Inbound admission belongs to Routing. The same Gateway setting needs no edit.
+	// Only a Route Inbound condition needs a persisted reference.
+	if err = store.NewInboundStore(db.DB()).Save(t.Context(), inboundcontract.Inbound{
+		ID: "tls-in", Name: "TLS inbound",
+		Network:  inboundcontract.NewTypedNetwork(inboundcontract.TCPUDPNetwork{Host: "127.0.0.1:0", UDP: inboundcontract.UDPTCPOnly}),
+		Protocol: inboundcontract.NewTypedProtocol(inboundcontract.MixedProtocol{}),
+	}, 0); err != nil {
+		t.Fatal(err)
+	}
+	draft.Rule.Rules = []routecontract.RuleExpr{{Type: "all", All: []routecontract.RuleExpr{
+		{Type: "host", Host: &routecontract.ListRef{List: "sites"}},
+		{Type: "inbound", Inbound: &routecontract.SourceRef{Name: "tls-in"}},
+	}}}
+	if _, err = editor.Save(t.Context(), routecontract.RuleDraft{Rule: draft.Rule, Lists: draft.Lists}); err != nil {
 		t.Fatal(err)
 	}
 	if err = rules.Apply(t.Context()); err != nil {
@@ -181,9 +188,33 @@ func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	body, _ := io.ReadAll(response.Body)
+	_ = response.Body.Close()
+	if response.StatusCode != 200 || string(body) != "backend:/ads/banner" || manager.Status().Gateways[0].Requests != 2 {
+		t.Fatal("Routing Inbound condition did not exclude HTTP inbound")
+	}
+	response, err = client.Get("https://app.example/ads/banner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = response.Body.Close()
+	if response.StatusCode != 204 || manager.Status().Gateways[0].Requests != 3 {
+		t.Fatal("Routing Inbound condition did not retain TLS inbound")
+	}
+	// Gateway interception does nothing once its L4 action is gone.
+	if err = book.DeleteRule(t.Context(), draft.Rule.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err = rules.Apply(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	response, err = client.Get("http://app.example/ads/banner")
+	if err != nil {
+		t.Fatal(err)
+	}
 	_, _ = io.Copy(io.Discard, response.Body)
 	_ = response.Body.Close()
-	if response.StatusCode != 200 || manager.Status().Gateways[0].Requests != 2 {
+	if response.StatusCode != 200 || manager.Status().Gateways[0].Requests != 3 {
 		t.Fatal("Gateway bypassed normal Route selection")
 	}
 }

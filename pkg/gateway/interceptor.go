@@ -26,12 +26,6 @@ type interceptRule struct {
 	sources []netip.Prefix
 }
 
-// Intercept is called once in the common inbound stream path. A false return
-// leaves ownership with that path, including every buffered probe byte.
-func (m *Manager) Intercept(ctx *netapi.Context, meta *netapi.StreamMeta) bool {
-	return m.intercept(ctx, meta, "")
-}
-
 // InterceptGateway admits only the Gateway chosen by the existing L4 Route.
 func (m *Manager) InterceptGateway(ctx *netapi.Context, meta *netapi.StreamMeta, id string) bool {
 	if id == "" {
@@ -50,15 +44,15 @@ func (m *Manager) InterceptGateway(ctx *netapi.Context, meta *netapi.StreamMeta,
 
 func (m *Manager) intercept(ctx *netapi.Context, meta *netapi.StreamMeta, gatewayID string) bool {
 	s := m.current.Load()
-	if len(s.interceptions) == 0 {
+	if len(s.interceptionByGateway) == 0 {
 		return false
 	}
 	if m.internalSource(meta.Source) {
 		_ = meta.Src.Close()
 		return true
 	}
-	selected := s.interceptionByInbound[ctx.GetInboundID()]
-	if selected == nil || (gatewayID != "" && selected.config.GatewayID != gatewayID) {
+	selected := s.interceptionByGateway[gatewayID]
+	if selected == nil {
 		return false
 	}
 	config := selected.config
@@ -88,7 +82,7 @@ func (m *Manager) intercept(ctx *netapi.Context, meta *netapi.StreamMeta, gatewa
 		return false
 	}
 	g := s.gateways[config.GatewayID]
-	// Admission has already matched an explicitly configured inbound and port.
+	// Admission has already matched the Gateway selected by Routing and its configured limits.
 	// Unselected TCP and all UDP traffic never allocate this reader or wait here.
 	reader := bufio.NewReaderSize(meta.Src, 4<<10)
 	replay := &readerConn{Conn: meta.Src, reader: reader}
@@ -295,7 +289,7 @@ func (l *singleListener) Addr() net.Addr { return l.conn.LocalAddr() }
 
 func (m *Manager) serveIntercepted(ctx context.Context, engine *Engine, conn net.Conn, meta Metadata) {
 	m.sessionsMu.Lock()
-	session := interceptSession{gatewayID: engine.config.ID, inboundID: meta.Context.GetInboundID(), mitm: meta.Scheme == "https", host: hostname(meta.Authority), process: meta.Context.GetProcessName(), port: uint16(meta.OriginalDestination.Port())}
+	session := interceptSession{gatewayID: engine.config.ID, mitm: meta.Scheme == "https", host: hostname(meta.Authority), process: meta.Context.GetProcessName(), port: uint16(meta.OriginalDestination.Port())}
 	if meta.OriginalDestination.IsFqdn() {
 		session.destinationHost = hostname(meta.OriginalDestination.Hostname())
 	}
