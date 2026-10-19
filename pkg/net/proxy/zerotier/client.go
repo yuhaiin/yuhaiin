@@ -1,3 +1,5 @@
+//go:build (((linux && !android) || darwin) && (amd64 || arm64)) || (windows && amd64) || (android && arm64 && cgo)
+
 // Package zerotier provides a device-free ZeroTier outbound using the official
 // ZeroTierOne core and yuhaiin's lightweight TCP/IP stack.
 package zerotier
