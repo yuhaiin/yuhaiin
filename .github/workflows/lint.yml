@@ -35,6 +35,9 @@ jobs:
       - uses: ./.github/actions/setup-go
         with:
           cache-scope: go-fix
+      - name: Diagnose Nebula module graph
+        run: go mod tidy -diff
+        continue-on-error: true
       - name: gofmt check
         run: |
           unformatted="$(git ls-files -z -- '*.go' | xargs -0 gofmt -l)"
