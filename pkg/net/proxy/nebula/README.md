@@ -38,6 +38,6 @@ Replace all placeholders with real certificates, addresses, and firewall policie
 - No custom tun.routes / tun.unsafe_routes or system route-table operations. Traffic to overlay peers is supported, but Nebula unsafe-route gateways are not.
 - No Nebula built-in SSH listener, Lighthouse DNS service, external statistics listeners or multiqueue packet processing.
 - No automatic PKI enrollment; provision certificates using nebula-cert.
-- This PR includes configuration validation tests but has **not** established live Lighthouse / remote-peer interoperability yet.
+- Live Lighthouse interoperability was verified on 2026-10-19 using Podman 6.1.4, one Lighthouse and two upstream Nebula v1.11.2 peers. The yuhaiin client used a static Lighthouse entry only and reached both peers through Lighthouse-advertised UDP endpoints. TCP/UDP tests and local benchmark results are recorded in the PR conversation.
 
 Project: https://github.com/slackhq/nebula
