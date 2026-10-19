@@ -8,8 +8,8 @@ TUN, TAP, or network interface and never installs host routes.
 
 ## Configuration
 
-Add a `zerotier` protocol as the **first and only** step in a node chain,
-or select the ZeroTier node template in the web UI:
+Add a `zerotier` protocol as the **first (root)** step in a node chain,
+or select the ZeroTier node template in the web UI. Higher-level wrappers may follow, but a preceding outbound is not supported:
 
 ```json
 {
