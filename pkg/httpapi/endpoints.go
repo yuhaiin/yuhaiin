@@ -31,6 +31,8 @@ const (
 	v2GatewayResourcePut       v2Endpoint = "gateway.resource.put"
 	v2GatewayResourceDelete    v2Endpoint = "gateway.resource.delete"
 	v2GatewayFilterRefresh     v2Endpoint = "gateway.filters.refresh"
+	v2GatewayWorkspaceGet      v2Endpoint = "gateway.workspace.get"
+	v2GatewayWorkspacePut      v2Endpoint = "gateway.workspace.put"
 	v2GatewayConfigGet         v2Endpoint = "gateway.config.get"
 	v2GatewayConfigPut         v2Endpoint = "gateway.config.put"
 	v2GatewayStatus            v2Endpoint = "gateway.status"
@@ -156,6 +158,8 @@ var v2Routes = []v2Route{
 	{v2GatewayResourcePut, "PUT /api/v2/gateway/resources/{id}"},
 	{v2GatewayResourceDelete, "DELETE /api/v2/gateway/resources/{id}"},
 	{v2GatewayFilterRefresh, "POST /api/v2/gateway/filters/refresh"},
+	{v2GatewayWorkspaceGet, "GET /api/v2/gateway/workspace"},
+	{v2GatewayWorkspacePut, "PUT /api/v2/gateway/workspace"},
 	{v2GatewayConfigGet, "GET /api/v2/gateway/config"},
 	{v2GatewayConfigPut, "PUT /api/v2/gateway/config"},
 	{v2GatewayStatus, "GET /api/v2/gateway/status"},
