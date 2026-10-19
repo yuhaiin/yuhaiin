@@ -105,12 +105,36 @@ func TestPendingNeighborBufferIsBounded(t *testing.T) {
 			b.outgoing(ip)
 		}
 	}
-	if len(b.pending) > 128 {
-		t.Fatalf("pending ARP table is unbounded: %d", len(b.pending))
+	if len(b.pending) > 128 || len(b.requested) > 128 {
+		t.Fatalf("pending ARP state is unbounded: pending=%d requested=%d", len(b.pending), len(b.requested))
 	}
 	for _, items := range b.pending {
 		if len(items) > 8 {
 			t.Fatalf("pending datagrams per IP exceeded limit: %d", len(items))
 		}
+	}
+}
+
+func TestManagedRouteUpdatesDoNotReplaceNeighborBridge(t *testing.T) {
+	id := zt.NetworkID(5)
+	prefix := netip.MustParsePrefix("172.16.0.0/16")
+	gateway1 := netip.MustParseAddr("10.0.0.1")
+	gateway2 := netip.MustParseAddr("10.0.0.254")
+	var sent []zt.Frame
+	b := newEtherBridge(zt.NetworkConfig{
+		ID: id, MAC: 1, Addresses: []netip.Prefix{netip.MustParsePrefix("10.0.0.2/24")},
+		Routes: []zt.Route{{Target: prefix, Via: gateway1}},
+	}, func(f zt.Frame) { sent = append(sent, f) }, func([]byte) error { return nil })
+	pkt := make([]byte, 20)
+	pkt[0] = 0x45
+	copy(pkt[16:20], []byte{172, 16, 1, 2})
+	b.outgoing(pkt)
+	if len(sent) != 1 || netip.AddrFrom4([4]byte(sent[0].Data[24:28])) != gateway1 {
+		t.Fatal("initial route must ARP for its gateway")
+	}
+	b.updateRoutes([]zt.Route{{Target: prefix, Via: gateway2}})
+	b.outgoing(pkt)
+	if len(sent) != 2 || netip.AddrFrom4([4]byte(sent[1].Data[24:28])) != gateway2 {
+		t.Fatal("updated route must use its new gateway without replacing the IP stack")
 	}
 }
