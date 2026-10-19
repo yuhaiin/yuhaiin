@@ -30,7 +30,9 @@ func TestParseConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := parseConfig(tt.yaml, log)
 			if tt.want == "" {
-				if err != nil { t.Fatalf("unexpected error: %v", err) }
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
 			} else if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("got %v; want substring %q", err, tt.want)
 			}
