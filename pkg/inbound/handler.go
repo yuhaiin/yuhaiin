@@ -23,7 +23,10 @@ type handler struct {
 	dialer netapi.Proxy
 	table  *nat.Table
 
-	sniffer *controlSniffer
+	sniffer     *controlSniffer
+	interceptor interface {
+		Intercept(*netapi.Context, *netapi.StreamMeta) bool
+	}
 }
 
 func NewHandler(dialer netapi.Proxy) *handler {
@@ -75,16 +78,18 @@ func (s *handler) Stream(ctx *netapi.Context, meta *netapi.StreamMeta) {
 }
 
 func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
-	ctx, cancel := context.WithTimeout(store, configuration.Timeout)
-	defer cancel()
-
 	dst := meta.Address
 
 	startNanoSeconds := system.CheapNowNano()
 
 	meta.Src = s.sniffer.Stream(store, meta.Src)
 	defer meta.Src.Close()
+	if s.interceptor != nil && s.interceptor.Intercept(store, meta) {
+		return nil
+	}
 
+	ctx, cancel := context.WithTimeout(store, configuration.Timeout)
+	defer cancel()
 	remote, err := s.dialer.Conn(ctx, dst)
 	if err != nil {
 		ne := netapi.NewDialError("tcp", err, dst)

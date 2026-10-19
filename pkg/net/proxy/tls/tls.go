@@ -192,51 +192,29 @@ func NewServer(c ServerConfig, ii netapi.Listener) (netapi.Listener, error) {
 }
 
 type ServerCert struct {
-	cert       *tls.Certificate
+	cache      *cert.Cache
 	ca         *cert.Ca
 	servername string
 	algorithm  x509.PublicKeyAlgorithm
-	mu         sync.RWMutex
+	mu         sync.Mutex
 }
 
 func (s *ServerCert) Cert() (*tls.Certificate, error) {
-	s.mu.RLock()
-	cert := s.cert
-	s.mu.RUnlock()
-
-	if cert != nil {
-		return cert, nil
-	}
-
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.cert != nil {
-		return s.cert, nil
+	if s.cache == nil {
+		s.cache = cert.NewCache(s.ca, 256)
 	}
-
-	servernames := []string{s.servername}
+	cache := s.cache
+	s.mu.Unlock()
+	hosts := []string{s.servername}
 	if strings.HasPrefix(s.servername, "*.") {
-		servernames = append(servernames, s.servername[2:])
+		hosts = append(hosts, s.servername[2:])
 	}
-
 	algorithm := s.algorithm
 	if algorithm == x509.UnknownPublicKeyAlgorithm {
 		algorithm = s.ca.Cert.PublicKeyAlgorithm
 	}
-	sc, err := s.ca.GenerateServerCertWithAlgorithm(algorithm, servernames...)
-	if err != nil {
-		return nil, err
-	}
-
-	tc, err := sc.TlsCert()
-	if err != nil {
-		return nil, err
-	}
-
-	s.cert = &tc
-
-	return s.cert, nil
+	return cache.Get(algorithm, hosts...)
 }
 
 func TlsAutoConfig(ca *cert.Ca, nextProto []string, servername []string, leafAlgorithm ...x509.PublicKeyAlgorithm) *tls.Config {
@@ -245,9 +223,11 @@ func TlsAutoConfig(ca *cert.Ca, nextProto []string, servername []string, leafAlg
 		algorithm = leafAlgorithm[0]
 	}
 	store := domain.NewTrie[*ServerCert]()
+	cache := cert.NewCache(ca, 256)
 
 	for _, v := range servername {
 		store.Insert(v, &ServerCert{
+			cache:      cache,
 			servername: v,
 			algorithm:  algorithm,
 			ca:         ca,

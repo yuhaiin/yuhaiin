@@ -1,6 +1,7 @@
 package cert
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -15,69 +16,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	mrand "math/rand/v2"
 	"net"
 	"time"
 )
-
-var IssuersTemplate = []pkix.Name{
-	{
-		Country:      []string{"BE"},
-		Organization: []string{"GlobalSign nv-sa"},
-		CommonName:   "GlobalSign ECC OV SSL CA 2018",
-	},
-	/*CN = GlobalSign Organization Validation CA - SHA256 - G3 O = GlobalSign nv-sa C = BE*/
-	{
-		Country:      []string{"BE"},
-		Organization: []string{"GlobalSign nv-sa"},
-		CommonName:   "GlobalSign Organization Validation CA - SHA256 - G3",
-	},
-	/* C=US, O=Let's Encrypt, CN=E6 */
-	{
-		Country:      []string{"US"},
-		Organization: []string{"Let's Encrypt"},
-		CommonName:   "E6",
-	},
-	{
-		Country:      []string{"US"},
-		Organization: []string{"Let's Encrypt"},
-		CommonName:   "E5",
-	},
-	{
-		Country:      []string{"US"},
-		Organization: []string{"Let's Encrypt"},
-		CommonName:   "R10",
-	},
-
-	/*CN = WR2 O = Google Trust Services C = US*/
-	{
-		Country:      []string{"US"},
-		Organization: []string{"Google Trust Services"},
-		CommonName:   "WR2",
-	},
-
-	/*CN = Microsoft Azure ECC TLS Issuing CA 07 O = Microsoft Corporation C = US*/
-	{
-		Country:      []string{"US"},
-		Organization: []string{"Microsoft Corporation"},
-		CommonName:   "Microsoft Azure ECC TLS Issuing CA 07",
-	},
-
-	/*CN = Amazon RSA 2048 M01 O = Amazon C = US*/
-	{
-		Country:      []string{"US"},
-		Organization: []string{"Amazon"},
-		CommonName:   "Amazon RSA 2048 M01",
-	},
-
-	/*CN = GeoTrust TLS RSA CA G1 OU = www.digicert.com O = DigiCert Inc C = US*/
-	{
-		Country:            []string{"US"},
-		Organization:       []string{"DigiCert Inc"},
-		OrganizationalUnit: []string{"www.digicert.com"},
-		CommonName:         "GeoTrust TLS RSA CA G1",
-	},
-}
 
 type Ca struct {
 	Cert       *x509.Certificate
@@ -110,6 +51,20 @@ func ParseCa(certBytes, privateKeyBytes []byte) (*Ca, error) {
 		return nil, errors.New("ca public key is not ecdsa")
 	}
 
+	if !cert.IsCA || !cert.BasicConstraintsValid || cert.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return nil, errors.New("certificate is not a signing CA")
+	}
+	public, err := x509.MarshalPKIXPublicKey(pk.Public())
+	if err != nil {
+		return nil, err
+	}
+	expected, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(public, expected) {
+		return nil, errors.New("CA certificate and private key do not match")
+	}
 	return &Ca{
 		Cert:       cert,
 		PrivateKey: pk,
@@ -118,6 +73,9 @@ func ParseCa(certBytes, privateKeyBytes []byte) (*Ca, error) {
 
 // CertBytes pem
 func (c *Ca) CertBytes() ([]byte, error) {
+	if len(c.Cert.Raw) != 0 {
+		return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: c.Cert.Raw}), nil
+	}
 	der, err := x509.CreateCertificate(rand.Reader, c.Cert, c.Cert, c.PrivateKey.Public(), c.PrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("create ca cert failed: %w", err)
@@ -198,7 +156,7 @@ func (c *Ca) GenerateServerCertWithAlgorithm(algorithm x509.PublicKeyAlgorithm, 
 	}
 
 	notBefore := time.Now().Add(-time.Minute)
-	notAfter := notBefore.Add(10 * 365 * 24 * time.Hour)
+	notAfter := minTime(notBefore.Add(30*24*time.Hour), c.Cert.NotAfter)
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 
@@ -219,14 +177,16 @@ func (c *Ca) GenerateServerCertWithAlgorithm(algorithm x509.PublicKeyAlgorithm, 
 		SerialNumber:          serialNumber,
 		Subject:               pkix.Name{CommonName: commonName},
 		PublicKeyAlgorithm:    algo.PublicKeyAlgorithm,
-		SignatureAlgorithm:    c.Cert.SignatureAlgorithm,
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
 		PublicKey:             pk.Public(),
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 		IsCA:                  false,
+	}
+	if algorithm == x509.RSA {
+		leafTemplate.KeyUsage |= x509.KeyUsageKeyEncipherment
 	}
 
 	_, err = rand.Read(leafTemplate.SubjectKeyId)
@@ -298,52 +258,36 @@ func GetAlgorithmsByPublicKeyAlgorithm(algo x509.PublicKeyAlgorithm) Algorithm {
 	}
 }
 
+// GenerateCa creates a named local authority. It never impersonates a public CA.
 func GenerateCa() (*Ca, error) {
-	var err error
-	notBefore := time.Now()
-	notAfter := notBefore.Add(100 * 365 * 24 * time.Hour)
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-
-	var rootTemplate *x509.Certificate
-
-	algo := algorithms[mrand.IntN(len(algorithms))]
-	// check http://itdoc.hitachi.co.jp/manuals/3021/30213D1130/D110071.HTM
-	// privateKeyType = "PRIVATE KEY"
-
-	rootKey, err := algo.GenerateKey()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("generate key failed: %w", err)
+		return nil, err
 	}
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate ca serial number: %s", err)
+		return nil, err
 	}
-
-	issue := IssuersTemplate[mrand.IntN(len(IssuersTemplate))]
-
-	rootTemplate = &x509.Certificate{
-		Issuer:                issue,
-		SerialNumber:          serialNumber,
-		Subject:               issue,
-		Version:               3,
-		PublicKeyAlgorithm:    algo.PublicKeyAlgorithm,
-		SignatureAlgorithm:    algo.SignatureAlgorithm,
-		PublicKey:             rootKey.Public(),
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
-		BasicConstraintsValid: true,
-		IsCA:                  true,
+	subject := pkix.Name{CommonName: "Yuhaiin Local CA", Organization: []string{"Yuhaiin"}}
+	template := &x509.Certificate{
+		SerialNumber: serial, Subject: subject, NotBefore: time.Now().Add(-time.Minute),
+		NotAfter: time.Now().AddDate(10, 0, 0), KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true, IsCA: true, MaxPathLenZero: true,
 	}
-
-	rootTemplate.RawSubject, err = asn1.Marshal(rootTemplate.Subject.ToRDNSequence())
+	der, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal ca subject: %s", err)
+		return nil, err
 	}
+	parsed, err := x509.ParseCertificate(der)
+	if err != nil {
+		return nil, err
+	}
+	return &Ca{Cert: parsed, PrivateKey: key}, nil
+}
 
-	return &Ca{
-		Cert:       rootTemplate,
-		PrivateKey: rootKey,
-	}, nil
+func minTime(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
 }

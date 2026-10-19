@@ -37,6 +37,7 @@ var configBackupTables = []string{
 	"inbound_settings", "inbounds", "inbounds_v2", "nodes", "nodes_v2", "node_tags", "outbound_selectors",
 	"subscriptions", "publishes", "route_settings", "route_rules", "route_rules_v2",
 	"route_lists", "route_list_refresh", "route_lists_v2", "route_registries", "backup_settings", "metadata",
+	"gateway_configuration", "gateway_references",
 }
 
 func configBackupFilter(table string) string {

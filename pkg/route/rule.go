@@ -263,9 +263,9 @@ func (r *Rules) TestContract(ctx context.Context, host string) (contractroute.Ru
 		if er != nil {
 			return contractroute.RuleTestResponse{}, fmt.Errorf("parse port failed: %w", er)
 		}
-		addr, err = netapi.ParseAddressPort(hostname, hostname, uint16(port))
+		addr, err = netapi.ParseAddressPort("tcp", hostname, uint16(port))
 	} else {
-		addr, err = netapi.ParseAddressPort("", host, 0)
+		addr, err = netapi.ParseAddressPort("tcp", host, 0)
 	}
 	if err != nil {
 		return contractroute.RuleTestResponse{}, fmt.Errorf("parse addr failed: %w", err)

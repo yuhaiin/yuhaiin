@@ -18,6 +18,12 @@ type singleFamilyNodeProxy struct {
 	ipVersion contractnode.IPVersion
 }
 
+// ConnectionPoolIdentity refers to the stable parent proxy and family policy,
+// rather than this short-lived request wrapper's address.
+func (p *singleFamilyNodeProxy) ConnectionPoolIdentity() string {
+	return fmt.Sprintf("%T:%p/family:%s", p.Proxy, p.Proxy, p.ipVersion)
+}
+
 var _ netapi.Proxy = (*singleFamilyNodeProxy)(nil)
 
 func (p *singleFamilyNodeProxy) IPVersion() contractnode.IPVersion {

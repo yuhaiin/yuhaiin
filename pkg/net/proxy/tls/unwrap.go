@@ -167,10 +167,6 @@ func (u *unWrapTls) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 		return nil, err
 	}
 
-	if httpTermination, ok := conn.(interface{ SetTLSTermination(ok bool) }); ok {
-		httpTermination.SetTLSTermination(true)
-	}
-
 	return newUnWrapConn(conn, u.config), nil
 }
 

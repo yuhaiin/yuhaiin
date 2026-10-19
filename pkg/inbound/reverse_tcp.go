@@ -1,16 +1,12 @@
-package reverse
+package inbound
 
 import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
-type TCPServerConfig struct {
-	Host string `json:"host"`
-}
-
-func NewTCPServer(o TCPServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-	target, err := netapi.ParseAddress("tcp", o.Host)
+func newReverseTCPServer(target string, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+	destination, err := netapi.ParseAddress("tcp", target)
 	if err != nil {
 		return nil, err
 	}
@@ -26,15 +22,15 @@ func NewTCPServer(o TCPServerConfig, ii netapi.Listener, handler netapi.Handler)
 
 			go func() {
 				handler.HandleStream(&netapi.StreamMeta{
-					Destination: target,
+					Destination: destination,
 					Src:         conn,
 					Inbound:     ii.Addr(),
-					Address:     target,
+					Address:     destination,
 					Source:      conn.RemoteAddr(),
 				})
 			}()
 		}
 	}()
 
-	return &accepter{Listener: ii}, nil
+	return noopAccepter{Listener: ii}, nil
 }

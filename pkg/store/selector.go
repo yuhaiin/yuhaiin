@@ -120,7 +120,8 @@ func targetReferences(ctx context.Context, q interface {
 		AND NOT EXISTS(SELECT 1 FROM route_rules_v2 c WHERE c.id = json_extract(r.value, '$.id') AND json_extract(c.data_json, '$.target.type') = ? AND json_extract(c.data_json, '$.target.id') = ?)
 		UNION ALL SELECT 'default', 'route-default', 'Default routing destination (running)' FROM route_configuration_state
 		WHERE json_extract(applied_config_json, '$.defaultTarget.type') = ? AND json_extract(applied_config_json, '$.defaultTarget.id') = ?
-		AND NOT EXISTS(SELECT 1 FROM route_settings WHERE json_extract(default_target_json, '$.type') = ? AND json_extract(default_target_json, '$.id') = ?)`, kind, id, kind, id, kind, id, kind, id, kind, id, kind, id)
+		AND NOT EXISTS(SELECT 1 FROM route_settings WHERE json_extract(default_target_json, '$.type') = ? AND json_extract(default_target_json, '$.id') = ?)
+ UNION ALL SELECT 'gateway', owner_id, owner_name FROM gateway_references WHERE (?='node' AND node_id=?) OR (?='selector' AND selector_id=?)`, kind, id, kind, id, kind, id, kind, id, kind, id, kind, id, kind, id, kind, id)
 	if err != nil {
 		return nil, err
 	}

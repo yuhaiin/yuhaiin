@@ -26,6 +26,18 @@ func isV2StreamEndpoint(endpoint v2Endpoint) bool {
 }
 
 const (
+	v2GatewayResourcesList     v2Endpoint = "gateway.resources.list"
+	v2GatewayResourceGet       v2Endpoint = "gateway.resource.get"
+	v2GatewayResourcePut       v2Endpoint = "gateway.resource.put"
+	v2GatewayResourceDelete    v2Endpoint = "gateway.resource.delete"
+	v2GatewayFilterRefresh     v2Endpoint = "gateway.filters.refresh"
+	v2GatewayConfigGet         v2Endpoint = "gateway.config.get"
+	v2GatewayConfigPut         v2Endpoint = "gateway.config.put"
+	v2GatewayStatus            v2Endpoint = "gateway.status"
+	v2GatewayTest              v2Endpoint = "gateway.test"
+	v2GatewayCAStatus          v2Endpoint = "gateway.ca.status"
+	v2GatewayCAGenerate        v2Endpoint = "gateway.ca.generate"
+	v2GatewayCAImport          v2Endpoint = "gateway.ca.import"
 	v2Info                     v2Endpoint = "info"
 	v2UpdateCheck              v2Endpoint = "update.check"
 	v2UpdateApply              v2Endpoint = "update.apply"
@@ -139,6 +151,18 @@ const (
 )
 
 var v2Routes = []v2Route{
+	{v2GatewayResourcesList, "GET /api/v2/gateway/resources"},
+	{v2GatewayResourceGet, "GET /api/v2/gateway/resources/{id}"},
+	{v2GatewayResourcePut, "PUT /api/v2/gateway/resources/{id}"},
+	{v2GatewayResourceDelete, "DELETE /api/v2/gateway/resources/{id}"},
+	{v2GatewayFilterRefresh, "POST /api/v2/gateway/filters/refresh"},
+	{v2GatewayConfigGet, "GET /api/v2/gateway/config"},
+	{v2GatewayConfigPut, "PUT /api/v2/gateway/config"},
+	{v2GatewayStatus, "GET /api/v2/gateway/status"},
+	{v2GatewayTest, "POST /api/v2/gateway/test"},
+	{v2GatewayCAStatus, "GET /api/v2/gateway/ca"},
+	{v2GatewayCAGenerate, "POST /api/v2/gateway/ca/generate"},
+	{v2GatewayCAImport, "POST /api/v2/gateway/ca/import"},
 	{v2Info, "GET /api/v2/info"},
 	{v2UpdateCheck, "POST /api/v2/update/check"},
 	{v2UpdateApply, "POST /api/v2/update/apply"},
@@ -264,6 +288,8 @@ func newV2Handlers(services V2Services) *v2Handlers {
 	addNodeRPCRoutesV2(handlers, services)
 	addResolverRPCRoutesV2(handlers, services)
 	addInboundRPCRoutesV2(handlers, services)
+	addGatewayRPCRoutesV2(handlers, services)
+	addGatewayResourceRoutes(handlers, services)
 	return handlers
 }
 

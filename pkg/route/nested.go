@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
@@ -207,6 +208,7 @@ type Matchers struct {
 	generation     uint64
 	runtimeConfig  *RouteConfig
 	prepareContext func(context.Context, *RouteConfig)
+	hasGateway     atomic.Bool
 }
 
 func NewMatchers(list *Lists) *Matchers {
@@ -249,6 +251,7 @@ func (s *Matchers) UpdateContext(ctx context.Context, rules ...contractroute.Rou
 	defer s.mu.Unlock()
 	s.list.installPrepared(prepared)
 	s.matchers = ms
+	s.hasGateway.Store(slices.ContainsFunc(ms, func(entry MatchEntry) bool { return entry.mode.Mode() == ModeGateway }))
 	s.listNames = prepared.names
 	s.generation++
 	return nil
@@ -276,6 +279,7 @@ func (s *Matchers) UpdateSnapshot(ctx context.Context, snapshot plainstore.Route
 		defer s.mu.Unlock()
 		s.list.installPrepared(prepared)
 		s.matchers = entries
+		s.hasGateway.Store(slices.ContainsFunc(entries, func(entry MatchEntry) bool { return entry.mode.Mode() == ModeGateway }))
 		s.listNames = prepared.names
 		s.runtimeConfig = config
 		publish()
@@ -321,6 +325,9 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) ModeEnum {
 		store.ConnOptions().SetMatchedLists(nil, s.listNames)
 		store.ConnOptions().AddLists(hosts...).AddLists(processes...)
 		for _, entry := range matchers {
+			if entry.mode.Mode() == ModeGateway && (skipGateway(ctx) || addr.Network() != "tcp") {
+				continue
+			}
 			store.NewRuleMatch(entry.id, entry.name)
 			if entry.matcher.Match(ctx, addr) {
 				store.SetMatchedRule(entry.id, entry.name)

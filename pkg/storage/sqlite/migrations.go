@@ -561,4 +561,12 @@ var migrations = []Migration{
 	},
 	{Version: 10, Name: "replace_route_aliases", Transform: upgradeStoredRouteBindings},
 	{Version: 11, Name: "route_configuration_versions", Transform: addRouteConfigurationVersions},
+	{Version: 12, Name: "http_gateway", Statements: []string{
+		`CREATE TABLE gateway_configuration (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, data_json TEXT NOT NULL CHECK(json_valid(data_json)))`,
+		`CREATE TABLE gateway_references (owner_id TEXT NOT NULL, owner_name TEXT NOT NULL, node_id TEXT REFERENCES nodes_v2(id), selector_id TEXT REFERENCES outbound_selectors(id), inbound_id TEXT REFERENCES inbounds_v2(id))`,
+		`CREATE INDEX gateway_node_ref ON gateway_references(node_id)`,
+		`CREATE INDEX gateway_selector_ref ON gateway_references(selector_id)`,
+		`CREATE INDEX gateway_inbound_ref ON gateway_references(inbound_id)`,
+		`CREATE TABLE gateway_ca (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, certificate_pem BLOB NOT NULL, private_key_pem BLOB NOT NULL)`,
+	}},
 }

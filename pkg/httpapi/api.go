@@ -112,6 +112,7 @@ type InboundStore interface {
 	SaveSettings(context.Context, plainstore.InboundSettings) error
 }
 type V2Services struct {
+	Gateway          GatewayController
 	Settings         SettingsController
 	Inbounds         InboundStore
 	Nodes            *plainstore.NodeStore
