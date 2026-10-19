@@ -15,13 +15,17 @@ func (s *Stack) writeBatchLoop(writer PacketBatchWriter) {
 	}()
 	for {
 		first, ok := s.dequeueOutput(true)
-		if !ok { return }
+		if !ok {
+			return
+		}
 		owned[0] = first
 		count := 1
 	drain:
 		for count < limit {
 			b, ok := s.dequeueOutput(false)
-			if !ok { break drain }
+			if !ok {
+				break drain
+			}
 			owned[count] = b
 			count++
 		}

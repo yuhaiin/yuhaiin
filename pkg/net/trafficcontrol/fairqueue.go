@@ -18,11 +18,11 @@ type FairConfig struct {
 }
 
 type FairStats struct {
-	Packets, Bytes        int64
-	Flows                 int
-	Rejected, DroppedAQM  uint64
-	Dequeued              uint64
-	MaxSojourn            time.Duration
+	Packets, Bytes       int64
+	Flows                int
+	Rejected, DroppedAQM uint64
+	Dequeued             uint64
+	MaxSojourn           time.Duration
 }
 
 type queued[T any] struct {
@@ -32,12 +32,12 @@ type queued[T any] struct {
 }
 
 type fairFlow[T any] struct {
-	key uint64
-	packets []queued[T]
-	head int
-	deficit int
+	key        uint64
+	packets    []queued[T]
+	head       int
+	deficit    int
 	firstAbove time.Time
-	element *list.Element
+	element    *list.Element
 }
 
 // FairQueue uses a bounded active-flow map and O(1) insertion. Pop applies
@@ -45,15 +45,15 @@ type fairFlow[T any] struct {
 // It owns admitted values until Pop or Drain returns them to the caller.
 // Dequeue order within each flow is always FIFO (excluding AQM drops).
 type FairQueue[T any] struct {
-	mu sync.Mutex
-	cfg FairConfig
-	flows map[uint64]*fairFlow[T]
-	active list.List
-	count int64
-	bytes int64
+	mu                          sync.Mutex
+	cfg                         FairConfig
+	flows                       map[uint64]*fairFlow[T]
+	active                      list.List
+	count                       int64
+	bytes                       int64
 	rejected, dropped, dequeued uint64
-	maxSojourn time.Duration
-	notify chan struct{}
+	maxSojourn                  time.Duration
+	notify                      chan struct{}
 }
 
 func NewFairQueue[T any](c FairConfig) *FairQueue[T] {
@@ -64,10 +64,10 @@ func NewFairQueue[T any](c FairConfig) *FairQueue[T] {
 		c.Quantum = 1514
 	}
 	if c.Target <= 0 {
-		c.Target = 5*time.Millisecond
+		c.Target = 5 * time.Millisecond
 	}
 	if c.Interval <= 0 {
-		c.Interval = 100*time.Millisecond
+		c.Interval = 100 * time.Millisecond
 	}
 	return &FairQueue[T]{cfg: c, flows: make(map[uint64]*fairFlow[T]), notify: make(chan struct{}, 1)}
 }
@@ -100,7 +100,10 @@ func (q *FairQueue[T]) Push(key uint64, size int, value T, at time.Time) bool {
 	f.packets = append(f.packets, queued[T]{value: value, bytes: size, at: at})
 	q.count++
 	q.bytes += int64(size)
-	select { case q.notify <- struct{}{}: default: }
+	select {
+	case q.notify <- struct{}{}:
+	default:
+	}
 	return true
 }
 
@@ -158,7 +161,7 @@ func (q *FairQueue[T]) Pop(now time.Time) (value T, ok bool, dropped []T) {
 			dropped = append(dropped, old.value)
 			if q.flows[f.key] != nil {
 				// Gradually accelerate drops under persistent queueing.
-				f.firstAbove = now.Add(q.cfg.Interval/2)
+				f.firstAbove = now.Add(q.cfg.Interval / 2)
 			}
 			continue
 		}

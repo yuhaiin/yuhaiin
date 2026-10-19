@@ -19,82 +19,130 @@ func TestFairOutputInterleavesFlowsAndReleasesBuffers(t *testing.T) {
 	push := func(port uint16, sequence int) {
 		t.Helper()
 		p, err := s.buffers.get(1024)
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		fillIPHeader(p.data, a, b, 6, uint16(sequence), 20)
 		p.data[20], p.data[21] = byte(port>>8), byte(port)
 		p.data[22], p.data[23] = 0, 80
-		if err := s.emitOwned(p); err != nil { p.release();t.Fatal(err) }
+		if err := s.emitOwned(p); err != nil {
+			p.release()
+			t.Fatal(err)
+		}
 	}
-	for i := range 24 { push(1000,uint16ToInt(i)) }
-	for i := range 6 { push(2000,100+i) }
-	firstInteractive:=-1
-	seenBulk,seenInteractive:=0,0
-	for i:=range 30 {
-		p,ok:=s.dequeueOutput(false)
-		if !ok {t.Fatal("missing packet",i)}
-		port:=uint16(p.data[20])<<8|uint16(p.data[21])
-		if port==1000 {seenBulk++} else if port==2000 {seenInteractive++;if firstInteractive<0 {firstInteractive=i}} else {t.Fatal("unexpected flow")}
+	for i := range 24 {
+		push(1000, uint16ToInt(i))
+	}
+	for i := range 6 {
+		push(2000, 100+i)
+	}
+	firstInteractive := -1
+	seenBulk, seenInteractive := 0, 0
+	for i := range 30 {
+		p, ok := s.dequeueOutput(false)
+		if !ok {
+			t.Fatal("missing packet", i)
+		}
+		port := uint16(p.data[20])<<8 | uint16(p.data[21])
+		if port == 1000 {
+			seenBulk++
+		} else if port == 2000 {
+			seenInteractive++
+			if firstInteractive < 0 {
+				firstInteractive = i
+			}
+		} else {
+			t.Fatal("unexpected flow")
+		}
 		p.release()
 	}
-	if firstInteractive>2 ||seenBulk!=24 ||seenInteractive!=6 {t.Fatalf("fairness: interactive=%d bulk=%d interactiveCount=%d",firstInteractive,seenBulk,seenInteractive)}
-	if got:=s.Stats();got.OutputQueuedPackets!=0||got.OutputQueuedBytes!=0 {t.Fatal(got)}
+	if firstInteractive > 2 || seenBulk != 24 || seenInteractive != 6 {
+		t.Fatalf("fairness: interactive=%d bulk=%d interactiveCount=%d", firstInteractive, seenBulk, seenInteractive)
+	}
+	if got := s.Stats(); got.OutputQueuedPackets != 0 || got.OutputQueuedBytes != 0 {
+		t.Fatal(got)
+	}
 	close(s.done)
 	s.buffers.close()
-	if bytes:=s.memory.Load();bytes!=0 {t.Fatal("unreleased output memory",bytes)}
+	if bytes := s.memory.Load(); bytes != 0 {
+		t.Fatal("unreleased output memory", bytes)
+	}
 }
 
-func uint16ToInt(n int) int {return n}
+func uint16ToInt(n int) int { return n }
 
 func TestFairOutputNoOverAdmission(t *testing.T) {
-	s:=&Stack{config:Config{MemoryLimit:1<<20},done:make(chan struct{}),
-		fairOutput:trafficcontrol.NewFairQueue[*ownedBuffer](trafficcontrol.FairConfig{MaxPackets:1,MaxBytes:128}),
+	s := &Stack{config: Config{MemoryLimit: 1 << 20}, done: make(chan struct{}),
+		fairOutput: trafficcontrol.NewFairQueue[*ownedBuffer](trafficcontrol.FairConfig{MaxPackets: 1, MaxBytes: 128}),
 	}
 	s.scheduler = newScheduler(s.done)
 	s.buffers.init(s)
-	for i:=0;i<2;i++ {
-		p,err:=s.buffers.get(64)
-		if err!=nil {t.Fatal(err)}
-		p.data[0]=0x01
-		err=s.emitOwned(p)
-		if (err==nil)!=(i==0) {t.Fatalf("admission iteration=%d err=%v",i,err)}
-		if err!=nil{p.release()}
+	for i := 0; i < 2; i++ {
+		p, err := s.buffers.get(64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.data[0] = 0x01
+		err = s.emitOwned(p)
+		if (err == nil) != (i == 0) {
+			t.Fatalf("admission iteration=%d err=%v", i, err)
+		}
+		if err != nil {
+			p.release()
+		}
 	}
-	if stats:=s.Stats();stats.OutputQueuedPackets!=1 ||stats.OutputRejected!=1 {t.Fatal(stats)}
-	for _,p:=range s.fairOutput.Drain(){p.release()}
+	if stats := s.Stats(); stats.OutputQueuedPackets != 1 || stats.OutputRejected != 1 {
+		t.Fatal(stats)
+	}
+	for _, p := range s.fairOutput.Drain() {
+		p.release()
+	}
 	close(s.done)
 	s.buffers.close()
-	if s.memory.Load()!=0 {t.Fatal("leaked bytes",s.memory.Load())}
+	if s.memory.Load() != 0 {
+		t.Fatal("leaked bytes", s.memory.Load())
+	}
 }
 
 func TestFairOutputPreservesBatchOrder(t *testing.T) {
-	s, _ := batchTestStack(t,32)
-	q:=trafficcontrol.NewFairQueue[*ownedBuffer](trafficcontrol.FairConfig{MaxPackets:32,MaxBytes:64<<10})
+	s, _ := batchTestStack(t, 32)
+	q := trafficcontrol.NewFairQueue[*ownedBuffer](trafficcontrol.FairConfig{MaxPackets: 32, MaxBytes: 64 << 10})
 	// Batch fixtures are intentionally not valid IP packets, and therefore
 	// classify into one flow. Order within a single flow cannot change.
-	for len(s.outgoing)>0 {
-		p:=<-s.outgoing
-		if !q.Push(outputFlowHash(p),len(p.data)-p.offset,p,time.Now()){t.Fatal("queue full")}
+	for len(s.outgoing) > 0 {
+		p := <-s.outgoing
+		if !q.Push(outputFlowHash(p), len(p.data)-p.offset, p, time.Now()) {
+			t.Fatal("queue full")
+		}
 	}
-	s.fairOutput=q
-	accepted:=0
-	w:=&batchTestWriter{size:16}
-	w.write=func(ps []PacketBuffer)(int,error){
-		for _,p:=range ps {
-			if p.Data[p.Offset]!=byte(accepted){t.Fatalf("batch replay/reorder at %d",accepted)}
+	s.fairOutput = q
+	accepted := 0
+	w := &batchTestWriter{size: 16}
+	w.write = func(ps []PacketBuffer) (int, error) {
+		for _, p := range ps {
+			if p.Data[p.Offset] != byte(accepted) {
+				t.Fatalf("batch replay/reorder at %d", accepted)
+			}
 			accepted++
 		}
-		if accepted==32 {close(s.done)}
-		return len(ps),nil
+		if accepted == 32 {
+			close(s.done)
+		}
+		return len(ps), nil
 	}
 	s.writeBatchLoop(w)
-	if accepted!=32 ||s.Stats().OutputQueuedPackets!=0 {t.Fatal(accepted,s.Stats())}
+	if accepted != 32 || s.Stats().OutputQueuedPackets != 0 {
+		t.Fatal(accepted, s.Stats())
+	}
 }
 
 func BenchmarkOutputFlowHashIPv4(b *testing.B) {
-	packet:=&ownedBuffer{data:make([]byte,1500)}
-	packet.data[0]=0x45
-	packet.data[9]=6
-	packet.data[12],packet.data[16]=10,20
+	packet := &ownedBuffer{data: make([]byte, 1500)}
+	packet.data[0] = 0x45
+	packet.data[9] = 6
+	packet.data[12], packet.data[16] = 10, 20
 	b.ReportAllocs()
-	for i:=0;i<b.N;i++ { _=outputFlowHash(packet) }
+	for i := 0; i < b.N; i++ {
+		_ = outputFlowHash(packet)
+	}
 }

@@ -48,10 +48,10 @@ func newContextCache(store *netapi.Context) ContextCache {
 }
 
 type SourceControl struct {
-	ctx    context.Context
-	dialer netapi.Proxy
+	ctx          context.Context
+	dialer       netapi.Proxy
 	sessionLease *trafficcontrol.Session
-	queueBudget *trafficcontrol.Governor
+	queueBudget  *trafficcontrol.Governor
 
 	// sniffer is an optional packet sniffer for observability or traffic analysis.
 	sniffer netapi.PacketSniffer

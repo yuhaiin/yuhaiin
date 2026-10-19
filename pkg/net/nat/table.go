@@ -56,7 +56,7 @@ func NewTableWithParent(sniffer netapi.PacketSniffer, dialer netapi.Proxy, paren
 		dialer:      dialer,
 		sniffer:     sniffer,
 		cleanerWake: make(chan struct{}, 1),
-		budget: trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 16384, MaxQueueBytes: 64 << 20}, parent),
+		budget:      trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 16384, MaxQueueBytes: 64 << 20}, parent),
 		stop:        make(chan struct{}),
 		done:        make(chan struct{}),
 	}
@@ -138,12 +138,16 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 	for {
 		r, loaded, err := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) {
 			lease, ok := u.budget.AcquireSession()
-			if !ok { return nil, ErrNATSessionLimit }
+			if !ok {
+				return nil, ErrNATSessionLimit
+			}
 			source := NewSourceChan(u.sniffer, u.dialer)
 			source.sessionLease, source.queueBudget = lease, u.budget
 			return source, nil
 		})
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		if !loaded {
 			select {
 			case u.cleanerWake <- struct{}{}:

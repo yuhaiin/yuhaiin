@@ -18,21 +18,21 @@ type Limits struct {
 }
 
 type Counters struct {
-	Sessions, QueueBytes         int64
-	DeniedSessions, DeniedBytes  uint64
+	Sessions, QueueBytes        int64
+	DeniedSessions, DeniedBytes uint64
 	DeniedPackets               uint64
 }
 
 type Governor struct {
-	parent                  *Governor
-	limits                  Limits
-	sessions, bytes          atomic.Int64
-	deniedSessions           atomic.Uint64
-	deniedBytes              atomic.Uint64
-	deniedPackets            atomic.Uint64
-	mu                       sync.Mutex
-	tokens                   float64
-	last                     time.Time
+	parent          *Governor
+	limits          Limits
+	sessions, bytes atomic.Int64
+	deniedSessions  atomic.Uint64
+	deniedBytes     atomic.Uint64
+	deniedPackets   atomic.Uint64
+	mu              sync.Mutex
+	tokens          float64
+	last            time.Time
 }
 
 func NewGovernor(l Limits, parent *Governor) *Governor {

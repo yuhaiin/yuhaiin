@@ -75,7 +75,7 @@ type Stack struct {
 type Statistics struct {
 	MemoryBytes, Connections                      int64
 	OutputQueuedPackets, OutputQueuedBytes        int64
-	OutputAQMDrops, OutputRejected                 uint64
+	OutputAQMDrops, OutputRejected                uint64
 	CachedBytes                                   int64
 	PacketsIn, PacketsOut, Drops, Retransmissions uint64
 }
@@ -189,7 +189,9 @@ func (s *Stack) Close() error {
 	s.shutdown()
 	s.wg.Wait()
 	if s.fairOutput != nil {
-		for _, b := range s.fairOutput.Drain() { b.release() }
+		for _, b := range s.fairOutput.Drain() {
+			b.release()
+		}
 	}
 	for {
 		select {
@@ -273,15 +275,23 @@ func (s *Stack) writeLoop() {
 	}
 	for {
 		b, ok := s.dequeueOutput(true)
-		if !ok { return }
+		if !ok {
+			return
+		}
 		write := func() error {
-			if s.packetWriter != nil { return s.packetWriter.WritePacketBuffer(b.data, b.offset, b.segmentSize) }
+			if s.packetWriter != nil {
+				return s.packetWriter.WritePacketBuffer(b.data, b.offset, b.segmentSize)
+			}
 			return s.link.WritePacket(b.data[b.offset:])
 		}
 		err := write()
-		for attempt := 0; err != nil && s.retryPacketIO(err, attempt); attempt++ { err = write() }
+		for attempt := 0; err != nil && s.retryPacketIO(err, attempt); attempt++ {
+			err = write()
+		}
 		b.release()
-		if err != nil { return }
+		if err != nil {
+			return
+		}
 		s.packetsOut.Add(1)
 	}
 }
@@ -306,12 +316,16 @@ func (s *Stack) emitOwned(packet *ownedBuffer) error {
 		return net.ErrClosed
 	}
 	if s.fairOutput != nil {
-		if s.fairOutput.Push(outputFlowHash(packet), len(packet.data)-packet.offset, packet, time.Now()) { return nil }
+		if s.fairOutput.Push(outputFlowHash(packet), len(packet.data)-packet.offset, packet, time.Now()) {
+			return nil
+		}
 		return ErrLimit
 	}
 	select {
-	case s.outgoing <- packet: return nil
-	default: return ErrLimit
+	case s.outgoing <- packet:
+		return nil
+	default:
+		return ErrLimit
 	}
 }
 func (s *Stack) ipBuffer(src, dst netip.Addr, proto uint8, payloadSize int) (*ownedBuffer, int, error) {
