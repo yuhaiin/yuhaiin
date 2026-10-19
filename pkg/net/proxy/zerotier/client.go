@@ -10,9 +10,9 @@ import (
 	"net/netip"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
-	"slices"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -41,19 +41,19 @@ type session struct {
 // dynamically configured in-memory IP stack. It never creates a system NIC.
 type Client struct {
 	netapi.EmptyDispatch
-	node    *zt.UDPNode
-	id      zt.NetworkID
-	state   string
-	closing chan struct{}
-	ready   chan struct{}
-	once    sync.Once
+	node      *zt.UDPNode
+	id        zt.NetworkID
+	state     string
+	closing   chan struct{}
+	ready     chan struct{}
+	once      sync.Once
 	readyOnce sync.Once
-	wg      sync.WaitGroup
-	configs chan zt.NetworkConfig
-	frames  chan zt.Frame
-	mu      sync.RWMutex
-	active  *session
-	failure error
+	wg        sync.WaitGroup
+	configs   chan zt.NetworkConfig
+	frames    chan zt.Frame
+	mu        sync.RWMutex
+	active    *session
+	failure   error
 }
 
 var _ netapi.Proxy = (*Client)(nil)
@@ -104,8 +104,8 @@ func NewClient(cfg contractnode.ZeroTier, previous netapi.Proxy) (*Client, error
 	}
 	c.node, err = zt.ListenUDP(zt.Config{
 		Store: store, LibraryPath: cfg.LibraryPath,
-		LowBandwidth: cfg.LowBandwidth,
-		OnFrame: c.onFrame,
+		LowBandwidth:    cfg.LowBandwidth,
+		OnFrame:         c.onFrame,
 		OnNetworkConfig: c.onNetworkConfig,
 	}, "udp", addr)
 	if err != nil {
