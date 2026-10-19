@@ -244,7 +244,9 @@ func (s *Stack) readLoop() {
 		if len(b) > 0 && len(b) <= 65575 {
 			s.packetsIn.Add(1)
 			processed++
-			if processed&255 == 0 { runtime.Gosched() } // Yield during sustained PPS floods.
+			if processed&255 == 0 {
+				runtime.Gosched()
+			} // Yield during sustained PPS floods.
 			if s.inputGovernor != nil && !s.inputGovernor.AdmitPacket(time.Now()) {
 				s.drops.Add(1)
 				continue

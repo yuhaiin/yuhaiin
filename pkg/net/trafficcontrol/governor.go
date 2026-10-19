@@ -17,8 +17,8 @@ type Limits struct {
 	// number of live sessions. It is evaluated only on new admissions.
 	SessionsPerSec float64
 	SessionBurst   float64
-	PacketsPerSec float64
-	PacketBurst   float64
+	PacketsPerSec  float64
+	PacketBurst    float64
 }
 
 type Counters struct {
@@ -29,18 +29,18 @@ type Counters struct {
 }
 
 type Governor struct {
-	parent          *Governor
-	limits          Limits
-	sessions, bytes atomic.Int64
-	deniedSessions  atomic.Uint64
+	parent             *Governor
+	limits             Limits
+	sessions, bytes    atomic.Int64
+	deniedSessions     atomic.Uint64
 	deniedRateSessions atomic.Uint64
-	deniedBytes     atomic.Uint64
-	deniedPackets   atomic.Uint64
-	mu              sync.Mutex
-	tokens          float64
-	last            time.Time
-	sessionTokens   float64
-	sessionLast     time.Time
+	deniedBytes        atomic.Uint64
+	deniedPackets      atomic.Uint64
+	mu                 sync.Mutex
+	tokens             float64
+	last               time.Time
+	sessionTokens      float64
+	sessionLast        time.Time
 }
 
 func NewGovernor(l Limits, parent *Governor) *Governor {
@@ -93,7 +93,9 @@ func (g *Governor) AcquireSession() (*Session, bool) {
 		}
 	}
 	if !g.admitSession(time.Now()) {
-		if parent != nil { parent.Release() }
+		if parent != nil {
+			parent.Release()
+		}
 		g.deniedSessions.Add(1)
 		g.deniedRateSessions.Add(1)
 		return nil, false
@@ -111,15 +113,20 @@ func (g *Governor) AcquireSession() (*Session, bool) {
 // admitSession uses a separate token bucket, so an existing active session
 // never loses progress merely because another peer floods new handshakes.
 func (g *Governor) admitSession(now time.Time) bool {
-	if g.limits.SessionsPerSec == 0 { return true }
+	if g.limits.SessionsPerSec == 0 {
+		return true
+	}
 	g.mu.Lock()
-	if g.sessionLast.IsZero() { g.sessionLast = now
+	if g.sessionLast.IsZero() {
+		g.sessionLast = now
 	} else if elapsed := now.Sub(g.sessionLast).Seconds(); elapsed > 0 {
 		g.sessionTokens = min(g.limits.SessionBurst, g.sessionTokens+elapsed*g.limits.SessionsPerSec)
 		g.sessionLast = now
 	}
 	ok := g.sessionTokens >= 1
-	if ok { g.sessionTokens-- }
+	if ok {
+		g.sessionTokens--
+	}
 	g.mu.Unlock()
 	return ok
 }
@@ -210,6 +217,6 @@ func (g *Governor) Snapshot() Counters {
 		Sessions: g.sessions.Load(), QueueBytes: g.bytes.Load(),
 		DeniedSessions: g.deniedSessions.Load(), DeniedBytes: g.deniedBytes.Load(),
 		DeniedRateSessions: g.deniedRateSessions.Load(),
-		DeniedPackets: g.deniedPackets.Load(),
+		DeniedPackets:      g.deniedPackets.Load(),
 	}
 }

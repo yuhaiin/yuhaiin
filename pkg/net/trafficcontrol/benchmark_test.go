@@ -59,36 +59,43 @@ func itoa(n int) string {
 	return string(b[p:])
 }
 
-
 // BenchmarkFairQueueSaturated mixes flow enqueue and dequeue with a persistent
 // multi-flow backlog; PushPop by itself mostly measures the empty-queue path.
 func BenchmarkFairQueueSaturated(b *testing.B) {
-	for _,flows:=range []int{8,128,512} {
-		b.Run("flows="+itoa(flows),func(b *testing.B) {
-			const packets=1024
-			q:=NewFairQueue[int](FairConfig{MaxPackets:packets,MaxBytes:packets*1500,Quantum:1514})
-			now:=time.Now()
-			for i:=range packets {
-				if !q.Push(uint64(i%flows),1400,i,now){b.Fatal("preload")}
+	for _, flows := range []int{8, 128, 512} {
+		b.Run("flows="+itoa(flows), func(b *testing.B) {
+			const packets = 1024
+			q := NewFairQueue[int](FairConfig{MaxPackets: packets, MaxBytes: packets * 1500, Quantum: 1514})
+			now := time.Now()
+			for i := range packets {
+				if !q.Push(uint64(i%flows), 1400, i, now) {
+					b.Fatal("preload")
+				}
 			}
 			b.ReportAllocs()
 			b.SetBytes(1400)
 			b.ResetTimer()
-			for i:=0;i<b.N;i++ {
-				_,ok,drops:=q.Pop(now)
-				if !ok||len(drops)!=0 {b.Fatal("dequeue")}
-				if !q.Push(uint64(i%flows),1400,i,now){b.Fatal("enqueue")}
+			for i := 0; i < b.N; i++ {
+				_, ok, drops := q.Pop(now)
+				if !ok || len(drops) != 0 {
+					b.Fatal("dequeue")
+				}
+				if !q.Push(uint64(i%flows), 1400, i, now) {
+					b.Fatal("enqueue")
+				}
 			}
 		})
 	}
 }
 func BenchmarkGovernorParallelSession(b *testing.B) {
-	g:=NewGovernor(Limits{MaxSessions:1<<20},nil)
+	g := NewGovernor(Limits{MaxSessions: 1 << 20}, nil)
 	b.ReportAllocs()
-	b.RunParallel(func(pb *testing.PB){
+	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			lease,ok:=g.AcquireSession()
-			if !ok{b.Fatal("session budget")}
+			lease, ok := g.AcquireSession()
+			if !ok {
+				b.Fatal("session budget")
+			}
 			lease.Release()
 		}
 	})
