@@ -32,6 +32,7 @@
   - [OpenVPN](pkg/net/proxy/openvpn/README.md) (native TCP/UDP, IPv4/IPv6, AEAD, rekey)
   - [GlobalProtect SSL](pkg/net/proxy/globalprotect/README.md) (experimental SSL or optional ESP/UDP; gateway routes and DNS are informational and are not applied automatically)
   - [AmneziaWG](pkg/net/proxy/amneziawg/README.md) (WireGuard with Amnezia obfuscation)
+  - [Nebula](pkg/net/proxy/nebula/README.md) (official encrypted mesh engine with userspace IP stack, no system TUN)
   - [IKEv2](pkg/net/proxy/ikev2/README.md) (IKEv2/IPsec with PSK and EAP-MSCHAPv2)
   - [AnyConnect](pkg/net/proxy/anyconnect/README.md) (CSTP over TLS with optional DTLS)
   - [SSTP](pkg/net/proxy/sstp/README.md) (PPP over TLS with MS-CHAPv2)

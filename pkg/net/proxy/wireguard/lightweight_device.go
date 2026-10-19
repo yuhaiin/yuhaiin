@@ -102,6 +102,11 @@ func (n *LightweightNetTun) Write(buffers [][]byte, offset int) (int, error) {
 	return count, nil
 }
 
+// InjectPacket delivers one decrypted IP packet into the lightweight stack.
+// Unlike Write (the WireGuard TUN interface), this flows from the tunnel engine
+// toward local TCP/UDP sockets, rather than from sockets toward the engine.
+func (n *LightweightNetTun) InjectPacket(b []byte) error { return n.link.fromEngine.write(b) }
+
 // ReadPacket bridges the incompatible TUN APIs of different WireGuard engines.
 func (n *LightweightNetTun) ReadPacket(b []byte) (int, error) { return n.link.toEngine.read(b) }
 func (n *LightweightNetTun) Flush() error                     { return nil }

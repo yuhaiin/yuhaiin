@@ -127,6 +127,7 @@ type Protocol struct {
 	Reality      *Reality      `json:"reality,omitzero"`
 	TLS          *TLS          `json:"tls,omitzero"`
 	AmneziaWG    *AmneziaWG    `json:"amneziawg,omitzero"`
+	Nebula       *Nebula       `json:"nebula,omitzero"`
 	// Additional client-only enterprise VPN protocols.
 	IKEv2                *IKEv2                `json:"ikev2,omitzero"`
 	AnyConnect           *AnyConnect           `json:"anyconnect,omitzero"`
@@ -498,6 +499,12 @@ type Fortinet struct {
 	MTU                int32  `json:"mtu,omitzero"`
 }
 
+// Nebula embeds a standard client configuration as YAML.
+// Certificates and private keys should be supplied inline, not as host file paths.
+type Nebula struct {
+	ConfigYAML string `json:"config_yaml"`
+}
+
 type Wireguard struct {
 	SecretKey string          `json:"secretKey"`
 	Endpoint  []string        `json:"endpoint,omitzero"`
@@ -607,6 +614,7 @@ func (HTTP2) ProtocolType() string                { return "http2" }
 func (Reality) ProtocolType() string              { return "reality" }
 func (TLS) ProtocolType() string                  { return "tls" }
 func (AmneziaWG) ProtocolType() string            { return "amneziawg" }
+func (Nebula) ProtocolType() string               { return "nebula" }
 func (IKEv2) ProtocolType() string                { return "ikev2" }
 func (AnyConnect) ProtocolType() string           { return "anyconnect" }
 func (SSTP) ProtocolType() string                 { return "sstp" }
@@ -816,6 +824,7 @@ func (x Protocol) presentVariants() map[string]bool {
 		"reality":                x.Reality != nil,
 		"tls":                    x.TLS != nil,
 		"amneziawg":              x.AmneziaWG != nil,
+		"nebula":                 x.Nebula != nil,
 		"ikev2":                  x.IKEv2 != nil,
 		"anyconnect":             x.AnyConnect != nil,
 		"sstp":                   x.SSTP != nil,

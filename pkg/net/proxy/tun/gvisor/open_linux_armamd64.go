@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	vnetlink "github.com/vishvananda/netlink"
@@ -93,23 +94,23 @@ func closeTunFDs(fds []int) {
 	}
 }
 
-func resizeTunQueue(fd int) error {
+func resizeTunQueue(fd int) (attached bool, err error) {
 	// Linux sizes the userspace receive ring when a TUN queue is attached.
 	// Reattach after setting tx_queue_len so the FD uses the requested capacity.
 	ifr, err := unix.NewIfreq("")
 	if err != nil {
-		return err
+		return true, err
 	}
 	ifr.SetUint16(unix.IFF_DETACH_QUEUE)
 	if err := unix.IoctlIfreq(fd, unix.TUNSETQUEUE, ifr); err != nil {
-		return fmt.Errorf("detach tun queue: %w", err)
+		return true, fmt.Errorf("detach tun queue: %w", err)
 	}
 
 	ifr.SetUint16(unix.IFF_ATTACH_QUEUE)
 	if err := unix.IoctlIfreq(fd, unix.TUNSETQUEUE, ifr); err != nil {
-		return fmt.Errorf("reattach tun queue: %w", err)
+		return false, fmt.Errorf("reattach tun queue: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
 func init() {
@@ -147,23 +148,39 @@ func init() {
 				closeTunFDs(fds)
 				return nil, err
 			}
+			txQueueLengthSet := true
 			if err := vnetlink.LinkSetTxQLen(tunLink, tunTxQueueLength); err != nil {
-				closeTunFDs(fds)
-				return nil, fmt.Errorf("set tun tx queue length: %w", err)
+				log.Warn("set tun tx queue length failed; using existing queue length", "name", sc.Name, "err", err)
+				txQueueLengthSet = false
 			}
 
 			if err := vnetlink.LinkSetMTU(tunLink, mtu); err != nil {
-				closeTunFDs(fds)
-				return nil, err
+				if currentMTU := tunLink.Attrs().MTU; currentMTU != mtu {
+					closeTunFDs(fds)
+					return nil, fmt.Errorf("set tun mtu: %w", err)
+				}
+				log.Debug("set tun mtu failed; interface already has requested mtu", "name", sc.Name, "mtu", mtu, "err", err)
 			}
 
-			if multiQueue {
+			if multiQueue && txQueueLengthSet {
+				resizedFDs := make([]int, 0, len(fds))
+				var lastResizeErr error
 				for _, fd := range fds {
-					if err := resizeTunQueue(fd); err != nil {
-						closeTunFDs(fds)
-						return nil, fmt.Errorf("resize tun receive queue: %w", err)
+					attached, err := resizeTunQueue(fd)
+					if err != nil {
+						log.Warn("resize tun receive queue failed", "name", sc.Name, "err", err)
+						lastResizeErr = err
+						if !attached {
+							_ = unix.Close(fd)
+							continue
+						}
 					}
+					resizedFDs = append(resizedFDs, fd)
 				}
+				if len(resizedFDs) == 0 {
+					return nil, fmt.Errorf("resize tun receive queue: no attached queues remain: %w", lastResizeErr)
+				}
+				fds = resizedFDs
 			}
 
 			endpoint, err := fdbased.New(&fdbased.Options{
