@@ -8,9 +8,9 @@ import (
 func TestZeroTierTaggedJSONRoundTrip(t *testing.T) {
 	config := ZeroTier{
 		NetworkID: "8056c2e21c000001",
-		Identity: "home",
-		Listen: ":0",
-		Moons: []ZeroTierMoon{{ID: "fffffffffffffffe", Seed: "0123456789abcdef"}},
+		Identity:  "home",
+		Listen:    ":0",
+		Moons:     []ZeroTierMoon{{ID: "fffffffffffffffe", Seed: "0123456789abcdef"}},
 	}
 	protocol, err := NewTypedProtocol(config)
 	if err != nil {
