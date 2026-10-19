@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "revision": 0,
   "gateways": [
     {
@@ -6,105 +7,105 @@
       "name": "Example site",
       "enabled": true,
       "revision": 0,
-      "listen": "127.0.0.1:8080",
-      "allowedSources": [],
-      "tlsMode": "off",
-      "ruleIds": [
-        "ads",
-        "api"
-      ],
-      "default": {
-        "type": "reverse_proxy",
-        "upstream": "application",
-        "outbound": {
-          "type": "inherit_route"
-        },
-        "preserveHost": true,
-        "rewrite": {}
-      },
-      "maxBodyBytes": 16777216
-    }
-  ],
-  "rules": [
-    {
-      "id": "ads",
-      "name": "Block ad paths",
-      "enabled": true,
-      "revision": 0,
-      "priority": 10,
-      "match": {
-        "all": [
-          {
-            "field": "host",
-            "operator": "domain",
-            "value": "app.example.com"
+      "policies": [
+        {
+          "id": "ads",
+          "name": "Block ad paths",
+          "enabled": true,
+          "revision": 0,
+          "priority": 10,
+          "match": {
+            "all": [
+              {
+                "field": "host",
+                "operator": "domain",
+                "value": "app.example.com"
+              },
+              {
+                "field": "path",
+                "operator": "prefix",
+                "value": "/ads/"
+              }
+            ]
           },
-          {
+          "action": {
+            "type": "block",
+            "status": 204,
+            "outbound": {
+              "type": "inherit_route"
+            },
+            "rewrite": {}
+          }
+        },
+        {
+          "id": "api",
+          "name": "API route",
+          "enabled": true,
+          "revision": 0,
+          "priority": 20,
+          "match": {
             "field": "path",
             "operator": "prefix",
-            "value": "/ads/"
+            "value": "/api/"
+          },
+          "action": {
+            "type": "reverse_proxy",
+            "upstream": "application",
+            "outbound": {
+              "type": "direct"
+            },
+            "preserveHost": true,
+            "rewrite": {}
           }
-        ]
-      },
-      "action": {
-        "type": "block",
-        "status": 204,
-        "outbound": {
-          "type": "inherit_route"
-        },
-        "rewrite": {}
-      }
-    },
-    {
-      "id": "api",
-      "name": "API route",
-      "enabled": true,
-      "revision": 0,
-      "priority": 20,
-      "match": {
-        "field": "path",
-        "operator": "prefix",
-        "value": "/api/"
-      },
-      "action": {
+        }
+      ],
+      "backendPools": [
+        {
+          "id": "application",
+          "name": "Application",
+          "revision": 0,
+          "backends": [
+            {
+              "url": "http://127.0.0.1:3000",
+              "weight": 1
+            }
+          ],
+          "balance": "round_robin",
+          "outbound": {
+            "type": "direct"
+          },
+          "connectTimeoutMs": 10000,
+          "idleTimeoutMs": 90000,
+          "requestTimeoutMs": 30000,
+          "maxConnections": 32,
+          "maxConcurrent": 128,
+          "requestsPerSecond": 0,
+          "healthPath": "/health",
+          "healthIntervalMs": 10000,
+          "failureThreshold": 3,
+          "recoveryMs": 30000,
+          "retries": 1
+        }
+      ],
+      "sources": [],
+      "filters": [],
+      "fallback": {
         "type": "reverse_proxy",
         "upstream": "application",
         "outbound": {
-          "type": "direct"
+          "type": "inherit_route"
         },
         "preserveHost": true,
         "rewrite": {}
+      },
+      "maxBodyBytes": 16777216,
+      "listener": {
+        "listen": "127.0.0.1:8080",
+        "allowedSources": [],
+        "tlsMode": "off",
+        "certificateFile": "",
+        "keyFile": ""
       }
     }
-  ],
-  "upstreams": [
-    {
-      "id": "application",
-      "name": "Application",
-      "revision": 0,
-      "backends": [
-        {
-          "url": "http://127.0.0.1:3000",
-          "weight": 1
-        }
-      ],
-      "balance": "round_robin",
-      "outbound": {
-        "type": "direct"
-      },
-      "connectTimeoutMs": 10000,
-      "idleTimeoutMs": 90000,
-      "requestTimeoutMs": 30000,
-      "maxConnections": 32,
-      "maxConcurrent": 128,
-      "requestsPerSecond": 0,
-      "healthPath": "/health",
-      "healthIntervalMs": 10000,
-      "failureThreshold": 3,
-      "recoveryMs": 30000,
-      "retries": 1
-    }
-  ],
-  "interceptions": [],
-  "filterLists": []
+  ]
 }
