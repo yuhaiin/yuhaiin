@@ -27,11 +27,11 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261016193835-65584995a244
-	github.com/yuhaiin/zerotier-go v0.0.0-20261019112550-705c6f61c305
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261019092746-3380d631bda6
+	github.com/yuhaiin/zerotier-go v0.0.0-20261019112922-68918ea3c480
 	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.58.0
-	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba
+	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e
 	golang.org/x/mobile v0.0.0-20261011034528-197770444867
 	golang.org/x/mod v0.42.0
 	golang.org/x/net v0.61.0
