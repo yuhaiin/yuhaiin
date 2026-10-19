@@ -22,7 +22,7 @@ type gatewayCARevisionRequest struct {
 }
 
 func addGatewayRPCRoutesV2(handlers *v2Handlers, services V2Services) {
-	addRPCRoute(handlers, v2GatewayFilterRefresh, func(ctx context.Context, r *idRequest) (*contract.Config, error) {
+	addRPCRoute(handlers, v2GatewayFilterRefresh, func(ctx context.Context, r *idRequest) (*contract.Workspace, error) {
 		if services.Gateway == nil {
 			return nil, unavailable("gateway is unavailable")
 		}
@@ -30,7 +30,11 @@ func addGatewayRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 		if err != nil {
 			return nil, badRequest(err)
 		}
-		return &v, nil
+		workspace, err := contract.WorkspaceFromConfig(v)
+		if err != nil {
+			return nil, badRequest(err)
+		}
+		return &workspace, nil
 	})
 	service := func() (GatewayController, error) {
 		if services.Gateway == nil {
@@ -38,23 +42,35 @@ func addGatewayRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 		}
 		return services.Gateway, nil
 	}
-	addRPCRoute(handlers, v2GatewayConfigGet, func(_ context.Context, _ *emptyRequest) (*contract.Config, error) {
+	addRPCRoute(handlers, v2GatewayWorkspaceGet, func(_ context.Context, _ *emptyRequest) (*contract.Workspace, error) {
 		s, err := service()
 		if err != nil {
 			return nil, err
 		}
-		return new(s.Config()), nil
-	})
-	addRPCRoute(handlers, v2GatewayConfigPut, func(ctx context.Context, r *contract.Config) (*contract.Config, error) {
-		s, err := service()
-		if err != nil {
-			return nil, err
-		}
-		v, err := s.Save(ctx, *r)
+		workspace, err := contract.WorkspaceFromConfig(s.Config())
 		if err != nil {
 			return nil, badRequest(err)
 		}
-		return &v, nil
+		return &workspace, nil
+	})
+	addRPCRoute(handlers, v2GatewayWorkspacePut, func(ctx context.Context, r *contract.Workspace) (*contract.Workspace, error) {
+		s, err := service()
+		if err != nil {
+			return nil, err
+		}
+		config, err := contract.ConfigFromWorkspace(*r)
+		if err != nil {
+			return nil, badRequest(err)
+		}
+		saved, err := s.Save(ctx, config)
+		if err != nil {
+			return nil, badRequest(err)
+		}
+		workspace, err := contract.WorkspaceFromConfig(saved)
+		if err != nil {
+			return nil, badRequest(err)
+		}
+		return &workspace, nil
 	})
 	addRPCRoute(handlers, v2GatewayStatus, func(_ context.Context, _ *emptyRequest) (*contract.RuntimeStatus, error) {
 		s, err := service()

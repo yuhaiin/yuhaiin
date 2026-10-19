@@ -24,9 +24,11 @@ func (s *GatewayStore) Load(ctx context.Context) (contract.Config, error) {
 	if err != nil {
 		return contract.Config{}, err
 	}
-	var cfg contract.Config
-	err = json.Unmarshal([]byte(data), &cfg)
-	return cfg, err
+	var document contract.Workspace
+	if err := json.Unmarshal([]byte(data), &document); err != nil {
+		return contract.Config{}, err
+	}
+	return contract.ConfigFromWorkspace(document)
 }
 
 // Save commits the complete, validated configuration and all external resource
@@ -78,7 +80,11 @@ func (s *GatewayStore) Save(ctx context.Context, cfg contract.Config) (contract.
 		}
 	}
 	cfg.Revision++
-	data, err := json.Marshal(cfg)
+	workspace, err := contract.WorkspaceFromConfig(cfg)
+	if err != nil {
+		return cfg, err
+	}
+	data, err := json.Marshal(workspace)
 	if err != nil {
 		return cfg, err
 	}

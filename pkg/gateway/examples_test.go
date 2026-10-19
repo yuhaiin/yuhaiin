@@ -25,8 +25,12 @@ func TestDocumentedConfigurationsCompile(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var config contract.Config
-			if err := json.Unmarshal(data, &config); err != nil {
+			var document contract.Workspace
+			if err := json.Unmarshal(data, &document); err != nil {
+				t.Fatal(err)
+			}
+			config, err := contract.ConfigFromWorkspace(document)
+			if err != nil {
 				t.Fatal(err)
 			}
 			// Validate complete policy/interception/CA references without binding the
