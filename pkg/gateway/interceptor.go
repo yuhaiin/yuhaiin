@@ -80,8 +80,8 @@ func (m *Manager) intercept(ctx *netapi.Context, meta *netapi.StreamMeta, gatewa
 		return false
 	}
 	if sniffHost != "" && !matchesDomains(sniffHost, config.Domains, config.ExcludeDomains) &&
-		!(config.Mode == "https_mitm" && destination.IsFqdn() &&
-			matchesDomains(hostname(destination.Hostname()), config.Domains, config.ExcludeDomains)) {
+		(config.Mode != "https_mitm" || !destination.IsFqdn() ||
+			!matchesDomains(hostname(destination.Hostname()), config.Domains, config.ExcludeDomains)) {
 		return false
 	}
 	if ctx.Err() != nil {
