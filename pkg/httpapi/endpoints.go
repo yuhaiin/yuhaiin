@@ -281,7 +281,6 @@ func newV2Handlers(services V2Services) *v2Handlers {
 	addResolverRPCRoutesV2(handlers, services)
 	addInboundRPCRoutesV2(handlers, services)
 	addGatewayRPCRoutesV2(handlers, services)
-	addGatewayResourceRoutes(handlers, services)
 	return handlers
 }
 
