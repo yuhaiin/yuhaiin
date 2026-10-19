@@ -128,6 +128,7 @@ type Protocol struct {
 	TLS          *TLS          `json:"tls,omitzero"`
 	AmneziaWG    *AmneziaWG    `json:"amneziawg,omitzero"`
 	Nebula       *Nebula       `json:"nebula,omitzero"`
+	ZeroTier     *ZeroTier     `json:"zerotier,omitzero"`
 	// Additional client-only enterprise VPN protocols.
 	IKEv2                *IKEv2                `json:"ikev2,omitzero"`
 	AnyConnect           *AnyConnect           `json:"anyconnect,omitzero"`
@@ -505,6 +506,22 @@ type Nebula struct {
 	ConfigYAML string `json:"config_yaml"`
 }
 
+// ZeroTier joins a controller-managed L2 network using an embedded native core.
+// Identity is stored under the application data directory and survives restarts.
+type ZeroTier struct {
+	NetworkID    string         `json:"network_id"`
+	Identity     string         `json:"identity,omitzero"`
+	Listen       string         `json:"listen,omitzero"`
+	LibraryPath  string         `json:"library_path,omitzero"`
+	LowBandwidth bool           `json:"low_bandwidth,omitzero"`
+	Moons        []ZeroTierMoon `json:"moons,omitzero"`
+}
+
+type ZeroTierMoon struct {
+	ID   string `json:"id"`
+	Seed string `json:"seed"`
+}
+
 type Wireguard struct {
 	SecretKey string          `json:"secretKey"`
 	Endpoint  []string        `json:"endpoint,omitzero"`
@@ -615,6 +632,7 @@ func (Reality) ProtocolType() string              { return "reality" }
 func (TLS) ProtocolType() string                  { return "tls" }
 func (AmneziaWG) ProtocolType() string            { return "amneziawg" }
 func (Nebula) ProtocolType() string               { return "nebula" }
+func (ZeroTier) ProtocolType() string             { return "zerotier" }
 func (IKEv2) ProtocolType() string                { return "ikev2" }
 func (AnyConnect) ProtocolType() string           { return "anyconnect" }
 func (SSTP) ProtocolType() string                 { return "sstp" }
@@ -825,6 +843,7 @@ func (x Protocol) presentVariants() map[string]bool {
 		"tls":                    x.TLS != nil,
 		"amneziawg":              x.AmneziaWG != nil,
 		"nebula":                 x.Nebula != nil,
+		"zerotier":               x.ZeroTier != nil,
 		"ikev2":                  x.IKEv2 != nil,
 		"anyconnect":             x.AnyConnect != nil,
 		"sstp":                   x.SSTP != nil,

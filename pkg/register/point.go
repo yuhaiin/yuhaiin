@@ -165,6 +165,8 @@ func ContractProtocolConfig(protocol contractnode.Protocol) (any, error) {
 		return *protocol.AmneziaWG, nil
 	case "nebula":
 		return *protocol.Nebula, nil
+	case "zerotier":
+		return *protocol.ZeroTier, nil
 	case "ikev2":
 		return *protocol.IKEv2, nil
 	case "anyconnect":

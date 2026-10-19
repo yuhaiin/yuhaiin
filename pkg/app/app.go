@@ -66,6 +66,7 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/zerotier"
 )
 
 var operators = []func(*closers){}
