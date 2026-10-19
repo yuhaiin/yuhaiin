@@ -170,8 +170,9 @@ type CAImport struct {
 }
 
 type RuntimeStatus struct {
-	Revision uint64          `json:"revision"`
-	Gateways []GatewayStatus `json:"gateways"`
+	Revision     uint64          `json:"revision"`
+	Gateways     []GatewayStatus `json:"gateways"`
+	StartupError string          `json:"startupError,omitzero"`
 }
 type GatewayStatus struct {
 	FilterReports    []FilterReport   `json:"filterReports"`

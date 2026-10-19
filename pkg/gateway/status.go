@@ -9,9 +9,12 @@ import (
 
 func (m *Manager) Status() contract.RuntimeStatus {
 	s := m.current.Load()
-	result := contract.RuntimeStatus{Revision: s.config.Revision, Gateways: []contract.GatewayStatus{}}
+	result := contract.RuntimeStatus{Revision: s.config.Revision, Gateways: []contract.GatewayStatus{}, StartupError: s.startupError}
 	for _, config := range s.config.Gateways {
 		g := s.gateways[config.ID]
+		if g == nil {
+			continue
+		}
 		c := g.engine.Counters
 		status := contract.GatewayStatus{ID: config.ID, Enabled: config.Enabled, Requests: c.Requests.Load(), Blocked: c.Blocked.Load(), Forwarded: c.Forwarded.Load(), Errors: c.Errors.Load(), TLSFailures: c.TLSFailures.Load(), ProtocolFailures: c.ProtocolFailures.Load(), DurationNS: c.DurationNS.Load(), Upstreams: []contract.UpstreamStatus{}}
 		status.FilterReports = g.engine.filters.reports

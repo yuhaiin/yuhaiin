@@ -12,6 +12,7 @@ import (
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractsubscription "github.com/Asutorufa/yuhaiin/pkg/contract/subscription"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 type SubscriptionStore struct {
@@ -44,7 +45,8 @@ func (s *SubscriptionStore) ListLinks(ctx context.Context) (contractsubscription
 		}
 		link, err := decodeSubscriptionLink(name, dataJSON)
 		if err != nil {
-			return contractsubscription.LinkList{}, err
+			log.Warn("skip invalid stored subscription", "name", name, "err", err)
+			continue
 		}
 		out.Items = append(out.Items, link)
 	}
@@ -156,7 +158,8 @@ func (s *SubscriptionStore) ListPublishes(ctx context.Context) (contractsubscrip
 		}
 		publish, err := decodePublish(name, dataJSON)
 		if err != nil {
-			return contractsubscription.PublishList{}, err
+			log.Warn("skip invalid stored publish", "name", name, "err", err)
+			continue
 		}
 		out.Items = append(out.Items, publish)
 	}

@@ -37,6 +37,14 @@ func (m *Manager) InterceptGateway(ctx *netapi.Context, meta *netapi.StreamMeta,
 	if id == "" {
 		return false
 	}
+	if m.current.Load().startupError != "" {
+		// A Route explicitly selected this failed Gateway. Returning false here
+		// would silently bypass its policy through ordinary forwarding.
+		if meta.Src != nil {
+			_ = meta.Src.Close()
+		}
+		return true
+	}
 	return m.intercept(ctx, meta, id)
 }
 

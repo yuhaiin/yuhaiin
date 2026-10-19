@@ -10,6 +10,7 @@ import (
 	"time"
 
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 type ResolverStore struct {
@@ -29,7 +30,7 @@ func (s *ResolverStore) List(ctx context.Context) ([]contractresolver.Resolver, 
 		return nil, errors.New("resolver store database is nil")
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT data_json
+		SELECT id, data_json
 		FROM resolvers_v2
 		ORDER BY id
 	`)
@@ -40,13 +41,14 @@ func (s *ResolverStore) List(ctx context.Context) ([]contractresolver.Resolver, 
 
 	var out []contractresolver.Resolver
 	for rows.Next() {
-		var dataJSON string
-		if err := rows.Scan(&dataJSON); err != nil {
+		var id, dataJSON string
+		if err := rows.Scan(&id, &dataJSON); err != nil {
 			return nil, fmt.Errorf("scan resolver contract failed: %w", err)
 		}
 		resolver, err := decodeResolver(dataJSON)
 		if err != nil {
-			return nil, err
+			log.Warn("skip invalid stored resolver", "id", id, "err", err)
+			continue
 		}
 		out = append(out, resolver)
 	}

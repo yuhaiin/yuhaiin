@@ -12,6 +12,7 @@ import (
 	"uuid"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 type NodeStore struct {
@@ -170,7 +171,7 @@ func (s *NodeStore) List(ctx context.Context) ([]contractnode.Node, error) {
 		return nil, errors.New("node store database is nil")
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT data_json
+		SELECT id, data_json
 		FROM nodes_v2
 		ORDER BY group_name, name, id
 	`)
@@ -181,13 +182,14 @@ func (s *NodeStore) List(ctx context.Context) ([]contractnode.Node, error) {
 
 	var nodes []contractnode.Node
 	for rows.Next() {
-		var dataJSON string
-		if err := rows.Scan(&dataJSON); err != nil {
+		var id, dataJSON string
+		if err := rows.Scan(&id, &dataJSON); err != nil {
 			return nil, fmt.Errorf("scan node contract failed: %w", err)
 		}
 		node, err := decodeNodeContract(dataJSON)
 		if err != nil {
-			return nil, err
+			log.Warn("skip invalid stored node", "id", id, "err", err)
+			continue
 		}
 		nodes = append(nodes, node)
 	}
@@ -263,20 +265,21 @@ func (s *NodeStore) ListPage(ctx context.Context, group, query string, enabledOn
 		return nil, 0, fmt.Errorf("count group nodes: %w", err)
 	}
 	queryArgs := append(slices.Clone(args), pageSize, (page-1)*pageSize)
-	rows, err := s.db.QueryContext(ctx, "SELECT data_json FROM nodes_v2 WHERE "+where+" ORDER BY name, id LIMIT ? OFFSET ?", queryArgs...)
+	rows, err := s.db.QueryContext(ctx, "SELECT id, data_json FROM nodes_v2 WHERE "+where+" ORDER BY name, id LIMIT ? OFFSET ?", queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list group nodes: %w", err)
 	}
 	defer rows.Close()
 	items := []contractnode.Node{}
 	for rows.Next() {
-		var raw string
-		if err := rows.Scan(&raw); err != nil {
+		var id, raw string
+		if err := rows.Scan(&id, &raw); err != nil {
 			return nil, 0, err
 		}
 		node, err := decodeNodeContract(raw)
 		if err != nil {
-			return nil, 0, err
+			log.Warn("skip invalid stored node", "id", id, "err", err)
+			continue
 		}
 		items = append(items, node)
 	}

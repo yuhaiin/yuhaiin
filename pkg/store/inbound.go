@@ -10,6 +10,7 @@ import (
 	json "encoding/json/v2"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -109,7 +110,7 @@ func (s *InboundStore) List(ctx context.Context) ([]contract.Inbound, error) {
 	}
 
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT data_json
+		SELECT id, data_json
 		FROM inbounds_v2
 		ORDER BY name, id
 	`)
@@ -120,13 +121,14 @@ func (s *InboundStore) List(ctx context.Context) ([]contract.Inbound, error) {
 
 	var inbounds []contract.Inbound
 	for rows.Next() {
-		var dataJSON string
-		if err := rows.Scan(&dataJSON); err != nil {
+		var id, dataJSON string
+		if err := rows.Scan(&id, &dataJSON); err != nil {
 			return nil, fmt.Errorf("scan inbound failed: %w", err)
 		}
 		inbound, err := decodeInbound(dataJSON)
 		if err != nil {
-			return nil, err
+			log.Warn("skip invalid stored inbound", "id", id, "err", err)
+			continue
 		}
 		inbounds = append(inbounds, inbound)
 	}
@@ -171,9 +173,8 @@ func decodeInbound(dataJSON string) (contract.Inbound, error) {
 	if err := json.Unmarshal([]byte(dataJSON), &inbound); err != nil {
 		return contract.Inbound{}, fmt.Errorf("decode inbound failed: %w", err)
 	}
-	if err := inbound.Validate(); err != nil {
-		return contract.Inbound{}, fmt.Errorf("stored inbound %q is invalid: %w", inbound.ID, err)
-	}
+	// Reads retain unsupported protocol/network/transport tags so management can
+	// show and remove old configurations. Saving and activation validate them.
 	return inbound, nil
 }
 

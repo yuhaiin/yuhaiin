@@ -31,6 +31,13 @@ func (s *ContractStore) Sync(ctx context.Context) error {
 	}
 	var result error
 	for _, item := range items {
+		if err := item.Validate(); err != nil {
+			s.runtime.mu.Lock()
+			s.runtime.recordState(item.ID, "failed", err.Error())
+			s.runtime.mu.Unlock()
+			log.Warn("skip invalid stored inbound runtime", "id", item.ID, "err", err)
+			continue
+		}
 		result = errors.Join(result, s.runtime.SaveContract(item))
 	}
 	settings, err := s.Settings(ctx)
