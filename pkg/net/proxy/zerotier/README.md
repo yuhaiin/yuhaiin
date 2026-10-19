@@ -32,7 +32,7 @@ or select the ZeroTier node template in the web UI. Higher-level wrappers may fo
   characters. The default is the network ID. It picks the identity directory,
   not the ZeroTier address. Use distinct values for simultaneously active
   nodes. Reusing the same identity across processes is unsafe.
-- `listen` (optional): native physical UDP socket bind address, default
+- `listen` (optional): physical UDP socket bind address on the root outbound, default
   `:0` (ephemeral UDP port). No inbound network access to this port is
   required for basic relay connectivity, although NAT traversal benefits from
   inbound UDP.
@@ -60,9 +60,10 @@ or select the ZeroTier node template in the web UI. Higher-level wrappers may fo
 
 ### Limitations and security
 
-- The physical UDP underlay uses a dedicated OS socket and **cannot be chained
-  through another outbound**. This is rejected explicitly instead of routing
-  around a configured preceding proxy.
+- The encrypted physical UDP underlay uses the root outbound's packet socket,
+  so yuhaiin's interface binding and route handling apply. ZeroTier must remain
+  the root protocol; chaining through another outbound is rejected to prevent
+  recursive encapsulation.
 - The address and MTU come from the controller; the stack is replaced when
   those change. Existing TCP/UDP sessions cannot survive address replacement.
 - Controller-assigned routes are scoped to the overlay; they are not applied to
@@ -92,9 +93,30 @@ go test -race ./pkg/net/proxy/zerotier
 The hermetic tests cover ARP request/reply and buffered IPv4 delivery, IPv6
 neighbor solicitation/advertisement, 64-bit node/Moon configuration, and
 bounded pending queues. They are **not proof of native peer interoperability**.
-For complete validation, use `zerotier-go`'s official-controller real-link
-integration tests and repeat a real TCP and UDP round trip through this
-outbound on each target platform.
+
+On Linux AMD64/ARM64, `TestPodmanLiveConnectivity` performs real TCP and UDP
+round trips through this outbound. It is skipped unless all four environment
+variables are set. Point the TCP target at an HTTP service whose body contains
+`zt-e2e-ok`; point the UDP target at an echo service that prefixes replies with
+`zt-udp-ok:`. The test writes its ZeroTier node address to the supplied file,
+then waits up to two minutes for the test controller to authorize it:
+
+```sh
+mkdir -p /tmp/zerotier-live-test
+ZT_TEST_NETWORK_ID=0123456789abcdef \
+ZT_TEST_TARGET=192.168.199.2:18080 \
+ZT_TEST_UDP_TARGET=192.168.199.2:18081 \
+ZT_TEST_NODE_ID_FILE=/tmp/zerotier-live-test/member-id \
+go test -run '^TestPodmanLiveConnectivity$' -count=1 -v ./pkg/net/proxy/zerotier
+```
+
+Authorize the ten-hex-digit member ID written to `member-id` in the controller
+while the test is waiting. The run still needs a real authorized controller
+and a peer on the same ZeroTier network; the opt-in test does not create or
+authorize external infrastructure itself.
+
+The native module also has official-controller real-link tests. Run the live
+TCP/UDP test on each target platform before release.
 
 The native module's source and redistribution obligations are documented at
 [zerotier-go](https://github.com/yuhaiin/zerotier-go). The external ZeroTier

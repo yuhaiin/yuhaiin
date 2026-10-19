@@ -7,6 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 

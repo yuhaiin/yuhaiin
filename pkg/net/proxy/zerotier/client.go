@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"path/filepath"
@@ -39,11 +40,12 @@ type session struct {
 	mac      uint64
 }
 
-// Client owns a single ZeroTier identity, a physical UDP socket, and a
+// Client owns a ZeroTier identity, a root-outbound UDP socket, and a
 // dynamically configured in-memory IP stack. It never creates a system NIC.
 type Client struct {
 	netapi.EmptyDispatch
-	node      *zt.UDPNode
+	node      *zt.Node
+	underlay  net.PacketConn
 	id        zt.NetworkID
 	state     string
 	closing   chan struct{}
@@ -70,7 +72,7 @@ func init() {
 // approval. Dialers wait until the controller supplies managed addresses.
 func NewClient(cfg contractnode.ZeroTier, previous netapi.Proxy) (*Client, error) {
 	if !register.IsZero(previous) {
-		return nil, errors.New("zerotier: native physical UDP currently requires a root outbound; chaining is unsupported")
+		return nil, errors.New("zerotier: must be the root protocol; chaining through another outbound is unsupported")
 	}
 	id, err := zt.ParseNetworkID(cfg.NetworkID)
 	if err != nil {
@@ -104,19 +106,27 @@ func NewClient(cfg contractnode.ZeroTier, previous netapi.Proxy) (*Client, error
 	if addr == "" {
 		addr = defaultListen
 	}
-	c.node, err = zt.ListenUDP(zt.Config{
+	c.underlay, err = openUnderlay(previous, addr)
+	if err != nil {
+		identities.Delete(dir)
+		return nil, fmt.Errorf("zerotier: open root outbound UDP socket: %w", err)
+	}
+	c.node, err = zt.New(zt.Config{
 		Store: store, LibraryPath: cfg.LibraryPath,
 		LowBandwidth:    cfg.LowBandwidth,
+		SendWire:        c.sendWire,
 		OnFrame:         c.onFrame,
 		OnNetworkConfig: c.onNetworkConfig,
-	}, "udp", addr)
+	})
 	if err != nil {
+		_ = c.underlay.Close()
 		identities.Delete(dir)
 		return nil, fmt.Errorf("zerotier: start core: %w", err)
 	}
+	c.wg.Go(c.readWireLoop)
 	c.wg.Go(c.configLoop)
 	c.wg.Go(c.sendLoop)
-	if err := c.node.Node.Join(id); err != nil {
+	if err := c.node.Join(id); err != nil {
 		_ = c.Close()
 		return nil, fmt.Errorf("zerotier: join network: %w", err)
 	}
@@ -127,12 +137,53 @@ func NewClient(cfg contractnode.ZeroTier, previous netapi.Proxy) (*Client, error
 			_ = c.Close()
 			return nil, fmt.Errorf("zerotier: invalid moon ID or seed: %q %q", moon.ID, moon.Seed)
 		}
-		if err := c.node.Node.Orbit(moonID, seed); err != nil {
+		if err := c.node.Orbit(moonID, seed); err != nil {
 			_ = c.Close()
 			return nil, fmt.Errorf("zerotier: orbit moon: %w", err)
 		}
 	}
 	return c, nil
+}
+
+type packetConnOutbound interface {
+	PacketConn(context.Context, netapi.Address) (net.PacketConn, error)
+}
+
+func openUnderlay(outbound packetConnOutbound, address string) (net.PacketConn, error) {
+	ctx := netapi.WithContext(context.Background())
+	ctx.ConnOptions().SetBindAddress(address)
+	remote := netapi.ParseNetipAddrPort("udp", netip.AddrPortFrom(netip.IPv4Unspecified(), 0))
+	return outbound.PacketConn(ctx, remote)
+}
+
+func (c *Client) sendWire(packet zt.WirePacket) error {
+	n, err := c.underlay.WriteTo(packet.Data, net.UDPAddrFromAddrPort(packet.To))
+	if err != nil {
+		return err
+	}
+	if n != len(packet.Data) {
+		return io.ErrShortWrite
+	}
+	return nil
+}
+
+func (c *Client) readWireLoop() {
+	readWirePackets(c.underlay, c.node.ProcessWirePacket)
+}
+
+func readWirePackets(conn net.PacketConn, process func(netip.AddrPort, []byte) error) {
+	buf := make([]byte, 65535)
+	for {
+		n, remote, err := conn.ReadFrom(buf)
+		if err != nil {
+			return
+		}
+		addr, ok := remote.(*net.UDPAddr)
+		if !ok || n == 0 {
+			continue
+		}
+		_ = process(addr.AddrPort(), buf[:n])
+	}
 }
 
 func (c *Client) onNetworkConfig(cfg zt.NetworkConfig) {
@@ -231,11 +282,11 @@ func (c *Client) applyConfig(cfg zt.NetworkConfig) {
 	}
 	c.wg.Go(func() { c.packetLoop(s) })
 	// Subscribe from this goroutine, never the native callback dispatcher.
-	_ = c.node.Node.Subscribe(c.id, 0xffffffffffff, 0)
+	_ = c.node.Subscribe(c.id, 0xffffffffffff, 0)
 	for _, addr := range cfg.Addresses {
 		if addr.Addr().Is6() {
 			group := solicitedMAC(addr.Addr())
-			_ = c.node.Node.Subscribe(c.id, group, 0)
+			_ = c.node.Subscribe(c.id, group, 0)
 		}
 	}
 }
@@ -282,7 +333,7 @@ func (c *Client) sendLoop() {
 		case <-c.closing:
 			return
 		case frame := <-c.frames:
-			if err := c.node.Node.ProcessFrame(frame); err != nil && errors.Is(err, zt.ErrClosed) {
+			if err := c.node.ProcessFrame(frame); err != nil && errors.Is(err, zt.ErrClosed) {
 				return
 			}
 		}
@@ -353,7 +404,10 @@ func (c *Client) Close() error {
 		close(c.closing)
 		c.deactivate(zt.ErrClosed)
 		if c.node != nil {
-			result = c.node.Close()
+			result = errors.Join(result, c.node.Close())
+		}
+		if c.underlay != nil {
+			result = errors.Join(result, c.underlay.Close())
 		}
 		c.wg.Wait()
 		identities.Delete(c.state)
