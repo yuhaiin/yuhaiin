@@ -68,7 +68,7 @@ func (b *etherBridge) source(ip netip.Addr) netip.Addr {
 func (b *etherBridge) nextHop(dest netip.Addr) netip.Addr {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	var best int = -1
+	best := -1
 	next := dest
 	for _, route := range b.cfg.Routes {
 		if route.Target.Contains(dest) && route.Target.Bits() > best && route.Via.IsValid() && !route.Via.IsUnspecified() {
@@ -76,6 +76,24 @@ func (b *etherBridge) nextHop(dest netip.Addr) netip.Addr {
 		}
 	}
 	return next
+}
+
+func (b *etherBridge) ipv4Broadcast(dest netip.Addr) bool {
+	if !dest.Is4() {
+		return false
+	}
+	destination := binary.BigEndian.Uint32(dest.AsSlice())
+	for _, prefix := range b.cfg.Addresses {
+		if !prefix.IsValid() || !prefix.Addr().Is4() || prefix.Bits() >= 31 {
+			continue
+		}
+		network := binary.BigEndian.Uint32(prefix.Masked().Addr().AsSlice())
+		hostMask := ^uint32(0) >> prefix.Bits()
+		if destination == network|hostMask {
+			return true
+		}
+	}
+	return false
 }
 
 // updateRoutes changes managed routes without disconnecting existing TCP/UDP sessions.
@@ -117,7 +135,7 @@ func (b *etherBridge) outgoing(data []byte) {
 		}
 		return
 	}
-	if dest.Is4() && dest == netip.MustParseAddr("255.255.255.255") {
+	if dest.Is4() && (dest == netip.MustParseAddr("255.255.255.255") || b.ipv4Broadcast(dest)) {
 		b.emit(broadcast, etherType, append([]byte(nil), data...))
 		return
 	}
@@ -170,9 +188,10 @@ func (b *etherBridge) learn(ip netip.Addr, mac uint64) {
 		if len(p) == 0 {
 			continue
 		}
-		if p[0]>>4 == 4 {
+		switch p[0] >> 4 {
+		case 4:
 			b.emit(mac, etherIPv4, p)
-		} else if p[0]>>4 == 6 {
+		case 6:
 			b.emit(mac, etherIPv6, p)
 		}
 	}

@@ -114,9 +114,8 @@ func NewClient(cfg contractnode.ZeroTier, previous netapi.Proxy) (*Client, error
 		identities.Delete(dir)
 		return nil, fmt.Errorf("zerotier: start core: %w", err)
 	}
-	c.wg.Add(2)
-	go c.configLoop()
-	go c.sendLoop()
+	c.wg.Go(c.configLoop)
+	c.wg.Go(c.sendLoop)
 	if err := c.node.Node.Join(id); err != nil {
 		_ = c.Close()
 		return nil, fmt.Errorf("zerotier: join network: %w", err)
@@ -157,7 +156,6 @@ func (c *Client) onNetworkConfig(cfg zt.NetworkConfig) {
 }
 
 func (c *Client) configLoop() {
-	defer c.wg.Done()
 	for {
 		select {
 		case <-c.closing:
@@ -169,6 +167,12 @@ func (c *Client) configLoop() {
 }
 
 func (c *Client) applyConfig(cfg zt.NetworkConfig) {
+	select {
+	case <-c.closing:
+		return
+	default:
+	}
+
 	if cfg.Operation == zt.NetworkDown || cfg.Operation == zt.NetworkDestroyed {
 		c.deactivate(errors.New("zerotier: network disconnected"))
 		return
@@ -216,17 +220,16 @@ func (c *Client) applyConfig(cfg zt.NetworkConfig) {
 		}
 	}, tun.InjectPacket)
 	s := &session{tun: tun, bridge: bridge, mtu: mtu, mac: cfg.MAC, prefixes: append([]netip.Prefix(nil), cfg.Addresses...)}
-	c.mu.Lock()
-	old = c.active
-	c.active = s
-	c.failure = nil
-	c.mu.Unlock()
+	old, installed := c.installSession(s)
+	if !installed {
+		_ = tun.Close()
+		return
+	}
 	c.readyOnce.Do(func() { close(c.ready) })
 	if old != nil {
 		_ = old.tun.Close()
 	}
-	c.wg.Add(1)
-	go c.packetLoop(s)
+	c.wg.Go(func() { c.packetLoop(s) })
 	// Subscribe from this goroutine, never the native callback dispatcher.
 	_ = c.node.Node.Subscribe(c.id, 0xffffffffffff, 0)
 	for _, addr := range cfg.Addresses {
@@ -235,6 +238,20 @@ func (c *Client) applyConfig(cfg zt.NetworkConfig) {
 			_ = c.node.Node.Subscribe(c.id, group, 0)
 		}
 	}
+}
+
+func (c *Client) installSession(s *session) (*session, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	select {
+	case <-c.closing:
+		return nil, false
+	default:
+	}
+	old := c.active
+	c.active = s
+	c.failure = nil
+	return old, true
 }
 
 func (c *Client) deactivate(err error) {
@@ -249,7 +266,6 @@ func (c *Client) deactivate(err error) {
 }
 
 func (c *Client) packetLoop(s *session) {
-	defer c.wg.Done()
 	buf := make([]byte, 65535)
 	for {
 		n, err := s.tun.ReadPacket(buf)
@@ -261,7 +277,6 @@ func (c *Client) packetLoop(s *session) {
 }
 
 func (c *Client) sendLoop() {
-	defer c.wg.Done()
 	for {
 		select {
 		case <-c.closing:

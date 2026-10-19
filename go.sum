@@ -367,6 +367,8 @@ github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261016193835-65584995a244 h1:fk7KR
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261016193835-65584995a244/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuhaiin/zerotier-go v0.0.0-20261019095942-a92186ebc0c1 h1:brb51EI0HgAvNEiXGYqx4SAc0+e07PsIteXR9j6Nlyw=
 github.com/yuhaiin/zerotier-go v0.0.0-20261019095942-a92186ebc0c1/go.mod h1:tj43hgM1bWIR/0HMUwaEOFVxPxCbr/HAnbAkSjn//Uo=
+github.com/yuhaiin/zerotier-go v0.0.0-20261019112550-705c6f61c305 h1:O4fw2YdCIu8xdhQqk9xhuOqII787M9ikJSY0QDyhCJk=
+github.com/yuhaiin/zerotier-go v0.0.0-20261019112550-705c6f61c305/go.mod h1:tj43hgM1bWIR/0HMUwaEOFVxPxCbr/HAnbAkSjn//Uo=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 go.uber.org/atomic v1.11.0 h1:ZvwS0R+56ePWxUNi+Atn9dWONBPp/AUETXlHW0DxSjE=

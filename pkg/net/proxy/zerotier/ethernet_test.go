@@ -4,6 +4,7 @@ package zerotier
 
 import (
 	"encoding/binary"
+	"fmt"
 	"net/netip"
 	"testing"
 
@@ -61,6 +62,26 @@ func TestARPResolveAndReply(t *testing.T) {
 	b.incoming(zt.Frame{NetworkID: id, SourceMAC: peerMAC, EtherType: etherIPv4, Data: append([]byte(nil), ip...)})
 	if len(injected) != 1 {
 		t.Fatal("IPv4 packet must be delivered to userspace IP stack")
+	}
+}
+
+func TestIPv4DirectedBroadcastUsesEthernetBroadcast(t *testing.T) {
+	id := zt.NetworkID(3)
+	local := netip.MustParseAddr("10.44.1.2")
+	directedBroadcast := netip.MustParseAddr("10.44.1.255")
+	var frames []zt.Frame
+	b := newEtherBridge(zt.NetworkConfig{
+		ID: id, MAC: 10, Addresses: []netip.Prefix{netip.MustParsePrefix("10.44.1.2/24")},
+	}, func(f zt.Frame) { frames = append(frames, f) }, func([]byte) error { return nil })
+	ip := make([]byte, 20)
+	ip[0] = 0x45
+	src, dst := local.As4(), directedBroadcast.As4()
+	copy(ip[12:16], src[:])
+	copy(ip[16:20], dst[:])
+
+	b.outgoing(ip)
+	if len(frames) != 1 || frames[0].EtherType != etherIPv4 || frames[0].DestinationMAC != broadcast {
+		t.Fatalf("directed subnet broadcast must use the Ethernet broadcast MAC, got %+v", frames)
 	}
 }
 
@@ -138,5 +159,54 @@ func TestManagedRouteUpdatesDoNotReplaceNeighborBridge(t *testing.T) {
 	b.outgoing(pkt)
 	if len(sent) != 2 || netip.AddrFrom4([4]byte(sent[1].Data[24:28])) != gateway2 {
 		t.Fatal("updated route must use its new gateway without replacing the IP stack")
+	}
+}
+
+func benchmarkIPv4Packet(src, dst netip.Addr, size int) []byte {
+	packet := make([]byte, size)
+	packet[0] = 0x45
+	source, destination := src.As4(), dst.As4()
+	copy(packet[12:16], source[:])
+	copy(packet[16:20], destination[:])
+	return packet
+}
+
+func BenchmarkEtherBridgeIPv4KnownPeer(b *testing.B) {
+	for _, size := range []int{64, 1400} {
+		b.Run(fmt.Sprintf("%dB", size), func(b *testing.B) {
+			local := netip.MustParseAddr("10.0.0.1")
+			peer := netip.MustParseAddr("10.0.0.2")
+			bridge := newEtherBridge(zt.NetworkConfig{
+				ID: 1, MAC: 1, Addresses: []netip.Prefix{netip.MustParsePrefix("10.0.0.1/24")},
+			}, func(zt.Frame) {}, func([]byte) error { return nil })
+			bridge.neighbors[peer] = 2
+			packet := benchmarkIPv4Packet(local, peer, size)
+			b.ReportAllocs()
+			b.SetBytes(int64(size))
+			for b.Loop() {
+				bridge.outgoing(packet)
+			}
+		})
+	}
+}
+
+func BenchmarkEtherBridgeIPv4Receive(b *testing.B) {
+	for _, size := range []int{64, 1400} {
+		b.Run(fmt.Sprintf("%dB", size), func(b *testing.B) {
+			local := netip.MustParseAddr("10.0.0.1")
+			peer := netip.MustParseAddr("10.0.0.2")
+			bridge := newEtherBridge(zt.NetworkConfig{
+				ID: 1, MAC: 1, Addresses: []netip.Prefix{netip.MustParsePrefix("10.0.0.1/24")},
+			}, func(zt.Frame) {}, func([]byte) error { return nil })
+			frame := zt.Frame{
+				NetworkID: 1, SourceMAC: 2, DestinationMAC: 1, EtherType: etherIPv4,
+				Data: benchmarkIPv4Packet(peer, local, size),
+			}
+			b.ReportAllocs()
+			b.SetBytes(int64(size))
+			for b.Loop() {
+				bridge.incoming(frame)
+			}
+		})
 	}
 }
