@@ -77,3 +77,6 @@ The result contains ordered match steps, selected rule/action/upstream/outbound,
 and whether HTTPS parsing requires termination or MITM. Filter decisions are
 included. Process matching depends on metadata availability and the global
 process-lookup setting; it cannot recover a process that the OS does not expose.
+
+For the five Spotify URL denylist expressions, see the [complete configuration
+and L4 admission steps](route-handoff.md#spotify-example).

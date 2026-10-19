@@ -49,11 +49,37 @@ subsequent requests on surviving connections.
 
 ## Spotify example
 
+The upstream [spotify-adblock project](https://github.com/abba23/spotify-adblock)
+is an LD_PRELOAD library wrapping Spotify's URL request creation, not an HTTP
+proxy server. Reuse its denylist in our Gateway; do not configure that repository
+as an HTTP Upstream.
+
+[The complete Spotify example](examples/spotify-filter.json) represents the five
+URL regexes for regional `*-spclient.spotify.com` ads/ad-logic and
+`spclient.wg.spotify.com` ads/ad-logic/gabo-receiver-service. It uses one HTTP rule
+with **any** of five **URL / regex** leaves, action **block / 204**, and Gateway
+default **forward / inherit_route**. It needs no fixed reverse-proxy Upstream:
+allowed requests retain their original destinations and normal outbound choice.
+The URL filter-list importer accepts the documented Adblock subset, not a TOML
+`denylist` array or arbitrary regex; put these expressions in HTTP policy leaves.
+
+Use the example as a complete new configuration only, or merge its resources into
+the current config while retaining unrelated entries and revisions. Replace
+`spotify-inbound` with the actual inbound ID, generate/import a CA, and explicitly
+trust its public certificate in the client before HTTPS MITM.
+
 Create the interception-only Spotify Gateway, its URL denylist rule and trusted
 CA first. In the existing Routing editor create a host list containing
 `*.spotify.com` (the existing host-list wildcard includes the root and subdomains), optionally combine it with the
 Spotify inbound/process and TCP port 443, choose action **HTTP Gateway**, and
 select that Gateway. Put it before a general Direct/Proxy catch-all.
+
+This broad host list admits Spotify connections, including permitted requests.
+To narrow it further, list the actual regional spclient hostnames instead. The
+L4 rule cannot distinguish `/ads/` from a permitted path on the same hostname;
+that decision happens per HTTP request after admission and HTTPS decryption.
+Certificate pinning or a client that does not trust the CA prevents that
+inspection; passthrough cannot filter paths.
 
 The corresponding existing Route draft shape is:
 

@@ -94,7 +94,7 @@ and [interception](interception.md) for the privileged local verification recipe
 ## Route gate and early admission optimization
 
 The existing L4 Routing editor now selects the Gateway before HTTP/TLS probing.
-With no active Gateway routing action, the Route hook measured **2.520 ns/op,
+With no active Gateway routing action, the Route hook measured **2.516 ns/op,
 0 B/op, 0 allocs/op** (median of three one-second repetitions).
 
 The following admission-only comparison uses the same fixture against parent
