@@ -10,10 +10,10 @@ import (
 	"net/netip"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
-	"sync/atomic"
 )
 
 // PacketIO transfers complete IP packets, without link/virtio headers. ReadPacket

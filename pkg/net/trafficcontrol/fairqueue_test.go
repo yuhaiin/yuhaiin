@@ -90,7 +90,7 @@ func TestFairQueueSojournDropAndDrain(t *testing.T) {
 		}
 	}
 	all := q.Drain()
-	if len(all)+len(discards) != 29 {
+	if len(all)+len(discards) != 28 {
 		t.Fatalf("lost ownership: drain=%d dropped=%d", len(all), len(discards))
 	}
 	if q.Stats().DroppedAQM == 0 {

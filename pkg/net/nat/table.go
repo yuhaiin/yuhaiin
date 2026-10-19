@@ -154,7 +154,7 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 			default:
 			}
 		}
-		err := r.WritePacket(ctx, pkt)
+		err = r.WritePacket(ctx, pkt)
 		if !errors.Is(err, context.Canceled) || ctx.Err() != nil {
 			return err
 		}
