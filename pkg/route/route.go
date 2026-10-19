@@ -30,7 +30,9 @@ type Route struct {
 
 	matchers []*matcher
 
-	loopback LoopbackDetector
+	loopback        LoopbackDetector
+	gatewayRecovery func(context.Context, netapi.Address) netapi.Address
+	gatewayHandler  func(*netapi.Context, *netapi.StreamMeta, string) bool
 }
 
 type Resolver interface {
@@ -84,6 +86,9 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 // override the destination selection, but never an existing L4 block decision.
 func (s *Route) ResolveTCP(ctx context.Context, host netapi.Address, target contractroute.Target) (netapi.Proxy, netapi.Address, error) {
 	result := s.dispatch(ctx, host)
+	if result.Mode.Mode() == ModeGateway {
+		result = s.dispatch(WithoutGateway(ctx), host)
+	}
 
 	if result.Mode.Mode() == ModeBlock {
 		s.Push(ctx, "tcp", host.String())
@@ -109,7 +114,14 @@ func (s *Route) ResolveTCP(ctx context.Context, host netapi.Address, target cont
 }
 
 func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
+	if s.ms.hasGateway.Load() {
+		ctx = WithoutGateway(ctx)
+	}
 	result := s.dispatch(ctx, host)
+	if result.Mode.Mode() == ModeGateway {
+		// A hot update can install the first Gateway action after the fast check.
+		result = s.dispatch(WithoutGateway(ctx), host)
+	}
 
 	if result.Mode.Mode() == ModeBlock {
 		s.Push(ctx, "udp", host.String())
@@ -129,7 +141,13 @@ func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.Packet
 }
 
 func (s *Route) Ping(ctx context.Context, host netapi.Address) (uint64, error) {
+	if s.ms.hasGateway.Load() {
+		ctx = WithoutGateway(ctx)
+	}
 	result := s.dispatch(ctx, host)
+	if result.Mode.Mode() == ModeGateway {
+		result = s.dispatch(WithoutGateway(ctx), host)
+	}
 
 	if result.Mode.Mode() == ModeBlock {
 		s.Push(ctx, "ping", host.String())
@@ -210,7 +228,11 @@ func (s *Route) addMatchers() {
 	})
 
 	s.AddMatcher("context route mode", func(ctx context.Context, host netapi.Address) ModeEnum {
-		return ModeEnum{mode: routeModeFromString(netapi.GetContext(ctx).ConnOptions().RouteMode()), resolveStrategy: ResolveDefault, udpProxyFQDNStrategy: UDPProxyFQDNDefault}
+		mode := routeModeFromString(netapi.GetContext(ctx).ConnOptions().RouteMode())
+		if mode == ModeGateway && (skipGateway(ctx) || host.Network() != "tcp") {
+			return Bypass
+		}
+		return ModeEnum{mode: mode, resolveStrategy: ResolveDefault, udpProxyFQDNStrategy: UDPProxyFQDNDefault}
 	})
 
 	s.AddMatcher("normal mode", func(ctx context.Context, host netapi.Address) ModeEnum {
@@ -243,6 +265,9 @@ func (s *Route) addMatchers() {
 }
 
 func (s *Route) dispatch(ctx context.Context, addr netapi.Address) routeResult {
+	if prepared, ok := ctx.Value(preparedTCPKey{}).(preparedTCP); ok && prepared.router == s && prepared.owner == netapi.GetContext(ctx) && sameRouteAddress(prepared.input, addr) {
+		return prepared.result
+	}
 	ctx, _ = netapi.GetOrNewContext(ctx)
 
 	s.dumpProcess(ctx, addr.Network())
@@ -309,6 +334,9 @@ func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 		return netapi.ErrorResolver(func(domain string) error { return err })
 	}
 
+	if s.ms.hasGateway.Load() {
+		ctx = WithoutGateway(ctx)
+	}
 	mode := s.ms.Match(ctx, host)
 
 	if mode.Mode() == ModeBlock {
@@ -341,6 +369,9 @@ func (c *Route) dumpProcessFor(ctx context.Context, force bool, networks ...stri
 	}
 
 	store := netapi.GetContext(ctx)
+	if path, pid, uid := store.GetProcess(); path != "" {
+		return netapi.Process{Path: path, Pid: pid, Uid: uid}
+	}
 
 	var dst []net.Addr
 	if store.GetInbound() != nil {

@@ -20,6 +20,9 @@ func (m *Manager) Status() contract.RuntimeStatus {
 		}
 		for _, config := range s.config.Upstreams {
 			u := g.engine.upstreams[config.ID]
+			if u == nil {
+				continue
+			}
 			us := contract.UpstreamStatus{ID: config.ID, ActiveRequests: u.active.Load(), Backends: []contract.BackendStatus{}}
 			for _, b := range u.backends {
 				us.Backends = append(us.Backends, contract.BackendStatus{URL: b.url.String(), Healthy: b.unavailableUntil.Load() <= time.Now().UnixNano(), ActiveRequests: b.active.Load(), Failures: b.failures.Load()})

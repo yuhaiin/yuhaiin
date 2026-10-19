@@ -216,7 +216,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		}
 		gatewayManager, err = gateway.NewManager(ctx, gatewayStore, authority, func(ctx context.Context, a netapi.Address, target contractroute.Target) (gateway.Selection, error) {
 			a = hosts.RecoverDestination(ctx, fakedns.RecoverDestination(ctx, a))
-			proxy, destination, err := router.ResolveTCP(ctx, a, target)
+			proxy, destination, err := router.ResolveTCP(route.WithoutGateway(ctx), a, target)
 			if err != nil {
 				return gateway.Selection{}, err
 			}
@@ -234,7 +234,10 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	}
 	var interceptionOptions []inbound.Option
 	if gatewayManager != nil {
-		interceptionOptions = append(interceptionOptions, inbound.WithInterceptor(gatewayManager))
+		router.SetGatewayHandler(func(ctx context.Context, address netapi.Address) netapi.Address {
+			return hosts.RecoverDestination(ctx, fakedns.RecoverDestination(ctx, address))
+		}, gatewayManager.InterceptGateway)
+		interceptionOptions = append(interceptionOptions, inbound.WithInterceptor(router))
 	}
 	interceptionOptions = append(interceptionOptions, inbound.WithDNSAgent(fakedns), inbound.WithFakeIPRangeSource(fakedns))
 	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))

@@ -29,6 +29,18 @@ type interceptRule struct {
 // Intercept is called once in the common inbound stream path. A false return
 // leaves ownership with that path, including every buffered probe byte.
 func (m *Manager) Intercept(ctx *netapi.Context, meta *netapi.StreamMeta) bool {
+	return m.intercept(ctx, meta, "")
+}
+
+// InterceptGateway admits only the Gateway chosen by the existing L4 Route.
+func (m *Manager) InterceptGateway(ctx *netapi.Context, meta *netapi.StreamMeta, id string) bool {
+	if id == "" {
+		return false
+	}
+	return m.intercept(ctx, meta, id)
+}
+
+func (m *Manager) intercept(ctx *netapi.Context, meta *netapi.StreamMeta, gatewayID string) bool {
 	s := m.current.Load()
 	if len(s.interceptions) == 0 {
 		return false
@@ -37,57 +49,40 @@ func (m *Manager) Intercept(ctx *netapi.Context, meta *netapi.StreamMeta) bool {
 		_ = meta.Src.Close()
 		return true
 	}
-	var selected *interceptRule
-	for n := range s.interceptions {
-		i := &s.interceptions[n]
-		if i.config.Mode == "off" || i.config.InboundID != ctx.GetInboundID() {
-			continue
-		}
-		g := s.gateways[i.config.GatewayID]
-		if g == nil || !g.engine.config.Enabled {
-			continue
-		}
-		if len(i.config.Ports) > 0 && !slices.Contains(i.config.Ports, uint16(meta.Address.Port())) {
-			continue
-		}
-		if len(i.config.Processes) > 0 && !slices.Contains(i.config.Processes, ctx.GetProcessName()) {
-			if m.lookupProcess != nil {
-				m.lookupProcess(ctx, meta.Address)
-			}
-			if !slices.Contains(i.config.Processes, ctx.GetProcessName()) {
-				continue
-			}
-		}
-		if len(i.sources) > 0 {
-			if ctx.Source == nil {
-				continue
-			}
-			source, err := netip.ParseAddrPort(ctx.Source.String())
-			if err != nil {
-				continue
-			}
-			matched := false
-			for _, prefix := range i.sources {
-				matched = matched || prefix.Contains(source.Addr().Unmap())
-			}
-			if !matched {
-				continue
-			}
-		}
-		selected = i
-		break
-	}
-	if selected == nil || selected.config.Mode == "tls_passthrough" {
+	selected := s.interceptionByInbound[ctx.GetInboundID()]
+	if selected == nil || (gatewayID != "" && selected.config.GatewayID != gatewayID) {
 		return false
 	}
 	config := selected.config
-	g := s.gateways[config.GatewayID]
-	if g.engine.policy.needsProcess && ctx.GetProcessName() == "" && m.lookupProcess != nil {
-		m.lookupProcess(ctx, meta.Address)
+	if len(config.Ports) > 0 && !slices.Contains(config.Ports, meta.Address.Port()) {
+		return false
 	}
+	if len(selected.sources) > 0 && !sourceMatches(ctx.Source, selected.sources) {
+		return false
+	}
+	if ctx.GetProcessName() != "" && len(config.Processes) > 0 && !slices.Contains(config.Processes, ctx.GetProcessName()) {
+		return false
+	}
+	if host := ctx.SniffHost(); host != "" && !matchesDomains(hostname(host), config.Domains, config.ExcludeDomains) {
+		return false
+	}
+	destination := meta.Address
+	if destination.IsFqdn() && !matchesDomains(hostname(destination.Hostname()), config.Domains, config.ExcludeDomains) {
+		return false
+	}
+	if m.recoverDestination != nil {
+		destination = m.recoverDestination(ctx, destination)
+	}
+	if destination.IsFqdn() && !matchesDomains(hostname(destination.Hostname()), config.Domains, config.ExcludeDomains) {
+		return false
+	}
+	if ctx.Err() != nil {
+		return false
+	}
+	g := s.gateways[config.GatewayID]
 	// Admission has already matched an explicitly configured inbound and port.
 	// Unselected TCP and all UDP traffic never allocate this reader or wait here.
-	reader := bufio.NewReaderSize(meta.Src, 16<<10)
+	reader := bufio.NewReaderSize(meta.Src, 4<<10)
 	replay := &readerConn{Conn: meta.Src, reader: reader}
 	meta.Src = replay
 	_ = meta.Src.SetReadDeadline(time.Now().Add(10 * time.Second))
@@ -95,10 +90,6 @@ func (m *Manager) Intercept(ctx *netapi.Context, meta *netapi.StreamMeta) bool {
 	if err != nil {
 		_ = meta.Src.SetReadDeadline(time.Time{})
 		return false
-	}
-	destination := meta.Address
-	if m.recoverDestination != nil {
-		destination = m.recoverDestination(ctx, destination)
 	}
 	if first[0] == 0x16 {
 		if config.Mode != "https_mitm" {
@@ -128,6 +119,9 @@ func (m *Manager) Intercept(ctx *netapi.Context, meta *netapi.StreamMeta) bool {
 				_ = meta.Src.Close()
 				return true
 			}
+			return false
+		}
+		if !m.admitProcess(ctx, destination, selected, g.engine.policy.needsProcess) {
 			return false
 		}
 		certificate, err := m.Authority.Certificate(host)
@@ -171,9 +165,32 @@ func (m *Manager) Intercept(ctx *netapi.Context, meta *netapi.StreamMeta) bool {
 	if !matchesDomains(hostname(request.Host), config.Domains, config.ExcludeDomains) {
 		return false
 	}
+	if !m.admitProcess(ctx, destination, selected, g.engine.policy.needsProcess) {
+		return false
+	}
 	ctx.SetHTTPHost(hostname(request.Host)).SetProtocol("http")
 	m.serveIntercepted(ctx, g.engine, meta.Src, Metadata{Context: ctx, OriginalDestination: destination, Authority: request.Host, Scheme: "http"})
 	return true
+}
+
+func sourceMatches(source net.Addr, prefixes []netip.Prefix) bool {
+	ip, ok := sourceIP(source)
+	if !ok {
+		return false
+	}
+	for _, prefix := range prefixes {
+		if prefix.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Manager) admitProcess(ctx *netapi.Context, destination netapi.Address, rule *interceptRule, policyNeedsProcess bool) bool {
+	if ctx.GetProcessName() == "" && (len(rule.config.Processes) > 0 || policyNeedsProcess) && m.lookupProcess != nil {
+		m.lookupProcess(ctx, destination)
+	}
+	return len(rule.config.Processes) == 0 || slices.Contains(rule.config.Processes, ctx.GetProcessName())
 }
 
 func matchesDomains(host string, include, exclude []string) bool {
@@ -223,14 +240,22 @@ func (c *readerConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
 
 func probeHTTPHeader(reader *bufio.Reader) ([]byte, error) {
 	var data []byte
+	firstLine := true
 	for len(data) < 64<<10 {
 		line, err := reader.ReadSlice('\n')
 		data = append(data, line...)
+		if len(data) > 64<<10 {
+			return data, errors.New("HTTP header exceeds probe limit")
+		}
+		if errors.Is(err, bufio.ErrBufferFull) {
+			continue
+		}
 		if err != nil {
 			return data, err
 		}
-		if len(data) == len(line) {
-			parts := strings.Split(strings.TrimSuffix(string(line), "\r\n"), " ")
+		if firstLine {
+			firstLine = false
+			parts := strings.Split(strings.TrimSuffix(string(data), "\r\n"), " ")
 			if len(parts) != 3 || !slices.Contains([]string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE", "CONNECT"}, parts[0]) || parts[2] != "HTTP/1.1" {
 				return data, errors.New("not HTTP/1.1")
 			}
@@ -263,6 +288,9 @@ func (l *singleListener) Addr() net.Addr { return l.conn.LocalAddr() }
 func (m *Manager) serveIntercepted(ctx context.Context, engine *Engine, conn net.Conn, meta Metadata) {
 	m.sessionsMu.Lock()
 	session := interceptSession{gatewayID: engine.config.ID, inboundID: meta.Context.GetInboundID(), mitm: meta.Scheme == "https", host: hostname(meta.Authority), process: meta.Context.GetProcessName(), port: uint16(meta.OriginalDestination.Port())}
+	if meta.OriginalDestination.IsFqdn() {
+		session.destinationHost = hostname(meta.OriginalDestination.Hostname())
+	}
 	if source := meta.Context.Source; source != nil {
 		if address, err := netip.ParseAddrPort(source.String()); err == nil {
 			session.source = address.Addr().Unmap()

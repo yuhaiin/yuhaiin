@@ -30,10 +30,11 @@ type gatewayRuntime struct {
 	sources []netip.Prefix
 }
 type snapshot struct {
-	config        contract.Config
-	gateways      map[string]*gatewayRuntime
-	listeners     map[string]*gatewayRuntime
-	interceptions []interceptRule
+	config                contract.Config
+	gateways              map[string]*gatewayRuntime
+	listeners             map[string]*gatewayRuntime
+	interceptions         []interceptRule
+	interceptionByInbound map[string]*interceptRule
 }
 
 func (s *snapshot) close() {
@@ -146,7 +147,7 @@ func (m *Manager) prepare(config contract.Config) (*snapshot, error) {
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
-	s := &snapshot{config: config, gateways: make(map[string]*gatewayRuntime), listeners: make(map[string]*gatewayRuntime)}
+	s := &snapshot{config: config, gateways: make(map[string]*gatewayRuntime), listeners: make(map[string]*gatewayRuntime), interceptionByInbound: make(map[string]*interceptRule)}
 	success := false
 	defer func() {
 		if !success {
@@ -273,9 +274,13 @@ func (m *Manager) prepare(config contract.Config) (*snapshot, error) {
 				return nil, errors.New("invalid interception domain")
 			}
 		}
-		if i.Mode != "off" {
+		if g.engine.config.Enabled && (i.Mode == "http_only" || i.Mode == "https_mitm") {
 			s.interceptions = append(s.interceptions, entry)
 		}
+	}
+	for n := range s.interceptions {
+		i := &s.interceptions[n]
+		s.interceptionByInbound[i.config.InboundID] = i
 	}
 	for _, list := range config.FilterLists {
 		if s.gateways[list.GatewayID] == nil {

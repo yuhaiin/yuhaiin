@@ -45,6 +45,38 @@ func (s *GatewayStore) Save(ctx context.Context, cfg contract.Config) (contract.
 	if cfg.Revision != revision {
 		return cfg, ErrConflict
 	}
+	retained := make(map[string]bool, len(cfg.Gateways))
+	for _, g := range cfg.Gateways {
+		retained[g.ID] = true
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT json_extract(g.value, '$.id') FROM gateway_configuration, json_each(data_json, '$.gateways') g`)
+	if err != nil {
+		return cfg, err
+	}
+	var removed []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return cfg, err
+		}
+		if !retained[id] {
+			removed = append(removed, id)
+		}
+	}
+	err = errors.Join(rows.Err(), rows.Close())
+	if err != nil {
+		return cfg, err
+	}
+	for _, id := range removed {
+		refs, err := targetReferences(ctx, tx, "gateway", id)
+		if err != nil {
+			return cfg, err
+		}
+		if len(refs) > 0 {
+			return cfg, &ResourceInUseError{References: refs}
+		}
+	}
 	cfg.Revision++
 	data, err := json.Marshal(cfg)
 	if err != nil {

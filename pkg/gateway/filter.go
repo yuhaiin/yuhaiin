@@ -114,14 +114,18 @@ func parseURLFilter(text string) (string, urlFilter, error) {
 }
 
 func (p *filterPolicy) blocked(r *http.Request) bool {
-	if p == nil {
+	if p == nil || len(p.byHost) == 0 {
 		return false
 	}
 	host := hostname(r.Host)
 	blocked := false
-	path := r.URL.RequestURI()
+	path := ""
 	for {
-		for _, f := range p.byHost[host] {
+		filters := p.byHost[host]
+		if len(filters) > 0 && path == "" {
+			path = r.URL.RequestURI()
+		}
+		for _, f := range filters {
 			if f.expression.MatchString(path) {
 				if f.exception {
 					return false

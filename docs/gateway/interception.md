@@ -2,10 +2,13 @@
 
 The existing common TCP handler supports TUN, SOCKS, Mixed, HTTP CONNECT,
 TProxy/Redir, WireGuard and other inbounds that call `netapi.Handler`. No inbound
-has its own copy of the HTTP engine. With no active interception entries the hook
-returns without allocating or reading the stream. UDP/QUIC is unchanged.
+has its own copy of the HTTP engine. The existing L4 Route selects the Gateway
+first; unmatched connections do not enter its protocol probe. With no Gateway
+routing actions, the hook returns without allocation or reads. UDP/QUIC is unchanged.
+See [Route handoff](route-handoff.md) for configuration and fallback semantics.
 
-Choose a Gateway and an existing stable inbound ID in **Interception**. Modes:
+Create a matching **Routing -> HTTP Gateway** action and choose its Gateway.
+Then choose that Gateway and a stable inbound ID in **Interception**. Modes:
 
 | Mode | Behavior |
 | --- | --- |
@@ -64,6 +67,9 @@ root/CAP_NET_ADMIN and a saved copy of its network configuration.
    `/ads/` rule with `block` status 204. Generate its CA and download the public
    certificate to `./gateway-ca.pem`. In Interception select the test inbound,
    mode `https_mitm`, domains `app.example.com`, ports 80 and 443. Save/activate.
+   In existing Routing create a rule matching the synthetic destination
+   `198.18.0.2/32`, TCP ports 80/443 and this inbound, with HTTP Gateway action
+   selecting this Gateway. Apply it before general catch-all routing rules.
 3. From the client captured by that inbound, run:
 
    ```sh

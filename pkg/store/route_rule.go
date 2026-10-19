@@ -318,6 +318,12 @@ func normalizeRouteRule(rule contractroute.RouteRule) contractroute.RouteRule {
 }
 
 func validateRouteRule(rule contractroute.RouteRule) error {
+	if rule.Mode == "gateway" && (rule.Target.Type != "gateway" || rule.Target.ID == "") {
+		return errors.New("gateway action requires a Gateway destination")
+	}
+	if rule.Target.Type == "gateway" && rule.Mode != "gateway" {
+		return errors.New("gateway destinations require the Gateway routing action")
+	}
 	if strings.TrimSpace(rule.Name) == "" {
 		return errors.New("route rule name is empty")
 	}

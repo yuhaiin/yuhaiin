@@ -216,6 +216,22 @@ func (s *RouteEditorStore) Save(ctx context.Context, draft contractroute.RuleDra
 }
 
 func validateTarget(ctx context.Context, tx *sql.Tx, rule contractroute.RouteRule) error {
+	if rule.Mode == "gateway" {
+		if rule.ID == "" {
+			return errors.New("gateway is only supported as a routing rule action")
+		}
+		if rule.Target.Type != "gateway" || rule.Target.ID == "" {
+			return errors.New("gateway action requires a Gateway destination")
+		}
+		var found int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM gateway_configuration, json_each(data_json, '$.gateways') g WHERE json_extract(g.value, '$.id')=?`, rule.Target.ID).Scan(&found); err != nil {
+			return err
+		}
+		if found == 0 {
+			return fmt.Errorf("gateway %q is unavailable", rule.Target.ID)
+		}
+		return nil
+	}
 	if rule.Mode != "proxy" && rule.Mode != "direct" && rule.Mode != "block" {
 		return fmt.Errorf("unknown routing action %q", rule.Mode)
 	}

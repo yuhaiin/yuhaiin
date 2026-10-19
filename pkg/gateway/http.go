@@ -80,19 +80,30 @@ func NewEngine(config contract.Gateway, rules []contract.Rule, upstreams []contr
 	for _, option := range options {
 		option(e)
 	}
+	needed := make(map[string]bool)
+	for _, action := range append([]contract.Action{policy.fallback}, ruleActions(policy)...) {
+		if action.Type == "reverse_proxy" {
+			needed[action.Upstream] = true
+		}
+	}
+	seen := make(map[string]bool)
 	for _, config := range upstreams {
+		if config.ID == "" || seen[config.ID] {
+			return nil, errors.New("duplicate or empty upstream ID")
+		}
+		seen[config.ID] = true
+		if !needed[config.ID] {
+			continue
+		}
 		u, err := compileUpstream(config)
 		if err != nil {
 			return nil, err
 		}
-		if e.upstreams[config.ID] != nil {
-			return nil, errors.New("duplicate upstream ID")
-		}
 		e.upstreams[config.ID] = u
 	}
-	for _, a := range append([]contract.Action{policy.fallback}, ruleActions(policy)...) {
-		if a.Type == "reverse_proxy" && e.upstreams[a.Upstream] == nil {
-			return nil, fmt.Errorf("upstream %s not found", a.Upstream)
+	for id := range needed {
+		if e.upstreams[id] == nil {
+			return nil, fmt.Errorf("upstream %s not found", id)
 		}
 	}
 	return e, nil
@@ -157,7 +168,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	result := e.policy.evaluate(r, ctx, false)
 	a := result.Action
-	if e.filters.blocked(r) && a.Type != "respond" && a.Type != "block" {
+	if a.Type != "respond" && a.Type != "block" && e.filters.blocked(r) {
 		a = contract.Action{Type: "block", Status: 204}
 	}
 	if result.RuleID != "" {
@@ -381,7 +392,7 @@ func (e *Engine) Test(request contract.TestRequest) (contract.TestResult, error)
 	r.Header = request.Headers
 	ctx := netapi.WithContext(context.Background()).SetInboundID(request.InboundID).SetProcess(request.Process, 0, 0)
 	result := e.policy.evaluate(r, ctx, true)
-	if e.filters.blocked(r) && result.Action.Type != "respond" && result.Action.Type != "block" {
+	if result.Action.Type != "respond" && result.Action.Type != "block" && e.filters.blocked(r) {
 		result.Action = contract.Action{Type: "block", Status: http.StatusNoContent}
 		result.Steps = append(result.Steps, contract.MatchStep{RuleID: "url-filters", Name: "URL filters", Matched: true})
 		result.RuleID = "url-filters"

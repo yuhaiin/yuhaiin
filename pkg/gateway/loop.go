@@ -41,14 +41,37 @@ func (m *Manager) internalSource(source net.Addr) bool {
 	if source == nil {
 		return false
 	}
-	key, err := netip.ParseAddrPort(source.String())
-	if err != nil {
+	key, ok := sourceAddrPort(source)
+	if !ok {
 		return false
 	}
-	key = netip.AddrPortFrom(key.Addr().Unmap(), key.Port())
-	_, ok := m.internalConnections.Load(key)
+	_, ok = m.internalConnections.Load(key)
 	return ok
 }
+func sourceAddrPort(source net.Addr) (netip.AddrPort, bool) {
+	var address netip.AddrPort
+	switch source := source.(type) {
+	case *net.TCPAddr:
+		address = source.AddrPort()
+	case netapi.IPAddress:
+		address = source.AddrPort()
+	default:
+		if source == nil {
+			return address, false
+		}
+		var err error
+		address, err = netip.ParseAddrPort(source.String())
+		if err != nil {
+			return address, false
+		}
+	}
+	return netip.AddrPortFrom(address.Addr().Unmap(), address.Port()), address.IsValid()
+}
+func sourceIP(source net.Addr) (netip.Addr, bool) {
+	address, ok := sourceAddrPort(source)
+	return address.Addr(), ok
+}
+
 func (m *Manager) selectForRequest(ctx context.Context, a netapi.Address, t route.Target) (Selection, error) {
 	// Reject configured listeners even when a different inbound led here.
 	// Existing Route loop/process checks still run in the supplied selector.
@@ -82,6 +105,7 @@ type interceptSession struct {
 	gatewayID, inboundID string
 	mitm                 bool
 	host, process        string
+	destinationHost      string
 	port                 uint16
 	source               netip.Addr
 }
@@ -113,6 +137,7 @@ func sessionAllowed(s *snapshot, session interceptSession) bool {
 	for _, i := range s.interceptions {
 		if i.config.GatewayID == session.gatewayID && i.config.InboundID == session.inboundID {
 			if !matchesDomains(session.host, i.config.Domains, i.config.ExcludeDomains) ||
+				(session.destinationHost != "" && !matchesDomains(session.destinationHost, i.config.Domains, i.config.ExcludeDomains)) ||
 				(len(i.config.Ports) > 0 && !slices.Contains(i.config.Ports, session.port)) ||
 				(len(i.config.Processes) > 0 && !slices.Contains(i.config.Processes, session.process)) {
 				return false

@@ -6,7 +6,9 @@ Route, NodeRuntime, DNS/FakeIP, or the outbound protocol implementations.
 ```mermaid
 flowchart TD
   Listener[HTTP / HTTPS listener] --> HTTP[Gateway HTTP engine]
-  Inbound[TUN / Mixed / SOCKS / CONNECT / Redir / TProxy / WG] --> Interceptor
+  Inbound[TUN / Mixed / SOCKS / CONNECT / Redir / TProxy / WG] --> L4[Existing L4 Route]
+  L4 -->|gateway action| Interceptor
+  L4 -->|direct / proxy / block| Existing
   Interceptor -->|not selected / passthrough| Existing[Existing TCP handler]
   Interceptor -->|HTTP / explicitly allowed MITM| HTTP
   CA[Persistent local CA + bounded certificate cache] --> Interceptor
@@ -40,8 +42,11 @@ outbound TLS-termination boundary. Pools have 256 entries per Gateway. Retiring
 an entry closes idle connections; active responses retain ownership until body
 completion/close. Config replacement drains old pools without buffering bodies.
 
-The common inbound TCP path has one optional interception hook. Empty settings
-return before allocating readers, HTTP objects, TLS configs, or certificates.
+The common inbound TCP path has one optional hook into the existing Route.
+An explicit Gateway rule action is required before Gateway admission runs. With
+no Gateway rules, the hook returns before readers or routing work. Known target
+domains are checked before probing, and an ordinary routing result is reused
+for its connection dial; each HTTP request still resolves its outbound afresh.
 UDP is unchanged, including QUIC. Process lookup is requested only for selected
 settings/policies that use process conditions and respects global lookup-off.
 
@@ -61,3 +66,5 @@ domain policy. Enabling TLS Auto never enables MITM.
 
 See [configuration](configuration.md), [interception](interception.md),
 [CA management](certificate-authority.md), and [benchmarks](benchmarks.md).
+
+See [Route handoff and avoided work](route-handoff.md).

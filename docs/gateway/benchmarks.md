@@ -90,3 +90,45 @@ corrected. `go build ./...` encounters pre-existing executable test directories
 `cmd/test` and `pkg/net/proxy/tproxy/test` without `main`; the actual application
 and CI target builds are checked separately. See [review](review.md) for findings
 and [interception](interception.md) for the privileged local verification recipe.
+
+## Route gate and early admission optimization
+
+The existing L4 Routing editor now selects the Gateway before HTTP/TLS probing.
+With no active Gateway routing action, the Route hook measured **2.520 ns/op,
+0 B/op, 0 allocs/op** (median of three one-second repetitions).
+
+The following admission-only comparison uses the same fixture against parent
+`ad719ae1` and this change, in separate sequential processes on the machine above,
+with three one-second repetitions per case:
+
+| Rejected connection | Before median ns/op | After median ns/op | Before B/op / allocs | After B/op / allocs |
+| --- | ---: | ---: | ---: | ---: |
+| Known unrelated domain | 2,047 | 140.7 | 16,560 / 7 | 0 / 0 |
+| Known excluded domain | 2,046 | 117.9 | 16,560 / 7 | 0 / 0 |
+| Different inbound | 148.7 | 41.38 | 32 / 3 | 0 / 0 |
+| Different destination port | 169.4 | 46.37 | 32 / 3 | 0 / 0 |
+
+The fake connection returns EOF on its first Read. These figures measure probe
+setup/buffer allocation and the avoided initial read attempt; they do not measure
+network round trips or TLS handshake latency. Regression tests separately assert
+that rejected known domains cause no read, wrapper or process lookup. A numeric
+IP with no restored domain remains eligible for normal Host/SNI probing.
+
+```sh
+GOMAXPROCS=2 go test ./pkg/gateway -run '^$' \
+  -bench '^BenchmarkAdmissionBypass$' -benchmem -benchtime=1s -count=3
+GOMAXPROCS=2 go test ./pkg/route -run '^$' \
+  -bench '^BenchmarkGatewayRouteGateDisabled$' -benchmem -benchtime=1s -count=3
+```
+
+The integration suite exercises the existing common inbound handler, persisted
+L4 host-list rule, Gateway admission and actual downstream HTTP/TLS/HTTP2. It
+also verifies an unrelated host and removal of the L4 Gateway rule preserve
+ordinary forwarding while interception permissions remain configured.
+
+A fresh application process and SQLite database also verified this wiring using
+Mixed/CONNECT: the existing Routing RPC saved/applied a host-list Gateway action,
+HTTPS `/ok` returned the local backend body with HTTP/2, `/ads/banner` returned
+204 with HTTP/2, and an unmatched IP destination returned the unchanged backend
+body. Only the two selected requests incremented Gateway request counters; an
+untrusted client rejected its MITM certificate.

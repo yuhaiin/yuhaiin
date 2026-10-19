@@ -67,3 +67,10 @@ URL port and admission constraints. A rule's inherited outbound includes its
 Upstream fallback; `inherit_route` ultimately uses the existing L4 Route.
 The visual editor removes attached rule IDs and owned filters/interceptions
 alongside resource deletion in one draft, and prevents deleting used Upstreams.
+
+Application traffic enters a Gateway only through an explicit `gateway` action
+in the existing L4 Routing editor, with target `{type:"gateway",id:"..."}`.
+Interception permissions remain required and do not divert connections by
+themselves. See [Route handoff](route-handoff.md). Referenced Gateways cannot be
+deleted while saved or applied Route rules still use them; remove and apply those
+rules first. No additional database table is required for this JSON contract.

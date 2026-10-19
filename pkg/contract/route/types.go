@@ -75,6 +75,8 @@ type RouteRule struct {
 
 // Target distinguishes a specific node, a shared selector, and the current
 // global selection without requiring an alias for ordinary routing rules.
+// Type gateway is reserved for a TCP routing rule with Mode gateway; it is not
+// an outbound node and cannot be a Gateway HTTP action or the global default.
 type Target struct {
 	Type string `json:"type"`
 	ID   string `json:"id,omitzero"`

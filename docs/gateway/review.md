@@ -39,3 +39,25 @@ without fallback, inbound filtering, and incomplete TLS probe timeout/replay.
 Standards: 2 findings resolved, 0 outstanding. Spec: 6 findings resolved,
 0 outstanding within the reviewed scenarios. These checks do not replace the
 manual platform/client verification boundaries in the other Gateway documents.
+
+## Existing Route handoff and admission optimization
+
+Incremental review compared backend `ad719ae1` and frontend `025878e` with the
+follow-up changes. The independent standards pass found no actionable violation
+or ownership defect: both Routing editors share the same Gateway picker/action
+transition, and HTTP request forks cannot reuse the connection's cached route.
+
+The specification pass found one P2: Yuubinsya Ping destinations carry a TCP
+address label, so checking that label alone could select a Gateway target for
+Ping. Ping and PacketConn now explicitly skip Gateway actions when such rules
+exist. A regression failed before the fix for both Direct and Block fallback,
+then passed under the race detector. A deterministic Apply-between-check-and-match
+regression also covers installation of the first Gateway rule during dispatch.
+The final result is rechecked before outbound selection. The disabled path does not allocate a
+skip marker. DNS already skips Gateway actions explicitly.
+
+The review also checked ordinary rule precedence, passthrough, reentry/block
+preservation, reference integrity for saved/applied rules, and the actual common
+handler/TLS integration. Tests cover cheap admission failures, process lookup
+reuse, unused health workers, long HTTP headers with the smaller probe buffer,
+and zero-allocation filtering for unrelated hosts.

@@ -9,10 +9,11 @@ import (
 type Mode string
 
 const (
-	ModeBypass Mode = "bypass"
-	ModeProxy  Mode = "proxy"
-	ModeDirect Mode = "direct"
-	ModeBlock  Mode = "block"
+	ModeBypass  Mode = "bypass"
+	ModeProxy   Mode = "proxy"
+	ModeDirect  Mode = "direct"
+	ModeBlock   Mode = "block"
+	ModeGateway Mode = "gateway"
 )
 
 func (m Mode) String() string { return string(m) }
@@ -91,6 +92,8 @@ func parseMode(value string) Mode {
 		return ModeDirect
 	case "block":
 		return ModeBlock
+	case "gateway":
+		return ModeGateway
 	case "bypass", "":
 		return ModeBypass
 	default:
