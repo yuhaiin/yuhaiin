@@ -22,7 +22,7 @@ type gatewayCARevisionRequest struct {
 }
 
 func addGatewayRPCRoutesV2(handlers *v2Handlers, services V2Services) {
-	addRPCRoute(handlers, v2GatewayFilterRefresh, func(ctx context.Context, r *idRequest) (*contract.Config, error) {
+	addRPCRoute(handlers, v2GatewayFilterRefresh, func(ctx context.Context, r *idRequest) (*contract.Workspace, error) {
 		if services.Gateway == nil {
 			return nil, unavailable("gateway is unavailable")
 		}
@@ -30,7 +30,11 @@ func addGatewayRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 		if err != nil {
 			return nil, badRequest(err)
 		}
-		return &v, nil
+		workspace, err := contract.WorkspaceFromConfig(v)
+		if err != nil {
+			return nil, badRequest(err)
+		}
+		return &workspace, nil
 	})
 	service := func() (GatewayController, error) {
 		if services.Gateway == nil {
