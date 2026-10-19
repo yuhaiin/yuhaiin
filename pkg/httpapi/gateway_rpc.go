@@ -68,24 +68,6 @@ func addGatewayRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 		}
 		return &workspace, nil
 	})
-	addRPCRoute(handlers, v2GatewayConfigGet, func(_ context.Context, _ *emptyRequest) (*contract.Config, error) {
-		s, err := service()
-		if err != nil {
-			return nil, err
-		}
-		return new(s.Config()), nil
-	})
-	addRPCRoute(handlers, v2GatewayConfigPut, func(ctx context.Context, r *contract.Config) (*contract.Config, error) {
-		s, err := service()
-		if err != nil {
-			return nil, err
-		}
-		v, err := s.Save(ctx, *r)
-		if err != nil {
-			return nil, badRequest(err)
-		}
-		return &v, nil
-	})
 	addRPCRoute(handlers, v2GatewayStatus, func(_ context.Context, _ *emptyRequest) (*contract.RuntimeStatus, error) {
 		s, err := service()
 		if err != nil {
