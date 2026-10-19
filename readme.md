@@ -1,102 +1,157 @@
-# Yuhaiin
-
 <p align="center">
-  <img src="assets/icon-candidates/17-packet-rhythm.svg" alt="Yuhaiin icon" width="128" />
+  <img src="assets/icon-candidates/17-packet-rhythm.svg" alt="Yuhaiin" width="112" />
 </p>
 
-[![GitHub license](https://img.shields.io/github/license/Asutorufa/yuhaiin)](https://github.com/Asutorufa/yuhaiin/blob/master/LICENSE)
-[![releases](https://img.shields.io/github/release-pre/asutorufa/yuhaiin.svg)](https://github.com/Asutorufa/yuhaiin/releases)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Asutorufa/yuhaiin)](https://goreportcard.com/report/github.com/Asutorufa/yuhaiin)
-[![Go Reference](https://pkg.go.dev/badge/github.com/Asutorufa/yuhaiin.svg)](https://pkg.go.dev/github.com/Asutorufa/yuhaiin)
-![languages](https://img.shields.io/github/languages/top/asutorufa/yuhaiin.svg) [![Go](https://github.com/Asutorufa/yuhaiin/actions/workflows/go.yml/badge.svg)](https://github.com/Asutorufa/yuhaiin/actions/workflows/go.yml)  
-  
-- download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://yuhaiin.github.io/documents/guides/build/).  
-- Android [yuhaiin-android](https://github.com/Asutorufa/yuhaiin-android).  
-- Inbound
-  - yuubinsya(experimental)
-  - Reality, HTTP2, Quic, Websocket, TLS, ECH(Encrypted SNI)
-  - [Hysteria 2](docs/hysteria2.md)
-  - Socks5, Socks4A, HTTP
-  - TUN(gso,gro support), Linux/Mac Redir, Tproxy
-    - [gvisor](https://github.com/google/gvisor)
-    - tun2socket(hijack tun TCP to a local TCP listener)
-  - yamux  
-- [WireGuard inbound](docs/wireguard-inbound.md) (userspace lightweight TCP/IP stack, no system TUN)
-- [HTTP Gateway](docs/gateway/architecture.md): HTTP/HTTPS reverse proxy, HTTP request policies, existing outbound/selector integration, WebSocket/SSE/gRPC streaming, and explicitly enabled HTTP/TLS interception with a persistent local CA. See [configuration](docs/gateway/configuration.md), [recipes](docs/gateway/reverse-proxy.md), [TLS boundaries](docs/gateway/interception.md), and [benchmarks](docs/gateway/benchmarks.md).
-- Outbound
-  - yuubinsya(experimental)
-  - [SSH direct-tcpip](pkg/net/proxy/ssh/README.md) (TCP only, host-key pinning, password/key authentication)
-  - Socks5, HTTP, TCP, [Wireguard](https://github.com/yuhaiin/yuhaiin/wiki/Wireguard)
-  - Shadowsocksr, Shadowsocks, Vmess, trojan, Vless  
-  - [Hysteria 2](docs/hysteria2.md) (TCP and UDP)
-  - [OpenVPN](pkg/net/proxy/openvpn/README.md) (native TCP/UDP, IPv4/IPv6, AEAD, rekey)
-  - [GlobalProtect SSL](pkg/net/proxy/globalprotect/README.md) (experimental SSL or optional ESP/UDP; gateway routes and DNS are informational and are not applied automatically)
-  - [AmneziaWG](pkg/net/proxy/amneziawg/README.md) (WireGuard with Amnezia obfuscation)
-  - [Nebula](pkg/net/proxy/nebula/README.md) (official encrypted mesh engine with userspace IP stack, no system TUN)
-  - [IKEv2](pkg/net/proxy/ikev2/README.md) (IKEv2/IPsec with PSK and EAP-MSCHAPv2)
-  - [AnyConnect](pkg/net/proxy/anyconnect/README.md) (CSTP over TLS with optional DTLS)
-  - [SSTP](pkg/net/proxy/sstp/README.md) (PPP over TLS with MS-CHAPv2)
-  - [Fortinet SSL VPN](pkg/net/proxy/fortinet/README.md) (TLS or optional DTLS data channel)
-  - [SoftEther native SSL-VPN](pkg/net/proxy/softether/README.md) (experimental; distinct from SSTP and OpenVPN compatibility modes)
-  - Websocket, Quic, obfs-http, Reality, HTTP2, TLS, ECH(Encrypted SNI)
-  - yamux  
-  - HTTP/HTTPS reverse proxy through HTTP Gateway; fixed-target TCP forwarding through `reverse_tcp`
-  - Tailscale(tsnet)
-  - Cloudflare Warp/zero trust (wireguard & Masque) [tools: [usque](https://github.com/Diniboy1123/usque)]
-- support DNS:
-  - DNS, EDNS
-  - FakeDNS
-  - DNS Server
-  - DNS over UDP
-  - DNS over HTTPS(3)
-  - DNS over Quic
-  - DNS over TLS
-  - DNS over TCP
-- Full cone NAT.
-- Ping(yuubinsya, Tailscale, Socks5(custom cmd), Wireguard(TODO))
-- Trace Process of Connections
-  - Linux: netlink + /proc
-  - Windows, Darwin: syscall
-- Support Proxy Chain Warp
-- auto set Linux(KDE/Plasma,Gnome),Windows,MacOS Proxy  
-- [Rules](https://github.com/yuhaiin/kitte)  
+<h1 align="center">Yuhaiin</h1>
 
-```shell
-# make or download from releases
-make yuhaiin
-# or
-go install github.com/Asutorufa/yuhaiin@latest
-# for macos
-# remove quarantine
-xattr -rd com.apple.quarantine yuhaiin
-# optional, sign with ad-hoc
-codesign -s - yuhaiin
-# or
-brew tap yuhaiin/yuhaiin
-brew install yuhaiin
-# host: http listen address, default: 127.0.0.1:50051
-# path: Store application data path, default:
-#   linux ~/.config/yuhaiin/, windows %APPDATA%/yuhaiin/
-yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin
+<p align="center">
+  <strong>Unified Network Security & Connectivity Toolkit</strong><br />
+  Zero Trust-ready networking · Traffic policies · Enterprise VPN · HTTP Gateway · Modern proxy
+</p>
+
+<p align="center">
+  <a href="https://github.com/Asutorufa/yuhaiin/releases"><img src="https://img.shields.io/github/v/release/Asutorufa/yuhaiin?include_prereleases" alt="Release" /></a>
+  <a href="https://github.com/Asutorufa/yuhaiin/actions/workflows/go.yml"><img src="https://github.com/Asutorufa/yuhaiin/actions/workflows/go.yml/badge.svg" alt="Build" /></a>
+  <a href="https://github.com/Asutorufa/yuhaiin/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Asutorufa/yuhaiin" alt="License" /></a>
+  <a href="https://pkg.go.dev/github.com/Asutorufa/yuhaiin"><img src="https://pkg.go.dev/badge/github.com/Asutorufa/yuhaiin.svg" alt="Go Reference" /></a>
+</p>
+
+**One engine. Many networks. Consistent traffic policies.**
+
+Yuhaiin is an open-source, cross-platform networking toolkit that brings enterprise VPN connectivity, encrypted overlay networks, policy-based routing, and HTTP application gateways into one extensible engine. Connect to different networks and services, control where traffic goes, and apply L4/L7 policies without maintaining a separate proxy stack for each protocol.
+
+> **Scope:** Yuhaiin provides building blocks for Zero Trust-style network access. It is **not** a complete ZTNA platform, identity provider, endpoint security product, or host-wide firewall.
+
+## Why Yuhaiin?
+
+- **Connect across network boundaries.** Use enterprise VPN clients, mesh/overlay networks, and modern proxies within one application.
+- **Enforce traffic decisions centrally within the process.** Route, proxy, or block connections based on destinations, applications/processes, inbound sources, and rule priority.
+- **Handle application traffic with HTTP Gateway.** Apply request-level policies, reverse proxy to backends, and choose existing outbound nodes per request.
+- **Keep networking flexible.** Reuse a lightweight userspace TCP/IP stack for supported integrations, including VPN/overlay use cases that do not require a new host TUN interface.
+
+## Core Capabilities
+
+| Capability | Highlights |
+| --- | --- |
+| **Traffic Security & Policy Routing** | L4 allow/route/block decisions; domain, IP, port, process, and inbound-based rules; DNS and FakeIP integration |
+| **Enterprise VPN & Overlay Networking** | Corporate SSL/IPsec VPN clients, WireGuard, Tailscale, Nebula, ZeroTier, and related encrypted networking protocols |
+| **HTTP Gateway & Application Proxy** | HTTP/HTTPS reverse proxy, Host/Path/Header conditions, rewrites, redirects, URL filtering, upstream health checks and balancing, optional TLS interception |
+| **Unified Proxy Engine** | TCP/UDP handling, transparent proxy, proxy chains, selectable outbounds, connection visibility, cross-platform clients |
+
+### How traffic flows
+
+```mermaid
+flowchart TD
+  A[Applications / Devices / Networks] --> B[Inbound: TUN / Mixed / SOCKS / HTTP / WireGuard]
+  B --> C{L4 Policy Routing}
+  C -->|Block| D[Reject traffic]
+  C -->|Direct / Proxy| E[Outbound Selection]
+  C -->|Gateway action for TCP| F[HTTP Gateway]
+  F --> G{HTTP Request Policies}
+  G -->|Block / Respond / Redirect| H[HTTP Response]
+  G -->|Forward / Reverse Proxy| E
+  E --> I[Enterprise VPN / Overlay / Proxy / Direct]
 ```
 
+The HTTP Gateway is **optional**: ordinary connections continue through L4 routing without HTTP inspection. HTTPS interception is opt-in and requires an explicitly configured CA, target allowlist, and client trust. It is not intended to bypass certificate pinning or decrypt HTTP/3/ECH traffic.
+
+## Supported Connectivity
+
+| Category | Protocols and integrations |
+| --- | --- |
+| **Enterprise VPN clients** | OpenVPN, GlobalProtect, AnyConnect, Fortinet SSL VPN, IKEv2/IPsec, SSTP, SoftEther |
+| **Mesh & overlay networking** | WireGuard, AmneziaWG, Tailscale (tsnet), Nebula, ZeroTier, Cloudflare WARP |
+| **Modern proxies & tunnels** | Shadowsocks, ShadowsocksR, VMess, VLESS, Trojan, Hysteria 2, MASQUE, SSH |
+| **Standard proxy & ingress** | SOCKS4a/5, HTTP, Mixed, TUN, Redir, TProxy, WireGuard inbound |
+| **DNS transports** | Classic DNS over UDP/TCP, DoT, DoH, DoQ, FakeDNS |
+
+**Support varies by protocol and platform.** Some integrations remain experimental or have restricted transport/authentication modes. Nebula and ZeroTier are userspace outbound integrations, not general-purpose virtual Ethernet adapters. Check the linked implementation guides for supported features, packaging requirements, and limitations.
+
+## Typical Use Cases
+
+**Enterprise network access.** Connect to a corporate VPN endpoint while retaining application-aware routing, local DNS behavior, and rules for other traffic.
+
+**Private service connectivity.** Reach resources through WireGuard or an overlay network such as Tailscale, Nebula, or ZeroTier, using the same outbound selection model as other proxies.
+
+**Application gateway.** Expose an HTTP/HTTPS service, select backend pools and outbound paths, apply Host/Path/Header policies, and optionally block unwanted URLs.
+
+**Transparent traffic control.** Send selected system or application connections through TUN/TProxy/Redir and enforce L4 policies before choosing a direct path, proxy, or Gateway.
+
+## Platforms
+
+- **Linux**, **macOS**, and **Windows** for desktop and server-oriented deployment.
+- **Android** via the [Yuhaiin Android client](https://github.com/yuhaiin/yuhaiin-android).
+
+Availability of specific inbound modes, native VPN libraries, and platform integrations differs across builds.
+
+## Quick Start
+
+Download a build from [GitHub Releases](https://github.com/Asutorufa/yuhaiin/releases), or build/install from source:
+
+```bash
+# Build from the repository
+make yuhaiin
+
+# Or install the Go command
+go install github.com/Asutorufa/yuhaiin@latest
+
+# macOS (Homebrew)
+brew tap yuhaiin/yuhaiin
+brew install yuhaiin
+```
+
+On macOS, manually downloaded unsigned binaries may require removing quarantine and an ad-hoc signature:
+
+```bash
+xattr -rd com.apple.quarantine yuhaiin
+codesign -s - yuhaiin
+```
+
+Start the service:
+
+```bash
+yuhaiin -host="127.0.0.1:50051" -path="$HOME/.config/yuhaiin"
+```
+
+Open **http://127.0.0.1:50051** to configure your inbounds, nodes, routing policies, and HTTP Gateway. The management endpoint above is local by default; configure authentication and exposure deliberately before using a non-loopback listener.
+
+> For a local proxy, configure or enable a **Mixed inbound** (commonly port **1080**). The HTTP management address (`50051`) is a separate service, not the proxy port.
+
+## Screenshots
+
+The current web UI:
+
 ![webuiv2.1-1](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/webuiv2.1-1.png)
+
 ![webuiv2.1-2](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/webuiv2.1-2.png)
 
-<details>
-<summary>Acknowledgement</summary>
+## Documentation
 
-- [Golang](https://golang.org)  
-- [google/gVisor](https://github.com/google/gvisor)
+- [HTTP Gateway architecture](docs/gateway/architecture.md) · [Configuration](docs/gateway/configuration.md) · [HTTPS interception](docs/gateway/interception.md)
+- [Gateway reverse proxy](docs/gateway/reverse-proxy.md) · [Benchmarks](docs/gateway/benchmarks.md)
+- [WireGuard inbound](docs/wireguard-inbound.md) · [Hysteria 2](docs/hysteria2.md)
+- [OpenVPN](pkg/net/proxy/openvpn/README.md) · [GlobalProtect](pkg/net/proxy/globalprotect/README.md) · [Nebula](pkg/net/proxy/nebula/README.md) · [ZeroTier](pkg/net/proxy/zerotier/README.md)
+- [SSH outbound](pkg/net/proxy/ssh/README.md) · [Rules](https://github.com/yuhaiin/kitte) · [Android client](https://github.com/yuhaiin/yuhaiin-android)
+
+## Security Boundaries
+
+Yuhaiin's routing rules control traffic that actually enters its configured inbounds; they do not automatically replace the operating system's firewall. Gateway TLS interception is disabled by default and requires explicit configuration and client trust. Enterprise VPN support refers to interoperating as a client with supported protocols; it does not imply built-in SSO, device posture assessment, centralized policy distribution, high availability, or enterprise compliance certification.
+
+## Community & Acknowledgements
+
+Yuhaiin builds on the broader Go networking and open-source ecosystem, including [gVisor](https://github.com/google/gvisor), [Tailscale](https://github.com/tailscale/tailscale), and many protocol projects and contributors. See the repository history, dependencies, and individual integration documentation for attribution.
+
+<details>
+<summary>Acknowledgements and references</summary>
+
+- [Go](https://go.dev/)
+- [gVisor](https://github.com/google/gvisor)
 - [プロ生ちゃん](https://kei.pronama.jp/)
-- [tailscale](https://github.com/tailscale/tailscale)
+- [Tailscale](https://github.com/tailscale/tailscale)
 - [usque](https://github.com/Diniboy1123/usque)
 
-Reference:
-
-- [xjasonlyu/tun2socks](https://github.com/xjasonlyu/tun2socks)
-- [mzz2017/shadowsocksR](https://github.com/mzz2017/shadowsocksR)  
-- [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
-- [vmess-client](https://github.com/gitsrc/vmess-client)  
+References: [tun2socks](https://github.com/xjasonlyu/tun2socks), [shadowsocksR](https://github.com/mzz2017/shadowsocksR), [go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2), and [vmess-client](https://github.com/gitsrc/vmess-client).
 
 </details>
+
+Contributions, bug reports, and reproducible interoperability tests are welcome.
