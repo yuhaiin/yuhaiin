@@ -101,7 +101,7 @@ func TestPendingNeighborBufferIsBounded(t *testing.T) {
 		ip := make([]byte, 20)
 		ip[0] = 0x45
 		ip[16], ip[17], ip[18], ip[19] = 10, 0, 1, byte(n)
-		for j := 0; j < 16; j++ {
+		for range 16 {
 			b.outgoing(ip)
 		}
 	}
