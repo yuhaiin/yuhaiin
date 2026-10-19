@@ -155,12 +155,12 @@ func (m *memoryDevice) Write(p []byte) (int, error) {
 	}
 	return len(p), nil
 }
-func (m *memoryDevice) Close() error { return m.network.Close() }
-func (m *memoryDevice) Activate() error { return nil }
-func (m *memoryDevice) Networks() []netip.Prefix { return m.networks }
-func (m *memoryDevice) Name() string { return "yuhaiin-nebula" }
+func (m *memoryDevice) Close() error                          { return m.network.Close() }
+func (m *memoryDevice) Activate() error                       { return nil }
+func (m *memoryDevice) Networks() []netip.Prefix              { return m.networks }
+func (m *memoryDevice) Name() string                          { return "yuhaiin-nebula" }
 func (m *memoryDevice) RoutesFor(netip.Addr) routing.Gateways { return routing.Gateways{} }
-func (m *memoryDevice) SupportsMultiqueue() bool { return false }
+func (m *memoryDevice) SupportsMultiqueue() bool              { return false }
 func (m *memoryDevice) NewMultiQueueReader() (io.ReadWriteCloser, error) {
 	return nil, errors.New("nebula: multiple TUN readers are not supported")
 }
