@@ -86,7 +86,7 @@ func newTestManager(t testing.TB, config contract.Config, selectOutbound SelectO
 	return m, storage
 }
 
-func interceptListener(t *testing.T, m *Manager, destination, fallback string) (string, *sync.WaitGroup) {
+func interceptListener(t *testing.T, m *Manager, destination, fallback string, sniffHost ...string) (string, *sync.WaitGroup) {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -102,6 +102,9 @@ func interceptListener(t *testing.T, m *Manager, destination, fallback string) (
 			}
 			workers.Go(func() {
 				ctx := netapi.WithContext(t.Context()).SetInboundID("in")
+				if len(sniffHost) > 0 {
+					ctx.SetTLSServerName(sniffHost[0])
+				}
 				ctx.Source = c.RemoteAddr()
 				dst, _ := netapi.ParseAddress("tcp", destination)
 				ctx.Destination = dst

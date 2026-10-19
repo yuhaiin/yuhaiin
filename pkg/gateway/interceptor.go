@@ -65,9 +65,10 @@ func (m *Manager) intercept(ctx *netapi.Context, meta *netapi.StreamMeta, gatewa
 	if ctx.GetProcessName() != "" && len(config.Processes) > 0 && !slices.Contains(config.Processes, ctx.GetProcessName()) {
 		return false
 	}
-	if host := ctx.SniffHost(); host != "" && !matchesDomains(hostname(host), config.Domains, config.ExcludeDomains) {
-		return false
-	}
+	// A sniffed TLS name can be ECH's public_name, not the origin.
+	// Postpone this check until after destination recovery so the allowed
+	// original FQDN can authorize an ECH outer handshake.
+	sniffHost := hostname(ctx.SniffHost())
 	destination := meta.Address
 	if destination.IsFqdn() && !matchesDomains(hostname(destination.Hostname()), config.Domains, config.ExcludeDomains) {
 		return false
@@ -76,6 +77,11 @@ func (m *Manager) intercept(ctx *netapi.Context, meta *netapi.StreamMeta, gatewa
 		destination = m.recoverDestination(ctx, destination)
 	}
 	if destination.IsFqdn() && !matchesDomains(hostname(destination.Hostname()), config.Domains, config.ExcludeDomains) {
+		return false
+	}
+	if sniffHost != "" && !matchesDomains(sniffHost, config.Domains, config.ExcludeDomains) &&
+		!(config.Mode == "https_mitm" && destination.IsFqdn() &&
+			matchesDomains(hostname(destination.Hostname()), config.Domains, config.ExcludeDomains)) {
 		return false
 	}
 	if ctx.Err() != nil {
@@ -111,14 +117,27 @@ func (m *Manager) intercept(ctx *netapi.Context, meta *netapi.StreamMeta, gatewa
 		if host == "" {
 			host = hostname(destination.Hostname())
 		}
-		if !matchesDomains(host, config.Domains, config.ExcludeDomains) {
+		// With real ECH, host is the public name, not the private origin.
+		// Admit an unmatched public name only when an independently allowed
+		// FQDN was selected by L4 routing or recovered from its destination.
+		// Never override explicit domain exclusions.
+		// GREASE is intentionally indistinguishable from real ECH; requiring
+		// the distinct allowed destination limits this special admission.
+		echRetryCandidate := hello != nil &&
+			slices.Contains(hello.Extensions, uint16(0xfe0d)) &&
+			destination.IsFqdn() &&
+			host != "" && host != hostname(destination.Hostname()) &&
+			matchesDomains(hostname(destination.Hostname()), config.Domains, config.ExcludeDomains) &&
+			matchesDomains(host, nil, config.ExcludeDomains)
+		if !matchesDomains(host, config.Domains, config.ExcludeDomains) && !echRetryCandidate {
 			return false
 		}
-		// Do not classify the ECH extension itself as an unsupported protocol.
-		// This TLS server has no ECH keys, so crypto/tls uses ClientHelloOuter:
-		// GREASE continues as an ordinary TLS handshake, while a real ECH client
-		// can detect rejection and may retry with ECH disabled.
-		if hello == nil || (!slices.Contains(hello.SupportedProtos, "h2") && !slices.Contains(hello.SupportedProtos, "http/1.1")) {
+		httpALPN := hello != nil && (slices.Contains(hello.SupportedProtos, "h2") ||
+			slices.Contains(hello.SupportedProtos, "http/1.1"))
+		// The outer ALPN can hide HTTP. Allow the approved ECH outer
+		// handshake to complete so the client can authenticate public_name
+		// and retry; keep normal unknownTls behavior for other traffic.
+		if hello == nil || (!httpALPN && !echRetryCandidate) {
 			g.engine.Counters.ProtocolFailures.Add(1)
 			log.Debug("gateway TLS admission", "gateway", config.GatewayID, "reason", "unsupported_client_hello", "action", config.UnknownTLS)
 			if config.UnknownTLS == "reject" {
@@ -138,7 +157,11 @@ func (m *Manager) intercept(ctx *netapi.Context, meta *netapi.StreamMeta, gatewa
 			return true
 		}
 		ctx.SetTLSServerName(host).SetProtocol("tls")
-		tlsConn := tls.Server(meta.Src, &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{*certificate}, NextProtos: []string{"h2", "http/1.1"}})
+		nextProtos := []string{"h2", "http/1.1"}
+		if !httpALPN {
+			nextProtos = nil // The ECH rejection-only handshake must not require HTTP ALPN.
+		}
+		tlsConn := tls.Server(meta.Src, &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{*certificate}, NextProtos: nextProtos})
 		_ = tlsConn.SetDeadline(time.Now().Add(10 * time.Second))
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			g.engine.Counters.TLSFailures.Add(1)
@@ -150,6 +173,10 @@ func (m *Manager) intercept(ctx *netapi.Context, meta *netapi.StreamMeta, gatewa
 		// Once the real handshake starts there is no passthrough fallback.
 		m.serveIntercepted(ctx, g.engine, tlsConn, Metadata{Context: ctx, OriginalDestination: destination, Authority: host, Scheme: "https"})
 		return true
+	}
+	if sniffHost != "" && !matchesDomains(sniffHost, config.Domains, config.ExcludeDomains) {
+		_ = meta.Src.SetReadDeadline(time.Time{})
+		return false // Plaintext must not inherit the ECH-specific sniff-name exception.
 	}
 	if !strings.ContainsRune("GHPDOTC", rune(first[0])) {
 		_ = meta.Src.SetReadDeadline(time.Time{})

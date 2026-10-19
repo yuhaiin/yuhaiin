@@ -67,9 +67,9 @@ func TestHTTPSMITMAllowsECHGREASEAndFiltersPath(t *testing.T) {
 }
 
 func TestHTTPSMITMRealECHRejectionCanRetryWithoutECH(t *testing.T) {
-	config := echPathGatewayConfig([]string{"public.example", "secret.example"}, "reject")
+	config := echPathGatewayConfig([]string{"secret.example"}, "reject")
 	m, _ := newTestManager(t, config, nil)
-	address, workers := interceptListener(t, m, "secret.example:443", "127.0.0.1:1")
+	address, workers := interceptListener(t, m, "secret.example:443", "127.0.0.1:1", "public.example")
 	t.Cleanup(workers.Wait)
 	roots := gatewayRootPool(t, m)
 	configList := testECHConfigList(t, "public.example")
@@ -138,6 +138,98 @@ func TestHTTPSMITMRealECHRejectionCanRetryWithoutECH(t *testing.T) {
 	}
 	if got := counters.Blocked.Load(); got != 1 {
 		t.Fatalf("blocked requests=%d, want 1 after client retry", got)
+	}
+}
+
+
+func TestHTTPSMITMECHOuterWithoutHTTPALPNStillRejects(t *testing.T) {
+	config := echPathGatewayConfig([]string{"secret.example"}, "reject")
+	m, _ := newTestManager(t, config, nil)
+	address, workers := interceptListener(t, m, "secret.example:443", "127.0.0.1:1", "public.example")
+	t.Cleanup(workers.Wait)
+	raw, err := (&net.Dialer{Timeout: time.Second}).DialContext(t.Context(), "tcp", address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The outer ALPN may be absent even when the encrypted inner handshake
+	// carries HTTP ALPN. It must not prevent authenticated ECH rejection.
+	client := tls.Client(raw, &tls.Config{
+		MinVersion:                     tls.VersionTLS13,
+		ServerName:                     "secret.example",
+		RootCAs:                        gatewayRootPool(t, m),
+		EncryptedClientHelloConfigList: testECHConfigList(t, "public.example"),
+	})
+	defer client.Close()
+	var rejection *tls.ECHRejectionError
+	if err := client.HandshakeContext(t.Context()); !errors.As(err, &rejection) {
+		t.Fatalf("outer handshake error=%v, want ECHRejectionError", err)
+	}
+	counters := m.current.Load().gateways["g"].engine.Counters
+	if got := counters.ProtocolFailures.Load(); got != 0 {
+		t.Fatalf("protocol failures=%d, want 0", got)
+	}
+	if got := counters.TLSFailures.Load(); got != 0 {
+		t.Fatalf("TLS failures=%d, want 0", got)
+	}
+}
+
+func TestHTTPSMITMECHPublicNameDoesNotBypassExclusionsOrIPAdmission(t *testing.T) {
+	for _, tc := range []struct {
+		name, destination string
+		exclude           []string
+	}{
+		{name: "unknown original IP", destination: "192.0.2.1:443"},
+		{name: "excluded public name", destination: "secret.example:443", exclude: []string{"public.example"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			config := echPathGatewayConfig([]string{"secret.example"}, "reject")
+			config.Interceptions[0].ExcludeDomains = tc.exclude
+			m, _ := newTestManager(t, config, nil)
+			address, workers := interceptListener(t, m, tc.destination, "127.0.0.1:1", "public.example")
+			t.Cleanup(workers.Wait)
+			raw, err := (&net.Dialer{Timeout: time.Second}).DialContext(t.Context(), "tcp", address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := tls.Client(raw, &tls.Config{
+				MinVersion:                     tls.VersionTLS13,
+				ServerName:                     "secret.example",
+				RootCAs:                        gatewayRootPool(t, m),
+				EncryptedClientHelloConfigList: testECHConfigList(t, "public.example"),
+			})
+			defer client.Close()
+			var rejection *tls.ECHRejectionError
+			if err := client.HandshakeContext(t.Context()); err == nil || errors.As(err, &rejection) {
+				t.Fatalf("unauthorized ECH handshake unexpectedly admitted: %v", err)
+			}
+			if got := m.CAStatus().CachedCertificates; got != 0 {
+				t.Fatalf("signed certificates=%d for excluded or unknown ECH destination", got)
+			}
+		})
+	}
+}
+
+func TestHTTPSMITMWithoutECHDoesNotAuthorizeMismatchedOuterSNI(t *testing.T) {
+	config := echPathGatewayConfig([]string{"secret.example"}, "reject")
+	m, _ := newTestManager(t, config, nil)
+	address, workers := interceptListener(t, m, "secret.example:443", "127.0.0.1:1", "public.example")
+	t.Cleanup(workers.Wait)
+	raw, err := (&net.Dialer{Timeout: time.Second}).DialContext(t.Context(), "tcp", address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := tls.Client(raw, &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		ServerName: "public.example",
+		RootCAs:    gatewayRootPool(t, m),
+		NextProtos: []string{"http/1.1"},
+	})
+	defer client.Close()
+	if err := client.HandshakeContext(t.Context()); err == nil {
+		t.Fatal("TLS without ECH bypassed SNI allowlist")
+	}
+	if got := m.CAStatus().CachedCertificates; got != 0 {
+		t.Fatalf("signed certificates=%d for unapproved non-ECH SNI", got)
 	}
 }
 
