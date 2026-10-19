@@ -197,6 +197,7 @@ func (c *Client) applyConfig(cfg zt.NetworkConfig) {
 	unchanged := old != nil && old.mtu == mtu && old.mac == cfg.MAC && slices.Equal(old.prefixes, cfg.Addresses)
 	c.mu.RUnlock()
 	if unchanged {
+		old.bridge.updateRoutes(cfg.Routes)
 		return
 	}
 	tun, err := wireguard.CreateLightweightNetTUN(cfg.Addresses, mtu)
