@@ -86,7 +86,9 @@ func TestPendingResolutionBytesAreChargedUntilDrain(t *testing.T) {
 	u := &SourceControl{queueBudget: g, resolutions: make(map[uint64]*pendingResolution)}
 	packet := netapi.NewPacket(nil, nil, []byte("test"), nil)
 	p := &pendingResolution{key: 1}
-	if !g.ReservePendingTask() { t.Fatal("failed to reserve pending task") }
+	if !g.ReservePendingTask() {
+		t.Fatal("failed to reserve pending task")
+	}
 	if err := u.appendResolution(p, packet); err != nil {
 		t.Fatal(err)
 	}
