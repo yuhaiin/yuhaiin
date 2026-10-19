@@ -18,6 +18,7 @@ type WorkspaceGateway struct {
 	ID           string                `json:"id"`
 	Name         string                `json:"name"`
 	Enabled      bool                  `json:"enabled"`
+	Debug        bool                  `json:"debug"`
 	Revision     uint64                `json:"revision"`
 	Listener     *ListenerSource       `json:"listener,omitempty"`
 	Policies     []Rule                `json:"policies"`
@@ -100,7 +101,7 @@ func WorkspaceFromConfig(cfg Config) (Workspace, error) {
 	for _, g := range cfg.Gateways {
 		entry := WorkspaceGateway{
 			ID: g.ID, Name: g.Name, Enabled: g.Enabled, Revision: g.Revision,
-			MaxBodyBytes: g.MaxBodyBytes, Fallback: g.Default,
+			Debug: g.Debug, MaxBodyBytes: g.MaxBodyBytes, Fallback: g.Default,
 			Policies: []Rule{}, BackendPools: []Upstream{},
 			Filters: []FilterList{},
 		}
@@ -209,7 +210,7 @@ func ConfigFromWorkspace(doc Workspace) (Config, error) {
 		}
 		seenGateway[g.ID] = true
 		entry := Gateway{ID: g.ID, Name: g.Name, Enabled: g.Enabled, Revision: g.Revision,
-			MaxBodyBytes: g.MaxBodyBytes, Default: g.Fallback, RuleIDs: []string{}}
+			Debug: g.Debug, MaxBodyBytes: g.MaxBodyBytes, Default: g.Fallback, RuleIDs: []string{}}
 		if g.Listener != nil {
 			entry.Listen, entry.AllowedSources = g.Listener.Listen, g.Listener.AllowedSources
 			entry.TLSMode, entry.CertificateFile, entry.KeyFile =

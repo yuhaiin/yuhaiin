@@ -112,6 +112,14 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	e.Counters.Requests.Add(1)
 	defer func() { e.Counters.DurationNS.Add(uint64(time.Since(start))) }()
+	if e.config.Debug {
+		trace := newRequestTrace(e.config.ID, e.config.Name, w, r)
+		w = trace.writer
+		if trace.body != nil {
+			r.Body = trace.body
+		}
+		defer trace.finish(start)
+	}
 	if r.Method == http.MethodConnect {
 		http.Error(w, "nested CONNECT is unsupported", http.StatusMethodNotAllowed)
 		return
