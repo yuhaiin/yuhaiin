@@ -2,8 +2,8 @@ package lightweight
 
 import (
 	"encoding/binary"
-	"fmt"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/netip"
