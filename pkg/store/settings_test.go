@@ -2,6 +2,7 @@ package store
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
 
 	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
@@ -59,5 +60,49 @@ func TestSettingsStorePprofDefaultsToEnabledAndPersists(t *testing.T) {
 	}
 	if settings.Pprof {
 		t.Fatal("pprof setting was not persisted")
+	}
+}
+
+func TestSettingsStoreTrustedOriginsPersistence(t *testing.T) {
+	ctx := t.Context()
+	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqliteStore.Close()
+
+	store := NewSettingsStore(sqliteStore.DB())
+	current, err := store.Load(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(current.TrustedOrigins) != 0 {
+		t.Fatalf("unexpected initial custom origins: %v", current.TrustedOrigins)
+	}
+	current.TrustedOrigins = []string{"https://example.org:8443", "http://localhost:5173"}
+	next, err := store.Save(ctx, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(next.TrustedOrigins) != 2 {
+		t.Fatalf("saved custom origin list missing: %v", next.TrustedOrigins)
+	}
+	fresh, err := NewSettingsStore(sqliteStore.DB()).Load(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(fresh.TrustedOrigins, current.TrustedOrigins) {
+		t.Fatalf("persisted=%v want=%v", fresh.TrustedOrigins, current.TrustedOrigins)
+	}
+	fresh.TrustedOrigins = nil
+	if _, err := store.Save(ctx, fresh); err != nil {
+		t.Fatal(err)
+	}
+	cleared, err := store.Load(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cleared.TrustedOrigins) != 0 {
+		t.Fatalf("custom origins not cleared: %v", cleared.TrustedOrigins)
 	}
 }
