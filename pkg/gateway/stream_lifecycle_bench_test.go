@@ -55,7 +55,7 @@ func BenchmarkWebSocketProxyEcho(b *testing.B) {
 		if err != nil {
 			return
 		}
-		defer conn.CloseNow()
+		defer func() { _ = conn.CloseNow() }()
 		for {
 			kind, data, err := conn.Read(r.Context())
 			if err != nil {
@@ -72,7 +72,7 @@ func BenchmarkWebSocketProxyEcho(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer conn.CloseNow()
+	defer func() { _ = conn.CloseNow() }()
 	payload := []byte("websocket stream benchmark payload")
 	b.SetBytes(int64(len(payload)))
 	b.ReportAllocs()

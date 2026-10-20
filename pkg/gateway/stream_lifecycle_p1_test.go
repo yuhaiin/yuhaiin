@@ -117,7 +117,7 @@ func TestWebSocketDebugLongLivedAndIdleTimeout(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.CloseNow()
+		defer func() { _ = conn.CloseNow() }()
 		for {
 			kind, data, err := conn.Read(r.Context())
 			if err != nil {
@@ -139,7 +139,7 @@ func TestWebSocketDebugLongLivedAndIdleTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.CloseNow()
+	defer func() { _ = conn.CloseNow() }()
 	for i := range 2 {
 		if i == 1 {
 			time.Sleep(100 * time.Millisecond) // Exceeds request timeout, not idle timeout.
@@ -165,7 +165,7 @@ func TestWebSocketClientTrafficResetsIdleTimeout(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.CloseNow()
+		defer func() { _ = conn.CloseNow() }()
 		for {
 			kind, data, err := conn.Read(r.Context())
 			if err != nil {
@@ -185,7 +185,7 @@ func TestWebSocketClientTrafficResetsIdleTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.CloseNow()
+	defer func() { _ = conn.CloseNow() }()
 	for range 6 {
 		if err := conn.Write(ctx, websocket.MessageText, []byte("keep")); err != nil {
 			t.Fatal(err)
@@ -281,7 +281,7 @@ func TestHotUpdatePreservesAdmittedWebSocket(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.CloseNow()
+		defer func() { _ = conn.CloseNow() }()
 		for {
 			kind, data, err := conn.Read(r.Context())
 			if err != nil {
@@ -308,7 +308,7 @@ func TestHotUpdatePreservesAdmittedWebSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.CloseNow()
+	defer func() { _ = conn.CloseNow() }()
 	exchange := func(message string) {
 		t.Helper()
 		if err := conn.Write(ctx, websocket.MessageText, []byte(message)); err != nil {
@@ -396,4 +396,3 @@ func TestHTTP2SSEIndependentCancellation(t *testing.T) {
 		t.Fatalf("one cancelled h2 stream interrupted another: %q %v", buf, err)
 	}
 }
-
