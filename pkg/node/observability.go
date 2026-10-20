@@ -44,6 +44,7 @@ type nodeCounters struct {
 	tcpAttempts, tcpConnected, udpAttempts, udpConnected atomic.Uint64
 	pingAttempts, failures atomic.Uint64
 	activeTCP, activeUDP atomic.Int64
+	uploadBps, downloadBps atomic.Uint64
 	lastSuccess, lastFailure, lastUsed atomic.Int64
 	mu sync.Mutex
 	lastError string
@@ -150,6 +151,8 @@ func (n *nodeCounters) status(id string) contract.RuntimeStatus {
 	return contract.RuntimeStatus{
 		ID:id, State:state, UploadBytes:strconv.FormatUint(v.UploadBytes,10),
 		DownloadBytes:strconv.FormatUint(v.DownloadBytes,10),
+		UploadBps:strconv.FormatUint(n.uploadBps.Load(),10),
+		DownloadBps:strconv.FormatUint(n.downloadBps.Load(),10),
 		UDPSentPackets:strconv.FormatUint(v.UDPSentPackets,10),
 		UDPRecvPackets:strconv.FormatUint(v.UDPRecvPackets,10),
 		TCPAttempts:strconv.FormatUint(v.TCPAttempts,10),
@@ -171,12 +174,14 @@ type nodeObserver struct {
 	mu sync.Mutex
 	nodes map[string]*nodeCounters
 	saved map[string]nodeTotals
+	lastRates map[string][2]uint64
+	lastSample time.Time
 	stop chan struct{}
 	done chan struct{}
 }
 
 func newNodeObserver(ctx context.Context, db *sql.DB) (*nodeObserver, error) {
-	o:=&nodeObserver{db:db,nodes:make(map[string]*nodeCounters),saved:make(map[string]nodeTotals),stop:make(chan struct{}),done:make(chan struct{})}
+	o:=&nodeObserver{db:db,nodes:make(map[string]*nodeCounters),saved:make(map[string]nodeTotals),lastRates:make(map[string][2]uint64),lastSample:time.Now(),stop:make(chan struct{}),done:make(chan struct{})}
 	rows,err:=db.QueryContext(ctx,`SELECT node_id, data_json FROM node_runtime_stats`)
 	if err!=nil{return nil,err}
 	for rows.Next(){
@@ -188,6 +193,7 @@ func newNodeObserver(ctx context.Context, db *sql.DB) (*nodeObserver, error) {
 		n.restore(v)
 		o.nodes[id]=n
 		o.saved[id]=v
+		o.lastRates[id]=[2]uint64{v.UploadBytes,v.DownloadBytes}
 	}
 	if err==nil {err=rows.Err()}
 	_ = rows.Close()
@@ -222,7 +228,7 @@ func (o *nodeObserver) status(id string)contract.RuntimeStatus{
 	o.mu.Lock()
 	n:=o.nodes[id]
 	o.mu.Unlock()
-	if n==nil{return contract.RuntimeStatus{ID:id,State:"unknown",UploadBytes:"0",DownloadBytes:"0",UDPSentPackets:"0",UDPRecvPackets:"0",TCPAttempts:"0",TCPConnections:"0",UDPAttempts:"0",UDPSessions:"0",PingAttempts:"0",Failures:"0"}}
+	if n==nil{return contract.RuntimeStatus{ID:id,State:"unknown",UploadBytes:"0",DownloadBytes:"0",UploadBps:"0",DownloadBps:"0",UDPSentPackets:"0",UDPRecvPackets:"0",TCPAttempts:"0",TCPConnections:"0",UDPAttempts:"0",UDPSessions:"0",PingAttempts:"0",Failures:"0"}}
 	return n.status(id)
 }
 
@@ -234,8 +240,16 @@ func (o *nodeObserver) flush(ctx context.Context)error{
 func (o *nodeObserver) flushLocked(ctx context.Context)error{
 	if o.db==nil{return nil}
 	changed:=make(map[string]nodeTotals)
+	nowSample := time.Now()
+	elapsed := nowSample.Sub(o.lastSample).Seconds()
+	if elapsed <= 0 { elapsed = 1 }
+	o.lastSample = nowSample
 	for id,n:=range o.nodes{
 		v:=n.snapshot()
+		last := o.lastRates[id]
+		if v.UploadBytes >= last[0] { n.uploadBps.Store(uint64(float64(v.UploadBytes-last[0])/elapsed)) }
+		if v.DownloadBytes >= last[1] { n.downloadBps.Store(uint64(float64(v.DownloadBytes-last[1])/elapsed)) }
+		o.lastRates[id] = [2]uint64{v.UploadBytes,v.DownloadBytes}
 		if saved,ok:=o.saved[id];!ok||!reflect.DeepEqual(saved,v){changed[id]=v}
 	}
 	if len(changed)==0{return nil}
@@ -263,12 +277,13 @@ func (o *nodeObserver) delete(ctx context.Context,id string,fn func()error)error
 	if err:=fn();err!=nil{return err}
 	delete(o.nodes,id)
 	delete(o.saved,id)
+	delete(o.lastRates,id)
 	return nil
 }
 func (o *nodeObserver) prune(ctx context.Context,existing map[string]bool)error{
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	for id:=range o.nodes{if !existing[id]{delete(o.nodes,id);delete(o.saved,id)}}
+	for id:=range o.nodes{if !existing[id]{delete(o.nodes,id);delete(o.saved,id);delete(o.lastRates,id)}}
 	_,err:=o.db.ExecContext(ctx,`DELETE FROM node_runtime_stats WHERE node_id NOT IN(SELECT id FROM nodes_v2)`)
 	return err
 }
