@@ -582,4 +582,13 @@ var migrations = []Migration{
 			updated_at INTEGER NOT NULL
 		)`,
 	}},
+	{Version: 14, Name: "inbound_ingress_statistics", Statements: []string{
+		`CREATE TABLE inbound_statistics (
+			inbound_id TEXT PRIMARY KEY,
+			accepted_streams INTEGER NOT NULL DEFAULT 0 CHECK(accepted_streams >= 0),
+			received_packets INTEGER NOT NULL DEFAULT 0 CHECK(received_packets >= 0),
+			received_pings INTEGER NOT NULL DEFAULT 0 CHECK(received_pings >= 0),
+			updated_at INTEGER NOT NULL
+		)`,
+	}},
 }
