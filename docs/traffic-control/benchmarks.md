@@ -48,6 +48,21 @@ GOMAXPROCS=2 go test ./pkg/net/trafficcontrol -run '^$' \
 
 ShapedWriter uses an `io.Discard` sink and a 1 TiB/s cap/1 GiB burst, deliberately above sink throughput to isolate policy, locking and chunk overhead. Its printed MB/s is not network throughput or a pacing-accuracy result. Actual low-rate upload/download pacing, live cap changes, concurrent aggregate admission, partial-write refunds, deadlines, cancellation and half-close are covered separately by tests.
 
+## Current FIFO default
+
+The default was changed to FIFO in `ee451b8c01b2919bdf11f286fe6b18bf2e54e73e`. Both local and remote lightweight stacks use FIFO when the scheduler is omitted; explicit `fq_codel` configurations remain fair. The frontend displays the same default. Scheduling remains independent of rate-limit settings, avoiding a dependency from the stack into application policy activation.
+
+A fresh sequential comparison against `d0b4f280`, same environment and topology as above, three one-second samples per case:
+
+| Workload | Main MB/s | FIFO default MB/s | Throughput change |
+| --- | ---: | ---: | ---: |
+| UDP 64 B | 28.78 | 27.74 | -3.61% |
+| UDP 1200 B | 371.42 | 358.99 | -3.35% |
+| TCP 64 KiB upload | 705.17 | 716.37 | +1.59% |
+| TCP 64 KiB download | 702.22 | 711.44 | +1.31% |
+
+Bulk TCP is back at baseline level in this run; the small positive difference is not evidence of a general speedup. UDP retains a measurable roughly 3–4% overhead through the common output path. This default change does not remove that overhead or improve the explicit fair-mode measurements above. All measured TCP cases again report zero drops and retransmissions.
+
 ## Qualification
 
 The performance follow-up reran full Go tests/vet, workflow-pinned lint, go fix/gofmt, trafficcontrol/lightweight races, native Linux TUN tests and the three cross-build targets. Regression coverage includes bounded batching and release, new-host progress, waiting-reader progress, FIFO close versus an in-flight admission, and zero/old public timestamps. Independent standards/spec reviews found no further actionable defect. CI additionally caught a Hysteria2 lifecycle-test race caused by swapping a live handler; the fixture now injects that handler before server startup, and the full Hysteria2 race suite passes. The earlier consolidated review also covered the broader integration and frontend checks listed below; frontend source was unchanged in this follow-up.
