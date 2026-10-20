@@ -127,52 +127,43 @@ func (p Policy) AllowDatagram(direction Direction, bytes int) bool {
 	return true
 }
 
-// WaitBytes reserves pacing time across all policy scopes. It retains only
-// the caller's bounded buffer while waiting, never another queued copy.
-// A cancelled reservation is not automatically reclaimed if a concurrent
-// reservation depends on its virtual timestamp: this trades some temporary
-// underutilization for hard non-oversubscription.
+// WaitBytes waits until every applicable scope can admit the bytes, then
+// atomically charges all of them. Waiting does not reserve future tokens, so
+// context cancellation leaves no virtual-time debt that would starve other
+// healthy streams. TCP backpressure keeps only the current write buffer live.
 func (p Policy) WaitBytes(ctx context.Context, direction Direction, bytes int) error {
-	if bytes <= 0 {
-		return nil
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	limits := p.scopes(direction)
-	for _, l := range limits {
-		if l != nil {
-			l.mu.Lock()
+	if bytes <= 0 {return nil}
+	limits:=p.scopes(direction)
+	for {
+		if err:=ctx.Err();err!=nil{return err}
+		for _,l:=range limits {if l!=nil {l.mu.Lock()}}
+		now:=time.Now()
+		ready:=now
+		var next [4]time.Time
+		valid:=true
+		for i,l:=range limits {
+			if l==nil {continue}
+			if int64(bytes)>l.burst {
+				valid=false
+				break
+			}
+			next[i]=l.nextAt(now,int64(bytes))
+			if next[i].After(ready) {ready=next[i]}
 		}
-	}
-	now := time.Now()
-	deadline := now
-	for _, l := range limits {
-		if l == nil {
-			continue
+		if valid && !ready.After(now) {
+			for i,l:=range limits {if l!=nil {l.next=next[i]}}
 		}
-		next := l.nextAt(now, int64(bytes))
-		l.next = next
-		if next.After(deadline) {
-			deadline = next
+		for i:=len(limits)-1;i>=0;i-- {if limits[i]!=nil {limits[i].mu.Unlock()}}
+		if !valid{return ErrRateLimited}
+		if !ready.After(now) {return ctx.Err()}
+		timer:=time.NewTimer(time.Until(ready))
+		select {
+		case <-timer.C:
+			timer.Stop()
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
 		}
-	}
-	for i := len(limits) - 1; i >= 0; i-- {
-		if limits[i] != nil {
-			limits[i].mu.Unlock()
-		}
-	}
-	wait := time.Until(deadline)
-	if wait <= 0 {
-		return ctx.Err()
-	}
-	timer := time.NewTimer(wait)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-		return ctx.Err()
-	case <-ctx.Done():
-		return ctx.Err()
 	}
 }
 

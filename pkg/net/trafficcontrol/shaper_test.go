@@ -163,3 +163,32 @@ func BenchmarkPolicyResolve(b *testing.B) {
 		_ = m.Resolve("mixed", "")
 	}
 }
+
+func TestCanceledPacingDoesNotConsumeFutureQuota(t *testing.T) {
+	m := NewManager()
+	if err := m.Apply(Config{Enabled: true, Global: Profile{Upload: Rate{BytesPerSecond: 1, BurstBytes: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+	p := m.Resolve("", "")
+	if !p.AllowDatagram(Upload, 1) { t.Fatal("initial burst") }
+	limiter := p.up[0]
+	limiter.mu.Lock()
+	before := limiter.next
+	limiter.mu.Unlock()
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- p.WaitBytes(ctx, Upload, 1) }()
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) { t.Fatalf("wait returned %v",err) }
+	case <-time.After(time.Second):
+		t.Fatal("cancelled paced write did not stop")
+	}
+	limiter.mu.Lock()
+	after := limiter.next
+	limiter.mu.Unlock()
+	if !after.Equal(before) {t.Fatalf("cancellation reserved future quota: before=%v after=%v",before,after)}
+}
+
