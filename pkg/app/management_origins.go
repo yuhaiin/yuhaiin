@@ -85,7 +85,8 @@ func validOriginURL(u *url.URL, raw string) bool {
 	}
 	// An Origin is only scheme://host[:port], never a path, userinfo,
 	// query, fragment, "null", wildcard, or a serialized origin list.
-	return u.Host != "" && u.Hostname() != "" && u.User == nil &&
+	return u.Host != "" && u.Hostname() != "" &&
+		!strings.ContainsAny(u.Hostname(), "* \t\r\n\\") && u.User == nil &&
 		u.Opaque == "" && u.Path == "" && u.RawPath == "" &&
 		u.RawQuery == "" && u.Fragment == "" && u.String() == raw
 }
