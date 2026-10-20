@@ -1,0 +1,84 @@
+# Outbound runtime observability
+
+Outbound nodes now expose persistent per-node observations independently of
+the lifetime of their cached `netapi.Proxy` instances. The state is keyed by
+**stable Node ID**, not the editable Node Name.
+
+## Collection
+
+The existing outbound interface is wrapped once at each selected node
+boundary. Ordinary connection operations remain entirely in memory:
+
+- TCP dial attempts, successful connections and active sessions
+- UDP session attempts, successful sessions and active sessions
+- successful logical UDP datagrams sent and received
+- successful application payload bytes read and written
+- ping attempts, last attempt/success/error timestamps
+- the most recent bounded error text
+- explicit TCP, DNS/DoQ, IP, STUN and STUN/TCP probe results
+
+An optional `NodeRuntimeStatusProvider` lets a protocol report its own
+tunnel state. The generic wrapper never treats a created proxy object as
+proof that a VPN tunnel is connected.
+
+Payload bytes are **not wire bytes**. TCP read calls are not TCP packet
+counts. UDP packet counts count successful application datagrams, not
+fragments or encrypted underlay traffic.
+
+### Nested node accounting
+
+Set selectors and nested chains can be visited at more than one node
+boundary. Their statistics are intentionally **per-node** and must not be
+summed together to produce global traffic usage. The existing connection
+monitor provides the authoritative global transferred-byte totals. Each
+node's counters express traffic handled at that node boundary.
+
+## Health semantics
+
+`unknown`: No recent evidence. Never implies failure or success.
+
+`healthy`: A stream/session/ping or explicit probe recently succeeded.
+
+`degraded`: The latest observed attempt/probe recently failed.
+
+`disabled`: The node is disabled in saved configuration.
+
+These are passive observations, not an active continuous online check.
+States automatically become `unknown` after **2 minutes** without new
+successes/failures. The last observation/error timestamp stays visible.
+No automatic periodic probing of idle nodes is performed, to preserve
+battery and prevent involuntary enterprise VPN or authentication traffic.
+
+Note that proxy-session creation may be lazy in some protocol
+implementations. A successful generic session creation does not imply a
+complete remote handshake; a protocol can implement the optional native
+status provider when it can provide a stronger state signal.
+
+## SQLite and lifecycle
+
+Migration v15 adds `node_runtime_stats` with one JSON snapshot per Node ID,
+and a foreign key to `nodes_v2` with cascading deletion. Snapshots contain
+absolute cumulative values and are updated transactionally every 5 seconds,
+or on graceful shutdown. Retrying a failed flush does not double-count data.
+A hard crash can lose data since the most recent flush.
+
+Node rename, group updates, policy changes and proxy eviction do not clear
+statistics. Real node deletion clears its row; recreating the same ID starts
+from zero. The observer and SQLite cleanup account for subscription updates.
+Active session counts and current rates are runtime-only and restart at zero.
+Configuration backups intentionally omit statistics data.
+
+## HTTP API and frontend
+
+`POST /api/v2/nodes/status` with `{"ids":["node-1","node-2"]}`
+returns at most 100 persisted/live node statuses and does not create
+outbound instances or run probes. It is suitable for the paginated Nodes
+workspace. The existing `node.latency` RPC records test results in the
+backend instead of relying on browser localStorage.
+
+All cumulative counters are decimal strings so JavaScript clients do not
+round them at 2^53. Upload and download speeds are estimated from 5-second
+samples of payload bytes, and may lag one interval.
+
+The native VPN state adapter, per-hop underlay wire counters and optional
+background health-check scheduler are separate future enhancements.

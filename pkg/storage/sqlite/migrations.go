@@ -591,4 +591,11 @@ var migrations = []Migration{
 			updated_at INTEGER NOT NULL
 		)`,
 	}},
+	{Version: 15, Name: "outbound_observability", Statements: []string{
+		`CREATE TABLE node_runtime_stats (
+			node_id TEXT PRIMARY KEY REFERENCES nodes_v2(id) ON DELETE CASCADE,
+			data_json TEXT NOT NULL CHECK(json_valid(data_json)),
+			updated_at INTEGER NOT NULL
+		)`,
+	}},
 }

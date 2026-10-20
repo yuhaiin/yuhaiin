@@ -31,11 +31,12 @@ import (
 type NodeRuntime struct {
 	path string
 
-	mu      sync.Mutex
-	sqlite  *storagesqlite.Store
-	nodes   *plainstore.NodeStore
-	closed  bool
-	proxies *ProxyStore
+	mu       sync.Mutex
+	sqlite   *storagesqlite.Store
+	nodes    *plainstore.NodeStore
+	closed   bool
+	proxies  *ProxyStore
+	observer *nodeObserver
 }
 
 func NewNodeRuntime(path string) *NodeRuntime {
@@ -59,8 +60,14 @@ func (r *NodeRuntime) openNodes(ctx context.Context) (*plainstore.NodeStore, err
 	if err != nil {
 		return nil, fmt.Errorf("open node runtime store failed: %w", err)
 	}
+	observer, err := newNodeObserver(ctx, sqliteStore.DB())
+	if err != nil {
+		_ = sqliteStore.Close()
+		return nil, fmt.Errorf("load outbound runtime statistics: %w", err)
+	}
 	r.sqlite = sqliteStore
 	r.nodes = plainstore.NewNodeStore(sqliteStore.DB())
+	r.observer = observer
 	return r.nodes, nil
 }
 
@@ -72,11 +79,15 @@ func (r *NodeRuntime) Close() error {
 	}
 	r.closed = true
 	sqliteStore := r.sqlite
+	observer := r.observer
 	r.sqlite = nil
 	r.nodes = nil
 	r.mu.Unlock()
 
 	err := r.proxies.Close()
+	if observer != nil {
+		err = errors.Join(err, observer.close())
+	}
 	if sqliteStore != nil {
 		err = errors.Join(err, sqliteStore.Close())
 	}
@@ -113,6 +124,15 @@ func (r *NodeRuntime) ReplaceRemoteContractNodes(ctx context.Context, group stri
 			r.proxies.Delete(node.ID)
 		}
 	}
+	if r.observer != nil {
+		existing := make(map[string]bool, len(configured))
+		for _, node := range configured {
+			existing[node.ID] = true
+		}
+		if err := r.observer.prune(ctx, existing); err != nil {
+			return err
+		}
+	}
 	return r.clearIdleProxies(ctx, nodes)
 }
 
@@ -121,7 +141,18 @@ func (r *NodeRuntime) Remove(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := nodes.Delete(ctx, id); err != nil && !errors.Is(err, plainstore.ErrNotFound) {
+	deleteNode := func() error {
+		err := nodes.Delete(ctx, id)
+		if errors.Is(err, plainstore.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	if r.observer != nil {
+		if err := r.observer.delete(ctx, id, deleteNode); err != nil {
+			return err
+		}
+	} else if err := deleteNode(); err != nil {
 		return err
 	}
 	r.proxies.Delete(id)
@@ -270,9 +301,16 @@ func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.L
 
 	proxy, err := r.getContractDialer(ctx, id, node)
 	if err != nil {
+		if r.observer != nil {
+			r.observer.counter(id).probe(req.Type, contractnode.LatencyResponse{}, err)
+		}
 		return contractnode.LatencyResponse{}, err
 	}
-	return latency.LatencyWithOptions(req, &latencyDialer{Proxy: proxy, ipv6: req.IPv6}, latencyOptions)
+	result, err := latency.LatencyWithOptions(req, &latencyDialer{Proxy: proxy, ipv6: req.IPv6}, latencyOptions)
+	if r.observer != nil {
+		r.observer.counter(id).probe(req.Type, result, err)
+	}
+	return result, err
 }
 
 func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node contractnode.Node) (netapi.Proxy, error) {
@@ -295,10 +333,16 @@ func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node con
 		return &ProxyEntry{Proxy: proxy, ContractConfig: &node, Name: node.Name}, nil
 	})
 	if err != nil {
+		if r.observer != nil {
+			r.observer.counter(id).failure(err)
+		}
 		return nil, err
 	}
 	if node.IPVersion == contractnode.IPVersionIPv4 || node.IPVersion == contractnode.IPVersionIPv6 {
-		return &singleFamilyNodeProxy{Proxy: proxy, ipVersion: node.IPVersion}, nil
+		proxy = &singleFamilyNodeProxy{Proxy: proxy, ipVersion: node.IPVersion}
+	}
+	if r.observer != nil {
+		proxy = &observedProxy{Proxy: proxy, c: r.observer.counter(id)}
 	}
 	return proxy, nil
 }

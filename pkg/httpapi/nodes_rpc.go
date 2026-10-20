@@ -20,6 +20,7 @@ func addNodeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2NodesSelected, api.selectedNodes)
 	addRPCRoute(handlers, v2NodesSelect, api.selectNodes)
 	addRPCRoute(handlers, v2NodesActive, api.activeNodes)
+	addRPCRoute(handlers, v2NodeStatuses, api.nodeStatuses)
 	addRPCRoute(handlers, v2NodeGet, api.node)
 	addRPCRoute(handlers, v2NodePut, api.saveNode)
 	addRPCRoute(handlers, v2NodeDelete, api.deleteNode)
@@ -27,6 +28,31 @@ func addNodeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2NodeLatency, api.nodeLatency)
 	addRPCRoute(handlers, v2NodeClose, api.closeNode)
 	addRPCRoute(handlers, v2NodeExtraInfo, api.nodeExtraInfo)
+}
+
+type nodeStatusRequest struct {
+	IDs []string `json:"ids"`
+}
+
+func (a v2API) nodeStatuses(ctx context.Context, request *nodeStatusRequest) (*struct {
+	Items []contractnode.RuntimeStatus `json:"items"`
+}, error) {
+	provider, ok := a.services.Node.(interface {
+		Statuses(context.Context, []string) ([]contractnode.RuntimeStatus, error)
+	})
+	if !ok {
+		return nil, unavailable("outbound observability is unavailable")
+	}
+	if len(request.IDs) > 100 {
+		return nil, badRequest(errors.New("at most 100 node IDs are permitted"))
+	}
+	items, err := provider.Statuses(ctx, request.IDs)
+	if err != nil {
+		return nil, err
+	}
+	return &struct {
+		Items []contractnode.RuntimeStatus `json:"items"`
+	}{Items: items}, nil
 }
 
 func (a v2API) previewNodeImport(_ context.Context, request *contractnode.ImportRequest) (*contractnode.ImportPreview, error) {

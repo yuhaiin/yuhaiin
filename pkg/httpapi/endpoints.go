@@ -67,6 +67,7 @@ const (
 	v2InboundCapabilities      v2Endpoint = "inbound.capabilities"
 	v2NodesActive              v2Endpoint = "nodes.active"
 	v2NodeUse                  v2Endpoint = "node.use"
+	v2NodeStatuses             v2Endpoint = "nodes.status"
 	v2NodeLatency              v2Endpoint = "node.latency"
 	v2NodeClose                v2Endpoint = "node.close"
 	v2NodeExtraInfo            v2Endpoint = "node.extra"
@@ -220,6 +221,7 @@ var v2Routes = []v2Route{
 	{v2NodePut, "PUT /api/v2/nodes/{id}"},
 	{v2NodeDelete, "DELETE /api/v2/nodes/{id}"},
 	{v2NodeUse, "POST /api/v2/nodes/{id}/use"},
+	{v2NodeStatuses, "POST /api/v2/nodes/status"},
 	{v2NodeLatency, "POST /api/v2/nodes/{id}/latency"},
 	{v2NodeClose, "POST /api/v2/nodes/{id}/close"},
 	{v2NodeExtraInfo, "GET /api/v2/nodes/{id}/extra"},
