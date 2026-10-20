@@ -1,6 +1,7 @@
 package trafficcontrol
 
 import (
+	"io"
 	"testing"
 	"time"
 )
@@ -113,5 +114,37 @@ func BenchmarkGroupedFairQueueSparse(b *testing.B) {
 		if _, ok, drops := q.Pop(now); !ok || len(drops) != 0 {
 			b.Fatal("pop")
 		}
+	}
+}
+
+// Measures policy/locking/chunk overhead at a cap above the discard sink's
+// throughput. It is not a network benchmark or a pacing accuracy test.
+func BenchmarkShaperWrite(b *testing.B) {
+	for _, mode := range []string{"unlimited", "global", "hierarchy"} {
+		b.Run(mode, func(b *testing.B) {
+			m := NewManager()
+			rate := Profile{Download: Rate{BytesPerSecond: 1 << 40, BurstBytes: 1 << 30}}
+			cfg := Config{Enabled: true}
+			if mode != "unlimited" {
+				cfg.Global = rate
+			}
+			if mode == "hierarchy" {
+				cfg.Profiles = map[string]Profile{"limited": rate}
+				cfg.InboundProfiles = map[string]string{"in": "limited"}
+				cfg.RouteProfiles = map[string]string{"route": "limited"}
+			}
+			if err := m.Apply(cfg); err != nil {
+				b.Fatal(err)
+			}
+			w := ShapedWriter{Writer: io.Discard, Context: b.Context(), Policy: m.Resolve("in", "route"), Direction: Download}
+			data := make([]byte, 16<<10)
+			b.ReportAllocs()
+			b.SetBytes(int64(len(data)))
+			for b.Loop() {
+				if n, err := w.Write(data); err != nil || n != len(data) {
+					b.Fatalf("write n=%d err=%v", n, err)
+				}
+			}
+		})
 	}
 }

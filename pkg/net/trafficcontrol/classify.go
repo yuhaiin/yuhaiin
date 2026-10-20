@@ -71,7 +71,7 @@ func FlowHash(b []byte) uint64 {
 		add(b[8:40])
 		next, off := b[6], 40
 		fragmented := false
-		for i := 0; i < 8; i++ {
+		for range 8 {
 			if next == 44 {
 				// Fragmented packets deliberately share the same endpoint
 				// queue: non-initial fragments have no transport ports.

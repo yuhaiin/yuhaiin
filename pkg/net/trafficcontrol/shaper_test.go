@@ -151,14 +151,12 @@ func TestSnapshotAtomicConcurrentActivation(t *testing.T) {
 	b := Config{Enabled: true, Global: Profile{Download: Rate{BytesPerSecond: 2000000}}}
 	var wg sync.WaitGroup
 	for range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for range 400 {
 				_ = m.Resolve("a", "route").Enabled(Upload)
 				_ = m.Resolve("a", "route").Enabled(Download)
 			}
-		}()
+		})
 	}
 	for range 100 {
 		if err := m.Apply(a); err != nil {

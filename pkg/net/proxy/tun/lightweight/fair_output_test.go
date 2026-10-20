@@ -76,7 +76,7 @@ func TestFairOutputNoOverAdmission(t *testing.T) {
 	s.initOutput(trafficcontrol.SchedulerFair, 1, 128)
 	s.scheduler = newScheduler(s.done)
 	s.buffers.init(s)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		p, err := s.buffers.get(64)
 		if err != nil {
 			t.Fatal(err)

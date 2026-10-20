@@ -227,10 +227,7 @@ func (q *FairQueue[T]) pop(now time.Time) (value T, ok bool, dropped []T) {
 				continue
 			}
 		}
-		delay := now.Sub(p.at)
-		if delay < 0 {
-			delay = 0
-		}
+		delay := max(now.Sub(p.at), 0)
 		if delay > q.maxSojourn {
 			q.maxSojourn = delay
 		}

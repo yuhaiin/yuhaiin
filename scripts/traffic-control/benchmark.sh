@@ -28,7 +28,7 @@ run_stack() {
   (
     cd "$checkout"
     go test ./pkg/net/proxy/tun/lightweight -run '^$' \
-      -bench '^BenchmarkTCP$/^reno$/^mtu=1500$/^flows=1$/^payload=(64|65536)$/^(up|down)$' \
+      -bench '^BenchmarkTCP$/^reno$/^mtu=1500$/^flows=1$/^payload=(64|65536)$/^(upload|download)$' \
       -benchtime="$bench_time" -count="$bench_count" -benchmem -timeout=240s
   ) | tee "$output_dir/tcp-$label.log"
 }

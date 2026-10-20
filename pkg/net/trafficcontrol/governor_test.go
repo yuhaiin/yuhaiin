@@ -37,8 +37,10 @@ func TestGovernorHierarchyAndRelease(t *testing.T) {
 	b.ReleaseQueueBytes(50)
 	var wg sync.WaitGroup
 	for range 32 {
-		wg.Add(1)
-		go func() { defer wg.Done(); first.Release(); second.Release() }()
+		wg.Go(func() {
+			first.Release()
+			second.Release()
+		})
 	}
 	wg.Wait()
 	if got := root.Snapshot(); got.Sessions != 0 || got.QueueBytes != 0 {
@@ -52,14 +54,12 @@ func TestGovernorConcurrentLimit(t *testing.T) {
 	start := make(chan struct{})
 	success := make(chan *Session, 512)
 	for range 512 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			if l, ok := g.AcquireSession(); ok {
 				success <- l
 			}
-		}()
+		})
 	}
 	close(start)
 	wg.Wait()
@@ -94,13 +94,11 @@ func TestQueueBytesConcurrentAdmission(t *testing.T) {
 	var wg sync.WaitGroup
 	success := make(chan struct{}, 64)
 	for range 64 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if g.ReserveQueueBytes(128) {
 				success <- struct{}{}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	close(success)

@@ -21,7 +21,7 @@ func TestFairQueueDRRAndPerFlowOrder(t *testing.T) {
 	}
 	var orderedA, orderedB []int
 	firstB := -1
-	for n := 0; n < 25; n++ {
+	for n := range 25 {
 		x, ok, drops := q.Pop(now)
 		if !ok || len(drops) != 0 {
 			t.Fatalf("unexpected dequeue: %t drops=%v", ok, drops)
@@ -115,16 +115,14 @@ func TestFairQueueConcurrentFlowOwnership(t *testing.T) {
 	now := time.Now()
 	var wg sync.WaitGroup
 	for flow := range flows {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for n := range perFlow {
 				if !q.Push(uint64(flow), 512, item{flow, n}, now) {
 					t.Errorf("flow %d admission failed", flow)
 					return
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	var seen [flows]int

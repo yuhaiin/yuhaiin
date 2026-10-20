@@ -29,7 +29,6 @@ func TestLoadOrCreate(t *testing.T) {
 			start := make(chan struct{})
 			results := make(chan int, 10)
 			for i := range 10 {
-				i := i
 				wg.Go(func() {
 					<-start
 					r, _, err := syncMap.LoadOrCreate(j, func() (int, error) {

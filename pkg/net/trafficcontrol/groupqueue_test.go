@@ -111,15 +111,13 @@ func TestGroupedFairQueueConcurrentOwnership(t *testing.T) {
 	now := time.Now()
 	var wg sync.WaitGroup
 	for group := range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range 100 {
 				if !q.Push(uint64(group), uint64(i%10), 1400, i, now, 1) {
 					t.Error("unexpected admission rejection")
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	seen := 0

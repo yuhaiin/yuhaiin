@@ -152,3 +152,69 @@ func TestChangingWriteDeadlineInterruptsPacing(t *testing.T) {
 		t.Fatal("pacing did not observe the changed deadline")
 	}
 }
+
+func TestWrappedTCPHalfClosePreservesResponse(t *testing.T) {
+	listener, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	raw, err := net.DialTCP("tcp", nil, listener.Addr().(*net.TCPAddr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	peer, err := listener.AcceptTCP()
+	if err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	defer peer.Close()
+	m := NewManager()
+	if err := m.Apply(Config{Enabled: true, Global: Profile{
+		Upload: Rate{BytesPerSecond: 1 << 20}, Download: Rate{BytesPerSecond: 1 << 20},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	c := WrapConn(t.Context(), raw, func() Policy { return m.Resolve("", "") })
+	defer c.Close()
+	if err := c.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if err := peer.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Write([]byte("request")); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.(interface{ CloseWrite() error }).CloseWrite(); err != nil {
+		t.Fatal(err)
+	}
+	request, err := io.ReadAll(peer)
+	if err != nil || string(request) != "request" {
+		t.Fatalf("request=%q err=%v", request, err)
+	}
+	if _, err := peer.Write([]byte("response")); err != nil {
+		t.Fatal(err)
+	}
+	if err := peer.CloseWrite(); err != nil {
+		t.Fatal(err)
+	}
+	// Exercise the buffer-lending adapter as well as ordinary half-close.
+	reader := c.(interface {
+		ReadWithBuffer(func() []byte) ([]byte, error)
+	})
+	var response []byte
+	for {
+		data, err := reader.ReadWithBuffer(func() []byte { return make([]byte, 32) })
+		response = append(response, data...)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if string(response) != "response" {
+		t.Fatalf("half-close lost response: %q", response)
+	}
+}

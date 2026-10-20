@@ -19,7 +19,7 @@ func workspaceFixture() Config {
 		}},
 		Rules: []Rule{{
 			ID: "path", Name: "Block ads", Enabled: true, Priority: 10,
-			Match:  Condition{Field: "path", Operator: "prefix", Value: "/ads/"},
+			Match:  Condition{Field: "path", Operator: "prefix", Values: []string{"/ads/"}},
 			Action: Action{Type: "block", Status: 204},
 		}},
 		Upstreams: []Upstream{{
