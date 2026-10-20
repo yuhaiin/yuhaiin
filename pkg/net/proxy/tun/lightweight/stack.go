@@ -56,6 +56,7 @@ type Stack struct {
 	scheduler                                     *scheduler
 	outgoing                                      chan *ownedBuffer
 	fairOutput                                    *trafficcontrol.FairQueue[*ownedBuffer]
+	hostOutput                                    *trafficcontrol.GroupedFairQueue[*ownedBuffer]
 	inputGovernor                                 *trafficcontrol.Governor
 	forwarded                                     chan Datagram
 	pings                                         chan *PingRequest
@@ -83,7 +84,11 @@ type Statistics struct {
 
 func (s *Stack) Stats() Statistics {
 	stats := Statistics{MemoryBytes: s.memory.Load(), Connections: s.flows.Load(), CachedBytes: s.buffers.cached.Load(), PacketsIn: s.packetsIn.Load(), PacketsOut: s.packetsOut.Load(), Drops: s.drops.Load(), Retransmissions: s.retransmissions.Load()}
-	if s.fairOutput != nil {
+	if s.hostOutput != nil {
+		q := s.hostOutput.Stats()
+		stats.OutputQueuedPackets, stats.OutputQueuedBytes = q.Packets, q.Bytes
+		stats.OutputAQMDrops, stats.OutputRejected = q.DroppedAQM, q.Rejected
+	} else if s.fairOutput != nil {
 		q := s.fairOutput.Stats()
 		stats.OutputQueuedPackets, stats.OutputQueuedBytes = q.Packets, q.Bytes
 		stats.OutputAQMDrops, stats.OutputRejected = q.DroppedAQM, q.Rejected
@@ -114,7 +119,10 @@ func New(config Config, link PacketIO) (*Stack, error) {
 	if c.ForwardPing {
 		s.pings = make(chan *PingRequest, min(c.QueuePackets, 64))
 	}
-	s.fairOutput = trafficcontrol.NewFairQueue[*ownedBuffer](trafficcontrol.FairConfig{MaxPackets: c.QueuePackets, MaxBytes: max(int64(c.MTU)*int64(c.QueuePackets), c.MemoryLimit/8)})
+	// A host group receives an aggregate DRR share regardless of how many
+	// simultaneous TCP/UDP tuples it opens. Within each group FQ-CoDel
+	// preserves per-flow isolation and bounded sojourn.
+	s.hostOutput = trafficcontrol.NewGroupedFairQueue[*ownedBuffer](trafficcontrol.FairConfig{MaxPackets: c.QueuePackets, MaxBytes: max(int64(c.MTU)*int64(c.QueuePackets), c.MemoryLimit/8)})
 	if c.InputPacketsPerSecond > 0 {
 		s.inputGovernor = trafficcontrol.NewGovernor(trafficcontrol.Limits{PacketsPerSec: float64(c.InputPacketsPerSecond), PacketBurst: float64(c.InputPacketBurst)}, nil)
 	}
@@ -189,6 +197,9 @@ func (s *Stack) shutdown() {
 func (s *Stack) Close() error {
 	s.shutdown()
 	s.wg.Wait()
+	if s.hostOutput != nil {
+		for _, b := range s.hostOutput.Drain() { b.release() }
+	}
 	if s.fairOutput != nil {
 		for _, b := range s.fairOutput.Drain() {
 			b.release()
@@ -320,6 +331,10 @@ func (s *Stack) emitOwned(packet *ownedBuffer) error {
 	defer s.txMu.RUnlock()
 	if s.closed() {
 		return net.ErrClosed
+	}
+	if s.hostOutput != nil {
+		if s.hostOutput.Push(outputHostHash(packet), outputFlowHash(packet), len(packet.data)-packet.offset, packet, time.Now(), outputPacketWeight(packet)) { return nil }
+		return ErrLimit
 	}
 	if s.fairOutput != nil {
 		if s.fairOutput.PushWeighted(outputFlowHash(packet), len(packet.data)-packet.offset, packet, time.Now(), outputPacketWeight(packet)) {
