@@ -25,6 +25,8 @@ jobs:
         env:
           CGO_ENABLED: '1'
         run: go test -race -count=1 -timeout=180s ./pkg/net/proxy/tun/...
+      - name: SACK lost-retransmission stability (100 race runs)
+        run: go test -race -count=100 -timeout=300s -run '^TestTCPSACKRepairsLostReplacementWithNewEvidence$' ./pkg/net/proxy/tun/lightweight
       - name: Parser fuzzing
         run: |
           go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzParsePacket$' -fuzztime=10s -parallel=4
