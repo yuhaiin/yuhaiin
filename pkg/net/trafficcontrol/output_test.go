@@ -266,3 +266,42 @@ func TestOutputCloseJoinsAdmissionBeforeFinalDrain(t *testing.T) {
 		})
 	}
 }
+
+func TestOutputReadinessPassesBetweenWaitingReaders(t *testing.T) {
+	q := NewOutputQueue(OutputOptions[int]{Limits: FairConfig{MaxPackets: 32, MaxBytes: 4096}, Mode: SchedulerFair,
+		Size: func(int) int { return 100 }, Classify: func(int) Classification { return Classification{Host: 1, Flow: 1, Weight: 1} }, Release: func(int) { t.Error("drop") },
+	})
+	defer q.Close()
+	const readers = 8
+	started, received := make(chan struct{}, readers), make(chan int, readers)
+	for range readers {
+		go func() {
+			var dst [1]int
+			started <- struct{}{}
+			if q.DequeueBatch(dst[:], true) == 1 {
+				received <- dst[0]
+			}
+		}()
+	}
+	for range readers {
+		<-started
+	}
+	runtime.Gosched()
+	for v := range readers {
+		if !q.Enqueue(v) {
+			t.Fatal("enqueue")
+		}
+	}
+	seen := make(map[int]bool)
+	for range readers {
+		select {
+		case v := <-received:
+			if seen[v] {
+				t.Fatal("duplicate packet", v)
+			}
+			seen[v] = true
+		case <-time.After(time.Second):
+			t.Fatal("backlog left readers asleep")
+		}
+	}
+}

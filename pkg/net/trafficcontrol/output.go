@@ -97,9 +97,8 @@ func (q *fairOutput[T]) Enqueue(v T) bool {
 	}
 	c := q.options.Classify(v)
 	accepted, drops := q.queue.admit(c.Host, c.Flow, size, v, queueNow(), c.Weight)
-	if accepted {
-		q.ready.Signal()
-	}
+	// A writer cannot be asleep while this queue was already nonempty.
+	// Dequeue hands readiness to another reader if it leaves a backlog.
 	q.mu.Unlock()
 	for _, drop := range drops {
 		q.options.Release(drop)
@@ -147,6 +146,9 @@ func (q *fairOutput[T]) DequeueBatch(dst []T, wait bool) int {
 				dst[n] = v
 				n++
 			}
+		}
+		if q.queue.packets > 0 {
+			q.ready.Signal()
 		}
 		q.mu.Unlock()
 		for _, drop := range drops {
