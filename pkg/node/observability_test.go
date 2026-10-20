@@ -5,8 +5,8 @@ import (
 	"errors"
 	"io"
 	"net"
-	"time"
 	"testing"
+	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -177,7 +177,7 @@ func TestObservedNodeUDPPayloadAndPackets(t *testing.T) {
 			connect: func() (net.Conn, error) { return nil, errors.New("tcp disabled") },
 			packet:  func() (net.PacketConn, error) { return a, nil },
 		},
-		c:     counters,
+		c: counters,
 	}
 	conn, err := proxy.PacketConn(context.Background(), nil)
 	if err != nil {
