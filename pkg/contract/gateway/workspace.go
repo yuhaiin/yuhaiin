@@ -62,12 +62,16 @@ func NormalizeCondition(c Condition) Condition {
 	}
 	if c.All != nil {
 		children := make([]Condition, len(c.All))
-		for i, child := range c.All { children[i] = NormalizeCondition(child) }
+		for i, child := range c.All {
+			children[i] = NormalizeCondition(child)
+		}
 		c.All = children
 	}
 	if c.Any != nil {
 		children := make([]Condition, len(c.Any))
-		for i, child := range c.Any { children[i] = NormalizeCondition(child) }
+		for i, child := range c.Any {
+			children[i] = NormalizeCondition(child)
+		}
 		c.Any = children
 	}
 	if c.Not != nil {
