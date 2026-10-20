@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json/v2"
-	"errors"
-	"fmt"
 	"maps"
 	"net"
 	"reflect"
@@ -94,7 +92,7 @@ func (n *nodeCounters) restore(v nodeTotals) {
 }
 
 func (n *nodeCounters) success() {
-	now := time.Now().Unix()
+	now := time.Now().UnixNano()
 	n.lastSuccess.Store(now)
 	n.lastUsed.Store(now)
 }
@@ -103,7 +101,7 @@ func (n *nodeCounters) failure(err error) {
 	if err == nil {
 		return
 	}
-	now := time.Now().Unix()
+	now := time.Now().UnixNano()
 	n.failures.Add(1)
 	n.lastFailure.Store(now)
 	n.lastUsed.Store(now)
@@ -133,15 +131,20 @@ func (n *nodeCounters) probe(kind string, result contract.LatencyResponse, err e
 	}
 	n.probes[kind] = contract.ProbeStatus{CheckedAt: time.Now().Unix(), Result: result}
 	n.mu.Unlock()
+	if err != nil {
+		n.lastFailure.Store(time.Now().UnixNano())
+	} else if result.OK {
+		n.success()
+	}
 }
 
 func (n *nodeCounters) status(id string) contract.RuntimeStatus {
 	v := n.snapshot()
 	state := "unknown"
-	now := time.Now().Unix()
-	if v.LastFailureAt > v.LastSuccessAt && now-v.LastFailureAt <= int64(recentNodeObservation.Seconds()) {
+	now := time.Now().UnixNano()
+	if v.LastFailureAt > v.LastSuccessAt && now-v.LastFailureAt <= recentNodeObservation.Nanoseconds() {
 		state = "degraded"
-	} else if v.LastSuccessAt > 0 && v.LastSuccessAt >= v.LastFailureAt && now-v.LastSuccessAt <= int64(recentNodeObservation.Seconds()) {
+	} else if v.LastSuccessAt > 0 && v.LastSuccessAt >= v.LastFailureAt && now-v.LastSuccessAt <= recentNodeObservation.Nanoseconds() {
 		state = "healthy"
 	}
 	return contract.RuntimeStatus{
@@ -156,8 +159,8 @@ func (n *nodeCounters) status(id string) contract.RuntimeStatus {
 		PingAttempts:strconv.FormatUint(v.PingAttempts,10),
 		Failures:strconv.FormatUint(v.Failures,10),
 		ActiveTCP:n.activeTCP.Load(), ActiveUDP:n.activeUDP.Load(),
-		LastSuccessAt:v.LastSuccessAt,LastFailureAt:v.LastFailureAt,
-		LastUsedAt:v.LastUsedAt,LastError:v.LastError,Probes:v.Probes,
+		LastSuccessAt:v.LastSuccessAt/int64(time.Second),LastFailureAt:v.LastFailureAt/int64(time.Second),
+		LastUsedAt:v.LastUsedAt/int64(time.Second),LastError:v.LastError,Probes:v.Probes,
 	}
 }
 
@@ -286,10 +289,8 @@ type observedProxy struct{
 }
 func (p *observedProxy) Conn(ctx context.Context,a netapi.Address)(net.Conn,error){
 	p.c.tcpAttempts.Add(1)
-	p.c.lastUsed.Store(time.Now().Unix())
-	start:=time.Now()
+	p.c.lastUsed.Store(time.Now().UnixNano())
 	conn,err:=p.Proxy.Conn(ctx,a)
-	_ = start // Dial duration belongs to a future histogram, not a fake RTT.
 	if err!=nil{p.c.failure(err);return nil,err}
 	p.c.tcpConnected.Add(1);p.c.activeTCP.Add(1);p.c.success()
 	w:=&observedConn{Conn:conn,c:p.c}
@@ -298,7 +299,7 @@ func (p *observedProxy) Conn(ctx context.Context,a netapi.Address)(net.Conn,erro
 }
 func (p *observedProxy) PacketConn(ctx context.Context,a netapi.Address)(net.PacketConn,error){
 	p.c.udpAttempts.Add(1)
-	p.c.lastUsed.Store(time.Now().Unix())
+	p.c.lastUsed.Store(time.Now().UnixNano())
 	conn,err:=p.Proxy.PacketConn(ctx,a)
 	if err!=nil{p.c.failure(err);return nil,err}
 	p.c.udpConnected.Add(1);p.c.activeUDP.Add(1);p.c.success()
@@ -363,5 +364,3 @@ func (c *observedPacketConn) Close()error{
 var _ net.Conn = (*observedConn)(nil)
 var _ net.PacketConn = (*observedPacketConn)(nil)
 var _ netapi.BufferReader = (*observedBufferedConn)(nil)
-var _ = errors.Is
-var _ = fmt.Sprintf
