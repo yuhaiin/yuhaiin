@@ -15,6 +15,8 @@ type RuntimeStatus struct {
 	State            string                 `json:"state"`
 	UploadBytes      string                 `json:"uploadBytes"`
 	DownloadBytes    string                 `json:"downloadBytes"`
+	UploadBps        string                 `json:"uploadBps"`
+	DownloadBps      string                 `json:"downloadBps"`
 	UDPSentPackets   string                 `json:"udpSentPackets"`
 	UDPRecvPackets   string                 `json:"udpRecvPackets"`
 	TCPAttempts      string                 `json:"tcpAttempts"`
