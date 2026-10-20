@@ -33,6 +33,7 @@ type ContextCache struct {
 }
 
 type replyBinding struct {
+	inboundID string
 	writer netapi.WriteBack
 	source net.Addr
 	write  func(context.Context, []byte, net.Addr) (int, error)
@@ -52,6 +53,7 @@ type SourceControl struct {
 	dialer       netapi.Proxy
 	sessionLease *trafficcontrol.Session
 	queueBudget  *trafficcontrol.Governor
+	trafficControl *trafficcontrol.Manager
 
 	// sniffer is an optional packet sniffer for observability or traffic analysis.
 	sniffer netapi.PacketSniffer

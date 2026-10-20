@@ -10,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
@@ -45,7 +46,19 @@ func (s *ContractStore) Sync(ctx context.Context) error {
 		return errors.Join(result, err)
 	}
 	s.applySettings(settings)
-	return result
+	qos, err := s.store.TrafficControl(ctx)
+	if err != nil {return errors.Join(result,err)}
+	return errors.Join(result,s.runtime.SetTrafficControl(qos))
+}
+
+// TrafficControl provides the persisted QoS profiles used by both the API
+// and the engine. Runtime activation occurs after durable validation/save.
+func (s *ContractStore) TrafficControl(ctx context.Context) (trafficcontrol.Config,error) {
+	return s.store.TrafficControl(ctx)
+}
+func (s *ContractStore) SaveTrafficControl(ctx context.Context,cfg trafficcontrol.Config) error {
+	if err:=s.store.SaveTrafficControl(ctx,cfg);err!=nil{return err}
+	return s.runtime.SetTrafficControl(cfg)
 }
 
 func (s *ContractStore) List(ctx context.Context) ([]contract.Inbound, error) {

@@ -1,0 +1,44 @@
+name: Traffic Control P1/P2 validation
+
+on:
+  push:
+    branches: [feat/traffic-control-p1-p2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  format-bootstrap:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: traffic-control-p2-format
+      - name: gofmt implementation
+        run: |
+          gofmt -w pkg/net/trafficcontrol/*.go pkg/net/relay/relay.go pkg/inbound/{handler.go,inbound.go,contract_store.go} pkg/net/nat/{table.go,source.go,reply.go} pkg/store/inbound_traffic_control*.go pkg/httpapi/{endpoints.go,inbound_rpc.go}
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add pkg/net/trafficcontrol pkg/net/relay/relay.go pkg/inbound pkg/net/nat pkg/store/inbound_traffic_control*.go pkg/httpapi
+            git commit -m "style(trafficcontrol): gofmt P1/P2 files [skip ci]"
+            git push origin HEAD:feat/traffic-control-p1-p2
+          fi
+
+  qualification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: traffic-control-p2
+      - name: Package build and unit tests with race detector
+        run: go test -race -count=1 -timeout=300s ./pkg/net/trafficcontrol/... ./pkg/net/relay/... ./pkg/net/nat/... ./pkg/inbound/... ./pkg/store/... ./pkg/httpapi/...
+      - name: Benchmarks
+        run: go test ./pkg/net/trafficcontrol ./pkg/net/relay ./pkg/net/nat -run '^$' -bench 'Benchmark(FairQueue|Governor|Shaper|Policy|Datagram|NATSession)' -benchtime=100x -benchmem -timeout=240s

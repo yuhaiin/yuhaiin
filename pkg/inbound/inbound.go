@@ -15,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -57,6 +58,15 @@ type Inbound struct {
 
 	hijackDNS atomic.Bool
 	fakeip    atomic.Bool
+}
+
+// SetTrafficControl atomically activates validated policies for new streams
+// and subsequent UDP datagrams without rebuilding network listeners.
+func (l *Inbound) SetTrafficControl(config trafficcontrol.Config) error {
+	return l.handler.qos.Apply(config)
+}
+func (l *Inbound) TrafficControl() trafficcontrol.Config {
+	return l.handler.qos.Config()
 }
 
 type Option func(*Inbound)

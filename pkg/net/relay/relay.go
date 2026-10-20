@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/apernet/quic-go"
 )
@@ -108,17 +110,38 @@ func AppendIgnoreError(err error) {
 
 // Relay pipe
 func Relay(rw1, rw2 io.ReadWriteCloser, logMsgs ...any) {
+	relayWithWriters(rw1, rw2, rw2, rw1, logMsgs...)
+}
+
+// RelayShaped retains the original half-close and buffered-read behavior,
+// while pacing bounded writes in each direction.
+func RelayShaped(ctx context.Context, rw1, rw2 io.ReadWriteCloser, p trafficcontrol.Policy, logMsgs ...any) {
+	if !p.Enabled(trafficcontrol.Upload) && !p.Enabled(trafficcontrol.Download) {
+		Relay(rw1, rw2, logMsgs...)
+		return
+	}
+	var up, down io.Writer = rw2, rw1
+	if p.Enabled(trafficcontrol.Upload) {
+		up = trafficcontrol.ShapedWriter{Writer: rw2, Context: ctx, Policy: p, Direction: trafficcontrol.Upload}
+	}
+	if p.Enabled(trafficcontrol.Download) {
+		down = trafficcontrol.ShapedWriter{Writer: rw1, Context: ctx, Policy: p, Direction: trafficcontrol.Download}
+	}
+	relayWithWriters(rw1, rw2, up, down, logMsgs...)
+}
+
+func relayWithWriters(rw1, rw2 io.ReadWriteCloser, up, down io.Writer, logMsgs ...any) {
 	logMsgs = append(logMsgs, slog.Any("rw1_type", reflect.TypeOf(rw1)), slog.Any("rw2_type", reflect.TypeOf(rw2)))
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
-		_, err := Copy(rw2, rw1)
+		_, err := Copy(up, rw1)
 		logE("relay rw1 -> rw2", err, logMsgs...)
 		closeWrite(rw2) // make another Copy exit
 		closeRead(rw1)
 	}()
 
-	_, err := Copy(rw1, rw2)
+	_, err := Copy(down, rw2)
 	logE("relay rw2 -> rw1", err, logMsgs...)
 	closeWrite(rw1)
 	closeRead(rw2)

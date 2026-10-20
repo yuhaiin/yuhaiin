@@ -32,6 +32,7 @@ type Table struct {
 
 	cleanerWake   chan struct{}
 	sourceControl syncmap.SyncMap[uint64, *SourceControl]
+	trafficControl *trafficcontrol.Manager
 	budget        *trafficcontrol.Governor
 	closed        atomic.Bool
 	mu            sync.RWMutex // Serializes queue admission with Close.
@@ -44,6 +45,12 @@ var ErrNATSessionLimit = errors.New("udp nat: session limit")
 
 // ResourceStats exposes live NAT sessions and charged queue bytes.
 func (t *Table) ResourceStats() trafficcontrol.Counters { return t.budget.Snapshot() }
+
+// SetTrafficControl must be called before any packet writers start. Dynamic
+// changes are applied to the manager's immutable snapshots, not its pointer.
+func (t *Table) SetTrafficControl(m *trafficcontrol.Manager) {
+	t.trafficControl = m
+}
 
 func NewTable(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *Table {
 	return NewTableWithParent(sniffer, dialer, nil)
@@ -143,6 +150,7 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 			}
 			source := NewSourceChan(u.sniffer, u.dialer)
 			source.sessionLease, source.queueBudget = lease, u.budget
+			source.trafficControl = u.trafficControl
 			return source, nil
 		})
 		if err != nil {

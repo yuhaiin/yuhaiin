@@ -9,6 +9,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
@@ -53,7 +55,9 @@ func (u *SourceControl) bindReply(pkt *netapi.Packet) {
 		return
 	}
 	ctx, cancel := context.WithCancel(u.ctx)
-	next := &replyBinding{writer: writer, source: pkt.Src(), write: pkt.WriteBackContext, ctx: ctx, cancel: cancel}
+	inboundID := pkt.InboundID()
+	if inboundID == "" { inboundID = pkt.InboundName() }
+	next := &replyBinding{inboundID: inboundID, writer: writer, source: pkt.Src(), write: pkt.WriteBackContext, ctx: ctx, cancel: cancel}
 	u.reply.Store(next)
 	previous.cancel()
 }
@@ -77,9 +81,24 @@ func (u *SourceControl) runReply() {
 				if !ok {
 					break
 				}
-				err := u.writeReply(u.ctx, pkt.buf, pkt.from)
+				// Rate limits are enforced before invoking the potentially blocking
+				// inbound reply writer. Over-limit UDP packets are discarded;
+				// they never wait in an additional unbounded queue.
+				allowed := true
+				if u.trafficControl != nil {
+					allowed = u.trafficControl.Resolve(u.reply.Load().inboundID, "").AllowDatagram(trafficcontrol.Download, len(pkt.buf))
+				}
+				var err error
+				if allowed {
+					err = u.writeReply(u.ctx, pkt.buf, pkt.from)
+				} else {
+					metrics.Counter.AddReceiveUDPDroppedPacket()
+				}
 				u.queueBudget.ReleaseQueueBytes(int64(len(pkt.buf)))
 				pool.PutBytes(pkt.buf)
+				if !allowed {
+					continue
+				}
 				if pkt.conn != lastConn {
 					errorsInRow = 0
 					lastConn = pkt.conn

@@ -27,6 +27,7 @@ type handler struct {
 	dialer       netapi.Proxy
 	table        *nat.Table
 	globalBudget *trafficcontrol.Governor
+	qos *trafficcontrol.Manager
 	streamScopes sync.Map // inbound ID/name -> *trafficcontrol.Governor
 
 	sniffer     *controlSniffer
@@ -38,12 +39,15 @@ type handler struct {
 func NewHandler(dialer netapi.Proxy) *handler {
 	sniffer := newControlSniffer()
 	root := trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 65536, SessionsPerSec: 4000, SessionBurst: 8192}, nil)
+	qos := trafficcontrol.NewManager()
 	h := &handler{
+		qos: qos,
 		dialer:       dialer,
 		table:        nat.NewTableWithParent(sniffer, dialer, root),
 		globalBudget: root,
 		sniffer:      sniffer,
 	}
+	h.table.SetTrafficControl(qos)
 	return h
 }
 
@@ -136,13 +140,23 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 
 	process, pid, uid := store.GetProcess()
 
-	relay.Relay(meta.Src, remote, "dst", dst, "src", store.Source,
+	ruleID, _ := store.MatchedRule()
+	inboundID := meta.InboundID
+	if inboundID == "" { inboundID = meta.InboundName }
+	policy := s.qos.Resolve(inboundID, ruleID)
+	relay.RelayShaped(store, meta.Src, remote, policy, "dst", dst, "src", store.Source,
 		"process", process, "pid", pid, "uid", uid)
 
 	return nil
 }
 
 func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
+	inboundID := pack.InboundID()
+	if inboundID == "" { inboundID = pack.InboundName() }
+	if !s.qos.Resolve(inboundID, "").AllowDatagram(trafficcontrol.Upload, len(pack.GetPayload())) {
+		metrics.Counter.AddSendUDPDroppedPacket()
+		return
+	}
 	if err := s.table.Write(ctx, pack); err != nil {
 		if errors.Is(err, nat.ErrSendPacketQueueFull) || errors.Is(err, nat.ErrNATSessionLimit) {
 			// The metric records queue drops; per-packet logging can amplify congestion.
