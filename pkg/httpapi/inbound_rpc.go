@@ -25,6 +25,7 @@ func addInboundRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	api := v2API{services: services}
 	addRPCRoute(handlers, v2InboundConfigGet, api.inboundConfig)
 	addRPCRoute(handlers, v2TrafficControlGet, api.trafficControl)
+	addRPCRoute(handlers, v2TrafficControlStatus, api.trafficControlStatus)
 	addRPCRoute(handlers, v2TrafficControlPut, api.saveTrafficControl)
 	addRPCRoute(handlers, v2InboundConfigPut, api.saveInboundConfig)
 	addRPCRoute(handlers, v2InboundsGet, api.inbounds)
@@ -36,6 +37,16 @@ func addInboundRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2InboundGet, api.inbound)
 	addRPCRoute(handlers, v2InboundPut, api.saveInbound)
 	addRPCRoute(handlers, v2InboundDelete, api.deleteInbound)
+}
+
+type trafficControlStatusReader interface {
+	TrafficControlStatus() trafficcontrol.Status
+}
+func (a v2API) trafficControlStatus(_ context.Context,_ *emptyRequest) (*trafficcontrol.Status,error) {
+	reader,ok:=a.services.Inbounds.(trafficControlStatusReader)
+	if !ok{return nil,unavailable("traffic control diagnostics are unavailable")}
+	status:=reader.TrafficControlStatus()
+	return &status,nil
 }
 
 type trafficControlStore interface {

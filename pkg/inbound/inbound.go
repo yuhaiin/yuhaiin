@@ -68,6 +68,9 @@ func (l *Inbound) SetTrafficControl(config trafficcontrol.Config) error {
 func (l *Inbound) TrafficControl() trafficcontrol.Config {
 	return l.handler.qos.Config()
 }
+func (l *Inbound) TrafficControlStatus() trafficcontrol.Status {
+	return l.handler.TrafficStatus()
+}
 
 type Option func(*Inbound)
 

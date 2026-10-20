@@ -59,6 +59,10 @@ func (s *ContractStore) Sync(ctx context.Context) error {
 
 // TrafficControl provides the persisted QoS profiles used by both the API
 // and the engine. Runtime activation occurs after durable validation/save.
+func (s *ContractStore) TrafficControlStatus() trafficcontrol.Status {
+	return s.runtime.TrafficControlStatus()
+}
+
 func (s *ContractStore) TrafficControl(ctx context.Context) (trafficcontrol.Config, error) {
 	return s.store.TrafficControl(ctx)
 }
