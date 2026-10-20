@@ -194,6 +194,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var selectedUpstream *upstream
+	var timeouts *proxyTimeout
 	if a.Type == "reverse_proxy" {
 		selectedUpstream = e.upstreams[a.Upstream]
 	}
@@ -204,10 +205,10 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer release()
-		if ms := selectedUpstream.config.RequestTimeoutMS; ms > 0 {
-			ctxTimeout, cancel := context.WithTimeout(r.Context(), durationMS(ms, 0))
-			defer cancel()
-			r = r.WithContext(ctxTimeout)
+		if selectedUpstream.config.RequestTimeoutMS > 0 || selectedUpstream.config.StreamIdleMS > 0 {
+			timeouts = newProxyTimeout(r.Context(), selectedUpstream.config.RequestTimeoutMS, selectedUpstream.config.StreamIdleMS)
+			defer timeouts.close()
+			r = r.WithContext(timeouts.ctx)
 		}
 	}
 	var b *backend
@@ -276,6 +277,9 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return nil, err
 			}
 			resp.Body = wrapResponseBody(resp.Body, release)
+			if timeouts != nil && isStreamingResponse(resp) {
+				resp.Body = timeouts.stream(resp.Body)
+			}
 			return resp, nil
 		}),
 		ModifyResponse: func(resp *http.Response) error {

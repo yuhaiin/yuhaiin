@@ -88,6 +88,7 @@ type Upstream struct {
 	ConnectTimeoutMS  int          `json:"connectTimeoutMs"`
 	IdleTimeoutMS     int          `json:"idleTimeoutMs"`
 	RequestTimeoutMS  int          `json:"requestTimeoutMs"`
+	StreamIdleMS      int          `json:"streamIdleTimeoutMs"`
 	MaxConnections    int          `json:"maxConnections"`
 	MaxConcurrent     int          `json:"maxConcurrent"`
 	RequestsPerSecond float64      `json:"requestsPerSecond"`
