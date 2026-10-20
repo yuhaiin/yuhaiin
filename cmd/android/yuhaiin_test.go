@@ -149,9 +149,9 @@ func TestStopCancelsStartupBeforeWaitingForLifecycleLock(t *testing.T) {
 
 func TestConfigureAndroidTUNStackSelection(t *testing.T) {
 	for _, tc := range []struct {
-		name, stack, cc, scheduler, driver                     string
-		wantStack, wantCC, wantScheduler, wantDriver            string
-		wantErr                                                 bool
+		name, stack, cc, scheduler, driver           string
+		wantStack, wantCC, wantScheduler, wantDriver string
+		wantErr                                      bool
 	}{
 		{name: "legacy", driver: TunDriverSystemGvisorValue, wantDriver: TunDriverSystemGvisorValue},
 		{name: "legacy ignores remembered options", driver: TunDriverFdbasedValue, cc: "bbr", scheduler: "fq_codel", wantDriver: TunDriverFdbasedValue},
