@@ -64,11 +64,17 @@ func (l *Inbound) runtimeStatus(config contract.Inbound) contract.RuntimeStatus 
 				listeners[i].State = state.status
 			}
 		}
-		if entry.counters != nil {
-			stats.AcceptedStreams = strconv.FormatUint(entry.counters.streams.Load(), 10)
-			stats.ReceivedPackets = strconv.FormatUint(entry.counters.packets.Load(), 10)
-			stats.ReceivedPings = strconv.FormatUint(entry.counters.pings.Load(), 10)
+	}
+	counters := l.countersByID[id]
+	if counters == nil {
+		if entry, ok := l.store.Load(id); ok {
+			counters = entry.counters
 		}
+	}
+	if counters != nil {
+		stats.AcceptedStreams = strconv.FormatUint(counters.streams.Load(), 10)
+		stats.ReceivedPackets = strconv.FormatUint(counters.packets.Load(), 10)
+		stats.ReceivedPings = strconv.FormatUint(counters.pings.Load(), 10)
 	}
 	return contract.RuntimeStatus{ID: id, Name: config.Name, Enabled: config.Enabled, Status: state.status, LastError: state.error, ChangedAt: state.changedAt,
 		Statistics: stats, Listeners: listeners}
