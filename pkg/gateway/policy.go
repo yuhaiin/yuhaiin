@@ -207,10 +207,8 @@ func compileCondition(c contract.Condition, depth int) (condition, error) {
 	if len(c.Values) > 256 {
 		return nil, errors.New("too many condition values")
 	}
-	for _, value := range c.Values {
-		if value == "" {
-			return nil, errors.New("condition values must be nonempty")
-		}
+	if slices.Contains(c.Values, "") {
+		return nil, errors.New("condition values must be nonempty")
 	}
 	// Values within a leaf always use OR; the surrounding condition tree
 	// continues to determine AND/OR/NOT across distinct fields.
