@@ -172,6 +172,17 @@ type CAImport struct {
 	Revision       uint64 `json:"revision"`
 }
 
+// StatisticsTotals are persisted per Gateway, independent of live health gauges.
+type StatisticsTotals struct {
+	Requests         uint64
+	Blocked          uint64
+	Forwarded        uint64
+	Errors           uint64
+	TLSFailures      uint64
+	ProtocolFailures uint64
+	DurationNS       uint64
+}
+
 type RuntimeStatus struct {
 	Revision     uint64          `json:"revision"`
 	Gateways     []GatewayStatus `json:"gateways"`
