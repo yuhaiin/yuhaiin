@@ -88,7 +88,11 @@ func (u *SourceControl) runReply() {
 				// they never wait in an additional unbounded queue.
 				allowed := true
 				if u.trafficControl != nil {
-					allowed = u.trafficControl.Resolve(u.reply.Load().inboundID, "").AllowDatagram(trafficcontrol.Download, len(pkt.buf))
+					routeID := ""
+					if pkt.conn != nil {
+						routeID = pkt.conn.routeID
+					}
+					allowed = u.trafficControl.Resolve(u.reply.Load().inboundID, routeID).AllowDatagram(trafficcontrol.Download, len(pkt.buf))
 				}
 				var err error
 				if allowed {

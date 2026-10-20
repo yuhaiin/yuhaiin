@@ -123,6 +123,28 @@ func TestShapedWriterPacingAndCancel(t *testing.T) {
 	}
 }
 
+type shortWrite struct{}
+
+func (shortWrite) Write([]byte) (int, error) { return 1, io.ErrShortWrite }
+
+func TestShapedWriterRefundsUnwrittenReservation(t *testing.T) {
+	limiter, err := NewLimiter(1, 16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := Policy{up: [4]*Limiter{limiter}}
+	n, err := (ShapedWriter{Writer: shortWrite{}, Context: t.Context(), Policy: policy, Direction: Upload}).Write(make([]byte, 16))
+	if n != 1 || !errors.Is(err, io.ErrShortWrite) {
+		t.Fatalf("write result=%d err=%v", n, err)
+	}
+	limiter.mu.Lock()
+	next := limiter.next
+	limiter.mu.Unlock()
+	if !next.Before(time.Now().Add(-14 * time.Second)) {
+		t.Fatalf("unused reservation still consumes quota: next=%v", next)
+	}
+}
+
 func TestSnapshotAtomicConcurrentActivation(t *testing.T) {
 	m := NewManager()
 	a := Config{Enabled: true, Global: Profile{Upload: Rate{BytesPerSecond: 1000000}}}

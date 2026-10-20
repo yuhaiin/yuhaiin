@@ -1,0 +1,82 @@
+name: Traffic Control P4 validation
+
+on:
+  push:
+    branches: [feat/traffic-control-p4]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: traffic-control-p4-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: traffic-control-p4
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          unformatted="$(gofmt -l pkg/net/trafficcontrol/*.go pkg/net/relay/*.go pkg/net/nat/*.go pkg/inbound/*.go pkg/net/proxy/hysteria2/*.go pkg/net/proxy/tun/lightweight/*.go)"
+          if [[ -n "$unformatted" ]]; then
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: Go vet
+        run: go vet ./...
+      - name: Full unit and integration suite
+        run: go test ./...
+      - name: Race qualification
+        run: go test -race -count=1 -timeout=300s ./pkg/net/trafficcontrol/... ./pkg/net/relay/... ./pkg/net/nat/... ./pkg/net/proxy/tun/lightweight/... ./pkg/net/proxy/tun/gvisor/... ./pkg/net/proxy/tun/tun2socket/... ./pkg/inbound/... ./pkg/store/... ./pkg/httpapi/... ./pkg/net/proxy/hysteria2/...
+      - name: Bounded packet classifier fuzzing
+        env:
+          GOMAXPROCS: 2
+        run: go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzOutputClassificationBounded$' -fuzztime=5s
+      - name: Targeted scheduler and resource benchmarks
+        run: go test ./pkg/net/trafficcontrol ./pkg/net/relay ./pkg/net/nat ./pkg/net/proxy/tun/lightweight -run '^$' -bench 'Benchmark(FairQueue|GroupedFairQueue|OutputHostHash|Governor|Shaper|Policy|Datagram|NATSession)' -benchtime=100x -benchmem -timeout=240s
+
+  cross-platform-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: android
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: traffic-control-p4-${{ matrix.goos }}-${{ matrix.goarch }}
+      - name: Compile relevant packages and tests
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: go test -exec=true -run '^$' ./pkg/net/trafficcontrol/... ./pkg/net/relay/... ./pkg/net/nat/... ./pkg/net/proxy/tun/lightweight/... ./pkg/net/proxy/tun/gvisor/... ./pkg/net/proxy/tun/tun2socket/... ./pkg/inbound/... ./pkg/net/proxy/hysteria2/...
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: traffic-control-p4-lint
+      - name: golangci-lint v2.15.0
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+          args: --timeout=5m

@@ -28,12 +28,65 @@ type handler struct {
 	table        *nat.Table
 	globalBudget *trafficcontrol.Governor
 	qos          *trafficcontrol.Manager
-	streamScopes sync.Map // inbound ID/name -> *trafficcontrol.Governor
+	streamScopes sync.Map // inbound ID/name -> *inboundStreamScope
 
 	sniffer     *controlSniffer
 	interceptor interface {
 		Intercept(*netapi.Context, *netapi.StreamMeta) bool
 	}
+}
+
+type inboundStreamScope struct {
+	mu       sync.Mutex
+	governor *trafficcontrol.Governor
+	retired  bool
+}
+
+func (s *handler) acquireStreamScope(id string) (*inboundStreamScope, *trafficcontrol.Session, bool) {
+	for {
+		value, ok := s.streamScopes.Load(id)
+		if !ok {
+			value, _ = s.streamScopes.LoadOrStore(id, &inboundStreamScope{governor: trafficcontrol.NewGovernor(trafficcontrol.Limits{
+				MaxSessions: 8192, SessionsPerSec: 1000, SessionBurst: 2048,
+			}, s.globalBudget)})
+		}
+		scope := value.(*inboundStreamScope)
+		scope.mu.Lock()
+		current, ok := s.streamScopes.Load(id)
+		if !ok || current != scope {
+			scope.mu.Unlock()
+			continue
+		}
+		lease, admitted := scope.governor.AcquireSession()
+		scope.mu.Unlock()
+		return scope, lease, admitted
+	}
+}
+
+func (s *handler) releaseStreamScope(id string, scope *inboundStreamScope, lease *trafficcontrol.Session) {
+	lease.Release()
+	scope.mu.Lock()
+	if scope.retired && scope.governor.Snapshot().Sessions == 0 {
+		s.streamScopes.CompareAndDelete(id, scope)
+	}
+	scope.mu.Unlock()
+}
+
+// ForgetInboundScope retires a configuration identity. Existing streams keep
+// their governor until the final lease is released; a re-added identity then
+// shares that same quota instead of creating a second active budget.
+func (s *handler) ForgetInboundScope(id string) {
+	value, ok := s.streamScopes.Load(id)
+	if !ok {
+		return
+	}
+	scope := value.(*inboundStreamScope)
+	scope.mu.Lock()
+	scope.retired = true
+	if scope.governor.Snapshot().Sessions == 0 {
+		s.streamScopes.CompareAndDelete(id, scope)
+	}
+	scope.mu.Unlock()
 }
 
 func NewHandler(dialer netapi.Proxy) *handler {
@@ -98,18 +151,12 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 		if id == "" {
 			id = meta.InboundName
 		}
-		scope, ok := s.streamScopes.Load(id)
-		if !ok {
-			scope, _ = s.streamScopes.LoadOrStore(id, trafficcontrol.NewGovernor(trafficcontrol.Limits{
-				MaxSessions: 8192, SessionsPerSec: 1000, SessionBurst: 2048,
-			}, s.globalBudget))
-		}
-		lease, ok := scope.(*trafficcontrol.Governor).AcquireSession()
+		scope, lease, ok := s.acquireStreamScope(id)
 		if !ok {
 			_ = meta.Src.Close()
 			return ErrStreamAdmissionLimit
 		}
-		defer lease.Release()
+		defer s.releaseStreamScope(id, scope, lease)
 	}
 	dst := meta.Address
 
@@ -153,14 +200,6 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 }
 
 func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
-	inboundID := pack.InboundID()
-	if inboundID == "" {
-		inboundID = pack.InboundName()
-	}
-	if !s.qos.Resolve(inboundID, "").AllowDatagram(trafficcontrol.Upload, len(pack.GetPayload())) {
-		metrics.Counter.AddSendUDPDroppedPacket()
-		return
-	}
 	if err := s.table.Write(ctx, pack); err != nil {
 		if errors.Is(err, nat.ErrSendPacketQueueFull) || errors.Is(err, nat.ErrNATSessionLimit) {
 			// The metric records queue drops; per-packet logging can amplify congestion.
@@ -193,7 +232,7 @@ func (s *handler) TrafficStatus() trafficcontrol.Status {
 		id, ok := key.(string)
 		if ok {
 			st.InboundScopes = append(st.InboundScopes, trafficcontrol.ScopeStatus{
-				ID: id, Counters: value.(*trafficcontrol.Governor).Snapshot(),
+				ID: id, Counters: value.(*inboundStreamScope).governor.Snapshot(),
 			})
 		}
 		return true
@@ -201,7 +240,15 @@ func (s *handler) TrafficStatus() trafficcontrol.Status {
 	return st
 }
 
-func (s *handler) Close() error { return s.table.Close() }
+func (s *handler) Close() error {
+	s.streamScopes.Range(func(key, _ any) bool {
+		if id, ok := key.(string); ok {
+			s.ForgetInboundScope(id)
+		}
+		return true
+	})
+	return s.table.Close()
+}
 
 type controlSniffer struct {
 	sniffer *sniff.Sniffier

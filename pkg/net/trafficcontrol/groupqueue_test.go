@@ -73,6 +73,39 @@ func TestGroupedFairQueueCapsCancellationAndAQM(t *testing.T) {
 	}
 }
 
+func TestGroupedFairQueueByteFairnessWithUnequalPacketSizes(t *testing.T) {
+	const preloadPerGroup = 2048
+	q := NewGroupedFairQueue[int](FairConfig{MaxPackets: 2 * preloadPerGroup, MaxBytes: 8 << 20, Quantum: 1400})
+	now := time.Now()
+	for range preloadPerGroup {
+		if !q.Push(1, 1, 1400, 1, now, 1) || !q.Push(2, 2, 64, 2, now, 1) {
+			t.Fatal("preload failed")
+		}
+	}
+	var served [3]int64
+	for range 5000 {
+		group, ok, drops := q.Pop(now)
+		if !ok || len(drops) != 0 {
+			t.Fatalf("unexpected pop: ok=%t drops=%d", ok, len(drops))
+		}
+		size := 1400
+		if group == 2 {
+			size = 64
+		}
+		served[group] += int64(size)
+		if !q.Push(uint64(group), uint64(group), size, group, now, 1) {
+			t.Fatal("steady-state refill failed")
+		}
+	}
+	difference := served[1] - served[2]
+	if difference < 0 {
+		difference = -difference
+	}
+	if total := served[1] + served[2]; difference*100 > total*10 {
+		t.Fatalf("host byte fairness exceeded 10%%: large=%d small=%d", served[1], served[2])
+	}
+}
+
 func TestGroupedFairQueueConcurrentOwnership(t *testing.T) {
 	q := NewGroupedFairQueue[int](FairConfig{MaxPackets: 1000, MaxBytes: 1000 * 1400})
 	now := time.Now()
@@ -122,4 +155,57 @@ func BenchmarkGroupedFairQueueHostIsolation(b *testing.B) {
 			b.Fatal("push")
 		}
 	}
+}
+
+func BenchmarkGroupedFairQueueMixedPacketSizes(b *testing.B) {
+	const packets = 4096
+	b.Run("grouped-drr", func(b *testing.B) {
+		q := NewGroupedFairQueue[int](FairConfig{MaxPackets: packets, MaxBytes: 8 << 20, Quantum: 1400})
+		now := time.Now()
+		for range packets / 2 {
+			q.Push(1, 1, 1400, 1, now, 1)
+			q.Push(2, 2, 64, 2, now, 1)
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		var servedBytes int64
+		for b.Loop() {
+			group, ok, drops := q.Pop(now)
+			if !ok || len(drops) != 0 {
+				b.Fatal("pop")
+			}
+			size := 1400
+			if group == 2 {
+				size = 64
+			}
+			if !q.Push(uint64(group), uint64(group), size, group, now, 1) {
+				b.Fatal("push")
+			}
+			servedBytes += int64(size)
+		}
+		if servedBytes == 0 {
+			b.Fatal("no bytes served")
+		}
+	})
+	b.Run("fifo-ring", func(b *testing.B) {
+		type item struct{ group, size int }
+		queue := make([]item, packets)
+		for i := range packets / 2 {
+			queue[2*i], queue[2*i+1] = item{group: 1, size: 1400}, item{group: 2, size: 64}
+		}
+		read, write := 0, 0
+		b.ReportAllocs()
+		b.ResetTimer()
+		var servedBytes int64
+		for b.Loop() {
+			packet := queue[read]
+			read = (read + 1) % packets
+			queue[write] = packet
+			write = (write + 1) % packets
+			servedBytes += int64(packet.size)
+		}
+		if servedBytes == 0 {
+			b.Fatal("no bytes served")
+		}
+	})
 }

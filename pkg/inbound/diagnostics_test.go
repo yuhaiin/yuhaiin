@@ -1,10 +1,70 @@
 package inbound
 
 import (
+	"errors"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"sync"
 	"testing"
 )
+
+type failingCloseAccepter struct{ err error }
+
+func (failingCloseAccepter) Interface() string { return "" }
+func (a failingCloseAccepter) Close() error    { return a.err }
+
+func TestInboundStreamScopeRetirementPreservesLiveQuota(t *testing.T) {
+	parent := trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 8}, nil)
+	h := &handler{globalBudget: parent}
+
+	first, firstLease, ok := h.acquireStreamScope("inbound-a")
+	if !ok {
+		t.Fatal("first session was denied")
+	}
+	h.ForgetInboundScope("inbound-a")
+	if _, ok := h.streamScopes.Load("inbound-a"); !ok {
+		t.Fatal("scope with an active session was removed")
+	}
+
+	second, secondLease, ok := h.acquireStreamScope("inbound-a")
+	if !ok || second != first {
+		t.Fatal("re-added inbound did not share its active scope")
+	}
+	h.releaseStreamScope("inbound-a", first, firstLease)
+	if got := first.governor.Snapshot().Sessions; got != 1 {
+		t.Fatalf("live scope sessions after first release = %d, want 1", got)
+	}
+	h.releaseStreamScope("inbound-a", second, secondLease)
+	if _, ok := h.streamScopes.Load("inbound-a"); ok {
+		t.Fatal("retired scope remained after its final session")
+	}
+	if got := parent.Snapshot().Sessions; got != 0 {
+		t.Fatalf("global sessions after release = %d, want 0", got)
+	}
+
+	third, thirdLease, ok := h.acquireStreamScope("inbound-a")
+	if !ok || third == first {
+		t.Fatal("new inbound reused a retired scope")
+	}
+	h.releaseStreamScope("inbound-a", third, thirdLease)
+}
+
+func TestRemoveRetiresStreamScopeWhenServerCloseFails(t *testing.T) {
+	l := &Inbound{handler: NewHandler(nil)}
+	scope, lease, ok := l.handler.acquireStreamScope("inbound-a")
+	if !ok {
+		t.Fatal("stream admission failed")
+	}
+	l.store.Store("inbound-a", entry{server: failingCloseAccepter{err: errors.New("close failed")}})
+	if err := l.Remove("inbound-a"); err == nil {
+		t.Fatal("Remove hid the server close failure")
+	}
+	l.handler.releaseStreamScope("inbound-a", scope, lease)
+	if _, ok := l.handler.streamScopes.Load("inbound-a"); ok {
+		t.Fatal("failed server close left an unleased stream scope")
+	}
+	_ = l.handler.Close()
+}
 
 func TestListenerSnapshotLifecycle(t *testing.T) {
 	l := &Inbound{}

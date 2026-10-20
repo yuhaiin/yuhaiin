@@ -331,12 +331,14 @@ func (l *Inbound) SaveContract(req contract.Inbound) (result error) {
 		l.store.Delete(key)
 
 		if err := l.closeServer(x.server); err != nil {
+			l.handler.ForgetInboundScope(key)
 			log.Error("close server failed", "name", req.Name, "id", req.ID, "err", err)
 			return err
 		}
 	}
 
 	if !req.Enabled {
+		l.handler.ForgetInboundScope(key)
 		return nil
 	}
 
@@ -382,12 +384,14 @@ func (l *Inbound) Remove(name string) error {
 	defer delete(l.states, name)
 	x, ok := l.store.LoadAndDelete(name)
 	if !ok {
+		l.handler.ForgetInboundScope(name)
 		return result
 	}
 	if err := l.closeServer(x.server); err != nil {
 		log.Error("close server failed", "name", name, "err", err)
 		result = errors.Join(result, err)
 	}
+	l.handler.ForgetInboundScope(name)
 	l.refreshInterfaces()
 	return result
 }
@@ -424,6 +428,7 @@ func (l *Inbound) Close() error {
 			log.Error("close server failed", "name", k, "err", err)
 			result = errors.Join(result, err)
 		}
+		l.handler.ForgetInboundScope(k)
 		l.store.Delete(k)
 		l.recordState(k, "disabled", "")
 		log.Info("closed server", "name", k)

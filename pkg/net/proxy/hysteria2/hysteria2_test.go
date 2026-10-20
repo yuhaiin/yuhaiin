@@ -3,6 +3,7 @@ package hysteria2
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"io"
@@ -191,6 +192,20 @@ func TestTLSAndAuthenticationFailures(t *testing.T) {
 				t.Fatal("unexpected successful connection")
 			}
 		})
+	}
+}
+
+func TestServerRejectsMissingTLSCertificate(t *testing.T) {
+	lis, err := fixed.NewServer(fixed.ServerConfig{Host: "127.0.0.1:0", Control: fixed.ControlDisableTCP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lis.Close()
+	if server, err := NewServer(inbound.Hysteria2Protocol{Auth: "secret"}, &tls.Config{}, lis, &echoHandler{}); err == nil {
+		if server != nil {
+			_ = server.Close()
+		}
+		t.Fatal("server accepted a TLS config without a certificate")
 	}
 }
 

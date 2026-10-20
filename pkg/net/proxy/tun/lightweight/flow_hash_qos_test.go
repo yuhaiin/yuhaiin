@@ -2,6 +2,21 @@ package lightweight
 
 import "testing"
 
+func FuzzOutputClassificationBounded(f *testing.F) {
+	f.Add([]byte{}, 0)
+	f.Add([]byte{0x45, 0, 0, 20, 0, 0, 0, 0, 64, 6}, 0)
+	f.Add([]byte{0x60, 0, 0, 0, 0, 0, 0, 17}, 0)
+	f.Add([]byte{0x45}, 1)
+	f.Fuzz(func(t *testing.T, data []byte, offset int) {
+		packet := &ownedBuffer{data: data, offset: offset}
+		_ = outputHostHash(packet)
+		_ = outputFlowHash(packet)
+		if weight := outputPacketWeight(packet); weight < 1 || weight > 4 {
+			t.Fatalf("packet weight outside bounded control class: %d", weight)
+		}
+	})
+}
+
 func TestOutputFlowHashIPv6ExtensionPorts(t *testing.T) {
 	p := &ownedBuffer{data: make([]byte, 80)}
 	b := p.data

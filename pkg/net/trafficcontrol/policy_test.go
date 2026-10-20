@@ -19,3 +19,22 @@ func TestPolicyJSONAndDirection(t *testing.T) {
 		t.Fatalf("%s -> %+v", raw, out)
 	}
 }
+
+func TestRouteBindingSuppressesDefaultProfile(t *testing.T) {
+	m := NewManager()
+	cfg := Config{
+		Enabled:        true,
+		DefaultProfile: "default",
+		Profiles: map[string]Profile{
+			"default": {Upload: Rate{BytesPerSecond: 1, BurstBytes: 1}},
+			"route":   {Upload: Rate{BytesPerSecond: 1, BurstBytes: 10}},
+		},
+		RouteProfiles: map[string]string{"route-id": "route"},
+	}
+	if err := m.Apply(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if !m.Resolve("", "route-id").AllowDatagram(Upload, 10) {
+		t.Fatal("matching route incorrectly inherited the default profile")
+	}
+}

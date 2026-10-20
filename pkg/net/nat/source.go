@@ -246,8 +246,10 @@ func (u *SourceControl) handle() {
 			break
 		}
 
-		u.queueBudget.ReleaseQueueBytes(int64(len(pkt.GetPayload())))
-		err := u.handleOne(pkt)
+		transferred, err := u.handleOneOwned(pkt, true)
+		if !transferred {
+			u.queueBudget.ReleaseQueueBytes(int64(len(pkt.GetPayload())))
+		}
 		pkt.DecRef()
 		u.pending.Add(-1)
 		if err != nil {

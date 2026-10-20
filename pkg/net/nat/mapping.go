@@ -7,7 +7,9 @@ import (
 	"net"
 	"sync/atomic"
 
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -66,32 +68,63 @@ func (m *addressMapper) replyAddr(from net.Addr) net.Addr {
 }
 
 func (u *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.PacketConn) error {
+	_, err := u.writeOwned(ctx, pkt, conn, false)
+	return err
+}
+
+func (u *SourceControl) writeOwned(ctx context.Context, pkt *netapi.Packet, conn net.PacketConn, queueReserved bool) (bool, error) {
 	if u.mapper == nil {
 		u.mapper = newAddressMapper()
 	}
 	key := pkt.Dst().Comparable()
 	if real, ok := u.mapper.targets[key]; ok {
-		return sendPacket(pkt.GetPayload(), real, conn)
+		return false, u.writeRoutedPacket(pkt, pkt.GetPayload(), real, conn)
 	}
 	if pending := u.resolutions[key]; pending != nil {
-		return u.appendResolution(pending, pkt)
+		if err := u.appendResolutionOwned(pending, pkt, queueReserved); err != nil {
+			return false, err
+		}
+		return true, nil
 	}
 
 	store := netapi.GetContext(ctx)
 	store.ConnOptions().SetSkipRoute(true)
 	dst, err := u.dialer.Dispatch(store, pkt.Dst())
 	if err != nil {
-		return fmt.Errorf("dispatch addr failed: %w", err)
+		return false, fmt.Errorf("dispatch addr failed: %w", err)
 	}
 	if dst.IsFqdn() && !u.contextCache.resolver.UdpSkipResolveTarget() {
-		return u.queueResolution(pkt, dst, conn)
+		return u.queueResolution(pkt, dst, conn, queueReserved)
 	}
 	// Publish before the send: a fast remote can reply before WriteTo returns,
 	// and retrying a failed first send must retain a complete mapping.
 	if err := u.mapper.remember(pkt.Dst(), dst); err != nil {
-		return err
+		return false, err
 	}
-	return sendPacket(pkt.GetPayload(), dst, conn)
+	return false, u.writeRoutedPacket(pkt, pkt.GetPayload(), dst, conn)
+}
+
+func (u *SourceControl) writeRoutedPacket(pkt *netapi.Packet, data []byte, dst net.Addr, conn net.PacketConn) error {
+	if u.trafficControl != nil {
+		inboundID := ""
+		if pkt != nil {
+			inboundID = pkt.InboundID()
+			if inboundID == "" {
+				inboundID = pkt.InboundName()
+			}
+		} else if reply := u.reply.Load(); reply != nil {
+			inboundID = reply.inboundID
+		}
+		routeID := ""
+		if wrapped, ok := conn.(*wrapConn); ok {
+			routeID = wrapped.routeID
+		}
+		if !u.trafficControl.Resolve(inboundID, routeID).AllowDatagram(trafficcontrol.Upload, len(data)) {
+			metrics.Counter.AddSendUDPDroppedPacket()
+			return nil
+		}
+	}
+	return sendPacket(data, dst, conn)
 }
 
 // WriteTo sends an already prepared destination, publishing its reverse mapping
@@ -105,7 +138,7 @@ func (u *SourceControl) WriteTo(b []byte, real net.Addr, original netapi.Address
 			return err
 		}
 	}
-	return sendPacket(b, real, conn)
+	return u.writeRoutedPacket(nil, b, real, conn)
 }
 
 func sendPacket(b []byte, real net.Addr, conn net.PacketConn) error {

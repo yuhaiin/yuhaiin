@@ -105,6 +105,39 @@ func (p Policy) scopes(direction Direction) [4]*Limiter {
 	return p.up
 }
 
+// refundBytes returns unused bytes from a reservation-based stream write.
+// Reservations are fungible within each shared bucket, so moving its virtual
+// eligibility time back by the unused byte duration preserves aggregate
+// accounting even when other writers reserved bytes in the meantime.
+func (p Policy) refundBytes(direction Direction, bytes int) {
+	if bytes <= 0 {
+		return
+	}
+	limits := p.scopes(direction)
+	for _, l := range limits {
+		if l != nil {
+			l.mu.Lock()
+		}
+	}
+	now := time.Now()
+	for _, l := range limits {
+		if l == nil {
+			continue
+		}
+		floor := now.Add(-l.duration(l.burst))
+		next := l.next.Add(-l.duration(int64(bytes)))
+		if next.Before(floor) {
+			next = floor
+		}
+		l.next = next
+	}
+	for i := len(limits) - 1; i >= 0; i-- {
+		if limits[i] != nil {
+			limits[i].mu.Unlock()
+		}
+	}
+}
+
 // AllowDatagram performs all-or-nothing token admission under the locks of
 // every applicable scope. UDP never sleeps and never accumulates a backlog.
 // A rejected local quota cannot steal credits from shared parent scopes.
@@ -262,6 +295,9 @@ func (w ShapedWriter) Write(data []byte) (written int, err error) {
 		count, writeErr := w.Writer.Write(data[:n])
 		if count < 0 || count > n {
 			return written, errors.New("trafficcontrol: invalid writer progress")
+		}
+		if count < n {
+			w.Policy.refundBytes(w.Direction, n-count)
 		}
 		written += count
 		data = data[count:]
