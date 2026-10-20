@@ -42,11 +42,14 @@ func addInboundRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 type trafficControlStatusReader interface {
 	TrafficControlStatus() trafficcontrol.Status
 }
-func (a v2API) trafficControlStatus(_ context.Context,_ *emptyRequest) (*trafficcontrol.Status,error) {
-	reader,ok:=a.services.Inbounds.(trafficControlStatusReader)
-	if !ok{return nil,unavailable("traffic control diagnostics are unavailable")}
-	status:=reader.TrafficControlStatus()
-	return &status,nil
+
+func (a v2API) trafficControlStatus(_ context.Context, _ *emptyRequest) (*trafficcontrol.Status, error) {
+	reader, ok := a.services.Inbounds.(trafficControlStatusReader)
+	if !ok {
+		return nil, unavailable("traffic control diagnostics are unavailable")
+	}
+	status := reader.TrafficControlStatus()
+	return &status, nil
 }
 
 type trafficControlStore interface {

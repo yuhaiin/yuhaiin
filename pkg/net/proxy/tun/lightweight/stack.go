@@ -198,7 +198,9 @@ func (s *Stack) Close() error {
 	s.shutdown()
 	s.wg.Wait()
 	if s.hostOutput != nil {
-		for _, b := range s.hostOutput.Drain() { b.release() }
+		for _, b := range s.hostOutput.Drain() {
+			b.release()
+		}
 	}
 	if s.fairOutput != nil {
 		for _, b := range s.fairOutput.Drain() {
@@ -333,7 +335,9 @@ func (s *Stack) emitOwned(packet *ownedBuffer) error {
 		return net.ErrClosed
 	}
 	if s.hostOutput != nil {
-		if s.hostOutput.Push(outputHostHash(packet), outputFlowHash(packet), len(packet.data)-packet.offset, packet, time.Now(), outputPacketWeight(packet)) { return nil }
+		if s.hostOutput.Push(outputHostHash(packet), outputFlowHash(packet), len(packet.data)-packet.offset, packet, time.Now(), outputPacketWeight(packet)) {
+			return nil
+		}
 		return ErrLimit
 	}
 	if s.fairOutput != nil {

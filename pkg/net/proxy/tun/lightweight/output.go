@@ -6,8 +6,12 @@ import "time"
 // takes a connection lock. FIFO admission waits for an actual capacity-release
 // event; no timer polls a full device queue. At most one waiter per connection.
 func (s *Stack) outputHasCapacity() bool {
-	if s.hostOutput != nil {return s.hostOutput.HasCapacity()}
-	if s.fairOutput != nil { return s.fairOutput.HasCapacity() }
+	if s.hostOutput != nil {
+		return s.hostOutput.HasCapacity()
+	}
+	if s.fairOutput != nil {
+		return s.fairOutput.HasCapacity()
+	}
 	return len(s.outgoing) < cap(s.outgoing)
 }
 
