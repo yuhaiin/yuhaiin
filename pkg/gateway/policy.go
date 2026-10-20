@@ -108,6 +108,7 @@ func (p *Policy) evaluate(r *http.Request, ctx *netapi.Context, trace bool) cont
 }
 
 func compileCondition(c contract.Condition, depth int) (condition, error) {
+	c = contract.NormalizeCondition(c)
 	if depth > 16 {
 		return nil, errors.New("condition nesting exceeds 16")
 	}
@@ -191,31 +192,75 @@ func compileCondition(c contract.Condition, depth int) (condition, error) {
 	default:
 		return nil, fmt.Errorf("unsupported HTTP condition field %q", c.Field)
 	}
-	var test func(string) bool
-	switch c.Operator {
-	case "", "exact":
-		test = func(v string) bool { return v == c.Value }
-	case "prefix":
-		test = func(v string) bool { return strings.HasPrefix(v, c.Value) }
-	case "suffix":
-		test = func(v string) bool { return strings.HasSuffix(v, c.Value) }
-	case "domain":
-		value := hostname(c.Value)
-		test = func(v string) bool { return domainMatches(v, value) }
-	case "regex":
-		if len(c.Value) > 4096 {
-			return nil, errors.New("regex exceeds 4096 bytes")
+	if c.Operator == "present" {
+		if len(c.Values) != 0 {
+			return nil, errors.New("present operator does not accept values")
 		}
-		re, err := regexp.Compile(c.Value)
-		if err != nil {
-			return nil, err
-		}
-		test = re.MatchString
-	case "present":
 		if scalar != nil {
 			return func(r *http.Request, ctx *netapi.Context) bool { return scalar(r, ctx) != "" }, nil
 		}
 		return func(r *http.Request, ctx *netapi.Context) bool { return len(get(r, ctx)) > 0 }, nil
+	}
+	if len(c.Values) == 0 {
+		return nil, errors.New("condition requires at least one value")
+	}
+	if len(c.Values) > 256 {
+		return nil, errors.New("too many condition values")
+	}
+	if slices.Contains(c.Values, "") {
+		return nil, errors.New("condition values must be nonempty")
+	}
+	// Values within a leaf always use OR; the surrounding condition tree
+	// continues to determine AND/OR/NOT across distinct fields.
+	var test func(string) bool
+	switch c.Operator {
+	case "", "exact":
+		if len(c.Values) == 1 {
+			value := c.Values[0]
+			test = func(v string) bool { return v == value }
+		} else {
+			set := make(map[string]struct{}, len(c.Values))
+			for _, value := range c.Values {
+				set[value] = struct{}{}
+			}
+			test = func(v string) bool {
+				_, ok := set[v]
+				return ok
+			}
+		}
+	case "prefix":
+		values := c.Values
+		test = func(v string) bool {
+			return slices.ContainsFunc(values, func(value string) bool { return strings.HasPrefix(v, value) })
+		}
+	case "suffix":
+		values := c.Values
+		test = func(v string) bool {
+			return slices.ContainsFunc(values, func(value string) bool { return strings.HasSuffix(v, value) })
+		}
+	case "domain":
+		values := make([]string, len(c.Values))
+		for i, value := range c.Values {
+			values[i] = hostname(value)
+		}
+		test = func(v string) bool {
+			return slices.ContainsFunc(values, func(value string) bool { return domainMatches(v, value) })
+		}
+	case "regex":
+		rxs := make([]*regexp.Regexp, 0, len(c.Values))
+		for _, value := range c.Values {
+			if len(value) > 4096 {
+				return nil, errors.New("regex exceeds 4096 bytes")
+			}
+			re, err := regexp.Compile(value)
+			if err != nil {
+				return nil, err
+			}
+			rxs = append(rxs, re)
+		}
+		test = func(v string) bool {
+			return slices.ContainsFunc(rxs, func(re *regexp.Regexp) bool { return re.MatchString(v) })
+		}
 	default:
 		return nil, fmt.Errorf("unsupported condition operator %q", c.Operator)
 	}

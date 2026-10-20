@@ -124,8 +124,10 @@ func (s *GatewayStore) Save(ctx context.Context, cfg contract.Config) (contract.
 			if c.Operator != "" && c.Operator != "exact" {
 				return errors.New("inbound conditions require exact IDs")
 			}
-			if err := ref(id, name, "inbound", c.Value); err != nil {
-				return err
+			for _, inboundID := range contract.NormalizeCondition(c).Values {
+				if err := ref(id, name, "inbound", inboundID); err != nil {
+					return err
+				}
 			}
 		}
 		for _, child := range c.All {
