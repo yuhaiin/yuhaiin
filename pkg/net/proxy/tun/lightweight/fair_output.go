@@ -127,7 +127,6 @@ func outputFlowHash(packet *ownedBuffer) uint64 {
 	return hash
 }
 
-
 // outputPacketWeight reserves a bounded extra byte-service share for
 // internally generated transport control packets. DSCP and DNS port numbers
 // are deliberately ignored: external users must not create a priority bypass.
@@ -136,28 +135,46 @@ func outputPacketWeight(p *ownedBuffer) int {
 		return 1
 	}
 	b := p.data[p.offset:]
-	if len(b)==0 {return 1}
-	proto:=uint8(0)
-	offset:=0
-	switch b[0]>>4 {
+	if len(b) == 0 {
+		return 1
+	}
+	proto := uint8(0)
+	offset := 0
+	switch b[0] >> 4 {
 	case 4:
-		if len(b)<20 {return 1}
-		offset=int(b[0]&15)*4
-		if offset<20||len(b)<offset {return 1}
-		if binary.BigEndian.Uint16(b[6:8])&0x3fff!=0 {return 1}
-		proto=b[9]
+		if len(b) < 20 {
+			return 1
+		}
+		offset = int(b[0]&15) * 4
+		if offset < 20 || len(b) < offset {
+			return 1
+		}
+		if binary.BigEndian.Uint16(b[6:8])&0x3fff != 0 {
+			return 1
+		}
+		proto = b[9]
 	case 6:
-		if len(b)<40 {return 1}
-		proto=b[6]
-		offset=40
+		if len(b) < 40 {
+			return 1
+		}
+		proto = b[6]
+		offset = 40
 	default:
 		return 1
 	}
-	if proto==1||proto==58 {return 2}
-	if proto!=6||len(b)<offset+20{return 1}
-	tcp:=b[offset:]
-	if tcp[13]&0x07!=0 {return 4} // FIN, SYN, RST
-	h:=int(tcp[12]>>4)*4
-	if h>=20&&h==len(tcp) {return 4} // pure ACK/control
+	if proto == 1 || proto == 58 {
+		return 2
+	}
+	if proto != 6 || len(b) < offset+20 {
+		return 1
+	}
+	tcp := b[offset:]
+	if tcp[13]&0x07 != 0 {
+		return 4
+	} // FIN, SYN, RST
+	h := int(tcp[12]>>4) * 4
+	if h >= 20 && h == len(tcp) {
+		return 4
+	} // pure ACK/control
 	return 1
 }

@@ -148,21 +148,34 @@ func TestFairQueueConcurrentFlowOwnership(t *testing.T) {
 	}
 }
 
-
 func TestWeightedDRRDoesNotStarveBulk(t *testing.T) {
-	q:=NewFairQueue[int](FairConfig{MaxPackets:256,MaxBytes:256000,Quantum:1000})
-	now:=time.Now()
-	for i:=range 80 {
-		if !q.PushWeighted(1,1000,i,now,4) {t.Fatal("control flow admission")}
-		if !q.PushWeighted(2,1000,100+i,now,1) {t.Fatal("bulk flow admission")}
+	q := NewFairQueue[int](FairConfig{MaxPackets: 256, MaxBytes: 256000, Quantum: 1000})
+	now := time.Now()
+	for i := range 80 {
+		if !q.PushWeighted(1, 1000, i, now, 4) {
+			t.Fatal("control flow admission")
+		}
+		if !q.PushWeighted(2, 1000, 100+i, now, 1) {
+			t.Fatal("bulk flow admission")
+		}
 	}
-	control,bulk:=0,0
+	control, bulk := 0, 0
 	for range 40 {
-		n,ok,drops:=q.Pop(now)
-		if !ok||len(drops)!=0 {t.Fatal("scheduler dropped unexpectedly",drops)}
-		if n<100 {control++} else {bulk++}
+		n, ok, drops := q.Pop(now)
+		if !ok || len(drops) != 0 {
+			t.Fatal("scheduler dropped unexpectedly", drops)
+		}
+		if n < 100 {
+			control++
+		} else {
+			bulk++
+		}
 	}
-	if bulk==0||control<=bulk {t.Fatalf("weight ratio did not preserve non-starving priority: control=%d bulk=%d",control,bulk)}
-	remaining:=q.Drain()
-	if len(remaining)!=120 {t.Fatalf("packet ownership changed: %d",len(remaining))}
+	if bulk == 0 || control <= bulk {
+		t.Fatalf("weight ratio did not preserve non-starving priority: control=%d bulk=%d", control, bulk)
+	}
+	remaining := q.Drain()
+	if len(remaining) != 120 {
+		t.Fatalf("packet ownership changed: %d", len(remaining))
+	}
 }

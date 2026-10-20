@@ -25,10 +25,10 @@ type FairStats struct {
 }
 
 type queued[T any] struct {
-	value T
-	bytes int
+	value  T
+	bytes  int
 	weight int
-	at    time.Time
+	at     time.Time
 }
 
 type fairFlow[T any] struct {
@@ -120,7 +120,7 @@ func (q *FairQueue[T]) moveToBack(f *fairFlow[T]) {
 }
 
 func (q *FairQueue[T]) Push(key uint64, size int, value T, at time.Time) bool {
-	return q.PushWeighted(key,size,value,at,1)
+	return q.PushWeighted(key, size, value, at, 1)
 }
 
 // PushWeighted provides bounded service differentiation without strict
@@ -148,7 +148,7 @@ func (q *FairQueue[T]) PushWeighted(key uint64, size int, value T, at time.Time,
 		f.packets = f.packets[:n]
 		f.head = 0
 	}
-	f.packets = append(f.packets, queued[T]{value: value, bytes: size, weight: min(4,max(1,weight)), at: at})
+	f.packets = append(f.packets, queued[T]{value: value, bytes: size, weight: min(4, max(1, weight)), at: at})
 	q.count++
 	q.bytes += int64(size)
 	select {
