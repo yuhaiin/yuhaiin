@@ -3,6 +3,7 @@ package lightweight
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/netip"
@@ -276,9 +277,36 @@ func TestTCPSACKRepairsLostReplacementWithNewEvidence(t *testing.T) {
 		now := time.Now()
 		binary.BigEndian.PutUint32(sack[8:12], seq+16*1460)
 		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq, flagACK, 10000, sack, nil))
-		repair := peerPacket(t, peer)
-		if !time.Now().Equal(now) || binary.BigEndian.Uint32(repair.Payload[4:8]) != seq || s.Stats().Retransmissions != 2 {
-			t.Fatal("new SACK evidence did not repair a lost retransmission before RTO")
+		// Let the receive and output goroutines process the new SACK without
+		// letting synctest advance its fake clock to the retransmission timeout.
+		// peerPacket waits with a 1s timer, exactly the initial RTO, and can
+		// accidentally observe the RTO retransmission instead of fast recovery.
+		synctest.Wait()
+		select {
+		case raw := <-peer.rx:
+			repair, err := ParsePacket(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			gotSeq := binary.BigEndian.Uint32(repair.Payload[4:8])
+			gotRetrans := s.Stats().Retransmissions
+			if !time.Now().Equal(now) || gotSeq != seq || gotRetrans != 2 {
+				t.Fatalf("new SACK repair: seq=%d want=%d retransmissions=%d want=2 elapsed=%v",
+					gotSeq, seq, gotRetrans, time.Since(now))
+			}
+		default:
+			c.mu.Lock()
+			flight, cwnd := c.flight(), c.controller.CongestionWindow()
+			repairPending, recovering := c.repairPending, c.recovering
+			var txHead string
+			if c.tx.len() > 0 {
+				v := c.tx.values()[0]
+				txHead = fmt.Sprintf("seq=%d sent=%d sacked=%t lost=%t retransmitEnd=%d",
+					v.seq, v.transmissions, v.sacked, v.lossReported, v.retransmitEnd)
+			}
+			c.mu.Unlock()
+			t.Fatalf("new SACK did not trigger immediate repair: retransmissions=%d flight=%d cwnd=%d repairPending=%t recovering=%t head={%s}",
+				s.Stats().Retransmissions, flight, cwnd, repairPending, recovering, txHead)
 		}
 		_ = peer.WritePacket(wireTCP(c.key.remote, c.key.local, 101, seq+16*1460, flagACK, 10000, nil, nil))
 		synctest.Wait()
