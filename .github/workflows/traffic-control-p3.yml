@@ -2,13 +2,36 @@ name: Traffic Control P3 validation
 
 on:
   push:
-    branches: [feat/traffic-control-p1-p3]
+    branches: [feat/traffic-control-p3]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  format-bootstrap:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: traffic-control-p3-format
+      - name: Initial formatting of P3 changes
+        shell: bash
+        run: |
+          gofmt -w pkg/net/trafficcontrol/{groupqueue.go,groupqueue_test.go,status.go} pkg/net/proxy/tun/lightweight/{stack.go,fair_output.go,output.go} pkg/inbound/{handler.go,inbound.go,contract_store.go} pkg/httpapi/{endpoints.go,inbound_rpc.go}
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add pkg/net/trafficcontrol pkg/net/proxy/tun/lightweight pkg/inbound pkg/httpapi
+            git commit -m "style(trafficcontrol): gofmt P3 implementation [skip ci]"
+            git push origin HEAD:feat/traffic-control-p3
+          fi
+
   qualification:
     runs-on: ubuntu-latest
     steps:
