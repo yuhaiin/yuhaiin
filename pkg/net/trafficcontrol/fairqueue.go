@@ -192,9 +192,16 @@ func (q *FairQueue[T]) Pop(now time.Time) (value T, ok bool, dropped []T) {
 		f := q.head
 		p := f.packets[f.head]
 		if f.deficit < p.bytes {
-			f.deficit += q.cfg.Quantum
-			q.moveToBack(f)
-			continue
+			if q.head == q.tail {
+				// With a single active flow DRR has nobody to rotate to.
+				// Avoid O(packetSize/quantum) busy looping for GSO/jumbo
+				// frames without changing byte fairness under contention.
+				f.deficit = p.bytes
+			} else {
+				f.deficit += q.cfg.Quantum
+				q.moveToBack(f)
+				continue
+			}
 		}
 		delay := now.Sub(p.at)
 		if delay < 0 {

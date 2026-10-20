@@ -97,8 +97,25 @@ func outputFlowHash(packet *ownedBuffer) uint64 {
 		add(b[:1])
 		add(b[6:7])
 		add(b[8:40])
-		if (b[6] == 6 || b[6] == 17) && len(b) >= 44 {
-			add(b[40:44])
+		next, off := b[6], 40
+		fragmented := false
+		for i := 0; i < 8; i++ {
+			if next == 44 {
+				// Fragmented packets deliberately share the same endpoint
+				// queue: non-initial fragments have no transport ports.
+				fragmented = true
+				break
+			}
+			if next != 0 && next != 43 && next != 60 {
+				break
+			}
+			if off+2 > len(b) { return hash }
+			headerSize := (int(b[off+1]) + 1) * 8
+			if off+headerSize > len(b) { return hash }
+			next, off = b[off], off+headerSize
+		}
+		if !fragmented && (next == 6 || next == 17) && off+4 <= len(b) {
+			add(b[off:off+4])
 		}
 	default:
 		return 0
