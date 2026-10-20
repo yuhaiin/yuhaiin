@@ -122,19 +122,25 @@ func (n *nodeCounters) probe(kind string, result contract.LatencyResponse, err e
 	if err != nil {
 		result.OK = false
 		result.Error = err.Error()
-		if len(result.Error) > 512 {
-			result.Error = result.Error[:512]
-		}
+	}
+	if !result.OK && result.Error == "" {
+		result.Error = "probe did not succeed"
+	}
+	if len(result.Error) > 512 {
+		result.Error = result.Error[:512]
 	}
 	n.mu.Lock()
 	if n.probes == nil {
 		n.probes = make(map[string]contract.ProbeStatus)
 	}
 	n.probes[kind] = contract.ProbeStatus{CheckedAt: time.Now().Unix(), Result: result}
+	if !result.OK {
+		n.lastError = result.Error
+	}
 	n.mu.Unlock()
-	if err != nil {
+	if !result.OK {
 		n.lastFailure.Store(time.Now().UnixNano())
-	} else if result.OK {
+	} else {
 		n.success()
 	}
 }
