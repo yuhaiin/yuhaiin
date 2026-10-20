@@ -1,6 +1,6 @@
 package inbound
 
-// RuntimeStatus reports listener initialization and ingress since its creation.
+// RuntimeStatus reports listener initialization and cumulative ingress by inbound ID.
 // These counters do not imply that forwarding to a destination succeeded.
 type RuntimeStatus struct {
 	ID         string            `json:"id"`
@@ -17,6 +17,14 @@ type RuntimeListener struct {
 	Kind   string `json:"kind"`
 	State  string `json:"state"`
 	Listen string `json:"listen,omitempty"` // Socket address when available; otherwise the configured address.
+}
+
+// IngressTotals is the numeric on-disk representation of the three counters.
+// API responses remain decimal strings to preserve precision in JavaScript.
+type IngressTotals struct {
+	AcceptedStreams uint64
+	ReceivedPackets uint64
+	ReceivedPings   uint64
 }
 
 type IngressStatistics struct {
