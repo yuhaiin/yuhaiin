@@ -7,6 +7,7 @@ import (
 
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
@@ -23,6 +24,9 @@ type idRequest struct {
 func addInboundRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	api := v2API{services: services}
 	addRPCRoute(handlers, v2InboundConfigGet, api.inboundConfig)
+	addRPCRoute(handlers, v2TrafficControlGet, api.trafficControl)
+	addRPCRoute(handlers, v2TrafficControlStatus, api.trafficControlStatus)
+	addRPCRoute(handlers, v2TrafficControlPut, api.saveTrafficControl)
 	addRPCRoute(handlers, v2InboundConfigPut, api.saveInboundConfig)
 	addRPCRoute(handlers, v2InboundsGet, api.inbounds)
 	addRPCRoute(handlers, v2InboundCapabilities, api.inboundCapabilities)
@@ -33,6 +37,46 @@ func addInboundRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2InboundGet, api.inbound)
 	addRPCRoute(handlers, v2InboundPut, api.saveInbound)
 	addRPCRoute(handlers, v2InboundDelete, api.deleteInbound)
+}
+
+type trafficControlStatusReader interface {
+	TrafficControlStatus() trafficcontrol.Status
+}
+
+func (a v2API) trafficControlStatus(_ context.Context, _ *emptyRequest) (*trafficcontrol.Status, error) {
+	reader, ok := a.services.Inbounds.(trafficControlStatusReader)
+	if !ok {
+		return nil, unavailable("traffic control diagnostics are unavailable")
+	}
+	status := reader.TrafficControlStatus()
+	return &status, nil
+}
+
+type trafficControlStore interface {
+	TrafficControl(context.Context) (trafficcontrol.Config, error)
+	SaveTrafficControl(context.Context, trafficcontrol.Config) error
+}
+
+func (a v2API) trafficControl(ctx context.Context, _ *emptyRequest) (*trafficcontrol.Config, error) {
+	backend, ok := a.services.Inbounds.(trafficControlStore)
+	if !ok {
+		return nil, unavailable("traffic control is unavailable")
+	}
+	cfg, err := backend.TrafficControl(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+func (a v2API) saveTrafficControl(ctx context.Context, cfg *trafficcontrol.Config) (*trafficcontrol.Config, error) {
+	backend, ok := a.services.Inbounds.(trafficControlStore)
+	if !ok {
+		return nil, unavailable("traffic control is unavailable")
+	}
+	if err := backend.SaveTrafficControl(ctx, *cfg); err != nil {
+		return nil, badRequest(err)
+	}
+	return cfg, nil
 }
 
 func (a v2API) inboundCapabilities(context.Context, *emptyRequest) (*contractinbound.Capabilities, error) {

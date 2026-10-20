@@ -30,10 +30,22 @@ jobs:
       - name: Test protocol and contract with race detector
         run: go test -race ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/wireguard ./pkg/net/proxy/tun/gvisor ./pkg/contract/node ./pkg/register
       - name: Load PPP and L2TP Ethernet kernel support
+        id: kernel-support
         run: |
           sudo apt-get update
-          sudo apt-get install -y "linux-modules-extra-$(uname -r)"
-          sudo modprobe ppp_generic
-          sudo modprobe l2tp_eth
+          module_package="linux-modules-extra-$(uname -r)"
+          if apt-cache show "$module_package" >/dev/null 2>&1; then
+            sudo apt-get install -y "$module_package"
+          else
+            echo "::notice::No APT package is published for kernel $(uname -r); checking modules already present on the runner."
+          fi
+
+          if sudo modprobe ppp_generic && sudo modprobe l2tp_eth; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::PPP or L2TP Ethernet modules are unavailable for kernel $(uname -r); skipping kernel-dependent interoperability tests."
+          fi
       - name: Test stock PPP servers and Linux L2TPv3 over IPv4 and IPv6
+        if: steps.kernel-support.outputs.available == 'true'
         run: python3 scripts/bench/l2tp/run.py --runtime docker --ppp

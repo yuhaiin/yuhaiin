@@ -15,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -61,6 +62,26 @@ type Inbound struct {
 
 	hijackDNS atomic.Bool
 	fakeip    atomic.Bool
+}
+
+// SetTrafficControl atomically activates validated policies for established
+// and new streams and later UDP datagrams without rebuilding listeners.
+func (l *Inbound) SetTrafficControl(config trafficcontrol.Config) error {
+	return l.handler.control.Apply(config)
+}
+func (l *Inbound) TrafficControl() trafficcontrol.Config {
+	return l.handler.control.Config()
+}
+func (l *Inbound) TrafficControlStatus() trafficcontrol.Status {
+	status := l.handler.control.Status()
+	for id, entry := range l.store.Range {
+		if reporter, ok := entry.server.(trafficcontrol.QueueReporter); ok {
+			if counters, supported := reporter.TrafficControlQueue(); supported && !status.AddQueue(id, counters) {
+				break
+			}
+		}
+	}
+	return status
 }
 
 type Option func(*Inbound)
@@ -322,12 +343,14 @@ func (l *Inbound) SaveContract(req contract.Inbound) (result error) {
 		l.store.Delete(key)
 
 		if err := l.closeServer(x.server); err != nil {
+			l.handler.control.ForgetInbound(key)
 			log.Error("close server failed", "name", req.Name, "id", req.ID, "err", err)
 			return err
 		}
 	}
 
 	if !req.Enabled {
+		l.handler.control.ForgetInbound(key)
 		return nil
 	}
 
@@ -384,12 +407,14 @@ func (l *Inbound) removeLocked(name string) error {
 	defer delete(l.states, name)
 	x, ok := l.store.LoadAndDelete(name)
 	if !ok {
+		l.handler.control.ForgetInbound(name)
 		return result
 	}
 	if err := l.closeServer(x.server); err != nil {
 		log.Error("close server failed", "name", name, "err", err)
 		result = errors.Join(result, err)
 	}
+	l.handler.control.ForgetInbound(name)
 	l.refreshInterfaces()
 	return result
 }
@@ -430,6 +455,7 @@ func (l *Inbound) Close() error {
 			log.Error("close server failed", "name", k, "err", err)
 			result = errors.Join(result, err)
 		}
+		l.handler.control.ForgetInbound(k)
 		l.store.Delete(k)
 		l.recordState(k, "disabled", "")
 		log.Info("closed server", "name", k)

@@ -18,6 +18,7 @@ var udpDeadlineClockStart = time.Now()
 type wrapConn struct {
 	net.PacketConn
 	mapper                  *addressMapper
+	routeID                 string
 	closed                  atomic.Bool
 	nextReadDeadlineRefresh atomic.Int64
 	closeOnce               sync.Once
@@ -61,15 +62,20 @@ func (w *wrapConn) Close() error {
 }
 
 func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
+	_, err := u.handleOneOwned(pkt, false)
+	return err
+}
+
+func (u *SourceControl) handleOneOwned(pkt *netapi.Packet, queueReserved bool) (bool, error) {
 	// Inbound migration is an admission event. Replaying packets after a stale
 	// DNS result must not retarget replies back to their old inbound transport.
 	if u.reply.Load().source == nil || pkt.MigrateID != 0 {
 		u.bindReply(pkt)
 	}
-	return u.sendOne(pkt)
+	return u.sendOneOwned(pkt, queueReserved)
 }
 
-func (u *SourceControl) sendOne(pkt *netapi.Packet) error {
+func (u *SourceControl) sendOneOwned(pkt *netapi.Packet, queueReserved bool) (bool, error) {
 	ctx := u.ctx
 
 	// Only the source sender replaces the current connection.
@@ -105,7 +111,7 @@ func (u *SourceControl) sendOne(pkt *netapi.Packet) error {
 
 		conn, err = u.newPacketConn(store, pkt)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		u.conn = conn
@@ -113,11 +119,7 @@ func (u *SourceControl) sendOne(pkt *netapi.Packet) error {
 		u.lastProcess.Store(&process)
 	}
 
-	if err := u.write(ctx, pkt, conn); err != nil {
-		return err
-	}
-
-	return nil
+	return u.writeOwned(ctx, pkt, conn, queueReserved)
 }
 
 func (u *SourceControl) newPacketConn(store *netapi.Context, pkt *netapi.Packet) (*wrapConn, error) {
@@ -142,7 +144,8 @@ func (u *SourceControl) newPacketConn(store *netapi.Context, pkt *netapi.Packet)
 		u.mapper = newAddressMapper()
 	}
 
-	conn := &wrapConn{PacketConn: dstpconn, mapper: u.mapper}
+	routeID, _ := store.MatchedRule()
+	conn := &wrapConn{PacketConn: dstpconn, mapper: u.mapper, routeID: routeID}
 	// The caller releases pkt after handleOne returns; capture the address
 	// before starting a worker that can outlive that packet reference.
 	dst := pkt.Dst()

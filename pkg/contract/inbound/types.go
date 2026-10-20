@@ -220,6 +220,7 @@ type RedirProtocol struct {
 func (RedirProtocol) ProtocolType() string { return ProtocolRedir }
 
 type TunProtocol struct {
+	OutputScheduler   string           `json:"outputScheduler,omitzero"`
 	Darwin            DarwinTunOptions `json:"darwin,omitzero"`
 	Stack             string           `json:"stack,omitzero"`
 	CongestionControl string           `json:"congestionControl,omitzero"`

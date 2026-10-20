@@ -1,9 +1,13 @@
 package lightweight
 
-import "testing"
+import (
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
+	"testing"
+)
 
 func TestOutputWakesAfterDescriptorBecomesEvictable(t *testing.T) {
-	s := &Stack{config: Config{MemoryLimit: 1 << 20}, done: make(chan struct{}), outgoing: make(chan *ownedBuffer, 1)}
+	s := &Stack{config: Config{MemoryLimit: 1 << 20}, done: make(chan struct{})}
+	s.initOutput(trafficcontrol.SchedulerFIFO, 1, 1<<20)
 	s.scheduler = newScheduler(s.done)
 	s.buffers.init(s)
 	owner, err := s.buffers.get(1024)
@@ -35,12 +39,13 @@ func TestOutputWakesAfterDescriptorBecomesEvictable(t *testing.T) {
 }
 
 func TestOutputCapacityAndFIFO(t *testing.T) {
-	s := &Stack{config: Config{MemoryLimit: 1 << 20}, done: make(chan struct{}), outgoing: make(chan *ownedBuffer, 1)}
+	s := &Stack{config: Config{MemoryLimit: 1 << 20}, done: make(chan struct{})}
+	s.initOutput(trafficcontrol.SchedulerFIFO, 1, 1<<20)
 	s.scheduler = newScheduler(s.done)
 	s.buffers.init(s)
 	first := &TCPConn{stack: s, job: timerJob{index: -1}}
 	second := &TCPConn{stack: s, job: timerJob{index: -1}}
-	s.outgoing <- nil
+	s.output.Enqueue(nil)
 	first.waitOutput(1500)
 	second.waitOutput(1500)
 	for range 100 {
@@ -49,7 +54,7 @@ func TestOutputCapacityAndFIFO(t *testing.T) {
 	if first.outputReady.Load() || second.outputReady.Load() || len(s.scheduler.jobs) != 0 {
 		t.Fatal("full output queue repeatedly woke blocked flows")
 	}
-	<-s.outgoing
+	s.output.Dequeue(false)
 	// A free device slot is insufficient if no packet can fit the memory budget.
 	s.memory.Store(s.config.MemoryLimit)
 	s.wakeOutput()
@@ -68,10 +73,11 @@ func TestOutputCapacityAndFIFO(t *testing.T) {
 }
 
 func TestOutputCancellationKeepsFIFO(t *testing.T) {
-	s := &Stack{config: Config{MemoryLimit: 1 << 20}, done: make(chan struct{}), outgoing: make(chan *ownedBuffer, 1)}
+	s := &Stack{config: Config{MemoryLimit: 1 << 20}, done: make(chan struct{})}
+	s.initOutput(trafficcontrol.SchedulerFIFO, 1, 1<<20)
 	s.scheduler = newScheduler(s.done)
 	s.buffers.init(s)
-	s.outgoing <- nil
+	s.output.Enqueue(nil)
 	flows := make([]*TCPConn, 5)
 	for i := range flows {
 		flows[i] = &TCPConn{stack: s, job: timerJob{index: -1}}
@@ -81,7 +87,7 @@ func TestOutputCancellationKeepsFIFO(t *testing.T) {
 	flows[0].cancelOutputWait()
 	flows[2].cancelOutputWait()
 	flows[4].cancelOutputWait()
-	<-s.outgoing
+	s.output.Dequeue(false)
 	for _, i := range []int{1, 3} {
 		if s.outputWaiters.head != flows[i] {
 			t.Fatal("cancellation corrupted FIFO links")

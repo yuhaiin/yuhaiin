@@ -3,6 +3,7 @@ package lightweight
 import (
 	"fmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"net/netip"
 	"slices"
 	"time"
@@ -16,12 +17,14 @@ const (
 )
 
 type Config struct {
+	OutputScheduler                                                               trafficcontrol.SchedulerMode
 	Addresses                                                                     []netip.Addr
 	MTU                                                                           int
 	CongestionControl                                                             string
 	Profile                                                                       NetworkProfile
 	Promiscuous, ForwardUDP                                                       bool
 	MaxConnections, MaxUDPSockets, QueuePackets                                   int
+	InputPacketsPerSecond, InputPacketBurst                                       int
 	SendBuffer, ReceiveBuffer, MaxReceiveBuffer                                   int
 	MemoryLimit                                                                   int64
 	MaxFragmentGroups, MaxFragmentBytes                                           int
@@ -34,6 +37,12 @@ type Config struct {
 }
 
 func (c Config) normalize() (Config, error) {
+	if c.OutputScheduler == "" {
+		c.OutputScheduler = trafficcontrol.SchedulerFIFO
+	}
+	if c.OutputScheduler != trafficcontrol.SchedulerFair && c.OutputScheduler != trafficcontrol.SchedulerFIFO {
+		return c, fmt.Errorf("lightweight: unknown output scheduler %q", c.OutputScheduler)
+	}
 	if c.MTU == 0 {
 		c.MTU = 1500
 	}
@@ -55,6 +64,9 @@ func (c Config) normalize() (Config, error) {
 	}
 	if c.Profile != LocalTun && c.Profile != RemoteTunnel {
 		return c, fmt.Errorf("lightweight: unknown profile %q", c.Profile)
+	}
+	if c.InputPacketsPerSecond < 0 || c.InputPacketBurst < 0 {
+		return c, fmt.Errorf("lightweight: negative input packet rate limit")
 	}
 	if c.MaxConnections == 0 {
 		c.MaxConnections = 8192

@@ -16,12 +16,16 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniff"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
+var ErrStreamAdmissionLimit = errors.New("inbound: stream session limit")
+
 type handler struct {
-	dialer netapi.Proxy
-	table  *nat.Table
+	dialer  netapi.Proxy
+	table   *nat.Table
+	control *trafficcontrol.Controller
 
 	sniffer     *controlSniffer
 	interceptor interface {
@@ -31,12 +35,8 @@ type handler struct {
 
 func NewHandler(dialer netapi.Proxy) *handler {
 	sniffer := newControlSniffer()
-	h := &handler{
-		dialer:  dialer,
-		table:   nat.NewTable(sniffer, dialer),
-		sniffer: sniffer,
-	}
-	return h
+	control := trafficcontrol.NewController()
+	return &handler{dialer: dialer, table: nat.NewTableWithControl(sniffer, dialer, control.DatagramBudget(), control), control: control, sniffer: sniffer}
 }
 
 func (s *handler) logLevel(err error) slog.Level {
@@ -73,16 +73,38 @@ func (s *handler) logLevel(err error) slog.Level {
 
 func (s *handler) Stream(ctx *netapi.Context, meta *netapi.StreamMeta) {
 	if err := s.stream(ctx, meta); err != nil {
+		if errors.Is(err, ErrStreamAdmissionLimit) {
+			return
+		} // overload is counted; avoid log storms
 		log.Select(s.logLevel(err)).Print("inbound handler stream", "msg", err)
 	}
 }
 
 func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
+	id := meta.InboundID
+	if id == "" {
+		id = meta.InboundName
+	}
+	lease, ok := s.control.AdmitStream(id)
+	if !ok {
+		_ = meta.Src.Close()
+		return ErrStreamAdmissionLimit
+	}
+	defer lease.Release()
+
 	dst := meta.Address
 
 	startNanoSeconds := system.CheapNowNano()
 
 	meta.Src = s.sniffer.Stream(store, meta.Src)
+	inboundID := meta.InboundID
+	if inboundID == "" {
+		inboundID = meta.InboundName
+	}
+	meta.Src = trafficcontrol.WrapConn(store, meta.Src, func() trafficcontrol.Policy {
+		ruleID, _ := store.MatchedRule()
+		return s.control.Resolve(inboundID, ruleID)
+	})
 	defer meta.Src.Close()
 	if s.interceptor != nil && s.interceptor.Intercept(store, meta) {
 		return nil
@@ -107,7 +129,7 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 
 	process, pid, uid := store.GetProcess()
 
-	relay.Relay(meta.Src, remote, "dst", dst, "src", store.Source,
+	relay.RelayContext(store, meta.Src, remote, "dst", dst, "src", store.Source,
 		"process", process, "pid", pid, "uid", uid)
 
 	return nil
@@ -115,7 +137,7 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 
 func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 	if err := s.table.Write(ctx, pack); err != nil {
-		if errors.Is(err, nat.ErrSendPacketQueueFull) {
+		if errors.Is(err, nat.ErrSendPacketQueueFull) || errors.Is(err, nat.ErrNATSessionLimit) {
 			// The metric records queue drops; per-packet logging can amplify congestion.
 			return
 		}
@@ -134,7 +156,10 @@ func (s *handler) Ping(ctx context.Context, pack *netapi.PingMeta) {
 	}
 }
 
-func (s *handler) Close() error { return s.table.Close() }
+func (s *handler) Close() error {
+	s.control.Close()
+	return s.table.Close()
+}
 
 type controlSniffer struct {
 	sniffer *sniff.Sniffier

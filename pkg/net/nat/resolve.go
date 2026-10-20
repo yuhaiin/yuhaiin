@@ -25,7 +25,14 @@ type resolutionResult struct {
 }
 
 func (u *SourceControl) appendResolution(p *pendingResolution, pkt *netapi.Packet) error {
-	if u.pendingPackets >= maxPendingPackets() {
+	return u.appendResolutionOwned(p, pkt, false)
+}
+
+// appendResolutionOwned transfers an existing send-queue byte reservation
+// when queueReserved is true. The payload remains charged continuously while
+// ownership moves from the sender to the DNS-resolution task.
+func (u *SourceControl) appendResolutionOwned(p *pendingResolution, pkt *netapi.Packet, queueReserved bool) error {
+	if u.pendingPackets >= maxPendingPackets() || !queueReserved && !u.queueBudget.ReserveQueueBytes(int64(len(pkt.GetPayload()))) {
 		metrics.Counter.AddSendUDPDroppedPacket()
 		return ErrSendPacketQueueFull
 	}
@@ -36,15 +43,20 @@ func (u *SourceControl) appendResolution(p *pendingResolution, pkt *netapi.Packe
 	return nil
 }
 
-func (u *SourceControl) queueResolution(pkt *netapi.Packet, dst netapi.Address, conn net.PacketConn) error {
+func (u *SourceControl) queueResolution(pkt *netapi.Packet, dst netapi.Address, conn net.PacketConn, queueReserved bool) (bool, error) {
+	if !u.queueBudget.ReservePendingTask() {
+		metrics.Counter.AddSendUDPDroppedPacket()
+		return false, ErrSendPacketQueueFull
+	}
 	p := &pendingResolution{key: pkt.Dst().Comparable(), destination: dst, mapper: u.mapper, conn: conn}
-	if err := u.appendResolution(p, pkt); err != nil {
-		return err
+	if err := u.appendResolutionOwned(p, pkt, queueReserved); err != nil {
+		u.queueBudget.ReleasePendingTask()
+		return false, err
 	}
 	u.resolutions[p.key] = p
 	u.resolveQueue = append(u.resolveQueue, p)
 	u.startResolutions()
-	return nil
+	return true, nil
 }
 
 func (u *SourceControl) startResolutions() {
@@ -80,6 +92,7 @@ func (u *SourceControl) startResolutions() {
 func (u *SourceControl) finishResolution(result resolutionResult) {
 	p := result.pending
 	delete(u.resolutions, p.key)
+	u.queueBudget.ReleasePendingTask()
 	u.resolving--
 	u.pendingPackets -= len(p.packets)
 	// A replacement with a fresh socket may use new hosts/resolver settings.
@@ -93,12 +106,16 @@ func (u *SourceControl) finishResolution(result resolutionResult) {
 	}
 	for _, pkt := range p.packets {
 		var err error
+		var transferred bool
 		if stale {
-			err = u.sendOne(pkt)
+			transferred, err = u.sendOneOwned(pkt, true)
 		} else if result.err != nil {
 			err = result.err
 		} else {
-			err = sendPacket(pkt.GetPayload(), result.addr, p.conn)
+			err = u.writeRoutedPacket(pkt, pkt.GetPayload(), result.addr, p.conn)
+		}
+		if !transferred {
+			u.queueBudget.ReleaseQueueBytes(int64(len(pkt.GetPayload())))
 		}
 		pkt.DecRef()
 		u.pending.Add(-1)
@@ -111,7 +128,9 @@ func (u *SourceControl) finishResolution(result resolutionResult) {
 
 func (u *SourceControl) drainResolutions() {
 	for _, p := range u.resolutions {
+		u.queueBudget.ReleasePendingTask()
 		for _, pkt := range p.packets {
+			u.queueBudget.ReleaseQueueBytes(int64(len(pkt.GetPayload())))
 			pkt.DecRef()
 			u.pending.Add(-1)
 		}

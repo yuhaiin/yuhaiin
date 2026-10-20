@@ -99,6 +99,9 @@ const (
 	v2PublishPut            v2Endpoint = "publish.put"
 	v2PublishDelete         v2Endpoint = "publish.delete"
 	v2InboundConfigGet      v2Endpoint = "inbounds.config.get"
+	v2TrafficControlGet     v2Endpoint = "traffic_control.get"
+	v2TrafficControlStatus  v2Endpoint = "traffic_control.status"
+	v2TrafficControlPut     v2Endpoint = "traffic_control.put"
 	v2InboundConfigPut      v2Endpoint = "inbounds.config.put"
 	v2InboundsGet           v2Endpoint = "inbounds.get"
 	v2InboundsPost          v2Endpoint = "inbounds.post"
@@ -200,6 +203,9 @@ var v2Routes = []v2Route{
 	{v2PublishDelete, "DELETE /api/v2/publishes/{name}"},
 	{v2PublishResolve, "POST /api/v2/publishes/{name}/resolve"},
 	{v2InboundConfigGet, "GET /api/v2/inbounds/config"},
+	{v2TrafficControlGet, "GET /api/v2/traffic-control"},
+	{v2TrafficControlStatus, "GET /api/v2/traffic-control/status"},
+	{v2TrafficControlPut, "PUT /api/v2/traffic-control"},
 	{v2InboundConfigPut, "PUT /api/v2/inbounds/config"},
 	{v2InboundsGet, "GET /api/v2/inbounds"},
 	{v2InboundCapabilities, "GET /api/v2/inbounds/capabilities"},

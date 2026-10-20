@@ -3,6 +3,7 @@ package hysteria2
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"io"
@@ -51,6 +52,13 @@ func newTestServer(t *testing.T, password string) (string, []byte, *Server, *ech
 
 func newTestServerWithConfig(t *testing.T, host, password string, config inbound.Hysteria2Protocol) (string, []byte, *Server, *echoHandler) {
 	t.Helper()
+	handler := &echoHandler{streams: make(chan *netapi.StreamMeta, 16), packets: make(chan packetMeta, 32)}
+	addr, ca, server := newTestServerWithHandler(t, host, password, config, handler)
+	return addr, ca, server, handler
+}
+
+func newTestServerWithHandler(t *testing.T, host, password string, config inbound.Hysteria2Protocol, handler netapi.Handler) (string, []byte, *Server) {
+	t.Helper()
 	ca, err := cert.GenerateCa()
 	if err != nil {
 		t.Fatal(err)
@@ -68,7 +76,6 @@ func newTestServerWithConfig(t *testing.T, host, password string, config inbound
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := &echoHandler{streams: make(chan *netapi.StreamMeta, 16), packets: make(chan packetMeta, 32)}
 	config.Auth, config.SalamanderPassword = "secret", password
 	server, err := NewServer(config, tlsConfig, lis, handler)
 	if err != nil {
@@ -76,7 +83,7 @@ func newTestServerWithConfig(t *testing.T, host, password string, config inbound
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = server.Close() })
-	return packet.LocalAddr().String(), caPEM, server, handler
+	return packet.LocalAddr().String(), caPEM, server
 }
 
 func testClient(t *testing.T, host string, ca []byte, password string) netapi.Proxy {
@@ -191,6 +198,20 @@ func TestTLSAndAuthenticationFailures(t *testing.T) {
 				t.Fatal("unexpected successful connection")
 			}
 		})
+	}
+}
+
+func TestServerRejectsMissingTLSCertificate(t *testing.T) {
+	lis, err := fixed.NewServer(fixed.ServerConfig{Host: "127.0.0.1:0", Control: fixed.ControlDisableTCP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lis.Close()
+	if server, err := NewServer(inbound.Hysteria2Protocol{Auth: "secret"}, &tls.Config{}, lis, &echoHandler{}); err == nil {
+		if server != nil {
+			_ = server.Close()
+		}
+		t.Fatal("server accepted a TLS config without a certificate")
 	}
 }
 

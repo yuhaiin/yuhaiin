@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"testing"
-	"time"
 
 	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -16,19 +15,22 @@ import (
 
 func TestDial(t *testing.T) {
 	t.Run("all resolve failed", func(t *testing.T) {
-		addr, err := netapi.ParseDomainPort("tcp", "ip-3-86-108-113-ext.gold0028.gameloft.com", 46267)
+		ctx := netapi.WithContext(t.Context())
+		ctx.ConnOptions().Resolver().SetResolver(&mockResolver{err: errors.New("mock DNS failure")})
+
+		addr, err := netapi.ParseDomainPort("tcp", "happy-eyeballs.test", 46267)
 		assert.NoError(t, err)
-		_, err = DialHappyEyeballsv2(context.TODO(), addr)
+		_, err = DialHappyEyeballsv2(ctx, addr)
 		t.Log(err)
 		assert.Error(t, err)
 	})
 
 	t.Run("success", func(t *testing.T) {
+		server := newLocalHappyEyeballsServer(t)
 		ctx := netapi.WithContext(t.Context())
+		ctx.ConnOptions().Resolver().SetResolver(&mockResolver{ips: server.ips})
 
-		ctx.ConnOptions().Resolver().SetResolver(&mockResolver{})
-
-		addr, err := netapi.ParseDomainPort("tcp", "ip-3-86-108-113-ext.gold0028.gameloft.com", 46267)
+		addr, err := netapi.ParseDomainPort("tcp", "happy-eyeballs.test", server.port)
 		assert.NoError(t, err)
 		conn, err := DialHappyEyeballsv2(ctx, addr)
 		assert.NoError(t, err)
@@ -40,8 +42,9 @@ func TestDial(t *testing.T) {
 		ctx := netapi.WithContext(t.Context())
 
 		ctx.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv4)
+		ctx.ConnOptions().Resolver().SetResolver(&mockResolver{err: errors.New("mock DNS failure")})
 
-		addr, err := netapi.ParseDomainPort("tcp", "ip-3-86-108-113-ext.gold0028.gameloft.com", 46267)
+		addr, err := netapi.ParseDomainPort("tcp", "happy-eyeballs.test", 46267)
 		assert.NoError(t, err)
 		_, err = DialHappyEyeballsv2(ctx, addr)
 		t.Log(err)
@@ -49,41 +52,109 @@ func TestDial(t *testing.T) {
 	})
 
 	t.Run("prefer ipv4", func(t *testing.T) {
+		server := newLocalHappyEyeballsServer(t)
 		ctx := netapi.WithContext(t.Context())
 
 		ctx.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv4)
-		ctx.ConnOptions().Resolver().SetResolver(&mockResolver{})
+		ctx.ConnOptions().Resolver().SetResolver(&mockResolver{ips: server.ips})
 
-		addr, err := netapi.ParseDomainPort("tcp", "ip-3-86-108-113-ext.gold0028.gameloft.com", 46267)
+		addr, err := netapi.ParseDomainPort("tcp", "happy-eyeballs.test", server.port)
 		assert.NoError(t, err)
 		conn, err := DialHappyEyeballsv2(ctx, addr)
 		assert.NoError(t, err)
 
 		defer conn.Close()
+		assertDialedFamily(t, conn, false)
 	})
 
 	t.Run("prefer ipv6", func(t *testing.T) {
+		server := newLocalHappyEyeballsServer(t)
+		if len(server.ips.AAAA) == 0 {
+			t.Skip("IPv6 loopback is unavailable")
+		}
+
 		ctx := netapi.WithContext(t.Context())
 
 		ctx.ConnOptions().Resolver().SetMode(netapi.ResolverModePreferIPv6)
-		ctx.ConnOptions().Resolver().SetResolver(&mockResolver{})
+		ctx.ConnOptions().Resolver().SetResolver(&mockResolver{ips: server.ips})
 
-		addr, err := netapi.ParseDomainPort("tcp", "ip-3-86-108-113-ext.gold0028.gameloft.com", 46267)
+		addr, err := netapi.ParseDomainPort("tcp", "happy-eyeballs.test", server.port)
 		assert.NoError(t, err)
 		conn, err := DialHappyEyeballsv2(ctx, addr)
 		assert.NoError(t, err)
 
 		defer conn.Close()
+		assertDialedFamily(t, conn, true)
 	})
 }
 
+type localHappyEyeballsServer struct {
+	port uint16
+	ips  netapi.IPs
+}
+
+func newLocalHappyEyeballsServer(t *testing.T) localHappyEyeballsServer {
+	t.Helper()
+
+	ipv4, err := net.Listen("tcp4", "127.0.0.1:0")
+	assert.NoError(t, err)
+	acceptAndClose(t, ipv4)
+
+	port := uint16(ipv4.Addr().(*net.TCPAddr).Port)
+	server := localHappyEyeballsServer{
+		port: port,
+		ips:  netapi.IPs{A: []net.IP{net.IPv4(127, 0, 0, 1)}},
+	}
+
+	ipv6, err := net.Listen("tcp6", net.JoinHostPort("::1", fmt.Sprint(port)))
+	if err != nil {
+		t.Logf("IPv6 loopback unavailable: %v", err)
+		return server
+	}
+	acceptAndClose(t, ipv6)
+	server.ips.AAAA = []net.IP{net.ParseIP("::1")}
+
+	return server
+}
+
+func acceptAndClose(t *testing.T, listener net.Listener) {
+	t.Helper()
+	t.Cleanup(func() { _ = listener.Close() })
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+}
+
+func assertDialedFamily(t *testing.T, conn net.Conn, wantIPv6 bool) {
+	t.Helper()
+
+	addr, ok := conn.RemoteAddr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("RemoteAddr() = %T, want *net.TCPAddr", conn.RemoteAddr())
+	}
+	gotIPv6 := addr.IP.To4() == nil
+	if gotIPv6 != wantIPv6 {
+		t.Fatalf("connected to %s, want IPv6=%t", addr, wantIPv6)
+	}
+}
+
 func TestResolver(t *testing.T) {
-	ad, err := netapi.ParseAddress("tcp", "www.google.com")
+	ad, err := netapi.ParseAddress("tcp", "happy-eyeballs.test")
 	assert.NoError(t, err)
 
 	ctx := netapi.WithContext(t.Context())
 
-	ctx.ConnOptions().Resolver().SetResolver(&mockResolver{})
+	ctx.ConnOptions().Resolver().SetResolver(&mockResolver{ips: netapi.IPs{
+		AAAA: []net.IP{net.ParseIP("::1")},
+		A:    []net.IP{net.IPv4(127, 0, 0, 1)},
+	}})
 
 	r := newHappyEyeballv2Respover(ctx, ad, happyEyeballsCache, semaphore.NewEmptySemaphore())
 
@@ -102,10 +173,17 @@ func TestResolver(t *testing.T) {
 	t.Log(r.errors)
 }
 
-type mockResolver struct{}
+type mockResolver struct {
+	ips netapi.IPs
+	err error
+}
 
 // LookupIP returns a list of ip addresses
 func (m *mockResolver) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+
 	var option netapi.LookupIPOption
 	for _, opt := range opts {
 		opt(&option)
@@ -113,16 +191,12 @@ func (m *mockResolver) LookupIP(ctx context.Context, domain string, opts ...func
 
 	switch option.Mode {
 	case netapi.ResolverModePreferIPv4:
-		return &netapi.IPs{A: []net.IP{{10, 0, 0, 1}, {10, 0, 0, 2}}}, nil
+		return &netapi.IPs{A: m.ips.A}, nil
 	case netapi.ResolverModePreferIPv6:
-		time.Sleep(time.Second)
-		return &netapi.IPs{AAAA: []net.IP{net.ParseIP("::1"), net.ParseIP("::2")}}, nil
+		return &netapi.IPs{AAAA: m.ips.AAAA}, nil
 	}
 
-	return &netapi.IPs{
-		AAAA: []net.IP{net.ParseIP("::1"), net.ParseIP("::2")},
-		A:    []net.IP{{10, 0, 0, 1}, {10, 0, 0, 2}},
-	}, nil
+	return &m.ips, nil
 }
 
 // Raw returns a dns message

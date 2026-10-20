@@ -8,9 +8,13 @@ import (
 	"maps"
 	"net"
 	"net/netip"
+	"runtime"
 	"slices"
 	"sync"
 	"sync/atomic"
+	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 )
 
 // PacketIO transfers complete IP packets, without link/virtio headers. ReadPacket
@@ -50,7 +54,8 @@ type Stack struct {
 	wg                                            sync.WaitGroup
 	closeErr                                      error
 	scheduler                                     *scheduler
-	outgoing                                      chan *ownedBuffer
+	output                                        trafficcontrol.OutputQueue[*ownedBuffer]
+	inputGovernor                                 *trafficcontrol.Governor
 	forwarded                                     chan Datagram
 	pings                                         chan *PingRequest
 	shards                                        [32]flowShard
@@ -68,13 +73,31 @@ type Stack struct {
 	icmpStamp                                     int64
 }
 type Statistics struct {
-	MemoryBytes, Connections                      int64
-	CachedBytes                                   int64
-	PacketsIn, PacketsOut, Drops, Retransmissions uint64
+	MemoryBytes, Connections                            int64
+	OutputQueuedPackets, OutputQueuedBytes              int64
+	OutputAQMDrops, OutputRejected, OutputOverloadDrops uint64
+	CachedBytes                                         int64
+	PacketsIn, PacketsOut, Drops, Retransmissions       uint64
+}
+
+// TrafficControlQueue exposes bounded scheduler diagnostics without leaking
+// packet identities or the concrete queue implementation to an adapter.
+func (s *Stack) TrafficControlQueue() (trafficcontrol.FairStats, bool) {
+	if s.output == nil {
+		return trafficcontrol.FairStats{}, false
+	}
+	return s.output.Stats(), true
 }
 
 func (s *Stack) Stats() Statistics {
-	return Statistics{MemoryBytes: s.memory.Load(), Connections: s.flows.Load(), CachedBytes: s.buffers.cached.Load(), PacketsIn: s.packetsIn.Load(), PacketsOut: s.packetsOut.Load(), Drops: s.drops.Load(), Retransmissions: s.retransmissions.Load()}
+	stats := Statistics{MemoryBytes: s.memory.Load(), Connections: s.flows.Load(), CachedBytes: s.buffers.cached.Load(), PacketsIn: s.packetsIn.Load(), PacketsOut: s.packetsOut.Load(), Drops: s.drops.Load(), Retransmissions: s.retransmissions.Load()}
+	if s.output != nil {
+		q := s.output.Stats()
+		stats.OutputQueuedPackets, stats.OutputQueuedBytes = q.Packets, q.Bytes
+		stats.OutputAQMDrops, stats.OutputRejected = q.DroppedAQM, q.Rejected
+		stats.OutputOverloadDrops = q.DroppedOverload
+	}
+	return stats
 }
 
 // New takes ownership of link only on success. Close joins all stack workers.
@@ -86,7 +109,7 @@ func New(config Config, link PacketIO) (*Stack, error) {
 	if link == nil {
 		return nil, errors.New("lightweight: nil PacketIO")
 	}
-	s := &Stack{config: c, link: link, done: make(chan struct{}), outgoing: make(chan *ownedBuffer, c.QueuePackets), forwarded: make(chan Datagram, min(c.QueuePackets, 256)), listeners: make(map[netip.AddrPort]*TCPListener), udp: make(map[netip.AddrPort]*UDPConn), icmpTokens: 100}
+	s := &Stack{config: c, link: link, done: make(chan struct{}), forwarded: make(chan Datagram, min(c.QueuePackets, 256)), listeners: make(map[netip.AddrPort]*TCPListener), udp: make(map[netip.AddrPort]*UDPConn), icmpTokens: 100}
 	if writer, ok := link.(PacketBufferWriter); ok {
 		s.headroom, s.gsoMax = writer.Headroom(), writer.MaxGSOPacketSize()
 		if s.headroom < 0 || s.headroom > maxPacketHeadroom || s.gsoMax < 0 || s.gsoMax > 65535 || s.gsoMax > 0 && s.gsoMax < c.MTU {
@@ -99,6 +122,13 @@ func New(config Config, link PacketIO) (*Stack, error) {
 	}
 	if c.ForwardPing {
 		s.pings = make(chan *PingRequest, min(c.QueuePackets, 64))
+	}
+	// A host group receives an aggregate DRR share regardless of how many
+	// simultaneous TCP/UDP tuples it opens. Within each group FQ-CoDel
+	// preserves per-flow isolation and bounded sojourn.
+	s.initOutput(c.OutputScheduler, c.QueuePackets, max(int64(c.MTU)*int64(c.QueuePackets), c.MemoryLimit/8))
+	if c.InputPacketsPerSecond > 0 {
+		s.inputGovernor = trafficcontrol.NewGovernor(trafficcontrol.Limits{PacketsPerSec: float64(c.InputPacketsPerSecond), PacketBurst: float64(c.InputPacketBurst)}, nil)
 	}
 	s.scheduler = newScheduler(s.done)
 	s.buffers.init(s)
@@ -142,6 +172,7 @@ func (s *Stack) shutdown() {
 	s.once.Do(func() {
 		s.txMu.Lock()
 		close(s.done)
+		s.output.Close()
 		s.txMu.Unlock()
 		s.closeErr = s.link.Close()
 		// Publish closed before taking table snapshots. Registrations check under
@@ -171,15 +202,9 @@ func (s *Stack) shutdown() {
 func (s *Stack) Close() error {
 	s.shutdown()
 	s.wg.Wait()
-	for {
-		select {
-		case p := <-s.outgoing:
-			p.release()
-		default:
-			goto forwarded
-		}
+	for _, p := range s.output.Drain() {
+		p.release()
 	}
-forwarded:
 	for {
 		select {
 		case p := <-s.forwarded:
@@ -215,10 +240,19 @@ func (s *Stack) readLoop() {
 		}
 	}
 	attempts := 0
+	var processed uint32
 	for {
 		b, verified, err := read()
 		if len(b) > 0 && len(b) <= 65575 {
 			s.packetsIn.Add(1)
+			processed++
+			if processed&255 == 0 {
+				runtime.Gosched()
+			} // Yield during sustained PPS floods.
+			if s.inputGovernor != nil && !s.inputGovernor.AdmitPacket(time.Now()) {
+				s.drops.Add(1)
+				continue
+			}
 			if e := s.inputVerified(b, verified); e != nil {
 				s.drops.Add(1)
 			}
@@ -247,11 +281,18 @@ func (s *Stack) writeLoop() {
 		s.writeBatchLoop(writer)
 		return
 	}
+	var owned [32]*ownedBuffer
+	defer func() {
+		for _, b := range owned {
+			b.release()
+		}
+	}()
 	for {
-		select {
-		case <-s.done:
+		n := s.dequeueOutputBatch(owned[:])
+		if n == 0 {
 			return
-		case b := <-s.outgoing:
+		}
+		for i, b := range owned[:n] {
 			write := func() error {
 				if s.packetWriter != nil {
 					return s.packetWriter.WritePacketBuffer(b.data, b.offset, b.segmentSize)
@@ -263,6 +304,7 @@ func (s *Stack) writeLoop() {
 				err = write()
 			}
 			b.release()
+			owned[i] = nil
 			if err != nil {
 				return
 			}
@@ -290,13 +332,12 @@ func (s *Stack) emitOwned(packet *ownedBuffer) error {
 	if s.closed() {
 		return net.ErrClosed
 	}
-	select {
-	case s.outgoing <- packet:
+	if s.output.Enqueue(packet) {
 		return nil
-	default:
-		return ErrLimit
 	}
+	return ErrLimit
 }
+
 func (s *Stack) ipBuffer(src, dst netip.Addr, proto uint8, payloadSize int) (*ownedBuffer, int, error) {
 	h, err := ipHeaderSize(src, dst, payloadSize)
 	if err != nil {

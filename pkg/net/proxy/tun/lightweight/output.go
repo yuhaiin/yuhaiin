@@ -5,6 +5,8 @@ import "time"
 // Connection lock -> output waiter lock -> scheduler lock. The writer never
 // takes a connection lock. FIFO admission waits for an actual capacity-release
 // event; no timer polls a full device queue. At most one waiter per connection.
+func (s *Stack) outputHasCapacity(bytes int) bool { return s.output.HasCapacity(bytes) }
+
 func (c *TCPConn) waitOutput(bytes int) {
 	s := c.stack
 	c.outputWaiting = true
@@ -16,7 +18,7 @@ func (c *TCPConn) waitOutput(bytes int) {
 		s.outputWaiters.push(c)
 		s.outputCount.Add(1)
 	}
-	if s.outputWaiters.head == c && len(s.outgoing) < cap(s.outgoing) && s.buffers.canGet(bytes) {
+	if s.outputWaiters.head == c && s.outputHasCapacity(bytes) && s.buffers.canGet(bytes) {
 		s.outputWaiters.remove(c)
 		s.outputCount.Add(-1)
 		c.outputReady.Store(true)
@@ -24,13 +26,13 @@ func (c *TCPConn) waitOutput(bytes int) {
 	s.outputMu.Unlock()
 }
 func (s *Stack) wakeOutput() {
-	if s.outputCount.Load() == 0 || len(s.outgoing) >= cap(s.outgoing) {
+	if s.outputCount.Load() == 0 || !s.outputHasCapacity(0) {
 		return
 	}
 	s.outputMu.Lock()
 	c := s.outputWaiters.head
 	if c != nil {
-		if len(s.outgoing) >= cap(s.outgoing) || !s.buffers.canGet(c.outputBytes) {
+		if !s.outputHasCapacity(c.outputBytes) || !s.buffers.canGet(c.outputBytes) {
 			s.outputMu.Unlock()
 			return
 		}

@@ -1,6 +1,7 @@
 package lightweight
 
 import (
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"net/netip"
 	"testing"
 	"time"
@@ -34,7 +35,8 @@ func TestTCPGSOAdmissionLimits(t *testing.T) {
 		{"no-offload", 10000, 10000, 0, 0, 64, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s := &Stack{config: Config{MemoryLimit: 1 << 20}, done: make(chan struct{}), outgoing: make(chan *ownedBuffer, 1), headroom: 10, gsoMax: tc.maxSize}
+			s := &Stack{config: Config{MemoryLimit: 1 << 20}, done: make(chan struct{}), headroom: 10, gsoMax: tc.maxSize}
+			s.initOutput(trafficcontrol.SchedulerFIFO, 1, 1<<20)
 			s.buffers.init(s)
 			s.buffers.cacheLimit = 0
 			owner, err := s.buffers.get(6000)
@@ -50,12 +52,15 @@ func TestTCPGSOAdmissionLimits(t *testing.T) {
 				t.Fatalf("sent=%d want=%d", got, tc.want)
 			}
 			if tc.want == 0 {
-				if len(s.outgoing) != 0 {
+				if s.output.Stats().Packets != 0 {
 					t.Fatal("unexpected GSO record")
 				}
 				return
 			}
-			packet := <-s.outgoing
+			packet, ok := s.output.Dequeue(false)
+			if !ok {
+				t.Fatal("missing output packet")
+			}
 			defer packet.release()
 			if packet.offset != 10 || packet.segmentSize != 1000 || len(packet.data)-packet.offset != 40+1000*tc.want {
 				t.Fatalf("invalid group metadata: offset=%d MSS=%d length=%d", packet.offset, packet.segmentSize, len(packet.data))

@@ -1,10 +1,33 @@
 package inbound
 
 import (
+	"errors"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"sync"
 	"testing"
 )
+
+type failingCloseAccepter struct{ err error }
+
+func (failingCloseAccepter) Interface() string { return "" }
+func (a failingCloseAccepter) Close() error    { return a.err }
+
+func TestRemoveRetiresStreamScopeWhenServerCloseFails(t *testing.T) {
+	l := &Inbound{handler: NewHandler(nil)}
+	lease, ok := l.handler.control.AdmitStream("inbound-a")
+	if !ok {
+		t.Fatal("stream admission failed")
+	}
+	l.store.Store("inbound-a", entry{server: failingCloseAccepter{err: errors.New("close failed")}})
+	if err := l.Remove("inbound-a"); err == nil {
+		t.Fatal("Remove hid the server close failure")
+	}
+	lease.Release()
+	if len(l.handler.control.Status().InboundScopes) != 0 {
+		t.Fatal("failed server close left an unleased stream scope")
+	}
+	_ = l.handler.Close()
+}
 
 func TestListenerSnapshotLifecycle(t *testing.T) {
 	l := &Inbound{}

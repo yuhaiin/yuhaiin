@@ -3,6 +3,7 @@ package syncmap
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -20,26 +21,45 @@ func TestSyncMap(t *testing.T) {
 
 func TestLoadOrCreate(t *testing.T) {
 	var syncMap SyncMap[int, int]
-	var wg sync.WaitGroup
-
-	var cache sync.Map
-
 	for j := range 10 {
 		key := fmt.Sprintf("case-%d", j)
 		t.Run(key, func(t *testing.T) {
+			var wg sync.WaitGroup
+			var creators atomic.Int32
+			start := make(chan struct{})
+			results := make(chan int, 10)
 			for i := range 10 {
 				wg.Go(func() {
-					r, _, _ := syncMap.LoadOrCreate(j, func() (int, error) {
-						t.Parallel()
+					<-start
+					r, _, err := syncMap.LoadOrCreate(j, func() (int, error) {
+						creators.Add(1)
 						return i, nil
 					})
-					v, ok := cache.LoadOrStore(key, r)
-					if ok {
-						assert.Equal(t, v.(int), r)
+					if err != nil {
+						t.Errorf("LoadOrCreate: %v", err)
 					}
+					results <- r
 				})
 			}
+			close(start)
 			wg.Wait()
+			close(results)
+
+			var first int
+			gotFirst := false
+			for result := range results {
+				if !gotFirst {
+					first, gotFirst = result, true
+					continue
+				}
+				assert.Equal(t, result, first)
+			}
+			if !gotFirst {
+				t.Fatal("no LoadOrCreate result")
+			}
+			if got := creators.Load(); got != 1 {
+				t.Fatalf("creator called %d times, want 1", got)
+			}
 		})
 	}
 }

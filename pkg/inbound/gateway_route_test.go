@@ -21,6 +21,7 @@ import (
 	routecontract "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/gateway"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/store"
@@ -96,6 +97,14 @@ func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
 	defer h.Close()
 	h.dialer = router
 	h.interceptor = router
+	if err := h.control.Apply(trafficcontrol.Config{Enabled: true,
+		Profiles: map[string]trafficcontrol.Profile{"gateway": {
+			Upload:   trafficcontrol.Rate{BytesPerSecond: 1 << 20, BurstBytes: 65536},
+			Download: trafficcontrol.Rate{BytesPerSecond: 1 << 20, BurstBytes: 65536},
+		}}, RouteProfiles: map[string]string{"g-rule": "gateway"},
+	}); err != nil {
+		t.Fatal(err)
+	}
 	var workers sync.WaitGroup
 	t.Cleanup(func() {
 		done := make(chan struct{})
@@ -149,6 +158,7 @@ func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
 		code int
 		body string
 	}{{"http://app.example/ads/banner", 204, ""}, {"https://app.example/ok", 200, "backend:/ok"}, {"http://outside.example/ads/banner", 200, "backend:/ads/banner"}} {
+		before := h.control.Usage()
 		response, err := client.Get(test.url)
 		if err != nil {
 			t.Fatal(err)
@@ -157,6 +167,12 @@ func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
 		_ = response.Body.Close()
 		if response.StatusCode != test.code || string(body) != test.body {
 			t.Fatalf("%s: %s %q", test.url, response.Status, body)
+		}
+		if strings.Contains(test.url, "app.example") {
+			after := h.control.Usage()
+			if after.AdmittedUploadBytes <= before.AdmittedUploadBytes || after.AdmittedDownloadBytes <= before.AdmittedDownloadBytes {
+				t.Fatal("Gateway bypassed stream shaping", before, after)
+			}
 		}
 		if strings.HasPrefix(test.url, "https:") && response.ProtoMajor != 2 {
 			t.Fatal(response.Proto)
@@ -217,4 +233,45 @@ func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
 	if response.StatusCode != 200 || manager.Status().Gateways[0].Requests != 3 {
 		t.Fatal("Gateway bypassed normal Route selection")
 	}
+	// Restore the selected Gateway route, then prove its profile actually paces
+	// a response, rather than merely incrementing aggregate usage counters.
+	draft.Rule.Revision = 0 // The rule was removed above.
+	draft.Rule.Rules = []routecontract.RuleExpr{{Type: "host", Host: &routecontract.ListRef{List: "sites"}}}
+	if _, err := editor.Save(t.Context(), routecontract.RuleDraft{Rule: draft.Rule, Lists: draft.Lists}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rules.Apply(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	original := h.control.Config()
+	limited := h.control.Config()
+	limited.Profiles["gateway"] = trafficcontrol.Profile{Download: trafficcontrol.Rate{BytesPerSecond: 1, BurstBytes: 1}}
+	if err := h.control.Apply(limited); err != nil {
+		t.Fatal(err)
+	}
+	// Release a paced writer promptly once this intentionally timed-out request
+	// has demonstrated the cap; activation wakes the old waiter's policy loop.
+	defer func() {
+		if err := h.control.Apply(original); err != nil {
+			t.Error(err)
+		}
+	}()
+	before := h.control.Usage()
+	requestCtx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, "http://app.example/ok", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err = client.Do(request)
+	if response != nil {
+		_ = response.Body.Close()
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Gateway route profile did not pace response: %v", err)
+	}
+	if delta := h.control.Usage().AdmittedDownloadBytes - before.AdmittedDownloadBytes; delta != 1 {
+		t.Fatalf("Gateway did not enforce one-byte burst: admitted %d", delta)
+	}
+
 }
