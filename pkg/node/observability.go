@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json/v2"
+	"errors"
+	"io"
 	"maps"
 	"net"
 	"reflect"
@@ -113,6 +115,20 @@ func (n *nodeCounters) failure(err error) {
 	n.mu.Lock()
 	n.lastError = msg
 	n.mu.Unlock()
+}
+
+// Ignore ordinary session termination and idle deadlines. Unexpected I/O
+// failures matter for lazy-handshake proxy implementations.
+func (n *nodeCounters) ioError(err error) {
+	if err == nil || errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
+		errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return
+	}
+	n.failure(err)
 }
 
 func (n *nodeCounters) probe(kind string, result contract.LatencyResponse, err error) {
@@ -357,6 +373,14 @@ type observedProxy struct {
 	c *nodeCounters
 }
 
+// Preserve the optional IP family contract when a node is instrumented.
+func (p *observedProxy) IPVersion() contract.IPVersion {
+	if provider, ok := p.Proxy.(interface{ IPVersion() contract.IPVersion }); ok {
+		return provider.IPVersion()
+	}
+	return contract.IPVersionAuto
+}
+
 func (p *observedProxy) Conn(ctx context.Context, a netapi.Address) (net.Conn, error) {
 	p.c.tcpAttempts.Add(1)
 	p.c.lastUsed.Store(time.Now().UnixNano())
@@ -409,6 +433,7 @@ func (c *observedConn) Read(b []byte) (int, error) {
 	if n > 0 {
 		c.c.download.Add(uint64(n))
 	}
+	c.c.ioError(err)
 	return n, err
 }
 func (c *observedConn) Write(b []byte) (int, error) {
@@ -416,6 +441,7 @@ func (c *observedConn) Write(b []byte) (int, error) {
 	if n > 0 {
 		c.c.upload.Add(uint64(n))
 	}
+	c.c.ioError(err)
 	return n, err
 }
 func (c *observedConn) Close() error {
@@ -434,6 +460,7 @@ func (c *observedBufferedConn) ReadWithBuffer(f func() []byte) ([]byte, error) {
 	if len(b) > 0 {
 		c.c.download.Add(uint64(len(b)))
 	}
+	c.c.ioError(err)
 	return b, err
 }
 
@@ -449,6 +476,7 @@ func (c *observedPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 		c.c.download.Add(uint64(n))
 		c.c.udpReceived.Add(1)
 	}
+	c.c.ioError(err)
 	return n, a, err
 }
 func (c *observedPacketConn) WriteTo(b []byte, a net.Addr) (int, error) {
@@ -457,6 +485,7 @@ func (c *observedPacketConn) WriteTo(b []byte, a net.Addr) (int, error) {
 		c.c.upload.Add(uint64(n))
 		c.c.udpSent.Add(1)
 	}
+	c.c.ioError(err)
 	return n, err
 }
 func (c *observedPacketConn) Close() error {
