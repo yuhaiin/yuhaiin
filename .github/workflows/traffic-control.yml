@@ -25,6 +25,38 @@ jobs:
           cache-scope: traffic-control
       - name: Race qualification
         run: go test -race -count=1 -timeout=300s ./pkg/net/trafficcontrol/... ./pkg/net/relay/... ./pkg/net/nat/... ./pkg/net/proxy/tun/... ./pkg/inbound/... ./pkg/store/... ./pkg/httpapi/... ./pkg/net/proxy/hysteria2/...
+      - name: SACK recovery race stability
+        run: go test -race -count=100 -timeout=300s -run '^TestTCPSACKRepairsLostReplacementWithNewEvidence        env:
+          GOMAXPROCS: 2
+        run: go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzOutputClassificationBounded$' -fuzztime=5s
+      - name: Scheduler and resource benchmarks
+        run: scripts/traffic-control/benchmark.sh
+
+  cross-platform-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: android
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: traffic-control-${{ matrix.goos }}-${{ matrix.goarch }}
+      - name: Compile packages and tests (no native execution)
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: go test -exec=true -run '^$' ./pkg/net/trafficcontrol/... ./pkg/net/relay/... ./pkg/net/nat/... ./pkg/net/proxy/tun/... ./pkg/inbound/... ./pkg/net/proxy/hysteria2/...
+ ./pkg/net/proxy/tun/lightweight
       - name: Bounded packet classifier fuzzing
         env:
           GOMAXPROCS: 2
