@@ -32,7 +32,7 @@ func (p *managementOriginPolicy) set(origins []string) {
 // Exact origin comparison is important: suffix matching would trust attacker-
 // controlled hosts such as yuhaiin.github.io.evil.example.
 func (p *managementOriginPolicy) accepts(origin string, r *http.Request) bool {
-	if origin == officialGatewayUIOrigin || localBrowserOrigin(origin) || sameRequestOrigin(origin, r) {
+	if origin == officialGatewayUIOrigin || localBrowserOrigin(origin) {
 		return true
 	}
 	if p == nil {
@@ -54,7 +54,7 @@ func (p *managementOriginPolicy) authorize(auth *Auth, r *http.Request) bool {
 	if origin == "" {
 		return true // CLI/native clients; subject to peer and Basic checks.
 	}
-	return p.accepts(origin, r)
+	return p.accepts(origin, r) || (!localPeer && auth != nil && sameRequestOrigin(origin, r))
 }
 
 func localBrowserOrigin(origin string) bool {
