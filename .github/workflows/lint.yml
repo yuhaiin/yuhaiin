@@ -40,6 +40,9 @@ jobs:
           unformatted="$(git ls-files -z -- '*.go' | xargs -0 gofmt -l)"
           if [[ -n "$unformatted" ]]; then
             printf '%s\n' "$unformatted"
+            for file in $unformatted; do
+              gofmt -d "$file"
+            done
             exit 1
           fi
       - name: go fix check
