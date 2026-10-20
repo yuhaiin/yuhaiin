@@ -31,11 +31,11 @@ import (
 type NodeRuntime struct {
 	path string
 
-	mu      sync.Mutex
-	sqlite  *storagesqlite.Store
-	nodes   *plainstore.NodeStore
-	closed  bool
-	proxies *ProxyStore
+	mu       sync.Mutex
+	sqlite   *storagesqlite.Store
+	nodes    *plainstore.NodeStore
+	closed   bool
+	proxies  *ProxyStore
 	observer *nodeObserver
 }
 
