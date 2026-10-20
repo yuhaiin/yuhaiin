@@ -82,7 +82,6 @@ func (r *NodeRuntime) Close() error {
 	observer := r.observer
 	r.sqlite = nil
 	r.nodes = nil
-	r.observer = nil
 	r.mu.Unlock()
 
 	err := r.proxies.Close()
