@@ -9,28 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  format-bootstrap:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: true
-      - uses: ./.github/actions/setup-go
-        with:
-          cache-scope: traffic-control-p3-format-final
-      - name: Format latest P3 shaping telemetry changes
-        run: |
-          gofmt -w pkg/net/trafficcontrol/{policy.go,shaper.go,status.go,usage_test.go} pkg/inbound/handler.go
-          if ! git diff --quiet; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add pkg/net/trafficcontrol pkg/inbound/handler.go
-            git commit -m "style(trafficcontrol): gofmt shaping telemetry [skip ci]"
-            git push origin HEAD:feat/traffic-control-p3
-          fi
-
   qualification:
     runs-on: ubuntu-latest
     steps:
