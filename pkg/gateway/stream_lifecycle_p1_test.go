@@ -396,3 +396,79 @@ func TestHTTP2SSEIndependentCancellation(t *testing.T) {
 		t.Fatalf("one cancelled h2 stream interrupted another: %q %v", buf, err)
 	}
 }
+
+func TestSSEOccupiesUpstreamConcurrencySlot(t *testing.T) {
+	engine, _ := testEngine(t, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: held\n\n")
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	engine.upstreams["u"].config.MaxConcurrent = 1
+	server := httptest.NewServer(engine)
+	defer server.Close()
+	client := &http.Client{Timeout: 2 * time.Second}
+	first, err := client.Get(server.URL + "/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Body.Close()
+	buf := make([]byte, len("data: held\n\n"))
+	if _, err := io.ReadFull(first.Body, buf); err != nil {
+		t.Fatal(err)
+	}
+	second, err := client.Get(server.URL + "/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Body.Close()
+	if second.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("active SSE must occupy a concurrency slot: status=%d", second.StatusCode)
+	}
+}
+
+func TestHotUpdatePreservesAdmittedSSE(t *testing.T) {
+	next := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: before\n\n")
+		w.(http.Flusher).Flush()
+		select {
+		case <-next:
+		case <-r.Context().Done():
+			return
+		}
+		_, _ = io.WriteString(w, "data: after\n\n")
+		w.(http.Flusher).Flush()
+	}))
+	defer upstream.Close()
+	proxy := &mockOutbound{destination: strings.TrimPrefix(upstream.URL, "http://")}
+	cfg := contract.Config{
+		Gateways:  []contract.Gateway{{ID: "g", Name: "gateway", Enabled: true, Listen: "127.0.0.1:0", Default: contract.Action{Type: "reverse_proxy", Upstream: "u"}}},
+		Upstreams: []contract.Upstream{{ID: "u", Backends: []contract.Backend{{URL: upstream.URL}}}},
+	}
+	manager, _ := newTestManager(t, cfg, func(_ context.Context, dst netapi.Address, _ route.Target) (Selection, error) {
+		return Selection{Identity: "up", Proxy: proxy, Destination: dst}, nil
+	})
+	address := manager.listeners["127.0.0.1:0"].raw.Addr().String()
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://" + address + "/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	first := make([]byte, len("data: before\n\n"))
+	if _, err := io.ReadFull(resp.Body, first); err != nil {
+		t.Fatal(err)
+	}
+	draft := manager.Config()
+	draft.Gateways[0].Debug = true
+	if _, err := manager.Save(t.Context(), draft); err != nil {
+		t.Fatal(err)
+	}
+	close(next)
+	second := make([]byte, len("data: after\n\n"))
+	if _, err := io.ReadFull(resp.Body, second); err != nil || string(second) != "data: after\n\n" {
+		t.Fatalf("hot update interrupted SSE: data=%q err=%v", second, err)
+	}
+}
