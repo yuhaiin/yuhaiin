@@ -180,7 +180,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	}
 
 	httpapi.RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
-		HandleFunc(app.Mux, app.Auth, pattern, guardGatewayManagement(app.Auth, pattern, handler))
+		handleRPCFunc(app.Mux, app.Auth, app.Setting.(*SettingsController).origins, pattern, handler)
 	}, httpapi.V2Services{
 		Gateway:          app.Gateway,
 		Settings:         app.Setting,

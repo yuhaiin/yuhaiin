@@ -62,6 +62,9 @@ func (s *SettingsStore) Load(ctx context.Context) (contractsettings.Settings, er
 	if err := s.load(ctx, "general", "pprof", &out.Pprof); err != nil {
 		return contractsettings.Settings{}, err
 	}
+	if err := s.load(ctx, "security", "trusted_origins", &out.TrustedOrigins); err != nil {
+		return contractsettings.Settings{}, err
+	}
 	if err := s.load(ctx, "system_proxy", "http", &out.SystemProxy.HTTP); err != nil {
 		return contractsettings.Settings{}, err
 	}
@@ -115,6 +118,7 @@ func (s *SettingsStore) Save(ctx context.Context, settings contractsettings.Sett
 		{"general", "use_default_interface", settings.UseDefaultInterface},
 		{"general", "net_interface", settings.NetInterface},
 		{"general", "pprof", settings.Pprof},
+		{"security", "trusted_origins", settings.TrustedOrigins},
 		{"system_proxy", "http", settings.SystemProxy.HTTP},
 		{"system_proxy", "socks5", settings.SystemProxy.Socks5},
 		{"logcat", "level", logLevelCode(settings.Logcat.Level)},

@@ -21,10 +21,11 @@ type SettingsController struct {
 	store         *plainstore.SettingsStore
 	configPath    string
 	logController *log.Controller
+	origins       *managementOriginPolicy
 }
 
 func NewSettingsController(store *plainstore.SettingsStore, configPath string, logController *log.Controller) *SettingsController {
-	return &SettingsController{store: store, configPath: configPath, logController: logController}
+	return &SettingsController{store: store, configPath: configPath, logController: logController, origins: newManagementOriginPolicy()}
 }
 
 func (c *SettingsController) Info(ctx context.Context) (contractsettings.Info, error) {
@@ -36,6 +37,9 @@ func (c *SettingsController) Load(ctx context.Context) (contractsettings.Setting
 }
 
 func (c *SettingsController) Save(ctx context.Context, settings contractsettings.Settings) (contractsettings.Settings, error) {
+	if err := validateTrustedOrigins(settings.TrustedOrigins); err != nil {
+		return contractsettings.Settings{}, err
+	}
 	next, err := c.store.Save(ctx, settings)
 	if err != nil {
 		return contractsettings.Settings{}, err
@@ -48,6 +52,7 @@ func (c *SettingsController) Apply(settings contractsettings.Settings) {
 	if c == nil {
 		return
 	}
+	c.origins.set(settings.TrustedOrigins)
 	c.logController.Set(settings.Logcat, paths.PathGenerator.Log(c.configPath))
 	slog.SetDefault(slog.New(log.Default()))
 
