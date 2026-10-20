@@ -128,7 +128,7 @@ func (q *fairOutput[T]) DequeueBatch(dst []T, wait bool) int {
 			var zero T
 			q.single = zero
 			q.hasSingle = false
-			q.queue.maxSojourn = max(q.queue.maxSojourn, queueNow()-q.singleAt)
+			q.queue.maxSojourn = max(q.queue.maxSojourn, queueDelay(queueNow(), q.singleAt))
 			q.queue.dequeued++
 			q.mu.Unlock()
 			return 1

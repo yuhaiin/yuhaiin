@@ -228,8 +228,8 @@ func TestOutputBatchNewHostProgress(t *testing.T) {
 			t.Fatal("bulk enqueue")
 		}
 	}
-	var dst [16]int
-	if n := q.DequeueBatch(dst[:], false); n != 16 {
+	var dst [32]int
+	if n := q.DequeueBatch(dst[:], false); n != 32 {
 		t.Fatal("initial batch", n)
 	}
 	if !q.Enqueue(99) {

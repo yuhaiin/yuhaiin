@@ -164,6 +164,12 @@ func (q *FairQueue[T]) pushWeighted(key uint64, size int, value T, at time.Durat
 		q.recent = f
 		q.maxFlows = max(q.maxFlows, len(q.flows))
 	}
+	q.appendPacket(f, size, value, at, weight)
+	return true
+}
+
+// Admission is already checked by pushWeighted or the aggregate scheduler.
+func (q *FairQueue[T]) appendPacket(f *fairFlow[T], size int, value T, at time.Duration, weight int) {
 	if f.head > 0 && len(f.packets) == cap(f.packets) {
 		n := copy(f.packets, f.packets[f.head:])
 		clear(f.packets[n:])
@@ -180,7 +186,6 @@ func (q *FairQueue[T]) pushWeighted(key uint64, size int, value T, at time.Durat
 		default:
 		}
 	}
-	return true
 }
 
 // remove returns the dequeued item and whether its flow remains active.
@@ -243,7 +248,7 @@ func (q *FairQueue[T]) pop(now time.Duration) (value T, ok bool, dropped []T) {
 				continue
 			}
 		}
-		delay := max(now-p.at, 0)
+		delay := queueDelay(now, p.at)
 		if delay > q.maxSojourn {
 			q.maxSojourn = delay
 		}

@@ -192,3 +192,16 @@ func TestFairQueueAQMDeadlineAtMonotonicEpoch(t *testing.T) {
 		t.Fatal("zero-offset AQM deadline was mistaken for an unset timer", ok, drops)
 	}
 }
+
+func TestFairQueueAQMZeroTimestamp(t *testing.T) {
+	q := NewFairQueue[int](FairConfig{MaxPackets: 16, MaxBytes: 1 << 20, Quantum: 100, Target: time.Millisecond, Interval: 50 * time.Millisecond})
+	for i := range 8 {
+		if !q.Push(1, 100, i, time.Time{}) {
+			t.Fatal("push")
+		}
+	}
+	q.Pop(queueEpoch.Add(100 * time.Millisecond))
+	if _, ok, drops := q.Pop(queueEpoch.Add(200 * time.Millisecond)); !ok || len(drops) == 0 {
+		t.Fatal("old timestamp overflow suppressed AQM", ok, drops)
+	}
+}

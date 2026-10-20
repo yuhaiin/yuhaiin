@@ -281,7 +281,7 @@ func (s *Stack) writeLoop() {
 		s.writeBatchLoop(writer)
 		return
 	}
-	var owned [16]*ownedBuffer
+	var owned [32]*ownedBuffer
 	defer func() {
 		for _, b := range owned {
 			b.release()

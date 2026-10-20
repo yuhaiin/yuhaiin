@@ -48,6 +48,10 @@ FQ-CoDel uses outer destination-IP host groups and inner flow hashes with byte D
 
 One shared packet/byte budget bounds all groups. At overload a new host can displace backlog from the heaviest competing host, so a monopolizing host cannot permanently close admission. Same-host overload preserves backpressure rather than evicting previously accepted local TCP output. A reserved slot/byte quantum prevents one flow consuming the entire queue. Sparse operation keeps one unclassified packet inline; flow state is only built when contention appears. FIFO provides a comparison and rollback mode through the same ownership interface.
 
+Output queue readiness and `Close` share the queue ownership boundary. Closing rejects new admission and wakes blocked readers; the adapter joins its writer before draining remaining buffers. Accepted packets are never released by `Close` itself. Device batches drain only already-available packets under one lock/time sample. The single-packet device writer prefetches at most 32 packets; it never waits to fill a batch and releases the unwritten suffix on error/close. Prefetching creates a bounded service window for newly arriving flows, like an existing native device batch, while queued host/flow order still uses the same DRR/AQM core.
+
+Packet timestamps are relative to one monotonic epoch, excluding wall-clock reads from the output path. Active host/flow hints avoid repeated hash-map lookups and are invalidated before descriptor recycling.
+
 ## Diagnostics and validation
 
 Status exposes global/NAT resource counters, admitted bytes/pacing waits, up to 64 inbound scopes and up to 64 output queues. Queue counters distinguish AQM, overload eviction and admission rejection. IDs come from configured inbounds; no per-flow/IP/user metric labels are exported. Unsupported stacks omit queue reports. `truncated` signals bounded output.

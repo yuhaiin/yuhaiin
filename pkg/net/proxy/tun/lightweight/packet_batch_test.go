@@ -178,9 +178,9 @@ func (failedSinglePacketIO) Close() error             { return nil }
 func TestSinglePacketWriterFailureReleasesPrefetchedBuffers(t *testing.T) {
 	for _, mode := range []trafficcontrol.SchedulerMode{trafficcontrol.SchedulerFIFO, trafficcontrol.SchedulerFair} {
 		t.Run(string(mode), func(t *testing.T) {
-			s, all := batchTestStack(t, 32)
+			s, all := batchTestStack(t, 48)
 			pending := s.output.Drain()
-			s.initOutput(mode, 33, 1<<20)
+			s.initOutput(mode, 49, 1<<20)
 			for _, p := range pending {
 				if !s.output.Enqueue(p) {
 					t.Fatal("enqueue")
@@ -192,7 +192,7 @@ func TestSinglePacketWriterFailureReleasesPrefetchedBuffers(t *testing.T) {
 			if got := s.output.Stats().Packets; got != 16 {
 				t.Fatalf("unbounded prefetch: queued=%d", got)
 			}
-			for _, b := range all[:16] {
+			for _, b := range all[:32] {
 				if b.refs != 0 {
 					t.Fatal("failed writer retained prefetched buffer")
 				}

@@ -151,6 +151,11 @@ func (q *GroupedFairQueue[T]) push(group, flow uint64, size int, v T, at time.Du
 		}
 		return false
 	}
+	q.accountPush(size)
+	return true
+}
+
+func (q *GroupedFairQueue[T]) accountPush(size int) {
 	q.packets++
 	q.bytes += int64(size)
 	if q.notify != nil {
@@ -159,7 +164,6 @@ func (q *GroupedFairQueue[T]) push(group, flow uint64, size int, v T, at time.Du
 		default:
 		}
 	}
-	return true
 }
 
 // Admit may shed packets from the heaviest backlog to admit a new/light
@@ -179,9 +183,18 @@ func (q *GroupedFairQueue[T]) admit(group, flow uint64, size int, v T, at time.D
 	// capacity permits it. Established TCP producers receive backpressure rather
 	// than losing a packet whose transport has already transferred ownership.
 	if g := q.group(group); g != nil {
-		if f := g.inner.flow(flow); f != nil && (len(f.packets)-f.head >= max(1, q.cfg.MaxPackets-1) || int64(size) > q.flowByteLimit()-f.bytes) {
-			q.rejected++
-			return false, nil
+		if f := g.inner.flow(flow); f != nil {
+			if len(f.packets)-f.head >= max(1, q.cfg.MaxPackets-1) || int64(size) > q.flowByteLimit()-f.bytes {
+				q.rejected++
+				return false, nil
+			}
+			if q.packets < int64(q.cfg.MaxPackets) && int64(size) <= q.cfg.MaxBytes-q.bytes {
+				// The active flow is a subset of the aggregate budget. Reuse
+				// its descriptor without repeating inner admission and lookups.
+				g.inner.appendPacket(f, size, groupPacket[T]{value: v, bytes: size}, at, weight)
+				q.accountPush(size)
+				return true, nil
+			}
 		}
 	}
 	var dropped []T
