@@ -119,9 +119,15 @@ func (q *GroupedFairQueue[T]) Pop(now time.Time) (out T, ok bool, dropped []T) {
 	for q.head != nil {
 		g := q.head
 		if g.deficit <= 0 {
-			g.deficit += q.cfg.Quantum
-			q.rotate(g)
-			continue
+			if q.head == q.tail {
+				// A lone host cannot borrow bandwidth from another group.
+				// Skip pointless quantum rotations for GSO/jumbo packets.
+				g.deficit = q.cfg.Quantum
+			} else {
+				g.deficit += q.cfg.Quantum
+				q.rotate(g)
+				continue
+			}
 		}
 		packet, found, disc := g.inner.Pop(now)
 		for _, d := range disc {
