@@ -42,7 +42,7 @@ type OutputOptions[T any] struct {
 }
 
 func NewOutputQueue[T any](o OutputOptions[T]) OutputQueue[T] {
-	if o.Mode == SchedulerFIFO {
+	if o.Mode == "" || o.Mode == SchedulerFIFO {
 		if o.Limits.MaxPackets <= 0 || o.Limits.MaxBytes <= 0 {
 			panic("trafficcontrol: invalid output bounds")
 		}

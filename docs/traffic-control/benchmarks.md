@@ -2,7 +2,7 @@
 
 Measured on 2026-10-20, Linux/amd64, AMD Ryzen 5 5600G, Go 1.27.2-X:nodwarf5, `GOMAXPROCS=2`. Five one-second stack benchmark samples per case, medians below. Baseline and candidate run sequentially in separate `go test` processes with no parallel builds/tests/browser workload. Candidate source is `a127605e409c985aaccc1ffb1850916d5b93b2d9`.
 
-Baseline is pre-traffic-control main `d0b4f280692d3d62b2ec16f268777f636b5bd841`; subsequent main `c3ac7d8e` does not change these benchmark paths. Candidate stack settings use the fair default; rate shaping is disabled for this stack comparison. This measures two in-memory lightweight stacks, one flow, MTU 1500, Reno for TCP. It is neither encrypted proxy throughput nor a WAN/native-device saturation test.
+Baseline is pre-traffic-control main `d0b4f280692d3d62b2ec16f268777f636b5bd841`; subsequent main `c3ac7d8e` does not change these benchmark paths. At that measured commit, the default scheduler was FQ-CoDel. The current default is FIFO; an explicit `fq_codel` setting retains fair scheduling. The historical measurements below use fair scheduling; rate shaping is disabled for this stack comparison. This measures two in-memory lightweight stacks, one flow, MTU 1500, Reno for TCP. It is neither encrypted proxy throughput nor a WAN/native-device saturation test.
 
 ```sh
 BASE_REF=d0b4f280 BENCH_COUNT=5 BENCH_TIME=1s OUTPUT_DIR=/tmp/tc-bench scripts/traffic-control/benchmark.sh
@@ -22,7 +22,7 @@ All measured TCP cases report zero drops and zero retransmissions. Allocation co
 
 The previous `93cf9c84` report (three one-second samples) measured UDP overhead of 4.23–7.06% and bulk TCP overhead of 14.49–15.53%. This follow-up reduces queue overhead through bounded batch dequeue, one monotonic timestamp/lock per dequeue batch, direct condition-variable readiness, active host/flow hints and shared already-validated admission. Readiness signals occur when service becomes available rather than for every packet. The single-packet device writer prefetches at most 32 already-queued packets without waiting to fill a batch. It retains DRR/AQM selection and releases any unwritten suffix on failure. Prefetch bounds, rather than eliminates, the service delay for a newly arriving host. Tests cover progress on the next batch, reader wakeups and close/admission ownership.
 
-**The RFC's 5% overhead target is still not met across the measured cases.** Bulk TCP now trails main by about 6%, rather than about 15%. A shorter probe passed 5%, but the longer run above did not; the longer result is the acceptance evidence. `outputScheduler: "fifo"` remains an explicit comparison/rollback option; all fair numbers above use FQ-CoDel. Real mixed-traffic latency and external bottleneck measurements remain necessary before claiming rollout acceptance.
+**The RFC's 5% overhead target is still not met across the measured cases.** Bulk TCP now trails main by about 6%, rather than about 15%. A shorter probe passed 5%, but the longer run above did not; the longer result is the acceptance evidence. `outputScheduler: "fifo"` remains an explicit comparison/rollback option; all fair numbers above use FQ-CoDel. Run the stack benchmark at the measured commit to reproduce that default; current unconfigured runs measure FIFO. Real mixed-traffic latency and external bottleneck measurements remain necessary before claiming rollout acceptance.
 
 ## Isolated engine cost
 

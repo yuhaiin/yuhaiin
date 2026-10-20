@@ -6,7 +6,27 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 )
+
+func TestOutputSchedulerDefaultAndOptIn(t *testing.T) {
+	for _, mode := range []trafficcontrol.SchedulerMode{"", trafficcontrol.SchedulerFIFO, trafficcontrol.SchedulerFair} {
+		for _, profile := range []NetworkProfile{LocalTun, RemoteTunnel} {
+			cfg, err := (Config{OutputScheduler: mode, Profile: profile}).normalize()
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := mode
+			if want == "" {
+				want = trafficcontrol.SchedulerFIFO
+			}
+			if cfg.OutputScheduler != want {
+				t.Fatalf("profile=%v scheduler=%q, want %q", profile, cfg.OutputScheduler, want)
+			}
+		}
+	}
+}
 
 func TestProfileCongestionDefault(t *testing.T) {
 	for _, tc := range []struct {

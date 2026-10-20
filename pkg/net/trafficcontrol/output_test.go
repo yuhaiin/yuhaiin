@@ -8,6 +8,31 @@ import (
 	"time"
 )
 
+func TestOutputQueueDefaultsToFIFO(t *testing.T) {
+	classified := 0
+	q := NewOutputQueue(OutputOptions[int]{Limits: FairConfig{MaxPackets: 4, MaxBytes: 4096},
+		Size: func(int) int { return 100 },
+		Classify: func(int) Classification {
+			classified++
+			return Classification{}
+		},
+	})
+	defer q.Close()
+	for _, v := range []int{3, 1, 2} {
+		if !q.Enqueue(v) {
+			t.Fatal("enqueue", v)
+		}
+	}
+	if classified != 0 {
+		t.Fatalf("default queue classified %d packets", classified)
+	}
+	for _, want := range []int{3, 1, 2} {
+		if got, ok := q.Dequeue(false); !ok || got != want {
+			t.Fatalf("got %d, %v; want %d", got, ok, want)
+		}
+	}
+}
+
 func TestOutputQueueDefersClassificationUntilContention(t *testing.T) {
 	classified := 0
 	q := NewOutputQueue(OutputOptions[int]{Limits: FairConfig{MaxPackets: 4, MaxBytes: 4096}, Mode: SchedulerFair,

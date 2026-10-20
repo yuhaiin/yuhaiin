@@ -38,7 +38,7 @@ type Config struct {
 
 func (c Config) normalize() (Config, error) {
 	if c.OutputScheduler == "" {
-		c.OutputScheduler = trafficcontrol.SchedulerFair
+		c.OutputScheduler = trafficcontrol.SchedulerFIFO
 	}
 	if c.OutputScheduler != trafficcontrol.SchedulerFair && c.OutputScheduler != trafficcontrol.SchedulerFIFO {
 		return c, fmt.Errorf("lightweight: unknown output scheduler %q", c.OutputScheduler)
