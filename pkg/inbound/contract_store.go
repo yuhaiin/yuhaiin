@@ -20,7 +20,7 @@ import (
 type ContractStore struct {
 	store   *plainstore.InboundStore
 	runtime *Inbound
-	qosMu sync.Mutex // Serializes durable writes with runtime snapshot activation.
+	qosMu   sync.Mutex // Serializes durable writes with runtime snapshot activation.
 }
 
 func NewContractStore(store *plainstore.InboundStore, runtime *Inbound) *ContractStore {
