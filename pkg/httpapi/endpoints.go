@@ -30,6 +30,7 @@ const (
 	v2GatewayWorkspaceGet      v2Endpoint = "gateway.workspace.get"
 	v2GatewayWorkspacePut      v2Endpoint = "gateway.workspace.put"
 	v2GatewayStatus            v2Endpoint = "gateway.status"
+	v2GatewayStatisticsReset   v2Endpoint = "gateway.statistics.reset"
 	v2GatewayTest              v2Endpoint = "gateway.test"
 	v2GatewayCAStatus          v2Endpoint = "gateway.ca.status"
 	v2GatewayCAGenerate        v2Endpoint = "gateway.ca.generate"
@@ -151,6 +152,7 @@ var v2Routes = []v2Route{
 	{v2GatewayWorkspaceGet, "GET /api/v2/gateway/workspace"},
 	{v2GatewayWorkspacePut, "PUT /api/v2/gateway/workspace"},
 	{v2GatewayStatus, "GET /api/v2/gateway/status"},
+	{v2GatewayStatisticsReset, "POST /api/v2/gateway/statistics/reset"},
 	{v2GatewayTest, "POST /api/v2/gateway/test"},
 	{v2GatewayCAStatus, "GET /api/v2/gateway/ca"},
 	{v2GatewayCAGenerate, "POST /api/v2/gateway/ca/generate"},

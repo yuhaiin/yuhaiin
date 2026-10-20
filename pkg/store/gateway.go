@@ -78,6 +78,11 @@ func (s *GatewayStore) Save(ctx context.Context, cfg contract.Config) (contract.
 		if len(refs) > 0 {
 			return cfg, &ResourceInUseError{References: refs}
 		}
+		// Remove lifetime counters in the same transaction as the owner.
+		// Manager serializes this commit against periodic statistics flushes.
+		if _, err := tx.ExecContext(ctx, `DELETE FROM gateway_statistics WHERE gateway_id=?`, id); err != nil {
+			return cfg, err
+		}
 	}
 	cfg.Revision++
 	workspace, err := contract.WorkspaceFromConfig(cfg)

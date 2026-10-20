@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -49,6 +50,11 @@ func (s *snapshot) close() {
 type Manager struct {
 	mu                  sync.Mutex
 	store               ConfigStore
+	statisticsStore     StatisticsStore
+	restoredStatistics  map[string]contract.StatisticsTotals
+	persistedStatistics map[string]contract.StatisticsTotals
+	statisticsStop      chan struct{}
+	statisticsDone      chan struct{}
 	selectOutbound      SelectOutbound
 	current             atomic.Pointer[snapshot]
 	listeners           map[string]*listenerRuntime
@@ -80,6 +86,14 @@ func NewManager(ctx context.Context, store ConfigStore, authority *Authority, se
 	if err != nil {
 		return nil, err
 	}
+	if statisticsStore, ok := store.(StatisticsStore); ok {
+		m.statisticsStore = statisticsStore
+		m.restoredStatistics, err = statisticsStore.LoadStatistics(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("load gateway statistics: %w", err)
+		}
+		m.persistedStatistics = m.restoredStatistics
+	}
 	if err := m.start(config); err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -88,6 +102,13 @@ func NewManager(ctx context.Context, store ConfigStore, authority *Authority, se
 		// policy or preventing unrelated inbound listeners from starting.
 		m.current.Store(&snapshot{config: config, startupError: err.Error()})
 		log.Warn("gateway startup failed; saved configuration requires repair", "err", err)
+	} else {
+		m.restoredStatistics = nil
+	}
+	if m.statisticsStore != nil {
+		m.statisticsStop = make(chan struct{})
+		m.statisticsDone = make(chan struct{})
+		go m.runStatistics()
 	}
 	return m, nil
 }
@@ -144,6 +165,12 @@ func (m *Manager) Save(ctx context.Context, config contract.Config) (contract.Co
 		return config, err
 	}
 	prepared.config = saved
+	for id := range m.persistedStatistics {
+		if prepared.gateways[id] == nil {
+			delete(m.persistedStatistics, id)
+		}
+	}
+	m.restoredStatistics = nil
 	old := m.current.Swap(prepared)
 	m.publishListeners(listeners, prepared)
 	old.close()
@@ -217,10 +244,15 @@ func (m *Manager) prepare(config contract.Config) (*snapshot, error) {
 			return nil, fmt.Errorf("gateway %s: %w", g.ID, err)
 		}
 		entry := &gatewayRuntime{engine: engine}
+		restored, shouldRestore := m.restoredStatistics[g.ID]
 		if previous := m.current.Load(); previous != nil {
 			if old := previous.gateways[g.ID]; old != nil {
 				engine.Counters = old.engine.Counters
+				shouldRestore = false
 			}
+		}
+		if shouldRestore {
+			engine.Counters.restoreStatistics(restored)
 		}
 		s.gateways[g.ID] = entry
 		for _, source := range g.AllowedSources {
@@ -357,11 +389,14 @@ func (m *Manager) Test(request contract.TestRequest) (contract.TestResult, error
 
 func (m *Manager) Close() error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if m.closed {
+		m.mu.Unlock()
 		return nil
 	}
 	m.closed = true
+	if m.statisticsStop != nil {
+		close(m.statisticsStop)
+	}
 	m.sessionsMu.Lock()
 	m.sessionsClosed = true
 	for conn := range m.sessions {
@@ -375,5 +410,12 @@ func (m *Manager) Close() error {
 	if s := m.current.Load(); s != nil {
 		s.close()
 	}
-	return nil
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := m.flushStatisticsLocked(ctx)
+	m.mu.Unlock()
+	if m.statisticsDone != nil {
+		<-m.statisticsDone
+	}
+	return err
 }
