@@ -43,7 +43,10 @@ func NewLimiter(bytesPerSecond, burstBytes int64) (*Limiter, error) {
 		return nil, nil
 	}
 	if burstBytes == 0 {
-		burstBytes = max(1, min(bytesPerSecond, 64<<10))
+		// Keep default UDP packets (including large datagrams) admissible at
+		// low sustained rates. A smaller explicit burst is permitted, but
+		// UDP packets exceeding it will be dropped rather than fragmented.
+		burstBytes = 64 << 10
 	}
 	return &Limiter{rate: bytesPerSecond, burst: burstBytes}, nil
 }

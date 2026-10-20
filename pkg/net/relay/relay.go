@@ -120,6 +120,13 @@ func RelayShaped(ctx context.Context, rw1, rw2 io.ReadWriteCloser, p trafficcont
 		Relay(rw1, rw2, logMsgs...)
 		return
 	}
+	// Only shaped streams install cancellation handling, leaving the normal
+	// unshaped relay fast path with no extra context callbacks.
+	stop := context.AfterFunc(ctx, func() {
+		_ = rw1.Close()
+		_ = rw2.Close()
+	})
+	defer stop()
 	var up, down io.Writer = rw2, rw1
 	if p.Enabled(trafficcontrol.Upload) {
 		up = trafficcontrol.ShapedWriter{Writer: rw2, Context: ctx, Policy: p, Direction: trafficcontrol.Upload}

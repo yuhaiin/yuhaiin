@@ -44,21 +44,21 @@ func (u *SourceControl) writeReply(ctx context.Context, data []byte, addr net.Ad
 
 func (u *SourceControl) bindReply(pkt *netapi.Packet) {
 	previous := u.reply.Load()
-	writer := pkt.ReplyWriter()
-	if kind := reflect.TypeOf(writer); kind != nil && kind.Comparable() {
-		// UOT streams expose a stable writer identity even when a multiplexed
-		// connection gives all streams the same RemoteAddr.
-		if previous.writer == writer {
-			return
-		}
-	} else if sameReplySource(previous.source, pkt.Src()) {
-		return
-	}
-	ctx, cancel := context.WithCancel(u.ctx)
 	inboundID := pkt.InboundID()
 	if inboundID == "" {
 		inboundID = pkt.InboundName()
 	}
+	writer := pkt.ReplyWriter()
+	if kind := reflect.TypeOf(writer); kind != nil && kind.Comparable() {
+		// UOT streams expose a stable writer identity even when a multiplexed
+		// connection gives all streams the same RemoteAddr.
+		if previous.writer == writer && previous.inboundID == inboundID {
+			return
+		}
+	} else if sameReplySource(previous.source, pkt.Src()) && previous.inboundID == inboundID {
+		return
+	}
+	ctx, cancel := context.WithCancel(u.ctx)
 	next := &replyBinding{inboundID: inboundID, writer: writer, source: pkt.Src(), write: pkt.WriteBackContext, ctx: ctx, cancel: cancel}
 	u.reply.Store(next)
 	previous.cancel()

@@ -17,7 +17,7 @@ func TestLimiterValidatesAndDefaults(t *testing.T) {
 		}
 	}
 	l, err := NewLimiter(2048, 0)
-	if err != nil || l == nil || l.burst != 2048 {
+	if err != nil || l == nil || l.burst != 64<<10 {
 		t.Fatalf("default burst failed: %#v %v", l, err)
 	}
 	u, err := NewLimiter(0, 0)

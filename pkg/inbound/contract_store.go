@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
@@ -19,6 +20,7 @@ import (
 type ContractStore struct {
 	store   *plainstore.InboundStore
 	runtime *Inbound
+	qosMu sync.Mutex // Serializes durable writes with runtime snapshot activation.
 }
 
 func NewContractStore(store *plainstore.InboundStore, runtime *Inbound) *ContractStore {
@@ -46,6 +48,8 @@ func (s *ContractStore) Sync(ctx context.Context) error {
 		return errors.Join(result, err)
 	}
 	s.applySettings(settings)
+	s.qosMu.Lock()
+	defer s.qosMu.Unlock()
 	qos, err := s.store.TrafficControl(ctx)
 	if err != nil {
 		return errors.Join(result, err)
@@ -59,6 +63,8 @@ func (s *ContractStore) TrafficControl(ctx context.Context) (trafficcontrol.Conf
 	return s.store.TrafficControl(ctx)
 }
 func (s *ContractStore) SaveTrafficControl(ctx context.Context, cfg trafficcontrol.Config) error {
+	s.qosMu.Lock()
+	defer s.qosMu.Unlock()
 	if err := s.store.SaveTrafficControl(ctx, cfg); err != nil {
 		return err
 	}
