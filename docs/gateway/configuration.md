@@ -32,6 +32,7 @@ The management API uses authenticated JSON RPC POSTs:
 | `gateway.workspace.put` | Complete document and current revision | Validated, persisted and activated document |
 | `gateway.filters.refresh` | `{"id":"..."}` | Updated v2 document |
 | `gateway.status` | `{}` | Request and backend status |
+| `gateway.statistics.reset` | `{"id":"gateway-id"}` or `{"id":""}` | Reset one or all Gateway counters |
 | `gateway.test` | `{gatewayId,url,method,inboundId,sourceIp,process,headers}` | Saved-policy match trace |
 | `gateway.ca.status` | `{}` | Public CA metadata |
 | `gateway.ca.generate` | `{revision}` | New CA status |
@@ -52,6 +53,20 @@ The examples in `examples/` are full v2 documents, **not incremental
 patches**. To edit an existing workspace, load it, preserve unrelated Gateways,
 and submit its latest `revision`. HTTP 409 means the document has changed:
 reconcile before retrying.
+
+## Persistent statistics
+
+Gateway request, block, forward, error, TLS/protocol failure and total duration
+counters are saved to SQLite every five seconds and on graceful shutdown.
+Counters are restored at startup and survive policy edits for the same Gateway
+ID. Deleting a Gateway deletes its statistics in the same configuration
+transaction; re-creating that ID starts with zero counters. The reset RPC can
+clear one Gateway or all of them without editing configuration. A hard crash
+may lose up to the last interval of unflushed counts.
+
+The in-memory atomic counters remain the source for live status and Prometheus.
+Backend health, active requests and last selected outbound are runtime-only.
+Statistics are intentionally excluded from configuration-only backups.
 
 ## Source and Routing separation
 
