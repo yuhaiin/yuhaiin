@@ -49,6 +49,35 @@ type InterceptionSettings struct {
 	UnknownTLS     string   `json:"unknownTls"`
 }
 
+// NormalizeCondition converts legacy single-value leaves to the canonical
+// multi-value representation. The result owns its child slices and never
+// exposes deprecated "value" in a newly serialized configuration.
+func NormalizeCondition(c Condition) Condition {
+	if c.Field != "" {
+		if len(c.Values) == 0 && c.Value != "" {
+			c.Values = []string{c.Value}
+		}
+		c.Value = ""
+		return c
+	}
+	if c.All != nil {
+		children := make([]Condition, len(c.All))
+		for i, child := range c.All { children[i] = NormalizeCondition(child) }
+		c.All = children
+	}
+	if c.Any != nil {
+		children := make([]Condition, len(c.Any))
+		for i, child := range c.Any { children[i] = NormalizeCondition(child) }
+		c.Any = children
+	}
+	if c.Not != nil {
+		child := NormalizeCondition(*c.Not)
+		c.Not = &child
+	}
+	c.Value = ""
+	return c
+}
+
 func settingsOf(i Interception) InterceptionSettings {
 	return InterceptionSettings{
 		Mode:    i.Mode,
@@ -86,6 +115,7 @@ func WorkspaceFromConfig(cfg Config) (Workspace, error) {
 		if _, exists := rules[rule.ID]; exists {
 			return Workspace{}, fmt.Errorf("duplicate workspace rule %s", rule.ID)
 		}
+		rule.Match = NormalizeCondition(rule.Match)
 		rules[rule.ID] = rule
 	}
 	for _, pool := range cfg.Upstreams {
@@ -243,6 +273,7 @@ func ConfigFromWorkspace(doc Workspace) (Config, error) {
 			}
 			seenRule[rule.ID] = true
 			entry.RuleIDs = append(entry.RuleIDs, rule.ID)
+			rule.Match = NormalizeCondition(rule.Match)
 			cfg.Rules = append(cfg.Rules, rule)
 		}
 		if g.Interception != nil {
