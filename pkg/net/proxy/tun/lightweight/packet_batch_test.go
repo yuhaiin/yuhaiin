@@ -2,6 +2,7 @@ package lightweight
 
 import (
 	"errors"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"net"
 	"syscall"
 	"testing"
@@ -19,7 +20,8 @@ func (w *batchTestWriter) WritePacketBatch(b []PacketBuffer) (int, error) { retu
 
 func batchTestStack(t *testing.T, n int) (*Stack, []*ownedBuffer) {
 	t.Helper()
-	s := &Stack{config: Config{MemoryLimit: 1 << 20}, done: make(chan struct{}), outgoing: make(chan *ownedBuffer, n)}
+	s := &Stack{config: Config{MemoryLimit: 1 << 20}, done: make(chan struct{})}
+	s.initOutput(trafficcontrol.SchedulerFIFO, n, 1<<20)
 	s.scheduler = newScheduler(s.done)
 	s.buffers.init(s)
 	all := make([]*ownedBuffer, n)
@@ -31,11 +33,12 @@ func batchTestStack(t *testing.T, n int) (*Stack, []*ownedBuffer) {
 		b.offset = 4
 		b.data[4] = byte(i)
 		all[i] = b
-		s.outgoing <- b
+		s.output.Enqueue(b)
 	}
 	t.Cleanup(func() {
-		for len(s.outgoing) > 0 {
-			(<-s.outgoing).release()
+		for s.output.Stats().Packets > 0 {
+			p, _ := s.output.Dequeue(nil, false)
+			p.release()
 		}
 		s.buffers.close()
 		if s.memory.Load() != 0 {

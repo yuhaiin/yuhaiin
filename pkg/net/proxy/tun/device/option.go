@@ -21,6 +21,7 @@ const (
 )
 
 type TunConfig struct {
+	OutputScheduler   string          `json:"output_scheduler,omitzero"`
 	Stack             string          `json:"stack,omitzero"`
 	CongestionControl string          `json:"congestion_control,omitzero"`
 	AutoFakeIPRoute   bool            `json:"auto_fakeip_route,omitzero"`

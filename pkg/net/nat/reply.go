@@ -8,7 +8,9 @@ import (
 	"reflect"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
@@ -42,18 +44,22 @@ func (u *SourceControl) writeReply(ctx context.Context, data []byte, addr net.Ad
 
 func (u *SourceControl) bindReply(pkt *netapi.Packet) {
 	previous := u.reply.Load()
+	inboundID := pkt.InboundID()
+	if inboundID == "" {
+		inboundID = pkt.InboundName()
+	}
 	writer := pkt.ReplyWriter()
 	if kind := reflect.TypeOf(writer); kind != nil && kind.Comparable() {
 		// UOT streams expose a stable writer identity even when a multiplexed
 		// connection gives all streams the same RemoteAddr.
-		if previous.writer == writer {
+		if previous.writer == writer && previous.inboundID == inboundID {
 			return
 		}
-	} else if sameReplySource(previous.source, pkt.Src()) {
+	} else if sameReplySource(previous.source, pkt.Src()) && previous.inboundID == inboundID {
 		return
 	}
 	ctx, cancel := context.WithCancel(u.ctx)
-	next := &replyBinding{writer: writer, source: pkt.Src(), write: pkt.WriteBackContext, ctx: ctx, cancel: cancel}
+	next := &replyBinding{inboundID: inboundID, writer: writer, source: pkt.Src(), write: pkt.WriteBackContext, ctx: ctx, cancel: cancel}
 	u.reply.Store(next)
 	previous.cancel()
 }
@@ -77,8 +83,28 @@ func (u *SourceControl) runReply() {
 				if !ok {
 					break
 				}
-				err := u.writeReply(u.ctx, pkt.buf, pkt.from)
+				// Rate limits are enforced before invoking the potentially blocking
+				// inbound reply writer. Over-limit UDP packets are discarded;
+				// they never wait in an additional unbounded queue.
+				allowed := true
+				if u.trafficControl != nil {
+					routeID := ""
+					if pkt.conn != nil {
+						routeID = pkt.conn.routeID
+					}
+					allowed = u.trafficControl.Resolve(u.reply.Load().inboundID, routeID).AllowDatagram(trafficcontrol.Download, len(pkt.buf))
+				}
+				var err error
+				if allowed {
+					err = u.writeReply(u.ctx, pkt.buf, pkt.from)
+				} else {
+					metrics.Counter.AddReceiveUDPDroppedPacket()
+				}
+				u.queueBudget.ReleaseQueueBytes(int64(len(pkt.buf)))
 				pool.PutBytes(pkt.buf)
+				if !allowed {
+					continue
+				}
 				if pkt.conn != lastConn {
 					errorsInRow = 0
 					lastConn = pkt.conn

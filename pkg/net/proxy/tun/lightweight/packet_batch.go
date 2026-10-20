@@ -14,23 +14,20 @@ func (s *Stack) writeBatchLoop(writer PacketBatchWriter) {
 		}
 	}()
 	for {
-		var first *ownedBuffer
-		select {
-		case <-s.done:
+		first, ok := s.dequeueOutput(true)
+		if !ok {
 			return
-		case first = <-s.outgoing:
 		}
 		owned[0] = first
 		count := 1
 	drain:
 		for count < limit {
-			select {
-			case b := <-s.outgoing:
-				owned[count] = b
-				count++
-			default:
+			b, ok := s.dequeueOutput(false)
+			if !ok {
 				break drain
 			}
+			owned[count] = b
+			count++
 		}
 		for i, b := range owned[:count] {
 			packets[i] = PacketBuffer{Data: b.data, Offset: b.offset, SegmentSize: b.segmentSize}

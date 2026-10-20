@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
@@ -12,12 +13,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
 type ContractStore struct {
 	store   *plainstore.InboundStore
 	runtime *Inbound
+	qosMu   sync.Mutex // Serializes durable writes with runtime snapshot activation.
 }
 
 func NewContractStore(store *plainstore.InboundStore, runtime *Inbound) *ContractStore {
@@ -25,6 +28,22 @@ func NewContractStore(store *plainstore.InboundStore, runtime *Inbound) *Contrac
 }
 
 func (s *ContractStore) Sync(ctx context.Context) error {
+	// Listeners must never admit a stream with the default unlimited policy
+	// while durable configuration is still being loaded or validated.
+	s.qosMu.Lock()
+	defer s.qosMu.Unlock()
+	qos, err := s.store.TrafficControl(ctx)
+	if err != nil {
+		return err
+	}
+	settings, err := s.Settings(ctx)
+	if err != nil {
+		return err
+	}
+	if err := s.runtime.SetTrafficControl(qos); err != nil {
+		return err
+	}
+	s.applySettings(settings)
 	items, err := s.List(ctx)
 	if err != nil {
 		return err
@@ -40,12 +59,25 @@ func (s *ContractStore) Sync(ctx context.Context) error {
 		}
 		result = errors.Join(result, s.runtime.SaveContract(item))
 	}
-	settings, err := s.Settings(ctx)
-	if err != nil {
-		return errors.Join(result, err)
-	}
-	s.applySettings(settings)
 	return result
+}
+
+// TrafficControl provides the persisted QoS profiles used by both the API
+// and the engine. Runtime activation occurs after durable validation/save.
+func (s *ContractStore) TrafficControlStatus() trafficcontrol.Status {
+	return s.runtime.TrafficControlStatus()
+}
+
+func (s *ContractStore) TrafficControl(ctx context.Context) (trafficcontrol.Config, error) {
+	return s.store.TrafficControl(ctx)
+}
+func (s *ContractStore) SaveTrafficControl(ctx context.Context, cfg trafficcontrol.Config) error {
+	s.qosMu.Lock()
+	defer s.qosMu.Unlock()
+	if err := s.store.SaveTrafficControl(ctx, cfg); err != nil {
+		return err
+	}
+	return s.runtime.SetTrafficControl(cfg)
 }
 
 func (s *ContractStore) List(ctx context.Context) ([]contract.Inbound, error) {

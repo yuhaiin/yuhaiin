@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 )
 
 type server struct {
@@ -34,14 +35,14 @@ func Validate(o device.TunConfig) error {
 	if o.Driver != "" && o.Driver != device.DriverChannel {
 		return fmt.Errorf("lightweight: driver %q is unsupported; use channel", o.Driver)
 	}
-	return lightweight.ValidateConfig(lightweight.Config{MTU: int(o.MTU), CongestionControl: o.CongestionControl})
+	return lightweight.ValidateConfig(lightweight.Config{OutputScheduler: trafficcontrol.SchedulerMode(o.OutputScheduler), MTU: int(o.MTU), CongestionControl: o.CongestionControl})
 }
 func stackConfig(o *device.Opt) lightweight.Config {
 	var addresses []netip.Addr
 	for _, a := range append(append([]netip.Prefix(nil), o.Inet4Address...), o.Inet6Address...) {
 		addresses = append(addresses, a.Addr())
 	}
-	return lightweight.Config{Addresses: addresses, MTU: o.MTU, CongestionControl: o.Tun.CongestionControl, Promiscuous: true, ForwardUDP: true, ForwardPing: forwardPing}
+	return lightweight.Config{OutputScheduler: trafficcontrol.SchedulerMode(o.Tun.OutputScheduler), Addresses: addresses, MTU: o.MTU, CongestionControl: o.Tun.CongestionControl, Promiscuous: true, ForwardUDP: true, ForwardPing: forwardPing}
 }
 func New(o *device.Opt) (netapi.Accepter, error) {
 	if err := Validate(o.Tun); err != nil {
@@ -111,6 +112,10 @@ func NewFromStack(stack *lightweight.Stack, handler netapi.Handler, addresses []
 	s.wg.Go(s.tcpLoop)
 	s.wg.Go(s.udpLoop)
 	return s, nil
+}
+
+func (s *server) TrafficControlQueue() (trafficcontrol.FairStats, bool) {
+	return s.stack.TrafficControlQueue()
 }
 
 func (s *server) Interface() string {

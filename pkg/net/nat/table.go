@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -29,22 +30,40 @@ type Table struct {
 	dialer  netapi.Proxy
 	sniffer netapi.PacketSniffer
 
-	cleanerWake   chan struct{}
-	sourceControl syncmap.SyncMap[uint64, *SourceControl]
-	closed        atomic.Bool
-	mu            sync.RWMutex // Serializes queue admission with Close.
-	stop          chan struct{}
-	done          chan struct{}
-	closeOnce     sync.Once
+	cleanerWake    chan struct{}
+	sourceControl  syncmap.SyncMap[uint64, *SourceControl]
+	trafficControl trafficcontrol.PolicyResolver
+	budget         trafficcontrol.Budget
+	closed         atomic.Bool
+	mu             sync.RWMutex // Serializes queue admission with Close.
+	stop           chan struct{}
+	done           chan struct{}
+	closeOnce      sync.Once
 }
 
+var ErrNATSessionLimit = errors.New("udp nat: session limit")
+
+// ResourceStats exposes live NAT sessions and charged queue bytes.
+func (t *Table) ResourceStats() trafficcontrol.Counters { return t.budget.Snapshot() }
+
 func NewTable(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *Table {
+	return NewTableWithControl(sniffer, dialer, trafficcontrol.NewDatagramBudget(nil), nil)
+}
+
+// NewTableWithControl injects engine-owned policy and resource capabilities.
+// The source/migration key and outbound socket remain owned by NAT.
+func NewTableWithControl(sniffer netapi.PacketSniffer, dialer netapi.Proxy, budget trafficcontrol.Budget, policies trafficcontrol.PolicyResolver) *Table {
+	if budget == nil {
+		budget = trafficcontrol.UnlimitedBudget()
+	}
 	t := &Table{
-		dialer:      dialer,
-		sniffer:     sniffer,
-		cleanerWake: make(chan struct{}, 1),
-		stop:        make(chan struct{}),
-		done:        make(chan struct{}),
+		dialer:         dialer,
+		sniffer:        sniffer,
+		cleanerWake:    make(chan struct{}, 1),
+		budget:         budget,
+		trafficControl: policies,
+		stop:           make(chan struct{}),
+		done:           make(chan struct{}),
 	}
 
 	go t.runCleaner(udpIdleTimeout)
@@ -122,20 +141,32 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return fmt.Errorf("udp nat table: %w", net.ErrClosed)
 	}
 	for {
-		r, loaded, _ := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) { return NewSourceChan(u.sniffer, u.dialer), nil })
+		r, loaded, err := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) {
+			lease, ok := u.budget.AcquireSession()
+			if !ok {
+				return nil, ErrNATSessionLimit
+			}
+			return newSourceChan(u.sniffer, u.dialer, lease, u.budget, u.trafficControl), nil
+		})
+		if err != nil {
+			return err
+		}
 		if !loaded {
 			select {
 			case u.cleanerWake <- struct{}{}:
 			default:
 			}
 		}
-		err := r.WritePacket(ctx, pkt)
+		err = r.WritePacket(ctx, pkt)
 		if !errors.Is(err, context.Canceled) || ctx.Err() != nil {
 			return err
 		}
 		// Cleanup can retire a control between lookup and admission. Retry the
 		// same source mapping; never add the destination to the full-cone key.
 		u.sourceControl.CompareAndDelete(key, r)
+		// Join the retired owner before reserving its replacement. Its worker
+		// returns the session lease even when the cleaner loses map deletion.
+		_ = r.Close()
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/ringbuffer"
 )
@@ -32,11 +33,12 @@ type ContextCache struct {
 }
 
 type replyBinding struct {
-	writer netapi.WriteBack
-	source net.Addr
-	write  func(context.Context, []byte, net.Addr) (int, error)
-	ctx    context.Context
-	cancel context.CancelFunc
+	inboundID string
+	writer    netapi.WriteBack
+	source    net.Addr
+	write     func(context.Context, []byte, net.Addr) (int, error)
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
 func newContextCache(store *netapi.Context) ContextCache {
@@ -47,8 +49,11 @@ func newContextCache(store *netapi.Context) ContextCache {
 }
 
 type SourceControl struct {
-	ctx    context.Context
-	dialer netapi.Proxy
+	ctx            context.Context
+	dialer         netapi.Proxy
+	sessionLease   *trafficcontrol.Session
+	queueBudget    trafficcontrol.BufferedResources
+	trafficControl trafficcontrol.PolicyResolver
 
 	// sniffer is an optional packet sniffer for observability or traffic analysis.
 	sniffer netapi.PacketSniffer
@@ -103,8 +108,20 @@ type SourceControl struct {
 }
 
 func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *SourceControl {
+	return newSourceChan(sniffer, dialer, nil, nil, nil)
+}
+
+// Construct the ownership boundary before starting workers: a source may
+// retire without an external caller retaining it long enough to call Close.
+func newSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy, lease *trafficcontrol.Session, budget trafficcontrol.BufferedResources, qos trafficcontrol.PolicyResolver) *SourceControl {
+	if budget == nil {
+		budget = trafficcontrol.UnlimitedBudget()
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &SourceControl{
+		sessionLease:         lease,
+		queueBudget:          budget,
+		trafficControl:       qos,
 		ctx:                  ctx,
 		mapper:               newAddressMapper(),
 		resolutions:          make(map[uint64]*pendingResolution),
@@ -148,6 +165,7 @@ func (u *SourceControl) drain() {
 			break
 		}
 
+		u.queueBudget.ReleaseQueueBytes(int64(len(pkt.GetPayload())))
 		pkt.DecRef()
 		u.pending.Add(-1)
 	}
@@ -158,6 +176,7 @@ func (u *SourceControl) drain() {
 			break
 		}
 
+		u.queueBudget.ReleaseQueueBytes(int64(len(pkt.buf)))
 		pool.PutBytes(pkt.buf)
 	}
 
@@ -179,6 +198,7 @@ func (u *SourceControl) run() {
 		<-u.replyDone
 		u.drainResolutions()
 		u.drain()
+		u.sessionLease.Release()
 		close(u.done)
 	}()
 	for {
@@ -206,9 +226,14 @@ func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) err
 		return ctx.Err()
 
 	default:
+		if !u.queueBudget.ReserveQueueBytes(int64(len(pkt.GetPayload()))) {
+			metrics.Counter.AddSendUDPDroppedPacket()
+			return ErrSendPacketQueueFull
+		}
 		pkt.IncRef()
 		u.pending.Add(1)
 		if !u.sentPackets.Push(pkt) {
+			u.queueBudget.ReleaseQueueBytes(int64(len(pkt.GetPayload())))
 			u.pending.Add(-1)
 			pkt.DecRef()
 			metrics.Counter.AddSendUDPDroppedPacket()
@@ -233,7 +258,10 @@ func (u *SourceControl) handle() {
 			break
 		}
 
-		err := u.handleOne(pkt)
+		transferred, err := u.handleOneOwned(pkt, true)
+		if !transferred {
+			u.queueBudget.ReleaseQueueBytes(int64(len(pkt.GetPayload())))
+		}
 		pkt.DecRef()
 		u.pending.Add(-1)
 		if err != nil {

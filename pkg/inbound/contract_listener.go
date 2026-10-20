@@ -316,6 +316,7 @@ func tunConfig(config contract.TunProtocol) device.TunConfig {
 			PendingPackets:    config.Darwin.PendingPackets,
 		}},
 		Stack:             config.Stack,
+		OutputScheduler:   config.OutputScheduler,
 		CongestionControl: config.CongestionControl,
 		AutoFakeIPRoute:   config.AutoFakeIPRoute,
 		Name:              config.Name,

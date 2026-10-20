@@ -38,6 +38,9 @@ func NewServer(config contract.Hysteria2Protocol, tlsConfig *tls.Config, lis net
 	if tlsConfig == nil {
 		return nil, errors.New("hysteria2 TLS config is nil")
 	}
+	if len(tlsConfig.Certificates) == 0 && tlsConfig.GetCertificate == nil && tlsConfig.GetConfigForClient == nil {
+		return nil, errors.New("hysteria2 TLS config has no server certificate")
+	}
 	packet, err := lis.Packet(context.Background())
 	if err != nil {
 		return nil, err

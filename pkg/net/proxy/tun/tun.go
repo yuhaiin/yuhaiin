@@ -19,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
@@ -31,6 +32,9 @@ func init() {
 func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s netapi.Accepter, err error) {
 	if o.Stack != "" && o.Stack != "lightweight" {
 		return nil, fmt.Errorf("unknown TUN stack %q", o.Stack)
+	}
+	if o.Stack != "lightweight" && o.OutputScheduler != "" {
+		return nil, errors.New("output_scheduler requires stack lightweight")
 	}
 	if o.Stack == "" && o.CongestionControl != "" {
 		return nil, errors.New("congestion_control requires stack lightweight")
@@ -127,6 +131,13 @@ type routeAccepter struct {
 	userRoutes []netip.Prefix
 	autoFakeIP bool
 	closed     bool
+}
+
+func (t *routeAccepter) TrafficControlQueue() (trafficcontrol.FairStats, bool) {
+	if reporter, ok := t.Accepter.(trafficcontrol.QueueReporter); ok {
+		return reporter.TrafficControlQueue()
+	}
+	return trafficcontrol.FairStats{}, false
 }
 
 func (t *routeAccepter) UpdateFakeIPRanges(ranges [2]netip.Prefix) error {

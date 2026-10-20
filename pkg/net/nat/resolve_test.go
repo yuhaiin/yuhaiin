@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -167,7 +168,7 @@ func TestDNSResolutionConcurrencyBoundAndShutdown(t *testing.T) {
 func TestDNSResolutionQueueBound(t *testing.T) {
 	// Exercise admission independently of network timing. This source has no
 	// concurrent run goroutine and every retained reference is drained below.
-	source := &SourceControl{resolutions: make(map[uint64]*pendingResolution)}
+	source := &SourceControl{queueBudget: trafficcontrol.UnlimitedBudget(), resolutions: make(map[uint64]*pendingResolution)}
 	pending := new(pendingResolution)
 	defer source.drainResolutions()
 	source.resolutions[1] = pending

@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -108,17 +109,29 @@ func AppendIgnoreError(err error) {
 
 // Relay pipe
 func Relay(rw1, rw2 io.ReadWriteCloser, logMsgs ...any) {
+	relayWithWriters(rw1, rw2, rw2, rw1, logMsgs...)
+}
+
+// RelayContext interrupts both directions when a stream owner is cancelled,
+// including a blocked write following a reader's final buffered bytes.
+func RelayContext(ctx context.Context, rw1, rw2 io.ReadWriteCloser, logMsgs ...any) {
+	stop := context.AfterFunc(ctx, func() { _ = rw1.Close(); _ = rw2.Close() })
+	defer stop()
+	Relay(rw1, rw2, logMsgs...)
+}
+
+func relayWithWriters(rw1, rw2 io.ReadWriteCloser, up, down io.Writer, logMsgs ...any) {
 	logMsgs = append(logMsgs, slog.Any("rw1_type", reflect.TypeOf(rw1)), slog.Any("rw2_type", reflect.TypeOf(rw2)))
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
-		_, err := Copy(rw2, rw1)
+		_, err := Copy(up, rw1)
 		logE("relay rw1 -> rw2", err, logMsgs...)
 		closeWrite(rw2) // make another Copy exit
 		closeRead(rw1)
 	}()
 
-	_, err := Copy(rw1, rw2)
+	_, err := Copy(down, rw2)
 	logE("relay rw2 -> rw1", err, logMsgs...)
 	closeWrite(rw1)
 	closeRead(rw2)
