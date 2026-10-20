@@ -88,8 +88,9 @@ func TestGatewayStatisticsRestartAndConfigReload(t *testing.T) {
 	if err := m.FlushStatistics(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if got := store.statistics["web"].Requests; got != 2 {
-		t.Fatalf("persisted requests=%d", got)
+	saved, err := store.LoadStatistics(ctx)
+	if err != nil || saved["web"].Requests != 2 {
+		t.Fatalf("persisted requests=%+v error=%v", saved, err)
 	}
 	config := m.Config()
 	config.Gateways[0].Name = "Updated"
@@ -154,8 +155,9 @@ func TestGatewayStatisticsResetAndFailedWrites(t *testing.T) {
 	if err := m.FlushStatistics(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if store.statistics["web"].Requests != 0 || store.statistics["api"].Requests != 1 {
-		t.Fatal("periodic flush resurrected reset data")
+	saved, err := store.LoadStatistics(ctx)
+	if err != nil || saved["web"].Requests != 0 || saved["api"].Requests != 1 {
+		t.Fatalf("periodic flush resurrected reset data: %+v %v", saved, err)
 	}
 	if err := m.ResetStatistics(ctx, ""); err != nil {
 		t.Fatal(err)
@@ -163,8 +165,9 @@ func TestGatewayStatisticsResetAndFailedWrites(t *testing.T) {
 	if err := m.FlushStatistics(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if store.statistics["api"].Requests != 0 {
-		t.Fatal("global reset was not durable")
+	saved, err = store.LoadStatistics(ctx)
+	if err != nil || saved["api"].Requests != 0 {
+		t.Fatalf("global reset was not durable: %+v %v", saved, err)
 	}
 }
 
@@ -222,8 +225,9 @@ func TestGatewayStatisticsConcurrentRequestsAndFlush(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := m.Status().Gateways[0]
-	if got.Requests != 800 || got.Blocked != 800 ||
-		store.statistics["web"].Requests != 800 {
-		t.Fatalf("concurrent flush lost counts: %+v, saved=%+v", got, store.statistics["web"])
+	saved, err := store.LoadStatistics(ctx)
+	if err != nil || got.Requests != 800 || got.Blocked != 800 ||
+		saved["web"].Requests != 800 {
+		t.Fatalf("concurrent flush lost counts: %+v, saved=%+v error=%v", got, saved, err)
 	}
 }
