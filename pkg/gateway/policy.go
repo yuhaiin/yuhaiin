@@ -222,8 +222,13 @@ func compileCondition(c contract.Condition, depth int) (condition, error) {
 			test = func(v string) bool { return v == value }
 		} else {
 			set := make(map[string]struct{}, len(c.Values))
-			for _, value := range c.Values { set[value] = struct{}{} }
-			test = func(v string) bool { _, ok := set[v]; return ok }
+			for _, value := range c.Values {
+				set[value] = struct{}{}
+			}
+			test = func(v string) bool {
+				_, ok := set[v]
+				return ok
+			}
 		}
 	case "prefix":
 		values := c.Values
@@ -237,7 +242,9 @@ func compileCondition(c contract.Condition, depth int) (condition, error) {
 		}
 	case "domain":
 		values := make([]string, len(c.Values))
-		for i, value := range c.Values { values[i] = hostname(value) }
+		for i, value := range c.Values {
+			values[i] = hostname(value)
+		}
 		test = func(v string) bool {
 			return slices.ContainsFunc(values, func(value string) bool { return domainMatches(v, value) })
 		}
@@ -248,7 +255,9 @@ func compileCondition(c contract.Condition, depth int) (condition, error) {
 				return nil, errors.New("regex exceeds 4096 bytes")
 			}
 			re, err := regexp.Compile(value)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+		}
 			rxs = append(rxs, re)
 		}
 		test = func(v string) bool {
