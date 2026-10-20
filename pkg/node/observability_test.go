@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"testing"
-	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -115,5 +114,4 @@ func TestNodeUnknownStatusDoesNotProbe(t *testing.T){
 	if err!=nil||len(statuses)!=1||statuses[0].State!="unknown"{
 		t.Fatalf("statuses: %+v %v",statuses,err)
 	}
-	_ = time.Second
 }
