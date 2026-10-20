@@ -22,13 +22,13 @@ type StatisticsStore interface {
 
 func (c *Counters) statistics() contract.StatisticsTotals {
 	return contract.StatisticsTotals{
-		Requests: c.Requests.Load(),
-		Blocked: c.Blocked.Load(),
-		Forwarded: c.Forwarded.Load(),
-		Errors: c.Errors.Load(),
-		TLSFailures: c.TLSFailures.Load(),
+		Requests:         c.Requests.Load(),
+		Blocked:          c.Blocked.Load(),
+		Forwarded:        c.Forwarded.Load(),
+		Errors:           c.Errors.Load(),
+		TLSFailures:      c.TLSFailures.Load(),
 		ProtocolFailures: c.ProtocolFailures.Load(),
-		DurationNS: c.DurationNS.Load(),
+		DurationNS:       c.DurationNS.Load(),
 	}
 }
 
