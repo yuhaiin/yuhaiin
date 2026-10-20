@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"errors"
+	"maps"
 	"net/http/httptest"
 	"sync"
 	"testing"
@@ -21,9 +22,7 @@ func (s *memoryStatisticsStore) LoadStatistics(context.Context) (map[string]cont
 	s.statisticsMu.Lock()
 	defer s.statisticsMu.Unlock()
 	values := make(map[string]contract.StatisticsTotals)
-	for id, value := range s.statistics {
-		values[id] = value
-	}
+	maps.Copy(values, s.statistics)
 	return values, nil
 }
 
@@ -36,9 +35,7 @@ func (s *memoryStatisticsStore) SaveStatistics(_ context.Context, values map[str
 	if s.statistics == nil {
 		s.statistics = make(map[string]contract.StatisticsTotals)
 	}
-	for id, value := range values {
-		s.statistics[id] = value
-	}
+	maps.Copy(s.statistics, values)
 	return nil
 }
 
