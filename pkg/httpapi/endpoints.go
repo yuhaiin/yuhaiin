@@ -67,7 +67,7 @@ const (
 	v2InboundCapabilities      v2Endpoint = "inbound.capabilities"
 	v2NodesActive              v2Endpoint = "nodes.active"
 	v2NodeUse                  v2Endpoint = "node.use"
-	v2NodeStatuses            v2Endpoint = "nodes.status"
+	v2NodeStatuses             v2Endpoint = "nodes.status"
 	v2NodeLatency              v2Endpoint = "node.latency"
 	v2NodeClose                v2Endpoint = "node.close"
 	v2NodeExtraInfo            v2Endpoint = "node.extra"
