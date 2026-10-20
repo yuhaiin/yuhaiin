@@ -1,0 +1,44 @@
+name: Traffic Control P3 validation
+
+on:
+  push:
+    branches: [feat/traffic-control-p1-p3]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: traffic-control-p3
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          unformatted="$(gofmt -l pkg/net/trafficcontrol/*.go pkg/net/relay/{relay.go,shaped_test.go} pkg/net/proxy/tun/lightweight/{stack.go,fair_output.go,flow_hash_qos_test.go} pkg/inbound/{handler.go,inbound.go,contract_store.go} pkg/net/nat/{table.go,source.go,reply.go} pkg/store/inbound_traffic_control*.go pkg/httpapi/{endpoints.go,inbound_rpc.go,traffic_control_rpc_test.go})"
+          if [[ -n "$unformatted" ]]; then
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: Go vet
+        run: go vet ./pkg/net/trafficcontrol/... ./pkg/net/relay/... ./pkg/net/nat/... ./pkg/net/proxy/tun/lightweight/... ./pkg/inbound/... ./pkg/store/... ./pkg/httpapi/...
+      - name: Package build and unit tests with race detector
+        run: go test -race -count=1 -timeout=300s ./pkg/net/trafficcontrol/... ./pkg/net/relay/... ./pkg/net/nat/... ./pkg/net/proxy/tun/lightweight/... ./pkg/inbound/... ./pkg/store/... ./pkg/httpapi/...
+      - name: Benchmarks
+        run: go test ./pkg/net/trafficcontrol ./pkg/net/relay ./pkg/net/nat ./pkg/net/proxy/tun/lightweight -run '^$' -bench 'Benchmark(FairQueue|Governor|Shaper|Policy|Datagram|NATSession)' -benchtime=100x -benchmem -timeout=240s
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: traffic-control-p3-lint
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+          args: --timeout=5m
