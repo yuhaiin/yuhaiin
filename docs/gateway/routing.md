@@ -7,18 +7,38 @@ conditions match all requests. Leaves support `host`, `path`, `url`, `method`,
 Inbound leaves use exact stable inbound IDs for reference integrity. A domain
 match includes that domain and its subdomains. Regex uses Go's regexp engine.
 
+Leaf conditions use `values: string[]`; any one value matching is sufficient.
+The top-level `all` / `any` / `not` tree determines how distinct conditions
+combine. For example, `all` of a host leaf with two values and a path leaf
+with three values means (host A OR host B) AND (path A OR path B OR path C).
+`present` has no values. An empty `values` array is invalid for other
+operators; each leaf supports up to 256 nonempty values. The editor accepts
+one value per line and serializes them as JSON strings, not embedded newlines.
+
+```json
+{
+  "all": [
+    {"field": "host", "operator": "domain", "values": ["example.com", "example.org"]},
+    {"field": "path", "operator": "prefix", "values": ["/api/", "/admin/"]}
+  ]
+}
+```
+
+Stored pre-migration leaves with a single `value` string are normalized to
+`values: [value]` when read. New saves only write `values`.
+
 Example rules selecting different existing outbound nodes per request:
 
 ```json
 [
   {
     "id": "api", "name": "API via A", "enabled": true, "priority": 10,
-    "match": {"field": "path", "operator": "prefix", "value": "/api/"},
+    "match": {"field": "path", "operator": "prefix", "values": ["/api/"]},
     "action": {"type": "forward", "outbound": {"type": "node", "id": "node-a"}}
   },
   {
     "id": "downloads", "name": "Downloads via B", "enabled": true, "priority": 20,
-    "match": {"field": "path", "operator": "prefix", "value": "/download/"},
+    "match": {"field": "path", "operator": "prefix", "values": ["/download/"]},
     "action": {"type": "forward", "outbound": {"type": "node", "id": "node-b"}}
   }
 ]
