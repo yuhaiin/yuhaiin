@@ -64,8 +64,8 @@ type Inbound struct {
 	fakeip    atomic.Bool
 }
 
-// SetTrafficControl atomically activates validated policies for new streams
-// and subsequent UDP datagrams without rebuilding network listeners.
+// SetTrafficControl atomically activates validated policies for established
+// and new streams and later UDP datagrams without rebuilding listeners.
 func (l *Inbound) SetTrafficControl(config trafficcontrol.Config) error {
 	return l.handler.control.Apply(config)
 }
