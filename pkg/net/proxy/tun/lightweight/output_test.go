@@ -54,7 +54,7 @@ func TestOutputCapacityAndFIFO(t *testing.T) {
 	if first.outputReady.Load() || second.outputReady.Load() || len(s.scheduler.jobs) != 0 {
 		t.Fatal("full output queue repeatedly woke blocked flows")
 	}
-	s.output.Dequeue(nil, false)
+	s.output.Dequeue(false)
 	// A free device slot is insufficient if no packet can fit the memory budget.
 	s.memory.Store(s.config.MemoryLimit)
 	s.wakeOutput()
@@ -87,7 +87,7 @@ func TestOutputCancellationKeepsFIFO(t *testing.T) {
 	flows[0].cancelOutputWait()
 	flows[2].cancelOutputWait()
 	flows[4].cancelOutputWait()
-	s.output.Dequeue(nil, false)
+	s.output.Dequeue(false)
 	for _, i := range []int{1, 3} {
 		if s.outputWaiters.head != flows[i] {
 			t.Fatal("cancellation corrupted FIFO links")

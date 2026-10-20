@@ -177,3 +177,18 @@ func TestWeightedDRRDoesNotStarveBulk(t *testing.T) {
 		t.Fatalf("packet ownership changed: %d", len(remaining))
 	}
 }
+
+func TestFairQueueAQMDeadlineAtMonotonicEpoch(t *testing.T) {
+	q := NewFairQueue[int](FairConfig{MaxPackets: 16, MaxBytes: 1 << 20, Quantum: 100, Target: time.Millisecond, Interval: 100 * time.Millisecond})
+	for i := range 8 {
+		if !q.Push(1, 100, i, queueEpoch.Add(-200*time.Millisecond)) {
+			t.Fatal("push")
+		}
+	}
+	if _, ok, drops := q.Pop(queueEpoch.Add(-100 * time.Millisecond)); !ok || len(drops) != 0 {
+		t.Fatal("first congestion sample", ok, drops)
+	}
+	if _, ok, drops := q.Pop(queueEpoch.Add(time.Millisecond)); !ok || len(drops) == 0 {
+		t.Fatal("zero-offset AQM deadline was mistaken for an unset timer", ok, drops)
+	}
+}

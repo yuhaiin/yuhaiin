@@ -57,7 +57,7 @@ func TestTCPGSOAdmissionLimits(t *testing.T) {
 				}
 				return
 			}
-			packet, ok := s.output.Dequeue(nil, false)
+			packet, ok := s.output.Dequeue(false)
 			if !ok {
 				t.Fatal("missing output packet")
 			}

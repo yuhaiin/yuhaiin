@@ -38,7 +38,7 @@ func TestFairOutputInterleavesFlowsAndReleasesBuffers(t *testing.T) {
 	firstInteractive := -1
 	seenBulk, seenInteractive := 0, 0
 	for i := range 30 {
-		p, ok := s.dequeueOutput(false)
+		p, ok := s.output.Dequeue(false)
 		if !ok {
 			t.Fatal("missing packet", i)
 		}
@@ -62,6 +62,7 @@ func TestFairOutputInterleavesFlowsAndReleasesBuffers(t *testing.T) {
 	if got := s.Stats(); got.OutputQueuedPackets != 0 || got.OutputQueuedBytes != 0 {
 		t.Fatal(got)
 	}
+	s.output.Close()
 	close(s.done)
 	s.buffers.close()
 	if bytes := s.memory.Load(); bytes != 0 {
@@ -96,6 +97,7 @@ func TestFairOutputNoOverAdmission(t *testing.T) {
 	for _, p := range s.output.Drain() {
 		p.release()
 	}
+	s.output.Close()
 	close(s.done)
 	s.buffers.close()
 	if s.memory.Load() != 0 {
@@ -122,6 +124,7 @@ func TestFairOutputPreservesBatchOrder(t *testing.T) {
 			accepted++
 		}
 		if accepted == 32 {
+			s.output.Close()
 			close(s.done)
 		}
 		return len(ps), nil

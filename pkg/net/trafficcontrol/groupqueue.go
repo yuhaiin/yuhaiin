@@ -14,6 +14,7 @@ type GroupedFairQueue[T any] struct {
 	cfg                         FairConfig
 	groups                      map[uint64]*queueGroup[T]
 	head, tail                  *queueGroup[T]
+	recent                      *queueGroup[T]
 	packets, bytes              int64
 	rejected, dropped, dequeued uint64
 	maxSojourn                  time.Duration
@@ -59,6 +60,14 @@ func (q *GroupedFairQueue[T]) hasCapacity(bytes int) bool {
 func (q *GroupedFairQueue[T]) flowByteLimit() int64 {
 	return max(int64(1), q.cfg.MaxBytes-min(int64(q.cfg.Quantum), q.cfg.MaxBytes/4))
 }
+func (q *GroupedFairQueue[T]) group(key uint64) *queueGroup[T] {
+	if g := q.recent; g != nil && g.key == key {
+		return g
+	}
+	q.recent = q.groups[key]
+	return q.recent
+}
+
 func (q *GroupedFairQueue[T]) add(g *queueGroup[T]) {
 	g.prev = q.tail
 	if q.tail != nil {
@@ -80,6 +89,9 @@ func (q *GroupedFairQueue[T]) remove(g *queueGroup[T]) {
 		q.tail = g.prev
 	}
 	delete(q.groups, g.key)
+	if q.recent == g {
+		q.recent = nil
+	}
 	g.prev, g.next = nil, nil
 	// Avoid retaining one maximum-size map for every previously busy group.
 	if g.inner.maxFlows > 16 {
@@ -111,14 +123,14 @@ func (q *GroupedFairQueue[T]) Push(group, flow uint64, size int, v T, at time.Ti
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	return q.push(group, flow, size, v, at, weight)
+	return q.push(group, flow, size, v, queueTime(at), weight)
 }
-func (q *GroupedFairQueue[T]) push(group, flow uint64, size int, v T, at time.Time, weight int) bool {
+func (q *GroupedFairQueue[T]) push(group, flow uint64, size int, v T, at time.Duration, weight int) bool {
 	if q.packets >= int64(q.cfg.MaxPackets) || int64(size) > q.cfg.MaxBytes-q.bytes {
 		q.rejected++
 		return false
 	}
-	g := q.groups[group]
+	g := q.group(group)
 	if g == nil {
 		if n := len(q.spare); n > 0 {
 			g = q.spare[n-1]
@@ -129,6 +141,7 @@ func (q *GroupedFairQueue[T]) push(group, flow uint64, size int, v T, at time.Ti
 			g = &queueGroup[T]{key: group, inner: &FairQueue[groupPacket[T]]{cfg: q.cfg, flows: make(map[uint64]*fairFlow[groupPacket[T]]), pool: q.flowPool}, deficit: q.cfg.Quantum}
 		}
 		q.groups[group] = g
+		q.recent = g
 		q.add(g)
 	}
 	if !g.inner.pushWeighted(flow, size, groupPacket[T]{value: v, bytes: size}, at, weight) {
@@ -140,9 +153,11 @@ func (q *GroupedFairQueue[T]) push(group, flow uint64, size int, v T, at time.Ti
 	}
 	q.packets++
 	q.bytes += int64(size)
-	select {
-	case q.notify <- struct{}{}:
-	default:
+	if q.notify != nil {
+		select {
+		case q.notify <- struct{}{}:
+		default:
+		}
 	}
 	return true
 }
@@ -153,9 +168,9 @@ func (q *GroupedFairQueue[T]) push(group, flow uint64, size int, v T, at time.Ti
 func (q *GroupedFairQueue[T]) Admit(group, flow uint64, size int, v T, at time.Time, weight int) (bool, []T) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	return q.admit(group, flow, size, v, at, weight)
+	return q.admit(group, flow, size, v, queueTime(at), weight)
 }
-func (q *GroupedFairQueue[T]) admit(group, flow uint64, size int, v T, at time.Time, weight int) (bool, []T) {
+func (q *GroupedFairQueue[T]) admit(group, flow uint64, size int, v T, at time.Duration, weight int) (bool, []T) {
 	if size <= 0 || int64(size) > q.cfg.MaxBytes {
 		q.rejected++
 		return false, nil
@@ -163,15 +178,15 @@ func (q *GroupedFairQueue[T]) admit(group, flow uint64, size int, v T, at time.T
 	// Keep one descriptor available for another flow where the configured
 	// capacity permits it. Established TCP producers receive backpressure rather
 	// than losing a packet whose transport has already transferred ownership.
-	if g := q.groups[group]; g != nil {
-		if f := g.inner.flows[flow]; f != nil && (len(f.packets)-f.head >= max(1, q.cfg.MaxPackets-1) || int64(size) > q.flowByteLimit()-f.bytes) {
+	if g := q.group(group); g != nil {
+		if f := g.inner.flow(flow); f != nil && (len(f.packets)-f.head >= max(1, q.cfg.MaxPackets-1) || int64(size) > q.flowByteLimit()-f.bytes) {
 			q.rejected++
 			return false, nil
 		}
 	}
 	var dropped []T
 	for q.packets >= int64(q.cfg.MaxPackets) || int64(size) > q.cfg.MaxBytes-q.bytes {
-		incoming := q.groups[group]
+		incoming := q.group(group)
 		var victim *queueGroup[T]
 		for g := q.head; g != nil; g = g.next {
 			if victim == nil || g.inner.bytes > victim.inner.bytes {
@@ -207,9 +222,9 @@ func (q *GroupedFairQueue[T]) admit(group, flow uint64, size int, v T, at time.T
 func (q *GroupedFairQueue[T]) Pop(now time.Time) (out T, ok bool, dropped []T) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	return q.pop(now)
+	return q.pop(queueTime(now))
 }
-func (q *GroupedFairQueue[T]) pop(now time.Time) (out T, ok bool, dropped []T) {
+func (q *GroupedFairQueue[T]) pop(now time.Duration) (out T, ok bool, dropped []T) {
 	for q.head != nil {
 		g := q.head
 		if g.deficit <= 0 {

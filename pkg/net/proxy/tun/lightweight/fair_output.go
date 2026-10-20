@@ -10,12 +10,15 @@ func (s *Stack) initOutput(mode trafficcontrol.SchedulerMode, packets int, bytes
 		Release:  func(p *ownedBuffer) { p.release(); s.drops.Add(1) },
 	})
 }
-func (s *Stack) dequeueOutput(wait bool) (*ownedBuffer, bool) {
-	p, ok := s.output.Dequeue(s.done, wait)
-	if ok {
+func (s *Stack) dequeueOutputBatch(dst []*ownedBuffer) int {
+	n := s.output.DequeueBatch(dst, true)
+	for range n {
+		if s.outputCount.Load() == 0 {
+			break
+		}
 		s.wakeOutput()
 	}
-	return p, ok
+	return n
 }
 func outputBytes(p *ownedBuffer) []byte {
 	if p == nil || p.offset < 0 || p.offset >= len(p.data) {

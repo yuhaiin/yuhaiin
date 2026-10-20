@@ -37,7 +37,7 @@ func batchTestStack(t *testing.T, n int) (*Stack, []*ownedBuffer) {
 	}
 	t.Cleanup(func() {
 		for s.output.Stats().Packets > 0 {
-			p, _ := s.output.Dequeue(nil, false)
+			p, _ := s.output.Dequeue(false)
 			p.release()
 		}
 		s.buffers.close()
@@ -73,6 +73,7 @@ func TestPacketBatchWriterRetriesOnlySuffix(t *testing.T) {
 			accepted++
 		}
 		if accepted == 32 {
+			s.output.Close()
 			close(s.done)
 		}
 		return n, err
@@ -94,6 +95,7 @@ func TestPacketBatchWriterDoesNotWaitForMorePackets(t *testing.T) {
 		if len(p) != 1 {
 			t.Error("one packet delayed for batch")
 		}
+		s.output.Close()
 		close(s.done)
 		return 1, nil
 	}}
@@ -133,6 +135,7 @@ func TestPacketBatchWriterCloseInterruptsRetry(t *testing.T) {
 	done := make(chan struct{})
 	go func() { s.writeBatchLoop(w); close(done) }()
 	<-entered
+	s.output.Close()
 	close(s.done)
 	select {
 	case <-done:
@@ -157,8 +160,51 @@ func TestPacketBatchWriterZeroProgressStops(t *testing.T) {
 
 func TestPacketBatchWriterIgnoresErrorAfterCompletePrefix(t *testing.T) {
 	s, _ := batchTestStack(t, 1)
-	s.writeBatchLoop(&batchTestWriter{size: 16, write: func(p []PacketBuffer) (int, error) { close(s.done); return len(p), errors.New("trailing error") }})
+	s.writeBatchLoop(&batchTestWriter{size: 16, write: func(p []PacketBuffer) (int, error) {
+		s.output.Close()
+		close(s.done)
+		return len(p), errors.New("trailing error")
+	}})
 	if s.packetsOut.Load() != 1 {
 		t.Fatal("accepted packet not counted")
+	}
+}
+
+type failedSinglePacketIO struct{ PacketIO }
+
+func (failedSinglePacketIO) WritePacket([]byte) error { return net.ErrClosed }
+func (failedSinglePacketIO) Close() error             { return nil }
+
+func TestSinglePacketWriterFailureReleasesPrefetchedBuffers(t *testing.T) {
+	for _, mode := range []trafficcontrol.SchedulerMode{trafficcontrol.SchedulerFIFO, trafficcontrol.SchedulerFair} {
+		t.Run(string(mode), func(t *testing.T) {
+			s, all := batchTestStack(t, 32)
+			pending := s.output.Drain()
+			s.initOutput(mode, 33, 1<<20)
+			for _, p := range pending {
+				if !s.output.Enqueue(p) {
+					t.Fatal("enqueue")
+				}
+			}
+			s.link = failedSinglePacketIO{}
+			s.fragments.init(s)
+			s.writeLoop()
+			if got := s.output.Stats().Packets; got != 16 {
+				t.Fatalf("unbounded prefetch: queued=%d", got)
+			}
+			for _, b := range all[:16] {
+				if b.refs != 0 {
+					t.Fatal("failed writer retained prefetched buffer")
+				}
+			}
+			for _, b := range s.output.Drain() {
+				b.release()
+			}
+			for _, b := range all {
+				if b.refs != 0 {
+					t.Fatal("close retained buffer")
+				}
+			}
+		})
 	}
 }

@@ -172,6 +172,7 @@ func (s *Stack) shutdown() {
 	s.once.Do(func() {
 		s.txMu.Lock()
 		close(s.done)
+		s.output.Close()
 		s.txMu.Unlock()
 		s.closeErr = s.link.Close()
 		// Publish closed before taking table snapshots. Registrations check under
@@ -280,26 +281,35 @@ func (s *Stack) writeLoop() {
 		s.writeBatchLoop(writer)
 		return
 	}
+	var owned [16]*ownedBuffer
+	defer func() {
+		for _, b := range owned {
+			b.release()
+		}
+	}()
 	for {
-		b, ok := s.dequeueOutput(true)
-		if !ok {
+		n := s.dequeueOutputBatch(owned[:])
+		if n == 0 {
 			return
 		}
-		write := func() error {
-			if s.packetWriter != nil {
-				return s.packetWriter.WritePacketBuffer(b.data, b.offset, b.segmentSize)
+		for i, b := range owned[:n] {
+			write := func() error {
+				if s.packetWriter != nil {
+					return s.packetWriter.WritePacketBuffer(b.data, b.offset, b.segmentSize)
+				}
+				return s.link.WritePacket(b.data[b.offset:])
 			}
-			return s.link.WritePacket(b.data[b.offset:])
+			err := write()
+			for attempt := 0; err != nil && s.retryPacketIO(err, attempt); attempt++ {
+				err = write()
+			}
+			b.release()
+			owned[i] = nil
+			if err != nil {
+				return
+			}
+			s.packetsOut.Add(1)
 		}
-		err := write()
-		for attempt := 0; err != nil && s.retryPacketIO(err, attempt); attempt++ {
-			err = write()
-		}
-		b.release()
-		if err != nil {
-			return
-		}
-		s.packetsOut.Add(1)
 	}
 }
 

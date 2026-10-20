@@ -14,20 +14,9 @@ func (s *Stack) writeBatchLoop(writer PacketBatchWriter) {
 		}
 	}()
 	for {
-		first, ok := s.dequeueOutput(true)
-		if !ok {
+		count := s.dequeueOutputBatch(owned)
+		if count == 0 {
 			return
-		}
-		owned[0] = first
-		count := 1
-	drain:
-		for count < limit {
-			b, ok := s.dequeueOutput(false)
-			if !ok {
-				break drain
-			}
-			owned[count] = b
-			count++
 		}
 		for i, b := range owned[:count] {
 			packets[i] = PacketBuffer{Data: b.data, Offset: b.offset, SegmentSize: b.segmentSize}

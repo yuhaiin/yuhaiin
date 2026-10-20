@@ -23,8 +23,13 @@ type Classification struct {
 // shed by admission or AQM are released by the supplied callback outside locks.
 type OutputQueue[T any] interface {
 	Enqueue(T) bool
-	Dequeue(done <-chan struct{}, wait bool) (T, bool)
+	Dequeue(wait bool) (T, bool)
+	// DequeueBatch waits only for the first packet, then drains available work.
+	// A bounded batch shares one scheduling timestamp and ownership lock.
+	DequeueBatch(dst []T, wait bool) int
 	HasCapacity(bytes int) bool
+	// Close rejects new work and wakes blocked readers; Drain returns owned work.
+	Close()
 	Drain() []T
 	Stats() FairStats
 }
@@ -41,21 +46,26 @@ func NewOutputQueue[T any](o OutputOptions[T]) OutputQueue[T] {
 		if o.Limits.MaxPackets <= 0 || o.Limits.MaxBytes <= 0 {
 			panic("trafficcontrol: invalid output bounds")
 		}
-		return &fifoOutput[T]{values: make(chan T, o.Limits.MaxPackets), maxBytes: o.Limits.MaxBytes, size: o.Size}
+		return &fifoOutput[T]{done: make(chan struct{}), values: make(chan T, o.Limits.MaxPackets), maxBytes: o.Limits.MaxBytes, size: o.Size}
 	}
-	return &fairOutput[T]{queue: NewGroupedFairQueue[T](o.Limits), options: o}
+	q := &fairOutput[T]{queue: NewGroupedFairQueue[T](o.Limits), options: o}
+	q.queue.notify = nil // The adapter's condition variable owns wakeups.
+	q.ready.L = &q.mu
+	return q
 }
 
 // A lone packet needs no classification or flow descriptor. Only contention
 // promotes that packet into the fair domain, preserving its original sojourn.
-// The notification is drained under the ownership lock when the queue empties,
-// avoiding stale wakeups and repeated clock reads between sparse packets.
+// Queue readiness and Close share the ownership lock, so a writer wakes
+// holding that lock without a separate notification channel or a second lock.
 type fairOutput[T any] struct {
 	mu         sync.Mutex
+	ready      sync.Cond
+	closed     bool
 	queue      *GroupedFairQueue[T]
 	options    OutputOptions[T]
 	single     T
-	singleAt   time.Time
+	singleAt   time.Duration
 	singleSize int
 	hasSingle  bool
 }
@@ -63,17 +73,18 @@ type fairOutput[T any] struct {
 func (q *fairOutput[T]) Enqueue(v T) bool {
 	size := q.options.Size(v)
 	q.mu.Lock()
+	if q.closed {
+		q.mu.Unlock()
+		return false
+	}
 	if size <= 0 || int64(size) > q.queue.cfg.MaxBytes {
 		q.queue.rejected++
 		q.mu.Unlock()
 		return false
 	}
 	if !q.hasSingle && q.queue.packets == 0 {
-		q.single, q.singleSize, q.singleAt, q.hasSingle = v, size, time.Now(), true
-		select {
-		case q.queue.notify <- struct{}{}:
-		default:
-		}
+		q.single, q.singleSize, q.singleAt, q.hasSingle = v, size, queueNow(), true
+		q.ready.Signal()
 		q.mu.Unlock()
 		return true
 	}
@@ -85,62 +96,84 @@ func (q *fairOutput[T]) Enqueue(v T) bool {
 		q.hasSingle = false
 	}
 	c := q.options.Classify(v)
-	accepted, drops := q.queue.admit(c.Host, c.Flow, size, v, time.Now(), c.Weight)
+	accepted, drops := q.queue.admit(c.Host, c.Flow, size, v, queueNow(), c.Weight)
+	if accepted {
+		q.ready.Signal()
+	}
 	q.mu.Unlock()
 	for _, drop := range drops {
 		q.options.Release(drop)
 	}
 	return accepted
 }
-func (q *fairOutput[T]) Dequeue(done <-chan struct{}, wait bool) (value T, ok bool) {
+func (q *fairOutput[T]) Dequeue(wait bool) (value T, ok bool) {
+	var dst [1]T
+	n := q.DequeueBatch(dst[:], wait)
+	return dst[0], n != 0
+}
+func (q *fairOutput[T]) DequeueBatch(dst []T, wait bool) int {
+	if len(dst) == 0 {
+		return 0
+	}
+	q.mu.Lock()
+	for !q.closed && !q.hasSingle && q.queue.packets == 0 && wait {
+		q.ready.Wait()
+	}
 	for {
-		select {
-		case <-done:
-			return value, false
-		default:
+		if q.closed {
+			q.mu.Unlock()
+			return 0
 		}
-		q.mu.Lock()
-		var drops []T
-		switch {
-		case q.hasSingle:
-			value, ok = q.single, true
+		if q.hasSingle {
+			dst[0] = q.single
 			var zero T
 			q.single = zero
 			q.hasSingle = false
-			delay := time.Since(q.singleAt)
-			if delay > q.queue.maxSojourn {
-				q.queue.maxSojourn = delay
-			}
+			q.queue.maxSojourn = max(q.queue.maxSojourn, queueNow()-q.singleAt)
 			q.queue.dequeued++
-		case q.queue.packets > 0:
-			value, ok, drops = q.queue.pop(time.Now())
+			q.mu.Unlock()
+			return 1
 		}
-		if q.queue.packets == 0 && !q.hasSingle {
-			select {
-			case <-q.queue.notify:
-			default:
+		var drops []T
+		n := 0
+		if q.queue.packets > 0 {
+			now := queueNow()
+			for n < len(dst) && q.queue.packets > 0 {
+				v, ok, discarded := q.queue.pop(now)
+				drops = append(drops, discarded...)
+				if !ok {
+					break
+				}
+				dst[n] = v
+				n++
 			}
 		}
 		q.mu.Unlock()
 		for _, drop := range drops {
 			q.options.Release(drop)
 		}
-		if ok {
-			return value, true
+		if n > 0 || !wait {
+			return n
 		}
-		if !wait {
-			return value, false
-		}
-		select {
-		case <-done:
-			return value, false
-		case <-q.queue.notify:
+		q.mu.Lock()
+		for !q.closed && !q.hasSingle && q.queue.packets == 0 {
+			q.ready.Wait()
 		}
 	}
 }
+func (q *fairOutput[T]) Close() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.closed = true
+	q.ready.Broadcast()
+}
+
 func (q *fairOutput[T]) HasCapacity(bytes int) bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if q.closed {
+		return false
+	}
 	if q.hasSingle {
 		return q.queue.cfg.MaxPackets > 1 && int64(bytes) <= q.queue.flowByteLimit()-int64(q.singleSize)
 	}
@@ -171,6 +204,9 @@ func (q *fairOutput[T]) Stats() FairStats {
 }
 
 type fifoOutput[T any] struct {
+	closeOnce          sync.Once
+	closed             atomic.Bool
+	done               chan struct{}
 	values             chan T
 	size               func(T) int
 	maxBytes           int64
@@ -179,6 +215,9 @@ type fifoOutput[T any] struct {
 }
 
 func (q *fifoOutput[T]) Enqueue(v T) bool {
+	if q.closed.Load() {
+		return false
+	}
 	size := int64(q.size(v))
 	if !reserve(&q.bytes, size, q.maxBytes) {
 		q.rejected.Add(1)
@@ -193,10 +232,13 @@ func (q *fifoOutput[T]) Enqueue(v T) bool {
 		return false
 	}
 }
-func (q *fifoOutput[T]) Dequeue(done <-chan struct{}, wait bool) (value T, ok bool) {
+func (q *fifoOutput[T]) Dequeue(wait bool) (value T, ok bool) {
+	if q.closed.Load() {
+		return value, false
+	}
 	if wait {
 		select {
-		case <-done:
+		case <-q.done:
 			return value, false
 		case value = <-q.values:
 			ok = true
@@ -213,14 +255,32 @@ func (q *fifoOutput[T]) Dequeue(done <-chan struct{}, wait bool) (value T, ok bo
 	q.dequeued.Add(1)
 	return
 }
+func (q *fifoOutput[T]) DequeueBatch(dst []T, wait bool) int {
+	for i := range dst {
+		v, ok := q.Dequeue(wait && i == 0)
+		if !ok {
+			return i
+		}
+		dst[i] = v
+	}
+	return len(dst)
+}
+func (q *fifoOutput[T]) Close() {
+	q.closeOnce.Do(func() { q.closed.Store(true); close(q.done) })
+}
+
 func (q *fifoOutput[T]) HasCapacity(bytes int) bool {
-	return len(q.values) < cap(q.values) && int64(bytes) <= q.maxBytes-q.bytes.Load()
+	return !q.closed.Load() && len(q.values) < cap(q.values) && int64(bytes) <= q.maxBytes-q.bytes.Load()
 }
 func (q *fifoOutput[T]) Drain() []T {
 	out := make([]T, 0, len(q.values))
 	for {
-		v, ok := q.Dequeue(nil, false)
-		if !ok {
+		var v T
+		select {
+		case v = <-q.values:
+			q.bytes.Add(-int64(q.size(v)))
+			q.dequeued.Add(1)
+		default:
 			return out
 		}
 		out = append(out, v)
