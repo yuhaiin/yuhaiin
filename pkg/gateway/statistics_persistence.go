@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"errors"
+	"maps"
 	"net"
 	"time"
 
@@ -94,9 +95,7 @@ func (m *Manager) flushStatisticsLocked(ctx context.Context) error {
 	if m.persistedStatistics == nil {
 		m.persistedStatistics = make(map[string]contract.StatisticsTotals)
 	}
-	for id, value := range changed {
-		m.persistedStatistics[id] = value
-	}
+	maps.Copy(m.persistedStatistics, changed)
 	return nil
 }
 
