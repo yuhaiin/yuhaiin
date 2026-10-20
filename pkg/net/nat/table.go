@@ -30,15 +30,15 @@ type Table struct {
 	dialer  netapi.Proxy
 	sniffer netapi.PacketSniffer
 
-	cleanerWake   chan struct{}
-	sourceControl syncmap.SyncMap[uint64, *SourceControl]
+	cleanerWake    chan struct{}
+	sourceControl  syncmap.SyncMap[uint64, *SourceControl]
 	trafficControl *trafficcontrol.Manager
-	budget        *trafficcontrol.Governor
-	closed        atomic.Bool
-	mu            sync.RWMutex // Serializes queue admission with Close.
-	stop          chan struct{}
-	done          chan struct{}
-	closeOnce     sync.Once
+	budget         *trafficcontrol.Governor
+	closed         atomic.Bool
+	mu             sync.RWMutex // Serializes queue admission with Close.
+	stop           chan struct{}
+	done           chan struct{}
+	closeOnce      sync.Once
 }
 
 var ErrNATSessionLimit = errors.New("udp nat: session limit")

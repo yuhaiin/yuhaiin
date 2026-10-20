@@ -39,22 +39,30 @@ func addInboundRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 }
 
 type trafficControlStore interface {
-	TrafficControl(context.Context) (trafficcontrol.Config,error)
-	SaveTrafficControl(context.Context,trafficcontrol.Config) error
+	TrafficControl(context.Context) (trafficcontrol.Config, error)
+	SaveTrafficControl(context.Context, trafficcontrol.Config) error
 }
 
-func (a v2API) trafficControl(ctx context.Context,_ *emptyRequest) (*trafficcontrol.Config,error) {
-	backend,ok:=a.services.Inbounds.(trafficControlStore)
-	if !ok{return nil,unavailable("traffic control is unavailable")}
-	cfg,err:=backend.TrafficControl(ctx)
-	if err!=nil{return nil,err}
-	return &cfg,nil
+func (a v2API) trafficControl(ctx context.Context, _ *emptyRequest) (*trafficcontrol.Config, error) {
+	backend, ok := a.services.Inbounds.(trafficControlStore)
+	if !ok {
+		return nil, unavailable("traffic control is unavailable")
+	}
+	cfg, err := backend.TrafficControl(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &cfg, nil
 }
-func (a v2API) saveTrafficControl(ctx context.Context,cfg *trafficcontrol.Config) (*trafficcontrol.Config,error) {
-	backend,ok:=a.services.Inbounds.(trafficControlStore)
-	if !ok{return nil,unavailable("traffic control is unavailable")}
-	if err:=backend.SaveTrafficControl(ctx,*cfg);err!=nil{return nil,badRequest(err)}
-	return cfg,nil
+func (a v2API) saveTrafficControl(ctx context.Context, cfg *trafficcontrol.Config) (*trafficcontrol.Config, error) {
+	backend, ok := a.services.Inbounds.(trafficControlStore)
+	if !ok {
+		return nil, unavailable("traffic control is unavailable")
+	}
+	if err := backend.SaveTrafficControl(ctx, *cfg); err != nil {
+		return nil, badRequest(err)
+	}
+	return cfg, nil
 }
 
 func (a v2API) inboundCapabilities(context.Context, *emptyRequest) (*contractinbound.Capabilities, error) {

@@ -34,11 +34,11 @@ type ContextCache struct {
 
 type replyBinding struct {
 	inboundID string
-	writer netapi.WriteBack
-	source net.Addr
-	write  func(context.Context, []byte, net.Addr) (int, error)
-	ctx    context.Context
-	cancel context.CancelFunc
+	writer    netapi.WriteBack
+	source    net.Addr
+	write     func(context.Context, []byte, net.Addr) (int, error)
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
 func newContextCache(store *netapi.Context) ContextCache {
@@ -49,10 +49,10 @@ func newContextCache(store *netapi.Context) ContextCache {
 }
 
 type SourceControl struct {
-	ctx          context.Context
-	dialer       netapi.Proxy
-	sessionLease *trafficcontrol.Session
-	queueBudget  *trafficcontrol.Governor
+	ctx            context.Context
+	dialer         netapi.Proxy
+	sessionLease   *trafficcontrol.Session
+	queueBudget    *trafficcontrol.Governor
 	trafficControl *trafficcontrol.Manager
 
 	// sniffer is an optional packet sniffer for observability or traffic analysis.

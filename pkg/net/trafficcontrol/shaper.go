@@ -13,8 +13,8 @@ import (
 type Direction uint8
 
 const (
-	Upload Direction = iota // inbound peer -> outbound destination
-	Download               // outbound destination -> inbound peer
+	Upload   Direction = iota // inbound peer -> outbound destination
+	Download                  // outbound destination -> inbound peer
 )
 
 var ErrRateLimited = errors.New("trafficcontrol: datagram rate limit")
@@ -27,9 +27,9 @@ const maxShapingBurst = int64(1 << 30)
 // eligibility timestamp includes already admitted work, so concurrent flows
 // cannot collectively bypass a common shaper. No sleeping occurs under mu.
 type Limiter struct {
-	mu sync.Mutex
+	mu          sync.Mutex
 	rate, burst int64
-	next time.Time
+	next        time.Time
 }
 
 func NewLimiter(bytesPerSecond, burstBytes int64) (*Limiter, error) {
@@ -74,7 +74,9 @@ type Policy struct {
 }
 
 func (p Policy) scopes(direction Direction) [4]*Limiter {
-	if direction == Download { return p.down }
+	if direction == Download {
+		return p.down
+	}
 	return p.up
 }
 
@@ -82,28 +84,42 @@ func (p Policy) scopes(direction Direction) [4]*Limiter {
 // every applicable scope. UDP never sleeps and never accumulates a backlog.
 // A rejected local quota cannot steal credits from shared parent scopes.
 func (p Policy) AllowDatagram(direction Direction, bytes int) bool {
-	if bytes < 0 {return false}
-	limits := p.scopes(direction)
-	for _,l:=range limits {
-		if l!=nil { l.mu.Lock() }
+	if bytes < 0 {
+		return false
 	}
-	defer func(){
-		for i:=len(limits)-1;i>=0;i-- {
-			if limits[i]!=nil { limits[i].mu.Unlock() }
+	limits := p.scopes(direction)
+	for _, l := range limits {
+		if l != nil {
+			l.mu.Lock()
+		}
+	}
+	defer func() {
+		for i := len(limits) - 1; i >= 0; i-- {
+			if limits[i] != nil {
+				limits[i].mu.Unlock()
+			}
 		}
 	}()
-	now:=time.Now()
+	now := time.Now()
 	var next [4]time.Time
-	for i,l:=range limits {
-		if l==nil {continue}
+	for i, l := range limits {
+		if l == nil {
+			continue
+		}
 		// Datagram admission cannot wait for a future slot, or request
 		// more bytes than a bucket can hold in one instant.
-		if int64(bytes)>l.burst {return false}
-		next[i]=l.nextAt(now,int64(bytes))
-		if next[i].After(now) {return false}
+		if int64(bytes) > l.burst {
+			return false
+		}
+		next[i] = l.nextAt(now, int64(bytes))
+		if next[i].After(now) {
+			return false
+		}
 	}
-	for i,l:=range limits {
-		if l!=nil {l.next=next[i]}
+	for i, l := range limits {
+		if l != nil {
+			l.next = next[i]
+		}
 	}
 	return true
 }
@@ -114,36 +130,54 @@ func (p Policy) AllowDatagram(direction Direction, bytes int) bool {
 // reservation depends on its virtual timestamp: this trades some temporary
 // underutilization for hard non-oversubscription.
 func (p Policy) WaitBytes(ctx context.Context, direction Direction, bytes int) error {
-	if bytes <= 0 {return nil}
-	if err:=ctx.Err();err!=nil{return err}
-	limits:=p.scopes(direction)
-	for _,l:=range limits {
-		if l!=nil {l.mu.Lock()}
+	if bytes <= 0 {
+		return nil
 	}
-	now:=time.Now()
-	deadline:=now
-	for _,l:=range limits {
-		if l==nil {continue}
-		next:=l.nextAt(now,int64(bytes))
-		l.next=next
-		if next.After(deadline) {deadline=next}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	for i:=len(limits)-1;i>=0;i-- {
-		if limits[i]!=nil {limits[i].mu.Unlock()}
+	limits := p.scopes(direction)
+	for _, l := range limits {
+		if l != nil {
+			l.mu.Lock()
+		}
 	}
-	wait:=time.Until(deadline)
-	if wait<=0 {return ctx.Err()}
-	timer:=time.NewTimer(wait)
+	now := time.Now()
+	deadline := now
+	for _, l := range limits {
+		if l == nil {
+			continue
+		}
+		next := l.nextAt(now, int64(bytes))
+		l.next = next
+		if next.After(deadline) {
+			deadline = next
+		}
+	}
+	for i := len(limits) - 1; i >= 0; i-- {
+		if limits[i] != nil {
+			limits[i].mu.Unlock()
+		}
+	}
+	wait := time.Until(deadline)
+	if wait <= 0 {
+		return ctx.Err()
+	}
+	timer := time.NewTimer(wait)
 	defer timer.Stop()
 	select {
-	case <-timer.C:return ctx.Err()
-	case <-ctx.Done():return ctx.Err()
+	case <-timer.C:
+		return ctx.Err()
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
 func (p Policy) Enabled(direction Direction) bool {
-	for _,l:=range p.scopes(direction) {
-		if l!=nil {return true}
+	for _, l := range p.scopes(direction) {
+		if l != nil {
+			return true
+		}
 	}
 	return false
 }
@@ -152,32 +186,40 @@ func (p Policy) Enabled(direction Direction) bool {
 // read, the write blocks until its byte reservation becomes eligible, so TCP
 // backpressure propagates without accumulating an unbounded queue.
 type ShapedWriter struct {
-	Writer interface{ Write([]byte)(int,error) }
-	Context context.Context
-	Policy Policy
+	Writer    interface{ Write([]byte) (int, error) }
+	Context   context.Context
+	Policy    Policy
 	Direction Direction
 }
 
 // Write respects io.Writer's partial-write contract. It must not acknowledge
 // bytes to the caller until the underlying transport has accepted them.
 func (w ShapedWriter) Write(data []byte) (written int, err error) {
-	for len(data)>0 {
-		n:=min(len(data),16<<10)
+	for len(data) > 0 {
+		n := min(len(data), 16<<10)
 		// Bound the reservation by each shaper's burst where possible;
 		// very-low-rate configurations still work, although throughput will
 		// be correspondingly small.
-		for _,lim:=range w.Policy.scopes(w.Direction) {
-			if lim!=nil && int64(n)>lim.burst {
-				n=int(lim.burst)
+		for _, lim := range w.Policy.scopes(w.Direction) {
+			if lim != nil && int64(n) > lim.burst {
+				n = int(lim.burst)
 			}
 		}
-		if err=w.Policy.WaitBytes(w.Context,w.Direction,n);err!=nil {return written,err}
-		count,writeErr:=w.Writer.Write(data[:n])
-		if count<0||count>n {return written,errors.New("trafficcontrol: invalid writer progress")}
-		written+=count
-		data=data[count:]
-		if writeErr!=nil {return written,writeErr}
-		if count!=n {return written,errors.New("trafficcontrol: short write")}
+		if err = w.Policy.WaitBytes(w.Context, w.Direction, n); err != nil {
+			return written, err
+		}
+		count, writeErr := w.Writer.Write(data[:n])
+		if count < 0 || count > n {
+			return written, errors.New("trafficcontrol: invalid writer progress")
+		}
+		written += count
+		data = data[count:]
+		if writeErr != nil {
+			return written, writeErr
+		}
+		if count != n {
+			return written, errors.New("trafficcontrol: short write")
+		}
 	}
-	return written,nil
+	return written, nil
 }

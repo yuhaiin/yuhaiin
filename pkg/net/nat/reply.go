@@ -8,9 +8,9 @@ import (
 	"reflect"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
-	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
@@ -56,7 +56,9 @@ func (u *SourceControl) bindReply(pkt *netapi.Packet) {
 	}
 	ctx, cancel := context.WithCancel(u.ctx)
 	inboundID := pkt.InboundID()
-	if inboundID == "" { inboundID = pkt.InboundName() }
+	if inboundID == "" {
+		inboundID = pkt.InboundName()
+	}
 	next := &replyBinding{inboundID: inboundID, writer: writer, source: pkt.Src(), write: pkt.WriteBackContext, ctx: ctx, cancel: cancel}
 	u.reply.Store(next)
 	previous.cancel()

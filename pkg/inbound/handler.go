@@ -27,7 +27,7 @@ type handler struct {
 	dialer       netapi.Proxy
 	table        *nat.Table
 	globalBudget *trafficcontrol.Governor
-	qos *trafficcontrol.Manager
+	qos          *trafficcontrol.Manager
 	streamScopes sync.Map // inbound ID/name -> *trafficcontrol.Governor
 
 	sniffer     *controlSniffer
@@ -41,7 +41,7 @@ func NewHandler(dialer netapi.Proxy) *handler {
 	root := trafficcontrol.NewGovernor(trafficcontrol.Limits{MaxSessions: 65536, SessionsPerSec: 4000, SessionBurst: 8192}, nil)
 	qos := trafficcontrol.NewManager()
 	h := &handler{
-		qos: qos,
+		qos:          qos,
 		dialer:       dialer,
 		table:        nat.NewTableWithParent(sniffer, dialer, root),
 		globalBudget: root,
@@ -142,7 +142,9 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 
 	ruleID, _ := store.MatchedRule()
 	inboundID := meta.InboundID
-	if inboundID == "" { inboundID = meta.InboundName }
+	if inboundID == "" {
+		inboundID = meta.InboundName
+	}
 	policy := s.qos.Resolve(inboundID, ruleID)
 	relay.RelayShaped(store, meta.Src, remote, policy, "dst", dst, "src", store.Source,
 		"process", process, "pid", pid, "uid", uid)
@@ -152,7 +154,9 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 
 func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 	inboundID := pack.InboundID()
-	if inboundID == "" { inboundID = pack.InboundName() }
+	if inboundID == "" {
+		inboundID = pack.InboundName()
+	}
 	if !s.qos.Resolve(inboundID, "").AllowDatagram(trafficcontrol.Upload, len(pack.GetPayload())) {
 		metrics.Counter.AddSendUDPDroppedPacket()
 		return
