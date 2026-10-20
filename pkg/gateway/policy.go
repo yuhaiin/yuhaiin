@@ -257,7 +257,7 @@ func compileCondition(c contract.Condition, depth int) (condition, error) {
 			re, err := regexp.Compile(value)
 			if err != nil {
 				return nil, err
-		}
+			}
 			rxs = append(rxs, re)
 		}
 		test = func(v string) bool {
