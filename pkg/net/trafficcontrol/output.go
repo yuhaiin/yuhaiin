@@ -204,7 +204,7 @@ func (q *fairOutput[T]) Stats() FairStats {
 }
 
 type fifoOutput[T any] struct {
-	closeOnce          sync.Once
+	admission          sync.Mutex
 	closed             atomic.Bool
 	done               chan struct{}
 	values             chan T
@@ -219,6 +219,11 @@ func (q *fifoOutput[T]) Enqueue(v T) bool {
 		return false
 	}
 	size := int64(q.size(v))
+	q.admission.Lock()
+	defer q.admission.Unlock()
+	if q.closed.Load() {
+		return false
+	}
 	if !reserve(&q.bytes, size, q.maxBytes) {
 		q.rejected.Add(1)
 		return false
@@ -266,7 +271,12 @@ func (q *fifoOutput[T]) DequeueBatch(dst []T, wait bool) int {
 	return len(dst)
 }
 func (q *fifoOutput[T]) Close() {
-	q.closeOnce.Do(func() { q.closed.Store(true); close(q.done) })
+	q.admission.Lock()
+	defer q.admission.Unlock()
+	if !q.closed.Load() {
+		q.closed.Store(true)
+		close(q.done)
+	}
 }
 
 func (q *fifoOutput[T]) HasCapacity(bytes int) bool {

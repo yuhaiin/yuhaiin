@@ -241,3 +241,28 @@ func TestOutputBatchNewHostProgress(t *testing.T) {
 		t.Fatalf("new host blocked behind bulk backlog: %v", dst[:n])
 	}
 }
+
+func TestOutputCloseJoinsAdmissionBeforeFinalDrain(t *testing.T) {
+	for _, mode := range []SchedulerMode{SchedulerFIFO, SchedulerFair} {
+		t.Run(string(mode), func(t *testing.T) {
+			entered, resume := make(chan struct{}), make(chan struct{})
+			q := NewOutputQueue(OutputOptions[int]{Limits: FairConfig{MaxPackets: 4, MaxBytes: 4096}, Mode: mode,
+				Size: func(int) int { close(entered); <-resume; return 100 }, Classify: func(int) Classification { return Classification{Host: 1, Flow: 1, Weight: 1} }, Release: func(int) { t.Error("unowned release") },
+			})
+			result := make(chan bool, 1)
+			go func() { result <- q.Enqueue(1) }()
+			<-entered
+			q.Close()
+			if pending := q.Drain(); len(pending) != 0 {
+				t.Fatal("unpublished admission became owned", pending)
+			}
+			close(resume)
+			if <-result {
+				t.Fatal("admission published after Close and final Drain")
+			}
+			if s := q.Stats(); s.Packets != 0 || s.Bytes != 0 {
+				t.Fatal("closed queue retained ownership", s)
+			}
+		})
+	}
+}
