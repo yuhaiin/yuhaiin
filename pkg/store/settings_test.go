@@ -65,11 +65,12 @@ func TestSettingsStorePprofDefaultsToEnabledAndPersists(t *testing.T) {
 
 func TestSettingsStoreTrustedOriginsPersistence(t *testing.T) {
 	ctx := t.Context()
-	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	path := filepath.Join(t.TempDir(), "state.db")
+	sqliteStore, err := sqlite.Open(ctx, path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sqliteStore.Close()
+	defer func() { _ = sqliteStore.Close() }()
 
 	store := NewSettingsStore(sqliteStore.DB())
 	current, err := store.Load(ctx)
@@ -85,14 +86,24 @@ func TestSettingsStoreTrustedOriginsPersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(next.TrustedOrigins) != 2 {
-		t.Fatalf("saved custom origin list missing: %v", next.TrustedOrigins)
+		t.Fatalf("saved custom origins missing: %v", next.TrustedOrigins)
 	}
-	fresh, err := NewSettingsStore(sqliteStore.DB()).Load(ctx)
+
+	// Simulate a restart: close the SQLite handle entirely and reopen it.
+	if err := sqliteStore.Close(); err != nil {
+		t.Fatal(err)
+	}
+	sqliteStore, err = sqlite.Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store = NewSettingsStore(sqliteStore.DB())
+	fresh, err := store.Load(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(fresh.TrustedOrigins, current.TrustedOrigins) {
-		t.Fatalf("persisted=%v want=%v", fresh.TrustedOrigins, current.TrustedOrigins)
+		t.Fatalf("persisted after reopening=%v want=%v", fresh.TrustedOrigins, current.TrustedOrigins)
 	}
 	fresh.TrustedOrigins = nil
 	if _, err := store.Save(ctx, fresh); err != nil {
