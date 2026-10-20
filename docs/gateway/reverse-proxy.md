@@ -59,8 +59,12 @@ replayable idempotent requests only; POST/PATCH bodies are not replayed by defau
 
 WebSocket Upgrade, SSE, and gRPC use the same reverse-proxy action. There is no
 body-buffering mode to turn on. Use an HTTPS backend for HTTP/2/gRPC and ensure
-the endpoint supports ALPN `h2`. gRPC response trailers are preserved. Leave
-`requestTimeoutMs` zero for intentionally long-lived streams, or choose a duration
-appropriate for the application. URL rewrite replaces configured fields; an
+the endpoint supports ALPN `h2`. gRPC response trailers are preserved. `requestTimeoutMs` bounds ordinary requests and the time until response headers
+for long-lived SSE, WebSocket, and gRPC streams. Once a streaming response is
+established, the total request deadline is disabled; `streamIdleTimeoutMs`
+optionally limits periods with **no upstream response data** (or no WebSocket
+traffic in either direction). Zero disables that idle limit. This is not a
+maximum lifetime for a healthy stream. `idleTimeoutMs` still controls pooled
+upstream idle connections, not active streams. URL rewrite replaces configured fields; an
 explicit empty query removes all parameters. Path matching uses Go's decoded
 `URL.Path`, while forwarding preserves the original encoded path unless rewritten.

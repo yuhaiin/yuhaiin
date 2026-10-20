@@ -36,7 +36,7 @@ func compileUpstream(config contract.Upstream) (*upstream, error) {
 	if !slices.Contains([]string{"", "round_robin", "weighted_round_robin", "least_requests"}, config.Balance) {
 		return nil, errors.New("unsupported balance policy")
 	}
-	if config.ConnectTimeoutMS < 0 || config.IdleTimeoutMS < 0 || config.RequestTimeoutMS < 0 || config.MaxConnections < 0 || config.MaxConcurrent < 0 || config.RequestsPerSecond < 0 || config.Burst < 0 || config.HealthIntervalMS < 0 || config.FailureThreshold < 0 || config.RecoveryMS < 0 || config.Retries < 0 || config.Retries > 3 {
+	if config.ConnectTimeoutMS < 0 || config.IdleTimeoutMS < 0 || config.RequestTimeoutMS < 0 || config.StreamIdleMS < 0 || config.MaxConnections < 0 || config.MaxConcurrent < 0 || config.RequestsPerSecond < 0 || config.Burst < 0 || config.HealthIntervalMS < 0 || config.FailureThreshold < 0 || config.RecoveryMS < 0 || config.Retries < 0 || config.Retries > 3 {
 		return nil, errors.New("invalid upstream limit")
 	}
 	if config.HealthPath != "" && config.HealthPath[0] != '/' {
