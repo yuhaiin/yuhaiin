@@ -109,13 +109,17 @@ func outputFlowHash(packet *ownedBuffer) uint64 {
 			if next != 0 && next != 43 && next != 60 {
 				break
 			}
-			if off+2 > len(b) { return hash }
+			if off+2 > len(b) {
+				return hash
+			}
 			headerSize := (int(b[off+1]) + 1) * 8
-			if off+headerSize > len(b) { return hash }
+			if off+headerSize > len(b) {
+				return hash
+			}
 			next, off = b[off], off+headerSize
 		}
 		if !fragmented && (next == 6 || next == 17) && off+4 <= len(b) {
-			add(b[off:off+4])
+			add(b[off : off+4])
 		}
 	default:
 		return 0

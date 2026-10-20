@@ -12,51 +12,60 @@ import (
 )
 
 func TestRelayShapedPreservesPayloadAndTerminates(t *testing.T) {
-	manager:=trafficcontrol.NewManager()
-	if err:=manager.Apply(trafficcontrol.Config{
-		Enabled:true,Global:trafficcontrol.Profile{Upload:trafficcontrol.Rate{BytesPerSecond:200000,BurstBytes:256}},
-	});err!=nil{t.Fatal(err)}
-	client,front:=net.Pipe()
-	back,remote:=net.Pipe()
+	manager := trafficcontrol.NewManager()
+	if err := manager.Apply(trafficcontrol.Config{
+		Enabled: true, Global: trafficcontrol.Profile{Upload: trafficcontrol.Rate{BytesPerSecond: 200000, BurstBytes: 256}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	client, front := net.Pipe()
+	back, remote := net.Pipe()
 	defer client.Close()
 	defer remote.Close()
-	done:=make(chan struct{})
-	go func(){
-		RelayShaped(t.Context(),front,back,manager.Resolve("",""))
+	done := make(chan struct{})
+	go func() {
+		RelayShaped(t.Context(), front, back, manager.Resolve("", ""))
 		close(done)
 	}()
-	payload:=bytes.Repeat([]byte("shaped"),128)
-	sent:=make(chan struct{})
-	go func(){_,_ = client.Write(payload);_ = client.Close();close(sent)}()
-	received,err:=io.ReadAll(remote)
-	if err!=nil {t.Fatal(err)}
-	if !bytes.Equal(received,payload){t.Fatalf("payload mismatch: got %d want %d",len(received),len(payload))}
-	select{
-	case <-sent:
-	case <-time.After(3*time.Second):t.Fatal("writer did not terminate")
+	payload := bytes.Repeat([]byte("shaped"), 128)
+	sent := make(chan struct{})
+	go func() { _, _ = client.Write(payload); _ = client.Close(); close(sent) }()
+	received, err := io.ReadAll(remote)
+	if err != nil {
+		t.Fatal(err)
 	}
-	select{
+	if !bytes.Equal(received, payload) {
+		t.Fatalf("payload mismatch: got %d want %d", len(received), len(payload))
+	}
+	select {
+	case <-sent:
+	case <-time.After(3 * time.Second):
+		t.Fatal("writer did not terminate")
+	}
+	select {
 	case <-done:
-	case <-time.After(3*time.Second):t.Fatal("relay did not terminate")
+	case <-time.After(3 * time.Second):
+		t.Fatal("relay did not terminate")
 	}
 }
 func TestRelayShapedCanceledStreamDoesNotHang(t *testing.T) {
-	manager:=trafficcontrol.NewManager()
-	manager.Apply(trafficcontrol.Config{Enabled:true,Global:trafficcontrol.Profile{
-		Upload:trafficcontrol.Rate{BytesPerSecond:1,BurstBytes:1},
+	manager := trafficcontrol.NewManager()
+	manager.Apply(trafficcontrol.Config{Enabled: true, Global: trafficcontrol.Profile{
+		Upload: trafficcontrol.Rate{BytesPerSecond: 1, BurstBytes: 1},
 	}})
-	ctx,cancel:=context.WithCancel(t.Context())
-	client,front:=net.Pipe()
-	back,remote:=net.Pipe()
+	ctx, cancel := context.WithCancel(t.Context())
+	client, front := net.Pipe()
+	back, remote := net.Pipe()
 	defer client.Close()
 	defer remote.Close()
-	done:=make(chan struct{})
-	go func(){RelayShaped(ctx,front,back,manager.Resolve("",""));close(done)}()
-	go func(){_,_=client.Write([]byte("large payload"));_ = client.Close()}()
-	time.Sleep(10*time.Millisecond)
+	done := make(chan struct{})
+	go func() { RelayShaped(ctx, front, back, manager.Resolve("", "")); close(done) }()
+	go func() { _, _ = client.Write([]byte("large payload")); _ = client.Close() }()
+	time.Sleep(10 * time.Millisecond)
 	cancel()
-	select{
+	select {
 	case <-done:
-	case <-time.After(3*time.Second):t.Fatal("cancelled paced relay stuck")
+	case <-time.After(3 * time.Second):
+		t.Fatal("cancelled paced relay stuck")
 	}
 }
