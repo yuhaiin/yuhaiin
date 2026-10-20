@@ -52,7 +52,8 @@ type Condition struct {
 	Field    string      `json:"field,omitempty"`
 	Operator string      `json:"operator,omitempty"`
 	Key      string      `json:"key,omitempty"`
-	Value    string      `json:"value,omitempty"`
+	Values   []string    `json:"values,omitempty"`
+	Value    string      `json:"value,omitempty"` // Legacy input; migrated when loading.
 }
 
 type Action struct {
