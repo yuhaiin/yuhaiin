@@ -295,7 +295,7 @@ func TestHotUpdatePreservesAdmittedWebSocket(t *testing.T) {
 	defer upstream.Close()
 	proxy := &mockOutbound{destination: strings.TrimPrefix(upstream.URL, "http://")}
 	cfg := contract.Config{
-		Gateways: []contract.Gateway{{ID: "g", Name: "gateway", Enabled: true, Listen: "127.0.0.1:0", Default: contract.Action{Type: "reverse_proxy", Upstream: "u"}}},
+		Gateways:  []contract.Gateway{{ID: "g", Name: "gateway", Enabled: true, Listen: "127.0.0.1:0", Default: contract.Action{Type: "reverse_proxy", Upstream: "u"}}},
 		Upstreams: []contract.Upstream{{ID: "u", Backends: []contract.Backend{{URL: upstream.URL}}}},
 	}
 	manager, _ := newTestManager(t, cfg, func(_ context.Context, dst netapi.Address, _ route.Target) (Selection, error) {
