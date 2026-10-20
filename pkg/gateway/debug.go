@@ -15,6 +15,7 @@ type requestTrace struct {
 	gatewayID     string
 	gatewayName   string
 	method        string
+	host          string
 	path          string
 	contentLength int64
 	body          *countedRequestBody
@@ -26,6 +27,7 @@ func newRequestTrace(gatewayID, gatewayName string, w http.ResponseWriter, r *ht
 		gatewayID:     gatewayID,
 		gatewayName:   gatewayName,
 		method:        r.Method,
+		host:          r.Host,
 		path:          debugRequestPath(r),
 		contentLength: r.ContentLength,
 		writer:        &traceResponseWriter{ResponseWriter: w},
@@ -69,6 +71,7 @@ func (t *requestTrace) writeLog(start time.Time) {
 		"gateway", t.gatewayName,
 		"gateway_id", t.gatewayID,
 		"method", t.method,
+		"host", t.host,
 		"path", t.path,
 		"status", t.writer.status,
 		"request_content_length", t.contentLength,
