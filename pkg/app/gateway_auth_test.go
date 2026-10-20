@@ -10,8 +10,8 @@ func TestManagementRPCOriginPolicy(t *testing.T) {
 	policy := newManagementOriginPolicy()
 	cases := []struct {
 		name, peer, origin string
-		auth *Auth
-		allow bool
+		auth               *Auth
+		allow              bool
 	}{
 		{"local CLI", "127.0.0.1:1234", "", nil, true},
 		{"local browser", "127.0.0.1:1234", "http://localhost:50051", nil, true},
@@ -28,9 +28,9 @@ func TestManagementRPCOriginPolicy(t *testing.T) {
 		{"unexpected official port", "127.0.0.1:1234", "https://yuhaiin.github.io:444", nil, false},
 		{"opaque origin", "127.0.0.1:1234", "null", nil, false},
 		{"untrusted same-host DNS rebinding", "127.0.0.1:1234", "http://attacker.example", nil, false},
-		{"authenticated remote native client", "192.0.2.10:1234", "", NewAuth("a","b"), true},
-		{"authenticated remote same-origin", "192.0.2.10:1234", "http://127.0.0.1:50051", NewAuth("a","b"), true},
-		{"authenticated remote unrelated origin", "192.0.2.10:1234", "https://attacker.example", NewAuth("a","b"), false},
+		{"authenticated remote native client", "192.0.2.10:1234", "", NewAuth("a", "b"), true},
+		{"authenticated remote same-origin", "192.0.2.10:1234", "http://127.0.0.1:50051", NewAuth("a", "b"), true},
+		{"authenticated remote unrelated origin", "192.0.2.10:1234", "https://attacker.example", NewAuth("a", "b"), false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -109,7 +109,7 @@ func TestManagementOriginPreflight(t *testing.T) {
 	policy := newManagementOriginPolicy()
 	for _, tc := range []struct {
 		origin, peer string
-		status int
+		status       int
 	}{
 		{officialGatewayUIOrigin, "127.0.0.1:1234", http.StatusNoContent},
 		{"https://attacker.example", "127.0.0.1:1234", http.StatusForbidden},
@@ -135,18 +135,18 @@ func TestManagementOriginPreflight(t *testing.T) {
 func TestTrustedOriginValidation(t *testing.T) {
 	for _, tc := range []struct {
 		origins []string
-		valid bool
+		valid   bool
 	}{
-		{nil,true},
-		{[]string{"https://example.com","https://user.example:8443"},true},
-		{[]string{"http://localhost:5173"},true},
-		{[]string{"http://127.0.0.1:5173"},true},
-		{[]string{"http://example.com"},false},
-		{[]string{"https://*.example.com"},false},
-		{[]string{"https://example.com/path"},false},
-		{[]string{"https://example.com/?q=1"},false},
-		{[]string{"null"},false},
-		{[]string{"https://example.com","https://example.com"},false},
+		{nil, true},
+		{[]string{"https://example.com", "https://user.example:8443"}, true},
+		{[]string{"http://localhost:5173"}, true},
+		{[]string{"http://127.0.0.1:5173"}, true},
+		{[]string{"http://example.com"}, false},
+		{[]string{"https://*.example.com"}, false},
+		{[]string{"https://example.com/path"}, false},
+		{[]string{"https://example.com/?q=1"}, false},
+		{[]string{"null"}, false},
+		{[]string{"https://example.com", "https://example.com"}, false},
 	} {
 		err := validateTrustedOrigins(tc.origins)
 		if (err == nil) != tc.valid {
