@@ -3,6 +3,7 @@ package inbound
 import (
 	"context"
 	"errors"
+	"maps"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -29,6 +30,9 @@ func TestIngressStatisticsPersistAcrossReloadDisableRestartAndDelete(t *testing.
 	}
 	defer db.Close()
 	store := plainstore.NewInboundStore(db.DB())
+	if err := store.SaveSettings(ctx, plainstore.InboundSettings{}); err != nil {
+		t.Fatal(err)
+	}
 	newRuntime := func() (*Inbound, *ContractStore) {
 		t.Helper()
 		runtime := NewInbound(netapi.NewErrProxy(errors.New("no outbound")), WithIngressStatisticsStore(store))
@@ -120,9 +124,7 @@ func (s *failingIngressStore) LoadIngressStatistics(context.Context) (map[string
 		return nil, errors.New("read failed")
 	}
 	values := make(map[string]contract.IngressTotals)
-	for id, value := range s.values {
-		values[id] = value
-	}
+	maps.Copy(values, s.values)
 	return values, nil
 }
 
@@ -135,9 +137,7 @@ func (s *failingIngressStore) SaveIngressStatistics(_ context.Context, values ma
 	if s.values == nil {
 		s.values = make(map[string]contract.IngressTotals)
 	}
-	for id, value := range values {
-		s.values[id] = value
-	}
+	maps.Copy(s.values, values)
 	return nil
 }
 
