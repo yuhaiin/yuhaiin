@@ -30,6 +30,7 @@ type RuntimeStatus struct {
 	LastUsedAt       int64                  `json:"lastUsedAt"`
 	LastError        string                 `json:"lastError,omitempty"`
 	Probes           map[string]ProbeStatus `json:"probes,omitempty"`
+	Protocol         *ProtocolRuntimeStatus `json:"protocol,omitempty"`
 }
 
 // NodeRuntimeStatusProvider is an optional extension for protocol implementations
