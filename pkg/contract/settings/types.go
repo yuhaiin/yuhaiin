@@ -9,6 +9,7 @@ type Settings struct {
 	Logcat              Logcat          `json:"logcat"`
 	Advanced            AdvancedConfig  `json:"advanced"`
 	Backup              BackupReference `json:"backup"`
+	TrustedOrigins      []string        `json:"trustedOrigins"`
 }
 
 type SystemProxy struct {

@@ -165,6 +165,11 @@ func (s *InboundStore) Delete(ctx context.Context, id string) error {
 	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
 		return fmt.Errorf("%w: inbound %s", ErrNotFound, id)
 	}
+	// Statistics are runtime data and not part of config backups. A real
+	// inbound deletion, however, removes its counters in this transaction.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM inbound_statistics WHERE inbound_id=?`, id); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 

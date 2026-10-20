@@ -569,4 +569,33 @@ var migrations = []Migration{
 		`CREATE INDEX gateway_inbound_ref ON gateway_references(inbound_id)`,
 		`CREATE TABLE gateway_ca (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, certificate_pem BLOB NOT NULL, private_key_pem BLOB NOT NULL)`,
 	}},
+	{Version: 13, Name: "gateway_statistics", Statements: []string{
+		`CREATE TABLE gateway_statistics (
+			gateway_id TEXT PRIMARY KEY,
+			requests INTEGER NOT NULL DEFAULT 0,
+			blocked INTEGER NOT NULL DEFAULT 0,
+			forwarded INTEGER NOT NULL DEFAULT 0,
+			errors INTEGER NOT NULL DEFAULT 0,
+			tls_failures INTEGER NOT NULL DEFAULT 0,
+			protocol_failures INTEGER NOT NULL DEFAULT 0,
+			duration_ns INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL
+		)`,
+	}},
+	{Version: 14, Name: "inbound_ingress_statistics", Statements: []string{
+		`CREATE TABLE inbound_statistics (
+			inbound_id TEXT PRIMARY KEY,
+			accepted_streams INTEGER NOT NULL DEFAULT 0 CHECK(accepted_streams >= 0),
+			received_packets INTEGER NOT NULL DEFAULT 0 CHECK(received_packets >= 0),
+			received_pings INTEGER NOT NULL DEFAULT 0 CHECK(received_pings >= 0),
+			updated_at INTEGER NOT NULL
+		)`,
+	}},
+	{Version: 15, Name: "outbound_observability", Statements: []string{
+		`CREATE TABLE node_runtime_stats (
+			node_id TEXT PRIMARY KEY REFERENCES nodes_v2(id) ON DELETE CASCADE,
+			data_json TEXT NOT NULL CHECK(json_valid(data_json)),
+			updated_at INTEGER NOT NULL
+		)`,
+	}},
 }

@@ -30,6 +30,7 @@ const (
 	v2GatewayWorkspaceGet      v2Endpoint = "gateway.workspace.get"
 	v2GatewayWorkspacePut      v2Endpoint = "gateway.workspace.put"
 	v2GatewayStatus            v2Endpoint = "gateway.status"
+	v2GatewayStatisticsReset   v2Endpoint = "gateway.statistics.reset"
 	v2GatewayTest              v2Endpoint = "gateway.test"
 	v2GatewayCAStatus          v2Endpoint = "gateway.ca.status"
 	v2GatewayCAGenerate        v2Endpoint = "gateway.ca.generate"
@@ -66,6 +67,7 @@ const (
 	v2InboundCapabilities      v2Endpoint = "inbound.capabilities"
 	v2NodesActive              v2Endpoint = "nodes.active"
 	v2NodeUse                  v2Endpoint = "node.use"
+	v2NodeStatuses             v2Endpoint = "nodes.status"
 	v2NodeLatency              v2Endpoint = "node.latency"
 	v2NodeClose                v2Endpoint = "node.close"
 	v2NodeExtraInfo            v2Endpoint = "node.extra"
@@ -154,6 +156,7 @@ var v2Routes = []v2Route{
 	{v2GatewayWorkspaceGet, "GET /api/v2/gateway/workspace"},
 	{v2GatewayWorkspacePut, "PUT /api/v2/gateway/workspace"},
 	{v2GatewayStatus, "GET /api/v2/gateway/status"},
+	{v2GatewayStatisticsReset, "POST /api/v2/gateway/statistics/reset"},
 	{v2GatewayTest, "POST /api/v2/gateway/test"},
 	{v2GatewayCAStatus, "GET /api/v2/gateway/ca"},
 	{v2GatewayCAGenerate, "POST /api/v2/gateway/ca/generate"},
@@ -224,6 +227,7 @@ var v2Routes = []v2Route{
 	{v2NodePut, "PUT /api/v2/nodes/{id}"},
 	{v2NodeDelete, "DELETE /api/v2/nodes/{id}"},
 	{v2NodeUse, "POST /api/v2/nodes/{id}/use"},
+	{v2NodeStatuses, "POST /api/v2/nodes/status"},
 	{v2NodeLatency, "POST /api/v2/nodes/{id}/latency"},
 	{v2NodeClose, "POST /api/v2/nodes/{id}/close"},
 	{v2NodeExtraInfo, "GET /api/v2/nodes/{id}/extra"},

@@ -241,7 +241,14 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		interceptionOptions = append(interceptionOptions, inbound.WithInterceptor(router))
 	}
 	interceptionOptions = append(interceptionOptions, inbound.WithDNSAgent(fakedns), inbound.WithFakeIPRangeSource(fakedns))
+	if inboundConfigStore != nil {
+		interceptionOptions = append(interceptionOptions, inbound.WithIngressStatisticsStore(inboundConfigStore))
+	}
 	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))
+	if err := inbounds.RestoreStatistics(ctx); err != nil {
+		_ = closers.Close()
+		return nil, fmt.Errorf("restore inbound ingress statistics: %w", err)
+	}
 	dialer.SkipInterface = inbounds.Interfaces
 	// tools
 	tools := NewTools(logController)

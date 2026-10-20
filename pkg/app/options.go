@@ -180,7 +180,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	}
 
 	httpapi.RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
-		HandleFunc(app.Mux, app.Auth, pattern, guardGatewayManagement(app.Auth, pattern, handler))
+		handleRPCFunc(app.Mux, app.Auth, app.Setting.(*SettingsController).origins, pattern, handler)
 	}, httpapi.V2Services{
 		Gateway:          app.Gateway,
 		Settings:         app.Setting,
@@ -283,10 +283,20 @@ func (a *Auth) Auth(password, username string) bool {
 }
 
 func HandleFunc(mux *http.ServeMux, auth *Auth, path string, b func(http.ResponseWriter, *http.Request) error) {
+	handleFunc(mux, auth, nil, path, b)
+}
+
+func handleFunc(mux *http.ServeMux, auth *Auth, policy *managementOriginPolicy, path string, b func(http.ResponseWriter, *http.Request) error) {
 	mux.Handle(path, http.HandlerFunc(func(ow http.ResponseWriter, r *http.Request) {
 		w := &wrapResponseWriter{ow, false}
 
-		cross(r, w)
+		if policy != nil {
+			if !policy.authorize(auth, r) {
+				http.Error(w, "Management API requires a trusted Origin and authentication for remote clients", http.StatusForbidden)
+				return
+			}
+			cross(r, w)
+		}
 		// Browser CORS preflights never include Basic credentials. Handle them
 		// before authentication; the actual RPC request is still authenticated.
 		if r.Method == http.MethodOptions {
@@ -326,29 +336,16 @@ func HandleFunc(mux *http.ServeMux, auth *Auth, path string, b func(http.Respons
 }
 
 func cross(r *http.Request, w http.ResponseWriter) {
-	// origin := r.Header.Get("Origin")
-
-	// if os.Getenv("DEBUG_YUHAIIN") != "true" {
-	// 	if origin == "" {
-	// 		return
-	// 	}
-
-	// 	if origin != "https://yuhaiin.github.io" &&
-	// 		!strings.HasPrefix(origin, "http://127.0.0.1") &&
-	// 		!strings.HasPrefix(origin, "http://localhost") {
-	// 		return
-	// 	}
-	// } else {
-	// 	origin = "*"
-	// }
-
-	origin := "*"
-
-	w.Header().Set("Access-Control-Allow-Origin", origin)
-	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, PATCH, OPTIONS, HEAD")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Token, Authorization")
-	w.Header().Set("Access-Control-Expose-Headers", "Access-Control-Allow-Headers, Token, Authorization")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	// Only validated browser origins reach this point. Echo the exact origin
+	// instead of mixing an unrestricted wildcard with credentialed requests.
+	if origin := r.Header.Get("Origin"); origin != "" {
+		w.Header().Add("Vary", "Origin")
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+	}
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.Header().Set("Access-Control-Expose-Headers", "Authorization")
 }
 
 type wrapResponseWriter struct {

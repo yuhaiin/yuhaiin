@@ -31,6 +31,10 @@ var _ netapi.Handler = (*Inbound)(nil)
 type Inbound struct {
 	states              map[string]runtimeState
 	eventID             uint64
+	statisticsStore     IngressStatisticsStore
+	statisticsLastSaved map[string]contract.IngressTotals
+	countersByID        map[string]*ingressCounters
+	statisticsDone      chan struct{}
 	fakeIPSource        FakeIPRangeSource
 	fakeIPRanges        [2]netip.Prefix
 	unsubscribeFakeIP   func()
@@ -277,7 +281,7 @@ type ingressCounters struct {
 	pings   atomic.Uint64
 }
 
-// ListenerSnapshot exposes ingress counts since this listener was created.
+// ListenerSnapshot exposes cumulative ingress for the active listener's ID.
 // Registration and past ingress do not establish current end-to-end forwarding.
 func (l *Inbound) ListenerSnapshot(id string) (registered bool, streams, packets, pings uint64) {
 	l.mu.RLock()
@@ -350,7 +354,14 @@ func (l *Inbound) SaveContract(req contract.Inbound) (result error) {
 		return nil
 	}
 
-	counters := &ingressCounters{}
+	if l.countersByID == nil {
+		l.countersByID = make(map[string]*ingressCounters)
+	}
+	counters := l.countersByID[key]
+	if counters == nil {
+		counters = new(ingressCounters)
+		l.countersByID[key] = counters
+	}
 	server, err := listenContract(req, &handlerWrap{id: req.ID, name: req.Name, handler: l, counters: counters}, l.fakeIPRanges)
 	if err != nil {
 		log.Error("start contract server failed", "name", req.Name, "id", req.ID, "err", err)
@@ -387,6 +398,10 @@ func (l *Inbound) Interfaces() *set.Set[string] {
 func (l *Inbound) Remove(name string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	return l.removeLocked(name)
+}
+
+func (l *Inbound) removeLocked(name string) error {
 	result := l.retryRouteCleanup()
 	l.recordState(name, "stopping", "")
 	defer delete(l.states, name)
@@ -421,6 +436,11 @@ func (l *Inbound) Close() error {
 	if l.unsubscribeFakeIP != nil {
 		l.unsubscribeFakeIP()
 	}
+	// Stop the background writer before the final flush and before SQLite closes.
+	l.close()
+	if l.statisticsDone != nil {
+		<-l.statisticsDone
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.closed {
@@ -428,7 +448,6 @@ func (l *Inbound) Close() error {
 	}
 	l.closed = true
 	result := l.retryRouteCleanup()
-	l.close()
 	for k, v := range l.store.Range {
 		l.recordState(k, "stopping", "")
 		log.Info("start close server", "name", k)
@@ -442,7 +461,9 @@ func (l *Inbound) Close() error {
 		log.Info("closed server", "name", k)
 	}
 	l.refreshInterfaces()
-	return errors.Join(result, l.handler.Close())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return errors.Join(result, l.handler.Close(), l.flushStatisticsLocked(ctx))
 }
 
 type handlerWrap struct {
