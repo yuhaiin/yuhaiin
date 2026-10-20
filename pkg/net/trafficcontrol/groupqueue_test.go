@@ -26,11 +26,12 @@ func TestGroupedFairQueueHostIsolationFromFlowMultiplication(t *testing.T) {
 		if !ok || len(drops) > 0 {
 			t.Fatalf("unexpected drop: %t %d", ok, len(drops))
 		}
-		if v == 1 {
+		switch v {
+		case 1:
 			one++
-		} else if v == 2 {
+		case 2:
 			two++
-		} else {
+		default:
 			t.Fatal("corrupt packet")
 		}
 	}
