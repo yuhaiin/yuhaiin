@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
+	inbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 func TestNativeTCPHandlerOwnsStream(t *testing.T) {
-	host, ca, server, _ := newTestServer(t, "")
 	handler := netapi.NewChannelHandler(t.Context())
-	server.core.handler = handler
+	host, ca, _ := newTestServerWithHandler(t, "127.0.0.1:0", "", inbound.Hysteria2Protocol{}, handler)
 	client := testClient(t, host, ca, "")
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
