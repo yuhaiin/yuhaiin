@@ -31,3 +31,23 @@ func TestOutputFlowHashIPv6ExtensionPorts(t *testing.T) {
 		t.Fatal("fragment fields must not break the shared fragment bucket")
 	}
 }
+
+
+func TestOutputPacketWeightBoundedControlClass(t *testing.T) {
+	p:=&ownedBuffer{data:make([]byte,40)}
+	b:=p.data
+	b[0]=0x45
+	b[9]=6
+	b[32]=0x50
+	b[33]=0x10
+	if got:=outputPacketWeight(p);got!=4 {t.Fatalf("pure TCP ACK weight=%d",got)}
+	b=append(b,0x01,0x02)
+	p.data=b
+	if got:=outputPacketWeight(p);got!=1 {t.Fatalf("bulk TCP payload weight=%d",got)}
+	b[33]=0x02 // SYN
+	if got:=outputPacketWeight(p);got!=4 {t.Fatalf("TCP SYN weight=%d",got)}
+	b[9]=17 // ordinary UDP
+	if got:=outputPacketWeight(p);got!=1 {t.Fatalf("UDP bypass weight=%d",got)}
+	b[9]=1
+	if got:=outputPacketWeight(p);got!=2 {t.Fatalf("ICMP weight=%d",got)}
+}

@@ -50,9 +50,9 @@ func TestRelayShapedPreservesPayloadAndTerminates(t *testing.T) {
 }
 func TestRelayShapedCanceledStreamDoesNotHang(t *testing.T) {
 	manager := trafficcontrol.NewManager()
-	manager.Apply(trafficcontrol.Config{Enabled: true, Global: trafficcontrol.Profile{
+	if err := manager.Apply(trafficcontrol.Config{Enabled: true, Global: trafficcontrol.Profile{
 		Upload: trafficcontrol.Rate{BytesPerSecond: 1, BurstBytes: 1},
-	}})
+	}}); err != nil { t.Fatal(err) }
 	ctx, cancel := context.WithCancel(t.Context())
 	client, front := net.Pipe()
 	back, remote := net.Pipe()

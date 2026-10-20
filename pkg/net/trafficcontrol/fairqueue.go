@@ -27,6 +27,7 @@ type FairStats struct {
 type queued[T any] struct {
 	value T
 	bytes int
+	weight int
 	at    time.Time
 }
 
@@ -119,6 +120,12 @@ func (q *FairQueue[T]) moveToBack(f *fairFlow[T]) {
 }
 
 func (q *FairQueue[T]) Push(key uint64, size int, value T, at time.Time) bool {
+	return q.PushWeighted(key,size,value,at,1)
+}
+
+// PushWeighted provides bounded service differentiation without strict
+// priority starvation. A weight is clamped to [1,4] and applies per flow.
+func (q *FairQueue[T]) PushWeighted(key uint64, size int, value T, at time.Time, weight int) bool {
 	if size <= 0 {
 		return false
 	}
@@ -141,7 +148,7 @@ func (q *FairQueue[T]) Push(key uint64, size int, value T, at time.Time) bool {
 		f.packets = f.packets[:n]
 		f.head = 0
 	}
-	f.packets = append(f.packets, queued[T]{value: value, bytes: size, at: at})
+	f.packets = append(f.packets, queued[T]{value: value, bytes: size, weight: min(4,max(1,weight)), at: at})
 	q.count++
 	q.bytes += int64(size)
 	select {
@@ -198,7 +205,8 @@ func (q *FairQueue[T]) Pop(now time.Time) (value T, ok bool, dropped []T) {
 				// frames without changing byte fairness under contention.
 				f.deficit = p.bytes
 			} else {
-				f.deficit += q.cfg.Quantum
+				// Bounded weights preserve a minimum service share for bulk flows.
+				f.deficit += q.cfg.Quantum * p.weight
 				q.moveToBack(f)
 				continue
 			}

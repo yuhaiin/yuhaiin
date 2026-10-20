@@ -322,7 +322,7 @@ func (s *Stack) emitOwned(packet *ownedBuffer) error {
 		return net.ErrClosed
 	}
 	if s.fairOutput != nil {
-		if s.fairOutput.Push(outputFlowHash(packet), len(packet.data)-packet.offset, packet, time.Now()) {
+		if s.fairOutput.PushWeighted(outputFlowHash(packet), len(packet.data)-packet.offset, packet, time.Now(), outputPacketWeight(packet)) {
 			return nil
 		}
 		return ErrLimit

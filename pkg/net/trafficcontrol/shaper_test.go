@@ -89,7 +89,7 @@ func TestProfilesRoutePrecedenceAndSnapshotValidation(t *testing.T) {
 	if m.Config().InboundProfiles["a"] != "restricted" {
 		t.Fatal("mutable external map modified published policy")
 	}
-	m.Apply(Config{})
+	if err := m.Apply(Config{}); err != nil { t.Fatal(err) }
 	if m.Resolve("a", "r1").Enabled(Upload) {
 		t.Fatal("disabled policy still applied")
 	}
@@ -110,7 +110,7 @@ func TestShapedWriterPacingAndCancel(t *testing.T) {
 		t.Fatalf("writer result=%d err=%v len=%d", n, err, buf.Len())
 	}
 	one := NewManager()
-	one.Apply(Config{Enabled: true, Global: Profile{Upload: Rate{BytesPerSecond: 1, BurstBytes: 1}}})
+	if err := one.Apply(Config{Enabled: true, Global: Profile{Upload: Rate{BytesPerSecond: 1, BurstBytes: 1}}}); err != nil { t.Fatal(err) }
 	stop, abort := context.WithCancel(t.Context())
 	abort()
 	n, err = ShapedWriter{Writer: io.Discard, Context: stop, Policy: one.Resolve("", ""), Direction: Upload}.Write(content)
@@ -157,7 +157,7 @@ func BenchmarkDatagramPolicyUnlimited(b *testing.B) {
 }
 func BenchmarkPolicyResolve(b *testing.B) {
 	m := NewManager()
-	m.Apply(Config{Enabled: true, Profiles: map[string]Profile{"normal": {Upload: Rate{BytesPerSecond: 1 << 40, BurstBytes: 1 << 20}}}, InboundProfiles: map[string]string{"mixed": "normal"}})
+	if err := m.Apply(Config{Enabled: true, Profiles: map[string]Profile{"normal": {Upload: Rate{BytesPerSecond: 1 << 40, BurstBytes: 1 << 20}}}, InboundProfiles: map[string]string{"mixed": "normal"}}); err != nil { b.Fatal(err) }
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		_ = m.Resolve("mixed", "")
