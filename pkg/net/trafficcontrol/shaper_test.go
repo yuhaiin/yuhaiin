@@ -170,7 +170,9 @@ func TestCanceledPacingDoesNotConsumeFutureQuota(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := m.Resolve("", "")
-	if !p.AllowDatagram(Upload, 1) { t.Fatal("initial burst") }
+	if !p.AllowDatagram(Upload, 1) {
+		t.Fatal("initial burst")
+	}
 	limiter := p.up[0]
 	limiter.mu.Lock()
 	before := limiter.next
@@ -182,13 +184,16 @@ func TestCanceledPacingDoesNotConsumeFutureQuota(t *testing.T) {
 	cancel()
 	select {
 	case err := <-done:
-		if !errors.Is(err, context.Canceled) { t.Fatalf("wait returned %v",err) }
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("wait returned %v", err)
+		}
 	case <-time.After(time.Second):
 		t.Fatal("cancelled paced write did not stop")
 	}
 	limiter.mu.Lock()
 	after := limiter.next
 	limiter.mu.Unlock()
-	if !after.Equal(before) {t.Fatalf("cancellation reserved future quota: before=%v after=%v",before,after)}
+	if !after.Equal(before) {
+		t.Fatalf("cancellation reserved future quota: before=%v after=%v", before, after)
+	}
 }
-

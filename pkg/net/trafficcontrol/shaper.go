@@ -132,31 +132,55 @@ func (p Policy) AllowDatagram(direction Direction, bytes int) bool {
 // context cancellation leaves no virtual-time debt that would starve other
 // healthy streams. TCP backpressure keeps only the current write buffer live.
 func (p Policy) WaitBytes(ctx context.Context, direction Direction, bytes int) error {
-	if bytes <= 0 {return nil}
-	limits:=p.scopes(direction)
+	if bytes <= 0 {
+		return nil
+	}
+	limits := p.scopes(direction)
 	for {
-		if err:=ctx.Err();err!=nil{return err}
-		for _,l:=range limits {if l!=nil {l.mu.Lock()}}
-		now:=time.Now()
-		ready:=now
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		for _, l := range limits {
+			if l != nil {
+				l.mu.Lock()
+			}
+		}
+		now := time.Now()
+		ready := now
 		var next [4]time.Time
-		valid:=true
-		for i,l:=range limits {
-			if l==nil {continue}
-			if int64(bytes)>l.burst {
-				valid=false
+		valid := true
+		for i, l := range limits {
+			if l == nil {
+				continue
+			}
+			if int64(bytes) > l.burst {
+				valid = false
 				break
 			}
-			next[i]=l.nextAt(now,int64(bytes))
-			if next[i].After(ready) {ready=next[i]}
+			next[i] = l.nextAt(now, int64(bytes))
+			if next[i].After(ready) {
+				ready = next[i]
+			}
 		}
 		if valid && !ready.After(now) {
-			for i,l:=range limits {if l!=nil {l.next=next[i]}}
+			for i, l := range limits {
+				if l != nil {
+					l.next = next[i]
+				}
+			}
 		}
-		for i:=len(limits)-1;i>=0;i-- {if limits[i]!=nil {limits[i].mu.Unlock()}}
-		if !valid{return ErrRateLimited}
-		if !ready.After(now) {return ctx.Err()}
-		timer:=time.NewTimer(time.Until(ready))
+		for i := len(limits) - 1; i >= 0; i-- {
+			if limits[i] != nil {
+				limits[i].mu.Unlock()
+			}
+		}
+		if !valid {
+			return ErrRateLimited
+		}
+		if !ready.After(now) {
+			return ctx.Err()
+		}
+		timer := time.NewTimer(time.Until(ready))
 		select {
 		case <-timer.C:
 			timer.Stop()
