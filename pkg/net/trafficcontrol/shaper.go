@@ -74,6 +74,16 @@ func (l *Limiter) nextAt(now time.Time, n int64) time.Time {
 // created these pointers remains alive for the lifetime of a flow.
 type Policy struct {
 	up, down [4]*Limiter
+	usage *shapingUsage
+}
+
+func (p Policy) admitted(d Direction,n int) {
+	if p.usage==nil||n<=0{return}
+	if d==Download{p.usage.acceptedDown.Add(uint64(n))}else{p.usage.acceptedUp.Add(uint64(n))}
+}
+func (p Policy) rejected(d Direction) {
+	if p.usage==nil{return}
+	if d==Download{p.usage.rejectedDown.Add(1)}else{p.usage.rejectedUp.Add(1)}
 }
 
 func (p Policy) scopes(direction Direction) [4]*Limiter {
@@ -112,10 +122,12 @@ func (p Policy) AllowDatagram(direction Direction, bytes int) bool {
 		// Datagram admission cannot wait for a future slot, or request
 		// more bytes than a bucket can hold in one instant.
 		if int64(bytes) > l.burst {
+			p.rejected(direction)
 			return false
 		}
 		next[i] = l.nextAt(now, int64(bytes))
 		if next[i].After(now) {
+			p.rejected(direction)
 			return false
 		}
 	}
@@ -124,6 +136,7 @@ func (p Policy) AllowDatagram(direction Direction, bytes int) bool {
 			l.next = next[i]
 		}
 	}
+	p.admitted(direction,bytes)
 	return true
 }
 
@@ -136,6 +149,7 @@ func (p Policy) WaitBytes(ctx context.Context, direction Direction, bytes int) e
 		return nil
 	}
 	limits := p.scopes(direction)
+	started:=time.Now()
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -178,7 +192,10 @@ func (p Policy) WaitBytes(ctx context.Context, direction Direction, bytes int) e
 			return ErrRateLimited
 		}
 		if !ready.After(now) {
-			return ctx.Err()
+			if err:=ctx.Err();err!=nil{return err}
+			p.admitted(direction,bytes)
+			if p.usage!=nil {p.usage.waitNanos.Add(uint64(time.Since(started)))}
+			return nil
 		}
 		timer := time.NewTimer(time.Until(ready))
 		select {

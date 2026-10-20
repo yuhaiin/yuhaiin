@@ -49,7 +49,18 @@ type policySnapshot struct {
 	inbound, route   map[string]compiledPair
 }
 
+type shapingUsage struct { acceptedUp,acceptedDown,rejectedUp,rejectedDown,waitNanos atomic.Uint64 }
+
+type Usage struct {
+	AdmittedUploadBytes uint64 `json:"admittedUploadBytes"`
+	AdmittedDownloadBytes uint64 `json:"admittedDownloadBytes"`
+	RejectedUploadDatagrams uint64 `json:"rejectedUploadDatagrams"`
+	RejectedDownloadDatagrams uint64 `json:"rejectedDownloadDatagrams"`
+	PacingWaitNanos uint64 `json:"pacingWaitNanos"`
+}
+
 type Manager struct {
+	usage shapingUsage
 	// An immutable snapshot replaces every configuration atomically; old
 	// stream references retain their old shaper state to avoid resetting
 	// debt or altering in-flight transport behavior.
@@ -147,6 +158,13 @@ func (m *Manager) Apply(c Config) error {
 	return nil
 }
 
+func (m *Manager) Usage() Usage {
+	if m==nil{return Usage{}}
+	return Usage{AdmittedUploadBytes:m.usage.acceptedUp.Load(),AdmittedDownloadBytes:m.usage.acceptedDown.Load(),
+		RejectedUploadDatagrams:m.usage.rejectedUp.Load(),RejectedDownloadDatagrams:m.usage.rejectedDown.Load(),
+		PacingWaitNanos:m.usage.waitNanos.Load()}
+}
+
 func (m *Manager) Resolve(inboundID, routeID string) Policy {
 	if m == nil {
 		return Policy{}
@@ -155,7 +173,7 @@ func (m *Manager) Resolve(inboundID, routeID string) Policy {
 	if s == nil || !s.config.Enabled {
 		return Policy{}
 	}
-	p := Policy{}
+	p := Policy{usage:&m.usage}
 	inbound, hasInbound := s.inbound[inboundID]
 	rule, hasRule := s.route[routeID]
 	// The fallback group applies only when neither identity is bound.

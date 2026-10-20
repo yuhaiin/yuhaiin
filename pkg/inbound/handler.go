@@ -184,7 +184,7 @@ func (s *handler) Ping(ctx context.Context, pack *netapi.PingMeta) {
 // TrafficStatus is a bounded, low-cardinality snapshot, not a flow-level
 // telemetry feed. An inbound scope is a trusted configuration identity.
 func (s *handler) TrafficStatus() trafficcontrol.Status {
-	st := trafficcontrol.Status{Global: s.globalBudget.Snapshot(), NAT: s.table.ResourceStats()}
+	st := trafficcontrol.Status{Global: s.globalBudget.Snapshot(), NAT: s.table.ResourceStats(), Shaping: s.qos.Usage()}
 	s.streamScopes.Range(func(key, value any) bool {
 		if len(st.InboundScopes) >= 64 {
 			st.Truncated = true
