@@ -244,12 +244,15 @@ func (m *Manager) prepare(config contract.Config) (*snapshot, error) {
 			return nil, fmt.Errorf("gateway %s: %w", g.ID, err)
 		}
 		entry := &gatewayRuntime{engine: engine}
+		restored, shouldRestore := m.restoredStatistics[g.ID]
 		if previous := m.current.Load(); previous != nil {
 			if old := previous.gateways[g.ID]; old != nil {
 				engine.Counters = old.engine.Counters
-			} else if restored, ok := m.restoredStatistics[g.ID]; ok {
-				engine.Counters.restoreStatistics(restored)
+				shouldRestore = false
 			}
+		}
+		if shouldRestore {
+			engine.Counters.restoreStatistics(restored)
 		}
 		s.gateways[g.ID] = entry
 		for _, source := range g.AllowedSources {
