@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"time"
 	"testing"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
@@ -154,5 +155,71 @@ func TestNodeUnknownStatusDoesNotProbe(t *testing.T) {
 	statuses, err := r.Statuses(t.Context(), []string{node.ID, "not-here", node.ID})
 	if err != nil || len(statuses) != 1 || statuses[0].State != "unknown" {
 		t.Fatalf("statuses: %+v %v", statuses, err)
+	}
+}
+
+func TestObservedNodeUDPPayloadAndPackets(t *testing.T) {
+	a, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	b, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	_ = a.SetDeadline(time.Now().Add(3 * time.Second))
+	_ = b.SetDeadline(time.Now().Add(3 * time.Second))
+	counters := new(nodeCounters)
+	proxy := &observedProxy{
+		Proxy: observedTestProxy{
+			connect: func() (net.Conn, error) { return nil, errors.New("tcp disabled") },
+			packet:  func() (net.PacketConn, error) { return a, nil },
+		},
+		c: counters,
+	}
+	conn, err := proxy.PacketConn(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.WriteTo([]byte("hello"), b.LocalAddr()); err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, 128)
+	n, _, err := b.ReadFrom(buf)
+	if err != nil || string(buf[:n]) != "hello" {
+		t.Fatalf("udp send: %q %v", buf[:n], err)
+	}
+	if _, err := b.WriteTo([]byte("reply"), a.LocalAddr()); err != nil {
+		t.Fatal(err)
+	}
+	n, _, err = conn.ReadFrom(buf)
+	if err != nil || string(buf[:n]) != "reply" {
+		t.Fatalf("udp receive: %q %v", buf[:n], err)
+	}
+	snapshot := counters.snapshot()
+	if snapshot.UDPSentPackets != 1 || snapshot.UDPRecvPackets != 1 ||
+		snapshot.UploadBytes != 5 || snapshot.DownloadBytes != 5 ||
+		snapshot.UDPSessions != 1 {
+		t.Fatalf("incorrect UDP payload stats: %+v", snapshot)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if counters.activeUDP.Load() != 0 {
+		t.Fatalf("closed UDP session remains active: %d", counters.activeUDP.Load())
+	}
+}
+
+func TestOutboundHealthExpiresAndProbeFailureAppears(t *testing.T) {
+	counters := new(nodeCounters)
+	counters.lastSuccess.Store(time.Now().Add(-5 * time.Minute).UnixNano())
+	if got := counters.status("expired"); got.State != "unknown" {
+		t.Fatalf("stale healthy state should expire: %+v", got)
+	}
+	counters.probe("tcp", contract.LatencyResponse{OK: false}, nil)
+	if got := counters.status("expired"); got.State != "degraded" || got.LastError == "" {
+		t.Fatalf("failed test did not update health state: %+v", got)
 	}
 }
