@@ -87,7 +87,7 @@ func TestConfigureAndroidTUNEnablesPersistedInbound(t *testing.T) {
 		MTU:      1500,
 		Portal:   "10.0.0.1/24",
 		PortalV6: "fd00::1/64",
-	}, "channel", "", ""); err != nil {
+	}, "channel", "", "", ""); err != nil {
 		t.Fatalf("configure Android TUN: %v", err)
 	}
 
@@ -149,18 +149,21 @@ func TestStopCancelsStartupBeforeWaitingForLifecycleLock(t *testing.T) {
 
 func TestConfigureAndroidTUNStackSelection(t *testing.T) {
 	for _, tc := range []struct {
-		name, stack, cc, driver       string
-		wantStack, wantCC, wantDriver string
-		wantErr                       bool
+		name, stack, cc, scheduler, driver                     string
+		wantStack, wantCC, wantScheduler, wantDriver            string
+		wantErr                                                 bool
 	}{
 		{name: "legacy", driver: TunDriverSystemGvisorValue, wantDriver: TunDriverSystemGvisorValue},
-		{name: "legacy ignores remembered algorithm", driver: TunDriverFdbasedValue, cc: "bbr", wantDriver: TunDriverFdbasedValue},
-		{name: "lightweight defaults to CUBIC", driver: TunDriverSystemGvisorValue, stack: "lightweight", wantStack: "lightweight", wantDriver: TunDriverChannelValue},
+		{name: "legacy ignores remembered options", driver: TunDriverFdbasedValue, cc: "bbr", scheduler: "fq_codel", wantDriver: TunDriverFdbasedValue},
+		{name: "lightweight defaults to CUBIC and FIFO", driver: TunDriverSystemGvisorValue, stack: "lightweight", wantStack: "lightweight", wantDriver: TunDriverChannelValue},
 		{name: "lightweight Reno", driver: TunDriverFdbasedValue, stack: "lightweight", cc: "reno", wantStack: "lightweight", wantCC: "reno", wantDriver: TunDriverChannelValue},
 		{name: "lightweight CUBIC", driver: TunDriverFdbasedValue, stack: "lightweight", cc: "cubic", wantStack: "lightweight", wantCC: "cubic", wantDriver: TunDriverChannelValue},
 		{name: "lightweight BBR", driver: TunDriverFdbasedValue, stack: "lightweight", cc: "bbr", wantStack: "lightweight", wantCC: "bbr", wantDriver: TunDriverChannelValue},
+		{name: "lightweight explicit FIFO", driver: TunDriverSystemGvisorValue, stack: "lightweight", scheduler: "fifo", wantStack: "lightweight", wantScheduler: "fifo", wantDriver: TunDriverChannelValue},
+		{name: "lightweight FQ-CoDel", driver: TunDriverSystemGvisorValue, stack: "lightweight", scheduler: "fq_codel", wantStack: "lightweight", wantScheduler: "fq_codel", wantDriver: TunDriverChannelValue},
 		{name: "unknown stack", driver: TunDriverFdbasedValue, stack: "broken", wantErr: true},
 		{name: "unknown algorithm", driver: TunDriverFdbasedValue, stack: "lightweight", cc: "broken", wantErr: true},
+		{name: "unknown scheduler", driver: TunDriverFdbasedValue, stack: "lightweight", scheduler: "broken", wantErr: true},
 		{name: "invalid lightweight MTU", driver: TunDriverFdbasedValue, stack: "lightweight", cc: "cubic", wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -176,7 +179,7 @@ func TestConfigureAndroidTUNStackSelection(t *testing.T) {
 			}
 			err := configureAndroidTUN(ctx, state, &TUN{
 				FD: 42, MTU: mtu, Portal: "10.0.0.1/24", PortalV6: "fd00::1/64",
-			}, tc.driver, tc.stack, tc.cc)
+			}, tc.driver, tc.stack, tc.cc, tc.scheduler)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("invalid TUN selection was accepted")
@@ -203,9 +206,11 @@ func TestConfigureAndroidTUNStackSelection(t *testing.T) {
 					t.Fatal("nil TUN protocol")
 				}
 				got := in.Protocol.Tun
-				if got.Stack != tc.wantStack || got.CongestionControl != tc.wantCC || got.Driver != tc.wantDriver {
-					t.Fatalf("TUN selection: stack=%q cc=%q driver=%q; want %q %q %q",
-						got.Stack, got.CongestionControl, got.Driver, tc.wantStack, tc.wantCC, tc.wantDriver)
+				if got.Stack != tc.wantStack || got.CongestionControl != tc.wantCC ||
+					got.OutputScheduler != tc.wantScheduler || got.Driver != tc.wantDriver {
+					t.Fatalf("TUN selection: stack=%q cc=%q scheduler=%q driver=%q; want %q %q %q %q",
+						got.Stack, got.CongestionControl, got.OutputScheduler, got.Driver,
+						tc.wantStack, tc.wantCC, tc.wantScheduler, tc.wantDriver)
 				}
 				found = true
 			}
@@ -226,10 +231,10 @@ func TestConfigureAndroidTUNCanReturnToLegacy(t *testing.T) {
 		t.Fatal(err)
 	}
 	tun := &TUN{FD: 42, MTU: 1500, Portal: "10.0.0.1/24", PortalV6: "fd00::1/64"}
-	if err := configureAndroidTUN(ctx, state, tun, TunDriverFdbasedValue, "lightweight", "bbr"); err != nil {
+	if err := configureAndroidTUN(ctx, state, tun, TunDriverFdbasedValue, "lightweight", "bbr", "fq_codel"); err != nil {
 		t.Fatal(err)
 	}
-	if err := configureAndroidTUN(ctx, state, tun, TunDriverSystemGvisorValue, "", "bbr"); err != nil {
+	if err := configureAndroidTUN(ctx, state, tun, TunDriverSystemGvisorValue, "", "bbr", "fq_codel"); err != nil {
 		t.Fatal(err)
 	}
 	db, err := state.SQLDB(ctx)
@@ -245,7 +250,7 @@ func TestConfigureAndroidTUNCanReturnToLegacy(t *testing.T) {
 			continue
 		}
 		got := in.Protocol.Tun
-		if got == nil || got.Stack != "" || got.CongestionControl != "" || got.Driver != TunDriverSystemGvisorValue {
+		if got == nil || got.Stack != "" || got.CongestionControl != "" || got.OutputScheduler != "" || got.Driver != TunDriverSystemGvisorValue {
 			t.Fatalf("legacy TUN was not restored: %+v", got)
 		}
 		return
