@@ -70,10 +70,17 @@ func (s *ContractStore) Save(ctx context.Context, inbound contract.Inbound, upda
 }
 
 func (s *ContractStore) Delete(ctx context.Context, id string) error {
+	// Serialize the SQLite delete with the periodic ingress flush. Otherwise
+	// a stale snapshot could recreate statistics after the inbound is removed.
+	s.runtime.mu.Lock()
+	defer s.runtime.mu.Unlock()
 	if err := s.store.Delete(ctx, id); err != nil {
 		return err
 	}
-	return s.runtime.Remove(id)
+	err := s.runtime.removeLocked(id)
+	delete(s.runtime.countersByID, id)
+	delete(s.runtime.statisticsLastSaved, id)
+	return err
 }
 
 func (s *ContractStore) Settings(ctx context.Context) (plainstore.InboundSettings, error) {
