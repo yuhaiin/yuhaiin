@@ -186,7 +186,7 @@ func (q *FairQueue[T]) remove(f *fairFlow[T]) (queued[T], bool) {
 		// A detached flow has no outstanding item references; recycle its
 		// descriptor and the small queue backing slice on the next admission.
 		arr := f.packets[:0]
-		if cap(arr) > 16 {
+		if cap(arr) > min(128, q.cfg.MaxPackets) {
 			arr = nil
 		}
 		*f = fairFlow[T]{packets: arr}
@@ -195,9 +195,9 @@ func (q *FairQueue[T]) remove(f *fairFlow[T]) (queued[T], bool) {
 	}
 	if f.head > 64 && f.head >= len(f.packets)/2 {
 		active := len(f.packets) - f.head
-		next := make([]queued[T], active)
-		copy(next, f.packets[f.head:])
-		f.packets, f.head = next, 0
+		copy(f.packets, f.packets[f.head:])
+		clear(f.packets[active:])
+		f.packets, f.head = f.packets[:active], 0
 	}
 	return p, true
 }

@@ -42,10 +42,15 @@ func NewGroupedFairQueue[T any](cfg FairConfig) *GroupedFairQueue[T] {
 	}
 }
 func (q *GroupedFairQueue[T]) Notify() <-chan struct{} { return q.notify }
-func (q *GroupedFairQueue[T]) HasCapacity() bool       { return q.hasCapacity(0) }
-func (q *GroupedFairQueue[T]) hasCapacity(bytes int) bool {
+func (q *GroupedFairQueue[T]) HasCapacity() bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	return q.hasCapacity(0)
+}
+
+// Core methods below require exclusive ownership, supplied by mu for public
+// operations or by fairOutput.mu for the production output adapter.
+func (q *GroupedFairQueue[T]) hasCapacity(bytes int) bool {
 	if q.packets == 0 {
 		return int64(bytes) <= q.cfg.MaxBytes
 	}
@@ -148,6 +153,9 @@ func (q *GroupedFairQueue[T]) push(group, flow uint64, size int, v T, at time.Ti
 func (q *GroupedFairQueue[T]) Admit(group, flow uint64, size int, v T, at time.Time, weight int) (bool, []T) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	return q.admit(group, flow, size, v, at, weight)
+}
+func (q *GroupedFairQueue[T]) admit(group, flow uint64, size int, v T, at time.Time, weight int) (bool, []T) {
 	if size <= 0 || int64(size) > q.cfg.MaxBytes {
 		q.rejected++
 		return false, nil
@@ -199,6 +207,9 @@ func (q *GroupedFairQueue[T]) Admit(group, flow uint64, size int, v T, at time.T
 func (q *GroupedFairQueue[T]) Pop(now time.Time) (out T, ok bool, dropped []T) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	return q.pop(now)
+}
+func (q *GroupedFairQueue[T]) pop(now time.Time) (out T, ok bool, dropped []T) {
 	for q.head != nil {
 		g := q.head
 		if g.deficit <= 0 {
@@ -243,6 +254,9 @@ func (q *GroupedFairQueue[T]) Pop(now time.Time) (out T, ok bool, dropped []T) {
 func (q *GroupedFairQueue[T]) Drain() []T {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	return q.drain()
+}
+func (q *GroupedFairQueue[T]) drain() []T {
 	out := make([]T, 0, q.packets)
 	for q.head != nil {
 		g := q.head
@@ -257,6 +271,9 @@ func (q *GroupedFairQueue[T]) Drain() []T {
 func (q *GroupedFairQueue[T]) Stats() FairStats {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	return q.stats()
+}
+func (q *GroupedFairQueue[T]) stats() FairStats {
 	return FairStats{
 		Packets: q.packets, Bytes: q.bytes, Flows: len(q.groups),
 		Rejected: q.rejected, DroppedAQM: q.dropped, DroppedOverload: q.overloadDropped, Dequeued: q.dequeued,

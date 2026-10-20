@@ -79,13 +79,13 @@ func (q *fairOutput[T]) Enqueue(v T) bool {
 	}
 	if q.hasSingle {
 		c := q.options.Classify(q.single)
-		q.queue.Push(c.Host, c.Flow, q.singleSize, q.single, q.singleAt, c.Weight)
+		q.queue.push(c.Host, c.Flow, q.singleSize, q.single, q.singleAt, c.Weight)
 		var zero T
 		q.single = zero
 		q.hasSingle = false
 	}
 	c := q.options.Classify(v)
-	accepted, drops := q.queue.Admit(c.Host, c.Flow, size, v, time.Now(), c.Weight)
+	accepted, drops := q.queue.admit(c.Host, c.Flow, size, v, time.Now(), c.Weight)
 	q.mu.Unlock()
 	for _, drop := range drops {
 		q.options.Release(drop)
@@ -113,7 +113,7 @@ func (q *fairOutput[T]) Dequeue(done <-chan struct{}, wait bool) (value T, ok bo
 			}
 			q.queue.dequeued++
 		case q.queue.packets > 0:
-			value, ok, drops = q.queue.Pop(time.Now())
+			value, ok, drops = q.queue.pop(time.Now())
 		}
 		if q.queue.packets == 0 && !q.hasSingle {
 			select {
@@ -149,7 +149,7 @@ func (q *fairOutput[T]) HasCapacity(bytes int) bool {
 func (q *fairOutput[T]) Drain() []T {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	out := q.queue.Drain()
+	out := q.queue.drain()
 	if q.hasSingle {
 		out = append(out, q.single)
 		var zero T
@@ -161,7 +161,7 @@ func (q *fairOutput[T]) Drain() []T {
 func (q *fairOutput[T]) Stats() FairStats {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	stats := q.queue.Stats()
+	stats := q.queue.stats()
 	if q.hasSingle {
 		stats.Packets++
 		stats.Bytes += int64(q.singleSize)
