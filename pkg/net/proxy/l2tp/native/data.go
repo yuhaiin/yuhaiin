@@ -12,43 +12,52 @@ func (s *Session) receiveData(p packet) {
 	cookie := s.localCookie
 	s.mu.Unlock()
 	if !ready || p.session != s.localSession || s.cfg.Version == 2 && p.tunnel != s.localTunnel {
+		s.stats.wrongSession.Add(1)
 		return
 	}
 	b := p.payload
 	if s.cfg.Version == 3 {
 		if !bytes.HasPrefix(b, cookie) {
+			s.stats.invalidPayload.Add(1)
 			return
 		}
 		b = b[len(cookie):]
 		if s.cfg.Sublayer {
 			if len(b) < 4 {
+				s.stats.invalidPayload.Add(1)
 				return
 			}
 			b = b[4:]
 		}
 		if len(b) < 14 || len(b) > s.cfg.MTU+14 {
+			s.stats.invalidPayload.Add(1)
 			return
 		}
 	} else {
 		proto, body, ok := decodePPP(b)
 		if !ok {
+			s.stats.invalidPPP.Add(1)
 			return
 		}
 		if proto != protoIPv4 && proto != protoIPv6 {
 			select {
 			case s.ppp <- bytes.Clone(b):
 			default:
+				s.stats.pppQueueDrops.Add(1)
 			} // Bound unauthenticated control traffic.
 			return
 		}
 		b = body
 		if !validIP(proto, b, s.cfg.MTU) {
+			s.stats.invalidIP.Add(1)
 			return
 		}
 	}
 	select {
 	case s.frames <- bytes.Clone(b):
+		s.stats.framesAccepted.Add(1)
 	default:
+		s.stats.frameQueueDrops.Add(1)
 	} // UDP loss semantics, bounded memory.
 }
 
