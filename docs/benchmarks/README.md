@@ -8,7 +8,7 @@ This directory contains the **latest retained measurement snapshots**, not a per
 | --- | --- | --- |
 | [Lightweight TCP/IP](lightweight.md) | Native stack, hev/lwIP comparison, Linux TUN offload, native checksums, correctness limits | 2026-10-17 |
 | [Full-cone UDP NAT](nat.md) | NAT cache/send microbenchmarks, queue round trips, full-cone correctness | 2026-10-18 |
-| [FakeIP](fakeip.md) | SQLite mappings, leases, pool saturation and HTTPS rewriting | 2026-10-21 |
+| [FakeIP](fakeip.md) | Bounded mapping cache, transactional counts, memory, leases and pool saturation | 2026-10-21 |
 | [Protocol benchmarks](protocols.md) | Hysteria 2 interoperability/port hopping; OpenVPN real-server interop | 2026-10-07 to 2026-10-11 |
 
 ## Retained machine-readable data

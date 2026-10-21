@@ -1,141 +1,145 @@
 # FakeIP
 
-Measured **2026-10-21** on Linux amd64, Ryzen 5 5600G, Go
-`1.27.2-X:nodwarf5`, using the default `modernc.org/sqlite` backend. The database
-was on the local NVMe Btrfs filesystem, with WAL and synchronous NORMAL.
-These are mapping and packet-processing microbenchmarks; upstream DNS, kernel
-network I/O, encryption and real-device throughput are outside the fixtures.
+Latest measurement: **2026-10-21**. Baseline `cb17c3bf`, bounded mapping cache
+and transactional pool counts `2ad57265`. Linux amd64, Ryzen 5 5600G, Go
+`1.27.2-X:nodwarf5`, default `modernc.org/sqlite` backend, local NVMe Btrfs, WAL
+and synchronous NORMAL. The [retained summary](data/fakeip.summary.json) stores
+all final samples and the earlier hardening/UDP comparisons.
 
-The [retained summary](data/fakeip.summary.json) contains every final sample.
-The PR baseline is `54badcdb`; correctness repairs are `0aa2909f`; the cached UDP
-lease optimization and benchmark harnesses are `414c7abc`.
+These are local mapping and processing microbenchmarks. Upstream DNS, kernel
+network I/O, encryption and physical-device throughput are outside the fixtures.
 
-## Method
+## Implementation
 
-- Six samples per revision, alternating before/after order, in separate,
-  sequential processes. No CPU affinity was applied; this was not an exclusive
-  host. Medians and significance were calculated with benchstat
-  `v0.0.0-20261009192801-be2c69fb417e`.
-- Pool fixtures contain 4,096 mappings, seeded in one transaction outside the
-  timed section. Positive lookups use prebuilt domain strings and IP addresses.
-- Hot lookups, HTTPS and exhaustion use one-second samples at `GOMAXPROCS=1,8`.
-  Parallel benchmarks use `RunParallel`; their ns/op is aggregate wall time per
-  completed operation, not individual-request latency.
-- New-domain tests use exactly 500 successful allocations per sample, with
-  initial occupancies 0, 4,096 and 49,152 and a capacity of 65,535. This prevents
-  saturation failures from being counted as successful allocation throughput.
-- HTTPS uses a cached upstream response with ALPN and IPv4 hints, with IPv6
-  enabled. Both address families already have mappings. The fixture includes
-  the production response copy and parameter rewrite.
-- Exhaustion tests distinguish recent mappings from mappings older than two
-  hours that are all actively leased. Every timed allocation must fail.
-- Cached UDP tests include the sender's lease admission and a warmed address
-  cache, using a lease-capable proxy and a sink without I/O. They use one
-  session and do not perform reverse SQL lookups per packet. Separate native
-  UDP tests verify shared sockets and unsolicited replies.
+- Migration 16 creates a small `fakeip_pool_counts` table and backfills existing
+  pools once. Insert, delete and pool-key update triggers maintain the count in
+  the same SQLite transaction. Allocation reads a single count row instead of
+  counting every mapping. Rollback restores mappings and counts together.
+- Each active database/prefix has a lazy bidirectional cache with at most
+  **4,096 entries**, further reduced for smaller pools. Both indexes point into
+  one fixed slot array; cached domain strings are copied and limited to 253
+  characters. Longer strings remain usable through the SQL fallback.
+- Slot replacement is FIFO. It removes only the cached copy, preserving the
+  durable mapping and active leases. This avoids updating a replacement list
+  on every hot lookup. It does not add an in-memory index of eviction candidates.
+- Handles sharing a database/prefix share locks, cache invalidation and leases.
+  Management deletion invalidates both cache indexes only after successful
+  deletion; new mappings enter the cache only after transaction commit.
+- Cached activity samples queue the existing lazy durable touches. All owners'
+  pending touches are flushed before address reuse. Closing one handle retains
+  other handles' state; closing the last releases cache storage. Direct external
+  SQL edits while a pool is running require restarting its owner to invalidate
+  cached identities.
 
-## Pool measurements
+The cache retains the existing shared pool lock: cold allocation/SQL writes can
+still delay concurrent hits. Isolated warm-hit timings do not bound mixed-load
+request latency.
 
-Single-worker medians; lower is better. The UDP-only optimization in `414c7abc`
-does not change the pool implementation measured at `0aa2909f`.
+## Measurements
 
-| Operation | PR baseline | Repaired | Repaired allocations/op |
+Six samples per revision, alternating before/after order in separate sequential
+processes, without CPU affinity or an exclusive host. Main comparisons use
+`GOMAXPROCS=1`; a separate parallel supplement uses 8. Benchstat version is
+`v0.0.0-20261009192801-be2c69fb417e`.
+
+Pool fixtures are seeded in one transaction outside timing. Hot tests warm all
+4,096 mappings on **both** revisions before timing. New-domain tests perform
+exactly 500 successful allocations, avoiding saturation failures being counted
+as successful throughput. Other tests use one-second samples.
+
+| Operation | Before | After | After allocations/op |
 | --- | ---: | ---: | ---: |
-| Domain hit | 7.052 us | 7.000 us | 28 |
-| Reverse hit | 7.079 us | 7.050 us | 28 |
-| Lease and release | 7.392 us | 7.400 us | 31 |
-| HTTPS response rewrite | 13.705 us | 13.789 us | 65 |
-| New domain, initially empty | 256.8 us | 251.4 us | 141 |
-| New domain, initially 4,096 entries | 518.9 us | 513.4 us | 143 |
-| New domain, initially 49,152 entries | 3.163 ms | 3.188 ms | 143 |
-| Full pool, all recent | 323.9 us | 312.0 us | 102 |
-| Full pool, 4,096 old leased entries | 2.131 ms | 3.651 ms | 24,679 |
+| Warm domain hit | 7.510 us | 73.91 ns | 0 |
+| Warm reverse hit | 7.589 us | 83.78 ns | 0 |
+| Lease and release | 8.056 us | 382.5 ns | 3 |
+| HTTPS rewrite, cached upstream and both IP families | 14.965 us | 643.0 ns | 9 |
+| New domain, initially empty | 262.7 us | 260.8 us | 119 |
+| New domain, initially 4,096 entries | 516.6 us | 302.8 us | 121 |
+| New domain, initially 49,152 entries | 3.202 ms | 278.4 us | about 121 |
+| Full pool, 4,096 recent entries | 311.4 us | 52.59 us | 79 |
+| Full pool, 4,096 old leased entries | 3.856 ms | 3.534 ms | 24,655 |
+| Cyclic 16,384-domain working set, no cache hits | 7.634 us | 8.300 us | 29 |
 
-Domain/reverse/lease/HTTPS differences were not statistically significant in
-these samples. HTTPS allocations fell from 68 to 65. Serial `RunParallel`
-lease/release rose 1.62% (p=0.017); its eight-worker result was not significant.
-Eight-worker parallel domain lookup was 9.490 us/op versus 7.412 us/op with one
-worker: this SQL-backed path does not scale with more goroutines. The shared
-database currently permits one open connection.
+Warm domain/reverse lookups improved about **102x/91x** and dropped from 28
+allocations to zero. Large-pool new allocations improved about **11.5x**. The
+empty-pool time difference is not significant (p=0.937); the other listed time
+changes have p=0.002. New allocations use about 5.4--5.6 KiB/op versus
+4.7--4.9 KiB/op, despite fewer allocation objects.
 
-The all-leased exhaustion case is a material cost of the correctness repair:
-the old SQL query stopped after 256 candidates, which could falsely report
-exhaustion when candidate 257 was available. The repaired query checks all
-eligible mappings. In the 4,096-entry fixture this costs 71% more time and
-419.5 KiB/op versus 29.5 KiB/op. This is an optimization target; restoring a
-candidate cap would restore the bug.
+The deliberately cache-hostile cyclic workload is **8.72% slower**, with one
+extra allocation. Bounded caching is most beneficial with repeated mappings;
+its cold SQL fallback includes index maintenance and string-copy overhead.
 
-## Cached UDP optimization
+Eight-worker parallel domain hits measured 44.92 ns/op in aggregate, with a
+wide 39% confidence range. Parallel lease/release measured 384.4 ns/op versus
+9.046 us/op before. These are aggregate wall time divided by completed
+operations, not individual-request latency or p95. A separate six-second lease
+run, allowing the touch worker to flush during timing, measured 388.8 ns/op,
+112 B/op and 3 allocations/op.
 
-The first comparison measured the PR's original cached sender at 57.80 ns/op
-and the repaired sender at 107.30 ns/op. A separate six-sample paired comparison
-then measured the repaired sender at **109.75 ns/op** and the optimized sender
-at **79.81 ns/op**: **27.28% less time** (p=0.002), with **zero allocations** in
-both. These are processing costs per cached packet, not measured bandwidth.
+## Memory
 
-The optimization skips duplicate acquisition/cleanup work for a lease already
-owned by a retained mapping or pending resolution. New destinations still
-acquire before dial/dispatch; failed admissions and failed resolutions release
-their leases; retained leases are released after session shutdown. Cached sends
-do not mark the same lease retained again.
+Retained cache heap measured after GC, with source strings outside the
+measurement and the populated cache kept alive, six samples:
 
-## Profiles and remaining opportunities
+| Fully populated cache | Bytes per pool | IPv4 and IPv6 pools together |
+| --- | ---: | ---: |
+| Short `domain-N.example` names | 840,984 (0.80 MiB) | about 1.60 MiB |
+| 253-character names | 1,791,336 (1.71 MiB) | about 3.42 MiB |
 
-CPU profiles were collected separately from the comparison runs. Profiles also
-include fixture setup, which took about 20% of the new-domain profile; the
-benchmark timings above exclude it.
+These include the slot array, both indexes and owned domain strings. They are
+cache heap measurements, not total process RSS or a bound on allocator headroom,
+SQLite buffers, pending touches or existing connection leases. Cache buffers are
+allocated only when first populated; their entry limit does not grow with the
+persisted pool's 65,536 or more mappings. No per-persisted-entry eviction index
+was added.
 
-1. **Avoid counting the entire pool on every new allocation.** At roughly
-   49,000 entries, `entryCount` accounts for 74.25% of all sampled CPU and about
-   94% of the cumulative allocation path. A counter maintained transactionally
-   with insert, eviction and management deletion is the strongest next target.
-   It needs consistent initialization and rollback handling; an unsynchronized
-   in-memory count would risk incorrect capacity decisions.
-2. **Reduce SQLite work on positive lookups.** `getIP` accounts for 95.10% of
-   sampled hot-path CPU. Query/scan/close and WAL locking dominate; `fcntl`
-   accounts for about 25% cumulatively. A bounded bidirectional mapping cache
-   could avoid most of this work. Its eviction, deletion, range-change and lease
-   ownership rules must remain atomic with the durable mapping state.
-3. **Reduce candidate materialization in saturation scans.** `evictLRU` accounts
-   for 87.36% of sampled all-leased exhaustion CPU. It decodes every candidate's
-   domain and IP before checking whether it is leased. Fetching only identity
-   needed for rejection, retrieving the domain only for a chosen row, and
-   evaluating an index that also covers the `created_at` ordering are focused
-   experiments. Scanning must still reach an available candidate beyond 256.
+## Remaining cost
 
-The larger SQLite changes above are recommendations, not implemented speedups.
-The only performance change in this measurement is cached UDP bookkeeping.
+The all-leased exhaustion case still scans every eligible SQL candidate and
+allocates about 419 KiB per failure. The earlier 256-candidate cap could falsely
+report exhaustion when candidate 257 was available. Full scanning remains
+necessary for correctness with the present SQL design. Reducing candidate
+materialization/index sorting can be investigated separately; the cache/count
+changes do not implement the proposed in-memory eviction index.
 
-## Reproduction
+The earlier cached UDP sender optimization in `414c7abc` measured
+109.75 to 79.81 ns/op, 27.28% less time with zero allocations. It is unchanged by
+this pool optimization. Its fixture includes source lease admission and a
+warmed target cache using a sink without I/O; native UDP tests separately verify
+one shared socket per source and unsolicited replies.
 
-Use the same benchmark source at both revisions. For `54badcdb` and `0aa2909f`,
-copy `pkg/net/dns/fakeip/benchmark_test.go` and
-`pkg/net/nat/fakeip_benchmark_test.go` from `414c7abc` into an isolated worktree.
-Run the revisions sequentially, alternating which revision runs first in each
-of six rounds. Set `TMPDIR` to a directory on the filesystem being evaluated.
+## Reproduction and validation
+
+Copy `pkg/net/dns/fakeip/benchmark_test.go` from `2ad57265` into an isolated
+`cb17c3bf` worktree, and use the same source at both revisions. Set `TMPDIR` to
+the filesystem being evaluated. Run revisions sequentially; for the retained
+comparison, each of six rounds alternated which revision ran first.
 
 ```sh
 go test ./pkg/net/dns/fakeip -run '^$' \
   -bench '^BenchmarkFakeIP(HotPath|Exhausted|HTTPS)$' \
-  -benchmem -benchtime=1s -cpu=1,8 -count=6
+  -benchmem -benchtime=1s -cpu=1 -count=6
+go test ./pkg/net/dns/fakeip -run '^$' \
+  -bench '^BenchmarkFakeIPHotPath$/^parallel_(domain|lease_release)$' \
+  -benchmem -benchtime=1s -cpu=8 -count=6
 go test ./pkg/net/dns/fakeip -run '^$' \
   -bench '^BenchmarkFakeIPNewDomain$' \
   -benchmem -benchtime=500x -cpu=1 -count=6
-go test ./pkg/net/nat -run '^$' \
-  -bench '^BenchmarkNATFakeIPCachedSend$' \
-  -benchmem -benchtime=1s -cpu=1 -count=6
-```
-
-For CPU profiles, run one fixture at a time; do not include those timings in
-the comparison. For example:
-
-```sh
 go test ./pkg/net/dns/fakeip -run '^$' \
-  -bench '^BenchmarkFakeIPHotPath$/^domain$' \
-  -benchtime=5s -cpu=1 -cpuprofile=/tmp/fakeip-hot.cpu
+  -bench '^BenchmarkFakeIPCacheChurn$' \
+  -benchmem -benchtime=1s -cpu=1 -count=6
+# Memory benchmark exists only in the optimized revision.
+go test ./pkg/net/dns/fakeip -run '^$' \
+  -bench '^BenchmarkFakeIPCacheMemory$' -benchtime=1x -cpu=1 -count=6
 ```
 
-Race tests for FakeIP, NAT and resolver pass after the UDP optimization,
-including full-cone socket/reply behavior, migration and failure cleanup.
-golangci-lint v2.15.0 reports zero issues; `go fix ./...` and formatting checks
-produce no further changes.
+Race checks pass for DNS, FakeIP, resolver, NAT, SQLite storage, store, app,
+inbound and Gateway. The SQLite CI matrix passes for both modernc (CGO disabled)
+and mattn (CGO enabled), including statistics, migration and node tests. Coverage
+includes warm lookup without SQL, bounded replacement, lease protection after
+cache replacement, shared-handle deletion/touches/close, rollback, concurrent
+reads/leases/deletion, old-schema count backfill and transactional count updates.
+
+Formatting, golangci-lint v2.15.0 and `go fix ./...` pass without further source
+changes.
