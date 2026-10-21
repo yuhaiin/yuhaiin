@@ -121,10 +121,10 @@ type ConnOptions struct {
 	lists     []string
 	listNames map[string]string
 
-	routeMode string
+	routeMode      string
 	unmappedFakeIP bool
-	skipRoute bool
-	isUdp     bool
+	skipRoute      bool
+	isUdp          bool
 }
 
 func (s *ConnOptions) SetBindAddress(str string) *ConnOptions {
