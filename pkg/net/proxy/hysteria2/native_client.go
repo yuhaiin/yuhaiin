@@ -174,7 +174,7 @@ func (s *nativeTCPConn) Close() error {
 // sending a request without discarding a response still being received.
 func (s *nativeTCPConn) CloseWrite() error { return s.Stream.Close() }
 func (s *nativeTCPConn) CloseRead() error {
-	s.Stream.CancelRead(0)
+	s.CancelRead(0)
 	return nil
 }
 func (s *nativeTCPConn) LocalAddr() net.Addr  { return s.local }
