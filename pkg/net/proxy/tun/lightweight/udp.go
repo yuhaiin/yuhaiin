@@ -191,6 +191,14 @@ func (s *Stack) WriteUDP(src, dst netip.AddrPort, b []byte) (int, error) {
 	if s.closed() {
 		return 0, net.ErrClosed
 	}
+	// net.UDPAddr may carry IPv4 addresses as IPv4-mapped IPv6. Generate
+	// IPv4 packets for those endpoints rather than rejecting mixed families.
+	if src.IsValid() {
+		src = netip.AddrPortFrom(src.Addr().Unmap(), src.Port())
+	}
+	if dst.IsValid() {
+		dst = netip.AddrPortFrom(dst.Addr().Unmap(), dst.Port())
+	}
 	if !src.IsValid() || !dst.IsValid() || src.Port() == 0 || dst.Port() == 0 || src.Addr().Is4() != dst.Addr().Is4() || src.Addr().IsMulticast() || dst.Addr().IsMulticast() {
 		return 0, ErrMalformed
 	}

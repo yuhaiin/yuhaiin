@@ -12,7 +12,16 @@ sudo ip route flush table ${TABLE}
 sudo ip route replace default dev ${TUN_NAME} table ${TABLE}
 
 for lan in ${LAN_IPS}; do
-    sudo ip rule add from ${lan} lookup ${TABLE} priority 30000
+    case "${lan}" in
+        *:*) family=-6 ;;
+        *) family=-4 ;;
+    esac
+    # ip rule has no replace operation. Check the exact priority/source/table
+    # so restarting the TUN doesn't try to add an identical policy rule.
+    if ! sudo ip "${family}" rule show | awk -v src="${lan}" -v table="${TABLE}" \
+        '$1 == "30000:" && $2 == "from" && $3 == src && $4 == "lookup" && $5 == table { found = 1 } END { exit !found }'; then
+        sudo ip "${family}" rule add from "${lan}" lookup "${TABLE}" priority 30000
+    fi
 done
 
 sudo iptables -C FORWARD -o ${TUN_NAME} -j ACCEPT

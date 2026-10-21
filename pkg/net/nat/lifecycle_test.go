@@ -3,6 +3,7 @@ package nat
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -492,5 +493,51 @@ func TestReplyWriterIdentitySurvivesFreshAddressObjects(t *testing.T) {
 	source.bindReply(next)
 	if binding.ctx.Err() != nil || source.reply.Load() != binding {
 		t.Fatal("same transport was canceled because its address pointer changed")
+	}
+}
+
+func TestUndeliverableRepliesDoNotCloseUDPSession(t *testing.T) {
+	local, remote := net.Pipe()
+	conn := &lifecyclePacketConn{Conn: local, reading: make(chan struct{}), writing: make(chan struct{}), closed: make(chan struct{})}
+	u := NewSourceChan(nil, lifecycleDialer{dial: func(context.Context) (net.PacketConn, error) { return conn, nil }})
+	t.Cleanup(func() { _ = remote.Close(); _ = u.Close() })
+
+	const rejected = 20 // Exceeds the old consecutive transport-error threshold.
+	var calls atomic.Int32
+	delivered := make(chan int, rejected+1)
+	base := lifecyclePacket()
+	pkt := netapi.NewPacket(base.Src(), base.Dst(), pool.Clone(base.GetPayload()), netapi.WriteBackFunc(func(b []byte, _ net.Addr) (int, error) {
+		n := int(calls.Add(1))
+		delivered <- n
+		if n <= rejected {
+			return 0, fmt.Errorf("%w: test datagram", netapi.ErrUndeliverableDatagram)
+		}
+		return len(b), nil
+	}))
+	base.DecRef()
+	if err := u.WritePacket(t.Context(), pkt); err != nil {
+		t.Fatal(err)
+	}
+	pkt.DecRef()
+	awaitClosed(t, conn.reading)
+	awaitClosed(t, conn.writing)
+
+	for i := 1; i <= rejected+1; i++ {
+		if _, err := remote.Write([]byte("reply")); err != nil {
+			t.Fatalf("reply %d: outbound socket closed: %v", i, err)
+		}
+		select {
+		case n := <-delivered:
+			if n != i {
+				t.Fatalf("reply order: got %d, want %d", n, i)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("reply %d not delivered", i)
+		}
+	}
+	select {
+	case <-conn.closed:
+		t.Fatal("single-packet reply errors closed a healthy outbound UDP socket")
+	default:
 	}
 }

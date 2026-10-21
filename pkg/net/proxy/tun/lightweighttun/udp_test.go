@@ -3,6 +3,7 @@ package lightweighttun
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net"
 	"net/netip"
 	"sync"
@@ -49,7 +50,10 @@ func TestUDPWriteBack(t *testing.T) {
 		{"IPv4", "192.0.2.2:40000", "192.0.2.1:53"},
 		{"IPv6", "[2001:db8::2]:40000", "[2001:db8::1]:53"},
 	} {
-		for _, addressType := range []string{"netapi", "net.UDPAddr"} {
+		for _, addressType := range []string{"netapi", "net.UDPAddr", "mapped-netapi", "mapped-net.UDPAddr"} {
+			if family.name == "IPv6" && (addressType == "mapped-netapi" || addressType == "mapped-net.UDPAddr") {
+				continue
+			}
 			t.Run(family.name+"/"+addressType, func(t *testing.T) {
 				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 				defer cancel()
@@ -95,12 +99,25 @@ func TestUDPWriteBack(t *testing.T) {
 						t.Fatalf("accepted invalid reply address %T: %d, %v", invalid, n, err)
 					}
 				}
+				// A valid IP on the wrong address family must fail as a
+				// packet-local error, without implying that the socket is dead.
+				if family.name == "IPv4" {
+					wrongFamily := net.UDPAddrFromAddrPort(netip.MustParseAddrPort("[2001:db8::15]:53"))
+					if _, err := packet.WriteBack(reply, wrongFamily); !errors.Is(err, netapi.ErrUndeliverableDatagram) || !errors.Is(err, lightweight.ErrMalformed) {
+						t.Fatalf("cross-family reply: %v", err)
+					}
+				}
 				// DNS hijacking replies through packet.Dst(), a netapi.IPAddr.
 				var source net.Addr = packet.Dst()
-				if addressType == "net.UDPAddr" {
+				switch addressType {
+				case "net.UDPAddr":
 					// Forwarded proxy replies may originate from another endpoint.
 					dnsAddr = netip.AddrPortFrom(dnsAddr.Addr().Next().Next(), 5353)
 					source = net.UDPAddrFromAddrPort(dnsAddr)
+				case "mapped-netapi":
+					source = netapi.ParseNetipAddrPort("udp", netip.MustParseAddrPort("[::ffff:192.0.2.1]:53"))
+				case "mapped-net.UDPAddr":
+					source = &net.UDPAddr{IP: net.ParseIP("::ffff:192.0.2.1"), Port: 53}
 				}
 				if n, err := packet.WriteBack(reply, source); err != nil || n != len(reply) {
 					t.Fatalf("writeback: %d, %v", n, err)
