@@ -318,6 +318,7 @@ func contractMatchHistory(entry []contractconnection.MatchHistoryEntry) []contra
 			RuleID:   e.RuleID,
 			RuleName: e.RuleName,
 			History:  history,
+			Trace:    contractMatchTrace(e.Trace),
 		})
 	}
 	return out
@@ -351,4 +352,20 @@ func InsertAfter[T any](s []T, from, to int) []T {
 		}
 	}
 	return result
+}
+
+func contractMatchTrace(trace *contractconnection.MatchTrace) *contractroute.MatchTrace {
+	if trace == nil {
+		return nil
+	}
+	out := &contractroute.MatchTrace{
+		Type: trace.Type, Label: trace.Label, State: trace.State,
+		Kind: trace.Kind, ID: trace.ID,
+	}
+	for i := range trace.Children {
+		if child := contractMatchTrace(&trace.Children[i]); child != nil {
+			out.Children = append(out.Children, *child)
+		}
+	}
+	return out
 }
