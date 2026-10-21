@@ -178,6 +178,9 @@ func (c *Connections) MatchTraceForConnection(id uint64, index int) (contractcon
 	entry := info.MatchHistory[index]
 	entry.TraceTemplate = nil
 	entry.Trace = contractconnection.ReconstructMatchTrace(templates[index], entry.History)
+	// The caller already holds the flat history. Do not send all leaves twice:
+	// once in the reconstructed tree and again in the legacy history field.
+	entry.History = nil
 	return contractconnection.MatchTraceResponse{RuleIndex: index, Entry: entry}, true
 }
 
