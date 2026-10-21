@@ -49,12 +49,12 @@ func (r *tcpPacketTrace) record(direction string, raw []byte) {
 	}
 	event := TCPPacketEvent{
 		Time: time.Now().UTC(), Direction: direction,
-		Source: netip.AddrPortFrom(p.Source, binary.BigEndian.Uint16(b[:2])).String(),
-		Dest: netip.AddrPortFrom(p.Destination, binary.BigEndian.Uint16(b[2:4])).String(),
-		Seq: binary.BigEndian.Uint32(b[4:8]),
-		ACK: binary.BigEndian.Uint32(b[8:12]),
-		Flags: b[13],
-		Window: binary.BigEndian.Uint16(b[14:16]),
+		Source:     netip.AddrPortFrom(p.Source, binary.BigEndian.Uint16(b[:2])).String(),
+		Dest:       netip.AddrPortFrom(p.Destination, binary.BigEndian.Uint16(b[2:4])).String(),
+		Seq:        binary.BigEndian.Uint32(b[4:8]),
+		ACK:        binary.BigEndian.Uint32(b[8:12]),
+		Flags:      b[13],
+		Window:     binary.BigEndian.Uint16(b[14:16]),
 		PayloadLen: len(b) - h,
 	}
 	r.mu.Lock()
