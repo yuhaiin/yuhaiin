@@ -1,7 +1,7 @@
 """Bounded, header-only CI packet captures for L2TP interoperability tests.
 
 Captures run on the GitHub Linux host (not inside the minimal Docker images).
-The outer UDP capture includes only IPv4 + UDP headers (snaplen 28): PPP
+The outer UDP capture includes only SLL2 + IPv4 + UDP headers (snaplen 48): PPP
 authentication data and L2TP payload are never written to that pcap.
 The server TCP capture uses snaplen 128, so it includes TCP options but MAY
 include a short prefix of synthetic echo test payload.
@@ -86,16 +86,24 @@ def capture_diagnostics(runtime, server_container, gateway, directory, label):
     common = ["-Z", user, "-n", "-U", "-C", "4", "-W", "2"]
     tcp = directory / (slug + "-server-tcp.pcap")
     udp = directory / (slug + "-outer-udp-headers.pcap")
+    server_udp = directory / (slug + "-server-udp-headers.pcap")
     captures = [
         Capture(tcp, [
             "sudo", "-n", "nsenter", "--target", pid, "--net", "--",
             "tcpdump", "-i", "any", "-s", "128", *common,
             "-w", str(tcp), "tcp", "port", "19991",
         ]),
+        # The Linux 'any' interface prepends a 20-byte cooked SLL2 header.
+        # 20 + IPv4(20) + UDP(8) = 48; 28 loses both IP addresses and ports.
         Capture(udp, [
-            "sudo", "-n", "tcpdump", "-i", "any", "-s", "28", *common,
+            "sudo", "-n", "tcpdump", "-i", "any", "-s", "48", *common,
             "-w", str(udp), "ip", "and", "udp", "and",
             "(", "port", "1701", "or", "port", port, ")",
+        ]),
+        Capture(server_udp, [
+            "sudo", "-n", "nsenter", "--target", pid, "--net", "--",
+            "tcpdump", "-i", "any", "-s", "48", *common,
+            "-w", str(server_udp), "ip", "and", "udp", "and", "port", "1701",
         ]),
     ]
 
