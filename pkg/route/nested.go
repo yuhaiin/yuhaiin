@@ -11,8 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
@@ -194,10 +194,10 @@ func (s *Or) Match(ctx context.Context, addr netapi.Address) bool {
 }
 
 type MatchEntry struct {
-	id      string
-	matcher Matcher
-	name    string
-	mode    ModeEnum
+	id            string
+	matcher       Matcher
+	name          string
+	mode          ModeEnum
 	traceTemplate *contractconnection.MatchTraceTemplate
 }
 
@@ -229,11 +229,11 @@ func (s *Matchers) appendRule(matchers []MatchEntry, r contractroute.RouteRule) 
 
 	matcher := ParseMatcher(r)
 	matchers = append(matchers, MatchEntry{
-		id:      r.ID,
-		mode:    modeEnumFromRule(r),
-		matcher: matcher,
+		id:            r.ID,
+		mode:          modeEnumFromRule(r),
+		matcher:       matcher,
 		traceTemplate: buildMatchTraceTemplate(matcher),
-		name:    r.Name,
+		name:          r.Name,
 	})
 
 	return matchers
