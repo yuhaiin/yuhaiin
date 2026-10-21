@@ -19,6 +19,7 @@ type preparedLists struct {
 	names        map[string]string
 	listIssues   []contractroute.ListActivationIssue
 	unavailable  map[string]bool
+	incomplete   map[string]bool
 	host         *hostMatcher
 	process      *processMatcher
 	fingerprint  [32]byte
@@ -136,6 +137,7 @@ func (s *Lists) prepareRuleData(ctx context.Context, rules []contractroute.Route
 	// prevent unrelated rules from becoming active. Only readable cached files
 	// contribute to the index; failed sources remain visible in runtime status.
 	unavailable := make(map[string]bool)
+	incomplete := make(map[string]bool)
 	issues := make([]contractroute.ListActivationIssue, 0)
 	for i := range data {
 		item := &data[i]
@@ -176,6 +178,9 @@ func (s *Lists) prepareRuleData(ctx context.Context, rules []contractroute.Route
 		}
 		if len(valid) == 0 {
 			unavailable[item.ID] = true
+		} else if len(valid) < len(urls) {
+			// A partial list can prove membership but cannot prove absence.
+			incomplete[item.ID] = true
 		}
 		if len(problems) > 0 {
 			message := strings.Join(problems, "; ")
@@ -201,9 +206,9 @@ func (s *Lists) prepareRuleData(ctx context.Context, rules []contractroute.Route
 	}
 	fingerprint := sha256.Sum256(encoded)
 	if fingerprint == s.indexFingerprint {
-		return &preparedLists{names: names, listIssues: issues, unavailable: unavailable}, nil
+		return &preparedLists{names: names, listIssues: issues, unavailable: unavailable, incomplete: incomplete}, nil
 	}
-	prepared := &preparedLists{names: names, listIssues: issues, unavailable: unavailable, host: newHostTrie(configuration.DataDir.Load(), disk), process: newProcessTrie(), fingerprint: fingerprint, disk: disk}
+	prepared := &preparedLists{names: names, listIssues: issues, unavailable: unavailable, incomplete: incomplete, host: newHostTrie(configuration.DataDir.Load(), disk), process: newProcessTrie(), fingerprint: fingerprint, disk: disk}
 	success := false
 	defer func() {
 		if !success {
