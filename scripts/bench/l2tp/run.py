@@ -19,6 +19,9 @@ args = parser.parse_args()
 root = Path(__file__).resolve().parents[3]
 fixture = root / 'pkg/net/proxy/l2tp/testdata'
 results = []
+diagnostics_dir = Path(os.environ['L2TP_DIAGNOSTICS_DIR']) if os.getenv('L2TP_DIAGNOSTICS_DIR') else None
+if diagnostics_dir is not None:
+    diagnostics_dir.mkdir(parents=True, exist_ok=True)
 
 
 def run(*cmd, **kwargs):
@@ -60,9 +63,26 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
         env = os.environ | env
         print('\n=== '+label+' ===', flush=True)
         result = dict(case=label)
-        tests = run(str(binary), '-test.run='+pattern, '-test.v', '-test.timeout=90s', env=env, capture_output=True)
-        print(tests.stdout, flush=True)
+        # Repeat reconnect checks to expose intermittent recovery stalls. Keep
+        # the original 15s TCP deadline, rather than masking lost packets.
+        count = '3' if 'TestOfficialL2TP' in pattern else '1'
+        command = [str(binary), '-test.run='+pattern, '-test.v', '-test.count='+count, '-test.timeout=90s']
+        started = time.monotonic()
+        tests = subprocess.run(command, cwd=root, text=True, env=env, capture_output=True)
+        duration = time.monotonic() - started
+        print(tests.stdout, tests.stderr, flush=True)
         result['tests'] = tests.stdout
+        result['seconds'] = round(duration, 3)
+        result['success'] = tests.returncode == 0
+        if diagnostics_dir is not None:
+            key = ''.join(c if c.isalnum() or c in '-_' else '_' for c in label)
+            (diagnostics_dir / (key+'.test.log')).write_text(tests.stdout+'\n'+tests.stderr)
+            (diagnostics_dir / (key+'.result.json')).write_text(json.dumps({
+                'case': label, 'algorithm': env.get('L2TP_TEST_CONGESTION_CONTROL', 'bbr'),
+                'seconds': result['seconds'], 'success': result['success'],
+                'runs': int(count)}, indent=2)+'\n')
+        if tests.returncode != 0:
+            raise subprocess.CalledProcessError(tests.returncode, command)
         if args.benchmark:
             sample = run(str(bench), '-test.run=^$', '-test.bench='+benchmark+'$', '-test.benchtime=2s',
                          '-test.count=3', '-test.timeout=3m', env=env, capture_output=True)
