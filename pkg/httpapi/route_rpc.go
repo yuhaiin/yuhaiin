@@ -62,6 +62,7 @@ func (a v2API) routeActivation(ctx context.Context, _ *emptyRequest) (*contractr
 		result.Error = status.Error
 		result.ListIssues = status.ListIssues
 		result.SkippedRules = status.SkippedRules
+		result.DegradedRules = status.DegradedRules
 	}
 	return &result, nil
 }
