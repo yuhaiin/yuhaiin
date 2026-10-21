@@ -235,6 +235,16 @@ type MatchHistoryEntry struct {
 	RuleID   string        `json:"ruleId,omitempty"`
 	RuleName string        `json:"ruleName"`
 	History  []MatchResult `json:"history"`
+	Trace    *MatchTrace   `json:"trace,omitempty"`
+}
+
+type MatchTrace struct {
+	Type     string       `json:"type"`
+	Label    string       `json:"label,omitempty"`
+	State    string       `json:"state"`
+	Kind     string       `json:"kind,omitempty"`
+	ID       string       `json:"id,omitempty"`
+	Children []MatchTrace `json:"children,omitempty"`
 }
 
 type MatchResult struct {

@@ -87,9 +87,33 @@ type NetworkType struct {
 }
 
 type MatchHistoryEntry struct {
-	RuleID   string        `json:"ruleId,omitempty"`
-	RuleName string        `json:"ruleName"`
-	History  []MatchResult `json:"history"`
+	RuleID        string              `json:"ruleId,omitempty"`
+	RuleName      string              `json:"ruleName"`
+	History       []MatchResult       `json:"history"`
+	Trace         *MatchTrace         `json:"trace,omitempty"`
+	TraceTemplate *MatchTraceTemplate `json:"-"`
+}
+
+// MatchTrace preserves the actual boolean evaluation hierarchy and distinguishes
+// short-circuited expressions from false and unavailable/unknown results.
+type MatchTrace struct {
+	Type     string       `json:"type"`
+	Label    string       `json:"label,omitempty"`
+	State    string       `json:"state"`
+	Kind     string       `json:"kind,omitempty"`
+	ID       string       `json:"id,omitempty"`
+	Children []MatchTrace `json:"children,omitempty"`
+}
+
+// MatchTraceRequest selects one active connection for lazy trace expansion.
+type MatchTraceRequest struct {
+	ID        string `json:"id"`
+	RuleIndex int    `json:"ruleIndex"`
+}
+
+type MatchTraceResponse struct {
+	RuleIndex int               `json:"ruleIndex"`
+	Entry     MatchHistoryEntry `json:"entry"`
 }
 
 type MatchResult struct {

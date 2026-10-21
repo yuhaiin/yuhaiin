@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -193,10 +194,11 @@ func (s *Or) Match(ctx context.Context, addr netapi.Address) bool {
 }
 
 type MatchEntry struct {
-	id      string
-	matcher Matcher
-	name    string
-	mode    ModeEnum
+	id            string
+	matcher       Matcher
+	name          string
+	mode          ModeEnum
+	traceTemplate *contractconnection.MatchTraceTemplate
 }
 
 type Matchers struct {
@@ -225,11 +227,13 @@ func (s *Matchers) appendRule(matchers []MatchEntry, r contractroute.RouteRule) 
 		return matchers
 	}
 
+	matcher := ParseMatcher(r)
 	matchers = append(matchers, MatchEntry{
-		id:      r.ID,
-		mode:    modeEnumFromRule(r),
-		matcher: ParseMatcher(r),
-		name:    r.Name,
+		id:            r.ID,
+		mode:          modeEnumFromRule(r),
+		matcher:       matcher,
+		traceTemplate: buildMatchTraceTemplate(matcher),
+		name:          r.Name,
 	})
 
 	return matchers
@@ -258,7 +262,7 @@ func (s *Matchers) appendPreparedRule(entries []MatchEntry, rule contractroute.R
 		return entries
 	}
 	*degraded = append(*degraded, contractroute.DegradedRouteRule{ID: rule.ID, Name: rule.Name, ListIDs: missing})
-	return append(entries, MatchEntry{id: rule.ID, mode: modeEnumFromRule(rule), matcher: threeValuedMatcher{matcher}, name: rule.Name})
+	return append(entries, MatchEntry{id: rule.ID, mode: modeEnumFromRule(rule), matcher: threeValuedMatcher{matcher}, traceTemplate: buildMatchTraceTemplate(matcher), name: rule.Name})
 }
 
 func (s *Matchers) Update(rules ...contractroute.RouteRule) error {
@@ -368,6 +372,7 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) ModeEnum {
 				continue
 			}
 			store.NewRuleMatch(entry.id, entry.name)
+			store.SetRuleMatchTemplate(entry.traceTemplate)
 			if entry.matcher.Match(ctx, addr) {
 				store.SetMatchedRule(entry.id, entry.name)
 				s.mu.RUnlock()

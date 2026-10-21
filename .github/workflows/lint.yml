@@ -116,5 +116,5 @@ jobs:
           go test -race -count=1 -timeout=180s \
             ./pkg/gateway ./pkg/cert ./pkg/net/proxy/http \
             ./pkg/net/proxy/tls ./pkg/inbound ./pkg/httpapi ./pkg/store \
-            ./pkg/storage/sqlite ./pkg/route ./pkg/resolver ./pkg/statistics \
+            ./pkg/storage/sqlite ./pkg/route ./pkg/contract/connection ./pkg/resolver ./pkg/statistics \
             ./pkg/node ./pkg/app ./pkg/contract/inbound ./pkg/contract/node

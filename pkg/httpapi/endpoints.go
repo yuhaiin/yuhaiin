@@ -51,6 +51,7 @@ const (
 	v2ConnectionsTelemetry     v2Endpoint = "connections.telemetry"
 	v2ConnectionsEvents        v2Endpoint = "connections.events"
 	v2Connections              v2Endpoint = "connections"
+	v2ConnectionsTrace         v2Endpoint = "connections.trace"
 	v2ConnectionsClose         v2Endpoint = "connections.close"
 	v2ConnectionsFailedHistory v2Endpoint = "connections.failed_history"
 	v2ConnectionsHistory       v2Endpoint = "connections.history"
@@ -181,6 +182,7 @@ var v2Routes = []v2Route{
 	{v2ConnectionsTelemetry, "GET /api/v2/connections/telemetry"},
 	{v2ConnectionsEvents, "GET /api/v2/connections/events"},
 	{v2Connections, "GET /api/v2/connections"},
+	{v2ConnectionsTrace, "POST /api/v2/connections/trace"},
 	{v2ConnectionsClose, "POST /api/v2/connections/close"},
 	{v2ConnectionsFailedHistory, "GET /api/v2/connections/failed-history"},
 	{v2ConnectionsHistory, "GET /api/v2/connections/history"},
