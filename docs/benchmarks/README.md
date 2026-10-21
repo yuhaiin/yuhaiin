@@ -9,6 +9,7 @@ This directory contains the **latest retained measurement snapshots**, not a per
 | [Lightweight TCP/IP](lightweight.md) | Native stack, hev/lwIP comparison, Linux TUN offload, native checksums, correctness limits | 2026-10-17 |
 | [Full-cone UDP NAT](nat.md) | NAT cache/send microbenchmarks, queue round trips, full-cone correctness | 2026-10-18 |
 | [FakeIP](fakeip.md) | Bounded mapping cache, transactional counts, memory, leases and pool saturation | 2026-10-21 |
+| [Custom DNS responses](dns-responses.md) | Full datagram processing, real UDP/upstream path, rule indexes, CPU and allocations | 2026-10-21 |
 | [Protocol benchmarks](protocols.md) | Hysteria 2 interoperability/port hopping; OpenVPN real-server interop | 2026-10-07 to 2026-10-11 |
 
 ## Retained machine-readable data
@@ -22,6 +23,7 @@ The `data/` directory retains the summary datasets needed to inspect the documen
 | [offload-after.summary.json](data/offload-after.summary.json) | `lightweight-results/optimization-20261017/after.summary.json` |
 | [nat-fullcone.summary.json](data/nat-fullcone.summary.json) | Full-cone NAT before/after samples, revisions and fixture conditions |
 | [fakeip.summary.json](data/fakeip.summary.json) | PR #598 before/after mapping, lease and exhaustion measurements |
+| [dns-responses.summary.json](data/dns-responses.summary.json) | Custom DNS reply pipeline, source-only optimization comparison and profiles |
 | [checksum-native.summary.json](data/checksum-native.summary.json) | `lightweight-results/checksum-native-20261017/ab.summary.json` |
 
 The full historical records, including intermediate stages, unsuccessful trials, JSONL samples, profiles, local device logs and protocol JSON, remain accessible through the repository's Git history. Removing a file here does **not** turn its old measurements into current benchmark results.

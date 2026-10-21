@@ -36,6 +36,10 @@ type Resolver struct {
 func New(upstream netapi.Resolver) *Resolver { return &Resolver{upstream: upstream} }
 
 func (r *Resolver) Apply(config contract.ResponseRules) error {
+	if len(config.Rules) == 0 {
+		r.current.Store(nil)
+		return nil
+	}
 	next := &snapshot{exact: make(map[string]map[uint16]*rule), wildcard: make(map[string]map[uint16]*rule)}
 	for i, entry := range config.Rules {
 		records, err := entry.Records()
@@ -119,11 +123,14 @@ func (r *Resolver) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, e
 }
 
 func (r *Resolver) LookupIP(ctx context.Context, name string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
+	s := r.current.Load()
+	if s == nil {
+		return r.upstream.LookupIP(ctx, name, opts...)
+	}
 	opt := &netapi.LookupIPOption{}
 	for _, apply := range opts {
 		apply(opt)
 	}
-	s := r.current.Load()
 	query := netapi.DNSQuestion{Name: strings.TrimSuffix(name, ".") + ".", Qclass: dns.ClassINET}
 	query.Qtype = dns.TypeA
 	a := s.match(query)

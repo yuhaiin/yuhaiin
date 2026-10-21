@@ -1,0 +1,1258 @@
+{
+  "date": "2026-10-21",
+  "goVersion": "go1.27.3-X:nodwarf5",
+  "os": "linux",
+  "arch": "amd64",
+  "cpu": "AMD Ryzen 5 5600G",
+  "gomaxprocs": 12,
+  "baselineRevision": "8bb71abd08b5c03b0bd77f1c43b4fccfb0c110a8",
+  "baselineOverlayFiles": [
+    "pkg/net/dns/resolver/dns.go",
+    "pkg/net/dns/resolver/udp.go",
+    "pkg/net/dns/server/server.go"
+  ],
+  "comparison": "same custom response implementation and fixtures; baseline uses original resolver/client and server files",
+  "method": "sequential processes, medians; no CPU affinity or exclusive host; client/pipeline 5 samples, UDP/rules 3 samples",
+  "measurements": {
+    "beforeClient": {
+      "BenchmarkClientRawCached": {
+        "samples": [
+          {
+            "nsPerOp": 271.2,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 5.0
+          },
+          {
+            "nsPerOp": 269.3,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 5.0
+          },
+          {
+            "nsPerOp": 270.1,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 5.0
+          },
+          {
+            "nsPerOp": 270.1,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 5.0
+          },
+          {
+            "nsPerOp": 270.0,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 5.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 270.1,
+          "bytesPerOp": 304.0,
+          "allocsPerOp": 5.0
+        }
+      },
+      "BenchmarkDNSCacheKeys/client": {
+        "samples": [
+          {
+            "nsPerOp": 87.33,
+            "bytesPerOp": 40.0,
+            "allocsPerOp": 2.0
+          },
+          {
+            "nsPerOp": 87.35,
+            "bytesPerOp": 40.0,
+            "allocsPerOp": 2.0
+          },
+          {
+            "nsPerOp": 87.69,
+            "bytesPerOp": 40.0,
+            "allocsPerOp": 2.0
+          },
+          {
+            "nsPerOp": 88.38,
+            "bytesPerOp": 40.0,
+            "allocsPerOp": 2.0
+          },
+          {
+            "nsPerOp": 87.65,
+            "bytesPerOp": 40.0,
+            "allocsPerOp": 2.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 87.65,
+          "bytesPerOp": 40.0,
+          "allocsPerOp": 2.0
+        }
+      },
+      "BenchmarkDNSCacheKeys/udp": {
+        "samples": [
+          {
+            "nsPerOp": 116.5,
+            "bytesPerOp": 40.0,
+            "allocsPerOp": 2.0
+          },
+          {
+            "nsPerOp": 117.1,
+            "bytesPerOp": 40.0,
+            "allocsPerOp": 2.0
+          },
+          {
+            "nsPerOp": 117.7,
+            "bytesPerOp": 40.0,
+            "allocsPerOp": 2.0
+          },
+          {
+            "nsPerOp": 116.5,
+            "bytesPerOp": 40.0,
+            "allocsPerOp": 2.0
+          },
+          {
+            "nsPerOp": 116.5,
+            "bytesPerOp": 40.0,
+            "allocsPerOp": 2.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 116.5,
+          "bytesPerOp": 40.0,
+          "allocsPerOp": 2.0
+        }
+      }
+    },
+    "afterClient": {
+      "BenchmarkClientRawCached": {
+        "samples": [
+          {
+            "nsPerOp": 199.0,
+            "bytesPerOp": 288.0,
+            "allocsPerOp": 4.0
+          },
+          {
+            "nsPerOp": 198.1,
+            "bytesPerOp": 288.0,
+            "allocsPerOp": 4.0
+          },
+          {
+            "nsPerOp": 198.8,
+            "bytesPerOp": 288.0,
+            "allocsPerOp": 4.0
+          },
+          {
+            "nsPerOp": 197.9,
+            "bytesPerOp": 288.0,
+            "allocsPerOp": 4.0
+          },
+          {
+            "nsPerOp": 198.0,
+            "bytesPerOp": 288.0,
+            "allocsPerOp": 4.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 198.1,
+          "bytesPerOp": 288.0,
+          "allocsPerOp": 4.0
+        }
+      },
+      "BenchmarkDNSCacheKeys/client": {
+        "samples": [
+          {
+            "nsPerOp": 30.45,
+            "bytesPerOp": 24.0,
+            "allocsPerOp": 1.0
+          },
+          {
+            "nsPerOp": 30.81,
+            "bytesPerOp": 24.0,
+            "allocsPerOp": 1.0
+          },
+          {
+            "nsPerOp": 30.86,
+            "bytesPerOp": 24.0,
+            "allocsPerOp": 1.0
+          },
+          {
+            "nsPerOp": 31.04,
+            "bytesPerOp": 24.0,
+            "allocsPerOp": 1.0
+          },
+          {
+            "nsPerOp": 30.92,
+            "bytesPerOp": 24.0,
+            "allocsPerOp": 1.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 30.86,
+          "bytesPerOp": 24.0,
+          "allocsPerOp": 1.0
+        }
+      },
+      "BenchmarkDNSCacheKeys/udp": {
+        "samples": [
+          {
+            "nsPerOp": 47.26,
+            "bytesPerOp": 24.0,
+            "allocsPerOp": 1.0
+          },
+          {
+            "nsPerOp": 47.08,
+            "bytesPerOp": 24.0,
+            "allocsPerOp": 1.0
+          },
+          {
+            "nsPerOp": 47.19,
+            "bytesPerOp": 24.0,
+            "allocsPerOp": 1.0
+          },
+          {
+            "nsPerOp": 47.72,
+            "bytesPerOp": 24.0,
+            "allocsPerOp": 1.0
+          },
+          {
+            "nsPerOp": 47.89,
+            "bytesPerOp": 24.0,
+            "allocsPerOp": 1.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 47.26,
+          "bytesPerOp": 24.0,
+          "allocsPerOp": 1.0
+        }
+      }
+    },
+    "beforePipeline": {
+      "BenchmarkDNSDatagramPipeline/cache/rules=0/wrap=false": {
+        "samples": [
+          {
+            "nsPerOp": 5670.0,
+            "bytesPerOp": 1305.0,
+            "allocsPerOp": 22.0
+          },
+          {
+            "nsPerOp": 5748.0,
+            "bytesPerOp": 1305.0,
+            "allocsPerOp": 22.0
+          },
+          {
+            "nsPerOp": 5701.0,
+            "bytesPerOp": 1305.0,
+            "allocsPerOp": 22.0
+          },
+          {
+            "nsPerOp": 5760.0,
+            "bytesPerOp": 1305.0,
+            "allocsPerOp": 22.0
+          },
+          {
+            "nsPerOp": 5765.0,
+            "bytesPerOp": 1305.0,
+            "allocsPerOp": 22.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 5748.0,
+          "bytesPerOp": 1305.0,
+          "allocsPerOp": 22.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/cache/rules=0/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 5769.0,
+            "bytesPerOp": 1305.0,
+            "allocsPerOp": 22.0
+          },
+          {
+            "nsPerOp": 5761.0,
+            "bytesPerOp": 1305.0,
+            "allocsPerOp": 22.0
+          },
+          {
+            "nsPerOp": 5620.0,
+            "bytesPerOp": 1305.0,
+            "allocsPerOp": 22.0
+          },
+          {
+            "nsPerOp": 5774.0,
+            "bytesPerOp": 1305.0,
+            "allocsPerOp": 22.0
+          },
+          {
+            "nsPerOp": 5768.0,
+            "bytesPerOp": 1305.0,
+            "allocsPerOp": 22.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 5768.0,
+          "bytesPerOp": 1305.0,
+          "allocsPerOp": 22.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/cache/rules=10000/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 5980.0,
+            "bytesPerOp": 1305.0,
+            "allocsPerOp": 22.0
+          },
+          {
+            "nsPerOp": 5978.0,
+            "bytesPerOp": 1305.0,
+            "allocsPerOp": 22.0
+          },
+          {
+            "nsPerOp": 5962.0,
+            "bytesPerOp": 1304.0,
+            "allocsPerOp": 22.0
+          },
+          {
+            "nsPerOp": 6025.0,
+            "bytesPerOp": 1304.0,
+            "allocsPerOp": 22.0
+          },
+          {
+            "nsPerOp": 5940.0,
+            "bytesPerOp": 1305.0,
+            "allocsPerOp": 22.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 5978.0,
+          "bytesPerOp": 1305.0,
+          "allocsPerOp": 22.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/nxdomain/rules=10/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 5009.0,
+            "bytesPerOp": 1280.0,
+            "allocsPerOp": 18.0
+          },
+          {
+            "nsPerOp": 5006.0,
+            "bytesPerOp": 1280.0,
+            "allocsPerOp": 18.0
+          },
+          {
+            "nsPerOp": 5070.0,
+            "bytesPerOp": 1280.0,
+            "allocsPerOp": 18.0
+          },
+          {
+            "nsPerOp": 5034.0,
+            "bytesPerOp": 1280.0,
+            "allocsPerOp": 18.0
+          },
+          {
+            "nsPerOp": 5013.0,
+            "bytesPerOp": 1280.0,
+            "allocsPerOp": 18.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 5013.0,
+          "bytesPerOp": 1280.0,
+          "allocsPerOp": 18.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/nxdomain/rules=1000/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 5105.0,
+            "bytesPerOp": 1280.0,
+            "allocsPerOp": 18.0
+          },
+          {
+            "nsPerOp": 5111.0,
+            "bytesPerOp": 1281.0,
+            "allocsPerOp": 18.0
+          },
+          {
+            "nsPerOp": 5052.0,
+            "bytesPerOp": 1281.0,
+            "allocsPerOp": 18.0
+          },
+          {
+            "nsPerOp": 5054.0,
+            "bytesPerOp": 1281.0,
+            "allocsPerOp": 18.0
+          },
+          {
+            "nsPerOp": 5138.0,
+            "bytesPerOp": 1281.0,
+            "allocsPerOp": 18.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 5105.0,
+          "bytesPerOp": 1281.0,
+          "allocsPerOp": 18.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/nxdomain/rules=10000/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 5129.0,
+            "bytesPerOp": 1312.0,
+            "allocsPerOp": 18.0
+          },
+          {
+            "nsPerOp": 5200.0,
+            "bytesPerOp": 1312.0,
+            "allocsPerOp": 18.0
+          },
+          {
+            "nsPerOp": 5131.0,
+            "bytesPerOp": 1312.0,
+            "allocsPerOp": 18.0
+          },
+          {
+            "nsPerOp": 5228.0,
+            "bytesPerOp": 1312.0,
+            "allocsPerOp": 18.0
+          },
+          {
+            "nsPerOp": 5245.0,
+            "bytesPerOp": 1312.0,
+            "allocsPerOp": 18.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 5200.0,
+          "bytesPerOp": 1312.0,
+          "allocsPerOp": 18.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/aaaa/rules=10000/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 5529.0,
+            "bytesPerOp": 1344.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 5584.0,
+            "bytesPerOp": 1344.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 5510.0,
+            "bytesPerOp": 1344.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 5615.0,
+            "bytesPerOp": 1344.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 5600.0,
+            "bytesPerOp": 1344.0,
+            "allocsPerOp": 20.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 5584.0,
+          "bytesPerOp": 1344.0,
+          "allocsPerOp": 20.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/hosts/rules=10000/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 5820.0,
+            "bytesPerOp": 1464.0,
+            "allocsPerOp": 25.0
+          },
+          {
+            "nsPerOp": 5909.0,
+            "bytesPerOp": 1464.0,
+            "allocsPerOp": 25.0
+          },
+          {
+            "nsPerOp": 5926.0,
+            "bytesPerOp": 1464.0,
+            "allocsPerOp": 25.0
+          },
+          {
+            "nsPerOp": 5854.0,
+            "bytesPerOp": 1464.0,
+            "allocsPerOp": 25.0
+          },
+          {
+            "nsPerOp": 5874.0,
+            "bytesPerOp": 1464.0,
+            "allocsPerOp": 25.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 5874.0,
+          "bytesPerOp": 1464.0,
+          "allocsPerOp": 25.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/fakeip/rules=10000/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 9350.0,
+            "bytesPerOp": 1753.0,
+            "allocsPerOp": 29.0
+          },
+          {
+            "nsPerOp": 9444.0,
+            "bytesPerOp": 1753.0,
+            "allocsPerOp": 29.0
+          },
+          {
+            "nsPerOp": 9364.0,
+            "bytesPerOp": 1753.0,
+            "allocsPerOp": 29.0
+          },
+          {
+            "nsPerOp": 9463.0,
+            "bytesPerOp": 1753.0,
+            "allocsPerOp": 29.0
+          },
+          {
+            "nsPerOp": 9445.0,
+            "bytesPerOp": 1753.0,
+            "allocsPerOp": 29.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 9444.0,
+          "bytesPerOp": 1753.0,
+          "allocsPerOp": 29.0
+        }
+      },
+      "BenchmarkDNSRoutedUDPPipeline/upstream-cache=true": {
+        "samples": [
+          {
+            "nsPerOp": 33480.0,
+            "bytesPerOp": 1971.0,
+            "allocsPerOp": 51.0,
+            "upstreamQueriesPerOp": 0.0
+          },
+          {
+            "nsPerOp": 34317.0,
+            "bytesPerOp": 1970.0,
+            "allocsPerOp": 51.0,
+            "upstreamQueriesPerOp": 0.0
+          },
+          {
+            "nsPerOp": 33771.0,
+            "bytesPerOp": 1970.0,
+            "allocsPerOp": 51.0,
+            "upstreamQueriesPerOp": 0.0
+          },
+          {
+            "nsPerOp": 33755.0,
+            "bytesPerOp": 1970.0,
+            "allocsPerOp": 51.0,
+            "upstreamQueriesPerOp": 0.0
+          },
+          {
+            "nsPerOp": 33795.0,
+            "bytesPerOp": 1970.0,
+            "allocsPerOp": 51.0,
+            "upstreamQueriesPerOp": 0.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 33771.0,
+          "bytesPerOp": 1970.0,
+          "allocsPerOp": 51.0,
+          "upstreamQueriesPerOp": 0.0
+        }
+      },
+      "BenchmarkDNSRoutedUDPPipeline/upstream-cache=false": {
+        "samples": [
+          {
+            "nsPerOp": 123805.0,
+            "bytesPerOp": 8665.0,
+            "allocsPerOp": 204.0,
+            "upstreamQueriesPerOp": 3.0
+          },
+          {
+            "nsPerOp": 121907.0,
+            "bytesPerOp": 8651.0,
+            "allocsPerOp": 204.0,
+            "upstreamQueriesPerOp": 3.0
+          },
+          {
+            "nsPerOp": 124014.0,
+            "bytesPerOp": 8649.0,
+            "allocsPerOp": 204.0,
+            "upstreamQueriesPerOp": 3.0
+          },
+          {
+            "nsPerOp": 128991.0,
+            "bytesPerOp": 8650.0,
+            "allocsPerOp": 204.0,
+            "upstreamQueriesPerOp": 3.0
+          },
+          {
+            "nsPerOp": 125480.0,
+            "bytesPerOp": 8651.0,
+            "allocsPerOp": 204.0,
+            "upstreamQueriesPerOp": 3.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 124014.0,
+          "bytesPerOp": 8651.0,
+          "allocsPerOp": 204.0,
+          "upstreamQueriesPerOp": 3.0
+        }
+      }
+    },
+    "afterPipeline": {
+      "BenchmarkDNSDatagramPipeline/cache/rules=0/wrap=false": {
+        "samples": [
+          {
+            "nsPerOp": 4947.0,
+            "bytesPerOp": 1257.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 4866.0,
+            "bytesPerOp": 1257.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 4938.0,
+            "bytesPerOp": 1257.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 4977.0,
+            "bytesPerOp": 1257.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 4954.0,
+            "bytesPerOp": 1257.0,
+            "allocsPerOp": 20.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 4947.0,
+          "bytesPerOp": 1257.0,
+          "allocsPerOp": 20.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/cache/rules=0/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 4959.0,
+            "bytesPerOp": 1257.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 4979.0,
+            "bytesPerOp": 1257.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 4967.0,
+            "bytesPerOp": 1257.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 4966.0,
+            "bytesPerOp": 1257.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 4987.0,
+            "bytesPerOp": 1257.0,
+            "allocsPerOp": 20.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 4967.0,
+          "bytesPerOp": 1257.0,
+          "allocsPerOp": 20.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/cache/rules=10000/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 5278.0,
+            "bytesPerOp": 1257.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 5314.0,
+            "bytesPerOp": 1256.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 5304.0,
+            "bytesPerOp": 1256.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 5411.0,
+            "bytesPerOp": 1256.0,
+            "allocsPerOp": 20.0
+          },
+          {
+            "nsPerOp": 5396.0,
+            "bytesPerOp": 1256.0,
+            "allocsPerOp": 20.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 5314.0,
+          "bytesPerOp": 1256.0,
+          "allocsPerOp": 20.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/nxdomain/rules=10/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 2532.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          },
+          {
+            "nsPerOp": 2545.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          },
+          {
+            "nsPerOp": 2519.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          },
+          {
+            "nsPerOp": 2542.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          },
+          {
+            "nsPerOp": 2550.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 2542.0,
+          "bytesPerOp": 608.0,
+          "allocsPerOp": 9.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/nxdomain/rules=1000/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 2551.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          },
+          {
+            "nsPerOp": 2591.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          },
+          {
+            "nsPerOp": 2595.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          },
+          {
+            "nsPerOp": 2581.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          },
+          {
+            "nsPerOp": 2620.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 2591.0,
+          "bytesPerOp": 608.0,
+          "allocsPerOp": 9.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/nxdomain/rules=10000/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 2581.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          },
+          {
+            "nsPerOp": 2553.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          },
+          {
+            "nsPerOp": 2547.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          },
+          {
+            "nsPerOp": 2560.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          },
+          {
+            "nsPerOp": 2565.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 9.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 2560.0,
+          "bytesPerOp": 608.0,
+          "allocsPerOp": 9.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/aaaa/rules=10000/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 3072.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 11.0
+          },
+          {
+            "nsPerOp": 3058.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 11.0
+          },
+          {
+            "nsPerOp": 3115.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 11.0
+          },
+          {
+            "nsPerOp": 2959.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 11.0
+          },
+          {
+            "nsPerOp": 2996.0,
+            "bytesPerOp": 608.0,
+            "allocsPerOp": 11.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 3058.0,
+          "bytesPerOp": 608.0,
+          "allocsPerOp": 11.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/hosts/rules=10000/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 5339.0,
+            "bytesPerOp": 1369.0,
+            "allocsPerOp": 23.0
+          },
+          {
+            "nsPerOp": 5289.0,
+            "bytesPerOp": 1368.0,
+            "allocsPerOp": 23.0
+          },
+          {
+            "nsPerOp": 5279.0,
+            "bytesPerOp": 1368.0,
+            "allocsPerOp": 23.0
+          },
+          {
+            "nsPerOp": 5228.0,
+            "bytesPerOp": 1368.0,
+            "allocsPerOp": 23.0
+          },
+          {
+            "nsPerOp": 5272.0,
+            "bytesPerOp": 1368.0,
+            "allocsPerOp": 23.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 5279.0,
+          "bytesPerOp": 1368.0,
+          "allocsPerOp": 23.0
+        }
+      },
+      "BenchmarkDNSDatagramPipeline/fakeip/rules=10000/wrap=true": {
+        "samples": [
+          {
+            "nsPerOp": 5892.0,
+            "bytesPerOp": 1641.0,
+            "allocsPerOp": 26.0
+          },
+          {
+            "nsPerOp": 5842.0,
+            "bytesPerOp": 1640.0,
+            "allocsPerOp": 26.0
+          },
+          {
+            "nsPerOp": 5958.0,
+            "bytesPerOp": 1641.0,
+            "allocsPerOp": 26.0
+          },
+          {
+            "nsPerOp": 5864.0,
+            "bytesPerOp": 1641.0,
+            "allocsPerOp": 26.0
+          },
+          {
+            "nsPerOp": 6064.0,
+            "bytesPerOp": 1641.0,
+            "allocsPerOp": 26.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 5892.0,
+          "bytesPerOp": 1641.0,
+          "allocsPerOp": 26.0
+        }
+      },
+      "BenchmarkDNSRoutedUDPPipeline/upstream-cache=true": {
+        "samples": [
+          {
+            "nsPerOp": 28828.0,
+            "bytesPerOp": 1891.0,
+            "allocsPerOp": 48.0,
+            "upstreamQueriesPerOp": 0.0
+          },
+          {
+            "nsPerOp": 28698.0,
+            "bytesPerOp": 1893.0,
+            "allocsPerOp": 48.0,
+            "upstreamQueriesPerOp": 0.0
+          },
+          {
+            "nsPerOp": 28634.0,
+            "bytesPerOp": 1890.0,
+            "allocsPerOp": 48.0,
+            "upstreamQueriesPerOp": 0.0
+          },
+          {
+            "nsPerOp": 28423.0,
+            "bytesPerOp": 1890.0,
+            "allocsPerOp": 48.0,
+            "upstreamQueriesPerOp": 0.0
+          },
+          {
+            "nsPerOp": 28300.0,
+            "bytesPerOp": 1890.0,
+            "allocsPerOp": 48.0,
+            "upstreamQueriesPerOp": 0.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 28634.0,
+          "bytesPerOp": 1890.0,
+          "allocsPerOp": 48.0,
+          "upstreamQueriesPerOp": 0.0
+        }
+      },
+      "BenchmarkDNSRoutedUDPPipeline/upstream-cache=false": {
+        "samples": [
+          {
+            "nsPerOp": 121531.0,
+            "bytesPerOp": 8471.0,
+            "allocsPerOp": 189.0,
+            "upstreamQueriesPerOp": 3.0
+          },
+          {
+            "nsPerOp": 120404.0,
+            "bytesPerOp": 8459.0,
+            "allocsPerOp": 189.0,
+            "upstreamQueriesPerOp": 3.0
+          },
+          {
+            "nsPerOp": 119857.0,
+            "bytesPerOp": 8458.0,
+            "allocsPerOp": 189.0,
+            "upstreamQueriesPerOp": 3.0
+          },
+          {
+            "nsPerOp": 121400.0,
+            "bytesPerOp": 8464.0,
+            "allocsPerOp": 189.0,
+            "upstreamQueriesPerOp": 3.0
+          },
+          {
+            "nsPerOp": 120114.0,
+            "bytesPerOp": 8458.0,
+            "allocsPerOp": 189.0,
+            "upstreamQueriesPerOp": 3.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 120404.0,
+          "bytesPerOp": 8459.0,
+          "allocsPerOp": 189.0,
+          "upstreamQueriesPerOp": 3.0
+        }
+      }
+    },
+    "udp": {
+      "BenchmarkDNSUDPPipeline/cache": {
+        "samples": [
+          {
+            "nsPerOp": 21773.0,
+            "bytesPerOp": 1181.0,
+            "allocsPerOp": 21.0
+          },
+          {
+            "nsPerOp": 22843.0,
+            "bytesPerOp": 1181.0,
+            "allocsPerOp": 21.0
+          },
+          {
+            "nsPerOp": 22648.0,
+            "bytesPerOp": 1181.0,
+            "allocsPerOp": 21.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 22648.0,
+          "bytesPerOp": 1181.0,
+          "allocsPerOp": 21.0
+        }
+      },
+      "BenchmarkDNSUDPPipeline/nxdomain": {
+        "samples": [
+          {
+            "nsPerOp": 17172.0,
+            "bytesPerOp": 532.0,
+            "allocsPerOp": 10.0
+          },
+          {
+            "nsPerOp": 17156.0,
+            "bytesPerOp": 532.0,
+            "allocsPerOp": 10.0
+          },
+          {
+            "nsPerOp": 17242.0,
+            "bytesPerOp": 534.0,
+            "allocsPerOp": 10.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 17172.0,
+          "bytesPerOp": 532.0,
+          "allocsPerOp": 10.0
+        }
+      },
+      "BenchmarkDNSUDPPipeline/aaaa": {
+        "samples": [
+          {
+            "nsPerOp": 17417.0,
+            "bytesPerOp": 532.0,
+            "allocsPerOp": 12.0
+          },
+          {
+            "nsPerOp": 17327.0,
+            "bytesPerOp": 532.0,
+            "allocsPerOp": 12.0
+          },
+          {
+            "nsPerOp": 17342.0,
+            "bytesPerOp": 532.0,
+            "allocsPerOp": 12.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 17342.0,
+          "bytesPerOp": 532.0,
+          "allocsPerOp": 12.0
+        }
+      },
+      "BenchmarkDNSUDPPipeline/hosts": {
+        "samples": [
+          {
+            "nsPerOp": 22452.0,
+            "bytesPerOp": 1289.0,
+            "allocsPerOp": 24.0
+          },
+          {
+            "nsPerOp": 22981.0,
+            "bytesPerOp": 1289.0,
+            "allocsPerOp": 24.0
+          },
+          {
+            "nsPerOp": 22954.0,
+            "bytesPerOp": 1291.0,
+            "allocsPerOp": 24.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 22954.0,
+          "bytesPerOp": 1289.0,
+          "allocsPerOp": 24.0
+        }
+      },
+      "BenchmarkDNSUDPPipeline/fakeip": {
+        "samples": [
+          {
+            "nsPerOp": 23039.0,
+            "bytesPerOp": 1565.0,
+            "allocsPerOp": 27.0
+          },
+          {
+            "nsPerOp": 22725.0,
+            "bytesPerOp": 1567.0,
+            "allocsPerOp": 27.0
+          },
+          {
+            "nsPerOp": 22855.0,
+            "bytesPerOp": 1565.0,
+            "allocsPerOp": 27.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 22855.0,
+          "bytesPerOp": 1565.0,
+          "allocsPerOp": 27.0
+        }
+      }
+    },
+    "rules": {
+      "BenchmarkResponseRulesApply/1000": {
+        "samples": [
+          {
+            "nsPerOp": 307740.0,
+            "bytesPerOp": 349089.0,
+            "allocsPerOp": 3024.0,
+            "retainedBytesPerRule": 310.5
+          },
+          {
+            "nsPerOp": 315464.0,
+            "bytesPerOp": 349080.0,
+            "allocsPerOp": 3024.0,
+            "retainedBytesPerRule": 293.3
+          },
+          {
+            "nsPerOp": 309643.0,
+            "bytesPerOp": 349080.0,
+            "allocsPerOp": 3024.0,
+            "retainedBytesPerRule": 293.3
+          }
+        ],
+        "median": {
+          "nsPerOp": 309643.0,
+          "bytesPerOp": 349080.0,
+          "allocsPerOp": 3024.0,
+          "retainedBytesPerRule": 293.3
+        }
+      },
+      "BenchmarkResponseRulesApply/10000": {
+        "samples": [
+          {
+            "nsPerOp": 3258681.0,
+            "bytesPerOp": 3273656.0,
+            "allocsPerOp": 30083.0,
+            "retainedBytesPerRule": 284.7
+          },
+          {
+            "nsPerOp": 3302511.0,
+            "bytesPerOp": 3273593.0,
+            "allocsPerOp": 30083.0,
+            "retainedBytesPerRule": 283.5
+          },
+          {
+            "nsPerOp": 3265177.0,
+            "bytesPerOp": 3273593.0,
+            "allocsPerOp": 30083.0,
+            "retainedBytesPerRule": 283.5
+          }
+        ],
+        "median": {
+          "nsPerOp": 3265177.0,
+          "bytesPerOp": 3273593.0,
+          "allocsPerOp": 30083.0,
+          "retainedBytesPerRule": 283.5
+        }
+      },
+      "BenchmarkResponseRules/10": {
+        "samples": [
+          {
+            "nsPerOp": 216.8,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 3.0
+          },
+          {
+            "nsPerOp": 216.3,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 3.0
+          },
+          {
+            "nsPerOp": 216.9,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 3.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 216.8,
+          "bytesPerOp": 304.0,
+          "allocsPerOp": 3.0
+        }
+      },
+      "BenchmarkResponseRules/1000": {
+        "samples": [
+          {
+            "nsPerOp": 228.0,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 3.0
+          },
+          {
+            "nsPerOp": 231.7,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 3.0
+          },
+          {
+            "nsPerOp": 227.1,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 3.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 228.0,
+          "bytesPerOp": 304.0,
+          "allocsPerOp": 3.0
+        }
+      },
+      "BenchmarkResponseRules/10000": {
+        "samples": [
+          {
+            "nsPerOp": 244.3,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 3.0
+          },
+          {
+            "nsPerOp": 244.1,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 3.0
+          },
+          {
+            "nsPerOp": 243.9,
+            "bytesPerOp": 304.0,
+            "allocsPerOp": 3.0
+          }
+        ],
+        "median": {
+          "nsPerOp": 244.1,
+          "bytesPerOp": 304.0,
+          "allocsPerOp": 3.0
+        }
+      }
+    }
+  },
+  "profiles": {
+    "cpu": "File: custom-dns-resolver.test\nBuild ID: 82b85fbac8f4784784f1248fc042a4fab137ae98\nType: cpu\nTime: 2026-10-21 20:20:48 CST\nDuration: 6.11s, Total samples = 7690ms (125.91%)\nShowing nodes accounting for 2940ms, 38.23% of 7690ms total\nDropped 218 nodes (cum <= 38.45ms)\nShowing top 18 nodes out of 165\n      flat  flat%   sum%        cum   cum%\n     840ms 10.92% 10.92%      840ms 10.92%  runtime.futex\n     290ms  3.77% 14.69%      530ms  6.89%  runtime.selectgo\n     180ms  2.34% 17.04%      180ms  2.34%  internal/runtime/maps.memHashAES\n     160ms  2.08% 19.12%      300ms  3.90%  runtime.scanObjectsSmall\n     140ms  1.82% 20.94%      540ms  7.02%  runtime.adjustframe\n     140ms  1.82% 22.76%      210ms  2.73%  runtime.tryDeferToSpanScan\n     130ms  1.69% 24.45%      360ms  4.68%  codeberg.org/miekg/dns/internal/pack.Name\n     130ms  1.69% 26.14%      160ms  2.08%  runtime.pcvalue\n     120ms  1.56% 27.70%      170ms  2.21%  runtime.findfunc\n     110ms  1.43% 29.13%      180ms  2.34%  runtime.casgstatus\n     100ms  1.30% 30.43%      100ms  1.30%  indexbytebody\n     100ms  1.30% 31.73%      100ms  1.30%  runtime.stackfree\n      90ms  1.17% 32.90%      920ms 11.96%  runtime.findRunnable\n      90ms  1.17% 34.07%      200ms  2.60%  runtime.stealWork\n      80ms  1.04% 35.11%      300ms  3.90%  runtime.(*stkframe).getStackMap\n      80ms  1.04% 36.15%       80ms  1.04%  runtime.adjustpointers\n      80ms  1.04% 37.19%       80ms  1.04%  runtime.funcdata (inline)\n      80ms  1.04% 38.23%      220ms  2.86%  runtime.mapaccess2\n",
+    "allocationSpace": "File: custom-dns-resolver.test\nBuild ID: 82b85fbac8f4784784f1248fc042a4fab137ae98\nType: alloc_space\nTime: 2026-10-21 20:20:54 CST\nShowing nodes accounting for 1171.90MB, 98.82% of 1185.88MB total\nDropped 90 nodes (cum <= 5.93MB)\nShowing top 18 nodes out of 19\n      flat  flat%   sum%        cum   cum%\n  429.58MB 36.22% 36.22%   519.09MB 43.77%  github.com/Asutorufa/yuhaiin/pkg/net/netapi.NewDNSMsg\n  291.54MB 24.58% 60.81%   291.54MB 24.58%  github.com/Asutorufa/yuhaiin/pkg/net/netapi.NewPacket\n  171.51MB 14.46% 75.27%   171.51MB 14.46%  codeberg.org/miekg/dns.init.func115\n   95.50MB  8.05% 83.33%    95.50MB  8.05%  codeberg.org/miekg/dns.(*AAAA).Clone\n   42.50MB  3.58% 86.91%    42.50MB  3.58%  github.com/Asutorufa/yuhaiin/pkg/net/dns/server.(*dnsServer).handle\n   41.50MB  3.50% 90.41%   341.33MB 28.78%  github.com/Asutorufa/yuhaiin/pkg/resolver.BenchmarkDNSDatagramPipeline.func1\n      32MB  2.70% 93.11%   646.59MB 54.52%  github.com/Asutorufa/yuhaiin/pkg/net/dns/response.answer\n   31.50MB  2.66% 95.76%      145MB 12.23%  codeberg.org/miekg/dns.(*Msg).unpackQuestions\n   31.50MB  2.66% 98.42%    31.50MB  2.66%  codeberg.org/miekg/dns/internal/unpack.Name\n    4.76MB   0.4% 98.82%     8.29MB   0.7%  github.com/Asutorufa/yuhaiin/pkg/resolver.benchmarkDNSPipeline\n         0     0% 98.82%      145MB 12.23%  codeberg.org/miekg/dns.(*Msg).Unpack\n         0     0% 98.82%   113.50MB  9.57%  codeberg.org/miekg/dns.(*Msg).unpackQuestion\n         0     0% 98.82%   646.59MB 54.52%  github.com/Asutorufa/yuhaiin/pkg/net/dns/response.(*Resolver).LocalResponse\n         0     0% 98.82%   791.59MB 66.75%  github.com/Asutorufa/yuhaiin/pkg/net/dns/server.(*dnsServer).do\n         0     0% 98.82%   791.59MB 66.75%  github.com/Asutorufa/yuhaiin/pkg/net/dns/server.(*dnsServer).handle.func1\n         0     0% 98.82%    42.50MB  3.58%  github.com/Asutorufa/yuhaiin/pkg/net/dns/server.(*dnsServer).startHandleReqData\n         0     0% 98.82%    89.50MB  7.55%  github.com/Asutorufa/yuhaiin/pkg/net/netapi.DNSQuestion.RR\n         0     0% 98.82%   342.34MB 28.87%  testing.(*B).run1.func1\n"
+  }
+}

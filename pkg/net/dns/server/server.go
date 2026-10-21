@@ -254,6 +254,9 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 	if d.local != nil {
 		msg, local = d.local.LocalResponse(question)
 	}
+	if local {
+		metrics.Counter.AddDNSProcess(question.Name)
+	}
 	if !local {
 		ctx, store := netapi.GetOrNewContext(ctx)
 		store.ConnOptions().Resolver().SetUseFakeIP(req.ForceFakeIP)
