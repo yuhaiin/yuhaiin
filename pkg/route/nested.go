@@ -237,13 +237,13 @@ func (s *Matchers) appendRule(matchers []MatchEntry, r contractroute.RouteRule) 
 
 // appendPreparedRule retains branches that can still match deterministically.
 // Unavailable lists are UNKNOWN, never FALSE: NOT UNKNOWN must remain UNKNOWN.
-func (s *Matchers) appendPreparedRule(entries []MatchEntry, rule contractroute.RouteRule, unavailable map[string]bool, skipped *[]contractroute.SkippedRouteRule, degraded *[]contractroute.DegradedRouteRule) []MatchEntry {
+func (s *Matchers) appendPreparedRule(entries []MatchEntry, rule contractroute.RouteRule, unavailable, incomplete map[string]bool, skipped *[]contractroute.SkippedRouteRule, degraded *[]contractroute.DegradedRouteRule) []MatchEntry {
 	if rule.Disabled {
 		return entries
 	}
 	var missing []string
 	_ = contractroute.VisitListRefs(rule.Rules, func(_ string, id string) error {
-		if unavailable[id] && !slices.Contains(missing, id) {
+		if (unavailable[id] || incomplete[id]) && !slices.Contains(missing, id) {
 			missing = append(missing, id)
 		}
 		return nil
@@ -252,7 +252,7 @@ func (s *Matchers) appendPreparedRule(entries []MatchEntry, rule contractroute.R
 		return s.appendRule(entries, rule)
 	}
 	slices.Sort(missing)
-	matcher := parseMatcherWithUnavailable(rule, unavailable)
+	matcher := parseMatcherWithUnavailable(rule, unavailable, incomplete)
 	if canTrue, _ := possibleKnownMatch(matcher); !canTrue {
 		*skipped = append(*skipped, contractroute.SkippedRouteRule{ID: rule.ID, Name: rule.Name, ListIDs: missing})
 		return entries
@@ -276,7 +276,7 @@ func (s *Matchers) UpdateContext(ctx context.Context, rules ...contractroute.Rou
 	var skipped []contractroute.SkippedRouteRule
 	var degraded []contractroute.DegradedRouteRule
 	for _, rule := range rules {
-		ms = s.appendPreparedRule(ms, rule, prepared.unavailable, &skipped, &degraded)
+		ms = s.appendPreparedRule(ms, rule, prepared.unavailable, prepared.incomplete, &skipped, &degraded)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -308,7 +308,7 @@ func (s *Matchers) UpdateSnapshot(ctx context.Context, snapshot plainstore.Route
 	var skipped []contractroute.SkippedRouteRule
 	var degraded []contractroute.DegradedRouteRule
 	for _, entry := range snapshot.Rules {
-		entries = s.appendPreparedRule(entries, entry.Rule, prepared.unavailable, &skipped, &degraded)
+		entries = s.appendPreparedRule(entries, entry.Rule, prepared.unavailable, prepared.incomplete, &skipped, &degraded)
 	}
 	return activate(ctx, snapshot.Revision, func() {
 		s.mu.Lock()
@@ -432,6 +432,10 @@ func parseCondition(expr contractroute.RuleExpr) Matcher {
 }
 
 func parseConditionWithUnavailable(expr contractroute.RuleExpr, unavailable map[string]bool) Matcher {
+	return parseConditionWithDegraded(expr, unavailable, nil)
+}
+
+func parseConditionWithDegraded(expr contractroute.RuleExpr, unavailable, incomplete map[string]bool) Matcher {
 	switch expr.Type {
 	case "always":
 		return constantMatcher(true)
@@ -445,7 +449,7 @@ func parseConditionWithUnavailable(expr contractroute.RuleExpr, unavailable map[
 		}
 		children := make([]Matcher, 0, len(exprs))
 		for _, child := range sortRule(slices.Clone(exprs)) {
-			children = append(children, parseConditionWithUnavailable(child, unavailable))
+			children = append(children, parseConditionWithDegraded(child, unavailable, incomplete))
 		}
 		if expr.Type == "all" {
 			return NewAnd(children...)
@@ -453,12 +457,15 @@ func parseConditionWithUnavailable(expr contractroute.RuleExpr, unavailable map[
 		return NewOr("", children...)
 	case "not":
 		if expr.Not != nil {
-			return notMatcher{parseConditionWithUnavailable(*expr.Not, unavailable)}
+			return notMatcher{parseConditionWithDegraded(*expr.Not, unavailable, incomplete)}
 		}
 	case "host":
 		if expr.Host != nil {
 			if unavailable[expr.Host.List] {
 				return unavailableListMatcher(expr.Host.List)
+			}
+			if incomplete[expr.Host.List] {
+				return incompleteListMatcher(expr.Host.List)
 			}
 			return List(expr.Host.List)
 		}
@@ -466,6 +473,9 @@ func parseConditionWithUnavailable(expr contractroute.RuleExpr, unavailable map[
 		if expr.Process != nil {
 			if unavailable[expr.Process.List] {
 				return unavailableListMatcher(expr.Process.List)
+			}
+			if incomplete[expr.Process.List] {
+				return incompleteListMatcher(expr.Process.List)
 			}
 			return List(expr.Process.List)
 		}
