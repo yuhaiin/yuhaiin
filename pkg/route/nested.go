@@ -368,7 +368,9 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) ModeEnum {
 				continue
 			}
 			store.NewRuleMatch(entry.id, entry.name)
-			if entry.matcher.Match(ctx, addr) {
+			matched, trace := traceRuleMatch(ctx, addr, entry.matcher)
+			store.SetRuleMatchTrace(trace)
+			if matched {
 				store.SetMatchedRule(entry.id, entry.name)
 				s.mu.RUnlock()
 				mode := entry.mode
