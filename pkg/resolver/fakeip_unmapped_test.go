@@ -22,10 +22,22 @@ func TestFakeIPUnmappedNeverFallsThrough(t *testing.T) {
 		t.Fatal("unmapped destination did not get an unconditional route-block marker")
 	}
 	for name, invoke := range map[string]func() error{
-		"Conn": func() error { _, err := f.Conn(ctx, addr); return err },
-		"PacketConn": func() error { _, err := f.PacketConn(ctx, addr); return err },
-		"Dispatch": func() error { _, err := f.Dispatch(ctx, addr); return err },
-		"Ping": func() error { _, err := f.Ping(ctx, addr); return err },
+		"Conn": func() error {
+			_, err := f.Conn(ctx, addr)
+			return err
+		},
+		"PacketConn": func() error {
+			_, err := f.PacketConn(ctx, addr)
+			return err
+		},
+		"Dispatch": func() error {
+			_, err := f.Dispatch(ctx, addr)
+			return err
+		},
+		"Ping": func() error {
+			_, err := f.Ping(ctx, addr)
+			return err
+		},
 	} {
 		if err := invoke(); !errors.Is(err, ErrUnmappedFakeIP) {
 			t.Errorf("%s did not fail closed: %v", name, err)
