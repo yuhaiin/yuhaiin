@@ -166,8 +166,16 @@ type nativeTCPConn struct {
 }
 
 func (s *nativeTCPConn) Close() error {
-	s.CancelRead(0)
-	return s.Stream.Close()
+	_ = s.CloseRead()
+	return s.CloseWrite()
+}
+
+// QUIC FIN and STOP_SENDING are independent. Relay must be able to finish
+// sending a request without discarding a response still being received.
+func (s *nativeTCPConn) CloseWrite() error { return s.Stream.Close() }
+func (s *nativeTCPConn) CloseRead() error {
+	s.Stream.CancelRead(0)
+	return nil
 }
 func (s *nativeTCPConn) LocalAddr() net.Addr  { return s.local }
 func (s *nativeTCPConn) RemoteAddr() net.Addr { return s.remote }
