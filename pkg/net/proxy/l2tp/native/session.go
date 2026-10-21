@@ -42,6 +42,7 @@ type Session struct {
 	dataSequence                                       uint32
 	info                                               Info
 	pppState                                           *pppState
+	stats                                              sessionCounters
 	dataReady                                          bool
 }
 
@@ -191,8 +192,14 @@ func (s *Session) receive() {
 			s.fail(err)
 			return
 		}
+		s.stats.receivedDatagrams.Add(1)
 		p, err := decode(buf[:n], s.cfg.SharedSecret)
-		if err != nil || p.version != s.cfg.Version {
+		if err != nil {
+			s.stats.decodeErrors.Add(1)
+			continue
+		}
+		if p.version != s.cfg.Version {
+			s.stats.wrongVersion.Add(1)
 			continue
 		}
 		if !p.control {
@@ -321,6 +328,9 @@ func (s *Session) writeLocked(b []byte) error {
 	n, err := s.conn.Write(b)
 	if err == nil && n != len(b) {
 		return io.ErrShortWrite
+	}
+	if err == nil {
+		s.stats.sentDatagrams.Add(1)
 	}
 	return err
 }
