@@ -42,8 +42,8 @@ type Connections struct {
 	counters *counters
 
 	connStore syncmap.SyncMap[uint64, connection]
-	// Live-only sidecar: shares flat history backing arrays and immutable templates.
-	traceStore syncmap.SyncMap[uint64, []contractconnection.MatchHistoryEntry]
+	// Live-only sidecar: template pointers only; never pins leaf history arrays.
+	traceStore syncmap.SyncMap[uint64, []*contractconnection.MatchTraceTemplate]
 
 	idSeed            id.IDGenerator
 	openedConnections atomic.Uint64
@@ -162,15 +162,28 @@ func (c *Connections) Conns(context.Context) (contractconnection.Connections, er
 // connection. Periodic listing, events, SQLite persistence and the hot routing
 // path never expand the shared matcher template.
 func (c *Connections) MatchTraceForConnection(id uint64) (contractconnection.MatchTraceResponse, bool) {
-	history, ok := c.traceStore.Load(id)
+	templates, ok := c.traceStore.Load(id)
 	if !ok {
 		return contractconnection.MatchTraceResponse{}, false
 	}
-	out := make([]contractconnection.MatchHistoryEntry, len(history))
-	for i, entry := range history {
+	var info contractconnection.Connection
+	if c.persistence != nil {
+		info, ok = c.persistence.loadOne(id)
+	} else {
+		info, ok = c.infoStore.Load(id)
+	}
+	if !ok {
+		return contractconnection.MatchTraceResponse{}, false
+	}
+	out := make([]contractconnection.MatchHistoryEntry, len(info.MatchHistory))
+	for i, entry := range info.MatchHistory {
+		var template *contractconnection.MatchTraceTemplate
+		if i < len(templates) {
+			template = templates[i]
+		}
 		out[i] = contractconnection.MatchHistoryEntry{
 			RuleID: entry.RuleID, RuleName: entry.RuleName, History: entry.History,
-			Trace: contractconnection.ReconstructMatchTrace(entry.TraceTemplate, entry.History),
+			Trace: contractconnection.ReconstructMatchTrace(template, entry.History),
 		}
 	}
 	return contractconnection.MatchTraceResponse{MatchHistory: out}, true
@@ -260,7 +273,11 @@ func (c *Connections) storeConnection(o connection, info contractconnection.Conn
 	id, _ := strconv.ParseUint(info.ID, 10, 64)
 	c.connStore.Store(id, o)
 	if len(info.MatchHistory) > 0 {
-		c.traceStore.Store(id, info.MatchHistory)
+		templates := make([]*contractconnection.MatchTraceTemplate, len(info.MatchHistory))
+		for i, entry := range info.MatchHistory {
+			templates[i] = entry.TraceTemplate
+		}
+		c.traceStore.Store(id, templates)
 	}
 	c.openedConnections.Add(1)
 	if c.persistence != nil {
