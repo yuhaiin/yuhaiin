@@ -8,7 +8,6 @@ import (
 	"net/netip"
 	"sync"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
@@ -200,11 +199,15 @@ func (s *server) udpLoop() {
 				}
 			}
 			if !source.IsValid() {
-				return 0, fmt.Errorf("lightweight: invalid UDP reply address %T", addr)
+				return 0, fmt.Errorf("%w: lightweight UDP invalid reply address %T (client %s, request destination %s)", netapi.ErrUndeliverableDatagram, addr, d.Source, d.Destination)
 			}
 			n, err := s.stack.WriteUDP(source, d.Source, b)
 			if err != nil {
-				log.Debug("lightweight UDP writeback failed", "err", err)
+				err = fmt.Errorf("lightweight UDP reply source=%s client=%s request-destination=%s: %w", source, d.Source, d.Destination, err)
+				if errors.Is(err, lightweight.ErrMalformed) || errors.Is(err, lightweight.ErrMTU) || errors.Is(err, lightweight.ErrLimit) {
+					// One unusable datagram must not poison the outbound NAT socket.
+					return n, fmt.Errorf("%w: %w", netapi.ErrUndeliverableDatagram, err)
+				}
 			}
 			return n, err
 		}), netapi.WithDNSRequest(s.isDNS(d.Destination))))
