@@ -92,6 +92,7 @@ func (u *SourceControl) startResolutions() {
 func (u *SourceControl) finishResolution(result resolutionResult) {
 	p := result.pending
 	delete(u.resolutions, p.key)
+	defer u.releaseUnusedDestinationLease(p.key)
 	u.queueBudget.ReleasePendingTask()
 	u.resolving--
 	u.pendingPackets -= len(p.packets)
@@ -103,6 +104,9 @@ func (u *SourceControl) finishResolution(result resolutionResult) {
 	}
 	if !stale && result.err == nil {
 		result.err = p.mapper.remember(p.packets[0].Dst(), result.addr)
+		if result.err == nil {
+			u.retainDestinationLease(p.key)
+		}
 	}
 	for _, pkt := range p.packets {
 		var err error

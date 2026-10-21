@@ -27,7 +27,7 @@ func TestRewriteHTTPSHintsPreservesServiceParameters(t *testing.T) {
 	msg := &dns.Msg{Answer: []dns.RR{alias, service, signature}}
 	msg.AuthenticatedData = true
 
-	rewriteHTTPSHints(msg, new4, new6)
+	rewriteHTTPSHints(msg, "example.com.", new4, new6)
 	if msg.AuthenticatedData {
 		t.Fatal("synthetic HTTPS answer retains the upstream AD bit")
 	}
@@ -70,7 +70,7 @@ func TestRewriteHTTPSHintsWithoutServiceModeDoesNotAllocate(t *testing.T) {
 	alias.Priority = 0
 	alias.Target = "alias.example.com."
 	msg := &dns.Msg{Answer: []dns.RR{alias}}
-	rewriteHTTPSHints(msg, netip.MustParseAddr("198.18.0.10"), netip.Addr{})
+	rewriteHTTPSHints(msg, "example.com.", netip.MustParseAddr("198.18.0.10"), netip.Addr{})
 	if len(msg.Answer) != 1 || msg.Answer[0] != alias || len(alias.Value) != 0 {
 		t.Fatalf("AliasMode mutated: %v", msg.Answer)
 	}
@@ -94,7 +94,7 @@ func TestRewriteHTTPSHintsAlternateTargetAndMandatory(t *testing.T) {
 		&svcb.IPV4HINT{Hint: []netip.Addr{netip.MustParseAddr("203.0.113.5")}},
 	}
 	msg := &dns.Msg{Answer: []dns.RR{alt, mandatory}}
-	rewriteHTTPSHints(msg, netip.MustParseAddr("198.18.0.8"), netip.MustParseAddr("2001:2::8"))
+	rewriteHTTPSHints(msg, "example.com.", netip.MustParseAddr("198.18.0.8"), netip.MustParseAddr("2001:2::8"))
 	if len(msg.Answer) != 1 {
 		t.Fatalf("mandatory hint with alternate target must be suppressed: %v", msg.Answer)
 	}
@@ -114,8 +114,49 @@ func TestRewriteHTTPSHintsIPv6DisabledMandatory(t *testing.T) {
 	record.Target = "."
 	record.Value = []svcb.Pair{&svcb.MANDATORY{Key: []uint16{svcb.KeyIPv6Hint}}}
 	msg := &dns.Msg{Answer: []dns.RR{record}}
-	rewriteHTTPSHints(msg, netip.MustParseAddr("198.18.0.8"), netip.Addr{})
+	rewriteHTTPSHints(msg, "example.com.", netip.MustParseAddr("198.18.0.8"), netip.Addr{})
 	if len(msg.Answer) != 0 {
 		t.Fatal("missing mandatory ipv6hint was left in response")
+	}
+}
+
+func TestRewriteHTTPSHintsRespectsAliasOwner(t *testing.T) {
+	for _, aliasType := range []string{"HTTPS", "CNAME"} {
+		t.Run(aliasType, func(t *testing.T) {
+			service := &dns.HTTPS{}
+			service.Hdr = dns.Header{Name: "service.example.", Class: dns.ClassINET}
+			service.Priority = 1
+			service.Target = "."
+			service.Value = []svcb.Pair{&svcb.IPV4HINT{Hint: []netip.Addr{netip.MustParseAddr("203.0.113.8")}}}
+			var alias dns.RR
+			if aliasType == "CNAME" {
+				alias = &dns.CNAME{Hdr: dns.Header{Name: "origin.example.", Class: dns.ClassINET}, Target: "service.example."}
+			} else {
+				https := &dns.HTTPS{}
+				https.Hdr = dns.Header{Name: "origin.example.", Class: dns.ClassINET}
+				https.Target = "service.example."
+				alias = https
+			}
+			msg := &dns.Msg{Answer: []dns.RR{alias, service}}
+			fakeIP := netip.MustParseAddr("198.18.0.8")
+			rewriteHTTPSHints(msg, "origin.example.", fakeIP, netip.Addr{})
+			if msg.Answer[0] != alias {
+				t.Fatal("alias record was changed")
+			}
+			out := msg.Answer[1].(*dns.HTTPS)
+			if aliasType == "HTTPS" {
+				if len(out.Value) != 0 {
+					t.Fatalf("HTTPS alias target received the origin's FakeIP hint: %v", out.Value)
+				}
+			} else {
+				if len(out.Value) != 1 {
+					t.Fatalf("CNAME target lost its origin's FakeIP hint: %v", out.Value)
+				}
+				hint, ok := out.Value[0].(*svcb.IPV4HINT)
+				if !ok || len(hint.Hint) != 1 || hint.Hint[0] != fakeIP {
+					t.Fatalf("unexpected CNAME target hint: %v", out.Value)
+				}
+			}
+		})
 	}
 }

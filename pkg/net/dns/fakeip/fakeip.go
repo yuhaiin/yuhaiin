@@ -1,12 +1,13 @@
 package fakeip
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"net"
 	"net/netip"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -53,6 +54,44 @@ func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, ipv6Range neti
 		ipv4:     ipv4,
 		ipv6:     ipv6,
 	}, nil
+}
+
+// Reconfigure retains unchanged pools, including their active connection leases.
+// The caller must serialize reconfiguration against lookups and destination recovery.
+func (f *FakeDNS) Reconfigure(ipv4Range, ipv6Range netip.Prefix, dbPath string) error {
+	var next4, next6 *SQLiteFakeIPPool
+	if ipv4Range.Masked() != f.ipv4.Prefix() {
+		var err error
+		next4, err = NewSQLiteFakeIPPool(dbPath, ipv4Range, 655535)
+		if err != nil {
+			return fmt.Errorf("open sqlite fakeip ipv4 pool failed: %w", err)
+		}
+	}
+	if ipv6Range.Masked() != f.ipv6.Prefix() {
+		var err error
+		next6, err = NewSQLiteFakeIPPool(dbPath, ipv6Range, 655535)
+		if err != nil {
+			if next4 != nil {
+				_ = next4.Close()
+			}
+			return fmt.Errorf("open sqlite fakeip ipv6 pool failed: %w", err)
+		}
+	}
+	if next4 != nil {
+		old := f.ipv4
+		f.ipv4 = next4
+		if closer, ok := old.(closePool); ok {
+			_ = closer.Close()
+		}
+	}
+	if next6 != nil {
+		old := f.ipv6
+		f.ipv6 = next6
+		if closer, ok := old.(closePool); ok {
+			_ = closer.Close()
+		}
+	}
+	return nil
 }
 
 func (f *FakeDNS) Close() error {
@@ -197,7 +236,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 			}
 		}
 		msg = msg.Copy() // Never mutate a message shared with upstream cache.
-		rewriteHTTPSHints(msg, ipv4, ipv6)
+		rewriteHTTPSHints(msg, req.Name, ipv4, ipv6)
 		return msg, nil
 
 	case dns.TypeAAAA:
@@ -373,7 +412,20 @@ func (f *FakeDNS) LookupPtr(ip net.IP) (string, error) {
 // response shared with the upstream DNS cache. Preserve unrelated SvcParams
 // such as ALPN, ECH, port and mandatory. A changed RRset cannot retain its
 // upstream DNSSEC signatures or an authenticated-data assertion.
-func rewriteHTTPSHints(msg *dns.Msg, ipv4, ipv6 netip.Addr) {
+func rewriteHTTPSHints(msg *dns.Msg, origin string, ipv4, ipv6 netip.Addr) {
+	// A CNAME changes the owner's name without changing its A/AAAA result.
+	// HTTPS AliasMode redirects service discovery independently of A/AAAA and
+	// must not make its target eligible for the queried origin's FakeIP.
+	cnames := make(map[string]string)
+	for _, rr := range msg.Answer {
+		if cname, ok := rr.(*dns.CNAME); ok {
+			cnames[strings.ToLower(cname.Hdr.Name)] = strings.ToLower(cname.Target)
+		}
+	}
+	originNames := make(map[string]bool)
+	for name := strings.ToLower(origin); name != "" && !originNames[name]; name = cnames[name] {
+		originNames[name] = true
+	}
 	answer := make([]dns.RR, 0, len(msg.Answer))
 	changed := false
 	for _, rr := range msg.Answer {
@@ -387,7 +439,11 @@ func rewriteHTTPSHints(msg *dns.Msg, ipv4, ipv6 netip.Addr) {
 		// IP hints describe TargetName, not necessarily the queried origin.
 		// For alternate targets, remove real hints and let clients resolve the
 		// target's A/AAAA via FakeDNS rather than giving them an origin FakeIP.
-		sameTarget := https.Target == "." || strings.EqualFold(https.Target, https.Hdr.Name)
+		target := https.Target
+		if target == "." {
+			target = https.Hdr.Name
+		}
+		sameTarget := originNames[strings.ToLower(target)]
 		write4, write6 := sameTarget && ipv4.Is4(), sameTarget && ipv6.Is6()
 		var requires4, requires6 bool
 		for _, value := range https.Value {
@@ -413,8 +469,8 @@ func rewriteHTTPSHints(msg *dns.Msg, ipv4, ipv6 netip.Addr) {
 		if write6 {
 			copyRR.Value = append(copyRR.Value, &svcb.IPV6HINT{Hint: []netip.Addr{ipv6}})
 		}
-		sort.Slice(copyRR.Value, func(i, j int) bool {
-			return svcb.PairToKey(copyRR.Value[i]) < svcb.PairToKey(copyRR.Value[j])
+		slices.SortFunc(copyRR.Value, func(a, b svcb.Pair) int {
+			return cmp.Compare(svcb.PairToKey(a), svcb.PairToKey(b))
 		})
 		answer = append(answer, &copyRR)
 		changed = true

@@ -225,7 +225,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 			if label == "" {
 				label = netapi.GetContext(ctx).ConnOptions().RouteMode()
 			}
-			return gateway.Selection{Label: label, Identity: gateway.ProxyIdentity(proxy), Proxy: selectedGatewayProxy{Proxy: proxy, connections: stcs}, Destination: destination}, nil
+			return gateway.Selection{Label: label, Identity: gateway.ProxyIdentity(proxy), Proxy: selectedGatewayProxy{Proxy: proxy, connections: stcs, fakeDNS: fakedns}, Destination: destination}, nil
 		}, gateway.WithDestinationRecovery(fakedns.RecoverDestination), gateway.WithProcessLookup(router.PrepareGatewayContext))
 		if err != nil {
 			_ = closers.Close()

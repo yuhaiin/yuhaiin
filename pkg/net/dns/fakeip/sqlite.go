@@ -33,16 +33,16 @@ type SQLiteFakeIPPool struct {
 	maxNum           uint64
 	mu               sync.RWMutex
 	// guarded by mu; never evict leased addresses
-	active           map[netip.Addr]uint32
+	active map[netip.Addr]uint32
 	// Serialize background and pre-eviction touch commits.
-	flushMu          sync.Mutex
-	touchMu          sync.Mutex
-	touchDomains     map[string]int64
-	touchIPs         map[netip.Addr]int64
-	touchTrigger     chan struct{}
-	touchStop        chan struct{}
-	touchDone        chan struct{}
-	closeOnce        sync.Once
+	flushMu      sync.Mutex
+	touchMu      sync.Mutex
+	touchDomains map[string]int64
+	touchIPs     map[netip.Addr]int64
+	touchTrigger chan struct{}
+	touchStop    chan struct{}
+	touchDone    chan struct{}
+	closeOnce    sync.Once
 }
 
 func NewSQLiteFakeIPPool(path string, prefix netip.Prefix, maxNum int) (*SQLiteFakeIPPool, error) {
@@ -266,6 +266,9 @@ func (p *SQLiteFakeIPPool) LeaseDomainFromIP(ip netip.Addr) (string, func(), boo
 		defer p.mu.Unlock()
 		if p.active[ip] <= 1 {
 			delete(p.active, ip)
+			// The connection may outlive its last reverse lookup. Start the
+			// reuse grace when its final owner stops using the mapping.
+			p.touchIP(ip, time.Now(), 0)
 		} else {
 			p.active[ip]--
 		}
@@ -497,13 +500,15 @@ func (p *SQLiteFakeIPPool) entryCount(ctx context.Context, tx *sql.Tx) (uint64, 
 // If every entry is protected, allocation fails closed instead of silently
 // resolving an old client-side FakeIP to an unrelated domain.
 func (p *SQLiteFakeIPPool) evictLRU(ctx context.Context, tx *sql.Tx, now time.Time) (netip.Addr, error) {
+	// Lazy touches can leave the stored timestamp up to one touch interval
+	// behind actual use; include that window before starting address reuse.
+	cutoff := now.Add(-fakeIPReuseGrace - sqliteFakeIPTouchInterval)
 	rows, err := tx.QueryContext(ctx, `
 		SELECT domain, ip
 		FROM fakeip_entries
 		WHERE family = ? AND prefix = ? AND last_used_at < ?
 		ORDER BY last_used_at ASC, created_at ASC
-		LIMIT 256
-	`, p.family, p.key, now.Add(-fakeIPReuseGrace).UnixNano())
+	`, p.family, p.key, cutoff.UnixNano())
 	if err != nil {
 		return netip.Addr{}, err
 	}

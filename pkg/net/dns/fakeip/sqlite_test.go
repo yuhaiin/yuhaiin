@@ -149,6 +149,102 @@ func TestSQLiteFakeIPPoolLeasedAddressNotReused(t *testing.T) {
 	}
 }
 
+func TestSQLiteFakeIPPoolEvictsBeyondLeasedCandidates(t *testing.T) {
+	const leasedCount = 300
+	pool, db := newTestSQLiteFakeIPPool(t, netip.MustParsePrefix("10.0.0.0/23"), leasedCount+1)
+	leased := make(map[netip.Addr]string, leasedCount)
+	for i := range leasedCount {
+		domain := fmt.Sprintf("leased-%d.example", i)
+		ip := pool.GetFakeIPForDomain(domain)
+		if !ip.IsValid() {
+			t.Fatalf("could not allocate %s", domain)
+		}
+		got, release, ok := pool.LeaseDomainFromIP(ip)
+		if !ok || got != domain {
+			t.Fatalf("could not lease %s: got %q, %v", domain, got, ok)
+		}
+		t.Cleanup(release)
+		leased[ip] = domain
+	}
+	evictable := pool.GetFakeIPForDomain("evictable.example")
+	if !evictable.IsValid() {
+		t.Fatal("could not allocate evictable mapping")
+	}
+	// Finish lazy touches before making the leased rows older than the only
+	// eligible mapping, so eviction must scan past every leased candidate.
+	if err := pool.flushTouches(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	stale := time.Now().Add(-2 * fakeIPReuseGrace).UnixNano()
+	if _, err := db.ExecContext(t.Context(), `
+		UPDATE fakeip_entries
+		SET last_used_at = CASE domain
+			WHEN 'evictable.example' THEN ?
+			ELSE ?
+		END
+	`, stale+1, stale); err != nil {
+		t.Fatal(err)
+	}
+	if got := pool.GetFakeIPForDomain("replacement.example"); got != evictable {
+		t.Fatalf("expected unleased address %v beyond leased candidates, got %v", evictable, got)
+	}
+	for ip, want := range leased {
+		if got, ok := pool.GetDomainFromIP(ip); !ok || got != want {
+			t.Fatalf("leased address %v changed: got %q, %v; want %q", ip, got, ok, want)
+		}
+	}
+}
+
+func TestSQLiteFakeIPPoolReleaseRefreshesReuseGrace(t *testing.T) {
+	pool, db := newTestSQLiteFakeIPPool(t, netip.MustParsePrefix("10.0.0.0/30"), 1)
+	ip := pool.GetFakeIPForDomain("long-lived.example")
+	_, release, ok := pool.LeaseDomainFromIP(ip)
+	if !ok {
+		t.Fatal("could not lease mapping")
+	}
+	t.Cleanup(release)
+	if err := pool.flushTouches(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	// Model a connection that stays active long after its initial lookup.
+	if _, err := db.ExecContext(t.Context(), `
+		UPDATE fakeip_entries SET last_used_at = ? WHERE domain = 'long-lived.example'
+	`, time.Now().Add(-2*fakeIPReuseGrace).UnixNano()); err != nil {
+		t.Fatal(err)
+	}
+	releasedAt := time.Now().UnixNano()
+	release()
+	if got := pool.GetFakeIPForDomain("replacement.example"); got.IsValid() {
+		t.Fatalf("released mapping was immediately recycled as %v", got)
+	}
+	if lastUsed := sqliteFakeIPLastUsed(t, db, "long-lived.example"); lastUsed < releasedAt {
+		t.Fatalf("lease release did not update last use: got %d, want >= %d", lastUsed, releasedAt)
+	}
+}
+
+func TestSQLiteFakeIPPoolReuseIncludesTouchInterval(t *testing.T) {
+	pool, db := newTestSQLiteFakeIPPool(t, netip.MustParsePrefix("10.0.0.0/30"), 1)
+	ip := pool.GetFakeIPForDomain("batched.example")
+	// Persisted timestamps can precede actual use by the touch interval. This
+	// row may have been used less than one grace period ago despite its age.
+	if _, err := db.ExecContext(t.Context(), `
+		UPDATE fakeip_entries SET last_used_at = ? WHERE domain = 'batched.example'
+	`, time.Now().Add(-fakeIPReuseGrace-sqliteFakeIPTouchInterval/2).UnixNano()); err != nil {
+		t.Fatal(err)
+	}
+	if got := pool.GetFakeIPForDomain("replacement.example"); got.IsValid() {
+		t.Fatalf("mapping within the batching safety window was recycled as %v", got)
+	}
+	if _, err := db.ExecContext(t.Context(), `
+		UPDATE fakeip_entries SET last_used_at = ? WHERE domain = 'batched.example'
+	`, time.Now().Add(-fakeIPReuseGrace-sqliteFakeIPTouchInterval-time.Second).UnixNano()); err != nil {
+		t.Fatal(err)
+	}
+	if got := pool.GetFakeIPForDomain("replacement.example"); got != ip {
+		t.Fatalf("mapping outside the batching safety window was not recycled: got %v, want %v", got, ip)
+	}
+}
+
 func TestSQLiteFakeIPPoolLazyTouch(t *testing.T) {
 	pool, db := newTestSQLiteFakeIPPool(t, netip.MustParsePrefix("10.0.0.0/24"), 100)
 

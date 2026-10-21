@@ -173,15 +173,8 @@ func (f *Fakedns) apply(c contractresolver.FakeDNS) error {
 		return nil
 	}
 
-	next, err := fakeip.NewFakeDNS(f.upstream, ipRange, ipv6Range, f.dbPath)
-	if err != nil {
+	if err := f.fake.Reconfigure(ipRange, ipv6Range, f.dbPath); err != nil {
 		return fmt.Errorf("reload sqlite fakeip pool failed: %w", err)
-	}
-
-	old := f.fake
-	f.fake = next
-	if old != nil {
-		_ = old.Close()
 	}
 	return nil
 }
@@ -268,6 +261,42 @@ func (f *Fakedns) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Add
 // Callers with no error return still carry an irrevocable block marker.
 func (f *Fakedns) RecoverDestination(ctx context.Context, addr netapi.Address) netapi.Address {
 	return f.dispatchAddr(ctx, addr)
+}
+
+// LeaseDestination pins a synthetic destination retained by a caller such as
+// a full-cone UDP session. The caller releases it when its cached mapping ends.
+func (f *Fakedns) LeaseDestination(ctx context.Context, addr netapi.Address) (func(), error) {
+	_, release, err := f.recoverDestination(ctx, addr, true)
+	return release, err
+}
+
+// ConnWithLease preserves the FakeIP identity recovered before Gateway route
+// selection while the selected outbound connection remains open.
+func (f *Fakedns) ConnWithLease(ctx context.Context, addr netapi.Address, dial func() (net.Conn, error)) (net.Conn, error) {
+	// Gateway selection may already have recovered the domain and applied
+	// hosts mappings. Pin the original FakeIP without changing that selection.
+	if original := netapi.GetContext(ctx).GetFakeIP(); original != nil {
+		var err error
+		addr, err = netapi.ParseSysAddr(original)
+		if err != nil {
+			return nil, err
+		}
+	}
+	release, err := f.LeaseDestination(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := dial()
+	if err != nil {
+		if release != nil {
+			release()
+		}
+		return nil, err
+	}
+	if release != nil {
+		return &leasedFakeIPConn{Conn: conn, release: release}, nil
+	}
+	return conn, nil
 }
 
 type leasedFakeIPConn struct {
