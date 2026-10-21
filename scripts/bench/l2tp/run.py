@@ -10,6 +10,8 @@ import tempfile
 import time
 import uuid
 
+from capture import capture_diagnostics
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--runtime', choices=('podman', 'docker'), default='podman')
 parser.add_argument('--ppp', action='store_true', help='also test xl2tpd/pppd; requires accessible /dev/ppp')
@@ -114,7 +116,8 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
                 ' except OSError:\n'
                 '  if time.monotonic()>=deadline:raise\n'
                 '  time.sleep(.1)')
-            exercise('SoftEther / '+auth, {'L2TP_TEST_GATEWAY': gateway(name), 'L2TP_TEST_TARGET': target, 'L2TP_TEST_AUTH': auth}, '^(TestOfficialL2TP.*|TestTCPEchoIntegrity)$', 'BenchmarkRealL2TP')
+            with capture_diagnostics(args.runtime, echo, gateway(name), diagnostics_dir, 'SoftEther_'+auth):
+                exercise('SoftEther / '+auth, {'L2TP_TEST_GATEWAY': gateway(name), 'L2TP_TEST_TARGET': target, 'L2TP_TEST_AUTH': auth}, '^(TestOfficialL2TP.*|TestTCPEchoIntegrity)$', 'BenchmarkRealL2TP')
         except subprocess.CalledProcessError as exc:
             print(exc.stdout or '', exc.stderr or '', flush=True)
             # Keep an independent ground truth from the Python TCP echo server:
@@ -139,8 +142,9 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
                 run(args.runtime, 'run', '-d', '--name', name, '--privileged', '--device=/dev/ppp', '-p', '127.0.0.1::1701/udp',
                     '-e', 'PPP_AUTH='+auth, 'localhost/yuhaiin-l2tp-ppp-test')
                 ready(name, 'PPP server ready')
-                exercise('xl2tpd / '+auth+' / IPv6CP', {'L2TP_TEST_GATEWAY': gateway(name), 'L2TP_TEST_TARGET': '10.88.0.1',
-                         'L2TP_TEST_AUTH': auth, 'L2TP_TEST_IPV6': '1'}, '^(TestOfficialL2TP.*|TestTCPEchoIntegrity)$', 'BenchmarkRealL2TP')
+                with capture_diagnostics(args.runtime, name, gateway(name), diagnostics_dir, 'xl2tpd_'+auth):
+                    exercise('xl2tpd / '+auth+' / IPv6CP', {'L2TP_TEST_GATEWAY': gateway(name), 'L2TP_TEST_TARGET': '10.88.0.1',
+                             'L2TP_TEST_AUTH': auth, 'L2TP_TEST_IPV6': '1'}, '^(TestOfficialL2TP.*|TestTCPEchoIntegrity)$', 'BenchmarkRealL2TP')
             except subprocess.CalledProcessError as exc:
                 print(exc.stdout or '', exc.stderr or '', flush=True)
                 subprocess.run([args.runtime, 'logs', name], check=False)
@@ -163,9 +167,10 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
                 '-e', 'DYNAMIC='+str(int(dynamic)), '-e', 'SHARED_SECRET='+secret, 'localhost/yuhaiin-l2tpv3-test')
             ready(name, 'L2TPv3 server ready')
             # Server receive cookie == client transmit cookie, and vice versa.
-            exercise('Linux L2TPv3 / '+label, {'L2TPV3_TEST_GATEWAY': gateway(name), 'L2TPV3_TEST_LOCAL_COOKIE': peer,
-                     'L2TPV3_TEST_PEER_COOKIE': local, 'L2TPV3_TEST_SUBLAYER': layer,
-                     'L2TPV3_TEST_DYNAMIC': str(int(dynamic)), 'L2TPV3_TEST_SECRET': secret}, '^TestLinuxL2TPv3', 'BenchmarkRealL2TPv3')
+            with capture_diagnostics(args.runtime, name, gateway(name), diagnostics_dir, 'L2TPv3_'+label):
+                exercise('Linux L2TPv3 / '+label, {'L2TPV3_TEST_GATEWAY': gateway(name), 'L2TPV3_TEST_LOCAL_COOKIE': peer,
+                         'L2TPV3_TEST_PEER_COOKIE': local, 'L2TPV3_TEST_SUBLAYER': layer,
+                         'L2TPV3_TEST_DYNAMIC': str(int(dynamic)), 'L2TPV3_TEST_SECRET': secret}, '^TestLinuxL2TPv3', 'BenchmarkRealL2TPv3')
         except subprocess.CalledProcessError as exc:
             print(exc.stdout or '', exc.stderr or '', flush=True)
             subprocess.run([args.runtime, 'logs', name], check=False)
