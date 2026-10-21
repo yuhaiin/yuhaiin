@@ -250,7 +250,7 @@ func (a v2API) connectionTrace(ctx context.Context, request *contractconnection.
 	if err != nil || id == 0 {
 		return nil, badRequest(errors.New("invalid connection id"))
 	}
-	trace, err := a.services.Connections.MatchTrace(ctx, id)
+	trace, err := a.services.Connections.MatchTrace(ctx, id, request.RuleIndex)
 	if err != nil {
 		return nil, notFound(err)
 	}
