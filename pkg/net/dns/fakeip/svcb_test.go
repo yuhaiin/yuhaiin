@@ -75,3 +75,47 @@ func TestRewriteHTTPSHintsWithoutServiceModeDoesNotAllocate(t *testing.T) {
 		t.Fatalf("AliasMode mutated: %v", msg.Answer)
 	}
 }
+
+func TestRewriteHTTPSHintsAlternateTargetAndMandatory(t *testing.T) {
+	alt := &dns.HTTPS{}
+	alt.Hdr = dns.Header{Name: "example.com.", Class: dns.ClassINET}
+	alt.Priority = 1
+	alt.Target = "cdn.example.net."
+	alt.Value = []svcb.Pair{
+		&svcb.ALPN{Alpn: []string{"h3"}},
+		&svcb.IPV4HINT{Hint: []netip.Addr{netip.MustParseAddr("203.0.113.4")}},
+	}
+	mandatory := &dns.HTTPS{}
+	mandatory.Hdr = dns.Header{Name: "example.com.", Class: dns.ClassINET}
+	mandatory.Priority = 2
+	mandatory.Target = "cdn2.example.net."
+	mandatory.Value = []svcb.Pair{
+		&svcb.MANDATORY{Key: []uint16{svcb.KeyIPv4Hint}},
+		&svcb.IPV4HINT{Hint: []netip.Addr{netip.MustParseAddr("203.0.113.5")}},
+	}
+	msg := &dns.Msg{Answer: []dns.RR{alt, mandatory}}
+	rewriteHTTPSHints(msg, netip.MustParseAddr("198.18.0.8"), netip.MustParseAddr("2001:2::8"))
+	if len(msg.Answer) != 1 {
+		t.Fatalf("mandatory hint with alternate target must be suppressed: %v", msg.Answer)
+	}
+	got := msg.Answer[0].(*dns.HTTPS)
+	if got == alt || got.Target != alt.Target || len(got.Value) != 1 || svcb.PairToKey(got.Value[0]) != svcb.KeyAlpn {
+		t.Fatalf("unexpected alternate-target rewrite: %v", got)
+	}
+	if len(alt.Value) != 2 {
+		t.Fatal("upstream alternate-target record mutated")
+	}
+}
+
+func TestRewriteHTTPSHintsIPv6DisabledMandatory(t *testing.T) {
+	record := &dns.HTTPS{}
+	record.Hdr = dns.Header{Name: "example.com.", Class: dns.ClassINET}
+	record.Priority = 1
+	record.Target = "."
+	record.Value = []svcb.Pair{&svcb.MANDATORY{Key: []uint16{svcb.KeyIPv6Hint}}}
+	msg := &dns.Msg{Answer: []dns.RR{record}}
+	rewriteHTTPSHints(msg, netip.MustParseAddr("198.18.0.8"), netip.Addr{})
+	if len(msg.Answer) != 0 {
+		t.Fatal("missing mandatory ipv6hint was left in response")
+	}
+}
