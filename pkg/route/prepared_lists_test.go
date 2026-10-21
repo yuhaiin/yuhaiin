@@ -2,6 +2,9 @@ package route
 
 import (
 	"context"
+	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -136,5 +139,65 @@ func TestMatchingLabelsFollowAppliedSnapshotWithoutRebuildingIndexes(t *testing.
 		if entry.RuleID != rule.ID || entry.History[0].ID != "stable-list" || entry.History[0].ListName != tc.name || !entry.History[0].Matched {
 			t.Fatalf("trace = %+v", entry)
 		}
+	}
+}
+
+func TestUnavailableRemoteListSkipsNegatedRule(t *testing.T) {
+	matchers := newTestMatchers(t)
+	matchers.list.downloader = NewDownloader(t.TempDir(), nil)
+	missing := (&url.URL{Scheme: "file", Path: filepath.Join(t.TempDir(), "missing.txt")}).String()
+	matchers.list.lists = staticRouteListBook{detail: contractroute.RouteListDetail{
+		ID: "telegram", Name: "Telegram", Type: "host",
+		Source: contractroute.ListSource{Type: "remote", Remote: &contractroute.RemoteSource{URLs: []string{missing}}},
+	}}
+	negated := contractroute.RouteRule{ID: "negated", Name: "not telegram", Mode: "block", Rules: []contractroute.RuleExpr{
+		{Type: "not", Not: &contractroute.RuleExpr{Type: "host", Host: &contractroute.ListRef{List: "telegram"}}},
+	}}
+	independent := contractroute.RouteRule{ID: "independent", Name: "udp", Mode: "direct", Rules: []contractroute.RuleExpr{
+		{Type: "network", Network: &contractroute.NetworkExpr{Network: "udp"}},
+	}}
+	if err := matchers.Update(negated, independent); err != nil {
+		t.Fatal(err)
+	}
+	if len(matchers.skippedRules) != 1 || matchers.skippedRules[0].ID != negated.ID ||
+		len(matchers.listIssues) != 1 || !matchers.listIssues[0].Unavailable {
+		t.Fatalf("unavailable list rule not safely skipped: rules=%+v issues=%+v", matchers.skippedRules, matchers.listIssues)
+	}
+	udp, _ := netapi.ParseAddressPort("udp", "127.0.0.1", 53)
+	if mode := matchers.Match(netapi.WithContext(t.Context()), udp); mode.Mode() != ModeDirect {
+		t.Fatalf("independent UDP rule was skipped: %s", mode.Mode())
+	}
+	tcp, _ := netapi.ParseAddressPort("tcp", "127.0.0.1", 443)
+	if mode := matchers.Match(netapi.WithContext(t.Context()), tcp); mode.Mode() != ModeProxy {
+		t.Fatalf("NOT over unavailable list matched unexpectedly: %s", mode.Mode())
+	}
+}
+
+func TestRemoteListPartialSourceFailureStillMatches(t *testing.T) {
+	matchers := newTestMatchers(t)
+	matchers.list.downloader = NewDownloader(t.TempDir(), nil)
+	dir := t.TempDir()
+	missing := (&url.URL{Scheme: "file", Path: filepath.Join(dir, "missing.txt")}).String()
+	validPath := filepath.Join(dir, "working.txt")
+	if err := os.WriteFile(validPath, []byte("valid.example\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	valid := (&url.URL{Scheme: "file", Path: validPath}).String()
+	matchers.list.lists = staticRouteListBook{detail: contractroute.RouteListDetail{
+		ID: "telegram", Name: "Telegram", Type: "host",
+		Source: contractroute.ListSource{Type: "remote", Remote: &contractroute.RemoteSource{URLs: []string{missing, valid}}},
+	}}
+	rule := contractroute.RouteRule{ID: "remote", Mode: "block", Rules: []contractroute.RuleExpr{
+		{Type: "host", Host: &contractroute.ListRef{List: "telegram"}},
+	}}
+	if err := matchers.Update(rule); err != nil {
+		t.Fatal(err)
+	}
+	if len(matchers.skippedRules) != 0 || len(matchers.listIssues) != 1 || matchers.listIssues[0].Unavailable {
+		t.Fatalf("partial source failure disabled healthy source: skipped=%+v issues=%+v", matchers.skippedRules, matchers.listIssues)
+	}
+	addr, _ := netapi.ParseAddressPort("tcp", "valid.example", 443)
+	if mode := matchers.Match(netapi.WithContext(t.Context()), addr); mode.Mode() != ModeBlock {
+		t.Fatalf("healthy part of remote list did not match: %s", mode.Mode())
 	}
 }

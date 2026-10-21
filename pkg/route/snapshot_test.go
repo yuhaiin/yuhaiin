@@ -2,9 +2,13 @@ package route
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -117,7 +121,19 @@ func TestSnapshotApplyRetriesConcurrentEditsAndRetainsStateOnFailure(t *testing.
 		t.Fatal(err)
 	}
 	before, _ := rules.ActivationStatus(t.Context())
-	remote := contractroute.RouteListDetail{ID: "remote", Name: "Remote", Type: "host", Source: contractroute.ListSource{Type: "remote", Remote: &contractroute.RemoteSource{URLs: []string{"file:///does-not-exist"}}}}
+	var available atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !available.Load() {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = io.WriteString(w, "recovered.example\n")
+	}))
+	defer server.Close()
+	remote := contractroute.RouteListDetail{
+		ID: "remote", Name: "Remote", Type: "host",
+		Source: contractroute.ListSource{Type: "remote", Remote: &contractroute.RemoteSource{URLs: []string{server.URL + "/telegram"}}},
+	}
 	if err := plainstore.NewRouteListStore(db.DB()).SaveRouteList(t.Context(), remote, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -126,12 +142,42 @@ func TestSnapshotApplyRetriesConcurrentEditsAndRetainsStateOnFailure(t *testing.
 	if _, err := editor.Save(t.Context(), draft); err != nil {
 		t.Fatal(err)
 	}
-	if err := rules.Apply(t.Context()); err == nil {
-		t.Fatal("failed remote list build was hidden")
+	if _, err := editor.Save(t.Context(), contractroute.RuleDraft{
+		Rule: contractroute.RouteRule{ID: "independent", Name: "Independent", Mode: "direct",
+			Rules: []contractroute.RuleExpr{{Type: "host", Host: &contractroute.ListRef{List: "working"}}}},
+		Lists: []contractroute.RouteListDetail{{ID: "working", Name: "Working", Type: "host",
+			Source: contractroute.ListSource{Type: "local", Local: &contractroute.LocalSource{Lists: []string{"working.example"}}}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// One 404 should not block activation of another rule or the saved config.
+	if err := rules.Apply(t.Context()); err != nil {
+		t.Fatalf("unavailable remote source prevented snapshot activation: %v", err)
 	}
 	after, _ := rules.ActivationStatus(t.Context())
-	if after.AppliedRevision != before.AppliedRevision || after.SavedRevision <= after.AppliedRevision || after.Error == "" || lists.hostTrie != index {
-		t.Fatalf("failure changed running state: %+v", after)
+	if after.AppliedRevision != after.SavedRevision || after.SavedRevision <= before.SavedRevision || after.Error != "" {
+		t.Fatalf("list 404 blocked the saved revision: %+v", after)
+	}
+	if len(after.ListIssues) != 1 || !after.ListIssues[0].Unavailable || len(after.SkippedRules) != 1 ||
+		after.SkippedRules[0].ID != draft.Rule.ID {
+		t.Fatalf("missing failure diagnostics: %+v", after)
+	}
+	working, _ := netapi.ParseAddressPort("tcp", "working.example", 443)
+	if got := router.ms.Match(netapi.WithContext(t.Context()), working); got.Mode() != ModeDirect {
+		t.Fatalf("unrelated rule was not applied: %s", got.Mode())
+	}
+	// When the remote source recovers, retrying application re-enables the rule.
+	available.Store(true)
+	if err := rules.Apply(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	recovered, _ := rules.ActivationStatus(t.Context())
+	if len(recovered.ListIssues) != 0 || len(recovered.SkippedRules) != 0 {
+		t.Fatalf("recovered list still marked unavailable: %+v", recovered)
+	}
+	recoveredAddr, _ := netapi.ParseAddressPort("tcp", "recovered.example", 443)
+	if got := router.ms.Match(netapi.WithContext(t.Context()), recoveredAddr); got.Mode() != ModeBlock {
+		t.Fatalf("recovered remote list not enabled: %s", got.Mode())
 	}
 }
 

@@ -25,23 +25,44 @@ type ListActivationStatus struct {
 	HostIndexRefreshAt int64 `json:"hostIndexRefreshAt"`
 }
 
+// ListActivationIssue describes a remote resource that could not be loaded
+// during the currently applied routing snapshot.
+type ListActivationIssue struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Error       string `json:"error"`
+	Unavailable bool   `json:"unavailable"`
+}
+
+// SkippedRouteRule is never evaluated when a referenced list is unavailable.
+// In particular, NOT over a missing list must not match every destination.
+type SkippedRouteRule struct {
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	ListIDs []string `json:"listIds"`
+}
+
 type RuleActivationStatus struct {
-	Applying        bool    `json:"applying,omitzero"`
-	RunningConfig   *Config `json:"runningConfig,omitzero"`
-	SavedRevision   uint64  `json:"savedRevision"`
-	AppliedRevision uint64  `json:"appliedRevision"`
-	ApplyAt         int64   `json:"applyAt"`
-	Error           string  `json:"error,omitempty"`
+	ListIssues      []ListActivationIssue `json:"listIssues,omitzero"`
+	SkippedRules    []SkippedRouteRule    `json:"skippedRules,omitzero"`
+	Applying        bool                  `json:"applying,omitzero"`
+	RunningConfig   *Config               `json:"runningConfig,omitzero"`
+	SavedRevision   uint64                `json:"savedRevision"`
+	AppliedRevision uint64                `json:"appliedRevision"`
+	ApplyAt         int64                 `json:"applyAt"`
+	Error           string                `json:"error,omitempty"`
 }
 
 type ActivationStatus struct {
-	Applying           bool    `json:"applying,omitzero"`
-	RunningConfig      *Config `json:"runningConfig,omitzero"`
-	SavedRevision      uint64  `json:"savedRevision"`
-	AppliedRevision    uint64  `json:"appliedRevision"`
-	HostIndexRefreshAt int64   `json:"hostIndexRefreshAt"`
-	RuleApplyAt        int64   `json:"ruleApplyAt"`
-	Error              string  `json:"error,omitempty"`
+	ListIssues         []ListActivationIssue `json:"listIssues,omitzero"`
+	SkippedRules       []SkippedRouteRule    `json:"skippedRules,omitzero"`
+	Applying           bool                  `json:"applying,omitzero"`
+	RunningConfig      *Config               `json:"runningConfig,omitzero"`
+	SavedRevision      uint64                `json:"savedRevision"`
+	AppliedRevision    uint64                `json:"appliedRevision"`
+	HostIndexRefreshAt int64                 `json:"hostIndexRefreshAt"`
+	RuleApplyAt        int64                 `json:"ruleApplyAt"`
+	Error              string                `json:"error,omitempty"`
 }
 
 type MaxMindDBGeoIP struct {

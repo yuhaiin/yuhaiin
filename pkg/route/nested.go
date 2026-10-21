@@ -201,6 +201,8 @@ type MatchEntry struct {
 
 type Matchers struct {
 	listNames      map[string]string
+	listIssues     []contractroute.ListActivationIssue
+	skippedRules   []contractroute.SkippedRouteRule
 	list           *Lists
 	matchers       []MatchEntry
 	mu             sync.RWMutex
@@ -232,6 +234,27 @@ func (s *Matchers) appendRule(matchers []MatchEntry, r contractroute.RouteRule) 
 	return matchers
 }
 
+// appendPreparedRule skips a whole rule if any referenced list is unavailable.
+// This must happen before compiling NOT, AND or OR to prevent unsafe matches.
+func (s *Matchers) appendPreparedRule(entries []MatchEntry, rule contractroute.RouteRule, unavailable map[string]bool, skipped *[]contractroute.SkippedRouteRule) []MatchEntry {
+	if rule.Disabled {
+		return entries
+	}
+	var missing []string
+	_ = contractroute.VisitListRefs(rule.Rules, func(_ string, id string) error {
+		if unavailable[id] && !slices.Contains(missing, id) {
+			missing = append(missing, id)
+		}
+		return nil
+	})
+	if len(missing) != 0 {
+		slices.Sort(missing)
+		*skipped = append(*skipped, contractroute.SkippedRouteRule{ID: rule.ID, Name: rule.Name, ListIDs: missing})
+		return entries
+	}
+	return s.appendRule(entries, rule)
+}
+
 func (s *Matchers) Update(rules ...contractroute.RouteRule) error {
 	return s.UpdateContext(context.Background(), rules...)
 }
@@ -244,8 +267,9 @@ func (s *Matchers) UpdateContext(ctx context.Context, rules ...contractroute.Rou
 		return err
 	}
 	var ms []MatchEntry
+	var skipped []contractroute.SkippedRouteRule
 	for _, rule := range rules {
-		ms = s.appendRule(ms, rule)
+		ms = s.appendPreparedRule(ms, rule, prepared.unavailable, &skipped)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -253,6 +277,8 @@ func (s *Matchers) UpdateContext(ctx context.Context, rules ...contractroute.Rou
 	s.matchers = ms
 	s.hasGateway.Store(slices.ContainsFunc(ms, func(entry MatchEntry) bool { return entry.mode.Mode() == ModeGateway }))
 	s.listNames = prepared.names
+	s.listIssues = prepared.listIssues
+	s.skippedRules = skipped
 	s.generation++
 	return nil
 }
@@ -271,8 +297,9 @@ func (s *Matchers) UpdateSnapshot(ctx context.Context, snapshot plainstore.Route
 		}
 	}()
 	var entries []MatchEntry
+	var skipped []contractroute.SkippedRouteRule
 	for _, entry := range snapshot.Rules {
-		entries = s.appendRule(entries, entry.Rule)
+		entries = s.appendPreparedRule(entries, entry.Rule, prepared.unavailable, &skipped)
 	}
 	return activate(ctx, snapshot.Revision, func() {
 		s.mu.Lock()
@@ -281,6 +308,8 @@ func (s *Matchers) UpdateSnapshot(ctx context.Context, snapshot plainstore.Route
 		s.matchers = entries
 		s.hasGateway.Store(slices.ContainsFunc(entries, func(entry MatchEntry) bool { return entry.mode.Mode() == ModeGateway }))
 		s.listNames = prepared.names
+		s.listIssues = prepared.listIssues
+		s.skippedRules = skipped
 		s.runtimeConfig = config
 		publish()
 		s.generation++
