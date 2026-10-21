@@ -330,7 +330,7 @@ func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, e
 	}
 
 	if req.Qtype == dns.TypeHTTPS {
-		// remove ip hint, make safari use fakeip instead of ip hint
+		// Cache hints for A/AAAA lookup without modifying real HTTPS answers.
 		c.cacheIpHint(req, msg)
 	}
 
@@ -354,7 +354,7 @@ func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, e
 	return msg, nil
 }
 
-f// Preserve upstream HTTPS/SVCB wire semantics for real DNS clients. Hints may
+// Preserve upstream HTTPS/SVCB wire semantics for real DNS clients. Hints may
 // inform the A/AAAA lookup cache, but removing them globally would alter DNS
 // replies even when FakeIP is disabled. FakeDNS rewrites its own response only.
 func (c *client) cacheIpHint(req netapi.DNSQuestion, msg *dns.Msg) {
@@ -372,7 +372,7 @@ func (c *client) cacheIpHint(req netapi.DNSQuestion, msg *dns.Msg) {
 	}
 }
 
-unc (c *client) iphintToCache(name string, ttl uint32, vv svcb.Pair) {
+func (c *client) iphintToCache(name string, ttl uint32, vv svcb.Pair) {
 	var qtype uint16
 	var answers []dns.RR
 	switch z := vv.(type) {
