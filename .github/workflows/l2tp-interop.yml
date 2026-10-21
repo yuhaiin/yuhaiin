@@ -21,12 +21,16 @@ permissions:
 jobs:
   linux-peers:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        congestion: [bbr, cubic]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
         with:
-          cache-scope: l2tp-interop
+          cache-scope: l2tp-interop-${{ matrix.congestion }}
       - name: Test protocol and contract with race detector
         run: go test -race ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/wireguard ./pkg/net/proxy/tun/gvisor ./pkg/contract/node ./pkg/register
       - name: Load PPP and L2TP Ethernet kernel support
@@ -48,4 +52,15 @@ jobs:
           fi
       - name: Test stock PPP servers and Linux L2TPv3 over IPv4 and IPv6
         if: steps.kernel-support.outputs.available == 'true'
+        env:
+          L2TP_TEST_CONGESTION_CONTROL: ${{ matrix.congestion }}
+          L2TP_DIAGNOSTICS_DIR: ${{ runner.temp }}/l2tp-diagnostics/${{ matrix.congestion }}
         run: python3 scripts/bench/l2tp/run.py --runtime docker --ppp
+      - name: Upload L2TP diagnostics and BBR/CUBIC results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: l2tp-diagnostics-${{ matrix.congestion }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/l2tp-diagnostics/${{ matrix.congestion }}/
+          retention-days: 7
+          if-no-files-found: warn
