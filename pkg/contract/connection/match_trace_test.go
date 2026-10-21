@@ -1,6 +1,10 @@
 package connection
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestReconstructMatchTraceShortCircuit(t *testing.T) {
 	template := &MatchTraceTemplate{Type: "and", Children: []MatchTraceTemplate{
@@ -35,5 +39,27 @@ func TestReconstructMatchTraceMissingHistoryDoesNotInventResult(t *testing.T) {
 	template := &MatchTraceTemplate{Type: "condition", EmitsHistory: true}
 	if out := ReconstructMatchTrace(template, nil); out.State != "unknown" {
 		t.Fatalf("missing history must not be treated as miss: %+v", out)
+	}
+}
+
+func TestSharedMatchTemplateNotSerialized(t *testing.T) {
+	shared := &MatchTraceTemplate{
+		Type: "or",
+		Children: []MatchTraceTemplate{{Type: "condition", Label: "example", EmitsHistory: true}},
+	}
+	entry := MatchHistoryEntry{RuleName: "example", TraceTemplate: shared, History: []MatchResult{{Matched: true}}}
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "traceTemplate") || strings.Contains(string(data), "\"trace\"") {
+		t.Fatalf("shared topology leaked into default connection JSON: %s", data)
+	}
+	reconstructed := ReconstructMatchTrace(entry.TraceTemplate, entry.History)
+	if reconstructed.State != "hit" {
+		t.Fatalf("unexpected replay: %+v", reconstructed)
+	}
+	if shared.Children[0].Label != "example" {
+		t.Fatal("reconstruction mutated the shared template")
 	}
 }
