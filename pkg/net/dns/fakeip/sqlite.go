@@ -33,6 +33,7 @@ type SQLiteFakeIPPool struct {
 	maxNum           uint64
 	mu               sync.RWMutex
 	active           map[netip.Addr]uint32 // guarded by mu; never evict leased addresses
+	flushMu          sync.Mutex // serialize background and pre-eviction touch commits
 	touchMu          sync.Mutex
 	touchDomains     map[string]int64
 	touchIPs         map[netip.Addr]int64
@@ -343,6 +344,8 @@ func (p *SQLiteFakeIPPool) touchIP(ip netip.Addr, now time.Time, lastUsedAt int6
 }
 
 func (p *SQLiteFakeIPPool) flushTouches(ctx context.Context) (err error) {
+	p.flushMu.Lock()
+	defer p.flushMu.Unlock()
 	p.touchMu.Lock()
 	if len(p.touchDomains) == 0 && len(p.touchIPs) == 0 {
 		p.touchMu.Unlock()
@@ -370,7 +373,7 @@ func (p *SQLiteFakeIPPool) flushTouches(ctx context.Context) (err error) {
 	for domain, lastUsedAt := range domains {
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE fakeip_entries
-			SET last_used_at = ?
+			SET last_used_at = MAX(last_used_at, ?)
 			WHERE family = ? AND prefix = ? AND domain = ?
 		`, lastUsedAt, p.family, p.key, domain); err != nil {
 			return err
@@ -380,7 +383,7 @@ func (p *SQLiteFakeIPPool) flushTouches(ctx context.Context) (err error) {
 	for ip, lastUsedAt := range ips {
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE fakeip_entries
-			SET last_used_at = ?
+			SET last_used_at = MAX(last_used_at, ?)
 			WHERE family = ? AND prefix = ? AND ip = ?
 		`, lastUsedAt, p.family, p.key, ip.AsSlice()); err != nil {
 			return err
