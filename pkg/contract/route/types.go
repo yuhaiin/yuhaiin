@@ -44,25 +44,25 @@ type SkippedRouteRule struct {
 
 type RuleActivationStatus struct {
 	ListIssues      []ListActivationIssue `json:"listIssues,omitzero"`
-	SkippedRules    []SkippedRouteRule   `json:"skippedRules,omitzero"`
-	Applying        bool    `json:"applying,omitzero"`
-	RunningConfig   *Config `json:"runningConfig,omitzero"`
-	SavedRevision   uint64  `json:"savedRevision"`
-	AppliedRevision uint64  `json:"appliedRevision"`
-	ApplyAt         int64   `json:"applyAt"`
-	Error           string  `json:"error,omitempty"`
+	SkippedRules    []SkippedRouteRule    `json:"skippedRules,omitzero"`
+	Applying        bool                  `json:"applying,omitzero"`
+	RunningConfig   *Config               `json:"runningConfig,omitzero"`
+	SavedRevision   uint64                `json:"savedRevision"`
+	AppliedRevision uint64                `json:"appliedRevision"`
+	ApplyAt         int64                 `json:"applyAt"`
+	Error           string                `json:"error,omitempty"`
 }
 
 type ActivationStatus struct {
 	ListIssues         []ListActivationIssue `json:"listIssues,omitzero"`
-	SkippedRules       []SkippedRouteRule   `json:"skippedRules,omitzero"`
-	Applying           bool    `json:"applying,omitzero"`
-	RunningConfig      *Config `json:"runningConfig,omitzero"`
-	SavedRevision      uint64  `json:"savedRevision"`
-	AppliedRevision    uint64  `json:"appliedRevision"`
-	HostIndexRefreshAt int64   `json:"hostIndexRefreshAt"`
-	RuleApplyAt        int64   `json:"ruleApplyAt"`
-	Error              string  `json:"error,omitempty"`
+	SkippedRules       []SkippedRouteRule    `json:"skippedRules,omitzero"`
+	Applying           bool                  `json:"applying,omitzero"`
+	RunningConfig      *Config               `json:"runningConfig,omitzero"`
+	SavedRevision      uint64                `json:"savedRevision"`
+	AppliedRevision    uint64                `json:"appliedRevision"`
+	HostIndexRefreshAt int64                 `json:"hostIndexRefreshAt"`
+	RuleApplyAt        int64                 `json:"ruleApplyAt"`
+	Error              string                `json:"error,omitempty"`
 }
 
 type MaxMindDBGeoIP struct {
