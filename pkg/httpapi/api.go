@@ -49,6 +49,7 @@ type ConnectionMonitor interface {
 	Traffic(context.Context, string, time.Time, time.Time) (contractconnection.TrafficSeries, error)
 	Telemetry(context.Context, time.Time, time.Time, int) (contractconnection.TelemetrySummary, error)
 	List(context.Context) (contractconnection.Connections, error)
+	MatchTrace(context.Context, uint64) (contractconnection.MatchTraceResponse, error)
 	Close(context.Context, []uint64) error
 	FailedHistory(context.Context) (contractconnection.FailedHistoryList, error)
 	AllHistory(context.Context) (contractconnection.AllHistoryList, error)
