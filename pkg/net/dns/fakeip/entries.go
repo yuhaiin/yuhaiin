@@ -103,5 +103,8 @@ func (f *FakeDNS) DeleteEntry(ctx context.Context, entry contractresolver.FakeIP
 		return contractresolver.FakeIPDeleteResponse{}, err
 	}
 	removed, err := result.RowsAffected()
+	if err == nil && removed > 0 {
+		p.cache.removeDomain(entry.Domain)
+	}
 	return contractresolver.FakeIPDeleteResponse{Removed: int(removed)}, err
 }

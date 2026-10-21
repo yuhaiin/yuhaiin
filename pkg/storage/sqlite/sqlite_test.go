@@ -64,6 +64,7 @@ func TestOpenBootstrapsEmptyDatabase(t *testing.T) {
 		"failed_connection_history",
 		"fakeip_entries",
 		"fakeip_cursors",
+		"fakeip_pool_counts",
 		"settings_json",
 		"inbounds_v2",
 		"nodes_v2",
@@ -83,8 +84,8 @@ func TestOpenBootstrapsEmptyDatabase(t *testing.T) {
 		}
 	}
 
-	if got := queryString(t, store.DB(), `SELECT value FROM metadata WHERE key = 'schema_version'`); got != "15" {
-		t.Fatalf("metadata schema_version = %q, want 15", got)
+	if got := queryString(t, store.DB(), `SELECT value FROM metadata WHERE key = 'schema_version'`); got != "16" {
+		t.Fatalf("metadata schema_version = %q, want 16", got)
 	}
 
 	if got := queryInt(t, store.DB(), `SELECT COUNT(*) FROM migrate`); got != int64(len(migrations)) {

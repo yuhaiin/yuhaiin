@@ -121,9 +121,10 @@ type ConnOptions struct {
 	lists     []string
 	listNames map[string]string
 
-	routeMode string
-	skipRoute bool
-	isUdp     bool
+	routeMode      string
+	unmappedFakeIP bool
+	skipRoute      bool
+	isUdp          bool
 }
 
 func (s *ConnOptions) SetBindAddress(str string) *ConnOptions {
@@ -180,6 +181,11 @@ func (s *ConnOptions) SetRouteMode(mode string) *ConnOptions {
 	s.routeMode = mode
 	return s
 }
+
+// MarkUnmappedFakeIP is an unconditional safety boundary; route overrides
+// cannot turn a missing synthetic-IP mapping into a real outbound dial.
+func (s *ConnOptions) MarkUnmappedFakeIP()  { s.unmappedFakeIP = true }
+func (s *ConnOptions) UnmappedFakeIP() bool { return s.unmappedFakeIP }
 
 func (s *ConnOptions) RouteMode() string {
 	if s.routeMode == "" {

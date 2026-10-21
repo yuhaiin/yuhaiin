@@ -101,6 +101,7 @@ func (u *SourceControl) writeOwned(ctx context.Context, pkt *netapi.Packet, conn
 	if err := u.mapper.remember(pkt.Dst(), dst); err != nil {
 		return false, err
 	}
+	u.retainDestinationLease(key)
 	return false, u.writeRoutedPacket(pkt, pkt.GetPayload(), dst, conn)
 }
 
@@ -131,12 +132,19 @@ func (u *SourceControl) writeRoutedPacket(pkt *netapi.Packet, data []byte, dst n
 // before making the packet visible to the network.
 func (u *SourceControl) WriteTo(b []byte, real net.Addr, original netapi.Address, conn net.PacketConn) error {
 	if original != nil {
+		if u.destinationLeaser != nil {
+			if err := u.acquireDestinationLease(u.ctx, original); err != nil {
+				return err
+			}
+			defer u.releaseUnusedDestinationLease(original.Comparable())
+		}
 		if u.mapper == nil {
 			u.mapper = newAddressMapper()
 		}
 		if err := u.mapper.remember(original, real); err != nil {
 			return err
 		}
+		u.retainDestinationLease(original.Comparable())
 	}
 	return u.writeRoutedPacket(nil, b, real, conn)
 }

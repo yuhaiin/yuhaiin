@@ -330,8 +330,8 @@ func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, e
 	}
 
 	if req.Qtype == dns.TypeHTTPS {
-		// remove ip hint, make safari use fakeip instead of ip hint
-		c.removeIpHint(req, msg)
+		// Cache hints for A/AAAA lookup without modifying real HTTPS answers.
+		c.cacheIpHint(req, msg)
 	}
 
 	log.Select(slog.LevelDebug).PrintFunc("resolve domain", func() []any {
@@ -354,29 +354,21 @@ func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, e
 	return msg, nil
 }
 
-func (c *client) removeIpHint(req netapi.DNSQuestion, msg *dns.Msg) {
-	for _, r := range msg.Answer {
-		if dns.RRToType(r) != dns.TypeHTTPS {
+// Preserve upstream HTTPS/SVCB wire semantics for real DNS clients. Hints may
+// inform the A/AAAA lookup cache, but removing them globally would alter DNS
+// replies even when FakeIP is disabled. FakeDNS rewrites its own response only.
+func (c *client) cacheIpHint(req netapi.DNSQuestion, msg *dns.Msg) {
+	for _, rr := range msg.Answer {
+		https, ok := rr.(*dns.HTTPS)
+		if !ok || https.Priority == 0 {
 			continue
 		}
-
-		https, ok := r.(*dns.HTTPS)
-		if !ok {
-			continue
-		}
-
-		news := https.Value[:0]
-
 		for _, v := range https.Value {
-			if key := svcb.PairToKey(v); key == svcb.KeyIPv4Hint || key == svcb.KeyIPv6Hint {
-				c.iphintToCache(req.Name, r.Header().TTL, v)
-				continue
+			key := svcb.PairToKey(v)
+			if key == svcb.KeyIPv4Hint || key == svcb.KeyIPv6Hint {
+				c.iphintToCache(req.Name, rr.Header().TTL, v)
 			}
-
-			news = append(news, v)
 		}
-
-		https.Value = news
 	}
 }
 

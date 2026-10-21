@@ -598,4 +598,29 @@ var migrations = []Migration{
 			updated_at INTEGER NOT NULL
 		)`,
 	}},
+	{Version: 16, Name: "fakeip_pool_counts", Statements: []string{
+		`CREATE TABLE fakeip_pool_counts (
+			family INTEGER NOT NULL,
+			prefix TEXT NOT NULL,
+			entry_count INTEGER NOT NULL CHECK(entry_count >= 0),
+			PRIMARY KEY(family, prefix)
+		)`,
+		`INSERT INTO fakeip_pool_counts(family, prefix, entry_count)
+		 SELECT family, prefix, COUNT(*) FROM fakeip_entries GROUP BY family, prefix`,
+		`CREATE TRIGGER fakeip_count_insert AFTER INSERT ON fakeip_entries BEGIN
+			INSERT INTO fakeip_pool_counts(family, prefix, entry_count) VALUES(NEW.family, NEW.prefix, 1)
+			ON CONFLICT(family, prefix) DO UPDATE SET entry_count = entry_count + 1;
+		END`,
+		`CREATE TRIGGER fakeip_count_delete AFTER DELETE ON fakeip_entries BEGIN
+			UPDATE fakeip_pool_counts SET entry_count = entry_count - 1
+			WHERE family = OLD.family AND prefix = OLD.prefix;
+		END`,
+		`CREATE TRIGGER fakeip_count_move AFTER UPDATE OF family, prefix ON fakeip_entries
+		 WHEN OLD.family != NEW.family OR OLD.prefix != NEW.prefix BEGIN
+			UPDATE fakeip_pool_counts SET entry_count = entry_count - 1
+			WHERE family = OLD.family AND prefix = OLD.prefix;
+			INSERT INTO fakeip_pool_counts(family, prefix, entry_count) VALUES(NEW.family, NEW.prefix, 1)
+			ON CONFLICT(family, prefix) DO UPDATE SET entry_count = entry_count + 1;
+		END`,
+	}},
 }

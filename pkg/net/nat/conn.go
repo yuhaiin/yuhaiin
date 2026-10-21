@@ -77,6 +77,17 @@ func (u *SourceControl) handleOneOwned(pkt *netapi.Packet, queueReserved bool) (
 
 func (u *SourceControl) sendOneOwned(pkt *netapi.Packet, queueReserved bool) (bool, error) {
 	ctx := u.ctx
+	if u.destinationLeaser != nil {
+		key := pkt.Dst().Comparable()
+		// Existing leases belong to retained mappings or pending resolutions;
+		// their owners already handle release after cached sends finish.
+		if u.destinationLeases[key] == nil {
+			if err := u.acquireDestinationLease(ctx, pkt.Dst()); err != nil {
+				return false, err
+			}
+			defer u.releaseUnusedDestinationLease(key)
+		}
+	}
 
 	// Only the source sender replaces the current connection.
 	conn := u.conn

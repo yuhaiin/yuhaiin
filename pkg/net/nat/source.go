@@ -49,11 +49,15 @@ func newContextCache(store *netapi.Context) ContextCache {
 }
 
 type SourceControl struct {
-	ctx            context.Context
-	dialer         netapi.Proxy
-	sessionLease   *trafficcontrol.Session
-	queueBudget    trafficcontrol.BufferedResources
-	trafficControl trafficcontrol.PolicyResolver
+	ctx               context.Context
+	dialer            netapi.Proxy
+	destinationLeaser destinationLeaser
+	// Only the sender owns leases; mapped destinations remain pinned until all
+	// readers and replies stop, including across outbound socket migration.
+	destinationLeases map[uint64]*destinationLease
+	sessionLease      *trafficcontrol.Session
+	queueBudget       trafficcontrol.BufferedResources
+	trafficControl    trafficcontrol.PolicyResolver
 
 	// sniffer is an optional packet sniffer for observability or traffic analysis.
 	sniffer netapi.PacketSniffer
@@ -137,6 +141,7 @@ func newSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy, lease *tra
 		receivedPackets:      ringbuffer.NewRingBuffer[sentPacket](8, configuration.MaxUDPUnprocessedPackets.Load),
 	}
 	s.reply.Store(&replyBinding{ctx: ctx, cancel: func() {}, write: func(context.Context, []byte, net.Addr) (int, error) { return 0, errors.ErrUnsupported }})
+	s.destinationLeaser, _ = dialer.(destinationLeaser)
 
 	now := time.Now()
 	s.loopStopTime.Store(&now)
@@ -198,6 +203,7 @@ func (u *SourceControl) run() {
 		<-u.replyDone
 		u.drainResolutions()
 		u.drain()
+		u.releaseDestinationLeases()
 		u.sessionLease.Release()
 		close(u.done)
 	}()

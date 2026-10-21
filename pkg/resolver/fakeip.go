@@ -23,6 +23,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
+var ErrUnmappedFakeIP = errors.New("fakeip: address is within the synthetic pool but has no mapping")
+
 type Fakedns struct {
 	// applyMu serializes pool changes and synchronous route notifications.
 	// Callbacks run outside fakeMu so they cannot block DNS on a recursive lock.
@@ -171,15 +173,8 @@ func (f *Fakedns) apply(c contractresolver.FakeDNS) error {
 		return nil
 	}
 
-	next, err := fakeip.NewFakeDNS(f.upstream, ipRange, ipv6Range, f.dbPath)
-	if err != nil {
+	if err := f.fake.Reconfigure(ipRange, ipv6Range, f.dbPath); err != nil {
 		return fmt.Errorf("reload sqlite fakeip pool failed: %w", err)
-	}
-
-	old := f.fake
-	f.fake = next
-	if old != nil {
-		_ = old.Close()
 	}
 	return nil
 }
@@ -255,63 +250,171 @@ func (f *Fakedns) Close() error {
 func (f *Fakedns) Name() string { return "fakedns" }
 
 func (f *Fakedns) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Address, error) {
-	return f.dialer.Dispatch(ctx, f.dispatchAddr(ctx, addr))
+	target, _, err := f.recoverDestination(ctx, addr, false)
+	if err != nil {
+		return nil, err
+	}
+	return f.dialer.Dispatch(ctx, target)
 }
 
 // RecoverDestination restores FakeIP identity without performing L4 selection.
+// Callers with no error return still carry an irrevocable block marker.
 func (f *Fakedns) RecoverDestination(ctx context.Context, addr netapi.Address) netapi.Address {
 	return f.dispatchAddr(ctx, addr)
 }
 
+// LeaseDestination pins a synthetic destination retained by a caller such as
+// a full-cone UDP session. The caller releases it when its cached mapping ends.
+func (f *Fakedns) LeaseDestination(ctx context.Context, addr netapi.Address) (func(), error) {
+	_, release, err := f.recoverDestination(ctx, addr, true)
+	return release, err
+}
+
+// ConnWithLease preserves the FakeIP identity recovered before Gateway route
+// selection while the selected outbound connection remains open.
+func (f *Fakedns) ConnWithLease(ctx context.Context, addr netapi.Address, dial func() (net.Conn, error)) (net.Conn, error) {
+	// Gateway selection may already have recovered the domain and applied
+	// hosts mappings. Pin the original FakeIP without changing that selection.
+	if original := netapi.GetContext(ctx).GetFakeIP(); original != nil {
+		var err error
+		addr, err = netapi.ParseSysAddr(original)
+		if err != nil {
+			return nil, err
+		}
+	}
+	release, err := f.LeaseDestination(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := dial()
+	if err != nil {
+		if release != nil {
+			release()
+		}
+		return nil, err
+	}
+	if release != nil {
+		return &leasedFakeIPConn{Conn: conn, release: release}, nil
+	}
+	return conn, nil
+}
+
+type leasedFakeIPConn struct {
+	net.Conn
+	release func()
+}
+
+func (c *leasedFakeIPConn) Close() error {
+	err := c.Conn.Close()
+	c.release()
+	return err
+}
+
+type leasedFakeIPPacketConn struct {
+	net.PacketConn
+	release func()
+}
+
+func (c *leasedFakeIPPacketConn) Close() error {
+	err := c.PacketConn.Close()
+	c.release()
+	return err
+}
+
 func (f *Fakedns) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	return f.dialer.Conn(ctx, f.dispatchAddr(ctx, addr))
+	target, release, err := f.recoverDestination(ctx, addr, true)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := f.dialer.Conn(ctx, target)
+	if err != nil {
+		if release != nil {
+			release()
+		}
+		return nil, err
+	}
+	if release != nil {
+		return &leasedFakeIPConn{Conn: conn, release: release}, nil
+	}
+	return conn, nil
 }
 
 func (f *Fakedns) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	return f.dialer.PacketConn(ctx, f.dispatchAddr(ctx, addr))
+	target, release, err := f.recoverDestination(ctx, addr, true)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := f.dialer.PacketConn(ctx, target)
+	if err != nil {
+		if release != nil {
+			release()
+		}
+		return nil, err
+	}
+	if release != nil {
+		return &leasedFakeIPPacketConn{PacketConn: conn, release: release}, nil
+	}
+	return conn, nil
 }
 
 func (f *Fakedns) Ping(ctx context.Context, addr netapi.Address) (uint64, error) {
-	return f.dialer.Ping(ctx, f.dispatchAddr(ctx, addr))
+	target, release, err := f.recoverDestination(ctx, addr, true)
+	if err != nil {
+		return 0, err
+	}
+	if release != nil {
+		defer release()
+	}
+	return f.dialer.Ping(ctx, target)
 }
 
 func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Address {
+	target, _, _ := f.recoverDestination(ctx, addr, false)
+	return target
+}
+
+// recoverDestination treats an unmapped synthetic destination as invalid even
+// when FakeDNS is now disabled. Never leak it to a direct/proxy outbound or
+// allow a previous route-mode override to bypass the block.
+func (f *Fakedns) recoverDestination(ctx context.Context, addr netapi.Address, lease bool) (netapi.Address, func(), error) {
+	if addr.IsFqdn() {
+		return addr, nil, nil
+	}
+	ipAddr, ok := addr.(netapi.IPAddress)
+	if !ok {
+		return addr, nil, nil
+	}
+	addrPort := ipAddr.AddrPort()
+
 	f.fakeMu.RLock()
 	defer f.fakeMu.RUnlock()
-
-	if addr.IsFqdn() {
-		return addr
+	if f.fake == nil || !f.fake.Contains(addrPort.Addr()) {
+		return addr, nil, nil
 	}
 
-	addrPort := addr.(netapi.IPAddress).AddrPort()
-	if f.fake == nil {
-		return addr
+	var domain string
+	var release func()
+	if lease {
+		domain, release, ok = f.fake.LeaseDomainFromIP(addrPort.Addr())
+	} else {
+		domain, ok = f.fake.GetDomainFromIP(addrPort.Addr())
 	}
-
-	if !f.fake.Contains(addrPort.Addr()) {
-		return addr
-	}
-
 	store := netapi.GetContext(ctx)
-
-	t, ok := f.fake.GetDomainFromIP(addrPort.Addr())
 	if ok {
-		store.SetFakeIP(addr)
-		z, err := netapi.ParseAddressPort(addr.Network(), t, addr.Port())
+		target, err := netapi.ParseAddressPort(addr.Network(), domain, addr.Port())
 		if err == nil {
-			store.SetDomainString(z.String())
-			return z
-		} else {
-			log.Warn("parse fakeip reverse domain failed", "addr", t, "err", err)
+			store.SetFakeIP(addr)
+			store.SetDomainString(target.String())
+			return target, release, nil
 		}
+		if release != nil {
+			release()
+		}
+		log.Warn("parse fakeip reverse domain failed", "domain", domain, "err", err)
 	}
-
-	if configuration.FakeIPEnabled.Load() {
-		// block fakeip range to prevent infinite loop which taget ip is not found in fakeip cache
-		store.ConnOptions().SetRouteMode("block")
-	}
-
-	return addr
+	store.ConnOptions().MarkUnmappedFakeIP()
+	store.ConnOptions().SetRouteMode("block")
+	return addr, nil, ErrUnmappedFakeIP
 }
 
 func (a *Fakedns) SetServer(s string) {
