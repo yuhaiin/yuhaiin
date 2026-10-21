@@ -408,6 +408,17 @@ func (c *Context) AddConditionHistory(kind, id, name string, matched bool) {
 	last.History = append(last.History, contractconnection.MatchResult{Kind: kind, ID: id, ListName: name, Matched: matched})
 }
 
+func (c *Context) SetRuleMatchTrace(trace contractconnection.MatchTrace) {
+	if len(c.ruleChain) == 0 {
+		return
+	}
+	if c.sharedHistory {
+		c.ruleChain = slices.Clone(c.ruleChain)
+		c.sharedHistory = false
+	}
+	c.ruleChain[len(c.ruleChain)-1].Trace = &trace
+}
+
 func (c *Context) MatchHistory() []contractconnection.MatchHistoryEntry { return c.ruleChain }
 
 func (c *Context) setAddrInfo(f func(*AddrInfo)) {
