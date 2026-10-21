@@ -19,13 +19,13 @@ func TestTCPPacketTraceBoundedAndHeaderOnly(t *testing.T) {
 	for i := 0; i < 20; i += 2 {
 		sum += uint32(binary.BigEndian.Uint16(packet[i : i+2]))
 	}
-	for sum >> 16 != 0 {
-		sum = (sum & 0xffff) + (sum >> 16)
+	for sum > 0xffff {
+		sum = (sum & 0xffff) + sum/65536
 	}
 	binary.BigEndian.PutUint16(packet[10:12], ^uint16(sum))
 	binary.BigEndian.PutUint16(packet[20:22], 40000)
 	binary.BigEndian.PutUint16(packet[22:24], 19991)
-	packet[32], packet[33] = 5 << 4, 0x18
+	packet[32], packet[33] = 0x50, 0x18
 	copy(packet[40:], []byte("hello"))
 	for i := uint32(1); i <= 3; i++ {
 		binary.BigEndian.PutUint32(packet[24:28], i)
