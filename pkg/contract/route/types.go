@@ -42,9 +42,18 @@ type SkippedRouteRule struct {
 	ListIDs []string `json:"listIds"`
 }
 
+// DegradedRouteRule has missing list conditions, but its remaining conditions
+// may still yield a definite match. It is not globally disabled.
+type DegradedRouteRule struct {
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	ListIDs []string `json:"listIds"`
+}
+
 type RuleActivationStatus struct {
 	ListIssues      []ListActivationIssue `json:"listIssues,omitzero"`
 	SkippedRules    []SkippedRouteRule    `json:"skippedRules,omitzero"`
+	DegradedRules   []DegradedRouteRule   `json:"degradedRules,omitzero"`
 	Applying        bool                  `json:"applying,omitzero"`
 	RunningConfig   *Config               `json:"runningConfig,omitzero"`
 	SavedRevision   uint64                `json:"savedRevision"`
@@ -56,6 +65,7 @@ type RuleActivationStatus struct {
 type ActivationStatus struct {
 	ListIssues         []ListActivationIssue `json:"listIssues,omitzero"`
 	SkippedRules       []SkippedRouteRule    `json:"skippedRules,omitzero"`
+	DegradedRules      []DegradedRouteRule   `json:"degradedRules,omitzero"`
 	Applying           bool                  `json:"applying,omitzero"`
 	RunningConfig      *Config               `json:"runningConfig,omitzero"`
 	SavedRevision      uint64                `json:"savedRevision"`
