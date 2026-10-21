@@ -32,8 +32,10 @@ type SQLiteFakeIPPool struct {
 	index            uint64
 	maxNum           uint64
 	mu               sync.RWMutex
-	active           map[netip.Addr]uint32 // guarded by mu; never evict leased addresses
-	flushMu          sync.Mutex // serialize background and pre-eviction touch commits
+	// guarded by mu; never evict leased addresses
+	active           map[netip.Addr]uint32
+	// Serialize background and pre-eviction touch commits.
+	flushMu          sync.Mutex
 	touchMu          sync.Mutex
 	touchDomains     map[string]int64
 	touchIPs         map[netip.Addr]int64
