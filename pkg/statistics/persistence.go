@@ -161,6 +161,18 @@ func (p *connectionPersistence) Delete(id uint64) {
 
 // Capture pending metadata before the database snapshot. A commit may remove
 // the live overlay while the query runs, but cannot remove this local snapshot.
+// loadOne reads pending metadata before SQLite, so a newly created
+// connection can be inspected without waiting for the persistence batch.
+func (p *connectionPersistence) loadOne(id uint64) (contractconnection.Connection, bool) {
+	p.mu.Lock()
+	info, ok := p.overlay[id]
+	p.mu.Unlock()
+	if ok {
+		return info, true
+	}
+	return p.session.Load(id)
+}
+
 func (p *connectionPersistence) loadMany(ids []uint64, load func([]uint64) []contractconnection.Connection) []contractconnection.Connection {
 	p.mu.Lock()
 	pending := make(map[uint64]contractconnection.Connection)
