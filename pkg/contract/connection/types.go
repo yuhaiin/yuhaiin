@@ -105,6 +105,15 @@ type MatchTrace struct {
 	Children []MatchTrace `json:"children,omitempty"`
 }
 
+// MatchTraceRequest selects one active connection for lazy trace expansion.
+type MatchTraceRequest struct {
+	ID string `json:"id"`
+}
+
+type MatchTraceResponse struct {
+	MatchHistory []MatchHistoryEntry `json:"matchHistory"`
+}
+
 type MatchResult struct {
 	Kind     string `json:"kind,omitempty"`
 	ID       string `json:"id,omitempty"`
