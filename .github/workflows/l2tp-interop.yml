@@ -55,6 +55,7 @@ jobs:
         env:
           L2TP_TEST_CONGESTION_CONTROL: ${{ matrix.congestion }}
           L2TP_DIAGNOSTICS_DIR: ${{ runner.temp }}/l2tp-diagnostics/${{ matrix.congestion }}
+          L2TP_CAPTURE_PCAP: '1'
         run: python3 scripts/bench/l2tp/run.py --runtime docker --ppp
       - name: Upload L2TP diagnostics and BBR/CUBIC results
         if: always()
