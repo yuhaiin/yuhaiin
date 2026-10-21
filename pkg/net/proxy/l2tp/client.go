@@ -30,7 +30,7 @@ type Config struct {
 	Address, Router, IPv6Router string
 	// Test-only diagnostics are explicitly opted into by the interop harness.
 	CongestionControl string
-	DiagnosticTrace    bool
+	DiagnosticTrace   bool
 }
 
 type Client struct {
