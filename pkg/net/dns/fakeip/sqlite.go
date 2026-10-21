@@ -15,6 +15,9 @@ import (
 const (
 	sqliteFakeIPTouchInterval      = 5 * time.Minute
 	sqliteFakeIPTouchFlushInterval = 5 * time.Second
+	// Protect recently issued DNS answers, including client caches that outlive the
+	// 40-second synthetic DNS TTL. Active connections are additionally pinned.
+	fakeIPReuseGrace = time.Hour
 )
 
 type SQLiteFakeIPPool struct {
@@ -28,7 +31,8 @@ type SQLiteFakeIPPool struct {
 	family           int
 	index            uint64
 	maxNum           uint64
-	mu               sync.Mutex
+	mu               sync.RWMutex
+	active           map[netip.Addr]uint32 // guarded by mu; never evict leased addresses
 	touchMu          sync.Mutex
 	touchDomains     map[string]int64
 	touchIPs         map[netip.Addr]int64
@@ -91,6 +95,7 @@ func newFakeIPPool(db *sql.DB, prefix netip.Prefix, maxNum int) (*SQLiteFakeIPPo
 		key:     prefix.String(),
 		family:  fakeIPFamily(prefix),
 		maxNum:  uint64(maxNum),
+		active:  make(map[netip.Addr]uint32),
 		current: prefix.Addr().Prev(),
 	}
 	return pool, nil
@@ -215,7 +220,10 @@ func (p *SQLiteFakeIPPool) Prefix() netip.Prefix {
 func (p *SQLiteFakeIPPool) GetFakeIPForDomain(domain string) netip.Addr {
 	ctx := context.Background()
 	now := time.Now()
-	if ip, ok := p.getIP(ctx, domain, now); ok {
+	p.mu.RLock()
+	ip, ok := p.getIP(ctx, domain, now)
+	p.mu.RUnlock()
+	if ok {
 		return ip
 	}
 
@@ -235,6 +243,33 @@ func (p *SQLiteFakeIPPool) GetFakeIPForDomain(domain string) netip.Addr {
 }
 
 func (p *SQLiteFakeIPPool) GetDomainFromIP(ip netip.Addr) (string, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.getDomainFromIP(ip)
+}
+
+// LeaseDomainFromIP atomically resolves and pins a mapping against address
+// reuse until its TCP/UDP owner closes. Release may be called more than once.
+func (p *SQLiteFakeIPPool) LeaseDomainFromIP(ip netip.Addr) (string, func(), bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	domain, ok := p.getDomainFromIP(ip)
+	if !ok {
+		return "", nil, false
+	}
+	p.active[ip]++
+	return domain, sync.OnceFunc(func() {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		if p.active[ip] <= 1 {
+			delete(p.active, ip)
+		} else {
+			p.active[ip]--
+		}
+	}), true
+}
+
+func (p *SQLiteFakeIPPool) getDomainFromIP(ip netip.Addr) (string, bool) {
 	if !p.prefix.Contains(ip) {
 		return "", false
 	}
@@ -415,7 +450,7 @@ func (p *SQLiteFakeIPPool) allocate(ctx context.Context, domain string, now time
 
 	var addr netip.Addr
 	if count >= p.maxNum {
-		addr, err = p.evictLRU(ctx, tx)
+		addr, err = p.evictLRU(ctx, tx, now)
 		if err != nil {
 			return netip.Addr{}, err
 		}
@@ -448,27 +483,54 @@ func (p *SQLiteFakeIPPool) entryCount(ctx context.Context, tx *sql.Tx) (uint64, 
 	return count, err
 }
 
-func (p *SQLiteFakeIPPool) evictLRU(ctx context.Context, tx *sql.Tx) (netip.Addr, error) {
-	var domain string
-	var ipBytes []byte
-	err := tx.QueryRowContext(ctx, `
+// evictLRU never recycles a recently returned or actively leased address.
+// If every entry is protected, allocation fails closed instead of silently
+// resolving an old client-side FakeIP to an unrelated domain.
+func (p *SQLiteFakeIPPool) evictLRU(ctx context.Context, tx *sql.Tx, now time.Time) (netip.Addr, error) {
+	rows, err := tx.QueryContext(ctx, `
 		SELECT domain, ip
 		FROM fakeip_entries
-		WHERE family = ? AND prefix = ?
+		WHERE family = ? AND prefix = ? AND last_used_at < ?
 		ORDER BY last_used_at ASC, created_at ASC
-		LIMIT 1
-	`, p.family, p.key).Scan(&domain, &ipBytes)
+		LIMIT 256
+	`, p.family, p.key, now.Add(-fakeIPReuseGrace).UnixNano())
 	if err != nil {
 		return netip.Addr{}, err
 	}
-	addr, ok := netip.AddrFromSlice(ipBytes)
-	if !ok || !p.prefix.Contains(addr) {
-		return netip.Addr{}, errors.New("invalid fakeip lru address")
+	var domain string
+	var addr netip.Addr
+	for rows.Next() {
+		var ipBytes []byte
+		if err = rows.Scan(&domain, &ipBytes); err != nil {
+			break
+		}
+		var ok bool
+		addr, ok = netip.AddrFromSlice(ipBytes)
+		if !ok || !p.prefix.Contains(addr) {
+			err = errors.New("invalid fakeip lru address")
+			break
+		}
+		if p.active[addr] == 0 {
+			break
+		}
+		addr = netip.Addr{}
+	}
+	if err == nil {
+		err = rows.Err()
+	}
+	if closeErr := rows.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	if !addr.IsValid() {
+		return netip.Addr{}, errors.New("fakeip: pool exhausted; all mappings are recent or active")
 	}
 	if _, err := tx.ExecContext(ctx, `
 		DELETE FROM fakeip_entries
-		WHERE family = ? AND prefix = ? AND domain = ?
-	`, p.family, p.key, domain); err != nil {
+		WHERE family = ? AND prefix = ? AND domain = ? AND ip = ?
+	`, p.family, p.key, domain, addr.AsSlice()); err != nil {
 		return netip.Addr{}, err
 	}
 	return addr, nil
@@ -485,7 +547,7 @@ func (p *SQLiteFakeIPPool) nextAvailable(ctx context.Context, tx *sql.Tx) (netip
 			return addr, nil
 		}
 	}
-	return p.evictLRU(ctx, tx)
+	return p.evictLRU(ctx, tx, time.Now())
 }
 
 func (p *SQLiteFakeIPPool) rotateNext() netip.Addr {
