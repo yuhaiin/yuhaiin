@@ -250,7 +250,7 @@ func TestDegradedRuleKeepsHealthyORBranches(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	lookup := func(domain string) ModeEnum {
+	lookup := func(domain string) Mode {
 		t.Helper()
 		addr, err := netapi.ParseAddressPort("tcp", domain, 443)
 		if err != nil {
