@@ -65,7 +65,6 @@ func TestSharedMatchTemplateNotSerialized(t *testing.T) {
 	}
 }
 
-
 // BenchmarkMatchTraceOnDemand deliberately measures the expensive operation
 // in the detail RPC, not the per-connection routing/storage hot path.
 func BenchmarkMatchTraceOnDemand(b *testing.B) {
