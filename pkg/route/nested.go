@@ -203,6 +203,7 @@ type Matchers struct {
 	listNames      map[string]string
 	listIssues     []contractroute.ListActivationIssue
 	skippedRules   []contractroute.SkippedRouteRule
+	degradedRules  []contractroute.DegradedRouteRule
 	list           *Lists
 	matchers       []MatchEntry
 	mu             sync.RWMutex
@@ -234,9 +235,9 @@ func (s *Matchers) appendRule(matchers []MatchEntry, r contractroute.RouteRule) 
 	return matchers
 }
 
-// appendPreparedRule skips a whole rule if any referenced list is unavailable.
-// This must happen before compiling NOT, AND or OR to prevent unsafe matches.
-func (s *Matchers) appendPreparedRule(entries []MatchEntry, rule contractroute.RouteRule, unavailable map[string]bool, skipped *[]contractroute.SkippedRouteRule) []MatchEntry {
+// appendPreparedRule retains branches that can still match deterministically.
+// Unavailable lists are UNKNOWN, never FALSE: NOT UNKNOWN must remain UNKNOWN.
+func (s *Matchers) appendPreparedRule(entries []MatchEntry, rule contractroute.RouteRule, unavailable map[string]bool, skipped *[]contractroute.SkippedRouteRule, degraded *[]contractroute.DegradedRouteRule) []MatchEntry {
 	if rule.Disabled {
 		return entries
 	}
@@ -247,12 +248,17 @@ func (s *Matchers) appendPreparedRule(entries []MatchEntry, rule contractroute.R
 		}
 		return nil
 	})
-	if len(missing) != 0 {
-		slices.Sort(missing)
+	if len(missing) == 0 {
+		return s.appendRule(entries, rule)
+	}
+	slices.Sort(missing)
+	matcher := parseMatcherWithUnavailable(rule, unavailable)
+	if canTrue, _ := possibleKnownMatch(matcher); !canTrue {
 		*skipped = append(*skipped, contractroute.SkippedRouteRule{ID: rule.ID, Name: rule.Name, ListIDs: missing})
 		return entries
 	}
-	return s.appendRule(entries, rule)
+	*degraded = append(*degraded, contractroute.DegradedRouteRule{ID: rule.ID, Name: rule.Name, ListIDs: missing})
+	return append(entries, MatchEntry{id: rule.ID, mode: modeEnumFromRule(rule), matcher: threeValuedMatcher{matcher}, name: rule.Name})
 }
 
 func (s *Matchers) Update(rules ...contractroute.RouteRule) error {
@@ -268,8 +274,9 @@ func (s *Matchers) UpdateContext(ctx context.Context, rules ...contractroute.Rou
 	}
 	var ms []MatchEntry
 	var skipped []contractroute.SkippedRouteRule
+	var degraded []contractroute.DegradedRouteRule
 	for _, rule := range rules {
-		ms = s.appendPreparedRule(ms, rule, prepared.unavailable, &skipped)
+		ms = s.appendPreparedRule(ms, rule, prepared.unavailable, &skipped, &degraded)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -279,6 +286,7 @@ func (s *Matchers) UpdateContext(ctx context.Context, rules ...contractroute.Rou
 	s.listNames = prepared.names
 	s.listIssues = prepared.listIssues
 	s.skippedRules = skipped
+	s.degradedRules = degraded
 	s.generation++
 	return nil
 }
@@ -298,8 +306,9 @@ func (s *Matchers) UpdateSnapshot(ctx context.Context, snapshot plainstore.Route
 	}()
 	var entries []MatchEntry
 	var skipped []contractroute.SkippedRouteRule
+	var degraded []contractroute.DegradedRouteRule
 	for _, entry := range snapshot.Rules {
-		entries = s.appendPreparedRule(entries, entry.Rule, prepared.unavailable, &skipped)
+		entries = s.appendPreparedRule(entries, entry.Rule, prepared.unavailable, &skipped, &degraded)
 	}
 	return activate(ctx, snapshot.Revision, func() {
 		s.mu.Lock()
@@ -310,6 +319,7 @@ func (s *Matchers) UpdateSnapshot(ctx context.Context, snapshot plainstore.Route
 		s.listNames = prepared.names
 		s.listIssues = prepared.listIssues
 		s.skippedRules = skipped
+		s.degradedRules = degraded
 		s.runtimeConfig = config
 		publish()
 		s.generation++
@@ -418,6 +428,10 @@ func (m notMatcher) Match(ctx context.Context, addr netapi.Address) bool {
 }
 
 func parseCondition(expr contractroute.RuleExpr) Matcher {
+	return parseConditionWithUnavailable(expr, nil)
+}
+
+func parseConditionWithUnavailable(expr contractroute.RuleExpr, unavailable map[string]bool) Matcher {
 	switch expr.Type {
 	case "always":
 		return constantMatcher(true)
@@ -431,7 +445,7 @@ func parseCondition(expr contractroute.RuleExpr) Matcher {
 		}
 		children := make([]Matcher, 0, len(exprs))
 		for _, child := range sortRule(slices.Clone(exprs)) {
-			children = append(children, parseCondition(child))
+			children = append(children, parseConditionWithUnavailable(child, unavailable))
 		}
 		if expr.Type == "all" {
 			return NewAnd(children...)
@@ -439,14 +453,20 @@ func parseCondition(expr contractroute.RuleExpr) Matcher {
 		return NewOr("", children...)
 	case "not":
 		if expr.Not != nil {
-			return notMatcher{parseCondition(*expr.Not)}
+			return notMatcher{parseConditionWithUnavailable(*expr.Not, unavailable)}
 		}
 	case "host":
 		if expr.Host != nil {
+			if unavailable[expr.Host.List] {
+				return unavailableListMatcher(expr.Host.List)
+			}
 			return List(expr.Host.List)
 		}
 	case "process":
 		if expr.Process != nil {
+			if unavailable[expr.Process.List] {
+				return unavailableListMatcher(expr.Process.List)
+			}
 			return List(expr.Process.List)
 		}
 	case "inbound":
