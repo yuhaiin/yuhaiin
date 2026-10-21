@@ -6,11 +6,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -77,7 +80,7 @@ func echoTCP(t testing.TB, proxy netapi.Proxy, target string) {
 	}
 	payload := bytes.Repeat([]byte("l2tp-real-tcp"), 8192)
 	if err := exchangeTCPEcho(conn, payload); err != nil {
-		logInteropState(t, proxy)
+		logInteropState(t, proxy, conn, err)
 		t.Fatalf("TCP echo from %s (%v -> %v): %v", target, conn.LocalAddr(), conn.RemoteAddr(), err)
 	}
 }
@@ -108,7 +111,7 @@ func exchangeTCPEcho(conn io.ReadWriter, payload []byte) error {
 	return nil
 }
 
-func logInteropState(t testing.TB, proxy netapi.Proxy) {
+func logInteropState(t testing.TB, proxy netapi.Proxy, conn net.Conn, problem error) {
 	t.Helper()
 	client, ok := proxy.(*Client)
 	if reconnect, reconnecting := proxy.(*reconnectingClient); reconnecting {
@@ -120,9 +123,45 @@ func logInteropState(t testing.TB, proxy netapi.Proxy) {
 	if !ok {
 		return
 	}
-	t.Logf("L2TP session: %+v; error: %v", client.session.Info(), client.session.Err())
+	info, counters := client.session.Info(), client.session.Stats()
+	t.Logf("L2TP session: %+v; error: %v; counters: %+v", info, client.session.Err(), counters)
+	report := map[string]any{
+		"test": t.Name(), "failure": problem.Error(),
+		"algorithm": client.cfg.CongestionControl,
+		"session": info, "l2tp_counters": counters,
+		"tcp_header_trace": client.trace.snapshot(),
+	}
 	if network, ok := client.network.(interface{ Stack() *lightweight.Stack }); ok {
-		t.Logf("IP stack: %+v", network.Stack().Stats())
+		stats := network.Stack().Stats()
+		t.Logf("IP stack: %+v", stats)
+		report["stack_counters"] = stats
+	}
+	if diagnostic, ok := conn.(interface{ DiagnosticSnapshot() lightweight.TCPDiagnostics }); ok {
+		state := diagnostic.DiagnosticSnapshot()
+		t.Logf("TCP state: %+v", state)
+		report["tcp_state"] = state
+	} else {
+		t.Logf("TCP snapshot unavailable for connection type %T", conn)
+		report["tcp_connection_type"] = fmt.Sprintf("%T", conn)
+	}
+	dir := os.Getenv("L2TP_DIAGNOSTICS_DIR")
+	if dir == "" {
+		return
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Logf("create diagnostics directory: %v", err)
+		return
+	}
+	name := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	path := filepath.Join(dir, fmt.Sprintf("%s-%d.json", name, time.Now().UnixNano()))
+	payload, err := json.MarshalIndent(report, "", "  ")
+	if err == nil {
+		err = os.WriteFile(path, payload, 0o600)
+	}
+	if err != nil {
+		t.Logf("write diagnostics: %v", err)
+	} else {
+		t.Logf("diagnostics written to %s", path)
 	}
 }
 func echoUDP(t testing.TB, proxy netapi.Proxy, target string) {
@@ -161,7 +200,7 @@ func v2InteropConfig(t testing.TB) Config {
 	if gateway == "" {
 		t.Skip("set L2TP_TEST_GATEWAY")
 	}
-	cfg := Config{Version: 2, Gateway: gateway, Username: "alice", Password: "test-password", AuthType: os.Getenv("L2TP_TEST_AUTH"), SharedSecret: os.Getenv("L2TP_TEST_SECRET")}
+	cfg := Config{Version: 2, Gateway: gateway, Username: "alice", Password: "test-password", AuthType: os.Getenv("L2TP_TEST_AUTH"), SharedSecret: os.Getenv("L2TP_TEST_SECRET"), CongestionControl: os.Getenv("L2TP_TEST_CONGESTION_CONTROL"), DiagnosticTrace: os.Getenv("L2TP_DIAGNOSTICS_DIR") != ""}
 	if os.Getenv("L2TP_TEST_IPV6") == "1" {
 		cfg.IPv6 = true
 		cfg.IPv6Address = "fd88::2/64"
@@ -219,6 +258,7 @@ func TestOfficialL2TPReconnect(t *testing.T) {
 	if next == first || next.session.Info().LocalSessionID == old {
 		t.Fatal("reconnect reused terminated session")
 	}
+	t.Logf("L2TP reconnect: old_session=%d new_session=%d congestion=%s old_counters=%+v", old, next.session.Info().LocalSessionID, cfg.CongestionControl, first.session.Stats())
 	if target := os.Getenv("L2TP_TEST_TARGET"); target != "" {
 		echoTCP(t, r, target)
 		echoUDP(t, r, target)
