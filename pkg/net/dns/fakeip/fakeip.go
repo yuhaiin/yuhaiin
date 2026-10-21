@@ -384,16 +384,33 @@ func rewriteHTTPSHints(msg *dns.Msg, ipv4, ipv6 netip.Addr) {
 		}
 		copyRR := *https
 		copyRR.Value = make([]svcb.Pair, 0, len(https.Value)+2)
+		// IP hints describe TargetName, not necessarily the queried origin.
+		// For alternate targets, remove real hints and let clients resolve the
+		// target's A/AAAA via FakeDNS rather than giving them an origin FakeIP.
+		sameTarget := https.Target == "." || strings.EqualFold(https.Target, https.Hdr.Name)
+		write4, write6 := sameTarget && ipv4.Is4(), sameTarget && ipv6.Is6()
+		var requires4, requires6 bool
 		for _, value := range https.Value {
 			key := svcb.PairToKey(value)
+			if mandatory, ok := value.(*svcb.MANDATORY); ok {
+				for _, required := range mandatory.Key {
+					requires4 = requires4 || required == svcb.KeyIPv4Hint
+					requires6 = requires6 || required == svcb.KeyIPv6Hint
+				}
+			}
 			if key != svcb.KeyIPv4Hint && key != svcb.KeyIPv6Hint {
 				copyRR.Value = append(copyRR.Value, value)
 			}
 		}
-		if ipv4.Is4() {
+		if (requires4 && !write4) || (requires6 && !write6) {
+			// Keeping this record would violate the mandatory key list.
+			changed = true
+			continue
+		}
+		if write4 {
 			copyRR.Value = append(copyRR.Value, &svcb.IPV4HINT{Hint: []netip.Addr{ipv4}})
 		}
-		if ipv6.Is6() {
+		if write6 {
 			copyRR.Value = append(copyRR.Value, &svcb.IPV6HINT{Hint: []netip.Addr{ipv6}})
 		}
 		sort.Slice(copyRR.Value, func(i, j int) bool {
