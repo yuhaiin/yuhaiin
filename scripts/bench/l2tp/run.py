@@ -10,15 +10,25 @@ import tempfile
 import time
 import uuid
 
-parser = argparse.ArgumentParser()
+from capture import capture_diagnostics
+
+parser = argparse.ArgumentParser(description='Test stock PPP and Linux L2TPv3 peers by default; select individual peers with the flags below.')
 parser.add_argument('--runtime', choices=('podman', 'docker'), default='podman')
-parser.add_argument('--ppp', action='store_true', help='also test xl2tpd/pppd; requires accessible /dev/ppp')
+parser.add_argument('--ppp', action='store_true', help='test xl2tpd/pppd; requires accessible /dev/ppp')
+parser.add_argument('--l2tpv3', action='store_true', help='test Linux L2TPv3; requires the l2tp_eth kernel module')
+parser.add_argument('--softether', action='store_true', help='run optional SoftEther SecureNAT compatibility diagnostics')
 parser.add_argument('--benchmark', action='store_true')
 parser.add_argument('--output', type=Path)
 args = parser.parse_args()
+if not (args.ppp or args.l2tpv3 or args.softether):
+    args.ppp = True
+    args.l2tpv3 = True
 root = Path(__file__).resolve().parents[3]
 fixture = root / 'pkg/net/proxy/l2tp/testdata'
 results = []
+diagnostics_dir = Path(os.environ['L2TP_DIAGNOSTICS_DIR']) if os.getenv('L2TP_DIAGNOSTICS_DIR') else None
+if diagnostics_dir is not None:
+    diagnostics_dir.mkdir(parents=True, exist_ok=True)
 
 
 def run(*cmd, **kwargs):
@@ -45,7 +55,8 @@ def gateway(name):
     return run(args.runtime, 'port', name, '1701/udp', capture_output=True).stdout.strip().splitlines()[0]
 
 
-run(args.runtime, 'build', '-t', 'localhost/yuhaiin-l2tpv3-test', str(fixture))
+if args.l2tpv3:
+    run(args.runtime, 'build', '-t', 'localhost/yuhaiin-l2tpv3-test', str(fixture))
 if args.ppp:
     run(args.runtime, 'build', '-f', str(fixture/'Dockerfile.ppp'), '-t', 'localhost/yuhaiin-l2tp-ppp-test', str(fixture))
 
@@ -60,9 +71,26 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
         env = os.environ | env
         print('\n=== '+label+' ===', flush=True)
         result = dict(case=label)
-        tests = run(str(binary), '-test.run='+pattern, '-test.v', '-test.timeout=90s', env=env, capture_output=True)
-        print(tests.stdout, flush=True)
+        # Repeat reconnect checks to expose intermittent recovery stalls. Keep
+        # the original 15s TCP deadline, rather than masking lost packets.
+        count = '3' if 'TestOfficialL2TP' in pattern else '1'
+        command = [str(binary), '-test.run='+pattern, '-test.v', '-test.count='+count, '-test.timeout=90s']
+        started = time.monotonic()
+        tests = subprocess.run(command, cwd=root, text=True, env=env, capture_output=True)
+        duration = time.monotonic() - started
+        print(tests.stdout, tests.stderr, flush=True)
         result['tests'] = tests.stdout
+        result['seconds'] = round(duration, 3)
+        result['success'] = tests.returncode == 0
+        if diagnostics_dir is not None:
+            key = ''.join(c if c.isalnum() or c in '-_' else '_' for c in label)
+            (diagnostics_dir / (key+'.test.log')).write_text(tests.stdout+'\n'+tests.stderr)
+            (diagnostics_dir / (key+'.result.json')).write_text(json.dumps({
+                'case': label, 'algorithm': env.get('L2TP_TEST_CONGESTION_CONTROL', 'bbr'),
+                'seconds': result['seconds'], 'success': result['success'],
+                'runs': int(count)}, indent=2)+'\n')
+        if tests.returncode != 0:
+            raise subprocess.CalledProcessError(tests.returncode, command)
         if args.benchmark:
             sample = run(str(bench), '-test.run=^$', '-test.bench='+benchmark+'$', '-test.benchtime=2s',
                          '-test.count=3', '-test.timeout=3m', env=env, capture_output=True)
@@ -70,9 +98,11 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
             result['benchmark'] = sample.stdout
         results.append(result)
 
+    # Keep SecureNAT compatibility diagnostics opt-in. The required PPP cases
+    # below use the Linux IP stack and do not depend on SoftEther's TCP proxy.
     # Isolate each authentication case's PPP leases and SecureNAT state.
-    # SoftEther's raw L2TP server runs entirely in userspace, including SecureNAT.
-    for auth in ('pap', 'mschap-v2'):
+    softether_auths = ('pap', 'mschap-v2') if args.softether else ()
+    for auth in softether_auths:
         name = 'yuhaiin-l2tp-'+uuid.uuid4().hex[:10]
         echo = name+'-echo'
         try:
@@ -82,6 +112,7 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
             ready(name, '[initial setup OK]')
             run(args.runtime, 'run', '-d', '--init', '--name', echo, '--stop-timeout', '1', '--network=container:'+name,
                 '-v', str(root/'pkg/net/proxy/softether/testdata/echo.py')+':/echo.py:ro',
+                '-e', 'YUHAIIN_ECHO_DIAGNOSTICS='+('1' if diagnostics_dir is not None else '0'),
                 'docker.io/library/python:3.13-alpine', 'python', '/echo.py')
             target = run(args.runtime, 'exec', echo, 'python', '-c',
                          'import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.connect(("1.1.1.1",53));print(s.getsockname()[0])', capture_output=True).stdout.strip()
@@ -93,9 +124,19 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
                 ' except OSError:\n'
                 '  if time.monotonic()>=deadline:raise\n'
                 '  time.sleep(.1)')
-            exercise('SoftEther / '+auth, {'L2TP_TEST_GATEWAY': gateway(name), 'L2TP_TEST_TARGET': target, 'L2TP_TEST_AUTH': auth}, '^(TestOfficialL2TP.*|TestTCPEchoIntegrity)$', 'BenchmarkRealL2TP')
+            with capture_diagnostics(args.runtime, echo, gateway(name), diagnostics_dir, 'SoftEther_'+auth):
+                exercise('SoftEther / '+auth, {'L2TP_TEST_GATEWAY': gateway(name), 'L2TP_TEST_TARGET': target, 'L2TP_TEST_AUTH': auth}, '^(TestOfficialL2TP.*|TestTCPEchoIntegrity)$', 'BenchmarkRealL2TP')
         except subprocess.CalledProcessError as exc:
             print(exc.stdout or '', exc.stderr or '', flush=True)
+            # Keep an independent ground truth from the Python TCP echo server:
+            # whether data reached the socket, and whether sendall completed.
+            echo_output = subprocess.run([args.runtime, 'logs', '--timestamps', echo],
+                                         capture_output=True, text=True, check=False)
+            if diagnostics_dir is not None:
+                (diagnostics_dir / ('SoftEther_'+auth+'-echo.log')).write_text(
+                    echo_output.stdout + '\n' + echo_output.stderr)
+            print('=== Echo server byte progress ===', flush=True)
+            print(echo_output.stdout[-16000:], flush=True)
             subprocess.run([args.runtime, 'logs', name], check=False)
             raise
         finally:
@@ -109,8 +150,9 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
                 run(args.runtime, 'run', '-d', '--name', name, '--privileged', '--device=/dev/ppp', '-p', '127.0.0.1::1701/udp',
                     '-e', 'PPP_AUTH='+auth, 'localhost/yuhaiin-l2tp-ppp-test')
                 ready(name, 'PPP server ready')
-                exercise('xl2tpd / '+auth+' / IPv6CP', {'L2TP_TEST_GATEWAY': gateway(name), 'L2TP_TEST_TARGET': '10.88.0.1',
-                         'L2TP_TEST_AUTH': auth, 'L2TP_TEST_IPV6': '1'}, '^(TestOfficialL2TP.*|TestTCPEchoIntegrity)$', 'BenchmarkRealL2TP')
+                with capture_diagnostics(args.runtime, name, gateway(name), diagnostics_dir, 'xl2tpd_'+auth):
+                    exercise('xl2tpd / '+auth+' / IPv6CP', {'L2TP_TEST_GATEWAY': gateway(name), 'L2TP_TEST_TARGET': '10.88.0.1',
+                             'L2TP_TEST_AUTH': auth, 'L2TP_TEST_IPV6': '1'}, '^(TestOfficialL2TP.*|TestTCPEchoIntegrity)$', 'BenchmarkRealL2TP')
             except subprocess.CalledProcessError as exc:
                 print(exc.stdout or '', exc.stderr or '', flush=True)
                 subprocess.run([args.runtime, 'logs', name], check=False)
@@ -125,7 +167,7 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
         ('dynamic / sublayer', '', '', 'default', True, ''),
         ('dynamic / authenticated', '1122334455667788', '', 'default', True, 'test-tunnel-secret'),
     ]
-    for label, local, peer, layer, dynamic, secret in cases:
+    for label, local, peer, layer, dynamic, secret in cases if args.l2tpv3 else ():
         name = 'yuhaiin-l2tpv3-'+uuid.uuid4().hex[:10]
         try:
             run(args.runtime, 'run', '-d', '--name', name, '--privileged', '-p', '127.0.0.1::1701/udp',
@@ -133,9 +175,10 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
                 '-e', 'DYNAMIC='+str(int(dynamic)), '-e', 'SHARED_SECRET='+secret, 'localhost/yuhaiin-l2tpv3-test')
             ready(name, 'L2TPv3 server ready')
             # Server receive cookie == client transmit cookie, and vice versa.
-            exercise('Linux L2TPv3 / '+label, {'L2TPV3_TEST_GATEWAY': gateway(name), 'L2TPV3_TEST_LOCAL_COOKIE': peer,
-                     'L2TPV3_TEST_PEER_COOKIE': local, 'L2TPV3_TEST_SUBLAYER': layer,
-                     'L2TPV3_TEST_DYNAMIC': str(int(dynamic)), 'L2TPV3_TEST_SECRET': secret}, '^TestLinuxL2TPv3', 'BenchmarkRealL2TPv3')
+            with capture_diagnostics(args.runtime, name, gateway(name), diagnostics_dir, 'L2TPv3_'+label):
+                exercise('Linux L2TPv3 / '+label, {'L2TPV3_TEST_GATEWAY': gateway(name), 'L2TPV3_TEST_LOCAL_COOKIE': peer,
+                         'L2TPV3_TEST_PEER_COOKIE': local, 'L2TPV3_TEST_SUBLAYER': layer,
+                         'L2TPV3_TEST_DYNAMIC': str(int(dynamic)), 'L2TPV3_TEST_SECRET': secret}, '^TestLinuxL2TPv3', 'BenchmarkRealL2TPv3')
         except subprocess.CalledProcessError as exc:
             print(exc.stdout or '', exc.stderr or '', flush=True)
             subprocess.run([args.runtime, 'logs', name], check=False)

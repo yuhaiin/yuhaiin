@@ -28,6 +28,9 @@ type Config struct {
 	LocalAddress                string
 	AutoReconnect               bool
 	Address, Router, IPv6Router string
+	// Test-only diagnostics are explicitly opted into by the interop harness.
+	CongestionControl string
+	DiagnosticTrace   bool
 }
 
 type Client struct {
@@ -39,6 +42,7 @@ type Client struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	cfg     Config
+	trace   *tcpPacketTrace
 	wg      sync.WaitGroup
 }
 
@@ -94,7 +98,7 @@ func connectClient(parent context.Context, cfg Config, upstream netapi.Proxy) (*
 	info := session.Info()
 	var network tunnelNetwork
 	if cfg.Version == 2 {
-		network, err = wireguard.CreateLightweightNetTUN(info.Prefixes, info.MTU)
+		network, err = wireguard.CreateLightweightNetTUNWithCongestionControl(info.Prefixes, info.MTU, cfg.CongestionControl)
 	} else {
 		network, err = newEthernetNetwork(cfg)
 	}
@@ -104,6 +108,9 @@ func connectClient(parent context.Context, cfg Config, upstream netapi.Proxy) (*
 	}
 	run, cancelRun := context.WithCancel(context.Background())
 	c := &Client{session: session, network: network, ctx: run, cancel: cancelRun, cfg: cfg}
+	if cfg.DiagnosticTrace {
+		c.trace = newTCPPacketTrace(512)
+	}
 	c.tcp = dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 		return network.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 	})
@@ -119,6 +126,7 @@ func (c *Client) receive() {
 			c.shutdown()
 			return
 		}
+		c.trace.record("l2tp_to_stack", packet)
 		if _, err := c.network.Write([][]byte{packet}, 0); err != nil {
 			c.shutdown()
 			return
@@ -139,6 +147,7 @@ func (c *Client) transmit() {
 				c.shutdown()
 				return
 			}
+			c.trace.record("stack_to_l2tp", slab[p.Offset:p.Offset+p.Size])
 			if err := c.session.WriteFrame(slab[p.Offset : p.Offset+p.Size]); err != nil {
 				c.shutdown()
 				return

@@ -166,6 +166,9 @@ func TestDataFiltersSessionCookieAndLength(t *testing.T) {
 	if len(s.frames) != 0 {
 		t.Fatal("delivered invalid data packet")
 	}
+	if stats := s.Stats(); stats.WrongSession != 1 || stats.InvalidPayload != 3 || stats.FramesAccepted != 0 {
+		t.Fatalf("unexpected invalid frame counters: %+v", stats)
+	}
 	s.receiveData(packet{session: 123, payload: good})
 	select {
 	case got := <-s.frames:
@@ -188,5 +191,20 @@ func TestSoftEtherPAPEmptyMessageCompatibility(t *testing.T) {
 		if code == 3 && !errors.Is(err, ErrAuth) {
 			t.Fatalf("empty PAP NAK: %v", err)
 		}
+	}
+}
+
+func TestDataFrameQueueOverflowIsCounted(t *testing.T) {
+	s := &Session{cfg: Config{Version: 2, MTU: 1400}, localSession: 7, localTunnel: 9, dataReady: true, frames: make(chan []byte, 1)}
+	ip := make([]byte, 20)
+	ip[0], ip[2], ip[3] = 0x45, 0, 20
+	frame := append([]byte{0xff, 3, 0, 0x21}, ip...)
+	s.receiveData(packet{session: 7, tunnel: 9, payload: frame})
+	s.receiveData(packet{session: 7, tunnel: 9, payload: frame})
+	s.receiveData(packet{session: 8, tunnel: 9, payload: frame})
+	s.receiveData(packet{session: 7, tunnel: 9, payload: []byte{0xff, 3, 0}})
+	stats := s.Stats()
+	if stats.FramesAccepted != 1 || stats.FrameQueueDrops != 1 || stats.WrongSession != 1 || stats.InvalidPPP != 1 {
+		t.Fatalf("unexpected receive counters: %+v", stats)
 	}
 }
