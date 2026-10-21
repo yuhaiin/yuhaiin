@@ -25,7 +25,26 @@ type ListActivationStatus struct {
 	HostIndexRefreshAt int64 `json:"hostIndexRefreshAt"`
 }
 
+// ListActivationIssue describes a remote resource that could not be loaded
+// during the currently applied routing snapshot.
+type ListActivationIssue struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Error       string `json:"error"`
+	Unavailable bool   `json:"unavailable"`
+}
+
+// SkippedRouteRule is never evaluated when a referenced list is unavailable.
+// In particular, NOT over a missing list must not match every destination.
+type SkippedRouteRule struct {
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	ListIDs []string `json:"listIds"`
+}
+
 type RuleActivationStatus struct {
+	ListIssues      []ListActivationIssue `json:"listIssues,omitzero"`
+	SkippedRules    []SkippedRouteRule   `json:"skippedRules,omitzero"`
 	Applying        bool    `json:"applying,omitzero"`
 	RunningConfig   *Config `json:"runningConfig,omitzero"`
 	SavedRevision   uint64  `json:"savedRevision"`
@@ -35,6 +54,8 @@ type RuleActivationStatus struct {
 }
 
 type ActivationStatus struct {
+	ListIssues         []ListActivationIssue `json:"listIssues,omitzero"`
+	SkippedRules       []SkippedRouteRule   `json:"skippedRules,omitzero"`
 	Applying           bool    `json:"applying,omitzero"`
 	RunningConfig      *Config `json:"runningConfig,omitzero"`
 	SavedRevision      uint64  `json:"savedRevision"`
