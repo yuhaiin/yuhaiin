@@ -200,6 +200,12 @@ func (s *Route) AddMatcher(name string, f func(context.Context, netapi.Address) 
 }
 
 func (s *Route) addMatchers() {
+	s.AddMatcher("unmapped fakeip fail closed", func(ctx context.Context, _ netapi.Address) ModeEnum {
+		if netapi.GetContext(ctx).ConnOptions().UnmappedFakeIP() {
+			return Block
+		}
+		return Bypass
+	})
 	s.AddMatcher("loopback cycle check", func(ctx context.Context, host netapi.Address) ModeEnum {
 		store := netapi.GetContext(ctx)
 
