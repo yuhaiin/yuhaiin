@@ -123,7 +123,7 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
                                          capture_output=True, text=True, check=False)
             if diagnostics_dir is not None:
                 (diagnostics_dir / ('SoftEther_'+auth+'-echo.log')).write_text(
-                    echo_output.stdout + '\\n' + echo_output.stderr)
+                    echo_output.stdout + '\n' + echo_output.stderr)
             print('=== Echo server byte progress ===', flush=True)
             print(echo_output.stdout[-16000:], flush=True)
             subprocess.run([args.runtime, 'logs', name], check=False)
