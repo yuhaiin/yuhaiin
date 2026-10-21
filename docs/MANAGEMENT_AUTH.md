@@ -185,9 +185,10 @@ SQLite migration and file/journal protection machinery. Configuration export,
 S3 state snapshots and restoration of `state.db` cannot disclose or replace local
 identities. Treat deliberate filesystem backups of `management.db` as sensitive.
 
-This PR provides the equivalent management API support allowed by #607 and a
-working client reference. The `yuhaiin-react` login/user/token screens are a
-follow-up: they must consume `/auth/me` permissions, show/copy issued tokens only
-once, and fetch protected streams/profiler content with explicit Authorization.
-Existing Basic/query-token frontend authentication needs that update before it
-can manage this backend. UI visibility never replaces backend enforcement.
+The paired frontend is implemented in
+[yuhaiin-react PR #521](https://github.com/yuhaiin/yuhaiin-react/pull/521): account
+activation/login, user and token management, permission-aware controls, and
+authenticated streams/profiler content. Ship the frontend and backend together;
+the previous Basic/query-token frontend cannot manage this backend. UI
+visibility never replaces backend enforcement. The executable client reference
+remains available under `example/management-auth`.
