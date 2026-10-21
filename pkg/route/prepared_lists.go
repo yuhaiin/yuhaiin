@@ -187,8 +187,8 @@ func (s *Lists) prepareRuleData(ctx context.Context, rules []contractroute.Route
 			})
 			log.Warn("route list source unavailable during apply", "list", item.ID, "error", message, "unavailable", unavailable[item.ID])
 		}
-		// Do not silently fold an unavailable remote source into an empty
-		// match set; the entire referencing rule is skipped during compilation.
+		// Do not treat an unavailable remote source as an empty match set.
+		// Expression compilation gives its references an UNKNOWN result.
 		item.Source.Remote = &contractroute.RemoteSource{URLs: valid}
 	}
 	encoded, err := json.Marshal(struct {
