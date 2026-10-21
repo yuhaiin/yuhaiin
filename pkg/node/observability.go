@@ -17,6 +17,7 @@ import (
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/apernet/quic-go"
 )
 
 const nodeMetricsInterval = 5 * time.Second
@@ -122,6 +123,11 @@ func (n *nodeCounters) failure(err error) {
 func (n *nodeCounters) ioError(err error) {
 	if err == nil || errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
 		errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return
+	}
+	// Hysteria2 cancels streams with code 0 on normal shutdown. Relay already
+	// treats these as ordinary termination; they must not degrade node health.
+	if streamErr, ok := errors.AsType[*quic.StreamError](err); ok && streamErr.ErrorCode == 0 {
 		return
 	}
 	var netErr net.Error
@@ -448,6 +454,22 @@ func (c *observedConn) Close() error {
 	err := c.Conn.Close()
 	c.once.Do(func() { c.c.activeTCP.Add(-1) })
 	return err
+}
+
+// Keep transport half-close available through observability. Relay needs to
+// forward a FIN without closing the opposite direction of a QUIC/TCP stream.
+func (c *observedConn) CloseRead() error {
+	if conn, ok := c.Conn.(interface{ CloseRead() error }); ok {
+		return conn.CloseRead()
+	}
+	return errors.ErrUnsupported
+}
+
+func (c *observedConn) CloseWrite() error {
+	if conn, ok := c.Conn.(interface{ CloseWrite() error }); ok {
+		return conn.CloseWrite()
+	}
+	return errors.ErrUnsupported
 }
 
 type observedBufferedConn struct {
