@@ -1,0 +1,1373 @@
+{
+  "date": "2026-10-21",
+  "baseline": "54badcdbf73accad4ad1299b13dcf6a3ee59b877",
+  "review_fix": "0aa2909f4d50feb465c5fb16b4345e8cdb02df47",
+  "optimized": "414c7abce857bf8b77268003caec75157def0729",
+  "host": {
+    "os": "linux/amd64",
+    "cpu": "AMD Ryzen 5 5600G",
+    "logical_cpus": 12,
+    "boost": "disabled",
+    "affinity": "none",
+    "go": "go1.27.2-X:nodwarf5",
+    "sqlite": "modernc.org/sqlite v1.60.1",
+    "filesystem": "NVMe Btrfs",
+    "journal": "WAL",
+    "synchronous": "NORMAL"
+  },
+  "method": {
+    "samples": 6,
+    "order": "alternating before/after in sequential separate processes",
+    "pool_seed": 4096,
+    "pool_capacity": 65535,
+    "saturated_capacity": 4096,
+    "new_domain_initial_entries": [
+      0,
+      4096,
+      49152
+    ],
+    "new_domain_iterations": 500,
+    "other_benchtime": "1s",
+    "cpu_settings": [
+      1,
+      8
+    ],
+    "nat_cpu": 1,
+    "https_ipv6": true,
+    "seed": "one transaction outside timer",
+    "parallel_ns_op": "aggregate wall time per completed operation",
+    "benchstat": "v0.0.0-20261009192801-be2c69fb417e",
+    "limitations": "Local microbenchmarks; no upstream DNS, kernel I/O, encryption or physical device throughput"
+  },
+  "harness_sha256": {
+    "pkg/net/dns/fakeip/benchmark_test.go": "505f97408a2c4f6eee076b22e10a252aa5582d6faa43c4837832f22252a9871b",
+    "pkg/net/nat/fakeip_benchmark_test.go": "9d53703f29ca7367881e0aee80ae9abfcb588ea24bd569d1ad57caf992c32bae"
+  },
+  "pool": {
+    "baseline": {
+      "BenchmarkFakeIPHotPath/domain": {
+        "ns_op": [
+          7105.0,
+          6950.0,
+          7036.0,
+          7017.0,
+          7080.0,
+          7067.0
+        ],
+        "bytes_op": [
+          816,
+          816,
+          816,
+          816,
+          816,
+          816
+        ],
+        "allocs_op": [
+          28,
+          28,
+          28,
+          28,
+          28,
+          28
+        ],
+        "median": {
+          "ns_op": 7051.5,
+          "bytes_op": 816.0,
+          "allocs_op": 28.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/domain-8": {
+        "ns_op": [
+          7173.0,
+          7032.0,
+          7015.0,
+          7015.0,
+          7057.0,
+          7154.0
+        ],
+        "bytes_op": [
+          816,
+          816,
+          816,
+          816,
+          816,
+          816
+        ],
+        "allocs_op": [
+          28,
+          28,
+          28,
+          28,
+          28,
+          28
+        ],
+        "median": {
+          "ns_op": 7044.5,
+          "bytes_op": 816.0,
+          "allocs_op": 28.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/reverse": {
+        "ns_op": [
+          7385.0,
+          7007.0,
+          7079.0,
+          7070.0,
+          7155.0,
+          7079.0
+        ],
+        "bytes_op": [
+          815,
+          815,
+          815,
+          816,
+          815,
+          815
+        ],
+        "allocs_op": [
+          28,
+          28,
+          28,
+          28,
+          28,
+          28
+        ],
+        "median": {
+          "ns_op": 7079.0,
+          "bytes_op": 815.0,
+          "allocs_op": 28.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/reverse-8": {
+        "ns_op": [
+          7377.0,
+          7073.0,
+          7060.0,
+          7039.0,
+          7132.0,
+          7074.0
+        ],
+        "bytes_op": [
+          815,
+          815,
+          815,
+          815,
+          815,
+          815
+        ],
+        "allocs_op": [
+          28,
+          28,
+          28,
+          28,
+          28,
+          28
+        ],
+        "median": {
+          "ns_op": 7073.5,
+          "bytes_op": 815.0,
+          "allocs_op": 28.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/lease_release": {
+        "ns_op": [
+          8122.0,
+          7378.0,
+          7353.0,
+          7476.0,
+          7399.0,
+          7385.0
+        ],
+        "bytes_op": [
+          927,
+          927,
+          927,
+          927,
+          927,
+          927
+        ],
+        "allocs_op": [
+          31,
+          31,
+          31,
+          31,
+          31,
+          31
+        ],
+        "median": {
+          "ns_op": 7392.0,
+          "bytes_op": 927.0,
+          "allocs_op": 31.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/lease_release-8": {
+        "ns_op": [
+          7578.0,
+          7383.0,
+          7521.0,
+          7361.0,
+          7326.0,
+          7351.0
+        ],
+        "bytes_op": [
+          927,
+          927,
+          927,
+          927,
+          927,
+          927
+        ],
+        "allocs_op": [
+          31,
+          31,
+          31,
+          31,
+          31,
+          31
+        ],
+        "median": {
+          "ns_op": 7372.0,
+          "bytes_op": 927.0,
+          "allocs_op": 31.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/parallel_domain": {
+        "ns_op": [
+          7613.0,
+          7466.0,
+          9017.0,
+          7425.0,
+          7543.0,
+          7449.0
+        ],
+        "bytes_op": [
+          816,
+          816,
+          816,
+          816,
+          816,
+          816
+        ],
+        "allocs_op": [
+          28,
+          28,
+          28,
+          28,
+          28,
+          28
+        ],
+        "median": {
+          "ns_op": 7504.5,
+          "bytes_op": 816.0,
+          "allocs_op": 28.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/parallel_domain-8": {
+        "ns_op": [
+          9708.0,
+          9352.0,
+          9302.0,
+          9510.0,
+          9622.0,
+          9331.0
+        ],
+        "bytes_op": [
+          960,
+          960,
+          960,
+          960,
+          960,
+          960
+        ],
+        "allocs_op": [
+          31,
+          31,
+          31,
+          31,
+          31,
+          31
+        ],
+        "median": {
+          "ns_op": 9431.0,
+          "bytes_op": 960.0,
+          "allocs_op": 31.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/parallel_lease_release": {
+        "ns_op": [
+          7848.0,
+          7886.0,
+          7825.0,
+          7858.0,
+          7798.0,
+          7945.0
+        ],
+        "bytes_op": [
+          927,
+          927,
+          927,
+          927,
+          927,
+          927
+        ],
+        "allocs_op": [
+          31,
+          31,
+          31,
+          31,
+          31,
+          31
+        ],
+        "median": {
+          "ns_op": 7853.0,
+          "bytes_op": 927.0,
+          "allocs_op": 31.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/parallel_lease_release-8": {
+        "ns_op": [
+          8817.0,
+          8681.0,
+          8945.0,
+          8687.0,
+          8898.0,
+          8919.0
+        ],
+        "bytes_op": [
+          928,
+          928,
+          928,
+          928,
+          928,
+          928
+        ],
+        "allocs_op": [
+          31,
+          31,
+          31,
+          31,
+          31,
+          31
+        ],
+        "median": {
+          "ns_op": 8857.5,
+          "bytes_op": 928.0,
+          "allocs_op": 31.0
+        }
+      },
+      "BenchmarkFakeIPExhausted/leased_false": {
+        "ns_op": [
+          320521.0,
+          324850.0,
+          322960.0,
+          325041.0,
+          325803.0,
+          322291.0
+        ],
+        "bytes_op": [
+          3567,
+          3567,
+          3568,
+          3568,
+          3568,
+          3568
+        ],
+        "allocs_op": [
+          102,
+          102,
+          102,
+          102,
+          102,
+          102
+        ],
+        "median": {
+          "ns_op": 323905.0,
+          "bytes_op": 3568.0,
+          "allocs_op": 102.0
+        }
+      },
+      "BenchmarkFakeIPExhausted/leased_false-8": {
+        "ns_op": [
+          323162.0,
+          322226.0,
+          330127.0,
+          323830.0,
+          323399.0,
+          322721.0
+        ],
+        "bytes_op": [
+          3570,
+          3569,
+          3569,
+          3570,
+          3570,
+          3570
+        ],
+        "allocs_op": [
+          103,
+          103,
+          103,
+          103,
+          102,
+          103
+        ],
+        "median": {
+          "ns_op": 323280.5,
+          "bytes_op": 3570.0,
+          "allocs_op": 103.0
+        }
+      },
+      "BenchmarkFakeIPExhausted/leased_true": {
+        "ns_op": [
+          2130745.0,
+          2125922.0,
+          2139509.0,
+          2122093.0,
+          2132291.0,
+          2130591.0
+        ],
+        "bytes_op": [
+          30222,
+          30234,
+          30230,
+          30228,
+          30218,
+          30220
+        ],
+        "allocs_op": [
+          1639,
+          1639,
+          1639,
+          1639,
+          1639,
+          1639
+        ],
+        "median": {
+          "ns_op": 2130668.0,
+          "bytes_op": 30225.0,
+          "allocs_op": 1639.0
+        }
+      },
+      "BenchmarkFakeIPExhausted/leased_true-8": {
+        "ns_op": [
+          2122399.0,
+          2128698.0,
+          2140667.0,
+          2118476.0,
+          2127443.0,
+          2130175.0
+        ],
+        "bytes_op": [
+          30235,
+          30254,
+          30234,
+          30226,
+          30239,
+          30241
+        ],
+        "allocs_op": [
+          1639,
+          1639,
+          1639,
+          1639,
+          1639,
+          1639
+        ],
+        "median": {
+          "ns_op": 2128070.5,
+          "bytes_op": 30237.0,
+          "allocs_op": 1639.0
+        }
+      },
+      "BenchmarkFakeIPHTTPS": {
+        "ns_op": [
+          13899.0,
+          13584.0,
+          13560.0,
+          13723.0,
+          13815.0,
+          13686.0
+        ],
+        "bytes_op": [
+          2248,
+          2248,
+          2248,
+          2248,
+          2248,
+          2248
+        ],
+        "allocs_op": [
+          68,
+          68,
+          68,
+          68,
+          68,
+          68
+        ],
+        "median": {
+          "ns_op": 13704.5,
+          "bytes_op": 2248.0,
+          "allocs_op": 68.0
+        }
+      },
+      "BenchmarkFakeIPHTTPS-8": {
+        "ns_op": [
+          13768.0,
+          13614.0,
+          13601.0,
+          13777.0,
+          13768.0,
+          13613.0
+        ],
+        "bytes_op": [
+          2248,
+          2248,
+          2248,
+          2248,
+          2248,
+          2248
+        ],
+        "allocs_op": [
+          68,
+          68,
+          68,
+          68,
+          68,
+          68
+        ],
+        "median": {
+          "ns_op": 13691.0,
+          "bytes_op": 2248.0,
+          "allocs_op": 68.0
+        }
+      },
+      "BenchmarkFakeIPNewDomain/0": {
+        "ns_op": [
+          277991.0,
+          256306.0,
+          249863.0,
+          254541.0,
+          263588.0,
+          257390.0
+        ],
+        "bytes_op": [
+          5003,
+          5000,
+          5029,
+          5001,
+          5002,
+          5005
+        ],
+        "allocs_op": [
+          141,
+          141,
+          141,
+          141,
+          141,
+          142
+        ],
+        "median": {
+          "ns_op": 256848.0,
+          "bytes_op": 5002.5,
+          "allocs_op": 141.0
+        }
+      },
+      "BenchmarkFakeIPNewDomain/4096": {
+        "ns_op": [
+          533828.0,
+          517631.0,
+          512260.0,
+          520145.0,
+          516859.0,
+          532809.0
+        ],
+        "bytes_op": [
+          4768,
+          4764,
+          4765,
+          4766,
+          4766,
+          4767
+        ],
+        "allocs_op": [
+          143,
+          142,
+          143,
+          143,
+          143,
+          143
+        ],
+        "median": {
+          "ns_op": 518888.0,
+          "bytes_op": 4766.0,
+          "allocs_op": 143.0
+        }
+      },
+      "BenchmarkFakeIPNewDomain/49152": {
+        "ns_op": [
+          3204486.0,
+          3163816.0,
+          3152880.0,
+          3240434.0,
+          3161426.0,
+          3159879.0
+        ],
+        "bytes_op": [
+          4772,
+          4772,
+          4772,
+          4771,
+          4771,
+          4771
+        ],
+        "allocs_op": [
+          143,
+          143,
+          143,
+          143,
+          143,
+          143
+        ],
+        "median": {
+          "ns_op": 3162621.0,
+          "bytes_op": 4771.5,
+          "allocs_op": 143.0
+        }
+      }
+    },
+    "review_fix": {
+      "BenchmarkFakeIPHotPath/domain": {
+        "ns_op": [
+          7007.0,
+          6984.0,
+          7004.0,
+          6995.0,
+          6989.0,
+          7022.0
+        ],
+        "bytes_op": [
+          816,
+          816,
+          816,
+          816,
+          816,
+          816
+        ],
+        "allocs_op": [
+          28,
+          28,
+          28,
+          28,
+          28,
+          28
+        ],
+        "median": {
+          "ns_op": 6999.5,
+          "bytes_op": 816.0,
+          "allocs_op": 28.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/domain-8": {
+        "ns_op": [
+          7050.0,
+          7001.0,
+          7068.0,
+          6951.0,
+          6958.0,
+          7028.0
+        ],
+        "bytes_op": [
+          816,
+          816,
+          816,
+          816,
+          816,
+          816
+        ],
+        "allocs_op": [
+          28,
+          28,
+          28,
+          28,
+          28,
+          28
+        ],
+        "median": {
+          "ns_op": 7014.5,
+          "bytes_op": 816.0,
+          "allocs_op": 28.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/reverse": {
+        "ns_op": [
+          7065.0,
+          7007.0,
+          7068.0,
+          6975.0,
+          7034.0,
+          7079.0
+        ],
+        "bytes_op": [
+          815,
+          815,
+          815,
+          815,
+          815,
+          815
+        ],
+        "allocs_op": [
+          28,
+          28,
+          28,
+          28,
+          28,
+          28
+        ],
+        "median": {
+          "ns_op": 7049.5,
+          "bytes_op": 815.0,
+          "allocs_op": 28.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/reverse-8": {
+        "ns_op": [
+          7053.0,
+          7006.0,
+          7116.0,
+          7055.0,
+          7027.0,
+          7022.0
+        ],
+        "bytes_op": [
+          815,
+          815,
+          815,
+          815,
+          815,
+          815
+        ],
+        "allocs_op": [
+          28,
+          28,
+          28,
+          28,
+          28,
+          28
+        ],
+        "median": {
+          "ns_op": 7040.0,
+          "bytes_op": 815.0,
+          "allocs_op": 28.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/lease_release": {
+        "ns_op": [
+          7398.0,
+          7374.0,
+          7429.0,
+          7414.0,
+          7341.0,
+          7401.0
+        ],
+        "bytes_op": [
+          932,
+          932,
+          932,
+          932,
+          932,
+          932
+        ],
+        "allocs_op": [
+          31,
+          31,
+          31,
+          31,
+          31,
+          31
+        ],
+        "median": {
+          "ns_op": 7399.5,
+          "bytes_op": 932.0,
+          "allocs_op": 31.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/lease_release-8": {
+        "ns_op": [
+          7411.0,
+          7452.0,
+          7397.0,
+          7378.0,
+          7335.0,
+          7496.0
+        ],
+        "bytes_op": [
+          932,
+          932,
+          932,
+          932,
+          932,
+          932
+        ],
+        "allocs_op": [
+          31,
+          31,
+          31,
+          31,
+          31,
+          31
+        ],
+        "median": {
+          "ns_op": 7404.0,
+          "bytes_op": 932.0,
+          "allocs_op": 31.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/parallel_domain": {
+        "ns_op": [
+          7500.0,
+          7382.0,
+          7461.0,
+          7404.0,
+          7419.0,
+          7395.0
+        ],
+        "bytes_op": [
+          816,
+          816,
+          816,
+          816,
+          816,
+          816
+        ],
+        "allocs_op": [
+          28,
+          28,
+          28,
+          28,
+          28,
+          28
+        ],
+        "median": {
+          "ns_op": 7411.5,
+          "bytes_op": 816.0,
+          "allocs_op": 28.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/parallel_domain-8": {
+        "ns_op": [
+          9477.0,
+          9517.0,
+          9364.0,
+          9452.0,
+          9535.0,
+          9503.0
+        ],
+        "bytes_op": [
+          960,
+          960,
+          960,
+          960,
+          960,
+          960
+        ],
+        "allocs_op": [
+          31,
+          31,
+          31,
+          31,
+          31,
+          31
+        ],
+        "median": {
+          "ns_op": 9490.0,
+          "bytes_op": 960.0,
+          "allocs_op": 31.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/parallel_lease_release": {
+        "ns_op": [
+          8016.0,
+          8022.0,
+          7886.0,
+          7944.0,
+          7931.0,
+          8016.0
+        ],
+        "bytes_op": [
+          932,
+          932,
+          932,
+          932,
+          932,
+          932
+        ],
+        "allocs_op": [
+          31,
+          31,
+          31,
+          31,
+          31,
+          31
+        ],
+        "median": {
+          "ns_op": 7980.0,
+          "bytes_op": 932.0,
+          "allocs_op": 31.0
+        }
+      },
+      "BenchmarkFakeIPHotPath/parallel_lease_release-8": {
+        "ns_op": [
+          9003.0,
+          8882.0,
+          8850.0,
+          9023.0,
+          8946.0,
+          8998.0
+        ],
+        "bytes_op": [
+          933,
+          933,
+          933,
+          933,
+          933,
+          933
+        ],
+        "allocs_op": [
+          31,
+          31,
+          31,
+          31,
+          31,
+          31
+        ],
+        "median": {
+          "ns_op": 8972.0,
+          "bytes_op": 933.0,
+          "allocs_op": 31.0
+        }
+      },
+      "BenchmarkFakeIPExhausted/leased_false": {
+        "ns_op": [
+          315082.0,
+          313287.0,
+          312187.0,
+          311881.0,
+          309170.0,
+          311084.0
+        ],
+        "bytes_op": [
+          3568,
+          3568,
+          3568,
+          3567,
+          3568,
+          3567
+        ],
+        "allocs_op": [
+          103,
+          103,
+          102,
+          102,
+          102,
+          102
+        ],
+        "median": {
+          "ns_op": 312034.0,
+          "bytes_op": 3568.0,
+          "allocs_op": 102.0
+        }
+      },
+      "BenchmarkFakeIPExhausted/leased_false-8": {
+        "ns_op": [
+          312814.0,
+          310249.0,
+          314944.0,
+          311640.0,
+          311896.0,
+          310044.0
+        ],
+        "bytes_op": [
+          3569,
+          3569,
+          3569,
+          3570,
+          3569,
+          3569
+        ],
+        "allocs_op": [
+          102,
+          102,
+          103,
+          103,
+          103,
+          103
+        ],
+        "median": {
+          "ns_op": 311768.0,
+          "bytes_op": 3569.0,
+          "allocs_op": 103.0
+        }
+      },
+      "BenchmarkFakeIPExhausted/leased_true": {
+        "ns_op": [
+          3651314.0,
+          3630600.0,
+          3718941.0,
+          3649854.0,
+          3631230.0,
+          3669958.0
+        ],
+        "bytes_op": [
+          429579,
+          429595,
+          429602,
+          429588,
+          429600,
+          429585
+        ],
+        "allocs_op": [
+          24679,
+          24679,
+          24679,
+          24679,
+          24679,
+          24679
+        ],
+        "median": {
+          "ns_op": 3650584.0,
+          "bytes_op": 429591.5,
+          "allocs_op": 24679.0
+        }
+      },
+      "BenchmarkFakeIPExhausted/leased_true-8": {
+        "ns_op": [
+          3610655.0,
+          3603164.0,
+          3648782.0,
+          3625477.0,
+          3603108.0,
+          3641584.0
+        ],
+        "bytes_op": [
+          429611,
+          429601,
+          429608,
+          429615,
+          429599,
+          429607
+        ],
+        "allocs_op": [
+          24679,
+          24679,
+          24679,
+          24679,
+          24679,
+          24679
+        ],
+        "median": {
+          "ns_op": 3618066.0,
+          "bytes_op": 429607.5,
+          "allocs_op": 24679.0
+        }
+      },
+      "BenchmarkFakeIPHTTPS": {
+        "ns_op": [
+          13791.0,
+          13754.0,
+          13819.0,
+          13786.0,
+          13831.0,
+          13683.0
+        ],
+        "bytes_op": [
+          2160,
+          2160,
+          2160,
+          2160,
+          2160,
+          2160
+        ],
+        "allocs_op": [
+          65,
+          65,
+          65,
+          65,
+          65,
+          65
+        ],
+        "median": {
+          "ns_op": 13788.5,
+          "bytes_op": 2160.0,
+          "allocs_op": 65.0
+        }
+      },
+      "BenchmarkFakeIPHTTPS-8": {
+        "ns_op": [
+          13716.0,
+          13821.0,
+          13863.0,
+          13835.0,
+          13760.0,
+          13779.0
+        ],
+        "bytes_op": [
+          2160,
+          2160,
+          2160,
+          2160,
+          2160,
+          2160
+        ],
+        "allocs_op": [
+          65,
+          65,
+          65,
+          65,
+          65,
+          65
+        ],
+        "median": {
+          "ns_op": 13800.0,
+          "bytes_op": 2160.0,
+          "allocs_op": 65.0
+        }
+      },
+      "BenchmarkFakeIPNewDomain/0": {
+        "ns_op": [
+          251779.0,
+          256338.0,
+          248955.0,
+          244014.0,
+          253835.0,
+          251047.0
+        ],
+        "bytes_op": [
+          5013,
+          5018,
+          5008,
+          5008,
+          4987,
+          5007
+        ],
+        "allocs_op": [
+          141,
+          141,
+          141,
+          141,
+          141,
+          141
+        ],
+        "median": {
+          "ns_op": 251413.0,
+          "bytes_op": 5008.0,
+          "allocs_op": 141.0
+        }
+      },
+      "BenchmarkFakeIPNewDomain/4096": {
+        "ns_op": [
+          516073.0,
+          513227.0,
+          506911.0,
+          503135.0,
+          513553.0,
+          514845.0
+        ],
+        "bytes_op": [
+          4767,
+          4770,
+          4766,
+          4767,
+          4767,
+          4770
+        ],
+        "allocs_op": [
+          143,
+          143,
+          143,
+          143,
+          143,
+          143
+        ],
+        "median": {
+          "ns_op": 513390.0,
+          "bytes_op": 4767.0,
+          "allocs_op": 143.0
+        }
+      },
+      "BenchmarkFakeIPNewDomain/49152": {
+        "ns_op": [
+          3176995.0,
+          3191947.0,
+          3187014.0,
+          3318835.0,
+          3179006.0,
+          3189382.0
+        ],
+        "bytes_op": [
+          4773,
+          4771,
+          4772,
+          4771,
+          4772,
+          4772
+        ],
+        "allocs_op": [
+          143,
+          143,
+          143,
+          143,
+          143,
+          143
+        ],
+        "median": {
+          "ns_op": 3188198.0,
+          "bytes_op": 4772.0,
+          "allocs_op": 143.0
+        }
+      }
+    }
+  },
+  "nat_initial_comparison": {
+    "baseline": {
+      "BenchmarkNATFakeIPCachedSend": {
+        "ns_op": [
+          57.9,
+          56.83,
+          57.92,
+          56.85,
+          57.79,
+          57.81
+        ],
+        "bytes_op": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "allocs_op": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "median": {
+          "ns_op": 57.8,
+          "bytes_op": 0.0,
+          "allocs_op": 0.0
+        }
+      }
+    },
+    "review_fix": {
+      "BenchmarkNATFakeIPCachedSend": {
+        "ns_op": [
+          104.7,
+          104.9,
+          109.7,
+          109.6,
+          105.0,
+          109.7
+        ],
+        "bytes_op": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "allocs_op": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "median": {
+          "ns_op": 107.3,
+          "bytes_op": 0.0,
+          "allocs_op": 0.0
+        }
+      }
+    }
+  },
+  "nat_optimization_comparison": {
+    "review_fix": {
+      "BenchmarkNATFakeIPCachedSend": {
+        "ns_op": [
+          110.2,
+          109.8,
+          109.6,
+          109.9,
+          104.6,
+          109.7
+        ],
+        "bytes_op": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "allocs_op": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "median": {
+          "ns_op": 109.75,
+          "bytes_op": 0.0,
+          "allocs_op": 0.0
+        }
+      }
+    },
+    "optimized": {
+      "BenchmarkNATFakeIPCachedSend": {
+        "ns_op": [
+          79.75,
+          79.88,
+          79.69,
+          79.83,
+          80.19,
+          79.78
+        ],
+        "bytes_op": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "allocs_op": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "median": {
+          "ns_op": 79.805,
+          "bytes_op": 0.0,
+          "allocs_op": 0.0
+        }
+      }
+    }
+  },
+  "profile_cumulative_cpu_percent": {
+    "hot_getIP": 95.1,
+    "new_entryCount": 74.25,
+    "new_allocate": 78.88,
+    "new_fixture_setup": 20.38,
+    "exhausted_evictLRU": 87.36
+  }
+}
