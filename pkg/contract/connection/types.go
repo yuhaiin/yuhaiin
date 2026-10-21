@@ -91,6 +91,7 @@ type MatchHistoryEntry struct {
 	RuleName string        `json:"ruleName"`
 	History  []MatchResult `json:"history"`
 	Trace    *MatchTrace   `json:"trace,omitempty"`
+	TraceTemplate *MatchTraceTemplate `json:"-"`
 }
 
 // MatchTrace preserves the actual boolean evaluation hierarchy and distinguishes
