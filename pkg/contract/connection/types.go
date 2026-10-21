@@ -87,10 +87,10 @@ type NetworkType struct {
 }
 
 type MatchHistoryEntry struct {
-	RuleID   string        `json:"ruleId,omitempty"`
-	RuleName string        `json:"ruleName"`
-	History  []MatchResult `json:"history"`
-	Trace    *MatchTrace   `json:"trace,omitempty"`
+	RuleID        string              `json:"ruleId,omitempty"`
+	RuleName      string              `json:"ruleName"`
+	History       []MatchResult       `json:"history"`
+	Trace         *MatchTrace         `json:"trace,omitempty"`
 	TraceTemplate *MatchTraceTemplate `json:"-"`
 }
 
