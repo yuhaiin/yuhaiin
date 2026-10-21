@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
