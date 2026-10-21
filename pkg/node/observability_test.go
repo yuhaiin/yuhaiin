@@ -10,6 +10,7 @@ import (
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/apernet/quic-go"
 )
 
 type observedTestProxy struct {
@@ -221,5 +222,97 @@ func TestOutboundHealthExpiresAndProbeFailureAppears(t *testing.T) {
 	counters.probe("tcp", contract.LatencyResponse{OK: false}, nil)
 	if got := counters.status("expired"); got.State != "degraded" || got.LastError == "" {
 		t.Fatalf("failed test did not update health state: %+v", got)
+	}
+}
+
+func TestNodeQUICStreamShutdownAccounting(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		code   quic.StreamErrorCode
+		remote bool
+		failed bool
+	}{
+		{name: "local normal cancellation", code: 0},
+		{name: "peer normal cancellation", code: 0, remote: true},
+		{name: "local protocol error", code: 1, failed: true},
+		{name: "peer protocol error", code: 1, remote: true, failed: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := new(nodeCounters)
+			c.ioError(&quic.StreamError{StreamID: 7836, ErrorCode: tc.code, Remote: tc.remote})
+			got := c.snapshot()
+			if tc.failed {
+				if got.Failures != 1 || got.LastFailureAt == 0 || got.LastError == "" {
+					t.Fatalf("real stream error not recorded: %+v", got)
+				}
+			} else if got.Failures != 0 || got.LastFailureAt != 0 || got.LastError != "" {
+				t.Fatalf("normal QUIC shutdown counted as failure: %+v", got)
+			}
+		})
+	}
+}
+
+type observedHalfCloseTestConn struct {
+	net.Conn
+	readClosed, writeClosed bool
+}
+
+func (c *observedHalfCloseTestConn) CloseRead() error {
+	c.readClosed = true
+	return nil
+}
+func (c *observedHalfCloseTestConn) CloseWrite() error {
+	c.writeClosed = true
+	return nil
+}
+
+func TestObservedNodePreservesStreamHalfClose(t *testing.T) {
+	local, peer := net.Pipe()
+	defer peer.Close()
+	delegate := &observedHalfCloseTestConn{Conn: local}
+	counters := new(nodeCounters)
+	proxy := &observedProxy{
+		Proxy: observedTestProxy{connect: func() (net.Conn, error) { return delegate, nil }},
+		c:     counters,
+	}
+	conn, err := proxy.Conn(t.Context(), netapi.EmptyAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	half, ok := conn.(interface {
+		CloseRead() error
+		CloseWrite() error
+	})
+	if !ok {
+		t.Fatalf("observation wrapper lost stream half-close: %T", conn)
+	}
+	if err := half.CloseWrite(); err != nil {
+		t.Fatal(err)
+	}
+	if err := half.CloseRead(); err != nil {
+		t.Fatal(err)
+	}
+	if !delegate.readClosed || !delegate.writeClosed || counters.activeTCP.Load() != 1 {
+		t.Fatalf("half-close was swallowed or closed the entire connection: %+v", delegate)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if counters.activeTCP.Load() != 0 {
+		t.Fatal("full close must release the active connection")
+	}
+}
+
+func TestObservedNodeUnsupportedHalfClose(t *testing.T) {
+	local, peer := net.Pipe()
+	defer local.Close()
+	defer peer.Close()
+	conn := &observedConn{Conn: local, c: new(nodeCounters)}
+	if err := conn.CloseWrite(); !errors.Is(err, errors.ErrUnsupported) {
+		t.Fatalf("unsupported CloseWrite: %v", err)
+	}
+	if err := conn.CloseRead(); !errors.Is(err, errors.ErrUnsupported) {
+		t.Fatalf("unsupported CloseRead: %v", err)
 	}
 }
