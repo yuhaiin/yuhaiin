@@ -409,7 +409,9 @@ func (c *Context) AddConditionHistory(kind, id, name string, matched bool) {
 }
 
 func (c *Context) SetRuleMatchTemplate(template *contractconnection.MatchTraceTemplate) {
-	if len(c.ruleChain) == 0 { return }
+	if len(c.ruleChain) == 0 {
+		return
+	}
 	if c.sharedHistory {
 		c.ruleChain = slices.Clone(c.ruleChain)
 		c.sharedHistory = false
