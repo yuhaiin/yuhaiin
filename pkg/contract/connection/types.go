@@ -90,6 +90,18 @@ type MatchHistoryEntry struct {
 	RuleID   string        `json:"ruleId,omitempty"`
 	RuleName string        `json:"ruleName"`
 	History  []MatchResult `json:"history"`
+	Trace    *MatchTrace   `json:"trace,omitempty"`
+}
+
+// MatchTrace preserves the actual boolean evaluation hierarchy and distinguishes
+// short-circuited expressions from false and unavailable/unknown results.
+type MatchTrace struct {
+	Type     string       `json:"type"`
+	Label    string       `json:"label,omitempty"`
+	State    string       `json:"state"`
+	Kind     string       `json:"kind,omitempty"`
+	ID       string       `json:"id,omitempty"`
+	Children []MatchTrace `json:"children,omitempty"`
 }
 
 type MatchResult struct {
