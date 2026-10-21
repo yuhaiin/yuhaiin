@@ -437,6 +437,11 @@ func (p *SQLiteFakeIPPool) loadCursor(ctx context.Context) error {
 }
 
 func (p *SQLiteFakeIPPool) allocate(ctx context.Context, domain string, now time.Time) (netip.Addr, error) {
+	// Publish pending lazy touches before deciding which old address may be
+	// recycled. Otherwise a recently used entry could look hours old in SQL.
+	if err := p.flushTouches(ctx); err != nil {
+		return netip.Addr{}, err
+	}
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
 		return netip.Addr{}, err
