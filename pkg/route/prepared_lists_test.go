@@ -5,11 +5,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
 func TestActionAndOrderChangesReuseMatchingIndexes(t *testing.T) {
@@ -199,5 +201,117 @@ func TestRemoteListPartialSourceFailureStillMatches(t *testing.T) {
 	addr, _ := netapi.ParseAddressPort("tcp", "valid.example", 443)
 	if mode := matchers.Match(netapi.WithContext(t.Context()), addr); mode.Mode() != ModeBlock {
 		t.Fatalf("healthy part of remote list did not match: %s", mode.Mode())
+	}
+}
+
+func TestDegradedRuleKeepsHealthyORBranches(t *testing.T) {
+	matchers := newTestMatchers(t)
+	matchers.list.downloader = NewDownloader(t.TempDir(), nil)
+	dir := t.TempDir()
+	goodPath := filepath.Join(dir, "ads.txt")
+	if err := os.WriteFile(goodPath, []byte("ads.example\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	goodURL := (&url.URL{Scheme: "file", Path: goodPath}).String()
+	missingPath := filepath.Join(dir, "malware.txt")
+	missingURL := (&url.URL{Scheme: "file", Path: missingPath}).String()
+	host := func(id string) contractroute.RuleExpr {
+		return contractroute.RuleExpr{Type: "host", Host: &contractroute.ListRef{List: id}}
+	}
+	all := func(children ...contractroute.RuleExpr) contractroute.RuleExpr {
+		return contractroute.RuleExpr{Type: "all", All: children}
+	}
+	any := func(children ...contractroute.RuleExpr) contractroute.RuleExpr {
+		return contractroute.RuleExpr{Type: "any", Any: children}
+	}
+	not := func(child contractroute.RuleExpr) contractroute.RuleExpr {
+		return contractroute.RuleExpr{Type: "not", Not: &child}
+	}
+	snapshot := plainstore.RouteSnapshot{
+		Revision: 42,
+		Lists: []contractroute.RouteListDetail{
+			{ID: "ads", Name: "Ads", Type: "host", Source: contractroute.ListSource{Type: "remote", Remote: &contractroute.RemoteSource{URLs: []string{goodURL}}}},
+			{ID: "malware", Name: "Malware", Type: "host", Source: contractroute.ListSource{Type: "remote", Remote: &contractroute.RemoteSource{URLs: []string{missingURL}}}},
+		},
+		Rules: []plainstore.RouteRuleEntry{
+			{Rule: contractroute.RouteRule{ID: "block", Name: "Block unsafe", Mode: "block", Rules: []contractroute.RuleExpr{any(host("malware"), host("ads"))}}},
+		},
+	}
+	activate := func(_ context.Context, revision uint64, install func()) error {
+		if revision != snapshot.Revision {
+			t.Fatalf("revision = %d, want %d", revision, snapshot.Revision)
+		}
+		install()
+		return nil
+	}
+	apply := func() {
+		t.Helper()
+		if err := matchers.UpdateSnapshot(t.Context(), snapshot, activate, nil, func() {}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	lookup := func(domain string) ModeEnum {
+		t.Helper()
+		addr, err := netapi.ParseAddressPort("tcp", domain, 443)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return matchers.Match(netapi.WithContext(t.Context()), addr).Mode()
+	}
+	apply()
+	if len(matchers.skippedRules) != 0 || len(matchers.degradedRules) != 1 ||
+		matchers.degradedRules[0].ID != "block" || !slices.Equal(matchers.degradedRules[0].ListIDs, []string{"malware"}) {
+		t.Fatalf("OR degraded but disabled: skipped=%+v degraded=%+v", matchers.skippedRules, matchers.degradedRules)
+	}
+	if got := lookup("ads.example"); got != ModeBlock {
+		t.Fatalf("healthy OR branch lost block action: %s", got)
+	}
+	if got := lookup("unrelated.example"); got != ModeProxy {
+		t.Fatalf("unknown OR branch unexpectedly matched: %s", got)
+	}
+
+	// A healthy condition must remain usable inside nested AND/OR/NOT too.
+	cases := []struct {
+		name    string
+		expr    contractroute.RuleExpr
+		ads     bool
+		unknown bool
+	}{
+		{"nested OR", all(any(host("malware"), host("ads")), not(host("malware"))), false, false},
+		{"AND unknown", all(host("ads"), host("malware")), false, false},
+		{"NOT unknown", not(host("malware")), false, false},
+		{"NOT AND false", not(all(host("malware"), host("ads"))), false, true},
+		{"NOT OR unknown", not(any(host("malware"), host("ads"))), false, false},
+		{"double NOT unknown", not(not(host("malware"))), false, false},
+		{"OR known true", any(not(all(host("malware"), host("ads"))), host("ads")), true, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			snapshot.Rules = []plainstore.RouteRuleEntry{{Rule: contractroute.RouteRule{ID: "block", Mode: "block", Rules: []contractroute.RuleExpr{tc.expr}}}}
+			apply()
+			for _, check := range []struct {
+				domain string
+				want   bool
+			}{{"ads.example", tc.ads}, {"unrelated.example", tc.unknown}} {
+				got := lookup(check.domain)
+				if (got == ModeBlock) != check.want {
+					t.Fatalf("%s action %s, want block=%v", check.domain, got, check.want)
+				}
+			}
+		})
+	}
+
+	// Once the missing list is available, the normal compiled matcher
+	// becomes active again without editing or disabling the block rule.
+	snapshot.Rules = []plainstore.RouteRuleEntry{{Rule: contractroute.RouteRule{ID: "block", Mode: "block", Rules: []contractroute.RuleExpr{any(host("malware"), host("ads"))}}}}
+	if err := os.WriteFile(missingPath, []byte("malware.example\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	apply()
+	if len(matchers.skippedRules) != 0 || len(matchers.degradedRules) != 0 || len(matchers.listIssues) != 0 {
+		t.Fatalf("healthy list still degraded: skipped=%+v degraded=%+v issues=%+v", matchers.skippedRules, matchers.degradedRules, matchers.listIssues)
+	}
+	if got := lookup("malware.example"); got != ModeBlock {
+		t.Fatalf("recovered list branch did not match: %s", got)
 	}
 }
