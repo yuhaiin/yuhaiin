@@ -12,16 +12,18 @@ func TestRewriteHTTPSHintsPreservesServiceParameters(t *testing.T) {
 	old := netip.MustParseAddr("203.0.113.8")
 	new4 := netip.MustParseAddr("198.18.0.8")
 	new6 := netip.MustParseAddr("2001:2::8")
-	service := &dns.HTTPS{SVCB: dns.SVCB{
-		Hdr: dns.Header{Name: "example.com.", Rrtype: dns.TypeHTTPS, Class: dns.ClassINET, TTL: 60},
-		Priority: 1, Target: ".",
-		Value: []svcb.Pair{&svcb.IPV4HINT{Hint: []netip.Addr{old}}},
-	}}
-	alias := &dns.HTTPS{SVCB: dns.SVCB{
-		Hdr: dns.Header{Name: "alias.example.", Rrtype: dns.TypeHTTPS, Class: dns.ClassINET, TTL: 60},
-		Priority: 0, Target: "example.com.",
-	}}
-	signature := &dns.RRSIG{Hdr: dns.Header{Name: "example.com.", Rrtype: dns.TypeRRSIG}, TypeCovered: dns.TypeHTTPS}
+	service := &dns.HTTPS{}
+	service.Hdr = dns.Header{Name: "example.com.", Class: dns.ClassINET, TTL: 60}
+	service.Priority = 1
+	service.Target = "."
+	service.Value = []svcb.Pair{&svcb.IPV4HINT{Hint: []netip.Addr{old}}}
+	alias := &dns.HTTPS{}
+	alias.Hdr = dns.Header{Name: "alias.example.", Class: dns.ClassINET, TTL: 60}
+	alias.Priority = 0
+	alias.Target = "example.com."
+	signature := &dns.RRSIG{}
+	signature.Hdr = dns.Header{Name: "example.com.", Class: dns.ClassINET}
+	signature.TypeCovered = dns.TypeHTTPS
 	msg := &dns.Msg{Answer: []dns.RR{alias, service, signature}}
 	msg.AuthenticatedData = true
 
@@ -63,10 +65,10 @@ func TestRewriteHTTPSHintsPreservesServiceParameters(t *testing.T) {
 }
 
 func TestRewriteHTTPSHintsWithoutServiceModeDoesNotAllocate(t *testing.T) {
-	alias := &dns.HTTPS{SVCB: dns.SVCB{
-		Hdr: dns.Header{Name: "example.com.", Rrtype: dns.TypeHTTPS},
-		Priority: 0, Target: "alias.example.com.",
-	}}
+	alias := &dns.HTTPS{}
+	alias.Hdr = dns.Header{Name: "example.com.", Class: dns.ClassINET}
+	alias.Priority = 0
+	alias.Target = "alias.example.com."
 	msg := &dns.Msg{Answer: []dns.RR{alias}}
 	rewriteHTTPSHints(msg, netip.MustParseAddr("198.18.0.10"), netip.Addr{})
 	if len(msg.Answer) != 1 || msg.Answer[0] != alias || len(alias.Value) != 0 {
