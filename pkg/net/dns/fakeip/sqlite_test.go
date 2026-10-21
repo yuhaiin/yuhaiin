@@ -135,6 +135,15 @@ func TestSQLiteFakeIPPoolLeasedAddressNotReused(t *testing.T) {
 	}
 	release()
 	release() // release is safe to call repeatedly
+	// Finish the asynchronous touch before marking the released row stale again.
+	if err := pool.flushTouches(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(t.Context(), `
+		UPDATE fakeip_entries SET last_used_at = ? WHERE domain = 'pinned.example'
+	`, stale); err != nil {
+		t.Fatal(err)
+	}
 	if got := pool.GetFakeIPForDomain("next.example"); got != a {
 		t.Fatalf("expected released stale address %v, got %v", a, got)
 	}
