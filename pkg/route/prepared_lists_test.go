@@ -195,12 +195,39 @@ func TestRemoteListPartialSourceFailureStillMatches(t *testing.T) {
 	if err := matchers.Update(rule); err != nil {
 		t.Fatal(err)
 	}
-	if len(matchers.skippedRules) != 0 || len(matchers.listIssues) != 1 || matchers.listIssues[0].Unavailable {
-		t.Fatalf("partial source failure disabled healthy source: skipped=%+v issues=%+v", matchers.skippedRules, matchers.listIssues)
+	if len(matchers.skippedRules) != 0 || len(matchers.degradedRules) != 1 ||
+		len(matchers.listIssues) != 1 || matchers.listIssues[0].Unavailable {
+		t.Fatalf("partial source failure disabled healthy source: skipped=%+v degraded=%+v issues=%+v", matchers.skippedRules, matchers.degradedRules, matchers.listIssues)
 	}
 	addr, _ := netapi.ParseAddressPort("tcp", "valid.example", 443)
 	if mode := matchers.Match(netapi.WithContext(t.Context()), addr); mode.Mode() != ModeBlock {
 		t.Fatalf("healthy part of remote list did not match: %s", mode.Mode())
+	}
+	// A partially downloaded list cannot prove absence. NOT(list) must
+	// therefore remain UNKNOWN when only some sources were loaded.
+	not := contractroute.RuleExpr{Type: "not", Not: &rule.Rules[0]}
+	rule.Rules = []contractroute.RuleExpr{not}
+	if err := matchers.Update(rule); err != nil {
+		t.Fatal(err)
+	}
+	unknown, _ := netapi.ParseAddressPort("tcp", "missing-from-loaded-part.example", 443)
+	if mode := matchers.Match(netapi.WithContext(t.Context()), unknown); mode.Mode() != ModeProxy {
+		t.Fatalf("NOT partial list incorrectly matched: %s", mode.Mode())
+	}
+	// Once the missing source becomes readable, the rule can again decide
+	// absence and NOT(list) must match an unrelated address.
+	missingPath := filepath.Join(dir, "missing.txt")
+	if err := os.WriteFile(missingPath, []byte("other.example\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := matchers.Update(rule); err != nil {
+		t.Fatal(err)
+	}
+	if len(matchers.degradedRules) != 0 {
+		t.Fatalf("all sources recovered but rule is degraded: %+v", matchers.degradedRules)
+	}
+	if mode := matchers.Match(netapi.WithContext(t.Context()), unknown); mode.Mode() != ModeBlock {
+		t.Fatalf("NOT complete list failed to match: %s", mode.Mode())
 	}
 }
 
