@@ -28,6 +28,7 @@ type TCPPacketEvent struct {
 	Flags      uint8     `json:"flags"`
 	Window     uint16    `json:"window"`
 	PayloadLen int       `json:"payload_length"`
+	ChecksumOK bool      `json:"checksum_ok"`
 }
 
 func newTCPPacketTrace(limit int) *tcpPacketTrace {
@@ -56,6 +57,7 @@ func (r *tcpPacketTrace) record(direction string, raw []byte) {
 		Flags:      b[13],
 		Window:     binary.BigEndian.Uint16(b[14:16]),
 		PayloadLen: len(b) - h,
+		ChecksumOK: p.ValidateTransport() == nil,
 	}
 	r.mu.Lock()
 	if len(r.entries) < cap(r.entries) {
