@@ -102,6 +102,7 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
             ready(name, '[initial setup OK]')
             run(args.runtime, 'run', '-d', '--init', '--name', echo, '--stop-timeout', '1', '--network=container:'+name,
                 '-v', str(root/'pkg/net/proxy/softether/testdata/echo.py')+':/echo.py:ro',
+                '-e', 'YUHAIIN_ECHO_DIAGNOSTICS='+('1' if diagnostics_dir is not None else '0'),
                 'docker.io/library/python:3.13-alpine', 'python', '/echo.py')
             target = run(args.runtime, 'exec', echo, 'python', '-c',
                          'import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.connect(("1.1.1.1",53));print(s.getsockname()[0])', capture_output=True).stdout.strip()
@@ -116,6 +117,15 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
             exercise('SoftEther / '+auth, {'L2TP_TEST_GATEWAY': gateway(name), 'L2TP_TEST_TARGET': target, 'L2TP_TEST_AUTH': auth}, '^(TestOfficialL2TP.*|TestTCPEchoIntegrity)$', 'BenchmarkRealL2TP')
         except subprocess.CalledProcessError as exc:
             print(exc.stdout or '', exc.stderr or '', flush=True)
+            # Keep an independent ground truth from the Python TCP echo server:
+            # whether data reached the socket, and whether sendall completed.
+            echo_output = subprocess.run([args.runtime, 'logs', '--timestamps', echo],
+                                         capture_output=True, text=True, check=False)
+            if diagnostics_dir is not None:
+                (diagnostics_dir / ('SoftEther_'+auth+'-echo.log')).write_text(
+                    echo_output.stdout + '\\n' + echo_output.stderr)
+            print('=== Echo server byte progress ===', flush=True)
+            print(echo_output.stdout[-16000:], flush=True)
             subprocess.run([args.runtime, 'logs', name], check=False)
             raise
         finally:
