@@ -25,7 +25,7 @@ func TestTCPPacketTraceBoundedAndHeaderOnly(t *testing.T) {
 	binary.BigEndian.PutUint16(packet[10:12], ^uint16(sum))
 	binary.BigEndian.PutUint16(packet[20:22], 40000)
 	binary.BigEndian.PutUint16(packet[22:24], 19991)
-	packet[32], packet[33] = 5<<4, 0x18
+	packet[32], packet[33] = 5 << 4, 0x18
 	copy(packet[40:], []byte("hello"))
 	for i := uint32(1); i <= 3; i++ {
 		binary.BigEndian.PutUint32(packet[24:28], i)
