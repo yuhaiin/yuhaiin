@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"strconv"
 	"context"
 	"errors"
 	"net/http"
@@ -39,6 +40,7 @@ func addFacadeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2ConnectionsTelemetry, api.telemetry)
 	handlers.add(v2ConnectionsEvents, connectionsEventsV2(services))
 	addRPCRoute(handlers, v2Connections, api.connections)
+	addRPCRoute(handlers, v2ConnectionsTrace, api.connectionTrace)
 	addRPCRoute(handlers, v2ConnectionsClose, api.closeConnections)
 	addRPCRoute(handlers, v2ConnectionsFailedHistory, api.failedHistory)
 	addRPCRoute(handlers, v2ConnectionsHistory, api.allHistory)
@@ -238,6 +240,21 @@ func (a v2API) connections(ctx context.Context, _ *emptyRequest) (*contractconne
 		return nil, unavailable("connections controller is unavailable")
 	}
 	return pointer(a.services.Connections.List(ctx))
+}
+
+func (a v2API) connectionTrace(ctx context.Context, request *contractconnection.MatchTraceRequest) (*contractconnection.MatchTraceResponse, error) {
+	if a.services.Connections == nil {
+		return nil, unavailable("connections controller is unavailable")
+	}
+	id, err := strconv.ParseUint(request.ID, 10, 64)
+	if err != nil || id == 0 {
+		return nil, badRequest(errors.New("invalid connection id"))
+	}
+	trace, err := a.services.Connections.MatchTrace(ctx, id)
+	if err != nil {
+		return nil, notFound(err)
+	}
+	return &trace, nil
 }
 
 func (a v2API) closeConnections(ctx context.Context, request *contractconnection.CloseRequest) (*emptyResponse, error) {
