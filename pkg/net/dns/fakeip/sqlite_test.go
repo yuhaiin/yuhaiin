@@ -273,6 +273,9 @@ func TestSQLiteFakeIPPoolLazyTouch(t *testing.T) {
 	`, stale); err != nil {
 		t.Fatal(err)
 	}
+	pool.mu.Lock()
+	pool.cache.removeDomain("a.com") // Reload the deliberately aged SQL fixture.
+	pool.mu.Unlock()
 
 	if got := pool.GetFakeIPForDomain("a.com"); got != ip {
 		t.Fatalf("expected cached %s after stale touch, got %s", ip, got)
@@ -296,6 +299,9 @@ func TestSQLiteFakeIPPoolTouchRetryPreservesPendingUpdates(t *testing.T) {
 	`, stale); err != nil {
 		t.Fatal(err)
 	}
+	pool.mu.Lock()
+	pool.cache.removeDomain("retry.example")
+	pool.mu.Unlock()
 	if got := pool.GetFakeIPForDomain("retry.example"); got != ip {
 		t.Fatalf("expected cached %s, got %s", ip, got)
 	}

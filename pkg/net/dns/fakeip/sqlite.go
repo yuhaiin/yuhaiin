@@ -31,7 +31,10 @@ type SQLiteFakeIPPool struct {
 	family           int
 	index            uint64
 	maxNum           uint64
-	mu               sync.RWMutex
+	mu               *sync.RWMutex
+	state            *fakeIPPoolState
+	cache            *fakeIPCache
+	closed           bool
 	// guarded by mu; never evict leased addresses
 	active map[netip.Addr]uint32
 	// Serialize background and pre-eviction touch commits.
@@ -72,6 +75,7 @@ func newSQLiteFakeIPPool(db *sql.DB, prefix netip.Prefix, maxNum int) (*SQLiteFa
 		return nil, err
 	}
 	pool.startTouchWorker()
+	pool.attachState()
 	return pool, nil
 }
 
@@ -98,7 +102,6 @@ func newFakeIPPool(db *sql.DB, prefix netip.Prefix, maxNum int) (*SQLiteFakeIPPo
 		key:     prefix.String(),
 		family:  fakeIPFamily(prefix),
 		maxNum:  uint64(maxNum),
-		active:  make(map[netip.Addr]uint32),
 		current: prefix.Addr().Prev(),
 	}
 	return pool, nil
@@ -190,6 +193,9 @@ func (p *SQLiteFakeIPPool) Close() error {
 	}
 	var err error
 	p.closeOnce.Do(func() {
+		p.mu.Lock()
+		p.closed = true
+		p.mu.Unlock()
 		if p.touchStop != nil {
 			close(p.touchStop)
 			<-p.touchDone
@@ -207,6 +213,7 @@ func (p *SQLiteFakeIPPool) Close() error {
 				err = e
 			}
 		}
+		p.detachState()
 		if p.store != nil {
 			if e := p.store.Close(); e != nil && err == nil {
 				err = e
@@ -224,7 +231,11 @@ func (p *SQLiteFakeIPPool) GetFakeIPForDomain(domain string) netip.Addr {
 	ctx := context.Background()
 	now := time.Now()
 	p.mu.RLock()
-	ip, ok := p.getIP(ctx, domain, now)
+	if p.closed {
+		p.mu.RUnlock()
+		return netip.Addr{}
+	}
+	ip, ok := p.cachedIP(domain, now)
 	p.mu.RUnlock()
 	if ok {
 		return ip
@@ -232,6 +243,9 @@ func (p *SQLiteFakeIPPool) GetFakeIPForDomain(domain string) netip.Addr {
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.closed {
+		return netip.Addr{}
+	}
 
 	now = time.Now()
 	if ip, ok := p.getIP(ctx, domain, now); ok {
@@ -247,7 +261,20 @@ func (p *SQLiteFakeIPPool) GetFakeIPForDomain(domain string) netip.Addr {
 
 func (p *SQLiteFakeIPPool) GetDomainFromIP(ip netip.Addr) (string, bool) {
 	p.mu.RLock()
-	defer p.mu.RUnlock()
+	if p.closed {
+		p.mu.RUnlock()
+		return "", false
+	}
+	domain, ok := p.cachedDomain(ip, time.Now())
+	p.mu.RUnlock()
+	if ok {
+		return domain, true
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return "", false
+	}
 	return p.getDomainFromIP(ip)
 }
 
@@ -256,6 +283,9 @@ func (p *SQLiteFakeIPPool) GetDomainFromIP(ip netip.Addr) (string, bool) {
 func (p *SQLiteFakeIPPool) LeaseDomainFromIP(ip netip.Addr) (string, func(), bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.closed {
+		return "", nil, false
+	}
 	domain, ok := p.getDomainFromIP(ip)
 	if !ok {
 		return "", nil, false
@@ -268,7 +298,12 @@ func (p *SQLiteFakeIPPool) LeaseDomainFromIP(ip netip.Addr) (string, func(), boo
 			delete(p.active, ip)
 			// The connection may outlive its last reverse lookup. Start the
 			// reuse grace when its final owner stops using the mapping.
-			p.touchIP(ip, time.Now(), 0)
+			for owner := range p.state.owners {
+				if !owner.closed {
+					owner.touchIP(ip, time.Now(), 0)
+					break
+				}
+			}
 		} else {
 			p.active[ip]--
 		}
@@ -281,6 +316,9 @@ func (p *SQLiteFakeIPPool) getDomainFromIP(ip netip.Addr) (string, bool) {
 	}
 
 	now := time.Now()
+	if domain, ok := p.cachedDomain(ip, now); ok {
+		return domain, true
+	}
 	var domain string
 	var lastUsedAt int64
 	err := p.lookupIPStmt.QueryRowContext(context.Background(), p.family, p.key, ip.AsSlice()).Scan(&domain, &lastUsedAt)
@@ -292,10 +330,41 @@ func (p *SQLiteFakeIPPool) getDomainFromIP(ip netip.Addr) (string, bool) {
 	}
 
 	p.touchIP(ip, now, lastUsedAt)
+	if p.shouldTouch(now, lastUsedAt) {
+		lastUsedAt = now.UnixNano()
+	}
+	p.cache.put(domain, ip, lastUsedAt)
 	return domain, true
 }
 
+func (p *SQLiteFakeIPPool) cachedIP(domain string, now time.Time) (netip.Addr, bool) {
+	index, ok := p.cache.domains[domain]
+	if !ok {
+		return netip.Addr{}, false
+	}
+	e := &p.cache.entries[index]
+	if e.touch(now) {
+		p.touchDomain(domain, now, 0)
+	}
+	return e.ip, true
+}
+
+func (p *SQLiteFakeIPPool) cachedDomain(ip netip.Addr, now time.Time) (string, bool) {
+	index, ok := p.cache.ips[ip]
+	if !ok {
+		return "", false
+	}
+	e := &p.cache.entries[index]
+	if e.touch(now) {
+		p.touchIP(ip, now, 0)
+	}
+	return e.domain, true
+}
+
 func (p *SQLiteFakeIPPool) getIP(ctx context.Context, domain string, now time.Time) (netip.Addr, bool) {
+	if ip, ok := p.cachedIP(domain, now); ok {
+		return ip, true
+	}
 	var ipBytes []byte
 	var lastUsedAt int64
 	err := p.lookupDomainStmt.QueryRowContext(ctx, p.family, p.key, domain).Scan(&ipBytes, &lastUsedAt)
@@ -313,6 +382,10 @@ func (p *SQLiteFakeIPPool) getIP(ctx context.Context, domain string, now time.Ti
 	}
 
 	p.touchDomain(domain, now, lastUsedAt)
+	if p.shouldTouch(now, lastUsedAt) {
+		lastUsedAt = now.UnixNano()
+	}
+	p.cache.put(domain, ip, lastUsedAt)
 	return ip, true
 }
 
@@ -418,6 +491,9 @@ func (p *SQLiteFakeIPPool) deleteDomain(ctx context.Context, domain string) erro
 		DELETE FROM fakeip_entries
 		WHERE family = ? AND prefix = ? AND domain = ?
 	`, p.family, p.key, domain)
+	if err == nil {
+		p.cache.removeDomain(domain)
+	}
 	return err
 }
 
@@ -447,8 +523,10 @@ func (p *SQLiteFakeIPPool) loadCursor(ctx context.Context) error {
 func (p *SQLiteFakeIPPool) allocate(ctx context.Context, domain string, now time.Time) (netip.Addr, error) {
 	// Publish pending lazy touches before deciding which old address may be
 	// recycled. Otherwise a recently used entry could look hours old in SQL.
-	if err := p.flushTouches(ctx); err != nil {
-		return netip.Addr{}, err
+	for owner := range p.state.owners {
+		if err := owner.flushTouches(ctx); err != nil {
+			return netip.Addr{}, err
+		}
 	}
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -483,16 +561,20 @@ func (p *SQLiteFakeIPPool) allocate(ctx context.Context, domain string, now time
 	if err := tx.Commit(); err != nil {
 		return netip.Addr{}, err
 	}
+	p.cache.put(domain, addr, now.UnixNano())
 	return addr, nil
 }
 
 func (p *SQLiteFakeIPPool) entryCount(ctx context.Context, tx *sql.Tx) (uint64, error) {
 	var count uint64
 	err := tx.QueryRowContext(ctx, `
-		SELECT COUNT(*)
-		FROM fakeip_entries
+		SELECT entry_count
+		FROM fakeip_pool_counts
 		WHERE family = ? AND prefix = ?
 	`, p.family, p.key).Scan(&count)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
 	return count, err
 }
 

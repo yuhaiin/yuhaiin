@@ -45,6 +45,11 @@ func BenchmarkFakeIPHotPath(b *testing.B) {
 	for _, operation := range []string{"domain", "reverse", "lease_release", "parallel_domain", "parallel_lease_release"} {
 		b.Run(operation, func(b *testing.B) {
 			p, domains, ips := benchmarkFakeIPPool(b, 4096, 65535)
+			for i, domain := range domains {
+				if got := p.GetFakeIPForDomain(domain); got != ips[i] {
+					b.Fatal("cannot warm mapping fixture")
+				}
+			}
 			run := func(i int) {
 				switch operation {
 				case "domain", "parallel_domain":
@@ -79,6 +84,19 @@ func BenchmarkFakeIPHotPath(b *testing.B) {
 				run(i % len(domains))
 			}
 		})
+	}
+}
+
+// A cyclic working set four times larger than the cache deliberately misses
+// every cache lookup, exposing the overhead of the bounded-cache fallback.
+func BenchmarkFakeIPCacheChurn(b *testing.B) {
+	p, domains, ips := benchmarkFakeIPPool(b, 16384, 65535)
+	b.ReportAllocs()
+	for i := 0; b.Loop(); i++ {
+		index := i % len(domains)
+		if got := p.GetFakeIPForDomain(domains[index]); got != ips[index] {
+			b.Fatal("cold mapping changed")
+		}
 	}
 }
 
