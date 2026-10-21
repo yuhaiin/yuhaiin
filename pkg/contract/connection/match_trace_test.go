@@ -44,7 +44,7 @@ func TestReconstructMatchTraceMissingHistoryDoesNotInventResult(t *testing.T) {
 
 func TestSharedMatchTemplateNotSerialized(t *testing.T) {
 	shared := &MatchTraceTemplate{
-		Type: "or",
+		Type:     "or",
 		Children: []MatchTraceTemplate{{Type: "condition", Label: "example", EmitsHistory: true}},
 	}
 	entry := MatchHistoryEntry{RuleName: "example", TraceTemplate: shared, History: []MatchResult{{Matched: true}}}
