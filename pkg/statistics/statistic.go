@@ -161,9 +161,9 @@ func (c *Connections) Conns(context.Context) (contractconnection.Connections, er
 // MatchTraceForConnection materializes a trace only for a selected active
 // connection. Periodic listing, events, SQLite persistence and the hot routing
 // path never expand the shared matcher template.
-func (c *Connections) MatchTraceForConnection(id uint64) (contractconnection.MatchTraceResponse, bool) {
+func (c *Connections) MatchTraceForConnection(id uint64, index int) (contractconnection.MatchTraceResponse, bool) {
 	templates, ok := c.traceStore.Load(id)
-	if !ok {
+	if !ok || index < 0 || index >= len(templates) {
 		return contractconnection.MatchTraceResponse{}, false
 	}
 	var info contractconnection.Connection
@@ -172,21 +172,13 @@ func (c *Connections) MatchTraceForConnection(id uint64) (contractconnection.Mat
 	} else {
 		info, ok = c.infoStore.Load(id)
 	}
-	if !ok {
+	if !ok || index >= len(info.MatchHistory) {
 		return contractconnection.MatchTraceResponse{}, false
 	}
-	out := make([]contractconnection.MatchHistoryEntry, len(info.MatchHistory))
-	for i, entry := range info.MatchHistory {
-		var template *contractconnection.MatchTraceTemplate
-		if i < len(templates) {
-			template = templates[i]
-		}
-		out[i] = contractconnection.MatchHistoryEntry{
-			RuleID: entry.RuleID, RuleName: entry.RuleName, History: entry.History,
-			Trace: contractconnection.ReconstructMatchTrace(template, entry.History),
-		}
-	}
-	return contractconnection.MatchTraceResponse{MatchHistory: out}, true
+	entry := info.MatchHistory[index]
+	entry.TraceTemplate = nil
+	entry.Trace = contractconnection.ReconstructMatchTrace(templates[index], entry.History)
+	return contractconnection.MatchTraceResponse{RuleIndex: index, Entry: entry}, true
 }
 
 func (c *Connections) CloseConn(_ context.Context, ids []uint64) error {
