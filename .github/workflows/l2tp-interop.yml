@@ -37,6 +37,7 @@ jobs:
         id: kernel-support
         run: |
           sudo apt-get update
+          sudo apt-get install -y tcpdump
           module_package="linux-modules-extra-$(uname -r)"
           if apt-cache show "$module_package" >/dev/null 2>&1; then
             sudo apt-get install -y "$module_package"
