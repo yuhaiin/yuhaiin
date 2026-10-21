@@ -51,6 +51,13 @@ type DNSCacheProvider interface {
 	ClearDNSCache(domain string) int
 }
 
+// LocalDNSResponder optionally answers a question without I/O or request
+// context. Servers can use it before allocating timers and routing state.
+// A false result leaves processing to Resolver.Raw.
+type LocalDNSResponder interface {
+	LocalResponse(DNSQuestion) (*dns.Msg, bool)
+}
+
 func DNSQuestionFromRR(rr dns.RR) DNSQuestion {
 	if rr == nil {
 		return DNSQuestion{}

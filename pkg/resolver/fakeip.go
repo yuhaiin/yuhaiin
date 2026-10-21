@@ -16,7 +16,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/fakeip"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns/server"
 	dnssystem "github.com/Asutorufa/yuhaiin/pkg/net/dns/system"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
@@ -34,19 +33,14 @@ type Fakedns struct {
 	dialer           netapi.Proxy
 	upstream         netapi.Resolver
 	dbPath           string
-
-	dnsServer netapi.DNSAgent
-	fake      *fakeip.FakeDNS
+	fake             *fakeip.FakeDNS
 
 	whitelist *domain.Fqdn[struct{}]
 	skipCheck *domain.Fqdn[struct{}]
 
-	serverHost string
-
 	whitelistSlice []string
 	skipCheckSlice []string
 
-	smu     sync.RWMutex
 	fakeMu  sync.RWMutex
 	enabled atomic.Bool
 }
@@ -72,8 +66,6 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, dbPath string, in
 		whitelist: domain.NewTrie[struct{}](),
 		skipCheck: domain.NewTrie[struct{}](),
 	}
-	f.dnsServer = server.NewServer("", f)
-
 	return f, nil
 }
 
@@ -228,15 +220,6 @@ func (f *Fakedns) Close() error {
 		err = errors.Join(err, er)
 	}
 
-	f.smu.Lock()
-	defer f.smu.Unlock()
-
-	if f.dnsServer != nil {
-		if er := f.dnsServer.Close(); er != nil {
-			err = errors.Join(err, er)
-		}
-		f.dnsServer = nil
-	}
 	if f.fake != nil {
 		if er := f.fake.Close(); er != nil {
 			err = errors.Join(err, er)
@@ -415,54 +398,4 @@ func (f *Fakedns) recoverDestination(ctx context.Context, addr netapi.Address, l
 	store.ConnOptions().MarkUnmappedFakeIP()
 	store.ConnOptions().SetRouteMode("block")
 	return addr, nil, ErrUnmappedFakeIP
-}
-
-func (a *Fakedns) SetServer(s string) {
-	var old netapi.DNSAgent
-
-	a.smu.Lock()
-	if a.serverHost == s {
-		a.smu.Unlock()
-		return
-	}
-	if a.dnsServer != nil {
-		old = a.dnsServer
-	}
-	a.dnsServer = nil
-	a.serverHost = s
-	a.smu.Unlock()
-
-	if old != nil {
-		if err := old.Close(); err != nil {
-			log.Error("close dns server failed", "err", err)
-		}
-	}
-
-	next := server.NewServer(s, a)
-
-	a.smu.Lock()
-	a.dnsServer = next
-	a.smu.Unlock()
-}
-
-func (a *Fakedns) server() netapi.DNSAgent {
-	a.smu.RLock()
-	defer a.smu.RUnlock()
-	return a.dnsServer
-}
-
-func (a *Fakedns) DoStream(ctx context.Context, req *netapi.DNSStreamRequest) error {
-	s := a.server()
-	if s == nil {
-		return fmt.Errorf("dns server is not initialized")
-	}
-	return s.DoStream(ctx, req)
-}
-
-func (a *Fakedns) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) error {
-	s := a.server()
-	if s == nil {
-		return fmt.Errorf("dns server is not initialized")
-	}
-	return s.DoDatagram(ctx, req)
 }

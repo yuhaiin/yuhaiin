@@ -84,6 +84,8 @@ const (
 	v2SettingsPut           v2Endpoint = "settings.put"
 	v2BackupConfigGet       v2Endpoint = "backup.config.get"
 	v2BackupConfigPut       v2Endpoint = "backup.config.put"
+	v2ResolverResponsesGet  v2Endpoint = "resolver.responses.get"
+	v2ResolverResponsesPut  v2Endpoint = "resolver.responses.put"
 	v2ResolverHostsGet      v2Endpoint = "resolver.hosts.get"
 	v2ResolverHostsPut      v2Endpoint = "resolver.hosts.put"
 	v2ResolverFakeDNSGet    v2Endpoint = "resolver.fakedns.get"
@@ -186,6 +188,8 @@ var v2Routes = []v2Route{
 	{v2ConnectionsClose, "POST /api/v2/connections/close"},
 	{v2ConnectionsFailedHistory, "GET /api/v2/connections/failed-history"},
 	{v2ConnectionsHistory, "GET /api/v2/connections/history"},
+	{v2ResolverResponsesGet, "GET /api/v2/resolver/responses"},
+	{v2ResolverResponsesPut, "PUT /api/v2/resolver/responses"},
 	{v2ResolverHostsGet, "GET /api/v2/resolver/hosts"},
 	{v2ResolverHostsPut, "PUT /api/v2/resolver/hosts"},
 	{v2ResolverFakeDNSGet, "GET /api/v2/resolver/fakedns"},

@@ -132,7 +132,9 @@ var _ netapi.Resolver = (*client)(nil)
 var _ netapi.DNSCacheProvider = (*client)(nil)
 
 func CacheKeyFromQuestion(q netapi.DNSQuestion) string {
-	return fmt.Sprintf("%s:%d", q.Name, q.Qtype)
+	var digits [5]byte
+	typ := strconv.AppendUint(digits[:0], uint64(q.Qtype), 10)
+	return q.Name + ":" + string(typ)
 }
 
 type client struct {
@@ -437,6 +439,9 @@ func (c *client) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, err
 	}
 
 	rawmsg = rawmsg.Copy()
+	// Msg.Copy shares its wire buffer. Each caller packs its own ID and may
+	// encode concurrently with other cache hits, so borrow only the records.
+	rawmsg.Data = nil
 	rawmsg.Question = []dns.RR{req.RR()}
 	return rawmsg, nil
 }

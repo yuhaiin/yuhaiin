@@ -24,6 +24,7 @@ import (
 
 type dnsServer struct {
 	resolver netapi.Resolver
+	local    netapi.LocalDNSResponder
 	udp      net.PacketConn
 	tcp      net.Listener
 
@@ -45,6 +46,7 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSAgent {
 		udpSemaphore: semaphore.NewSemaphore(configuration.DNSProcessThread.Load()),
 		reqBuffer:    ringbuffer.NewRingBuffer[*netapi.DNSRawRequest](8, configuration.MaxUDPUnprocessedPackets.Load),
 	}
+	d.local, _ = process.(netapi.LocalDNSResponder)
 
 	for range min(4, system.Procs) {
 		go d.startHandleReqData()
@@ -233,14 +235,10 @@ type doData struct {
 }
 
 func (d *dnsServer) do(ctx context.Context, req *doData) error {
-	ctx, store := netapi.GetOrNewContext(ctx)
-	store.ConnOptions().Resolver().SetUseFakeIP(req.ForceFakeIP)
-
-	ctx, cancel := context.WithTimeout(ctx, configuration.ResolverTimeout)
-	defer cancel()
-
 	var qmsg dns.Msg
-	qmsg.Data = append(qmsg.Data, req.Question...)
+	// The stream buffer or retained packet remains alive until do returns.
+	// Unpack reads the query without changing it; another copy is unnecessary.
+	qmsg.Data = req.Question
 	if err := qmsg.Unpack(); err != nil {
 		return fmt.Errorf("dns server parse failed: %w", err)
 	}
@@ -251,12 +249,32 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 
 	question := netapi.DNSQuestionFromRR(qmsg.Question[0])
 
-	msg, err := d.resolver.Raw(ctx, question)
-	if err != nil {
-		return fmt.Errorf("do raw request (%v:%v) failed: %w", question.Name, question.Qtype, err)
+	var msg *dns.Msg
+	var local bool
+	if d.local != nil {
+		msg, local = d.local.LocalResponse(question)
+	}
+	if local {
+		metrics.Counter.AddDNSProcess(question.Name)
+	}
+	if !local {
+		ctx, store := netapi.GetOrNewContext(ctx)
+		store.ConnOptions().Resolver().SetUseFakeIP(req.ForceFakeIP)
+		ctx, cancel := context.WithTimeout(ctx, configuration.ResolverTimeout)
+		defer cancel()
+		var err error
+		msg, err = d.resolver.Raw(ctx, question)
+		if err != nil {
+			return fmt.Errorf("do raw request (%v:%v) failed: %w", question.Name, question.Qtype, err)
+		}
 	}
 
 	msg.ID = qmsg.ID
+	// Pack into a buffer owned by this request. Cached messages may share their
+	// previous wire bytes, and callback consumers finish before this returns.
+	wire := pool.GetBytes(msg.Len())
+	defer pool.PutBytes(wire)
+	msg.Data = wire
 	if err := msg.Pack(); err != nil {
 		return err
 	}
@@ -283,7 +301,7 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 		msg.Answer = nil
 		msg.Ns = nil
 		msg.Extra = nil
-		if err = msg.Pack(); err != nil {
+		if err := msg.Pack(); err != nil {
 			return err
 		}
 		bytes = msg.Data
