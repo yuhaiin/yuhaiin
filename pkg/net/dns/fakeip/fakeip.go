@@ -197,6 +197,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 				return f.newAnswerMessage(req, dns.RcodeServerFailure), nil
 			}
 		}
+		msg = msg.Copy() // Never mutate a message shared with upstream cache.
 		rewriteHTTPSHints(msg, ipv4, ipv6)
 		return msg, nil
 
