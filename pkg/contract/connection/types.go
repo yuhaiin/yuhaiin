@@ -107,11 +107,13 @@ type MatchTrace struct {
 
 // MatchTraceRequest selects one active connection for lazy trace expansion.
 type MatchTraceRequest struct {
-	ID string `json:"id"`
+	ID        string `json:"id"`
+	RuleIndex int    `json:"ruleIndex"`
 }
 
 type MatchTraceResponse struct {
-	MatchHistory []MatchHistoryEntry `json:"matchHistory"`
+	RuleIndex int               `json:"ruleIndex"`
+	Entry     MatchHistoryEntry `json:"entry"`
 }
 
 type MatchResult struct {
