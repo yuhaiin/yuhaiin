@@ -208,6 +208,7 @@ func (r *Rules) ActivationStatus(ctx context.Context) (contractroute.RuleActivat
 		r.route.ms.mu.RLock()
 		status.ListIssues = slices.Clone(r.route.ms.listIssues)
 		status.SkippedRules = slices.Clone(r.route.ms.skippedRules)
+		status.DegradedRules = slices.Clone(r.route.ms.degradedRules)
 		r.route.ms.mu.RUnlock()
 	}
 	if config != nil {
