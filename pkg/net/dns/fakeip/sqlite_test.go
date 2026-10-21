@@ -92,6 +92,54 @@ func TestSQLiteFakeIPPoolLRUEviction(t *testing.T) {
 	}
 }
 
+// Fresh synthetic answers must not be reassigned while applications may cache
+// them; when the pool is exhausted, allocation must fail instead of misrouting.
+func TestSQLiteFakeIPPoolRecentReuseFailsClosed(t *testing.T) {
+	pool, _ := newTestSQLiteFakeIPPool(t, netip.MustParsePrefix("10.0.0.0/30"), 2)
+	a := pool.GetFakeIPForDomain("recent-a.example")
+	b := pool.GetFakeIPForDomain("recent-b.example")
+	if !a.IsValid() || !b.IsValid() {
+		t.Fatal("failed initial allocation")
+	}
+	if got := pool.GetFakeIPForDomain("new.example"); got.IsValid() {
+		t.Fatalf("reassigned recent FakeIP to new domain: %v", got)
+	}
+	if got, ok := pool.GetDomainFromIP(a); !ok || got != "recent-a.example" {
+		t.Fatalf("stale mapping changed: %s (%v)", got, ok)
+	}
+}
+
+// A live connection pins its old mapping even when its SQL last_used_at is
+// eligible for eviction. Closing the connection releases that pin.
+func TestSQLiteFakeIPPoolLeasedAddressNotReused(t *testing.T) {
+	pool, db := newTestSQLiteFakeIPPool(t, netip.MustParsePrefix("10.0.0.0/30"), 2)
+	a := pool.GetFakeIPForDomain("pinned.example")
+	b := pool.GetFakeIPForDomain("evictable.example")
+	stale := time.Now().Add(-2 * fakeIPReuseGrace).UnixNano()
+	if _, err := db.ExecContext(t.Context(), `
+		UPDATE fakeip_entries SET last_used_at = ?
+		WHERE domain IN ('pinned.example', 'evictable.example')
+	`, stale); err != nil {
+		t.Fatal(err)
+	}
+
+	domain, release, ok := pool.LeaseDomainFromIP(a)
+	if !ok || domain != "pinned.example" {
+		t.Fatalf("could not pin mapping: %q %v", domain, ok)
+	}
+	if got := pool.GetFakeIPForDomain("replacement.example"); got != b {
+		t.Fatalf("evicted pinned address, got %v want %v", got, b)
+	}
+	if got := pool.GetFakeIPForDomain("next.example"); got.IsValid() {
+		t.Fatalf("evicted active or recently used address: %v", got)
+	}
+	release()
+	release() // release is safe to call repeatedly
+	if got := pool.GetFakeIPForDomain("next.example"); got != a {
+		t.Fatalf("expected released stale address %v, got %v", a, got)
+	}
+}
+
 func TestSQLiteFakeIPPoolLazyTouch(t *testing.T) {
 	pool, db := newTestSQLiteFakeIPPool(t, netip.MustParsePrefix("10.0.0.0/24"), 100)
 
