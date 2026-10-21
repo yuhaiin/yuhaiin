@@ -3,10 +3,9 @@ package route
 import (
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 func TestTraceTemplateMirrorsCompiledMatcher(t *testing.T) {
@@ -51,15 +50,14 @@ func TestTraceTemplateUnknownNotInversion(t *testing.T) {
 	}
 }
 
-
 // Verify the replayed graph matches the *real* matcher execution, rather
 // than relying solely on synthetic leaf outcomes in the contract tests.
 func TestTraceReplayMatchesRealShortCircuitEvaluation(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		lists []string
-		want bool
-		wantHistory int
+		name          string
+		lists         []string
+		want          bool
+		wantHistory   int
 		wantLastState string
 	}{
 		{name: "first branch matched", lists: []string{"foo"}, want: true, wantHistory: 2, wantLastState: "hit"},
