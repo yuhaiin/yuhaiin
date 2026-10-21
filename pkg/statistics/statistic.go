@@ -42,6 +42,8 @@ type Connections struct {
 	counters *counters
 
 	connStore syncmap.SyncMap[uint64, connection]
+	// Live-only sidecar: shares flat history backing arrays and immutable templates.
+	traceStore syncmap.SyncMap[uint64, []contractconnection.MatchHistoryEntry]
 
 	idSeed            id.IDGenerator
 	openedConnections atomic.Uint64
@@ -156,6 +158,24 @@ func (c *Connections) Conns(context.Context) (contractconnection.Connections, er
 	return contractconnection.Connections{Connections: c.allInfos()}, nil
 }
 
+// MatchTraceForConnection materializes a trace only for a selected active
+// connection. Periodic listing, events, SQLite persistence and the hot routing
+// path never expand the shared matcher template.
+func (c *Connections) MatchTraceForConnection(id uint64) (contractconnection.MatchTraceResponse, bool) {
+	history, ok := c.traceStore.Load(id)
+	if !ok {
+		return contractconnection.MatchTraceResponse{}, false
+	}
+	out := make([]contractconnection.MatchHistoryEntry, len(history))
+	for i, entry := range history {
+		out[i] = contractconnection.MatchHistoryEntry{
+			RuleID: entry.RuleID, RuleName: entry.RuleName, History: entry.History,
+			Trace: contractconnection.ReconstructMatchTrace(entry.TraceTemplate, entry.History),
+		}
+	}
+	return contractconnection.MatchTraceResponse{MatchHistory: out}, true
+}
+
 func (c *Connections) CloseConn(_ context.Context, ids []uint64) error {
 	for _, id := range ids {
 		if z, ok := c.connStore.Load(id); ok {
@@ -218,6 +238,7 @@ func (c *Connections) Total(context.Context) (contractconnection.TotalFlow, erro
 }
 
 func (c *Connections) Remove(id uint64) {
+	c.traceStore.Delete(id)
 	if _, ok := c.connStore.LoadAndDelete(id); ok {
 		metrics.Counter.RemoveConnection(1)
 	}
@@ -238,6 +259,9 @@ func (c *Connections) storeConnection(o connection, info contractconnection.Conn
 
 	id, _ := strconv.ParseUint(info.ID, 10, 64)
 	c.connStore.Store(id, o)
+	if len(info.MatchHistory) > 0 {
+		c.traceStore.Store(id, info.MatchHistory)
+	}
 	c.openedConnections.Add(1)
 	if c.persistence != nil {
 		c.persistence.Store(id, info)
