@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,7 +25,10 @@ func init() {
 }
 
 func udpCacheKey(id uint16, question netapi.DNSQuestion) string {
-	return fmt.Sprintf("%d:%s|%d", id, question.Name, question.Qtype)
+	var digits [10]byte
+	identifier := strconv.AppendUint(digits[:0:5], uint64(id), 10)
+	typ := strconv.AppendUint(digits[5:5], uint64(question.Qtype), 10)
+	return string(identifier) + ":" + question.Name + "|" + string(typ)
 }
 
 type udpresp struct {

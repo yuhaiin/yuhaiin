@@ -16,6 +16,7 @@ import (
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns/response"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -306,9 +307,12 @@ func (d *dnsDialer) PacketConn(c context.Context, addr netapi.Address) (net.Pack
 }
 
 type ResolverCtr struct {
-	hostsMu   sync.Mutex
-	resolvers ResolverBook
-	config    ResolverConfigBook
+	hostsMu     sync.Mutex
+	responsesMu sync.Mutex
+	responses   *response.Resolver
+	server      *DNSServer
+	resolvers   ResolverBook
+	config      ResolverConfigBook
 
 	hosts   *Hosts
 	fakedns *Fakedns
@@ -330,8 +334,8 @@ type ResolverConfigBook interface {
 	SaveServer(context.Context, contractresolver.Server) (contractresolver.Server, error)
 }
 
-func NewResolverCtr(resolvers ResolverBook, config ResolverConfigBook, hosts *Hosts, fakedns *Fakedns, r *Resolver) *ResolverCtr {
-	r2 := &ResolverCtr{resolvers: resolvers, config: config, hosts: hosts, fakedns: fakedns, r: r}
+func NewResolverCtr(resolvers ResolverBook, config ResolverConfigBook, hosts *Hosts, fakedns *Fakedns, r *Resolver, responses *response.Resolver, server *DNSServer) *ResolverCtr {
+	r2 := &ResolverCtr{resolvers: resolvers, config: config, hosts: hosts, fakedns: fakedns, r: r, responses: responses, server: server}
 	r2.ApplyStored(context.Background())
 	return r2
 }
@@ -368,6 +372,16 @@ func (r *ResolverCtr) ApplyStored(ctx context.Context) {
 	}
 
 	if r.config != nil {
+		if store, ok := r.config.(contractresolver.ResponseRulesController); ok && r.responses != nil {
+			config, err := store.ResponseRules(ctx)
+			if err == nil {
+				err = r.responses.Apply(config)
+			}
+			if err != nil {
+				log.Error("apply custom DNS responses failed", "err", err)
+			}
+		}
+
 		log.Info("apply hosts setting")
 		hosts, err := r.config.Hosts(ctx)
 		if err != nil {
@@ -391,7 +405,7 @@ func (r *ResolverCtr) ApplyStored(ctx context.Context) {
 		if err != nil {
 			log.Warn("load dns server failed", "err", err)
 		} else {
-			r.fakedns.SetServer(server.Server)
+			r.server.SetServer(server.Server)
 		}
 	}
 	log.Info("apply resolver setting finished")
@@ -503,6 +517,9 @@ func (r *ResolverCtr) SaveContractServer(ctx context.Context, req contractresolv
 		return contractresolver.Server{}, errors.New("resolver config store is unavailable")
 	}
 	req, err := r.config.SaveServer(ctx, req)
-	r.fakedns.SetServer(req.Server)
+	if err != nil {
+		return req, err
+	}
+	r.server.SetServer(req.Server)
 	return req, err
 }

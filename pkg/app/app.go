@@ -15,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns/response"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
@@ -198,13 +199,15 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		return nil, fmt.Errorf("init fake dns failed: %w", err)
 	}
 	AddCloser(closers, "fakedns", fakedns)
+	responses := response.New(fakedns)
+	dnsServer := AddCloser(closers, "dns server", resolver.NewDNSServer(responses))
 	log.Info("init resolver controller")
-	resolverCtr := resolver.NewResolverCtr(resolverStore, resolverConfigStore, hosts, fakedns, dns)
+	resolverCtr := resolver.NewResolverCtr(resolverStore, resolverConfigStore, hosts, fakedns, dns, responses, dnsServer)
 	log.Info("init resolver controller finished")
 
 	// make dns flow across all proxy chain
 	configuration.ProxyChain.Set(fakedns)
-	configuration.ResolverChain.Set(fakedns)
+	configuration.ResolverChain.Set(responses)
 	list.SetProxy(fakedns)
 
 	// inbound server
@@ -240,7 +243,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		}, gatewayManager.InterceptGateway)
 		interceptionOptions = append(interceptionOptions, inbound.WithInterceptor(router))
 	}
-	interceptionOptions = append(interceptionOptions, inbound.WithDNSAgent(fakedns), inbound.WithFakeIPRangeSource(fakedns))
+	interceptionOptions = append(interceptionOptions, inbound.WithDNSAgent(dnsServer), inbound.WithFakeIPRangeSource(fakedns))
 	if inboundConfigStore != nil {
 		interceptionOptions = append(interceptionOptions, inbound.WithIngressStatisticsStore(inboundConfigStore))
 	}

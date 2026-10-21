@@ -44,6 +44,8 @@ func addFacadeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2ConnectionsClose, api.closeConnections)
 	addRPCRoute(handlers, v2ConnectionsFailedHistory, api.failedHistory)
 	addRPCRoute(handlers, v2ConnectionsHistory, api.allHistory)
+	addRPCRoute(handlers, v2ResolverResponsesGet, api.responseRules)
+	addRPCRoute(handlers, v2ResolverResponsesPut, api.saveResponseRules)
 	addRPCRoute(handlers, v2ResolverHostsGet, api.hosts)
 	addRPCRoute(handlers, v2ResolverHostsPut, api.saveHosts)
 	addRPCRoute(handlers, v2ResolverFakeDNSGet, api.fakeDNS)
