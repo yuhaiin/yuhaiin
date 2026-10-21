@@ -26,16 +26,22 @@ type LightweightNetTun struct {
 }
 
 func CreateLightweightNetTUN(localAddresses []netip.Prefix, mtu int) (*LightweightNetTun, error) {
-	return createLightweightNetTUN(localAddresses, mtu, false)
+	return createLightweightNetTUN(localAddresses, mtu, false, "")
+}
+
+// CreateLightweightNetTUNWithCongestionControl overrides the RemoteTunnel profile's
+// default congestion control for controlled interoperability testing.
+func CreateLightweightNetTUNWithCongestionControl(localAddresses []netip.Prefix, mtu int, algorithm string) (*LightweightNetTun, error) {
+	return createLightweightNetTUN(localAddresses, mtu, false, algorithm)
 }
 
 // CreateLightweightInboundTUN terminates arbitrary routed client destinations
 // entirely in the in-memory lightweight TCP/IP stack. It never opens a system TUN.
 func CreateLightweightInboundTUN(localAddresses []netip.Prefix, mtu int) (*LightweightNetTun, error) {
-	return createLightweightNetTUN(localAddresses, mtu, true)
+	return createLightweightNetTUN(localAddresses, mtu, true, "")
 }
 
-func createLightweightNetTUN(localAddresses []netip.Prefix, mtu int, inbound bool) (*LightweightNetTun, error) {
+func createLightweightNetTUN(localAddresses []netip.Prefix, mtu int, inbound bool, algorithm string) (*LightweightNetTun, error) {
 	if mtu == 0 {
 		mtu = 1500
 	}
@@ -51,7 +57,7 @@ func createLightweightNetTUN(localAddresses []netip.Prefix, mtu int, inbound boo
 		dev.hasV6 = dev.hasV6 || ip.Is6()
 	}
 	var err error
-	dev.stack, err = lightweight.New(lightweight.Config{Addresses: addresses, MTU: mtu, Profile: lightweight.RemoteTunnel, Promiscuous: inbound, ForwardUDP: inbound}, dev.link)
+	dev.stack, err = lightweight.New(lightweight.Config{Addresses: addresses, MTU: mtu, Profile: lightweight.RemoteTunnel, Promiscuous: inbound, ForwardUDP: inbound, CongestionControl: algorithm}, dev.link)
 	if err != nil {
 		_ = dev.link.Close()
 		return nil, err
