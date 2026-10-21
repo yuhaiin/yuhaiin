@@ -127,7 +127,7 @@ func TestSnapshotApplyRetriesConcurrentEditsAndRetainsStateOnFailure(t *testing.
 			http.NotFound(w, r)
 			return
 		}
-		_, _ = io.WriteString(w, "recovered.example\\n")
+		_, _ = io.WriteString(w, "recovered.example\n")
 	}))
 	defer server.Close()
 	remote := contractroute.RouteListDetail{
