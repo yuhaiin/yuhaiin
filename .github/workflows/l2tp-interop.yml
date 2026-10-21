@@ -10,6 +10,11 @@ on:
       - "scripts/bench/l2tp/**"
       - ".github/workflows/l2tp-interop.yml"
   workflow_dispatch:
+    inputs:
+      softether:
+        description: Run optional SoftEther SecureNAT compatibility diagnostics
+        type: boolean
+        default: false
 
 # Drop superseded automatic checks; preserve explicitly dispatched runs.
 concurrency:
@@ -33,7 +38,7 @@ jobs:
           cache-scope: l2tp-interop-${{ matrix.congestion }}
       - name: Test protocol and contract with race detector
         run: go test -race ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/wireguard ./pkg/net/proxy/tun/gvisor ./pkg/contract/node ./pkg/register
-      - name: Load PPP and L2TP Ethernet kernel support
+      - name: Prepare captures and check each peer's kernel support
         id: kernel-support
         run: |
           sudo apt-get update
@@ -45,24 +50,70 @@ jobs:
             echo "::notice::No APT package is published for kernel $(uname -r); checking modules already present on the runner."
           fi
 
-          if sudo modprobe ppp_generic && sudo modprobe l2tp_eth; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
+          if sudo modprobe ppp_generic && sudo modprobe ppp_async && test -c /dev/ppp; then
+            echo "ppp=true" >> "$GITHUB_OUTPUT"
           else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::PPP or L2TP Ethernet modules are unavailable for kernel $(uname -r); skipping kernel-dependent interoperability tests."
+            echo "ppp=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::PPP support or /dev/ppp is unavailable for kernel $(uname -r); skipping xl2tpd/pppd interoperability tests."
           fi
-      - name: Test stock PPP servers and Linux L2TPv3 over IPv4 and IPv6
-        if: steps.kernel-support.outputs.available == 'true'
+
+          if sudo modprobe l2tp_eth; then
+            echo "l2tpv3=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "l2tpv3=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::L2TP Ethernet support is unavailable for kernel $(uname -r); skipping Linux L2TPv3 interoperability tests."
+          fi
+      - name: Test xl2tpd and pppd over IPv4 and IPv6
+        if: ${{ !cancelled() && steps.kernel-support.outputs.ppp == 'true' }}
         env:
           L2TP_TEST_CONGESTION_CONTROL: ${{ matrix.congestion }}
           L2TP_DIAGNOSTICS_DIR: ${{ runner.temp }}/l2tp-diagnostics/${{ matrix.congestion }}
           L2TP_CAPTURE_PCAP: '1'
         run: python3 scripts/bench/l2tp/run.py --runtime docker --ppp
+      - name: Test Linux L2TPv3 over IPv4 and IPv6
+        if: ${{ !cancelled() && steps.kernel-support.outputs.l2tpv3 == 'true' }}
+        env:
+          L2TP_TEST_CONGESTION_CONTROL: ${{ matrix.congestion }}
+          L2TP_DIAGNOSTICS_DIR: ${{ runner.temp }}/l2tp-diagnostics/${{ matrix.congestion }}
+          L2TP_CAPTURE_PCAP: '1'
+        run: python3 scripts/bench/l2tp/run.py --runtime docker --l2tpv3
       - name: Upload L2TP diagnostics and BBR/CUBIC results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: l2tp-diagnostics-${{ matrix.congestion }}-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/l2tp-diagnostics/${{ matrix.congestion }}/
+          retention-days: 7
+          if-no-files-found: warn
+
+  softether-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.softether
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        congestion: [bbr, cubic]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: l2tp-softether-${{ matrix.congestion }}
+      - name: Install packet capture tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tcpdump
+      - name: Diagnose SoftEther SecureNAT compatibility
+        env:
+          L2TP_TEST_CONGESTION_CONTROL: ${{ matrix.congestion }}
+          L2TP_DIAGNOSTICS_DIR: ${{ runner.temp }}/l2tp-softether-diagnostics/${{ matrix.congestion }}
+          L2TP_CAPTURE_PCAP: '1'
+        run: python3 scripts/bench/l2tp/run.py --runtime docker --softether
+      - name: Upload SoftEther diagnostics and BBR/CUBIC results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: l2tp-softether-diagnostics-${{ matrix.congestion }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/l2tp-softether-diagnostics/${{ matrix.congestion }}/
           retention-days: 7
           if-no-files-found: warn

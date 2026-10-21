@@ -12,12 +12,17 @@ import uuid
 
 from capture import capture_diagnostics
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(description='Test stock PPP and Linux L2TPv3 peers by default; select individual peers with the flags below.')
 parser.add_argument('--runtime', choices=('podman', 'docker'), default='podman')
-parser.add_argument('--ppp', action='store_true', help='also test xl2tpd/pppd; requires accessible /dev/ppp')
+parser.add_argument('--ppp', action='store_true', help='test xl2tpd/pppd; requires accessible /dev/ppp')
+parser.add_argument('--l2tpv3', action='store_true', help='test Linux L2TPv3; requires the l2tp_eth kernel module')
+parser.add_argument('--softether', action='store_true', help='run optional SoftEther SecureNAT compatibility diagnostics')
 parser.add_argument('--benchmark', action='store_true')
 parser.add_argument('--output', type=Path)
 args = parser.parse_args()
+if not (args.ppp or args.l2tpv3 or args.softether):
+    args.ppp = True
+    args.l2tpv3 = True
 root = Path(__file__).resolve().parents[3]
 fixture = root / 'pkg/net/proxy/l2tp/testdata'
 results = []
@@ -50,7 +55,8 @@ def gateway(name):
     return run(args.runtime, 'port', name, '1701/udp', capture_output=True).stdout.strip().splitlines()[0]
 
 
-run(args.runtime, 'build', '-t', 'localhost/yuhaiin-l2tpv3-test', str(fixture))
+if args.l2tpv3:
+    run(args.runtime, 'build', '-t', 'localhost/yuhaiin-l2tpv3-test', str(fixture))
 if args.ppp:
     run(args.runtime, 'build', '-f', str(fixture/'Dockerfile.ppp'), '-t', 'localhost/yuhaiin-l2tp-ppp-test', str(fixture))
 
@@ -92,9 +98,11 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
             result['benchmark'] = sample.stdout
         results.append(result)
 
+    # Keep SecureNAT compatibility diagnostics opt-in. The required PPP cases
+    # below use the Linux IP stack and do not depend on SoftEther's TCP proxy.
     # Isolate each authentication case's PPP leases and SecureNAT state.
-    # SoftEther's raw L2TP server runs entirely in userspace, including SecureNAT.
-    for auth in ('pap', 'mschap-v2'):
+    softether_auths = ('pap', 'mschap-v2') if args.softether else ()
+    for auth in softether_auths:
         name = 'yuhaiin-l2tp-'+uuid.uuid4().hex[:10]
         echo = name+'-echo'
         try:
@@ -159,7 +167,7 @@ with tempfile.TemporaryDirectory(prefix='yuhaiin-l2tp-') as directory:
         ('dynamic / sublayer', '', '', 'default', True, ''),
         ('dynamic / authenticated', '1122334455667788', '', 'default', True, 'test-tunnel-secret'),
     ]
-    for label, local, peer, layer, dynamic, secret in cases:
+    for label, local, peer, layer, dynamic, secret in cases if args.l2tpv3 else ():
         name = 'yuhaiin-l2tpv3-'+uuid.uuid4().hex[:10]
         try:
             run(args.runtime, 'run', '-d', '--name', name, '--privileged', '-p', '127.0.0.1::1701/udp',
