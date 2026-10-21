@@ -128,7 +128,7 @@ func logInteropState(t testing.TB, proxy netapi.Proxy, conn net.Conn, problem er
 	report := map[string]any{
 		"test": t.Name(), "failure": problem.Error(),
 		"algorithm": client.cfg.CongestionControl,
-		"session": info, "l2tp_counters": counters,
+		"session":   info, "l2tp_counters": counters,
 		"tcp_header_trace": client.trace.snapshot(),
 	}
 	if network, ok := client.network.(interface{ Stack() *lightweight.Stack }); ok {
@@ -136,7 +136,9 @@ func logInteropState(t testing.TB, proxy netapi.Proxy, conn net.Conn, problem er
 		t.Logf("IP stack: %+v", stats)
 		report["stack_counters"] = stats
 	}
-	if diagnostic, ok := conn.(interface{ DiagnosticSnapshot() lightweight.TCPDiagnostics }); ok {
+	if diagnostic, ok := conn.(interface {
+		DiagnosticSnapshot() lightweight.TCPDiagnostics
+	}); ok {
 		state := diagnostic.DiagnosticSnapshot()
 		t.Logf("TCP state: %+v", state)
 		report["tcp_state"] = state
