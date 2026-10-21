@@ -2,6 +2,7 @@ package connection
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -61,5 +62,29 @@ func TestSharedMatchTemplateNotSerialized(t *testing.T) {
 	}
 	if shared.Children[0].Label != "example" {
 		t.Fatal("reconstruction mutated the shared template")
+	}
+}
+
+
+// BenchmarkMatchTraceOnDemand deliberately measures the expensive operation
+// in the detail RPC, not the per-connection routing/storage hot path.
+func BenchmarkMatchTraceOnDemand(b *testing.B) {
+	for _, size := range []int{16, 128, 1024} {
+		b.Run(strconv.Itoa(size), func(b *testing.B) {
+			leaves := make([]MatchTraceTemplate, size)
+			history := make([]MatchResult, size)
+			for i := range leaves {
+				leaves[i] = MatchTraceTemplate{Type: "condition", Label: "list", EmitsHistory: true}
+				history[i] = MatchResult{ListName: "list", Matched: false}
+			}
+			template := &MatchTraceTemplate{Type: "or", Label: "test", Children: leaves}
+			b.ReportAllocs()
+			for b.Loop() {
+				out := ReconstructMatchTrace(template, history)
+				if out == nil || out.State != "miss" {
+					b.Fatal("unexpected trace")
+				}
+			}
+		})
 	}
 }
