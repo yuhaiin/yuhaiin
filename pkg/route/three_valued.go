@@ -26,6 +26,14 @@ func (m unavailableListMatcher) Match(ctx context.Context, _ netapi.Address) boo
 	return false
 }
 
+// An incomplete list can prove a positive match from its loaded sources,
+// but a miss is UNKNOWN because another source could have matched.
+type incompleteListMatcher string
+
+func (m incompleteListMatcher) Match(ctx context.Context, addr netapi.Address) bool {
+	return List(m).Match(ctx, addr)
+}
+
 type threeValuedMatcher struct{ matcher Matcher }
 
 func (m threeValuedMatcher) Match(ctx context.Context, addr netapi.Address) bool {
@@ -38,6 +46,11 @@ func evaluateMatch(m Matcher, ctx context.Context, addr netapi.Address) matchVal
 	switch matcher := m.(type) {
 	case unavailableListMatcher:
 		matcher.Match(ctx, addr)
+		return matchUnknown
+	case incompleteListMatcher:
+		if matcher.Match(ctx, addr) {
+			return matchTrue
+		}
 		return matchUnknown
 	case *And:
 		unknown := false
@@ -91,6 +104,8 @@ func possibleKnownMatch(m Matcher) (canTrue, canFalse bool) {
 	switch matcher := m.(type) {
 	case unavailableListMatcher:
 		return false, false
+	case incompleteListMatcher:
+		return true, false
 	case constantMatcher:
 		return bool(matcher), !bool(matcher)
 	case *And:
@@ -117,10 +132,10 @@ func possibleKnownMatch(m Matcher) (canTrue, canFalse bool) {
 	}
 }
 
-func parseMatcherWithUnavailable(rule contractroute.RouteRule, unavailable map[string]bool) Matcher {
+func parseMatcherWithUnavailable(rule contractroute.RouteRule, unavailable, incomplete map[string]bool) Matcher {
 	children := make([]Matcher, 0, len(rule.Rules))
 	for _, expr := range rule.Rules {
-		children = append(children, parseConditionWithUnavailable(expr, unavailable))
+		children = append(children, parseConditionWithDegraded(expr, unavailable, incomplete))
 	}
 	return NewOr(rule.Name, children...)
 }
