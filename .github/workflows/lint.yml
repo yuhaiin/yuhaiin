@@ -118,3 +118,20 @@ jobs:
             ./pkg/net/proxy/tls ./pkg/inbound ./pkg/httpapi ./pkg/store \
             ./pkg/storage/sqlite ./pkg/route ./pkg/contract/connection ./pkg/resolver ./pkg/statistics \
             ./pkg/node ./pkg/app ./pkg/contract/inbound ./pkg/contract/node
+
+  management-auth-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: management-auth-tests
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Test management permissions and Web Crypto interoperability
+        run: |
+          go test -race -count=1 -timeout=180s \
+            ./pkg/managementauth ./pkg/httpapi ./pkg/app ./cmd/yuhaiin
+          go test -count=1 -tags=sqlite_mattn,fts5 -timeout=180s \
+            ./pkg/storage/sqlite ./pkg/managementauth

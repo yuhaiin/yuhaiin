@@ -13,6 +13,7 @@ var help = `Usage:
   yuhaiin [action] [options]
 
 Actions:
+  auth        local management administrator bootstrap/recovery
   install     install yuhaiin
   uninstall   uninstall yuhaiin
   start       start yuhaiin
@@ -44,6 +45,9 @@ func main() {
 	}
 
 	switch action {
+	case "auth":
+		do(authCommand)
+		return
 	case "install":
 		do(install)
 		return

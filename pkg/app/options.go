@@ -128,7 +128,7 @@ func (app *AppInstance) RegisterServer(ctx context.Context) error {
 	}
 	RegisterHTTP(app.Mux)
 	registerProfilerHTTP(app)
-	return nil
+	return app.protectManagement(ctx)
 }
 
 func registerV2HTTP(ctx context.Context, app *AppInstance) error {
@@ -180,7 +180,9 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	}
 
 	httpapi.RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
-		handleRPCFunc(app.Mux, app.Auth, app.Setting.(*SettingsController).origins, pattern, handler)
+		// The outer management gate covers all routes, including auxiliary
+		// registrations, and establishes a Principal before this handler runs.
+		handleRPCFunc(app.Mux, nil, nil, pattern, handler)
 	}, httpapi.V2Services{
 		Gateway:          app.Gateway,
 		Settings:         app.Setting,
@@ -305,11 +307,6 @@ func handleFunc(mux *http.ServeMux, auth *Auth, policy *managementOriginPolicy, 
 		}
 
 		if auth != nil {
-			token := r.URL.Query().Get("token")
-			if token != "" {
-				r.Header.Set("Authorization", "Basic "+token)
-			}
-
 			username, password, ok := r.BasicAuth()
 			if !ok || !auth.Auth(password, username) {
 				// ow.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)

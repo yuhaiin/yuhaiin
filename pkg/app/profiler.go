@@ -333,7 +333,7 @@ func registerProfilerHTTP(app *AppInstance) {
 	app.profiler = p
 	activeProfiler.Store(p)
 
-	HandleFunc(app.Mux, app.Auth, "GET /api/v2/profiler/sessions", func(w http.ResponseWriter, r *http.Request) error {
+	HandleFunc(app.Mux, nil, "GET /api/v2/profiler/sessions", func(w http.ResponseWriter, r *http.Request) error {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		return json.NewEncoder(w).Encode(struct {
@@ -341,7 +341,7 @@ func registerProfilerHTTP(app *AppInstance) {
 			Sessions []profilerSessionInfo `json:"sessions"`
 		}{pprofEnabled.Load(), p.list()})
 	})
-	HandleFunc(app.Mux, app.Auth, "POST /api/v2/profiler/sessions", func(w http.ResponseWriter, r *http.Request) error {
+	HandleFunc(app.Mux, nil, "POST /api/v2/profiler/sessions", func(w http.ResponseWriter, r *http.Request) error {
 		var input struct {
 			Type    string `json:"type"`
 			Seconds int    `json:"seconds"`
@@ -360,7 +360,7 @@ func registerProfilerHTTP(app *AppInstance) {
 		w.WriteHeader(status)
 		return json.NewEncoder(w).Encode(info)
 	})
-	HandleFunc(app.Mux, app.Auth, "DELETE /api/v2/profiler/sessions/{id}", func(w http.ResponseWriter, r *http.Request) error {
+	HandleFunc(app.Mux, nil, "DELETE /api/v2/profiler/sessions/{id}", func(w http.ResponseWriter, r *http.Request) error {
 		if !p.remove(r.PathValue("id")) {
 			http.NotFound(w, r)
 			return nil
