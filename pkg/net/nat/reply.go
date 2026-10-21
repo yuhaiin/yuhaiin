@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"reflect"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
@@ -69,6 +70,7 @@ func (u *SourceControl) bindReply(pkt *netapi.Packet) {
 func (u *SourceControl) runReply() {
 	defer close(u.replyDone)
 	errorsInRow := 0
+	var lastUndeliverableLog time.Time
 	var lastConn *wrapConn
 	for {
 		select {
@@ -115,6 +117,17 @@ func (u *SourceControl) runReply() {
 				}
 				if u.ctx.Err() != nil {
 					return
+				}
+				if errors.Is(err, netapi.ErrUndeliverableDatagram) {
+					// Malformed/oversized replies and output backpressure are
+					// packet-local failures, not proof that the outbound socket
+					// is broken. Avoid the consecutive transport error threshold.
+					metrics.Counter.AddReceiveUDPDroppedPacket()
+					if time.Since(lastUndeliverableLog) >= 30*time.Second {
+						log.Warn("drop undeliverable UDP reply", "err", err)
+						lastUndeliverableLog = time.Now()
+					}
+					continue
 				}
 				errorsInRow++
 				if errors.Is(err, net.ErrClosed) || errors.Is(err, io.ErrClosedPipe) || errorsInRow > 13 {
