@@ -2,6 +2,7 @@ package route
 
 import (
 	"context"
+	"errors"
 	"net"
 	"path/filepath"
 	"strings"
@@ -162,6 +163,9 @@ func (s *Route) Ping(ctx context.Context, host netapi.Address) (uint64, error) {
 }
 
 func (s *Route) Dispatch(ctx context.Context, host netapi.Address) (netapi.Address, error) {
+	if netapi.GetContext(ctx).ConnOptions().UnmappedFakeIP() {
+		return nil, errors.New("route: unmapped synthetic destination")
+	}
 	if netapi.GetContext(ctx).ConnOptions().SkipRoute() {
 		return host, nil
 	}
