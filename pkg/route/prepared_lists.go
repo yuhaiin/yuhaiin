@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
@@ -16,6 +17,8 @@ import (
 
 type preparedLists struct {
 	names        map[string]string
+	listIssues   []contractroute.ListActivationIssue
+	unavailable  map[string]bool
 	host         *hostMatcher
 	process      *processMatcher
 	fingerprint  [32]byte
@@ -129,6 +132,65 @@ func (s *Lists) prepareRuleData(ctx context.Context, rules []contractroute.Route
 		names[id] = list.Name
 		data = append(data, matchingData{ID: id, Type: list.Type, Source: list.Source})
 	}
+	// Validate remote resources independently. A broken subscription must not
+	// prevent unrelated rules from becoming active. Only readable cached files
+	// contribute to the index; failed sources remain visible in runtime status.
+	unavailable := make(map[string]bool)
+	issues := make([]contractroute.ListActivationIssue, 0)
+	for i := range data {
+		item := &data[i]
+		if item.Source.Type != "remote" {
+			continue
+		}
+		var urls []string
+		if item.Source.Remote != nil {
+			urls = item.Source.Remote.URLs
+		}
+		valid := make([]string, 0, len(urls))
+		problems := make([]string, 0)
+		for _, url := range urls {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			fetchErr := s.downloader.DownloadIfNotExists(ctx, url, nil)
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			reader, readErr := s.downloader.GetReader(url)
+			if readErr == nil {
+				_ = reader.Close()
+				valid = append(valid, url)
+			}
+			if fetchErr != nil || readErr != nil {
+				problem := fmt.Sprintf("%s: %v", url, fetchErr)
+				if fetchErr == nil {
+					problem = fmt.Sprintf("%s: %v", url, readErr)
+				} else if readErr == nil {
+					problem += " (using cached file)"
+				}
+				problems = append(problems, problem)
+			}
+		}
+		if len(urls) == 0 {
+			problems = append(problems, "no remote URLs configured")
+		}
+		if len(valid) == 0 {
+			unavailable[item.ID] = true
+		}
+		if len(problems) > 0 {
+			message := strings.Join(problems, "; ")
+			if len(message) > 512 {
+				message = message[:512]
+			}
+			issues = append(issues, contractroute.ListActivationIssue{
+				ID: item.ID, Name: names[item.ID], Error: message, Unavailable: unavailable[item.ID],
+			})
+			log.Warn("route list source unavailable during apply", "list", item.ID, "error", message, "unavailable", unavailable[item.ID])
+		}
+		// Do not silently fold an unavailable remote source into an empty
+		// match set; the entire referencing rule is skipped during compilation.
+		item.Source.Remote = &contractroute.RemoteSource{URLs: valid}
+	}
 	encoded, err := json.Marshal(struct {
 		Data      []matchingData
 		Disk      bool
@@ -139,9 +201,9 @@ func (s *Lists) prepareRuleData(ctx context.Context, rules []contractroute.Route
 	}
 	fingerprint := sha256.Sum256(encoded)
 	if fingerprint == s.indexFingerprint {
-		return &preparedLists{names: names}, nil
+		return &preparedLists{names: names, listIssues: issues, unavailable: unavailable}, nil
 	}
-	prepared := &preparedLists{names: names, host: newHostTrie(configuration.DataDir.Load(), disk), process: newProcessTrie(), fingerprint: fingerprint, disk: disk}
+	prepared := &preparedLists{names: names, listIssues: issues, unavailable: unavailable, host: newHostTrie(configuration.DataDir.Load(), disk), process: newProcessTrie(), fingerprint: fingerprint, disk: disk}
 	success := false
 	defer func() {
 		if !success {
@@ -149,17 +211,8 @@ func (s *Lists) prepareRuleData(ctx context.Context, rules []contractroute.Route
 		}
 	}()
 	for _, item := range data {
-		if item.Source.Type == "remote" && item.Source.Remote != nil {
-			for _, url := range item.Source.Remote.URLs {
-				if err := s.downloader.DownloadIfNotExists(ctx, url, nil); err != nil {
-					return nil, fmt.Errorf("download list %q: %w", item.ID, err)
-				}
-				reader, err := s.downloader.GetReader(url)
-				if err != nil {
-					return nil, fmt.Errorf("download list %q before applying: %w", item.ID, err)
-				}
-				_ = reader.Close()
-			}
+		if unavailable[item.ID] {
+			continue
 		}
 		values, err := s.values(contractroute.RouteListDetail{ID: item.ID, Type: item.Type, Source: item.Source})
 		if err != nil {
