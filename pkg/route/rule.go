@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -203,6 +204,12 @@ func (r *Rules) ActivationStatus(ctx context.Context) (contractroute.RuleActivat
 		config = r.route.config.Load()
 	}
 	status := contractroute.RuleActivationStatus{ApplyAt: r.applyAt.Load(), Applying: r.applying.Load()}
+	if r.route != nil && r.route.ms != nil {
+		r.route.ms.mu.RLock()
+		status.ListIssues = slices.Clone(r.route.ms.listIssues)
+		status.SkippedRules = slices.Clone(r.route.ms.skippedRules)
+		r.route.ms.mu.RUnlock()
+	}
 	if config != nil {
 		status.AppliedRevision = config.Generation
 		mode := config.DefaultMode
