@@ -54,11 +54,11 @@ func (m ConnectionMonitor) List(ctx context.Context) (contractconnection.Connect
 	return m.connections.Conns(ctx)
 }
 
-func (m ConnectionMonitor) MatchTrace(_ context.Context, id uint64) (contractconnection.MatchTraceResponse, error) {
+func (m ConnectionMonitor) MatchTrace(_ context.Context, id uint64, ruleIndex int) (contractconnection.MatchTraceResponse, error) {
 	if m.connections == nil {
 		return contractconnection.MatchTraceResponse{}, errors.New("connections controller is unavailable")
 	}
-	if trace, ok := m.connections.MatchTraceForConnection(id); ok {
+	if trace, ok := m.connections.MatchTraceForConnection(id, ruleIndex); ok {
 		return trace, nil
 	}
 	return contractconnection.MatchTraceResponse{}, errors.New("connection trace unavailable")
