@@ -153,6 +153,11 @@ type StreamMeta struct {
 	DnsRequest bool
 }
 
+// ErrUndeliverableDatagram marks a packet-local writeback failure. The reply
+// transport is still usable and must not be closed merely because one datagram
+// has invalid addresses, exceeds MTU, or cannot enter a bounded output queue.
+var ErrUndeliverableDatagram = errors.New("undeliverable UDP datagram")
+
 type WriteBack interface {
 	WriteBack(b []byte, addr net.Addr) (int, error)
 }
