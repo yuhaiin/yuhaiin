@@ -31,7 +31,14 @@ func (m unavailableListMatcher) Match(ctx context.Context, _ netapi.Address) boo
 type incompleteListMatcher string
 
 func (m incompleteListMatcher) Match(ctx context.Context, addr netapi.Address) bool {
-	return List(m).Match(ctx, addr)
+	store := netapi.GetContext(ctx)
+	id := string(m)
+	if store.ConnOptions().HasList(id) {
+		store.AddConditionHistory("list", id, store.ConnOptions().ListName(id), true)
+		return true
+	}
+	store.AddConditionHistory("list-incomplete", id, store.ConnOptions().ListName(id), false)
+	return false
 }
 
 type threeValuedMatcher struct{ matcher Matcher }
