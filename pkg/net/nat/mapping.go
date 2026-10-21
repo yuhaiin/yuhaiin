@@ -78,7 +78,6 @@ func (u *SourceControl) writeOwned(ctx context.Context, pkt *netapi.Packet, conn
 	}
 	key := pkt.Dst().Comparable()
 	if real, ok := u.mapper.targets[key]; ok {
-		u.retainDestinationLease(key)
 		return false, u.writeRoutedPacket(pkt, pkt.GetPayload(), real, conn)
 	}
 	if pending := u.resolutions[key]; pending != nil {
