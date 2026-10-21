@@ -318,7 +318,7 @@ func contractMatchHistory(entry []contractconnection.MatchHistoryEntry) []contra
 			RuleID:   e.RuleID,
 			RuleName: e.RuleName,
 			History:  history,
-			Trace:    contractMatchTrace(e.Trace),
+			Trace:    contractMatchTrace(contractconnection.ReconstructMatchTrace(e.TraceTemplate, e.History)),
 		})
 	}
 	return out
