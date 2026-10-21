@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -21,6 +22,7 @@ type pool interface {
 	Prefix() netip.Prefix
 	GetDomainFromIP(ip netip.Addr) (string, bool)
 	GetFakeIPForDomain(s string) netip.Addr
+	LeaseDomainFromIP(ip netip.Addr) (string, func(), bool)
 }
 
 type closePool interface {
@@ -81,29 +83,29 @@ func (f *FakeDNS) Contains(addr netip.Addr) bool {
 
 func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
 	if !system.IsDomainName(domain) {
-		return nil, &net.DNSError{
-			Name:       domain,
-			Err:        "no such host",
-			IsNotFound: true,
-		}
+		return nil, &net.DNSError{Name: domain, Err: "no such host", IsNotFound: true}
 	}
 
 	opt := &netapi.LookupIPOption{}
 	for _, optf := range opts {
 		optf(opt)
 	}
-
-	switch opt.Mode {
-	case netapi.ResolverModePreferIPv4:
-		return &netapi.IPs{A: []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice()}}, nil
-	case netapi.ResolverModePreferIPv6:
-		return &netapi.IPs{AAAA: []net.IP{f.ipv6.GetFakeIPForDomain(domain).AsSlice()}}, nil
+	result := &netapi.IPs{}
+	if opt.Mode != netapi.ResolverModePreferIPv6 {
+		ip := f.ipv4.GetFakeIPForDomain(domain)
+		if !ip.Is4() {
+			return nil, fmt.Errorf("fakeip: cannot allocate IPv4 for %q", domain)
+		}
+		result.A = []net.IP{ip.AsSlice()}
 	}
-
-	return &netapi.IPs{
-		A:    []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice()},
-		AAAA: []net.IP{f.ipv6.GetFakeIPForDomain(domain).AsSlice()},
-	}, nil
+	if opt.Mode != netapi.ResolverModePreferIPv4 {
+		ip := f.ipv6.GetFakeIPForDomain(domain)
+		if !ip.Is6() {
+			return nil, fmt.Errorf("fakeip: cannot allocate IPv6 for %q", domain)
+		}
+		result.AAAA = []net.IP{ip.AsSlice()}
+	}
+	return result, nil
 }
 
 func (f *FakeDNS) newAnswerMessage(req netapi.DNSQuestion, code int, resource ...func(dns.Header) dns.RR) *dns.Msg {
@@ -169,15 +171,33 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 
 	case dns.TypeHTTPS:
 		msg, err := f.Resolver.Raw(ctx, req)
-		if err != nil {
+		if err != nil || msg == nil || msg.Rcode != dns.RcodeSuccess {
 			return msg, err
 		}
-
-		ipv6 := f.ipv6.GetFakeIPForDomain(domain)
+		// AliasMode has no SvcParams. Do not synthesize hints unless there
+		// is a ServiceMode record to rewrite.
+		hasService := false
+		for _, rr := range msg.Answer {
+			if h, ok := rr.(*dns.HTTPS); ok && h.Priority != 0 {
+				hasService = true
+				break
+			}
+		}
+		if !hasService {
+			return msg, nil
+		}
 		ipv4 := f.ipv4.GetFakeIPForDomain(domain)
-
-		appendIPHint(msg, []netip.Addr{ipv4}, []netip.Addr{ipv6})
-
+		if !ipv4.Is4() {
+			return f.newAnswerMessage(req, dns.RcodeServerFailure), nil
+		}
+		var ipv6 netip.Addr
+		if configuration.IPv6.Load() {
+			ipv6 = f.ipv6.GetFakeIPForDomain(domain)
+			if !ipv6.Is6() {
+				return f.newAnswerMessage(req, dns.RcodeServerFailure), nil
+			}
+		}
+		rewriteHTTPSHints(msg, ipv4, ipv6)
 		return msg, nil
 
 	case dns.TypeAAAA:
@@ -197,6 +217,9 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 		}
 
 		ip := f.ipv6.GetFakeIPForDomain(domain)
+		if !ip.Is6() {
+			return f.newAnswerMessage(req, dns.RcodeServerFailure), nil
+		}
 
 		return f.newAnswerMessage(req, dns.RcodeSuccess, func(header dns.Header) dns.RR {
 			return &dns.AAAA{
@@ -218,6 +241,9 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 		}
 
 		ip := f.ipv4.GetFakeIPForDomain(domain)
+		if !ip.Is4() {
+			return f.newAnswerMessage(req, dns.RcodeServerFailure), nil
+		}
 
 		return f.newAnswerMessage(req, dns.RcodeSuccess, func(header dns.Header) dns.RR {
 			return &dns.A{
@@ -237,6 +263,15 @@ func (f *FakeDNS) existAnswer(msg *dns.Msg, t uint16) bool {
 		}
 	}
 	return false
+}
+
+// LeaseDomainFromIP prevents pool eviction while a recovered destination is in use.
+func (f *FakeDNS) LeaseDomainFromIP(ip netip.Addr) (string, func(), bool) {
+	ip = ip.Unmap()
+	if ip.Is6() {
+		return f.ipv6.LeaseDomainFromIP(ip)
+	}
+	return f.ipv4.LeaseDomainFromIP(ip)
 }
 
 func (f *FakeDNS) GetDomainFromIP(ip netip.Addr) (string, bool) {
@@ -333,39 +368,71 @@ func (f *FakeDNS) LookupPtr(ip net.IP) (string, error) {
 	return r, fmt.Errorf("ptr not found")
 }
 
-func appendIPHint(msg *dns.Msg, ipv4, ipv6 []netip.Addr) {
-	if len(ipv4) == 0 && len(ipv6) == 0 {
+// rewriteHTTPSHints changes only ServiceMode records. Never insert parameters
+// into AliasMode (SvcPriority 0), never duplicate hint keys, and never mutate a
+// response shared with the upstream DNS cache. Preserve unrelated SvcParams
+// such as ALPN, ECH, port and mandatory. A changed RRset cannot retain its
+// upstream DNSSEC signatures or an authenticated-data assertion.
+func rewriteHTTPSHints(msg *dns.Msg, ipv4, ipv6 netip.Addr) {
+	answer := make([]dns.RR, 0, len(msg.Answer))
+	changed := false
+	for _, rr := range msg.Answer {
+		https, ok := rr.(*dns.HTTPS)
+		if !ok || https.Priority == 0 {
+			answer = append(answer, rr)
+			continue
+		}
+		copyRR := *https
+		copyRR.Value = make([]svcb.Pair, 0, len(https.Value)+2)
+		for _, value := range https.Value {
+			key := svcb.PairToKey(value)
+			if key != svcb.KeyIPv4Hint && key != svcb.KeyIPv6Hint {
+				copyRR.Value = append(copyRR.Value, value)
+			}
+		}
+		if ipv4.Is4() {
+			copyRR.Value = append(copyRR.Value, &svcb.IPV4HINT{Hint: []netip.Addr{ipv4}})
+		}
+		if ipv6.Is6() {
+			copyRR.Value = append(copyRR.Value, &svcb.IPV6HINT{Hint: []netip.Addr{ipv6}})
+		}
+		sort.Slice(copyRR.Value, func(i, j int) bool {
+			return svcb.PairToKey(copyRR.Value[i]) < svcb.PairToKey(copyRR.Value[j])
+		})
+		answer = append(answer, &copyRR)
+		changed = true
+	}
+	if !changed {
 		return
 	}
+	msg.AuthenticatedData = false
+	msg.Answer = discardHTTPSSignatures(answer)
+	msg.Ns = discardHTTPSSignatures(msg.Ns)
+	msg.Extra = discardHTTPSSignatures(msg.Extra)
+}
 
-	for i, v := range msg.Answer {
-		if dns.RRToType(v) != dns.TypeHTTPS {
+func discardHTTPSSignatures(rrs []dns.RR) []dns.RR {
+	var filtered []dns.RR
+	for _, rr := range rrs {
+		if sig, ok := rr.(*dns.RRSIG); ok && sig.TypeCovered == dns.TypeHTTPS {
+			if filtered == nil {
+				filtered = make([]dns.RR, 0, len(rrs))
+				// Keep entries preceding the first removed signature.
+				for _, prev := range rrs {
+					if prev == rr {
+						break
+					}
+					filtered = append(filtered, prev)
+				}
+			}
 			continue
 		}
-
-		https, ok := v.(*dns.HTTPS)
-		if !ok {
-			continue
+		if filtered != nil {
+			filtered = append(filtered, rr)
 		}
-
-		// dns.Msg.Copy is shallow, so detach the answer and HTTPS parameter
-		// slices before adding hints to avoid mutating the resolver's cache.
-		httpsCopy := *https
-		httpsCopy.Value = slices.Clone(https.Value)
-		if len(ipv4) > 0 {
-			httpsCopy.Value = append(httpsCopy.Value, &svcb.IPV4HINT{
-				Hint: ipv4,
-			})
-		}
-
-		if len(ipv6) > 0 {
-			httpsCopy.Value = append(httpsCopy.Value, &svcb.IPV6HINT{
-				Hint: ipv6,
-			})
-		}
-		msg.Answer = slices.Clone(msg.Answer)
-		msg.Answer[i] = &httpsCopy
-
-		break
 	}
+	if filtered != nil {
+		return filtered
+	}
+	return rrs
 }
