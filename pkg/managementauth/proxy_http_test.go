@@ -65,4 +65,26 @@ func TestProxyCredentialRoutesRespectOwnersAndCredentialDomains(t *testing.T) {
 	if w := request("GET", "/api/v2/auth/me", "", issued.Secret); w.Code != 401 {
 		t.Fatal("proxy secret authenticated to management")
 	}
+	other, err := runtime.Proxy.Issue(t.Context(), principal(bob), ProxyCredentialRequest{Name: "other"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := request("DELETE", "/api/v2/auth/proxy-credentials/"+other.ID, "", token.Secret); w.Code != 404 {
+		t.Fatalf("delete another owner's credential: %d %s", w.Code, w.Body)
+	}
+	path := "/api/v2/auth/proxy-credentials/" + issued.ID
+	if w := request("POST", path+"/revoke", "", token.Secret); w.Code != 200 {
+		t.Fatalf("revoke: %d %s", w.Code, w.Body)
+	}
+	listed = request("GET", "/api/v2/auth/proxy-credentials", "", token.Secret)
+	if listed.Code != 200 || !strings.Contains(listed.Body.String(), `"revoked":true`) {
+		t.Fatalf("revoked row not retained: %d %s", listed.Code, listed.Body)
+	}
+	if w := request("DELETE", path, "", token.Secret); w.Code != 200 {
+		t.Fatalf("delete: %d %s", w.Code, w.Body)
+	}
+	listed = request("GET", "/api/v2/auth/proxy-credentials", "", token.Secret)
+	if listed.Code != 200 || strings.TrimSpace(listed.Body.String()) != "[]" {
+		t.Fatalf("deleted row retained: %d %s", listed.Code, listed.Body)
+	}
 }

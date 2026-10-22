@@ -28,6 +28,10 @@ func (s *Server) registerProxyCredentials(register func(string, Permission, http
 		})
 		register("DELETE /api/v2/auth/proxy-credentials/{id}", ProxyCredentialsOwn, func(w http.ResponseWriter, r *http.Request) {
 			p, _ := FromContext(r.Context())
+			respond(w, struct{}{}, s.Proxy.Delete(r.Context(), p, r.PathValue("id")))
+		})
+		register("POST /api/v2/auth/proxy-credentials/{id}/revoke", ProxyCredentialsOwn, func(w http.ResponseWriter, r *http.Request) {
+			p, _ := FromContext(r.Context())
 			respond(w, struct{}{}, s.Proxy.Revoke(r.Context(), p, r.PathValue("id")))
 		})
 		register("POST /api/v2/auth/proxy-credentials/{id}/rotate", ProxyCredentialsOwn, func(w http.ResponseWriter, r *http.Request) {

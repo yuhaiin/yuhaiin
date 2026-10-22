@@ -326,6 +326,32 @@ func (p *ProxyCredentials) Revoke(ctx context.Context, actor Principal, id strin
 	return p.Reload()
 }
 
+// Delete removes the credential record and cancels any sessions using it.
+func (p *ProxyCredentials) Delete(ctx context.Context, actor Principal, id string) error {
+	if !actor.Allows(ProxyCredentialsManage) && !actor.Allows(ProxyCredentialsOwn) {
+		return ErrForbidden
+	}
+	tx, err := p.store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	result, err := tx.ExecContext(ctx, `DELETE FROM proxy_credentials WHERE id=? AND (user_id=? OR ?=1)`, id, actor.UserID, actor.Allows(ProxyCredentialsManage))
+	if err != nil {
+		return err
+	}
+	if n, _ := result.RowsAffected(); n != 1 {
+		return sql.ErrNoRows
+	}
+	if err = recordEvent(ctx, tx, "proxy-credential.deleted", actor.UserID, id); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	return p.Reload()
+}
+
 func (p *ProxyCredentials) Rotate(ctx context.Context, actor Principal, id string) (IssuedProxyCredential, error) {
 	if !actor.Allows(ProxyCredentialsManage) && !actor.Allows(ProxyCredentialsOwn) {
 		return IssuedProxyCredential{}, ErrForbidden

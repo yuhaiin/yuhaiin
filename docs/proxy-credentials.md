@@ -24,6 +24,12 @@ revocation and account disablement/reset invalidate active sessions. Re-enabling
 a user cannot resurrect old credentials. Local recovery commands in another
 process propagate within one second; management mutations reload synchronously.
 An expired credential cancels its sessions at its deadline without polling.
+An expiry of `0` means permanent validity; the UI selects this explicitly by
+default. Revocation retains the inactive record for inspection. Deletion removes
+the record and immediately cancels its sessions, including for active credentials.
+New issuance automatically prunes revoked, expired and reset-invalidated records
+for that owner, so retained credentials do not accumulate beyond the 64-row cap.
+Security events remain in their separately bounded audit history.
 
 HTTP and SOCKS5 clients use the user's login name and generated secret. Hysteria2
 uses the secret as `auth`; Yuubinsya uses it as `password`, including with existing
@@ -44,6 +50,7 @@ Management routes, under the same HTTPS, Origin and permission checks:
 - `POST /api/v2/auth/proxy-credentials` with
   `{"owner":"USER_ID","name":"phone","inbounds":[],"protocols":[],"expiresAt":0}`
 - `DELETE /api/v2/auth/proxy-credentials/{id}`
+- `POST /api/v2/auth/proxy-credentials/{id}/revoke`
 - `POST /api/v2/auth/proxy-credentials/{id}/rotate`
 
 Ordinary lists never contain secret or verifier material.

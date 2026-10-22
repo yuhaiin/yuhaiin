@@ -2,11 +2,77 @@ package managementauth
 
 import (
 	"crypto/sha256"
+	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 )
+
+func TestDeleteProxyCredentialRemovesRecordAndCancelsSessions(t *testing.T) {
+	for _, state := range []string{"active", "revoked", "expired"} {
+		t.Run(state, func(t *testing.T) {
+			s := testStore(t)
+			admin := testUser(t, s, "admin", Admin)
+			user := testUser(t, s, "alice", NoManagement)
+			other := testUser(t, s, "bob", NoManagement)
+			p, err := NewProxyCredentials(t.Context(), s)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer p.Close()
+			c, err := p.Issue(t.Context(), principal(user), ProxyCredentialRequest{Name: "phone"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			verify := p.Verifier("entry", "http", []string{user.ID})
+			identity, err := verify(t.Context(), user.Login, []byte(c.Secret))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := p.Delete(t.Context(), Principal{}, c.ID); !errors.Is(err, ErrForbidden) {
+				t.Fatalf("delete without permissions: %v", err)
+			}
+			if err := p.Delete(t.Context(), principal(other), c.ID); !errors.Is(err, sql.ErrNoRows) {
+				t.Fatalf("delete another owner's credential: %v", err)
+			}
+			if !identity.Valid() {
+				t.Fatal("unauthorized deletion invalidated credential")
+			}
+			switch state {
+			case "revoked":
+				if err := p.Revoke(t.Context(), principal(user), c.ID); err != nil {
+					t.Fatal(err)
+				}
+			case "expired":
+				if _, err := s.db.ExecContext(t.Context(), `UPDATE proxy_credentials SET expires_at=? WHERE id=?`, time.Now().Add(-time.Minute).Unix(), c.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			actor := principal(user)
+			if state == "expired" {
+				actor = principal(admin)
+			}
+			if err := p.Delete(t.Context(), actor, c.ID); err != nil {
+				t.Fatal(err)
+			}
+			if identity.Valid() {
+				t.Fatal("deleted credential retained its sessions")
+			}
+			if _, err := verify(t.Context(), user.Login, []byte(c.Secret)); err == nil {
+				t.Fatal("deleted credential authenticated")
+			}
+			list, err := p.List(t.Context(), user.ID)
+			if err != nil || len(list) != 0 {
+				t.Fatalf("deleted row retained: %+v, %v", list, err)
+			}
+			if err := p.Delete(t.Context(), actor, c.ID); !errors.Is(err, sql.ErrNoRows) {
+				t.Fatalf("delete missing credential: %v", err)
+			}
+		})
+	}
+}
 
 func TestMultipleProxyCredentialsScopesRotationAndDisable(t *testing.T) {
 	s := testStore(t)
