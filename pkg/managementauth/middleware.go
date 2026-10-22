@@ -48,7 +48,7 @@ func Middleware(ctx context.Context, mux *http.ServeMux, options httpapi.Middlew
 	}
 	permissions := make(map[string]Permission)
 	for pattern, permission := range httpapi.ManagementPermissions() {
-		permissions[pattern] = Permission(permission)
+		permissions[pattern] = permission
 	}
 	maps.Copy(permissions, map[string]Permission{
 		"GET /metrics":                          MetricsRead,

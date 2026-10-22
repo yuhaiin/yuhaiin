@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	managementpermission "github.com/Asutorufa/yuhaiin/pkg/managementauth/permission"
 )
 
 func TestManagementGateAuthenticationScopeAndUnknownRoutes(t *testing.T) {
@@ -227,4 +229,38 @@ func TestUserTokenAPIsAndSecretResponse(t *testing.T) {
 	if _, err := s.Authenticate(context.Background(), issued.Secret, "token"); err == nil {
 		t.Fatal("API-revoked token accepted")
 	}
+}
+
+func TestReadOnlyUserCanFetchPermissionCatalog(t *testing.T) {
+	s := testStore(t)
+	reader := testUser(t, s, "reader", ReadOnly)
+	token, err := s.IssueToken(t.Context(), principal(reader), reader.ID, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	server := &Server{Store: s}
+	server.Register(mux)
+	gate := server.Wrap(mux)
+	r := httptest.NewRequest(http.MethodGet, "/api/v2/auth/permissions", nil)
+	r.RemoteAddr = "127.0.0.1:1000"
+	r.Header.Set("Authorization", "Bearer "+token.Secret)
+	w := httptest.NewRecorder()
+	gate.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	var catalog []managementpermission.Definition
+	if err := json.Unmarshal(w.Body.Bytes(), &catalog); err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog) != len(managementpermission.Catalog()) {
+		t.Fatalf("got %d permissions, want %d", len(catalog), len(managementpermission.Catalog()))
+	}
+	for _, definition := range catalog {
+		if definition.ID == UpdateManage && definition.Category == "update" && definition.Description != "" {
+			return
+		}
+	}
+	t.Fatal("catalog does not describe update:manage")
 }

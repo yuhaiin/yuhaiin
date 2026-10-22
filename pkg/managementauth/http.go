@@ -9,6 +9,8 @@ import (
 	"net/netip"
 	"strings"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/managementauth/permission"
 )
 
 // Server wraps the application's actual ServeMux, including metrics, profiling,
@@ -176,6 +178,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	register("GET /api/v2/auth/me", IdentityRead, func(w http.ResponseWriter, r *http.Request) {
 		p, _ := FromContext(r.Context())
 		respond(w, p, nil)
+	})
+	register("GET /api/v2/auth/permissions", IdentityRead, func(w http.ResponseWriter, _ *http.Request) {
+		respond(w, permission.Catalog(), nil)
 	})
 	register("GET /api/v2/auth/users", UsersManage, func(w http.ResponseWriter, r *http.Request) {
 		users, err := s.Store.Users(r.Context())

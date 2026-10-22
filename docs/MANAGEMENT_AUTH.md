@@ -207,9 +207,12 @@ reads but no mutation, network-active diagnostics, logs, memory profiling, backu
 update installation or user administration. Configuration reads can include
 upstream credentials, so read-only users are trusted operators. Sensitive scopes
 such as `users:manage` permit credential administration and must be treated as
-administrator capabilities. Available scopes are defined in
-`pkg/managementauth/permissions.go`; `/api/v2/auth/me` returns effective permissions.
-No wildcard scope is accepted. Each actual HTTP method/registered RPC action has
+administrator capabilities. The complete permission catalog is available at
+`GET /api/v2/auth/permissions` to authenticated users with `identity:read`; each
+entry includes its stable string ID, category, and description. The typed
+identifiers are defined in `pkg/managementauth/permission`.
+`/api/v2/auth/me` returns the current principal's effective permissions. No
+wildcard scope is accepted. Each actual HTTP method/registered RPC action has
 an explicit permission; unclassified handlers deny even administrators.
 
 ## Management API
@@ -217,6 +220,7 @@ an explicit permission; unclassified handlers deny even administrators.
 | Method/path | Purpose/required scope |
 | --- | --- |
 | GET `/api/v2/auth/me` | Principal and effective permissions; `identity:read` |
+| GET `/api/v2/auth/permissions` | Permission catalog; `identity:read` |
 | GET `/api/v2/auth/setup` | Public initialization state and expiry, never the code |
 | POST `/api/v2/auth/setup/parameters` | Client KDF parameters; `Authorization: Setup <code>` |
 | POST `/api/v2/auth/setup` | Atomic administrator creation; same Setup header, `{login,clientCredential}` |

@@ -5,34 +5,36 @@ package managementauth
 import (
 	"context"
 	"slices"
+
+	"github.com/Asutorufa/yuhaiin/pkg/managementauth/permission"
 )
 
-type Permission string
+type Permission = permission.Permission
 
 const (
-	NodesRead        Permission = "nodes:read"
-	NodesWrite       Permission = "nodes:write"
-	InboundsRead     Permission = "inbounds:read"
-	InboundsWrite    Permission = "inbounds:write"
-	RoutesRead       Permission = "routes:read"
-	RoutesWrite      Permission = "routes:write"
-	ResolverRead     Permission = "resolver:read"
-	ResolverWrite    Permission = "resolver:write"
-	ConnectionsRead  Permission = "connections:read"
-	ConnectionsWrite Permission = "connections:write"
-	GatewayRead      Permission = "gateway:read"
-	GatewayWrite     Permission = "gateway:write"
-	SettingsRead     Permission = "settings:read"
-	SettingsWrite    Permission = "settings:write"
-	Diagnostics      Permission = "diagnostics:run"
-	BackupManage     Permission = "backup:manage"
-	UpdateManage     Permission = "update:manage"
-	UsersManage      Permission = "users:manage"
-	TokensManage     Permission = "tokens:manage"
-	SecurityRead     Permission = "security:read"
-	MetricsRead      Permission = "metrics:read"
-	IdentityRead     Permission = "identity:read"
-	TokensOwn        Permission = "tokens:own"
+	NodesRead        = permission.NodesRead
+	NodesWrite       = permission.NodesWrite
+	InboundsRead     = permission.InboundsRead
+	InboundsWrite    = permission.InboundsWrite
+	RoutesRead       = permission.RoutesRead
+	RoutesWrite      = permission.RoutesWrite
+	ResolverRead     = permission.ResolverRead
+	ResolverWrite    = permission.ResolverWrite
+	ConnectionsRead  = permission.ConnectionsRead
+	ConnectionsWrite = permission.ConnectionsWrite
+	GatewayRead      = permission.GatewayRead
+	GatewayWrite     = permission.GatewayWrite
+	SettingsRead     = permission.SettingsRead
+	SettingsWrite    = permission.SettingsWrite
+	Diagnostics      = permission.Diagnostics
+	BackupManage     = permission.BackupManage
+	UpdateManage     = permission.UpdateManage
+	UsersManage      = permission.UsersManage
+	TokensManage     = permission.TokensManage
+	SecurityRead     = permission.SecurityRead
+	MetricsRead      = permission.MetricsRead
+	IdentityRead     = permission.IdentityRead
+	TokensOwn        = permission.TokensOwn
 )
 
 const (
@@ -40,12 +42,7 @@ const (
 	ReadOnly = "read-only"
 )
 
-var allPermissions = []Permission{
-	NodesRead, NodesWrite, InboundsRead, InboundsWrite, RoutesRead, RoutesWrite,
-	ResolverRead, ResolverWrite, ConnectionsRead, ConnectionsWrite, GatewayRead,
-	GatewayWrite, SettingsRead, SettingsWrite, Diagnostics, BackupManage,
-	UpdateManage, UsersManage, TokensManage, SecurityRead, MetricsRead, IdentityRead, TokensOwn,
-}
+var allPermissions = permission.Values()
 
 // RolePermissions returns a copy; callers cannot mutate the role registry.
 // Configuration reads can contain upstream secrets. Read-only users therefore
