@@ -19,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 )
 
 type echoHandler struct {
@@ -57,7 +58,7 @@ func newTestServerWithConfig(t *testing.T, host, password string, config inbound
 	return addr, ca, server, handler
 }
 
-func newTestServerWithHandler(t *testing.T, host, password string, config inbound.Hysteria2Protocol, handler netapi.Handler) (string, []byte, *Server) {
+func newTestServerWithHandler(t *testing.T, host, password string, config inbound.Hysteria2Protocol, handler netapi.Handler, verifiers ...proxyauth.Verifier) (string, []byte, *Server) {
 	t.Helper()
 	ca, err := cert.GenerateCa()
 	if err != nil {
@@ -77,7 +78,7 @@ func newTestServerWithHandler(t *testing.T, host, password string, config inboun
 		t.Fatal(err)
 	}
 	config.Auth, config.SalamanderPassword = "secret", password
-	server, err := NewServer(config, tlsConfig, lis, handler)
+	server, err := NewServer(config, tlsConfig, lis, handler, verifiers...)
 	if err != nil {
 		_ = lis.Close()
 		t.Fatal(err)

@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
@@ -120,20 +121,49 @@ func (s *AuthPacketConn) read(p []byte) (int, packetAddr, error) {
 }
 
 type UDPServer struct {
-	PacketConn net.PacketConn
-	Handler    func(*netapi.Packet)
-	Password   []byte
-	Prefix     bool
+	Authenticate proxyauth.Verifier
+	MigrateID    uint64
+	PacketConn   net.PacketConn
+	Handler      func(*netapi.Packet)
+	Password     []byte
+	Prefix       bool
 }
 
 func (s *UDPServer) Serve() error {
 	p := NewAuthPacketConn(s.PacketConn).WithSocks5Prefix(s.Prefix).WithPassword(s.Password)
 
-	buf := pool.GetBytes(configuration.UDPBufferSize.Load() + MaxPacketHeaderSize(s.Password, s.Prefix))
+	buf := pool.GetBytes(configuration.UDPBufferSize.Load() + MaxPacketHeaderSize(make([]byte, 32), s.Prefix))
 	defer pool.PutBytes(buf)
 
 	for {
-		n, addr, err := p.read(buf)
+		var identity *proxyauth.Identity
+		reply := p
+		var n int
+		var addr packetAddr
+		var err error
+		if s.Authenticate == nil {
+			n, addr, err = p.read(buf)
+		} else {
+			var raw net.Addr
+			n, raw, err = s.PacketConn.ReadFrom(buf)
+			if err == nil {
+				if n < 32 {
+					continue
+				}
+				proof := append([]byte(nil), buf[:32]...)
+				if len(s.Password) == 0 || subtle.ConstantTimeCompare(proof, s.Password) != 1 {
+					identity, err = s.Authenticate(context.Background(), "", proof)
+					if err != nil {
+						continue
+					}
+				}
+				var payload []byte
+				payload, addr.ProxyAddr, err = DecodePacket(buf[:n], proof, s.Prefix)
+				addr.RawAddr = raw
+				n = copy(buf, payload)
+				reply = NewAuthPacketConn(s.PacketConn).WithPassword(proof).WithSocks5Prefix(s.Prefix)
+			}
+		}
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) ||
 				errors.Is(err, io.ErrClosedPipe) ||
@@ -152,10 +182,15 @@ func (s *UDPServer) Serve() error {
 			continue
 		}
 
-		s.Handler(netapi.NewPacket(addr.RawAddr, proxyAddr, pool.Clone(buf[:n]),
+		packet := netapi.NewPacket(addr.RawAddr, proxyAddr, pool.Clone(buf[:n]),
 			netapi.WriteBackFunc(func(b []byte, source net.Addr) (int, error) {
-				return p.write(b, packetAddr{source, addr.RawAddr})
-			})))
+				if !identity.Valid() {
+					return 0, proxyauth.ErrUnauthorized
+				}
+				return reply.write(b, packetAddr{source, addr.RawAddr})
+			}), netapi.WithMigrateID(s.MigrateID))
+		packet.Identity = identity
+		s.Handler(packet)
 	}
 }
 

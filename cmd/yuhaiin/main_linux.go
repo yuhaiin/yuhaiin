@@ -48,7 +48,7 @@ Description=yuhaiin transparent proxy
 After=network.target
 
 [Service]
-ExecStart=%s -host %s -path %s%s
+ExecStart=%s
 Restart=on-failure
 RestartSec=5
 
@@ -78,6 +78,10 @@ func execSystemdCommand(args ...string) ([]byte, error) {
 func install(args []string) error {
 	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
 	host := flag.String("host", "0.0.0.0:50051", "HTTP listen host")
+	https := flag.Bool("https", true, "serve HTTP and HTTPS on the same port")
+	httpsCert := flag.String("https-cert", "", "TLS certificate PEM file")
+	httpsKey := flag.String("https-key", "", "TLS private key PEM file")
+	httpsNames := flag.String("https-names", "", "comma-separated hostnames/IPs for the generated TLS certificate")
 	path := flag.String("path", "/var/lib/yuhaiin", "save data path")
 	nfsMode := flag.Bool("nfs-mode", false, "use SQLite settings for NFS/network filesystems")
 	if err := flag.Parse(args); err != nil {
@@ -116,11 +120,23 @@ func install(args []string) error {
 	}
 
 	// Write systemd service file
-	nfsArg := ""
-	if *nfsMode {
-		nfsArg = " -nfs-mode"
+	serviceArgs := []string{targetBin, "-host", *host, "-path", *path}
+	if !*https {
+		serviceArgs = append(serviceArgs, "-https=false")
 	}
-	serviceContent := fmt.Sprintf(systemdServiceTemplate, targetBin, *host, *path, nfsArg)
+	if *httpsCert != "" {
+		serviceArgs = append(serviceArgs, "-https-cert", *httpsCert)
+	}
+	if *httpsKey != "" {
+		serviceArgs = append(serviceArgs, "-https-key", *httpsKey)
+	}
+	if *httpsNames != "" {
+		serviceArgs = append(serviceArgs, "-https-names", *httpsNames)
+	}
+	if *nfsMode {
+		serviceArgs = append(serviceArgs, "-nfs-mode")
+	}
+	serviceContent := fmt.Sprintf(systemdServiceTemplate, systemdCommandLine(serviceArgs))
 	if err := os.WriteFile(systemdServicePath, []byte(serviceContent), 0644); err != nil {
 		return fmt.Errorf("failed to write systemd service file: %w", err)
 	}
@@ -148,6 +164,15 @@ func install(args []string) error {
 	}
 	log.Info("yuhaiin service installed and started successfully")
 	return nil
+}
+
+func systemdCommandLine(args []string) string {
+	quoted := make([]string, len(args))
+	for index, arg := range args {
+		arg = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "$", "$$", "%", "%%").Replace(arg)
+		quoted[index] = `"` + arg + `"`
+	}
+	return strings.Join(quoted, " ")
 }
 
 // uninstall removes the systemd service

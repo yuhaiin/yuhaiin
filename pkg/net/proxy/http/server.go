@@ -3,7 +3,6 @@ package http
 import (
 	"bufio"
 	"context"
-	"crypto/subtle"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
@@ -23,26 +23,30 @@ type Server struct {
 	lis          net.Listener
 	reverseProxy *httputil.ReverseProxy
 
+	authenticate       proxyauth.Verifier
 	handler            netapi.Handler
 	username, password []byte
 }
 
 type ServerConfig struct {
-	Username string `json:"username,omitzero"`
-	Password string `json:"password,omitzero"`
+	Authenticate proxyauth.Verifier `json:"-"`
+	Username     string             `json:"username,omitzero"`
+	Password     string             `json:"password,omitzero"`
 }
 
 func newServer(o ServerConfig, lis net.Listener, handler netapi.Handler) *Server {
 	h := &Server{
-		username: []byte(o.Username),
-		password: []byte(o.Password),
-		lis:      lis,
-		handler:  handler,
+		authenticate: o.Authenticate,
+		username:     []byte(o.Username),
+		password:     []byte(o.Password),
+		lis:          lis,
+		handler:      handler,
 	}
 
 	type remoteKey struct{}
 
 	tr := &http.Transport{
+		DisableKeepAlives:     o.Authenticate != nil,
 		MaxIdleConns:          100,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
@@ -73,7 +77,7 @@ func newServer(o ServerConfig, lis net.Listener, handler netapi.Handler) *Server
 				Address:     address,
 			}
 
-			go h.handler.HandleStream(sm)
+			go netapi.WithIdentityHandler(h.handler, netapi.TrafficIdentity(ctx)).HandleStream(sm)
 
 			return remote, nil
 		},
@@ -91,6 +95,7 @@ func newServer(o ServerConfig, lis net.Listener, handler netapi.Handler) *Server
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.Out = pr.Out.WithContext(context.WithValue(pr.Out.Context(), remoteKey{}, pr.In.RemoteAddr))
 			pr.Out.RequestURI = ""
+			pr.Out.Header.Del("Proxy-Authorization")
 		},
 	}
 
@@ -105,18 +110,24 @@ func ParseBasicAuth(auth string) (username, password string, ok bool) {
 func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	if len(h.password) > 0 || len(h.username) > 0 {
-		username, password, isHas := ParseBasicAuth(r.Header.Get("Proxy-Authorization"))
-		if !isHas {
+	if h.authenticate != nil || len(h.password) > 0 || len(h.username) > 0 {
+		username, password, present := ParseBasicAuth(r.Header.Get("Proxy-Authorization"))
+		if !present {
 			w.Header().Set("Proxy-Authenticate", "Basic")
 			w.WriteHeader(http.StatusProxyAuthRequired)
 			return
 		}
-
-		if (len(h.username) > 0 && subtle.ConstantTimeCompare([]byte(username), h.username) != 1) ||
-			(len(h.password) > 0 && subtle.ConstantTimeCompare([]byte(password), h.password) != 1) {
+		identity, err := proxyauth.Check(r.Context(), h.authenticate, username, []byte(password), string(h.username), string(h.password))
+		if err != nil {
 			w.WriteHeader(http.StatusForbidden)
 			return
+		}
+		if identity != nil {
+			ctx, cancel := context.WithCancel(netapi.WithTrafficIdentity(r.Context(), identity))
+			defer cancel()
+			stop := context.AfterFunc(identity.Context, cancel)
+			defer stop()
+			r = r.WithContext(ctx)
 		}
 	}
 
@@ -178,7 +189,7 @@ func (h *Server) connect(w http.ResponseWriter, req *http.Request) error {
 		Address:     dst,
 	}
 
-	h.handler.HandleStream(sm)
+	netapi.WithIdentityHandler(h.handler, netapi.TrafficIdentity(req.Context())).HandleStream(sm)
 	return nil
 }
 

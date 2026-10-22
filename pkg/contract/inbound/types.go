@@ -42,13 +42,20 @@ const (
 	TransportProxy     = "proxy"
 )
 
+// Authentication opts an inbound into user credentials while retaining its
+// independent legacy credentials. An empty Users list admits no user.
+type Authentication struct {
+	Users []string `json:"users"`
+}
+
 type Inbound struct {
-	ID         string      `json:"id"`
-	Name       string      `json:"name"`
-	Enabled    bool        `json:"enabled"`
-	Network    Network     `json:"network"`
-	Transports []Transport `json:"transports"`
-	Protocol   Protocol    `json:"protocol"`
+	Authentication *Authentication `json:"authentication,omitzero"`
+	ID             string          `json:"id"`
+	Name           string          `json:"name"`
+	Enabled        bool            `json:"enabled"`
+	Network        Network         `json:"network"`
+	Transports     []Transport     `json:"transports"`
+	Protocol       Protocol        `json:"protocol"`
 }
 
 type Capabilities struct {
@@ -674,6 +681,21 @@ func (t Transport) nonNilCount() int {
 }
 
 func (i Inbound) Validate() error {
+	if i.Authentication != nil {
+		switch i.Protocol.Type {
+		case ProtocolHTTP, ProtocolSocks5, ProtocolMixed, ProtocolYuubinsya, ProtocolHysteria2:
+		default:
+			return fmt.Errorf("user authentication is unsupported for protocol %q", i.Protocol.Type)
+		}
+		if len(i.Authentication.Users) > 1024 {
+			return fmt.Errorf("too many inbound users")
+		}
+		for _, id := range i.Authentication.Users {
+			if strings.TrimSpace(id) == "" {
+				return fmt.Errorf("inbound user id is empty")
+			}
+		}
+	}
 	if i.ID == "" {
 		return fmt.Errorf("inbound id is empty")
 	}

@@ -26,10 +26,12 @@ import (
 	"time"
 
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/credential"
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	routepkg "github.com/Asutorufa/yuhaiin/pkg/route"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -128,7 +130,7 @@ func (app *AppInstance) RegisterServer(ctx context.Context) error {
 	}
 	RegisterHTTP(app.Mux)
 	registerProfilerHTTP(app)
-	return nil
+	return app.protectManagement(ctx)
 }
 
 func registerV2HTTP(ctx context.Context, app *AppInstance) error {
@@ -180,7 +182,9 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	}
 
 	httpapi.RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
-		handleRPCFunc(app.Mux, app.Auth, app.Setting.(*SettingsController).origins, pattern, handler)
+		// The outer management gate covers all routes, including auxiliary
+		// registrations, and establishes a Principal before this handler runs.
+		handleRPCFunc(app.Mux, nil, nil, pattern, handler)
 	}, httpapi.V2Services{
 		Gateway:          app.Gateway,
 		Settings:         app.Setting,
@@ -251,6 +255,12 @@ type StartOptions struct {
 
 	Auth *Auth
 
+	// Optional management HTTP middleware. Without it, only local peers can
+	// access management routes; no identity database or auth routes are loaded.
+	HTTPMiddleware      httpapi.Middleware
+	ProxyAuthentication proxyauth.Provider
+	UpstreamCredentials credential.Resolver
+
 	ConfigPath string
 
 	Updater updatepkg.Installer
@@ -305,11 +315,6 @@ func handleFunc(mux *http.ServeMux, auth *Auth, policy *managementOriginPolicy, 
 		}
 
 		if auth != nil {
-			token := r.URL.Query().Get("token")
-			if token != "" {
-				r.Header.Set("Authorization", "Basic "+token)
-			}
-
 			username, password, ok := r.BasicAuth()
 			if !ok || !auth.Auth(password, username) {
 				// ow.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)

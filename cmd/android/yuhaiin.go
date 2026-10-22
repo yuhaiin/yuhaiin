@@ -167,6 +167,7 @@ func (a *App) Start(opt *Opts) error {
 	}
 
 	app, err := app.Start(&app.StartOptions{
+		// Native single-user mode deliberately omits the identity middleware.
 		Context:       ctx,
 		ConfigPath:    savepath,
 		StateStore:    setting,

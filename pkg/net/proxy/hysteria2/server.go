@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2/internal/obfs"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
@@ -31,8 +32,16 @@ type Server struct {
 	redirect  io.Closer
 }
 
-func NewServer(config contract.Hysteria2Protocol, tlsConfig *tls.Config, lis netapi.Listener, handler netapi.Handler) (*Server, error) {
-	if err := validateOptions(config.Auth, config.SalamanderPassword, config.UploadBPS, config.DownloadBPS); err != nil {
+func NewServer(config contract.Hysteria2Protocol, tlsConfig *tls.Config, lis netapi.Listener, handler netapi.Handler, verifiers ...proxyauth.Verifier) (*Server, error) {
+	var verify proxyauth.Verifier
+	if len(verifiers) > 0 {
+		verify = verifiers[0]
+	}
+	validationAuth := config.Auth
+	if verify != nil && validationAuth == "" {
+		validationAuth = "user-credentials"
+	}
+	if err := validateOptions(validationAuth, config.SalamanderPassword, config.UploadBPS, config.DownloadBPS); err != nil {
 		return nil, err
 	}
 	if tlsConfig == nil {
@@ -65,6 +74,7 @@ func NewServer(config contract.Hysteria2Protocol, tlsConfig *tls.Config, lis net
 		}
 		return nil, err
 	}
+	core.authenticate = verify
 	s := &Server{core: core, listener: lis, done: make(chan struct{}), redirect: redirect}
 	go func() {
 		defer close(s.done)

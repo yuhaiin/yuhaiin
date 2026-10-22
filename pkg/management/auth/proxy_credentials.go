@@ -1,0 +1,393 @@
+package auth
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/base64"
+	"encoding/json/v2"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+	"uuid"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
+)
+
+type ProxyCredential struct {
+	ID        string   `json:"id"`
+	UserID    string   `json:"userId"`
+	Name      string   `json:"name"`
+	Inbounds  []string `json:"inbounds"`
+	Protocols []string `json:"protocols"`
+	CreatedAt int64    `json:"createdAt"`
+	ExpiresAt int64    `json:"expiresAt"`
+	Revoked   bool     `json:"revoked"`
+}
+
+type ProxyCredentialRequest struct {
+	Owner     string   `json:"owner"`
+	Name      string   `json:"name"`
+	Inbounds  []string `json:"inbounds"`
+	Protocols []string `json:"protocols"`
+	ExpiresAt int64    `json:"expiresAt"`
+}
+
+type IssuedProxyCredential struct {
+	ProxyCredential
+	Secret string `json:"secret"`
+}
+
+type proxyRecord struct {
+	ProxyCredential
+	login          string
+	generation     int64
+	identity       *proxyauth.Identity
+	cancel         context.CancelFunc
+	verifier, wire [32]byte
+}
+
+// ProxyCredentials owns a bounded, revocable authentication snapshot. The hot
+// path performs a hash lookup, never a KDF or database query. A periodic reload
+// also observes local recovery commands executed by another process.
+type ProxyCredentials struct {
+	store   *Store
+	mu      sync.RWMutex
+	records map[string]*proxyRecord
+	proofs  map[[32]byte]*proxyRecord
+	ctx     context.Context
+	cancel  context.CancelFunc
+	done    chan struct{}
+}
+
+func NewProxyCredentials(ctx context.Context, store *Store) (*ProxyCredentials, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	p := &ProxyCredentials{store: store, records: make(map[string]*proxyRecord), proofs: make(map[[32]byte]*proxyRecord), ctx: ctx, cancel: cancel, done: make(chan struct{})}
+	if err := p.Reload(); err != nil {
+		cancel()
+		return nil, err
+	}
+	go func() {
+		defer close(p.done)
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				p.clear()
+				return
+			case <-ticker.C:
+				_ = p.Reload()
+			}
+		}
+	}()
+	return p, nil
+}
+
+func (p *ProxyCredentials) Close() error { p.cancel(); <-p.done; return nil }
+func (p *ProxyCredentials) clear() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, r := range p.records {
+		r.cancel()
+	}
+	clear(p.records)
+	clear(p.proofs)
+}
+
+func (p *ProxyCredentials) Reload() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	// Fail closed if the private database becomes unreadable.
+	next, err := p.load()
+	if err != nil {
+		for _, r := range p.records {
+			r.cancel()
+		}
+		clear(p.records)
+		clear(p.proofs)
+		return err
+	}
+	proofs := make(map[[32]byte]*proxyRecord, len(next)*2)
+	for id, r := range next {
+		old := p.records[id]
+		if old != nil && old.generation == r.generation && old.identity.Valid() {
+			r.identity, r.cancel = old.identity, old.cancel
+		} else {
+			var ctx context.Context
+			if r.ExpiresAt != 0 {
+				ctx, r.cancel = context.WithDeadline(p.ctx, time.Unix(r.ExpiresAt, 0))
+			} else {
+				ctx, r.cancel = context.WithCancel(p.ctx)
+			}
+			r.identity = &proxyauth.Identity{UserID: r.UserID, CredentialID: id, Context: ctx}
+		}
+		proofs[r.verifier] = r
+		proofs[r.wire] = r
+	}
+	for id, old := range p.records {
+		if r := next[id]; r == nil || r.identity != old.identity {
+			old.cancel()
+		}
+	}
+	p.records, p.proofs = next, proofs
+	return nil
+}
+
+func (p *ProxyCredentials) load() (map[string]*proxyRecord, error) {
+	rows, err := p.store.db.QueryContext(p.ctx, `SELECT c.id,c.user_id,c.name,c.inbounds,c.protocols,c.created_at,c.expires_at,c.revoked,c.verifier,c.wire_verifier,c.generation,u.login
+ FROM proxy_credentials c JOIN management_users u ON u.id=c.user_id
+ WHERE c.revoked=0 AND u.disabled=0 AND c.generation=u.generation AND (c.expires_at=0 OR c.expires_at>?)`, time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[string]*proxyRecord)
+	for rows.Next() {
+		r := new(proxyRecord)
+		var inbounds, protocols string
+		var verifier, wire []byte
+		if err := rows.Scan(&r.ID, &r.UserID, &r.Name, &inbounds, &protocols, &r.CreatedAt, &r.ExpiresAt, &r.Revoked, &verifier, &wire, &r.generation, &r.login); err != nil {
+			return nil, err
+		}
+		if len(verifier) != 32 || len(wire) != 32 {
+			return nil, ErrInvalid
+		}
+		if err := json.Unmarshal([]byte(inbounds), &r.Inbounds); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(protocols), &r.Protocols); err != nil {
+			return nil, err
+		}
+		copy(r.verifier[:], verifier)
+		copy(r.wire[:], wire)
+		out[r.ID] = r
+	}
+	return out, rows.Err()
+}
+
+func (p *ProxyCredentials) Verifier(inboundID, protocol string, allowedUsers []string) proxyauth.Verifier {
+	allowedUsers = slices.Clone(allowedUsers)
+	return func(ctx context.Context, username string, proof []byte) (*proxyauth.Identity, error) {
+		if ctx.Err() != nil {
+			return nil, proxyauth.ErrUnauthorized
+		}
+		var key [32]byte
+		if protocol == "yuubinsya" {
+			if len(proof) != 32 {
+				return nil, proxyauth.ErrUnauthorized
+			}
+			key = sha256.Sum256(proof)
+		} else {
+			key = sha256.Sum256(proof)
+		}
+		p.mu.RLock()
+		defer p.mu.RUnlock()
+		r := p.proofs[key]
+		if r == nil || !r.identity.Valid() || !slices.Contains(allowedUsers, r.UserID) ||
+			(len(r.Inbounds) > 0 && !slices.Contains(r.Inbounds, inboundID)) ||
+			(len(r.Protocols) > 0 && !slices.Contains(r.Protocols, protocol)) ||
+			((protocol == "http" || protocol == "socks5") && !strings.EqualFold(username, r.login)) {
+			return nil, proxyauth.ErrUnauthorized
+		}
+		// Do not accept a wire verifier in a raw-secret protocol or vice versa.
+		if (protocol == "yuubinsya" && key != r.wire) || (protocol != "yuubinsya" && key != r.verifier) {
+			return nil, proxyauth.ErrUnauthorized
+		}
+		return r.identity, nil
+	}
+}
+
+func validateProxyRequest(r ProxyCredentialRequest) error {
+	if strings.TrimSpace(r.Name) == "" || len(r.Name) > 128 || len(r.Inbounds) > 256 || len(r.Protocols) > 5 || r.ExpiresAt < 0 || (r.ExpiresAt != 0 && r.ExpiresAt <= time.Now().Unix()) {
+		return ErrInvalid
+	}
+	for _, id := range r.Inbounds {
+		if strings.TrimSpace(id) == "" || len(id) > 128 {
+			return ErrInvalid
+		}
+	}
+	for _, v := range r.Protocols {
+		if !slices.Contains([]string{"http", "socks5", "yuubinsya", "hysteria2"}, v) {
+			return ErrInvalid
+		}
+	}
+	return nil
+}
+
+func (p *ProxyCredentials) Issue(ctx context.Context, actor Principal, r ProxyCredentialRequest) (IssuedProxyCredential, error) {
+	if !actor.Allows(ProxyCredentialsManage) && !actor.Allows(ProxyCredentialsOwn) {
+		return IssuedProxyCredential{}, ErrForbidden
+	}
+	if r.Owner == "" {
+		r.Owner = actor.UserID
+	}
+	if r.Owner != actor.UserID && !actor.Allows(ProxyCredentialsManage) {
+		return IssuedProxyCredential{}, ErrForbidden
+	}
+	if err := validateProxyRequest(r); err != nil {
+		return IssuedProxyCredential{}, err
+	}
+	tx, err := p.store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return IssuedProxyCredential{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	issued, err := issueProxy(ctx, tx, r)
+	if err != nil {
+		return issued, err
+	}
+	if err = recordEvent(ctx, tx, "proxy-credential.created", actor.UserID, issued.ID); err != nil {
+		return IssuedProxyCredential{}, err
+	}
+	if err = tx.Commit(); err != nil {
+		return IssuedProxyCredential{}, err
+	}
+	return issued, p.Reload()
+}
+
+func issueProxy(ctx context.Context, tx *sql.Tx, r ProxyCredentialRequest) (IssuedProxyCredential, error) {
+	var generation int64
+	if err := tx.QueryRowContext(ctx, `SELECT generation FROM management_users WHERE id=? AND disabled=0`, r.Owner).Scan(&generation); err != nil {
+		return IssuedProxyCredential{}, ErrInvalid
+	}
+	// Bound retained rows while allowing a revoked device slot to be reused.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM proxy_credentials WHERE user_id=? AND (revoked=1 OR (expires_at>0 AND expires_at<=?) OR generation!=?)`, r.Owner, time.Now().Unix(), generation); err != nil {
+		return IssuedProxyCredential{}, err
+	}
+	var count int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM proxy_credentials WHERE user_id=?`, r.Owner).Scan(&count); err != nil {
+		return IssuedProxyCredential{}, err
+	}
+	if count >= 64 {
+		return IssuedProxyCredential{}, ErrConflict
+	}
+	var entropy [32]byte
+	_, _ = rand.Read(entropy[:])
+	secret := "yp_" + base64.RawURLEncoding.EncodeToString(entropy[:])
+	verifier := sha256.Sum256([]byte(secret))
+	wireToken := sha256.Sum256([]byte(secret + "+s@1t"))
+	wire := sha256.Sum256(wireToken[:])
+	inbounds, _ := json.Marshal(r.Inbounds)
+	protocols, _ := json.Marshal(r.Protocols)
+	c := ProxyCredential{ID: uuid.New().String(), UserID: r.Owner, Name: r.Name, Inbounds: slices.Clone(r.Inbounds), Protocols: slices.Clone(r.Protocols), CreatedAt: time.Now().Unix(), ExpiresAt: r.ExpiresAt}
+	_, err := tx.ExecContext(ctx, `INSERT INTO proxy_credentials(id,user_id,name,verifier,wire_verifier,generation,inbounds,protocols,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?)`, c.ID, c.UserID, c.Name, verifier[:], wire[:], generation, string(inbounds), string(protocols), c.CreatedAt, c.ExpiresAt)
+	return IssuedProxyCredential{ProxyCredential: c, Secret: secret}, err
+}
+
+func (p *ProxyCredentials) List(ctx context.Context, owner string) ([]ProxyCredential, error) {
+	rows, err := p.store.db.QueryContext(ctx, `SELECT id,user_id,name,inbounds,protocols,created_at,expires_at,revoked FROM proxy_credentials WHERE user_id=? ORDER BY created_at,id`, owner)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ProxyCredential{}
+	for rows.Next() {
+		var c ProxyCredential
+		var inbounds, protocols string
+		if err := rows.Scan(&c.ID, &c.UserID, &c.Name, &inbounds, &protocols, &c.CreatedAt, &c.ExpiresAt, &c.Revoked); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(inbounds), &c.Inbounds); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(protocols), &c.Protocols); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func (p *ProxyCredentials) Revoke(ctx context.Context, actor Principal, id string) error {
+	if !actor.Allows(ProxyCredentialsManage) && !actor.Allows(ProxyCredentialsOwn) {
+		return ErrForbidden
+	}
+	tx, err := p.store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	result, err := tx.ExecContext(ctx, `UPDATE proxy_credentials SET revoked=1 WHERE id=? AND (user_id=? OR ?=1)`, id, actor.UserID, actor.Allows(ProxyCredentialsManage))
+	if err != nil {
+		return err
+	}
+	if n, _ := result.RowsAffected(); n != 1 {
+		return sql.ErrNoRows
+	}
+	if err = recordEvent(ctx, tx, "proxy-credential.revoked", actor.UserID, id); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	return p.Reload()
+}
+
+// Delete removes the credential record and cancels any sessions using it.
+func (p *ProxyCredentials) Delete(ctx context.Context, actor Principal, id string) error {
+	if !actor.Allows(ProxyCredentialsManage) && !actor.Allows(ProxyCredentialsOwn) {
+		return ErrForbidden
+	}
+	tx, err := p.store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	result, err := tx.ExecContext(ctx, `DELETE FROM proxy_credentials WHERE id=? AND (user_id=? OR ?=1)`, id, actor.UserID, actor.Allows(ProxyCredentialsManage))
+	if err != nil {
+		return err
+	}
+	if n, _ := result.RowsAffected(); n != 1 {
+		return sql.ErrNoRows
+	}
+	if err = recordEvent(ctx, tx, "proxy-credential.deleted", actor.UserID, id); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	return p.Reload()
+}
+
+func (p *ProxyCredentials) Rotate(ctx context.Context, actor Principal, id string) (IssuedProxyCredential, error) {
+	if !actor.Allows(ProxyCredentialsManage) && !actor.Allows(ProxyCredentialsOwn) {
+		return IssuedProxyCredential{}, ErrForbidden
+	}
+	tx, err := p.store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return IssuedProxyCredential{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var r ProxyCredentialRequest
+	var inbounds, protocols string
+	err = tx.QueryRowContext(ctx, `SELECT c.user_id,c.name,c.inbounds,c.protocols,c.expires_at FROM proxy_credentials c JOIN management_users u ON u.id=c.user_id WHERE c.id=? AND c.revoked=0 AND u.disabled=0 AND c.generation=u.generation AND (c.expires_at=0 OR c.expires_at>?)`, id, time.Now().Unix()).Scan(&r.Owner, &r.Name, &inbounds, &protocols, &r.ExpiresAt)
+	if err != nil {
+		return IssuedProxyCredential{}, err
+	}
+	if r.Owner != actor.UserID && !actor.Allows(ProxyCredentialsManage) {
+		return IssuedProxyCredential{}, ErrForbidden
+	}
+	if json.Unmarshal([]byte(inbounds), &r.Inbounds) != nil || json.Unmarshal([]byte(protocols), &r.Protocols) != nil {
+		return IssuedProxyCredential{}, ErrInvalid
+	}
+	// Delete the replaced row inside the transaction so rotation works at the cap.
+	if _, err = tx.ExecContext(ctx, `DELETE FROM proxy_credentials WHERE id=?`, id); err != nil {
+		return IssuedProxyCredential{}, err
+	}
+	issued, err := issueProxy(ctx, tx, r)
+	if err != nil {
+		return IssuedProxyCredential{}, err
+	}
+	if err = recordEvent(ctx, tx, "proxy-credential.rotated", actor.UserID, id); err != nil {
+		return IssuedProxyCredential{}, err
+	}
+	if err = tx.Commit(); err != nil {
+		return IssuedProxyCredential{}, err
+	}
+	return issued, p.Reload()
+}
+
+var _ proxyauth.Provider = (*ProxyCredentials)(nil)

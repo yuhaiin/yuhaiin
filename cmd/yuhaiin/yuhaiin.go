@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
@@ -27,6 +29,10 @@ import (
 func run(args []string) error {
 	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
 	host := flag.String("host", "0.0.0.0:50051", "http listen host")
+	https := flag.Bool("https", true, "enable HTTPS alongside HTTP on the same listen port")
+	httpsCert := flag.String("https-cert", "", "TLS certificate PEM file (use with -https-key)")
+	httpsKey := flag.String("https-key", "", "TLS private key PEM file (use with -https-cert)")
+	httpsNames := flag.String("https-names", "", "comma-separated hostnames or IPs for the generated TLS certificate")
 	username := flag.String("u", "", "username")
 	password := flag.String("p", "", "password")
 	path := flag.String("path", configuration.DataDir.Load(), "save data path")
@@ -46,26 +52,51 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
+	var tlsCertificate tls.Certificate
+	var tlsFingerprint string
+	var generatedTLSCertificate bool
+	if *https {
+		tlsCertificate, tlsFingerprint, generatedTLSCertificate, err = loadManagementTLSCertificate(*path, *httpsCert, *httpsKey, *httpsNames)
+		if err != nil {
+			_ = lis.Close()
+			return err
+		}
+	} else if *httpsCert != "" || *httpsKey != "" || *httpsNames != "" {
+		_ = lis.Close()
+		return errors.New("-https-cert, -https-key, and -https-names require -https")
+	}
 
 	setting := migrate.NewStateDB(paths.PathGenerator.State(*path))
 
 	var auth *app.Auth
 	if *username != "" || *password != "" {
 		auth = app.NewAuth(*username, *password)
+		log.Warn("legacy -u/-p management credentials are no longer accepted; use the web setup/login and remove these flags")
 	}
 
 	fmt.Println(version.Art)
 
-	app, err := app.Start(&app.StartOptions{
-		ConfigPath:    *path,
-		Auth:          auth,
-		StateStore:    setting,
-		ProcessDumper: getPorcessDumper(),
-		Updater:       newUpdateInstaller(*path),
-	})
+	identities, err := managementauth.OpenRuntime(context.Background(), *path)
 	if err != nil {
+		_ = lis.Close()
 		return err
 	}
+	defer identities.Close()
+	app, err := app.Start(&app.StartOptions{
+		ConfigPath:          *path,
+		Auth:                auth,
+		HTTPMiddleware:      identities.Middleware,
+		ProxyAuthentication: identities.Proxy,
+		UpstreamCredentials: identities.Upstream,
+		StateStore:          setting,
+		ProcessDumper:       getPorcessDumper(),
+		Updater:             newUpdateInstaller(*path),
+	})
+	if err != nil {
+		_ = lis.Close()
+		return err
+	}
+	identities.Upstream.Changed = app.NodeRuntime.InvalidateCredential
 	defer func() {
 		if err := app.Close(); err != nil {
 			log.Error("close app error", "err", err)
@@ -75,12 +106,40 @@ func run(args []string) error {
 	ctx, cancel := context.WithCancelCause(context.TODO())
 	defer cancel(nil)
 
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		protocol := "http"
+		if r.TLS != nil {
+			protocol = "https"
+		}
+		log.Debug("management request", "protocol", protocol, "host", r.Host, "method", r.Method, "path", r.URL.Path)
+		app.Mux.ServeHTTP(w, r)
+	})
+	httpHandler := http.Handler(handler)
+	serverListener := net.Listener(lis)
+	server := &http.Server{Handler: httpHandler}
+	if *https {
+		httpHandler = redirectRemoteHTTPToHTTPS(handler, lis.Addr())
+		server.Handler = httpHandler
+		server.TLSConfig = &tls.Config{
+			Certificates: []tls.Certificate{tlsCertificate},
+			MinVersion:   tls.VersionTLS12,
+			NextProtos:   []string{"h2", "http/1.1"},
+		}
+		serverListener = newProtocolListener(lis, server.TLSConfig)
+		if generatedTLSCertificate {
+			fmt.Fprintf(os.Stderr, "Management HTTPS generated a self-signed certificate; its private key is stored in %s/management-tls.pem.\n", *path)
+		}
+		fmt.Fprintln(os.Stderr, "Management HTTP and HTTPS share this listener:")
+		for _, address := range managementHTTPSURLs(lis.Addr()) {
+			fmt.Fprintf(os.Stderr, "  %s\n", address)
+		}
+		fmt.Fprintf(os.Stderr, "TLS certificate SHA-256 fingerprint: %s\n", tlsFingerprint)
+		if generatedTLSCertificate {
+			fmt.Fprintln(os.Stderr, "If the browser warns about the self-signed certificate, compare this fingerprint before continuing.")
+		}
+	}
 	go func() {
-		err := http.Serve(lis, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
-			app.Mux.ServeHTTP(w, r)
-		}))
-		if err != nil {
+		if err := server.Serve(serverListener); err != nil {
 			cancel(err)
 		}
 	}()
@@ -89,14 +148,16 @@ func run(args []string) error {
 	ctx, ncancel := signal.NotifyContext(ctx, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer ncancel()
 
-	return wait(ctx, lis)
+	return wait(ctx, serverListener)
 }
 
-var wait = func(ctx context.Context, lis net.Listener) error {
+var wait = func(ctx context.Context, listeners ...net.Listener) error {
 	<-ctx.Done()
 	var err error
-	if lis != nil {
-		err = lis.Close()
+	for _, listener := range listeners {
+		if listener != nil {
+			err = errors.Join(err, listener.Close())
+		}
 	}
 	return errors.Join(err, ctx.Err())
 }

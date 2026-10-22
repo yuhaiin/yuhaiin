@@ -13,6 +13,7 @@ var help = `Usage:
   yuhaiin [action] [options]
 
 Actions:
+  auth        local management administrator bootstrap/recovery
   install     install yuhaiin
   uninstall   uninstall yuhaiin
   start       start yuhaiin
@@ -23,6 +24,10 @@ Actions:
 
   Options:
     -host, -h  HTTP listen host [default: 0.0.0.0:50051]
+    -https     Serve HTTP and HTTPS on the same port [default: true]
+    -https-cert TLS certificate PEM file (use with -https-key)
+    -https-key  TLS private key PEM file
+    -https-names Hostnames/IPs for the generated self-signed certificate
     -path, -p  save data path [default: %s/.yuhaiin]
     -eweb, -e  external web page static files dir
   help        show help
@@ -44,6 +49,9 @@ func main() {
 	}
 
 	switch action {
+	case "auth":
+		do(authCommand)
+		return
 	case "install":
 		do(install)
 		return

@@ -24,9 +24,10 @@ func BackendName() string { return backendName }
 func DriverName() string { return driverName }
 
 type sharedStore struct {
-	path string
-	db   *sql.DB
-	refs int
+	path   string
+	schema string
+	db     *sql.DB
+	refs   int
 }
 
 var sharedSQLite = struct {
@@ -37,6 +38,10 @@ var sharedSQLite = struct {
 }
 
 func Open(ctx context.Context, path string) (*Store, error) {
+	return open(ctx, path, "configuration", Bootstrap)
+}
+
+func open(ctx context.Context, path, schema string, bootstrap func(context.Context, *sql.DB) error) (*Store, error) {
 	if path == "" {
 		return nil, errors.New("sqlite path is empty")
 	}
@@ -72,6 +77,9 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	defer sharedSQLite.Unlock()
 
 	if shared := sharedSQLite.stores[path]; shared != nil {
+		if shared.schema != schema {
+			return nil, errors.New("sqlite database is already open with a different schema")
+		}
 		shared.refs++
 		return &Store{shared: shared}, nil
 	}
@@ -89,15 +97,16 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, err
 	}
 
-	if err := Bootstrap(ctx, db); err != nil {
+	if err := bootstrap(ctx, db); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
 
 	shared := &sharedStore{
-		path: path,
-		db:   db,
-		refs: 1,
+		path:   path,
+		schema: schema,
+		db:     db,
+		refs:   1,
 	}
 	sharedSQLite.stores[path] = shared
 

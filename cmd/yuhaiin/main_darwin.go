@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/xml"
 	"errors"
 	"flag"
 	"fmt"
@@ -29,11 +30,7 @@ const darwinLaunchdPlist = `
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/yuhaiin</string>
-		<string>-host</string>
-		<string>%s</string>
-		<string>-path</string>
-		<string>%s</string>
-		%s
+%s
     </array>
 
     <key>RunAtLoad</key>
@@ -142,6 +139,10 @@ func uninstallSystemDaemonDarwin(args []string) (ret error) {
 func installSystemDaemonDarwin(args []string) (err error) {
 	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
 	host := flag.String("host", "0.0.0.0:50051", "HTTP listen host")
+	https := flag.Bool("https", true, "serve HTTP and HTTPS on the same port")
+	httpsCert := flag.String("https-cert", "", "TLS certificate PEM file")
+	httpsKey := flag.String("https-key", "", "TLS private key PEM file")
+	httpsNames := flag.String("https-names", "", "comma-separated hostnames/IPs for the generated TLS certificate")
 	path := flag.String("path", "/Library/Application Support/yuhaiin", "save data path")
 	nfsMode := flag.Bool("nfs-mode", false, "use SQLite settings for NFS/network filesystems")
 	if err := flag.Parse(args); err != nil {
@@ -187,11 +188,23 @@ func installSystemDaemonDarwin(args []string) (err error) {
 			return err
 		}
 	}
-	nfsArg := ""
-	if *nfsMode {
-		nfsArg = "<string>-nfs-mode</string>"
+	serviceArgs := []string{"-host", *host, "-path", *path}
+	if !*https {
+		serviceArgs = append(serviceArgs, "-https=false")
 	}
-	if err := os.WriteFile(sysPlist, fmt.Appendf(nil, darwinLaunchdPlist, *host, *path, nfsArg), 0700); err != nil {
+	if *httpsCert != "" {
+		serviceArgs = append(serviceArgs, "-https-cert", *httpsCert)
+	}
+	if *httpsKey != "" {
+		serviceArgs = append(serviceArgs, "-https-key", *httpsKey)
+	}
+	if *httpsNames != "" {
+		serviceArgs = append(serviceArgs, "-https-names", *httpsNames)
+	}
+	if *nfsMode {
+		serviceArgs = append(serviceArgs, "-nfs-mode")
+	}
+	if err := os.WriteFile(sysPlist, fmt.Appendf(nil, darwinLaunchdPlist, launchdArgumentXML(serviceArgs)), 0700); err != nil {
 		return err
 	}
 
@@ -203,6 +216,16 @@ func installSystemDaemonDarwin(args []string) (err error) {
 	}
 
 	return nil
+}
+
+func launchdArgumentXML(args []string) string {
+	var builder strings.Builder
+	for _, arg := range args {
+		builder.WriteString("\t\t<string>")
+		_ = xml.EscapeText(&builder, []byte(arg))
+		builder.WriteString("</string>\n")
+	}
+	return builder.String()
 }
 
 // copyBinary copies binary file `src` into `dst`.
