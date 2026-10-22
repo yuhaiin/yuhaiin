@@ -305,6 +305,6 @@ func (q *GroupedFairQueue[T]) stats() FairStats {
 	return FairStats{
 		Packets: q.packets, Bytes: q.bytes, Flows: len(q.groups),
 		Rejected: q.rejected, DroppedAQM: q.dropped, DroppedOverload: q.overloadDropped, Dequeued: q.dequeued,
-		MaxSojourn: q.maxSojourn,
+		MaxSojourn: int64(q.maxSojourn),
 	}
 }

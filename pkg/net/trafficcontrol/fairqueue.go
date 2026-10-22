@@ -22,7 +22,7 @@ type FairStats struct {
 	Rejected, DroppedAQM uint64
 	DroppedOverload      uint64
 	Dequeued             uint64
-	MaxSojourn           time.Duration
+	MaxSojourn           int64 // Maximum observed queue sojourn in nanoseconds.
 }
 
 type queued[T any] struct {
@@ -309,6 +309,6 @@ func (q *FairQueue[T]) Stats() FairStats {
 	return FairStats{
 		Packets: q.count, Bytes: q.bytes, Flows: len(q.flows),
 		Rejected: q.rejected, DroppedAQM: q.dropped, Dequeued: q.dequeued,
-		MaxSojourn: q.maxSojourn,
+		MaxSojourn: int64(q.maxSojourn),
 	}
 }
