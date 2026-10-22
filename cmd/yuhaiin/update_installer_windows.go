@@ -41,11 +41,18 @@ func (u *serviceUpdateInstaller) Supported() (bool, string) {
 	if info.Mode()&os.ModeSymlink != 0 {
 		return false, "automatic updates do not replace symbolic links"
 	}
-	f, err := os.OpenFile(u.target, os.O_WRONLY, 0)
+	probe, err := os.CreateTemp(filepath.Dir(u.target), ".yuhaiin-update-probe-*")
 	if err != nil {
-		return false, fmt.Sprintf("current executable is not writable: %v", err)
+		return false, fmt.Sprintf("update directory is not writable: %v", err)
 	}
-	f.Close()
+	probePath := probe.Name()
+	if err := probe.Close(); err != nil {
+		_ = os.Remove(probePath)
+		return false, fmt.Sprintf("update directory is not writable: %v", err)
+	}
+	if err := os.Remove(probePath); err != nil {
+		return false, fmt.Sprintf("update directory cleanup failed: %v", err)
+	}
 	m, err := mgr.Connect()
 	if err != nil {
 		return false, "Windows service manager is unavailable"
@@ -117,6 +124,7 @@ func updateHelper(args []string) error {
 	}
 	if err := os.Rename(staged, target); err != nil {
 		_ = os.Rename(backup, target)
+		_ = s.Start()
 		return err
 	}
 	if err := s.Start(); err != nil {
