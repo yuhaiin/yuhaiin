@@ -27,6 +27,8 @@ type serviceUpdateInstaller struct {
 }
 
 func newUpdateInstaller(dataDir string) updatepkg.Installer {
+    dataDir, err := filepath.Abs(dataDir)
+    if err != nil { return nil }
 	exe, err := os.Executable()
 	if err != nil {
 		return nil
