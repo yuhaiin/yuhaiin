@@ -1,5 +1,10 @@
 # Android configuration backup and native status
 
+The Android core uses local single-user management without the optional
+`managementauth` HTTP middleware. No account database or first-run setup code is
+created. The bundled Web UI detects local mode and opens directly; remote peers
+still cannot use management APIs, including when the HTTP listener binds to LAN.
+
 The Android JNI bridge exports `ExportConfig`, `ValidateConfig`, `ImportConfig`,
 `App.NativeStatus` and `App.CheckHealth`. These APIs operate without a running Web
 Dashboard. Android must set `SetConfigLockPath` to a shared path under its private

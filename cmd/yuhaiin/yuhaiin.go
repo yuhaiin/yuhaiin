@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/managementauth"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
@@ -52,16 +53,18 @@ func run(args []string) error {
 	var auth *app.Auth
 	if *username != "" || *password != "" {
 		auth = app.NewAuth(*username, *password)
+		log.Warn("legacy -u/-p management credentials are no longer accepted; use the web setup/login and remove these flags")
 	}
 
 	fmt.Println(version.Art)
 
 	app, err := app.Start(&app.StartOptions{
-		ConfigPath:    *path,
-		Auth:          auth,
-		StateStore:    setting,
-		ProcessDumper: getPorcessDumper(),
-		Updater:       newUpdateInstaller(),
+		ConfigPath:     *path,
+		Auth:           auth,
+		HTTPMiddleware: managementauth.Middleware,
+		StateStore:     setting,
+		ProcessDumper:  getPorcessDumper(),
+		Updater:        newUpdateInstaller(),
 	})
 	if err != nil {
 		return err

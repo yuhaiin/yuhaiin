@@ -79,6 +79,10 @@ jobs:
           go get -v -u "github.com/yuhaiin/yuhaiin.github.io@${FRONT_VERSION}"
           go install golang.org/x/mobile/cmd/gomobile@latest
           gomobile init
+          if go list -deps ./cmd/android | grep -Eq '^github.com/Asutorufa/yuhaiin/pkg/managementauth($|/)'; then
+            echo "Android must not import the optional management identity middleware"
+            exit 1
+          fi
           make yuhaiin_android_aar
 
       - name: Upload Android AAR

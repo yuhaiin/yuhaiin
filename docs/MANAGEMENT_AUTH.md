@@ -1,10 +1,32 @@
 # Local management identities
 
-Management APIs require a local identity. This applies to every registered v2
+The server executable opts into `managementauth.Middleware` through
+`app.StartOptions.HTTPMiddleware`. In that mode, management APIs require a local
+identity. This applies to every registered v2
 RPC, event/log stream, profiler route, `/debug/pprof/`, and `/metrics`. Static UI
 assets and the explicitly listed authentication exchanges remain public.
 Proxy, VPN, inbound protocol authentication, routing and traffic identities are
 unchanged. This implements the management API slice of issue #607.
+
+## Optional HTTP middleware and Android
+
+The middleware is initialized after all routes are registered and wraps the
+whole HTTP handler, including profiler, metrics and streams. Its database closer
+belongs to the app lifecycle, and initialization failure aborts startup. Core
+`app` and `httpapi` packages do not import `managementauth`; RPC permission
+annotations are plain strings, validated against the module's scope registry.
+
+`cmd/android` deliberately omits the middleware and does not import the identity
+module. It creates no `management.db`, setup code or account routes. Without the
+middleware, the core permits management only from actual loopback peers and
+trusted browser origins. Binding an Android listener to a LAN address does not
+enable anonymous remote management. Static UI files remain public.
+
+`GET /api/v2/management` explicitly reports `{"authentication":"local-users"}`
+with the module installed, or `{"authentication":"none"}` in local-only mode.
+The paired Web UI uses this response to enter local mode directly, with no login,
+account controls, credentials or identity polling. It only accepts `none` for a
+loopback controller URL. Missing or unknown metadata never disables login.
 
 ## First-time setup and migration
 

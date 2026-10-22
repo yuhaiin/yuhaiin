@@ -253,6 +253,10 @@ type StartOptions struct {
 
 	Auth *Auth
 
+	// Optional management HTTP middleware. Without it, only local peers can
+	// access management routes; no identity database or auth routes are loaded.
+	HTTPMiddleware httpapi.Middleware
+
 	ConfigPath string
 
 	Updater updatepkg.Installer

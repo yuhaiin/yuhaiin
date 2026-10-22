@@ -1,9 +1,13 @@
 package app
 
 import (
+	"context"
 	"encoding/base64"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -24,7 +28,7 @@ func TestApplicationManagementGateCoversActualRoutes(t *testing.T) {
 	for _, pattern := range []string{"GET /metrics", "GET /debug/profiler/", "GET /api/v2/profiler/sessions", "POST /api/v2/profiler/sessions", "DELETE /api/v2/profiler/sessions/{id}"} {
 		inner.HandleFunc(pattern, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	}
-	app := &AppInstance{StartOptions: &StartOptions{ConfigPath: dir, Auth: NewAuth("legacy", "password")}, Mux: inner, Setting: NewSettingsController(nil, dir, nil), closers: &closers{}}
+	app := &AppInstance{StartOptions: &StartOptions{ConfigPath: dir, Auth: NewAuth("legacy", "password"), HTTPMiddleware: managementauth.Middleware}, Mux: inner, Setting: NewSettingsController(nil, dir, nil), closers: &closers{}}
 	if err := app.protectManagement(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -103,5 +107,61 @@ func TestApplicationManagementGateCoversActualRoutes(t *testing.T) {
 	app.Mux.ServeHTTP(w, r)
 	if w.Code != 403 {
 		t.Fatal("DNS rebinding origin accepted")
+	}
+}
+
+func TestLocalManagementWithoutIdentityMiddleware(t *testing.T) {
+	dir := t.TempDir()
+	mux := http.NewServeMux()
+	RegisterHTTP(mux)
+	for _, pattern := range []string{"POST /api/v2/rpc/settings.put", "GET /api/v2/tools/logs/v2", "GET /metrics", "GET /api/v2/profiler/sessions"} {
+		mux.HandleFunc(pattern, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	}
+	instance := &AppInstance{StartOptions: &StartOptions{ConfigPath: dir}, Mux: mux, Setting: NewSettingsController(nil, dir, nil), closers: &closers{}}
+	if err := instance.protectManagement(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		method, path, peer, origin string
+		want                       int
+	}{
+		{"GET", "/api/v2/management", "127.0.0.1:1", "", 200},
+		{"POST", "/api/v2/rpc/settings.put", "127.0.0.1:1", "http://127.0.0.1:50051", 204},
+		{"GET", "/api/v2/tools/logs/v2", "[::1]:1", "", 204},
+		{"GET", "/metrics", "127.0.0.1:1", "", 204},
+		{"GET", "/api/v2/profiler/sessions", "127.0.0.1:1", "", 204},
+		{"GET", "/api/v2/auth/setup", "127.0.0.1:1", "", 404},
+		{"GET", "/api/v2/auth/users", "127.0.0.1:1", "", 404},
+		{"GET", "/api/v2/management", "192.0.2.1:1", "", 403},
+		{"POST", "/api/v2/rpc/settings.put", "192.0.2.1:1", "https://yuhaiin.github.io", 403},
+		{"GET", "/metrics", "192.0.2.1:1", "", 403},
+		{"GET", "/api/v2/profiler/sessions", "192.0.2.1:1", "", 403},
+		{"GET", "/api/v2/management", "127.0.0.1:1", "http://attacker.example", 403},
+		{"OPTIONS", "/api/v2/management", "127.0.0.1:1", "http://localhost:5173", 204},
+	} {
+		r := httptest.NewRequest(tt.method, "http://127.0.0.1:50051"+tt.path, nil)
+		r.RemoteAddr = tt.peer
+		r.Header.Set("Origin", tt.origin)
+		w := httptest.NewRecorder()
+		instance.Mux.ServeHTTP(w, r)
+		if w.Code != tt.want {
+			t.Errorf("%s %s peer=%s origin=%s: %d want %d", tt.method, tt.path, tt.peer, tt.origin, w.Code, tt.want)
+		}
+		if tt.path == "/api/v2/management" && w.Code == 200 && w.Body.String() != `{"authentication":"none"}` {
+			t.Fatal("native mode did not advertise no identity module")
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "management.db")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("native mode created an identity database: %v", err)
+	}
+}
+
+func TestManagementMiddlewareFailureDoesNotFallBack(t *testing.T) {
+	want := errors.New("identity store unavailable")
+	instance := &AppInstance{StartOptions: &StartOptions{HTTPMiddleware: func(context.Context, *http.ServeMux, httpapi.MiddlewareOptions) (http.Handler, io.Closer, error) {
+		return nil, nil, want
+	}}, Mux: http.NewServeMux(), closers: &closers{}}
+	if err := instance.protectManagement(t.Context()); !errors.Is(err, want) {
+		t.Fatalf("middleware failure did not abort: %v", err)
 	}
 }
