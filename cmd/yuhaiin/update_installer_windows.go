@@ -20,6 +20,8 @@ import (
 type serviceUpdateInstaller struct{ target, dataDir string }
 
 func newUpdateInstaller(dataDir string) updatepkg.Installer {
+    dataDir, err := filepath.Abs(dataDir)
+    if err != nil { return nil }
 	exe, err := os.Executable()
 	if err != nil {
 		return nil
@@ -108,6 +110,7 @@ if !stopped {
     backup := target + ".update-backup"
 	_ = os.Remove(backup)
 	if err := os.Rename(target, backup); err != nil {
+        _ = s.Start()
 		return err
 	}
 	if err := os.Rename(staged, target); err != nil {
