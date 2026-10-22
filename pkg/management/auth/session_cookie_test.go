@@ -96,3 +96,20 @@ func TestCookieSecurityAndSessionExpiry(t *testing.T) {
 		}
 	}
 }
+
+func TestTunnelSessionCookieUsesPublicHTTPS(t *testing.T) {
+	r := httptest.NewRequest("POST", "http://management.example/api/v2/auth/login", nil)
+	r.RemoteAddr = "127.0.0.1:1000"
+	r.Header.Set("X-Forwarded-Proto", "https")
+	w := httptest.NewRecorder()
+	setSessionCookie(w, r, IssuedCredential{ExpiresAt: time.Now().Add(time.Hour).Unix(), Secret: "opaque"})
+	cookie := w.Result().Cookies()[0]
+	if cookie.Name != "__Host-yuhaiin-session" || !cookie.Secure || !cookie.HttpOnly || cookie.SameSite != http.SameSiteNoneMode {
+		t.Fatalf("tunnel HTTPS cookie flags: name=%s secure=%v httpOnly=%v sameSite=%v", cookie.Name, cookie.Secure, cookie.HttpOnly, cookie.SameSite)
+	}
+	r.AddCookie(cookie)
+	secret, kind := credentials(r)
+	if secret != "opaque" || kind != "session" {
+		t.Fatal("tunnel session cookie cannot authenticate after refresh")
+	}
+}

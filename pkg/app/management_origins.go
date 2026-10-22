@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
+
+	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 )
 
 // The official static UI is a built-in trusted origin. Additional origins are
@@ -73,7 +75,7 @@ func sameRequestOrigin(origin string, r *http.Request) bool {
 		return false
 	}
 	scheme := "http"
-	if r.TLS != nil {
+	if httpapi.ManagementHTTPS(r) {
 		scheme = "https"
 	}
 	return u.Scheme == scheme
