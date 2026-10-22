@@ -207,6 +207,9 @@ func (s *Store) ResetEnrollment(ctx context.Context, actor, id string) (IssuedCr
 	if _, err := tx.ExecContext(ctx, `UPDATE management_credentials SET revoked=1 WHERE user_id=?`, id); err != nil {
 		return IssuedCredential{}, err
 	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM management_oauth_links WHERE user_id=?`, id); err != nil {
+		return IssuedCredential{}, err
+	}
 	issued, err := issueCredential(ctx, tx, id, "enrollment", nil, time.Now().Add(15*time.Minute).Unix())
 	if err != nil {
 		return IssuedCredential{}, err
@@ -244,6 +247,10 @@ func issueCredential(ctx context.Context, tx *sql.Tx, owner, kind string, scopes
 	}
 	c := Credential{ID: uuid.New().String(), UserID: owner, Kind: kind, Prefix: secret[:11], Scopes: slices.Clone(scopes), CreatedAt: time.Now().Unix(), ExpiresAt: expiry}
 	_, err = tx.ExecContext(ctx, `INSERT INTO management_credentials(id,user_id,kind,verifier,prefix,scopes,generation,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?)`, c.ID, owner, kind, verifier[:], c.Prefix, string(encoded), generation, c.CreatedAt, expiry)
+	if err == nil && kind == "session" {
+		info, _ := ctx.Value(sessionInfoKey{}).(sessionInfo)
+		err = saveSessionInfo(ctx, tx, c.ID, info)
+	}
 	return IssuedCredential{Credential: c, Secret: secret}, err
 }
 
@@ -291,15 +298,19 @@ func (s *Store) Authenticate(ctx context.Context, secret, kind string) (Principa
 	verifier := sha256.Sum256([]byte(secret))
 	var p Principal
 	var role, encoded string
-	err := s.db.QueryRowContext(ctx, `SELECT u.id,u.role,c.scopes FROM management_credentials c JOIN management_users u ON u.id=c.user_id
+	var lastSeen int64
+	err := s.db.QueryRowContext(ctx, `SELECT u.id,u.role,c.scopes,c.id,c.last_seen FROM management_credentials c JOIN management_users u ON u.id=c.user_id
 		WHERE c.verifier=? AND c.kind=? AND c.revoked=0 AND u.disabled=0 AND u.credential IS NOT NULL
-		AND c.generation=u.generation AND (c.expires_at=0 OR c.expires_at>?)`, verifier[:], kind, time.Now().Unix()).Scan(&p.UserID, &role, &encoded)
+		AND c.generation=u.generation AND (c.expires_at=0 OR c.expires_at>?)`, verifier[:], kind, time.Now().Unix()).Scan(&p.UserID, &role, &encoded, &p.CredentialID, &lastSeen)
 	if err != nil {
 		return Principal{}, ErrUnauthorized
 	}
 	p.CredentialType = kind
 	allowed := RolePermissions(role)
 	if kind == "session" {
+		if now := time.Now().Unix(); lastSeen < now-60 {
+			_, _ = s.db.ExecContext(ctx, `UPDATE management_credentials SET last_seen=? WHERE id=? AND last_seen<?`, now, p.CredentialID, now-60)
+		}
 		p.Permissions = allowed
 		return p, nil
 	}

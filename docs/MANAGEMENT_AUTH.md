@@ -179,14 +179,31 @@ uses another port, expose that one port for both HTTP and HTTPS.
 ## Sessions, tokens and browser behavior
 
 Login returns an opaque, random, revocable session secret with an eight-hour
-absolute expiry. Send it as `Authorization: Session <secret>` and discard it on
-logout (`DELETE /api/v2/auth/session`). Browser code keeps it in memory only;
-never persist it in local/session storage, IndexedDB, service workers or URLs.
-This API does not issue or accept session cookies. Authentication is explicitly
-attached to requests, so there are no ambient-cookie CSRF credentials. Trusted
-Origin checks still apply to every management operation and login/enrollment.
-Untrusted preflights are denied; browser clients must use JSON and explicit
-Authorization headers. Cross-origin clients must use `credentials: 'omit'`.
+absolute expiry. Header clients send `Authorization: Session <secret>`. Browser
+login also sets a host-only HttpOnly cookie: HTTPS uses `__Host-yuhaiin-session`,
+`Secure`, `Path=/` and `SameSite=None`; loopback HTTP uses `yuhaiin-session` and
+`SameSite=Lax`. The frontend uses `credentials: 'include'` for management
+requests. Secrets remain absent from URLs, browser storage and cache keys.
+
+Before rendering routes after a refresh, `GET /api/v2/auth/session` validates the
+cookie and returns only the principal and original expiry. It does not issue a
+new session or extend its lifetime. Logout revokes the verifier and expires the
+cookie. Browser cookie mutations require a trusted Origin, including same-origin
+POST/PUT/DELETE requests. Explicit Authorization takes precedence and never falls
+back to a cookie on failure. Originless CLI header authentication still works.
+Untrusted origins/preflights are rejected; CORS credentials are enabled only for
+an exact trusted origin. Browsers that block third-party cookies may require
+hosting the UI on the controller origin or allowing its cookies for the trusted
+UI site. No JavaScript-readable persistent token fallback is used.
+
+`GET /api/v2/auth/sessions` lists only the caller's active, unexpired sessions in
+the current credential generation, with device User-Agent, actual socket peer IP,
+login method, creation/expiry, activity time and current-session marker. The
+activity timestamp is coalesced to one update per minute. Forwarded IP headers
+are not trusted. `DELETE /api/v2/auth/sessions/{id}` revokes an owned session,
+including the current one, without granting access to another user's sessions
+or API tokens. Both endpoints require session authentication. Revocation blocks
+the next request and cancels existing streams through the usual one-second gate.
 
 API tokens use `Authorization: Bearer <token>`. Full secrets are returned only at
 creation/rotation; copy the result immediately into the intended secret store.
@@ -266,3 +283,56 @@ visibility never replaces backend enforcement. The executable client reference
 remains available under `example/management-auth`.
 
 Inbound user credentials and shared outbound secrets are documented in [Proxy credentials](proxy-credentials.md).
+
+## GitHub and Google OAuth
+
+Administrators configure OAuth applications in **Account & security → OAuth
+application settings**. Create a GitHub OAuth App or a Google OAuth web client,
+then save its client ID, client secret and exact callback URL:
+
+- GitHub: `https://YOUR_CONTROLLER/api/v2/auth/oauth/github/callback`
+- Google: `https://YOUR_CONTROLLER/api/v2/auth/oauth/google/callback`
+
+Google supports this flow. Configure its consent screen/audience and add test
+users while the app is in testing. Production remote callbacks require public
+HTTPS and a reachable controller. HTTP callback URLs are restricted to loopback.
+The browser must allow the sign-in popup. With a separate UI origin, allow it in
+the controller's existing trusted-Origin settings. Callbacks return to the
+controller; the popup posts a one-use completion proof to the initiating UI.
+
+Provider settings and bindings live only in private `management.db`, outside
+configuration exports/restores. Settings responses never return client secrets;
+a blank secret on update keeps the existing one. Disabling a provider removes
+its app configuration and pending flows while retaining account bindings.
+
+Users first enroll a local account and connect GitHub/Google from **Connected
+accounts**. Sign-in accepts only already-linked, enabled, enrolled local users
+with their current local role. There is no public signup, email matching or
+implicit linking. Identity keys are GitHub numeric `id` and Google `sub`, never
+mutable usernames or email addresses. Disconnecting revokes that provider's
+sessions; password credential resets clear all bindings along with sessions and
+tokens. Password sign-in remains available after disconnecting a provider.
+
+OAuth uses authorization code + S256 PKCE. Five-minute pending grants are bounded
+to 256, rate-limited, single-use and lost on restart. Starts and completions require
+a trusted browser Origin. The callback page uses a nonce CSP and posts only to
+the captured UI origin. Completion also requires the secret from the initiating
+POST; session/provider tokens never appear in callback URLs or window messages.
+Link completion revalidates the exact initiating session in its database
+transaction. Provider access tokens are used only for the provider's authenticated
+userinfo API, then discarded. Neither access nor refresh tokens are stored.
+
+| Endpoint | Purpose |
+| --- | --- |
+| GET `/api/v2/auth/oauth/providers` | Public list of enabled provider names |
+| GET `/api/v2/auth/oauth/settings` | Admin session: app settings without secrets |
+| PUT/DELETE `/api/v2/auth/oauth/settings/{provider}` | Admin session: configure/disable |
+| POST `/api/v2/auth/oauth/{provider}/start` | Public login start; trusted Origin |
+| POST `/api/v2/auth/oauth/{provider}/link` | Own session: binding start |
+| GET `/api/v2/auth/oauth/{provider}/callback` | Provider redirect; state/PKCE check |
+| POST `/api/v2/auth/oauth/{provider}/complete` | One-use proof exchange; exact session for links |
+| GET `/api/v2/auth/oauth/links` | Own session: list connected identities |
+| DELETE `/api/v2/auth/oauth/links/{provider}` | Own session: disconnect and revoke provider sessions |
+
+Provider contracts: [GitHub web authorization](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps)
+and [Google OpenID Connect/userinfo](https://developers.google.com/identity/openid-connect/openid-connect).

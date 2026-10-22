@@ -17,6 +17,7 @@ import (
 // streaming and future registrations. No protected handler can bypass this gate
 // by registering outside the v2 RPC adapter.
 type Server struct {
+	OAuth        *OAuthService
 	Proxy        *ProxyCredentials
 	Upstream     *UpstreamCredentials
 	Store        *Store
@@ -37,6 +38,13 @@ func secureManagementChannel(r *http.Request) bool {
 func credentials(r *http.Request) (string, string) {
 	// Never permit URL credentials, even alongside a valid header.
 	if r.URL.Query().Has("token") {
+		return "", ""
+	}
+	if r.Header.Get("Authorization") == "" {
+		cookie, err := r.Cookie(sessionCookieName(r))
+		if err == nil {
+			return cookie.Value, "session"
+		}
 		return "", ""
 	}
 	scheme, secret, ok := strings.Cut(r.Header.Get("Authorization"), " ")
@@ -77,6 +85,7 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 		if origin != "" {
 			w.Header().Add("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		}
@@ -92,6 +101,12 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 		p, err := s.Store.Authenticate(r.Context(), secret, kind)
 		if err != nil {
 			authError(w, http.StatusUnauthorized)
+			return
+		}
+		// Cookie mutations require a validated Origin. Header-authenticated CLI
+		// clients retain their existing originless contract.
+		if r.Header.Get("Authorization") == "" && origin == "" && r.Method != http.MethodGet && r.Method != http.MethodHead {
+			authError(w, http.StatusForbidden)
 			return
 		}
 		permission := s.Permissions[pattern]
@@ -178,6 +193,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 		mux.HandleFunc(pattern, handler)
 	}
 	s.registerProxyCredentials(register)
+	s.registerSessions(register)
+	s.registerSessionRestore(register)
+	s.registerOAuth(mux, register)
 	register("GET /api/v2/auth/me", IdentityRead, func(w http.ResponseWriter, r *http.Request) {
 		p, _ := FromContext(r.Context())
 		respond(w, p, nil)
@@ -308,6 +326,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 			authError(w, http.StatusForbidden)
 			return
 		}
-		respond(w, struct{}{}, s.Store.logout(r.Context(), secret))
+		err := s.Store.logout(r.Context(), secret)
+		if err == nil {
+			clearSessionCookie(w, r)
+		}
+		respond(w, struct{}{}, err)
 	})
 }

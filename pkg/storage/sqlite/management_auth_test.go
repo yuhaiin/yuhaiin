@@ -32,7 +32,7 @@ func TestManagementDatabasePrivateSeparateAndIdempotent(t *testing.T) {
 	if queryInt(t, db.DB(), `SELECT count(*) FROM management_users`) != 1 {
 		t.Fatal("migration replaced identities")
 	}
-	if queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != 3 {
+	if queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != 4 {
 		t.Fatal("migration applied more than once")
 	}
 	info, err := os.Stat(path)
@@ -114,5 +114,46 @@ func TestManagementInitializationMigration(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestOAuthSessionMigrationPreservesExistingCredentials(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "management.db")
+	old, err := open(t.Context(), path, "management", func(ctx context.Context, db *sql.DB) error {
+		if err := bootstrapBase(ctx, db); err != nil {
+			return err
+		}
+		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration} {
+			if err := applyMigration(ctx, db, migration); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.DB().ExecContext(t.Context(), `INSERT INTO management_users(id,login,role,client_salt,credential,created_at,updated_at) VALUES('owner','owner','admin',randomblob(16),randomblob(32),1,1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.DB().ExecContext(t.Context(), `INSERT INTO management_credentials(id,user_id,kind,verifier,prefix,scopes,generation,created_at,expires_at) VALUES('old-session','owner','session',x'1234','prefix','null',1,1,9999999999)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := old.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err := OpenManagement(t.Context(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var verifier []byte
+	var method, agent, address string
+	var seen int64
+	if err := db.DB().QueryRowContext(t.Context(), `SELECT verifier,auth_method,user_agent,remote_addr,last_seen FROM management_credentials WHERE id='old-session'`).Scan(&verifier, &method, &agent, &address, &seen); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(verifier, []byte{0x12, 0x34}) || method != "password" || agent != "" || address != "" || seen != 0 {
+		t.Fatal("migration changed existing credential or invented device metadata")
 	}
 }

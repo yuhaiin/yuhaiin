@@ -301,7 +301,10 @@ func (s *Server) registerPasswords(mux *http.ServeMux, p *PasswordService) {
 		if !decode(r, w, &request) {
 			return
 		}
-		out, err := p.Login(r.Context(), request.Login, request.ClientCredential)
+		out, err := p.Login(sessionContext(r, "password"), request.Login, request.ClientCredential)
+		if err == nil {
+			setSessionCookie(w, r, out)
+		}
 		respond(w, out, err)
 	})
 	register("POST /api/v2/auth/enrollment/parameters", func(w http.ResponseWriter, r *http.Request) {

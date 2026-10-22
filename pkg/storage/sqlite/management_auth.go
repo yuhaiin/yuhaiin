@@ -15,7 +15,7 @@ func OpenManagement(ctx context.Context, path string) (*Store, error) {
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}
-		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration} {
+		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration} {
 			var name string
 			err := db.QueryRowContext(ctx, `SELECT name FROM migrate WHERE version=?`, migration.Version).Scan(&name)
 			if err == nil {
@@ -92,5 +92,28 @@ var managementAuthMigration = Migration{
 		WHEN OLD.role='admin' AND OLD.disabled=0
 		AND NOT EXISTS(SELECT 1 FROM management_users WHERE id!=OLD.id AND role='admin' AND disabled=0 AND credential IS NOT NULL)
 		BEGIN SELECT RAISE(ABORT, 'last active administrator'); END`,
+	},
+}
+
+// OAuth identities and application secrets share the private identity database,
+// never configuration backups. Existing sessions acquire safe empty metadata.
+var managementOAuthMigration = Migration{
+	Version: 4,
+	Name:    "management_oauth_sessions",
+	Statements: []string{
+		`ALTER TABLE management_credentials ADD COLUMN user_agent TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE management_credentials ADD COLUMN remote_addr TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE management_credentials ADD COLUMN last_seen INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE management_credentials ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'password'`,
+		`CREATE TABLE management_oauth_providers (
+            provider TEXT PRIMARY KEY CHECK(provider IN ('github','google')),
+            client_id TEXT NOT NULL, client_secret TEXT NOT NULL, redirect_url TEXT NOT NULL
+        )`,
+		`CREATE TABLE management_oauth_links (
+            provider TEXT NOT NULL CHECK(provider IN ('github','google')), subject TEXT NOT NULL,
+            user_id TEXT NOT NULL REFERENCES management_users(id) ON DELETE CASCADE,
+            display_name TEXT NOT NULL, created_at INTEGER NOT NULL,
+            PRIMARY KEY(provider,subject), UNIQUE(user_id,provider)
+        )`,
 	},
 }
