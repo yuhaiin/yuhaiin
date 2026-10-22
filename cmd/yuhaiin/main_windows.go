@@ -22,10 +22,10 @@ func init() {
 	}
 
 	log.OutputStderr.Store(false)
-	wait = func(ctx context.Context, lis net.Listener) error {
+	wait = func(ctx context.Context, listeners ...net.Listener) error {
 		return svc.Run(version.AppName, &service{
-			lis: lis,
-			ctx: ctx,
+			listeners: listeners,
+			ctx:       ctx,
 		})
 	}
 }
@@ -140,8 +140,16 @@ func isWindowsService() bool {
 }
 
 type service struct {
-	lis net.Listener
-	ctx context.Context
+	listeners []net.Listener
+	ctx       context.Context
+}
+
+func (ss *service) closeListeners() {
+	for _, listener := range ss.listeners {
+		if listener != nil {
+			_ = listener.Close()
+		}
+	}
 }
 
 func (ss *service) Execute(args []string, r <-chan svc.ChangeRequest, s chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
@@ -151,7 +159,7 @@ func (ss *service) Execute(args []string, r <-chan svc.ChangeRequest, s chan<- s
 	for {
 		select {
 		case <-ss.ctx.Done():
-			ss.lis.Close()
+			ss.closeListeners()
 			log.Error("http server stop")
 			s <- svc.Status{State: svc.Stopped}
 			return false, windows.NO_ERROR
@@ -161,7 +169,7 @@ func (ss *service) Execute(args []string, r <-chan svc.ChangeRequest, s chan<- s
 			case svc.Interrogate:
 				s <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
-				ss.lis.Close()
+				ss.closeListeners()
 			}
 		}
 	}

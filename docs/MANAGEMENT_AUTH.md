@@ -146,13 +146,35 @@ describes the underlying KDF choices.
 
 **The client credential is reusable and password-equivalent. Capturing it permits
 replay/pass-the-hash. Client-side hashing does not provide replay protection.**
-Remote management therefore requires HTTPS and a trusted TLS endpoint. The
-embedded CLI listener is HTTP: place a TLS reverse proxy on the same host and
-bind the backend to loopback. Restrict access to that backend and configure the
-frontend's exact trusted Origin when using a custom remote frontend. TLS
-forwarding headers are never trusted as evidence of encryption; direct remote
-plaintext management is refused even with valid credentials. Redact Authorization
-and authentication request bodies in reverse-proxy logs and telemetry.
+Remote management therefore requires HTTPS. By default the CLI serves HTTP and
+HTTPS on the same TCP port and identifies the protocol from the first bytes of
+each connection. The default port is `50051`; only that port needs to be exposed.
+Remote HTTP page requests redirect to HTTPS on the same port, while remote
+plaintext API requests remain refused. Local HTTP clients continue to work.
+If no certificate is configured, yuhaiin creates a self-signed certificate and
+stores it with owner-only permissions at `management-tls.pem` in the data
+directory. The certificate persists across restarts, and startup prints its
+SHA-256 fingerprint and candidate HTTPS URLs. Browsers may show a certificate
+warning; compare the fingerprint through a trusted channel before continuing.
+Accepting an untrusted certificate does not authenticate the server against an
+active man-in-the-middle. Use a certificate trusted by your clients for public
+or shared deployments. This server certificate is separate from the HTTP
+Gateway CA, which signs certificates for explicitly enabled TLS interception.
+
+Set `-https-names` on first startup to include additional DNS names or IP
+addresses in the generated certificate. If the certificate already exists,
+remove `management-tls.pem` from the data directory before restarting to apply
+new names. To use an existing certificate, set both `-https-cert` and
+`-https-key`. Use `-https=false` to disable HTTPS when TLS is terminated by a
+local reverse proxy. The listener uses the address from `-host`, so a loopback
+bind remains loopback-only. When using a custom remote frontend, configure its
+exact trusted Origin. TLS forwarding headers are never trusted as evidence of
+encryption; direct remote plaintext management is refused even with valid
+credentials. Redact Authorization and authentication request bodies in proxy
+logs and telemetry.
+
+For the default port, allow TCP `50051` through the server firewall. If `-host`
+uses another port, expose that one port for both HTTP and HTTPS.
 
 ## Sessions, tokens and browser behavior
 
