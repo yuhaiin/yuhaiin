@@ -43,8 +43,8 @@ type UpdateController interface {
 	Check(context.Context, string) (contractupdate.CheckResult, error)
 	Apply(context.Context, contractupdate.ApplyRequest) error
 	Status(context.Context) contractupdate.Status
-    History(context.Context) (contractupdate.HistoryResult, error)
-    Rollback(context.Context, contractupdate.RollbackRequest) error
+	History(context.Context) (contractupdate.HistoryResult, error)
+	Rollback(context.Context, contractupdate.RollbackRequest) error
 }
 type ConnectionMonitor interface {
 	Total(context.Context) (contractconnection.TotalFlow, error)

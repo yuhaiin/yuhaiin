@@ -45,17 +45,17 @@ type Status struct {
 }
 
 type HistoryEntry struct {
-    ID      string    `json:"id"`
-    Version string    `json:"version"`
-    Commit  string    `json:"commit"`
-    Size    int64     `json:"size"`
-    SavedAt time.Time `json:"savedAt"`
+	ID      string    `json:"id"`
+	Version string    `json:"version"`
+	Commit  string    `json:"commit"`
+	Size    int64     `json:"size"`
+	SavedAt time.Time `json:"savedAt"`
 }
 
 type HistoryResult struct {
-    Items []HistoryEntry `json:"items"`
+	Items []HistoryEntry `json:"items"`
 }
 
 type RollbackRequest struct {
-    ID string `json:"id"`
+	ID string `json:"id"`
 }

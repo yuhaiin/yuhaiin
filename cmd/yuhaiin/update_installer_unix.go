@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/internal/version"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	updatepkg "github.com/Asutorufa/yuhaiin/pkg/update"
 )
 
@@ -27,8 +27,10 @@ type serviceUpdateInstaller struct {
 }
 
 func newUpdateInstaller(dataDir string) updatepkg.Installer {
-    dataDir, err := filepath.Abs(dataDir)
-    if err != nil { return nil }
+	dataDir, err := filepath.Abs(dataDir)
+	if err != nil {
+		return nil
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return nil
@@ -143,10 +145,10 @@ func updateHelper(args []string) error {
 		return fmt.Errorf("stop service: %w", err)
 	}
 	if err := updatepkg.SaveHistory(dataDir, target, version.Version, version.GitCommit); err != nil {
-        restoreService()
-        return fmt.Errorf("preserve current executable: %w", err)
-    }
-    log.Info("update helper replacing executable", "target", target)
+		restoreService()
+		return fmt.Errorf("preserve current executable: %w", err)
+	}
+	log.Info("update helper replacing executable", "target", target)
 	backup := target + ".update-backup"
 	_ = os.Remove(backup)
 	if err := os.Rename(target, backup); err != nil {
@@ -171,10 +173,10 @@ func updateHelper(args []string) error {
 		return fmt.Errorf("start service with updated executable: %w", err)
 	}
 	log.Info("update helper restarted service", "service", service)
-    if err := updatepkg.PruneHistory(dataDir, target); err != nil {
-        log.Error("prune update history failed", "err", err)
-    }
-    _ = os.Remove(backup)
+	if err := updatepkg.PruneHistory(dataDir, target); err != nil {
+		log.Error("prune update history failed", "err", err)
+	}
+	_ = os.Remove(backup)
 	return nil
 }
 

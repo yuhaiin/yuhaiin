@@ -24,8 +24,8 @@ func addFacadeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2UpdateCheck, api.updateCheck)
 	addRPCRoute(handlers, v2UpdateApply, api.updateApply)
 	addRPCRoute(handlers, v2UpdateStatus, api.updateStatus)
-    addRPCRoute(handlers, v2UpdateHistory, api.updateHistory)
-    addRPCRoute(handlers, v2UpdateRollback, api.updateRollback)
+	addRPCRoute(handlers, v2UpdateHistory, api.updateHistory)
+	addRPCRoute(handlers, v2UpdateRollback, api.updateRollback)
 	addRPCRoute(handlers, v2SettingsGet, api.settings)
 	addRPCRoute(handlers, v2SettingsPut, api.saveSettings)
 	addRPCRoute(handlers, v2BackupConfigGet, api.backupConfig)
@@ -104,14 +104,20 @@ func (a v2API) updateStatus(ctx context.Context, _ *emptyRequest) (*contractupda
 }
 
 func (a v2API) updateHistory(ctx context.Context, _ *emptyRequest) (*contractupdate.HistoryResult, error) {
-    if a.services.Update == nil { return nil, unavailable("update controller is unavailable") }
-    return pointer(a.services.Update.History(ctx))
+	if a.services.Update == nil {
+		return nil, unavailable("update controller is unavailable")
+	}
+	return pointer(a.services.Update.History(ctx))
 }
 
 func (a v2API) updateRollback(ctx context.Context, request *contractupdate.RollbackRequest) (*emptyResponse, error) {
-    if a.services.Update == nil { return nil, unavailable("update controller is unavailable") }
-    if err := a.services.Update.Rollback(ctx, *request); err != nil { return nil, badRequest(err) }
-    return &emptyResponse{}, nil
+	if a.services.Update == nil {
+		return nil, unavailable("update controller is unavailable")
+	}
+	if err := a.services.Update.Rollback(ctx, *request); err != nil {
+		return nil, badRequest(err)
+	}
+	return &emptyResponse{}, nil
 }
 
 func (a v2API) settings(ctx context.Context, _ *emptyRequest) (*contractsettings.Settings, error) {

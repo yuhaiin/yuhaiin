@@ -20,8 +20,10 @@ import (
 type serviceUpdateInstaller struct{ target, dataDir string }
 
 func newUpdateInstaller(dataDir string) updatepkg.Installer {
-    dataDir, err := filepath.Abs(dataDir)
-    if err != nil { return nil }
+	dataDir, err := filepath.Abs(dataDir)
+	if err != nil {
+		return nil
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return nil
@@ -91,26 +93,26 @@ func updateHelper(args []string) error {
 		return fmt.Errorf("stop service: %w", err)
 	}
 	deadline := time.Now().Add(30 * time.Second)
-    stopped := false
+	stopped := false
 	for time.Now().Before(deadline) {
 		state, err := s.Query()
 		if err == nil && state.State == svc.Stopped {
-            stopped = true
+			stopped = true
 			break
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
-if !stopped {
-        return errors.New("timeout waiting for Windows service to stop")
-    }
-    if err := updatepkg.SaveHistory(dataDir, target, version.Version, version.GitCommit); err != nil {
-        _ = s.Start()
-        return fmt.Errorf("preserve current executable: %w", err)
-    }
-    backup := target + ".update-backup"
+	if !stopped {
+		return errors.New("timeout waiting for Windows service to stop")
+	}
+	if err := updatepkg.SaveHistory(dataDir, target, version.Version, version.GitCommit); err != nil {
+		_ = s.Start()
+		return fmt.Errorf("preserve current executable: %w", err)
+	}
+	backup := target + ".update-backup"
 	_ = os.Remove(backup)
 	if err := os.Rename(target, backup); err != nil {
-        _ = s.Start()
+		_ = s.Start()
 		return err
 	}
 	if err := os.Rename(staged, target); err != nil {
@@ -123,10 +125,10 @@ if !stopped {
 		_ = s.Start()
 		return fmt.Errorf("start service: %w", err)
 	}
-if err := updatepkg.PruneHistory(dataDir, target); err != nil {
-        // A failed prune must not make the successfully restarted service unusable.
-        fmt.Fprintln(os.Stderr, "prune update history:", err)
-    }
-    _ = os.Remove(backup)
-    return nil
+	if err := updatepkg.PruneHistory(dataDir, target); err != nil {
+		// A failed prune must not make the successfully restarted service unusable.
+		fmt.Fprintln(os.Stderr, "prune update history:", err)
+	}
+	_ = os.Remove(backup)
+	return nil
 }

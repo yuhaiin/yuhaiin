@@ -39,8 +39,8 @@ const (
 	v2UpdateCheck              v2Endpoint = "update.check"
 	v2UpdateApply              v2Endpoint = "update.apply"
 	v2UpdateStatus             v2Endpoint = "update.status"
-    v2UpdateHistory            v2Endpoint = "update.history"
-    v2UpdateRollback           v2Endpoint = "update.rollback"
+	v2UpdateHistory            v2Endpoint = "update.history"
+	v2UpdateRollback           v2Endpoint = "update.rollback"
 	v2BackupRun                v2Endpoint = "backup.run"
 	v2BackupRestore            v2Endpoint = "backup.restore"
 	v2ToolsDiagnostics         v2Endpoint = "tools.diagnostics"
@@ -170,8 +170,8 @@ var v2Routes = []v2Route{
 	{v2UpdateCheck, "POST /api/v2/update/check"},
 	{v2UpdateApply, "POST /api/v2/update/apply"},
 	{v2UpdateStatus, "GET /api/v2/update/status"},
-    {v2UpdateHistory, "GET /api/v2/update/history"},
-    {v2UpdateRollback, "POST /api/v2/update/rollback"},
+	{v2UpdateHistory, "GET /api/v2/update/history"},
+	{v2UpdateRollback, "POST /api/v2/update/rollback"},
 	{v2SettingsGet, "GET /api/v2/settings"},
 	{v2SettingsPut, "PUT /api/v2/settings"},
 	{v2BackupConfigGet, "GET /api/v2/backup/config"},
