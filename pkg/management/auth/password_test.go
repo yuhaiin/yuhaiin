@@ -1,4 +1,4 @@
-package managementauth
+package auth
 
 import (
 	"bufio"
@@ -31,7 +31,7 @@ func nodeClient(t *testing.T) *cryptoClient {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("Node.js required for Web Crypto interoperability tests")
 	}
-	cmd := exec.CommandContext(t.Context(), "node", filepath.Join("..", "..", "example", "management-auth", "bridge.mjs"))
+	cmd := exec.CommandContext(t.Context(), "node", filepath.Join("..", "..", "..", "example", "management-auth", "bridge.mjs"))
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		t.Fatal(err)

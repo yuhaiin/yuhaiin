@@ -1,4 +1,4 @@
-package managementauth
+package auth
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	managementpermission "github.com/Asutorufa/yuhaiin/pkg/managementpermission"
+	managementpermission "github.com/Asutorufa/yuhaiin/pkg/management/permission"
 )
 
 func TestManagementGateAuthenticationScopeAndUnknownRoutes(t *testing.T) {

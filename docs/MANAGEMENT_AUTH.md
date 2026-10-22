@@ -210,7 +210,7 @@ such as `users:manage` permit credential administration and must be treated as
 administrator capabilities. The complete permission catalog is available at
 `GET /api/v2/auth/permissions` to authenticated users with `identity:read`; each
 entry includes its stable string ID, category, and description. The typed
-identifiers are defined in `pkg/managementpermission`.
+identifiers are defined in `pkg/management/permission`.
 `/api/v2/auth/me` returns the current principal's effective permissions. No
 wildcard scope is accepted. Each actual HTTP method/registered RPC action has
 an explicit permission; unclassified handlers deny even administrators.

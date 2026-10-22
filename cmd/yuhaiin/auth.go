@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
-	"github.com/Asutorufa/yuhaiin/pkg/managementauth"
+	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 

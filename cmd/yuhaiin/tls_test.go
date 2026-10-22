@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/managementtls"
+	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
 )
 
 func TestHTTPAndHTTPSShareOnePort(t *testing.T) {

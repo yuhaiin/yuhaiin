@@ -1,12 +1,12 @@
-// Package managementauth owns local identities for the management HTTP API.
+// Package auth owns local identities for the management HTTP API.
 // Its identities and permissions are unrelated to network traffic identities.
-package managementauth
+package auth
 
 import (
 	"context"
 	"slices"
 
-	permission "github.com/Asutorufa/yuhaiin/pkg/managementpermission"
+	permission "github.com/Asutorufa/yuhaiin/pkg/management/permission"
 )
 
 type Permission = permission.Permission

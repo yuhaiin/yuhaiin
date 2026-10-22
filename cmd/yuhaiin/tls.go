@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/managementtls"
+	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
 )
 
 func loadManagementTLSCertificate(dataDir, certificatePath, privateKeyPath, names string) (tls.Certificate, string, bool, error) {

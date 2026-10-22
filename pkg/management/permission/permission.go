@@ -1,6 +1,6 @@
-// Package managementpermission defines the stable permission identifiers shared by the
+// Package permission defines the stable permission identifiers shared by the
 // management API and its authentication middleware.
-package managementpermission
+package permission
 
 import "slices"
 

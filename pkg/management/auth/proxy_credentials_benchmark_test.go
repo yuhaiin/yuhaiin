@@ -1,4 +1,4 @@
-package managementauth
+package auth
 
 import (
 	"path/filepath"

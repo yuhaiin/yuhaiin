@@ -1,4 +1,4 @@
-package managementpermission
+package permission
 
 import "testing"
 

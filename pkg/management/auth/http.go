@@ -1,4 +1,4 @@
-package managementauth
+package auth
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	permission "github.com/Asutorufa/yuhaiin/pkg/managementpermission"
+	permission "github.com/Asutorufa/yuhaiin/pkg/management/permission"
 )
 
 // Server wraps the application's actual ServeMux, including metrics, profiling,
