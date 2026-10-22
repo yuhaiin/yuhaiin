@@ -9,6 +9,7 @@ import (
     "io"
     "os"
     "path/filepath"
+    "runtime"
     "slices"
     "strings"
     "time"
@@ -125,6 +126,7 @@ func SaveHistory(dataDir, executable, version, commit string) error {
 }
 
 func syncHistoryDir(dir string) error {
+    if runtime.GOOS == "windows" { return nil }
     f, err := os.Open(dir)
     if err != nil { return err }
     defer f.Close()
