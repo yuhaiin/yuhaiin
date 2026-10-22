@@ -1,0 +1,34 @@
+name: Format rollback branch (temporary)
+
+on:
+  push:
+    branches:
+      - feat/update-rollback-history
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/update-rollback-history
+      - name: Format changed Go files
+        run: |
+          gofmt -w pkg/update/history.go pkg/update/history_test.go \
+            pkg/update/service.go pkg/contract/update/types.go \
+            pkg/httpapi/api.go pkg/httpapi/endpoints.go pkg/httpapi/system_rpc.go \
+            cmd/yuhaiin/update_installer_unix.go cmd/yuhaiin/update_installer_windows.go \
+            cmd/yuhaiin/update_installer_unsupported.go cmd/yuhaiin/yuhaiin.go
+      - name: Push formatting
+        run: |
+          if ! git diff --quiet; then
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git add -u
+            git commit -m "style: gofmt update history implementation"
+            git push
+          fi
