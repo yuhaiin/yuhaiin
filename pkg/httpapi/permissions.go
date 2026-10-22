@@ -10,6 +10,8 @@ var v2Permissions = map[v2Endpoint]string{
 	v2UpdateCheck:              "update:manage",
 	v2UpdateApply:              "update:manage",
 	v2UpdateStatus:             "update:manage",
+	v2UpdateHistory:            "update:manage",
+	v2UpdateRollback:           "update:manage",
 	v2BackupRun:                "backup:manage",
 	v2BackupRestore:            "backup:manage",
 	v2BackupConfigGet:          "backup:manage",

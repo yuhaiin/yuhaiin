@@ -64,7 +64,7 @@ func run(args []string) error {
 		HTTPMiddleware: managementauth.Middleware,
 		StateStore:     setting,
 		ProcessDumper:  getPorcessDumper(),
-		Updater:        newUpdateInstaller(),
+		Updater:        newUpdateInstaller(*path),
 	})
 	if err != nil {
 		return err
