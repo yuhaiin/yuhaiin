@@ -6,18 +6,39 @@ assets and the explicitly listed authentication exchanges remain public.
 Proxy, VPN, inbound protocol authentication, routing and traffic identities are
 unchanged. This implements the management API slice of issue #607.
 
-## Bootstrap and migration
+## First-time setup and migration
 
-Run on the machine that owns the data directory:
+Start yuhaiin normally. Until initialization completes, startup output prints a
+random **Initialization code** valid for 15 minutes. Open the paired Web UI,
+choose the controller URL, and use **Create administrator** to enter that code
+and choose a login name and password. No extra command is needed.
+
+If the process restarts before setup completes, it prints a fresh code and
+immediately invalidates the previous one. Opening the page, requesting KDF
+parameters or submitting an invalid password does not complete setup. Successful
+administrator creation stores the verifier and permanently closes initialization
+in one database transaction. Future starts print no code, even during password
+recovery or when accounts are disabled. An expired code requires a controller
+restart. The completion marker lives in the private management database.
+
+The code is printed only to local startup output (stderr/service logs), never
+returned by HTTP or included in the persistent management log stream or audit
+events. Only a SHA-256 verifier is stored. HTTP setup still requires the code,
+the trusted-Origin policy and TLS for remote peers; it is not first-visitor
+administrator registration. Protect access to startup output until setup closes.
+
+Manual local bootstrap remains available as an optional alternative:
 
 ```sh
 yuhaiin auth bootstrap -path /your/data-directory -login admin
 ```
 
-This creates a pending administrator and prints an enrollment capability once.
-It expires after 15 minutes. There is no remote administrator bootstrap route;
-the management API stays locked until enrollment completes. Starting a process
-or installing an update never creates an anonymous administrator.
+This creates a pending administrator and prints an enrollment capability once,
+valid for 15 minutes. Complete it with **Activate account** or the reference
+client below. A pending account alone does not complete initialization. Normal
+startup creates no anonymous account and management APIs stay locked until a
+password is enrolled. An existing enrolled installation upgrades with setup
+closed; migration conservatively recognizes previous enrollment/recovery history.
 
 Using Node 22+ and the reference client in this repository:
 
@@ -152,6 +173,9 @@ an explicit permission; unclassified handlers deny even administrators.
 | Method/path | Purpose/required scope |
 | --- | --- |
 | GET `/api/v2/auth/me` | Principal and effective permissions; `identity:read` |
+| GET `/api/v2/auth/setup` | Public initialization state and expiry, never the code |
+| POST `/api/v2/auth/setup/parameters` | Client KDF parameters; `Authorization: Setup <code>` |
+| POST `/api/v2/auth/setup` | Atomic administrator creation; same Setup header, `{login,clientCredential}` |
 | GET/POST `/api/v2/auth/users` | List/create accounts; `users:manage` |
 | GET/PUT/DELETE `/api/v2/auth/users/{id}` | View/update/delete; `users:manage` |
 | POST `/api/v2/auth/users/{id}/enrollment` | Reset credentials; `users:manage` |

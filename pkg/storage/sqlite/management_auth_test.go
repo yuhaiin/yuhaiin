@@ -2,6 +2,8 @@ package sqlite
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,7 +32,7 @@ func TestManagementDatabasePrivateSeparateAndIdempotent(t *testing.T) {
 	if queryInt(t, db.DB(), `SELECT count(*) FROM management_users`) != 1 {
 		t.Fatal("migration replaced identities")
 	}
-	if queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != 1 {
+	if queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != 2 {
 		t.Fatal("migration applied more than once")
 	}
 	info, err := os.Stat(path)
@@ -57,5 +59,60 @@ func TestManagementDatabasePrivateSeparateAndIdempotent(t *testing.T) {
 	}
 	if schemaObjectExists(t, config.DB(), "management_users") {
 		t.Fatal("authentication table created in state database")
+	}
+}
+
+func TestManagementInitializationMigration(t *testing.T) {
+	for _, state := range []string{"empty", "pending", "enrolled", "reset"} {
+		t.Run(state, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "management.db")
+			old, err := open(t.Context(), path, "management", func(ctx context.Context, db *sql.DB) error {
+				if err := bootstrapBase(ctx, db); err != nil {
+					return err
+				}
+				return applyMigration(ctx, db, managementAuthMigration)
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state != "empty" {
+				var verifier any
+				if state == "enrolled" {
+					verifier = []byte("old-verifier")
+				}
+				if _, err := old.DB().ExecContext(t.Context(), `INSERT INTO management_users(id,login,role,client_salt,credential,created_at,updated_at) VALUES('owner','owner','admin',randomblob(16),?,1,1)`, verifier); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if state == "reset" {
+				if _, err := old.DB().ExecContext(t.Context(), `INSERT INTO management_security_events(occurred_at,event,actor_id,subject_id) VALUES(1,'user.enrolled','owner','owner'),(2,'user.credentials_reset','owner','owner')`); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := old.Close(); err != nil {
+				t.Fatal(err)
+			}
+			upgraded, err := OpenManagement(t.Context(), path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer upgraded.Close()
+			var want int64
+			if state == "enrolled" || state == "reset" {
+				want = 1
+			}
+			if got := queryInt(t, upgraded.DB(), `SELECT completed FROM management_initialization`); got != want {
+				t.Fatalf("completion after upgrade=%d want=%d", got, want)
+			}
+			// The completion trigger also covers manual CLI enrollment after upgrade.
+			if state == "pending" {
+				if _, err := upgraded.DB().ExecContext(t.Context(), `UPDATE management_users SET credential=randomblob(32) WHERE id='owner'`); err != nil {
+					t.Fatal(err)
+				}
+				if queryInt(t, upgraded.DB(), `SELECT completed FROM management_initialization`) != 1 {
+					t.Fatal("manual enrollment did not close setup")
+				}
+			}
+		})
 	}
 }

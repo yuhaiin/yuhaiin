@@ -15,19 +15,44 @@ func OpenManagement(ctx context.Context, path string) (*Store, error) {
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}
-		var name string
-		err := db.QueryRowContext(ctx, `SELECT name FROM migrate WHERE version=1`).Scan(&name)
-		if err == nil {
-			if name != managementAuthMigration.Name {
-				return fmt.Errorf("database is not a management identity store")
+		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration} {
+			var name string
+			err := db.QueryRowContext(ctx, `SELECT name FROM migrate WHERE version=?`, migration.Version).Scan(&name)
+			if err == nil {
+				if name != migration.Name {
+					return fmt.Errorf("database is not a management identity store")
+				}
+				continue
 			}
-			return nil
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			if err := applyMigration(ctx, db, migration); err != nil {
+				return err
+			}
 		}
-		if !errors.Is(err, sql.ErrNoRows) {
-			return err
-		}
-		return applyMigration(ctx, db, managementAuthMigration)
+		return nil
 	})
+}
+
+// The completion latch survives password resets and disabled accounts. Backfill
+// from enrollment history as well as current credentials when upgrading v1.
+var managementInitializationMigration = Migration{
+	Version: 2,
+	Name:    "management_initialization",
+	Statements: []string{
+		`CREATE TABLE management_initialization (
+			id INTEGER PRIMARY KEY CHECK(id=1), completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0,1)),
+			verifier BLOB, client_salt BLOB, expires_at INTEGER NOT NULL DEFAULT 0
+		)`,
+		`INSERT INTO management_initialization(id,completed) SELECT 1,
+			EXISTS(SELECT 1 FROM management_users WHERE credential IS NOT NULL)
+			OR EXISTS(SELECT 1 FROM management_security_events WHERE event IN ('user.enrolled','login.succeeded','user.credentials_reset'))`,
+		`CREATE TRIGGER management_initialized_insert AFTER INSERT ON management_users WHEN NEW.credential IS NOT NULL
+		BEGIN UPDATE management_initialization SET completed=1,verifier=NULL,client_salt=NULL,expires_at=0 WHERE id=1; END`,
+		`CREATE TRIGGER management_initialized_update AFTER UPDATE OF credential ON management_users WHEN NEW.credential IS NOT NULL
+		BEGIN UPDATE management_initialization SET completed=1,verifier=NULL,client_salt=NULL,expires_at=0 WHERE id=1; END`,
+	},
 }
 
 // Credentials deliberately live outside configBackupTables. A configuration

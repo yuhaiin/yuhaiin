@@ -3,10 +3,13 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"net/http"
 	"net/netip"
+	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -16,7 +19,7 @@ import (
 
 func (app *AppInstance) protectManagement(ctx context.Context) error {
 	if app.Auth != nil {
-		log.Warn("legacy management Basic authentication is no longer accepted; run 'yuhaiin auth bootstrap -path <data-directory> -login <name>' locally, enroll with the client-derived credential, and remove -u/-p from the service configuration")
+		log.Warn("legacy management Basic authentication is no longer accepted; complete the web setup using the initialization code in startup output, and remove -u/-p from the service configuration")
 	}
 	if app.ConfigPath == "" {
 		return errors.New("management authentication requires a data directory")
@@ -30,6 +33,16 @@ func (app *AppInstance) protectManagement(ctx context.Context) error {
 	passwords, err := managementauth.NewPasswordService(ctx, store)
 	if err != nil {
 		return err
+	}
+	code, err := store.StartInitialization(ctx)
+	if err != nil {
+		return err
+	}
+	if code.Secret != "" {
+		// Deliberately use local startup output, not the persistent/HTTP log stream.
+		if _, err := fmt.Fprintf(os.Stderr, "Management setup required. Open the Web UI and create an administrator.\nInitialization code: %s\nExpires at: %s (15 minutes). Restarting before setup completes replaces this code.\n", code.Secret, time.Unix(code.ExpiresAt, 0).Format(time.RFC3339)); err != nil {
+			return fmt.Errorf("write management initialization code: %w", err)
+		}
 	}
 	permissions := httpapi.ManagementPermissions()
 	maps.Copy(permissions, map[string]managementauth.Permission{

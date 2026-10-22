@@ -13,8 +13,8 @@ import (
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
-// Bootstrap/recovery requires intentional local process execution and access to
-// the private identity database. There is no HTTP administrator bootstrap route.
+// Optional manual bootstrap/recovery requires local execution and access to the
+// private identity database. Normal first-time setup uses the startup code.
 // Passwords are supplied only to the password derivation client, never to this command.
 func authCommand(args []string) error {
 	if len(args) == 0 {
