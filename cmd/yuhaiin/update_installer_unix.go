@@ -16,15 +16,17 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/internal/version"
 	updatepkg "github.com/Asutorufa/yuhaiin/pkg/update"
 )
 
 type serviceUpdateInstaller struct {
 	target  string
 	service string
+	dataDir string
 }
 
-func newUpdateInstaller() updatepkg.Installer {
+func newUpdateInstaller(dataDir string) updatepkg.Installer {
 	exe, err := os.Executable()
 	if err != nil {
 		return nil
@@ -33,7 +35,7 @@ func newUpdateInstaller() updatepkg.Installer {
 	if runtime.GOOS == "linux" {
 		service = "yuhaiin.service"
 	}
-	return &serviceUpdateInstaller{target: exe, service: service}
+	return &serviceUpdateInstaller{target: exe, service: service, dataDir: dataDir}
 }
 
 func (u *serviceUpdateInstaller) StagingDir() string { return filepath.Dir(u.target) }
@@ -77,7 +79,7 @@ func (u *serviceUpdateInstaller) Start(_ context.Context, staged string) error {
 	if err != nil {
 		return err
 	}
-	args := []string{"update-helper", u.target, staged}
+	args := []string{"update-helper", u.target, staged, u.dataDir}
 	var cmd *exec.Cmd
 	if runtime.GOOS == "linux" {
 		cmd = exec.Command("systemd-run", "--quiet", "--no-block", "--collect", "--unit=yuhaiin-update", exe)
@@ -96,10 +98,10 @@ func (u *serviceUpdateInstaller) Start(_ context.Context, staged string) error {
 }
 
 func updateHelper(args []string) error {
-	if len(args) != 2 {
+	if len(args) != 3 {
 		return errors.New("update-helper requires target and staged paths")
 	}
-	target, staged := args[0], args[1]
+	target, staged, dataDir := args[0], args[1], args[2]
 	service := "com.asutorufa.yuhaiin"
 	manager := "launchctl"
 	stopArgs, startArgs := []string{"stop", service}, []string{"start", service}
@@ -138,7 +140,11 @@ func updateHelper(args []string) error {
 	} else if err := exec.Command(manager, stopArgs...).Run(); err != nil {
 		return fmt.Errorf("stop service: %w", err)
 	}
-	log.Info("update helper replacing executable", "target", target)
+	if err := updatepkg.SaveHistory(dataDir, target, version.Version, version.GitCommit); err != nil {
+        restoreService()
+        return fmt.Errorf("preserve current executable: %w", err)
+    }
+    log.Info("update helper replacing executable", "target", target)
 	backup := target + ".update-backup"
 	_ = os.Remove(backup)
 	if err := os.Rename(target, backup); err != nil {
@@ -163,7 +169,10 @@ func updateHelper(args []string) error {
 		return fmt.Errorf("start service with updated executable: %w", err)
 	}
 	log.Info("update helper restarted service", "service", service)
-	_ = os.Remove(backup)
+    if err := updatepkg.PruneHistory(dataDir, target); err != nil {
+        log.Error("prune update history failed", "err", err)
+    }
+    _ = os.Remove(backup)
 	return nil
 }
 
