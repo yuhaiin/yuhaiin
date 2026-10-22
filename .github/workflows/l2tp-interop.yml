@@ -79,7 +79,7 @@ jobs:
         run: python3 scripts/bench/l2tp/run.py --runtime docker --l2tpv3
       - name: Upload L2TP diagnostics and BBR/CUBIC results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: l2tp-diagnostics-${{ matrix.congestion }}-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/l2tp-diagnostics/${{ matrix.congestion }}/
@@ -111,7 +111,7 @@ jobs:
         run: python3 scripts/bench/l2tp/run.py --runtime docker --softether
       - name: Upload SoftEther diagnostics and BBR/CUBIC results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: l2tp-softether-diagnostics-${{ matrix.congestion }}-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/l2tp-softether-diagnostics/${{ matrix.congestion }}/
