@@ -243,9 +243,12 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		}, gatewayManager.InterceptGateway)
 		interceptionOptions = append(interceptionOptions, inbound.WithInterceptor(router))
 	}
-	interceptionOptions = append(interceptionOptions, inbound.WithDNSAgent(dnsServer), inbound.WithFakeIPRangeSource(fakedns))
+	interceptionOptions = append(interceptionOptions, inbound.WithAuthentication(so.ProxyAuthentication), inbound.WithDNSAgent(dnsServer), inbound.WithFakeIPRangeSource(fakedns))
 	if inboundConfigStore != nil {
 		interceptionOptions = append(interceptionOptions, inbound.WithIngressStatisticsStore(inboundConfigStore))
+	}
+	if nodeRuntime != nil {
+		nodeRuntime.SetCredentialResolver(so.UpstreamCredentials)
 	}
 	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))
 	if err := inbounds.RestoreStatistics(ctx); err != nil {

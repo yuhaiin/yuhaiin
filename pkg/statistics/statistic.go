@@ -402,7 +402,11 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 
 	selectorID, selectorName := nc.Selector()
 	ruleID, ruleName := nc.MatchedRule()
-	connection := contractconnection.Connection{
+	var userID, credentialID string
+	if identity := netapi.TrafficIdentity(nc); identity != nil {
+		userID, credentialID = identity.UserID, identity.CredentialID
+	}
+	connection := contractconnection.Connection{UserID: userID, CredentialID: credentialID,
 		ID:          formatUint64(id),
 		Addr:        getRealAddr(nc, addr),
 		Network:     contractconnection.NetworkType{ConnType: addr.Network()},

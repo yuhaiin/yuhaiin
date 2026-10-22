@@ -1,6 +1,6 @@
 package httpapi
 
-import managementpermission "github.com/Asutorufa/yuhaiin/pkg/managementauth/permission"
+import managementpermission "github.com/Asutorufa/yuhaiin/pkg/managementpermission"
 
 // Every RPC action is classified explicitly. In particular a POST is often a
 // read operation, and seemingly harmless diagnostics can initiate network IO or

@@ -3,7 +3,7 @@ package httpapi
 import (
 	"testing"
 
-	managementpermission "github.com/Asutorufa/yuhaiin/pkg/managementauth/permission"
+	managementpermission "github.com/Asutorufa/yuhaiin/pkg/managementpermission"
 )
 
 func TestEveryRegisteredActionHasReviewedPermission(t *testing.T) {

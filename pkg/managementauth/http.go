@@ -10,13 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/managementauth/permission"
+	permission "github.com/Asutorufa/yuhaiin/pkg/managementpermission"
 )
 
 // Server wraps the application's actual ServeMux, including metrics, profiling,
 // streaming and future registrations. No protected handler can bypass this gate
 // by registering outside the v2 RPC adapter.
 type Server struct {
+	Proxy        *ProxyCredentials
+	Upstream     *UpstreamCredentials
 	Store        *Store
 	Permissions  map[string]Permission
 	AcceptOrigin func(string, *http.Request) bool
@@ -175,6 +177,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 		s.Permissions[pattern] = permission
 		mux.HandleFunc(pattern, handler)
 	}
+	s.registerProxyCredentials(register)
 	register("GET /api/v2/auth/me", IdentityRead, func(w http.ResponseWriter, r *http.Request) {
 		p, _ := FromContext(r.Context())
 		respond(w, p, nil)
@@ -216,15 +219,31 @@ func (s *Server) Register(mux *http.ServeMux) {
 		}
 		p, _ := FromContext(r.Context())
 		err := s.Store.UpdateUser(r.Context(), p.UserID, r.PathValue("id"), request.Login, request.Role, request.Disabled)
+		if s.Proxy != nil {
+			if reloadErr := s.Proxy.Reload(); err == nil {
+				err = reloadErr
+			}
+		}
 		respond(w, struct{}{}, err)
 	})
 	register("DELETE /api/v2/auth/users/{id}", UsersManage, func(w http.ResponseWriter, r *http.Request) {
 		p, _ := FromContext(r.Context())
-		respond(w, struct{}{}, s.Store.DeleteUser(r.Context(), p.UserID, r.PathValue("id")))
+		err := s.Store.DeleteUser(r.Context(), p.UserID, r.PathValue("id"))
+		if s.Proxy != nil {
+			if reloadErr := s.Proxy.Reload(); err == nil {
+				err = reloadErr
+			}
+		}
+		respond(w, struct{}{}, err)
 	})
 	register("POST /api/v2/auth/users/{id}/enrollment", UsersManage, func(w http.ResponseWriter, r *http.Request) {
 		p, _ := FromContext(r.Context())
 		enrollment, err := s.Store.ResetEnrollment(r.Context(), p.UserID, r.PathValue("id"))
+		if s.Proxy != nil {
+			if reloadErr := s.Proxy.Reload(); err == nil {
+				err = reloadErr
+			}
+		}
 		respond(w, enrollment, err)
 	})
 	register("GET /api/v2/auth/tokens", TokensOwn, func(w http.ResponseWriter, r *http.Request) {
@@ -276,6 +295,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 			return
 		}
 		out, err := s.Store.ResetEnrollment(r.Context(), p.UserID, p.UserID)
+		if s.Proxy != nil {
+			if reloadErr := s.Proxy.Reload(); err == nil {
+				err = reloadErr
+			}
+		}
 		respond(w, out, err)
 	})
 	register("DELETE /api/v2/auth/session", IdentityRead, func(w http.ResponseWriter, r *http.Request) {

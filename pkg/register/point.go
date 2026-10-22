@@ -105,6 +105,9 @@ func ContractDialer(p contractnode.Node) (r netapi.Proxy, err error) {
 }
 
 func ContractWrap(protocol contractnode.Protocol, p netapi.Proxy) (netapi.Proxy, error) {
+	if protocol.CredentialRef != "" {
+		return nil, errors.New("unresolved outbound credential reference")
+	}
 	if err := protocol.Validate(); err != nil {
 		return nil, err
 	}

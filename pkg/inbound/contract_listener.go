@@ -33,9 +33,34 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 )
 
-func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]netip.Prefix) (netapi.Accepter, error) {
+func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]netip.Prefix, providers ...proxyauth.Provider) (result netapi.Accepter, resultErr error) {
+	var provider proxyauth.Provider
+	if len(providers) > 0 {
+		provider = providers[0]
+	}
+	var verifier func(string) proxyauth.Verifier
+	var scope *proxyauth.Scope
+	defer func() {
+		if scope != nil {
+			if resultErr != nil {
+				scope.Close()
+			} else {
+				result = &authenticatedAccepter{Accepter: result, scope: scope}
+			}
+		}
+	}()
+	if config.Authentication != nil {
+		if provider == nil {
+			return nil, errors.New("inbound user authentication requires the identity module")
+		}
+		scope = proxyauth.NewScope()
+		verifier = func(protocol string) proxyauth.Verifier {
+			return scope.Wrap(provider.Verifier(config.ID, protocol, config.Authentication.Users))
+		}
+	}
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -44,7 +69,7 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 	}
 
 	if config.Protocol.Type == contract.ProtocolHysteria2 {
-		return listenHysteria2(config, handler)
+		return listenHysteria2(config, handler, verifier)
 	}
 	if config.Protocol.Type == contract.ProtocolWireguard {
 		if config.Network.Type != contract.NetworkEmpty || len(config.Transports) != 0 {
@@ -93,7 +118,7 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 		}
 	}
 
-	server, err := contractProtocol(config.Protocol, lis, handler, ranges)
+	server, err := contractProtocol(config.Protocol, lis, handler, ranges, verifier)
 	if err != nil {
 		closeIfNotNil(lis)
 		return nil, err
@@ -102,6 +127,21 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 		return &boundAccepter{Accepter: server, bindings: bindings}, nil
 	}
 	return server, nil
+}
+
+type authenticatedAccepter struct {
+	netapi.Accepter
+	scope *proxyauth.Scope
+}
+
+func (s *authenticatedAccepter) Close() error { s.scope.Close(); return s.Accepter.Close() }
+func (s *authenticatedAccepter) listenerBindings() []contract.RuntimeListener {
+	if reporter, ok := s.Accepter.(interface {
+		listenerBindings() []contract.RuntimeListener
+	}); ok {
+		return reporter.listenerBindings()
+	}
+	return nil
 }
 
 func toWireguardPeers(peers []contract.WireguardPeer) []wireguard.ServerPeer {
@@ -233,30 +273,36 @@ func contractTransport(config contract.Transport, lis netapi.Listener) (netapi.L
 	}
 }
 
-func contractProtocol(config contract.Protocol, lis netapi.Listener, handler netapi.Handler, ranges [2]netip.Prefix) (netapi.Accepter, error) {
+func contractProtocol(config contract.Protocol, lis netapi.Listener, handler netapi.Handler, ranges [2]netip.Prefix, verifiers ...func(string) proxyauth.Verifier) (netapi.Accepter, error) {
+	verify := func(protocol string) proxyauth.Verifier {
+		if len(verifiers) > 0 && verifiers[0] != nil {
+			return verifiers[0](protocol)
+		}
+		return nil
+	}
 	switch config.Type {
 	case contract.ProtocolHTTP:
 		protocol := config.HTTP
-		return yhttp.NewServer(yhttp.ServerConfig{
+		return yhttp.NewServer(yhttp.ServerConfig{Authenticate: verify("http"),
 			Username: protocol.Username,
 			Password: protocol.Password,
 		}, lis, handler)
 	case contract.ProtocolSocks5:
 		protocol := config.Socks5
-		return socks5.NewServer(socks5.ServerConfig{
+		return socks5.NewServer(socks5.ServerConfig{Authenticate: verify("socks5"),
 			Username: protocol.Username,
 			Password: protocol.Password,
 			UDP:      protocol.UDP,
 		}, lis, handler)
 	case contract.ProtocolYuubinsya:
 		protocol := config.Yuubinsya
-		return yuubinsya.NewServer(yuubinsya.ServerConfig{
+		return yuubinsya.NewServer(yuubinsya.ServerConfig{Authenticate: verify("yuubinsya"),
 			Password:    protocol.Password,
 			UDPCoalesce: protocol.UDPCoalesce,
 		}, lis, handler)
 	case contract.ProtocolMixed:
 		protocol := config.Mixed
-		return mixed.NewServer(mixed.ServerConfig{
+		return mixed.NewServer(mixed.ServerConfig{AuthenticateHTTP: verify("http"), AuthenticateSocks5: verify("socks5"),
 			Username: protocol.Username,
 			Password: protocol.Password,
 		}, lis, handler)
@@ -356,7 +402,7 @@ func (n noopAccepter) AcceptPacket() (*netapi.Packet, error) {
 
 // Hysteria owns QUIC/HTTP3. TLS transports configure its handshake rather than
 // wrapping a TCP listener, and the existing quic network uses a different wire format.
-func listenHysteria2(config contract.Inbound, handler netapi.Handler) (netapi.Accepter, error) {
+func listenHysteria2(config contract.Inbound, handler netapi.Handler, verifiers ...func(string) proxyauth.Verifier) (netapi.Accepter, error) {
 	if config.Network.Type != contract.NetworkTCPUDP || config.Network.TCPUDP.UDP != contract.UDPUdpOnly {
 		return nil, errors.New("hysteria2 requires tcp_udp network with udp_only")
 	}
@@ -399,7 +445,12 @@ func listenHysteria2(config contract.Inbound, handler netapi.Handler) (netapi.Ac
 	if err != nil {
 		return nil, err
 	}
-	server, err := hysteria2.NewServer(*config.Protocol.Hysteria2, tlsConfig, lis, handler)
+	server, err := hysteria2.NewServer(*config.Protocol.Hysteria2, tlsConfig, lis, handler, func() proxyauth.Verifier {
+		if len(verifiers) > 0 && verifiers[0] != nil {
+			return verifiers[0]("hysteria2")
+		}
+		return nil
+	}())
 	if err != nil {
 		closeIfNotNil(lis)
 	}

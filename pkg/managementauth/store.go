@@ -91,7 +91,7 @@ func (s *Store) Users(ctx context.Context) ([]User, error) {
 }
 
 func validUser(login, role string) bool {
-	if len(login) < 1 || len(login) > 64 || len(RolePermissions(role)) == 0 {
+	if len(login) < 1 || len(login) > 64 || (role != NoManagement && len(RolePermissions(role)) == 0) {
 		return false
 	}
 	for _, c := range login {

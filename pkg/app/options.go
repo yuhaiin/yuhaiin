@@ -26,10 +26,12 @@ import (
 	"time"
 
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/credential"
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	routepkg "github.com/Asutorufa/yuhaiin/pkg/route"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -255,7 +257,9 @@ type StartOptions struct {
 
 	// Optional management HTTP middleware. Without it, only local peers can
 	// access management routes; no identity database or auth routes are loaded.
-	HTTPMiddleware httpapi.Middleware
+	HTTPMiddleware      httpapi.Middleware
+	ProxyAuthentication proxyauth.Provider
+	UpstreamCredentials credential.Resolver
 
 	ConfigPath string
 

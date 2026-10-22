@@ -3,7 +3,6 @@ package hysteria2
 import (
 	"context"
 	"crypto/rand"
-	"crypto/subtle"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -19,9 +18,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2/internal/congestion"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2/internal/wire"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 )
 
 type nativeServer struct {
+	authenticate                      proxyauth.Verifier
 	transport                         *quic.Transport
 	listener                          *quic.Listener
 	socket                            net.PacketConn
@@ -116,6 +117,9 @@ func (s *nativeServer) serveConn(conn *quic.Conn) {
 	udp := h.udp
 	h.mu.Unlock()
 	_ = conn.CloseWithError(0x100, "")
+	if h.authStop != nil {
+		h.authStop()
+	}
 	h.requests.Wait()
 	if udp != nil {
 		udp.closeAll()
@@ -123,6 +127,8 @@ func (s *nativeServer) serveConn(conn *quic.Conn) {
 }
 
 type nativeHTTPHandler struct {
+	identity               *proxyauth.Identity
+	authStop               func() bool
 	server                 *nativeServer
 	conn                   *quic.Conn
 	mu                     sync.Mutex
@@ -144,9 +150,14 @@ func (h *nativeHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if !h.authenticated {
 		auth := wire.ReadClientAuth(r.Header)
-		if subtle.ConstantTimeCompare([]byte(auth.Password), []byte(h.server.password)) != 1 {
+		identity, err := proxyauth.Check(r.Context(), h.server.authenticate, "", []byte(auth.Password), "", h.server.password)
+		if err != nil {
 			http.NotFound(w, r)
 			return
+		}
+		h.identity = identity
+		if identity != nil {
+			h.authStop = context.AfterFunc(identity.Context, func() { _ = h.conn.CloseWithError(0x100, "") })
 		}
 		h.authenticated = true
 		tx := auth.ReceiveBytesPerSecond
@@ -159,7 +170,7 @@ func (h *nativeHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			congestion.UseBrutal(h.conn, tx, false)
 		}
 		if !h.server.disableUDP {
-			h.udp = newNativeServerUDP(h.conn, h.server.handler)
+			h.udp = newNativeServerUDP(h.conn, netapi.WithIdentityHandler(h.server.handler, h.identity))
 			go h.udp.run()
 		}
 	}
@@ -224,7 +235,7 @@ func (h *nativeHTTPHandler) handleTCP(stream *quic.Stream) {
 	}
 	conn := &nativeTCPConn{Stream: stream, local: h.conn.LocalAddr(), remote: h.conn.RemoteAddr()}
 	handedOff = true
-	h.server.handler.HandleStream(&netapi.StreamMeta{
+	netapi.WithIdentityHandler(h.server.handler, h.identity).HandleStream(&netapi.StreamMeta{
 		Source: h.conn.RemoteAddr(), Destination: destination, Inbound: h.conn.LocalAddr(),
 		Src: conn, Address: destination,
 	})

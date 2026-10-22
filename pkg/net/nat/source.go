@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/ringbuffer"
@@ -49,6 +50,7 @@ func newContextCache(store *netapi.Context) ContextCache {
 }
 
 type SourceControl struct {
+	identity          atomic.Pointer[proxyauth.Identity]
 	ctx               context.Context
 	dialer            netapi.Proxy
 	destinationLeaser destinationLeaser
@@ -325,3 +327,10 @@ func (u *SourceControl) retireIdle(timeout time.Duration) bool {
 	u.close()
 	return true
 }
+
+func (u *SourceControl) bindIdentity(identity *proxyauth.Identity) {
+	u.identity.Store(identity)
+	stop := context.AfterFunc(identity.Context, u.close)
+	context.AfterFunc(u.ctx, func() { stop() })
+}
+func (u *SourceControl) identityValid() bool { return u.identity.Load().Valid() }
