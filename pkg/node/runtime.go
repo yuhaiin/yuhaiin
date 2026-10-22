@@ -13,6 +13,7 @@ import (
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/credential"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -29,7 +30,10 @@ import (
 // It also implements the route dialer and node HTTP controller contracts so
 // callers do not need a second manager/controller wrapper.
 type NodeRuntime struct {
-	path string
+	credentialMu       sync.Mutex
+	credentials        credential.Resolver
+	credentialVersions map[string]string
+	path               string
 
 	mu       sync.Mutex
 	sqlite   *storagesqlite.Store
@@ -325,8 +329,22 @@ func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node con
 	default:
 		return nil, fmt.Errorf("unsupported node IP version %q", node.IPVersion)
 	}
+	r.credentialMu.Lock()
+	defer r.credentialMu.Unlock()
+	resolved, version, err := r.resolveCredentials(ctx, node)
+	if err != nil {
+		r.proxies.Delete(id)
+		return nil, err
+	}
+	if r.credentialVersions == nil {
+		r.credentialVersions = make(map[string]string)
+	}
+	if previous, ok := r.credentialVersions[id]; ok && previous != version {
+		r.proxies.Delete(id)
+	}
+	r.credentialVersions[id] = version
 	proxy, err := r.proxies.LoadOrCreate(ctx, id, func() (*ProxyEntry, error) {
-		proxy, err := register.ContractDialer(node)
+		proxy, err := register.ContractDialer(resolved)
 		if err != nil {
 			return nil, err
 		}

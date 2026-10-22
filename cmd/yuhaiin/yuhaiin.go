@@ -76,18 +76,27 @@ func run(args []string) error {
 
 	fmt.Println(version.Art)
 
+	identities, err := managementauth.OpenRuntime(context.Background(), *path)
+	if err != nil {
+		_ = lis.Close()
+		return err
+	}
+	defer identities.Close()
 	app, err := app.Start(&app.StartOptions{
-		ConfigPath:     *path,
-		Auth:           auth,
-		HTTPMiddleware: managementauth.Middleware,
-		StateStore:     setting,
-		ProcessDumper:  getPorcessDumper(),
-		Updater:        newUpdateInstaller(*path),
+		ConfigPath:          *path,
+		Auth:                auth,
+		HTTPMiddleware:      identities.Middleware,
+		ProxyAuthentication: identities.Proxy,
+		UpstreamCredentials: identities.Upstream,
+		StateStore:          setting,
+		ProcessDumper:       getPorcessDumper(),
+		Updater:             newUpdateInstaller(*path),
 	})
 	if err != nil {
 		_ = lis.Close()
 		return err
 	}
+	identities.Upstream.Changed = app.NodeRuntime.InvalidateCredential
 	defer func() {
 		if err := app.Close(); err != nil {
 			log.Error("close app error", "err", err)

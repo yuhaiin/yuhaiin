@@ -2,7 +2,6 @@ package socks5
 
 import (
 	"context"
-	"crypto/subtle"
 	"fmt"
 	"io"
 	"net"
@@ -11,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
@@ -55,6 +55,7 @@ func (s *Server) startTCPServer() error {
 
 			go func() {
 				if err := s.Handle(conn); err != nil {
+					_ = conn.Close()
 					log.Error("socks5 tcp server handle", "msg", err)
 				}
 			}()
@@ -69,46 +70,51 @@ func (s *Server) Handle(client net.Conn) (err error) {
 	b := pool.GetBytes(pool.DefaultSize)
 	defer pool.PutBytes(b)
 
-	err = s.handshake1(client, b)
+	identity, err := s.authenticateClient(client, b)
 	if err != nil {
 		return fmt.Errorf("first hand failed: %w", err)
 	}
 
-	if err = s.handshake2(client, b); err != nil {
+	if identity != nil {
+		stop := context.AfterFunc(identity.Context, func() { _ = client.Close() })
+		defer stop()
+	}
+
+	if err = s.handshake2(client, b, identity); err != nil {
 		return fmt.Errorf("second hand failed: %w", err)
 	}
 
 	return
 }
 
-func (s *Server) handshake1(client net.Conn, buf []byte) error {
+func (s *Server) authenticateClient(client net.Conn, buf []byte) (*proxyauth.Identity, error) {
 	//socks5 first handshake
 	if _, err := io.ReadFull(client, buf[:2]); err != nil {
-		return fmt.Errorf("read first handshake failed: %w", err)
+		return nil, fmt.Errorf("read first handshake failed: %w", err)
 	}
 
 	if buf[0] != 0x05 { // ver
 		err := writeHandshake1(client, tools.NoAcceptableMethods)
-		return fmt.Errorf("no acceptable method: %d, resp err: %w", buf[0], err)
+		return nil, fmt.Errorf("no acceptable method: %d, resp err: %w", buf[0], err)
 	}
 
 	nMethods := int(buf[1])
 
 	if nMethods > len(buf) {
 		err := writeHandshake1(client, tools.NoAcceptableMethods)
-		return fmt.Errorf("nMethods length of methods out of buf, resp err: %w", err)
+		return nil, fmt.Errorf("nMethods length of methods out of buf, resp err: %w", err)
 	}
 
 	if _, err := io.ReadFull(client, buf[:nMethods]); err != nil {
-		return fmt.Errorf("read methods failed: %w", err)
+		return nil, fmt.Errorf("read methods failed: %w", err)
 	}
 
-	noNeedVerify := s.username == "" && s.password == ""
+	noNeedVerify := s.authenticate == nil && s.username == "" && s.password == ""
 	userAndPasswordSupport := false
 
 	for _, v := range buf[:nMethods] { // range all supported methods
 		if v == tools.NoAuthenticationRequired && noNeedVerify {
-			return writeHandshake1(client, tools.NoAuthenticationRequired)
+			return nil, writeHandshake1(client, tools.NoAuthenticationRequired)
 		}
 
 		if v == tools.UserAndPassword {
@@ -117,61 +123,72 @@ func (s *Server) handshake1(client net.Conn, buf []byte) error {
 	}
 
 	if userAndPasswordSupport {
-		return verifyUserPass(client, s.username, s.password)
+		return verifyUserPass(client, s.username, s.password, s.authenticate)
 	}
 
 	err := writeHandshake1(client, tools.NoAcceptableMethods)
 
-	return fmt.Errorf("no acceptable authentication methods: [length: %d, method:%v], response err: %w", nMethods, buf[:nMethods], err)
+	return nil, fmt.Errorf("no acceptable authentication methods: [length: %d, method:%v], response err: %w", nMethods, buf[:nMethods], err)
 }
 
-func verifyUserPass(client net.Conn, user, key string) error {
+func verifyUserPass(client net.Conn, user, key string, verify proxyauth.Verifier) (*proxyauth.Identity, error) {
 	if err := writeHandshake1(client, tools.UserAndPassword); err != nil {
-		return err
+		return nil, err
 	}
 
 	b := pool.GetBytes(pool.DefaultSize)
 	defer pool.PutBytes(b)
 
 	if _, err := io.ReadFull(client, b[:2]); err != nil {
-		return fmt.Errorf("read ver and user name length failed: %w", err)
+		return nil, fmt.Errorf("read ver and user name length failed: %w", err)
 	}
 
 	// if b[0] != 0x01 {
-	// 	return fmt.Errorf("unknown ver: %d", b[0])
+	// 	return nil,fmt.Errorf("unknown ver: %d", b[0])
 	// }
 
 	usernameLength := int(b[1])
 
 	if _, err := io.ReadFull(client, b[2:2+usernameLength]); err != nil {
-		return fmt.Errorf("read username failed: %w", err)
+		return nil, fmt.Errorf("read username failed: %w", err)
 	}
 
 	username := b[2 : 2+usernameLength]
 
 	if _, err := io.ReadFull(client, b[2+usernameLength:2+usernameLength+1]); err != nil {
-		return fmt.Errorf("read password length failed: %w", err)
+		return nil, fmt.Errorf("read password length failed: %w", err)
 	}
 
 	passwordLength := int(b[2+usernameLength])
 
 	if _, err := io.ReadFull(client, b[2+usernameLength+1:2+usernameLength+1+passwordLength]); err != nil {
-		return fmt.Errorf("read password failed: %w", err)
+		return nil, fmt.Errorf("read password failed: %w", err)
 	}
 
 	password := b[2+usernameLength+1 : 2+usernameLength+1+passwordLength]
 
-	if (len(user) > 0 && subtle.ConstantTimeCompare([]byte(user), username) != 1) ||
-		(len(key) > 0 && subtle.ConstantTimeCompare([]byte(key), password) != 1) {
+	var identity *proxyauth.Identity
+	var authErr error
+	if verify == nil && user == "" && key == "" {
+		identity = nil
+	} else {
+		identity, authErr = proxyauth.Check(context.Background(), verify, string(username), password, user, key)
+	}
+	if authErr != nil {
 		_, err := client.Write([]byte{1, 1})
-		return fmt.Errorf("verify username and password failed, resp err: %w", err)
+		return nil, fmt.Errorf("verify username and password failed, resp err: %w", err)
 	}
 
 	_, err := client.Write([]byte{1, 0})
-	return err
+	return identity, err
 }
 
-func (s *Server) handshake2(client net.Conn, buf []byte) error {
+func (s *Server) handshake2(client net.Conn, buf []byte, identities ...*proxyauth.Identity) error {
+	var identity *proxyauth.Identity
+	if len(identities) > 0 {
+		identity = identities[0]
+	}
+	handler := netapi.WithIdentityHandler(s.handler, identity)
 	// socks5 second handshake
 	if _, err := io.ReadFull(client, buf[:3]); err != nil {
 		return fmt.Errorf("read second handshake failed: %w", err)
@@ -204,7 +221,7 @@ func (s *Server) handshake2(client net.Conn, buf []byte) error {
 			return err
 		}
 
-		s.handler.HandleStream(&netapi.StreamMeta{
+		handler.HandleStream(&netapi.StreamMeta{
 			Source:      client.RemoteAddr(),
 			Destination: addr,
 			Inbound:     client.LocalAddr(),
@@ -228,7 +245,7 @@ func (s *Server) handshake2(client net.Conn, buf []byte) error {
 			return fmt.Errorf("parse local addr failed: %w", err)
 		}
 
-		s.handler.HandlePing(&netapi.PingMeta{
+		handler.HandlePing(&netapi.PingMeta{
 			Source:      client.RemoteAddr(),
 			Destination: addr,
 			WriteBack: func(u uint64, err error) error {
@@ -242,7 +259,11 @@ func (s *Server) handshake2(client net.Conn, buf []byte) error {
 
 	case tools.Udp: // udp
 		if s.udp {
-			err = handleUDP(client)
+			if s.authenticate != nil {
+				err = s.handleAuthenticatedUDP(client, identity)
+			} else {
+				err = handleUDP(client)
+			}
 			break
 		}
 		fallthrough
@@ -301,15 +322,17 @@ type Server struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 
-	username string
-	password string
-	udp      bool
+	authenticate proxyauth.Verifier
+	username     string
+	password     string
+	udp          bool
 }
 
 type ServerConfig struct {
-	Username string `json:"username,omitzero"`
-	Password string `json:"password,omitzero"`
-	UDP      bool   `json:"udp,omitzero"`
+	Authenticate proxyauth.Verifier `json:"-"`
+	Username     string             `json:"username,omitzero"`
+	Password     string             `json:"password,omitzero"`
+	UDP          bool               `json:"udp,omitzero"`
 }
 
 func (s *Server) Close() error {
@@ -320,16 +343,23 @@ func (s *Server) Close() error {
 func NewServer(o ServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
-		udp:      o.UDP,
-		username: o.Username,
-		password: o.Password,
-		lis:      ii,
-		handler:  handler,
-		ctx:      ctx,
-		cancel:   cancel,
+		authenticate: o.Authenticate,
+		udp:          o.UDP,
+		username:     o.Username,
+		password:     o.Password,
+		lis:          ii,
+		handler:      handler,
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 
-	if s.udp {
+	if s.udp && s.authenticate != nil {
+		if _, err := s.lis.Packet(s.ctx); err != nil {
+			cancel()
+			return nil, err
+		}
+	}
+	if s.udp && s.authenticate == nil {
 		if err := s.startUDPServer(); err != nil {
 			return nil, err
 		}

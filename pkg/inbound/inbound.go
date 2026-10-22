@@ -15,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -29,6 +30,7 @@ type entry struct {
 var _ netapi.Handler = (*Inbound)(nil)
 
 type Inbound struct {
+	authentication      proxyauth.Provider
 	states              map[string]runtimeState
 	eventID             uint64
 	statisticsStore     IngressStatisticsStore
@@ -85,6 +87,10 @@ func (l *Inbound) TrafficControlStatus() trafficcontrol.Status {
 }
 
 type Option func(*Inbound)
+
+func WithAuthentication(provider proxyauth.Provider) Option {
+	return func(l *Inbound) { l.authentication = provider }
+}
 
 // WithInterceptor installs one optional hook shared by every TCP inbound.
 // UDP and disabled installations keep the existing forwarding path.
@@ -193,10 +199,14 @@ func (l *Inbound) shouldHijackDNS(port uint16) bool {
 }
 
 func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
+	if !meta.Identity.Valid() {
+		_ = meta.Src.Close()
+		return
+	}
 	metrics.Counter.AddStreamRequest()
 
 	if (!meta.DnsRequest && !l.shouldHijackDNS(meta.Address.Port())) || l.dnsHandler == nil {
-		store := netapi.WithContext(l.ctx)
+		store := netapi.WithContext(netapi.WithTrafficIdentity(l.ctx, meta.Identity))
 		store.Source = meta.Source
 		store.Destination = meta.Destination
 		if meta.Inbound != nil {
@@ -208,7 +218,7 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 		return
 	}
 
-	err := l.dnsHandler.DoStream(l.ctx, &netapi.DNSStreamRequest{
+	err := l.dnsHandler.DoStream(netapi.WithTrafficIdentity(l.ctx, meta.Identity), &netapi.DNSStreamRequest{
 		Conn:        meta.Src,
 		ForceFakeIP: l.fakeip.Load(),
 	})
@@ -229,9 +239,12 @@ func (l *Inbound) HandlePacket(packet *netapi.Packet) {
 }
 
 func (l *Inbound) HandlePing(packet *netapi.PingMeta) {
+	if !packet.Identity.Valid() {
+		return
+	}
 	ctx, cancel := context.WithTimeout(l.ctx, time.Second*3)
 	defer cancel()
-	store := netapi.WithContext(ctx)
+	store := netapi.WithContext(netapi.WithTrafficIdentity(ctx, packet.Identity))
 	store.Source = packet.Source
 	store.Destination = packet.Destination
 	store.SetInboundName(packet.InboundName)
@@ -253,6 +266,9 @@ func (l *Inbound) loopudp() {
 
 func (l *Inbound) handlePacket(packet *netapi.Packet) {
 	defer packet.DecRef()
+	if !packet.Identity.Valid() {
+		return
+	}
 
 	if (!packet.IsDNSRequest() && !l.shouldHijackDNS(packet.Dst().Port())) || l.dnsHandler == nil {
 		// we only use [netapi.Context] at new PacketConn instead of every packet
@@ -362,7 +378,7 @@ func (l *Inbound) SaveContract(req contract.Inbound) (result error) {
 		counters = new(ingressCounters)
 		l.countersByID[key] = counters
 	}
-	server, err := listenContract(req, &handlerWrap{id: req.ID, name: req.Name, handler: l, counters: counters}, l.fakeIPRanges)
+	server, err := listenContract(req, &handlerWrap{id: req.ID, name: req.Name, handler: l, counters: counters}, l.fakeIPRanges, l.authentication)
 	if err != nil {
 		log.Error("start contract server failed", "name", req.Name, "id", req.ID, "err", err)
 		return err

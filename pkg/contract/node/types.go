@@ -105,7 +105,8 @@ type STUNLatency struct {
 }
 
 type Protocol struct {
-	Type string `json:"type"`
+	CredentialRef string `json:"credentialRef,omitempty"`
+	Type          string `json:"type"`
 
 	Shadowsocks  *Shadowsocks  `json:"shadowsocks,omitzero"`
 	Shadowsocksr *Shadowsocksr `json:"shadowsocksr,omitzero"`
@@ -817,7 +818,7 @@ func (x Protocol) Validate() error {
 	if active != x.Type {
 		return fmt.Errorf("protocol type %q does not match concrete object %q", x.Type, active)
 	}
-	return nil
+	return x.validateCredentialRef()
 }
 
 func (x Protocol) presentVariants() map[string]bool {

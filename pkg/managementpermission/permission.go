@@ -1,6 +1,6 @@
-// Package permission defines the stable permission identifiers shared by the
+// Package managementpermission defines the stable permission identifiers shared by the
 // management API and its authentication middleware.
-package permission
+package managementpermission
 
 import "slices"
 
@@ -8,29 +8,32 @@ import "slices"
 type Permission string
 
 const (
-	NodesRead        Permission = "nodes:read"
-	NodesWrite       Permission = "nodes:write"
-	InboundsRead     Permission = "inbounds:read"
-	InboundsWrite    Permission = "inbounds:write"
-	RoutesRead       Permission = "routes:read"
-	RoutesWrite      Permission = "routes:write"
-	ResolverRead     Permission = "resolver:read"
-	ResolverWrite    Permission = "resolver:write"
-	ConnectionsRead  Permission = "connections:read"
-	ConnectionsWrite Permission = "connections:write"
-	GatewayRead      Permission = "gateway:read"
-	GatewayWrite     Permission = "gateway:write"
-	SettingsRead     Permission = "settings:read"
-	SettingsWrite    Permission = "settings:write"
-	Diagnostics      Permission = "diagnostics:run"
-	BackupManage     Permission = "backup:manage"
-	UpdateManage     Permission = "update:manage"
-	UsersManage      Permission = "users:manage"
-	TokensManage     Permission = "tokens:manage"
-	SecurityRead     Permission = "security:read"
-	MetricsRead      Permission = "metrics:read"
-	IdentityRead     Permission = "identity:read"
-	TokensOwn        Permission = "tokens:own"
+	NodesRead                 Permission = "nodes:read"
+	NodesWrite                Permission = "nodes:write"
+	InboundsRead              Permission = "inbounds:read"
+	InboundsWrite             Permission = "inbounds:write"
+	RoutesRead                Permission = "routes:read"
+	RoutesWrite               Permission = "routes:write"
+	ResolverRead              Permission = "resolver:read"
+	ResolverWrite             Permission = "resolver:write"
+	ConnectionsRead           Permission = "connections:read"
+	ConnectionsWrite          Permission = "connections:write"
+	GatewayRead               Permission = "gateway:read"
+	GatewayWrite              Permission = "gateway:write"
+	SettingsRead              Permission = "settings:read"
+	SettingsWrite             Permission = "settings:write"
+	Diagnostics               Permission = "diagnostics:run"
+	BackupManage              Permission = "backup:manage"
+	UpdateManage              Permission = "update:manage"
+	UsersManage               Permission = "users:manage"
+	TokensManage              Permission = "tokens:manage"
+	SecurityRead              Permission = "security:read"
+	MetricsRead               Permission = "metrics:read"
+	IdentityRead              Permission = "identity:read"
+	TokensOwn                 Permission = "tokens:own"
+	ProxyCredentialsManage    Permission = "proxy-credentials:manage"
+	UpstreamCredentialsManage Permission = "upstream-credentials:manage"
+	ProxyCredentialsOwn       Permission = "proxy-credentials:own"
 )
 
 // Definition describes a permission in the management API catalog.
@@ -41,6 +44,9 @@ type Definition struct {
 }
 
 var catalog = [...]Definition{
+	{ProxyCredentialsOwn, "users", "Create, revoke, and rotate your own inbound proxy credentials."},
+	{ProxyCredentialsManage, "users", "Manage user credentials for inbound proxy access."},
+	{UpstreamCredentialsManage, "nodes", "Manage secrets used to authenticate outbound connections."},
 	{NodesRead, "nodes", "View nodes, subscriptions, selectors, and publication status."},
 	{NodesWrite, "nodes", "Create, update, select, and delete nodes or subscriptions."},
 	{InboundsRead, "inbounds", "View inbound configuration and runtime status."},

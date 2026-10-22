@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
@@ -30,8 +31,10 @@ type Matcher struct {
 }
 
 type ServerConfig struct {
-	Username string `json:"username,omitzero"`
-	Password string `json:"password,omitzero"`
+	AuthenticateHTTP   proxyauth.Verifier `json:"-"`
+	AuthenticateSocks5 proxyauth.Verifier `json:"-"`
+	Username           string             `json:"username,omitzero"`
+	Password           string             `json:"password,omitzero"`
 }
 
 func NewServer(o ServerConfig, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
@@ -41,7 +44,9 @@ func NewServer(o ServerConfig, ii netapi.Listener, handler netapi.Handler) (neta
 	}
 
 	mix.socks5(o, ii, handler)
-	mix.socks4(o, ii, handler)
+	if o.AuthenticateHTTP == nil && o.AuthenticateSocks5 == nil {
+		mix.socks4(o, ii, handler)
+	}
 	mix.http(o, ii, handler)
 
 	go func() {
@@ -79,14 +84,14 @@ func (m *Mixed) AddMatcher(match func(byte) bool) net.Listener {
 func (m *Mixed) socks5(o ServerConfig, ii netapi.Listener, handler netapi.Handler) {
 	lis := m.AddMatcher(func(b byte) bool { return b == 0x05 })
 
-	s5, err := socks5.NewServer(socks5.ServerConfig{
+	s5, err := socks5.NewServer(socks5.ServerConfig{Authenticate: o.AuthenticateSocks5,
 		Username: o.Username,
 		Password: o.Password,
 		UDP:      true,
 	}, netapi.NewListener(lis, ii), handler)
 	if errors.Is(err, errors.ErrUnsupported) {
 		// A TCP-only listener still provides SOCKS5 CONNECT; UDP ASSOCIATE is disabled.
-		s5, err = socks5.NewServer(socks5.ServerConfig{Username: o.Username, Password: o.Password, UDP: false}, netapi.NewListener(lis, ii), handler)
+		s5, err = socks5.NewServer(socks5.ServerConfig{Authenticate: o.AuthenticateSocks5, Username: o.Username, Password: o.Password, UDP: false}, netapi.NewListener(lis, ii), handler)
 	}
 	if err != nil {
 		log.Error("new socks5 server failed", "err", err)
@@ -111,7 +116,7 @@ func (m *Mixed) socks4(o ServerConfig, ii netapi.Listener, handler netapi.Handle
 }
 
 func (m *Mixed) http(o ServerConfig, ii netapi.Listener, handler netapi.Handler) {
-	http, err := http.NewServer(http.ServerConfig{
+	http, err := http.NewServer(http.ServerConfig{Authenticate: o.AuthenticateHTTP,
 		Username: o.Username,
 		Password: o.Password,
 	}, netapi.NewListener(m.defaultC, ii), handler)

@@ -3,6 +3,7 @@ package netapi
 import (
 	"context"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"io"
 	"net"
 	"sync"
@@ -132,6 +133,7 @@ func (h *ChannelHandler) Packet() <-chan *Packet     { return h.packet }
 func (h *ChannelHandler) Ping() <-chan *PingMeta     { return h.ping }
 
 type PingMeta struct {
+	Identity    *proxyauth.Identity
 	Source      net.Addr
 	Destination Address
 	WriteBack   func(uint64, error) error
@@ -140,6 +142,7 @@ type PingMeta struct {
 }
 
 type StreamMeta struct {
+	Identity    *proxyauth.Identity
 	Source      net.Addr
 	Destination net.Addr
 	Inbound     net.Addr
@@ -182,6 +185,7 @@ type WriteBackFunc func(b []byte, addr net.Addr) (int, error)
 func (f WriteBackFunc) WriteBack(b []byte, addr net.Addr) (int, error) { return f(b, addr) }
 
 type Packet struct {
+	Identity    *proxyauth.Identity
 	src         net.Addr
 	dst         Address
 	writeBack   WriteBack

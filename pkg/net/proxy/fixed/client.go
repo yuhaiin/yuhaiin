@@ -294,6 +294,9 @@ func (c *Client) resolverUDPAddr(ctx context.Context, addr netapi.Address) (*net
 }
 
 func (c *Client) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketConn, error) {
+	if parent, target := netapi.ConsumePacketTarget(ctx); target != nil {
+		return c.packetConnTo(parent, target)
+	}
 	index := c.index.Load()
 	addr := c.addrs[index]
 
@@ -484,4 +487,32 @@ func (c *durationCounter) Reset() {
 
 	c.count = 0
 	c.lastTime = 0
+}
+
+// packetConnTo honors a dynamically negotiated UDP endpoint, such as a SOCKS5
+// relay. Ordinary PacketConn continues using the configured fixed endpoint.
+func (c *Client) packetConnTo(ctx context.Context, target netapi.Address) (net.PacketConn, error) {
+	selected := c.addrs[c.index.Load()]
+	if c.nonBootstrap {
+		packet, err := c.p.PacketConn(ctx, target)
+		if err != nil {
+			return nil, err
+		}
+		return &packetConnSingle{PacketConn: packet, addr: target}, nil
+	}
+	ctx = netapi.WithContext(ctx)
+	address, err := c.resolverUDPAddr(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	packet, err := dialer.ListenPacket(ctx, "udp", "", func(options *dialer.Options) {
+		if selected.Interface != "" {
+			options.InterfaceName = selected.Interface
+		}
+		options.PacketConnHintAddress = address
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &packetConnSingle{PacketConn: packet, addr: address}, nil
 }

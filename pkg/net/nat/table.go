@@ -26,9 +26,14 @@ func udpIdleTimeout() time.Duration {
 	return configuration.UDPIdleTimeout.Load()
 }
 
+type authenticatedSourceKey struct {
+	credentialID, inboundID string
+	source                  uint64
+}
 type Table struct {
-	dialer  netapi.Proxy
-	sniffer netapi.PacketSniffer
+	authenticatedSources syncmap.SyncMap[authenticatedSourceKey, *SourceControl]
+	dialer               netapi.Proxy
+	sniffer              netapi.PacketSniffer
 
 	cleanerWake    chan struct{}
 	sourceControl  syncmap.SyncMap[uint64, *SourceControl]
@@ -108,6 +113,15 @@ func (t *Table) runCleaner(interval func() time.Duration) {
 					}
 				}
 			}
+			for k, v := range t.authenticatedSources.Range {
+				if (!v.identityValid() || v.retireIdle(idleTimeout)) && t.authenticatedSources.CompareAndDelete(k, v) {
+					_ = v.Close()
+				}
+			}
+			for range t.authenticatedSources.RangeValues {
+				arm()
+				break
+			}
 			for range t.sourceControl.RangeValues {
 				arm()
 				break
@@ -135,18 +149,39 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		key = srcAddr.Comparable()
 	}
 
+	if !pkt.Identity.Valid() {
+		return context.Canceled
+	}
+	load := func(create func() (*SourceControl, error)) (*SourceControl, bool, error) {
+		return u.sourceControl.LoadOrCreate(key, create)
+	}
+	remove := func(source *SourceControl) { u.sourceControl.CompareAndDelete(key, source) }
+	if identity := pkt.Identity; identity != nil {
+		scoped := authenticatedSourceKey{identity.CredentialID, pkt.InboundID(), key}
+		load = func(create func() (*SourceControl, error)) (*SourceControl, bool, error) {
+			return u.authenticatedSources.LoadOrCreate(scoped, create)
+		}
+		remove = func(source *SourceControl) { u.authenticatedSources.CompareAndDelete(scoped, source) }
+	}
 	u.mu.RLock()
 	defer u.mu.RUnlock()
 	if u.closed.Load() {
 		return fmt.Errorf("udp nat table: %w", net.ErrClosed)
 	}
 	for {
-		r, loaded, err := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) {
+		if !pkt.Identity.Valid() {
+			return context.Canceled
+		}
+		r, loaded, err := load(func() (*SourceControl, error) {
 			lease, ok := u.budget.AcquireSession()
 			if !ok {
 				return nil, ErrNATSessionLimit
 			}
-			return newSourceChan(u.sniffer, u.dialer, lease, u.budget, u.trafficControl), nil
+			source := newSourceChan(u.sniffer, u.dialer, lease, u.budget, u.trafficControl)
+			if pkt.Identity != nil {
+				source.bindIdentity(pkt.Identity)
+			}
+			return source, nil
 		})
 		if err != nil {
 			return err
@@ -163,7 +198,7 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		}
 		// Cleanup can retire a control between lookup and admission. Retry the
 		// same source mapping; never add the destination to the full-cone key.
-		u.sourceControl.CompareAndDelete(key, r)
+		remove(r)
 		// Join the retired owner before reserving its replacement. Its worker
 		// returns the session lease even when the cleaner loses map deletion.
 		_ = r.Close()
@@ -180,6 +215,10 @@ func (u *Table) Close() error {
 			controls = append(controls, v)
 		}
 		u.sourceControl.Clear()
+		for source := range u.authenticatedSources.RangeValues {
+			controls = append(controls, source)
+		}
+		u.authenticatedSources.Clear()
 		u.mu.Unlock()
 		// No writer can publish another control after the snapshot above.
 		// Wait outside mu because closing a control may interrupt network I/O.

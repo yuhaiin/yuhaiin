@@ -76,7 +76,10 @@ func (u *SourceControl) handleOneOwned(pkt *netapi.Packet, queueReserved bool) (
 }
 
 func (u *SourceControl) sendOneOwned(pkt *netapi.Packet, queueReserved bool) (bool, error) {
-	ctx := u.ctx
+	if !pkt.Identity.Valid() {
+		return false, context.Canceled
+	}
+	ctx := netapi.WithTrafficIdentity(u.ctx, pkt.Identity)
 	if u.destinationLeaser != nil {
 		key := pkt.Dst().Comparable()
 		// Existing leases belong to retained mappings or pending resolutions;

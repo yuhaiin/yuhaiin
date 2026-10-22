@@ -2,11 +2,13 @@ package yuubinsya
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
@@ -17,6 +19,8 @@ type Header struct {
 	Addr      netapi.Address
 	MigrateID uint64
 	Protocol  Protocol
+	Identity  *proxyauth.Identity
+	Password  []byte
 }
 
 // Protocol network type
@@ -71,6 +75,9 @@ func EncodeHeader(password []byte, header Header, buf *pool.Buffer) {
 }
 
 func DecodeHeader(password []byte, c pool.BufioConn) (Header, error) {
+	return DecodeHeaderWithAuth(password, c, nil)
+}
+func DecodeHeaderWithAuth(password []byte, c pool.BufioConn, verify proxyauth.Verifier) (Header, error) {
 	header := Header{}
 
 	err := c.BufioRead(func(r *bufio.Reader) error {
@@ -103,9 +110,17 @@ func DecodeHeader(password []byte, c pool.BufioConn) (Header, error) {
 
 		_, _ = r.Discard(sha256.Size)
 
-		if subtle.ConstantTimeCompare(passwordBuf, password[:]) == 0 {
-			return errors.New("password is incorrect")
+		if subtle.ConstantTimeCompare(passwordBuf, password) == 0 {
+			if verify == nil {
+				return errors.New("password is incorrect")
+			}
+			identity, err := verify(context.Background(), "", passwordBuf)
+			if err != nil {
+				return errors.New("password is incorrect")
+			}
+			header.Identity = identity
 		}
+		header.Password = append([]byte(nil), passwordBuf...)
 
 		if header.Protocol.Network() == TCP || header.Protocol == Ping {
 			_, target, err := tools.ReadAddr("tcp", r)

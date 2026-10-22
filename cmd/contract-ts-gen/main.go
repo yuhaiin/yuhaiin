@@ -81,7 +81,7 @@ func writeType(out *bytes.Buffer, spec *ast.TypeSpec, indent string) error {
 				if index == len(variants)-1 {
 					separator = ";"
 				}
-				fmt.Fprintf(out, "%s  | { type: %q; %s: %s }%s\n", indent, variant.name, variant.name, variant.typeName, separator)
+				fmt.Fprintf(out, "%s  | { type: %q; %s%s: %s }%s\n", indent, variant.name, taggedUnionCommonFields(value, variants), variant.name, variant.typeName, separator)
 			}
 			return nil
 		}
@@ -150,10 +150,29 @@ func taggedUnionVariants(typeName string, value *ast.StructType) []taggedVariant
 		}
 		variants = append(variants, taggedVariant{name: name, typeName: tsType(field.Type)})
 	}
-	if !hasType || len(variants) == 0 {
+	if !hasType || len(variants) < 2 {
 		return nil
 	}
 	return variants
+}
+
+func taggedUnionCommonFields(value *ast.StructType, variants []taggedVariant) string {
+	var out strings.Builder
+	for _, field := range value.Fields.List {
+		if len(field.Names) == 0 || field.Names[0].Name == "Type" {
+			continue
+		}
+		name, optional := jsonName(field)
+		if name == "" || name == "-" || slices.ContainsFunc(variants, func(v taggedVariant) bool { return v.name == name }) {
+			continue
+		}
+		suffix := ""
+		if optional {
+			suffix = "?"
+		}
+		_, _ = fmt.Fprintf(&out, "%s%s: %s; ", name, suffix, tsType(field.Type))
+	}
+	return out.String()
 }
 
 func jsonName(field *ast.Field) (string, bool) {

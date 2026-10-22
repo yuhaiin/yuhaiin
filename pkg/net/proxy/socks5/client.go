@@ -208,13 +208,20 @@ func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		return nil, fmt.Errorf("first hand failed: %w", err)
 	}
 
-	addr, err := s.handshake2(conn, tools.Udp, host)
+	// The association request describes the client's source, not its target.
+	// The local UDP port is allocated below, so request an unspecified source.
+	addr, err := s.handshake2(conn, tools.Udp, netapi.ParseIPAddr("udp", net.IPv4zero, 0))
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("second hand failed: %w", err)
 	}
 
-	pc, err := s.dialer.PacketConn(ctx, addr)
+	relayTarget, err := netapi.ParseAddressPort("udp", addr.Hostname(), addr.Port())
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	pc, err := s.dialer.PacketConn(netapi.WithPacketTarget(ctx, relayTarget), relayTarget)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("listen udp failed: %w", err)
