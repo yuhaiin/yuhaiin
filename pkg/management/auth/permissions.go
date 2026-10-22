@@ -66,6 +66,7 @@ func RolePermissions(role string) []Permission {
 }
 
 type Principal struct {
+	CredentialID   string       `json:"credentialId"`
 	UserID         string       `json:"userId"`
 	CredentialType string       `json:"credentialType"`
 	Permissions    []Permission `json:"permissions"`
