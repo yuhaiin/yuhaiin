@@ -3,17 +3,19 @@ package auth
 import (
 	"net/http"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 )
 
 func sessionCookieName(r *http.Request) string {
-	if r.TLS != nil {
+	if httpapi.ManagementHTTPS(r) {
 		return "__Host-yuhaiin-session"
 	}
 	return "yuhaiin-session" // HTTP is accepted only from a loopback socket peer.
 }
 
 func setSessionCookie(w http.ResponseWriter, r *http.Request, issued IssuedCredential) {
-	cookie := &http.Cookie{Name: sessionCookieName(r), Value: issued.Secret, Path: "/", HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode, Expires: time.Unix(issued.ExpiresAt, 0), MaxAge: max(1, int(issued.ExpiresAt-time.Now().Unix()))}
+	cookie := &http.Cookie{Name: sessionCookieName(r), Value: issued.Secret, Path: "/", HttpOnly: true, Secure: httpapi.ManagementHTTPS(r), SameSite: http.SameSiteLaxMode, Expires: time.Unix(issued.ExpiresAt, 0), MaxAge: max(1, int(issued.ExpiresAt-time.Now().Unix()))}
 	// The official static UI can connect to another HTTPS controller origin.
 	if cookie.Secure {
 		cookie.SameSite = http.SameSiteNoneMode
@@ -22,7 +24,7 @@ func setSessionCookie(w http.ResponseWriter, r *http.Request, issued IssuedCrede
 }
 
 func clearSessionCookie(w http.ResponseWriter, r *http.Request) {
-	cookie := &http.Cookie{Name: sessionCookieName(r), Path: "/", HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode, MaxAge: -1, Expires: time.Unix(1, 0)}
+	cookie := &http.Cookie{Name: sessionCookieName(r), Path: "/", HttpOnly: true, Secure: httpapi.ManagementHTTPS(r), SameSite: http.SameSiteLaxMode, MaxAge: -1, Expires: time.Unix(1, 0)}
 	if cookie.Secure {
 		cookie.SameSite = http.SameSiteNoneMode
 	}

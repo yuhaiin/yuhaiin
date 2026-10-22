@@ -176,6 +176,21 @@ logs and telemetry.
 For the default port, allow TCP `50051` through the server firewall. If `-host`
 uses another port, expose that one port for both HTTP and HTTPS.
 
+## Local reverse proxies and Cloudflare Tunnel
+
+For a Tunnel service such as `http://127.0.0.1:50051`, keep the public hostname
+in the forwarded `Host` header. The application accepts same-origin HTTPS
+requests automatically using `X-Forwarded-Proto: https` from the loopback proxy.
+No Origin allowlist entry is needed when frontend and backend share that domain.
+Direct navigation and same-origin GET discovery also work without an Origin
+header. Login, refresh and logout consistently use the public HTTPS cookie.
+
+The forwarded scheme is accepted only from an actual loopback socket peer,
+with one unambiguous header value. Remote clients cannot bypass the HTTPS
+requirement with forwarded headers. Native local-only management still does not
+provide remote anonymous access. Separate frontend origins keep their existing
+trusted-Origin configuration. Proxy headers do not change recorded peer IPs.
+
 ## Sessions, tokens and browser behavior
 
 Login returns an opaque, random, revocable session secret with an eight-hour
@@ -188,8 +203,9 @@ requests. Secrets remain absent from URLs, browser storage and cache keys.
 Before rendering routes after a refresh, `GET /api/v2/auth/session` validates the
 cookie and returns only the principal and original expiry. It does not issue a
 new session or extend its lifetime. Logout revokes the verifier and expires the
-cookie. Browser cookie mutations require a trusted Origin, including same-origin
-POST/PUT/DELETE requests. Explicit Authorization takes precedence and never falls
+cookie. Browser cookie mutations validate the Origin on POST/PUT/DELETE requests.
+Same-origin HTTPS requests are accepted automatically, including loopback TLS
+and local reverse proxies; they need no trusted-Origin setting. Explicit Authorization takes precedence and never falls
 back to a cookie on failure. Originless CLI header authentication still works.
 Untrusted origins/preflights are rejected; CORS credentials are enabled only for
 an exact trusted origin. Browsers that block third-party cookies may require

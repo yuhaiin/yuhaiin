@@ -42,8 +42,7 @@ func (app *AppInstance) acceptManagementOrigin(origin string, r *http.Request) b
 	if policy.accepts(origin, r) {
 		return true
 	}
-	peer, err := netip.ParseAddrPort(r.RemoteAddr)
-	return err == nil && !peer.Addr().Unmap().IsLoopback() && r.TLS != nil && sameRequestOrigin(origin, r)
+	return httpapi.ManagementHTTPS(r) && sameRequestOrigin(origin, r)
 }
 
 // With no identity middleware, management is local-only. This is independent of
