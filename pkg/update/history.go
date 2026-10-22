@@ -47,7 +47,8 @@ func checkHistoryDirectory(dir string, create bool) error {
 		return errors.New("update history directory must be a real directory")
 	}
 	// Only the service account may modify these privileged rollback binaries.
-	if info.Mode().Perm()&0022 != 0 {
+	// Windows FileMode does not represent the directory ACL's write permissions.
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0022 != 0 {
 		return errors.New("update history directory must not be group/world writable")
 	}
 	return nil
