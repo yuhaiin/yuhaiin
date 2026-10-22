@@ -11,19 +11,20 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/internal/version"
 	updatepkg "github.com/Asutorufa/yuhaiin/pkg/update"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 )
 
-type serviceUpdateInstaller struct{ target string }
+type serviceUpdateInstaller struct{ target, dataDir string }
 
-func newUpdateInstaller() updatepkg.Installer {
+func newUpdateInstaller(dataDir string) updatepkg.Installer {
 	exe, err := os.Executable()
 	if err != nil {
 		return nil
 	}
-	return &serviceUpdateInstaller{target: exe}
+	return &serviceUpdateInstaller{target: exe, dataDir: dataDir}
 }
 
 func (u *serviceUpdateInstaller) StagingDir() string { return filepath.Dir(u.target) }
@@ -66,14 +67,14 @@ func (u *serviceUpdateInstaller) Start(_ context.Context, staged string) error {
 	if err != nil {
 		return err
 	}
-	return exec.Command(exe, "update-helper", u.target, staged).Start()
+	return exec.Command(exe, "update-helper", u.target, staged, u.dataDir).Start()
 }
 
 func updateHelper(args []string) error {
-	if len(args) != 2 {
+	if len(args) != 3 {
 		return errors.New("update-helper requires target and staged paths")
 	}
-	target, staged := args[0], args[1]
+	target, staged, dataDir := args[0], args[1], args[2]
 	m, err := mgr.Connect()
 	if err != nil {
 		return err
@@ -88,14 +89,23 @@ func updateHelper(args []string) error {
 		return fmt.Errorf("stop service: %w", err)
 	}
 	deadline := time.Now().Add(30 * time.Second)
+    stopped := false
 	for time.Now().Before(deadline) {
 		state, err := s.Query()
 		if err == nil && state.State == svc.Stopped {
+            stopped = true
 			break
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
-	backup := target + ".update-backup"
+if !stopped {
+        return errors.New("timeout waiting for Windows service to stop")
+    }
+    if err := updatepkg.SaveHistory(dataDir, target, version.Version, version.GitCommit); err != nil {
+        _ = s.Start()
+        return fmt.Errorf("preserve current executable: %w", err)
+    }
+    backup := target + ".update-backup"
 	_ = os.Remove(backup)
 	if err := os.Rename(target, backup); err != nil {
 		return err
@@ -110,6 +120,10 @@ func updateHelper(args []string) error {
 		_ = s.Start()
 		return fmt.Errorf("start service: %w", err)
 	}
-	_ = os.Remove(backup)
-	return nil
+if err := updatepkg.PruneHistory(dataDir, target); err != nil {
+        // A failed prune must not make the successfully restarted service unusable.
+        fmt.Fprintln(os.Stderr, "prune update history:", err)
+    }
+    _ = os.Remove(backup)
+    return nil
 }
