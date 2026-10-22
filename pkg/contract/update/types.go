@@ -43,3 +43,19 @@ type Status struct {
 	TotalBytes      int64  `json:"totalBytes"`
 	Error           string `json:"error"`
 }
+
+type HistoryEntry struct {
+	ID      string    `json:"id"`
+	Version string    `json:"version"`
+	Commit  string    `json:"commit"`
+	Size    int64     `json:"size"`
+	SavedAt time.Time `json:"savedAt"`
+}
+
+type HistoryResult struct {
+	Items []HistoryEntry `json:"items"`
+}
+
+type RollbackRequest struct {
+	ID string `json:"id"`
+}

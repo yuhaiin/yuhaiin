@@ -226,6 +226,54 @@ func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest
 	return nil
 }
 
+func (s *Service) History(context.Context) (contractupdate.HistoryResult, error) {
+	entries, err := ListHistory(configuration.DataDir.Load())
+	return contractupdate.HistoryResult{Items: entries}, err
+}
+
+// Rollback uses the same verified installer and restart path as a normal update.
+func (s *Service) Rollback(ctx context.Context, request contractupdate.RollbackRequest) error {
+	if s.installer == nil {
+		return errors.New("automatic updates are not supported on this platform")
+	}
+	if ok, reason := s.installer.Supported(); !ok {
+		return errors.New(reason)
+	}
+	if !validHistoryID(request.ID) {
+		return errors.New("invalid history ID")
+	}
+	history, err := ListHistory(configuration.DataDir.Load())
+	if err != nil {
+		return err
+	}
+	if !slices.ContainsFunc(history, func(item contractupdate.HistoryEntry) bool { return item.ID == request.ID }) {
+		return errors.New("history version not found")
+	}
+	provider, ok := s.installer.(stagingDirProvider)
+	if !ok {
+		return errors.New("rollback staging is unsupported")
+	}
+	s.mu.Lock()
+	if s.status.Running {
+		s.mu.Unlock()
+		return errors.New("an update is already running")
+	}
+	s.status = contractupdate.Status{Running: true, Stage: "preparing"}
+	s.mu.Unlock()
+	go func() {
+		staged, err := StageHistory(configuration.DataDir.Load(), request.ID, provider.StagingDir())
+		if err == nil {
+			s.updateProgress("installing", 1, 1)
+			err = s.installer.Start(context.Background(), staged)
+			if err != nil {
+				_ = os.Remove(staged)
+			}
+		}
+		s.finishUpdate(err)
+	}()
+	return nil
+}
+
 func (s *Service) Status(context.Context) contractupdate.Status {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
