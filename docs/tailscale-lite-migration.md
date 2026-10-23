@@ -27,11 +27,16 @@ outbound. **RequireUnderlay is always true**. The network payload path is
   existing lite identity. Ambiguous, logged-out, malformed, insecurely
   permissioned or cross-control identities fail closed instead of
   automatically registering another Tailnet node.
-- **MagicDNS:** A and AAAA answers for names known to lite's authorized NetMap
-  are returned locally over both TCP and UDP at 100.100.100.100:53. Unknown
-  or split-DNS names return REFUSED; they are never sent to a system resolver.
-  Full Tailscale DNS forwarding, reverse DNS, service records, CNAME and
-  search-domain compatibility must be addressed before production promotion.
+- **DNS compatibility:** The lite engine now reuses the existing Tailscale
+  DNS Manager and rebuilds its resolver configuration on every authorized
+  NetMap: MagicDNS, A/AAAA/PTR, ExtraRecords, search domains, Split DNS routes,
+  and default resolvers. Queries to 100.100.100.100:53 work over TCP and UDP.
+  DNS to routable Tailnet peers uses the injected lightweight stack; other
+  configured resolvers use this instance's host-provided Underlay, not an
+  untracked system socket. DNS-assisted outbound hostnames also use this
+  manager and are restricted to validated Tailnet routes. Tests exercise
+  local DNS and Split/default forwarding; live Tailscale/Headscale provider
+  combinations and special DNS record handling still need acceptance tests.
 - **Tailnet Lock:** lite currently fails closed for unsupported TKA. This means
   Tailnet Lock-enabled tailnets will not connect.
 - **Control-plane reconnection:** exercise logout/revocation, key renewal,
