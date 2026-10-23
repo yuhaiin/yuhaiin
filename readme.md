@@ -29,12 +29,16 @@ Yuhaiin is an open-source, cross-platform networking toolkit that brings enterpr
 - **Handle application traffic with HTTP Gateway.** Apply request-level policies, reverse proxy to backends, and choose existing outbound nodes per request.
 - **Keep networking flexible.** Reuse a lightweight userspace TCP/IP stack for supported integrations, including VPN/overlay use cases that do not require a new host TUN interface.
 - **Control congestion and resource use.** Apply optional upload/download rate profiles, bound connection and NAT resources, and choose FIFO or fair output scheduling for the lightweight TUN stack.
+- **Manage identities and trace proxy usage.** Protect management APIs with local accounts and scoped tokens, authenticate supported proxy inbounds with per-user device credentials, and inspect user traffic reports and connection audits.
 
 ## Core Capabilities
 
 | Capability | Highlights |
 | --- | --- |
 | **Traffic Security & Policy Routing** | L4 allow/route/block decisions; domain, IP, port, process, and inbound-based rules; DNS and FakeIP integration |
+| **Management Identity & API Security** | Local administrator/read-only/proxy-only accounts, permission-scoped API tokens, revocable browser sessions, GitHub/Google OAuth sign-in and account linking |
+| **Proxy User Authentication & Credentials** | Independently revocable credentials for supported HTTP, SOCKS5, Mixed, Hysteria 2, and Yuubinsya inbounds; optional per-inbound user selection; shared outbound credential references |
+| **Per-user Usage & Session Audits** | Lifetime and UTC-period traffic reports, credential/inbound/node/protocol breakdowns, rates and concurrency, filterable connection metadata audits, configurable retention |
 | **Traffic Control & QoS** | Optional hierarchical upload/download limits with burst allowances; global/inbound/route profiles; connection and NAT resource budgets; lightweight TUN FIFO or FQ-CoDel scheduling; diagnostics |
 | **Enterprise VPN & Overlay Networking** | Corporate SSL/IPsec VPN clients, WireGuard, Tailscale, Nebula, ZeroTier, and related encrypted networking protocols |
 | **HTTP Gateway & Application Proxy** | HTTP/HTTPS reverse proxy, Host/Path/Header conditions, rewrites, redirects, URL filtering, upstream health checks and balancing, optional TLS interception |
@@ -69,6 +73,39 @@ The HTTP Gateway is **optional**: ordinary connections continue through L4 routi
 
 **Support varies by protocol and platform.** Some integrations remain experimental or have restricted transport/authentication modes. Nebula and ZeroTier are userspace outbound integrations, not general-purpose virtual Ethernet adapters. Check the linked implementation guides for supported features, packaging requirements, and limitations.
 
+## Identity, Credentials & Auditing
+
+Yuhaiin separates **management identities** (who can administer the service) from **proxy traffic credentials** (who can connect through supported inbounds). These credentials cannot be used interchangeably. Server-side identity management is optional for embedded/core-only integrations and is not installed by the native Android client.
+
+### Management users and API access
+
+- **Local accounts and permissions.** An administrator can create, disable, and reset accounts. Built-in roles include `admin`, `read-only`, and `none` (a proxy-only user with credential self-service). Management API methods, log/event streams, metrics, and profiler endpoints are permission-checked when the server's identity module is enabled.
+- **Scoped tokens and sessions.** Issue revocable, permission-scoped API tokens for automation. Browser login uses HttpOnly session cookies; users can inspect and revoke their own sessions, including sessions created on another device.
+- **Optional OAuth.** Sign in with GitHub or Google and explicitly link/unlink providers to existing accounts. These integrations do not constitute a generic enterprise OIDC/SAML or directory provisioning solution.
+- **Password handling.** The browser derives a client credential with PBKDF2; the server applies Argon2id before storing its verifier. The derived credential is still reusable if captured, so remote management **requires trusted HTTPS**.
+
+### Authenticated proxy users and shared secrets
+
+- **Per-device credentials.** Users can create, rotate, expire, revoke, and delete independently named proxy credentials (up to 64 active credentials per user), scoped to selected inbounds and/or protocols. Administrators can manage other users' credentials.
+- **Supported authenticated inbounds.** HTTP, SOCKS5, Mixed, Hysteria 2, and Yuubinsya support user credentials. SOCKS4, WireGuard, transparent inbounds, and other protocols are not automatically covered. Authenticated SOCKS5 UDP uses a relay associated with its authenticated TCP session.
+- **Existing configurations remain compatible.** User authentication is explicitly enabled per inbound. Existing shared protocol passwords may still authenticate alongside configured user credentials; these legacy connections are *not* attributed to a user, and revoking a user's credential cannot revoke the shared password.
+- **Shared outbound credentials.** Supported outbound layers can reference centrally managed upstream secrets rather than embedding the same password in multiple node configurations. These secrets are distinct from local user credentials.
+
+For setup details, supported protocols, authentication behavior, and storage limitations, see [management authentication](docs/MANAGEMENT_AUTH.md) and [proxy and upstream credentials](docs/proxy-credentials.md).
+
+### User traffic reports and connection audits
+
+The **Account & Security** workspace includes user traffic reports and connection audit history:
+
+- Upload/download payload bytes for lifetime or selected UTC periods, with hourly, daily, and monthly trends.
+- Per-user, credential, inbound, outbound node, and TCP/UDP breakdowns; sampled rates, active minutes, session duration, and current/peak concurrency.
+- Filterable, cursor-paginated session metadata, including source, destination, selected route/node, timestamps, transferred bytes, and connection outcome.
+- Permission-scoped visibility: users can inspect their own activity; authorized operators can inspect other users or unattributed traffic. Administrators can configure retention (completed audits default to 30 days).
+
+Statistics are sampled asynchronously and persisted to SQLite. They measure proxy payload bytes, **not** physical WAN usage. Connection audits omit payload content and authentication secrets, but can lose checkpoints during overload or crashes; they are not a lossless compliance or billing ledger. **User/group-based access policies, per-user bandwidth limits, and traffic quotas are not yet implemented.**
+
+See [user traffic statistics and audit](docs/user-usage.md) for accuracy, attribution, retention, and recovery behavior.
+
 ## Traffic Control & QoS
 
 Traffic control shares one policy and resource-governor implementation across inbound streams, ordinary TCP relays, HTTP Gateway interception, and NAT/UDP paths. Configure it in the web UI or through the `traffic_control.get`, `traffic_control.put`, and `traffic_control.status` RPC endpoints.
@@ -85,6 +122,8 @@ See the [traffic-control architecture and configuration](docs/traffic-control/RE
 ## Typical Use Cases
 
 **Enterprise network access.** Connect to a corporate VPN endpoint while retaining application-aware routing, local DNS behavior, and rules for other traffic.
+
+**Shared proxy gateway.** Give users separate proxy credentials for their devices, revoke access without rotating everyone's credentials, and review attributed connection history.
 
 **Private service connectivity.** Reach resources through WireGuard or an overlay network such as Tailscale, Nebula, or ZeroTier, using the same outbound selection model as other proxies.
 
@@ -128,7 +167,11 @@ Start the service:
 yuhaiin -host="127.0.0.1:50051" -path="$HOME/.config/yuhaiin"
 ```
 
-Open **http://127.0.0.1:50051** to configure your inbounds, nodes, routing policies, traffic control, and HTTP Gateway. The management endpoint above is local by default; configure authentication and exposure deliberately before using a non-loopback listener.
+Open **http://127.0.0.1:50051** to configure your inbounds, nodes, routing policies, traffic control, and HTTP Gateway. On the first start of the server executable, find the **Initialization code** in the local startup output (valid for 15 minutes), then use **Create administrator** in the Web UI to enroll the first account. The code is not published through an unauthenticated HTTP endpoint.
+
+After signing in, open **Account & Security** to manage users, API tokens, linked OAuth accounts, active sessions, proxy credentials, and user traffic/audit reports. To attribute proxy traffic to a user, create a device credential and explicitly authorize that user on a supported inbound. A management account alone does not enable proxy authentication on an inbound.
+
+The management endpoint above is local by default. **Use HTTPS with a trusted certificate for remote management**; local loopback HTTP remains supported for development and local use.
 
 > For a local proxy, configure or enable a **Mixed inbound** (commonly port **1080**). The HTTP management address (`50051`) is a separate service, not the proxy port.
 
@@ -144,6 +187,8 @@ The current web UI:
 
 - [HTTP Gateway architecture](docs/gateway/architecture.md) · [Configuration](docs/gateway/configuration.md) · [HTTPS interception](docs/gateway/interception.md)
 - [Gateway reverse proxy](docs/gateway/reverse-proxy.md) · [Benchmarks](docs/gateway/benchmarks.md)
+- [Management authentication & account setup](docs/MANAGEMENT_AUTH.md) · [Proxy/user credentials & shared upstream secrets](docs/proxy-credentials.md)
+- [User traffic reports & audits](docs/user-usage.md) · [User usage benchmarks](docs/benchmarks/user-usage.md)
 - [Traffic control](docs/traffic-control/README.md) · [Traffic-control benchmarks](docs/traffic-control/benchmarks.md)
 - [WireGuard inbound](docs/wireguard-inbound.md) · [Hysteria 2](docs/hysteria2.md)
 - [OpenVPN](pkg/net/proxy/openvpn/README.md) · [GlobalProtect](pkg/net/proxy/globalprotect/README.md) · [Nebula](pkg/net/proxy/nebula/README.md) · [ZeroTier](pkg/net/proxy/zerotier/README.md)
@@ -151,7 +196,7 @@ The current web UI:
 
 ## Security Boundaries
 
-Yuhaiin's routing rules and traffic-control limits apply to traffic entering its configured inbounds; they do not automatically replace the operating system's firewall or guarantee physical-link shaping. Gateway TLS interception is disabled by default and requires explicit configuration and client trust. Enterprise VPN support refers to interoperating as a client with supported protocols; it does not imply built-in SSO, device posture assessment, centralized policy distribution, high availability, or enterprise compliance certification.
+Yuhaiin's routing rules and traffic-control limits apply to traffic entering its configured inbounds; they do not automatically replace the operating system's firewall or guarantee physical-link shaping. The current management roles and API permissions are **not** user/group-based authorization for network destinations. Some legacy shared inbound credentials remain accepted even when user credentials are configured and their traffic is unattributed. Remote management requires HTTPS, and upstream credentials in the private management database are **not encrypted at rest**. Gateway TLS interception is disabled by default and requires explicit configuration and client trust. Enterprise VPN support refers to interoperability with supported protocols; GitHub/Google OAuth is available, but generic enterprise SSO (OIDC/SAML), SCIM, device posture assessment, centralized policy distribution, high availability, and compliance certification are not provided.
 
 ## Community & Acknowledgements
 
