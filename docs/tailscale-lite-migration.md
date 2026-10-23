@@ -20,10 +20,13 @@ outbound. **RequireUnderlay is always true**. The network payload path is
 ## Known compatibility work before merge
 
 - **Legacy node identity:** `tsnet` stores a `tailscaled.state` profile
-  database, while lite uses `lite.json`. The adapter refuses to silently
-  replace an existing identity until a migration is implemented. The legacy
-  state is left untouched. This is deliberately a blocking condition rather
-  than silently registering a duplicate Tailnet machine.
+  database; lite uses `lite.json`. On upgrade, `MigrateLegacyState` imports
+  the selected machine and node private keys from a private legacy file into
+  the new state format, checking the selected profile and control URL.
+  It preserves the original state for rollback and never overwrites an
+  existing lite identity. Ambiguous, logged-out, malformed, insecurely
+  permissioned or cross-control identities fail closed instead of
+  automatically registering another Tailnet node.
 - **MagicDNS:** A and AAAA answers for names known to lite's authorized NetMap
   are returned locally over both TCP and UDP at 100.100.100.100:53. Unknown
   or split-DNS names return REFUSED; they are never sent to a system resolver.
@@ -40,8 +43,10 @@ outbound. **RequireUnderlay is always true**. The network payload path is
 - **UI:** separate yuhaiin-react settings may still expose legacy choices.
   The backend always uses lightweight regardless of those saved choices.
 
-This integration is a **Draft PR**, not an approved release. The test matrix
-must pass before merging.
+This integration is a **Draft PR**, not an approved release. Identity
+migration now has synthetic-fixture tests, but it still requires a real existing
+tsnet profile migration test against a live tailnet and rollback validation.
+The full test matrix must pass before merging.
 
 ## Validation
 
