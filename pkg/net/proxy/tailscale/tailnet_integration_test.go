@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,6 +58,7 @@ func TestLocalTailnet(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dnsUpstream.Close()
+	var forbiddenMagicDNSForward atomic.Int32
 	var peerDNSAddress netip.Addr
 	peerDNSReady := make(chan struct{})
 	go func() {
@@ -72,6 +74,9 @@ func TestLocalTailnet(t *testing.T) {
 				continue
 			}
 			question := netapi.DNSQuestionFromRR(q.Question[0])
+			if question.Name == "missing.tail-scale.ts.net." {
+				forbiddenMagicDNSForward.Add(1)
+			}
 			response := netapi.NewDNSMsg(question)
 			response.ID = q.ID
 			response.Response = true
@@ -112,6 +117,10 @@ func TestLocalTailnet(t *testing.T) {
 		DNSConfig: &tailcfg.DNSConfig{
 			Proxied:   true,
 			Resolvers: []*dnstype.Resolver{{Addr: dnsUpstream.LocalAddr().String()}},
+			ExtraRecords: []tailcfg.DNSRecord{
+				{Name: "record.ext.example.", Type: "A", Value: "198.51.100.23"},
+				{Name: "record6.ext.example.", Type: "AAAA", Value: "2001:db8::23"},
+			},
 			Routes: map[string][]*dnstype.Resolver{
 				"corp.example": {{Addr: dnsUpstream.LocalAddr().String()}},
 			},
@@ -339,6 +348,60 @@ func TestLocalTailnet(t *testing.T) {
 		answer := askDNS(t, "ordinary.example.", dns.TypeA)
 		if len(answer.Answer) != 1 || answer.Answer[0].(*dns.A).Addr.String() != "192.0.2.41" {
 			t.Fatalf("default DNS not routed by control policy: %+v", &answer)
+		}
+	})
+	t.Run("extra-records-ipv4-ipv6", func(t *testing.T) {
+		for _, tc := range []struct {
+			name string
+			typ  uint16
+			want string
+		}{
+			{"record.ext.example.", dns.TypeA, "198.51.100.23"},
+			{"record6.ext.example.", dns.TypeAAAA, "2001:db8::23"},
+		} {
+			answer := askDNS(t, tc.name, tc.typ)
+			if answer.Rcode != dns.RcodeSuccess || len(answer.Answer) != 1 {
+				t.Fatalf("ExtraRecord %s: %+v", tc.name, answer)
+			}
+			var got netip.Addr
+			switch rr := answer.Answer[0].(type) {
+			case *dns.A:
+				got = rr.Addr
+			case *dns.AAAA:
+				got = rr.Addr
+			}
+			if got.String() != tc.want {
+				t.Fatalf("ExtraRecord %s = %s, want %s", tc.name, got, tc.want)
+			}
+		}
+	})
+	t.Run("unknown-magic-dns-does-not-leak", func(t *testing.T) {
+		answer := askDNS(t, "missing.tail-scale.ts.net.", dns.TypeA)
+		if answer.Rcode != dns.RcodeNameError || len(answer.Answer) != 0 {
+			t.Fatalf("unknown MagicDNS must be authoritative NXDOMAIN: %+v", answer)
+		}
+		if got := forbiddenMagicDNSForward.Load(); got != 0 {
+			t.Fatalf("unknown MagicDNS escaped to upstream %d times", got)
+		}
+	})
+	t.Run("magic-dns-ipv6", func(t *testing.T) {
+		var addr netip.Addr
+		for _, p := range clients[1].Snapshot().Addresses {
+			if p.Addr().Is6() {
+				addr = p.Addr()
+				break
+			}
+		}
+		if !addr.IsValid() {
+			t.Skip("test control did not allocate a peer IPv6 Tailnet address")
+		}
+		answer := askDNS(t, "adapter1.tail-scale.ts.net.", dns.TypeAAAA)
+		if answer.Rcode != dns.RcodeSuccess || len(answer.Answer) != 1 {
+			t.Fatalf("peer AAAA: %+v", answer)
+		}
+		rr, ok := answer.Answer[0].(*dns.AAAA)
+		if !ok || rr.Addr != addr {
+			t.Fatalf("peer AAAA = %+v, want %v", answer.Answer, addr)
 		}
 	})
 	t.Run("reverse-ptr", func(t *testing.T) {
