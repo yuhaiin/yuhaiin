@@ -165,8 +165,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	request, err := connectip.ParseProxyRequest(r)
 	if err != nil {
-		var parseErr *connectip.ProxyRequestParseError
-		if errors.As(err, &parseErr) {
+		if parseErr, ok := errors.AsType[*connectip.ProxyRequestParseError](err); ok {
 			http.Error(w, parseErr.Error(), parseErr.HTTPStatus)
 		} else {
 			http.Error(w, "invalid CONNECT-IP request", http.StatusBadRequest)
