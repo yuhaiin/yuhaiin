@@ -18,7 +18,7 @@ func TestBuildTagsRetainTailscaleDNS(t *testing.T) {
 		}
 	}
 	for _, name := range []string{"netstack", "serve", "acme", "ipnbus"} {
-		if _, exists := featuretags.Features[featuretags.Feature(name)]; exists && !slices.Contains(buildTags(), "ts_omit_"+name) {
+		if slices.Contains(buildTags(), "ts_omit_"+name) == false {
 			t.Errorf("unneeded feature %q was linked", name)
 		}
 	}
