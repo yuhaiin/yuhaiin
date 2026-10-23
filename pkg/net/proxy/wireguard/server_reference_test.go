@@ -91,7 +91,7 @@ func TestWireGuardInboundReferencePeers(t *testing.T) {
 						go func() {
 							_, err := socket.Write(append([]byte{'E'}, payload...))
 							if err == nil {
-								err = socket.CloseWrite()
+								err = socket.(interface{ CloseWrite() error }).CloseWrite()
 							}
 							written <- err
 						}()
