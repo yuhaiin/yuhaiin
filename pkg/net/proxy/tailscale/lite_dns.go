@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"net/netip"
 
 	"codeberg.org/miekg/dns"
 	lite "github.com/yuhaiin/tailscale-lite"
@@ -74,7 +73,3 @@ func serveLiteDNS(conn net.Conn, client *lite.Client) {
 		if _, err := conn.Write(resp); err != nil { return }
 	}
 }
-
-// These types are intentionally referenced through net/netip and the DNS
-// callback to make ownership of MagicDNS parsing explicit.
-var _ netip.Addr
