@@ -45,6 +45,7 @@ type TelemetrySummary struct {
 type Connection struct {
 	UserID        string              `json:"userId,omitempty"`
 	CredentialID  string              `json:"credentialId,omitempty"`
+	GroupIDs      []string            `json:"groupIds,omitempty"`
 	ID            string              `json:"id"`
 	Addr          string              `json:"addr"`
 	Network       NetworkType         `json:"network"`

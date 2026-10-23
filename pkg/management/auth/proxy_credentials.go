@@ -43,6 +43,7 @@ type IssuedProxyCredential struct {
 type proxyRecord struct {
 	ProxyCredential
 	login          string
+	groups         []string
 	generation     int64
 	identity       *proxyauth.Identity
 	cancel         context.CancelFunc
@@ -57,6 +58,7 @@ type ProxyCredentials struct {
 	mu             sync.RWMutex
 	records        map[string]*proxyRecord
 	proofs         map[[32]byte]*proxyRecord
+	memberships    map[string][]string
 	ctx            context.Context
 	cancel         context.CancelFunc
 	done           chan struct{}
@@ -104,6 +106,7 @@ func (p *ProxyCredentials) clear() {
 	}
 	clear(p.records)
 	clear(p.proofs)
+	clear(p.memberships)
 }
 
 func (p *ProxyCredentials) Reload() error {
@@ -117,12 +120,13 @@ func (p *ProxyCredentials) Reload() error {
 		}
 		clear(p.records)
 		clear(p.proofs)
+		clear(p.memberships)
 		return err
 	}
 	proofs := make(map[[32]byte]*proxyRecord, len(next)*2)
 	for id, r := range next {
 		old := p.records[id]
-		if old != nil && old.generation == r.generation && old.identity.Valid() {
+		if old != nil && old.generation == r.generation && slices.Equal(old.groups, r.groups) && old.identity.Valid() {
 			r.identity, r.cancel = old.identity, old.cancel
 		} else {
 			var ctx context.Context
@@ -131,7 +135,7 @@ func (p *ProxyCredentials) Reload() error {
 			} else {
 				ctx, r.cancel = context.WithCancel(p.ctx)
 			}
-			r.identity = &proxyauth.Identity{UserID: r.UserID, CredentialID: id, Context: ctx}
+			r.identity = &proxyauth.Identity{UserID: r.UserID, CredentialID: id, GroupIDs: r.groups, Context: ctx}
 		}
 		proofs[r.verifier] = r
 		proofs[r.wire] = r
@@ -146,7 +150,24 @@ func (p *ProxyCredentials) Reload() error {
 }
 
 func (p *ProxyCredentials) load() (map[string]*proxyRecord, error) {
-	rows, err := p.store.db.QueryContext(p.ctx, `SELECT c.id,c.user_id,c.name,c.inbounds,c.protocols,c.created_at,c.expires_at,c.revoked,c.verifier,c.wire_verifier,c.generation,u.login
+	// One read transaction gives credentials and memberships a consistent view.
+	// Intern memberships per owner and retain unchanged slices across reloads:
+	// 64 device credentials must not copy the same group set 64 times per second.
+	tx, err := p.store.db.BeginTx(p.ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	memberships, err := loadMemberships(p.ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	for user, groups := range memberships {
+		if previous := p.memberships[user]; slices.Equal(previous, groups) {
+			memberships[user] = previous
+		}
+	}
+	rows, err := tx.QueryContext(p.ctx, `SELECT c.id,c.user_id,c.name,c.inbounds,c.protocols,c.created_at,c.expires_at,c.revoked,c.verifier,c.wire_verifier,c.generation,u.login
  FROM proxy_credentials c JOIN management_users u ON u.id=c.user_id
  WHERE c.revoked=0 AND u.disabled=0 AND c.generation=u.generation AND (c.expires_at=0 OR c.expires_at>?)`, time.Now().Unix())
 	if err != nil {
@@ -171,8 +192,30 @@ func (p *ProxyCredentials) load() (map[string]*proxyRecord, error) {
 			return nil, err
 		}
 		copy(r.verifier[:], verifier)
+		r.groups = memberships[r.UserID]
 		copy(r.wire[:], wire)
 		out[r.ID] = r
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	p.memberships = memberships
+	return out, nil
+}
+
+func loadMemberships(ctx context.Context, tx *sql.Tx) (map[string][]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT user_id,group_id FROM traffic_group_members ORDER BY user_id,group_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[string][]string)
+	for rows.Next() {
+		var user, group string
+		if err := rows.Scan(&user, &group); err != nil {
+			return nil, err
+		}
+		out[user] = append(out[user], group)
 	}
 	return out, rows.Err()
 }

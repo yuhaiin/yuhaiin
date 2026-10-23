@@ -129,17 +129,26 @@ type Reference struct {
 }
 
 type RuleExpr struct {
-	Type    string        `json:"type"`
-	Always  *MatchAllExpr `json:"always,omitzero"`
-	All     []RuleExpr    `json:"all,omitzero"`
-	Any     []RuleExpr    `json:"any,omitzero"`
-	Not     *RuleExpr     `json:"not,omitzero"`
-	Host    *ListRef      `json:"host,omitzero"`
-	Process *ListRef      `json:"process,omitzero"`
-	Inbound *SourceRef    `json:"inbound,omitzero"`
-	Network *NetworkExpr  `json:"network,omitzero"`
-	Port    *PortExpr     `json:"port,omitzero"`
-	GeoIP   *GeoIPExpr    `json:"geoip,omitzero"`
+	Type       string        `json:"type"`
+	Always     *MatchAllExpr `json:"always,omitzero"`
+	All        []RuleExpr    `json:"all,omitzero"`
+	Any        []RuleExpr    `json:"any,omitzero"`
+	Not        *RuleExpr     `json:"not,omitzero"`
+	Host       *ListRef      `json:"host,omitzero"`
+	Process    *ListRef      `json:"process,omitzero"`
+	Inbound    *SourceRef    `json:"inbound,omitzero"`
+	Network    *NetworkExpr  `json:"network,omitzero"`
+	Port       *PortExpr     `json:"port,omitzero"`
+	GeoIP      *GeoIPExpr    `json:"geoip,omitzero"`
+	User       *IdentityExpr `json:"user,omitzero"`
+	Group      *IdentityExpr `json:"group,omitzero"`
+	Credential *IdentityExpr `json:"credential,omitzero"`
+}
+
+// IDs are immutable traffic identity identifiers; values within a condition
+// are ORed. All/Any/Not compose them with the existing condition language.
+type IdentityExpr struct {
+	IDs []string `json:"ids"`
 }
 
 type MatchAllExpr struct{}

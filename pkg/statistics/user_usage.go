@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -156,7 +157,7 @@ func validateUsageOptions(o UsageOptions) error {
 }
 
 func auditForConnection(info contractconnection.Connection) usage.Audit {
-	return usage.Audit{UserID: info.UserID, CredentialID: info.CredentialID, InboundID: info.InboundID, InboundName: info.InboundName,
+	return usage.Audit{UserID: info.UserID, CredentialID: info.CredentialID, GroupIDs: slices.Clone(info.GroupIDs), InboundID: info.InboundID, InboundName: info.InboundName,
 		NodeID: info.NodeID, NodeName: info.NodeName, SelectorID: info.SelectorID, SelectorName: info.SelectorName, RuleID: info.RuleID, RuleName: info.RuleName,
 		Protocol: info.Network.ConnType, Mode: info.Mode, Source: info.Source, Target: info.Addr, IP: info.IP,
 		Upload: "0", Download: "0", DurationMillis: "0", Result: "active"}

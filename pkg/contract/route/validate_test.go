@@ -9,6 +9,10 @@ func TestConditionsRejectAmbiguousAndEmptyExpressions(t *testing.T) {
 		{Type: "network", Network: &NetworkExpr{Network: "anything"}},
 		{Type: "port", Port: &PortExpr{Ports: "443-80"}},
 		{Type: "host", Host: &ListRef{List: "a"}, Network: &NetworkExpr{Network: "tcp"}},
+		{Type: "user", User: &IdentityExpr{}},
+		{Type: "group", Group: &IdentityExpr{IDs: []string{""}}},
+		{Type: "credential", User: &IdentityExpr{IDs: []string{"alice"}}},
+		{Type: "user", User: &IdentityExpr{IDs: []string{"alice"}}, Group: &IdentityExpr{IDs: []string{"finance"}}},
 	} {
 		if err := ValidateConditions([]RuleExpr{expr}); err == nil {
 			t.Fatalf("accepted invalid expression: %+v", expr)

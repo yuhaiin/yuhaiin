@@ -442,6 +442,17 @@ func parseConditionWithUnavailable(expr contractroute.RuleExpr, unavailable map[
 
 func parseConditionWithDegraded(expr contractroute.RuleExpr, unavailable, incomplete map[string]bool) Matcher {
 	switch expr.Type {
+	case "user", "group", "credential":
+		value := expr.User
+		if expr.Type == "group" {
+			value = expr.Group
+		}
+		if expr.Type == "credential" {
+			value = expr.Credential
+		}
+		if value != nil {
+			return newIdentityMatcher(expr.Type, value.IDs)
+		}
 	case "always":
 		return constantMatcher(true)
 	case "all", "any":
@@ -519,7 +530,7 @@ func sortRule(rules []contractroute.RuleExpr) []contractroute.RuleExpr {
 			return 1
 		case "process":
 			return 2
-		case "inbound":
+		case "inbound", "user", "group", "credential":
 			return 3
 		case "geoip":
 			return 4

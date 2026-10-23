@@ -27,7 +27,7 @@ func validateExpr(expr RuleExpr, depth int, remaining *int) error {
 		return fmt.Errorf("condition expression is too large")
 	}
 	fields := 0
-	for _, present := range []bool{expr.Always != nil, expr.All != nil, expr.Any != nil, expr.Not != nil, expr.Host != nil, expr.Process != nil, expr.Inbound != nil, expr.Network != nil, expr.Port != nil, expr.GeoIP != nil} {
+	for _, present := range []bool{expr.Always != nil, expr.All != nil, expr.Any != nil, expr.Not != nil, expr.Host != nil, expr.Process != nil, expr.Inbound != nil, expr.Network != nil, expr.Port != nil, expr.GeoIP != nil, expr.User != nil, expr.Group != nil, expr.Credential != nil} {
 		if present {
 			fields++
 		}
@@ -42,6 +42,22 @@ func validateExpr(expr RuleExpr, depth int, remaining *int) error {
 		return fmt.Errorf("condition must have exactly one value matching its type")
 	}
 	switch expr.Type {
+	case "user", "group", "credential":
+		value := expr.User
+		if expr.Type == "group" {
+			value = expr.Group
+		}
+		if expr.Type == "credential" {
+			value = expr.Credential
+		}
+		if value == nil || len(value.IDs) == 0 || len(value.IDs) > 1024 {
+			return fmt.Errorf("choose between 1 and 1024 identity IDs")
+		}
+		for _, id := range value.IDs {
+			if strings.TrimSpace(id) == "" || len(id) > 128 {
+				return fmt.Errorf("invalid identity ID")
+			}
+		}
 	case "all", "any":
 		children := expr.All
 		if expr.Type == "any" {

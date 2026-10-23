@@ -410,10 +410,12 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 	selectorID, selectorName := nc.Selector()
 	ruleID, ruleName := nc.MatchedRule()
 	var userID, credentialID string
+	var groupIDs []string
 	if identity := netapi.TrafficIdentity(nc); identity != nil {
 		userID, credentialID = identity.UserID, identity.CredentialID
+		groupIDs = identity.GroupIDs
 	}
-	connection := contractconnection.Connection{UserID: userID, CredentialID: credentialID,
+	connection := contractconnection.Connection{UserID: userID, CredentialID: credentialID, GroupIDs: groupIDs,
 		ID:          formatUint64(id),
 		Addr:        getRealAddr(nc, addr),
 		Network:     contractconnection.NetworkType{ConnType: addr.Network()},

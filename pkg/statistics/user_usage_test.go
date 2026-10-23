@@ -428,3 +428,25 @@ func TestUserUsageProductionConnectionSamplesExistingCounter(t *testing.T) {
 		t.Fatalf("summary=%+v", got.Summary)
 	}
 }
+
+func TestUserUsageAuditRetainsHistoricalGroupIDs(t *testing.T) {
+	r := usageTestRecorder(t)
+	info := usageInfo("alice", "phone", "one")
+	info.GroupIDs = []string{"finance", "engineering"}
+	reader := new(usageTestCounter)
+	session := r.register(info, reader, nil)
+	// Audit metadata must own its historical snapshot independently of callers.
+	info.GroupIDs[0] = "later-membership"
+	session.end()
+	r.sample(time.Now())
+	if err := r.Flush(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	page, err := r.Audit(t.Context(), usage.Query{UserID: "alice"})
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("audit=%+v err=%v", page, err)
+	}
+	if got := page.Items[0].GroupIDs; len(got) != 2 || got[0] != "finance" || got[1] != "engineering" {
+		t.Fatalf("historical groups lost: %v", got)
+	}
+}

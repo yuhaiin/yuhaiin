@@ -29,6 +29,7 @@ func (l *Inbound) localDNSUsage(identity *proxyauth.Identity, source string, tar
 	var lifetime context.Context
 	if identity != nil {
 		info.UserID, info.CredentialID = identity.UserID, identity.CredentialID
+		info.GroupIDs = identity.GroupIDs
 		lifetime = identity.Context
 	}
 	return l.usage.Local(info, lifetime)

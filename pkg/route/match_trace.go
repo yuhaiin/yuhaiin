@@ -39,6 +39,8 @@ func buildMatchTraceTemplate(m Matcher) *contractconnection.MatchTraceTemplate {
 
 func matcherShape(m Matcher) (string, string, []Matcher) {
 	switch v := m.(type) {
+	case *identityMatcher:
+		return "condition", v.kind, nil
 	case *And:
 		return "and", "AND", v.matchers
 	case *Or:

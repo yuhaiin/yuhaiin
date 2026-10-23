@@ -44,6 +44,9 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 	}
 	var verifier func(string) proxyauth.Verifier
 	var scope *proxyauth.Scope
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
 	defer func() {
 		if scope != nil {
 			if resultErr != nil {
@@ -53,7 +56,7 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 			}
 		}
 	}()
-	if config.Authentication != nil {
+	if config.Authentication.EffectiveMode() != "legacy" {
 		if provider == nil {
 			return nil, errors.New("inbound user authentication requires the identity module")
 		}
@@ -62,8 +65,8 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 			return scope.Wrap(provider.Verifier(config.ID, protocol, config.Authentication.Users))
 		}
 	}
-	if err := config.Validate(); err != nil {
-		return nil, err
+	if config.Authentication.EffectiveMode() == "users" {
+		config.Protocol = withoutLegacyAuthentication(config.Protocol)
 	}
 	if !slices.Contains(Capabilities().Protocols, config.Protocol.Type) {
 		return nil, fmt.Errorf("inbound protocol %q is not supported on %s", config.Protocol.Type, Capabilities().Platform)
