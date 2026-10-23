@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/access"
 )
@@ -118,15 +119,16 @@ func PinTrafficTarget(ctx context.Context, access TrafficAccess, original, targe
 // connectionSlot also covers policy revocation while a dial is still pending.
 // Publishing a later dial result into a closed slot closes it immediately.
 type connectionSlot struct {
-	mu     sync.Mutex
-	conn   net.Conn
-	closed bool
-	err    error
+	mu      sync.Mutex
+	conn    net.Conn
+	closed  bool
+	revoked bool
+	err     error
 }
 
 func (s *connectionSlot) assign(conn net.Conn) bool {
 	s.mu.Lock()
-	if s.closed {
+	if s.closed || s.revoked {
 		s.mu.Unlock()
 		_ = conn.Close()
 		return false
@@ -134,6 +136,16 @@ func (s *connectionSlot) assign(conn net.Conn) bool {
 	s.conn = conn
 	s.mu.Unlock()
 	return true
+}
+
+func (s *connectionSlot) Interrupt() {
+	s.mu.Lock()
+	s.revoked = true
+	conn := s.conn
+	s.mu.Unlock()
+	if conn != nil {
+		_ = conn.SetDeadline(time.Now())
+	}
 }
 func (s *connectionSlot) Close() error {
 	s.mu.Lock()
@@ -170,7 +182,7 @@ func DialTraffic(ctx context.Context, access TrafficAccess, original, actual Add
 	dialCtx, cancelDial := context.WithCancel(ctx)
 	defer cancelDial()
 	slot := new(connectionSlot)
-	session, err := access.NewSession(subject, func(cause error) { revoke(cause); cancelDial(); _ = slot.Close() })
+	session, err := access.NewSession(subject, func(cause error) { revoke(cause); cancelDial(); slot.Interrupt() }, func() { _ = slot.Close() })
 	if err != nil {
 		revoke(err)
 		return nil, err

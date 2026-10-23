@@ -94,8 +94,10 @@ Only sessions that lose access close. TCP streams, pending dials, Gateway reques
 streams and asynchronous DNS operations are revocable. Cached UDP sends and
 replies check the current epoch, including the real peer before address rewriting
 and again when the reply leaves the queue. Already accepted kernel I/O may finish
-during an update; publication is not an atomic cutover of bytes in flight. The
-activation API waits for close callbacks before returning; UDP callbacks signal
+during an update; publication is not an atomic cutover of bytes in flight. Every losing TCP stream is cancelled and its I/O deadlines interrupted before
+graceful closes run with at most 16 concurrent workers. One TLS close-notify wait
+therefore cannot delay interruption of other losing streams. The activation API
+joins transport teardown before returning; UDP callbacks signal
 shutdown, and queue draining/resource release finishes asynchronously. Local
 Gateway writes are interrupted through per-response write deadlines as well as
 request cancellation.

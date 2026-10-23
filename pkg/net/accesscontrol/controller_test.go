@@ -363,3 +363,57 @@ func TestProtectedPolicyRejectsMismatchedOrUnknownTransport(t *testing.T) {
 		t.Fatal("cached UDP target impersonated TCP")
 	}
 }
+
+func TestActivationInterruptsEveryRevokedSessionBeforeSlowTeardown(t *testing.T) {
+	c := New()
+	defer c.Close()
+	install(t, c, config(groupRule("finance", "allow", "finance")))
+	const count = 64
+	interrupted := make(chan struct{}, count)
+	closing := make(chan struct{}, count)
+	release := make(chan struct{})
+	var running, peak atomic.Int32
+	dst := address(t, "tcp", "203.0.113.2:443")
+	for range count {
+		s, err := c.NewSession(subject(t.Context(), "alice", "finance"), func(error) { interrupted <- struct{}{} }, func() {
+			n := running.Add(1)
+			for old := peak.Load(); n > old && !peak.CompareAndSwap(old, n); old = peak.Load() {
+			}
+			closing <- struct{}{}
+			<-release
+			running.Add(-1)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Authorize(dst, dst); err != nil {
+			t.Fatal(err)
+		}
+	}
+	next, err := Prepare(config())
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() { defer close(done); c.Activate(next) }()
+	defer func() { close(release); <-done }()
+	select {
+	case <-closing:
+	case <-time.After(time.Second):
+		t.Fatal("teardown did not start")
+	}
+	if len(interrupted) != count {
+		t.Fatal("a slow transport delayed unrelated revocations", len(interrupted))
+	}
+	if c.Status().Sessions != 0 || c.targets.Load() != 0 {
+		t.Fatal("revoked authorizations retained resources")
+	}
+	if n := peak.Load(); n > 16 || n < 1 {
+		t.Fatal("unbounded teardown workers", n)
+	}
+	select {
+	case <-done:
+		t.Fatal("activation did not join transport shutdown")
+	default:
+	}
+}

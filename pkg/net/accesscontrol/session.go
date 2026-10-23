@@ -36,6 +36,7 @@ type Session struct {
 	revoked, released bool
 	stop              func() bool
 	cancelTraffic     func(error)
+	terminateTraffic  func()
 	targets           map[targetKey]target
 	first             *firstTarget
 	candidate         netapi.IPAddr
@@ -199,6 +200,9 @@ func (s *Session) invalidate() {
 	}
 	s.cancelTraffic(cause)
 	s.Close()
+	if s.terminateTraffic != nil {
+		s.terminateTraffic()
+	}
 }
 
 func (s *Session) Close() {

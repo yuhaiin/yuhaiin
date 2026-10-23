@@ -42,21 +42,23 @@ are never authorization evidence. Snapshot publication still rechecks all keys.
 
 | Operation | Initial map cache | Single-target cache |
 | --- | ---: | ---: |
-| Admission allocation | 1,777 B, 7 allocations | 480 B, 6 allocations |
-| Admission latency | 856.5 ns | 564.8 ns |
-| Recompile + revalidate 1,024 sessions | 216.9 µs | 123.8 µs |
+| Admission allocation | 1,777 B, 7 allocations | 496 B, 6 allocations |
+| Admission latency | 856.5 ns | 592.1 ns |
+| Recompile + revalidate 1,024 sessions | 216.9 µs | 125.1 µs |
 
-Raw initial files have a `-map` suffix. Before the cache change, removing
+Raw initial files have a `-map` suffix. `teardown-qualified.txt` records the
+final authorization measurements after splitting immediate I/O interruption from
+bounded graceful teardown; network steady-state paths were unchanged by that fix. Before the cache change, removing
 unconditional IP string formatting from disabled tracing also removed one
 16-byte allocation from full policy evaluation. Regression tests assert zero
 allocations for complete untraced evaluation and cached checks.
 
 | Final operation | Median | Allocations |
 | --- | ---: | ---: |
-| Complete group/CIDR/protocol/port evaluation | 143.3 ns | 0 B, 0 allocs |
-| Cached datagram authorization | 83.48 ns | 0 B, 0 allocs |
-| 1,024-rule scan, 64 group memberships | 53.72 µs | 0 B, 0 allocs |
-| Retained authorization, 1,024 simultaneous sessions | 498.9 heap B/session | includes registry share |
+| Complete group/CIDR/protocol/port evaluation | 150.3 ns | 0 B, 0 allocs |
+| Cached datagram authorization | 83.36 ns | 0 B, 0 allocs |
+| 1,024-rule scan, 64 group memberships | 53.89 µs | 0 B, 0 allocs |
+| Retained authorization, 1,024 simultaneous sessions | 498.3 heap B/session | includes registry share |
 | UDP capability absent | 23.82 µs / round trip, 113.37 MB/s | 254 B, 8 allocs |
 | UDP installed, disabled | 25.60 µs, 105.49 MB/s | 254 B, 8 allocs |
 | UDP protected | 25.64 µs, 105.32 MB/s | 254 B, 8 allocs |
@@ -65,7 +67,7 @@ Protected UDP has about 7.6% slower round-trip processing than the absent
 capability in this run; installed-disabled is about 7.5% slower. Three authorization
 checks, identity lifetime checks and revocable association ownership are retained
 on purpose. No additional packet allocation was measured. The single-target cache
-reduced cached checks from 110.9 ns to 83.48 ns and retained authorization memory
+reduced cached checks from 110.9 ns to 83.36 ns and retained authorization memory
 from 1,795 to 499 heap bytes per session (about 72%). The initial map-based protected
 UDP median was 25.64 µs; that small aggregate difference is within unpinned loopback
 noise and does not establish an optimization gain in real-network throughput.
@@ -80,7 +82,7 @@ real remote users or sockets: the 1,024-user scenario measures retained policy
 state and updates. There is no end-to-end enterprise WAN capacity claim.
 
 With four workers continuously checking the same 1,024 retained authorizations,
-recompile/publication/revalidation took a median 157.2 µs while workers completed
+recompile/publication/revalidation took a median 153.1 µs while workers completed
 about 37.7 million cached checks/second in aggregate. This is a synthetic CPU
 contention scenario, not per-user latency or packet throughput. All authorizations
 remained allowed; the concurrent-update benchmark fails on an unexpected denial.
@@ -107,6 +109,7 @@ Run each command while the machine is otherwise idle. Do not parallelize these
 with each other, race tests or builds:
 
 ```sh
+go test ./pkg/net/accesscontrol -run '^$' -bench 'BenchmarkAccess(PolicyEvaluation|CachedDatagram|Admission|Update1024|LargePolicy1024|IdleMemory1024|UpdateUnderTraffic1024)$' -benchmem -benchtime=500ms -count=3
 go test ./pkg/net/accesscontrol -run '^$' -bench 'BenchmarkAccess(PolicyEvaluation|CachedDatagram|Admission|Update1024|LargePolicy1024)$' -benchmem -benchtime=500ms -count=3
 go test ./pkg/net/accesscontrol -run '^$' -bench '^BenchmarkAccessUpdateUnderTraffic1024$' -benchmem -benchtime=500ms -count=3
 go test ./pkg/net/accesscontrol -run '^$' -bench '^BenchmarkAccessIdleMemory1024$' -benchmem -benchtime=5x -count=3

@@ -146,20 +146,47 @@ func (c *Controller) Activate(next *Prepared) {
 		sessions = append(sessions, s)
 	}
 	c.mu.Unlock()
+	var revoked []*Session
 	for _, s := range sessions {
 		if s.revalidate(next) {
 			c.revoked.Add(1)
 			s.cancelTraffic(netapi.ErrTrafficAccessDenied)
 			s.Close()
+			if s.terminateTraffic != nil {
+				revoked = append(revoked, s)
+			}
 		}
 	}
+	if len(revoked) == 0 {
+		return
+	}
+	terminateRevokedSessions(revoked)
 }
 
-func (c *Controller) NewSession(subject netapi.TrafficSubject, cancelTraffic func(error)) (netapi.TrafficAccessSession, error) {
+func terminateRevokedSessions(revoked []*Session) {
+	// Every revoked transport has been interrupted before a graceful close
+	// can block. Bound teardown concurrency instead of spawning per session.
+	var index atomic.Int64
+	var workers sync.WaitGroup
+	for range min(16, len(revoked)) {
+		workers.Go(func() {
+			for {
+				i := int(index.Add(1)) - 1
+				if i >= len(revoked) {
+					return
+				}
+				revoked[i].terminateTraffic()
+			}
+		})
+	}
+	workers.Wait()
+}
+
+func (c *Controller) NewSession(subject netapi.TrafficSubject, cancelTraffic func(error), terminate ...func()) (netapi.TrafficAccessSession, error) {
 	if !subject.External {
 		return nil, nil
 	}
-	if cancelTraffic == nil {
+	if cancelTraffic == nil || len(terminate) > 1 {
 		return nil, netapi.ErrTrafficAccessDenied
 	}
 	c.mu.Lock()
@@ -173,6 +200,9 @@ func (c *Controller) NewSession(subject netapi.TrafficSubject, cancelTraffic fun
 		return nil, netapi.ErrTrafficAccessDenied
 	}
 	s := &Session{owner: c, subject: subject, cancelTraffic: cancelTraffic}
+	if len(terminate) == 1 {
+		s.terminateTraffic = terminate[0]
+	}
 	c.sessions[s] = struct{}{}
 	c.mu.Unlock()
 	if subject.Identity != nil {

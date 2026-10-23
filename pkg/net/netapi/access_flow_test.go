@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -128,5 +129,56 @@ func TestPinTrafficTargetRejectsRebindingAndReturnsOnlyAuthorizedIP(t *testing.T
 	before := resolver.calls
 	if _, err := netapi.PinTrafficDestination(anonymous, c, domain); !errors.Is(err, netapi.ErrTrafficAccessDenied) || resolver.calls != before {
 		t.Fatal("anonymous request reached DNS", err)
+	}
+}
+
+type slowClosingAccessConn struct {
+	net.Conn
+	release <-chan struct{}
+}
+
+func (c slowClosingAccessConn) Close() error { <-c.release; return c.Conn.Close() }
+
+func TestRevocationInterruptsIOBeforeSlowGracefulCloseFinishes(t *testing.T) {
+	c := accesscontrol.New()
+	defer c.Close()
+	accessAction(t, c, "allow")
+	release := make(chan struct{})
+	releaseOnce := sync.OnceFunc(func() { close(release) })
+	defer releaseOnce()
+	dst := netapi.ParseIPAddr("tcp", net.IPv4(192, 0, 2, 8), 443)
+	reads := make(chan error, 2)
+	for range 2 {
+		local, remote := net.Pipe()
+		defer remote.Close()
+		conn, err := netapi.DialTraffic(accessContext(t), c, dst, dst, func(context.Context, netapi.Address) (net.Conn, error) {
+			return slowClosingAccessConn{Conn: local, release: release}, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		go func() { _, err := conn.Read(make([]byte, 1)); reads <- err }()
+	}
+	deny, err := accesscontrol.Prepare(contract.Config{Enabled: true, Scope: contract.Scope{AllInbounds: true}, DefaultAction: "deny"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() { defer close(done); c.Activate(deny) }()
+	defer func() { releaseOnce(); <-done }()
+	for range 2 {
+		select {
+		case err := <-reads:
+			if err == nil {
+				t.Fatal("revoked I/O succeeded")
+			}
+		case <-time.After(time.Second):
+			t.Fatal("slow close delayed another connection's I/O cancellation")
+		}
+	}
+	select {
+	case <-done:
+		t.Fatal("transport teardown was not joined")
+	default:
 	}
 }

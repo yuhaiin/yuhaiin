@@ -34,7 +34,9 @@ type TrafficAccess interface {
 	Managed(TrafficSubject) bool
 	Preflight(TrafficSubject) error
 	Decide(TrafficSubject, Address, Address) contract.Decision
-	NewSession(TrafficSubject, func(error)) (TrafficAccessSession, error)
+	// Cancellation must signal/interrupt I/O without waiting for graceful
+	// transport shutdown. The optional closer is joined separately on revoke.
+	NewSession(TrafficSubject, func(error), ...func()) (TrafficAccessSession, error)
 }
 
 type TrafficAccessSession interface {
