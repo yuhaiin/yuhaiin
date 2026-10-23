@@ -136,6 +136,29 @@ func (t *Tailscale) init(ctx context.Context) (*lite.Client, error) {
 		Hostname: t.config.Hostname, ControlURL: t.config.ControlURL,
 		AuthKey: t.config.AuthKey, StatePath: path, Device: n,
 		Underlay: u.network(), RequireUnderlay: true, Logf: logger,
+		TailnetDialTCP: func(ctx context.Context, target netip.AddrPort) (net.Conn, error) {
+			stack, err := n.await()
+			if err != nil {
+				return nil, err
+			}
+			return stack.DialContextTCP(ctx, net.TCPAddrFromAddrPort(target))
+		},
+		TailnetDialUDP: func(ctx context.Context, target netip.AddrPort) (net.Conn, error) {
+			stack, err := n.await()
+			if err != nil {
+				return nil, err
+			}
+			var local netip.Addr
+			if target.Addr().Is4() {
+				local = n.v4
+			} else {
+				local = n.v6
+			}
+			if !local.IsValid() {
+				return nil, errors.New("tailscale: no local address for Tailnet DNS family")
+			}
+			return stack.DialUDP(net.UDPAddrFromAddrPort(netip.AddrPortFrom(local, 0)), net.UDPAddrFromAddrPort(target))
+		},
 		OnAddresses: func(prefixes []netip.Prefix) error {
 			var v4, v6 netip.Addr
 			for _, prefix := range prefixes {
