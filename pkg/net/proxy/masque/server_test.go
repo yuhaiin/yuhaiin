@@ -16,12 +16,11 @@ func TestMasqueServerRequiresAuthentication(t *testing.T) {
 		ServerAddresses: []string{"10.88.0.1/32"},
 		ClientAddresses: []string{"10.88.0.2/32"},
 	}
-	_, err := NewServer(cfg, &tls.Config{Certificates: []tls.Certificate{{}}}, nil)
-	if err == nil {
-		t.Fatal("nil handler unexpectedly accepted")
+	_, err := NewServer(cfg, &tls.Config{Certificates: []tls.Certificate{{}}}, discardMasqueHandler{})
+	if err == nil || !strings.Contains(err.Error(), "authToken") {
+		t.Fatalf("missing authToken accepted: %v", err)
 	}
-	// A valid handler is not needed to test config validation: the
-	// forbidden empty secret is checked before any socket is opened.
+	// Authentication must be checked before allocating any packet stack.
 	s := &Server{path: defaultServerPath, authToken: "secret"}
 	for _, authorization := range []string{"", "Bearer wrong", "Basic c2VjcmV0"} {
 		req := httptest.NewRequest(http.MethodConnect, "https://example.test"+defaultServerPath, nil)
