@@ -4,7 +4,7 @@ go 1.27.2
 
 replace (
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
-	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20261016051747-4441c394b330
+	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20261023110941-4f3024ad7b04
 )
 
 require (
