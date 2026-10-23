@@ -30,7 +30,9 @@ func liteDNSQuery(ctx context.Context, client *lite.Client, request []byte) ([]b
 	}
 	if len(query.Question) != 1 {
 		reply := &dns.Msg{ID: query.ID, Response: true, Rcode: dns.RcodeFormatError}
-		if err := reply.Pack(); err != nil { return nil, err }
+		if err := reply.Pack(); err != nil {
+			return nil, err
+		}
 		return reply.Data, nil
 	}
 	question := netapi.DNSQuestionFromRR(query.Question[0])
