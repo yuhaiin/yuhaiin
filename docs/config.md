@@ -125,7 +125,8 @@
           "portal": "172.19.0.2",
           "dns_hijacking": true, // dns_hijacking, will hijacking request for port 53
           "skip_multicast": true,
-          "driver": "fdbased" // tun gvisor driver, support: fdbased, channel, system_gvisor
+          "driver": "channel", // lightweight TUN packet adapter
+          "stack": "lightweight" // only supported TUN stack
         }
       },
       "yuubinsya": { // experimental, custom protocol
