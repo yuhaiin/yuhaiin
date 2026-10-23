@@ -17,6 +17,7 @@ const (
 	UDPDisabled = "disabled"
 
 	ProtocolHysteria2  = "hysteria2"
+	ProtocolMasque     = "masque"
 	ProtocolHTTP       = "http"
 	ProtocolSocks5     = "socks5"
 	ProtocolYuubinsya  = "yuubinsya"
@@ -146,6 +147,7 @@ func (n Network) nonNilCount() int {
 type Protocol struct {
 	Type       string              `json:"type"`
 	Hysteria2  *Hysteria2Protocol  `json:"hysteria2,omitzero"`
+	Masque     *MasqueProtocol     `json:"masque,omitzero"`
 	HTTP       *HTTPProtocol       `json:"http,omitzero"`
 	Socks5     *Socks5Protocol     `json:"socks5,omitzero"`
 	Yuubinsya  *YuubinsyaProtocol  `json:"yuubinsya,omitzero"`
@@ -176,6 +178,19 @@ type Hysteria2Protocol struct {
 }
 
 func (Hysteria2Protocol) ProtocolType() string { return ProtocolHysteria2 }
+
+// MasqueProtocol serves RFC 9484 CONNECT-IP over HTTP/3.
+// Every authenticated tunnel receives an isolated in-memory TCP/IP stack.
+type MasqueProtocol struct {
+	Path            string   `json:"path,omitzero"`
+	AuthToken       string   `json:"authToken"`
+	ServerAddresses []string `json:"serverAddresses"`
+	ClientAddresses []string `json:"clientAddresses"`
+	MTU             int      `json:"mtu,omitzero"`
+	MaxSessions     int      `json:"maxSessions,omitzero"`
+}
+
+func (MasqueProtocol) ProtocolType() string { return ProtocolMasque }
 
 type HTTPProtocol struct {
 	Username string `json:"username"`
@@ -298,6 +313,11 @@ func NewTypedProtocol[T ProtocolVariant](value T) Protocol {
 
 func (p Protocol) Variant() (ProtocolVariant, error) {
 	switch p.Type {
+	case ProtocolMasque:
+		if p.Masque == nil {
+			return nil, fmt.Errorf("protocol %s missing masque field", p.Type)
+		}
+		return p.Masque, nil
 	case ProtocolHysteria2:
 		if p.Hysteria2 == nil {
 			return nil, fmt.Errorf("protocol %s missing hysteria2 field", p.Type)
@@ -381,6 +401,9 @@ func (p Protocol) Validate() error {
 func (p Protocol) nonNilCount() int {
 	count := 0
 	if p.Hysteria2 != nil {
+		count++
+	}
+	if p.Masque != nil {
 		count++
 	}
 	if p.HTTP != nil {
