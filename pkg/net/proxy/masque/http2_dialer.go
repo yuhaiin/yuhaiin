@@ -13,7 +13,7 @@ import (
 // connectHTTP2 establishes Cloudflare CONNECT-IP using ordinary HTTP/2 CONNECT
 // with cf-connect-proto, not the RFC 8441 :protocol pseudo-header.
 func (m *Masque) connectHTTP2(ctx context.Context) (*Conn, error) {
-	c := &Conn{cloudflare: m.cloudflare}
+	c := &Conn{cloudflare: !m.generic}
 	tcp, err := dialer.DialTCPContext(ctx, m.addr.AddrPort())
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func (m *Masque) connectHTTP2(ctx context.Context) (*Conn, error) {
 		return nil, err
 	}
 	var ipClient *connectip.HTTP2ClientConn
-	if m.cloudflare {
+	if !m.generic {
 		request.Header()["User-Agent"] = []string{""}
 		ipClient = connectip.NewCloudflareHTTP2ClientConn(h2)
 	} else {
