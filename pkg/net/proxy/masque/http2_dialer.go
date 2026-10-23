@@ -39,7 +39,11 @@ func (m *Masque) connectHTTP2(ctx context.Context) (*Conn, error) {
 		return nil, err
 	}
 	c.h2 = h2
-	request, err := connectip.NewRequest(ctx, m.requestURL)
+	requestURL := m.requestURL
+	if requestURL == "" {
+		requestURL = ConnectURI + "/"
+	}
+	request, err := connectip.NewRequest(ctx, requestURL)
 	if err != nil {
 		_ = c.Close()
 		return nil, err
