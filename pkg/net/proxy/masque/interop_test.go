@@ -72,7 +72,7 @@ func TestStandardMasqueClientServerConnect(t *testing.T) {
 type discardMasqueHandler struct{}
 
 func (discardMasqueHandler) HandleStream(*netapi.StreamMeta) {}
-func (discardMasqueHandler) HandlePacket(*netapi.Packet) {}
-func (discardMasqueHandler) HandlePing(*netapi.PingMeta) {}
+func (discardMasqueHandler) HandlePacket(*netapi.Packet)     {}
+func (discardMasqueHandler) HandlePing(*netapi.PingMeta)     {}
 
 var _ netapi.Handler = discardMasqueHandler{}
