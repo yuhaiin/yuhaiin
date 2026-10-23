@@ -67,9 +67,11 @@ The HTTP Gateway is **optional**: ordinary connections continue through L4 routi
 | --- | --- |
 | **Enterprise VPN clients** | OpenVPN, GlobalProtect, AnyConnect, Fortinet SSL VPN, IKEv2/IPsec, SSTP, SoftEther |
 | **Mesh & overlay networking** | WireGuard, AmneziaWG, Tailscale (tsnet), Nebula, ZeroTier, Cloudflare WARP |
-| **Modern proxies & tunnels** | Shadowsocks, ShadowsocksR, VMess, VLESS, Trojan, Hysteria 2, MASQUE, SSH |
-| **Standard proxy & ingress** | SOCKS4a/5, HTTP, Mixed, TUN, Redir, TProxy, WireGuard inbound |
+| **Modern proxies & tunnels** | Shadowsocks, ShadowsocksR, VMess, VLESS, Trojan, Hysteria 2, standard MASQUE CONNECT-IP client, SSH |
+| **Standard proxy & ingress** | SOCKS4a/5, HTTP, Mixed, TUN, Redir, TProxy, WireGuard inbound, MASQUE HTTP/3 CONNECT-IP inbound |
 | **DNS transports** | Classic DNS over UDP/TCP, DoT, DoH, DoQ, FakeDNS |
+
+**MASQUE:** standard CONNECT-IP outbound supports HTTP/3 and HTTP/2; the authenticated server currently supports HTTP/3 only. See [the MASQUE guide](docs/masque.md) for setup and limitations.
 
 **Support varies by protocol and platform.** Some integrations remain experimental or have restricted transport/authentication modes. Nebula and ZeroTier are userspace outbound integrations, not general-purpose virtual Ethernet adapters. Check the linked implementation guides for supported features, packaging requirements, and limitations.
 

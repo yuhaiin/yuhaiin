@@ -1,11 +1,97 @@
-# Cloudflare WARP MASQUE
+# MASQUE / CONNECT-IP and Cloudflare WARP
 
 Local regression coverage, HTTP/2 framing benchmarks and validation limits: [2026-10-18 review](benchmarks/native-hy2-masque-2026-10-18.md).
 
 MASQUE uses the local CONNECT-IP implementation in `pkg/net/proxy/masque/connectip` on top of `github.com/apernet/quic-go` (HTTP/3).
 It no longer imports `github.com/quic-go/quic-go` or `github.com/quic-go/connect-ip-go`.
 
-## Transport
+## Standard CONNECT-IP outbound
+
+A node chain can now include `{"type":"masque","masque":{...}}`. The
+`masque` client uses RFC 9484 CONNECT-IP with standard HTTP/3 Extended
+CONNECT, RFC 9297 HTTP Datagrams and the existing native QUIC BBR controller.
+It can alternatively use HTTP/2 Extended CONNECT with DATAGRAM capsules;
+select `transport: "h2"` explicitly. It does not silently fall back between
+transports.
+
+Example node protocol (the complete node also needs `id`, `name`,
+`origin`, `enabled` and `chain`):
+
+```json
+{
+  "type": "masque",
+  "masque": {
+    "endpoint": "masque.example.net:443",
+    "url": "https://masque.example.net/.well-known/masque/ip/*/*/",
+    "server_name": "masque.example.net",
+    "local_addresses": ["10.88.0.2/32", "fd88::2/128"],
+    "bearer_token": "CHANGE_ME",
+    "mtu": 1280,
+    "transport": "h3"
+  }
+}
+```
+
+`endpoint` resolves the UDP (or, for `h2`, TCP) address of the MASQUE server.
+`url` supplies the HTTP authority, path and optional query; these are not
+Cloudflare-specific values. Standard certificate validation is enabled by
+default. `ca_cert_pem` can add a private CA; `client_cert_pem` and
+`client_key_pem` enable mTLS. `insecure_skip_verify` is explicitly unsafe
+and should never be the normal default.
+
+## Standard HTTP/3 CONNECT-IP inbound
+
+The `masque` inbound requires a `tcp_udp` network with `udp_only`, one
+TLS transport containing a server certificate, and a fixed `authToken`.
+The default route path is `/.well-known/masque/ip/*/*/`. For example, the
+inbound contract's relevant fields are:
+
+```json
+{
+  "network": {
+    "type": "tcp_udp",
+    "tcp_udp": {"host": "0.0.0.0:4433", "udp": "udp_only"}
+  },
+  "transports": [{
+    "type": "tls",
+    "tls": {"tls": {"certificates": [{
+      "certBase64": "<base64-encoded PEM certificate>",
+      "keyBase64": "<base64-encoded PEM private key>"
+    }]}}
+  }],
+  "protocol": {
+    "type": "masque",
+    "masque": {
+      "authToken": "CHANGE_ME",
+      "serverAddresses": ["10.88.0.1/32", "fd88::1/128"],
+      "clientAddresses": ["10.88.0.2/32", "fd88::2/128"],
+      "maxSessions": 64,
+      "mtu": 1280
+    }
+  }
+}
+```
+
+The inbound also needs top-level `id`, `name`, `enabled` fields.
+Each accepted HTTP/3 CONNECT-IP stream owns an isolated lightweight TCP/IP
+stack and feeds ordinary inbound TCP/UDP routing handlers. No host TUN,
+kernel route or privileged network namespace is created. Both client source
+addresses and server routes are explicitly configured; client source IP
+spoofing outside `clientAddresses` is rejected by the CONNECT-IP layer.
+The server validates a constant-time Bearer token before allocating a
+stack, caps concurrent tunnels with `maxSessions` and rejects anonymous
+IP forwarding. The same configured client addresses can be used by separate
+sessions because their stacks are isolated.
+
+**Scope:** this initial server supports standards-based HTTP/3 CONNECT-IP.
+HTTP/2 server transport, CONNECT-UDP, dynamic per-user IP allocation and
+identity-module user-scoped authentication are not included. Do not put
+`authentication.users` on this inbound: it is rejected rather than silently
+ignored. HTTPS / TLS certificate validation and authorization are necessary
+for real deployments. `clientAddresses` must only contain explicit unicast
+host prefixes, not unrestricted network ranges.
+
+## Cloudflare WARP transport
 
 Cloudflare WARP node configuration accepts a `transport` string:
 
@@ -22,7 +108,7 @@ Cloudflare H2 carries raw IPv4/IPv6 packets inside type-0 DATAGRAM capsules with
 
 The endpoint public key is pinned, and missing/incorrect server certificates are rejected. Invalid IP headers, hop limit exhaustion and oversized datagrams are handled in the CONNECT-IP layer; ICMP Packet Too Big feedback is retained.
 
-The HTTP/2 mode uses an explicitly configured TLS endpoint with ALPN `h2`, and tolerates the empty ALPN response used by some Cloudflare WARP endpoints. This is client-side support only, not a general MASQUE server.
+The HTTP/2 mode uses an explicitly configured TLS endpoint with ALPN `h2`, and tolerates the empty ALPN response used by some Cloudflare WARP endpoints. This Cloudflare-specific compatibility mode is client-side only; the standard MASQUE server described above is a separate inbound.
 
 Configure the H2 TCP endpoint and its public-key pin explicitly. H2 and H3 endpoints can differ, as can their TLS public keys; create separate nodes when retaining both transports. The pin remains mandatory.
 

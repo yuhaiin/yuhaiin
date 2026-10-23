@@ -13,7 +13,7 @@ import (
 // connectHTTP2 establishes Cloudflare CONNECT-IP using ordinary HTTP/2 CONNECT
 // with cf-connect-proto, not the RFC 8441 :protocol pseudo-header.
 func (m *Masque) connectHTTP2(ctx context.Context) (*Conn, error) {
-	c := &Conn{}
+	c := &Conn{cloudflare: !m.generic}
 	tcp, err := dialer.DialTCPContext(ctx, m.addr.AddrPort())
 	if err != nil {
 		return nil, err
@@ -39,13 +39,26 @@ func (m *Masque) connectHTTP2(ctx context.Context) (*Conn, error) {
 		return nil, err
 	}
 	c.h2 = h2
-	request, err := connectip.NewRequest(ctx, ConnectURI+"/")
+	requestURL := m.requestURL
+	if requestURL == "" {
+		requestURL = ConnectURI + "/"
+	}
+	request, err := connectip.NewRequest(ctx, requestURL)
 	if err != nil {
 		_ = c.Close()
 		return nil, err
 	}
-	request.Header()["User-Agent"] = []string{""}
-	ipConn, resp, err := connectip.NewCloudflareHTTP2ClientConn(h2).Dial(request)
+	var ipClient *connectip.HTTP2ClientConn
+	if !m.generic {
+		request.Header()["User-Agent"] = []string{""}
+		ipClient = connectip.NewCloudflareHTTP2ClientConn(h2)
+	} else {
+		if m.bearerToken != "" {
+			request.Header().Set("Authorization", "Bearer "+m.bearerToken)
+		}
+		ipClient = connectip.NewHTTP2ClientConn(h2)
+	}
+	ipConn, resp, err := ipClient.Dial(request)
 	if err != nil {
 		_ = c.Close()
 		return nil, fmt.Errorf("MASQUE HTTP/2 CONNECT-IP: %w", err)

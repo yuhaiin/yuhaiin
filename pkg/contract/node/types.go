@@ -153,6 +153,7 @@ type Protocol struct {
 	Fixed                *Fixed                `json:"fixed,omitzero"`
 	NetworkSplit         *NetworkSplit         `json:"network_split,omitzero"`
 	CloudflareWarpMasque *CloudflareWarpMasque `json:"cloudflare_warp_masque,omitzero"`
+	Masque               *Masque               `json:"masque,omitzero"`
 	Proxy                *Proxy                `json:"proxy,omitzero"`
 	FixedV2              *FixedV2              `json:"fixedv2,omitzero"`
 	PointAsEndpoint      *PointAsEndpoint      `json:"point_as_endpoint,omitzero"`
@@ -603,6 +604,21 @@ type CloudflareWarpMasque struct {
 	Transport         string   `json:"transport,omitzero"`
 }
 
+// Masque configures a standards-based RFC 9484 CONNECT-IP client.
+type Masque struct {
+	Endpoint           string   `json:"endpoint"`
+	URL                string   `json:"url"`
+	ServerName         string   `json:"server_name,omitzero"`
+	CACertPEM          string   `json:"ca_cert_pem,omitzero"`
+	ClientCertPEM      string   `json:"client_cert_pem,omitzero"`
+	ClientKeyPEM       string   `json:"client_key_pem,omitzero"`
+	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitzero"`
+	BearerToken        string   `json:"bearer_token,omitzero"`
+	LocalAddresses     []string `json:"local_addresses"`
+	MTU                int32    `json:"mtu,omitzero"`
+	Transport          string   `json:"transport,omitzero"`
+}
+
 type PointAsEndpoint struct {
 	Hash string `json:"hash"`
 }
@@ -656,6 +672,7 @@ func (AEAD) ProtocolType() string                 { return "aead" }
 func (Fixed) ProtocolType() string                { return "fixed" }
 func (NetworkSplit) ProtocolType() string         { return "network_split" }
 func (CloudflareWarpMasque) ProtocolType() string { return "cloudflare_warp_masque" }
+func (Masque) ProtocolType() string               { return "masque" }
 func (Proxy) ProtocolType() string                { return "proxy" }
 func (FixedV2) ProtocolType() string              { return "fixedv2" }
 func (PointAsEndpoint) ProtocolType() string      { return "point_as_endpoint" }
@@ -867,6 +884,7 @@ func (x Protocol) presentVariants() map[string]bool {
 		"fixed":                  x.Fixed != nil,
 		"network_split":          x.NetworkSplit != nil,
 		"cloudflare_warp_masque": x.CloudflareWarpMasque != nil,
+		"masque":                 x.Masque != nil,
 		"proxy":                  x.Proxy != nil,
 		"fixedv2":                x.FixedV2 != nil,
 		"point_as_endpoint":      x.PointAsEndpoint != nil,

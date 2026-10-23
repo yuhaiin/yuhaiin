@@ -42,6 +42,9 @@ type Masque struct {
 	localAddresses []netip.Prefix
 	mtu            int
 	http2          bool
+	generic        bool
+	requestURL     string
+	bearerToken    string
 
 	once sync.Once
 }
@@ -75,6 +78,7 @@ func NewMasqueWithTransport(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDP
 		localAddresses: localAddresses,
 		mtu:            mtu,
 		http2:          transport == "h2",
+		requestURL:     ConnectURI + "/",
 		dev:            dev,
 		receive:        make(chan []byte, 100),
 		send:           make(chan []byte, 100),
@@ -97,6 +101,7 @@ type Conn struct {
 	h2            *http2ClientConn
 	h3conn        *http3.ClientConn
 	ipconn        *connectip.Conn
+	cloudflare    bool
 }
 
 func (c *Conn) Close() error {
@@ -178,7 +183,7 @@ func isRetryableHTTP3ConnectFailure(err error) bool {
 }
 
 func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
-	mConn := &Conn{}
+	mConn := &Conn{cloudflare: !m.generic}
 
 	network := "udp4"
 	if m.addr.IP.To4() == nil {
@@ -193,7 +198,11 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 
 	// Cloudflare's MASQUE endpoint intermittently rejects shorter source CIDs.
 	// Match the upstream usque transport's 20-byte connection ID.
-	quicTransport := &quic.Transport{Conn: conn, ConnectionIDLength: 20}
+	cidLength := 12
+	if !m.generic {
+		cidLength = 20
+	}
+	quicTransport := &quic.Transport{Conn: conn, ConnectionIDLength: cidLength}
 	mConn.quicTransport = quicTransport
 	quicConn, err := quicTransport.Dial(ctx, m.addr, m.TlsConfig, &quic.Config{
 		EnableDatagrams: true,
@@ -225,14 +234,27 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 
 	mConn.h3conn = hconn
 
-	req, err := connectip.NewRequest(ctx, ConnectURI+"/")
+	requestURL := m.requestURL
+	if requestURL == "" {
+		requestURL = ConnectURI + "/"
+	}
+	req, err := connectip.NewRequest(ctx, requestURL)
 	if err != nil {
 		_ = mConn.Close()
 		return nil, err
 	}
-	// Preserve the empty User-Agent used by our previous Cloudflare WARP client.
-	req.Header()["User-Agent"] = []string{""}
-	ipConn, resp, err := connectip.NewCloudflareClientConn(hconn, quicConn).Dial(req)
+	var ipClient *connectip.ClientConn
+	if !m.generic {
+		// Preserve Cloudflare WARP's legacy protocol and draft datagrams.
+		req.Header()["User-Agent"] = []string{""}
+		ipClient = connectip.NewCloudflareClientConn(hconn, quicConn)
+	} else {
+		if m.bearerToken != "" {
+			req.Header().Set("Authorization", "Bearer "+m.bearerToken)
+		}
+		ipClient = connectip.NewClientConn(hconn)
+	}
+	ipConn, resp, err := ipClient.Dial(req)
 	if err != nil {
 		_ = mConn.Close()
 		if strings.Contains(err.Error(), "tls: access denied") {
@@ -267,7 +289,7 @@ func finishMasqueConnect(mConn *Conn, ipConn *connectip.Conn, resp *http.Respons
 		},
 	}
 	var err error
-	if mConn.h2 != nil {
+	if mConn.h2 != nil || !mConn.cloudflare {
 		err = ipConn.SetLocalRoutes(routes)
 	} else {
 		err = ipConn.AdvertiseRoute(routes)

@@ -14,7 +14,7 @@ func Capabilities() contract.Capabilities {
 }
 
 func capabilitiesFor(platform, arch string) contract.Capabilities {
-	protocols := []string{contract.ProtocolHysteria2, contract.ProtocolHTTP, contract.ProtocolSocks5,
+	protocols := []string{contract.ProtocolHysteria2, contract.ProtocolMasque, contract.ProtocolHTTP, contract.ProtocolSocks5,
 		contract.ProtocolYuubinsya, contract.ProtocolMixed, contract.ProtocolSocks4A, contract.ProtocolWireguard,
 		contract.ProtocolKrunlet, contract.ProtocolReverseTCP, contract.ProtocolNone}
 	if platform == "linux" || platform == "android" {
