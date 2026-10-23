@@ -4,6 +4,7 @@ package tailscale
 
 import (
 	"bytes"
+	"encoding/binary"
 	"context"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/tstest/integration/testcontrol"
 	"tailscale.com/types/key"
+	"tailscale.com/types/dnstype"
 	"tailscale.com/types/logger"
 )
 
@@ -47,13 +49,59 @@ func TestLocalTailnet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	control := &testcontrol.Server{
+	// Real DNS forwarder on localhost; the embedded Tailscale DNS manager
+	// must select this resolver from the control-supplied split/default
+	// policy, then send UDP through this node's injected Underlay.
+	dnsUpstream, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dnsUpstream.Close()
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, from, err := dnsUpstream.ReadFrom(buf)
+			if err != nil {
+				return
+			}
+			var q dns.Msg
+			q.Data = buf[:n]
+			if q.Unpack() != nil || len(q.Question) != 1 {
+				continue
+			}
+			question := netapi.DNSQuestionFromRR(q.Question[0])
+			response := netapi.NewDNSMsg(question)
+			response.ID = q.ID
+			response.Response = true
+			response.RecursionAvailable = true
+			response.Answer = append(response.Answer, &dns.A{
+				Hdr: dns.Header{Name: question.Name, Class: dns.ClassINET, TTL: 30},
+				Addr: map[string]netip.Addr{
+					"lookup.corp.example.": netip.MustParseAddr("192.0.2.31"),
+					"ordinary.example.":    netip.MustParseAddr("192.0.2.41"),
+				}[question.Name],
+			})
+			if !response.Answer[0].(*dns.A).Addr.IsValid() {
+				continue
+			}
+			if response.Pack() == nil {
+				_, _ = dnsUpstream.WriteTo(response.Data, from)
+			}
+		}
+	}()
+		control := &testcontrol.Server{
 		DERPMap: &tailcfg.DERPMap{Regions: map[tailcfg.DERPRegionID]*tailcfg.DERPRegion{1: {
 			RegionID: 1, RegionCode: "local",
 			Nodes: []*tailcfg.DERPNode{{Name: "local", RegionID: 1, HostName: "127.0.0.1",
 				IPv4: "127.0.0.1", IPv6: "none", DERPPort: port, STUNPort: -1, InsecureForTests: true}},
 		}}},
-		DNSConfig:      &tailcfg.DNSConfig{Proxied: true},
+		DNSConfig: &tailcfg.DNSConfig{
+			Proxied: true,
+			Resolvers: []*dnstype.Resolver{{Addr: dnsUpstream.LocalAddr().String()}},
+			Routes: map[string][]*dnstype.Resolver{
+				"corp.example": {{Addr: dnsUpstream.LocalAddr().String()}},
+			},
+		},
 		MagicDNSDomain: "tail-scale.ts.net",
 		Logf:           logger.Discard,
 	}
@@ -216,6 +264,100 @@ func TestLocalTailnet(t *testing.T) {
 		}
 		if answer.Rcode != dns.RcodeSuccess || len(answer.Answer) != 1 {
 			t.Fatalf("DNS response %+v", &answer)
+		}
+	})
+	// Verify DNS query transport compatibility through the actual adapter,
+	// not a test-only fake DNS Manager.
+	askDNS := func(t *testing.T, question string, qtype uint16) dns.Msg {
+		t.Helper()
+		request := netapi.NewDNSMsg(netapi.DNSQuestion{
+			Name: question, Qtype: qtype, Qclass: dns.ClassINET,
+		})
+		request.Response = false
+		request.ID = 0x6622
+		if err := request.Pack(); err != nil {
+			t.Fatal(err)
+		}
+		server := netapi.ParseNetipAddr("udp", netip.MustParseAddr("100.100.100.100"), 53)
+		pc, err := nodes[0].PacketConn(ctx, server)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer pc.Close()
+		_ = pc.SetDeadline(time.Now().Add(8 * time.Second))
+		if _, err := pc.WriteTo(request.Data, server); err != nil {
+			t.Fatal(err)
+		}
+		buf := make([]byte, 4096)
+		n, _, err := pc.ReadFrom(buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var answer dns.Msg
+		answer.Data = buf[:n]
+		if err := answer.Unpack(); err != nil {
+			t.Fatal(err)
+		}
+		if answer.ID != request.ID {
+			t.Fatalf("DNS ID changed %v -> %v", request.ID, answer.ID)
+		}
+		return answer
+	}
+	t.Run("split-dns-via-underlay", func(t *testing.T) {
+		answer := askDNS(t, "lookup.corp.example.", dns.TypeA)
+		if len(answer.Answer) != 1 || answer.Answer[0].(*dns.A).Addr.String() != "192.0.2.31" {
+			t.Fatalf("split DNS not routed by control policy: %+v", &answer)
+		}
+	})
+	t.Run("default-dns-via-underlay", func(t *testing.T) {
+		answer := askDNS(t, "ordinary.example.", dns.TypeA)
+		if len(answer.Answer) != 1 || answer.Answer[0].(*dns.A).Addr.String() != "192.0.2.41" {
+			t.Fatalf("default DNS not routed by control policy: %+v", &answer)
+		}
+	})
+	t.Run("reverse-ptr", func(t *testing.T) {
+		octets := target.As4()
+		name := fmt.Sprintf("%d.%d.%d.%d.in-addr.arpa.", octets[3], octets[2], octets[1], octets[0])
+		answer := askDNS(t, name, dns.TypePTR)
+		if answer.Rcode != dns.RcodeSuccess || len(answer.Answer) != 1 {
+			t.Fatalf("peer PTR not synthesized: %+v", &answer)
+		}
+	})
+	t.Run("dns-tcp", func(t *testing.T) {
+		server := netapi.ParseNetipAddr("tcp", netip.MustParseAddr("100.100.100.100"), 53)
+		stream, err := nodes[0].Conn(ctx, server)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stream.Close()
+		_ = stream.SetDeadline(time.Now().Add(8 * time.Second))
+		request := netapi.NewDNSMsg(netapi.DNSQuestion{
+			Name: "lookup.corp.example.", Qtype: dns.TypeA, Qclass: dns.ClassINET,
+		})
+		request.Response = false
+		request.ID = 0x6623
+		if err := request.Pack(); err != nil {
+			t.Fatal(err)
+		}
+		var header [2]byte
+		binary.BigEndian.PutUint16(header[:], uint16(len(request.Data)))
+		if _, err := stream.Write(append(header[:], request.Data...)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.ReadFull(stream, header[:]); err != nil {
+			t.Fatal(err)
+		}
+		buf := make([]byte, binary.BigEndian.Uint16(header[:]))
+		if _, err := io.ReadFull(stream, buf); err != nil {
+			t.Fatal(err)
+		}
+		var answer dns.Msg
+		answer.Data = buf
+		if err := answer.Unpack(); err != nil {
+			t.Fatal(err)
+		}
+		if answer.ID != request.ID || len(answer.Answer) != 1 {
+			t.Fatalf("DNS TCP manager failed: %+v", &answer)
 		}
 	})
 	t.Run("forbid-system-fallback", func(t *testing.T) {
