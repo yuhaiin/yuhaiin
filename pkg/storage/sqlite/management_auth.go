@@ -15,7 +15,7 @@ func OpenManagement(ctx context.Context, path string) (*Store, error) {
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}
-		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration} {
+		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration} {
 			var name string
 			err := db.QueryRowContext(ctx, `SELECT name FROM migrate WHERE version=?`, migration.Version).Scan(&name)
 			if err == nil {
@@ -34,6 +34,15 @@ func OpenManagement(ctx context.Context, path string) (*Store, error) {
 		return nil
 	})
 }
+
+var managementAuditMigration = Migration{Version: 5, Name: "management_audit_context", Statements: []string{
+	`ALTER TABLE management_security_events ADD COLUMN source TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE management_security_events ADD COLUMN request_method TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE management_security_events ADD COLUMN request_path TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE management_security_events ADD COLUMN credential_id TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE management_security_events ADD COLUMN result TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE management_security_events ADD COLUMN changes_json TEXT NOT NULL DEFAULT ''`,
+}}
 
 // The completion latch survives password resets and disabled accounts. Backfill
 // from enrollment history as well as current credentials when upgrading v1.

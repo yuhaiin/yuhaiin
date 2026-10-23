@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"net/netip"
+
+	usage "github.com/Asutorufa/yuhaiin/pkg/contract/usage"
 )
 
 // Middleware is initialized after all management routes are registered. It can
@@ -16,6 +18,16 @@ type Middleware func(context.Context, *http.ServeMux, MiddlewareOptions) (http.H
 type MiddlewareOptions struct {
 	DataDirectory string
 	AcceptOrigin  func(string, *http.Request) bool
+	UserUsage     UserUsage
+}
+
+// UserUsage is optional; identity middleware owns user-scoped authorization.
+type UserUsage interface {
+	Report(context.Context, usage.Query) (usage.Report, error)
+	Audit(context.Context, usage.Query) (usage.AuditPage, error)
+	UsageUsers(context.Context, string, int) ([]string, error)
+	Options() usage.Options
+	SetOptions(context.Context, usage.Options) error
 }
 
 // ManagementHTTPS reports the browser-facing transport. A local reverse proxy

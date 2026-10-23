@@ -49,6 +49,7 @@ type AppInstance struct {
 	Diagnostics   httpapi.DiagnosticsController
 	Subscribe     httpapi.SubscriptionController
 	Connections   httpapi.ConnectionMonitor
+	UserUsage     httpapi.UserUsage
 	Resolver      httpapi.ResolverController
 	FakeIP        contractresolver.FakeIPEntries
 	ResolverCache httpapi.ResolverCacheController

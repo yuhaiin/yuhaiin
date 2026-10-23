@@ -1,0 +1,21 @@
+File: statistics.test
+Build ID: 1cb041e7e062136dc4f51ac8525e3b905ce1033f
+Type: cpu
+Time: 2026-10-23 12:02:03 CST
+Duration: 3.40s, Total samples = 3830ms (112.57%)
+Showing nodes accounting for 1460ms, 38.12% of 3830ms total
+Dropped 171 nodes (cum <= 19.15ms)
+Showing top 12 nodes out of 298
+      flat  flat%   sum%        cum   cum%
+     520ms 13.58% 13.58%     1930ms 50.39%  modernc.org/sqlite/lib._sqlite3VdbeExec
+     160ms  4.18% 17.75%      250ms  6.53%  modernc.org/sqlite/lib._sqlite3VdbeRecordCompareWithSkip
+     150ms  3.92% 21.67%      360ms  9.40%  modernc.org/sqlite/lib._jsonTranslateTextToBlob
+     130ms  3.39% 25.07%      480ms 12.53%  modernc.org/sqlite/lib._sqlite3BtreeIndexMoveto
+     120ms  3.13% 28.20%      170ms  4.44%  runtime.tryDeferToSpanScan
+      70ms  1.83% 30.03%       70ms  1.83%  runtime.memmove
+      60ms  1.57% 31.59%      100ms  2.61%  encoding/json/v2.makeStringArshaler.func1
+      60ms  1.57% 33.16%       70ms  1.83%  modernc.org/libc.Xpthread_mutex_lock
+      60ms  1.57% 34.73%      100ms  2.61%  runtime.(*_panic).nextDefer
+      50ms  1.31% 36.03%       50ms  1.31%  internal/sync.(*Mutex).Unlock
+      40ms  1.04% 37.08%       40ms  1.04%  cmpbody
+      40ms  1.04% 38.12%      140ms  3.66%  database/sql.driverArgsConnLocked

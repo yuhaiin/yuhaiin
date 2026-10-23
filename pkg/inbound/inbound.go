@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
+	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -31,6 +32,7 @@ var _ netapi.Handler = (*Inbound)(nil)
 
 type Inbound struct {
 	authentication      proxyauth.Provider
+	usage               *statistics.UserUsage
 	states              map[string]runtimeState
 	eventID             uint64
 	statisticsStore     IngressStatisticsStore
@@ -218,10 +220,14 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 		return
 	}
 
+	observation := l.localDNSUsage(meta.Identity, stringerAddress(meta.Source), meta.Address, meta.InboundID, meta.InboundName, "tcp")
+	observed := observation.Conn(meta.Src)
+	defer observed.Close()
 	err := l.dnsHandler.DoStream(netapi.WithTrafficIdentity(l.ctx, meta.Identity), &netapi.DNSStreamRequest{
-		Conn:        meta.Src,
+		Conn:        observed,
 		ForceFakeIP: l.fakeip.Load(),
 	})
+	observation.Finish(err)
 	if err != nil {
 		log.Select(netapi.LogLevel(err)).Print("tcp server handle DnsHijacking", "msg", err,
 			"src", meta.Source, "dst", meta.Address)
@@ -277,16 +283,23 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 		return
 	}
 
+	observation := l.localDNSUsage(packet.Identity, stringerAddress(packet.Src()), packet.Dst(), packet.InboundID(), packet.InboundName(), "udp")
+	observation.AddUpload(len(packet.GetPayload()))
 	dnsReq := &netapi.DNSRawRequest{
 		Question: packet,
 		WriteBack: func(b []byte) error {
-			_, err := packet.WriteBack(b, packet.Dst())
+			n, err := packet.WriteBack(b, packet.Dst())
+			observation.AddDownload(n)
 			return err
 		},
 		ForceFakeIP: l.fakeip.Load(),
 	}
+	if observation != nil {
+		dnsReq.Done = observation.Finish
+	}
 
 	if err := l.dnsHandler.DoDatagram(l.ctx, dnsReq); err != nil {
+		observation.Finish(err)
 		log.Select(netapi.LogLevel(err)).Print("udp server handle DnsHijacking", "msg", err)
 	}
 }

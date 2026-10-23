@@ -19,10 +19,11 @@ import (
 // Selection pins the result of the existing Route/NodeRuntime selection for one
 // HTTP request. Identity changes when the selected proxy instance changes.
 type Selection struct {
-	Label       string
-	Identity    string
-	Proxy       netapi.Proxy
-	Destination netapi.Address
+	Label        string
+	Identity     string
+	TrafficScope string
+	Proxy        netapi.Proxy
+	Destination  netapi.Address
 }
 
 type SelectOutbound func(context.Context, netapi.Address, route.Target) (Selection, error)
@@ -36,6 +37,7 @@ func ProxyIdentity(proxy netapi.Proxy) string {
 
 type transportKey struct {
 	identity, destination, origin, serverName, trust string
+	trafficScope                                     string
 	connectMS, idleMS, requestMS, maxConns           int
 }
 type transportEntry struct {
@@ -63,7 +65,7 @@ func (p *TransportPool) borrow(s Selection, origin string, u contract.Upstream) 
 	if s.Proxy == nil || s.Destination == nil || s.Identity == "" {
 		return nil, nil, errors.New("outbound selection is incomplete")
 	}
-	key := transportKey{s.Identity, s.Destination.String(), origin, u.ServerName, u.TrustPEM, u.ConnectTimeoutMS, u.IdleTimeoutMS, u.RequestTimeoutMS, u.MaxConnections}
+	key := transportKey{identity: s.Identity, destination: s.Destination.String(), origin: origin, serverName: u.ServerName, trust: u.TrustPEM, trafficScope: s.TrafficScope, connectMS: u.ConnectTimeoutMS, idleMS: u.IdleTimeoutMS, requestMS: u.RequestTimeoutMS, maxConns: u.MaxConnections}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.clock++

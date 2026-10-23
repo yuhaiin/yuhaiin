@@ -38,6 +38,8 @@ const (
 	ProxyCredentialsManage    = permission.ProxyCredentialsManage
 	UpstreamCredentialsManage = permission.UpstreamCredentialsManage
 	ProxyCredentialsOwn       = permission.ProxyCredentialsOwn
+	UsageOwn                  = permission.UsageOwn
+	UsageRead                 = permission.UsageRead
 )
 
 const (
@@ -56,11 +58,11 @@ func RolePermissions(role string) []Permission {
 		return slices.Clone(allPermissions)
 	}
 	if role == NoManagement {
-		return []Permission{IdentityRead, ProxyCredentialsOwn}
+		return []Permission{IdentityRead, ProxyCredentialsOwn, UsageOwn}
 	}
 	if role == ReadOnly {
 		return []Permission{NodesRead, InboundsRead, RoutesRead, ResolverRead,
-			ConnectionsRead, GatewayRead, SettingsRead, MetricsRead, IdentityRead, TokensOwn, ProxyCredentialsOwn}
+			ConnectionsRead, GatewayRead, SettingsRead, MetricsRead, IdentityRead, TokensOwn, ProxyCredentialsOwn, UsageOwn, UsageRead}
 	}
 	return nil
 }

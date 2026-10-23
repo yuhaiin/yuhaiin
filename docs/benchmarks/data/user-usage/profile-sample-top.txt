@@ -1,0 +1,21 @@
+File: statistics.test
+Build ID: 1cb041e7e062136dc4f51ac8525e3b905ce1033f
+Type: cpu
+Time: 2026-10-23 12:01:58 CST
+Duration: 3.66s, Total samples = 3730ms (101.92%)
+Showing nodes accounting for 2280ms, 61.13% of 3730ms total
+Dropped 62 nodes (cum <= 18.65ms)
+Showing top 12 nodes out of 115
+      flat  flat%   sum%        cum   cum%
+     500ms 13.40% 13.40%      500ms 13.40%  internal/runtime/maps.memHashAES
+     280ms  7.51% 20.91%      290ms  7.77%  type:.eq.SSSSSM8
+     230ms  6.17% 27.08%      230ms  6.17%  internal/runtime/maps.ctrlGroup.matchH2 (inline)
+     200ms  5.36% 32.44%     1540ms 41.29%  github.com/Asutorufa/yuhaiin/pkg/statistics.(*UserUsage).addLocked
+     200ms  5.36% 37.80%     3560ms 95.44%  github.com/Asutorufa/yuhaiin/pkg/statistics.(*UserUsage).sample
+     190ms  5.09% 42.90%     1050ms 28.15%  runtime.mapassign
+     130ms  3.49% 46.38%      130ms  3.49%  internal/strconv.formatBase10
+     120ms  3.22% 49.60%      120ms  3.22%  internal/runtime/maps.memHash64AES
+     120ms  3.22% 52.82%      290ms  7.77%  runtime.mapaccess2_faststr
+     110ms  2.95% 55.76%      110ms  2.95%  memeqbody
+     110ms  2.95% 58.71%      210ms  5.63%  runtime.mallocgcTinySC2
+      90ms  2.41% 61.13%       90ms  2.41%  internal/runtime/maps.(*groupReference).key (inline)

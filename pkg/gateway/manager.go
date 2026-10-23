@@ -62,6 +62,7 @@ type Manager struct {
 	closed              bool
 	recoverDestination  func(context.Context, netapi.Address) netapi.Address
 	lookupProcess       func(context.Context, netapi.Address)
+	localAudit          func(*netapi.Context, string, bool)
 	internalConnections sync.Map
 	sessionsMu          sync.Mutex
 	sessions            map[net.Conn]interceptSession
@@ -75,6 +76,10 @@ func WithDestinationRecovery(f func(context.Context, netapi.Address) netapi.Addr
 }
 func WithProcessLookup(f func(context.Context, netapi.Address)) Option {
 	return func(m *Manager) { m.lookupProcess = f }
+}
+
+func WithLocalAudit(f func(*netapi.Context, string, bool)) Option {
+	return func(m *Manager) { m.localAudit = f }
 }
 
 func NewManager(ctx context.Context, store ConfigStore, authority *Authority, selectOutbound SelectOutbound, options ...Option) (*Manager, error) {
@@ -244,6 +249,7 @@ func (m *Manager) prepare(config contract.Config) (*snapshot, error) {
 			return nil, fmt.Errorf("gateway %s: %w", g.ID, err)
 		}
 		entry := &gatewayRuntime{engine: engine}
+		engine.localAudit = m.localAudit
 		restored, shouldRestore := m.restoredStatistics[g.ID]
 		if previous := m.current.Load(); previous != nil {
 			if old := previous.gateways[g.ID]; old != nil {

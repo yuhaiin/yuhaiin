@@ -34,6 +34,8 @@ const (
 	ProxyCredentialsManage    Permission = "proxy-credentials:manage"
 	UpstreamCredentialsManage Permission = "upstream-credentials:manage"
 	ProxyCredentialsOwn       Permission = "proxy-credentials:own"
+	UsageOwn                  Permission = "usage:own"
+	UsageRead                 Permission = "usage:read"
 )
 
 // Definition describes a permission in the management API catalog.
@@ -44,6 +46,8 @@ type Definition struct {
 }
 
 var catalog = [...]Definition{
+	{UsageOwn, "users", "View your own traffic usage and connection audit."},
+	{UsageRead, "users", "View traffic usage and connection audits for all users."},
 	{ProxyCredentialsOwn, "users", "Create, revoke, and rotate your own inbound proxy credentials."},
 	{ProxyCredentialsManage, "users", "Manage user credentials for inbound proxy access."},
 	{UpstreamCredentialsManage, "nodes", "Manage secrets used to authenticate outbound connections."},

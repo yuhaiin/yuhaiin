@@ -1,0 +1,12 @@
+{
+  "date": "2026-10-23",
+  "os": "Linux-7.2.6-zen2-1-zen-x86_64-with-glibc2.44",
+  "cpu": "AMD Ryzen 5 5600G (6 cores / 12 threads)",
+  "go": "go version go1.27.3-X:nodwarf5 linux/amd64",
+  "gomaxprocs": 2,
+  "sqlite": "modernc default driver; temporary files on /tmp",
+  "baseline": "same binary with UserUsage disabled; existing telemetry enabled in both",
+  "peer": "independent TCP/UDP echo process; loopback; 2 GOMAXPROCS",
+  "seconds": 8,
+  "repetitions": 3
+}

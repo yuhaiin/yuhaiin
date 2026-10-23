@@ -56,6 +56,22 @@ type Engine struct {
 	pool           *TransportPool
 	Counters       *Counters
 	lastOutbound   atomic.Pointer[string]
+	localAudit     func(*netapi.Context, string, bool)
+}
+
+func (e *Engine) auditLocal(ctx *netapi.Context, r *http.Request, blocked bool) {
+	if e.localAudit == nil {
+		return
+	}
+	target := r.Host
+	if _, _, err := net.SplitHostPort(target); err != nil {
+		port := "80"
+		if r.URL.Scheme == "https" || r.TLS != nil {
+			port = "443"
+		}
+		target = net.JoinHostPort(strings.Trim(target, "[]"), port)
+	}
+	e.localAudit(ctx, target, blocked)
 }
 
 func NewEngine(config contract.Gateway, rules []contract.Rule, upstreams []contract.Upstream, selectOutbound SelectOutbound) (*Engine, error) {
@@ -168,6 +184,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	switch a.Type {
 	case "block", "respond":
+		e.auditLocal(ctx, r, a.Type == "block")
 		if a.Type == "block" {
 			e.Counters.Blocked.Add(1)
 		}
@@ -185,6 +202,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	case "redirect":
+		e.auditLocal(ctx, r, false)
 		applyHeaders(w.Header(), a.ResponseHeaders)
 		if a.Location == r.URL.String() || a.Location == r.URL.RequestURI() {
 			http.Error(w, "redirect loop", http.StatusLoopDetected)
@@ -259,6 +277,17 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s, err := e.selectOutbound(out.Context(), address, target)
 			if err != nil {
 				return nil, err
+			}
+			// A pooled upstream connection is observed with the identity of its
+			// first dial. Keep authenticated ingress scopes separate so another
+			// user, credential or client source cannot inherit that attribution.
+			if identity := netapi.TrafficIdentity(out.Context()); identity != nil {
+				nc := netapi.GetContext(out.Context())
+				source := ""
+				if nc.Source != nil {
+					source = nc.Source.String()
+				}
+				s.TrafficScope = identity.CredentialID + "\x00" + nc.GetInboundID() + "\x00" + source
 			}
 			label := s.Label
 			if label == "" {
