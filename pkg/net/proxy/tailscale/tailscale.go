@@ -247,8 +247,7 @@ func resolveAddr(ctx context.Context, client *lite.Client, network string, addr 
 	} else {
 		ips = []netip.Addr{addr.(netapi.IPAddress).AddrPort().Addr()}
 	}
-	var self []netip.Prefix
-	self = client.Snapshot().Addresses
+	self := client.Snapshot().Addresses
 	for _, ip := range ips {
 		ip = ip.Unmap()
 		if network == "udp4" && !ip.Is4() || network == "udp6" && !ip.Is6() {
