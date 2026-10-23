@@ -492,9 +492,12 @@ func listenMasque(config contract.Inbound, handler netapi.Handler) (netapi.Accep
 	}
 	p := config.Protocol.Masque
 	return masque.NewServer(masque.ServerConfig{
-		Listen: config.Network.TCPUDP.Host,
-		Path: p.Path, AuthToken: p.AuthToken,
-		ServerAddresses: p.ServerAddresses, ClientAddresses: p.ClientAddresses,
-		MTU: p.MTU, MaxSessions: p.MaxSessions,
+		Listen:          config.Network.TCPUDP.Host,
+		Path:            p.Path,
+		AuthToken:       p.AuthToken,
+		ServerAddresses: p.ServerAddresses,
+		ClientAddresses: p.ClientAddresses,
+		MTU:             p.MTU,
+		MaxSessions:     p.MaxSessions,
 	}, tlsConfig, handler)
 }
