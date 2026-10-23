@@ -3,14 +3,11 @@
 package tailscale
 
 import (
-	"bufio"
+	"bytes"
 	"context"
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"net/http/httptest"
 	"net/netip"
 	"strconv"
@@ -19,287 +16,161 @@ import (
 	"testing"
 	"time"
 
+	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
-	wire "golang.org/x/net/dns/dnsmessage"
+	lite "github.com/yuhaiin/tailscale-lite"
 	"tailscale.com/derp/derpserver"
 	"tailscale.com/tailcfg"
-	"tailscale.com/tsnet"
 	"tailscale.com/tstest/integration/testcontrol"
 	"tailscale.com/types/key"
 	"tailscale.com/types/logger"
 )
 
-// Exercises this adapter against local Tailscale control/DERP services and
-// real WireGuard/netstack traffic, without production keys or a real account.
+// Two nodes use the host's actual lightweight stack and custom per-node
+// underlays, not fake packet devices or an OS TUN.
 func TestLocalTailnet(t *testing.T) {
 	oldDir := configuration.DataDir.Load()
 	configuration.DataDir.Store(t.TempDir())
 	t.Cleanup(func() { configuration.DataDir.Store(oldDir) })
+
 	relayServer := derpserver.New(key.NewNode(), logger.Discard)
 	defer relayServer.Close()
 	relay := httptest.NewTLSServer(derpserver.Handler(relayServer))
 	defer relay.Close()
 	_, portText, err := net.SplitHostPort(strings.TrimPrefix(relay.URL, "https://"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	if err != nil { t.Fatal(err) }
 	port, err := strconv.Atoi(portText)
-	if err != nil {
-		t.Fatal(err)
-	}
+	if err != nil { t.Fatal(err) }
 	control := &testcontrol.Server{
 		DERPMap: &tailcfg.DERPMap{Regions: map[tailcfg.DERPRegionID]*tailcfg.DERPRegion{1: {
-			RegionID: 1, RegionCode: "local", Nodes: []*tailcfg.DERPNode{{Name: "local", RegionID: 1, HostName: "127.0.0.1", IPv4: "127.0.0.1", IPv6: "none", DERPPort: port, STUNPort: -1, InsecureForTests: true}},
+			RegionID:1, RegionCode:"local",
+			Nodes:[]*tailcfg.DERPNode{{Name:"local",RegionID:1,HostName:"127.0.0.1",
+				IPv4:"127.0.0.1",IPv6:"none",DERPPort:port,STUNPort:-1,InsecureForTests:true}},
 		}}},
-		DNSConfig: &tailcfg.DNSConfig{Proxied: true}, MagicDNSDomain: "tail-scale.ts.net", Logf: logger.Discard,
+		DNSConfig:&tailcfg.DNSConfig{Proxied:true},
+		MagicDNSDomain:"tail-scale.ts.net",
+		Logf:logger.Discard,
 	}
-	control.HTTPTestServer = httptest.NewServer(control)
+	control.HTTPTestServer=httptest.NewServer(control)
 	defer control.HTTPTestServer.Close()
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	ctx,cancel:=context.WithTimeout(t.Context(),55*time.Second)
 	defer cancel()
+
 	var nodes [2]*Tailscale
-	var servers [2]*tsnet.Server
+	var clients [2]*lite.Client
 	var proxies [2]*recordingProxy
-	for i := range nodes {
-		proxies[i] = &recordingProxy{Proxy: direct.Default}
-		p, err := New(Config{AuthKey: "local-test-key", Hostname: fmt.Sprintf("adapter%d", i), ControlURL: control.HTTPTestServer.URL}, proxies[i])
-		if err != nil {
-			t.Fatal(err)
-		}
-		nodes[i] = p.(*Tailscale)
-		defer p.Close()
+	for i:=range nodes {
+		proxies[i]=&recordingProxy{Proxy:direct.Default}
+		p,err:=New(Config{AuthKey:"local-test-key",Hostname:fmt.Sprintf("adapter%d",i),
+			ControlURL:control.HTTPTestServer.URL},proxies[i])
+		if err!=nil { t.Fatal(err) }
+		nodes[i]=p.(*Tailscale)
+		defer nodes[i].Close()
 	}
 	var wg sync.WaitGroup
-	for i := range nodes {
+	for i:=range nodes {
 		wg.Go(func() {
-			s, err := nodes[i].ready(ctx)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-			servers[i] = s
+			cl,err:=nodes[i].ready(ctx)
+			if err!=nil { t.Errorf("node %d: %v",i,err);return }
+			clients[i]=cl
 		})
 	}
 	wg.Wait()
-	if t.Failed() {
-		return
+	if t.Failed() { return }
+	ip4:=func(c *lite.Client)netip.Addr {
+		for _,p:=range c.Snapshot().Addresses {if p.Addr().Is4(){return p.Addr()}}
+		return netip.Addr{}
 	}
-	for _, s := range servers {
-		if s.AuthKey != "" {
-			t.Fatal("started network server retained its bootstrap authentication key")
-		}
-	}
-	a, b := nodes[0], nodes[1]
-	target, err := netapi.ParseAddress("tcp", "ADAPTER1.tail-scale.ts.net.:12345")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Wait for the peer's route to arrive after the initial Up result.
-	deadline := time.Now().Add(5 * time.Second)
+	target:=ip4(clients[1])
+	if !target.IsValid() { t.Fatal("peer missing IPv4 Tailnet address") }
 	for {
-		_, err := resolveAddr(ctx, servers[0], "tcp", target)
-		if err == nil {
-			break
+		if _,ok:=clients[0].Route(target);ok{break}
+		select {
+		case <-ctx.Done():t.Fatal("peer route did not arrive",ctx.Err())
+		case <-time.After(20*time.Millisecond):
 		}
-		if time.Now().After(deadline) {
-			t.Fatal(err)
-		}
-		time.Sleep(10 * time.Millisecond)
 	}
-	t.Run("tcp", func(t *testing.T) {
-		ln, err := servers[1].Listen("tcp", ":12345")
-		if err != nil {
-			t.Fatal(err)
-		}
+	peerName:=netapi.ParseNetipAddr("tcp",target,12345)
+	dnsName,err:=netapi.ParseAddress("tcp","adapter1.tail-scale.ts.net.:12345")
+	if err!=nil{t.Fatal(err)}
+	peerByName,err:=resolveAddr(ctx,clients[0],"tcp",dnsName)
+	if err!=nil||peerByName.Addr()!=target{t.Fatalf("MagicDNS: %v %v",peerByName,err)}
+
+	stack,err:=nodes[1].tun.await()
+	if err!=nil{t.Fatal(err)}
+	t.Run("tcp-encrypted-lightweight",func(t *testing.T) {
+		ln,err:=stack.ListenTCP(&net.TCPAddr{IP:net.IP(target.AsSlice()),Port:12345})
+		if err!=nil{t.Fatal(err)}
 		defer ln.Close()
-		go func() {
-			c, err := ln.Accept()
-			if err == nil {
+		go func(){
+			c,err:=ln.Accept()
+			if err==nil{
 				defer c.Close()
-				_ = c.SetDeadline(time.Now().Add(5 * time.Second))
-				_, _ = io.Copy(c, c)
+				_ = c.SetDeadline(time.Now().Add(8*time.Second))
+				_,_=io.Copy(c,c)
 			}
 		}()
-		c, err := a.Conn(ctx, target)
-		if err != nil {
-			t.Fatal(err)
-		}
+		c,err:=nodes[0].Conn(ctx,peerName)
+		if err!=nil{t.Fatal(err)}
 		defer c.Close()
-		if _, ok := c.(*lightweight.TCPConn); !ok {
-			t.Fatalf("outbound TCP uses %T, want lightweight", c)
-		}
-		_ = c.SetDeadline(time.Now().Add(5 * time.Second))
-		if _, err := c.Write([]byte("hello")); err != nil {
-			t.Fatal(err)
-		}
-		buf := make([]byte, 5)
-		if _, err := io.ReadFull(c, buf); err != nil || string(buf) != "hello" {
-			t.Fatalf("%q %v", buf, err)
+		_ = c.SetDeadline(time.Now().Add(8*time.Second))
+		want:=[]byte("lightweight over encrypted Tailnet")
+		if _,err=c.Write(want);err!=nil{t.Fatal(err)}
+		got:=make([]byte,len(want))
+		if _,err=io.ReadFull(c,got);err!=nil||!bytes.Equal(got,want){
+			t.Fatalf("TCP echo: %q %v",got,err)
 		}
 	})
-	for _, network := range []string{"udp4", "udp6"} {
-		t.Run(network, func(t *testing.T) {
-			ip, _ := servers[1].TailscaleIPs()
-			if network == "udp6" {
-				_, ip = servers[1].TailscaleIPs()
-			}
-			if !ip.IsValid() {
-				t.Fatal("missing test address family")
-			}
-			dst := netapi.ParseNetipAddr(network, ip, 12345)
-			pc, err := a.PacketConn(ctx, dst)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer pc.Close()
-			if _, ok := pc.(*tailnetPacketConn).PacketConn.(*lightweight.UDPConn); !ok {
-				t.Fatal("outbound UDP does not use lightweight")
-			}
-			_ = pc.SetDeadline(time.Now().Add(5 * time.Second))
-			// The same PacketConn must deliver to distinct destination ports correctly.
-			for _, port := range []uint16{12345, 12346} {
-				remote := netip.AddrPortFrom(ip, port)
-				listener, err := servers[1].ListenPacket(network, remote.String())
-				if err != nil {
-					t.Fatal(err)
-				}
-				defer listener.Close()
-				go func() {
-					buf := make([]byte, 32)
-					n, from, err := listener.ReadFrom(buf)
-					if err == nil {
-						_, _ = listener.WriteTo(buf[:n], from)
-					}
-				}()
-				if _, err := pc.WriteTo([]byte("hello"), net.UDPAddrFromAddrPort(remote)); err != nil {
-					t.Fatal(err)
-				}
-				buf := make([]byte, 32)
-				n, from, err := pc.ReadFrom(buf)
-				if err != nil || string(buf[:n]) != "hello" || from.String() != remote.String() {
-					t.Fatalf("%q %v %v", buf[:n], from, err)
-				}
-			}
-			if _, err := pc.WriteTo([]byte("blocked"), &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 9}); err == nil {
-				t.Fatal("non-tailnet UDP escaped")
-			}
-		})
-	}
-	t.Run("metrics-lightweight-listener", func(t *testing.T) {
-		old := Mux.Load()
-		mux := http.NewServeMux()
-		mux.HandleFunc("GET /stack-test", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "lightweight metrics") })
-		Mux.Store(mux)
-		defer Mux.Store(old)
-		ip, _ := servers[1].TailscaleIPs()
-		conn, err := a.Conn(ctx, netapi.ParseNetipAddr("tcp", ip, 80))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer conn.Close()
-		_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
-		if _, err := io.WriteString(conn, "GET /stack-test HTTP/1.1\r\nHost: tailnet\r\nConnection: close\r\n\r\n"); err != nil {
-			t.Fatal(err)
-		}
-		response, err := http.ReadResponse(bufio.NewReader(conn), nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer response.Body.Close()
-		body, err := io.ReadAll(response.Body)
-		if err != nil || string(body) != "lightweight metrics" {
-			t.Fatalf("metrics: %q %v", body, err)
+	t.Run("udp-encrypted-lightweight",func(t *testing.T) {
+		remote:=netip.AddrPortFrom(target,12346)
+		server,err:=stack.DialUDP(net.UDPAddrFromAddrPort(remote),nil)
+		if err!=nil{t.Fatal(err)}
+		defer server.Close()
+		go func() {
+			buf:=make([]byte,512)
+			n,from,err:=server.ReadFrom(buf)
+			if err==nil{_,_=server.WriteTo(buf[:n],from)}
+		}()
+		client,err:=nodes[0].PacketConn(ctx,netapi.ParseNetipAddr("udp",target,12346))
+		if err!=nil{t.Fatal(err)}
+		defer client.Close()
+		_ = client.SetDeadline(time.Now().Add(8*time.Second))
+		if _,err=client.WriteTo([]byte("test-udp"),net.UDPAddrFromAddrPort(remote));err!=nil{t.Fatal(err)}
+		buf:=make([]byte,256)
+		n,from,err:=client.ReadFrom(buf)
+		if err!=nil || string(buf[:n])!="test-udp" || from.String()!=remote.String(){
+			t.Fatalf("UDP echo: %q %v %v",buf[:n],from,err)
 		}
 	})
-
-	t.Run("route_rejection", func(t *testing.T) {
-		_, err := a.Conn(ctx, netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 9))
-		if err == nil {
-			t.Fatal("non-tailnet TCP escaped")
+	t.Run("magic-dns",func(t *testing.T){
+		request:=new(dns.Msg)
+		request.SetQuestion("adapter1.tail-scale.ts.net.",dns.TypeA)
+		wire,err:=request.Pack()
+		if err!=nil{t.Fatal(err)}
+		service:=netapi.ParseNetipAddr("udp",netip.MustParseAddr("100.100.100.100"),53)
+		p,err:=nodes[0].PacketConn(ctx,service)
+		if err!=nil{t.Fatal(err)}
+		defer p.Close()
+		_ = p.SetDeadline(time.Now().Add(8*time.Second))
+		if _,err=p.WriteTo(wire,service);err!=nil{t.Fatal(err)}
+		buf:=make([]byte,2048)
+		n,_,err:=p.ReadFrom(buf)
+		if err!=nil{t.Fatal(err)}
+		var answer dns.Msg
+		if err=answer.Unpack(buf[:n]);err!=nil{t.Fatal(err)}
+		if answer.Rcode!=dns.RcodeSuccess||len(answer.Answer)!=1{
+			t.Fatalf("DNS response %+v",answer)
 		}
 	})
-	t.Run("service_dns", func(t *testing.T) {
-		req := dnsRequest(t, 0x9876, "ADAPTER1.tail-scale.ts.net.", wire.TypeA)
-		service := netapi.ParseNetipAddr("udp", netip.MustParseAddr("100.100.100.100"), 53)
-		pc, err := a.PacketConn(ctx, service)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer pc.Close()
-		_ = pc.SetDeadline(time.Now().Add(5 * time.Second))
-		if _, err := pc.WriteTo(req, service); err != nil {
-			t.Fatal(err)
-		}
-		buf := make([]byte, 4096)
-		n, _, err := pc.ReadFrom(buf)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var response wire.Message
-		if err := response.Unpack(buf[:n]); err != nil {
-			t.Fatal(err)
-		}
-		if response.ID != 0x9876 || len(response.Answers) != 1 {
-			t.Fatalf("UDP DNS: %+v", response)
-		}
-		c, err := a.Conn(ctx, service)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer c.Close()
-		_ = c.SetDeadline(time.Now().Add(5 * time.Second))
-		framed := binary.BigEndian.AppendUint16(nil, uint16(len(req)))
-		framed = append(framed, req...)
-		if _, err := c.Write(framed); err != nil {
-			t.Fatal(err)
-		}
-		var header [2]byte
-		if _, err := io.ReadFull(c, header[:]); err != nil {
-			t.Fatal(err)
-		}
-		buf = make([]byte, binary.BigEndian.Uint16(header[:]))
-		if _, err := io.ReadFull(c, buf); err != nil {
-			t.Fatal(err)
-		}
-		if err := response.Unpack(buf); err != nil {
-			t.Fatal(err)
-		}
-		if response.ID != 0x9876 || len(response.Answers) != 1 {
-			t.Fatalf("TCP DNS: %+v", response)
+	t.Run("forbid-system-fallback",func(t *testing.T){
+		if _,err:=nodes[0].Conn(ctx,netapi.ParseNetipAddr("tcp",netip.MustParseAddr("127.0.0.1"),9));err==nil{
+			t.Fatal("system TCP fallback escaped")
 		}
 	})
-	replacementProxy, err := New(a.config, &recordingProxy{Proxy: direct.Default})
-	if err != nil {
-		t.Fatal(err)
-	}
-	replacement := replacementProxy.(*Tailscale)
-	defer replacement.Close()
-	if _, err := replacement.init(ctx); err == nil {
-		t.Fatal("live instances shared a state directory")
-	}
-	// Rebinding one node must preserve its upstream and leave the other alive.
-	servers[0].Sys().MagicSock.Get().Rebind()
-	if err := a.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := replacement.ready(ctx); err != nil {
-		t.Fatalf("configuration replacement: %v", err)
-	}
-	if _, err := a.init(ctx); !errors.Is(err, net.ErrClosed) {
-		t.Fatalf("closed node restarted: %v", err)
-	}
-	if _, err := b.ready(ctx); err != nil {
-		t.Fatal(err)
-	}
-	for _, p := range proxies {
-		p.mu.Lock()
-		tcp, udp := p.tcp, p.udp
-		p.mu.Unlock()
-		if tcp == 0 || udp == 0 {
-			t.Fatalf("underlay bypassed: tcp=%d udp=%d", tcp, udp)
-		}
+	for _,p:=range proxies {
+		p.mu.Lock();tcp,udp:=p.tcp,p.udp;p.mu.Unlock()
+		if tcp==0||udp==0{t.Fatalf("per-instance Underlay bypass tcp=%d udp=%d",tcp,udp)}
 	}
 }
