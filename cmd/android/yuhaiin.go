@@ -259,7 +259,7 @@ func listenAndroidHTTP() (net.Listener, error) {
 // supplied by Android's VpnService. The plain model has a disabled desktop TUN
 // by default, while Android starts this process only after VpnService created
 // a TUN device.
-func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, driver, stack, congestionControl, outputScheduler string) error {
+func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, _ string, stack, congestionControl, outputScheduler string) error {
 	if tun == nil {
 		return errors.New("android TUN options are nil")
 	}
@@ -268,7 +268,7 @@ func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, 
 		return fmt.Errorf("unknown Android TUN stack %q", stack)
 	}
 	stack = "lightweight"
-	driver = TunDriverChannelValue
+	driver := TunDriverChannelValue
 	if err := lightweighttun.Validate(device.TunConfig{
 		Driver: device.DriverChannel, MTU: tun.MTU, CongestionControl: congestionControl, OutputScheduler: outputScheduler,
 	}); err != nil {
