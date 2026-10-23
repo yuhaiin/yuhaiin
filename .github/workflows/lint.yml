@@ -76,7 +76,7 @@ jobs:
       - uses: ./.github/actions/setup-go
         with:
           cache-scope: tailscale-release-dns
-      - name: Test MagicDNS with production Tailscale build tags
+      - name: Test lite MagicDNS with production Tailscale build tags
         run: |
           go test ./cmd/buildtags
           tags="$(go run ./cmd/buildtags/...)"
@@ -85,7 +85,7 @@ jobs:
             exit 1
           fi
           go test -count=1 -tags="$tags" \
-            -run '^(TestDNSPacket.*|TestTailscaleDNSManagerMissing|TestUnavailableTailscaleDialer)$' \
+            -run '^(TestDNSPacket.*|TestUnavailableLiteClientFailsClosed)$' \
             ./pkg/net/proxy/tailscale
 
   network-conn-contract:
