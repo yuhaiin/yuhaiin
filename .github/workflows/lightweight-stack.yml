@@ -71,7 +71,7 @@ jobs:
       - name: TCP, UDP fragments and ICMP in isolated network namespace
         run: sudo unshare --net /tmp/lightweight-kernel.test -test.run '^TestLinuxKernel' -test.v -test.timeout=90s
       - name: Native TUN event and buffer cleanup after repeated shutdown
-        run: sudo unshare --net /tmp/lightweight-device.test -test.run '^TestLinuxKernelDeviceLifecycle$' -test.v -test.timeout=30s
+        run: sudo unshare --net /tmp/lightweight-device.test -test.run TestLinuxKernelDeviceLifecycle -test.count=25 -test.v -test.timeout=60s
       - name: TCP checksum and segmentation offloads with kernel peers and loss
         run: sudo unshare --net /tmp/lightweight-offload.test -test.run '^TestLinuxOffload' -test.v -test.timeout=90s
 

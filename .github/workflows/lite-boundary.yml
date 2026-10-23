@@ -1,0 +1,42 @@
+name: Lite runtime boundary
+
+on:
+  pull_request:
+    paths:
+      - 'pkg/net/proxy/tailscale/**'
+      - 'pkg/net/proxy/tun/**'
+      - 'pkg/net/netlink/**'
+      - 'cmd/android/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/lite-boundary.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  no-legacy-stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: tailscale-lite-boundary
+      - name: Ensure no old stack packages in production binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          tags="$(go run ./cmd/buildtags/...)"
+          go list -deps -tags="$tags" ./cmd/yuhaiin ./cmd/android > "$RUNNER_TEMP/deps"
+          if grep -E '^(gvisor.dev/gvisor|tailscale.com/tsnet|tailscale.com/ipn/ipnlocal|github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/(gvisor|tun2socket))(/|$)' "$RUNNER_TEMP/deps" | grep -v -Fx 'gvisor.dev/gvisor/pkg/tcpip/checksum'; then
+            echo "legacy runtime IP stack linked (checksum helper excluded)" >&2
+            exit 1
+          fi
+      - name: Exercise lite Control/DERP and host-stack integration
+        run: |
+          tags="$(go run ./cmd/buildtags/...)"
+          go test -count=1 -timeout=120s -tags="$tags" ./pkg/net/proxy/tailscale
+      - name: Exercise full Control DERP and DNS parity
+        run: go test -count=1 -timeout=120s -run TestLocalTailnet ./pkg/net/proxy/tailscale

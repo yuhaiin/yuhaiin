@@ -37,7 +37,7 @@ jobs:
         with:
           cache-scope: l2tp-interop-${{ matrix.congestion }}
       - name: Test protocol and contract with race detector
-        run: go test -race ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/wireguard ./pkg/net/proxy/tun/gvisor ./pkg/contract/node ./pkg/register
+        run: go test -race ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/wireguard ./pkg/net/proxy/tun/lightweighttun ./pkg/contract/node ./pkg/register
       - name: Prepare captures and check each peer's kernel support
         id: kernel-support
         run: |

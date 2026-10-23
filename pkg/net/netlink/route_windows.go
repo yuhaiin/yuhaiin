@@ -2,6 +2,7 @@ package netlink
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/netip"
 
@@ -14,13 +15,11 @@ func Route(opt *Options) (func(), error) {
 	if opt.Interface.Scheme != "tun" {
 		return nil, nil
 	}
-	if opt.Device == nil && opt.Endpoint != nil {
-		if w, ok := opt.Endpoint.(interface{ Writer() Tun }); ok {
-			opt.Device = w.Writer()
-		}
+	device, ok := opt.Device.(WindowsTun)
+	if !ok {
+		return nil, fmt.Errorf("windows TUN routing requires an active WindowsTun, got %T", opt.Device)
 	}
-
-	luid := winipcfg.LUID(opt.Device.(WindowsTun).LUID())
+	luid := winipcfg.LUID(device.LUID())
 
 	V4Address := opt.V4Address()
 	if V4Address.IsValid() {

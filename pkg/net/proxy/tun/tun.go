@@ -15,34 +15,20 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
-	"github.com/Asutorufa/yuhaiin/pkg/net/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
-	"gvisor.dev/gvisor/pkg/tcpip"
 )
-
-func init() {
-	relay.RegisterIgnoreNetOpErrString((&tcpip.ErrConnectionAborted{}).String())
-	relay.RegisterIgnoreNetOpErrString((&tcpip.ErrAborted{}).String())
-}
 
 func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s netapi.Accepter, err error) {
 	if o.Stack != "" && o.Stack != "lightweight" {
 		return nil, fmt.Errorf("unknown TUN stack %q", o.Stack)
 	}
-	if o.Stack != "lightweight" && o.OutputScheduler != "" {
-		return nil, errors.New("output_scheduler requires stack lightweight")
-	}
-	if o.Stack == "" && o.CongestionControl != "" {
-		return nil, errors.New("congestion_control requires stack lightweight")
-	}
-	if o.Stack == "lightweight" {
-		if err := lightweighttun.Validate(o); err != nil {
-			return nil, err
-		}
+	// Migrate historical TUN stack and driver selections to lightweight.
+	o.Stack = "lightweight"
+	o.Driver = device.DriverChannel
+	if err := lightweighttun.Validate(o); err != nil {
+		return nil, err
 	}
 	v4address, v4err := toPrefix(o.Portal, true)
 	v6address, v6err := toPrefix(o.PortalV6, true)
@@ -96,13 +82,7 @@ func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s ne
 
 	userRoutes := toRoutes(o.Routes)
 	opt.Routes = effectiveRoutes(opt.Options, userRoutes, o.AutoFakeIPRoute, o.FakeIPRanges)
-	if o.Stack == "lightweight" {
-		s, err = lightweighttun.New(opt)
-	} else if o.Driver == device.DriverSystemGvisor {
-		s, err = tun2socket.New(opt)
-	} else {
-		s, err = gvisor.New(opt)
-	}
+	s, err = lightweighttun.New(opt)
 	if err != nil {
 		return nil, err
 	}

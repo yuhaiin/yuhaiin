@@ -12,12 +12,11 @@ import (
 
 var (
 	_ tun.Device = (*ChannelDevice)(nil)
-	_ tun.Device = (*referenceNetTun)(nil)
 	_ tun.Device = (*LightweightNetTun)(nil)
 )
 
 func TestVirtualDeviceReadSlab(t *testing.T) {
-	for _, kind := range []string{"channel", "nettun", "lightweight"} {
+	for _, kind := range []string{"channel", "lightweight"} {
 		t.Run(kind, func(t *testing.T) {
 			d := NewChannelDevice(t.Context(), 1500)
 			defer d.Close()
@@ -28,11 +27,6 @@ func TestVirtualDeviceReadSlab(t *testing.T) {
 				defer link.Close()
 				reader = &LightweightNetTun{link: link}
 				go func() { _ = link.WritePacket(payload) }()
-			} else if kind == "nettun" {
-				reader = &referenceNetTun{dev: d}
-				if _, err := d.Write([][]byte{payload}, 0); err != nil {
-					t.Fatal(err)
-				}
 			} else if err := d.Outbound(payload); err != nil {
 				t.Fatal(err)
 			}
