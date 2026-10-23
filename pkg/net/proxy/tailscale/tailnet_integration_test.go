@@ -479,6 +479,15 @@ func TestLocalTailnet(t *testing.T) {
 			t.Fatalf("DNS TCP manager failed: %+v", &answer)
 		}
 	})
+	t.Run("dns-answer-does-not-authorize-external-route", func(t *testing.T) {
+		addr, err := netapi.ParseAddress("tcp", "ordinary.example:443")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := resolveAddr(ctx, clients[0], "tcp", addr); err == nil {
+			t.Fatal("external DNS answer unexpectedly authorized a host-network route")
+		}
+	})
 	t.Run("forbid-system-fallback", func(t *testing.T) {
 		if _, err := nodes[0].Conn(ctx, netapi.ParseNetipAddr("tcp", netip.MustParseAddr("127.0.0.1"), 9)); err == nil {
 			t.Fatal("system TCP fallback escaped")
@@ -492,4 +501,36 @@ func TestLocalTailnet(t *testing.T) {
 			t.Fatalf("per-instance Underlay bypass tcp=%d udp=%d", tcp, udp)
 		}
 	}
+	t.Run("control-revocation-disables-dns-and-routes", func(t *testing.T) {
+		// Revocation is deliberately last: it invalidates both nodes.
+		control.SetExpireAllNodes(true)
+		ticker := time.NewTicker(30 * time.Millisecond)
+		defer ticker.Stop()
+		timeout := time.NewTimer(10 * time.Second)
+		defer timeout.Stop()
+		for {
+			if !clients[0].Snapshot().Ready {
+				if _, ok := clients[0].Route(target); ok {
+					t.Fatal("revoked peer route remains authorized")
+				}
+				request := netapi.NewDNSMsg(netapi.DNSQuestion{
+					Name: "adapter1.tail-scale.ts.net.", Qtype: dns.TypeA, Qclass: dns.ClassINET,
+				})
+				if err := request.Pack(); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := clients[0].QueryDNS(ctx, request.Data, "udp", netip.AddrPort{}); err == nil {
+					t.Fatal("revoked Tailnet still accepts MagicDNS queries")
+				}
+				return
+			}
+			select {
+			case <-timeout.C:
+				t.Fatalf("revoked Tailnet did not deactivate: %+v", clients[0].Snapshot())
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			case <-ticker.C:
+			}
+		}
+	})
 }
