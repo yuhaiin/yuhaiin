@@ -42,7 +42,7 @@ type Masque struct {
 	localAddresses []netip.Prefix
 	mtu            int
 	http2          bool
-	cloudflare     bool
+	generic        bool
 	requestURL     string
 	bearerToken    string
 
@@ -78,7 +78,6 @@ func NewMasqueWithTransport(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDP
 		localAddresses: localAddresses,
 		mtu:            mtu,
 		http2:          transport == "h2",
-		cloudflare:     true,
 		requestURL:     ConnectURI + "/",
 		dev:            dev,
 		receive:        make(chan []byte, 100),
@@ -184,7 +183,7 @@ func isRetryableHTTP3ConnectFailure(err error) bool {
 }
 
 func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
-	mConn := &Conn{cloudflare: m.cloudflare}
+	mConn := &Conn{cloudflare: !m.generic}
 
 	network := "udp4"
 	if m.addr.IP.To4() == nil {
@@ -200,7 +199,7 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 	// Cloudflare's MASQUE endpoint intermittently rejects shorter source CIDs.
 	// Match the upstream usque transport's 20-byte connection ID.
 	cidLength := 12
-	if m.cloudflare {
+	if !m.generic {
 		cidLength = 20
 	}
 	quicTransport := &quic.Transport{Conn: conn, ConnectionIDLength: cidLength}
