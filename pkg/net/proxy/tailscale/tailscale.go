@@ -54,7 +54,6 @@ type Tailscale struct {
 	tun      *tailnetTun
 	closed   bool
 	stateDir string
-	sf       singleflight.Group
 }
 
 type Config struct {
