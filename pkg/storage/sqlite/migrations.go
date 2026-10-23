@@ -623,4 +623,5 @@ var migrations = []Migration{
 			ON CONFLICT(family, prefix) DO UPDATE SET entry_count = entry_count + 1;
 		END`,
 	}},
+	userUsageMigration,
 }

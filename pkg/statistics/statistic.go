@@ -32,6 +32,7 @@ type Connections struct {
 
 	Cache     *TotalCache
 	telemetry *telemetryRecorder
+	userUsage *UserUsage
 
 	notify      *notify
 	persistence *connectionPersistence
@@ -225,6 +226,9 @@ func (c *Connections) Close() error {
 		err = errors.Join(err, er)
 	}
 	c.telemetry.Close()
+	if er := c.userUsage.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
 
 	c.Cache.Close()
 
@@ -258,6 +262,7 @@ func (c *Connections) Remove(id uint64) {
 	}
 	if counter := c.counters.Remove(id); counter != nil {
 		c.telemetry.Remove(counter.telemetry)
+		counter.usage.end()
 	}
 	c.notify.pubRemoveConn(id)
 }
@@ -288,13 +293,14 @@ func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.
 	con, err := c.Proxy.PacketConn(ctx, addr)
 	if err != nil {
 		c.faildHistory.Push(ctx, err, "udp", addr)
-		c.recordFailure(ctx, "udp", addr)
+		c.recordFailure(ctx, "udp", addr, err)
 		return nil, err
 	}
 
 	id := c.idSeed.Generate()
 	info := c.getConnection(ctx, con, addr, id)
 	counter := newCounter(c.Cache, c.telemetry.Register(c.telemetryConnection(ctx, info)))
+	counter.usage = c.userUsage.register(info, counter, trafficIdentityContext(ctx))
 
 	z := &packetConn{
 		PacketConn: con,
@@ -313,7 +319,7 @@ func (c *Connections) Ping(ctx context.Context, addr netapi.Address) (uint64, er
 	resp, err := c.Proxy.Ping(ctx, addr)
 	if err != nil {
 		c.faildHistory.Push(ctx, err, "ip", addr)
-		c.recordFailure(ctx, "ip", addr)
+		c.recordFailure(ctx, "ip", addr, err)
 		return 0, err
 	}
 
@@ -325,11 +331,12 @@ func (c *Connections) Ping(ctx context.Context, addr netapi.Address) (uint64, er
 	return resp, nil
 }
 
-func (c *Connections) recordFailure(ctx context.Context, protocol string, addr netapi.Address) {
+func (c *Connections) recordFailure(ctx context.Context, protocol string, addr netapi.Address, err error) {
 	c.failedConnections.Add(1)
 	info := c.getConnection(ctx, nil, addr, 0)
 	info.Network.ConnType = protocol
 	c.telemetry.RecordFailure(c.telemetryConnection(ctx, info))
+	c.userUsage.failure(info, err)
 }
 
 func (c *Connections) telemetryConnection(ctx context.Context, info contractconnection.Connection) contractconnection.Connection {
@@ -488,13 +495,14 @@ func (c *Connections) ConnWithProxy(ctx context.Context, addr netapi.Address, pr
 	con, err := proxy.Conn(ctx, addr)
 	if err != nil {
 		c.faildHistory.Push(ctx, err, "tcp", addr)
-		c.recordFailure(ctx, "tcp", addr)
+		c.recordFailure(ctx, "tcp", addr, err)
 		return nil, err
 	}
 
 	id := c.idSeed.Generate()
 	info := c.getConnection(ctx, con, addr, id)
 	counter := newCounter(c.Cache, c.telemetry.Register(c.telemetryConnection(ctx, info)))
+	counter.usage = c.userUsage.register(info, counter, trafficIdentityContext(ctx))
 
 	z := &conn{
 		Conn:    con,
@@ -565,6 +573,7 @@ func (c *counters) Load() map[string]contractconnection.Counter {
 type Counter struct {
 	cache     *TotalCache
 	telemetry *dimensionCounter
+	usage     *usageSession
 	download  atomic.Uint64
 	upload    atomic.Uint64
 }

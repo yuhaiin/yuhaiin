@@ -1,0 +1,38 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/statistics
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkUserUsageCounter/false-2         	34666450	        32.12 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUserUsageCounter/false-2         	33509532	        32.78 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUserUsageCounter/false-2         	36450928	        32.10 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUserUsageCounter/true-2          	36321730	        32.12 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUserUsageCounter/true-2          	35105386	        31.77 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUserUsageCounter/true-2          	36090879	        31.96 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUserUsageSample/100-2            	   38719	     31239 ns/op	       312.4 ns/session	    3005 B/op	     291 allocs/op
+BenchmarkUserUsageSample/100-2            	   38014	     31498 ns/op	       315.0 ns/session	    3002 B/op	     291 allocs/op
+BenchmarkUserUsageSample/100-2            	   39783	     30666 ns/op	       306.7 ns/session	    3008 B/op	     291 allocs/op
+BenchmarkUserUsageSample/1000-2           	    3378	    364179 ns/op	       364.2 ns/session	   23465 B/op	    2916 allocs/op
+BenchmarkUserUsageSample/1000-2           	    3397	    363580 ns/op	       363.6 ns/session	   23463 B/op	    2915 allocs/op
+BenchmarkUserUsageSample/1000-2           	    3394	    361536 ns/op	       361.5 ns/session	   23464 B/op	    2916 allocs/op
+BenchmarkUserUsageSample/10000-2          	     315	   3868222 ns/op	       386.8 ns/session	  237043 B/op	   29303 allocs/op
+BenchmarkUserUsageSample/10000-2          	     307	   3930739 ns/op	       393.1 ns/session	  236966 B/op	   29322 allocs/op
+BenchmarkUserUsageSample/10000-2          	     300	   3986878 ns/op	       398.7 ns/session	  236895 B/op	   29324 allocs/op
+BenchmarkUserUsageFlush/100-2             	     356	   3359621 ns/op	     33596 ns/session	  849364 B/op	   10614 allocs/op
+BenchmarkUserUsageFlush/100-2             	     356	   3351887 ns/op	     33519 ns/session	  849257 B/op	   10614 allocs/op
+BenchmarkUserUsageFlush/100-2             	     351	   3374616 ns/op	     33746 ns/session	  849261 B/op	   10614 allocs/op
+BenchmarkUserUsageFlush/1000-2            	      33	  33940781 ns/op	     33941 ns/session	 8300439 B/op	   94428 allocs/op
+BenchmarkUserUsageFlush/1000-2            	      34	  34123396 ns/op	     34123 ns/session	 8299164 B/op	   94394 allocs/op
+BenchmarkUserUsageFlush/1000-2            	      32	  33713070 ns/op	     33713 ns/session	 8299508 B/op	   94418 allocs/op
+BenchmarkUserUsageLifecycle/false/1-2     	    8073	    136648 ns/op	    136648 ns/flow	   10003 B/op	     102 allocs/op
+BenchmarkUserUsageLifecycle/false/1-2     	    8442	    137187 ns/op	    137187 ns/flow	    9993 B/op	     102 allocs/op
+BenchmarkUserUsageLifecycle/false/1-2     	    8643	    137111 ns/op	    137111 ns/flow	    9993 B/op	     102 allocs/op
+BenchmarkUserUsageLifecycle/false/32-2    	    4922	    250423 ns/op	      7826 ns/flow	   78717 B/op	     951 allocs/op
+BenchmarkUserUsageLifecycle/false/32-2    	    4860	    257540 ns/op	      8048 ns/flow	   78709 B/op	     951 allocs/op
+BenchmarkUserUsageLifecycle/false/32-2    	    4725	    261551 ns/op	      8173 ns/flow	   78724 B/op	     951 allocs/op
+BenchmarkUserUsageLifecycle/true/1-2      	    2583	    526093 ns/op	    526093 ns/flow	   25633 B/op	     311 allocs/op
+BenchmarkUserUsageLifecycle/true/1-2      	    2588	    526399 ns/op	    526399 ns/flow	   25639 B/op	     311 allocs/op
+BenchmarkUserUsageLifecycle/true/1-2      	    2605	    527675 ns/op	    527675 ns/flow	   25643 B/op	     311 allocs/op
+BenchmarkUserUsageLifecycle/true/32-2     	    1002	   2408596 ns/op	     75269 ns/flow	  219484 B/op	    2189 allocs/op
+BenchmarkUserUsageLifecycle/true/32-2     	     967	   2382906 ns/op	     74466 ns/flow	  219486 B/op	    2189 allocs/op
+BenchmarkUserUsageLifecycle/true/32-2     	    1011	   2397777 ns/op	     74931 ns/flow	  219508 B/op	    2189 allocs/op
+PASS

@@ -79,6 +79,7 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSAgent {
 
 func (d *dnsServer) Close() error {
 	d.cancel()
+	d.cancelQueued()
 
 	var err error
 	if d.udp != nil {
@@ -94,6 +95,19 @@ func (d *dnsServer) Close() error {
 	}
 
 	return err
+}
+
+func (d *dnsServer) cancelQueued() {
+	for {
+		req, ok := d.reqBuffer.Pop()
+		if !ok {
+			return
+		}
+		if req.Done != nil {
+			req.Done(d.ctx.Err())
+		}
+		req.Question.DecRef()
+	}
 }
 
 func (d *dnsServer) startUDP(listener net.PacketConn) {
@@ -330,6 +344,9 @@ func (d *dnsServer) handle() {
 
 		if err := d.udpSemaphore.Acquire(d.ctx, 1); err != nil {
 			log.Warn("handle dns request acquire semaphore failed", "err", err)
+			if req.Done != nil {
+				req.Done(err)
+			}
 			req.Question.DecRef()
 			continue
 		}
@@ -345,6 +362,9 @@ func (d *dnsServer) handle() {
 			})
 			if err != nil {
 				log.Error("handle dns request failed", "err", err, "len", len(req.Question.GetPayload()))
+			}
+			if req.Done != nil {
+				req.Done(err)
 			}
 
 			req.Question.DecRef()
@@ -364,6 +384,12 @@ func (d *dnsServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) e
 			req.Question.DecRef()
 			metrics.Counter.AddReceiveUDPDroppedPacket()
 			return fmt.Errorf("dns request buffer is full")
+		}
+		// Close may drain the queue between the context check and Push.
+		// Once accepted, this side owns completion even across that race.
+		if d.ctx.Err() != nil {
+			d.cancelQueued()
+			return nil
 		}
 
 		select {

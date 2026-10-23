@@ -39,12 +39,18 @@ func (s *conn) Close() error {
 func (s *conn) Write(b []byte) (_ int, err error) {
 	n, err := s.Conn.Write(b)
 	s.counter.AddUpload(uint64(n))
+	if err != nil {
+		recordUsageIOError(s.counter, err)
+	}
 	return int(n), err
 }
 
 func (s *conn) Read(b []byte) (n int, err error) {
 	n, err = s.Conn.Read(b)
 	s.counter.AddDownload(uint64(n))
+	if err != nil {
+		recordUsageIOError(s.counter, err)
+	}
 	return
 }
 
@@ -67,6 +73,9 @@ type bufferedConn struct {
 func (s *bufferedConn) ReadWithBuffer(getBuffer func() []byte) ([]byte, error) {
 	data, err := s.reader.ReadWithBuffer(getBuffer)
 	s.counter.AddDownload(uint64(len(data)))
+	if err != nil {
+		recordUsageIOError(s.counter, err)
+	}
 	return data, err
 }
 
@@ -94,11 +103,17 @@ func (s *packetConn) ID() uint64 { return s.id }
 func (s *packetConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	n, err = s.PacketConn.WriteTo(p, addr)
 	s.counter.AddUpload(uint64(n))
+	if err != nil {
+		recordUsageIOError(s.counter, err)
+	}
 	return
 }
 
 func (s *packetConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	n, addr, err = s.PacketConn.ReadFrom(p)
 	s.counter.AddDownload(uint64(n))
+	if err != nil {
+		recordUsageIOError(s.counter, err)
+	}
 	return
 }

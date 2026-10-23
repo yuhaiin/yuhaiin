@@ -17,7 +17,7 @@ func reservedManagementPath(path string) bool {
 func (app *AppInstance) protectManagement(ctx context.Context) error {
 	var handler http.Handler
 	if app.HTTPMiddleware != nil {
-		wrapped, closer, err := app.HTTPMiddleware(ctx, app.Mux, httpapi.MiddlewareOptions{DataDirectory: app.ConfigPath, AcceptOrigin: app.acceptManagementOrigin})
+		wrapped, closer, err := app.HTTPMiddleware(ctx, app.Mux, httpapi.MiddlewareOptions{DataDirectory: app.ConfigPath, AcceptOrigin: app.acceptManagementOrigin, UserUsage: app.UserUsage})
 		if err != nil {
 			return err
 		}

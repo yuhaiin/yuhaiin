@@ -1,0 +1,14 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/statistics
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkCountedPipeRelay/64-12 	 1456107	       822.5 ns/op	  77.81 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/64-12 	 1445887	       829.7 ns/op	  77.13 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/64-12 	 1474773	       815.5 ns/op	  78.48 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/16384-12         	 1000000	      1102 ns/op	14872.56 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/16384-12         	 1000000	      1093 ns/op	14995.29 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/16384-12         	 1000000	      1095 ns/op	14959.41 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/65536-12         	  271572	      4383 ns/op	14952.93 MB/s	       2 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/65536-12         	  277369	      4310 ns/op	15204.17 MB/s	       2 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/65536-12         	  278439	      4308 ns/op	15212.89 MB/s	       2 B/op	       0 allocs/op
+PASS

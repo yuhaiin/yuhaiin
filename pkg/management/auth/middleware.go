@@ -92,7 +92,7 @@ func (r *Runtime) Middleware(_ context.Context, mux *http.ServeMux, options http
 		"POST /api/v2/profiler/sessions":        Diagnostics,
 		"DELETE /api/v2/profiler/sessions/{id}": Diagnostics,
 	})
-	server := &Server{Store: r.store, Passwords: r.passwords, Proxy: r.Proxy, Upstream: r.Upstream, Permissions: permissions, AcceptOrigin: options.AcceptOrigin}
+	server := &Server{Store: r.store, Passwords: r.passwords, Proxy: r.Proxy, Upstream: r.Upstream, Usage: options.UserUsage, Permissions: permissions, AcceptOrigin: options.AcceptOrigin}
 	server.Register(mux)
 	return server.Wrap(mux), nil, nil
 }

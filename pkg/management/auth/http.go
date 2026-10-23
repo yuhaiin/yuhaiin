@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	permission "github.com/Asutorufa/yuhaiin/pkg/management/permission"
 )
 
@@ -19,6 +20,7 @@ import (
 type Server struct {
 	OAuth        *OAuthService
 	Proxy        *ProxyCredentials
+	Usage        httpapi.UserUsage
 	Upstream     *UpstreamCredentials
 	Store        *Store
 	Permissions  map[string]Permission
@@ -93,6 +95,7 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		r = r.WithContext(withAuditRequest(r, pattern))
 		if s.public[pattern] {
 			mux.ServeHTTP(w, r)
 			return
@@ -110,6 +113,7 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 			return
 		}
 		permission := s.Permissions[pattern]
+		r = r.WithContext(WithPrincipal(r.Context(), p))
 		if !p.Allows(permission) {
 			s.Store.audit(r.Context(), "permission.denied", p.UserID, "")
 			authError(w, http.StatusForbidden)
@@ -193,6 +197,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 		mux.HandleFunc(pattern, handler)
 	}
 	s.registerProxyCredentials(register)
+	s.registerUsage(register)
 	s.registerSessions(register)
 	s.registerSessionRestore(register)
 	s.registerOAuth(mux, register)

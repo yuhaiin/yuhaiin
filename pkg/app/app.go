@@ -10,6 +10,7 @@ import (
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/gateway"
+	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
@@ -186,6 +187,22 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		router,
 	))
 	metrics.SetFlowCounter(stcs.Cache)
+	var userUsage httpapi.UserUsage
+	var usageRecorder *statistics.UserUsage
+	var localGatewayAudit func(*netapi.Context, string, bool)
+	if so.ProxyAuthentication != nil {
+		recorder, err := stcs.EnableUserUsage(statistics.DefaultUsageOptions())
+		if err != nil {
+			_ = closers.Close()
+			return nil, fmt.Errorf("initialize user usage: %w", err)
+		}
+		userUsage = recorder
+		usageRecorder = recorder
+		localGatewayAudit = stcs.RecordGatewayAction
+		if reporting, ok := so.ProxyAuthentication.(interface{ SetFailureObserver(func(string, string)) }); ok {
+			reporting.SetFailureObserver(recorder.AuthenticationFailure)
+		}
+	}
 	hosts := AddCloser(closers, "hosts", resolver.NewHosts(stcs, router))
 	// Wrap dialer and DNS resolver with the migrated FakeIP pools.
 	fakedns, err := resolver.NewFakeDNS(
@@ -229,7 +246,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 				label = netapi.GetContext(ctx).ConnOptions().RouteMode()
 			}
 			return gateway.Selection{Label: label, Identity: gateway.ProxyIdentity(proxy), Proxy: selectedGatewayProxy{Proxy: proxy, connections: stcs, fakeDNS: fakedns}, Destination: destination}, nil
-		}, gateway.WithDestinationRecovery(fakedns.RecoverDestination), gateway.WithProcessLookup(router.PrepareGatewayContext))
+		}, gateway.WithDestinationRecovery(fakedns.RecoverDestination), gateway.WithProcessLookup(router.PrepareGatewayContext), gateway.WithLocalAudit(localGatewayAudit))
 		if err != nil {
 			_ = closers.Close()
 			return nil, fmt.Errorf("initialize gateway: %w", err)
@@ -243,7 +260,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		}, gatewayManager.InterceptGateway)
 		interceptionOptions = append(interceptionOptions, inbound.WithInterceptor(router))
 	}
-	interceptionOptions = append(interceptionOptions, inbound.WithAuthentication(so.ProxyAuthentication), inbound.WithDNSAgent(dnsServer), inbound.WithFakeIPRangeSource(fakedns))
+	interceptionOptions = append(interceptionOptions, inbound.WithAuthentication(so.ProxyAuthentication), inbound.WithUserUsage(usageRecorder), inbound.WithDNSAgent(dnsServer), inbound.WithFakeIPRangeSource(fakedns))
 	if inboundConfigStore != nil {
 		interceptionOptions = append(interceptionOptions, inbound.WithIngressStatisticsStore(inboundConfigStore))
 	}
@@ -281,6 +298,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		Node:          nodeRuntime,
 		NodeRuntime:   nodeRuntime,
 		Connections:   statistics.NewConnectionMonitor(stcs),
+		UserUsage:     userUsage,
 		Lists:         route.NewContractListController(list),
 		Rules:         route.NewContractRuleController(rules),
 		Resolver:      resolver.NewContractController(resolverCtr),

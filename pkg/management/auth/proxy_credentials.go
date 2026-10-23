@@ -53,13 +53,22 @@ type proxyRecord struct {
 // path performs a hash lookup, never a KDF or database query. A periodic reload
 // also observes local recovery commands executed by another process.
 type ProxyCredentials struct {
-	store   *Store
-	mu      sync.RWMutex
-	records map[string]*proxyRecord
-	proofs  map[[32]byte]*proxyRecord
-	ctx     context.Context
-	cancel  context.CancelFunc
-	done    chan struct{}
+	store          *Store
+	mu             sync.RWMutex
+	records        map[string]*proxyRecord
+	proofs         map[[32]byte]*proxyRecord
+	ctx            context.Context
+	cancel         context.CancelFunc
+	done           chan struct{}
+	observeFailure func(string, string)
+}
+
+// SetFailureObserver is installed before listeners are created. It receives no
+// submitted username, proof, verifier or other authentication material.
+func (p *ProxyCredentials) SetFailureObserver(observe func(string, string)) {
+	p.mu.Lock()
+	p.observeFailure = observe
+	p.mu.Unlock()
 }
 
 func NewProxyCredentials(ctx context.Context, store *Store) (*ProxyCredentials, error) {
@@ -170,7 +179,7 @@ func (p *ProxyCredentials) load() (map[string]*proxyRecord, error) {
 
 func (p *ProxyCredentials) Verifier(inboundID, protocol string, allowedUsers []string) proxyauth.Verifier {
 	allowedUsers = slices.Clone(allowedUsers)
-	return func(ctx context.Context, username string, proof []byte) (*proxyauth.Identity, error) {
+	verify := func(ctx context.Context, username string, proof []byte) (*proxyauth.Identity, error) {
 		if ctx.Err() != nil {
 			return nil, proxyauth.ErrUnauthorized
 		}
@@ -197,6 +206,19 @@ func (p *ProxyCredentials) Verifier(inboundID, protocol string, allowedUsers []s
 			return nil, proxyauth.ErrUnauthorized
 		}
 		return r.identity, nil
+	}
+	p.mu.RLock()
+	observe := p.observeFailure
+	p.mu.RUnlock()
+	if observe == nil {
+		return verify
+	}
+	return func(ctx context.Context, username string, proof []byte) (*proxyauth.Identity, error) {
+		identity, err := verify(ctx, username, proof)
+		if err != nil && ctx.Err() == nil {
+			observe(inboundID, protocol)
+		}
+		return identity, err
 	}
 }
 

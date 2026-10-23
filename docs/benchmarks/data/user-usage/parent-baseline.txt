@@ -1,0 +1,39 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/statistics
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkCountedPipeRelay/64-12          	 1466581	       820.9 ns/op	  77.96 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/64-12          	 1466112	       814.0 ns/op	  78.63 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/64-12          	 1461753	       818.9 ns/op	  78.15 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/16384-12       	 1000000	      1087 ns/op	15073.96 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/16384-12       	 1000000	      1090 ns/op	15024.84 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/16384-12       	 1000000	      1108 ns/op	14781.42 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/65536-12       	  275418	      4375 ns/op	14978.39 MB/s	       2 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/65536-12       	  274267	      4341 ns/op	15098.08 MB/s	       2 B/op	       0 allocs/op
+BenchmarkCountedPipeRelay/65536-12       	  276786	      4329 ns/op	15138.81 MB/s	       2 B/op	       0 allocs/op
+time=2026-10-23T11:01:35.327+08:00 level=INFO source=cache.go:74 msg="get sqlite total cache" download=0 upload=0
+BenchmarkMobileConnectionLifecycle/1-12  	    6453	    166778 ns/op	    166778 ns/flow	   32933 B/op	     149 allocs/op
+BenchmarkMobileConnectionLifecycle/1-12  	time=2026-10-23T11:01:36.425+08:00 level=INFO source=cache.go:74 msg="get sqlite total cache" download=0 upload=0
+    6686	    169920 ns/op	    169920 ns/flow	   32942 B/op	     149 allocs/op
+BenchmarkMobileConnectionLifecycle/1-12  	time=2026-10-23T11:01:37.585+08:00 level=INFO source=cache.go:74 msg="get sqlite total cache" download=0 upload=0
+    6603	    169112 ns/op	    169112 ns/flow	   32925 B/op	     149 allocs/op
+time=2026-10-23T11:01:38.724+08:00 level=INFO source=cache.go:74 msg="get sqlite total cache" download=0 upload=0
+BenchmarkMobileConnectionLifecycle/32-12 	    3808	    293218 ns/op	      9163 ns/flow	   97558 B/op	     490 allocs/op
+BenchmarkMobileConnectionLifecycle/32-12 	time=2026-10-23T11:01:39.863+08:00 level=INFO source=cache.go:74 msg="get sqlite total cache" download=0 upload=0
+    3993	    294934 ns/op	      9217 ns/flow	   97576 B/op	     490 allocs/op
+BenchmarkMobileConnectionLifecycle/32-12 	time=2026-10-23T11:01:41.063+08:00 level=INFO source=cache.go:74 msg="get sqlite total cache" download=0 upload=0
+    3786	    295880 ns/op	      9246 ns/flow	   97589 B/op	     490 allocs/op
+time=2026-10-23T11:01:42.206+08:00 level=INFO source=cache.go:74 msg="get sqlite total cache" download=0 upload=0
+BenchmarkTelemetryFlush/100-12           	    9516	    120280 ns/op	    7241 B/op	     254 allocs/op
+BenchmarkTelemetryFlush/100-12           	time=2026-10-23T11:01:43.373+08:00 level=INFO source=cache.go:74 msg="get sqlite total cache" download=0 upload=0
+    9736	    118931 ns/op	    7241 B/op	     254 allocs/op
+BenchmarkTelemetryFlush/100-12           	time=2026-10-23T11:01:44.554+08:00 level=INFO source=cache.go:74 msg="get sqlite total cache" download=0 upload=0
+   10000	    119233 ns/op	    7243 B/op	     254 allocs/op
+time=2026-10-23T11:01:45.768+08:00 level=INFO source=cache.go:74 msg="get sqlite total cache" download=0 upload=0
+BenchmarkTelemetryFlush/1000-12          	    2940	    407099 ns/op	    7248 B/op	     254 allocs/op
+BenchmarkTelemetryFlush/1000-12          	time=2026-10-23T11:01:46.989+08:00 level=INFO source=cache.go:74 msg="get sqlite total cache" download=0 upload=0
+    2856	    411565 ns/op	    7246 B/op	     254 allocs/op
+BenchmarkTelemetryFlush/1000-12          	time=2026-10-23T11:01:48.188+08:00 level=INFO source=cache.go:74 msg="get sqlite total cache" download=0 upload=0
+    2912	    409786 ns/op	    7249 B/op	     254 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/statistics	24.768s

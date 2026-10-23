@@ -48,11 +48,17 @@ type IssuedCredential struct {
 }
 
 type SecurityEvent struct {
-	ID         int64  `json:"id"`
-	OccurredAt int64  `json:"occurredAt"`
-	Event      string `json:"event"`
-	ActorID    string `json:"actorId"`
-	SubjectID  string `json:"subjectId"`
+	ID           int64  `json:"id"`
+	OccurredAt   int64  `json:"occurredAt"`
+	Event        string `json:"event"`
+	ActorID      string `json:"actorId"`
+	SubjectID    string `json:"subjectId"`
+	Source       string `json:"source"`
+	Method       string `json:"method"`
+	Path         string `json:"path"`
+	CredentialID string `json:"credentialId"`
+	Result       string `json:"result"`
+	Changes      string `json:"changes"`
 }
 
 type Store struct{ db *sql.DB }
@@ -156,6 +162,26 @@ func (s *Store) UpdateUser(ctx context.Context, actor, id, login, role string, d
 	}
 	defer func() { _ = tx.Rollback() }()
 	// Increment on disable so re-enabling cannot resurrect credentials.
+	var before struct {
+		Login    string `json:"login"`
+		Role     string `json:"role"`
+		Disabled bool   `json:"disabled"`
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT login,role,disabled FROM management_users WHERE id=?`, id).Scan(&before.Login, &before.Role, &before.Disabled); err != nil {
+		return err
+	}
+	after := before
+	after.Login, after.Role, after.Disabled = login, role, disabled
+	changes, err := json.Marshal(struct {
+		Before any `json:"before"`
+		After  any `json:"after"`
+	}{before, after})
+	if err != nil {
+		return err
+	}
+	info, _ := ctx.Value(auditKey{}).(auditInfo)
+	info.changes = string(changes)
+	ctx = context.WithValue(ctx, auditKey{}, info)
 	result, err := tx.ExecContext(ctx, `UPDATE management_users SET login=?,role=?,disabled=?,
 		generation=generation+CASE WHEN disabled=0 AND ?=1 THEN 1 ELSE 0 END,updated_at=? WHERE id=?`, login, role, disabled, disabled, time.Now().Unix(), id)
 	if err != nil {
@@ -417,7 +443,13 @@ func (s *Store) RotateToken(ctx context.Context, actor Principal, id string) (Is
 }
 
 func recordEvent(ctx context.Context, tx *sql.Tx, event, actor, subject string) error {
-	if _, err := tx.ExecContext(ctx, `INSERT INTO management_security_events(occurred_at,event,actor_id,subject_id) VALUES(?,?,?,?)`, time.Now().Unix(), event, actor, subject); err != nil {
+	info, _ := ctx.Value(auditKey{}).(auditInfo)
+	principal, _ := FromContext(ctx)
+	result := "succeeded"
+	if strings.HasSuffix(event, ".failed") || strings.HasSuffix(event, ".denied") {
+		result = "failed"
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO management_security_events(occurred_at,event,actor_id,subject_id,source,request_method,request_path,credential_id,result,changes_json) VALUES(?,?,?,?,?,?,?,?,?,?)`, time.Now().Unix(), event, actor, subject, info.source, info.method, info.path, principal.CredentialID, result, info.changes); err != nil {
 		return err
 	}
 	_, err := tx.ExecContext(ctx, `DELETE FROM management_security_events WHERE id <= (SELECT COALESCE(MAX(id),0)-1000 FROM management_security_events)`)
@@ -436,7 +468,7 @@ func (s *Store) audit(ctx context.Context, event, actor, subject string) {
 }
 
 func (s *Store) Events(ctx context.Context) ([]SecurityEvent, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,occurred_at,event,actor_id,subject_id FROM management_security_events ORDER BY id DESC LIMIT 1000`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,occurred_at,event,actor_id,subject_id,source,request_method,request_path,credential_id,result,changes_json FROM management_security_events ORDER BY id DESC LIMIT 1000`)
 	if err != nil {
 		return nil, err
 	}
@@ -444,7 +476,7 @@ func (s *Store) Events(ctx context.Context) ([]SecurityEvent, error) {
 	out := []SecurityEvent{}
 	for rows.Next() {
 		var e SecurityEvent
-		if err := rows.Scan(&e.ID, &e.OccurredAt, &e.Event, &e.ActorID, &e.SubjectID); err != nil {
+		if err := rows.Scan(&e.ID, &e.OccurredAt, &e.Event, &e.ActorID, &e.SubjectID, &e.Source, &e.Method, &e.Path, &e.CredentialID, &e.Result, &e.Changes); err != nil {
 			return nil, err
 		}
 		out = append(out, e)

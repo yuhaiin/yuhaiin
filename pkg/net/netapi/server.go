@@ -298,6 +298,9 @@ func (p *Packet) WriteBackContext(ctx context.Context, b []byte, addr net.Addr) 
 }
 
 type DNSRawRequest struct {
+	// Done is called by the agent after an accepted asynchronous request ends.
+	// The caller retains ownership on a synchronous DoDatagram error.
+	Done        func(error)
 	WriteBack   func([]byte) error
 	Question    *Packet
 	Stream      bool
