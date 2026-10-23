@@ -4,8 +4,8 @@ package tailscale
 
 import (
 	"bytes"
-	"encoding/binary"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -25,8 +25,8 @@ import (
 	"tailscale.com/derp/derpserver"
 	"tailscale.com/tailcfg"
 	"tailscale.com/tstest/integration/testcontrol"
-	"tailscale.com/types/key"
 	"tailscale.com/types/dnstype"
+	"tailscale.com/types/key"
 	"tailscale.com/types/logger"
 )
 
@@ -89,14 +89,14 @@ func TestLocalTailnet(t *testing.T) {
 			}
 		}
 	}()
-		control := &testcontrol.Server{
+	control := &testcontrol.Server{
 		DERPMap: &tailcfg.DERPMap{Regions: map[tailcfg.DERPRegionID]*tailcfg.DERPRegion{1: {
 			RegionID: 1, RegionCode: "local",
 			Nodes: []*tailcfg.DERPNode{{Name: "local", RegionID: 1, HostName: "127.0.0.1",
 				IPv4: "127.0.0.1", IPv6: "none", DERPPort: port, STUNPort: -1, InsecureForTests: true}},
 		}}},
 		DNSConfig: &tailcfg.DNSConfig{
-			Proxied: true,
+			Proxied:   true,
 			Resolvers: []*dnstype.Resolver{{Addr: dnsUpstream.LocalAddr().String()}},
 			Routes: map[string][]*dnstype.Resolver{
 				"corp.example": {{Addr: dnsUpstream.LocalAddr().String()}},
