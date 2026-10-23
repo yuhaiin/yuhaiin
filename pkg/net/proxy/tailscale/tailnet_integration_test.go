@@ -330,7 +330,7 @@ func TestLocalTailnet(t *testing.T) {
 		defer stream.Close()
 		_ = stream.SetDeadline(time.Now().Add(8 * time.Second))
 		request := netapi.NewDNSMsg(netapi.DNSQuestion{
-			Name: "lookup.corp.example.", Qtype: dns.TypeA, Qclass: dns.ClassINET,
+			Name: "adapter1.tail-scale.ts.net.", Qtype: dns.TypeA, Qclass: dns.ClassINET,
 		})
 		request.Response = false
 		request.ID = 0x6623
