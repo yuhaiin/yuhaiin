@@ -118,16 +118,13 @@ func (t *Tailscale) init(ctx context.Context) (*lite.Client, error) {
 		return nil, err
 	}
 	path := filepath.Join(dir, "lite.json")
-	// tsnet's profile-format identity cannot be fed to the lite JSON store.
-	// Fail closed instead of silently creating a second identity.
-	if _, err := os.Stat(filepath.Join(dir, "tailscaled.state")); err == nil {
-		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-			release()
-			return nil, errors.New("tailscale-lite: existing tsnet state requires explicit identity migration; preserving old tailscaled.state")
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
+	// Reuse the selected tsnet identity when an older installation is upgraded.
+	// The converter validates the control URL and private machine/node keys,
+	// leaving the legacy state untouched for rollback. An ambiguous state
+	// fails before registering a new machine.
+	if err := lite.MigrateLegacyState(filepath.Join(dir, "tailscaled.state"), path, t.config.ControlURL); err != nil {
 		release()
-		return nil, err
+		return nil, fmt.Errorf("migrate Tailnet identity: %w", err)
 	}
 	n := newTailnetTun()
 	u := &underlay{owner: t, ancestors: appendLoop(ctx, t)}
