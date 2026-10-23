@@ -185,12 +185,15 @@ func TestLocalTailnet(t *testing.T) {
 		}
 	})
 	t.Run("magic-dns", func(t *testing.T) {
-		request := new(dns.Msg)
-		request.SetQuestion("adapter1.tail-scale.ts.net.", dns.TypeA)
-		wire, err := request.Pack()
-		if err != nil {
+		request := netapi.NewDNSMsg(netapi.DNSQuestion{
+			Name: "adapter1.tail-scale.ts.net.", Qtype: dns.TypeA, Qclass: dns.ClassINET,
+		})
+		request.Response = false
+		request.ID = 0x7161
+		if err := request.Pack(); err != nil {
 			t.Fatal(err)
 		}
+		wire := request.Data
 		service := netapi.ParseNetipAddr("udp", netip.MustParseAddr("100.100.100.100"), 53)
 		p, err := nodes[0].PacketConn(ctx, service)
 		if err != nil {
@@ -207,7 +210,8 @@ func TestLocalTailnet(t *testing.T) {
 			t.Fatal(err)
 		}
 		var answer dns.Msg
-		if err = answer.Unpack(buf[:n]); err != nil {
+		answer.Data = buf[:n]
+		if err = answer.Unpack(); err != nil {
 			t.Fatal(err)
 		}
 		if answer.Rcode != dns.RcodeSuccess || len(answer.Answer) != 1 {
