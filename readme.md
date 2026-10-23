@@ -27,7 +27,7 @@ Yuhaiin is an open-source, cross-platform networking toolkit that brings enterpr
 - **Connect across network boundaries.** Use enterprise VPN clients, mesh/overlay networks, and modern proxies within one application.
 - **Enforce traffic decisions centrally within the process.** Route, proxy, or block connections based on destinations, applications/processes, inbound sources, and rule priority.
 - **Handle application traffic with HTTP Gateway.** Apply request-level policies, reverse proxy to backends, and choose existing outbound nodes per request.
-- **Keep networking flexible.** Reuse a lightweight userspace TCP/IP stack for supported integrations, including VPN/overlay use cases that do not require a new host TUN interface.
+- **Keep networking flexible.** Use a single lightweight userspace TCP/IP stack for TUN and VPN/overlay packet processing, without alternative gVisor or tun2socket TUN backends.
 - **Control congestion and resource use.** Apply optional upload/download rate profiles, bound connection and NAT resources, and choose FIFO or fair output scheduling for the lightweight TUN stack.
 - **Manage identities and trace proxy usage.** Protect management APIs with local accounts and scoped tokens, authenticate supported proxy inbounds with per-user device credentials, and inspect user traffic reports and connection audits.
 
@@ -66,12 +66,14 @@ The HTTP Gateway is **optional**: ordinary connections continue through L4 routi
 | Category | Protocols and integrations |
 | --- | --- |
 | **Enterprise VPN clients** | OpenVPN, GlobalProtect, AnyConnect, Fortinet SSL VPN, IKEv2/IPsec, SSTP, SoftEther |
-| **Mesh & overlay networking** | WireGuard, AmneziaWG, Tailscale (tsnet), Nebula, ZeroTier, Cloudflare WARP |
+| **Mesh & overlay networking** | WireGuard, AmneziaWG, Tailscale (tailscale-lite), Nebula, ZeroTier, Cloudflare WARP |
 | **Modern proxies & tunnels** | Shadowsocks, ShadowsocksR, VMess, VLESS, Trojan, Hysteria 2, standard MASQUE CONNECT-IP client, SSH |
 | **Standard proxy & ingress** | SOCKS4a/5, HTTP, Mixed, TUN, Redir, TProxy, WireGuard inbound, MASQUE HTTP/3 CONNECT-IP inbound |
 | **DNS transports** | Classic DNS over UDP/TCP, DoT, DoH, DoQ, FakeDNS |
 
 **MASQUE:** standard CONNECT-IP outbound supports HTTP/3 and HTTP/2; the authenticated server currently supports HTTP/3 only. See [the MASQUE guide](docs/masque.md) for setup and limitations.
+
+**Tailnet:** Tailscale connectivity uses the separate [tailscale-lite](https://github.com/yuhaiin/tailscale-lite) control and WireGuard transport, with the configured Yuhaiin outbound as its network Underlay and the shared lightweight stack for application TCP/UDP. Existing `tsnet` identities can be migrated without replacing the original state. The adapter is experimental: Tailnet Lock and advanced split-DNS features require further validation. See [Tailnet migration and compatibility](docs/tailscale-lite-migration.md).
 
 **Support varies by protocol and platform.** Some integrations remain experimental or have restricted transport/authentication modes. Nebula and ZeroTier are userspace outbound integrations, not general-purpose virtual Ethernet adapters. Check the linked implementation guides for supported features, packaging requirements, and limitations.
 
