@@ -88,7 +88,7 @@ func NewClient(config contractnode.Masque, p netapi.Proxy) (netapi.Proxy, error)
 	if err != nil {
 		return nil, err
 	}
-	client.cloudflare = false
+	client.generic = true
 	client.requestURL = u.String()
 	client.bearerToken = config.BearerToken
 	return client, nil
