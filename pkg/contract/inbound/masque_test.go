@@ -7,7 +7,7 @@ import (
 
 func TestMasqueTaggedInbound(t *testing.T) {
 	p := NewTypedProtocol(MasqueProtocol{
-		AuthToken: "test",
+		AuthToken:       "test",
 		ServerAddresses: []string{"10.88.0.1/32"},
 		ClientAddresses: []string{"10.88.0.2/32"},
 	})
