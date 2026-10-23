@@ -138,13 +138,25 @@ func (t *wgDevice) Close() error {
 	t.closeOnce.Do(func() {
 		t.closed.Store(true)
 		// Unblock a native Read before taking the lock that protects its slab.
-		t.closeErr = t.Device.Close()
+		closeErr := t.Device.Close()
 		t.readMu.Lock()
 		t.slab, t.packets = nil, nil
 		t.readMu.Unlock()
 		if t.eventsDone != nil {
 			<-t.eventsDone
+			// Linux NativeTun's netlink listener can exit while repeated TUN
+			// teardown/recreation is in progress. Its Cancel then writes to
+			// an already closed cancellation pipe and returns a PathError
+			// ("write |1: file already closed"), even though the listener
+			// has shut down and the native queue descriptors were closed.
+			// Ignore only this specific benign shutdown error, once the
+			// event stream has been fully drained. Preserve errors from
+			// closing native queue files and any other cancellation errors.
+			if e, ok := closeErr.(*os.PathError); ok && e.Op == "write" && errors.Is(e.Err, os.ErrClosed) {
+				closeErr = nil
+			}
 		}
+		t.closeErr = closeErr
 	})
 	return t.closeErr
 }
