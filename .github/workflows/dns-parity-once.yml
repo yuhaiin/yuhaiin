@@ -1,0 +1,28 @@
+name: One-shot DNS parity formatting
+on:
+  push:
+    branches: [refactor/tailscale-lite-lightweight-only]
+    paths: [.github/workflows/dns-parity-once.yml]
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: dns-parity-module
+      - name: Format DNS integration and sync module
+        shell: bash
+        run: |
+          set -euo pipefail
+          gofmt -w pkg/net/proxy/tailscale/tailscale.go pkg/net/proxy/tailscale/lite_dns.go pkg/net/proxy/tailscale/tailnet_integration_test.go
+          go mod tidy
+          git add pkg/net/proxy/tailscale/tailscale.go pkg/net/proxy/tailscale/lite_dns.go pkg/net/proxy/tailscale/tailnet_integration_test.go go.mod go.sum
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'style: format full Tailnet DNS parity integration'
+          git push origin HEAD:refactor/tailscale-lite-lightweight-only
