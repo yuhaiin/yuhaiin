@@ -94,7 +94,7 @@ func TestLocalTailnet(t *testing.T) {
 			}
 			if question.Qtype == dns.TypeA {
 				response.Answer = append(response.Answer, &dns.A{
-				Hdr: dns.Header{Name: question.Name, Class: dns.ClassINET, TTL: 30},
+					Hdr:  dns.Header{Name: question.Name, Class: dns.ClassINET, TTL: 30},
 					Addr: answerIP,
 				})
 			}
