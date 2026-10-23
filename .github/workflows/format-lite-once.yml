@@ -25,7 +25,6 @@ jobs:
           set -euo pipefail
           gofmt -w pkg/net/proxy/tailscale/*.go pkg/net/proxy/tun/tun.go pkg/net/proxy/tun/device/*.go pkg/net/netlink/tun.go cmd/android/yuhaiin.go cmd/android/yuhaiin_test.go cmd/android/keys.go cmd/buildtags/*.go
           go mod tidy
-          go fix ./pkg/net/proxy/tailscale/... ./pkg/net/proxy/tun/... ./pkg/net/netlink/... ./cmd/buildtags/...
           gofmt -w pkg/net/proxy/tailscale/*.go pkg/net/proxy/tun/tun.go pkg/net/proxy/tun/device/*.go pkg/net/netlink/tun.go cmd/android/yuhaiin.go cmd/android/yuhaiin_test.go cmd/android/keys.go cmd/buildtags/*.go
           git add -u
           git add go.mod go.sum pkg/net/proxy/tailscale/*.go
