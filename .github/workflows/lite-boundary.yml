@@ -38,3 +38,7 @@ jobs:
         run: |
           tags="$(go run ./cmd/buildtags/...)"
           go test -count=1 -timeout=120s -tags="$tags" ./pkg/net/proxy/tailscale
+      - name: Exercise real Control/DERP DNS parity without test-only TKA omission
+        run: |
+          go test -count=1 -timeout=120s -run '^TestLocalTailnet
+ ./pkg/net/proxy/tailscale
