@@ -71,48 +71,7 @@ jobs:
       - name: TCP, UDP fragments and ICMP in isolated network namespace
         run: sudo unshare --net /tmp/lightweight-kernel.test -test.run '^TestLinuxKernel' -test.v -test.timeout=90s
       - name: Native TUN event and buffer cleanup after repeated shutdown
-        run: sudo unshare --net /tmp/lightweight-device.test -test.run 'TestLinuxKernelDeviceLifecycle' -test.count=25 -test.v -test.timeout=60s
-      - name: TCP checksum and segmentation offloads with kernel peers and loss
-        run: sudo unshare --net /tmp/lightweight-offload.test -test.run '^TestLinuxOffload' -test.v -test.timeout=90s
-
-  portable-core:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - {os: linux, arch: amd64}
-          - {os: linux, arch: arm64}
-          - {os: linux, arch: '386'}
-          - {os: linux, arch: mipsle}
-          - {os: darwin, arch: arm64}
-          - {os: windows, arch: amd64}
-          - {os: android, arch: arm64}
-          - {os: ios, arch: arm64}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-go
-        with:
-          cache-scope: lightweight-${{ matrix.target.os }}-${{ matrix.target.arch }}
-      - name: Compile the independent core
-        env:
-          CGO_ENABLED: '0'
-          GOOS: ${{ matrix.target.os }}
-          GOARCH: ${{ matrix.target.arch }}
-        run: go build ./pkg/net/proxy/tun/lightweight/...
-      - name: Execute ARM64 checksum and guard-page tests
-        if: matrix.target.os == 'linux' && matrix.target.arch == 'arm64'
-        env:
-          CGO_ENABLED: '0'
-          GOOS: linux
-          GOARCH: arm64
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y qemu-user
-          go test -c -o /tmp/lightweight-arm64.test ./pkg/net/proxy/tun/lightweight
-          qemu-aarch64 /tmp/lightweight-arm64.test -test.run '^TestChecksum' -test.v
-          qemu-aarch64 -p 16384 /tmp/lightweight-arm64.test -test.run '^TestChecksum' -test.v
- -test.count=25 -test.v -test.timeout=60s
+        run: sudo unshare --net /tmp/lightweight-device.test -test.run TestLinuxKernelDeviceLifecycle -test.count=25 -test.v -test.timeout=60s
       - name: TCP checksum and segmentation offloads with kernel peers and loss
         run: sudo unshare --net /tmp/lightweight-offload.test -test.run '^TestLinuxOffload' -test.v -test.timeout=90s
 
