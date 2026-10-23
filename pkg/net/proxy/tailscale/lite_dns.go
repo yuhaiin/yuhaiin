@@ -16,10 +16,16 @@ import (
 var errTailscaleDNSUnavailable = errors.New("tailscale: MagicDNS unavailable")
 
 func liteDNSQuery(ctx context.Context, client *lite.Client, request []byte) ([]byte, error) {
-	if err := ctx.Err(); err != nil { return nil, err }
-	if client == nil { return nil, errTailscaleDNSUnavailable }
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if client == nil {
+		return nil, errTailscaleDNSUnavailable
+	}
 	var q dns.Msg
-	if err := q.Unpack(request); err != nil { return nil, err }
+	if err := q.Unpack(request); err != nil {
+		return nil, err
+	}
 	var reply dns.Msg
 	reply.SetReply(&q)
 	reply.Authoritative = true
@@ -61,15 +67,27 @@ func liteDNSQuery(ctx context.Context, client *lite.Client, request []byte) ([]b
 func serveLiteDNS(conn net.Conn, client *lite.Client) {
 	var header [2]byte
 	for {
-		if _, err := io.ReadFull(conn, header[:]); err != nil { return }
+		if _, err := io.ReadFull(conn, header[:]); err != nil {
+			return
+		}
 		size := int(binary.BigEndian.Uint16(header[:]))
-		if size < 12 { return }
+		if size < 12 {
+			return
+		}
 		req := make([]byte, size)
-		if _, err := io.ReadFull(conn, req); err != nil { return }
+		if _, err := io.ReadFull(conn, req); err != nil {
+			return
+		}
 		resp, err := liteDNSQuery(context.Background(), client, req)
-		if err != nil || len(resp) > 65535 { return }
+		if err != nil || len(resp) > 65535 {
+			return
+		}
 		binary.BigEndian.PutUint16(header[:], uint16(len(resp)))
-		if _, err := conn.Write(header[:]); err != nil { return }
-		if _, err := conn.Write(resp); err != nil { return }
+		if _, err := conn.Write(header[:]); err != nil {
+			return
+		}
+		if _, err := conn.Write(resp); err != nil {
+			return
+		}
 	}
 }

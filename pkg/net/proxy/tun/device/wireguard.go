@@ -150,4 +150,3 @@ func (t *wgDevice) Close() error {
 }
 
 func (t *wgDevice) Tun() wun.Device { return t.Device }
-

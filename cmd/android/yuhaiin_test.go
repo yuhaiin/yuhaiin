@@ -155,14 +155,22 @@ func TestConfigureAndroidTUNLegacySettingsBecomeLightweight(t *testing.T) {
 			ctx := t.Context()
 			state := migrate.NewStateDB(filepath.Join(t.TempDir(), "state.db"))
 			defer state.Close()
-			if err := state.Migrate(ctx); err != nil { t.Fatal(err) }
+			if err := state.Migrate(ctx); err != nil {
+				t.Fatal(err)
+			}
 			if err := configureAndroidTUN(ctx, state,
-				&TUN{FD:42, MTU:1500, Portal:"10.0.0.1/24", PortalV6:"fd00::1/64"},
-				tt.driver, tt.stack, "bbr", "fq_codel"); err != nil { t.Fatal(err) }
+				&TUN{FD: 42, MTU: 1500, Portal: "10.0.0.1/24", PortalV6: "fd00::1/64"},
+				tt.driver, tt.stack, "bbr", "fq_codel"); err != nil {
+				t.Fatal(err)
+			}
 			db, err := state.SQLDB(ctx)
-			if err != nil { t.Fatal(err) }
+			if err != nil {
+				t.Fatal(err)
+			}
 			items, err := plainstore.NewInboundStore(db).List(ctx)
-			if err != nil { t.Fatal(err) }
+			if err != nil {
+				t.Fatal(err)
+			}
 			for _, in := range items {
 				if in.Protocol.Type == contractinbound.ProtocolTun {
 					got := in.Protocol.Tun
