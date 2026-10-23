@@ -92,15 +92,11 @@ func TestLocalTailnet(t *testing.T) {
 			default:
 				continue
 			}
-			if question.Qtype != dns.TypeA {
-				continue
-			}
-			response.Answer = append(response.Answer, &dns.A{
+			if question.Qtype == dns.TypeA {
+				response.Answer = append(response.Answer, &dns.A{
 				Hdr: dns.Header{Name: question.Name, Class: dns.ClassINET, TTL: 30},
-				Addr: answerIP,
-			})
-			if !response.Answer[0].(*dns.A).Addr.IsValid() {
-				continue
+					Addr: answerIP,
+				})
 			}
 			if response.Pack() == nil {
 				_, _ = dnsUpstream.WriteTo(response.Data, from)
