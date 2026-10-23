@@ -50,11 +50,7 @@ var (
 		AdvRouteNonChn,
 	}
 
-	TunDriversValue = []string{
-		TunDriverFdbasedValue,
-		TunDriverChannelValue,
-		TunDriverSystemGvisorValue,
-	}
+	TunDriversValue = []string{TunDriverChannelValue}
 
 	BatteryProfilesValue = []string{
 		BatteryProfileBalanced,
@@ -124,7 +120,7 @@ var (
 
 	defaultStringValue = map[string]string{
 		AdvRouteKey:             AdvRoutes[0],
-		AdvTunDriverKey:         TunDriversValue[2],
+		AdvTunDriverKey:         TunDriverChannelValue,
 		AdvAppListKey:           string(disAllowAppList),
 		AdvBatteryProfileKey:    BatteryProfileBalanced,
 		AdvProcessLookupModeKey: ProcessLookupAlwaysValue,
