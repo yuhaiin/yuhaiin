@@ -375,6 +375,36 @@ func TestLocalTailnet(t *testing.T) {
 			}
 		}
 	})
+	t.Run("dns-extra-record-live-update", func(t *testing.T) {
+		control.AddDNSRecords(tailcfg.DNSRecord{
+			Name: "added.ext.example.", Type: "A", Value: "198.51.100.77",
+		})
+		deadline := time.NewTimer(8 * time.Second)
+		defer deadline.Stop()
+		ticker := time.NewTicker(25 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			if ips, owned := clients[0].LookupIP("added.ext.example."); owned &&
+				len(ips) == 1 && ips[0] == netip.MustParseAddr("198.51.100.77") {
+				break
+			}
+			select {
+			case <-deadline.C:
+				t.Fatal("live DNS ExtraRecord was not applied from updated NetMap")
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			case <-ticker.C:
+			}
+		}
+		answer := askDNS(t, "added.ext.example.", dns.TypeA)
+		if answer.Rcode != dns.RcodeSuccess || len(answer.Answer) != 1 {
+			t.Fatalf("updated ExtraRecord DNS result: %+v", answer)
+		}
+		if rr, ok := answer.Answer[0].(*dns.A); !ok ||
+			rr.Addr != netip.MustParseAddr("198.51.100.77") {
+			t.Fatalf("updated ExtraRecord DNS value: %+v", answer.Answer)
+		}
+	})
 	t.Run("unknown-magic-dns-does-not-leak", func(t *testing.T) {
 		answer := askDNS(t, "missing.tail-scale.ts.net.", dns.TypeA)
 		if answer.Rcode != dns.RcodeNameError || len(answer.Answer) != 0 {
