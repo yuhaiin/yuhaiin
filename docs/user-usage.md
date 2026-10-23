@@ -17,7 +17,8 @@ The React companion exposes the reports under **Account & security**.
   parallel sessions. It is not a measurement of a person's time online.
 - Period breakdowns by stable user, credential, inbound, node and TCP/UDP protocol.
   A credential can be named for a device, but does not prove a physical device's identity.
-- Independent session audits with source, target host:port, resolved IP, selected
+- Independent session audits with authenticated group IDs at connection observation,
+  source, target host:port, resolved IP, selected
   node/selector/rule IDs and names, timestamps, byte totals and end reason.
 
 These are payload counters at the proxy boundary, not NIC/WAN wire bytes. They

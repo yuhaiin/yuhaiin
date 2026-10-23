@@ -43,10 +43,22 @@ const (
 	TransportProxy     = "proxy"
 )
 
-// Authentication opts an inbound into user credentials while retaining its
-// independent legacy credentials. An empty Users list admits no user.
+// Authentication separates traffic credentials from management authentication.
+// An absent configuration is legacy. An empty mode preserves the mixed behavior
+// of configurations saved before explicit modes were introduced.
 type Authentication struct {
+	Mode  string   `json:"mode,omitzero"`
 	Users []string `json:"users"`
+}
+
+func (a *Authentication) EffectiveMode() string {
+	if a == nil {
+		return "legacy"
+	}
+	if a.Mode == "" {
+		return "mixed"
+	}
+	return a.Mode
 }
 
 type Inbound struct {
@@ -705,6 +717,15 @@ func (t Transport) nonNilCount() int {
 
 func (i Inbound) Validate() error {
 	if i.Authentication != nil {
+		switch i.Authentication.EffectiveMode() {
+		case "legacy":
+			if len(i.Authentication.Users) != 0 {
+				return fmt.Errorf("legacy authentication cannot select users")
+			}
+		case "users", "mixed":
+		default:
+			return fmt.Errorf("invalid inbound authentication mode")
+		}
 		switch i.Protocol.Type {
 		case ProtocolHTTP, ProtocolSocks5, ProtocolMixed, ProtocolYuubinsya, ProtocolHysteria2:
 		default:

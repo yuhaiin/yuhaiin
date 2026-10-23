@@ -27,7 +27,13 @@ func sameReplySource(a, b net.Addr) bool {
 	return a.Network() == b.Network() && a.String() == b.String()
 }
 
-func (u *SourceControl) writeReply(ctx context.Context, data []byte, addr net.Addr) error {
+func (u *SourceControl) writeReply(ctx context.Context, data []byte, addr, real net.Addr) error {
+	if u.access != nil {
+		original, _ := addr.(netapi.Address)
+		if err := u.access.Authorize(original, real); err != nil {
+			return err
+		}
+	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -98,7 +104,7 @@ func (u *SourceControl) runReply() {
 				}
 				var err error
 				if allowed {
-					err = u.writeReply(u.ctx, pkt.buf, pkt.from)
+					err = u.writeReply(u.ctx, pkt.buf, pkt.from, pkt.real)
 				} else {
 					metrics.Counter.AddReceiveUDPDroppedPacket()
 				}

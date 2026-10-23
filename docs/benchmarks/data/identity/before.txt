@@ -1,0 +1,22 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/management/auth
+cpu: AMD Ryzen 5 5600G with Radeon Graphics         
+BenchmarkProxyCredentialVerification-12    	 5119683	       115.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkProxyCredentialVerification-12    	 5231538	       114.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkProxyCredentialVerification-12    	 5255077	       114.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkProxyCredentialVerification-12    	 5287443	       114.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkProxyCredentialVerification-12    	 5260394	       114.1 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/management/auth	3.043s
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/route
+cpu: AMD Ryzen 5 5600G with Radeon Graphics         
+BenchmarkHostMatcher-12    	 1000000	       522.7 ns/op	      48 B/op	       3 allocs/op
+BenchmarkHostMatcher-12    	 1000000	       538.1 ns/op	      48 B/op	       3 allocs/op
+BenchmarkHostMatcher-12    	 1000000	       524.5 ns/op	      48 B/op	       3 allocs/op
+BenchmarkHostMatcher-12    	 1000000	       524.8 ns/op	      48 B/op	       3 allocs/op
+BenchmarkHostMatcher-12    	 1000000	       521.9 ns/op	      48 B/op	       3 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/route	2.981s

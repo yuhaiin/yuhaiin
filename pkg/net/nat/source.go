@@ -24,6 +24,7 @@ var ErrSendPacketQueueFull = errors.New("ringbuffer is full, drop packet")
 
 type sentPacket struct {
 	from net.Addr
+	real net.Addr
 	buf  []byte
 	conn *wrapConn
 }
@@ -50,6 +51,8 @@ func newContextCache(store *netapi.Context) ContextCache {
 }
 
 type SourceControl struct {
+	access            netapi.TrafficAccessSession
+	accessCancel      context.CancelCauseFunc
 	identity          atomic.Pointer[proxyauth.Identity]
 	ctx               context.Context
 	dialer            netapi.Proxy
@@ -120,6 +123,11 @@ func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *SourceCon
 // Construct the ownership boundary before starting workers: a source may
 // retire without an external caller retaining it long enough to call Close.
 func newSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy, lease *trafficcontrol.Session, budget trafficcontrol.BufferedResources, qos trafficcontrol.PolicyResolver) *SourceControl {
+	s, _ := newSourceChanWithAccess(sniffer, dialer, lease, budget, qos, nil, netapi.TrafficSubject{})
+	return s
+}
+
+func newSourceChanWithAccess(sniffer netapi.PacketSniffer, dialer netapi.Proxy, lease *trafficcontrol.Session, budget trafficcontrol.BufferedResources, qos trafficcontrol.PolicyResolver, access netapi.TrafficAccess, subject netapi.TrafficSubject) (*SourceControl, error) {
 	if budget == nil {
 		budget = trafficcontrol.UnlimitedBudget()
 	}
@@ -142,7 +150,26 @@ func newSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy, lease *tra
 		sentPackets:          ringbuffer.NewRingBuffer[*netapi.Packet](8, configuration.MaxUDPUnprocessedPackets.Load),
 		receivedPackets:      ringbuffer.NewRingBuffer[sentPacket](8, configuration.MaxUDPUnprocessedPackets.Load),
 	}
-	s.reply.Store(&replyBinding{ctx: ctx, cancel: func() {}, write: func(context.Context, []byte, net.Addr) (int, error) { return 0, errors.ErrUnsupported }})
+	if access != nil {
+		parent := context.Background()
+		if subject.Identity != nil && subject.Identity.Context != nil {
+			parent = subject.Identity.Context
+		}
+		lifetime, revoke := context.WithCancelCause(parent)
+		session, err := access.NewSession(subject, func(cause error) { revoke(cause); cancel() })
+		if err != nil || session == nil {
+			cancel()
+			revoke(netapi.ErrTrafficAccessDenied)
+			lease.Release()
+			if err == nil {
+				err = netapi.ErrTrafficAccessDenied
+			}
+			return nil, err
+		}
+		s.access, s.accessCancel = session, revoke
+		s.ctx = netapi.WithTrafficAuthorization(ctx, session, lifetime)
+	}
+	s.reply.Store(&replyBinding{ctx: s.ctx, cancel: func() {}, write: func(context.Context, []byte, net.Addr) (int, error) { return 0, errors.ErrUnsupported }})
 	s.destinationLeaser, _ = dialer.(destinationLeaser)
 
 	now := time.Now()
@@ -152,7 +179,7 @@ func newSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy, lease *tra
 
 	go s.runReply()
 	go s.run()
-	return s
+	return s, nil
 }
 
 func (u *SourceControl) Close() error {
@@ -206,6 +233,10 @@ func (u *SourceControl) run() {
 		u.drainResolutions()
 		u.drain()
 		u.releaseDestinationLeases()
+		if u.access != nil {
+			u.access.Close()
+			u.accessCancel(netapi.ErrTrafficSessionClosed)
+		}
 		u.sessionLease.Release()
 		close(u.done)
 	}()

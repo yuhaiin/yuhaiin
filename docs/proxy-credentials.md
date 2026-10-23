@@ -57,23 +57,29 @@ Ordinary lists never contain secret or verifier material.
 
 ## Inbound compatibility
 
-The optional top-level field opts a listener into user authentication:
+The optional top-level field explicitly selects traffic authentication:
 
 ```json
 {
-  "authentication": { "users": ["USER_ID"] }
+  "authentication": { "mode": "users", "users": ["USER_ID"] }
 }
 ```
 
-All existing protocol `username`, `password` and `auth` fields remain valid, with
-their original matching behavior. A configured legacy credential OR an authorized
-user credential can authenticate. Legacy access remains unattributed to a user;
-disabling a user cannot revoke a separate shared legacy password they know.
+Modes are `legacy` (the original shared/anonymous protocol configuration),
+`users` (only selected users' traffic credentials), and `mixed` (explicitly both).
+`users` removes shared credentials from the runtime protocol configuration while
+preserving the saved settings. Legacy access never acquires a user identity.
+The UI defaults newly enabled user authentication to `users` and warns for mixed
+mode, where disabling a user cannot revoke an independent shared password.
 
-When `authentication` is absent, existing behavior, including anonymous access,
-is unchanged. When present, empty legacy authentication fields do not allow
-anonymous access. An empty `users` list admits no user credentials. Configuring
-user authentication without the identity module fails explicitly.
+For migration, absent `authentication` keeps legacy behavior, including anonymous
+access. An existing authentication object without `mode` keeps its previous mixed
+behavior. An empty `users` list admits no user credentials. In users/mixed mode,
+empty legacy authentication fields do not permit anonymous access. Selecting
+users with explicit legacy mode is invalid. Users/mixed authentication without
+the optional identity module fails explicitly. See
+[traffic identity foundations](enterprise-identity.md) for group snapshots,
+membership revocation, identity-aware routing and migration details.
 
 Supported listeners: HTTP, SOCKS5, Mixed, Yuubinsya and Hysteria2. Mixed disables
 SOCKS4 while user authentication is enabled because SOCKS4 has no password proof.
@@ -90,7 +96,8 @@ on another inbound. HTTP user-authenticated forwarding disables upstream
 keepalive reuse to prevent connections crossing identities.
 
 TUN, TProxy, Redir, SOCKS4, WireGuard and other listener types are outside this
-change. Identity-based routing and outbound access restrictions are follow-ups.
+change. Identity-aware routing conditions are available; dedicated traffic access authorization
+and outbound access restrictions remain follow-ups.
 
 ## Shared upstream credentials
 

@@ -50,6 +50,12 @@ func (s *Route) Intercept(ctx *netapi.Context, meta *netapi.StreamMeta) bool {
 	if s.gatewayRecovery != nil {
 		address = s.gatewayRecovery(ctx, address)
 	}
+	if s.access != nil {
+		if err := s.access.Preflight(netapi.TrafficSubjectFromContext(ctx)); err != nil {
+			_ = meta.Src.Close()
+			return true
+		}
+	}
 	decide := func() (routeResult, bool) {
 		matchCtx, cancel := context.WithTimeout(ctx, configuration.Timeout)
 		defer cancel()
@@ -64,6 +70,19 @@ func (s *Route) Intercept(ctx *netapi.Context, meta *netapi.StreamMeta) bool {
 		return true
 	}
 	if result.Mode.Mode() == ModeGateway {
+		if s.access != nil {
+			actual, err := netapi.PinTrafficTarget(ctx, s.access, address, result.Addr)
+			if err != nil {
+				_ = meta.Src.Close()
+				return true
+			}
+			conn, err := netapi.BindTrafficConn(ctx, s.access, address, actual, meta.Src)
+			if err != nil {
+				_ = meta.Src.Close()
+				return true
+			}
+			meta.Src = conn
+		}
 		ctx.Context = WithoutGateway(ctx.Context)
 		if s.gatewayHandler(ctx, meta, result.Mode.Target().ID) {
 			return true

@@ -260,6 +260,7 @@ type StartOptions struct {
 	// access management routes; no identity database or auth routes are loaded.
 	HTTPMiddleware      httpapi.Middleware
 	ProxyAuthentication proxyauth.Provider
+	TrafficAccess       netapi.TrafficAccess
 	UpstreamCredentials credential.Resolver
 
 	ConfigPath string

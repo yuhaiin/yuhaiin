@@ -43,12 +43,19 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 		}
 		metrics.Counter.AddReceiveUDPPacket()
 		metrics.Counter.AddReceiveUDPPacketSize(n)
+		if u.access != nil {
+			original, _ := p.mapper.replyAddr(from).(netapi.Address)
+			if err := u.access.Authorize(original, from); err != nil {
+				metrics.Counter.AddReceiveUDPDroppedPacket()
+				continue
+			}
+		}
 		if !u.queueBudget.ReserveQueueBytes(int64(n)) {
 			metrics.Counter.AddReceiveUDPDroppedPacket()
 			continue
 		}
 		data := pool.Clone(scratch[:n])
-		if !u.receivedPackets.Push(sentPacket{from: p.mapper.replyAddr(from), buf: data, conn: p}) {
+		if !u.receivedPackets.Push(sentPacket{from: p.mapper.replyAddr(from), real: from, buf: data, conn: p}) {
 			u.queueBudget.ReleaseQueueBytes(int64(len(data)))
 			pool.PutBytes(data)
 			metrics.Counter.AddReceiveUDPDroppedPacket()

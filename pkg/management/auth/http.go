@@ -18,6 +18,7 @@ import (
 // streaming and future registrations. No protected handler can bypass this gate
 // by registering outside the v2 RPC adapter.
 type Server struct {
+	Access       *AccessPolicies
 	OAuth        *OAuthService
 	Proxy        *ProxyCredentials
 	Usage        httpapi.UserUsage
@@ -177,7 +178,7 @@ func respond(w http.ResponseWriter, value any, err error) {
 }
 
 func decode(r *http.Request, w http.ResponseWriter, out any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+	r.Body = http.MaxBytesReader(w, r.Body, 256<<10)
 	if json.UnmarshalRead(r.Body, out, json.RejectUnknownMembers(true)) != nil {
 		authError(w, http.StatusBadRequest)
 		return false
@@ -197,6 +198,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 		mux.HandleFunc(pattern, handler)
 	}
 	s.registerProxyCredentials(register)
+	s.registerGroups(register)
+	s.registerTrafficAccess(register)
 	s.registerUsage(register)
 	s.registerSessions(register)
 	s.registerSessionRestore(register)

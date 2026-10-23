@@ -34,7 +34,7 @@ func (s *Scope) Wrap(verify Verifier) Verifier {
 			return entry.identity, nil
 		}
 		bound, cancel := context.WithCancel(identity.Context)
-		entry := scopedIdentity{identity: &Identity{UserID: identity.UserID, CredentialID: identity.CredentialID, Context: bound}, cancel: cancel}
+		entry := scopedIdentity{identity: &Identity{UserID: identity.UserID, CredentialID: identity.CredentialID, GroupIDs: identity.GroupIDs, Context: bound}, cancel: cancel}
 		s.identities[identity] = entry
 		context.AfterFunc(bound, func() { s.mu.Lock(); defer s.mu.Unlock(); delete(s.identities, identity) })
 		return entry.identity, nil

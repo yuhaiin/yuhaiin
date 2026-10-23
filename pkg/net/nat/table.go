@@ -31,6 +31,7 @@ type authenticatedSourceKey struct {
 	source                  uint64
 }
 type Table struct {
+	access               netapi.TrafficAccess
 	authenticatedSources syncmap.SyncMap[authenticatedSourceKey, *SourceControl]
 	dialer               netapi.Proxy
 	sniffer              netapi.PacketSniffer
@@ -47,6 +48,10 @@ type Table struct {
 }
 
 var ErrNATSessionLimit = errors.New("udp nat: session limit")
+
+// SetTrafficAccess is called during ingress construction, before packet
+// admission starts. Runtime updates publish through this same capability.
+func (t *Table) SetTrafficAccess(access netapi.TrafficAccess) { t.access = access }
 
 // ResourceStats exposes live NAT sessions and charged queue bytes.
 func (t *Table) ResourceStats() trafficcontrol.Counters { return t.budget.Snapshot() }
@@ -156,8 +161,12 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return u.sourceControl.LoadOrCreate(key, create)
 	}
 	remove := func(source *SourceControl) { u.sourceControl.CompareAndDelete(key, source) }
-	if identity := pkt.Identity; identity != nil {
-		scoped := authenticatedSourceKey{identity.CredentialID, pkt.InboundID(), key}
+	if identity := pkt.Identity; identity != nil || u.access != nil {
+		credential := ""
+		if identity != nil {
+			credential = identity.CredentialID
+		}
+		scoped := authenticatedSourceKey{credential, pkt.InboundID(), key}
 		load = func(create func() (*SourceControl, error)) (*SourceControl, bool, error) {
 			return u.authenticatedSources.LoadOrCreate(scoped, create)
 		}
@@ -177,7 +186,10 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 			if !ok {
 				return nil, ErrNATSessionLimit
 			}
-			source := newSourceChan(u.sniffer, u.dialer, lease, u.budget, u.trafficControl)
+			source, err := newSourceChanWithAccess(u.sniffer, u.dialer, lease, u.budget, u.trafficControl, u.access, netapi.TrafficSubject{Identity: pkt.Identity, InboundID: pkt.InboundID(), External: true})
+			if err != nil {
+				return nil, err
+			}
 			if pkt.Identity != nil {
 				source.bindIdentity(pkt.Identity)
 			}

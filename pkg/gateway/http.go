@@ -46,6 +46,7 @@ type Counters struct {
 // Engine handles HTTP only. Listener admission, interception and CA lifecycle
 // belong to separate modules.
 type Engine struct {
+	access         netapi.TrafficAccess
 	filters        *filterPolicy
 	healthCancel   context.CancelFunc
 	healthWG       sync.WaitGroup
@@ -166,6 +167,41 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Scheme != "http" && r.URL.Scheme != "https" {
 		http.Error(w, "unsupported URL scheme", 400)
 		return
+	}
+	if e.access != nil {
+		// The request authority may change on a reused intercepted connection.
+		// Authorize it independently of routing and Gateway actions, including
+		// local responses. Identity comes only from trusted ingress metadata.
+		target := r.URL.Host
+		if r.URL.Port() == "" {
+			port := "80"
+			if r.URL.Scheme == "https" {
+				port = "443"
+			}
+			target = net.JoinHostPort(r.URL.Hostname(), port)
+		}
+		original, err := netapi.ParseAddress("tcp", target)
+		if err != nil {
+			http.Error(w, "invalid destination", http.StatusBadRequest)
+			return
+		}
+		actual, err := netapi.PinTrafficDestination(ctx, e.access, original)
+		if err != nil {
+			e.Counters.Blocked.Add(1)
+			e.auditLocal(ctx, r, true)
+			http.Error(w, "traffic access denied", http.StatusForbidden)
+			return
+		}
+		requestCtx, release, err := netapi.AuthorizeTrafficRequest(ctx, e.access, original, actual)
+		if err != nil {
+			e.Counters.Blocked.Add(1)
+			e.auditLocal(ctx, r, true)
+			http.Error(w, "traffic access denied", http.StatusForbidden)
+			return
+		}
+		defer release()
+		defer interruptRevokedResponse(requestCtx, w)()
+		r = r.WithContext(requestCtx)
 	}
 	if e.config.MaxBodyBytes > 0 {
 		if r.ContentLength > e.config.MaxBodyBytes {
@@ -288,6 +324,10 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					source = nc.Source.String()
 				}
 				s.TrafficScope = identity.CredentialID + "\x00" + nc.GetInboundID() + "\x00" + source
+				// Membership/credential reload preserves the credential ID but
+				// replaces its revoked immutable identity. Never retain a dial
+				// closure bound to that retired identity in the new pool entry.
+				s.TrafficGeneration = identity
 			}
 			label := s.Label
 			if label == "" {

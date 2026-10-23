@@ -31,6 +31,7 @@ type entry struct {
 var _ netapi.Handler = (*Inbound)(nil)
 
 type Inbound struct {
+	access              netapi.TrafficAccess
 	authentication      proxyauth.Provider
 	usage               *statistics.UserUsage
 	states              map[string]runtimeState
@@ -92,6 +93,13 @@ type Option func(*Inbound)
 
 func WithAuthentication(provider proxyauth.Provider) Option {
 	return func(l *Inbound) { l.authentication = provider }
+}
+
+func WithTrafficAccess(access netapi.TrafficAccess) Option {
+	return func(l *Inbound) {
+		l.access = access
+		l.handler.table.SetTrafficAccess(access)
+	}
 }
 
 // WithInterceptor installs one optional hook shared by every TCP inbound.
@@ -206,24 +214,37 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 		return
 	}
 	metrics.Counter.AddStreamRequest()
+	store := netapi.WithContext(netapi.WithTrafficIdentity(l.ctx, meta.Identity))
+	store.Source = meta.Source
+	store.Destination = meta.Destination
+	if meta.Inbound != nil {
+		store.SetInbound(meta.Inbound)
+	}
+	store.SetInboundName(meta.InboundName)
+	store.SetInboundID(meta.InboundID)
 
 	if (!meta.DnsRequest && !l.shouldHijackDNS(meta.Address.Port())) || l.dnsHandler == nil {
-		store := netapi.WithContext(netapi.WithTrafficIdentity(l.ctx, meta.Identity))
-		store.Source = meta.Source
-		store.Destination = meta.Destination
-		if meta.Inbound != nil {
-			store.SetInbound(meta.Inbound)
-		}
-		store.SetInboundName(meta.InboundName)
-		store.SetInboundID(meta.InboundID)
 		l.handler.Stream(store, meta)
 		return
 	}
 
-	observation := l.localDNSUsage(meta.Identity, stringerAddress(meta.Source), meta.Address, meta.InboundID, meta.InboundName, "tcp")
-	observed := observation.Conn(meta.Src)
+	actual, err := netapi.PinTrafficDestination(store, l.access, meta.Address)
+	if err != nil {
+		l.localDNSUsage(store, meta.Identity, stringerAddress(meta.Source), meta.Address, meta.InboundID, meta.InboundName, "tcp").Finish(err)
+		_ = meta.Src.Close()
+		return
+	}
+	authorized, err := netapi.BindTrafficConn(store, l.access, meta.Address, actual, meta.Src)
+	if err != nil {
+		l.localDNSUsage(store, meta.Identity, stringerAddress(meta.Source), meta.Address, meta.InboundID, meta.InboundName, "tcp").Finish(err)
+		_ = meta.Src.Close()
+		return
+	}
+	defer authorized.Close()
+	observation := l.localDNSUsage(store, meta.Identity, stringerAddress(meta.Source), meta.Address, meta.InboundID, meta.InboundName, "tcp")
+	observed := observation.Conn(authorized)
 	defer observed.Close()
-	err := l.dnsHandler.DoStream(netapi.WithTrafficIdentity(l.ctx, meta.Identity), &netapi.DNSStreamRequest{
+	err = l.dnsHandler.DoStream(store, &netapi.DNSStreamRequest{
 		Conn:        observed,
 		ForceFakeIP: l.fakeip.Load(),
 	})
@@ -283,23 +304,43 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 		return
 	}
 
-	observation := l.localDNSUsage(packet.Identity, stringerAddress(packet.Src()), packet.Dst(), packet.InboundID(), packet.InboundName(), "udp")
+	store := netapi.WithContext(netapi.WithTrafficIdentity(l.ctx, packet.Identity))
+	store.Source = packet.Src()
+	store.SetInboundID(packet.InboundID()).SetInboundName(packet.InboundName())
+	actual, err := netapi.PinTrafficDestination(store, l.access, packet.Dst())
+	if err != nil {
+		l.localDNSUsage(store, packet.Identity, stringerAddress(packet.Src()), packet.Dst(), packet.InboundID(), packet.InboundName(), "udp").Finish(err)
+		return
+	}
+	ctx, release, err := netapi.AuthorizeTrafficRequest(store, l.access, packet.Dst(), actual)
+	if err != nil {
+		l.localDNSUsage(store, packet.Identity, stringerAddress(packet.Src()), packet.Dst(), packet.InboundID(), packet.InboundName(), "udp").Finish(err)
+		return
+	}
+	observation := l.localDNSUsage(store, packet.Identity, stringerAddress(packet.Src()), packet.Dst(), packet.InboundID(), packet.InboundName(), "udp")
 	observation.AddUpload(len(packet.GetPayload()))
 	dnsReq := &netapi.DNSRawRequest{
 		Question: packet,
 		WriteBack: func(b []byte) error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if session := netapi.TrafficAccessSessionFromContext(ctx); session != nil {
+				if err := session.Authorize(packet.Dst(), actual); err != nil {
+					return err
+				}
+			}
 			n, err := packet.WriteBack(b, packet.Dst())
 			observation.AddDownload(n)
 			return err
 		},
 		ForceFakeIP: l.fakeip.Load(),
 	}
-	if observation != nil {
-		dnsReq.Done = observation.Finish
-	}
+	dnsReq.Done = func(err error) { observation.Finish(err); release() }
 
-	if err := l.dnsHandler.DoDatagram(l.ctx, dnsReq); err != nil {
+	if err := l.dnsHandler.DoDatagram(ctx, dnsReq); err != nil {
 		observation.Finish(err)
+		release()
 		log.Select(netapi.LogLevel(err)).Print("udp server handle DnsHijacking", "msg", err)
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -14,30 +13,30 @@ import (
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
 	"github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 )
 
 // Selection pins the result of the existing Route/NodeRuntime selection for one
 // HTTP request. Identity changes when the selected proxy instance changes.
 type Selection struct {
-	Label        string
-	Identity     string
-	TrafficScope string
-	Proxy        netapi.Proxy
-	Destination  netapi.Address
+	Label             string
+	Identity          string
+	TrafficScope      string
+	TrafficGeneration *proxyauth.Identity
+	Proxy             netapi.Proxy
+	Destination       netapi.Address
 }
 
 type SelectOutbound func(context.Context, netapi.Address, route.Target) (Selection, error)
 
 func ProxyIdentity(proxy netapi.Proxy) string {
-	if identified, ok := proxy.(interface{ ConnectionPoolIdentity() string }); ok {
-		return identified.ConnectionPoolIdentity()
-	}
-	return fmt.Sprintf("%T:%p", proxy, proxy)
+	return netapi.ProxyIdentity(proxy)
 }
 
 type transportKey struct {
 	identity, destination, origin, serverName, trust string
 	trafficScope                                     string
+	trafficGeneration                                *proxyauth.Identity
 	connectMS, idleMS, requestMS, maxConns           int
 }
 type transportEntry struct {
@@ -65,7 +64,7 @@ func (p *TransportPool) borrow(s Selection, origin string, u contract.Upstream) 
 	if s.Proxy == nil || s.Destination == nil || s.Identity == "" {
 		return nil, nil, errors.New("outbound selection is incomplete")
 	}
-	key := transportKey{identity: s.Identity, destination: s.Destination.String(), origin: origin, serverName: u.ServerName, trust: u.TrustPEM, trafficScope: s.TrafficScope, connectMS: u.ConnectTimeoutMS, idleMS: u.IdleTimeoutMS, requestMS: u.RequestTimeoutMS, maxConns: u.MaxConnections}
+	key := transportKey{identity: s.Identity, destination: s.Destination.String(), origin: origin, serverName: u.ServerName, trust: u.TrustPEM, trafficScope: s.TrafficScope, trafficGeneration: s.TrafficGeneration, connectMS: u.ConnectTimeoutMS, idleMS: u.IdleTimeoutMS, requestMS: u.RequestTimeoutMS, maxConns: u.MaxConnections}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.clock++

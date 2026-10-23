@@ -1,6 +1,9 @@
 package connection
 
-import "time"
+import (
+	access "github.com/Asutorufa/yuhaiin/pkg/contract/access"
+	"time"
+)
 
 type Counter struct {
 	Download string `json:"download"`
@@ -43,44 +46,46 @@ type TelemetrySummary struct {
 }
 
 type Connection struct {
-	UserID        string              `json:"userId,omitempty"`
-	CredentialID  string              `json:"credentialId,omitempty"`
-	ID            string              `json:"id"`
-	Addr          string              `json:"addr"`
-	Network       NetworkType         `json:"network"`
-	Source        string              `json:"source"`
-	Inbound       string              `json:"inbound"`
-	InboundName   string              `json:"inboundName"`
-	InboundID     string              `json:"inboundId"`
-	Interface     string              `json:"interface"`
-	Outbound      string              `json:"outbound"`
-	LocalAddr     string              `json:"localAddr"`
-	Destination   string              `json:"destination"`
-	FakeIP        string              `json:"fakeIp"`
-	Hosts         string              `json:"hosts"`
-	Domain        string              `json:"domain"`
-	IP            string              `json:"ip"`
-	SelectorID    string              `json:"selectorId"`
-	SelectorName  string              `json:"selectorName"`
-	RuleID        string              `json:"ruleId"`
-	RuleName      string              `json:"ruleName"`
-	NodeID        string              `json:"nodeId"`
-	NodeName      string              `json:"nodeName"`
-	Protocol      string              `json:"protocol"`
-	Process       string              `json:"process"`
-	PID           string              `json:"pid"`
-	UID           string              `json:"uid"`
-	TLSServerName string              `json:"tlsServerName"`
-	HTTPHost      string              `json:"httpHost"`
-	Component     string              `json:"component"`
-	UDPMigrateID  string              `json:"udpMigrateId"`
-	Mode          string              `json:"mode"`
-	MatchHistory  []MatchHistoryEntry `json:"matchHistory,omitzero"`
-	Resolver      string              `json:"resolver"`
-	Geo           string              `json:"geo"`
-	OutboundGeo   string              `json:"outboundGeo"`
-	ListNames     map[string]string   `json:"listNames,omitempty"`
-	Lists         []string            `json:"lists,omitzero"`
+	AccessDecision *access.Decision    `json:"accessDecision,omitempty"`
+	UserID         string              `json:"userId,omitempty"`
+	CredentialID   string              `json:"credentialId,omitempty"`
+	GroupIDs       []string            `json:"groupIds,omitempty"`
+	ID             string              `json:"id"`
+	Addr           string              `json:"addr"`
+	Network        NetworkType         `json:"network"`
+	Source         string              `json:"source"`
+	Inbound        string              `json:"inbound"`
+	InboundName    string              `json:"inboundName"`
+	InboundID      string              `json:"inboundId"`
+	Interface      string              `json:"interface"`
+	Outbound       string              `json:"outbound"`
+	LocalAddr      string              `json:"localAddr"`
+	Destination    string              `json:"destination"`
+	FakeIP         string              `json:"fakeIp"`
+	Hosts          string              `json:"hosts"`
+	Domain         string              `json:"domain"`
+	IP             string              `json:"ip"`
+	SelectorID     string              `json:"selectorId"`
+	SelectorName   string              `json:"selectorName"`
+	RuleID         string              `json:"ruleId"`
+	RuleName       string              `json:"ruleName"`
+	NodeID         string              `json:"nodeId"`
+	NodeName       string              `json:"nodeName"`
+	Protocol       string              `json:"protocol"`
+	Process        string              `json:"process"`
+	PID            string              `json:"pid"`
+	UID            string              `json:"uid"`
+	TLSServerName  string              `json:"tlsServerName"`
+	HTTPHost       string              `json:"httpHost"`
+	Component      string              `json:"component"`
+	UDPMigrateID   string              `json:"udpMigrateId"`
+	Mode           string              `json:"mode"`
+	MatchHistory   []MatchHistoryEntry `json:"matchHistory,omitzero"`
+	Resolver       string              `json:"resolver"`
+	Geo            string              `json:"geo"`
+	OutboundGeo    string              `json:"outboundGeo"`
+	ListNames      map[string]string   `json:"listNames,omitempty"`
+	Lists          []string            `json:"lists,omitzero"`
 }
 
 type NetworkType struct {

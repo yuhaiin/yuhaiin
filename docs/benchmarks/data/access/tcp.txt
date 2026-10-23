@@ -1,0 +1,15 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/accesscontrol
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkAccessTCPForwarding/Absent-12         	   66932	     10964 ns/op	2988.60 MB/s	       0 B/op	       0 allocs/op
+BenchmarkAccessTCPForwarding/Absent-12         	   79305	     10683 ns/op	3067.33 MB/s	       0 B/op	       0 allocs/op
+BenchmarkAccessTCPForwarding/Absent-12         	   78055	     10502 ns/op	3120.20 MB/s	       0 B/op	       0 allocs/op
+BenchmarkAccessTCPForwarding/Disabled-12       	   76693	     10616 ns/op	3086.78 MB/s	       0 B/op	       0 allocs/op
+BenchmarkAccessTCPForwarding/Disabled-12       	   78902	     10605 ns/op	3089.80 MB/s	       0 B/op	       0 allocs/op
+BenchmarkAccessTCPForwarding/Disabled-12       	   76939	     10643 ns/op	3078.83 MB/s	       0 B/op	       0 allocs/op
+BenchmarkAccessTCPForwarding/Protected-12      	   80720	     10461 ns/op	3132.50 MB/s	       0 B/op	       0 allocs/op
+BenchmarkAccessTCPForwarding/Protected-12      	   81556	     10513 ns/op	3116.80 MB/s	       0 B/op	       0 allocs/op
+BenchmarkAccessTCPForwarding/Protected-12      	   76768	     10952 ns/op	2992.07 MB/s	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/accesscontrol	7.425s
