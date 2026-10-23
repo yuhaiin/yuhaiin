@@ -329,6 +329,12 @@ github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZ
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
 github.com/yuhaiin/tailscale-lite v0.0.0-20261023094738-98b4de014876 h1:frzAzGlCd3fxsdnqW1FwxI+T0Y0pBTKx4sWj4l1Agoo=
 github.com/yuhaiin/tailscale-lite v0.0.0-20261023094738-98b4de014876/go.mod h1:HpSejSURp+Mg2gJvMnIdVf/E9PouAdv/UOs822409TI=
+github.com/yuhaiin/tailscale-lite v0.0.0-20261023181344-c5dd33e56074 h1:7r0n8NJbDA25O0cpZfu+Bm9AXqKhhzqIjaCJEpW8MhA=
+github.com/yuhaiin/tailscale-lite v0.0.0-20261023181344-c5dd33e56074/go.mod h1:dM0PGoZcSdBN+roIeLbMG2LJtKG/IVfIleQZwhbz5f0=
+github.com/yuhaiin/tailscale-lite v0.0.0-20261023182011-ed28655ba537 h1:H4NcIxGrhohDX0OtT6/rnm7Ak/z5Po0tFAiJQay8Sdw=
+github.com/yuhaiin/tailscale-lite v0.0.0-20261023182011-ed28655ba537/go.mod h1:dM0PGoZcSdBN+roIeLbMG2LJtKG/IVfIleQZwhbz5f0=
+github.com/yuhaiin/tailscale-lite v0.0.0-20261023182258-1c3e5b145d62 h1:NXzUrSPPHBzzgMBzYe9tJSCYETx4O39tbxsV5OS8P1E=
+github.com/yuhaiin/tailscale-lite v0.0.0-20261023182258-1c3e5b145d62/go.mod h1:dM0PGoZcSdBN+roIeLbMG2LJtKG/IVfIleQZwhbz5f0=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMkIYChggoBVQLcNC/At/rW+lhIluk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261022032805-df51b667f746 h1:kWUWcIyli3BIwDjoIK6yqyQldAtMnH/+uyIkgMHnAMI=

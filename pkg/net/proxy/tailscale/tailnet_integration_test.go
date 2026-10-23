@@ -213,9 +213,15 @@ func TestLocalTailnet(t *testing.T) {
 				_, _ = io.Copy(c, c)
 			}
 		}()
+		start := time.Now()
 		c, err := nodes[0].Conn(ctx, peerName)
 		if err != nil {
 			t.Fatal(err)
+		}
+		elapsed := time.Since(start)
+		t.Logf("first peer TCP connection took %v", elapsed)
+		if elapsed > 2*time.Second {
+			t.Fatalf("first peer TCP connection took %v; want under 2s", elapsed)
 		}
 		defer c.Close()
 		_ = c.SetDeadline(time.Now().Add(8 * time.Second))

@@ -214,6 +214,9 @@ func (t *Tailscale) ready(ctx context.Context) (*lite.Client, error) {
 	if err := client.WaitReady(ctx); err != nil {
 		return nil, err
 	}
+	if err := client.WaitTransportReady(ctx); err != nil {
+		return nil, err
+	}
 	if t.ctx.Err() != nil {
 		return nil, net.ErrClosed
 	}
