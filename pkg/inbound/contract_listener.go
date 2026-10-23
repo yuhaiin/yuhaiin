@@ -17,6 +17,7 @@ import (
 	yhttp "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	yhttp2 "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2/v2"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/masque"
 	krunletserver "github.com/Asutorufa/yuhaiin/pkg/net/proxy/krunlet"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/mixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/mock"
@@ -70,6 +71,12 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 
 	if config.Protocol.Type == contract.ProtocolHysteria2 {
 		return listenHysteria2(config, handler, verifier)
+	}
+	if config.Protocol.Type == contract.ProtocolMasque {
+		if config.Authentication != nil {
+			return nil, errors.New("masque: use authToken; user-scoped authentication is not supported yet")
+		}
+		return listenMasque(config, handler)
 	}
 	if config.Protocol.Type == contract.ProtocolWireguard {
 		if config.Network.Type != contract.NetworkEmpty || len(config.Transports) != 0 {
@@ -455,4 +462,39 @@ func listenHysteria2(config contract.Inbound, handler netapi.Handler, verifiers 
 		closeIfNotNil(lis)
 	}
 	return server, err
+}
+
+// MASQUE owns the UDP socket and HTTP/3 stack. It must not be layered on the
+// app's native QUIC network or arbitrary HTTP/TCP transports.
+func listenMasque(config contract.Inbound, handler netapi.Handler) (netapi.Accepter, error) {
+	if config.Network.Type != contract.NetworkTCPUDP || config.Network.TCPUDP.UDP != contract.UDPUdpOnly {
+		return nil, errors.New("masque requires tcp_udp network with udp_only")
+	}
+	var tlsConfig *tls.Config
+	for _, transport := range config.Transports {
+		if transport.Type == contract.TransportNormal {
+			continue
+		}
+		if tlsConfig != nil {
+			return nil, errors.New("masque requires exactly one TLS transport")
+		}
+		if transport.Type != contract.TransportTLS || transport.TLS == nil || transport.TLS.TLS == nil {
+			return nil, errors.New("masque requires TLS transport with server certificate")
+		}
+		var err error
+		tlsConfig, err = ytls.ParseServerTLSConfig(serverTLSConfig(*transport.TLS.TLS))
+		if err != nil {
+			return nil, err
+		}
+	}
+	if tlsConfig == nil {
+		return nil, errors.New("masque requires TLS transport")
+	}
+	p := config.Protocol.Masque
+	return masque.NewServer(masque.ServerConfig{
+		Listen: config.Network.TCPUDP.Host,
+		Path: p.Path, AuthToken: p.AuthToken,
+		ServerAddresses: p.ServerAddresses, ClientAddresses: p.ClientAddresses,
+		MTU: p.MTU, MaxSessions: p.MaxSessions,
+	}, tlsConfig, handler)
 }
