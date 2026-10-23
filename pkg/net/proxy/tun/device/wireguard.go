@@ -151,5 +151,3 @@ func (t *wgDevice) Close() error {
 
 func (t *wgDevice) Tun() wun.Device { return t.Device }
 
-func ResetChecksum(ip header.Network, tp header.Transport, pseudoHeaderSum uint16) {
-	
