@@ -1,0 +1,9 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/accesscontrol
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkAccessIdleMemory1024-12    	       5	   1522953 ns/op	      1799 heap-B/session	 1977686 B/op	   11284 allocs/op
+BenchmarkAccessIdleMemory1024-12    	       5	   1509776 ns/op	      1794 heap-B/session	 1972100 B/op	   11277 allocs/op
+BenchmarkAccessIdleMemory1024-12    	       5	   1490165 ns/op	      1795 heap-B/session	 1973193 B/op	   11278 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/accesscontrol	0.028s

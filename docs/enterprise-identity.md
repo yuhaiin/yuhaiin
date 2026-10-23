@@ -3,8 +3,9 @@
 This is the first backend increment of the enterprise identity work. It adds
 traffic groups, identity conditions in the existing router, explicit inbound
 authentication modes and historical group IDs in connection audits. It does not
-provide the dedicated Traffic Access Policy authorization gate, user resource
-policies or the enterprise security management phase yet. Routing conditions
+by itself provide traffic authorization. The follow-up
+[Traffic Access Policy](traffic-access.md) adds the dedicated gate. User resource
+policies and enterprise security management are subsequent phases. Routing conditions
 alone must not be used as an enterprise authorization boundary.
 
 ## Ownership and migration

@@ -1,0 +1,15 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/nat
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkNATCachedSend/IP-12 	10856029	        55.08 ns/op	21785.14 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNATCachedSend/IP-12 	10870590	        55.22 ns/op	21730.15 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNATCachedSend/IP-12 	10878007	        55.48 ns/op	21630.80 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNATCachedSend/MappedIP-12         	10839819	        55.32 ns/op	21690.57 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNATCachedSend/MappedIP-12         	10832118	        55.21 ns/op	21734.71 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNATCachedSend/MappedIP-12         	10894196	        55.06 ns/op	21792.75 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNATCachedSend/RemoteDomain-12     	12230743	        49.12 ns/op	24430.99 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNATCachedSend/RemoteDomain-12     	12228146	        49.02 ns/op	24478.08 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNATCachedSend/RemoteDomain-12     	12241059	        48.98 ns/op	24499.28 MB/s	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/nat	5.408s

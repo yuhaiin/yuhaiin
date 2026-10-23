@@ -48,6 +48,7 @@ func (s *snapshot) close() {
 // Manager serializes management changes, stages all listeners/policies, commits
 // SQLite, then publishes one immutable snapshot. No fallible work follows commit.
 type Manager struct {
+	access              netapi.TrafficAccess
 	mu                  sync.Mutex
 	store               ConfigStore
 	statisticsStore     StatisticsStore
@@ -70,6 +71,10 @@ type Manager struct {
 }
 
 type Option func(*Manager)
+
+func WithTrafficAccess(access netapi.TrafficAccess) Option {
+	return func(m *Manager) { m.access = access }
+}
 
 func WithDestinationRecovery(f func(context.Context, netapi.Address) netapi.Address) Option {
 	return func(m *Manager) { m.recoverDestination = f }
@@ -250,6 +255,7 @@ func (m *Manager) prepare(config contract.Config) (*snapshot, error) {
 		}
 		entry := &gatewayRuntime{engine: engine}
 		engine.localAudit = m.localAudit
+		engine.access = m.access
 		restored, shouldRestore := m.restoredStatistics[g.ID]
 		if previous := m.current.Load(); previous != nil {
 			if old := previous.gateways[g.ID]; old != nil {

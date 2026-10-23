@@ -129,20 +129,28 @@ type Reference struct {
 }
 
 type RuleExpr struct {
-	Type       string        `json:"type"`
-	Always     *MatchAllExpr `json:"always,omitzero"`
-	All        []RuleExpr    `json:"all,omitzero"`
-	Any        []RuleExpr    `json:"any,omitzero"`
-	Not        *RuleExpr     `json:"not,omitzero"`
-	Host       *ListRef      `json:"host,omitzero"`
-	Process    *ListRef      `json:"process,omitzero"`
-	Inbound    *SourceRef    `json:"inbound,omitzero"`
-	Network    *NetworkExpr  `json:"network,omitzero"`
-	Port       *PortExpr     `json:"port,omitzero"`
-	GeoIP      *GeoIPExpr    `json:"geoip,omitzero"`
-	User       *IdentityExpr `json:"user,omitzero"`
-	Group      *IdentityExpr `json:"group,omitzero"`
-	Credential *IdentityExpr `json:"credential,omitzero"`
+	Type        string           `json:"type"`
+	Always      *MatchAllExpr    `json:"always,omitzero"`
+	All         []RuleExpr       `json:"all,omitzero"`
+	Any         []RuleExpr       `json:"any,omitzero"`
+	Not         *RuleExpr        `json:"not,omitzero"`
+	Host        *ListRef         `json:"host,omitzero"`
+	Process     *ListRef         `json:"process,omitzero"`
+	Inbound     *SourceRef       `json:"inbound,omitzero"`
+	Network     *NetworkExpr     `json:"network,omitzero"`
+	Port        *PortExpr        `json:"port,omitzero"`
+	GeoIP       *GeoIPExpr       `json:"geoip,omitzero"`
+	User        *IdentityExpr    `json:"user,omitzero"`
+	Group       *IdentityExpr    `json:"group,omitzero"`
+	Credential  *IdentityExpr    `json:"credential,omitzero"`
+	Destination *DestinationExpr `json:"destination,omitzero"`
+}
+
+// Domains and CIDRs within a destination leaf are ORed. Use separate leaves
+// within All to require both an original domain and a resolved address range.
+type DestinationExpr struct {
+	Domains []string `json:"domains"`
+	CIDRs   []string `json:"cidrs"`
 }
 
 // IDs are immutable traffic identity identifiers; values within a condition

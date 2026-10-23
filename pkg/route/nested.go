@@ -118,7 +118,9 @@ func (s *Port) Match(ctx context.Context, addr netapi.Address) bool {
 	store := netapi.GetContext(ctx)
 	port := uint16(addr.Port())
 	ok := s.set.Has(port)
-	recordMatch(store, fmt.Sprintf("Port %d", port), ok)
+	if store.RecordingMatchHistory() {
+		recordMatch(store, fmt.Sprintf("Port %d", port), ok)
+	}
 	return ok
 }
 
@@ -442,6 +444,10 @@ func parseConditionWithUnavailable(expr contractroute.RuleExpr, unavailable map[
 
 func parseConditionWithDegraded(expr contractroute.RuleExpr, unavailable, incomplete map[string]bool) Matcher {
 	switch expr.Type {
+	case "destination":
+		if expr.Destination != nil {
+			return newDestinationMatcher(*expr.Destination)
+		}
 	case "user", "group", "credential":
 		value := expr.User
 		if expr.Type == "group" {

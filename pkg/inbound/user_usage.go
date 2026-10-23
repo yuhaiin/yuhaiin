@@ -21,16 +21,19 @@ func stringerAddress(address net.Addr) string {
 	return address.String()
 }
 
-func (l *Inbound) localDNSUsage(identity *proxyauth.Identity, source string, target netapi.Address, inboundID, inboundName, protocol string) *statistics.LocalUsage {
+func (l *Inbound) localDNSUsage(ctx context.Context, identity *proxyauth.Identity, source string, target netapi.Address, inboundID, inboundName, protocol string) *statistics.LocalUsage {
 	if l.usage == nil {
 		return nil
 	}
-	info := connection.Connection{Source: source, Addr: target.String(), InboundID: inboundID, InboundName: inboundName, NodeID: "@local-dns", NodeName: "Local DNS", Mode: "dns", Network: connection.NetworkType{ConnType: protocol}}
+	info := connection.Connection{AccessDecision: netapi.TrafficAccessDecision(ctx), Source: source, Addr: target.String(), InboundID: inboundID, InboundName: inboundName, NodeID: "@local-dns", NodeName: "Local DNS", Mode: "dns", Network: connection.NetworkType{ConnType: protocol}}
 	var lifetime context.Context
 	if identity != nil {
 		info.UserID, info.CredentialID = identity.UserID, identity.CredentialID
 		info.GroupIDs = identity.GroupIDs
 		lifetime = identity.Context
+	}
+	if authorization := netapi.TrafficAuthorizationContext(ctx); authorization != nil {
+		lifetime = authorization
 	}
 	return l.usage.Local(info, lifetime)
 }

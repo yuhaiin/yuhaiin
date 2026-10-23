@@ -18,6 +18,7 @@ import (
 // streaming and future registrations. No protected handler can bypass this gate
 // by registering outside the v2 RPC adapter.
 type Server struct {
+	Access       *AccessPolicies
 	OAuth        *OAuthService
 	Proxy        *ProxyCredentials
 	Usage        httpapi.UserUsage
@@ -198,6 +199,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	}
 	s.registerProxyCredentials(register)
 	s.registerGroups(register)
+	s.registerTrafficAccess(register)
 	s.registerUsage(register)
 	s.registerSessions(register)
 	s.registerSessionRestore(register)

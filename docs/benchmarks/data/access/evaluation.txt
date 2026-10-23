@@ -1,0 +1,21 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/accesscontrol
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkAccessPolicyEvaluation-12    	 4187926	       143.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessPolicyEvaluation-12    	 4134160	       143.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessPolicyEvaluation-12    	 4201264	       143.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessCachedDatagram-12      	 7182182	        83.62 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessCachedDatagram-12      	 7174629	        83.28 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessCachedDatagram-12      	 7196696	        83.48 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessAdmission-12           	 1000000	       564.8 ns/op	     480 B/op	       6 allocs/op
+BenchmarkAccessAdmission-12           	 1000000	       565.7 ns/op	     480 B/op	       6 allocs/op
+BenchmarkAccessAdmission-12           	 1000000	       559.8 ns/op	     480 B/op	       6 allocs/op
+BenchmarkAccessUpdate1024-12          	    4898	    124451 ns/op	   11397 B/op	      25 allocs/op
+BenchmarkAccessUpdate1024-12          	    4874	    123835 ns/op	   11403 B/op	      25 allocs/op
+BenchmarkAccessUpdate1024-12          	    4928	    123392 ns/op	   11387 B/op	      25 allocs/op
+BenchmarkAccessLargePolicy1024-12     	   10000	     53717 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessLargePolicy1024-12     	   10000	     53517 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessLargePolicy1024-12     	   10000	     54502 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/accesscontrol	8.749s

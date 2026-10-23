@@ -38,8 +38,15 @@ func TestGatewayLocalActionsAuditAuthorityWithoutURLOrPayload(t *testing.T) {
 
 func TestAuthenticatedGatewayPoolSeparatesTrafficAttribution(t *testing.T) {
 	engine, proxy := testEngine(t, nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "ok") }))
+	// Production authentication returns one immutable identity until reload.
+	identities := map[string]*proxyauth.Identity{}
 	request := func(user, credential, inbound string, port int) {
-		ctx := netapi.WithContext(netapi.WithTrafficIdentity(context.Background(), &proxyauth.Identity{UserID: user, CredentialID: credential, Context: t.Context()}))
+		identity := identities[credential]
+		if identity == nil {
+			identity = &proxyauth.Identity{UserID: user, CredentialID: credential, Context: t.Context()}
+			identities[credential] = identity
+		}
+		ctx := netapi.WithContext(netapi.WithTrafficIdentity(context.Background(), identity))
 		ctx.Source = &net.TCPAddr{IP: net.IPv4(192, 0, 2, 1), Port: port}
 		ctx.SetInboundID(inbound)
 		req := httptest.NewRequest("GET", "http://example.com/", nil).WithContext(WithMetadata(ctx, Metadata{Context: ctx}))

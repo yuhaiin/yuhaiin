@@ -87,6 +87,7 @@ func run(args []string) error {
 		Auth:                auth,
 		HTTPMiddleware:      identities.Middleware,
 		ProxyAuthentication: identities.Proxy,
+		TrafficAccess:       identities.Access.Controller,
 		UpstreamCredentials: identities.Upstream,
 		StateStore:          setting,
 		ProcessDumper:       getPorcessDumper(),

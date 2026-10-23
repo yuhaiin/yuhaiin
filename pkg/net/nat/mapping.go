@@ -88,6 +88,11 @@ func (u *SourceControl) writeOwned(ctx context.Context, pkt *netapi.Packet, conn
 	}
 
 	store := netapi.GetContext(ctx)
+	// A later destination on an existing source still needs trusted ingress
+	// metadata. Destination authorization is independent of SkipRoute.
+	store.Source = pkt.Src()
+	store.SetInboundID(pkt.InboundID())
+	store.SetInboundName(pkt.InboundName())
 	store.ConnOptions().SetSkipRoute(true)
 	dst, err := u.dialer.Dispatch(store, pkt.Dst())
 	if err != nil {
@@ -106,6 +111,19 @@ func (u *SourceControl) writeOwned(ctx context.Context, pkt *netapi.Packet, conn
 }
 
 func (u *SourceControl) writeRoutedPacket(pkt *netapi.Packet, data []byte, dst net.Addr, conn net.PacketConn) error {
+	var original netapi.Address
+	if pkt != nil {
+		original = pkt.Dst()
+	}
+	return u.writeAuthorizedPacket(pkt, data, dst, original, conn)
+}
+
+func (u *SourceControl) writeAuthorizedPacket(pkt *netapi.Packet, data []byte, dst net.Addr, original netapi.Address, conn net.PacketConn) error {
+	if u.access != nil {
+		if err := u.access.Authorize(original, dst); err != nil {
+			return err
+		}
+	}
 	if u.trafficControl != nil {
 		inboundID := ""
 		if pkt != nil {
@@ -146,7 +164,7 @@ func (u *SourceControl) WriteTo(b []byte, real net.Addr, original netapi.Address
 		}
 		u.retainDestinationLease(original.Comparable())
 	}
-	return u.writeRoutedPacket(nil, b, real, conn)
+	return u.writeAuthorizedPacket(nil, b, real, original, conn)
 }
 
 func sendPacket(b []byte, real net.Addr, conn net.PacketConn) error {

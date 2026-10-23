@@ -180,6 +180,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	list := AddCloser(closers, "lists", route.NewLists(routeListStore, routeSettingsStore, so.ConfigPath))
 	// bypass dialer and dns request
 	router := AddCloser(closers, "router", route.NewRoute(nodeRuntime, dns, list, so.ProcessDumper))
+	router.SetTrafficAccess(so.TrafficAccess)
 	rules := AddCloser(closers, "rules", route.NewRules(routeRuleStore, routeSettingsStore, router))
 	// connections' statistic & flow data
 	stcs := AddCloser(closers, "statistic", statistics.NewSQLiteConnStore(
@@ -246,7 +247,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 				label = netapi.GetContext(ctx).ConnOptions().RouteMode()
 			}
 			return gateway.Selection{Label: label, Identity: gateway.ProxyIdentity(proxy), Proxy: selectedGatewayProxy{Proxy: proxy, connections: stcs, fakeDNS: fakedns}, Destination: destination}, nil
-		}, gateway.WithDestinationRecovery(fakedns.RecoverDestination), gateway.WithProcessLookup(router.PrepareGatewayContext), gateway.WithLocalAudit(localGatewayAudit))
+		}, gateway.WithDestinationRecovery(fakedns.RecoverDestination), gateway.WithProcessLookup(router.PrepareGatewayContext), gateway.WithLocalAudit(localGatewayAudit), gateway.WithTrafficAccess(so.TrafficAccess))
 		if err != nil {
 			_ = closers.Close()
 			return nil, fmt.Errorf("initialize gateway: %w", err)
@@ -260,7 +261,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		}, gatewayManager.InterceptGateway)
 		interceptionOptions = append(interceptionOptions, inbound.WithInterceptor(router))
 	}
-	interceptionOptions = append(interceptionOptions, inbound.WithAuthentication(so.ProxyAuthentication), inbound.WithUserUsage(usageRecorder), inbound.WithDNSAgent(dnsServer), inbound.WithFakeIPRangeSource(fakedns))
+	interceptionOptions = append(interceptionOptions, inbound.WithAuthentication(so.ProxyAuthentication), inbound.WithTrafficAccess(so.TrafficAccess), inbound.WithUserUsage(usageRecorder), inbound.WithDNSAgent(dnsServer), inbound.WithFakeIPRangeSource(fakedns))
 	if inboundConfigStore != nil {
 		interceptionOptions = append(interceptionOptions, inbound.WithIngressStatisticsStore(inboundConfigStore))
 	}

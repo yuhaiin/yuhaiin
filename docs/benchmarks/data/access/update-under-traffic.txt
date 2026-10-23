@@ -1,0 +1,9 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/accesscontrol
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkAccessUpdateUnderTraffic1024-12    	    4034	    152652 ns/op	  37753201 concurrent-checks/s	   11426 B/op	      25 allocs/op
+BenchmarkAccessUpdateUnderTraffic1024-12    	    3936	    159174 ns/op	  37483406 concurrent-checks/s	   11412 B/op	      25 allocs/op
+BenchmarkAccessUpdateUnderTraffic1024-12    	    4080	    157175 ns/op	  37684130 concurrent-checks/s	   11417 B/op	      25 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/accesscontrol	1.894s

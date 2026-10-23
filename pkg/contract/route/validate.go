@@ -2,8 +2,11 @@ package route
 
 import (
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
+
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 // ValidateConditions defines the condition language independently of its
@@ -27,7 +30,7 @@ func validateExpr(expr RuleExpr, depth int, remaining *int) error {
 		return fmt.Errorf("condition expression is too large")
 	}
 	fields := 0
-	for _, present := range []bool{expr.Always != nil, expr.All != nil, expr.Any != nil, expr.Not != nil, expr.Host != nil, expr.Process != nil, expr.Inbound != nil, expr.Network != nil, expr.Port != nil, expr.GeoIP != nil, expr.User != nil, expr.Group != nil, expr.Credential != nil} {
+	for _, present := range []bool{expr.Always != nil, expr.All != nil, expr.Any != nil, expr.Not != nil, expr.Host != nil, expr.Process != nil, expr.Inbound != nil, expr.Network != nil, expr.Port != nil, expr.GeoIP != nil, expr.User != nil, expr.Group != nil, expr.Credential != nil, expr.Destination != nil} {
 		if present {
 			fields++
 		}
@@ -42,6 +45,26 @@ func validateExpr(expr RuleExpr, depth int, remaining *int) error {
 		return fmt.Errorf("condition must have exactly one value matching its type")
 	}
 	switch expr.Type {
+	case "destination":
+		if expr.Destination == nil || len(expr.Destination.Domains)+len(expr.Destination.CIDRs) == 0 || len(expr.Destination.Domains)+len(expr.Destination.CIDRs) > 1024 {
+			return fmt.Errorf("choose between 1 and 1024 destinations")
+		}
+		for _, domain := range expr.Destination.Domains {
+			value := strings.TrimPrefix(strings.TrimSuffix(domain, "."), "*.")
+			if !system.IsDomainName(value) || len(value) > 253 || strings.ContainsAny(value, "* /\\") {
+				return fmt.Errorf("invalid destination domain")
+			}
+			for _, c := range value {
+				if c > 127 {
+					return fmt.Errorf("use ASCII or punycode destination domains")
+				}
+			}
+		}
+		for _, cidr := range expr.Destination.CIDRs {
+			if _, err := DestinationPrefix(cidr); err != nil {
+				return err
+			}
+		}
 	case "user", "group", "credential":
 		value := expr.User
 		if expr.Type == "group" {
@@ -130,6 +153,25 @@ func validateExpr(expr RuleExpr, depth int, remaining *int) error {
 		return fmt.Errorf("unknown condition type %q", expr.Type)
 	}
 	return nil
+}
+
+func DestinationPrefix(value string) (netip.Prefix, error) {
+	prefix, err := netip.ParsePrefix(value)
+	if err != nil {
+		address, err := netip.ParseAddr(value)
+		if err != nil || address.Zone() != "" {
+			return netip.Prefix{}, fmt.Errorf("invalid destination address or CIDR")
+		}
+		address = address.Unmap()
+		return netip.PrefixFrom(address, address.BitLen()), nil
+	}
+	if prefix.Addr().Is4In6() {
+		if prefix.Bits() < 96 {
+			return netip.Prefix{}, fmt.Errorf("IPv4-mapped CIDR must have at least 96 prefix bits")
+		}
+		prefix = netip.PrefixFrom(prefix.Addr().Unmap(), prefix.Bits()-96)
+	}
+	return prefix.Masked(), nil
 }
 
 // VisitListRefs visits references even inside negated or nested conditions.

@@ -415,7 +415,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		userID, credentialID = identity.UserID, identity.CredentialID
 		groupIDs = identity.GroupIDs
 	}
-	connection := contractconnection.Connection{UserID: userID, CredentialID: credentialID, GroupIDs: groupIDs,
+	connection := contractconnection.Connection{AccessDecision: netapi.TrafficAccessDecision(nc), UserID: userID, CredentialID: credentialID, GroupIDs: groupIDs,
 		ID:          formatUint64(id),
 		Addr:        getRealAddr(nc, addr),
 		Network:     contractconnection.NetworkType{ConnType: addr.Network()},

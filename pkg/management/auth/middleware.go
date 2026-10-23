@@ -19,6 +19,7 @@ import (
 // Only server executables opt in; native Android does not import this package.
 // Runtime shares one private identity store between management and traffic.
 type Runtime struct {
+	Access    *AccessPolicies
 	store     *Store
 	passwords *PasswordService
 	Proxy     *ProxyCredentials
@@ -72,10 +73,17 @@ func OpenRuntime(ctx context.Context, directory string) (_ *Runtime, err error) 
 	if err != nil {
 		return nil, err
 	}
-	return &Runtime{store: store, passwords: passwords, Proxy: proxy, Upstream: &UpstreamCredentials{store: store}, db: db}, nil
+	access, err := NewAccessPolicies(ctx, store)
+	if err != nil {
+		_ = proxy.Close()
+		return nil, err
+	}
+	return &Runtime{Access: access, store: store, passwords: passwords, Proxy: proxy, Upstream: &UpstreamCredentials{store: store}, db: db}, nil
 }
 
-func (r *Runtime) Close() error { return errors.Join(r.Proxy.Close(), r.db.Close()) }
+func (r *Runtime) Close() error {
+	return errors.Join(r.Access.Controller.Close(), r.Proxy.Close(), r.db.Close())
+}
 
 func (r *Runtime) Middleware(_ context.Context, mux *http.ServeMux, options httpapi.MiddlewareOptions) (http.Handler, io.Closer, error) {
 	permissions := make(map[string]Permission)
@@ -92,7 +100,7 @@ func (r *Runtime) Middleware(_ context.Context, mux *http.ServeMux, options http
 		"POST /api/v2/profiler/sessions":        Diagnostics,
 		"DELETE /api/v2/profiler/sessions/{id}": Diagnostics,
 	})
-	server := &Server{Store: r.store, Passwords: r.passwords, Proxy: r.Proxy, Upstream: r.Upstream, Usage: options.UserUsage, Permissions: permissions, AcceptOrigin: options.AcceptOrigin}
+	server := &Server{Access: r.Access, Store: r.store, Passwords: r.passwords, Proxy: r.Proxy, Upstream: r.Upstream, Usage: options.UserUsage, Permissions: permissions, AcceptOrigin: options.AcceptOrigin}
 	server.Register(mux)
 	return server.Wrap(mux), nil, nil
 }
