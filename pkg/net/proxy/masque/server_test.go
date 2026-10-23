@@ -2,12 +2,12 @@ package masque
 
 import (
 	"crypto/tls"
-
-	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 )
 
 func TestMasqueServerRequiresAuthentication(t *testing.T) {
@@ -26,6 +26,7 @@ func TestMasqueServerRequiresAuthentication(t *testing.T) {
 	for _, authorization := range []string{"", "Bearer wrong", "Basic c2VjcmV0"} {
 		req := httptest.NewRequest(http.MethodConnect, "https://example.test"+defaultServerPath, nil)
 		req.ProtoMajor = 3
+		req.URL.Path = defaultServerPath // net/http CONNECT test requests treat the authority as a path
 		req.Header.Set("Authorization", authorization)
 		w := httptest.NewRecorder()
 		s.serveHTTP(w, req)
