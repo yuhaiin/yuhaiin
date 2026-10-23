@@ -121,6 +121,7 @@ var (
 	defaultStringValue = map[string]string{
 		AdvRouteKey:             AdvRoutes[0],
 		AdvTunDriverKey:         TunDriverChannelValue,
+		AdvTunStackKey:          "lightweight",
 		AdvAppListKey:           string(disAllowAppList),
 		AdvBatteryProfileKey:    BatteryProfileBalanced,
 		AdvProcessLookupModeKey: ProcessLookupAlwaysValue,
