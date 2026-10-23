@@ -19,8 +19,8 @@ func TestStandardMasqueClientServerConnect(t *testing.T) {
 	cert.Close()
 
 	server, err := NewServer(ServerConfig{
-		Listen: "127.0.0.1:0",
-		AuthToken: "test-secret",
+		Listen:          "127.0.0.1:0",
+		AuthToken:       "test-secret",
 		ServerAddresses: []string{"10.88.0.1/32"},
 		ClientAddresses: []string{"10.88.0.2/32"},
 	}, serverTLS, discardMasqueHandler{})
@@ -39,11 +39,11 @@ func TestStandardMasqueClientServerConnect(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			proxy, err := NewClient(contractnode.Masque{
-				Endpoint: server.packet.LocalAddr().String(),
-				URL: "https://localhost" + defaultServerPath,
-				LocalAddresses: []string{"10.88.0.2/32"},
-				BearerToken: tc.token,
-				MTU: 1280,
+				Endpoint:           server.packet.LocalAddr().String(),
+				URL:                "https://localhost" + defaultServerPath,
+				LocalAddresses:     []string{"10.88.0.2/32"},
+				BearerToken:        tc.token,
+				MTU:                1280,
 				InsecureSkipVerify: true,
 			}, netapi.NewErrProxy(errors.New("unused bootstrap")))
 			if err != nil {
