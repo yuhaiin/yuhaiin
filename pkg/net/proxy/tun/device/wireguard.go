@@ -3,15 +3,12 @@ package device
 import (
 	"errors"
 	"io"
-	"math"
 	"os"
 	"sync"
 	"sync/atomic"
 	"syscall"
 
 	wun "github.com/tailscale/wireguard-go/tun"
-	"gvisor.dev/gvisor/pkg/tcpip/checksum"
-	"gvisor.dev/gvisor/pkg/tcpip/header"
 )
 
 type wgDevice struct {
@@ -155,39 +152,4 @@ func (t *wgDevice) Close() error {
 func (t *wgDevice) Tun() wun.Device { return t.Device }
 
 func ResetChecksum(ip header.Network, tp header.Transport, pseudoHeaderSum uint16) {
-	ResetIPChecksum(ip)
-	ResetTransportChecksum(ip, tp, pseudoHeaderSum)
-}
-
-func ResetIPChecksum(ip header.Network) {
-	if ip, ok := ip.(header.IPv4); ok {
-		ip.SetChecksum(0)
-		ip.SetChecksum(^ip.CalculateChecksum())
-	}
-}
-
-func ResetTransportChecksum(ip header.Network, tp header.Transport, pseudoHeaderSum uint16) {
-	tp.SetChecksum(0)
-	sum := checksum.Checksum(ip.Payload(), pseudoHeaderSum)
-
-	//https://datatracker.ietf.org/doc/html/rfc768
-	//
-	// If the computed  checksum  is zero,  it is transmitted  as all ones (the
-	// equivalent  in one's complement  arithmetic).   An all zero  transmitted
-	// checksum  value means that the transmitter  generated  no checksum  (for
-	// debugging or for higher level protocols that don't care).
-	//
-	// https://datatracker.ietf.org/doc/html/rfc8200
-	// Unlike IPv4, the default behavior when UDP packets are
-	//  originated by an IPv6 node is that the UDP checksum is not
-	//  optional.  That is, whenever originating a UDP packet, an IPv6
-	//  node must compute a UDP checksum over the packet and the
-	//  pseudo-header, and, if that computation yields a result of
-	//  zero, it must be changed to hex FFFF for placement in the UDP
-	//  header.  IPv6 receivers must discard UDP packets containing a
-	//  zero checksum and should log the error.
-	if ip.TransportProtocol() != header.UDPProtocolNumber || sum != math.MaxUint16 {
-		sum = ^sum
-	}
-	tp.SetChecksum(sum)
-}
+	
