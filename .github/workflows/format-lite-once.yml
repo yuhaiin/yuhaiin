@@ -1,4 +1,4 @@
-name: Temporary Go format and module sync
+name: Temporary Go format and module sync (round two)
 
 on:
   push:
