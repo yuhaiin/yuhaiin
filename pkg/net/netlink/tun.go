@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
 type Platform struct {
@@ -22,7 +21,6 @@ type Darwin struct {
 
 type Options struct {
 	RouteManager *RouteManager
-	Endpoint     stack.LinkEndpoint
 	Device       Tun
 	Platform     Platform
 	Interface    TunScheme
