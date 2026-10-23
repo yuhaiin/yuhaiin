@@ -235,7 +235,11 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 
 	mConn.h3conn = hconn
 
-	req, err := connectip.NewRequest(ctx, m.requestURL)
+	requestURL := m.requestURL
+	if requestURL == "" {
+		requestURL = ConnectURI + "/"
+	}
+	req, err := connectip.NewRequest(ctx, requestURL)
 	if err != nil {
 		_ = mConn.Close()
 		return nil, err
