@@ -284,7 +284,7 @@ func TestLocalTailnet(t *testing.T) {
 	})
 	// Verify DNS query transport compatibility through the actual adapter,
 	// not a test-only fake DNS Manager.
-	askDNS := func(t *testing.T, question string, qtype uint16) dns.Msg {
+	askDNS := func(t *testing.T, question string, qtype uint16) *dns.Msg {
 		t.Helper()
 		request := netapi.NewDNSMsg(netapi.DNSQuestion{
 			Name: question, Qtype: qtype, Qclass: dns.ClassINET,
@@ -317,7 +317,7 @@ func TestLocalTailnet(t *testing.T) {
 		if answer.ID != request.ID {
 			t.Fatalf("DNS ID changed %v -> %v", request.ID, answer.ID)
 		}
-		return answer
+		return &answer
 	}
 	t.Run("split-dns-via-underlay", func(t *testing.T) {
 		answer := askDNS(t, "lookup.corp.example.", dns.TypeA)
