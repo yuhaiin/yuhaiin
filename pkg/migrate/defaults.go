@@ -131,7 +131,8 @@ func seedDefaultSQLiteRows(ctx context.Context, tx *sql.Tx) error {
 		Network: contractinbound.NewTypedNetwork(contractinbound.EmptyNetwork{}),
 		Protocol: contractinbound.NewTypedProtocol(contractinbound.TunProtocol{
 			Name: "tun://" + tunName, MTU: 9000, SkipMulticast: true,
-			Driver:   "system_gvisor",
+			Driver:   "channel",
+			Stack:    "lightweight",
 			Portal:   defaults.TunV4UlaGenerate().String(),
 			PortalV6: defaults.TunV6UlaGenerate().String(),
 			Routes:   []string{ipv4, ipv6},
