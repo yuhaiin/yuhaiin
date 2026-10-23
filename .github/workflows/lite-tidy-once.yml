@@ -1,0 +1,26 @@
+name: One-shot lite dependency update
+on:
+  push:
+    branches: [refactor/tailscale-lite-lightweight-only]
+    paths: [.github/workflows/lite-tidy-once.yml]
+permissions:
+  contents: write
+jobs:
+  tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: lite-state-migration-tidy
+      - name: Synchronize module and format
+        run: |
+          set -euo pipefail
+          gofmt -w pkg/net/proxy/tailscale/tailscale.go
+          go mod tidy
+          git add go.mod go.sum pkg/net/proxy/tailscale/tailscale.go
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'build: sync tailscale-lite migration dependency'
+          git push origin HEAD:refactor/tailscale-lite-lightweight-only
