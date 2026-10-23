@@ -14,7 +14,7 @@ The independent `pkg/net/proxy/tun/lightweight` core owns IP packets, sockets,
 TCP state and bounded protocol memory. It depends only on the Go standard
 library. `lightweight/congestion` owns per-connection controllers. A separate
 TUN adapter translates the existing device and Handler contracts. Existing
-gVisor/tun2socket selection remains the default.
+gVisor and tun2socket have been removed; lightweight is the only TUN runtime.
 
 Implementation order:
 
@@ -278,12 +278,10 @@ The current inbound contract uses JSON, not a new protobuf schema. Opt in with:
 ```
 
 `device.TunConfig` uses `congestion_control` internally; the public contract uses
-`congestionControl`, matching its existing camel-case fields. Empty stack keeps
-the previous driver selection exactly; empty congestion control selects CUBIC
-only after lightweight is explicitly selected. Reno/BBR are selectable. Unknown
-stacks/algorithms, legacy-driver combinations and invalid MTUs return errors
-before opening a device. The adapter supports the channel/default device mode;
-fdbased and system_gvisor remain legacy implementations, not lightweight aliases.
+`congestionControl`. The only supported TUN runtime is the lightweight stack;
+empty or historical driver selections are normalized to channel. Empty congestion
+control selects CUBIC; Reno and BBR remain selectable. Unknown stacks or
+algorithms and invalid MTUs are rejected before opening a device.
 
 Linux negotiates IFF_VNET_HDR with checksum and TCPv4/v6 segmentation on newly
 created TUN devices, falling back to plain IP when unavailable. Supplied fds are
@@ -294,8 +292,8 @@ kernel TCP super-packets. Output groups only new contiguous views of the same
 owned allocation, bounded by wire MSS, cwnd, rwnd, pacing and work budget;
 retransmissions keep individual descriptors. macOS reserves four-byte utun
 headroom and borrows native input slabs. Windows retains its offset-aware wrapper.
-This path has one queue; multiqueue is not implemented. Existing gVisor/tun2socket
-openers and defaults are unchanged.
+This path has one queue; multiqueue is not implemented. The legacy gVisor and
+tun2socket openers are removed, and defaults now select lightweight.
 System address/route installation and PostUp/PostDown remain in the adapter;
 NewTun's existing routeAccepter owns route updates and cleanup before device
 closure.
