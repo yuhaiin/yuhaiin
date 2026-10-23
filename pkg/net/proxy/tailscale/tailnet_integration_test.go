@@ -57,6 +57,8 @@ func TestLocalTailnet(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dnsUpstream.Close()
+	var peerDNSAddress netip.Addr
+	peerDNSReady := make(chan struct{})
 	go func() {
 		buf := make([]byte, 4096)
 		for {
@@ -74,12 +76,28 @@ func TestLocalTailnet(t *testing.T) {
 			response.ID = q.ID
 			response.Response = true
 			response.RecursionAvailable = true
+			var answerIP netip.Addr
+			switch question.Name {
+			case "lookup.corp.example.":
+				answerIP = netip.MustParseAddr("192.0.2.31")
+			case "ordinary.example.":
+				answerIP = netip.MustParseAddr("192.0.2.41")
+			case "peer.corp.example.":
+				select {
+				case <-peerDNSReady:
+					answerIP = peerDNSAddress
+				default:
+					continue
+				}
+			default:
+				continue
+			}
+			if question.Qtype != dns.TypeA {
+				continue
+			}
 			response.Answer = append(response.Answer, &dns.A{
 				Hdr: dns.Header{Name: question.Name, Class: dns.ClassINET, TTL: 30},
-				Addr: map[string]netip.Addr{
-					"lookup.corp.example.": netip.MustParseAddr("192.0.2.31"),
-					"ordinary.example.":    netip.MustParseAddr("192.0.2.41"),
-				}[question.Name],
+				Addr: answerIP,
 			})
 			if !response.Answer[0].(*dns.A).Addr.IsValid() {
 				continue
@@ -150,6 +168,8 @@ func TestLocalTailnet(t *testing.T) {
 	if !target.IsValid() {
 		t.Fatal("peer missing IPv4 Tailnet address")
 	}
+	peerDNSAddress = target
+	close(peerDNSReady)
 	for {
 		if _, ok := clients[0].Route(target); ok {
 			break
@@ -307,6 +327,16 @@ func TestLocalTailnet(t *testing.T) {
 		answer := askDNS(t, "lookup.corp.example.", dns.TypeA)
 		if len(answer.Answer) != 1 || answer.Answer[0].(*dns.A).Addr.String() != "192.0.2.31" {
 			t.Fatalf("split DNS not routed by control policy: %+v", &answer)
+		}
+	})
+	t.Run("split-dns-connect-to-tailnet-peer", func(t *testing.T) {
+		name, err := netapi.ParseAddress("tcp", "peer.corp.example:12345")
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := resolveAddr(ctx, clients[0], "tcp", name)
+		if err != nil || got.Addr() != target {
+			t.Fatalf("Split DNS peer resolved to %s, error=%v", got, err)
 		}
 	})
 	t.Run("default-dns-via-underlay", func(t *testing.T) {
