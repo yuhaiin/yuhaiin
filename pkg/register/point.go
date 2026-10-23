@@ -214,6 +214,8 @@ func ContractProtocolConfig(protocol contractnode.Protocol) (any, error) {
 		return *protocol.NetworkSplit, nil
 	case "cloudflare_warp_masque":
 		return *protocol.CloudflareWarpMasque, nil
+	case "masque":
+		return *protocol.Masque, nil
 	case "proxy":
 		return *protocol.Proxy, nil
 	case "fixedv2":
