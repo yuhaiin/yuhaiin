@@ -61,6 +61,25 @@ tags="$(go run ./cmd/buildtags/...)"
 go list -deps -tags="$tags" ./cmd/yuhaiin ./cmd/android | grep -E '^(gvisor.dev/gvisor|tailscale.com/tsnet)' && exit 1
 ```
 
-A dedicated CI job repeats this runtime dependency check and executes the local
-Control/DERP and lightweight TCP/UDP test. Test-only gVisor reference code can
-remain for independent benchmarking, but it must not appear in shipping binaries.
+A dedicated CI job repeats this runtime dependency check under the shipping
+build tags, then separately runs the full local Control/DERP integration without
+the release-only Tailnet Lock omission tag (the test-control package itself
+requires the TKA test APIs). This avoids linking TKA into production binaries
+just to compile integration tests.
+
+The two-node integration currently verifies encrypted lightweight TCP/UDP,
+MagicDNS A and (if the simulated control allocates IPv6) AAAA, PTR,
+control-provided ExtraRecords (A and AAAA), Split DNS and default upstream
+forwarding, DNS over TCP, split-DNS name resolution to a Tailnet peer, live
+ExtraRecord updates without restarting, prevention of authoritative MagicDNS
+leaks, per-node Underlay use, denial of out-of-Tailnet DNS-assisted routes, and
+revocation of route/DNS authorization when the control plane expires a node.
+
+**Still require real Tailnet/Headscale acceptance:** the simulated test-control
+server allocates only IPv4 node addresses, so IPv6 *peer* DNS and TCP/UDP
+reachability are not yet validated (the AAAA ExtraRecord test is separate).
+DNS forwarding to an actual Tailnet-hosted nameserver, DoH upstream variants,
+full search-suffix semantics, and OS-specific DNS behavior still need targeted
+tests. These checks do not establish complete compatibility with every Tailscale
+DNS configuration. Test-only gVisor references may remain for benchmarks, but
+must not appear in shipping binaries.
