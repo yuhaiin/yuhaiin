@@ -261,8 +261,20 @@ func resolveAddr(ctx context.Context, client *lite.Client, network string, addr 
 	if addr.IsFqdn() {
 		var owned bool
 		ips, owned = client.LookupIP(addr.Hostname())
-		if !owned || len(ips) == 0 {
-			return netip.AddrPort{}, fmt.Errorf("tailscale: no authorized MagicDNS record for %s", addr.Hostname())
+		if owned && len(ips) == 0 {
+			// A name within an authoritative MagicDNS zone must never
+			// escape to a default resolver if it is absent.
+			return netip.AddrPort{}, fmt.Errorf("tailscale: no MagicDNS record for %s", addr.Hostname())
+		}
+		if !owned {
+			// The legacy tsnet UserDialPlan used the control-supplied DNS
+			// configuration for Split DNS and ExtraRecords as well as the
+			// MagicDNS table. Preserve that behavior without host fallback.
+			var err error
+			ips, err = resolveLiteDNSName(ctx, client, addr.Hostname())
+			if err != nil {
+				return netip.AddrPort{}, fmt.Errorf("tailscale DNS: %w", err)
+			}
 		}
 	} else {
 		ips = []netip.Addr{addr.(netapi.IPAddress).AddrPort().Addr()}
