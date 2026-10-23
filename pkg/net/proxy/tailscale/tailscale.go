@@ -7,8 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
-	"encoding/binary"
 	"net"
 	"net/http"
 	"net/netip"
