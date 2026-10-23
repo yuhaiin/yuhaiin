@@ -244,7 +244,7 @@ func (m *Masque) connectOnce(ctx context.Context) (*Conn, error) {
 		return nil, err
 	}
 	var ipClient *connectip.ClientConn
-	if m.cloudflare {
+	if !m.generic {
 		// Preserve Cloudflare WARP's legacy protocol and draft datagrams.
 		req.Header()["User-Agent"] = []string{""}
 		ipClient = connectip.NewCloudflareClientConn(hconn, quicConn)
