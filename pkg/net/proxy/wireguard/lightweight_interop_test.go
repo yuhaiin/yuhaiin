@@ -29,7 +29,7 @@ type loopbackTransport struct{ net.PacketConn }
 
 func (loopbackTransport) Close() error { return nil }
 
-// The reference peer uses the previous gVisor netstack and the default UDP bind.
+// The reference peer uses the lightweight userspace IP stack and the default UDP bind.
 // Traffic passes through two real WireGuard engines over loopback encryption.
 func TestLightweightWireGuardInterop(t *testing.T) {
 	clientKey, err := ecdh.X25519().GenerateKey(rand.Reader)
@@ -40,7 +40,7 @@ func TestLightweightWireGuardInterop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	peerNet, err := createReferenceNetTUN([]netip.Prefix{netip.MustParsePrefix("192.0.2.2/32"), netip.MustParsePrefix("2001:db8::2/128")}, 1400)
+	peerNet, err := CreateLightweightNetTUN([]netip.Prefix{netip.MustParsePrefix("192.0.2.2/32"), netip.MustParsePrefix("2001:db8::2/128")}, 1400)
 	if err != nil {
 		t.Fatal(err)
 	}
