@@ -28,7 +28,7 @@ func (h inboundReferenceHandler) HandlePacket(p *netapi.Packet) {
 	h.inboundBenchmarkHandler.HandlePacket(p)
 }
 
-// Use a gVisor reference client, independently of the inbound lightweight
+// Use a lightweight reference client, independently of the inbound lightweight
 // stack, with a real encrypted UDP transport and preshared keys.
 func TestWireGuardInboundReferencePeers(t *testing.T) {
 	server, first := inboundTestConfigs(t)
@@ -57,7 +57,7 @@ func TestWireGuardInboundReferencePeers(t *testing.T) {
 				prefixes = append(prefixes, netip.MustParsePrefix(address))
 			}
 			prefixes = append(prefixes, netip.MustParsePrefix("10.66.0.99/32"))
-			client, err := createReferenceNetTUN(prefixes, 1420)
+			client, err := CreateLightweightNetTUN(prefixes, 1420)
 			if err != nil {
 				t.Fatal(err)
 			}
