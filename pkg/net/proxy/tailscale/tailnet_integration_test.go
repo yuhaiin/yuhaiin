@@ -215,7 +215,7 @@ func TestLocalTailnet(t *testing.T) {
 			t.Fatal(err)
 		}
 		if answer.Rcode != dns.RcodeSuccess || len(answer.Answer) != 1 {
-			t.Fatalf("DNS response %+v", answer)
+			t.Fatalf("DNS response %+v", &answer)
 		}
 	})
 	t.Run("forbid-system-fallback", func(t *testing.T) {
