@@ -204,6 +204,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	s.registerResources(register)
 	s.registerUsage(register)
 	s.registerSessions(register)
+	s.registerRoles(register)
 	s.registerSessionRestore(register)
 	s.registerOAuth(mux, register)
 	register("GET /api/v2/auth/me", IdentityRead, func(w http.ResponseWriter, r *http.Request) {
@@ -322,7 +323,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 			authError(w, http.StatusForbidden)
 			return
 		}
-		out, err := s.Store.ResetEnrollment(r.Context(), p.UserID, p.UserID)
+		out, err := s.Store.StartPasswordChange(r.Context(), p)
 		if s.Proxy != nil {
 			if reloadErr := s.Proxy.Reload(); err == nil {
 				err = reloadErr

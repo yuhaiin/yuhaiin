@@ -18,6 +18,8 @@ const (
 	InboundsWrite             = permission.InboundsWrite
 	TrafficAccessRead         = permission.TrafficAccessRead
 	TrafficAccessWrite        = permission.TrafficAccessWrite
+	RolesRead                 = permission.RolesRead
+	RolesWrite                = permission.RolesWrite
 	ResourceRead              = permission.ResourceRead
 	ResourceWrite             = permission.ResourceWrite
 	RoutesRead                = permission.RoutesRead
@@ -55,8 +57,7 @@ const (
 var allPermissions = permission.Values()
 
 // RolePermissions returns a copy; callers cannot mutate the role registry.
-// Configuration reads can contain upstream secrets. Read-only users therefore
-// remain trusted operators, even though they cannot change configuration.
+// Custom roles extend these protected built-ins through the private store.
 func RolePermissions(role string) []Permission {
 	if role == Admin {
 		return slices.Clone(allPermissions)
@@ -66,7 +67,7 @@ func RolePermissions(role string) []Permission {
 	}
 	if role == ReadOnly {
 		return []Permission{NodesRead, InboundsRead, RoutesRead, ResolverRead,
-			ConnectionsRead, GatewayRead, TrafficAccessRead, ResourceRead, SettingsRead, MetricsRead, IdentityRead, TokensOwn, ProxyCredentialsOwn, UsageOwn, UsageRead}
+			ConnectionsRead, GatewayRead, TrafficAccessRead, ResourceRead, RolesRead, SettingsRead, MetricsRead, IdentityRead, TokensOwn, ProxyCredentialsOwn, UsageOwn, UsageRead}
 	}
 	return nil
 }

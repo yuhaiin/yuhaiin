@@ -121,6 +121,10 @@ func (s *Store) CreateUser(ctx context.Context, actor, login, role string, boots
 		return User{}, IssuedCredential{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := authorizeUserMutation(ctx, tx, "", role); err != nil {
+		return User{}, IssuedCredential{}, err
+	}
+
 	if bootstrap {
 		var count int
 		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM management_users`).Scan(&count); err != nil {
@@ -161,6 +165,10 @@ func (s *Store) UpdateUser(ctx context.Context, actor, id, login, role string, d
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := authorizeUserMutation(ctx, tx, id, role); err != nil {
+		return err
+	}
+
 	// Increment on disable so re-enabling cannot resurrect credentials.
 	var before struct {
 		Login    string `json:"login"`
@@ -202,6 +210,10 @@ func (s *Store) DeleteUser(ctx context.Context, actor, id string) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := authorizeUserMutation(ctx, tx, id, ""); err != nil {
+		return err
+	}
+
 	result, err := tx.ExecContext(ctx, `DELETE FROM management_users WHERE id=?`, id)
 	if err != nil {
 		return ErrConflict
@@ -223,6 +235,20 @@ func (s *Store) ResetEnrollment(ctx context.Context, actor, id string) (IssuedCr
 		return IssuedCredential{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := authorizeUserMutation(ctx, tx, id, ""); err != nil {
+		return IssuedCredential{}, err
+	}
+
+	if _, authenticated := FromContext(ctx); authenticated {
+		var last int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM management_users WHERE id=? AND role='admin' AND disabled=0 AND credential IS NOT NULL AND NOT EXISTS(SELECT 1 FROM management_users WHERE id!=? AND role='admin' AND disabled=0 AND credential IS NOT NULL)`, id, id).Scan(&last); err != nil {
+			return IssuedCredential{}, err
+		}
+		if last != 0 {
+			return IssuedCredential{}, ErrConflict
+		}
+	}
+
 	result, err := tx.ExecContext(ctx, `UPDATE management_users SET credential=NULL, server_salt=NULL, client_salt=?, generation=generation+1, updated_at=? WHERE id=?`, clientSalt(), time.Now().Unix(), id)
 	if err != nil {
 		return IssuedCredential{}, err
@@ -288,6 +314,11 @@ func (s *Store) IssueToken(ctx context.Context, actor Principal, owner string, s
 		return IssuedCredential{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	actor, err = freshRoleActor(ctx, tx, actor)
+	if err != nil {
+		return IssuedCredential{}, err
+	}
+
 	u, err := scanUser(tx.QueryRowContext(ctx, `SELECT `+userColumns+` FROM management_users WHERE id=?`, owner))
 	if err != nil || u.Disabled || !u.Enrolled {
 		return IssuedCredential{}, ErrInvalid
@@ -295,7 +326,10 @@ func (s *Store) IssueToken(ctx context.Context, actor Principal, owner string, s
 	if owner != actor.UserID && !actor.Allows(TokensManage) {
 		return IssuedCredential{}, ErrForbidden
 	}
-	allowed := RolePermissions(u.Role)
+	allowed, err := effectivePermissions(ctx, tx, owner, u.Role)
+	if err != nil {
+		return IssuedCredential{}, err
+	}
 	if len(scopes) == 0 {
 		scopes = allowed
 	}
@@ -321,18 +355,29 @@ func (s *Store) Authenticate(ctx context.Context, secret, kind string) (Principa
 	if len(secret) != 46 || !strings.HasPrefix(secret, "yu_") {
 		return Principal{}, ErrUnauthorized
 	}
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return Principal{}, ErrUnauthorized
+	}
+	defer func() { _ = tx.Rollback() }()
 	verifier := sha256.Sum256([]byte(secret))
 	var p Principal
 	var role, encoded string
 	var lastSeen int64
-	err := s.db.QueryRowContext(ctx, `SELECT u.id,u.role,c.scopes,c.id,c.last_seen FROM management_credentials c JOIN management_users u ON u.id=c.user_id
+	err = tx.QueryRowContext(ctx, `SELECT u.id,u.role,c.scopes,c.id,c.last_seen FROM management_credentials c JOIN management_users u ON u.id=c.user_id
 		WHERE c.verifier=? AND c.kind=? AND c.revoked=0 AND u.disabled=0 AND u.credential IS NOT NULL
 		AND c.generation=u.generation AND (c.expires_at=0 OR c.expires_at>?)`, verifier[:], kind, time.Now().Unix()).Scan(&p.UserID, &role, &encoded, &p.CredentialID, &lastSeen)
 	if err != nil {
 		return Principal{}, ErrUnauthorized
 	}
 	p.CredentialType = kind
-	allowed := RolePermissions(role)
+	allowed, err := effectivePermissions(ctx, tx, p.UserID, role)
+	if err != nil {
+		return Principal{}, ErrUnauthorized
+	}
+	if err := tx.Commit(); err != nil {
+		return Principal{}, ErrUnauthorized
+	}
 	if kind == "session" {
 		if now := time.Now().Unix(); lastSeen < now-60 {
 			_, _ = s.db.ExecContext(ctx, `UPDATE management_credentials SET last_seen=? WHERE id=? AND last_seen<?`, now, p.CredentialID, now-60)
@@ -410,6 +455,11 @@ func (s *Store) RotateToken(ctx context.Context, actor Principal, id string) (Is
 		return IssuedCredential{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	actor, err = freshRoleActor(ctx, tx, actor)
+	if err != nil {
+		return IssuedCredential{}, err
+	}
+
 	var owner, role, encoded string
 	var expiry int64
 	err = tx.QueryRowContext(ctx, `SELECT c.user_id,u.role,c.scopes,c.expires_at FROM management_credentials c JOIN management_users u ON u.id=c.user_id
@@ -424,8 +474,12 @@ func (s *Store) RotateToken(ctx context.Context, actor Principal, id string) (Is
 	if json.Unmarshal([]byte(encoded), &scopes) != nil {
 		return IssuedCredential{}, ErrInvalid
 	}
+	allowed, err := effectivePermissions(ctx, tx, owner, role)
+	if err != nil {
+		return IssuedCredential{}, err
+	}
 	for _, scope := range scopes {
-		if !actor.Allows(scope) || !slices.Contains(RolePermissions(role), scope) {
+		if !actor.Allows(scope) || !slices.Contains(allowed, scope) {
 			return IssuedCredential{}, ErrForbidden
 		}
 	}

@@ -14,6 +14,8 @@ const (
 	InboundsWrite             Permission = "inbounds:write"
 	TrafficAccessRead         Permission = "traffic-access:read"
 	TrafficAccessWrite        Permission = "traffic-access:write"
+	RolesRead                 Permission = "roles:read"
+	RolesWrite                Permission = "roles:write"
 	ResourceRead              Permission = "resources:read"
 	ResourceWrite             Permission = "resources:write"
 	RoutesRead                Permission = "routes:read"
@@ -50,6 +52,8 @@ type Definition struct {
 }
 
 var catalog = [...]Definition{
+	{RolesRead, "security", "Inspect custom management roles and effective permissions."},
+	{RolesWrite, "security", "Manage permission-bounded custom roles and assignments."},
 	{ResourceRead, "security", "Inspect identity resource policies and effective limits."},
 	{ResourceWrite, "security", "Validate and activate identity resource policies."},
 	{TrafficAccessRead, "security", "Inspect traffic access policies and preview effective authorization."},

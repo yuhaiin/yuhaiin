@@ -195,7 +195,7 @@ func (p *PasswordService) enrollment(ctx context.Context, secret string) (string
 	var id string
 	var generation int64
 	var salt []byte
-	err := p.store.db.QueryRowContext(ctx, `SELECT u.id,u.generation,u.client_salt FROM management_credentials c JOIN management_users u ON u.id=c.user_id
+	err := p.store.db.QueryRowContext(ctx, `SELECT u.id,u.generation,COALESCE(c.enrollment_salt,u.client_salt) FROM management_credentials c JOIN management_users u ON u.id=c.user_id
  WHERE c.verifier=? AND c.kind='enrollment' AND c.revoked=0 AND c.expires_at>? AND u.disabled=0 AND c.generation=u.generation`, verifier[:], time.Now().Unix()).Scan(&id, &generation, &salt)
 	if err != nil {
 		return "", 0, nil, ErrUnauthorized
@@ -212,7 +212,7 @@ func (p *PasswordService) EnrollmentParameters(ctx context.Context, secret strin
 }
 
 func (p *PasswordService) Enroll(ctx context.Context, secret, credential string) error {
-	id, generation, _, err := p.enrollment(ctx, secret)
+	id, generation, newClientSalt, err := p.enrollment(ctx, secret)
 	if err != nil {
 		return err
 	}
@@ -234,12 +234,15 @@ func (p *PasswordService) Enroll(ctx context.Context, secret, credential string)
 	if n, _ := result.RowsAffected(); n != 1 {
 		return ErrUnauthorized
 	}
-	result, err = tx.ExecContext(ctx, `UPDATE management_users SET credential=?,server_salt=?,updated_at=? WHERE id=? AND generation=? AND disabled=0`, verifier, salt, time.Now().Unix(), id, generation)
+	result, err = tx.ExecContext(ctx, `UPDATE management_users SET credential=?,server_salt=?,client_salt=?,generation=generation+1,updated_at=? WHERE id=? AND generation=? AND disabled=0`, verifier, salt, newClientSalt, time.Now().Unix(), id, generation)
 	if err != nil {
 		return err
 	}
 	if n, _ := result.RowsAffected(); n != 1 {
 		return ErrUnauthorized
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE management_credentials SET revoked=1 WHERE user_id=?`, id); err != nil {
+		return err
 	}
 	if err := recordEvent(ctx, tx, "user.enrolled", id, id); err != nil {
 		return err
