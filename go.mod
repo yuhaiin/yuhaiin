@@ -12,6 +12,8 @@ require (
 	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260828
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
 	github.com/coder/websocket v1.8.15
+	github.com/coreos/go-oidc/v3 v3.21.0
+	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/nftables v0.3.0
 	github.com/google/pprof v0.0.0-20261016150608-1facf8f91b50

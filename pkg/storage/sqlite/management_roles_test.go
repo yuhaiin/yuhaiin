@@ -40,7 +40,7 @@ func TestCustomRoleMigrationInterruptedAndRestarted(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !schemaObjectExists(t, db.DB(), "management_roles") || queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != 9 {
+		if !schemaObjectExists(t, db.DB(), "management_roles") || queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != int64(managementOIDCMigration.Version) {
 			t.Fatal("role schema missing or repeated")
 		}
 		if err := db.Close(); err != nil {
