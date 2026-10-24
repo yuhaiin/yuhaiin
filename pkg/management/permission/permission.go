@@ -8,6 +8,9 @@ import "slices"
 type Permission string
 
 const (
+	ConfigurationRead         Permission = "configuration:read"
+	ConfigurationWrite        Permission = "configuration:write"
+	ConfigurationRollback     Permission = "configuration:rollback"
 	NodesRead                 Permission = "nodes:read"
 	NodesWrite                Permission = "nodes:write"
 	InboundsRead              Permission = "inbounds:read"
@@ -57,6 +60,9 @@ type Definition struct {
 }
 
 var catalog = [...]Definition{
+	{ConfigurationRead, "security", "Inspect permission-filtered configuration stages, diffs and history."},
+	{ConfigurationWrite, "security", "Stage, validate and commit configuration changes within resource permissions."},
+	{ConfigurationRollback, "security", "Prepare configuration rollback within current resource permissions."},
 	{SecurityExport, "security", "Export structured management security audit pages."},
 	{SecurityWrite, "security", "Change management trust boundaries, identity providers and security audit settings."},
 	{SecretsRead, "security", "Explicitly retrieve reusable configuration secrets, backups and raw diagnostic data."},

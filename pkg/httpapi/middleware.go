@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	"io"
 	"net/http"
 	"net/netip"
@@ -16,9 +17,10 @@ import (
 type Middleware func(context.Context, *http.ServeMux, MiddlewareOptions) (http.Handler, io.Closer, error)
 
 type MiddlewareOptions struct {
-	DataDirectory string
-	AcceptOrigin  func(string, *http.Request) bool
-	UserUsage     UserUsage
+	ConfigurationChanges configchange.Backend
+	DataDirectory        string
+	AcceptOrigin         func(string, *http.Request) bool
+	UserUsage            UserUsage
 }
 
 // UserUsage is optional; identity middleware owns user-scoped authorization.

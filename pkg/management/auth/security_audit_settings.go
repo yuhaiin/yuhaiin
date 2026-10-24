@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	"net/url"
 	"strings"
 	"time"
@@ -57,7 +58,7 @@ func (s *Store) SaveAuditSettings(ctx context.Context, actor Principal, request 
 	if len(request.Token) > 4096 || strings.ContainsAny(request.Token, "\r\n") {
 		return AuditSettings{}, ErrInvalid
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "audit-settings")
 	if err != nil {
 		return AuditSettings{}, err
 	}
@@ -111,14 +112,24 @@ func (s *Store) SaveAuditSettings(ctx context.Context, actor Principal, request 
 		return AuditSettings{}, err
 	}
 	publicAfter := publicAuditSettings(auditConfiguration{AuditSettings: after})
-	ctx, err = roleAuditContext(ctx, publicAuditSettings(before), publicAfter)
+	afterMetadata := struct {
+		AuditSettings
+		EndpointChanged bool `json:"endpointChanged"`
+		TokenChanged    bool `json:"tokenChanged"`
+	}{AuditSettings: publicAfter, EndpointChanged: before.Endpoint != after.Endpoint, TokenChanged: before.token != token}
+	ctx, err = roleAuditContext(ctx, publicAuditSettings(before), afterMetadata)
 	if err != nil {
 		return AuditSettings{}, err
 	}
 	if err := recordEvent(ctx, tx, "security.audit_settings_updated", actor.UserID, "management-audit"); err != nil {
 		return AuditSettings{}, err
 	}
-	if err := tx.Commit(); err != nil {
+	privateBefore := AuditSettingsRequest{AuditSettings: before.AuditSettings, Token: before.token}
+	privateAfter := AuditSettingsRequest{AuditSettings: after, Token: token}
+	if err := configchange.RecordValues(ctx, s.db, tx, "audit-settings", "management-audit", after.Revision, privateBefore, privateAfter, publicAuditSettings(before), afterMetadata); err != nil {
+		return AuditSettings{}, err
+	}
+	if err := configchange.Commit(ctx, tx); err != nil {
 		return AuditSettings{}, err
 	}
 	if forwarder := s.auditForwarder.Load(); forwarder != nil {

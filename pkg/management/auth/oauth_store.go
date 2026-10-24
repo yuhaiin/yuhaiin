@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	"net/url"
 	"strings"
 	"time"
@@ -60,6 +61,7 @@ func readOAuthProvider(ctx context.Context, q interface {
 	var enabled bool
 	err := q.QueryRowContext(ctx, `SELECT client_id,client_secret,redirect_url,issuer,name,enabled,revision FROM management_oauth_providers WHERE provider=?`, provider).Scan(&out.ClientID, &out.ClientSecret, &out.RedirectURL, &out.Issuer, &out.Name, &enabled, &out.Revision)
 	out.Enabled = new(enabled)
+	out.SecretConfigured = out.ClientSecret != ""
 	return out, err
 }
 
@@ -99,7 +101,7 @@ func (s *Store) SaveOAuthProvider(ctx context.Context, actor string, p OAuthProv
 		return ErrInvalid
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "oidc-provider")
 	if err != nil {
 		return err
 	}
@@ -141,14 +143,28 @@ func (s *Store) SaveOAuthProvider(ctx context.Context, actor string, p OAuthProv
 			return ErrForbidden
 		}
 	}
-	p.Revision = previous.Revision + 1
+	var lastRevision uint64
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE((SELECT revision FROM management_oauth_revisions WHERE provider=?),0)`, p.Provider).Scan(&lastRevision); err != nil {
+		return err
+	}
+	if lastRevision >= (1<<53)-1 {
+		return ErrConflict
+	}
+	p.Revision = max(previous.Revision, lastRevision) + 1
+	if _, err := tx.ExecContext(ctx, `INSERT INTO management_oauth_revisions(provider,revision) VALUES(?,?) ON CONFLICT(provider) DO UPDATE SET revision=excluded.revision`, p.Provider, p.Revision); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO management_oauth_providers(provider,client_id,client_secret,redirect_url,issuer,name,enabled,revision) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(provider) DO UPDATE SET client_id=excluded.client_id,client_secret=excluded.client_secret,redirect_url=excluded.redirect_url,issuer=excluded.issuer,name=excluded.name,enabled=excluded.enabled,revision=excluded.revision`, p.Provider, p.ClientID, p.ClientSecret, p.RedirectURL, p.Issuer, p.Name, p.enabled(), p.Revision); err != nil {
 		return ErrConflict
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE management_credentials SET revoked=1 WHERE kind='session' AND auth_method=?`, p.Provider); err != nil {
 		return err
 	}
-	ctx, err = roleAuditContext(ctx, publicOAuthProvider(previous), publicOAuthProvider(p))
+	publicAfter := struct {
+		OAuthProvider
+		ClientSecretChanged bool `json:"clientSecretChanged"`
+	}{OAuthProvider: publicOAuthProvider(p), ClientSecretChanged: p.ClientSecret != previous.ClientSecret}
+	ctx, err = roleAuditContext(ctx, publicOAuthProvider(previous), publicAfter)
 	if err != nil {
 		return err
 	}
@@ -156,11 +172,25 @@ func (s *Store) SaveOAuthProvider(ctx context.Context, actor string, p OAuthProv
 	if err := recordEvent(ctx, tx, "oauth.provider_updated", actor, p.Provider); err != nil {
 		return err
 	}
-	return tx.Commit()
+	var historyBefore *OAuthProvider
+	if exists {
+		historyBefore = &previous
+	}
+	historyAfter := p
+	historyAfter.ClearSecret = false
+	historyAfter.SecretConfigured = p.ClientSecret != ""
+	var publicBefore any
+	if exists {
+		publicBefore = publicOAuthProvider(previous)
+	}
+	if err := configchange.RecordValues(ctx, s.db, tx, "oidc-provider", p.Provider, p.Revision, historyBefore, historyAfter, publicBefore, publicAfter); err != nil {
+		return err
+	}
+	return configchange.Commit(ctx, tx)
 }
 
 func (s *Store) DeleteOAuthProvider(ctx context.Context, actor, provider string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "oidc-provider")
 	if err != nil {
 		return err
 	}
@@ -170,6 +200,10 @@ func (s *Store) DeleteOAuthProvider(ctx context.Context, actor, provider string)
 		if err != nil || current.UserID != actor || !current.Allows(SecurityWrite) {
 			return ErrForbidden
 		}
+	}
+	previous, err := readOAuthProvider(ctx, tx, provider)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE management_credentials SET revoked=1 WHERE kind='session' AND auth_method=?`, provider); err != nil {
 		return err
@@ -183,7 +217,10 @@ func (s *Store) DeleteOAuthProvider(ctx context.Context, actor, provider string)
 	if err := recordEvent(ctx, tx, "oauth.provider_disabled", actor, provider); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := configchange.RecordValues(ctx, s.db, tx, "oidc-provider", provider, previous.Revision+1, previous, nil, publicOAuthProvider(previous), nil); err != nil {
+		return err
+	}
+	return configchange.Commit(ctx, tx)
 }
 
 type OAuthLink struct {

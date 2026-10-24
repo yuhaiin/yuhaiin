@@ -2,6 +2,7 @@ package route
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
@@ -94,4 +95,25 @@ func (c ContractRuleController) BlockHistory(ctx context.Context) (contractroute
 		return contractroute.BlockHistoryList{}, errors.New("rule controller is unavailable")
 	}
 	return c.rules.BlockHistoryContract(ctx)
+}
+
+func (c ContractRuleController) CommitConfiguration(ctx context.Context, tx *sql.Tx, validate bool) error {
+	if c.rules == nil {
+		return errors.New("rule controller is unavailable")
+	}
+	return c.rules.CommitConfiguration(ctx, tx, validate)
+}
+
+func (c ContractRuleController) WithConfiguration(ctx context.Context, apply func(context.Context) error) error {
+	if c.rules == nil {
+		return errors.New("rule controller is unavailable")
+	}
+	return c.rules.WithConfiguration(ctx, apply)
+}
+
+func (c ContractRuleController) PrefetchConfiguration(ctx context.Context, urls []string) error {
+	if c.rules == nil {
+		return errors.New("rule controller is unavailable")
+	}
+	return c.rules.PrefetchConfiguration(ctx, urls)
 }

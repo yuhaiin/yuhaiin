@@ -7,6 +7,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -48,7 +50,7 @@ func TestProtectedRouteSourcesPreserveSecretsInsideWriteTransaction(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if redacted.Source.Remote.URLs[0] != list.Source.Remote.URLs[0] || redacted.Source.Remote.URLs[1] == list.Source.Remote.URLs[1] {
+	if len(redacted.Source.Remote.URLs) != 1 || !strings.HasPrefix(redacted.Source.Remote.URLs[0], "__yuhaiin_secret_preserved_v1__.") {
 		t.Fatal("URL sensitivity mismatch")
 	}
 	redacted.Name = "Renamed remote"
@@ -56,7 +58,7 @@ func TestProtectedRouteSourcesPreserveSecretsInsideWriteTransaction(t *testing.T
 		t.Fatal("metadata save failed", err)
 	}
 	saved, err := lists.GetRouteList(t.Context(), list.ID)
-	if err != nil || saved.Source.Remote.URLs[1] != list.Source.Remote.URLs[1] {
+	if err != nil || !slices.Equal(saved.Source.Remote.URLs, list.Source.Remote.URLs) {
 		t.Fatal("list edit lost URL", err)
 	}
 	settings := NewRouteSettingsStore(db.DB())
@@ -102,5 +104,18 @@ func TestTrustedOriginsRequireSeparateSecurityAuthority(t *testing.T) {
 	}
 	if _, err := store.Save(secret.WithCapabilities(t.Context(), secret.Capabilities{Security: true}), next); err != nil {
 		t.Fatal("security writer failed", err)
+	}
+}
+
+func TestRemoteListPreviewIsPrivate(t *testing.T) {
+	for _, source := range []string{"remote", "local"} {
+		value := contractroute.ListItem{ID: "list", Source: source, Preview: "https://example.test/path-only-capability"}
+		masked, err := secret.Redact(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (masked.Preview == value.Preview) != (source == "local") {
+			t.Fatal("preview sensitivity mismatch", source)
+		}
 	}
 }

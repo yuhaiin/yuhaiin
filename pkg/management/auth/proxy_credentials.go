@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json/v2"
+	"errors"
 	"slices"
 	"strings"
 	"sync"
@@ -61,6 +62,8 @@ type ProxyCredentials struct {
 	records          map[string]*proxyRecord
 	proofs           map[[32]byte]*proxyRecord
 	memberships      map[string][]string
+	appliedGroups    map[string]uint64
+	nextGroups       map[string]uint64
 	ctx              context.Context
 	cancel           context.CancelFunc
 	done             chan struct{}
@@ -112,6 +115,7 @@ func (p *ProxyCredentials) clear() {
 	clear(p.records)
 	clear(p.proofs)
 	clear(p.memberships)
+	clear(p.appliedGroups)
 }
 
 func (p *ProxyCredentials) Reload() error {
@@ -151,9 +155,11 @@ func (p *ProxyCredentials) Reload() error {
 			}
 		}
 		p.records, p.proofs = safe, safeProofs
+		clear(p.appliedGroups)
 		return err
 	}
 	p.records, p.proofs = next, proofs
+	p.appliedGroups = p.nextGroups
 	return nil
 }
 
@@ -168,6 +174,7 @@ func (p *ProxyCredentials) prepareReloadLocked() (map[string]*proxyRecord, map[[
 		clear(p.records)
 		clear(p.proofs)
 		clear(p.memberships)
+		clear(p.appliedGroups)
 		return nil, nil, err
 	}
 	proofs := make(map[[32]byte]*proxyRecord, len(next)*2)
@@ -245,6 +252,24 @@ func (p *ProxyCredentials) load() (map[string]*proxyRecord, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	groupRows, err := tx.QueryContext(p.ctx, `SELECT id,revision FROM traffic_groups`)
+	if err != nil {
+		return nil, err
+	}
+	groups := make(map[string]uint64)
+	for groupRows.Next() {
+		var id string
+		var revision uint64
+		if err = groupRows.Scan(&id, &revision); err != nil {
+			_ = groupRows.Close()
+			return nil, err
+		}
+		groups[id] = revision
+	}
+	if err = errors.Join(groupRows.Err(), groupRows.Close()); err != nil {
+		return nil, err
+	}
+	p.nextGroups = groups
 	p.memberships = memberships
 	return out, nil
 }
@@ -502,3 +527,11 @@ func (p *ProxyCredentials) Rotate(ctx context.Context, actor Principal, id strin
 }
 
 var _ proxyauth.Provider = (*ProxyCredentials)(nil)
+
+// GroupRevision reports a fully published identity generation, including group
+// tombstones. A failed reload reports no applied revision rather than success.
+func (p *ProxyCredentials) GroupRevision(id string) uint64 {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.appliedGroups[id]
+}

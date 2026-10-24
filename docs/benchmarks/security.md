@@ -82,3 +82,34 @@ measurements are in [resources.md](resources.md). They measure the documented
 fixtures (including in-memory quota accounting where specified), not physical
 links or disk-backed SIEM delivery. Secret configuration reflection/copy costs
 remain reported separately above.
+
+
+## Configuration journal and workflow (2026-10-25)
+
+Go 1.27.3, Linux amd64, Ryzen 5 5600G, one SQLite connection, FULL sync,
+10,000 seeded security events, sequential idle runs, three 1-second samples.
+This uses the same group owner mutator/schema for every row; `owner-only`
+omits the optional workflow actor/journal. It is not an older binary or a
+forwarding throughput comparison. Group members are empty; proxy membership
+reload and listener/network work are excluded.
+
+| Group edit path | Median time | Bytes/op | Allocations/op |
+| --- | ---: | ---: | ---: |
+| Owner mutator, audit, no workflow journal | 334.631 us | 9,381 | 213 |
+| Managed direct edit, fresh authority and history | 602.772 us | 16,939 | 331 |
+| Stage + explicit validation + commit | 1.855 ms | 71,149 | 1,397 |
+
+Managed direct writes add about 268 us (80%) in this control-plane fixture,
+including the additional current-authority query, canonical rollback documents,
+diffs, history insertion and bounded retention in the same transaction. The
+full staged workflow includes repeated owner validations and rollback-only
+transactions plus durable draft creation. These paths do not run per packet,
+stream read/write, or ordinary proxy authentication. Storage sync latency and
+larger policy documents can dominate deployed performance. Forwarding and
+large-user fixtures remain documented in [resources.md](resources.md).
+
+Raw samples: [configuration-changes-linux-amd64.txt](data/security/configuration-changes-linux-amd64.txt).
+
+```sh
+go test ./pkg/management/auth -run '^$' -bench '^BenchmarkConfigurationGroupChange$' -benchtime=1s -count=3 -benchmem
+```

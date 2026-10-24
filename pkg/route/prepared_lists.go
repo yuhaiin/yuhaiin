@@ -82,9 +82,11 @@ func (s *Lists) prepareSnapshot(ctx context.Context, snapshot plainstore.RouteSn
 	prepared.geoURL = settings.MaxMindDBDownloadURL
 	prepared.geoRefreshed = settings.LastRefreshTime
 	if prepared.geoURL != "" {
-		if err := s.downloader.DownloadIfNotExists(ctx, prepared.geoURL, nil); err != nil {
-			prepared.close()
-			return nil, err
+		if complete, _ := ctx.Value(completeCandidateKey{}).(bool); !complete {
+			if err := s.downloader.DownloadIfNotExists(ctx, prepared.geoURL, nil); err != nil {
+				prepared.close()
+				return nil, err
+			}
 		}
 		geo, err := maxminddb.NewMaxMindDB(s.downloader.GetPath(prepared.geoURL))
 		if err != nil {
@@ -155,7 +157,10 @@ func (s *Lists) prepareRuleData(ctx context.Context, rules []contractroute.Route
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			fetchErr := s.downloader.DownloadIfNotExists(ctx, url, nil)
+			var fetchErr error
+			if complete, _ := ctx.Value(completeCandidateKey{}).(bool); !complete {
+				fetchErr = s.downloader.DownloadIfNotExists(ctx, url, nil)
+			}
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}

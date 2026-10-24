@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json/v2"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	"slices"
 	"strconv"
 	"strings"
@@ -123,7 +124,7 @@ func (s *Store) SaveRole(ctx context.Context, actor Principal, role Role) (Role,
 	if role.Permissions == nil {
 		role.Permissions = []Permission{}
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "role")
 	if err != nil {
 		return Role{}, err
 	}
@@ -151,7 +152,7 @@ func (s *Store) SaveRole(ctx context.Context, actor Principal, role Role) (Role,
 		if count >= 128 {
 			return Role{}, ErrConflict
 		}
-		role.ID = uuid.New().String()
+		role.ID = configchange.NewResourceID(ctx, uuid.New().String())
 	} else {
 		prior, err := loadRole(ctx, tx, role.ID)
 		if err != nil {
@@ -180,7 +181,10 @@ func (s *Store) SaveRole(ctx context.Context, actor Principal, role Role) (Role,
 	if err := recordEvent(ctx, tx, "role.updated", actor.UserID, role.ID); err != nil {
 		return Role{}, err
 	}
-	return role, tx.Commit()
+	if err := configchange.RecordValues(ctx, s.db, tx, "role", role.ID, role.Revision, before, role, before, role); err != nil {
+		return Role{}, err
+	}
+	return role, configchange.Commit(ctx, tx)
 }
 
 func loadRole(ctx context.Context, tx *sql.Tx, id string) (Role, error) {
@@ -220,7 +224,7 @@ func (s *Store) DeleteRole(ctx context.Context, actor Principal, id string, revi
 	if id == Admin || id == ReadOnly || id == NoManagement {
 		return ErrForbidden
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "role")
 	if err != nil {
 		return err
 	}
@@ -253,7 +257,10 @@ func (s *Store) DeleteRole(ctx context.Context, actor Principal, id string, revi
 	if err := recordEvent(ctx, tx, "role.deleted", actor.UserID, id); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := configchange.RecordValues(ctx, s.db, tx, "role", id, role.Revision+1, role, nil, role, nil); err != nil {
+		return err
+	}
+	return configchange.Commit(ctx, tx)
 }
 
 func roleAssignment(ctx context.Context, tx *sql.Tx, owner string) (RoleAssignment, error) {
@@ -313,7 +320,7 @@ func (s *Store) AssignRoles(ctx context.Context, actor Principal, owner string, 
 	if len(slices.Compact(slices.Clone(ids))) != len(ids) {
 		return RoleAssignment{}, ErrInvalid
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "role-assignment")
 	if err != nil {
 		return RoleAssignment{}, err
 	}
@@ -374,5 +381,8 @@ func (s *Store) AssignRoles(ctx context.Context, actor Principal, owner string, 
 	if err := recordEvent(ctx, tx, "role.assigned", actor.UserID, owner); err != nil {
 		return RoleAssignment{}, err
 	}
-	return after, tx.Commit()
+	if err := configchange.RecordValues(ctx, s.db, tx, "role-assignment", owner, after.Revision, before, after, before, after); err != nil {
+		return RoleAssignment{}, err
+	}
+	return after, configchange.Commit(ctx, tx)
 }

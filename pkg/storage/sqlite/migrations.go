@@ -624,4 +624,5 @@ var migrations = []Migration{
 		END`,
 	}},
 	userUsageMigration,
+	configurationChangesMigration,
 }

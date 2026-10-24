@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json/v2"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	"slices"
 	"strconv"
 	"strings"
@@ -81,7 +82,7 @@ func (s *Store) SaveGroup(ctx context.Context, actor Principal, id string, reque
 		return Group{}, ErrForbidden
 	}
 	request.Name = strings.TrimSpace(request.Name)
-	if request.Name == "" || len(request.Name) > 128 || len(request.Description) > 2048 || len(request.Members) > 1024 {
+	if request.Name == "" || len(request.Name) > 128 || len(request.Description) > 2048 || len(request.Members) > 1024 || request.Revision >= (1<<53)-1 {
 		return Group{}, ErrInvalid
 	}
 	members := slices.Clone(request.Members)
@@ -92,7 +93,7 @@ func (s *Store) SaveGroup(ctx context.Context, actor Principal, id string, reque
 	if len(slices.Compact(slices.Clone(members))) != len(members) {
 		return Group{}, ErrInvalid
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "group")
 	if err != nil {
 		return Group{}, err
 	}
@@ -120,7 +121,7 @@ func (s *Store) SaveGroup(ctx context.Context, actor Principal, id string, reque
 		if count >= 1024 {
 			return Group{}, ErrConflict
 		}
-		g.ID = uuid.New().String()
+		g.ID = configchange.NewResourceID(ctx, uuid.New().String())
 		if _, err := tx.ExecContext(ctx, `INSERT INTO traffic_groups(id,name,description,created_at,updated_at) VALUES(?,?,?,?,?)`, g.ID, g.Name, g.Description, now, now); err != nil {
 			return Group{}, ErrConflict
 		}
@@ -133,11 +134,20 @@ func (s *Store) SaveGroup(ctx context.Context, actor Principal, id string, reque
 			return Group{}, sql.ErrNoRows
 		}
 		before = &groups[0]
-		if before.Deleted || before.Revision != request.Revision {
+		if before.Deleted && !configchange.Restoring(ctx) || before.Revision != request.Revision {
 			return Group{}, ErrConflict
 		}
+		if before.Deleted {
+			var count int
+			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM traffic_groups WHERE deleted=0`).Scan(&count); err != nil {
+				return Group{}, err
+			}
+			if count >= 1024 {
+				return Group{}, ErrConflict
+			}
+		}
 		g.Revision, g.CreatedAt = before.Revision+1, before.CreatedAt
-		if _, err := tx.ExecContext(ctx, `UPDATE traffic_groups SET name=?,description=?,revision=?,updated_at=? WHERE id=?`, g.Name, g.Description, g.Revision, now, id); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE traffic_groups SET deleted=0,name=?,description=?,revision=?,updated_at=? WHERE id=?`, g.Name, g.Description, g.Revision, now, id); err != nil {
 			return Group{}, ErrConflict
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM traffic_group_members WHERE group_id=?`, id); err != nil {
@@ -164,7 +174,10 @@ func (s *Store) SaveGroup(ctx context.Context, actor Principal, id string, reque
 	if err := recordEvent(ctx, tx, event, actor.UserID, g.ID); err != nil {
 		return Group{}, err
 	}
-	return g, tx.Commit()
+	if err := configchange.RecordValues(ctx, s.db, tx, "group", g.ID, g.Revision, before, g, before, g); err != nil {
+		return Group{}, err
+	}
+	return g, configchange.Commit(ctx, tx)
 }
 
 func groupAuditContext(ctx context.Context, before, after *Group) (context.Context, error) {
@@ -186,7 +199,7 @@ func (s *Store) DeleteGroup(ctx context.Context, actor Principal, id string, rev
 	if !actor.Allows(UsersManage) {
 		return ErrForbidden
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "group")
 	if err != nil {
 		return err
 	}
@@ -198,7 +211,7 @@ func (s *Store) DeleteGroup(ctx context.Context, actor Principal, id string, rev
 	if id == "" || len(groups) != 1 || groups[0].Deleted {
 		return sql.ErrNoRows
 	}
-	if groups[0].Revision != revision {
+	if groups[0].Revision != revision || revision >= (1<<53)-1 {
 		return ErrConflict
 	}
 	// Retain a tombstone so existing rules and historical audits still refer
@@ -217,5 +230,13 @@ func (s *Store) DeleteGroup(ctx context.Context, actor Principal, id string, rev
 	if err := recordEvent(ctx, tx, "group.deleted", actor.UserID, id); err != nil {
 		return err
 	}
-	return tx.Commit()
+	after := groups[0]
+	after.Deleted = true
+	after.Members = []string{}
+	after.Revision++
+	after.UpdatedAt = time.Now().Unix()
+	if err := configchange.RecordValues(ctx, s.db, tx, "group", id, after.Revision, groups[0], after, groups[0], after); err != nil {
+		return err
+	}
+	return configchange.Commit(ctx, tx)
 }

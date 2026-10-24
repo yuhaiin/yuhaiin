@@ -3,6 +3,7 @@ package route
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -315,6 +316,9 @@ func (s *Matchers) UpdateSnapshot(ctx context.Context, snapshot plainstore.Route
 	var degraded []contractroute.DegradedRouteRule
 	for _, entry := range snapshot.Rules {
 		entries = s.appendPreparedRule(entries, entry.Rule, prepared.unavailable, prepared.incomplete, &skipped, &degraded)
+	}
+	if complete, _ := ctx.Value(completeCandidateKey{}).(bool); complete && (len(prepared.listIssues) > 0 || len(skipped) > 0 || len(degraded) > 0) {
+		return errors.New("candidate routing policy has unavailable or incomplete matching data")
 	}
 	return activate(ctx, snapshot.Revision, func() {
 		s.mu.Lock()

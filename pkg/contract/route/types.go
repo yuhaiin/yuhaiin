@@ -198,6 +198,11 @@ type ListItem struct {
 	Preview     string `json:"preview" secret:"url"`
 }
 
+// SecretField treats remote source previews as opaque capabilities, including path-only URLs.
+func (item ListItem) SecretField(name string) bool {
+	return name == "Preview" && item.Source == "remote"
+}
+
 type RouteListDetail struct {
 	Revision    uint64     `json:"revision"`
 	ID          string     `json:"id"`
@@ -219,7 +224,7 @@ type LocalSource struct {
 }
 
 type RemoteSource struct {
-	URLs []string `json:"urls,omitzero" secret:"urls"`
+	URLs []string `json:"urls,omitzero" secret:"true"`
 }
 
 type RouteList struct {

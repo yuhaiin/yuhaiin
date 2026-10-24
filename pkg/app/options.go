@@ -35,6 +35,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	routepkg "github.com/Asutorufa/yuhaiin/pkg/route"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
@@ -43,24 +44,25 @@ import (
 )
 
 type AppInstance struct {
-	Gateway       httpapi.GatewayController
-	Node          httpapi.NodeController
-	NodeRuntime   *node.NodeRuntime
-	Tools         httpapi.ToolsController
-	Diagnostics   httpapi.DiagnosticsController
-	Subscribe     httpapi.SubscriptionController
-	Connections   httpapi.ConnectionMonitor
-	UserUsage     httpapi.UserUsage
-	Resolver      httpapi.ResolverController
-	FakeIP        contractresolver.FakeIPEntries
-	ResolverCache httpapi.ResolverCacheController
-	ResolverCfg   httpapi.ResolverConfigController
-	Lists         httpapi.ListRuntimeController
-	Rules         httpapi.RouteRuntimeController
-	Backup        httpapi.BackupController
-	Setting       httpapi.SettingsController
-	Inbound       *inbound.Inbound
-	Mux           *http.ServeMux
+	Gateway              httpapi.GatewayController
+	Node                 httpapi.NodeController
+	NodeRuntime          *node.NodeRuntime
+	Tools                httpapi.ToolsController
+	Diagnostics          httpapi.DiagnosticsController
+	Subscribe            httpapi.SubscriptionController
+	Connections          httpapi.ConnectionMonitor
+	UserUsage            httpapi.UserUsage
+	ConfigurationChanges configchange.Backend
+	Resolver             httpapi.ResolverController
+	FakeIP               contractresolver.FakeIPEntries
+	ResolverCache        httpapi.ResolverCacheController
+	ResolverCfg          httpapi.ResolverConfigController
+	Lists                httpapi.ListRuntimeController
+	Rules                httpapi.RouteRuntimeController
+	Backup               httpapi.BackupController
+	Setting              httpapi.SettingsController
+	Inbound              *inbound.Inbound
+	Mux                  *http.ServeMux
 	*StartOptions
 	closers  *closers
 	profiler *profilerService
@@ -176,6 +178,9 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 			registryCatalogs = routepkg.NewRegistryCatalogService(routeRegistryStore)
 			routeRuleStore = plainstore.NewRouteRuleStore(db)
 			routeEditor = plainstore.NewRouteEditorStore(db)
+			if runtime, ok := app.Rules.(routepkg.ConfigurationRuntime); ok {
+				app.ConfigurationChanges = routepkg.NewConfigurationChanges(db, runtime)
+			}
 			selectors = plainstore.NewSelectorStore(db)
 			if app.NodeRuntime != nil {
 				subscribeController = node.NewSubscribe(app.NodeRuntime, subscriptionStore)

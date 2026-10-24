@@ -12,12 +12,14 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	permission "github.com/Asutorufa/yuhaiin/pkg/management/permission"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 )
 
 // Server wraps the application's actual ServeMux, including metrics, profiling,
 // streaming and future registrations. No protected handler can bypass this gate
 // by registering outside the v2 RPC adapter.
 type Server struct {
+	Changes      *ConfigurationChanges
 	Resources    *ResourcePolicies
 	Access       *AccessPolicies
 	OAuth        *OAuthService
@@ -128,6 +130,9 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 		if !ok {
 			return
 		}
+		if s.Changes != nil {
+			protected = s.Changes.actorContext(protected, p)
+		}
 		ctx, cancel := context.WithCancel(WithPrincipal(protected, p))
 		defer cancel()
 		// Streams and long-running diagnostics cannot retain permissions after
@@ -214,6 +219,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	s.registerRoles(register)
 	s.registerSessionRestore(register)
 	s.registerOAuth(mux, register)
+	if s.Changes == nil {
+		s.Changes = &ConfigurationChanges{server: s, identity: configchange.New(s.Store.db)}
+	}
+	s.registerConfigurationChanges(register)
 	register("GET /api/v2/auth/me", IdentityRead, func(w http.ResponseWriter, r *http.Request) {
 		p, _ := FromContext(r.Context())
 		respond(w, p, nil)

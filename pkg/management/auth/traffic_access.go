@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	"slices"
 	"strconv"
 	"sync"
@@ -138,7 +139,7 @@ func (a *AccessPolicies) Save(ctx context.Context, actor Principal, config contr
 	if err != nil {
 		return contract.Config{}, fmt.Errorf("%w: %s", ErrInvalid, err)
 	}
-	tx, err := a.store.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, a.store.db, "access-policy")
 	if err != nil {
 		return contract.Config{}, err
 	}
@@ -182,7 +183,10 @@ func (a *AccessPolicies) Save(ctx context.Context, actor Principal, config contr
 	if err := recordEvent(ctx, tx, "traffic_access.updated", actor.UserID, "traffic-access"); err != nil {
 		return contract.Config{}, err
 	}
-	if err := tx.Commit(); err != nil {
+	if err := configchange.RecordValues(ctx, a.store.db, tx, "access-policy", "traffic-access", config.Revision, current, config, current, config); err != nil {
+		return contract.Config{}, err
+	}
+	if err := configchange.Commit(ctx, tx); err != nil {
 		return contract.Config{}, err
 	}
 	a.Controller.Activate(prepared)

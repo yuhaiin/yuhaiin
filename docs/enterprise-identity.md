@@ -31,8 +31,10 @@ Limits are 1,024 active groups, 1,024 members per group, 64 groups per user and
 4,096 group records including deleted groups. Deletion atomically removes all
 memberships and retains an immutable tombstone, inspectable by ID. This preserves
 existing references and prevents a new group with the same name inheriting an
-old group's identity. Tombstones cannot be edited, reactivated or assigned new
-members. They count toward the explicit retained-record cap. Group names may be
+old group's identity. Ordinary edits cannot reactivate tombstones or assign new members.
+The [configuration-change workflow](configuration-changes.md) can explicitly
+restore a deleted group under its original ID after current permission, name,
+user and membership-limit checks. They count toward the explicit retained-record cap. Group names may be
 reused with a new ID. Deleting a user removes its memberships and advances the
 revisions of affected groups. Management and connection audits retain stable IDs.
 
@@ -85,7 +87,8 @@ supply traffic identity.
 
 The existing Boolean semantics remain explicit: NOT over a positive identity
 miss can match anonymous traffic. Route actions select forwarding behavior;
-there is no default-deny authorization promise in this increment. Group tombstones
+authorization is enforced separately by the [traffic access policy](traffic-access.md),
+including its explicit default action. Group tombstones
 have no memberships, so their positive identity conditions never match. Rule
 traces expose identity condition kinds, evaluated stable IDs and results without
 proofs or secret material. Connection audits snapshot group IDs at observation;

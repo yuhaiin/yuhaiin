@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	"strings"
 	"time"
 	"uuid"
@@ -38,6 +39,13 @@ func (s *RouteEditorStore) Get(ctx context.Context, id string) (contractroute.Ru
 		return contractroute.RuleDraft{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	draft, err := readRouteDraft(ctx, tx, id)
+	if err != nil {
+		return draft, err
+	}
+	return draft, tx.Commit()
+}
+func readRouteDraft(ctx context.Context, tx *sql.Tx, id string) (contractroute.RuleDraft, error) {
 	var value string
 	if err := tx.QueryRowContext(ctx, `SELECT data_json FROM route_rules_v2 WHERE id = ?`, id).Scan(&value); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -72,12 +80,12 @@ func (s *RouteEditorStore) Get(ctx context.Context, id string) (contractroute.Ru
 	if err := rows.Close(); err != nil {
 		return contractroute.RuleDraft{}, err
 	}
-	return draft, tx.Commit()
+	return draft, nil
 }
 
 func (s *RouteEditorStore) Save(ctx context.Context, draft contractroute.RuleDraft) (contractroute.RuleDraft, error) {
 	if draft.Rule.ID == "" {
-		draft.Rule.ID = uuid.New().String()
+		draft.Rule.ID = configchange.NewResourceID(ctx, uuid.New().String())
 	}
 	expectedRevision := draft.Rule.Revision
 	draft.Rule = normalizeRouteRule(draft.Rule)
@@ -87,11 +95,20 @@ func (s *RouteEditorStore) Save(ctx context.Context, draft contractroute.RuleDra
 	if err := contractroute.ValidateConditions(draft.Rule.Rules); err != nil {
 		return contractroute.RuleDraft{}, err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "route-rule")
 	if err != nil {
 		return contractroute.RuleDraft{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	var before *RouteRuleChange
+	if configchange.Managed(ctx) {
+		current, e := readRuleChange(ctx, tx, draft.Rule.ID)
+		if e == nil {
+			before = &current
+		} else if !errors.Is(e, ErrNotFound) {
+			return contractroute.RuleDraft{}, e
+		}
+	}
 	var revision uint64
 	var priority int
 	err = tx.QueryRowContext(ctx, `SELECT revision, priority FROM route_rules_v2 WHERE id = ?`, draft.Rule.ID).Scan(&revision, &priority)
@@ -207,7 +224,19 @@ func (s *RouteEditorStore) Save(ctx context.Context, draft contractroute.RuleDra
 			return contractroute.RuleDraft{}, err
 		}
 	}
-	if err := tx.Commit(); err != nil {
+	if configchange.Managed(ctx) {
+		if e := restoreRulePosition(ctx, tx, draft.Rule.ID); e != nil {
+			return contractroute.RuleDraft{}, e
+		}
+		after, e := readRuleChange(ctx, tx, draft.Rule.ID)
+		if e != nil {
+			return contractroute.RuleDraft{}, e
+		}
+		if e = configchange.RecordValues(ctx, s.db, tx, "route-rule", draft.Rule.ID, after.Draft.Rule.Revision, before, after, before, after); e != nil {
+			return contractroute.RuleDraft{}, e
+		}
+	}
+	if err := configchange.Commit(ctx, tx); err != nil {
 		return contractroute.RuleDraft{}, err
 	}
 	draft.Lists = private

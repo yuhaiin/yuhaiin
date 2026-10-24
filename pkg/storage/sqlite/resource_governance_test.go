@@ -40,7 +40,7 @@ func TestResourceMigrationInterruptedAndRestarted(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !schemaObjectExists(t, db.DB(), "quota_windows") || queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != int64(managementSecurityAuditMigration.Version) {
+		if !schemaObjectExists(t, db.DB(), "quota_windows") || queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != int64(managementConfigurationChangesMigration.Version) {
 			t.Fatal("resource migration missing or repeated")
 		}
 		if err := db.Close(); err != nil {

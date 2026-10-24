@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
@@ -107,7 +108,7 @@ func (r *Runtime) Close() error {
 	return errors.Join(auditErr, resourceErr, r.Access.Controller.Close(), r.Proxy.Close(), r.db.Close())
 }
 
-func (r *Runtime) Middleware(_ context.Context, mux *http.ServeMux, options httpapi.MiddlewareOptions) (http.Handler, io.Closer, error) {
+func (r *Runtime) Middleware(ctx context.Context, mux *http.ServeMux, options httpapi.MiddlewareOptions) (http.Handler, io.Closer, error) {
 	permissions := make(map[string]Permission)
 	maps.Copy(permissions, httpapi.ManagementPermissions())
 	maps.Copy(permissions, map[string]Permission{
@@ -123,6 +124,12 @@ func (r *Runtime) Middleware(_ context.Context, mux *http.ServeMux, options http
 		"DELETE /api/v2/profiler/sessions/{id}": Diagnostics,
 	})
 	server := &Server{Resources: r.Resources, Access: r.Access, Store: r.store, Passwords: r.passwords, Proxy: r.Proxy, Upstream: r.Upstream, Usage: options.UserUsage, Permissions: permissions, AcceptOrigin: options.AcceptOrigin}
+	server.Changes = &ConfigurationChanges{server: server, identity: configchange.New(r.store.db), configuration: options.ConfigurationChanges}
+	if options.ConfigurationChanges != nil {
+		if err := options.ConfigurationChanges.Enable(ctx); err != nil {
+			return nil, nil, err
+		}
+	}
 	server.Register(mux)
 	return server.Wrap(mux), nil, nil
 }

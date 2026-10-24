@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -193,11 +194,17 @@ func (r *ResourcePolicies) Save(ctx context.Context, actor Principal, config res
 		return resource.Config{}, ErrConflict
 	}
 	config.Revision++
-	prepared, err := r.Control.PrepareResources(ctx, config, r.bindings)
+	var prepared *trafficcontrol.PreparedResources
+	var err error
+	if configchange.Validating(ctx) {
+		err = r.Control.ValidateResources(config, r.bindings)
+	} else {
+		prepared, err = r.Control.PrepareResources(ctx, config, r.bindings)
+	}
 	if err != nil {
 		return resource.Config{}, fmt.Errorf("%w: %s", ErrInvalid, err)
 	}
-	tx, err := r.store.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, r.store.db, "resource-policy")
 	if err != nil {
 		return resource.Config{}, err
 	}
@@ -238,7 +245,10 @@ func (r *ResourcePolicies) Save(ctx context.Context, actor Principal, config res
 	if err := recordEvent(context.WithValue(ctx, auditKey{}, info), tx, "resource_policy.updated", actor.UserID, "resource-policy"); err != nil {
 		return resource.Config{}, err
 	}
-	if err := tx.Commit(); err != nil {
+	if err := configchange.RecordValues(ctx, r.store.db, tx, "resource-policy", "resource-policy", config.Revision, current, config, current, config); err != nil {
+		return resource.Config{}, err
+	}
+	if err := configchange.Commit(ctx, tx); err != nil {
 		return resource.Config{}, err
 	}
 	// This service owns all resource publications and holds its mutex across

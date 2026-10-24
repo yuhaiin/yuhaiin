@@ -12,6 +12,9 @@ import (
 type Permission = permission.Permission
 
 const (
+	ConfigurationRead         = permission.ConfigurationRead
+	ConfigurationWrite        = permission.ConfigurationWrite
+	ConfigurationRollback     = permission.ConfigurationRollback
 	NodesRead                 = permission.NodesRead
 	NodesWrite                = permission.NodesWrite
 	InboundsRead              = permission.InboundsRead
