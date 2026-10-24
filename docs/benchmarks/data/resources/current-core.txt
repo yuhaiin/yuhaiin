@@ -1,0 +1,30 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkGovernorSession-12            	16702951	        73.19 ns/op	      48 B/op	       1 allocs/op
+BenchmarkGovernorSession-12            	16389133	        72.07 ns/op	      48 B/op	       1 allocs/op
+BenchmarkGovernorSession-12            	16303282	        72.81 ns/op	      48 B/op	       1 allocs/op
+BenchmarkGovernorPacketAdmit-12        	65955939	        18.16 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGovernorPacketAdmit-12        	65790032	        18.39 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGovernorPacketAdmit-12        	65804106	        18.22 ns/op	       0 B/op	       0 allocs/op
+BenchmarkResourceAdmission-12          	 3234037	       370.3 ns/op	     224 B/op	       5 allocs/op
+BenchmarkResourceAdmission-12          	 3230282	       369.5 ns/op	     224 B/op	       5 allocs/op
+BenchmarkResourceAdmission-12          	 3246991	       370.3 ns/op	     224 B/op	       5 allocs/op
+BenchmarkIdentityDatagramPolicy/0-12   	 6145346	       194.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityDatagramPolicy/0-12   	 6161990	       196.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityDatagramPolicy/0-12   	 5919218	       201.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityDatagramPolicy/4-12   	 3092665	       390.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityDatagramPolicy/4-12   	 3016705	       391.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityDatagramPolicy/4-12   	 3112656	       386.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityDatagramPolicy/64-12  	  376326	      3202 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityDatagramPolicy/64-12  	  370156	      3213 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityDatagramPolicy/64-12  	  375716	      3186 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDatagramPolicyUnlimited-12    	358910974	         3.300 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDatagramPolicyUnlimited-12    	364942832	         3.332 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDatagramPolicyUnlimited-12    	365047147	         3.290 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPolicyResolve-12              	24796022	        48.00 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPolicyResolve-12              	23814121	        48.20 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPolicyResolve-12              	24731649	        48.22 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol	30.093s

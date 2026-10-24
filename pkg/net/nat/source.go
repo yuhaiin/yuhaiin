@@ -365,3 +365,7 @@ func (u *SourceControl) bindIdentity(identity *proxyauth.Identity) {
 	context.AfterFunc(u.ctx, func() { stop() })
 }
 func (u *SourceControl) identityValid() bool { return u.identity.Load().Valid() }
+
+func (u *SourceControl) resolvePolicy(inboundID, routeID string) trafficcontrol.Policy {
+	return trafficcontrol.ResolveAuthenticatedPolicy(u.trafficControl, inboundID, routeID, u.identity.Load())
+}

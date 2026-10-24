@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol/quota"
 )
 
 const usagePendingAuditLimit = 8192
@@ -254,6 +255,9 @@ func (s *usageSession) end() {
 		if errors.Is(context.Cause(s.identity), netapi.ErrTrafficAccessDenied) {
 			s.audit.Reason = "access_policy_revoked"
 		}
+		if errors.Is(context.Cause(s.identity), quota.ErrExhausted) {
+			s.audit.Reason = "quota_exhausted"
+		}
 	}
 	live := r.userLocked(s.key.user)
 	if s.key.protocol == "udp" {
@@ -287,6 +291,9 @@ func (s *usageSession) fail(err error) {
 }
 
 func usageFailureReason(err error) (string, string) {
+	if errors.Is(err, quota.ErrExhausted) {
+		return "rejected", "quota_exhausted"
+	}
 	if errors.Is(err, proxyauth.ErrUnauthorized) {
 		return "rejected", "authentication_failed"
 	}

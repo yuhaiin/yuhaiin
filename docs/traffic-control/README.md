@@ -2,6 +2,10 @@
 
 Consolidates the implementation from backend #583–#585/#588 and the design in RFC #582. The management UI is in yuhaiin-react. Shaping is disabled by default; admission budgets and lightweight output scheduling still protect resources.
 
+Authenticated group/user/credential shaping, quotas and admission policies are
+documented in [Identity resource governance](../resource-governance.md). They
+extend this same engine and the existing user-usage report.
+
 ## Ownership and integration
 
 `pkg/net/trafficcontrol` owns policy compilation/activation, aggregate token buckets, resource governors, stream leases, connection pacing, packet classification, FIFO/FQ-CoDel output queues and diagnostics. Protocol adapters retain transport-specific buffer/session ownership and routing. They depend on small capabilities (`Budget`, `BufferedResources`, `PolicyResolver`, `OutputQueue`, optional `QueueReporter`); they do not implement another QoS engine.

@@ -1,0 +1,12 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkResourceSnapshotMemory/devices=1-12         	       1	 201117499 ns/op	  73631928 retained-B	     71906 retained-B/credential	     71906 retained-B/user	282870088 B/op	   49882 allocs/op
+BenchmarkResourceSnapshotMemory/devices=1-12         	       1	 200093628 ns/op	  73597880 retained-B	     71873 retained-B/credential	     71873 retained-B/user	282830384 B/op	   49827 allocs/op
+BenchmarkResourceSnapshotMemory/devices=1-12         	       1	 200662539 ns/op	  73598472 retained-B	     71874 retained-B/credential	     71874 retained-B/user	282830944 B/op	   49832 allocs/op
+BenchmarkResourceSnapshotMemory/devices=4-12         	       1	 778300318 ns/op	 286172312 retained-B	     69866 retained-B/credential	    279465 retained-B/user	1120021440 B/op	  166692 allocs/op
+BenchmarkResourceSnapshotMemory/devices=4-12         	       1	 766451453 ns/op	 286172952 retained-B	     69866 retained-B/credential	    279466 retained-B/user	1120021936 B/op	  166694 allocs/op
+BenchmarkResourceSnapshotMemory/devices=4-12         	       1	 769289349 ns/op	 286172712 retained-B	     69866 retained-B/credential	    279466 retained-B/user	1120021680 B/op	  166691 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol	2.932s

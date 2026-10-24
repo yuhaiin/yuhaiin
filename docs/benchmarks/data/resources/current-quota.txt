@@ -1,0 +1,9 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol/quota
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkQuotaReservation-12    	 7219557	       166.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkQuotaReservation-12    	 7233022	       166.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkQuotaReservation-12    	 6807753	       170.7 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol/quota	3.573s

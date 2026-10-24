@@ -10,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol/quota"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -119,6 +120,8 @@ func (u *SourceControl) writeRoutedPacket(pkt *netapi.Packet, data []byte, dst n
 }
 
 func (u *SourceControl) writeAuthorizedPacket(pkt *netapi.Packet, data []byte, dst net.Addr, original netapi.Address, conn net.PacketConn) error {
+	var ticket quota.Reservation
+	metered := false
 	if u.access != nil {
 		if err := u.access.Authorize(original, dst); err != nil {
 			return err
@@ -138,12 +141,22 @@ func (u *SourceControl) writeAuthorizedPacket(pkt *netapi.Packet, data []byte, d
 		if wrapped, ok := conn.(*wrapConn); ok {
 			routeID = wrapped.routeID
 		}
-		if !u.trafficControl.Resolve(inboundID, routeID).AllowDatagram(trafficcontrol.Upload, len(data)) {
+		var err error
+		metered, err = u.resolvePolicy(inboundID, routeID).ReserveDatagram(trafficcontrol.Upload, len(data), &ticket)
+		if err != nil {
 			metrics.Counter.AddSendUDPDroppedPacket()
 			return nil
 		}
 	}
-	return sendPacket(data, dst, conn)
+	n, err := sendPacket(data, dst, conn)
+	if n < 0 || n > len(data) {
+		n = 0
+		err = errors.New("invalid datagram write count")
+	}
+	if metered {
+		ticket.Commit(n)
+	}
+	return err
 }
 
 // WriteTo sends an already prepared destination, publishing its reverse mapping
@@ -167,8 +180,8 @@ func (u *SourceControl) WriteTo(b []byte, real net.Addr, original netapi.Address
 	return u.writeAuthorizedPacket(nil, b, real, original, conn)
 }
 
-func sendPacket(b []byte, real net.Addr, conn net.PacketConn) error {
-	_, err := conn.WriteTo(b, real)
+func sendPacket(b []byte, real net.Addr, conn net.PacketConn) (int, error) {
+	n, err := conn.WriteTo(b, real)
 	refreshPacketReadDeadline(conn, udpIdleTimeout())
-	return err
+	return n, err
 }

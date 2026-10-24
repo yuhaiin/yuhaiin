@@ -10,6 +10,7 @@ This directory contains the **latest retained measurement snapshots**, not a per
 | [Full-cone UDP NAT](nat.md) | NAT cache/send microbenchmarks, queue round trips, full-cone correctness | 2026-10-18 |
 | [FakeIP](fakeip.md) | Bounded mapping cache, transactional counts, memory, leases and pool saturation | 2026-10-21 |
 | [Custom DNS responses](dns-responses.md) | Full datagram processing, real UDP/upstream path, rule indexes, CPU and allocations | 2026-10-21 |
+| [Identity resource governance](resources.md) | Hierarchical shaping, quotas, admission, 1,024-user state and runtime updates | 2026-10-24 |
 | [Protocol benchmarks](protocols.md) | Hysteria 2 interoperability/port hopping; OpenVPN real-server interop | 2026-10-07 to 2026-10-11 |
 
 ## Retained machine-readable data

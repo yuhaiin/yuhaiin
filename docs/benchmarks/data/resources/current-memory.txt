@@ -1,0 +1,18 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkResourceIdleMemory1024-12    	       1	   1713923 ns/op	       229.5 heap-B/session	  244440 B/op	    5129 allocs/op
+BenchmarkResourceIdleMemory1024-12    	       1	   1437629 ns/op	       229.4 heap-B/session	  244424 B/op	    5128 allocs/op
+BenchmarkResourceIdleMemory1024-12    	       1	   1368397 ns/op	       224.0 heap-B/session	  238848 B/op	    5121 allocs/op
+BenchmarkResourceSnapshotMemory/devices=1-12         	       1	 187782419 ns/op	  48613168 retained-B	     47474 retained-B/credential	     47474 retained-B/user	191864488 B/op	   40713 allocs/op
+BenchmarkResourceSnapshotMemory/devices=1-12         	       1	 194541283 ns/op	  48601792 retained-B	     47463 retained-B/credential	     47463 retained-B/user	191853208 B/op	   40697 allocs/op
+BenchmarkResourceSnapshotMemory/devices=1-12         	       1	 189393851 ns/op	  48601904 retained-B	     47463 retained-B/credential	     47463 retained-B/user	191853432 B/op	   40699 allocs/op
+BenchmarkResourceSnapshotMemory/devices=4-12         	       1	 197756847 ns/op	  52968944 retained-B	     12932 retained-B/credential	     51727 retained-B/user	198498808 B/op	   62331 allocs/op
+BenchmarkResourceSnapshotMemory/devices=4-12         	       1	 195700866 ns/op	  52968720 retained-B	     12932 retained-B/credential	     51727 retained-B/user	198498696 B/op	   62330 allocs/op
+BenchmarkResourceSnapshotMemory/devices=4-12         	       1	 198126544 ns/op	  52968480 retained-B	     12932 retained-B/credential	     51727 retained-B/user	198498456 B/op	   62332 allocs/op
+BenchmarkResourceSnapshotMemory/devices=64-12        	       1	 369065234 ns/op	 140309824 retained-B	      2141 retained-B/credential	    137021 retained-B/user	331411032 B/op	  494828 allocs/op
+BenchmarkResourceSnapshotMemory/devices=64-12        	       1	 366269178 ns/op	 140309456 retained-B	      2141 retained-B/credential	    137021 retained-B/user	331410664 B/op	  494828 allocs/op
+BenchmarkResourceSnapshotMemory/devices=64-12        	       1	 369551844 ns/op	 140309664 retained-B	      2141 retained-B/credential	    137021 retained-B/user	331411112 B/op	  494828 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol	2.335s

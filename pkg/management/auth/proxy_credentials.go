@@ -14,6 +14,7 @@ import (
 	"uuid"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 )
 
 type ProxyCredential struct {
@@ -54,15 +55,17 @@ type proxyRecord struct {
 // path performs a hash lookup, never a KDF or database query. A periodic reload
 // also observes local recovery commands executed by another process.
 type ProxyCredentials struct {
-	store          *Store
-	mu             sync.RWMutex
-	records        map[string]*proxyRecord
-	proofs         map[[32]byte]*proxyRecord
-	memberships    map[string][]string
-	ctx            context.Context
-	cancel         context.CancelFunc
-	done           chan struct{}
-	observeFailure func(string, string)
+	store            *Store
+	mu               sync.RWMutex
+	reloadMu         sync.Mutex
+	records          map[string]*proxyRecord
+	proofs           map[[32]byte]*proxyRecord
+	memberships      map[string][]string
+	ctx              context.Context
+	cancel           context.CancelFunc
+	done             chan struct{}
+	observeFailure   func(string, string)
+	resourceObserver func([]trafficcontrol.IdentityBinding) error
 }
 
 // SetFailureObserver is installed before listeners are created. It receives no
@@ -99,6 +102,8 @@ func NewProxyCredentials(ctx context.Context, store *Store) (*ProxyCredentials, 
 
 func (p *ProxyCredentials) Close() error { p.cancel(); <-p.done; return nil }
 func (p *ProxyCredentials) clear() {
+	p.reloadMu.Lock()
+	defer p.reloadMu.Unlock()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for _, r := range p.records {
@@ -110,8 +115,50 @@ func (p *ProxyCredentials) clear() {
 }
 
 func (p *ProxyCredentials) Reload() error {
+	p.reloadMu.Lock()
+	defer p.reloadMu.Unlock()
+	p.mu.Lock()
+	next, proofs, err := p.prepareReloadLocked()
+	observer := p.resourceObserver
+	changed := err == nil && resourceBindingsChanged(p.records, next)
+	p.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	// Existing unaffected credentials remain readable while resource compilation
+	// and durable quota-state loads run. Changed identities are already canceled.
+	if observer != nil && changed {
+		err = observer(resourceBindings(next))
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if err != nil {
+		// Unchanged identities still match the active resource snapshot.
+		// Deny only new/changed memberships until preparation recovers.
+		safe := make(map[string]*proxyRecord)
+		safeProofs := make(map[[32]byte]*proxyRecord)
+		for id, r := range next {
+			old := p.records[id]
+			if old != nil && old.UserID == r.UserID && slices.Equal(old.groups, r.groups) {
+				safe[id] = r
+				safeProofs[r.verifier] = r
+				safeProofs[r.wire] = r
+			} else {
+				r.cancel()
+				if old != nil {
+					old.cancel()
+				}
+			}
+		}
+		p.records, p.proofs = safe, safeProofs
+		return err
+	}
+	p.records, p.proofs = next, proofs
+	return nil
+}
+
+// The caller holds mu and reloadMu; no resource callback runs under mu.
+func (p *ProxyCredentials) prepareReloadLocked() (map[string]*proxyRecord, map[[32]byte]*proxyRecord, error) {
 	// Fail closed if the private database becomes unreadable.
 	next, err := p.load()
 	if err != nil {
@@ -121,7 +168,7 @@ func (p *ProxyCredentials) Reload() error {
 		clear(p.records)
 		clear(p.proofs)
 		clear(p.memberships)
-		return err
+		return nil, nil, err
 	}
 	proofs := make(map[[32]byte]*proxyRecord, len(next)*2)
 	for id, r := range next {
@@ -145,8 +192,7 @@ func (p *ProxyCredentials) Reload() error {
 			old.cancel()
 		}
 	}
-	p.records, p.proofs = next, proofs
-	return nil
+	return next, proofs, nil
 }
 
 func (p *ProxyCredentials) load() (map[string]*proxyRecord, error) {

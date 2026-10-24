@@ -5,8 +5,9 @@ traffic groups, identity conditions in the existing router, explicit inbound
 authentication modes and historical group IDs in connection audits. It does not
 by itself provide traffic authorization. The follow-up
 [Traffic Access Policy](traffic-access.md) adds the dedicated gate. User resource
-policies and enterprise security management are subsequent phases. Routing conditions
-alone must not be used as an enterprise authorization boundary.
+policies extend the same engine in [Resource governance](resource-governance.md).
+Enterprise security management is a subsequent phase. Routing conditions alone
+must not be used as an enterprise authorization boundary.
 
 ## Ownership and migration
 
@@ -44,9 +45,13 @@ within one second. Changed membership cancels only the affected owners' traffic
 identities, including their active credential/listener scopes. Existing TCP and
 UDP revocation machinery closes those sessions. Management sessions and roles
 are independent. Unchanged memberships retain their existing identity contexts.
-Reload failure invalidates the traffic authentication snapshot rather than
-preserving stale access. A failed response after a successful persistence commit
-can therefore require reloading the current revision before retrying.
+A credential/membership database read failure invalidates the traffic
+authentication snapshot. If resource-policy preparation fails after metadata
+loads successfully, changed identities remain invalid while unchanged identities
+continue authenticating. Heavy resource compilation runs outside the authentication
+read lock, and new metadata publishes only after its resource bindings activate.
+A failed response after a successful persistence commit can therefore require
+reloading the current revision before retrying.
 
 ## APIs
 

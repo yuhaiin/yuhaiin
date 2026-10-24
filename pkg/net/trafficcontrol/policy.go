@@ -8,17 +8,15 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/contract/resource"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol/quota"
 )
 
-type Rate struct {
-	BytesPerSecond int64 `json:"bytesPerSecond"`
-	BurstBytes     int64 `json:"burstBytes"`
-}
-
-type Profile struct {
-	Upload   Rate `json:"upload"`
-	Download Rate `json:"download"`
-}
+// Rate and Profile retain the existing API while sharing generated resource
+// contracts with identity policy editors.
+type Rate = resource.Rate
+type Profile = resource.Profile
 
 // Config is a policy snapshot; rule IDs are taken from the existing router,
 // not matched by a separate QoS rule engine. A bound profile is a shared
@@ -50,10 +48,12 @@ func compilePair(spec Profile) (compiledPair, error) {
 }
 
 type policySnapshot struct {
+	generation       uint64
 	changed          chan struct{}
 	config           Config
 	global, fallback compiledPair
 	inbound, route   map[string]compiledPair
+	resources        *resourceSnapshot
 }
 
 type shapingUsage struct{ acceptedUp, acceptedDown, rejectedUp, rejectedDown, waitNanos atomic.Uint64 }
@@ -66,19 +66,26 @@ type Usage struct {
 	PacingWaitNanos           uint64 `json:"pacingWaitNanos"`
 }
 
-// Manager publishes immutable policy selection while retaining aggregate budgets
-// across configuration changes. All managed admissions lock their direction's
-// global bucket first, so activation can update every scope as one transaction.
+// Manager publishes immutable policy selection while retaining aggregate budgets.
+// Packets lock only their selected buckets; control-plane publication does not
+// require a global forwarding lock.
 type Manager struct {
 	mu     sync.Mutex
 	usage  shapingUsage
 	global compiledPair
 	active atomic.Pointer[policySnapshot]
+	quotas *quota.Ledger
 }
 
 func NewManager() *Manager {
 	m := &Manager{global: compiledPair{up: new(Limiter), down: new(Limiter)}}
 	m.active.Store(&policySnapshot{global: m.global, changed: make(chan struct{})})
+	return m
+}
+
+func NewManagerWithQuotas(ledger *quota.Ledger) *Manager {
+	m := NewManager()
+	m.quotas = ledger
 	return m
 }
 
@@ -181,14 +188,11 @@ func (m *Manager) Apply(c Config) error {
 	if m.global.up == nil {
 		m.global = compiledPair{up: new(Limiter), down: new(Limiter)}
 	}
-	m.global.up.mu.Lock()
-	m.global.down.mu.Lock()
-	defer m.global.up.mu.Unlock()
-	defer m.global.down.mu.Unlock()
 	old := m.active.Load()
 	now := time.Now()
 	next.global = retainPair(m.global, next.global, now)
 	if old != nil {
+		next.resources = old.resources
 		next.fallback = retainPair(old.fallback, next.fallback, now)
 		for id, pair := range next.inbound {
 			next.inbound[id] = retainPair(old.inbound[id], pair, now)
@@ -197,6 +201,7 @@ func (m *Manager) Apply(c Config) error {
 			next.route[id] = retainPair(old.route[id], pair, now)
 		}
 	}
+	m.stageSnapshot(next, old.generation+1)
 	m.active.Store(next)
 	if old != nil {
 		close(old.changed)
@@ -204,24 +209,21 @@ func (m *Manager) Apply(c Config) error {
 	return nil
 }
 
-// Caller holds both global admission locks; no managed child admission can be
-// running. Only the policy snapshot's immutable spec is read without a lock.
-func retainPair(old, next compiledPair, now time.Time) compiledPair {
-	next.up = retainLimiter(old.up, next.up, now)
-	next.down = retainLimiter(old.down, next.down, now)
+// Reuse bucket ownership without mutating it during compilation. Publication
+// stages changed rates under each bucket's own lock before changing snapshots.
+func retainPair(old, next compiledPair, _ time.Time) compiledPair {
+	if old.up != nil {
+		next.up = old.up
+	}
+	if old.down != nil {
+		next.down = old.down
+	}
 	return next
 }
 
-func retainLimiter(old, next *Limiter, now time.Time) *Limiter {
-	if old == nil {
-		return next
-	}
-	rate, burst := int64(0), int64(0)
-	if next != nil {
-		rate, burst = next.rate, next.burst
-	}
+func configureLimiter(old *Limiter, rate, burst int64, now time.Time) {
 	if old.rate == rate && old.burst == burst {
-		return old
+		return
 	}
 	balance := float64(burst)
 	if old.rate > 0 {
@@ -234,7 +236,6 @@ func retainLimiter(old, next *Limiter, now time.Time) *Limiter {
 		balance = min(float64(burst), balance)
 		old.next = now.Add(-time.Duration(balance * float64(time.Second) / float64(rate)))
 	}
-	return old
 }
 
 func (m *Manager) Usage() Usage {
