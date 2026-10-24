@@ -24,6 +24,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	lite "github.com/yuhaiin/tailscale-lite"
 	"tailscale.com/derp/derpserver"
+	"tailscale.com/net/stun/stuntest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/tstest/integration/testcontrol"
 	"tailscale.com/types/dnstype"
@@ -34,6 +35,14 @@ import (
 // Two nodes use the host's actual lightweight stack and custom per-node
 // underlays, not fake packet devices or an OS TUN.
 func TestLocalTailnet(t *testing.T) {
+	testLocalTailnet(t, true)
+}
+
+func TestLocalTailnetWithoutSTUN(t *testing.T) {
+	testLocalTailnet(t, false)
+}
+
+func testLocalTailnet(t *testing.T, withSTUN bool) {
 	oldDir := configuration.DataDir.Load()
 	configuration.DataDir.Store(t.TempDir())
 	t.Cleanup(func() { configuration.DataDir.Store(oldDir) })
@@ -108,11 +117,17 @@ func TestLocalTailnet(t *testing.T) {
 			}
 		}
 	}()
+	stunPort := -1
+	if withSTUN {
+		stunAddr, stopSTUN := stuntest.Serve(t)
+		defer stopSTUN()
+		stunPort = stunAddr.Port
+	}
 	control := &testcontrol.Server{
 		DERPMap: &tailcfg.DERPMap{Regions: map[tailcfg.DERPRegionID]*tailcfg.DERPRegion{1: {
 			RegionID: 1, RegionCode: "local",
 			Nodes: []*tailcfg.DERPNode{{Name: "local", RegionID: 1, HostName: "127.0.0.1",
-				IPv4: "127.0.0.1", IPv6: "none", DERPPort: port, STUNPort: -1, InsecureForTests: true}},
+				IPv4: "127.0.0.1", IPv6: "none", DERPPort: port, STUNPort: stunPort, InsecureForTests: true}},
 		}}},
 		DNSConfig: &tailcfg.DNSConfig{
 			Proxied:   true,
@@ -185,7 +200,6 @@ func TestLocalTailnet(t *testing.T) {
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
-	peerName := netapi.ParseNetipAddr("tcp", target, 12345)
 	dnsName, err := netapi.ParseAddress("tcp", "adapter1.tail-scale.ts.net.:12345")
 	if err != nil {
 		t.Fatal(err)
@@ -199,70 +213,80 @@ func TestLocalTailnet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Run("tcp-encrypted-lightweight", func(t *testing.T) {
-		ln, err := stack.ListenTCP(&net.TCPAddr{IP: net.IP(target.AsSlice()), Port: 12345})
-		if err != nil {
-			t.Fatal(err)
+	for _, prefix := range clients[1].Snapshot().Addresses {
+		peerIP := prefix.Addr()
+		family := "ipv4"
+		if peerIP.Is6() {
+			family = "ipv6"
 		}
-		defer ln.Close()
-		go func() {
-			c, err := ln.Accept()
-			if err == nil {
-				defer c.Close()
-				_ = c.SetDeadline(time.Now().Add(8 * time.Second))
-				_, _ = io.Copy(c, c)
+		t.Run("tcp-encrypted-lightweight/"+family, func(t *testing.T) {
+			ln, err := stack.ListenTCP(&net.TCPAddr{IP: net.IP(peerIP.AsSlice()), Port: 12345})
+			if err != nil {
+				t.Fatal(err)
 			}
-		}()
-		start := time.Now()
-		c, err := nodes[0].Conn(ctx, peerName)
-		if err != nil {
-			t.Fatal(err)
-		}
-		elapsed := time.Since(start)
-		t.Logf("first peer TCP connection took %v", elapsed)
-		if elapsed > 2*time.Second {
-			t.Fatalf("first peer TCP connection took %v; want under 2s", elapsed)
-		}
-		defer c.Close()
-		_ = c.SetDeadline(time.Now().Add(8 * time.Second))
-		want := []byte("lightweight over encrypted Tailnet")
-		if _, err = c.Write(want); err != nil {
-			t.Fatal(err)
-		}
-		got := make([]byte, len(want))
-		if _, err = io.ReadFull(c, got); err != nil || !bytes.Equal(got, want) {
-			t.Fatalf("TCP echo: %q %v", got, err)
-		}
-	})
-	t.Run("udp-encrypted-lightweight", func(t *testing.T) {
-		remote := netip.AddrPortFrom(target, 12346)
-		server, err := stack.DialUDP(net.UDPAddrFromAddrPort(remote), nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer server.Close()
-		go func() {
-			buf := make([]byte, 512)
-			n, from, err := server.ReadFrom(buf)
-			if err == nil {
-				_, _ = server.WriteTo(buf[:n], from)
+			defer ln.Close()
+			go func() {
+				c, err := ln.Accept()
+				if err == nil {
+					defer c.Close()
+					_ = c.SetDeadline(time.Now().Add(8 * time.Second))
+					_, _ = io.Copy(c, c)
+				}
+			}()
+			start := time.Now()
+			c, err := nodes[0].Conn(ctx, netapi.ParseNetipAddr("tcp", peerIP, 12345))
+			if err != nil {
+				t.Fatal(err)
 			}
-		}()
-		client, err := nodes[0].PacketConn(ctx, netapi.ParseNetipAddr("udp", target, 12346))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-		_ = client.SetDeadline(time.Now().Add(8 * time.Second))
-		if _, err = client.WriteTo([]byte("test-udp"), net.UDPAddrFromAddrPort(remote)); err != nil {
-			t.Fatal(err)
-		}
-		buf := make([]byte, 256)
-		n, from, err := client.ReadFrom(buf)
-		if err != nil || string(buf[:n]) != "test-udp" || from.String() != remote.String() {
-			t.Fatalf("UDP echo: %q %v %v", buf[:n], from, err)
-		}
-	})
+			defer c.Close()
+			elapsed := time.Since(start)
+			t.Logf("first peer TCP connection took %v", elapsed)
+			// Initial netcheck and any resulting rebind finish before ready.
+			// Both normal STUN and unavailable-STUN fallback must avoid losing
+			// the first WireGuard handshake.
+			if elapsed > 2*time.Second {
+				t.Fatalf("first peer TCP connection took %v; want under 2s", elapsed)
+			}
+			_ = c.SetDeadline(time.Now().Add(8 * time.Second))
+			want := []byte("lightweight over encrypted Tailnet")
+			if _, err = c.Write(want); err != nil {
+				t.Fatal(err)
+			}
+			got := make([]byte, len(want))
+			if _, err = io.ReadFull(c, got); err != nil || !bytes.Equal(got, want) {
+				t.Fatalf("TCP echo: %q %v", got, err)
+			}
+		})
+		t.Run("udp-encrypted-lightweight/"+family, func(t *testing.T) {
+			remote := netip.AddrPortFrom(peerIP, 12346)
+			server, err := stack.DialUDP(net.UDPAddrFromAddrPort(remote), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer server.Close()
+			go func() {
+				buf := make([]byte, 512)
+				n, from, err := server.ReadFrom(buf)
+				if err == nil {
+					_, _ = server.WriteTo(buf[:n], from)
+				}
+			}()
+			client, err := nodes[0].PacketConn(ctx, netapi.ParseNetipAddr("udp", peerIP, 12346))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer client.Close()
+			_ = client.SetDeadline(time.Now().Add(8 * time.Second))
+			if _, err = client.WriteTo([]byte("test-udp"), net.UDPAddrFromAddrPort(remote)); err != nil {
+				t.Fatal(err)
+			}
+			buf := make([]byte, 256)
+			n, from, err := client.ReadFrom(buf)
+			if err != nil || string(buf[:n]) != "test-udp" || from.String() != remote.String() {
+				t.Fatalf("UDP echo: %q %v %v", buf[:n], from, err)
+			}
+		})
+	}
 	t.Run("magic-dns", func(t *testing.T) {
 		request := netapi.NewDNSMsg(netapi.DNSQuestion{
 			Name: "adapter1.tail-scale.ts.net.", Qtype: dns.TypeA, Qclass: dns.ClassINET,

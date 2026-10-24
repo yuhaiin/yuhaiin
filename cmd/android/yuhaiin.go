@@ -270,7 +270,7 @@ func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, 
 	stack = "lightweight"
 	driver := TunDriverChannelValue
 	if err := lightweighttun.Validate(device.TunConfig{
-		Driver: device.DriverChannel, MTU: tun.MTU, CongestionControl: congestionControl, OutputScheduler: outputScheduler,
+		Driver: device.DriverChannel, MTU: tun.MTU, PortalV6: tun.PortalV6, CongestionControl: congestionControl, OutputScheduler: outputScheduler,
 	}); err != nil {
 		return fmt.Errorf("invalid Android lightweight TUN configuration: %w", err)
 	}

@@ -39,4 +39,4 @@ jobs:
           tags="$(go run ./cmd/buildtags/...)"
           go test -count=1 -timeout=120s -tags="$tags" ./pkg/net/proxy/tailscale
       - name: Exercise full Control DERP and DNS parity
-        run: go test -count=1 -timeout=120s -run TestLocalTailnet ./pkg/net/proxy/tailscale
+        run: go test -count=1 -timeout=120s -run 'Test(LocalTailnet|EnrolledLegacyIdentityMigrationAndRollback)' ./pkg/net/proxy/tailscale

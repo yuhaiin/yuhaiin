@@ -5,7 +5,8 @@ This change removes the two legacy global TUN backends:
 The global TUN inbound now constructs `lightweighttun.New` for both new and
 persisted configurations. The historic `system_gvisor` and `fdbased` driver
 values are normalized to `channel`; congestion control and scheduler continue
-to be configured on the lightweight core.
+to be configured on the lightweight core. IPv4-only links retain MTUs down to
+576; active IPv6 addresses still require at least 1280.
 
 ## Tailnet outbound
 
@@ -17,7 +18,7 @@ control HTTP/Noise, DERP TCP and UDP/STUN through the configured Yuhaiin
 outbound. **RequireUnderlay is always true**. The network payload path is
 `wireguard.LightweightNetTun`, not a Tailscale netstack or OS interface.
 
-## Known compatibility work before merge
+## Compatibility and validation coverage
 
 - **Legacy node identity:** `tsnet` stores a `tailscaled.state` profile
   database; lite uses `lite.json`. On upgrade, `MigrateLegacyState` imports
@@ -26,7 +27,12 @@ outbound. **RequireUnderlay is always true**. The network payload path is
   It preserves the original state for rollback and never overwrites an
   existing lite identity. Ambiguous, logged-out, malformed, insecurely
   permissioned or cross-control identities fail closed instead of
-  automatically registering another Tailnet node.
+  automatically registering another Tailnet node. The converter reads the actual
+  `ipn.Prefs` identity field (`Config`), not a synthetic `Persist` field. A local
+  enrolled-tsnet -> lite -> tsnet rollback test preserves the machine/node keys,
+  node ID, addresses and original legacy file. Unix permissions and Windows
+  owner/DACL checks protect persisted state; native Windows CI exercises reload
+  and migration.
 - **DNS compatibility:** The lite engine now reuses the existing Tailscale
   DNS Manager and rebuilds its resolver configuration on every authorized
   NetMap: MagicDNS, A/AAAA/PTR, ExtraRecords, search domains, Split DNS routes,
@@ -39,19 +45,24 @@ outbound. **RequireUnderlay is always true**. The network payload path is
   combinations and special DNS record handling still need acceptance tests.
 - **Tailnet Lock:** lite currently fails closed for unsupported TKA. This means
   Tailnet Lock-enabled tailnets will not connect.
-- **Control-plane reconnection:** exercise logout/revocation, key renewal,
-  transient DERP disconnects, underlay rebinds and multi-node isolation.
-- **IPv6:** exercise IPv6 peer TCP/UDP, DERP fallback and MagicDNS, not only
-  successful address assignment.
+- **Control-plane reconnection:** local tests cover logout/revocation and key
+  expiry without another control update, including removal of engine peers,
+  route ownership and full DNS responses. Renewal invalidates old timers.
+  Initial endpoint discovery/rebind completes before exposing transport readiness;
+  later periodic probes do not delay new sockets. Mobile underlay changes and
+  provider-specific reconnection policies remain deployment acceptance cases.
+- **IPv6:** the local two-node tests exchange TCP and UDP over both assigned
+  address families and verify MagicDNS AAAA, with working and unavailable STUN.
 - **Security:** if a DNS query or destination cannot be validated against
   the authorized NetMap, no system-network fallback is permitted.
-- **UI:** separate yuhaiin-react settings may still expose legacy choices.
-  The backend always uses lightweight regardless of those saved choices.
+- **UI:** yuhaiin-react #531 removes legacy choices and normalizes saved values.
+  The companion MTU regression verifies that editing an old configuration keeps
+  a saved IPv4 MTU of 1200.
 
-This integration is a **Draft PR**, not an approved release. Identity
-migration now has synthetic-fixture tests, but it still requires a real existing
-tsnet profile migration test against a live tailnet and rollback validation.
-The full test matrix must pass before merging.
+The dependency, backend and frontend checks must pass before merging. Automated
+coverage uses real tsnet persistence and encrypted transport against local
+control/DERP/STUN services; it does not claim acceptance against every deployed
+Tailscale or Headscale policy.
 
 ## Validation
 
@@ -68,18 +79,18 @@ requires the TKA test APIs). This avoids linking TKA into production binaries
 just to compile integration tests.
 
 The two-node integration currently verifies encrypted lightweight TCP/UDP,
-MagicDNS A and (if the simulated control allocates IPv6) AAAA, PTR,
+MagicDNS A/AAAA, IPv4/IPv6 peer TCP/UDP, PTR,
 control-provided ExtraRecords (A and AAAA), Split DNS and default upstream
 forwarding, DNS over TCP, split-DNS name resolution to a Tailnet peer, live
 ExtraRecord updates without restarting, prevention of authoritative MagicDNS
 leaks, per-node Underlay use, denial of out-of-Tailnet DNS-assisted routes, and
 revocation of route/DNS authorization when the control plane expires a node.
 
-**Still require real Tailnet/Headscale acceptance:** the simulated test-control
-server allocates only IPv4 node addresses, so IPv6 *peer* DNS and TCP/UDP
-reachability are not yet validated (the AAAA ExtraRecord test is separate).
+**Provider-specific acceptance remains:** production Tailscale/Headscale login,
+key renewal and mobile reconnection should be checked in the target environment.
 DNS forwarding to an actual Tailnet-hosted nameserver, DoH upstream variants,
 full search-suffix semantics, and OS-specific DNS behavior still need targeted
 tests. These checks do not establish complete compatibility with every Tailscale
-DNS configuration. Test-only gVisor references may remain for benchmarks, but
+DNS configuration. Test-only tsnet/gVisor references remain for migration, interoperability and
+benchmark comparisons, but
 must not appear in shipping binaries.
