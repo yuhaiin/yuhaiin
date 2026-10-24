@@ -5,6 +5,11 @@ It uses the existing SQLite state store; it does not need DuckDB or an external
 metrics service. Core-only/native Android configurations leave the recorder off.
 The React companion exposes the reports under **Account & security**.
 
+Live enforcement counters and threshold history appear beside these historical
+reports. See [Identity resource governance](resource-governance.md) for byte
+reservation, recovery, privacy and UTC reset semantics. Historical sampling
+does not determine hard quota admission.
+
 ## What is counted
 
 - Upload/download payload bytes, lifetime and selected UTC period, plus hourly,

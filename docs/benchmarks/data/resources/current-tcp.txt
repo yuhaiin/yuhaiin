@@ -1,0 +1,15 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkResourceTCPForwarding/Absent-12         	  107840	     11225 ns/op	2919.32 MB/s	       0 B/op	       0 allocs/op
+BenchmarkResourceTCPForwarding/Absent-12         	  111171	     10842 ns/op	3022.44 MB/s	       0 B/op	       0 allocs/op
+BenchmarkResourceTCPForwarding/Absent-12         	  111397	     10968 ns/op	2987.49 MB/s	       0 B/op	       0 allocs/op
+BenchmarkResourceTCPForwarding/Resources-12      	   94974	     12953 ns/op	2529.85 MB/s	       1 B/op	       0 allocs/op
+BenchmarkResourceTCPForwarding/Resources-12      	   93655	     12863 ns/op	2547.48 MB/s	       0 B/op	       0 allocs/op
+BenchmarkResourceTCPForwarding/Resources-12      	   89332	     13179 ns/op	2486.37 MB/s	       1 B/op	       0 allocs/op
+BenchmarkResourceTCPForwarding/Quotas-12         	   79471	     14400 ns/op	2275.61 MB/s	       6 B/op	       0 allocs/op
+BenchmarkResourceTCPForwarding/Quotas-12         	   90279	     13521 ns/op	2423.58 MB/s	       6 B/op	       0 allocs/op
+BenchmarkResourceTCPForwarding/Quotas-12         	   85834	     13536 ns/op	2420.76 MB/s	       6 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol	10.785s

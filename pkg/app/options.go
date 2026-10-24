@@ -32,6 +32,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	routepkg "github.com/Asutorufa/yuhaiin/pkg/route"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -261,6 +262,7 @@ type StartOptions struct {
 	HTTPMiddleware      httpapi.Middleware
 	ProxyAuthentication proxyauth.Provider
 	TrafficAccess       netapi.TrafficAccess
+	TrafficControl      *trafficcontrol.Controller
 	UpstreamCredentials credential.Resolver
 
 	ConfigPath string

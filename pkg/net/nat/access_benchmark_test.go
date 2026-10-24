@@ -7,17 +7,19 @@ import (
 	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/access"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/resource"
 	"github.com/Asutorufa/yuhaiin/pkg/net/accesscontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 // Real loopback datagrams exercise the shared NAT socket and both reply queues.
 // One request/reply is outstanding; MB/s is not a WAN capacity measurement.
 func BenchmarkAccessNATUDPRoundTrip(b *testing.B) {
-	for _, mode := range []string{"Absent", "Disabled", "Protected"} {
+	for _, mode := range []string{"Absent", "Disabled", "Protected", "Resources"} {
 		b.Run(mode, func(b *testing.B) {
 			server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
 			if err != nil {
@@ -50,7 +52,7 @@ func BenchmarkAccessNATUDPRoundTrip(b *testing.B) {
 			if mode != "Absent" {
 				c := accesscontrol.New()
 				defer c.Close()
-				if mode == "Protected" {
+				if mode == "Protected" || mode == "Resources" {
 					p, err := accesscontrol.Prepare(contract.Config{Enabled: true, Scope: contract.Scope{AllInbounds: true}, DefaultAction: "allow"})
 					if err != nil {
 						b.Fatal(err)
@@ -58,6 +60,16 @@ func BenchmarkAccessNATUDPRoundTrip(b *testing.B) {
 					c.Activate(p)
 				}
 				table.SetTrafficAccess(c)
+			}
+			if mode == "Resources" {
+				control := trafficcontrol.NewController()
+				defer control.Close()
+				profile := resource.Profile{Upload: resource.Rate{BytesPerSecond: 1 << 40, BurstBytes: 1 << 30}, Download: resource.Rate{BytesPerSecond: 1 << 40, BurstBytes: 1 << 30}}
+				config := resource.Config{Enabled: true, DefaultUser: resource.Policy{Profile: profile, Limits: resource.Limits{MaxSessions: 128}}, Groups: []resource.GroupPolicy{{GroupID: "finance", SharedProfile: profile}}}
+				if err := control.ApplyResources(config, []trafficcontrol.IdentityBinding{{UserID: "alice", CredentialID: "phone", GroupIDs: []string{"finance"}}}); err != nil {
+					b.Fatal(err)
+				}
+				table.SetTrafficControl(control, control.DatagramBudget())
 			}
 			dst, _ := netapi.ParseSysAddr(server.LocalAddr())
 			received := make(chan int, 1)

@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol/quota"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
@@ -474,5 +475,21 @@ func TestAuthorizationAuditDistinguishesNormalCloseAndPolicyRevocation(t *testin
 				t.Fatalf("historical audit=%+v err=%v", page, err)
 			}
 		})
+	}
+}
+
+func TestUserUsageQuotaFailuresAndTermination(t *testing.T) {
+	r := usageTestRecorder(t)
+	r.failure(usageInfo("alice", "phone", "one"), fmt.Errorf("admission: %w", quota.ErrExhausted))
+	ctx, cancel := context.WithCancelCause(t.Context())
+	s := r.register(usageInfo("alice", "phone", "one"), new(usageTestCounter), ctx)
+	cancel(quota.ErrExhausted)
+	s.end()
+	usageReport(t, r, "alice")
+	for _, result := range []string{"rejected", "closed"} {
+		page, err := r.Audit(t.Context(), usage.Query{UserID: "alice", Result: result})
+		if err != nil || len(page.Items) != 1 || page.Items[0].Reason != "quota_exhausted" {
+			t.Fatalf("%s quota audit=%+v err=%v", result, page, err)
+		}
 	}
 }

@@ -19,6 +19,7 @@ import (
 // Only server executables opt in; native Android does not import this package.
 // Runtime shares one private identity store between management and traffic.
 type Runtime struct {
+	Resources *ResourcePolicies
 	Access    *AccessPolicies
 	store     *Store
 	passwords *PasswordService
@@ -78,11 +79,21 @@ func OpenRuntime(ctx context.Context, directory string) (_ *Runtime, err error) 
 		_ = proxy.Close()
 		return nil, err
 	}
-	return &Runtime{Access: access, store: store, passwords: passwords, Proxy: proxy, Upstream: &UpstreamCredentials{store: store}, db: db}, nil
+	resources, err := NewResourcePolicies(ctx, store, proxy, access.Controller)
+	if err != nil {
+		_ = access.Controller.Close()
+		_ = proxy.Close()
+		return nil, err
+	}
+	return &Runtime{Resources: resources, Access: access, store: store, passwords: passwords, Proxy: proxy, Upstream: &UpstreamCredentials{store: store}, db: db}, nil
 }
 
 func (r *Runtime) Close() error {
-	return errors.Join(r.Access.Controller.Close(), r.Proxy.Close(), r.db.Close())
+	var resourceErr error
+	if r.Resources != nil {
+		resourceErr = r.Resources.Close()
+	}
+	return errors.Join(resourceErr, r.Access.Controller.Close(), r.Proxy.Close(), r.db.Close())
 }
 
 func (r *Runtime) Middleware(_ context.Context, mux *http.ServeMux, options httpapi.MiddlewareOptions) (http.Handler, io.Closer, error) {
@@ -100,7 +111,7 @@ func (r *Runtime) Middleware(_ context.Context, mux *http.ServeMux, options http
 		"POST /api/v2/profiler/sessions":        Diagnostics,
 		"DELETE /api/v2/profiler/sessions/{id}": Diagnostics,
 	})
-	server := &Server{Access: r.Access, Store: r.store, Passwords: r.passwords, Proxy: r.Proxy, Upstream: r.Upstream, Usage: options.UserUsage, Permissions: permissions, AcceptOrigin: options.AcceptOrigin}
+	server := &Server{Resources: r.Resources, Access: r.Access, Store: r.store, Passwords: r.passwords, Proxy: r.Proxy, Upstream: r.Upstream, Usage: options.UserUsage, Permissions: permissions, AcceptOrigin: options.AcceptOrigin}
 	server.Register(mux)
 	return server.Wrap(mux), nil, nil
 }

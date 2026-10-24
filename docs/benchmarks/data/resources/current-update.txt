@@ -1,0 +1,9 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkResourceUpdateUnderTraffic1024-12    	     435	   2761917 ns/op	   2935798 concurrent-checks/s	 3735695 B/op	    7435 allocs/op
+BenchmarkResourceUpdateUnderTraffic1024-12    	     433	   2794707 ns/op	   2978854 concurrent-checks/s	 3735639 B/op	    7435 allocs/op
+BenchmarkResourceUpdateUnderTraffic1024-12    	     434	   2782899 ns/op	   2952383 concurrent-checks/s	 3735626 B/op	    7435 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol	3.636s

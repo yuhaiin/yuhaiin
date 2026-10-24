@@ -3,11 +3,14 @@ package trafficcontrol
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/contract/resource"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol/quota"
 )
 
 // Direction is from the inbound peer's point of view.
@@ -19,10 +22,7 @@ const (
 )
 
 var ErrRateLimited = errors.New("trafficcontrol: datagram rate limit")
-var ErrInvalidRate = errors.New("trafficcontrol: invalid shaping rate or burst")
-
-const maxShapingRate = int64(1 << 40) // bytes/s
-const maxShapingBurst = int64(1 << 30)
+var ErrInvalidRate = resource.ErrInvalidRate
 
 // Limiter implements a reservation-based byte token bucket. The virtual
 // eligibility timestamp includes already admitted work, so concurrent flows
@@ -31,16 +31,14 @@ type Limiter struct {
 	mu          sync.Mutex
 	rate, burst int64
 	next        time.Time
+	generation  uint64
 }
 
 func NewLimiter(bytesPerSecond, burstBytes int64) (*Limiter, error) {
-	if bytesPerSecond < 0 || burstBytes < 0 || bytesPerSecond > maxShapingRate || burstBytes > maxShapingBurst {
-		return nil, ErrInvalidRate
+	if err := resource.ValidateRate(Rate{BytesPerSecond: bytesPerSecond, BurstBytes: burstBytes}); err != nil {
+		return nil, err
 	}
 	if bytesPerSecond == 0 {
-		if burstBytes != 0 {
-			return nil, fmt.Errorf("%w: unlimited shaper cannot have a burst", ErrInvalidRate)
-		}
 		return nil, nil
 	}
 	if burstBytes == 0 {
@@ -76,6 +74,7 @@ type Policy struct {
 	up, down           [3]*Limiter
 	manager            *Manager
 	inboundID, routeID string
+	identity           *proxyauth.Identity
 	usage              *shapingUsage
 }
 
@@ -83,7 +82,7 @@ func (p Policy) admitted(d Direction, n int) {
 	if p.usage == nil || n <= 0 {
 		return
 	}
-	if p.manager != nil && !p.manager.active.Load().config.Enabled {
+	if p.manager != nil && p.unmanaged(p.manager.active.Load()) {
 		return
 	}
 	if d == Download {
@@ -110,51 +109,36 @@ func (p Policy) scopes(d Direction) [3]*Limiter {
 	return p.up
 }
 
-// All managed operations take the stable global lock before loading their
-// snapshot. Activation holds both direction locks, so no operation can observe
-// a partially updated hierarchy. Refunds retain the exact admitted scopes.
-func (p Policy) lockScopes(d Direction) (limits [3]*Limiter, changed <-chan struct{}) {
+// Lock only selected buckets. A snapshot retry prevents mixing generations;
+// updates never require a process-wide packet lock. Rate changes use bucket
+// generations, so old operations retry without undoing a newly staged rate.
+func (p Policy) lockScopes(d Direction) (scopeSet, <-chan struct{}) {
 	if p.manager == nil {
-		limits = p.scopes(d)
-		lockScopes(limits, 0)
-		return
-	}
-	root := p.manager.global.up
-	if d == Download {
-		root = p.manager.global.down
-	}
-	root.mu.Lock()
-	s := p.manager.active.Load()
-	changed = s.changed
-	if !s.config.Enabled {
-		root.mu.Unlock()
-		return
-	}
-	up, down, _, _ := s.scopes(p.inboundID, p.routeID)
-	limits = up
-	if d == Download {
-		limits = down
-	}
-	lockScopes(limits, 1)
-	return
-}
-func lockScopes(limits [3]*Limiter, start int) {
-	for _, l := range limits[start:] {
-		if l != nil {
-			l.mu.Lock()
+		limits := scopeSet{}
+		for i, l := range p.scopes(d) {
+			limits.base[i] = l
 		}
+		lockScopes(limits)
+		return limits, nil
 	}
-}
-func unlockScopes(limits [3]*Limiter) {
-	for i := len(limits) - 1; i >= 0; i-- {
-		if limits[i] != nil {
-			limits[i].mu.Unlock()
+	for {
+		snapshot := p.manager.active.Load()
+		limits := snapshot.scopeSet(p.inboundID, p.routeID, p.identityKey(), d, p.identity != nil)
+		lockScopes(limits)
+		if p.manager.active.Load() != snapshot {
+			unlockScopes(limits)
+			continue
 		}
+		if !scopesCurrent(limits, snapshot.generation) {
+			unlockScopes(limits)
+			continue
+		}
+		return limits, snapshot.changed
 	}
 }
 
 type reservation struct {
-	limits [3]*Limiter
+	limits scopeSet
 	bytes  int
 }
 
@@ -162,10 +146,11 @@ func (r reservation) refund(bytes int) {
 	if bytes <= 0 {
 		return
 	}
-	lockScopes(r.limits, 0)
+	lockScopes(r.limits)
 	defer unlockScopes(r.limits)
 	now := time.Now()
-	for _, l := range r.limits {
+	for i := range r.limits.len() {
+		l := r.limits.at(i).limiter
 		if l == nil || l.rate == 0 {
 			continue
 		}
@@ -183,14 +168,22 @@ func (p Policy) AllowDatagram(d Direction, bytes int) bool {
 	if bytes < 0 {
 		return false
 	}
-	if p.manager != nil && !p.manager.active.Load().config.Enabled {
+	if p.manager != nil && p.unmanaged(p.manager.active.Load()) {
 		return true
 	}
+	return p.allowDatagram(d, bytes)
+}
+
+func (p Policy) allowDatagram(d Direction, bytes int) bool {
 	limits, _ := p.lockScopes(d)
 	defer unlockScopes(limits)
+	if limits.blocked {
+		p.rejected(d)
+		return false
+	}
 	now := time.Now()
-	var next [3]time.Time
-	for i, l := range limits {
+	for i := range limits.len() {
+		l := limits.at(i).limiter
 		if l == nil || l.rate == 0 {
 			continue
 		}
@@ -198,15 +191,16 @@ func (p Policy) AllowDatagram(d Direction, bytes int) bool {
 			p.rejected(d)
 			return false
 		}
-		next[i] = l.nextAt(now, int64(bytes))
-		if next[i].After(now) {
+		next := l.nextAt(now, int64(bytes))
+		if next.After(now) {
 			p.rejected(d)
 			return false
 		}
 	}
-	for i, l := range limits {
+	for i := range limits.len() {
+		l := limits.at(i).limiter
 		if l != nil && l.rate != 0 {
-			l.next = next[i]
+			l.next = l.nextAt(now, int64(bytes))
 		}
 	}
 	p.admitted(d, bytes)
@@ -231,10 +225,15 @@ func (p Policy) wait(ctx context.Context, d Direction, bytes int, split bool, de
 			return reservation{}, err
 		}
 		limits, changed := p.lockScopes(d)
+		if limits.blocked {
+			unlockScopes(limits)
+			return reservation{}, ErrUnknownResourceIdentity
+		}
 		n := bytes
 		if split {
 			n = min(n, 16<<10)
-			for _, l := range limits {
+			for i := range limits.len() {
+				l := limits.at(i).limiter
 				if l != nil && l.rate > 0 {
 					n = min(n, int(l.burst))
 				}
@@ -242,7 +241,8 @@ func (p Policy) wait(ctx context.Context, d Direction, bytes int, split bool, de
 		}
 		now := time.Now()
 		if split {
-			for _, l := range limits {
+			for i := range limits.len() {
+				l := limits.at(i).limiter
 				if l != nil && l.rate > 0 && l.nextAt(now, int64(n)).After(now) {
 					n = min(n, int(max(int64(1), l.rate/20)))
 				}
@@ -258,9 +258,9 @@ func (p Policy) wait(ctx context.Context, d Direction, bytes int, split bool, de
 			return reservation{}, os.ErrDeadlineExceeded
 		}
 		ready := now
-		var next [3]time.Time
 		valid := true
-		for i, l := range limits {
+		for i := range limits.len() {
+			l := limits.at(i).limiter
 			if l == nil || l.rate == 0 {
 				continue
 			}
@@ -268,15 +268,16 @@ func (p Policy) wait(ctx context.Context, d Direction, bytes int, split bool, de
 				valid = false
 				break
 			}
-			next[i] = l.nextAt(now, int64(n))
-			if next[i].After(ready) {
-				ready = next[i]
+			next := l.nextAt(now, int64(n))
+			if next.After(ready) {
+				ready = next
 			}
 		}
 		if valid && !ready.After(now) {
-			for i, l := range limits {
+			for i := range limits.len() {
+				l := limits.at(i).limiter
 				if l != nil && l.rate != 0 {
-					l.next = next[i]
+					l.next = l.nextAt(now, int64(n))
 				}
 			}
 		}
@@ -315,12 +316,20 @@ func (p Policy) wait(ctx context.Context, d Direction, bytes int, split bool, de
 }
 
 func (p Policy) Enabled(d Direction) bool {
+	if plan, err := p.QuotaPlan(); plan != nil || err != nil {
+		return true
+	}
 	if p.manager != nil {
-		_, _, up, down := p.manager.active.Load().scopes(p.inboundID, p.routeID)
-		if d == Download {
-			return down
+		limits := p.manager.active.Load().scopeSet(p.inboundID, p.routeID, p.identityKey(), d, p.identity != nil)
+		if limits.blocked {
+			return true
 		}
-		return up
+		for i := range limits.len() {
+			if limits.at(i).limiter != nil {
+				return true
+			}
+		}
+		return false
 	}
 	for _, l := range p.scopes(d) {
 		if l != nil && l.rate > 0 {
@@ -339,15 +348,29 @@ type ShapedWriter struct {
 }
 
 func (w ShapedWriter) Write(data []byte) (written int, err error) {
+	var ticket quota.Reservation
 	for len(data) > 0 {
-		r, err := w.Policy.wait(w.Context, w.Direction, len(data), true, w.deadline)
+		n, metered, err := w.Policy.reserveQuota(w.Context, w.Direction, len(data), &ticket, w.deadline)
 		if err != nil {
+			return written, err
+		}
+		r, err := w.Policy.wait(w.Context, w.Direction, n, true, w.deadline)
+		if err != nil {
+			if metered {
+				ticket.Commit(0)
+			}
 			return written, err
 		}
 		count, writeErr := w.Writer.Write(data[:r.bytes])
 		if count < 0 || count > r.bytes {
+			if metered {
+				ticket.Commit(0)
+			}
 			r.refund(r.bytes)
 			return written, errors.New("trafficcontrol: invalid writer progress")
+		}
+		if metered {
+			ticket.Commit(count)
 		}
 		r.refund(r.bytes - count)
 		written += count

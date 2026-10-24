@@ -163,6 +163,33 @@ func (c *Controller) Activate(next *Prepared) {
 	terminateRevokedSessions(revoked)
 }
 
+// InterruptWhere reuses ingress-owned cancellation for resource policies. It
+// stops I/O and releases authorizations; transport owners perform their usual
+// close and lease cleanup. Graceful close cannot block the next quota sweep.
+func (c *Controller) InterruptWhere(matches func(netapi.TrafficSubject) bool, cause error) {
+	c.mu.Lock()
+	sessions := make([]*Session, 0, len(c.sessions))
+	for s := range c.sessions {
+		sessions = append(sessions, s)
+	}
+	c.mu.Unlock()
+	for _, s := range sessions {
+		if !matches(s.subject) {
+			continue
+		}
+		s.mu.Lock()
+		if s.revoked || s.released {
+			s.mu.Unlock()
+			continue
+		}
+		s.revoked = true
+		s.mu.Unlock()
+		c.revoked.Add(1)
+		s.cancelTraffic(cause)
+		s.Close()
+	}
+}
+
 func terminateRevokedSessions(revoked []*Session) {
 	// Every revoked transport has been interrupted before a graceful close
 	// can block. Bound teardown concurrency instead of spawning per session.

@@ -14,6 +14,8 @@ const (
 	InboundsWrite             Permission = "inbounds:write"
 	TrafficAccessRead         Permission = "traffic-access:read"
 	TrafficAccessWrite        Permission = "traffic-access:write"
+	ResourceRead              Permission = "resources:read"
+	ResourceWrite             Permission = "resources:write"
 	RoutesRead                Permission = "routes:read"
 	RoutesWrite               Permission = "routes:write"
 	ResolverRead              Permission = "resolver:read"
@@ -48,6 +50,8 @@ type Definition struct {
 }
 
 var catalog = [...]Definition{
+	{ResourceRead, "security", "Inspect identity resource policies and effective limits."},
+	{ResourceWrite, "security", "Validate and activate identity resource policies."},
 	{TrafficAccessRead, "security", "Inspect traffic access policies and preview effective authorization."},
 	{TrafficAccessWrite, "security", "Validate and activate traffic access policies."},
 	{UsageOwn, "users", "View your own traffic usage and connection audit."},
