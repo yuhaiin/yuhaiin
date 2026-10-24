@@ -146,6 +146,14 @@ func (s *RouteListStore) SaveRouteList(ctx context.Context, detail contractroute
 }
 
 func SaveRouteListContract(ctx context.Context, execer RouteListExecer, detail contractroute.RouteListDetail, updatedAt int64) error {
+	if handled, err := protectedTransaction(ctx, execer, func(q any) error { return SaveRouteListContract(ctx, q.(RouteListExecer), detail, updatedAt) }); handled {
+		return err
+	}
+	var err error
+	detail, err = mergeProtected(ctx, execer, detail, `SELECT data_json FROM route_lists_v2 WHERE id=?`, detail.ID)
+	if err != nil {
+		return err
+	}
 	detail = normalizeRouteListDetail(detail)
 	if err := validateRouteListDetail(detail); err != nil {
 		return err

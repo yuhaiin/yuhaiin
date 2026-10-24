@@ -90,7 +90,7 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 			w.Header().Add("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Yuhaiin-Secret-Access")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		}
 		if r.Method == http.MethodOptions {
@@ -121,7 +121,11 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 			authError(w, http.StatusForbidden)
 			return
 		}
-		ctx, cancel := context.WithCancel(WithPrincipal(r.Context(), p))
+		protected, ok := s.secretCapabilities(w, r, pattern, p)
+		if !ok {
+			return
+		}
+		ctx, cancel := context.WithCancel(WithPrincipal(protected, p))
 		defer cancel()
 		// Streams and long-running diagnostics cannot retain permissions after
 		// revocation. Every ordinary request also re-reads owner status/role.
@@ -138,7 +142,7 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 					return
 				case <-ticker.C:
 					current, err := s.Store.Authenticate(ctx, secret, kind)
-					if err != nil || !current.Allows(permission) {
+					if err != nil || !current.Allows(permission) || (r.Header.Get(secretAccessHeader) == "reveal" || rawSecretAccess(r, pattern)) && !current.Allows(SecretsRead) {
 						cancel()
 						return
 					}

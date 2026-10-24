@@ -76,7 +76,7 @@ type ActivationStatus struct {
 }
 
 type MaxMindDBGeoIP struct {
-	DownloadURL string `json:"downloadUrl"`
+	DownloadURL string `json:"downloadUrl" secret:"url"`
 	Error       string `json:"error"`
 }
 
@@ -195,7 +195,7 @@ type ListItem struct {
 	Source      string `json:"source"`
 	ItemCount   uint32 `json:"itemCount"`
 	ErrorCount  uint32 `json:"errorCount"`
-	Preview     string `json:"preview"`
+	Preview     string `json:"preview" secret:"url"`
 }
 
 type RouteListDetail struct {
@@ -219,7 +219,7 @@ type LocalSource struct {
 }
 
 type RemoteSource struct {
-	URLs []string `json:"urls,omitzero"`
+	URLs []string `json:"urls,omitzero" secret:"urls"`
 }
 
 type RouteList struct {
@@ -287,7 +287,7 @@ type BlockHistoryList struct {
 type Registry struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
-	URL       string `json:"url"`
+	URL       string `json:"url" secret:"url"`
 	Enabled   bool   `json:"enabled"`
 	Builtin   bool   `json:"builtin"`
 	UpdatedAt string `json:"updatedAt"`
@@ -306,8 +306,8 @@ type RegistryFile struct {
 	ListType   string `json:"listType,omitzero"`
 	Format     string `json:"format"`
 	Path       string `json:"path"`
-	URL        string `json:"url"`
-	SourceURL  string `json:"sourceUrl,omitzero"`
+	URL        string `json:"url" secret:"url"`
+	SourceURL  string `json:"sourceUrl,omitzero" secret:"url"`
 	Size       int64  `json:"size"`
 	SHA256     string `json:"sha256"`
 	Selectable bool   `json:"selectable"`
@@ -317,7 +317,7 @@ type RegistryManifest struct {
 	SchemaVersion int            `json:"schemaVersion"`
 	Repository    string         `json:"repository"`
 	Branch        string         `json:"branch"`
-	BaseURL       string         `json:"baseUrl"`
+	BaseURL       string         `json:"baseUrl" secret:"url"`
 	Files         []RegistryFile `json:"files"`
 }
 
@@ -326,7 +326,7 @@ type RegistryCatalog struct {
 	SchemaVersion int            `json:"schemaVersion"`
 	Repository    string         `json:"repository"`
 	Branch        string         `json:"branch"`
-	BaseURL       string         `json:"baseUrl"`
+	BaseURL       string         `json:"baseUrl" secret:"url"`
 	Files         []RegistryFile `json:"files"`
 	Error         string         `json:"error,omitzero"`
 }

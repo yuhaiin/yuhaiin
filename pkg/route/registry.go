@@ -5,6 +5,7 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	"io"
 	"net"
 	"net/http"
@@ -118,20 +119,19 @@ func (s *RegistryCatalogService) catalog(ctx context.Context, registry contractr
 func (s *RegistryCatalogService) fetch(ctx context.Context, registry contractroute.Registry) (contractroute.RegistryCatalog, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, registry.URL, nil)
 	if err != nil {
-		return contractroute.RegistryCatalog{}, fmt.Errorf("create registry request: %w", err)
+		return contractroute.RegistryCatalog{}, fmt.Errorf("create registry request: %w", secret.RemoteError(err))
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "yuhaiin-registry/1")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return contractroute.RegistryCatalog{}, fmt.Errorf("fetch registry %q: %w", registry.Name, err)
+		return contractroute.RegistryCatalog{}, fmt.Errorf("fetch registry %q: %w", registry.Name, secret.RemoteError(err))
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return contractroute.RegistryCatalog{}, fmt.Errorf("fetch registry %q: HTTP %d: %s", registry.Name, resp.StatusCode, strings.TrimSpace(string(msg)))
+		return contractroute.RegistryCatalog{}, fmt.Errorf("fetch registry %q: HTTP %d", registry.Name, resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxRegistryBodySize+1))
@@ -144,7 +144,7 @@ func (s *RegistryCatalogService) fetch(ctx context.Context, registry contractrou
 
 	var manifest contractroute.RegistryManifest
 	if err := json.Unmarshal(data, &manifest); err != nil {
-		return contractroute.RegistryCatalog{}, fmt.Errorf("decode registry %q: %w", registry.Name, err)
+		return contractroute.RegistryCatalog{}, fmt.Errorf("decode registry %q: invalid manifest", registry.Name)
 	}
 	if manifest.SchemaVersion != registrySchemaVersion {
 		return contractroute.RegistryCatalog{}, fmt.Errorf("registry %q schema version %d is unsupported", registry.Name, manifest.SchemaVersion)

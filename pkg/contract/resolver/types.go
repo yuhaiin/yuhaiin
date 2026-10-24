@@ -14,7 +14,7 @@ type Resolver struct {
 	ID            string `json:"id"`
 	Name          string `json:"name"`
 	Type          string `json:"type"`
-	Host          string `json:"host"`
+	Host          string `json:"host" secret:"url"`
 	Subnet        string `json:"subnet,omitzero"`
 	TLSServerName string `json:"tlsServerName,omitzero"`
 	System        bool   `json:"system,omitzero"`

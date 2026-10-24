@@ -56,6 +56,7 @@ var v2Permissions = map[v2Endpoint]managementpermission.Permission{
 	v2PublishResolve:           managementpermission.NodesWrite,
 	v2NodesSelect:              managementpermission.NodesWrite,
 	v2NodesImportPreview:       managementpermission.NodesWrite,
+	v2NodesImportCommit:        managementpermission.NodesWrite,
 	v2NodeUse:                  managementpermission.NodesWrite,
 	v2NodeLatency:              managementpermission.NodesWrite,
 	v2NodeClose:                managementpermission.NodesWrite,

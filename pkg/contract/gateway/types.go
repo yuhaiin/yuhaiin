@@ -2,6 +2,7 @@
 package gateway
 
 import (
+	"strings"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/contract/route"
@@ -27,8 +28,8 @@ type Gateway struct {
 	Listen          string   `json:"listen"`
 	AllowedSources  []string `json:"allowedSources"`
 	TLSMode         string   `json:"tlsMode"`
-	CertificateFile string   `json:"certificateFile"`
-	KeyFile         string   `json:"keyFile"`
+	CertificateFile string   `json:"certificateFile" privilege:"secrets:manage"`
+	KeyFile         string   `json:"keyFile" privilege:"secrets:manage"`
 	RuleIDs         []string `json:"ruleIds"`
 	Default         Action   `json:"default"`
 	MaxBodyBytes    int64    `json:"maxBodyBytes"`
@@ -61,19 +62,19 @@ type Action struct {
 	Upstream        string              `json:"upstream,omitempty"`
 	Outbound        route.Target        `json:"outbound"`
 	Status          int                 `json:"status,omitzero"`
-	Body            string              `json:"body,omitempty"`
-	Location        string              `json:"location,omitempty"`
+	Body            string              `json:"body,omitempty" secret:"true"`
+	Location        string              `json:"location,omitempty" secret:"url"`
 	PreserveHost    bool                `json:"preserveHost"`
 	Rewrite         Rewrite             `json:"rewrite"`
-	ResponseHeaders map[string][]string `json:"responseHeaders,omitempty"`
+	ResponseHeaders map[string][]string `json:"responseHeaders,omitempty" secret:"values"`
 }
 
 type Rewrite struct {
 	Scheme  string              `json:"scheme,omitempty"`
 	Host    string              `json:"host,omitempty"`
 	Path    string              `json:"path,omitempty"`
-	Query   *string             `json:"query,omitzero"`
-	Headers map[string][]string `json:"headers,omitempty"`
+	Query   *string             `json:"query,omitzero" secret:"true"`
+	Headers map[string][]string `json:"headers,omitempty" secret:"values"`
 }
 
 type Upstream struct {
@@ -101,7 +102,7 @@ type Upstream struct {
 }
 
 type Backend struct {
-	URL    string `json:"url"`
+	URL    string `json:"url" secret:"url"`
 	Weight int    `json:"weight"`
 }
 
@@ -125,19 +126,19 @@ type FilterList struct {
 	Enabled   bool      `json:"enabled"`
 	GatewayID string    `json:"gatewayId"`
 	Revision  uint64    `json:"revision"`
-	URL       string    `json:"url,omitempty"`
+	URL       string    `json:"url,omitempty" secret:"url"`
 	Text      string    `json:"text"`
 	UpdatedAt time.Time `json:"updatedAt,omitzero"`
 }
 
 type TestRequest struct {
 	GatewayID string              `json:"gatewayId"`
-	URL       string              `json:"url"`
+	URL       string              `json:"url" secret:"url"`
 	Method    string              `json:"method"`
 	InboundID string              `json:"inboundId"`
 	Process   string              `json:"process,omitempty"`
 	SourceIP  string              `json:"sourceIp,omitempty"`
-	Headers   map[string][]string `json:"headers"`
+	Headers   map[string][]string `json:"headers" secret:"values"`
 }
 
 type MatchStep struct {
@@ -168,7 +169,7 @@ type CAStatus struct {
 // CAImport is write-only. PrivateKeyPEM must never occur in a response or log.
 type CAImport struct {
 	CertificatePEM string `json:"certificatePem"`
-	PrivateKeyPEM  string `json:"privateKeyPem"`
+	PrivateKeyPEM  string `json:"privateKeyPem" secret:"true"`
 	Revision       uint64 `json:"revision"`
 }
 
@@ -208,7 +209,7 @@ type UpstreamStatus struct {
 	Backends       []BackendStatus `json:"backends"`
 }
 type BackendStatus struct {
-	URL            string `json:"url"`
+	URL            string `json:"url" secret:"url"`
 	Healthy        bool   `json:"healthy"`
 	ActiveRequests int64  `json:"activeRequests"`
 	Failures       int64  `json:"failures"`
@@ -219,4 +220,9 @@ type FilterReport struct {
 	Accepted int      `json:"accepted"`
 	Rejected int      `json:"rejected"`
 	Errors   []string `json:"errors"`
+}
+
+// Header match values can themselves be reusable authentication proofs.
+func (c Condition) SecretField(name string) bool {
+	return strings.EqualFold(c.Field, "header") && (name == "Values" || name == "Value")
 }

@@ -279,8 +279,9 @@ func (s *Server) registerPasswords(mux *http.ServeMux, p *PasswordService) {
 	})
 	register("GET /api/v2/management", func(w http.ResponseWriter, _ *http.Request) {
 		respond(w, struct {
-			Authentication string `json:"authentication"`
-		}{"local-users"}, nil)
+			Authentication string   `json:"authentication"`
+			Features       []string `json:"features"`
+		}{"local-users", []string{"custom-roles", "secret-isolation"}}, nil)
 	})
 	register("POST /api/v2/auth/setup/parameters", func(w http.ResponseWriter, r *http.Request) {
 		out, err := p.InitializationParameters(r.Context(), initializationSecret(r))

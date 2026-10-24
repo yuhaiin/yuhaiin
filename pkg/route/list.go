@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	"iter"
 	"math"
 	"os"
@@ -470,7 +471,7 @@ func (s *Lists) refreshGeoip(ctx context.Context, download string, force bool) s
 	s.geoipmu.Unlock()
 
 	if err != nil {
-		log.Error("get remote failed", "err", err, "url", download)
+		log.Error("get remote failed", "err", err, "url", secret.PublicURL(download))
 		return err.Error()
 	}
 
@@ -554,8 +555,8 @@ func (s *Lists) RefreshContract(ctx context.Context) error {
 			cancel()
 			if er != nil {
 				refreshErr = errors.Join(refreshErr, fmt.Errorf("refresh list %q: %w", list.Name, er))
-				errorMsgs[list.Name] = append(errorMsgs[list.Name], fmt.Sprintf("%s: %s", url, er.Error()))
-				log.Error("download remote failed", "err", er, "url", url)
+				errorMsgs[list.Name] = append(errorMsgs[list.Name], fmt.Sprintf("%s: %s", secret.PublicURL(url), secret.RemoteError(er)))
+				log.Error("download remote failed", "err", er, "url", secret.PublicURL(url))
 			}
 		}
 	}
@@ -955,7 +956,7 @@ func (l *Lists) getLocalCacheTrimRuleIter(rules []string) iter.Seq[string] {
 		for _, v := range rules {
 			r, er := l.downloader.GetReader(v)
 			if er != nil {
-				log.Warn("get local cache failed", "err", er, "url", v)
+				log.Warn("get local cache failed", "err", er, "url", secret.PublicURL(v))
 				continue
 			}
 			defer r.Close()

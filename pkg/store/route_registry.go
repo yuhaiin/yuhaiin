@@ -12,6 +12,7 @@ import (
 	"time"
 
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 )
 
 const (
@@ -67,10 +68,14 @@ func (s *RouteRegistryStore) GetRegistry(ctx context.Context, id string) (contra
 		return contractroute.Registry{}, errors.New("route registry store database is nil")
 	}
 
+	return readRegistry(ctx, s.db, id)
+}
+
+func readRegistry(ctx context.Context, q secretRowReader, id string) (contractroute.Registry, error) {
 	var item contractroute.Registry
 	var enabled, builtin int
 	var updatedAt int64
-	err := s.db.QueryRowContext(ctx, `
+	err := q.QueryRowContext(ctx, `
 		SELECT id, name, url, enabled, builtin, updated_at
 		FROM route_registries
 		WHERE id = ?
@@ -92,6 +97,19 @@ func (s *RouteRegistryStore) SaveRegistry(ctx context.Context, item contractrout
 		return contractroute.Registry{}, errors.New("route registry store database is nil")
 	}
 
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return contractroute.Registry{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	previous, err := readRegistry(ctx, tx, item.ID)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return contractroute.Registry{}, err
+	}
+	item, err = secret.Merge(ctx, item, previous)
+	if err != nil {
+		return contractroute.Registry{}, err
+	}
 	item = normalizeRegistry(item)
 	if err := validateRegistry(item); err != nil {
 		return contractroute.Registry{}, err
@@ -108,7 +126,7 @@ func (s *RouteRegistryStore) SaveRegistry(ctx context.Context, item contractrout
 		item.Builtin = false
 	}
 
-	if _, err := s.db.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO route_registries(id, name, url, enabled, builtin, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
@@ -121,6 +139,9 @@ func (s *RouteRegistryStore) SaveRegistry(ctx context.Context, item contractrout
 		return contractroute.Registry{}, fmt.Errorf("upsert route registry %q failed: %w", item.ID, err)
 	}
 
+	if err := tx.Commit(); err != nil {
+		return contractroute.Registry{}, err
+	}
 	return s.GetRegistry(ctx, item.ID)
 }
 
@@ -173,7 +194,7 @@ func validateRegistry(item contractroute.Registry) error {
 	}
 	u, err := url.Parse(item.URL)
 	if err != nil {
-		return fmt.Errorf("parse route registry url: %w", err)
+		return errors.New("invalid route registry URL")
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return errors.New("route registry url must use http or https")

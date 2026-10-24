@@ -55,11 +55,23 @@ func (s *BackupStore) Save(ctx context.Context, opt contractbackup.Option) error
 	if s == nil || s.db == nil {
 		return errors.New("backup store database is nil")
 	}
+	return saveBackup(ctx, s.db, opt)
+}
+
+func saveBackup(ctx context.Context, execer NodeExecer, opt contractbackup.Option) error {
+	if handled, err := protectedTransaction(ctx, execer, func(tx any) error { return saveBackup(ctx, tx.(NodeExecer), opt) }); handled {
+		return err
+	}
+	merged, err := mergeProtected(ctx, execer, opt, `SELECT data_json FROM backup_settings WHERE id=1`)
+	if err != nil {
+		return err
+	}
+	opt = merged
 	data, err := json.Marshal(opt)
 	if err != nil {
 		return fmt.Errorf("encode backup settings failed: %w", err)
 	}
-	if _, err := s.db.ExecContext(ctx, `
+	if _, err := execer.ExecContext(ctx, `
 		INSERT INTO backup_settings(id, updated_at, data_json)
 		VALUES (1, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET

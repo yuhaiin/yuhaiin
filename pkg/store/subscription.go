@@ -70,6 +70,11 @@ func (s *SubscriptionStore) SaveLinks(ctx context.Context, links []contractsubsc
 	defer func() { _ = tx.Rollback() }()
 	for _, link := range links {
 		link = normalizeLink(link)
+		merged, err := mergeProtected(ctx, tx, link, `SELECT data_json FROM subscriptions WHERE name=?`, link.Name)
+		if err != nil {
+			return err
+		}
+		link = merged
 		if err := validateLink(link); err != nil {
 			return err
 		}
@@ -173,6 +178,18 @@ func (s *SubscriptionStore) SavePublish(ctx context.Context, publish contractsub
 	if s == nil || s.db == nil {
 		return errors.New("subscription store database is nil")
 	}
+	return savePublish(ctx, s.db, publish, updatedAt)
+}
+
+func savePublish(ctx context.Context, execer NodeExecer, publish contractsubscription.Publish, updatedAt int64) error {
+	if handled, err := protectedTransaction(ctx, execer, func(tx any) error { return savePublish(ctx, tx.(NodeExecer), publish, updatedAt) }); handled {
+		return err
+	}
+	merged, err := mergeProtected(ctx, execer, publish, `SELECT data_json FROM publishes WHERE name=?`, publish.Name)
+	if err != nil {
+		return err
+	}
+	publish = merged
 	publish = normalizePublish(publish)
 	if strings.TrimSpace(publish.Name) == "" {
 		return errors.New("publish name is empty")
@@ -184,7 +201,7 @@ func (s *SubscriptionStore) SavePublish(ctx context.Context, publish contractsub
 	if err != nil {
 		return fmt.Errorf("encode publish %q failed: %w", publish.Name, err)
 	}
-	if _, err := s.db.ExecContext(ctx, `
+	if _, err := execer.ExecContext(ctx, `
 		INSERT INTO publishes(name, updated_at, data_json)
 		VALUES (?, ?, ?)
 		ON CONFLICT(name) DO UPDATE SET

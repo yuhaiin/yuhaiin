@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	"io"
 	"net"
 	"net/http"
@@ -39,7 +40,7 @@ func NewDownloader(path string, dialer func() netapi.Proxy) *Downloader {
 func (d *Downloader) parseURI(urlstr string) (uri, error) {
 	url, err := url.Parse(urlstr)
 	if err != nil {
-		return uri{}, err
+		return uri{}, secret.RemoteError(err)
 	}
 
 	if url.Scheme == "file" {
@@ -61,7 +62,7 @@ func (d *Downloader) parseURI(urlstr string) (uri, error) {
 func (d *Downloader) GetReader(url string) (io.ReadCloser, error) {
 	path := d.GetPath(url)
 	if path == "" {
-		return nil, fmt.Errorf("get path failed: %s", url)
+		return nil, fmt.Errorf("get download path failed")
 	}
 
 	return os.Open(path)
@@ -120,12 +121,12 @@ func (d *Downloader) Download(ctx context.Context, url string, beforeWrite func(
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return err
+		return secret.RemoteError(err)
 	}
 
 	resp, err := hc.Do(req)
 	if err != nil {
-		return err
+		return secret.RemoteError(err)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -134,8 +135,7 @@ func (d *Downloader) Download(ctx context.Context, url string, beforeWrite func(
 	}()
 
 	if resp.StatusCode != 200 {
-		data, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("status code: %d, data: %s", resp.StatusCode, string(data))
+		return fmt.Errorf("download HTTP status: %d", resp.StatusCode)
 	}
 
 	// Download to a temporary file first to ensure atomicity of the file update.

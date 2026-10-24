@@ -31,9 +31,6 @@ func (s *InboundStore) Save(ctx context.Context, inbound contract.Inbound, updat
 	if s == nil || s.db == nil {
 		return errors.New("inbound store database is nil")
 	}
-	if err := inbound.Validate(); err != nil {
-		return err
-	}
 	if updatedAt == 0 {
 		updatedAt = time.Now().Unix()
 	}
@@ -41,6 +38,15 @@ func (s *InboundStore) Save(ctx context.Context, inbound contract.Inbound, updat
 }
 
 func SaveInboundContract(ctx context.Context, execer InboundExecer, inbound contract.Inbound, updatedAt int64) error {
+	if handled, err := protectedTransaction(ctx, execer, func(tx any) error { return SaveInboundContract(ctx, tx.(InboundExecer), inbound, updatedAt) }); handled {
+		return err
+	}
+	merged, err := mergeProtected(ctx, execer, inbound, `SELECT data_json FROM inbounds_v2 WHERE id=?`, inbound.ID)
+	if err != nil {
+		return err
+	}
+	inbound = merged
+
 	if err := inbound.Validate(); err != nil {
 		return err
 	}

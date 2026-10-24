@@ -29,7 +29,7 @@ type Node struct {
 
 // LatencyConfig overrides the global HTTP latency target for one node.
 type LatencyConfig struct {
-	URL                string `json:"url,omitempty"`
+	URL                string `json:"url,omitempty" secret:"url"`
 	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
 }
 
@@ -73,7 +73,7 @@ type SelectorList struct {
 
 type LatencyRequest struct {
 	Type         string `json:"type"`
-	URL          string `json:"url"`
+	URL          string `json:"url" secret:"url"`
 	UserAgent    string `json:"userAgent"`
 	Host         string `json:"host"`
 	TargetDomain string `json:"targetDomain"`
@@ -164,8 +164,8 @@ type L2TP struct {
 	AuthType      string `json:"auth_type,omitzero"`
 	Gateway       string `json:"gateway"`
 	Username      string `json:"username,omitzero"`
-	Password      string `json:"password,omitzero"`
-	SharedSecret  string `json:"shared_secret,omitzero"`
+	Password      string `json:"password,omitzero" secret:"true"`
+	SharedSecret  string `json:"shared_secret,omitzero" secret:"true"`
 	Hostname      string `json:"hostname,omitzero"`
 	IPv6          bool   `json:"ipv6,omitzero"`
 	IPv6Address   string `json:"ipv6_address,omitzero"`
@@ -179,12 +179,12 @@ type L2TPv3 struct {
 	LocalAddress   string `json:"local_address,omitzero"`
 	Gateway        string `json:"gateway"`
 	Hostname       string `json:"hostname,omitzero"`
-	SharedSecret   string `json:"shared_secret,omitzero"`
+	SharedSecret   string `json:"shared_secret,omitzero" secret:"true"`
 	Static         bool   `json:"static,omitzero"`
 	LocalSessionID uint32 `json:"local_session_id,omitzero"`
 	PeerSessionID  uint32 `json:"peer_session_id,omitzero"`
-	LocalCookie    string `json:"local_cookie,omitzero"`
-	PeerCookie     string `json:"peer_cookie,omitzero"`
+	LocalCookie    string `json:"local_cookie,omitzero" secret:"true"`
+	PeerCookie     string `json:"peer_cookie,omitzero" secret:"true"`
 	Sublayer       bool   `json:"sublayer,omitzero"`
 	RemoteEndID    string `json:"remote_end_id,omitzero"`
 	Address        string `json:"address,omitzero"`
@@ -213,12 +213,12 @@ type OpenVPN struct {
 	Network            string   `json:"network,omitzero"`
 	CACertPEM          string   `json:"ca_cert_pem,omitzero"`
 	ClientCertPEM      string   `json:"client_cert_pem,omitzero"`
-	ClientKeyPEM       string   `json:"client_key_pem,omitzero"`
+	ClientKeyPEM       string   `json:"client_key_pem,omitzero" secret:"true"`
 	ServerName         string   `json:"server_name,omitzero"`
 	Username           string   `json:"username,omitzero"`
-	Password           string   `json:"password,omitzero"`
-	TLSAuthKey         string   `json:"tls_auth_key,omitzero"`
-	TLSCryptKey        string   `json:"tls_crypt_key,omitzero"`
+	Password           string   `json:"password,omitzero" secret:"true"`
+	TLSAuthKey         string   `json:"tls_auth_key,omitzero" secret:"true"`
+	TLSCryptKey        string   `json:"tls_crypt_key,omitzero" secret:"true"`
 	KeyDirection       *int32   `json:"key_direction,omitzero"`
 	Auth               string   `json:"auth,omitzero"`
 	DataCiphers        []string `json:"data_ciphers,omitzero"`
@@ -242,7 +242,7 @@ type OpenVPNInfo struct {
 type GlobalProtect struct {
 	Gateway            string `json:"gateway"`
 	Username           string `json:"username"`
-	Password           string `json:"password"`
+	Password           string `json:"password" secret:"true"`
 	Computer           string `json:"computer,omitzero"`
 	CACertPEM          string `json:"ca_cert_pem,omitzero"`
 	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
@@ -255,11 +255,11 @@ type GlobalProtect struct {
 type SoftEther struct {
 	Gateway            string `json:"gateway"`
 	Username           string `json:"username"`
-	Password           string `json:"password"`
+	Password           string `json:"password" secret:"true"`
 	Hub                string `json:"hub,omitzero"`
 	AuthType           string `json:"auth_type,omitzero"`
 	ClientCertPEM      string `json:"client_cert_pem,omitzero"`
-	ClientKeyPEM       string `json:"client_key_pem,omitzero"`
+	ClientKeyPEM       string `json:"client_key_pem,omitzero" secret:"true"`
 	CACertPEM          string `json:"ca_cert_pem,omitzero"`
 	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
 	Address            string `json:"address,omitzero"`
@@ -309,28 +309,28 @@ type Direct struct {
 
 type Shadowsocks struct {
 	Method   string `json:"method"`
-	Password string `json:"password"`
+	Password string `json:"password" secret:"true"`
 }
 
 type Shadowsocksr struct {
 	Server     string `json:"server"`
 	Port       string `json:"port"`
 	Method     string `json:"method"`
-	Password   string `json:"password"`
+	Password   string `json:"password" secret:"true"`
 	Obfs       string `json:"obfs"`
 	ObfsParam  string `json:"obfsparam"`
 	Protocol   string `json:"protocol"`
-	ProtoParam string `json:"protoparam"`
+	ProtoParam string `json:"protoparam" secret:"true"`
 }
 
 type Vmess struct {
-	UUID     string `json:"id"`
+	UUID     string `json:"id" secret:"true"`
 	AlterID  string `json:"aid"`
 	Security string `json:"security"`
 }
 
 type Vless struct {
-	UUID string `json:"uuid"`
+	UUID string `json:"uuid" secret:"true"`
 }
 
 type Websocket struct {
@@ -346,11 +346,11 @@ type Quic struct {
 // Hysteria2 bandwidth values are bytes per second; zero selects automatic congestion control.
 type Hysteria2 struct {
 	Host               string `json:"host"`
-	Auth               string `json:"auth"`
+	Auth               string `json:"auth" secret:"true"`
 	TLS                TLS    `json:"tls,omitzero"`
 	UploadBPS          uint64 `json:"upload_bps,omitzero"`
 	DownloadBPS        uint64 `json:"download_bps,omitzero"`
-	SalamanderPassword string `json:"salamander_password,omitzero"`
+	SalamanderPassword string `json:"salamander_password,omitzero" secret:"true"`
 	// Additional UDP relays to the same Hysteria server. Host is also included;
 	// with this list set, all DNS answers for each hostname enter the hop pool.
 	HopAddresses []string `json:"hop_addresses,omitzero"`
@@ -370,7 +370,7 @@ type ObfsHTTP struct {
 }
 
 type Trojan struct {
-	Password string `json:"password"`
+	Password string `json:"password" secret:"true"`
 	Peer     string `json:"peer"`
 }
 
@@ -394,7 +394,7 @@ type FixedAddress struct {
 
 type Socks5 struct {
 	User         string `json:"user"`
-	Password     string `json:"password"`
+	Password     string `json:"password" secret:"true"`
 	Hostname     string `json:"hostname"`
 	OverridePort int32  `json:"override_port,omitzero"`
 }
@@ -403,20 +403,20 @@ type Socks5 struct {
 // specifies the SSH server; host_key pins its public key or SHA256 fingerprint.
 type SSH struct {
 	User                 string `json:"user"`
-	Password             string `json:"password,omitzero"`
-	PrivateKey           string `json:"private_key,omitzero"`
-	PrivateKeyPassphrase string `json:"private_key_passphrase,omitzero"`
+	Password             string `json:"password,omitzero" secret:"true"`
+	PrivateKey           string `json:"private_key,omitzero" secret:"true"`
+	PrivateKeyPassphrase string `json:"private_key_passphrase,omitzero" secret:"true"`
 	HostKey              string `json:"host_key"`
 	KeepAliveSeconds     int32  `json:"keep_alive_seconds,omitzero"`
 }
 
 type HTTP struct {
 	User     string `json:"user"`
-	Password string `json:"password"`
+	Password string `json:"password" secret:"true"`
 }
 
 type Yuubinsya struct {
-	Password      string `json:"password"`
+	Password      string `json:"password" secret:"true"`
 	UDPOverStream bool   `json:"udp_over_stream,omitzero"`
 	UDPCoalesce   bool   `json:"udp_coalesce,omitzero"`
 }
@@ -429,7 +429,7 @@ type Reality struct {
 	ServerName    string `json:"server_name"`
 	PublicKey     string `json:"public_key"`
 	MLDSA65Verify string `json:"mldsa65_verify,omitzero"`
-	ShortID       string `json:"short_id,omitzero"`
+	ShortID       string `json:"short_id,omitzero" secret:"true"`
 	Debug         bool   `json:"debug,omitzero"`
 }
 
@@ -450,9 +450,9 @@ type ServerTLS struct {
 
 type Certificate struct {
 	Cert         []byte `json:"cert,omitzero"`
-	Key          []byte `json:"key,omitzero"`
-	CertFilePath string `json:"cert_file_path,omitzero"`
-	KeyFilePath  string `json:"key_file_path,omitzero"`
+	Key          []byte `json:"key,omitzero" secret:"true"`
+	CertFilePath string `json:"cert_file_path,omitzero" privilege:"secrets:manage"`
+	KeyFilePath  string `json:"key_file_path,omitzero" privilege:"secrets:manage"`
 }
 
 type TLSTermination struct {
@@ -463,11 +463,11 @@ type TLSTermination struct {
 // EAP credentials supplement, rather than replace, authentication of the peer.
 type IKEv2 struct {
 	Gateway  string `json:"gateway"`
-	PSK      string `json:"psk,omitzero"`
+	PSK      string `json:"psk,omitzero" secret:"true"`
 	LocalID  string `json:"local_id"`
 	ServerID string `json:"server_id,omitzero"`
 	Username string `json:"username,omitzero"`
-	Password string `json:"password,omitzero"`
+	Password string `json:"password,omitzero" secret:"true"`
 	TCP      bool   `json:"tcp,omitzero"`
 	MTU      int32  `json:"mtu,omitzero"`
 }
@@ -475,7 +475,7 @@ type IKEv2 struct {
 type AnyConnect struct {
 	Gateway            string `json:"gateway"`
 	Username           string `json:"username"`
-	Password           string `json:"password"`
+	Password           string `json:"password" secret:"true"`
 	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
 	DisableDTLS        bool   `json:"disable_dtls,omitzero"`
 	MTU                int32  `json:"mtu,omitzero"`
@@ -484,7 +484,7 @@ type AnyConnect struct {
 type SSTP struct {
 	Gateway            string `json:"gateway"`
 	Username           string `json:"username"`
-	Password           string `json:"password"`
+	Password           string `json:"password" secret:"true"`
 	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
 	MTU                int32  `json:"mtu,omitzero"`
 }
@@ -492,10 +492,10 @@ type SSTP struct {
 type Fortinet struct {
 	Gateway            string `json:"gateway"`
 	Username           string `json:"username"`
-	Password           string `json:"password"`
+	Password           string `json:"password" secret:"true"`
 	Realm              string `json:"realm,omitzero"`
-	Token              string `json:"token,omitzero"`
-	TOTPSecret         string `json:"totp_secret,omitzero"`
+	Token              string `json:"token,omitzero" secret:"true"`
+	TOTPSecret         string `json:"totp_secret,omitzero" secret:"true"`
 	CACertPEM          string `json:"ca_cert_pem,omitzero"`
 	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
 	DisableDTLS        bool   `json:"disable_dtls,omitzero"`
@@ -505,16 +505,16 @@ type Fortinet struct {
 // Nebula embeds a standard client configuration as YAML.
 // Certificates and private keys should be supplied inline, not as host file paths.
 type Nebula struct {
-	ConfigYAML string `json:"config_yaml"`
+	ConfigYAML string `json:"config_yaml" secret:"true"`
 }
 
 // ZeroTier joins a controller-managed L2 network using an embedded native core.
 // Identity is stored under the application data directory and survives restarts.
 type ZeroTier struct {
 	NetworkID    string         `json:"network_id"`
-	Identity     string         `json:"identity,omitzero"`
+	Identity     string         `json:"identity,omitzero" secret:"true"`
 	Listen       string         `json:"listen,omitzero"`
-	LibraryPath  string         `json:"library_path,omitzero"`
+	LibraryPath  string         `json:"library_path,omitzero" privilege:"system:execute"`
 	LowBandwidth bool           `json:"low_bandwidth,omitzero"`
 	Moons        []ZeroTierMoon `json:"moons,omitzero"`
 }
@@ -525,7 +525,7 @@ type ZeroTierMoon struct {
 }
 
 type Wireguard struct {
-	SecretKey string          `json:"secretKey"`
+	SecretKey string          `json:"secretKey" secret:"true"`
 	Endpoint  []string        `json:"endpoint,omitzero"`
 	Peers     []WireguardPeer `json:"peers,omitzero"`
 	MTU       int32           `json:"mtu,omitzero"`
@@ -535,7 +535,7 @@ type Wireguard struct {
 // AmneziaWG uses the official amneziawg-go/v3 userspace protocol engine.
 // The fields mirror its UAPI; strings retain its uint32 range notation.
 type AmneziaWG struct {
-	SecretKey              string          `json:"secretKey"`
+	SecretKey              string          `json:"secretKey" secret:"true"`
 	Endpoint               []string        `json:"endpoint,omitzero"`
 	Peers                  []WireguardPeer `json:"peers,omitzero"`
 	MTU                    int32           `json:"mtu,omitzero"`
@@ -555,7 +555,7 @@ type AmneziaWG struct {
 	I3                     string          `json:"i3,omitzero"`
 	I4                     string          `json:"i4,omitzero"`
 	I5                     string          `json:"i5,omitzero"`
-	HeaderProtectionKey    string          `json:"header_protection_key,omitzero"`
+	HeaderProtectionKey    string          `json:"header_protection_key,omitzero" secret:"true"`
 	ContentPaddingAddition string          `json:"content_padding_addition,omitzero"`
 	RandomTrailers         bool            `json:"random_trailers,omitzero"`
 	DisableCookies         bool            `json:"disable_cookies,omitzero"`
@@ -563,16 +563,16 @@ type AmneziaWG struct {
 
 type WireguardPeer struct {
 	PublicKey    string   `json:"publicKey"`
-	PreSharedKey string   `json:"preSharedKey,omitzero"`
+	PreSharedKey string   `json:"preSharedKey,omitzero" secret:"true"`
 	Endpoint     string   `json:"endpoint"`
 	KeepAlive    int32    `json:"keepAlive,omitzero"`
 	AllowedIPs   []string `json:"allowedIps,omitzero"`
 }
 
 type Tailscale struct {
-	AuthKey    string `json:"auth_key"`
+	AuthKey    string `json:"auth_key" secret:"true"`
 	Hostname   string `json:"hostname"`
-	ControlURL string `json:"control_url"`
+	ControlURL string `json:"control_url" secret:"url"`
 	Debug      bool   `json:"debug,omitzero"`
 }
 
@@ -582,11 +582,11 @@ type Set struct {
 }
 
 type HTTPMock struct {
-	Data []byte `json:"data,omitzero"`
+	Data []byte `json:"data,omitzero" secret:"true"`
 }
 
 type AEAD struct {
-	Password     string `json:"password"`
+	Password     string `json:"password" secret:"true"`
 	CryptoMethod string `json:"crypto_method"`
 }
 
@@ -596,7 +596,7 @@ type NetworkSplit struct {
 }
 
 type CloudflareWarpMasque struct {
-	PrivateKey        string   `json:"private_key"`
+	PrivateKey        string   `json:"private_key" secret:"true"`
 	Endpoint          string   `json:"endpoint"`
 	EndpointPublicKey string   `json:"endpoint_public_key"`
 	LocalAddresses    []string `json:"local_addresses,omitzero"`
@@ -607,13 +607,13 @@ type CloudflareWarpMasque struct {
 // Masque configures a standards-based RFC 9484 CONNECT-IP client.
 type Masque struct {
 	Endpoint           string   `json:"endpoint"`
-	URL                string   `json:"url"`
+	URL                string   `json:"url" secret:"url"`
 	ServerName         string   `json:"server_name,omitzero"`
 	CACertPEM          string   `json:"ca_cert_pem,omitzero"`
 	ClientCertPEM      string   `json:"client_cert_pem,omitzero"`
-	ClientKeyPEM       string   `json:"client_key_pem,omitzero"`
+	ClientKeyPEM       string   `json:"client_key_pem,omitzero" secret:"true"`
 	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitzero"`
-	BearerToken        string   `json:"bearer_token,omitzero"`
+	BearerToken        string   `json:"bearer_token,omitzero" secret:"true"`
 	LocalAddresses     []string `json:"local_addresses"`
 	MTU                int32    `json:"mtu,omitzero"`
 	Transport          string   `json:"transport,omitzero"`

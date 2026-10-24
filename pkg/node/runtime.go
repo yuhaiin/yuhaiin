@@ -108,7 +108,7 @@ func (r *NodeRuntime) Save(ctx context.Context, node contractnode.Node) (contrac
 		return contractnode.Node{}, err
 	}
 	r.proxies.Delete(node.ID)
-	return node, nil
+	return nodes.Get(ctx, node.ID)
 }
 
 func (r *NodeRuntime) ReplaceRemoteContractNodes(ctx context.Context, group string, points []contractnode.Node) error {

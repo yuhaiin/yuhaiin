@@ -178,12 +178,12 @@ type ProtocolVariant interface{ ProtocolType() string }
 
 // Hysteria2Protocol bandwidth values use bytes per second, from the server's perspective.
 type Hysteria2Protocol struct {
-	Auth                  string `json:"auth"`
+	Auth                  string `json:"auth" secret:"true"`
 	UploadBPS             uint64 `json:"uploadBps,omitzero"`
 	DownloadBPS           uint64 `json:"downloadBps,omitzero"`
 	IgnoreClientBandwidth bool   `json:"ignoreClientBandwidth,omitzero"`
 	DisableUDP            bool   `json:"disableUdp,omitzero"`
-	SalamanderPassword    string `json:"salamanderPassword,omitzero"`
+	SalamanderPassword    string `json:"salamanderPassword,omitzero" secret:"true"`
 	// HopPorts is a comma-separated port list/range redirected to the listener.
 	// Automatic redirection requires Linux nftables and CAP_NET_ADMIN.
 	HopPorts string `json:"hopPorts,omitzero"`
@@ -195,7 +195,7 @@ func (Hysteria2Protocol) ProtocolType() string { return ProtocolHysteria2 }
 // Every authenticated tunnel receives an isolated in-memory TCP/IP stack.
 type MasqueProtocol struct {
 	Path            string   `json:"path,omitzero"`
-	AuthToken       string   `json:"authToken"`
+	AuthToken       string   `json:"authToken" secret:"true"`
 	ServerAddresses []string `json:"serverAddresses"`
 	ClientAddresses []string `json:"clientAddresses"`
 	MTU             int      `json:"mtu,omitzero"`
@@ -206,21 +206,21 @@ func (MasqueProtocol) ProtocolType() string { return ProtocolMasque }
 
 type HTTPProtocol struct {
 	Username string `json:"username"`
-	Password string `json:"password"`
+	Password string `json:"password" secret:"true"`
 }
 
 func (HTTPProtocol) ProtocolType() string { return ProtocolHTTP }
 
 type Socks5Protocol struct {
 	Username string `json:"username"`
-	Password string `json:"password"`
+	Password string `json:"password" secret:"true"`
 	UDP      bool   `json:"udp"`
 }
 
 func (Socks5Protocol) ProtocolType() string { return ProtocolSocks5 }
 
 type YuubinsyaProtocol struct {
-	Password    string `json:"password"`
+	Password    string `json:"password" secret:"true"`
 	UDPCoalesce bool   `json:"udpCoalesce"`
 }
 
@@ -228,7 +228,7 @@ func (YuubinsyaProtocol) ProtocolType() string { return ProtocolYuubinsya }
 
 type MixedProtocol struct {
 	Username string `json:"username"`
-	Password string `json:"password"`
+	Password string `json:"password" secret:"true"`
 }
 
 func (MixedProtocol) ProtocolType() string { return ProtocolMixed }
@@ -268,8 +268,8 @@ type TunProtocol struct {
 	PortalV6          string           `json:"portalV6"`
 	Routes            []string         `json:"routes"`
 	Excludes          []string         `json:"excludes"`
-	PostUp            []string         `json:"postUp"`
-	PostDown          []string         `json:"postDown"`
+	PostUp            []string         `json:"postUp" secret:"true" privilege:"system:execute"`
+	PostDown          []string         `json:"postDown" secret:"true" privilege:"system:execute"`
 }
 
 type DarwinTunOptions struct {
@@ -283,7 +283,7 @@ func (TunProtocol) ProtocolType() string { return ProtocolTun }
 // WireguardProtocol accepts standard WireGuard peers without creating a TUN
 // device or changing any host routes. Each client must have a unique host IP.
 type WireguardProtocol struct {
-	PrivateKey string          `json:"privateKey"`
+	PrivateKey string          `json:"privateKey" secret:"true"`
 	ListenPort int             `json:"listenPort"`
 	Addresses  []string        `json:"addresses"`
 	MTU        int             `json:"mtu,omitzero"`
@@ -496,12 +496,12 @@ type WebSocketTransport struct{}
 func (WebSocketTransport) TransportType() string { return TransportWebSocket }
 
 type RealityTransport struct {
-	ShortIDs    []string `json:"shortIds"`
+	ShortIDs    []string `json:"shortIds" secret:"true"`
 	ServerNames []string `json:"serverNames"`
 	Dest        string   `json:"dest"`
-	PrivateKey  string   `json:"privateKey"`
+	PrivateKey  string   `json:"privateKey" secret:"true"`
 	PublicKey   string   `json:"publicKey"`
-	MLDSA65Seed string   `json:"mldsa65Seed"`
+	MLDSA65Seed string   `json:"mldsa65Seed" secret:"true"`
 	Debug       bool     `json:"debug"`
 }
 
@@ -511,7 +511,7 @@ type TLSAutoTransport struct {
 	ServerNames  []string   `json:"serverNames"`
 	NextProtos   []string   `json:"nextProtos"`
 	CACertBase64 []byte     `json:"caCertBase64"`
-	CAKeyBase64  []byte     `json:"caKeyBase64"`
+	CAKeyBase64  []byte     `json:"caKeyBase64" secret:"true"`
 	ECH          *ECHConfig `json:"ech,omitzero"`
 }
 
@@ -520,18 +520,18 @@ func (TLSAutoTransport) TransportType() string { return TransportTLSAuto }
 type ECHConfig struct {
 	Enabled          bool   `json:"enabled"`
 	ConfigBase64     []byte `json:"configBase64"`
-	PrivateKeyBase64 []byte `json:"privateKeyBase64"`
+	PrivateKeyBase64 []byte `json:"privateKeyBase64" secret:"true"`
 	OuterSNI         string `json:"outerSni"`
 }
 
 type HTTPMockTransport struct {
-	DataBase64 []byte `json:"dataBase64"`
+	DataBase64 []byte `json:"dataBase64" secret:"true"`
 }
 
 func (HTTPMockTransport) TransportType() string { return TransportHTTPMock }
 
 type AEADTransport struct {
-	Password     string `json:"password"`
+	Password     string `json:"password" secret:"true"`
 	CryptoMethod string `json:"cryptoMethod"`
 }
 
@@ -608,9 +608,9 @@ type ServerTLSConfig struct {
 
 type Certificate struct {
 	CertBase64 []byte `json:"certBase64"`
-	KeyBase64  []byte `json:"keyBase64"`
-	CertFile   string `json:"certFile"`
-	KeyFile    string `json:"keyFile"`
+	KeyBase64  []byte `json:"keyBase64" secret:"true"`
+	CertFile   string `json:"certFile" privilege:"secrets:manage"`
+	KeyFile    string `json:"keyFile" privilege:"secrets:manage"`
 }
 
 func (t Transport) Variant() (TransportVariant, error) {

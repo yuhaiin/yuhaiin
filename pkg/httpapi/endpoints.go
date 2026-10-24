@@ -63,6 +63,7 @@ const (
 	v2NodesGroups              v2Endpoint = "nodes.groups"
 	v2NodesSelected            v2Endpoint = "nodes.selected"
 	v2NodesSelect              v2Endpoint = "nodes.select"
+	v2NodesImportCommit        v2Endpoint = "nodes.import.commit"
 	v2NodesImportPreview       v2Endpoint = "nodes.import.preview"
 	v2InboundStatuses          v2Endpoint = "inbounds.status"
 	v2InboundEvents            v2Endpoint = "inbound.events"
@@ -230,6 +231,7 @@ var v2Routes = []v2Route{
 	{v2NodesGroups, "GET /api/v2/nodes/groups"},
 	{v2NodesPost, "POST /api/v2/nodes"},
 	{v2NodesImportPreview, "POST /api/v2/nodes/import/preview"},
+	{v2NodesImportCommit, "POST /api/v2/nodes/import/commit"},
 	{v2NodesSelected, "GET /api/v2/nodes/selected"},
 	{v2NodesSelect, "PUT /api/v2/nodes/selected"},
 	{v2NodesActive, "GET /api/v2/nodes/active"},

@@ -8,12 +8,11 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
@@ -89,13 +88,13 @@ func (n *Subscribe) fetch(ctx context.Context, link contractsubscription.Link) e
 
 	req, err := http.NewRequestWithContext(ctx, "GET", link.URL, nil)
 	if err != nil {
-		return fmt.Errorf("create request failed: %w", err)
+		return fmt.Errorf("create request failed: %w", secret.RemoteError(err))
 	}
 	req.Header.Set("User-Agent", fmt.Sprintf("%s/%s-%s", version.AppName, version.Version, version.GitCommit))
 
 	res, err := hc.Do(req)
 	if err != nil {
-		return fmt.Errorf("get %s failed: %w", link.Name, err)
+		return fmt.Errorf("get %s failed: %w", link.Name, secret.RemoteError(err))
 	}
 	defer res.Body.Close()
 
@@ -109,7 +108,7 @@ func (n *Subscribe) fetch(ctx context.Context, link contractsubscription.Link) e
 
 		node, err := parseShareURL(scanner.Bytes(), link.Name, link.Type)
 		if err != nil {
-			log.Error("parse url failed", slog.Any("err", err))
+			log.Error("parse subscription entry failed")
 		} else {
 			node.Group = link.Name
 			node.Origin = "remote"
@@ -191,20 +190,19 @@ func (n *Subscribe) resolveRemotePublish(ctx context.Context, publish contractsu
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(bodyBytes))
 	if err != nil {
-		return nil, fmt.Errorf("create publish request failed: %w", err)
+		return nil, fmt.Errorf("create publish request failed: %w", secret.RemoteError(err))
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
 	res, err := subscriptionHTTPClient().Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("publish request failed: %w", err)
+		return nil, fmt.Errorf("publish request failed: %w", secret.RemoteError(err))
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		msg, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		return nil, fmt.Errorf("publish request failed: status=%d body=%s", res.StatusCode, strings.TrimSpace(string(msg)))
+		return nil, fmt.Errorf("publish request failed: status=%d", res.StatusCode)
 	}
 
 	data, err := io.ReadAll(res.Body)
@@ -214,7 +212,7 @@ func (n *Subscribe) resolveRemotePublish(ctx context.Context, publish contractsu
 
 	var resp contractsubscription.ResolvePublishResponse
 	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, fmt.Errorf("decode publish response failed: %w", err)
+		return nil, errors.New("invalid publish response")
 	}
 	return resp.Points, nil
 }

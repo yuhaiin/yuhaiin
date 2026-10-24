@@ -14,6 +14,9 @@ const (
 	InboundsWrite             Permission = "inbounds:write"
 	TrafficAccessRead         Permission = "traffic-access:read"
 	TrafficAccessWrite        Permission = "traffic-access:write"
+	SecretsRead               Permission = "secrets:read"
+	SecretsManage             Permission = "secrets:manage"
+	SystemExecute             Permission = "system:execute"
 	RolesRead                 Permission = "roles:read"
 	RolesWrite                Permission = "roles:write"
 	ResourceRead              Permission = "resources:read"
@@ -34,6 +37,7 @@ const (
 	UsersManage               Permission = "users:manage"
 	TokensManage              Permission = "tokens:manage"
 	SecurityRead              Permission = "security:read"
+	SecurityWrite             Permission = "security:write"
 	MetricsRead               Permission = "metrics:read"
 	IdentityRead              Permission = "identity:read"
 	TokensOwn                 Permission = "tokens:own"
@@ -52,6 +56,10 @@ type Definition struct {
 }
 
 var catalog = [...]Definition{
+	{SecurityWrite, "security", "Change management trust boundaries, identity providers and security audit settings."},
+	{SecretsRead, "security", "Explicitly retrieve reusable configuration secrets, backups and raw diagnostic data."},
+	{SecretsManage, "security", "Change inline configuration secrets and private keys."},
+	{SystemExecute, "security", "Change executable hooks or native library configuration, and restore executable backups."},
 	{RolesRead, "security", "Inspect custom management roles and effective permissions."},
 	{RolesWrite, "security", "Manage permission-bounded custom roles and assignments."},
 	{ResourceRead, "security", "Inspect identity resource policies and effective limits."},

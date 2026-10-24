@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
 )
@@ -59,7 +60,15 @@ func addGatewayRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 		if err != nil {
 			return nil, err
 		}
-		config, err := contract.ConfigFromWorkspace(*r)
+		previous, err := contract.WorkspaceFromConfig(s.Config())
+		if err != nil {
+			return nil, badRequest(err)
+		}
+		merged, err := secret.Merge(ctx, *r, previous)
+		if err != nil {
+			return nil, err
+		}
+		config, err := contract.ConfigFromWorkspace(merged)
 		if err != nil {
 			return nil, badRequest(err)
 		}

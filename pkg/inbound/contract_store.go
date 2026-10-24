@@ -14,13 +14,15 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
 type ContractStore struct {
-	store   *plainstore.InboundStore
-	runtime *Inbound
-	qosMu   sync.Mutex // Serializes durable writes with runtime snapshot activation.
+	store    *plainstore.InboundStore
+	runtime  *Inbound
+	configMu sync.Mutex
+	qosMu    sync.Mutex // Serializes durable writes with runtime snapshot activation.
 }
 
 func NewContractStore(store *plainstore.InboundStore, runtime *Inbound) *ContractStore {
@@ -89,6 +91,16 @@ func (s *ContractStore) Get(ctx context.Context, id string) (contract.Inbound, e
 }
 
 func (s *ContractStore) Save(ctx context.Context, inbound contract.Inbound, updatedAt int64) error {
+	s.configMu.Lock()
+	defer s.configMu.Unlock()
+	previous, err := s.store.Get(ctx, inbound.ID)
+	if err != nil && !errors.Is(err, plainstore.ErrNotFound) {
+		return err
+	}
+	inbound, err = secret.Merge(ctx, inbound, previous)
+	if err != nil {
+		return err
+	}
 	if err := fillGeneratedContractFields(&inbound); err != nil {
 		return err
 	}
@@ -98,10 +110,16 @@ func (s *ContractStore) Save(ctx context.Context, inbound contract.Inbound, upda
 	if err := s.store.Save(ctx, inbound, updatedAt); err != nil {
 		return err
 	}
-	return s.runtime.SaveContract(inbound)
+	saved, err := s.store.Get(ctx, inbound.ID)
+	if err != nil {
+		return err
+	}
+	return s.runtime.SaveContract(saved)
 }
 
 func (s *ContractStore) Delete(ctx context.Context, id string) error {
+	s.configMu.Lock()
+	defer s.configMu.Unlock()
 	// Serialize the SQLite delete with the periodic ingress flush. Otherwise
 	// a stale snapshot could recreate statistics after the inbound is removed.
 	s.runtime.mu.Lock()

@@ -18,6 +18,9 @@ const (
 	InboundsWrite             = permission.InboundsWrite
 	TrafficAccessRead         = permission.TrafficAccessRead
 	TrafficAccessWrite        = permission.TrafficAccessWrite
+	SecretsRead               = permission.SecretsRead
+	SecretsManage             = permission.SecretsManage
+	SystemExecute             = permission.SystemExecute
 	RolesRead                 = permission.RolesRead
 	RolesWrite                = permission.RolesWrite
 	ResourceRead              = permission.ResourceRead
@@ -38,6 +41,7 @@ const (
 	UsersManage               = permission.UsersManage
 	TokensManage              = permission.TokensManage
 	SecurityRead              = permission.SecurityRead
+	SecurityWrite             = permission.SecurityWrite
 	MetricsRead               = permission.MetricsRead
 	IdentityRead              = permission.IdentityRead
 	TokensOwn                 = permission.TokensOwn

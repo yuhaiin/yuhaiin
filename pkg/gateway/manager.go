@@ -6,6 +6,7 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	"net"
 	"net/netip"
 	"net/url"
@@ -153,6 +154,10 @@ func (m *Manager) Save(ctx context.Context, config contract.Config) (contract.Co
 		return config, net.ErrClosed
 	}
 	var err error
+	config, err = secret.Merge(ctx, config, m.current.Load().config)
+	if err != nil {
+		return config, err
+	}
 	config, err = reviseConfig(m.current.Load().config, config)
 	if err != nil {
 		return config, err
