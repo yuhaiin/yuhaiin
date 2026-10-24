@@ -52,6 +52,15 @@ func (s *Server) secretCapabilities(w http.ResponseWriter, r *http.Request, patt
 		authError(w, http.StatusForbidden)
 		return nil, false
 	}
+	// CA material and restore operations bypass typed configuration merging.
+	// Record their durable authorization before invoking any side effect.
+	if secretOperation(pattern, "gateway.ca.import") || secretOperation(pattern, "gateway.ca.generate") || secretOperation(pattern, "backup.restore") {
+		change := secret.Change{Resource: pattern, Secrets: true, Execute: secretOperation(pattern, "backup.restore")}
+		if err := s.Store.authorizeSensitiveChange(r.Context(), p, change); err != nil {
+			authError(w, http.StatusServiceUnavailable)
+			return nil, false
+		}
+	}
 	return secret.WithCapabilities(r.Context(), secret.Capabilities{Security: p.Allows(SecurityWrite), Manage: p.Allows(SecretsManage), Reveal: reveal == "reveal", Execute: p.Allows(SystemExecute), BeforeChange: func(ctx context.Context, change secret.Change) error {
 		return s.Store.authorizeSensitiveChange(ctx, p, change)
 	}, Revalidate: func(ctx context.Context) (secret.Capabilities, error) {

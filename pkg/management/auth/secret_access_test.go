@@ -245,3 +245,35 @@ func TestSensitiveOperationsProtectRPCAndFriendlyAliases(t *testing.T) {
 		})
 	}
 }
+
+func TestSecretSideEffectsRequireDurableAuthorizationAudit(t *testing.T) {
+	s := testStore(t)
+	admin := testUser(t, s, "admin", Admin)
+	issued, err := s.IssueToken(t.Context(), principal(admin), admin.ID, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(t.Context(), `CREATE TRIGGER fail_secret_side_effect_audit BEFORE INSERT ON management_security_events BEGIN SELECT RAISE(ABORT,'audit unavailable');END`); err != nil {
+		t.Fatal(err)
+	}
+	for _, pattern := range []string{"POST /api/v2/gateway/ca/generate", "POST /api/v2/rpc/gateway.ca.import", "POST /api/v2/backup/restore"} {
+		t.Run(pattern, func(t *testing.T) {
+			mux := http.NewServeMux()
+			called := false
+			mux.HandleFunc(pattern, func(http.ResponseWriter, *http.Request) { called = true })
+			method, path, _ := strings.Cut(pattern, " ")
+			permission := GatewayWrite
+			if strings.Contains(path, "backup") {
+				permission = BackupManage
+			}
+			r := httptest.NewRequest(method, path, nil)
+			r.TLS = &tls.ConnectionState{}
+			r.Header.Set("Authorization", "Bearer "+issued.Secret)
+			w := httptest.NewRecorder()
+			(&Server{Store: s, Permissions: map[string]Permission{pattern: permission}}).Wrap(mux).ServeHTTP(w, r)
+			if w.Code != 503 || called {
+				t.Fatal("secret side effect ran without durable authorization audit", w.Code)
+			}
+		})
+	}
+}
