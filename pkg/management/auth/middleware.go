@@ -19,6 +19,7 @@ import (
 // Only server executables opt in; native Android does not import this package.
 // Runtime shares one private identity store between management and traffic.
 type Runtime struct {
+	Audit     *AuditForwarder
 	Resources *ResourcePolicies
 	Access    *AccessPolicies
 	store     *Store
@@ -85,15 +86,25 @@ func OpenRuntime(ctx context.Context, directory string) (_ *Runtime, err error) 
 		_ = proxy.Close()
 		return nil, err
 	}
-	return &Runtime{Resources: resources, Access: access, store: store, passwords: passwords, Proxy: proxy, Upstream: &UpstreamCredentials{store: store}, db: db}, nil
+	audit, err := newAuditForwarder(ctx, store, nil)
+	if err != nil {
+		_ = resources.Close()
+		_ = access.Controller.Close()
+		_ = proxy.Close()
+		return nil, err
+	}
+	return &Runtime{Audit: audit, Resources: resources, Access: access, store: store, passwords: passwords, Proxy: proxy, Upstream: &UpstreamCredentials{store: store}, db: db}, nil
 }
 
 func (r *Runtime) Close() error {
-	var resourceErr error
+	var resourceErr, auditErr error
+	if r.Audit != nil {
+		auditErr = r.Audit.Close()
+	}
 	if r.Resources != nil {
 		resourceErr = r.Resources.Close()
 	}
-	return errors.Join(resourceErr, r.Access.Controller.Close(), r.Proxy.Close(), r.db.Close())
+	return errors.Join(auditErr, resourceErr, r.Access.Controller.Close(), r.Proxy.Close(), r.db.Close())
 }
 
 func (r *Runtime) Middleware(_ context.Context, mux *http.ServeMux, options httpapi.MiddlewareOptions) (http.Handler, io.Closer, error) {

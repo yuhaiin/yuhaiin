@@ -39,7 +39,7 @@ func TestTrafficAccessMigrationRollsBackAndRestarts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !schemaObjectExists(t, upgraded.DB(), "traffic_access_config") || queryInt(t, upgraded.DB(), `SELECT count(*) FROM migrate`) != int64(managementOIDCMigration.Version) {
+	if !schemaObjectExists(t, upgraded.DB(), "traffic_access_config") || queryInt(t, upgraded.DB(), `SELECT count(*) FROM migrate`) != int64(managementSecurityAuditMigration.Version) {
 		t.Fatal("migration missing")
 	}
 	if err := upgraded.Close(); err != nil {
@@ -50,7 +50,7 @@ func TestTrafficAccessMigrationRollsBackAndRestarts(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer restarted.Close()
-	if queryInt(t, restarted.DB(), `SELECT count(*) FROM migrate`) != int64(managementOIDCMigration.Version) {
+	if queryInt(t, restarted.DB(), `SELECT count(*) FROM migrate`) != int64(managementSecurityAuditMigration.Version) {
 		t.Fatal("migration repeated")
 	}
 }

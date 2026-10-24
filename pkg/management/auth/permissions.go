@@ -42,6 +42,7 @@ const (
 	TokensManage              = permission.TokensManage
 	SecurityRead              = permission.SecurityRead
 	SecurityWrite             = permission.SecurityWrite
+	SecurityExport            = permission.SecurityExport
 	MetricsRead               = permission.MetricsRead
 	IdentityRead              = permission.IdentityRead
 	TokensOwn                 = permission.TokensOwn
@@ -80,6 +81,7 @@ type Principal struct {
 	CredentialID   string       `json:"credentialId"`
 	UserID         string       `json:"userId"`
 	CredentialType string       `json:"credentialType"`
+	AuthMethod     string       `json:"authMethod,omitempty"`
 	Permissions    []Permission `json:"permissions"`
 }
 

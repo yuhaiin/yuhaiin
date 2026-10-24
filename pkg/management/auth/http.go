@@ -97,6 +97,7 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		r = r.WithContext(context.WithValue(r.Context(), auditMonitorKey{}, s.Store))
 		r = r.WithContext(withAuditRequest(r, pattern))
 		if s.public[pattern] {
 			mux.ServeHTTP(w, r)
@@ -117,7 +118,9 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 		permission := s.Permissions[pattern]
 		r = r.WithContext(WithPrincipal(r.Context(), p))
 		if !p.Allows(permission) {
-			s.Store.audit(r.Context(), "permission.denied", p.UserID, "")
+			info, _ := r.Context().Value(auditKey{}).(auditInfo)
+			info.reason = "missing_permission"
+			s.Store.audit(context.WithValue(r.Context(), auditKey{}, info), "permission.denied", p.UserID, string(permission))
 			authError(w, http.StatusForbidden)
 			return
 		}
@@ -317,6 +320,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 		out, err := s.Store.RotateToken(r.Context(), p, r.PathValue("id"))
 		respond(w, out, err)
 	})
+	s.registerSecurityAudit(register)
 	register("GET /api/v2/auth/events", SecurityRead, func(w http.ResponseWriter, r *http.Request) {
 		events, err := s.Store.Events(r.Context())
 		respond(w, events, err)

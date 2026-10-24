@@ -352,3 +352,7 @@ userinfo API, then discarded. Neither access nor refresh tokens are stored.
 
 Provider contracts: [GitHub web authorization](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps)
 and [Google OpenID Connect/userinfo](https://developers.google.com/identity/openid-connect/openid-connect).
+
+Enterprise management audit retention, cursor queries, separate export permission,
+write-only SIEM forwarding settings, delivery diagnostics, and the local audit
+failure policy are documented in [security-audit.md](security-audit.md).

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json/v2"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"uuid"
@@ -173,6 +174,11 @@ func groupAuditContext(ctx context.Context, before, after *Group) (context.Conte
 	}{before, after})
 	info, _ := ctx.Value(auditKey{}).(auditInfo)
 	info.changes = string(changes)
+	if after != nil {
+		info.policyRevision = strconv.FormatUint(after.Revision, 10)
+	} else if before != nil {
+		info.policyRevision = strconv.FormatUint(before.Revision+1, 10)
+	}
 	return context.WithValue(ctx, auditKey{}, info), err
 }
 

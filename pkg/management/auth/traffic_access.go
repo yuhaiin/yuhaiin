@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"sync"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/access"
@@ -176,6 +177,7 @@ func (a *AccessPolicies) Save(ctx context.Context, actor Principal, config contr
 		return contract.Config{}, err
 	}
 	info.changes = string(changes)
+	info.policyRevision = strconv.FormatUint(config.Revision, 10)
 	ctx = context.WithValue(ctx, auditKey{}, info)
 	if err := recordEvent(ctx, tx, "traffic_access.updated", actor.UserID, "traffic-access"); err != nil {
 		return contract.Config{}, err

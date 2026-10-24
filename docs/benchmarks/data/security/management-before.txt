@@ -1,0 +1,12 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/management/auth
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkManagementAuditTransaction-12    	   18540	     64992 ns/op	    2131 B/op	      43 allocs/op
+BenchmarkManagementAuditTransaction-12    	   18553	     65546 ns/op	    2122 B/op	      43 allocs/op
+BenchmarkManagementAuditTransaction-12    	   18283	     65333 ns/op	    2121 B/op	      43 allocs/op
+BenchmarkManagementAuthenticate-12        	   25896	     46344 ns/op	    2296 B/op	      54 allocs/op
+BenchmarkManagementAuthenticate-12        	   25935	     46364 ns/op	    2297 B/op	      54 allocs/op
+BenchmarkManagementAuthenticate-12        	   26298	     46343 ns/op	    2293 B/op	      54 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/management/auth	7.322s

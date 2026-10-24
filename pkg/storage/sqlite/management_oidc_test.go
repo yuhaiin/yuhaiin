@@ -57,7 +57,7 @@ func TestOIDCMigrationPreservesLegacyBindingsAndRollsBackOnInterruption(t *testi
 		if err := upgraded.DB().QueryRowContext(t.Context(), `SELECT client_secret,issuer,revision FROM management_oauth_providers WHERE provider='github'`).Scan(&secret, &issuer, &revision); err != nil || secret != "private-client-secret" || issuer != "" || revision != 1 {
 			t.Fatal("legacy provider changed during migration", err)
 		}
-		if queryInt(t, upgraded.DB(), `SELECT count(*) FROM management_oauth_links WHERE user_id='u' AND subject='legacy-subject' AND issuer='https://github.com'`) != 1 || queryInt(t, upgraded.DB(), `SELECT count(*) FROM migrate`) != 10 {
+		if queryInt(t, upgraded.DB(), `SELECT count(*) FROM management_oauth_links WHERE user_id='u' AND subject='legacy-subject' AND issuer='https://github.com'`) != 1 || queryInt(t, upgraded.DB(), `SELECT count(*) FROM migrate`) != int64(managementSecurityAuditMigration.Version) {
 			t.Fatal("legacy binding missing or migration repeated")
 		}
 		if err := upgraded.Close(); err != nil {

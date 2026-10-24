@@ -234,6 +234,7 @@ func (r *ResourcePolicies) Save(ctx context.Context, actor Principal, config res
 	}
 	info, _ := ctx.Value(auditKey{}).(auditInfo)
 	info.changes = string(changes)
+	info.policyRevision = strconv.FormatUint(config.Revision, 10)
 	if err := recordEvent(context.WithValue(ctx, auditKey{}, info), tx, "resource_policy.updated", actor.UserID, "resource-policy"); err != nil {
 		return resource.Config{}, err
 	}

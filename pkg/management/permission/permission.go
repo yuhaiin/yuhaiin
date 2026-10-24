@@ -38,6 +38,7 @@ const (
 	TokensManage              Permission = "tokens:manage"
 	SecurityRead              Permission = "security:read"
 	SecurityWrite             Permission = "security:write"
+	SecurityExport            Permission = "security:export"
 	MetricsRead               Permission = "metrics:read"
 	IdentityRead              Permission = "identity:read"
 	TokensOwn                 Permission = "tokens:own"
@@ -56,6 +57,7 @@ type Definition struct {
 }
 
 var catalog = [...]Definition{
+	{SecurityExport, "security", "Export structured management security audit pages."},
 	{SecurityWrite, "security", "Change management trust boundaries, identity providers and security audit settings."},
 	{SecretsRead, "security", "Explicitly retrieve reusable configuration secrets, backups and raw diagnostic data."},
 	{SecretsManage, "security", "Change inline configuration secrets and private keys."},

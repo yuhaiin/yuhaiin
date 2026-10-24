@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 	"uuid"
@@ -199,6 +200,16 @@ func roleAuditContext(ctx context.Context, before, after any) (context.Context, 
 	}{before, after})
 	info, _ := ctx.Value(auditKey{}).(auditInfo)
 	info.changes = string(encoded)
+	// Extract only the public revision; never copy an arbitrary request body.
+	revisionJSON, revisionErr := json.Marshal(after)
+	if revisionErr == nil {
+		var metadata struct {
+			Revision uint64 `json:"revision"`
+		}
+		if json.Unmarshal(revisionJSON, &metadata) == nil && metadata.Revision > 0 {
+			info.policyRevision = strconv.FormatUint(metadata.Revision, 10)
+		}
+	}
 	return context.WithValue(ctx, auditKey{}, info), err
 }
 

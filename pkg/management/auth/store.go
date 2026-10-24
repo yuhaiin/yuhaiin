@@ -10,6 +10,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 	"uuid"
 )
@@ -48,20 +49,27 @@ type IssuedCredential struct {
 }
 
 type SecurityEvent struct {
-	ID           int64  `json:"id"`
-	OccurredAt   int64  `json:"occurredAt"`
-	Event        string `json:"event"`
-	ActorID      string `json:"actorId"`
-	SubjectID    string `json:"subjectId"`
-	Source       string `json:"source"`
-	Method       string `json:"method"`
-	Path         string `json:"path"`
-	CredentialID string `json:"credentialId"`
-	Result       string `json:"result"`
-	Changes      string `json:"changes"`
+	ID             int64  `json:"id"`
+	OccurredAt     int64  `json:"occurredAt"`
+	Event          string `json:"event"`
+	ActorID        string `json:"actorId"`
+	SubjectID      string `json:"subjectId"`
+	Source         string `json:"source"`
+	Method         string `json:"method"`
+	Path           string `json:"path"`
+	CredentialID   string `json:"credentialId"`
+	Result         string `json:"result"`
+	Changes        string `json:"changes"`
+	AuthMethod     string `json:"authMethod"`
+	PolicyRevision string `json:"policyRevision"`
+	Reason         string `json:"reason"`
 }
 
-type Store struct{ db *sql.DB }
+type Store struct {
+	db             *sql.DB
+	auditFailures  atomic.Uint64
+	auditForwarder atomic.Pointer[AuditForwarder]
+}
 
 func NewStore(db *sql.DB) *Store { return &Store{db: db} }
 
@@ -364,13 +372,16 @@ func (s *Store) Authenticate(ctx context.Context, secret, kind string) (Principa
 	var p Principal
 	var role, encoded string
 	var lastSeen int64
-	err = tx.QueryRowContext(ctx, `SELECT u.id,u.role,c.scopes,c.id,c.last_seen FROM management_credentials c JOIN management_users u ON u.id=c.user_id
+	err = tx.QueryRowContext(ctx, `SELECT u.id,u.role,c.scopes,c.id,c.last_seen,c.auth_method FROM management_credentials c JOIN management_users u ON u.id=c.user_id
 		WHERE c.verifier=? AND c.kind=? AND c.revoked=0 AND u.disabled=0 AND u.credential IS NOT NULL
-		AND c.generation=u.generation AND (c.expires_at=0 OR c.expires_at>?)`, verifier[:], kind, time.Now().Unix()).Scan(&p.UserID, &role, &encoded, &p.CredentialID, &lastSeen)
+		AND c.generation=u.generation AND (c.expires_at=0 OR c.expires_at>?)`, verifier[:], kind, time.Now().Unix()).Scan(&p.UserID, &role, &encoded, &p.CredentialID, &lastSeen, &p.AuthMethod)
 	if err != nil {
 		return Principal{}, ErrUnauthorized
 	}
 	p.CredentialType = kind
+	if kind == "token" {
+		p.AuthMethod = "token"
+	}
 	allowed, err := effectivePermissions(ctx, tx, p.UserID, role)
 	if err != nil {
 		return Principal{}, ErrUnauthorized
@@ -496,41 +507,17 @@ func (s *Store) RotateToken(ctx context.Context, actor Principal, id string) (Is
 	return issued, tx.Commit()
 }
 
-func recordEvent(ctx context.Context, tx *sql.Tx, event, actor, subject string) error {
-	info, _ := ctx.Value(auditKey{}).(auditInfo)
-	principal, _ := FromContext(ctx)
-	result := "succeeded"
-	if strings.HasSuffix(event, ".failed") || strings.HasSuffix(event, ".denied") {
-		result = "failed"
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO management_security_events(occurred_at,event,actor_id,subject_id,source,request_method,request_path,credential_id,result,changes_json) VALUES(?,?,?,?,?,?,?,?,?,?)`, time.Now().Unix(), event, actor, subject, info.source, info.method, info.path, principal.CredentialID, result, info.changes); err != nil {
-		return err
-	}
-	_, err := tx.ExecContext(ctx, `DELETE FROM management_security_events WHERE id <= (SELECT COALESCE(MAX(id),0)-1000 FROM management_security_events)`)
-	return err
-}
-
-func (s *Store) audit(ctx context.Context, event, actor, subject string) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return
-	}
-	defer func() { _ = tx.Rollback() }()
-	if recordEvent(ctx, tx, event, actor, subject) == nil {
-		_ = tx.Commit()
-	}
-}
-
+// Events retains the legacy bounded array contract. New consumers use AuditPage.
 func (s *Store) Events(ctx context.Context) ([]SecurityEvent, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,occurred_at,event,actor_id,subject_id,source,request_method,request_path,credential_id,result,changes_json FROM management_security_events ORDER BY id DESC LIMIT 1000`)
+	rows, err := s.db.QueryContext(ctx, `SELECT `+auditColumns+` FROM management_security_events ORDER BY id DESC LIMIT 1000`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []SecurityEvent{}
 	for rows.Next() {
-		var e SecurityEvent
-		if err := rows.Scan(&e.ID, &e.OccurredAt, &e.Event, &e.ActorID, &e.SubjectID, &e.Source, &e.Method, &e.Path, &e.CredentialID, &e.Result, &e.Changes); err != nil {
+		e, err := scanAuditEvent(rows)
+		if err != nil {
 			return nil, err
 		}
 		out = append(out, e)
