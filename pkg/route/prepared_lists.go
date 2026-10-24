@@ -12,6 +12,7 @@ import (
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
@@ -164,9 +165,9 @@ func (s *Lists) prepareRuleData(ctx context.Context, rules []contractroute.Route
 				valid = append(valid, url)
 			}
 			if fetchErr != nil || readErr != nil {
-				problem := fmt.Sprintf("%s: %v", url, fetchErr)
+				problem := fmt.Sprintf("%s: %v", secret.PublicURL(url), secret.RemoteError(fetchErr))
 				if fetchErr == nil {
-					problem = fmt.Sprintf("%s: %v", url, readErr)
+					problem = fmt.Sprintf("%s: %v", secret.PublicURL(url), secret.RemoteError(readErr))
 				} else if readErr == nil {
 					problem += " (using cached file)"
 				}

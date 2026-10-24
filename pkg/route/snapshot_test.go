@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -132,7 +133,7 @@ func TestSnapshotApplyRetriesConcurrentEditsAndRetainsStateOnFailure(t *testing.
 	defer server.Close()
 	remote := contractroute.RouteListDetail{
 		ID: "remote", Name: "Remote", Type: "host",
-		Source: contractroute.ListSource{Type: "remote", Remote: &contractroute.RemoteSource{URLs: []string{server.URL + "/telegram"}}},
+		Source: contractroute.ListSource{Type: "remote", Remote: &contractroute.RemoteSource{URLs: []string{strings.Replace(server.URL, "://", "://user:private-password@", 1) + "/private-route-proof?token=private-query-proof"}}},
 	}
 	if err := plainstore.NewRouteListStore(db.DB()).SaveRouteList(t.Context(), remote, 0); err != nil {
 		t.Fatal(err)
@@ -161,6 +162,11 @@ func TestSnapshotApplyRetriesConcurrentEditsAndRetainsStateOnFailure(t *testing.
 	if len(after.ListIssues) != 1 || !after.ListIssues[0].Unavailable || len(after.SkippedRules) != 1 ||
 		after.SkippedRules[0].ID != draft.Rule.ID {
 		t.Fatalf("missing failure diagnostics: %+v", after)
+	}
+	for _, proof := range []string{"private-password", "private-route-proof", "private-query-proof"} {
+		if strings.Contains(after.ListIssues[0].Error, proof) {
+			t.Fatalf("runtime status leaked URL proof: %s", after.ListIssues[0].Error)
+		}
 	}
 	working, _ := netapi.ParseAddressPort("tcp", "working.example", 443)
 	if got := router.ms.Match(netapi.WithContext(t.Context()), working); got.Mode() != ModeDirect {
