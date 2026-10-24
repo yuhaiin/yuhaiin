@@ -72,7 +72,7 @@ func addGatewayRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 		if err != nil {
 			return nil, badRequest(err)
 		}
-		saved, err := s.Save(ctx, config)
+		saved, err := s.Save(secret.WithResolvedConfiguration(ctx), config)
 		if err != nil {
 			return nil, badRequest(err)
 		}

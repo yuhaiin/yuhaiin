@@ -7,6 +7,7 @@ import (
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -45,5 +46,26 @@ func TestMaskedResolverSavePublishesActualPersistedConfiguration(t *testing.T) {
 	active, _ = runtime.resolvers.Load(original.ID)
 	if active.Host != original.Host {
 		t.Fatal("denied write changed resolver runtime")
+	}
+}
+
+func TestPrivateResolverURLIsNotCopiedIntoDefaultPublicName(t *testing.T) {
+	db, err := storagesqlite.Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	controller := &ResolverCtr{resolvers: plainstore.NewResolverStore(db.DB()), r: NewResolver(nil)}
+	defer controller.r.Close()
+	saved, err := controller.SaveContract(t.Context(), contractresolver.Resolver{ID: "private", Type: "doh", Host: "https://user:private-proof@example.test/path?key=private-query"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	masked, err := secret.Redact(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(masked.Name, "private-proof") || strings.Contains(masked.Name, "private-query") {
+		t.Fatal("default resolver name exposed URL credentials")
 	}
 }

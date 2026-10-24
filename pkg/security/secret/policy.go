@@ -33,6 +33,7 @@ type Capabilities struct {
 	BeforeChange                      func(context.Context, Change) error
 	change                            *Change
 	bindReferences, resolveReferences bool
+	existingPlaintext                 bool
 	resource                          *resourceReference
 	path                              []string
 }
@@ -45,6 +46,19 @@ func WithCapabilities(ctx context.Context, capabilities Capabilities) context.Co
 func FromContext(ctx context.Context) (Capabilities, bool) {
 	c, ok := ctx.Value(capabilityKey{}).(Capabilities)
 	return c, ok
+}
+
+// WithResolvedConfiguration is for a controller passing the result of Merge
+// into its persistence layer. Only equal, existing plaintext is permitted on
+// that second pass; different values still require secret management. Do not
+// attach this capability to an incoming HTTP request or a caller-supplied batch.
+func WithResolvedConfiguration(ctx context.Context) context.Context {
+	c, managed := FromContext(ctx)
+	if !managed {
+		return ctx
+	}
+	c.existingPlaintext = true
+	return WithCapabilities(ctx, c)
 }
 
 // FieldPolicy supports fields whose sensitivity depends on a typed discriminator,

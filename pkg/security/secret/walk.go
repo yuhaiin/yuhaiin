@@ -287,7 +287,7 @@ func secretField(next, old reflect.Value, mode string, redact bool, c Capabiliti
 		}
 		return marker(next, c)
 	}
-	if !c.Manage && !reflect.DeepEqual(next.Interface(), old.Interface()) {
+	if !c.Manage && (!reflect.DeepEqual(next.Interface(), old.Interface()) || !emptySecret(next) && !c.existingPlaintext) {
 		return reflect.Value{}, ErrManage
 	}
 	if c.change != nil && !reflect.DeepEqual(next.Interface(), old.Interface()) {
@@ -377,4 +377,8 @@ func sensitiveURLValue(value reflect.Value) bool {
 		}
 	}
 	return false
+}
+
+func emptySecret(value reflect.Value) bool {
+	return value.IsZero() || (value.Kind() == reflect.Slice || value.Kind() == reflect.Map) && value.Len() == 0
 }

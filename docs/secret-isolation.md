@@ -89,3 +89,11 @@ New remote-download diagnostics omit URL capability paths, user information,
 query values and arbitrary remote error response bodies. Previously written logs
 and persisted historical diagnostics are not retroactively scrubbed. Protect
 existing logs/backups as secrets and apply the installation's retention policy.
+
+Incoming raw nonempty secret fields always require `secrets:manage`, even when
+a candidate happens to match the stored value. This prevents configuration saves
+from acting as a plaintext-equality guessing oracle. Use the preservation marker
+for unrelated edits. Controllers that must pass resolved fields to their storage
+layer use a restricted internal second pass, which accepts only unchanged existing
+values. This capability is never attached to incoming requests or batches.
+Resolver defaults also avoid copying credential-bearing URLs into public names.

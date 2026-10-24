@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"reflect"
+	"strings"
 	"sync"
 	"uuid"
 
@@ -426,6 +427,9 @@ func (r *ResolverCtr) SaveContract(ctx context.Context, req contractresolver.Res
 	}
 	if req.Name == "" {
 		req.Name = req.Host
+		if strings.ContainsAny(req.Host, "?@#") || strings.Contains(req.Host, "://") {
+			req.Name = secret.PublicURL(req.Host)
+		}
 	}
 	if req.Name == "" {
 		req.Name = req.ID
@@ -437,7 +441,7 @@ func (r *ResolverCtr) SaveContract(ctx context.Context, req contractresolver.Res
 	if r.resolvers == nil {
 		return contractresolver.Resolver{}, errors.New("resolver store is unavailable")
 	}
-	if err := r.resolvers.Save(ctx, req, 0); err != nil {
+	if err := r.resolvers.Save(secret.WithResolvedConfiguration(ctx), req, 0); err != nil {
 		return contractresolver.Resolver{}, err
 	}
 

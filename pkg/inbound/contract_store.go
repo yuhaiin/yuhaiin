@@ -107,7 +107,7 @@ func (s *ContractStore) Save(ctx context.Context, inbound contract.Inbound, upda
 	if updatedAt == 0 {
 		updatedAt = time.Now().Unix()
 	}
-	if err := s.store.Save(ctx, inbound, updatedAt); err != nil {
+	if err := s.store.Save(secret.WithResolvedConfiguration(ctx), inbound, updatedAt); err != nil {
 		return err
 	}
 	saved, err := s.store.Get(ctx, inbound.ID)

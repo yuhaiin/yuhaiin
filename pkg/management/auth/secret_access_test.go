@@ -97,6 +97,11 @@ func TestConfigurationSecretsDefaultMaskPreservationAndExplicitRetrieval(t *test
 	if err != nil || stored.Name != masked.Name || stored.Chain[0].Shadowsocks.Password != input.Chain[0].Shadowsocks.Password {
 		t.Fatal("masked save changed the stored secret", err)
 	}
+	known := stored
+	known.Name = "Known plaintext must not bypass the secret gate"
+	if w = request("node.put", edit.Secret, known, false); w.Code != 403 {
+		t.Fatal("plaintext equality became a secret guessing oracle", w.Code)
+	}
 	masked.Chain[0].Shadowsocks.Password = "unauthorized-replacement"
 	w = request("node.put", edit.Secret, masked, false)
 	if w.Code != 403 {

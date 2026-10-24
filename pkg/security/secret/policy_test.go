@@ -120,3 +120,28 @@ func TestPrivateURLsIncludeRelativeAndMalformedCapabilityURLs(t *testing.T) {
 		}
 	}
 }
+
+func TestPlaintextEqualityDoesNotExposeAGuessingOracle(t *testing.T) {
+	original := testKey{ID: "node", Password: "stored-private-proof"}
+	ctx := WithCapabilities(t.Context(), Capabilities{})
+	for _, candidate := range []string{"stored-private-proof", "incorrect-guess"} {
+		if _, err := Merge(ctx, testKey{ID: "node", Password: candidate}, original); !errors.Is(err, ErrManage) {
+			t.Fatal("plaintext guess distinguished the stored value", err)
+		}
+	}
+	masked, err := Redact(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := Merge(ctx, masked, original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Merge(WithResolvedConfiguration(ctx), resolved, original); err != nil {
+		t.Fatal("internal persistence rejected the validated preserved value", err)
+	}
+	resolved.Password = "replacement"
+	if _, err := Merge(WithResolvedConfiguration(ctx), resolved, original); !errors.Is(err, ErrManage) {
+		t.Fatal("internal persistence changed a secret", err)
+	}
+}
