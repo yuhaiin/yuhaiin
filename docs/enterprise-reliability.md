@@ -91,7 +91,8 @@ failed only the existing Tailscale cold-peer regression (5.17-second first TCP
 connection, threshold 2 seconds). The same issue reproduced in 3 of 10 local
 race runs of TestLocalTailnet; the tested package has no dependency on node or
 latency runtime changes, and the Tailscale source/dependencies are unchanged.
-A failed-job CI rerun is in progress. This pre-existing intermittent transport
+The failed-job CI rerun passed; backend #622 now has 44 successful checks and
+nine expected skips. This pre-existing intermittent transport
 problem must remain visible in qualification; no test threshold was relaxed.
 
 Browser plugin discovery returned no connected browser. Visual browser checks
