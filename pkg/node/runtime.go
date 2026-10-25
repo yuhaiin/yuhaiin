@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
@@ -35,18 +36,21 @@ type NodeRuntime struct {
 	credentialVersions map[string]string
 	path               string
 
-	mu       sync.Mutex
-	sqlite   *storagesqlite.Store
-	nodes    *plainstore.NodeStore
-	closed   bool
-	proxies  *ProxyStore
-	observer *nodeObserver
+	mu         sync.Mutex
+	sqlite     *storagesqlite.Store
+	nodes      *plainstore.NodeStore
+	closed     bool
+	proxies    *ProxyStore
+	observer   *nodeObserver
+	selectors  *selectorRuntime
+	speedSlots chan struct{}
 }
 
 func NewNodeRuntime(path string) *NodeRuntime {
 	return &NodeRuntime{
-		path:    path,
-		proxies: NewProxyStore(),
+		path:       path,
+		proxies:    NewProxyStore(),
+		speedSlots: make(chan struct{}, 2),
 	}
 }
 
@@ -72,6 +76,14 @@ func (r *NodeRuntime) openNodes(ctx context.Context) (*plainstore.NodeStore, err
 	r.sqlite = sqliteStore
 	r.nodes = plainstore.NewNodeStore(sqliteStore.DB())
 	r.observer = observer
+	selectors, err := newSelectorRuntime(ctx, r, r.nodes)
+	if err != nil {
+		_ = observer.close()
+		_ = sqliteStore.Close()
+		r.sqlite, r.nodes, r.observer = nil, nil, nil
+		return nil, fmt.Errorf("load selector runtime: %w", err)
+	}
+	r.selectors = selectors
 	return r.nodes, nil
 }
 
@@ -84,10 +96,15 @@ func (r *NodeRuntime) Close() error {
 	r.closed = true
 	sqliteStore := r.sqlite
 	observer := r.observer
+	selectors := r.selectors
 	r.sqlite = nil
 	r.nodes = nil
 	r.mu.Unlock()
 
+	if selectors != nil {
+		close(selectors.stop)
+		<-selectors.done
+	}
 	err := r.proxies.Close()
 	if observer != nil {
 		err = errors.Join(err, observer.close())
@@ -108,6 +125,9 @@ func (r *NodeRuntime) Save(ctx context.Context, node contractnode.Node) (contrac
 		return contractnode.Node{}, err
 	}
 	r.proxies.Delete(node.ID)
+	if err := r.refreshSelectors(ctx, nodes); err != nil {
+		return node, err
+	}
 	return node, nil
 }
 
@@ -137,6 +157,9 @@ func (r *NodeRuntime) ReplaceRemoteContractNodes(ctx context.Context, group stri
 			return err
 		}
 	}
+	if err := r.refreshSelectors(ctx, nodes); err != nil {
+		return err
+	}
 	return r.clearIdleProxies(ctx, nodes)
 }
 
@@ -160,6 +183,9 @@ func (r *NodeRuntime) Remove(ctx context.Context, id string) error {
 		return err
 	}
 	r.proxies.Delete(id)
+	if err := r.refreshSelectors(ctx, nodes); err != nil {
+		return err
+	}
 	return r.clearIdleProxies(ctx, nodes)
 }
 
@@ -173,6 +199,9 @@ func (r *NodeRuntime) Select(ctx context.Context, selection contractnode.Selecti
 		return err
 	}
 	if err := nodes.Select(ctx, selection); err != nil {
+		return err
+	}
+	if err := r.refreshSelectors(ctx, nodes); err != nil {
 		return err
 	}
 	return r.clearIdleProxies(ctx, nodes)
@@ -312,7 +341,34 @@ func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.L
 	}
 	result, err := latency.LatencyWithOptions(req, &latencyDialer{Proxy: proxy, ipv6: req.IPv6}, latencyOptions)
 	if r.observer != nil {
-		r.observer.counter(id).probe(req.Type, result, err)
+		c := r.observer.counter(id)
+		c.probe(req.Type, result, err)
+		kind, target, tcp := "https", req.URL, true
+		if target == "" {
+			target = "https://www.gstatic.com/generate_204"
+		}
+		switch req.Type {
+		case "dns", "udp":
+			kind, target, tcp = "dns", req.Host, false
+			if target == "" {
+				target = "223.5.5.5:53"
+			}
+			domain := req.TargetDomain
+			if domain == "" {
+				domain = "www.google.com"
+			}
+			target += "/" + domain
+		case "doq", "stun":
+			kind, target, tcp = req.Type, req.Host, false
+		case "stun_tcp":
+			kind, target = req.Type, req.Host
+		case "ip":
+			kind = req.Type
+		}
+		if kind == "https" && (!strings.HasPrefix(target, "https://") || latencyOptions.InsecureSkipVerify) {
+			kind = "http_unverified"
+		}
+		c.remoteEvidence(tcp, contractnode.HealthSample{At: time.Now().UnixMilli(), OK: result.OK, RTTMS: float64(result.LatencyMS), Kind: kind, Target: target}, err)
 	}
 	return result, err
 }
@@ -379,16 +435,10 @@ func (r *NodeRuntime) GetTarget(ctx context.Context, network, mode string, targe
 	case "node":
 		return r.GetDialerByID(ctx, target.ID)
 	case "selector":
-		nodes, err := r.openNodes(ctx)
-		if err != nil {
+		if _, err := r.openNodes(ctx); err != nil {
 			return nil, err
 		}
-		selector, err := nodes.Selector(ctx, target.ID)
-		if err != nil {
-			return nil, err
-		}
-		netapi.GetContext(ctx).SetSelector(selector.ID, selector.Name)
-		return r.GetDialerByID(ctx, selector.NodeID)
+		return r.selectors.target(ctx, network, target.ID)
 	default:
 		return nil, fmt.Errorf("unknown destination type %q", target.Type)
 	}

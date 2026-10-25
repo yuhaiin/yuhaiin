@@ -25,6 +25,9 @@ const recentNodeObservation = 2 * time.Minute
 
 // nodeTotals are persisted separately from ephemeral active connection counts.
 type nodeTotals struct {
+	TCPHealth      contract.ChannelHealth          `json:"tcpHealth"`
+	UDPHealth      contract.ChannelHealth          `json:"udpHealth"`
+	Throughput     contract.ThroughputMeasurement  `json:"throughput"`
 	UploadBytes    uint64                          `json:"uploadBytes"`
 	DownloadBytes  uint64                          `json:"downloadBytes"`
 	UDPSentPackets uint64                          `json:"udpSentPackets"`
@@ -43,6 +46,8 @@ type nodeTotals struct {
 }
 
 type nodeCounters struct {
+	tcpHealth, udpHealth                                 contract.ChannelHealth
+	throughput                                           contract.ThroughputMeasurement
 	upload, download, udpSent, udpReceived               atomic.Uint64
 	tcpAttempts, tcpConnected, udpAttempts, udpConnected atomic.Uint64
 	pingAttempts, failures                               atomic.Uint64
@@ -73,6 +78,8 @@ func (n *nodeCounters) snapshot() nodeTotals {
 func (v *nodeTotals) lastErrorAndProbes(n *nodeCounters) {
 	v.LastError = n.lastError
 	v.Probes = maps.Clone(n.probes)
+	v.TCPHealth, v.UDPHealth = cloneHealth(n.tcpHealth), cloneHealth(n.udpHealth)
+	v.Throughput = n.throughput
 }
 
 func (n *nodeCounters) restore(v nodeTotals) {
@@ -92,6 +99,8 @@ func (n *nodeCounters) restore(v nodeTotals) {
 	n.mu.Lock()
 	n.lastError = v.LastError
 	n.probes = maps.Clone(v.Probes)
+	n.tcpHealth, n.udpHealth = cloneHealth(v.TCPHealth), cloneHealth(v.UDPHealth)
+	n.throughput = v.Throughput
 	n.mu.Unlock()
 }
 
@@ -102,7 +111,7 @@ func (n *nodeCounters) success() {
 }
 
 func (n *nodeCounters) failure(err error) {
-	if err == nil {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
 		return
 	}
 	now := time.Now().UnixNano()
@@ -177,6 +186,7 @@ func (n *nodeCounters) status(id string) contract.RuntimeStatus {
 		state = "healthy"
 	}
 	return contract.RuntimeStatus{
+		TCPHealth: v.TCPHealth, UDPHealth: v.UDPHealth, Throughput: v.Throughput,
 		ID: id, State: state, UploadBytes: strconv.FormatUint(v.UploadBytes, 10),
 		DownloadBytes:  strconv.FormatUint(v.DownloadBytes, 10),
 		UploadBps:      strconv.FormatUint(n.uploadBps.Load(), 10),
@@ -390,11 +400,14 @@ func (p *observedProxy) IPVersion() contract.IPVersion {
 func (p *observedProxy) Conn(ctx context.Context, a netapi.Address) (net.Conn, error) {
 	p.c.tcpAttempts.Add(1)
 	p.c.lastUsed.Store(time.Now().UnixNano())
+	start := time.Now()
 	conn, err := p.Proxy.Conn(ctx, a)
 	if err != nil {
 		p.c.failure(err)
+		p.c.remoteEvidence(true, contract.HealthSample{At: time.Now().UnixMilli(), Kind: "connect", OK: false}, err)
 		return nil, err
 	}
+	p.c.remoteEvidence(true, contract.HealthSample{At: time.Now().UnixMilli(), Kind: "connect", OK: true, RTTMS: float64(time.Since(start)) / float64(time.Millisecond)}, nil)
 	p.c.tcpConnected.Add(1)
 	p.c.activeTCP.Add(1)
 	p.c.success()
@@ -414,7 +427,6 @@ func (p *observedProxy) PacketConn(ctx context.Context, a netapi.Address) (net.P
 	}
 	p.c.udpConnected.Add(1)
 	p.c.activeUDP.Add(1)
-	p.c.success()
 	return &observedPacketConn{PacketConn: conn, c: p.c}, nil
 }
 func (p *observedProxy) Ping(ctx context.Context, a netapi.Address) (uint64, error) {
@@ -487,6 +499,7 @@ func (c *observedBufferedConn) ReadWithBuffer(f func() []byte) ([]byte, error) {
 }
 
 type observedPacketConn struct {
+	evidence sync.Once
 	net.PacketConn
 	c    *nodeCounters
 	once sync.Once
@@ -497,6 +510,9 @@ func (c *observedPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	if n > 0 {
 		c.c.download.Add(uint64(n))
 		c.c.udpReceived.Add(1)
+		c.evidence.Do(func() {
+			c.c.remoteEvidence(false, contract.HealthSample{At: time.Now().UnixMilli(), Kind: "reply", OK: true}, nil)
+		})
 	}
 	c.c.ioError(err)
 	return n, a, err

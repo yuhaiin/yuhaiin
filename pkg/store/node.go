@@ -45,7 +45,18 @@ func (s *NodeStore) Save(ctx context.Context, node contractnode.Node, updatedAt 
 	if s == nil || s.db == nil {
 		return errors.New("node store database is nil")
 	}
-	return SaveNodeContract(ctx, s.db, node, updatedAt)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := SaveNodeContract(ctx, tx, node, updatedAt); err != nil {
+		return err
+	}
+	if err := validateNodeDependencies(ctx, tx); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *NodeStore) ReplaceRemote(ctx context.Context, group string, nodes []contractnode.Node, updatedAt int64) error {
@@ -120,6 +131,9 @@ func (s *NodeStore) ReplaceRemote(ctx context.Context, group string, nodes []con
 		if err := DeleteNodeContract(ctx, tx, id); err != nil {
 			return err
 		}
+	}
+	if err := validateNodeDependencies(ctx, tx); err != nil {
+		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit remote node replace transaction failed: %w", err)
@@ -422,6 +436,8 @@ func (s *NodeStore) UsingIDs(ctx context.Context) ([]string, error) {
 		WHERE key IN ('selected_tcp_node_v2', 'selected_udp_node_v2')
 		UNION
 		SELECT node_id FROM outbound_selectors
+		UNION
+		SELECT json_extract(c.value, '$.nodeId') FROM outbound_selectors, json_each(policy_json, '$.candidates') c
 		UNION
 		SELECT json_extract(data_json, '$.target.id') FROM route_rules_v2 WHERE json_extract(data_json, '$.target.type') = 'node'
 		UNION

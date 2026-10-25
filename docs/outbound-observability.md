@@ -82,3 +82,13 @@ samples of payload bytes, and may lag one interval.
 
 The native VPN state adapter, per-hop underlay wire counters and optional
 background health-check scheduler are separate future enhancements.
+
+## Selector evidence and active download measurements
+
+Opt-in intelligent Selectors extend this same per-node observer with independent
+TCP/UDP evidence, bounded comparable latency samples, and active download-test
+summaries. Generic passive counters above retain their original meaning; use the
+channel evidence and selector decision reasons when inspecting automatic
+selection. UDP PacketConn construction no longer records remote-success evidence.
+See [intelligent selectors](intelligent-selectors.md) for eligibility, measurement
+budgets, persistence, scoring, and current delivery boundaries.

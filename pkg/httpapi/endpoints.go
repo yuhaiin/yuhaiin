@@ -71,6 +71,7 @@ const (
 	v2NodesActive              v2Endpoint = "nodes.active"
 	v2NodeUse                  v2Endpoint = "node.use"
 	v2NodeStatuses             v2Endpoint = "nodes.status"
+	v2NodeSpeed                v2Endpoint = "node.speed"
 	v2NodeLatency              v2Endpoint = "node.latency"
 	v2NodeClose                v2Endpoint = "node.close"
 	v2NodeExtraInfo            v2Endpoint = "node.extra"
@@ -153,6 +154,7 @@ const (
 	v2SelectorsGet          v2Endpoint = "outbound.selectors.get"
 	v2SelectorPut           v2Endpoint = "outbound.selector.put"
 	v2SelectorDelete        v2Endpoint = "outbound.selector.delete"
+	v2SelectorStatus        v2Endpoint = "outbound.selector.status"
 	v2SelectorReferences    v2Endpoint = "outbound.selector.references"
 )
 
@@ -238,6 +240,7 @@ var v2Routes = []v2Route{
 	{v2NodeDelete, "DELETE /api/v2/nodes/{id}"},
 	{v2NodeUse, "POST /api/v2/nodes/{id}/use"},
 	{v2NodeStatuses, "POST /api/v2/nodes/status"},
+	{v2NodeSpeed, "POST /api/v2/nodes/{id}/speed"},
 	{v2NodeLatency, "POST /api/v2/nodes/{id}/latency"},
 	{v2NodeClose, "POST /api/v2/nodes/{id}/close"},
 	{v2NodeExtraInfo, "GET /api/v2/nodes/{id}/extra"},
@@ -276,6 +279,7 @@ var v2Routes = []v2Route{
 	{v2SelectorPut, "PUT /api/v2/outbound/selectors"},
 	{v2SelectorDelete, "DELETE /api/v2/outbound/selectors/{id}"},
 	{v2SelectorReferences, "GET /api/v2/outbound/selectors/{id}/references"},
+	{v2SelectorStatus, "GET /api/v2/outbound/selectors/{id}/status"},
 	{v2RouteRulesGet, "GET /api/v2/route/rules"},
 	{v2RouteRulesPost, "POST /api/v2/route/rules"},
 	{v2RouteRulesPriority, "POST /api/v2/route/rules/priority"},

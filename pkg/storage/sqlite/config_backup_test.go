@@ -7,6 +7,50 @@ import (
 	"testing"
 )
 
+func TestPrePolicySelectorConfigurationExportRemainsRestorable(t *testing.T) {
+	s, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for _, q := range []string{
+		`INSERT INTO nodes_v2 VALUES('n','Node','manual','manual',1,'["direct"]',0,'{"id":"n","name":"Node","origin":"manual","enabled":true,"chain":[{"type":"direct","direct":{}}]}')`,
+		`INSERT INTO outbound_selectors(id,name,node_id,revision) VALUES('s','Manual','n',1)`,
+	} {
+		if _, err := s.DB().ExecContext(t.Context(), q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := ExportConfig(t.Context(), s.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var backup ConfigBackup
+	if err := json.Unmarshal(data, &backup); err != nil {
+		t.Fatal(err)
+	}
+	table := backup.Tables["outbound_selectors"]
+	table.Columns = table.Columns[:4]
+	for i := range table.Rows {
+		table.Rows[i] = table.Rows[i][:4]
+	}
+	backup.Tables["outbound_selectors"] = table
+	data, err = json.Marshal(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateConfig(t.Context(), s.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	if err := RestoreConfig(t.Context(), s.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var policy string
+	if err := s.DB().QueryRowContext(t.Context(), `SELECT policy_json FROM outbound_selectors WHERE id='s'`).Scan(&policy); err != nil || policy != "null" {
+		t.Fatal(policy, err)
+	}
+}
+
 func TestConfigBackupRoundTripAndAtomicFailure(t *testing.T) {
 	ctx := t.Context()
 	source, err := Open(ctx, filepath.Join(t.TempDir(), "state.db"))

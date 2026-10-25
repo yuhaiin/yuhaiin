@@ -1,0 +1,28 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/node
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkSelectorRanking/failover/100-12         	   24670	     14090 ns/op	   13568 B/op	       1 allocs/op
+BenchmarkSelectorRanking/failover/100-12         	   23253	     13370 ns/op	   13568 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/100-12   	   28526	     12818 ns/op	   13568 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/100-12   	   36810	     10096 ns/op	   13568 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/100-12         	   33147	     10784 ns/op	   13568 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/100-12         	   34120	     10916 ns/op	   13568 B/op	       1 allocs/op
+BenchmarkSelectorRanking/balanced/100-12                   	   24962	     14171 ns/op	   18368 B/op	     101 allocs/op
+BenchmarkSelectorRanking/balanced/100-12                   	   24715	     14829 ns/op	   18368 B/op	     101 allocs/op
+BenchmarkSelectorRanking/failover/1000-12                  	    3444	    106912 ns/op	  131072 B/op	       1 allocs/op
+BenchmarkSelectorRanking/failover/1000-12                  	    2929	    115736 ns/op	  131072 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/1000-12            	    3373	    110057 ns/op	  131072 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/1000-12            	    3498	    113241 ns/op	  131072 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/1000-12        	    3118	    106440 ns/op	  131072 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/1000-12        	    3663	    108119 ns/op	  131072 B/op	       1 allocs/op
+BenchmarkSelectorRanking/balanced/1000-12                  	    2476	    138336 ns/op	  179072 B/op	    1001 allocs/op
+BenchmarkSelectorRanking/balanced/1000-12                  	    2839	    143225 ns/op	  179072 B/op	    1001 allocs/op
+BenchmarkSelectorTarget/manual-12         	  830018	       428.5 ns/op	     632 B/op	       6 allocs/op
+BenchmarkSelectorTarget/manual-12         	  826623	       433.7 ns/op	     632 B/op	       6 allocs/op
+BenchmarkSelectorTarget/failover-12       	  746846	       432.3 ns/op	     632 B/op	       6 allocs/op
+BenchmarkSelectorTarget/failover-12       	  829326	       435.7 ns/op	     632 B/op	       6 allocs/op
+BenchmarkSelectorTarget/weighted-12       	  788170	       457.3 ns/op	     632 B/op	       6 allocs/op
+BenchmarkSelectorTarget/weighted-12       	  704070	       455.6 ns/op	     632 B/op	       6 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/node	2.242s

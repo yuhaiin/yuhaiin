@@ -126,6 +126,19 @@ func decodeConfigBackup(data []byte) (ConfigBackup, error) {
 			return backup, fmt.Errorf("missing configuration table %s", name)
 		}
 	}
+	// Pre-v18 exports have the same configuration format without the opt-in
+	// selector policy column. Upgrade only this exact, known older shape.
+	selectors := backup.Tables["outbound_selectors"]
+	if slices.Equal(selectors.Columns, []string{"id", "name", "node_id", "revision"}) {
+		selectors.Columns = append(selectors.Columns, "policy_json")
+		for i, row := range selectors.Rows {
+			if len(row) != 4 {
+				return backup, errors.New("invalid legacy selector row")
+			}
+			selectors.Rows[i] = append(row, jsontext.Value(`"null"`))
+		}
+		backup.Tables["outbound_selectors"] = selectors
+	}
 	return backup, nil
 }
 

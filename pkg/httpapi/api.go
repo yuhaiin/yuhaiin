@@ -114,6 +114,12 @@ type InboundStore interface {
 	Settings(context.Context) (plainstore.InboundSettings, error)
 	SaveSettings(context.Context, plainstore.InboundSettings) error
 }
+type SelectorController interface {
+	List(context.Context) ([]contractnode.Selector, error)
+	Save(context.Context, contractnode.Selector) (contractnode.Selector, error)
+	Delete(context.Context, string) error
+	References(context.Context, string) ([]contractroute.Reference, error)
+}
 type V2Services struct {
 	Gateway          GatewayController
 	Settings         SettingsController
@@ -139,7 +145,7 @@ type V2Services struct {
 	Rules            RouteRuntimeController
 	RouteRules       *plainstore.RouteRuleStore
 	RouteEditor      *plainstore.RouteEditorStore
-	Selectors        *plainstore.SelectorStore
+	Selectors        SelectorController
 	Subscribe        SubscriptionController
 }
 type pageV2 struct {

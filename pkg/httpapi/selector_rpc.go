@@ -15,6 +15,7 @@ func addSelectorRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2SelectorPut, a.saveSelector)
 	addRPCRoute(handlers, v2SelectorDelete, a.deleteSelector)
 	addRPCRoute(handlers, v2SelectorReferences, a.selectorReferences)
+	addRPCRoute(handlers, v2SelectorStatus, a.selectorStatus)
 }
 
 func (a v2API) selectors(ctx context.Context, _ *emptyRequest) (*contractnode.SelectorList, error) {
@@ -59,4 +60,18 @@ func (a v2API) selectorReferences(ctx context.Context, request *idRequest) (*str
 	return &struct {
 		Items []contractroute.Reference `json:"items"`
 	}{Items: refs}, err
+}
+
+func (a v2API) selectorStatus(ctx context.Context, request *idRequest) (*contractnode.SelectorRuntimeStatus, error) {
+	provider, ok := a.services.Selectors.(interface {
+		Status(context.Context, string) (contractnode.SelectorRuntimeStatus, error)
+	})
+	if !ok {
+		return nil, unavailable("selector runtime is unavailable")
+	}
+	status, err := provider.Status(ctx, request.ID)
+	if errors.Is(err, plainstore.ErrNotFound) {
+		return nil, notFound(err)
+	}
+	return &status, err
 }

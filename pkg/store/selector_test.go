@@ -91,3 +91,64 @@ func TestSubscriptionRefreshPreservesSelectorAndRejectsRemovingItsNode(t *testin
 		t.Fatalf("failed refresh changed old configuration: %+v %v", got, err)
 	}
 }
+
+func TestAutomaticSelectorCandidateReferencesAndPolicyRoundTrip(t *testing.T) {
+	editor, _, _ := editorStore(t)
+	nodes := NewNodeStore(editor.db)
+	for _, id := range []string{"a", "b"} {
+		if err := nodes.Save(t.Context(), contractnode.Node{ID: id, Name: id, Origin: "manual", Enabled: true, Chain: []contractnode.Protocol{{Type: "direct", Direct: &contractnode.Direct{}}}}, 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s := NewSelectorStore(editor.db)
+	saved, err := s.Save(t.Context(), contractnode.Selector{Name: "Auto", NodeID: "a", Policy: &contractnode.SelectorPolicy{Mode: "weighted", Candidates: []contractnode.SelectorCandidate{{NodeID: "b", Enabled: true, Weight: 4}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := s.Get(t.Context(), saved.ID)
+	if err != nil || loaded.Policy == nil || loaded.Policy.Candidates[0].Weight != 4 {
+		t.Fatal(loaded, err)
+	}
+	if err := nodes.Delete(t.Context(), "b"); err == nil {
+		t.Fatal("deleted automatic selector candidate")
+	}
+	ids, err := nodes.UsingIDs(t.Context())
+	if err != nil || len(ids) != 2 {
+		t.Fatal(ids, err)
+	}
+	stale := saved
+	saved.Policy.Candidates[0].NodeID = "missing"
+	if _, err := s.Save(t.Context(), saved); err == nil {
+		t.Fatal("accepted missing candidate")
+	}
+	if loaded, err = s.Get(t.Context(), saved.ID); err != nil || loaded.Revision != stale.Revision || loaded.Policy.Candidates[0].NodeID != "b" {
+		t.Fatal("partial update", loaded, err)
+	}
+}
+
+func TestNodeDependencyCycleIsRejectedAtomically(t *testing.T) {
+	editor, _, _ := editorStore(t)
+	nodes := NewNodeStore(editor.db)
+	a := contractnode.Node{ID: "a", Name: "a", Origin: "manual", Enabled: true, Chain: []contractnode.Protocol{{Type: "direct", Direct: &contractnode.Direct{}}}}
+	b := a
+	b.ID, b.Name = "b", "b"
+	if err := nodes.Save(t.Context(), a, 0); err != nil {
+		t.Fatal(err)
+	}
+	b.Chain = []contractnode.Protocol{{Type: "set", Set: &contractnode.Set{Nodes: []string{"a"}}}}
+	if err := nodes.Save(t.Context(), b, 0); err != nil {
+		t.Fatal(err)
+	}
+	a.Chain = []contractnode.Protocol{{Type: "point_as_endpoint", PointAsEndpoint: &contractnode.PointAsEndpoint{Hash: "b"}}}
+	if err := nodes.Save(t.Context(), a, 0); err == nil {
+		t.Fatal("accepted Set -> endpoint -> Set cycle")
+	}
+	loaded, err := nodes.Get(t.Context(), "a")
+	if err != nil || loaded.Chain[0].Type != "direct" {
+		t.Fatal("failed save changed node", loaded, err)
+	}
+	a.Chain = []contractnode.Protocol{{Type: "network_split", NetworkSplit: &contractnode.NetworkSplit{TCP: &contractnode.Protocol{Type: "set", Set: &contractnode.Set{Nodes: []string{"a"}}}}}}
+	if err := nodes.Save(t.Context(), a, 0); err == nil {
+		t.Fatal("accepted nested self-reference")
+	}
+}

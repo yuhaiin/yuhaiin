@@ -146,7 +146,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	var registryCatalogs httpapi.RegistryCatalogController
 	var routeRuleStore *plainstore.RouteRuleStore
 	var routeEditor *plainstore.RouteEditorStore
-	var selectors *plainstore.SelectorStore
+	var selectors httpapi.SelectorController
 	subscribeController := app.Subscribe
 	if sqlStore := app.StateStore; sqlStore != nil {
 		db, err := sqlStore.SQLDB(ctx)
@@ -176,6 +176,9 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 			routeRuleStore = plainstore.NewRouteRuleStore(db)
 			routeEditor = plainstore.NewRouteEditorStore(db)
 			selectors = plainstore.NewSelectorStore(db)
+			if app.NodeRuntime != nil {
+				selectors = node.NewSelectorService(app.NodeRuntime)
+			}
 			if app.NodeRuntime != nil {
 				subscribeController = node.NewSubscribe(app.NodeRuntime, subscriptionStore)
 			}

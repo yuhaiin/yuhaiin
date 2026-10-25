@@ -61,10 +61,11 @@ type ImportPreview struct {
 // Selector is an independently named choice of node shared by routing rules.
 // Its chosen node may itself use a Set protocol chain.
 type Selector struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	NodeID   string `json:"nodeId"`
-	Revision uint64 `json:"revision"`
+	ID       string          `json:"id"`
+	Name     string          `json:"name"`
+	NodeID   string          `json:"nodeId"`
+	Revision uint64          `json:"revision"`
+	Policy   *SelectorPolicy `json:"policy,omitzero"`
 }
 
 type SelectorList struct {
