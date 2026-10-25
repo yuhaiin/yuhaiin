@@ -46,7 +46,7 @@ func LatencyWithContext(ctx context.Context, l contractnode.LatencyRequest, p ne
 	if l.Type == "" {
 		l.Type = "http"
 	}
-	if (l.Type == "http" || l.Type == "tcp") && l.URL == "" {
+	if (l.Type == "http" || l.Type == "tcp" || l.Type == "https") && l.URL == "" {
 		l.URL = defaultHTTPURL
 	}
 	if l.Type == "ip" && l.URL == "" {
@@ -69,6 +69,12 @@ func LatencyWithContext(ctx context.Context, l contractnode.LatencyRequest, p ne
 		}
 	}
 	switch l.Type {
+	case "tcp_connect":
+		t, err := TCPConnect(ctx, p, l.Host)
+		return contractnode.LatencyResponse{OK: err == nil, LatencyMS: t.Milliseconds()}, err
+	case "https":
+		t, err := HTTPSHead(ctx, p, l.URL)
+		return contractnode.LatencyResponse{OK: err == nil, LatencyMS: t.Milliseconds()}, err
 	case "", "http", "tcp":
 		t, err := HTTPWithContext(ctx, p, l.URL, options.InsecureSkipVerify)
 		return contractnode.LatencyResponse{OK: err == nil, LatencyMS: t.Milliseconds()}, err

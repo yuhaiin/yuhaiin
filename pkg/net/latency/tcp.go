@@ -21,8 +21,13 @@ func HTTPWithInsecureSkipVerify(p netapi.Proxy, target string, insecureSkipVerif
 	return HTTPWithContext(context.Background(), p, target, insecureSkipVerify)
 }
 func HTTPWithContext(ctx context.Context, p netapi.Proxy, target string, insecureSkipVerify bool) (time.Duration, error) {
+	return httpLatency(ctx, p, target, insecureSkipVerify, http.MethodGet, true)
+}
+func httpLatency(ctx context.Context, p netapi.Proxy, target string, insecureSkipVerify bool, method string, redirect bool) (time.Duration, error) {
 	tr := &http.Transport{
-		DisableKeepAlives: true,
+		DisableKeepAlives:      true,
+		MaxResponseHeaderBytes: 32 << 10,
+		DisableCompression:     true,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			ad, err := netapi.ParseAddress(network, addr)
 			if err != nil {
@@ -48,15 +53,22 @@ func HTTPWithContext(ctx context.Context, p netapi.Proxy, target string, insecur
 	defer tr.CloseIdleConnections()
 
 	start := time.Now()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	request, err := http.NewRequestWithContext(ctx, method, target, nil)
 	if err != nil {
 		return 0, err
 	}
-	resp, err := (&http.Client{Transport: tr, Timeout: timeout}).Do(request)
+	client := &http.Client{Transport: tr, Timeout: timeout}
+	if !redirect {
+		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	}
+	resp, err := client.Do(request)
 	if err != nil {
 		return 0, err
 	}
 	defer resp.Body.Close()
+	if !redirect && resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		return 0, fmt.Errorf("probe endpoint redirect refused")
+	}
 
 	return time.Since(start), nil
 }

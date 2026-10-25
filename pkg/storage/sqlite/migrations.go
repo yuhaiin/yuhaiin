@@ -628,4 +628,7 @@ var migrations = []Migration{
 		`ALTER TABLE outbound_selectors ADD COLUMN policy_json TEXT NOT NULL DEFAULT 'null' CHECK(json_valid(policy_json))`,
 		`CREATE TABLE node_speed_budget (id INTEGER PRIMARY KEY CHECK(id=1), day INTEGER NOT NULL, reserved_bytes INTEGER NOT NULL CHECK(reserved_bytes>=0))`,
 	}},
+	{Version: 19, Name: "node_monitoring", Statements: []string{
+		`CREATE TABLE node_monitoring_settings(id INTEGER PRIMARY KEY CHECK(id=1), data_json TEXT NOT NULL CHECK(json_valid(data_json)))`,
+	}},
 }

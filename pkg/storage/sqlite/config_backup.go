@@ -37,7 +37,7 @@ var configBackupTables = []string{
 	"inbound_settings", "inbounds", "inbounds_v2", "nodes", "nodes_v2", "node_tags", "outbound_selectors",
 	"subscriptions", "publishes", "route_settings", "route_rules", "route_rules_v2",
 	"route_lists", "route_list_refresh", "route_lists_v2", "route_registries", "backup_settings", "metadata",
-	"gateway_configuration", "gateway_references",
+	"gateway_configuration", "gateway_references", "node_monitoring_settings",
 }
 
 func configBackupFilter(table string) string {
@@ -117,6 +117,9 @@ func decodeConfigBackup(data []byte) (ConfigBackup, error) {
 	}
 	if backup.Format != "yuhaiin-config" || backup.Version != 1 {
 		return backup, errors.New("unsupported configuration backup format or version")
+	}
+	if _, ok := backup.Tables["node_monitoring_settings"]; !ok && len(backup.Tables) == len(configBackupTables)-1 {
+		backup.Tables["node_monitoring_settings"] = ConfigBackupTable{Columns: []string{"id", "data_json"}, Rows: [][]jsontext.Value{}}
 	}
 	if len(backup.Tables) != len(configBackupTables) {
 		return backup, errors.New("incomplete configuration backup")

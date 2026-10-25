@@ -3,11 +3,15 @@ package node
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 )
+
+var errSpeedBusy = errors.New("speed test concurrency limit reached")
+var errSpeedBudget = errors.New("daily speed test traffic budget exhausted")
 
 func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.SpeedTestRequest) (contract.ThroughputMeasurement, error) {
 	request, err := latency.ValidateSpeedTest(request)
@@ -22,7 +26,7 @@ func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.Spe
 	case r.speedSlots <- struct{}{}:
 		defer func() { <-r.speedSlots }()
 	default:
-		return contract.ThroughputMeasurement{}, errors.New("speed test concurrency limit reached")
+		return contract.ThroughputMeasurement{}, errSpeedBusy
 	}
 	n, err := nodes.Get(ctx, id)
 	if err != nil {
@@ -49,7 +53,7 @@ func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.Spe
 		return contract.ThroughputMeasurement{}, err
 	}
 	if count, _ := result.RowsAffected(); count == 0 {
-		return contract.ThroughputMeasurement{}, errors.New("daily speed test traffic budget exhausted")
+		return contract.ThroughputMeasurement{}, errSpeedBudget
 	}
 	proxy, err := r.getContractDialer(ctx, id, n)
 	if err != nil {
@@ -61,8 +65,15 @@ func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.Spe
 		measurement.OK = false
 		measurement.Error = "speed measurement failed"
 	}
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return measurement, ctx.Err()
+	}
 	c := r.observer.counter(id)
 	c.mu.Lock()
+	c.throughputHistory = append(c.throughputHistory, measurement)
+	if len(c.throughputHistory) > 16 {
+		c.throughputHistory = slices.Delete(c.throughputHistory, 0, len(c.throughputHistory)-16)
+	}
 	old := c.throughput
 	if measurement.OK && old.OK && old.Target == measurement.Target && measurement.At-old.At >= 0 && measurement.At-old.At < recentNodeObservation.Milliseconds() {
 		measurement.Samples = min(old.Samples+1, 64)

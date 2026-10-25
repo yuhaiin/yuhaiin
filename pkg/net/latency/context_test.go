@@ -34,7 +34,7 @@ func (p *cancellableProbeProxy) PacketConn(ctx context.Context, _ netapi.Address
 }
 
 func TestProbeCancellationReachesActualNodeTransport(t *testing.T) {
-	for _, kind := range []string{"http", "tcp", "dns", "udp", "doq", "stun", "stun_tcp"} {
+	for _, kind := range []string{"http", "tcp", "https", "tcp_connect", "dns", "udp", "doq", "stun", "stun_tcp"} {
 		t.Run(kind, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()

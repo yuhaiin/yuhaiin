@@ -16,6 +16,9 @@ import (
 func cloneHealth(h contract.ChannelHealth) contract.ChannelHealth {
 	h.Samples = slices.Clone(h.Samples)
 	h.LatencySamples = slices.Clone(h.LatencySamples)
+	if len(h.Samples) == 0 || time.Now().UnixMilli()-h.Samples[len(h.Samples)-1].At > recentNodeObservation.Milliseconds() {
+		h.State = "unknown"
+	}
 	return h
 }
 
@@ -53,6 +56,10 @@ func (n *nodeCounters) remoteEvidence(tcp bool, sample contract.HealthSample, er
 	if sample.At == 0 {
 		sample.At = time.Now().UnixMilli()
 	}
+	if len(h.Samples) > 0 && sample.At-h.Samples[len(h.Samples)-1].At > recentNodeObservation.Milliseconds() {
+		h.ConsecutiveFailures, h.ConsecutiveSuccesses = 0, 0
+		h.State = "unknown"
+	}
 	h.Samples = append(h.Samples, sample)
 	if len(h.Samples) > 64 {
 		h.Samples = slices.Delete(h.Samples, 0, len(h.Samples)-64)
@@ -76,5 +83,16 @@ func (n *nodeCounters) remoteEvidence(tcp bool, sample contract.HealthSample, er
 		if h.ConsecutiveFailures >= 3 {
 			h.State = "unhealthy"
 		}
+	}
+}
+
+// Constructor errors are explicit inability to create this outbound, not a
+// claim about remote TCP/UDP reachability. Keep their evidence kind separate.
+func (n *nodeCounters) constructionFailure(err error) {
+	if err == nil || errors.Is(err, context.Canceled) {
+		return
+	}
+	for _, tcp := range []bool{true, false} {
+		n.remoteEvidence(tcp, contract.HealthSample{Kind: "construction", OK: false}, nil)
 	}
 }

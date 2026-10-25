@@ -154,6 +154,9 @@ const (
 	v2SelectorsGet          v2Endpoint = "outbound.selectors.get"
 	v2SelectorPut           v2Endpoint = "outbound.selector.put"
 	v2SelectorDelete        v2Endpoint = "outbound.selector.delete"
+	v2MonitoringGet         v2Endpoint = "node.monitoring.get"
+	v2MonitoringPut         v2Endpoint = "node.monitoring.put"
+	v2MonitoringNetwork     v2Endpoint = "node.monitoring.network.put"
 	v2SelectorStatus        v2Endpoint = "outbound.selector.status"
 	v2SelectorReferences    v2Endpoint = "outbound.selector.references"
 )
@@ -275,6 +278,9 @@ var v2Routes = []v2Route{
 	{v2RouteRegistryCatalogs, "GET /api/v2/route/registries/catalogs"},
 	{v2RouteRegistryPut, "PUT /api/v2/route/registries/{id}"},
 	{v2RouteRegistryDelete, "DELETE /api/v2/route/registries/{id}"},
+	{v2MonitoringGet, "GET /api/v2/nodes/monitoring"},
+	{v2MonitoringPut, "PUT /api/v2/nodes/monitoring"},
+	{v2MonitoringNetwork, "PUT /api/v2/nodes/monitoring/network"},
 	{v2SelectorsGet, "GET /api/v2/outbound/selectors"},
 	{v2SelectorPut, "PUT /api/v2/outbound/selectors"},
 	{v2SelectorDelete, "DELETE /api/v2/outbound/selectors/{id}"},

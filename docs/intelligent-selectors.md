@@ -5,11 +5,11 @@ Selectors keep their stable IDs and existing `nodeId`. Without an explicit
 probes or speed tests after this migration. The browser configures policy and
 reads status; decisions are made by the backend while the browser is closed.
 
-This first delivery supplies the selection engine, passive remote evidence,
-manual measurements, persistence, and management UI. Scheduled probes,
-Closed/Open/Half-open admission, periodic throughput tests, global health
-defaults, and Prometheus additions are subsequent reliability work. Do not treat
-eligibility filtering in this delivery as a complete circuit breaker.
+The selection engine extends existing node observations and persistence. The
+monitoring follow-up adds shared scheduled probes, optional periodic download
+tests, global defaults and selector overrides. Full Closed/Open/Half-open
+admission and Prometheus additions are subsequent reliability work. Eligibility
+filtering and probe cooldown are not a complete circuit breaker.
 
 ## Configure and observe
 
@@ -46,7 +46,9 @@ state is inferred from constructing a proxy.
 Use **Probe now** separately for TCP and UDP, then **Measure download** when a
 speed-based policy needs it. TCP tests retain existing per-node latency-target
 and explicit insecure-setting overrides, but only verified HTTPS observations
-with the selector's exact target qualify as comparable HTTPS RTT. UDP RTT uses
+with the selector's exact target qualify as comparable HTTPS RTT. Automatic
+selectors use verified HEAD responses consistently: legacy GET probes remain
+visible as `https_get` evidence but do not enter that HEAD ranking cohort. UDP RTT uses
 DNS response tests with an exact `host:port/domain` target. A different target,
 transport, expired result, or zero/unknown RTT is never ranked as a fast sample.
 The existing Nodes page and manual latency tools remain available.
@@ -151,8 +153,8 @@ target test resets this chain. Values approximate this target at this moment.
 They are not Internet capacity guarantees. The outer node wrapper still counts
 these bytes as actual transferred traffic.
 
-There is no automatic measurement traffic on desktop, Android, or metered links
-in this delivery. Probe/speed targets are privileged administrator-chosen
+Periodic monitoring is disabled by default on all platforms. See the scheduler
+section below for explicit enablement and mobile/metered-network controls. Probe/speed targets are privileged administrator-chosen
 resources; do not delegate `nodes:write` to untrusted accounts. URL user-info and
 fragments are rejected for speed tests. URLs are never Prometheus label values.
 
@@ -196,3 +198,96 @@ candidates took roughly 0.1–0.14 ms depending on strategy. Target resolution
 took 429–434 ns in manual mode, 432–436 ns in failover, and 456–457 ns
 with weighted tickets; all had six allocations (632 bytes). The remaining connection allocations belong to existing runtime
 proxy/context preparation, not database queries or scoring.
+
+
+## Shared monitoring schedules
+
+Open **Outbound → Selectors → Monitoring defaults**. Global configuration is
+persisted in migration 19's `node_monitoring_settings` table. Existing and older
+configuration exports remain importable; pre-v19 exports restore disabled
+monitoring defaults. A selector's nullable `probe` and `periodicSpeed` overrides
+inherit the global schedules. Creating an override starts with it disabled;
+explicitly enable the schedule and Save to authorize periodic traffic.
+
+`node.monitoring.get` is protected by `nodes:read`. Configuration and runtime
+network-state changes require `nodes:write`; ordinary browser queries never
+start a task. The UI shows task/worker counts, failures, skips and current host
+network state. Speed history expands lazily and reads existing per-node status;
+up to 16 raw measurements are retained in the existing stats JSON. EWMA capacity
+and the raw measurement history are distinct.
+
+The scheduler uses one priority-queue timer and lazily creates a fixed worker
+pool, bounded by global concurrency (default four, maximum sixteen). Selector
+concurrency can reduce a group limit, never exceed the instance cap. Probe and
+speed traffic have separate group limits. Idle instances have no probe workers.
+Identical node/transport/target tasks across selectors share one job, using the
+shortest requested interval. Initial jobs spread over up to five seconds;
+subsequent intervals have configurable jitter (0–0.5). There is no per-node
+resident goroutine or timer. Changed/deleted tasks are synchronously canceled;
+old canceled probes do not publish replacement samples.
+
+Default interval is 60 seconds, timeout five seconds, failure/recovery thresholds
+3/2, and recovery cooldown 30 seconds. Interval is at least five seconds; probe
+timeout is 100 ms–30 seconds. Consecutive failed scheduled attempts reaching the
+threshold increase that task's interval to at least its recovery cooldown.
+This controls recovery traffic; it does not admit Half-open user requests.
+
+Supported tasks are TCP channel creation, verified complete HTTPS HEAD response,
+DNS reply over UDP, optional UDP STUN, and an existing protocol-native cached
+status provider when implemented. These evidence kinds are distinct. Native
+status is used only with a recent timestamp and an explicit connected/healthy/
+ready or disconnected/failed/unhealthy state; unsupported status is skipped.
+Neither a proxy constructor nor PacketConn creation proves a remote handshake.
+No native provider is invented for a protocol that lacks one.
+
+Probes call the candidate Node directly, including its actual protocol chain,
+never an automatic Selector or the system's default Direct route. Fixed Node
+references and existing dependency-cycle validation prevent Selector recursion.
+The native protocol integration remains the source of tunnel-handshake truth.
+HTTP/DNS/DoQ/STUN manual probes now propagate cancellation to actual transports.
+Scheduled HTTPS never inherits insecure TLS bypass from a manual Node override.
+A TCP-connect probe is not counted as a comparable HTTPS/DNS RTT sample.
+
+The shared probe traffic limiter defaults to 65,536 logical bytes per second.
+Each task reserves a conservative 64 KiB allowance *before* RTT timing starts;
+aggregate connection/datagram reads/writes within that probe cannot consume
+more. Budget waits/skips do not mark the node failed or inflate measured RTT.
+A lower selector bandwidth override adds a shared lower-rate group limit. This
+conservative reservation may reduce achievable probe frequency for large node
+sets; raise the explicit global budget or increase interval accordingly. It
+bounds logical probe traffic; VPN framing and kernel buffering are not a wire-
+rate guarantee. Existing traffic-control integration still needs qualification.
+
+Periodic download tests reuse the verified streaming implementation, two-test
+hard cap, and durable daily reservations. They default to once per hour and
+at most one concurrent scheduled test; minimum interval is five minutes. Busy
+or daily-budget-exhausted tests are skipped without network fallback or an
+unlimited retry loop. They never reset a daily reservation by rescheduling.
+
+Network offline transitions cancel tasks. The existing interface-monitor callback
+coalesces to the latest interface state, cancels old-network work, and spreads
+replacement work when a route/interface returns. Overdue tasks after sleep
+execute once and reschedule from completion, without replaying missed intervals.
+Android always additionally requires `allowMobile` and a native-host foreground
+signal. The new `App.SetMonitoringNetworkState(online,metered,foreground)` binding
+lets the Android host report lifecycle/cost transitions. The browser is not the
+source of mobile foreground truth. Metered probes are skipped unless explicitly
+allowed by the network-cost policy; speed tests require their own `allowMetered`.
+
+`cached_only` never constructs an unused outbound. Other policies may construct
+ordinary lightweight proxy clients, but periodic jobs never initiate a new
+enterprise VPN login, even on unmetered links: they can reuse a client established
+manually. This avoids background MFA/authentication and uncancellable legacy
+constructors. Administrators must establish such a candidate once through the
+existing manual path before periodic validation can reuse it.
+
+Scheduler tests use Go's simulated-clock concurrency bubbles to cover 1,000
+jobs, the sixteen-worker hard limit, cancellation/replacement, deduplication,
+independent group limits, deadlines and failure cooldowns without live Internet.
+Local listeners verify actual candidate transport and evidence separation.
+
+[Scheduler reconfiguration measurements](benchmarks/data/selector-2026-10-25/probe-scheduler.txt)
+showed roughly 13–14 microseconds for 100 unchanged jobs and 135–140 microseconds
+for 1,000 jobs, with five owned goroutines (four workers and one coordinator)
+in both cases. This is queue reconfiguration cost, outside the forwarding path.
+Global monitoring saves use an optimistic revision and reject stale updates.

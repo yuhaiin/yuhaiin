@@ -229,3 +229,7 @@ remains the compatibility default. The management UI exposes candidate evidence,
 thresholds, manual lock, and bounded manual download tests. See the
 [intelligent selector guide](docs/intelligent-selectors.md) for configuration,
 measurement limits, migrations, and the remaining reliability rollout work.
+
+The monitoring follow-up adds shared scheduled TCP/HTTPS/DNS/STUN checks,
+conservative mobile/metered-network defaults, and optional periodic download
+tests using the same bounded implementation and durable traffic budget.

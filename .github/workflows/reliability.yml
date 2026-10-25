@@ -1,0 +1,48 @@
+name: Enterprise reliability
+
+on:
+  pull_request:
+    paths:
+      - 'pkg/node/**'
+      - 'pkg/contract/node/**'
+      - 'pkg/net/latency/**'
+      - 'pkg/store/**'
+      - 'pkg/storage/sqlite/**'
+      - 'pkg/httpapi/**'
+      - 'cmd/android/**'
+      - '.github/workflows/reliability.yml'
+
+concurrency:
+  group: reliability-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  monitoring:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: enterprise-reliability
+      - name: Check source formatting and Go fixes
+        run: |
+          test -z "$(git ls-files -z -- '*.go' | xargs -0 gofmt -l)"
+          go fix ./...
+          git diff --exit-code
+      - name: Deterministic scheduler and race coverage
+        run: |
+          go test -race -count=1 -timeout=180s \
+            ./pkg/node ./pkg/net/latency ./pkg/store ./pkg/httpapi \
+            ./pkg/storage/sqlite ./cmd/android
+      - name: Selection and scheduler benchmarks
+        run: |
+          go test ./pkg/node -run '^$' -bench 'BenchmarkSelector|BenchmarkProbeScheduler' \
+            -benchmem -benchtime=300ms -count=2
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+          args: --timeout=5m

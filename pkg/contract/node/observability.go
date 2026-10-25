@@ -11,31 +11,32 @@ type ProbeStatus struct {
 // evicted or reconfigured. Byte/packet totals are decimal strings so browsers
 // do not lose precision beyond JavaScript's 53-bit integer limit.
 type RuntimeStatus struct {
-	ID             string                 `json:"id"`
-	State          string                 `json:"state"`
-	UploadBytes    string                 `json:"uploadBytes"`
-	DownloadBytes  string                 `json:"downloadBytes"`
-	UploadBps      string                 `json:"uploadBps"`
-	DownloadBps    string                 `json:"downloadBps"`
-	UDPSentPackets string                 `json:"udpSentPackets"`
-	UDPRecvPackets string                 `json:"udpRecvPackets"`
-	TCPAttempts    string                 `json:"tcpAttempts"`
-	TCPConnections string                 `json:"tcpConnections"`
-	UDPAttempts    string                 `json:"udpAttempts"`
-	UDPSessions    string                 `json:"udpSessions"`
-	PingAttempts   string                 `json:"pingAttempts"`
-	Failures       string                 `json:"failures"`
-	ActiveTCP      int64                  `json:"activeTCP"`
-	ActiveUDP      int64                  `json:"activeUDP"`
-	LastSuccessAt  int64                  `json:"lastSuccessAt"`
-	LastFailureAt  int64                  `json:"lastFailureAt"`
-	LastUsedAt     int64                  `json:"lastUsedAt"`
-	LastError      string                 `json:"lastError,omitempty"`
-	Probes         map[string]ProbeStatus `json:"probes,omitempty"`
-	Protocol       *ProtocolRuntimeStatus `json:"protocol,omitempty"`
-	TCPHealth      ChannelHealth          `json:"tcpHealth"`
-	UDPHealth      ChannelHealth          `json:"udpHealth"`
-	Throughput     ThroughputMeasurement  `json:"throughput"`
+	ID                string                  `json:"id"`
+	State             string                  `json:"state"`
+	UploadBytes       string                  `json:"uploadBytes"`
+	DownloadBytes     string                  `json:"downloadBytes"`
+	UploadBps         string                  `json:"uploadBps"`
+	DownloadBps       string                  `json:"downloadBps"`
+	UDPSentPackets    string                  `json:"udpSentPackets"`
+	UDPRecvPackets    string                  `json:"udpRecvPackets"`
+	TCPAttempts       string                  `json:"tcpAttempts"`
+	TCPConnections    string                  `json:"tcpConnections"`
+	UDPAttempts       string                  `json:"udpAttempts"`
+	UDPSessions       string                  `json:"udpSessions"`
+	PingAttempts      string                  `json:"pingAttempts"`
+	Failures          string                  `json:"failures"`
+	ActiveTCP         int64                   `json:"activeTCP"`
+	ActiveUDP         int64                   `json:"activeUDP"`
+	LastSuccessAt     int64                   `json:"lastSuccessAt"`
+	LastFailureAt     int64                   `json:"lastFailureAt"`
+	LastUsedAt        int64                   `json:"lastUsedAt"`
+	LastError         string                  `json:"lastError,omitempty"`
+	Probes            map[string]ProbeStatus  `json:"probes,omitempty"`
+	Protocol          *ProtocolRuntimeStatus  `json:"protocol,omitempty"`
+	TCPHealth         ChannelHealth           `json:"tcpHealth"`
+	UDPHealth         ChannelHealth           `json:"udpHealth"`
+	ThroughputHistory []ThroughputMeasurement `json:"throughputHistory,omitempty"`
+	Throughput        ThroughputMeasurement   `json:"throughput"`
 }
 
 // ChannelHealth separates real remote evidence from constructing a proxy or

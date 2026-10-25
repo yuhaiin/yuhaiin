@@ -26,15 +26,16 @@ Implemented in those PRs:
 - Real policy editor, evidence/score/event views and manual test controls in EN/JA/KO.
 - Deterministic/local tests, 1,000-reader concurrency coverage and microbenchmarks.
 
-The follow-up branch propagates cancellation through HTTP, DNS/DoQ, STUN and IP
-probes, with local cancellation tests. Its scheduler integration is still pending.
+The monitoring follow-up adds cancellation propagation, shared bounded and
+deduplicated schedules, global settings/selector overrides (migration 19),
+network-interface/native lifecycle rescheduling, explicit TCP/HTTPS/DNS/STUN
+evidence and optional periodic budgeted downloads, with real frontend controls.
+Full circuit-breaker admission and the remaining qualifications are not done.
 
 Still required before Stage 1 is complete:
 
-- Shared cancellable/deduplicated scheduler, global defaults/selector overrides,
-  network-cost/mobile policy, network-change rescheduling and native-state probes.
-- Explicit TCP-connect probe, controlled periodic throughput tests and detailed
-  measurement/event history.
+- Full qualification of shared scheduling under cancellation, network changes
+  and larger deployments; native-provider adapters for protocols where available.
 - Full Closed/Open/Half-open circuit breaker with bounded trial quotas and
   protocol-aware failure classification, including lazy VPN establishment.
 - Accurate integration with existing traffic-control admission/limits.

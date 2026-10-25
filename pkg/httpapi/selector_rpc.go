@@ -16,6 +16,9 @@ func addSelectorRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2SelectorDelete, a.deleteSelector)
 	addRPCRoute(handlers, v2SelectorReferences, a.selectorReferences)
 	addRPCRoute(handlers, v2SelectorStatus, a.selectorStatus)
+	addRPCRoute(handlers, v2MonitoringGet, a.monitoringGet)
+	addRPCRoute(handlers, v2MonitoringPut, a.monitoringPut)
+	addRPCRoute(handlers, v2MonitoringNetwork, a.monitoringNetwork)
 }
 
 func (a v2API) selectors(ctx context.Context, _ *emptyRequest) (*contractnode.SelectorList, error) {
@@ -74,4 +77,41 @@ func (a v2API) selectorStatus(ctx context.Context, request *idRequest) (*contrac
 		return nil, notFound(err)
 	}
 	return &status, err
+}
+
+type monitoringProvider interface {
+	Monitoring(context.Context) (contractnode.MonitoringStatus, error)
+	SaveMonitoring(context.Context, contractnode.MonitoringConfig) (contractnode.MonitoringStatus, error)
+	SetMonitoringNetworkState(context.Context, contractnode.MonitoringNetworkState) (contractnode.MonitoringStatus, error)
+}
+
+func (a v2API) monitoringGet(ctx context.Context, _ *emptyRequest) (*contractnode.MonitoringStatus, error) {
+	p, ok := a.services.Node.(monitoringProvider)
+	if !ok {
+		return nil, unavailable("node monitoring is unavailable")
+	}
+	result, err := p.Monitoring(ctx)
+	return &result, err
+}
+func (a v2API) monitoringPut(ctx context.Context, c *contractnode.MonitoringConfig) (*contractnode.MonitoringStatus, error) {
+	p, ok := a.services.Node.(monitoringProvider)
+	if !ok {
+		return nil, unavailable("node monitoring is unavailable")
+	}
+	result, err := p.SaveMonitoring(ctx, *c)
+	if err != nil {
+		return nil, badRequest(err)
+	}
+	return &result, nil
+}
+func (a v2API) monitoringNetwork(ctx context.Context, n *contractnode.MonitoringNetworkState) (*contractnode.MonitoringStatus, error) {
+	p, ok := a.services.Node.(monitoringProvider)
+	if !ok {
+		return nil, unavailable("node monitoring is unavailable")
+	}
+	result, err := p.SetMonitoringNetworkState(ctx, *n)
+	if err != nil {
+		return nil, badRequest(err)
+	}
+	return &result, nil
 }

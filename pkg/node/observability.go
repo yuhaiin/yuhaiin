@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net"
 	"reflect"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -25,27 +26,29 @@ const recentNodeObservation = 2 * time.Minute
 
 // nodeTotals are persisted separately from ephemeral active connection counts.
 type nodeTotals struct {
-	TCPHealth      contract.ChannelHealth          `json:"tcpHealth"`
-	UDPHealth      contract.ChannelHealth          `json:"udpHealth"`
-	Throughput     contract.ThroughputMeasurement  `json:"throughput"`
-	UploadBytes    uint64                          `json:"uploadBytes"`
-	DownloadBytes  uint64                          `json:"downloadBytes"`
-	UDPSentPackets uint64                          `json:"udpSentPackets"`
-	UDPRecvPackets uint64                          `json:"udpRecvPackets"`
-	TCPAttempts    uint64                          `json:"tcpAttempts"`
-	TCPConnections uint64                          `json:"tcpConnections"`
-	UDPAttempts    uint64                          `json:"udpAttempts"`
-	UDPSessions    uint64                          `json:"udpSessions"`
-	PingAttempts   uint64                          `json:"pingAttempts"`
-	Failures       uint64                          `json:"failures"`
-	LastSuccessAt  int64                           `json:"lastSuccessAt"`
-	LastFailureAt  int64                           `json:"lastFailureAt"`
-	LastUsedAt     int64                           `json:"lastUsedAt"`
-	LastError      string                          `json:"lastError,omitempty"`
-	Probes         map[string]contract.ProbeStatus `json:"probes,omitempty"`
+	ThroughputHistory []contract.ThroughputMeasurement `json:"throughputHistory,omitempty"`
+	TCPHealth         contract.ChannelHealth           `json:"tcpHealth"`
+	UDPHealth         contract.ChannelHealth           `json:"udpHealth"`
+	Throughput        contract.ThroughputMeasurement   `json:"throughput"`
+	UploadBytes       uint64                           `json:"uploadBytes"`
+	DownloadBytes     uint64                           `json:"downloadBytes"`
+	UDPSentPackets    uint64                           `json:"udpSentPackets"`
+	UDPRecvPackets    uint64                           `json:"udpRecvPackets"`
+	TCPAttempts       uint64                           `json:"tcpAttempts"`
+	TCPConnections    uint64                           `json:"tcpConnections"`
+	UDPAttempts       uint64                           `json:"udpAttempts"`
+	UDPSessions       uint64                           `json:"udpSessions"`
+	PingAttempts      uint64                           `json:"pingAttempts"`
+	Failures          uint64                           `json:"failures"`
+	LastSuccessAt     int64                            `json:"lastSuccessAt"`
+	LastFailureAt     int64                            `json:"lastFailureAt"`
+	LastUsedAt        int64                            `json:"lastUsedAt"`
+	LastError         string                           `json:"lastError,omitempty"`
+	Probes            map[string]contract.ProbeStatus  `json:"probes,omitempty"`
 }
 
 type nodeCounters struct {
+	throughputHistory                                    []contract.ThroughputMeasurement
 	tcpHealth, udpHealth                                 contract.ChannelHealth
 	throughput                                           contract.ThroughputMeasurement
 	upload, download, udpSent, udpReceived               atomic.Uint64
@@ -80,6 +83,7 @@ func (v *nodeTotals) lastErrorAndProbes(n *nodeCounters) {
 	v.Probes = maps.Clone(n.probes)
 	v.TCPHealth, v.UDPHealth = cloneHealth(n.tcpHealth), cloneHealth(n.udpHealth)
 	v.Throughput = n.throughput
+	v.ThroughputHistory = slices.Clone(n.throughputHistory)
 }
 
 func (n *nodeCounters) restore(v nodeTotals) {
@@ -101,6 +105,7 @@ func (n *nodeCounters) restore(v nodeTotals) {
 	n.probes = maps.Clone(v.Probes)
 	n.tcpHealth, n.udpHealth = cloneHealth(v.TCPHealth), cloneHealth(v.UDPHealth)
 	n.throughput = v.Throughput
+	n.throughputHistory = slices.Clone(v.ThroughputHistory)
 	n.mu.Unlock()
 }
 
@@ -186,7 +191,7 @@ func (n *nodeCounters) status(id string) contract.RuntimeStatus {
 		state = "healthy"
 	}
 	return contract.RuntimeStatus{
-		TCPHealth: v.TCPHealth, UDPHealth: v.UDPHealth, Throughput: v.Throughput,
+		TCPHealth: v.TCPHealth, UDPHealth: v.UDPHealth, Throughput: v.Throughput, ThroughputHistory: v.ThroughputHistory,
 		ID: id, State: state, UploadBytes: strconv.FormatUint(v.UploadBytes, 10),
 		DownloadBytes:  strconv.FormatUint(v.DownloadBytes, 10),
 		UploadBps:      strconv.FormatUint(n.uploadBps.Load(), 10),
@@ -282,7 +287,7 @@ func (o *nodeObserver) status(id string) contract.RuntimeStatus {
 	n := o.nodes[id]
 	o.mu.Unlock()
 	if n == nil {
-		return contract.RuntimeStatus{ID: id, State: "unknown", UploadBytes: "0", DownloadBytes: "0", UploadBps: "0", DownloadBps: "0", UDPSentPackets: "0", UDPRecvPackets: "0", TCPAttempts: "0", TCPConnections: "0", UDPAttempts: "0", UDPSessions: "0", PingAttempts: "0", Failures: "0"}
+		return contract.RuntimeStatus{TCPHealth: contract.ChannelHealth{State: "unknown"}, UDPHealth: contract.ChannelHealth{State: "unknown"}, ID: id, State: "unknown", UploadBytes: "0", DownloadBytes: "0", UploadBps: "0", DownloadBps: "0", UDPSentPackets: "0", UDPRecvPackets: "0", TCPAttempts: "0", TCPConnections: "0", UDPAttempts: "0", UDPSessions: "0", PingAttempts: "0", Failures: "0"}
 	}
 	return n.status(id)
 }

@@ -104,6 +104,7 @@ func (r *NodeRuntime) Close() error {
 	if selectors != nil {
 		close(selectors.stop)
 		<-selectors.done
+		selectors.scheduler.close()
 	}
 	err := r.proxies.Close()
 	if observer != nil {
@@ -340,6 +341,9 @@ func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.L
 		return contractnode.LatencyResponse{}, err
 	}
 	result, err := latency.LatencyWithContext(ctx, req, &latencyDialer{Proxy: proxy, ipv6: req.IPv6}, latencyOptions)
+	if ctx.Err() != nil {
+		return result, ctx.Err()
+	}
 	if r.observer != nil {
 		c := r.observer.counter(id)
 		c.probe(req.Type, result, err)
@@ -348,6 +352,10 @@ func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.L
 			target = "https://www.gstatic.com/generate_204"
 		}
 		switch req.Type {
+		case "", "http", "tcp":
+			kind = "https_get"
+		case "tcp_connect":
+			kind, target = "tcp_connect", req.Host
 		case "dns", "udp":
 			kind, target, tcp = "dns", req.Host, false
 			if target == "" {
@@ -365,7 +373,7 @@ func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.L
 		case "ip":
 			kind = req.Type
 		}
-		if kind == "https" && (!strings.HasPrefix(target, "https://") || latencyOptions.InsecureSkipVerify) {
+		if (kind == "https" || kind == "https_get") && (!strings.HasPrefix(target, "https://") || latencyOptions.InsecureSkipVerify) {
 			kind = "http_unverified"
 		}
 		c.remoteEvidence(tcp, contractnode.HealthSample{At: time.Now().UnixMilli(), OK: result.OK, RTTMS: float64(result.LatencyMS), Kind: kind, Target: target}, err)

@@ -4,7 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
+	"golang.org/x/time/rate"
+	"io"
 	"math/rand/v2"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -30,22 +34,34 @@ type selectorSnapshot struct{ items map[string]*preparedSelector }
 // selectorRuntime has one worker per core instance. Connection creation reads
 // immutable snapshots, with neither database access nor ranking on the hot path.
 type selectorRuntime struct {
-	runtime  *NodeRuntime
-	store    *plainstore.SelectorStore
-	mu       sync.Mutex
-	configs  []contract.Selector
-	nodes    map[string]contract.Node
-	counters map[string]*nodeCounters
-	snapshot atomic.Pointer[selectorSnapshot]
-	stop     chan struct{}
-	done     chan struct{}
+	networkMonitor     io.Closer
+	interfaceName      atomic.Pointer[string]
+	networkWake        chan struct{}
+	scheduler          *probeScheduler
+	monitorStore       *plainstore.MonitoringStore
+	defaults           contract.MonitoringConfig
+	network            contract.MonitoringNetworkState
+	platform           string
+	probeLimiter       *rate.Limiter
+	probeRateOverrides map[int64]*rate.Limiter
+	runtime            *NodeRuntime
+	store              *plainstore.SelectorStore
+	mu                 sync.Mutex
+	configs            []contract.Selector
+	nodes              map[string]contract.Node
+	counters           map[string]*nodeCounters
+	snapshot           atomic.Pointer[selectorSnapshot]
+	stop               chan struct{}
+	done               chan struct{}
 }
 
 func newSelectorRuntime(ctx context.Context, r *NodeRuntime, nodes *plainstore.NodeStore) (*selectorRuntime, error) {
-	s := &selectorRuntime{runtime: r, store: plainstore.NewSelectorStore(r.sqlite.DB()), stop: make(chan struct{}), done: make(chan struct{})}
+	s := &selectorRuntime{networkWake: make(chan struct{}, 1), scheduler: newProbeScheduler(), monitorStore: plainstore.NewMonitoringStore(r.sqlite.DB()), network: defaultMonitoringNetwork(), platform: runtime.GOOS, runtime: r, store: plainstore.NewSelectorStore(r.sqlite.DB()), stop: make(chan struct{}), done: make(chan struct{})}
 	if err := s.reload(ctx, nodes); err != nil {
+		s.scheduler.close()
 		return nil, err
 	}
+	s.networkMonitor = interfaces.AddNetworkMonitor(s.interfaceChanged)
 	go s.run()
 	return s, nil
 }
@@ -73,19 +89,34 @@ func (s *selectorRuntime) reload(ctx context.Context, store *plainstore.NodeStor
 			}
 		}
 	}
+	defaults, err := s.monitorStore.Get(ctx)
+	if err != nil {
+		return err
+	}
+	if s.probeLimiter == nil || s.defaults.Probe.MaxProbeBandwidth != defaults.Probe.MaxProbeBandwidth {
+		if s.probeLimiter != nil {
+			s.scheduler.replace(nil, defaults.Probe.Concurrency)
+		}
+		s.probeLimiter = newProbeLimiter(defaults.Probe.MaxProbeBandwidth)
+	}
+	s.defaults = defaults
 	s.configs, s.nodes, s.counters = configs, byID, counters
+	s.scheduleLocked()
 	s.rebuild(time.Now())
 	return nil
 }
 
 func (s *selectorRuntime) run() {
 	defer close(s.done)
+	defer s.networkMonitor.Close()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-s.stop:
 			return
+		case <-s.networkWake:
+			s.reconcileInterface()
 		case now := <-ticker.C:
 			s.mu.Lock()
 			// No SQLite traffic, proxy construction, or network traffic while idle.
@@ -103,6 +134,7 @@ func (s *selectorRuntime) rebuild(now time.Time) {
 	previous := s.snapshot.Load()
 	next := &selectorSnapshot{items: make(map[string]*preparedSelector, len(s.configs))}
 	for _, config := range s.configs {
+		config = s.effectivePolicy(config)
 		p := &preparedSelector{config: config, nodes: make(map[string]contract.Node), status: contract.SelectorRuntimeStatus{ID: config.ID, Revision: config.Revision, Events: []contract.SelectorEvent{}}}
 		if previous != nil {
 			if old := previous.items[config.ID]; old != nil {
@@ -266,4 +298,26 @@ func (s *SelectorService) Status(ctx context.Context, id string) (contract.Selec
 		}
 	}
 	return status, nil
+}
+
+func (s *selectorRuntime) interfaceChanged(name string) {
+	s.interfaceName.Store(new(name))
+	select {
+	case s.networkWake <- struct{}{}:
+	default:
+	}
+}
+func (s *selectorRuntime) reconcileInterface() {
+	name := s.interfaceName.Load()
+	if name == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.network.Generation++
+	if s.platform != "android" {
+		s.network.Online = *name != ""
+	}
+	s.scheduler.replace(nil, s.defaults.Probe.Concurrency)
+	s.scheduleLocked()
 }

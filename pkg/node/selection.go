@@ -191,7 +191,7 @@ func scoreCandidate(p contract.SelectorPolicy, in selectionInput, now time.Time)
 		c.Reason = "no_recent_remote_evidence"
 		return c
 	}
-	if in.health.ConsecutiveFailures >= p.FailureThreshold || c.FailureRate >= p.MaxFailureRate {
+	if in.health.ConsecutiveFailures >= p.FailureThreshold || (successes+failures >= p.MinSamples && c.FailureRate >= p.MaxFailureRate) {
 		c.State, c.Reason = "unhealthy", "failure_threshold"
 		return c
 	}

@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -21,26 +20,8 @@ import (
 // endpoint requires nodes:write; URL credentials, redirects and TLS bypass are
 // not supported. A private target can only be chosen by that administrator.
 func ValidateSpeedTest(r contract.SpeedTestRequest) (contract.SpeedTestRequest, error) {
-	u, err := url.Parse(r.URL)
-	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.Fragment != "" || len(r.URL) > 2048 {
-		return r, errors.New("speed test requires an HTTPS URL without credentials or fragment")
-	}
-	if r.MaxBytes == 0 {
-		r.MaxBytes = 4 << 20
-	}
-	if r.DurationMS == 0 {
-		r.DurationMS = 5000
-	}
-	if r.TimeoutMS == 0 {
-		r.TimeoutMS = 10000
-	}
-	if r.DailyBudgetBytes == 0 {
-		r.DailyBudgetBytes = 64 << 20
-	}
-	if r.MaxBytes < 1024 || r.MaxBytes > 64<<20 || r.DurationMS < 100 || r.DurationMS > 15_000 || r.TimeoutMS < r.DurationMS || r.TimeoutMS > 30_000 || r.DailyBudgetBytes < r.MaxBytes || r.DailyBudgetBytes > 1<<30 {
-		return r, errors.New("speed test exceeds byte, duration, timeout, or daily budget limits")
-	}
-	return r, nil
+	r = r.Effective()
+	return r, r.Validate()
 }
 
 // MeasureDownload streams at most MaxBytes without loading the response into

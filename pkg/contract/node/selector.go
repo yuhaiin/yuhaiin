@@ -4,15 +4,18 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 )
 
 // SelectorPolicy is opt-in. A nil policy and an empty mode retain the legacy
 // fixed NodeID choice. Durations in this API are milliseconds.
 type SelectorPolicy struct {
-	Mode        string              `json:"mode,omitempty"`
-	Candidates  []SelectorCandidate `json:"candidates,omitempty"`
-	PreferredID string              `json:"preferredId,omitempty"`
-	Locked      bool                `json:"locked,omitzero"`
+	Probe         *ProbeSchedule      `json:"probe,omitzero"`
+	PeriodicSpeed *SpeedSchedule      `json:"periodicSpeed,omitzero"`
+	Mode          string              `json:"mode,omitempty"`
+	Candidates    []SelectorCandidate `json:"candidates,omitempty"`
+	PreferredID   string              `json:"preferredId,omitempty"`
+	Locked        bool                `json:"locked,omitzero"`
 	// Fallback is reject (default), selected, or priority_unknown. It never
 	// bypasses routing by falling back to Direct.
 	Fallback              string            `json:"fallback,omitempty"`
@@ -127,6 +130,32 @@ func (p SelectorPolicy) Effective() SelectorPolicy {
 
 func (p SelectorPolicy) Validate() error {
 	p = p.Effective()
+	if err := validateHTTPSProbeURL(p.LatencyTarget); err != nil {
+		return err
+	}
+	if p.SpeedTarget != "" {
+		if err := validateHTTPSProbeURL(p.SpeedTarget); err != nil {
+			return err
+		}
+	}
+	address, domain, ok := strings.Cut(p.UDPLatencyTarget, "/")
+	if !ok || validateProbeAddress(address) != nil || !validProbeDomain(domain) {
+		return errors.New("UDP latency target requires host:port/domain")
+	}
+	if p.Probe != nil {
+		if err := p.Probe.Validate(); err != nil {
+			return err
+		}
+	}
+	if p.PeriodicSpeed != nil {
+		speed := *p.PeriodicSpeed
+		if p.SpeedTarget != "" {
+			speed.Test.URL = p.SpeedTarget
+		}
+		if err := speed.Validate(); err != nil {
+			return err
+		}
+	}
 	switch p.Mode {
 	case "manual", "failover", "lowest_latency", "highest_throughput", "balanced", "weighted":
 	default:
