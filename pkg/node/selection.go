@@ -10,6 +10,7 @@ import (
 )
 
 type selectionInput struct {
+	circuit *contract.CircuitStatus
 	udp     bool
 	config  contract.SelectorCandidate
 	enabled bool
@@ -63,7 +64,7 @@ func evaluateSelector(selector contract.Selector, inputs []selectionInput, previ
 		} else if p.Fallback == "priority_unknown" {
 			for i, in := range inputs {
 				c := d.Candidates[i]
-				if c.State == "unknown" && in.enabled && in.config.Enabled && (best == -1 || priorityLess(in.config, inputs[best].config)) {
+				if c.State == "unknown" && in.enabled && in.config.Enabled && (p.Mode != "weighted" || in.config.Weight > 0) && (best == -1 || priorityLess(in.config, inputs[best].config)) {
 					best = i
 					d.Reason = "fallback_unknown"
 				}
@@ -144,11 +145,12 @@ func betterCandidate(p contract.SelectorPolicy, a contract.SelectorCandidate, am
 }
 
 func scoreCandidate(p contract.SelectorPolicy, in selectionInput, now time.Time) contract.SelectorCandidateStatus {
-	c := contract.SelectorCandidateStatus{NodeID: in.config.NodeID, State: "unknown", ActiveConnections: in.active}
+	c := contract.SelectorCandidateStatus{Circuit: in.circuit, Evidence: "unknown", NodeID: in.config.NodeID, State: "unknown", ActiveConnections: in.active}
 	if !in.enabled || !in.config.Enabled {
 		c.State, c.Reason = "disabled", "disabled"
 		return c
 	}
+	trial := in.circuit != nil && in.circuit.State == "half_open"
 	var successes, failures int
 	var lastAt int64
 	for _, s := range in.health.Samples {
@@ -159,7 +161,12 @@ func scoreCandidate(p contract.SelectorPolicy, in selectionInput, now time.Time)
 		if !s.OK {
 			failures++
 		} else {
-			successes++
+			if s.Kind != "response" {
+				successes++
+			}
+			if evidenceStrength(s.Kind) > evidenceStrength(c.Evidence) {
+				c.Evidence = s.Kind
+			}
 		}
 	}
 	latencySamples := in.health.LatencySamples
@@ -187,31 +194,35 @@ func scoreCandidate(p contract.SelectorPolicy, in selectionInput, now time.Time)
 	if successes+failures > 0 {
 		c.FailureRate = float64(failures) / float64(successes+failures)
 	}
-	if lastAt == 0 {
+	speed := in.speed
+	speedValid := speed.OK && speed.Samples >= p.MinSamples && speed.At <= now.UnixMilli() && now.UnixMilli()-speed.At <= p.MaxAgeMS &&
+		speed.Target == p.SpeedTarget && speed.Target != "" && speed.DownloadMbps > 0 && !math.IsInf(speed.DownloadMbps, 0) && !math.IsNaN(speed.DownloadMbps)
+	if speedValid {
+		c.DownloadMbps, c.UploadMbps = speed.DownloadMbps, speed.UploadMbps
+	}
+	if in.circuit != nil && in.circuit.State == "open" {
+		c.State, c.Reason = "unhealthy", "circuit_open"
+		return c
+	}
+	if lastAt == 0 && !trial {
 		c.Reason = "no_recent_remote_evidence"
 		return c
 	}
-	if in.health.ConsecutiveFailures >= p.FailureThreshold || (successes+failures >= p.MinSamples && c.FailureRate >= p.MaxFailureRate) {
+	if in.circuit == nil && (in.health.ConsecutiveFailures >= p.FailureThreshold || (successes+failures >= p.MinSamples && c.FailureRate >= p.MaxFailureRate)) {
 		c.State, c.Reason = "unhealthy", "failure_threshold"
 		return c
 	}
-	if failures > 0 && in.health.ConsecutiveFailures == 0 && in.health.ConsecutiveSuccesses < p.RecoveryThreshold {
+	if in.circuit == nil && failures > 0 && in.health.ConsecutiveFailures == 0 && in.health.ConsecutiveSuccesses < p.RecoveryThreshold {
 		c.State, c.Reason = "degraded", "recovering"
 		return c
 	}
-	if successes == 0 {
+	if successes == 0 && !trial {
 		c.State, c.Reason = "degraded", "no_successful_remote_evidence"
 		return c
 	}
 	c.State = "healthy"
 	if in.health.ConsecutiveFailures > 0 {
 		c.State = "degraded"
-	}
-	speed := in.speed
-	speedValid := speed.OK && speed.Samples >= p.MinSamples && speed.At <= now.UnixMilli() && now.UnixMilli()-speed.At <= p.MaxAgeMS &&
-		speed.Target == p.SpeedTarget && speed.Target != "" && speed.DownloadMbps > 0 && !math.IsInf(speed.DownloadMbps, 0) && !math.IsNaN(speed.DownloadMbps)
-	if speedValid {
-		c.DownloadMbps, c.UploadMbps = speed.DownloadMbps, speed.UploadMbps
 	}
 	if p.Mode == "lowest_latency" || (p.Mode == "balanced" && (p.Weights.RTT > 0 || p.Weights.Jitter > 0)) {
 		if c.Samples < p.MinSamples {
@@ -242,6 +253,9 @@ func scoreCandidate(p contract.SelectorPolicy, in selectionInput, now time.Time)
 		return c
 	}
 	c.Eligible, c.Reason = true, "eligible"
+	if trial {
+		c.State, c.Reason = "degraded", "recovery_trial"
+	}
 	if p.Mode == "balanced" {
 		w := p.Weights
 		c.Components = &contract.SelectorScoreComponents{
@@ -280,4 +294,51 @@ func compileWeights(inputs []selectionInput, candidates []contract.SelectorCandi
 func pickWeighted(choices []weightedChoice, ticket uint64) int {
 	i, _ := slices.BinarySearchFunc(choices, ticket+1, func(c weightedChoice, t uint64) int { return cmp.Compare(c.cumulative, t) })
 	return choices[i].index
+}
+
+func compileSelectionOrder(selector contract.Selector, inputs []selectionInput, d contract.SelectorDecision) []string {
+	if selector.Policy == nil || selector.Policy.Effective().Mode == "manual" || selector.Policy.Locked {
+		return []string{d.NodeID}
+	}
+	indices := make([]int, 0, len(inputs))
+	for i, c := range d.Candidates {
+		if c.Eligible || (selector.Policy.Fallback == "priority_unknown" && c.State == "unknown" && inputs[i].enabled && inputs[i].config.Enabled && (selector.Policy.Mode != "weighted" || inputs[i].config.Weight > 0)) {
+			indices = append(indices, i)
+		}
+	}
+	p := selector.Policy.Effective()
+	slices.SortFunc(indices, func(a, b int) int {
+		if betterCandidate(p, inputs[a].config, d.Candidates[a], inputs[b].config, d.Candidates[b]) {
+			return -1
+		}
+		if betterCandidate(p, inputs[b].config, d.Candidates[b], inputs[a].config, d.Candidates[a]) {
+			return 1
+		}
+		return 0
+	})
+	order := make([]string, 0, len(indices)+1)
+	if d.NodeID != "" {
+		order = append(order, d.NodeID)
+	}
+	for _, i := range indices {
+		if inputs[i].config.NodeID != d.NodeID {
+			order = append(order, inputs[i].config.NodeID)
+		}
+	}
+	return order
+}
+
+func evidenceStrength(kind string) int {
+	switch kind {
+	case "native":
+		return 4
+	case "https", "dns", "doq", "stun", "stun_tcp":
+		return 3
+	case "response", "reply", "https_get":
+		return 2
+	case "connect", "tcp_connect":
+		return 1
+	default:
+		return 0
+	}
 }

@@ -22,6 +22,9 @@ import (
 )
 
 type preparedSelector struct {
+	generations            map[string]uint64
+	circuits               map[string]nodeCircuits
+	tcpOrder, udpOrder     []string
 	config                 contract.Selector
 	nodes                  map[string]contract.Node
 	status                 contract.SelectorRuntimeStatus
@@ -29,11 +32,22 @@ type preparedSelector struct {
 	tcpTotal, udpTotal     uint64
 }
 
-type selectorSnapshot struct{ items map[string]*preparedSelector }
+type selectorSnapshot struct {
+	items        map[string]*preparedSelector
+	nodes        map[string]contract.Node
+	generations  map[string]uint64
+	tcpID, udpID string
+}
 
 // selectorRuntime has one worker per core instance. Connection creation reads
 // immutable snapshots, with neither database access nor ranking on the hot path.
 type selectorRuntime struct {
+	nodeGenerations    map[string]uint64
+	tcpID, udpID       string
+	breakers           map[circuitKey]*circuitBreaker
+	circuitBindings    map[string]map[string]nodeCircuits
+	circuitCounters    map[string]*nodeCounters
+	circuitWake        chan struct{}
 	networkMonitor     io.Closer
 	interfaceName      atomic.Pointer[string]
 	networkWake        chan struct{}
@@ -56,7 +70,7 @@ type selectorRuntime struct {
 }
 
 func newSelectorRuntime(ctx context.Context, r *NodeRuntime, nodes *plainstore.NodeStore) (*selectorRuntime, error) {
-	s := &selectorRuntime{networkWake: make(chan struct{}, 1), scheduler: newProbeScheduler(), monitorStore: plainstore.NewMonitoringStore(r.sqlite.DB()), network: defaultMonitoringNetwork(), platform: runtime.GOOS, runtime: r, store: plainstore.NewSelectorStore(r.sqlite.DB()), stop: make(chan struct{}), done: make(chan struct{})}
+	s := &selectorRuntime{circuitWake: make(chan struct{}, 1), networkWake: make(chan struct{}, 1), scheduler: newProbeScheduler(), monitorStore: plainstore.NewMonitoringStore(r.sqlite.DB()), network: defaultMonitoringNetwork(), platform: runtime.GOOS, runtime: r, store: plainstore.NewSelectorStore(r.sqlite.DB()), stop: make(chan struct{}), done: make(chan struct{})}
 	if err := s.reload(ctx, nodes); err != nil {
 		s.scheduler.close()
 		return nil, err
@@ -81,6 +95,7 @@ func (s *selectorRuntime) reload(ctx context.Context, store *plainstore.NodeStor
 	counters := make(map[string]*nodeCounters, len(nodes))
 	for _, n := range nodes {
 		byID[n.ID] = n
+		s.runtime.observer.counter(n.ID)
 	}
 	for _, c := range configs {
 		if c.Policy != nil {
@@ -100,7 +115,20 @@ func (s *selectorRuntime) reload(ctx context.Context, store *plainstore.NodeStor
 		s.probeLimiter = newProbeLimiter(defaults.Probe.MaxProbeBandwidth)
 	}
 	s.defaults = defaults
+	selection, err := store.Selection(ctx)
+	if err != nil {
+		return err
+	}
+	s.tcpID, s.udpID = "", ""
+	if selection.TCP != nil {
+		s.tcpID = selection.TCP.ID
+	}
+	if selection.UDP != nil {
+		s.udpID = selection.UDP.ID
+	}
+	s.nodeGenerations = s.runtime.observer.generations()
 	s.configs, s.nodes, s.counters = configs, byID, counters
+	s.prepareCircuits()
 	s.scheduleLocked()
 	s.rebuild(time.Now())
 	return nil
@@ -115,6 +143,10 @@ func (s *selectorRuntime) run() {
 		select {
 		case <-s.stop:
 			return
+		case <-s.circuitWake:
+			s.mu.Lock()
+			s.rebuild(time.Now())
+			s.mu.Unlock()
 		case <-s.networkWake:
 			s.reconcileInterface()
 		case now := <-ticker.C:
@@ -132,10 +164,10 @@ func (s *selectorRuntime) run() {
 
 func (s *selectorRuntime) rebuild(now time.Time) {
 	previous := s.snapshot.Load()
-	next := &selectorSnapshot{items: make(map[string]*preparedSelector, len(s.configs))}
+	next := &selectorSnapshot{nodes: s.nodes, generations: s.nodeGenerations, tcpID: s.tcpID, udpID: s.udpID, items: make(map[string]*preparedSelector, len(s.configs))}
 	for _, config := range s.configs {
 		config = s.effectivePolicy(config)
-		p := &preparedSelector{config: config, nodes: make(map[string]contract.Node), status: contract.SelectorRuntimeStatus{ID: config.ID, Revision: config.Revision, Events: []contract.SelectorEvent{}}}
+		p := &preparedSelector{generations: s.nodeGenerations, circuits: s.circuitBindings[config.ID], config: config, nodes: make(map[string]contract.Node), status: contract.SelectorRuntimeStatus{ID: config.ID, Revision: config.Revision, Events: []contract.SelectorEvent{}}}
 		if previous != nil {
 			if old := previous.items[config.ID]; old != nil {
 				p.status = old.status
@@ -154,9 +186,20 @@ func (s *selectorRuntime) rebuild(now time.Time) {
 				}
 				stats := counter.snapshot()
 				input := selectionInput{config: c, enabled: exists && n.Enabled, health: stats.TCPHealth, speed: stats.Throughput, active: counter.activeTCP.Load() + counter.activeUDP.Load()}
+				if b := p.circuits[c.NodeID].tcp; b != nil {
+					b.observe(stats.TCPHealth, now)
+					state := b.snapshot(now)
+					input.circuit = &state
+				}
 				tcp = append(tcp, input)
 				input.health = stats.UDPHealth
 				input.udp = true
+				input.circuit = nil
+				if b := p.circuits[c.NodeID].udp; b != nil {
+					b.observe(stats.UDPHealth, now)
+					state := b.snapshot(now)
+					input.circuit = &state
+				}
 				udp = append(udp, input)
 			}
 		}
@@ -183,8 +226,10 @@ func (s *selectorRuntime) rebuild(now time.Time) {
 			weights, total := compileWeights(inputs, d.Candidates)
 			if i == 0 {
 				p.status.TCP, p.tcpWeights, p.tcpTotal = d, weights, total
+				p.tcpOrder = compileSelectionOrder(config, inputs, d)
 			} else {
 				p.status.UDP, p.udpWeights, p.udpTotal = d, weights, total
+				p.udpOrder = compileSelectionOrder(config, inputs, d)
 			}
 		}
 		next.items[config.ID] = p
@@ -207,21 +252,80 @@ func (s *selectorRuntime) target(ctx context.Context, network, id string) (netap
 	if err != nil {
 		return nil, err
 	}
-	d, weights, total := p.status.TCP, p.tcpWeights, p.tcpTotal
-	if strings.HasPrefix(network, "udp") {
-		d, weights, total = p.status.UDP, p.udpWeights, p.udpTotal
+	if p.config.Policy != nil && p.config.Policy.Effective().Mode != "manual" {
+		if !strings.HasPrefix(network, "tcp") && !strings.HasPrefix(network, "udp") {
+			return nil, errors.New("invalid selector network")
+		}
+		netapi.GetContext(ctx).SetSelector(p.config.ID, p.config.Name)
+		return &automaticSelectorProxy{runtime: s, id: id}, nil
+	}
+	return s.acquireTarget(ctx, network, id)
+}
+func (s *selectorRuntime) acquireTarget(ctx context.Context, network, id string) (netapi.Proxy, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	p, err := s.get(id)
+	if err != nil {
+		return nil, err
+	}
+	d, weights, total, order := p.status.TCP, p.tcpWeights, p.tcpTotal, p.tcpOrder
+	udp := strings.HasPrefix(network, "udp")
+	if udp {
+		d, weights, total, order = p.status.UDP, p.udpWeights, p.udpTotal, p.udpOrder
 	} else if !strings.HasPrefix(network, "tcp") {
 		return nil, errors.New("invalid selector network")
 	}
 	if total > 0 && p.config.Policy != nil && p.config.Policy.Mode == "weighted" && !p.config.Policy.Locked {
 		d.NodeID = d.Candidates[pickWeighted(weights, rand.Uint64N(total))].NodeID
 	}
-	if d.NodeID == "" {
-		return nil, fmt.Errorf("selector %q has no eligible %s candidate (%s)", p.config.Name, network, d.Reason)
+	try := func(nodeID string) (netapi.Proxy, bool, error) {
+		if nodeID == "" {
+			return nil, false, nil
+		}
+		pair := p.circuits[nodeID]
+		b := pair.tcp
+		if udp {
+			b = pair.udp
+		}
+		var permit *circuitPermit
+		if b != nil {
+			var ok bool
+			permit, ok = b.tryAcquire(ctx, time.Now())
+			if !ok {
+				return nil, false, nil
+			}
+		}
+		n := p.nodes[nodeID]
+		netapi.GetContext(ctx).SetSelector(p.config.ID, p.config.Name)
+		proxy, err := s.runtime.getContractDialer(ctx, n.ID, n, p.generations[n.ID])
+		if err != nil {
+			permit.finish()
+			if b != nil {
+				s.runtime.observer.counter(nodeID).constructionFailureAtGeneration(err, p.generations[nodeID])
+			}
+			return nil, true, err
+		}
+		if permit != nil {
+			return &circuitPermitProxy{Proxy: proxy, permit: permit}, true, nil
+		}
+		return proxy, true, nil
 	}
-	n := p.nodes[d.NodeID]
-	netapi.GetContext(ctx).SetSelector(p.config.ID, p.config.Name)
-	return s.runtime.getContractDialer(ctx, n.ID, n)
+	if proxy, ok, err := try(d.NodeID); ok {
+		return proxy, err
+	}
+	for _, nodeID := range order {
+		if nodeID == d.NodeID {
+			continue
+		}
+		if proxy, ok, err := try(nodeID); ok {
+			return proxy, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("selector %q has no eligible %s candidate or recovery permit (%s)", p.config.Name, network, d.Reason)
 }
 
 func (r *NodeRuntime) refreshSelectors(ctx context.Context, nodes *plainstore.NodeStore) error {
@@ -253,6 +357,14 @@ func (s *SelectorService) Save(ctx context.Context, value contract.Selector) (co
 	store, nodes, err := s.store(ctx)
 	if err != nil {
 		return value, err
+	}
+	s.runtime.selectors.mu.Lock()
+	effective := s.runtime.selectors.effectivePolicy(value)
+	s.runtime.selectors.mu.Unlock()
+	if effective.Policy != nil {
+		if err := effective.Policy.Validate(); err != nil {
+			return value, err
+		}
 	}
 	value, err = store.Save(ctx, value)
 	if err != nil {
@@ -292,6 +404,9 @@ func (s *SelectorService) Status(ctx context.Context, id string) (contract.Selec
 	status.UDP.Candidates = slices.Clone(status.UDP.Candidates)
 	for _, candidates := range [][]contract.SelectorCandidateStatus{status.TCP.Candidates, status.UDP.Candidates} {
 		for i := range candidates {
+			if c := candidates[i].Circuit; c != nil {
+				candidates[i].Circuit = new(*c)
+			}
 			if c := candidates[i].Components; c != nil {
 				candidates[i].Components = new(*c)
 			}

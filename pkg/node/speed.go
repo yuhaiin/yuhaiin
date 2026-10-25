@@ -18,7 +18,7 @@ func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.Spe
 	if err != nil {
 		return contract.ThroughputMeasurement{}, err
 	}
-	nodes, err := r.openNodes(ctx)
+	_, err = r.openNodes(ctx)
 	if err != nil {
 		return contract.ThroughputMeasurement{}, err
 	}
@@ -28,7 +28,7 @@ func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.Spe
 	default:
 		return contract.ThroughputMeasurement{}, errSpeedBusy
 	}
-	n, err := nodes.Get(ctx, id)
+	n, epoch, err := r.cachedNode(ctx, id)
 	if err != nil {
 		return contract.ThroughputMeasurement{}, err
 	}
@@ -55,7 +55,7 @@ func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.Spe
 	if count, _ := result.RowsAffected(); count == 0 {
 		return contract.ThroughputMeasurement{}, errSpeedBudget
 	}
-	proxy, err := r.getContractDialer(ctx, id, n)
+	proxy, err := r.getContractDialer(ctx, id, n, epoch)
 	if err != nil {
 		return contract.ThroughputMeasurement{}, err
 	}
@@ -70,6 +70,10 @@ func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.Spe
 	}
 	c := r.observer.counter(id)
 	c.mu.Lock()
+	if c.generation.Load() != epoch {
+		c.mu.Unlock()
+		return measurement, errNodeReconfigured
+	}
 	c.throughputHistory = append(c.throughputHistory, measurement)
 	if len(c.throughputHistory) > 16 {
 		c.throughputHistory = slices.Delete(c.throughputHistory, 0, len(c.throughputHistory)-16)

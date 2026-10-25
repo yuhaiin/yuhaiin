@@ -22,11 +22,14 @@ func monitoringAllowed(platform string, network contract.MonitoringNetworkState,
 	return network.Online && (!network.Metered || metered) && (platform != "android" || (mobile && network.Foreground))
 }
 func (s *selectorRuntime) effectivePolicy(config contract.Selector) contract.Selector {
+	return policyWithMonitoringDefaults(config, s.defaults)
+}
+func policyWithMonitoringDefaults(config contract.Selector, defaults contract.MonitoringConfig) contract.Selector {
 	if config.Policy == nil {
 		return config
 	}
 	p := *config.Policy
-	probe := s.defaults.Probe
+	probe := defaults.Probe
 	if p.Probe != nil {
 		probe = p.Probe.Effective()
 	}
@@ -37,7 +40,7 @@ func (s *selectorRuntime) effectivePolicy(config contract.Selector) contract.Sel
 		p.UDPLatencyTarget = probe.DNSAddress + "/" + probe.DNSDomain
 	}
 	if p.SpeedTarget == "" {
-		speed := s.defaults.Speed
+		speed := defaults.Speed
 		if p.PeriodicSpeed != nil {
 			speed = p.PeriodicSpeed.Effective()
 		}
@@ -200,10 +203,14 @@ func (s *selectorRuntime) runProbe(ctx context.Context, n contract.Node, options
 	if err := limiter.WaitN(ctx, int(probeByteBudget)); err != nil {
 		return errProbeSkipped
 	}
+	_, epoch, err := s.runtime.cachedNode(ctx, n.ID)
+	if err != nil {
+		return err
+	}
 	proxy, err := s.runtime.GetDialerByID(ctx, n.ID)
 	if err != nil {
 		if ctx.Err() == nil {
-			s.runtime.observer.counter(n.ID).constructionFailure(err)
+			s.runtime.observer.counter(n.ID).constructionFailureAtGeneration(err, epoch)
 		}
 		return err
 	}
@@ -227,14 +234,15 @@ func (s *selectorRuntime) runProbe(ctx context.Context, n contract.Node, options
 		tcp = false
 	}
 	c := s.runtime.observer.counter(n.ID)
-	c.probe(kind, result, err)
-	c.remoteEvidence(tcp, contract.HealthSample{At: time.Now().UnixMilli(), OK: result.OK, Kind: kind, Target: target, RTTMS: float64(time.Since(start)) / float64(time.Millisecond)}, err)
+	c.probeAtGeneration(kind, result, err, epoch)
+	c.remoteEvidenceAtGeneration(tcp, contract.HealthSample{At: time.Now().UnixMilli(), OK: result.OK, Kind: kind, Target: target, RTTMS: float64(time.Since(start)) / float64(time.Millisecond)}, err, epoch)
 	s.mu.Lock()
 	s.rebuild(time.Now())
 	s.mu.Unlock()
 	return err
 }
 func (s *selectorRuntime) nativeProbe(ctx context.Context, id string) error {
+	epoch := s.runtime.observer.counter(id).generation.Load()
 	var native *contract.ProtocolRuntimeStatus
 	s.runtime.proxies.Range(func(key string, p *ProxyEntry) bool {
 		if key != id {
@@ -262,7 +270,7 @@ func (s *selectorRuntime) nativeProbe(ctx context.Context, id string) error {
 	// claims a completed tunnel state. PacketConn construction does not do this.
 	c := s.runtime.observer.counter(id)
 	for _, tcp := range []bool{true, false} {
-		c.remoteEvidence(tcp, contract.HealthSample{At: time.Now().UnixMilli(), OK: ok, Kind: "native"}, nil)
+		c.remoteEvidenceAtGeneration(tcp, contract.HealthSample{At: time.Now().UnixMilli(), OK: ok, Kind: "native"}, nil, epoch)
 	}
 	if !ok {
 		return errors.New("native tunnel reports unavailable")
@@ -297,6 +305,17 @@ func (r *NodeRuntime) SaveMonitoring(ctx context.Context, c contract.MonitoringC
 			return contract.MonitoringStatus{}, err
 		}
 	}
+	r.selectors.mu.Lock()
+	for _, selector := range r.selectors.configs {
+		effective := policyWithMonitoringDefaults(selector, c.Effective())
+		if effective.Policy != nil {
+			if err := effective.Policy.Validate(); err != nil {
+				r.selectors.mu.Unlock()
+				return contract.MonitoringStatus{}, err
+			}
+		}
+	}
+	r.selectors.mu.Unlock()
 	if err := r.selectors.monitorStore.Save(ctx, c); err != nil {
 		return contract.MonitoringStatus{}, err
 	}

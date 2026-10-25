@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/credential"
@@ -19,17 +20,38 @@ func (r *NodeRuntime) SetCredentialResolver(resolver credential.Resolver) {
 
 func (r *NodeRuntime) InvalidateCredential(ref string) {
 	r.credentialMu.Lock()
-	defer r.credentialMu.Unlock()
 	var ids []string
+	if r.selectors != nil {
+		if snapshot := r.selectors.snapshot.Load(); snapshot != nil {
+			for id, n := range snapshot.nodes {
+				if nodeReferences(n, ref) {
+					ids = append(ids, id)
+				}
+			}
+		}
+	}
 	r.proxies.Range(func(id string, entry *ProxyEntry) bool {
-		if entry.ContractConfig != nil && nodeReferences(*entry.ContractConfig, ref) {
+		entry.mu.RLock()
+		defer entry.mu.RUnlock()
+		if !slices.Contains(ids, id) && entry.ContractConfig != nil && nodeReferences(*entry.ContractConfig, ref) {
 			ids = append(ids, id)
 		}
 		return true
 	})
 	for _, id := range ids {
+		r.observer.invalidateHealth(id)
 		r.proxies.Delete(id)
 		delete(r.credentialVersions, id)
+	}
+	r.credentialMu.Unlock()
+	if len(ids) > 0 && r.selectors != nil {
+		s := r.selectors
+		s.mu.Lock()
+		s.nodeGenerations = r.observer.generations()
+		s.prepareCircuits()
+		s.scheduleLocked()
+		s.rebuild(time.Now())
+		s.mu.Unlock()
 	}
 }
 
@@ -48,6 +70,9 @@ func nodeReferences(node contractnode.Node, ref string) bool {
 }
 
 func (r *NodeRuntime) resolveCredentials(ctx context.Context, node contractnode.Node) (contractnode.Node, string, error) {
+	if !slices.ContainsFunc(node.Chain, protocolHasCredential) {
+		return node, "", nil
+	}
 	var revisions strings.Builder
 	var resolve func(contractnode.Protocol) (contractnode.Protocol, error)
 	resolve = func(p contractnode.Protocol) (contractnode.Protocol, error) {
@@ -86,4 +111,14 @@ func (r *NodeRuntime) resolveCredentials(ctx context.Context, node contractnode.
 		}
 	}
 	return node, revisions.String(), nil
+}
+
+func protocolHasCredential(p contractnode.Protocol) bool {
+	if p.CredentialRef != "" {
+		return true
+	}
+	if s := p.NetworkSplit; s != nil {
+		return (s.TCP != nil && protocolHasCredential(*s.TCP)) || (s.UDP != nil && protocolHasCredential(*s.UDP))
+	}
+	return false
 }

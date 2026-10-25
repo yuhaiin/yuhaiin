@@ -15,6 +15,7 @@ import (
 
 func cloneHealth(h contract.ChannelHealth) contract.ChannelHealth {
 	h.Samples = slices.Clone(h.Samples)
+	normalizeHealthSequence(&h)
 	h.LatencySamples = slices.Clone(h.LatencySamples)
 	if len(h.Samples) == 0 || time.Now().UnixMilli()-h.Samples[len(h.Samples)-1].At > recentNodeObservation.Milliseconds() {
 		h.State = "unknown"
@@ -32,6 +33,12 @@ func healthFailure(err error) bool {
 	if stream, ok := errors.AsType[*quic.StreamError](err); ok && stream.ErrorCode == 0 {
 		return false
 	}
+	if app, ok := errors.AsType[*quic.ApplicationError](err); ok && app.ErrorCode == 0 {
+		return false
+	}
+	if transport, ok := errors.AsType[*quic.TransportError](err); ok && transport.ErrorCode == quic.NoError {
+		return false
+	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
@@ -40,6 +47,12 @@ func healthFailure(err error) bool {
 }
 
 func (n *nodeCounters) remoteEvidence(tcp bool, sample contract.HealthSample, err error) {
+	n.recordEvidence(tcp, sample, err, 0, false)
+}
+func (n *nodeCounters) remoteEvidenceAtGeneration(tcp bool, sample contract.HealthSample, err error, epoch uint64) {
+	n.recordEvidence(tcp, sample, err, epoch, true)
+}
+func (n *nodeCounters) recordEvidence(tcp bool, sample contract.HealthSample, err error, epoch uint64, check bool) {
 	if err != nil && !healthFailure(err) {
 		return
 	}
@@ -49,6 +62,9 @@ func (n *nodeCounters) remoteEvidence(tcp bool, sample contract.HealthSample, er
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	if check && epoch != n.generation.Load() {
+		return
+	}
 	h := &n.tcpHealth
 	if !tcp {
 		h = &n.udpHealth
@@ -60,6 +76,9 @@ func (n *nodeCounters) remoteEvidence(tcp bool, sample contract.HealthSample, er
 		h.ConsecutiveFailures, h.ConsecutiveSuccesses = 0, 0
 		h.State = "unknown"
 	}
+	normalizeHealthSequence(h)
+	h.Sequence++
+	sample.Sequence = h.Sequence
 	h.Samples = append(h.Samples, sample)
 	if len(h.Samples) > 64 {
 		h.Samples = slices.Delete(h.Samples, 0, len(h.Samples)-64)
@@ -70,7 +89,10 @@ func (n *nodeCounters) remoteEvidence(tcp bool, sample contract.HealthSample, er
 			h.LatencySamples = slices.Delete(h.LatencySamples, 0, len(h.LatencySamples)-64)
 		}
 	}
-	if sample.OK {
+	if sample.Kind == "response" {
+		// A response strengthens the connect evidence, rather than counting the
+		// same TCP request twice toward recovery or stability.
+	} else if sample.OK {
 		h.ConsecutiveFailures = 0
 		h.ConsecutiveSuccesses = min(h.ConsecutiveSuccesses+1, 64)
 		if h.State != "unhealthy" || h.ConsecutiveSuccesses >= 2 {
@@ -84,15 +106,27 @@ func (n *nodeCounters) remoteEvidence(tcp bool, sample contract.HealthSample, er
 			h.State = "unhealthy"
 		}
 	}
+	if listeners := n.circuitListeners.Load(); listeners != nil {
+		list := listeners.tcp
+		if !tcp {
+			list = listeners.udp
+		}
+		for _, b := range list {
+			b.observe(*h, time.Now())
+		}
+	}
 }
 
 // Constructor errors are explicit inability to create this outbound, not a
 // claim about remote TCP/UDP reachability. Keep their evidence kind separate.
 func (n *nodeCounters) constructionFailure(err error) {
-	if err == nil || errors.Is(err, context.Canceled) {
+	n.constructionFailureAtGeneration(err, n.generation.Load())
+}
+func (n *nodeCounters) constructionFailureAtGeneration(err error, epoch uint64) {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, errNodeReconfigured) {
 		return
 	}
 	for _, tcp := range []bool{true, false} {
-		n.remoteEvidence(tcp, contract.HealthSample{Kind: "construction", OK: false}, nil)
+		n.remoteEvidenceAtGeneration(tcp, contract.HealthSample{Kind: "construction", OK: false}, nil, epoch)
 	}
 }

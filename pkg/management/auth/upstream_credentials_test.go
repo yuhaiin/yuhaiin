@@ -1,9 +1,11 @@
 package auth
 
 import (
+	"context"
 	"encoding/json/v2"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/credential"
 )
@@ -78,5 +80,51 @@ func TestProxyCredentialSelfServiceCannotManageOtherOwners(t *testing.T) {
 	}
 	if !principal(a).Allows(IdentityRead) || principal(a).Allows(NodesRead) || principal(a).Allows(TokensOwn) {
 		t.Fatal("proxy user has management access")
+	}
+}
+
+// Holding the only SQLite connection proves new outbound credential resolution
+// uses the immutable snapshot, rather than timing an accidentally fast query.
+func TestUpstreamLookupNoSQLAndRotationInvalidation(t *testing.T) {
+	s := testStore(t)
+	admin := testUser(t, s, "admin", Admin)
+	u := &UpstreamCredentials{store: s}
+	request := UpstreamCredentialRequest{Name: "vpn", Type: credential.Password, Password: "old-secret"}
+	m, err := u.Save(t.Context(), principal(admin), "", request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.db.SetMaxOpenConns(1)
+	conn, err := s.db.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	for range 1000 {
+		value, rev, err := u.Lookup(ctx, m.ID)
+		if err != nil || value.Password != "old-secret" || rev != 1 {
+			t.Fatal("lookup accessed SQL or lost snapshot", rev, err)
+		}
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	request.Password = "new-secret"
+	u.Changed = func(id string) {
+		value, revision, err := u.Lookup(t.Context(), id)
+		if err != nil || value.Password != "new-secret" || revision != 2 {
+			t.Fatal("notification preceded snapshot publication", revision, err)
+		}
+	}
+	if _, err := u.Save(t.Context(), principal(admin), m.ID, request); err != nil {
+		t.Fatal(err)
+	}
+	u.close()
+	if _, _, err := u.Lookup(t.Context(), m.ID); err == nil {
+		t.Fatal("closed runtime retained accessible secret")
+	}
+	if u.cache.Load() != nil {
+		t.Fatal("closed runtime retained secret snapshot")
 	}
 }

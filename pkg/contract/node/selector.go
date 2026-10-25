@@ -10,6 +10,7 @@ import (
 // SelectorPolicy is opt-in. A nil policy and an empty mode retain the legacy
 // fixed NodeID choice. Durations in this API are milliseconds.
 type SelectorPolicy struct {
+	Circuit       *CircuitConfig      `json:"circuit,omitzero"`
 	Probe         *ProbeSchedule      `json:"probe,omitzero"`
 	PeriodicSpeed *SpeedSchedule      `json:"periodicSpeed,omitzero"`
 	Mode          string              `json:"mode,omitempty"`
@@ -130,6 +131,11 @@ func (p SelectorPolicy) Effective() SelectorPolicy {
 
 func (p SelectorPolicy) Validate() error {
 	p = p.Effective()
+	if p.Circuit != nil {
+		if err := p.Circuit.Validate(p.RecoveryThreshold); err != nil {
+			return err
+		}
+	}
 	if err := validateHTTPSProbeURL(p.LatencyTarget); err != nil {
 		return err
 	}

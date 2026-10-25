@@ -1,0 +1,42 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/node
+cpu: AMD Ryzen 5 5600G with Radeon Graphics         
+BenchmarkSelectorConnectionCreation/manual/tcp-12         	 1882620	       317.2 ns/op	      80 B/op	       1 allocs/op
+BenchmarkSelectorConnectionCreation/manual/tcp-12         	 1878684	       318.5 ns/op	      80 B/op	       1 allocs/op
+BenchmarkSelectorConnectionCreation/manual/tcp-12         	 1886143	       317.5 ns/op	      80 B/op	       1 allocs/op
+BenchmarkSelectorConnectionCreation/manual/udp-12         	 6482937	        92.43 ns/op	      96 B/op	       2 allocs/op
+BenchmarkSelectorConnectionCreation/manual/udp-12         	 6451504	        92.69 ns/op	      96 B/op	       2 allocs/op
+BenchmarkSelectorConnectionCreation/manual/udp-12         	 6486073	        92.40 ns/op	      96 B/op	       2 allocs/op
+BenchmarkSelectorConnectionCreation/failover/tcp-12       	  754862	       738.5 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/failover/tcp-12       	  811644	       729.9 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/failover/tcp-12       	  755648	       727.7 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/failover/udp-12       	 1417496	       424.5 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/failover/udp-12       	 1409240	       425.7 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/failover/udp-12       	 1403892	       427.2 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/tcp-12       	  692916	       776.8 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/tcp-12       	  741277	       774.4 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/tcp-12       	  671203	       779.2 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/udp-12       	 1306477	       459.8 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/udp-12       	 1311405	       456.4 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/udp-12       	 1311600	       458.7 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorNewFlow/manual/tcp-12                    	  742828	       701.0 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorNewFlow/manual/tcp-12                    	  759681	       698.5 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorNewFlow/manual/tcp-12                    	  781040	       696.1 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorNewFlow/manual/udp-12                    	 1350776	       443.3 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorNewFlow/manual/udp-12                    	 1346610	       445.0 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorNewFlow/manual/udp-12                    	 1345726	       444.9 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorNewFlow/failover/tcp-12                  	  615538	       877.7 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/failover/tcp-12                  	  670958	       861.4 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/failover/tcp-12                  	  687637	       865.5 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/failover/udp-12                  	 1000000	       544.7 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/failover/udp-12                  	  956577	       548.2 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/failover/udp-12                  	  943557	       548.2 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/weighted/tcp-12                  	  606753	       909.0 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/weighted/tcp-12                  	  613302	       910.1 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/weighted/tcp-12                  	  597572	       901.5 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/weighted/udp-12                  	  951328	       589.4 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/weighted/udp-12                  	  964168	       586.4 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/weighted/udp-12                  	 1020823	       587.3 ns/op	     344 B/op	       9 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/node	21.545s

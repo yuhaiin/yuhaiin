@@ -9,6 +9,7 @@ on:
       - 'pkg/store/**'
       - 'pkg/storage/sqlite/**'
       - 'pkg/httpapi/**'
+      - 'pkg/management/auth/**'
       - 'cmd/android/**'
       - '.github/workflows/reliability.yml'
 
@@ -37,7 +38,7 @@ jobs:
         run: |
           go test -race -count=1 -timeout=180s \
             ./pkg/node ./pkg/net/latency ./pkg/store ./pkg/httpapi \
-            ./pkg/storage/sqlite ./cmd/android
+            ./pkg/storage/sqlite ./pkg/management/auth ./cmd/android
       - name: Selection and scheduler benchmarks
         run: |
           go test ./pkg/node -run '^$' -bench 'BenchmarkSelector|BenchmarkProbeScheduler' \

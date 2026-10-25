@@ -233,3 +233,8 @@ measurement limits, migrations, and the remaining reliability rollout work.
 The monitoring follow-up adds shared scheduled TCP/HTTPS/DNS/STUN checks,
 conservative mobile/metered-network defaults, and optional periodic download
 tests using the same bounded implementation and durable traffic budget.
+
+The circuit follow-up adds independent TCP/UDP Closed/Open/Half-open admission,
+finite recovery quotas, visible evidence and reasons, and protection against
+stale measurements after transport/credential changes. Existing manual choices
+and established sessions retain their semantics.

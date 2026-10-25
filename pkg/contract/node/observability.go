@@ -42,6 +42,7 @@ type RuntimeStatus struct {
 // ChannelHealth separates real remote evidence from constructing a proxy or
 // opening a lazy UDP session. Samples are bounded and shared by selectors.
 type ChannelHealth struct {
+	Sequence             uint64         `json:"sequence,omitzero"`
 	State                string         `json:"state"`
 	ConsecutiveFailures  int            `json:"consecutiveFailures"`
 	ConsecutiveSuccesses int            `json:"consecutiveSuccesses"`
@@ -50,12 +51,13 @@ type ChannelHealth struct {
 }
 
 type HealthSample struct {
-	At      int64   `json:"at"`
-	OK      bool    `json:"ok"`
-	Timeout bool    `json:"timeout,omitzero"`
-	RTTMS   float64 `json:"rttMs,omitzero"`
-	Kind    string  `json:"kind"`
-	Target  string  `json:"target,omitempty"`
+	Sequence uint64  `json:"sequence,omitzero"`
+	At       int64   `json:"at"`
+	OK       bool    `json:"ok"`
+	Timeout  bool    `json:"timeout,omitzero"`
+	RTTMS    float64 `json:"rttMs,omitzero"`
+	Kind     string  `json:"kind"`
+	Target   string  `json:"target,omitempty"`
 }
 
 // ThroughputMeasurement is an active, target-specific approximate measurement,
@@ -73,6 +75,8 @@ type ThroughputMeasurement struct {
 }
 
 type SelectorCandidateStatus struct {
+	Evidence          string                   `json:"evidence"`
+	Circuit           *CircuitStatus           `json:"circuit,omitzero"`
 	NodeID            string                   `json:"nodeId"`
 	Eligible          bool                     `json:"eligible"`
 	Reason            string                   `json:"reason"`

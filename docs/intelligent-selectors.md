@@ -7,9 +7,9 @@ reads status; decisions are made by the backend while the browser is closed.
 
 The selection engine extends existing node observations and persistence. The
 monitoring follow-up adds shared scheduled probes, optional periodic download
-tests, global defaults and selector overrides. Full Closed/Open/Half-open
-admission and Prometheus additions are subsequent reliability work. Eligibility
-filtering and probe cooldown are not a complete circuit breaker.
+tests, global defaults and selector overrides. Closed/Open/Half-open admission
+adds bounded recovery trials and generation-safe evidence. Prometheus additions
+and traffic-control qualification remain subsequent reliability work.
 
 ## Configure and observe
 
@@ -291,3 +291,109 @@ showed roughly 13–14 microseconds for 100 unchanged jobs and 135–140 microse
 for 1,000 jobs, with five owned goroutines (four workers and one coordinator)
 in both cases. This is queue reconfiguration cost, outside the forwarding path.
 Global monitoring saves use an optimistic revision and reject stale updates.
+
+## Circuit admission and protocol evidence
+
+Automatic, unlocked selectors now use a Closed/Open/Half-open breaker per Node,
+transport and threshold configuration. Selectors with the same thresholds share
+the breaker and the existing node health window. Manual selectors and manual
+locks keep their original behavior. `policy.circuit.disabled` explicitly disables
+breaker admission; ordinary eligibility/failure filtering remains in place.
+
+The existing `failureThreshold`, `recoveryThreshold`, `minSamples`, `maxAgeMs`
+and `maxFailureRate` govern consecutive failures, minimum recovery successes and
+fresh-window failure rate. `policy.circuit` adds:
+
+| Field | Default | Allowed values |
+| --- | --- | --- |
+| `cooldownMs` | effective probe cooldown (30,000 ms by default) | 1,000–86,400,000 ms |
+| `halfOpenConcurrency` | 1 | 1–16 |
+| `halfOpenMaxRequests` | max(4, 2 × recovery threshold) | recovery threshold–256 |
+| `trialTimeoutMs` | 30,000 ms | 100–120,000 ms |
+
+A threshold crossing immediately blocks new admissions, including callers that
+cached the automatic Selector proxy. After cooldown a bounded recovery window
+admits trial requests. Failed recovery opens a new cooldown. Successful recovery
+closes the breaker; expiration or exhausted request quota cannot create unlimited
+retries. Caller cancellation releases a concurrency slot but still consumes its
+issued quota. Closed admission requires no trial context, timer or goroutine.
+
+The recovery window also bounds trial TCP dial/Ping operations and UDP session
+creation. An established UDP session keeps the original caller context and
+outbound Node; receiving a reply releases the trial lease without cancelling
+that session. PacketConn creation and successful sends do not prove remote UDP
+reachability. Even a zero-byte received datagram is a real reply. There is no
+per-packet ranking or session migration for balancing.
+
+Connect success, a TCP response, UDP reply, verified HTTPS, DNS/STUN reply and
+protocol-native handshake are distinct evidence labels in candidate details.
+Receiving TCP response bytes strengthens its connect evidence; it is not counted
+a second time toward recovery. Neither a constructor nor an unsupported protocol
+status is reported as a native handshake. Native status providers and actual
+remote tests remain the source of stronger evidence for lazy VPN protocols.
+Construction failures have a distinct kind and can make that candidate unavailable.
+
+Only explicit network/transport errors condemn a channel. Caller cancellation,
+EOF/normal close, application read deadlines, access-policy blocking, quota or
+other ordinary application errors, HTTP 4xx responses, and zero-code QUIC stream,
+application or transport shutdowns do not open a breaker. Dial timeouts and
+network refusals do. Ambiguous protocol application errors remain visible in
+protocol diagnostics; they are not guessed to be a network outage.
+
+Admission may choose a pre-ranked alternative when the original circuit is open
+or has no trial permit. Once a transport call starts, its error is returned to
+the caller; that attempt is never replayed on another Node. Established TCP
+streams and UDP sessions retain their original runtime reference. A subsequent
+new connection can use another candidate. Existing Set retry semantics remain
+unchanged; this feature adds no HTTP request replay.
+
+Transport or referenced-credential changes invalidate health/capacity evidence
+and increment a runtime generation. Old plans, probes, speed tests and connection
+responses cannot repopulate new-generation evidence. Generation checks also
+protect a deleted/recreated Node ID. Renaming/grouping alone preserves the VPN
+client and measurements. Active connections can continue carrying traffic using
+the old reference, although a protocol's own Close implementation may disconnect
+its client when that transport is explicitly replaced.
+
+Node/default selection reads the immutable configuration snapshot instead of
+querying SQLite for every new connection. Real upstream credential resolution
+uses an immutable secret snapshot populated at identity startup and successful
+mutations, refreshed before notifying the node runtime. Missing/failed refreshes
+fail closed. Credential listing still exposes metadata only, and runtime Close
+removes the secret snapshot. Custom credential Resolver implementations retain
+their existing revision-based refresh contract.
+
+The frontend exposes the breaker toggle, cooldown, trial concurrency/quota and
+window together with current state, bounded admission counts and recovery reason.
+These additions use the existing selector-policy JSON and node-observation JSON;
+no additional migration beyond schema 19 is required.
+
+Qualification includes deterministic virtual-clock failure/recovery, rate and
+consecutive thresholds, cancellation, deadlines, quotas, epoch changes, no replay,
+UDP reply-only recovery, and 1,024 simultaneous connection creators during policy
+and health updates. Connection benchmarks include the complete observed TCP/UDP
+creation path with a deterministic transport, plus actual loopback TCP sockets.
+These isolate overhead and do not measure real VPN throughput.
+
+The 2026-10-25 Ryzen 5 5600G Linux/amd64 run includes GetTarget and complete
+observed connection creation on every operation. Three-run medians are below.
+The transport is deterministic/in-memory; these measure routing overhead rather
+than physical network latency.
+
+| Mode | TCP ns/op | UDP ns/op | TCP bytes/allocs | UDP bytes/allocs |
+| --- | ---: | ---: | ---: | ---: |
+| manual | 698.5 | 444.9 | 272 / 5 | 288 / 6 |
+| failover | 865.5 | 548.2 | 328 / 8 | 344 / 9 |
+| weighted | 909.0 | 587.3 | 328 / 8 | 344 / 9 |
+
+[Raw new-flow and cached-proxy results](benchmarks/data/selector-2026-10-25/circuit-new-flow.txt)
+and [ranking/target/loopback results](benchmarks/data/selector-2026-10-25/circuit-ranking-and-loopback.txt)
+include allocations and repeated samples. Loopback TCP varied from roughly
+73 microseconds to 1.1 milliseconds across repetitions; kernel scheduling and
+socket churn dominate that run, so it is not evidence of a stable mode-to-mode
+network performance difference. No physical VPN speed claim is inferred.
+
+```sh
+go test ./pkg/node -run '^$' -bench 'BenchmarkSelector(NewFlow|ConnectionCreation)$' -benchmem -benchtime=500ms -count=3
+go test ./pkg/node -run '^$' -bench 'BenchmarkSelector(Ranking|Target|LoopbackConnection)$' -benchmem -benchtime=500ms -count=3
+```

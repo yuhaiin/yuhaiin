@@ -30,19 +30,19 @@ The monitoring follow-up adds cancellation propagation, shared bounded and
 deduplicated schedules, global settings/selector overrides (migration 19),
 network-interface/native lifecycle rescheduling, explicit TCP/HTTPS/DNS/STUN
 evidence and optional periodic budgeted downloads, with real frontend controls.
-Full circuit-breaker admission and the remaining qualifications are not done.
+The circuit follow-up adds Closed/Open/Half-open admission, finite recovery
+quotas, independent TCP/UDP evidence, configuration generations, credential
+snapshots, and real frontend controls. Remaining qualifications are not done.
 
 Still required before Stage 1 is complete:
 
 - Full qualification of shared scheduling under cancellation, network changes
   and larger deployments; native-provider adapters for protocols where available.
-- Full Closed/Open/Half-open circuit breaker with bounded trial quotas and
-  protocol-aware failure classification, including lazy VPN establishment.
 - Accurate integration with existing traffic-control admission/limits.
 - Selector Prometheus metrics and bounded reason labels.
-- Complete UI controls for those scheduler/breaker/periodic features.
-- Actual TCP/UDP connection creation benchmarks, 1,000+ concurrent connections,
-  worst-case churn/snapshot/resource measurements and Android compilation/default tests.
+- Final qualification of worst-case churn/snapshot/resource measurements and
+  broader real-transport connection benchmarks. Deterministic TCP/UDP creation,
+  loopback TCP and 1,024 concurrent admission tests are now present.
 - Browser desktop/mobile verification and required remote CI verification.
 
 ## Stage 2 — disaster recovery and safe updates (pending)
@@ -98,3 +98,16 @@ problem must remain visible in qualification; no test threshold was relaxed.
 
 Browser plugin discovery returned no connected browser. Visual browser checks
 are still required; component tests do not substitute for those checks.
+
+## Circuit follow-up validation
+
+The backend extends existing selector and observation JSON; no new SQLite
+migration is needed beyond schema 19. The frontend adds circuit controls and
+evidence details in EN/JA/KO, preserving manual behavior. Frontend gates pass
+with 104 files / 309 tests. Backend full tests, lint and focused race coverage
+pass. Measurements and exact reproduction commands accompany this delivery.
+
+Monitoring PR #623 currently has a failed no-legacy-stack check: the unchanged
+Tailscale cold-peer test again takes roughly five seconds against its two-second
+limit. The dependency-boundary assertions and monitoring-specific CI pass. A
+failed-job rerun reproduced the transport failure; it is not treated as green.
