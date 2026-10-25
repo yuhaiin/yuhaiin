@@ -39,6 +39,12 @@ type PacketProxy interface {
 	PacketConn(context.Context, Address) (net.PacketConn, error)
 }
 
+// ContextPacketWriter optionally binds datagram preparation (including DNS)
+// to a caller. It does not change the established PacketConn's lifetime.
+type ContextPacketWriter interface {
+	WriteToContext(context.Context, []byte, net.Addr) (int, error)
+}
+
 type PingProxy interface {
 	Ping(context.Context, Address) (uint64, error)
 }

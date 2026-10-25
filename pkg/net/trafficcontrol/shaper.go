@@ -21,6 +21,9 @@ const (
 var ErrRateLimited = errors.New("trafficcontrol: datagram rate limit")
 var ErrInvalidRate = errors.New("trafficcontrol: invalid shaping rate or burst")
 
+// ErrLocalLimit distinguishes local outbound pacing/admission from remote failure.
+var ErrLocalLimit = errors.New("trafficcontrol: local policy limit")
+
 const maxShapingRate = int64(1 << 40) // bytes/s
 const maxShapingBurst = int64(1 << 30)
 
@@ -214,13 +217,13 @@ func (p Policy) AllowDatagram(d Direction, bytes int) bool {
 }
 
 func (p Policy) WaitBytes(ctx context.Context, d Direction, bytes int) error {
-	_, err := p.wait(ctx, d, bytes, false, nil)
+	_, err := p.wait(ctx, d, bytes, false, nil, nil)
 	return err
 }
 
 // split selects a chunk within current bursts under the admission locks. A
 // simultaneous burst reduction cannot strand a previously sized stream write.
-func (p Policy) wait(ctx context.Context, d Direction, bytes int, split bool, deadline *streamDeadline) (reservation, error) {
+func (p Policy) wait(ctx context.Context, d Direction, bytes int, split bool, deadline *streamDeadline, onWait func()) (reservation, error) {
 	if bytes <= 0 {
 		return reservation{}, nil
 	}
@@ -296,6 +299,9 @@ func (p Policy) wait(ctx context.Context, d Direction, bytes int, split bool, de
 			}
 			return r, nil
 		}
+		if !waited && onWait != nil {
+			onWait()
+		}
 		waited = true
 		timerAt := ready
 		if !deadlineAt.IsZero() && deadlineAt.Before(timerAt) {
@@ -331,17 +337,22 @@ func (p Policy) Enabled(d Direction) bool {
 }
 
 type ShapedWriter struct {
-	deadline  *streamDeadline
-	Writer    interface{ Write([]byte) (int, error) }
-	Context   context.Context
-	Policy    Policy
-	Direction Direction
+	onWait      func()
+	localErrors bool
+	deadline    *streamDeadline
+	Writer      interface{ Write([]byte) (int, error) }
+	Context     context.Context
+	Policy      Policy
+	Direction   Direction
 }
 
 func (w ShapedWriter) Write(data []byte) (written int, err error) {
 	for len(data) > 0 {
-		r, err := w.Policy.wait(w.Context, w.Direction, len(data), true, w.deadline)
+		r, err := w.Policy.wait(w.Context, w.Direction, len(data), true, w.deadline, w.onWait)
 		if err != nil {
+			if w.localErrors {
+				err = errors.Join(ErrLocalLimit, err)
+			}
 			return written, err
 		}
 		count, writeErr := w.Writer.Write(data[:r.bytes])

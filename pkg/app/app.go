@@ -175,7 +175,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	configuration.ProxyChain.Set(direct.Default)
 	// Proxy and DNS runtime objects are created after SQLite state initialization.
-	nodeRuntime := AddCloser(closers, "node_runtime", node.NewNodeRuntime(paths.PathGenerator.State(so.ConfigPath)))
+	nodeRuntime := AddCloser(closers, "node_runtime", node.NewNodeRuntime(paths.PathGenerator.State(so.ConfigPath), node.RequireProbePolicy()))
 	dns := AddCloser(closers, "resolver", resolver.NewResolver(configuration.ProxyChain))
 	list := AddCloser(closers, "lists", route.NewLists(routeListStore, routeSettingsStore, so.ConfigPath))
 	// bypass dialer and dns request
@@ -320,6 +320,18 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		_ = app.Close()
 		return nil, err
 	}
+	// RegisterServer hydrates route and traffic-control snapshots before probes
+	// may construct a client or issue any traffic. There is no startup gap with
+	// an unlimited default policy, even when persisted schedules are enabled.
+	nodeRuntime.SetProbePolicy(node.ProbePolicy{
+		Ready: func() bool { return inbounds.ProbePolicyReady() && rules.HasActiveSnapshot() },
+		Wrap: func(ctx context.Context, proxy netapi.Proxy) netapi.Proxy {
+			return inbounds.ProbeProxy(ctx, proxy, func(ctx context.Context, a netapi.Address) (netapi.Address, error) {
+				a = hosts.RecoverDestination(ctx, fakedns.RecoverDestination(ctx, a))
+				return router.PrepareProbe(ctx, a)
+			})
+		},
+	})
 
 	tailscale.Mux.Store(app.Mux)
 

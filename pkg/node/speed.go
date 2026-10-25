@@ -14,6 +14,9 @@ var errSpeedBusy = errors.New("speed test concurrency limit reached")
 var errSpeedBudget = errors.New("daily speed test traffic budget exhausted")
 
 func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.SpeedTestRequest) (contract.ThroughputMeasurement, error) {
+	if !r.probePolicyReady() {
+		return contract.ThroughputMeasurement{}, errProbePolicyUnavailable
+	}
 	request, err := latency.ValidateSpeedTest(request)
 	if err != nil {
 		return contract.ThroughputMeasurement{}, err
@@ -55,15 +58,19 @@ func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.Spe
 	if count, _ := result.RowsAffected(); count == 0 {
 		return contract.ThroughputMeasurement{}, errSpeedBudget
 	}
-	proxy, err := r.getContractDialer(ctx, id, n, epoch)
+	proxy, err := r.probeDialer(ctx, id, n, epoch, false)
 	if err != nil {
 		return contract.ThroughputMeasurement{}, err
 	}
 	measurement, err := latency.MeasureDownload(ctx, proxy, request)
+	err = classifyProbeError(proxy, err)
 	measurement.At, measurement.Target = time.Now().UnixMilli(), request.URL
 	if err != nil {
 		measurement.OK = false
 		measurement.Error = "speed measurement failed"
+		if localProbeDenial(err) {
+			measurement.Error = "speed measurement limited by local routing or traffic policy"
+		}
 	}
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return measurement, ctx.Err()

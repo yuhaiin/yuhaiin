@@ -122,7 +122,7 @@ func (s *selectorRuntime) scheduleLocked() {
 						return errProbeSkipped
 					}
 					_, err := s.runtime.Speed(ctx, n.ID, request)
-					if errors.Is(err, errSpeedBusy) || errors.Is(err, errSpeedBudget) {
+					if errors.Is(err, errSpeedBusy) || errors.Is(err, errSpeedBudget) || localProbeDenial(err) {
 						return errProbeSkipped
 					}
 					return err
@@ -203,24 +203,28 @@ func (s *selectorRuntime) runProbe(ctx context.Context, n contract.Node, options
 	if err := limiter.WaitN(ctx, int(probeByteBudget)); err != nil {
 		return errProbeSkipped
 	}
-	_, epoch, err := s.runtime.cachedNode(ctx, n.ID)
+	current, epoch, err := s.runtime.cachedNode(ctx, n.ID)
 	if err != nil {
 		return err
 	}
-	proxy, err := s.runtime.GetDialerByID(ctx, n.ID)
+	proxy, err := s.runtime.probeDialer(ctx, n.ID, current, epoch, true)
 	if err != nil {
-		if ctx.Err() == nil {
+		if ctx.Err() == nil && !errors.Is(err, errProbePolicyUnavailable) {
 			s.runtime.observer.counter(n.ID).constructionFailureAtGeneration(err, epoch)
+		}
+		if errors.Is(err, errProbePolicyUnavailable) {
+			return errProbeSkipped
 		}
 		return err
 	}
 	budget := newProbeBudgetProxy(proxy)
 	start := time.Now()
 	result, err := latency.LatencyWithContext(ctx, req, budget, latency.LatencyOptions{})
+	err = classifyProbeError(proxy, err)
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return ctx.Err()
 	}
-	if errors.Is(err, errProbeByteBudget) {
+	if errors.Is(err, errProbeByteBudget) || localProbeDenial(err) {
 		return errProbeSkipped
 	}
 	kind, target, tcp := req.Type, req.Host, true
@@ -283,7 +287,7 @@ func (s *selectorRuntime) monitoringStatus() contract.MonitoringStatus {
 	v := s.scheduler.status()
 	config := s.defaults
 	config.Probe.Kinds = slices.Clone(config.Probe.Kinds)
-	return contract.MonitoringStatus{Config: config, Network: s.network, Platform: s.platform, Jobs: v.Jobs, Running: v.Running, Workers: v.Workers, Completed: v.Completed, Failed: v.Failed, Skipped: v.Skipped}
+	return contract.MonitoringStatus{PolicyState: s.runtime.probePolicyState(), Config: config, Network: s.network, Platform: s.platform, Jobs: v.Jobs, Running: v.Running, Workers: v.Workers, Completed: v.Completed, Failed: v.Failed, Skipped: v.Skipped}
 }
 func (r *NodeRuntime) Monitoring(ctx context.Context) (contract.MonitoringStatus, error) {
 	if _, err := r.openNodes(ctx); err != nil {

@@ -24,6 +24,11 @@ func HTTPWithContext(ctx context.Context, p netapi.Proxy, target string, insecur
 	return httpLatency(ctx, p, target, insecureSkipVerify, http.MethodGet, true)
 }
 func httpLatency(ctx context.Context, p netapi.Proxy, target string, insecureSkipVerify bool, method string, redirect bool) (time.Duration, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	probeCtx := ctx
+	connections := new(probeConnections)
+	defer connections.close()
 	tr := &http.Transport{
 		DisableKeepAlives:      true,
 		MaxResponseHeaderBytes: 32 << 10,
@@ -42,7 +47,7 @@ func httpLatency(ctx context.Context, p netapi.Proxy, target string, insecureSki
 				return nil, err
 			}
 
-			return c, nil
+			return connections.bind(probeCtx, c)
 		},
 	}
 	if insecureSkipVerify {

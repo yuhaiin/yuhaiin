@@ -16,6 +16,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
+var errDownloadDuration = errors.New("download measurement duration reached")
+
 // ValidateSpeedTest provides hard limits even for trusted administrators. The
 // endpoint requires nodes:write; URL credentials, redirects and TLS bypass are
 // not supported. A private target can only be chosen by that administrator.
@@ -40,13 +42,23 @@ func measureDownload(ctx context.Context, p netapi.Proxy, request contract.Speed
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(r.TimeoutMS)*time.Millisecond)
 	defer cancel()
+	timeoutCtx := ctx
+	ctx, finish := context.WithCancelCause(ctx)
+	defer finish(nil)
+	probeCtx := ctx
+	connections := new(probeConnections)
+	defer connections.close()
 	result := contract.ThroughputMeasurement{At: time.Now().UnixMilli(), Target: r.URL}
 	tr := &http.Transport{TLSClientConfig: tlsConfig, DisableCompression: true, DisableKeepAlives: true, MaxResponseHeaderBytes: 32 << 10, DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 		a, err := netapi.ParseAddress(network, address)
 		if err != nil {
 			return nil, err
 		}
-		return p.Conn(ctx, a)
+		c, err := p.Conn(ctx, a)
+		if err != nil {
+			return nil, err
+		}
+		return connections.bind(probeCtx, c)
 	}}
 	defer tr.CloseIdleConnections()
 	hc := &http.Client{Transport: tr, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
@@ -78,18 +90,18 @@ func measureDownload(ctx context.Context, p netapi.Proxy, request contract.Speed
 		}
 	}
 	start := time.Now()
-	// Closing the body interrupts a blocked read while leaving the caller's
-	// context available to distinguish a normal duration budget from cancel.
-	budget := time.AfterFunc(time.Duration(r.DurationMS)*time.Millisecond, func() { _ = response.Body.Close() })
+	// Cancel the I/O lifetime, not Body.Close (which can wait for a pending
+	// read). The separate timeout context retains caller/whole-test failures.
+	budget := time.AfterFunc(time.Duration(r.DurationMS)*time.Millisecond, func() { finish(errDownloadDuration) })
 	defer budget.Stop()
 	buffer := make([]byte, 32<<10)
 	n, copyErr := io.CopyBuffer(io.Discard, io.LimitReader(response.Body, r.MaxBytes), buffer)
 	elapsed := time.Since(start)
 	result.Bytes, result.DurationMS = n, elapsed.Milliseconds()
-	if ctx.Err() != nil {
-		return result, ctx.Err()
+	if timeoutCtx.Err() != nil {
+		return result, timeoutCtx.Err()
 	}
-	if copyErr != nil && elapsed < time.Duration(r.DurationMS)*time.Millisecond {
+	if copyErr != nil && !errors.Is(context.Cause(ctx), errDownloadDuration) {
 		return result, copyErr
 	}
 	if n < 1024 || elapsed <= 0 {

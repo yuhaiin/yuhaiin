@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
@@ -31,6 +32,8 @@ import (
 // It also implements the route dialer and node HTTP controller contracts so
 // callers do not need a second manager/controller wrapper.
 type NodeRuntime struct {
+	probePolicy        atomic.Pointer[ProbePolicy]
+	requireProbePolicy bool
 	credentialMu       sync.Mutex
 	credentials        credential.Resolver
 	credentialVersions map[string]string
@@ -46,12 +49,16 @@ type NodeRuntime struct {
 	speedSlots chan struct{}
 }
 
-func NewNodeRuntime(path string) *NodeRuntime {
-	return &NodeRuntime{
+func NewNodeRuntime(path string, options ...RuntimeOption) *NodeRuntime {
+	r := &NodeRuntime{
 		path:       path,
 		proxies:    NewProxyStore(),
 		speedSlots: make(chan struct{}, 2),
 	}
+	for _, option := range options {
+		option(r)
+	}
+	return r
 }
 
 func (r *NodeRuntime) openNodes(ctx context.Context) (*plainstore.NodeStore, error) {
@@ -350,14 +357,18 @@ func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.L
 		}
 	}
 
-	proxy, err := r.getContractDialer(ctx, id, node, epoch)
+	proxy, err := r.probeDialer(ctx, id, node, epoch, true)
 	if err != nil {
 		if r.observer != nil {
+			if !localProbeDenial(err) {
+				r.observer.counter(id).constructionFailureAtGeneration(err, epoch)
+			}
 			r.observer.counter(id).probeAtGeneration(req.Type, contractnode.LatencyResponse{}, err, epoch)
 		}
 		return contractnode.LatencyResponse{}, err
 	}
 	result, err := latency.LatencyWithContext(ctx, req, &latencyDialer{Proxy: proxy, ipv6: req.IPv6}, latencyOptions)
+	err = classifyProbeError(proxy, err)
 	if ctx.Err() != nil {
 		return result, ctx.Err()
 	}

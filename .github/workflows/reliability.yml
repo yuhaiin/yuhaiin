@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - 'pkg/node/**'
+      - 'pkg/app/**'
+      - 'pkg/inbound/**'
+      - 'pkg/route/**'
+      - 'pkg/net/trafficcontrol/**'
+      - 'pkg/net/netapi/**'
+      - 'pkg/net/proxy/direct/**'
       - 'pkg/contract/node/**'
       - 'pkg/net/latency/**'
       - 'pkg/store/**'
@@ -38,10 +44,11 @@ jobs:
         run: |
           go test -race -count=1 -timeout=180s \
             ./pkg/node ./pkg/net/latency ./pkg/store ./pkg/httpapi \
-            ./pkg/storage/sqlite ./pkg/management/auth ./cmd/android
+            ./pkg/storage/sqlite ./pkg/management/auth ./cmd/android \
+            ./pkg/inbound ./pkg/route ./pkg/app ./pkg/net/trafficcontrol ./pkg/net/proxy/direct
       - name: Selection and scheduler benchmarks
         run: |
-          go test ./pkg/node -run '^$' -bench 'BenchmarkSelector|BenchmarkProbeScheduler' \
+          go test ./pkg/node -run '^$' -bench 'BenchmarkSelector|BenchmarkProbeScheduler|BenchmarkObservedPacketSend' \
             -benchmem -benchtime=300ms -count=2
       - uses: golangci/golangci-lint-action@v9
         with:

@@ -256,7 +256,8 @@ A lower selector bandwidth override adds a shared lower-rate group limit. This
 conservative reservation may reduce achievable probe frequency for large node
 sets; raise the explicit global budget or increase interval accordingly. It
 bounds logical probe traffic; VPN framing and kernel buffering are not a wire-
-rate guarantee. Existing traffic-control integration still needs qualification.
+rate guarantee. Measurements additionally share existing application routing and
+Traffic Control admission/shaping; see [measurement policy](probe-policy.md).
 
 Periodic download tests reuse the verified streaming implementation, two-test
 hard cap, and durable daily reservations. They default to once per hour and
@@ -397,3 +398,9 @@ network performance difference. No physical VPN speed claim is inferred.
 go test ./pkg/node -run '^$' -bench 'BenchmarkSelector(NewFlow|ConnectionCreation)$' -benchmem -benchtime=500ms -count=3
 go test ./pkg/node -run '^$' -bench 'BenchmarkSelector(Ranking|Target|LoopbackConnection)$' -benchmem -benchtime=500ms -count=3
 ```
+
+Application measurement policy is exposed as `policyState` in monitoring status.
+Waiting measurements pause before Node construction; enforced measurements share
+existing route and traffic controls. Throughput results include those configured
+limits. The standalone/core scope is reported explicitly. No migration beyond
+schema 19 is required.

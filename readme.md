@@ -238,3 +238,7 @@ The circuit follow-up adds independent TCP/UDP Closed/Open/Half-open admission,
 finite recovery quotas, visible evidence and reasons, and protection against
 stale measurements after transport/credential changes. Existing manual choices
 and established sessions retain their semantics.
+
+Application probes and active download tests share existing routing and traffic
+controls, with startup readiness and bounded connection cleanup. See the
+[measurement policy guide](docs/probe-policy.md) for scope and qualification.

@@ -38,8 +38,11 @@ Still required before Stage 1 is complete:
 
 - Full qualification of shared scheduling under cancellation, network changes
   and larger deployments; native-provider adapters for protocols where available.
-- Accurate integration with existing traffic-control admission/limits.
+- Complete transport-overhead qualification of throughput budgets; routing,
+  stream/datagram admission and live shaping now use existing app components.
 - Selector Prometheus metrics and bounded reason labels.
+- Shared manual/periodic probe admission and strict active-test transport-overhead
+  reservations, alongside existing scheduler and payload bounds.
 - Final qualification of worst-case churn/snapshot/resource measurements and
   broader real-transport connection benchmarks. Deterministic TCP/UDP creation,
   loopback TCP and 1,024 concurrent admission tests are now present.
@@ -96,8 +99,9 @@ The failed-job CI rerun passed; backend #622 now has 44 successful checks and
 nine expected skips. This pre-existing intermittent transport
 problem must remain visible in qualification; no test threshold was relaxed.
 
-Browser plugin discovery returned no connected browser. Visual browser checks
-are still required; component tests do not substitute for those checks.
+Browser plugin discovery returned no connected browser. The subsequent Chrome
+fallback verified Selector/circuit and monitoring views at 1440, 360 and 320 px;
+frontend #537 CI also runs that harness and retains screenshots.
 
 ## Circuit follow-up validation
 
@@ -111,3 +115,12 @@ Monitoring PR #623 currently has a failed no-legacy-stack check: the unchanged
 Tailscale cold-peer test again takes roughly five seconds against its two-second
 limit. The dependency-boundary assertions and monitoring-specific CI pass. A
 failed-job rerun reproduced the transport failure; it is not treated as green.
+
+## Probe policy follow-up
+
+The fixed candidate egress now uses existing route block/DNS/rule identities and
+stream/datagram governors with live global/default/route shaping. Startup policy
+readiness gates construction and budget spend. See [measurement policy](probe-policy.md)
+for actual scope, lifecycle behavior, tests and the remaining overhead-budget
+qualification. Existing monitoring status JSON adds `policyState`; schema remains
+19. Frontend EN/JA/KO explains waiting/enforced/standalone measurement scope.
