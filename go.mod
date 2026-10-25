@@ -4,7 +4,7 @@ go 1.27.2
 
 replace (
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
-	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20261016051747-4441c394b330
+	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20261024171005-32b103289bd3
 )
 
 require (
@@ -27,6 +27,7 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8
+	github.com/yuhaiin/tailscale-lite v0.0.0-20261024171927-49ae11fefe66
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261022032805-df51b667f746
 	github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29
 	go.uber.org/goleak v1.3.0

@@ -67,11 +67,14 @@ jobs:
         run: |
           go test -race -c -tags lightweight_kernel -o /tmp/lightweight-kernel.test ./pkg/net/proxy/tun/lightweight
           go test -race -c -tags lightweight_kernel -o /tmp/lightweight-device.test ./pkg/net/proxy/tun/device
+          go test -race -c -tags lightweight_kernel -o /tmp/lightweight-tun.test ./pkg/net/proxy/tun
           go test -race -c -tags lightweight_kernel -o /tmp/lightweight-offload.test ./pkg/net/proxy/tun/lightweighttun
       - name: TCP, UDP fragments and ICMP in isolated network namespace
         run: sudo unshare --net /tmp/lightweight-kernel.test -test.run '^TestLinuxKernel' -test.v -test.timeout=90s
+      - name: Migrate IPv4 TUN with legacy MTU
+        run: sudo unshare --net /tmp/lightweight-tun.test -test.run '^TestLegacyIPv4MTU1200$' -test.v -test.timeout=30s
       - name: Native TUN event and buffer cleanup after repeated shutdown
-        run: sudo unshare --net /tmp/lightweight-device.test -test.run '^TestLinuxKernelDeviceLifecycle$' -test.v -test.timeout=30s
+        run: sudo unshare --net /tmp/lightweight-device.test -test.run TestLinuxKernelDeviceLifecycle -test.count=25 -test.v -test.timeout=60s
       - name: TCP checksum and segmentation offloads with kernel peers and loss
         run: sudo unshare --net /tmp/lightweight-offload.test -test.run '^TestLinuxOffload' -test.v -test.timeout=90s
 

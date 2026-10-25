@@ -46,10 +46,8 @@ func (c Config) normalize() (Config, error) {
 	if c.MTU == 0 {
 		c.MTU = 1500
 	}
-	minMTU := 1280
-	if c.Profile == RemoteTunnel {
-		minMTU = 576
-	}
+	// IPv4 permits smaller links; IPv6 addresses are checked below.
+	minMTU := 576
 	if c.MTU < minMTU || c.MTU > 65535 {
 		return c, fmt.Errorf("lightweight: MTU must be %d..65535", minMTU)
 	}

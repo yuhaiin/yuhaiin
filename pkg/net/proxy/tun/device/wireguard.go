@@ -3,15 +3,12 @@ package device
 import (
 	"errors"
 	"io"
-	"math"
 	"os"
 	"sync"
 	"sync/atomic"
 	"syscall"
 
 	wun "github.com/tailscale/wireguard-go/tun"
-	"gvisor.dev/gvisor/pkg/tcpip/checksum"
-	"gvisor.dev/gvisor/pkg/tcpip/header"
 )
 
 type wgDevice struct {
@@ -141,53 +138,27 @@ func (t *wgDevice) Close() error {
 	t.closeOnce.Do(func() {
 		t.closed.Store(true)
 		// Unblock a native Read before taking the lock that protects its slab.
-		t.closeErr = t.Device.Close()
+		closeErr := t.Device.Close()
 		t.readMu.Lock()
 		t.slab, t.packets = nil, nil
 		t.readMu.Unlock()
 		if t.eventsDone != nil {
 			<-t.eventsDone
+			// Linux NativeTun's netlink listener can exit while repeated TUN
+			// teardown/recreation is in progress. Its Cancel then writes to
+			// an already closed cancellation pipe and returns a PathError
+			// ("write |1: file already closed"), even though the listener
+			// has shut down and the native queue descriptors were closed.
+			// Ignore only this specific benign shutdown error, once the
+			// event stream has been fully drained. Preserve errors from
+			// closing native queue files and any other cancellation errors.
+			if e, ok := closeErr.(*os.PathError); ok && e.Op == "write" && errors.Is(e.Err, os.ErrClosed) {
+				closeErr = nil
+			}
 		}
+		t.closeErr = closeErr
 	})
 	return t.closeErr
 }
 
 func (t *wgDevice) Tun() wun.Device { return t.Device }
-
-func ResetChecksum(ip header.Network, tp header.Transport, pseudoHeaderSum uint16) {
-	ResetIPChecksum(ip)
-	ResetTransportChecksum(ip, tp, pseudoHeaderSum)
-}
-
-func ResetIPChecksum(ip header.Network) {
-	if ip, ok := ip.(header.IPv4); ok {
-		ip.SetChecksum(0)
-		ip.SetChecksum(^ip.CalculateChecksum())
-	}
-}
-
-func ResetTransportChecksum(ip header.Network, tp header.Transport, pseudoHeaderSum uint16) {
-	tp.SetChecksum(0)
-	sum := checksum.Checksum(ip.Payload(), pseudoHeaderSum)
-
-	//https://datatracker.ietf.org/doc/html/rfc768
-	//
-	// If the computed  checksum  is zero,  it is transmitted  as all ones (the
-	// equivalent  in one's complement  arithmetic).   An all zero  transmitted
-	// checksum  value means that the transmitter  generated  no checksum  (for
-	// debugging or for higher level protocols that don't care).
-	//
-	// https://datatracker.ietf.org/doc/html/rfc8200
-	// Unlike IPv4, the default behavior when UDP packets are
-	//  originated by an IPv6 node is that the UDP checksum is not
-	//  optional.  That is, whenever originating a UDP packet, an IPv6
-	//  node must compute a UDP checksum over the packet and the
-	//  pseudo-header, and, if that computation yields a result of
-	//  zero, it must be changed to hex FFFF for placement in the UDP
-	//  header.  IPv6 receivers must discard UDP packets containing a
-	//  zero checksum and should log the error.
-	if ip.TransportProtocol() != header.UDPProtocolNumber || sum != math.MaxUint16 {
-		sum = ^sum
-	}
-	tp.SetChecksum(sum)
-}

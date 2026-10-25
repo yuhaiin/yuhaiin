@@ -72,8 +72,8 @@ func TestProfileCongestionDefault(t *testing.T) {
 	}
 }
 func TestAddressFamilyMTU(t *testing.T) {
-	if err := ValidateConfig(Config{MTU: 900}); err == nil {
-		t.Fatal("local TUN accepted MTU below 1280")
+	if err := ValidateConfig(Config{MTU: 575}); err == nil {
+		t.Fatal("local TUN accepted MTU below 576")
 	}
 
 	for _, tc := range []struct {
@@ -88,11 +88,19 @@ func TestAddressFamilyMTU(t *testing.T) {
 		{name: "IPv6-too-small", mtu: 1279, addresses: []netip.Addr{netip.MustParseAddr("2001:db8::1")}, invalid: true},
 		{name: "dual-too-small", mtu: 1000, addresses: []netip.Addr{netip.MustParseAddr("192.0.2.1"), netip.MustParseAddr("2001:db8::1")}, invalid: true},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateConfig(Config{MTU: tc.mtu, Addresses: tc.addresses, Profile: RemoteTunnel})
-			if (err != nil) != tc.invalid {
-				t.Fatalf("unexpected config result: %v", err)
-			}
-		})
+		for _, profile := range []NetworkProfile{LocalTun, RemoteTunnel} {
+			t.Run(string(profile)+"/"+tc.name, func(t *testing.T) {
+				err := ValidateConfig(Config{MTU: tc.mtu, Addresses: tc.addresses, Profile: profile})
+				if (err != nil) != tc.invalid {
+					t.Fatalf("unexpected config result: %v", err)
+				}
+			})
+		}
+	}
+}
+
+func TestLocalIPv4SmallMTU(t *testing.T) {
+	if err := ValidateConfig(Config{Profile: LocalTun, MTU: 1200, Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.1")}}); err != nil {
+		t.Fatal(err)
 	}
 }

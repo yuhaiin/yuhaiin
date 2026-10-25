@@ -7,7 +7,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
-	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 var Mark = 0x00000500
@@ -77,31 +76,6 @@ func (o *Opt) PostDown() {
 func (o *Opt) PostUp() {
 	execPost(o.Tun.PostUp)
 	o.SkipMark()
-}
-
-func (o *Opt) InterfaceAddress() InterfaceAddress {
-	return InterfaceAddress{
-		Addressv4: tcpip.AddrFromSlice(o.V4Address().Addr().AsSlice()),
-		Portalv4:  tcpip.AddrFromSlice(o.V4Address().Addr().Next().AsSlice()),
-		AddressV6: tcpip.AddrFromSlice(o.V6Address().Addr().AsSlice()),
-		PortalV6:  tcpip.AddrFromSlice(o.V6Address().Addr().Next().AsSlice()),
-	}
-}
-
-type InterfaceAddress struct {
-	Addressv4 tcpip.Address
-	Portalv4  tcpip.Address
-	AddressV6 tcpip.Address
-	PortalV6  tcpip.Address
-}
-
-func (h InterfaceAddress) IsDNSRequest(port uint16, addr tcpip.Address) bool {
-	if port != 53 {
-		return false
-	}
-
-	return addr.Equal(h.Portalv4) || addr.Equal(h.PortalV6) ||
-		(addr.Equal(h.Addressv4) || addr.Equal(h.AddressV6))
 }
 
 func execPost(cmd []string) {

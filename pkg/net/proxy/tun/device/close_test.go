@@ -91,3 +91,56 @@ func TestDeviceCloseDrainsEventsAndReleasesReadBuffer(t *testing.T) {
 	}
 	runtime.KeepAlive(d)
 }
+
+type nativeCloseErrorDevice struct {
+	wun.Device
+	events   chan wun.Event
+	closeErr error
+	closes   atomic.Int32
+}
+
+func (d *nativeCloseErrorDevice) Events() <-chan wun.Event { return d.events }
+func (d *nativeCloseErrorDevice) Close() error {
+	d.closes.Add(1)
+	return d.closeErr
+}
+
+func TestDeviceCloseNativeCancellationRace(t *testing.T) {
+	cancelClosed := &os.PathError{Op: "write", Path: "|1", Err: os.ErrClosed}
+	queueClosed := &os.PathError{Op: "close", Path: "/dev/net/tun", Err: os.ErrClosed}
+	failedCancel := &os.PathError{Op: "write", Path: "|1", Err: os.ErrPermission}
+	for _, tc := range []struct {
+		name       string
+		closeErr   error
+		withEvents bool
+		want       error
+	}{
+		{"cancellation pipe already closed", cancelClosed, true, nil},
+		{"native queue close failure", queueClosed, true, os.ErrClosed},
+		{"unexpected netlink cancellation failure", failedCancel, true, os.ErrPermission},
+		{"unmonitored device close failure", cancelClosed, false, os.ErrClosed},
+		{"joined close failures", errors.Join(cancelClosed, os.ErrPermission), true, os.ErrPermission},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			native := &nativeCloseErrorDevice{closeErr: tc.closeErr}
+			if tc.withEvents {
+				native.events = make(chan wun.Event)
+				close(native.events)
+			}
+			dev := NewDevice(native, 0, 1500, false)
+			for range 2 {
+				err := dev.Close()
+				if tc.want == nil {
+					if err != nil {
+						t.Fatalf("closed netlink cancellation pipe should not fail shutdown: %v", err)
+					}
+				} else if !errors.Is(err, tc.want) {
+					t.Fatalf("Close() = %v, want %v", err, tc.want)
+				}
+			}
+			if got := native.closes.Load(); got != 1 {
+				t.Fatalf("underlying device closed %d times; want one", got)
+			}
+		})
+	}
+}
