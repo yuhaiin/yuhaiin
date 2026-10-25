@@ -242,3 +242,5 @@ and established sessions retain their semantics.
 Application probes and active download tests share existing routing and traffic
 controls, with startup readiness and bounded connection cleanup. See the
 [measurement policy guide](docs/probe-policy.md) for scope and qualification.
+
+Measurement resource limits and finite-label reliability metrics: [measurement bounds](docs/measurement-bounds.md).

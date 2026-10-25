@@ -32,6 +32,12 @@ import (
 // It also implements the route dialer and node HTTP controller contracts so
 // callers do not need a second manager/controller wrapper.
 type NodeRuntime struct {
+	metrics            *reliabilityMetrics
+	measurementActive  atomic.Int32
+	measurementLimit   atomic.Int32
+	measurementMu      sync.Mutex
+	measurementClosed  bool
+	measurements       map[*measurementLease]struct{}
 	probePolicy        atomic.Pointer[ProbePolicy]
 	requireProbePolicy bool
 	credentialMu       sync.Mutex
@@ -51,6 +57,7 @@ type NodeRuntime struct {
 
 func NewNodeRuntime(path string, options ...RuntimeOption) *NodeRuntime {
 	r := &NodeRuntime{
+		metrics:    newReliabilityMetrics(),
 		path:       path,
 		proxies:    NewProxyStore(),
 		speedSlots: make(chan struct{}, 2),
@@ -58,6 +65,7 @@ func NewNodeRuntime(path string, options ...RuntimeOption) *NodeRuntime {
 	for _, option := range options {
 		option(r)
 	}
+	r.measurementLimit.Store(4)
 	return r
 }
 
@@ -107,6 +115,7 @@ func (r *NodeRuntime) Close() error {
 	r.sqlite = nil
 	r.nodes = nil
 	r.mu.Unlock()
+	r.stopMeasurements()
 
 	if selectors != nil {
 		close(selectors.stop)
@@ -136,6 +145,7 @@ func (r *NodeRuntime) Save(ctx context.Context, node contractnode.Node) (contrac
 	r.credentialMu.Lock()
 	transportChanged := previousErr != nil || !sameNodeTransport(previous, node)
 	if transportChanged {
+		r.cancelMeasurements(node.ID)
 		r.observer.invalidateHealth(node.ID)
 		r.proxies.Delete(node.ID)
 	}
@@ -166,6 +176,7 @@ func (r *NodeRuntime) ReplaceRemoteContractNodes(ctx context.Context, group stri
 		if node.Origin == "remote" && node.Group == group {
 			r.credentialMu.Lock()
 			if old, ok := before[node.ID]; !ok || !sameNodeTransport(old, node) {
+				r.cancelMeasurements(node.ID)
 				r.observer.invalidateHealth(node.ID)
 				r.proxies.Delete(node.ID)
 			}
@@ -179,6 +190,11 @@ func (r *NodeRuntime) ReplaceRemoteContractNodes(ctx context.Context, group stri
 		}
 		if err := r.observer.prune(ctx, existing); err != nil {
 			return err
+		}
+		for id := range before {
+			if !existing[id] {
+				r.cancelMeasurements(id)
+			}
 		}
 	}
 	if err := r.refreshSelectors(ctx, nodes); err != nil {
@@ -211,6 +227,7 @@ func (r *NodeRuntime) Remove(ctx context.Context, id string) error {
 	} else if err := deleteNode(); err != nil {
 		return err
 	}
+	r.cancelMeasurements(id)
 	r.proxies.Delete(id)
 	if err := r.refreshSelectors(ctx, nodes); err != nil {
 		return err
@@ -330,17 +347,36 @@ func (r *NodeRuntime) ExtraInfo(_ context.Context, id string) (contractnode.Node
 
 func (r *NodeRuntime) CloseNode(_ context.Context, id string) error {
 	if id != "" {
+		r.cancelMeasurements(id)
 		r.proxies.Delete(id)
 	}
 	return nil
 }
 
-func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.LatencyRequest) (contractnode.LatencyResponse, error) {
+func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.LatencyRequest) (response contractnode.LatencyResponse, resultErr error) {
+	var duration time.Duration
+	defer func() {
+		r.metrics.observeProbe(req.Type, response.OK, resultErr, duration)
+	}()
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	node, epoch, err := r.cachedNode(ctx, id)
 	if errors.Is(err, plainstore.ErrNotFound) {
 		return contractnode.LatencyResponse{}, fmt.Errorf("node not found")
 	}
 	if err != nil {
+		return contractnode.LatencyResponse{}, err
+	}
+	if !r.probePolicyReady() {
+		return contractnode.LatencyResponse{}, errProbePolicyUnavailable
+	}
+	lease, err := r.admitMeasurement(ctx, id)
+	if err != nil {
+		return contractnode.LatencyResponse{}, err
+	}
+	defer lease.release()
+	ctx = lease.ctx
+	if err := r.selectors.waitProbeBudget(ctx, 0); err != nil {
 		return contractnode.LatencyResponse{}, err
 	}
 
@@ -367,7 +403,9 @@ func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.L
 		}
 		return contractnode.LatencyResponse{}, err
 	}
-	result, err := latency.LatencyWithContext(ctx, req, &latencyDialer{Proxy: proxy, ipv6: req.IPv6}, latencyOptions)
+	start := time.Now()
+	result, err := latency.LatencyWithContext(ctx, req, newProbeBudgetProxy(&latencyDialer{Proxy: proxy, ipv6: req.IPv6}), latencyOptions)
+	duration = time.Since(start)
 	err = classifyProbeError(proxy, err)
 	if ctx.Err() != nil {
 		return result, ctx.Err()
@@ -407,7 +445,7 @@ func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.L
 		if (kind == "https" || kind == "https_get") && (!strings.HasPrefix(target, "https://") || latencyOptions.InsecureSkipVerify) {
 			kind = "http_unverified"
 		}
-		c.remoteEvidenceAtGeneration(tcp, contractnode.HealthSample{At: time.Now().UnixMilli(), OK: result.OK, RTTMS: float64(result.LatencyMS), Kind: kind, Target: target}, err, epoch)
+		c.remoteEvidenceAtGeneration(tcp, contractnode.HealthSample{At: time.Now().UnixMilli(), OK: result.OK, RTTMS: float64(duration) / float64(time.Millisecond), Kind: kind, Target: target}, err, epoch)
 	}
 	return result, err
 }

@@ -13,7 +13,8 @@ import (
 var errSpeedBusy = errors.New("speed test concurrency limit reached")
 var errSpeedBudget = errors.New("daily speed test traffic budget exhausted")
 
-func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.SpeedTestRequest) (contract.ThroughputMeasurement, error) {
+func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.SpeedTestRequest) (response contract.ThroughputMeasurement, resultErr error) {
+	defer func() { r.metrics.observeSpeed(response, resultErr) }()
 	if !r.probePolicyReady() {
 		return contract.ThroughputMeasurement{}, errProbePolicyUnavailable
 	}
@@ -25,6 +26,12 @@ func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.Spe
 	if err != nil {
 		return contract.ThroughputMeasurement{}, err
 	}
+	lease, err := r.admitMeasurement(ctx, id)
+	if err != nil {
+		return contract.ThroughputMeasurement{}, err
+	}
+	defer lease.release()
+	ctx = lease.ctx
 	select {
 	case r.speedSlots <- struct{}{}:
 		defer func() { <-r.speedSlots }()
@@ -48,10 +55,12 @@ func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.Spe
 	}
 	db := r.sqlite.DB()
 	r.mu.Unlock()
-	result, err := db.ExecContext(ctx, `INSERT INTO node_speed_budget(id,day,reserved_bytes) VALUES(1,?,?)
+	reservation := request.MaxBytes + contract.SpeedTransportAllowance
+	result, err := db.ExecContext(ctx, `INSERT INTO node_speed_budget(id,day,reserved_bytes,accounting_version) VALUES(1,?,?,2)
 	 ON CONFLICT(id) DO UPDATE SET day=excluded.day,
-	 reserved_bytes=CASE WHEN day=excluded.day THEN reserved_bytes+excluded.reserved_bytes ELSE excluded.reserved_bytes END
-	 WHERE (CASE WHEN day=excluded.day THEN reserved_bytes ELSE 0 END)+excluded.reserved_bytes<=?`, day, request.MaxBytes, request.DailyBudgetBytes)
+	 reserved_bytes=CASE WHEN day=excluded.day THEN reserved_bytes+excluded.reserved_bytes ELSE excluded.reserved_bytes END,accounting_version=2
+	 WHERE NOT (day=excluded.day AND accounting_version<2 AND reserved_bytes>0)
+	 AND (CASE WHEN day=excluded.day THEN reserved_bytes ELSE 0 END)+excluded.reserved_bytes<=?`, day, reservation, request.DailyBudgetBytes)
 	if err != nil {
 		return contract.ThroughputMeasurement{}, err
 	}
@@ -62,7 +71,7 @@ func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.Spe
 	if err != nil {
 		return contract.ThroughputMeasurement{}, err
 	}
-	measurement, err := latency.MeasureDownload(ctx, proxy, request)
+	measurement, err := latency.MeasureDownload(ctx, newByteBudgetProxy(proxy, reservation), request)
 	err = classifyProbeError(proxy, err)
 	measurement.At, measurement.Target = time.Now().UnixMilli(), request.URL
 	if err != nil {

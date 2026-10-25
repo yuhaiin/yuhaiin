@@ -55,7 +55,7 @@ func evaluateSelector(selector contract.Selector, inputs []selectionInput, previ
 		if p.Fallback == "selected" {
 			// Explicit last resort. Never resurrect a disabled node/candidate.
 			for i, in := range inputs {
-				if in.config.NodeID == selector.NodeID && in.enabled && in.config.Enabled {
+				if in.config.NodeID == selector.NodeID && in.enabled && in.config.Enabled && (in.circuit == nil || in.circuit.State != "open") {
 					best = i
 					d.Reason = "fallback_selected"
 					break

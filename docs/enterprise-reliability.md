@@ -38,11 +38,8 @@ Still required before Stage 1 is complete:
 
 - Full qualification of shared scheduling under cancellation, network changes
   and larger deployments; native-provider adapters for protocols where available.
-- Complete transport-overhead qualification of throughput budgets; routing,
-  stream/datagram admission and live shaping now use existing app components.
-- Selector Prometheus metrics and bounded reason labels.
-- Shared manual/periodic probe admission and strict active-test transport-overhead
-  reservations, alongside existing scheduler and payload bounds.
+- Protocol framing/construction cost qualification beyond logical Node-stream
+  budgets; routing/admission/live shaping use existing app components.
 - Final qualification of worst-case churn/snapshot/resource measurements and
   broader real-transport connection benchmarks. Deterministic TCP/UDP creation,
   loopback TCP and 1,024 concurrent admission tests are now present.
@@ -124,3 +121,15 @@ readiness gates construction and budget spend. See [measurement policy](probe-po
 for actual scope, lifecycle behavior, tests and the remaining overhead-budget
 qualification. Existing monitoring status JSON adds `policyState`; schema remains
 19. Frontend EN/JA/KO explains waiting/enforced/standalone measurement scope.
+
+## Measurement bounds follow-up
+
+Manual and periodic measurements share global admission and cancellation. Active
+download reservations include bounded Node-stream TLS/HTTP/read-ahead overhead;
+schema 20 preserves legacy usage without guessing its unrecorded overhead. The
+existing Prometheus endpoint gains finite-label selector/circuit/probe/speed
+metrics without database work on scrape. Frontend EN/JA/KO displays shared slot
+use and inclusive budget semantics. See [measurement bounds](measurement-bounds.md).
+
+Stage 1 remains in progress, including the known parent #623 cold-Tailscale CI
+failure and final resource/transport qualification. Stages 2 and 3 remain pending.

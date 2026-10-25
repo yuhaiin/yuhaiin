@@ -122,7 +122,7 @@ func (s *selectorRuntime) scheduleLocked() {
 						return errProbeSkipped
 					}
 					_, err := s.runtime.Speed(ctx, n.ID, request)
-					if errors.Is(err, errSpeedBusy) || errors.Is(err, errSpeedBudget) || localProbeDenial(err) {
+					if errors.Is(err, errSpeedBusy) || errors.Is(err, errSpeedBudget) || errors.Is(err, errMeasurementBusy) || localProbeDenial(err) {
 						return errProbeSkipped
 					}
 					return err
@@ -181,7 +181,12 @@ func (s *selectorRuntime) probeCanStart(n contract.Node, policy string) bool {
 	}
 	return !expensive(n.Chain)
 }
-func (s *selectorRuntime) runProbe(ctx context.Context, n contract.Node, options contract.ProbeSchedule, req contract.LatencyRequest) error {
+func (s *selectorRuntime) runProbe(ctx context.Context, n contract.Node, options contract.ProbeSchedule, req contract.LatencyRequest) (resultErr error) {
+	var duration time.Duration
+	ok := true
+	defer func() {
+		s.runtime.metrics.observeProbe(req.Type, ok, resultErr, duration)
+	}()
 	if req.Type == "native" {
 		return s.nativeProbe(ctx, n.ID)
 	}
@@ -191,16 +196,13 @@ func (s *selectorRuntime) runProbe(ctx context.Context, n contract.Node, options
 	// Reserve the complete per-probe byte allowance before starting the timing
 	// window. Waiting for the resource budget must not inflate measured RTT or
 	// count as remote failure. One shared limiter bounds all selectors together.
-	s.mu.Lock()
-	limiter := s.probeLimiter
-	override := s.probeRateOverrides[options.MaxProbeBandwidth]
-	s.mu.Unlock()
-	if override != nil {
-		if err := override.WaitN(ctx, int(probeByteBudget)); err != nil {
-			return errProbeSkipped
-		}
+	lease, err := s.runtime.admitMeasurement(ctx, n.ID)
+	if err != nil {
+		return errProbeSkipped
 	}
-	if err := limiter.WaitN(ctx, int(probeByteBudget)); err != nil {
+	defer lease.release()
+	ctx = lease.ctx
+	if err := s.waitProbeBudget(ctx, options.MaxProbeBandwidth); err != nil {
 		return errProbeSkipped
 	}
 	current, epoch, err := s.runtime.cachedNode(ctx, n.ID)
@@ -220,6 +222,8 @@ func (s *selectorRuntime) runProbe(ctx context.Context, n contract.Node, options
 	budget := newProbeBudgetProxy(proxy)
 	start := time.Now()
 	result, err := latency.LatencyWithContext(ctx, req, budget, latency.LatencyOptions{})
+	ok = result.OK
+	duration = time.Since(start)
 	err = classifyProbeError(proxy, err)
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return ctx.Err()
@@ -239,7 +243,7 @@ func (s *selectorRuntime) runProbe(ctx context.Context, n contract.Node, options
 	}
 	c := s.runtime.observer.counter(n.ID)
 	c.probeAtGeneration(kind, result, err, epoch)
-	c.remoteEvidenceAtGeneration(tcp, contract.HealthSample{At: time.Now().UnixMilli(), OK: result.OK, Kind: kind, Target: target, RTTMS: float64(time.Since(start)) / float64(time.Millisecond)}, err, epoch)
+	c.remoteEvidenceAtGeneration(tcp, contract.HealthSample{At: time.Now().UnixMilli(), OK: result.OK, Kind: kind, Target: target, RTTMS: float64(duration) / float64(time.Millisecond)}, err, epoch)
 	s.mu.Lock()
 	s.rebuild(time.Now())
 	s.mu.Unlock()
@@ -287,7 +291,7 @@ func (s *selectorRuntime) monitoringStatus() contract.MonitoringStatus {
 	v := s.scheduler.status()
 	config := s.defaults
 	config.Probe.Kinds = slices.Clone(config.Probe.Kinds)
-	return contract.MonitoringStatus{PolicyState: s.runtime.probePolicyState(), Config: config, Network: s.network, Platform: s.platform, Jobs: v.Jobs, Running: v.Running, Workers: v.Workers, Completed: v.Completed, Failed: v.Failed, Skipped: v.Skipped}
+	return contract.MonitoringStatus{ActiveMeasurements: int(s.runtime.measurementActive.Load()), MeasurementLimit: int(s.runtime.measurementLimit.Load()), PolicyState: s.runtime.probePolicyState(), Config: config, Network: s.network, Platform: s.platform, Jobs: v.Jobs, Running: v.Running, Workers: v.Workers, Completed: v.Completed, Failed: v.Failed, Skipped: v.Skipped}
 }
 func (r *NodeRuntime) Monitoring(ctx context.Context) (contract.MonitoringStatus, error) {
 	if _, err := r.openNodes(ctx); err != nil {

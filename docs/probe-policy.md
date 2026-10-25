@@ -96,11 +96,10 @@ Unprivileged hosts may report an unrelated CAP_NET_ADMIN requirement when the
 existing nftables module closes; only that cleanup error is tolerated by the
 subprocess test, and all probe checks still execute.
 
-Active download budgets currently reserve requested response payload bytes.
-A further qualification must bound and reserve transport/header/handshake overhead
-at the Node boundary as well. VPN framing is outside logical stream accounting.
-This delivery does not claim a strict physical-wire daily budget or complete
-Phase 1 qualification; follow-up metrics/budget work remains tracked.
+Shared manual/periodic admission and transport-inclusive reservations are now
+implemented in the [measurement bounds follow-up](measurement-bounds.md). The
+allowance covers the logical Node stream boundary; VPN framing/control traffic
+and construction remain outside it. This does not complete Phase 1 qualification.
 
 ## Forwarding cost
 

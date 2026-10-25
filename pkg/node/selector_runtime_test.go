@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -200,8 +201,14 @@ func TestSpeedBudgetSurvivesReopenAndChargesCancelledTests(t *testing.T) {
 	}
 	endpoint := l.Addr().String()
 	_ = l.Close()
-	request := contract.SpeedTestRequest{URL: "https://" + endpoint, MaxBytes: 1024, DailyBudgetBytes: 1024, TimeoutMS: 1000, DurationMS: 100}
-	_, _ = r.Speed(t.Context(), node.ID, request)
+	request := contract.SpeedTestRequest{URL: "https://" + endpoint, MaxBytes: 1024, DailyBudgetBytes: 1024 + contract.SpeedTransportAllowance, TimeoutMS: 1000, DurationMS: 100}
+	if _, err := r.Speed(t.Context(), node.ID, request); err == nil || errors.Is(err, errSpeedBudget) {
+		t.Fatalf("first test must attempt the closed endpoint, got %v", err)
+	}
+	var reserved, version int64
+	if err := r.sqlite.DB().QueryRowContext(t.Context(), `SELECT reserved_bytes,accounting_version FROM node_speed_budget`).Scan(&reserved, &version); err != nil || reserved != request.DailyBudgetBytes || version != 2 {
+		t.Fatalf("reservation=%d version=%d err=%v", reserved, version, err)
+	}
 	if _, err := r.Speed(t.Context(), node.ID, request); err == nil || err.Error() != "daily speed test traffic budget exhausted" {
 		t.Fatal(err)
 	}
@@ -223,5 +230,35 @@ func TestSpeedBudgetSurvivesReopenAndChargesCancelledTests(t *testing.T) {
 	}
 	if _, err := r2.Speed(t.Context(), node.ID, request); err == nil || err.Error() != "daily speed test traffic budget exhausted" {
 		t.Fatal(err)
+	}
+}
+
+func TestSpeedBudgetUpgradeRefusesLegacyUsageUntilUTCReset(t *testing.T) {
+	r := newTestRuntime(t)
+	n := testNode(t, "a", "a")
+	if _, err := r.Save(t.Context(), n); err != nil {
+		t.Fatal(err)
+	}
+	day := time.Now().UTC().Unix() / 86400
+	if _, err := r.sqlite.DB().ExecContext(t.Context(), `INSERT INTO node_speed_budget(id,day,reserved_bytes,accounting_version) VALUES(1,?,1024,1)`, day); err != nil {
+		t.Fatal(err)
+	}
+	req := contract.SpeedTestRequest{URL: "https://127.0.0.1:1", MaxBytes: 1024, DailyBudgetBytes: 1 << 20, DurationMS: 100, TimeoutMS: 100}
+	if _, err := r.Speed(t.Context(), n.ID, req); !errors.Is(err, errSpeedBudget) {
+		t.Fatal(err)
+	}
+	if _, ok := r.proxies.store.Load(n.ID); ok {
+		t.Fatal("legacy budget rejection constructed outbound")
+	}
+	if _, err := r.sqlite.DB().ExecContext(t.Context(), `UPDATE node_speed_budget SET day=?`, day-1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Speed(t.Context(), n.ID, req); err == nil || errors.Is(err, errSpeedBudget) {
+		t.Fatal(err)
+	}
+	var version int
+	var reserved int64
+	if err := r.sqlite.DB().QueryRowContext(t.Context(), `SELECT accounting_version,reserved_bytes FROM node_speed_budget`).Scan(&version, &reserved); err != nil || version != 2 || reserved != req.MaxBytes+contract.SpeedTransportAllowance {
+		t.Fatal(version, reserved, err)
 	}
 }

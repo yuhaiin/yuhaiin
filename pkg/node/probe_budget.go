@@ -19,8 +19,11 @@ type probeBudgetProxy struct {
 }
 
 func newProbeBudgetProxy(p netapi.Proxy) *probeBudgetProxy {
+	return newByteBudgetProxy(p, probeByteBudget)
+}
+func newByteBudgetProxy(p netapi.Proxy, limit int64) *probeBudgetProxy {
 	b := &probeBudgetProxy{Proxy: p}
-	b.remaining.Store(probeByteBudget)
+	b.remaining.Store(limit)
 	return b
 }
 func (p *probeBudgetProxy) Conn(ctx context.Context, a netapi.Address) (net.Conn, error) {

@@ -33,6 +33,7 @@ type preparedSelector struct {
 }
 
 type selectorSnapshot struct {
+	metrics      selectionMetricSnapshot
 	items        map[string]*preparedSelector
 	nodes        map[string]contract.Node
 	generations  map[string]uint64
@@ -115,6 +116,7 @@ func (s *selectorRuntime) reload(ctx context.Context, store *plainstore.NodeStor
 		s.probeLimiter = newProbeLimiter(defaults.Probe.MaxProbeBandwidth)
 	}
 	s.defaults = defaults
+	s.runtime.measurementLimit.Store(int32(defaults.Probe.Concurrency))
 	selection, err := store.Selection(ctx)
 	if err != nil {
 		return err
@@ -219,9 +221,19 @@ func (s *selectorRuntime) rebuild(now time.Time) {
 				}
 				if old.NodeID != "" {
 					p.status.Switches++
+					mode := "manual"
+					if config.Policy != nil {
+						mode = config.Policy.Effective().Mode
+					}
+					s.runtime.metrics.switches.WithLabelValues(network, metricMode(mode), metricReason(d.Reason)).Inc()
 				}
 			} else if strings.Contains(d.Reason, "hysteresis") || d.Reason == "hold_or_cooldown" {
 				p.status.Suppressed++
+				mode := "manual"
+				if config.Policy != nil {
+					mode = config.Policy.Effective().Mode
+				}
+				s.runtime.metrics.suppressed.WithLabelValues(network, metricMode(mode), metricReason(d.Reason)).Inc()
 			}
 			weights, total := compileWeights(inputs, d.Candidates)
 			if i == 0 {
@@ -234,6 +246,7 @@ func (s *selectorRuntime) rebuild(now time.Time) {
 		}
 		next.items[config.ID] = p
 	}
+	s.compileMetrics(next)
 	s.snapshot.Store(next)
 }
 

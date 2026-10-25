@@ -277,11 +277,12 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	tools := NewTools(logController)
 	mux := http.NewServeMux()
 	metricsGatherer := prometheus.DefaultGatherer
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(nodeRuntime.Metrics())
 	if gatewayManager != nil {
-		registry := prometheus.NewRegistry()
 		registry.MustRegister(gatewayManager.Metrics())
-		metricsGatherer = prometheus.Gatherers{prometheus.DefaultGatherer, registry}
 	}
+	metricsGatherer = prometheus.Gatherers{metricsGatherer, registry}
 
 	mux.Handle("GET /metrics", promhttp.InstrumentMetricHandler(
 		prometheus.DefaultRegisterer, promhttp.HandlerFor(metricsGatherer, promhttp.HandlerOpts{

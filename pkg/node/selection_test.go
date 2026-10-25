@@ -292,3 +292,21 @@ func BenchmarkSelectorRanking(b *testing.B) {
 		}
 	}
 }
+
+func TestSelectedFallbackCannotResurrectOpenCircuit(t *testing.T) {
+	now := time.Unix(10000, 0)
+	s, in := selectionFixture(now)
+	s.Policy.Mode = "failover"
+	s.Policy.Fallback = "selected"
+	for i := range in {
+		in[i].health = contract.ChannelHealth{}
+		in[i].circuit = &contract.CircuitStatus{State: "open"}
+	}
+	if d := evaluateSelector(s, in, contract.SelectorDecision{}, now); d.NodeID != "" {
+		t.Fatal("open fallback advertised as selected", d)
+	}
+	s.Policy.Locked = true
+	if d := evaluateSelector(s, in, contract.SelectorDecision{}, now); d.NodeID != "a" || d.Reason != "manual_lock" {
+		t.Fatal("explicit manual lock changed", d)
+	}
+}

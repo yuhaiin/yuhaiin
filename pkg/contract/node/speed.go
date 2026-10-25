@@ -2,6 +2,11 @@ package node
 
 import "errors"
 
+// SpeedTransportAllowance covers bounded TLS/HTTP overhead and read-ahead in
+// addition to the requested response payload, in the same durable allowance.
+const SpeedTransportAllowance int64 = 64 << 10
+const MaxDailySpeedBudget int64 = 1 << 30
+
 // SpeedTestRequest is an explicit administrator action. No automatic tests are
 // enabled by creating a selector. Zero limits select conservative defaults.
 type SpeedTestRequest struct {
@@ -32,7 +37,7 @@ func (r SpeedTestRequest) Validate() error {
 	if err := validateHTTPSProbeURL(r.URL); err != nil {
 		return err
 	}
-	if r.MaxBytes < 1024 || r.MaxBytes > 64<<20 || r.DurationMS < 100 || r.DurationMS > 15000 || r.TimeoutMS < r.DurationMS || r.TimeoutMS > 30000 || r.DailyBudgetBytes < r.MaxBytes || r.DailyBudgetBytes > 1<<30 {
+	if r.MaxBytes < 1024 || r.MaxBytes > 64<<20 || r.DurationMS < 100 || r.DurationMS > 15000 || r.TimeoutMS < r.DurationMS || r.TimeoutMS > 30000 || r.DailyBudgetBytes < r.MaxBytes+SpeedTransportAllowance || r.DailyBudgetBytes > MaxDailySpeedBudget {
 		return errors.New("speed test exceeds byte, duration, timeout, or daily budget limits")
 	}
 	return nil

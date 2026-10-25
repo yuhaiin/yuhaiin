@@ -631,4 +631,7 @@ var migrations = []Migration{
 	{Version: 19, Name: "node_monitoring", Statements: []string{
 		`CREATE TABLE node_monitoring_settings(id INTEGER PRIMARY KEY CHECK(id=1), data_json TEXT NOT NULL CHECK(json_valid(data_json)))`,
 	}},
+	{Version: 20, Name: "measurement_transport_accounting", Statements: []string{
+		`ALTER TABLE node_speed_budget ADD COLUMN accounting_version INTEGER NOT NULL DEFAULT 1 CHECK(accounting_version IN(1,2))`,
+	}},
 }

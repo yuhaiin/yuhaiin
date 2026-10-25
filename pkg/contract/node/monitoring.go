@@ -60,16 +60,18 @@ type MonitoringNetworkState struct {
 }
 
 type MonitoringStatus struct {
-	PolicyState string                 `json:"policyState"`
-	Config      MonitoringConfig       `json:"config"`
-	Network     MonitoringNetworkState `json:"network"`
-	Platform    string                 `json:"platform"`
-	Jobs        int                    `json:"jobs"`
-	Running     int                    `json:"running"`
-	Workers     int                    `json:"workers"`
-	Completed   uint64                 `json:"completed"`
-	Skipped     uint64                 `json:"skipped"`
-	Failed      uint64                 `json:"failed"`
+	ActiveMeasurements int                    `json:"activeMeasurements"`
+	MeasurementLimit   int                    `json:"measurementLimit"`
+	PolicyState        string                 `json:"policyState"`
+	Config             MonitoringConfig       `json:"config"`
+	Network            MonitoringNetworkState `json:"network"`
+	Platform           string                 `json:"platform"`
+	Jobs               int                    `json:"jobs"`
+	Running            int                    `json:"running"`
+	Workers            int                    `json:"workers"`
+	Completed          uint64                 `json:"completed"`
+	Skipped            uint64                 `json:"skipped"`
+	Failed             uint64                 `json:"failed"`
 }
 
 func (p ProbeSchedule) Effective() ProbeSchedule {

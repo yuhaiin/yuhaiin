@@ -39,6 +39,7 @@ func (r *NodeRuntime) InvalidateCredential(ref string) {
 		return true
 	})
 	for _, id := range ids {
+		r.cancelMeasurements(id)
 		r.observer.invalidateHealth(id)
 		r.proxies.Delete(id)
 		delete(r.credentialVersions, id)
