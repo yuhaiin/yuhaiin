@@ -10,7 +10,11 @@ A component delivery below does not complete the overall scope.
 
 ## Stage 1 — intelligent outbound selection (in progress)
 
-First backend/frontend delivery:
+First backend/frontend delivery: [backend #622](https://github.com/yuhaiin/yuhaiin/pull/622),
+[frontend #535](https://github.com/yuhaiin/yuhaiin-react/pull/535). Both remain draft
+while the complete Stage 1 scope is being implemented.
+
+Implemented in those PRs:
 
 - Opt-in selector policy and schema 18; old manual configurations/exports retained.
 - Independent TCP/UDP evidence extending existing node observability.
@@ -22,12 +26,15 @@ First backend/frontend delivery:
 - Real policy editor, evidence/score/event views and manual test controls in EN/JA/KO.
 - Deterministic/local tests, 1,000-reader concurrency coverage and microbenchmarks.
 
+The follow-up branch propagates cancellation through HTTP, DNS/DoQ, STUN and IP
+probes, with local cancellation tests. Its scheduler integration is still pending.
+
 Still required before Stage 1 is complete:
 
 - Shared cancellable/deduplicated scheduler, global defaults/selector overrides,
   network-cost/mobile policy, network-change rescheduling and native-state probes.
-- Explicit TCP-connect probe, context propagation across existing latency probes,
-  controlled periodic throughput tests and detailed measurement/event history.
+- Explicit TCP-connect probe, controlled periodic throughput tests and detailed
+  measurement/event history.
 - Full Closed/Open/Half-open circuit breaker with bounded trial quotas and
   protocol-aware failure classification, including lazy VPN establishment.
 - Accurate integration with existing traffic-control admission/limits.
@@ -78,3 +85,14 @@ passed. No NAT behavior was changed in this component delivery.
 Benchmark details and exact reproduction command are in
 [intelligent selectors](intelligent-selectors.md). Results are runtime selection
 microbenchmarks, not end-to-end physical-link qualification.
+
+Remote validation: frontend #535 build (23.x) passed. Backend #622 initially
+failed only the existing Tailscale cold-peer regression (5.17-second first TCP
+connection, threshold 2 seconds). The same issue reproduced in 3 of 10 local
+race runs of TestLocalTailnet; the tested package has no dependency on node or
+latency runtime changes, and the Tailscale source/dependencies are unchanged.
+A failed-job CI rerun is in progress. This pre-existing intermittent transport
+problem must remain visible in qualification; no test threshold was relaxed.
+
+Browser plugin discovery returned no connected browser. Visual browser checks
+are still required; component tests do not substitute for those checks.

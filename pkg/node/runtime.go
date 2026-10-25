@@ -339,7 +339,7 @@ func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.L
 		}
 		return contractnode.LatencyResponse{}, err
 	}
-	result, err := latency.LatencyWithOptions(req, &latencyDialer{Proxy: proxy, ipv6: req.IPv6}, latencyOptions)
+	result, err := latency.LatencyWithContext(ctx, req, &latencyDialer{Proxy: proxy, ipv6: req.IPv6}, latencyOptions)
 	if r.observer != nil {
 		c := r.observer.counter(id)
 		c.probe(req.Type, result, err)

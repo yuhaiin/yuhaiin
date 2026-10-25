@@ -34,6 +34,15 @@ func Latency(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.Latenc
 }
 
 func LatencyWithOptions(l contractnode.LatencyRequest, p netapi.Proxy, options LatencyOptions) (contractnode.LatencyResponse, error) {
+	return LatencyWithContext(context.Background(), l, p, options)
+}
+
+// LatencyWithContext binds every network phase to the caller, allowing shared
+// scheduler jobs to stop promptly on configuration changes and node deletion.
+func LatencyWithContext(ctx context.Context, l contractnode.LatencyRequest, p netapi.Proxy, options LatencyOptions) (contractnode.LatencyResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return contractnode.LatencyResponse{}, err
+	}
 	if l.Type == "" {
 		l.Type = "http"
 	}
@@ -61,15 +70,18 @@ func LatencyWithOptions(l contractnode.LatencyRequest, p netapi.Proxy, options L
 	}
 	switch l.Type {
 	case "", "http", "tcp":
-		return latencyHTTP(l, p, options.InsecureSkipVerify)
+		t, err := HTTPWithContext(ctx, p, l.URL, options.InsecureSkipVerify)
+		return contractnode.LatencyResponse{OK: err == nil, LatencyMS: t.Milliseconds()}, err
 	case "dns", "udp":
-		return LatencyDns(l, p)
+		t, err := DNSWithContext(ctx, p, l.Host, l.TargetDomain)
+		return contractnode.LatencyResponse{OK: err == nil, LatencyMS: t.Milliseconds()}, err
 	case "doq":
-		return LatencyDnsOverQuic(l, p)
+		t, err := DNSOverQuicWithContext(ctx, p, l.Host, l.TargetDomain)
+		return contractnode.LatencyResponse{OK: err == nil, LatencyMS: t.Milliseconds()}, err
 	case "ip":
-		return LatencyIp(l, p)
+		return latencyIPWithContext(ctx, l, p)
 	case "stun", "stun_tcp":
-		return LatencyStun(l, p)
+		return latencySTUNWithContext(ctx, l, p)
 	default:
 		return contractnode.LatencyResponse{}, errors.ErrUnsupported
 	}
@@ -95,6 +107,9 @@ func LatencyDnsOverQuic(l contractnode.LatencyRequest, p netapi.Proxy) (contract
 }
 
 func LatencyIp(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.LatencyResponse, error) {
+	return latencyIPWithContext(context.Background(), l, p)
+}
+func latencyIPWithContext(ctx context.Context, l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.LatencyResponse, error) {
 	if l.UserAgent == "" {
 		l.UserAgent = "curl/7.54.1"
 	}
@@ -140,7 +155,7 @@ func LatencyIp(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.Late
 				},
 			}
 
-			req, err := http.NewRequest("GET", l.URL, nil)
+			req, err := http.NewRequestWithContext(ctx, "GET", l.URL, nil)
 			if err != nil {
 				log.Error("new request error", slog.String("url", l.URL), slog.Any("err", err))
 				return
@@ -154,13 +169,16 @@ func LatencyIp(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.Late
 				return
 			}
 
-			data, err := io.ReadAll(resp.Body)
+			data, err := io.ReadAll(io.LimitReader(resp.Body, 4097))
 			resp.Body.Close()
 			if err != nil {
 				log.Error("read body error", slog.Any("err", err))
 				return
 			}
 
+			if len(data) > 4096 {
+				return
+			}
 			if !isIPv6 {
 				reply.IP.IPv4 = string(data)
 			} else {
@@ -171,6 +189,9 @@ func LatencyIp(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.Late
 
 	wg.Wait()
 
+	if err := ctx.Err(); err != nil {
+		return contractnode.LatencyResponse{}, err
+	}
 	if reply.IP.IPv4 == "" && reply.IP.IPv6 == "" {
 		return contractnode.LatencyResponse{}, io.EOF
 	}
@@ -179,7 +200,10 @@ func LatencyIp(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.Late
 }
 
 func LatencyStun(l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.LatencyResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	return latencySTUNWithContext(context.Background(), l, p)
+}
+func latencySTUNWithContext(ctx context.Context, l contractnode.LatencyRequest, p netapi.Proxy) (contractnode.LatencyResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	reply := contractnode.LatencyResponse{OK: true, STUN: &contractnode.STUNLatency{}}

@@ -18,6 +18,9 @@ func HTTP(p netapi.Proxy, target string) (time.Duration, error) {
 // HTTPWithInsecureSkipVerify performs an HTTP GET, optionally skipping TLS
 // certificate verification when explicitly requested by the node config.
 func HTTPWithInsecureSkipVerify(p netapi.Proxy, target string, insecureSkipVerify bool) (time.Duration, error) {
+	return HTTPWithContext(context.Background(), p, target, insecureSkipVerify)
+}
+func HTTPWithContext(ctx context.Context, p netapi.Proxy, target string, insecureSkipVerify bool) (time.Duration, error) {
 	tr := &http.Transport{
 		DisableKeepAlives: true,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -45,7 +48,11 @@ func HTTPWithInsecureSkipVerify(p netapi.Proxy, target string, insecureSkipVerif
 	defer tr.CloseIdleConnections()
 
 	start := time.Now()
-	resp, err := (&http.Client{Transport: tr, Timeout: timeout}).Get(target)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return 0, err
+	}
+	resp, err := (&http.Client{Transport: tr, Timeout: timeout}).Do(request)
 	if err != nil {
 		return 0, err
 	}
