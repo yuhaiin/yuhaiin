@@ -224,6 +224,72 @@ func TestRecoveryImportCancellationClosesBlockedRequestAndReleasesSlot(t *testin
 	}
 }
 
+type recoveryImportReadFunc func([]byte) (int, error)
+
+func (f recoveryImportReadFunc) Read(data []byte) (int, error) { return f(data) }
+
+func TestRecoveryFailedUploadFreesFilesWhenRegistryWritesAreUnavailable(t *testing.T) {
+	b, _, _, db := recoveryImportFixture(t)
+	namespace := filepath.Join(b.dir, ".recovery-imports")
+	if err := os.MkdirAll(namespace, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	keep := filepath.Join(namespace, "unrelated.keep")
+	if err := os.WriteFile(keep, []byte("preserve"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	reader := recoveryImportReadFunc(func(data []byte) (int, error) {
+		if err := db.Close(); err != nil {
+			return 0, err
+		}
+		data[0] = 'x'
+		return 1, errors.New("fixture body failure after registry became unavailable")
+	})
+	if _, err := b.UploadRecoveryImport(t.Context(), io.NopCloser(reader), -1); err == nil {
+		t.Fatal("failed request body accepted")
+	}
+	entries, err := os.ReadDir(namespace)
+	if err != nil || len(entries) != 1 || entries[0].Name() != "unrelated.keep" {
+		t.Fatal("unpublished ciphertext survived a registry failure or unrelated data was removed", err)
+	}
+	reopened, err := sqlite.Open(t.Context(), filepath.Join(b.dir, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	resumed := &Backup{store: store.NewBackupStore(reopened.DB()), dir: b.dir}
+	if err := resumed.pruneRecoveryImportsLocked(t.Context(), true); err != nil {
+		t.Fatal(err)
+	}
+	if ids, err := resumed.store.RecoveryImportIDs(t.Context()); err != nil || len(ids) != 0 {
+		t.Fatal("startup did not reconcile the interrupted registry record", err)
+	}
+}
+
+func TestRecoveryImportRejectsAliasedNamespaceWithoutRemovingOtherFiles(t *testing.T) {
+	b, data, _, _ := recoveryImportFixture(t)
+	protected := filepath.Join(b.dir, "existing-assets")
+	if err := os.Mkdir(protected, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	sentinel := filepath.Join(protected, "identity.keep")
+	if err := os.WriteFile(sentinel, []byte("preserve"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("existing-assets", filepath.Join(b.dir, ".recovery-imports")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.UploadRecoveryImport(t.Context(), io.NopCloser(bytes.NewReader(data)), int64(len(data))); err == nil {
+		t.Fatal("upload followed an aliased private namespace")
+	}
+	if value, err := os.ReadFile(sentinel); err != nil || string(value) != "preserve" {
+		t.Fatal("rejected upload changed unrelated identity material", err)
+	}
+	if ids, err := b.store.RecoveryImportIDs(t.Context()); err != nil || len(ids) != 0 {
+		t.Fatal("rejected namespace consumed a registry slot", err)
+	}
+}
+
 func TestRecoveryImportCountAndStreamBudgetAreHardBounds(t *testing.T) {
 	b, data, _, _ := recoveryImportFixture(t)
 	for range store.MaxRecoveryImports {

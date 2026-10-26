@@ -141,15 +141,25 @@ func (b *Backup) reschedule() {
 func (b *Backup) schedule() {
 	defer close(b.done)
 	for {
+		retry := false
 		if b.store != nil {
-			if err := b.pruneRecoveryImports(b.ctx); err != nil && !errors.Is(err, errBackupBusy) && b.ctx.Err() == nil {
-				log.Warn("recovery import cleanup failed")
+			if err := b.pruneRecoveryImports(b.ctx); err != nil && b.ctx.Err() == nil {
+				retry = true
+				if !errors.Is(err, errBackupBusy) {
+					log.Warn("recovery import cleanup failed")
+				}
 			}
 			if err := b.resumeRecoveryBackups(b.ctx); err != nil && b.ctx.Err() == nil {
-				log.Warn("full backup upload did not complete; consult backup history")
+				retry = true
+				if !errors.Is(err, errBackupBusy) {
+					log.Warn("full backup upload did not complete; consult backup history")
+				}
 			}
 			if err := b.pruneRecoveryBackups(b.ctx); err != nil && b.ctx.Err() == nil {
-				log.Warn("backup retention did not complete; consult backup history")
+				retry = true
+				if !errors.Is(err, errBackupBusy) {
+					log.Warn("backup retention did not complete; consult backup history")
+				}
 			}
 			b.refreshBackupMetrics(b.ctx)
 		}
@@ -203,6 +213,11 @@ func (b *Backup) schedule() {
 				if delay == 0 || expiryDelay < delay {
 					delay, recheck = expiryDelay, true
 				}
+			}
+			// Pending work must not lose its only wakeup when a manual operation
+			// owns the lease. Reuse this timer for a bounded fallback recheck.
+			if retry && (delay == 0 || time.Minute < delay) {
+				delay, recheck = time.Minute, true
 			}
 			if err != nil && b.ctx.Err() == nil {
 				timer = time.NewTimer(time.Minute)

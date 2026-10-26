@@ -81,7 +81,7 @@ func (p Principal) Allows(permission Permission) bool {
 type principalKey struct{}
 
 func WithPrincipal(ctx context.Context, p Principal) context.Context {
-	return context.WithValue(ctx, principalKey{}, p)
+	return context.WithValue(permission.WithActorID(ctx, p.UserID), principalKey{}, p)
 }
 
 func FromContext(ctx context.Context) (Principal, bool) {

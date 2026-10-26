@@ -2,14 +2,19 @@ package app
 
 import (
 	"context"
+	"errors"
 	"math"
+	"net"
+	"net/http"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 	"uuid"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/store"
 )
@@ -17,6 +22,42 @@ import (
 type scheduledRecoveryTest struct {
 	calls    atomic.Int64
 	requests chan string
+}
+
+type recoveryRetryDialer struct {
+	netapi.Proxy
+	called chan struct{}
+}
+
+func (d recoveryRetryDialer) Conn(context.Context, netapi.Address) (net.Conn, error) {
+	select {
+	case d.called <- struct{}{}:
+	default:
+	}
+	return nil, errors.New("isolated retry fixture")
+}
+
+func TestRecoveryPendingWorkRechecksAfterBusyWithoutAnotherConfigEvent(t *testing.T) {
+	b, _ := recoveryTransferBackup(t, func(http.ResponseWriter, *http.Request) { t.Error("retry fixture used external network") })
+	queuedArchiveFixture(t, b, "s3", time.Now())
+	synctest.Test(t, func(t *testing.T) {
+		called := make(chan struct{}, 1)
+		b.proxy = recoveryRetryDialer{called: called}
+		b.ctx, b.cancel = context.WithCancel(context.Background())
+		b.done, b.changed = make(chan struct{}), make(chan struct{}, 1)
+		b.mu.Lock() // A manual operation already owns the transfer lease.
+		go b.schedule()
+		synctest.Wait()
+		b.mu.Unlock() // No configuration change or browser event follows.
+		defer b.Close()
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		select {
+		case <-called:
+		default:
+			t.Fatal("pending upload lost its only wakeup after a busy manual operation")
+		}
+	})
 }
 
 func (s *scheduledRecoveryTest) Supported() (bool, string) { s.calls.Add(1); return true, "" }

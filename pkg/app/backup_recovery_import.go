@@ -14,7 +14,7 @@ import (
 	"uuid"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
-	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
+	"github.com/Asutorufa/yuhaiin/pkg/management/permission"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
 	"github.com/Asutorufa/yuhaiin/pkg/store"
 )
@@ -23,8 +23,8 @@ const recoveryImportLifetime = 30 * time.Minute
 const recoveryDiskReserve = 256 << 20
 
 func recoveryImportOwner(ctx context.Context) string {
-	if principal, ok := managementauth.FromContext(ctx); ok && principal.UserID != "" {
-		return principal.UserID
+	if id := permission.ActorID(ctx); id != "" {
+		return id
 	}
 	// Embedded management hosts may intentionally omit identity middleware.
 	// Their existing route authorization remains responsible for admission.
@@ -66,7 +66,7 @@ func (b *Backup) UploadRecoveryImport(ctx context.Context, input io.ReadCloser, 
 	if !b.mu.TryLock() {
 		return empty, errBackupBusy
 	}
-	defer b.mu.Unlock()
+	defer func() { b.mu.Unlock(); b.reschedule() }()
 	ctx, cancel := b.operationContext(ctx)
 	defer cancel()
 	stopRead := context.AfterFunc(ctx, func() { _ = input.Close() })
@@ -96,27 +96,48 @@ func (b *Backup) UploadRecoveryImport(ctx context.Context, input io.ReadCloser, 
 	}
 	now := time.Now().UTC()
 	item := store.RecoveryImportRecord{ID: uuid.New().String(), CreatedAt: now, ExpiresAt: now.Add(recoveryImportLifetime), State: "uploading", Owner: recoveryImportOwner(ctx)}
-	if err := b.store.AddRecoveryImport(ctx, item); err != nil {
-		return empty, err
-	}
-	defer func() {
-		if resultErr != nil {
-			cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-			defer cancel()
-			_ = b.deleteRecoveryImportLocked(cleanup, item)
-		}
-		b.reschedule()
-	}()
 	name, _ := recoveryImportPath(item.ID)
 	root, err := os.OpenRoot(b.dir)
 	if err != nil {
 		return empty, err
 	}
 	defer root.Close()
-	present, err := recoveryDestination(root, name, true)
-	if err != nil || present {
-		return empty, errors.New("recovery upload destination is unavailable")
+	if err := prepareRecoveryImportNamespace(root); err != nil {
+		return empty, err
 	}
+	container := filepath.Dir(name)
+	// Only an exclusively created directory belongs to this request. Never
+	// reuse or clean up a pre-existing container, even on a UUID collision.
+	if err := root.Mkdir(container, 0o700); err != nil {
+		return empty, err
+	}
+	registered := false
+	defer func() {
+		if resultErr == nil {
+			return
+		}
+		// Unpublished ciphertext must release its disk budget even when the
+		// registry cannot write (for example, after exhausting filesystem space).
+		// Interrupted registry rows are reconciled by the existing startup sweep.
+		if err := root.RemoveAll(container); err != nil {
+			return
+		}
+		if err := syncRecoveryDirectory(filepath.Join(b.dir, ".recovery-imports")); err != nil {
+			return
+		}
+		if registered {
+			cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			_ = b.deleteRecoveryImportLocked(cleanup, item)
+		}
+	}()
+	if err := syncRecoveryDirectory(filepath.Join(b.dir, ".recovery-imports")); err != nil {
+		return empty, err
+	}
+	if err := b.store.AddRecoveryImport(ctx, item); err != nil {
+		return empty, err
+	}
+	registered = true
 	output, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return empty, err
@@ -138,6 +159,21 @@ func (b *Backup) UploadRecoveryImport(ctx context.Context, input io.ReadCloser, 
 		return empty, err
 	}
 	return item.RecoveryImport, nil
+}
+
+func prepareRecoveryImportNamespace(root *os.Root) error {
+	const name = ".recovery-imports"
+	if err := root.Mkdir(name, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+		return err
+	}
+	info, err := root.Lstat(name)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return errors.New("recovery import namespace must be a real directory")
+	}
+	return syncRecoveryDirectory(root.Name())
 }
 
 func copyRecoveryImport(ctx context.Context, input io.Reader, output io.Writer, budget int64, checkSpace func(int64) error) (int64, error) {
@@ -233,7 +269,7 @@ func (b *Backup) PreviewRecoveryImport(ctx context.Context, request contract.Rec
 	if !b.mu.TryLock() {
 		return empty, errBackupBusy
 	}
-	defer b.mu.Unlock()
+	defer func() { b.mu.Unlock(); b.reschedule() }()
 	ctx, cancel := b.operationContext(ctx)
 	defer cancel()
 	item, err := b.ownedRecoveryImport(ctx, request.ID)
@@ -300,7 +336,6 @@ func (b *Backup) PreviewRecoveryImport(ctx context.Context, request contract.Rec
 	if previous.Stage != "" && previous.Stage != item.Stage {
 		_ = removeRecoveryImportStage(root, item.ID, previous.Stage)
 	}
-	b.reschedule()
 	return item.RecoveryImport, nil
 }
 
@@ -311,7 +346,7 @@ func (b *Backup) DiscardRecoveryImport(ctx context.Context, id string) error {
 	if !b.mu.TryLock() {
 		return errBackupBusy
 	}
-	defer b.mu.Unlock()
+	defer func() { b.mu.Unlock(); b.reschedule() }()
 	item, err := b.store.RecoveryImport(ctx, id)
 	if err != nil {
 		return err

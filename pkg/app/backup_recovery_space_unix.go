@@ -1,4 +1,4 @@
-//go:build linux || darwin || freebsd || openbsd || netbsd || dragonfly
+//go:build linux || darwin || freebsd || dragonfly
 
 package app
 
@@ -12,5 +12,5 @@ func recoveryAvailableBytes(directory string) (uint64, error) {
 	if stat.Bavail <= 0 || stat.Bsize <= 0 {
 		return 0, nil
 	}
-	return uint64(stat.Bavail) * uint64(stat.Bsize), nil
+	return recoveryDiskBytes(uint64(stat.Bavail), uint64(stat.Bsize)), nil
 }

@@ -35,6 +35,16 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
+type recoveryDrillHTTPError struct {
+	operation string
+	status    int
+	code      string
+}
+
+func (e *recoveryDrillHTTPError) Error() string {
+	return fmt.Sprintf("RPC %s returned HTTP %d (%s)", e.operation, e.status, e.code)
+}
+
 // The runner builds this test and the production executable into an isolated
 // systemd container. It never talks to the host service or needs public ACME/S3.
 func TestInstalledRecoveryMaintenance(t *testing.T) {
@@ -192,7 +202,13 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 		}
 		defer response.Body.Close()
 		if response.StatusCode != 200 {
-			return fmt.Errorf("RPC %s returned HTTP %d", operation, response.StatusCode)
+			var body struct {
+				Error struct {
+					Code string `json:"code"`
+				} `json:"error"`
+			}
+			_ = json.UnmarshalRead(io.LimitReader(response.Body, 16<<10), &body)
+			return &recoveryDrillHTTPError{operation: operation, status: response.StatusCode, code: body.Error.Code}
 		}
 		if output == nil {
 			return nil
@@ -209,6 +225,27 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 			time.Sleep(20 * time.Millisecond)
 		}
 		t.Fatal(label, "did not complete")
+	}
+	requestCapture := func() contract.RecoveryBackup {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			var item contract.RecoveryBackup
+			err := rpc(t.Context(), "backup.recovery.create", contract.RecoveryBackupRequest{ConfirmMaintenance: true}, &item)
+			if err == nil {
+				return item
+			}
+			if rejected, ok := errors.AsType[*recoveryDrillHTTPError](err); ok {
+				// This specific rejection occurs before enqueuing any job. An
+				// uncertain disconnect after submission is never replayed.
+				if rejected.status == http.StatusConflict && rejected.code == "backup_busy" && time.Now().Before(deadline) {
+					time.Sleep(10 * time.Millisecond)
+					continue
+				}
+				t.Fatal(err)
+			}
+			return item
+		}
 	}
 	var status contract.RecoveryBackupStatus
 	wait("initial service readiness", func() bool { return rpc(t.Context(), "backup.recovery.status", struct{}{}, &status) == nil })
@@ -247,9 +284,8 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 		return value
 	}
 	before := pid("yuhaiin.service")
-	var accepted contract.RecoveryBackup
 	// The service can stop between persisting the request and the response.
-	_ = rpc(t.Context(), "backup.recovery.create", contract.RecoveryBackupRequest{ConfirmMaintenance: true}, &accepted)
+	requestCapture()
 	var completed contract.RecoveryBackup
 	wait("full snapshot, restart and verified S3 readback", func() bool {
 		if rpc(t.Context(), "backup.recovery.status", struct{}{}, &status) != nil {
@@ -364,8 +400,7 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	before = pid("yuhaiin.service")
-	var second contract.RecoveryBackup
-	_ = rpc(t.Context(), "backup.recovery.create", contract.RecoveryBackupRequest{ConfirmMaintenance: true}, &second)
+	second := requestCapture()
 	pendingID := second.ID
 	wait("interruptible real helper", func() bool {
 		raw, err := sql.Open(sqlite.DriverName(), "file:/data/state.db?mode=ro")

@@ -221,6 +221,10 @@ decoder staging not yet published in metadata. The existing Backup scheduler
 expires records with its one timer and resumes interrupted deletions. Interrupted
 uploads are removed at startup. Staging survives a browser refresh until expiry;
 after server failure, a missing or changed file is rejected rather than adopted.
+Each request exclusively creates its UUID container. Failed unpublished uploads
+remove that owned ciphertext before registry cleanup, so unavailable database
+writes cannot retain their disk budget; startup reconciles interrupted records.
+Aliased namespace directories are rejected without touching other files.
 Directory synchronization uses the existing filesystem/platform requirements.
 Imports are excluded from configuration exports and all full backup snapshots,
 even when optional business history is included; the source database is not
@@ -231,6 +235,8 @@ Under the lease, the plan is loaded again before side effects. This prevents
 an upload's reschedule event from spuriously rejecting the next preview as busy.
 Tests reproduce this admission failure before the fix and exercise its real
 HTTPS call sequence in the isolated installed-service drill.
+Pending work also retains a bounded one-minute fallback recheck when another
+operation holds the lease; completion reschedules after releasing the lease.
 
 The current Web operation ends at authenticated preview. Activating that plan,
 coordinating changed Management TLS/listen/web startup inputs, preserving the
