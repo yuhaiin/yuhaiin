@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -39,6 +40,9 @@ func authCommand(args []string) error {
 	}
 	if lifecycle != nil {
 		defer lifecycle.Close()
+	}
+	if err := app.GuardRecoveryMaintenance(*dir); err != nil {
+		return err
 	}
 	db, err := storagesqlite.OpenManagement(ctx, filepath.Join(*dir, "management.db"))
 	if err != nil {

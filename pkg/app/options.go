@@ -266,6 +266,9 @@ type StartOptions struct {
 	UpstreamCredentials credential.Resolver
 
 	ConfigPath string
+	// RecoveryStartupID authorizes one pending offline-restore startup attempt.
+	// Ordinary/embedded starts leave it empty and reject pending activation.
+	RecoveryStartupID string
 
 	Updater updatepkg.Installer
 }

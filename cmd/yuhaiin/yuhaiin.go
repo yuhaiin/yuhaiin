@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/app"
@@ -29,7 +30,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
-func run(args []string) error {
+func run(args []string) (resultErr error) {
 	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
 	host := flag.String("host", "0.0.0.0:50051", "http listen host")
 	https := flag.Bool("https", true, "enable HTTPS alongside HTTP on the same listen port")
@@ -62,11 +63,31 @@ func run(args []string) error {
 	if *webdir != "" && os.Getenv("EXTERNAL_WEB") == "" {
 		os.Setenv("EXTERNAL_WEB", *webdir)
 	}
+	tlsMode := "disabled"
+	if *https {
+		tlsMode = "self_signed"
+		if *httpsCert != "" {
+			tlsMode = "files"
+		}
+	}
+	startupInputs := contractbackup.RecoveryRuntime{ManagementAuth: true, ManagementTLS: tlsMode,
+		CertificateFile: *httpsCert, KeyFile: *httpsKey, ListenAddress: *host, ExternalWebDirectory: os.Getenv("EXTERNAL_WEB")}
+	recoveryStartup, err := app.PrepareRecoveryStartup(*path, lifecycle, startupInputs)
+	if err != nil {
+		return err
+	}
+	recoveryComplete := false
+	defer func() {
+		if !recoveryComplete {
+			resultErr = errors.Join(resultErr, recoveryStartup.Abort())
+		}
+	}()
 
 	lis, err := net.Listen("tcp", *host)
 	if err != nil {
 		return err
 	}
+	defer lis.Close()
 	var tlsCertificate tls.Certificate
 	var tlsFingerprint string
 	var generatedTLSCertificate bool
@@ -106,6 +127,7 @@ func run(args []string) error {
 		StateStore:          setting,
 		ProcessDumper:       getPorcessDumper(),
 		Updater:             newUpdateInstaller(*path),
+		RecoveryStartupID:   recoveryStartup.ID(),
 	})
 	if err != nil {
 		_ = lis.Close()
@@ -117,17 +139,13 @@ func run(args []string) error {
 			log.Error("close app error", "err", err)
 		}
 	}()
-	tlsMode := "disabled"
-	if *https {
-		tlsMode = "self_signed"
-		if *httpsCert != "" {
-			tlsMode = "files"
-		}
+	if recoveryStartup != nil && recoveryStartupCheckpoint != nil {
+		recoveryStartupCheckpoint("after_application")
 	}
-	if err := recordRecoveryStartup(context.Background(), setting, contractbackup.RecoveryRuntime{
-		ManagementAuth: true, ManagementTLS: tlsMode, CertificateFile: *httpsCert, KeyFile: *httpsKey,
-		ListenAddress: *host, ExternalWebDirectory: os.Getenv("EXTERNAL_WEB"),
-	}); err != nil {
+	if err := recordRecoveryStartup(context.Background(), setting, startupInputs); err != nil {
+		if recoveryStartup != nil {
+			return err
+		}
 		log.Warn("recovery startup metadata unavailable; offline backup will require explicit inputs", "err", err)
 	}
 
@@ -145,6 +163,7 @@ func run(args []string) error {
 	httpHandler := http.Handler(handler)
 	serverListener := net.Listener(lis)
 	server := &http.Server{Handler: httpHandler}
+	defer server.Close()
 	if *https {
 		httpHandler = redirectRemoteHTTPToHTTPS(handler, lis.Addr())
 		server.Handler = httpHandler
@@ -171,6 +190,24 @@ func run(args []string) error {
 			cancel(err)
 		}
 	}()
+	if recoveryStartup != nil {
+		healthContext, healthCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer healthCancel()
+		if err := app.RecoveryStartupHealth(healthContext); err != nil {
+			return err
+		}
+		var certificate *tls.Certificate
+		if *https {
+			certificate = &tlsCertificate
+		}
+		if err := checkRecoveryListener(healthContext, lis.Addr(), certificate); err != nil {
+			return err
+		}
+		if err := recoveryStartup.Complete(); err != nil {
+			return err
+		}
+	}
+	recoveryComplete = true
 
 	// listen system signal
 	ctx, ncancel := signal.NotifyContext(ctx, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)

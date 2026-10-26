@@ -37,7 +37,7 @@ func (s *BackupStore) RecordRecoveryRuntime(ctx context.Context, inputs contract
 
 func LoadRecoveryRuntime(ctx context.Context, db *sql.DB) (*contract.RecoveryRuntime, error) {
 	var data string
-	if err := db.QueryRowContext(ctx, "SELECT value FROM metadata WHERE key='recovery_runtime'").Scan(&data); errors.Is(err, sql.ErrNoRows) {
+	if err := db.QueryRowContext(ctx, "SELECT substr(value,1,65537) FROM metadata WHERE key='recovery_runtime'").Scan(&data); errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	} else if err != nil {
 		return nil, err

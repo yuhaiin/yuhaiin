@@ -33,6 +33,7 @@ require (
 	github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261022032805-df51b667f746
 	github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29
+	go.yaml.in/yaml/v3 v3.0.5
 	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e
@@ -122,7 +123,6 @@ require (
 	github.com/tailscale/web-client-prebuilt v0.0.0-20260917222731-e0ed2d0d0fea // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.uber.org/mock v0.6.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
 	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb // indirect
 	golang.org/x/term v0.47.0 // indirect

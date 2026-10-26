@@ -1,6 +1,6 @@
 # Enterprise reliability delivery
 
-This work is based on backend main `364afb0f` and frontend main `391e4db`.
+This work is based on backend main `dada430a` (including #628) and frontend main `391e4db`.
 It does not depend on the open enterprise identity/resource/security stacks
 (backend #618/#620/#621, frontend #530/#532/#533).
 
@@ -71,13 +71,18 @@ strict path/size limits and read-only SQLite schema/integrity checks. The server
 and local auth maintenance share a persistent lifecycle lock. See
 [archive format and verification](recovery-archive.md). Complete snapshot-set
 creation is implemented under a confirmed offline maintenance window, with
-protocol-owned identity inventory and explicit external dependencies. Controlled
-restore activation and real restore/startup fault injection remain required.
+protocol-owned identity inventory and explicit external dependencies. Controlled offline preview/activation, identity decisions, durable transaction
+rollback and real CLI server startup/failure/crash drills are now implemented.
+Successful file activation remains awaiting_startup until the actual database,
+inbound/Gateway and local HTTPS listener checks pass. Windows activation and
+embedded-host lifecycle integration remain pending.
 
-S3 full-archive scheduling, retention, restore preview/CLI/UI and update recovery
-integration remain required.
-`Backup.restoreStateDB` still renames over a live database and removes WAL/SHM;
-this legacy restore path is not a completed safe recovery implementation.
+S3/local full-archive scheduling, retention, Web restore preview/activation/UI
+and update recovery integration remain required. Legacy S3 restore now refuses
+active database owners before downloading; its offline compatibility path imports
+configuration into a private copy of the local store and uses the same controlled
+activation/startup journal, preserving local identities. It no longer renames a
+foreign database over live SQLite connections.
 Existing update rollback restores executable bytes only.
 Database startup now rejects future/foreign/gapped migration histories and
 metadata mismatches before bootstrap/journal-mode changes, sharing the archive
@@ -152,7 +157,7 @@ metrics without database work on scrape. Frontend EN/JA/KO displays shared slot
 use and inclusive budget semantics. See [measurement bounds](measurement-bounds.md).
 
 Stage 1 remains in progress, including final resource/transport qualification.
-Stage 2 transfer prerequisites are implemented; full recovery and Stage 3 remain pending.
+Stage 2 transfer/archive/offline CLI recovery is implemented; the remaining Stage 2 management/update work and Stage 3 remain pending.
 
 Native session adapters and periodic login protection now use existing protocol
 state and the same node/selector runtime. See the native session section in
@@ -160,3 +165,26 @@ state and the same node/selector runtime. See the native session section in
 [periodic VPN reuse](probe-policy.md#periodic-work-reuses-established-vpn-sessions).
 They require no SQLite migration beyond schema 20. Frontend lifecycle descriptions
 remain separate from channel/target health. Full three-stage completion is pending.
+
+## Offline restore qualification
+
+The restore transaction validates authenticated inventory, platform/schema and
+instance confirmations before any replacements. Original mode explicitly warns
+about credential revocation/quota rewind; clone mode resets management/native
+machine identities and disables restored resources and S3 schedules. Referenced
+external files are confined and rebound. See [operator workflow and limits](recovery-archive.md).
+Fault injection covers every replacement boundary, interrupted rollback and real
+CLI process death. Local RSS and allocation measurements distinguish age's
+per-chunk cumulative allocation from bounded live streaming memory; commands,
+fixture scope and raw data are documented. The archive and restore additions
+introduce no SQLite migration beyond 20. They are not completion of Web restore,
+Windows/embedded coordination, scheduled full backups, retention or safe updates.
+
+The offline-restore change passes full Go tests, eight-package focused race
+coverage, modernc plus mattn/fts5, gofmt/go fix, golangci-lint v2.15.0 (zero
+issues), actionlint and build-script shellcheck. Frontend contract synchronization
+passes lint, typecheck, all 17 translation namespaces, style audit, build and
+105 files / 314 tests. A local full-test attempt using a long custom build temp
+path exceeded the pre-existing Unix socket test's pathname limit; that test and
+the full suite pass using the default temporary directory. Remote checks for
+this change are authoritative only after publication on the two active PR heads.

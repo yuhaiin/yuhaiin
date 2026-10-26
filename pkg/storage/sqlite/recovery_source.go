@@ -191,7 +191,7 @@ func RecoveryInstanceID(ctx context.Context, path string, create bool) (string, 
 		}
 	}
 	var id string
-	if err := db.QueryRowContext(ctx, "SELECT value FROM metadata WHERE key=?", recoveryInstanceKey).Scan(&id); err != nil {
+	if err := db.QueryRowContext(ctx, "SELECT CASE WHEN typeof(value)='text' AND length(value)=36 THEN value ELSE '' END FROM metadata WHERE key=?", recoveryInstanceKey).Scan(&id); err != nil {
 		return "", err
 	}
 	parsed, err := uuid.Parse(id)
@@ -217,7 +217,7 @@ func BindRecoveryInstance(ctx context.Context, path, id string) error {
 		return err
 	}
 	var stored string
-	if err := db.QueryRowContext(ctx, "SELECT value FROM metadata WHERE key=?", recoveryInstanceKey).Scan(&stored); err != nil {
+	if err := db.QueryRowContext(ctx, "SELECT CASE WHEN typeof(value)='text' AND length(value)=36 THEN value ELSE '' END FROM metadata WHERE key=?", recoveryInstanceKey).Scan(&stored); err != nil {
 		return err
 	}
 	if stored != id {

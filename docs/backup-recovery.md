@@ -4,9 +4,9 @@ Enterprise reliability is implemented in [backend #622](https://github.com/yuhai
 and [frontend #535](https://github.com/yuhaiin/yuhaiin-react/pull/535).
 Full disaster recovery is still in progress. The transfer improvements described
 here do not turn the legacy S3 state database object into a complete deployment
-backup. Encrypted offline snapshot creation and verification are implemented;
-coordinated restore, retention, recovery UI and software-update recovery points
-remain required.
+backup. Encrypted offline creation, verification, preview and controlled CLI restore
+are implemented; full local/S3 scheduling, retention, recovery UI and
+software-update recovery points remain required.
 
 ## Data ownership inventory
 
@@ -15,7 +15,7 @@ remain required.
 | Configuration storage | `state.db`, with active WAL/SHM | Node, routing, DNS, inbound, Gateway and settings configuration; persisted node evidence and statistics. Gateway CA signing material is also in this database. Take a SQLite snapshot rather than copying a live main file. |
 | Optional management authentication | `management.db`, with active WAL/SHM | Accounts, verifier/credential state, upstream secrets and security events. Has its own schema and connection ownership. A separate snapshot is not a globally atomic snapshot with configuration. |
 | Management TLS | `management-tls.pem` | Self-signed listener certificate and key, managed by `pkg/management/tls`. Explicit externally configured certificate/key paths require a manifest mapping and an explicit restore decision. |
-| Tailnet nodes | `tailscale/v2-<opaque-identity>/lite.json`; migrated legacy `tailscaled.state` | Machine/node identity is tied to node configuration. Only original-instance restoration should reuse it automatically; cloning requires new enrollment. Do not collect unrelated caches/logs from the directory. |
+| Tailnet nodes | `tailscale/v2-<opaque-identity>/tailscaled.state`, compatible `lite.json` and configured legacy files | Machine/node identity is tied to node configuration. Only original-instance restoration should reuse it automatically; cloning requires new enrollment. Do not collect unrelated caches/logs from the directory. |
 | ZeroTier nodes | `zerotier/<configured-identity>/`, owned by the ZeroTier identity store | Persisted machine identity must be included by its owner, with explicit original/clone semantics. Do not recursively copy unrelated deployment data. |
 | External node/protocol references | Configured certificate, key and identity files | Resolve actual references, record dependencies and reject missing required files. Configuration-only export cannot promise recovery of these files. |
 | Software updater | `update/versions/<hash>.bin` and metadata sidecars | Existing executable history is not a database restore point. A previous executable must not silently open an incompatible migrated database. |
@@ -71,8 +71,13 @@ of the remote object.
 
 The compatibility `S3.Get` byte-slice operation has a 64 MiB download limit.
 Large archive workflows must use `Download` into a private staging file instead.
-The legacy restore still requires replacement with controlled staged recovery;
-it currently cannot claim safe recovery while live SQLite writers are active.
+Legacy restore now rejects active database owners before S3 download. Its offline
+compatibility path validates the object, exports its configuration, imports that
+into a private snapshot of the target store, and activates through the durable
+restore journal. Local instance/authentication/CA/history state is retained;
+source database identity is not adopted. It requires recorded startup facts and
+a stopped-writer lifecycle owner. The existing online Web restore cannot perform
+this maintenance transition yet and receives a clear rejection.
 
 ## Reproducible transfer measurements
 
@@ -114,6 +119,8 @@ unchanged-upload suppression, concurrent settings changes, private staging,
 repeated schedule changes and closure without goroutine leaks. Both supported
 SQLite drivers must be tested with their required build tags (`fts5` for mattn).
 
-The [encrypted recovery archive and offline create/verify commands](recovery-archive.md)
-collect and validate deployment snapshots. They do not yet replace the legacy
-S3 restore path or implement controlled deployment activation.
+The [encrypted archive and offline recovery commands](recovery-archive.md)
+collect, validate, preview and activate deployment snapshots with crash rollback
+and actual startup checks. New full-archive Web/S3 scheduling, retention and
+update coordination still need implementation. Successful file activation alone
+is not a successful service recovery.

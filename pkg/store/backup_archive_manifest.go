@@ -147,6 +147,10 @@ func validateRecoveryPath(name string) error {
 	return nil
 }
 
+// ValidateRecoveryDestination applies the archive's portable, confined path
+// rules to a configuration-rebound restore destination.
+func ValidateRecoveryDestination(name string) error { return validateRecoveryPath(name) }
+
 func recoverySourcePath(value string) bool {
 	if value == "" || len(value) > 4096 || !utf8.ValidString(value) {
 		return false

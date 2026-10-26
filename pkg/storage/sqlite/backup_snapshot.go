@@ -58,6 +58,19 @@ func InspectBackupSnapshot(ctx context.Context, path, kind string) (int, error) 
 	if check != "ok" {
 		return 0, errors.New("backup SQLite integrity check failed")
 	}
+	violations, err := conn.QueryContext(ctx, "PRAGMA foreign_key_check")
+	if err != nil {
+		return 0, err
+	}
+	broken := violations.Next()
+	checkErr := violations.Err()
+	_ = violations.Close()
+	if checkErr != nil {
+		return 0, checkErr
+	}
+	if broken {
+		return 0, errors.New("backup SQLite contains broken resource references")
+	}
 	known, err := knownMigrations(kind)
 	if err != nil {
 		return 0, err

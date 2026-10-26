@@ -80,6 +80,9 @@ func AddCloser[T io.Closer](a *closers, name string, t T) T {
 }
 
 func Start(so *StartOptions) (_ *AppInstance, err error) {
+	if err := checkRecoveryStartup(so.ConfigPath, so.RecoveryStartupID); err != nil {
+		return nil, err
+	}
 	configuration.DataDir.Store(so.ConfigPath)
 
 	ctx := so.Context

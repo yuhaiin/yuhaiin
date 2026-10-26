@@ -29,6 +29,9 @@ func recoveryDeployment(t *testing.T) (string, *age.X25519Identity) {
 	if err := store.NewBackupStore(db.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementAuth: true, ManagementTLS: "self_signed", WorkingDirectory: directory}); err != nil {
 		t.Fatal(err)
 	}
+	if err := store.NewBackupStore(db.DB()).Save(t.Context(), contract.Option{InstanceName: "fixture-source", Interval: 3600, S3: contract.S3{Enabled: true, AccessKey: "fixture-access", SecretKey: "fixture-secret", Bucket: "fixture", EndpointURL: "https://example.invalid"}}); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, _, err := managementtls.LoadOrCreate(directory, []string{"localhost"}); err != nil {
 		t.Fatal(err)
 	}

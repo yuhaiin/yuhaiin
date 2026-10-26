@@ -27,6 +27,14 @@ func knownMigrations(kind string) ([]Migration, error) {
 	}
 }
 
+func SupportedSchemaVersion(kind string) (int, error) {
+	known, err := knownMigrations(kind)
+	if err != nil {
+		return 0, err
+	}
+	return known[len(known)-1].Version, nil
+}
+
 func migrationPrefix(ctx context.Context, reader migrationReader, known []Migration) (count, last int, err error) {
 	rows, err := reader.QueryContext(ctx, "SELECT CASE WHEN typeof(version)='integer' THEN version ELSE -1 END, substr(name,1,256) FROM migrate ORDER BY version LIMIT ?", len(known)+1)
 	if err != nil {

@@ -192,7 +192,7 @@ func (c *recoveryInventory) fileReferences(document any) error {
 		switch value := value.(type) {
 		case map[string]any:
 			for key, child := range value {
-				if slices.Contains([]string{"cert_file_path", "key_file_path", "certFile", "keyFile", "certificateFile"}, key) {
+				if isRecoveryFileReference(key) {
 					name, ok := child.(string)
 					if ok && name != "" {
 						if _, err := c.copy(name, "dependency", false); err != nil {
@@ -214,6 +214,10 @@ func (c *recoveryInventory) fileReferences(document any) error {
 		return nil
 	}
 	return walk(value)
+}
+
+func isRecoveryFileReference(key string) bool {
+	return slices.Contains([]string{"cert_file_path", "key_file_path", "certFile", "keyFile", "certificateFile", "library_path"}, key)
 }
 
 func (c *recoveryInventory) absolute(name string) string {

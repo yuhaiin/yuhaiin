@@ -65,6 +65,7 @@ func TestInspectBackupSnapshotDoesNotMigrateUnknownFutureOrIncompleteSchema(t *t
 		"UPDATE metadata SET value='19' WHERE key='schema_version'",
 		"DROP TABLE settings_json",
 		"DROP TABLE migrate; CREATE VIEW migrate AS SELECT 1 AS version, 'foreign' AS name",
+		"PRAGMA foreign_keys=OFF; CREATE TABLE recovery_fk_parent(id INTEGER PRIMARY KEY); CREATE TABLE recovery_fk_child(id INTEGER REFERENCES recovery_fk_parent(id)); INSERT INTO recovery_fk_child(id) VALUES(1)",
 	} {
 		t.Run(change, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "state.db")

@@ -254,6 +254,9 @@ func (b *Backup) Restore(ctx context.Context, _ contractbackup.RestoreOption) er
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if err := storagesqlite.RequireClosed(paths.PathGenerator.State(b.dir), filepath.Join(b.dir, "management.db")); err != nil {
+		return fmt.Errorf("live SQLite replacement is prohibited; use the controlled maintenance recovery workflow: %w", err)
+	}
 	backupConfig, err := b.getConfig(ctx)
 	if err != nil {
 		return err
@@ -270,7 +273,7 @@ func (b *Backup) Restore(ctx context.Context, _ contractbackup.RestoreOption) er
 		return err
 	}
 
-	if err := b.restoreStateDB(stateData); err != nil {
+	if err := b.restoreStateDB(ctx, stateData); err != nil {
 		return err
 	}
 	return nil
@@ -391,25 +394,8 @@ func sanitizeBackupSnapshot(ctx context.Context, path string) error {
 	return nil
 }
 
-func (b *Backup) restoreStateDB(data []byte) error {
-	statePath := paths.PathGenerator.State(b.dir)
-	dir := filepath.Dir(statePath)
-	tmpPath := filepath.Join(dir, fmt.Sprintf(".state-restore-%d.db", time.Now().UnixNano()))
-
-	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
-		return fmt.Errorf("write sqlite restore temp file failed: %w", err)
-	}
-	defer func() { _ = os.Remove(tmpPath) }()
-
-	if err := os.Rename(tmpPath, statePath); err != nil {
-		return fmt.Errorf("replace sqlite state db failed: %w", err)
-	}
-
-	_ = os.Remove(statePath + "-wal")
-	_ = os.Remove(statePath + "-shm")
-
-	log.Warn("sqlite state restored; restart is required for all in-memory services to reload restored data")
-	return nil
+func (b *Backup) restoreStateDB(ctx context.Context, data []byte) error {
+	return b.restoreLegacyConfiguration(ctx, data)
 }
 
 func sqliteStringLiteral(path string) string {

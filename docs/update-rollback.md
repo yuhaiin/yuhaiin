@@ -38,6 +38,14 @@ automatic pre-update recovery points and post-update rollback coordination are
 still pending. Use a matching binary and verified database recovery point when
 a migration is incompatible; executable history alone does not reverse it.
 
+The [offline disaster-recovery CLI](recovery-archive.md) now verifies, previews
+and activates a complete encrypted snapshot using a durable rollback journal.
+Use its explicit original-instance or clone decision and startup instructions
+when restoring databases/keys is necessary. It requires stopped writers and a
+reviewed matching binary/schema; the updater does not yet create or coordinate
+these points automatically. File activation reports awaiting_startup until the
+actual restored service passes its startup checks.
+
 ## When the service cannot start
 
 The Web UI requires a running server. When an update prevents yuhaiin from starting, use the archived file directly from an administrator shell:

@@ -14,7 +14,7 @@ var help = `Usage:
 
 Actions:
   auth        local management administrator bootstrap/recovery
-  recovery    encrypted full backup creation, key generation and offline verification
+  recovery    encrypted backup, verification, restore preview and offline recovery
   install     install yuhaiin
   uninstall   uninstall yuhaiin
   start       start yuhaiin

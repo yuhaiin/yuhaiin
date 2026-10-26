@@ -11,7 +11,7 @@ import (
 // RecoveryFiles describes only this configured identity's persistent files.
 // It does not construct a client, migrate state or contact a control server.
 func RecoveryFiles(base string, input contract.Tailscale) ([]string, error) {
-	directory, err := statePath(base, Config{AuthKey: input.AuthKey, Hostname: input.Hostname, ControlURL: input.ControlURL})
+	directory, err := RecoveryDirectory(base, input)
 	if err != nil {
 		return nil, err
 	}
@@ -40,4 +40,11 @@ func RecoveryFiles(base string, input contract.Tailscale) ([]string, error) {
 		files = append(files, path)
 	}
 	return files, nil
+}
+
+// RecoveryDirectory returns the current protocol owner's stable namespace.
+// Restoring legacy files into it avoids reusing a stale target directory or
+// causing a second implicit identity migration during the next startup.
+func RecoveryDirectory(base string, input contract.Tailscale) (string, error) {
+	return statePath(base, Config{AuthKey: input.AuthKey, Hostname: input.Hostname, ControlURL: input.ControlURL})
 }

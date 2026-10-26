@@ -26,6 +26,7 @@ on:
       - 'pkg/management/auth/**'
       - 'cmd/android/**'
       - 'cmd/yuhaiin/**'
+      - 'scripts/benchmarks/recovery/**'
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/reliability.yml'
@@ -81,6 +82,7 @@ jobs:
           go test ./pkg/s3 -run '^$' -bench '^BenchmarkS3Upload$' -benchmem -benchtime=300ms -count=2
           go test ./pkg/store -run '^$' -bench '^BenchmarkRecoveryArchiveExternalRecipient$' -benchmem -benchtime=300ms -count=2
           go test ./pkg/app -run '^$' -bench '^BenchmarkFullRecoveryCreateExternalRecipient$' -benchmem -benchtime=300ms -count=2
+          go test ./pkg/app -run '^$' -bench '^BenchmarkFullRecoveryRestoreExternalRecipient$' -benchmem -benchtime=300ms -count=2
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.15.0

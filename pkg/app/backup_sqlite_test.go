@@ -23,6 +23,9 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
 	settings := plainstore.NewSettingsStore(sqliteStore.DB())
+	if err := plainstore.NewBackupStore(sqliteStore.DB()).RecordRecoveryRuntime(t.Context(), contractbackup.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: dir}); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := settings.Save(t.Context(), contractsettings.Settings{NetInterface: "before"}); err != nil {
 		t.Fatalf("write initial sqlite config failed: %v", err)
@@ -41,7 +44,7 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 		t.Fatalf("close sqlite before restore failed: %v", err)
 	}
 
-	if err := backup.restoreStateDB(snapshot); err != nil {
+	if err := backup.restoreStateDB(t.Context(), snapshot); err != nil {
 		t.Fatalf("restore sqlite state failed: %v", err)
 	}
 
@@ -57,6 +60,26 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	}
 	if got.NetInterface != "before" {
 		t.Fatalf("expected restored net interface before, got %q", got.NetInterface)
+	}
+}
+
+func TestLegacyBackupRestoreCannotReplaceActiveSQLiteOwner(t *testing.T) {
+	directory := t.TempDir()
+	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(directory))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	backup := &Backup{dir: directory}
+	snapshot, err := readBackupSnapshot(t, backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := backup.restoreStateDB(t.Context(), snapshot); err == nil {
+		t.Fatal("legacy restore replaced an actively owned WAL database")
+	}
+	if err := db.DB().PingContext(t.Context()); err != nil {
+		t.Fatal("rejected restore invalidated the current database owner", err)
 	}
 }
 

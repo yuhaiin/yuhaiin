@@ -60,6 +60,9 @@ func CreateOfflineRecovery(ctx context.Context, directory, destination string, k
 		return empty, err
 	}
 	defer lifecycle.Close()
+	if err := GuardRecoveryMaintenance(directory); err != nil {
+		return empty, err
+	}
 	if err := sqlite.RequireClosed(filepath.Join(directory, "state.db"), filepath.Join(directory, "management.db")); err != nil {
 		return empty, err
 	}
