@@ -47,3 +47,28 @@ platform, version and TUN counters. It excludes node configuration objects,
 credentials and raw dialer errors/logs. It stays in the browser unless the user
 copies/downloads it; there is no report upload service. Review operational details
 before sharing it.
+
+## Local Tailnet integration fixture readiness
+
+The local Control/DERP test must wait for both clients to appear at its real DERP
+server before measuring the first cold peer TCP connection. Control readiness
+and a known peer route can precede the receiving client's asynchronous relay
+registration. Sending the first WireGuard packet in this interval can lose it
+and produce an approximately five-second handshake retry, even though later
+connections succeed immediately.
+
+The fixture checks both authorized peer routes and
+`relayServer.IsClientConnectedForTest` for both public node keys. It sends no
+peer packet, opens no application connection, and keeps the two-second cold TCP
+assertion. This synchronizes local server setup; it does not claim that a
+production control-plane Ready state proves remote peer or tunnel health.
+No production routing, authentication, retry or timeout behavior is changed.
+
+Reproduce and qualify with local servers, without a public tailnet:
+
+```sh
+go test -race -count=10 -run '^TestLocalTailnet(WithoutSTUN)?$/^tcp-encrypted-lightweight$/^ipv4$' -timeout=180s -v ./pkg/net/proxy/tailscale
+go test -count=3 -timeout=180s ./pkg/net/proxy/tailscale
+tags="$(go run ./cmd/buildtags/...)"
+go test -count=3 -timeout=180s -tags="$tags" ./pkg/net/proxy/tailscale
+```

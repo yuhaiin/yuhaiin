@@ -190,13 +190,20 @@ func testLocalTailnet(t *testing.T, withSTUN bool) {
 	}
 	peerDNSAddress = target
 	close(peerDNSReady)
+	// Control readiness and a peer route do not mean that the receiving
+	// client's asynchronous DERP registration has reached this local relay.
+	// DERP drops packets for an unregistered receiver. Wait for both fixture
+	// clients before timing a genuinely cold WireGuard/TCP connection; no
+	// peer traffic or application connection is sent during this barrier.
 	for {
-		if _, ok := clients[0].Route(target); ok {
+		receiver, receiverKnown := clients[0].Route(target)
+		sender, senderKnown := clients[1].Route(ip4(clients[0]))
+		if receiverKnown && senderKnown && relayServer.IsClientConnectedForTest(receiver) && relayServer.IsClientConnectedForTest(sender) {
 			break
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatal("peer route did not arrive", ctx.Err())
+			t.Fatal("peer routes and local DERP registrations did not arrive", ctx.Err())
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
