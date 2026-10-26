@@ -5,7 +5,8 @@ and [frontend #535](https://github.com/yuhaiin/yuhaiin-react/pull/535).
 Full disaster recovery is still in progress. The transfer improvements described
 here do not turn the legacy S3 state database object into a complete deployment
 backup. Encrypted offline creation, verification, preview and controlled CLI restore
-are implemented; full local/S3 scheduling, retention, recovery UI and
+are implemented; managed local/S3 scheduling, history, verification/download and retention now
+have an actual service-maintenance workflow and UI. Web restore activation and
 software-update recovery points remain required.
 
 ## Data ownership inventory
@@ -124,3 +125,9 @@ collect, validate, preview and activate deployment snapshots with crash rollback
 and actual startup checks. New full-archive Web/S3 scheduling, retention and
 update coordination still need implementation. Successful file activation alone
 is not a successful service recovery.
+
+The [managed full-backup workflow](managed-recovery-backups.md) extends this same
+Backup/BackupStore/S3 owner with migration 21, bounded history, one scheduled
+maintenance capture, post-restart verified upload and leased archive downloads.
+Its root-owned Linux systemd scope and remaining host/Web restore/update work
+are explicit; it does not make legacy executable rollback database-safe.

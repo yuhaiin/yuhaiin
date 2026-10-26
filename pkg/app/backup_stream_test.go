@@ -104,6 +104,8 @@ func TestBackupSettingsAreNotOverwrittenByCompletedUpload(t *testing.T) {
 	go func() { result <- b.Run(t.Context()) }()
 	select {
 	case <-uploaded:
+	case err := <-result:
+		t.Fatal("backup returned before readback", err)
 	case <-time.After(5 * time.Second):
 		t.Fatal("upload did not finish")
 	}

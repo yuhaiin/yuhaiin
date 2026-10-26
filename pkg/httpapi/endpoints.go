@@ -22,7 +22,7 @@ func v2RoutePattern(route v2Route) string {
 }
 
 func isV2StreamEndpoint(endpoint v2Endpoint) bool {
-	return endpoint == v2ToolsLogs || endpoint == v2ToolsLogsV2 || endpoint == v2ConnectionsEvents
+	return endpoint == v2ToolsLogs || endpoint == v2ToolsLogsV2 || endpoint == v2ConnectionsEvents || endpoint == v2RecoveryBackupDownload
 }
 
 const (
@@ -43,6 +43,12 @@ const (
 	v2UpdateRollback           v2Endpoint = "update.rollback"
 	v2BackupRun                v2Endpoint = "backup.run"
 	v2BackupRestore            v2Endpoint = "backup.restore"
+	v2RecoveryBackupStatus     v2Endpoint = "backup.recovery.status"
+	v2RecoveryBackupCreate     v2Endpoint = "backup.recovery.create"
+	v2RecoveryBackupDownload   v2Endpoint = "backup.recovery.download"
+	v2RecoveryBackupDelete     v2Endpoint = "backup.recovery.delete"
+	v2RecoveryBackupRetry      v2Endpoint = "backup.recovery.retry"
+	v2RecoveryBackupVerify     v2Endpoint = "backup.recovery.verify"
 	v2ToolsDiagnostics         v2Endpoint = "tools.diagnostics"
 	v2ToolsInterfaces          v2Endpoint = "tools.interfaces"
 	v2ToolsLicenses            v2Endpoint = "tools.licenses"
@@ -183,6 +189,12 @@ var v2Routes = []v2Route{
 	{v2BackupConfigPut, "PUT /api/v2/backup/config"},
 	{v2BackupRun, "POST /api/v2/backup/run"},
 	{v2BackupRestore, "POST /api/v2/backup/restore"},
+	{v2RecoveryBackupStatus, "GET /api/v2/backup/recovery"},
+	{v2RecoveryBackupCreate, "POST /api/v2/backup/recovery"},
+	{v2RecoveryBackupDownload, "GET /api/v2/backup/recovery/{id}/download"},
+	{v2RecoveryBackupDelete, "DELETE /api/v2/backup/recovery/{id}"},
+	{v2RecoveryBackupRetry, "POST /api/v2/backup/recovery/{id}/retry"},
+	{v2RecoveryBackupVerify, "POST /api/v2/backup/recovery/{id}/verify"},
 	{v2ToolsDiagnostics, "POST /api/v2/tools/diagnostics"},
 	{v2ToolsInterfaces, "GET /api/v2/tools/interfaces"},
 	{v2ToolsLicenses, "GET /api/v2/tools/licenses"},

@@ -74,6 +74,12 @@ func main() {
 	case "update-helper":
 		do(updateHelper)
 		return
+	case "recovery-maintenance":
+		do(recoveryMaintenanceHelper)
+		return
+	case "recovery-maintenance-restart":
+		do(recoveryMaintenanceRestartHelper)
+		return
 	case "version", "-v", "--version":
 		version.Output(os.Stdout)
 		return

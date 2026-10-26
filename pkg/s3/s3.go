@@ -82,6 +82,13 @@ func NewS3(opt contractbackup.S3, proxy netapi.Proxy) (*S3, error) {
 }
 
 func (s *S3) Close() error { s.transport.CloseIdleConnections(); return nil }
+
+// Delete removes only the caller's explicitly recorded object key. Backup
+// retention never lists a bucket or derives ownership from an object prefix.
+func (s *S3) Delete(ctx context.Context, key string) error {
+	_, err := s.s3c.DeleteObject(ctx, &awss3.DeleteObjectInput{Bucket: new(s.Bucket), Key: new(key)})
+	return err
+}
 func (s *S3) Put(ctx context.Context, data []byte, file string) error {
 	return s.PutReader(ctx, bytes.NewReader(data), int64(len(data)), file)
 }

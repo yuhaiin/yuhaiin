@@ -1,10 +1,11 @@
 package backup
 
 type Option struct {
-	InstanceName   string `json:"instanceName"`
-	S3             S3     `json:"s3"`
-	Interval       uint64 `json:"interval"`
-	LastBackupHash string `json:"lastBackupHash"`
+	InstanceName   string          `json:"instanceName"`
+	S3             S3              `json:"s3"`
+	Interval       uint64          `json:"interval"`
+	LastBackupHash string          `json:"lastBackupHash"`
+	Recovery       *RecoveryPolicy `json:"recovery,omitzero"`
 }
 
 type S3 struct {

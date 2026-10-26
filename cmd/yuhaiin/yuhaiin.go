@@ -128,6 +128,7 @@ func run(args []string) (resultErr error) {
 		ProcessDumper:       getPorcessDumper(),
 		Updater:             newUpdateInstaller(*path),
 		RecoveryStartupID:   recoveryStartup.ID(),
+		RecoveryMaintenance: newRecoveryMaintainer(*path),
 	})
 	if err != nil {
 		_ = lis.Close()

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"net/http"
 )
@@ -34,6 +35,9 @@ type rpcError struct {
 func (e *rpcError) Error() string { return e.message }
 
 func badRequest(err error) error {
+	if errors.Is(err, contractbackup.ErrBusy) {
+		return &rpcError{status: http.StatusConflict, code: "backup_busy", message: err.Error()}
+	}
 	if errors.Is(err, plainstore.ErrConflict) {
 		return &rpcError{status: http.StatusConflict, code: "conflict", message: err.Error()}
 	}

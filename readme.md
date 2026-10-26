@@ -252,3 +252,7 @@ Backup transfer bounds and the disaster-recovery implementation status:
 
 Encrypted full snapshots, external backup keys, offline restore preview and crash-safe recovery:
 [recovery archives](docs/recovery-archive.md).
+
+Managed full encrypted local/S3 backups, confirmed service maintenance, archive
+verification/download and retention: [managed recovery backups](docs/managed-recovery-backups.md).
+Web restoration and safe-update coordination remain in progress.

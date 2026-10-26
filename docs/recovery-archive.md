@@ -3,8 +3,9 @@
 The recovery archive codec extends the existing `pkg/store/backup.go` owner and
 backup contract. Offline creation now collects a deployment snapshot set from
 the existing database and protocol owners. Controlled offline activation, startup validation and crash rollback extend that
-same owner. Full local/S3 scheduling, backup history/retention, Web restoration
-and safe-update integration remain in progress in the
+same owner. Managed local/S3 scheduling, backup history/retention and verification/download
+now extend that same owner. Web restoration and safe-update integration remain
+in progress in the
 [enterprise reliability work](enterprise-reliability.md).
 Do not treat successful archive verification as a successful restore/startup drill.
 
@@ -397,3 +398,10 @@ external private key is generated in a separate protected directory and is
 never printed. [Raw RSS results](benchmarks/data/recovery-2026-10-26/restore-rss.jsonl)
 are retained. The real startup/crash drill above provides separate correctness
 evidence, not a resource benchmark.
+
+The [managed-backup page](managed-recovery-backups.md) now wraps this collector
+with explicit root-owned Linux systemd maintenance, history, local/S3 targets,
+verification/download and retention. It uses public recipients for scheduled
+creation and transient private identities for authenticated checks. Database
+schema is now 21; existing archive formats and known older schema prefixes stay
+verifiable. Other platform coordinators and Web restore activation remain pending.

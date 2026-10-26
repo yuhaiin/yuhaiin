@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -29,6 +30,15 @@ type BackupController interface {
 	Save(context.Context, contractbackup.Option) (contractbackup.Option, error)
 	Run(context.Context) error
 	Restore(context.Context, contractbackup.RestoreOption) error
+}
+
+type RecoveryBackupController interface {
+	RecoveryBackups(context.Context) (contractbackup.RecoveryBackupStatus, error)
+	CreateRecoveryBackup(context.Context, contractbackup.RecoveryBackupRequest) (contractbackup.RecoveryBackup, error)
+	OpenRecoveryBackup(context.Context, string) (io.ReadSeekCloser, contractbackup.RecoveryBackup, error)
+	DeleteRecoveryBackup(context.Context, string) error
+	RetryRecoveryBackup(context.Context, string) error
+	VerifyRecoveryBackup(context.Context, contractbackup.RecoveryVerifyRequest) (contractbackup.RecoveryManifest, error)
 }
 type DiagnosticsController interface {
 	Run(context.Context, contracttools.DiagnosticRequest) (contracttools.DiagnosticReport, error)

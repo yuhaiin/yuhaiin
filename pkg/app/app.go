@@ -314,7 +314,9 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		closers:       closers,
 	}
 
-	app.Backup = AddCloser(closers, "backup", NewBackup(backupStore, so.ConfigPath, app, fakedns))
+	backup := NewBackup(backupStore, so.ConfigPath, app, fakedns)
+	app.Backup = AddCloser(closers, "backup", backup)
+	registry.MustRegister(backup.Metrics())
 
 	if err := ctx.Err(); err != nil {
 		_ = app.Close()

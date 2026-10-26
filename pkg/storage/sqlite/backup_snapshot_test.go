@@ -27,7 +27,7 @@ func TestInspectBackupSnapshotWALAndSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	version, err := InspectBackupSnapshot(t.Context(), snapshot, "configuration")
-	if err != nil || version != 20 {
+	if err != nil || version != 21 {
 		t.Fatalf("snapshot inspection: %d, %v", version, err)
 	}
 	opened, err := Open(t.Context(), snapshot)
@@ -59,7 +59,7 @@ func TestInspectBackupSnapshotWALAndSchema(t *testing.T) {
 
 func TestInspectBackupSnapshotDoesNotMigrateUnknownFutureOrIncompleteSchema(t *testing.T) {
 	for _, change := range []string{
-		"INSERT INTO migrate(version,name,applied_at) VALUES(21,'future',1); UPDATE metadata SET value='21' WHERE key='schema_version'",
+		"INSERT INTO migrate(version,name,applied_at) VALUES(10000,'future',1); UPDATE metadata SET value='10000' WHERE key='schema_version'",
 		"UPDATE migrate SET name='foreign schema' WHERE version=1",
 		"DELETE FROM migrate WHERE version=10",
 		"UPDATE metadata SET value='19' WHERE key='schema_version'",

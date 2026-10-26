@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
@@ -25,17 +26,22 @@ import (
 )
 
 type Backup struct {
-	store           *plainstore.BackupStore
-	dir             string
-	proxy           netapi.Proxy
-	instance        *AppInstance
-	mu              sync.Mutex
-	scheduleMu      sync.Mutex
-	ctx             context.Context
-	cancel          context.CancelFunc
-	done            chan struct{}
-	changed         chan struct{}
-	scheduledCancel context.CancelFunc
+	store                   *plainstore.BackupStore
+	dir                     string
+	proxy                   netapi.Proxy
+	instance                *AppInstance
+	mu                      sync.Mutex
+	scheduleMu              sync.Mutex
+	ctx                     context.Context
+	cancel                  context.CancelFunc
+	done                    chan struct{}
+	changed                 chan struct{}
+	scheduledCancel         context.CancelFunc
+	scheduleStarted         time.Time
+	recoveryReaders         map[string]int
+	metricsVersion          atomic.Uint64
+	metricsSnapshot         atomic.Pointer[backupMetricSnapshot]
+	activeRecoveryDownloads atomic.Int64
 }
 
 // These tables contain runtime data which changes frequently but is not needed
@@ -55,6 +61,7 @@ var backupRuntimeTables = []string{
 	"failure_dimension_hourly",
 	"failure_dimension_daily",
 	"telemetry_dimension_values",
+	"backup_recovery_history",
 }
 
 func NewBackup(store *plainstore.BackupStore, dir string, instance *AppInstance, proxy netapi.Proxy) *Backup {
@@ -67,6 +74,13 @@ func NewBackup(store *plainstore.BackupStore, dir string, instance *AppInstance,
 
 	b.ctx, b.cancel = context.WithCancel(context.Background())
 	b.done, b.changed = make(chan struct{}), make(chan struct{}, 1)
+	b.scheduleStarted = time.Now()
+	if store != nil {
+		if err := b.recoverInterruptedBackups(b.ctx); err != nil {
+			log.Warn("backup history recovery failed")
+		}
+		b.refreshBackupMetrics(b.ctx)
+	}
 	go b.schedule()
 	return b
 }
@@ -77,6 +91,24 @@ func (b *Backup) Save(ctx context.Context, opt contractbackup.Option) (contractb
 	}
 	if opt.Interval > 365*24*60 {
 		return contractbackup.Option{}, errors.New("backup interval exceeds one year")
+	}
+	if opt.Recovery != nil {
+		policy, err := plainstore.NormalizeRecoveryPolicy(*opt.Recovery)
+		if err != nil {
+			return contractbackup.Option{}, err
+		}
+		if policy.Enabled && policy.Target == "s3" && !opt.S3.Enabled {
+			return contractbackup.Option{}, errors.New("scheduled full S3 backup requires enabled S3 settings")
+		}
+		if policy.Enabled && (b.instance == nil || b.instance.RecoveryMaintenance == nil) {
+			return contractbackup.Option{}, errors.New("scheduled full backups require an installed-service maintenance coordinator")
+		}
+		if policy.Enabled {
+			if supported, reason := b.instance.RecoveryMaintenance.Supported(); !supported {
+				return contractbackup.Option{}, errors.New(reason)
+			}
+		}
+		opt.Recovery = &policy
 	}
 	opt.LastBackupHash = ""
 	if err := b.store.Save(ctx, opt); err != nil {
@@ -105,18 +137,65 @@ func (b *Backup) reschedule() {
 func (b *Backup) schedule() {
 	defer close(b.done)
 	for {
+		if b.store != nil {
+			if err := b.resumeRecoveryBackups(b.ctx); err != nil && b.ctx.Err() == nil {
+				log.Warn("full backup upload did not complete; consult backup history")
+			}
+			if err := b.pruneRecoveryBackups(b.ctx); err != nil && b.ctx.Err() == nil {
+				log.Warn("backup retention did not complete; consult backup history")
+			}
+			b.refreshBackupMetrics(b.ctx)
+		}
 		var tick <-chan time.Time
 		var timer *time.Timer
+		full := false
+		recheck := false
 		if b.store != nil {
 			opt, err := b.store.Get(b.ctx)
+			if err == nil && opt.Recovery != nil {
+				policy, policyErr := plainstore.NormalizeRecoveryPolicy(*opt.Recovery)
+				if policyErr != nil {
+					opt.Recovery = nil
+				} else {
+					opt.Recovery = &policy
+				}
+			}
+			var delay time.Duration
+			if err == nil && opt.Recovery != nil && opt.Recovery.Enabled && b.instance != nil && b.instance.RecoveryMaintenance != nil {
+				if supported, _ := b.instance.RecoveryMaintenance.Supported(); supported {
+					last, lastErr := b.store.LastRecoveryAttempt(b.ctx)
+					if lastErr == nil {
+						if last.IsZero() || last.After(time.Now()) {
+							last = b.scheduleStarted
+						}
+						delay = time.Duration(opt.Recovery.IntervalMinutes) * time.Minute
+						delay = max(time.Until(last.Add(delay)), time.Millisecond)
+						full = true
+					} else {
+						err = lastErr
+					}
+				} else {
+					// Service-manager state can change independently of settings.
+					// Re-evaluate it without launching a configuration backup.
+					recheck = true
+				}
+			}
 			if err == nil && opt.S3.Enabled && opt.Interval > 0 && opt.Interval <= 365*24*60 {
-				timer = time.NewTimer(time.Duration(opt.Interval) * time.Minute)
-				tick = timer.C
-			} else if err != nil && b.ctx.Err() == nil {
-				// Transient store errors retry at a bounded rate, never a busy loop.
+				legacyDelay := time.Duration(opt.Interval) * time.Minute
+				if delay == 0 || legacyDelay < delay {
+					delay = legacyDelay
+					full = false
+				}
+			}
+			if (err != nil || recheck) && b.ctx.Err() == nil {
 				timer = time.NewTimer(time.Minute)
 				tick = timer.C
+				recheck = true
+			} else if delay > 0 {
+				timer = time.NewTimer(delay)
+				tick = timer.C
 			}
+
 		}
 		select {
 		case <-b.ctx.Done():
@@ -131,6 +210,9 @@ func (b *Backup) schedule() {
 			continue
 		case <-tick:
 		}
+		if recheck {
+			continue
+		}
 		ctx, cancel := context.WithTimeout(b.ctx, 10*time.Minute)
 		b.scheduleMu.Lock()
 		select {
@@ -142,8 +224,14 @@ func (b *Backup) schedule() {
 		}
 		b.scheduledCancel = cancel
 		b.scheduleMu.Unlock()
-		if err := b.Run(ctx); err != nil && ctx.Err() == nil && !errors.Is(err, errBackupBusy) {
-			log.Error("backup failed", "err", err)
+		var operationErr error
+		if full {
+			_, operationErr = b.CreateRecoveryBackup(ctx, contractbackup.RecoveryBackupRequest{ConfirmMaintenance: true})
+		} else {
+			operationErr = b.Run(ctx)
+		}
+		if operationErr != nil && ctx.Err() == nil && !errors.Is(operationErr, errBackupBusy) {
+			log.Warn("scheduled backup did not complete; consult backup history")
 		}
 		cancel()
 		b.scheduleMu.Lock()
@@ -159,7 +247,7 @@ func (b *Backup) Get(ctx context.Context) (contractbackup.Option, error) {
 	return b.store.Get(ctx)
 }
 
-var errBackupBusy = errors.New("a backup or restore is already in progress")
+var errBackupBusy = contractbackup.ErrBusy
 
 func (b *Backup) operationContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)

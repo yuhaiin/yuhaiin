@@ -77,8 +77,9 @@ Successful file activation remains awaiting_startup until the actual database,
 inbound/Gateway and local HTTPS listener checks pass. Windows activation and
 embedded-host lifecycle integration remain pending.
 
-S3/local full-archive scheduling, retention, Web restore preview/activation/UI
-and update recovery integration remain required. Legacy S3 restore now refuses
+Managed local/S3 full-archive scheduling, history, verification, download and
+retention now extend the same Backup owner; see [managed backups](managed-recovery-backups.md).
+Web restore preview/activation/UI and safe-update recovery integration remain required. Legacy S3 restore now refuses
 active database owners before downloading; its offline compatibility path imports
 configuration into a private copy of the local store and uses the same controlled
 activation/startup journal, preserving local identities. It no longer renames a
@@ -177,8 +178,9 @@ Fault injection covers every replacement boundary, interrupted rollback and real
 CLI process death. Local RSS and allocation measurements distinguish age's
 per-chunk cumulative allocation from bounded live streaming memory; commands,
 fixture scope and raw data are documented. The archive and restore additions
-introduce no SQLite migration beyond 20. They are not completion of Web restore,
-Windows/embedded coordination, scheduled full backups, retention or safe updates.
+introduced no SQLite migration beyond 20; managed full backups subsequently add
+schema 21. Web restore, Windows/embedded coordination and safe updates remain
+incomplete; managed scheduling and retention are described below.
 
 The offline-restore change passes full Go tests, eight-package focused race
 coverage, modernc plus mattn/fts5, gofmt/go fix, golangci-lint v2.15.0 (zero
@@ -188,3 +190,28 @@ passes lint, typecheck, all 17 translation namespaces, style audit, build and
 path exceeded the pre-existing Unix socket test's pathname limit; that test and
 the full suite pass using the default temporary directory. Remote checks for
 this change are authoritative only after publication on the two active PR heads.
+
+## Managed full backups
+
+Migration 21 extends the existing BackupStore with bounded history and atomic
+job transitions. The existing scheduler can request confirmed maintenance,
+create full public-key encrypted archives, resume S3 uploads after restart,
+verify ciphertext readback, protect downloads and apply owned retention. The
+Backup UI exposes the real settings/history/create/verify/download/retry/delete
+flows in EN/JA/KO. Scheduled work does not depend on the browser. Automatic
+maintenance currently targets root-owned Linux systemd deployments; other hosts
+retain offline tools pending complete service coordination. An isolated real
+systemd/HTTPS/S3/helper-crash drill now accompanies hermetic tests. See
+[managed backups](managed-recovery-backups.md) for exact behavior and limits.
+
+Web restore staging/preview/activation, recent-restore presentation, safe-update
+recovery-point/schema negotiation, broader platform maintenance, periodic
+restoration drills and ACME remain outstanding. The three-stage goal is active.
+
+The managed-backup UI has automated 1440/360/320 px interaction/screenshot
+coverage for maintenance confirmation, actual draft save, history and the private
+verification dialog, with zero horizontal overflow. Those fixtures are explicitly
+synthetic; the isolated systemd/HTTPS/object-server drill proves the real
+stop/capture/restart/verification/crash behavior separately. Finite backup state,
+latest complete-point timestamps and download leases now use atomic metric
+snapshots with no SQLite work on scrape.

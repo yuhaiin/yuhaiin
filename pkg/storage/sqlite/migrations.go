@@ -634,4 +634,15 @@ var migrations = []Migration{
 	{Version: 20, Name: "measurement_transport_accounting", Statements: []string{
 		`ALTER TABLE node_speed_budget ADD COLUMN accounting_version INTEGER NOT NULL DEFAULT 1 CHECK(accounting_version IN(1,2))`,
 	}},
+	{Version: 21, Name: "backup_recovery_history", Statements: []string{
+		`CREATE TABLE backup_recovery_history (
+			id TEXT PRIMARY KEY,
+			created_at INTEGER NOT NULL,
+			state TEXT NOT NULL,
+			data_json TEXT NOT NULL CHECK (json_valid(data_json))
+		)`,
+		`CREATE INDEX backup_recovery_history_created ON backup_recovery_history(created_at DESC, id)`,
+		`CREATE INDEX backup_recovery_history_state ON backup_recovery_history(state, created_at)`,
+		`CREATE UNIQUE INDEX backup_recovery_single_capture ON backup_recovery_history((1)) WHERE state IN ('queued','capturing')`,
+	}},
 }

@@ -48,6 +48,9 @@ func rewriteRecoveryConfiguration(ctx context.Context, stage, instanceID string,
 		}
 		options.InstanceName, options.LastBackupHash, options.Interval = instanceID, "", 0
 		options.S3.Enabled, options.S3.AccessKey, options.S3.SecretKey = false, "", ""
+		if options.Recovery != nil {
+			options.Recovery.Enabled, options.Recovery.AllowMaintenance = false, false
+		}
 		if err := backups.Save(ctx, options); err != nil {
 			return err
 		}
@@ -61,6 +64,9 @@ func rewriteRecoveryConfiguration(ctx context.Context, stage, instanceID string,
 			return err
 		}
 		inputs.ManagementAuth = true
+		if _, err := db.DB().ExecContext(ctx, "DELETE FROM backup_recovery_history"); err != nil {
+			return err
+		}
 	}
 	if _, err := db.DB().ExecContext(ctx, "UPDATE metadata SET value=? WHERE key='recovery_instance_id'", instanceID); err != nil {
 		return err

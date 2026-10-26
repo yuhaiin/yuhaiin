@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	updatepkg "github.com/Asutorufa/yuhaiin/pkg/update"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
 type serviceUpdateInstaller struct {
@@ -106,6 +107,11 @@ func updateHelper(args []string) error {
 		return errors.New("update-helper requires target and staged paths")
 	}
 	target, staged, dataDir := args[0], args[1], args[2]
+	maintenance, err := lockfile.Acquire(filepath.Join(dataDir, ".recovery-maintenance.lock"))
+	if err != nil {
+		return err
+	}
+	defer maintenance.Close()
 	service := "com.asutorufa.yuhaiin"
 	manager := "launchctl"
 	stopArgs, startArgs := []string{"stop", service}, []string{"start", service}

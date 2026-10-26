@@ -26,9 +26,9 @@ func TestOpenRejectsIncompatibleHistoryBeforeChangingDatabase(t *testing.T) {
 			statement := ""
 			switch fault {
 			case "future-configuration":
-				statement = "INSERT INTO migrate(version,name,applied_at) VALUES(21,'future_schema',1); UPDATE metadata SET value='21' WHERE key='schema_version'"
+				statement = "INSERT INTO migrate(version,name,applied_at) VALUES(10000,'future_schema',1); UPDATE metadata SET value='10000' WHERE key='schema_version'"
 			case "future-management":
-				statement = "INSERT INTO migrate(version,name,applied_at) VALUES(6,'future_identity',1); UPDATE metadata SET value='6' WHERE key='schema_version'"
+				statement = "INSERT INTO migrate(version,name,applied_at) VALUES(10000,'future_identity',1); UPDATE metadata SET value='10000' WHERE key='schema_version'"
 			case "foreign-name":
 				statement = "UPDATE migrate SET name='foreign_schema' WHERE version=1"
 			case "gap":

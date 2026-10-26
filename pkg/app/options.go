@@ -270,7 +270,8 @@ type StartOptions struct {
 	// Ordinary/embedded starts leave it empty and reject pending activation.
 	RecoveryStartupID string
 
-	Updater updatepkg.Installer
+	Updater             updatepkg.Installer
+	RecoveryMaintenance RecoveryMaintainer
 }
 
 type SQLStore interface {

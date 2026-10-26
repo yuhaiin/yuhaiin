@@ -27,6 +27,7 @@ on:
       - 'cmd/android/**'
       - 'cmd/yuhaiin/**'
       - 'scripts/benchmarks/recovery/**'
+      - 'scripts/bench/recovery-maintenance/**'
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/reliability.yml'
@@ -39,6 +40,22 @@ permissions:
   contents: read
 
 jobs:
+  recovery-service:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: recovery-maintenance
+      - name: Install isolated service-test runtime
+        run: |
+          if ! command -v podman >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends podman
+          fi
+      - name: Actual service capture, S3 readback, authentication and crash restart
+        run: python3 scripts/bench/recovery-maintenance/run.py --rootful
   monitoring:
     runs-on: ubuntu-latest
     timeout-minutes: 20
