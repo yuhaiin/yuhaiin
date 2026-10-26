@@ -5,14 +5,17 @@ It does not depend on the open enterprise identity/resource/security stacks
 (backend #618/#620/#621, frontend #530/#532/#533).
 
 The authorized scope contains three complete stages, each with backend/frontend,
-persistence, tests, resource measurements, documentation and separate PRs.
+persistence, tests, resource measurements and documentation. Review and delivery
+now use one PR per repository throughout all three stages.
 A component delivery below does not complete the overall scope.
 
 ## Stage 1 — intelligent outbound selection (in progress)
 
-First backend/frontend delivery: [backend #622](https://github.com/yuhaiin/yuhaiin/pull/622),
+Only active delivery/review entries: [backend #622](https://github.com/yuhaiin/yuhaiin/pull/622),
 [frontend #535](https://github.com/yuhaiin/yuhaiin-react/pull/535). Both remain draft
-while the complete Stage 1 scope is being implemented.
+until the complete three-stage scope is implemented and verified. Previous
+component PRs are closed as superseded; their commits are retained here.
+Further work continues in these two PRs, both targeting main.
 
 Implemented in those PRs:
 
@@ -87,18 +90,22 @@ Benchmark details and exact reproduction command are in
 [intelligent selectors](intelligent-selectors.md). Results are runtime selection
 microbenchmarks, not end-to-end physical-link qualification.
 
-Remote validation: frontend #535 build (23.x) passed. Backend #622 initially
-failed only the existing Tailscale cold-peer regression (5.17-second first TCP
-connection, threshold 2 seconds). The same issue reproduced in 3 of 10 local
-race runs of TestLocalTailnet; the tested package has no dependency on node or
-latency runtime changes, and the Tailscale source/dependencies are unchanged.
-The failed-job CI rerun passed; backend #622 now has 44 successful checks and
-nine expected skips. This pre-existing intermittent transport
-problem must remain visible in qualification; no test threshold was relaxed.
+The component commits passed backend full/race tests and lint, frontend tests
+and browser checks. The consolidated PR heads run their complete CI again; use
+the current checks on the two active PRs for delivery status rather than checks
+on the superseded component PRs.
 
-Browser plugin discovery returned no connected browser. The subsequent Chrome
-fallback verified Selector/circuit and monitoring views at 1440, 360 and 320 px;
-frontend #537 CI also runs that harness and retains screenshots.
+The previous cold-Tailscale failure was reproduced on main. Its local fixture
+waited for a control route before the receiving client had finished registering
+at the test DERP server. The fixture now waits for both real registrations,
+without warming the peer connection or relaxing its two-second assertion.
+The ordinary and release-tag Tailnet package suites passed three repetitions;
+a mixed-STUN race batch passed all 20 cold IPv4 TCP scenarios. The standalone
+repair passed all remote checks before being folded into the backend entry.
+See [local Tailnet readiness](network-diagnostics.md#local-tailnet-integration-fixture-readiness).
+
+Chrome fallback coverage verifies Selector/circuit and monitoring views at
+1440, 360 and 320 px; CI retains the resulting screenshots.
 
 ## Circuit follow-up validation
 
@@ -107,11 +114,6 @@ migration is needed beyond schema 19. The frontend adds circuit controls and
 evidence details in EN/JA/KO, preserving manual behavior. Frontend gates pass
 with 104 files / 309 tests. Backend full tests, lint and focused race coverage
 pass. Measurements and exact reproduction commands accompany this delivery.
-
-Monitoring PR #623 currently has a failed no-legacy-stack check: the unchanged
-Tailscale cold-peer test again takes roughly five seconds against its two-second
-limit. The dependency-boundary assertions and monitoring-specific CI pass. A
-failed-job rerun reproduced the transport failure; it is not treated as green.
 
 ## Probe policy follow-up
 
@@ -131,5 +133,9 @@ existing Prometheus endpoint gains finite-label selector/circuit/probe/speed
 metrics without database work on scrape. Frontend EN/JA/KO displays shared slot
 use and inclusive budget semantics. See [measurement bounds](measurement-bounds.md).
 
-Stage 1 remains in progress, including the known parent #623 cold-Tailscale CI
-failure and final resource/transport qualification. Stages 2 and 3 remain pending.
+Stage 1 remains in progress, including native protocol lifecycle adapters and
+final resource/transport qualification. Stages 2 and 3 remain pending.
+
+Native adapter and periodic-login-guard changes currently under development are
+not claimed as delivered by this tracker; they will be added to the same active
+backend/frontend PRs after qualification.
