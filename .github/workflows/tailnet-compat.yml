@@ -1,0 +1,48 @@
+name: Tailnet tsnet compatibility
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pkg/net/proxy/tailscale/**'
+      - 'cmd/buildtags/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/tailnet-compat.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tsnet-dns:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: tailnet-tsnet-compat
+      - name: Check release feature tags and native lightweight stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test ./cmd/buildtags
+          tags="$(go run ./cmd/buildtags/...)"
+          if [[ ",$tags," == *",ts_omit_dns,"* || ",$tags," == *",ts_omit_netstack,"* ]]; then
+            echo "tsnet build disables required DNS or netstack feature" >&2
+            exit 1
+          fi
+          go list -deps -tags="$tags" ./cmd/yuhaiin ./cmd/android > "$RUNNER_TEMP/deps"
+          if grep -E '^github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/(gvisor|tun2socket)(/|$)' "$RUNNER_TEMP/deps"; then
+            echo "removed Yuhaiin global TUN backend unexpectedly linked" >&2
+            exit 1
+          fi
+      - name: Test service DNS in production feature set
+        shell: bash
+        run: |
+          set -euo pipefail
+          tags="$(go run ./cmd/buildtags/...)"
+          go test -count=1 -tags="$tags" -run '^(TestDNSPacket.*|TestTailscaleDNSManagerMissing|TestUnavailableTailscaleDialer)$' ./pkg/net/proxy/tailscale
+      - name: Test local encrypted Tailnet peer and TCP/UDP MagicDNS
+        run: go test -count=1 -timeout=180s -run '^TestLocalTailnet$' ./pkg/net/proxy/tailscale

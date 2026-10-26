@@ -361,8 +361,6 @@ github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8 h1:RjLnVvlzK4q6zWaSBP
 github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8/go.mod h1:ptlSkJ8k/7IDauNH0SA96JPOo+nYGLTv2Y3UMpwvAsY=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
-github.com/yuhaiin/tailscale-lite v0.0.0-20261024171927-49ae11fefe66 h1:GZ6qjVmHAvsNMLnPN9/eQtFaVksgxslBdqgr5TGGKaM=
-github.com/yuhaiin/tailscale-lite v0.0.0-20261024171927-49ae11fefe66/go.mod h1:krX82oXX6KQBCn4taBIaq4LFzqnq/J9UB2a5/wfkOFk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMkIYChggoBVQLcNC/At/rW+lhIluk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261022032805-df51b667f746 h1:kWUWcIyli3BIwDjoIK6yqyQldAtMnH/+uyIkgMHnAMI=
