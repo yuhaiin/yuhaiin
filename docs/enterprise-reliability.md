@@ -48,7 +48,7 @@ Still required before Stage 1 is complete:
   loopback TCP and 1,024 concurrent admission tests are now present.
 - Browser desktop/mobile verification and required remote CI verification.
 
-## Stage 2 — disaster recovery and safe updates (pending)
+## Stage 2 — disaster recovery and safe updates (in progress)
 
 Reuse existing app/store Backup and S3 code. Inventory data ownership first:
 configuration state SQLite, management auth SQLite when enabled, management TLS
@@ -59,11 +59,17 @@ streaming authenticated-encrypted archive with staged verification/restoration,
 rollback recovery points, retention, S3 download verification and offline CLI.
 Integrate update/schema compatibility and real restore/startup fault injection.
 
-Observed existing paths to address: `Backup.restoreStateDB` renames over a live
-database and removes WAL/SHM, `snapshotStateDB` reads the whole snapshot into
-memory, ticker replacement leaves stopped-channel readers behind, and S3 methods
-do not currently propagate their context to requests. These are not fixed by
-Stage 1. Existing update rollback restores executable bytes only.
+The first Stage 2 change fixes shared transfer/scheduling prerequisites in the
+existing Backup/S3 components: streamed private SQLite snapshots, bounded S3
+multipart uploads, context cancellation, finite retries, download verification,
+a single cancellable schedule owner, and settings compare-and-swap after upload.
+See [backup transfer and recovery ownership](backup-recovery.md).
+
+The full encrypted archive, maintenance/offline consistency, retention,
+restore preview/CLI/UI and update recovery integration remain required.
+`Backup.restoreStateDB` still renames over a live database and removes WAL/SHM;
+this legacy restore path is not a completed safe recovery implementation.
+Existing update rollback restores executable bytes only.
 
 ## Stage 3 — certificate lifecycle (pending)
 
@@ -134,7 +140,7 @@ metrics without database work on scrape. Frontend EN/JA/KO displays shared slot
 use and inclusive budget semantics. See [measurement bounds](measurement-bounds.md).
 
 Stage 1 remains in progress, including final resource/transport qualification.
-Stages 2 and 3 remain pending.
+Stage 2 transfer prerequisites are implemented; full recovery and Stage 3 remain pending.
 
 Native session adapters and periodic login protection now use existing protocol
 state and the same node/selector runtime. See the native session section in

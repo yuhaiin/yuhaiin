@@ -5,6 +5,7 @@ on:
     paths:
       - 'pkg/node/**'
       - 'pkg/app/**'
+      - 'pkg/s3/**'
       - 'pkg/inbound/**'
       - 'pkg/route/**'
       - 'pkg/net/trafficcontrol/**'
@@ -22,6 +23,8 @@ on:
       - 'pkg/httpapi/**'
       - 'pkg/management/auth/**'
       - 'cmd/android/**'
+      - 'go.mod'
+      - 'go.sum'
       - '.github/workflows/reliability.yml'
 
 concurrency:
@@ -48,7 +51,7 @@ jobs:
       - name: Deterministic scheduler and race coverage
         run: |
           go test -race -count=1 -timeout=180s \
-            ./pkg/node ./pkg/net/latency ./pkg/store ./pkg/httpapi \
+            ./pkg/node ./pkg/net/latency ./pkg/store ./pkg/httpapi ./pkg/s3 \
             ./pkg/storage/sqlite ./pkg/management/auth ./cmd/android \
             ./pkg/inbound ./pkg/route ./pkg/app ./pkg/net/trafficcontrol ./pkg/net/proxy/direct \
             ./pkg/net/proxy/openvpn/... ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/softether/... \
@@ -57,6 +60,8 @@ jobs:
         run: |
           go test ./pkg/node -run '^$' -bench 'BenchmarkSelector|BenchmarkProbeScheduler|BenchmarkObservedPacketSend|BenchmarkNativeSelectionAvailability' \
             -benchmem -benchtime=300ms -count=2
+      - name: Streaming backup transfer benchmarks
+        run: go test ./pkg/s3 -run '^$' -bench '^BenchmarkS3Upload$' -benchmem -benchtime=300ms -count=2
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.15.0

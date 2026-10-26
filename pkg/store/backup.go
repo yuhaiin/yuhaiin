@@ -30,9 +30,21 @@ func (s *BackupStore) Get(ctx context.Context) (contractbackup.Option, error) {
 	}
 	if opt.InstanceName == "" {
 		opt.InstanceName = uuid.New().String()
-		if err := s.Save(ctx, opt); err != nil {
+		data, err := json.Marshal(opt)
+		if err != nil {
 			return contractbackup.Option{}, err
 		}
+		// Initialization may race a settings save or another reader. Fill only
+		// the missing identifier, preserving every concurrently changed field.
+		if _, err := s.db.ExecContext(ctx, `
+			INSERT INTO backup_settings(id, updated_at, data_json) VALUES (1, ?, ?)
+			ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at,
+			data_json = json_set(backup_settings.data_json, '$.instanceName', json_extract(excluded.data_json, '$.instanceName'))
+			WHERE COALESCE(json_extract(backup_settings.data_json, '$.instanceName'), '') = ''
+		`, time.Now().Unix(), string(data)); err != nil {
+			return contractbackup.Option{}, err
+		}
+		return s.load(ctx)
 	}
 	return opt, nil
 }
@@ -98,4 +110,20 @@ func (s *BackupStore) load(ctx context.Context) (contractbackup.Option, error) {
 		return contractbackup.Option{}, fmt.Errorf("decode backup settings failed: %w", err)
 	}
 	return opt, nil
+}
+
+// SaveHashIfUnchanged cannot overwrite settings saved during a long upload.
+// A changed configuration will be backed up by the next run instead.
+func (s *BackupStore) SaveHashIfUnchanged(ctx context.Context, expected contractbackup.Option, hash string) error {
+	old, err := json.Marshal(expected)
+	if err != nil {
+		return err
+	}
+	expected.LastBackupHash = hash
+	updated, err := json.Marshal(expected)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `UPDATE backup_settings SET updated_at = ?, data_json = ? WHERE id = 1 AND data_json = ?`, time.Now().Unix(), string(updated), string(old))
+	return err
 }

@@ -11,6 +11,9 @@ require (
 	codeberg.org/miekg/dns v0.6.119
 	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260828
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
+	github.com/aws/aws-sdk-go-v2 v1.46.0
+	github.com/aws/aws-sdk-go-v2/credentials v1.20.3
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.112.0
 	github.com/coder/websocket v1.8.15
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/nftables v0.3.0
@@ -20,8 +23,8 @@ require (
 	github.com/oschwald/maxminddb-golang/v2 v2.8.0
 	github.com/pires/go-proxyproto v0.16.0
 	github.com/prometheus/client_golang v1.25.0
+	github.com/prometheus/client_model v0.6.3
 	github.com/refraction-networking/utls v1.8.2
-	github.com/rhnvrm/simples3 v0.11.1
 	github.com/slackhq/nebula v1.11.2
 	github.com/tailscale/wireguard-go v0.0.0-20261002162406-18e99eba5393
 	github.com/vishvananda/netlink v1.3.1
@@ -57,6 +60,15 @@ require (
 	github.com/andybalholm/brotli v1.2.3 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.20 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.2 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.2 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.2 // indirect
+	github.com/aws/smithy-go v1.28.1 // indirect
 	github.com/axiomhq/hyperloglog v0.2.6 // indirect
 	github.com/benbjohnson/immutable v0.4.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -95,7 +107,6 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nbrownus/go-metrics-prometheus v0.0.0-20210712211119-974a6260965f // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect
-	github.com/prometheus/client_model v0.6.3 // indirect
 	github.com/prometheus/common v0.72.0 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect

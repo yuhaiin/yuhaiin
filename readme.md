@@ -246,3 +246,6 @@ controls, with startup readiness and bounded connection cleanup. See the
 Measurement resource limits and finite-label reliability metrics: [measurement bounds](docs/measurement-bounds.md).
 
 Enterprise reliability is being developed in one [backend PR](https://github.com/yuhaiin/yuhaiin/pull/622) and one [frontend PR](https://github.com/yuhaiin/yuhaiin-react/pull/535). See the [delivery tracker](docs/enterprise-reliability.md) for implemented and pending stages.
+
+Backup transfer bounds and the disaster-recovery implementation status:
+[backup and recovery](docs/backup-recovery.md).

@@ -1,0 +1,15 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/s3
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkS3Upload/1MiB-12         	     170	   2112882 ns/op	 496.28 MB/s	 3371951 B/op	     306 allocs/op
+BenchmarkS3Upload/1MiB-12         	     171	   2083526 ns/op	 503.27 MB/s	 3368048 B/op	     277 allocs/op
+BenchmarkS3Upload/1MiB-12         	     170	   2078795 ns/op	 504.42 MB/s	 3368869 B/op	     277 allocs/op
+BenchmarkS3Upload/8MiB-12         	      21	  14755322 ns/op	 568.51 MB/s	25558928 B/op	     294 allocs/op
+BenchmarkS3Upload/8MiB-12         	      20	  15938109 ns/op	 526.32 MB/s	25554396 B/op	     293 allocs/op
+BenchmarkS3Upload/8MiB-12         	      20	  15126457 ns/op	 554.57 MB/s	25556785 B/op	     294 allocs/op
+BenchmarkS3Upload/32MiB-12        	       6	  59082818 ns/op	 567.92 MB/s	110905422 B/op	     306 allocs/op
+BenchmarkS3Upload/32MiB-12        	       6	  58863593 ns/op	 570.04 MB/s	110914380 B/op	     308 allocs/op
+BenchmarkS3Upload/32MiB-12        	       6	  58855836 ns/op	 570.11 MB/s	110904973 B/op	     307 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/s3	3.084s

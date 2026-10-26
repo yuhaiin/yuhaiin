@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,7 +29,7 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	}
 
 	backup := &Backup{dir: dir}
-	snapshot, err := backup.snapshotStateDB(t.Context())
+	snapshot, err := readBackupSnapshot(t, backup)
 	if err != nil {
 		t.Fatalf("snapshot sqlite state failed: %v", err)
 	}
@@ -104,11 +105,11 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	}
 
 	backup := &Backup{dir: dir}
-	first, err := backup.snapshotStateDB(t.Context())
+	first, err := readBackupSnapshot(t, backup)
 	if err != nil {
 		t.Fatalf("snapshot first sqlite backup failed: %v", err)
 	}
-	second, err := backup.snapshotStateDB(t.Context())
+	second, err := readBackupSnapshot(t, backup)
 	if err != nil {
 		t.Fatalf("snapshot second sqlite backup failed: %v", err)
 	}
@@ -165,4 +166,14 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	if gotBackup.Interval != 30 {
 		t.Fatalf("sanitized backup interval = %d, want 30", gotBackup.Interval)
 	}
+}
+
+func readBackupSnapshot(t *testing.T, b *Backup) ([]byte, error) {
+	t.Helper()
+	snapshot, err := b.snapshotStateDB(t.Context())
+	if err != nil {
+		return nil, err
+	}
+	defer snapshot.Close()
+	return io.ReadAll(snapshot)
 }
