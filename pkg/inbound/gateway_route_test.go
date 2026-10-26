@@ -9,9 +9,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -44,9 +46,13 @@ func (d gatewayRouteDialer) GetTarget(_ context.Context, _ string, mode string, 
 
 type gatewayResolverBook struct{}
 
-func (gatewayResolverBook) Get(string, string) netapi.Resolver { return netapi.Bootstrap() }
+func (gatewayResolverBook) Get(string, string) netapi.Resolver { return gatewayLoopbackResolver{} }
 
 func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
+	var blockedBootstrap atomic.Bool
+	if os.Getenv("YUHAIIN_TEST_GATEWAY_BLOCK_BOOTSTRAP") == "1" {
+		netapi.SetBootstrap(gatewayBlockedBootstrap{blocked: &blockedBootstrap})
+	}
 	old := configuration.DataDir.Load()
 	configuration.DataDir.Store(t.TempDir())
 	t.Cleanup(func() { configuration.DataDir.Store(old) })
@@ -200,6 +206,7 @@ func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
 	if err = rules.Apply(t.Context()); err != nil {
 		t.Fatal(err)
 	}
+	blockedBootstrap.Store(true)
 	response, err := client.Get("http://app.example/ads/banner")
 	if err != nil {
 		t.Fatal(err)
