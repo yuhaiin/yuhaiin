@@ -175,7 +175,8 @@ func (s *GatewayStore) Save(ctx context.Context, cfg contract.Config) (contract.
 	return cfg, tx.Commit()
 }
 
-// CA material is deliberately excluded from ordinary configuration and backups.
+// CA material is excluded from ordinary configuration exports. Full encrypted
+// disaster recovery includes the state database and its CA signer.
 func (s *GatewayStore) LoadCA(ctx context.Context) ([]byte, []byte, uint64, error) {
 	var cert, key []byte
 	var revision uint64

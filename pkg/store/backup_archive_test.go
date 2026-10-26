@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -65,6 +66,64 @@ func encryptedRecoveryFixture(t *testing.T) ([]byte, contract.RecoveryManifest, 
 		t.Fatal(err)
 	}
 	return encrypted.Bytes(), written, key
+}
+
+func TestRecoveryArchiveStillVerifiesVersionOne(t *testing.T) {
+	directory, manifest, key := recoveryFixture(t)
+	var current bytes.Buffer
+	manifest, err := WriteRecoveryArchive(t.Context(), &current, directory, manifest, RecoveryEncryption{Recipient: key.Recipient().String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest.Version = 1
+	var payload bytes.Buffer
+	for _, file := range manifest.Files {
+		data, err := os.ReadFile(filepath.Join(directory, file.Path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload.Write(data)
+	}
+	archive := maliciousRecovery(t, manifest, payload.Bytes(), key)
+	prepared, err := PrepareRecoveryArchive(t.Context(), bytes.NewReader(archive), t.TempDir(), RecoveryDecryption{Identity: key.String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer prepared.Close()
+	if prepared.Manifest.Version != 1 || prepared.Manifest.CompleteInventory {
+		t.Fatal("legacy component inventory was incorrectly promoted to a complete deployment")
+	}
+}
+
+func TestRecoveryManifestStartupAndExternalDependencyBoundaries(t *testing.T) {
+	_, valid, _ := encryptedRecoveryFixture(t)
+	valid.CompleteInventory = true
+	valid.SourceDirectory = "/original/deployment"
+	valid.Runtime = &contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: "/original/cwd"}
+	valid.Files[1].Role = "dependency"
+	valid.Files[1].SourcePath = "/external/key.pem"
+	if err := ValidateRecoveryManifest(valid); err != nil {
+		t.Fatal(err)
+	}
+	for _, mutate := range []func(*contract.RecoveryManifest){
+		func(m *contract.RecoveryManifest) { m.Version = 1 },
+		func(m *contract.RecoveryManifest) { m.SourceDirectory = "relative" },
+		func(m *contract.RecoveryManifest) { m.Runtime = nil },
+		func(m *contract.RecoveryManifest) { m.Runtime.WorkingDirectory = "relative" },
+		func(m *contract.RecoveryManifest) { m.Runtime.ManagementAuth = true },
+		func(m *contract.RecoveryManifest) { m.Runtime.ManagementTLS = "files" },
+		func(m *contract.RecoveryManifest) { m.Runtime.CertificateFile = "/unexpected.pem" },
+		func(m *contract.RecoveryManifest) { m.Files[1].SourcePath = "../external/key" },
+		func(m *contract.RecoveryManifest) { m.Files[1].Role = "protocol_identity" },
+	} {
+		bad := valid
+		bad.Runtime = new(*valid.Runtime)
+		bad.Files = slices.Clone(valid.Files)
+		mutate(&bad)
+		if err := ValidateRecoveryManifest(bad); err == nil {
+			t.Fatal("incomplete or unsafe startup inventory accepted")
+		}
+	}
 }
 
 func TestRecoveryArchiveEncryptedRoundTripAndPrivateStaging(t *testing.T) {

@@ -65,15 +65,17 @@ multipart uploads, context cancellation, finite retries, download verification,
 a single cancellable schedule owner, and settings compare-and-swap after upload.
 See [backup transfer and recovery ownership](backup-recovery.md).
 
-The encrypted archive codec and offline `recovery keygen`/`recovery verify`
+The encrypted archive codec and offline `recovery keygen`/`recovery create`/`recovery verify`
 commands are implemented with age, authenticated manifests, private staging,
 strict path/size limits and read-only SQLite schema/integrity checks. The server
 and local auth maintenance share a persistent lifecycle lock. See
 [archive format and verification](recovery-archive.md). Complete snapshot-set
-inventory and restore activation are not yet exposed as completed operations.
+creation is implemented under a confirmed offline maintenance window, with
+protocol-owned identity inventory and explicit external dependencies. Controlled
+restore activation and real restore/startup fault injection remain required.
 
-The full encrypted archive, maintenance/offline consistency, retention,
-restore preview/CLI/UI and update recovery integration remain required.
+S3 full-archive scheduling, retention, restore preview/CLI/UI and update recovery
+integration remain required.
 `Backup.restoreStateDB` still renames over a live database and removes WAL/SHM;
 this legacy restore path is not a completed safe recovery implementation.
 Existing update rollback restores executable bytes only.

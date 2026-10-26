@@ -20,10 +20,10 @@ import (
 
 const (
 	RecoveryFormat           = "yuhaiin-recovery"
-	RecoveryVersion          = 1
+	RecoveryVersion          = 2
 	MaxRecoveryFiles         = 4096
 	MaxRecoveryManifestBytes = 1 << 20
-	MaxRecoveryDataBytes     = int64(100 << 30)
+	MaxRecoveryDataBytes     = contract.MaxRecoveryDataBytes
 	// age's 64 KiB authenticated chunks add 16 bytes each plus a small header.
 	maxRecoveryEncryptedBytes = MaxRecoveryDataBytes + (64 << 20)
 	recoveryMagic             = "YUHAIIN-RECOVERY\x00\x01"
@@ -36,6 +36,8 @@ var ErrInvalidRecoveryArchive = errors.New("invalid, incomplete or unauthenticat
 // backups need only the public recipient; its private identity stays elsewhere.
 type RecoveryEncryption struct{ Passphrase, Recipient string }
 type RecoveryDecryption struct{ Passphrase, Identity string }
+
+func (k RecoveryEncryption) Validate() error { _, err := k.recipient(); return err }
 
 func (k RecoveryEncryption) recipient() (age.Recipient, error) {
 	if (k.Passphrase == "") == (k.Recipient == "") || len(k.Passphrase) > 1024 || len(k.Recipient) > 1024 {

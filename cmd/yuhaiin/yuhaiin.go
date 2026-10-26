@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
@@ -116,6 +117,19 @@ func run(args []string) error {
 			log.Error("close app error", "err", err)
 		}
 	}()
+	tlsMode := "disabled"
+	if *https {
+		tlsMode = "self_signed"
+		if *httpsCert != "" {
+			tlsMode = "files"
+		}
+	}
+	if err := recordRecoveryStartup(context.Background(), setting, contractbackup.RecoveryRuntime{
+		ManagementAuth: true, ManagementTLS: tlsMode, CertificateFile: *httpsCert, KeyFile: *httpsKey,
+		ListenAddress: *host, ExternalWebDirectory: os.Getenv("EXTERNAL_WEB"),
+	}); err != nil {
+		log.Warn("recovery startup metadata unavailable; offline backup will require explicit inputs", "err", err)
+	}
 
 	ctx, cancel := context.WithCancelCause(context.TODO())
 	defer cancel(nil)

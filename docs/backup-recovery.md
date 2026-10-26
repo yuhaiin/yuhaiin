@@ -4,8 +4,9 @@ Enterprise reliability is implemented in [backend #622](https://github.com/yuhai
 and [frontend #535](https://github.com/yuhaiin/yuhaiin-react/pull/535).
 Full disaster recovery is still in progress. The transfer improvements described
 here do not turn the legacy S3 state database object into a complete deployment
-backup. The encrypted archive, coordinated restore, offline CLI, retention,
-recovery UI and software-update recovery points remain required.
+backup. Encrypted offline snapshot creation and verification are implemented;
+coordinated restore, retention, recovery UI and software-update recovery points
+remain required.
 
 ## Data ownership inventory
 
@@ -19,10 +20,10 @@ recovery UI and software-update recovery points remain required.
 | External node/protocol references | Configured certificate, key and identity files | Resolve actual references, record dependencies and reject missing required files. Configuration-only export cannot promise recovery of these files. |
 | Software updater | `update/versions/<hash>.bin` and metadata sidecars | Existing executable history is not a database restore point. A previous executable must not silently open an incompatible migrated database. |
 
-The current transfer change does not implement a coherent multiple-database/file
-backup. That requires a controlled maintenance/offline window or coordinated
-writers, including protocol identity owners. It must not be described as an
-atomic cross-database snapshot merely because individual SQLite snapshots pass.
+[Offline full creation](recovery-archive.md) now collects the multiple-database/
+file set under a confirmed maintenance window, including protocol identity
+owners. It must not be described as an atomic online cross-database snapshot
+merely because individual SQLite snapshots pass.
 
 ## Existing S3 backup transfer
 
@@ -113,6 +114,6 @@ unchanged-upload suppression, concurrent settings changes, private staging,
 repeated schedule changes and closure without goroutine leaks. Both supported
 SQLite drivers must be tested with their required build tags (`fts5` for mattn).
 
-The next implemented storage component is the [encrypted recovery archive and
-offline verifier](recovery-archive.md). This does not yet replace the legacy
-S3 restore path or complete deployment snapshot/activation.
+The [encrypted recovery archive and offline create/verify commands](recovery-archive.md)
+collect and validate deployment snapshots. They do not yet replace the legacy
+S3 restore path or implement controlled deployment activation.

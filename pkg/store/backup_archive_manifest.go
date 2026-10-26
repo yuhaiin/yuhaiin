@@ -15,7 +15,7 @@ import (
 )
 
 func ValidateRecoveryManifest(manifest contract.RecoveryManifest) error {
-	if manifest.Format != RecoveryFormat || manifest.Version != RecoveryVersion {
+	if manifest.Format != RecoveryFormat || (manifest.Version != 1 && manifest.Version != RecoveryVersion) {
 		return errors.New("unsupported recovery format or version")
 	}
 	for _, id := range []string{manifest.ID, manifest.InstanceID} {
@@ -35,6 +35,28 @@ func ValidateRecoveryManifest(manifest contract.RecoveryManifest) error {
 	}
 	if len(manifest.Build.Version) > 256 || len(manifest.Build.Commit) > 256 || len(manifest.Build.GoVersion) > 256 || len(manifest.Build.Platform) > 64 || len(manifest.Build.Architecture) > 64 {
 		return errors.New("invalid recovery build metadata")
+	}
+	if manifest.Version == 1 && (manifest.CompleteInventory || manifest.SourceDirectory != "" || manifest.Runtime != nil || len(manifest.Requirements) != 0) {
+		return errors.New("legacy recovery manifest contains unsupported extensions")
+	}
+	if manifest.SourceDirectory != "" && !recoverySourcePath(manifest.SourceDirectory) {
+		return errors.New("invalid recovery source directory")
+	}
+	if manifest.CompleteInventory && (manifest.SourceDirectory == "" || manifest.Runtime == nil) {
+		return errors.New("complete inventory lacks startup inputs")
+	}
+	if manifest.Runtime != nil {
+		if err := ValidateRecoveryRuntime(*manifest.Runtime); err != nil {
+			return err
+		}
+	}
+	if len(manifest.Requirements) > MaxRecoveryFiles {
+		return errors.New("too many recovery requirements")
+	}
+	for _, requirement := range manifest.Requirements {
+		if requirement.Kind != "identity_not_initialized" || len(requirement.NodeID) > 256 || len(requirement.Path) > 4096 {
+			return errors.New("invalid recovery requirement")
+		}
 	}
 	names := make(map[string]struct{}, len(manifest.Files))
 	var total int64
@@ -68,6 +90,9 @@ func ValidateRecoveryManifest(manifest contract.RecoveryManifest) error {
 		default:
 			return errors.New("unknown recovery file role")
 		}
+		if file.SourcePath != "" && (manifest.Version == 1 || !recoverySourcePath(file.SourcePath) || (file.Role != "dependency" && file.Role != "listener_certificate")) {
+			return errors.New("invalid external recovery dependency")
+		}
 		name := strings.ToLower(file.Path)
 		if slices.Contains([]string{"state.db-wal", "state.db-shm", "state.db-journal", "management.db-wal", "management.db-shm", "management.db-journal"}, name) {
 			return errors.New("live SQLite sidecars cannot be restored from an archive")
@@ -79,6 +104,11 @@ func ValidateRecoveryManifest(manifest contract.RecoveryManifest) error {
 	}
 	if !configuration {
 		return errors.New("recovery archive is missing the configuration database")
+	}
+	if manifest.CompleteInventory && manifest.Runtime.ManagementAuth {
+		if _, exists := names["management.db"]; !exists {
+			return errors.New("recovery archive omits the enabled management identity database")
+		}
 	}
 	for name := range names {
 		for parent := path.Dir(name); parent != "."; parent = path.Dir(parent) {
@@ -113,6 +143,47 @@ func validateRecoveryPath(name string) error {
 	first, _, _ := strings.Cut(strings.ToLower(name), "/")
 	if first == ".configuration.lock" || first == "lock" || strings.HasPrefix(first, ".recovery-") {
 		return errors.New("recovery path conflicts with lifecycle storage")
+	}
+	return nil
+}
+
+func recoverySourcePath(value string) bool {
+	if value == "" || len(value) > 4096 || !utf8.ValidString(value) {
+		return false
+	}
+	for _, r := range value {
+		if r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return strings.HasPrefix(value, "/") || strings.HasPrefix(value, "\\\\") || (len(value) > 2 && ((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) && value[1] == ':' && (value[2] == '/' || value[2] == '\\'))
+}
+
+func ValidateRecoveryRuntime(inputs contract.RecoveryRuntime) error {
+	if !recoverySourcePath(inputs.WorkingDirectory) {
+		return errors.New("invalid recovery working directory")
+	}
+	switch inputs.ManagementTLS {
+	case "disabled", "self_signed":
+		if inputs.CertificateFile != "" || inputs.KeyFile != "" {
+			return errors.New("unexpected management TLS file pair")
+		}
+	case "files":
+		if inputs.CertificateFile == "" || inputs.KeyFile == "" {
+			return errors.New("missing management TLS file pair")
+		}
+	default:
+		return errors.New("unsupported management TLS recovery mode")
+	}
+	for _, value := range []string{inputs.CertificateFile, inputs.KeyFile, inputs.ExternalWebDirectory, inputs.ListenAddress} {
+		if len(value) > 4096 || !utf8.ValidString(value) {
+			return errors.New("invalid recovery startup input")
+		}
+		for _, r := range value {
+			if r < 0x20 || r == 0x7f {
+				return errors.New("control character in recovery startup input")
+			}
+		}
 	}
 	return nil
 }

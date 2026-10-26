@@ -11,7 +11,11 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/app"
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
@@ -21,21 +25,38 @@ func recoveryCommand(args []string) error {
 	return executeRecoveryCommand(ctx, args, os.Stdout)
 }
 
-// Verification is usable even when the server cannot open its databases. It
-// never starts listeners, opens deployment databases or replaces instance data.
+// These commands never start the server or a network listener. Verification
+// does not open deployment databases; creation requires stopped writer owners.
 func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: yuhaiin recovery keygen -identity-file FILE | recovery verify -archive FILE (-identity-file FILE | -passphrase-file FILE)")
+		return errors.New("usage: yuhaiin recovery keygen -identity-file FILE | recovery create -path DIR -archive FILE -maintenance (-recipient AGE1... | -passphrase-file FILE) | recovery verify -archive FILE (-identity-file FILE | -passphrase-file FILE)")
 	}
 	action := args[0]
 	flags := flag.NewFlagSet("recovery", flag.ContinueOnError)
+	timeout := flags.Duration("timeout", 30*time.Minute, "maximum command duration (up to 24h)")
 	archive := flags.String("archive", "", "encrypted recovery archive")
 	identityFile := flags.String("identity-file", "", "private X25519 identity file; newly created for keygen")
 	passphraseFile := flags.String("passphrase-file", "", "private file containing the recovery passphrase")
 	stagingParent := flags.String("staging-parent", os.TempDir(), "parent for temporary private verification staging")
+	directory := flags.String("path", configuration.DataDir.Load(), "deployment data directory for full backup")
+	managementAuth := flags.Bool("management-auth", false, "management identities were enabled, for explicit startup inputs")
+	recipient := flags.String("recipient", "", "external public age X25519 recipient for create")
+	maintenance := flags.Bool("maintenance", false, "confirm server and external identity/certificate writers are stopped")
+	includeHistory := flags.Bool("include-history", false, "include optional traffic and connection history")
+	tlsMode := flags.String("management-tls", "", "override recorded management TLS mode: disabled, self_signed, files")
+	certFile := flags.String("https-cert", "", "management certificate file for explicit startup inputs")
+	keyFile := flags.String("https-key", "", "management private key file for explicit startup inputs")
+	workingDirectory := flags.String("working-directory", "", "absolute working directory for explicit startup inputs")
+	externalWeb := flags.String("eweb", "", "external web assets for explicit startup inputs")
+
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
+	if *timeout <= 0 || *timeout > 24*time.Hour {
+		return errors.New("recovery timeout must be between zero and 24 hours")
+	}
+	ctx, cancel := context.WithTimeout(ctx, *timeout)
+	defer cancel()
 	if flags.NArg() != 0 {
 		return errors.New("unexpected recovery arguments")
 	}
@@ -54,6 +75,27 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 		return json.MarshalWrite(output, struct {
 			Recipient string `json:"recipient"`
 		}{recipient})
+	case "create":
+		if *archive == "" || *identityFile != "" || (*recipient == "") == (*passphraseFile == "") {
+			return errors.New("create requires -archive and one public -recipient or private -passphrase-file")
+		}
+		key := store.RecoveryEncryption{Recipient: *recipient}
+		if *passphraseFile != "" {
+			value, err := readRecoverySecretFile(*passphraseFile)
+			if err != nil {
+				return err
+			}
+			key.Passphrase = value
+		}
+		var inputs *contract.RecoveryRuntime
+		if *managementAuth || *tlsMode != "" || *workingDirectory != "" || *certFile != "" || *keyFile != "" || *externalWeb != "" {
+			inputs = &contract.RecoveryRuntime{ManagementAuth: *managementAuth, ManagementTLS: *tlsMode, CertificateFile: *certFile, KeyFile: *keyFile, WorkingDirectory: *workingDirectory, ExternalWebDirectory: *externalWeb}
+		}
+		manifest, err := app.CreateOfflineRecovery(ctx, *directory, *archive, key, app.RecoveryCreateOptions{ConfirmedMaintenance: *maintenance, IncludeHistory: *includeHistory, Runtime: inputs})
+		if err != nil {
+			return err
+		}
+		return json.MarshalWrite(output, manifest)
 	case "verify":
 		if *archive == "" || (*identityFile == "") == (*passphraseFile == "") {
 			return errors.New("verify requires -archive and one private key/passphrase file")
@@ -84,7 +126,7 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 		defer prepared.Close()
 		return json.MarshalWrite(output, prepared.Manifest)
 	default:
-		return errors.New("unknown recovery action; use keygen or verify")
+		return errors.New("unknown recovery action; use keygen, create or verify")
 	}
 }
 
@@ -118,4 +160,17 @@ func readRecoverySecretFile(path string) (string, error) {
 		return "", errors.New("empty or overlong backup key/passphrase")
 	}
 	return value, nil
+}
+
+func recordRecoveryStartup(ctx context.Context, state app.SQLStore, inputs contract.RecoveryRuntime) error {
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	inputs.WorkingDirectory = workingDirectory
+	db, err := state.SQLDB(ctx)
+	if err != nil {
+		return err
+	}
+	return store.NewBackupStore(db).RecordRecoveryRuntime(ctx, inputs)
 }

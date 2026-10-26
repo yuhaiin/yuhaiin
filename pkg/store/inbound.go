@@ -105,8 +105,24 @@ func (s *InboundStore) Get(ctx context.Context, id string) (contract.Inbound, er
 }
 
 func (s *InboundStore) List(ctx context.Context) ([]contract.Inbound, error) {
+	return s.list(ctx, false)
+}
+
+func (s *InboundStore) list(ctx context.Context, strict bool) ([]contract.Inbound, error) {
+	var items []contract.Inbound
+	err := s.walk(ctx, strict, func(item contract.Inbound) error { items = append(items, item); return nil })
+	return items, err
+}
+
+// RangeForRecovery streams resources through the existing decoder, aborting
+// instead of silently omitting malformed persisted records.
+func (s *InboundStore) RangeForRecovery(ctx context.Context, visit func(contract.Inbound) error) error {
+	return s.walk(ctx, true, visit)
+}
+
+func (s *InboundStore) walk(ctx context.Context, strict bool, visit func(contract.Inbound) error) error {
 	if s == nil || s.db == nil {
-		return nil, errors.New("inbound store database is nil")
+		return errors.New("inbound store database is nil")
 	}
 
 	rows, err := s.db.QueryContext(ctx, `
@@ -115,27 +131,37 @@ func (s *InboundStore) List(ctx context.Context) ([]contract.Inbound, error) {
 		ORDER BY name, id
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("query inbounds failed: %w", err)
+		return fmt.Errorf("query inbounds failed: %w", err)
 	}
 	defer rows.Close()
 
-	var inbounds []contract.Inbound
 	for rows.Next() {
 		var id, dataJSON string
 		if err := rows.Scan(&id, &dataJSON); err != nil {
-			return nil, fmt.Errorf("scan inbound failed: %w", err)
+			return fmt.Errorf("scan inbound failed: %w", err)
 		}
 		inbound, err := decodeInbound(dataJSON)
+		if strict && err == nil {
+			err = inbound.Validate()
+			if err == nil && inbound.ID != id {
+				err = errors.New("inbound identity differs from storage key")
+			}
+		}
 		if err != nil {
+			if strict {
+				return fmt.Errorf("stored inbound %s cannot be inventoried for recovery", id)
+			}
 			log.Warn("skip invalid stored inbound", "id", id, "err", err)
 			continue
 		}
-		inbounds = append(inbounds, inbound)
+		if err := visit(inbound); err != nil {
+			return err
+		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate inbounds failed: %w", err)
+		return fmt.Errorf("iterate inbounds failed: %w", err)
 	}
-	return inbounds, nil
+	return nil
 }
 
 func (s *InboundStore) Delete(ctx context.Context, id string) error {

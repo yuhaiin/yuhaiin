@@ -145,3 +145,56 @@ func TestServerAndLocalAuthRespectRecoveryLifecycleLock(t *testing.T) {
 		}
 	}
 }
+
+func TestRecoveryCLICreatesAndVerifiesCompleteDeploymentWithoutServer(t *testing.T) {
+	directory := t.TempDir()
+	database, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.NewBackupStore(database.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: directory}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	identity, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive := filepath.Join(t.TempDir(), "full.yhb")
+	var output bytes.Buffer
+	args := []string{"create", "-path", directory, "-archive", archive, "-recipient", identity.Recipient().String()}
+	if err := executeRecoveryCommand(t.Context(), args, &output); err == nil {
+		t.Fatal("CLI did not require maintenance acknowledgement")
+	}
+	args = append(args, "-maintenance")
+	if err := executeRecoveryCommand(t.Context(), args, &output); err != nil {
+		t.Fatal(err)
+	}
+	var manifest contract.RecoveryManifest
+	if err := json.Unmarshal(output.Bytes(), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if !manifest.CompleteInventory || manifest.Runtime == nil || manifest.Runtime.ManagementTLS != "disabled" || manifest.SourceDirectory == "" {
+		t.Fatal("CLI did not create complete deployment metadata")
+	}
+	keyPath := filepath.Join(t.TempDir(), "private.key")
+	if err := os.WriteFile(keyPath, []byte(identity.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	output.Reset()
+	if err := executeRecoveryCommand(t.Context(), []string{"verify", "-archive", archive, "-identity-file", keyPath}, &output); err != nil {
+		t.Fatal(err)
+	}
+	var verified contract.RecoveryManifest
+	if err := json.Unmarshal(output.Bytes(), &verified); err != nil || verified.ID != manifest.ID {
+		t.Fatal("CLI-created deployment archive did not verify")
+	}
+	if _, err := os.Stat(filepath.Join(directory, "management.db")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("CLI unexpectedly started management identities")
+	}
+	if _, err := os.Stat(filepath.Join(directory, "management-tls.pem")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("CLI unexpectedly generated a listener identity")
+	}
+}
