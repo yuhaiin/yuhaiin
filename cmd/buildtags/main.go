@@ -8,11 +8,12 @@ import (
 	"tailscale.com/feature/featuretags"
 )
 
-// Retain only features required by the embedded WireGuard/magicsock control
-// engine; Tailscale netstack, Serve, ACME and ipnbus are not linked.
+// requiredTailscaleFeatures are used by the embedded tsnet adapter. In
+// particular, MagicDNS needs the DNS manager even though tsnet can start
+// successfully when DNS is omitted.
 func requiredTailscaleFeature(name string) bool {
 	switch name {
-	case "dns", "udptransport", "nattraversal":
+	case "dns", "netstack", "serve", "acme", "ipnbus", "udptransport", "nattraversal":
 		return true
 	default:
 		return false

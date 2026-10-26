@@ -5,14 +5,43 @@ import (
 	"net"
 	"net/netip"
 	"testing"
+
+	"tailscale.com/net/dns"
+	"tailscale.com/tsd"
+	"tailscale.com/tsnet"
 )
 
-func TestUnavailableLiteClientFailsClosed(t *testing.T) {
-	if _, err := resolveAddr(t.Context(), nil, "tcp", nil); err == nil {
-		t.Fatal("uninitialized control client accepted a route")
+func TestTailscaleDNSManagerMissing(t *testing.T) {
+	if manager, err := tailscaleDNSManager(nil); manager != nil || !errors.Is(err, errTailscaleDNSUnavailable) {
+		t.Fatalf("nil system: manager=%v err=%v", manager, err)
 	}
-	if _, err := liteDNSQuery(t.Context(), nil, nil); !errors.Is(err, errTailscaleDNSUnavailable) {
-		t.Fatalf("uninitialized MagicDNS = %v", err)
+	sys := new(tsd.System)
+	if manager, err := tailscaleDNSManager(sys); manager != nil || !errors.Is(err, errTailscaleDNSUnavailable) {
+		t.Fatalf("unset DNS subsystem: manager=%v err=%v", manager, err)
+	}
+
+	// In builds using ts_omit_dns, the Tailscale engine explicitly sets a
+	// typed nil *dns.Manager and tsnet.Up can still report Running.
+	sys.DNSManager.Set((*dns.Manager)(nil))
+	if manager, err := tailscaleDNSManager(sys); manager != nil || !errors.Is(err, errTailscaleDNSUnavailable) {
+		t.Fatalf("nil DNS subsystem: manager=%v err=%v", manager, err)
+	}
+
+	available := new(tsd.System)
+	want := testDNSManager(t)
+	available.DNSManager.Set(want)
+	if manager, err := tailscaleDNSManager(available); err != nil || manager != want {
+		t.Fatalf("available DNS subsystem: manager=%v err=%v", manager, err)
+	}
+}
+
+func TestUnavailableTailscaleDialer(t *testing.T) {
+	// Resolve addresses without requiring a real Tailscale server to start.
+	// An unset sys handle must return an error rather than panic.
+	server := new(tsnet.Server)
+	_, err := resolveAddr(t.Context(), server, "tcp", nil)
+	if err == nil {
+		t.Fatal("expected error for uninitialized Tailscale system")
 	}
 }
 
