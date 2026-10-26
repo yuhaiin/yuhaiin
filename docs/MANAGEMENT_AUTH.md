@@ -52,6 +52,7 @@ administrator registration. Protect access to startup output until setup closes.
 Manual local bootstrap remains available as an optional alternative:
 
 ```sh
+# Stop the server using this data directory before the local command.
 yuhaiin auth bootstrap -path /your/data-directory -login admin
 ```
 
@@ -86,6 +87,7 @@ no automatic conversion and no unauthenticated migration HTTP endpoint.
 Lost/expired enrollment or lost-password recovery requires local execution:
 
 ```sh
+# Stop the server first; restart it after local credential recovery.
 yuhaiin auth recover -path /your/data-directory -id USER_UUID
 ```
 

@@ -65,6 +65,13 @@ multipart uploads, context cancellation, finite retries, download verification,
 a single cancellable schedule owner, and settings compare-and-swap after upload.
 See [backup transfer and recovery ownership](backup-recovery.md).
 
+The encrypted archive codec and offline `recovery keygen`/`recovery verify`
+commands are implemented with age, authenticated manifests, private staging,
+strict path/size limits and read-only SQLite schema/integrity checks. The server
+and local auth maintenance share a persistent lifecycle lock. See
+[archive format and verification](recovery-archive.md). Complete snapshot-set
+inventory and restore activation are not yet exposed as completed operations.
+
 The full encrypted archive, maintenance/offline consistency, retention,
 restore preview/CLI/UI and update recovery integration remain required.
 `Backup.restoreStateDB` still renames over a live database and removes WAL/SHM;

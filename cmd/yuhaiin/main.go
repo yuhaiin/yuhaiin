@@ -14,6 +14,7 @@ var help = `Usage:
 
 Actions:
   auth        local management administrator bootstrap/recovery
+  recovery    encrypted backup key generation and offline archive verification
   install     install yuhaiin
   uninstall   uninstall yuhaiin
   start       start yuhaiin
@@ -49,6 +50,9 @@ func main() {
 	}
 
 	switch action {
+	case "recovery":
+		do(recoveryCommand)
+		return
 	case "auth":
 		do(authCommand)
 		return

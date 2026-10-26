@@ -112,3 +112,7 @@ responses, untrusted TLS, multipart abort/complete failures, corrupt readback,
 unchanged-upload suppression, concurrent settings changes, private staging,
 repeated schedule changes and closure without goroutine leaks. Both supported
 SQLite drivers must be tested with their required build tags (`fts5` for mattn).
+
+The next implemented storage component is the [encrypted recovery archive and
+offline verifier](recovery-archive.md). This does not yet replace the legacy
+S3 restore path or complete deployment snapshot/activation.

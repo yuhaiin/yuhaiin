@@ -249,3 +249,6 @@ Enterprise reliability is being developed in one [backend PR](https://github.com
 
 Backup transfer bounds and the disaster-recovery implementation status:
 [backup and recovery](docs/backup-recovery.md).
+
+Encrypted archive format, external backup keys and offline integrity verification:
+[recovery archives](docs/recovery-archive.md).

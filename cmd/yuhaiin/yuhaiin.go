@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"syscall"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
 func run(args []string) error {
@@ -43,6 +45,18 @@ func run(args []string) error {
 		return err
 	}
 	storagesqlite.SetNFSMode(*nfsMode)
+
+	// Serialize the server with offline snapshot/restore before creating TLS
+	// identity material or opening either database. Closing leaves the inode.
+	lifecycle, err := lockfile.Acquire(filepath.Join(*path, ".configuration.lock"))
+	if err != nil && !errors.Is(err, errors.ErrUnsupported) {
+		return err
+	}
+	if lifecycle != nil {
+		defer lifecycle.Close()
+	} else {
+		log.Warn("offline recovery coordination is unavailable on this platform")
+	}
 
 	if *webdir != "" && os.Getenv("EXTERNAL_WEB") == "" {
 		os.Setenv("EXTERNAL_WEB", *webdir)
