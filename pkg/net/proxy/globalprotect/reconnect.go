@@ -202,6 +202,10 @@ func (c *reconnectingClient) current(ctx context.Context) (*Client, error) {
 			c.mu.Unlock()
 			return client, nil
 		}
+		if netapi.IsBackgroundProbe(ctx) {
+			c.mu.Unlock()
+			return nil, netapi.ErrBackgroundProbeUnavailable
+		}
 		if c.waitingForDemand {
 			select {
 			case c.demand <- struct{}{}:

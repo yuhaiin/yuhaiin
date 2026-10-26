@@ -13,6 +13,7 @@ import (
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"golang.org/x/time/rate"
 )
 
@@ -121,7 +122,7 @@ func (s *selectorRuntime) scheduleLocked() {
 					if !s.probeCanStart(n, probe.NetworkCostPolicy) {
 						return errProbeSkipped
 					}
-					_, err := s.runtime.Speed(ctx, n.ID, request)
+					_, err := s.runtime.Speed(netapi.WithBackgroundProbe(ctx), n.ID, request)
 					if errors.Is(err, errSpeedBusy) || errors.Is(err, errSpeedBudget) || errors.Is(err, errMeasurementBusy) || localProbeDenial(err) {
 						return errProbeSkipped
 					}
@@ -146,14 +147,18 @@ func (s *selectorRuntime) scheduleLocked() {
 	s.scheduler.replace(jobs, s.defaults.Probe.Concurrency)
 }
 func (s *selectorRuntime) probeCanStart(n contract.Node, policy string) bool {
-	cached := false
-	s.runtime.proxies.Range(func(id string, _ *ProxyEntry) bool {
-		if id == n.ID {
-			cached = true
-			return false
+	entry, cached := s.runtime.proxies.store.Load(n.ID)
+	if cached {
+		if entry.mu.TryRLock() {
+			if provider, ok := entry.Proxy.(contract.NodeRuntimeStatusProvider); ok {
+				state := provider.NodeRuntimeStatus().State
+				cached = state == "connected" || state == "configured"
+			}
+			entry.mu.RUnlock()
+		} else {
+			cached = false
 		}
-		return true
-	})
+	}
 	if cached {
 		return true
 	}
@@ -163,25 +168,27 @@ func (s *selectorRuntime) probeCanStart(n contract.Node, policy string) bool {
 	// Enterprise VPN constructors may initiate costly external authentication.
 	// Periodic work never starts these; an administrator establishes them once
 	// through the existing manual path, after which periodic probes may reuse it.
-	var expensive func([]contract.Protocol) bool
-	expensive = func(chain []contract.Protocol) bool {
-		for _, p := range chain {
-			if slices.Contains([]string{"openvpn", "ikev2", "anyconnect", "sstp", "fortinet", "globalprotect", "softether", "l2tp", "l2tpv3", "tailscale", "nebula", "zerotier", "set", "point_as_endpoint"}, p.Type) {
-				return true
-			}
-			if p.NetworkSplit != nil {
-				for _, child := range []*contract.Protocol{p.NetworkSplit.TCP, p.NetworkSplit.UDP} {
-					if child != nil && expensive([]contract.Protocol{*child}) {
-						return true
-					}
+	return !requiresEstablishedClient(n.Chain)
+}
+
+func requiresEstablishedClient(chain []contract.Protocol) bool {
+	for _, p := range chain {
+		if slices.Contains([]string{"openvpn", "ikev2", "anyconnect", "sstp", "fortinet", "globalprotect", "softether", "l2tp", "l2tpv3", "tailscale", "nebula", "zerotier", "set", "point_as_endpoint"}, p.Type) {
+			return true
+		}
+		if p.NetworkSplit != nil {
+			for _, child := range []*contract.Protocol{p.NetworkSplit.TCP, p.NetworkSplit.UDP} {
+				if child != nil && requiresEstablishedClient([]contract.Protocol{*child}) {
+					return true
 				}
 			}
 		}
-		return false
 	}
-	return !expensive(n.Chain)
+	return false
 }
+
 func (s *selectorRuntime) runProbe(ctx context.Context, n contract.Node, options contract.ProbeSchedule, req contract.LatencyRequest) (resultErr error) {
+	ctx = netapi.WithBackgroundProbe(ctx)
 	var duration time.Duration
 	ok := true
 	defer func() {
@@ -252,22 +259,17 @@ func (s *selectorRuntime) runProbe(ctx context.Context, n contract.Node, options
 func (s *selectorRuntime) nativeProbe(ctx context.Context, id string) error {
 	epoch := s.runtime.observer.counter(id).generation.Load()
 	var native *contract.ProtocolRuntimeStatus
-	s.runtime.proxies.Range(func(key string, p *ProxyEntry) bool {
-		if key != id {
-			return true
-		}
-		p.mu.RLock()
-		defer p.mu.RUnlock()
-		if provider, ok := p.Proxy.(contract.NodeRuntimeStatusProvider); ok {
+	if entry, ok := s.runtime.proxies.store.Load(id); ok && entry.mu.TryRLock() {
+		if provider, ok := entry.Proxy.(contract.NodeRuntimeStatusProvider); ok {
 			v := provider.NodeRuntimeStatus()
 			native = &v
 		}
-		return false
-	})
+		entry.mu.RUnlock()
+	}
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if native == nil || native.UpdatedAt <= 0 || time.Now().Unix()-native.UpdatedAt > 120 {
+	if native == nil || native.UpdatedAt <= 0 || time.Now().Unix()-native.UpdatedAt > 120 || native.UpdatedAt > time.Now().Unix()+5 {
 		return errProbeSkipped
 	}
 	if !slices.Contains([]string{"connected", "healthy", "ready", "disconnected", "failed", "unhealthy"}, native.State) {

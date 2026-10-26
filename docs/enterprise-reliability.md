@@ -133,9 +133,12 @@ existing Prometheus endpoint gains finite-label selector/circuit/probe/speed
 metrics without database work on scrape. Frontend EN/JA/KO displays shared slot
 use and inclusive budget semantics. See [measurement bounds](measurement-bounds.md).
 
-Stage 1 remains in progress, including native protocol lifecycle adapters and
-final resource/transport qualification. Stages 2 and 3 remain pending.
+Stage 1 remains in progress, including final resource/transport qualification.
+Stages 2 and 3 remain pending.
 
-Native adapter and periodic-login-guard changes currently under development are
-not claimed as delivered by this tracker; they will be added to the same active
-backend/frontend PRs after qualification.
+Native session adapters and periodic login protection now use existing protocol
+state and the same node/selector runtime. See the native session section in
+[outbound observability](outbound-observability.md#native-session-evidence) and
+[periodic VPN reuse](probe-policy.md#periodic-work-reuses-established-vpn-sessions).
+They require no SQLite migration beyond schema 20. Frontend lifecycle descriptions
+remain separate from channel/target health. Full three-stage completion is pending.

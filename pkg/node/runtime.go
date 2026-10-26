@@ -482,6 +482,9 @@ func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node con
 	}
 	r.credentialVersions[id] = version
 	proxy, err := r.proxies.LoadOrCreate(ctx, id, func() (*ProxyEntry, error) {
+		if netapi.IsBackgroundProbe(ctx) && requiresEstablishedClient(resolved.Chain) {
+			return nil, netapi.ErrBackgroundProbeUnavailable
+		}
 		proxy, err := register.ContractDialer(resolved)
 		if err != nil {
 			return nil, err
@@ -489,7 +492,7 @@ func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node con
 		return &ProxyEntry{Proxy: proxy, ContractConfig: &node, Name: node.Name}, nil
 	})
 	if err != nil {
-		if r.observer != nil {
+		if r.observer != nil && !localProbeDenial(err) {
 			r.observer.counter(id).failure(err)
 		}
 		return nil, err

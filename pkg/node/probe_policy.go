@@ -13,7 +13,7 @@ import (
 var errProbePolicyUnavailable = errors.New("probe routing and traffic policy is not ready")
 
 func localProbeDenial(err error) bool {
-	return errors.Is(err, errProbePolicyUnavailable) || errors.Is(err, trafficcontrol.ErrLocalLimit) || netapi.IsBlockError(err)
+	return errors.Is(err, errProbePolicyUnavailable) || errors.Is(err, netapi.ErrBackgroundProbeUnavailable) || errors.Is(err, trafficcontrol.ErrLocalLimit) || netapi.IsBlockError(err)
 }
 
 type RuntimeOption func(*NodeRuntime)

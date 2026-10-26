@@ -93,13 +93,22 @@ func (t *Tailscale) init(ctx context.Context) (*lite.Client, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	t.mu.Lock()
+	if netapi.IsBackgroundProbe(ctx) {
+		if !t.mu.TryLock() {
+			return nil, netapi.ErrBackgroundProbeUnavailable
+		}
+	} else {
+		t.mu.Lock()
+	}
 	defer t.mu.Unlock()
 	if t.closed {
 		return nil, net.ErrClosed
 	}
 	if t.client != nil {
 		return t.client, nil
+	}
+	if netapi.IsBackgroundProbe(ctx) {
+		return nil, netapi.ErrBackgroundProbeUnavailable
 	}
 	dir, err := statePath(configuration.DataDir.Load(), t.config)
 	if err != nil {

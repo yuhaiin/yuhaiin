@@ -125,3 +125,56 @@ overhead measurements, not physical link throughput.
 ```sh
 go test ./pkg/node -run '^$' -bench 'BenchmarkObservedPacketSend|BenchmarkSelectorNewFlow' -benchmem -benchtime=500ms -count=3
 ```
+
+## Periodic work reuses established VPN sessions
+
+A cached proxy object is not proof that its lazy VPN login has completed.
+Periodic probes and scheduled speed tests now carry a context marker through
+Set, endpoint and other node chains. The node factory refuses new expensive VPN
+constructors under that marker, including after credential invalidation removes
+a cached client. Tailscale cannot initialize an identity or control client, and
+GlobalProtect cannot wake its idle demand-based reconnect path. OpenVPN, L2TP
+and SoftEther return a local skip when their reconnect supervisor has no current
+session. The existing supervisors keep their own configured lifecycle; probes do
+not start additional login loops. Manual tests and ordinary traffic retain their
+existing protocol behavior.
+
+Native status preflight avoids testing a known idle/unavailable VPN. The context
+marker also protects the race where a previously ready session becomes unavailable
+after preflight. A local reuse refusal is a skipped measurement, not a remote
+failure. If a periodic speed test already reserved its allowance before that
+race, the existing conservative reservation still applies.
+
+Session snapshots are read from existing protocol state. No per-node polling
+worker or timer is added. Cached lookups for one node are direct; entry locks use
+TryRLock so status/selection inspection does not wait behind proxy shutdown.
+Tailscale status uses TryLock to avoid waiting behind expensive initialization.
+Only snapshot compilation inspects native availability; forwarding continues to
+read the compiled immutable choice. Known failed/closed/reconnecting sessions
+and unavailable authentication/control are ineligible automatically without
+inventing passive network failures. Idle demand-based sessions remain eligible
+for normal application traffic to wake when supported. Explicit manual selection
+keeps its existing behavior.
+
+Native lifecycle follow-up microbenchmarks on Linux/amd64 Ryzen 5 5600G,
+median of three 300 ms samples compared with consolidated parent `56892747`:
+
+| Operation | Parent ns/op | Current ns/op | Current bytes / allocs |
+| --- | ---: | ---: | ---: |
+| SelectorNewFlow/manual/tcp | 702.60 | 707.10 | 272 / 5 |
+| SelectorNewFlow/manual/udp | 457.90 | 449.00 | 288 / 6 |
+| SelectorNewFlow/failover/tcp | 871.60 | 867.00 | 328 / 8 |
+| SelectorNewFlow/failover/udp | 566.40 | 542.00 | 344 / 9 |
+| SelectorNewFlow/weighted/tcp | 913.30 | 902.00 | 328 / 8 |
+| SelectorNewFlow/weighted/udp | 600.60 | 571.80 | 344 / 9 |
+| NativeSelectionAvailability/100 | n/a | 2476.00 | 952 / 5 |
+| NativeSelectionAvailability/1000 | n/a | 32837.00 | 9368 / 11 |
+| ObservedPacketSend | 4.29 | 4.02 | 0 / 0 |
+
+[Parent output](benchmarks/data/selector-2026-10-26/native-parent.txt) and
+[current output](benchmarks/data/selector-2026-10-26/native-current.txt) retain all
+repetitions. Native availability measures one scan of 100/1,000 cached session
+providers, with 10% unavailable; that work runs during snapshot compilation,
+not per connection or packet. The flow/send cases use deterministic transports
+and retain allocation counts. These timings are CPU overhead, not physical-link
+throughput or the final heap/goroutine deployment qualification.

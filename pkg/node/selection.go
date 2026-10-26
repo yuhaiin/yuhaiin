@@ -10,13 +10,14 @@ import (
 )
 
 type selectionInput struct {
-	circuit *contract.CircuitStatus
-	udp     bool
-	config  contract.SelectorCandidate
-	enabled bool
-	health  contract.ChannelHealth
-	speed   contract.ThroughputMeasurement
-	active  int64
+	unavailableReason string
+	circuit           *contract.CircuitStatus
+	udp               bool
+	config            contract.SelectorCandidate
+	enabled           bool
+	health            contract.ChannelHealth
+	speed             contract.ThroughputMeasurement
+	active            int64
 }
 
 // evaluateSelector runs only when producing a new immutable runtime snapshot.
@@ -55,7 +56,7 @@ func evaluateSelector(selector contract.Selector, inputs []selectionInput, previ
 		if p.Fallback == "selected" {
 			// Explicit last resort. Never resurrect a disabled node/candidate.
 			for i, in := range inputs {
-				if in.config.NodeID == selector.NodeID && in.enabled && in.config.Enabled && (in.circuit == nil || in.circuit.State != "open") {
+				if in.config.NodeID == selector.NodeID && in.enabled && in.config.Enabled && in.unavailableReason == "" && (in.circuit == nil || in.circuit.State != "open") {
 					best = i
 					d.Reason = "fallback_selected"
 					break
@@ -64,7 +65,7 @@ func evaluateSelector(selector contract.Selector, inputs []selectionInput, previ
 		} else if p.Fallback == "priority_unknown" {
 			for i, in := range inputs {
 				c := d.Candidates[i]
-				if c.State == "unknown" && in.enabled && in.config.Enabled && (p.Mode != "weighted" || in.config.Weight > 0) && (best == -1 || priorityLess(in.config, inputs[best].config)) {
+				if c.State == "unknown" && in.enabled && in.config.Enabled && in.unavailableReason == "" && (p.Mode != "weighted" || in.config.Weight > 0) && (best == -1 || priorityLess(in.config, inputs[best].config)) {
 					best = i
 					d.Reason = "fallback_unknown"
 				}
@@ -199,6 +200,10 @@ func scoreCandidate(p contract.SelectorPolicy, in selectionInput, now time.Time)
 		speed.Target == p.SpeedTarget && speed.Target != "" && speed.DownloadMbps > 0 && !math.IsInf(speed.DownloadMbps, 0) && !math.IsNaN(speed.DownloadMbps)
 	if speedValid {
 		c.DownloadMbps, c.UploadMbps = speed.DownloadMbps, speed.UploadMbps
+	}
+	if in.unavailableReason != "" {
+		c.Reason = in.unavailableReason
+		return c
 	}
 	if in.circuit != nil && in.circuit.State == "open" {
 		c.State, c.Reason = "unhealthy", "circuit_open"

@@ -10,8 +10,6 @@ import (
 	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/apernet/quic-go"
 )
 
@@ -29,7 +27,7 @@ func cloneHealth(h contract.ChannelHealth) contract.ChannelHealth {
 // and ordinary application errors remain visible to their owners and do not
 // condemn a node. Dial timeouts count; caller cancellation does not.
 func healthFailure(err error) bool {
-	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || netapi.IsBlockError(err) || errors.Is(err, trafficcontrol.ErrLocalLimit) {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || localProbeDenial(err) {
 		return false
 	}
 	if stream, ok := errors.AsType[*quic.StreamError](err); ok && stream.ErrorCode == 0 {

@@ -166,6 +166,7 @@ func (s *selectorRuntime) run() {
 
 func (s *selectorRuntime) rebuild(now time.Time) {
 	previous := s.snapshot.Load()
+	unavailable := s.runtime.nativeSelectionUnavailable(now)
 	next := &selectorSnapshot{nodes: s.nodes, generations: s.nodeGenerations, tcpID: s.tcpID, udpID: s.udpID, items: make(map[string]*preparedSelector, len(s.configs))}
 	for _, config := range s.configs {
 		config = s.effectivePolicy(config)
@@ -187,7 +188,7 @@ func (s *selectorRuntime) rebuild(now time.Time) {
 					continue
 				}
 				stats := counter.snapshot()
-				input := selectionInput{config: c, enabled: exists && n.Enabled, health: stats.TCPHealth, speed: stats.Throughput, active: counter.activeTCP.Load() + counter.activeUDP.Load()}
+				input := selectionInput{unavailableReason: unavailable[c.NodeID], config: c, enabled: exists && n.Enabled, health: stats.TCPHealth, speed: stats.Throughput, active: counter.activeTCP.Load() + counter.activeUDP.Load()}
 				if b := p.circuits[c.NodeID].tcp; b != nil {
 					b.observe(stats.TCPHealth, now)
 					state := b.snapshot(now)
