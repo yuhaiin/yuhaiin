@@ -12,6 +12,9 @@ import (
 // never contain these identities, and restoring one cannot replace an admin.
 func OpenManagement(ctx context.Context, path string) (*Store, error) {
 	return open(ctx, path, "management", func(ctx context.Context, db *sql.DB) error {
+		if err := checkStoreCompatibility(ctx, db, "management"); err != nil {
+			return err
+		}
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}

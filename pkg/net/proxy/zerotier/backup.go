@@ -6,23 +6,26 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
-	zt "github.com/yuhaiin/zerotier-go"
 )
 
 var stateObjectName = regexp.MustCompile(`^[0-9]+-[0-9a-f]{16}-[0-9a-f]{16}\.state$`)
+var safeIdentity = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 // RecoveryFiles is owned by the protocol that creates the native FileStore.
 // Only its state-object files are included, never temporary files or logs.
 func RecoveryFiles(base string, input contract.ZeroTier) ([]string, error) {
-	id, err := zt.ParseNetworkID(input.NetworkID)
-	if err != nil {
-		return nil, err
+	// Keep inventory usable on unsupported native targets. Importing the native
+	// bridge here would bypass unsupported.go and pull purego into every build.
+	id, err := strconv.ParseUint(input.NetworkID, 16, 64)
+	if len(input.NetworkID) != 16 || err != nil || id == 0 {
+		return nil, errors.New("invalid ZeroTier network identifier")
 	}
 	name := input.Identity
 	if name == "" {
-		name = id.String()
+		name = fmt.Sprintf("%016x", id)
 	}
 	if !safeIdentity.MatchString(name) {
 		return nil, errors.New("invalid ZeroTier identity namespace")

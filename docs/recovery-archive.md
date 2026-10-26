@@ -54,6 +54,9 @@ data directory. Logs, caches, unrelated protocol identities and temporary native
 state files are excluded. Missing required files, malformed resources and
 hardware-bound Nebula keys without an external recovery procedure fail creation.
 Uninitialized Tailnet/ZeroTier identities are explicitly listed as requirements.
+ZeroTier inventory uses only portable filename/namespace parsing. Unsupported
+native targets keep the existing bridge stub; offline backup does not pull the
+native loader into Android/BSD builds. CI checks that dependency boundary.
 
 External files are stored under a hashed `dependencies/` archive name. Their
 original absolute path is encrypted manifest metadata (`sourcePath`), never
@@ -160,6 +163,9 @@ names/versions, matching metadata and startup-critical tables are checked.
 Unrecognized future/foreign/incomplete schemas are rejected. Recognized older
 prefixes retain their original version; a later restore layer must explicitly
 handle the required upgrade and its rollback limits.
+Ordinary database startup shares the migration-prefix check and rejects
+incompatible stores before bootstrap writes/journal-mode changes. This is a
+current-binary protection, not a guarantee for archived binaries predating it.
 
 Both SQLite drivers apply connection-local limits: 64 MiB SQLite values,
 1 MiB SQL and expression depth 64. Snapshot checks use a 2 MiB page cache and

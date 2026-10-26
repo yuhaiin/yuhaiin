@@ -51,3 +51,24 @@ func TestRecoveryFilesOnlyIncludesOwnedStateObjects(t *testing.T) {
 		t.Fatal("state object directory accepted as regular identity")
 	}
 }
+
+func TestRecoveryNetworkNamespaceDoesNotRequireNativeBridge(t *testing.T) {
+	base := t.TempDir()
+	directory := filepath.Join(base, "zerotier", "8056c2e21c000001")
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(directory, "1-0000000000000000-0000000000000000.state")
+	if err := os.WriteFile(path, []byte("fixture"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	files, err := RecoveryFiles(base, contract.ZeroTier{NetworkID: "8056C2E21C000001"})
+	if err != nil || !slices.Equal(files, []string{path}) {
+		t.Fatal("default namespace differs from the native core's canonical network ID", files, err)
+	}
+	for _, id := range []string{"", "0000000000000000", "8056c2e21c0000011", "not-a-network-id"} {
+		if _, err := RecoveryFiles(base, contract.ZeroTier{NetworkID: id}); err == nil {
+			t.Fatal("invalid network identifier accepted")
+		}
+	}
+}

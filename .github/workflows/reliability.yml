@@ -59,6 +59,19 @@ jobs:
             ./pkg/inbound ./pkg/route ./pkg/app ./pkg/net/trafficcontrol ./pkg/net/proxy/direct \
             ./pkg/net/proxy/openvpn/... ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/softether/... \
             ./pkg/net/proxy/globalprotect ./pkg/net/proxy/tailscale
+      - name: Keep offline identity inventory independent of unsupported native bridges
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in android/arm64/0 android/amd64/0 android/amd64/1 freebsd/amd64/0 openbsd/amd64/0; do
+            IFS=/ read -r target_os target_arch target_cgo <<< "$target"
+            GOOS="$target_os" GOARCH="$target_arch" CGO_ENABLED="$target_cgo" \
+              go list -deps ./pkg/app > "$RUNNER_TEMP/recovery-dependencies"
+            if grep -E '^(github.com/yuhaiin/zerotier-go|github.com/ebitengine/purego)(/|$)' "$RUNNER_TEMP/recovery-dependencies"; then
+              echo "offline recovery bypasses the native bridge platform boundary on $target" >&2
+              exit 1
+            fi
+          done
       - name: Selection and scheduler benchmarks
         run: |
           go test ./pkg/node -run '^$' -bench 'BenchmarkSelector|BenchmarkProbeScheduler|BenchmarkObservedPacketSend|BenchmarkNativeSelectionAvailability' \
@@ -67,6 +80,7 @@ jobs:
         run: |
           go test ./pkg/s3 -run '^$' -bench '^BenchmarkS3Upload$' -benchmem -benchtime=300ms -count=2
           go test ./pkg/store -run '^$' -bench '^BenchmarkRecoveryArchiveExternalRecipient$' -benchmem -benchtime=300ms -count=2
+          go test ./pkg/app -run '^$' -bench '^BenchmarkFullRecoveryCreateExternalRecipient$' -benchmem -benchtime=300ms -count=2
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.15.0

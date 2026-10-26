@@ -79,6 +79,10 @@ integration remain required.
 `Backup.restoreStateDB` still renames over a live database and removes WAL/SHM;
 this legacy restore path is not a completed safe recovery implementation.
 Existing update rollback restores executable bytes only.
+Database startup now rejects future/foreign/gapped migration histories and
+metadata mismatches before bootstrap/journal-mode changes, sharing the archive
+verifier's migration-prefix check. It does not make older unguarded executables
+safe or replace the pending update/recovery-point coordination.
 
 ## Stage 3 — certificate lifecycle (pending)
 

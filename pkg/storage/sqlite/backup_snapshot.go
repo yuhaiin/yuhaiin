@@ -58,15 +58,13 @@ func InspectBackupSnapshot(ctx context.Context, path, kind string) (int, error) 
 	if check != "ok" {
 		return 0, errors.New("backup SQLite integrity check failed")
 	}
-	known := migrations
+	known, err := knownMigrations(kind)
+	if err != nil {
+		return 0, err
+	}
 	required := []string{"settings_json", "nodes_v2", "inbounds_v2", "gateway_configuration"}
-	switch kind {
-	case "configuration":
-	case "management":
-		known = []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration}
+	if kind == "management" {
 		required = []string{"management_users", "management_credentials", "management_auth_setup"}
-	default:
-		return 0, errors.New("unknown backup SQLite store kind")
 	}
 	for _, table := range []string{"migrate", "metadata"} {
 		var rootPage int
@@ -74,27 +72,7 @@ func InspectBackupSnapshot(ctx context.Context, path, kind string) (int, error) 
 			return 0, errors.New("backup schema metadata is not an ordinary table")
 		}
 	}
-	rows, err := conn.QueryContext(ctx, "SELECT CASE WHEN typeof(version)='integer' THEN version ELSE -1 END, substr(name,1,256) FROM migrate ORDER BY version LIMIT ?", len(known)+1)
-	if err != nil {
-		return 0, err
-	}
-	count, last := 0, 0
-	for rows.Next() {
-		var version int
-		var name string
-		if err := rows.Scan(&version, &name); err != nil {
-			_ = rows.Close()
-			return 0, err
-		}
-		if count >= len(known) || known[count].Version != version || known[count].Name != name {
-			_ = rows.Close()
-			return 0, errors.New("backup database has unknown or incompatible migrations")
-		}
-		count++
-		last = version
-	}
-	err = rows.Err()
-	_ = rows.Close()
+	count, last, err := migrationPrefix(ctx, conn, known)
 	if err != nil {
 		return 0, err
 	}

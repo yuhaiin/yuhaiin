@@ -24,6 +24,20 @@ Open **About → Software Update → Previous versions**. Select **Restore** for
 
 Only the **executable** is restored. Existing configuration, SQLite databases, and any migrations are not reverted. A binary downgrade may not be compatible with newer data.
 
+The reliability branch now checks each configuration/management database's
+known contiguous migration history, names and metadata version before bootstrap
+writes or journal-mode changes. A future, foreign or incomplete schema is
+rejected with an incompatibility error instead of silently skipping unknown
+versions or applying configuration migrations to an identity database. Known
+older prefixes still follow the existing transactional migrations; an empty
+database or interrupted empty base bootstrap can initialize normally.
+
+This startup guard does not establish that an arbitrary archived old binary is
+safe: older binaries can lack the guard. Updater compatibility negotiation,
+automatic pre-update recovery points and post-update rollback coordination are
+still pending. Use a matching binary and verified database recovery point when
+a migration is incompatible; executable history alone does not reverse it.
+
 ## When the service cannot start
 
 The Web UI requires a running server. When an update prevents yuhaiin from starting, use the archived file directly from an administrator shell:
