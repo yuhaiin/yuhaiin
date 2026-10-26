@@ -300,6 +300,57 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if response.StatusCode != 200 || copyErr != nil || closeErr != nil || size != completed.Size || hex.EncodeToString(sum.Sum(nil)) != completed.SHA256 {
 		t.Fatal("download did not match verified ciphertext")
 	}
+	// Import/preview runs while the real service and SQLite owners stay active.
+	// The private input is sent only in an authenticated bounded HTTPS body.
+	previewPID := pid("yuhaiin.service")
+	archivePath := filepath.Join(directory, ".recovery-archives", completed.ID+".yhb")
+	upload := func(secret string) (contract.RecoveryImport, int, error) {
+		var item contract.RecoveryImport
+		archive, err := os.Open(archivePath)
+		if err != nil {
+			return item, 0, err
+		}
+		defer archive.Close()
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://localhost:50051/api/v2/backup/recovery/imports", archive)
+		if err != nil {
+			return item, 0, err
+		}
+		request.ContentLength = completed.Size
+		request.Header.Set("Content-Type", "application/octet-stream")
+		request.Header.Set("Authorization", "Session "+secret)
+		response, err := client.Do(request)
+		if err != nil {
+			return item, 0, err
+		}
+		defer response.Body.Close()
+		if response.StatusCode == 200 {
+			err = json.UnmarshalRead(io.LimitReader(response.Body, 2<<20), &item)
+		}
+		return item, response.StatusCode, err
+	}
+	if _, code, err := upload(readerSession.Secret); err != nil || code != http.StatusForbidden {
+		t.Fatal("read-only principal uploaded recovery identity material", code, err)
+	}
+	imported, code, err := upload(session.Secret)
+	if err != nil || code != http.StatusOK || imported.State != "uploaded" {
+		t.Fatal("authenticated ciphertext import failed", code, err)
+	}
+	var previewed contract.RecoveryImport
+	if err := rpc(t.Context(), "backup.recovery.import.preview", contract.RecoveryImportPreviewRequest{ID: imported.ID, Mode: "original", Identity: identity.String()}, &previewed); err != nil {
+		t.Fatal(err)
+	}
+	if previewed.Preview == nil || previewed.Preview.Manifest.ID != completed.BackupID || previewed.Preview.TargetInstanceID != completed.InstanceID || len(previewed.Preview.Files) == 0 || pid("yuhaiin.service") != previewPID {
+		t.Fatal("preview differs from the authenticated backup or restarted the active service")
+	}
+	if err := rpc(t.Context(), "backup.recovery.import.discard", struct {
+		ID      string `json:"id"`
+		Confirm bool   `json:"confirm"`
+	}{imported.ID, true}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(directory, ".recovery-imports", imported.ID)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("discard retained private preview staging", err)
+	}
 	// Make a real copy/hash/encryption window long enough to kill the independent
 	// helper during capture. The sparse file does not occupy memory in this test.
 	large, err := os.Create(filepath.Join(web, "crash-window.bin"))

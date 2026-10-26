@@ -161,7 +161,7 @@ never mounts the host service socket, host data or host PID namespace. See
 disposable-runner options. This is fault/correctness qualification, not a WAN
 or production-capacity benchmark.
 
-Web restore upload/preview/activation and recent-restore UI, safe-update schema
+Web restore activation and recent-restore UI, safe-update schema
 negotiation/recovery points, broader platform service coordination, restore-point
 retention, periodic recovery drills and ACME remain required work. This feature
 does not claim completion of the entire enterprise reliability objective.
@@ -186,3 +186,76 @@ bucket labels. These are recent retained-state gauges rather than cumulative
 success counters or claims of a successful restore drill. A pedantic-registry
 test collects after removing the store and checks bounded label domains and
 stale-snapshot protection.
+
+
+## Web archive import and authenticated preview
+
+Migration 22 adds bounded, expiring import records to the existing BackupStore.
+The Backup page accepts encrypted files through a streaming, BackupManage-gated
+upload. There are at most two imports and 100 GiB of combined ciphertext per
+deployment. One existing Backup operation lease serializes uploads, decryption
+and transfers. A ten-minute operation timeout and cancellation close blocked
+request bodies. Known lengths, chunked input, short writes and incomplete files
+are checked without buffering an archive-sized byte slice.
+
+Private files live inside `.recovery-imports/<server-issued-uuid>/`. The upload
+records its actual size/SHA-256. Preview checks that same open file, then reuses
+the existing age decoder, SQLite/platform/inventory verification and confined
+original/clone projection. The validated plaintext size is checked against
+available space before staging, with a 256 MiB reserve. Uploads recheck free
+space periodically. These checks cannot reserve space against unrelated writers;
+a filesystem error refuses the import without changing the active deployment.
+
+A preview displays source/target/resulting instance IDs, application version,
+file install/replace/remove decisions and identity/credential/quota warnings.
+The decryption request is limited to 16 KiB. Its private identity/passphrase
+never enters the import record, configuration draft or returned plan. The UI
+clears its input on submission. Prepared plaintext remains in private server
+staging for at most the import's 30-minute lifetime; this is sensitive deployment
+material. Listing, preview and discard are also bound to the creating principal
+when management identities are enabled. Existing embedded hosts retain their
+existing authorization model.
+
+Confirmed discard removes only the owned UUID container, including interrupted
+decoder staging not yet published in metadata. The existing Backup scheduler
+expires records with its one timer and resumes interrupted deletions. Interrupted
+uploads are removed at startup. Staging survives a browser refresh until expiry;
+after server failure, a missing or changed file is rejected rather than adopted.
+Directory synchronization uses the existing filesystem/platform requirements.
+Imports are excluded from configuration exports and all full backup snapshots,
+even when optional business history is included; the source database is not
+changed. Clone rewriting also clears source import records.
+
+Read-only retention plans skip the operation lease when no deletion is due.
+Under the lease, the plan is loaded again before side effects. This prevents
+an upload's reschedule event from spuriously rejecting the next preview as busy.
+Tests reproduce this admission failure before the fix and exercise its real
+HTTPS call sequence in the isolated installed-service drill.
+
+The current Web operation ends at authenticated preview. Activating that plan,
+coordinating changed Management TLS/listen/web startup inputs, preserving the
+previous startup state across rollback, and presenting recent restore results
+remain required work. No Web endpoint currently replaces active database files.
+The existing offline CLI still performs real restoration and startup rollback.
+
+The browser regression covers upload, credential-warning presentation, private
+input clearing, expanded file paths and confirmed discard at 1440/360/320 px.
+Its fixture data is synthetic. The real HTTPS integration separately uploads
+the just-created encrypted archive, authenticates its inventory, requires an
+unchanged service PID during preview, rejects a read-only upload, and checks
+that discard removes private staging.
+
+`BenchmarkRecoveryImportStaging` measures the actual opaque upload/registry/
+fsync/discard path with incompressible source data allocated before timing.
+On Linux/amd64, Go 1.27.3, Ryzen 5 5600G, median 1/16/64 MiB operations take
+1.43/16.83/66.30 ms and cumulatively allocate approximately 49.6/51.8/56.4 kB.
+This is local file staging including SQLite and cleanup. It excludes HTTPS,
+archive authentication and source-fixture allocation, and does not measure peak
+RSS or WAN throughput. The parent has no equivalent import operation.
+[Raw results](benchmarks/data/recovery-2026-10-27/import-staging.txt) are retained;
+the benchmark is also run by the existing reliability workflow.
+
+The current Web import publisher requires directory synchronization. Windows
+publication remains explicitly unsupported while its private staging/durability
+and service coordinator are completed; cross-compilation is not evidence of a
+working Windows restoration workflow.

@@ -249,6 +249,9 @@ func TestUnusedRecoveryWorkerDoesNotCompeteWithManualConfigurationBackup(t *test
 	if err := b.pruneRecoveryBackups(t.Context()); err != nil {
 		t.Fatal("unconfigured retention acquired the manual backup lease", err)
 	}
+	if err := b.pruneRecoveryImports(t.Context()); err != nil {
+		t.Fatal("empty restore staging acquired the manual backup lease", err)
+	}
 }
 
 func TestRecoveryRetentionKeepsLatestPointAndSkipsActiveReaders(t *testing.T) {

@@ -27,7 +27,7 @@ func TestInspectBackupSnapshotWALAndSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	version, err := InspectBackupSnapshot(t.Context(), snapshot, "configuration")
-	if err != nil || version != 21 {
+	if err != nil || version != 22 {
 		t.Fatalf("snapshot inspection: %d, %v", version, err)
 	}
 	opened, err := Open(t.Context(), snapshot)

@@ -134,17 +134,15 @@ func CreateOfflineRecovery(ctx context.Context, directory, destination string, k
 	if closeErr != nil {
 		return empty, closeErr
 	}
-	if !options.IncludeHistory {
-		if err := pruneRecoveryHistory(ctx, filepath.Join(snapshot, "state.db")); err != nil {
-			return empty, err
-		}
+	if err := pruneRecoverySnapshot(ctx, filepath.Join(snapshot, "state.db"), options.IncludeHistory); err != nil {
+		return empty, err
 	}
 	manifest.Runtime = inputs
 	manifest.CompleteInventory = true
 	return store.WriteRecoveryArchiveFile(ctx, destination, snapshot, manifest, key)
 }
 
-func pruneRecoveryHistory(ctx context.Context, path string) error {
+func pruneRecoverySnapshot(ctx context.Context, path string, includeHistory bool) error {
 	// Only the staged snapshot is changed. Account/credential state, traffic
 	// quota totals, active measurement reservations and protocol identity remain.
 	fileURL := &url.URL{Scheme: "file", Path: filepath.ToSlash(path), RawQuery: "mode=rw"}
@@ -157,12 +155,21 @@ func pruneRecoveryHistory(ctx context.Context, path string) error {
 		return err
 	}
 	defer db.Close()
+	if _, err := db.ExecContext(ctx, "PRAGMA secure_delete=ON"); err != nil {
+		return err
+	}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	changed := false
 	for _, table := range append(append([]string(nil), backupRuntimeTables...), "user_usage_audit") {
+		// A staged Web import is temporary control work, never restorable
+		// history: its private files are intentionally absent from inventory.
+		if includeHistory && table != "backup_recovery_imports" {
+			continue
+		}
 		if slices.Contains([]string{"statistics_kv", "fakeip_entries", "fakeip_cursors"}, table) {
 			continue
 		}
@@ -173,12 +180,21 @@ func pruneRecoveryHistory(ctx context.Context, path string) error {
 		if present == 0 {
 			continue
 		}
-		if _, err := tx.ExecContext(ctx, "DELETE FROM "+table); err != nil {
+		result, err := tx.ExecContext(ctx, "DELETE FROM "+table)
+		if err != nil {
 			return err
 		}
+		count, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		changed = changed || count > 0
 	}
 	if err := tx.Commit(); err != nil {
 		return err
+	}
+	if includeHistory || !changed {
+		return nil
 	}
 	_, err = db.ExecContext(ctx, "VACUUM")
 	return err

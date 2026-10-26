@@ -96,7 +96,14 @@ func (t recoveryTransaction) validate() error {
 	if t.Version != 1 || t.CreatedAt.IsZero() || !slices.Contains([]string{"activating", "awaiting_startup", "checking", "committed", "rolling_back"}, t.Phase) {
 		return errors.New("unsupported recovery transaction")
 	}
-	if !strings.HasPrefix(t.Stage, ".recovery-stage-") || filepath.Base(t.Stage) != t.Stage || len(t.Stage) > 128 {
+	stageBase := filepath.Base(t.Stage)
+	stageParent := filepath.Dir(t.Stage)
+	ownedStage := stageParent == "."
+	if filepath.Dir(stageParent) == ".recovery-imports" {
+		_, err := recoveryImportPath(filepath.Base(stageParent))
+		ownedStage = err == nil
+	}
+	if !ownedStage || t.Stage != filepath.Clean(t.Stage) || !strings.HasPrefix(stageBase, ".recovery-stage-") || len(t.Stage) > 128 {
 		return errors.New("invalid recovery staging location")
 	}
 	if err := store.ValidateRecoveryRuntime(t.Runtime); err != nil {

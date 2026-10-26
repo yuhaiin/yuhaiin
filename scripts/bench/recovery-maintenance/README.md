@@ -24,3 +24,8 @@ interrupted without adopting a partial archive, and the existing management
 session must still work. This is correctness/fault injection, not a performance
 or WAN-throughput measurement. Neither test output nor the journal collector
 prints the private backup identity or management session token.
+
+The same drill uploads its actual encrypted archive through authenticated HTTPS,
+rejects a read-only upload, previews its full inventory without changing the
+service PID and confirms removal of private staging on discard. This qualifies
+Web import/preview, not Web restore activation or safe-update rollback.

@@ -175,6 +175,13 @@ func TestRecoveryTransactionCancellationAndPathGuards(t *testing.T) {
 			t.Fatalf("unsafe install path accepted: %s", path)
 		}
 	}
+	for _, stage := range []string{"../.recovery-stage-escape", "other/.recovery-stage-escape", ".recovery-imports/not-a-uuid/.recovery-stage-escape", ".recovery-imports/../.recovery-stage-escape"} {
+		bad := *tx
+		bad.Stage = stage
+		if err := bad.validate(); err == nil {
+			t.Fatal("unsafe recovery staging location accepted", stage)
+		}
+	}
 }
 
 func TestRecoveryRollbackCanResumeAfterOriginalInodeWasRestored(t *testing.T) {

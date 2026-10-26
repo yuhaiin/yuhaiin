@@ -14,6 +14,9 @@ type rpcHandler[Request, Response any] func(context.Context, *Request) (*Respons
 
 func addRPCRoute[Request, Response any](handlers *v2Handlers, endpoint v2Endpoint, handler rpcHandler[Request, Response]) {
 	handlers.add(endpoint, func(w http.ResponseWriter, r *http.Request) error {
+		if limit := v2RPCBodyLimits[endpoint]; limit > 0 {
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+		}
 		var request Request
 		if err := readJSONBody(r, &request); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())

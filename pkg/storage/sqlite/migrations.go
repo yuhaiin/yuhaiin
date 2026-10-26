@@ -645,4 +645,13 @@ var migrations = []Migration{
 		`CREATE INDEX backup_recovery_history_state ON backup_recovery_history(state, created_at)`,
 		`CREATE UNIQUE INDEX backup_recovery_single_capture ON backup_recovery_history((1)) WHERE state IN ('queued','capturing')`,
 	}},
+	{Version: 22, Name: "backup_recovery_imports", Statements: []string{
+		`CREATE TABLE backup_recovery_imports (
+			id TEXT PRIMARY KEY,
+			expires_at INTEGER NOT NULL,
+			state TEXT NOT NULL,
+			data_json TEXT NOT NULL CHECK (json_valid(data_json))
+		)`,
+		`CREATE INDEX backup_recovery_imports_expiry ON backup_recovery_imports(expires_at,id)`,
+	}},
 }

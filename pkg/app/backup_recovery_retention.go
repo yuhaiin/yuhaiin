@@ -107,56 +107,27 @@ func (b *Backup) deleteRecoveryBackup(ctx context.Context, job store.RecoveryJob
 	return b.store.DeleteRecoveryJob(ctx, job.ID)
 }
 
-// Retention runs only after a completed backup, never on an idle polling timer.
-// Failed attempts do not consume the count of retained successful points.
+// Retention reads its plan without taking the transfer lease. Only actual
+// deletion work competes with manual control requests, and the plan is reloaded
+// under the lease before any side effects.
 func (b *Backup) pruneRecoveryBackups(ctx context.Context) error {
-	// Preserve legacy manual-backup admission when full backups are unused.
-	options, err := b.store.Get(ctx)
-	if err != nil || options.Recovery == nil {
+	ids, err := b.recoveryRetentionPlan(ctx)
+	if err != nil || len(ids) == 0 {
 		return err
 	}
 	if !b.mu.TryLock() {
 		return errBackupBusy
 	}
 	defer b.mu.Unlock()
-	options, err = b.store.Get(ctx)
+	ids, err = b.recoveryRetentionPlan(ctx)
 	if err != nil {
 		return err
 	}
-	if options.Recovery == nil {
-		return nil
-	}
-	policy, err := store.NormalizeRecoveryPolicy(*options.Recovery)
-	if err != nil {
-		return err
-	}
-	items, err := b.store.RecoveryRetentionCandidates(ctx)
-	if err != nil {
-		return err
-	}
-	successful := 0
-	for _, item := range items {
-		ready := item.State == "verified" || (item.State == "local_ready" && item.Target == "local")
-		if !ready && item.State != "failed" {
+	for _, id := range ids {
+		if b.recoveryReaders[id] > 0 {
 			continue
 		}
-		if ready {
-			successful++
-			// Preserve the latest successful recovery point even when every
-			// point is old. Explicit administrator deletion remains possible.
-			if successful == 1 {
-				continue
-			}
-		}
-		expired := time.Since(item.CreatedAt) > time.Duration(policy.KeepDays)*24*time.Hour
-		excess := ready && successful > policy.KeepCount
-		if !expired && !excess {
-			continue
-		}
-		if b.recoveryReaders[item.ID] > 0 {
-			continue
-		}
-		job, err := b.store.RecoveryJob(ctx, item.ID)
+		job, err := b.store.RecoveryJob(ctx, id)
 		if err != nil {
 			return err
 		}
@@ -165,4 +136,41 @@ func (b *Backup) pruneRecoveryBackups(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (b *Backup) recoveryRetentionPlan(ctx context.Context) ([]string, error) {
+	options, err := b.store.Get(ctx)
+	if err != nil || options.Recovery == nil {
+		return nil, err
+	}
+	policy, err := store.NormalizeRecoveryPolicy(*options.Recovery)
+	if err != nil {
+		return nil, err
+	}
+	items, err := b.store.RecoveryRetentionCandidates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	var ids []string
+	successful := 0
+	for _, item := range items {
+		ready := item.State == "verified" || (item.State == "local_ready" && item.Target == "local")
+		if !ready && item.State != "failed" {
+			continue
+		}
+		if ready {
+			successful++
+			// Keep the latest successful point even when every point is old.
+			if successful == 1 {
+				continue
+			}
+		}
+		expired := now.Sub(item.CreatedAt) > time.Duration(policy.KeepDays)*24*time.Hour
+		excess := ready && successful > policy.KeepCount
+		if expired || excess {
+			ids = append(ids, item.ID)
+		}
+	}
+	return ids, nil
 }

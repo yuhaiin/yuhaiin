@@ -40,6 +40,13 @@ type RecoveryBackupController interface {
 	RetryRecoveryBackup(context.Context, string) error
 	VerifyRecoveryBackup(context.Context, contractbackup.RecoveryVerifyRequest) (contractbackup.RecoveryManifest, error)
 }
+
+type RecoveryImportController interface {
+	RecoveryImports(context.Context) ([]contractbackup.RecoveryImport, error)
+	UploadRecoveryImport(context.Context, io.ReadCloser, int64) (contractbackup.RecoveryImport, error)
+	PreviewRecoveryImport(context.Context, contractbackup.RecoveryImportPreviewRequest) (contractbackup.RecoveryImport, error)
+	DiscardRecoveryImport(context.Context, string) error
+}
 type DiagnosticsController interface {
 	Run(context.Context, contracttools.DiagnosticRequest) (contracttools.DiagnosticReport, error)
 }

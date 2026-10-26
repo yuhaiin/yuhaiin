@@ -79,7 +79,8 @@ embedded-host lifecycle integration remain pending.
 
 Managed local/S3 full-archive scheduling, history, verification, download and
 retention now extend the same Backup owner; see [managed backups](managed-recovery-backups.md).
-Web restore preview/activation/UI and safe-update recovery integration remain required. Legacy S3 restore now refuses
+Web archive import and authenticated preview now reuse that owner and verifier.
+Web restore activation, recent-result presentation and safe-update recovery integration remain required. Legacy S3 restore now refuses
 active database owners before downloading; its offline compatibility path imports
 configuration into a private copy of the local store and uses the same controlled
 activation/startup journal, preserving local identities. It no longer renames a
@@ -204,7 +205,7 @@ retain offline tools pending complete service coordination. An isolated real
 systemd/HTTPS/S3/helper-crash drill now accompanies hermetic tests. See
 [managed backups](managed-recovery-backups.md) for exact behavior and limits.
 
-Web restore staging/preview/activation, recent-restore presentation, safe-update
+Web restore activation, recent-restore presentation, safe-update
 recovery-point/schema negotiation, broader platform maintenance, periodic
 restoration drills and ACME remain outstanding. The three-stage goal is active.
 
@@ -215,3 +216,15 @@ synthetic; the isolated systemd/HTTPS/object-server drill proves the real
 stop/capture/restart/verification/crash behavior separately. Finite backup state,
 latest complete-point timestamps and download leases now use atomic metric
 snapshots with no SQLite work on scrape.
+
+
+## Web recovery preview
+
+Migration 22 adds expiring, principal-bound import records to BackupStore.
+Encrypted uploads and original/clone previews reuse the existing archive codec
+and replacement planner, with bounded traffic/disk/memory, transient decryption
+input and private staging cleanup. The existing Backup page exposes actual
+upload, preview and confirmed discard operations in EN/JA/KO. Real HTTPS
+service and responsive browser checks cover these operations. See
+[import lifecycle and limits](managed-recovery-backups.md#web-archive-import-and-authenticated-preview).
+Web activation and startup/rollback coordination are still incomplete.

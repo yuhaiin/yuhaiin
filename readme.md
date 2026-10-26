@@ -256,3 +256,10 @@ Encrypted full snapshots, external backup keys, offline restore preview and cras
 Managed full encrypted local/S3 backups, confirmed service maintenance, archive
 verification/download and retention: [managed recovery backups](docs/managed-recovery-backups.md).
 Web restoration and safe-update coordination remain in progress.
+
+
+The Backup page also supports bounded encrypted archive uploads and authenticated
+original-instance/clone recovery previews. It shows file and identity warnings
+without changing the running deployment. Web activation remains in progress;
+use the offline recovery CLI for an actual restore. See the
+[managed recovery guide](docs/managed-recovery-backups.md#web-archive-import-and-authenticated-preview).

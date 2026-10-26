@@ -22,7 +22,14 @@ func v2RoutePattern(route v2Route) string {
 }
 
 func isV2StreamEndpoint(endpoint v2Endpoint) bool {
-	return endpoint == v2ToolsLogs || endpoint == v2ToolsLogsV2 || endpoint == v2ConnectionsEvents || endpoint == v2RecoveryBackupDownload
+	return endpoint == v2ToolsLogs || endpoint == v2ToolsLogsV2 || endpoint == v2ConnectionsEvents || endpoint == v2RecoveryBackupDownload || endpoint == v2RecoveryImportUpload
+}
+
+// Secret-bearing requests use small independent bounds without restricting
+// unrelated configuration-import payloads accepted by the same RPC adapter.
+var v2RPCBodyLimits = map[v2Endpoint]int64{
+	v2RecoveryImportPreview: 16 << 10,
+	v2RecoveryBackupVerify:  16 << 10,
 }
 
 const (
@@ -49,6 +56,10 @@ const (
 	v2RecoveryBackupDelete     v2Endpoint = "backup.recovery.delete"
 	v2RecoveryBackupRetry      v2Endpoint = "backup.recovery.retry"
 	v2RecoveryBackupVerify     v2Endpoint = "backup.recovery.verify"
+	v2RecoveryImportList       v2Endpoint = "backup.recovery.imports"
+	v2RecoveryImportUpload     v2Endpoint = "backup.recovery.import.upload"
+	v2RecoveryImportPreview    v2Endpoint = "backup.recovery.import.preview"
+	v2RecoveryImportDiscard    v2Endpoint = "backup.recovery.import.discard"
 	v2ToolsDiagnostics         v2Endpoint = "tools.diagnostics"
 	v2ToolsInterfaces          v2Endpoint = "tools.interfaces"
 	v2ToolsLicenses            v2Endpoint = "tools.licenses"
@@ -195,6 +206,10 @@ var v2Routes = []v2Route{
 	{v2RecoveryBackupDelete, "DELETE /api/v2/backup/recovery/{id}"},
 	{v2RecoveryBackupRetry, "POST /api/v2/backup/recovery/{id}/retry"},
 	{v2RecoveryBackupVerify, "POST /api/v2/backup/recovery/{id}/verify"},
+	{v2RecoveryImportList, "GET /api/v2/backup/recovery/imports"},
+	{v2RecoveryImportUpload, "POST /api/v2/backup/recovery/imports"},
+	{v2RecoveryImportPreview, "POST /api/v2/backup/recovery/imports/{id}/preview"},
+	{v2RecoveryImportDiscard, "DELETE /api/v2/backup/recovery/imports/{id}"},
 	{v2ToolsDiagnostics, "POST /api/v2/tools/diagnostics"},
 	{v2ToolsInterfaces, "GET /api/v2/tools/interfaces"},
 	{v2ToolsLicenses, "GET /api/v2/tools/licenses"},

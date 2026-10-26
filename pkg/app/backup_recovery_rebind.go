@@ -67,6 +67,9 @@ func rewriteRecoveryConfiguration(ctx context.Context, stage, instanceID string,
 		if _, err := db.DB().ExecContext(ctx, "DELETE FROM backup_recovery_history"); err != nil {
 			return err
 		}
+		if _, err := db.DB().ExecContext(ctx, "DELETE FROM backup_recovery_imports"); err != nil {
+			return err
+		}
 	}
 	if _, err := db.DB().ExecContext(ctx, "UPDATE metadata SET value=? WHERE key='recovery_instance_id'", instanceID); err != nil {
 		return err

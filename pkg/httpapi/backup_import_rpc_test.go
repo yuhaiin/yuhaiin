@@ -1,0 +1,79 @@
+package httpapi
+
+import (
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	"github.com/Asutorufa/yuhaiin/pkg/s3"
+)
+
+type recoveryImportHTTPStub struct {
+	BackupController
+	uploads, previews int
+}
+
+func (*recoveryImportHTTPStub) RecoveryImports(context.Context) ([]contract.RecoveryImport, error) {
+	return []contract.RecoveryImport{}, nil
+}
+func (s *recoveryImportHTTPStub) UploadRecoveryImport(_ context.Context, body io.ReadCloser, _ int64) (contract.RecoveryImport, error) {
+	s.uploads++
+	defer body.Close()
+	_, err := io.Copy(io.Discard, body)
+	return contract.RecoveryImport{ID: "fixture", State: "uploaded"}, err
+}
+func (s *recoveryImportHTTPStub) PreviewRecoveryImport(context.Context, contract.RecoveryImportPreviewRequest) (contract.RecoveryImport, error) {
+	s.previews++
+	return contract.RecoveryImport{ID: "fixture", State: "previewed"}, nil
+}
+func (*recoveryImportHTTPStub) DiscardRecoveryImport(context.Context, string) error { return nil }
+
+func TestRecoveryImportHTTPRejectsWrongTypeAndDeclaredOversizeBeforeReading(t *testing.T) {
+	for _, fault := range []string{"type", "size", "none"} {
+		t.Run(fault, func(t *testing.T) {
+			owner := new(recoveryImportHTTPStub)
+			request := httptest.NewRequest(http.MethodPost, "/api/v2/backup/recovery/imports", strings.NewReader("ciphertext"))
+			request.Header.Set("Content-Type", "application/octet-stream")
+			want := http.StatusOK
+			switch fault {
+			case "type":
+				request.Header.Set("Content-Type", "application/json")
+				want = http.StatusUnsupportedMediaType
+			case "size":
+				request.ContentLength = s3.MaxObjectBytes + 1
+				want = http.StatusRequestEntityTooLarge
+			}
+			response := httptest.NewRecorder()
+			if err := recoveryImportUpload(V2Services{Backup: owner})(response, request); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != want || (fault != "none" && owner.uploads != 0) {
+				t.Fatal("invalid upload reached the controller", response.Code, owner.uploads)
+			}
+		})
+	}
+}
+
+func TestRecoveryImportPreviewRequestHasIndependentSecretBodyLimit(t *testing.T) {
+	owner := new(recoveryImportHTTPStub)
+	handlers := newV2Handlers(V2Services{Backup: owner})
+	for _, length := range []int{17 << 10, 32} {
+		body := `{"id":"fixture","mode":"original","identity":"` + strings.Repeat("x", length) + `"}`
+		request := httptest.NewRequest(http.MethodPost, "/api/v2/rpc/backup.recovery.import.preview", strings.NewReader(body))
+		response := httptest.NewRecorder()
+		if err := handlers.values[v2RecoveryImportPreview](response, request); err != nil {
+			t.Fatal(err)
+		}
+		if length > 16<<10 {
+			if response.Code != http.StatusBadRequest || owner.previews != 0 {
+				t.Fatal("oversized private input reached the controller")
+			}
+		} else if response.Code != http.StatusOK || owner.previews != 1 {
+			t.Fatal("bounded preview request was rejected")
+		}
+	}
+}

@@ -52,7 +52,7 @@ func recoveryFixture(t *testing.T) (string, contract.RecoveryManifest, *age.X255
 	manifest := contract.RecoveryManifest{
 		ID: uuid.New().String(), InstanceID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance",
 		Build: contract.RecoveryBuild{Version: "fixture", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()},
-		Files: []contract.RecoveryFile{{Path: "state.db", Role: "configuration_database", SchemaVersion: 21}, {Path: "identity/device.json", Role: "protocol_identity"}},
+		Files: []contract.RecoveryFile{{Path: "state.db", Role: "configuration_database", SchemaVersion: 22}, {Path: "identity/device.json", Role: "protocol_identity"}},
 	}
 	return directory, manifest, identity
 }

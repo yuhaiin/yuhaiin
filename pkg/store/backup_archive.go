@@ -300,7 +300,13 @@ type PreparedRecovery struct {
 func (p *PreparedRecovery) Directory() string { return p.directory }
 func (p *PreparedRecovery) Close() error      { return os.RemoveAll(p.directory) }
 
-func PrepareRecoveryArchive(ctx context.Context, src io.Reader, stagingParent string, key RecoveryDecryption) (_ *PreparedRecovery, resultErr error) {
+func PrepareRecoveryArchive(ctx context.Context, src io.Reader, stagingParent string, key RecoveryDecryption) (*PreparedRecovery, error) {
+	return PrepareRecoveryArchiveWithSpaceCheck(ctx, src, stagingParent, key, nil)
+}
+
+// PrepareRecoveryArchiveWithSpaceCheck uses the same authenticated decoder and
+// checks the validated plaintext inventory before creating staging files.
+func PrepareRecoveryArchiveWithSpaceCheck(ctx context.Context, src io.Reader, stagingParent string, key RecoveryDecryption, checkSpace func(int64) error) (_ *PreparedRecovery, resultErr error) {
 	identity, err := key.identity()
 	if err != nil {
 		return nil, err
@@ -336,6 +342,15 @@ func PrepareRecoveryArchive(ctx context.Context, src io.Reader, stagingParent st
 	}
 	if err := ValidateRecoveryManifest(manifest); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidRecoveryArchive, err)
+	}
+	if checkSpace != nil {
+		var total int64
+		for _, file := range manifest.Files {
+			total += file.Size
+		}
+		if err := checkSpace(total); err != nil {
+			return nil, err
+		}
 	}
 	directory, err := os.MkdirTemp(stagingParent, ".recovery-stage-*")
 	if err != nil {

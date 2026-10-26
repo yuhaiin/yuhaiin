@@ -62,6 +62,7 @@ var backupRuntimeTables = []string{
 	"failure_dimension_daily",
 	"telemetry_dimension_values",
 	"backup_recovery_history",
+	"backup_recovery_imports",
 }
 
 func NewBackup(store *plainstore.BackupStore, dir string, instance *AppInstance, proxy netapi.Proxy) *Backup {
@@ -80,6 +81,9 @@ func NewBackup(store *plainstore.BackupStore, dir string, instance *AppInstance,
 			log.Warn("backup history recovery failed")
 		}
 		b.refreshBackupMetrics(b.ctx)
+		if err := b.pruneRecoveryImportsLocked(b.ctx, true); err != nil {
+			log.Warn("recovery import cleanup failed")
+		}
 	}
 	go b.schedule()
 	return b
@@ -138,6 +142,9 @@ func (b *Backup) schedule() {
 	defer close(b.done)
 	for {
 		if b.store != nil {
+			if err := b.pruneRecoveryImports(b.ctx); err != nil && !errors.Is(err, errBackupBusy) && b.ctx.Err() == nil {
+				log.Warn("recovery import cleanup failed")
+			}
 			if err := b.resumeRecoveryBackups(b.ctx); err != nil && b.ctx.Err() == nil {
 				log.Warn("full backup upload did not complete; consult backup history")
 			}
@@ -178,16 +185,26 @@ func (b *Backup) schedule() {
 					// Service-manager state can change independently of settings.
 					// Re-evaluate it without launching a configuration backup.
 					recheck = true
+					delay = time.Minute
 				}
 			}
 			if err == nil && opt.S3.Enabled && opt.Interval > 0 && opt.Interval <= 365*24*60 {
 				legacyDelay := time.Duration(opt.Interval) * time.Minute
-				if delay == 0 || legacyDelay < delay {
+				if delay == 0 || legacyDelay < delay || (recheck && legacyDelay == delay) {
 					delay = legacyDelay
 					full = false
+					recheck = false
 				}
 			}
-			if (err != nil || recheck) && b.ctx.Err() == nil {
+			if expiry, expiryErr := b.store.NextRecoveryImportExpiry(b.ctx); expiryErr != nil {
+				err = errors.Join(err, expiryErr)
+			} else if !expiry.IsZero() {
+				expiryDelay := max(time.Until(expiry), time.Minute)
+				if delay == 0 || expiryDelay < delay {
+					delay, recheck = expiryDelay, true
+				}
+			}
+			if err != nil && b.ctx.Err() == nil {
 				timer = time.NewTimer(time.Minute)
 				tick = timer.C
 				recheck = true
