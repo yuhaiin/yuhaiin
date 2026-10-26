@@ -149,6 +149,10 @@ Session snapshots are read from existing protocol state. No per-node polling
 worker or timer is added. Cached lookups for one node are direct; entry locks use
 TryRLock so status/selection inspection does not wait behind proxy shutdown.
 Tailscale status uses TryLock to avoid waiting behind expensive initialization.
+After main #628, it reads tsnet's existing health tracker and assigned addresses
+in memory. It never calls LocalClient/LocalAPI or starts a server to read status.
+Configured addresses are not proof of a remote peer handshake; a temporary loss
+of control polling alone does not declare an established data path unusable.
 Only snapshot compilation inspects native availability; forwarding continues to
 read the compiled immutable choice. Known failed/closed/reconnecting sessions
 and unavailable authentication/control are ineligible automatically without

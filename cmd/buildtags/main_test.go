@@ -7,19 +7,15 @@ import (
 	"tailscale.com/feature/featuretags"
 )
 
-// The lite adapter owns MagicDNS responses and does not use tsnet.
+// A ts_omit_dns release silently starts tsnet with a nil DNS manager;
+// querying 100.100.100.100:53 then panics instead of resolving MagicDNS.
 func TestBuildTagsRetainTailscaleDNS(t *testing.T) {
 	if _, ok := featuretags.Features["dns"]; !ok {
 		t.Fatal("upstream DNS feature is missing from the feature tag registry")
 	}
-	for _, name := range []string{"dns", "udptransport", "nattraversal"} {
+	for _, name := range []string{"dns", "netstack", "serve", "acme", "ipnbus", "udptransport", "nattraversal"} {
 		if slices.Contains(buildTags(), "ts_omit_"+name) {
-			t.Errorf("required Tailnet feature %q omitted from release build", name)
-		}
-	}
-	for _, name := range []string{"netstack", "serve", "acme", "ipnbus"} {
-		if slices.Contains(buildTags(), "ts_omit_"+name) == false {
-			t.Errorf("unneeded feature %q was linked", name)
+			t.Errorf("required tsnet feature %q omitted from release build", name)
 		}
 	}
 }

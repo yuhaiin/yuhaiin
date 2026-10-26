@@ -50,24 +50,22 @@ before sharing it.
 
 ## Local Tailnet integration fixture readiness
 
-The local Control/DERP test must wait for both clients to appear at its real DERP
-server before measuring the first cold peer TCP connection. Control readiness
-and a known peer route can precede the receiving client's asynchronous relay
-registration. Sending the first WireGuard packet in this interval can lose it
-and produce an approximately five-second handshake retry, even though later
-connections succeed immediately.
+The previous tailscale-lite fixture needed both clients to appear at its real
+DERP server before timing cold peer TCP. Control readiness and a known peer route
+could precede relay registration, producing a handshake retry. That repair was
+qualified with a 20-scenario mixed-STUN race batch.
 
-The fixture checks both authorized peer routes and
-`relayServer.IsClientConnectedForTest` for both public node keys. It sends no
-peer packet, opens no application connection, and keeps the two-second cold TCP
-assertion. This synchronizes local server setup; it does not claim that a
-production control-plane Ready state proves remote peer or tunnel health.
-No production routing, authentication, retry or timeout behavior is changed.
+Main [#628](https://github.com/yuhaiin/yuhaiin/pull/628) subsequently restored the
+tsnet adapter and its local encrypted Tailnet/DNS fixture. Reliability now uses
+that current fixture and the original tsnet readiness path; the removed lite
+client/barrier is not retained. Native observations read the running server's
+in-memory health tracker and assigned addresses, without a LocalAPI request,
+client initialization or a claim that configuration proves peer health.
 
 Reproduce and qualify with local servers, without a public tailnet:
 
 ```sh
-go test -race -count=10 -run '^TestLocalTailnet(WithoutSTUN)?$/^tcp-encrypted-lightweight$/^ipv4$' -timeout=180s -v ./pkg/net/proxy/tailscale
+go test -race -count=3 -run '^TestLocalTailnet$' -timeout=180s -v ./pkg/net/proxy/tailscale
 go test -count=3 -timeout=180s ./pkg/net/proxy/tailscale
 tags="$(go run ./cmd/buildtags/...)"
 go test -count=3 -timeout=180s -tags="$tags" ./pkg/net/proxy/tailscale

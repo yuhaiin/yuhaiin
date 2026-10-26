@@ -110,13 +110,12 @@ and browser checks. The consolidated PR heads run their complete CI again; use
 the current checks on the two active PRs for delivery status rather than checks
 on the superseded component PRs.
 
-The previous cold-Tailscale failure was reproduced on main. Its local fixture
-waited for a control route before the receiving client had finished registering
-at the test DERP server. The fixture now waits for both real registrations,
-without warming the peer connection or relaxing its two-second assertion.
-The ordinary and release-tag Tailnet package suites passed three repetitions;
-a mixed-STUN race batch passed all 20 cold IPv4 TCP scenarios. The standalone
-repair passed all remote checks before being folded into the backend entry.
+The previous lite-client cold-Tailscale fixture failure was reproduced on main
+and its DERP-registration repair passed local repeated/race and remote checks.
+Main #628 subsequently restored the tsnet adapter and replaced that fixture.
+This branch now retains the current tsnet transport/DNS fixture and adapts
+native observations without LocalAPI/network calls or extra status workers.
+The historical lite-fixture qualification is not a current-tsnet validation claim.
 See [local Tailnet readiness](network-diagnostics.md#local-tailnet-integration-fixture-readiness).
 
 Chrome fallback coverage verifies Selector/circuit and monitoring views at

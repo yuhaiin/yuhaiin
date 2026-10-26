@@ -23,7 +23,7 @@ func TestBackgroundProbeCannotInitializeLazyTailnetIdentity(t *testing.T) {
 	if _, err := p.Conn(netapi.WithBackgroundProbe(t.Context()), a); !errors.Is(err, netapi.ErrBackgroundProbeUnavailable) {
 		t.Fatal(err)
 	}
-	if node.client != nil || node.stateDir != "" {
+	if node.tsnet != nil || node.stateDir != "" {
 		t.Fatal("periodic probe created a Tailnet identity/client")
 	}
 	ctx, cancel := context.WithCancel(t.Context())
