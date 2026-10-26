@@ -90,6 +90,9 @@ func (a *App) Start(opt *Opts) error {
 			_ = configLock.Close()
 		}
 	}()
+	if err := app.GuardRecoveryMaintenance(savepath); err != nil {
+		return err
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	a.setStartCancel(cancel)

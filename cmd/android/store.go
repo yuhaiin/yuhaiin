@@ -6,10 +6,12 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
@@ -185,6 +187,12 @@ func (s *sqlitePreferenceStore) withDB(fn func(context.Context, *sql.DB) error) 
 
 		s.mu.Lock()
 		if s.store == nil {
+			// Preferences can be requested before App.Start. Do not bootstrap
+			// or migrate a pending recovery before its lifecycle coordinator.
+			if err := app.GuardRecoveryMaintenance(filepath.Dir(s.path)); err != nil {
+				s.mu.Unlock()
+				return err
+			}
 			var err error
 			store, err := storagesqlite.Open(ctx, s.path)
 			if err != nil {

@@ -215,10 +215,14 @@ and original files at 100 GiB in aggregate. Decrypted staging is private and
 removed on ordinary completion/error; orphan staging after process death needs
 operator review, not indiscriminate cleanup.
 
-The managed CLI integrates the complete startup transaction. Embedded/Android
-hosts currently fail closed at `app.Start` if a pending restore lacks its
-controlled startup ID; host-specific coordination before preference/database
-opening still needs integration. Web maintenance orchestration and backup/restore
+The managed CLI integrates the complete startup transaction. Android preference
+opening, configuration export/import and native startup now refuse a pending
+transaction before database migration/writes. A local encrypted-restore fixture
+checks that those entry points leave the pending database byte-for-byte intact.
+The generic `app.Start` also rejects a pending restore without its controlled
+startup ID. Android/other embedded hosts still need a complete host-specific
+recovery/startup coordinator; these guards do not implement one. Web maintenance
+orchestration and backup/restore
 API/UI are also pending. Do not present this CLI capability as their completion.
 
 ## Encryption and framing
