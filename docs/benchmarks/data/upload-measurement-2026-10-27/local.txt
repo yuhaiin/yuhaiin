@@ -1,7 +1,7 @@
 goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/latency
-cpu: AMD Ryzen 5 5600G with Radeon Graphics         
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
 BenchmarkUploadStreamingBody/1MiB-12         	     224	   1583801 ns/op	 662.06 MB/s	     124 B/op	       1 allocs/op
 BenchmarkUploadStreamingBody/1MiB-12         	     228	   1573821 ns/op	 666.26 MB/s	     123 B/op	       1 allocs/op
 BenchmarkUploadStreamingBody/1MiB-12         	     226	   1579185 ns/op	 664.00 MB/s	     124 B/op	       1 allocs/op
@@ -16,7 +16,7 @@ ok  	github.com/Asutorufa/yuhaiin/pkg/net/latency	2.972s
 goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/node
-cpu: AMD Ryzen 5 5600G with Radeon Graphics         
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
 BenchmarkSelectorConnectionCreation/manual/tcp-12         	 1000000	       328.7 ns/op	      80 B/op	       1 allocs/op
 BenchmarkSelectorConnectionCreation/manual/tcp-12         	 1000000	       338.5 ns/op	      80 B/op	       1 allocs/op
 BenchmarkSelectorConnectionCreation/manual/tcp-12         	 1000000	       324.4 ns/op	      80 B/op	       1 allocs/op
