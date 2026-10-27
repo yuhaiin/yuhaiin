@@ -226,6 +226,10 @@ func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest
 	if err != nil {
 		return fail(err)
 	}
+	if request.ExpectedSHA256 != "" && !strings.EqualFold(request.ExpectedSHA256, manifest.SHA256) {
+		return fail(errors.New("release changed after review; check for updates again"))
+	}
+	selected.Asset.SHA256 = manifest.SHA256
 	compatibilityStatus, err := s.inspectCompatibility(ctx, manifest)
 	if err != nil {
 		return fail(err)
@@ -538,6 +542,9 @@ func (s *Service) downloadAndInstall(ctx context.Context, asset Asset) error {
 	manifest, err := s.releaseCompatibility(ctx, asset)
 	if err != nil {
 		return err
+	}
+	if asset.SHA256 != "" && manifest.SHA256 != asset.SHA256 {
+		return errors.New("release changed after admission; check for updates again")
 	}
 	if asset.ChecksumURL == "" {
 		return errors.New("release checksum asset is missing")

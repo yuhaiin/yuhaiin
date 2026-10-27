@@ -103,7 +103,7 @@ basename duplicates and normalize hexadecimal case. Manifest JSON rejects unknow
 and duplicate fields and is limited to 512 KiB; checksum text is limited to 4 MiB,
 and executable transfers to 512 MiB including excess-byte detection. Downloads
 inherit a thirty-minute deadline and use the existing governed update HTTP client.
-The manifest is re-fetched/checked at application time and the downloaded file
+The UI submits the reviewed executable digest, and admission pins that digest through download. A rolling main/tag replacement after review or admission is rejected and requires another check; it never silently installs a different build. The manifest is re-fetched/checked at application time and the downloaded file
 must match its size/digest. The privileged helper independently validates the
 private staged sidecar, actual executable bytes and embedded platform/CPU settings,
 then rechecks schemas after stopping the service before replacement. Windows also

@@ -35,7 +35,7 @@ func (i *rejectingInspector) InspectCompatibility(context.Context, compatibility
 }
 
 func TestReleaseCompatibilityRejectsUnverifiedMetadataBeforeDownloadingBinary(t *testing.T) {
-	for _, fault := range []string{"missing", "checksum", "digest", "platform", "oversized", "migration", "incompatible", "changed"} {
+	for _, fault := range []string{"missing", "checksum", "digest", "platform", "oversized", "migration", "incompatible", "changed", "review_changed"} {
 		t.Run(fault, func(t *testing.T) {
 			directory := t.TempDir()
 			binary := filepath.Join(directory, "yuhaiin-linux-amd64")
@@ -100,11 +100,23 @@ func TestReleaseCompatibilityRejectsUnverifiedMetadataBeforeDownloadingBinary(t 
 			}
 			if fault == "changed" {
 				inspector.state = "incompatible"
+			} else if fault == "review_changed" {
+				// A stable tag or rolling main asset may be replaced after review.
 			} else if result.Compatibility.State == "compatible" {
 				t.Fatal("unsafe metadata or schema advertised as compatible", fault)
 			}
-			if err := service.Apply(t.Context(), contract.ApplyRequest{TargetTag: "v2.0.0"}); err == nil {
+			request := contract.ApplyRequest{TargetTag: "v2.0.0"}
+			if fault == "review_changed" {
+				request.ExpectedSHA256 = strings.Repeat("0", 64)
+			}
+			if err := service.Apply(t.Context(), request); err == nil {
 				t.Fatal("unsafe target admitted")
+			}
+			if fault == "review_changed" {
+				err := service.downloadAndInstall(t.Context(), Asset{Name: manifest.Asset, URL: "https://test/binary", ChecksumURL: "https://test/checksums", CompatibilityURL: "https://test/manifest", SHA256: strings.Repeat("0", 64)})
+				if err == nil {
+					t.Fatal("rolling release changed after admission without rejection")
+				}
 			}
 			if binaryRequests.Load() != 0 || inspector.started != "" {
 				t.Fatal("unsafe target reached download/installer")

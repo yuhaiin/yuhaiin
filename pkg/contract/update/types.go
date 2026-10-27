@@ -45,6 +45,7 @@ type ApplyRequest struct {
 	Channel           string `json:"channel"`
 	TargetTag         string `json:"targetTag"`
 	IncludePrerelease bool   `json:"includePrerelease"`
+	ExpectedSHA256    string `json:"expectedSha256,omitempty"`
 }
 
 type Status struct {
