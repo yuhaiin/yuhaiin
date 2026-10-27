@@ -23,24 +23,34 @@ func cloneHealth(h contract.ChannelHealth) contract.ChannelHealth {
 	return h
 }
 
+// neutralHealthError applies equally to generic counters, circuit evidence and
+// construction results. A local rejection or ordinary shutdown is not a remote
+// health observation, even when wrapped in another transport error.
+func neutralHealthError(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, errNodeReconfigured) || localProbeDenial(err) {
+		return true
+	}
+	if stream, ok := errors.AsType[*quic.StreamError](err); ok && stream.ErrorCode == 0 {
+		return true
+	}
+	if app, ok := errors.AsType[*quic.ApplicationError](err); ok && app.ErrorCode == 0 {
+		return true
+	}
+	if transport, ok := errors.AsType[*quic.TransportError](err); ok && transport.ErrorCode == quic.NoError {
+		return true
+	}
+	return false
+}
+
 // Only explicit network/transport failures are evidence. Policy/quota errors
 // and ordinary application errors remain visible to their owners and do not
 // condemn a node. Dial timeouts count; caller cancellation does not.
 func healthFailure(err error) bool {
-	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || localProbeDenial(err) {
-		return false
-	}
-	if stream, ok := errors.AsType[*quic.StreamError](err); ok && stream.ErrorCode == 0 {
+	if err == nil || neutralHealthError(err) {
 		return false
 	}
 	if _, ok := errors.AsType[*tls.CertificateVerificationError](err); ok {
 		return true
-	}
-	if app, ok := errors.AsType[*quic.ApplicationError](err); ok && app.ErrorCode == 0 {
-		return false
-	}
-	if transport, ok := errors.AsType[*quic.TransportError](err); ok && transport.ErrorCode == quic.NoError {
-		return false
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
@@ -126,7 +136,7 @@ func (n *nodeCounters) constructionFailure(err error) {
 	n.constructionFailureAtGeneration(err, n.generation.Load())
 }
 func (n *nodeCounters) constructionFailureAtGeneration(err error, epoch uint64) {
-	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, errNodeReconfigured) {
+	if neutralHealthError(err) {
 		return
 	}
 	for _, tcp := range []bool{true, false} {

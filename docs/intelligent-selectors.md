@@ -429,6 +429,15 @@ application or transport shutdowns do not open a breaker. Dial timeouts and
 network refusals do. Ambiguous protocol application errors remain visible in
 protocol diagnostics; they are not guessed to be a network outage.
 
+The same neutral-outcome classification protects generic node failure counters,
+construction results and TCP/UDP circuit evidence. A quota or policy rejection
+must not leave the generic Nodes status degraded while its channel remains
+healthy. Policy markers are recognized through nested transport wrappers and
+joined errors, including an outer `net.OpError{Op: "dial"}` around a block.
+These errors still reach the caller; filtering health evidence does not grant
+access or retry the operation. Deterministic observed-transport tests exercise
+all three accounting paths and retain a real refused-dial positive control.
+
 Admission may choose a pre-ranked alternative when the original circuit is open
 or has no trial permit. Once a transport call starts, its error is returned to
 the caller; that attempt is never replayed on another Node. Established TCP

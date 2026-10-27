@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json/v2"
 	"errors"
-	"io"
 	"maps"
 	"net"
 	"reflect"
@@ -18,7 +17,6 @@ import (
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/apernet/quic-go"
 )
 
 const nodeMetricsInterval = 5 * time.Second
@@ -121,7 +119,7 @@ func (n *nodeCounters) success() {
 }
 
 func (n *nodeCounters) failure(err error) {
-	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
+	if neutralHealthError(err) {
 		return
 	}
 	now := time.Now().UnixNano()
@@ -140,17 +138,11 @@ func (n *nodeCounters) failure(err error) {
 // Ignore ordinary session termination and idle deadlines. Unexpected I/O
 // failures matter for lazy-handshake proxy implementations.
 func (n *nodeCounters) ioError(err error) {
-	if err == nil || errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
-		errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+	if err == nil || errors.Is(err, context.DeadlineExceeded) || neutralHealthError(err) {
 		return
 	}
-	// Hysteria2 cancels streams with code 0 on normal shutdown. Relay already
-	// treats these as ordinary termination; they must not degrade node health.
-	if streamErr, ok := errors.AsType[*quic.StreamError](err); ok && streamErr.ErrorCode == 0 {
-		return
-	}
-	var netErr net.Error
-	if errors.As(err, &netErr) && netErr.Timeout() {
+
+	if netErr, ok := errors.AsType[net.Error](err); ok && netErr.Timeout() {
 		return
 	}
 	n.failure(err)
