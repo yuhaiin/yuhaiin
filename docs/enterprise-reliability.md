@@ -80,7 +80,7 @@ embedded-host lifecycle integration remain pending.
 Managed local/S3 full-archive scheduling, history, verification, download and
 retention now extend the same Backup owner; see [managed backups](managed-recovery-backups.md).
 Web archive import and authenticated preview now reuse that owner and verifier.
-Web restore activation and recent-result presentation are available on the supported systemd host; safe-update recovery integration remains required. Legacy S3 restore now refuses
+Web restore activation and recent-result presentation are available on the supported systemd host; protected update recovery now uses the same collector and installed-service supervision. Legacy S3 restore now refuses
 active database owners before downloading; its offline compatibility path imports
 configuration into a private copy of the local store and uses the same controlled
 activation/startup journal, preserving local identities. It no longer renames a
@@ -89,7 +89,7 @@ Existing update rollback restores executable bytes only.
 Database startup now rejects future/foreign/gapped migration histories and
 metadata mismatches before bootstrap/journal-mode changes, sharing the archive
 verifier's migration-prefix check. It does not make older unguarded executables
-safe or replace the pending update/recovery-point coordination.
+safe by themselves; protected update coordination also validates the target receipt capability.
 
 ## Stage 3 — certificate lifecycle (pending)
 
@@ -159,7 +159,7 @@ metrics without database work on scrape. Frontend EN/JA/KO displays shared slot
 use and inclusive budget semantics. See [measurement bounds](measurement-bounds.md).
 
 Stage 1 remains in progress, including final resource/transport qualification.
-Stage 2 transfer/archive/offline CLI recovery is implemented; the remaining Stage 2 management/update work and Stage 3 remain pending.
+Stage 2 transfer/archive/offline CLI recovery is implemented; broader Stage 2 hosts, plaintext point retention/periodic drills and Stage 3 remain pending.
 
 Native session adapters and periodic login protection now use existing protocol
 state and the same node/selector runtime. See the native session section in
@@ -180,7 +180,7 @@ CLI process death. Local RSS and allocation measurements distinguish age's
 per-chunk cumulative allocation from bounded live streaming memory; commands,
 fixture scope and raw data are documented. The archive and restore additions
 introduced no SQLite migration beyond 20; managed full backups subsequently add
-schema 21, imports add 22 and exclusive restore admission adds 23. Windows/embedded coordination and safe updates remain
+schema 21, imports add 22 and exclusive restore admission adds 23. Windows/embedded coordination remains
 incomplete; managed scheduling and retention are described below.
 
 The offline-restore change passes full Go tests, eight-package focused race
@@ -205,7 +205,7 @@ retain offline tools pending complete service coordination. An isolated real
 systemd/HTTPS/S3/helper-crash drill now accompanies hermetic tests. See
 [managed backups](managed-recovery-backups.md) for exact behavior and limits.
 
-Safe-update recovery-point/schema negotiation, broader platform maintenance, periodic
+Broader platform maintenance, plaintext recovery-point retention, periodic
 restoration drills and ACME remain outstanding. The three-stage goal is active.
 
 The managed-backup UI has automated 1440/360/320 px interaction/screenshot
@@ -288,8 +288,8 @@ cleanup. The UI distinguishes local presence, retrieval evidence and authenticat
 archive checks. Exported public history metadata plus an owner-only S3 settings
 file also enable `recovery fetch` without opening deployment databases.
 [Workflow and measurements](managed-recovery-backups.md#recover-a-missing-or-damaged-local-s3-copy).
-These operations do not implement safe-update schema/recovery-point coordination
-or ACME; those remain required.
+These retrieval operations share the backup owner used by protected updates;
+ACME remains required.
 
 ## Update target compatibility
 
@@ -298,8 +298,15 @@ on the build host without running the target binary. Update admission, downloade
 bytes and privileged helpers are checked independently against actual read-only
 live-WAL schema catalogs; history preserves only proven self-binary capabilities.
 Unknown/incompatible binary rollback is refused, and the UI shows current/target
-schemas and missing recovery coordination. No SQLite migration is required.
+schemas and actual recovery readiness. No SQLite migration is required.
 
-This is a precondition for the remaining paired recovery-point/update transaction,
-not completion of safe updates. Migration-requiring automatic installation remains
-refused until that integration exists. See [behavior, tests and resource measurements](update-rollback.md#verified-target-schema-preflight).
+Root-owned Linux systemd updates now create a full encrypted point before binary
+replacement, pin that point while unresolved, and require an operation/digest/PID
+bound receipt after actual application/listener readiness. A potentially migrated
+failed target remains stopped for explicit paired offline recovery; no old binary
+is silently started against new stores. The public status/cancellation/offline CLI
+and EN/JA/KO confirmation/result UI use the same ownership model. The real service
+runner adds schema-24 success, post-migration startup failure, helper SIGKILL and
+actual schema-23 CLI recovery; no production migration/fault hook is added.
+Release descriptors declare the independent startup-receipt capability. See
+[workflow, tests and resource scope](update-rollback.md#protected-update-and-offline-recovery).

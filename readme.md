@@ -259,7 +259,10 @@ Missing or damaged local S3 copies can be explicitly retrieved and repaired with
 size/digest checks. Retain public recovery metadata separately for the offline
 `recovery fetch` command; [retrieval workflow](docs/managed-recovery-backups.md#recover-a-missing-or-damaged-local-s3-copy).
 Web restore activation is available on root-owned Linux systemd deployments;
-safe-update coordination and other service hosts remain in progress.
+protected updates now capture an encrypted recovery point before replacement and
+verify real startup on that host. Migration failure requires the matching source
+binary/database backup, with an offline status/restore path. Broader service hosts
+remain in progress; [protected update procedure](docs/update-rollback.md#protected-update-and-offline-recovery).
 
 
 The Backup page also supports bounded encrypted archive uploads and authenticated
@@ -281,4 +284,4 @@ Tests follow their owners; the parent application assembles the existing runtime
 Software update checks now validate checksum-bound target schema catalogs against
 live SQLite/WAL state without executing prospective binaries. Unknown or incompatible
 old binaries cannot be automatically restored. Database-migrating targets require
-the pending coordinated update recovery-point workflow; [scope and offline steps](docs/update-rollback.md#verified-target-schema-preflight).
+the coordinated update recovery-point workflow; [scope and offline steps](docs/update-rollback.md#verified-target-schema-preflight).

@@ -26,6 +26,7 @@ func addFacadeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2UpdateStatus, api.updateStatus)
 	addRPCRoute(handlers, v2UpdateHistory, api.updateHistory)
 	addRPCRoute(handlers, v2UpdateRollback, api.updateRollback)
+	addRPCRoute(handlers, v2UpdateCancel, api.updateCancel)
 	addRPCRoute(handlers, v2SettingsGet, api.settings)
 	addRPCRoute(handlers, v2SettingsPut, api.saveSettings)
 	addRPCRoute(handlers, v2BackupConfigGet, api.backupConfig)
@@ -392,4 +393,23 @@ func (a v2API) diagnostics(ctx context.Context, request *contracttools.Diagnosti
 		return nil, &rpcError{status: http.StatusTooManyRequests, code: "busy", message: err.Error()}
 	}
 	return &report, err
+}
+
+func (a v2API) updateCancel(ctx context.Context, request *updateCancelRequest) (*emptyResponse, error) {
+	owner, ok := a.services.Update.(UpdateCanceller)
+	if !ok {
+		return nil, unavailable("protected update cancellation is unavailable")
+	}
+	if !request.Confirm {
+		return nil, badRequest(errors.New("update cancellation requires confirmation"))
+	}
+	if err := owner.Cancel(ctx, request.ID); err != nil {
+		return nil, badRequest(err)
+	}
+	return &emptyResponse{}, nil
+}
+
+type updateCancelRequest struct {
+	ID      string `json:"id"`
+	Confirm bool   `json:"confirm"`
 }

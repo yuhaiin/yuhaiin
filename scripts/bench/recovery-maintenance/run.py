@@ -2,6 +2,7 @@
 """Run the real installed-service backup/crash drill in an isolated container."""
 
 import argparse
+import json
 import os
 from pathlib import Path
 import re
@@ -39,6 +40,28 @@ def main():
         environment = dict(os.environ, CGO_ENABLED='0')
         run(['go', 'build', '-o', str(executable), './cmd/yuhaiin'], env=environment)
         run(['go', 'test', '-c', '-o', str(test), './cmd/yuhaiin/internal/servicehost'], env=environment)
+        # Build real future-schema executables and their matching descriptors.
+        # Go overlays keep fault injection out of all production source files.
+        fixtures = []
+        migration_path = root / 'pkg/storage/sqlite/migrations.go'
+        migrated = migration_path.read_text().rsplit('\n}', 1)[0] + "\n{Version: 24, Name: \"protected_update_drill\", Statements: []string{`INSERT INTO metadata(key,value) VALUES('protected_update_drill','migrated')`}},\n}\n"
+        migration_overlay = Path(tmp, 'migrations.go')
+        migration_overlay.write_text(migrated)
+        health_path = root / 'pkg/app/recovery_health.go'
+        for fixture_name, fail in [('update-healthy', False), ('update-failed', True)]:
+            replacements = {str(migration_path): str(migration_overlay)}
+            if fail:
+                health_overlay = Path(tmp, 'failed_health.go')
+                prefix, suffix = health_path.read_text().rsplit('return nil', 1)
+                health_overlay.write_text(prefix + 'return errors.New("injected readiness failure after real migration")' + suffix)
+                replacements[str(health_path)] = str(health_overlay)
+            overlay = Path(tmp, fixture_name + '-overlay.json')
+            overlay.write_text(json.dumps({'Replace': replacements}))
+            binary = Path(tmp, fixture_name)
+            run(['go', 'build', '-overlay', str(overlay), '-o', str(binary), './cmd/yuhaiin'], env=environment)
+            run(['go', 'run', '-overlay', str(overlay), './cmd/update-metadata',
+                 '-binary', str(binary), '-os', 'linux', '-arch', 'amd64'], env=environment)
+            fixtures.extend([binary, Path(str(binary) + '.update.json')])
         try:
             # Private container networking/cgroups; no host data directory,
             # host service socket or host PID namespace is mounted.
@@ -47,13 +70,15 @@ def main():
             run([*runtime, 'exec', name, 'mkdir', '-p', '/app'])
             run([*runtime, 'cp', str(executable), name + ':/app/yuhaiin'])
             run([*runtime, 'cp', str(test), name + ':/app/drill.test'])
+            for fixture in fixtures:
+                run([*runtime, 'cp', str(fixture), name + ':/app/' + fixture.name])
             run([*runtime, 'exec', '-e', 'YUHAIIN_RECOVERY_SYSTEMD_DRILL=1', name,
-                 '/app/drill.test', '-test.run=^TestInstalledRecoveryMaintenance$',
-                 '-test.v', '-test.timeout=4m'], timeout=300)
+                 '/app/drill.test', '-test.run=^TestInstalled(RecoveryMaintenance|ProtectedUpdate)$',
+                 '-test.v', '-test.timeout=8m'], timeout=540)
         except Exception:
             journal = subprocess.run([*runtime, 'exec', name, 'journalctl', '--no-pager',
                             '-u', 'yuhaiin.service', '-u', 'yuhaiin-recovery-*',
-                            '-u', 'yuhaiin-restore-*', '-n', '120'], check=False,
+                            '-u', 'yuhaiin-restore-*', '-u', 'yuhaiin-protected-update-*', '-n', '180'], check=False,
                             capture_output=True, text=True)
             print(redact_journal(journal.stdout))
             raise

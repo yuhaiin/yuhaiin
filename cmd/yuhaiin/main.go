@@ -73,6 +73,15 @@ func main() {
 	case "restart":
 		do(restart)
 		return
+	case "update-status":
+		do(updatecmd.Status)
+		return
+	case "update-protected-helper":
+		do(updatecmd.ProtectedInstall)
+		return
+	case "update-protected-recover":
+		do(updatecmd.RecoverProtected)
+		return
 	case "update-helper":
 		do(updatecmd.Install)
 		return
@@ -101,5 +110,6 @@ func main() {
 
 	if err := run(args); err != nil {
 		log.Error(err.Error())
+		os.Exit(1)
 	}
 }

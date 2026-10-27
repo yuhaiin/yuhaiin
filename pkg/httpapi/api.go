@@ -75,6 +75,10 @@ type UpdateController interface {
 	History(context.Context) (contractupdate.HistoryResult, error)
 	Rollback(context.Context, contractupdate.RollbackRequest) error
 }
+type UpdateCanceller interface {
+	Cancel(context.Context, string) error
+}
+
 type ConnectionMonitor interface {
 	Total(context.Context) (contractconnection.TotalFlow, error)
 	Traffic(context.Context, string, time.Time, time.Time) (contractconnection.TrafficSeries, error)

@@ -13,6 +13,7 @@ var v2Permissions = map[v2Endpoint]managementpermission.Permission{
 	v2UpdateApply:              managementpermission.UpdateManage,
 	v2UpdateStatus:             managementpermission.UpdateManage,
 	v2UpdateHistory:            managementpermission.UpdateManage,
+	v2UpdateCancel:             managementpermission.UpdateManage,
 	v2UpdateRollback:           managementpermission.UpdateManage,
 	v2BackupRun:                managementpermission.BackupManage,
 	v2BackupRestore:            managementpermission.BackupManage,

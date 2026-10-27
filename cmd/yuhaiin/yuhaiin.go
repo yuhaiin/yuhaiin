@@ -31,6 +31,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+	updatemaintenance "github.com/Asutorufa/yuhaiin/pkg/update/maintenance"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
@@ -116,6 +117,15 @@ func run(args []string) (resultErr error) {
 	}
 	recoveryStartup, err := recovery.PrepareStartup(*path, lifecycle, startupInputs)
 	if err != nil {
+		return err
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	updateStartup, err := updatemaintenance.PrepareStartup(context.Background(), *path, executable, recoveryStartup.BackupID(), recoveryStartup.InstanceID())
+	if err != nil {
+		_ = recoveryStartup.Abort()
 		return err
 	}
 	recoveryComplete := false
@@ -233,7 +243,7 @@ func run(args []string) (resultErr error) {
 			cancel(err)
 		}
 	}()
-	if recoveryStartup != nil {
+	if recoveryStartup != nil || updateStartup != nil {
 		healthContext, healthCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer healthCancel()
 		if err := app.RecoveryStartupHealth(healthContext); err != nil {
@@ -247,6 +257,13 @@ func run(args []string) (resultErr error) {
 			return err
 		}
 		if err := recoveryStartup.Complete(); err != nil {
+			return err
+		}
+		var leaf []byte
+		if certificate != nil && len(certificate.Certificate) > 0 {
+			leaf = certificate.Certificate[0]
+		}
+		if err := updateStartup.Complete(healthContext, lis.Addr().String(), leaf); err != nil {
 			return err
 		}
 	}

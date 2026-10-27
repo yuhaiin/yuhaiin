@@ -5,6 +5,8 @@ package servicehost
 import (
 	"context"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/pkg/update/maintenance"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,6 +46,11 @@ func (m *installedRecoveryMaintainer) Supported() (bool, string) {
 }
 
 func (m *installedRecoveryMaintainer) StartRecovery(ctx context.Context, id string, timeout time.Duration) error {
+	lease, err := lockfile.Acquire(filepath.Join(m.directory, ".recovery-maintenance.lock"))
+	if err != nil {
+		return err
+	}
+	defer lease.Close()
 	return m.launchMaintenance(ctx, id, timeout, "recovery-maintenance", "recovery-maintenance-restart")
 }
 
@@ -52,6 +59,9 @@ func (m *installedRecoveryMaintainer) StartRestore(ctx context.Context, id strin
 }
 
 func (m *installedRecoveryMaintainer) launchMaintenance(ctx context.Context, id string, timeout time.Duration, action, restart string) error {
+	if err := guardUpdate(m.directory); err != nil {
+		return err
+	}
 	value, err := uuid.Parse(id)
 	if err != nil || value.String() != id || value == (uuid.UUID{}) {
 		return errors.New("invalid recovery job identifier")
@@ -80,11 +90,17 @@ func (m *installedRecoveryMaintainer) launchMaintenance(ctx context.Context, id 
 	return nil
 }
 
-type Service struct{}
+type Service struct{ Directory string }
 
-func (Service) Stop(ctx context.Context) error {
+func (s Service) Stop(ctx context.Context) error {
+	if err := guardUpdate(s.Directory); err != nil {
+		return err
+	}
+
 	return exec.CommandContext(ctx, "systemctl", "stop", "yuhaiin.service").Run()
 }
 func (Service) Start(ctx context.Context) error {
 	return exec.CommandContext(ctx, "systemctl", "start", "yuhaiin.service").Run()
 }
+
+func guardUpdate(directory string) error { return maintenance.GuardAdmission(directory) }

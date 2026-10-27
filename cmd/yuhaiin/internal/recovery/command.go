@@ -5,9 +5,12 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"flag"
+	updatemaintenance "github.com/Asutorufa/yuhaiin/pkg/update/maintenance"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -74,6 +77,25 @@ func Execute(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	// Mutation and snapshots share the installed helpers' maintenance lease.
+	// Keep preview/verification independent so operators can diagnose a stopped host.
+	if action == "create" || action == "restore" || action == "rollback" {
+		lease, err := lockfile.Acquire(filepath.Join(*directory, ".recovery-maintenance.lock"))
+		if err != nil {
+			return err
+		}
+		defer lease.Close()
+		r, err := updatemaintenance.Read(*directory)
+		if err != nil {
+			return err
+		}
+		if r != nil && r.Phase == "manual_recovery" && action == "restore" && *mode != "original" {
+			return errors.New("update recovery requires original-instance mode; create a clone in a separate deployment")
+		}
+		if r != nil && !updatemaintenance.Terminal(r.Phase) {
+			return errors.New("an admitted update owns maintenance; inspect update-status or cancel the prepared handoff first")
+		}
 	}
 	switch action {
 	case "fetch":

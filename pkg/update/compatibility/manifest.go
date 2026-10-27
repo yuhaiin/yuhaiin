@@ -30,12 +30,16 @@ type Manifest struct {
 	Size         int64                                   `json:"size"`
 	Platform     string                                  `json:"platform"`
 	Architecture string                                  `json:"architecture"`
+	UpdateGuard  int                                     `json:"updateGuard,omitzero"`
 	StartupGuard int                                     `json:"startupGuard"`
 	Schemas      map[string][]sqlite.MigrationDescriptor `json:"schemas"`
 }
 
 func Describe(ctx context.Context, path, platform, architecture string) (Manifest, error) {
 	m := Manifest{Format: "yuhaiin-update", Version: 1, Asset: filepath.Base(path), Platform: platform, Architecture: architecture, StartupGuard: 1, Schemas: make(map[string][]sqlite.MigrationDescriptor)}
+	if platform == "linux" {
+		m.UpdateGuard = 1
+	}
 	for _, kind := range []string{"configuration", "management"} {
 		catalog, err := sqlite.MigrationCatalog(kind)
 		if err != nil {
@@ -93,7 +97,7 @@ func Parse(data []byte) (Manifest, error) {
 }
 
 func (m Manifest) Validate() error {
-	if m.Format != "yuhaiin-update" || m.Version != 1 || m.StartupGuard != 1 || m.Size < 1 || m.Size > MaxBinaryBytes || m.Asset == "" || filepath.Base(m.Asset) != m.Asset || strings.ContainsAny(m.Asset, "/\\\x00") || len(m.Asset) > 128 {
+	if m.Format != "yuhaiin-update" || m.Version != 1 || m.StartupGuard != 1 || m.UpdateGuard < 0 || m.UpdateGuard > 1 || m.Size < 1 || m.Size > MaxBinaryBytes || m.Asset == "" || filepath.Base(m.Asset) != m.Asset || strings.ContainsAny(m.Asset, "/\\\x00") || len(m.Asset) > 128 {
 		return errors.New("unsupported update compatibility manifest")
 	}
 	if !validDigest(m.SHA256) {

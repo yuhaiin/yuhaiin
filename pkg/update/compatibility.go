@@ -26,6 +26,11 @@ func (s *Service) inspectCompatibility(ctx context.Context, m compatibility.Mani
 	if m.Platform != s.targetOS || m.Architecture != s.targetArch {
 		return contract.CompatibilityStatus{State: "incompatible", Reason: "target_platform_mismatch"}, nil
 	}
+	if host, ok := s.installer.(ProtectedInstaller); ok && m.UpdateGuard != 1 {
+		if supported, _ := host.ProtectedUpdateSupported(); supported {
+			return contract.CompatibilityStatus{State: "unknown", Reason: "target_update_receipt_unsupported"}, nil
+		}
+	}
 	inspector, ok := s.installer.(CompatibilityInspector)
 	if !ok {
 		return contract.CompatibilityStatus{State: "unknown", Reason: "schema_inspection_unavailable"}, errors.New("installed host cannot inspect database compatibility")

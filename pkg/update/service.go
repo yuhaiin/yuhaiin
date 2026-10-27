@@ -39,6 +39,7 @@ type Asset struct {
 	ChecksumURL      string
 	CompatibilityURL string
 	SHA256           string
+	Consent          *contractupdate.ApplyRequest
 	Size             int64
 }
 
@@ -53,6 +54,7 @@ type Options struct {
 	HTTPClient       *http.Client
 	ReleasesURL      string
 	Installer        Installer
+	Recovery         RecoveryPoints
 	CurrentVersion   string
 	TargetOS         string
 	TargetArch       string
@@ -64,6 +66,7 @@ type Service struct {
 	client           *http.Client
 	releasesURL      string
 	installer        Installer
+	recovery         RecoveryPoints
 	current          string
 	targetOS         string
 	targetArch       string
@@ -71,6 +74,7 @@ type Service struct {
 	currentCommit    string
 	mu               sync.RWMutex
 	status           contractupdate.Status
+	statusStartedAt  time.Time
 }
 
 func NewService(opt Options) *Service {
@@ -105,7 +109,7 @@ func NewService(opt Options) *Service {
 	if currentCommit == "" {
 		currentCommit = version.GitCommit
 	}
-	return &Service{client: client, releasesURL: releasesURL, installer: opt.Installer, current: current, targetOS: targetOS, targetArch: targetArch, currentTimestamp: currentTimestamp, currentCommit: currentCommit}
+	return &Service{client: client, releasesURL: releasesURL, installer: opt.Installer, recovery: opt.Recovery, current: current, targetOS: targetOS, targetArch: targetArch, currentTimestamp: currentTimestamp, currentCommit: currentCommit}
 }
 
 // proxyHTTPClient routes GitHub API, release assets, and checksum downloads
@@ -175,6 +179,7 @@ func (s *Service) Check(ctx context.Context, channel string) (contractupdate.Che
 	}
 	status, inspectErr := s.inspectCompatibility(ctx, manifest)
 	result.Compatibility = &status
+	result.Recovery, _ = s.recoveryReadiness(ctx)
 	if inspectErr != nil {
 		result.Reason = "database compatibility inspection failed"
 	}
@@ -182,6 +187,9 @@ func (s *Service) Check(ctx context.Context, channel string) (contractupdate.Che
 }
 
 func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest) error {
+	if err := s.guardPendingOperation(); err != nil {
+		return err
+	}
 	if s.installer == nil {
 		return errors.New("automatic updates are not supported on this platform")
 	}
@@ -198,6 +206,7 @@ func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest
 		return errors.New("an update is already running")
 	}
 	s.status = contractupdate.Status{Running: true, Stage: "preparing"}
+	s.statusStartedAt = time.Now().UTC()
 	s.mu.Unlock()
 	log.Info("start software update", "channel", request.Channel, "targetTag", request.TargetTag)
 	fail := func(err error) error {
@@ -230,12 +239,13 @@ func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest
 		return fail(errors.New("release changed after review; check for updates again"))
 	}
 	selected.Asset.SHA256 = manifest.SHA256
+	selected.Asset.Consent = &request
 	compatibilityStatus, err := s.inspectCompatibility(ctx, manifest)
 	if err != nil {
 		return fail(err)
 	}
-	if compatibilityStatus.State != "compatible" {
-		return fail(errors.New("automatic installation requires a compatible schema; migrations require a coordinated recovery point"))
+	if err := s.validateUpdateConsent(ctx, compatibilityStatus, request); err != nil {
+		return fail(err)
 	}
 	log.Info("software update release selected", "version", selected.Version, "tag", selected.Tag, "asset", selected.Asset.Name, "size", selected.Asset.Size)
 
@@ -267,11 +277,18 @@ func (s *Service) History(ctx context.Context) (contractupdate.HistoryResult, er
 		}
 		entries[i].Compatibility = &status
 	}
-	return contractupdate.HistoryResult{Items: entries}, err
+	if err != nil {
+		return contractupdate.HistoryResult{}, err
+	}
+	readiness, err := s.recoveryReadiness(ctx)
+	return contractupdate.HistoryResult{Items: entries, Recovery: readiness}, err
 }
 
 // Rollback uses the same verified installer and restart path as a normal update.
 func (s *Service) Rollback(ctx context.Context, request contractupdate.RollbackRequest) error {
+	if err := s.guardPendingOperation(); err != nil {
+		return err
+	}
 	if s.installer == nil {
 		return errors.New("automatic updates are not supported on this platform")
 	}
@@ -299,6 +316,9 @@ func (s *Service) Rollback(ctx context.Context, request contractupdate.RollbackR
 	if status.State != "compatible" {
 		return errors.New("binary rollback is incompatible with the current databases; restore a matching database recovery point offline")
 	}
+	if err := s.validateUpdateConsent(ctx, status, contractupdate.ApplyRequest{OperationID: request.OperationID, ConfirmMaintenance: request.ConfirmMaintenance, ConfirmManualRecovery: request.ConfirmManualRecovery, ConfirmNoRecoveryPoint: request.ConfirmNoRecoveryPoint}); err != nil {
+		return err
+	}
 	provider, ok := s.installer.(stagingDirProvider)
 	if !ok {
 		return errors.New("rollback staging is unsupported")
@@ -309,13 +329,14 @@ func (s *Service) Rollback(ctx context.Context, request contractupdate.RollbackR
 		return errors.New("an update is already running")
 	}
 	s.status = contractupdate.Status{Running: true, Stage: "preparing"}
+	s.statusStartedAt = time.Now().UTC()
 	s.mu.Unlock()
 	go func() {
 		staged, err := StageHistory(configuration.DataDir.Load(), request.ID, provider.StagingDir())
 		if err == nil {
 			s.updateProgress("installing", 1, 1)
-			err = s.installer.Start(context.Background(), staged)
-			if err != nil {
+			err = s.installPrepared(context.Background(), staged, manifest, request.OperationID)
+			if err != nil && !errors.Is(err, errProtectedHandoffUncertain) {
 				_ = os.Remove(staged + compatibility.Suffix)
 				_ = os.Remove(staged)
 			}
@@ -325,11 +346,7 @@ func (s *Service) Rollback(ctx context.Context, request contractupdate.RollbackR
 	return nil
 }
 
-func (s *Service) Status(context.Context) contractupdate.Status {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.status
-}
+func (s *Service) Status(ctx context.Context) contractupdate.Status { return s.durableStatus(ctx) }
 
 func (s *Service) updateProgress(stage string, downloaded, total int64) {
 	progress := 0
@@ -348,6 +365,11 @@ func (s *Service) finishUpdate(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.status.Running = false
+	if errors.Is(err, errProtectedHandoffUncertain) {
+		s.status.Stage = "awaiting_helper"
+		s.status.Error = ""
+		return
+	}
 	s.status.Error = errorString(err)
 	if err != nil {
 		s.status.Stage = "error"
@@ -608,19 +630,31 @@ func (s *Service) downloadAndInstall(ctx context.Context, asset Asset) error {
 		return errors.New("downloaded binary differs from the verified schema manifest")
 	}
 	status, err := s.inspectCompatibility(ctx, manifest)
-	if err != nil || status.State != "compatible" {
+	ready, readinessErr := s.recoveryReadiness(ctx)
+	allowed := status.State == "compatible" || status.State == "migration_required" && ready != nil && ready.Enabled && ready.Ready
+	if err != nil || readinessErr != nil || !allowed {
 		_ = os.Remove(tmpPath)
-		return errors.New("database compatibility changed before installation")
+		return errors.New("database compatibility or recovery readiness changed before installation")
 	}
 	if err := writeStagedCompatibility(tmpPath, manifest); err != nil {
 		_ = os.Remove(tmpPath)
 		_ = os.Remove(tmpPath + compatibility.Suffix)
 		return err
 	}
+	if asset.Consent != nil {
+		if err := s.validateUpdateConsent(ctx, status, *asset.Consent); err != nil {
+			_ = os.Remove(tmpPath)
+			_ = os.Remove(tmpPath + compatibility.Suffix)
+			return err
+		}
+	}
 	log.Info("software update checksum verification passed", "asset", asset.Name)
 	s.updateProgress("installing", asset.Size, asset.Size)
 	log.Info("software update installer starting", "asset", asset.Name)
-	if err := s.installer.Start(ctx, tmpPath); err != nil {
+	if err := s.installPrepared(ctx, tmpPath, manifest, asset.consentOperationID()); err != nil {
+		if errors.Is(err, errProtectedHandoffUncertain) {
+			return err
+		}
 		_ = os.Remove(tmpPath + compatibility.Suffix)
 		_ = os.Remove(tmpPath)
 		return err
@@ -753,4 +787,11 @@ func errorString(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func (a Asset) consentOperationID() string {
+	if a.Consent == nil {
+		return ""
+	}
+	return a.Consent.OperationID
 }

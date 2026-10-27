@@ -129,7 +129,7 @@ func Capture(ctx context.Context, directory, id string, service Service) (result
 	if err != nil {
 		return err
 	}
-	archive, err := backupfs.ArchivePath(directory, id)
+	_, err = backupfs.ArchivePath(directory, id)
 	if err != nil {
 		return err
 	}
@@ -185,6 +185,27 @@ func Capture(ctx context.Context, directory, id string, service Service) (result
 		})
 	}()
 	if err := service.Stop(ctx); err != nil {
+		return err
+	}
+	return CaptureStopped(ctx, directory, id, operation)
+}
+
+// CaptureStopped reuses the coherent collector while an update coordinator
+// already owns maintenance and has stopped the service. It never starts a service.
+func CaptureStopped(ctx context.Context, directory, id string, operation *os.File) error {
+	if operation == nil {
+		return errors.New("capture requires the maintenance owner")
+	}
+	held, err := operation.Stat()
+	if err != nil {
+		return err
+	}
+	actual, err := os.Lstat(filepath.Join(directory, ".recovery-maintenance.lock"))
+	if err != nil || !actual.Mode().IsRegular() || !os.SameFile(held, actual) {
+		return errors.New("capture maintenance owner does not match deployment")
+	}
+	archive, err := backupfs.ArchivePath(directory, id)
+	if err != nil {
 		return err
 	}
 	var job backupstore.RecoveryJob

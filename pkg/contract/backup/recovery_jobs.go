@@ -14,6 +14,7 @@ type RecoveryPolicy struct {
 	KeepDays         int    `json:"keepDays"`
 	IncludeHistory   bool   `json:"includeHistory"`
 	AllowMaintenance bool   `json:"allowMaintenance"`
+	ProtectUpdates   *bool  `json:"protectUpdates,omitempty"`
 }
 
 type RecoveryBackup struct {
@@ -38,6 +39,7 @@ type RecoveryBackup struct {
 	Retrieval          string    `json:"retrieval,omitempty"`
 	RetrievalErrorCode string    `json:"retrievalErrorCode,omitempty"`
 	RetrievedAt        time.Time `json:"retrievedAt,omitzero"`
+	UpdatePoint        bool      `json:"updatePoint,omitzero"`
 }
 
 type RecoveryRetrieveRequest struct {

@@ -28,6 +28,9 @@ func isV2StreamEndpoint(endpoint v2Endpoint) bool {
 // Secret-bearing requests use small independent bounds without restricting
 // unrelated configuration-import payloads accepted by the same RPC adapter.
 var v2RPCBodyLimits = map[v2Endpoint]int64{
+	v2UpdateApply:            4 << 10,
+	v2UpdateRollback:         4 << 10,
+	v2UpdateCancel:           4 << 10,
 	v2RecoveryImportPreview:  16 << 10,
 	v2RecoveryImportActivate: 16 << 10,
 	v2RecoveryBackupVerify:   16 << 10,
@@ -50,6 +53,7 @@ const (
 	v2UpdateStatus             v2Endpoint = "update.status"
 	v2UpdateHistory            v2Endpoint = "update.history"
 	v2UpdateRollback           v2Endpoint = "update.rollback"
+	v2UpdateCancel             v2Endpoint = "update.cancel"
 	v2BackupRun                v2Endpoint = "backup.run"
 	v2BackupRestore            v2Endpoint = "backup.restore"
 	v2RecoveryBackupStatus     v2Endpoint = "backup.recovery.status"
@@ -199,6 +203,7 @@ var v2Routes = []v2Route{
 	{v2UpdateStatus, "GET /api/v2/update/status"},
 	{v2UpdateHistory, "GET /api/v2/update/history"},
 	{v2UpdateRollback, "POST /api/v2/update/rollback"},
+	{v2UpdateCancel, "POST /api/v2/update/cancel"},
 	{v2SettingsGet, "GET /api/v2/settings"},
 	{v2SettingsPut, "PUT /api/v2/settings"},
 	{v2BackupConfigGet, "GET /api/v2/backup/config"},

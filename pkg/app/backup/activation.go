@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/pkg/update/maintenance"
 	"path/filepath"
 	"time"
 
@@ -57,6 +58,9 @@ func (b *Backup) ActivateRecoveryImport(ctx context.Context, request contract.Re
 		return empty, errBackupBusy
 	}
 	defer lease.Close()
+	if err := maintenance.GuardAdmission(b.dir); err != nil {
+		return empty, err
+	}
 	item.State, item.Activation, item.ErrorCode = "activating", new(request), ""
 	if err := b.store.AdmitRecoveryImport(ctx, item); err != nil {
 		return empty, err

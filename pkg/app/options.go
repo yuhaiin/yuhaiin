@@ -186,6 +186,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		}
 	}
 
+	recoveryPoints, _ := app.Backup.(updatepkg.RecoveryPoints)
 	httpapi.RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
 		// The outer management gate covers all routes, including auxiliary
 		// registrations, and establishes a Principal before this handler runs.
@@ -205,7 +206,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		Connections:      app.Connections,
 		Tools:            app.Tools,
 		Diagnostics:      app.Diagnostics,
-		Update:           updatepkg.NewService(updatepkg.Options{Installer: app.Updater}),
+		Update:           updatepkg.NewService(updatepkg.Options{Installer: app.Updater, Recovery: recoveryPoints}),
 		Backup:           app.Backup,
 		Lists:            app.Lists,
 		RouteSettings:    routeSettingsStore,

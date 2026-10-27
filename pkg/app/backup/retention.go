@@ -3,6 +3,8 @@ package backup
 import (
 	"context"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/pkg/update/maintenance"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 	"os"
 	"path/filepath"
 	"time"
@@ -30,6 +32,19 @@ func (b *Backup) DeleteRecoveryBackup(ctx context.Context, id string) error {
 }
 
 func (b *Backup) deleteRecoveryBackup(ctx context.Context, job backupstore.RecoveryJob) (resultErr error) {
+	lease, err := lockfile.Acquire(filepath.Join(b.dir, ".recovery-maintenance.lock"))
+	if err != nil {
+		return errBackupBusy
+	}
+	defer lease.Close()
+	protected, err := maintenance.ActiveBackup(b.dir)
+	if err != nil {
+		return err
+	}
+	if protected == job.ID {
+		return errors.New("update recovery point is still required; complete or recover the update first")
+	}
+
 	if job.State == "deleting" && job.DeleteFrom != "verified" && job.DeleteFrom != "local_ready" && job.DeleteFrom != "failed" {
 		return errors.New("invalid interrupted backup deletion")
 	}
@@ -152,10 +167,17 @@ func (b *Backup) recoveryRetentionPlan(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	protected, err := maintenance.ActiveBackup(b.dir)
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	var ids []string
 	successful := 0
 	for _, item := range items {
+		if item.ID == protected {
+			continue
+		}
 		ready := item.State == "verified" || (item.State == "local_ready" && item.Target == "local")
 		if !ready && item.State != "failed" {
 			continue

@@ -17,7 +17,7 @@ func Capture(args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 24*time.Hour+2*time.Minute)
 	defer cancel()
-	return recovery.Capture(ctx, args[0], args[1], servicehost.Service{})
+	return recovery.Capture(ctx, args[0], args[1], servicehost.Service{Directory: args[0]})
 }
 
 func RestartCapture(args []string) error {
@@ -26,7 +26,7 @@ func RestartCapture(args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	return recovery.RestartService(ctx, args[0], args[1], servicehost.Service{})
+	return recovery.RestartService(ctx, args[0], args[1], servicehost.Service{Directory: args[0]})
 }
 
 func Restore(args []string) error {
@@ -35,7 +35,7 @@ func Restore(args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-	return recovery.RestoreImport(ctx, args[0], args[1], servicehost.Service{})
+	return recovery.RestoreImport(ctx, args[0], args[1], servicehost.Service{Directory: args[0]})
 }
 
 func RestartRestore(args []string) error {
@@ -44,5 +44,5 @@ func RestartRestore(args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	return recovery.RestartImportService(ctx, args[0], args[1], servicehost.Service{})
+	return recovery.RestartImportService(ctx, args[0], args[1], servicehost.Service{Directory: args[0]})
 }

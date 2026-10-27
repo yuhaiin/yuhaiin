@@ -41,6 +41,23 @@ func (r *Startup) ID() string {
 	return r.tx.ID
 }
 
+// BackupID binds an authenticated pending restoration to an update recovery point.
+func (r *Startup) BackupID() string {
+	if r == nil {
+		return ""
+	}
+	return r.tx.BackupID
+}
+
+// InstanceID identifies the authenticated restored deployment, distinguishing a
+// clone from recovery of the source instance even when the archive ID matches.
+func (r *Startup) InstanceID() string {
+	if r == nil {
+		return ""
+	}
+	return r.tx.InstanceID
+}
+
 func (r *Startup) Complete() error {
 	if r == nil {
 		return nil
