@@ -65,8 +65,9 @@ mv "yuhaiin${extension}" "$binary"
 # Describe the target on the build host; never execute a cross-compiled binary.
 metadata_host_os=$(go env GOHOSTOS)
 metadata_host_arch=$(go env GOHOSTARCH)
+metadata_target_os="$GOOS"
 GOOS="$metadata_host_os" GOARCH="$metadata_host_arch" GOAMD64=v1 GOARM64=v8.0 CGO_ENABLED=0 \
-  go run ./cmd/update-metadata -binary "$binary" -os "$GOOS" -arch "$RELEASE_ARCH"
+  go run ./cmd/update-metadata -binary "$binary" -os "$metadata_target_os" -arch "$RELEASE_ARCH"
 
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
