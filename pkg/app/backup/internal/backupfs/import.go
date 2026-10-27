@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"uuid"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 )
 
 const recoveryDiskReserve = 256 << 20
@@ -18,7 +18,7 @@ func ImportPath(id string) (string, error) {
 	return filepath.Join(".recovery-imports", id, "archive.yhb"), nil
 }
 func CheckStagingSpace(directory string, bytes int64) error {
-	if bytes < 0 || bytes > contract.MaxRecoveryDataBytes {
+	if bytes < 0 || bytes > contractrecovery.MaxDataBytes {
 		return errors.New("recovery staging exceeds its size budget")
 	}
 	available, err := recoveryAvailableBytes(directory)

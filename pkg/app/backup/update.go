@@ -7,7 +7,7 @@ import (
 	"uuid"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	updatecontract "github.com/Asutorufa/yuhaiin/pkg/contract/update"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
@@ -56,8 +56,8 @@ func (b *Backup) UpdateRecoveryReadiness(ctx context.Context) (updatecontract.Re
 
 // QueueUpdateRecovery registers the same immutable encrypted backup request but
 // leaves execution to the already-independent update maintenance owner.
-func (b *Backup) QueueUpdateRecovery(ctx context.Context) (contract.RecoveryBackup, error) {
-	var empty contract.RecoveryBackup
+func (b *Backup) QueueUpdateRecovery(ctx context.Context) (contractrecovery.Backup, error) {
+	var empty contractrecovery.Backup
 	if !b.mu.TryLock() {
 		return empty, errBackupBusy
 	}
@@ -94,7 +94,7 @@ func (b *Backup) QueueUpdateRecovery(ctx context.Context) (contract.RecoveryBack
 	if err := b.store.EnqueueRecovery(ctx, job); err != nil {
 		return empty, err
 	}
-	return job.RecoveryBackup, nil
+	return job.Backup, nil
 }
 
 func (b *Backup) CancelUpdateRecovery(ctx context.Context, id string) error {

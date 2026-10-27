@@ -8,15 +8,15 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
 // ActivateRecoveryImport persists exact-preview consent before handing off to
 // the independent installed-service supervisor. No database files are replaced
 // from a request handler or a runtime-owned background goroutine.
-func (b *Backup) ActivateRecoveryImport(ctx context.Context, request contract.RecoveryImportActivateRequest) (contract.RecoveryImport, error) {
-	var empty contract.RecoveryImport
+func (b *Backup) ActivateRecoveryImport(ctx context.Context, request contractrecovery.ImportActivateRequest) (contractrecovery.Import, error) {
+	var empty contractrecovery.Import
 	if b.store == nil {
 		return empty, errors.New("backup store is unavailable")
 	}
@@ -38,7 +38,7 @@ func (b *Backup) ActivateRecoveryImport(ctx context.Context, request contract.Re
 		if item.Activation == nil || *item.Activation != request {
 			return empty, errors.New("another activation request owns this preview")
 		}
-		return item.RecoveryImport, nil
+		return item.Import, nil
 	}
 	if b.restoring.Load() {
 		return empty, errBackupBusy
@@ -77,7 +77,7 @@ func (b *Backup) ActivateRecoveryImport(ctx context.Context, request contract.Re
 		_ = b.store.SaveRecoveryImport(recordCtx, item, "activating")
 		// The durable decision was accepted even if unit launch is uncertain.
 		// Returning a generic rejection would hide a possibly running restore.
-		return item.RecoveryImport, nil
+		return item.Import, nil
 	}
-	return item.RecoveryImport, nil
+	return item.Import, nil
 }

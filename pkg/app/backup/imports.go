@@ -14,7 +14,7 @@ import (
 
 	backupfs "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/management/permission"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
@@ -35,8 +35,8 @@ func recoveryImportOwner(ctx context.Context) string {
 
 // UploadRecoveryImport streams ciphertext into a private, expiring owned file.
 // One existing Backup lease bounds concurrent upload/decryption/transfer work.
-func (b *Backup) UploadRecoveryImport(ctx context.Context, input io.ReadCloser, size int64) (_ contract.RecoveryImport, resultErr error) {
-	var empty contract.RecoveryImport
+func (b *Backup) UploadRecoveryImport(ctx context.Context, input io.ReadCloser, size int64) (_ contractrecovery.Import, resultErr error) {
+	var empty contractrecovery.Import
 	if b.restoring.Load() {
 		return empty, errBackupBusy
 	}
@@ -141,7 +141,7 @@ func (b *Backup) UploadRecoveryImport(ctx context.Context, input io.ReadCloser, 
 	if err := b.store.SaveRecoveryImport(ctx, item, "uploading"); err != nil {
 		return empty, err
 	}
-	return item.RecoveryImport, nil
+	return item.Import, nil
 }
 
 func prepareRecoveryImportNamespace(root *os.Root) error {
@@ -220,8 +220,8 @@ func (b *Backup) ownedRecoveryImport(ctx context.Context, id string) (backupstor
 	return item, nil
 }
 
-func (b *Backup) RecoveryImports(ctx context.Context) ([]contract.RecoveryImport, error) {
-	out := []contract.RecoveryImport{}
+func (b *Backup) RecoveryImports(ctx context.Context) ([]contractrecovery.Import, error) {
+	out := []contractrecovery.Import{}
 	if b.store == nil {
 		return nil, errors.New("backup store is unavailable")
 	}
@@ -235,14 +235,14 @@ func (b *Backup) RecoveryImports(ctx context.Context) ([]contract.RecoveryImport
 			return nil, err
 		}
 		if item.Owner == recoveryImportOwner(ctx) && item.ExpiresAt.After(time.Now()) && item.State != "deleting" {
-			out = append(out, item.RecoveryImport)
+			out = append(out, item.Import)
 		}
 	}
 	return out, nil
 }
 
-func (b *Backup) PreviewRecoveryImport(ctx context.Context, request contract.RecoveryImportPreviewRequest) (contract.RecoveryImport, error) {
-	var empty contract.RecoveryImport
+func (b *Backup) PreviewRecoveryImport(ctx context.Context, request contractrecovery.ImportPreviewRequest) (contractrecovery.Import, error) {
+	var empty contractrecovery.Import
 	if b.restoring.Load() {
 		return empty, errBackupBusy
 	}
@@ -303,7 +303,7 @@ func (b *Backup) PreviewRecoveryImport(ctx context.Context, request contract.Rec
 	if previous.Stage != "" && previous.Stage != item.Stage {
 		_ = removeRecoveryImportStage(root, item.ID, previous.Stage)
 	}
-	return item.RecoveryImport, nil
+	return item.Import, nil
 }
 
 func (b *Backup) DiscardRecoveryImport(ctx context.Context, id string) error {

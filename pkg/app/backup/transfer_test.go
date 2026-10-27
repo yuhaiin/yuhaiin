@@ -18,6 +18,7 @@ import (
 	"filippo.io/age"
 	backupfs "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
@@ -53,7 +54,7 @@ func queuedArchiveFixture(t *testing.T, b *Backup, target string, created time.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	policy, err := backupstore.NormalizeRecoveryPolicy(contract.RecoveryPolicy{Target: target, Recipient: identity.Recipient().String(), AllowMaintenance: true, TimeoutMinutes: 1})
+	policy, err := backupstore.NormalizeRecoveryPolicy(contractrecovery.Policy{Target: target, Recipient: identity.Recipient().String(), AllowMaintenance: true, TimeoutMinutes: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +262,7 @@ func TestRecoveryRetentionKeepsLatestPointAndSkipsActiveReaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	options.Recovery = &contract.RecoveryPolicy{Target: "local", KeepCount: 1, KeepDays: 1}
+	options.Recovery = &contractrecovery.Policy{Target: "local", KeepCount: 1, KeepDays: 1}
 	if err := owner.Save(t.Context(), options); err != nil {
 		t.Fatal(err)
 	}

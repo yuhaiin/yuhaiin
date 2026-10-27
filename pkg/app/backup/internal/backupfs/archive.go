@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"uuid"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 )
 
 func ArchivePath(directory, id string) (string, error) {
@@ -33,7 +33,7 @@ func DigestArchiveFile(ctx context.Context, file *os.File) (int64, string, error
 		return 0, "", err
 	}
 	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > contract.MaxRecoveryDataBytes {
+	if err != nil || !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > contractrecovery.MaxDataBytes {
 		return 0, "", errors.New("managed encrypted archive exceeds its 100 GiB limit")
 	}
 	hash := sha256.New()

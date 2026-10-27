@@ -20,6 +20,7 @@ import (
 	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 )
@@ -91,7 +92,7 @@ func TestRecoveryRetrievalPublishesOnlyRecordedCiphertext(t *testing.T) {
 				if fault == "object_key" {
 					job.ObjectKey = "other-owner/archive.yhb"
 				} else {
-					job.Size = contract.MaxRecoveryDataBytes + 1
+					job.Size = contractrecovery.MaxDataBytes + 1
 				}
 				if err := owner.SaveRecoveryJob(t.Context(), job, job.State); err != nil {
 					t.Fatal(err)
@@ -110,11 +111,11 @@ func TestRecoveryRetrievalPublishesOnlyRecordedCiphertext(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				if _, err := b.RetrieveRecoveryBackup(ctx, contract.RecoveryRetrieveRequest{ID: job.ID, ConfirmDownload: true}); err == nil {
+				if _, err := b.RetrieveRecoveryBackup(ctx, contractrecovery.RetrieveRequest{ID: job.ID, ConfirmDownload: true}); err == nil {
 					t.Fatal("replaced local copy without explicit consent")
 				}
 			}
-			got, err := b.RetrieveRecoveryBackup(ctx, contract.RecoveryRetrieveRequest{ID: job.ID, ConfirmDownload: true, ConfirmReplace: repair})
+			got, err := b.RetrieveRecoveryBackup(ctx, contractrecovery.RetrieveRequest{ID: job.ID, ConfirmDownload: true, ConfirmReplace: repair})
 			success := fault == "none" || fault == "repair" || fault == "permissions"
 			current, readErr := owner.RecoveryJob(t.Context(), job.ID)
 			if readErr != nil {
@@ -139,7 +140,7 @@ func TestRecoveryRetrievalPublishesOnlyRecordedCiphertext(t *testing.T) {
 					t.Fatal("archive is not private")
 				}
 				before := requests.Load()
-				if _, err := b.RetrieveRecoveryBackup(ctx, contract.RecoveryRetrieveRequest{ID: job.ID, ConfirmDownload: true}); err != nil || requests.Load() != before {
+				if _, err := b.RetrieveRecoveryBackup(ctx, contractrecovery.RetrieveRequest{ID: job.ID, ConfirmDownload: true}); err != nil || requests.Load() != before {
 					t.Fatal("valid existing copy downloaded again", err)
 				}
 			} else {
@@ -176,7 +177,7 @@ func TestRecoveryRetrievalSharesLeaseAndRuntimeCancellation(t *testing.T) {
 	defer b.cancel()
 	done := make(chan error, 1)
 	go func() {
-		_, err := b.RetrieveRecoveryBackup(t.Context(), contract.RecoveryRetrieveRequest{ID: job.ID, ConfirmDownload: true})
+		_, err := b.RetrieveRecoveryBackup(t.Context(), contractrecovery.RetrieveRequest{ID: job.ID, ConfirmDownload: true})
 		done <- err
 	}()
 	select {
@@ -194,7 +195,7 @@ func TestRecoveryRetrievalSharesLeaseAndRuntimeCancellation(t *testing.T) {
 	if _, _, err := b.OpenRecoveryBackup(t.Context(), job.ID); !errors.Is(err, contract.ErrBusy) {
 		t.Fatal("reader entered active publication", err)
 	}
-	if _, err := b.RetrieveRecoveryBackup(t.Context(), contract.RecoveryRetrieveRequest{ID: job.ID, ConfirmDownload: true}); !errors.Is(err, contract.ErrBusy) {
+	if _, err := b.RetrieveRecoveryBackup(t.Context(), contractrecovery.RetrieveRequest{ID: job.ID, ConfirmDownload: true}); !errors.Is(err, contract.ErrBusy) {
 		t.Fatal("unbounded parallel retrieval", err)
 	}
 	b.cancel()
@@ -223,7 +224,7 @@ func TestRecoveryRetrievalRespectsReadersAndDoesNotTrustStoredPresence(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.RetrieveRecoveryBackup(t.Context(), contract.RecoveryRetrieveRequest{ID: job.ID, ConfirmDownload: true, ConfirmReplace: true}); !errors.Is(err, contract.ErrBusy) {
+	if _, err := b.RetrieveRecoveryBackup(t.Context(), contractrecovery.RetrieveRequest{ID: job.ID, ConfirmDownload: true, ConfirmReplace: true}); !errors.Is(err, contract.ErrBusy) {
 		t.Fatal("retrieval replaced active reader", err)
 	}
 	_ = reader.Close()
@@ -285,7 +286,7 @@ func TestRecoveryRetrievalRefusesAliasesAndUntrustedTLS(t *testing.T) {
 	if err := os.Symlink(outside, path); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.RetrieveRecoveryBackup(t.Context(), contract.RecoveryRetrieveRequest{ID: job.ID, ConfirmDownload: true, ConfirmReplace: true}); err == nil {
+	if _, err := b.RetrieveRecoveryBackup(t.Context(), contractrecovery.RetrieveRequest{ID: job.ID, ConfirmDownload: true, ConfirmReplace: true}); err == nil {
 		t.Fatal("followed archive alias")
 	}
 	_ = os.Remove(path)
@@ -300,7 +301,7 @@ func TestRecoveryRetrievalRefusesAliasesAndUntrustedTLS(t *testing.T) {
 	if err := owner.SaveRecoveryJob(t.Context(), job, job.State); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.RetrieveRecoveryBackup(t.Context(), contract.RecoveryRetrieveRequest{ID: job.ID, ConfirmDownload: true}); err == nil {
+	if _, err := b.RetrieveRecoveryBackup(t.Context(), contractrecovery.RetrieveRequest{ID: job.ID, ConfirmDownload: true}); err == nil {
 		t.Fatal("untrusted TLS accepted")
 	}
 }
@@ -346,10 +347,10 @@ func TestRecoveryRetrievalThenAuthenticatesRealDeploymentInventory(t *testing.T)
 	if err := owner.SaveRecoveryJob(t.Context(), job, job.State); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.RetrieveRecoveryBackup(t.Context(), contract.RecoveryRetrieveRequest{ID: job.ID, ConfirmDownload: true}); err != nil {
+	if _, err := b.RetrieveRecoveryBackup(t.Context(), contractrecovery.RetrieveRequest{ID: job.ID, ConfirmDownload: true}); err != nil {
 		t.Fatal(err)
 	}
-	verified, err := b.VerifyRecoveryBackup(t.Context(), contract.RecoveryVerifyRequest{ID: job.ID, Identity: key.String()})
+	verified, err := b.VerifyRecoveryBackup(t.Context(), contractrecovery.VerifyRequest{ID: job.ID, Identity: key.String()})
 	if err != nil || !verified.CompleteInventory || verified.ID != manifest.ID {
 		t.Fatal("retrieved deployment archive did not authenticate", err)
 	}

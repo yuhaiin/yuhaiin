@@ -10,7 +10,7 @@ import (
 	"uuid"
 
 	buildversion "github.com/Asutorufa/yuhaiin/internal/version"
-	backupcontract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/update"
 	"github.com/Asutorufa/yuhaiin/pkg/update/compatibility"
 	"github.com/Asutorufa/yuhaiin/pkg/update/maintenance"
@@ -21,7 +21,7 @@ var errProtectedHandoffUncertain = errors.New("protected update handoff is uncer
 
 type RecoveryPoints interface {
 	UpdateRecoveryReadiness(context.Context) (contract.RecoveryReadiness, error)
-	QueueUpdateRecovery(context.Context) (backupcontract.RecoveryBackup, error)
+	QueueUpdateRecovery(context.Context) (contractrecovery.Backup, error)
 	CancelUpdateRecovery(context.Context, string) error
 }
 type ProtectedInstaller interface {
@@ -118,7 +118,7 @@ func (s *Service) installPrepared(ctx context.Context, stage string, m compatibi
 	defer owner.Close()
 	// The ordinary backup registry excludes simultaneous captures and Web restore
 	// admission. The private update journal also serializes independent helpers.
-	var point backupcontract.RecoveryBackup
+	var point contractrecovery.Backup
 	if ready.Enabled {
 		point, err = s.recovery.QueueUpdateRecovery(ctx)
 		if err != nil {

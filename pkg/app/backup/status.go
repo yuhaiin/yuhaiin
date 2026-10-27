@@ -5,11 +5,11 @@ import (
 	"errors"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 )
 
-func (b *Backup) RecoveryBackups(ctx context.Context) (contract.RecoveryBackupStatus, error) {
-	out := contract.RecoveryBackupStatus{Items: []contract.RecoveryBackup{}}
+func (b *Backup) RecoveryBackups(ctx context.Context) (contractrecovery.BackupStatus, error) {
+	out := contractrecovery.BackupStatus{Items: []contractrecovery.Backup{}}
 	if b.store == nil {
 		return out, errors.New("backup store is unavailable")
 	}
@@ -31,17 +31,17 @@ func (b *Backup) RecoveryBackups(ctx context.Context) (contract.RecoveryBackupSt
 }
 
 // RecoveryRestoreStatus reads the durable transaction result through its owner.
-func (b *Backup) RecoveryRestoreStatus(ctx context.Context) (contract.RecoveryRestoreStatus, error) {
+func (b *Backup) RecoveryRestoreStatus(ctx context.Context) (contractrecovery.RestoreStatus, error) {
 	actual, actualErr := recovery.RestoreStatus(ctx, b.dir)
 	if b.store != nil {
 		ids, err := b.store.RecoveryImportIDs(ctx)
 		if err != nil {
-			return contract.RecoveryRestoreStatus{}, err
+			return contractrecovery.RestoreStatus{}, err
 		}
 		for _, id := range ids {
 			item, err := b.store.RecoveryImport(ctx, id)
 			if err != nil {
-				return contract.RecoveryRestoreStatus{}, err
+				return contractrecovery.RestoreStatus{}, err
 			}
 			if item.State == "activating" {
 				if actualErr == nil && actual.Result != nil && actual.Result.TransactionID == item.PreviewID {
@@ -50,7 +50,7 @@ func (b *Backup) RecoveryRestoreStatus(ctx context.Context) (contract.RecoveryRe
 					}
 					return actual, nil
 				}
-				return contract.RecoveryRestoreStatus{PendingImportID: item.ID, PendingPreviewID: item.PreviewID}, nil
+				return contractrecovery.RestoreStatus{PendingImportID: item.ID, PendingPreviewID: item.PreviewID}, nil
 			}
 		}
 		if b.restoring.CompareAndSwap(true, false) {

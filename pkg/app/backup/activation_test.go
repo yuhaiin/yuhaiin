@@ -12,6 +12,7 @@ import (
 	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
@@ -26,19 +27,19 @@ func (m *importMaintainerTest) StartRestore(context.Context, string, time.Durati
 	return m.restoreErr
 }
 
-func runtimeActivationFixture(t *testing.T) (*Backup, contract.RecoveryImportActivateRequest) {
+func runtimeActivationFixture(t *testing.T) (*Backup, contractrecovery.ImportActivateRequest) {
 	t.Helper()
 	b, data, key, _ := recoveryImportFixture(t)
 	item, err := b.UploadRecoveryImport(t.Context(), io.NopCloser(bytes.NewReader(data)), int64(len(data)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, err = b.PreviewRecoveryImport(t.Context(), contract.RecoveryImportPreviewRequest{ID: item.ID, Mode: "clone", Identity: key.String()})
+	item, err = b.PreviewRecoveryImport(t.Context(), contractrecovery.ImportPreviewRequest{ID: item.ID, Mode: "clone", Identity: key.String()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	preview := item.Preview
-	request := contract.RecoveryImportActivateRequest{ID: item.ID, ConfirmPreviewID: item.PreviewID, ConfirmBackupID: preview.Manifest.ID, ConfirmSourceInstanceID: preview.Manifest.InstanceID,
+	request := contractrecovery.ImportActivateRequest{ID: item.ID, ConfirmPreviewID: item.PreviewID, ConfirmBackupID: preview.Manifest.ID, ConfirmSourceInstanceID: preview.Manifest.InstanceID,
 		ConfirmTargetInstanceID: preview.TargetInstanceID, ConfirmResultInstanceID: preview.InstanceID, ConfirmMaintenance: true, ConfirmStartupChanges: true, ConfirmCloneEnrollment: true, ConfirmIdentityReplacement: true}
 	return b, request
 }
@@ -154,7 +155,7 @@ func TestRestoreOutcomeOverridesItsStaleAdmissionAfterCleanupFailure(t *testing.
 			if err != nil {
 				t.Fatal(err)
 			}
-			result := contract.RecoveryRestoreResult{BackupID: request.ConfirmBackupID, TransactionID: request.ConfirmPreviewID, InstanceID: request.ConfirmResultInstanceID, RecoveryPoint: ".recovery-point-" + request.ConfirmPreviewID, State: state, Runtime: row.Preview.Runtime}
+			result := contractrecovery.RestoreResult{BackupID: request.ConfirmBackupID, TransactionID: request.ConfirmPreviewID, InstanceID: request.ConfirmResultInstanceID, RecoveryPoint: ".recovery-point-" + request.ConfirmPreviewID, State: state, Runtime: row.Preview.Runtime}
 			data, err := json.Marshal(result)
 			if err != nil {
 				t.Fatal(err)

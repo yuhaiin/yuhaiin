@@ -15,7 +15,7 @@ import (
 	"slices"
 	"strings"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	inboundcontract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	nodecontract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/nebula"
@@ -28,13 +28,13 @@ import (
 type recoveryInventory struct {
 	ctx              context.Context
 	source, snapshot string
-	runtime          *contract.RecoveryRuntime
-	manifest         *contract.RecoveryManifest
+	runtime          *contractrecovery.Runtime
+	manifest         *contractrecovery.Manifest
 	copied           map[string]string
 	bytes            int64
 }
 
-func newRecoveryInventory(ctx context.Context, source, snapshot string, inputs *contract.RecoveryRuntime, manifest *contract.RecoveryManifest) *recoveryInventory {
+func newRecoveryInventory(ctx context.Context, source, snapshot string, inputs *contractrecovery.Runtime, manifest *contractrecovery.Manifest) *recoveryInventory {
 	return &recoveryInventory{ctx: ctx, source: source, snapshot: snapshot, runtime: inputs, manifest: manifest, copied: map[string]string{}}
 }
 
@@ -116,7 +116,7 @@ func (c *recoveryInventory) collect(db *sql.DB) error {
 			return fmt.Errorf("external web assets: %w", err)
 		}
 	}
-	slices.SortFunc(c.manifest.Files, func(a, b contract.RecoveryFile) int { return strings.Compare(a.Path, b.Path) })
+	slices.SortFunc(c.manifest.Files, func(a, b contractrecovery.File) int { return strings.Compare(a.Path, b.Path) })
 	return nil
 }
 
@@ -153,7 +153,7 @@ func (c *recoveryInventory) protocols(nodeID string, chain []nodecontract.Protoc
 			if len(c.manifest.Requirements) >= backuparchive.MaxFiles {
 				return errors.New("too many recovery requirements")
 			}
-			c.manifest.Requirements = append(c.manifest.Requirements, contract.RecoveryRequirement{Kind: "identity_not_initialized", NodeID: nodeID})
+			c.manifest.Requirements = append(c.manifest.Requirements, contractrecovery.Requirement{Kind: "identity_not_initialized", NodeID: nodeID})
 		}
 		for _, path := range files {
 			if _, err := c.copy(path, "protocol_identity", true); err != nil {
@@ -338,6 +338,6 @@ func (c *recoveryInventory) copy(name, role string, owned bool) (string, error) 
 	}
 	c.bytes += info.Size()
 	c.copied[source] = archivePath
-	c.manifest.Files = append(c.manifest.Files, contract.RecoveryFile{Path: archivePath, Role: role, SourcePath: original})
+	c.manifest.Files = append(c.manifest.Files, contractrecovery.File{Path: archivePath, Role: role, SourcePath: original})
 	return archivePath, nil
 }

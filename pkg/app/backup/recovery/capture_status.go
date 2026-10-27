@@ -5,12 +5,12 @@ import (
 	"errors"
 	"time"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
 
-func CompletedCapture(ctx context.Context, directory, id string) (contract.RecoveryBackup, error) {
-	var result contract.RecoveryBackup
+func CompletedCapture(ctx context.Context, directory, id string) (contractrecovery.Backup, error) {
+	var result contractrecovery.Backup
 	err := withRecoveryJobStore(ctx, directory, func(owner *backupstore.Store) error {
 		job, err := owner.RecoveryJob(ctx, id)
 		if err != nil {
@@ -19,7 +19,7 @@ func CompletedCapture(ctx context.Context, directory, id string) (contract.Recov
 		if !job.UpdatePoint || (job.State != "local_ready" && job.State != "verified") || job.BackupID == "" || job.Size < 1 || job.SHA256 == "" {
 			return errors.New("update recovery archive was not completed")
 		}
-		result = job.RecoveryBackup
+		result = job.Backup
 		return nil
 	})
 	return result, err

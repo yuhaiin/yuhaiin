@@ -5,14 +5,14 @@ import (
 	"database/sql"
 	"os"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
 
 // RecordRuntime persists the actual host startup inputs used by offline recovery.
 func RecordRuntime(ctx context.Context, state interface {
 	SQLDB(context.Context) (*sql.DB, error)
-}, inputs contract.RecoveryRuntime) error {
+}, inputs contractrecovery.Runtime) error {
 	workingDirectory, err := os.Getwd()
 	if err != nil {
 		return err

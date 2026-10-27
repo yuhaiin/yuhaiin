@@ -23,7 +23,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/app"
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
-	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
@@ -84,7 +84,7 @@ func run(args []string) (resultErr error) {
 			tlsMode = "files"
 		}
 	}
-	startupInputs := contractbackup.RecoveryRuntime{ManagementAuth: true, ManagementTLS: tlsMode,
+	startupInputs := contractrecovery.Runtime{ManagementAuth: true, ManagementTLS: tlsMode,
 		CertificateFile: *httpsCert, KeyFile: *httpsKey, ListenAddress: *host, ExternalWebDirectory: os.Getenv("EXTERNAL_WEB")}
 	startupInputs.WorkingDirectory, err = os.Getwd()
 	if err != nil {

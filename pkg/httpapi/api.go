@@ -8,6 +8,7 @@ import (
 	"time"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
@@ -33,31 +34,31 @@ type BackupController interface {
 }
 
 type RecoveryBackupController interface {
-	RecoveryBackups(context.Context) (contractbackup.RecoveryBackupStatus, error)
-	CreateRecoveryBackup(context.Context, contractbackup.RecoveryBackupRequest) (contractbackup.RecoveryBackup, error)
-	OpenRecoveryBackup(context.Context, string) (io.ReadSeekCloser, contractbackup.RecoveryBackup, error)
+	RecoveryBackups(context.Context) (contractrecovery.BackupStatus, error)
+	CreateRecoveryBackup(context.Context, contractrecovery.BackupRequest) (contractrecovery.Backup, error)
+	OpenRecoveryBackup(context.Context, string) (io.ReadSeekCloser, contractrecovery.Backup, error)
 	DeleteRecoveryBackup(context.Context, string) error
 	RetryRecoveryBackup(context.Context, string) error
-	VerifyRecoveryBackup(context.Context, contractbackup.RecoveryVerifyRequest) (contractbackup.RecoveryManifest, error)
+	VerifyRecoveryBackup(context.Context, contractrecovery.VerifyRequest) (contractrecovery.Manifest, error)
 }
 
 type RecoveryImportController interface {
-	RecoveryImports(context.Context) ([]contractbackup.RecoveryImport, error)
-	UploadRecoveryImport(context.Context, io.ReadCloser, int64) (contractbackup.RecoveryImport, error)
-	PreviewRecoveryImport(context.Context, contractbackup.RecoveryImportPreviewRequest) (contractbackup.RecoveryImport, error)
+	RecoveryImports(context.Context) ([]contractrecovery.Import, error)
+	UploadRecoveryImport(context.Context, io.ReadCloser, int64) (contractrecovery.Import, error)
+	PreviewRecoveryImport(context.Context, contractrecovery.ImportPreviewRequest) (contractrecovery.Import, error)
 	DiscardRecoveryImport(context.Context, string) error
 }
 
 type RecoveryBackupRetriever interface {
-	RetrieveRecoveryBackup(context.Context, contractbackup.RecoveryRetrieveRequest) (contractbackup.RecoveryBackup, error)
+	RetrieveRecoveryBackup(context.Context, contractrecovery.RetrieveRequest) (contractrecovery.Backup, error)
 }
 
 type RecoveryImportActivator interface {
-	ActivateRecoveryImport(context.Context, contractbackup.RecoveryImportActivateRequest) (contractbackup.RecoveryImport, error)
+	ActivateRecoveryImport(context.Context, contractrecovery.ImportActivateRequest) (contractrecovery.Import, error)
 }
 
 type RecoveryRestoreReporter interface {
-	RecoveryRestoreStatus(context.Context) (contractbackup.RecoveryRestoreStatus, error)
+	RecoveryRestoreStatus(context.Context) (contractrecovery.RestoreStatus, error)
 }
 type DiagnosticsController interface {
 	Run(context.Context, contracttools.DiagnosticRequest) (contracttools.DiagnosticReport, error)

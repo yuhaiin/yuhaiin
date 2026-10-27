@@ -10,6 +10,7 @@ import (
 	"uuid"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
 
@@ -22,60 +23,60 @@ func recoveryS3Digest(options contract.S3) (string, error) {
 	return hex.EncodeToString(digest[:]), nil
 }
 
-func (b *Backup) CreateRecoveryBackup(ctx context.Context, request contract.RecoveryBackupRequest) (contract.RecoveryBackup, error) {
+func (b *Backup) CreateRecoveryBackup(ctx context.Context, request contractrecovery.BackupRequest) (contractrecovery.Backup, error) {
 	if b.restoring.Load() {
-		return contract.RecoveryBackup{}, errBackupBusy
+		return contractrecovery.Backup{}, errBackupBusy
 	}
 	if b.store == nil {
-		return contract.RecoveryBackup{}, errors.New("backup store is unavailable")
+		return contractrecovery.Backup{}, errors.New("backup store is unavailable")
 	}
 	if !request.ConfirmMaintenance {
-		return contract.RecoveryBackup{}, errors.New("full backup requires explicit confirmation of temporary service interruption")
+		return contractrecovery.Backup{}, errors.New("full backup requires explicit confirmation of temporary service interruption")
 	}
 	if !b.mu.TryLock() {
-		return contract.RecoveryBackup{}, errBackupBusy
+		return contractrecovery.Backup{}, errBackupBusy
 	}
 	defer func() { b.mu.Unlock(); b.refreshBackupMetrics(ctx) }()
 	if b.maintainer == nil {
-		return contract.RecoveryBackup{}, errors.New("service maintenance is unavailable; use the offline recovery CLI")
+		return contractrecovery.Backup{}, errors.New("service maintenance is unavailable; use the offline recovery CLI")
 	}
 	if supported, reason := b.maintainer.Supported(); !supported {
-		return contract.RecoveryBackup{}, errors.New(reason)
+		return contractrecovery.Backup{}, errors.New(reason)
 	}
 	options, err := b.store.Get(ctx)
 	if err != nil {
-		return contract.RecoveryBackup{}, err
+		return contractrecovery.Backup{}, err
 	}
 	if options.Recovery == nil {
-		return contract.RecoveryBackup{}, errors.New("configure full backup encryption first")
+		return contractrecovery.Backup{}, errors.New("configure full backup encryption first")
 	}
 	policy, err := backupstore.NormalizeRecoveryPolicy(*options.Recovery)
 	if err != nil {
-		return contract.RecoveryBackup{}, err
+		return contractrecovery.Backup{}, err
 	}
 	if policy.Recipient == "" || !policy.AllowMaintenance {
-		return contract.RecoveryBackup{}, errors.New("full backup requires a public recipient and maintenance consent")
+		return contractrecovery.Backup{}, errors.New("full backup requires a public recipient and maintenance consent")
 	}
 	if policy.Target == "s3" && !options.S3.Enabled {
-		return contract.RecoveryBackup{}, errors.New("full S3 backup requires enabled S3 settings")
+		return contractrecovery.Backup{}, errors.New("full S3 backup requires enabled S3 settings")
 	}
 	digest, err := recoveryS3Digest(options.S3)
 	if err != nil {
-		return contract.RecoveryBackup{}, err
+		return contractrecovery.Backup{}, err
 	}
 	job := backupstore.RecoveryJob{
 		ID: uuid.New().String(), CreatedAt: time.Now().UTC(), Target: policy.Target, State: "queued", IncludesHistory: policy.IncludeHistory, Policy: policy, S3Digest: digest}
 	if err := b.store.EnqueueRecovery(ctx, job); err != nil {
-		return contract.RecoveryBackup{}, err
+		return contractrecovery.Backup{}, err
 	}
 	if err := b.maintainer.StartRecovery(ctx, job.ID, time.Duration(policy.TimeoutMinutes)*time.Minute); err != nil {
 		job.State, job.ErrorCode, job.CompletedAt = "failed", "maintenance_start_failed", time.Now().UTC()
 		// Never include manager/provider output or secret-bearing errors in the
 		// durable API record. Preserve the original error only to the caller.
 		_ = b.store.SaveRecoveryJob(context.WithoutCancel(ctx), job, "queued")
-		return contract.RecoveryBackup{}, err
+		return contractrecovery.Backup{}, err
 	}
-	return job.RecoveryBackup, nil
+	return job.Backup, nil
 }
 
 // resumeRecoveryBackups runs on the existing schedule owner, never an additional

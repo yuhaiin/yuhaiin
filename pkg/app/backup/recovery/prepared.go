@@ -12,7 +12,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
@@ -31,13 +31,13 @@ type sealedImportFile struct {
 type preparedImportPlan struct {
 	Version     int                             `json:"version"`
 	Transaction recoveryTransaction             `json:"transaction"`
-	Preview     contract.RecoveryRestorePreview `json:"preview"`
+	Preview     contractrecovery.RestorePreview `json:"preview"`
 	Files       []sealedImportFile              `json:"files"`
 }
 
 // Seal projected contents, including rewritten SQLite and clone identities,
 // rather than reusing source-manifest digests that no longer describe staging.
-func sealImport(ctx context.Context, directory string, tx *recoveryTransaction, preview contract.RecoveryRestorePreview) (*preparedImportPlan, error) {
+func sealImport(ctx context.Context, directory string, tx *recoveryTransaction, preview contractrecovery.RestorePreview) (*preparedImportPlan, error) {
 	root, err := os.OpenRoot(directory)
 	if err != nil {
 		return nil, err
@@ -155,7 +155,7 @@ func readImportPlan(item backupstore.RecoveryImportRecord) (*preparedImportPlan,
 // ValidateImportActivation checks exact-preview consent before a host may stop
 // the service. File integrity, current identity and SQLite ownership are checked
 // again under the offline lifecycle lock by ActivateImport.
-func ValidateImportActivation(ctx context.Context, item backupstore.RecoveryImportRecord, request contract.RecoveryImportActivateRequest) error {
+func ValidateImportActivation(ctx context.Context, item backupstore.RecoveryImportRecord, request contractrecovery.ImportActivateRequest) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -194,8 +194,8 @@ func ValidateImportActivation(ctx context.Context, item backupstore.RecoveryImpo
 // ActivateImport installs a previously authenticated and sealed preview. It
 // acquires the existing lifecycle lock and refuses active SQLite owners. The
 // ordinary startup transaction remains responsible for commit or rollback.
-func ActivateImport(ctx context.Context, directory string, item backupstore.RecoveryImportRecord, request contract.RecoveryImportActivateRequest) (contract.RecoveryRestoreResult, error) {
-	var empty contract.RecoveryRestoreResult
+func ActivateImport(ctx context.Context, directory string, item backupstore.RecoveryImportRecord, request contractrecovery.ImportActivateRequest) (contractrecovery.RestoreResult, error) {
+	var empty contractrecovery.RestoreResult
 	if item.State != "activating" {
 		return empty, errors.New("recovery import has not been admitted for maintenance")
 	}

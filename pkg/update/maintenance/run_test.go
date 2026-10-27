@@ -16,7 +16,7 @@ import (
 
 	"filippo.io/age"
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
-	backupcontract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
@@ -145,7 +145,7 @@ func deployment(t testing.TB, source, target string) (string, Record, *hostFixtu
 		}
 	})
 	owner := backupstore.New(db.DB())
-	if err := owner.RecordRecoveryRuntime(t.Context(), backupcontract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: directory}); err != nil {
+	if err := owner.RecordRecoveryRuntime(t.Context(), contractrecovery.Runtime{ManagementTLS: "disabled", WorkingDirectory: directory}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.DB().ExecContext(t.Context(), "INSERT INTO metadata(key,value)VALUES('business_value','before')"); err != nil {
@@ -155,7 +155,7 @@ func deployment(t testing.TB, source, target string) (string, Record, *hostFixtu
 	if err != nil {
 		t.Fatal(err)
 	}
-	policy, err := backupstore.NormalizeRecoveryPolicy(backupcontract.RecoveryPolicy{Recipient: key.Recipient().String(), AllowMaintenance: true, IncludeHistory: true})
+	policy, err := backupstore.NormalizeRecoveryPolicy(contractrecovery.Policy{Recipient: key.Recipient().String(), AllowMaintenance: true, IncludeHistory: true})
 	if err != nil {
 		t.Fatal(err)
 	}

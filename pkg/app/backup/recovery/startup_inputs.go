@@ -10,7 +10,7 @@ import (
 	"uuid"
 
 	backupfs "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 )
@@ -20,7 +20,7 @@ import (
 // last-result files own this binding; there is no additional TLS configuration.
 type recoveryStartupBinding struct {
 	InstanceID string                   `json:"instanceId"`
-	Runtime    contract.RecoveryRuntime `json:"runtime"`
+	Runtime    contractrecovery.Runtime `json:"runtime"`
 }
 
 func (b recoveryStartupBinding) validate() error {
@@ -33,7 +33,7 @@ func (b recoveryStartupBinding) validate() error {
 
 // LastResult reads bounded public recovery metadata, never a key or
 // credential. It survives a database replacement and is not configuration export.
-func LastResult(directory string) (*contract.RecoveryRestoreResult, error) {
+func LastResult(directory string) (*contractrecovery.RestoreResult, error) {
 	root, err := os.OpenRoot(directory)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func LastResult(directory string) (*contract.RecoveryRestoreResult, error) {
 	if err != nil || len(data) > 64<<10 {
 		return nil, errors.New("cannot read bounded recovery result metadata")
 	}
-	var result contract.RecoveryRestoreResult
+	var result contractrecovery.RestoreResult
 	if err := json.Unmarshal(data, &result, json.RejectUnknownMembers(true)); err != nil {
 		return nil, errors.New("invalid recovery result metadata")
 	}
@@ -125,7 +125,7 @@ func recoveryStartupBindingFor(ctx context.Context, directory string) (*recovery
 
 // ResolveStartupInputs runs under the host's lifecycle lock, before
 // opening TLS, identity or configuration owners. Invalid bindings fail closed.
-func ResolveStartupInputs(ctx context.Context, directory string, lifecycle *os.File, inputs contract.RecoveryRuntime) (contract.RecoveryRuntime, bool, error) {
+func ResolveStartupInputs(ctx context.Context, directory string, lifecycle *os.File, inputs contractrecovery.Runtime) (contractrecovery.Runtime, bool, error) {
 	if err := requireRecoveryLifecycle(directory, lifecycle); err != nil {
 		return inputs, false, err
 	}
@@ -139,22 +139,22 @@ func ResolveStartupInputs(ctx context.Context, directory string, lifecycle *os.F
 	return binding.Runtime, true, nil
 }
 
-func RestoreStatus(ctx context.Context, directory string) (contract.RecoveryRestoreStatus, error) {
+func RestoreStatus(ctx context.Context, directory string) (contractrecovery.RestoreStatus, error) {
 	if err := ctx.Err(); err != nil {
-		return contract.RecoveryRestoreStatus{}, err
+		return contractrecovery.RestoreStatus{}, err
 	}
 	tx, err := readRecoveryTransaction(directory)
 	if err != nil {
-		return contract.RecoveryRestoreStatus{}, err
+		return contractrecovery.RestoreStatus{}, err
 	}
 	if tx != nil {
 		if tx.Phase != "committed" {
-			return contract.RecoveryRestoreStatus{}, errors.New("restore has not completed its controlled startup checks")
+			return contractrecovery.RestoreStatus{}, errors.New("restore has not completed its controlled startup checks")
 		}
 		// Commit is authoritative even if a failing filesystem prevented the
 		// best-effort last-result/history publication. Never show older success.
-		return contract.RecoveryRestoreStatus{Result: new(recoveryResult(*tx, "committed"))}, nil
+		return contractrecovery.RestoreStatus{Result: new(recoveryResult(*tx, "committed"))}, nil
 	}
 	result, err := LastResult(directory)
-	return contract.RecoveryRestoreStatus{Result: result}, err
+	return contractrecovery.RestoreStatus{Result: result}, err
 }

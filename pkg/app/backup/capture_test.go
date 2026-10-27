@@ -15,7 +15,7 @@ import (
 	backupfs "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
 	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
@@ -65,23 +65,23 @@ func TestManagedRecoveryCaptureCoordinatesRealOwnersAndPrivateArchive(t *testing
 			if err != nil {
 				t.Fatal(err)
 			}
-			config.Recovery = &contract.RecoveryPolicy{Target: "local", Recipient: key.Recipient().String(), AllowMaintenance: true}
+			config.Recovery = &contractrecovery.Policy{Target: "local", Recipient: key.Recipient().String(), AllowMaintenance: true}
 			if err := owner.Save(t.Context(), config); err != nil {
 				t.Fatal(err)
 			}
 			manager := new(recoveryMaintainerTest)
 			b := &Backup{store: owner, dir: directory, maintainer: manager}
-			if _, err := b.CreateRecoveryBackup(t.Context(), contract.RecoveryBackupRequest{}); err == nil {
+			if _, err := b.CreateRecoveryBackup(t.Context(), contractrecovery.BackupRequest{}); err == nil {
 				t.Fatal("maintenance accepted without confirmation")
 			}
-			queued, err := b.CreateRecoveryBackup(t.Context(), contract.RecoveryBackupRequest{ConfirmMaintenance: true})
+			queued, err := b.CreateRecoveryBackup(t.Context(), contractrecovery.BackupRequest{ConfirmMaintenance: true})
 			if err != nil {
 				t.Fatal(err)
 			}
 			if queued.ID != manager.id || queued.State != "queued" {
 				t.Fatal("maintenance request was not persisted before launch")
 			}
-			if _, err := b.CreateRecoveryBackup(t.Context(), contract.RecoveryBackupRequest{ConfirmMaintenance: true}); err == nil {
+			if _, err := b.CreateRecoveryBackup(t.Context(), contractrecovery.BackupRequest{ConfirmMaintenance: true}); err == nil {
 				t.Fatal("concurrent full captures accepted")
 			}
 			archive, _ := backupfs.ArchivePath(directory, queued.ID)
@@ -196,13 +196,13 @@ func TestManagedRecoveryVerificationDoesNotPersistDecryptionMaterial(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	config.Recovery = &contract.RecoveryPolicy{Target: "local", Recipient: key.Recipient().String(), AllowMaintenance: true}
+	config.Recovery = &contractrecovery.Policy{Target: "local", Recipient: key.Recipient().String(), AllowMaintenance: true}
 	if err := owner.Save(t.Context(), config); err != nil {
 		t.Fatal(err)
 	}
 	manager := new(recoveryMaintainerTest)
 	b := &Backup{store: owner, dir: directory, maintainer: manager}
-	queued, err := b.CreateRecoveryBackup(t.Context(), contract.RecoveryBackupRequest{ConfirmMaintenance: true})
+	queued, err := b.CreateRecoveryBackup(t.Context(), contractrecovery.BackupRequest{ConfirmMaintenance: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +218,7 @@ func TestManagedRecoveryVerificationDoesNotPersistDecryptionMaterial(t *testing.
 	}
 	defer db.Close()
 	b.store = backupstore.New(db.DB())
-	manifest, err := b.VerifyRecoveryBackup(t.Context(), contract.RecoveryVerifyRequest{ID: queued.ID, Identity: key.String()})
+	manifest, err := b.VerifyRecoveryBackup(t.Context(), contractrecovery.VerifyRequest{ID: queued.ID, Identity: key.String()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestManagedRecoveryVerificationDoesNotPersistDecryptionMaterial(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.VerifyRecoveryBackup(t.Context(), contract.RecoveryVerifyRequest{ID: queued.ID, Identity: wrong.String()}); err == nil || strings.Contains(err.Error(), wrong.String()) {
+	if _, err := b.VerifyRecoveryBackup(t.Context(), contractrecovery.VerifyRequest{ID: queued.ID, Identity: wrong.String()}); err == nil || strings.Contains(err.Error(), wrong.String()) {
 		t.Fatal("wrong key accepted or exposed in error")
 	}
 	var persisted string
@@ -257,7 +257,7 @@ func TestManagedRecoveryVerificationDoesNotPersistDecryptionMaterial(t *testing.
 	if err := file.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.VerifyRecoveryBackup(t.Context(), contract.RecoveryVerifyRequest{ID: queued.ID, Identity: key.String()}); err == nil {
+	if _, err := b.VerifyRecoveryBackup(t.Context(), contractrecovery.VerifyRequest{ID: queued.ID, Identity: key.String()}); err == nil {
 		t.Fatal("changed ciphertext accepted")
 	}
 }

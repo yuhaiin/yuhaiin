@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/store"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
@@ -199,7 +199,7 @@ func TestFullRecoveryRefusesIncompleteInventoryAndUnsafeWebRoot(t *testing.T) {
 				case "invalid-inbound":
 					_, err = db.DB().ExecContext(t.Context(), "INSERT INTO inbounds_v2(id,name,enabled,network_type,protocol_type,transport_types_json,data_json,updated_at) VALUES('broken','Broken',0,'tcp','http','[]','{}',1)")
 				case "whole-data-web-root":
-					err = backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: directory, ExternalWebDirectory: directory})
+					err = backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contractrecovery.Runtime{ManagementTLS: "disabled", WorkingDirectory: directory, ExternalWebDirectory: directory})
 				}
 				if err != nil {
 					t.Fatal(err)

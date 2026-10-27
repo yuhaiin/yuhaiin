@@ -11,10 +11,10 @@ import (
 	"unicode/utf8"
 	"uuid"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 )
 
-func ValidateManifest(manifest contract.RecoveryManifest) error {
+func ValidateManifest(manifest contractrecovery.Manifest) error {
 	if manifest.Format != RecoveryFormat || (manifest.Version != 1 && manifest.Version != RecoveryVersion) {
 		return errors.New("unsupported recovery format or version")
 	}
@@ -163,7 +163,7 @@ func recoverySourcePath(value string) bool {
 	return strings.HasPrefix(value, "/") || strings.HasPrefix(value, "\\\\") || (len(value) > 2 && ((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) && value[1] == ':' && (value[2] == '/' || value[2] == '\\'))
 }
 
-func ValidateRuntime(inputs contract.RecoveryRuntime) error {
+func ValidateRuntime(inputs contractrecovery.Runtime) error {
 	if !recoverySourcePath(inputs.WorkingDirectory) {
 		return errors.New("invalid recovery working directory")
 	}

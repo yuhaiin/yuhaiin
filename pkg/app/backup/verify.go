@@ -6,13 +6,13 @@ import (
 	"time"
 
 	backupfs "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 )
 
-func (b *Backup) VerifyRecoveryBackup(ctx context.Context, request contract.RecoveryVerifyRequest) (contract.RecoveryManifest, error) {
-	var empty contract.RecoveryManifest
+func (b *Backup) VerifyRecoveryBackup(ctx context.Context, request contractrecovery.VerifyRequest) (contractrecovery.Manifest, error) {
+	var empty contractrecovery.Manifest
 	if b.store == nil {
 		return empty, errors.New("backup store is unavailable")
 	}

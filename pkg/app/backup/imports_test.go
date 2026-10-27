@@ -17,7 +17,7 @@ import (
 	backupfs "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
 	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -70,10 +70,10 @@ func TestRecoveryImportPreviewIsPrivateBoundedAndDoesNotActivate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := b.PreviewRecoveryImport(ctx, contract.RecoveryImportPreviewRequest{ID: item.ID, Mode: mode, Identity: wrong.String()}); err == nil || strings.Contains(err.Error(), wrong.String()) {
+			if _, err := b.PreviewRecoveryImport(ctx, contractrecovery.ImportPreviewRequest{ID: item.ID, Mode: mode, Identity: wrong.String()}); err == nil || strings.Contains(err.Error(), wrong.String()) {
 				t.Fatal("wrong key accepted or exposed")
 			}
-			item, err = b.PreviewRecoveryImport(ctx, contract.RecoveryImportPreviewRequest{ID: item.ID, Mode: mode, Identity: key.String()})
+			item, err = b.PreviewRecoveryImport(ctx, contractrecovery.ImportPreviewRequest{ID: item.ID, Mode: mode, Identity: key.String()})
 			if err != nil || item.Preview == nil || item.State != "previewed" || len(item.Preview.Files) == 0 || item.Preview.TargetInstanceID != before {
 				t.Fatal("authenticated deployment preview unavailable", err)
 			}
@@ -124,7 +124,7 @@ func TestRecoveryImportPreviewIsPrivateBoundedAndDoesNotActivate(t *testing.T) {
 			if list, err := b.RecoveryImports(foreign); err != nil || len(list) != 0 {
 				t.Fatal("another principal saw the staged identity inventory", err)
 			}
-			if _, err := b.PreviewRecoveryImport(foreign, contract.RecoveryImportPreviewRequest{ID: item.ID, Mode: mode, Identity: key.String()}); err == nil {
+			if _, err := b.PreviewRecoveryImport(foreign, contractrecovery.ImportPreviewRequest{ID: item.ID, Mode: mode, Identity: key.String()}); err == nil {
 				t.Fatal("another principal opened the staged archive")
 			}
 			if err := b.DiscardRecoveryImport(foreign, item.ID); err == nil {
@@ -158,7 +158,7 @@ func TestRecoveryImportRejectsSizeTamperingAndExpiresOwnedStaging(t *testing.T) 
 	if err := os.WriteFile(filepath.Join(b.dir, name), []byte("tampered"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.PreviewRecoveryImport(t.Context(), contract.RecoveryImportPreviewRequest{ID: item.ID, Mode: "original", Identity: key.String()}); err == nil {
+	if _, err := b.PreviewRecoveryImport(t.Context(), contractrecovery.ImportPreviewRequest{ID: item.ID, Mode: "original", Identity: key.String()}); err == nil {
 		t.Fatal("changed ciphertext reached preview")
 	}
 	row, err := b.store.RecoveryImport(t.Context(), item.ID)
@@ -317,7 +317,7 @@ func TestRecoveryIdleRetentionDoesNotCompeteWithManualControlWork(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	options.Recovery = &contract.RecoveryPolicy{Target: "local", KeepCount: 1, KeepDays: 1}
+	options.Recovery = &contractrecovery.Policy{Target: "local", KeepCount: 1, KeepDays: 1}
 	if err := b.store.Save(t.Context(), options); err != nil {
 		t.Fatal(err)
 	}

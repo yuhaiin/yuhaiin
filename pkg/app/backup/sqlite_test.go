@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -24,7 +25,7 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
 	settings := plainstore.NewSettingsStore(sqliteStore.DB())
-	if err := backupstore.New(sqliteStore.DB()).RecordRecoveryRuntime(t.Context(), contractbackup.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: dir}); err != nil {
+	if err := backupstore.New(sqliteStore.DB()).RecordRecoveryRuntime(t.Context(), contractrecovery.Runtime{ManagementTLS: "disabled", WorkingDirectory: dir}); err != nil {
 		t.Fatal(err)
 	}
 

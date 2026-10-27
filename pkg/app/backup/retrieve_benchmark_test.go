@@ -13,6 +13,7 @@ import (
 	"uuid"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 )
 
@@ -26,7 +27,7 @@ func BenchmarkRecoveryArchiveRetrieval(b *testing.B) {
 			hash := sha256.Sum256(content)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(content) }))
 			defer server.Close()
-			expected := contract.RecoveryBackup{Target: "s3", Size: int64(size), SHA256: hex.EncodeToString(hash[:]), InstanceID: uuid.New().String(), BackupID: uuid.New().String()}
+			expected := contractrecovery.Backup{Target: "s3", Size: int64(size), SHA256: hex.EncodeToString(hash[:]), InstanceID: uuid.New().String(), BackupID: uuid.New().String()}
 			expected.ObjectKey = "recovery/" + expected.InstanceID + "/" + expected.BackupID + ".yhb"
 			options := contract.S3{Enabled: true, EndpointURL: server.URL, Bucket: "fixture", AccessKey: "access", SecretKey: "secret"}
 			path := filepath.Join(b.TempDir(), "archive.yhb")

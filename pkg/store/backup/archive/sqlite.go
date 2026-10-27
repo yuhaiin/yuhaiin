@@ -5,11 +5,11 @@ import (
 	"errors"
 	"path/filepath"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
-func inspectRecoveryDatabases(ctx context.Context, directory string, manifest contract.RecoveryManifest) error {
+func inspectRecoveryDatabases(ctx context.Context, directory string, manifest contractrecovery.Manifest) error {
 	for _, file := range manifest.Files {
 		kind := ""
 		switch file.Role {

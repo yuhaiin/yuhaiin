@@ -9,7 +9,7 @@ import (
 	"time"
 	"uuid"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/update/compatibility"
 	"github.com/Asutorufa/yuhaiin/pkg/update/maintenance"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
@@ -26,7 +26,7 @@ func TestUpdatePointCannotBeDeletedOrExpiredDuringUnresolvedRecovery(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	options.Recovery = &contract.RecoveryPolicy{Target: "local", Recipient: old.Policy.Recipient, KeepCount: 1, KeepDays: 1}
+	options.Recovery = &contractrecovery.Policy{Target: "local", Recipient: old.Policy.Recipient, KeepCount: 1, KeepDays: 1}
 	if err := owner.Save(t.Context(), options); err != nil {
 		t.Fatal(err)
 	}

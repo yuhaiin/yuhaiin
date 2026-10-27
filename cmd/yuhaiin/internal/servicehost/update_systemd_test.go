@@ -18,7 +18,8 @@ import (
 	"uuid"
 
 	"filippo.io/age"
-	backupcontract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	updatepkg "github.com/Asutorufa/yuhaiin/pkg/update"
@@ -126,7 +127,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			policy, err := backupstore.NormalizeRecoveryPolicy(backupcontract.RecoveryPolicy{Recipient: key.Recipient().String(), AllowMaintenance: true, IncludeHistory: true, TimeoutMinutes: 2})
+			policy, err := backupstore.NormalizeRecoveryPolicy(contractrecovery.Policy{Recipient: key.Recipient().String(), AllowMaintenance: true, IncludeHistory: true, TimeoutMinutes: 2})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -226,7 +227,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 			if err != nil {
 				t.Fatal("offline preview failed", err)
 			}
-			var preview backupcontract.RecoveryRestorePreview
+			var preview contractrecovery.RestorePreview
 			if err := json.Unmarshal(previewJSON, &preview); err != nil {
 				t.Fatal(err)
 			}

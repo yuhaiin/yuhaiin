@@ -1,10 +1,10 @@
-package backup
+package recovery
 
 import "time"
 
-// RecoveryPolicy extends existing backup settings. It contains only a public
+// Policy extends existing backup settings. It contains only a public
 // encryption recipient; a scheduled encryptor never needs a private backup key.
-type RecoveryPolicy struct {
+type Policy struct {
 	Enabled          bool   `json:"enabled"`
 	Target           string `json:"target"`
 	Recipient        string `json:"recipient"`
@@ -17,7 +17,7 @@ type RecoveryPolicy struct {
 	ProtectUpdates   *bool  `json:"protectUpdates,omitempty"`
 }
 
-type RecoveryBackup struct {
+type Backup struct {
 	ID               string    `json:"id"`
 	BackupID         string    `json:"backupId,omitempty"`
 	InstanceID       string    `json:"instanceId,omitempty"`
@@ -42,7 +42,7 @@ type RecoveryBackup struct {
 	UpdatePoint        bool      `json:"updatePoint,omitzero"`
 }
 
-type RecoveryRetrieveRequest struct {
+type RetrieveRequest struct {
 	ID              string `json:"id"`
 	ConfirmDownload bool   `json:"confirmDownload"`
 	ConfirmReplace  bool   `json:"confirmReplace"`
@@ -50,18 +50,18 @@ type RecoveryRetrieveRequest struct {
 
 // Decryption material is transient request input. It is never stored in backup
 // settings/history or returned by a configuration or verification endpoint.
-type RecoveryVerifyRequest struct {
+type VerifyRequest struct {
 	ID         string `json:"id"`
 	Identity   string `json:"identity,omitempty"`
 	Passphrase string `json:"passphrase,omitempty"`
 }
 
-type RecoveryBackupRequest struct {
+type BackupRequest struct {
 	ConfirmMaintenance bool `json:"confirmMaintenance"`
 }
 
-type RecoveryBackupStatus struct {
-	Supported bool             `json:"supported"`
-	Reason    string           `json:"reason,omitempty"`
-	Items     []RecoveryBackup `json:"items"`
+type BackupStatus struct {
+	Supported bool     `json:"supported"`
+	Reason    string   `json:"reason,omitempty"`
+	Items     []Backup `json:"items"`
 }

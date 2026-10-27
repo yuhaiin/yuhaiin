@@ -29,6 +29,7 @@ import (
 	"filippo.io/age"
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
@@ -74,7 +75,7 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := contract.Option{InstanceName: "isolated-systemd-fixture", Recovery: &contract.RecoveryPolicy{Target: "s3", Recipient: identity.Recipient().String(), AllowMaintenance: true, KeepCount: 3, KeepDays: 30}}
+	options := contract.Option{InstanceName: "isolated-systemd-fixture", Recovery: &contractrecovery.Policy{Target: "s3", Recipient: identity.Recipient().String(), AllowMaintenance: true, KeepCount: 3, KeepDays: 30}}
 	// The object server survives stopping the yuhaiin unit and stores bounded
 	// fixture objects on disk, rather than holding an archive-sized byte slice.
 	objectDirectory := t.TempDir()
@@ -227,12 +228,12 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 		}
 		t.Fatal(label, "did not complete")
 	}
-	requestCapture := func() contract.RecoveryBackup {
+	requestCapture := func() contractrecovery.Backup {
 		t.Helper()
 		deadline := time.Now().Add(5 * time.Second)
 		for {
-			var item contract.RecoveryBackup
-			err := rpc(t.Context(), "backup.recovery.create", contract.RecoveryBackupRequest{ConfirmMaintenance: true}, &item)
+			var item contractrecovery.Backup
+			err := rpc(t.Context(), "backup.recovery.create", contractrecovery.BackupRequest{ConfirmMaintenance: true}, &item)
 			if err == nil {
 				return item
 			}
@@ -248,7 +249,7 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 			return item
 		}
 	}
-	var status contract.RecoveryBackupStatus
+	var status contractrecovery.BackupStatus
 	wait("initial service readiness", func() bool { return rpc(t.Context(), "backup.recovery.status", struct{}{}, &status) == nil })
 	if !status.Supported {
 		t.Fatal("real service does not recognize its own systemd owner")
@@ -287,7 +288,7 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	before := pid("yuhaiin.service")
 	// The service can stop between persisting the request and the response.
 	requestCapture()
-	var completed contract.RecoveryBackup
+	var completed contractrecovery.Backup
 	wait("full snapshot, restart and verified S3 readback", func() bool {
 		if rpc(t.Context(), "backup.recovery.status", struct{}{}, &status) != nil {
 			return false
@@ -313,7 +314,7 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if err := rpc(t.Context(), "backup.recovery.status", struct{}{}, &status); err != nil || len(status.Items) == 0 || status.Items[0].LocalState != "missing" {
 		t.Fatal("missing local S3 archive was not reported", err)
 	}
-	retrieveRequest := contract.RecoveryRetrieveRequest{ID: completed.ID, ConfirmDownload: true, ConfirmReplace: true}
+	retrieveRequest := contractrecovery.RetrieveRequest{ID: completed.ID, ConfirmDownload: true, ConfirmReplace: true}
 	retrievalBody, err := json.Marshal(retrieveRequest)
 	if err != nil {
 		t.Fatal(err)
@@ -332,15 +333,15 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 		t.Fatal("read-only principal retrieved an S3 archive")
 	}
 	retrievalPID := pid("yuhaiin.service")
-	var retrieved contract.RecoveryBackup
+	var retrieved contractrecovery.Backup
 	if err := rpc(t.Context(), "backup.recovery.retrieve", retrieveRequest, &retrieved); err != nil {
 		t.Fatal(err)
 	}
 	if retrieved.LocalState != "present" || retrieved.Retrieval != "verified" || retrieved.ArchiveCheck != "" || pid("yuhaiin.service") != retrievalPID {
 		t.Fatal("S3 retrieval did not recover the ciphertext without activating the deployment")
 	}
-	var manifest contract.RecoveryManifest
-	if err := rpc(t.Context(), "backup.recovery.verify", contract.RecoveryVerifyRequest{ID: completed.ID, Identity: identity.String()}, &manifest); err != nil {
+	var manifest contractrecovery.Manifest
+	if err := rpc(t.Context(), "backup.recovery.verify", contractrecovery.VerifyRequest{ID: completed.ID, Identity: identity.String()}, &manifest); err != nil {
 		t.Fatal(err)
 	}
 	if !manifest.CompleteInventory || manifest.ID != completed.BackupID {
@@ -373,8 +374,8 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	// Import/preview runs while the real service and SQLite owners stay active.
 	// The private input is sent only in an authenticated bounded HTTPS body.
 	previewPID := pid("yuhaiin.service")
-	upload := func(secret string) (contract.RecoveryImport, int, error) {
-		var item contract.RecoveryImport
+	upload := func(secret string) (contractrecovery.Import, int, error) {
+		var item contractrecovery.Import
 		archive, err := os.Open(archivePath)
 		if err != nil {
 			return item, 0, err
@@ -414,7 +415,7 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if statusResponse.StatusCode != http.StatusForbidden {
 		t.Fatal("read-only principal read restore metadata", statusResponse.StatusCode)
 	}
-	var restoreStatus contract.RecoveryRestoreStatus
+	var restoreStatus contractrecovery.RestoreStatus
 	if err := rpc(t.Context(), "backup.recovery.restore.status", struct{}{}, &restoreStatus); err != nil || restoreStatus.Result != nil {
 		t.Fatal("ordinary backup invented a restore result", err)
 	}
@@ -422,8 +423,8 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if err != nil || code != http.StatusOK || imported.State != "uploaded" {
 		t.Fatal("authenticated ciphertext import failed", code, err)
 	}
-	var previewed contract.RecoveryImport
-	if err := rpc(t.Context(), "backup.recovery.import.preview", contract.RecoveryImportPreviewRequest{ID: imported.ID, Mode: "original", Identity: identity.String()}, &previewed); err != nil {
+	var previewed contractrecovery.Import
+	if err := rpc(t.Context(), "backup.recovery.import.preview", contractrecovery.ImportPreviewRequest{ID: imported.ID, Mode: "original", Identity: identity.String()}, &previewed); err != nil {
 		t.Fatal(err)
 	}
 	if previewed.Preview == nil || previewed.Preview.Manifest.ID != completed.BackupID || previewed.Preview.TargetInstanceID != completed.InstanceID || len(previewed.Preview.Files) == 0 || pid("yuhaiin.service") != previewPID {
@@ -506,13 +507,13 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if err != nil || code != http.StatusOK {
 		t.Fatal("restore fixture upload failed", code, err)
 	}
-	if err := rpc(t.Context(), "backup.recovery.import.preview", contract.RecoveryImportPreviewRequest{ID: imported.ID, Mode: "original", Identity: identity.String()}, &previewed); err != nil {
+	if err := rpc(t.Context(), "backup.recovery.import.preview", contractrecovery.ImportPreviewRequest{ID: imported.ID, Mode: "original", Identity: identity.String()}, &previewed); err != nil {
 		t.Fatal(err)
 	}
 	if previewed.Preview == nil || previewed.PreviewID == "" {
 		t.Fatal("restore preview has no immutable revision")
 	}
-	restoreRequest := contract.RecoveryImportActivateRequest{ID: imported.ID, ConfirmPreviewID: previewed.PreviewID, ConfirmBackupID: previewed.Preview.Manifest.ID,
+	restoreRequest := contractrecovery.ImportActivateRequest{ID: imported.ID, ConfirmPreviewID: previewed.PreviewID, ConfirmBackupID: previewed.Preview.Manifest.ID,
 		ConfirmSourceInstanceID: previewed.Preview.Manifest.InstanceID, ConfirmTargetInstanceID: previewed.Preview.TargetInstanceID, ConfirmResultInstanceID: previewed.Preview.InstanceID,
 		ConfirmMaintenance: true, ConfirmStartupChanges: true, ConfirmSourceStopped: true, ConfirmCredentialRevival: true, ConfirmIdentityReplacement: true}
 	before = pid("yuhaiin.service")
@@ -573,13 +574,13 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if err != nil || code != http.StatusOK {
 		t.Fatal("clone fixture upload failed", code, err)
 	}
-	if err := rpc(t.Context(), "backup.recovery.import.preview", contract.RecoveryImportPreviewRequest{ID: imported.ID, Mode: "clone", Identity: identity.String()}, &previewed); err != nil {
+	if err := rpc(t.Context(), "backup.recovery.import.preview", contractrecovery.ImportPreviewRequest{ID: imported.ID, Mode: "clone", Identity: identity.String()}, &previewed); err != nil {
 		t.Fatal(err)
 	}
 	if previewed.Preview == nil || previewed.Preview.InstanceID == completed.InstanceID {
 		t.Fatal("clone preview reused source identity")
 	}
-	cloneRequest := contract.RecoveryImportActivateRequest{ID: imported.ID, ConfirmPreviewID: previewed.PreviewID, ConfirmBackupID: previewed.Preview.Manifest.ID,
+	cloneRequest := contractrecovery.ImportActivateRequest{ID: imported.ID, ConfirmPreviewID: previewed.PreviewID, ConfirmBackupID: previewed.Preview.Manifest.ID,
 		ConfirmSourceInstanceID: previewed.Preview.Manifest.InstanceID, ConfirmTargetInstanceID: previewed.Preview.TargetInstanceID, ConfirmResultInstanceID: previewed.Preview.InstanceID,
 		ConfirmMaintenance: true, ConfirmStartupChanges: true, ConfirmIdentityReplacement: true, ConfirmCloneEnrollment: true}
 	before = pid("yuhaiin.service")

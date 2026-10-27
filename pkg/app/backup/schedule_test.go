@@ -14,7 +14,7 @@ import (
 	"uuid"
 
 	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
@@ -82,7 +82,7 @@ func TestRecoveryScheduleUsesPersistedDueTimeAndRejectsInvalidImportedPolicy(t *
 				t.Fatal(err)
 			}
 			options.Interval, options.S3.Enabled = 0, false
-			options.Recovery = &contract.RecoveryPolicy{Enabled: true, Target: "local", Recipient: key.Recipient().String(), AllowMaintenance: true, IntervalMinutes: 60}
+			options.Recovery = &contractrecovery.Policy{Enabled: true, Target: "local", Recipient: key.Recipient().String(), AllowMaintenance: true, IntervalMinutes: 60}
 			if invalid {
 				options.Recovery.IntervalMinutes = math.MaxUint64
 			}

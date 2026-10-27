@@ -19,7 +19,7 @@ import (
 	recoverycmd "github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/recovery"
 	"github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/startuphealth"
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
@@ -88,7 +88,7 @@ func TestRecoveryManagedStartupServiceDrill(t *testing.T) {
 	if err := os.WriteFile(identityPath, []byte(identity.String()), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	prepareRestore := func(t *testing.T, source, name string) contract.RecoveryRestoreResult {
+	prepareRestore := func(t *testing.T, source, name string) contractrecovery.RestoreResult {
 		t.Helper()
 		archive := filepath.Join(archiveDirectory, name+".yhb")
 		var output bytes.Buffer
@@ -99,7 +99,7 @@ func TestRecoveryManagedStartupServiceDrill(t *testing.T) {
 		if err := recoverycmd.Execute(t.Context(), []string{"preview", "-path", target, "-archive", archive, "-identity-file", identityPath, "-mode", "original"}, &output); err != nil {
 			t.Fatal(err)
 		}
-		var preview contract.RecoveryRestorePreview
+		var preview contractrecovery.RestorePreview
 		if err := json.Unmarshal(output.Bytes(), &preview); err != nil {
 			t.Fatal(err)
 		}
@@ -108,7 +108,7 @@ func TestRecoveryManagedStartupServiceDrill(t *testing.T) {
 		if err := recoverycmd.Execute(t.Context(), arguments, &output); err != nil {
 			t.Fatal(err)
 		}
-		var result contract.RecoveryRestoreResult
+		var result contractrecovery.RestoreResult
 		if err := json.Unmarshal(output.Bytes(), &result); err != nil || !result.AdoptStartup {
 			t.Fatal("restore did not opt in to startup adoption", err)
 		}
@@ -148,7 +148,7 @@ func TestRecoveryManagedStartupServiceDrill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementAuth: true, ManagementTLS: "files", CertificateFile: site, KeyFile: site, WorkingDirectory: source, ListenAddress: "127.0.0.1:0", ExternalWebDirectory: web}); err != nil {
+	if err := backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contractrecovery.Runtime{ManagementAuth: true, ManagementTLS: "files", CertificateFile: site, KeyFile: site, WorkingDirectory: source, ListenAddress: "127.0.0.1:0", ExternalWebDirectory: web}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -175,7 +175,7 @@ func TestRecoveryManagedStartupServiceDrill(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			inputs := contract.RecoveryRuntime{ManagementAuth: true, ManagementTLS: "self_signed", WorkingDirectory: broken, ListenAddress: "127.0.0.1:0"}
+			inputs := contractrecovery.Runtime{ManagementAuth: true, ManagementTLS: "self_signed", WorkingDirectory: broken, ListenAddress: "127.0.0.1:0"}
 			if fault == "invalid-certificate" {
 				invalid := filepath.Join(broken, "invalid-site.pem")
 				if err := os.WriteFile(invalid, []byte("invalid certificate fixture"), 0o600); err != nil {

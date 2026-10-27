@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	backupfs "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
@@ -119,7 +119,7 @@ func Rollback(directory, transactionID string, maintenance bool) error {
 	return rollbackRecoverySet(directory, tx)
 }
 
-func PrepareStartup(directory string, lifecycle *os.File, inputs contract.RecoveryRuntime) (*Startup, error) {
+func PrepareStartup(directory string, lifecycle *os.File, inputs contractrecovery.Runtime) (*Startup, error) {
 	tx, err := readRecoveryTransaction(directory)
 	if err != nil || tx == nil {
 		return nil, err

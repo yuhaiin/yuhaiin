@@ -12,7 +12,7 @@ import (
 
 	"filippo.io/age"
 	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	nodecontract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
@@ -23,7 +23,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
-func recoveryRestoreArchive(t *testing.T) ([]byte, contract.RecoveryManifest, *age.X25519Identity) {
+func recoveryRestoreArchive(t *testing.T) ([]byte, contractrecovery.Manifest, *age.X25519Identity) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("offline activation needs directory synchronization")

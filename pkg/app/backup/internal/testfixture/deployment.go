@@ -7,6 +7,7 @@ import (
 
 	"filippo.io/age"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	gateway "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
 	node "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
@@ -36,7 +37,7 @@ func deployment(t *testing.T, native bool) (string, *age.X25519Identity) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if err := backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementAuth: true, ManagementTLS: "self_signed", WorkingDirectory: directory}); err != nil {
+	if err := backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contractrecovery.Runtime{ManagementAuth: true, ManagementTLS: "self_signed", WorkingDirectory: directory}); err != nil {
 		t.Fatal(err)
 	}
 	if err := backupstore.New(db.DB()).Save(t.Context(), contract.Option{InstanceName: "fixture-source", Interval: 3600, S3: contract.S3{Enabled: true, AccessKey: "fixture-access", SecretKey: "fixture-secret", Bucket: "fixture", EndpointURL: "https://example.invalid"}}); err != nil {

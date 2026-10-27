@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 )
 
@@ -16,7 +16,7 @@ import (
 // must Close it on failure, or retain Stage with Plan in its expiring import
 // record. Plan is opaque to the scheduler; only recovery interprets transactions.
 type PreparedImport struct {
-	Preview  contract.RecoveryRestorePreview
+	Preview  contractrecovery.RestorePreview
 	ID       string
 	Stage    string
 	Plan     string

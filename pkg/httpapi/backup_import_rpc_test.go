@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	managementpermission "github.com/Asutorufa/yuhaiin/pkg/management/permission"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
 )
@@ -18,23 +18,23 @@ type recoveryImportHTTPStub struct {
 	uploads, previews int
 }
 
-func (*recoveryImportHTTPStub) RecoveryImports(context.Context) ([]contract.RecoveryImport, error) {
-	return []contract.RecoveryImport{}, nil
+func (*recoveryImportHTTPStub) RecoveryImports(context.Context) ([]contractrecovery.Import, error) {
+	return []contractrecovery.Import{}, nil
 }
-func (s *recoveryImportHTTPStub) UploadRecoveryImport(_ context.Context, body io.ReadCloser, _ int64) (contract.RecoveryImport, error) {
+func (s *recoveryImportHTTPStub) UploadRecoveryImport(_ context.Context, body io.ReadCloser, _ int64) (contractrecovery.Import, error) {
 	s.uploads++
 	defer body.Close()
 	_, err := io.Copy(io.Discard, body)
-	return contract.RecoveryImport{ID: "fixture", State: "uploaded"}, err
+	return contractrecovery.Import{ID: "fixture", State: "uploaded"}, err
 }
-func (s *recoveryImportHTTPStub) PreviewRecoveryImport(context.Context, contract.RecoveryImportPreviewRequest) (contract.RecoveryImport, error) {
+func (s *recoveryImportHTTPStub) PreviewRecoveryImport(context.Context, contractrecovery.ImportPreviewRequest) (contractrecovery.Import, error) {
 	s.previews++
-	return contract.RecoveryImport{ID: "fixture", State: "previewed"}, nil
+	return contractrecovery.Import{ID: "fixture", State: "previewed"}, nil
 }
 func (*recoveryImportHTTPStub) DiscardRecoveryImport(context.Context, string) error { return nil }
 
-func (*recoveryImportHTTPStub) RecoveryRestoreStatus(context.Context) (contract.RecoveryRestoreStatus, error) {
-	return contract.RecoveryRestoreStatus{Result: &contract.RecoveryRestoreResult{State: "rolled_back", AdoptStartup: true}}, nil
+func (*recoveryImportHTTPStub) RecoveryRestoreStatus(context.Context) (contractrecovery.RestoreStatus, error) {
+	return contractrecovery.RestoreStatus{Result: &contractrecovery.RestoreResult{State: "rolled_back", AdoptStartup: true}}, nil
 }
 
 func TestRecoveryRestoreReporterUsesBackupManageAndDistinguishesRollback(t *testing.T) {
@@ -98,9 +98,9 @@ func TestRecoveryImportPreviewRequestHasIndependentSecretBodyLimit(t *testing.T)
 	}
 }
 
-func (s *recoveryImportHTTPStub) ActivateRecoveryImport(_ context.Context, request contract.RecoveryImportActivateRequest) (contract.RecoveryImport, error) {
+func (s *recoveryImportHTTPStub) ActivateRecoveryImport(_ context.Context, request contractrecovery.ImportActivateRequest) (contractrecovery.Import, error) {
 	s.previews++
-	return contract.RecoveryImport{ID: request.ID, PreviewID: request.ConfirmPreviewID, State: "activating"}, nil
+	return contractrecovery.Import{ID: request.ID, PreviewID: request.ConfirmPreviewID, State: "activating"}, nil
 }
 
 func TestRecoveryActivationIsPermissionGatedBoundedAdmission(t *testing.T) {

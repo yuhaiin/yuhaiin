@@ -9,6 +9,7 @@ import (
 	"uuid"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
@@ -29,7 +30,7 @@ func TestRecoveryAdmissionSerializesCapturesAndOtherRestores(t *testing.T) {
 		if err := owner.SaveRecoveryImport(t.Context(), item, "uploading"); err != nil {
 			t.Fatal(err)
 		}
-		item.State, item.Activation = "activating", new(contract.RecoveryImportActivateRequest{ID: item.ID})
+		item.State, item.Activation = "activating", new(contractrecovery.ImportActivateRequest{ID: item.ID})
 		return item
 	}
 	first, second := preview(), preview()

@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"filippo.io/age"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
@@ -39,7 +40,7 @@ func BenchmarkFullRecoveryRestoreExternalRecipient(b *testing.B) {
 			if err != nil {
 				b.Fatal(err)
 			}
-			if err := backupstore.New(db.DB()).RecordRecoveryRuntime(b.Context(), contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: source, ExternalWebDirectory: assets}); err != nil {
+			if err := backupstore.New(db.DB()).RecordRecoveryRuntime(b.Context(), contractrecovery.Runtime{ManagementTLS: "disabled", WorkingDirectory: source, ExternalWebDirectory: assets}); err != nil {
 				b.Fatal(err)
 			}
 			if err := db.Close(); err != nil {

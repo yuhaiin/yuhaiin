@@ -13,7 +13,7 @@ import (
 	"uuid"
 
 	backupfs "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicfile"
 )
@@ -36,7 +36,7 @@ type recoveryTransaction struct {
 	Phase              string                   `json:"phase"`
 	Stage              string                   `json:"stage"`
 	CreatedAt          time.Time                `json:"createdAt"`
-	Runtime            contract.RecoveryRuntime `json:"runtime"`
+	Runtime            contractrecovery.Runtime `json:"runtime"`
 	Moves              []recoveryMove           `json:"moves"`
 	CreatedDirectories []string                 `json:"createdDirectories,omitempty"`
 	AdoptStartup       bool                     `json:"adoptStartup,omitzero"`
@@ -202,8 +202,8 @@ func saveRecoveryPointRecord(directory string, tx recoveryTransaction) error {
 	return errors.Join(backupfs.SyncDirectory(metadata), backupfs.SyncDirectory(filepath.Dir(metadata)), backupfs.SyncDirectory(directory))
 }
 
-func recoveryResult(tx recoveryTransaction, state string) contract.RecoveryRestoreResult {
-	result := contract.RecoveryRestoreResult{BackupID: tx.BackupID, TransactionID: tx.ID, InstanceID: tx.InstanceID,
+func recoveryResult(tx recoveryTransaction, state string) contractrecovery.RestoreResult {
+	result := contractrecovery.RestoreResult{BackupID: tx.BackupID, TransactionID: tx.ID, InstanceID: tx.InstanceID,
 		RecoveryPoint: tx.point(), State: state, Runtime: tx.Runtime, AdoptStartup: tx.AdoptStartup}
 	if state == "rolled_back" {
 		result.AdoptStartup = tx.PreviousStartup != nil

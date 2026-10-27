@@ -15,7 +15,8 @@ import (
 	"slices"
 
 	"filippo.io/age"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 )
 
 const (
@@ -23,7 +24,7 @@ const (
 	RecoveryVersion  = 2
 	MaxFiles         = 4096
 	MaxManifestBytes = 1 << 20
-	MaxDataBytes     = contract.MaxRecoveryDataBytes
+	MaxDataBytes     = contractrecovery.MaxDataBytes
 	// age's 64 KiB authenticated chunks add 16 bytes each plus a small header.
 	maxRecoveryEncryptedBytes = MaxDataBytes + (64 << 20)
 	recoveryMagic             = "YUHAIIN-RECOVERY\x00\x01"
@@ -77,7 +78,7 @@ func (k Decryption) identity() (age.Identity, error) {
 // owners are coordinated/stopped. This function does not assert that separate
 // live database snapshots are globally atomic. It neither closes dst nor
 // publishes a partial output; callers must remove failed output.
-func Write(ctx context.Context, dst io.Writer, sourceDirectory string, manifest contract.RecoveryManifest, key Encryption) (contract.RecoveryManifest, error) {
+func Write(ctx context.Context, dst io.Writer, sourceDirectory string, manifest contractrecovery.Manifest, key Encryption) (contractrecovery.Manifest, error) {
 	recipient, err := key.recipient()
 	if err != nil {
 		return manifest, err
@@ -221,7 +222,7 @@ func openRecoverySource(root *os.Root, name string) (*os.File, error) {
 
 // WriteFile atomically publishes a private archive without
 // overwriting an existing backup. The temporary file is removed on every error.
-func WriteFile(ctx context.Context, destination, sourceDirectory string, manifest contract.RecoveryManifest, key Encryption) (contract.RecoveryManifest, error) {
+func WriteFile(ctx context.Context, destination, sourceDirectory string, manifest contractrecovery.Manifest, key Encryption) (contractrecovery.Manifest, error) {
 	written := manifest
 	err := publishRecoveryFile(ctx, destination, func(output *os.File) error {
 		var err error
@@ -293,7 +294,7 @@ func publishRecoveryFile(ctx context.Context, destination string, write func(*os
 // files or live database connections are changed by Prepare.
 // Close must run when preview/verification ends or ownership is transferred.
 type Prepared struct {
-	Manifest  contract.RecoveryManifest
+	Manifest  contractrecovery.Manifest
 	directory string
 }
 
@@ -336,7 +337,7 @@ func PrepareWithSpaceCheck(ctx context.Context, src io.Reader, stagingParent str
 	if _, err := io.ReadFull(decrypted, data); err != nil {
 		return nil, recoveryReadError(ctx, err)
 	}
-	var manifest contract.RecoveryManifest
+	var manifest contractrecovery.Manifest
 	if err := json.Unmarshal(data, &manifest, json.RejectUnknownMembers(true)); err != nil {
 		return nil, ErrInvalid
 	}

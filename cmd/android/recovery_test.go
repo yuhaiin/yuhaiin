@@ -12,7 +12,7 @@ import (
 
 	"filippo.io/age"
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
@@ -27,7 +27,7 @@ func TestPendingRecoveryBlocksAndroidOwnersBeforeDatabaseWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: source}); err != nil {
+	if err := backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contractrecovery.Runtime{ManagementTLS: "disabled", WorkingDirectory: source}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {

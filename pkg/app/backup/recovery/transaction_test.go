@@ -10,7 +10,7 @@ import (
 	"time"
 	"uuid"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
@@ -30,7 +30,7 @@ func recoveryTransactionFixture(t *testing.T) (string, *recoveryTransaction) {
 		}
 	}
 	tx := &recoveryTransaction{Version: 1, ID: uuid.New().String(), BackupID: uuid.New().String(), InstanceID: uuid.New().String(), Phase: "activating", Stage: stage, CreatedAt: time.Now(),
-		Runtime: contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: directory},
+		Runtime: contractrecovery.Runtime{ManagementTLS: "disabled", WorkingDirectory: directory},
 		Moves:   []recoveryMove{{Path: "a.key", HadOriginal: true, Install: true}, {Path: "new.key", Install: true}, {Path: "b.key", HadOriginal: true, Install: true}}}
 	return directory, tx
 }

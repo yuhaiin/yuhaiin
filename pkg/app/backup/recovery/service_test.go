@@ -9,6 +9,7 @@ import (
 	"testing/synctest"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
@@ -19,7 +20,7 @@ type importServiceTest struct{ stop, start func(context.Context) error }
 func (s importServiceTest) Stop(ctx context.Context) error  { return s.stop(ctx) }
 func (s importServiceTest) Start(ctx context.Context) error { return s.start(ctx) }
 
-func admitImportFixture(t *testing.T, directory string, item backupstore.RecoveryImportRecord, request contract.RecoveryImportActivateRequest) {
+func admitImportFixture(t *testing.T, directory string, item backupstore.RecoveryImportRecord, request contractrecovery.ImportActivateRequest) {
 	t.Helper()
 	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {

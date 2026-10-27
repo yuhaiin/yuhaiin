@@ -7,7 +7,7 @@ import (
 	"time"
 	"uuid"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
@@ -21,7 +21,7 @@ func BenchmarkRecoveryHistory(b *testing.B) {
 			defer db.Close()
 			owner := New(db.DB())
 			for i := range count {
-				job := RecoveryJob{ID: uuid.New().String(), CreatedAt: time.Unix(int64(i+1), 0), Target: "local", State: "queued", Size: 1 << 20, Policy: contract.RecoveryPolicy{Target: "local", TimeoutMinutes: 30, KeepCount: 10, KeepDays: 30}}
+				job := RecoveryJob{ID: uuid.New().String(), CreatedAt: time.Unix(int64(i+1), 0), Target: "local", State: "queued", Size: 1 << 20, Policy: contractrecovery.Policy{Target: "local", TimeoutMinutes: 30, KeepCount: 10, KeepDays: 30}}
 				if err := owner.EnqueueRecovery(b.Context(), job); err != nil {
 					b.Fatal(err)
 				}

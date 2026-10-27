@@ -16,7 +16,7 @@ import (
 	"uuid"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	nodecontract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -53,12 +53,12 @@ func preparedImportSourceFrom(t *testing.T, directory string, key *age.X25519Ide
 	return &preparedImportSource{directory: directory, data: data, identity: key.String()}
 }
 
-func preparedImportFixture(t *testing.T, mode string, online bool) (string, backupstore.RecoveryImportRecord, contract.RecoveryImportActivateRequest, *sqlite.Store) {
+func preparedImportFixture(t *testing.T, mode string, online bool) (string, backupstore.RecoveryImportRecord, contractrecovery.ImportActivateRequest, *sqlite.Store) {
 	t.Helper()
 	return newPreparedImportSource(t).prepare(t, mode, online)
 }
 
-func (source *preparedImportSource) prepare(t *testing.T, mode string, online bool) (string, backupstore.RecoveryImportRecord, contract.RecoveryImportActivateRequest, *sqlite.Store) {
+func (source *preparedImportSource) prepare(t *testing.T, mode string, online bool) (string, backupstore.RecoveryImportRecord, contractrecovery.ImportActivateRequest, *sqlite.Store) {
 	t.Helper()
 	directory := t.TempDir()
 	// Only immutable test deployments whose actual owners have closed are copied.
@@ -109,7 +109,7 @@ func (source *preparedImportSource) prepare(t *testing.T, mode string, online bo
 	digest := sha256.Sum256(data)
 	item.Size, item.SHA256 = int64(len(data)), hex.EncodeToString(digest[:])
 	preview := prepared.Preview
-	request := contract.RecoveryImportActivateRequest{ID: id, ConfirmPreviewID: prepared.ID, ConfirmBackupID: preview.Manifest.ID, ConfirmSourceInstanceID: preview.Manifest.InstanceID, ConfirmTargetInstanceID: preview.TargetInstanceID, ConfirmResultInstanceID: preview.InstanceID,
+	request := contractrecovery.ImportActivateRequest{ID: id, ConfirmPreviewID: prepared.ID, ConfirmBackupID: preview.Manifest.ID, ConfirmSourceInstanceID: preview.Manifest.InstanceID, ConfirmTargetInstanceID: preview.TargetInstanceID, ConfirmResultInstanceID: preview.InstanceID,
 		ConfirmMaintenance: true, ConfirmStartupChanges: true, ConfirmSourceStopped: true, ConfirmCredentialRevival: true, ConfirmIdentityReplacement: true, ConfirmCloneEnrollment: true}
 	return directory, item, request, live
 }

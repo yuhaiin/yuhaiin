@@ -18,6 +18,7 @@ import (
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 )
@@ -106,7 +107,7 @@ func Execute(ctx context.Context, args []string, output io.Writer) error {
 		if err := readJSONFile(*s3ConfigFile, &options, true); err != nil {
 			return err
 		}
-		var expected contract.RecoveryBackup
+		var expected contractrecovery.Backup
 		if err := readJSONFile(*metadataFile, &expected, false); err != nil {
 			return err
 		}
@@ -149,9 +150,9 @@ func Execute(ctx context.Context, args []string, output io.Writer) error {
 			}
 			key.Passphrase = value
 		}
-		var inputs *contract.RecoveryRuntime
+		var inputs *contractrecovery.Runtime
 		if *managementAuth || *tlsMode != "" || *workingDirectory != "" || *certFile != "" || *keyFile != "" || *externalWeb != "" {
-			inputs = &contract.RecoveryRuntime{ManagementAuth: *managementAuth, ManagementTLS: *tlsMode, CertificateFile: *certFile, KeyFile: *keyFile, WorkingDirectory: *workingDirectory, ExternalWebDirectory: *externalWeb}
+			inputs = &contractrecovery.Runtime{ManagementAuth: *managementAuth, ManagementTLS: *tlsMode, CertificateFile: *certFile, KeyFile: *keyFile, WorkingDirectory: *workingDirectory, ExternalWebDirectory: *externalWeb}
 		}
 		manifest, err := recovery.Create(ctx, *directory, *archive, key, recovery.CreateOptions{ConfirmedMaintenance: *maintenance, IncludeHistory: *includeHistory, Runtime: inputs})
 		if err != nil {

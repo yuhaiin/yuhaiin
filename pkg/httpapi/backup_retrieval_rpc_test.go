@@ -7,20 +7,20 @@ import (
 	"strings"
 	"testing"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	managementpermission "github.com/Asutorufa/yuhaiin/pkg/management/permission"
 )
 
 type recoveryRetrievalHTTPStub struct {
 	BackupController
 	calls   int
-	request contract.RecoveryRetrieveRequest
+	request contractrecovery.RetrieveRequest
 }
 
-func (s *recoveryRetrievalHTTPStub) RetrieveRecoveryBackup(_ context.Context, request contract.RecoveryRetrieveRequest) (contract.RecoveryBackup, error) {
+func (s *recoveryRetrievalHTTPStub) RetrieveRecoveryBackup(_ context.Context, request contractrecovery.RetrieveRequest) (contractrecovery.Backup, error) {
 	s.calls++
 	s.request = request
-	return contract.RecoveryBackup{ID: request.ID, State: "verified", Retrieval: "verified", LocalState: "present"}, nil
+	return contractrecovery.Backup{ID: request.ID, State: "verified", Retrieval: "verified", LocalState: "present"}, nil
 }
 func TestRecoveryRetrievalRPCIsBoundedAndRequiresBackupManage(t *testing.T) {
 	if v2Permissions[v2RecoveryBackupRetrieve] != managementpermission.BackupManage {

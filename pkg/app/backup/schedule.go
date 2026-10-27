@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
@@ -158,7 +158,7 @@ func (b *Backup) schedule() {
 		b.scheduleMu.Unlock()
 		var operationErr error
 		if full {
-			_, operationErr = b.CreateRecoveryBackup(ctx, contractbackup.RecoveryBackupRequest{ConfirmMaintenance: true})
+			_, operationErr = b.CreateRecoveryBackup(ctx, contractrecovery.BackupRequest{ConfirmMaintenance: true})
 		} else {
 			operationErr = b.Run(ctx)
 		}

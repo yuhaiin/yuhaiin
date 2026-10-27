@@ -15,6 +15,7 @@ import (
 	"uuid"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 )
 
 func TestRecoveryCLIFetchWorksWithoutDeploymentAndPreservesExistingFile(t *testing.T) {
@@ -38,7 +39,7 @@ func TestRecoveryCLIFetchWorksWithoutDeploymentAndPreservesExistingFile(t *testi
 		t.Fatal(err)
 	}
 	hash := sha256.Sum256(content)
-	point := contract.RecoveryBackup{ID: uuid.New().String(), BackupID: uuid.New().String(), InstanceID: uuid.New().String(), Target: "s3", Size: int64(len(content)), SHA256: hex.EncodeToString(hash[:])}
+	point := contractrecovery.Backup{ID: uuid.New().String(), BackupID: uuid.New().String(), InstanceID: uuid.New().String(), Target: "s3", Size: int64(len(content)), SHA256: hex.EncodeToString(hash[:])}
 	point.ObjectKey = "recovery/" + point.InstanceID + "/" + point.BackupID + ".yhb"
 	data, _ = json.Marshal(point)
 	if err := os.WriteFile(metadata, data, 0600); err != nil {

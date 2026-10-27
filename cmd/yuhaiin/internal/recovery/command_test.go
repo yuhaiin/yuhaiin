@@ -14,7 +14,8 @@ import (
 	"uuid"
 
 	"filippo.io/age"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
@@ -61,7 +62,7 @@ func TestRecoveryCLIKeyGenerationAndOfflineVerification(t *testing.T) {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	manifest := contract.RecoveryManifest{ID: uuid.New().String(), InstanceID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance", Build: contract.RecoveryBuild{Version: "fixture", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()}, Files: []contract.RecoveryFile{{Path: "state.db", Role: "configuration_database", SchemaVersion: 23}}}
+	manifest := contractrecovery.Manifest{ID: uuid.New().String(), InstanceID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance", Build: contractrecovery.Build{Version: "fixture", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()}, Files: []contractrecovery.File{{Path: "state.db", Role: "configuration_database", SchemaVersion: 23}}}
 	archive := filepath.Join(directory, "full.yhb")
 	if _, err := backuparchive.WriteFile(t.Context(), archive, snapshot, manifest, backuparchive.Encryption{Recipient: generated.Recipient}); err != nil {
 		t.Fatal(err)
@@ -70,7 +71,7 @@ func TestRecoveryCLIKeyGenerationAndOfflineVerification(t *testing.T) {
 	if err := Execute(t.Context(), []string{"verify", "-archive", archive, "-identity-file", keyPath, "-staging-parent", directory}, &stdout); err != nil {
 		t.Fatal(err)
 	}
-	var verified contract.RecoveryManifest
+	var verified contractrecovery.Manifest
 	if err := json.Unmarshal(stdout.Bytes(), &verified); err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +130,7 @@ func TestRecoveryCLICreatesAndVerifiesCompleteDeploymentWithoutServer(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := backupstore.New(database.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: directory}); err != nil {
+	if err := backupstore.New(database.DB()).RecordRecoveryRuntime(t.Context(), contractrecovery.Runtime{ManagementTLS: "disabled", WorkingDirectory: directory}); err != nil {
 		t.Fatal(err)
 	}
 	if err := database.Close(); err != nil {
@@ -149,7 +150,7 @@ func TestRecoveryCLICreatesAndVerifiesCompleteDeploymentWithoutServer(t *testing
 	if err := Execute(t.Context(), args, &output); err != nil {
 		t.Fatal(err)
 	}
-	var manifest contract.RecoveryManifest
+	var manifest contractrecovery.Manifest
 	if err := json.Unmarshal(output.Bytes(), &manifest); err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +165,7 @@ func TestRecoveryCLICreatesAndVerifiesCompleteDeploymentWithoutServer(t *testing
 	if err := Execute(t.Context(), []string{"verify", "-archive", archive, "-identity-file", keyPath}, &output); err != nil {
 		t.Fatal(err)
 	}
-	var verified contract.RecoveryManifest
+	var verified contractrecovery.Manifest
 	if err := json.Unmarshal(output.Bytes(), &verified); err != nil || verified.ID != manifest.ID {
 		t.Fatal("CLI-created deployment archive did not verify")
 	}

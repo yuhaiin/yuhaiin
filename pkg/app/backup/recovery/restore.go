@@ -15,7 +15,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	backupfs "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
@@ -35,18 +35,18 @@ type RestoreOptions struct {
 
 // Preview decrypts and validates a complete archive and computes
 // confined destinations. It performs no writes to the target deployment.
-func Preview(ctx context.Context, directory string, input io.Reader, key backuparchive.Decryption, mode string) (contract.RecoveryRestorePreview, error) {
+func Preview(ctx context.Context, directory string, input io.Reader, key backuparchive.Decryption, mode string) (contractrecovery.RestorePreview, error) {
 	prepared, err := backuparchive.Prepare(ctx, input, os.TempDir(), key)
 	if err != nil {
-		return contract.RecoveryRestorePreview{}, err
+		return contractrecovery.RestorePreview{}, err
 	}
 	defer prepared.Close()
 	preview, _, err := prepareRecoveryRestore(ctx, directory, prepared, mode)
 	return preview, err
 }
 
-func Restore(ctx context.Context, directory string, input io.Reader, key backuparchive.Decryption, options RestoreOptions) (contract.RecoveryRestoreResult, error) {
-	var empty contract.RecoveryRestoreResult
+func Restore(ctx context.Context, directory string, input io.Reader, key backuparchive.Decryption, options RestoreOptions) (contractrecovery.RestoreResult, error) {
+	var empty contractrecovery.RestoreResult
 	if !options.ConfirmedMaintenance {
 		return empty, errors.New("restore requires a confirmed maintenance window with all writers stopped")
 	}
@@ -115,8 +115,8 @@ func recoveryTargetID(ctx context.Context, directory string) (string, error) {
 	return id, nil
 }
 
-func prepareRecoveryRestore(ctx context.Context, directory string, prepared *backuparchive.Prepared, mode string) (contract.RecoveryRestorePreview, *recoveryTransaction, error) {
-	var empty contract.RecoveryRestorePreview
+func prepareRecoveryRestore(ctx context.Context, directory string, prepared *backuparchive.Prepared, mode string) (contractrecovery.RestorePreview, *recoveryTransaction, error) {
+	var empty contractrecovery.RestorePreview
 	if mode != "original" && mode != "clone" {
 		return empty, nil, errors.New("recovery mode must explicitly be original or clone")
 	}
@@ -147,7 +147,7 @@ func prepareRecoveryRestore(ctx context.Context, directory string, prepared *bac
 	if err != nil {
 		return empty, nil, err
 	}
-	preview := contract.RecoveryRestorePreview{Manifest: manifest, Mode: mode, TargetInstanceID: targetID, InstanceID: manifest.InstanceID, Runtime: *manifest.Runtime, Warnings: []string{"service_restart_required", "recovery_point_contains_private_identity_material"}}
+	preview := contractrecovery.RestorePreview{Manifest: manifest, Mode: mode, TargetInstanceID: targetID, InstanceID: manifest.InstanceID, Runtime: *manifest.Runtime, Warnings: []string{"service_restart_required", "recovery_point_contains_private_identity_material"}}
 	if manifest.Build.Version != version.Version {
 		preview.Warnings = append(preview.Warnings, "application_version_differs_requires_offline_review")
 	}
@@ -229,7 +229,7 @@ func prepareRecoveryRestore(ctx context.Context, directory string, prepared *bac
 		}
 		install := projection.files[path] != ""
 		tx.Moves = append(tx.Moves, recoveryMove{Path: filepath.FromSlash(path), HadOriginal: exists, Install: install})
-		preview.Files = append(preview.Files, contract.RecoveryChange{Path: path, Replace: exists, Install: install})
+		preview.Files = append(preview.Files, contractrecovery.Change{Path: path, Replace: exists, Install: install})
 	}
 	if err := tx.validate(); err != nil {
 		return empty, nil, err

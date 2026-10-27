@@ -13,6 +13,7 @@ import (
 
 	backupfs "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
@@ -23,11 +24,11 @@ import (
 // activates a deployment. A complete private temporary file is published only
 // after its size and SHA-256 match. The caller owns replacement authorization.
 // Offline CLI callers use replace=false; runtime callers hold the backup lease.
-func FetchArchive(ctx context.Context, destination string, options contract.S3, expected contract.RecoveryBackup, proxy netapi.Proxy, replace bool) error {
+func FetchArchive(ctx context.Context, destination string, options contract.S3, expected contractrecovery.Backup, proxy netapi.Proxy, replace bool) error {
 	if expected.Target != "s3" || expected.Size < 1 || expected.Size > s3.MaxObjectBytes || !options.Enabled {
 		return errors.New("retrieval requires an enabled S3 destination and a recorded archive size between 1 byte and 100 GiB")
 	}
-	if err := validateRecoveryObjectKey(backupstore.RecoveryJob{RecoveryBackup: expected}); err != nil {
+	if err := validateRecoveryObjectKey(backupstore.RecoveryJob{Backup: expected}); err != nil {
 		return err
 	}
 	digest, err := hex.DecodeString(expected.SHA256)
@@ -133,8 +134,8 @@ func (w *recoveryRetrievalWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-func (b *Backup) RetrieveRecoveryBackup(ctx context.Context, request contract.RecoveryRetrieveRequest) (contract.RecoveryBackup, error) {
-	var empty contract.RecoveryBackup
+func (b *Backup) RetrieveRecoveryBackup(ctx context.Context, request contractrecovery.RetrieveRequest) (contractrecovery.Backup, error) {
+	var empty contractrecovery.Backup
 	if b.store == nil {
 		return empty, errors.New("backup store is unavailable")
 	}
@@ -199,7 +200,7 @@ func (b *Backup) RetrieveRecoveryBackup(ctx context.Context, request contract.Re
 		private := infoErr == nil && (runtime.GOOS == "windows" || info.Mode().Perm()&0o077 == 0)
 		if checkErr == nil && private && size == job.Size && digest == job.SHA256 {
 			job.LocalState = "present"
-			return job.RecoveryBackup, nil
+			return job.Backup, nil
 		}
 		if !request.ConfirmReplace {
 			return empty, errors.New("local archive differs; explicit replacement consent is required")
@@ -212,7 +213,7 @@ func (b *Backup) RetrieveRecoveryBackup(ctx context.Context, request contract.Re
 	if err := b.store.SaveRecoveryJob(ctx, job, job.State); err != nil {
 		return empty, err
 	}
-	transferErr := FetchArchive(ctx, path, options.S3, job.RecoveryBackup, b.proxy, request.ConfirmReplace)
+	transferErr := FetchArchive(ctx, path, options.S3, job.Backup, b.proxy, request.ConfirmReplace)
 	job.Retrieval = "verified"
 	if transferErr != nil {
 		job.Retrieval, job.RetrievalErrorCode = "failed", "retrieval_failed"
@@ -233,10 +234,10 @@ func (b *Backup) RetrieveRecoveryBackup(ctx context.Context, request contract.Re
 		return empty, transferErr
 	}
 	job.LocalState = "present"
-	return job.RecoveryBackup, nil
+	return job.Backup, nil
 }
 
-func localRecoveryArchiveState(directory string, item contract.RecoveryBackup) string {
+func localRecoveryArchiveState(directory string, item contractrecovery.Backup) string {
 	file, err := openManagedRecoveryArchive(directory, item.ID)
 	if errors.Is(err, os.ErrNotExist) {
 		return "missing"

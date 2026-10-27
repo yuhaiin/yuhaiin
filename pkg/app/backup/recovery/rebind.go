@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	inboundcontract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	nodecontract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/nebula"
@@ -22,7 +22,7 @@ import (
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 )
 
-func rewriteRecoveryConfiguration(ctx context.Context, stage, instanceID string, inputs *contract.RecoveryRuntime, resolve func(string) (string, error), mode string) error {
+func rewriteRecoveryConfiguration(ctx context.Context, stage, instanceID string, inputs *contractrecovery.Runtime, resolve func(string) (string, error), mode string) error {
 	db, err := sqlite.Open(ctx, filepath.Join(stage, "state.db"))
 	if err != nil {
 		return err

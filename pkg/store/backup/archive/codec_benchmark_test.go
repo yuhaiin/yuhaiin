@@ -11,7 +11,8 @@ import (
 	"uuid"
 
 	"filippo.io/age"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
@@ -44,10 +45,10 @@ func BenchmarkRecoveryArchiveExternalRecipient(b *testing.B) {
 				b.Fatal(err)
 			}
 			encryption := Encryption{Recipient: key.Recipient().String()}
-			manifest := contract.RecoveryManifest{
+			manifest := contractrecovery.Manifest{
 				ID: uuid.New().String(), InstanceID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance",
-				Build: contract.RecoveryBuild{Version: "benchmark", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()},
-				Files: []contract.RecoveryFile{{Path: "state.db", Role: "configuration_database", SchemaVersion: 23}, {Path: "identity.bin", Role: "protocol_identity"}},
+				Build: contractrecovery.Build{Version: "benchmark", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()},
+				Files: []contractrecovery.File{{Path: "state.db", Role: "configuration_database", SchemaVersion: 23}, {Path: "identity.bin", Role: "protocol_identity"}},
 			}
 			b.SetBytes(size)
 			b.ReportAllocs()

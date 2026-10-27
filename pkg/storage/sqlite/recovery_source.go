@@ -11,7 +11,7 @@ import (
 	"strings"
 	"uuid"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 )
 
 const recoveryInstanceKey = "recovery_instance_id"
@@ -99,7 +99,7 @@ func OpenSnapshotReader(ctx context.Context, path string) (*sql.DB, error) {
 // copying the main file. Multi-database/file consistency is the maintenance
 // owner's responsibility. The source is never migrated or opened writable.
 func SnapshotRecoveryDatabase(ctx context.Context, source, destination, kind string, limit int64) (int, error) {
-	if limit < 1 || limit > contract.MaxRecoveryDataBytes {
+	if limit < 1 || limit > contractrecovery.MaxDataBytes {
 		return 0, errors.New("invalid recovery database budget")
 	}
 	info, err := os.Lstat(source)

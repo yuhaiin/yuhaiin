@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -17,7 +17,7 @@ type backupMetricSnapshot struct {
 	lastComplete [2]float64
 }
 
-func (b *Backup) compileBackupMetrics(version uint64, items []contract.RecoveryBackup) {
+func (b *Backup) compileBackupMetrics(version uint64, items []contractrecovery.Backup) {
 	value := &backupMetricSnapshot{version: version}
 	for _, item := range items {
 		target, state := 2, 7

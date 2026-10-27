@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	nodecontract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -29,7 +29,7 @@ type recoveryProjection struct {
 	web     string
 }
 
-func projectRecoveryFiles(manifest contract.RecoveryManifest) (recoveryProjection, error) {
+func projectRecoveryFiles(manifest contractrecovery.Manifest) (recoveryProjection, error) {
 	projection := recoveryProjection{files: map[string]string{}, sources: map[string]string{}}
 	webSource := ""
 	if manifest.Runtime.ExternalWebDirectory != "" {
@@ -92,7 +92,7 @@ func relocateRecoveryFiles(directory string, files map[string]string) error {
 	return nil
 }
 
-func projectRecoveryTailnetIdentities(ctx context.Context, stage string, manifest contract.RecoveryManifest, projection *recoveryProjection) error {
+func projectRecoveryTailnetIdentities(ctx context.Context, stage string, manifest contractrecovery.Manifest, projection *recoveryProjection) error {
 	db, err := sqlite.OpenSnapshotReader(ctx, filepath.Join(stage, "state.db"))
 	if err != nil {
 		return err

@@ -7,9 +7,10 @@ import (
 	"strconv"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 )
 
-func (a v2API) recoveryBackups(ctx context.Context, _ *emptyRequest) (*contract.RecoveryBackupStatus, error) {
+func (a v2API) recoveryBackups(ctx context.Context, _ *emptyRequest) (*contractrecovery.BackupStatus, error) {
 	owner, ok := a.services.Backup.(RecoveryBackupController)
 	if !ok {
 		return nil, unavailable("recovery backup controller is unavailable")
@@ -17,7 +18,7 @@ func (a v2API) recoveryBackups(ctx context.Context, _ *emptyRequest) (*contract.
 	return pointer(owner.RecoveryBackups(ctx))
 }
 
-func (a v2API) createRecoveryBackup(ctx context.Context, request *contract.RecoveryBackupRequest) (*contract.RecoveryBackup, error) {
+func (a v2API) createRecoveryBackup(ctx context.Context, request *contractrecovery.BackupRequest) (*contractrecovery.Backup, error) {
 	owner, ok := a.services.Backup.(RecoveryBackupController)
 	if !ok {
 		return nil, unavailable("recovery backup controller is unavailable")
@@ -84,7 +85,7 @@ func (a v2API) retryRecoveryBackup(ctx context.Context, request *idRequest) (*em
 	return &emptyResponse{}, nil
 }
 
-func (a v2API) verifyRecoveryBackup(ctx context.Context, request *contract.RecoveryVerifyRequest) (*contract.RecoveryManifest, error) {
+func (a v2API) verifyRecoveryBackup(ctx context.Context, request *contractrecovery.VerifyRequest) (*contractrecovery.Manifest, error) {
 	owner, ok := a.services.Backup.(RecoveryBackupController)
 	if !ok {
 		return nil, unavailable("recovery backup controller is unavailable")
@@ -96,7 +97,7 @@ func (a v2API) verifyRecoveryBackup(ctx context.Context, request *contract.Recov
 	return &manifest, nil
 }
 
-func (a v2API) retrieveRecoveryBackup(ctx context.Context, request *contract.RecoveryRetrieveRequest) (*contract.RecoveryBackup, error) {
+func (a v2API) retrieveRecoveryBackup(ctx context.Context, request *contractrecovery.RetrieveRequest) (*contractrecovery.Backup, error) {
 	owner, ok := a.services.Backup.(RecoveryBackupRetriever)
 	if !ok {
 		return nil, unavailable("recovery retrieval is unavailable")

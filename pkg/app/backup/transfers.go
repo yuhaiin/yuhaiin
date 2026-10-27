@@ -12,7 +12,7 @@ import (
 	"time"
 
 	backupfs "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
@@ -97,27 +97,27 @@ func (b *Backup) uploadRecoveryBackup(ctx context.Context, job backupstore.Recov
 	job.CompletedAt = time.Now().UTC()
 	return b.store.SaveRecoveryJob(ctx, job, "uploading")
 }
-func (b *Backup) OpenRecoveryBackup(ctx context.Context, id string) (io.ReadSeekCloser, contract.RecoveryBackup, error) {
+func (b *Backup) OpenRecoveryBackup(ctx context.Context, id string) (io.ReadSeekCloser, contractrecovery.Backup, error) {
 	if b.store == nil {
-		return nil, contract.RecoveryBackup{}, errors.New("backup store is unavailable")
+		return nil, contractrecovery.Backup{}, errors.New("backup store is unavailable")
 	}
 	if !b.mu.TryLock() {
-		return nil, contract.RecoveryBackup{}, errBackupBusy
+		return nil, contractrecovery.Backup{}, errBackupBusy
 	}
 	defer b.mu.Unlock()
 	if b.activeRecoveryDownloads.Load() >= 4 {
-		return nil, contract.RecoveryBackup{}, errBackupBusy
+		return nil, contractrecovery.Backup{}, errBackupBusy
 	}
 	job, err := b.store.RecoveryJob(ctx, id)
 	if err != nil {
-		return nil, contract.RecoveryBackup{}, err
+		return nil, contractrecovery.Backup{}, err
 	}
 	if job.State != "local_ready" && job.State != "verified" {
-		return nil, contract.RecoveryBackup{}, errors.New("backup is not ready for download")
+		return nil, contractrecovery.Backup{}, errors.New("backup is not ready for download")
 	}
 	file, err := openManagedRecoveryArchive(b.dir, id)
 	if err != nil {
-		return nil, contract.RecoveryBackup{}, err
+		return nil, contractrecovery.Backup{}, err
 	}
 	if b.recoveryReaders == nil {
 		b.recoveryReaders = make(map[string]int)
@@ -133,7 +133,7 @@ func (b *Backup) OpenRecoveryBackup(ctx context.Context, id string) (io.ReadSeek
 			delete(b.recoveryReaders, id)
 		}
 	}}
-	return lease, job.RecoveryBackup, nil
+	return lease, job.Backup, nil
 }
 
 type recoveryArchiveReader struct {

@@ -17,7 +17,7 @@ import (
 	"filippo.io/age"
 	recoverycmd "github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/recovery"
 	"github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/startuphealth"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	inboundcontract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -32,7 +32,7 @@ func recoveryServiceDeployment(t *testing.T, marker, inboundAddress string) stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementAuth: true, ManagementTLS: "self_signed", WorkingDirectory: directory}); err != nil {
+	if err := backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contractrecovery.Runtime{ManagementAuth: true, ManagementTLS: "self_signed", WorkingDirectory: directory}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.DB().ExecContext(t.Context(), "INSERT INTO metadata(key,value) VALUES('recovery_drill',?)", marker); err != nil {
@@ -153,7 +153,7 @@ func TestRecoveryServiceStartupDrill(t *testing.T) {
 			if err := recoverycmd.Execute(t.Context(), []string{"preview", "-path", target, "-archive", archive, "-identity-file", identityPath, "-mode", "original"}, &output); err != nil {
 				t.Fatal(err)
 			}
-			var preview contract.RecoveryRestorePreview
+			var preview contractrecovery.RestorePreview
 			if err := json.Unmarshal(output.Bytes(), &preview); err != nil {
 				t.Fatal(err)
 			}

@@ -11,7 +11,7 @@ import (
 	"time"
 	"uuid"
 
-	backupcontract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/update"
 	"github.com/Asutorufa/yuhaiin/pkg/update/compatibility"
 	"github.com/Asutorufa/yuhaiin/pkg/update/maintenance"
@@ -35,8 +35,8 @@ func (h *protectionFixture) StartProtected(context.Context, string) error { retu
 func (h *protectionFixture) UpdateRecoveryReadiness(context.Context) (contract.RecoveryReadiness, error) {
 	return h.readiness, nil
 }
-func (h *protectionFixture) QueueUpdateRecovery(context.Context) (backupcontract.RecoveryBackup, error) {
-	return backupcontract.RecoveryBackup{}, errors.New("unprotected fixture must not enqueue")
+func (h *protectionFixture) QueueUpdateRecovery(context.Context) (contractrecovery.Backup, error) {
+	return contractrecovery.Backup{}, errors.New("unprotected fixture must not enqueue")
 }
 func (h *protectionFixture) CancelUpdateRecovery(context.Context, string) error { return nil }
 

@@ -5,11 +5,11 @@ import (
 	"errors"
 	"net/http"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
 )
 
-func (a v2API) recoveryImports(ctx context.Context, _ *emptyRequest) (*[]contract.RecoveryImport, error) {
+func (a v2API) recoveryImports(ctx context.Context, _ *emptyRequest) (*[]contractrecovery.Import, error) {
 	owner, ok := a.services.Backup.(RecoveryImportController)
 	if !ok {
 		return nil, unavailable("recovery import controller is unavailable")
@@ -17,7 +17,7 @@ func (a v2API) recoveryImports(ctx context.Context, _ *emptyRequest) (*[]contrac
 	return pointer(owner.RecoveryImports(ctx))
 }
 
-func (a v2API) recoveryRestoreStatus(ctx context.Context, _ *emptyRequest) (*contract.RecoveryRestoreStatus, error) {
+func (a v2API) recoveryRestoreStatus(ctx context.Context, _ *emptyRequest) (*contractrecovery.RestoreStatus, error) {
 	owner, ok := a.services.Backup.(RecoveryRestoreReporter)
 	if !ok {
 		return nil, unavailable("recovery restore status is unavailable")
@@ -50,7 +50,7 @@ func recoveryImportUpload(services V2Services) func(http.ResponseWriter, *http.R
 	}
 }
 
-func (a v2API) previewRecoveryImport(ctx context.Context, request *contract.RecoveryImportPreviewRequest) (*contract.RecoveryImport, error) {
+func (a v2API) previewRecoveryImport(ctx context.Context, request *contractrecovery.ImportPreviewRequest) (*contractrecovery.Import, error) {
 	owner, ok := a.services.Backup.(RecoveryImportController)
 	if !ok {
 		return nil, unavailable("recovery import controller is unavailable")
@@ -76,7 +76,7 @@ func (a v2API) discardRecoveryImport(ctx context.Context, request *recoveryBacku
 	return &emptyResponse{}, nil
 }
 
-func (a v2API) activateRecoveryImport(ctx context.Context, request *contract.RecoveryImportActivateRequest) (*contract.RecoveryImport, error) {
+func (a v2API) activateRecoveryImport(ctx context.Context, request *contractrecovery.ImportActivateRequest) (*contractrecovery.Import, error) {
 	owner, ok := a.services.Backup.(RecoveryImportActivator)
 	if !ok {
 		return nil, unavailable("recovery activation controller is unavailable")

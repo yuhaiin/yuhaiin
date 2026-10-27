@@ -20,11 +20,12 @@ import (
 	"uuid"
 
 	"filippo.io/age"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
-func recoveryFixture(t *testing.T) (string, contract.RecoveryManifest, *age.X25519Identity) {
+func recoveryFixture(t *testing.T) (string, contractrecovery.Manifest, *age.X25519Identity) {
 	t.Helper()
 	directory := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(directory, "identity"), 0o700); err != nil {
@@ -49,15 +50,15 @@ func recoveryFixture(t *testing.T) (string, contract.RecoveryManifest, *age.X255
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest := contract.RecoveryManifest{
+	manifest := contractrecovery.Manifest{
 		ID: uuid.New().String(), InstanceID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance",
-		Build: contract.RecoveryBuild{Version: "fixture", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()},
-		Files: []contract.RecoveryFile{{Path: "state.db", Role: "configuration_database", SchemaVersion: 23}, {Path: "identity/device.json", Role: "protocol_identity"}},
+		Build: contractrecovery.Build{Version: "fixture", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()},
+		Files: []contractrecovery.File{{Path: "state.db", Role: "configuration_database", SchemaVersion: 23}, {Path: "identity/device.json", Role: "protocol_identity"}},
 	}
 	return directory, manifest, identity
 }
 
-func encryptedRecoveryFixture(t *testing.T) ([]byte, contract.RecoveryManifest, *age.X25519Identity) {
+func encryptedRecoveryFixture(t *testing.T) ([]byte, contractrecovery.Manifest, *age.X25519Identity) {
 	t.Helper()
 	directory, manifest, key := recoveryFixture(t)
 	var encrypted bytes.Buffer
@@ -99,22 +100,22 @@ func TestRecoveryManifestStartupAndExternalDependencyBoundaries(t *testing.T) {
 	_, valid, _ := encryptedRecoveryFixture(t)
 	valid.CompleteInventory = true
 	valid.SourceDirectory = "/original/deployment"
-	valid.Runtime = &contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: "/original/cwd"}
+	valid.Runtime = &contractrecovery.Runtime{ManagementTLS: "disabled", WorkingDirectory: "/original/cwd"}
 	valid.Files[1].Role = "dependency"
 	valid.Files[1].SourcePath = "/external/key.pem"
 	if err := ValidateManifest(valid); err != nil {
 		t.Fatal(err)
 	}
-	for _, mutate := range []func(*contract.RecoveryManifest){
-		func(m *contract.RecoveryManifest) { m.Version = 1 },
-		func(m *contract.RecoveryManifest) { m.SourceDirectory = "relative" },
-		func(m *contract.RecoveryManifest) { m.Runtime = nil },
-		func(m *contract.RecoveryManifest) { m.Runtime.WorkingDirectory = "relative" },
-		func(m *contract.RecoveryManifest) { m.Runtime.ManagementAuth = true },
-		func(m *contract.RecoveryManifest) { m.Runtime.ManagementTLS = "files" },
-		func(m *contract.RecoveryManifest) { m.Runtime.CertificateFile = "/unexpected.pem" },
-		func(m *contract.RecoveryManifest) { m.Files[1].SourcePath = "../external/key" },
-		func(m *contract.RecoveryManifest) { m.Files[1].Role = "protocol_identity" },
+	for _, mutate := range []func(*contractrecovery.Manifest){
+		func(m *contractrecovery.Manifest) { m.Version = 1 },
+		func(m *contractrecovery.Manifest) { m.SourceDirectory = "relative" },
+		func(m *contractrecovery.Manifest) { m.Runtime = nil },
+		func(m *contractrecovery.Manifest) { m.Runtime.WorkingDirectory = "relative" },
+		func(m *contractrecovery.Manifest) { m.Runtime.ManagementAuth = true },
+		func(m *contractrecovery.Manifest) { m.Runtime.ManagementTLS = "files" },
+		func(m *contractrecovery.Manifest) { m.Runtime.CertificateFile = "/unexpected.pem" },
+		func(m *contractrecovery.Manifest) { m.Files[1].SourcePath = "../external/key" },
+		func(m *contractrecovery.Manifest) { m.Files[1].Role = "protocol_identity" },
 	} {
 		bad := valid
 		bad.Runtime = new(*valid.Runtime)
@@ -203,7 +204,7 @@ func TestRecoveryArchiveRejectsCorruptionWrongIdentityAndTruncation(t *testing.T
 	}
 }
 
-func maliciousRecovery(t *testing.T, manifest contract.RecoveryManifest, payload []byte, key *age.X25519Identity) []byte {
+func maliciousRecovery(t *testing.T, manifest contractrecovery.Manifest, payload []byte, key *age.X25519Identity) []byte {
 	t.Helper()
 	data, err := json.Marshal(manifest)
 	if err != nil {
@@ -237,7 +238,7 @@ func TestRecoveryManifestAndUntrustedInventory(t *testing.T) {
 	for _, name := range []string{"../outside", "/absolute", "C:/private", "nested/../../outside", "nested\\outside", "nested//name", ".", "a/./b", ".configuration.lock", ".recovery-stage-evil/key", "COM1.key", "name:stream", "name.", "name\nkey"} {
 		t.Run(name, func(t *testing.T) {
 			bad := valid
-			bad.Files = append([]contract.RecoveryFile(nil), valid.Files...)
+			bad.Files = append([]contractrecovery.File(nil), valid.Files...)
 			bad.Files[0].Path = name
 			data := maliciousRecovery(t, bad, nil, key)
 			parent := t.TempDir()
@@ -251,21 +252,21 @@ func TestRecoveryManifestAndUntrustedInventory(t *testing.T) {
 			}
 		})
 	}
-	for _, mutate := range []func(*contract.RecoveryManifest){
-		func(m *contract.RecoveryManifest) { m.Version++ },
-		func(m *contract.RecoveryManifest) { m.Files = nil },
-		func(m *contract.RecoveryManifest) { m.Files[0].Size = math.MaxInt64 },
-		func(m *contract.RecoveryManifest) { m.Files[0].Size = -1 },
-		func(m *contract.RecoveryManifest) { m.Files[0].SHA256 = "bad" },
-		func(m *contract.RecoveryManifest) { m.Files[0].Role = "symlink" },
-		func(m *contract.RecoveryManifest) { m.Consistency = "independent-live-snapshots" },
-		func(m *contract.RecoveryManifest) { m.Files[1].Path = strings.ToUpper(m.Files[0].Path) },
-		func(m *contract.RecoveryManifest) {
-			m.Files = append(m.Files, contract.RecoveryFile{Path: "state.db/a", Role: "dependency", SHA256: m.Files[0].SHA256}, contract.RecoveryFile{Path: "state.db.b", Role: "dependency", SHA256: m.Files[0].SHA256})
+	for _, mutate := range []func(*contractrecovery.Manifest){
+		func(m *contractrecovery.Manifest) { m.Version++ },
+		func(m *contractrecovery.Manifest) { m.Files = nil },
+		func(m *contractrecovery.Manifest) { m.Files[0].Size = math.MaxInt64 },
+		func(m *contractrecovery.Manifest) { m.Files[0].Size = -1 },
+		func(m *contractrecovery.Manifest) { m.Files[0].SHA256 = "bad" },
+		func(m *contractrecovery.Manifest) { m.Files[0].Role = "symlink" },
+		func(m *contractrecovery.Manifest) { m.Consistency = "independent-live-snapshots" },
+		func(m *contractrecovery.Manifest) { m.Files[1].Path = strings.ToUpper(m.Files[0].Path) },
+		func(m *contractrecovery.Manifest) {
+			m.Files = append(m.Files, contractrecovery.File{Path: "state.db/a", Role: "dependency", SHA256: m.Files[0].SHA256}, contractrecovery.File{Path: "state.db.b", Role: "dependency", SHA256: m.Files[0].SHA256})
 		},
 	} {
 		bad := valid
-		bad.Files = append([]contract.RecoveryFile(nil), valid.Files...)
+		bad.Files = append([]contractrecovery.File(nil), valid.Files...)
 		mutate(&bad)
 		if err := ValidateManifest(bad); err == nil {
 			t.Fatal("malicious manifest accepted")

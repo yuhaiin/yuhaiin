@@ -8,7 +8,7 @@ import (
 	"uuid"
 
 	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
@@ -31,16 +31,16 @@ func TestRecoveryManagedStartupCommitRestartAndRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lifecycle.Close()
-	flags := contract.RecoveryRuntime{ManagementAuth: true, ManagementTLS: "self_signed", WorkingDirectory: directory, ListenAddress: "127.0.0.1:1"}
+	flags := contractrecovery.Runtime{ManagementAuth: true, ManagementTLS: "self_signed", WorkingDirectory: directory, ListenAddress: "127.0.0.1:1"}
 	if got, adopted, err := ResolveStartupInputs(t.Context(), directory, lifecycle, flags); err != nil || adopted || got != flags {
 		t.Fatal("ordinary startup stopped using host configuration", err)
 	}
 	tx.AdoptStartup = true
-	tx.Runtime = contract.RecoveryRuntime{ManagementAuth: true, ManagementTLS: "files", CertificateFile: filepath.Join(directory, "a.key"), KeyFile: filepath.Join(directory, "b.key"), WorkingDirectory: directory, ListenAddress: "127.0.0.1:2"}
+	tx.Runtime = contractrecovery.Runtime{ManagementAuth: true, ManagementTLS: "files", CertificateFile: filepath.Join(directory, "a.key"), KeyFile: filepath.Join(directory, "b.key"), WorkingDirectory: directory, ListenAddress: "127.0.0.1:2"}
 	if err := activateRecoverySet(t.Context(), directory, tx, nil); err != nil {
 		t.Fatal(err)
 	}
-	assertBinding := func(want contract.RecoveryRuntime) {
+	assertBinding := func(want contractrecovery.Runtime) {
 		t.Helper()
 		got, adopted, err := ResolveStartupInputs(t.Context(), directory, lifecycle, flags)
 		if err != nil || !adopted || got != want {
@@ -205,7 +205,7 @@ func TestRecoveryManagedStartupDoesNotPreventRestoringConfirmedDamagedDatabase(t
 		t.Fatal(err)
 	}
 	previous := recoveryTransaction{ID: uuid.New().String(), BackupID: uuid.New().String(), InstanceID: id, AdoptStartup: true,
-		Runtime: contract.RecoveryRuntime{ManagementAuth: true, ManagementTLS: "self_signed", WorkingDirectory: directory}}
+		Runtime: contractrecovery.Runtime{ManagementAuth: true, ManagementTLS: "self_signed", WorkingDirectory: directory}}
 	if err := saveRecoveryResult(directory, previous, "committed"); err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestRecoveryManagedStartupDoesNotPreventRestoringConfirmedDamagedDatabase(t
 		t.Fatal(err)
 	}
 	defer lifecycle.Close()
-	if _, _, err := ResolveStartupInputs(t.Context(), directory, lifecycle, contract.RecoveryRuntime{}); err == nil {
+	if _, _, err := ResolveStartupInputs(t.Context(), directory, lifecycle, contractrecovery.Runtime{}); err == nil {
 		t.Fatal("damaged original silently fell back to host startup settings")
 	}
 }

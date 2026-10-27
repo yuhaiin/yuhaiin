@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -14,9 +14,9 @@ func TestBackupMetricsUseFiniteLabelsAndNoStoreOnScrape(t *testing.T) {
 	if err := b.Close(); err != nil {
 		t.Fatal(err)
 	}
-	items := []contract.RecoveryBackup{{ID: "private-id", Target: "s3", State: "verified", CreatedAt: time.Unix(100, 0)}}
+	items := []contractrecovery.Backup{{ID: "private-id", Target: "s3", State: "verified", CreatedAt: time.Unix(100, 0)}}
 	for range 1000 {
-		items = append(items, contract.RecoveryBackup{Target: "https://unbounded.invalid/private", State: "arbitrary-user-text"})
+		items = append(items, contractrecovery.Backup{Target: "https://unbounded.invalid/private", State: "arbitrary-user-text"})
 	}
 	version := b.metricsVersion.Add(1)
 	b.compileBackupMetrics(version, items)

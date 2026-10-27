@@ -10,19 +10,20 @@ import (
 
 	"filippo.io/age"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 )
 
 // RecoveryJob is owned by Store, alongside the existing backup settings.
 // Public results omit the immutable public-key policy and destination fingerprint.
 // No private backup key or duplicate S3 credential is stored in the history.
 type RecoveryJob struct {
-	contract.RecoveryBackup
-	Policy     contract.RecoveryPolicy `json:"policy"`
+	contractrecovery.Backup
+	Policy     contractrecovery.Policy `json:"policy"`
 	S3Digest   string                  `json:"s3Digest,omitempty"`
 	DeleteFrom string                  `json:"deleteFrom,omitempty"`
 }
 
-func NormalizeRecoveryPolicy(input contract.RecoveryPolicy) (contract.RecoveryPolicy, error) {
+func NormalizeRecoveryPolicy(input contractrecovery.Policy) (contractrecovery.Policy, error) {
 	p := input
 	if p.Target == "" {
 		p.Target = "local"
@@ -147,27 +148,27 @@ func (s *Store) SaveRecoveryJob(ctx context.Context, job RecoveryJob, expected s
 	return err
 }
 
-func (s *Store) RecoveryHistory(ctx context.Context) ([]contract.RecoveryBackup, error) {
+func (s *Store) RecoveryHistory(ctx context.Context) ([]contractrecovery.Backup, error) {
 	return s.recoveryHistory(ctx, 1000)
 }
 
-func (s *Store) RecoveryRetentionCandidates(ctx context.Context) ([]contract.RecoveryBackup, error) {
+func (s *Store) RecoveryRetentionCandidates(ctx context.Context) ([]contractrecovery.Backup, error) {
 	return s.recoveryHistory(ctx, 4096)
 }
 
-func (s *Store) recoveryHistory(ctx context.Context, limit int) ([]contract.RecoveryBackup, error) {
+func (s *Store) recoveryHistory(ctx context.Context, limit int) ([]contractrecovery.Backup, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT substr(data_json,1,65537) FROM backup_recovery_history ORDER BY created_at DESC,id LIMIT ?", limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []contract.RecoveryBackup{}
+	items := []contractrecovery.Backup{}
 	for rows.Next() {
 		var data string
 		if err := rows.Scan(&data); err != nil {
 			return nil, err
 		}
-		var item contract.RecoveryBackup
+		var item contractrecovery.Backup
 		if len(data) > 65536 {
 			return nil, errors.New("backup history metadata exceeds its limit")
 		}
@@ -190,7 +191,7 @@ func (s *Store) LastRecoveryAttempt(ctx context.Context) (time.Time, error) {
 	return time.UnixMilli(timestamp.Int64), nil
 }
 
-func (s *Store) RecoveryPending(ctx context.Context) ([]contract.RecoveryBackup, error) {
+func (s *Store) RecoveryPending(ctx context.Context) ([]contractrecovery.Backup, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT substr(data_json,1,65537) FROM backup_recovery_history
 	 WHERE state IN ('queued','capturing','uploading','deleting') OR (state='local_ready' AND json_extract(data_json,'$.target')='s3')
  ORDER BY created_at,id LIMIT 4096`)
@@ -198,7 +199,7 @@ func (s *Store) RecoveryPending(ctx context.Context) ([]contract.RecoveryBackup,
 		return nil, err
 	}
 	defer rows.Close()
-	out := []contract.RecoveryBackup{}
+	out := []contractrecovery.Backup{}
 	for rows.Next() {
 		var data string
 		if err := rows.Scan(&data); err != nil {
@@ -207,7 +208,7 @@ func (s *Store) RecoveryPending(ctx context.Context) ([]contract.RecoveryBackup,
 		if len(data) > 65536 {
 			return nil, errors.New("backup metadata exceeds its limit")
 		}
-		var item contract.RecoveryBackup
+		var item contractrecovery.Backup
 		if err := json.Unmarshal([]byte(data), &item); err != nil {
 			return nil, err
 		}

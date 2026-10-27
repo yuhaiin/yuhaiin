@@ -1,11 +1,40 @@
 # Encrypted recovery archives and offline disaster recovery
 
 The encrypted streaming format and authenticated inventory checks live in
-`pkg/store/backup/archive`, using the existing backup contract. Deployment
+`pkg/store/backup/archive`, using the disaster recovery contracts in
+`pkg/contract/backup/recovery`. Deployment
 snapshots, offline activation, startup checks and crash rollback belong to
 `pkg/app/backup/recovery`. The existing online backup scheduler owns managed
 local/S3 jobs, retention, verification and downloads. Web restoration now uses these owners on the supported systemd host. Safe
 update integration and broader host coordination remain in progress in the consolidated reliability PR.
+
+## Package ownership
+
+Backup and recovery code is grouped by responsibility:
+
+| Package | Responsibility |
+| --- | --- |
+| `pkg/contract/backup` | Existing configuration export and S3 settings, with an optional recovery policy reference. |
+| `pkg/contract/backup/recovery` | Recovery manifest, policy, job, import and restore request types. |
+| `pkg/store/backup` | Settings, job/import records and observed startup inputs in the existing SQLite store. |
+| `pkg/store/backup/archive` | Streaming encryption, archive framing and authenticated inventory validation. |
+| `pkg/app/backup` | Online scheduling, transfer leases, retention and managed operations. |
+| `pkg/app/backup/recovery` | Offline inventory, snapshot collection, restore planning, activation and startup rollback. |
+| `cmd/yuhaiin/internal/recovery` | CLI parsing and maintenance entry points. |
+| `cmd/yuhaiin/internal/servicehost` | Installed service lifecycle adapters shared by recovery and updates. |
+| `cmd/yuhaiin/internal/startuphealth` | Runtime input recording and local listener readiness checks. |
+
+Recovery contracts use names such as `recovery.Manifest` and `recovery.Policy`;
+their source files are `manifest.go`, `jobs.go`, `imports.go` and `restore.go`.
+The parent contract has no duplicate type definitions or forwarding aliases.
+Moving these types changes Go/TypeScript package references only: JSON field
+names, archive format, HTTP routes and persisted records remain compatible,
+and no additional SQLite migration is needed.
+
+SQLite connection ownership checks remain with the SQLite driver, and
+`AppInstance.RecoveryStartupHealth` checks the actual application owners.
+HTTP authorization, request decoding and response encoding stay at the shared
+API boundary; these adapters do not own backup or restore operations.
 
 ## Working CLI operations
 

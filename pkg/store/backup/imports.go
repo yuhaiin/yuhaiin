@@ -9,6 +9,7 @@ import (
 	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/store/internal/conflict"
 )
 
@@ -33,11 +34,11 @@ func (s *Store) RecoveryActivationPending(ctx context.Context) (bool, error) {
 // RecoveryImportRecord is owned by the existing backup Store. A prepared plan
 // contains paths/hashes only; plaintext data remains in private staging files.
 type RecoveryImportRecord struct {
-	contract.RecoveryImport
+	contractrecovery.Import
 	Owner      string                                  `json:"owner"`
 	Stage      string                                  `json:"stage,omitempty"`
 	Plan       string                                  `json:"plan,omitempty"`
-	Activation *contract.RecoveryImportActivateRequest `json:"activation,omitempty"`
+	Activation *contractrecovery.ImportActivateRequest `json:"activation,omitempty"`
 }
 
 func (s *Store) AddRecoveryImport(ctx context.Context, item RecoveryImportRecord) error {
@@ -78,7 +79,7 @@ func (s *Store) RecoveryImport(ctx context.Context, id string) (RecoveryImportRe
 	if err != nil {
 		return item, err
 	}
-	if len(data) > maxRecoveryImportMetadata || json.Unmarshal([]byte(data), &item) != nil || item.ID != id || item.State != state || !validRecoveryImportState(state) || item.ExpiresAt.UnixMilli() != expiry || item.Owner == "" || len(item.Owner) > 256 || item.Size < 0 || item.Size > contract.MaxRecoveryDataBytes {
+	if len(data) > maxRecoveryImportMetadata || json.Unmarshal([]byte(data), &item) != nil || item.ID != id || item.State != state || !validRecoveryImportState(state) || item.ExpiresAt.UnixMilli() != expiry || item.Owner == "" || len(item.Owner) > 256 || item.Size < 0 || item.Size > contractrecovery.MaxDataBytes {
 		return item, errors.New("invalid recovery upload metadata")
 	}
 	if state == "uploaded" || state == "previewed" || state == "activating" {

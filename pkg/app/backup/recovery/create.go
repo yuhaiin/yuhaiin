@@ -13,7 +13,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	backupsnapshot "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/snapshot"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
@@ -23,15 +23,15 @@ import (
 type CreateOptions struct {
 	ConfirmedMaintenance bool
 	IncludeHistory       bool
-	Runtime              *contract.RecoveryRuntime
+	Runtime              *contractrecovery.Runtime
 }
 
 // Create creates a complete, encrypted snapshot set through the
 // existing backup/storage owners. The service and external identity/certificate
 // writers must be stopped. The lifecycle lock excludes cooperating instances;
 // the explicit maintenance acknowledgement also covers older/embedded writers.
-func Create(ctx context.Context, directory, destination string, key backuparchive.Encryption, options CreateOptions) (contract.RecoveryManifest, error) {
-	var empty contract.RecoveryManifest
+func Create(ctx context.Context, directory, destination string, key backuparchive.Encryption, options CreateOptions) (contractrecovery.Manifest, error) {
+	var empty contractrecovery.Manifest
 	if err := key.Validate(); err != nil {
 		return empty, err
 	}
@@ -73,9 +73,9 @@ func Create(ctx context.Context, directory, destination string, key backuparchiv
 		return empty, err
 	}
 	defer os.RemoveAll(snapshot)
-	manifest := contract.RecoveryManifest{
+	manifest := contractrecovery.Manifest{
 		ID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance", IncludesHistory: options.IncludeHistory,
-		SourceDirectory: directory, Build: contract.RecoveryBuild{Version: version.Version, Commit: version.GitCommit, Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()},
+		SourceDirectory: directory, Build: contractrecovery.Build{Version: version.Version, Commit: version.GitCommit, Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()},
 	}
 	var databaseBytes int64
 	for _, database := range []struct{ name, kind, role string }{{"state.db", "configuration", "configuration_database"}, {"management.db", "management", "management_database"}} {
@@ -94,7 +94,7 @@ func Create(ctx context.Context, directory, destination string, key backuparchiv
 			return empty, err
 		}
 		databaseBytes += info.Size()
-		manifest.Files = append(manifest.Files, contract.RecoveryFile{Path: database.name, Role: database.role, SchemaVersion: schema})
+		manifest.Files = append(manifest.Files, contractrecovery.File{Path: database.name, Role: database.role, SchemaVersion: schema})
 	}
 	// Validate every database before writing even the stable instance metadata.
 	instanceID, err := sqlite.RecoveryInstanceID(ctx, filepath.Join(directory, "state.db"), false)
