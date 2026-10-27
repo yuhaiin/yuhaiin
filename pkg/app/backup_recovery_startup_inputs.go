@@ -142,6 +142,18 @@ func (b *Backup) RecoveryRestoreStatus(ctx context.Context) (contract.RecoveryRe
 	if err := ctx.Err(); err != nil {
 		return contract.RecoveryRestoreStatus{}, err
 	}
+	tx, err := readRecoveryTransaction(b.dir)
+	if err != nil {
+		return contract.RecoveryRestoreStatus{}, err
+	}
+	if tx != nil {
+		if tx.Phase != "committed" {
+			return contract.RecoveryRestoreStatus{}, errors.New("restore has not completed its controlled startup checks")
+		}
+		// Commit is authoritative even if a failing filesystem prevented the
+		// best-effort last-result/history publication. Never show older success.
+		return contract.RecoveryRestoreStatus{Result: new(recoveryResult(*tx, "committed"))}, nil
+	}
 	result, err := LastRecoveryResult(b.dir)
 	return contract.RecoveryRestoreStatus{Result: result}, err
 }

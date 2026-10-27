@@ -59,6 +59,13 @@ func TestRecoveryManagedStartupCommitRestartAndRollback(t *testing.T) {
 	if err := startup.Complete(); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Remove(filepath.Join(directory, ".recovery-last-result.json")); err != nil {
+		t.Fatal(err)
+	}
+	committedStatus, err := (&Backup{dir: directory}).RecoveryRestoreStatus(t.Context())
+	if err != nil || committedStatus.Result == nil || committedStatus.Result.TransactionID != tx.ID || committedStatus.Result.State != "committed" {
+		t.Fatal("committed journal lost precedence over unavailable history", err)
+	}
 	assertBinding(tx.Runtime)
 	if _, err := PrepareRecoveryStartup(directory, lifecycle, tx.Runtime); err != nil {
 		t.Fatal(err)
@@ -88,6 +95,9 @@ func TestRecoveryManagedStartupCommitRestartAndRollback(t *testing.T) {
 	secondStartup, err := PrepareRecoveryStartup(directory, lifecycle, second.Runtime)
 	if err != nil || secondStartup == nil {
 		t.Fatal(err)
+	}
+	if _, err := (&Backup{dir: directory}).RecoveryRestoreStatus(t.Context()); err == nil {
+		t.Fatal("unverified startup advertised a previous successful restore")
 	}
 	if err := secondStartup.Abort(); err != nil {
 		t.Fatal(err)
