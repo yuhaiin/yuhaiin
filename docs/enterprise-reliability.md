@@ -271,3 +271,16 @@ file also enable `recovery fetch` without opening deployment databases.
 [Workflow and measurements](managed-recovery-backups.md#recover-a-missing-or-damaged-local-s3-copy).
 These operations do not implement safe-update schema/recovery-point coordination
 or ACME; those remain required.
+
+## Update target compatibility
+
+Published release assets now include checksum-bound schema/CPU manifests generated
+on the build host without running the target binary. Update admission, downloaded
+bytes and privileged helpers are checked independently against actual read-only
+live-WAL schema catalogs; history preserves only proven self-binary capabilities.
+Unknown/incompatible binary rollback is refused, and the UI shows current/target
+schemas and missing recovery coordination. No SQLite migration is required.
+
+This is a precondition for the remaining paired recovery-point/update transaction,
+not completion of safe updates. Migration-requiring automatic installation remains
+refused until that integration exists. See [behavior, tests and resource measurements](update-rollback.md#verified-target-schema-preflight).

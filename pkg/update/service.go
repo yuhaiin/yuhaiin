@@ -26,6 +26,7 @@ import (
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/update/compatibility"
 	"golang.org/x/mod/semver"
 )
 
@@ -33,11 +34,12 @@ const defaultReleasesURL = "https://api.github.com/repos/yuhaiin/yuhaiin/release
 const updateHTTPTimeout = 30 * time.Minute
 
 type Asset struct {
-	Name        string
-	URL         string
-	ChecksumURL string
-	SHA256      string
-	Size        int64
+	Name             string
+	URL              string
+	ChecksumURL      string
+	CompatibilityURL string
+	SHA256           string
+	Size             int64
 }
 
 type Installer interface {
@@ -165,6 +167,17 @@ func (s *Service) Check(ctx context.Context, channel string) (contractupdate.Che
 	}
 	result.AssetSHA256 = checksum
 	result.UpdateAvailable = true
+	manifest, manifestErr := s.releaseCompatibility(ctx, selected.Asset)
+	if manifestErr != nil {
+		result.Compatibility = &contractupdate.CompatibilityStatus{State: "unknown", Reason: "release_manifest_unverified"}
+		result.Reason = manifestErr.Error()
+		return result, nil
+	}
+	status, inspectErr := s.inspectCompatibility(ctx, manifest)
+	result.Compatibility = &status
+	if inspectErr != nil {
+		result.Reason = "database compatibility inspection failed"
+	}
 	return result, nil
 }
 
@@ -209,6 +222,17 @@ func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest
 	if !ok || selected.Tag != request.TargetTag {
 		return fail(errors.New("requested release is no longer available"))
 	}
+	manifest, err := s.releaseCompatibility(ctx, selected.Asset)
+	if err != nil {
+		return fail(err)
+	}
+	compatibilityStatus, err := s.inspectCompatibility(ctx, manifest)
+	if err != nil {
+		return fail(err)
+	}
+	if compatibilityStatus.State != "compatible" {
+		return fail(errors.New("automatic installation requires a compatible schema; migrations require a coordinated recovery point"))
+	}
 	log.Info("software update release selected", "version", selected.Version, "tag", selected.Tag, "asset", selected.Asset.Name, "size", selected.Asset.Size)
 
 	s.mu.Lock()
@@ -226,8 +250,19 @@ func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest
 	return nil
 }
 
-func (s *Service) History(context.Context) (contractupdate.HistoryResult, error) {
+func (s *Service) History(ctx context.Context) (contractupdate.HistoryResult, error) {
 	entries, err := ListHistory(configuration.DataDir.Load())
+	for i := range entries {
+		status := contractupdate.CompatibilityStatus{State: "unknown", Reason: "history_manifest_unavailable"}
+		manifest, readErr := historyCompatibility(configuration.DataDir.Load(), entries[i].ID)
+		if readErr == nil {
+			status, readErr = s.inspectCompatibility(ctx, manifest)
+			if readErr != nil {
+				status.State = "unknown"
+			}
+		}
+		entries[i].Compatibility = &status
+	}
 	return contractupdate.HistoryResult{Items: entries}, err
 }
 
@@ -249,6 +284,17 @@ func (s *Service) Rollback(ctx context.Context, request contractupdate.RollbackR
 	if !slices.ContainsFunc(history, func(item contractupdate.HistoryEntry) bool { return item.ID == request.ID }) {
 		return errors.New("history version not found")
 	}
+	manifest, err := historyCompatibility(configuration.DataDir.Load(), request.ID)
+	if err != nil {
+		return errors.New("old binary has no verified schema descriptor; use offline recovery with matching databases")
+	}
+	status, err := s.inspectCompatibility(ctx, manifest)
+	if err != nil {
+		return err
+	}
+	if status.State != "compatible" {
+		return errors.New("binary rollback is incompatible with the current databases; restore a matching database recovery point offline")
+	}
 	provider, ok := s.installer.(stagingDirProvider)
 	if !ok {
 		return errors.New("rollback staging is unsupported")
@@ -266,6 +312,7 @@ func (s *Service) Rollback(ctx context.Context, request contractupdate.RollbackR
 			s.updateProgress("installing", 1, 1)
 			err = s.installer.Start(context.Background(), staged)
 			if err != nil {
+				_ = os.Remove(staged + compatibility.Suffix)
 				_ = os.Remove(staged)
 			}
 		}
@@ -416,6 +463,11 @@ func selectReleaseChannel(releases []release, current, currentCommit string, cur
 			continue
 		}
 		for _, a := range item.Assets {
+			if a.Name == assetName+compatibility.Suffix {
+				item.Asset.CompatibilityURL = a.URL
+			}
+		}
+		for _, a := range item.Assets {
 			if a.Name == "checksums.txt" {
 				item.Asset.ChecksumURL = a.URL
 				break
@@ -481,6 +533,12 @@ func normalizeChannel(channel string) string {
 }
 
 func (s *Service) downloadAndInstall(ctx context.Context, asset Asset) error {
+	ctx, cancel := context.WithTimeout(ctx, updateHTTPTimeout)
+	defer cancel()
+	manifest, err := s.releaseCompatibility(ctx, asset)
+	if err != nil {
+		return err
+	}
 	if asset.ChecksumURL == "" {
 		return errors.New("release checksum asset is missing")
 	}
@@ -537,10 +595,26 @@ func (s *Service) downloadAndInstall(ctx context.Context, asset Asset) error {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("checksum mismatch: got %s want %s", hash, want)
 	}
+	info, err := os.Stat(tmpPath)
+	if err != nil || info.Size() != manifest.Size || hash != manifest.SHA256 {
+		_ = os.Remove(tmpPath)
+		return errors.New("downloaded binary differs from the verified schema manifest")
+	}
+	status, err := s.inspectCompatibility(ctx, manifest)
+	if err != nil || status.State != "compatible" {
+		_ = os.Remove(tmpPath)
+		return errors.New("database compatibility changed before installation")
+	}
+	if err := writeStagedCompatibility(tmpPath, manifest); err != nil {
+		_ = os.Remove(tmpPath)
+		_ = os.Remove(tmpPath + compatibility.Suffix)
+		return err
+	}
 	log.Info("software update checksum verification passed", "asset", asset.Name)
 	s.updateProgress("installing", asset.Size, asset.Size)
 	log.Info("software update installer starting", "asset", asset.Name)
 	if err := s.installer.Start(ctx, tmpPath); err != nil {
+		_ = os.Remove(tmpPath + compatibility.Suffix)
 		_ = os.Remove(tmpPath)
 		return err
 	}
@@ -569,8 +643,14 @@ func download(ctx context.Context, client *http.Client, rawURL string, dst *os.F
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("download failed: %s", resp.Status)
 	}
+	if resp.ContentLength > compatibility.MaxBinaryBytes {
+		return errors.New("update binary exceeds 512 MiB")
+	}
 	writer := progressWriter{writer: dst, total: resp.ContentLength, progress: progress}
-	_, err = io.Copy(&writer, io.LimitReader(resp.Body, 512<<20))
+	n, err := io.Copy(&writer, io.LimitReader(resp.Body, compatibility.MaxBinaryBytes+1))
+	if n > compatibility.MaxBinaryBytes {
+		return errors.New("update binary exceeds 512 MiB")
+	}
 	return err
 }
 
@@ -603,20 +683,35 @@ func downloadText(ctx context.Context, client *http.Client, rawURL string) (stri
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", fmt.Errorf("checksum download failed: %s", resp.Status)
 	}
-	b, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	b, err := io.ReadAll(io.LimitReader(resp.Body, (4<<20)+1))
+	if len(b) > 4<<20 {
+		return "", errors.New("release checksum file exceeds 4 MiB")
+	}
 	return string(b), err
 }
 
 func parseChecksum(text, name string) (string, error) {
+	var found string
 	for line := range strings.SplitSeq(text, "\n") {
 		fields := strings.Fields(line)
-		if len(fields) >= 2 && filepath.Base(fields[len(fields)-1]) == name && len(fields[0]) == sha256.Size*2 {
-			if _, err := hex.DecodeString(fields[0]); err == nil {
-				return fields[0], nil
-			}
+		if len(fields) < 2 || filepath.Base(fields[len(fields)-1]) != name {
+			continue
 		}
+		if found != "" {
+			return "", errors.New("release has ambiguous duplicate checksums")
+		}
+		if len(fields[0]) != sha256.Size*2 {
+			return "", errors.New("invalid release checksum")
+		}
+		if _, err := hex.DecodeString(fields[0]); err != nil {
+			return "", errors.New("invalid release checksum")
+		}
+		found = strings.ToLower(fields[0])
 	}
-	return "", fmt.Errorf("checksum for %s is missing", name)
+	if found == "" {
+		return "", fmt.Errorf("checksum for %s is missing", name)
+	}
+	return found, nil
 }
 
 func fileSHA256(path string) (string, error) {

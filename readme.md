@@ -277,3 +277,8 @@ Scheduling and transfers live in `pkg/app/backup`; deployment snapshots,
 activation and startup rollback live in `pkg/app/backup/recovery`. SQLite metadata
 lives in `pkg/store/backup`, and the encrypted format in `pkg/store/backup/archive`.
 Tests follow their owners; the parent application assembles the existing runtime.
+
+Software update checks now validate checksum-bound target schema catalogs against
+live SQLite/WAL state without executing prospective binaries. Unknown or incompatible
+old binaries cannot be automatically restored. Database-migrating targets require
+the pending coordinated update recovery-point workflow; [scope and offline steps](docs/update-rollback.md#verified-target-schema-preflight).

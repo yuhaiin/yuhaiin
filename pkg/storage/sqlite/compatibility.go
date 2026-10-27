@@ -59,7 +59,7 @@ func migrationPrefix(ctx context.Context, reader migrationReader, known []Migrat
 // Check before journal-mode changes and bootstrap writes. Empty databases and
 // the empty base tables left before the first migration are valid. Existing
 // stores must have an exact known prefix, including names and metadata version.
-func checkStoreCompatibility(ctx context.Context, db *sql.DB, kind string) error {
+func checkStoreCompatibility(ctx context.Context, db migrationReader, kind string) error {
 	known, err := knownMigrations(kind)
 	if err != nil {
 		return err

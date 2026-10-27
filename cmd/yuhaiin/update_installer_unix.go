@@ -77,7 +77,10 @@ func (u *serviceUpdateInstaller) Supported() (bool, string) {
 	return true, ""
 }
 
-func (u *serviceUpdateInstaller) Start(_ context.Context, staged string) error {
+func (u *serviceUpdateInstaller) Start(ctx context.Context, staged string) error {
+	if _, _, err := updatepkg.InspectStagedCompatibility(ctx, staged, u.dataDir); err != nil {
+		return err
+	}
 	if filepath.Dir(staged) != filepath.Dir(u.target) {
 		return errors.New("update must be staged beside the installed executable")
 	}
@@ -108,6 +111,15 @@ func updateHelper(args []string) error {
 		return errors.New("update-helper requires target and staged paths")
 	}
 	target, staged, dataDir := args[0], args[1], args[2]
+	if err := validateUpdateStaging(target, staged); err != nil {
+		return err
+	}
+	defer os.Remove(staged)
+	defer os.Remove(staged + ".update.json")
+	if _, _, err := updatepkg.InspectStagedCompatibility(context.Background(), staged, dataDir); err != nil {
+		return err
+	}
+
 	maintenance, err := lockfile.Acquire(filepath.Join(dataDir, ".recovery-maintenance.lock"))
 	if err != nil {
 		return err
@@ -153,6 +165,10 @@ func updateHelper(args []string) error {
 		}
 	} else if err := exec.Command(manager, stopArgs...).Run(); err != nil {
 		return fmt.Errorf("stop service: %w", err)
+	}
+	if _, _, err := updatepkg.InspectStagedCompatibility(context.Background(), staged, dataDir); err != nil {
+		restoreService()
+		return err
 	}
 	if err := updatepkg.SaveHistory(dataDir, target, version.Version, version.GitCommit); err != nil {
 		restoreService()

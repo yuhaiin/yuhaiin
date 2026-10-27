@@ -22,6 +22,11 @@ on:
       - 'pkg/net/latency/**'
       - 'pkg/store/**'
       - 'pkg/storage/sqlite/**'
+      - 'pkg/update/**'
+      - 'pkg/contract/update/**'
+      - 'cmd/update-metadata/**'
+      - 'scripts/build/release.sh'
+      - '.github/workflows/build-binary.yml'
       - 'pkg/httpapi/**'
       - 'pkg/management/auth/**'
       - 'cmd/android/**'
@@ -75,7 +80,7 @@ jobs:
         run: |
           go test -race -count=1 -timeout=180s \
             ./pkg/node ./pkg/net/latency ./pkg/store ./pkg/store/backup/... ./pkg/httpapi ./pkg/s3 \
-            ./pkg/storage/sqlite ./pkg/management/auth ./cmd/android ./cmd/yuhaiin ./pkg/utils/lockfile \
+            ./pkg/storage/sqlite ./pkg/update/... ./cmd/update-metadata ./pkg/management/auth ./cmd/android ./cmd/yuhaiin ./pkg/utils/lockfile \
             ./pkg/inbound ./pkg/route ./pkg/app ./pkg/app/backup/... ./pkg/net/trafficcontrol ./pkg/net/proxy/direct \
             ./pkg/net/proxy/openvpn/... ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/softether/... \
             ./pkg/net/proxy/globalprotect ./pkg/net/proxy/tailscale
@@ -96,6 +101,8 @@ jobs:
         run: |
           go test ./pkg/node -run '^$' -bench 'BenchmarkSelector|BenchmarkProbeScheduler|BenchmarkObservedPacketSend|BenchmarkNativeSelectionAvailability' \
             -benchmem -benchtime=300ms -count=2
+      - name: Update schema compatibility benchmark
+        run: go test ./pkg/update/compatibility -run '^$' -bench '^BenchmarkObservedSchemaCompatibility$' -benchmem -benchtime=300ms -count=2
       - name: Backup transfer and archive benchmarks
         run: |
           go test ./pkg/s3 -run '^$' -bench '^BenchmarkS3Upload$' -benchmem -benchtime=300ms -count=2
