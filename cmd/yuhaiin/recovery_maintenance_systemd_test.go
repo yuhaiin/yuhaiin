@@ -306,6 +306,39 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if completed.Verification != "s3_ciphertext_readback" || completed.Size < 1 {
 		t.Fatal("readback was not recorded")
 	}
+	archivePath := filepath.Join(directory, ".recovery-archives", completed.ID+".yhb")
+	if err := os.Remove(archivePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := rpc(t.Context(), "backup.recovery.status", struct{}{}, &status); err != nil || len(status.Items) == 0 || status.Items[0].LocalState != "missing" {
+		t.Fatal("missing local S3 archive was not reported", err)
+	}
+	retrieveRequest := contract.RecoveryRetrieveRequest{ID: completed.ID, ConfirmDownload: true, ConfirmReplace: true}
+	retrievalBody, err := json.Marshal(retrieveRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retrieveDenied, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://localhost:50051/api/v2/rpc/backup.recovery.retrieve", bytes.NewReader(retrievalBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	retrieveDenied.Header.Set("Authorization", "Session "+readerSession.Secret)
+	deniedRetrieval, err := client.Do(retrieveDenied)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = deniedRetrieval.Body.Close()
+	if deniedRetrieval.StatusCode != http.StatusForbidden {
+		t.Fatal("read-only principal retrieved an S3 archive")
+	}
+	retrievalPID := pid("yuhaiin.service")
+	var retrieved contract.RecoveryBackup
+	if err := rpc(t.Context(), "backup.recovery.retrieve", retrieveRequest, &retrieved); err != nil {
+		t.Fatal(err)
+	}
+	if retrieved.LocalState != "present" || retrieved.Retrieval != "verified" || retrieved.ArchiveCheck != "" || pid("yuhaiin.service") != retrievalPID {
+		t.Fatal("S3 retrieval did not recover the ciphertext without activating the deployment")
+	}
 	var manifest contract.RecoveryManifest
 	if err := rpc(t.Context(), "backup.recovery.verify", contract.RecoveryVerifyRequest{ID: completed.ID, Identity: identity.String()}, &manifest); err != nil {
 		t.Fatal(err)
@@ -340,7 +373,6 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	// Import/preview runs while the real service and SQLite owners stay active.
 	// The private input is sent only in an authenticated bounded HTTPS body.
 	previewPID := pid("yuhaiin.service")
-	archivePath := filepath.Join(directory, ".recovery-archives", completed.ID+".yhb")
 	upload := func(secret string) (contract.RecoveryImport, int, error) {
 		var item contract.RecoveryImport
 		archive, err := os.Open(archivePath)

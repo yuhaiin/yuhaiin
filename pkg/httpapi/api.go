@@ -48,6 +48,10 @@ type RecoveryImportController interface {
 	DiscardRecoveryImport(context.Context, string) error
 }
 
+type RecoveryBackupRetriever interface {
+	RetrieveRecoveryBackup(context.Context, contractbackup.RecoveryRetrieveRequest) (contractbackup.RecoveryBackup, error)
+}
+
 type RecoveryImportActivator interface {
 	ActivateRecoveryImport(context.Context, contractbackup.RecoveryImportActivateRequest) (contractbackup.RecoveryImport, error)
 }

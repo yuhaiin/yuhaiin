@@ -31,6 +31,7 @@ var v2RPCBodyLimits = map[v2Endpoint]int64{
 	v2RecoveryImportPreview:  16 << 10,
 	v2RecoveryImportActivate: 16 << 10,
 	v2RecoveryBackupVerify:   16 << 10,
+	v2RecoveryBackupRetrieve: 4 << 10,
 }
 
 const (
@@ -57,6 +58,7 @@ const (
 	v2RecoveryBackupDelete     v2Endpoint = "backup.recovery.delete"
 	v2RecoveryBackupRetry      v2Endpoint = "backup.recovery.retry"
 	v2RecoveryBackupVerify     v2Endpoint = "backup.recovery.verify"
+	v2RecoveryBackupRetrieve   v2Endpoint = "backup.recovery.retrieve"
 	v2RecoveryImportList       v2Endpoint = "backup.recovery.imports"
 	v2RecoveryImportUpload     v2Endpoint = "backup.recovery.import.upload"
 	v2RecoveryImportPreview    v2Endpoint = "backup.recovery.import.preview"
@@ -209,6 +211,7 @@ var v2Routes = []v2Route{
 	{v2RecoveryBackupDelete, "DELETE /api/v2/backup/recovery/{id}"},
 	{v2RecoveryBackupRetry, "POST /api/v2/backup/recovery/{id}/retry"},
 	{v2RecoveryBackupVerify, "POST /api/v2/backup/recovery/{id}/verify"},
+	{v2RecoveryBackupRetrieve, "POST /api/v2/backup/recovery/{id}/retrieve"},
 	{v2RecoveryImportList, "GET /api/v2/backup/recovery/imports"},
 	{v2RecoveryImportUpload, "POST /api/v2/backup/recovery/imports"},
 	{v2RecoveryImportPreview, "POST /api/v2/backup/recovery/imports/{id}/preview"},

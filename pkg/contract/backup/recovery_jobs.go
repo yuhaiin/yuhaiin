@@ -33,6 +33,17 @@ type RecoveryBackup struct {
 	UploadAttempts   int       `json:"uploadAttempts"`
 	ArchiveCheck     string    `json:"archiveCheck,omitempty"`
 	ArchiveCheckedAt time.Time `json:"archiveCheckedAt,omitzero"`
+	// LocalState is observed by the runtime, never trusted as a durable file lease.
+	LocalState         string    `json:"localState,omitempty"`
+	Retrieval          string    `json:"retrieval,omitempty"`
+	RetrievalErrorCode string    `json:"retrievalErrorCode,omitempty"`
+	RetrievedAt        time.Time `json:"retrievedAt,omitzero"`
+}
+
+type RecoveryRetrieveRequest struct {
+	ID              string `json:"id"`
+	ConfirmDownload bool   `json:"confirmDownload"`
+	ConfirmReplace  bool   `json:"confirmReplace"`
 }
 
 // Decryption material is transient request input. It is never stored in backup

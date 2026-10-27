@@ -323,3 +323,122 @@ limit while running that KDF, without a reported data race. The updated combined
 suite passed locally with affinity limited to two CPUs and GOMAXPROCS=2: recovery
 83.3 s, online backup 92.9 s. The package deadline and behavioral assertions were
 retained. These are test-resource measurements, not forwarding or WAN benchmarks.
+
+## Recover a missing or damaged local S3 copy
+
+The history distinguishes **Local copy missing**, a present private regular file
+with the recorded size, and unavailable/incorrect-size/incorrect-permission files.
+Presence is a fresh filesystem observation, not proof of decryption or a retained
+file lease. Merely opening or refreshing the page never downloads S3 objects.
+
+For a previously verified S3 upload, choose **Retrieve / repair local copy** and
+confirm the displayed download size and possible replacement. Retrieval:
+
+- Reuses the recorded object key, size and SHA-256, the existing S3 client and
+  governed outbound proxy. It never accepts a request-supplied endpoint or key.
+- Refuses disabled or changed S3 configuration, including changed credentials;
+  restore the original settings first. It validates the original UUID namespace.
+- Uses the existing shared backup operation lease, excludes active archive
+  readers and retention/deletion, and admits one transfer at a time. Service
+  shutdown cancels it. The deadline is the shorter of the recorded policy timeout
+  and ten minutes; the hard ciphertext size limit remains 100 GiB.
+- Streams to an exclusive owner-only `ARCHIVE.yhb.download` file beside the final
+  archive. It checks initial capacity for the full download and rechecks free
+  space during writes, preserving the existing 256 MiB deployment reserve.
+- Validates the exact byte count and SHA-256 before publication and directory
+  synchronization. A missing destination is published exclusively; repair keeps
+  the old copy until the replacement is completely verified. Symlinks are refused.
+  Normal transfer, integrity or cancellation failures before publication preserve
+  the old copy and remove temporary output. A filesystem failure after publication
+  can leave a verified copy while reporting failure; refresh and explicitly verify.
+
+The page supports cancellation and records running/verified/failed/cancelled/
+interrupted retrieval separately from upload evidence and authenticated archive
+checks. Lost HTTP responses and cancellation near publication require refreshing
+history; the UI never claims an uncertain request rolled back or retries it
+silently. Restart removes only temporary output for a recorded running retrieval,
+marks it interrupted, and does not automatically redownload. An inaccessible or
+aliased temporary file requires operator filesystem repair. A valid existing
+local copy is checked and reused without another download.
+
+**Ciphertext retrieval is not deployment restoration or decryption verification.**
+Use **Verify archive** with the external private backup identity, then the existing
+upload/authenticated preview/confirmed restore workflow. The transfer result does
+not overwrite earlier archive-authentication failures. A previous `verified`
+upload state describes its original readback, not a guarantee that S3 objects can
+never subsequently be removed or changed.
+
+### Fetch when the deployment and its history are unavailable
+
+Use **Save recovery metadata** while the history is available. Retain that small
+JSON record outside the deployment, alongside a separately protected S3 settings
+file and the external backup identity. The metadata contains public backup and
+instance IDs, object key, ciphertext length/digest and operation status. It never
+contains S3 credentials or a private decryption identity. Protect its integrity:
+a SHA-256 supplied by the same untrusted server as the object is not independent
+verification.
+
+For example, create `/private/s3.json` with owner-only permissions and the existing
+S3 contract (supply actual values privately; do not paste secrets into commands):
+
+```json
+{
+  "enabled": true,
+  "endpointUrl": "https://s3.example.invalid",
+  "region": "us-east-1",
+  "bucket": "deployment-backups",
+  "accessKey": "SET_PRIVATELY",
+  "secretKey": "SET_PRIVATELY",
+  "usePathStyle": true
+}
+```
+
+```sh
+yuhaiin recovery fetch -archive /backups/retrieved.yhb \
+  -s3-config-file /private/s3.json -metadata-file /private/saved-point.json \
+  -timeout 30m
+yuhaiin recovery verify -archive /backups/retrieved.yhb \
+  -identity-file /private/recovery.key
+```
+
+`fetch` shares the streamed downloader and size/digest/publication checks. It opens
+no deployment database or listener, does not need a running service, and uses the
+system network explicitly configured by this offline operation. Unlike runtime
+retrieval, no live Routing/Traffic Control owner is available. HTTPS certificates
+are verified. The output path must not already exist; the CLI never replaces it.
+An interrupted CLI `.download` file must be inspected and removed manually before
+retrying. No keys appear in JSON/parser/provider diagnostics. Continue with the
+existing offline preview/restore and original-versus-clone identity confirmations;
+fetch itself never activates files. If independent history metadata was lost,
+use the S3 provider's download tools and authenticate the archive with the existing
+`recovery verify`; do not manufacture a trusted digest from the object itself.
+
+The optional retrieval fields are additive JSON in migration 21's existing
+`backup_recovery_history.data_json`; no table, schema-version increment or new
+SQLite owner is needed. Runtime presence is not persisted.
+
+### Verification and local resource measurements
+
+Deterministic local HTTP/TLS tests cover missing copies, explicit repair consent,
+same-size corruption, truncation, fixed/chunked oversized objects, cancellation,
+changed destinations/credentials, wrong object ownership, byte/space budgets,
+reader/deletion/concurrent-transfer exclusion, restart cleanup and rejected TLS.
+A real encrypted deployment archive is retrieved, decrypted and inventory-checked.
+The installed-systemd drill removes its actual local archive, verifies permission
+rejection, retrieves through the live API without changing the PID, then completes
+authentication and actual original/clone service restoration.
+
+Run the loopback resource benchmark with:
+
+```sh
+go test ./pkg/app/backup -run '^$' -bench '^BenchmarkRecoveryArchiveRetrieval$' \
+  -benchmem -benchtime=300ms -count=2
+```
+
+On this AMD Ryzen 5 5600G Linux/amd64 host, 1 MiB took 1.71–1.75 ms and
+16 MiB took 23.2–23.5 ms. Measured allocations were 95.6–99.6 KB/operation
+and 704–728 allocations/operation. Both sizes include client creation, S3 signing,
+disk writes, hashing and synchronized publication. The immutable HTTP fixture is
+allocated before measurement; B/op is not peak RSS. There is no equivalent parent
+operation for a before/after comparison, and these are local filesystem/loopback
+results, not a WAN speed claim. [Raw results](benchmarks/data/s3-retrieval-2026-10-27/retrieval.txt).

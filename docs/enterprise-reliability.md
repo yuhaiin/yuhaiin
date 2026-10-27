@@ -259,3 +259,15 @@ assets against deliberately incompatible host flags; original flags remain the
 default without an opted-in restore. See
 [startup and rollback](recovery-archive.md#activation-real-startup-and-rollback).
 The Web activation request now persists exact-preview identity confirmations and hands off to an independent installed-service helper. Migration 23 serializes admission; its startup checks and crash fallback reuse this integration. See the [confirmed Web workflow](managed-recovery-backups.md#confirmed-web-activation).
+
+## S3 archive retrieval
+
+Verified S3 history items support explicit streamed local retrieval/repair through
+the existing backup lease and governed S3 proxy, with size/SHA-256 checks before
+publication, finite time/byte/disk budgets, cancellation and interrupted-transfer
+cleanup. The UI distinguishes local presence, retrieval evidence and authenticated
+archive checks. Exported public history metadata plus an owner-only S3 settings
+file also enable `recovery fetch` without opening deployment databases.
+[Workflow and measurements](managed-recovery-backups.md#recover-a-missing-or-damaged-local-s3-copy).
+These operations do not implement safe-update schema/recovery-point coordination
+or ACME; those remain required.

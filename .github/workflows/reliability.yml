@@ -54,7 +54,7 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y --no-install-recommends podman
           fi
-      - name: Actual service capture, S3 readback, authentication and crash restart
+      - name: Actual capture, missing-archive S3 retrieval, restore and crash restart
         run: |
           python3 -m unittest discover -s scripts/bench/recovery-maintenance -p 'test_*.py'
           python3 scripts/bench/recovery-maintenance/run.py --rootful
@@ -102,6 +102,7 @@ jobs:
           go test ./pkg/store/backup/archive -run '^$' -bench '^BenchmarkRecoveryArchiveExternalRecipient$' -benchmem -benchtime=300ms -count=2
           go test ./pkg/app/backup/recovery -run '^$' -bench '^BenchmarkFullRecoveryCreateExternalRecipient$' -benchmem -benchtime=300ms -count=2
           go test ./pkg/app/backup/recovery -run '^$' -bench '^BenchmarkFullRecoveryRestoreExternalRecipient$' -benchmem -benchtime=300ms -count=2
+          go test ./pkg/app/backup -run '^$' -bench '^BenchmarkRecoveryArchiveRetrieval$' -benchmem -benchtime=300ms -count=2
           go test ./pkg/app/backup -run '^$' -bench '^BenchmarkRecoveryImportStaging$' -benchmem -benchtime=300ms -count=2
       - uses: golangci/golangci-lint-action@v9
         with:

@@ -161,8 +161,10 @@ func openManagedRecoveryArchive(directory, id string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	if present, err := backupfs.Destination(root, relative, false); err != nil || !present {
-		return nil, errors.New("managed archive is unavailable")
+	if present, err := backupfs.Destination(root, relative, false); err != nil {
+		return nil, err
+	} else if !present {
+		return nil, os.ErrNotExist
 	}
 	file, err := root.Open(relative)
 	if err != nil {

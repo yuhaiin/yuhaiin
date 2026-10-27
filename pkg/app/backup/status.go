@@ -23,6 +23,9 @@ func (b *Backup) RecoveryBackups(ctx context.Context) (contract.RecoveryBackupSt
 	out.Items, err = b.store.RecoveryHistory(ctx)
 	if err == nil {
 		b.compileBackupMetrics(version, out.Items)
+		for i := range out.Items {
+			out.Items[i].LocalState = localRecoveryArchiveState(b.dir, out.Items[i])
+		}
 	}
 	return out, err
 }

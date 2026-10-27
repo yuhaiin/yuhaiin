@@ -95,3 +95,15 @@ func (a v2API) verifyRecoveryBackup(ctx context.Context, request *contract.Recov
 	}
 	return &manifest, nil
 }
+
+func (a v2API) retrieveRecoveryBackup(ctx context.Context, request *contract.RecoveryRetrieveRequest) (*contract.RecoveryBackup, error) {
+	owner, ok := a.services.Backup.(RecoveryBackupRetriever)
+	if !ok {
+		return nil, unavailable("recovery retrieval is unavailable")
+	}
+	item, err := owner.RetrieveRecoveryBackup(ctx, *request)
+	if err != nil {
+		return nil, badRequest(err)
+	}
+	return &item, nil
+}

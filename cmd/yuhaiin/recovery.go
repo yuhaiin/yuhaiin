@@ -14,9 +14,11 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app"
+	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 )
@@ -32,7 +34,7 @@ func recoveryCommand(args []string) error {
 // writer owners. Restoration is committed only by a later healthy server start.
 func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: yuhaiin recovery <keygen|create|verify|preview|restore|rollback> -help")
+		return errors.New("usage: yuhaiin recovery <keygen|create|fetch|verify|preview|restore|rollback> -help")
 	}
 	action := args[0]
 	flags := flag.NewFlagSet("recovery", flag.ContinueOnError)
@@ -60,6 +62,8 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 	transaction := flags.String("transaction-id", "", "pending transaction UUID for offline rollback")
 	allowVersionChange := flags.Bool("allow-version-change", false, "acknowledge reviewed application version difference; unsupported schemas remain rejected")
 	adoptStartup := flags.Bool("adopt-startup", false, "persist the restored TLS/authentication/listener/file inputs for subsequent server starts")
+	s3ConfigFile := flags.String("s3-config-file", "", "owner-only JSON S3 settings for explicit offline fetch through the system network")
+	metadataFile := flags.String("metadata-file", "", "independently retained JSON recovery history item for offline fetch")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -76,6 +80,24 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 		return err
 	}
 	switch action {
+	case "fetch":
+		if *archive == "" || *s3ConfigFile == "" || *metadataFile == "" || *identityFile != "" || *passphraseFile != "" {
+			return errors.New("fetch requires -archive, -s3-config-file and -metadata-file; decrypt separately using verify")
+		}
+		var options contract.S3
+		if err := readRecoveryJSONFile(*s3ConfigFile, &options, true); err != nil {
+			return err
+		}
+		var expected contract.RecoveryBackup
+		if err := readRecoveryJSONFile(*metadataFile, &expected, false); err != nil {
+			return err
+		}
+		if err := backupapp.FetchArchive(ctx, *archive, options, expected, direct.Default, false); err != nil {
+			return err
+		}
+		return json.MarshalWrite(output, struct {
+			State string `json:"state"`
+		}{"ciphertext_verified"})
 	case "rollback":
 		if *transaction == "" || *archive != "" || *identityFile != "" || *passphraseFile != "" {
 			return errors.New("rollback requires -transaction-id, -path and -maintenance")
@@ -168,8 +190,28 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 		defer prepared.Close()
 		return json.MarshalWrite(output, prepared.Manifest)
 	default:
-		return errors.New("unknown recovery action; use keygen, create, verify, preview, restore or rollback")
+		return errors.New("unknown recovery action; use keygen, create, fetch, verify, preview, restore or rollback")
 	}
+}
+
+func readRecoveryJSONFile(path string, output any, private bool) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return errors.New("cannot open recovery JSON input")
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 64<<10 || (private && runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0) {
+		return errors.New("recovery JSON input must be a bounded regular file; S3 settings require owner-only permissions")
+	}
+	data, err := io.ReadAll(io.LimitReader(file, (64<<10)+1))
+	if err != nil || len(data) > 64<<10 {
+		return errors.New("recovery JSON input exceeds its size limit")
+	}
+	if err := json.Unmarshal(data, output); err != nil {
+		return errors.New("invalid recovery JSON input")
+	}
+	return nil
 }
 
 func readRecoverySecretFile(path string) (string, error) {

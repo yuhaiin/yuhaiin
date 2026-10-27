@@ -255,6 +255,9 @@ Encrypted full snapshots, external backup keys, offline restore preview and cras
 
 Managed full encrypted local/S3 backups, confirmed service maintenance, archive
 verification/download and retention: [managed recovery backups](docs/managed-recovery-backups.md).
+Missing or damaged local S3 copies can be explicitly retrieved and repaired with
+size/digest checks. Retain public recovery metadata separately for the offline
+`recovery fetch` command; [retrieval workflow](docs/managed-recovery-backups.md#recover-a-missing-or-damaged-local-s3-copy).
 Web restore activation is available on root-owned Linux systemd deployments;
 safe-update coordination and other service hosts remain in progress.
 

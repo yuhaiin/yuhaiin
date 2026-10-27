@@ -38,6 +38,7 @@ func addFacadeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2RecoveryBackupDelete, api.deleteRecoveryBackup)
 	addRPCRoute(handlers, v2RecoveryBackupRetry, api.retryRecoveryBackup)
 	addRPCRoute(handlers, v2RecoveryBackupVerify, api.verifyRecoveryBackup)
+	addRPCRoute(handlers, v2RecoveryBackupRetrieve, api.retrieveRecoveryBackup)
 	addRPCRoute(handlers, v2RecoveryImportList, api.recoveryImports)
 	handlers.add(v2RecoveryImportUpload, recoveryImportUpload(services))
 	addRPCRoute(handlers, v2RecoveryImportPreview, api.previewRecoveryImport)

@@ -128,6 +128,7 @@ func (s *Store) RecoveryJob(ctx context.Context, id string) (RecoveryJob, error)
 // SaveRecoveryJob cannot let an old upload/maintenance process overwrite a newer
 // transition. The expected state also protects explicit deletion leases.
 func (s *Store) SaveRecoveryJob(ctx context.Context, job RecoveryJob, expected string) error {
+	job.LocalState = ""
 	if !validRecoveryJobID(job.ID) || !validRecoveryJobState(job.State) || !validRecoveryJobState(expected) {
 		return errors.New("invalid backup identifier")
 	}

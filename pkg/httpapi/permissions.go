@@ -24,6 +24,7 @@ var v2Permissions = map[v2Endpoint]managementpermission.Permission{
 	v2RecoveryBackupDelete:     managementpermission.BackupManage,
 	v2RecoveryBackupRetry:      managementpermission.BackupManage,
 	v2RecoveryBackupVerify:     managementpermission.BackupManage,
+	v2RecoveryBackupRetrieve:   managementpermission.BackupManage,
 	v2RecoveryImportList:       managementpermission.BackupManage,
 	v2RecoveryImportUpload:     managementpermission.BackupManage,
 	v2RecoveryImportPreview:    managementpermission.BackupManage,

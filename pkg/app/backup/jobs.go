@@ -143,6 +143,9 @@ func (b *Backup) resumeRecoveryBackups(ctx context.Context) error {
 // Captures are never adopted without their completed authenticated publication;
 // interrupted uploads restart from the unchanged encrypted local archive.
 func (b *Backup) recoverInterruptedBackups(ctx context.Context) error {
+	if err := b.recoverInterruptedRetrievals(ctx); err != nil {
+		return err
+	}
 	items, err := b.store.RecoveryPending(ctx)
 	if err != nil {
 		return err
