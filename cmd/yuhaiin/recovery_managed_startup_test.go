@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"filippo.io/age"
-	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
+	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
@@ -28,7 +28,7 @@ func TestRecoveryManagedStartupServiceDrill(t *testing.T) {
 	if action := os.Getenv(actionVariable); action != "" {
 		directory := os.Getenv(directoryVariable)
 		wait = func(ctx context.Context, listeners ...net.Listener) error {
-			result, err := backupapp.LastRecoveryResult(directory)
+			result, err := recovery.LastResult(directory)
 			if err != nil || result == nil || !result.AdoptStartup || result.Runtime.ManagementTLS != "files" {
 				return errors.New("service did not commit its managed file certificate")
 			}
@@ -205,7 +205,7 @@ func TestRecoveryManagedStartupServiceDrill(t *testing.T) {
 			if err != nil || !bytes.Equal(before, after) {
 				t.Fatal("managed rollback changed the original database", err)
 			}
-			result, err := backupapp.LastRecoveryResult(target)
+			result, err := recovery.LastResult(target)
 			if err != nil || result == nil || result.State != "rolled_back" || result.Runtime != first.Runtime || result.InstanceID != first.InstanceID || !result.AdoptStartup {
 				t.Fatal("managed rollback lost its preceding binding", err)
 			}

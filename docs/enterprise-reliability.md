@@ -220,14 +220,26 @@ snapshots with no SQLite work on scrape.
 
 ## Web recovery preview
 
-Backup implementation is grouped under `pkg/app/backup` (runtime scheduling,
-transfers, inventory and recovery transactions) and `pkg/store/backup` (existing
-SQLite settings/history/import records and the streaming archive codec). Tests
-and benchmarks live beside their implementation. Application assembly injects
-only the optional maintenance interface rather than the whole AppInstance;
+Backup responsibilities have distinct owners:
+
+- `pkg/app/backup`: one scheduler and operation lease, managed jobs, transfers,
+  retention, metrics and expiring Web import records.
+- `pkg/app/backup/recovery`: deployment inventory and snapshots, authenticated
+  restore planning, file activation, startup validation and rollback.
+- `pkg/store/backup`: existing SQLite settings, history, import records and
+  recorded startup inputs.
+- `pkg/store/backup/archive`: encryption, versioned streaming format, confined
+  plaintext staging and authenticated manifest/database validation.
+
+The scheduler consumes an opaque prepared import plan rather than constructing
+or interpreting file transactions. Shared filesystem and snapshot rules are
+internal packages, with one source of truth for permissions, path confinement,
+space limits and runtime-table policy. Tests and benchmarks live beside their
+owners; deployment fixtures are shared only by tests. Application assembly
+injects the optional maintenance interface rather than the whole AppInstance;
 actual application-owner readiness checks remain in `pkg/app/recovery_health.go`.
-There are no root-package forwarding constructors or duplicate stores. The SQL
-schema, archive format, management contracts and lifecycle ownership are unchanged.
+The SQL schema, archive format, management contracts and lifecycle ownership are
+unchanged by this refactoring.
 
 Migration 22 adds expiring, principal-bound import records to BackupStore.
 Encrypted uploads and original/clone previews reuse the existing archive codec

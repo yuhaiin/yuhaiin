@@ -8,13 +8,14 @@ import (
 	"uuid"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 )
 
 // RecordRecoveryRuntime stores observed startup inputs so an offline backup
 // can locate external listener files and resolve relative protocol references.
 // Configuration exports deliberately omit these metadata keys.
 func (s *Store) RecordRecoveryRuntime(ctx context.Context, inputs contract.RecoveryRuntime) error {
-	if err := ValidateRecoveryRuntime(inputs); err != nil {
+	if err := backuparchive.ValidateRuntime(inputs); err != nil {
 		return err
 	}
 	data, err := json.Marshal(inputs)

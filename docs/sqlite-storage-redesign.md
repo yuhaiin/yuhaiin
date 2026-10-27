@@ -1125,7 +1125,7 @@ Refactor these areas to stop depending on generic `Batch/View`:
 - `pkg/route/rule.go`
 - `pkg/route/list.go`
 - `pkg/inbound/store.go`
-- `pkg/app/backup/backup.go` for snapshot-based backup/restore instead of logical JSON assembly
+- `pkg/app/backup/configuration.go` for snapshot-based backup/restore instead of logical JSON assembly
 - `cmd/android/store.go`
 - `cmd/android/yuhaiin.go`
 

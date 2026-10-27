@@ -14,6 +14,7 @@ import (
 	"uuid"
 
 	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
+	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 )
 
 type installedRecoveryMaintainer struct{ directory string }
@@ -83,7 +84,7 @@ func recoveryMaintenanceHelper(args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 24*time.Hour+2*time.Minute)
 	defer cancel()
-	return backupapp.RunRecoveryCapture(ctx, args[0], args[1], installedRecoveryService{})
+	return recovery.Capture(ctx, args[0], args[1], installedRecoveryService{})
 }
 
 func recoveryMaintenanceRestartHelper(args []string) error {
@@ -92,5 +93,5 @@ func recoveryMaintenanceRestartHelper(args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	return backupapp.RestartRecoveryService(ctx, args[0], args[1], installedRecoveryService{})
+	return recovery.RestartService(ctx, args[0], args[1], installedRecoveryService{})
 }

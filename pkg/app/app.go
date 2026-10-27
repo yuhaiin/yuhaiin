@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
+	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
@@ -19,21 +20,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/response"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
-	"github.com/Asutorufa/yuhaiin/pkg/node"
-	"github.com/Asutorufa/yuhaiin/pkg/paths"
-	"github.com/Asutorufa/yuhaiin/pkg/resolver"
-	"github.com/Asutorufa/yuhaiin/pkg/route"
-	"github.com/Asutorufa/yuhaiin/pkg/statistics"
-	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
-	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/aead"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/amneziawg"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/anyconnect"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/drop"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
@@ -61,6 +51,7 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/softether"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/ssh"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/sstp"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"
@@ -71,6 +62,15 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/zerotier"
+	"github.com/Asutorufa/yuhaiin/pkg/node"
+	"github.com/Asutorufa/yuhaiin/pkg/paths"
+	"github.com/Asutorufa/yuhaiin/pkg/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/route"
+	"github.com/Asutorufa/yuhaiin/pkg/statistics"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
+	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var operators = []func(*closers){}
@@ -82,7 +82,7 @@ func AddCloser[T io.Closer](a *closers, name string, t T) T {
 }
 
 func Start(so *StartOptions) (_ *AppInstance, err error) {
-	if err := backupapp.CheckStartup(so.ConfigPath, so.RecoveryStartupID); err != nil {
+	if err := recovery.CheckStartup(so.ConfigPath, so.RecoveryStartupID); err != nil {
 		return nil, err
 	}
 	configuration.DataDir.Store(so.ConfigPath)

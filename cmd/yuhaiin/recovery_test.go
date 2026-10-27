@@ -17,6 +17,7 @@ import (
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
+	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
@@ -63,7 +64,7 @@ func TestRecoveryCLIKeyGenerationAndOfflineVerification(t *testing.T) {
 	}
 	manifest := contract.RecoveryManifest{ID: uuid.New().String(), InstanceID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance", Build: contract.RecoveryBuild{Version: "fixture", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()}, Files: []contract.RecoveryFile{{Path: "state.db", Role: "configuration_database", SchemaVersion: 22}}}
 	archive := filepath.Join(directory, "full.yhb")
-	if _, err := backupstore.WriteRecoveryArchiveFile(t.Context(), archive, snapshot, manifest, backupstore.RecoveryEncryption{Recipient: generated.Recipient}); err != nil {
+	if _, err := backuparchive.WriteFile(t.Context(), archive, snapshot, manifest, backuparchive.Encryption{Recipient: generated.Recipient}); err != nil {
 		t.Fatal(err)
 	}
 	stdout.Reset()

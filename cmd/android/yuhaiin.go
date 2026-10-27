@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app"
-	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
+	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -91,7 +91,7 @@ func (a *App) Start(opt *Opts) error {
 			_ = configLock.Close()
 		}
 	}()
-	if err := backupapp.GuardRecoveryMaintenance(savepath); err != nil {
+	if err := recovery.GuardMaintenance(savepath); err != nil {
 		return err
 	}
 

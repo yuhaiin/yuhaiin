@@ -11,10 +11,11 @@ import (
 	"testing"
 
 	"filippo.io/age"
-	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
+	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
+	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 )
 
 func TestPendingRecoveryBlocksAndroidOwnersBeforeDatabaseWrites(t *testing.T) {
@@ -37,7 +38,7 @@ func TestPendingRecoveryBlocksAndroidOwnersBeforeDatabaseWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	archive := filepath.Join(t.TempDir(), "full.yhb")
-	manifest, err := backupapp.CreateOfflineRecovery(t.Context(), source, archive, backupstore.RecoveryEncryption{Recipient: identity.Recipient().String()}, backupapp.RecoveryCreateOptions{ConfirmedMaintenance: true})
+	manifest, err := recovery.Create(t.Context(), source, archive, backuparchive.Encryption{Recipient: identity.Recipient().String()}, recovery.CreateOptions{ConfirmedMaintenance: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +47,7 @@ func TestPendingRecoveryBlocksAndroidOwnersBeforeDatabaseWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer input.Close()
-	_, err = backupapp.RestoreOfflineRecovery(t.Context(), target, input, backupstore.RecoveryDecryption{Identity: identity.String()}, backupapp.RecoveryRestoreOptions{
+	_, err = recovery.Restore(t.Context(), target, input, backuparchive.Decryption{Identity: identity.String()}, recovery.RestoreOptions{
 		Mode: "original", ConfirmedMaintenance: true, ConfirmBackupID: manifest.ID,
 		ConfirmSourceInstanceID: manifest.InstanceID, ConfirmTargetInstanceID: "empty",
 		ConfirmSourceStopped: true, ConfirmCredentialRevival: true,

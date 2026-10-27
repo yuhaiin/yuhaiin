@@ -72,9 +72,9 @@ jobs:
       - name: Deterministic scheduler and race coverage
         run: |
           go test -race -count=1 -timeout=180s \
-            ./pkg/node ./pkg/net/latency ./pkg/store ./pkg/store/backup ./pkg/httpapi ./pkg/s3 \
+            ./pkg/node ./pkg/net/latency ./pkg/store ./pkg/store/backup/... ./pkg/httpapi ./pkg/s3 \
             ./pkg/storage/sqlite ./pkg/management/auth ./cmd/android ./cmd/yuhaiin ./pkg/utils/lockfile \
-            ./pkg/inbound ./pkg/route ./pkg/app ./pkg/app/backup ./pkg/net/trafficcontrol ./pkg/net/proxy/direct \
+            ./pkg/inbound ./pkg/route ./pkg/app ./pkg/app/backup/... ./pkg/net/trafficcontrol ./pkg/net/proxy/direct \
             ./pkg/net/proxy/openvpn/... ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/softether/... \
             ./pkg/net/proxy/globalprotect ./pkg/net/proxy/tailscale
       - name: Keep offline identity inventory independent of unsupported native bridges
@@ -97,9 +97,9 @@ jobs:
       - name: Backup transfer and archive benchmarks
         run: |
           go test ./pkg/s3 -run '^$' -bench '^BenchmarkS3Upload$' -benchmem -benchtime=300ms -count=2
-          go test ./pkg/store/backup -run '^$' -bench '^BenchmarkRecoveryArchiveExternalRecipient$' -benchmem -benchtime=300ms -count=2
-          go test ./pkg/app/backup -run '^$' -bench '^BenchmarkFullRecoveryCreateExternalRecipient$' -benchmem -benchtime=300ms -count=2
-          go test ./pkg/app/backup -run '^$' -bench '^BenchmarkFullRecoveryRestoreExternalRecipient$' -benchmem -benchtime=300ms -count=2
+          go test ./pkg/store/backup/archive -run '^$' -bench '^BenchmarkRecoveryArchiveExternalRecipient$' -benchmem -benchtime=300ms -count=2
+          go test ./pkg/app/backup/recovery -run '^$' -bench '^BenchmarkFullRecoveryCreateExternalRecipient$' -benchmem -benchtime=300ms -count=2
+          go test ./pkg/app/backup/recovery -run '^$' -bench '^BenchmarkFullRecoveryRestoreExternalRecipient$' -benchmem -benchtime=300ms -count=2
           go test ./pkg/app/backup -run '^$' -bench '^BenchmarkRecoveryImportStaging$' -benchmem -benchtime=300ms -count=2
       - uses: golangci/golangci-lint-action@v9
         with:

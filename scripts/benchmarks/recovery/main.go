@@ -12,10 +12,11 @@ import (
 	"path/filepath"
 	"time"
 
-	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
+	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
+	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 )
 
 func main() {
@@ -52,7 +53,7 @@ func run() (resultErr error) {
 		}
 	}()
 	identityFile := filepath.Join(keyDirectory, "identity")
-	recipient, err := backupstore.GenerateRecoveryIdentityFile(ctx, identityFile)
+	recipient, err := backuparchive.GenerateIdentityFile(ctx, identityFile)
 	if err != nil {
 		return err
 	}
@@ -88,7 +89,7 @@ func run() (resultErr error) {
 		return closeErr
 	}
 	archive := filepath.Join(root, "full.yhb")
-	manifest, err := backupapp.CreateOfflineRecovery(ctx, source, archive, backupstore.RecoveryEncryption{Recipient: recipient}, backupapp.RecoveryCreateOptions{ConfirmedMaintenance: true})
+	manifest, err := recovery.Create(ctx, source, archive, backuparchive.Encryption{Recipient: recipient}, recovery.CreateOptions{ConfirmedMaintenance: true})
 	if err != nil {
 		return err
 	}

@@ -268,5 +268,7 @@ The Backup page reports the latest actual restore commit or rollback. Offline
 restores can explicitly adopt relocated startup inputs across service restarts;
 failed subsequent restores recover the previous startup binding with the original
 files. See [startup adoption](docs/recovery-archive.md#activation-real-startup-and-rollback).
-Implementation and its tests are grouped in `pkg/app/backup` and
-`pkg/store/backup`; the parent application assembles the existing owners.
+Scheduling and transfers live in `pkg/app/backup`; deployment snapshots,
+activation and startup rollback live in `pkg/app/backup/recovery`. SQLite metadata
+lives in `pkg/store/backup`, and the encrypted format in `pkg/store/backup/archive`.
+Tests follow their owners; the parent application assembles the existing runtime.
