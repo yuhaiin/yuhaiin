@@ -516,3 +516,63 @@ creation remained about 324–339/95 ns in this fake-transport microbenchmark;
 failover about 717–754/426–428 ns. Existing real loopback/churn qualification
 remains separate. No runtime probes, ranking or SQLite reads were added to
 packet/connection forwarding.
+
+## Observed traffic window and recent TCP dial outcomes
+
+`RuntimeStatus.trafficWindow` extends the existing node observer with a volatile
+mean of observed logical transfer bytes, including probe/test traffic. Its
+12-bucket ring follows the existing five-second sampling tick, covers at most
+the last minute and reports actual sampled coverage as `windowMs`. Startup and
+a partially filled ring can cover less than a minute. Intervals are weighted by
+elapsed time; the oldest partial bucket is proportionally clipped, so this is
+a bucketed estimate rather than an exact arrival-time trace. Idle zero-byte
+intervals remain in the mean. Current per-tick Bps, window-average Bps and
+active target/time-specific Mbps are distinct values in the Nodes detail view.
+
+A sampling gap over ten seconds, reversed time, a wall/monotonic discrepancy over
+one second or a decreased byte counter resets the ring. Status reads omit
+snapshots older than ten seconds or from the future. This also covers platforms
+whose monotonic clock pauses during suspend. Restarting starts a new window from
+the existing persisted cumulative byte baseline; historical bytes do not become
+a new traffic spike. Volatile windows add no backup/schema state or migration.
+
+`recentTcpDials` reports the failure fraction and sample count of eligible
+transport `connect` outcomes in the existing shared health history, filtered to
+120 seconds and hard-bounded to its latest 64 entries. Other health events can
+occupy that history, so this is a retained-sample summary. Later I/O failures,
+application responses, active probe records and lazy UDP session creation are
+excluded; no retained dial observations produce an omitted summary, not a zero
+failure claim. Existing health/error classification determines which failures
+enter the history. This ratio describes TCP dial creation, not complete request
+success or UDP reachability.
+
+The observer remains the sole window producer. Immutable atomic snapshots are
+copied for status readers; no timers/workers, SQLite reads or rate calculations
+are added to connection/packet forwarding. Rate fields are excluded from the
+persisted totals, and `TestPassiveRateUpdatesDoNotCauseIdleSQLiteWrites` verifies
+that changing idle window timestamps does not cause a SQLite write. Active
+capacity ranking continues to use its existing independently fresh measurements.
+
+Deterministic tests cover actual coverage, jitter weighting, partial clipping,
+idle intervals, suspend/clock/counter resets, freshness, mutable-reader isolation,
+concurrent reads, bounded dial classification and actual SQLite restart baseline.
+The Node overview shows details in a collapsed section and retains existing
+statistics/native status. EN/JA/KO unit and real-browser fixtures cover both old
+servers with absent fields and separate observed/active metrics at 1440/360/320 px.
+
+Raw resource results:
+`docs/benchmarks/data/passive-window-2026-10-28/local.txt`. Reproduce with:
+
+```sh
+go test ./pkg/node -run '^$' \
+  -bench 'BenchmarkPassiveRateSampling|BenchmarkSelectorConnectionCreation' \
+  -benchmem -benchtime=300ms -count=3
+```
+
+The recorded Linux/amd64 run uses 776 bytes per window ring, plus its atomic
+pointer and published snapshot. Updating 100/1,000 windows takes about
+54/549–550 microseconds, with 5,600/56,000 allocated bytes per whole batch; the
+existing tick performs these batches once per five seconds. The added cold
+fields follow the existing hot counters. Fake-transport connection admission
+retains the preceding allocation counts. These figures exclude complete process
+RSS, SQLite traffic persistence, TLS/VPN resources and real-link capacity.

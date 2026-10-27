@@ -20,7 +20,7 @@ Further work continues in these two PRs, both targeting main.
 Implemented in those PRs:
 
 - Opt-in selector policy and schema 18; old manual configurations/exports retained.
-- Independent TCP/UDP evidence extending existing node observability.
+- Independent TCP/UDP evidence extending existing node observability; bounded observed-traffic means, recent TCP dial summaries and distinct active-test metrics in Node details.
 - Six strategy calculations, fresh comparable RTT and active-capacity semantics.
 - Hysteresis, hold/cooldown, sticky failover, manual lock and explicit fallback.
 - Precomputed immutable snapshots and weighted new-connection admission.

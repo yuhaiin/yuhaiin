@@ -98,9 +98,9 @@ jobs:
               exit 1
             fi
           done
-      - name: Selection and scheduler benchmarks
+      - name: Selection, observer and bounded measurement benchmarks
         run: |
-          go test ./pkg/node -run '^$' -bench 'BenchmarkSelector|BenchmarkProbeScheduler|BenchmarkObservedPacketSend|BenchmarkNativeSelectionAvailability' \
+          go test ./pkg/node ./pkg/net/latency -run '^$' -bench 'BenchmarkSelector|BenchmarkPassiveRateSampling|BenchmarkUploadBalancedRanking|BenchmarkUploadStreamingBody|BenchmarkProbeScheduler|BenchmarkObservedPacketSend|BenchmarkNativeSelectionAvailability' \
             -benchmem -benchtime=300ms -count=2
       - name: Update schema compatibility and protected coordinator benchmarks
         run: |

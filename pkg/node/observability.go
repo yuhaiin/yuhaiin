@@ -63,6 +63,8 @@ type nodeCounters struct {
 	mu                                                   sync.Mutex
 	lastError                                            string
 	probes                                               map[string]contract.ProbeStatus
+	trafficWindow                                        nodeTrafficWindow
+	window                                               atomic.Pointer[contract.TrafficWindow]
 }
 
 func (n *nodeCounters) snapshot() nodeTotals {
@@ -205,6 +207,7 @@ func (n *nodeCounters) status(id string) contract.RuntimeStatus {
 		state = "healthy"
 	}
 	return contract.RuntimeStatus{
+		TrafficWindow: n.freshTrafficWindow(now / int64(time.Millisecond)), RecentTCPDials: recentTCPDials(v.TCPHealth, now/int64(time.Millisecond)),
 		TCPHealth: v.TCPHealth, UDPHealth: v.UDPHealth, Throughput: v.Throughput, UploadThroughput: v.UploadThroughput, ThroughputHistory: v.ThroughputHistory,
 		ID: id, State: state, UploadBytes: strconv.FormatUint(v.UploadBytes, 10),
 		DownloadBytes:  strconv.FormatUint(v.DownloadBytes, 10),
@@ -319,7 +322,8 @@ func (o *nodeObserver) flushLocked(ctx context.Context) error {
 	}
 	changed := make(map[string]nodeTotals)
 	nowSample := time.Now()
-	elapsed := nowSample.Sub(o.lastSample).Seconds()
+	previousSample := o.lastSample
+	elapsed := nowSample.Sub(previousSample).Seconds()
 	if elapsed <= 0 {
 		elapsed = 1
 	}
@@ -327,6 +331,7 @@ func (o *nodeObserver) flushLocked(ctx context.Context) error {
 	for id, n := range o.nodes {
 		v := n.snapshot()
 		last := o.lastRates[id]
+		n.sampleTraffic(previousSample, nowSample, last, v)
 		if v.UploadBytes >= last[0] {
 			n.uploadBps.Store(uint64(float64(v.UploadBytes-last[0]) / elapsed))
 		}

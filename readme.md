@@ -291,3 +291,8 @@ and observation owners, with explicit supported-endpoint consent, shared hard
 budgets and independent download/upload freshness. See the
 [measurement guide](docs/intelligent-selectors.md#explicit-upload-measurements)
 for the protocol and optional separate HTTPS endpoint tool.
+
+Node details distinguish observed current/window-average transfer rates from
+active target/time-specific measurements and recent retained TCP dial failures.
+The window uses the existing observer, resets after restart/suspend and adds no
+forwarding work or database migration. See the [observation guide](docs/intelligent-selectors.md#observed-traffic-window-and-recent-tcp-dial-outcomes).

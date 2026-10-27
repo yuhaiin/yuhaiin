@@ -11,6 +11,8 @@ type ProbeStatus struct {
 // evicted or reconfigured. Byte/packet totals are decimal strings so browsers
 // do not lose precision beyond JavaScript's 53-bit integer limit.
 type RuntimeStatus struct {
+	TrafficWindow     *TrafficWindow          `json:"trafficWindow,omitzero"`
+	RecentTCPDials    *DialObservationWindow  `json:"recentTcpDials,omitzero"`
 	ID                string                  `json:"id"`
 	State             string                  `json:"state"`
 	UploadBytes       string                  `json:"uploadBytes"`
@@ -144,4 +146,25 @@ type SelectorScoreComponents struct {
 	Stability float64 `json:"stability"`
 	Jitter    float64 `json:"jitter"`
 	Load      float64 `json:"load"`
+}
+
+// TrafficWindow is a volatile, bucketed mean of observed logical node traffic,
+// including test traffic. WindowMS reports actual sampled coverage, at most a
+// minute. It resets after restart/clock gaps and is never a capacity estimate.
+type TrafficWindow struct {
+	At          int64  `json:"at"`
+	WindowMS    int64  `json:"windowMs"`
+	UploadBps   string `json:"uploadBps"`
+	DownloadBps string `json:"downloadBps"`
+}
+
+// DialObservationWindow summarizes recent connect events retained in existing
+// health history. It excludes application/I/O/probe events and says nothing
+// about lazy UDP reachability or end-to-end application request success.
+type DialObservationWindow struct {
+	WindowMS    int64   `json:"windowMs"`
+	SampleLimit int     `json:"sampleLimit"`
+	Samples     int     `json:"samples"`
+	Failures    int     `json:"failures"`
+	FailureRate float64 `json:"failureRate"`
 }
