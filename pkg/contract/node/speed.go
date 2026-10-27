@@ -10,6 +10,8 @@ const MaxDailySpeedBudget int64 = 1 << 30
 // SpeedTestRequest is an explicit administrator action. No automatic tests are
 // enabled by creating a selector. Zero limits select conservative defaults.
 type SpeedTestRequest struct {
+	Direction        string `json:"direction,omitempty"`
+	AllowUpload      bool   `json:"allowUpload,omitzero"`
 	URL              string `json:"url"`
 	MaxBytes         int64  `json:"maxBytes,omitzero"`
 	DurationMS       int64  `json:"durationMs,omitzero"`
@@ -18,6 +20,9 @@ type SpeedTestRequest struct {
 }
 
 func (r SpeedTestRequest) Effective() SpeedTestRequest {
+	if r.Direction == "" {
+		r.Direction = "download"
+	}
 	if r.MaxBytes == 0 {
 		r.MaxBytes = 4 << 20
 	}
@@ -34,6 +39,12 @@ func (r SpeedTestRequest) Effective() SpeedTestRequest {
 }
 func (r SpeedTestRequest) Validate() error {
 	r = r.Effective()
+	if r.Direction != "download" && r.Direction != "upload" {
+		return errors.New("unsupported speed test direction")
+	}
+	if r.Direction == "upload" && !r.AllowUpload {
+		return errors.New("upload test requires explicit supported-endpoint consent")
+	}
 	if err := validateHTTPSProbeURL(r.URL); err != nil {
 		return err
 	}

@@ -29,7 +29,7 @@ func (o *nodeObserver) invalidateHealth(id string) {
 	n.generation.Store(o.nextGeneration.Add(1))
 	n.circuitListeners.Store(nil)
 	n.tcpHealth, n.udpHealth = contract.ChannelHealth{}, contract.ChannelHealth{}
-	n.throughput = contract.ThroughputMeasurement{}
+	n.throughput, n.uploadThroughput = contract.ThroughputMeasurement{}, contract.ThroughputMeasurement{}
 }
 func (r *NodeRuntime) cachedNode(ctx context.Context, id string) (contract.Node, uint64, error) {
 	if _, err := r.openNodes(ctx); err != nil {

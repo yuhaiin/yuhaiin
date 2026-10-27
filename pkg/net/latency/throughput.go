@@ -37,6 +37,9 @@ func MeasureDownload(ctx context.Context, p netapi.Proxy, request contract.Speed
 
 func measureDownload(ctx context.Context, p netapi.Proxy, request contract.SpeedTestRequest, tlsConfig *tls.Config) (contract.ThroughputMeasurement, error) {
 	r, err := ValidateSpeedTest(request)
+	if err == nil && r.Direction != "download" {
+		err = errors.New("download measurement requires download direction")
+	}
 	if err != nil {
 		return contract.ThroughputMeasurement{}, err
 	}
@@ -45,23 +48,9 @@ func measureDownload(ctx context.Context, p netapi.Proxy, request contract.Speed
 	timeoutCtx := ctx
 	ctx, finish := context.WithCancelCause(ctx)
 	defer finish(nil)
-	probeCtx := ctx
-	connections := new(probeConnections)
-	defer connections.close()
-	result := contract.ThroughputMeasurement{At: time.Now().UnixMilli(), Target: r.URL}
-	tr := &http.Transport{TLSClientConfig: tlsConfig, DisableCompression: true, DisableKeepAlives: true, MaxResponseHeaderBytes: 32 << 10, DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-		a, err := netapi.ParseAddress(network, address)
-		if err != nil {
-			return nil, err
-		}
-		c, err := p.Conn(ctx, a)
-		if err != nil {
-			return nil, err
-		}
-		return connections.bind(probeCtx, c)
-	}}
-	defer tr.CloseIdleConnections()
-	hc := &http.Client{Transport: tr, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+	result := contract.ThroughputMeasurement{At: time.Now().UnixMilli(), Target: r.URL, Direction: "download"}
+	hc, closeClient := speedHTTPClient(ctx, p, tlsConfig)
+	defer closeClient()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.URL, nil)
 	if err != nil {
 		return result, err
@@ -110,4 +99,23 @@ func measureDownload(ctx context.Context, p netapi.Proxy, request contract.Speed
 	result.OK, result.Samples = true, 1
 	result.DownloadMbps = float64(n) * 8 / elapsed.Seconds() / 1e6
 	return result, nil
+}
+
+// Both directions bind every HTTP connection to the specified candidate and
+// cancellation lifetime. No default proxy, redirect, TLS bypass or replay body.
+func speedHTTPClient(ctx context.Context, p netapi.Proxy, tlsConfig *tls.Config) (*http.Client, func()) {
+	connections := new(probeConnections)
+	tr := &http.Transport{TLSClientConfig: tlsConfig, DisableCompression: true, DisableKeepAlives: true, MaxResponseHeaderBytes: 32 << 10, DialContext: func(dialCtx context.Context, network, address string) (net.Conn, error) {
+		a, err := netapi.ParseAddress(network, address)
+		if err != nil {
+			return nil, err
+		}
+		c, err := p.Conn(dialCtx, a)
+		if err != nil {
+			return nil, err
+		}
+		return connections.bind(ctx, c)
+	}}
+	hc := &http.Client{Transport: tr, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	return hc, func() { tr.CloseIdleConnections(); connections.close() }
 }

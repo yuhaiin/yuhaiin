@@ -50,10 +50,11 @@ func measurementOutcome(err error, ok bool) string {
 }
 
 type reliabilityMetrics struct {
-	probes, speed, switches, suppressed *prometheus.CounterVec
-	rtt                                 *prometheus.HistogramVec
-	download                            prometheus.Histogram
-	latestSpeed                         atomic.Pointer[contract.ThroughputMeasurement]
+	probes, speed, uploadTests, switches, suppressed *prometheus.CounterVec
+	rtt                                              *prometheus.HistogramVec
+	download, upload                                 prometheus.Histogram
+	latestUpload                                     atomic.Pointer[contract.ThroughputMeasurement]
+	latestSpeed                                      atomic.Pointer[contract.ThroughputMeasurement]
 }
 
 func newReliabilityMetrics() *reliabilityMetrics {
@@ -61,12 +62,14 @@ func newReliabilityMetrics() *reliabilityMetrics {
 		return prometheus.NewCounterVec(prometheus.CounterOpts{Name: "yuhaiin_outbound_" + name, Help: help}, labels)
 	}
 	return &reliabilityMetrics{
-		probes:     counter("probes_total", "Completed manual/scheduled probe outcomes, including local skips.", "kind", "outcome"),
-		speed:      counter("speed_tests_total", "Manual/scheduled active download test outcomes.", "outcome"),
-		switches:   counter("selector_switches_total", "Compiled selector changes after initial selection.", "network", "mode", "reason"),
-		suppressed: counter("selector_suppressed_total", "Decision evaluations retaining the current choice due to hysteresis/hold rules.", "network", "mode", "reason"),
-		rtt:        prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "yuhaiin_outbound_probe_rtt_seconds", Help: "Successful complete probe duration excluding admission/bandwidth wait.", Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 15, 30}}, []string{"kind"}),
-		download:   prometheus.NewHistogram(prometheus.HistogramOpts{Name: "yuhaiin_outbound_active_download_mbps", Help: "Successful target/time-specific active download measurements, including applied traffic limits; not business Bps or capacity guarantees.", Buckets: []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500}}),
+		uploadTests: counter("upload_tests_total", "Manual/scheduled opt-in active upload test outcomes.", "outcome"),
+		probes:      counter("probes_total", "Completed manual/scheduled probe outcomes, including local skips.", "kind", "outcome"),
+		speed:       counter("speed_tests_total", "Manual/scheduled active download test outcomes.", "outcome"),
+		switches:    counter("selector_switches_total", "Compiled selector changes after initial selection.", "network", "mode", "reason"),
+		suppressed:  counter("selector_suppressed_total", "Decision evaluations retaining the current choice due to hysteresis/hold rules.", "network", "mode", "reason"),
+		rtt:         prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "yuhaiin_outbound_probe_rtt_seconds", Help: "Successful complete probe duration excluding admission/bandwidth wait.", Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 15, 30}}, []string{"kind"}),
+		upload:      prometheus.NewHistogram(prometheus.HistogramOpts{Name: "yuhaiin_outbound_active_upload_mbps", Help: "Successful target/time-specific active upload measurements acknowledged by the configured endpoint; not business Bps or capacity guarantees.", Buckets: []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500}}),
+		download:    prometheus.NewHistogram(prometheus.HistogramOpts{Name: "yuhaiin_outbound_active_download_mbps", Help: "Successful target/time-specific active download measurements, including applied traffic limits; not business Bps or capacity guarantees.", Buckets: []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500}}),
 	}
 }
 func (m *reliabilityMetrics) observeProbe(kind string, ok bool, err error, duration time.Duration) {
@@ -78,6 +81,18 @@ func (m *reliabilityMetrics) observeProbe(kind string, ok bool, err error, durat
 	}
 }
 func (m *reliabilityMetrics) observeSpeed(value contract.ThroughputMeasurement, err error) {
+	if value.Direction == "upload" {
+		m.uploadTests.WithLabelValues(measurementOutcome(err, value.OK)).Inc()
+		if value.At == 0 {
+			return
+		}
+		value.OK = err == nil && value.OK
+		m.latestUpload.Store(new(value))
+		if value.OK {
+			m.upload.Observe(value.UploadMbps)
+		}
+		return
+	}
 	m.speed.WithLabelValues(measurementOutcome(err, value.OK)).Inc()
 	if value.At == 0 {
 		return
@@ -89,7 +104,7 @@ func (m *reliabilityMetrics) observeSpeed(value contract.ThroughputMeasurement, 
 	}
 }
 func (m *reliabilityMetrics) collectors() []prometheus.Collector {
-	return []prometheus.Collector{m.probes, m.speed, m.switches, m.suppressed, m.rtt, m.download}
+	return []prometheus.Collector{m.probes, m.speed, m.switches, m.suppressed, m.rtt, m.download, m.uploadTests, m.upload}
 }
 
 type decisionMetricKey struct{ network, mode, reason string }
@@ -127,6 +142,7 @@ func (s *selectorRuntime) compileMetrics(next *selectorSnapshot) {
 }
 
 type outboundCollector struct {
+	lastUploadOK, lastUploadAt, lastUploadMbps                           *prometheus.Desc
 	runtime                                                              *NodeRuntime
 	decisions, circuits, active, limit, policy, lastOK, lastAt, lastMbps *prometheus.Desc
 }
@@ -138,21 +154,24 @@ func (r *NodeRuntime) Metrics() prometheus.Collector {
 		return prometheus.NewDesc("yuhaiin_outbound_"+name, help, labels, nil)
 	}
 	return &outboundCollector{runtime: r,
-		decisions: desc("selector_decisions", "Configured selector count per current decision; identities are available through the management API.", "network", "mode", "reason"),
-		circuits:  desc("circuits", "Unique shared circuit instances per channel/state (different threshold policies may own different instances).", "network", "state"),
-		active:    desc("measurements_active", "Manual and periodic measurements currently admitted, including local bandwidth wait."),
-		limit:     desc("measurement_limit", "Configured shared measurement admission limit."),
-		policy:    desc("measurement_policy", "Measurement policy scope, one for the current state and zero for others.", "state"),
-		lastOK:    desc("last_speed_success", "One if the latest completed active speed test succeeded."),
-		lastAt:    desc("last_speed_timestamp_seconds", "Timestamp of the latest completed active speed test (not a capacity freshness guarantee)."),
-		lastMbps:  desc("last_measured_download_mbps", "Latest completed active measured download Mbps; check success/timestamp before use."),
+		decisions:      desc("selector_decisions", "Configured selector count per current decision; identities are available through the management API.", "network", "mode", "reason"),
+		circuits:       desc("circuits", "Unique shared circuit instances per channel/state (different threshold policies may own different instances).", "network", "state"),
+		active:         desc("measurements_active", "Manual and periodic measurements currently admitted, including local bandwidth wait."),
+		limit:          desc("measurement_limit", "Configured shared measurement admission limit."),
+		policy:         desc("measurement_policy", "Measurement policy scope, one for the current state and zero for others.", "state"),
+		lastUploadOK:   desc("last_upload_success", "One if the latest completed active upload test succeeded."),
+		lastUploadAt:   desc("last_upload_timestamp_seconds", "Timestamp of the latest completed active upload test."),
+		lastUploadMbps: desc("last_measured_upload_mbps", "Latest acknowledged measured upload Mbps; check success/timestamp before use."),
+		lastOK:         desc("last_speed_success", "One if the latest completed active speed test succeeded."),
+		lastAt:         desc("last_speed_timestamp_seconds", "Timestamp of the latest completed active speed test (not a capacity freshness guarantee)."),
+		lastMbps:       desc("last_measured_download_mbps", "Latest completed active measured download Mbps; check success/timestamp before use."),
 	}
 }
 func (c *outboundCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, collector := range c.runtime.metrics.collectors() {
 		collector.Describe(ch)
 	}
-	for _, d := range []*prometheus.Desc{c.decisions, c.circuits, c.active, c.limit, c.policy, c.lastOK, c.lastAt, c.lastMbps} {
+	for _, d := range []*prometheus.Desc{c.decisions, c.circuits, c.active, c.limit, c.policy, c.lastOK, c.lastAt, c.lastMbps, c.lastUploadOK, c.lastUploadAt, c.lastUploadMbps} {
 		ch <- d
 	}
 }
@@ -183,6 +202,16 @@ func (c *outboundCollector) Collect(ch chan<- prometheus.Metric) {
 		emit(c.lastAt, float64(latest.At)/1000)
 		emit(c.lastMbps, latest.DownloadMbps)
 	}
+	if latest := r.metrics.latestUpload.Load(); latest != nil {
+		ok := 0.
+		if latest.OK {
+			ok = 1
+		}
+		emit(c.lastUploadOK, ok)
+		emit(c.lastUploadAt, float64(latest.At)/1000)
+		emit(c.lastUploadMbps, latest.UploadMbps)
+	}
+
 	r.mu.Lock()
 	s := r.selectors
 	closed := r.closed

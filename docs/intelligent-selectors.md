@@ -88,9 +88,11 @@ Unknown states have no recent remote evidence. Disabled candidates never qualify
 Eligibility is evaluated before ranking. RTT modes require the minimum number
 of comparable valid samples. Throughput modes require successful, fresh active
 measurements for the exact configured `speedTarget`; passive business upload or
-download Bps never implies capacity. An upload weight/minimum requires an upload
-measurement; this delivery provides download tests only, so leave upload weights
-and minimums at zero. Jitter is a timing estimate, not packet-loss measurement.
+download Bps never implies capacity. Upload weights/minimums independently require
+fresh, successful upload measurements for `uploadTarget`. A new upload never
+refreshes download validity or its EWMA; legacy measurements with no direction
+are download-only. Upload-only balanced profiles do not require a download sample.
+Jitter is a timing estimate, not packet-loss measurement.
 
 Balanced components are bounded in `[0,1]`:
 
@@ -157,6 +159,90 @@ Periodic monitoring is disabled by default on all platforms. See the scheduler
 section below for explicit enablement and mobile/metered-network controls. Probe/speed targets are privileged administrator-chosen
 resources; do not delegate `nodes:write` to untrusted accounts. URL user-info and
 fragments are rejected for speed tests. URLs are never Prometheus label values.
+
+### Explicit upload measurements
+
+`node.speed` accepts `direction: "upload"` only with `allowUpload: true` and an
+administrator-configured HTTPS endpoint implementing the following protocol.
+The legacy omitted direction remains download. Upload tests use the same node,
+policy-bound proxy, admission slots, durable UTC reservation and transport-byte
+limiter as downloads. Neither selector creation nor editing upload weights starts
+a test. Periodic upload tests are independently disabled by default; configure
+optional `MonitoringConfig.uploadSpeed` or `SelectorPolicy.periodicUpload`.
+The same mobile/foreground, metered-network and established-VPN checks apply.
+Both directions share the two-test hard limit and one durable daily spend.
+
+Upload protocol version 1:
+
+1. Send HEAD to the exact configured URL with `Yuhaiin-Upload-Test: 1`.
+   Require HTTP 200/204 and the same response header before sending any payload.
+2. Send one non-rewindable POST to that URL, using uncompressed
+   `application/octet-stream`, identity response encoding and no cache.
+   Generate random bytes in bounded buffers until the byte/duration budget is
+   reached. Do not follow redirects or retry/replay the POST.
+3. Require HTTP 200, the same protocol header and an uncompressed JSON response
+   of at most 4 KiB: `{"version":1,"receivedBytes":8192}`. Reject duplicate or
+   unknown members, wrong version/count, early acknowledgement, partial body,
+   business errors, transport failures or fewer than 1 KiB of acknowledged data.
+
+Download and upload retain the same 4 MiB default/64 MiB maximum payload budget,
+5-second default/15-second maximum payload-generation window and 30-second hard
+whole-request timeout. In-flight delivery and acknowledgement must finish within
+the configured whole-request timeout. Upload Mbps uses acknowledged bytes from
+first body read through the complete acknowledgement, including final delivery
+and acknowledgement latency. HEAD/TLS setup is outside that window. This is a
+target/time-specific approximation and can underestimate path capacity.
+
+Selector `uploadTarget` and `uploadTest` control the saved target, explicit consent
+and limits independently of `speedTarget`/`speedTest`. A periodic override uses
+these saved test settings when present. Global settings and disabled overrides
+are inherited using the same rules as download scheduling. Manual requests do
+not turn on a periodic schedule. A wrong direction in either schedule slot is
+rejected. Failed/cancelled attempts still consume their reservation.
+
+Latest download (`throughput`) and upload (`uploadThroughput`) keep independent
+time, target, successful-sample count and EWMA in existing node statistics JSON.
+The existing 16-entry raw history includes both directions. Config generation
+changes invalidate both rankings. Repeated tests against the same target within
+two minutes accumulate samples independently. For infrequent periodic tests,
+choose a minimum sample count of one and a suitable measurement validity window,
+or perform multiple manual tests within that smoothing window; a lone hourly
+sample does not satisfy the default three-sample threshold. The UI shows each
+direction's fresh sample time/count and labels historical Mbps by direction.
+
+A separate endpoint tool is available without opening an app listener:
+
+```sh
+go run ./cmd/speed-test-server \
+  -listen 127.0.0.1:8443 \
+  -certificate-file /private/measurement-chain.pem \
+  -key-file /private/measurement-key.pem \
+  -enable-upload
+```
+
+Use `/download` and `/upload` on its configured HTTPS address. Certificates must
+be trusted by the measuring instance. Select an explicit reachable bind address
+and control access to the service when deploying it for remote candidates. The
+tool defaults to loopback, requires certificate/key files, rejects plaintext
+fallback and leaves uploads off without the flag. It streams at most 64 MiB,
+bounds read/write lifetimes and allows at most two active requests. It is not an
+ACME manager, generic file upload service or an extra management endpoint.
+
+No new SQLite migration is needed: policy/monitoring/observation JSON is extended;
+the existing UTC budget row is shared unchanged. New finite metrics include
+`yuhaiin_outbound_upload_tests_total{outcome}`, `active_upload_mbps`,
+`last_upload_success`, `last_upload_timestamp_seconds` and
+`last_measured_upload_mbps` under the same `yuhaiin_outbound_` prefix. Existing
+download metrics retain their meaning and never receive upload samples.
+
+Hermetic coverage includes `TestUploadRuntimeLocalTLS` (actual verified HTTPS,
+NodeRuntime, persisted samples after restart and upload-oriented selection),
+`TestUploadAndDownloadShareDurableDailyBudget`, independent stale/unknown/invalid
+sample tests, schedule deduplication/cost controls, and transport/server protocol
+failure tests. The TLS fixture scopes a custom trust root to a child process,
+without changing production verification. A cancelled or redirected POST is not
+replayed. Frontend tests and three-width synthetic browser interactions are
+separate from these real backend tests.
 
 ## Runtime and persistence
 
@@ -404,3 +490,27 @@ Waiting measurements pause before Node construction; enforced measurements share
 existing route and traffic controls. Throughput results include those configured
 limits. The standalone/core scope is reported explicitly. No migration beyond
 schema 19 is required.
+
+## Upload resource measurements
+
+Raw results: `docs/benchmarks/data/upload-measurement-2026-10-27/local.txt`.
+Reproduce with:
+
+```sh
+go test ./pkg/net/latency ./pkg/node -run '^$' \
+  -bench 'BenchmarkUploadStreamingBody|BenchmarkUploadBalancedRanking|BenchmarkSelectorConnectionCreation' \
+  -benchmem -benchtime=300ms -count=3
+```
+
+On the recorded Ryzen 5 5600G/Linux environment, generating/discarding 1, 16 and
+64 MiB used 1–2 allocations per iteration and approximately 123–3,418 amortized
+bytes/op, rather than an allocation proportional to payload size. A bounded
+scratch buffer/pool is reused; these numbers exclude TLS, network/kernel buffers,
+process RSS and VPN framing, and represent random-byte generation throughput,
+not a real-link speed result. Upload-aware balanced snapshots with 100/1,000
+candidates took about 21–22/213–220 microseconds with 101/1,001 allocations. These
+scores are compiled outside connection/packet forwarding. Manual TCP/UDP
+creation remained about 324–339/95 ns in this fake-transport microbenchmark;
+failover about 717–754/426–428 ns. Existing real loopback/churn qualification
+remains separate. No runtime probes, ranking or SQLite reads were added to
+packet/connection forwarding.

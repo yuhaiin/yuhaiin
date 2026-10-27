@@ -285,3 +285,9 @@ Software update checks now validate checksum-bound target schema catalogs agains
 live SQLite/WAL state without executing prospective binaries. Unknown or incompatible
 old binaries cannot be automatically restored. Database-migrating targets require
 the coordinated update recovery-point workflow; [scope and offline steps](docs/update-rollback.md#verified-target-schema-preflight).
+
+Active upload measurements now extend the intelligent Selector's existing test
+and observation owners, with explicit supported-endpoint consent, shared hard
+budgets and independent download/upload freshness. See the
+[measurement guide](docs/intelligent-selectors.md#explicit-upload-measurements)
+for the protocol and optional separate HTTPS endpoint tool.

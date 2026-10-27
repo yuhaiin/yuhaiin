@@ -10,14 +10,14 @@ import (
 )
 
 type selectionInput struct {
-	unavailableReason string
-	circuit           *contract.CircuitStatus
-	udp               bool
-	config            contract.SelectorCandidate
-	enabled           bool
-	health            contract.ChannelHealth
-	speed             contract.ThroughputMeasurement
-	active            int64
+	unavailableReason  string
+	circuit            *contract.CircuitStatus
+	udp                bool
+	config             contract.SelectorCandidate
+	enabled            bool
+	health             contract.ChannelHealth
+	speed, uploadSpeed contract.ThroughputMeasurement
+	active             int64
 }
 
 // evaluateSelector runs only when producing a new immutable runtime snapshot.
@@ -195,12 +195,16 @@ func scoreCandidate(p contract.SelectorPolicy, in selectionInput, now time.Time)
 	if successes+failures > 0 {
 		c.FailureRate = float64(failures) / float64(successes+failures)
 	}
-	speed := in.speed
-	speedValid := speed.OK && speed.Samples >= p.MinSamples && speed.At <= now.UnixMilli() && now.UnixMilli()-speed.At <= p.MaxAgeMS &&
-		speed.Target == p.SpeedTarget && speed.Target != "" && speed.DownloadMbps > 0 && !math.IsInf(speed.DownloadMbps, 0) && !math.IsNaN(speed.DownloadMbps)
+	speed, upload := in.speed, in.uploadSpeed
+	speedValid := freshThroughput(speed, p.SpeedTarget, "download", p, now)
+	uploadValid := freshThroughput(upload, p.UploadTarget, "upload", p, now)
 	if speedValid {
-		c.DownloadMbps, c.UploadMbps = speed.DownloadMbps, speed.UploadMbps
+		c.DownloadMbps, c.DownloadAt, c.DownloadSamples = speed.DownloadMbps, speed.At, speed.Samples
 	}
+	if uploadValid {
+		c.UploadMbps, c.UploadAt, c.UploadSamples = upload.UploadMbps, upload.At, upload.Samples
+	}
+
 	if in.unavailableReason != "" {
 		c.Reason = in.unavailableReason
 		return c
@@ -239,18 +243,18 @@ func scoreCandidate(p contract.SelectorPolicy, in selectionInput, now time.Time)
 		c.Reason = "rtt_limit"
 		return c
 	}
-	if p.Mode == "highest_throughput" || p.MinDownloadMbps > 0 || p.MinUploadMbps > 0 || (p.Mode == "balanced" && (p.Weights.Download > 0 || p.Weights.Upload > 0)) {
+	if p.Mode == "highest_throughput" || p.MinDownloadMbps > 0 || (p.Mode == "balanced" && p.Weights.Download > 0) {
 		if !speedValid {
 			c.Reason = "no_fresh_speed_measurement"
 			return c
 		}
 	}
-	if c.DownloadMbps < p.MinDownloadMbps || c.UploadMbps < p.MinUploadMbps {
-		c.Reason = "throughput_limit"
+	if (p.MinUploadMbps > 0 || (p.Mode == "balanced" && p.Weights.Upload > 0)) && !uploadValid {
+		c.Reason = "no_fresh_upload_measurement"
 		return c
 	}
-	if p.Mode == "balanced" && p.Weights.Upload > 0 && c.UploadMbps <= 0 {
-		c.Reason = "no_upload_measurement"
+	if c.DownloadMbps < p.MinDownloadMbps || c.UploadMbps < p.MinUploadMbps {
+		c.Reason = "throughput_limit"
 		return c
 	}
 	if p.Mode == "weighted" && in.config.Weight == 0 {
@@ -346,4 +350,20 @@ func evidenceStrength(kind string) int {
 	default:
 		return 0
 	}
+}
+
+func freshThroughput(m contract.ThroughputMeasurement, target, direction string, p contract.SelectorPolicy, now time.Time) bool {
+	if !m.OK || m.Samples < p.MinSamples || m.At <= 0 || m.At > now.UnixMilli() || now.UnixMilli()-m.At > p.MaxAgeMS || target == "" || m.Target != target {
+		return false
+	}
+	value := m.DownloadMbps
+	if direction == "upload" {
+		if m.Direction != "upload" {
+			return false
+		}
+		value = m.UploadMbps
+	} else if m.Direction != "" && m.Direction != "download" {
+		return false
+	}
+	return value > 0 && !math.IsInf(value, 0) && !math.IsNaN(value)
 }

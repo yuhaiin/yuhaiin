@@ -20,6 +20,7 @@ on:
       - 'pkg/contract/backup/**'
       - 'pkg/utils/lockfile/**'
       - 'pkg/net/latency/**'
+      - 'cmd/speed-test-server/**'
       - 'pkg/store/**'
       - 'pkg/storage/sqlite/**'
       - 'pkg/update/**'
@@ -79,7 +80,7 @@ jobs:
       - name: Deterministic scheduler and race coverage
         run: |
           go test -race -count=1 -timeout=180s \
-            ./pkg/node ./pkg/net/latency ./pkg/store ./pkg/store/backup/... ./pkg/httpapi ./pkg/s3 \
+            ./pkg/node ./pkg/net/latency ./cmd/speed-test-server ./pkg/store ./pkg/store/backup/... ./pkg/httpapi ./pkg/s3 \
             ./pkg/storage/sqlite ./pkg/update/... ./cmd/update-metadata ./pkg/management/auth ./cmd/android ./cmd/yuhaiin/... ./pkg/utils/lockfile \
             ./pkg/inbound ./pkg/route ./pkg/app ./pkg/app/backup/... ./pkg/net/trafficcontrol ./pkg/net/proxy/direct \
             ./pkg/net/proxy/openvpn/... ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/softether/... \

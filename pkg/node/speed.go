@@ -14,7 +14,12 @@ var errSpeedBusy = errors.New("speed test concurrency limit reached")
 var errSpeedBudget = errors.New("daily speed test traffic budget exhausted")
 
 func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.SpeedTestRequest) (response contract.ThroughputMeasurement, resultErr error) {
-	defer func() { r.metrics.observeSpeed(response, resultErr) }()
+	defer func() {
+		if response.Direction == "" {
+			response.Direction = request.Effective().Direction
+		}
+		r.metrics.observeSpeed(response, resultErr)
+	}()
 	if !r.probePolicyReady() {
 		return contract.ThroughputMeasurement{}, errProbePolicyUnavailable
 	}
@@ -71,9 +76,13 @@ func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.Spe
 	if err != nil {
 		return contract.ThroughputMeasurement{}, err
 	}
-	measurement, err := latency.MeasureDownload(ctx, newByteBudgetProxy(proxy, reservation), request)
+	measure := latency.MeasureDownload
+	if request.Direction == "upload" {
+		measure = latency.MeasureUpload
+	}
+	measurement, err := measure(ctx, newByteBudgetProxy(proxy, reservation), request)
 	err = classifyProbeError(proxy, err)
-	measurement.At, measurement.Target = time.Now().UnixMilli(), request.URL
+	measurement.At, measurement.Target, measurement.Direction = time.Now().UnixMilli(), request.URL, request.Direction
 	if err != nil {
 		measurement.OK = false
 		measurement.Error = "speed measurement failed"
@@ -90,18 +99,32 @@ func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.Spe
 		c.mu.Unlock()
 		return measurement, errNodeReconfigured
 	}
-	c.throughputHistory = append(c.throughputHistory, measurement)
-	if len(c.throughputHistory) > 16 {
-		c.throughputHistory = slices.Delete(c.throughputHistory, 0, len(c.throughputHistory)-16)
-	}
-	old := c.throughput
-	if measurement.OK && old.OK && old.Target == measurement.Target && measurement.At-old.At >= 0 && measurement.At-old.At < recentNodeObservation.Milliseconds() {
-		measurement.Samples = min(old.Samples+1, 64)
-		measurement.DownloadMbps = .8*old.DownloadMbps + .2*measurement.DownloadMbps
-	}
-	c.throughput = measurement
+	c.recordThroughput(measurement)
 	c.mu.Unlock()
 	// Endpoint HTTP status, body budget and intentional duration truncation are
 	// not transport health failures. The observedProxy records real dial errors.
 	return measurement, err
+}
+
+// Caller owns c.mu. Each direction keeps independent target, freshness and EWMA.
+// The shared bounded history contains raw samples; business Bps never enters it.
+func (c *nodeCounters) recordThroughput(measurement contract.ThroughputMeasurement) {
+	c.throughputHistory = append(c.throughputHistory, measurement)
+	if len(c.throughputHistory) > 16 {
+		c.throughputHistory = slices.Delete(c.throughputHistory, 0, len(c.throughputHistory)-16)
+	}
+	latest := &c.throughput
+	if measurement.Direction == "upload" {
+		latest = &c.uploadThroughput
+	}
+	old := *latest
+	if measurement.OK && old.OK && old.Target == measurement.Target && measurement.At-old.At >= 0 && measurement.At-old.At < recentNodeObservation.Milliseconds() {
+		measurement.Samples = min(old.Samples+1, 64)
+		if measurement.Direction == "upload" {
+			measurement.UploadMbps = .8*old.UploadMbps + .2*measurement.UploadMbps
+		} else {
+			measurement.DownloadMbps = .8*old.DownloadMbps + .2*measurement.DownloadMbps
+		}
+	}
+	*latest = measurement
 }

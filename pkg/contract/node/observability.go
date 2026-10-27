@@ -36,6 +36,7 @@ type RuntimeStatus struct {
 	TCPHealth         ChannelHealth           `json:"tcpHealth"`
 	UDPHealth         ChannelHealth           `json:"udpHealth"`
 	ThroughputHistory []ThroughputMeasurement `json:"throughputHistory,omitempty"`
+	UploadThroughput  ThroughputMeasurement   `json:"uploadThroughput"`
 	Throughput        ThroughputMeasurement   `json:"throughput"`
 }
 
@@ -63,6 +64,7 @@ type HealthSample struct {
 // ThroughputMeasurement is an active, target-specific approximate measurement,
 // independent of current business traffic in UploadBps/DownloadBps.
 type ThroughputMeasurement struct {
+	Direction    string  `json:"direction,omitempty"`
 	At           int64   `json:"at"`
 	OK           bool    `json:"ok"`
 	Target       string  `json:"target"`
@@ -85,6 +87,10 @@ type SelectorCandidateStatus struct {
 	JitterMS          float64                  `json:"jitterMs"`
 	FailureRate       float64                  `json:"failureRate"`
 	Samples           int                      `json:"samples"`
+	DownloadAt        int64                    `json:"downloadAt,omitzero"`
+	UploadAt          int64                    `json:"uploadAt,omitzero"`
+	DownloadSamples   int                      `json:"downloadSamples,omitzero"`
+	UploadSamples     int                      `json:"uploadSamples,omitzero"`
 	DownloadMbps      float64                  `json:"downloadMbps"`
 	UploadMbps        float64                  `json:"uploadMbps"`
 	ActiveConnections int64                    `json:"activeConnections"`

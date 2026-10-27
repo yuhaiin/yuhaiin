@@ -2,8 +2,10 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -120,5 +122,32 @@ func TestOutboundMetricsScrapeNeverNeedsSQLiteAndSurvivesDelete(t *testing.T) {
 		if metricReason(v) != "other" || metricMode(v) != "other" {
 			t.Fatal("user value accepted as metric label")
 		}
+	}
+}
+
+func TestUploadMetricsKeepDownloadEvidenceIndependent(t *testing.T) {
+	r := NewNodeRuntime(filepath.Join(t.TempDir(), "unused.db"))
+	defer r.Close()
+	reg := prometheus.NewPedanticRegistry()
+	reg.MustRegister(r.Metrics())
+	r.metrics.observeSpeed(contract.ThroughputMeasurement{At: 1000, OK: true, DownloadMbps: 12}, nil)
+	r.metrics.observeSpeed(contract.ThroughputMeasurement{Direction: "upload", At: 2000, OK: true, UploadMbps: 25}, nil)
+	for name, want := range map[string]float64{
+		"last_speed_timestamp_seconds": 1, "last_measured_download_mbps": 12,
+		"last_upload_timestamp_seconds": 2, "last_measured_upload_mbps": 25, "last_upload_success": 1,
+	} {
+		if got := metricFamily(t, reg, "yuhaiin_outbound_"+name).Metric[0].GetGauge().GetValue(); got != want {
+			t.Fatal(name, got, want)
+		}
+	}
+	r.metrics.observeSpeed(contract.ThroughputMeasurement{Direction: "upload", At: 3000, UploadMbps: 50}, context.Canceled)
+	if got := metricFamily(t, reg, "yuhaiin_outbound_active_upload_mbps").Metric[0].GetHistogram(); got.GetSampleCount() != 1 || got.GetSampleSum() != 25 {
+		t.Fatal(got)
+	}
+	if got := metricFamily(t, reg, "yuhaiin_outbound_last_speed_success").Metric[0].GetGauge().GetValue(); got != 1 {
+		t.Fatal("upload failure changed download", got)
+	}
+	if _, err := os.Stat(r.path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("upload metrics opened SQLite", err)
 	}
 }

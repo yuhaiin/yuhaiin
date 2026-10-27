@@ -46,6 +46,22 @@ func policyWithMonitoringDefaults(config contract.Selector, defaults contract.Mo
 			speed = p.PeriodicSpeed.Effective()
 		}
 		p.SpeedTarget = speed.Test.URL
+		if p.SpeedTest != nil && p.SpeedTest.URL != "" {
+			p.SpeedTarget = p.SpeedTest.URL
+		}
+	}
+	if p.UploadTarget == "" {
+		speed := contract.SpeedSchedule{}.WithDirection("upload")
+		if defaults.UploadSpeed != nil {
+			speed = defaults.UploadSpeed.WithDirection("upload")
+		}
+		if p.PeriodicUpload != nil {
+			speed = p.PeriodicUpload.WithDirection("upload")
+		}
+		p.UploadTarget = speed.Test.URL
+		if p.UploadTest != nil && p.UploadTest.URL != "" {
+			p.UploadTarget = p.UploadTest.URL
+		}
 	}
 	if p.FailureThreshold == 0 {
 		p.FailureThreshold = probe.FailureThreshold
@@ -76,6 +92,13 @@ func (s *selectorRuntime) scheduleLocked() {
 		if p.PeriodicSpeed != nil {
 			speed = p.PeriodicSpeed.Effective()
 		}
+		upload := contract.SpeedSchedule{}.WithDirection("upload")
+		if s.defaults.UploadSpeed != nil {
+			upload = s.defaults.UploadSpeed.WithDirection("upload")
+		}
+		if p.PeriodicUpload != nil {
+			upload = p.PeriodicUpload.WithDirection("upload")
+		}
 		for _, candidate := range p.Candidates {
 			n, ok := s.nodes[candidate.NodeID]
 			if !ok || !n.Enabled || !candidate.Enabled {
@@ -104,21 +127,33 @@ func (s *selectorRuntime) scheduleLocked() {
 					jobs = append(jobs, probeJob{group: fmt.Sprintf("probe:%d", probe.Concurrency), key: key, cooldown: time.Duration(probe.CooldownMS) * time.Millisecond, failureThreshold: probe.FailureThreshold, signature: nodeSignature + fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprint(probe)))), interval: time.Duration(probe.IntervalMS) * time.Millisecond, timeout: time.Duration(probe.TimeoutMS) * time.Millisecond, jitter: probe.Jitter, concurrency: probe.Concurrency, run: func(ctx context.Context) error { return s.runProbe(ctx, n, probe, req) }})
 				}
 			}
-			if speed.Enabled && monitoringAllowed(s.platform, s.network, speed.AllowMobile, speed.AllowMetered) {
-				request := speed.Test
-				if p.SpeedTest != nil {
-					request = *p.SpeedTest
+			for _, direction := range []struct {
+				schedule     contract.SpeedSchedule
+				override     *contract.SpeedTestRequest
+				target, name string
+			}{{speed, p.SpeedTest, p.SpeedTarget, "download"}, {upload, p.UploadTest, p.UploadTarget, "upload"}} {
+				schedule := direction.schedule.WithDirection(direction.name)
+				if !schedule.Enabled || !monitoringAllowed(s.platform, s.network, schedule.AllowMobile, schedule.AllowMetered) {
+					continue
 				}
-				if p.SpeedTarget != "" {
-					request.URL = p.SpeedTarget
+				request := schedule.Test
+				if direction.override != nil {
+					request = *direction.override
 				}
-				if request.URL == "" {
+				if request.Direction == "" {
+					request.Direction = direction.name
+				}
+				if direction.target != "" {
+					request.URL = direction.target
+				}
+				request = request.Effective()
+				if request.Direction != direction.name || request.Validate() != nil {
 					continue
 				}
 				raw, _ := json.Marshal(request)
 				digest := sha256.Sum256(raw)
 				key := n.ID + "/speed/" + fmt.Sprintf("%x", digest)
-				jobs = append(jobs, probeJob{group: "speed", key: key, signature: nodeSignature + probe.NetworkCostPolicy, interval: time.Duration(speed.IntervalMS) * time.Millisecond, timeout: 30 * time.Second, jitter: probe.Jitter, concurrency: speed.Concurrency, run: func(ctx context.Context) error {
+				jobs = append(jobs, probeJob{group: "speed", key: key, signature: nodeSignature + probe.NetworkCostPolicy, interval: time.Duration(schedule.IntervalMS) * time.Millisecond, timeout: time.Duration(request.TimeoutMS) * time.Millisecond, jitter: probe.Jitter, concurrency: schedule.Concurrency, run: func(ctx context.Context) error {
 					if !s.probeCanStart(n, probe.NetworkCostPolicy) {
 						return errProbeSkipped
 					}

@@ -15,9 +15,10 @@ import (
 // inherit these values; an explicit disabled override stops that selector's
 // demand for shared tasks. Scheduling is opt-in on every platform.
 type MonitoringConfig struct {
-	Revision uint64        `json:"revision"`
-	Probe    ProbeSchedule `json:"probe"`
-	Speed    SpeedSchedule `json:"speed"`
+	UploadSpeed *SpeedSchedule `json:"uploadSpeed,omitzero"`
+	Revision    uint64         `json:"revision"`
+	Probe       ProbeSchedule  `json:"probe"`
+	Speed       SpeedSchedule  `json:"speed"`
 }
 
 type ProbeSchedule struct {
@@ -154,6 +155,16 @@ func (s SpeedSchedule) Effective() SpeedSchedule {
 	}
 	return s
 }
+
+// WithDirection returns an independent effective schedule. An omitted direction
+// inherits its explicit configuration slot; upload consent is never inferred.
+func (s SpeedSchedule) WithDirection(direction string) SpeedSchedule {
+	s = s.Effective()
+	if s.Test.Direction == "" {
+		s.Test.Direction = direction
+	}
+	return s
+}
 func (s SpeedSchedule) Validate() error {
 	s = s.Effective()
 	if s.IntervalMS < 300_000 || s.IntervalMS > 7*86_400_000 || s.Concurrency < 1 || s.Concurrency > 2 {
@@ -173,11 +184,25 @@ func validateHTTPSProbeURL(raw string) error {
 }
 func (c MonitoringConfig) Effective() MonitoringConfig {
 	c.Probe = c.Probe.Effective()
-	c.Speed = c.Speed.Effective()
+	c.Speed = c.Speed.WithDirection("download")
+	if c.UploadSpeed != nil {
+		c.UploadSpeed = new(c.UploadSpeed.WithDirection("upload"))
+	}
 	return c
 }
 func (c MonitoringConfig) Validate() error {
-	return errors.Join(c.Probe.Validate(), c.Speed.Validate())
+	c = c.Effective()
+	if c.Speed.Test.Direction != "download" {
+		return errors.New("download schedule requires download direction")
+	}
+	var uploadErr error
+	if c.UploadSpeed != nil {
+		if c.UploadSpeed.Test.Direction != "upload" {
+			return errors.New("upload schedule requires upload direction")
+		}
+		uploadErr = c.UploadSpeed.Validate()
+	}
+	return errors.Join(c.Probe.Validate(), c.Speed.Validate(), uploadErr)
 }
 
 func validateProbeAddress(address string) error {

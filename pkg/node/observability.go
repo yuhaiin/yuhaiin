@@ -29,6 +29,7 @@ type nodeTotals struct {
 	ThroughputHistory []contract.ThroughputMeasurement `json:"throughputHistory,omitempty"`
 	TCPHealth         contract.ChannelHealth           `json:"tcpHealth"`
 	UDPHealth         contract.ChannelHealth           `json:"udpHealth"`
+	UploadThroughput  contract.ThroughputMeasurement   `json:"uploadThroughput"`
 	Throughput        contract.ThroughputMeasurement   `json:"throughput"`
 	UploadBytes       uint64                           `json:"uploadBytes"`
 	DownloadBytes     uint64                           `json:"downloadBytes"`
@@ -52,7 +53,7 @@ type nodeCounters struct {
 	circuitListeners                                     atomic.Pointer[nodeCircuitListeners]
 	throughputHistory                                    []contract.ThroughputMeasurement
 	tcpHealth, udpHealth                                 contract.ChannelHealth
-	throughput                                           contract.ThroughputMeasurement
+	throughput, uploadThroughput                         contract.ThroughputMeasurement
 	upload, download, udpSent, udpReceived               atomic.Uint64
 	tcpAttempts, tcpConnected, udpAttempts, udpConnected atomic.Uint64
 	pingAttempts, failures                               atomic.Uint64
@@ -84,7 +85,7 @@ func (v *nodeTotals) lastErrorAndProbes(n *nodeCounters) {
 	v.LastError = n.lastError
 	v.Probes = maps.Clone(n.probes)
 	v.TCPHealth, v.UDPHealth = cloneHealth(n.tcpHealth), cloneHealth(n.udpHealth)
-	v.Throughput = n.throughput
+	v.Throughput, v.UploadThroughput = n.throughput, n.uploadThroughput
 	v.ThroughputHistory = slices.Clone(n.throughputHistory)
 }
 
@@ -106,7 +107,7 @@ func (n *nodeCounters) restore(v nodeTotals) {
 	n.lastError = v.LastError
 	n.probes = maps.Clone(v.Probes)
 	n.tcpHealth, n.udpHealth = cloneHealth(v.TCPHealth), cloneHealth(v.UDPHealth)
-	n.throughput = v.Throughput
+	n.throughput, n.uploadThroughput = v.Throughput, v.UploadThroughput
 	n.throughputHistory = slices.Clone(v.ThroughputHistory)
 	n.mu.Unlock()
 }
@@ -204,7 +205,7 @@ func (n *nodeCounters) status(id string) contract.RuntimeStatus {
 		state = "healthy"
 	}
 	return contract.RuntimeStatus{
-		TCPHealth: v.TCPHealth, UDPHealth: v.UDPHealth, Throughput: v.Throughput, ThroughputHistory: v.ThroughputHistory,
+		TCPHealth: v.TCPHealth, UDPHealth: v.UDPHealth, Throughput: v.Throughput, UploadThroughput: v.UploadThroughput, ThroughputHistory: v.ThroughputHistory,
 		ID: id, State: state, UploadBytes: strconv.FormatUint(v.UploadBytes, 10),
 		DownloadBytes:  strconv.FormatUint(v.DownloadBytes, 10),
 		UploadBps:      strconv.FormatUint(n.uploadBps.Load(), 10),

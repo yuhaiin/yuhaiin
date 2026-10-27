@@ -25,7 +25,7 @@ Implemented in those PRs:
 - Hysteresis, hold/cooldown, sticky failover, manual lock and explicit fallback.
 - Precomputed immutable snapshots and weighted new-connection admission.
 - Candidate deletion protection and node/Set/endpoint dependency-cycle checks.
-- Verified, streaming, bounded manual download tests with durable daily budget.
+- Verified, streaming, bounded download/upload tests with shared durable daily budget, explicit upload protocol/consent, independent freshness/smoothing and a separate HTTPS endpoint tool.
 - Real policy editor, evidence/score/event views and manual test controls in EN/JA/KO.
 - Deterministic/local tests, 1,000-reader concurrency coverage and microbenchmarks.
 

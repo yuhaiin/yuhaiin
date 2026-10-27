@@ -10,19 +10,22 @@ import (
 // SelectorPolicy is opt-in. A nil policy and an empty mode retain the legacy
 // fixed NodeID choice. Durations in this API are milliseconds.
 type SelectorPolicy struct {
-	Circuit       *CircuitConfig      `json:"circuit,omitzero"`
-	Probe         *ProbeSchedule      `json:"probe,omitzero"`
-	PeriodicSpeed *SpeedSchedule      `json:"periodicSpeed,omitzero"`
-	Mode          string              `json:"mode,omitempty"`
-	Candidates    []SelectorCandidate `json:"candidates,omitempty"`
-	PreferredID   string              `json:"preferredId,omitempty"`
-	Locked        bool                `json:"locked,omitzero"`
+	Circuit        *CircuitConfig      `json:"circuit,omitzero"`
+	Probe          *ProbeSchedule      `json:"probe,omitzero"`
+	PeriodicUpload *SpeedSchedule      `json:"periodicUpload,omitzero"`
+	PeriodicSpeed  *SpeedSchedule      `json:"periodicSpeed,omitzero"`
+	Mode           string              `json:"mode,omitempty"`
+	Candidates     []SelectorCandidate `json:"candidates,omitempty"`
+	PreferredID    string              `json:"preferredId,omitempty"`
+	Locked         bool                `json:"locked,omitzero"`
 	// Fallback is reject (default), selected, or priority_unknown. It never
 	// bypasses routing by falling back to Direct.
 	Fallback              string            `json:"fallback,omitempty"`
 	ReturnToPreferred     bool              `json:"returnToPreferred,omitzero"`
 	LatencyTarget         string            `json:"latencyTarget,omitempty"`
 	UDPLatencyTarget      string            `json:"udpLatencyTarget,omitempty"`
+	UploadTarget          string            `json:"uploadTarget,omitempty"`
+	UploadTest            *SpeedTestRequest `json:"uploadTest,omitzero"`
 	SpeedTarget           string            `json:"speedTarget,omitempty"`
 	SpeedTest             *SpeedTestRequest `json:"speedTest,omitzero"`
 	MinSamples            int               `json:"minSamples,omitzero"`
@@ -139,9 +142,36 @@ func (p SelectorPolicy) Validate() error {
 	if err := validateHTTPSProbeURL(p.LatencyTarget); err != nil {
 		return err
 	}
-	if p.SpeedTarget != "" {
-		if err := validateHTTPSProbeURL(p.SpeedTarget); err != nil {
-			return err
+	for _, target := range []string{p.SpeedTarget, p.UploadTarget} {
+		if target != "" {
+			if err := validateHTTPSProbeURL(target); err != nil {
+				return err
+			}
+		}
+	}
+	for _, entry := range []struct {
+		request           *SpeedTestRequest
+		target, direction string
+	}{
+		{p.SpeedTest, p.SpeedTarget, "download"}, {p.UploadTest, p.UploadTarget, "upload"},
+	} {
+		if entry.request == nil {
+			continue
+		}
+		request := *entry.request
+		if request.Direction == "" {
+			request.Direction = entry.direction
+		}
+		if request.Direction != entry.direction {
+			return errors.New("speed test direction does not match its configured slot")
+		}
+		if entry.target != "" {
+			request.URL = entry.target
+		}
+		if request.URL != "" {
+			if err := request.Validate(); err != nil {
+				return err
+			}
 		}
 	}
 	address, domain, ok := strings.Cut(p.UDPLatencyTarget, "/")
@@ -153,15 +183,32 @@ func (p SelectorPolicy) Validate() error {
 			return err
 		}
 	}
-	if p.PeriodicSpeed != nil {
-		speed := *p.PeriodicSpeed
-		if p.SpeedTarget != "" {
-			speed.Test.URL = p.SpeedTarget
+	for _, entry := range []struct {
+		schedule          *SpeedSchedule
+		request           *SpeedTestRequest
+		target, direction string
+	}{
+		{p.PeriodicSpeed, p.SpeedTest, p.SpeedTarget, "download"}, {p.PeriodicUpload, p.UploadTest, p.UploadTarget, "upload"},
+	} {
+		if entry.schedule == nil {
+			continue
+		}
+		speed := entry.schedule.WithDirection(entry.direction)
+		if entry.request != nil {
+			speed.Test = *entry.request
+			speed = speed.WithDirection(entry.direction)
+		}
+		if speed.Test.Direction != entry.direction {
+			return errors.New("speed schedule direction does not match its configured slot")
+		}
+		if entry.target != "" {
+			speed.Test.URL = entry.target
 		}
 		if err := speed.Validate(); err != nil {
 			return err
 		}
 	}
+
 	switch p.Mode {
 	case "manual", "failover", "lowest_latency", "highest_throughput", "balanced", "weighted":
 	default:

@@ -16,18 +16,19 @@ is not complete.
 | 1.3 Shared bounded scheduler, cancellation, Android/cost/native-login rules | `probe_scheduler.go`, `monitoring.go`; scheduler hard-bound/dedup/timeout/class/cooldown tests and monitoring/native lifecycle tests | Implemented. Worst-case deployment resource/churn qualification remains to be refreshed against the final state. |
 | 1.4 Fresh comparable RTT, EWMA, dual hysteresis, hold/cooldown | `selection.go`; expiry, latency hysteresis, failover/recovery and network separation tests | Implemented. Confirm final controls and preferred-return semantics for each mode. |
 | 1.5 Passive business traffic separate from active measured capacity | `RuntimeStatus.UploadBps/DownloadBps` versus `ThroughputMeasurement`; `TestSelectionExpiresAndNeverInventsCapacity` | Separation is implemented. Explicit passive window-average presentation still needs a requirement-level audit. |
-| 1.5 Bounded verified download tests and durable inclusive budget | `pkg/net/latency/throughput.go`, `pkg/node/speed.go`, measurement admission/budget tests; schema 20 | Implemented for downloads. No background test is enabled by creating a selector. |
-| 1.5 / 1.6 Upload tests and useful upload-weight policy | `SpeedTestRequest` has URL/byte/time/daily limits but no upload mode; `NodeRuntime.Speed` only calls `MeasureDownload`; documentation currently tells operators to leave upload weight/minimum at zero | **Functional gap.** Upload weights/minimums are exposed, but the instance cannot produce active upload measurements. Implement an explicitly supported HTTPS upload endpoint protocol, shared hard budgets/admission/policy/cancellation, separate per-direction freshness/smoothing and real UI/tests before treating upload-oriented balanced selection as usable. Ordinary endpoints must never receive an unsolicited test POST. |
-| 1.6 Normalized balanced components and explanations | Existing score weights/components/status contracts and selection tests | Download/latency/stability components exist. Upload scoring is blocked by the measurement gap above. Audit invalid/missing/expired metrics and presets against the original examples. |
+| 1.5 Bounded verified download tests and durable inclusive budget | `pkg/net/latency/throughput.go`, `pkg/node/speed.go`, measurement admission/budget tests; schema 20 | Implemented for both directions with opt-in upload protocol; no background test is enabled by creating a selector. |
+| 1.5 / 1.6 Upload tests and useful upload-weight policy | `latency/upload.go`, existing `NodeRuntime.Speed`, per-direction persisted counters, shared scheduler/budget; `TestUploadRuntimeLocalTLS`, protocol/expiry/budget/schedule tests and React upload controls | Implemented with explicit endpoint consent and validated byte-count acknowledgement. A separate bounded HTTPS endpoint tool is provided. Exact-head CI and final specification qualification remain required. |
+| 1.6 Normalized balanced components and explanations | Existing score weights/components/status contracts and selection tests | Download/upload/latency/stability components exist with independent sample provenance/freshness. Audit invalid/missing/expired metrics and presets against the original examples. |
 | 1.7 Circuit Closed/Open/Half-open, quotas, no request replay | `circuit.go`, `circuit_binding.go`; circuit/connection/observability tests, `TestSelectorSwitchDoesNotReplayOrCloseEstablishedStream` | Implemented paths exist. Complete the protocol/error-classification matrix and actual UDP session behavior audit. |
 | 1.8 Atomic configuration/runtime snapshots; no SQLite on admission | `config_generation.go`, `selector_runtime.go`; `TestSelectorConnectionPathDoesNotQuerySQLite`, 1,024 creators during churn | Implemented and tested. Refresh final 100/1,000-candidate, TCP/UDP, churn, heap/allocations/goroutine evidence; microbenchmarks are not VPN/WAN capacity evidence. |
-| 1.9 Existing React editor, raw evidence/score/reasons/history | Selector/Nodes editor and real-browser harness at 1440/360/320 px | Implemented download-oriented flow. Upload controls/results and final requirement-by-requirement UI audit remain. |
+| 1.9 Existing React editor, raw evidence/score/reasons/history | Selector/Nodes editor and real-browser harness at 1440/360/320 px | Download/upload controls, explicit consent, independent schedule settings and direction-labeled history are implemented. Final requirement-by-requirement UI audit remains. |
 
-The upload gap cannot be closed by copying passive UploadBps into capacity,
-accepting an operator's theoretical bandwidth, using a stale download timestamp
-for upload validity, or leaving a configurable but unusable scoring weight.
-Existing counters, sample history, scheduler and admission/budget owners must be
-extended rather than introducing a second measurement/statistics subsystem.
+The upload path extends the existing counters, 16-sample history, shared scheduler,
+admission and durable daily budget. It does not copy passive business Bps into
+capacity or use a download timestamp to validate an upload. Ordinary endpoints
+receive no test POST unless they explicitly advertise the configured protocol.
+Measurement and scoring tests do not replace the remaining protocol, resource
+and complete UI qualification above.
 
 ## Stage 2: verified delivery and remaining qualification
 
