@@ -39,6 +39,8 @@ type recoveryTransaction struct {
 	Runtime            contract.RecoveryRuntime `json:"runtime"`
 	Moves              []recoveryMove           `json:"moves"`
 	CreatedDirectories []string                 `json:"createdDirectories,omitempty"`
+	AdoptStartup       bool                     `json:"adoptStartup,omitzero"`
+	PreviousStartup    *recoveryStartupBinding  `json:"previousStartup,omitempty"`
 }
 
 func (t recoveryTransaction) point() string { return ".recovery-point-" + t.ID }
@@ -108,6 +110,11 @@ func (t recoveryTransaction) validate() error {
 	}
 	if err := store.ValidateRecoveryRuntime(t.Runtime); err != nil {
 		return err
+	}
+	if t.PreviousStartup != nil {
+		if err := t.PreviousStartup.validate(); err != nil {
+			return err
+		}
 	}
 	if len(t.Moves) == 0 || len(t.Moves) > 2*store.MaxRecoveryFiles+8 {
 		return errors.New("invalid recovery replacement count")
@@ -196,8 +203,15 @@ func saveRecoveryPointRecord(directory string, tx recoveryTransaction) error {
 }
 
 func recoveryResult(tx recoveryTransaction, state string) contract.RecoveryRestoreResult {
-	return contract.RecoveryRestoreResult{BackupID: tx.BackupID, TransactionID: tx.ID, InstanceID: tx.InstanceID,
-		RecoveryPoint: tx.point(), State: state, Runtime: tx.Runtime}
+	result := contract.RecoveryRestoreResult{BackupID: tx.BackupID, TransactionID: tx.ID, InstanceID: tx.InstanceID,
+		RecoveryPoint: tx.point(), State: state, Runtime: tx.Runtime, AdoptStartup: tx.AdoptStartup}
+	if state == "rolled_back" {
+		result.AdoptStartup = tx.PreviousStartup != nil
+		if tx.PreviousStartup != nil {
+			result.InstanceID, result.Runtime = tx.PreviousStartup.InstanceID, tx.PreviousStartup.Runtime
+		}
+	}
+	return result
 }
 
 func saveRecoveryResult(directory string, tx recoveryTransaction, state string) error {

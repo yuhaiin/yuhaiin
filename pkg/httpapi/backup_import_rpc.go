@@ -17,6 +17,14 @@ func (a v2API) recoveryImports(ctx context.Context, _ *emptyRequest) (*[]contrac
 	return pointer(owner.RecoveryImports(ctx))
 }
 
+func (a v2API) recoveryRestoreStatus(ctx context.Context, _ *emptyRequest) (*contract.RecoveryRestoreStatus, error) {
+	owner, ok := a.services.Backup.(RecoveryRestoreReporter)
+	if !ok {
+		return nil, unavailable("recovery restore status is unavailable")
+	}
+	return pointer(owner.RecoveryRestoreStatus(ctx))
+}
+
 func recoveryImportUpload(services V2Services) func(http.ResponseWriter, *http.Request) error {
 	return func(w http.ResponseWriter, r *http.Request) error {
 		owner, ok := services.Backup.(RecoveryImportController)

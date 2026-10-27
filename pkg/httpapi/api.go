@@ -47,6 +47,10 @@ type RecoveryImportController interface {
 	PreviewRecoveryImport(context.Context, contractbackup.RecoveryImportPreviewRequest) (contractbackup.RecoveryImport, error)
 	DiscardRecoveryImport(context.Context, string) error
 }
+
+type RecoveryRestoreReporter interface {
+	RecoveryRestoreStatus(context.Context) (contractbackup.RecoveryRestoreStatus, error)
+}
 type DiagnosticsController interface {
 	Run(context.Context, contracttools.DiagnosticRequest) (contracttools.DiagnosticReport, error)
 }

@@ -367,6 +367,24 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if _, code, err := upload(readerSession.Secret); err != nil || code != http.StatusForbidden {
 		t.Fatal("read-only principal uploaded recovery identity material", code, err)
 	}
+	statusRequest, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://localhost:50051/api/v2/rpc/backup.recovery.restore.status", strings.NewReader("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	statusRequest.Header.Set("Content-Type", "application/json")
+	statusRequest.Header.Set("Authorization", "Session "+readerSession.Secret)
+	statusResponse, err := client.Do(statusRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = statusResponse.Body.Close()
+	if statusResponse.StatusCode != http.StatusForbidden {
+		t.Fatal("read-only principal read restore metadata", statusResponse.StatusCode)
+	}
+	var restoreStatus contract.RecoveryRestoreStatus
+	if err := rpc(t.Context(), "backup.recovery.restore.status", struct{}{}, &restoreStatus); err != nil || restoreStatus.Result != nil {
+		t.Fatal("ordinary backup invented a restore result", err)
+	}
 	imported, code, err := upload(session.Secret)
 	if err != nil || code != http.StatusOK || imported.State != "uploaded" {
 		t.Fatal("authenticated ciphertext import failed", code, err)

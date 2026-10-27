@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	managementpermission "github.com/Asutorufa/yuhaiin/pkg/management/permission"
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
 )
 
@@ -31,6 +32,25 @@ func (s *recoveryImportHTTPStub) PreviewRecoveryImport(context.Context, contract
 	return contract.RecoveryImport{ID: "fixture", State: "previewed"}, nil
 }
 func (*recoveryImportHTTPStub) DiscardRecoveryImport(context.Context, string) error { return nil }
+
+func (*recoveryImportHTTPStub) RecoveryRestoreStatus(context.Context) (contract.RecoveryRestoreStatus, error) {
+	return contract.RecoveryRestoreStatus{Result: &contract.RecoveryRestoreResult{State: "rolled_back", AdoptStartup: true}}, nil
+}
+
+func TestRecoveryRestoreReporterUsesBackupManageAndDistinguishesRollback(t *testing.T) {
+	if v2Permissions[v2RecoveryRestoreStatus] != managementpermission.BackupManage {
+		t.Fatal("restore metadata is not protected by BackupManage")
+	}
+	handlers := newV2Handlers(V2Services{Backup: new(recoveryImportHTTPStub)})
+	request := httptest.NewRequest(http.MethodPost, "/api/v2/rpc/backup.recovery.restore.status", strings.NewReader("{}"))
+	response := httptest.NewRecorder()
+	if err := handlers.values[v2RecoveryRestoreStatus](response, request); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"state":"rolled_back"`) || !strings.Contains(response.Body.String(), `"adoptStartup":true`) {
+		t.Fatal("restore reporter lost rollback/startup status", response.Code, response.Body.String())
+	}
+}
 
 func TestRecoveryImportHTTPRejectsWrongTypeAndDeclaredOversizeBeforeReading(t *testing.T) {
 	for _, fault := range []string{"type", "size", "none"} {

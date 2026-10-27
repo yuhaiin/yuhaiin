@@ -124,6 +124,9 @@ func PrepareRecoveryStartup(directory string, lifecycle *os.File, inputs contrac
 	if inputs.ManagementAuth != tx.Runtime.ManagementAuth || inputs.ManagementTLS != tx.Runtime.ManagementTLS || inputs.CertificateFile != tx.Runtime.CertificateFile || inputs.KeyFile != tx.Runtime.KeyFile || inputs.ExternalWebDirectory != tx.Runtime.ExternalWebDirectory {
 		return nil, errors.New("startup TLS/authentication/file inputs do not match the restored deployment; use the inputs returned by recovery restore or roll back")
 	}
+	if tx.AdoptStartup && (inputs.WorkingDirectory != tx.Runtime.WorkingDirectory || tx.Runtime.ListenAddress != "" && inputs.ListenAddress != tx.Runtime.ListenAddress) {
+		return nil, errors.New("startup working directory or listener does not match the managed recovery")
+	}
 	tx.Phase = "checking"
 	if err := saveRecoveryTransaction(directory, *tx); err != nil {
 		return nil, err

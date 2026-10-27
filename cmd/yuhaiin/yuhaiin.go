@@ -42,11 +42,17 @@ func run(args []string) (resultErr error) {
 	path := flag.String("path", configuration.DataDir.Load(), "save data path")
 	webdir := flag.String("eweb", "", "external web page")
 	nfsMode := flag.Bool("nfs-mode", false, "use SQLite settings for NFS/network filesystems")
+	restoredStartup := flag.Bool("recovery-startup", true, "adopt explicitly restored startup inputs; disable only for reviewed host configuration changes")
 	// pprof := flag.Bool("pgo", false, "enables CPU profiling")
 	if err := flag.Parse(args); err != nil {
 		return err
 	}
 	storagesqlite.SetNFSMode(*nfsMode)
+	absolutePath, err := filepath.Abs(*path)
+	if err != nil {
+		return err
+	}
+	*path = absolutePath
 
 	// Serialize the server with offline snapshot/restore before creating TLS
 	// identity material or opening either database. Closing leaves the inode.
@@ -72,6 +78,35 @@ func run(args []string) (resultErr error) {
 	}
 	startupInputs := contractbackup.RecoveryRuntime{ManagementAuth: true, ManagementTLS: tlsMode,
 		CertificateFile: *httpsCert, KeyFile: *httpsKey, ListenAddress: *host, ExternalWebDirectory: os.Getenv("EXTERNAL_WEB")}
+	startupInputs.WorkingDirectory, err = os.Getwd()
+	if err != nil {
+		return err
+	}
+	if *restoredStartup && lifecycle != nil {
+		resolved, adopted, err := app.ResolveRecoveryStartupInputs(context.Background(), *path, lifecycle, startupInputs)
+		if err != nil {
+			return err
+		}
+		if adopted {
+			if !resolved.ManagementAuth {
+				return errors.New("restored startup requires a host supporting the archived management authentication mode")
+			}
+			if err := os.Chdir(resolved.WorkingDirectory); err != nil {
+				return err
+			}
+			if err := os.Setenv("EXTERNAL_WEB", resolved.ExternalWebDirectory); err != nil {
+				return err
+			}
+			*https = resolved.ManagementTLS != "disabled"
+			*httpsCert, *httpsKey = resolved.CertificateFile, resolved.KeyFile
+			if resolved.ListenAddress != "" {
+				*host = resolved.ListenAddress
+			} else {
+				resolved.ListenAddress = *host
+			}
+			startupInputs = resolved
+		}
+	}
 	recoveryStartup, err := app.PrepareRecoveryStartup(*path, lifecycle, startupInputs)
 	if err != nil {
 		return err

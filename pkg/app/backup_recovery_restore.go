@@ -29,6 +29,7 @@ type RecoveryRestoreOptions struct {
 	ConfirmSourceStopped     bool
 	ConfirmCredentialRevival bool
 	AllowVersionChange       bool
+	AdoptStartup             bool
 }
 
 // PreviewOfflineRecovery decrypts and validates a complete archive and computes
@@ -80,6 +81,11 @@ func RestoreOfflineRecovery(ctx context.Context, directory string, input io.Read
 	}
 	if options.Mode == "original" && (!options.ConfirmSourceStopped || !options.ConfirmCredentialRevival) {
 		return empty, errors.New("original-instance recovery requires confirmation that the original is stopped and that old credentials/device identities may become valid again")
+	}
+	tx.AdoptStartup = options.AdoptStartup
+	tx.PreviousStartup, err = readRecoveryStartupBinding(directory)
+	if err != nil {
+		return empty, err
 	}
 	if err := activateRecoverySet(ctx, directory, tx, nil); err != nil {
 		return empty, err

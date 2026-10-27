@@ -237,15 +237,20 @@ func rollbackRecoverySetCheckpoint(directory string, tx *recoveryTransaction, ch
 			return err
 		}
 	}
+	point := *tx
+	point.Phase = "rolled_back"
+	// A managed startup binding is part of the recovery transaction. Persist
+	// its previous value before removing the journal, so a crash cannot start
+	// restored original files using the failed deployment's TLS/file inputs.
+	if err := saveRecoveryResult(directory, point, "rolled_back"); err != nil && (tx.AdoptStartup || tx.PreviousStartup != nil) {
+		return err
+	}
 	if err := root.Remove(recoveryJournalName); err != nil {
 		return err
 	}
 	// History is best effort on a failing/full filesystem. It must not stop
 	// the original inodes from becoming usable again after rollback.
-	point := *tx
-	point.Phase = "rolled_back"
 	_ = saveRecoveryPointRecord(directory, point)
-	_ = saveRecoveryResult(directory, point, "rolled_back")
 	return syncRecoveryDirectory(directory)
 }
 

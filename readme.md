@@ -263,3 +263,8 @@ original-instance/clone recovery previews. It shows file and identity warnings
 without changing the running deployment. Web activation remains in progress;
 use the offline recovery CLI for an actual restore. See the
 [managed recovery guide](docs/managed-recovery-backups.md#web-archive-import-and-authenticated-preview).
+
+The Backup page reports the latest actual restore commit or rollback. Offline
+restores can explicitly adopt relocated startup inputs across service restarts;
+failed subsequent restores recover the previous startup binding with the original
+files. See [startup adoption](docs/recovery-archive.md#activation-real-startup-and-rollback).

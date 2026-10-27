@@ -185,6 +185,39 @@ proxy/redirects. This does not probe arbitrary VPN peers. Only then does the
 transaction become **committed**. TLS/auth/file-input mismatch refuses startup
 without silently weakening management security.
 
+For an explicitly reviewed restoration, add `-adopt-startup` to `recovery restore`.
+The CLI then retains the relocated TLS/authentication, listener, working directory
+and external-web inputs for subsequent starts, even if the service unit still has
+its old arguments. Adoption occurs under the lifecycle lock before opening TLS or
+database owners. The pending/committed transaction and existing last-result record
+own this opt-in binding; normal deployments and restores without this flag keep
+using their host inputs. Missing listener metadata in an older archive retains
+the host's listen argument. The CLI requires the management-identity mode it
+supports; it does not silently substitute another authentication mode.
+
+A second restoration retains the preceding adopted binding in its transaction.
+Failure or interruption restores that binding with the original files. Its result
+must be saved before the rollback journal can be removed; publication failure
+keeps the journal resumable. A corrupt/foreign/aliased binding fails startup rather
+than falling back to potentially different TLS settings. Administrators changing
+the host configuration after a committed restore can explicitly set
+`-recovery-startup=false` in the service unit; pending transactions still require
+their matching inputs or an offline rollback.
+
+`GET /api/v2/backup/recovery/restore` (RPC `backup.recovery.restore.status`) exposes
+the latest bounded committed/rolled-back result under BackupManage. The Backup
+page displays that result and whether startup settings were adopted. This is an
+actual recorded restore outcome, not a successful backup/preview or a claim that
+Web activation is complete. No database schema migration is needed for these
+compatible transaction/result fields. Older executables may reject an opted-in
+journal; complete or roll back with the current executable before downgrading.
+An explicitly confirmed unreadable database can still be restored: capturing
+the previous startup binding does not require that damaged database to open.
+Normal startup retains its strict identity/directory checks. If the last-result
+metadata itself is corrupted, stop the service and preserve that file separately
+before an explicitly confirmed offline restore. Do not remove an active recovery
+journal or recovery point to bypass a pending transaction.
+
 A startup error closes application/identity owners before restoring originals.
 An interrupted activation, interrupted startup check, or interrupted rollback
 is rolled back on the next CLI start; that invocation exits for operator review
@@ -223,8 +256,9 @@ checks that those entry points leave the pending database byte-for-byte intact.
 The generic `app.Start` also rejects a pending restore without its controlled
 startup ID. Android/other embedded hosts still need a complete host-specific
 recovery/startup coordinator; these guards do not implement one. Web maintenance
-orchestration and backup/restore
-API/UI are also pending. Do not present this CLI capability as their completion.
+activation orchestration remains pending. Managed backup, Web preview and latest
+restore-result APIs/UI extend the existing owner; they do not complete Web
+activation. Do not present this CLI capability as its completion.
 
 ## Encryption and framing
 

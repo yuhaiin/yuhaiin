@@ -57,6 +57,7 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 	restoreCredentials := flags.Bool("restore-credentials", false, "acknowledge restoring older credential/device validity state")
 	transaction := flags.String("transaction-id", "", "pending transaction UUID for offline rollback")
 	allowVersionChange := flags.Bool("allow-version-change", false, "acknowledge reviewed application version difference; unsupported schemas remain rejected")
+	adoptStartup := flags.Bool("adopt-startup", false, "persist the restored TLS/authentication/listener/file inputs for subsequent server starts")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -149,7 +150,7 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 			return json.MarshalWrite(output, preview)
 		}
 		if action == "restore" {
-			result, err := app.RestoreOfflineRecovery(ctx, *directory, source, key, app.RecoveryRestoreOptions{Mode: *mode,
+			result, err := app.RestoreOfflineRecovery(ctx, *directory, source, key, app.RecoveryRestoreOptions{Mode: *mode, AdoptStartup: *adoptStartup,
 				ConfirmedMaintenance: *maintenance, ConfirmBackupID: *confirmBackup, ConfirmSourceInstanceID: *confirmSource,
 				ConfirmTargetInstanceID: *confirmTarget, ConfirmSourceStopped: *sourceStopped, ConfirmCredentialRevival: *restoreCredentials,
 				AllowVersionChange: *allowVersionChange})

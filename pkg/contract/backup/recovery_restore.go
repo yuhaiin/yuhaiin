@@ -1,5 +1,9 @@
 package backup
 
+type RecoveryRestoreStatus struct {
+	Result *RecoveryRestoreResult `json:"result,omitempty"`
+}
+
 type RecoveryRestorePreview struct {
 	Manifest         RecoveryManifest `json:"manifest"`
 	Mode             string           `json:"mode"`
@@ -23,4 +27,5 @@ type RecoveryRestoreResult struct {
 	RecoveryPoint string          `json:"recoveryPoint"`
 	State         string          `json:"state"`
 	Runtime       RecoveryRuntime `json:"runtime"`
+	AdoptStartup  bool            `json:"adoptStartup,omitzero"`
 }

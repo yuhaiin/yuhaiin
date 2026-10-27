@@ -205,7 +205,7 @@ retain offline tools pending complete service coordination. An isolated real
 systemd/HTTPS/S3/helper-crash drill now accompanies hermetic tests. See
 [managed backups](managed-recovery-backups.md) for exact behavior and limits.
 
-Web restore activation, recent-restore presentation, safe-update
+Web restore activation, safe-update
 recovery-point/schema negotiation, broader platform maintenance, periodic
 restoration drills and ACME remain outstanding. The three-stage goal is active.
 
@@ -228,3 +228,15 @@ upload, preview and confirmed discard operations in EN/JA/KO. Real HTTPS
 service and responsive browser checks cover these operations. See
 [import lifecycle and limits](managed-recovery-backups.md#web-archive-import-and-authenticated-preview).
 Web activation and startup/rollback coordination are still incomplete.
+
+The offline restore CLI now offers explicit startup-input adoption. Its existing
+transaction/result records retain relocated TLS/auth/listener/file inputs through
+commit, repeated real process restarts, failed subsequent restores and interrupted
+startup. A previous adopted binding is restored with its original inodes. The
+BackupManage-protected status API and existing Backup page show the latest actual
+commit/rollback result. Local service drills exercise file certificates and web
+assets against deliberately incompatible host flags; original flags remain the
+default without an opted-in restore. See
+[startup and rollback](recovery-archive.md#activation-real-startup-and-rollback).
+The Web activation request, host handoff and destructive confirmations are still
+required; this startup integration is a prerequisite, not their completion.
