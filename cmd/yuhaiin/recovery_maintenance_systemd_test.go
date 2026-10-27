@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"filippo.io/age"
+	"github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
@@ -458,4 +459,150 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if pid("yuhaiin.service") == before {
 		t.Fatal("helper death did not produce a real service restart")
 	}
+	// Restore the actual first archive over a changed live deployment. Neither
+	// service-manager Start nor an HTTP disconnect establishes restore success:
+	// the real startup journal and reopened management API must agree.
+	var changed contract.Option
+	if err := rpc(t.Context(), "backup.config.get", struct{}{}, &changed); err != nil {
+		t.Fatal(err)
+	}
+	changed.InstanceName = "must-be-replaced-by-recovery"
+	if err := rpc(t.Context(), "backup.config.put", changed, &changed); err != nil {
+		t.Fatal(err)
+	}
+	imported, code, err = upload(session.Secret)
+	if err != nil || code != http.StatusOK {
+		t.Fatal("restore fixture upload failed", code, err)
+	}
+	if err := rpc(t.Context(), "backup.recovery.import.preview", contract.RecoveryImportPreviewRequest{ID: imported.ID, Mode: "original", Identity: identity.String()}, &previewed); err != nil {
+		t.Fatal(err)
+	}
+	if previewed.Preview == nil || previewed.PreviewID == "" {
+		t.Fatal("restore preview has no immutable revision")
+	}
+	restoreRequest := contract.RecoveryImportActivateRequest{ID: imported.ID, ConfirmPreviewID: previewed.PreviewID, ConfirmBackupID: previewed.Preview.Manifest.ID,
+		ConfirmSourceInstanceID: previewed.Preview.Manifest.InstanceID, ConfirmTargetInstanceID: previewed.Preview.TargetInstanceID, ConfirmResultInstanceID: previewed.Preview.InstanceID,
+		ConfirmMaintenance: true, ConfirmStartupChanges: true, ConfirmSourceStopped: true, ConfirmCredentialRevival: true, ConfirmIdentityReplacement: true}
+	before = pid("yuhaiin.service")
+	invalid := restoreRequest
+	invalid.ConfirmCredentialRevival = false
+	if err := rpc(t.Context(), "backup.recovery.import.activate", invalid, nil); err == nil || pid("yuhaiin.service") != before {
+		t.Fatal("missing destructive consent restarted the service")
+	}
+	body, err := json.Marshal(restoreRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deniedRequest, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://localhost:50051/api/v2/rpc/backup.recovery.import.activate", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	deniedRequest.Header.Set("Content-Type", "application/json")
+	deniedRequest.Header.Set("Authorization", "Session "+readerSession.Secret)
+	deniedResponse, err := client.Do(deniedRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = deniedResponse.Body.Close()
+	if deniedResponse.StatusCode != http.StatusForbidden || pid("yuhaiin.service") != before {
+		t.Fatal("read-only principal activated a destructive restore", deniedResponse.StatusCode)
+	}
+	if err := rpc(t.Context(), "backup.recovery.import.activate", restoreRequest, nil); err != nil {
+		if _, rejected := errors.AsType[*recoveryDrillHTTPError](err); rejected {
+			t.Fatal(err)
+		}
+		// A single uncertain submission is observed, never replayed.
+	}
+	wait("actual Web activation, controlled startup and restored authentication", func() bool {
+		if rpc(t.Context(), "backup.recovery.restore.status", struct{}{}, &restoreStatus) != nil {
+			return false
+		}
+		return restoreStatus.Result != nil && restoreStatus.Result.State == "committed" && restoreStatus.Result.TransactionID == previewed.PreviewID
+	})
+	if pid("yuhaiin.service") == before {
+		t.Fatal("restore did not actually stop/restart the installed service")
+	}
+	var restored contract.Option
+	if err := rpc(t.Context(), "backup.config.get", struct{}{}, &restored); err != nil || restored.InstanceName != "isolated-systemd-fixture" {
+		t.Fatal("reopened configuration did not come from the archive", err)
+	}
+	wait("committed restore staging cleanup", func() bool {
+		_, err := os.Lstat(filepath.Join(directory, ".recovery-imports", imported.ID))
+		return errors.Is(err, os.ErrNotExist)
+	})
+
+	// Clone activation must actually replace machine identity and invalidate the
+	// old management session. Its new administrator bootstrap stays local.
+	oldTLS, err := os.ReadFile(filepath.Join(directory, "management-tls.pem"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	imported, code, err = upload(session.Secret)
+	if err != nil || code != http.StatusOK {
+		t.Fatal("clone fixture upload failed", code, err)
+	}
+	if err := rpc(t.Context(), "backup.recovery.import.preview", contract.RecoveryImportPreviewRequest{ID: imported.ID, Mode: "clone", Identity: identity.String()}, &previewed); err != nil {
+		t.Fatal(err)
+	}
+	if previewed.Preview == nil || previewed.Preview.InstanceID == completed.InstanceID {
+		t.Fatal("clone preview reused source identity")
+	}
+	cloneRequest := contract.RecoveryImportActivateRequest{ID: imported.ID, ConfirmPreviewID: previewed.PreviewID, ConfirmBackupID: previewed.Preview.Manifest.ID,
+		ConfirmSourceInstanceID: previewed.Preview.Manifest.InstanceID, ConfirmTargetInstanceID: previewed.Preview.TargetInstanceID, ConfirmResultInstanceID: previewed.Preview.InstanceID,
+		ConfirmMaintenance: true, ConfirmStartupChanges: true, ConfirmIdentityReplacement: true, ConfirmCloneEnrollment: true}
+	before = pid("yuhaiin.service")
+	if err := rpc(t.Context(), "backup.recovery.import.activate", cloneRequest, nil); err != nil {
+		if _, rejected := errors.AsType[*recoveryDrillHTTPError](err); rejected {
+			t.Fatal(err)
+		}
+	}
+	wait("actual clone startup commit", func() bool {
+		status, err := recovery.RestoreStatus(t.Context(), directory)
+		return err == nil && status.Result != nil && status.Result.State == "committed" && status.Result.TransactionID == cloneRequest.ConfirmPreviewID && status.Result.InstanceID == cloneRequest.ConfirmResultInstanceID
+	})
+	if pid("yuhaiin.service") == before {
+		t.Fatal("clone restore did not restart the service")
+	}
+	newTLS, err := os.ReadFile(filepath.Join(directory, "management-tls.pem"))
+	if err != nil || bytes.Equal(oldTLS, newTLS) {
+		t.Fatal("clone reused the self-signed management identity", err)
+	}
+	cloneRoots := x509.NewCertPool()
+	if !cloneRoots.AppendCertsFromPEM(newTLS) {
+		t.Fatal("clone did not publish a valid management certificate")
+	}
+	cloneTransport := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: cloneRoots, MinVersion: tls.VersionTLS12}}
+	defer cloneTransport.CloseIdleConnections()
+	cloneClient := &http.Client{Transport: cloneTransport, Timeout: 3 * time.Second}
+	setupResponse, err := cloneClient.Get("https://localhost:50051/api/v2/auth/setup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var setup struct {
+		Required bool `json:"required"`
+	}
+	setupErr := json.UnmarshalRead(io.LimitReader(setupResponse.Body, 16<<10), &setup)
+	_ = setupResponse.Body.Close()
+	if setupErr != nil || setupResponse.StatusCode != http.StatusOK || !setup.Required {
+		t.Fatal("clone did not require fresh administrator enrollment", setupResponse.StatusCode, setupErr)
+	}
+	staleRequest, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://localhost:50051/api/v2/rpc/backup.recovery.status", strings.NewReader("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleRequest.Header.Set("Content-Type", "application/json")
+	staleRequest.Header.Set("Authorization", "Session "+session.Secret)
+	staleResponse, err := cloneClient.Do(staleRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = staleResponse.Body.Close()
+	if staleResponse.StatusCode != http.StatusUnauthorized {
+		t.Fatal("cloned deployment retained the source management session", staleResponse.StatusCode)
+	}
+	wait("clone private staging cleanup", func() bool {
+		_, err := os.Lstat(filepath.Join(directory, ".recovery-imports", imported.ID))
+		return errors.Is(err, os.ErrNotExist)
+	})
+
 }

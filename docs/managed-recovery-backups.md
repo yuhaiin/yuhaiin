@@ -161,8 +161,7 @@ never mounts the host service socket, host data or host PID namespace. See
 disposable-runner options. This is fault/correctness qualification, not a WAN
 or production-capacity benchmark.
 
-Web restore activation and recent-restore UI, safe-update schema
-negotiation/recovery points, broader platform service coordination, restore-point
+Safe-update schema negotiation/recovery points, broader platform service coordination, restore-point
 retention, periodic recovery drills and ACME remain required work. This feature
 does not claim completion of the entire enterprise reliability objective.
 
@@ -211,7 +210,8 @@ file install/replace/remove decisions and identity/credential/quota warnings.
 The decryption request is limited to 16 KiB. Its private identity/passphrase
 never enters the import record, configuration draft or returned plan. The UI
 clears its input on submission. Prepared plaintext remains in private server
-staging for at most the import's 30-minute lifetime; this is sensitive deployment
+staging for the import's 30-minute preview lifetime; admitted maintenance retains
+its files until its controlled recovery resolves. This is sensitive deployment
 material. Listing, preview and discard are also bound to the creating principal
 when management identities are enabled. Existing embedded hosts retain their
 existing authorization model.
@@ -238,18 +238,59 @@ HTTPS call sequence in the isolated installed-service drill.
 Pending work also retains a bounded one-minute fallback recheck when another
 operation holds the lease; completion reschedules after releasing the lease.
 
-The current Web operation ends at authenticated preview. Activating that plan,
-coordinating changed Management TLS/listen/web startup inputs, preserving the
-previous startup state across rollback, and presenting recent restore results
-remain required work. No Web endpoint currently replaces active database files.
-The existing offline CLI still performs real restoration and startup rollback.
+### Confirmed Web activation
 
-The browser regression covers upload, credential-warning presentation, private
-input clearing, expanded file paths and confirmed discard at 1440/360/320 px.
-Its fixture data is synthetic. The real HTTPS integration separately uploads
-the just-created encrypted archive, authenticates its inventory, requires an
-unchanged service PID during preview, rejects a read-only upload, and checks
-that discard removes private staging.
+Migration 23 adds a partial unique index permitting one `activating` import.
+Admission and backup-capture requests check each other's pending states in SQLite
+transactions. The existing scheduler pauses during a restore handoff; after an
+uncertain helper failure, its bounded recheck resumes work without a browser.
+
+On a root-owned Linux `yuhaiin.service`, **Review and restore** requires typing
+the target instance ID and acknowledging service interruption/data replacement,
+restored TLS/authentication/listener inputs, and the selected identity semantics.
+Original recovery additionally requires stopped-source and revoked-credential/
+quota-rewind consent. Clone recovery requires fresh administrator enrollment,
+protocol re-enrollment and disabled outbounds/listeners/source schedules. Replacing
+a different resulting identity has its own acknowledgement. All IDs and consent
+are bound to an immutable preview ID; another preview invalidates old consent.
+The Web flow accepts the same application version/platform only. Reviewed version
+changes remain an explicit offline operation.
+
+Preview seals the **projected** plaintext files, including rewritten SQLite and
+clone identities, using streamed size/SHA-256 and observed schema versions. It
+stores no decryption key. The independent service helper takes the existing
+maintenance lease, stops the service, excludes active SQLite/lifecycle owners,
+revalidates staged contents, target identity and protocol-file inventory, then
+uses the existing activation journal/recovery point. A clean shutdown may remove
+WAL/SHM sidecars; their current originals are saved if present and never installed
+from an archive.
+
+A service-manager `start` is not success. The helper waits for the actual
+startup checks to commit the matching transaction. Failed start, timeout and
+helper death recover original files/startup bindings before restarting the
+original service. The transient unit's independent `ExecStopPost` also handles
+SIGKILL. A committed transaction is preserved. Cleanup/history errors after a
+safe file outcome do not prevent a service restart; unremoved private staging
+keeps its ownership metadata and a visible cleanup failure for operator action.
+Corrupt rollback originals still fail closed with the journal retained for CLI
+recovery, rather than starting a partial deployment.
+
+The API returns **admission**, not a committed restoration. A disconnect can occur
+after that admission is persisted. The browser never automatically replays the
+request; reconnect using the restored listener/certificate and refresh the latest
+restore result. Authentication/session state may change, and clone recovery
+requires new administrator setup. An unclaimed admission can be discarded only
+while holding the helper's maintenance lease. Active maintenance is excluded
+from ordinary expiry cleanup. Successful restore removes its private container;
+failed activation normally retains ciphertext but requires a new authenticated
+preview. Other host integrations continue to use the offline CLI.
+
+The browser regression covers explicit confirmations, pending versus committed
+state, and 1440/360/320 px layout using synthetic data. The real HTTPS/systemd
+integration separately proves an actual restored configuration, changed service
+PID, reopened authentication and a committed startup transaction. Unit faults use
+real SQLite/files and virtual time for startup timeout, staging corruption,
+foreign identity, missing consent, concurrent admission and cleanup failures.
 
 `BenchmarkRecoveryImportStaging` measures the actual opaque upload/registry/
 fsync/discard path with incompressible source data allocated before timing.

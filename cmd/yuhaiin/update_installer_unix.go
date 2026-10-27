@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
+	"github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	updatepkg "github.com/Asutorufa/yuhaiin/pkg/update"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
@@ -112,6 +113,9 @@ func updateHelper(args []string) error {
 		return err
 	}
 	defer maintenance.Close()
+	if err := recovery.GuardServiceMaintenance(context.Background(), dataDir); err != nil {
+		return err
+	}
 	service := "com.asutorufa.yuhaiin"
 	manager := "launchctl"
 	stopArgs, startArgs := []string{"stop", service}, []string{"start", service}

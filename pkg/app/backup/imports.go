@@ -19,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/s3"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
 const recoveryImportLifetime = 30 * time.Minute
@@ -36,6 +37,9 @@ func recoveryImportOwner(ctx context.Context) string {
 // One existing Backup lease bounds concurrent upload/decryption/transfer work.
 func (b *Backup) UploadRecoveryImport(ctx context.Context, input io.ReadCloser, size int64) (_ contract.RecoveryImport, resultErr error) {
 	var empty contract.RecoveryImport
+	if b.restoring.Load() {
+		return empty, errBackupBusy
+	}
 	if b.store == nil {
 		return empty, errors.New("backup store is unavailable")
 	}
@@ -239,6 +243,9 @@ func (b *Backup) RecoveryImports(ctx context.Context) ([]contract.RecoveryImport
 
 func (b *Backup) PreviewRecoveryImport(ctx context.Context, request contract.RecoveryImportPreviewRequest) (contract.RecoveryImport, error) {
 	var empty contract.RecoveryImport
+	if b.restoring.Load() {
+		return empty, errBackupBusy
+	}
 	if b.store == nil {
 		return empty, errors.New("backup store is unavailable")
 	}
@@ -287,7 +294,8 @@ func (b *Backup) PreviewRecoveryImport(ctx context.Context, request contract.Rec
 		return empty, errors.New("recovery import expired during preview")
 	}
 	previous := item
-	item.State, item.Stage, item.Plan, item.Preview = "previewed", prepared.Stage, prepared.Plan, &prepared.Preview
+	item.State, item.Stage, item.Plan, item.PreviewID, item.Preview = "previewed", prepared.Stage, prepared.Plan, prepared.ID, &prepared.Preview
+	item.ErrorCode, item.Activation = "", nil
 	if err := b.store.SaveRecoveryImport(ctx, item, previous.State); err != nil {
 		return empty, err
 	}
@@ -313,7 +321,20 @@ func (b *Backup) DiscardRecoveryImport(ctx context.Context, id string) error {
 	if item.Owner != recoveryImportOwner(ctx) {
 		return errors.New("recovery import is unavailable")
 	}
-	return b.deleteRecoveryImportLocked(ctx, item)
+	if item.State == "activating" {
+		lease, err := lockfile.Acquire(filepath.Join(b.dir, ".recovery-maintenance.lock"))
+		if err != nil {
+			return errors.New("restore maintenance is active; wait for its startup or rollback result")
+		}
+		defer lease.Close()
+	}
+	if err := b.deleteRecoveryImportLocked(ctx, item); err != nil {
+		return err
+	}
+	if item.State == "activating" {
+		b.restoring.Store(false)
+	}
+	return nil
 }
 
 func removeRecoveryImportStage(root *os.Root, id, stage string) error {
@@ -366,7 +387,7 @@ func (b *Backup) pruneRecoveryImports(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if item.State == "deleting" || !item.ExpiresAt.After(time.Now()) {
+		if item.State != "activating" && (item.State == "deleting" || !item.ExpiresAt.After(time.Now())) {
 			actionable = true
 			break
 		}
@@ -391,7 +412,7 @@ func (b *Backup) pruneRecoveryImportsLocked(ctx context.Context, startup bool) e
 		if err != nil {
 			return err
 		}
-		if item.State == "deleting" || !item.ExpiresAt.After(time.Now()) || (startup && item.State == "uploading") {
+		if (item.State != "activating" && (item.State == "deleting" || !item.ExpiresAt.After(time.Now()))) || (startup && (item.State == "uploading" || item.State == "activating")) {
 			if err := b.deleteRecoveryImportLocked(ctx, item); err != nil {
 				return err
 			}

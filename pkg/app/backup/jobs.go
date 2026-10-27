@@ -23,6 +23,9 @@ func recoveryS3Digest(options contract.S3) (string, error) {
 }
 
 func (b *Backup) CreateRecoveryBackup(ctx context.Context, request contract.RecoveryBackupRequest) (contract.RecoveryBackup, error) {
+	if b.restoring.Load() {
+		return contract.RecoveryBackup{}, errBackupBusy
+	}
 	if b.store == nil {
 		return contract.RecoveryBackup{}, errors.New("backup store is unavailable")
 	}

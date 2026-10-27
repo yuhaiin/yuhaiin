@@ -11,3 +11,9 @@ type RecoveryMaintainer interface {
 	Supported() (bool, string)
 	StartRecovery(context.Context, string, time.Duration) error
 }
+
+// RecoveryRestorer is supported by hosts that can supervise real startup checks
+// and restart the original deployment after an interrupted Web restore.
+type RecoveryRestorer interface {
+	StartRestore(context.Context, string, time.Duration) error
+}

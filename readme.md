@@ -255,13 +255,15 @@ Encrypted full snapshots, external backup keys, offline restore preview and cras
 
 Managed full encrypted local/S3 backups, confirmed service maintenance, archive
 verification/download and retention: [managed recovery backups](docs/managed-recovery-backups.md).
-Web restoration and safe-update coordination remain in progress.
+Web restore activation is available on root-owned Linux systemd deployments;
+safe-update coordination and other service hosts remain in progress.
 
 
 The Backup page also supports bounded encrypted archive uploads and authenticated
 original-instance/clone recovery previews. It shows file and identity warnings
-without changing the running deployment. Web activation remains in progress;
-use the offline recovery CLI for an actual restore. See the
+without changing the running deployment. Supported installed services can then
+perform an explicitly confirmed restore using sealed staging and independent
+startup/rollback supervision. Other hosts retain the offline recovery CLI. See the
 [managed recovery guide](docs/managed-recovery-backups.md#web-archive-import-and-authenticated-preview).
 
 The Backup page reports the latest actual restore commit or rollback. Offline

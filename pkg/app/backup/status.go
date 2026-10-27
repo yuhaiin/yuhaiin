@@ -29,5 +29,30 @@ func (b *Backup) RecoveryBackups(ctx context.Context) (contract.RecoveryBackupSt
 
 // RecoveryRestoreStatus reads the durable transaction result through its owner.
 func (b *Backup) RecoveryRestoreStatus(ctx context.Context) (contract.RecoveryRestoreStatus, error) {
-	return recovery.RestoreStatus(ctx, b.dir)
+	actual, actualErr := recovery.RestoreStatus(ctx, b.dir)
+	if b.store != nil {
+		ids, err := b.store.RecoveryImportIDs(ctx)
+		if err != nil {
+			return contract.RecoveryRestoreStatus{}, err
+		}
+		for _, id := range ids {
+			item, err := b.store.RecoveryImport(ctx, id)
+			if err != nil {
+				return contract.RecoveryRestoreStatus{}, err
+			}
+			if item.State == "activating" {
+				if actualErr == nil && actual.Result != nil && actual.Result.TransactionID == item.PreviewID {
+					if b.restoring.CompareAndSwap(true, false) {
+						b.reschedule()
+					}
+					return actual, nil
+				}
+				return contract.RecoveryRestoreStatus{PendingImportID: item.ID, PendingPreviewID: item.PreviewID}, nil
+			}
+		}
+		if b.restoring.CompareAndSwap(true, false) {
+			b.reschedule()
+		}
+	}
+	return actual, actualErr
 }

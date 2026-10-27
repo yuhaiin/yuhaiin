@@ -87,6 +87,12 @@ func (s *Store) EnqueueRecovery(ctx context.Context, job RecoveryJob) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 	var count int
+	if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM backup_recovery_imports WHERE state='activating'").Scan(&count); err != nil {
+		return err
+	}
+	if count != 0 {
+		return contract.ErrBusy
+	}
 	if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM backup_recovery_history").Scan(&count); err != nil {
 		return err
 	}

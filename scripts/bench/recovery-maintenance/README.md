@@ -28,4 +28,13 @@ prints the private backup identity or management session token.
 The same drill uploads its actual encrypted archive through authenticated HTTPS,
 rejects a read-only upload, previews its full inventory without changing the
 service PID and confirms removal of private staging on discard. This qualifies
-Web import/preview, not Web restore activation or safe-update rollback.
+Web import/preview. A final scenario changes the live configuration and performs
+a confirmed Web restore of the actual encrypted archive, requiring a changed
+service PID, restored configuration/authentication and a committed startup
+transaction. Missing consent and read-only activation are rejected. This does
+not qualify safe-update rollback.
+
+The same live flow also restores a clone, requiring a fresh instance ID, a new
+self-signed management certificate, new administrator initialization and rejection
+of the old session. Failure diagnostics redact the newly issued local setup
+capability before printing service journals; `test_runner.py` covers that guard.

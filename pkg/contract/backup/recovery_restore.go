@@ -1,7 +1,9 @@
 package backup
 
 type RecoveryRestoreStatus struct {
-	Result *RecoveryRestoreResult `json:"result,omitempty"`
+	PendingImportID  string                 `json:"pendingImportId,omitempty"`
+	PendingPreviewID string                 `json:"pendingPreviewId,omitempty"`
+	Result           *RecoveryRestoreResult `json:"result,omitempty"`
 }
 
 type RecoveryRestorePreview struct {

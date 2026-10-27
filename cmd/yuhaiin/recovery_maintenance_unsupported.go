@@ -14,3 +14,6 @@ func recoveryMaintenanceHelper([]string) error {
 func recoveryMaintenanceRestartHelper(args []string) error {
 	return recoveryMaintenanceHelper(args)
 }
+
+func recoveryRestoreHelper(args []string) error        { return recoveryMaintenanceHelper(args) }
+func recoveryRestoreRestartHelper(args []string) error { return recoveryMaintenanceHelper(args) }

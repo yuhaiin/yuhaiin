@@ -4,9 +4,16 @@
 import argparse
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import uuid
+
+
+def redact_journal(text):
+    # Clone startup intentionally emits a local one-time setup capability.
+    # Public CI failure diagnostics must never publish that capability.
+    return re.sub(r'(Initialization code: )[^\r\n]+', r'\1[redacted]', text)
 
 
 def main():
@@ -44,11 +51,11 @@ def main():
                  '/app/drill.test', '-test.run=^TestInstalledRecoveryMaintenance$',
                  '-test.v', '-test.timeout=4m'], timeout=300)
         except Exception:
-            # Fixture enrollment completes before starting the service, so the
-            # journal contains no bootstrap capability or private backup key.
-            subprocess.run([*runtime, 'exec', name, 'journalctl', '--no-pager',
+            journal = subprocess.run([*runtime, 'exec', name, 'journalctl', '--no-pager',
                             '-u', 'yuhaiin.service', '-u', 'yuhaiin-recovery-*',
-                            '-n', '120'], check=False)
+                            '-u', 'yuhaiin-restore-*', '-n', '120'], check=False,
+                            capture_output=True, text=True)
+            print(redact_journal(journal.stdout))
             raise
         finally:
             subprocess.run([*runtime, 'rm', '-f', name], check=False,

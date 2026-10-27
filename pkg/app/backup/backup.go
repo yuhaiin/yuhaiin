@@ -32,6 +32,7 @@ type Backup struct {
 	metricsVersion          atomic.Uint64
 	metricsSnapshot         atomic.Pointer[backupMetricSnapshot]
 	activeRecoveryDownloads atomic.Int64
+	restoring               atomic.Bool
 }
 
 // New starts the shared backup scheduler. The optional maintainer coordinates
@@ -61,6 +62,9 @@ func New(store *backupstore.Store, dir string, maintainer RecoveryMaintainer, pr
 }
 
 func (b *Backup) Save(ctx context.Context, opt contractbackup.Option) (contractbackup.Option, error) {
+	if b.restoring.Load() {
+		return contractbackup.Option{}, errBackupBusy
+	}
 	if b.store == nil {
 		return contractbackup.Option{}, fmt.Errorf("backup store is unavailable")
 	}

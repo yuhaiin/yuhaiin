@@ -22,6 +22,9 @@ import (
 )
 
 func (b *Backup) Run(ctx context.Context) error {
+	if b.restoring.Load() {
+		return errBackupBusy
+	}
 	if !b.mu.TryLock() {
 		return errBackupBusy
 	}
@@ -92,6 +95,9 @@ func (b *Backup) Run(ctx context.Context) error {
 	return nil
 }
 func (b *Backup) Restore(ctx context.Context, _ contractbackup.RestoreOption) error {
+	if b.restoring.Load() {
+		return errBackupBusy
+	}
 	if !b.mu.TryLock() {
 		return errBackupBusy
 	}

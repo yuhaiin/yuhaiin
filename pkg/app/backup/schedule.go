@@ -26,6 +26,21 @@ func (b *Backup) reschedule() {
 func (b *Backup) schedule() {
 	defer close(b.done)
 	for {
+		if b.restoring.Load() {
+			timer := time.NewTimer(time.Minute)
+			select {
+			case <-b.ctx.Done():
+				timer.Stop()
+				return
+			case <-b.changed:
+			case <-timer.C:
+				// A failed helper can leave the original process alive. Reconcile
+				// its completed admission without depending on an open browser.
+				_, _ = b.RecoveryRestoreStatus(b.ctx)
+			}
+			timer.Stop()
+			continue
+		}
 		retry := false
 		if b.store != nil {
 			if err := b.pruneRecoveryImports(b.ctx); err != nil && b.ctx.Err() == nil {

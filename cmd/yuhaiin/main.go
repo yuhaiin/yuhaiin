@@ -74,6 +74,12 @@ func main() {
 	case "update-helper":
 		do(updateHelper)
 		return
+	case "recovery-restore":
+		do(recoveryRestoreHelper)
+		return
+	case "recovery-restore-restart":
+		do(recoveryRestoreRestartHelper)
+		return
 	case "recovery-maintenance":
 		do(recoveryMaintenanceHelper)
 		return

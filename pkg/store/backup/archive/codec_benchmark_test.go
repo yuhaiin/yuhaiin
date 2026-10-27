@@ -47,7 +47,7 @@ func BenchmarkRecoveryArchiveExternalRecipient(b *testing.B) {
 			manifest := contract.RecoveryManifest{
 				ID: uuid.New().String(), InstanceID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance",
 				Build: contract.RecoveryBuild{Version: "benchmark", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()},
-				Files: []contract.RecoveryFile{{Path: "state.db", Role: "configuration_database", SchemaVersion: 22}, {Path: "identity.bin", Role: "protocol_identity"}},
+				Files: []contract.RecoveryFile{{Path: "state.db", Role: "configuration_database", SchemaVersion: 23}, {Path: "identity.bin", Role: "protocol_identity"}},
 			}
 			b.SetBytes(size)
 			b.ReportAllocs()

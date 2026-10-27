@@ -4,8 +4,8 @@ The encrypted streaming format and authenticated inventory checks live in
 `pkg/store/backup/archive`, using the existing backup contract. Deployment
 snapshots, offline activation, startup checks and crash rollback belong to
 `pkg/app/backup/recovery`. The existing online backup scheduler owns managed
-local/S3 jobs, retention, verification and downloads. Web restoration and safe
-update integration remain in progress in the consolidated reliability PR.
+local/S3 jobs, retention, verification and downloads. Web restoration now uses these owners on the supported systemd host. Safe
+update integration and broader host coordination remain in progress in the consolidated reliability PR.
 
 ## Working CLI operations
 
@@ -205,8 +205,8 @@ their matching inputs or an offline rollback.
 `GET /api/v2/backup/recovery/restore` (RPC `backup.recovery.restore.status`) exposes
 the latest bounded committed/rolled-back result under BackupManage. The Backup
 page displays that result and whether startup settings were adopted. This is an
-actual recorded restore outcome, not a successful backup/preview or a claim that
-Web activation is complete. No database schema migration is needed for these
+actual recorded restore outcome rather than a successful backup or preview.
+The confirmed Web workflow uses the same transaction. No database schema migration is needed for these
 compatible transaction/result fields. Older executables may reject an opted-in
 journal; complete or roll back with the current executable before downgrading.
 An explicitly confirmed unreadable database can still be restored: capturing
@@ -435,5 +435,6 @@ The [managed-backup page](managed-recovery-backups.md) now wraps this collector
 with explicit root-owned Linux systemd maintenance, history, local/S3 targets,
 verification/download and retention. It uses public recipients for scheduled
 creation and transient private identities for authenticated checks. Database
-schema is now 21; existing archive formats and known older schema prefixes stay
-verifiable. Other platform coordinators and Web restore activation remain pending.
+schema is now 23 (history 21, imports 22, exclusive activation 23); existing
+archive formats and known older schema prefixes stay verifiable. Other platform
+coordinators remain pending. See the [confirmed Web workflow](managed-recovery-backups.md#confirmed-web-activation).

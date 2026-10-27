@@ -31,3 +31,6 @@ cmd/android/yuhaiin.db
 /cmd/android/yuhaiin_memory_store.json
 /.cache
 /.codebase-index
+
+# Python recovery-drill runner cache
+__pycache__/

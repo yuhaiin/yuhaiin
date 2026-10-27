@@ -15,13 +15,29 @@ import (
 const MaxRecoveryImports = 2
 const maxRecoveryImportMetadata = 8 << 20
 
+// RecoveryActivationPending reads live WAL admission without migrating a store.
+// A pre-import schema has no pending Web handoff.
+func (s *Store) RecoveryActivationPending(ctx context.Context) (bool, error) {
+	var present int
+	if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='backup_recovery_imports'").Scan(&present); err != nil {
+		return false, err
+	}
+	if present == 0 {
+		return false, nil
+	}
+	var active int
+	err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM backup_recovery_imports WHERE state='activating'").Scan(&active)
+	return active != 0, err
+}
+
 // RecoveryImportRecord is owned by the existing backup Store. A prepared plan
 // contains paths/hashes only; plaintext data remains in private staging files.
 type RecoveryImportRecord struct {
 	contract.RecoveryImport
-	Owner string `json:"owner"`
-	Stage string `json:"stage,omitempty"`
-	Plan  string `json:"plan,omitempty"`
+	Owner      string                                  `json:"owner"`
+	Stage      string                                  `json:"stage,omitempty"`
+	Plan       string                                  `json:"plan,omitempty"`
+	Activation *contract.RecoveryImportActivateRequest `json:"activation,omitempty"`
 }
 
 func (s *Store) AddRecoveryImport(ctx context.Context, item RecoveryImportRecord) error {
@@ -65,7 +81,7 @@ func (s *Store) RecoveryImport(ctx context.Context, id string) (RecoveryImportRe
 	if len(data) > maxRecoveryImportMetadata || json.Unmarshal([]byte(data), &item) != nil || item.ID != id || item.State != state || !validRecoveryImportState(state) || item.ExpiresAt.UnixMilli() != expiry || item.Owner == "" || len(item.Owner) > 256 || item.Size < 0 || item.Size > contract.MaxRecoveryDataBytes {
 		return item, errors.New("invalid recovery upload metadata")
 	}
-	if state == "uploaded" || state == "previewed" {
+	if state == "uploaded" || state == "previewed" || state == "activating" {
 		digest, err := hex.DecodeString(item.SHA256)
 		if err != nil || len(digest) != 32 || item.Size == 0 {
 			return item, errors.New("invalid recovery ciphertext metadata")
@@ -75,7 +91,7 @@ func (s *Store) RecoveryImport(ctx context.Context, id string) (RecoveryImportRe
 }
 
 func validRecoveryImportState(state string) bool {
-	return state == "uploading" || state == "uploaded" || state == "previewed" || state == "deleting"
+	return state == "uploading" || state == "uploaded" || state == "previewed" || state == "activating" || state == "failed" || state == "deleting"
 }
 
 func (s *Store) SaveRecoveryImport(ctx context.Context, item RecoveryImportRecord, expected string) error {
@@ -95,6 +111,43 @@ func (s *Store) SaveRecoveryImport(ctx context.Context, item RecoveryImportRecor
 		return conflict.Err
 	}
 	return err
+}
+
+// AdmitRecoveryImport serializes destructive maintenance across runtime owners.
+// The partial unique index supplements this transaction; capture admission also
+// checks this state so neither operation can start during the other's handoff.
+func (s *Store) AdmitRecoveryImport(ctx context.Context, item RecoveryImportRecord) error {
+	if item.State != "activating" || item.Activation == nil || item.Activation.ID != item.ID || !validRecoveryJobID(item.PreviewID) {
+		return errors.New("invalid recovery activation admission")
+	}
+	data, err := json.Marshal(item)
+	if err != nil || len(data) > maxRecoveryImportMetadata {
+		return errors.New("recovery activation metadata exceeds its limit")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var active int
+	if err := tx.QueryRowContext(ctx, "SELECT (SELECT count(*) FROM backup_recovery_imports WHERE state='activating') + (SELECT count(*) FROM backup_recovery_history WHERE state IN ('queued','capturing'))").Scan(&active); err != nil {
+		return err
+	}
+	if active != 0 {
+		return contract.ErrBusy
+	}
+	result, err := tx.ExecContext(ctx, "UPDATE backup_recovery_imports SET state='activating',data_json=? WHERE id=? AND state='previewed'", string(data), item.ID)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return conflict.Err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) RecoveryImportIDs(ctx context.Context) ([]string, error) {

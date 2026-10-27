@@ -45,6 +45,14 @@ func (m *installedRecoveryMaintainer) Supported() (bool, string) {
 }
 
 func (m *installedRecoveryMaintainer) StartRecovery(ctx context.Context, id string, timeout time.Duration) error {
+	return m.launchMaintenance(ctx, id, timeout, "recovery-maintenance", "recovery-maintenance-restart")
+}
+
+func (m *installedRecoveryMaintainer) StartRestore(ctx context.Context, id string, timeout time.Duration) error {
+	return m.launchMaintenance(ctx, id, timeout, "recovery-restore", "recovery-restore-restart")
+}
+
+func (m *installedRecoveryMaintainer) launchMaintenance(ctx context.Context, id string, timeout time.Duration, action, restart string) error {
 	value, err := uuid.Parse(id)
 	if err != nil || value.String() != id || value == (uuid.UUID{}) {
 		return errors.New("invalid recovery job identifier")
@@ -58,11 +66,15 @@ func (m *installedRecoveryMaintainer) StartRecovery(ctx context.Context, id stri
 	}
 	// ExecStopPost belongs to the independent transient unit. It also runs if
 	// the helper crashes or reaches RuntimeMaxSec, when Go defers cannot run.
-	args := []string{"--quiet", "--no-block", "--collect", "--unit=yuhaiin-recovery-" + id,
+	unit := "yuhaiin-recovery-" + id
+	if action == "recovery-restore" {
+		unit = "yuhaiin-restore-" + id
+	}
+	args := []string{"--quiet", "--no-block", "--collect", "--unit=" + unit,
 		"--uid=" + strconv.Itoa(os.Geteuid()), "--gid=" + strconv.Itoa(os.Getegid()),
 		"--property=Type=exec", "--property=RuntimeMaxSec=" + strconv.FormatInt(int64((timeout+2*time.Minute)/time.Second), 10),
-		"--property=ExecStopPost=:" + strconv.Quote(strings.ReplaceAll(exe, "%", "%%")) + " recovery-maintenance-restart " + strconv.Quote(strings.ReplaceAll(m.directory, "%", "%%")) + " " + id,
-		exe, "recovery-maintenance", m.directory, id}
+		"--property=ExecStopPost=:" + strconv.Quote(strings.ReplaceAll(exe, "%", "%%")) + " " + restart + " " + strconv.Quote(strings.ReplaceAll(m.directory, "%", "%%")) + " " + id,
+		exe, action, m.directory, id}
 	if err := exec.CommandContext(ctx, "systemd-run", args...).Run(); err != nil {
 		return errors.New("could not launch the independent recovery maintenance unit")
 	}
@@ -94,4 +106,22 @@ func recoveryMaintenanceRestartHelper(args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	return recovery.RestartService(ctx, args[0], args[1], installedRecoveryService{})
+}
+
+func recoveryRestoreHelper(args []string) error {
+	if len(args) != 2 {
+		return errors.New("recovery-restore requires deployment directory and import identifier")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	return recovery.RestoreImport(ctx, args[0], args[1], installedRecoveryService{})
+}
+
+func recoveryRestoreRestartHelper(args []string) error {
+	if len(args) != 2 {
+		return errors.New("recovery-restore-restart requires deployment directory and import identifier")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	return recovery.RestartImportService(ctx, args[0], args[1], installedRecoveryService{})
 }

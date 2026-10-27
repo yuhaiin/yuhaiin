@@ -80,7 +80,7 @@ embedded-host lifecycle integration remain pending.
 Managed local/S3 full-archive scheduling, history, verification, download and
 retention now extend the same Backup owner; see [managed backups](managed-recovery-backups.md).
 Web archive import and authenticated preview now reuse that owner and verifier.
-Web restore activation, recent-result presentation and safe-update recovery integration remain required. Legacy S3 restore now refuses
+Web restore activation and recent-result presentation are available on the supported systemd host; safe-update recovery integration remains required. Legacy S3 restore now refuses
 active database owners before downloading; its offline compatibility path imports
 configuration into a private copy of the local store and uses the same controlled
 activation/startup journal, preserving local identities. It no longer renames a
@@ -180,7 +180,7 @@ CLI process death. Local RSS and allocation measurements distinguish age's
 per-chunk cumulative allocation from bounded live streaming memory; commands,
 fixture scope and raw data are documented. The archive and restore additions
 introduced no SQLite migration beyond 20; managed full backups subsequently add
-schema 21. Web restore, Windows/embedded coordination and safe updates remain
+schema 21, imports add 22 and exclusive restore admission adds 23. Windows/embedded coordination and safe updates remain
 incomplete; managed scheduling and retention are described below.
 
 The offline-restore change passes full Go tests, eight-package focused race
@@ -205,8 +205,7 @@ retain offline tools pending complete service coordination. An isolated real
 systemd/HTTPS/S3/helper-crash drill now accompanies hermetic tests. See
 [managed backups](managed-recovery-backups.md) for exact behavior and limits.
 
-Web restore activation, safe-update
-recovery-point/schema negotiation, broader platform maintenance, periodic
+Safe-update recovery-point/schema negotiation, broader platform maintenance, periodic
 restoration drills and ACME remain outstanding. The three-stage goal is active.
 
 The managed-backup UI has automated 1440/360/320 px interaction/screenshot
@@ -248,7 +247,7 @@ input and private staging cleanup. The existing Backup page exposes actual
 upload, preview and confirmed discard operations in EN/JA/KO. Real HTTPS
 service and responsive browser checks cover these operations. See
 [import lifecycle and limits](managed-recovery-backups.md#web-archive-import-and-authenticated-preview).
-Web activation and startup/rollback coordination are still incomplete.
+Web activation now uses exact-preview consent, sealed projected files and the existing controlled startup/rollback transaction on root-owned Linux systemd hosts.
 
 The offline restore CLI now offers explicit startup-input adoption. Its existing
 transaction/result records retain relocated TLS/auth/listener/file inputs through
@@ -259,5 +258,4 @@ commit/rollback result. Local service drills exercise file certificates and web
 assets against deliberately incompatible host flags; original flags remain the
 default without an opted-in restore. See
 [startup and rollback](recovery-archive.md#activation-real-startup-and-rollback).
-The Web activation request, host handoff and destructive confirmations are still
-required; this startup integration is a prerequisite, not their completion.
+The Web activation request now persists exact-preview identity confirmations and hands off to an independent installed-service helper. Migration 23 serializes admission; its startup checks and crash fallback reuse this integration. See the [confirmed Web workflow](managed-recovery-backups.md#confirmed-web-activation).

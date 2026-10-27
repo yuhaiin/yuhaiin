@@ -6,8 +6,9 @@ Full disaster recovery is still in progress. The transfer improvements described
 here do not turn the legacy S3 state database object into a complete deployment
 backup. Encrypted offline creation, verification, preview and controlled CLI restore
 are implemented; managed local/S3 scheduling, history, verification/download and retention now
-have an actual service-maintenance workflow and UI. Web restore activation and
-software-update recovery points remain required.
+have an actual service-maintenance workflow and UI. Confirmed full-archive Web
+restore is available on the supported systemd host; software-update recovery
+points and broader host integration remain required.
 
 ## Data ownership inventory
 
@@ -122,12 +123,12 @@ SQLite drivers must be tested with their required build tags (`fts5` for mattn).
 
 The [encrypted archive and offline recovery commands](recovery-archive.md)
 collect, validate, preview and activate deployment snapshots with crash rollback
-and actual startup checks. New full-archive Web/S3 scheduling, retention and
-update coordination still need implementation. Successful file activation alone
+and actual startup checks. Managed full-archive Web/S3 scheduling and retention
+are implemented; paired update recovery points still need implementation. Successful file activation alone
 is not a successful service recovery.
 
 The [managed full-backup workflow](managed-recovery-backups.md) extends this same
 Backup/BackupStore/S3 owner with migration 21, bounded history, one scheduled
 maintenance capture, post-restart verified upload and leased archive downloads.
-Its root-owned Linux systemd scope and remaining host/Web restore/update work
+Its root-owned Linux systemd scope and remaining host/update work
 are explicit; it does not make legacy executable rollback database-safe.

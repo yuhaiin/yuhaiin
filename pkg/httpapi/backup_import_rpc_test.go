@@ -97,3 +97,30 @@ func TestRecoveryImportPreviewRequestHasIndependentSecretBodyLimit(t *testing.T)
 		}
 	}
 }
+
+func (s *recoveryImportHTTPStub) ActivateRecoveryImport(_ context.Context, request contract.RecoveryImportActivateRequest) (contract.RecoveryImport, error) {
+	s.previews++
+	return contract.RecoveryImport{ID: request.ID, PreviewID: request.ConfirmPreviewID, State: "activating"}, nil
+}
+
+func TestRecoveryActivationIsPermissionGatedBoundedAdmission(t *testing.T) {
+	if v2Permissions[v2RecoveryImportActivate] != managementpermission.BackupManage {
+		t.Fatal("destructive activation bypasses BackupManage")
+	}
+	owner := new(recoveryImportHTTPStub)
+	handlers := newV2Handlers(V2Services{Backup: owner})
+	for _, body := range []string{`{"id":"fixture","confirmPreviewId":"revision","confirmBackupId":"` + strings.Repeat("x", 17<<10) + `"}`, `{"id":"fixture","confirmPreviewId":"revision"}`} {
+		request := httptest.NewRequest(http.MethodPost, "/api/v2/rpc/backup.recovery.import.activate", strings.NewReader(body))
+		response := httptest.NewRecorder()
+		if err := handlers.values[v2RecoveryImportActivate](response, request); err != nil {
+			t.Fatal(err)
+		}
+		if len(body) > 16<<10 {
+			if response.Code != http.StatusBadRequest || owner.previews != 0 {
+				t.Fatal("oversized consent reached activation", response.Code)
+			}
+		} else if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"state":"activating"`) || strings.Contains(response.Body.String(), `"state":"committed"`) {
+			t.Fatal("API invented completion instead of returning admission", response.Code)
+		}
+	}
+}

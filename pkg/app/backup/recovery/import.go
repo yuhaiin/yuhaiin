@@ -17,6 +17,7 @@ import (
 // record. Plan is opaque to the scheduler; only recovery interprets transactions.
 type PreparedImport struct {
 	Preview  contract.RecoveryRestorePreview
+	ID       string
 	Stage    string
 	Plan     string
 	prepared *backuparchive.Prepared
@@ -54,9 +55,13 @@ func PrepareImport(ctx context.Context, directory, id string, input io.Reader, k
 	if err := tx.validate(); err != nil {
 		return nil, err
 	}
-	plan, err := json.Marshal(tx)
+	sealed, err := sealImport(ctx, directory, tx, preview)
 	if err != nil {
 		return nil, err
 	}
-	return &PreparedImport{Preview: preview, Stage: tx.Stage, Plan: string(plan), prepared: prepared}, nil
+	plan, err := json.Marshal(sealed)
+	if err != nil || len(plan) > maxPreparedImportBytes {
+		return nil, errors.New("prepared recovery plan exceeds its limit")
+	}
+	return &PreparedImport{Preview: preview, ID: tx.ID, Stage: tx.Stage, Plan: string(plan), prepared: prepared}, nil
 }

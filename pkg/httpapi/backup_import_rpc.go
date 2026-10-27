@@ -75,3 +75,15 @@ func (a v2API) discardRecoveryImport(ctx context.Context, request *recoveryBacku
 	}
 	return &emptyResponse{}, nil
 }
+
+func (a v2API) activateRecoveryImport(ctx context.Context, request *contract.RecoveryImportActivateRequest) (*contract.RecoveryImport, error) {
+	owner, ok := a.services.Backup.(RecoveryImportActivator)
+	if !ok {
+		return nil, unavailable("recovery activation controller is unavailable")
+	}
+	item, err := owner.ActivateRecoveryImport(ctx, *request)
+	if err != nil {
+		return nil, badRequest(err)
+	}
+	return &item, nil
+}

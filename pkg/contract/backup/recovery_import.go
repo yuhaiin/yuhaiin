@@ -11,7 +11,26 @@ type RecoveryImport struct {
 	Size      int64                   `json:"size"`
 	SHA256    string                  `json:"sha256"`
 	State     string                  `json:"state"`
+	ErrorCode string                  `json:"errorCode,omitempty"`
+	PreviewID string                  `json:"previewId,omitempty"`
 	Preview   *RecoveryRestorePreview `json:"preview,omitempty"`
+}
+
+// RecoveryImportActivateRequest binds destructive consent to one exact preview.
+// It contains no private decryption input; activation uses authenticated staging.
+type RecoveryImportActivateRequest struct {
+	ID                         string `json:"id"`
+	ConfirmPreviewID           string `json:"confirmPreviewId"`
+	ConfirmBackupID            string `json:"confirmBackupId"`
+	ConfirmSourceInstanceID    string `json:"confirmSourceInstanceId"`
+	ConfirmTargetInstanceID    string `json:"confirmTargetInstanceId"`
+	ConfirmResultInstanceID    string `json:"confirmResultInstanceId"`
+	ConfirmMaintenance         bool   `json:"confirmMaintenance"`
+	ConfirmStartupChanges      bool   `json:"confirmStartupChanges"`
+	ConfirmSourceStopped       bool   `json:"confirmSourceStopped"`
+	ConfirmCredentialRevival   bool   `json:"confirmCredentialRevival"`
+	ConfirmIdentityReplacement bool   `json:"confirmIdentityReplacement"`
+	ConfirmCloneEnrollment     bool   `json:"confirmCloneEnrollment"`
 }
 
 type RecoveryImportPreviewRequest struct {

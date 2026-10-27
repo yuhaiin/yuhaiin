@@ -654,4 +654,7 @@ var migrations = []Migration{
 		)`,
 		`CREATE INDEX backup_recovery_imports_expiry ON backup_recovery_imports(expires_at,id)`,
 	}},
+	{Version: 23, Name: "backup_recovery_activation", Statements: []string{
+		`CREATE UNIQUE INDEX backup_recovery_single_activation ON backup_recovery_imports((1)) WHERE state='activating'`,
+	}},
 }
