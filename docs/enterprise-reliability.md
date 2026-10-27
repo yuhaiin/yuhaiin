@@ -252,7 +252,8 @@ The desktop host also separates recovery and update responsibilities:
 implementation. Tests that exercise the actual server assembly and its shutdown
 remain in the command package. The isolated systemd drill compiles the
 `internal/servicehost` tests; CI includes `./cmd/yuhaiin/...` so moved tests keep
-running. SQLite snapshot code stays with its database owner rather than gaining
+running. Release builds target `./cmd/yuhaiin` explicitly: building a multi-package
+pattern without `-o` would check packages without emitting the executable. SQLite snapshot code stays with its database owner rather than gaining
 a second database implementation.
 
 The SQL schema, archive format, management contracts and lifecycle ownership are
