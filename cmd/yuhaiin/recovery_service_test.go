@@ -20,6 +20,7 @@ import (
 	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/store"
+	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
 
 func recoveryServiceDeployment(t *testing.T, marker, inboundAddress string) string {
@@ -29,7 +30,7 @@ func recoveryServiceDeployment(t *testing.T, marker, inboundAddress string) stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.NewBackupStore(db.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementAuth: true, ManagementTLS: "self_signed", WorkingDirectory: directory}); err != nil {
+	if err := backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementAuth: true, ManagementTLS: "self_signed", WorkingDirectory: directory}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.DB().ExecContext(t.Context(), "INSERT INTO metadata(key,value) VALUES('recovery_drill',?)", marker); err != nil {

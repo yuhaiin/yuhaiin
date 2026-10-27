@@ -32,7 +32,7 @@ import (
 	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
-	"github.com/Asutorufa/yuhaiin/pkg/store"
+	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
 
 type recoveryDrillHTTPError struct {
@@ -112,7 +112,7 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	}))
 	defer objectServer.Close()
 	options.S3 = contract.S3{Enabled: true, EndpointURL: objectServer.URL, Bucket: "fixture", AccessKey: "fixture-access", SecretKey: "fixture-secret"}
-	if err := store.NewBackupStore(db).Save(t.Context(), options); err != nil {
+	if err := backupstore.New(db).Save(t.Context(), options); err != nil {
 		t.Fatal(err)
 	}
 	if err := state.Close(); err != nil {
@@ -439,7 +439,10 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 		if pid("yuhaiin.service") != 0 || pid("yuhaiin-recovery-"+pendingID+".service") == 0 {
 			return false
 		}
-		return run("kill", "--signal=KILL", "yuhaiin-recovery-"+pendingID+".service") == nil
+		// Kill the helper's main process. A whole-cgroup kill can report an
+		// auxiliary-thread ESRCH/EIO after the main process already died, hiding
+		// the successful fault injection from this readiness predicate.
+		return run("kill", "--kill-whom=main", "--signal=KILL", "yuhaiin-recovery-"+pendingID+".service") == nil
 	})
 	wait("ExecStopPost restart after helper death", func() bool {
 		if rpc(t.Context(), "backup.recovery.status", struct{}{}, &status) != nil {

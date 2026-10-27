@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Asutorufa/yuhaiin/pkg/app"
+	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -18,7 +18,7 @@ func withConfigDB(fn func(context.Context, *storagesqlite.Store) error) error {
 	if savepath == "" {
 		return errors.New("configuration path is not initialized")
 	}
-	if err := app.GuardRecoveryMaintenance(savepath); err != nil {
+	if err := backupapp.GuardRecoveryMaintenance(savepath); err != nil {
 		return err
 	}
 	ctx := context.Background()

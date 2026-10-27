@@ -1,6 +1,6 @@
 # Encrypted recovery archives and offline disaster recovery
 
-The recovery archive codec extends the existing `pkg/store/backup.go` owner and
+The recovery archive codec extends the existing `pkg/store/backup/backup.go` owner and
 backup contract. Offline creation now collects a deployment snapshot set from
 the existing database and protocol owners. Controlled offline activation, startup validation and crash rollback extend that
 same owner. Managed local/S3 scheduling, backup history/retention and verification/download
@@ -370,7 +370,7 @@ Reproduce with `go test ./cmd/yuhaiin -run '^TestRecoveryServiceStartupDrill$' -
 
 ## Archive resource measurements
 
-Run `go test ./pkg/store -run '^$' -bench '^BenchmarkRecoveryArchiveExternalRecipient$'
+Run `go test ./pkg/store/backup -run '^$' -bench '^BenchmarkRecoveryArchiveExternalRecipient$'
 -benchmem -benchtime=300ms -count=3`. On Linux/amd64, Go 1.27.2, Ryzen 5 5600G,
 median cumulative allocation for 1/16/64 MiB source files was respectively
 286,705 / 286,875 / 287,096 B/op. The benchmark includes two source reads,
@@ -381,7 +381,7 @@ peak RSS, decryption allocation, complete recovery cost or network performance.
 [Raw results](benchmarks/data/recovery-2026-10-26/external-recipient.txt) are retained.
 
 The complete offline-create path has a separate benchmark:
-`go test ./pkg/app -run '^$' -bench '^BenchmarkFullRecoveryCreateExternalRecipient$'
+`go test ./pkg/app/backup -run '^$' -bench '^BenchmarkFullRecoveryCreateExternalRecipient$'
 -benchmem -benchtime=300ms -count=3`. With a minimal current configuration
 database and one 1/16/64 MiB external-web asset, median cumulative allocations
 were 362,006 / 359,875 / 372,676 B/op; median elapsed times were approximately
@@ -395,7 +395,7 @@ are retained.
 
 ## Restore resource measurements
 
-Run `go test ./pkg/app -run '^$' -bench '^BenchmarkFullRecoveryRestoreExternalRecipient$'
+Run `go test ./pkg/app/backup -run '^$' -bench '^BenchmarkFullRecoveryRestoreExternalRecipient$'
 -benchmem -benchtime=300ms -count=3`. Linux/amd64, Go 1.27.3, Ryzen
 5 5600G environment gives median 1/16/64 MiB asset activation times of about
 8.77/32.67/108.56 ms and cumulative allocation of 1.973/17.718/68.051 MB/op.

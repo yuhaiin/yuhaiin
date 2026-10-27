@@ -11,10 +11,10 @@ import (
 	"testing"
 
 	"filippo.io/age"
-	"github.com/Asutorufa/yuhaiin/pkg/app"
+	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
-	"github.com/Asutorufa/yuhaiin/pkg/store"
+	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
 
 func TestPendingRecoveryBlocksAndroidOwnersBeforeDatabaseWrites(t *testing.T) {
@@ -26,7 +26,7 @@ func TestPendingRecoveryBlocksAndroidOwnersBeforeDatabaseWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.NewBackupStore(db.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: source}); err != nil {
+	if err := backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: source}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -37,7 +37,7 @@ func TestPendingRecoveryBlocksAndroidOwnersBeforeDatabaseWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	archive := filepath.Join(t.TempDir(), "full.yhb")
-	manifest, err := app.CreateOfflineRecovery(t.Context(), source, archive, store.RecoveryEncryption{Recipient: identity.Recipient().String()}, app.RecoveryCreateOptions{ConfirmedMaintenance: true})
+	manifest, err := backupapp.CreateOfflineRecovery(t.Context(), source, archive, backupstore.RecoveryEncryption{Recipient: identity.Recipient().String()}, backupapp.RecoveryCreateOptions{ConfirmedMaintenance: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestPendingRecoveryBlocksAndroidOwnersBeforeDatabaseWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer input.Close()
-	_, err = app.RestoreOfflineRecovery(t.Context(), target, input, store.RecoveryDecryption{Identity: identity.String()}, app.RecoveryRestoreOptions{
+	_, err = backupapp.RestoreOfflineRecovery(t.Context(), target, input, backupstore.RecoveryDecryption{Identity: identity.String()}, backupapp.RecoveryRestoreOptions{
 		Mode: "original", ConfirmedMaintenance: true, ConfirmBackupID: manifest.ID,
 		ConfirmSourceInstanceID: manifest.InstanceID, ConfirmTargetInstanceID: "empty",
 		ConfirmSourceStopped: true, ConfirmCredentialRevival: true,

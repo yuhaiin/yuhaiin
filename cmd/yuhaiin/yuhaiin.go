@@ -18,6 +18,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/app"
+	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -83,7 +84,7 @@ func run(args []string) (resultErr error) {
 		return err
 	}
 	if *restoredStartup && lifecycle != nil {
-		resolved, adopted, err := app.ResolveRecoveryStartupInputs(context.Background(), *path, lifecycle, startupInputs)
+		resolved, adopted, err := backupapp.ResolveRecoveryStartupInputs(context.Background(), *path, lifecycle, startupInputs)
 		if err != nil {
 			return err
 		}
@@ -107,7 +108,7 @@ func run(args []string) (resultErr error) {
 			startupInputs = resolved
 		}
 	}
-	recoveryStartup, err := app.PrepareRecoveryStartup(*path, lifecycle, startupInputs)
+	recoveryStartup, err := backupapp.PrepareRecoveryStartup(*path, lifecycle, startupInputs)
 	if err != nil {
 		return err
 	}

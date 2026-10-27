@@ -16,10 +16,10 @@ import (
 	"time"
 
 	"filippo.io/age"
-	"github.com/Asutorufa/yuhaiin/pkg/app"
+	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
-	"github.com/Asutorufa/yuhaiin/pkg/store"
+	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
 
 func TestRecoveryManagedStartupServiceDrill(t *testing.T) {
@@ -28,7 +28,7 @@ func TestRecoveryManagedStartupServiceDrill(t *testing.T) {
 	if action := os.Getenv(actionVariable); action != "" {
 		directory := os.Getenv(directoryVariable)
 		wait = func(ctx context.Context, listeners ...net.Listener) error {
-			result, err := app.LastRecoveryResult(directory)
+			result, err := backupapp.LastRecoveryResult(directory)
 			if err != nil || result == nil || !result.AdoptStartup || result.Runtime.ManagementTLS != "files" {
 				return errors.New("service did not commit its managed file certificate")
 			}
@@ -146,7 +146,7 @@ func TestRecoveryManagedStartupServiceDrill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.NewBackupStore(db.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementAuth: true, ManagementTLS: "files", CertificateFile: site, KeyFile: site, WorkingDirectory: source, ListenAddress: "127.0.0.1:0", ExternalWebDirectory: web}); err != nil {
+	if err := backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementAuth: true, ManagementTLS: "files", CertificateFile: site, KeyFile: site, WorkingDirectory: source, ListenAddress: "127.0.0.1:0", ExternalWebDirectory: web}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -181,7 +181,7 @@ func TestRecoveryManagedStartupServiceDrill(t *testing.T) {
 				}
 				inputs.ManagementTLS, inputs.CertificateFile, inputs.KeyFile = "files", invalid, invalid
 			}
-			if err := store.NewBackupStore(brokenDB.DB()).RecordRecoveryRuntime(t.Context(), inputs); err != nil {
+			if err := backupstore.New(brokenDB.DB()).RecordRecoveryRuntime(t.Context(), inputs); err != nil {
 				t.Fatal(err)
 			}
 			if err := brokenDB.Close(); err != nil {
@@ -205,7 +205,7 @@ func TestRecoveryManagedStartupServiceDrill(t *testing.T) {
 			if err != nil || !bytes.Equal(before, after) {
 				t.Fatal("managed rollback changed the original database", err)
 			}
-			result, err := app.LastRecoveryResult(target)
+			result, err := backupapp.LastRecoveryResult(target)
 			if err != nil || result == nil || result.State != "rolled_back" || result.Runtime != first.Runtime || result.InstanceID != first.InstanceID || !result.AdoptStartup {
 				t.Fatal("managed rollback lost its preceding binding", err)
 			}

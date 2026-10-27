@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/credential"
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
@@ -271,7 +272,7 @@ type StartOptions struct {
 	RecoveryStartupID string
 
 	Updater             updatepkg.Installer
-	RecoveryMaintenance RecoveryMaintainer
+	RecoveryMaintenance backupapp.RecoveryMaintainer
 }
 
 type SQLStore interface {

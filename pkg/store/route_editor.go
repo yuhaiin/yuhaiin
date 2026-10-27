@@ -10,9 +10,10 @@ import (
 	"uuid"
 
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/store/internal/conflict"
 )
 
-var ErrConflict = errors.New("configuration changed; reload before saving")
+var ErrConflict = conflict.Err
 
 type ResourceInUseError struct {
 	References []contractroute.Reference

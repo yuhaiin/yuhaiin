@@ -12,10 +12,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/app"
+	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
-	"github.com/Asutorufa/yuhaiin/pkg/store"
+	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
 
 func main() {
@@ -52,7 +52,7 @@ func run() (resultErr error) {
 		}
 	}()
 	identityFile := filepath.Join(keyDirectory, "identity")
-	recipient, err := store.GenerateRecoveryIdentityFile(ctx, identityFile)
+	recipient, err := backupstore.GenerateRecoveryIdentityFile(ctx, identityFile)
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
-	err = store.NewBackupStore(db.DB()).RecordRecoveryRuntime(ctx, contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: source, ExternalWebDirectory: assets})
+	err = backupstore.New(db.DB()).RecordRecoveryRuntime(ctx, contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: source, ExternalWebDirectory: assets})
 	closeErr = db.Close()
 	if err != nil {
 		return err
@@ -88,7 +88,7 @@ func run() (resultErr error) {
 		return closeErr
 	}
 	archive := filepath.Join(root, "full.yhb")
-	manifest, err := app.CreateOfflineRecovery(ctx, source, archive, store.RecoveryEncryption{Recipient: recipient}, app.RecoveryCreateOptions{ConfirmedMaintenance: true})
+	manifest, err := backupapp.CreateOfflineRecovery(ctx, source, archive, backupstore.RecoveryEncryption{Recipient: recipient}, backupapp.RecoveryCreateOptions{ConfirmedMaintenance: true})
 	if err != nil {
 		return err
 	}

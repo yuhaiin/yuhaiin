@@ -268,3 +268,5 @@ The Backup page reports the latest actual restore commit or rollback. Offline
 restores can explicitly adopt relocated startup inputs across service restarts;
 failed subsequent restores recover the previous startup binding with the original
 files. See [startup adoption](docs/recovery-archive.md#activation-real-startup-and-rollback).
+Implementation and its tests are grouped in `pkg/app/backup` and
+`pkg/store/backup`; the parent application assembles the existing owners.

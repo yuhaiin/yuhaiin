@@ -14,9 +14,10 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app"
+	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
-	"github.com/Asutorufa/yuhaiin/pkg/store"
+	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
 
 func recoveryCommand(args []string) error {
@@ -78,7 +79,7 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 		if *transaction == "" || *archive != "" || *identityFile != "" || *passphraseFile != "" {
 			return errors.New("rollback requires -transaction-id, -path and -maintenance")
 		}
-		if err := app.RollbackOfflineRecovery(*directory, *transaction, *maintenance); err != nil {
+		if err := backupapp.RollbackOfflineRecovery(*directory, *transaction, *maintenance); err != nil {
 			return err
 		}
 		return json.MarshalWrite(output, struct {
@@ -88,7 +89,7 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 		if *identityFile == "" || *archive != "" || *passphraseFile != "" {
 			return errors.New("keygen requires only -identity-file")
 		}
-		recipient, err := store.GenerateRecoveryIdentityFile(ctx, *identityFile)
+		recipient, err := backupstore.GenerateRecoveryIdentityFile(ctx, *identityFile)
 		if err != nil {
 			return err
 		}
@@ -99,7 +100,7 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 		if *archive == "" || *identityFile != "" || (*recipient == "") == (*passphraseFile == "") {
 			return errors.New("create requires -archive and one public -recipient or private -passphrase-file")
 		}
-		key := store.RecoveryEncryption{Recipient: *recipient}
+		key := backupstore.RecoveryEncryption{Recipient: *recipient}
 		if *passphraseFile != "" {
 			value, err := readRecoverySecretFile(*passphraseFile)
 			if err != nil {
@@ -111,7 +112,7 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 		if *managementAuth || *tlsMode != "" || *workingDirectory != "" || *certFile != "" || *keyFile != "" || *externalWeb != "" {
 			inputs = &contract.RecoveryRuntime{ManagementAuth: *managementAuth, ManagementTLS: *tlsMode, CertificateFile: *certFile, KeyFile: *keyFile, WorkingDirectory: *workingDirectory, ExternalWebDirectory: *externalWeb}
 		}
-		manifest, err := app.CreateOfflineRecovery(ctx, *directory, *archive, key, app.RecoveryCreateOptions{ConfirmedMaintenance: *maintenance, IncludeHistory: *includeHistory, Runtime: inputs})
+		manifest, err := backupapp.CreateOfflineRecovery(ctx, *directory, *archive, key, backupapp.RecoveryCreateOptions{ConfirmedMaintenance: *maintenance, IncludeHistory: *includeHistory, Runtime: inputs})
 		if err != nil {
 			return err
 		}
@@ -120,7 +121,7 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 		if *archive == "" || (*identityFile == "") == (*passphraseFile == "") {
 			return errors.New("verify, preview and restore require -archive and one private key/passphrase file")
 		}
-		var key store.RecoveryDecryption
+		var key backupstore.RecoveryDecryption
 		if *identityFile != "" {
 			value, err := readRecoverySecretFile(*identityFile)
 			if err != nil {
@@ -143,14 +144,14 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 			return errors.New("recovery archive must be a regular file")
 		}
 		if action == "preview" {
-			preview, err := app.PreviewOfflineRecovery(ctx, *directory, source, key, *mode)
+			preview, err := backupapp.PreviewOfflineRecovery(ctx, *directory, source, key, *mode)
 			if err != nil {
 				return err
 			}
 			return json.MarshalWrite(output, preview)
 		}
 		if action == "restore" {
-			result, err := app.RestoreOfflineRecovery(ctx, *directory, source, key, app.RecoveryRestoreOptions{Mode: *mode, AdoptStartup: *adoptStartup,
+			result, err := backupapp.RestoreOfflineRecovery(ctx, *directory, source, key, backupapp.RecoveryRestoreOptions{Mode: *mode, AdoptStartup: *adoptStartup,
 				ConfirmedMaintenance: *maintenance, ConfirmBackupID: *confirmBackup, ConfirmSourceInstanceID: *confirmSource,
 				ConfirmTargetInstanceID: *confirmTarget, ConfirmSourceStopped: *sourceStopped, ConfirmCredentialRevival: *restoreCredentials,
 				AllowVersionChange: *allowVersionChange})
@@ -159,7 +160,7 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 			}
 			return json.MarshalWrite(output, result)
 		}
-		prepared, err := store.PrepareRecoveryArchive(ctx, source, *stagingParent, key)
+		prepared, err := backupstore.PrepareRecoveryArchive(ctx, source, *stagingParent, key)
 		if err != nil {
 			return err
 		}
@@ -212,5 +213,5 @@ func recordRecoveryStartup(ctx context.Context, state app.SQLStore, inputs contr
 	if err != nil {
 		return err
 	}
-	return store.NewBackupStore(db).RecordRecoveryRuntime(ctx, inputs)
+	return backupstore.New(db).RecordRecoveryRuntime(ctx, inputs)
 }

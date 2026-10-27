@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 
+	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
@@ -26,6 +27,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
+	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -80,7 +82,7 @@ func AddCloser[T io.Closer](a *closers, name string, t T) T {
 }
 
 func Start(so *StartOptions) (_ *AppInstance, err error) {
-	if err := checkRecoveryStartup(so.ConfigPath, so.RecoveryStartupID); err != nil {
+	if err := backupapp.CheckStartup(so.ConfigPath, so.RecoveryStartupID); err != nil {
 		return nil, err
 	}
 	configuration.DataDir.Store(so.ConfigPath)
@@ -119,7 +121,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	var inboundConfigStore *plainstore.InboundStore
 	var settingsStore *plainstore.SettingsStore
-	var backupStore *plainstore.BackupStore
+	var backupStore *backupstore.Store
 	var resolverStore *plainstore.ResolverStore
 	var resolverConfigStore *plainstore.ResolverConfigStore
 	var routeSettingsStore *plainstore.RouteSettingsStore
@@ -137,7 +139,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		} else {
 			inboundConfigStore = plainstore.NewInboundStore(db)
 			settingsStore = plainstore.NewSettingsStore(db)
-			backupStore = plainstore.NewBackupStore(db)
+			backupStore = backupstore.New(db)
 			resolverStore = plainstore.NewResolverStore(db)
 			resolverConfigStore = plainstore.NewResolverConfigStore(db)
 			routeSettingsStore = plainstore.NewRouteSettingsStore(db)
@@ -314,7 +316,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		closers:       closers,
 	}
 
-	backup := NewBackup(backupStore, so.ConfigPath, app, fakedns)
+	backup := backupapp.New(backupStore, so.ConfigPath, so.RecoveryMaintenance, fakedns)
 	app.Backup = AddCloser(closers, "backup", backup)
 	registry.MustRegister(backup.Metrics())
 

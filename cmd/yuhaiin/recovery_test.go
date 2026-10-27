@@ -16,7 +16,7 @@ import (
 	"filippo.io/age"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
-	"github.com/Asutorufa/yuhaiin/pkg/store"
+	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
@@ -63,7 +63,7 @@ func TestRecoveryCLIKeyGenerationAndOfflineVerification(t *testing.T) {
 	}
 	manifest := contract.RecoveryManifest{ID: uuid.New().String(), InstanceID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance", Build: contract.RecoveryBuild{Version: "fixture", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()}, Files: []contract.RecoveryFile{{Path: "state.db", Role: "configuration_database", SchemaVersion: 22}}}
 	archive := filepath.Join(directory, "full.yhb")
-	if _, err := store.WriteRecoveryArchiveFile(t.Context(), archive, snapshot, manifest, store.RecoveryEncryption{Recipient: generated.Recipient}); err != nil {
+	if _, err := backupstore.WriteRecoveryArchiveFile(t.Context(), archive, snapshot, manifest, backupstore.RecoveryEncryption{Recipient: generated.Recipient}); err != nil {
 		t.Fatal(err)
 	}
 	stdout.Reset()
@@ -152,7 +152,7 @@ func TestRecoveryCLICreatesAndVerifiesCompleteDeploymentWithoutServer(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.NewBackupStore(database.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: directory}); err != nil {
+	if err := backupstore.New(database.DB()).RecordRecoveryRuntime(t.Context(), contract.RecoveryRuntime{ManagementTLS: "disabled", WorkingDirectory: directory}); err != nil {
 		t.Fatal(err)
 	}
 	if err := database.Close(); err != nil {

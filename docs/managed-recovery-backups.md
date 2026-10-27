@@ -168,7 +168,7 @@ does not claim completion of the entire enterprise reliability objective.
 
 ## Control-plane resource measurements and metrics
 
-`go test ./pkg/store -run '^$' -bench '^BenchmarkRecoveryHistory$' -benchmem
+`go test ./pkg/store/backup -run '^$' -bench '^BenchmarkRecoveryHistory$' -benchmem
 -benchtime=300ms -count=3` measures the indexed history query plus DTO decoding.
 On Linux/amd64, Go 1.27.3, Ryzen 5 5600G, median 100/1,000-record reads take
 about 0.34/3.20 ms and cumulatively allocate 187 kB/2.03 MB. Database fixture
