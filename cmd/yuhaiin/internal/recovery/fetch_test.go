@@ -1,4 +1,4 @@
-package main
+package recoverycmd
 
 import (
 	"bytes"
@@ -46,7 +46,7 @@ func TestRecoveryCLIFetchWorksWithoutDeploymentAndPreservesExistingFile(t *testi
 	}
 	var output bytes.Buffer
 	args := []string{"fetch", "-s3-config-file", config, "-metadata-file", metadata, "-archive", archive, "-path", filepath.Join(directory, "does-not-exist")}
-	if err := executeRecoveryCommand(t.Context(), args, &output); err != nil {
+	if err := Execute(t.Context(), args, &output); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(output.String(), "private-") || !strings.Contains(output.String(), "ciphertext_verified") {
@@ -57,7 +57,7 @@ func TestRecoveryCLIFetchWorksWithoutDeploymentAndPreservesExistingFile(t *testi
 		t.Fatal("fetch wrong file", err)
 	}
 	before := requests.Load()
-	if err := executeRecoveryCommand(t.Context(), args, &output); err == nil || requests.Load() != before {
+	if err := Execute(t.Context(), args, &output); err == nil || requests.Load() != before {
 		t.Fatal("existing file replaced or downloaded again", err)
 	}
 	if _, err := os.Stat(filepath.Join(directory, "state.db")); !os.IsNotExist(err) {
@@ -67,7 +67,7 @@ func TestRecoveryCLIFetchWorksWithoutDeploymentAndPreservesExistingFile(t *testi
 	if err := os.WriteFile(config, []byte(`{"secretKey":"private-secret",`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := executeRecoveryCommand(t.Context(), args, &output); err == nil || strings.Contains(err.Error(), "private-secret") {
+	if err := Execute(t.Context(), args, &output); err == nil || strings.Contains(err.Error(), "private-secret") {
 		t.Fatal("bad JSON leaked a secret", err)
 	}
 }

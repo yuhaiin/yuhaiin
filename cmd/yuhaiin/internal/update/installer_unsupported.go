@@ -1,6 +1,6 @@
 //go:build !linux && !darwin && !windows
 
-package main
+package updatecmd
 
 import (
 	"context"
@@ -11,13 +11,13 @@ import (
 
 type unsupportedUpdateInstaller struct{}
 
-func newUpdateInstaller(string) updatepkg.Installer { return unsupportedUpdateInstaller{} }
+func NewInstaller(string) updatepkg.Installer { return unsupportedUpdateInstaller{} }
 func (unsupportedUpdateInstaller) Supported() (bool, string) {
 	return false, "automatic updates are not supported on this platform"
 }
 func (unsupportedUpdateInstaller) Start(context.Context, string) error {
 	return errors.New("automatic updates are not supported on this platform")
 }
-func updateHelper([]string) error {
+func Install([]string) error {
 	return errors.New("automatic updates are not supported on this platform")
 }

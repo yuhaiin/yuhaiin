@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	recoverycmd "github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/recovery"
+	updatecmd "github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/update"
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -51,7 +53,7 @@ func main() {
 
 	switch action {
 	case "recovery":
-		do(recoveryCommand)
+		do(recoverycmd.Run)
 		return
 	case "auth":
 		do(authCommand)
@@ -72,19 +74,19 @@ func main() {
 		do(restart)
 		return
 	case "update-helper":
-		do(updateHelper)
+		do(updatecmd.Install)
 		return
 	case "recovery-restore":
-		do(recoveryRestoreHelper)
+		do(recoverycmd.Restore)
 		return
 	case "recovery-restore-restart":
-		do(recoveryRestoreRestartHelper)
+		do(recoverycmd.RestartRestore)
 		return
 	case "recovery-maintenance":
-		do(recoveryMaintenanceHelper)
+		do(recoverycmd.Capture)
 		return
 	case "recovery-maintenance-restart":
-		do(recoveryMaintenanceRestartHelper)
+		do(recoverycmd.RestartCapture)
 		return
 	case "version", "-v", "--version":
 		version.Output(os.Stdout)

@@ -1,14 +1,15 @@
 //go:build linux || darwin || windows
 
-package main
+package updatecmd
 
 import (
 	"context"
 	"errors"
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/update"
-	"github.com/Asutorufa/yuhaiin/pkg/update/compatibility"
 	"path/filepath"
 	"strings"
+
+	contract "github.com/Asutorufa/yuhaiin/pkg/contract/update"
+	"github.com/Asutorufa/yuhaiin/pkg/update/compatibility"
 )
 
 func validateUpdateStaging(target, staged string) error {

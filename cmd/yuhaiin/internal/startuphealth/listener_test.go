@@ -1,4 +1,4 @@
-package main
+package startuphealth
 
 import (
 	"crypto/x509"
@@ -15,7 +15,7 @@ func TestRecoveryCertificateHealthNameHandlesWildcardAndIP(t *testing.T) {
 		{x509.Certificate{IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}}, "127.0.0.1"},
 		{x509.Certificate{}, ""},
 	} {
-		if got := recoveryCertificateName(&fixture.certificate); got != fixture.want {
+		if got := certificateName(&fixture.certificate); got != fixture.want {
 			t.Errorf("health SAN = %q, want %q", got, fixture.want)
 		}
 	}

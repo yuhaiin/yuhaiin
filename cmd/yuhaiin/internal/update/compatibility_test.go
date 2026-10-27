@@ -1,6 +1,6 @@
 //go:build linux || darwin || windows
 
-package main
+package updatecmd
 
 import (
 	"os"
@@ -29,7 +29,7 @@ func TestUpdateHelperRejectsUnverifiedStagingAndCleansOnlyManagedPaths(t *testin
 				}
 			}
 			// No case can reach a service manager: metadata is intentionally invalid.
-			if err := updateHelper([]string{target, stage, directory}); err == nil {
+			if err := Install([]string{target, stage, directory}); err == nil {
 				t.Fatal("unverified helper input accepted")
 			}
 			for _, name := range []string{stage, stage + ".update.json"} {

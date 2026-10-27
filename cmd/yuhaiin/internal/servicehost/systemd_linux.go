@@ -1,6 +1,6 @@
 //go:build linux
 
-package main
+package servicehost
 
 import (
 	"context"
@@ -14,12 +14,11 @@ import (
 	"uuid"
 
 	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
-	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 )
 
 type installedRecoveryMaintainer struct{ directory string }
 
-func newRecoveryMaintainer(directory string) backupapp.RecoveryMaintainer {
+func NewRecoveryMaintainer(directory string) backupapp.RecoveryMaintainer {
 	absolute, err := filepath.Abs(directory)
 	if err != nil {
 		return nil
@@ -81,47 +80,11 @@ func (m *installedRecoveryMaintainer) launchMaintenance(ctx context.Context, id 
 	return nil
 }
 
-type installedRecoveryService struct{}
+type Service struct{}
 
-func (installedRecoveryService) Stop(ctx context.Context) error {
+func (Service) Stop(ctx context.Context) error {
 	return exec.CommandContext(ctx, "systemctl", "stop", "yuhaiin.service").Run()
 }
-func (installedRecoveryService) Start(ctx context.Context) error {
+func (Service) Start(ctx context.Context) error {
 	return exec.CommandContext(ctx, "systemctl", "start", "yuhaiin.service").Run()
-}
-
-func recoveryMaintenanceHelper(args []string) error {
-	if len(args) != 2 {
-		return errors.New("recovery-maintenance requires deployment directory and job identifier")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 24*time.Hour+2*time.Minute)
-	defer cancel()
-	return recovery.Capture(ctx, args[0], args[1], installedRecoveryService{})
-}
-
-func recoveryMaintenanceRestartHelper(args []string) error {
-	if len(args) != 2 {
-		return errors.New("recovery-maintenance-restart requires deployment directory and job identifier")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	return recovery.RestartService(ctx, args[0], args[1], installedRecoveryService{})
-}
-
-func recoveryRestoreHelper(args []string) error {
-	if len(args) != 2 {
-		return errors.New("recovery-restore requires deployment directory and import identifier")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	return recovery.RestoreImport(ctx, args[0], args[1], installedRecoveryService{})
-}
-
-func recoveryRestoreRestartHelper(args []string) error {
-	if len(args) != 2 {
-		return errors.New("recovery-restore-restart requires deployment directory and import identifier")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	return recovery.RestartImportService(ctx, args[0], args[1], installedRecoveryService{})
 }

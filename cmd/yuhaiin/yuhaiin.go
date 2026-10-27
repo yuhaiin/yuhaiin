@@ -16,6 +16,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/servicehost"
+	"github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/startuphealth"
+	updatecmd "github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/update"
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/app"
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
@@ -30,6 +33,9 @@ import (
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
+
+// Tests replace this only to terminate a subprocess at an actual startup boundary.
+var recoveryStartupCheckpoint func(string)
 
 func run(args []string) (resultErr error) {
 	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
@@ -162,9 +168,9 @@ func run(args []string) (resultErr error) {
 		UpstreamCredentials: identities.Upstream,
 		StateStore:          setting,
 		ProcessDumper:       getPorcessDumper(),
-		Updater:             newUpdateInstaller(*path),
+		Updater:             updatecmd.NewInstaller(*path),
 		RecoveryStartupID:   recoveryStartup.ID(),
-		RecoveryMaintenance: newRecoveryMaintainer(*path),
+		RecoveryMaintenance: servicehost.NewRecoveryMaintainer(*path),
 	})
 	if err != nil {
 		_ = lis.Close()
@@ -179,7 +185,7 @@ func run(args []string) (resultErr error) {
 	if recoveryStartup != nil && recoveryStartupCheckpoint != nil {
 		recoveryStartupCheckpoint("after_application")
 	}
-	if err := recordRecoveryStartup(context.Background(), setting, startupInputs); err != nil {
+	if err := startuphealth.RecordRuntime(context.Background(), setting, startupInputs); err != nil {
 		if recoveryStartup != nil {
 			return err
 		}
@@ -237,7 +243,7 @@ func run(args []string) (resultErr error) {
 		if *https {
 			certificate = &tlsCertificate
 		}
-		if err := checkRecoveryListener(healthContext, lis.Addr(), certificate); err != nil {
+		if err := startuphealth.CheckListener(healthContext, lis.Addr(), certificate); err != nil {
 			return err
 		}
 		if err := recoveryStartup.Complete(); err != nil {

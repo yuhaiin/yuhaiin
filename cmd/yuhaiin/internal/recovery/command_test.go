@@ -1,4 +1,4 @@
-package main
+package recoverycmd
 
 import (
 	"bytes"
@@ -18,14 +18,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
 func TestRecoveryCLIKeyGenerationAndOfflineVerification(t *testing.T) {
 	directory := t.TempDir()
 	keyPath := filepath.Join(directory, "external-backup.key")
 	var stdout bytes.Buffer
-	if err := executeRecoveryCommand(t.Context(), []string{"keygen", "-identity-file", keyPath}, &stdout); err != nil {
+	if err := Execute(t.Context(), []string{"keygen", "-identity-file", keyPath}, &stdout); err != nil {
 		t.Fatal(err)
 	}
 	var generated struct {
@@ -45,7 +44,7 @@ func TestRecoveryCLIKeyGenerationAndOfflineVerification(t *testing.T) {
 	if generated.Recipient != identity.Recipient().String() || bytes.Contains(stdout.Bytes(), secret) || strings.Contains(stdout.String(), "AGE-SECRET-KEY") {
 		t.Fatal("key generation exposed private identity")
 	}
-	if err := executeRecoveryCommand(t.Context(), []string{"keygen", "-identity-file", keyPath}, &stdout); err == nil {
+	if err := Execute(t.Context(), []string{"keygen", "-identity-file", keyPath}, &stdout); err == nil {
 		t.Fatal("existing key file overwritten")
 	}
 	snapshot := filepath.Join(directory, "snapshot")
@@ -68,7 +67,7 @@ func TestRecoveryCLIKeyGenerationAndOfflineVerification(t *testing.T) {
 		t.Fatal(err)
 	}
 	stdout.Reset()
-	if err := executeRecoveryCommand(t.Context(), []string{"verify", "-archive", archive, "-identity-file", keyPath, "-staging-parent", directory}, &stdout); err != nil {
+	if err := Execute(t.Context(), []string{"verify", "-archive", archive, "-identity-file", keyPath, "-staging-parent", directory}, &stdout); err != nil {
 		t.Fatal(err)
 	}
 	var verified contract.RecoveryManifest
@@ -97,14 +96,14 @@ func TestRecoverySecretFilePermissionsAndNoSecretErrors(t *testing.T) {
 	if err := os.WriteFile(file, []byte(secret+"\r\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := readRecoverySecretFile(file); err != nil || got != secret {
+	if got, err := readSecretFile(file); err != nil || got != secret {
 		t.Fatal("secret line ending handling failed")
 	}
 	if runtime.GOOS != "windows" {
 		if err := os.Chmod(file, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := readRecoverySecretFile(file); err == nil || strings.Contains(err.Error(), secret) {
+		if _, err := readSecretFile(file); err == nil || strings.Contains(err.Error(), secret) {
 			t.Fatal("public secret file accepted or echoed")
 		}
 		if err := os.Chmod(file, 0o600); err != nil {
@@ -114,36 +113,13 @@ func TestRecoverySecretFilePermissionsAndNoSecretErrors(t *testing.T) {
 	if err := os.WriteFile(file, bytes.Repeat([]byte("x"), 1026), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := readRecoverySecretFile(file); err == nil {
+	if _, err := readSecretFile(file); err == nil {
 		t.Fatal("oversize secret file accepted")
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if err := executeRecoveryCommand(ctx, []string{"keygen", "-identity-file", filepath.Join(directory, "cancelled.key")}, &bytes.Buffer{}); !errors.Is(err, context.Canceled) {
+	if err := Execute(ctx, []string{"keygen", "-identity-file", filepath.Join(directory, "cancelled.key")}, &bytes.Buffer{}); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancelled key generation accepted")
-	}
-}
-
-func TestServerAndLocalAuthRespectRecoveryLifecycleLock(t *testing.T) {
-	directory := t.TempDir()
-	owner, err := lockfile.Acquire(filepath.Join(directory, ".configuration.lock"))
-	if errors.Is(err, errors.ErrUnsupported) {
-		t.Skip("lifecycle lock unsupported")
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer owner.Close()
-	if err := run([]string{"-path", directory, "-host", "127.0.0.1:0", "-https=false"}); err == nil {
-		t.Fatal("server ignored offline lifecycle owner")
-	}
-	if err := authCommand([]string{"recover", "-path", directory, "-id", "fixture"}); err == nil {
-		t.Fatal("local auth ignored offline lifecycle owner")
-	}
-	for _, file := range []string{"management.db", "state.db", "management-tls.pem"} {
-		if _, err := os.Stat(filepath.Join(directory, file)); !errors.Is(err, os.ErrNotExist) {
-			t.Fatal("blocked startup mutated deployment data")
-		}
 	}
 }
 
@@ -166,11 +142,11 @@ func TestRecoveryCLICreatesAndVerifiesCompleteDeploymentWithoutServer(t *testing
 	archive := filepath.Join(t.TempDir(), "full.yhb")
 	var output bytes.Buffer
 	args := []string{"create", "-path", directory, "-archive", archive, "-recipient", identity.Recipient().String()}
-	if err := executeRecoveryCommand(t.Context(), args, &output); err == nil {
+	if err := Execute(t.Context(), args, &output); err == nil {
 		t.Fatal("CLI did not require maintenance acknowledgement")
 	}
 	args = append(args, "-maintenance")
-	if err := executeRecoveryCommand(t.Context(), args, &output); err != nil {
+	if err := Execute(t.Context(), args, &output); err != nil {
 		t.Fatal(err)
 	}
 	var manifest contract.RecoveryManifest
@@ -185,7 +161,7 @@ func TestRecoveryCLICreatesAndVerifiesCompleteDeploymentWithoutServer(t *testing
 		t.Fatal(err)
 	}
 	output.Reset()
-	if err := executeRecoveryCommand(t.Context(), []string{"verify", "-archive", archive, "-identity-file", keyPath}, &output); err != nil {
+	if err := Execute(t.Context(), []string{"verify", "-archive", archive, "-identity-file", keyPath}, &output); err != nil {
 		t.Fatal(err)
 	}
 	var verified contract.RecoveryManifest

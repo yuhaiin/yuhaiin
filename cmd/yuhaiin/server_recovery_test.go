@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"filippo.io/age"
+	recoverycmd "github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/recovery"
+	"github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/startuphealth"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	inboundcontract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
@@ -85,7 +87,7 @@ func TestRecoveryServiceStartupDrill(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return checkRecoveryListener(ctx, listeners[0].Addr(), &certificate)
+			return startuphealth.CheckListener(ctx, listeners[0].Addr(), &certificate)
 		}
 		if action == "crash" {
 			recoveryStartupCheckpoint = func(label string) {
@@ -144,11 +146,11 @@ func TestRecoveryServiceStartupDrill(t *testing.T) {
 			}
 			archive := filepath.Join(backupDirectory, "full.yhb")
 			var output bytes.Buffer
-			if err := executeRecoveryCommand(t.Context(), []string{"create", "-path", source, "-archive", archive, "-maintenance", "-recipient", identity.Recipient().String()}, &output); err != nil {
+			if err := recoverycmd.Execute(t.Context(), []string{"create", "-path", source, "-archive", archive, "-maintenance", "-recipient", identity.Recipient().String()}, &output); err != nil {
 				t.Fatal(err)
 			}
 			output.Reset()
-			if err := executeRecoveryCommand(t.Context(), []string{"preview", "-path", target, "-archive", archive, "-identity-file", identityPath, "-mode", "original"}, &output); err != nil {
+			if err := recoverycmd.Execute(t.Context(), []string{"preview", "-path", target, "-archive", archive, "-identity-file", identityPath, "-mode", "original"}, &output); err != nil {
 				t.Fatal(err)
 			}
 			var preview contract.RecoveryRestorePreview
@@ -161,7 +163,7 @@ func TestRecoveryServiceStartupDrill(t *testing.T) {
 				mode = "clone"
 			}
 			arguments := []string{"restore", "-path", target, "-archive", archive, "-identity-file", identityPath, "-mode", mode, "-maintenance", "-source-stopped", "-restore-credentials", "-confirm-backup", preview.Manifest.ID, "-confirm-source-instance", preview.Manifest.InstanceID, "-confirm-target-instance", preview.TargetInstanceID}
-			if err := executeRecoveryCommand(t.Context(), arguments, &output); err != nil {
+			if err := recoverycmd.Execute(t.Context(), arguments, &output); err != nil {
 				t.Fatal(err)
 			}
 			invoke := func(action string) ([]byte, error) {

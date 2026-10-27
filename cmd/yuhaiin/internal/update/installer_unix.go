@@ -1,6 +1,6 @@
 //go:build linux || darwin
 
-package main
+package updatecmd
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
+	"github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/servicehost"
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -28,7 +28,7 @@ type serviceUpdateInstaller struct {
 	dataDir string
 }
 
-func newUpdateInstaller(dataDir string) updatepkg.Installer {
+func NewInstaller(dataDir string) updatepkg.Installer {
 	dataDir, err := filepath.Abs(dataDir)
 	if err != nil {
 		return nil
@@ -106,7 +106,7 @@ func (u *serviceUpdateInstaller) Start(ctx context.Context, staged string) error
 	return nil
 }
 
-func updateHelper(args []string) error {
+func Install(args []string) error {
 	if len(args) != 3 {
 		return errors.New("update-helper requires target and staged paths")
 	}
@@ -139,8 +139,8 @@ func updateHelper(args []string) error {
 	log.Info("update helper stopping service", "service", service)
 	restoreService := func() {
 		if runtime.GOOS == "darwin" {
-			_ = bootstrapDarwinService()
-			_, _ = kickstartDarwinService(service)
+			_ = servicehost.BootstrapDarwin()
+			_, _ = servicehost.KickstartDarwin(service)
 		} else {
 			_ = exec.Command(manager, startArgs...).Run()
 		}
@@ -154,11 +154,11 @@ func updateHelper(args []string) error {
 			return fmt.Errorf("find service before update: %w, %s", err, strings.TrimSpace(string(out)))
 		}
 		darwinPID = updateServicePID(out)
-		if err := bootoutDarwinService(); err != nil {
+		if err := servicehost.BootoutDarwin(); err != nil {
 			return err
 		}
 		if darwinPID > 0 {
-			if err := waitForDarwinProcessExit(darwinPID); err != nil {
+			if err := servicehost.WaitDarwinExit(darwinPID); err != nil {
 				restoreService()
 				return err
 			}
@@ -206,88 +206,18 @@ func updateHelper(args []string) error {
 	return nil
 }
 
-const darwinSystemPlist = "/Library/LaunchDaemons/com.asutorufa.yuhaiin.plist"
-
-func bootoutDarwinService() error {
-	if out, err := exec.Command("launchctl", "bootout", "system", darwinSystemPlist).CombinedOutput(); err != nil {
-		return fmt.Errorf("bootout service: %w, %s", err, strings.TrimSpace(string(out)))
-	}
-	return nil
-}
-
-func bootstrapDarwinService() error {
-	if out, err := exec.Command("launchctl", "bootstrap", "system", darwinSystemPlist).CombinedOutput(); err != nil {
-		return fmt.Errorf("bootstrap service: %w, %s", err, strings.TrimSpace(string(out)))
-	}
-	return nil
-}
-
-func kickstartDarwinService(service string) (int, error) {
-	out, err := exec.Command("launchctl", "kickstart", "-kp", "system/"+service).CombinedOutput()
-	if err != nil {
-		return 0, fmt.Errorf("kickstart service: %w, %s", err, strings.TrimSpace(string(out)))
-	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(out)))
-	if err != nil || pid <= 0 {
-		return 0, fmt.Errorf("kickstart service returned invalid pid %q", strings.TrimSpace(string(out)))
-	}
-	return pid, nil
-}
-
 func startUpdatedService(manager, service string, startArgs []string) error {
 	if runtime.GOOS == "darwin" {
-		if err := ensureDarwinKeepAlive(); err != nil {
+		if err := servicehost.EnsureDarwinKeepAlive(); err != nil {
 			return fmt.Errorf("update launchd plist: %w", err)
 		}
-		if err := bootstrapDarwinService(); err != nil {
+		if err := servicehost.BootstrapDarwin(); err != nil {
 			return err
 		}
-		_, err := kickstartDarwinService(service)
+		_, err := servicehost.KickstartDarwin(service)
 		return err
 	}
 	return exec.Command(manager, startArgs...).Run()
-}
-
-func ensureDarwinKeepAlive() error {
-	data, err := os.ReadFile(darwinSystemPlist)
-	if err != nil {
-		return err
-	}
-	if strings.Contains(string(data), "<key>KeepAlive</key>") {
-		return nil
-	}
-	const keepAlive = "    <key>KeepAlive</key>\n    <true/>\n\n"
-	updated := strings.Replace(string(data), "</dict>", keepAlive+"</dict>", 1)
-	if updated == string(data) {
-		return errors.New("launchd plist does not contain a dictionary")
-	}
-	tmp := darwinSystemPlist + ".update"
-	_ = os.Remove(tmp)
-	if err := os.WriteFile(tmp, []byte(updated), 0700); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, darwinSystemPlist); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
-}
-
-func waitForDarwinProcessExit(pid int) error {
-	deadline := time.Now().Add(30 * time.Second)
-	for {
-		err := syscall.Kill(pid, 0)
-		if errors.Is(err, syscall.ESRCH) {
-			return nil
-		}
-		if err != nil && !errors.Is(err, syscall.EPERM) {
-			return fmt.Errorf("check stopped service process %d: %w", pid, err)
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for service process %d to stop", pid)
-		}
-		time.Sleep(250 * time.Millisecond)
-	}
 }
 
 func updateServicePID(data []byte) int {

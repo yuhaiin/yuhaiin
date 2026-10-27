@@ -132,6 +132,6 @@ jobs:
       - name: Test management permissions and Web Crypto interoperability
         run: |
           go test -race -count=1 -timeout=180s \
-            ./pkg/management/auth ./pkg/httpapi ./pkg/app ./pkg/app/backup/... ./cmd/yuhaiin
+            ./pkg/management/auth ./pkg/httpapi ./pkg/app ./pkg/app/backup/... ./cmd/yuhaiin/...
           go test -count=1 -tags=sqlite_mattn,fts5 -timeout=180s \
             ./pkg/storage/sqlite ./pkg/management/auth

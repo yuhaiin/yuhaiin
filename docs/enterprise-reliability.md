@@ -237,6 +237,24 @@ space limits and runtime-table policy. Tests and benchmarks live beside their
 owners; deployment fixtures are shared only by tests. Application assembly
 injects the optional maintenance interface rather than the whole AppInstance;
 actual application-owner readiness checks remain in `pkg/app/recovery_health.go`.
+The desktop host also separates recovery and update responsibilities:
+
+- `cmd/yuhaiin/internal/recovery`: offline command parsing, private input files
+  and maintenance helper commands; it does not assemble the application.
+- `cmd/yuhaiin/internal/update`: installed-platform updater adapters and helper
+  commands; the update engine remains in `pkg/update`.
+- `cmd/yuhaiin/internal/servicehost`: installed-service ownership and shared
+  systemd/launchd operations used by backup, updates and service commands.
+- `cmd/yuhaiin/internal/startuphealth`: pinned local listener readiness and
+  recording the host's actual startup inputs.
+
+`main` dispatches commands and wires these owners. Unit tests live beside the
+implementation. Tests that exercise the actual server assembly and its shutdown
+remain in the command package. The isolated systemd drill compiles the
+`internal/servicehost` tests; CI includes `./cmd/yuhaiin/...` so moved tests keep
+running. SQLite snapshot code stays with its database owner rather than gaining
+a second database implementation.
+
 The SQL schema, archive format, management contracts and lifecycle ownership are
 unchanged by this refactoring.
 

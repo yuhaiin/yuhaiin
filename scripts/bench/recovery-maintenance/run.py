@@ -38,7 +38,7 @@ def main():
         executable, test = Path(tmp, 'yuhaiin'), Path(tmp, 'drill.test')
         environment = dict(os.environ, CGO_ENABLED='0')
         run(['go', 'build', '-o', str(executable), './cmd/yuhaiin'], env=environment)
-        run(['go', 'test', '-c', '-o', str(test), './cmd/yuhaiin'], env=environment)
+        run(['go', 'test', '-c', '-o', str(test), './cmd/yuhaiin/internal/servicehost'], env=environment)
         try:
             # Private container networking/cgroups; no host data directory,
             # host service socket or host PID namespace is mounted.

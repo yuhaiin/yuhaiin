@@ -1,4 +1,4 @@
-package main
+package startuphealth
 
 import (
 	"context"
@@ -12,13 +12,9 @@ import (
 	"time"
 )
 
-// Tests may replace this to terminate a subprocess at a real recovery boundary.
-// Production leaves it nil; no per-connection hook or worker is installed.
-var recoveryStartupCheckpoint func(string)
-
 // Probe only the just-created local listener, with its exact leaf as a trust
 // anchor. This cannot follow redirects, use a proxy or contact a remote target.
-func checkRecoveryListener(ctx context.Context, address net.Addr, certificate *tls.Certificate) error {
+func CheckListener(ctx context.Context, address net.Addr, certificate *tls.Certificate) error {
 	target, err := netip.ParseAddrPort(address.String())
 	if err != nil {
 		return err
@@ -43,7 +39,7 @@ func checkRecoveryListener(ctx context.Context, address net.Addr, certificate *t
 		if err != nil {
 			return err
 		}
-		name := recoveryCertificateName(leaf)
+		name := certificateName(leaf)
 		if name == "" {
 			return errors.New("restored listener certificate has no verifiable SAN")
 		}
@@ -68,7 +64,7 @@ func checkRecoveryListener(ctx context.Context, address net.Addr, certificate *t
 	return nil
 }
 
-func recoveryCertificateName(leaf *x509.Certificate) string {
+func certificateName(leaf *x509.Certificate) string {
 	for _, name := range leaf.DNSNames {
 		if suffix, wildcard := strings.CutPrefix(name, "*."); wildcard {
 			name = "recovery-health." + suffix

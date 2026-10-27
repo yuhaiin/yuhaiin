@@ -1,4 +1,4 @@
-package main
+package recoverycmd
 
 import (
 	"context"
@@ -8,31 +8,27 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"runtime"
-	"strings"
 	"syscall"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/app"
 	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 )
 
-func recoveryCommand(args []string) error {
+func Run(args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
-	return executeRecoveryCommand(ctx, args, os.Stdout)
+	return Execute(ctx, args, os.Stdout)
 }
 
 // These commands never start the server or a network listener. Verification
 // does not open deployment databases; creation and activation require stopped
 // writer owners. Restoration is committed only by a later healthy server start.
-func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer) error {
+func Execute(ctx context.Context, args []string, output io.Writer) error {
 	if len(args) == 0 {
 		return errors.New("usage: yuhaiin recovery <keygen|create|fetch|verify|preview|restore|rollback> -help")
 	}
@@ -85,11 +81,11 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 			return errors.New("fetch requires -archive, -s3-config-file and -metadata-file; decrypt separately using verify")
 		}
 		var options contract.S3
-		if err := readRecoveryJSONFile(*s3ConfigFile, &options, true); err != nil {
+		if err := readJSONFile(*s3ConfigFile, &options, true); err != nil {
 			return err
 		}
 		var expected contract.RecoveryBackup
-		if err := readRecoveryJSONFile(*metadataFile, &expected, false); err != nil {
+		if err := readJSONFile(*metadataFile, &expected, false); err != nil {
 			return err
 		}
 		if err := backupapp.FetchArchive(ctx, *archive, options, expected, direct.Default, false); err != nil {
@@ -125,7 +121,7 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 		}
 		key := backuparchive.Encryption{Recipient: *recipient}
 		if *passphraseFile != "" {
-			value, err := readRecoverySecretFile(*passphraseFile)
+			value, err := readSecretFile(*passphraseFile)
 			if err != nil {
 				return err
 			}
@@ -146,13 +142,13 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 		}
 		var key backuparchive.Decryption
 		if *identityFile != "" {
-			value, err := readRecoverySecretFile(*identityFile)
+			value, err := readSecretFile(*identityFile)
 			if err != nil {
 				return err
 			}
 			key.Identity = value
 		} else {
-			value, err := readRecoverySecretFile(*passphraseFile)
+			value, err := readSecretFile(*passphraseFile)
 			if err != nil {
 				return err
 			}
@@ -192,69 +188,4 @@ func executeRecoveryCommand(ctx context.Context, args []string, output io.Writer
 	default:
 		return errors.New("unknown recovery action; use keygen, create, fetch, verify, preview, restore or rollback")
 	}
-}
-
-func readRecoveryJSONFile(path string, output any, private bool) error {
-	file, err := os.Open(path)
-	if err != nil {
-		return errors.New("cannot open recovery JSON input")
-	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Size() > 64<<10 || (private && runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0) {
-		return errors.New("recovery JSON input must be a bounded regular file; S3 settings require owner-only permissions")
-	}
-	data, err := io.ReadAll(io.LimitReader(file, (64<<10)+1))
-	if err != nil || len(data) > 64<<10 {
-		return errors.New("recovery JSON input exceeds its size limit")
-	}
-	if err := json.Unmarshal(data, output); err != nil {
-		return errors.New("invalid recovery JSON input")
-	}
-	return nil
-}
-
-func readRecoverySecretFile(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return "", err
-	}
-	if !info.Mode().IsRegular() || info.Size() > 1025 {
-		return "", errors.New("backup key/passphrase must be a regular file of at most 1025 bytes")
-	}
-	// Opening the file is the OS authorization check. Enforce private Unix
-	// permissions; Windows access is governed by its existing account ACLs.
-	if info.Mode().Perm()&0o077 != 0 && runtime.GOOS != "windows" {
-		return "", errors.New("backup key/passphrase file must have owner-only permissions (0600)")
-	}
-	data, err := io.ReadAll(io.LimitReader(file, 1026))
-	if err != nil {
-		return "", err
-	}
-	if len(data) > 1025 {
-		return "", errors.New("backup key/passphrase file exceeds limit")
-	}
-	value := strings.TrimSuffix(strings.TrimSuffix(string(data), "\n"), "\r")
-	if value == "" || len(value) > 1024 {
-		return "", errors.New("empty or overlong backup key/passphrase")
-	}
-	return value, nil
-}
-
-func recordRecoveryStartup(ctx context.Context, state app.SQLStore, inputs contract.RecoveryRuntime) error {
-	workingDirectory, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	inputs.WorkingDirectory = workingDirectory
-	db, err := state.SQLDB(ctx)
-	if err != nil {
-		return err
-	}
-	return backupstore.New(db).RecordRecoveryRuntime(ctx, inputs)
 }

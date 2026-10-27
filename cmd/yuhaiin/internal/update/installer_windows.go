@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package updatecmd
 
 import (
 	"context"
@@ -21,7 +21,7 @@ import (
 
 type serviceUpdateInstaller struct{ target, dataDir string }
 
-func newUpdateInstaller(dataDir string) updatepkg.Installer {
+func NewInstaller(dataDir string) updatepkg.Installer {
 	dataDir, err := filepath.Abs(dataDir)
 	if err != nil {
 		return nil
@@ -86,7 +86,7 @@ func (u *serviceUpdateInstaller) Start(ctx context.Context, staged string) error
 	return exec.Command(exe, "update-helper", u.target, staged, u.dataDir).Start()
 }
 
-func updateHelper(args []string) error {
+func Install(args []string) error {
 	if len(args) != 3 {
 		return errors.New("update-helper requires target and staged paths")
 	}
