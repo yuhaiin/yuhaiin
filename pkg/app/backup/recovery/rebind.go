@@ -62,6 +62,12 @@ func rewriteRecoveryConfiguration(ctx context.Context, stage, instanceID string,
 			return err
 		}
 		configuration.Probe.Enabled, configuration.Speed.Enabled = false, false
+		if configuration.UploadSpeed != nil {
+			configuration.UploadSpeed.Enabled = false
+		}
+		if err := disableClonedSelectorMonitoring(ctx, db.DB()); err != nil {
+			return err
+		}
 		if err := monitoring.Save(ctx, configuration); err != nil {
 			return err
 		}
@@ -95,6 +101,54 @@ func rewriteRecoveryConfiguration(ctx context.Context, stage, instanceID string,
 		return err
 	}
 	return nil
+}
+
+// A selector override can run even with global monitoring disabled. Rewrite only
+// the isolated staged database, without using live CRUD which rejects the clone's
+// deliberately disabled candidate nodes. Preserve nil/manual policies and limits.
+func disableClonedSelectorMonitoring(ctx context.Context, db *sql.DB) error {
+	last, first := "", true
+	for {
+		query := "SELECT id,policy_json FROM outbound_selectors"
+		var parameters []any
+		if !first {
+			query += " WHERE id>?"
+			parameters = []any{last}
+		}
+		var id, raw string
+		err := db.QueryRowContext(ctx, query+" ORDER BY id LIMIT 1", parameters...).Scan(&id, &raw)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		var policy *nodecontract.SelectorPolicy
+		if err := json.Unmarshal([]byte(raw), &policy); err != nil {
+			return err
+		}
+		changed := false
+		if policy != nil {
+			if policy.Probe != nil && policy.Probe.Enabled {
+				policy.Probe.Enabled, changed = false, true
+			}
+			for _, schedule := range []*nodecontract.SpeedSchedule{policy.PeriodicSpeed, policy.PeriodicUpload} {
+				if schedule != nil && schedule.Enabled {
+					schedule.Enabled, changed = false, true
+				}
+			}
+		}
+		if changed {
+			data, err := json.Marshal(policy)
+			if err != nil {
+				return err
+			}
+			if _, err := db.ExecContext(ctx, "UPDATE outbound_selectors SET policy_json=?,revision=revision+1 WHERE id=?", string(data), id); err != nil {
+				return err
+			}
+		}
+		last, first = id, false
+	}
 }
 
 func rewriteRecoveryTable(ctx context.Context, db *sql.DB, table string, resolve func(string) (string, error), mode string) error {

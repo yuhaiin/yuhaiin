@@ -230,3 +230,89 @@ func TestOfflineRecoveryCloneResetsIdentityCredentialsAndListeners(t *testing.T)
 		t.Fatal(err)
 	}
 }
+
+func TestRecoveryMonitoringSchedulesPreservedForOriginalAndDisabledForClone(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("offline activation needs directory synchronization")
+	}
+	source, key := testfixture.BasicDeployment(t)
+	db, err := sqlite.Open(t.Context(), filepath.Join(source, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	node := nodecontract.Node{ID: "scheduled", Name: "Scheduled", Origin: "manual", Enabled: true, Chain: []nodecontract.Protocol{{Type: "direct", Direct: &nodecontract.Direct{}}}}
+	if err := store.NewNodeStore(db.DB()).Save(t.Context(), node, 0); err != nil {
+		t.Fatal(err)
+	}
+	upload := nodecontract.SpeedSchedule{Enabled: true, Test: nodecontract.SpeedTestRequest{URL: "https://upload.example/test", Direction: "upload", AllowUpload: true}}
+	download := nodecontract.SpeedSchedule{Enabled: true, Test: nodecontract.SpeedTestRequest{URL: "https://download.example/test"}}
+	monitoring := nodecontract.MonitoringConfig{Probe: nodecontract.ProbeSchedule{Enabled: true}, Speed: download, UploadSpeed: &upload}
+	if err := store.NewMonitoringStore(db.DB()).Save(t.Context(), monitoring); err != nil {
+		t.Fatal(err)
+	}
+	automatic, err := store.NewSelectorStore(db.DB()).Save(t.Context(), nodecontract.Selector{Name: "Scheduled", NodeID: node.ID, Policy: &nodecontract.SelectorPolicy{
+		Mode: "failover", Candidates: []nodecontract.SelectorCandidate{{NodeID: node.ID, Enabled: true, Weight: 1}},
+		Probe: &nodecontract.ProbeSchedule{Enabled: true}, PeriodicSpeed: &download, PeriodicUpload: &upload,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manual, err := store.NewSelectorStore(db.DB()).Save(t.Context(), nodecontract.Selector{Name: "Manual", NodeID: node.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "schedules.yhb")
+	manifest, err := Create(t.Context(), source, path, backuparchive.Encryption{Recipient: key.Recipient().String()}, CreateOptions{ConfirmedMaintenance: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"original", "clone"} {
+		t.Run(mode, func(t *testing.T) {
+			target := t.TempDir()
+			_, err := Restore(t.Context(), target, bytes.NewReader(archive), backuparchive.Decryption{Identity: key.String()}, RestoreOptions{Mode: mode, ConfirmedMaintenance: true,
+				ConfirmBackupID: manifest.ID, ConfirmSourceInstanceID: manifest.InstanceID, ConfirmTargetInstanceID: "empty", ConfirmSourceStopped: true, ConfirmCredentialRevival: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			restored, err := sqlite.OpenSnapshotReader(t.Context(), filepath.Join(target, "state.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer restored.Close()
+			configuration, err := store.NewMonitoringStore(restored).Get(t.Context())
+			enabled := mode == "original"
+			if err != nil || configuration.Probe.Enabled != enabled || configuration.Speed.Enabled != enabled || configuration.UploadSpeed == nil || configuration.UploadSpeed.Enabled != enabled {
+				t.Fatal("wrong global schedule state", configuration, err)
+			}
+			value, err := store.NewSelectorStore(restored).Get(t.Context(), automatic.ID)
+			if err != nil || value.Policy == nil {
+				t.Fatal(value, err)
+			}
+			p := value.Policy
+			if p.Probe == nil || p.Probe.Enabled != enabled || p.PeriodicSpeed == nil || p.PeriodicSpeed.Enabled != enabled || p.PeriodicUpload == nil || p.PeriodicUpload.Enabled != enabled {
+				t.Fatal("selector override bypasses disabled clone schedules", p)
+			}
+			if p.PeriodicUpload.Test.URL != upload.Test.URL || !p.PeriodicUpload.Test.AllowUpload {
+				t.Fatal("schedule settings lost", p)
+			}
+			expectedRevision := automatic.Revision
+			if !enabled {
+				expectedRevision++
+			}
+			if value.Revision != expectedRevision {
+				t.Fatal("incorrect configuration revision", value.Revision, expectedRevision)
+			}
+			unchanged, err := store.NewSelectorStore(restored).Get(t.Context(), manual.ID)
+			if err != nil || unchanged.Policy != nil || unchanged.Revision != manual.Revision {
+				t.Fatal("manual selector changed", unchanged, err)
+			}
+		})
+	}
+}

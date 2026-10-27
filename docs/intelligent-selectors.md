@@ -170,6 +170,8 @@ limiter as downloads. Neither selector creation nor editing upload weights start
 a test. Periodic upload tests are independently disabled by default; configure
 optional `MonitoringConfig.uploadSpeed` or `SelectorPolicy.periodicUpload`.
 The same mobile/foreground, metered-network and established-VPN checks apply.
+Clone restoration disables all three global schedules and every enabled
+Selector schedule override; original-instance recovery preserves them.
 Both directions share the two-test hard limit and one durable daily spend.
 
 Upload protocol version 1:

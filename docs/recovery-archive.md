@@ -467,3 +467,15 @@ creation and transient private identities for authenticated checks. Database
 schema is now 23 (history 21, imports 22, exclusive activation 23); existing
 archive formats and known older schema prefixes stay verifiable. Other platform
 coordinators remain pending. See the [confirmed Web workflow](managed-recovery-backups.md#confirmed-web-activation).
+
+## Cloned monitoring schedules
+
+Cloning disables periodic probe, download and upload monitoring at both the
+global configuration and each Selector override. Disabling only the global
+switch is insufficient when a Selector owns an enabled override. Limits, targets
+and nil/manual policies remain intact for administrator review; changed Selector
+policy revisions advance once. The rewrite affects only authenticated staging,
+after every writer has stopped, and adds no migration. Original-instance recovery
+retains the source schedules. `TestRecoveryMonitoringSchedulesPreservedForOriginalAndDisabledForClone`
+restores a real encrypted archive in both modes and verifies these settings,
+revisions and unchanged manual policies. It runs with both SQLite drivers.
