@@ -22,6 +22,14 @@ type rejectingInspector struct {
 	state string
 }
 
+func TestHistoryCompatibilityRejectsForeignPlatformBeforeSchemaInspection(t *testing.T) {
+	service := NewService(Options{Installer: &rejectingInspector{state: "compatible"}, TargetOS: "linux", TargetArch: "amd64"})
+	status, err := service.inspectCompatibility(t.Context(), compatibility.Manifest{Platform: "windows", Architecture: "amd64"})
+	if err != nil || status.State != "incompatible" || status.Reason != "target_platform_mismatch" {
+		t.Fatal("foreign-platform history was advertised as compatible", status, err)
+	}
+}
+
 func (i *rejectingInspector) InspectCompatibility(context.Context, compatibility.Manifest) (contract.CompatibilityStatus, error) {
 	return contract.CompatibilityStatus{State: i.state}, nil
 }
