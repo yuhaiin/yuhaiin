@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"filippo.io/age"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,6 +17,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	nodecontract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
@@ -30,7 +33,12 @@ type preparedImportSource struct {
 
 func newPreparedImportSource(t *testing.T) *preparedImportSource {
 	t.Helper()
-	directory, key := testfixture.Deployment(t)
+	directory, key := testfixture.BasicDeployment(t)
+	return preparedImportSourceFrom(t, directory, key)
+}
+
+func preparedImportSourceFrom(t *testing.T, directory string, key *age.X25519Identity) *preparedImportSource {
+	t.Helper()
 	archive := filepath.Join(t.TempDir(), "full.yhb")
 	if _, err := Create(t.Context(), directory, archive, backuparchive.Encryption{Recipient: key.Recipient().String()}, CreateOptions{ConfirmedMaintenance: true}); err != nil {
 		t.Fatal(err)
@@ -299,5 +307,77 @@ func TestPreparedImportRefusesChangedTargetIdentity(t *testing.T) {
 	actual, err := sqlite.RecoveryInstanceID(t.Context(), filepath.Join(directory, "state.db"), false)
 	if err != nil || actual != replacement {
 		t.Fatal("refused restore modified the foreign target", err)
+	}
+}
+
+func TestPreparedImportPreservesNativeIdentityProjectionAndRollback(t *testing.T) {
+	directory, key := testfixture.Deployment(t)
+	source := preparedImportSourceFrom(t, directory, key)
+	for _, mode := range []string{"original", "clone"} {
+		t.Run(mode, func(t *testing.T) {
+			target, item, request, _ := source.prepare(t, mode, false)
+			modernDirectory, err := tailscale.RecoveryDirectory(target, nodecontract.Tailscale{AuthKey: "tskey-fixture", Hostname: "fixture-host"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			modern := filepath.Join(modernDirectory, "tailscaled.state")
+			if mode == "original" {
+				relative, err := filepath.Rel(target, modern)
+				if err != nil {
+					t.Fatal(err)
+				}
+				staged := filepath.Join(target, item.Stage, relative)
+				content, err := os.ReadFile(staged)
+				if err != nil {
+					t.Fatal(err)
+				}
+				changed := bytes.Clone(content)
+				changed[0] ^= 1
+				if err := os.WriteFile(staged, changed, 0600); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := ActivateImport(t.Context(), target, item, request); err == nil {
+					t.Fatal("same-size native identity tampering bypassed the sealed plan")
+				}
+				if err := os.WriteFile(staged, content, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			result, err := ActivateImport(t.Context(), target, item, request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			legacy := filepath.Join(target, "tailscale", "fixture-host", "tailscaled.state")
+			if _, err := os.Lstat(legacy); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("activation retained a competing legacy Tailnet identity", err)
+			}
+			if mode == "original" {
+				content, err := os.ReadFile(modern)
+				if err != nil || string(content) != "fixture identity or ignored file" {
+					t.Fatal("sealed Web restore lost the native identity", err)
+				}
+			} else if _, err := os.Lstat(modern); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("clone activated the source machine identity", err)
+			}
+			lifecycle, err := lockfile.Acquire(filepath.Join(target, ".configuration.lock"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer lifecycle.Close()
+			startup, err := PrepareStartup(target, lifecycle, result.Runtime)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := startup.Abort(); err != nil {
+				t.Fatal(err)
+			}
+			original, err := os.ReadFile(legacy)
+			if err != nil || string(original) != "fixture identity or ignored file" {
+				t.Fatal("rollback lost the target's original native identity", err)
+			}
+			if _, err := os.Lstat(modern); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("rollback retained the newly projected identity", err)
+			}
+		})
 	}
 }

@@ -15,7 +15,20 @@ import (
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
 
+// Deployment includes native identity files for protocol-inventory tests.
 func Deployment(t *testing.T) (string, *age.X25519Identity) {
+	t.Helper()
+	return deployment(t, true)
+}
+
+// BasicDeployment retains real configuration/identity SQLite, management TLS,
+// gateway CA and certificate dependencies without unrelated native VPN profiles.
+func BasicDeployment(t *testing.T) (string, *age.X25519Identity) {
+	t.Helper()
+	return deployment(t, false)
+}
+
+func deployment(t *testing.T, native bool) (string, *age.X25519Identity) {
 	t.Helper()
 	directory := t.TempDir()
 	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
@@ -40,10 +53,11 @@ func Deployment(t *testing.T) (string, *age.X25519Identity) {
 			t.Fatal(err)
 		}
 	}
-	nodes := []node.Node{
-		{ID: "tail", Name: "Tailnet", Origin: "manual", Chain: []node.Protocol{{Type: "tailscale", Tailscale: &node.Tailscale{AuthKey: "tskey-fixture", Hostname: "fixture-host"}}}},
-		{ID: "zt", Name: "ZeroTier", Origin: "manual", Chain: []node.Protocol{{Type: "zerotier", ZeroTier: &node.ZeroTier{NetworkID: "8056c2e21c000001", Identity: "fixture"}}}},
-		{ID: "tls", Name: "TLS", Origin: "manual", Chain: []node.Protocol{{Type: "tls_termination", TLSTermination: &node.TLSTermination{TLS: node.ServerTLS{Certificates: []node.Certificate{{CertFilePath: "site.crt", KeyFilePath: "site.key"}}}}}}},
+	nodes := []node.Node{{ID: "tls", Name: "TLS", Origin: "manual", Chain: []node.Protocol{{Type: "tls_termination", TLSTermination: &node.TLSTermination{TLS: node.ServerTLS{Certificates: []node.Certificate{{CertFilePath: "site.crt", KeyFilePath: "site.key"}}}}}}}}
+	if native {
+		nodes = append(nodes,
+			node.Node{ID: "tail", Name: "Tailnet", Origin: "manual", Chain: []node.Protocol{{Type: "tailscale", Tailscale: &node.Tailscale{AuthKey: "tskey-fixture", Hostname: "fixture-host"}}}},
+			node.Node{ID: "zt", Name: "ZeroTier", Origin: "manual", Chain: []node.Protocol{{Type: "zerotier", ZeroTier: &node.ZeroTier{NetworkID: "8056c2e21c000001", Identity: "fixture"}}}})
 	}
 	for _, item := range nodes {
 		if err := store.NewNodeStore(db.DB()).Save(t.Context(), item, 0); err != nil {
@@ -53,7 +67,11 @@ func Deployment(t *testing.T) (string, *age.X25519Identity) {
 	if _, err := store.NewGatewayStore(db.DB()).Save(t.Context(), gateway.Config{Gateways: []gateway.Gateway{{ID: "site", Name: "Site", CertificateFile: "site.crt", KeyFile: "site.key", Default: gateway.Action{Type: "reject", Status: 503}}}}); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"tailscale/fixture-host/tailscaled.state", "zerotier/fixture/1-0000000000000000-0000000000000000.state", "zerotier/fixture/.zt-state-temporary", "zerotier/fixture/ignored.log", "logs/huge.log", "cache/large.tmp"} {
+	paths := []string{"logs/huge.log", "cache/large.tmp"}
+	if native {
+		paths = append(paths, "tailscale/fixture-host/tailscaled.state", "zerotier/fixture/1-0000000000000000-0000000000000000.state", "zerotier/fixture/.zt-state-temporary", "zerotier/fixture/ignored.log")
+	}
+	for _, path := range paths {
 		full := filepath.Join(directory, filepath.FromSlash(path))
 		if err := os.MkdirAll(filepath.Dir(full), 0o700); err != nil {
 			t.Fatal(err)

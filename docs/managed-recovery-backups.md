@@ -306,3 +306,20 @@ The current Web import publisher requires directory synchronization. Windows
 publication remains explicitly unsupported while its private staging/durability
 and service coordinator are completed; cross-compilation is not evidence of a
 working Windows restoration workflow.
+
+
+### Race-suite fixture budget
+
+The Web restore fault matrix uses real configuration/management SQLite, TLS and
+Gateway dependencies. General file/state/admission cases use the basic deployment
+fixture; dedicated native cases retain real Tailnet/ZeroTier inventory. The latter
+verify current-path projection, original versus clone identity handling, rollback
+and same-size native-file tampering. All production credential KDF work remains
+unchanged.
+
+This separation avoids repeatedly deriving a 600,000-round Tailnet namespace in
+unrelated cases. The preceding remote race jobs reached the 180-second package
+limit while running that KDF, without a reported data race. The updated combined
+suite passed locally with affinity limited to two CPUs and GOMAXPROCS=2: recovery
+83.3 s, online backup 92.9 s. The package deadline and behavioral assertions were
+retained. These are test-resource measurements, not forwarding or WAN benchmarks.
