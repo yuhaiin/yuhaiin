@@ -98,8 +98,8 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 			return nil, errors.New("sstp inbound requires TCP-only networking")
 		}
 		if _, ok := provider.(proxyauth.MSCHAPv2Provider); !ok {
-            return nil, errors.New("sstp requires MS-CHAPv2-capable identity provider")
-        }
+			return nil, errors.New("sstp requires MS-CHAPv2-capable identity provider")
+		}
 	}
 	if config.Protocol.Type == contract.ProtocolKrunlet {
 		if config.Network.Type != contract.NetworkEmpty {
@@ -138,11 +138,11 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 	}
 
 	var sstpVerifier proxyauth.MSCHAPv2Verifier
-    if config.Protocol.Type == contract.ProtocolSSTP {
-        mschapProvider := provider.(proxyauth.MSCHAPv2Provider)
-        sstpVerifier = scope.WrapMSCHAPv2(mschapProvider.MSCHAPv2Verifier(config.ID, config.Authentication.Users))
-    }
-    server, err := contractProtocol(config.Protocol, lis, handler, ranges, verifier, sstpVerifier)
+	if config.Protocol.Type == contract.ProtocolSSTP {
+		mschapProvider := provider.(proxyauth.MSCHAPv2Provider)
+		sstpVerifier = scope.WrapMSCHAPv2(mschapProvider.MSCHAPv2Verifier(config.ID, config.Authentication.Users))
+	}
+	server, err := contractProtocol(config.Protocol, lis, handler, ranges, verifier, sstpVerifier)
 	if err != nil {
 		closeIfNotNil(lis)
 		return nil, err
@@ -299,11 +299,11 @@ func contractTransport(config contract.Transport, lis netapi.Listener) (netapi.L
 
 func contractProtocol(config contract.Protocol, lis netapi.Listener, handler netapi.Handler, ranges [2]netip.Prefix, verifier func(string) proxyauth.Verifier, sstpVerifier proxyauth.MSCHAPv2Verifier) (netapi.Accepter, error) {
 	verify := func(protocol string) proxyauth.Verifier {
-        if verifier != nil {
-            return verifier(protocol)
-        }
-        return nil
-    }
+		if verifier != nil {
+			return verifier(protocol)
+		}
+		return nil
+	}
 	switch config.Type {
 	case contract.ProtocolHTTP:
 		protocol := config.HTTP
@@ -351,7 +351,7 @@ func contractProtocol(config contract.Protocol, lis netapi.Listener, handler net
 		if err != nil {
 			return nil, err
 		}
-		
+
 		return sstp.NewServer(sstp.ServerConfig{
 			ServerAddress: c.ServerAddress, ClientAddresses: c.ClientAddresses,
 			DNS: c.DNS, MTU: c.MTU, MaxSessions: c.MaxSessions, Authenticate: sstpVerifier,

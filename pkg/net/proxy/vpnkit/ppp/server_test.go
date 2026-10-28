@@ -1,9 +1,9 @@
 package ppp
 
 import (
+	"crypto/subtle"
+	"errors"
 	"net"
-    "crypto/subtle"
-    "errors"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/mschap"
@@ -36,14 +36,14 @@ func (h *testClientHandler) NetworkUp(cfg IPConfig)                     { h.addr
 func (h *testClientHandler) Closed(err error)                           { h.closed = err }
 
 func testMSCHAPVerifier(password string) func(string, [16]byte, [16]byte, [24]byte) ([16]byte, error) {
-    return func(username string, server, peer [16]byte, response [24]byte) ([16]byte, error) {
-        hash := mschap.NTPasswordHash(password)
-        expected := mschap.GenerateNTResponseFromHash(server, peer, username, hash)
-        if subtle.ConstantTimeCompare(expected[:], response[:]) != 1 {
-            return [16]byte{}, errors.New("invalid challenge")
-        }
-        return hash, nil
-    }
+	return func(username string, server, peer [16]byte, response [24]byte) ([16]byte, error) {
+		hash := mschap.NTPasswordHash(password)
+		expected := mschap.GenerateNTResponseFromHash(server, peer, username, hash)
+		if subtle.ConstantTimeCompare(expected[:], response[:]) != 1 {
+			return [16]byte{}, errors.New("invalid challenge")
+		}
+		return hash, nil
+	}
 }
 
 func TestServerPPPInteroperatesWithClient(t *testing.T) {

@@ -2,7 +2,7 @@ package sstp
 
 import (
 	"bytes"
-    "context"
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"crypto/tls"
@@ -22,7 +22,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/mschap"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/ppp"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
-    "github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 )
 
 const (
@@ -42,20 +42,20 @@ type ServerConfig struct {
 }
 
 type Server struct {
-	listener  net.Listener
-	tlsConfig *tls.Config
-	handler   netapi.Handler
-	serverIP  netip.Addr
-	dns       net.IP
-	mtu       int
+	listener     net.Listener
+	tlsConfig    *tls.Config
+	handler      netapi.Handler
+	serverIP     netip.Addr
+	dns          net.IP
+	mtu          int
 	authenticate proxyauth.MSCHAPv2Verifier
-	available chan netip.Addr
-	done      chan struct{}
-	wg        sync.WaitGroup
-	mu        sync.Mutex
-	conns     map[net.Conn]struct{}
-	once      sync.Once
-	err       error
+	available    chan netip.Addr
+	done         chan struct{}
+	wg           sync.WaitGroup
+	mu           sync.Mutex
+	conns        map[net.Conn]struct{}
+	once         sync.Once
+	err          error
 }
 
 var _ netapi.Accepter = (*Server)(nil)
@@ -94,8 +94,8 @@ func NewServer(cfg ServerConfig, tlsConfig *tls.Config, listener net.Listener, h
 		return nil, errors.New("sstp: maxSessions must be within the address pool size")
 	}
 	if cfg.Authenticate == nil {
-        return nil, errors.New("sstp: authenticated identity verifier is required")
-    }
+		return nil, errors.New("sstp: authenticated identity verifier is required")
+	}
 	var dns net.IP
 	if cfg.DNS != "" {
 		addr, err := netip.ParseAddr(cfg.DNS)
@@ -193,8 +193,8 @@ type serverLink struct {
 	certDER       []byte
 	hlak          [mschap.HLAKLen]byte
 	authenticated bool
-    identity *proxyauth.Identity
-    authStop func() bool
+	identity      *proxyauth.Identity
+	authStop      func() bool
 	bound         bool
 	up            bool
 	device        *wireguard.LightweightNetTun
@@ -221,13 +221,15 @@ func (l *serverLink) writePacket(pkt []byte) error {
 }
 
 func (l *serverLink) ServerAuthenticated(hash [16]byte, ntResponse [mschap.NTResponseLen]byte) {
-    l.hlak = mschap.ClientHLAKFromHash(hash, ntResponse)
+	l.hlak = mschap.ClientHLAKFromHash(hash, ntResponse)
 	l.authenticated = true
 }
 func (l *serverLink) ServerNetworkUp() { l.up = true }
 
 func (l *serverLink) close() {
-    if l.authStop != nil { l.authStop() }
+	if l.authStop != nil {
+		l.authStop()
+	}
 	_ = l.conn.Close()
 	if l.flows != nil {
 		_ = l.flows.Close()
@@ -316,14 +318,18 @@ func (s *Server) serve(raw net.Conn, clientIP netip.Addr) error {
 	sv4 := s.serverIP.As4()
 	cv4 := clientIP.As4()
 	p, err := ppp.NewServer(net.IP(sv4[:]), net.IP(cv4[:]), s.dns,
-        func(username string, authChallenge, peerChallenge [16]byte, response [24]byte) ([16]byte, error) {
-            identity, ntHash, err := s.authenticate(context.Background(), username, authChallenge, peerChallenge, response)
-            if err != nil { return [16]byte{}, err }
-            if identity == nil || !identity.Valid() { return [16]byte{}, proxyauth.ErrUnauthorized }
-            link.identity = identity
-            link.authStop = context.AfterFunc(identity.Context, func() { _ = conn.Close() })
-            return ntHash, nil
-        }, link, link)
+		func(username string, authChallenge, peerChallenge [16]byte, response [24]byte) ([16]byte, error) {
+			identity, ntHash, err := s.authenticate(context.Background(), username, authChallenge, peerChallenge, response)
+			if err != nil {
+				return [16]byte{}, err
+			}
+			if identity == nil || !identity.Valid() {
+				return [16]byte{}, proxyauth.ErrUnauthorized
+			}
+			link.identity = identity
+			link.authStop = context.AfterFunc(identity.Context, func() { _ = conn.Close() })
+			return ntHash, nil
+		}, link, link)
 	if err != nil {
 		return err
 	}

@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"crypto/subtle"
+	"errors"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-    "github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
-    "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/mschap"
-    "crypto/subtle"
-    "errors"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/dataplane"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/mschap"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 )
 
 type memorySSTPTUN struct {
@@ -83,14 +83,16 @@ func TestRootlessSSTPClientServerHandshake(t *testing.T) {
 		ServerAddress:   "10.90.0.1",
 		ClientAddresses: []string{"10.90.0.2"},
 		Authenticate: func(ctx context.Context, username string, server, peer [16]byte, response [24]byte) (*proxyauth.Identity, [16]byte, error) {
-            if username != "alice" { return nil, [16]byte{}, proxyauth.ErrUnauthorized }
-            hash := mschap.NTPasswordHash("secret")
-            expected := mschap.GenerateNTResponseFromHash(server, peer, username, hash)
-            if subtle.ConstantTimeCompare(expected[:], response[:]) != 1 {
-                return nil, [16]byte{}, errors.New("unauthorized")
-            }
-            return &proxyauth.Identity{UserID: "test-user", CredentialID: "test-credential", Context: ctx}, hash, nil
-        },
+			if username != "alice" {
+				return nil, [16]byte{}, proxyauth.ErrUnauthorized
+			}
+			hash := mschap.NTPasswordHash("secret")
+			expected := mschap.GenerateNTResponseFromHash(server, peer, username, hash)
+			if subtle.ConstantTimeCompare(expected[:], response[:]) != 1 {
+				return nil, [16]byte{}, errors.New("unauthorized")
+			}
+			return &proxyauth.Identity{UserID: "test-user", CredentialID: "test-credential", Context: ctx}, hash, nil
+		},
 	}, &tls.Config{Certificates: []tls.Certificate{testSSTPCertificate(t)}}, listener, sstpTestHandler{})
 	if err != nil {
 		t.Fatal(err)

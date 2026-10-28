@@ -727,9 +727,9 @@ func (t Transport) nonNilCount() int {
 }
 
 func (i Inbound) Validate() error {
-    if i.Protocol.Type == ProtocolSSTP && i.Authentication == nil {
-        return fmt.Errorf("sstp inbound requires user authentication")
-    }
+	if i.Protocol.Type == ProtocolSSTP && i.Authentication == nil {
+		return fmt.Errorf("sstp inbound requires user authentication")
+	}
 	if i.Authentication != nil {
 		switch i.Protocol.Type {
 		case ProtocolHTTP, ProtocolSocks5, ProtocolMixed, ProtocolYuubinsya, ProtocolHysteria2, ProtocolSSTP:

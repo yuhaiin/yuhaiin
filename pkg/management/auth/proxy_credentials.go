@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-    "crypto/subtle"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json/v2"
@@ -14,8 +14,8 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/mschap"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
-    "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/mschap"
 )
 
 type ProxyCredential struct {
@@ -49,8 +49,8 @@ type proxyRecord struct {
 	identity       *proxyauth.Identity
 	cancel         context.CancelFunc
 	verifier, wire [32]byte
-    ntHash [16]byte
-    hasNTHash bool
+	ntHash         [16]byte
+	hasNTHash      bool
 }
 
 // ProxyCredentials owns a bounded, revocable authentication snapshot. The hot
@@ -162,7 +162,7 @@ func (p *ProxyCredentials) load() (map[string]*proxyRecord, error) {
 		r := new(proxyRecord)
 		var inbounds, protocols string
 		var verifier, wire []byte
-        var ntHash []byte
+		var ntHash []byte
 		if err := rows.Scan(&r.ID, &r.UserID, &r.Name, &inbounds, &protocols, &r.CreatedAt, &r.ExpiresAt, &r.Revoked, &verifier, &wire, &ntHash, &r.generation, &r.login); err != nil {
 			return nil, err
 		}
@@ -177,13 +177,13 @@ func (p *ProxyCredentials) load() (map[string]*proxyRecord, error) {
 		}
 		copy(r.verifier[:], verifier)
 		copy(r.wire[:], wire)
-        if len(ntHash) != 0 && len(ntHash) != 16 {
-            return nil, ErrInvalid
-        }
-        if len(ntHash) == 16 {
-            copy(r.ntHash[:], ntHash)
-            r.hasNTHash = true
-        }
+		if len(ntHash) != 0 && len(ntHash) != 16 {
+			return nil, ErrInvalid
+		}
+		if len(ntHash) == 16 {
+			copy(r.ntHash[:], ntHash)
+			r.hasNTHash = true
+		}
 		out[r.ID] = r
 	}
 	return out, rows.Err()
@@ -238,28 +238,28 @@ func (p *ProxyCredentials) Verifier(inboundID, protocol string, allowedUsers []s
 // revocable per-device secrets. Only newly issued or rotated credentials have
 // NT-hash material; pre-migration credentials must be rotated for SSTP.
 func (p *ProxyCredentials) MSCHAPv2Verifier(inboundID string, allowedUsers []string) proxyauth.MSCHAPv2Verifier {
-    allowedUsers = slices.Clone(allowedUsers)
-    return func(ctx context.Context, username string, challenge, peerChallenge [16]byte, response [24]byte) (*proxyauth.Identity, [16]byte, error) {
-        if ctx.Err() != nil {
-            return nil, [16]byte{}, proxyauth.ErrUnauthorized
-        }
-        p.mu.RLock()
-        defer p.mu.RUnlock()
-        for _, record := range p.records {
-            if !record.hasNTHash || !record.identity.Valid() ||
-                !strings.EqualFold(username, record.login) ||
-                !slices.Contains(allowedUsers, record.UserID) ||
-                (len(record.Inbounds) > 0 && !slices.Contains(record.Inbounds, inboundID)) ||
-                (len(record.Protocols) > 0 && !slices.Contains(record.Protocols, "sstp")) {
-                continue
-            }
-            expected := mschap.GenerateNTResponseFromHash(challenge, peerChallenge, username, record.ntHash)
-            if subtle.ConstantTimeCompare(expected[:], response[:]) == 1 {
-                return record.identity, record.ntHash, nil
-            }
-        }
-        return nil, [16]byte{}, proxyauth.ErrUnauthorized
-    }
+	allowedUsers = slices.Clone(allowedUsers)
+	return func(ctx context.Context, username string, challenge, peerChallenge [16]byte, response [24]byte) (*proxyauth.Identity, [16]byte, error) {
+		if ctx.Err() != nil {
+			return nil, [16]byte{}, proxyauth.ErrUnauthorized
+		}
+		p.mu.RLock()
+		defer p.mu.RUnlock()
+		for _, record := range p.records {
+			if !record.hasNTHash || !record.identity.Valid() ||
+				!strings.EqualFold(username, record.login) ||
+				!slices.Contains(allowedUsers, record.UserID) ||
+				(len(record.Inbounds) > 0 && !slices.Contains(record.Inbounds, inboundID)) ||
+				(len(record.Protocols) > 0 && !slices.Contains(record.Protocols, "sstp")) {
+				continue
+			}
+			expected := mschap.GenerateNTResponseFromHash(challenge, peerChallenge, username, record.ntHash)
+			if subtle.ConstantTimeCompare(expected[:], response[:]) == 1 {
+				return record.identity, record.ntHash, nil
+			}
+		}
+		return nil, [16]byte{}, proxyauth.ErrUnauthorized
+	}
 }
 
 func validateProxyRequest(r ProxyCredentialRequest) error {
@@ -332,7 +332,7 @@ func issueProxy(ctx context.Context, tx *sql.Tx, r ProxyCredentialRequest) (Issu
 	verifier := sha256.Sum256([]byte(secret))
 	wireToken := sha256.Sum256([]byte(secret + "+s@1t"))
 	wire := sha256.Sum256(wireToken[:])
-    ntHash := mschap.NTPasswordHash(secret)
+	ntHash := mschap.NTPasswordHash(secret)
 	inbounds, _ := json.Marshal(r.Inbounds)
 	protocols, _ := json.Marshal(r.Protocols)
 	c := ProxyCredential{ID: uuid.New().String(), UserID: r.Owner, Name: r.Name, Inbounds: slices.Clone(r.Inbounds), Protocols: slices.Clone(r.Protocols), CreatedAt: time.Now().Unix(), ExpiresAt: r.ExpiresAt}

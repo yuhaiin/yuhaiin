@@ -85,7 +85,7 @@ func GenerateNTResponse(authChallenge, peerChallenge [ChallengeLen]byte, usernam
 // GenerateNTResponseFromHash verifies MS-CHAPv2 with a credential's NT hash.
 // The hash is password-equivalent and must be protected as an authentication secret.
 func GenerateNTResponseFromHash(authChallenge, peerChallenge [ChallengeLen]byte, username string, hash [16]byte) [NTResponseLen]byte {
-    return challengeResponse(ChallengeHash(peerChallenge, authChallenge, username), hash)
+	return challengeResponse(ChallengeHash(peerChallenge, authChallenge, username), hash)
 }
 
 // challengeResponse is RFC 2759 section 8.5: pad the 16-octet hash to 21, split

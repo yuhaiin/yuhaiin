@@ -3,7 +3,7 @@ package ppp
 import (
 	"bytes"
 	"crypto/rand"
-		"errors"
+	"errors"
 	"fmt"
 	"net"
 
@@ -167,12 +167,12 @@ func (s *ServerSession) chap(pkt cpPacket) error {
 	if username == "" || len(username) > 256 {
 		return errors.New("ppp: invalid username")
 	}
-		var peerChallenge [mschap.ChallengeLen]byte
+	var peerChallenge [mschap.ChallengeLen]byte
 	copy(peerChallenge[:], value[:16])
 	var response [mschap.NTResponseLen]byte
 	copy(response[:], value[24:48])
 	ntHash, err := s.authenticate(username, s.challenge, peerChallenge, response)
-    if err != nil {
+	if err != nil {
 		_ = s.send(ProtocolCHAP, cpPacket{Code: chapFailure, ID: pkt.ID, Body: []byte("E=691 R=0 M=Authentication failed")})
 		return ErrAuth
 	}

@@ -33,7 +33,7 @@ type MSCHAPv2Verifier func(ctx context.Context, username string, serverChallenge
 
 // MSCHAPv2Provider is an optional capability of the existing identity provider.
 type MSCHAPv2Provider interface {
-    MSCHAPv2Verifier(inboundID string, allowedUsers []string) MSCHAPv2Verifier
+	MSCHAPv2Verifier(inboundID string, allowedUsers []string) MSCHAPv2Verifier
 }
 
 // Check preserves the legacy partial-username/password matching rules. With a
