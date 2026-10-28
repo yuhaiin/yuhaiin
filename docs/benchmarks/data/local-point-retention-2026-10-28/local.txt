@@ -1,0 +1,12 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkPointRetentionPlan/100-12         	      86	   2568910 ns/op	       100.0 points/op	  386795 B/op	    4267 allocs/op
+BenchmarkPointRetentionPlan/100-12         	      82	   2592739 ns/op	       100.0 points/op	  386446 B/op	    4269 allocs/op
+BenchmarkPointRetentionPlan/100-12         	      91	   2557609 ns/op	       100.0 points/op	  387545 B/op	    4284 allocs/op
+BenchmarkPointRetentionPlan/1000-12        	       8	  26075476 ns/op	      1000 points/op	 3838655 B/op	   43165 allocs/op
+BenchmarkPointRetentionPlan/1000-12        	       8	  26487557 ns/op	      1000 points/op	 3836102 B/op	   43162 allocs/op
+BenchmarkPointRetentionPlan/1000-12        	       8	  26160553 ns/op	      1000 points/op	 3832149 B/op	   43159 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery	1.655s

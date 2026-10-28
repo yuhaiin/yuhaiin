@@ -174,7 +174,7 @@ metrics without database work on scrape. Frontend EN/JA/KO displays shared slot
 use and inclusive budget semantics. See [measurement bounds](measurement-bounds.md).
 
 Stage 1 remains in progress, including final resource/transport qualification.
-Stage 2 transfer/archive/offline CLI recovery is implemented; broader Stage 2 hosts, plaintext point retention/periodic drills and Stage 3 remain pending.
+Stage 2 transfer/archive/offline CLI recovery is implemented; broader Stage 2 hosts, optional periodic drills and final Stage 3 qualification remain pending.
 
 Native session adapters and periodic login protection now use existing protocol
 state and the same node/selector runtime. See the native session section in
@@ -220,8 +220,8 @@ retain offline tools pending complete service coordination. An isolated real
 systemd/HTTPS/S3/helper-crash drill now accompanies hermetic tests. See
 [managed backups](managed-recovery-backups.md) for exact behavior and limits.
 
-Broader platform maintenance, plaintext recovery-point retention, periodic
-restoration drills and ACME remain outstanding. The three-stage goal is active.
+Broader platform maintenance and optional periodic restoration drills remain
+outstanding. Plaintext copy retention and ACME are now implemented. The three-stage goal is active.
 
 The managed-backup UI has automated 1440/360/320 px interaction/screenshot
 coverage for maintenance confirmation, actual draft save, history and the private
@@ -326,3 +326,14 @@ SIGKILL and actual source-schema CLI recovery. It derives both versions from
 the build's catalog (originally 23 to 24); no production migration/fault hook is added.
 Release descriptors declare the independent startup-receipt capability. See
 [workflow, tests and resource scope](update-rollback.md#protected-update-and-offline-recovery).
+
+
+### Local pre-restore copies
+
+Independent default-off `localPoints` settings now govern plaintext rollback
+copies at CLI startup or via confirmed offline `recovery prune-points`. Finalized
+metadata, lifecycle/SQLite ownership, current/latest/committed/configured pins,
+confined durable deletion and 32-copy batches protect active deployment data.
+The existing Backup page provides destructive consent/count/age controls in
+EN/JA/KO. No new SQLite schema or service is introduced; clones clear consent.
+See [behavior, fault tests and measured limits](managed-recovery-backups.md#local-rollback-copy-retention).

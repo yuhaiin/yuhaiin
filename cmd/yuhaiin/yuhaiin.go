@@ -227,6 +227,17 @@ func run(args []string) (resultErr error) {
 		log.Warn("recovery startup metadata unavailable; offline backup will require explicit inputs", "err", err)
 	}
 
+	// Prune only under this process's lifecycle owner, before management can
+	// change policy. Current/pending and last-result copies remain pinned.
+	if options, err := app.Backup.Get(context.Background()); err == nil && options.Recovery != nil && options.Recovery.LocalPoints != nil && options.Recovery.LocalPoints.Enabled {
+		cleanupContext, stopCleanup := context.WithTimeout(context.Background(), 5*time.Second)
+		_, cleanupErr := recovery.PrunePointsWithLifecycle(cleanupContext, *path, lifecycle, *options.Recovery.LocalPoints)
+		stopCleanup()
+		if cleanupErr != nil {
+			log.Warn("local rollback-copy cleanup did not complete; retained data remains private")
+		}
+	}
+
 	ctx, cancel := context.WithCancelCause(context.TODO())
 	defer cancel(nil)
 

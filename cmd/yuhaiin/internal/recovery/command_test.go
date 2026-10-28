@@ -180,3 +180,24 @@ func TestRecoveryCLICreatesAndVerifiesCompleteDeploymentWithoutServer(t *testing
 		t.Fatal("CLI unexpectedly generated a listener identity")
 	}
 }
+
+func TestLocalPointPruneCLIRequiresExplicitDeletionAndMaintenance(t *testing.T) {
+	directory := t.TempDir()
+	for _, flags := range [][]string{nil, {"-maintenance"}, {"-delete-expired-points"}} {
+		arguments := append([]string{"prune-points", "-path", directory}, flags...)
+		if err := Execute(t.Context(), arguments, new(bytes.Buffer)); err == nil || !strings.Contains(err.Error(), "requires") {
+			t.Fatal("point deletion consent was not required", flags, err)
+		}
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("durable directory synchronization")
+	}
+	var output bytes.Buffer
+	if err := Execute(t.Context(), []string{"prune-points", "-path", directory, "-maintenance", "-delete-expired-points", "-keep-points", "1", "-point-days", "1"}, &output); err != nil {
+		t.Fatal(err)
+	}
+	var result contractrecovery.PointCleanup
+	if err := json.Unmarshal(output.Bytes(), &result); err != nil || len(result.Deleted) != 0 {
+		t.Fatal("wrong empty cleanup result", output.String(), err)
+	}
+}

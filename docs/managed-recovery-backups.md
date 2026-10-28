@@ -122,10 +122,10 @@ and local UUID file, then removes history; an interrupted deletion resumes
 idempotently. Changed S3 destinations refuse remote cleanup and retain an error
 for review. No bucket listing/prefix deletion is used.
 
-This retention applies to managed encrypted backup archives. The plaintext
-`.recovery-point-*` originals retained by offline restore transactions are a
-different lifecycle and still require protected operator-managed retention.
-No background cleanup indiscriminately removes private staging or active files.
+This retention applies to managed encrypted backup archives. Plaintext originals
+retained by restore transactions have a separate, explicitly enabled policy;
+see [local rollback-copy retention](#local-rollback-copy-retention). Private
+staging and unrelated directories are never retention targets.
 Clone restoration clears source backup history and disables maintenance consent
 and schedules so it cannot resume source uploads or overwrite their objects.
 
@@ -161,9 +161,9 @@ never mounts the host service socket, host data or host PID namespace. See
 disposable-runner options. This is fault/correctness qualification, not a WAN
 or production-capacity benchmark.
 
-Safe-update schema negotiation/recovery points, broader platform service coordination, restore-point
-retention, periodic recovery drills and ACME remain required work. This feature
-does not claim completion of the entire enterprise reliability objective.
+Protected updates and managed certificates are documented separately. Broader
+platform service coordination, optional periodic restoration drills and final
+whole-task qualification remain outstanding.
 
 ## Control-plane resource measurements and metrics
 
@@ -442,3 +442,67 @@ disk writes, hashing and synchronized publication. The immutable HTTP fixture is
 allocated before measurement; B/op is not peak RSS. There is no equivalent parent
 operation for a before/after comparison, and these are local filesystem/loopback
 results, not a WAN speed claim. [Raw results](benchmarks/data/s3-retrieval-2026-10-27/retrieval.txt).
+
+## Local rollback-copy retention
+
+Restore activation retains previous plaintext files in private
+`.recovery-point-<uuid>` directories. These are separate from encrypted archive
+history: they can contain database identities and keys. **Configuration → Backup →
+Local pre-restore rollback copies** has independent, destructive opt-in consent,
+count and age limits. Upgrades leave cleanup disabled. Enabling it defaults to
+three copies and 30 days; permitted ranges are 1–1,000 and 1–3,650 days.
+
+The CLI applies the saved policy once at startup, after recording its real
+runtime inputs and before serving management requests. Saving settings does not
+start a backup or restart the service. There is no periodic cleanup timer or
+forwarding-path work. Embedded application entry points do not silently inherit
+this CLI startup action. An administrator can also prune while stopped:
+
+```sh
+yuhaiin recovery prune-points -path /private/yuhaiin \
+  -maintenance -delete-expired-points -keep-points 3 -point-days 30
+```
+
+Both flags acknowledge stopped writers and permanent deletion. The offline
+command acquires the deployment lifecycle and maintenance leases and refuses
+open live SQLite owners. Startup uses its already-held lifecycle lease.
+
+A copy is eligible only with a canonical UUID and valid finalized transaction
+metadata. Active transactions, the latest result, the newest copy, the newest
+committed copy, future-dated records and configured file dependencies are
+protected even when they exceed count/age limits. File aliases are resolved;
+inline protocol references are inspected conservatively. Unreadable configuration
+refuses cleanup. Unrecognized or incomplete copies remain for operator review;
+this command is not a general directory cleaner. Clone restoration disables
+inherited cleanup consent as well as capture scheduling.
+
+Each invocation scans at most 16,384 root entries and removes at most 32 copies.
+It writes a private durable cleanup intent containing only the UUID and metadata
+digest, then renames to `.recovery-pruning-<uuid>`. Interrupted removal resumes on
+the next explicitly enabled invocation, including when metadata was already
+removed. Confined `os.Root` traversal does not follow symlinks outside a copy;
+open old SQLite owners prevent its deletion. Cancellation is checked between
+bounded directory batches and children; a filesystem syscall cannot be forcibly
+interrupted. The CLI startup uses a five-second cooperative deadline and logs a
+static warning on incomplete cleanup, retaining the journal for resumption.
+
+Tests cover consent/defaults, count/age and batch bounds, protected current/latest/
+committed references, configured file aliases, both SQLite ownership checks,
+clone policy, metadata tampering, symlink confinement and interruption before/
+after rename/partial removal. The actual CLI startup test verifies saved-policy
+removal and preservation before HTTPS readiness. Chrome at 1440/360/320 pixels
+checks actual Save/readback, default-off consent and absence of backup creation.
+
+The local metadata-only benchmark (Go 1.27.2, Linux/amd64, Ryzen 5 5600G) plans
+retaining 100/1,000 finalized copies under an existing lifecycle owner. Three runs
+measure about 2.6/26 ms and 0.39/3.84 MB allocated per invocation. It includes
+metadata I/O, validation, sorting and protection, with no configuration database,
+payload reads or deletion. It is not a large-backup deletion/downtime benchmark.
+There is no preceding implementation to compare. Reproduce with:
+
+```sh
+go test ./pkg/app/backup/recovery -run '^$' \
+  -bench '^BenchmarkPointRetentionPlan$' -benchmem -benchtime=200ms -count=3
+```
+
+[Raw measurement](benchmarks/data/local-point-retention-2026-10-28/local.txt).

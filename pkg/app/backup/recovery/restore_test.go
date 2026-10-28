@@ -293,6 +293,14 @@ func TestRecoveryMonitoringSchedulesPreservedForOriginalAndDisabledForClone(t *t
 	if err := certificateStore.BindManagement(t.Context(), managed.Config.ID); err != nil {
 		t.Fatal(err)
 	}
+	options, err := backupstore.New(db.DB()).Get(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	options.Recovery = &contractrecovery.Policy{LocalPoints: &contractrecovery.PointRetention{Enabled: true, KeepCount: 2, KeepDays: 30}}
+	if err := backupstore.New(db.DB()).Save(t.Context(), options); err != nil {
+		t.Fatal(err)
+	}
 	inputs, err := backupstore.LoadRecoveryRuntime(t.Context(), db.DB())
 	if err != nil || inputs == nil {
 		t.Fatal("missing runtime", err)
@@ -327,6 +335,13 @@ func TestRecoveryMonitoringSchedulesPreservedForOriginalAndDisabledForClone(t *t
 				t.Fatal(err)
 			}
 			defer restored.Close()
+			restoredOptions, err := backupstore.New(restored).Get(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if restoredOptions.Recovery == nil || restoredOptions.Recovery.LocalPoints == nil || restoredOptions.Recovery.LocalPoints.Enabled != (mode == "original") {
+				t.Fatal("clone inherited local deletion consent", restoredOptions.Recovery)
+			}
 			certificatesStore := certificates.New(restored)
 			restoredInputs, err := backupstore.LoadRecoveryRuntime(t.Context(), restored)
 			if err != nil {

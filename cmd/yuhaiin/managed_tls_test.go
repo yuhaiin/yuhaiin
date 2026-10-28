@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json/v2"
 	"encoding/pem"
 	"errors"
@@ -25,6 +27,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/startuphealth"
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/certificate"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
@@ -187,6 +190,16 @@ func TestManagedManagementTLSActualStartupAndRestore(t *testing.T) {
 	if err := store.Complete(t.Context(), cfg.ID, resource.Revision, owner, now, contract.Status{State: "ready", Serial: parsed.SerialNumber.String(), NotBefore: parsed.NotBefore, NotAfter: parsed.NotAfter, NextAttempt: now.Add(24 * time.Hour), LastAttempt: now, LastSuccess: now}, &certificates.Material{CertificatePEM: chain, PrivateKey: certificates.NewSecret(private)}); err != nil {
 		t.Fatal(err)
 	}
+	options, err := backupstore.New(db.DB()).Get(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	options.Recovery = &contractrecovery.Policy{LocalPoints: &contractrecovery.PointRetention{Enabled: true, KeepCount: 1, KeepDays: 1}}
+	if err := backupstore.New(db.DB()).Save(t.Context(), options); err != nil {
+		t.Fatal(err)
+	}
+	newestCopy := localPointStartupFixture(t, source, time.Now().Add(-time.Hour))
+	expiredCopy := localPointStartupFixture(t, source, time.Now().Add(-48*time.Hour))
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -201,6 +214,12 @@ func TestManagedManagementTLSActualStartupAndRestore(t *testing.T) {
 		}
 	}
 	invoke(t, "start", source)
+	if _, err := os.Stat(filepath.Join(source, ".recovery-point-"+expiredCopy)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("actual startup did not apply saved local retention", err)
+	}
+	if _, err := os.Stat(filepath.Join(source, ".recovery-point-"+newestCopy)); err != nil {
+		t.Fatal("startup removed the newest rollback copy", err)
+	}
 	invoke(t, "restart", source)
 	db, err = sqlite.Open(t.Context(), filepath.Join(source, "state.db"))
 	if err != nil {
@@ -317,4 +336,28 @@ func TestManagedManagementTLSRejectsAmbiguousFlags(t *testing.T) {
 			t.Fatal("ambiguous TLS source accepted", args, err)
 		}
 	}
+}
+
+// This is a private on-disk history fixture, not an archive or live SQLite DB.
+func localPointStartupFixture(t *testing.T, directory string, created time.Time) string {
+	t.Helper()
+	id := uuid.New().String()
+	data := []byte("private rollback-copy fixture")
+	digest := sha256.Sum256(data)
+	metadata := map[string]any{"version": 1, "id": id, "backupId": uuid.New().String(), "instanceId": uuid.New().String(), "createdAt": created, "phase": "committed", "stage": ".recovery-stage-fixture", "runtime": contractrecovery.Runtime{ManagementTLS: "disabled", WorkingDirectory: directory}, "moves": []map[string]any{{"path": "state.db", "hadOriginal": true, "originalSha256": hex.EncodeToString(digest[:])}}}
+	encoded, err := json.Marshal(metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	point := filepath.Join(directory, ".recovery-point-"+id)
+	if err := os.MkdirAll(filepath.Join(point, ".recovery-meta"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(point, "state.db"), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(point, ".recovery-meta", "transaction.json"), encoded, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

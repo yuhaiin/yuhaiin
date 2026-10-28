@@ -56,8 +56,12 @@ Still qualify/complete:
 - Broader automatic service-maintenance/update supervision hosts; root-owned
   Linux systemd is the implemented automatic path. Other hosts must not be
   advertised as having the same automatic recovery capability.
-- Plaintext pre-restore recovery-point retention and optional periodic automated
-  restoration drills, with key/identity ownership and resource bounds.
+- Optional periodic automated restoration drills, with key/identity ownership
+  and resource bounds. Plaintext pre-restore copy retention is implemented as
+  independent default-off startup/offline cleanup: valid terminal metadata,
+  pinned current/latest/committed/configured dependencies, confined resumable
+  deletion and a 32-copy bound. Actual CLI startup, fault/alias/ownership tests
+  and responsive real-backend configuration round trips provide evidence.
 - Large-instance activation/update resource/downtime qualification and a complete
   fault/compatibility/permissions audit against every original Stage 2 item.
 - Exact-head remote CI. Earlier green commits do not prove a later revision.

@@ -5,16 +5,31 @@ import "time"
 // Policy extends existing backup settings. It contains only a public
 // encryption recipient; a scheduled encryptor never needs a private backup key.
 type Policy struct {
-	Enabled          bool   `json:"enabled"`
-	Target           string `json:"target"`
-	Recipient        string `json:"recipient"`
-	IntervalMinutes  uint64 `json:"intervalMinutes"`
-	TimeoutMinutes   uint64 `json:"timeoutMinutes"`
-	KeepCount        int    `json:"keepCount"`
-	KeepDays         int    `json:"keepDays"`
-	IncludeHistory   bool   `json:"includeHistory"`
-	AllowMaintenance bool   `json:"allowMaintenance"`
-	ProtectUpdates   *bool  `json:"protectUpdates,omitempty"`
+	Enabled          bool            `json:"enabled"`
+	Target           string          `json:"target"`
+	Recipient        string          `json:"recipient"`
+	IntervalMinutes  uint64          `json:"intervalMinutes"`
+	TimeoutMinutes   uint64          `json:"timeoutMinutes"`
+	KeepCount        int             `json:"keepCount"`
+	KeepDays         int             `json:"keepDays"`
+	IncludeHistory   bool            `json:"includeHistory"`
+	AllowMaintenance bool            `json:"allowMaintenance"`
+	ProtectUpdates   *bool           `json:"protectUpdates,omitempty"`
+	LocalPoints      *PointRetention `json:"localPoints,omitzero"`
+}
+
+// PointRetention controls plaintext local pre-restore copies, independently of
+// encrypted backup archives. Nil/disabled retains the compatibility behavior.
+type PointRetention struct {
+	Enabled   bool `json:"enabled"`
+	KeepCount int  `json:"keepCount"`
+	KeepDays  int  `json:"keepDays"`
+}
+
+type PointCleanup struct {
+	Deleted   []string `json:"deleted"`
+	Protected int      `json:"protected"`
+	Retained  int      `json:"retained"`
 }
 
 type Backup struct {

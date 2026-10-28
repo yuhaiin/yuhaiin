@@ -25,6 +25,13 @@ type RecoveryJob struct {
 
 func NormalizeRecoveryPolicy(input contractrecovery.Policy) (contractrecovery.Policy, error) {
 	p := input
+	if p.LocalPoints != nil {
+		points, err := NormalizePointRetention(*p.LocalPoints)
+		if err != nil {
+			return p, err
+		}
+		p.LocalPoints = &points
+	}
 	if p.Target == "" {
 		p.Target = "local"
 	}
@@ -56,6 +63,19 @@ func NormalizeRecoveryPolicy(input contractrecovery.Policy) (contractrecovery.Po
 	}
 	if p.Enabled && (p.Recipient == "" || !p.AllowMaintenance) {
 		return p, errors.New("scheduled full backups require a public recipient and explicit service-maintenance consent")
+	}
+	return p, nil
+}
+
+func NormalizePointRetention(p contractrecovery.PointRetention) (contractrecovery.PointRetention, error) {
+	if p.KeepCount == 0 {
+		p.KeepCount = 3
+	}
+	if p.KeepDays == 0 {
+		p.KeepDays = 30
+	}
+	if p.KeepCount < 1 || p.KeepCount > 1000 || p.KeepDays < 1 || p.KeepDays > 3650 {
+		return p, errors.New("local rollback-copy retention exceeds its limits")
 	}
 	return p, nil
 }

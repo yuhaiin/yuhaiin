@@ -270,8 +270,8 @@ The active `.recovery-transaction.json` journal and each point's private
 it; the active journal remains authoritative if history persistence fails.
 Successful points retain original identity files under 0700 directories; these
 points are private plaintext, require the deployment filesystem's protection,
-and currently have no automatic retention cleanup. Never remove them during a
-pending operation. The journal is capped at 4 MiB, replacement moves at 8,200,
+and support independent explicitly enabled [startup/offline retention](managed-recovery-backups.md#local-rollback-copy-retention).
+Pending operations and configured dependencies are protected. The journal is capped at 4 MiB, replacement moves at 8,200,
 and original files at 100 GiB in aggregate. Decrypted staging is private and
 removed on ordinary completion/error; orphan staging after process death needs
 operator review, not indiscriminate cleanup.

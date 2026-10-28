@@ -34,7 +34,7 @@ func Run(args []string) error {
 // writer owners. Restoration is committed only by a later healthy server start.
 func Execute(ctx context.Context, args []string, output io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: yuhaiin recovery <keygen|create|fetch|verify|preview|restore|rollback> -help")
+		return errors.New("usage: yuhaiin recovery <keygen|create|fetch|verify|preview|restore|rollback|prune-points> -help")
 	}
 	action := args[0]
 	flags := flag.NewFlagSet("recovery", flag.ContinueOnError)
@@ -60,6 +60,9 @@ func Execute(ctx context.Context, args []string, output io.Writer) error {
 	confirmTarget := flags.String("confirm-target-instance", "", "target identity from preview, including empty/unreadable")
 	sourceStopped := flags.Bool("source-stopped", false, "confirm original deployment will not run with restored machine identities")
 	restoreCredentials := flags.Bool("restore-credentials", false, "acknowledge restoring older credential/device validity state")
+	pointCount := flags.Int("keep-points", 3, "retained finalized local rollback copies (1–1000)")
+	pointDays := flags.Int("point-days", 30, "retained local rollback-copy age in days (1–3650)")
+	confirmPoints := flags.Bool("delete-expired-points", false, "confirm permanent removal of unprotected expired/excess local rollback copies")
 	transaction := flags.String("transaction-id", "", "pending transaction UUID for offline rollback")
 	allowVersionChange := flags.Bool("allow-version-change", false, "acknowledge reviewed application version difference; unsupported schemas remain rejected")
 	adoptStartup := flags.Bool("adopt-startup", false, "persist the restored TLS/authentication/listener/file inputs for subsequent server starts")
@@ -82,7 +85,7 @@ func Execute(ctx context.Context, args []string, output io.Writer) error {
 	}
 	// Mutation and snapshots share the installed helpers' maintenance lease.
 	// Keep preview/verification independent so operators can diagnose a stopped host.
-	if action == "create" || action == "restore" || action == "rollback" {
+	if action == "create" || action == "restore" || action == "rollback" || action == "prune-points" {
 		lease, err := lockfile.Acquire(filepath.Join(*directory, ".recovery-maintenance.lock"))
 		if err != nil {
 			return err
@@ -118,6 +121,15 @@ func Execute(ctx context.Context, args []string, output io.Writer) error {
 		return json.MarshalWrite(output, struct {
 			State string `json:"state"`
 		}{"ciphertext_verified"})
+	case "prune-points":
+		if !*confirmPoints || !*maintenance {
+			return errors.New("prune-points requires -maintenance and -delete-expired-points")
+		}
+		result, err := recovery.PrunePoints(ctx, *directory, contractrecovery.PointRetention{Enabled: true, KeepCount: *pointCount, KeepDays: *pointDays}, true)
+		if err != nil {
+			return err
+		}
+		return json.MarshalWrite(output, result)
 	case "rollback":
 		if *transaction == "" || *archive != "" || *identityFile != "" || *passphraseFile != "" {
 			return errors.New("rollback requires -transaction-id, -path and -maintenance")

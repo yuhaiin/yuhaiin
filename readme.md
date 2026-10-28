@@ -261,6 +261,7 @@ Encrypted full snapshots, external backup keys, offline restore preview and cras
 
 Managed full encrypted local/S3 backups, confirmed service maintenance, archive
 verification/download and retention: [managed recovery backups](docs/managed-recovery-backups.md).
+Plaintext pre-restore copies have separate, default-off [startup/offline cleanup](docs/managed-recovery-backups.md#local-rollback-copy-retention), with protected live dependencies and resumable deletion.
 Missing or damaged local S3 copies can be explicitly retrieved and repaired with
 size/digest checks. Retain public recovery metadata separately for the offline
 `recovery fetch` command; [retrieval workflow](docs/managed-recovery-backups.md#recover-a-missing-or-damaged-local-s3-copy).

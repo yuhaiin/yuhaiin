@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
-func requireRecoveryLifecycle(directory string, lifecycle *os.File) error {
+func requireLifecycleOwner(directory string, lifecycle *os.File) error {
 	if lifecycle == nil {
 		return errors.New("recovery requires an owned lifecycle lock")
 	}
@@ -22,6 +22,13 @@ func requireRecoveryLifecycle(directory string, lifecycle *os.File) error {
 	actual, err := os.Lstat(filepath.Join(directory, ".configuration.lock"))
 	if err != nil || !actual.Mode().IsRegular() || !os.SameFile(actual, held) {
 		return errors.New("recovery lifecycle owner does not match deployment")
+	}
+	return nil
+}
+
+func requireRecoveryLifecycle(directory string, lifecycle *os.File) error {
+	if err := requireLifecycleOwner(directory, lifecycle); err != nil {
+		return err
 	}
 	return sqlite.RequireClosed(filepath.Join(directory, "state.db"), filepath.Join(directory, "management.db"))
 }
