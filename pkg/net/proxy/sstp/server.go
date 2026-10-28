@@ -166,9 +166,7 @@ func (s *Server) acceptLoop(maxSessions int) {
 			s.mu.Lock()
 			s.conns[conn] = struct{}{}
 			s.mu.Unlock()
-			s.wg.Add(1)
-			go func() {
-				defer s.wg.Done()
+			s.wg.Go(func()
 				defer func() {
 					s.mu.Lock()
 					delete(s.conns, conn)
@@ -179,7 +177,7 @@ func (s *Server) acceptLoop(maxSessions int) {
 				if err := s.serve(conn, ip); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
 					log.Debug("sstp session ended", "err", err)
 				}
-			}()
+			})
 		default:
 			<-slots
 			_ = conn.Close()

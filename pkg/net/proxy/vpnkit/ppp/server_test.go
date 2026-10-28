@@ -48,7 +48,7 @@ func TestServerPPPInteroperatesWithClient(t *testing.T) {
 		t.Fatal(err)
 	}
 	client.Start()
-	for i := 0; i < 100 && !(server.Up() && clientHandler.address != nil); i++ {
+	for i := 0; i < 100 && (!server.Up() || clientHandler.address == nil); i++ {
 		for len(serverPackets) > 0 {
 			frame := serverPackets[0]
 			serverPackets = serverPackets[1:]
@@ -84,7 +84,7 @@ func TestServerPPPRejectsWrongPassword(t *testing.T) {
 		t.Fatal(err)
 	}
 	client.Start()
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		for len(serverPackets) > 0 {
 			frame := serverPackets[0]
 			serverPackets = serverPackets[1:]
