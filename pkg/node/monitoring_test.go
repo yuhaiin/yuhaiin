@@ -74,6 +74,120 @@ func TestMonitoringPersistenceSharingAndNetworkReschedule(t *testing.T) {
 		t.Fatal("settings lost on restart", status, err)
 	}
 }
+
+func TestSelectorProbeTimeoutOverridesRemainIndependent(t *testing.T) {
+	r := newTestRuntime(t)
+	if _, err := r.Save(t.Context(), testNode(t, "a", "a")); err != nil {
+		t.Fatal(err)
+	}
+	svc := NewSelectorService(r)
+	probe := contract.ProbeSchedule{Enabled: true, TimeoutMS: 1000, Kinds: []string{"tcp_connect"}, NetworkCostPolicy: "cached_only"}
+	save := func(name string, schedule contract.ProbeSchedule) contract.Selector {
+		t.Helper()
+		selector, err := svc.Save(t.Context(), contract.Selector{Name: name, NodeID: "a", Policy: &contract.SelectorPolicy{Mode: "failover", Probe: &schedule, Candidates: []contract.SelectorCandidate{{NodeID: "a", Enabled: true}}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return selector
+	}
+	save("first", probe)
+	probe.IntervalMS = 30_000
+	second := save("second", probe)
+	status, err := r.Monitoring(t.Context())
+	if err != nil || status.Jobs != 1 {
+		t.Fatalf("equivalent probes should share a job: %+v, %v", status, err)
+	}
+	second.Policy.Probe.TimeoutMS = 2000
+	second, err = svc.Save(t.Context(), second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err = r.Monitoring(t.Context())
+	if err != nil || status.Jobs != 2 {
+		t.Fatalf("different timeouts must retain independent probes: %+v, %v", status, err)
+	}
+	second.Policy.Probe.Enabled = false
+	if _, err := svc.Save(t.Context(), second); err != nil {
+		t.Fatal(err)
+	}
+	status, err = r.Monitoring(t.Context())
+	if err != nil || status.Jobs != 1 {
+		t.Fatalf("disabling an override must remove its independent probe: %+v, %v", status, err)
+	}
+}
+
+func TestSelectorProbeResourceAndBackoffOverridesRemainIndependent(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*contract.ProbeSchedule)
+	}{
+		{"bandwidth", func(p *contract.ProbeSchedule) { p.MaxProbeBandwidth = 32768 }},
+		{"network cost", func(p *contract.ProbeSchedule) { p.NetworkCostPolicy = "conservative" }},
+		{"concurrency", func(p *contract.ProbeSchedule) { p.Concurrency = 1 }},
+		{"failure threshold", func(p *contract.ProbeSchedule) { p.FailureThreshold = 4 }},
+		{"cooldown", func(p *contract.ProbeSchedule) { p.CooldownMS = 50000 }},
+		{"jitter", func(p *contract.ProbeSchedule) { p.Jitter = .1 }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestRuntime(t)
+			if _, err := r.Save(t.Context(), testNode(t, "a", "a")); err != nil {
+				t.Fatal(err)
+			}
+			svc := NewSelectorService(r)
+			probe := contract.ProbeSchedule{Enabled: true, Kinds: []string{"tcp_connect"}, TCPAddress: "127.0.0.1:1", NetworkCostPolicy: "cached_only"}
+			for _, name := range []string{"first", "second"} {
+				schedule := probe
+				if name == "second" {
+					tc.change(&schedule)
+				}
+				if _, err := svc.Save(t.Context(), contract.Selector{Name: name, NodeID: "a", Policy: &contract.SelectorPolicy{Mode: "failover", Probe: &schedule, Candidates: []contract.SelectorCandidate{{NodeID: "a", Enabled: true}}}}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			status, err := r.Monitoring(t.Context())
+			if err != nil || status.Jobs != 2 {
+				t.Fatalf("distinct %s settings must retain independent probes: %+v, %v", tc.name, status, err)
+			}
+		})
+	}
+}
+
+func TestSelectorSpeedExecutionOverridesRemainIndependent(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*contract.ProbeSchedule, *contract.SpeedSchedule)
+	}{
+		{"concurrency", func(_ *contract.ProbeSchedule, speed *contract.SpeedSchedule) { speed.Concurrency = 2 }},
+		{"network cost", func(probe *contract.ProbeSchedule, _ *contract.SpeedSchedule) {
+			probe.NetworkCostPolicy = "conservative"
+		}},
+		{"jitter", func(probe *contract.ProbeSchedule, _ *contract.SpeedSchedule) { probe.Jitter = .1 }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestRuntime(t)
+			if _, err := r.Save(t.Context(), testNode(t, "a", "a")); err != nil {
+				t.Fatal(err)
+			}
+			svc := NewSelectorService(r)
+			probe := contract.ProbeSchedule{NetworkCostPolicy: "cached_only"}
+			speed := contract.SpeedSchedule{Enabled: true, Test: contract.SpeedTestRequest{URL: "https://127.0.0.1:1/test"}}
+			for _, name := range []string{"first", "second"} {
+				p, s := probe, speed
+				if name == "second" {
+					tc.change(&p, &s)
+				}
+				if _, err := svc.Save(t.Context(), contract.Selector{Name: name, NodeID: "a", Policy: &contract.SelectorPolicy{Mode: "failover", Probe: &p, PeriodicSpeed: &s, Candidates: []contract.SelectorCandidate{{NodeID: "a", Enabled: true}}}}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			status, err := r.Monitoring(t.Context())
+			if err != nil || status.Jobs != 2 {
+				t.Fatalf("distinct %s settings must retain independent speed tests: %+v, %v", tc.name, status, err)
+			}
+		})
+	}
+}
+
 func TestSelectorCanDisableInheritedProbes(t *testing.T) {
 	r := newTestRuntime(t)
 	if _, err := r.Save(t.Context(), testNode(t, "a", "a")); err != nil {

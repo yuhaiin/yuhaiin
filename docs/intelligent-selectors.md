@@ -332,8 +332,13 @@ The scheduler uses one priority-queue timer and lazily creates a fixed worker
 pool, bounded by global concurrency (default four, maximum sixteen). Selector
 concurrency can reduce a group limit, never exceed the instance cap. Probe and
 speed traffic have separate group limits. Idle instances have no probe workers.
-Identical node/transport/target tasks across selectors share one job, using the
-shortest requested interval. Initial jobs spread over up to five seconds;
+Node/transport/target tasks across selectors share one job only when their
+execution settings match; the shared job uses the shortest requested interval.
+Different timeouts, bandwidth, network cost, concurrency, failure threshold,
+cooldown or jitter produce separate jobs. These jobs still obey the global
+worker and bandwidth limits, but can produce additional probe traffic; their
+results contribute to the same existing node observation history. Initial jobs
+spread over up to five seconds;
 subsequent intervals have configurable jitter (0–0.5). There is no per-node
 resident goroutine or timer. Changed/deleted tasks are synchronously canceled;
 old canceled probes do not publish replacement samples.
@@ -393,6 +398,9 @@ hard cap, and durable daily reservations. They default to once per hour and
 at most one concurrent scheduled test; minimum interval is five minutes. Busy
 or daily-budget-exhausted tests are skipped without network fallback or an
 unlimited retry loop. They never reset a daily reservation by rescheduling.
+Identical speed requests share a job only when concurrency, jitter and network
+cost policy also match. Different execution settings can therefore generate
+additional tests, subject to the same shared limits and daily budget.
 
 Network offline transitions cancel tasks. The existing interface-monitor callback
 coalesces to the latest interface state, cancels old-network work, and spreads

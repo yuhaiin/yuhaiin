@@ -121,7 +121,27 @@ func (s *selectorRuntime) scheduleLocked() {
 					case "native":
 						req = contract.LatencyRequest{Type: "native"}
 					}
-					payload, _ := json.Marshal(req)
+					// Only equivalent execution policies can share a job. The interval
+					// is excluded so identical probes run at the shortest requested rate.
+					payload, _ := json.Marshal(struct {
+						Request           contract.LatencyRequest
+						TimeoutMS         int64
+						CooldownMS        int64
+						MaxProbeBandwidth int64
+						Concurrency       int
+						FailureThreshold  int
+						Jitter            float64
+						NetworkCostPolicy string
+					}{
+						Request:           req,
+						TimeoutMS:         probe.TimeoutMS,
+						CooldownMS:        probe.CooldownMS,
+						MaxProbeBandwidth: probe.MaxProbeBandwidth,
+						Concurrency:       probe.Concurrency,
+						FailureThreshold:  probe.FailureThreshold,
+						Jitter:            probe.Jitter,
+						NetworkCostPolicy: probe.NetworkCostPolicy,
+					})
 					digest := sha256.Sum256(payload)
 					key := n.ID + "/" + fmt.Sprintf("%x", digest)
 					jobs = append(jobs, probeJob{group: fmt.Sprintf("probe:%d", probe.Concurrency), key: key, cooldown: time.Duration(probe.CooldownMS) * time.Millisecond, failureThreshold: probe.FailureThreshold, signature: nodeSignature + fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprint(probe)))), interval: time.Duration(probe.IntervalMS) * time.Millisecond, timeout: time.Duration(probe.TimeoutMS) * time.Millisecond, jitter: probe.Jitter, concurrency: probe.Concurrency, run: func(ctx context.Context) error { return s.runProbe(ctx, n, probe, req) }})
@@ -150,7 +170,19 @@ func (s *selectorRuntime) scheduleLocked() {
 				if request.Direction != direction.name || request.Validate() != nil {
 					continue
 				}
-				raw, _ := json.Marshal(request)
+				// As with health probes, only equivalent execution settings can
+				// share a speed test; interval is resolved to the shortest rate.
+				raw, _ := json.Marshal(struct {
+					Request           contract.SpeedTestRequest
+					Concurrency       int
+					Jitter            float64
+					NetworkCostPolicy string
+				}{
+					Request:           request,
+					Concurrency:       schedule.Concurrency,
+					Jitter:            probe.Jitter,
+					NetworkCostPolicy: probe.NetworkCostPolicy,
+				})
 				digest := sha256.Sum256(raw)
 				key := n.ID + "/speed/" + fmt.Sprintf("%x", digest)
 				jobs = append(jobs, probeJob{group: "speed", key: key, signature: nodeSignature + probe.NetworkCostPolicy, interval: time.Duration(schedule.IntervalMS) * time.Millisecond, timeout: time.Duration(request.TimeoutMS) * time.Millisecond, jitter: probe.Jitter, concurrency: schedule.Concurrency, run: func(ctx context.Context) error {
