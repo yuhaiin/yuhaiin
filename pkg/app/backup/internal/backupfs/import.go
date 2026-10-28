@@ -18,7 +18,9 @@ func ImportPath(id string) (string, error) {
 	return filepath.Join(".recovery-imports", id, "archive.yhb"), nil
 }
 func CheckStagingSpace(directory string, bytes int64) error {
-	if bytes < 0 || bytes > contractrecovery.MaxDataBytes {
+	// Output planning can include age framing beyond the plaintext data limit.
+	// Archive/import validators retain their independent content/format limits.
+	if bytes < 0 || bytes > contractrecovery.MaxDataBytes+(64<<20) {
 		return errors.New("recovery staging exceeds its size budget")
 	}
 	available, err := recoveryAvailableBytes(directory)

@@ -1,339 +1,136 @@
-# Enterprise reliability delivery
+# Enterprise reliability
 
-This work is based on backend main `dada430a` (including #628) and frontend main `391e4db`.
-It does not depend on the open enterprise identity/resource/security stacks
-(backend #618/#620/#621, frontend #530/#532/#533).
+Review uses one PR per repository, both targeting `main`:
+[backend #622](https://github.com/yuhaiin/yuhaiin/pull/622) and
+[frontend #535](https://github.com/yuhaiin/yuhaiin-react/pull/535).
+The implementation extends existing owners and does not depend on the unmerged
+enterprise identity/resource/security stacks. The backend base is `dada430a`
+and frontend base `391e4db`. No Controller/Agent, Raft, distributed state, WAF
+or new VPN protocol is introduced.
 
-The authorized scope contains three complete stages, each with backend/frontend,
-persistence, tests, resource measurements and documentation. Review and delivery
-now use one PR per repository throughout all three stages.
-A component delivery below does not complete the overall scope.
+This document describes the current result, rather than a chronological list of
+component PRs. The [requirement matrix](enterprise-reliability-audit.md) records
+implementation/test evidence, qualification boundaries and delivery gates.
+Current commit checks on the two PRs are authoritative for remote CI; an older
+green commit does not qualify a later revision.
 
-## Stage 1 — intelligent outbound selection (in progress)
+## Intelligent outbound selection
 
-Only active delivery/review entries: [backend #622](https://github.com/yuhaiin/yuhaiin/pull/622),
-[frontend #535](https://github.com/yuhaiin/yuhaiin-react/pull/535). Both remain draft
-until the complete three-stage scope is implemented and verified. Previous
-component PRs are closed as superseded; their commits are retained here.
-Further work continues in these two PRs, both targeting main.
+Legacy `nodeId` selectors remain manual. Explicit policies enable failover,
+lowest latency, measured download throughput, normalized balanced scoring or
+weighted new-flow distribution. Candidates have independent enable/priority/
+weight settings, preferred-return policy, manual lock and explicit unhealthy/
+unknown fallback. Decisions and health continue without an open browser.
 
-Implemented in those PRs:
+The existing Node Runtime retains independent TCP/UDP construction, channel,
+remote-response, HTTPS/DNS and supported native-session evidence. Shared bounded
+probe scheduling applies cancellation, jitter, thresholds, cooldown, network and
+Android/cost policy. Closed/Open/Half-open circuits have finite trial quotas.
+Unknown/expired measurements never mean zero RTT or unlimited capacity. RTT
+switches require both absolute and relative improvement, hold and cooldown.
 
-- Opt-in selector policy and schema 18; old manual configurations/exports retained.
-- Independent TCP/UDP evidence extending existing node observability; bounded observed-traffic means, recent TCP dial summaries and distinct active-test metrics in Node details.
-- Six strategy calculations, fresh comparable RTT and active-capacity semantics.
-- Hysteresis, hold/cooldown, sticky failover, manual lock and explicit fallback.
-- Precomputed immutable snapshots and weighted new-connection admission.
-- Candidate deletion protection and node/Set/endpoint dependency-cycle checks.
-- Verified, streaming, bounded download/upload tests with shared durable daily budget, explicit upload protocol/consent, independent freshness/smoothing and a separate HTTPS endpoint tool.
-- Real policy editor, evidence/score/event views and manual test controls in EN/JA/KO.
-- Deterministic/local tests, 1,000-reader concurrency coverage and microbenchmarks.
+Active download/upload tests use the chosen Node, verified HTTPS and independent
+sample freshness/smoothing. Byte/time/concurrency and durable daily budgets are
+hard bounded. Upload additionally requires explicit endpoint support and consent.
+Current/window business Bps is load, not capacity. Timeout ratios derive from the
+same fresh health window, with separate outcome and comparable-RTT sample counts;
+they are not UDP packet-loss estimates.
 
-The monitoring follow-up adds cancellation propagation, shared bounded and
-deduplicated schedules, global settings/selector overrides (migration 19),
-network-interface/native lifecycle rescheduling, explicit TCP/HTTPS/DNS/STUN
-evidence and optional periodic budgeted downloads, with real frontend controls.
-The circuit follow-up adds Closed/Open/Half-open admission, finite recovery
-quotas, independent TCP/UDP evidence, configuration generations, credential
-snapshots, and real frontend controls. Remaining qualifications are not done.
+Compiled immutable snapshots keep scoring/probes/SQLite off packet and ordinary
+connection paths. New flows choose a candidate; established TCP/UDP references
+stay pinned. A remotely accepted POST is not replayed after transport failure.
+Normal HTTP 4xx, cancellation, close, policy/quota rejection and ordinary QUIC
+cancellation do not condemn a Node. Deletion/reconfiguration uses references,
+cycle detection and runtime generations, without rebuilding unrelated routes.
 
-Still required before Stage 1 is complete:
+The existing EN/JA/KO Selector/Nodes interfaces expose actual policy saves,
+manual tests, independent schedules, raw evidence/components/reasons and bounded
+history. See [selection](intelligent-selectors.md),
+[observation semantics](outbound-observability.md) and
+[measurement limits](measurement-bounds.md).
 
-- Full qualification of shared scheduling under cancellation, network changes
-  and larger deployments; native-provider adapters for protocols where available.
-- Protocol framing/construction cost qualification beyond logical Node-stream
-  budgets; routing/admission/live shaping use existing app components.
-- Final qualification of worst-case churn/snapshot/resource measurements and
-  broader real-transport connection benchmarks. Deterministic TCP/UDP creation,
-  loopback TCP and 1,024 concurrent admission tests are now present.
-- Browser desktop/mobile verification and required remote CI verification.
+## Recovery and protected updates
 
-## Stage 2 — disaster recovery and safe updates (in progress)
+Configuration export remains distinct from a full deployment archive. Existing
+Backup/SQLite/S3 owners provide coherent stopped-writer multi-database/file
+inventories and streaming age AEAD encryption with an external recipient or
+passphrase KDF. Private manifest/staging, schema/path/size validation and explicit
+original/clone identity decisions precede durable activation/rollback. Real
+service/database/listener checks decide startup commit; copying files or calling
+systemctl Start does not establish recovery success.
 
-Reuse existing app/store Backup and S3 code. Inventory data ownership first:
-configuration state SQLite, management auth SQLite when enabled, management TLS
-bundle, gateway CA in state DB, and protocol-owned identities. Avoid copying the
-whole data directory. Use coherent SQLite snapshots and an explicit coordinated
-maintenance/offline mode for cross-database consistency. Build a versioned,
-streaming authenticated-encrypted archive with staged verification/restoration,
-rollback recovery points, retention, S3 download verification and offline CLI.
-Integrate update/schema compatibility and real restore/startup fault injection.
+The Backup page manages local/S3 schedules, history, verified streaming transfer,
+download/retrieval, sealed previews and confirmed activation on the supported
+service host. The CLI supports creation, fetch, verification, preview, restore,
+rollback and independent default-off plaintext rollback-copy pruning. Active,
+latest/committed and configured file dependencies remain protected. Clone
+recovery removes source machine/account credentials and disables inherited
+maintenance, cleanup, monitoring and certificate jobs.
 
-The first Stage 2 change fixes shared transfer/scheduling prerequisites in the
-existing Backup/S3 components: streamed private SQLite snapshots, bounded S3
-multipart uploads, context cancellation, finite retries, download verification,
-a single cancellable schedule owner, and settings compare-and-swap after upload.
-See [backup transfer and recovery ownership](backup-recovery.md).
+Full capture checks destination space before each WAL-aware SQLite snapshot,
+identity/dependency copy and final encrypted output while plaintext staging still
+exists. Checks preserve the existing 256 MiB reserve and account for manifest/
+AEAD framing. They are filesystem admission checks, not reservations against
+unrelated concurrent disk consumers. Failures retain the source and remove owned
+partial output before binary replacement can proceed.
 
-The encrypted archive codec and offline `recovery keygen`/`recovery create`/`recovery verify`
-commands are implemented with age, authenticated manifests, private staging,
-strict path/size limits and read-only SQLite schema/integrity checks. The server
-and local auth maintenance share a persistent lifecycle lock. See
-[archive format and verification](recovery-archive.md). Complete snapshot-set
-creation is implemented under a confirmed offline maintenance window, with
-protocol-owned identity inventory and explicit external dependencies. Controlled offline preview/activation, identity decisions, durable transaction
-rollback and real CLI server startup/failure/crash drills are now implemented.
-Successful file activation remains awaiting_startup until the actual database,
-inbound/Gateway and local HTTPS listener checks pass. Windows activation and
-embedded-host lifecycle integration remain pending.
+Protected updates validate target checksum/schema/capabilities, create an encrypted
+recovery point, retain source binary/schema and independently verify service PID
+and pinned HTTPS readiness. Failed migrated targets stay stopped for reviewed
+paired binary/database restoration; old executables never silently open newer
+schemas. Irreversible migrations do not promise automatic database rollback.
 
-Managed local/S3 full-archive scheduling, history, verification, download and
-retention now extend the same Backup owner; see [managed backups](managed-recovery-backups.md).
-Web archive import and authenticated preview now reuse that owner and verifier.
-Web restore activation and recent-result presentation are available on the supported systemd host; protected update recovery now uses the same collector and installed-service supervision. Legacy S3 restore now refuses
-active database owners before downloading; its offline compatibility path imports
-configuration into a private copy of the local store and uses the same controlled
-activation/startup journal, preserving local identities. It no longer renames a
-foreign database over live SQLite connections.
-Existing update rollback restores executable bytes only.
-Database startup now rejects future/foreign/gapped migration histories and
-metadata mismatches before bootstrap/journal-mode changes, sharing the archive
-verifier's migration-prefix check. It does not make older unguarded executables
-safe by themselves; protected update coordination also validates the target receipt capability.
+Automatic disruptive maintenance is qualified on root-owned Linux systemd.
+Unprivileged/standalone, launchd, Windows and embedded automatic supervision is
+not claimed. Offline tools and their platform-specific durability limitations
+are explicit in the guides. Optional periodic automated restoration drills are
+not implemented. These must not be confused with the real hermetic/service crash
+tests that are implemented and run in CI.
 
-## Stage 3 — certificate lifecycle (in progress)
+See [data ownership](backup-recovery.md), [archive/CLI](recovery-archive.md),
+[managed backups](managed-recovery-backups.md) and [safe updates](update-rollback.md).
 
-Stable managed resources and private accounts/providers use schema 24. Real
-HTTP-01 and Cloudflare DNS-01, exact-record cleanup, persistent bounded renewal/
-backoff, revision leases, verified atomic cache and clone isolation are implemented.
-Production assembly supplies governed HTTP/DNS and starts the worker. Administrators
-can manage resources/providers through permission-gated RPC and the EN/JA/KO
-Certificates page, then bind resource IDs to Gateway TLS termination. HTTP-01
-requires explicit opt-in on an existing port-80 Gateway and preserves source ACLs.
-File/self-signed TLS and independent MITM/TLS Auto CA behavior stay compatible.
+## Managed HTTPS certificates
 
-Backend full tests, related race/lint, both SQLite drivers and frontend 366 tests
-plus all static/build checks pass. Actual Gateway tests cover hot replacement,
-existing-stream continuity, SNI and reference deletion guards. A paired real-backend
-Chrome check at 1440/360/320 verifies persistence and background failure alerts;
-local signing-CA/provider tests cover successful issuance independently.
-Management HTTPS has explicit host-owned resource selection, validated startup,
-hot replacement and original/clone recovery semantics with actual CLI tests.
-Protected updates reject targets lacking that capability and hold renewal until
-independent verification. Live ARI now reads and periodically refreshes CA advice
-through the existing bounded worker, durable lease and governed HTTPS client.
-Real-process routing/SQLite/restart/restore and local CA/clock tests pass.
-Final whole-application qualification and exact-head CI remain. See the
-[operator guide and precise remaining work](managed-certificates.md).
+The existing certificate owner now manages stable site resources, private ACME
+accounts/DNS providers, HTTP-01 and Cloudflare DNS-01, exact-record cleanup,
+persistent bounded renewal/backoff and verified atomic TLS replacement. One
+worker/timer and durable leases supply restart recovery/deduplication. Failed
+issuance or metadata refresh retains an existing valid certificate.
 
-## Validation notes for the first delivery
+Gateway TLS termination references managed resources with SNI/SAN/expiry checks
+and transactional deletion guards; new handshakes see renewed material while
+existing streams continue. HTTP-01 explicitly uses an opted-in existing port-80
+Gateway after its source ACL. Management HTTPS supports host-owned
+`-https-certificate-id`, current validity checks, deletion references and hot
+renewal, with no remote plaintext fallback. Self-signed/file defaults and the
+independent MITM/TLS Auto CAs remain compatible.
 
-Focused packages and race tests pass; golangci-lint v2.15.0 reports zero issues.
-Go formatting/go-fix and frontend lint/typecheck/i18n/style/build gates pass.
-Frontend full suite: 102 files / 305 tests.
+Live CA renewal advice (ARI) uses governed verified HTTPS, bounded origin-fenced
+responses and the existing worker/lease/status persistence. Optional ACME
+`newOrder replaces` is not exposed by the mature client; no CA-specific rate
+exemption is claimed. The EN/JA/KO Certificates page provides real mutations,
+write-only DNS credentials, lifecycle/reference alerts and manual renewal.
+See [certificate lifecycle](managed-certificates.md).
 
-The first `go test ./...` run exposed an unchanged NAT lifecycle test timing
-failure (`TestTableCleanerSleepsWhenEmptyAndRestarts: idle source not removed`).
-That test passed 25 consecutive isolated runs, and the subsequent full suite
-passed. No NAT behavior was changed in this component delivery.
+## Ownership, persistence and qualification
 
-Benchmark details and exact reproduction command are in
-[intelligent selectors](intelligent-selectors.md). Results are runtime selection
-microbenchmarks, not end-to-end physical-link qualification.
-
-The component commits passed backend full/race tests and lint, frontend tests
-and browser checks. The consolidated PR heads run their complete CI again; use
-the current checks on the two active PRs for delivery status rather than checks
-on the superseded component PRs.
-
-The previous lite-client cold-Tailscale fixture failure was reproduced on main
-and its DERP-registration repair passed local repeated/race and remote checks.
-Main #628 subsequently restored the tsnet adapter and replaced that fixture.
-This branch now retains the current tsnet transport/DNS fixture and adapts
-native observations without LocalAPI/network calls or extra status workers.
-The historical lite-fixture qualification is not a current-tsnet validation claim.
-See [local Tailnet readiness](network-diagnostics.md#local-tailnet-integration-fixture-readiness).
-
-Chrome fallback coverage verifies Selector/circuit and monitoring views at
-1440, 360 and 320 px; CI retains the resulting screenshots.
-
-## Circuit follow-up validation
-
-The backend extends existing selector and observation JSON; no new SQLite
-migration is needed beyond schema 19. The frontend adds circuit controls and
-evidence details in EN/JA/KO, preserving manual behavior. Frontend gates pass
-with 104 files / 309 tests. Backend full tests, lint and focused race coverage
-pass. Measurements and exact reproduction commands accompany this delivery.
-
-## Probe policy follow-up
-
-The fixed candidate egress now uses existing route block/DNS/rule identities and
-stream/datagram governors with live global/default/route shaping. Startup policy
-readiness gates construction and budget spend. See [measurement policy](probe-policy.md)
-for actual scope, lifecycle behavior, tests and the remaining overhead-budget
-qualification. Existing monitoring status JSON adds `policyState`; schema remains
-19. Frontend EN/JA/KO explains waiting/enforced/standalone measurement scope.
-
-## Measurement bounds follow-up
-
-Manual and periodic measurements share global admission and cancellation. Active
-download reservations include bounded Node-stream TLS/HTTP/read-ahead overhead;
-schema 20 preserves legacy usage without guessing its unrecorded overhead. The
-existing Prometheus endpoint gains finite-label selector/circuit/probe/speed
-metrics without database work on scrape. Frontend EN/JA/KO displays shared slot
-use and inclusive budget semantics. See [measurement bounds](measurement-bounds.md).
-
-Stage 1 remains in progress, including final resource/transport qualification.
-Stage 2 transfer/archive/offline CLI recovery is implemented; broader Stage 2 hosts, optional periodic drills and final Stage 3 qualification remain pending.
-
-Native session adapters and periodic login protection now use existing protocol
-state and the same node/selector runtime. See the native session section in
-[outbound observability](outbound-observability.md#native-session-evidence) and
-[periodic VPN reuse](probe-policy.md#periodic-work-reuses-established-vpn-sessions).
-They require no SQLite migration beyond schema 20. Frontend lifecycle descriptions
-remain separate from channel/target health. Full three-stage completion is pending.
-
-## Offline restore qualification
-
-The restore transaction validates authenticated inventory, platform/schema and
-instance confirmations before any replacements. Original mode explicitly warns
-about credential revocation/quota rewind; clone mode resets management/native
-machine identities and disables restored resources and S3 schedules. Referenced
-external files are confined and rebound. See [operator workflow and limits](recovery-archive.md).
-Fault injection covers every replacement boundary, interrupted rollback and real
-CLI process death. Local RSS and allocation measurements distinguish age's
-per-chunk cumulative allocation from bounded live streaming memory; commands,
-fixture scope and raw data are documented. The archive and restore additions
-introduced no SQLite migration beyond 20; managed full backups subsequently add
-schema 21, imports add 22 and exclusive restore admission adds 23. Windows/embedded coordination remains
-incomplete; managed scheduling and retention are described below.
-
-The offline-restore change passes full Go tests, eight-package focused race
-coverage, modernc plus mattn/fts5, gofmt/go fix, golangci-lint v2.15.0 (zero
-issues), actionlint and build-script shellcheck. Frontend contract synchronization
-passes lint, typecheck, all 17 translation namespaces, style audit, build and
-105 files / 314 tests. A local full-test attempt using a long custom build temp
-path exceeded the pre-existing Unix socket test's pathname limit; that test and
-the full suite pass using the default temporary directory. Remote checks for
-this change are authoritative only after publication on the two active PR heads.
-
-## Managed full backups
-
-Migration 21 extends the existing BackupStore with bounded history and atomic
-job transitions. The existing scheduler can request confirmed maintenance,
-create full public-key encrypted archives, resume S3 uploads after restart,
-verify ciphertext readback, protect downloads and apply owned retention. The
-Backup UI exposes the real settings/history/create/verify/download/retry/delete
-flows in EN/JA/KO. Scheduled work does not depend on the browser. Automatic
-maintenance currently targets root-owned Linux systemd deployments; other hosts
-retain offline tools pending complete service coordination. An isolated real
-systemd/HTTPS/S3/helper-crash drill now accompanies hermetic tests. See
-[managed backups](managed-recovery-backups.md) for exact behavior and limits.
-
-Broader platform maintenance and optional periodic restoration drills remain
-outstanding. Plaintext copy retention and ACME are now implemented. The three-stage goal is active.
-
-The managed-backup UI has automated 1440/360/320 px interaction/screenshot
-coverage for maintenance confirmation, actual draft save, history and the private
-verification dialog, with zero horizontal overflow. Those fixtures are explicitly
-synthetic; the isolated systemd/HTTPS/object-server drill proves the real
-stop/capture/restart/verification/crash behavior separately. Finite backup state,
-latest complete-point timestamps and download leases now use atomic metric
-snapshots with no SQLite work on scrape.
-
-
-## Web recovery preview
-
-Backup responsibilities have distinct owners:
-
-- `pkg/app/backup`: one scheduler and operation lease, managed jobs, transfers,
-  retention, metrics and expiring Web import records.
-- `pkg/app/backup/recovery`: deployment inventory and snapshots, authenticated
-  restore planning, file activation, startup validation and rollback.
-- `pkg/store/backup`: existing SQLite settings, history, import records and
-  recorded startup inputs.
-- `pkg/store/backup/archive`: encryption, versioned streaming format, confined
-  plaintext staging and authenticated manifest/database validation.
-
-The scheduler consumes an opaque prepared import plan rather than constructing
-or interpreting file transactions. Shared filesystem and snapshot rules are
-internal packages, with one source of truth for permissions, path confinement,
-space limits and runtime-table policy. Tests and benchmarks live beside their
-owners; deployment fixtures are shared only by tests. Application assembly
-injects the optional maintenance interface rather than the whole AppInstance;
-actual application-owner readiness checks remain in `pkg/app/recovery_health.go`.
-The desktop host also separates recovery and update responsibilities:
-
-- `cmd/yuhaiin/internal/recovery`: offline command parsing, private input files
-  and maintenance helper commands; it does not assemble the application.
-- `cmd/yuhaiin/internal/update`: installed-platform updater adapters and helper
-  commands; the update engine remains in `pkg/update`.
-- `cmd/yuhaiin/internal/servicehost`: installed-service ownership and shared
-  systemd/launchd operations used by backup, updates and service commands.
-- `cmd/yuhaiin/internal/startuphealth`: pinned local listener readiness and
-  recording the host's actual startup inputs.
-
-`main` dispatches commands and wires these owners. Unit tests live beside the
-implementation. Tests that exercise the actual server assembly and its shutdown
-remain in the command package. The isolated systemd drill compiles the
-`internal/servicehost` tests; CI includes `./cmd/yuhaiin/...` so moved tests keep
-running. Release builds target `./cmd/yuhaiin` explicitly: building a multi-package
-pattern without `-o` would check packages without emitting the executable. SQLite snapshot code stays with its database owner rather than gaining
-a second database implementation.
-
-The SQL schema, archive format, management contracts and lifecycle ownership are
-unchanged by this refactoring.
-
-Migration 22 adds expiring, principal-bound import records to BackupStore.
-Encrypted uploads and original/clone previews reuse the existing archive codec
-and replacement planner, with bounded traffic/disk/memory, transient decryption
-input and private staging cleanup. The existing Backup page exposes actual
-upload, preview and confirmed discard operations in EN/JA/KO. Real HTTPS
-service and responsive browser checks cover these operations. See
-[import lifecycle and limits](managed-recovery-backups.md#web-archive-import-and-authenticated-preview).
-Web activation now uses exact-preview consent, sealed projected files and the existing controlled startup/rollback transaction on root-owned Linux systemd hosts.
-
-The offline restore CLI now offers explicit startup-input adoption. Its existing
-transaction/result records retain relocated TLS/auth/listener/file inputs through
-commit, repeated real process restarts, failed subsequent restores and interrupted
-startup. A previous adopted binding is restored with its original inodes. The
-BackupManage-protected status API and existing Backup page show the latest actual
-commit/rollback result. Local service drills exercise file certificates and web
-assets against deliberately incompatible host flags; original flags remain the
-default without an opted-in restore. See
-[startup and rollback](recovery-archive.md#activation-real-startup-and-rollback).
-The Web activation request now persists exact-preview identity confirmations and hands off to an independent installed-service helper. Migration 23 serializes admission; its startup checks and crash fallback reuse this integration. See the [confirmed Web workflow](managed-recovery-backups.md#confirmed-web-activation).
-
-## S3 archive retrieval
-
-Verified S3 history items support explicit streamed local retrieval/repair through
-the existing backup lease and governed S3 proxy, with size/SHA-256 checks before
-publication, finite time/byte/disk budgets, cancellation and interrupted-transfer
-cleanup. The UI distinguishes local presence, retrieval evidence and authenticated
-archive checks. Exported public history metadata plus an owner-only S3 settings
-file also enable `recovery fetch` without opening deployment databases.
-[Workflow and measurements](managed-recovery-backups.md#recover-a-missing-or-damaged-local-s3-copy).
-These retrieval operations share the backup owner used by protected updates;
-ACME remains required.
-
-## Update target compatibility
-
-Published release assets now include checksum-bound schema/CPU manifests generated
-on the build host without running the target binary. Update admission, downloaded
-bytes and privileged helpers are checked independently against actual read-only
-live-WAL schema catalogs; history preserves only proven self-binary capabilities.
-Unknown/incompatible binary rollback is refused, and the UI shows current/target
-schemas and actual recovery readiness. No SQLite migration is required.
-
-Root-owned Linux systemd updates now create a full encrypted point before binary
-replacement, pin that point while unresolved, and require an operation/digest/PID
-bound receipt after actual application/listener readiness. A potentially migrated
-failed target remains stopped for explicit paired offline recovery; no old binary
-is silently started against new stores. The public status/cancellation/offline CLI
-and EN/JA/KO confirmation/result UI use the same ownership model. The real service
-runner adds a real next-schema success, post-migration startup failure, helper
-SIGKILL and actual source-schema CLI recovery. It derives both versions from
-the build's catalog (originally 23 to 24); no production migration/fault hook is added.
-Release descriptors declare the independent startup-receipt capability. See
-[workflow, tests and resource scope](update-rollback.md#protected-update-and-offline-recovery).
-
-
-### Local pre-restore copies
-
-Independent default-off `localPoints` settings now govern plaintext rollback
-copies at CLI startup or via confirmed offline `recovery prune-points`. Finalized
-metadata, lifecycle/SQLite ownership, current/latest/committed/configured pins,
-confined durable deletion and 32-copy batches protect active deployment data.
-The existing Backup page provides destructive consent/count/age controls in
-EN/JA/KO. No new SQLite schema or service is introduced; clones clear consent.
-See [behavior, fault tests and measured limits](managed-recovery-backups.md#local-rollback-copy-retention).
+- `pkg/app/backup` owns scheduling/transfers; `recovery/` owns inventories,
+  staging, activation, rollback and local copies. Application assembly/readiness
+  stays with the app. There is no parallel backup or certificate subsystem.
+- `pkg/store/backup` owns records; `archive/` owns the encrypted format. Recovery
+  contracts and CLI/service supervision have dedicated packages.
+- Configuration migrations 18/19/20 add selector policy, monitoring and durable
+  measurement budgets; 21/22/23 add backup history/import/admission; 24 adds
+  private certificate/account/provider/cleanup/reference tables. Configuration
+  export excludes identity/certificate secrets and history. Full snapshots
+  include required private state. Derived timeout rates and cleanup policy add
+  no schema migration.
+- Deterministic clocks, local HTTP/TLS/DNS/provider servers, real WAL stores,
+  race tests and isolated systemd migration/crash/restore tests cover the named
+  safety properties. Chrome at 1440/360/320 px covers the actual existing UI.
+- Reports retain manual/automatic TCP/UDP admission, 100/1,000-candidate ranking,
+  1,024 concurrent creators, snapshot churn, heap/allocation/goroutine lifecycle,
+  streamed archive/restore memory, and actual 1/64/256 MiB service maintenance.
+  Each report states its fixture and limits; local results are not WAN/native
+  VPN capacity guarantees.

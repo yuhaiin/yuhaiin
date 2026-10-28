@@ -68,7 +68,7 @@ jobs:
       - name: Actual capture, missing-archive S3 retrieval, restore and crash restart
         run: |
           python3 -m unittest discover -s scripts/bench/recovery-maintenance -p 'test_*.py'
-          python3 scripts/bench/recovery-maintenance/run.py --rootful
+          python3 scripts/bench/recovery-maintenance/run.py --rootful --asset-mib 256
   monitoring:
     runs-on: ubuntu-latest
     timeout-minutes: 20

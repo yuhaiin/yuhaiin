@@ -60,6 +60,13 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if _, err := os.Stat("/run/systemd/container"); err != nil {
 		t.Fatal("fixture is not inside a systemd container")
 	}
+	assetMiB, err := strconv.Atoi(os.Getenv("YUHAIIN_RECOVERY_ASSET_MIB"))
+	if os.Getenv("YUHAIIN_RECOVERY_ASSET_MIB") == "" {
+		assetMiB, err = 0, nil
+	}
+	if err != nil || assetMiB < 0 || assetMiB > 1024 {
+		t.Fatal("invalid bounded resource fixture size")
+	}
 	if err := os.MkdirAll(directory, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +186,13 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if err := os.WriteFile("/etc/systemd/system/yuhaiin.service", []byte(unit), 0600); err != nil {
 		t.Fatal(err)
 	}
-	run := func(args ...string) error { return exec.Command("systemctl", args...).Run() }
+	run := func(args ...string) error {
+		output, err := exec.CommandContext(t.Context(), "systemctl", args...).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("systemctl %v: %w: %s", args, err, strings.TrimSpace(string(output)))
+		}
+		return nil
+	}
 	if err := run("daemon-reload"); err != nil {
 		t.Fatal(err)
 	}
@@ -492,6 +505,9 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if pid("yuhaiin.service") == before {
 		t.Fatal("helper death did not produce a real service restart")
 	}
+	if err := os.Remove(filepath.Join(web, "crash-window.bin")); err != nil {
+		t.Fatal(err)
+	}
 	// Restore the actual first archive over a changed live deployment. Neither
 	// service-manager Start nor an HTTP disconnect establishes restore success:
 	// the real startup journal and reopened management API must agree.
@@ -563,6 +579,20 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 		_, err := os.Lstat(filepath.Join(directory, ".recovery-imports", imported.ID))
 		return errors.Is(err, os.ErrNotExist)
 	})
+	if assetMiB > 0 {
+		// A committed application transaction can precede the transient unit's
+		// ExecStopPost. Wait for that exact owner before beginning a separate
+		// operator-controlled stop; otherwise its final Start cancels the Stop.
+		wait("preceding restore helper completion", func() bool {
+			output, _ := exec.CommandContext(t.Context(), "systemctl", "show", "yuhaiin-restore-"+imported.ID+".service", "--property=ActiveState", "--value").Output()
+			state := strings.TrimSpace(string(output))
+			return state == "inactive" || state == "failed"
+		})
+		measureOfflineRecovery(t, assetMiB, directory, web, identity, run, func() bool {
+			var value contract.Option
+			return rpc(t.Context(), "backup.config.get", struct{}{}, &value) == nil && value.InstanceName == "isolated-systemd-fixture"
+		})
+	}
 
 	// Clone activation must actually replace machine identity and invalidate the
 	// old management session. Its new administrator bootstrap stays local.

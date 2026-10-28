@@ -5,8 +5,8 @@ The encrypted streaming format and authenticated inventory checks live in
 `pkg/contract/backup/recovery`. Deployment
 snapshots, offline activation, startup checks and crash rollback belong to
 `pkg/app/backup/recovery`. The existing online backup scheduler owns managed
-local/S3 jobs, retention, verification and downloads. Web restoration now uses these owners on the supported systemd host. Safe
-update integration and broader host coordination remain in progress in the consolidated reliability PR.
+local/S3 jobs, retention, verification and downloads. Web restoration now uses these owners on the supported systemd host. Protected updates use the same collector and verified startup on that host;
+[service/platform boundaries](enterprise-reliability-audit.md) are explicit.
 
 ## Package ownership
 
@@ -282,10 +282,10 @@ transaction before database migration/writes. A local encrypted-restore fixture
 checks that those entry points leave the pending database byte-for-byte intact.
 The generic `app.Start` also rejects a pending restore without its controlled
 startup ID. Android/other embedded hosts still need a complete host-specific
-recovery/startup coordinator; these guards do not implement one. Web maintenance
-activation orchestration remains pending. Managed backup, Web preview and latest
-restore-result APIs/UI extend the existing owner; they do not complete Web
-activation. Do not present this CLI capability as its completion.
+recovery/startup coordinator; these guards do not implement one. Root-owned Linux
+systemd now has confirmed Web activation through the same staging, startup and
+rollback owners; the actual service drill verifies original and clone recovery.
+See the [Web workflow](managed-recovery-backups.md#confirmed-web-activation).
 
 ## Encryption and framing
 
@@ -464,9 +464,9 @@ The [managed-backup page](managed-recovery-backups.md) now wraps this collector
 with explicit root-owned Linux systemd maintenance, history, local/S3 targets,
 verification/download and retention. It uses public recipients for scheduled
 creation and transient private identities for authenticated checks. Database
-schema is now 23 (history 21, imports 22, exclusive activation 23); existing
-archive formats and known older schema prefixes stay verifiable. Other platform
-coordinators remain pending. See the [confirmed Web workflow](managed-recovery-backups.md#confirmed-web-activation).
+schema is now 24 (history 21, imports 22, exclusive activation 23, managed
+certificates 24); existing archive formats and known older schema prefixes stay
+verifiable. Other platform coordination limits are documented. See the [confirmed Web workflow](managed-recovery-backups.md#confirmed-web-activation).
 
 ## Cloned monitoring schedules
 

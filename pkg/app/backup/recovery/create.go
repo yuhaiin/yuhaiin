@@ -12,6 +12,7 @@ import (
 	"uuid"
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
+	"github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
 	backupsnapshot "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/snapshot"
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -24,6 +25,7 @@ type CreateOptions struct {
 	ConfirmedMaintenance bool
 	IncludeHistory       bool
 	Runtime              *contractrecovery.Runtime
+	checkSpace           func(string, int64) error
 }
 
 // Create creates a complete, encrypted snapshot set through the
@@ -68,6 +70,16 @@ func Create(ctx context.Context, directory, destination string, key backuparchiv
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
+	checkSpace := options.checkSpace
+	if checkSpace == nil {
+		checkSpace = backupfs.CheckStagingSpace
+	}
+	if err := checkSpace(directory, 0); err != nil {
+		return empty, err
+	}
+	if err := checkSpace(filepath.Dir(destination), 0); err != nil {
+		return empty, err
+	}
 	snapshot, err := os.MkdirTemp(directory, ".recovery-snapshot-*")
 	if err != nil {
 		return empty, err
@@ -85,7 +97,9 @@ func Create(ctx context.Context, directory, destination string, key backuparchiv
 		} else if err != nil {
 			return empty, err
 		}
-		schema, err := sqlite.SnapshotRecoveryDatabase(ctx, source, filepath.Join(snapshot, database.name), database.kind, backuparchive.MaxDataBytes-databaseBytes)
+		schema, err := sqlite.SnapshotRecoveryDatabaseWithSpaceCheck(ctx, source, filepath.Join(snapshot, database.name), database.kind, backuparchive.MaxDataBytes-databaseBytes, func(bytes int64) error {
+			return checkSpace(snapshot, bytes)
+		})
 		if err != nil {
 			return empty, fmt.Errorf("snapshot %s: %w", database.name, err)
 		}
@@ -125,6 +139,7 @@ func Create(ctx context.Context, directory, destination string, key backuparchiv
 		return empty, errors.New("startup inputs are unavailable; supply explicit management TLS and working-directory inputs or run the updated server once")
 	}
 	collector := newRecoveryInventory(ctx, directory, snapshot, inputs, &manifest)
+	collector.checkSpace = checkSpace
 	err = collector.collect(reader)
 	closeErr := reader.Close()
 	if err != nil {
@@ -138,5 +153,13 @@ func Create(ctx context.Context, directory, destination string, key backuparchiv
 	}
 	manifest.Runtime = inputs
 	manifest.CompleteInventory = true
+	// Reserve ciphertext while the complete plaintext set is still allocated.
+	// age adds one tag per 64 KiB chunk; two MiB covers the bounded manifest,
+	// framing, recipient header and final chunk. Pruning may make this estimate
+	// conservative. Check the output filesystem separately from staging.
+	cipherBytes := collector.bytes + (collector.bytes/(64<<10)+1)*16 + (2 << 20)
+	if err := checkSpace(filepath.Dir(destination), cipherBytes); err != nil {
+		return empty, err
+	}
 	return backuparchive.WriteFile(ctx, destination, snapshot, manifest, key)
 }

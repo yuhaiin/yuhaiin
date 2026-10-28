@@ -245,7 +245,7 @@ controls, with startup readiness and bounded connection cleanup. See the
 
 Measurement resource limits and finite-label reliability metrics: [measurement bounds](docs/measurement-bounds.md).
 
-Enterprise reliability is being developed in one [backend PR](https://github.com/yuhaiin/yuhaiin/pull/622) and one [frontend PR](https://github.com/yuhaiin/yuhaiin-react/pull/535). See the [delivery tracker](docs/enterprise-reliability.md) for implemented and pending stages.
+Enterprise reliability is being developed in one [backend PR](https://github.com/yuhaiin/yuhaiin/pull/622) and one [frontend PR](https://github.com/yuhaiin/yuhaiin-react/pull/535). See the [delivery tracker](docs/enterprise-reliability.md) for current behavior, qualification and support boundaries.
 
 The [managed-certificate guide](docs/managed-certificates.md) covers schema-24
 private storage, HTTP-01/Cloudflare DNS-01, persistent renewal, permission-gated
@@ -268,8 +268,7 @@ size/digest checks. Retain public recovery metadata separately for the offline
 Web restore activation is available on root-owned Linux systemd deployments;
 protected updates now capture an encrypted recovery point before replacement and
 verify real startup on that host. Migration failure requires the matching source
-binary/database backup, with an offline status/restore path. Broader service hosts
-remain in progress; [protected update procedure](docs/update-rollback.md#protected-update-and-offline-recovery).
+binary/database backup, with an offline status/restore path. Other hosts retain the documented offline workflows and durability limits; [protected update procedure](docs/update-rollback.md#protected-update-and-offline-recovery).
 
 
 The Backup page also supports bounded encrypted archive uploads and authenticated
@@ -309,3 +308,7 @@ Runtime selection reuses immutable Node health histories across Selectors,
 without adding observation owners or per-packet work. Full-history before/after
 heap, allocations, shared-Selector and shutdown measurements document the cache
 memory tradeoff in the [resource qualification](docs/intelligent-selectors.md#runtime-heap-and-lifecycle-qualification).
+
+Full capture checks WAL-aware snapshot, dependency and ciphertext space. The
+[actual maintenance report](docs/managed-recovery-backups.md#capture-space-and-real-maintenance-measurements)
+records independent CLI RSS and confirmed real startup for 1/64/256 MiB payloads.

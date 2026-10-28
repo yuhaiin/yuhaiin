@@ -219,9 +219,10 @@ material, ambiguous source flags, encrypted original/clone restore, adopted star
 settings and verified TLS after restoration. Management listener tests cover hot
 replacement, retained streams, SNI rejection and reference protection. Update
 regressions reject an older capability and require the independent verifier's
-acknowledgement. These checks do not replace remaining full lifecycle qualification.
+acknowledgement. The [requirement matrix](enterprise-reliability-audit.md) records
+the exact lifecycle assertions and support boundaries.
 
-## ARI application evidence and remaining qualification
+## ARI application evidence
 
 Local HTTPS tests verify the RFC ID vector, unsigned GET, Retry-After bounds and
 HTTP-date parsing, unsafe origins/redirects, untrusted TLS, invalid/oversized JSON,
@@ -237,8 +238,9 @@ reads a local CA directory/advice and publishes real SQLite status. Real restart
 and encrypted original/clone restoration preserve/reset the applicable identity
 and schedule. No public CA, system resolver or ungoverned fallback is used.
 
-Final requirement-by-requirement qualification of all three reliability stages
-and exact-head remote CI remain; earlier green commits do not qualify a later head.
+The [three-stage evidence matrix](enterprise-reliability-audit.md) records the
+final requirement mapping. Exact-head remote CI is a separate delivery gate;
+earlier green commits do not qualify a later head.
 
 Provider wire behavior follows the official [Cloudflare create](https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/create/),
 [list](https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/list/)

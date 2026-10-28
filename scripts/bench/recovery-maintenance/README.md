@@ -38,3 +38,23 @@ The same live flow also restores a clone, requiring a fresh instance ID, a new
 self-signed management certificate, new administrator initialization and rejection
 of the old session. Failure diagnostics redact the newly issued local setup
 capability before printing service journals; `test_runner.py` covers that guard.
+
+
+For a real large offline create/restore/startup measurement, run with
+`--asset-mib 256` (bounded to 0–1024 MiB). CI enables this case. The test writes
+markers into a sparse source asset, streams its full contents into real staging
+and ciphertext, changes content without changing size, and verifies restored
+SHA-256 plus the exact transaction's startup commit and existing management
+session. A fresh Python parent measures one CLI child's RSS, separately for
+creation and restoration with a soft 64 MiB Go target. Fixture generation,
+online preview, final hash, server/helper RSS and page cache are excluded.
+
+The reported maintenance window begins before explicit Stop and ends at actual
+HTTPS readiness; restore also requires startup commit. It includes the manual
+reset of the fixture's rapid-restart burst counter, and does not disable service
+start-rate protection. The preceding Web helper must be inactive, including its
+ExecStopPost, before a new operator-controlled Stop starts. `--recovery-only`
+omits building/running future-schema update scenarios for size comparisons;
+the ordinary runner retains all those scenarios.
+
+See the [measurements and limitations](../../../docs/managed-recovery-backups.md#capture-space-and-real-maintenance-measurements).

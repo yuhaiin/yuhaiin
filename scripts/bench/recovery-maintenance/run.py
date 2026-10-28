@@ -22,7 +22,13 @@ def main():
     parser.add_argument('--rootful', action='store_true',
                         help='use sudo -n podman (for disposable CI runners)')
     parser.add_argument('--skip-image-build', action='store_true')
+    parser.add_argument('--asset-mib', type=int, default=0,
+                        help='also measure real offline capture/restore and service restart with 1–1024 MiB')
+    parser.add_argument('--recovery-only', action='store_true',
+                        help='run capture/restore resources without repeating protected-update scenarios')
     args = parser.parse_args()
+    if not 0 <= args.asset_mib <= 1024:
+        parser.error('--asset-mib must be between 0 and 1024')
     root = Path(__file__).resolve().parents[3]
     runtime = ['sudo', '-n', 'podman'] if args.rootful else ['podman']
     image = 'localhost/yuhaiin-recovery-systemd-test'
@@ -55,7 +61,7 @@ def main():
         migration_overlay = Path(tmp, 'migrations.go')
         migration_overlay.write_text(migrated)
         health_path = root / 'pkg/app/recovery_health.go'
-        for fixture_name, fail in [('update-healthy', False), ('update-failed', True)]:
+        for fixture_name, fail in ([] if args.recovery_only else [('update-healthy', False), ('update-failed', True)]):
             replacements = {str(migration_path): str(migration_overlay)}
             if fail:
                 health_overlay = Path(tmp, 'failed_health.go')
@@ -79,8 +85,10 @@ def main():
             run([*runtime, 'cp', str(test), name + ':/app/drill.test'])
             for fixture in fixtures:
                 run([*runtime, 'cp', str(fixture), name + ':/app/' + fixture.name])
-            run([*runtime, 'exec', '-e', 'YUHAIIN_RECOVERY_SYSTEMD_DRILL=1', name,
-                 '/app/drill.test', '-test.run=^TestInstalled(RecoveryMaintenance|ProtectedUpdate)$',
+            test_pattern = '^TestInstalledRecoveryMaintenance$' if args.recovery_only else '^TestInstalled(RecoveryMaintenance|ProtectedUpdate)$'
+            run([*runtime, 'exec', '-e', 'YUHAIIN_RECOVERY_SYSTEMD_DRILL=1',
+                 '-e', f'YUHAIIN_RECOVERY_ASSET_MIB={args.asset_mib}', name,
+                 '/app/drill.test', '-test.run=' + test_pattern,
                  '-test.v', '-test.timeout=8m'], timeout=540)
         except Exception:
             journal = subprocess.run([*runtime, 'exec', name, 'journalctl', '--no-pager',

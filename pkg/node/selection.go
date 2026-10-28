@@ -164,7 +164,7 @@ func scoreCandidate(p contract.SelectorPolicy, in selectionInput, now time.Time)
 		return c
 	}
 	trial := in.circuit != nil && in.circuit.State == "half_open"
-	var successes, failures int
+	var successes, failures, timeouts int
 	var lastAt int64
 	for _, s := range in.health.Samples {
 		if s.At > now.UnixMilli() || now.UnixMilli()-s.At > p.MaxAgeMS {
@@ -173,6 +173,9 @@ func scoreCandidate(p contract.SelectorPolicy, in selectionInput, now time.Time)
 		lastAt = max(lastAt, s.At)
 		if !s.OK {
 			failures++
+			if s.Timeout {
+				timeouts++
+			}
 		} else {
 			if s.Kind != "response" {
 				successes++
@@ -204,8 +207,10 @@ func scoreCandidate(p contract.SelectorPolicy, in selectionInput, now time.Time)
 			c.Samples++
 		}
 	}
-	if successes+failures > 0 {
-		c.FailureRate = float64(failures) / float64(successes+failures)
+	c.HealthSamples = successes + failures
+	if c.HealthSamples > 0 {
+		c.FailureRate = float64(failures) / float64(c.HealthSamples)
+		c.TimeoutRate = float64(timeouts) / float64(c.HealthSamples)
 	}
 	speed, upload := in.speed, in.uploadSpeed
 	speedValid := freshThroughput(speed, p.SpeedTarget, "download", p, now)

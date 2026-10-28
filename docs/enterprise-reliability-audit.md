@@ -1,107 +1,80 @@
-# Enterprise reliability completion audit
+# Enterprise reliability requirement evidence
 
-The original scope is all three stages, with backend/frontend, persistence,
-security, resource qualification, documentation and exact-head CI. This document
-records verified implementation evidence and concrete gaps; a passing test does
-not prove requirements beyond what that test actually exercises. The overall goal
-is not complete.
+This reconciles the three requested phases with the current implementation.
+A named test proves its assertions at its fixture boundary, not arbitrary WAN,
+physical-device or unsupported-service-host behavior. The two main-targeted PRs
+remain the delivery entries: [backend #622](https://github.com/yuhaiin/yuhaiin/pull/622)
+and [frontend #535](https://github.com/yuhaiin/yuhaiin-react/pull/535).
+Exact-head remote CI must be checked before final delivery; current workflow
+status on those PRs is authoritative. There are no remaining placeholder APIs or
+static-only controls in the features listed below.
 
-## Stage 1: findings from current implementation
+## Phase 1
 
-| Requirement | Current authoritative evidence | Status / remaining work |
+| Requested item | Implementation and inspected evidence | Qualification |
 | --- | --- | --- |
-| 1.1 Six opt-in Selector modes; legacy manual NodeID | `pkg/contract/node/selector.go`, `pkg/node/selection.go`, `selector_runtime.go`; `TestSelectionStrategiesAndManualCompatibility` | Implemented; final full UI/configuration audit still required. |
-| 1.1 Candidate enable/priority/weight, preferred/lock, TCP/UDP and fallback | Existing policy/status contracts and precompiled runtime; `TestFailoverRecoveryFallbackAndNetworkSeparation`, weighted/disabled and circuit fallback tests | Implemented paths exist; verify all serialized defaults and editor round trips against the original specification. |
-| 1.2 Distinct construction/channel/remote/HTTPS/native evidence | `health_evidence.go`, `native_status.go`, `observability.go`; native and cancellation tests | Implemented and hermetically tested. The selector guide enumerates OpenVPN, GlobalProtect, L2TP, SoftEther and Tailnet providers and their cached-session/control/static-mode limits; other or interface-hiding chains use end-to-end evidence without invented native health. |
-| 1.3 Shared bounded scheduler, cancellation, Android/cost/native-login rules | `probe_scheduler.go`, `monitoring.go`; scheduler hard-bound/dedup/timeout/class/cooldown tests and monitoring/native lifecycle tests | Implemented. Worst-case deployment resource/churn qualification remains to be refreshed against the final state. |
-| 1.4 Fresh comparable RTT, EWMA, dual hysteresis, hold/cooldown | `selection.go`; expiry, latency hysteresis, failover/recovery and network separation tests | Implemented, including preferred-return control for latency/speed/balanced modes, unchanged manual behavior and weighted distribution. Pure strategy tests cover sticky/allowed return, metric eligibility, thresholds, hold, emergency failover and third alternatives; a persisted-runtime test covers real admission, an existing stream and suppression metrics. Final resource/UI qualification remains. |
-| 1.5 Passive business traffic separate from active measured capacity | `RuntimeStatus.UploadBps/DownloadBps`, volatile `TrafficWindow`, bounded `recentTcpDials` versus `ThroughputMeasurement`; deterministic rate/idle-SQL/restart tests and Node overview | Current/window observed traffic, active target/time-specific Mbps and retained TCP dial failures are implemented separately. No rate window enters capacity ranking. Full final UI/configuration/resource qualification remains required. |
-| 1.5 Bounded verified download tests and durable inclusive budget | `pkg/net/latency/throughput.go`, `pkg/node/speed.go`, measurement admission/budget tests; schema 20 | Implemented for both directions with opt-in upload protocol; no background test is enabled by creating a selector. |
-| 1.5 / 1.6 Upload tests and useful upload-weight policy | `latency/upload.go`, existing `NodeRuntime.Speed`, per-direction persisted counters, shared scheduler/budget; `TestUploadRuntimeLocalTLS`, protocol/expiry/budget/schedule tests and React upload controls | Implemented with explicit endpoint consent and validated byte-count acknowledgement. A separate bounded HTTPS endpoint tool is provided. Exact-head CI and final specification qualification remain required. |
-| 1.6 Normalized balanced components and explanations | Existing score weights/components/status contracts and selection tests | Download/upload/latency/stability components exist with independent sample provenance/freshness. Audit invalid/missing/expired metrics and presets against the original examples. |
-| 1.7 Circuit Closed/Open/Half-open, quotas, no request replay | `circuit.go`, `circuit_binding.go`; circuit/connection/observability tests, `TestSelectorSwitchDoesNotReplayOrCloseEstablishedStream` | Neutral cancellation/close/QUIC, local quota/policy and reconfiguration outcomes now share classification across generic counters, construction and channel evidence; nested policy wrappers are covered. Complete the remaining protocol/error-classification matrix and actual UDP session behavior audit. |
-| 1.8 Atomic configuration/runtime snapshots; no SQLite on admission | `config_generation.go`, `selector_runtime.go`; `TestSelectorConnectionPathDoesNotQuerySQLite`, 1,024 creators during churn | Implemented and qualified with manual/automatic TCP/UDP admission, 100/1,000-candidate ranking, 1,024 creators during churn and before/after full-history heap/allocation/goroutine lifecycle fixtures. Shared 10-Selector results, read-cache memory tradeoff and cumulative compilation cost are explicit in the selector guide; these are not native VPN/WAN or maximum deployment capacity evidence. |
-| 1.9 Existing React editor, raw evidence/score/reasons/history | Selector/Nodes editor and real-browser harness at 1440/360/320 px | Download/upload controls, explicit consent, independent schedule settings and direction-labeled history are implemented. Final requirement-by-requirement UI audit remains. |
+| 1.1 Modes, candidates, enabled/priority/weight, preferred/lock, automatic/manual, separate TCP/UDP, recovery and fallback; legacy `nodeId` | `pkg/contract/node/selector.go`, `pkg/node/selection.go`, `selector_runtime.go`; `TestSelectionStrategiesAndManualCompatibility`, `TestFailoverRecoveryFallbackAndNetworkSeparation`, `TestWeightedDistributionAndDisabledCandidates`, preferred-return tests; `pkg/store/selector_test.go` policy round trip/reference guards. | Six modes and manual compatibility; backend decisions do not need the browser. Selected/unknown fallback is explicit and never Direct. |
+| 1.2 Chosen-Node TCP/HTTPS/DNS/UDP/native/STUN probes; distinct confidence; EWMA/history/failure/timeout/state thresholds | `monitoring.go`, `probe_policy.go`, `health_evidence.go`, `native_status.go`, `selection.go`; scheduled-target, complete-probe, native-session, construction/cancellation tests. `TestTimeoutRateUsesFreshHealthOutcomesWithoutDoubleCountingReplies` checks fresh timeout/outcome counts separately from RTT samples. | Existing bounded observations own the data. UDP creation/send alone is not remote success; optional jitter is from comparable samples. Timeout ratio is not packet loss. Native provider/chain limitations are enumerated in the selector guide. |
+| 1.3 Enabled/interval/timeout/concurrency/thresholds/cooldown/jitter/target/bandwidth/cost defaults and overrides; cancellation/delete/network/Android/passive-only | `pkg/contract/node/monitoring.go`, shared heap scheduler and monitoring assembly; hard-bound/idle, dedup/change, timeout/class/cooldown and monitoring/network/mobile tests. | At most 16 workers, no per-Node resident task/timer, no idle scheduler DB queries. Explicit expensive/background admission cannot silently initiate VPN authentication. Native/admin network state controls metered/foreground policy. |
+| 1.4 Minimum samples, EWMA/cohort/expiry/max RTT/failure ratio; absolute+relative improvement, hold/cooldown/preferred return | `scoreCandidate`/`evaluateSelector`; expiry, hysteresis, preferred recovery/runtime persistence tests. `TestLatencyAlternatingWinnerDoesNotFlapAndAllowsSustainedImprovement` alternates the small RTT winner 100 times, then tests large improvement and reverse hold. | Unknown RTT is not zero; old/other-target samples do not rank. Emergency failure bypasses a healthy-node hold. |
+| 1.5 Passive load separate from active target/time capacity; verified bounded download/upload tests | Existing `TrafficWindow`/recent-dial summaries versus per-direction `ThroughputMeasurement`; `throughput.go`, `upload.go`, `speed.go`; range/non-range, compression/redirect/TLS, duration/cancellation, upload acknowledgement and durable shared-budget tests. | Repeated samples smooth separately by direction/target. No archive-sized response buffer or automatic large test by default; upload requires consent plus server advertisement. Expiry/unknown capacity has explicit reject/fallback semantics. |
+| 1.6 Bounded normalized RTT/download/upload/stability/jitter/load components and configurable weights | `SelectorWeights` and scoring formulas; mixed/upload-only/freshness/provenance strategy tests, policy editor custom-weight tests. | Raw metrics, sample provenance, components, eligibility, selected/suppressed reasons and history are visible. Presets are optional; custom weights are supported. |
+| 1.7 Closed/Open/Half-open, failure/rate/cooldown/recovery/quota, neutral error taxonomy, pinned TCP/UDP and no replay | `circuit.go`, `circuit_binding.go`, `health_evidence.go`; circuit transition/quota/epoch/deadline tests and neutral generic/channel matrix; `TestUDPHalfOpenNeedsReplyAndPinsExistingSession`, established-stream test. The real local-HTTP POST/reset/403 test verifies one accepted ambiguous POST, no alternate execution, a separate next request failing over and business 4xx retaining a closed circuit. | Admission happens once per new flow. TCP is never silently moved/replayed; existing UDP remains pinned until explicit recreation, with changed NAT/session behavior documented. Existing Set semantics remain separate. |
+| 1.8 Immutable atomic snapshots, no per-packet scoring/probes or per-dial SQL; share observations/probes; generation/cycles/dynamic changes | `selector_runtime.go`, `config_generation.go`, existing store dependency traversal; reserved-DB-connection, immutable read/expiry/reset, cycle/reference/subscription and 1,024-creator churn tests. | Ranking and snapshot updates are off forwarding paths. Actual no-SQL, concurrency, generation rejection and close behavior are tested. |
+| 1.8 Required ranking/admission/concurrency/churn/heap/allocation/goroutine benchmarks | Selector guide and retained `selector-*`, `preferred-recovery-*` resource files. Manual/automatic TCP/UDP admission, 100/1,000-candidate ranking, 1,024 creators, 2,048 retained fake flows and before/after full-history snapshots are measured. | Fixtures explicitly separate policy/runtime cost, loopback transport and native VPN/WAN capacity. Read-cache retained-heap versus cumulative-allocation tradeoff is reported, including ten shared Selectors. |
+| 1.9 Complete existing UI, raw evidence/history, manual tests/lock/resume and independent thresholds/schedules/budgets | Existing Selector policy, monitoring/circuit/speed editors and Node overview; component tests, generated contracts, EN/JA/KO and Chrome harness at 1440/360/320. Save/readback checks include preferred return, circuit settings, upload consent and independent local-copy settings. | Actual controls preserve legacy manual choice. Saved targets govern requests; business Bps and measured Mbps stay distinct. Timeout outcomes have their own denominator/hint. |
 
-The upload path extends the existing counters, 16-sample history, shared scheduler,
-admission and durable daily budget. It does not copy passive business Bps into
-capacity or use a download timestamp to validate an upload. Ordinary endpoints
-receive no test POST unless they explicitly advertise the configured protocol.
-Measurement and scoring tests do not replace the remaining protocol, resource
-and complete UI qualification above.
+## Phase 2
 
-## Stage 2: verified delivery and remaining qualification
+| Requested item | Implementation and inspected evidence | Qualification |
+| --- | --- | --- |
+| 2.1 Configuration export versus complete required deployment inventory/history option | Existing app/store Backup and SQLite export; `recovery/create.go`, typed inventory/projection and protocol identity owners; coherent owned-set, external/missing dependency and original/clone tests. | Explicit allowlist includes config/management SQLite, CA/TLS/protocol identities and required quota/budget state. Logs/cache/temp/imports are excluded; optional history costs are documented. |
+| 2.2 WAL-safe SQLite and coherent multi-database/file set | `SnapshotRecoveryDatabase`, closed-owner/lifecycle guards and coordinated service stop; WAL/live-owner/alias tests and actual maintenance drill. | SQLite VACUUM snapshots include committed WAL. Global consistency is quiescent offline maintenance with external-writer consent, not falsely advertised online cross-database atomicity. |
+| 2.3 Versioned AEAD/KDF/external key, authenticated manifest/content, streaming/private/confined parsing | `pkg/store/backup/archive`; real age X25519 or capped scrypt, random nonces managed by age; encrypted round-trip, passphrase/KDF, corruption/truncation/missing/extra/path/growth and private-permission tests. | Keys are transient/outside archive storage. Final AEAD authentication is consumed; bad key/data is rejected without logging private input. No compression bomb or arbitrary archive path extraction. |
+| 2.4 Local/S3 schedule/count/age/status/retry/size/download validation/cleanup/cancellation | Existing Backup scheduler/store/S3 streaming; capture, schedule, transfer, retrieval and retention suites. Actual systemd/HTTPS/object-server drill covers upload/readback, local copy loss, authorized recovery and helper kill. | Active transfer/download/update points are pinned. SHA/size readback is distinguished from key-based archive authentication. Whole-object buffering is absent; partial upload/deletion resumes within owned namespaces. |
+| Local plaintext pre-restore copy retention | `recovery/points.go`, configured references, CLI startup and `prune-points`; consent/age/count/batch, current/latest/committed, open SQLite, alias/symlink/tamper, interrupted removal and real startup tests. | Independent default-off policy, at most 32 deletions; no background timer. Unknown/unfinalized records are preserved; clones clear consent. |
+| 2.5 Web and offline restore, manifest/version/schema/platform preview, original/clone/revocation consent, private staging, old state and actual startup/rollback | Existing import/admission owner plus durable recovery journal/startup; prepared/transaction/service tests and actual Web original/clone plus offline large restore. | Closed writers are required before file replacement. Exact preview/backup/source/target identities bind consent; mismatches and unsupported schemas refuse. Failed startup rolls back owned originals or reports reviewed offline recovery. |
+| 2.6 Verified update, target compatibility, configurable encrypted point/default on, space, source binary/schema, independent health and safe migration failure | `pkg/update/compatibility`, `maintenance`, app Backup update adapter and installed host; receipt/digest/catalog, pinned PID/HTTPS, point deletion protection and real 24→25 migration/readiness failure/SIGKILL/paired CLI recovery. | Source capture must succeed before binary swap. Space admission covers WAL-aware snapshots, copies and simultaneous plaintext/ciphertext. Old binaries cannot automatically open newer schemas; irreversible migration needs explicit paired restoration. |
+| 2.7 Actual Backup/Update UI, permissions, confirmation, history/results and recovery point state | Backup recovery/import/update panels, API scopes/raw route guards, component tests, real Chrome and actual authenticated service tests. | Key inputs clear after use; private material has no read API. Confirmation and revision are enforced by backend, not only by buttons. |
+| Performance and real failure recovery | Streaming transfer/codec/full create/restore/import/retrieval benchmarks, fresh CLI RSS fixture and actual 1/64/256 MiB systemd stop→CLI→HTTPS/commit samples. | Recorded resource figures state their boundaries. Test fixtures include real config+management databases and payload content checks; they do not establish arbitrary large production/slow-storage downtime. |
 
-Existing app/store backup owners provide age-encrypted versioned streaming full
-snapshots, coordinated stopped-writer SQLite sets, confined staged authentication,
-explicit original/clone identities, journaled activation/rollback, startup input
-binding, local/S3 schedules/history/retention, bounded archive retrieval/repair,
-Web import/preview/activation and public offline commands. Their dedicated
-archive/recovery/transfer/service tests and resource evidence are documented in
-`recovery-archive.md`, `managed-recovery-backups.md` and `backup-recovery.md`.
+Automatic disruptive service maintenance is qualified for root-owned Linux
+systemd. Unprivileged/standalone, launchd, Windows and embedded automatic
+supervision are not claimed. Offline operations retain documented platform
+limits, including unqualified durable Windows activation. Optional periodic
+automated restoration drills are not implemented; the original request made
+that item optional. Actual deterministic and service fault drills above are
+implemented independently of an unattended schedule.
 
-Protected update delivery at backend b97d5e5d / frontend a99e39e adds target
-receipt capability checks, client-operation/digest binding, existing encrypted
-collector reuse before executable replacement, source history/schema retention,
-private durable journal, independent service/PID/pinned-listener verification,
-SIGKILL fallback and explicit paired offline recovery. Original-instance ID,
-archive ID and source digest must match; an arbitrary clone is not the recovered
-source. Required local points are pinned while unresolved. S3 upload/readback is
-separate and resumes after service recovery. Actual systemd/HTTPS tests exercise
-schema-24 success, committed-migration startup failure, fenced helper kill and
-public CLI recovery to schema 23. No production migration/fault hook is added.
+## Phase 3
 
-Still qualify/complete:
+| Requested item | Implementation and inspected evidence | Qualification |
+| --- | --- | --- |
+| 3.1 Unified stable site resources and correct CA/listener ownership; legacy file TLS | Existing `pkg/cert/manager`, management TLS and Gateway integration; schema 24, reference/export/WAL and cache tests. | Public HTTPS, Management and Gateway site leaves remain separate from MITM/TLS Auto CAs. Multiple permitted listeners reference one ID; old file/self-signed defaults remain. |
+| 3.2 Mature ACME HTTP-01/DNS-01, directories/SAN/accounts/status/chain validation, real automated Cloudflare and owned cleanup | Local HTTPS signing CA verifies actual ES256 JWS/nonces/CSR and HTTP-01; DNS issuance joins the same ACME client to real adapter and local provider/TXT. Provider/service tests cover TLS/origin/size, propagation, lost replies, cancellation, foreign ownership and durable retry. | HTTP-01 requires an existing opted-in port-80 Gateway and source ACL. DNS API tokens are private and scoped to an explicit zone; cleanup never deletes another owner's TXT. |
+| 3.3 Lifetime/ARI scheduling, jitter/backoff/rate control/dedup, validation before atomic replacement, retain old cert, expiry/restart/manual renewal | Injected-clock manager/ARI suites, competing/expired leases and restart plans; local renewal/invalid replacement/SNI/SAN and actual TLS stream-continuity tests. | One bounded worker/timer, governed verified HTTPS and persisted refresh/attempt state. Failure retains old valid material and does not disable a healthy listener. Optional `newOrder replaces` is not claimed. |
+| 3.4 Management self-signed/files/managed reference, migration, no plaintext fallback | Management binding tests and actual CLI managed-TLS startup/restart/routed ARI plus encrypted original/clone restoration; protected-update capability/readiness guards. | Host explicitly selects `-https-certificate-id` after issuing a valid pair. Existing TLS defaults are retained; invalid material refuses managed startup. Clones receive new self-signed management identity. |
+| 3.5 Gateway multi-domain IDs, SNI/SAN/expiry, hot update, delete references/revision consistency | `TestManagedGatewayCertificateHotUpdateAndReferenceProtection`, explicit HTTP-01/ACL test, same-transaction guards and config-import repair. | Existing streams continue; wrong/missing/expired site material fails closed without touching MITM cache. |
+| 3.6 Full EN/JA/KO certificate UI, source/domains/issuer/expiry/next renewal/failure/provider/manual renewal/references/alerts | Certificate/provider editor/card/renewal info tests, safe-link tests and actual paired Chrome/SQLite save/readback/background failure/redaction at 1440/360/320. | Write-only DNS tokens; no private-key reading/display. Browser local-CA failure is distinct from successful local protocol/TLS issuance tests. |
 
-- Broader automatic service-maintenance/update supervision hosts; root-owned
-  Linux systemd is the implemented automatic path. Other hosts must not be
-  advertised as having the same automatic recovery capability.
-- Optional periodic automated restoration drills, with key/identity ownership
-  and resource bounds. Plaintext pre-restore copy retention is implemented as
-  independent default-off startup/offline cleanup: valid terminal metadata,
-  pinned current/latest/committed/configured dependencies, confined resumable
-  deletion and a 32-copy bound. Actual CLI startup, fault/alias/ownership tests
-  and responsive real-backend configuration round trips provide evidence.
-- Large-instance activation/update resource/downtime qualification and a complete
-  fault/compatibility/permissions audit against every original Stage 2 item.
-- Exact-head remote CI. Earlier green commits do not prove a later revision.
+## Cross-cutting gates and limitations
 
-No new SQLite migration beyond 23 is required for protected updates: existing
-backup JSON contains the additive policy/point flags; the bounded private update
-journal contains operation state. Archive and management identity schemas stay
-unchanged. This observation is not a substitute for migration compatibility tests.
-
-## Stage 3
-
-ACME is available through permission-gated management RPC and the EN/JA/KO
-responsive Certificates page. `managed-certificates.md` records schema 24,
-private account/provider storage, leases, real HTTP-01 and Cloudflare DNS-01,
-owned cleanup, persistent renewal/backoff and atomic certificate replacement.
-Production assembly now supplies governed HTTP/DNS, starts the bounded worker,
-mounts HTTP-01 only on an explicitly enabled port-80 Gateway after its source ACL,
-and binds managed IDs to Gateway TLS with transactional deletion guards.
-Metrics/events and public API expose no private keys or provider tokens.
-
-Actual Gateway TLS tests cover new-certificate visibility, existing-stream
-continuity, SNI rejection and guard repair after config-only import. Backend
-full/focused/race/lint and both SQLite drivers pass. Frontend 366 tests, lint,
-types, translations, style/build and paired native-Chrome checks at 1440/360/320
-pass. Browser evidence uses a local CA failure; successful issuance uses the
-separate local signing-CA/provider integration tests.
-
-Management HTTPS now supports explicit `-https-certificate-id`, validated before
-serving, with references/hot replacement and authenticated recovery runtime.
-Actual CLI startup/restart and encrypted original/clone restore tests pass; clones
-receive a new self-signed identity. Update manifests advertise managed TLS support;
-older targets are rejected before replacement and renewal waits for independent
-pinned-listener acknowledgement. Current focused/race/both-driver checks pass.
-
-Live ARI retrieval and persisted periodic refresh now use the existing worker,
-lease and governed CA transport. Local HTTPS/clock tests cover RFC IDs, interval/
-response bounds, urgent windows, error backoff, cancellation, dedup and replaced/
-expired leaves. The real application subprocess exercises routing denial followed
-by an explicitly permitted CA route, advice publication, restart and encrypted
-original/clone recovery. No new schema/table or forwarding-path work is added.
-
-Still required: final original-requirement/application lifecycle qualification and
-exact-head remote CI. Management TLS, MITM CA and TLS Auto CA retain their current ownership.
+- Existing routing/access/DNS/traffic policy is hydrated before probe/CA/provider
+  traffic. Required-probe admission and actual CLI blocked/permitted CA tests
+  exercise failure without Direct fallback. Probe/CA/provider HTTPS validates
+  certificates, limits bodies/origins/redirects and requires management scopes.
+- New metrics use finite result/network/mode/state labels, not arbitrary Node,
+  user, domain or URL labels. Node/certificate events and backup registries have
+  explicit retention bounds. Collectors read snapshots rather than SQLite on a
+  scrape. Status/history APIs and corresponding UI expose individual resources.
+- Existing React/TypeScript components/state/theme are retained. Generated
+  contracts and EN/JA/KO checks accompany each API change. Main/manual defaults
+  are covered, with no new dependency on unmerged enterprise-user PRs.
+- Local gates: gofmt, go fix, pinned golangci-lint, full Go tests, relevant race
+  suites and both SQLite drivers; frontend lint, TypeScript, tests, build,
+  translations/style and native Chrome. Actual service tests require the
+  disposable privileged systemd container; they never mount host service/data.
+- Remaining delivery gate: inspect and resolve the **final pushed heads'** remote
+  checks. The matrix and operator guides must be read with their stated host,
+  fixture, native-provider and cryptographic-client limits; green checks cannot
+  remove those limits or establish external CA/WAN/physical-device guarantees.

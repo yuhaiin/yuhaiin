@@ -3,11 +3,14 @@ package recovery
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
 	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -16,6 +19,104 @@ import (
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
+
+func TestFullRecoveryReservesCiphertextBesideTheStillAllocatedSnapshot(t *testing.T) {
+	directory, key := testfixture.Deployment(t)
+	destination := filepath.Join(t.TempDir(), "full.yhb")
+	var snapshot string
+	var ciphertextBudget int64
+	_, err := Create(t.Context(), directory, destination, backuparchive.Encryption{Recipient: key.Recipient().String()}, CreateOptions{ConfirmedMaintenance: true, checkSpace: func(path string, bytes int64) error {
+		if strings.HasPrefix(filepath.Base(path), ".recovery-snapshot-") {
+			snapshot = path
+		}
+		if path == filepath.Dir(destination) && bytes > 0 {
+			ciphertextBudget = bytes
+			if _, err := os.Stat(filepath.Join(snapshot, "state.db")); err != nil {
+				t.Fatal("ciphertext admission forgot concurrent plaintext allocation", err)
+			}
+		}
+		return backupfs.CheckStagingSpace(path, bytes)
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(destination)
+	if err != nil || ciphertextBudget < info.Size() || ciphertextBudget <= 2<<20 {
+		t.Fatal("ciphertext/manifest/framing were not budgeted", ciphertextBudget, err)
+	}
+}
+
+func TestFullRecoveryRefusesInsufficientSpaceAtEveryOutputBoundary(t *testing.T) {
+	for _, boundary := range []string{"source_reserve", "destination_reserve", "configuration_snapshot", "management_snapshot", "dependency", "ciphertext"} {
+		t.Run(boundary, func(t *testing.T) {
+			directory, key := testfixture.Deployment(t)
+			// Allocate the ordinary stable backup ID before the unchanged-source
+			// assertion; first capture otherwise legitimately initializes it.
+			if _, err := sqlite.RecoveryInstanceID(t.Context(), filepath.Join(directory, "state.db"), true); err != nil {
+				t.Fatal(err)
+			}
+			sourceHashes := map[string][32]byte{}
+			for _, name := range []string{"state.db", "management.db", "management-tls.pem", "site.key"} {
+				data, err := os.ReadFile(filepath.Join(directory, name))
+				if err != nil {
+					t.Fatal(err)
+				}
+				sourceHashes[name] = sha256.Sum256(data)
+			}
+			destination := filepath.Join(t.TempDir(), "full.yhb")
+			denied := errors.New("fixture filesystem cannot preserve its reserve")
+			positive, rejected := 0, false
+			options := CreateOptions{ConfirmedMaintenance: true, checkSpace: func(path string, bytes int64) error {
+				stage := strings.HasPrefix(filepath.Base(path), ".recovery-snapshot-")
+				if stage && bytes > 0 {
+					positive++
+				}
+				fail := boundary == "source_reserve" && path == directory && bytes == 0 ||
+					boundary == "destination_reserve" && path == filepath.Dir(destination) && bytes == 0 ||
+					boundary == "configuration_snapshot" && stage && positive == 1 ||
+					boundary == "management_snapshot" && stage && positive == 2 ||
+					boundary == "dependency" && stage && positive == 3 ||
+					boundary == "ciphertext" && path == filepath.Dir(destination) && bytes > 0
+				if fail {
+					rejected = true
+					return denied
+				}
+				return nil
+			}}
+			_, err := Create(t.Context(), directory, destination, backuparchive.Encryption{Recipient: key.Recipient().String()}, options)
+			if !errors.Is(err, denied) || !rejected {
+				t.Fatal("space rejection was bypassed", boundary, positive, err)
+			}
+			if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("failed capture published an archive", err)
+			}
+			for _, parent := range []string{directory, filepath.Dir(destination)} {
+				entries, err := os.ReadDir(parent)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, entry := range entries {
+					if strings.HasPrefix(entry.Name(), ".recovery-snapshot-") || strings.HasPrefix(entry.Name(), ".recovery-write-") {
+						t.Fatal("space rejection retained private staging", entry.Name())
+					}
+				}
+			}
+			for name, expected := range sourceHashes {
+				data, err := os.ReadFile(filepath.Join(directory, name))
+				if err != nil || sha256.Sum256(data) != expected {
+					t.Fatal("space rejection changed source state", name, err)
+				}
+			}
+			source, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+			if err != nil {
+				t.Fatal("source no longer opens after failed capture", err)
+			}
+			if err := source.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
 
 func TestFullRecoveryCreatesCoherentOwnedEncryptedSet(t *testing.T) {
 	directory, key := testfixture.Deployment(t)

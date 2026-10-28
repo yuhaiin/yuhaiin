@@ -4,8 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +20,91 @@ import (
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+func TestAutomaticSelectorDoesNotReplayPOSTAndKeepsBusiness4xxHealthy(t *testing.T) {
+	r := newTestRuntime(t)
+	var firstCalls, secondCalls atomic.Int32
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		firstCalls.Add(1)
+		if _, err := io.Copy(io.Discard, request.Body); err != nil {
+			t.Error(err)
+		}
+		connection, _, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		// The peer accepted the complete non-idempotent request before resetting
+		// the transport. Another outbound must not execute it a second time.
+		if tcp, ok := connection.(*net.TCPConn); ok {
+			_ = tcp.SetLinger(0)
+		}
+		_ = connection.Close()
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		secondCalls.Add(1)
+		_, _ = io.Copy(io.Discard, request.Body)
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte("application response"))
+	}))
+	defer second.Close()
+	for id, listener := range map[string]string{"a": first.Listener.Addr().String(), "b": second.Listener.Addr().String()} {
+		if _, err := r.Save(t.Context(), testNode(t, id, id)); err != nil {
+			t.Fatal(err)
+		}
+		counter := r.observer.counter(id)
+		for range 3 {
+			counter.remoteEvidence(true, contract.HealthSample{Kind: "connect", OK: true}, nil)
+		}
+		proxy := &observedProxy{c: counter, epoch: counter.generation.Load(), Proxy: observedTestProxy{connect: func() (net.Conn, error) {
+			return new(net.Dialer).DialContext(t.Context(), "tcp", listener)
+		}}}
+		if _, err := r.proxies.LoadOrCreate(t.Context(), id, func() (*ProxyEntry, error) { return &ProxyEntry{Proxy: proxy, Name: id}, nil }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	selector, err := NewSelectorService(r).Save(t.Context(), contract.Selector{Name: "HTTP no replay", NodeID: "a", Policy: &contract.SelectorPolicy{Mode: "failover", FailureThreshold: 1,
+		Candidates: []contract.SelectorCandidate{{NodeID: "a", Enabled: true, Weight: 1}, {NodeID: "b", Enabled: true, Weight: 1, Priority: 1}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxy, err := r.GetTarget(t.Context(), "tcp", "proxy", contractroute.Target{Type: "selector", ID: selector.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := &http.Transport{DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+		parsed, err := netapi.ParseAddress(network, address)
+		if err != nil {
+			return nil, err
+		}
+		return proxy.Conn(netapi.WithContext(ctx), parsed)
+	}}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, Timeout: 3 * time.Second}
+	response, err := client.Post(first.URL, "text/plain", strings.NewReader("execute this request only once"))
+	if response != nil {
+		_ = response.Body.Close()
+	}
+	if err == nil || firstCalls.Load() != 1 || secondCalls.Load() != 0 {
+		t.Fatal("ambiguous POST was replayed", firstCalls.Load(), secondCalls.Load(), err)
+	}
+	r.selectors.mu.Lock()
+	r.selectors.rebuild(time.Now())
+	r.selectors.mu.Unlock()
+	response, err = client.Post(first.URL, "text/plain", strings.NewReader("a separately submitted request"))
+	if err != nil {
+		t.Fatal("a new request did not fail over", err)
+	}
+	_, readErr := io.Copy(io.Discard, response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil || closeErr != nil || response.StatusCode != http.StatusForbidden || firstCalls.Load() != 1 || secondCalls.Load() != 1 {
+		t.Fatal("unexpected independent request result", readErr, closeErr, response.StatusCode, firstCalls.Load(), secondCalls.Load())
+	}
+	if state := r.selectors.circuitBindings[selector.ID]["b"].tcp.snapshot(time.Now()); state.State != "closed" || r.observer.counter("b").snapshot().TCPHealth.ConsecutiveFailures != 0 {
+		t.Fatal("HTTP business response condemned the outbound", state)
+	}
+}
 
 func TestSelectorRuntimeNoDatabaseOnConnectionPathAndLiveReload(t *testing.T) {
 	r := newTestRuntime(t)

@@ -160,6 +160,63 @@ func TestLatencyHysteresisHoldAndImmediateFailure(t *testing.T) {
 	}
 }
 
+func TestLatencyAlternatingWinnerDoesNotFlapAndAllowsSustainedImprovement(t *testing.T) {
+	now := time.Unix(10000, 0)
+	selector, inputs := selectionFixture(now)
+	previous := contract.SelectorDecision{NodeID: "a", Since: now.Add(-time.Hour).UnixMilli()}
+	update := func(first, second float64) {
+		for index, rtt := range []float64{first, second} {
+			for sample := range inputs[index].health.Samples {
+				inputs[index].health.Samples[sample].RTTMS = rtt
+				inputs[index].health.Samples[sample].At = now.UnixMilli()
+			}
+		}
+	}
+	for index := range 100 {
+		now = now.Add(time.Second)
+		if index%2 == 0 {
+			update(52, 49)
+		} else {
+			update(49, 52)
+		}
+		previous = evaluateSelector(selector, inputs, previous, now)
+		if previous.NodeID != "a" {
+			t.Fatal("small alternating RTT changes moved the outbound", index, previous)
+		}
+	}
+	update(180, 45)
+	previous = evaluateSelector(selector, inputs, previous, now)
+	if previous.NodeID != "b" {
+		t.Fatal("hysteresis prevented a large sustained improvement", previous)
+	}
+	// The newly selected node also stays pinned during the configured hold.
+	now = now.Add(time.Second)
+	update(20, 45)
+	if decision := evaluateSelector(selector, inputs, previous, now); decision.NodeID != "b" || decision.Reason != "hold_or_cooldown" {
+		t.Fatal("a reverse improvement bypassed the hold", decision)
+	}
+}
+
+func TestTimeoutRateUsesFreshHealthOutcomesWithoutDoubleCountingReplies(t *testing.T) {
+	now := time.Unix(10000, 0)
+	selector, inputs := selectionFixture(now)
+	input := inputs[0]
+	input.health.Samples = append(input.health.Samples,
+		contract.HealthSample{At: now.UnixMilli(), Kind: "https", Timeout: true},
+		contract.HealthSample{At: now.UnixMilli(), Kind: "connect"},
+		contract.HealthSample{At: now.UnixMilli(), Kind: "response", OK: true},
+		contract.HealthSample{At: now.Add(-time.Hour).UnixMilli(), Kind: "https", Timeout: true},
+		contract.HealthSample{At: now.Add(time.Minute).UnixMilli(), Kind: "https", Timeout: true})
+	status := scoreCandidate(selector.Policy.Effective(), input, now)
+	if status.HealthSamples != 5 || status.FailureRate != .4 || status.TimeoutRate != .2 || status.Samples != 3 {
+		t.Fatal("health timeout denominator mixed stale/duplicate/RTT samples", status)
+	}
+	status = scoreCandidate(selector.Policy.Effective(), input, now.Add(time.Hour))
+	if status.HealthSamples != 0 || status.TimeoutRate != 0 || status.FailureRate != 0 || status.Eligible {
+		t.Fatal("expired timeout evidence survived", status)
+	}
+}
+
 func TestFailoverRecoveryFallbackAndNetworkSeparation(t *testing.T) {
 	now := time.Unix(10000, 0)
 	s, in := selectionFixture(now)

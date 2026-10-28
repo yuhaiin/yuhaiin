@@ -1,6 +1,6 @@
 FROM docker.io/library/debian:bookworm-slim
 RUN apt-get update \
- && apt-get install -y --no-install-recommends systemd systemd-sysv dbus ca-certificates \
+ && apt-get install -y --no-install-recommends systemd systemd-sysv dbus ca-certificates python3 \
  && rm -rf /var/lib/apt/lists/*
 ENV container=podman
 STOPSIGNAL SIGRTMIN+3

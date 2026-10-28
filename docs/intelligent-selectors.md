@@ -728,3 +728,75 @@ uses the same fixture; the 10-Selector cases have no measured pre-change baselin
 These are Go heap/goroutine and cumulative-allocation measurements of an
 in-memory transport fixture, not peak RSS, kernel socket memory, native VPN
 resource cost, actual throughput or a production node-count guarantee.
+
+## Fresh timeout summaries and HTTP safety qualification
+
+Candidate status now exposes `healthSamples` and `timeoutRate`, derived while
+compiling the existing snapshot. The denominator is the same policy-fresh health
+window as `failureRate`; successful TCP response evidence is not counted twice.
+Expired/future samples are excluded, and this count is separate from comparable
+RTT samples. A timeout is an eligible failed dial/probe observation with a timeout
+marker. Ordinary application I/O deadlines, local quota/policy rejection and
+caller cancellation do not become remote timeout evidence. This is not a UDP
+packet-loss estimate. The UI shows the ratio/count and explains that distinction;
+older status responses without a denominator show unmeasured.
+
+No additional statistics owner, persistence, timer, per-connection query or packet
+work is introduced. The scalar summary adds no SQLite migration. Its deterministic
+test includes timeout/non-timeout failures, duplicate response evidence, stale/
+future observations and full expiry. A separate test alternates the small RTT
+winner 100 times before a large improvement and reverse hold check.
+
+The real local HTTP regression sends a POST that the first peer fully accepts
+before resetting its TCP connection. It asserts that request reaches no alternate
+peer. Only a separately submitted next request fails over; that peer returns
+HTTP 403 and remains circuit-closed with no remote failure. This complements the
+existing pinned TCP-stream and reply-only UDP session tests.
+
+### Qualification after timeout projection
+
+The final projection was remeasured with Go 1.27.3 on the same Ryzen 5 5600G
+Linux/amd64 host. Three 200 ms ranking/admission runs give these medians:
+
+| Compiled ranking | 100 candidates | 1,000 candidates | Allocations for 100 / 1,000 |
+| --- | ---: | ---: | ---: |
+| Failover | 15.4 µs | 155.5 µs | 20,480 / 204,800 B; 1 / 1 allocations |
+| Lowest latency | 14.8 µs | 149.1 µs | 20,480 / 204,800 B; 1 / 1 allocations |
+| Highest throughput | 14.9 µs | 149.7 µs | 20,480 / 204,800 B; 1 / 1 allocations |
+| Balanced with components | 18.4 µs | 184.0 µs | 25,280 / 252,800 B; 101 / 1,001 allocations |
+
+| New flow including GetTarget and actual fake Conn/PacketConn | TCP | UDP | TCP / UDP allocations |
+| --- | ---: | ---: | ---: |
+| Manual | 698 ns | 444 ns | 272 B/5; 288 B/6 |
+| Failover | 872 ns | 550 ns | 328 B/8; 344 B/9 |
+| Weighted | 919 ns | 595 ns | 328 B/8; 344 B/9 |
+
+These compare modes in the current fake-transport fixture, not a before/after
+optimization or physical connection latency. Cached-proxy connection measurements
+are retained separately in the same raw admission file. The GetTarget-only rows
+in the ranking file measure proxy creation: automatic admission is deferred and
+those rows must not be presented as the complete dial cost. Observed UDP sends
+still allocate zero bytes/objects.
+
+A one-iteration resource recheck uses the same full-history/100-publication/
+2,048-retained-fake-flow fixture described above. At 1,000 Nodes/one Selector it
+retains 42.58 MB of Go heap and cumulatively allocates 551.54 MB; ten shared
+Selectors retain 50.94 MB and cumulatively allocate 4.177 GB. All 100/1,000-Node
+and 1/10-Selector cases add four owned runtime goroutines, no fake-flow goroutines,
+and return to baseline after Close. The two scalar candidate summary fields make
+snapshot records larger; this recheck is not another statistical before/after
+comparison. Frequent full ranking remains allocation-heavy at many shared
+Selectors. Neither fixture measures kernel/native-VPN resources or maximum
+production deployment capacity.
+
+```sh
+go test ./pkg/node -run '^$' \
+  -bench '^(BenchmarkSelectorRanking|BenchmarkSelectorTarget|BenchmarkObservedPacketSend)$' -benchmem -benchtime=200ms -count=3
+go test ./pkg/node -run '^$' \
+  -bench '^(BenchmarkSelectorConnectionCreation|BenchmarkSelectorNewFlow)$' -benchmem -benchtime=200ms -count=3
+go test ./pkg/node -run '^$' -bench '^BenchmarkSelectorRuntimeResources$' -benchmem -benchtime=1x -count=1
+```
+
+[Ranking/packet](benchmarks/data/selector-qualification-2026-10-28/ranking.txt),
+[admission](benchmarks/data/selector-qualification-2026-10-28/admission.txt),
+[resource recheck](benchmarks/data/selector-qualification-2026-10-28/resources.txt).

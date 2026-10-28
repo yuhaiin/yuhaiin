@@ -5,8 +5,45 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestRecoverySnapshotSpaceCheckIncludesCommittedWALBeforeWriting(t *testing.T) {
+	directory := t.TempDir()
+	source, destination := filepath.Join(directory, "state.db"), filepath.Join(directory, "snapshot.db")
+	store, err := Open(t.Context(), source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.DB().ExecContext(t.Context(), "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA wal_autocheckpoint=0"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB().ExecContext(t.Context(), "INSERT INTO metadata(key,value) VALUES('space_fixture',?)", strings.Repeat("x", 2<<20)); err != nil {
+		t.Fatal(err)
+	}
+	main, err := os.Stat(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	denied := errors.New("fixture disk is full")
+	var admittedBytes int64
+	_, err = SnapshotRecoveryDatabaseWithSpaceCheck(t.Context(), source, destination, "configuration", 100<<30, func(bytes int64) error {
+		admittedBytes = bytes
+		return denied
+	})
+	if !errors.Is(err, denied) || admittedBytes < 2<<20 || admittedBytes <= main.Size() {
+		t.Fatal("space estimate ignored committed WAL data", admittedBytes, main.Size(), err)
+	}
+	if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("VACUUM wrote before space admission", err)
+	}
+	var length int
+	if err := store.DB().QueryRowContext(t.Context(), "SELECT length(value) FROM metadata WHERE key='space_fixture'").Scan(&length); err != nil || length != 2<<20 {
+		t.Fatal("space rejection changed the source", length, err)
+	}
+}
 
 func TestRecoverySnapshotBudgetCancellationAndAliasOwnership(t *testing.T) {
 	directory := t.TempDir()

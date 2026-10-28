@@ -33,6 +33,7 @@ type recoveryInventory struct {
 	manifest         *contractrecovery.Manifest
 	copied           map[string]string
 	bytes            int64
+	checkSpace       func(string, int64) error
 }
 
 func newRecoveryInventory(ctx context.Context, source, snapshot string, inputs *contractrecovery.Runtime, manifest *contractrecovery.Manifest) *recoveryInventory {
@@ -258,6 +259,9 @@ func (c *recoveryInventory) copy(name, role string, owned bool) (string, error) 
 	}
 	if info.Size() < 0 || info.Size() > backuparchive.MaxDataBytes-c.bytes {
 		return "", errors.New("recovery dependencies exceed size budget")
+	}
+	if err := c.checkSpace(c.snapshot, info.Size()); err != nil {
+		return "", err
 	}
 	relative, err := filepath.Rel(c.source, source)
 	inside := err == nil && filepath.IsLocal(relative) && relative != "."

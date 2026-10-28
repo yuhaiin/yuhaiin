@@ -2,13 +2,13 @@
 
 Enterprise reliability is implemented in [backend #622](https://github.com/yuhaiin/yuhaiin/pull/622)
 and [frontend #535](https://github.com/yuhaiin/yuhaiin-react/pull/535).
-Full disaster recovery is still in progress. The transfer improvements described
-here do not turn the legacy S3 state database object into a complete deployment
-backup. Encrypted offline creation, verification, preview and controlled CLI restore
-are implemented; managed local/S3 scheduling, history, verification/download and retention now
-have an actual service-maintenance workflow and UI. Confirmed full-archive Web
-restore is available on the supported systemd host; software-update recovery
-points and broader host integration remain required.
+Configuration export remains distinct from encrypted full deployment recovery.
+Managed local/S3 jobs, history, verified downloads/retrieval, confirmed Web restore,
+offline CLI and protected updates extend the existing owners. Automatic disruptive
+service maintenance is qualified for root-owned Linux systemd; other host and
+durability limitations are stated in the operator guides. See the
+[requirement evidence](enterprise-reliability-audit.md),
+[managed workflow](managed-recovery-backups.md) and [safe updates](update-rollback.md).
 
 ## Data ownership inventory
 
@@ -31,8 +31,7 @@ merely because individual SQLite snapshots pass.
 
 The existing configuration format, S3 credentials/settings and object name
 `<instanceName>-state.db` remain in use. This legacy object is a sanitized SQLite
-state snapshot, distinct from the JSON configuration export and from the future
-full encrypted disaster-recovery archive. It still contains configuration-bound
+state snapshot, distinct from the JSON configuration export and from the full encrypted disaster-recovery archive. It still contains configuration-bound
 sensitive material; transfer streaming does not provide archive encryption.
 
 `VACUUM INTO` reads a consistent SQLite snapshot including committed WAL data.

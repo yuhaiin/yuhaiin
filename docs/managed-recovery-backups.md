@@ -493,7 +493,7 @@ after rename/partial removal. The actual CLI startup test verifies saved-policy
 removal and preservation before HTTPS readiness. Chrome at 1440/360/320 pixels
 checks actual Save/readback, default-off consent and absence of backup creation.
 
-The local metadata-only benchmark (Go 1.27.2, Linux/amd64, Ryzen 5 5600G) plans
+The local metadata-only benchmark (Go 1.27.3, Linux/amd64, Ryzen 5 5600G) plans
 retaining 100/1,000 finalized copies under an existing lifecycle owner. Three runs
 measure about 2.6/26 ms and 0.39/3.84 MB allocated per invocation. It includes
 metadata I/O, validation, sorting and protection, with no configuration database,
@@ -506,3 +506,68 @@ go test ./pkg/app/backup/recovery -run '^$' \
 ```
 
 [Raw measurement](benchmarks/data/local-point-retention-2026-10-28/local.txt).
+
+## Capture space and real maintenance measurements
+
+Full capture now checks actual free space before each SQLite output, before
+copying each required file, and before allocating the final encrypted archive.
+The SQLite estimate reads committed WAL-aware pages rather than the main-file
+length. The final check includes bounded manifest/AEAD framing while the complete
+plaintext snapshot is still allocated, and checks the output filesystem
+separately. The existing 256 MiB reserve is retained. These are admission checks,
+not reservations against another process filling the same filesystem later.
+Failed writes still remove owned staging/partial output and cannot advance a
+protected update to binary replacement.
+
+Hermetic failures at source/destination reserve, configuration/management
+snapshot, dependency copy and ciphertext admission prove source database/key
+hashes stay unchanged, no archive is published, temporary files are removed and
+the source opens afterwards. A live-WAL test proves the estimate includes data
+not yet in the main file. A successful check confirms ciphertext is budgeted
+while plaintext remains allocated. No network hot path or new database/schema is
+involved.
+
+The real systemd runner also supports a bounded `--asset-mib` fixture. It uses
+actual public offline create/preview/restore commands, external private key file,
+real configuration and management databases, and the existing service startup
+transaction. Same-sized content changes must be restored by SHA-256, the original
+management session must work and the exact restored transaction must commit.
+It waits for the preceding independent helper, including ExecStopPost, before
+beginning a separate manual maintenance window. A reviewed manual start resets
+the fixture's rapid-restart burst count; real service start-rate protection is
+not disabled.
+
+Single warm-local-filesystem samples on Linux/amd64, Go 1.27.3, Ryzen 5 5600G,
+rootless Podman/systemd:
+
+| External asset | Create command / maintenance window | Restore command / maintenance window | Create / restore child peak RSS |
+| --- | ---: | ---: | ---: |
+| 1 MiB | 80 / 242 ms | 150 / 275 ms | 65.9 / 64.0 MiB |
+| 64 MiB | 225 / 339 ms | 310 / 439 ms | 65.9 / 71.9 MiB |
+| 256 MiB | 702 / 823 ms | 814 / 939 ms | 63.6 / 72.0 MiB |
+
+A maintenance window is measured from the explicit service Stop request through
+CLI completion and actual authenticated HTTPS/configuration readiness; restoration
+also waits for the same transaction's startup commit. It is an upper bound for
+that maintenance operation, not independently sampled packet outage. Fixture
+creation, online preview and final content hashing are outside the window.
+A fresh low-RSS Python parent measures exactly one backend child's Linux
+`RUSAGE_CHILDREN` RSS, avoiding the Go test parent's pre-exec memory peak.
+`GOMEMLIMIT=64MiB` is a soft target, not an RSS cap; these figures exclude service,
+helper, Python and kernel/page-cache peak memory. The larger payload does not
+require a payload-sized retained CLI buffer. One sample per size does not prove
+latency distributions, cold/slow storage, WAN/S3 throughput or arbitrary
+production downtime.
+
+```sh
+python3 scripts/bench/recovery-maintenance/run.py --asset-mib 256
+# Use a previously built disposable image for the size comparison:
+python3 scripts/bench/recovery-maintenance/run.py --skip-image-build --recovery-only --asset-mib 1
+python3 scripts/bench/recovery-maintenance/run.py --skip-image-build --recovery-only --asset-mib 64
+```
+
+The ordinary/full run also exercises actual 24→25 update migration, failed
+readiness after migration, helper SIGKILL and explicit paired CLI recovery.
+CI runs the full drill with the 256 MiB resource case. `--recovery-only` omits
+repeating the independent update scenarios while profiling sizes.
+[Raw measurements and exact scope](benchmarks/data/recovery-2026-10-28/maintenance.json).

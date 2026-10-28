@@ -88,6 +88,8 @@ type SelectorCandidateStatus struct {
 	RTTMS             float64                  `json:"rttMs"`
 	JitterMS          float64                  `json:"jitterMs"`
 	FailureRate       float64                  `json:"failureRate"`
+	TimeoutRate       float64                  `json:"timeoutRate,omitzero"`
+	HealthSamples     int                      `json:"healthSamples,omitzero"`
 	Samples           int                      `json:"samples"`
 	DownloadAt        int64                    `json:"downloadAt,omitzero"`
 	UploadAt          int64                    `json:"uploadAt,omitzero"`

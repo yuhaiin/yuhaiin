@@ -99,6 +99,13 @@ func OpenSnapshotReader(ctx context.Context, path string) (*sql.DB, error) {
 // copying the main file. Multi-database/file consistency is the maintenance
 // owner's responsibility. The source is never migrated or opened writable.
 func SnapshotRecoveryDatabase(ctx context.Context, source, destination, kind string, limit int64) (int, error) {
+	return SnapshotRecoveryDatabaseWithSpaceCheck(ctx, source, destination, kind, limit, nil)
+}
+
+// SnapshotRecoveryDatabaseWithSpaceCheck admits the compacted output against
+// the maintenance owner's destination filesystem before VACUUM allocates it.
+// It reads the live WAL-aware page inventory, not just the main file's length.
+func SnapshotRecoveryDatabaseWithSpaceCheck(ctx context.Context, source, destination, kind string, limit int64, checkSpace func(int64) error) (int, error) {
 	if limit < 1 || limit > contractrecovery.MaxDataBytes {
 		return 0, errors.New("invalid recovery database budget")
 	}
@@ -147,6 +154,11 @@ func SnapshotRecoveryDatabase(ctx context.Context, source, destination, kind str
 	}
 	if pages < 0 || freePages < 0 || freePages > pages || pageSize <= 0 || pages-freePages > limit/pageSize {
 		return 0, errors.New("recovery database exceeds 100 GiB budget")
+	}
+	if checkSpace != nil {
+		if err := checkSpace((pages - freePages) * pageSize); err != nil {
+			return 0, err
+		}
 	}
 	if _, err := conn.ExecContext(ctx, "VACUUM INTO ?", destination); err != nil {
 		_ = os.Remove(destination)
