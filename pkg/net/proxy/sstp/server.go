@@ -260,14 +260,18 @@ func (s *Server) serve(raw net.Conn, clientIP netip.Addr) error {
 	// certificate actually presented to this SSTP client.
 	cfg := s.tlsConfig.Clone()
 	getter := cfg.GetCertificate
+	fallbackCertificates := cfg.Certificates
+	// Force Go's TLS stack to call GetCertificate even when the client omits SNI.
+	// Otherwise the selected certificate would not be available for SSTP binding.
+	cfg.Certificates = nil
 	var certDER []byte
 	cfg.GetCertificate = func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 		var cert *tls.Certificate
 		var err error
 		if getter != nil {
 			cert, err = getter(hello)
-		} else if len(cfg.Certificates) > 0 {
-			cert = &cfg.Certificates[0]
+		} else if len(fallbackCertificates) > 0 {
+			cert = &fallbackCertificates[0]
 		}
 		if err != nil {
 			return nil, err
