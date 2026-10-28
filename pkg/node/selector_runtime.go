@@ -168,6 +168,9 @@ func (s *selectorRuntime) rebuild(now time.Time) {
 	previous := s.snapshot.Load()
 	unavailable := s.runtime.nativeSelectionUnavailable(now)
 	next := &selectorSnapshot{nodes: s.nodes, generations: s.nodeGenerations, tcpID: s.tcpID, udpID: s.udpID, items: make(map[string]*preparedSelector, len(s.configs))}
+	// Inputs are consumed during compilation; the published decisions, weights
+	// and order own their data. Reuse the scratch slices within this rebuild.
+	var tcp, udp []selectionInput
 	for _, config := range s.configs {
 		config = s.effectivePolicy(config)
 		candidateCount := 0
@@ -183,8 +186,8 @@ func (s *selectorRuntime) rebuild(now time.Time) {
 				p.status.Revision = config.Revision
 			}
 		}
-		tcp := make([]selectionInput, 0, candidateCount)
-		udp := make([]selectionInput, 0, candidateCount)
+		tcp = slices.Grow(tcp[:0], candidateCount)
+		udp = slices.Grow(udp[:0], candidateCount)
 		if config.Policy != nil {
 			for _, c := range config.Policy.Candidates {
 				n, exists := s.nodes[c.NodeID]

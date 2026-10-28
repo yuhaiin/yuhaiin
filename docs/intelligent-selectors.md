@@ -800,35 +800,39 @@ go test ./pkg/node -run '^$' -bench '^BenchmarkSelectorRuntimeResources$' -bench
 [admission](benchmarks/data/selector-qualification-2026-10-28/admission.txt),
 [resource recheck](benchmarks/data/selector-qualification-2026-10-28/resources.txt).
 
-### Snapshot allocation after preallocation and node-map sharing
+### Snapshot allocation after preallocation and scratch reuse
 
 Each configuration reload builds a fresh immutable Node map. Selectors compiled
 in the same generation share that map, while a retained older snapshot continues
-to reference its original generation. Candidate input slices are sized once per
-Selector and network. This changes snapshot compilation, not per-packet or
-per-connection selection; the concurrent reload and retained-snapshot tests cover
-the generation boundary.
+to reference its original generation. Candidate input slices are sized for each
+network and reused between Selectors during one rebuild; published decisions,
+candidate evidence, weights and orders retain independent data. This changes
+snapshot compilation, not per-packet or per-connection selection; concurrent
+reload, retained-snapshot and independent-decision tests cover the boundary.
 
 On the same Linux/amd64, Go 1.27.3, Ryzen 5 5600G host, three independent
 one-iteration runs of the full-history lifecycle fixture above give these medians
 (decimal units):
 
-| Nodes / Selectors | Before: cumulative allocated | After: cumulative allocated | Before / after retained Go heap |
-| --- | ---: | ---: | ---: |
-| 100 / 1 | 52.76 MB | 35.09 MB | 4.25 / 4.23 MB |
-| 1,000 / 1 | 551.50 MB | 303.80 MB | 42.58 / 42.28 MB |
-| 1,000 / 10 | 4.176 GB | 1.624 GB | 50.94 / 47.98 MB |
+| Nodes / Selectors | Before | After preallocation | After scratch reuse | Before / final retained Go heap |
+| --- | ---: | ---: | ---: | ---: |
+| 100 / 1 | 52.76 MB | 35.09 MB | 35.10 MB | 4.25 / 4.23 MB |
+| 100 / 10 | 347.27 MB | 169.02 MB | 94.54 MB | 5.06 / 4.87 MB |
+| 1,000 / 1 | 551.50 MB | 303.80 MB | 303.65 MB | 42.58 / 42.28 MB |
+| 1,000 / 10 | 4.176 GB | 1.624 GB | 903.31 MB | 50.94 / 47.98 MB |
 
-The ten-Selector case allocates about 61% fewer bytes across fixture setup,
-100 full publications and shutdown; it still allocates substantially during
-frequent full rebuilds. Median elapsed time for this fixture was 4.31 seconds
-before and 3.82 seconds after. These local fake-flow numbers are not network
+The middle three columns are cumulative allocation. The ten-Selector case now
+allocates about 78% fewer bytes across fixture setup, 100 full publications and
+shutdown; it still allocates substantially during frequent full rebuilds. Median
+elapsed time for this fixture was 4.31 seconds before, 3.82 seconds after
+preallocation and 3.83 seconds after scratch reuse. These local fake-flow numbers are not network
 throughput or a production capacity guarantee. All cases still used four extra
 runtime goroutines and returned to baseline after Close. Separate three-run
 new-flow checks measured manual/failover TCP medians of 692/864 ns and UDP of
 448/558 ns, with the same allocation counts as the preceding qualification.
 [Before](benchmarks/data/selector-preallocation-2026-10-28/before.txt),
-[after](benchmarks/data/selector-preallocation-2026-10-28/resources.txt), and
+[after preallocation](benchmarks/data/selector-preallocation-2026-10-28/resources.txt),
+[after scratch reuse](benchmarks/data/selector-scratch-2026-10-28/resources.txt), and
 [new-flow results](benchmarks/data/selector-preallocation-2026-10-28/admission.txt)
 contain the complete output and are reproducible using the commands above and
 `go test ./pkg/node -run '^$' -bench '^BenchmarkSelectorNewFlow$' -benchmem -benchtime=300ms -count=3`.

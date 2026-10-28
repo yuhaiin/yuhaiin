@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -178,6 +179,58 @@ func TestSelectorSnapshotsKeepNodeGenerationAcrossReload(t *testing.T) {
 		}
 		if got := current.items[id].nodes[node.ID].Name; got != "after" {
 			t.Fatalf("current selector %s node name = %q", id, got)
+		}
+	}
+}
+
+func TestSelectorsKeepIndependentDecisionsDuringRebuild(t *testing.T) {
+	r := newTestRuntime(t)
+	for _, id := range []string{"a", "b", "c"} {
+		if _, err := r.Save(t.Context(), testNode(t, id, id)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := NewSelectorService(r)
+	type expectation struct {
+		selector contract.Selector
+		chosen   string
+		order    []string
+	}
+	var expectations []expectation
+	for _, tc := range []struct {
+		name, selected, chosen string
+		candidates             []contract.SelectorCandidate
+		order                  []string
+	}{
+		{"01 large", "a", "a", []contract.SelectorCandidate{{NodeID: "a", Enabled: true}, {NodeID: "b", Enabled: true, Priority: 1}, {NodeID: "c", Enabled: true, Priority: 2}}, []string{"a", "b", "c"}},
+		{"02 small", "c", "c", []contract.SelectorCandidate{{NodeID: "c", Enabled: true}, {NodeID: "b", Enabled: true, Priority: 1}}, []string{"c", "b"}},
+		{"03 single", "b", "b", []contract.SelectorCandidate{{NodeID: "b", Enabled: true}}, []string{"b"}},
+	} {
+		selector, err := svc.Save(t.Context(), contract.Selector{Name: tc.name, NodeID: tc.selected, Policy: &contract.SelectorPolicy{Mode: "failover", Fallback: "priority_unknown", Candidates: tc.candidates}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		expectations = append(expectations, expectation{selector, tc.chosen, tc.order})
+	}
+	old := r.selectors.snapshot.Load()
+	r.selectors.mu.Lock()
+	r.selectors.rebuild(time.Now())
+	r.selectors.mu.Unlock()
+	for _, snapshot := range []*selectorSnapshot{old, r.selectors.snapshot.Load()} {
+		for _, expected := range expectations {
+			p := snapshot.items[expected.selector.ID]
+			if p.status.TCP.NodeID != expected.chosen || p.status.UDP.NodeID != expected.chosen || !slices.Equal(p.tcpOrder, expected.order) || !slices.Equal(p.udpOrder, expected.order) {
+				t.Fatalf("selector %q: TCP=%+v UDP=%+v, order=%v/%v", expected.selector.Name, p.status.TCP, p.status.UDP, p.tcpOrder, p.udpOrder)
+			}
+			for _, decision := range []contract.SelectorDecision{p.status.TCP, p.status.UDP} {
+				ids := make([]string, 0, len(decision.Candidates))
+				for _, candidate := range decision.Candidates {
+					ids = append(ids, candidate.NodeID)
+				}
+				if !slices.Equal(ids, expected.order) {
+					t.Fatalf("selector %q candidate evidence = %v, want %v", expected.selector.Name, ids, expected.order)
+				}
+			}
 		}
 	}
 }
