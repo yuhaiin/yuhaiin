@@ -3,14 +3,20 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/json/v2"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 	"uuid"
@@ -20,8 +26,10 @@ import (
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/certificate"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	archive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 	"github.com/Asutorufa/yuhaiin/pkg/store/certificates"
@@ -53,7 +61,39 @@ func TestManagedManagementTLSActualStartupAndRestore(t *testing.T) {
 				}
 				pair.Certificate = [][]byte{block.Bytes}
 			}
-			return startuphealth.CheckListener(ctx, listeners[0].Addr(), &pair)
+			if err := startuphealth.CheckListener(ctx, listeners[0].Addr(), &pair); err != nil {
+				return err
+			}
+			if action == "ari" || action == "ari_blocked" {
+				reader, err := sqlite.OpenLiveReader(ctx, filepath.Join(directory, "state.db"))
+				if err != nil {
+					return err
+				}
+				defer reader.Close()
+				timer := time.NewTicker(10 * time.Millisecond)
+				defer timer.Stop()
+				bounded, cancel := context.WithTimeout(ctx, 5*time.Second)
+				defer cancel()
+				for {
+					r, err := certificates.New(reader).Get(bounded, id)
+					if err != nil {
+						return err
+					}
+					expected := "available"
+					if action == "ari_blocked" {
+						expected = "unavailable"
+					}
+					if r.Status.RenewalInfo != nil && r.Status.RenewalInfo.State == expected {
+						return nil
+					}
+					select {
+					case <-bounded.Done():
+						return fmt.Errorf("production ARI did not publish advice: %w", bounded.Err())
+					case <-timer.C:
+					}
+				}
+			}
+			return nil
 		}
 		args := []string{"-path", directory, "-host", "127.0.0.1:0", "-https-certificate-id", id}
 		if action == "restore" || action == "clone" {
@@ -102,8 +142,31 @@ func TestManagedManagementTLSActualStartupAndRestore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var ariRequests atomic.Int32
+	ariServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ariRequests.Add(1)
+		if r.URL.Path == "/directory" {
+			_ = json.MarshalWrite(w, map[string]string{"renewalInfo": "https://" + r.Host + "/ari"})
+			return
+		}
+		if !strings.HasPrefix(r.URL.Path, "/ari/") {
+			t.Error("unexpected production CA request", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Retry-After", "21600")
+		_ = json.MarshalWrite(w, map[string]any{"suggestedWindow": map[string]time.Time{"start": time.Now().Add(12 * time.Hour), "end": time.Now().Add(24 * time.Hour)}})
+	}))
+	defer ariServer.Close()
+	roots = append(roots, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ariServer.Certificate().Raw})...)
+	// This fixture tests a blocked CA before explicitly permitting its route.
+	// A deployment with no selected proxy must never receive a Direct fallback.
+	policyRule := contractroute.RouteRule{ID: uuid.New().String(), Name: "Local test CA", Mode: "block", Rules: []contractroute.RuleExpr{{Type: "always", Always: &contractroute.MatchAllExpr{}}}}
+	if err := plainstore.NewRouteRuleStore(db.DB()).SaveRule(t.Context(), policyRule, 1, 0); err != nil {
+		t.Fatal(err)
+	}
 	store := certificates.New(db.DB())
-	cfg := contract.Config{ID: uuid.New().String(), Name: "Management", Domains: []string{"management.example"}, DirectoryURL: contract.LetsEncryptStaging, Email: "ops@example.com", TermsAccepted: true, TrustPEM: string(roots), Challenge: contract.Challenge{Type: "http-01", HTTPGatewayID: uuid.New().String()}}
+	cfg := contract.Config{ID: uuid.New().String(), Name: "Management", Domains: []string{"management.example"}, DirectoryURL: ariServer.URL + "/directory", Email: "ops@example.com", TermsAccepted: true, TrustPEM: string(roots), Challenge: contract.Challenge{Type: "http-01", HTTPGatewayID: uuid.New().String()}}
 	resource, err := store.Save(t.Context(), cfg, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +176,15 @@ func TestManagedManagementTLSActualStartupAndRestore(t *testing.T) {
 	if ok, err := store.Acquire(t.Context(), cfg.ID, resource.Revision, owner, now, time.Minute); err != nil || !ok {
 		t.Fatal(ok, err)
 	}
-	if err := store.Complete(t.Context(), cfg.ID, resource.Revision, owner, now, contract.Status{State: "ready"}, &certificates.Material{CertificatePEM: chain, PrivateKey: certificates.NewSecret(private)}); err != nil {
+	block, _ := pem.Decode(chain)
+	if block == nil {
+		t.Fatal("leaf PEM missing")
+	}
+	parsed, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Complete(t.Context(), cfg.ID, resource.Revision, owner, now, contract.Status{State: "ready", Serial: parsed.SerialNumber.String(), NotBefore: parsed.NotBefore, NotAfter: parsed.NotAfter, NextAttempt: now.Add(24 * time.Hour), LastAttempt: now, LastSuccess: now}, &certificates.Material{CertificatePEM: chain, PrivateKey: certificates.NewSecret(private)}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -131,6 +202,53 @@ func TestManagedManagementTLSActualStartupAndRestore(t *testing.T) {
 	}
 	invoke(t, "start", source)
 	invoke(t, "restart", source)
+	db, err = sqlite.Open(t.Context(), filepath.Join(source, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store = certificates.New(db.DB())
+	cfg.AutoRenew = true
+	if _, err := store.Save(t.Context(), cfg, resource.Revision); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	invoke(t, "ari_blocked", source)
+	if ariRequests.Load() != 0 {
+		t.Fatal("background ARI bypassed routing denial", ariRequests.Load())
+	}
+	db, err = sqlite.Open(t.Context(), filepath.Join(source, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	policyRule.Mode = "direct"
+	if err := plainstore.NewRouteRuleStore(db.DB()).SaveRule(t.Context(), policyRule, 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	store = certificates.New(db.DB())
+	current, err := store.Get(t.Context(), cfg.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Start a fresh metadata fixture after the denied-route case. Production
+	// retries retain their persisted backoff, covered by the clock-driven suite.
+	current.Status.RenewalInfo = nil
+	owner = uuid.New().String()
+	now = time.Now()
+	if ok, err := store.Acquire(t.Context(), cfg.ID, current.Revision, owner, now, time.Minute); err != nil || !ok {
+		t.Fatal(ok, err)
+	}
+	if err := store.Complete(t.Context(), cfg.ID, current.Revision, owner, now, current.Status, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	invoke(t, "ari", source)
+	if ariRequests.Load() != 2 {
+		t.Fatal("production worker did not use governed CA directory/ARI requests", ariRequests.Load())
+	}
 	db, err = sqlite.Open(t.Context(), filepath.Join(source, "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -173,6 +291,10 @@ func TestManagedManagementTLSActualStartupAndRestore(t *testing.T) {
 			invoke(t, action, target)
 		})
 	}
+	if ariRequests.Load() != 2 {
+		t.Fatal("restart/restore ignored the persisted ARI deadline", ariRequests.Load())
+	}
+
 	db, err = sqlite.Open(t.Context(), filepath.Join(source, "state.db"))
 	if err != nil {
 		t.Fatal(err)

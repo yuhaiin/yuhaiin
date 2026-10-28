@@ -72,7 +72,14 @@ func newCertificateRuntime(ctx context.Context, store *certificates.Store, proxy
 		return nil, err
 	}
 	challenges := manager.NewHTTPChallenges(available)
-	controller, err := manager.New(manager.Options{Store: store, Cleanup: dns.Reconcile, Report: func(code string) { log.Info("certificate lifecycle", "code", code) }, Issue: func(ctx context.Context, c contract.Config) (certificates.Material, error) {
+	controller, err := manager.New(manager.Options{Store: store, Cleanup: dns.Reconcile, RenewalInfo: func(ctx context.Context, c contract.Config, pair *tls.Certificate) (manager.RenewalInformation, error) {
+		client, transport, err := certificateClient(proxy, c.TrustPEM)
+		if err != nil {
+			return manager.RenewalInformation{}, err
+		}
+		defer transport.CloseIdleConnections()
+		return manager.FetchRenewalInfo(ctx, client, c, pair, time.Now())
+	}, Report: func(code string) { log.Info("certificate lifecycle", "code", code) }, Issue: func(ctx context.Context, c contract.Config) (certificates.Material, error) {
 		client, transport, err := certificateClient(proxy, c.TrustPEM)
 		if err != nil {
 			return certificates.Material{}, err

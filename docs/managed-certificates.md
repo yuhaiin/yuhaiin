@@ -2,7 +2,8 @@
 
 This work extends `pkg/cert` above the existing TLS engines. The application starts the lifecycle worker and exposes permission-gated
 management RPC and a responsive certificate page. Management HTTPS can opt in
-through its host-owned startup arguments. Live ARI retrieval remains under construction.
+through its host-owned startup arguments. Live CA renewal advice and its
+persisted refresh schedule run in the same worker.
 Management self-signed/file TLS, Gateway file termination, Gateway MITM CA and
 TLS Auto CA keep their existing behavior. Site certificates never replace a CA
 signer or enter the MITM leaf cache.
@@ -56,9 +57,25 @@ signer or enter the MITM leaf cache.
   startup restores the cache before Gateway assembly and starts work only after
   routing/admission is ready. Shutdown cancels work before closing network/SQL owners.
 
-The worker accepts a validated CA renewal window, but live ARI retrieval and
-periodic refresh are not implemented yet. A configured `autoRenew=false` still
-allows an explicitly queued initial/manual request, then stops automatic renewal.
+The worker fetches live [RFC 9773 renewal advice](https://www.rfc-editor.org/rfc/rfc9773.html)
+after issuance and refreshes it on a persisted Retry-After deadline. Requests use
+the governed verified CA transport, the advertised HTTPS origin and 64 KiB JSON
+limits; redirects are rejected. Certificate IDs preserve DER serial leading zeros.
+No expired or replaced leaf is queried and explanation links are never fetched.
+The public resource exposes the window, next check, state and consecutive failures.
+
+Refresh and issuance share the existing durable lease, one worker and one timer.
+Advice cannot reset issuance backoff, overwrite a newer revision or resurrect a
+deleted resource. Urgent past windows request immediate renewal subject to the
+five-minute minimum attempt interval. CA checking intervals are bounded to one
+minute–one day; temporary failures use at most five exponential retries, then a
+six-hour default. A failed metadata query keeps the current renewal plan and pair.
+Unsupported ARI uses the lifetime schedule. `autoRenew=false` permits explicitly
+queued initial/manual issuance, then stops periodic advice and automatic renewal.
+
+The existing mature ACME client still owns authenticated account/order protocol.
+It does not expose the optional newOrder `replaces` extension; no ARI-specific CA
+rate-limit exemption is claimed. Normal issuance limits and backoff always apply.
 
 No private-material read endpoint exists. Private wrappers redact ordinary Go
 formatting and JSON serialization. Configuration export excludes all new private
@@ -182,7 +199,7 @@ servers. Application HTTP-client tests verify governed admission, separate trust
 roots and no network fallback.
 
 The frontend passes lint, typecheck, translations, style checks, build and all
-364 tests in 116 files. Its native-Chrome harness runs the actual backend with
+366 tests in 117 files. Its native-Chrome harness runs the actual backend with
 private disposable SQLite at 1440, 360 and 320 pixels. It initializes a real
 administrator, saves a provider/resource, reads persisted settings back, observes
 a real background CA failure and verifies no public token or horizontal overflow.
@@ -204,12 +221,24 @@ replacement, retained streams, SNI rejection and reference protection. Update
 regressions reject an older capability and require the independent verifier's
 acknowledgement. These checks do not replace remaining full lifecycle qualification.
 
-## Remaining lifecycle integration
+## ARI application evidence and remaining qualification
 
-Live ARI retrieval/periodic refresh,
-complete application certificate restart/failure qualification and exact-head
-remote CI are still required. The worker currently accepts a validated CA renewal
-window supplied by its caller and otherwise schedules from certificate lifetime.
+Local HTTPS tests verify the RFC ID vector, unsigned GET, Retry-After bounds and
+HTTP-date parsing, unsafe origins/redirects, untrusted TLS, invalid/oversized JSON,
+past windows, missing headers, cancellation and safe explanation URLs. Injected
+clocks exercise persisted refresh/restart plans, urgent replacement without loops,
+retained old pairs, issuance/manual backoff, deduplication, configuration/delete
+cancellation and interrupted refresh leases. Related race suites pass.
+
+The actual CLI subprocess test now starts the complete application/worker with a
+private signed management pair. An explicit blocked routing rule prevents CA
+requests; after an explicit test-fixture route change, the governed HTTPS client
+reads a local CA directory/advice and publishes real SQLite status. Real restart
+and encrypted original/clone restoration preserve/reset the applicable identity
+and schedule. No public CA, system resolver or ungoverned fallback is used.
+
+Final requirement-by-requirement qualification of all three reliability stages
+and exact-head remote CI remain; earlier green commits do not qualify a later head.
 
 Provider wire behavior follows the official [Cloudflare create](https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/create/),
 [list](https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/list/)

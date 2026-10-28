@@ -102,7 +102,7 @@ Certificates page, then bind resource IDs to Gateway TLS termination. HTTP-01
 requires explicit opt-in on an existing port-80 Gateway and preserves source ACLs.
 File/self-signed TLS and independent MITM/TLS Auto CA behavior stay compatible.
 
-Backend full tests, related race/lint, both SQLite drivers and frontend 364 tests
+Backend full tests, related race/lint, both SQLite drivers and frontend 366 tests
 plus all static/build checks pass. Actual Gateway tests cover hot replacement,
 existing-stream continuity, SNI and reference deletion guards. A paired real-backend
 Chrome check at 1440/360/320 verifies persistence and background failure alerts;
@@ -110,8 +110,10 @@ local signing-CA/provider tests cover successful issuance independently.
 Management HTTPS has explicit host-owned resource selection, validated startup,
 hot replacement and original/clone recovery semantics with actual CLI tests.
 Protected updates reject targets lacking that capability and hold renewal until
-independent verification. Live ARI retrieval/refresh, final whole-application
-lifecycle qualification and exact-head CI remain. See the
+independent verification. Live ARI now reads and periodically refreshes CA advice
+through the existing bounded worker, durable lease and governed HTTPS client.
+Real-process routing/SQLite/restart/restore and local CA/clock tests pass.
+Final whole-application qualification and exact-head CI remain. See the
 [operator guide and precise remaining work](managed-certificates.md).
 
 ## Validation notes for the first delivery

@@ -16,7 +16,7 @@ import (
 type Options struct {
 	Store       *certificates.Store
 	Issue       func(context.Context, contract.Config) (certificates.Material, error)
-	RenewalInfo func(context.Context, contract.Config, *tls.Certificate) (RenewalWindow, error)
+	RenewalInfo func(context.Context, contract.Config, *tls.Certificate) (RenewalInformation, error)
 	Cleanup     func(context.Context) error
 	Now         func() time.Time
 	// Report receives finite diagnostic codes, never raw CA/provider bodies.
@@ -252,6 +252,34 @@ func (m *Manager) step(ctx context.Context) (time.Time, error) {
 		}
 		next = earlier(next, now.Add(time.Minute))
 	}
+	if selected == nil && m.options.RenewalInfo != nil {
+		var refresh *contract.Resource
+		var refreshDue time.Time
+		for _, resource := range resources {
+			due := renewalInfoDue(resource, now)
+			if due.IsZero() {
+				continue
+			}
+			if due.After(now) {
+				next = earlier(next, due)
+				continue
+			}
+			if refresh == nil || due.Before(refreshDue) {
+				refresh = new(resource)
+				refreshDue = due
+			}
+		}
+		if refresh != nil {
+			attempted, err := m.refreshRenewalInfo(ctx, *refresh)
+			if err != nil {
+				return time.Time{}, err
+			}
+			if attempted {
+				return m.options.Now(), nil
+			}
+			next = earlier(next, now.Add(time.Minute))
+		}
+	}
 	return next, nil
 }
 
@@ -281,16 +309,12 @@ func (m *Manager) issue(ctx context.Context, r contract.Resource) (bool, error) 
 		if err != nil {
 			issueErr = err
 		} else {
-			var window RenewalWindow
-			if m.options.RenewalInfo != nil {
-				if w, err := m.options.RenewalInfo(bounded, r.Config, pair); err == nil {
-					window = w
-				} else {
-					m.report("certificate_renewal_info_unavailable")
-				}
-			}
 			leaf := pair.Leaf
-			status = contract.Status{State: "ready", Issuer: leaf.Issuer.String(), Serial: leaf.SerialNumber.String(), NotBefore: leaf.NotBefore, NotAfter: leaf.NotAfter, LastAttempt: now, LastSuccess: m.options.Now(), NextAttempt: renewalTime(r.Config.ID, leaf.SerialNumber.String(), leaf.NotBefore, leaf.NotAfter, window)}
+			status = contract.Status{State: "ready", Issuer: leaf.Issuer.String(), Serial: leaf.SerialNumber.String(), NotBefore: leaf.NotBefore, NotAfter: leaf.NotAfter, LastAttempt: now, LastSuccess: m.options.Now(), NextAttempt: renewalTime(r.Config.ID, leaf.SerialNumber.String(), leaf.NotBefore, leaf.NotAfter, RenewalWindow{})}
+			if m.options.RenewalInfo != nil {
+				status = m.applyRenewalInfo(bounded, r.Config, pair, status)
+			}
+
 			publish = &material
 		}
 	}

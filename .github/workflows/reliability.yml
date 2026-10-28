@@ -3,6 +3,11 @@ name: Enterprise reliability
 on:
   pull_request:
     paths:
+      - 'pkg/cert/**'
+      - 'pkg/contract/certificate/**'
+      - 'pkg/gateway/**'
+      - 'pkg/contract/gateway/**'
+      - 'pkg/management/tls/**'
       - 'pkg/node/**'
       - 'pkg/app/**'
       - 'pkg/s3/**'
@@ -85,6 +90,10 @@ jobs:
             ./pkg/inbound ./pkg/route ./pkg/app ./pkg/app/backup/... ./pkg/net/trafficcontrol ./pkg/net/proxy/direct \
             ./pkg/net/proxy/openvpn/... ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/softether/... \
             ./pkg/net/proxy/globalprotect ./pkg/net/proxy/tailscale
+      - name: Local ACME, renewal advice and managed TLS race coverage
+        run: |
+          go test -race -count=1 -timeout=180s \
+            ./pkg/cert/manager/... ./pkg/store/certificates ./pkg/gateway ./pkg/management/tls ./pkg/contract/certificate
       - name: Keep offline identity inventory independent of unsupported native bridges
         shell: bash
         run: |

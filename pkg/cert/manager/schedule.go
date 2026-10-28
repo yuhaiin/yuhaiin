@@ -23,10 +23,11 @@ func renewalTime(id, serial string, notBefore, notAfter time.Time, window Renewa
 		return time.Time{}
 	}
 	start, end := window.Start, window.End
-	if start.IsZero() || !end.After(start) || start.Before(notBefore) || !end.Before(notAfter) {
+	if start.IsZero() || !end.After(start) || !start.Before(notAfter) {
 		start = notBefore.Add(lifetime / 5 * 3)
 		end = notBefore.Add(lifetime / 4 * 3)
 	}
+	end = minTime(end, notAfter)
 	hash := sha256.Sum256([]byte(id + ":" + serial))
 	width := end.Sub(start)
 	if width <= 0 {

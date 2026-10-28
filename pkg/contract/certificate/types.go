@@ -30,16 +30,29 @@ type Config struct {
 }
 
 type Status struct {
-	State       string    `json:"state"`
-	Issuer      string    `json:"issuer,omitempty"`
-	Serial      string    `json:"serial,omitempty"`
-	NotBefore   time.Time `json:"notBefore,omitzero"`
-	NotAfter    time.Time `json:"notAfter,omitzero"`
-	NextAttempt time.Time `json:"nextAttempt,omitzero"`
-	LastAttempt time.Time `json:"lastAttempt,omitzero"`
-	LastSuccess time.Time `json:"lastSuccess,omitzero"`
-	FailureCode string    `json:"failureCode,omitempty"`
-	Failures    int       `json:"failures,omitzero"`
+	State       string             `json:"state"`
+	Issuer      string             `json:"issuer,omitempty"`
+	Serial      string             `json:"serial,omitempty"`
+	NotBefore   time.Time          `json:"notBefore,omitzero"`
+	NotAfter    time.Time          `json:"notAfter,omitzero"`
+	NextAttempt time.Time          `json:"nextAttempt,omitzero"`
+	LastAttempt time.Time          `json:"lastAttempt,omitzero"`
+	LastSuccess time.Time          `json:"lastSuccess,omitzero"`
+	FailureCode string             `json:"failureCode,omitempty"`
+	Failures    int                `json:"failures,omitzero"`
+	RenewalInfo *RenewalInfoStatus `json:"renewalInfo,omitzero"`
+}
+
+// RenewalInfoStatus contains only public CA scheduling information. Its failure
+// count is independent of issuance failures and cannot reset their backoff.
+type RenewalInfoStatus struct {
+	State          string    `json:"state"`
+	CheckedAt      time.Time `json:"checkedAt,omitzero"`
+	NextCheck      time.Time `json:"nextCheck,omitzero"`
+	WindowStart    time.Time `json:"windowStart,omitzero"`
+	WindowEnd      time.Time `json:"windowEnd,omitzero"`
+	ExplanationURL string    `json:"explanationUrl,omitempty"`
+	Failures       int       `json:"failures,omitzero"`
 }
 
 type Reference struct {
