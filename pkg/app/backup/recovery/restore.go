@@ -175,6 +175,10 @@ func prepareRecoveryRestore(ctx context.Context, directory string, prepared *bac
 		}
 		return filepath.Join(directory, filepath.FromSlash(mapped)), nil
 	}
+	if mode == "clone" && preview.Runtime.ManagementTLS == "managed" {
+		preview.Runtime.ManagementTLS, preview.Runtime.ManagedCertificateID = "self_signed", ""
+		preview.Warnings = append(preview.Warnings, "clone_management_certificate_reenrollment_required")
+	}
 	preview.Runtime.WorkingDirectory = directory
 	if preview.Runtime.ManagementTLS == "files" {
 		preview.Runtime.CertificateFile, err = resolve(preview.Runtime.CertificateFile)

@@ -44,30 +44,11 @@ func MigrationCatalog(kind string) ([]MigrationDescriptor, error) {
 // checkpointing or immutable=1. A read transaction keeps metadata and migration
 // names consistent. This is a bounded management operation, never a dial-path read.
 func InspectStoreCatalog(ctx context.Context, path, kind string) ([]MigrationDescriptor, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return nil, err
-	}
-	if !info.Mode().IsRegular() {
-		return nil, errors.New("schema inspection requires an owned regular database")
-	}
-	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
-	uri := &url.URL{Scheme: "file", Path: filepath.ToSlash(absolute), RawQuery: "mode=ro"}
-	if filepath.VolumeName(absolute) != "" && !strings.HasPrefix(uri.Path, "/") {
-		uri.Path = "/" + uri.Path
-	}
-	db, err := sql.Open(driverName, uri.String())
+	db, err := OpenLiveReader(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 	defer db.Close()
-	db.SetMaxOpenConns(1)
-	if _, err := db.ExecContext(ctx, "PRAGMA query_only=ON; PRAGMA trusted_schema=OFF; PRAGMA busy_timeout=1000"); err != nil {
-		return nil, err
-	}
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, err
@@ -89,4 +70,36 @@ func InspectStoreCatalog(ctx context.Context, path, kind string) ([]MigrationDes
 		return nil, err
 	}
 	return catalog[:count], nil
+}
+
+// OpenLiveReader reads committed WAL state without bootstrap or migrations.
+// The caller must close it. Use OpenSnapshotReader only for isolated standalone
+// snapshots; immutable mode would ignore a running deployment's WAL.
+func OpenLiveReader(ctx context.Context, path string) (*sql.DB, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errors.New("schema inspection requires an owned regular database")
+	}
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	uri := &url.URL{Scheme: "file", Path: filepath.ToSlash(absolute), RawQuery: "mode=ro"}
+	if filepath.VolumeName(absolute) != "" && !strings.HasPrefix(uri.Path, "/") {
+		uri.Path = "/" + uri.Path
+	}
+	db, err := sql.Open(driverName, uri.String())
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(1)
+	if _, err := db.ExecContext(ctx, "PRAGMA query_only=ON; PRAGMA trusted_schema=OFF; PRAGMA busy_timeout=1000"); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+
+	return db, nil
 }

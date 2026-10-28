@@ -249,8 +249,8 @@ Enterprise reliability is being developed in one [backend PR](https://github.com
 
 The [managed-certificate guide](docs/managed-certificates.md) covers schema-24
 private storage, HTTP-01/Cloudflare DNS-01, persistent renewal, permission-gated
-API/UI and Gateway TLS references with hot replacement. Management HTTPS
-resource binding and live ARI refresh remain in progress.
+API/UI and Gateway TLS references with hot replacement. Management HTTPS supports explicit host-owned `-https-certificate-id` selection
+and compatible recovery/update checks. Live ARI refresh remains in progress.
 
 Backup transfer bounds and the disaster-recovery implementation status:
 [backup and recovery](docs/backup-recovery.md).

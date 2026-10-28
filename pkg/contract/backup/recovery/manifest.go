@@ -44,6 +44,7 @@ type File struct {
 type Runtime struct {
 	ManagementAuth       bool   `json:"managementAuth,omitzero"`
 	ManagementTLS        string `json:"managementTLS"`
+	ManagedCertificateID string `json:"managedCertificateId,omitempty"`
 	CertificateFile      string `json:"certificateFile,omitempty"`
 	KeyFile              string `json:"keyFile,omitempty"`
 	WorkingDirectory     string `json:"workingDirectory"`

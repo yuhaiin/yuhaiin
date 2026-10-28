@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/v2"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
+	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"uuid"
 
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
@@ -109,5 +112,27 @@ func TestManifestRejectsCorruptionUnknownFieldsAndOversize(t *testing.T) {
 	cancel()
 	if _, err := Describe(ctx, "unopened", "linux", "amd64"); err == nil {
 		t.Fatal("cancelled metadata operation succeeded")
+	}
+}
+
+func TestManagedTLSRequiresAdvertisedTargetCapability(t *testing.T) {
+	directory, m := fixture(t)
+	state, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputs := contractrecovery.Runtime{ManagementTLS: "managed", ManagedCertificateID: uuid.New().String(), WorkingDirectory: directory}
+	if err := backupstore.New(state.DB()).RecordRecoveryRuntime(t.Context(), inputs); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if status, err := m.Check(t.Context(), directory); err != nil || status.State != "compatible" {
+		t.Fatal(status, err)
+	}
+	m.ManagedTLS = false
+	if status, err := m.Check(t.Context(), directory); err != nil || status.State != "incompatible" || status.Reason != "target_managed_tls_unsupported" {
+		t.Fatal("legacy target accepted managed startup", status, err)
 	}
 }

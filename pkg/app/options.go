@@ -280,6 +280,9 @@ type StartOptions struct {
 	// RecoveryStartupID authorizes one pending offline-restore startup attempt.
 	// Ordinary/embedded starts leave it empty and reject pending activation.
 	RecoveryStartupID string
+	// DelayCertificateStart lets the CLI verify its management listener before
+	// renewal can replace the certificate pinned by startup/update supervision.
+	DelayCertificateStart bool
 
 	Updater             updatepkg.Installer
 	RecoveryMaintenance backupapp.RecoveryMaintainer

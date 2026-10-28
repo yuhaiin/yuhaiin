@@ -1,8 +1,8 @@
 # Managed HTTPS certificates
 
 This work extends `pkg/cert` above the existing TLS engines. The application starts the lifecycle worker and exposes permission-gated
-management RPC and a responsive certificate page. Management HTTPS resource
-binding and live ARI retrieval remain under construction.
+management RPC and a responsive certificate page. Management HTTPS can opt in
+through its host-owned startup arguments. Live ARI retrieval remains under construction.
 Management self-signed/file TLS, Gateway file termination, Gateway MITM CA and
 TLS Auto CA keep their existing behavior. Site certificates never replace a CA
 signer or enter the MITM leaf cache.
@@ -123,8 +123,18 @@ certificate jobs, private material, account keys, tokens and pending receipts.
    backoff and rate protection. A failed renewal retains the usable old pair.
    New TLS handshakes use the atomic replacement without restarting the Gateway.
 
-Management HTTPS retains its current self-signed/file behavior; its managed
-resource binding is not yet available. ACME resources never replace Gateway MITM
+Management HTTPS keeps self-signed/file defaults. To migrate, first issue a valid
+resource from the existing interface, then add `-https-certificate-id <resource-id>`
+to the installed service and restart. The certificate page exposes this exact
+argument and actual references. Use a DNS hostname covered by the certificate.
+Do not combine managed mode with file-pair or generated-name flags. Missing,
+expired or untrusted material stops startup before HTTP is served; there is no
+plaintext or self-signed fallback for an explicitly managed listener. Renewals
+use the same atomic cache. An established stream is not interrupted. To return
+to host file/self-signed mode, remove the reference argument and restart with
+the reviewed original host settings. A deployment which adopted restored startup
+settings must also explicitly review `-recovery-startup=false`; ordinary flags do
+not silently override restored inputs. ACME resources never replace Gateway MITM
 or TLS Auto CA signers. File-based Gateway certificate/key configuration remains
 supported and is mutually exclusive with managed IDs on a listener.
 
@@ -142,6 +152,23 @@ Public events retain at most 64 finite-code entries. Prometheus exposes
 `yuhaiin_certificate_renewals_total` with success/failure labels. Scrapes read
 atomic memory snapshots without SQL or domain/URL/resource-ID labels.
 
+## Management identity, recovery and updates
+
+Managed mode records its resource ID in the authenticated recovery runtime.
+The stopped-writer configuration SQLite snapshot owns its material and accounts;
+no PEM is copied from an actively written database. Startup binds a private
+reference/deletion guard only after validating the current pair. Original-instance
+restore preserves the ID and keys; clone restore removes source private material
+and uses a new self-signed management identity, with an explicit preview warning.
+Recovery startup compares the restored ID as well as TLS/auth/file modes.
+
+The update manifest advertises `managedTLS` support. A target without it is refused
+when the observed runtime uses managed management TLS, even if schema catalogs
+match. The compatibility read includes committed live WAL without migration.
+During a protected update, renewal waits for both internal pinned-listener checks
+and the independent helper's completion acknowledgement. Timeout, foreign PID or
+changed operation fails startup rather than racing the receipt's certificate pin.
+
 ## Application and browser evidence
 
 The application/Gateway/API/store/manager/auth focused and race suites pass,
@@ -155,7 +182,7 @@ servers. Application HTTP-client tests verify governed admission, separate trust
 roots and no network fallback.
 
 The frontend passes lint, typecheck, translations, style checks, build and all
-363 tests in 116 files. Its native-Chrome harness runs the actual backend with
+364 tests in 116 files. Its native-Chrome harness runs the actual backend with
 private disposable SQLite at 1440, 360 and 320 pixels. It initializes a real
 administrator, saves a provider/resource, reads persisted settings back, observes
 a real background CA failure and verifies no public token or horizontal overflow.
@@ -170,11 +197,16 @@ CHROME_PATH=/path/to/chrome node scripts/check-certificates.mjs
 
 The earlier isolated systemd runner also passes schema 24-to-25 startup,
 post-migration readiness failure, helper SIGKILL and paired CLI recovery back to
-schema 24. These checks do not establish complete certificate deployment readiness.
+schema 24. Actual CLI subprocess tests additionally cover managed startup/restart, missing
+material, ambiguous source flags, encrypted original/clone restore, adopted startup
+settings and verified TLS after restoration. Management listener tests cover hot
+replacement, retained streams, SNI rejection and reference protection. Update
+regressions reject an older capability and require the independent verifier's
+acknowledgement. These checks do not replace remaining full lifecycle qualification.
 
 ## Remaining lifecycle integration
 
-Management HTTPS managed-resource binding, live ARI retrieval/periodic refresh,
+Live ARI retrieval/periodic refresh,
 complete application certificate restart/failure qualification and exact-head
 remote CI are still required. The worker currently accepts a validated CA renewal
 window supplied by its caller and otherwise schedules from certificate lifetime.

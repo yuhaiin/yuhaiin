@@ -397,7 +397,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	})
 
 	tailscale.Mux.Store(app.Mux)
-	if certificateService != nil {
+	if certificateService != nil && !so.DelayCertificateStart {
 		if err := certificateService.Start(ctx); err != nil {
 			_ = app.Close()
 			return nil, err

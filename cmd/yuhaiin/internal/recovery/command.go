@@ -48,8 +48,9 @@ func Execute(ctx context.Context, args []string, output io.Writer) error {
 	recipient := flags.String("recipient", "", "external public age X25519 recipient for create")
 	maintenance := flags.Bool("maintenance", false, "confirm server and external identity/certificate writers are stopped")
 	includeHistory := flags.Bool("include-history", false, "include optional traffic and connection history")
-	tlsMode := flags.String("management-tls", "", "override recorded management TLS mode: disabled, self_signed, files")
+	tlsMode := flags.String("management-tls", "", "override recorded management TLS mode: disabled, self_signed, files, managed")
 	certFile := flags.String("https-cert", "", "management certificate file for explicit startup inputs")
+	managedID := flags.String("https-certificate-id", "", "managed management HTTPS certificate ID for explicit startup inputs")
 	keyFile := flags.String("https-key", "", "management private key file for explicit startup inputs")
 	workingDirectory := flags.String("working-directory", "", "absolute working directory for explicit startup inputs")
 	externalWeb := flags.String("eweb", "", "external web assets for explicit startup inputs")
@@ -151,8 +152,8 @@ func Execute(ctx context.Context, args []string, output io.Writer) error {
 			key.Passphrase = value
 		}
 		var inputs *contractrecovery.Runtime
-		if *managementAuth || *tlsMode != "" || *workingDirectory != "" || *certFile != "" || *keyFile != "" || *externalWeb != "" {
-			inputs = &contractrecovery.Runtime{ManagementAuth: *managementAuth, ManagementTLS: *tlsMode, CertificateFile: *certFile, KeyFile: *keyFile, WorkingDirectory: *workingDirectory, ExternalWebDirectory: *externalWeb}
+		if *managementAuth || *tlsMode != "" || *workingDirectory != "" || *certFile != "" || *keyFile != "" || *managedID != "" || *externalWeb != "" {
+			inputs = &contractrecovery.Runtime{ManagementAuth: *managementAuth, ManagementTLS: *tlsMode, CertificateFile: *certFile, ManagedCertificateID: *managedID, KeyFile: *keyFile, WorkingDirectory: *workingDirectory, ExternalWebDirectory: *externalWeb}
 		}
 		manifest, err := recovery.Create(ctx, *directory, *archive, key, recovery.CreateOptions{ConfirmedMaintenance: *maintenance, IncludeHistory: *includeHistory, Runtime: inputs})
 		if err != nil {

@@ -290,6 +290,18 @@ func TestRecoveryMonitoringSchedulesPreservedForOriginalAndDisabledForClone(t *t
 	if err := certificateStore.AddDNSCleanup(t.Context(), certificates.DNSCleanup{ID: uuid.New().String(), ProviderID: provider.ID, Name: "_acme-challenge.site.example.com", Value: strings.Repeat("a", 43), NotBefore: time.Now().Add(time.Hour).UnixMilli()}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
+	if err := certificateStore.BindManagement(t.Context(), managed.Config.ID); err != nil {
+		t.Fatal(err)
+	}
+	inputs, err := backupstore.LoadRecoveryRuntime(t.Context(), db.DB())
+	if err != nil || inputs == nil {
+		t.Fatal("missing runtime", err)
+	}
+	inputs.ManagementTLS, inputs.ManagedCertificateID = "managed", managed.Config.ID
+	if err := backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), *inputs); err != nil {
+		t.Fatal(err)
+	}
+
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -316,6 +328,21 @@ func TestRecoveryMonitoringSchedulesPreservedForOriginalAndDisabledForClone(t *t
 			}
 			defer restored.Close()
 			certificatesStore := certificates.New(restored)
+			restoredInputs, err := backupstore.LoadRecoveryRuntime(t.Context(), restored)
+			if err != nil {
+				t.Fatal(err)
+			}
+			refs, err := certificatesStore.References(t.Context(), managed.Config.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode == "original" && (restoredInputs.ManagementTLS != "managed" || restoredInputs.ManagedCertificateID != managed.Config.ID || len(refs) != 1 || refs[0].Kind != "management") {
+				t.Fatal("original managed binding was not preserved", restoredInputs, refs)
+			}
+			if mode == "clone" && (restoredInputs.ManagementTLS != "self_signed" || restoredInputs.ManagedCertificateID != "" || len(refs) != 0) {
+				t.Fatal("clone inherited source management identity", restoredInputs, refs)
+			}
+
 			certificate, err := certificatesStore.Get(t.Context(), managed.Config.ID)
 			if err != nil || certificate.Config.AutoRenew != (mode == "original") {
 				t.Fatal("wrong certificate renewal ownership", certificate, err)

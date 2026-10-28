@@ -139,7 +139,7 @@ func PrepareStartup(directory string, lifecycle *os.File, inputs contractrecover
 	if tx.Phase != "awaiting_startup" {
 		return nil, errors.Join(errors.New("interrupted recovery was rolled back; review the recovery point and restart"), rollbackRecoverySet(directory, tx))
 	}
-	if inputs.ManagementAuth != tx.Runtime.ManagementAuth || inputs.ManagementTLS != tx.Runtime.ManagementTLS || inputs.CertificateFile != tx.Runtime.CertificateFile || inputs.KeyFile != tx.Runtime.KeyFile || inputs.ExternalWebDirectory != tx.Runtime.ExternalWebDirectory {
+	if inputs.ManagementAuth != tx.Runtime.ManagementAuth || inputs.ManagementTLS != tx.Runtime.ManagementTLS || inputs.ManagedCertificateID != tx.Runtime.ManagedCertificateID || inputs.CertificateFile != tx.Runtime.CertificateFile || inputs.KeyFile != tx.Runtime.KeyFile || inputs.ExternalWebDirectory != tx.Runtime.ExternalWebDirectory {
 		return nil, errors.New("startup TLS/authentication/file inputs do not match the restored deployment; use the inputs returned by recovery restore or roll back")
 	}
 	if tx.AdoptStartup && (inputs.WorkingDirectory != tx.Runtime.WorkingDirectory || tx.Runtime.ListenAddress != "" && inputs.ListenAddress != tx.Runtime.ListenAddress) {

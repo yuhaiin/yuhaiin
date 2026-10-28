@@ -80,11 +80,18 @@ Metrics/events and public API expose no private keys or provider tokens.
 
 Actual Gateway TLS tests cover new-certificate visibility, existing-stream
 continuity, SNI rejection and guard repair after config-only import. Backend
-full/focused/race/lint and both SQLite drivers pass. Frontend 363 tests, lint,
+full/focused/race/lint and both SQLite drivers pass. Frontend 364 tests, lint,
 types, translations, style/build and paired native-Chrome checks at 1440/360/320
 pass. Browser evidence uses a local CA failure; successful issuance uses the
 separate local signing-CA/provider integration tests.
 
-Still required: Management HTTPS resource binding, live ARI retrieval/refresh,
+Management HTTPS now supports explicit `-https-certificate-id`, validated before
+serving, with references/hot replacement and authenticated recovery runtime.
+Actual CLI startup/restart and encrypted original/clone restore tests pass; clones
+receive a new self-signed identity. Update manifests advertise managed TLS support;
+older targets are rejected before replacement and renewal waits for independent
+pinned-listener acknowledgement. Current focused/race/both-driver checks pass.
+
+Still required: live ARI retrieval/refresh,
 complete application certificate restart/failure qualification and exact-head
 remote CI. Management TLS, MITM CA and TLS Auto CA retain their current ownership.

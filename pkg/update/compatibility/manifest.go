@@ -16,6 +16,7 @@ import (
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/update"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
 
 const MaxManifestBytes = 512 << 10
@@ -30,13 +31,14 @@ type Manifest struct {
 	Size         int64                                   `json:"size"`
 	Platform     string                                  `json:"platform"`
 	Architecture string                                  `json:"architecture"`
+	ManagedTLS   bool                                    `json:"managedTLS,omitzero"`
 	UpdateGuard  int                                     `json:"updateGuard,omitzero"`
 	StartupGuard int                                     `json:"startupGuard"`
 	Schemas      map[string][]sqlite.MigrationDescriptor `json:"schemas"`
 }
 
 func Describe(ctx context.Context, path, platform, architecture string) (Manifest, error) {
-	m := Manifest{Format: "yuhaiin-update", Version: 1, Asset: filepath.Base(path), Platform: platform, Architecture: architecture, StartupGuard: 1, Schemas: make(map[string][]sqlite.MigrationDescriptor)}
+	m := Manifest{Format: "yuhaiin-update", Version: 1, Asset: filepath.Base(path), Platform: platform, Architecture: architecture, StartupGuard: 1, ManagedTLS: true, Schemas: make(map[string][]sqlite.MigrationDescriptor)}
 	if platform == "linux" {
 		m.UpdateGuard = 1
 	}
@@ -158,6 +160,21 @@ func (m Manifest) Check(ctx context.Context, directory string) (contract.Compati
 		}
 		if len(observed) < len(target) {
 			result.State, result.Reason, result.DatabaseRecoveryRequired = "migration_required", "database_recovery_point_required", true
+		}
+	}
+	if !m.ManagedTLS {
+		db, err := sqlite.OpenLiveReader(ctx, filepath.Join(directory, "state.db"))
+		if err != nil {
+			return contract.CompatibilityStatus{State: "incompatible", Reason: "management_tls_state_unreadable"}, err
+		}
+		inputs, err := backupstore.LoadRecoveryRuntime(ctx, db)
+		err = errors.Join(err, db.Close())
+		if err != nil {
+			return contract.CompatibilityStatus{State: "incompatible", Reason: "management_tls_state_unreadable"}, err
+		}
+		if inputs != nil && inputs.ManagementTLS == "managed" {
+			result.State, result.Reason = "incompatible", "target_managed_tls_unsupported"
+			return result, nil
 		}
 	}
 	return result, nil

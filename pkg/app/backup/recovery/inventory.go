@@ -23,6 +23,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/zerotier"
 	"github.com/Asutorufa/yuhaiin/pkg/store"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
+	"github.com/Asutorufa/yuhaiin/pkg/store/certificates"
 )
 
 type recoveryInventory struct {
@@ -60,6 +61,15 @@ func (c *recoveryInventory) collect(db *sql.DB) error {
 	case "self_signed":
 		if _, err := c.copy(filepath.Join(c.source, "management-tls.pem"), "listener_certificate", true); err != nil {
 			return err
+		}
+	case "managed":
+		// The closed-writer SQLite snapshot owns site/account keys and material.
+		resources := certificates.New(db)
+		if _, err := resources.Get(c.ctx, c.runtime.ManagedCertificateID); err != nil {
+			return errors.New("management certificate is absent from recovery snapshot")
+		}
+		if _, err := resources.Material(c.ctx, c.runtime.ManagedCertificateID); err != nil {
+			return errors.New("management certificate material is absent from recovery snapshot")
 		}
 	case "files":
 		if c.runtime.CertificateFile == "" || c.runtime.KeyFile == "" {

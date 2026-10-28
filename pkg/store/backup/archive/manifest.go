@@ -12,6 +12,7 @@ import (
 	"uuid"
 
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/certificate"
 )
 
 func ValidateManifest(manifest contractrecovery.Manifest) error {
@@ -167,10 +168,17 @@ func ValidateRuntime(inputs contractrecovery.Runtime) error {
 	if !recoverySourcePath(inputs.WorkingDirectory) {
 		return errors.New("invalid recovery working directory")
 	}
+	if inputs.ManagementTLS != "managed" && inputs.ManagedCertificateID != "" {
+		return errors.New("unexpected managed certificate reference")
+	}
 	switch inputs.ManagementTLS {
 	case "disabled", "self_signed":
 		if inputs.CertificateFile != "" || inputs.KeyFile != "" {
 			return errors.New("unexpected management TLS file pair")
+		}
+	case "managed":
+		if !certificate.ValidID(inputs.ManagedCertificateID) || inputs.CertificateFile != "" || inputs.KeyFile != "" {
+			return errors.New("invalid managed management TLS reference")
 		}
 	case "files":
 		if inputs.CertificateFile == "" || inputs.KeyFile == "" {

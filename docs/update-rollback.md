@@ -248,3 +248,14 @@ On the local AMD Ryzen 5 5600G Linux/amd64 host, three 300 ms samples measured
 36.37–45.22 ms, 1.67–1.68 MB allocated and 10,785–10,834 allocations per fixture
 operation. There was no prior complete protected-update coordinator to compare
 against. [Raw data](benchmarks/data/update-protection-2026-10-27/coordinator.txt).
+
+### Managed management TLS compatibility
+
+`managedTLS` in the checksum-bound update manifest advertises support for
+`-https-certificate-id` and its recorded recovery runtime. When a deployment uses
+this mode, a target lacking that capability is rejected before replacement even
+with equal schema catalogs. During protected startup, renewal waits for the
+independent helper to finish its pinned HTTPS/PID check; the startup receipt by
+itself does not release renewal. Missing acknowledgement, cancellation or a
+foreign operation/PID fails the startup. Original-instance recovery preserves the
+managed identity; clone recovery uses a new self-signed management certificate.

@@ -62,3 +62,37 @@ func (s *Startup) Complete(ctx context.Context, address string, certificate []by
 		return nil
 	})
 }
+
+// AwaitVerification keeps certificate renewal behind the independent helper's
+// pinned listener check. A startup receipt alone is not its acknowledgement;
+// replacing the leaf while that check is pending would invalidate the pin.
+func (s *Startup) AwaitVerification(ctx context.Context) error {
+	if s == nil || s.recovered {
+		return nil
+	}
+	timer := time.NewTicker(250 * time.Millisecond)
+	defer timer.Stop()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		r, err := Read(s.directory)
+		if err != nil {
+			return err
+		}
+		if r == nil || r.ID != s.id || r.ReadyPID != os.Getpid() {
+			return errors.New("update verification no longer owns this startup")
+		}
+		if r.Phase == "completed" {
+			return nil
+		}
+		if r.Phase != "healthy" {
+			return errors.New("independent update verification did not complete")
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
