@@ -1,0 +1,26 @@
+name: Format SSTP identity changes (temporary)
+on:
+  push:
+    branches: [feat/rootless-sstp-server]
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - name: Apply Go formatting and fixes
+        run: |
+          gofmt -w pkg/net/proxy/vpnkit/mschap/mschap.go pkg/net/proxy/vpnkit/mschap/mppe.go
+          gofmt -w pkg/net/proxyauth/auth.go pkg/net/proxyauth/scope.go
+          gofmt -w pkg/management/auth/proxy_credentials.go pkg/management/auth/proxy_credentials_test.go
+          gofmt -w pkg/storage/sqlite/management_auth.go pkg/contract/inbound/types.go pkg/inbound/contract_listener.go
+          gofmt -w pkg/net/proxy/vpnkit/ppp/server.go pkg/net/proxy/vpnkit/ppp/server_test.go
+          gofmt -w pkg/net/proxy/sstp/server.go pkg/net/proxy/sstp/server_integration_test.go
+          gofmt -w pkg/inbound/reverse_tcp_test.go pkg/inbound/transport_compat_test.go
+          git rm .github/workflows/format-sstp-auth-once.yml
+          git add pkg/net/proxy/vpnkit/mschap pkg/net/proxyauth pkg/management/auth/proxy_credentials.go pkg/management/auth/proxy_credentials_test.go pkg/storage/sqlite/management_auth.go pkg/contract/inbound/types.go pkg/inbound/contract_listener.go pkg/net/proxy/vpnkit/ppp pkg/net/proxy/sstp pkg/inbound/reverse_tcp_test.go pkg/inbound/transport_compat_test.go
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Format SSTP identity integration"
+          git push
