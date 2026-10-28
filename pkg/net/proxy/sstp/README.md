@@ -39,3 +39,7 @@ TCP rate counts one-way application bytes while the echo sends the same bytes
 back through the tunnel. The ephemeral server uses a self-signed certificate,
 so the test opts out of TLS certificate verification only for that throwaway
 fixture.
+
+## Rootless SSTP server
+
+See [SSTP inbound (rootless)](SERVER.md) for server configuration, authentication requirements, limitations, and the in-memory forwarding architecture.

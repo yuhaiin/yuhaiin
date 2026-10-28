@@ -60,7 +60,12 @@ func getAsymmetricStartKey(masterKey [16]byte, keyLen int, isSend, isServer bool
 //
 //	ClientHLAK = ClientSendKey || ClientReceiveKey
 func ClientHLAK(password string, ntResponse [NTResponseLen]byte) [HLAKLen]byte {
-	passwordHash := NTPasswordHash(password)
+	return ClientHLAKFromHash(NTPasswordHash(password), ntResponse)
+}
+
+// ClientHLAKFromHash derives the SSTP binding key from the NT hash.
+// NT hashes are password-equivalent and must never be exposed to clients.
+func ClientHLAKFromHash(passwordHash [16]byte, ntResponse [NTResponseLen]byte) [HLAKLen]byte {
 	passwordHashHash := ntPasswordHashHash(passwordHash)
 	masterKey := getMasterKey(passwordHashHash, ntResponse)
 
