@@ -291,18 +291,18 @@ func (WireguardProtocol) ProtocolType() string { return ProtocolWireguard }
 // SSTPProtocol terminates PPP connections with independent in-memory IP stacks.
 // Passwords are needed for MS-CHAPv2; application-login hashes cannot be reused.
 type SSTPProtocol struct {
-    TLS             *ServerTLSConfig `json:"tls"`
-    ServerAddress   string           `json:"serverAddress"`
-    ClientAddresses []string         `json:"clientAddresses"`
-    DNS             string           `json:"dns,omitzero"`
-    MTU             int              `json:"mtu,omitzero"`
-    MaxSessions     int              `json:"maxSessions,omitzero"`
-    Users           []SSTPUser       `json:"users"`
+	TLS             *ServerTLSConfig `json:"tls"`
+	ServerAddress   string           `json:"serverAddress"`
+	ClientAddresses []string         `json:"clientAddresses"`
+	DNS             string           `json:"dns,omitzero"`
+	MTU             int              `json:"mtu,omitzero"`
+	MaxSessions     int              `json:"maxSessions,omitzero"`
+	Users           []SSTPUser       `json:"users"`
 }
 
 type SSTPUser struct {
-    Username string `json:"username"`
-    Password string `json:"password"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 func (SSTPProtocol) ProtocolType() string { return ProtocolSSTP }
@@ -380,9 +380,11 @@ func (p Protocol) Variant() (ProtocolVariant, error) {
 		}
 		return p.Redir, nil
 	case ProtocolSSTP:
-        if p.SSTP == nil { return nil, fmt.Errorf("protocol %s missing sstp field", p.Type) }
-        return p.SSTP, nil
-    case ProtocolWireguard:
+		if p.SSTP == nil {
+			return nil, fmt.Errorf("protocol %s missing sstp field", p.Type)
+		}
+		return p.SSTP, nil
+	case ProtocolWireguard:
 		if p.Wireguard == nil {
 			return nil, fmt.Errorf("protocol %s missing wireguard field", p.Type)
 		}
@@ -455,11 +457,11 @@ func (p Protocol) nonNilCount() int {
 		count++
 	}
 	if p.Wireguard != nil {
-        count++
-    }
-    if p.SSTP != nil {
-        count++
-    }
+		count++
+	}
+	if p.SSTP != nil {
+		count++
+	}
 	if p.Krunlet != nil {
 		count++
 	}

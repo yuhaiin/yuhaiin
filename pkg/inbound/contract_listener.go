@@ -28,7 +28,7 @@ import (
 	redirserver "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
-    "github.com/Asutorufa/yuhaiin/pkg/net/proxy/sstp"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/sstp"
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
@@ -91,17 +91,17 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 		}, handler)
 	}
 	if config.Protocol.Type == contract.ProtocolSSTP {
-        if config.Network.Type != contract.NetworkTCPUDP || len(config.Transports) != 0 || config.Network.TCPUDP == nil {
-            return nil, errors.New("sstp inbound requires a TCP listener and no additional transports")
-        }
-        if config.Network.TCPUDP.UDP != contract.UDPDisabled && config.Network.TCPUDP.UDP != contract.UDPTCPOnly {
-            return nil, errors.New("sstp inbound requires TCP-only networking")
-        }
-        if config.Authentication != nil {
-            return nil, errors.New("sstp inbound uses dedicated MS-CHAPv2 credentials")
-        }
-    }
-    if config.Protocol.Type == contract.ProtocolKrunlet {
+		if config.Network.Type != contract.NetworkTCPUDP || len(config.Transports) != 0 || config.Network.TCPUDP == nil {
+			return nil, errors.New("sstp inbound requires a TCP listener and no additional transports")
+		}
+		if config.Network.TCPUDP.UDP != contract.UDPDisabled && config.Network.TCPUDP.UDP != contract.UDPTCPOnly {
+			return nil, errors.New("sstp inbound requires TCP-only networking")
+		}
+		if config.Authentication != nil {
+			return nil, errors.New("sstp inbound uses dedicated MS-CHAPv2 credentials")
+		}
+	}
+	if config.Protocol.Type == contract.ProtocolKrunlet {
 		if config.Network.Type != contract.NetworkEmpty {
 			return nil, errors.New("krunlet inbound requires empty network")
 		}
@@ -338,19 +338,23 @@ func contractProtocol(config contract.Protocol, lis netapi.Listener, handler net
 		options.FakeIPRanges = ranges
 		return tun.NewTun(options, lis, handler)
 	case contract.ProtocolSSTP:
-        c := config.SSTP
-        if c.TLS == nil { return nil, errors.New("sstp: TLS configuration is required") }
-        tlsConfig, err := ytls.ParseServerTLSConfig(serverTLSConfig(*c.TLS))
-        if err != nil { return nil, err }
-        users := make([]sstp.ServerUser, 0, len(c.Users))
-        for _, u := range c.Users {
-            users = append(users, sstp.ServerUser{Username: u.Username, Password: u.Password})
-        }
-        return sstp.NewServer(sstp.ServerConfig{
-            ServerAddress: c.ServerAddress, ClientAddresses: c.ClientAddresses,
-            DNS: c.DNS, MTU: c.MTU, MaxSessions: c.MaxSessions, Users: users,
-        }, tlsConfig, lis, handler)
-    case contract.ProtocolReverseTCP:
+		c := config.SSTP
+		if c.TLS == nil {
+			return nil, errors.New("sstp: TLS configuration is required")
+		}
+		tlsConfig, err := ytls.ParseServerTLSConfig(serverTLSConfig(*c.TLS))
+		if err != nil {
+			return nil, err
+		}
+		users := make([]sstp.ServerUser, 0, len(c.Users))
+		for _, u := range c.Users {
+			users = append(users, sstp.ServerUser{Username: u.Username, Password: u.Password})
+		}
+		return sstp.NewServer(sstp.ServerConfig{
+			ServerAddress: c.ServerAddress, ClientAddresses: c.ClientAddresses,
+			DNS: c.DNS, MTU: c.MTU, MaxSessions: c.MaxSessions, Users: users,
+		}, tlsConfig, lis, handler)
+	case contract.ProtocolReverseTCP:
 		return newReverseTCPServer(config.ReverseTCP.Target, lis, handler)
 	case contract.ProtocolNone:
 		return noopAccepter{Listener: lis}, nil
