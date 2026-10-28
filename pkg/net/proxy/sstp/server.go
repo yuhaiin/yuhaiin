@@ -166,7 +166,7 @@ func (s *Server) acceptLoop(maxSessions int) {
 			s.mu.Lock()
 			s.conns[conn] = struct{}{}
 			s.mu.Unlock()
-			s.wg.Go(func()
+			s.wg.Go(func() {
 				defer func() {
 					s.mu.Lock()
 					delete(s.conns, conn)
