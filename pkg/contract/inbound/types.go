@@ -27,6 +27,7 @@ const (
 	ProtocolRedir      = "redir"
 	ProtocolTun        = "tun"
 	ProtocolWireguard  = "wireguard"
+	ProtocolSSTP       = "sstp"
 	ProtocolKrunlet    = "krunlet"
 	ProtocolReverseTCP = "reverse_tcp"
 	ProtocolNone       = "none"
@@ -157,6 +158,7 @@ type Protocol struct {
 	Redir      *RedirProtocol      `json:"redir,omitzero"`
 	Tun        *TunProtocol        `json:"tun,omitzero"`
 	Wireguard  *WireguardProtocol  `json:"wireguard,omitzero"`
+	SSTP       *SSTPProtocol       `json:"sstp,omitzero"`
 	Krunlet    *KrunletProtocol    `json:"krunlet,omitzero"`
 	ReverseTCP *ReverseTCPProtocol `json:"reverse_tcp,omitzero"`
 	None       *NoneProtocol       `json:"none,omitzero"`
@@ -286,6 +288,25 @@ type WireguardPeer struct {
 
 func (WireguardProtocol) ProtocolType() string { return ProtocolWireguard }
 
+// SSTPProtocol terminates PPP connections with independent in-memory IP stacks.
+// Passwords are needed for MS-CHAPv2; application-login hashes cannot be reused.
+type SSTPProtocol struct {
+    TLS             *ServerTLSConfig `json:"tls"`
+    ServerAddress   string           `json:"serverAddress"`
+    ClientAddresses []string         `json:"clientAddresses"`
+    DNS             string           `json:"dns,omitzero"`
+    MTU             int              `json:"mtu,omitzero"`
+    MaxSessions     int              `json:"maxSessions,omitzero"`
+    Users           []SSTPUser       `json:"users"`
+}
+
+type SSTPUser struct {
+    Username string `json:"username"`
+    Password string `json:"password"`
+}
+
+func (SSTPProtocol) ProtocolType() string { return ProtocolSSTP }
+
 // KrunletProtocol listens for native Krunlet virtual NIC flows on a local
 // Unix socket. It feeds TCP/UDP directly to yuhaiin's normal inbound handler.
 type KrunletProtocol struct {
@@ -358,7 +379,10 @@ func (p Protocol) Variant() (ProtocolVariant, error) {
 			return nil, fmt.Errorf("protocol %s missing %s field", p.Type, ProtocolRedir)
 		}
 		return p.Redir, nil
-	case ProtocolWireguard:
+	case ProtocolSSTP:
+        if p.SSTP == nil { return nil, fmt.Errorf("protocol %s missing sstp field", p.Type) }
+        return p.SSTP, nil
+    case ProtocolWireguard:
 		if p.Wireguard == nil {
 			return nil, fmt.Errorf("protocol %s missing wireguard field", p.Type)
 		}
@@ -431,8 +455,11 @@ func (p Protocol) nonNilCount() int {
 		count++
 	}
 	if p.Wireguard != nil {
-		count++
-	}
+        count++
+    }
+    if p.SSTP != nil {
+        count++
+    }
 	if p.Krunlet != nil {
 		count++
 	}
